@@ -163,11 +163,11 @@ CONTAINS
     !   Initialize variables
     !
     !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
-    paclc(jcs:kproma,1:klev) = 0.0_wp
+    paclc(1:kbdim,1:klev) = 0.0_wp
     !$ACC END KERNELS
     !
     !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
-    printop(jcs:kproma) = 0.0_wp
+    printop(1:kbdim) = 0.0_wp
     !$ACC END KERNELS
 
 

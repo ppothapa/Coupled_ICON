@@ -245,7 +245,7 @@ CONTAINS
 
     !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1, nlev
-      DO jl = 1, nc
+      DO jl = 1, nbdim
         dissip_gwd(jl,jk) = 0.0_wp
         tend_u_gwd(jl,jk) = 0.0_wp
         tend_v_gwd(jl,jk) = 0.0_wp

@@ -29,6 +29,8 @@ MODULE mo_bc_aeropt_splumes
                                    & read_bcast_real_2D, read_bcast_real_3D, &
                                    & closeFile
   USE mo_model_domain,         ONLY: p_patch
+  USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
+  USE mo_loopindices,          ONLY: get_indices_c
 #ifdef __NO_RTE_RRTMGP__
   USE mo_psrad_srtm_kgs,       ONLY: &
       &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
@@ -476,7 +478,14 @@ MODULE mo_bc_aeropt_splumes
          jk                          ,& !< index for looping over vertical dimension
          jki                         ,& !< index for looping over vertical dimension for reversing
          jl                          ,& !< index for looping over block
-         jwl                            !< index for looping over wavelengths
+         jwl                         ,& !< index for looping over wavelengths
+         jcs_true                    ,& !< "true" jcs (by default, SR is called with jcs = 1)
+         jce                         ,& !< needed for the call of get_indices_c
+         rl_start                    ,& !< needed for the call of get_indices_c
+         rl_end                      ,& !< needed for the call of get_indices_c
+         i_nchdom                    ,& !< needed for the call of get_indices_c
+         i_startblk                  ,& !< needed for the call of get_indices_c
+         i_endblk                       !< needed for the call of get_indices_c
     
     REAL(wp) ::                       &
          year_fr                     ,& !< time in year fraction (1989.0 is 0Z on Jan 1 1989)
@@ -505,8 +514,23 @@ MODULE mo_bc_aeropt_splumes
           z_fl_vr(jl,jk) = zf(jl,jki)
         END DO
       END DO
+
+      ! get true jcs (jcs_true):
+      rl_start   = grf_bdywidth_c+1
+      rl_end     = min_rlcell_int
+      i_nchdom   = MAX(1,p_patch(jg)%n_childdom)
+      i_startblk = p_patch(jg)%cells%start_blk(rl_start,1)
+      i_endblk   = p_patch(jg)%cells%end_blk(rl_end,i_nchdom)
+      CALL get_indices_c(p_patch(jg), krow, i_startblk, i_endblk, jcs_true,jce, rl_start, rl_end)
+
       lon_sp(jcs:kproma) = p_patch(jg)%cells%center(jcs:kproma,krow)%lon*rad2deg
       lat_sp(jcs:kproma) = p_patch(jg)%cells%center(jcs:kproma,krow)%lat*rad2deg
+
+      ! if we are on a shifted block (see shift_and_call_psrad_interface_onBlock), shift lon/lat_sp accordingly
+      IF (jcs_true > jcs) THEN
+        lon_sp(jcs:kproma-jcs_true+jcs) = lon_sp(jcs_true:kproma)
+        lat_sp(jcs:kproma-jcs_true+jcs) = lat_sp(jcs_true:kproma)
+      END IF
       ! 
       ! --- 1.2 Aerosol Shortwave properties
       !

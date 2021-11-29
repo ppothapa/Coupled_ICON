@@ -538,8 +538,9 @@ CONTAINS
       ENDDO
     ENDDO
 
-    CALL generate_index_list_batched(icond(jcs:,:), loidx(jcs:,:), jcs, kproma, is, 1)
+    CALL generate_index_list_batched(icond(:,:), loidx(jcs:,:), jcs, kproma, is, 1)
     !$ACC UPDATE WAIT SELF(is)
+    is(:) = is(:) + jcs - 1
 
     !     Compute new t2m
     !

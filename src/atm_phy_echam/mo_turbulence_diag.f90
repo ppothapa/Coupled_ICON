@@ -781,7 +781,7 @@ CONTAINS
       END DO
     END DO
 
-    CALL generate_index_list_batched(pfrc_test(jcs:,:), loidx, jcs, kproma, is, 1)
+    CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
     !$ACC UPDATE WAIT(1) SELF(is)
 
     DO jsfc = 1,ksfc_type
