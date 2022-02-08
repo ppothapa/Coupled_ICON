@@ -327,10 +327,10 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
     DO jc=jcs,jce
-    field% pr(jc,jb) =  field% rsfl(jc,jb) & ! rain large scale
-         &             +field% ssfl(jc,jb) & ! snow large scale
-         &             +field% rsfc(jc,jb) & ! rain convection
-         &             +field% ssfc(jc,jb)   ! snow convection
+    field% pr(jc,jb) =  field% rsfl(jc,jb) & ! large scale rain
+         &             +field% ssfl(jc,jb) & ! large scale snow
+         &             +field% rsfc(jc,jb) & ! convection  rain
+         &             +field% ssfc(jc,jb)   ! convection  snow
     END DO
     !$ACC END PARALLEL
  

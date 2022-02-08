@@ -56,15 +56,16 @@ CONTAINS
 
     ! Pointers
     !
-    LOGICAL                 ,POINTER    :: lparamcpl
-    INTEGER                 ,POINTER    :: fc_cld
     TYPE(t_echam_phy_field) ,POINTER    :: field
     TYPE(t_echam_phy_tend)  ,POINTER    :: tend
 
     ! Local variables
     !
+    LOGICAL                             :: lparamcpl
+    INTEGER                             :: fc_cld
+    !
     INTEGER                             :: itype(nproma)    !< type of convection
-    INTEGER                             :: jc,jk
+    INTEGER                             :: jc,jk,jks
     !
     REAL(wp)                            :: aclc  (nproma,nlev)
     REAL(wp)                            :: aclcov(nproma)
@@ -78,10 +79,12 @@ CONTAINS
     IF (ltimer) call timer_start(timer_cld)
 
     ! associate pointers
-    lparamcpl => echam_phy_config(jg)%lparamcpl
-    fc_cld    => echam_phy_config(jg)%fc_cld
     field     => prm_field(jg)
     tend      => prm_tend(jg)
+
+    jks       = echam_phy_config(jg)%jks_cloudy
+    lparamcpl = echam_phy_config(jg)%lparamcpl
+    fc_cld    = echam_phy_config(jg)%fc_cld
 
     IF ( is_in_sd_ed_interval ) THEN
        !$ACC DATA PRESENT( field%rtype, field% qconv, field% aclc, field% aclcov ) &
@@ -108,7 +111,8 @@ CONTAINS
           !
           CALL cloud(jg,                           &! in
                &     jb,                           &! in
-               &     jcs, jce, nproma, nlev,       &! in
+               &     jcs, jce, nproma,             &! in
+               &     jks, nlev,                    &! in
                &     pdtime,                       &! in
                &     field% ictop    (:,  jb),     &! in (from "cucall")
                &     field% pfull    (:,:,jb),     &! in
@@ -372,8 +376,6 @@ CONTAINS
     END IF
 
     ! disassociate pointers
-    NULLIFY(lparamcpl)
-    NULLIFY(fc_cld)
     NULLIFY(field)
     NULLIFY(tend)
 

@@ -21,7 +21,6 @@ MODULE mo_interface_cloud_two
   USE mo_copy                ,ONLY: copy
 
   USE mo_echam_phy_config    ,ONLY: echam_phy_config
-  USE mo_echam_cov_config    ,ONLY: echam_cov_config
   USE mo_echam_phy_memory    ,ONLY: t_echam_phy_field, prm_field, &
        &                            t_echam_phy_tend,  prm_tend
 
@@ -108,10 +107,10 @@ CONTAINS
     output => cloud_two_output(jg)
 
     ! associate pointers
+    jks       =  echam_phy_config(jg)%jks_cloudy
     lparamcpl =  echam_phy_config(jg)%lparamcpl
     fc_two    =  echam_phy_config(jg)%fc_two
 
-    jks       =  echam_cov_config(jg)% jkscov
     jke       =  nlev
 
     ! security

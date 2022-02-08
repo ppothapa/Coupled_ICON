@@ -16,7 +16,8 @@ MODULE mo_echam_phy_cleanup
 
   USE mtime,                   ONLY: OPERATOR(>)
   USE mo_grid_config,          ONLY: n_dom
-  USE mo_echam_phy_memory,     ONLY: destruct_echam_phy_state
+  USE mo_echam_phy_memory,     ONLY: destruct_echam_phy_memory
+  USE mo_cloud_mig_memory,     ONLY: destruct_cloud_mig_memory
 #ifdef __NO_RTE_RRTMGP__
   USE mo_psrad_forcing_memory, ONLY: destruct_psrad_forcing_list
 #else
@@ -66,7 +67,13 @@ CONTAINS
     IF (lany) CALL destruct_radiation_forcing_list
 #endif
    
-    CALL destruct_echam_phy_state
+    lany=.FALSE.
+    DO jg = 1,n_dom
+       lany = lany .OR. (echam_phy_tc(jg)%dt_mig > dt_zero)
+    END DO
+    IF (lany) CALL destruct_cloud_mig_memory
+
+    CALL destruct_echam_phy_memory
 
   END SUBROUTINE cleanup_echam_phy
   !-------------

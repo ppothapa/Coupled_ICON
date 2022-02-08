@@ -26,7 +26,7 @@ MODULE mo_echam_cnv_config
   USE mo_exception            ,ONLY: message, print_value, finish
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom, success
-  USE mo_grid_config          ,ONLY: n_dom
+
   USE mo_run_config           ,ONLY: nlev
   USE mo_vertical_coord_table ,ONLY: vct_a
   USE mo_physical_constants   ,ONLY: p0sl_bg, p0ref
@@ -44,7 +44,7 @@ MODULE mo_echam_cnv_config
   PUBLIC :: dealloc_echam_cnv_config   !< deallocate
 
   ! variables
-  PUBLIC ::                  cevapcu   !< evaporation coefficient (nlev,n_dom)
+  PUBLIC ::                  cevapcu   !< evaporation coefficient (nlev,ng)
 
   !>
   !! Name of this unit
@@ -98,7 +98,7 @@ MODULE mo_echam_cnv_config
   !>
   !! Evaporation coefficient for kuo0, for multiple domains/grids.
   !!
-  REAL(wp),    ALLOCATABLE, TARGET :: cevapcu(:,:)  !< with dimensions (nlev,n_dom)
+  REAL(wp),    ALLOCATABLE, TARGET :: cevapcu(:,:)  !< with dimensions (nlev,ng)
   
 CONTAINS
 
@@ -193,10 +193,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_cnv_config
+  SUBROUTINE print_echam_cnv_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -205,7 +207,7 @@ CONTAINS
     CALL message    ('','==============================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !
@@ -251,13 +253,15 @@ CONTAINS
   !>
   !! Allocate memory
   !!
-  SUBROUTINE alloc_echam_cnv_config
+  SUBROUTINE alloc_echam_cnv_config(ng)
+    !
+    INTEGER, INTENT(in) :: ng
     !
     CHARACTER(LEN=*),PARAMETER :: routine = 'alloc_echam_cnv_config'
     !
     INTEGER :: istat
     !
-    ALLOCATE( cevapcu(nlev,n_dom),STAT=istat )
+    ALLOCATE( cevapcu(nlev,ng),STAT=istat )
     IF (istat/=SUCCESS) CALL finish(TRIM(routine),'allocation of cevapcu failed')
     !
     !$ACC ENTER DATA CREATE( cevapcu )

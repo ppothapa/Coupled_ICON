@@ -79,6 +79,7 @@ USE mo_convect_tables,     ONLY: b1    => c1es  , & !! constants for computing t
   PUBLIC  :: dqsatdT
   PUBLIC  :: dqsatdT_ice
   PUBLIC  :: qsat_rho
+  PUBLIC  :: dqsatdT_rho
   PUBLIC  :: latent_heat_vaporization
   PUBLIC  :: latent_heat_sublimation
   PUBLIC  :: latent_heat_melting

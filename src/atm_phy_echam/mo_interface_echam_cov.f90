@@ -22,6 +22,7 @@ MODULE mo_interface_echam_cov
 
   USE mo_kind                ,ONLY: wp
 
+  USE mo_echam_phy_config    ,ONLY:   echam_phy_config
   USE mo_echam_phy_memory    ,ONLY: t_echam_phy_field, prm_field
   USE mo_echam_sfc_indices   ,ONLY: nsfc_type, iwtr, iice
   
@@ -50,7 +51,7 @@ CONTAINS
 
     ! Local variables
     !
-    INTEGER  :: nlevp1, jc
+    INTEGER  :: nlevp1, jc, jks
     INTEGER  :: itype(nproma) !< type of convection
     REAL(wp) :: zfrw (nproma) !< cell area fraction of open water
     REAL(wp) :: zfri (nproma) !< cell area fraction of ice covered water
@@ -59,6 +60,7 @@ CONTAINS
 
     field => prm_field(jg)
 
+    jks    = echam_phy_config(jg)%jks_cloudy
     nlevp1 = nlev+1
 
     !$ACC DATA PRESENT( field% rtype, field%frac_tile ) &
@@ -88,22 +90,22 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    CALL cover(    jg,                        &! in
-         &         jb,                        &! in
-         &         jcs, jce, nproma,          &! in
-         &         nlev, nlevp1,              &! in
-         &         itype,                     &! in
-         &         zfrw(:),                   &! in
-         &         zfri(:),                   &! in
-         &         field% zf(:,:,jb),         &! in
-         &         field% phalf(:,:,jb),      &! in
-         &         field% pfull(:,:,jb),      &! in
-         &         field%  ta(:,:,jb),        &! in    tm1
-         &         field%  qtrc(:,:,jb,iqv),  &! in    qm1
-         &         field%  qtrc(:,:,jb,iqc),  &! in    xlm1
-         &         field%  qtrc(:,:,jb,iqi),  &! in    xim1
-         &         field%  aclc(:,:,jb),      &! out   (for "radiation" and "vdiff_down")
-         &         field% rintop(:,  jb)     ) ! out   (for output)
+    CALL cover( jg,                        &! in
+         &      jb,                        &! in
+         &      jcs, jce, nproma,          &! in
+         &      jks, nlev, nlevp1,         &! in
+         &      itype,                     &! in
+         &      zfrw(:),                   &! in
+         &      zfri(:),                   &! in
+         &      field% zf(:,:,jb),         &! in
+         &      field% phalf(:,:,jb),      &! in
+         &      field% pfull(:,:,jb),      &! in
+         &      field%  ta(:,:,jb),        &! in    tm1
+         &      field%  qtrc(:,:,jb,iqv),  &! in    qm1
+         &      field%  qtrc(:,:,jb,iqc),  &! in    xlm1
+         &      field%  qtrc(:,:,jb,iqi),  &! in    xim1
+         &      field%  aclc(:,:,jb),      &! out   (for "radiation" and "vdiff_down")
+         &      field% rintop(:,  jb)     ) ! out   (for output)
 
     !$ACC END DATA
 

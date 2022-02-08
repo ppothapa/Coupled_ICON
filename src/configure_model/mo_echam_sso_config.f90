@@ -29,7 +29,7 @@ MODULE mo_echam_sso_config
   USE mo_exception            ,ONLY: message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
+
   USE mo_run_config           ,ONLY: nlev
   USE mo_vertical_coord_table ,ONLY: vct
 
@@ -166,10 +166,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_sso_config
+  SUBROUTINE print_echam_sso_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -182,7 +184,7 @@ CONTAINS
     CALL print_value('    Critical Richardson number grcrit ',grcrit  )
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !

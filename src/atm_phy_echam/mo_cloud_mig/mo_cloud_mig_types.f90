@@ -1,0 +1,107 @@
+!>
+!! Data types for the cloud microphsics "graupel" parameterization
+!!
+!! This module provides the data types for the variables used to
+!! configure the parameterization and to store the input and output
+!! for the parameterization.
+!!
+!! @author Marco Giorgetta (MPI-M)
+!!
+!! @par Revision History
+!! First version by Marco Giorgetta, 2020-01-30.
+!!
+!! @par Copyright and License
+!!
+!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
+!! its most recent form.
+!! Please see the file LICENSE in the root of the source tree for this code.
+!! Where software is supplied by third parties, it is indicated in the
+!! headers of the routines.
+!!
+MODULE mo_cloud_mig_types
+
+  USE mo_kind, ONLY: wp
+
+  IMPLICIT NONE
+  PRIVATE
+
+  PUBLIC :: t_cloud_mig_config, t_cloud_mig_input, t_cloud_mig_output
+
+  !-----------------------------------------------------------------------------
+  
+  TYPE t_cloud_mig_config
+     !
+     ! configuration parameters
+     ! ------------------------
+     !
+     ! thresholds
+     REAL(wp) :: qi0            ! cloud ice threshold for autoconversion
+     REAL(wp) :: qc0            ! cloud water threshold for autoconversion
+     !
+     ! grid scale microphysics
+     REAL(wp) :: zceff_min      ! minimum value for sticking efficiency
+     REAL(wp) :: v0snow         ! factor in the terminal velocity for snow
+     REAL(wp) :: zvz0i          ! terminal fall velocity of ice
+     REAL(wp) :: icesedi_exp    ! exponent for density correction of cloud ice sedimentation
+     REAL(wp) :: mu_rain        ! parameter in gamma distribution for rain
+     REAL(wp) :: rain_n0_factor ! tuning factor for intercept parameter of raindrop size distribution
+     !
+  END TYPE t_cloud_mig_config
+
+  !-----------------------------------------------------------------------------
+  
+  TYPE t_cloud_mig_input
+     !
+     ! Input arguments: parameters
+     ! ---------------------------
+     !
+     INTEGER , POINTER :: jg        (:,  :)=>NULL() !< grid index
+     INTEGER , POINTER :: jcs       (:,  :)=>NULL() !< column start index
+     INTEGER , POINTER :: jce       (:,  :)=>NULL() !< column end   index
+     INTEGER , POINTER :: msg_level (:,  :)=>NULL() !< message level
+     REAL(wp), POINTER :: pdtime    (:,  :)=>NULL() !< [s] physics time step
+     !
+     ! Input arguments: fields
+     ! -----------------------
+     !
+     ! atmospheric state
+     REAL(wp), POINTER :: dz        (:,:,:)=>NULL() !< [m]      cell thickness
+     REAL(wp), POINTER :: rho       (:,:,:)=>NULL() !< [kg/m3]  air density
+     REAL(wp), POINTER :: pf        (:,:,:)=>NULL() !< [Pa]     air pressure
+     REAL(wp), POINTER :: cpair     (:,:,:)=>NULL() !< [J/K/kg] specific heat of air
+     REAL(wp), POINTER :: ta        (:,:,:)=>NULL() !< [K]      air temperature
+     REAL(wp), POINTER :: qv        (:,:,:)=>NULL() !< [kg/kg]  specific humidity
+     REAL(wp), POINTER :: qc        (:,:,:)=>NULL() !< [kg/kg]  mass fraction of cloud water in air
+     REAL(wp), POINTER :: qi        (:,:,:)=>NULL() !< [kg/kg]  mass fraction of cloud ice   in air
+     REAL(wp), POINTER :: qr        (:,:,:)=>NULL() !< [kg/kg]  mass fraction of rain        in air
+     REAL(wp), POINTER :: qs        (:,:,:)=>NULL() !< [kg/kg]  mass fraction of snow        in air
+     REAL(wp), POINTER :: qg        (:,:,:)=>NULL() !< [kg/kg]  mass fraction of graupel     in air
+     !
+  END TYPE t_cloud_mig_input
+
+  !-----------------------------------------------------------------------------
+  
+  TYPE t_cloud_mig_output
+     !
+     ! Output arguments: fields
+     ! ------------------------
+     !
+     ! tendencies in the atmosphere
+     REAL(wp), POINTER :: tend_ta_mig (:,:,:)=>NULL() !< [K/s] tendency of temperature (cp)
+     REAL(wp), POINTER :: tend_qv_mig (:,:,:)=>NULL() !< [1/s] tendency of specific humidity
+     REAL(wp), POINTER :: tend_qc_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud water
+     REAL(wp), POINTER :: tend_qi_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud ice
+     REAL(wp), POINTER :: tend_qr_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of rain
+     REAL(wp), POINTER :: tend_qs_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of snow
+     REAL(wp), POINTER :: tend_qg_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of graupel
+     !
+     ! fluxes at the surface
+     REAL(wp), POINTER :: pr_rain     (:,  :)=>NULL() !< [kg/m2/s] sfc rain    flux
+     REAL(wp), POINTER :: pr_snow     (:,  :)=>NULL() !< [kg/m2/s] sfc snow    flux
+     REAL(wp), POINTER :: pr_grpl     (:,  :)=>NULL() !< [kg/m2/s] sfc graupel flux
+     !
+  END TYPE t_cloud_mig_output
+
+  !-----------------------------------------------------------------------------
+  
+END MODULE mo_cloud_mig_types

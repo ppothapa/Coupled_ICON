@@ -141,8 +141,8 @@ CONTAINS
     !
     ! 2. prm_field(jg)% evap_tile(:,:,iwtr/iice)  evaporation rate over ice-covered and open ocean/lakes, no land;
     !
-    ! 3. prm_field(jg)%rsfl + prm_field(jg)%rsfc + prm_field(jg)%ssfl + prm_field(jg)%ssfc
-    !    which gives the precipitation rate;
+    ! 3. prm_field(jg)%rsfl + prm_field(jg)%rsfc and prm_field(jg)%ssfl + prm_field(jg)%ssfc
+    !    which gives the liquid and solid precipitation rates, respectively
     !
     ! 4. prm_field(jg)% ta(:,nlev,:)  temperature at the lowest model level, or
     !    prm_field(jg)% tas(:,:)      2-m temperature, not available yet, or
@@ -894,7 +894,7 @@ CONTAINS
       scr(:,:) = prm_field(jg)%rsfl(:,:) + prm_field(jg)%rsfc(:,:)
       CALL dbg_print('EchOce: total rain  ',scr,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%ssfl(:,:) + prm_field(jg)%ssfc(:,:)
-      CALL dbg_print('EchOce: total snow  ',scr,str_module,4,in_subset=p_patch%cells%owned)
+      CALL dbg_print('EchOce: total sn/grp',scr,str_module,4,in_subset=p_patch%cells%owned)
       CALL dbg_print('EchOce: evaporation ',prm_field(jg)%evap   ,str_module,4,in_subset=p_patch%cells%owned)
 
       ! total: short wave, long wave, sensible, latent heat flux sent

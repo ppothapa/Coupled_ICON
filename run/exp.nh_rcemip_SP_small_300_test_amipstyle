@@ -212,7 +212,7 @@ cat >> ${atmo_namelist} << EOF
  echam_cop_config(1)%cinhoml2   =   1.0
  echam_cop_config(1)%cinhoml3   =   1.0
 /
-&echam_mig_nml
+&cloud_mig_nml
 /
 &echam_cov_nml
  echam_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice

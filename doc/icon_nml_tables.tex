@@ -625,12 +625,6 @@ The parameterization of cloud microphysics for the ECHAM physics is configured b
 
 \begin{longtab}
 %\hline
-echam\_cld\_config(jg)\% zmaxcld &
-R & echam\_phy\_config(:)\% zmaxcloudy & &
-maximum height for cloud physics computations &
-echam\_phy\_config(jg)\% dt\_cld > 0.000s
-\tabularnewline
-
 echam\_cld\_config(jg)\% ccwmin &
 R & 1.0e-7 & kg/kg &
 cloud water and ice minimum mass mixing ratio for cover>0 &
@@ -978,11 +972,6 @@ The parameterization of cloud cover for the ECHAM physics is configured by a dat
 
 \begin{longtab}
 %\hline
-echam\_cov\_config(jg)\% zmaxcov &
-R & echam\_phy\_config(:)\% zmaxcloudy & &
-maximum height for cloud cover computation &
-\tabularnewline
-
 echam\_cov\_config(jg)\% icov &
 I & 1 & &
 selects cloud cover scheme \newline

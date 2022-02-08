@@ -37,10 +37,169 @@ MODULE mo_omp_loop
 
   IMPLICIT NONE
   PRIVATE
-  PUBLIC  :: omp_loop_cell_diag, omp_loop_cell_prog
+  PUBLIC  :: omp_loop_cell, omp_loop_cell_3
+
+  INTERFACE omp_loop_cell_3
+     MODULE PROCEDURE omp_loop_cell_prog_3
+     MODULE PROCEDURE omp_loop_cell_diag_3
+  END INTERFACE omp_loop_cell_3
+
+  INTERFACE omp_loop_cell
+     MODULE PROCEDURE omp_loop_cell_prog
+     MODULE PROCEDURE omp_loop_cell_diag
+  END INTERFACE omp_loop_cell
 
 CONTAINS
 
+  !=============================================================================
+  !
+  ! Single column versions
+  ! ----------------------
+
+  SUBROUTINE omp_loop_cell_prog_3(patch                ,&
+       &                          routine              ,&
+       &                          is_in_sd_ed_interval ,&
+       &                          is_active            ,&
+       &                          datetime_old         ,&
+       &                          pdtime               )
+
+    ! Arguments
+    !
+    TYPE(t_patch)   ,TARGET ,INTENT(in) :: patch
+    !
+    INTERFACE
+       !
+       SUBROUTINE routine(jg,jb,jc             ,&
+            &             nproma,nlev,ntracer  ,& 
+            &             is_in_sd_ed_interval ,&
+            &             is_active            ,&
+            &             datetime_old         ,&
+            &             pdtime               )
+         !
+         IMPORT :: wp, datetime
+         !
+         INTEGER        ,INTENT(in) :: jg,jb,jc
+         INTEGER        ,INTENT(in) :: nproma,nlev,ntracer
+         LOGICAL        ,INTENT(in) :: is_in_sd_ed_interval
+         LOGICAL        ,INTENT(in) :: is_active
+         TYPE(datetime) ,POINTER    :: datetime_old
+         REAL(wp)       ,INTENT(in) :: pdtime
+         !
+       END SUBROUTINE routine
+       !
+    END INTERFACE
+    !
+    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
+    LOGICAL                 ,INTENT(in) :: is_active
+    TYPE(datetime)          ,POINTER    :: datetime_old
+    REAL(wp)                ,INTENT(in) :: pdtime
+
+    ! Local variables
+    !
+    INTEGER  :: jg          !< grid index
+    INTEGER  :: ncd         !< number of child domains of grid jg
+    INTEGER  :: rls, rle    !< row limits, start and end
+    INTEGER  :: jb          !< index of block loop
+    INTEGER  :: jbs, jbe    !< start and end indices of block   loop
+    INTEGER  :: jc          !< index of cell loop
+    INTEGER  :: jcs, jce    !< start and end indices of columns loop
+    INTEGER  :: nlev        !< number of levels
+
+    jg  = patch%id
+
+    rls = grf_bdywidth_c+1
+    rle = min_rlcell_int
+
+    ncd = MAX(1,patch%n_childdom)
+    jbs = patch%cells%start_blk(rls,  1)
+    jbe = patch%cells%  end_blk(rle,ncd)
+
+    nlev= patch%nlev
+
+!$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce)
+    DO jb = jbs,jbe
+       !
+       CALL get_indices_c(patch,jb,jbs,jbe,jcs,jce,rls,rle)
+       !
+       DO jc = jcs,jce
+          !
+          CALL routine(jg,jb,jc             ,&
+               &       nproma,nlev,ntracer  ,&
+               &       is_in_sd_ed_interval ,&
+               &       is_active            ,&
+               &       datetime_old         ,&
+               &       pdtime               )
+          !
+       END DO
+       !
+    END DO
+!$OMP END PARALLEL DO 
+
+  END SUBROUTINE omp_loop_cell_prog_3
+
+
+  SUBROUTINE omp_loop_cell_diag_3(patch  ,&
+       &                          routine)
+
+    ! Arguments
+    !
+    TYPE(t_patch)   ,TARGET ,INTENT(in) :: patch
+    !
+    INTERFACE
+       !
+       SUBROUTINE routine(jg,jb,jc    ,&
+            &             nproma,nlev )
+         !
+         INTEGER        ,INTENT(in) :: jg,jb,jc
+         INTEGER        ,INTENT(in) :: nproma,nlev
+         !
+       END SUBROUTINE routine
+       !
+    END INTERFACE
+
+    ! Local variables
+    !
+    INTEGER  :: jg          !< grid index
+    INTEGER  :: ncd         !< number of child domains of grid jg
+    INTEGER  :: rls, rle    !< row limits, start and end
+    INTEGER  :: jb          !< index of block loop
+    INTEGER  :: jbs, jbe    !< start and end indices of block   loop
+    INTEGER  :: jc          !< index of cell loop
+    INTEGER  :: jcs, jce    !< start and end indices of columns loop
+    INTEGER  :: nlev        !< number of levels
+
+    jg  = patch%id
+
+    rls = grf_bdywidth_c+1
+    rle = min_rlcell_int
+
+    ncd = MAX(1,patch%n_childdom)
+    jbs = patch%cells%start_blk(rls,  1)
+    jbe = patch%cells%  end_blk(rle,ncd)
+
+    nlev= patch%nlev
+
+!$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce)
+    DO jb = jbs,jbe
+       !
+       CALL get_indices_c(patch,jb,jbs,jbe,jcs,jce,rls,rle)
+       !
+       DO jc = jcs,jce
+          !
+          CALL routine(jg,jb,jc    ,&
+               &       nproma,nlev )
+       END DO
+       !
+    END DO
+!$OMP END PARALLEL DO 
+
+  END SUBROUTINE omp_loop_cell_diag_3
+
+
+  !=============================================================================
+  !
+  ! Multi column versions
+  ! ---------------------
 
   SUBROUTINE omp_loop_cell_prog(patch                ,&
        &                        routine              ,&

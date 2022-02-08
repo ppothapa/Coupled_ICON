@@ -26,7 +26,7 @@ MODULE mo_echam_rad_config
   USE mo_exception            ,ONLY: message, message_text, print_value, warning, finish
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
+
   USE mo_run_config           ,ONLY: iqt, ico2, io3, ntracer, lart
   USE mo_parallel_config      ,ONLY: nproma
 
@@ -231,12 +231,14 @@ CONTAINS
   !>
   !! Evaluate additional derived parameters
   !!
-  SUBROUTINE eval_echam_rad_config
+  SUBROUTINE eval_echam_rad_config(ng)
+    !
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CHARACTER(LEN=*), PARAMETER :: routine = 'eval_echam_rad_config'
-
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
 
     ! Shortcuts to components of echam_rad_config
     !
@@ -262,7 +264,7 @@ CONTAINS
     CALL message    ('','================================')
     CALL message    ('','')
 
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        isolrad    => echam_rad_config(jg)% isolrad
        fsolrad    => echam_rad_config(jg)% fsolrad
@@ -690,10 +692,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_rad_config
-
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+  SUBROUTINE print_echam_rad_config(ng)
+    !
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
 
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -702,14 +706,14 @@ CONTAINS
     CALL message    ('','=============================')
     CALL message    ('','')
 
-    IF (n_dom > 1) THEN
+    IF (ng > 1) THEN
        CALL message    ('','-----------------------------------------------------------------------------------')
        CALL message    ('','!! WARNING: The current radiation uses the the setup of domain 1 for all domains !!')
        CALL message    ('','-----------------------------------------------------------------------------------')
        CALL message    ('','')
     END IF
 
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !

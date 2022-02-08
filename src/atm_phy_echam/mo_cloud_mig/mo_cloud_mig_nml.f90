@@ -13,39 +13,39 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-MODULE mo_echam_mig_nml
+MODULE mo_cloud_mig_nml
 
-  USE mo_echam_mig_config ,ONLY: echam_mig_config, init_echam_mig_config
+  USE mo_cloud_mig_config ,ONLY: cloud_mig_config, init_cloud_mig_config
   USE mo_process_nml      ,ONLY: process_nml
   
   IMPLICIT NONE
   PRIVATE
-  PUBLIC :: process_echam_mig_nml
+  PUBLIC :: process_cloud_mig_nml
 
-  NAMELIST /echam_mig_nml/ echam_mig_config
+  NAMELIST /cloud_mig_nml/ cloud_mig_config
 
 CONTAINS
 
-  SUBROUTINE process_echam_mig_nml(filename)
+  SUBROUTINE process_cloud_mig_nml(filename)
     !
     CHARACTER(LEN=*), INTENT(in) :: filename
     !
-    CALL init_echam_mig_config
+    CALL init_cloud_mig_config
     !
-    CALL process_nml(filename, 'echam_mig_nml', nml_read, nml_write)
+    CALL process_nml(filename, 'cloud_mig_nml', nml_read, nml_write)
     !
   CONTAINS
     !
     SUBROUTINE nml_read(funit)
       INTEGER, INTENT(in) :: funit
-      READ(funit, NML=echam_mig_nml)
+      READ(funit, NML=cloud_mig_nml)
     END SUBROUTINE nml_read
     !
     SUBROUTINE nml_write(funit)
       INTEGER, INTENT(in) :: funit
-      WRITE(funit, NML=echam_mig_nml)
+      WRITE(funit, NML=cloud_mig_nml)
     END SUBROUTINE nml_write
     !
-  END SUBROUTINE process_echam_mig_nml
+  END SUBROUTINE process_cloud_mig_nml
 
-END MODULE mo_echam_mig_nml
+END MODULE mo_cloud_mig_nml

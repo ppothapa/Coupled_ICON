@@ -26,10 +26,8 @@ MODULE mo_echam_cld_config
   USE mo_exception            ,ONLY: finish, message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
-  USE mo_vertical_coord_table ,ONLY: vct_a
+
   USE mo_physical_constants   ,ONLY: tmelt
-  USE mo_echam_phy_config     ,ONLY: echam_phy_config
 
   IMPLICIT NONE
   PRIVATE
@@ -38,7 +36,7 @@ MODULE mo_echam_cld_config
   ! configuration
   PUBLIC ::         echam_cld_config   !< user specified configuration parameters
   PUBLIC ::    init_echam_cld_config   !< allocate and initialize echam_cld_config
-  PUBLIC ::    eval_echam_cld_config   !< evaluate echam_cld_config
+!!$  PUBLIC ::    eval_echam_cld_config   !< evaluate echam_cld_config
   PUBLIC ::   print_echam_cld_config   !< print out
 
   !>
@@ -54,10 +52,6 @@ MODULE mo_echam_cld_config
      ! configuration parameters
      ! ------------------------
      !
-     ! vertical loop limit
-     REAL(wp) :: zmaxcld  ! [m]      maximum height for cloud microphysics calculation
-     INTEGER  :: jkscld   !          vertical start index for cloud microphysics calculation
-     !                               diagnosed in eval_echam_cld_config
      ! general thresholds
      REAL(wp) :: ccwmin   ! [kg/kg]  cloud water and ice minimum mass mixing ratio for cover>0
      REAL(wp) :: cqtmin   ! [kg/kg]  cloud water/ice minimum for microphysical processes
@@ -104,11 +98,8 @@ CONTAINS
   !!
   SUBROUTINE init_echam_cld_config
     !
-    ! ECHAM cloud microphyiscs configuration
+    ! ECHAM cloud microphysics configuration
     ! --------------------------------------
-    !
-    ! vertical range
-    echam_cld_config(:)% zmaxcld  = echam_phy_config(:)% zmaxcloudy
     !
     ! general thresholds
     echam_cld_config(:)% ccwmin   = 1.e-7_wp
@@ -142,64 +133,41 @@ CONTAINS
 
   !----
 
-  !>
-  !! Evaluate additional derived parameters
-  !!
-  SUBROUTINE eval_echam_cld_config
-    !
-    INTEGER           :: jg, jk, klev
-    CHARACTER(LEN=2)  :: cg
-    !
-    klev = SIZE(vct_a)-1
-    !
-    DO jg = 1,n_dom
-       !
-       WRITE(cg,'(i0)') jg
-       !
-       ! diagnose jkscld
-       echam_cld_config(jg)% jkscld = 1
-       !
-       DO jk = 1,klev
-          !
-          IF ((vct_a(jk)+vct_a(jk+1))*0.5_wp > echam_cld_config(jg)% zmaxcld) THEN
-             echam_cld_config(jg)% jkscld = echam_cld_config(jg)% jkscld + 1
-          ELSE
-             EXIT
-          END IF
-          !
-       END DO
-       !
-    END DO
-    !
-  END SUBROUTINE eval_echam_cld_config
+!!$  !>
+!!$  !! Evaluate additional derived parameters
+!!$  !!
+!!$  SUBROUTINE eval_echam_cld_config
+!!$    !
+!!$    ...
+!!$    !
+!!$  END SUBROUTINE eval_echam_cld_config
 
   !----
 
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_cld_config
+  SUBROUTINE print_echam_cld_config(ng)
     !
-    INTEGER           :: jg,lg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg,lg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
     CALL message    ('','')
-    CALL message    ('','ECHAM cloud microphyiscs configuration')
+    CALL message    ('','ECHAM cloud microphysics configuration')
     CALL message    ('','======================================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        lg = MERGE(2, 1, jg > 9)
        !
        CALL message    ('','For domain '//cg)
        CALL message    ('','------------')
-       CALL message    ('','')
-       CALL print_value('    echam_cld_config('//cg(1:lg)//')% zmaxcld  ',echam_cld_config(jg)% zmaxcld )
-       CALL print_value('    echam_cld_config('//cg(1:lg)//')% jkscld   ',echam_cld_config(jg)% jkscld  )
        CALL message    ('','')
        CALL print_value('    echam_cld_config('//cg(1:lg)//')% ccwmin   ',echam_cld_config(jg)% ccwmin  )
        CALL print_value('    echam_cld_config('//cg(1:lg)//')% cqtmin   ',echam_cld_config(jg)% cqtmin  )

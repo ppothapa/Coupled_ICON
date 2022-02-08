@@ -26,9 +26,9 @@ MODULE mo_echam_cov_config
   USE mo_exception            ,ONLY: finish, message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
+
   USE mo_vertical_coord_table ,ONLY: vct_a
-  USE mo_echam_phy_config     ,ONLY: echam_phy_config
+  USE mo_physical_constants   ,ONLY: tmelt
 
   IMPLICIT NONE
   PRIVATE
@@ -53,10 +53,6 @@ MODULE mo_echam_cov_config
      ! configuration parameters
      ! ------------------------
      !
-     ! vertical loop limit
-     REAL(wp) :: zmaxcov  !          maximum height (m) for cloud cover calculation
-     INTEGER  :: jkscov   !          vertical start index for cloud cover calculation
-     !                               diagnosed in eval_echam_cov_config
      ! cloud cover
      INTEGER  :: icov     !          cloud cover scheme
      !                               0:  constant  cloud cover
@@ -104,7 +100,6 @@ CONTAINS
     ! ECHAM cloud cover configuration
     ! -------------------------------
     !
-    echam_cov_config(:)% zmaxcov  = echam_phy_config(:)% zmaxcloudy
     echam_cov_config(:)% icov     = 1
     echam_cov_config(:)% clcon    = 0.0_wp
     echam_cov_config(:)% csat     = 1.0_wp
@@ -124,26 +119,18 @@ CONTAINS
   !>
   !! Evaluate additional derived parameters
   !!
-  SUBROUTINE eval_echam_cov_config
+  SUBROUTINE eval_echam_cov_config(ng)
     !
-    INTEGER           :: jg, jk, klev
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg, jk, klev
+    CHARACTER(LEN=2)    :: cg
     !
     klev = SIZE(vct_a)-1
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
-       !
-       ! diagnose jkscov
-       echam_cov_config(jg)% jkscov = 1
-       DO jk = 1,klev
-          IF ((vct_a(jk)+vct_a(jk+1))*0.5_wp > echam_cov_config(jg)% zmaxcov) THEN
-             echam_cov_config(jg)% jkscov = echam_cov_config(jg)% jkscov + 1
-          ELSE
-             EXIT
-          END IF
-       END DO
        !
        SELECT CASE (echam_cov_config(jg)% icov)
        CASE (0)
@@ -178,12 +165,12 @@ CONTAINS
           ! check that crs and crt are smaller than csat 
           IF (echam_cov_config(jg)% crs >= echam_cov_config(jg)% csat) THEN
              CALL finish('eval_echam_cov_config', &
-                  &      'echam_cov_config('//TRIM(cg)//')% crs >= echam_phy_config('//TRIM(cg)//')% csat is not allowed')
+                  &      'echam_cov_config('//TRIM(cg)//')% crs >= echam_cov_config('//TRIM(cg)//')% csat is not allowed')
           END IF
           !
           IF (echam_cov_config(jg)% crt >= echam_cov_config(jg)% csat) THEN
              CALL finish('eval_echam_cov_config', &
-                  &      'echam_cov_config('//TRIM(cg)//')% crt >= echam_phy_config('//TRIM(cg)//')% csat is not allowed')
+                  &      'echam_cov_config('//TRIM(cg)//')% crt >= echam_cov_config('//TRIM(cg)//')% csat is not allowed')
           END IF
           !
        CASE (2)
@@ -210,10 +197,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_cov_config
+  SUBROUTINE print_echam_cov_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -222,15 +211,13 @@ CONTAINS
     CALL message    ('','===============================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !
        CALL message    ('','For domain '//cg)
        CALL message    ('','------------')
        CALL message    ('','')
-       CALL print_value('    echam_cov_config('//TRIM(cg)//')% zmaxcov  ',echam_cov_config(jg)% zmaxcov )
-       CALL print_value('    echam_cov_config('//TRIM(cg)//')% jkscov   ',echam_cov_config(jg)% jkscov  )
        CALL print_value('    echam_cov_config('//TRIM(cg)//')% icov     ',echam_cov_config(jg)% icov    )
        SELECT CASE (echam_cov_config(jg)% icov)
        CASE(0)

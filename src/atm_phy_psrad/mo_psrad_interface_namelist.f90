@@ -99,8 +99,8 @@ CONTAINS
     CALL compute_date_settings("atm", dt_restart, nsteps)
     CALL initEventManager(time_config%tc_exp_refdate)
 
-    CALL  eval_echam_phy_config
-    CALL  eval_echam_phy_tc
+    CALL  eval_echam_phy_config(n_dom)
+    CALL  eval_echam_phy_tc    (n_dom)
 
     lany=.FALSE.
     DO jg = 1,n_dom

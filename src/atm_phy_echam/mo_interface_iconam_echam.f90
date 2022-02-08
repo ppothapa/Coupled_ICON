@@ -107,7 +107,9 @@ MODULE mo_interface_iconam_echam
     &                                 timer_echam_bcs, timer_echam_phy, timer_coupling,                &
     &                                 timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
   USE mo_run_config,            ONLY: lart
+  USE mo_art_config,            ONLY: art_config
 #if defined( _OPENACC )
+  USE mo_exception             ,ONLY: warning
   USE mo_var_list_gpu          ,ONLY: gpu_update_var_list
 #endif
 
@@ -787,7 +789,7 @@ CONTAINS
     !
     IF (ltimer) CALL timer_start(timer_p2d_prep)
 
-    !     (a) diagnose again temperature, which is provisionally updated in phyiscs,
+    !     (a) diagnose again temperature, which is provisionally updated in physics,
     !         from the "new" state after dynamics, so that the temperature field
     !         can be used for updating the model state
     !

@@ -43,7 +43,7 @@ MODULE mo_read_namelists
 
   USE mo_echam_phy_nml       ,ONLY: process_echam_phy_nml
   USE mo_echam_cld_nml       ,ONLY: process_echam_cld_nml
-  USE mo_echam_mig_nml       ,ONLY: process_echam_mig_nml
+  USE mo_cloud_mig_nml       ,ONLY: process_cloud_mig_nml
   USE mo_echam_cnv_nml       ,ONLY: process_echam_cnv_nml
   USE mo_echam_cov_nml       ,ONLY: process_echam_cov_nml
   USE mo_echam_cop_nml       ,ONLY: process_echam_cop_nml
@@ -171,7 +171,7 @@ CONTAINS
        !
        ! ... and the employed parameterizations
        CALL process_echam_cld_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_mig_nml        (atm_namelist_filename(1:tlen))
+       CALL process_cloud_mig_nml        (atm_namelist_filename(1:tlen))
        CALL process_echam_cnv_nml        (atm_namelist_filename(1:tlen))
        CALL process_echam_cov_nml        (atm_namelist_filename(1:tlen))
        CALL process_echam_cop_nml        (atm_namelist_filename(1:tlen))

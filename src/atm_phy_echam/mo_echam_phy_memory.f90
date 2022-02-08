@@ -84,8 +84,8 @@ MODULE mo_echam_phy_memory
 
   PUBLIC :: prm_field, prm_tend                         !< variables
   PUBLIC :: prm_field_list, prm_tend_list               !< variable lists
-  PUBLIC :: construct_echam_phy_state                   !< subroutine
-  PUBLIC :: destruct_echam_phy_state                    !< subroutines
+  PUBLIC :: construct_echam_phy_memory                  !< subroutine
+  PUBLIC :: destruct_echam_phy_memory                   !< subroutines
   PUBLIC :: t_echam_phy_field, t_echam_phy_tend         !< derived types
 
   PUBLIC :: cdimissval
@@ -256,21 +256,29 @@ MODULE mo_echam_phy_memory
       & aer_aod_9731(:,:,:)=>NULL()    !< effective aerosol optical depth at 9731 nm
             !< the last quantity is in the thermal wavelength ranch, 
             !< the first lie in the solar spectrum
-    ! Cloud and precipitation
+
+    ! Clouds
     REAL(wp),POINTER ::     &
       & aclc      (:,:,:)=>NULL(),  &!< [m2/m2] cloud area fractional
       & aclcov    (:,  :)=>NULL(),  &!< [m2/m2] total cloud cover
       & acdnc     (:,:,:)=>NULL(),  &!< cloud droplet number concentration [1/m**3]
-      & hur       (:,:,:)=>NULL(),  &!< relative humidity
-      & rsfl      (:,  :)=>NULL(),  &!< sfc rain flux, large scale [kg m-2 s-1]
+      & hur       (:,:,:)=>NULL()    !< relative humidity
+
+    ! Precipitation
+    REAL(wp),POINTER ::     &
+      & rsfl      (:,  :)=>NULL(),  &!< sfc rain    flux, large scale [kg m-2 s-1]
+      & ssfl      (:,  :)=>NULL(),  &!< sfc snow    flux, large scale [kg m-2 s-1]
       & rsfc      (:,  :)=>NULL(),  &!< sfc rain flux, convective  [kg m-2 s-1]
-      & ssfl      (:,  :)=>NULL(),  &!< sfc snow flux, large scale [kg m-2 s-1]
       & ssfc      (:,  :)=>NULL(),  &!< sfc snow flux, convective  [kg m-2 s-1]
+!
+! move to two
       & rain_gsp_rate(:,  :)=>NULL(),  &!< gridscale rain rate     [kg m-2 s-1]
       & ice_gsp_rate (:,  :)=>NULL(),  &!< gridscale ice rate      [kg m-2 s-1]
       & snow_gsp_rate(:,  :)=>NULL(),  &!< gridscale snow rate     [kg m-2 s-1]
       & graupel_gsp_rate(:,  :)=>NULL(),  &!< gridscale graupel rate     [kg m-2 s-1]
       & hail_gsp_rate(:,  :)=>NULL(),  &!< gridscale hail rate     [kg m-2 s-1]
+!
+!
       & pr        (:,  :)=>NULL()    !< precipitation flux         [kg m-2 s-1]
 
     ! Tropopause
@@ -574,13 +582,6 @@ MODULE mo_echam_phy_memory
       &   ta_cld (:,:,:)=>NULL()  , & !< temperature tendency due to large scale cloud processes (for const. pressure)
       & qtrc_cld (:,:,:,:)=>NULL(), & !< tracer tendency  due to large scale cloud processes
       !
-      ! graupel microphysics
-      !
-      &   ta_mig (:,:,:)=>NULL()  , & !< temperature tendency due to graupel microphysics proc. (for const. pressure)
-      & qtrc_mig (:,:,:,:)=>NULL(), & !< tracer tendency  due to graupel microphysics proc.
-      !
-      ! two-moment microphysics -> See mo_cloud_two/mo_cloud_two_memory
-      !
       ! cumulus convection
       !
       &   ta_cnv (:,:,:)=>NULL(),   & !< temperature tendency due to convective cloud processes (for const. pressure)
@@ -633,8 +634,6 @@ MODULE mo_echam_phy_memory
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_dyn_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_phy_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_cld_ptr(:)
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_mig_ptr(:)
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_two_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_cnv_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_vdf_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_mox_ptr(:)
@@ -671,7 +670,7 @@ CONTAINS
   !>
   !! Top-level procedure for building the physics state
   !!
-  SUBROUTINE construct_echam_phy_state( patch_array, ntracer )
+  SUBROUTINE construct_echam_phy_memory( patch_array, ntracer )
 
     TYPE(t_patch),INTENT(IN) :: patch_array(:)
     INTEGER,INTENT(IN) :: ntracer
@@ -722,7 +721,7 @@ CONTAINS
 
     CALL message(thismodule,'Construction of ECHAM physics state finished.')
 
-  END SUBROUTINE construct_echam_phy_state
+  END SUBROUTINE construct_echam_phy_memory
   !--------------------------------------------------------------------
 
 
@@ -730,7 +729,7 @@ CONTAINS
   !>
   !! Release memory used by the state variable arrays and list arrays
   !!
-  SUBROUTINE destruct_echam_phy_state
+  SUBROUTINE destruct_echam_phy_memory
 
     INTEGER :: ndomain  !< total # of grid levels/domains
     INTEGER :: jg       !< grid level/domain index
@@ -756,7 +755,7 @@ CONTAINS
 
     CALL message(thismodule,'Destruction of ECHAM physics state finished.')
 
-  END SUBROUTINE destruct_echam_phy_state
+  END SUBROUTINE destruct_echam_phy_memory
   !--------------------------------------------------------------------
 
 
@@ -2452,9 +2451,9 @@ CONTAINS
     __acc_attach(field%albnirdif_ice)
 
 
-    !-------------------------
-    ! Cloud and precipitation
-    !-------------------------
+    !-------
+    ! Clouds
+    !-------
     cf_desc    = t_cf_var('cl', 'm2 m-2', 'cloud area fraction', datatype_flt)
     grib2_desc = grib2_var(0,6,22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( field_list, prefix//'cl', field%aclc,                                  &
@@ -2512,6 +2511,9 @@ CONTAINS
        __acc_attach(field%hur   )
     END IF
 
+    !--------------
+    ! Precipitation
+    !--------------
     cf_desc    = t_cf_var('prlr', 'kg m-2 s-1',    &
                & 'large-scale precipitation flux (water)', datatype_flt)
     grib2_desc = grib2_var(0,1,77, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2524,18 +2526,6 @@ CONTAINS
          &        lopenacc=.TRUE.)
     __acc_attach(field%rsfl)
 
-    cf_desc    = t_cf_var('prcr', 'kg m-2 s-1',    &
-               & 'convective precipitation flux (water)', datatype_flt)
-    grib2_desc = grib2_var(0,1,76, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'prcr', field%rsfc,        &
-         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
-         &        cf_desc, grib2_desc,                           &
-         &        ldims=shape2d,                                 &
-         &        lrestart = .TRUE.,                             &
-         &        isteptype=TSTEP_INSTANT,                       &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%rsfc)
-
     cf_desc    = t_cf_var('prls', 'kg m-2 s-1',    &
                & 'large-scale precipitation flux (snow)', datatype_flt)
     grib2_desc = grib2_var(0,1,59, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2547,6 +2537,18 @@ CONTAINS
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
     __acc_attach(field%ssfl)
+
+    cf_desc    = t_cf_var('prcr', 'kg m-2 s-1',    &
+               & 'convective precipitation flux (water)', datatype_flt)
+    grib2_desc = grib2_var(0,1,58, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'prcr', field%rsfc,        &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%rsfc)
 
     cf_desc    = t_cf_var('prcs', 'kg m-2 s-1',    &
                & 'convective precipitation flux (snow)', datatype_flt)
@@ -2570,6 +2572,7 @@ CONTAINS
          &        lrestart = .TRUE.,                             &
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
+    __acc_attach(field%rain_gsp_rate)
 
     cf_desc    = t_cf_var('ice_gsp_rate', 'kg m-2 s-1',    &
                & 'gridscale ice rate ', datatype_flt)
@@ -2581,6 +2584,7 @@ CONTAINS
          &        lrestart = .TRUE.,                             &
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
+    __acc_attach(field%ice_gsp_rate)
 
     cf_desc    = t_cf_var('snow_gsp_rate', 'kg m-2 s-1',    &
                & 'gridscale snow rate ', datatype_flt)
@@ -2592,6 +2596,7 @@ CONTAINS
          &        lrestart = .TRUE.,                             &
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
+    __acc_attach(field%snow_gsp_rate)
 
     cf_desc    = t_cf_var('graupel_gsp_rate', 'kg m-2 s-1',    &
                & 'gridscale graupel rate ', datatype_flt)
@@ -2603,6 +2608,7 @@ CONTAINS
          &        lrestart = .TRUE.,                             &
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
+    __acc_attach(field%graupel_gsp_rate)
 
     cf_desc    = t_cf_var('hail_gsp_rate', 'kg m-2 s-1',    &
                & 'gridscale hail rate ', datatype_flt)
@@ -2614,6 +2620,7 @@ CONTAINS
          &        lrestart = .TRUE.,                             &
          &        isteptype=TSTEP_INSTANT,                       &
          &        lopenacc=.TRUE.)
+    __acc_attach(field%hail_gsp_rate)
 
     cf_desc    = t_cf_var('pr', 'kg m-2 s-1',                    &
          &                'precipitation flux',                  &
@@ -2734,7 +2741,7 @@ CONTAINS
     CALL add_var( field_list, prefix//'cvair', field%cvair,                       &
                 & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                           &
                 & t_cf_var('cvair', 'J/kg/K',                                     &
-                &          'specific heat of air at constant colume',             &
+                &          'specific heat of air at constant volume',             &
                 &          datatype_flt),                                         &
                 & grib2_var(0,0,255, ibits, GRID_UNSTRUCTURED, GRID_CELL),        &
                 & ldims=shape3d,                                                  &
@@ -3080,7 +3087,7 @@ CONTAINS
                    & lrestart = .FALSE., ldims=shape2d,                       &
                    &  lopenacc=.TRUE.)
 
-                   !!$       cf_desc    = t_cf_var('qv_vdiff','kg/m^2/s', '', datatype_flt)
+!!$       cf_desc    = t_cf_var('qv_vdiff','kg/m^2/s', '', datatype_flt)
 !!$       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
 !!$       CALL add_var( field_list, prefix//'qv_vdiff', field%qv_vdiff,          &
 !!$                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
@@ -4485,25 +4492,7 @@ CONTAINS
        !
     END IF
 
-    IF ( echam_phy_tc(jg)%dt_mig > dt_zero ) THEN
-       !
-       IF (is_variable_in_output(var_name=prefix//'ta_mig')) THEN
-          cf_desc    = t_cf_var('temperature_tendency_graupel', 'K s-1',                       &
-                      &         'temperature tendency due to graupel processes (cp)',          &
-                      &         datatype_flt)
-          grib2_desc = grib2_var(0,0,203, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-          CALL add_var( tend_list, prefix//'ta_mig', tend%  ta_mig,                            &
-                      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,grib2_desc,ldims=shape3d,&
-                      & vert_interp=create_vert_interp_metadata(                               &
-                      &   vert_intp_type=vintp_types("P","Z","I"),                             &
-                      &   vert_intp_method=VINTP_METHOD_LIN,                                   &
-                      &   l_extrapol=.FALSE. ),                                                &
-                      & lopenacc=.TRUE.)
-          __acc_attach(tend%  ta_mig)
-       END IF
-       !
-    END IF
-
+  !  IF ( echam_phy_tc(jg)%dt_mig > dt_zero ) THEN -> See:  mo_cloud_mig/mo_cloud_mig_memory
   !  IF ( echam_phy_tc(jg)%dt_two > dt_zero ) THEN -> See:  mo_cloud_two/mo_cloud_two_memory
 
     IF ( echam_phy_tc(jg)%dt_cnv > dt_zero ) THEN
@@ -4948,71 +4937,6 @@ CONTAINS
        END DO
        !
     END IF
-
-    IF ( echam_phy_tc(jg)%dt_mig > dt_zero ) THEN
-       !
-       contvar_is_in_output = .FALSE.
-       DO jtrc = 1,ktracer
-          trcname = advection_config(jg)%tracer_names(jtrc)
-          varname = prefix//'q'//TRIM(trcname)//'_mig'
-          IF (is_variable_in_output(var_name=TRIM(varname))) THEN
-             contvar_is_in_output = .TRUE.
-          END IF
-       END DO
-       !
-       IF (echam_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                  &
-         & contvar_is_in_output) THEN
-          CALL add_var( tend_list, prefix//'qtrc_mig', tend%qtrc_mig,                &
-                      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                      & t_cf_var('tend_qtrc_mig', 'kg kg-1 s-1',                     &
-                      &          'tendency of mass mixing ratio of tracers '//       &
-                      &          'due to graupel processes',                         &
-                      &          datatype_flt),                                      &           
-                      & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED,GRID_CELL),&
-                      & ldims = shape_trc,                                           &
-                      & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
-                      & lopenacc=.TRUE.)
-          __acc_attach(tend%qtrc_mig)
-          ALLOCATE(tend% qtrc_mig_ptr(ktracer))
-       END IF
-       !
-       DO jtrc = 1,ktracer
-          !
-          trcname = advection_config(jg)%tracer_names(jtrc)
-          varname = prefix//'q'//TRIM(trcname)//'_mig'
-          !
-          IF (is_variable_in_output(var_name=TRIM(varname))) THEN
-            ! GRIB2 code triplet for mig tendencies
-             SELECT CASE (trcname)
-             CASE ('hus')
-                grib2_tmp = grib2_var(0, 1, 203, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-             CASE ('clw')
-                grib2_tmp = grib2_var(0, 6, 203, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-             CASE ('cli')
-                grib2_tmp = grib2_var(0, 6, 213, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-             CASE default
-                grib2_tmp = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-             END SELECT
-             CALL add_ref( tend_list, prefix//'qtrc_mig',                                        &
-                         & TRIM(varname), tend%qtrc_mig_ptr(jtrc)%p,                             &
-                         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                                 &
-                         & t_cf_var(TRIM(varname), 'kg kg-1 s-1',                                &
-                         &          'tendency of mass mixing ratio of tracer '//                 &
-                         &          TRIM(trcname)//                                              &
-                         &          ' due to graupel processes',                                 &
-                         &          datatype_flt),                                               &
-                         & grib2_tmp,                                                            &
-                         & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
-                         & vert_interp=create_vert_interp_metadata(                              &
-                         &             vert_intp_type=vintp_types("P","Z","I"),                  &
-                         &             vert_intp_method=VINTP_METHOD_LIN )                       )
-          END IF
-          !
-       END DO
-       !
-    END IF
-
-  !  IF ( echam_phy_tc(jg)%dt_two > dt_zero ) THEN -> See:  mo_cloud_two/mo_cloud_two_memory
 
     IF ( echam_phy_tc(jg)%dt_cnv > dt_zero ) THEN
        !

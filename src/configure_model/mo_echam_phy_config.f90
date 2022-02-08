@@ -16,8 +16,9 @@
 !!
 MODULE mo_echam_phy_config
 
-  USE mo_kind          ,ONLY: wp
   USE mo_exception     ,ONLY: message, message_text, print_value, finish
+  USE mo_kind          ,ONLY: wp
+  USE mo_impl_constants,ONLY: max_dom
 
   USE mtime            ,ONLY: OPERATOR(<), OPERATOR(>), OPERATOR(==),                                                 &
        &                      datetime , newDatetime , datetimeToString , max_datetime_str_len ,                      &
@@ -26,9 +27,9 @@ MODULE mo_echam_phy_config
        &                      getTotalMilliSecondsTimeDelta
   USE mo_event_manager ,ONLY: addEventGroup, getEventGroup, printEventGroup
 
-  USE mo_impl_constants,ONLY: max_dom
-  USE mo_grid_config   ,ONLY: n_dom
   USE mo_master_config ,ONLY: experimentStartDate, experimentStopDate
+
+  USE mo_vertical_coord_table ,ONLY: vct_a
 
   IMPLICIT NONE
 
@@ -59,7 +60,7 @@ MODULE mo_echam_phy_config
      ! ------------------------
      !
      ! dynamics physics coupling
-     LOGICAL  :: ldcphycpl  !< determines the coupling between the dynamics and the phyiscs
+     LOGICAL  :: ldcphycpl  !< determines the coupling between the dynamics and the physics
      !                      !  .FALSE.: dynamics and physics update sequentially
      !                      !  .TRUE. : dynamics uses physics forcing for updating
      !
@@ -121,6 +122,7 @@ MODULE mo_echam_phy_config
      CHARACTER(len=max_datetime_str_len ) :: sd_mig  !< start time of cloud microphysics (graupel)
      CHARACTER(len=max_datetime_str_len ) :: ed_mig  !< end   time of cloud microphysics (graupel)
      INTEGER                              :: fc_mig
+     INTEGER                              :: if_mig
      !
      CHARACTER(len=max_timedelta_str_len) :: dt_two  !< time  step of cloud microphysics (twomom)
      CHARACTER(len=max_datetime_str_len ) :: sd_two  !< start time of cloud microphysics (twomom)
@@ -163,7 +165,9 @@ MODULE mo_echam_phy_config
      LOGICAL                              :: lamip   !< .true. for AMIP simulations
      !
      ! vertical range parameters
-     REAL(wp)                             :: zmaxcloudy !< maximum height (m) for cloud computations
+     REAL(wp)                             :: zmaxcloudy !< maximum height (m)   for cloud related computations
+     INTEGER                              :: jks_cloudy !< vertical start index for cloud related computations
+     !                                                  !  to be diagnosed from zmaxcloudy and vct_a(:)
      !
   END TYPE t_echam_phy_config
 
@@ -314,6 +318,7 @@ CONTAINS
     echam_phy_config(:)% sd_mig = ''
     echam_phy_config(:)% ed_mig = ''
     echam_phy_config(:)% fc_mig = 1
+    echam_phy_config(:)% if_mig = 1
     !
     echam_phy_config(:)% dt_two = ''
     echam_phy_config(:)% sd_two = ''
@@ -365,12 +370,16 @@ CONTAINS
   !>
   !! Check the echam_phy_config state
   !!
-  SUBROUTINE eval_echam_phy_config
+  SUBROUTINE eval_echam_phy_config(ng)
     !
-    INTEGER                 :: jg
-    CHARACTER(LEN=2)        :: cg
+    INTEGER, INTENT(in) :: ng
     !
-    DO jg = 1,n_dom
+    INTEGER             :: jg, jk
+    CHARACTER(LEN=2)    :: cg
+    !
+    DO jg = 1,ng
+       !
+       ! time control of parameterizations
        !
        WRITE(cg,'(i0)') jg
        !
@@ -402,7 +411,8 @@ CONTAINS
             &                             echam_phy_config (jg)% dt_mig  ,&
             &                             echam_phy_config (jg)% sd_mig  ,&
             &                             echam_phy_config (jg)% ed_mig  ,&
-            &                             echam_phy_config (jg)% fc_mig  )
+            &                             echam_phy_config (jg)% fc_mig  ,&
+            &                             echam_phy_config (jg)% if_mig  )
        !
        CALL eval_echam_phy_config_details(TRIM(cg),                'two' ,&
             &                             echam_phy_config (jg)% dt_two  ,&
@@ -440,6 +450,17 @@ CONTAINS
             &                             echam_phy_config (jg)% ed_art  ,&
             &                             echam_phy_config (jg)% fc_art  )
        !
+       ! vertical range for cloud related computations
+       !
+       echam_phy_config(jg)% jks_cloudy = 1
+       DO jk = 1,SIZE(vct_a)-1
+          IF ((vct_a(jk)+vct_a(jk+1))*0.5_wp > echam_phy_config(jg)% zmaxcloudy) THEN
+             echam_phy_config(jg)% jks_cloudy = echam_phy_config(jg)% jks_cloudy + 1
+          ELSE
+             EXIT
+          END IF
+       END DO
+       !
     END DO
     !
   CONTAINS
@@ -448,7 +469,8 @@ CONTAINS
          &                                   config_dt  ,&
          &                                   config_sd  ,&
          &                                   config_ed  ,&
-         &                                   config_fc  )
+         &                                   config_fc  ,&
+         &                                   config_if  )
       !
       CHARACTER(LEN=*),PARAMETER  :: method_name ='eval_echam_phy_config_details'
       !
@@ -463,6 +485,9 @@ CONTAINS
       !
       ! forcing control
       INTEGER                             , INTENT(in)    :: config_fc
+      !
+      ! interface selector
+      INTEGER                   , OPTIONAL, INTENT(in)    :: config_if 
       !
       ! mtime time control (TC) variables
       TYPE(timedelta), POINTER :: tc_dt
@@ -513,6 +538,18 @@ CONTAINS
          CALL finish(method_name,'echam_phy_config('//TRIM(cg)//')% fc_'//TRIM(process)//' must be 0, 1 or 2')
       END SELECT
       !
+      ! 6. config_if must be in {1,2,3,4,11,12,13,14}
+      !
+      IF (PRESENT(config_if)) THEN
+         SELECT CASE(config_if)
+         CASE(1,2,3,4,11,12,13,14)
+            ! OK
+         CASE DEFAULT
+            ! not allowed
+            CALL finish(method_name,'echam_phy_config('//TRIM(cg)//')% if_'//TRIM(process)//' must be in {1,2,3,4,11,12,13,14}')
+         END SELECT
+      END IF
+      !
       CALL deallocateTimeDelta(tc_dt)
       !
     END SUBROUTINE eval_echam_phy_config_details
@@ -524,10 +561,12 @@ CONTAINS
   !>
   !! Evaluate the configuration state
   !!
-  SUBROUTINE eval_echam_phy_tc
+  SUBROUTINE eval_echam_phy_tc(ng)
     !
-    INTEGER                 :: jg
-    CHARACTER(LEN=2)        :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     ! ECHAM physics timecontrol
     ! -------------------------
@@ -537,7 +576,7 @@ CONTAINS
     echam_phy_events        =  addEventGroup("echam_phy_events_group")
     echam_phy_event_group   => getEventGroup( echam_phy_events )
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !
@@ -711,10 +750,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state and the derived logicals and time controls
   !!
-  SUBROUTINE print_echam_phy_config
+  SUBROUTINE print_echam_phy_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -723,7 +764,7 @@ CONTAINS
     CALL message    ('','===========================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !
@@ -736,7 +777,7 @@ CONTAINS
        CALL message    ('','dynamics physics coupling')
        CALL print_value('    echam_phy_config('//TRIM(cg)//')% ldcphycpl  ',echam_phy_config(jg)% ldcphycpl  )
        CALL message    ('','')
-       CALL message    ('','parameterization coupling: .FALSE.: no updates of physics state, .TRUE.: updates phyiscs state')
+       CALL message    ('','parameterization coupling: .FALSE.: no updates of physics state, .TRUE.: updates physics state')
        CALL print_value('    echam_phy_config('//TRIM(cg)//')% lparamcpl  ',echam_phy_config(jg)% lparamcpl  )
        CALL message    ('','')
        CALL message    ('','tracer reference air mass: .FALSE.: moist air mass, .TRUE.: dry air mass')
@@ -776,7 +817,8 @@ CONTAINS
             &                              echam_phy_config(jg)% dt_mig  ,&
             &                              echam_phy_config(jg)% sd_mig  ,&
             &                              echam_phy_config(jg)% ed_mig  ,&
-            &                              echam_phy_config(jg)% fc_mig  )
+            &                              echam_phy_config(jg)% fc_mig  ,&
+            &                              echam_phy_config(jg)% if_mig  )
        !
        CALL print_echam_phy_config_details(cg,                     'two' ,&
             &                              echam_phy_config(jg)% dt_two  ,&
@@ -826,6 +868,7 @@ CONTAINS
        !
        CALL message    ('','vertical ranges')
        CALL print_value('    echam_phy_config('//TRIM(cg)//')% zmaxcloudy ',echam_phy_config(jg)% zmaxcloudy )
+       CALL print_value('    echam_phy_config('//TRIM(cg)//')% jks_cloudy ',echam_phy_config(jg)% jks_cloudy )
        CALL message    ('','')
        !
        CALL message    ('','Derived time control')
@@ -917,7 +960,8 @@ CONTAINS
          &                                    config_dt   ,&
          &                                    config_sd   ,&
          &                                    config_ed   ,&
-         &                                    config_fc   )
+         &                                    config_fc   ,&
+         &                                    config_if   )
       !
       ! grid and name of evaluated configuration
       CHARACTER(len=*)                    , INTENT(in) :: cg
@@ -930,6 +974,9 @@ CONTAINS
       !
       ! forcing control
       INTEGER                             , INTENT(in) :: config_fc
+      !
+      ! interface selector
+      INTEGER                   , OPTIONAL, INTENT(in) :: config_if 
       !
       CALL message       ('    echam_phy_config('//cg//')% dt_'//process,config_dt )
       IF (config_dt /= 'PT0S') THEN
@@ -944,6 +991,26 @@ CONTAINS
          CASE(2)
             CALL message ('',process//' tendencies are used as forcing in the dynamics')
          END SELECT
+         IF (PRESENT(config_if)) THEN
+            SELECT CASE(config_if)
+            CASE(1)
+               CALL message ('',process//' interface:ncol, cloud_mig:ncol, graupel:ncol, satad:ncol (=default)')
+            CASE(2)
+               CALL message ('',process//' interface:ncol, cloud_mig:1col, graupel:1col, satad:1col')
+            CASE(3)
+               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:1col')
+            CASE(4)
+               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:1cell')
+            CASE(11)
+               CALL message ('',process//' interface:ncol, cloud_mig:ncol, graupel:ncol, satad:elem(jks:jke,jcs:jce')
+            CASE(12)
+               CALL message ('',process//' interface:ncol, cloud_mig:1col, graupel:1col, satad:elem(jks:jke)')
+            CASE(13)
+               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:elem(jks:jke)')
+            CASE(14)
+               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:elem(jk)')
+            END SELECT
+         END IF
       END IF
       CALL message   ('','')
       !

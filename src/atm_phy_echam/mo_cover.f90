@@ -69,21 +69,23 @@ USE mo_index_list,           ONLY : generate_index_list
 CONTAINS
   !>
   !!
-  SUBROUTINE cover ( jg                                                    & !in
-       &           , jb                                                    & !in
-       &           , jcs,      kproma,   kbdim, klev, klevp1               & !in
-       &           , ktype,    pfrw,     pfri                              & !in
-       &           , zf                                                    & !in
-       &           , paphm1,   papm1                                       & !in
-       &           , ptm1,     pqm1,     pxlm1, pxim1                      & !in
-       &           , paclc                                                 & !out
-       &           , printop                                               & !out
+  SUBROUTINE cover ( jg                                & !in
+       &           , jb                                & !in
+       &           , jcs,      kproma,   kbdim         & !in
+       &           , jks,      klev, klevp1            & !in
+       &           , ktype,    pfrw,     pfri          & !in
+       &           , zf                                & !in
+       &           , paphm1,   papm1                   & !in
+       &           , ptm1,     pqm1,     pxlm1, pxim1  & !in
+       &           , paclc                             & !out
+       &           , printop                           & !out
        &           )
     !---------------------------------------------------------------------------------
     !
-    INTEGER, INTENT(in)    :: jg
-    INTEGER, INTENT(in)    :: jb                    !< number of block
-    INTEGER, INTENT(in)    :: kbdim, klevp1, klev, jcs, kproma
+    INTEGER, INTENT(in)    :: jg                    !< grid index
+    INTEGER, INTENT(in)    :: jb                    !< block index
+    INTEGER, INTENT(in)    :: jcs, kproma, kbdim    !< horizontal indices and dimensions
+    INTEGER, INTENT(in)    :: jks, klev, klevp1     !< vertical   indices and dimensions
     INTEGER, INTENT(in)    :: ktype(kbdim)          !< type of convection
     REAL(wp),INTENT(in)    :: pfrw(kbdim)         ,&!< water mask
          &                    pfri(kbdim)           !< ice mask
@@ -137,11 +139,10 @@ CONTAINS
 
     ! Shortcuts to components of echam_cov_config
     !
-    INTEGER :: nex, icov, jkscov, jksinv, jkeinv
+    INTEGER :: nex, icov, jksinv, jkeinv
     REAL(wp):: csatsc, csat, crt, crs, cinv, cqx, clcon
     !
     icov   = echam_cov_config(jg)% icov
-    jkscov = echam_cov_config(jg)% jkscov
     jksinv = echam_cov_config(jg)% jksinv
     jkeinv = echam_cov_config(jg)% jkeinv
     csatsc = echam_cov_config(jg)% csatsc
@@ -179,7 +180,7 @@ CONTAINS
        !        for relative humidity based schemes
        !
 #ifndef _OPENACC
-       DO jk = jkscov,klev
+       DO jk = jks,klev
           !
           CALL prepare_ua_index_spline(jg,'cover (2)',jcs,kproma,ptm1(:,jk),itv1(:),   &
                &                       za(:),pxim1(:,jk),nphase,zphase,itv2,       &
@@ -202,19 +203,19 @@ CONTAINS
           !
        END DO   !jk
 #else
-      CALL prepare_ua_index_spline_batch( jg,'cover (2)',jcs,kproma,klev-jkscov+1,                                    &
-                                          ptm1(:,jkscov:),idx_batch(:,jkscov:),za_batch(:,jkscov:),pxim1(:,jkscov:),  &
-                                          nphase_batch(jkscov:), zphase_batch(:,jkscov:), iphase_batch(:,jkscov:),    &
+      CALL prepare_ua_index_spline_batch( jg,'cover (2)',jcs,kproma,klev-jks+1,                                    &
+                                          ptm1(:,jks:),idx_batch(:,jks:),za_batch(:,jks:),pxim1(:,jks:),  &
+                                          nphase_batch(jks:), zphase_batch(:,jks:), iphase_batch(:,jks:),    &
                                           kblock=jb, kblock_size=kbdim, opt_need_host_nphase=.FALSE. )
 
-      CALL lookup_ua_eor_uaw_spline_batch( jcs, kproma, klev-jkscov+1,                    &
-                                           idx_batch(:,jkscov:), iphase_batch(:,jkscov:), & 
-                                           za_batch(:,jkscov:),  ua_batch(:,jkscov:) )
+      CALL lookup_ua_eor_uaw_spline_batch( jcs, kproma, klev-jks+1,                    &
+                                           idx_batch(:,jks:), iphase_batch(:,jks:), & 
+                                           za_batch(:,jks:),  ua_batch(:,jks:) )
 
 
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = jkscov,klev
+      DO jk = jks,klev
         DO jl = jcs,kproma
           zpapm1i = SWDIV_NOCHK(1._wp,papm1(jl,jk))
           zqsm1(jl,jk) = MIN(ua_batch(jl,jk)*zpapm1i,0.5_wp)
@@ -236,7 +237,7 @@ CONTAINS
        !      Cloud cover is set to the constant value clcon.
        !
        !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
-       paclc(jcs:kproma,jkscov:klev) = clcon
+       paclc(jcs:kproma,jks:klev) = clcon
        !$ACC END KERNELS
        !
     CASE(1) ! Fractional cloud cover scheme
@@ -317,7 +318,7 @@ CONTAINS
        !
        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-       DO jk = jkscov,klev
+       DO jk = jks,klev
           DO jl = jcs,kproma
              !
              ! Scaling factor zsat for the saturation mass mixing ratio, with range [csatsc,1].
@@ -368,7 +369,7 @@ CONTAINS
        !
        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-       DO jk = jkscov,klev
+       DO jk = jks,klev
           DO jl = jcs,kproma
              !
              zqr = pqm1(jl,jk)/zqsm1(jl,jk)
@@ -386,7 +387,7 @@ CONTAINS
        !
        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-       DO jk = jkscov,klev
+       DO jk = jks,klev
           DO jl = jcs,kproma
              !
              zqx = pxlm1(jl,jk)+pxim1(jl,jk)

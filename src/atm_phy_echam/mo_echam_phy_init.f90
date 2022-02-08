@@ -44,7 +44,6 @@ MODULE mo_echam_phy_init
   ! horizontal grid and indices
   USE mo_model_domain,         ONLY: t_patch
   USE mo_loopindices,          ONLY: get_indices_c
-  USE mo_grid_config,          ONLY: n_dom
 
   ! vertical grid
   USE mo_vertical_coord_table, ONLY: vct
@@ -56,7 +55,7 @@ MODULE mo_echam_phy_init
 
   USE mo_sea_ice_nml,          ONLY: albi
 
-  ! echam phyiscs
+  ! echam physics
   USE mo_echam_phy_config,     ONLY: eval_echam_phy_config, eval_echam_phy_tc, print_echam_phy_config, &
     &                                echam_phy_config, echam_phy_tc, dt_zero
   USE mo_echam_phy_memory,     ONLY: prm_field, t_echam_phy_field, &
@@ -93,11 +92,11 @@ MODULE mo_echam_phy_init
   USE mo_echam_cop_config,     ONLY: print_echam_cop_config, echam_cop_config
 
   ! "echam"   cloud microphysics
-  USE mo_echam_cld_config,     ONLY: eval_echam_cld_config, print_echam_cld_config, echam_cld_config
+  USE mo_echam_cld_config,     ONLY: print_echam_cld_config
 
   ! "graupel" cloud microphysics
   USE gscp_data,              ONLY: gscp_set_coefficients
-  USE mo_echam_mig_config,    ONLY: echam_mig_config, print_echam_mig_config
+  USE mo_cloud_mig_config,    ONLY: cloud_mig_config, print_cloud_mig_config
 
   ! two-moment bulk microphysics
   USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph_init
@@ -106,7 +105,7 @@ MODULE mo_echam_phy_init
   USE mo_echam_cov_config,     ONLY: eval_echam_cov_config, print_echam_cov_config
 
   ! WMO tropopause
-  USE mo_echam_wmo_config,     ONLY: eval_echam_wmo_config, print_echam_wmo_config, echam_wmo_config
+  USE mo_echam_wmo_config,     ONLY: eval_echam_wmo_config, print_echam_wmo_config
 
   ! water vapour production by methane oxidation
   ! and destruction by photolysis
@@ -134,8 +133,8 @@ MODULE mo_echam_phy_init
 #else
   USE mo_rte_rrtmgp_setup,     ONLY: rte_rrtmgp_basic_setup
   USE mo_rte_rrtmgp_interface, ONLY: pressure_scale, droplet_scale
-  USE gscp_data,               ONLY: gscp_set_coefficients
-  USE mo_echam_mig_config,     ONLY: echam_mig_config, print_echam_mig_config
+ !! USE gscp_data,               ONLY: gscp_set_coefficients
+ !! USE mo_cloud_mig_config,     ONLY: cloud_mig_config, print_cloud_mig_config
 #endif
   USE mo_lcariolle,            ONLY: lcariolle_init_o3, lcariolle_init, &
     &l_cariolle_initialized_o3, t_avi, t_time_interpolation
@@ -171,7 +170,7 @@ CONTAINS
     TYPE(t_patch), TARGET, INTENT(in) :: p_patch(:)
 
     INTEGER :: nhydromet, ntrac
-    INTEGER :: jg
+    INTEGER :: ng, jg
     INTEGER :: nlev
 
     LOGICAL :: lany
@@ -184,6 +183,7 @@ CONTAINS
     ! Initialize parameters and lookup tables
     !-------------------------------------------------------------------
 
+    ng   = SIZE(p_patch)
     nlev = p_patch(1)%nlev
 
     ! Diagnostics (all time steps)
@@ -208,16 +208,15 @@ CONTAINS
     ! and the derived time control variables echam_phy_tc(:) on all grids
     ! and for all controled processes.
     !
-    CALL  eval_echam_phy_config
-    CALL  eval_echam_phy_tc
-    CALL print_echam_phy_config
+    CALL  eval_echam_phy_config(ng)
+    CALL  eval_echam_phy_tc    (ng)
+    CALL print_echam_phy_config(ng)
 
 
     ! Set tracer indices for physics
     ! ------------------------------
 
-    CALL init_echam_phy_tracer
-
+    CALL init_echam_phy_tracer(ng)
 
     ! Parameterizations (with time control)
     ! -------------------------------------
@@ -225,17 +224,17 @@ CONTAINS
     ! radiation
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_rad > dt_zero)
     END DO
     IF (lany) THEN
       !
       ! Radiation configuration
-      CALL  eval_echam_rad_config
-      CALL print_echam_rad_config
+      CALL  eval_echam_rad_config(ng)
+      CALL print_echam_rad_config(ng)
       !
       ! Cloud optical properties
-      CALL print_echam_cop_config
+      CALL print_echam_cop_config(ng)
       !
       ! Radiation constants for gas and cloud optics
 #ifdef __NO_RTE_RRTMGP__
@@ -257,13 +256,13 @@ CONTAINS
     ! vertical turbulent mixing and surface
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_vdf > dt_zero)
     END DO
     IF (lany) THEN
       !
       CALL  eval_echam_vdf_config
-      CALL print_echam_vdf_config
+      CALL print_echam_vdf_config(ng)
       !
       ! Allocate memory for the tri-diagonal solver needed by the implicit
       ! time stepping scheme; Compute time-independent parameters.
@@ -288,7 +287,7 @@ CONTAINS
 
 #ifndef __NO_JSBACH__
       IF (ilnd <= nsfc_type .AND. ANY(echam_phy_config(:)%ljsb)) THEN
-        DO jg=1,n_dom
+        DO jg=1,ng
           IF (echam_phy_config(jg)%ljsb) THEN 
             CALL jsbach_init(jg)
           END IF
@@ -305,41 +304,40 @@ CONTAINS
     ! cumulus convection
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_cnv > dt_zero)
     END DO
     IF (lany) THEN
-      CALL alloc_echam_cnv_config 
+      CALL alloc_echam_cnv_config(ng)
       CALL  eval_echam_cnv_config
-      CALL print_echam_cnv_config
+      CALL print_echam_cnv_config(ng)
     END IF
 
     ! cloud processes
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_cld > dt_zero)
     END DO
     IF (lany) THEN
-      CALL  eval_echam_cld_config
-      CALL print_echam_cld_config
+      CALL print_echam_cld_config(ng)
     END IF
 
     ! cloud microphysics (graupel)
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_mig > dt_zero)
     END DO
     IF (lany) THEN
-      CALL print_echam_mig_config
+      CALL print_cloud_mig_config(ng)
       !
       ! For making the "graupel" setup specific for the grid, the following setup needs
       ! to be executed in the time loop immediately before calling "graupel", or the
       ! gscp_data module needs to be extended with a grid dimension. For the time being
       ! the scheme is initialized with configuration parameters for grid 1.
       !
-      IF (n_dom > 1) THEN
+      IF (ng > 1) THEN
          CALL message('','!! ATTENTION: The current implementation of the "graupel" scheme !!')
          CALL message('','!! ---------  uses the configuration for grid 1 on all grids     !!')
          CALL message('','')
@@ -347,19 +345,19 @@ CONTAINS
       !
       jg=1
       CALL gscp_set_coefficients(idbg                = msg_level                            ,&
-         &                       tune_zceff_min      = echam_mig_config(jg)% zceff_min      ,&
-         &                       tune_v0snow         = echam_mig_config(jg)% v0snow         ,&
-         &                       tune_zvz0i          = echam_mig_config(jg)% zvz0i          ,&
-         &                       tune_icesedi_exp    = echam_mig_config(jg)% icesedi_exp    ,&
-         &                       tune_mu_rain        = echam_mig_config(jg)% mu_rain        ,&
-         &                       tune_rain_n0_factor = echam_mig_config(jg)% rain_n0_factor ,&
+         &                       tune_zceff_min      = cloud_mig_config(jg)% zceff_min      ,&
+         &                       tune_v0snow         = cloud_mig_config(jg)% v0snow         ,&
+         &                       tune_zvz0i          = cloud_mig_config(jg)% zvz0i          ,&
+         &                       tune_icesedi_exp    = cloud_mig_config(jg)% icesedi_exp    ,&
+         &                       tune_mu_rain        = cloud_mig_config(jg)% mu_rain        ,&
+         &                       tune_rain_n0_factor = cloud_mig_config(jg)% rain_n0_factor ,&
          &                       igscp               = 2 )
     END IF
 
     ! cloud microphysics (two moment bulk microphysics)
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_two > dt_zero)
     END DO
     IF (lany) THEN
@@ -370,48 +368,40 @@ CONTAINS
 
     ! cloud cover diagnostics
     !
-    CALL  eval_echam_cov_config
-    CALL print_echam_cov_config
+    CALL  eval_echam_cov_config(ng)
+    CALL print_echam_cov_config(ng)
 
     ! WMO tropopause diagnostics
     !
-    CALL  eval_echam_wmo_config
-    CALL print_echam_wmo_config
-
-    ! WMO tropopause
-    !
-    lany=.TRUE.
-    IF (lany) THEN
-      CALL  eval_echam_wmo_config
-      CALL print_echam_wmo_config
-    END IF
+    CALL  eval_echam_wmo_config(ng)
+    CALL print_echam_wmo_config(ng)
 
     ! atmospheric gravity wave drag
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_gwd > dt_zero)
     END DO
     IF (lany) THEN
        CALL  eval_echam_gwd_config
-       CALL print_echam_gwd_config
+       CALL print_echam_gwd_config(ng)
     END IF
 
     ! subgrid scale orographic effects
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_sso > dt_zero)
     END DO
     IF (lany) THEN
        CALL  eval_echam_sso_config
-       CALL print_echam_sso_config
+       CALL print_echam_sso_config(ng)
     END IF
  
     ! Cariolle linearized o3 chemistry
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_car > dt_zero)
     END DO
     IF (lany) THEN
@@ -419,9 +409,9 @@ CONTAINS
         CALL finish('init_echam_phy: mo_echam_phy_init.f90', &
                    &'cannot find an ozone tracer - abort')
       END IF
-      IF (n_dom > 1) THEN
+      IF (ng > 1) THEN
         CALL finish('init_echam_phy: mo_echam_phy_init.f90', &
-                   &'Cariolle initialization not ready for n_dom>1')
+                   &'Cariolle initialization not ready for ng>1')
       END IF
       CALL lcariolle_init()
     END IF
@@ -429,7 +419,7 @@ CONTAINS
     ! ch4 oxidation and h2o photolysis
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
       lany = lany .OR. (echam_phy_tc(jg)%dt_mox > dt_zero)
     END DO
     IF (lany) THEN
@@ -441,10 +431,12 @@ CONTAINS
   END SUBROUTINE init_echam_phy_params
 
 
-  SUBROUTINE init_echam_phy_tracer
-
-    INTEGER :: jg, jt
-    LOGICAL :: lany
+  SUBROUTINE init_echam_phy_tracer(ng)
+    !
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg, jt
+    LOGICAL             :: lany
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_echam_phy_tracer'
 
     ! Set the indices for specific tracers, if they occur among the named tracers.
@@ -504,7 +496,7 @@ CONTAINS
     ! Is echam cloud microphysics active?
     ! Then iqv, iqc, and iqi must be non-zero and in {1,2,3}
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_cld > dt_zero)
     END DO
     IF (lany) THEN
@@ -522,7 +514,7 @@ CONTAINS
        END IF
        IF (iqm_max > 3) THEN
           CALL print_value('ATTENTION! '  // &
-               &           'ECHAM cloud microphyiscs is used with more than 3 '    // &
+               &           'ECHAM cloud microphysics is used with more than 3 '    // &
                &           'water tracers: iqm_max',iqm_max, routine=routine)
        END IF
     END IF
@@ -530,7 +522,7 @@ CONTAINS
     ! Is "graupel" cloud microphysics active?
     ! Then iqv, iqc, iqi, iqr, iqs, and iqg must be non-zero and in {1,2,3,4,5,6}
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_mig > dt_zero)
     END DO
     IF (lany) THEN
@@ -548,7 +540,7 @@ CONTAINS
        END IF
        IF (iqm_max > 6) THEN
           CALL print_value('ATTENTION! '   // &
-               &           '"Graupel" cloud microphyiscs is used with more than 6 ' // &
+               &           '"Graupel" cloud microphysics is used with more than 6 ' // &
                &           'water tracers: iqm_max',iqm_max, routine=routine)
        END IF
     END IF
@@ -556,7 +548,7 @@ CONTAINS
     ! Is Two moment bulk cloud microphysics active?
     ! Then iqv, iqc, iqi, iqr, iqs, iqg, iqh, iqni, iqnr, iqns, iqng, iqnc and ininact must be non-zero and in {1,...,14}
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_two > dt_zero)
     END DO
     IF (lany) THEN
@@ -576,7 +568,7 @@ CONTAINS
        END IF
        IF (iqm_max > 7) THEN
           CALL print_value('mo_echam_phy_init:init_echam_phy_tracer: ATTENTION! '   // &
-               &           'two moment bulk microphyiscs is used with more than 7 ' // &
+               &           'two moment bulk microphysics is used with more than 7 ' // &
                &           'water tracers: iqm_max',iqm_max)
        END IF
     END IF
@@ -584,7 +576,7 @@ CONTAINS
     ! Is Cariolle's linearized ozone chemistry active?
     ! Then io3 must be non-zero.
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_car > dt_zero)
     END DO
     IF (lany) THEN
@@ -599,7 +591,7 @@ CONTAINS
     ! Is methane oxidation active?
     ! Then iqv must be non-zero.
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_mox > dt_zero)
     END DO
     IF (lany) THEN
@@ -645,7 +637,7 @@ CONTAINS
     TYPE(t_patch), TARGET, INTENT(in) :: p_patch(:)
     TYPE(datetime),  INTENT(in), POINTER    :: mtime_current !< Date and time information
 
-    INTEGER :: jg
+    INTEGER :: ng, jg
     LOGICAL :: lany
     TYPE(t_stream_id) :: stream_id
 
@@ -659,10 +651,12 @@ CONTAINS
     IF (timers_level > 1) CALL timer_start(timer_prep_echam_phy)
 
     ! external data on ICON grids:
-    
-    DO jg= 1,n_dom
 
-      IF (n_dom > 1) THEN
+    ng = SIZE(p_patch)
+
+    DO jg= 1,ng
+
+      IF (ng > 1) THEN
         WRITE(land_frac_fn, '(a,i2.2,a)') 'bc_land_frac_DOM', jg, '.nc'
         WRITE(land_phys_fn, '(a,i2.2,a)') 'bc_land_phys_DOM', jg, '.nc'
         WRITE(land_sso_fn , '(a,i2.2,a)') 'bc_land_sso_DOM' , jg, '.nc'
@@ -798,7 +792,7 @@ CONTAINS
     ! Read file for simple plumes aerosol distributions
     !
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. (echam_phy_tc(jg)%dt_rad > dt_zero)
     END DO
     IF (lany) THEN
@@ -823,7 +817,7 @@ CONTAINS
     ! if radiation is used with any of the gases from the greenhouse gases file
     ! or if the carbon cycle is used with prescribed co2 from this file.
     lany=.FALSE.
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        lany = lany .OR. ( echam_phy_tc(jg)%dt_rad > dt_zero .AND.         &
 #ifdef __NO_RTE_RRTMGP__
             &             ( echam_rad_config(jg)%irad_co2   == 4 .OR.     &
@@ -873,7 +867,7 @@ CONTAINS
           ! interpolation weights for linear interpolation of monthly means to the current time
           current_time_interpolation_weights = calculate_time_interpolation_weights(mtime_current)
           !
-          DO jg= 1,n_dom
+          DO jg= 1,ng
             !
             IF (echam_phy_tc(jg)%dt_rad > dt_zero .OR. echam_phy_tc(jg)%dt_vdf > dt_zero) THEN
               !
@@ -1091,7 +1085,7 @@ CONTAINS
       ! For idealized test cases
 
       SELECT CASE (nh_test_name)
-      CASE('APE','APE_echam','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','CBL_flxconst','RCEMIP_analytical') 
+      CASE('APE','APE_echam','RCEhydro','RCE_glb','RCE_Tconst','CBL_flxconst','RCEMIP_analytical') 
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

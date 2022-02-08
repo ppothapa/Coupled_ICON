@@ -253,10 +253,10 @@ cat > ${atmo_namelist} << EOF
  echam_cop_config(1)%cinhoml2   =   1.0
  echam_cop_config(1)%cinhoml3   =   1.0
 /
-&echam_mig_nml
- echam_mig_config(1)%mu_rain        = 0.5
- echam_mig_config(1)%rain_n0_factor = 0.1
- echam_mig_config(1)%v0snow         = 25.
+&cloud_mig_nml
+ cloud_mig_config(1)%mu_rain        = 0.5
+ cloud_mig_config(1)%rain_n0_factor = 0.1
+ cloud_mig_config(1)%v0snow         = 25.
 /
 &echam_cov_nml
  echam_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on rel. hum.

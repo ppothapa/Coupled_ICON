@@ -26,7 +26,6 @@ MODULE mo_echam_cop_config
   USE mo_exception            ,ONLY: message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
   USE mo_echam_phy_config     ,ONLY: echam_phy_tc, dt_zero
   USE mtime,                   ONLY: OPERATOR(>)
 
@@ -121,10 +120,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_cop_config
+  SUBROUTINE print_echam_cop_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -133,7 +134,7 @@ CONTAINS
     CALL message    ('','======================================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !

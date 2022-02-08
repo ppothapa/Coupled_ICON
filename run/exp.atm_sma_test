@@ -181,7 +181,7 @@ const_z0  = 0.0003
 /
 &echam_cov_nml
 /
-& echam_mig_nml
+&cloud_mig_nml
 /
 EOF
 

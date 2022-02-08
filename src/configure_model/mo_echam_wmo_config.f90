@@ -26,7 +26,7 @@ MODULE mo_echam_wmo_config
   USE mo_exception            ,ONLY: finish, message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
-  USE mo_grid_config          ,ONLY: n_dom
+
   USE mo_vertical_coord_table ,ONLY: vct_a
 
   IMPLICIT NONE
@@ -87,13 +87,15 @@ CONTAINS
   !>
   !! Evaluate additional derived parameters
   !!
-  SUBROUTINE eval_echam_wmo_config
+  SUBROUTINE eval_echam_wmo_config(ng)
     !
-    INTEGER           :: jg, jk, klev
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg, jk, klev
     !
     klev = SIZE(vct_a)-1
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        ! diagnose jkswmo = start index
        !
@@ -126,10 +128,12 @@ CONTAINS
   !>
   !! Print out the user controlled configuration state
   !!
-  SUBROUTINE print_echam_wmo_config
+  SUBROUTINE print_echam_wmo_config(ng)
     !
-    INTEGER           :: jg
-    CHARACTER(LEN=2)  :: cg
+    INTEGER, INTENT(in) :: ng
+    !
+    INTEGER             :: jg
+    CHARACTER(LEN=2)    :: cg
     !
     CALL message    ('','')
     CALL message    ('','========================================================================')
@@ -138,7 +142,7 @@ CONTAINS
     CALL message    ('','============================')
     CALL message    ('','')
     !
-    DO jg = 1,n_dom
+    DO jg = 1,ng
        !
        WRITE(cg,'(i0)') jg
        !
