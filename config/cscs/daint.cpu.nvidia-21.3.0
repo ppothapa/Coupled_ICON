@@ -5,7 +5,7 @@ set -eu
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
 
-MODULES='modules craype cdt-cuda/21.05 PrgEnv-nvidia nvidia-icon/21.3.0 gcc cray-mpich cray-netcdf cray-hdf5'
+MODULES='modules craype cdt-cuda PrgEnv-nvidia nvidia-icon/21.3.0 gcc/9.3.0 cray-mpich cray-netcdf cray-hdf5'
 
 # Requirements
 if [ -z "${XML2_ROOT+x}" ]; then
