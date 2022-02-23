@@ -123,7 +123,7 @@ CONTAINS
       & zaeq3(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
       & zaeq4(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
       & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c)        !< Climatological aerosol (Tegen)
-    REAL(wp), TARGET,        INTENT(in)    ::             &
+    REAL(wp), TARGET, ALLOCATABLE, INTENT(in) ::          &
       & od_lw (:,:,:,:)                             ,     & !< LW aerosol optical thickness
       & od_sw (:,:,:,:)                             ,     & !< SW aerosol optical thickness
       & g_sw  (:,:,:,:)                             ,     & !< SW aerosol asymmetry factor
@@ -483,7 +483,8 @@ CONTAINS
       & zaeq2(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
       & zaeq3(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
       & zaeq4(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
-      & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c),     & !< Climatological aerosol (Tegen)
+      & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c)        !< Climatological aerosol (Tegen)
+    REAL(wp), ALLOCATABLE,   INTENT(in)    ::             &
       & od_lw (:,:,:,:)                             ,     & !< LW aerosol optical thickness
       & od_sw (:,:,:,:)                             ,     & !< SW aerosol optical thickness
       & g_sw  (:,:,:,:)                             ,     & !< SW aerosol asymmetry factor
