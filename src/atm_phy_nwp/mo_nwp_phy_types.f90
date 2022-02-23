@@ -74,7 +74,6 @@ MODULE mo_nwp_phy_types
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: tot_ptr(:)  !< pointer array: one pointer for each tot var (grid+subgrid)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: tci_ptr(:)  !< pointer array: total column-integrated values
-    TYPE(t_ptr_2d3d),ALLOCATABLE :: tav_ptr(:)  !< pointer array: average of tci
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfm_ptr(:)  !< pointer array: average of cfm
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfh_ptr(:)  !< pointer array: average of cfh
@@ -163,9 +162,6 @@ MODULE mo_nwp_phy_types
       &  tot_cld(:,:,:,:),     & !! total cloud variables (qv,qc,qi)
       &  tot_cld_vi(:,:,:),    & !! vertically integrated tot_cld (qv,qc,qi), including vertical 
                                  !! integrals of qr and qs 
-      &  tot_cld_vi_avg(:,:,:),& !! average since model start of the 
-                                 !! vertically integrated tot_cld (qv,qc,qi)
-      &  clct_avg(:,:),        & !! average since model start of the total cloud cover  
       &  cosmu0(:,:),          & !! cosine of solar zenith angle
       &  albdif(:,:),          & !! Shortwave albedo for diffuse radiation  (0.3-5.0um)
       &  albvisdif(:,:),       & !! UV visible albedo for diffuse radiation (0.3-0.7um)

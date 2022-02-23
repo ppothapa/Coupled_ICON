@@ -136,8 +136,6 @@ MODULE mo_atm_phy_nwp_config
 
     LOGICAL :: lcalc_acc_avg       ! TRUE: calculate accumulated and averaged quantities
 
-    LOGICAL :: lcalc_moist_integral_avg ! TRUE: calculate temporally averaged vertical integrals of moisture fields
-
     LOGICAL :: lcalc_extra_avg     ! TRUE: calculate aditional temporally averaged fields, which normally 
                                    !       are not computed in operational runs.
                                    !       lcalc_extra_avg is set to true automatically, if any of the 

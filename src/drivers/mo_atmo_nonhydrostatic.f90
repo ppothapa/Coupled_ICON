@@ -620,15 +620,6 @@ CONTAINS
     ! Determine if temporally averaged vertically integrated moisture quantities need to be computed
 
     IF (iforcing == inwp) THEN
-        atm_phy_nwp_config(1:n_dom)%lcalc_moist_integral_avg = &
-        is_variable_in_output(var_name="clct_avg")        .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg01") .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg02") .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg03") .OR. &
-        is_variable_in_output(var_name="avg_qv")          .OR. &
-        is_variable_in_output(var_name="avg_qc")          .OR. &
-        is_variable_in_output(var_name="avg_qi")
-
         atm_phy_nwp_config(1:n_dom)%lcalc_extra_avg = &
         is_variable_in_output(var_name="astr_u_sso")      .OR. &
         is_variable_in_output(var_name="accstr_u_sso")    .OR. &
@@ -637,14 +628,6 @@ CONTAINS
         is_variable_in_output(var_name="adrag_u_grid")    .OR. &
         is_variable_in_output(var_name="adrag_v_grid")
      ENDIF
-
-    !Anurag Dipankar, MPIM (2015-08-01): always call this routine
-    !for LES simulation
-    DO jg = 1 , n_dom
-      atm_phy_nwp_config(jg)%lcalc_moist_integral_avg &
-           = atm_phy_nwp_config(jg)%lcalc_moist_integral_avg &
-           .OR. atm_phy_nwp_config(jg)%is_les_phy
-    END DO
 
     !----------------------!
     !  Initialize actions  !

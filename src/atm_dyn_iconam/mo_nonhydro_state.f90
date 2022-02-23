@@ -66,7 +66,7 @@ MODULE mo_nonhydro_state
     &                                iqni, iqni_nuc, iqg, iqh, iqnr, iqns,      & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
-    &                                iqtke, nqtendphy, ltestcase, lart
+    &                                iqtke, ltestcase, lart
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
   USE mo_limarea_config,       ONLY: latbc_config
@@ -1709,7 +1709,6 @@ MODULE mo_nonhydro_state
     &       p_diag%ddt_temp_dyn, &
     &       p_diag%ddt_tracer_adv, &
     &       p_diag%tracer_vi, &
-    &       p_diag%tracer_vi_avg, &
     &       p_diag%exner_pr, &
     &       p_diag%exner_dyn_incr, &
     &       p_diag%temp, &
@@ -3241,34 +3240,6 @@ MODULE mo_nonhydro_state
                     & ref_idx=iqh,                                                 &
                     & ldims=shape2d_c, lrestart=.FALSE.)
       ENDIF
-
-
-
-      ! tracer_vi_avg(nproma,nblks_c,iqm_max)
-      cf_desc    = t_cf_var('tracer_vi_avg', 'kg m-2', &
-        &                   'average  of vertically integrated tracers', datatype_flt)
-      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'tracer_vi_avg', p_diag%tracer_vi_avg,          &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,     &
-                  & ldims=(/nproma, nblks_c, iqm_max/), lrestart=.FALSE.,        &
-                  & loutput=.FALSE., lcontainer=.TRUE.,                          &
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%tracer_vi_avg)
-
-      ! Note: so far, only the first 3 entries are referenced
-      ALLOCATE(p_diag%tracer_vi_avg_ptr(nqtendphy))
-      DO jt =1,nqtendphy
-        WRITE(ctrc,'(I3.3)')jt
-        cf_desc    = t_cf_var('tracer_vi_avg'//ctrc, 'kg m-2', &
-          &                   'average of vertically integrated tracers', datatype_flt)
-        CALL add_ref( p_diag_list, 'tracer_vi_avg', 'tracer_vi_avg'//ctrc,       &
-          &           p_diag%tracer_vi_avg_ptr(jt)%p_2d,                         &
-          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-          &           cf_desc, grib2_desc,                                       &
-          &           ref_idx=jt,                                                &
-          &           ldims=shape2d_c, lrestart=.FALSE. )
-      ENDDO
-
 
     ENDIF  !  ntracer >0
 

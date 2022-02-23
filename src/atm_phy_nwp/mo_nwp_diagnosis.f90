@@ -70,8 +70,7 @@ MODULE mo_nwp_diagnosis
                                    compute_field_twater
   USE mo_nwp_ww,             ONLY: ww_diagnostics, ww_datetime
   USE mtime,                 ONLY: datetime, timeDelta, getTimeDeltaFromDateTime,  &
-    &                              deallocateTimedelta, newTimeDelta, newDatetime, &
-    &                              deallocateDatetime, event
+    &                              deallocateTimedelta, newTimeDelta, event
   USE mo_util_mtime,         ONLY: is_event_active
   USE mo_exception,          ONLY: finish
   USE mo_math_constants,     ONLY: pi
@@ -188,9 +187,12 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block(rl_end)
     
 
-    ! Calculate vertical integrals of moisture quantities and cloud cover if 
-    ! averages of these variables are requested for output
-    IF (atm_phy_nwp_config(jg)%lcalc_moist_integral_avg) THEN
+    ! Calculate vertical integrals of moisture quantities and cloud cover
+    ! Anurag Dipankar, MPIM (2015-08-01): always call this routine
+    ! for LES simulation
+    IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
+      ! This call is required in LES to have prm_diag%clct up-to-date in
+      ! calculate_turbulent_diagnostics.
       CALL calc_moist_integrals(pt_patch, p_metrics,        & !in
                               & pt_prog, pt_prog_rcf,       & !in
                               & ext_data, kstart_moist,     & !in
@@ -212,9 +214,6 @@ CONTAINS
     !-----------
     ! - total precipitation amount
     ! - time averaged precipitation rates (total, grid-scale, convective)
-    ! - time averaged total cloud cover
-    ! - time averaged TQV, TQC, TQI, TQR, TQS
-    ! - time averaged TQV_DIA, TQC_DIA, TQI_DIA
     !
     ! soil
     !-----
@@ -305,43 +304,6 @@ CONTAINS
 
         ENDDO  ! jc
         !$acc end parallel
-
-        IF (atm_phy_nwp_config(jg)%lcalc_moist_integral_avg) THEN
-!DIR$ IVDEP
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector
-          DO jc = i_startidx, i_endidx
-            ! time averaged total cloud cover
-            prm_diag%clct_avg(jc,jb) = time_avg(prm_diag%clct_avg(jc,jb), &
-              &                                 prm_diag%clct    (jc,jb), &
-              &                                 t_wgt)
-          ENDDO  ! jc
-          !$acc end parallel
-
-          ! time averaged tracer vertical integrals (mass concentrations only)  
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector collapse(2)
-          DO jt = 1, iqm_max
-!DIR$ IVDEP
-            DO jc = i_startidx, i_endidx
-              pt_diag%tracer_vi_avg(jc,jb,jt) = (1._wp - t_wgt)*pt_diag%tracer_vi_avg(jc,jb,jt) &
-                &                              + t_wgt * pt_diag%tracer_vi(jc,jb,jt)
-            ENDDO  ! jc
-          ENDDO  ! jt
-          !$acc end parallel
-
-         ! time averaged TQV_DIA, TQC_DIA, TQI_DIA
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector collapse(2)
-          DO jt = 1, 3
-!DIR$ IVDEP
-           DO jc = i_startidx, i_endidx
-             prm_diag%tot_cld_vi_avg(jc,jb,jt) = (1._wp - t_wgt)*prm_diag%tot_cld_vi_avg(jc,jb,jt) &
-               &                                + t_wgt * prm_diag%tot_cld_vi(jc,jb,jt)
-            ENDDO
-          ENDDO  ! jt
-          !$acc end parallel
-        ENDIF
 
         IF (lcall_phy_jg(itsfc)) THEN
           !$acc parallel default(present) if(lacc)
