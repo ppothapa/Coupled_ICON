@@ -3180,6 +3180,8 @@ MODULE mo_initicon_utils
     my_qng_inc => initicon%atm_inc%qng
     my_qnh_inc => initicon%atm_inc%qnh
 
+            ! Alberto: performance could be improved by defining 1ovmeanmas
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,nlen,qtmp0,qtmp1,rholoc,meanmass) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = 1, p_patch%nblks_c

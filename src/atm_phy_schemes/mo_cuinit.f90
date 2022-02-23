@@ -309,7 +309,7 @@ SUBROUTINE cubasen &
  & ptu,      pqu,      plu,      puu,      pvu ,  pwubase,&
  & klab,     ldcum,    kcbot,                             &
 !& LDSC,     KBOTSC,
- & kctop,    kdpl,     pcape )
+ & kctop,    kdpl,     pcape, pvervel650, lvv_shallow_deep )
 
 !>
 !! Description:
@@ -389,6 +389,8 @@ SUBROUTINE cubasen &
 !!    *PVEN*         PROVISIONAL ENVIRONMENT V-VELOCITY (T+1)       M/S
 !!    *PQHFL*        MOISTURE FLUX (EXCEPT FROM SNOW EVAP.)        KG/(SM2)
 !!    *PAHFS*        SENSIBLE HEAT FLUX                            W/M2
+!!    *PVERVEL650*   VERTICAL VELOCITY AT 650hPa                   hPa/s  
+
 !!    UPDATED PARAMETERS (REAL):
 
 !!    *PTU*          TEMPERATURE IN UPDRAFTS                         K
@@ -416,6 +418,9 @@ SUBROUTINE cubasen &
 !!    *KDPL*        DEPARTURE LEVEL
 !!    *PCAPE*       PSEUDOADIABATIQUE max CAPE (J/KG)
 
+!!    LOGICAL PARAMETERS
+!!    *LVV_SHALLOW_DEEP* USE VERTICAL VELOCITY AT 650hPa TO DISTINGUISH
+!!                       BETWEEN SHALLOW AND DEEP CONVECTION
 !!          EXTERNALS
 !!          ---------
 !!          *CUADJTQ* FOR ADJUSTING T AND Q DUE TO CONDENSATION IN ASCENT
@@ -483,13 +488,16 @@ REAL(KIND=jprb)   ,INTENT(out)   :: pwubase(klon)
 INTEGER(KIND=jpim),INTENT(inout) :: klab(klon,klev) 
 LOGICAL           ,INTENT(inout) :: ldcum(klon) 
 !LOGICAL           ,INTENT(out)  :: ldsc(klon) 
-LOGICAL                          :: ldsc(klon) 
+LOGICAL                          :: ldsc(klon)
+LOGICAL           ,INTENT(in)    :: lvv_shallow_deep
 INTEGER(KIND=jpim),INTENT(inout) :: kcbot(klon) 
 !INTEGER(KIND=jpim),INTENT(out)   :: kbotsc(klon) 
 INTEGER(KIND=jpim)               :: kbotsc(klon) 
 INTEGER(KIND=jpim),INTENT(out)   :: kctop(klon) 
 INTEGER(KIND=jpim),INTENT(out)   :: kdpl(klon) 
 REAL(KIND=jprb)   ,INTENT(out)   :: pcape(klon) 
+REAL(KIND=jprb)   ,INTENT(in)    :: pvervel650(:) 
+
 INTEGER(KIND=jpim) ::  ictop(klon),            icbot(klon),&
  & ibotsc(klon),           ilab(klon,klev),&
  & idpl(klon)  
@@ -622,6 +630,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       lldcum(jl)  =.FALSE.  ! on exit: true if cloudbase=found
       lldsc (jl)  =.FALSE.  ! on exit: true if cloudbase=found
       ll_ldbase(jl)   =.FALSE. ! on exit: true if cloudbase=found
+      lldeep(jl)  =.FALSE.  ! true if convection is deep
       zdtvtrig(jl) =0.0_JPRB
       zuu(jl,jkk) =puen(jl,jkk)*(paph(jl,jkk+1)-paph(jl,jkk))
       zvu(jl,jkk) =pven(jl,jkk)*(paph(jl,jkk+1)-paph(jl,jkk))
@@ -960,14 +969,20 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       llgo_on(jl) = .FALSE.
       jkt=ictop(jl)
       jkb=icbot(jl)
-      lldeep(jl)=paph(jl,jkb)-paph(jl,jkt)>rdepths
+      
+      ! use alternative criterion for "deep convection"
+      IF (lvv_shallow_deep) THEN
+         lldeep(jl)= (pvervel650(jl).LT.0.0)
+      ELSE
+         lldeep(jl)=paph(jl,jkb)-paph(jl,jkt)>rdepths
+      ENDIF
       IF(lldeep(jl)) lldcum(jl)=.FALSE. ! no deep allowed for KLEV
       lldeep(jl)=.FALSE. ! for deep convection start only at level KLEV-1
                             ! and form mixed layer, so go on
       ! test further for deep convective columns as not yet found
       IF ( lldeep(jl) ) llfirst(jl)=.FALSE.
       llgo_on(jl) = .NOT.lldeep(jl)
-      IF(lldcum(jl)) THEN
+      IF(lldcum(jl)) THEN ! only write convective properties if cloud is shallow, and failed deep test
         kcbot(jl)= icbot(jl)
         kctop(jl)= ictop(jl)
         kdpl(jl)  = idpl(jl)
@@ -992,20 +1007,25 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
         ENDIF
       ENDDO
     ENDDO
-  ENDIF
+  ENDIF !jkk==klev
       ! Modification by GZ to close vectorization gap
 
   IF( jkk < klev ) THEN
     !llreset=.FALSE.
     DO jl=kidia,kfdia
-      IF ( .NOT.lldeep(jl) ) &
+      IF ( .NOT.lldeep(jl) ) THEN
       !  jkt=ictop(jl)
       !  jkb=icbot(jl)
       ! test on cloud thickness and buoyancy
-        lldeep(jl)=paph(jl,icbot(jl))-paph(jl,ictop(jl))>=rdepths
+      !use alternative criterion for "deep convection"
+         IF (lvv_shallow_deep) THEN
+            lldeep(jl)= (pvervel650(jl).LT.0.0)
+         ELSE
+            lldeep(jl)=paph(jl,icbot(jl))-paph(jl,ictop(jl))>=rdepths
+         ENDIF
        !LLDEEP(JL)=PAPH(JL,JKB)-PAPH(JL,JKT)>=RDEPTHS &
        !   &.AND. ZDTVTRIG(JL)>0._JPRB
-      !ENDIF
+      ENDIF
       llresetjl(jl)=lldeep(jl).AND.llfirst(jl)
       !llreset=llreset.OR.llresetjl(jl)
     ENDDO
@@ -1053,7 +1073,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       ENDIF
       llgo_on(jl) = .NOT.lldeep(jl)
     ENDDO
-  ENDIF
+  ENDIF! jkk < klev
 
 ENDDO ! end of big loop for search of departure level     
 

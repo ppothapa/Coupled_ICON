@@ -72,7 +72,7 @@ USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
 USE mo_prepadv_state,        ONLY: construct_prepadv_state, destruct_prepadv_state
 USE mo_opt_diagnostics,      ONLY: construct_opt_diag, destruct_opt_diag,      &
   &                                compute_lonlat_area_weights
-USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend,                     &
+USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend, prm_nwp_stochconv,  &
   &                                construct_nwp_phy_state
 USE mo_nwp_lnd_state,        ONLY: p_lnd_state, construct_nwp_lnd_state
 USE mo_nwp_phy_cleanup,      ONLY: cleanup_nwp_phy
@@ -412,6 +412,7 @@ CONTAINS
             &             p_nh_state(1:)  ,&
             &             ext_data(1:)    ,&
             &             prm_diag(1:)    ,&
+            &             prm_nwp_stochconv(1:),&
             &             p_lnd_state(1:) )
           !
         ELSE ! iforcing == iecham, inoforcing, ...

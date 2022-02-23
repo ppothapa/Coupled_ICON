@@ -239,7 +239,8 @@ MODULE mo_initicon_types
   TYPE :: t_saveinit_state
 
     REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: fr_seaice, t_ice, h_ice, alb_si, gz0, hsnow_max, h_snow, snow_age, &
-                                             t_mnw_lk, t_wml_lk, h_ml_lk, t_bot_lk, c_t_lk, t_b1_lk, h_b1_lk
+                                             t_mnw_lk, t_wml_lk, h_ml_lk, t_bot_lk, c_t_lk, t_b1_lk, h_b1_lk,   &
+                                             clnum_d, clmf_d, clnum_a, clmf_a, clnum_p, clmf_p
 
     REAL(wp), ALLOCATABLE, DIMENSION(:,:,:) :: theta_v, rho, exner, w, tke, vn, gz0_t, t_sk_t,                   &
                                                t_g_t, qv_s_t, freshsnow_t, snowfrac_t, snowfrac_lc_t, w_snow_t,  &
@@ -490,6 +491,12 @@ CONTAINS
     CALL DO_DEALLOCATE(saveinit_data%snowtile_flag_t)
     CALL DO_DEALLOCATE(saveinit_data%idx_lst_t)
     CALL DO_DEALLOCATE(saveinit_data%gp_count_t)
+    CALL DO_DEALLOCATE(saveinit_data%clnum_d)
+    CALL DO_DEALLOCATE(saveinit_data%clmf_d)
+    CALL DO_DEALLOCATE(saveinit_data%clnum_a)
+    CALL DO_DEALLOCATE(saveinit_data%clmf_a)
+    CALL DO_DEALLOCATE(saveinit_data%clnum_p)
+    CALL DO_DEALLOCATE(saveinit_data%clmf_p)   
   END SUBROUTINE t_saveinit_state_finalize
 
 END MODULE mo_initicon_types

@@ -26,7 +26,7 @@ MODULE mo_nh_init_utils
   USE mo_kind,                  ONLY: wp
   USE mo_model_domain,          ONLY: t_patch
   USE mo_nonhydro_types,        ONLY: t_nh_state
-  USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag, t_nwp_phy_tend
+  USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
   USE mo_nwp_lnd_types,         ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag, t_wtr_prog
   USE mo_ext_data_types,        ONLY: t_external_data
   USE mo_parallel_config,       ONLY: nproma
@@ -49,7 +49,7 @@ MODULE mo_nh_init_utils
   USE mo_initicon_config,       ONLY: type_iau_wgt, is_iau_active, &
     &                                 iau_wgt_dyn, iau_wgt_adv, ltile_coldstart
   USE mo_util_phys,             ONLY: virtual_temp
-  USE mo_atm_phy_nwp_config,    ONLY: iprog_aero
+  USE mo_atm_phy_nwp_config,    ONLY: iprog_aero,atm_phy_nwp_config
   USE mo_lnd_nwp_config,        ONLY: ntiles_total, l2lay_rho_snow, ntiles_water, lmulti_snow, &
                                       nlev_soil, nlev_snow, lsnowtile, lprog_albsi, itype_trvg,&
                                       itype_snowevap
@@ -726,11 +726,12 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Guenther Zaengl, DWD, (2016-06-17)
   !!
-  SUBROUTINE save_initial_state(p_patch, p_nh, prm_diag, p_lnd, ext_data)
+  SUBROUTINE save_initial_state(p_patch, p_nh, prm_diag, prm_stochconv, p_lnd, ext_data)
 
     TYPE(t_patch),             INTENT(IN) :: p_patch(:)
     TYPE(t_nh_state),          INTENT(IN) :: p_nh(:)
     TYPE(t_nwp_phy_diag),      INTENT(IN) :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(IN) :: prm_stochconv(:)
     TYPE(t_lnd_state), TARGET, INTENT(IN) :: p_lnd(:)
     TYPE(t_external_data),     INTENT(IN) :: ext_data(:)
 
@@ -803,6 +804,17 @@ CONTAINS
         ALLOCATE (saveinit(jg)%rho_snow_mult_t(nproma,nlev_snow,nblks_c,ntl))
       ENDIF
 
+      IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
+        ALLOCATE (saveinit(jg)%clnum_d(nproma,nblks_c), &
+                  saveinit(jg)%clmf_d(nproma,nblks_c)   )
+      ENDIF
+      IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
+        ALLOCATE (saveinit(jg)%clnum_a(nproma,nblks_c), &
+                  saveinit(jg)%clmf_a(nproma,nblks_c),  &
+                  saveinit(jg)%clnum_p(nproma,nblks_c), &
+                  saveinit(jg)%clmf_p(nproma,nblks_c)   )
+      ENDIF
+
       IF (iprog_aero >= 1)     ALLOCATE (saveinit(jg)%aerosol(nproma,nclass_aero,nblks_c))
       IF (lprog_albsi)         ALLOCATE (saveinit(jg)%alb_si(nproma,nblks_c))
       IF (itype_trvg == 3)     ALLOCATE (saveinit(jg)%plantevap_t(nproma,nblks_c,ntl))
@@ -863,6 +875,17 @@ CONTAINS
         CALL copy(lnd_prog%rho_snow_mult_t, saveinit(jg)%rho_snow_mult_t)
       ENDIF
 
+      IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
+        CALL copy(prm_stochconv(jg)%clnum_d, saveinit(jg)%clnum_d)
+        CALL copy(prm_stochconv(jg)%clmf_d,  saveinit(jg)%clmf_d)
+      ENDIF
+      IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
+        CALL copy(prm_stochconv(jg)%clnum_a, saveinit(jg)%clnum_a)
+        CALL copy(prm_stochconv(jg)%clmf_a,  saveinit(jg)%clmf_a)
+        CALL copy(prm_stochconv(jg)%clnum_p, saveinit(jg)%clnum_p)
+        CALL copy(prm_stochconv(jg)%clmf_p,  saveinit(jg)%clmf_p)
+      ENDIF
+      
       IF (iprog_aero >= 1)  CALL copy(prm_diag(jg)%aerosol, saveinit(jg)%aerosol)
       IF (lprog_albsi)      CALL copy(wtr_prog%alb_si, saveinit(jg)%alb_si)
       IF (itype_trvg == 3)  CALL copy(lnd_diag%plantevap_t, saveinit(jg)%plantevap_t)
@@ -885,12 +908,13 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Guenther Zaengl, DWD, (2016-06-17)
   !!
-  SUBROUTINE restore_initial_state(p_patch, p_nh, prm_diag, prm_tend, p_lnd, ext_data, lhn_fields)
+  SUBROUTINE restore_initial_state(p_patch, p_nh, prm_diag, prm_tend, prm_stochconv, p_lnd, ext_data, lhn_fields)
 
     TYPE(t_patch),             INTENT(IN)    :: p_patch(:)
     TYPE(t_nh_state),          INTENT(INOUT) :: p_nh(:)
     TYPE(t_nwp_phy_diag),      INTENT(INOUT) :: prm_diag(:)
     TYPE(t_nwp_phy_tend),      INTENT(INOUT) :: prm_tend(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT) :: prm_stochconv(:)
     TYPE(t_lnd_state), TARGET, INTENT(INOUT) :: p_lnd(:)
     TYPE(t_external_data),     INTENT(INOUT) :: ext_data(:)
     TYPE(t_lhn_diag),          INTENT(INOUT) :: lhn_fields(:)
@@ -965,6 +989,17 @@ CONTAINS
         CALL copy(saveinit(jg)%rho_snow_mult_t, lnd_prog%rho_snow_mult_t)
       ENDIF
 
+      IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
+        CALL copy(saveinit(jg)%clnum_d, prm_stochconv(jg)%clnum_d)
+        CALL copy(saveinit(jg)%clmf_d,  prm_stochconv(jg)%clmf_d)
+      ENDIF
+      IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
+        CALL copy(saveinit(jg)%clnum_a, prm_stochconv(jg)%clnum_a)
+        CALL copy(saveinit(jg)%clmf_a,  prm_stochconv(jg)%clmf_a)
+        CALL copy(saveinit(jg)%clnum_p, prm_stochconv(jg)%clnum_p)
+        CALL copy(saveinit(jg)%clmf_p,  prm_stochconv(jg)%clmf_p)
+      ENDIF
+
       IF (iprog_aero >= 1)  CALL copy(saveinit(jg)%aerosol, prm_diag(jg)%aerosol)
       IF (lprog_albsi)      CALL copy(saveinit(jg)%alb_si, wtr_prog%alb_si)
       IF (itype_trvg == 3)  CALL copy(saveinit(jg)%plantevap_t, lnd_diag%plantevap_t)
@@ -997,6 +1032,21 @@ CONTAINS
         CALL init (lnd_diag%resid_wso_inst_t)
       ENDIF
       IF (ldass_lhn) CALL init (lhn_fields(jg)%brightband(:,:), -1._wp)
+
+      ! If explicit stochastic scheme is selected, set all cloud ensemble
+      ! variables to zero at init stage. Required to get identical results
+      ! for IAU/iterative IAU.
+      IF (atm_phy_nwp_config(jg)%lstoch_expl) THEN
+        CALL init (prm_stochconv(jg)%mf_i)
+        CALL init (prm_stochconv(jg)%time_i)
+        CALL init (prm_stochconv(jg)%life_i)
+        CALL init (prm_stochconv(jg)%area_i)
+        CALL init (prm_stochconv(jg)%type_i)
+        CALL init (prm_stochconv(jg)%ktype_i)
+        CALL init (prm_stochconv(jg)%depth_i)
+        CALL init (prm_stochconv(jg)%base_i)
+        CALL init (prm_stochconv(jg)%used_cell)
+      ENDIF
 
 !$OMP END PARALLEL
 

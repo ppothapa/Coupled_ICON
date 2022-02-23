@@ -31,7 +31,7 @@ MODULE mo_nwp_phy_state
 !!
 !! @par Revision History
 !! Initial  by Kristina Froehlich (2009-06-10)
-!! Memory allocation method changed from explicit allocation to Luis' 
+!! Memory allocation method changed from explicit allocation to Luis'
 !! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
 !! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
 !! Added hzerocl, gust10                      by Helmut Frank (DWD, 2013-03-13)
@@ -48,7 +48,7 @@ MODULE mo_nwp_phy_state
 ! !USES:
 
 USE mo_kind,                ONLY: wp, i8
-USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag, t_nwp_phy_tend
+USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
 USE mo_impl_constants,      ONLY: success, &
   &                               VINTP_METHOD_LIN,VINTP_METHOD_QV,   &
   &                               TASK_COMPUTE_RH, TASK_COMPUTE_PV,   &
@@ -135,9 +135,12 @@ PUBLIC :: destruct_nwp_phy_state
 !variables
 PUBLIC :: prm_diag 
 PUBLIC :: prm_nwp_tend
+PUBLIC :: prm_nwp_stochconv
 PUBLIC :: phy_params
 PUBLIC :: prm_nwp_diag_list  !< variable lists
 PUBLIC :: prm_nwp_tend_list  !< variable lists
+PUBLIC :: prm_nwp_stochconv_list  !< variable lists
+
 !
 
 !!--------------------------------------------------------------------------
@@ -145,6 +148,7 @@ PUBLIC :: prm_nwp_tend_list  !< variable lists
 !!--------------------------------------------------------------------------
   TYPE(t_nwp_phy_diag), ALLOCATABLE, TARGET :: prm_diag(:) !< shape: (n_dom)
   TYPE(t_nwp_phy_tend), ALLOCATABLE :: prm_nwp_tend(:)     !< shape: (n_dom)
+  TYPE(t_nwp_phy_stochconv), ALLOCATABLE, TARGET :: prm_nwp_stochconv(:) !< shape: (n_dom)  
 !-------------------------------------------------------------------------
   
 !!--------------------------------------------------------------------------
@@ -152,6 +156,7 @@ PUBLIC :: prm_nwp_tend_list  !< variable lists
 !!--------------------------------------------------------------------------
   TYPE(t_var_list_ptr),ALLOCATABLE :: prm_nwp_diag_list(:)  !< shape: (n_dom)
   TYPE(t_var_list_ptr),ALLOCATABLE :: prm_nwp_tend_list(:)  !< shape: (n_dom)
+  TYPE(t_var_list_ptr),ALLOCATABLE :: prm_nwp_stochconv_list(:)  !< shape: (n_dom)
 
 !!-------------------------------------------------------------------------
 !! Parameters of various physics parameterizations that have to be 
@@ -167,7 +172,7 @@ CONTAINS
 SUBROUTINE construct_nwp_phy_state( p_patch, var_in_output )
   TYPE(t_patch), TARGET, INTENT(in) :: p_patch(n_dom)
   TYPE(t_var_in_output), INTENT(in) :: var_in_output(n_dom)
-  CHARACTER(LEN=21) :: listname
+  CHARACTER(LEN=21)                 :: listname
   INTEGER :: jg, ist, nblks_c, nlev, nlevp1
   CHARACTER(*), PARAMETER :: routine = 'mo_nwp_phy_state:construct_nwp_state'
 
@@ -190,6 +195,12 @@ SUBROUTINE construct_nwp_phy_state( p_patch, var_in_output )
       'allocation of tendency physical array and list failed')
   ENDIF
 
+  ALLOCATE(prm_nwp_stochconv(n_dom), prm_nwp_stochconv_list(n_dom), STAT=ist)
+  IF(ist/=success)THEN
+    CALL finish ('mo_nwp_phy_state:construct_nwp_state', &
+      'allocation of stochastic convection physical array and list failed')
+  ENDIF 
+
   !$ACC ENTER DATA COPYIN(prm_diag, prm_nwp_tend)
 
   DO jg = 1, n_dom
@@ -200,13 +211,16 @@ SUBROUTINE construct_nwp_phy_state( p_patch, var_in_output )
      ! number of vertical levels
      nlev   = p_patch(jg)%nlev
      nlevp1 = p_patch(jg)%nlevp1
-     
+
      WRITE(listname,'(a,i2.2)') 'prm_diag_of_domain_',jg
-     CALL new_nwp_phy_diag_list( jg, nlev, nlevp1, nblks_c, listname,             &
+     CALL new_nwp_phy_diag_list( jg, nlev, nlevp1, nblks_c, listname,  &
        &                         prm_nwp_diag_list(jg), prm_diag(jg), var_in_output(jg) )
      WRITE(listname,'(a,i2.2)') 'prm_tend_of_domain_',jg
      CALL new_nwp_phy_tend_list ( jg, nlev, nblks_c, listname, &
        &                          prm_nwp_tend_list(jg), prm_nwp_tend(jg))
+     WRITE(listname,'(a,i2.2)') 'prm_stch_of_domain_',jg
+     CALL new_nwp_phy_stochconv_list ( jg, nblks_c, listname, &
+       &                          prm_nwp_stochconv_list(jg), prm_nwp_stochconv(jg))
   ENDDO
 
   ! Allocate variable of type t_phy_params containing domain-dependent parameters
@@ -230,12 +244,15 @@ SUBROUTINE destruct_nwp_phy_state()
   DO jg = 1,n_dom
     CALL vlr_del(prm_nwp_diag_list(jg))
     CALL vlr_del(prm_nwp_tend_list(jg))
+    CALL vlr_del(prm_nwp_stochconv_list(jg))
+        
 
     IF (ALLOCATED(prm_diag(jg)%synsat_image))   DEALLOCATE(prm_diag(jg)%synsat_image)
     IF (ASSOCIATED(prm_diag(jg)%qrs_flux) .AND. .NOT. ldass_lhn) THEN
       !$ACC EXIT DATA DELETE(prm_diag(jg)%qrs_flux)
       DEALLOCATE(prm_diag(jg)%qrs_flux)
     ENDIF
+    
   END DO
 
   DEALLOCATE(prm_diag, prm_nwp_diag_list, STAT=ist)
@@ -249,6 +266,12 @@ SUBROUTINE destruct_nwp_phy_state()
     CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
          &' deallocation of NWP physics tendencies array and list failed') 
   ENDIF
+
+  DEALLOCATE(prm_nwp_stochconv, prm_nwp_stochconv_list, STAT=ist)
+  IF(ist/=success)THEN
+    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
+       &  'deallocation of NWP stochastic convection array and list failed')
+  ENDIF 
 
   !$ACC EXIT DATA DELETE(phy_params)
   DEALLOCATE(phy_params, STAT=ist)
@@ -278,7 +301,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     TYPE(t_var_in_output), INTENT(IN)  :: var_in_output
 
     ! Local variables
-    INTEGER :: n_updown = 7 !> number of up/downdrafts variables
+    INTEGER :: n_updown = 8 !> number of up/downdrafts variables
 
     TYPE(t_cf_var)    ::    cf_desc, new_cf_desc
     TYPE(t_grib2_var) :: grib2_desc
@@ -315,7 +338,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     INTEGER :: constituentType                 ! for variable of class 'chem'
 
     INTEGER :: datatype_flt
-    LOGICAL :: in_group(MAX_GROUPS)            ! for adding a variable to one or more groups 
+    LOGICAL :: in_group(MAX_GROUPS)            ! for adding a variable to one or more groups
 
     CHARACTER(len=*), PARAMETER :: &
       routine = 'mo_nwp_phy_state:new_nwp_phy_diag_list'
@@ -927,6 +950,17 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE.)
     __acc_attach(diag%ktype)
 
+    ! &      diag%k650(nproma,nblks_c)
+    cf_desc    = t_cf_var('k650', '', 'level index corresponding to the HAG of the 650hPa level', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'k650', diag%k650,                                &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                 &
+                & grib2_desc,ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.,  &
+                & isteptype=TSTEP_CONSTANT,                                    &
+                & hor_interp=create_hor_interp_metadata(                       &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB ) )
+
     ! &      diag%k850(nproma,nblks_c)
     cf_desc    = t_cf_var('k850', '', 'level index corresponding to the HAG of the 850hPa level', &
       &                   datatype_flt)
@@ -1249,6 +1283,32 @@ __acc_attach(diag%clct)
                 &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
                 & lopenacc=.TRUE.  )
     __acc_attach(diag%tot_cld)
+
+    ! Diagnostic variables for any of the stochastic convection schemes
+    IF (atm_phy_nwp_config(k_jg)%lstoch_sde .or. atm_phy_nwp_config(k_jg)%lstoch_expl &
+         & .or. atm_phy_nwp_config(k_jg)%lstoch_deep) THEN    
+
+      ! &      diag%mf_b(nproma,nblks_c)
+      cf_desc    = t_cf_var('mf_b', 'm s-1 ', 'bulk mass flux ', DATATYPE_FLT32)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'mf_b', diag%mf_b,                               &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,lrestart=.FALSE.)
+      ! &      diag%mf_p(nproma,nblks_c)
+      cf_desc    = t_cf_var('mf_p', 'm s-1 ', 'perturbed mass flux ', DATATYPE_FLT32)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'mf_p', diag%mf_p,                               &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,lrestart=.FALSE.)
+      ! &      diag%mf_num(nproma,nblks_c)
+      cf_desc    = t_cf_var('mf_num', '- ', 'number of clouds per grid box ', DATATYPE_FLT32)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'mf_num', diag%mf_num,                               &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,lrestart=.FALSE.)
+   ELSE
+      ALLOCATE(diag%mf_num(0,kblks), diag%mf_b(0,kblks), diag%mf_p(0,kblks))
+   ENDIF
 
     ALLOCATE( diag%tot_ptr(kcloud))
 
@@ -4399,6 +4459,237 @@ __acc_attach(diag%clct)
 END SUBROUTINE new_nwp_phy_diag_list
 
 
+SUBROUTINE new_nwp_phy_stochconv_list( k_jg, kblks,    &
+                     &  listname, stochconv_list, phy_stochconv)
+
+    INTEGER,INTENT(IN) :: kblks, k_jg !< dimension sizes
+
+    CHARACTER(len=*),INTENT(IN)     :: listname
+
+    TYPE(t_var_list_ptr)    ,INTENT(INOUT) :: stochconv_list
+    TYPE(t_nwp_phy_stochconv),INTENT(INOUT) :: phy_stochconv
+
+    ! Local variables
+    TYPE(t_cf_var)    ::    cf_desc
+    TYPE(t_grib2_var) :: grib2_desc
+
+    INTEGER :: shape2d(2),shape3dstoch(3)
+    INTEGER :: ibits
+    LOGICAL :: lrestart
+
+    INTEGER :: datatype_flt
+    LOGICAL :: in_group(MAX_GROUPS)            ! for adding a variable to one or more groups
+
+    CHARACTER(len=*), PARAMETER :: &
+      routine = 'mo_nwp_phy_state:new_nwp_phy_stochconv_list'
+
+    IF ( lnetcdf_flt64_output ) THEN
+      datatype_flt = DATATYPE_FLT64
+    ELSE
+      datatype_flt = DATATYPE_FLT32
+    ENDIF
+
+    ibits = DATATYPE_PACK16 ! bits "entropy" of horizontal slice
+
+    shape2d        = (/nproma,               kblks            /)
+    shape3dstoch   = (/atm_phy_nwp_config(k_jg)%nclds , nproma, kblks/)
+
+    ! Register a field list and apply default settings
+
+    CALL vlr_add(stochconv_list, TRIM(listname), patch_id=k_jg, lrestart=.TRUE.)
+
+    !------------------------------
+    ! Meteorological quantities
+    !------------------------------
+
+    
+    ! Variables for SDE stochastic convection schemes
+    IF (atm_phy_nwp_config(k_jg)%lstoch_sde ) THEN
+       ! stochastic shallow convection (using stochastic differential equations, SDE)
+       ! number of active clouds, normalised by grid point area
+       cf_desc    = t_cf_var('clnum_a', 'm-2', 'number of active clouds per unit area', datatype_flt32)
+       grib2_desc = grib2_var(0, 6, 210, ibits, GRID_UNSTRUCTURED, GRID_CELL) 
+       CALL add_var( stochconv_list,                                           &
+            & 'clnum_a', phy_stochconv%clnum_a,  &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,                                              &
+            & loutput=.TRUE.,lrestart=.TRUE.,                             &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+        
+       ! perturbed cloud-base mass flux for active clouds
+       cf_desc    = t_cf_var('clmf_a', 'kg s-1 m-2', 'cloud base mass flux associated with active clouds', datatype_flt32)
+       grib2_desc = grib2_var(0, 3, 200, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clmf_a', phy_stochconv%clmf_a,    &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,                                              &
+            & loutput=.TRUE.,lrestart=.TRUE.,                             &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+
+       ! number of passive clouds, normalised by grid point area
+       cf_desc    = t_cf_var('clnum_p', 'm-2', 'number of passive clouds per unit area', datatype_flt32)
+       grib2_desc = grib2_var(0, 6, 211, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clnum_p', phy_stochconv%clnum_p,  &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,                                              &
+            & loutput=.TRUE.,lrestart=.TRUE. ,                            &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+       
+       ! perturbed cloud-base mass flux for passive clouds
+       cf_desc    = t_cf_var('clmf_p', 'kg s-1 m-2','cloud base mass flux associated with passive clouds', datatype_flt32)
+       grib2_desc = grib2_var(0, 3, 199, ibits, GRID_UNSTRUCTURED, GRID_CELL) 
+       CALL add_var( stochconv_list,                                          &
+            & 'clmf_p', phy_stochconv%clmf_p,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape2d,                                             &
+            & loutput=.TRUE.,lrestart=.TRUE.,                            &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+
+    ELSE IF (atm_phy_nwp_config(k_jg)%lstoch_expl) THEN
+       ! stochastic shallow convection (explicit)
+       ! use variables only locally in cumaster, do not write for restart
+       ! number of active clouds, normalised by grid point area
+       cf_desc    = t_cf_var('clnum_a', 'm-2', 'number of active clouds per unit area', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clnum_a', phy_stochconv%clnum_a,  &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,lrestart=.FALSE.)
+        
+       ! perturbed cloud-base mass flux for active clouds
+       cf_desc    = t_cf_var('clmf_a', 'kg s-1 m-2', 'cloud base mass flux associated with active clouds', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clmf_a', phy_stochconv%clmf_a,    &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,lrestart=.FALSE.)
+
+       ! number of passive clouds, normalised by grid point area
+       cf_desc    = t_cf_var('clnum_p', 'm-2', 'number of passive clouds per unit area', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clnum_p', phy_stochconv%clnum_p,  &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d, lrestart=.FALSE.)
+       
+       ! perturbed cloud-base mass flux for passive clouds
+       cf_desc    = t_cf_var('clmf_p', 'kg s-1 m-2','cloud base mass flux associated with passive clouds', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'clmf_p', phy_stochconv%clmf_p,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape2d,lrestart=.FALSE.)
+
+       ! explicit cloud ensemble: individual cloud's base mass flux
+       cf_desc    = t_cf_var('mf_i', 'kg m-2 -s','cloud base mass flux', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'mf_i', phy_stochconv%mf_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+       
+       ! explicit cloud ensemble: individual cloud's current age
+       cf_desc    = t_cf_var('time_i', 's','cloud age', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'time_i', phy_stochconv%time_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+
+       ! explicit cloud ensemble: individual cloud's expected lifetime
+       cf_desc    = t_cf_var('life_i', 's','cloud lifetime', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'life_i', phy_stochconv%life_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+       
+       ! explicit cloud ensemble: individual cloud's base updraft area
+       cf_desc    = t_cf_var('area_i', 'm2','cloud updraft area', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'area_i', phy_stochconv%area_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+       
+       ! explicit cloud ensemble: individual cloud's type: active or passive
+       cf_desc    = t_cf_var('type_i', '-','cloud active or passive', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'type_i', phy_stochconv%type_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+       
+       ! explicit cloud ensemble: individual cloud's convection type: shallow/deep
+       cf_desc    = t_cf_var('ktype_i', '-','cloud convection type', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'ktype_i', phy_stochconv%ktype_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+
+       ! explicit cloud ensemble: individual cloud's cloud base (model level index)
+       cf_desc    = t_cf_var('base_i', '-','cloud base level', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'base_i', phy_stochconv%base_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+
+       ! explicit cloud ensemble: individual cloud's maximum depth (in layers)
+       cf_desc    = t_cf_var('depth_i', '-','cloud depth', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'depth_i', phy_stochconv%depth_i,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)
+
+       ! explicit cloud ensemble: is this space in the ensemble used or not (logical)
+       cf_desc    = t_cf_var('used_cell', '-','cell use tag', datatype_flt32)
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                          &
+            & 'used_cell', phy_stochconv%used_cell,   &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE,cf_desc, grib2_desc, &
+            & ldims=shape3dstoch,lrestart=.FALSE.)        
+       
+    ELSE
+       ALLOCATE(phy_stochconv%clmf_p(0,kblks),phy_stochconv%clmf_a(0,kblks),phy_stochconv%clnum_p(0,kblks),phy_stochconv%clnum_a(0,kblks))
+       ALLOCATE(phy_stochconv%time_i(0,0,kblks),phy_stochconv%mf_i(0,0,kblks),phy_stochconv%life_i(0,0,kblks),phy_stochconv%area_i(0,0,kblks))
+       ALLOCATE(phy_stochconv%depth_i(0,0,kblks),phy_stochconv%type_i(0,0,kblks),phy_stochconv%ktype_i(0,0,kblks),phy_stochconv%used_cell(0,0,kblks))
+    ENDIF
+
+    IF (atm_phy_nwp_config(k_jg)%lstoch_deep) THEN
+       ! stochastic deep convection
+       ! number of deep clouds
+       cf_desc    = t_cf_var('clnum_d', 'm-2', 'number of deep clouds per unit area', datatype_flt32)
+       ! NOTE: "highjacking" grib codes for shallow active clouds here, no grib codes defined yet for deep
+       ! should not conflict, as deep/shallow stochastic schemes should not be used together
+       grib2_desc = grib2_var(0, 6, 210, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clnum_d', phy_stochconv%clnum_d,  &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,                                              &
+            & loutput=.TRUE.,lrestart=.TRUE.,                             &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+        
+       ! perturbed cloud-base mass flux for deep clouds
+       cf_desc    = t_cf_var('clmf_d', 'kg s-1 m-2', 'cloud base mass flux associated with deep clouds', datatype_flt32)
+       ! NOTE: "highjacking" grib codes for shallow active clouds here, no grib codes defined yet for deep
+       ! should not conflict, as deep/shallow stochastic schemes should not be used together      
+       grib2_desc = grib2_var(0, 3, 200, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+       CALL add_var( stochconv_list,                                           &
+            & 'clmf_d', phy_stochconv%clmf_d,    &
+            & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_BASE, cf_desc, grib2_desc, &
+            & ldims=shape2d,                                              &
+            & loutput=.TRUE.,lrestart=.TRUE.,                             &
+            & in_group=groups("mode_iau_fg_in","mode_dwd_fg_in"))
+    ELSE
+       ALLOCATE(phy_stochconv%clmf_d(0,kblks),phy_stochconv%clnum_d(0,kblks))
+    ENDIF
+    
+
+END SUBROUTINE new_nwp_phy_stochconv_list
 
 SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                      & listname, phy_tend_list, phy_tend)
@@ -5150,8 +5441,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
       'construction of NWP physical tendency fields finished')
 
 END SUBROUTINE new_nwp_phy_tend_list
-
-
 !
 !-------------------------------------------------------------------------
 

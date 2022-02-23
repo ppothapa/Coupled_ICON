@@ -84,7 +84,7 @@ MODULE mo_nh_stepping
   USE mo_atm_phy_nwp_config,       ONLY: dt_phy, atm_phy_nwp_config, iprog_aero, setup_nwp_diag_events
   USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
   USE mo_nwp_phy_init,             ONLY: init_nwp_phy, init_cloud_aero_cpl
-  USE mo_nwp_phy_state,            ONLY: prm_diag, prm_nwp_tend, phy_params
+  USE mo_nwp_phy_state,            ONLY: prm_diag, prm_nwp_tend, phy_params, prm_nwp_stochconv
   USE mo_lnd_nwp_config,           ONLY: nlev_soil, nlev_snow, sstice_mode, sst_td_filename, &
     &                                    ci_td_filename 
   USE mo_nwp_lnd_state,            ONLY: p_lnd_state
@@ -428,7 +428,7 @@ MODULE mo_nh_stepping
 
   ! Save initial state if IAU iteration mode is chosen
   IF (iterate_iau .AND. .NOT. isRestart()) THEN
-    CALL save_initial_state(p_patch(1:), p_nh_state, prm_diag, p_lnd_state, ext_data)
+    CALL save_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_stochconv, p_lnd_state, ext_data)
     WRITE(message_text,'(a)') 'IAU iteration is activated: Start of first cycle with halved IAU window'
     CALL message('',message_text)
   ENDIF
@@ -2074,27 +2074,28 @@ MODULE mo_nh_stepping
               ! nwp physics
               !$ser verbatim CALL serialize_all(nproma, jg, "physics", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr)
               CALL nwp_nh_interface(atm_phy_nwp_config(jg)%lcall_phy(:), & !in
-                &                  .FALSE.,                            & !in
-                &                  lredgrid_phys(jg),                  & !in
-                &                  dt_loc,                             & !in
-                &                  dt_phy(jg,:),                       & !in
-                &                  datetime_local(jg)%ptr,             & !in
-                &                  p_patch(jg)  ,                      & !in
-                &                  p_int_state(jg),                    & !in
-                &                  p_nh_state(jg)%metrics ,            & !in
-                &                  p_patch(jgp),                       & !in
-                &                  ext_data(jg)           ,            & !in
-                &                  p_nh_state(jg)%prog(nnew(jg)) ,     & !inout
-                &                  p_nh_state(jg)%prog(n_now_rcf),     & !in for tke
-                &                  p_nh_state(jg)%prog(n_new_rcf),     & !inout
-                &                  p_nh_state(jg)%diag ,               & !inout
-                &                  prm_diag  (jg),                     & !inout
-                &                  prm_nwp_tend(jg),                   &
-                &                  p_lnd_state(jg)%diag_lnd,           &
-                &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-                &                  p_lnd_state(jg)%prog_lnd(n_new_rcf),& !inout
-                &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
-                &                  p_lnd_state(jg)%prog_wtr(n_new_rcf),& !inout
+                &                  .FALSE.,                              & !in
+                &                  lredgrid_phys(jg),                    & !in
+                &                  dt_loc,                               & !in
+                &                  dt_phy(jg,:),                         & !in
+                &                  datetime_local(jg)%ptr,               & !in
+                &                  p_patch(jg)  ,                        & !in
+                &                  p_int_state(jg),                      & !in
+                &                  p_nh_state(jg)%metrics ,              & !in
+                &                  p_patch(jgp),                         & !in
+                &                  ext_data(jg)           ,              & !in
+                &                  p_nh_state(jg)%prog(nnew(jg)) ,       & !inout
+                &                  p_nh_state(jg)%prog(n_now_rcf),       & !in for tke
+                &                  p_nh_state(jg)%prog(n_new_rcf),       & !inout
+                &                  p_nh_state(jg)%diag ,                 & !inout
+                &                  prm_diag  (jg),                       & !inout
+                &                  prm_nwp_tend(jg),                     &
+                &                  prm_nwp_stochconv(jg),                &
+                &                  p_lnd_state(jg)%diag_lnd,             &
+                &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),   & !inout
+                &                  p_lnd_state(jg)%prog_lnd(n_new_rcf),   & !inout
+                &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),   & !inout
+                &                  p_lnd_state(jg)%prog_wtr(n_new_rcf),   & !inout
                 &                  p_nh_state_lists(jg)%prog_list(n_new_rcf),& !in
                 &                  prm_upatmo(jg)                      ) !inout
   
@@ -2836,28 +2837,29 @@ MODULE mo_nh_stepping
       CASE (inwp) ! iforcing
         !
         ! nwp physics, slow physics forcing
-        CALL nwp_nh_interface(atm_phy_nwp_config(jg)%lcall_phy(:), & !in
-          &                  .TRUE.,                             & !in
-          &                  lredgrid_phys(jg),                  & !in
-          &                  dt_loc,                             & !in
-          &                  dt_phy(jg,:),                       & !in
-          &                  mtime_current,                      & !in
-          &                  p_patch(jg)  ,                      & !in
-          &                  p_int_state(jg),                    & !in
-          &                  p_nh_state(jg)%metrics ,            & !in
-          &                  p_patch(jgp),                       & !in
-          &                  ext_data(jg)           ,            & !in
-          &                  p_nh_state(jg)%prog(nnow(jg)) ,     & !inout
-          &                  p_nh_state(jg)%prog(n_now_rcf) ,    & !inout
-          &                  p_nh_state(jg)%prog(n_now_rcf) ,    & !inout
-          &                  p_nh_state(jg)%diag,                & !inout
-          &                  prm_diag  (jg),                     & !inout
-          &                  prm_nwp_tend(jg)                ,   &
-          &                  p_lnd_state(jg)%diag_lnd,           &
-          &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-          &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-          &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
-          &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
+        CALL nwp_nh_interface(atm_phy_nwp_config(jg)%lcall_phy(:),  & !in
+          &                  .TRUE.,                                & !in
+          &                  lredgrid_phys(jg),                     & !in
+          &                  dt_loc,                                & !in
+          &                  dt_phy(jg,:),                          & !in
+          &                  mtime_current,                         & !in
+          &                  p_patch(jg)  ,                         & !in
+          &                  p_int_state(jg),                       & !in
+          &                  p_nh_state(jg)%metrics ,               & !in
+          &                  p_patch(jgp),                          & !in
+          &                  ext_data(jg)           ,               & !in
+          &                  p_nh_state(jg)%prog(nnow(jg)) ,        & !inout
+          &                  p_nh_state(jg)%prog(n_now_rcf) ,       & !inout
+          &                  p_nh_state(jg)%prog(n_now_rcf) ,       & !inout
+          &                  p_nh_state(jg)%diag,                   & !inout
+          &                  prm_diag  (jg),                        & !inout
+          &                  prm_nwp_tend(jg)                ,      &
+          &                  prm_nwp_stochconv(jg),                 &
+          &                  p_lnd_state(jg)%diag_lnd,              &
+          &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),   & !inout
+          &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),   & !inout
+          &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),   & !inout
+          &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),   & !inout
           &                  p_nh_state_lists(jg)%prog_list(n_now_rcf),& !in
           &                  prm_upatmo(jg)                      ) !inout
 
@@ -3335,7 +3337,7 @@ MODULE mo_nh_stepping
 
     atm_phy_nwp_config(:)%lcalc_acc_avg = .FALSE.
 
-    CALL restore_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_tend, p_lnd_state, ext_data, lhn_fields)
+    CALL restore_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_tend, prm_nwp_stochconv, p_lnd_state, ext_data, lhn_fields)
 
     ! Reinitialize time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN

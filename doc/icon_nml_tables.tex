@@ -5202,6 +5202,69 @@ I & 0 &  & Type of CAPE correction to improve diurnal cycle for convection: \\
 inwp\_convection = 1
 \tabularnewline
 
+%\hline
+lstoch\_expl&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate explicit stochastic shallow convection scheme \\
+EXPERIMENTAL! will not produce clean restart \\
+to be used in conjunction with lrestune\_off=.T. and lmflimiter\_off=.T. &
+inwp\_convection = 1
+\tabularnewline
+
+
+%\hline
+lstoch\_sde&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate stochastic differential equation (SDE) shallow convection scheme \\
+to be used in conjunction with lrestune\_off=.T. and lmflimiter\_off=.T. &
+inwp\_convection = 1
+\tabularnewline
+
+
+%\hline
+lstoch\_deep&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate stochastic differential equation (SDE) deep convection scheme &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lrestune\_off&
+L (max\_ dom) & .FALSE. &  & .TRUE.: switches off resolution-dependent tuning of shallow convection parameters &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lmflimiter\_off&
+L (max\_ dom) & .FALSE. &  & .TRUE.: disables mass flux limiter by setting it to high values that are rarely reached by shallow convection &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lvvcouple&
+L (max\_ dom) & .FALSE. &  & .TRUE.: use vertical velocity at 650hPa as criterion to couple shallow convection \\
+with resolved deep convection &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lvv\_shallow\_deep&
+L (max\_ dom) & .FALSE. &  & .TRUE.: use vertical velocity at 650hPa to distinguish between shallow and \\
+ deep convection within convection routines (instead of cloud depth)&
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lstoch\_spinup&
+L (max\_ dom) & .FALSE. &  & .TRUE.: spin up cloud ensemble to equilibrium in stochastic shallow convection schemes, \\
+only takes effect when lstoch\_expl=T or lstoch\_sde=T &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+nclds&
+I (max\_ dom) & 5000 &  & maximum possible number of shallow clouds per grid box in explicit stochastic cloud ensemble. \\
+only takes effect when lstoch\_expl=T &
+inwp\_convection = 1
+\tabularnewline
+
 icpl\_aero\_conv&
 I&
 0&
@@ -5209,6 +5272,7 @@ I&
 0: off \\
 1: simple coupling between autoconversion and Tegen aerosol climatology; requires irad\_aero=6 &
 \tabularnewline
+
 
 iprog\_aero &
 I&
@@ -5468,7 +5532,14 @@ inwp\_radiation $>$ 0
 
 Defined and used in: \verb+src/namelists/mo_nwp_phy_nml.f90+
 
+\subsubsection{Notes on use of stochastic convection schemes}
+There are currently three stochastic convection schemes available, two versions for shallow convection and one for deep convection. Conceptually, these schemes attempt to represent that for grid box sizes smaller than the size of a typical cloud ensemble, the clouds actually populating the grid box will not be fully representative of that cloud ensemble.
+The two stochastic shallow schemes (lstoch\_expl, lstoch\_sde) are therefore aimed at resolutions of a few kilometers (typically used for LAM simulations, where deep convection is resolved) and will in fact be automatically switched off for resolutions greater than 20km. The scheme converges to the standard Tiedtke-Bechtold mass flux scheme at resolutions sufficiently coarse, such that there is no additional gain from using the stochastic schemes. They should therefore be run with lshalloconv\_only=T. A combination with the grayzone tuning (lgrayzone\_deepconv) is technically possible, but not recommended as the grayzone tuning interferes with the intended behaviour of the stochastic scheme. 
 
+The stochastic deep convection scheme (lstoch\_deep) is intended for resolutions where the deep convection parameterization is still active, but again, grid size is not large enough to contain a fully representative cloud ensemble (e.g. global runs with resolution on the order of 10s of kilometers). Thus the deep and shallow stochastic schemes are not intended to be used together, as the resolutions they are designed for are (mostly) mutually exclusive.
+
+The shallow schemes should be run without resolution-dependent tuning of the convection parameters (lrestune\_off=T) and with disabled mass flux limiters (lmflimiter\_off=T). The mass flux limiters are in fact not fully disabled but set to values high enough to be rarely reached during shallow cloud simulations.
+The deep stochastic scheme cannot be run without mass flux limiters or simulatons will become unstable.
 
 %------------------------------------------------------------------------------
 % nwp_tuning_nml:

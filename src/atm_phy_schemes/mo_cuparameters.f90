@@ -349,6 +349,21 @@ MODULE mo_cuparameters
   REAL(KIND=jprb) :: rtaumel
   ! REAL(KIND=jprb) :: rhebc
   REAL(KIND=jprb) :: ruvper
+! stochastic shallow convection
+  REAL(KIND=jprb) :: k_wei,kinv,mavg1
+  REAL(KIND=jprb) :: alpha_mf
+  REAL(KIND=jprb) :: beta_mf
+  REAL(KIND=jprb) :: mean_mf
+  REAL(KIND=jprb) :: m0
+  REAL(KIND=jprb) :: C1
+  REAL(KIND=jprb) :: active_fraction
+  INTEGER(KIND=jpim):: nclds
+! stochastic deep convection
+  REAL(KIND=jprb) :: deep_k_wei
+  REAL(KIND=jprb) :: deep_alpha_mf
+  REAL(KIND=jprb) :: deep_beta_mf
+  REAL(KIND=jprb) :: deep_mean_mf
+  REAL(KIND=jprb) :: deep_mean_tau
 
   LOGICAL :: lmfdd
   LOGICAL :: lmfit
@@ -520,6 +535,10 @@ MODULE mo_cuparameters
   PUBLIC :: dr_hook
   PUBLIC :: lhook
   PUBLIC :: vdiv, vexp, vrec, vlog
+! shallow stochastic convection
+  PUBLIC :: k_wei, alpha_mf, beta_mf, mean_mf, m0, C1, kinv, active_fraction, mavg1,nclds
+! deep stochastic convection
+  PUBLIC :: deep_k_wei, deep_alpha_mf, deep_beta_mf, deep_mean_mf, deep_mean_tau
   
 CONTAINS
   
@@ -1037,7 +1056,10 @@ CONTAINS
 !------------------------------------------------------------------------------
 
   
-  SUBROUTINE sucumf(rsltn,klev,phy_params,lshallow_only,lgrayzone_deepconv,ldetrain_conv_prec,pmean)
+  SUBROUTINE sucumf(rsltn,klev,phy_params,lshallow_only,lgrayzone_deepconv,ldetrain_conv_prec, &
+       & lrestune_off,lmflimiter_off,lstoch_expl,lstoch_sde,lstoch_deep,lvvcouple, &
+       & lvv_shallow_deep,pmean)
+
 
 !     THIS ROUTINE DEFINES DISPOSABLE PARAMETERS FOR MASSFLUX SCHEME
 
@@ -1091,6 +1113,13 @@ REAL(KIND=jprb)   , INTENT(in) :: rsltn
 TYPE(t_phy_params), INTENT(inout) :: phy_params
 LOGICAL           , INTENT(in) :: lshallow_only, lgrayzone_deepconv
 LOGICAL           , INTENT(in) :: ldetrain_conv_prec
+LOGICAL           , INTENT(in) :: lrestune_off
+LOGICAL           , INTENT(in) :: lmflimiter_off
+LOGICAL           , INTENT(in) :: lstoch_expl
+LOGICAL           , INTENT(in) :: lstoch_sde
+LOGICAL           , INTENT(in) :: lstoch_deep
+LOGICAL           , INTENT(in) :: lvvcouple
+LOGICAL           , INTENT(in) :: lvv_shallow_deep
 REAL(KIND=jprb)   , INTENT(in), OPTIONAL :: pmean(klev)
 
 !* change to operations
@@ -1132,19 +1161,18 @@ ENTSHALP=2.0_JPRB
 
 !     ENTSTPC1,2: SHALLOW ENTRAINMENT CONSTANTS FOR TRIGGER TEST PARCEL ONLY
 !     ----------
-IF (lshallow_only) THEN
+
+IF (lshallow_only .AND. .NOT. lrestune_off) THEN
   phy_params%entstpc1 = 1.0_JPRB
   phy_params%entstpc2 = 2.E-4_JPRB
 ELSE
   phy_params%entstpc1 = 0.55_JPRB
   phy_params%entstpc2 = 1.E-4_JPRB
 ENDIF
-!ENTSTPC1=0.8_JPRB        !40r3 default
-!ENTSTPC2=2.E-4_JPRB      !40r3 default
 
 !     ENTRDD: AVERAGE ENTRAINMENT RATE FOR DOWNDRAFTS
 !     ------
-IF (lshallow_only) THEN
+IF (lshallow_only .AND. .NOT. lrestune_off) THEN
   phy_params%entrdd       = 2.0E-4_JPRB
 ELSE
   phy_params%entrdd       = 3.0E-4_JPRB
@@ -1174,10 +1202,10 @@ ENDIF
 
 !     RDEPTHS:   MAXIMUM ALLOWED SHALLOW CLOUD DEPTH (Pa)
 !     -------
-
 phy_params%rdepths=tune_rdepths
-IF (lshallow_only .OR. lgrayzone_deepconv) &
-  phy_params%rdepths = phy_params%rdepths/MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
+IF (lshallow_only .OR. lgrayzone_deepconv .AND. .NOT. lrestune_off) &
+   phy_params%rdepths = phy_params%rdepths/MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
+
 
 !     RPRCON:    COEFFICIENTS FOR DETERMINING CONVERSION FROM CLOUD WATER
 !     ------
@@ -1236,20 +1264,23 @@ IF (rsltn < zres_thresh_trop) THEN
   phy_params%rcucov_trop      = MIN(1._JPRB, phy_params%rcucov_trop)
 ENDIF
 
-
 ! tuning parameter for organized entrainment of deep convection
 phy_params%entrorg = tune_entrorg
-IF (lshallow_only .OR. lgrayzone_deepconv) &
-  phy_params%entrorg = phy_params%entrorg*MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
+IF (lshallow_only .OR. lgrayzone_deepconv .AND. .NOT. lrestune_off ) &
+   phy_params%entrorg = phy_params%entrorg*MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
 
 ! resolution-dependent settings for 'excess values' of temperature and QV used for convection triggering (test parcel ascent)
 
 ! This factor is 1 for dx = 20 km or coarser and 0 for dx = ztrans_end or finer
 zfac = MIN(1._JPRB,LOG(MAX(1._JPRB,rsltn/ztrans_end))/LOG(zres_thresh/ztrans_end))
 
-phy_params%texc = zfac*tune_texc   ! K
-phy_params%qexc = zfac*tune_qexc   ! relative perturbation of grid-scale QV
-
+!IF (lrestune_off) THEN ! settings with tuning disabled
+!   phy_params%texc = tune_texc   ! K
+!   phy_params%qexc = tune_qexc   ! relative perturbation of grid-scale QV
+!ELSE                   ! master branch default
+   phy_params%texc = zfac*tune_texc   ! K
+   phy_params%qexc = zfac*tune_qexc   ! relative perturbation of grid-scale QV
+!ENDIF
 
 !     SET ADJUSTMENT TIME SCALE FOR CAPE CLOSURE AS A FUNCTION
 !     OF MODEL RESOLUTION
@@ -1316,6 +1347,36 @@ ELSE
   phy_params%lmfdsnow = .FALSE.
 ENDIF
 
+IF (lstoch_expl) THEN
+  phy_params%lstoch_expl = .TRUE.
+ELSE
+  phy_params%lstoch_expl = .FALSE.
+ENDIF
+
+IF (lstoch_sde) THEN
+  phy_params%lstoch_sde = .TRUE.
+ELSE
+  phy_params%lstoch_sde = .FALSE.
+ENDIF
+
+IF (lstoch_deep) THEN
+  phy_params%lstoch_deep = .TRUE.
+ELSE
+  phy_params%lstoch_deep = .FALSE.
+ENDIF
+
+IF (lvvcouple) THEN
+  phy_params%lvvcouple = .TRUE.
+ELSE
+  phy_params%lvvcouple = .FALSE.
+ENDIF
+
+IF (lvv_shallow_deep) THEN
+  phy_params%lvv_shallow_deep = .TRUE.
+ELSE
+  phy_params%lvv_shallow_deep = .FALSE.
+ENDIF
+
 lmfdd   =.TRUE.   ! use downdrafts
 lmfit   =.FALSE.  ! updraught iteration or not
 LMFUVDIS=.TRUE.   ! use kinetic energy dissipation (addit T-tendency)
@@ -1329,18 +1390,30 @@ lmfglac =.TRUE.   ! glaciation of precip in updraught
 
 !     RMFCFL:     MASSFLUX MULTIPLE OF CFL STABILITY CRITERIUM
 !     -------
-IF (lshallow_only) THEN
-  phy_params%mfcfl = 1.5_JPRB
-ELSE
-  phy_params%mfcfl = 2._JPRB*MIN(2._JPRB,1._JPRB + 2.5e-5_JPRB*rsltn)
-ENDIF
+
+IF (lmflimiter_off) THEN  ! settings with tuning disabled
+  phy_params%mfcfl = 5._JPRB
+ELSE                    ! master branch default
+   IF (lshallow_only) THEN
+      phy_params%mfcfl = 1.5_JPRB
+   ELSE
+      phy_params%mfcfl = 2._JPRB*MIN(2._JPRB,1._JPRB + 2.5e-5_JPRB*rsltn)
+   ENDIF
+ENDIF 
 
 IF (.NOT. PRESENT(pmean)) RETURN
 
-rmflic=1.0_JPRB   ! use CFL mass flux limit (1) or absolut limit (0)
-rmflia=0.0_JPRB   ! value of absolut mass flux limit
-rmflmax=1.75_jprb ! mass flux limit following a suggestion by P. Bechtold [kg/(m**2s)]
-rmfdef=0.1_JPRB   ! first-guess mass flux value for deep convection (M. Ahlgrimm)
+IF (lmflimiter_off) THEN  ! settings with tuning disabled
+   rmflic=0.0_JPRB        ! use absolute MF limit
+   rmflia=10._JPRB       ! value of absolute mass flux limit
+   rmflmax=10._jprb       ! mass flux limit following a suggestion by P. Bechtold [kg/(m**2s)]
+   rmfdef=0.1_JPRB        ! first-guess mass flux value for deep convection
+ELSE                      ! master branch default
+   rmflic=1.0_JPRB   ! use CFL mass flux limit (1) or absolut limit (0)
+   rmflia=0.0_JPRB   ! value of absolut mass flux limit
+   rmflmax=1.75_jprb ! mass flux limit following a suggestion by P. Bechtold [kg/(m**2s)]
+   rmfdef=0.1_JPRB   ! first-guess mass flux value for deep convection (M. Ahlgrimm)
+ENDIF 
 
 
 !     MASSFLUX SOLVERs FOR MOMEMTUM AND TRACERS
@@ -1375,6 +1448,29 @@ DO jlev=nflevg,2,-1
   IF(pmean(jlev) >  60.e2_jprb) phy_params%kcon2=jlev
 ENDDO
 
+! Shallow stochastic convection
+! Distribution parameters for mixed Weibull distribution
+! Using updated parameters from Sakradzija et al. 2018,
+! based on LES studies
+k_wei           = 0.8_JPRB       ! New value from Sakradzija 2018 !0.7_JPRB
+kinv            = 1.25_JPRB      ! Inverse of k_wei, i.e. 1/k_wei
+alpha_mf        = 0.33_JPRB      ! factor in lifetime relationship
+beta_mf         = 0.8_JPRB       ! exponent in lifetime relationship
+mean_mf         = 29868.46_JPRB  ! shallow !2.0E+07_JPRB !deep !/(51200._JPRB**2)
+m0              = 0.00003_JPRB   ! distribution parameters, from LES, intercept parameter
+C1              = 0.13_JPRB      ! distribution parameters, from LES, slope
+active_fraction = 0.6_JPRB       ! fraction of active shallow clouds (vs. passive)
+mavg1           = 50000._JPRB    ! average mass flux per passive cloud
+nclds           = 5000           ! max number of shallow clouds to keep track of in explicit ensemble
+
+! Deep stochastic convection
+! Distribution parameters for deep convection based on
+! Plant and Craig 2008 (as implemented originally by Ekaterina Machulskaya)
+deep_k_wei           = 0.7_JPRB     ! 
+deep_alpha_mf        = 0.33_JPRB    ! factor in lifetime relationship
+deep_beta_mf         = 1.1_JPRB     ! exponent in lifetime relationship
+deep_mean_mf         = 2.0E+07_JPRB ! deep
+deep_mean_tau        = 45.*60._JPRB ! timescale 
 
 CALL message('mo_cuparameters, sucumf', 'NJKT1, NJKT2, KSMAX')
 WRITE(message_text,'(2i7,E12.5)') phy_params%kcon1, phy_params%kcon2, rsltn 

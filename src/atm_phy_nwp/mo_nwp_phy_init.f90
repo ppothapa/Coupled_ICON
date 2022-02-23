@@ -45,7 +45,7 @@ MODULE mo_nwp_phy_init
   USE mo_parallel_config,     ONLY: nproma
   USE mo_fortran_tools,       ONLY: copy
   USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level
-  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,              &
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,               &
     &                               cldopt_filename, icpl_aero_conv, iprog_aero
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
   !radiation
@@ -203,7 +203,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   REAL(wp), ALLOCATABLE :: zpres_sfc(:,:)    ! ref sfc press
   REAL(wp), ALLOCATABLE :: zpres_ifc(:,:,:)  ! ref press at interfaces
 
-  LOGICAL :: lland, lglac, lshallow, lgrayzone_dc, ldetrain_prec
+  LOGICAL :: lland, lglac, lshallow, ldetrain_prec, lgrayzone_dc, lrestune_off, lmflimiter_off
+  LOGICAL :: lstoch_expl, lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
   LOGICAL :: lupatmo_phy, l_filename_year
@@ -227,7 +228,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   INTEGER :: istatus=0
 
   REAL(wp) :: hag                    ! height above ground
-  REAL(wp) :: h850_standard, h950_standard  ! height of 850hPa and 950hPa level in m
+  REAL(wp) :: h650_standard, h850_standard, h950_standard  ! height of 850hPa and 950hPa level in m 
 
   REAL(wp) :: N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin     ! for CCN and IN in case of gscp=5
 
@@ -1182,10 +1183,20 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 !    WRITE(message_text,'(i3,i10,f20.10)') jg, nsmax, phy_params%mean_charlen
 !    CALL message('nwp_phy_init, nsmax=', message_text)
 
-    lshallow = atm_phy_nwp_config(jg)%lshallowconv_only
+    lshallow   = atm_phy_nwp_config(jg)%lshallowconv_only
     lgrayzone_dc = atm_phy_nwp_config(jg)%lgrayzone_deepconv
     ldetrain_prec = atm_phy_nwp_config(jg)%ldetrain_conv_prec
-    CALL sucumf(rsltn,nlev,phy_params,lshallow,lgrayzone_dc,ldetrain_prec,pref)
+    lrestune_off = atm_phy_nwp_config(jg)%lrestune_off
+    lmflimiter_off = atm_phy_nwp_config(jg)%lmflimiter_off
+    lstoch_expl = atm_phy_nwp_config(jg)%lstoch_expl
+    lstoch_sde = atm_phy_nwp_config(jg)%lstoch_sde
+    lstoch_deep = atm_phy_nwp_config(jg)%lstoch_deep
+    lvvcouple = atm_phy_nwp_config(jg)%lvvcouple
+    lvv_shallow_deep = atm_phy_nwp_config(jg)%lvv_shallow_deep
+    
+    CALL sucumf(rsltn,nlev,phy_params,lshallow,lgrayzone_dc,ldetrain_prec,lrestune_off, &
+         & lmflimiter_off,lstoch_expl,lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep, &
+         & pref)
     CALL suphli
     CALL suvdf
     CALL suvdfs
@@ -1211,6 +1222,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   ! k800, k400 will be used for inwp_convection==0 as well. 
   ! k700 is used for LHN data assimilation
   ! Thus we need to make sure that they are initialized.
+  prm_diag%k650(:,:) = nlev
   prm_diag%k850(:,:) = nlev
   prm_diag%k950(:,:) = nlev
   prm_diag%k800(:,:) = nlev
@@ -1225,11 +1237,13 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! height of 850 and 950hPa surface for US standard atmosphere in m
   ! For derivation, see documentation of US standard atmosphere
+  h650_standard = 3590.69_wp
   h850_standard = 1457.235199_wp
   h950_standard = 540.3130233_wp
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx,hag,zpres,zpres0) ICON_OMP_DEFAULT_SCHEDULE
+
   DO jb = i_startblk, i_endblk
 
     CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
@@ -1241,6 +1255,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ! height above ground
         hag = p_metrics%z_mc(jc,jk,jb)-ext_data%atm%topography_c(jc,jb)
 
+        IF (hag < h650_standard) THEN
+          prm_diag%k650(jc,jb) = jk
+        ENDIF
         IF (hag < h950_standard) THEN
           prm_diag%k950(jc,jb) = jk
         ENDIF
@@ -1251,6 +1268,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
       ENDDO
       ! security measure
+      prm_diag%k650(jc,jb) = MAX(prm_diag%k650(jc,jb),2)
       prm_diag%k950(jc,jb) = MAX(prm_diag%k950(jc,jb),2)
       prm_diag%k850(jc,jb) = MAX(prm_diag%k850(jc,jb),2)
 
@@ -1267,8 +1285,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           EXIT
         ENDIF
       ENDDO
+   ENDDO  ! jc
 
-    ENDDO  ! jc
   ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

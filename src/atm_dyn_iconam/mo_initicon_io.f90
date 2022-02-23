@@ -31,7 +31,7 @@ MODULE mo_initicon_io
   USE mo_model_domain,        ONLY: t_patch
   USE mo_ext_data_types,      ONLY: t_external_data
   USE mo_nonhydro_types,      ONLY: t_nh_state, t_nh_prog, t_nh_diag
-  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
+  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag,t_nwp_phy_stochconv
   USE mo_nwp_lnd_types,       ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag, t_wtr_prog
   USE mo_initicon_types,      ONLY: t_initicon_state, t_pi_atm_in, t_pi_atm, &
     &                               alb_snow_var, geop_ml_var
@@ -1725,10 +1725,11 @@ MODULE mo_initicon_io
 
   !>
   !! Fetch DWD first guess DATA from request list (land/surface only)
-  SUBROUTINE fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+  SUBROUTINE fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
     CLASS(t_InputRequestList), POINTER, INTENT(INOUT) :: requestList
     TYPE(t_patch),             INTENT(IN)    :: p_patch(:)
     TYPE(t_nwp_phy_diag),      INTENT(INOUT) :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT) :: prm_nwp_stochconv(:)
     TYPE(t_nh_state),  TARGET, INTENT(INOUT) :: p_nh_state(:)
     TYPE(t_lnd_state), TARGET, INTENT(INOUT) :: p_lnd_state(:)
     TYPE(t_readInstructionListPtr), INTENT(INOUT) :: inputInstructions(:)
@@ -1925,6 +1926,17 @@ MODULE mo_initicon_io
                 IF (.NOT.aerosol_fg_present(jg,idu))  CALL inputInstructions(jg)%ptr%setSource('aer_du', kInputSourceCold)
             ELSE
                 aerosol_fg_present(jg,:) = .FALSE.
+            END IF
+
+            IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
+               CALL fetchSurface(params, 'clmf_a' , jg, prm_nwp_stochconv(jg)%clmf_a)
+               CALL fetchSurface(params, 'clmf_p' , jg, prm_nwp_stochconv(jg)%clmf_p)
+               CALL fetchSurface(params, 'clnum_a', jg, prm_nwp_stochconv(jg)%clnum_a)
+               CALL fetchSurface(params, 'clnum_p', jg, prm_nwp_stochconv(jg)%clnum_p)
+            END IF
+            IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
+               CALL fetchSurface(params, 'clmf_d' , jg, prm_nwp_stochconv(jg)%clmf_d)
+               CALL fetchSurface(params, 'clnum_d', jg, prm_nwp_stochconv(jg)%clnum_d)
             END IF
         END IF
     END DO

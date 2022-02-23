@@ -242,7 +242,7 @@ MODULE mo_2mom_mcrph_processes
 !!!       &    q_crit    = 1.000e-7_wp, & ! q-threshold elsewhere 1e-7 kg/m3 = 1e-4 g/m3 = 0.1 mg/m3
        &    q_crit    = 1.000e-9_wp, & ! q-threshold elsewhere 1e-7 kg/m3 = 1e-4 g/m3 = 0.1 mg/m3
        &    D_conv_sg = 200.0e-6_wp, & ! D-threshold for conversion of snow to graupel
-       &    D_conv_ig = 200.0e-6_wp, & ! D-threshold for conversion of ice to graupel
+       &    D_conv_ig = 200.0e-6_wp, & ! D-threshold for conversion of ice to graupel 
        &    x_conv    = 0.100e-9_wp, & ! minimum mass of conversion due to riming
        &    D_crit_c  = 10.00e-6_wp, & ! D-threshold for cloud drop collection efficiency
        &    D_coll_c  = 40.00e-6_wp    ! upper bound for diameter in collision efficiency

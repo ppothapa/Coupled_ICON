@@ -30,7 +30,7 @@ MODULE mo_initicon
   USE mo_dynamics_config,     ONLY: nnow, nnow_rcf
   USE mo_model_domain,        ONLY: t_patch
   USE mo_nonhydro_types,      ONLY: t_nh_state, t_nh_prog, t_nh_diag
-  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
+  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag, t_nwp_phy_stochconv
   USE mo_nwp_lnd_types,       ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag
   USE mo_intp_data_strc,      ONLY: t_int_state
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -115,15 +115,16 @@ MODULE mo_initicon
   !!
   !!
   SUBROUTINE init_icon (p_patch,  p_int_state, p_grf_state, p_nh_state, &
-    &                   ext_data, prm_diag, p_lnd_state)
+    &                   ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
 
-    TYPE(t_patch),          INTENT(INOUT)              :: p_patch(:)
-    TYPE(t_int_state),      INTENT(IN)              :: p_int_state(:)
-    TYPE(t_gridref_state),  INTENT(IN)              :: p_grf_state(:)
-    TYPE(t_nh_state),       INTENT(INOUT)           :: p_nh_state(:)
-    TYPE(t_nwp_phy_diag),   INTENT(INOUT), OPTIONAL :: prm_diag(:)
-    TYPE(t_lnd_state),      INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
-    TYPE(t_external_data),  INTENT(INOUT), OPTIONAL :: ext_data(:)
+    TYPE(t_patch),            INTENT(INOUT)              :: p_patch(:)
+    TYPE(t_int_state),        INTENT(IN)              :: p_int_state(:)
+    TYPE(t_gridref_state),    INTENT(IN)              :: p_grf_state(:)
+    TYPE(t_nh_state),         INTENT(INOUT)           :: p_nh_state(:)
+    TYPE(t_nwp_phy_diag),     INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv),INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)    
+    TYPE(t_lnd_state),        INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
+    TYPE(t_external_data),    INTENT(INOUT), OPTIONAL :: ext_data(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//':init_icon'
     INTEGER :: jg, ist
@@ -173,7 +174,8 @@ MODULE mo_initicon
 
     ! read and initialize ICON prognostic fields
     !
-    CALL process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, p_lnd_state)
+    CALL process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, &
+         &                  ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
     !CALL printChecksums(initicon, p_nh_state, p_lnd_state)
 
     ! Deallocate initicon data type
@@ -231,11 +233,12 @@ MODULE mo_initicon
   END FUNCTION gridUuids
 
   ! Read the data from the first-guess file.
-  SUBROUTINE read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, p_lnd_state)
+  SUBROUTINE read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag,prm_nwp_stochconv, p_lnd_state)
     TYPE(t_patch), INTENT(INOUT) :: p_patch(:)
     TYPE(t_readInstructionListPtr) :: inputInstructions(n_dom)
     TYPE(t_nh_state), INTENT(INOUT) :: p_nh_state(:)
     TYPE(t_nwp_phy_diag), INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)
     TYPE(t_lnd_state), INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//":read_dwdfg"
@@ -306,12 +309,12 @@ MODULE mo_initicon
     SELECT CASE(init_mode)
         CASE(MODE_DWDANA, MODE_IAU_OLD, MODE_IAU)
             CALL fetch_dwdfg_atm(requestList, p_patch, p_nh_state, initicon, inputInstructions)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
         CASE(MODE_ICONVREMAP)
             CALL fetch_dwdfg_atm_ii(requestList, p_patch, initicon, inputInstructions)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
         CASE(MODE_COMBINED, MODE_COSMO)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
     END SELECT
 
     ! Cleanup.
@@ -632,7 +635,7 @@ MODULE mo_initicon
   END SUBROUTINE process_dwdana
 
   ! Reads the data from the first-guess and analysis files, and does any required processing of that input data.
-  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, p_lnd_state)
+  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
     TYPE(t_patch), INTENT(INOUT) :: p_patch(:)
     TYPE(t_readInstructionListPtr) :: inputInstructions(n_dom)
     TYPE(t_nh_state), INTENT(INOUT) :: p_nh_state(:)
@@ -640,11 +643,12 @@ MODULE mo_initicon
     TYPE(t_gridref_state), INTENT(IN) :: p_grf_state(:)
     TYPE(t_external_data), INTENT(INOUT) :: ext_data(:)
     TYPE(t_nwp_phy_diag), INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)
     TYPE(t_lnd_state), INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//":process_input_data"
 
-    CALL read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, p_lnd_state)
+    CALL read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, prm_nwp_stochconv, p_lnd_state)
     CALL process_dwdfg(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, p_lnd_state, prm_diag)
 
     CALL read_dwdana(p_patch, inputInstructions, p_nh_state, p_lnd_state)

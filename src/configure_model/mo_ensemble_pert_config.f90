@@ -502,6 +502,7 @@ MODULE mo_ensemble_pert_config
 
     CALL random_gen(rnd_texc, rnd_num)
     tune_texc = texc_sv + 2._wp*(rnd_num-0.5_wp)*range_texc
+    
     CALL random_gen(rnd_qexc, rnd_num)
     tune_qexc = qexc_sv + 2._wp*(rnd_num-0.5_wp)*range_qexc
 
@@ -704,7 +705,10 @@ MODULE mo_ensemble_pert_config
         DO jg = 1, n_dom
           CALL sucumf(p_patch(jg)%geometry_info%mean_characteristic_length,p_patch(jg)%nlev,phy_params(jg),&
             atm_phy_nwp_config(jg)%lshallowconv_only,atm_phy_nwp_config(jg)%lgrayzone_deepconv,            &
-            atm_phy_nwp_config(jg)%ldetrain_conv_prec)
+            atm_phy_nwp_config(jg)%ldetrain_conv_prec,atm_phy_nwp_config(jg)%lrestune_off,atm_phy_nwp_config(jg)%lmflimiter_off, &
+            atm_phy_nwp_config(jg)%lstoch_expl,atm_phy_nwp_config(jg)%lstoch_sde,atm_phy_nwp_config(jg)%lstoch_deep, &
+            atm_phy_nwp_config(jg)%lvvcouple, atm_phy_nwp_config(jg)%lvv_shallow_deep)
+          
           phy_params(jg)%gkdrag  = tune_gkdrag(jg)
           phy_params(jg)%gkwake  = tune_gkwake(jg)
           phy_params(jg)%gfrcrit = tune_gfrcrit(jg)

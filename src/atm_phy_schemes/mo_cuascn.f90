@@ -70,7 +70,7 @@ CONTAINS
     & pten,     pqen,     pqsen,    plitot,&
     & pgeo,     pgeoh,    pap,      paph,&
     & zdph,     zdgeoh,                  &
-    & pvervel,  pwubase,  pcloudnum,     &
+    & pvervel,  pwubase,  pcloudnum, pcore,     &
     & ldland,   ldlake,   ldcum,    ktype,    klab,&
     & ptu,      pqu,      plu,      plrain,        &
     & pmfu,     pmfub,    plglac,&
@@ -144,6 +144,7 @@ CONTAINS
 !!    *zdph*         pressure thickness on full levels             PA
 !!    *pcape*        CAPE                                          J/kg
 !!    *pcapethresh*  CAPE threshold beyond which entrainment parameter is reduced
+!!    *pcore*        Updraft core fraction profile                 0-1    
 
 !!    INPUT PARAMETERS (LOGICAL):
 
@@ -253,6 +254,7 @@ REAL(KIND=jprb)   ,INTENT(in)    :: ptenq(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)    :: pvervel(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(in)    :: pwubase(klon) 
 REAL(KIND=jprb)   ,INTENT(in)    :: pcloudnum(klon) 
+REAL(KIND=jprb)   ,INTENT(in)    :: pcore(klon,klev) 
 LOGICAL           ,INTENT(in)    :: ldland(klon) 
 LOGICAL           ,INTENT(in)    :: ldlake(klon) 
 LOGICAL           ,INTENT(inout) :: ldcum(klon) 
@@ -309,6 +311,9 @@ REAL(KIND=jprb) :: zhook_handle
 REAL(KIND=jprb) :: aer_ss_gm,aer_ss_m, aer_ss_c
 
 LOGICAL :: llklab(klon)
+! Set .true. if using updraft core fraction from explicit stochastic
+! scheme to modify the lateral detrainment profile
+LOGICAL, PARAMETER :: lstochdetr=.FALSE.
 
 !#include "cuadjtq.intfb.h"
 !#include "cubasmcn.intfb.h"
@@ -655,13 +660,19 @@ DO jk=klev-1,ktdia+2,-1
           zxs=MAX(pmfu(jl,jk+1)-zmfmax,0.0_JPRB)
           pwmean(jl)=pwmean(jl)+pkineu(jl,jk+1)*(pap(jl,jk+1)-pap(jl,jk))
           zdpmean(jl)=zdpmean(jl)+pap(jl,jk+1)-pap(jl,jk)
+          !CURRENT LEVEL'S ENTRAINMENT IS EQUAL TO ZOENTR VALUE OF LEVEL BELOW - ITERATIVE
           zdmfen(jl)=zoentr(jl)
+          !OVERWRITE TURB DETR FOR DEEP CONV FROM CALL TO CUENTR WITH SHALLOW CU ENTRAINMENT
           IF(ktype(jl)>=2)THEN
-             zdmfen(jl)=ENTSHALP*zdmfen(jl)
+            !FOR SHALLOW CONVECTION, DOUBLE THE ENTRAINMENT CALCULATED LATER FOR LEVEL BELOW
+             zdmfen(jl)=ENTSHALP*zdmfen(jl)! Factor 2 on entrainment for shallow conv/ktype 2(initial ascent)
+             !FOR SHALLOW CONVECTION, SET TURB DETRAINEMENT EQUAL TO ENTRAINMENT
              zdmfde(jl)=zdmfen(jl)
           ENDIF
           zc = 1.6_JPRB-MIN(1.0_JPRB,PQEN(JL,JK)/PQSEN(JL,JK))
+          !DETRAINMENT out of cuentr (turb)*(1.6-RH) EQN 6.9
           ZDMFDE(JL)=ZDMFDE(JL)*MAX(0.9_jprb*zc,zc**4)
+          ! safety check ???
           zmftest=pmfu(jl,jk+1)+zdmfen(jl)-zdmfde(jl)
           zchange=MAX(zmftest-zmfmax,0.0_JPRB)
           zxe=MAX(zchange-zxs,0.0_JPRB)
@@ -669,9 +680,9 @@ DO jk=klev-1,ktdia+2,-1
           zchange=zchange-zxe
           zdmfde(jl)=zdmfde(jl)+zchange
         ENDIF
-
+        ! extra diagnostic - net (entrainment-detrainment), or change of MF with height
         pdmfen(jl,jk) = zdmfen(jl)-zdmfde(jl)
-
+        ! THIS LEVEL'S MASSFLUX CALCULATED HERE FROM LEVEL BELOW, PLUS ENTR, MINUS DETR
         pmfu(jl,jk)=pmfu(jl,jk+1)+zdmfen(jl)-zdmfde(jl)
         zqeen=pqenh(jl,jk+1)*zdmfen(jl)
         zseen=(rcpd*ptenh(jl,jk+1)+pgeoh(jl,jk+1))*zdmfen(jl)
@@ -782,7 +793,7 @@ DO jk=klev-1,ktdia+2,-1
           ENDIF
         ENDIF
 
-        IF(klab(jl,jk+1) == 2) THEN
+        IF(klab(jl,jk+1) == 2) THEN! if layer below is inside cloud
 
           IF(zbuo(jl,jk) < 0.0_JPRB )THEN !.AND.klab(jl,jk+1) == 2) THEN
             ptenh(jl,jk)=0.5_JPRB*(pten(jl,jk)+pten(jl,jk-1))
@@ -806,24 +817,58 @@ DO jk=klev-1,ktdia+2,-1
             zdken=MIN(1.0_JPRB,(1.0_JPRB + z_cwdrag)*&
              & zdmfde(jl)/MAX(rmfcmin,pmfu(jl,jk+1)))  
           ENDIF
-          
+
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!          
+          ! Alternative organised detrainment calcuation based on cloud area 
+          ! profile.
+          ! By what fraction is core area reduced from layer below?
+          IF (lstochdetr) THEN              
+            IF (pcore(jl,jk) .lt. pcore(jl,jk+1)) THEN
+               zmfun=(pcore(jl,jk+1)-pcore(jl,jk))/pcore(jl,jk+1)*.5_JPRB
+               ! Detrainment is corresponding fraction of MF in layer below,
+               ! if this is greater than the estimate previously calculated
+               zdmfde(jl)=MAX(zdmfde(jl),pmfu(jl,jk+1)*zmfun)
+               plude(jl,jk)=plu(jl,jk+1)*zdmfde(jl)
+               pmfu(jl,jk)=pmfu(jl,jk+1)+zdmfen(jl)-zdmfde(jl)! Mass flux is same as layer below, minus detraiment
+            ENDIF
+          ENDIF 
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+
           pkineu(jl,jk)=(pkineu(jl,jk+1)*(1.0_JPRB-zdken)+zdkbuo)/(1.0_JPRB+zdken)
+          ! CALCULATE ORGANISED DETRAINMENT WHEN UPDRAFT NEGATIVELY BUOYANT
           IF(zbuo(jl,jk) < 0.0_JPRB ) THEN ! .AND.klab(jl,jk+1) == 2) THEN
+            ! Is stable -> no org. entrainment. This overwrites PMFU for current level
+            ! which has been calculated above with organised entrainment
             zkedke=pkineu(jl,jk)/MAX(1.e-10_JPRB,pkineu(jl,jk+1))
             zkedke=MAX(1.e-30_JPRB,MIN(1.0_JPRB,zkedke))
             zmfun=SQRT(zkedke)
 ! ** suggestion by P. Bechtold (2013-11-21) - but degrades various scores in ICON **
-!          zmfun = (1.6_JPRB-MIN(1.0_JPRB,pqen(JL,JK)/pqsen(JL,JK)))*zmfun
+!            zmfun = (1.6_JPRB-MIN(1.0_JPRB,pqen(JL,JK)/pqsen(JL,JK)))*zmfun
             zdmfde(jl)=MAX(zdmfde(jl),pmfu(jl,jk+1)*(1.0_JPRB-zmfun))
             plude(jl,jk)=plu(jl,jk+1)*zdmfde(jl)
-            pmfu(jl,jk)=pmfu(jl,jk+1)+zdmfen(jl)-zdmfde(jl)
+            pmfu(jl,jk)=pmfu(jl,jk+1)+zdmfen(jl)-zdmfde(jl)! Mass flux is same as layer below, minus detraiment
           ENDIF
 
+          !SWITCHES *ON* CALCULATION OF ENTRAINMENT ONLY IN BUOYANT UPDRAFTS
+          !ZOENTR IS OVERWRITTEN, BUT NOT USED UNTIL THE NEXT JK LEVEL IN THE LOOP
           IF(zbuo(jl,jk) > -0.2_JPRB) THEN !.AND.klab(jl,jk+1) == 2) THEN
+             !when positively buoyant, have organised entrainment
+             !which increases MF with height, while detrainment is pretty small and constant
             ikb=kcbot(jl)
+
+            ! DOCUMENTATION EQN 6.7 - ENTRAINMENT TERM REPRESENTING BOTH ORGANISED AND TURBULENT
+            ! Old entrainment profile shape
+            !zoentr(jl)=zentrorg(jl)*(1.3_JPRB-MIN(1.0_JPRB,pqen(jl,jk-1)/pqsen(jl,jk-1)))*&
+            !  &(pgeoh(jl,jk-1)-pgeoh(jl,jk))*zrg*MIN(1.0_JPRB,pqsen(jl,jk)/pqsen(jl,ikb))**3
+            ! last term **3 is vertical scaling function, supposed to mimic the effects of a cloud ensemble and/
+            ! or the effect of the inreasing Rup (cloud radius) with height. It strongly decreases with height,
+            ! so that detrainment will eventually become greater than entrainment.
+            !*********************************************************************************
+            !Guenthers new entrainment profile shape 
             zentr_prof = MERGE((pqsen(jl,jk)/pqsen(jl,ikb))**2, (pqsen(jl,jk)/pqsen(jl,ikb))**3, lgrz_deepconv)
             zoentr(jl)=zentrorg(jl)*(1.3_JPRB-MIN(1.0_JPRB,pqen(jl,jk-1)/pqsen(jl,jk-1)))*&
               &(pgeoh(jl,jk-1)-pgeoh(jl,jk))*zrg*MIN(1.0_JPRB,zentr_prof)
+            !*********************************************************************************
             zoentr(jl)=MIN(0.4_JPRB,zoentr(jl))*pmfu(jl,jk)
           ELSE
             zoentr(jl)=0.0_JPRB
@@ -975,6 +1020,7 @@ DO jl=kidia,kfdia
     pwmean(jl)=SQRT(2.0_JPRB*pwmean(jl))
   ENDIF
 ENDDO
+
 
 IF (lhook) CALL dr_hook('CUASCN',1,zhook_handle)
 END SUBROUTINE cuascn

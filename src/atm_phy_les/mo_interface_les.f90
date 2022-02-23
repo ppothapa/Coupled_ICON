@@ -771,6 +771,7 @@ CONTAINS
 &              ktype  = prm_diag%ktype       (:,jb)       ,       & !! in:  convection type
 &              pmfude_rate = prm_diag%con_udd(:,:,jb,3)   ,       & !! in:  convective updraft detrainment rate
 &              plu         = prm_diag%con_udd(:,:,jb,7)   ,       & !! in:  updraft condensate
+&              pcore       = prm_diag%con_udd(:,:,jb,8)   ,       & !! in:  updraft core fraction
 &              rhoc_tend   = zqc_pconv                    ,       & !! in:  convective rhoc tendency (does not exist in LES mode)
 &              qv     = pt_prog_rcf%tracer   (:,:,jb,iqv) ,       & !! in:  spec. humidity
 &              qc     = pt_prog_rcf%tracer   (:,:,jb,iqc) ,       & !! in:  cloud water

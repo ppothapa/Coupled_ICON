@@ -65,7 +65,7 @@ MODULE mo_nh_interface_nwp
     &                                   lcalc_dpsdt
   USE mo_nwp_lnd_types,           ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types,          ONLY: t_external_data
-  USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend
+  USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
   USE mo_parallel_config,         ONLY: nproma, p_test_run, use_physics_barrier
   USE mo_diffusion_config,        ONLY: diffusion_config
   USE mo_initicon_config,         ONLY: is_iau_active
@@ -160,7 +160,8 @@ CONTAINS
                             & pt_prog_now_rcf,                     & !inout
                             & pt_prog_rcf,                         & !inout                            
                             & pt_diag ,                            & !inout
-                            & prm_diag, prm_nwp_tend, lnd_diag,    & !inout
+                            & prm_diag, prm_nwp_tend,              & !inout
+                            & prm_nwp_stochconv, lnd_diag,         & !inout
                             & lnd_prog_now, lnd_prog_new,          & !inout
                             & wtr_prog_now, wtr_prog_new,          & !inout
                             & p_prog_list,                         & !in
@@ -192,6 +193,7 @@ CONTAINS
                                                           !< red. calling frequency for tracers!
     TYPE(t_nwp_phy_diag),       INTENT(inout) :: prm_diag
     TYPE(t_nwp_phy_tend),TARGET,INTENT(inout) :: prm_nwp_tend
+    TYPE(t_nwp_phy_stochconv),  INTENT(inout) :: prm_nwp_stochconv    
     TYPE(t_lnd_prog),           INTENT(inout) :: lnd_prog_now, lnd_prog_new
     TYPE(t_wtr_prog),           INTENT(inout) :: wtr_prog_now, wtr_prog_new
     TYPE(t_lnd_diag),           INTENT(inout) :: lnd_diag
@@ -1094,12 +1096,18 @@ CONTAINS
 
       IF (timers_level > 2) CALL timer_start(timer_nwp_convection)
       CALL nwp_convection (  dt_phy_jg(itconv),                 & !>input
+                            & linit,                            & !>input
                             & pt_patch, p_metrics,              & !>input
                             & ext_data,                         & !>input
                             & pt_prog,                          & !>input
                             & pt_prog_rcf,                      & !>input
+                            & mtime_datetime,                   & !>input
                             & pt_diag,                          & !>inout
-                            & prm_diag, prm_nwp_tend            ) !>inout
+                            & prm_diag,                         & !>inout 
+                            & prm_nwp_tend,                     & !>inout
+                            & prm_nwp_stochconv,                & !>inout
+                            & pt_int_state                      ) !>in
+
       IF (timers_level > 2) CALL timer_stop(timer_nwp_convection)
 #ifdef _OPENACC
       IF (.NOT. linit) THEN
@@ -1182,6 +1190,7 @@ CONTAINS
 &              ktype  = prm_diag%ktype       (:,jb)       ,       & !! in:  convection type
 &              pmfude_rate = prm_diag%con_udd(:,:,jb,3)   ,       & !! in:  convective updraft detrainment rate
 &              plu         = prm_diag%con_udd(:,:,jb,7)   ,       & !! in:  updraft condensate
+&              pcore       = prm_diag%con_udd(:,:,jb,8)   ,       & !! in:  updraft core fraction
 &              rhoc_tend= prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqc),& !! in:  convective rho_c tendency
 &              qv     = pt_prog_rcf%tracer   (:,:,jb,iqv) ,       & !! in:  spec. humidity
 &              qc     = pt_prog_rcf%tracer   (:,:,jb,iqc) ,       & !! in:  cloud water
@@ -1192,7 +1201,8 @@ CONTAINS
 &              cc_tot = prm_diag%clc         (:,:,jb)     ,       & !! out: cloud cover
 &              qv_tot = prm_diag%tot_cld     (:,:,jb,iqv) ,       & !! out: qv       -"-
 &              qc_tot = prm_diag%tot_cld     (:,:,jb,iqc) ,       & !! out: clw      -"-
-&              qi_tot = prm_diag%tot_cld     (:,:,jb,iqi) )         !! out: ci       -"-
+&              qi_tot = prm_diag%tot_cld     (:,:,jb,iqi)         ) !! out: ci       -"-
+
       ENDDO
 #ifndef __GFORTRAN__
 !$OMP END PARALLEL DO
