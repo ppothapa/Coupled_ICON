@@ -1885,7 +1885,7 @@ CONTAINS
     jg = p_patch%id
 
     IF (var_in_output(jg)%dursun .AND. (p_sim_time > 0._wp) ) THEN
-      IF (l_present_dursun_m .AND. l_present_dursun_r) THEN
+      IF (l_present_dursun_m .OR. l_present_dursun_r) THEN
         CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater)
       ENDIF
       IF (itype_dursun == 0) THEN

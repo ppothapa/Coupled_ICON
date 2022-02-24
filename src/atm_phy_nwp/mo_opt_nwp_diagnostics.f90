@@ -3614,8 +3614,8 @@ CONTAINS
     REAL(wp),           INTENT(IN)    :: cosmu0(:,:)           !< cosine of solar zenith angle
     REAL(wp),           INTENT(IN)    :: dursun_thresh         !< threshold for solar direct irradiance in W/m2
     REAL(wp),           INTENT(IN)    :: dursun_thresh_width   !< smoothness / width of the threshold
-    REAL(wp), INTENT(INOUT), OPTIONAL :: dursun_m(:,:)         !< maximum sunshine duration (s)
-    REAL(wp), INTENT(INOUT), OPTIONAL :: dursun_r(:,:)         !< relative sunshine duration (s)
+    REAL(wp), INTENT(INOUT), POINTER  :: dursun_m(:,:)         !< maximum sunshine duration (s)
+    REAL(wp), INTENT(INOUT), POINTER  :: dursun_r(:,:)         !< relative sunshine duration (s)
     REAL(wp), INTENT(IN), OPTIONAL    :: pi0(:,:)              !< local solar incoming flux at TOA [W/m2]
     REAL(wp), INTENT(IN), OPTIONAL    :: pres(:,:)             !< pressure
     REAL(wp), INTENT(IN), OPTIONAL    :: twater(:,:)           !< total column water
@@ -3635,8 +3635,8 @@ CONTAINS
 
     l_present_dursun_m = .FALSE.
     l_present_dursun_r = .FALSE.
-    IF (PRESENT(dursun_m)) l_present_dursun_m=.TRUE.
-    IF (PRESENT(dursun_r)) l_present_dursun_r=.TRUE.
+    IF (ASSOCIATED(dursun_m)) l_present_dursun_m=.TRUE.
+    IF (ASSOCIATED(dursun_r)) l_present_dursun_r=.TRUE.
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1

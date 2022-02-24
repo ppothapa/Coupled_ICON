@@ -4296,7 +4296,7 @@ __acc_attach(diag%clct)
     END IF
 
 
-    IF (var_in_output%dursun_m) THEN
+    IF (var_in_output%dursun_m .OR. var_in_output%dursun_r) THEN
       ! &      diag%dursun_m(nproma,nblks_c)
       cf_desc    = t_cf_var('maximum_duration_of_sunshine', 's', 'Possible astronomical maximum of sunshine', datatype_flt)
       grib2_desc = grib2_var(0, 6, 205, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
@@ -4307,8 +4307,6 @@ __acc_attach(diag%clct)
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
         &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
-    END IF
-    IF (var_in_output%dursun_r) THEN
       ! &      diag%dursun_r(nproma,nblks_c)
       cf_desc    = t_cf_var('relative_duration_of_sunshine', '%', 'relative duration of sunshine', datatype_flt)
       grib2_desc = grib2_var(0, 6, 206, ibits, GRID_UNSTRUCTURED, GRID_CELL)
