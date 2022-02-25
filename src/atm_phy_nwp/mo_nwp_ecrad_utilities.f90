@@ -415,6 +415,7 @@ CONTAINS
     REAL(wp), ALLOCATABLE    :: &
       &  ch4(:,:),              & !< Methane volume mixing ratio
       &  n2o(:,:)                 !< N2O volume mixing ratio
+    INTEGER                  :: ncol
     LOGICAL                  :: lacc
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//'::ecrad_set_gas'
@@ -424,6 +425,8 @@ CONTAINS
     else
       lacc = .false.
     end if
+
+    ncol = SIZE(pres, 1)
 
 #ifndef __ECRAD_ACC
     !$ACC UPDATE HOST(o3, qv, pres) IF(lacc)
@@ -523,7 +526,7 @@ CONTAINS
         CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IVolumeMixingRatio, vmr_n2o,istartcol=i_startidx,iendcol=i_endidx, &
           &                           use_acc=lacc)
       CASE(3) ! Tanh profile
-        ALLOCATE(n2o(i_startidx:i_endidx,nlev))
+        ALLOCATE(n2o(ncol,nlev))
         !$ACC ENTER DATA CREATE(n2o) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_n2o, pres, vpp_n2o, i_startidx, i_endidx, nlev, n2o(:,:), use_acc=lacc)
         CALL ecrad_gas%put(ecRad_IN2O,  IVolumeMixingRatio, n2o(:,:), use_acc=lacc)
@@ -546,7 +549,7 @@ CONTAINS
         CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IVolumeMixingRatio, vmr_ch4,istartcol=i_startidx,iendcol=i_endidx, &
           &                           use_acc=lacc)
       CASE(3) ! Tanh profile
-        ALLOCATE(ch4(i_startidx:i_endidx,nlev))
+        ALLOCATE(ch4(ncol,nlev))
         !$ACC ENTER DATA CREATE(ch4) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_ch4, pres, vpp_ch4, i_startidx, i_endidx, nlev, ch4(:,:), use_acc=lacc)
         CALL ecrad_gas%put(ecRad_ICH4,  IVolumeMixingRatio, ch4(:,:), use_acc=lacc)
@@ -961,7 +964,7 @@ CONTAINS
       &  i_startidx, i_endidx,       & !< Start and end index of nproma loop in current block
       &  nlev                          !< Number of vertical full levels
     REAL(wp), INTENT (OUT)        :: &
-      &  profile(i_startidx:i_endidx,nlev) !< Profile to be calculated
+      &  profile(:,:) !< Profile to be calculated
     LOGICAL, INTENT(IN), OPTIONAL :: &
       &  use_acc
     REAL(wp)                      :: &
