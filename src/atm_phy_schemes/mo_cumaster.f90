@@ -1535,7 +1535,8 @@ IF (.NOT.phy_params%lmfscv .OR. .NOT.phy_params%lmfpen) THEN
   ENDDO
 ENDIF
 
-IF (phy_params%lvvcouple) THEN 
+IF (phy_params%lvvcouple) THEN
+  DO jl=kidia,kfdia
    ! Use vertical velocity as a criterion to decide when to turn off parameterization
    ! at a grid point and resolve convection.
    ! For rising motion at 650hPa, turn off parameterized convection.
@@ -1545,6 +1546,7 @@ IF (phy_params%lvvcouple) THEN
       ktype(jl)=0
       zmfub(jl)=0. 
    ENDIF
+  ENDDO
 ENDIF
 
 !-----------------------------------------------------------------------
