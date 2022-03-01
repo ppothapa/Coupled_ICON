@@ -14,18 +14,14 @@
 !!
 MODULE mo_echam_phy_cleanup
 
-  USE mtime,                   ONLY: OPERATOR(>)
-  USE mo_grid_config,          ONLY: n_dom
-  USE mo_echam_phy_memory,     ONLY: destruct_echam_phy_memory
-  USE mo_cloud_mig_memory,     ONLY: destruct_cloud_mig_memory
-#ifdef __NO_RTE_RRTMGP__
-  USE mo_psrad_forcing_memory, ONLY: destruct_psrad_forcing_list
-#else
+  USE mtime,                       ONLY: OPERATOR(>)
+  USE mo_grid_config,              ONLY: n_dom
+  USE mo_echam_phy_memory,         ONLY: destruct_echam_phy_memory
+  USE mo_cloud_mig_memory,         ONLY: destruct_cloud_mig_memory
   USE mo_radiation_forcing_memory, ONLY: destruct_radiation_forcing_list
-#endif
-  USE mo_echam_phy_config,     ONLY: echam_phy_tc, dt_zero
-  USE mo_echam_cnv_config,     ONLY: dealloc_echam_cnv_config
-  USE mo_vdiff_solver,         ONLY: cleanup_vdiff_solver
+  USE mo_echam_phy_config,         ONLY: echam_phy_tc, dt_zero
+  USE mo_echam_cnv_config,         ONLY: dealloc_echam_cnv_config
+  USE mo_vdiff_solver,             ONLY: cleanup_vdiff_solver
 
   IMPLICIT NONE
   PRIVATE
@@ -61,11 +57,7 @@ CONTAINS
     DO jg = 1,n_dom
        lany = lany .OR. (echam_phy_tc(jg)%dt_rad > dt_zero)
     END DO
-#ifdef __NO_RTE_RRTMGP__
-    IF (lany) CALL destruct_psrad_forcing_list
-#else
     IF (lany) CALL destruct_radiation_forcing_list
-#endif
    
     lany=.FALSE.
     DO jg = 1,n_dom

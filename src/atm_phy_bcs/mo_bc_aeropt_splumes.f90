@@ -31,15 +31,9 @@ MODULE mo_bc_aeropt_splumes
   USE mo_model_domain,         ONLY: p_patch
   USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
-#ifdef __NO_RTE_RRTMGP__
-  USE mo_psrad_srtm_kgs,       ONLY: &
-      &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
-      &  sw_wv2 => wavenum2            !< largest wave number in each of the sw bands
-#else
   USE mo_radiation_general,    ONLY: &
       &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
       &  sw_wv2 => wavenum2            !< largest wave number in each of the sw bands
-#endif
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime, getDayOfYearFromDateTime, &
        &                             getNoOfSecondsElapsedInDayDateTime, &
