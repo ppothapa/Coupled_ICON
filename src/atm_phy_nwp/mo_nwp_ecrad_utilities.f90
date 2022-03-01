@@ -35,10 +35,12 @@ MODULE mo_nwp_ecrad_utilities
                                    &   irad_h2o, irad_o3, irad_co2,              &
                                    &   irad_n2o, irad_ch4,                       &
                                    &   irad_o2, irad_cfc11, irad_cfc12,          &
-                                   &   vpp_ch4, vpp_n2o, tsi_radt
+                                   &   vpp_ch4, vpp_n2o, tsi_radt,               &
+                                   &   config_nproma_rad => nproma_rad
   USE mo_nwp_tuning_config,      ONLY: tune_difrad_3dcont
   USE mtime,                     ONLY: datetime
   USE mo_bc_greenhouse_gases,    ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
+  USE mo_parallel_config,        ONLY: nproma
 #ifdef __ECRAD
   USE mo_ecrad,                  ONLY: ecrad_set_gas_units,                      &
                                    &   t_ecrad_conf,                             &
@@ -72,6 +74,8 @@ MODULE mo_nwp_ecrad_utilities
   PUBLIC :: ecrad_set_gas
   PUBLIC :: ecrad_store_fluxes
   PUBLIC :: add_3D_diffuse_rad
+  PUBLIC :: get_nproma_rad_nblk_rad
+  PUBLIC :: get_indices_rad_subblock
 
   ! helper functions to be removed once acc is merged into libecrad
   PUBLIC :: ecrad_acc_allocation
@@ -993,6 +997,129 @@ CONTAINS
     !$ACC END PARALLEL
 
   END SUBROUTINE
+  !---------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------
+  !>
+  !! SUBROUTINE get_nproma_rad_nblk_rad:
+  !! This subroutine gets the radiation subblocking block size nproma_rad and
+  !! the number of radiation subblocks nblck_rad.
+  !! To set the number of subblocks nblk_rad instead of the subblocksize nproma_rad, one can also 
+  !! set the global nproma_rad to a negative number which is considered then the number of subblocks.
+  !! Otherwise the number of blocks will be calculated accordingly.
+  !!
+  SUBROUTINE get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
+
+
+    INTEGER, INTENT(OUT) :: nproma_rad
+    INTEGER, INTENT(OUT) :: nblk_rad
+
+    IF( config_nproma_rad < 0) THEN
+      nblk_rad = -config_nproma_rad
+      nproma_rad = (nproma-1)/nblk_rad+1
+    ELSE
+      nproma_rad = config_nproma_rad
+      nblk_rad = (nproma-1)/nproma_rad+1
+    END IF
+
+  END SUBROUTINE get_nproma_rad_nblk_rad
+  !----------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------
+  !>
+  !! SUBROUTINE get_nproma_rad_nblk_rad:
+  !! This subroutine gets the index used for subblocking the ecRad radiation.
+  !! There are the indices that point to an original array: jcs:jce,      and i_startidx_sub:i_endidx_sub.
+  !! There are the indices that point to a  subblock array: 1:nproma_rad, and i_startidx_rad:i_endidx_rad.
+  !! In each step of the subblocking, values are copied from an original array to a subblock array and vice versa.
+  !! Here, is an illustration for three subblocks and how the index are set.
+  !!
+  !! jb_rad = 1
+  !!
+  !! original array:
+  !!    !1   i_startidx                                                                   i_endidx    nproma|
+  !!    |-------^----------------------------------------------------------------------------^--------------|
+  !!    |^      ^                        ^|
+  !!    |jcs    |                      jce|
+  !!    |       |                        ^|
+  !!    |  i_startidx_sub     i_endidx_sub|
+  !!
+  !! subblock array:
+  !!    |1                      nproma_rad|
+  !!    |---------------------------------|
+  !!    |       ^                        ^|
+  !!    |  i_startidx_rad     i_endidx_rad|
+  !!
+  !! jb_rad = 2
+  !!
+  !! original array:
+  !!    !1   i_startidx                                                                   i_endidx    nproma|
+  !!    |-------^----------------------------------------------------------------------------^--------------|
+  !!                                      |^                               ^|
+  !!                                      |jcs                           jce|
+  !!                                      |^                               ^|
+  !!                                      |i_startidx_sub       i_endidx_sub|
+  !!
+  !! subblock array:
+  !!                                      |1                      nproma_rad|
+  !!                                      |---------------------------------|
+  !!                                      |^                               ^|
+  !!                                      |i_startidx_rad       i_endidx_rad|
+  !!
+  !! jb_rad = 3
+  !!
+  !! original array:
+  !!    !1   i_startidx                                                                   i_endidx    nproma|
+  !!    |-------^----------------------------------------------------------------------------^--------------|
+  !!                                                                        |^               ^             ^  |
+  !!                                                                        |jcs             |           jce  |
+  !!                                                                        |^               |                |
+  !!                                                                        |i_startidx_sub  i_endidx_sub     |
+  !!
+  !! subblock array:
+  !!                                                                        |1                      nproma_rad|
+  !!                                                                        |---------------------------------|
+  !!                                                                        |^               ^                |
+  !!                                                                        |i_startidx_rad  i_endidx_rad     |
+  !!
+  SUBROUTINE get_indices_rad_subblock(i_startidx, i_endidx, nproma_rad, jb_rad, jcs, jce, &
+      &  i_startidx_rad, i_endidx_rad, l_3d_rad_fluxes, jnps, jnpe, i_startidx_sub, i_endidx_sub)
+
+    INTEGER, INTENT(IN)  :: i_startidx, i_endidx
+    INTEGER, INTENT(IN)  :: nproma_rad
+    INTEGER, INTENT(IN)  :: jb_rad
+    
+    INTEGER, INTENT(OUT) :: jcs, jce
+    INTEGER, INTENT(OUT) :: i_startidx_rad, i_endidx_rad
+
+    LOGICAL, INTENT(IN), OPTIONAL :: l_3d_rad_fluxes
+
+    INTEGER, INTENT(OUT), OPTIONAL :: jnps, jnpe
+    INTEGER, INTENT(OUT), OPTIONAL :: i_startidx_sub, i_endidx_sub
+
+    jcs = nproma_rad*(jb_rad-1) + 1 
+    jce = MIN(nproma_rad*jb_rad, nproma)
+
+    i_startidx_rad = MAX(i_startidx-jcs+1, 1)
+    i_endidx_rad   = MIN(i_endidx  -jcs+1, nproma_rad)
+
+    IF (PRESENT(l_3d_rad_fluxes) .AND. PRESENT(jnps) .AND. PRESENT(jnpe)) THEN
+      IF (l_3d_rad_fluxes) THEN
+        jnps = jcs
+        jnpe = jce
+      ELSE
+        jnps = 1
+        jnpe = 1
+      ENDIF
+    ENDIF
+
+    IF (PRESENT(i_startidx_sub) .AND. PRESENT(i_endidx_sub)) THEN
+      i_startidx_sub = MAX(jcs, i_startidx)
+      i_endidx_sub   = MIN(jce, i_endidx)
+    ENDIF
+
+  END SUBROUTINE get_indices_rad_subblock
+  !---------------------------------------------------------------------------------------
 
 #ifndef __ECRAD_ACC
   !---------------------------------------------------------------------------------------

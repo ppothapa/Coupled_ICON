@@ -55,7 +55,7 @@ MODULE mo_nwp_ecrad_interface
   USE mo_physical_constants,     ONLY: rhoh2o
   USE mo_run_config,             ONLY: msg_level, iqv, iqi, iqc, iqr, iqs, iqg
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
-  USE mo_radiation_config,       ONLY: irad_aero, config_nproma_rad => nproma_rad
+  USE mo_radiation_config,       ONLY: irad_aero
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
@@ -70,7 +70,9 @@ MODULE mo_nwp_ecrad_interface
                                    &   ecrad_set_thermodynamics,                 &
                                    &   ecrad_set_clouds,                         &
                                    &   ecrad_set_gas,                            &
-                                   &   ecrad_store_fluxes, add_3D_diffuse_rad
+                                   &   ecrad_store_fluxes, add_3D_diffuse_rad,   &
+                                   &   get_nproma_rad_nblk_rad,                  &
+                                   &   get_indices_rad_subblock
 #ifndef __ECRAD_ACC
   USE mo_nwp_ecrad_utilities,    ONLY: ecrad_acc_allocation,                   &
                                    &   ecrad_acc_deallocation,                 &
@@ -194,15 +196,7 @@ CONTAINS
       lacc = .FALSE.
     ENDIF
 
-    ! To set the number of subblocks nblk_rad instead of the subblocksize nproma_rad, one can also 
-    ! set the global nproma_rad to negative number which is considered then the number of subblocks.
-    IF( config_nproma_rad < 0) THEN
-      nblk_rad = -config_nproma_rad
-      nproma_rad = (nproma-1)/nblk_rad+1
-    ELSE
-      nproma_rad = config_nproma_rad
-      nblk_rad = (nproma-1)/nproma_rad+1
-    END IF
+    call get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
 
     nlev      = pt_patch%nlev
     nlevp1    = nlev+1
@@ -273,15 +267,8 @@ CONTAINS
       IF (i_startidx > i_endidx) CYCLE
 
       DO jb_rad = 1, nblk_rad
-
-        jcs         = nproma_rad*(jb_rad-1) + 1 
-        jce         = MIN(nproma_rad*jb_rad, nproma)
-
-        i_startidx_sub = MAX(jcs, i_startidx)
-        i_endidx_sub   = MIN(jce, i_endidx)
-
-        i_startidx_rad = MAX(i_startidx-jcs+1, 1)
-        i_endidx_rad   = MIN(nproma_rad, i_endidx-jcs+1)
+        CALL get_indices_rad_subblock(i_startidx, i_endidx, nproma_rad, jb_rad, jcs, jce, &
+          &  i_startidx_rad, i_endidx_rad, i_startidx_sub=i_startidx_sub, i_endidx_sub=i_endidx_sub)
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
@@ -613,15 +600,7 @@ CONTAINS
       & lacc
 
 
-    ! To set the number of subblocks nblk_rad instead of the subblocksize nproma_rad, one can also 
-    ! set the global nproma_rad to negative number which is considered then the number of subblocks.
-    IF( config_nproma_rad < 0) THEN
-      nblk_rad = -config_nproma_rad
-      nproma_rad = (nproma-1)/nblk_rad+1
-    ELSE
-      nproma_rad = config_nproma_rad
-      nblk_rad = (nproma-1)/nproma_rad+1
-    END IF
+    call get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
 
     jg         = pt_patch%id
     nlev       = pt_patch%nlev
@@ -1047,20 +1026,9 @@ CONTAINS
       ! end of workaround
 
       DO jb_rad = 1, nblk_rad
-
-        jcs         = nproma_rad*(jb_rad-1) + 1 
-        jce         = MIN(nproma_rad*jb_rad, nproma)
-
-        IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-          jnps = jcs
-          jnpe = jce
-        ELSE
-          jnps = 1
-          jnpe = 1
-        ENDIF
-
-        i_startidx_rad = MAX(i_startidx-jcs+1, 1)
-        i_endidx_rad   = MIN(nproma_rad, i_endidx-jcs+1)
+        CALL get_indices_rad_subblock(i_startidx, i_endidx, nproma_rad, jb_rad, jcs, jce, &
+          &  i_startidx_rad, i_endidx_rad, l_3d_rad_fluxes=atm_phy_nwp_config(jg)%l_3d_rad_fluxes, &
+          &  jnps=jnps, jnpe=jnpe)
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
