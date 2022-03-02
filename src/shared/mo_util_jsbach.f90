@@ -475,13 +475,24 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':get_time_dt'
 
+    ztime = -1._wp
+
     reference_datetime => newDatetime("1979-01-01T00:00:00.000") ! 1980-06-01T00:00:00.000
+
+    ! First try to get time step from the vertical diffusion config in a coupled experiment
+
     ztime = REAL(getTotalSecondsTimeDelta(echam_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+
+    IF (ztime <= 0._wp) THEN
+      ! This should only happen for an ICON-Land standalone experiment;
+      ! Use "modeltimestep" from run_nml in this case (same for all model_id's!)
+      ztime = REAL(getTotalSecondsTimeDelta(time_config%tc_dt_model, reference_datetime), wp)
+    END IF
 
     CALL deallocateDatetime(reference_datetime)
 
     IF (ztime <= 0.0_wp) &
-      CALL finish(routine, 'time step not configured yet.')
+      CALL finish(routine, 'Couldn"t get model time step.')
 
     get_time_dt = ztime
 
