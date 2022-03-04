@@ -75,7 +75,7 @@ CONTAINS
   !! modis albedo           : alb_dif, albuv_dif, albni_dif
   !!
   !! Update of aerosol fields, which is based on a monthly climatology 
-  !! happens in mo_nwp_rrtm_interface:nwp_ozon_aerosol.
+  !! happens in mo_nwp_rrtm_interface:nwp_aerosol.
   !!
   !! In addition, some fields which directly depend on the above ones
   !! are updated as well, in order to have a consistent state.

@@ -742,7 +742,7 @@ CONTAINS
 #ifdef _OPENACC
       CALL finish('mo_nh_interface_nwp:','ART not supported on GPU')
 #endif
-      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data)
+      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3)
 
       IF (.NOT. linit) THEN
         CALL art_reaction_interface(jg,                    & !> in

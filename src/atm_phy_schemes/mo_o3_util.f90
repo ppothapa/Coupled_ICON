@@ -28,24 +28,25 @@
 
 MODULE mo_o3_util
 
-  USE mo_kind,                 ONLY: i8
+  USE mo_kind,                 ONLY: wp, i8
   USE mo_exception,            ONLY: finish
   USE mo_parallel_config,      ONLY: nproma
-  USE mo_impl_constants,       ONLY: min_rlcell_int, max_dom
-  USE mo_kind,                 ONLY: wp
+  USE mo_impl_constants,       ONLY: min_rlcell_int, max_dom, SUCCESS, io3_ape
+  USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_math_constants,       ONLY: pi,deg2rad,rad2deg
   USE mo_model_domain,         ONLY: t_patch
   USE mo_nh_vert_interp,       ONLY: prepare_lin_intp, lin_intp
   USE mo_nonhydro_types,       ONLY: t_nh_diag
-  USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_o3_gems_data,         ONLY: rghg7
   USE mo_o3_macc_data,         ONLY: rghg7_macc
   USE mo_radiation_config,     ONLY: irad_o3
+  USE mo_bc_ozone,             ONLY: ext_ozone
   USE mo_physical_constants,   ONLY: amd,amo3,rd,grav
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, ltuning_ozone, icpl_o3_tp
   USE mo_time_config,          ONLY: time_config
+  USE mo_timer,                ONLY: timer_start, timer_stop, timers_level, timer_preradiaton
   USE mo_impl_constants,       ONLY: io3_art
   USE mtime,                   ONLY: datetime, newDatetime, timedelta, newTimedelta, &
        &                             getPTStringFromMS, OPERATOR(+),                 &
@@ -60,10 +61,162 @@ MODULE mo_o3_util
 
   PRIVATE
 
-  PUBLIC  :: calc_o3_clim, o3_timeint, o3_pl2ml, o3_zl2ml, calc_o3_gems
+  PUBLIC  :: o3_interface, calc_o3_clim, o3_timeint, o3_pl2ml, o3_zl2ml, calc_o3_gems
 
 
 CONTAINS
+
+  !=======================================================================
+
+  SUBROUTINE o3_interface (mtime_datetime, p_sim_time, pt_patch, pt_diag, &
+    &                      o3, prm_diag, dt_rad, lacc)
+
+    CHARACTER(len=*), PARAMETER :: &
+      &  routine = 'mo_nwp_rad_util:nwp_o3_interface'
+
+    TYPE(datetime), POINTER, INTENT(in)    :: mtime_datetime
+    REAL(wp),                INTENT(in)    :: p_sim_time   !< simulation time
+    TYPE(t_patch),   TARGET, INTENT(in)    :: pt_patch     !< grid/patch info.
+    TYPE(t_nh_diag), TARGET, INTENT(inout) :: pt_diag      !< the diagnostic variables
+    REAL(wp),                INTENT(inout) :: o3(:,:,:)    !< Ozone
+    TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag
+    REAL(wp),                INTENT(in)    :: dt_rad
+    LOGICAL,       OPTIONAL, INTENT(in)    :: lacc
+
+    ! Local variables
+    REAL(wp), ALLOCATABLE   :: &
+      &  zo3_timint(:,:),      & !< intermediate value of ozone, for irad_o3=8
+      &  zptop32(:,:),         & !< irad_o3=6
+      &  zo3_hm  (:,:),        & !< irad_o3=6
+      &  zo3_top (:,:),        & !< irad_o3=6
+      &  zpbot32(:,:),         & !< irad_o3=6
+      &  zo3_bot(:,:)            !< irad_o3=6
+    INTEGER                 :: &
+      &  jg, jc, jk, jb,       & !< domain ID and loop indices
+      &  rl_start, rl_end,     & 
+      &  i_startblk,i_endblk,  &
+      &  i_startidx, i_endidx, &
+      &  istat
+    LOGICAL :: lzacc
+
+    IF (timers_level > 6) CALL timer_start(timer_preradiaton)
+
+    IF(PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
+
+    ! patch ID
+    jg         = pt_patch%id
+    rl_start   = grf_bdywidth_c+1
+    rl_end     = min_rlcell_int
+    i_startblk = pt_patch%cells%start_blk(rl_start,1)
+    i_endblk   = pt_patch%cells%end_blk(rl_end,MAX(1,pt_patch%n_childdom))
+
+    !$ACC DATA PRESENT( pt_diag, prm_diag, o3, pt_patch ) IF(lzacc)
+
+    SELECT CASE (irad_o3)
+      CASE(io3_ape)
+        ! APE ozone: do nothing since everything is already
+        ! set in mo_nwp_phy_init
+      CASE (6)
+#ifdef _OPENACC
+        IF (lzacc) CALL finish(routine,'calc_o3_clim not ported to gpu')
+#endif
+        CALL calc_o3_clim(kbdim      = nproma,        & !< in
+          &               jg         = jg,            & !< in
+          &               p_inc_rad  = dt_rad,        & !< in
+          &               z_sim_time = p_sim_time,    & !< in
+          &               pt_patch   = pt_patch,      & !< in
+          &               zvio3      = prm_diag%vio3, & !< inout
+          &               zhmo3      = prm_diag%hmo3)   !< inout
+
+        ALLOCATE( zptop32 (nproma,pt_patch%nblks_c), &
+          &       zo3_hm  (nproma,pt_patch%nblks_c), &
+          &       zo3_top (nproma,pt_patch%nblks_c), &
+          &       zpbot32 (nproma,pt_patch%nblks_c), &
+          &       zo3_bot (nproma,pt_patch%nblks_c), &
+          &       STAT=istat )
+          IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of zptop32,zo3_hm,zo3_top,zpbot32,zo3_bot failed')
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,jk,i_endidx)  ICON_OMP_DEFAULT_SCHEDULE
+        DO jb = i_startblk, i_endblk
+          CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
+          ! 3-dimensional O3
+          ! top level
+          ! Loop starts with 1 instead of i_startidx because the start index is missing in RRTM
+          DO jc = 1,i_endidx
+            zptop32  (jc,jb) = (SQRT(pt_diag%pres_ifc(jc,1,jb)))**3
+            zo3_hm   (jc,jb) = (SQRT(prm_diag%hmo3(jc,jb)))**3
+            zo3_top  (jc,jb) = prm_diag%vio3(jc,jb)*zptop32(jc,jb)/(zptop32(jc,jb)+zo3_hm(jc,jb))
+          ENDDO
+
+          ! loop over layers
+          DO jk = 1, pt_patch%nlev
+!DIR$ IVDEP
+            DO jc = 1,i_endidx
+              zpbot32  (jc,jb) = (SQRT(pt_diag%pres_ifc(jc,jk+1,jb)))**3
+              zo3_bot  (jc,jb) = prm_diag%vio3(jc,jb)* zpbot32(jc,jb)    &
+                /( zpbot32(jc,jb) + zo3_hm(jc,jb))
+              !O3 content
+              o3(jc,jk,jb) = (zo3_bot(jc,jb) - zo3_top(jc,jb))/pt_diag%dpres_mc(jc,jk,jb)
+              ! store previous bottom values in arrays for top of next layer
+              zo3_top (jc,jb) = zo3_bot (jc,jb)
+            ENDDO !jc
+          ENDDO !jk
+        ENDDO !jb
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+        DEALLOCATE( zptop32, zo3_hm, zo3_top, zpbot32, zo3_bot, STAT=istat )
+          IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of zptop32,zo3_hm,zo3_top,zpbot32,zo3_bot failed')
+
+      CASE (7,9,79,97)
+       !$ACC WAIT
+        CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,o3,use_acc=lzacc)
+      CASE(8)
+        ALLOCATE(zo3_timint(nproma,ext_ozone(jg)%nplev_o3), STAT=istat)
+          IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of zo3_timint failed')
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+        DO jb = i_startblk,i_endblk
+          CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
+          CALL o3_timeint(jcs = 1, jce = i_endidx, kbdim = nproma,       &
+               &          nlev_pres    = ext_ozone(jg)%nplev_o3,         &
+               &          ext_o3       = ext_ozone(jg)%o3_plev(:,:,jb,:),&
+               &          current_date = mtime_datetime,                 &
+               &          o3_time_int  = zo3_timint                      ) ! OUT
+          CALL o3_pl2ml  (jcs = 1, jce = i_endidx, kbdim = nproma,       &
+               &          nlev_pres    = ext_ozone(jg)%nplev_o3,         &
+               &          klev         = pt_patch%nlev,                  &
+               &          pfoz         = ext_ozone(jg)%plev_full_o3,     &
+               &          phoz         = ext_ozone(jg)%plev_half_o3,     &
+               &          ppf          = pt_diag%pres(:,:,jb),           &
+               &          pph          = pt_diag%pres_ifc(:,:,jb),       &
+               &          o3_time_int  = zo3_timint,                     & ! IN
+               &          o3_clim      = o3(:,:,jb)                      ) ! OUT ozone mass mixing ratio [kg/kg]
+        ENDDO !jb
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+      DEALLOCATE(zo3_timint, STAT=istat)
+        IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of zo3_timint failed')
+    CASE(10)
+      !CALL message('mo_nwp_rg_interface:irad_o3=10', &
+      !  &          'Ozone used for radiation is calculated by ART')
+    CASE(11)
+      !CALL message('mo_nwp_rg_interface:irad_o3=11', &
+      !  &          'Ozone used for radiation is read from SCM input file')
+    END SELECT
+
+    !$ACC WAIT
+    !$ACC END DATA
+
+    IF (timers_level > 6) CALL timer_stop(timer_preradiaton)
+
+  END SUBROUTINE o3_interface
 
   !=======================================================================
 
@@ -942,14 +1095,13 @@ CONTAINS
   !! @par Revision History
   !! Initial Release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-10-18)
   !!
-  SUBROUTINE calc_o3_gems(pt_patch,mtime_datetime,p_diag,prm_diag,ext_data,use_acc)
+  SUBROUTINE calc_o3_gems(pt_patch,mtime_datetime,p_diag,prm_diag,o3,use_acc)
 
-    TYPE(t_patch),           INTENT(in) :: pt_patch    ! Patch
-    TYPE(datetime), POINTER, INTENT(in) :: mtime_datetime
-    TYPE(t_nh_diag),         INTENT(in) :: p_diag  !!the diagostic variables
-    TYPE(t_nwp_phy_diag),    INTENT(in):: prm_diag
-
-    TYPE(t_external_data),   INTENT(inout) :: ext_data  !!the external data state
+    TYPE(t_patch),           INTENT(in)    :: pt_patch    ! Patch
+    TYPE(datetime), POINTER, INTENT(in)    :: mtime_datetime
+    TYPE(t_nh_diag),         INTENT(in)    :: p_diag  !!the diagostic variables
+    TYPE(t_nwp_phy_diag),    INTENT(in)    :: prm_diag
+    REAL(wp),                INTENT(inout) :: o3(:,:,:)  !! ozone
 
     LOGICAL, OPTIONAL, INTENT(in) :: use_acc
 
@@ -1028,7 +1180,7 @@ CONTAINS
     !$ACC DATA CREATE(idx0, zlat, zozn, zpresh, rclpr, zo3, zviozo, zozovi, &
     !$ACC   deltaz, dtdz, l_found, tuneo3_1, tuneo3_2, wfac_lat, wfac_p, &
     !$ACC   wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst) &
-    !$ACC   PRESENT(atm_phy_nwp_config, ext_data, p_diag, prm_diag, pt_patch) &
+    !$ACC   PRESENT(atm_phy_nwp_config, o3, p_diag, prm_diag, pt_patch, RGHG7, RGHG7_MACC) &
     !$ACC   IF(lacc)
 
     !Time index. Taken from su_ghgclim.F90 of ECMWF's IFS (37r2).
@@ -1101,9 +1253,9 @@ CONTAINS
 
     SELECT CASE (irad_o3)
     CASE (7)
-#ifdef _OPENACC
-      IF (lacc) CALL finish('calc_o3_gems','Not ported on gpu for irad_o3 == 7')
-#endif
+
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,nlev_gems
         DO jl=1,ilat
           zozn(JL,JK) = amo3/amd * (RGHG7(JL,JK,IM2)&
@@ -1111,6 +1263,7 @@ CONTAINS
           zozn(JL,JK) = zozn(JL,JK) * (ZPRESH(JK)-ZPRESH(JK-1))
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
     CASE (9)
 #ifdef _OPENACC
       IF (lacc) CALL finish('calc_o3_gems','Not ported on gpu for irad_o3 == 9')
@@ -1417,16 +1570,16 @@ CONTAINS
 !DIR$ IVDEP
         DO jc = i_startidx,i_endidx
 
-          ext_data%atm%o3(jc,jk,jb)=(ZVIOZO(jc,jk)-ZVIOZO(jc,jk-1)) / p_diag%dpres_mc(jc,jk,jb)
+          o3(jc,jk,jb)=(ZVIOZO(jc,jk)-ZVIOZO(jc,jk-1)) / p_diag%dpres_mc(jc,jk,jb)
 
           ! Tuning to increase stratospheric ozone in order to reduce temperature biases;
           ! the tuning factors are computed in atm_phy_nwp_config
           IF ( ltuning_ozone ) THEN
             zadd_o3 = MIN(atm_phy_nwp_config(pt_patch%id)%ozone_maxinc,                   &
-              ext_data%atm%o3(jc,jk,jb) * atm_phy_nwp_config(pt_patch%id)%fac_ozone(jk) * &
+                           o3(jc,jk,jb) * atm_phy_nwp_config(pt_patch%id)%fac_ozone(jk) * &
               MERGE(atm_phy_nwp_config(pt_patch%id)%shapefunc_ozone(jc,jb), 1._wp,        &
                     atm_phy_nwp_config(pt_patch%id)%fac_ozone(jk) > 0._wp)                )
-            ext_data%atm%o3(jc,jk,jb) = ext_data%atm%o3(jc,jk,jb) + zadd_o3
+            o3(jc,jk,jb) = o3(jc,jk,jb) + zadd_o3
           ENDIF
 
         ENDDO
@@ -1510,7 +1663,7 @@ CONTAINS
             ELSE
               !$ACC LOOP SEQ
               DO jkkk = k100-1, k375
-                o3_clim(jkkk) = ext_data%atm%o3(jc,jkkk,jb)
+                o3_clim(jkkk) = o3(jc,jkkk,jb)
               ENDDO
               jkk = k100
               !$ACC LOOP SEQ
@@ -1518,22 +1671,22 @@ CONTAINS
                 ! Modify ozone profiles; the climatological profile is shifted down by at most 125 hPa
                 IF (jk < ktp) THEN ! levels above the tropopause
                   IF (p_diag%pres(jc,jk,jb) < 22500._wp) THEN
-                    ext_data%atm%o3(jc,jk,jb) = (1._wp-wfac)*ext_data%atm%o3(jc,jk,jb) + &
-                      wfac*((1._wp-wfac2)*o3_clim(k100)+wfac2*o3_clim(k100-1))
+                    o3(jc,jk,jb) = (1._wp-wfac)*o3(jc,jk,jb) + &
+                      &            wfac*((1._wp-wfac2)*o3_clim(k100)+wfac2*o3_clim(k100-1))
                   ELSE
                     !$ACC LOOP SEQ
 !$NEC novector
                     DO jk1 = jkk, k375
                       IF (p_diag%pres(jc,jk,jb) - p_diag%pres(jc,jk1-1,jb) >= 12500._wp .AND. &
                           p_diag%pres(jc,jk,jb) - p_diag%pres(jc,jk1,jb)   < 12500._wp ) THEN
-                        ext_data%atm%o3(jc,jk,jb) = (1._wp-wfac)*ext_data%atm%o3(jc,jk,jb) + wfac*o3_clim(jk1)
+                        o3(jc,jk,jb) = (1._wp-wfac)*o3(jc,jk,jb) + wfac*o3_clim(jk1)
                         jkk = jk1
                         EXIT
                       ENDIF
                     ENDDO
                   ENDIF
                 ELSE IF (jk > ktp) THEN ! levels below the tropopause
-                  ext_data%atm%o3(jc,jk,jb) = (1._wp-wfac)*ext_data%atm%o3(jc,jk,jb) + wfac*o3_clim(k375)
+                  o3(jc,jk,jb) = (1._wp-wfac)*o3(jc,jk,jb) + wfac*o3_clim(k375)
                 ENDIF
               ENDDO ! jk = k100, k375
             ENDIF ! (k100 < 0)

@@ -33,11 +33,13 @@ MODULE mo_nwp_rad_interface
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,      &
-    &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12
+    &                                irad_co2, irad_n2o, irad_ch4,   &
+    &                                irad_cfc11, irad_cfc12,         &
+    &                                irad_aero
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
-    &                                nwp_ozon_aerosol
+    &                                nwp_aerosol
 #ifdef __ECRAD
   USE mo_nwp_ecrad_interface,  ONLY: nwp_ecrad_radiation,            &
     &                                nwp_ecrad_radiation_reduced
@@ -54,8 +56,8 @@ MODULE mo_nwp_rad_interface
 #endif
   USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc, ONLY: add_bc_aeropt_cmip6_volc
-  USE mo_radiation_config,     ONLY: irad_aero
   USE mo_loopindices,          ONLY: get_indices_c
+  USE mo_o3_util,              ONLY: o3_interface 
 
   IMPLICIT NONE
 
@@ -151,6 +153,9 @@ MODULE mo_nwp_rad_interface
     !-------------------------------------------------------------------------
     !> Radiation setup
     !-------------------------------------------------------------------------
+
+    CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
+      &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lacc)
 
 #ifdef __ECRAD
     IF (ANY( irad_aero == (/12,13,14,15/) )) THEN
@@ -284,7 +289,7 @@ MODULE mo_nwp_rad_interface
       i_am_accel_node = .FALSE.
     ENDIF
 #endif
-      CALL nwp_ozon_aerosol ( p_sim_time, mtime_datetime, pt_patch, ext_data, &
+      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
         & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5 )
     
       IF ( .NOT. lredgrid ) THEN
@@ -313,7 +318,7 @@ MODULE mo_nwp_rad_interface
     CASE (4) ! ecRad
 #ifdef __ECRAD
       !$ACC WAIT
-      CALL nwp_ozon_aerosol ( p_sim_time, mtime_datetime, pt_patch, ext_data, &
+      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
         & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, use_acc=lacc )
 
       !$ACC WAIT

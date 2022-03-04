@@ -131,6 +131,7 @@ MODULE mo_nwp_phy_init
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
   USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_ecrad
+  USE mo_bc_ozone,            ONLY: read_bc_ozone
 
   IMPLICIT NONE
 
@@ -999,6 +1000,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
         !
+        ! Read ozone transient data
+        IF (irad_o3 == 8) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
 #else
         CALL finish(routine,  &
           &      'atm_phy_nwp_config(jg)%inwp_radiation = 4 needs -D__ECRAD.')

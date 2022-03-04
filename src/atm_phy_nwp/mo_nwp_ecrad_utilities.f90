@@ -453,7 +453,8 @@ CONTAINS
       CASE(0) ! No Ozone
         CALL ecrad_gas%put_well_mixed(ecRad_IO3,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx, &
           &                           use_acc=lacc)
-      CASE(7,9,79,97) ! Use values from GEMS/MACC (different profiles)
+      CASE(7,8,9,79,97) ! Use values from GEMS/MACC (different profiles)
+                        ! or time dependent concentration from external file
         CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(:,:), use_acc=lacc)
       CASE(11) ! Ozone is read from SCM input file
         CALL message('mo_nwp_ecrad_utilities: irad_o3=11', &

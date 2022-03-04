@@ -326,7 +326,7 @@ CONTAINS
              & .OR. echam_rad_config(jg)% irad_o3 ==  5 &       ! transient monthly means
 #endif
              & .OR. echam_rad_config(jg)% irad_o3 == 10 ) THEN  ! coupled to ART
-          CALL read_bc_ozone(mtime_old%date%year, patch)
+          CALL read_bc_ozone(mtime_old%date%year,patch,echam_rad_config(jg)%irad_o3)
         END IF
         !
         ! tropospheric aerosol optical properties after S. Kinne

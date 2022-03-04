@@ -31,7 +31,7 @@ MODULE mo_nwp_rrtm_interface
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_parallel_config,      ONLY: nproma, p_test_run
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi
-  USE mo_impl_constants,       ONLY: min_rlcell_int, io3_ape, nexlevs_rrg_vnest, &
+  USE mo_impl_constants,       ONLY: min_rlcell_int, nexlevs_rrg_vnest, &
                                      iss, iorg, ibc, iso4, idu
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
   USE mo_physical_constants,   ONLY: rd, grav, cpd
@@ -42,9 +42,8 @@ MODULE mo_nwp_rrtm_interface
   USE mo_phys_nest_utilities,  ONLY: t_upscale_fields,upscale_rad_input, downscale_rad_output
   USE mo_nonhydro_types,       ONLY: t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
-  USE mo_o3_util,              ONLY: calc_o3_clim, calc_o3_gems
   USE mo_radiation,            ONLY: radiation_nwp
-  USE mo_radiation_config,     ONLY: irad_o3, irad_aero
+  USE mo_radiation_config,     ONLY: irad_aero
   USE mo_aerosol_util,         ONLY: tune_dust, aerdis
   USE mo_lrtm_par,             ONLY: nbndlw
   USE mo_sync,                 ONLY: global_max, global_min
@@ -62,7 +61,7 @@ MODULE mo_nwp_rrtm_interface
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_nwp_rrtm_interface'
 
 
-  PUBLIC :: nwp_ozon_aerosol
+  PUBLIC :: nwp_aerosol
   PUBLIC :: nwp_rrtm_radiation
   PUBLIC :: nwp_rrtm_radiation_reduced
 
@@ -85,13 +84,11 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
-  SUBROUTINE nwp_ozon_aerosol ( p_sim_time, mtime_datetime, pt_patch, ext_data, &
+  SUBROUTINE nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
     & pt_diag,prm_diag,zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,use_acc )
 
 !    CHARACTER(len=*), PARAMETER::  &
 !      &  routine = 'mo_nwp_rad_interface:'
-
-    REAL(wp),INTENT(in)         :: p_sim_time
 
     TYPE(datetime), POINTER, INTENT(in)    :: mtime_datetime
     TYPE(t_patch), TARGET,   INTENT(in)    :: pt_patch     !<grid/patch info.
@@ -108,13 +105,6 @@ CONTAINS
 
     LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
-    ! for ozone:
-    REAL(wp):: &
-      & zptop32(nproma,pt_patch%nblks_c), &
-      & zo3_hm (nproma,pt_patch%nblks_c), &
-      & zo3_top (nproma,pt_patch%nblks_c), &
-      & zpbot32(nproma,pt_patch%nblks_c), &
-      & zo3_bot (nproma,pt_patch%nblks_c)
     ! for aerosols:
     REAL(wp):: &
       & zsign(nproma,pt_patch%nlevp1), &
@@ -168,43 +158,13 @@ CONTAINS
 
     !$ACC DATA PRESENT( zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, ext_data, &
     !$ACC             & pt_patch ) &
-    !$ACC      CREATE( zptop32, zo3_hm, zo3_top, zpbot32, zo3_bot, & 
-    !$ACC            & zsign, zvdaes, zvdael, zvdaeu, zvdaed, zaetr_top, &
+    !$ACC      CREATE( zsign, zvdaes, zvdael, zvdaeu, zvdaed, zaetr_top, &
     !$ACC            & zaeqdo, zaequo, zaeqlo, zaeqsuo, zaeqso, zptrop, &
     !$ACC            & zdtdz, zlatfac ) IF (lacc)
 
     !-------------------------------------------------------------------------
     !> Radiation setup
     !-------------------------------------------------------------------------
-
-    !O3
-
-    SELECT CASE (irad_o3)
-    CASE(io3_ape)
-      ! APE ozone: do nothing since everything is already
-      ! set in mo_nwp_phy_init
-    CASE (6)
-#ifdef _OPENACC
-      IF (lacc) CALL finish('nwp_ozon_aerosol','calc_o3_clim not ported to gpu')
-#endif
-      CALL calc_o3_clim(                             &
-        & kbdim      = nproma,                       & ! in
-        & jg         = jg,                           &
-        & p_inc_rad  = atm_phy_nwp_config(jg)%dt_rad,& ! in
-        & z_sim_time = p_sim_time,                   & ! in
-        & pt_patch   = pt_patch,                     & ! in
-        & zvio3      = prm_diag%vio3,                & !inout
-        & zhmo3      = prm_diag%hmo3  )                !inout
-    CASE (7,9,79,97)
-      !$ACC WAIT
-      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data,use_acc=lacc)
-    CASE(10)
-      !CALL message('mo_nwp_rg_interface:irad_o3=10', &
-      !  &          'Ozone used for radiation is calculated by ART')
-    CASE(11)
-      !CALL message('mo_nwp_rg_interface:irad_o3=11', &
-      !  &          'Ozone used for radiation is read from SCM input file')
-    END SELECT
 
     IF ( irad_aero == 6  .OR. irad_aero == 9) THEN
       current_time_hours => newDatetime(mtime_datetime)
@@ -471,40 +431,6 @@ CONTAINS
 
       ENDIF
 
-      IF ( irad_o3 == 6 ) THEN ! Old GME ozone climatology
-
-        ! 3-dimensional O3
-        ! top level
-        ! Loop starts with 1 instead of i_startidx because the start index is missing in RRTM
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR
-        DO jc = 1,i_endidx
-          zptop32  (jc,jb) = (SQRT(pt_diag%pres_ifc(jc,1,jb)))**3
-          zo3_hm   (jc,jb) = (SQRT(prm_diag%hmo3(jc,jb)))**3
-          zo3_top  (jc,jb) = prm_diag%vio3(jc,jb)*zptop32(jc,jb)/(zptop32(jc,jb)+zo3_hm(jc,jb))
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! loop over layers
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP SEQ
-        DO jk = 1,nlev
-!DIR$ IVDEP
-          !$ACC LOOP GANG VECTOR
-          DO jc = 1,i_endidx
-            zpbot32  (jc,jb) = (SQRT(pt_diag%pres_ifc(jc,jk+1,jb)))**3
-            zo3_bot  (jc,jb) = prm_diag%vio3(jc,jb)* zpbot32(jc,jb)    &
-              /( zpbot32(jc,jb) + zo3_hm(jc,jb))
-            !O3 content
-            ext_data%atm%o3(jc,jk,jb) = (zo3_bot(jc,jb) - zo3_top(jc,jb))/pt_diag%dpres_mc(jc,jk,jb)
-            ! store previous bottom values in arrays for top of next layer
-            zo3_top (jc,jb) = zo3_bot (jc,jb)
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-      ENDIF
-
     ENDDO !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -514,7 +440,7 @@ CONTAINS
 
     IF (timers_level > 6) CALL timer_stop(timer_preradiaton)
 
-  END SUBROUTINE nwp_ozon_aerosol
+  END SUBROUTINE nwp_aerosol
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------

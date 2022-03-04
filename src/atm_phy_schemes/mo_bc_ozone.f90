@@ -65,10 +65,11 @@ MODULE mo_bc_ozone
   
 CONTAINS
 
-  SUBROUTINE read_bc_ozone(year, p_patch)
+  SUBROUTINE read_bc_ozone(year, p_patch, irad_o3)
 
     INTEGER(i8)  , INTENT(in)         :: year
     TYPE(t_patch), TARGET, INTENT(in) :: p_patch
+    INTEGER      , INTENT(in)         :: irad_o3
 
     CHARACTER(len=512)                :: fname
     TYPE(t_stream_id)                 :: stream_id
@@ -118,9 +119,11 @@ CONTAINS
         ! a year of external monthly ozone data is already stored.
         !
 #ifdef __NO_RTE_RRTMGP__
-        IF (echam_rad_config(jg)% irad_o3==8) THEN
+        IF (irad_o3==8) THEN
+#elif defined (ECRAD)
+        IF (irad_o3==8) THEN
 #else
-        IF (echam_rad_config(jg)% irad_o3==5) THEN
+        IF (irad_o3==5) THEN
 #endif
           !
           ! ozone is transient and the external monthly ozone data
@@ -187,7 +190,7 @@ CONTAINS
         !
         ! Depending on the irad_o3 case different amounts of data must be read.
         !
-        SELECT CASE (echam_rad_config(jg)% irad_o3)
+        SELECT CASE (irad_o3)
         !
 #ifdef __NO_RTE_RRTMGP__
         CASE (2) ! Ozone has a climatological annual cycle defined by monthly data in an annual file
@@ -293,6 +296,8 @@ CONTAINS
           !
 #ifdef __NO_RTE_RRTMGP__
         CASE (8, 10) ! Ozone is transient and defined by monthly data in annual files
+#elif defined (ECRAD)
+        CASE (8)
 #else
         CASE (5) ! Ozone is transient and defined by monthly data in annual files
 #endif
