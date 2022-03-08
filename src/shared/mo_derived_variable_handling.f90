@@ -261,7 +261,7 @@ CONTAINS
       & tlev_source=info%tlev_source, isteptype=info%isteptype, &
       & post_op=info%post_op, initval_r=info%initval%rval, &
       & resetval_r=info%resetval%rval, lmiss=info%lmiss, &
-      & missval_r=info%missval%rval, action_list=info%action_list, &
+      & missval_r=info%missval%rval, &
       & vert_interp=info%vert_interp, hor_interp=info%hor_interp, &
       & in_group=info%in_group, l_pp_scheduler_task=info%l_pp_scheduler_task, &
       & loutput=.TRUE., lrestart=.FALSE., var_class=info%var_class, &

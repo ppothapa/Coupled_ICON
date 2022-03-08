@@ -192,6 +192,13 @@ CONTAINS
       DO iv = 1, nv
         slen = MERGE(1, 2, iv .EQ. 1)
         vlen = LEN_TRIM(varlist(iv))
+
+        IF (tlen+slen+vlen > LEN(message_text)) THEN
+          CALL message('', message_text)
+          message_text = '... '
+          tlen = 4
+        END IF
+
         WRITE(message_text(tlen+1:tlen+slen+vlen),'(2a)') sep(3-slen:2), varlist(iv)(1:vlen)
         tlen = tlen + slen + vlen
       ENDDO
