@@ -130,6 +130,7 @@ MODULE mo_nwp_phy_init
   USE mo_cover_koe,           ONLY: cover_koe_config
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
+  USE mo_bc_aeropt_splumes,   ONLY: setup_bc_aeropt_splumes
   USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_ecrad
   USE mo_bc_ozone,            ONLY: read_bc_ozone
 
@@ -909,7 +910,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     SELECT CASE ( irad_aero )
     ! Note (GZ): irad_aero=2 does no action but is the default in radiation_nml
     ! and therefore should not cause the model to stop
-    CASE (0,2,6,9,12,13,14,15)
+    CASE (0,2,6,9,12,13,14,15,18,19)
       !ok
     CASE (5)
       !ok for RRTM and captured in mo_nml_crosscheck for ecRad
@@ -993,11 +994,14 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         IF (irad_aero == 12) THEN                 ! Use constant Kinne aerosol
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .FALSE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/13,15/) )) THEN   ! Use Kinne climatology
+        IF (ANY( irad_aero == (/13,15,18,19/) )) THEN   ! Use Kinne climatology
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/14,15/) )) THEN   ! Use volcanic aerosol from CMIP6
+        IF (ANY( irad_aero == (/14,15,18/) )) THEN      ! Use volcanic aerosol from CMIP6
           CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        ENDIF
+        IF (ANY( irad_aero == (/18,19/) )) THEN   ! Use anthropogenic aerosol
+          CALL setup_bc_aeropt_splumes
         ENDIF
         !
         ! Read ozone transient data

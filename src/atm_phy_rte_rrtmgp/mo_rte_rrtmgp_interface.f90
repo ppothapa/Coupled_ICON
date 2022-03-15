@@ -34,6 +34,7 @@ MODULE mo_rte_rrtmgp_interface
   USE mo_timer,                      ONLY: ltimer, timer_start, timer_stop, &
    &                                       timer_lrtm, timer_srtm
   USE mo_radiation_config,           ONLY: lrad_aero_diag
+  USE mo_radiation_general,          ONLY: wavenum1, wavenum2
   USE mo_echam_rad_config,           ONLY: echam_rad_config
   USE mtime,                         ONLY: datetime
 
@@ -288,12 +289,12 @@ CONTAINS
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
         !$acc update host(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
-        CALL add_bc_aeropt_splumes(jg,                                     &
-              & jcs, nproma,           nproma,                 klev,             &
-              & jb,             nbndsw,                this_datetime,    &
-              & zf,               dz,                    zh(:,klev+1),     &
-              & aer_tau_sw,    aer_ssa_sw,         aer_asy_sw,     &
-              & x_cdnc                                                     )
+        CALL add_bc_aeropt_splumes(                                      &
+              & jg,          jcs,         nproma,        nproma,         & 
+              & klev,        jb,          nbndsw,        this_datetime,  &
+              & zf,          dz,          zh(:,klev+1),  wavenum1,       &
+              & wavenum2,    aer_tau_sw,  aer_ssa_sw,    aer_asy_sw,     &
+              & x_cdnc                                                   )
         !$acc update device(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
       END IF
 

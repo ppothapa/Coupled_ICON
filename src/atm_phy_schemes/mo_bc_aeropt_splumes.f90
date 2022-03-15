@@ -29,15 +29,6 @@ MODULE mo_bc_aeropt_splumes
                                    & read_bcast_real_2D, read_bcast_real_3D, &
                                    & closeFile
   USE mo_model_domain,         ONLY: p_patch
-#ifdef __NO_RTE_RRTMGP__
-  USE mo_psrad_srtm_kgs,       ONLY: &
-      &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
-      &  sw_wv2 => wavenum2            !< largest wave number in each of the sw bands
-#else
-  USE mo_radiation_general,    ONLY: &
-      &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
-      &  sw_wv2 => wavenum2            !< largest wave number in each of the sw bands
-#endif
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime, getDayOfYearFromDateTime, &
        &                             getNoOfSecondsElapsedInDayDateTime, &
@@ -444,7 +435,8 @@ MODULE mo_bc_aeropt_splumes
   SUBROUTINE add_bc_aeropt_splumes                                                ( &
      & jg, jcs        ,kproma         ,kbdim          ,klev           ,krow        ,&
      & nb_sw          ,this_datetime  ,zf             ,dz             ,z_sfc       ,&
-     & aod_sw_vr      ,ssa_sw_vr      ,asy_sw_vr      ,x_cdnc                      )
+     & sw_wv1         ,sw_wv2         ,aod_sw_vr      ,ssa_sw_vr      ,asy_sw_vr   ,&
+     & x_cdnc                                                                      )                                                  
     !
     ! --- 0.1 Variables passed through argument list
     INTEGER, INTENT(IN) ::            &
@@ -461,7 +453,9 @@ MODULE mo_bc_aeropt_splumes
     REAL(wp), INTENT (IN)        :: &
          zf(kbdim,klev),            & !< geometric height at full level [m]
          dz(kbdim,klev),            & !< geometric height thickness     [m]
-         z_sfc(kbdim)                 !< geometric height of surface    [m]
+         z_sfc(kbdim),              & !< geometric height of surface    [m]
+         sw_wv1(nb_sw),             & !< smallest wave number in each of the sw bands
+         sw_wv2(nb_sw)                !< largest  wave number in each of the sw bands
 
     REAL(wp), INTENT (INOUT) ::       &
          aod_sw_vr(kbdim,klev,nb_sw) ,& !< Aerosol shortwave optical depth

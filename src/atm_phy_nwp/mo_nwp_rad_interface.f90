@@ -56,6 +56,7 @@ MODULE mo_nwp_rad_interface
 #endif
   USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc, ONLY: add_bc_aeropt_cmip6_volc
+  USE mo_bc_aeropt_splumes,    ONLY: add_bc_aeropt_splumes
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_o3_util,              ONLY: o3_interface 
 
@@ -79,7 +80,7 @@ MODULE mo_nwp_rad_interface
   !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_radiation ( lredgrid, p_sim_time, mtime_datetime, pt_patch,pt_par_patch, &
-    & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, dz, linit)
+    & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, zh, dz, linit)
 
     CHARACTER(len=*), PARAMETER :: &
       &  routine = 'mo_nwp_rad_interface:nwp_radiation'
@@ -89,6 +90,7 @@ MODULE mo_nwp_rad_interface
 
     REAL(wp),                INTENT(in)    :: p_sim_time   !< simulation time
     REAL(wp),                INTENT(in)    :: zf(:,:,:)    !< model full layer height
+    REAL(wp),                INTENT(in)    :: zh(:,:,:)    !< model half layer height
     REAL(wp),                INTENT(in)    :: dz(:,:,:)    !< Layer thickness
 
     TYPE(datetime), POINTER, INTENT(in)    :: mtime_datetime
@@ -128,8 +130,9 @@ MODULE mo_nwp_rad_interface
     INTEGER :: istat
     LOGICAL :: lacc
 
-    REAL(wp):: zsct        ! solar constant (at time of year)
-    REAL(wp):: cosmu0_dark ! minimum cosmu0, for smaller values no shortwave calculations
+    REAL(wp):: zsct                    ! solar constant (at time of year)
+    REAL(wp):: cosmu0_dark             ! minimum cosmu0, for smaller values no shortwave calculations
+    REAL(wp):: x_cdnc(nproma)          ! Scale factor for Cloud Droplet Number Concentration
 
 
     ! patch ID
@@ -158,7 +161,7 @@ MODULE mo_nwp_rad_interface
       &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lacc)
 
 #ifdef __ECRAD
-    IF (ANY( irad_aero == (/12,13,14,15/) )) THEN
+    IF (ANY( irad_aero == (/12,13,14,15,18,19/) )) THEN
 
       ALLOCATE(od_lw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_lw)                   , &
       &        od_sw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_sw)                   , &
@@ -174,7 +177,7 @@ MODULE mo_nwp_rad_interface
                                        ssa_sw_vr, od_lw, od_sw, ssa_sw, g_sw failed'       )
 
 !$OMP PARALLEL 
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx, od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx, od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr, x_cdnc) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk,i_endblk
         CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
 
@@ -185,19 +188,26 @@ MODULE mo_nwp_rad_interface
         ssa_sw_vr(:,:,:) = 1.0_wp
         g_sw_vr (:,:,:)  = 0.0_wp
 
-        IF (ANY( irad_aero == (/12,13,15/) )) THEN
+        IF (ANY( irad_aero == (/12,13,15,18,19/) )) THEN
           CALL set_bc_aeropt_kinne(mtime_datetime, jg, 1, i_endidx, &
             & nproma, pt_patch%nlev, jb, ecrad_conf%n_bands_sw,     &
             & ecrad_conf%n_bands_lw, zf(:,:,jb), dz(:,:,jb),        &
             & od_sw_vr(:,:,:), ssa_sw_vr(:,:,:),                    &
             & g_sw_vr (:,:,:), od_lw_vr(:,:,:)                      )
         END IF
-        IF (ANY( irad_aero == (/14,15/) )) THEN 
+        IF (ANY( irad_aero == (/14,15,18/) )) THEN 
           CALL add_bc_aeropt_cmip6_volc(mtime_datetime, jg, 1,      &
             & i_endidx, nproma, pt_patch%nlev, jb,                  &
             & ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw,         &
             & zf(:,:,jb), dz(:,:,jb), od_sw_vr(:,:,:),              &
             & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), od_lw_vr(:,:,:)    )
+        END IF
+        IF (ANY( irad_aero == (/18,19/) )) THEN
+          CALL add_bc_aeropt_splumes(jg, 1, i_endidx, nproma, pt_patch%nlev,   &
+            & jb, ecrad_conf%n_bands_sw, mtime_datetime, zf(:,:,jb),           &
+            & dz(:,:,jb), zh(:,pt_patch%nlev+1,jb), ecrad_conf%wavenumber1_sw, &
+            & ecrad_conf%wavenumber2_sw, od_sw_vr(:,:,:),                      &
+            & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), x_cdnc                        )
         END IF
         !
         ! Vertically reverse the fields:

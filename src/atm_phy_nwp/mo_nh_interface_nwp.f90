@@ -1264,6 +1264,7 @@ CONTAINS
            &              lnd_prog_new,          & ! in
            &              wtr_prog_new,          & ! in
            &              p_metrics%z_mc,        & ! in
+           &              p_metrics%z_ifc,       & ! in
            &              p_metrics%ddqz_z_full, & ! in
            &              linit                  ) ! in, optional
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radiation", .FALSE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)

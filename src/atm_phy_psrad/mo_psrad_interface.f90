@@ -23,6 +23,7 @@ MODULE mo_psrad_interface
   USE mo_psrad_gas_optics,           ONLY: precomputation
   USE mo_psrad_lrtm_driver,          ONLY: lrtm
   USE mo_psrad_srtm_driver,          ONLY: srtm, srtm_diags
+  USE mo_psrad_srtm_kgs,             ONLY: wavenum1, wavenum2
   USE mo_psrad_random,               ONLY: seed_size
   USE mo_rad_diag,                   ONLY: rad_aero_diag
   USE mtime,                         ONLY: datetime
@@ -640,7 +641,7 @@ CONTAINS
 ! iaero=18: CMIP6 volcanic aerosols are added to Kinne background
 !           aerosols (of natural origin, 1850) and simple plumes are added 
       CALL add_bc_aeropt_cmip6_volc(this_datetime,    jg,               &
-           & 1,kproma,           kbdim,                 klev,           &
+           & 1,kproma,         kbdim,                 klev,             &
            & jb,               nbndsw,                nbndlw,           &
            & zf,               dz,                                      &
            & aer_tau_sw_vr,    aer_piz_sw_vr,         aer_cg_sw_vr,     &
@@ -664,12 +665,12 @@ CONTAINS
 ! iaero=18: Simple plumes are added to CMIP6 volcanic aerosols 
 !           and Kinne background aerosols (of natural origin, 1850)
 ! iaero=19: simple plumes are added to natural background, but no volcanic aerosols
-      CALL add_bc_aeropt_splumes(jg,                                     &
-           & 1, kproma,           kbdim,                 klev,             &
-           & jb,             nbndsw,                this_datetime,    &
+      CALL add_bc_aeropt_splumes(jg,                                    &
+           & 1, kproma,        kbdim,                 klev,             &
+           & jb,               nbndsw,                this_datetime,    &
            & zf,               dz,                    zh(:,klev+1),     &
-           & aer_tau_sw_vr,    aer_piz_sw_vr,         aer_cg_sw_vr,     &
-           & x_cdnc                                                     )
+           & wavenum1,         wavenum2,              aer_tau_sw_vr,    &
+           & aer_piz_sw_vr,    aer_cg_sw_vr,          x_cdnc            )
     END IF
 
     ! this should be deactivated in the concurrent version and make the aer_* global variables for output
