@@ -2253,9 +2253,7 @@ MODULE mo_nh_stepping
           ENDIF
 
         ELSE  ! constant lateral boundary data
-#ifdef _OPENACC
-          CALL finish(TRIM(routine), 'Constant lateral boundary data is not ported on GPU')
-#endif
+
           IF (jg==1) THEN
             ! Model state is nudged towards constant state along the lateral boundaries
             ! Currently only implemented for the base domain

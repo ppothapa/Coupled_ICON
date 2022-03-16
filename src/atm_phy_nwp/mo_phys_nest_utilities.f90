@@ -2121,11 +2121,11 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
   !$ACC   ptr_wprogc, var_in_output) IF(lacc)
 
   IF (p_test_run) THEN
-     z_aux3dp1_p(:,:,:) = 0._wp
-     z_aux3dp2_p(:,:,:) = 0._wp
-     z_aux3dl2_p(:,:,:) = 0._wp
-     z_aux3dso_p(:,:,:) = 0._wp
-     z_aux3dsn_p(:,:,:) = 0._wp
+    CALL init(z_aux3dp1_p(:,:,:))
+    CALL init(z_aux3dp2_p(:,:,:))
+    CALL init(z_aux3dl2_p(:,:,:))
+    CALL init(z_aux3dso_p(:,:,:))
+    CALL init(z_aux3dsn_p(:,:,:))
   ENDIF
 
   i_startblk = ptr_pp%cells%start_block(grf_bdywidth_c+1)
@@ -2326,9 +2326,8 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       ENDIF
 
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG SEQ
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev_soil
-        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           z_aux3dso_p(jc,3*(jk-1)+1,jb) = ptr_ldiagp%t_so(jc,jk,jb)
           z_aux3dso_p(jc,3*(jk-1)+2,jb) = ptr_ldiagp%w_so(jc,jk,jb)
@@ -2610,9 +2609,8 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
 
 
       !$ACC PARALLEL DEFAULT(NONE) PRESENT(dzsoil) ASYNC(1) IF(lacc)
-      !$ACC LOOP SEQ
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(styp)
       DO jk = 1, nlev_soil
-        !$ACC LOOP GANG VECTOR PRIVATE(styp)
         DO jc = i_startidx, i_endidx
           ptr_ldiagc%t_so(jc,jk,jb)     = z_aux3dso_c(jc,3*(jk-1)+1,jb)
           ptr_ldiagc%w_so(jc,jk,jb)     = z_aux3dso_c(jc,3*(jk-1)+2,jb)
@@ -2634,9 +2632,8 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       ! Copy interpolated values to tile-based variables; this is actually needed in order
       ! to avoid loss of grib encoding accuracy for t_so_t
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP SEQ
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1, ntiles_total
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev_soil
           DO jc = i_startidx, i_endidx
             ptr_lprogc%t_so_t(jc,jk,jb,jt)     = ptr_ldiagc%t_so(jc,jk,jb)

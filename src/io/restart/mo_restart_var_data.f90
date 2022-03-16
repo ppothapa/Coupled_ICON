@@ -28,6 +28,7 @@ MODULE mo_restart_var_data
   USE mo_var_metadata,       ONLY: get_var_timelevel
 #ifdef _OPENACC
   USE mo_mpi,                       ONLY: i_am_accel_node
+  USE openacc, ONLY: acc_is_present
 #endif
 
   IMPLICIT NONE
@@ -86,7 +87,13 @@ CONTAINS
       CALL finish(routine, "'"//TRIM(vd%info%NAME)//"': "//&
            & TRIM(int2string(vd%info%ndims))//"d arrays not handled yet")
     END SELECT
-!$ACC UPDATE HOST(r_ptr_3d) IF ( i_am_accel_node )
+#ifdef _OPENACC
+    if(i_am_accel_node .AND. ( vd%info%lopenacc .NEQV. acc_is_present(r_ptr_3d) )) then
+      print *, "in restart: ", TRIM(vd%info%NAME), vd%info%lopenacc, acc_is_present(r_ptr_3d)
+      CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
+    endif
+#endif
+!$ACC UPDATE HOST(r_ptr_3d) IF ( i_am_accel_node .AND. vd%info%lopenacc )
   END SUBROUTINE get_var_3d_ptr_dp
 
   SUBROUTINE get_var_3d_ptr_sp(vd, s_ptr_3d)
@@ -130,7 +137,13 @@ CONTAINS
       CALL finish(routine, "'"//TRIM(vd%info%NAME)//"': "//&
            & TRIM(int2string(vd%info%ndims))//"d arrays not handled yet")
     END SELECT
-!$ACC UPDATE HOST(s_ptr_3d) IF ( i_am_accel_node )
+#ifdef _OPENACC
+    if(i_am_accel_node .AND. ( vd%info%lopenacc .NEQV. acc_is_present(s_ptr_3d) )) then
+      print *, "in restart: ", TRIM(vd%info%NAME), vd%info%lopenacc, acc_is_present(s_ptr_3d)
+      CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
+    endif
+#endif
+!$ACC UPDATE HOST(s_ptr_3d) IF ( i_am_accel_node .AND. vd%info%lopenacc )
   END SUBROUTINE get_var_3d_ptr_sp
 
   SUBROUTINE get_var_3d_ptr_int(vd, i_ptr_3d)
@@ -174,7 +187,13 @@ CONTAINS
       CALL finish(routine, "'"//TRIM(vd%info%NAME)//"': "//&
            & TRIM(int2string(vd%info%ndims))//"d arrays not handled yet")
     END SELECT
-!$ACC UPDATE HOST(i_ptr_3d) IF ( i_am_accel_node )
+#ifdef _OPENACC
+    if(i_am_accel_node .AND. ( vd%info%lopenacc .NEQV. acc_is_present(i_ptr_3d) )) then
+      print *, "in restart: ", TRIM(vd%info%NAME), vd%info%lopenacc, acc_is_present(i_ptr_3d)
+      CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
+    endif
+#endif
+!$ACC UPDATE HOST(i_ptr_3d) IF ( i_am_accel_node .AND. vd%info%lopenacc )
   END SUBROUTINE get_var_3d_ptr_int
 
   ! Returns true, if the time level of the given field is valid, else false.

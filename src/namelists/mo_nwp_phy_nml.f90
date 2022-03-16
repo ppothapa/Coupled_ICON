@@ -427,8 +427,8 @@ CONTAINS
         CALL finish(routine,'GPU version only available for cloud cover 1.')
       ENDIF
 
-      IF (inwp_sso(jg) /= 1) THEN
-        CALL finish(routine,'GPU version only available for inwp_sso == 1.')
+      IF (ALL((/0,1/) /= inwp_sso(jg))) THEN
+        CALL finish(routine,'GPU version only available for inwp_sso == 0 or 1.')
       ENDIF
 #endif
 

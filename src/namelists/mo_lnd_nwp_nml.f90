@@ -332,7 +332,6 @@ CONTAINS
 
     !Check if target GPU configuration is supported
 #ifdef _OPENACC
-    IF(ntiles == 1) CALL finish(routine, "GPU version not available for ntiles == 1.")
     IF(lmulti_snow) CALL finish(routine, "GPU version not available for lmulti_snow == .TRUE.")
 #endif
 

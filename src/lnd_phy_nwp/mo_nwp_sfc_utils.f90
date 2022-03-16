@@ -1297,9 +1297,9 @@ CONTAINS
 
       IF (ntiles_total == 1) THEN  ! just copy prognostic variables from tile 1
                                    ! to diagnostic aggregated variable
-#ifdef _OPENACC
-        IF (lacc) CALL finish ('aggregate_landvars', 'ntiles_total == 1: OpenACC version currently not implemented')
-#endif
+
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           lnd_diag%t_snow   (jc,jb) = lnd_prog%t_snow_t   (jc,jb,1)
           lnd_diag%t_s      (jc,jb) = lnd_prog%t_s_t      (jc,jb,1)
@@ -1314,6 +1314,7 @@ CONTAINS
         ENDDO
 
         IF (itype_interception == 2) THEN
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             lnd_diag%w_p    (jc,jb) = lnd_prog%w_p_t      (jc,jb,1)
             lnd_diag%w_s    (jc,jb) = lnd_prog%w_s_t      (jc,jb,1)
@@ -1321,12 +1322,14 @@ CONTAINS
         ENDIF
 
         IF (itype_trvg == 3) THEN
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             lnd_diag%plantevap(jc,jb) = lnd_diag%plantevap_t(jc,jb,1)
           ENDDO
         ENDIF
 
         DO jk=1,nlev_soil
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             lnd_diag%t_so    (jc,jk+1,jb) = lnd_prog%t_so_t    (jc,jk+1,jb,1)
             lnd_diag%w_so    (jc,jk,  jb) = lnd_prog%w_so_t    (jc,jk,  jb,1)
@@ -1335,14 +1338,20 @@ CONTAINS
         ENDDO
 
         IF (l2lay_rho_snow .OR. lmulti_snow) THEN
+          !$ACC LOOP SEQ
           DO jk=1,nlev_snow
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               lnd_diag%rho_snow_mult(jc,jk,jb) = lnd_prog%rho_snow_mult_t(jc,jk,jb,1)
             ENDDO
           ENDDO
         ENDIF
+        !$ACC END PARALLEL
 
         IF (lmulti_snow) THEN
+#ifdef _OPENACC
+          CALL finish('aggregate_landvars', 'lmulti_snow is not ported to openACC.')
+#endif
           DO jk=1,nlev_snow
             DO jc = i_startidx, i_endidx
               lnd_diag%t_snow_mult  (jc,jk,jb) = lnd_prog%t_snow_mult_t(jc,jk,jb,1)
@@ -1419,6 +1428,9 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (lmulti_snow) THEN
+#ifdef _OPENACC
+          CALL finish('aggregate_landvars', 'lmulti_snow is not ported to openACC.')
+#endif        
           DO jk = 1, nlev_snow+1
             DO jc = i_startidx, i_endidx
               lnd_diag%t_snow_mult  (jc,jk,jb) = 0._wp

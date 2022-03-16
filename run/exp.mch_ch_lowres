@@ -12,7 +12,9 @@ author_list="Remo Dietlicher, MeteoSwiss"
 #
 # This experiment uses "cloudice" microphysics. (Other mch_opr_r04b07* experiments use
 # "graupel" instead.)
-# Uses the non-orographic gravity wave drag parametrization
+# Uses the non-orographic gravity wave drag parametrization.
+# Uses just one surface tile per grid point.
+# Uses constant lateral boundary conditions.
 #--------------------------------------------------------------------------------------------------
 
 # (0) unset some setting of create_target_header for mistral
@@ -67,10 +69,10 @@ add_required_file ${initial_condition} .
 # lateral boundary grid
 add_required_file ${latbc_path}/lateral_boundary.grid.nc lateral_boundary.grid.nc
 
-# lateral boundary data
-add_required_file ${latbc_path}/igfff00000000_lbc.nc .
-add_required_file ${latbc_path}/igfff00000030_lbc.nc .
-add_required_file ${latbc_path}/igfff00000100_lbc.nc .
+# lateral boundary data is not needed as constant LBCs are derived from the initial conditions
+#add_required_file ${latbc_path}/igfff00000000_lbc.nc .
+#add_required_file ${latbc_path}/igfff00000030_lbc.nc .
+#add_required_file ${latbc_path}/igfff00000100_lbc.nc .
 
 # start and end date+time
 start_date=${start_date:="2018-09-21T00:00:00Z"}
@@ -130,7 +132,7 @@ cat > ${atmo_namelist} << EOF
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =                          0  !1         ! number of I/O processors
  num_restart_procs           =                          0         ! number of restart processors
- num_prefetch_proc           =                          1         ! number of processors for LBC prefetching
+ num_prefetch_proc           =                          0         ! number of processors for LBC prefetching
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
 /
 
@@ -228,18 +230,18 @@ cat > ${atmo_namelist} << EOF
 
 ! limarea_nml: settings for limited area mode ---------------------------------
 &limarea_nml
- itype_latbc                 =                          1         ! 1: time-dependent lateral boundary conditions
+ itype_latbc                 =                          0         ! 0: constant lateral boundary conditions
  dtime_latbc                 =                         30.        ! time difference between 2 consecutive boundary data
  latbc_boundary_grid         =   "lateral_boundary.grid.nc"       ! Grid file defining the lateral boundary
  latbc_path                  =              "${latbc_path}"       ! Absolute path to boundary data
  latbc_varnames_map_file     =            'map_file.latbc'
- latbc_filename              =     'igfff<ddhhmmss>_lbc.nc'        ! boundary data input filename
- init_latbc_from_fg          =                     .FALSE.        ! .TRUE.: take lbc for initial time from first guess
+ !latbc_filename              =     'igfff<ddhhmmss>_lbc.nc'        ! boundary data input filename
+ !init_latbc_from_fg          =                     .FALSE.        ! .TRUE.: take lbc for initial time from first guess
 /
 
 ! lnd_nml: land scheme switches -----------------------------------------------
 &lnd_nml
- ntiles                      =                          3         ! number of tiles
+ ntiles                      =                          1         ! number of tiles
  nlev_snow                   =                          3         ! number of snow layers
  lmulti_snow                 =                      .FALSE.       ! .TRUE. for use of multi-layer snow model
  idiag_snowfrac              =                         20         ! type of snow-fraction diagnosis

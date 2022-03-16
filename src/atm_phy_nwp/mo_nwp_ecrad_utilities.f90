@@ -1316,6 +1316,7 @@ CONTAINS
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%h2o_sat_liq) &
     !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%h2o_sat_liq))
 
+
     ! CALL ecrad_gas%deallocate(use_acc=lacc)
     !$ACC EXIT DATA DELETE(ecrad_gas%mixing_ratio) FINALIZE IF(lacc .AND. ALLOCATED(ecrad_gas%mixing_ratio))
  
