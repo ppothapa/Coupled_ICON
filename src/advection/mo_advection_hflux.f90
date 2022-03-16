@@ -538,7 +538,8 @@ CONTAINS
           &         p_out_e         = p_upflux(:,:,:,jt),       & !inout
           &         elev            = p_patch%nlev,             & !in
           &         opt_lconsv      = llsq_lin_consv,           & !in
-          &         opt_rlend       = i_rlend                   ) !in
+          &         opt_rlend       = i_rlend,                  & !in
+          &         opt_slev        = advconf%iadv_slev(jt)     ) !in
 
 
       CASE( MIURA_MCYCL )   ! ihadv_tracer = 22

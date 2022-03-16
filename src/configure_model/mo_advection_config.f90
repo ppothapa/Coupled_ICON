@@ -280,15 +280,15 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2011-04-20)
   !!
-  SUBROUTINE configure_advection( jg, num_lev, num_lev_1, iforcing, iqc, iqt,          &
+  SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
     &                            kstart_moist, kend_qvsubstep,                         &
     &                            lvert_nest, l_open_ubc,                               &
     &                            ntracer, idiv_method, itime_scheme, tracer_list,      &
     &                            kstart_tracer)
   !
     INTEGER, INTENT(IN) :: jg           !< patch 
-    INTEGER, INTENT(IN) :: num_lev      !< number of vertical levels
-    INTEGER, INTENT(IN) :: num_lev_1    !< vertical levels of global patch
+    INTEGER, INTENT(IN) :: nlev         !< number of vertical levels
+    INTEGER, INTENT(IN) :: nlev_1       !< vertical levels of global patch
     INTEGER, INTENT(IN) :: iforcing
     INTEGER, INTENT(IN) :: iqc, iqt     !< hydrometeor indices
     INTEGER, INTENT(IN) :: kstart_moist
@@ -360,11 +360,11 @@ CONTAINS
 
     ELSE ! vertical nesting
 
-      IF (num_lev < num_lev_1) THEN
+      IF (nlev < nlev_1) THEN
         advection_config(jg)%iubc_adv = iparent_flx
-      ELSE IF ( (num_lev >= num_lev_1) .AND. l_open_ubc) THEN
+      ELSE IF ( (nlev >= nlev_1) .AND. l_open_ubc) THEN
         advection_config(jg)%iubc_adv = izero_grad
-      ELSE IF ( (num_lev >= num_lev_1) .AND. .NOT. l_open_ubc) THEN
+      ELSE IF ( (nlev >= nlev_1) .AND. .NOT. l_open_ubc) THEN
         advection_config(jg)%iubc_adv = ino_flx
       ENDIF
     ENDIF
@@ -719,7 +719,7 @@ CONTAINS
       ! print setup
       IF (msg_level >= 10) THEN
         IF(my_process_is_stdio()) THEN
-          CALL advection_config(jg)%print_setup(tracer_list(itime))
+          CALL advection_config(jg)%print_setup(tracer_list(itime),nlev)
         ENDIF
       ENDIF
 
@@ -1001,15 +1001,17 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2017-03-30)
   !!
-  SUBROUTINE advection_print_setup (config_obj, var_list_tracer)
+  SUBROUTINE advection_print_setup (config_obj, var_list_tracer, nlev)
     !
     CLASS(t_advection_config)             :: config_obj        !< object for which the setup will be printed
-    TYPE(t_var_list_ptr)         , INTENT(IN) :: var_list_tracer   !< variable list (metadata)
+    TYPE(t_var_list_ptr)     , INTENT(IN) :: var_list_tracer   !< variable list (metadata)
+    INTEGER                  , INTENT(IN) :: nlev              !< number of vertical levels
     ! local variables
     TYPE(t_var_metadata), POINTER :: info
     CLASS(t_tracer_meta), POINTER :: tracer_info
     TYPE(t_table) :: table
     INTEGER       :: irow, tracer_id, i
+    INTEGER       :: slev
     CHARACTER(LEN=3) :: str_tracer_id
     CHARACTER(LEN=3) :: str_startlev
     CHARACTER(LEN=7) :: str_substep_range
@@ -1063,11 +1065,14 @@ CONTAINS
       ! range of levels for which substepping is applied
       IF (ANY(config_obj%trAdvect%list==tracer_id)) THEN
         !
-        write(str_startlev,'(i3)') config_obj%iadv_slev(tracer_id)
+        slev = config_obj%iadv_slev(tracer_id)
+        write(str_startlev,'(i3)') slev
         !
-        IF (ANY((/MCYCL, MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL, FFSL_HYB_MCYCL/) &
+        IF (ANY((/MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL, FFSL_HYB_MCYCL/) &
            &     == config_obj%ihadv_tracer(tracer_id))) THEN
-          write(str_substep_range,'(i3,a,i3)')  1,'/',config_obj%iadv_qvsubstep_elev
+          write(str_substep_range,'(i3,a,i3)')  slev,'/',config_obj%iadv_qvsubstep_elev
+        ELSE IF (config_obj%ihadv_tracer(tracer_id) == MCYCL) THEN
+          write(str_substep_range,'(i3,a,i3)')  slev,'/',nlev
         ELSE
           write(str_substep_range,'(a)') '-- / --' 
         ENDIF
