@@ -125,10 +125,10 @@ CONTAINS
     SELECT CASE (irad_aero)
       CASE (0) ! No aerosol
         ecrad_conf%use_aerosols = .false.
-      CASE (2,5,6,12,13,14,15,18,19) ! Constant, Tanre, Tegen, constant Kinne aerosol, Kinne, 
-                                     ! CMIP6 volcanic aerosol, Kinne+CMIP6 volcanic aerosol,
-                                     ! Kinne+CMIP6 volcanic+anthropogenic aerosol,
-                                     ! Kinne+anthropogenic aerosol
+      CASE (2,5,6,9,12,13,14,15,18,19) ! Constant, Tanre, Tegen, ART, constant Kinne aerosol, Kinne, 
+                                       ! CMIP6 volcanic aerosol, Kinne+CMIP6 volcanic aerosol,
+                                       ! Kinne+CMIP6 volcanic+anthropogenic aerosol,
+                                       ! Kinne+anthropogenic aerosol
         ecrad_conf%use_aerosols = .true.
       CASE DEFAULT
         CALL finish(routine, 'irad_aero not valid for ecRad')

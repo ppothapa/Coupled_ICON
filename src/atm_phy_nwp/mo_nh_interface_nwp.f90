@@ -100,18 +100,26 @@ MODULE mo_nh_interface_nwp
 #endif
   USE mo_nwp_diagnosis,           ONLY: nwp_statistics, nwp_opt_diagnostics_2, &
                                     &   nwp_diag_output_1, nwp_diag_output_2
+#ifdef __ICON_ART
   USE mo_art_diagnostics_interface,ONLY: art_diagnostics_interface
 
   USE mo_art_washout_interface,   ONLY: art_washout_interface
+  USE mo_art_coagulation_interface, ONLY: art_coagulation_interface
   USE mo_art_reaction_interface,  ONLY: art_reaction_interface
+  USE mo_art_aerodyn_interface,   ONLY: art_aerodyn_interface
+#endif
   USE mo_var_list,                ONLY: t_var_list_ptr
+#ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,          ONLY: is_ls_forcing, is_nudging_uv, is_nudging_tq, is_sim_rad, &
     &                                   nudge_start_height, nudge_full_height, dt_relax
   USE mo_ls_forcing,              ONLY: apply_ls_forcing
+#endif
   USE mo_sim_rad,                 ONLY: sim_rad
   USE mo_advection_config,        ONLY: advection_config
   USE mo_o3_util,                 ONLY: calc_o3_gems
+#ifndef __NO_ICON_EDMF__
   USE mo_edmf_param,              ONLY: edmf_conf
+#endif
   USE mo_nh_supervise,            ONLY: compute_dpsdt
 
   USE mo_radar_data_state,        ONLY: radar_data, lhn_fields
@@ -120,9 +128,10 @@ MODULE mo_nh_interface_nwp
   USE mo_nudging_config,          ONLY: nudging_config
   USE mo_nwp_reff_interface,      ONLY: set_reff , combine_phases_radiation_reff
   USE mo_upatmo_impl_const,       ONLY: iUpatmoPrcStat, iUpatmoStat
-  USE mo_upatmo_types,            ONLY: t_upatmo
   USE mo_upatmo_config,           ONLY: upatmo_config
+#ifndef __NO_ICON_UPPER__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
+#endif
 #if defined( _OPENACC )
   USE mo_nwp_gpu_util,            ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
   USE mo_mpi,                     ONLY: i_am_accel_node, my_process_is_work
@@ -164,8 +173,7 @@ CONTAINS
                             & prm_nwp_stochconv, lnd_diag,         & !inout
                             & lnd_prog_now, lnd_prog_new,          & !inout
                             & wtr_prog_now, wtr_prog_new,          & !inout
-                            & p_prog_list,                         & !in
-                            & prm_upatmo                           ) !inout
+                            & p_prog_list                          ) !in
 
     !>
     ! !INPUT PARAMETERS:
@@ -199,9 +207,6 @@ CONTAINS
     TYPE(t_lnd_diag),           INTENT(inout) :: lnd_diag
 
     TYPE(t_var_list_ptr), INTENT(inout) :: p_prog_list !current prognostic state list
-
-    TYPE(t_upatmo), TARGET, INTENT(inout) :: prm_upatmo !<upper-atmosphere variables
-
 
     ! !OUTPUT PARAMETERS:            !<variables induced by the whole physics
     ! Local array bounds:
@@ -644,8 +649,12 @@ CONTAINS
     !the lower boundary conditions for the turbulence scheme
     !are not set otherwise
 
+#ifndef __NO_ICON_EDMF__
     IF ( l_any_fastphys .AND. ( ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) &
                   & .OR. ( edmf_conf==2  .AND. iedmf==atm_phy_nwp_config(jg)%inwp_turb ) ) ) THEN
+#else
+    IF ( l_any_fastphys .AND. ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN 
+#endif
       IF (timers_level > 2) CALL timer_start(timer_nwp_surface)
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
 
@@ -667,7 +676,6 @@ CONTAINS
        !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
       IF (timers_level > 2) CALL timer_stop(timer_nwp_surface)
     END IF
-
 
     !Call to turbulent parameterization schemes
     IF (  lcall_phy_jg(itturb) ) THEN
@@ -703,7 +711,6 @@ CONTAINS
 
     END IF
 
-
     !-------------------------------------------------------------------------
     !  prognostic microphysic and precipitation scheme
     !-------------------------------------------------------------------------
@@ -738,29 +745,45 @@ CONTAINS
 
     ENDIF
 
+#ifdef __ICON_ART
     IF (lart) THEN
-#ifdef _OPENACC
-      CALL finish('mo_nh_interface_nwp:','ART not supported on GPU')
-#endif
+
       CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3)
+
 
       IF (.NOT. linit) THEN
         CALL art_reaction_interface(jg,                    & !> in
                 &                   mtime_datetime,        & !> in
                 &                   dt_phy_jg(itfastphy),  & !> in
-                &                   p_prog_list,           & !> inout
-                &                   pt_prog_rcf%tracer)      !>
+                &                   p_prog_list,           & !> in
+                &                   pt_prog_rcf%tracer     ) !>
+
+      !Check where to put coagulation
+        CALL art_coagulation_interface(pt_prog,pt_diag,    & !>in
+                &          dt_phy_jg(itfastphy),           & !>in
+                &          pt_patch,                       & !>in
+                &          prm_diag,                       & !>in
+                &          p_metrics,                      & !>in
+                &          pt_prog_rcf%tracer)               !>inout
+
+        CALL art_aerodyn_interface (pt_patch,              & !> in
+                &                   dt_phy_jg(itfastphy),  & !> in
+                &                   p_prog_list,           & !> in
+                &                   pt_prog,               & !> in
+                &                   p_metrics,             & !> in
+                &                   pt_diag,               & !> inout
+                &                   pt_prog_rcf%tracer,    & !>
+                &                   prm_diag = prm_diag)     !> optional
                 
+        CALL art_washout_interface(pt_prog,pt_diag,        & !>in
+                &            dt_phy_jg(itfastphy),         & !>in
+                &            pt_patch,                     & !>in
+                &            prm_diag,                     & !>in
+                &            p_metrics,                    & !>in
+                &            pt_prog_rcf%tracer)             !>inout
       END IF
-
-      CALL art_washout_interface(pt_prog,pt_diag,              & !>in
-                &          dt_phy_jg(itfastphy),               & !>in
-                &          pt_patch,                           & !>in
-                &          prm_diag,                           & !>in
-                &          p_metrics,                          & !>in
-                &          pt_prog_rcf%tracer)                   !>inout
     ENDIF !lart
-
+#endif
 
     !!------------------------------------------------------------------
     !> Latent heat nudging (optional)
@@ -1006,7 +1029,6 @@ CONTAINS
 !$OMP END PARALLEL
 
     IF (timers_level > 1) CALL timer_stop(timer_fast_phys)
-
     IF ( (lcall_phy_jg(itturb) .OR. linit) .AND. ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN
 
       IF (timers_level > 1) CALL timer_start(timer_nwp_turbulence)
@@ -1553,8 +1575,7 @@ CONTAINS
       IF (timers_level > 3) CALL timer_stop(timer_sso)
     ENDIF ! inwp_sso
     !-------------------------------------------------------------------------
-    
-
+#ifndef __NO_ICON_LES__
     !-------------------------------------------------------------------------
     ! Anurag Dipankar MPIM (2013-May-29)
     ! Large-scale forcing is to be applied at the end of all physics so that
@@ -1640,8 +1661,9 @@ CONTAINS
       IF (timers_level > 3) CALL timer_stop(timer_ls_forcing)
 
     ENDIF
+#endif
 
-
+#ifndef __NO_ICON_UPPER__
     !-------------------------------------------------------------------------
     !  Upper-atmosphere physics: compute tendencies
     !-------------------------------------------------------------------------
@@ -1661,19 +1683,21 @@ CONTAINS
         &                        p_diag            = pt_diag,           & !in
         &                        prm_nwp_diag      = prm_diag,          & !in
         &                        prm_nwp_tend      = prm_nwp_tend,      & !in
-        &                        kstart_moist      = kstart_moist(jg),  & !in
-        &                        prm_upatmo        = prm_upatmo         ) !inout
+        &                        kstart_moist      = kstart_moist(jg)   ) !in
       IF (upatmo_config(jg)%l_status( iUpatmoStat%timer )) CALL timer_stop(timer_upatmo)
 
     ENDIF
-
+#endif
 
     IF (timers_level > 2) CALL timer_start(timer_phys_acc)
     !-------------------------------------------------------------------------
     !>  accumulate tendencies of slow_physics: Not called when LS focing is ON
     !-------------------------------------------------------------------------
+#ifndef __NO_ICON_LES__
     IF( (l_any_slowphys .OR. lcall_phy_jg(itradheat)) .OR. is_ls_forcing) THEN
-
+#else
+    IF( l_any_slowphys .OR. lcall_phy_jg(itradheat) ) THEN
+#endif
       IF (p_test_run) THEN
         !$acc kernels if(i_am_accel_node)
         z_ddt_u_tot = 0._wp
@@ -1836,13 +1860,14 @@ CONTAINS
             ENDDO
           ENDDO
           !$acc end parallel
+#ifndef __NO_ICON_LES__
         ELSE IF (is_ls_forcing) THEN
           z_ddt_u_tot(i_startidx:i_endidx,:,jb) = 0._wp
           z_ddt_v_tot(i_startidx:i_endidx,:,jb) = 0._wp
+#endif
         ENDIF
 
-
-
+#ifndef __NO_ICON_LES__
         !-------------------------------------------------------------------------
         !>  accumulate tendencies of slow_physics when LS forcing is ON
         !-------------------------------------------------------------------------
@@ -1885,7 +1910,7 @@ CONTAINS
                 z_ddt_u_tot(jc,jk,jb) = z_ddt_u_tot(jc,jk,jb)       &
                   &  - ( pt_diag%u(jc,jk,jb) - prm_nwp_tend%u_nudge(jk) ) / dt_relax * exp(-dt_loc/dt_relax) &
                   &  * nudgecoeff
- 
+
                 z_ddt_v_tot(jc,jk,jb) = z_ddt_v_tot(jc,jk,jb)       &
                   &  - ( pt_diag%v(jc,jk,jb) - prm_nwp_tend%v_nudge(jk) ) / dt_relax * exp(-dt_loc/dt_relax) &
                   &  * nudgecoeff
@@ -1922,6 +1947,8 @@ CONTAINS
           END DO  ! jk
 
         ENDIF ! END of LS forcing tendency accumulation
+#endif
+
 
 
         ! combine convective and EDMF rain and snow
@@ -2015,8 +2042,11 @@ CONTAINS
     !-------------------------------------------------------------------
     IF (timers_level > 10) CALL timer_start(timer_phys_sync_ddt_u)
 
+#ifndef __NO_ICON_LES__
     IF ( (is_ls_forcing .OR. l_any_slowphys) .AND. lcall_phy_jg(itturb) ) THEN
-
+#else
+    IF ( l_any_slowphys .AND. lcall_phy_jg(itturb) ) THEN
+#endif
       CALL sync_patch_array_mult(SYNC_C1, pt_patch, 4, z_ddt_u_tot, z_ddt_v_tot, &
                                  prm_nwp_tend%ddt_u_turb, prm_nwp_tend%ddt_v_turb)
 
@@ -2125,8 +2155,11 @@ CONTAINS
       CALL get_indices_e(pt_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
+#ifndef __NO_ICON_LES__
       IF ( (is_ls_forcing .OR. l_any_slowphys) .AND. lcall_phy_jg(itturb) ) THEN
-
+#else
+      IF ( l_any_slowphys .AND. lcall_phy_jg(itturb) ) THEN
+#endif
         !$acc parallel default(present) if(i_am_accel_node)
         !$acc loop gang vector collapse(2)
 #ifdef __LOOP_EXCHANGE
@@ -2203,7 +2236,7 @@ CONTAINS
 
     IF (timers_level > 10) CALL timer_stop(timer_phys_acc_2)
 
-
+#ifndef __NO_ICON_UPPER__
     !-------------------------------------------------------------------------
     !  Upper-atmosphere physics: add tendencies
     !-------------------------------------------------------------------------
@@ -2220,11 +2253,10 @@ CONTAINS
         &                     dt_loc            = dt_loc,                          & !in
         &                     p_patch           = pt_patch,                        & !inout
         &                     p_prog_rcf        = pt_prog_rcf,                     & !inout
-        &                     prm_upatmo_tend   = prm_upatmo%tend,                 & !inout
         &                     p_diag            = pt_diag                          ) !inout
       IF (upatmo_config(jg)%l_status( iUpatmoStat%timer )) CALL timer_stop(timer_upatmo)
     ENDIF
-
+#endif
 
     IF (timers_level > 10) CALL timer_start(timer_phys_dpsdt)
     !
@@ -2278,11 +2310,9 @@ CONTAINS
                         & prm_diag, lnd_diag,            & !inout
                         & linit                          ) !in
 
+#ifdef __ICON_ART
     IF (lart) THEN
       ! Call the ART diagnostics
-#ifdef _OPENACC
-      CALL finish('mo_nh_interface_nwp', 'art_diagnostics_interface not available on GPU.')
-#endif
       CALL art_diagnostics_interface(pt_prog%rho,            &
         &                            pt_diag%pres,           &
         &                            pt_prog_now_rcf%tracer, &
@@ -2290,6 +2320,7 @@ CONTAINS
         &                            p_metrics%z_mc, jg,     &
         &                            dt_phy_jg, p_sim_time)
     ENDIF !lart
+#endif
 
     IF (ltimer) CALL timer_stop(timer_physics)
 

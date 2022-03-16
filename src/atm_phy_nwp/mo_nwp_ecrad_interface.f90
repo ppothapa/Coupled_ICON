@@ -395,17 +395,19 @@ CONTAINS
             if( lzacc ) CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
             ! Use ART aerosol
-            CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, jb, pt_patch%id, &
+            CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, jb, jg, nproma,  &
               &                         zaeq1(jcs:jce,:,jb), zaeq2(jcs:jce,:,jb),               &
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),               &
               &                         zaeq5(jcs:jce,:,jb),                                    &
               &                         ecrad_conf, ecrad_aerosol)
             CALL finish(routine, 'irad_aero = 9 not yet fully implemented for ecRad')
 
+
           CASE(12,13,14,15,18,19)
 #ifdef _OPENACC
             if( lzacc ) CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
+
             DO jw = 1, ecrad_conf%n_bands_lw
               opt_ptrs_lw(jw)%ptr_od  => od_lw(jcs:jce,:,jb,jw)
             ENDDO

@@ -26,10 +26,8 @@ MODULE mo_art_radiation_interface
   USE mo_timer,                         ONLY: timers_level, timer_start, timer_stop,   &
                                           &   timer_art, timer_art_radInt
   ! ART Routines
-#ifdef __ICON_ART
   USE mo_art_radiation_aero,            ONLY: art_radiation_aero
   USE mo_art_config,                    ONLY: art_config
-#endif
 
   IMPLICIT NONE
 
@@ -61,14 +59,15 @@ SUBROUTINE art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,    &
     &  jg, jb,               & !< domain ID, block index
     &  ks, ke,               & !< loop index jk
     &  jcs, jce,             & !< loop index jc
-    &  nlong,nshort            !< number of bands long/shortwave. Sorting of arrays: longwave first, then shortwave bands
+    &  nlong,nshort            !< number of bands long/shortwave. Sorting of arrays: longwave 
+                               !< first, then shortwave bands
   REAL(wp), OPTIONAL, INTENT(out) ::   &
     &  aer_tau_lw_vr(:,:,:), & !< longwave aerosol optical depth [layer-1], vertically reverse
     &  aer_tau_sw_vr(:,:,:), & !< shortwave aerosol optical depth [layer-1], vertically reverse
-    &  aer_piz_sw_vr(:,:,:), & !< shortwave aerosol single scattering albedo [layer-1], vertically reverse
+    &  aer_piz_sw_vr(:,:,:), & !< shortwave aerosol single scattering albedo [layer-1], 
+                               !  vertically reverse
     &  aer_cg_sw_vr(:,:,:)     !< shortwave aerosol asymmetry factor [layer-1], vertically reverse
   
-#ifdef __ICON_ART
   if (lart) then
     IF (timers_level > 3) CALL timer_start(timer_art)
     IF (timers_level > 3) CALL timer_start(timer_art_radInt)
@@ -86,7 +85,6 @@ SUBROUTINE art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,    &
     IF (timers_level > 3) CALL timer_stop(timer_art_radInt)
     IF (timers_level > 3) CALL timer_stop(timer_art)
   end if
-#endif
 
 END SUBROUTINE art_rad_aero_interface
 !!

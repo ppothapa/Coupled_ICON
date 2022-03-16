@@ -36,7 +36,7 @@ MODULE mo_art_init_interface
   USE mo_nwp_phy_types,                 ONLY: t_nwp_phy_diag
 
   USE mo_art_config,                    ONLY: art_config, ctracer_art
-  USE mo_impl_constants,                ONLY: MAX_CHAR_LENGTH
+  USE mo_impl_constants,                ONLY: MAX_CHAR_LENGTH, SUCCESS
 
   USE mtime,                            ONLY: datetime, timedelta,           &
                                           &   MAX_TIMEDELTA_STR_LEN,         &
@@ -44,12 +44,12 @@ MODULE mo_art_init_interface
                                           &   getTotalMilliSecondsTimeDelta, &
                                           &   getPTStringFromMS,             &
                                           &   deallocateTimedelta
-#ifdef __ICON_ART
-  USE mo_art_collect_atmo_state,        ONLY: art_collect_atmo_state_nwp,   &
-                                          &   art_update_atmo_state_nwp,    &
-                                          &   art_collect_atmo_state_echam, &
-                                          &   art_update_atmo_state_echam,  &
-                                          &   art_init_tracer_values_nwp,   &
+  USE mo_art_collect_atmo_state,        ONLY: art_collect_atmo_state_nwp,       &
+                                          &   art_update_atmo_state_nwp,        &
+                                          &   art_collect_atmo_state_echam,     &
+                                          &   art_update_atmo_state_echam,      &
+                                          &   art_collect_radiation_properties, &
+                                          &   art_init_tracer_values_nwp,       &
                                           &   art_init_tracer_values_echam
 
   USE mo_art_init_all_dom,              ONLY: art_init_all_dom
@@ -61,7 +61,6 @@ MODULE mo_art_init_interface
                                           &   art_open_xml_file,              &
                                           &   art_close_xml_file,             &
                                           &   t_xml_file
-#endif
   
   IMPLICIT NONE
 
@@ -69,6 +68,7 @@ MODULE mo_art_init_interface
 
   PUBLIC :: art_init_interface, art_calc_ntracer_and_names
   PUBLIC :: art_init_atmo_tracers_nwp, art_init_atmo_tracers_echam
+  PUBLIC :: art_init_radiation_properties
   PUBLIC :: art_update_atmo_phy
 
 CONTAINS
@@ -82,7 +82,6 @@ SUBROUTINE art_init_interface(n_dom,defcase)
   CHARACTER(LEN=*),intent(in) :: &
     &  defcase                      !< construction or destruction?
     
-#ifdef __ICON_ART
   IF (lart) THEN
     IF (timers_level > 3) CALL timer_start(timer_art_initInt)
 
@@ -98,7 +97,6 @@ SUBROUTINE art_init_interface(n_dom,defcase)
     IF (timers_level > 3) CALL timer_stop(timer_art_initInt)
 
    END IF 
-#endif
 
 END SUBROUTINE art_init_interface
 !!
@@ -120,22 +118,20 @@ SUBROUTINE art_calc_number_of_art_tracers_xml(xml_filename,auto_ntracer,   &
   ! Local variables
   INTEGER ::          &
      &   idx_tracer,  &                  !< index of the tracer in XML
-     &   ntags                           !< number of tags for the current tracer
+     &   ntags,       &                  !< number of tags for the current tracer
+     &   modeidx,     &                  !< index of individual mode in modestring
+     &   ierror                          !< error code
   CHARACTER(LEN = 5) :: &
      &   idx_tracer_str                  !< string of the index
   TYPE(t_key_value_store) :: &
      &   storage                         !< temporally created storage for the tracer
   CHARACTER(:), ALLOCATABLE :: &
-     &   tracer_name
+     &   modes, tracer_name
 
-#ifdef __ICON_ART
   TYPE(t_xml_file) :: tixi_file          !< tracer XML file
-  
-#endif
 
   auto_ntracer = 0
 
-#ifdef __ICON_ART
   CALL art_open_xml_file(TRIM(xml_filename),tixi_file)
 
   CALL art_check_tracer_children_xml(tixi_file,"/tracers",TRIM(tracer_element), auto_ntracer)
@@ -162,6 +158,18 @@ SUBROUTINE art_calc_number_of_art_tracers_xml(xml_filename,auto_ntracer,   &
         ! (tag002 to tag999)
         auto_ntracer = auto_ntracer + ntags - 1
       END IF
+      
+      ! When aerosol-tracer you need to know the number of modes it can be assigned to
+      CALL storage%get('mode',modes, ierror)
+      IF (ierror == SUCCESS) THEN
+        auto_ntracer = auto_ntracer - 1
+        modeidx=1
+        DO WHILE(modeidx > 0)
+          auto_ntracer = auto_ntracer + 1
+          modes=modes(modeidx+1:LEN_TRIM(modes))
+          modeidx=INDEX(modes,",")
+        END DO
+      END IF
 
       ! Set metadata storage free again
       CALL storage%destruct
@@ -170,14 +178,12 @@ SUBROUTINE art_calc_number_of_art_tracers_xml(xml_filename,auto_ntracer,   &
   END IF
 
   CALL art_close_xml_file(tixi_file)
-#endif
 
 END SUBROUTINE art_calc_number_of_art_tracers_xml
 !!
 !!-------------------------------------------------------------------------
 !!
 SUBROUTINE art_write_vcs_info
-#ifdef __ICON_ART
 
 !<
 ! SUBROUTINE art_write_vcs_info                   
@@ -218,7 +224,6 @@ SUBROUTINE art_write_vcs_info
       CALL message('',message_text)
 
   END IF
-#endif
   
 END SUBROUTINE art_write_vcs_info
 !!
@@ -348,7 +353,7 @@ SUBROUTINE art_calc_ntracer_and_names()
     ! including the ART tracers in mo_art_tracer: first aerosols, then chemical
     ! tracers
     IF (auto_ntracer_aerosol > 0) THEN
-      tracer_names(1:auto_ntracer_aerosol) = tracer_names_aerosol
+      tracer_names(1:auto_ntracer_aerosol) = '' ! -> aerosol tracer names are later determined
     END IF
   
     IF (auto_ntracer_chemtracer > 0) THEN
@@ -390,7 +395,6 @@ SUBROUTINE art_init_one_dom(jg, p_prog_list, tracer, nest_level)
   INTEGER, INTENT(in) :: &
     &  nest_level           !< beginning with zero in global domain
   ! local variables
-#ifdef __ICON_ART
   INTEGER(i8) ::   &
     &   dtime_ms
   REAL(wp) ::  &
@@ -412,7 +416,7 @@ SUBROUTINE art_init_one_dom(jg, p_prog_list, tracer, nest_level)
            &    p_prog_list, tracer)
 
   CALL deallocateTimedelta(dt_model)
-#endif
+
 END SUBROUTINE art_init_one_dom
 
 SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
@@ -438,7 +442,6 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
   INTEGER, INTENT(in) :: &
     &  nest_level           !< beginning with zero in global domain
 
-#ifdef __ICON_ART
   IF (lart) THEN
     CALL art_collect_atmo_state_nwp(jg, mtime_current, p_nh_state,  &
                    &                ext_data, prm_diag, p_prog)
@@ -447,8 +450,8 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
     IF ((start_time(jg) <= 0.0_wp) .AND. (.NOT. isRestart())) THEN
       CALL art_init_tracer_values_nwp(jg, tracer, mtime_current, p_prog_list)
     END IF
+
   END IF
-#endif
 
 END SUBROUTINE art_init_atmo_tracers_nwp
 !
@@ -473,7 +476,6 @@ SUBROUTINE art_init_atmo_tracers_echam(jg, mtime_current, p_nh_state, &
   INTEGER, INTENT(in) :: &
     &  nest_level           !< beginning with zero in global domain
 
-#ifdef __ICON_ART
   IF (lart) THEN
     CALL art_collect_atmo_state_echam(jg, mtime_current, p_nh_state, p_prog)
 
@@ -483,7 +485,6 @@ SUBROUTINE art_init_atmo_tracers_echam(jg, mtime_current, p_nh_state, &
       CALL art_init_tracer_values_echam(jg, tracer, mtime_current, p_prog_list)
     END IF
   END IF
-#endif
 
 END SUBROUTINE art_init_atmo_tracers_echam
 !
@@ -501,7 +502,6 @@ SUBROUTINE art_update_atmo_phy(jg, mtime_current, p_prog, prm_diag)
     &  prm_diag             !< phyics fields for NWP physics
 
 
-#ifdef __ICON_ART
   IF (lart) THEN
     IF (PRESENT(prm_diag)) THEN
       CALL art_update_atmo_state_nwp(jg,mtime_current, p_prog, prm_diag)
@@ -509,7 +509,15 @@ SUBROUTINE art_update_atmo_phy(jg, mtime_current, p_prog, prm_diag)
       CALL art_update_atmo_state_echam(jg,mtime_current, p_prog)
     END IF
   END IF
-#endif
+
 END SUBROUTINE art_update_atmo_phy
+
+SUBROUTINE art_init_radiation_properties(iforcing, jg)
+  INTEGER, INTENT(in) :: iforcing
+  INTEGER, INTENT(in) :: jg
+
+  CALL art_collect_radiation_properties(iforcing, jg)
+
+END SUBROUTINE art_init_radiation_properties
 
 END MODULE mo_art_init_interface
