@@ -114,11 +114,11 @@ CONTAINS
         ! year of a simulation that started before this year, meaning that
         ! a year of external monthly ozone data is already stored.
         !
-#ifdef __ECRAD
-        IF (irad_o3==8) THEN
-#else
+!#ifdef __ECRAD
+!        IF (irad_o3==8) THEN
+!#else
         IF (irad_o3==5) THEN
-#endif
+!#endif
           !
           ! ozone is transient and the external monthly ozone data
           ! of this year and January of the next year must be read from file.
@@ -284,11 +284,11 @@ CONTAINS
           ext_ozone(jg)% o3_plev(:,:,:,1) = vmr2mmr_o3*zo3_plev(:,:,:,1)
           !
           !
-#ifdef __ECRAD
-        CASE (8)
-#else
+!#ifdef __ECRAD
+!        CASE (8)
+!#else
         CASE (5) ! Ozone is transient and defined by monthly data in annual files
-#endif
+!#endif
           !
           IF ( nyears > 1 ) THEN
             imonth_beg = 0
