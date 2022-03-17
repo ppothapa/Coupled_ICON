@@ -85,7 +85,7 @@ CONTAINS
 
     ! Local variables
     REAL(wp), ALLOCATABLE   :: &
-      &  zo3_timint(:,:),      & !< intermediate value of ozone, for irad_o3=8
+      &  zo3_timint(:,:),      & !< intermediate value of ozone, for irad_o3=5
       &  zptop32(:,:),         & !< irad_o3=6
       &  zo3_hm  (:,:),        & !< irad_o3=6
       &  zo3_top (:,:),        & !< irad_o3=6
@@ -176,7 +176,7 @@ CONTAINS
       CASE (7,9,79,97)
        !$ACC WAIT
         CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,o3,use_acc=lzacc)
-      CASE(8)
+      CASE(5)
         ALLOCATE(zo3_timint(nproma,ext_ozone(jg)%nplev_o3), STAT=istat)
           IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of zo3_timint failed')
 !$OMP PARALLEL

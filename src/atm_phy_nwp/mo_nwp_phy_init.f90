@@ -1023,7 +1023,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
         !
         ! Read ozone transient data
-        IF (irad_o3 == 8) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
+        IF (irad_o3 == 5) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
 #else
         CALL finish(routine,  &
           &      'atm_phy_nwp_config(jg)%inwp_radiation = 4 needs -D__ECRAD.')
