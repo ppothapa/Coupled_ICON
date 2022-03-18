@@ -43,47 +43,33 @@ num_row=22 # Number of rows in x-direction^
 #
 atmo_dyn_grids="'${grid_name}.nc',"
 
-modelTimeStep="PT20S"
+modelTimeStep="PT05S"
 radiationTimeStep="PT2M"
 
 
 # start and end date+time
 start_date=${start_date:="2008-08-01T00:00:00Z"}
-    end_date=${end_date:="2008-08-01T00:03:40Z"}
+    end_date=${end_date:="2008-08-01T02:00:00Z"}
     
 calendar="360 day year"
 
 # restart intervals
-checkpoint_interval="P2Y"
-restart_interval="P1M"
+checkpoint_interval="PT30M"
+restart_interval="PT3H"
 
 # output intervals
-output_interval_2d="PT20S"
-output_interval_3d="PT20S"
-file_interval_2d="PT2M"
-file_interval_3d="PT2M"
+output_interval_2d="PT30S"
+output_interval_3d="PT30S"
+file_interval_2d="P1D"
+file_interval_3d="P1D"
 
 output_atm_cgrid="no" # 1 file
 output_atm_2d="yes"   # 1 file 
 output_atm_3d="yes"   # 1 file
-output_phy_3d="no"   # 1 file
 
 # determine the number of io processes
 
-num_io_procs=0
-
-if [[ "$output_atm_cgrid" == "yes" ]]; then
-  num_io_procs=`expr ${num_io_procs} + 1`
-fi
-if [[ "$output_atm_2d" == "yes" ]]; then
-  num_io_procs=`expr ${num_io_procs} + 1`
-fi
-if [[ "$output_atm_3d" == "yes" ]]; then 
-  num_io_procs=`expr ${num_io_procs} + 1`
-fi
-if [[ "$output_phy_3d" == "yes" ]]; then 
-  num_io_procs=`expr ${num_io_procs} + 1`
-fi
+num_io_procs=4
 
 # namelist files
 atmo_namelist=NAMELIST_${EXPNAME}_atm
@@ -106,7 +92,7 @@ cat > ${atmo_namelist} << EOF
  grid_angular_velocity  = 0.
 /
 &run_nml
- num_lev          = 70          ! number of full levels
+ num_lev          = 320          ! number of full levels
  modelTimeStep    = "$modelTimeStep"
  ltestcase        = .TRUE.      ! run testcase
  ldynamics        = .TRUE.      ! dynamics
@@ -119,13 +105,25 @@ cat > ${atmo_namelist} << EOF
  profiling_output = 1           ! aggregated: 1; detailed: 2; in files: 3
 /
 &nh_testcase_nml
- nh_test_name     = 'RCE_Tconst'
+ nh_test_name     = 'RCE_bubble'
  ape_sst_case     = 'sst_const'
- ape_sst_val      = 25.
- tpe_temp         = 298.15
- tpe_psfc         = 1013.25e2
+ ape_sst_val      = 30.
  zenithang        = 42.05       ! degrees
  sol_const        = 551.58
+/
+&torus_bubble_exp_nml
+bubble_config%psfc        =101325.
+bubble_config%t0          =303.15
+bubble_config%gamma0      =0.009
+bubble_config%gamma1      =0.00001
+bubble_config%z0          =3000.
+bubble_config%t_perturb   =10.
+bubble_config%relhum_bg   =0.7
+bubble_config%relhum_mx   =0.95
+bubble_config%hw_frac_x   =0.125
+bubble_config%hw_z        =500.
+bubble_config%x_center    =0.
+bubble_config%torus_domain_length = $(echo "$edge_length $num_columns" |awk '{printf("%.1f", $1 * $2)}')
 /
 &nonhydrostatic_nml
  ndyn_substeps    = 5           ! dtime/dt_dyn
@@ -142,44 +140,37 @@ cat > ${atmo_namelist} << EOF
  rbf_vec_scale_e   = 0.45
 /
 &sleve_nml
- min_lay_thckn  = 40
- top_height     = 30000.
- stretch_fac    = 0.9
- decay_scale_1  = 4000.
- decay_scale_2  = 2500.
- decay_exp      = 1.2
- flat_height    = 16000.
+ min_lay_thckn    = 20.         ! [m]
+ max_lay_thckn    = 400.        ! [m] maximum layer thickness below htop_thcknlimit
+ htop_thcknlimit  = 30000.      ! [m] this implies that the upcoming COSMO-EU nest will have 60 levels
+ top_height       = 30000.      ! [m]
+ stretch_fac      = 0.7
+ decay_scale_1    = 4000.       ! [m]
+ decay_scale_2    = 2500.       ! [m]
+ decay_exp        = 1.2
+ flat_height      = 30000.      ! [m]
 /
 &transport_nml
- tracer_names     = 'hus','clw','cli','qr','qs','qg','qh','qni','qnr','qns','qng','qnh','qnc','ninact'
- ivadv_tracer     =    3 ,   3 ,   3 ,  3 ,  3 ,  3 ,  3 ,   3 ,   3 ,   3 ,   3 ,   3 ,   3 ,    3
- itype_hlimit     =    3 ,   4 ,   4 ,  4 ,  4 ,  4 ,  4 ,   4 ,   4 ,   4 ,   4 ,   4 ,   4 ,    4
- ihadv_tracer     =   52 ,   2 ,   2 ,  2 ,  2 ,  2 ,  2 ,   2 ,   2 ,   2 ,   2 ,   2 ,   2 ,    2
+ tracer_names     = 'hus','clw','cli','qr','qs','qg',
+ ivadv_tracer     =    3 ,   3 ,   3 ,  3 ,  3 ,  3 ,
+ itype_hlimit     =    3 ,   4 ,   4 ,  4 ,  4 ,  4 ,
+ ihadv_tracer     =   52 ,   2 ,   2 ,  2 ,  2 ,  2 ,
 /
 &echam_phy_nml
 !
 ! domain 1
 ! --------
 !
-! atmospheric phyiscs (""=never)
+! atmospheric physics (""=never)
  echam_phy_config(1)%dt_rad = "$radiationTimeStep"
  echam_phy_config(1)%dt_vdf = "$modelTimeStep"
- echam_phy_config(1)%dt_cnv = ""
- echam_phy_config(1)%dt_cld = ""
- echam_phy_config(1)%dt_mig = ""
- echam_phy_config(1)%dt_two = "$modelTimeStep"
- echam_phy_config(1)%dt_gwd = ""
- echam_phy_config(1)%dt_sso = ""
-!
-! atmospheric chemistry (""=never)
- echam_phy_config(1)%dt_mox = ""
- echam_phy_config(1)%dt_car = ""
- echam_phy_config(1)%dt_art = ""
+ echam_phy_config(1)%dt_mig = "$modelTimeStep"
+ echam_phy_config(1)%dt_two = ""
 !
 ! surface (.TRUE. or .FALSE.)
  echam_phy_config(1)%ljsb   = .FALSE.
  echam_phy_config(1)%lamip  = .FALSE.
- echam_phy_config(1)%l2moment  = .TRUE.
+ echam_phy_config(1)%l2moment  = .FALSE.
  echam_phy_config(1)%lice   = .FALSE.
  echam_phy_config(1)%lmlo   = .FALSE.
  echam_phy_config(1)%llake  = .FALSE.
@@ -205,24 +196,19 @@ cat > ${atmo_namelist} << EOF
  echam_rad_config(1)%irad_co2   =  2
  echam_rad_config(1)%irad_ch4   =  2
  echam_rad_config(1)%irad_n2o   =  2
- echam_rad_config(1)%irad_o3    =  4
+ echam_rad_config(1)%irad_o3    =  0
  echam_rad_config(1)%irad_o2    =  0
  echam_rad_config(1)%irad_cfc11 =  0
  echam_rad_config(1)%irad_cfc12 =  0
  echam_rad_config(1)%irad_aero  =  0
- echam_rad_config(1)%vmr_co2    =  348.e-06 ! RCEMIP values; modern-day values
- echam_rad_config(1)%vmr_ch4    = 1650.e-09
- echam_rad_config(1)%vmr_n2o    =  306.e-09
+ echam_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
 &dynamics_nml
  lcoriolis      = .FALSE.
 /
 &echam_vdf_nml
- echam_vdf_config(1)%pr0        =  0.7
-/
-&echam_cnv_nml
-/
-&echam_cld_nml
+ echam_vdf_config(1)%pr0        = 0.7
+ echam_vdf_config(1)%turb       = 2
 /
 &echam_cop_nml
  echam_cop_config(1)%cn1lnd     =  50.0
@@ -234,7 +220,7 @@ cat > ${atmo_namelist} << EOF
  echam_cop_config(1)%cinhoml2   =   1.0
  echam_cop_config(1)%cinhoml3   =   1.0
 /
-&cloud_mig_nml
+&echam_mig_nml
 /
 &echam_cov_nml
  echam_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
@@ -248,8 +234,12 @@ EOF
 
 # model files
 #
-add_link_file ${basedir}/data/lsdata.nc                                 ./
-add_link_file ${basedir}/data/ECHAM6_CldOptProps.nc                     ./
+# Radiation:
+add_link_file ${basedir}/externals/rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g128-210809.nc         ./coefficients_lw.nc
+add_link_file ${basedir}/externals/rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g112-210809.nc         ./coefficients_sw.nc
+add_link_file ${basedir}/data/ECHAM6_CldOptProps_rrtmgp_lw.nc           ./rrtmgp-cloud-optics-coeffs-lw.nc
+add_link_file ${basedir}/data/ECHAM6_CldOptProps_rrtmgp_sw.nc           ./rrtmgp-cloud-optics-coeffs-sw.nc
+# Two Moment scheme input
 add_link_file ${basedir}/data/dmin_wetgrowth_lookup.nc                  ./ # for inwp_gscp==4
 
 # namelist files
@@ -286,6 +276,7 @@ cat >> ${atmo_namelist} << EOF
  lnetcdf_flt64_output = .TRUE.
  itype_pres_msl   = 4
  restart_file_type= 5
+ inextra_3d       = 10
  !restart_write_mode = "joint procs multifile"    !not necessary/useful in default r2b4 setup
 /
 EOF
@@ -327,22 +318,53 @@ if [[ "$output_atm_3d" == "yes" ]]; then
  filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
  filetype         = 5
  remap            = 0
- output_grid      = .FALSE.
+ output_grid      = .TRUE.
  output_start     = "${start_date}"
  output_end       = "${end_date}"
- output_interval  = "${output_interval_2d}"
- file_interval    = "${file_interval_2d}"
+ output_interval  = "${output_interval_3d}"
+ file_interval    = "${file_interval_3d}"
  include_last     = .FALSE.
  ml_varlist       = 'ps'      , 'pfull'   , 'zg'      ,
                     'rho'     , 'ta'      , 'theta_v' ,
                     'ua'      , 'va'      , 'wa'     ,
                     'hus'     , 'clw'     , 'cli'     ,
-                    'qr','qs','qg','qh',
-                    'qni','qnr','qns','qng','qnh','qnc','ninact'
+                    'qr','qs','qg', 'cptgz',
 /
 EOF
 fi
 
+#if [[ "$output_atm_3d" == "yes" ]]; then
+#  #
+#  cat >> ${atmo_namelist} << EOF
+#&output_nml
+# output_filename  = "${EXPNAME}_atm_3d_iconam_extra_in"
+# filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
+# filetype         = 5
+# remap            = 0
+# output_grid      = .FALSE.
+# output_start     = "${start_date}"
+# output_end       = "${end_date}"
+# output_interval  = "${output_interval_3d}"
+# file_interval    = "${file_interval_3d}"
+# include_last     = .FALSE.
+# ml_varlist       = 'extra_3d1', 'extra_3d2', 'extra_3d3' , 'extra_3d4' , 'extra_3d5' , 
+#/
+#&output_nml
+# output_filename  = "${EXPNAME}_atm_3d_iconam_extra_out"
+# filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
+# filetype         = 5
+# remap            = 0
+# output_grid      = .FALSE.
+# output_start     = "${start_date}"
+# output_end       = "${end_date}"
+# output_interval  = "${output_interval_3d}"
+# file_interval    = "${file_interval_3d}"
+# include_last     = .FALSE.
+# ml_varlist       = 'extra_3d6', 'extra_3d7', 'extra_3d8' , 'extra_3d9' , 'extra_3d10' , 
+#/
+#EOF
+#fi
+#
 
 #
 if [[ "$output_atm_2d" == "yes" ]]; then
@@ -353,7 +375,7 @@ if [[ "$output_atm_2d" == "yes" ]]; then
  filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
  filetype         = 5
  remap            = 0
- output_grid      = .FALSE.
+ output_grid      = .TRUE.
  output_start     = "${start_date}"
  output_end       = "${end_date}"
  output_interval  = "${output_interval_2d}"
@@ -365,41 +387,12 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'rlds'    , 'rlus'    ,
                     'ts'      , 'clt'     ,
                     'prw'     , 'cllvi'   , 'clivi'   ,
-                    'qrvi','qsvi','qgvi','qhvi',
+                    'qrvi','qsvi','qgvi',
                     'hfls'    , 'hfss'    , 'evspsbl' ,
-                    'prlr'    , 'prls'    ,
-                    'rain_gsp_rate', 'ice_gsp_rate', 'graupel_gsp_rate',
-                    'snow_gsp_rate', 'hail_gsp_rate',
+                    'prlr'    , 'prls'    , 'cptgzvi',
+                    'rain_gsp_rate','graupel_gsp_rate',
+                    'snow_gsp_rate',
 /
 EOF
 fi
 
-
-#
-if [[ "$output_phy_3d" == "yes" ]]; then
-  #
-  cat >> ${atmo_namelist} << EOF
-&output_nml
- output_filename  = "${EXPNAME}_phy_3d"
- filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
- filetype         = 5
- remap            = 0
- output_grid      = .FALSE.
- output_start     = "${start_date}"
- output_end       = "${end_date}"
- output_interval  = "${output_interval_3d}"
- file_interval    = "${file_interval_3d}"
- include_last     = .FALSE.
- ml_varlist       = 'ps'           , 'pfull'        , 'zg'           ,
-                    'tend_ta'      , 'tend_qhus'    ,
-                    'tend_ta_dyn'  , 'tend_qhus_dyn',
-                    'tend_ta_phy'  , 'tend_qhus_phy',
-                    'tend_ta_rlw'  , 'tend_ta_rsw'  ,
-                    'tend_ta_vdf'  , 'tend_qhus_vdf',
-                    'tend_ta_two' , 'tend_qv_two'     ,
-                    'tend_qc_two', 'tend_qi_two' , 'tend_qr_two'     ,
-                    'tend_qnc_two' , 'tend_qni_two'     ,
-                    'tend_qnr_two',
-/
-EOF
-fi

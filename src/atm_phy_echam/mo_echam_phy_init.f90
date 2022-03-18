@@ -1057,7 +1057,8 @@ CONTAINS
       ! For idealized test cases
 
       SELECT CASE (nh_test_name)
-      CASE('APE','APE_echam','RCEhydro','RCE_glb','RCE_Tconst','CBL_flxconst','RCEMIP_analytical') 
+
+      CASE('APE','APE_echam','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','CBL_flxconst','RCEMIP_analytical') 
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

@@ -550,6 +550,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
             twork = twork - fT / dfT;
           END IF
         END IF
+    !--jsr_baustelle2
       END DO !while
 
       ! Distribute the results back to gridpoints:

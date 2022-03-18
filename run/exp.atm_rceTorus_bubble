@@ -24,7 +24,7 @@ author_list="Tobias Becker, Rene Redler, Monika Esch MPIM"
 # temp_fwh_frac = 0.25 means that the bubble covers 25% of the domain).
 # Vertical hight of the temperature maximum is set using the bubctr_z while
 # the vertical extent of the bubble is set using the bub_ver_width switch.
-# To turn on the warm bubble test-case the temp_case switch has to be set to 'blob'!
+# To turn on the warm bubble test-case, use nh_test_name = 'RCE_bubble'
 #
 #
 #--------------------------------------------------------------------------------------------------
@@ -135,8 +135,9 @@ cat > ${atmo_namelist} << EOF
  ape_sst_case     = 'sst_const'
  ape_sst_val      = 25.
  tpe_temp         = 298.15
- temp_case        = 'blob'      ! Select bubble case (const = default case)
- lapse_r          = 0.0098      ! Atmospheric lapse rate
+ t0               = 298.15
+ gamma0           = -0.0098      ! Atmospheric lapse rate
+ z0               = 2000.     ! linear lapse rate of temp up to this altitude 
  bubctr_z         = 50.         ! Height of the moisture bubble [m]
  tpe_mu           = 0.          ! Max Temperature Perturbation of the bubble [K]
  temp_fwhm_frac   = 0.25        ! Width of the bubble at FWHM as a frac. of damain length

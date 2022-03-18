@@ -122,8 +122,9 @@ cat > ${atmo_namelist} << EOF
  ape_sst_case     = 'sst_const'
  ape_sst_val      = 25.
  tpe_temp         = 308.15
- temp_case        = 'blob'      ! Select bubble case (const = default case)
- lapse_r          = 0.0098      ! Atmospheric lapse rate
+ t0               = 308.15
+ gamma0           = -0.0098      ! Atmospheric lapse rate
+ z0               = 2000.     ! linear lapse rate of temp up to this altitude 
  bubctr_z         = 50.         ! Height of the moisture bubble [m]
  tpe_mu           = 0.          ! Max Temperature Perturbation of the bubble [K]
  temp_fwhm_frac   = 0.25        ! Width of the bubble at FWHM as a frac. of damain length
