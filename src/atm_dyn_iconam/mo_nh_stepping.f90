@@ -1717,7 +1717,7 @@ MODULE mo_nh_stepping
         n_now  = nnow(jg)
         n_save = nsav1(jg)
       
-        IF (lbdy_nudging) THEN ! full copy needed
+        IF (lbdy_nudging .OR. ifeedback_type == 1) THEN ! full copy needed
 #ifndef _OPENACC
 !$OMP PARALLEL
 #endif
