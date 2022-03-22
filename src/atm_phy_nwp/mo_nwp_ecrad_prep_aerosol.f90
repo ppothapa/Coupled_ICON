@@ -333,6 +333,8 @@ CONTAINS
       &  ecrad_conf                        !< ecRad configuration object
     TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
       &  ecrad_aerosol                     !< ecRad aerosol information (input)
+
+#ifdef __ICON_ART
     ! Local variables
     REAL(wp)                                                :: &
       &  tau_lw_art(nproma, nlev, ecrad_conf%n_bands_lw),     &  !< AOD LW (vertically reversed)      
@@ -342,7 +344,7 @@ CONTAINS
     INTEGER                  :: &
       &  jc, jk, jband, jkb          !< Loop indices
   
-#ifdef __ICON_ART
+
     CALL art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,   & !< Tegen aerosol
       &                         tegen_scal_factors%absorption,   & !
       &                         tegen_scal_factors%scattering,   & !< Tegen coefficients
