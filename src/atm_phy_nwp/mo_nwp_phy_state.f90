@@ -1525,6 +1525,17 @@ __acc_attach(diag%clct)
 
     ENDIF
 
+    ! Factor for adaptive surface friction tuning
+    !
+    ! sfcfric_fac     diag%sfcfric_fac(nproma,nblks_c)
+    cf_desc    = t_cf_var('sfcfric_fac', '-', 'tuning factor for surface friction', datatype_flt)
+    grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'sfcfric_fac', diag%sfcfric_fac,   &
+      &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,  &
+      &           grib2_desc, ldims=shape2d, loutput=.TRUE.,    &
+      &           initval=1.0_wp, lrestart=.TRUE., lopenacc=.TRUE.)
+      __acc_attach(diag%sfcfric_fac)
+
     ! These variables only make sense if the land-surface scheme is switched on.
     IF ( atm_phy_nwp_config(k_jg)%inwp_surface == 1 ) THEN
 

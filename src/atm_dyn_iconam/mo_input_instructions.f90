@@ -196,15 +196,15 @@ CONTAINS
         CHARACTER(LEN = vname_len), INTENT(INOUT) :: outGroup(:)
         INTEGER, INTENT(OUT) :: outGroupSize
 
-        outGroup(1:30) = (/'alb_si       ','rho_snow_mult','aer_ss       ','aer_or       ', &
+        outGroup(1:31) = (/'alb_si       ','rho_snow_mult','aer_ss       ','aer_or       ', &
           &                'aer_bc       ','aer_su       ','aer_du       ','plantevap    ', &
           &                't_sk         ','t2m_bias     ','hsnow_max    ','snow_age     ', &
           &                'qg           ','qh           ','qnc          ','qni          ', &
           &                'qnr          ','qns          ','qng          ','qnh          ', &
           &                'rh_avginc    ','t_avginc     ','t_wgt_avginc ','p_avginc     ', &
           &                'clmf_a       ','clmf_p       ','clmf_d       ','clnum_a      ', &
-          &                'clnum_p      ','clnum_d      '/)
-        outGroupSize  = 30
+          &                'clnum_p      ','clnum_d      ','vabs_avginc  '/)
+        outGroupSize  = 31
 
     END SUBROUTINE collectGroupFgOpt
 

@@ -2615,6 +2615,15 @@ temperature increment at the lowest model level  \\
 init\_mode=5
 \tabularnewline
 
+icpl\_da\_sfcfric&
+I & 0 & &
+Coupling between data assimilation and model parameters controlling surface friction (roughness length and SSO blocking tendency at lowest level). \\
+0: off \\
+1: on; requires assimilation of 10m-winds and cycling a time-filtered assimilation increment of absolute wind speed at the lowest model level;
+moreover, it is strongly recommended to use extpar data with full SSO information (generated in Feb. 2022 or later). &
+init\_mode=5
+\tabularnewline
+
 
 adjust\_tso\_tsnow&
 L & .FALSE. & &

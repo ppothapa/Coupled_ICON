@@ -102,7 +102,8 @@ MODULE mo_nwp_phy_init
   USE mo_master_config,       ONLY: isRestart
   USE mo_nwp_parameters,      ONLY: t_phy_params
 
-  USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc
+  USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
+                                    icpl_da_sfcfric
 
   USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
   USE mo_cuparameters,        ONLY: sugwd
@@ -174,7 +175,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   INTEGER             :: jk, jk1
   REAL(wp)            :: rsltn   ! horizontal resolution
   REAL(wp)            :: pref(p_patch%nlev)
-  REAL(wp)            :: zlat, zprat, zn1, zn2, zcdnc
+  REAL(wp)            :: zlat, zlon, zprat, zn1, zn2, zcdnc
   REAL(wp)            :: zpres, zpres0
   REAL(wp)            :: gz0(nproma), l_hori(nproma)
   REAL(wp)            :: scale_fac ! scale factor used only for RCE cases
@@ -433,6 +434,30 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           prm_diag%heatcond_fac(jc,jb) = 1._wp/MAX(0.1_wp,  1._wp-10800._wp/dt_ana*2.5_wp*p_diag%t_wgt_avginc(jc,jb)) 
           prm_diag%heatcap_fac(jc,jb)  = 1._wp/MAX(0.25_wp, 1._wp-10800._wp/dt_ana*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
         ENDIF
+      ENDDO
+    ENDIF
+    IF (icpl_da_sfcfric >= 1) THEN
+      ! Tuning factor for surface friction (roughness length and SSO blocking)
+      DO jc = i_startidx,i_endidx
+        IF (p_diag%vabs_avginc(jc,jb) > 0._wp) THEN
+          prm_diag%sfcfric_fac(jc,jb) = MAX(0.25_wp, 1._wp-2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+        ELSE
+          prm_diag%sfcfric_fac(jc,jb) = 1._wp/MAX(0.25_wp, 1._wp+2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+        ENDIF
+
+        zlat = p_patch%cells%center(jc,jb)%lat*rad2deg
+        zlon = p_patch%cells%center(jc,jb)%lon*rad2deg
+
+        ! exclude Antarctic glaciers
+        IF (ext_data%atm%fr_glac(jc,jb) > 0.99_wp .AND. zlat < -60._wp) prm_diag%sfcfric_fac(jc,jb) = 1._wp
+
+        ! prevent reduction of surface friction in regions where 10m wind data are blacklisted
+        IF (zlon >= 30._wp .AND. zlon <= 50._wp .AND. zlat >= 40._wp .AND. zlat <= 70._wp .OR. &
+            zlon >= 50._wp .AND. zlon <= 90._wp .AND. zlat >= 55._wp .AND. zlat <= 70._wp .OR. &
+            zlon >= 90._wp .AND. zlon <= 140._wp .AND. zlat >= 50._wp .AND. zlat <= 70._wp) THEN 
+          prm_diag%sfcfric_fac(jc,jb) = MAX(1._wp, prm_diag%sfcfric_fac(jc,jb))
+        ENDIF
+
       ENDDO
     ENDIF
   ENDDO

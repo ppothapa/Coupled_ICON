@@ -174,6 +174,7 @@ MODULE mo_nwp_phy_types
       &  snowalb_fac(:,:),     & !! Factor for adaptive snow albedo tuning (coupled to DA increments for T)
       &  heatcond_fac(:,:),    & !! Factor for adaptive soil heat conductivity tuning (coupled to DA increments for T)
       &  heatcap_fac(:,:),     & !! Factor for adaptive soil heat capacity tuning (coupled to DA increments for T)
+      &  sfcfric_fac(:,:),     & !! Factor for adaptive surface friction tuning (coupled to DA increments for V_abs)
       &  vio3(:,:),            & !! vertically integrated ozone amount (Pa O3)
       &  hmo3(:,:),            & !! height of O3 maximum (Pa)
       &  flxdwswtoa(:,:),      & !! downward shortwave flux at TOA [W/m2]
