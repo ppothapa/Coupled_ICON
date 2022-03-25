@@ -139,6 +139,7 @@ MODULE mo_nonhydro_types
     &  t_avginc(:,:),        & !! time-averaged/filtered T increments from DA at lowest model level
     &  t_wgt_avginc(:,:),    & !! time-averaged/filtered T increments from DA at lowest model level, weighted with COS(local time)
     &  p_avginc(:,:),        & !! time-averaged/filtered P increments from DA at lowest model level
+    &  vabs_avginc(:,:),     & !! time-averaged/filtered wind speed increments from DA at lowest model level
 
     !
     ! d) storage variables for time-averaged first-guess output

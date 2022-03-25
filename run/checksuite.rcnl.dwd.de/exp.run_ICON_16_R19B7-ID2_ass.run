@@ -14,16 +14,8 @@
 #PBS -T necmpi
 #PBS --use-hca=2             # Number of HCA per logical host
 #PBS -j o
-#PBS -o LOG.exp.run_ICON_15_R19B7-ID2_ass.run.run.o
+#PBS -o LOG.exp.run_ICON_16_R19B7-ID2_ass.run.run.o
 # ----------------------------------------------------------------------------
-
-#=============================================================================
-#
-# This test makes 2 runs, the first for computing Mie LUTs and the second for
-# re-using them.
-#
-#=============================================================================
-
 date
 source ${NMPI_ROOT}/bin/necmpivars.sh
 
@@ -59,7 +51,7 @@ fi
 ICONDIR=${PBS_O_WORKDIR}/../
 
 EXP="ICON-D2"    # experiment identifier
-EDIR="exp_15"  # working directory
+EDIR="exp_16"  # working directory
 
 # absolute path to directory with plenty of space:
 EXPDIR=${TMPDIR}/${EDIR}/
@@ -128,6 +120,10 @@ ln -sf $DATADIR/blacklist_dx.nc .
 ln -sf $DATADIR/blklsttmp .
 ln -sf $DATADIR/cdfin* .
 ln -sf /hpc/uwork/gzaengl/Invar_files/namelist .  # I would need to edit the namelist in the data directory - but I'm not allowed to do it
+
+rm cdfin_vr_*volscan  # delete links to old test set of cdfin_vr_10* files
+ln -sf $DATADIR/radar-volscans/ras07**-10[5-9]??-hd5 .  # half of stations in new hdf5 format
+ln -sf $DATADIR/radar-volscans/cdfin_*_id-010[1-4]??_*volscan . # other half of stations in cdfin-format
 
 # map files
 ln -sf $DATADIR/map_file.* .
@@ -213,23 +209,7 @@ for gridfile in ${atmo_rad_grids}; do
 done
 
 
-# ----------------------------------------------------------------------
-# loop over two model runs
-# ----------------------------------------------------------------------
 
-
-# make 2 runs, the first for computing Mie LUTs and the second for re-using them:
-for i in 1 2; do
-
-if [ $i -eq 1 ]; then
-    # Only one timestep for the first run, which only creates the Mie lookup tables and exits:
-    nsteps=1
-    dace_coupling=.false.
-else
-    # The second run has the full forecast length of 1 h:
-    nsteps=180
-    dace_coupling=.true.
-fi
 
 cat > ${atmo_namelist} << EOF
 &parallel_nml
@@ -309,7 +289,7 @@ cat > ${atmo_namelist} << EOF
  ltransport            = .true.
  lvert_nest            = .false.
  msg_level             = 7          ! 7: print maximum wind speeds every 5th time steps
- nsteps                = ${nsteps}  ! 180        ! 4860 for full forecast period
+ nsteps                = 180        ! 4860 for full forecast period
  ntracer               = 5                    ! default: 0
  num_lev               = 65           ! 65, nest the same always
  output                = "nml"
@@ -531,7 +511,7 @@ cat > ${atmo_namelist} << EOF
  tablesVersion                   = 19
 /
 &assimilation_nml
- dace_coupling   = ${dace_coupling}
+ dace_coupling   = .true.
  dace_debug      = 1
  dace_time_ctrl  = 0,3600,1800 ! [s] time slices of DACE (start, stop, inc)
  rttend =            0.0
@@ -679,7 +659,8 @@ dom =  1
 !   with the obs radar stations,
 !   give the correct station_id for each block below.
 !
-  nradsta_namelist = 17,
+!!!  nradsta_namelist = 17,
+  nradsta_namelist = 0,
 !
 !========================================================
 ! Country flag for the observational radar data:
@@ -744,7 +725,7 @@ dom =  1
     voldata_ostream(1)%file_pattern = 'cdfin_<stationid>_<varname>_<tvvzstart>-<tvvzend>_<scantype>.nc',
     voldata_ostream(1)%content_dt = 0.0,
     voldata_ostream(1)%content_tref = 0.0,
-    voldata_ostream(1)%output_list = 'zrsim', 'vrsim'
+    voldata_ostream(1)%output_list = 'zrsim', 'vrsim', 'zrobs', 'vrobs',
 
     voldata_ostream(2)%format = 'cdfin'  ! 'ascii', 'ascii-gzip', 'f90-binary', 'cdfin', 'cdfin-mulmom', 'grib2', 'grib2-mulmom'
     voldata_ostream(2)%file_pattern = 'cdfin_<stationid>_<varname>_<tvvzstart>_<scantype>.nc',
@@ -762,7 +743,7 @@ dom =  1
   ldo_bubbles = .false.
     eleind_for_composite_bub_glob = 1,
 
-  lfdbk_output  = .false.,
+  lfdbk_output  = .true.,
 
   ! Output directory of all radar files:
   ydirradarout = '${RADAROUTPUTDIR}'
@@ -771,7 +752,7 @@ dom =  1
   !   i.e., radar obs files (NetCDF) are provided and
   !   the radar meta data from the files are overtaken.
   !   The below listing of meta data does not have any effect!
-  lreadmeta_from_netcdf = .false.,
+  lreadmeta_from_netcdf = .true.,
     ! Checking and matching of the obs file records
     !   to the obs times individually for each data type file (vr, qv, z, qz)
     !   instead of only taking one of these files for that purpose.
@@ -1194,23 +1175,6 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
               -vh     -node 1        -np 4      -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
 
 
-# prepare checking of the successful re-use of Mie lookup tables in the second run:
-num_luts=$(ls -1 $YDIR_MIELOOKUP/radar_mietab_*nc  | wc -l)
-if [ $i -eq 1 ]; then
-    let num_luts_check=$num_luts
-fi
-
 date
 
 
-done  # iteration over two model runs
-
-
-# Check uniqueness of lookup table files. Otherwise, the second run has produced his own files and this would be an error:
-if [ $num_luts -eq $num_luts_check ]; then
-    # 
-    exit
-else
-    echo ERROR Lookup tables not cleanly re-used!
-    exit 3
-fi

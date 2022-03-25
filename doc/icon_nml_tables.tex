@@ -2615,6 +2615,15 @@ temperature increment at the lowest model level  \\
 init\_mode=5
 \tabularnewline
 
+icpl\_da\_sfcfric&
+I & 0 & &
+Coupling between data assimilation and model parameters controlling surface friction (roughness length and SSO blocking tendency at lowest level). \\
+0: off \\
+1: on; requires assimilation of 10m-winds and cycling a time-filtered assimilation increment of absolute wind speed at the lowest model level;
+moreover, it is strongly recommended to use extpar data with full SSO information (generated in Feb. 2022 or later). &
+init\_mode=5
+\tabularnewline
+
 
 adjust\_tso\_tsnow&
 L & .FALSE. & &
@@ -7488,6 +7497,14 @@ Maximum layer thickness below the height given by htop\_thcknlimit (NWP recommen
 htop\_thcknlimit&
 R& 15000& m&
 Height below which the layer thickness does not exceed max\_lay\_thckn &
+\tabularnewline
+
+%\hline
+nshift\_above\_thcklay&
+I & 0 & &
+Level shift above constant-thickness layer for further calculation of layer distribution. For strongly stretched
+grids with a deep constant-thickness layer, this parameter may be set to 1 in order to reduce the thickness jump
+right above the constant-thickness layer.  &
 \tabularnewline
 
 %\hline

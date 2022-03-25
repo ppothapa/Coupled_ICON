@@ -53,6 +53,7 @@ MODULE mo_initicon_nml
     & config_icpl_da_sfcevap     => icpl_da_sfcevap,     &
     & config_icpl_da_skinc       => icpl_da_skinc,       &
     & config_icpl_da_snowalb     => icpl_da_snowalb,     &
+    & config_icpl_da_sfcfric     => icpl_da_sfcfric,     &
     & config_dt_ana              => dt_ana,              &
     & config_adjust_tso_tsnow    => adjust_tso_tsnow,    &
     & config_start_time_avg_fg   => start_time_avg_fg,   &
@@ -138,6 +139,8 @@ CONTAINS
   INTEGER  :: icpl_da_skinc    ! Coupling between data assimilation and skin conductivity
 
   INTEGER  :: icpl_da_snowalb  ! Coupling between data assimilation and snow albedo
+
+  INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
@@ -232,7 +235,8 @@ CONTAINS
                           niter_diffu, qcana_mode, qiana_mode, qrsgana_mode,&
                           qnxana_2mom_mode, itype_vert_expol, pinit_seed,   &
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
-                          icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow
+                          icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
+                          icpl_da_sfcfric
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -297,10 +301,13 @@ CONTAINS
                         ! 3: use filtered T and RH increments at lowest model level
 
   icpl_da_skinc = 0     ! Coupling between data assimilation and skin conductivity
-                        ! 0: off, 1: on
+                        ! 0: off, 1: on, 2: as 1, plus soil heat conductivity and capacity
 
   icpl_da_snowalb = 0   ! Coupling between data assimilation and snow albedo
-                        ! 0: off, 1: on
+                        ! 0: off, 1: on, 2: as 1, plus sea-ice albedo
+
+  icpl_da_sfcfric = 0   ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
+                        ! 0: off, 1:on
 
   adjust_tso_tsnow = .FALSE. ! If .TRUE., apply T increments for lowest model level also to snow and upper soil layers
 
@@ -444,6 +451,7 @@ CONTAINS
   config_icpl_da_sfcevap     = icpl_da_sfcevap
   config_icpl_da_skinc       = icpl_da_skinc
   config_icpl_da_snowalb     = icpl_da_snowalb
+  config_icpl_da_sfcfric     = icpl_da_sfcfric
   config_dt_ana              = dt_ana
   config_adjust_tso_tsnow    = adjust_tso_tsnow
   config_lvert_remap_fg      = lvert_remap_fg

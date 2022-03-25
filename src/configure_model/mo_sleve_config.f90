@@ -30,8 +30,8 @@ MODULE mo_sleve_config
   IMPLICIT NONE
 
   PRIVATE
-  PUBLIC :: itype_laydistr, min_lay_thckn, max_lay_thckn, htop_thcknlimit, stretch_fac, top_height
-  PUBLIC :: decay_scale_1, decay_scale_2, decay_exp, flat_height
+  PUBLIC :: itype_laydistr, min_lay_thckn, max_lay_thckn, htop_thcknlimit, nshift_above_thcklay, stretch_fac
+  PUBLIC :: decay_scale_1, decay_scale_2, decay_exp, flat_height, top_height
   PUBLIC :: lread_smt
   !>
   !!--------------------------------------------------------------------------
@@ -47,6 +47,8 @@ MODULE mo_sleve_config
     REAL(wp):: htop_thcknlimit! Height below which the layer thickness must not exceed max_lay_thckn
     REAL(wp):: stretch_fac    ! Factor for stretching/squeezing the model layer distribution
     REAL(wp):: top_height     ! Height of model top
+
+    INTEGER :: nshift_above_thcklay ! Shift above constant-thickness layer for further calculation of layer distribution
 
     ! b) Parameters for SLEVE definition
 

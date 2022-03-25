@@ -16,6 +16,7 @@
 MODULE mo_sleve_nml
 
   USE mo_kind,                ONLY: wp
+  USE mo_exception,           ONLY: finish
   USE mo_io_units,            ONLY: nnml, nnml_output
   USE mo_namelist,            ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_master_control,      ONLY: use_restart_namelists
@@ -26,6 +27,7 @@ MODULE mo_sleve_nml
   USE mo_sleve_config       , ONLY: config_min_lay_thckn => min_lay_thckn, &
     &                               config_max_lay_thckn => max_lay_thckn, &
     &                               config_htop_thcknlimit => htop_thcknlimit, &
+    &                               config_nshift_above_thcklay => nshift_above_thcklay, &
     &                               config_itype_laydistr  => itype_laydistr,  &
     &                               config_top_height    => top_height   , &
     &                               config_decay_scale_1 => decay_scale_1, &
@@ -52,6 +54,8 @@ MODULE mo_sleve_nml
   REAL(wp):: stretch_fac     ! Factor for stretching/squeezing the model layer distribution
   REAL(wp):: top_height      ! Height of model top
 
+  INTEGER :: nshift_above_thcklay ! Shift above constant-thickness layer for further calculation of layer distribution
+
   ! b) Parameters for SLEVE definition
   REAL(wp):: decay_scale_1    ! Decay scale for large-scale topography component
   REAL(wp):: decay_scale_2    ! Decay scale for small-scale topography component
@@ -64,7 +68,7 @@ MODULE mo_sleve_nml
  
   NAMELIST /sleve_nml/ min_lay_thckn, max_lay_thckn, htop_thcknlimit, top_height,         &
                        decay_scale_1, decay_scale_2, decay_exp, flat_height, stretch_fac, &
-                       lread_smt, itype_laydistr
+                       lread_smt, itype_laydistr, nshift_above_thcklay
 
 CONTAINS
   !-------------------------------------------------------------------------
@@ -88,8 +92,7 @@ CONTAINS
     CHARACTER(LEN=*), INTENT(IN) :: filename
     INTEGER :: istat, funit
     INTEGER :: iunit
-    !0!CHARACTER(len=*), PARAMETER ::  &
-    !0!  &  routine = 'mo_sleve_nml:read_sleve_namelist'
+    CHARACTER(len=*), PARAMETER :: routine = 'mo_sleve_nml:read_sleve_namelist'
 
     !-----------------------
     ! 1. default settings   
@@ -101,6 +104,7 @@ CONTAINS
     min_lay_thckn   = 50._wp      ! Layer thickness of lowermost layer
     max_lay_thckn   = 25000._wp   ! Maximum layer thickness below htop_thcknlimit
     htop_thcknlimit = 15000._wp   ! Height below which the layer thickness must not exceed max_lay_thckn
+    nshift_above_thcklay = 0      ! No layer index shift
     top_height      = 23500._wp   ! Height of model top
     stretch_fac     = 1._wp       ! Scaling factor for stretching/squeezing 
                                   ! the model layer distribution
@@ -144,12 +148,18 @@ CONTAINS
     END SELECT
     CALL close_nml
 
+    ! Comment this call if you want to test other values, but be aware that this is not recommended
+    IF (nshift_above_thcklay < 0 .OR. nshift_above_thcklay > 1) THEN
+      CALL finish(TRIM(routine),'nshift_above_thcklay should be 0 or 1')
+    ENDIF
+
     !----------------------------------------------------
     ! 4. Fill the configuration state
     !----------------------------------------------------
     config_min_lay_thckn = min_lay_thckn
     config_max_lay_thckn = max_lay_thckn
     config_htop_thcknlimit = htop_thcknlimit
+    config_nshift_above_thcklay = nshift_above_thcklay
     config_itype_laydistr  = itype_laydistr
     config_top_height    = top_height
     config_decay_scale_1 = decay_scale_1

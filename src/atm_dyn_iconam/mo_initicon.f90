@@ -40,7 +40,7 @@ MODULE mo_initicon
     &                               lp2cintp_incr, lp2cintp_sfcana, ltile_coldstart, lconsistency_checks, &
     &                               niter_divdamp, niter_diffu, lanaread_tseasfc, qcana_mode, qiana_mode, &
     &                               qrsgana_mode, fgFilename, anaFilename, ana_varnames_map_file,         &
-    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow
+    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow, icpl_da_sfcfric
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_advection_config,    ONLY: advection_config
   USE mo_nwp_tuning_config,   ONLY: max_freshsnow_inc
@@ -1161,6 +1161,16 @@ MODULE mo_initicon
       iqidx          => p_patch(jg)%edges%quad_idx
       iqblk          => p_patch(jg)%edges%quad_blk
 
+      IF (lp2cintp_incr(jg)) THEN
+        ! Interpolate wind increments from parent domain (includes synchronization)
+        CALL interpolate_vn_increments(initicon, p_patch(jg)%parent_id, jg)
+      END IF
+
+      IF (icpl_da_sfcfric >= 1) THEN
+        CALL rbf_vec_interpol_cell(p_prog_now%vn, p_patch(jg), p_int_state(jg), p_diag%u, p_diag%v)
+        IF (lp2cintp_incr(jg)) CALL rbf_vec_interpol_cell(initicon(jg)%atm_inc%vn, p_patch(jg), &
+          p_int_state(jg), initicon(jg)%atm_inc%u, initicon(jg)%atm_inc%v)
+      ENDIF
 
       ! 1) Compute analysis increments for rho, exner (rho*theta_v), and rho*qv
       ! 
@@ -1308,6 +1318,15 @@ MODULE mo_initicon
           ENDDO
         ENDIF
 
+        IF (icpl_da_sfcfric >= 1) THEN
+          DO jc = i_startidx, i_endidx
+            p_diag%vabs_avginc(jc,jb) = p_diag%vabs_avginc(jc,jb) + dt_ana/216000._wp * (         &
+              SQRT( (p_diag%u(jc,nlev,jb)+initicon(jg)%atm_inc%u(jc,nlev,jb))**2 +                &
+                    (p_diag%v(jc,nlev,jb)+initicon(jg)%atm_inc%v(jc,nlev,jb))**2 ) -              &
+              SQRT(p_diag%u(jc,nlev,jb)**2 + p_diag%v(jc,nlev,jb)**2) - p_diag%vabs_avginc(jc,jb) )
+          ENDDO
+        ENDIF
+
       ENDDO  ! jb
 !$OMP END DO NOWAIT
 
@@ -1315,7 +1334,7 @@ MODULE mo_initicon
 
       ! 2) compute vn increments (w increment neglected)
       !
-      IF (.NOT. lp2cintp_incr(jg)) THEN ! If increments are interpolated from the parent domain (see below),
+      IF (.NOT. lp2cintp_incr(jg)) THEN ! If increments are interpolated from the parent domain (see top of routine),
                                         ! they are already provided as vn increments
 
         ! include boundary interpolation zone of nested domains and the halo edges as far as possible
@@ -1355,10 +1374,7 @@ MODULE mo_initicon
       ENDIF
 !$OMP END PARALLEL
 
-      IF (lp2cintp_incr(jg)) THEN
-        ! Interpolate wind increments from parent domain (includes synchronization)
-        CALL interpolate_vn_increments(initicon, p_patch(jg)%parent_id, jg)
-      ELSE ! apply synchronization
+      IF (.NOT. lp2cintp_incr(jg)) THEN ! apply synchronization
         CALL sync_patch_array(SYNC_E,p_patch(jg),initicon(jg)%atm_inc%vn)
       END IF
 

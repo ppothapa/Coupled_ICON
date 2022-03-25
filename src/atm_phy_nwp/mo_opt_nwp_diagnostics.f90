@@ -2960,11 +2960,11 @@ CONTAINS
              &                           Tmax_min=synradar_meta%Tmax_min_g, Tmax_max=synradar_meta%Tmax_max_g, Tmax_x=Tmax_g)
 
         IF (atm_phy_nwp_config(jg)%inwp_gscp == 1) THEN
-          itype_gscp_emvo = 3 ! "3" is the corresponding itype_gscp in COSMO and EMVORADO
+          itype_gscp_emvo = 140 ! "140" is the corresponding itype_gscp in COSMO and EMVORADO
         ELSE
-          itype_gscp_emvo = 4 ! "4" is the corresponding itype_gscp in COSMO and EMVORADO
+          itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
         END IF
-        CALL init_1mom_types(itype_gscp=itype_gscp_emvo)
+        CALL init_1mom_types(itype_gscp_fwo=itype_gscp_emvo)
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -3114,7 +3114,7 @@ CONTAINS
           CALL radar_mie_2mom_vec( &
                myproc           = get_my_mpi_work_id(), &
                lambda_radar     = synradar_meta%lambda_radar, &
-               itype_gscp_fwo   = 2001, &
+               itype_gscp_fwo   = 260, &
                itype_refl       = synradar_meta%itype_refl, &
                luse_tmatrix   = (synradar_meta%itype_refl >= 5), &
                ldo_nonsphere  = (synradar_meta%itype_refl == 5), &
@@ -3165,6 +3165,9 @@ CONTAINS
                Tmax_g           = Tmax_g(:,:), &
                Tmax_h           = Tmax_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
+               lalloc_qi        = .TRUE., &
+               lalloc_qs        = .TRUE., &
+               lalloc_qg        = .TRUE., &
                lalloc_qh        = .TRUE., &
                llookup          = synradar_meta%llookup_mie, &
                impipar_lookupgen= 2, &
@@ -3211,6 +3214,9 @@ CONTAINS
                Tmax_g         = Tmax_g(:,:), &
                Tmax_h         = Tmax_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
+               lalloc_qi        = .TRUE., &
+               lalloc_qs        = .TRUE., &
+               lalloc_qg        = .TRUE., &
                lalloc_qh      = .TRUE., &
                zh_radar       = dbz3d_lin(:,:,:), &
                lhydrom_choice_testing = synradar_meta%lhydrom_choice_testing &

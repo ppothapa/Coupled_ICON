@@ -583,14 +583,14 @@ CONTAINS
     SELECT CASE(itype_gscp_model)
     CASE (0)
       ! No microphysics in this case, we just need a dummy value here:
-      itype_gscp_fwo = 3
+      itype_gscp_fwo = 140
     CASE (1)
-      itype_gscp_fwo = 3
+      itype_gscp_fwo = 140
     CASE (2)
-      itype_gscp_fwo = 4
+      itype_gscp_fwo = 150
     CASE (4,5,6,7)
-      ! 2-moment scheme: subtype not important, just a number >= 2000 for EMVORADO
-      itype_gscp_fwo = 2001
+      ! 2-moment scheme including hail:
+      itype_gscp_fwo = 260
     CASE default
       yerrmsg(:) = ' '
       WRITE (yerrmsg,'(a,i3)') 'Error inwp_gscp: scheme not implemented in EMVORADO: inwp_gscp = ', &
@@ -752,7 +752,7 @@ CONTAINS
 
       ! Note: computations include halos and boundaries for consistency to EMVORADO internal computations
       
-      IF (itype_gscp_fwo >= 100) THEN
+      IF (itype_gscp_fwo >= 200) THEN
         CALL init_2mom_types ()
       ELSE
         CALL init_1mom_types (itype_gscp_fwo)
@@ -763,7 +763,12 @@ CONTAINS
         WRITE (*,'(T10,a,T30,a)') 'Rain type:'   , TRIM(rain%name)
         WRITE (*,'(T10,a,T30,a)') 'Ice type:'    , TRIM(ice%name)
         WRITE (*,'(T10,a,T30,a)') 'Snow type:'   , TRIM(snow%name)
-        WRITE (*,'(T10,a,T30,a)') 'Graupel type:', TRIM(graupel%name)
+        IF (lalloc_qg) THEN
+          WRITE (*,'(T10,a,T30,a)') 'Graupel type:', TRIM(graupel%name)
+        END IF
+        IF (lalloc_qh) THEN
+          WRITE (*,'(T10,a,T30,a)') 'Hail type:', TRIM(hail%name)
+        END IF
       END IF
 
     ELSE
@@ -996,10 +1001,11 @@ CONTAINS
 ! - but: a/b_vel in mass (x) space
 ! - unknown/irrelevant parameters set to fill value
 
-  SUBROUTINE init_1mom_types(itype_gscp)
+  SUBROUTINE init_1mom_types(itype_gscp_fwo)
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: itype_gscp
+    INTEGER, INTENT(in) :: itype_gscp_fwo
+    DOUBLE PRECISION    :: rain_n0_factor
 
     cloud%name  = 'cloud1mom'            !.name...Bezeichnung der Partikelklasse
     cloud%mu    = 3.0000d0               !.mu.....Breiteparameter der Verteil.
@@ -1024,17 +1030,22 @@ CONTAINS
     cloud%a_ven = miss_value             !.a_ven..Koeff. Ventilation
     cloud%b_ven = miss_value             !.b_ven..Koeff. Ventilation
 
-    IF (itype_gscp < 4) THEN
-      rain%name  = 'rain1mom_gscp.lt.4' !.name...Bezeichnung der Partikelklasse
-      rain%mu    = 0.0000d0            !.mu.....Breiteparameter der Verteil.
-      rain%n0_const = 8.0d6 * EXP(3.2d0*rain%mu) * (1d-2)**(-rain%mu) !* rain_n0_factor
-                                        !.n0.....Scaling parameter of distribution (only set if constant)
+    IF (itype_gscp_fwo < 150) THEN
+      rain_n0_factor = 1.0d0
     ELSE
-      rain%name  = 'rain1mom_gscp.ge.4' !.name...Bezeichnung der Partikelklasse
-      rain%mu    = 0.5000d0             !.mu.....Breiteparameter der Verteil.
-      rain%n0_const = 8d6 * EXP(3.2d0*rain%mu) * (1d-2)**(-rain%mu) !* rain_n0_factor
-                                        !.n0.....Scaling parameter of distribution (only set if constant)
+      rain_n0_factor = 1.0d0 ! in COSMO-DE graupel scheme it is 0.1 to artificially
+                             ! reduce rain evaporation below cloud base, but we choose 1.0 to not
+                             ! overestimate Z in rain compared to obs
     END IF
+    IF (itype_gscp_fwo < 150) THEN
+      rain%name  = 'rain1mom_nograupel' !.name...Bezeichnung der Partikelklasse
+      rain%mu    = 0.0000d0            !.mu.....Breiteparameter der Verteil.
+    ELSE
+      rain%name  = 'rain1mom_wgraupel' !.name...Bezeichnung der Partikelklasse
+      rain%mu    = 0.5000d0             !.mu.....Breiteparameter der Verteil.
+    END IF
+    rain%n0_const = 8d6 * EXP(3.2d0*rain%mu) * (1d-2)**(-rain%mu) * rain_n0_factor
+                                        !.n0.....Scaling parameter of distribution (only set if constant)
     rain%nu    = 1.0000d0               !.nu.....Exp.-parameter der Verteil.
     rain%x_max = miss_value             !.x_max..maximale Teilchenmasse
     rain%x_min = miss_value             !.x_min..minimale Teilchenmasse
@@ -1079,12 +1090,12 @@ CONTAINS
     ice%a_ven = miss_value              !.a_ven..Koeff. Ventilation
     ice%b_ven = miss_value              !.b_ven..Koeff. Ventilation
 
-    IF (itype_gscp == 4) THEN
-      snow%name  = 'snow1mom_gscp.eq.4' !.name...Bezeichnung der Partikelklasse
-      snow%a_geo = 0.0380d0             !.a_geo..Koeff. Geometrie
-    ELSE
-      snow%name  = 'snow1mom_gscp.ne.4' !.name...Bezeichnung der Partikelklasse
+    IF (itype_gscp_fwo < 150) THEN
+      snow%name  = 'snow1mom_nograupel' !.name...Bezeichnung der Partikelklasse
       snow%a_geo = 0.0690d0             !.a_geo..Koeff. Geometrie
+    ELSE
+      snow%name  = 'snow1mom_stdgraupel' !.name...Bezeichnung der Partikelklasse
+      snow%a_geo = 0.0380d0             !.a_geo..Koeff. Geometrie
     END IF
     snow%b_geo = 2.0000d0               !.b_geo..Koeff. Geometrie
     snow%mu    = 0.0000d0               !.mu.....Breiteparameter der Verteil.
