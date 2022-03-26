@@ -2636,7 +2636,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
   IF (tndsmot.GT.0.0_wp) THEN
      CALL vert_smooth ( &
           i_st, i_en, k_tp=k_tp, k_sf=k_sf, &
-          disc_mom=disc_mom, cur_tend=dif_tend, vertsmot=tndsmot )
+          disc_mom=disc_mom, cur_tend=dif_tend, vertsmot=tndsmot, lacc=lzacc )
   END IF
 
 END SUBROUTINE vert_grad_diff
@@ -3093,8 +3093,7 @@ REAL (KIND=wp), INTENT(INOUT) :: &
                     !out: smoothed vertical tendency profile
    !modifications takes place at levels k_tp+1 until k_sf-1.
 
-LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-LOGICAL :: lzacc
+LOGICAL, INTENT(IN) :: lacc
 
 INTEGER :: &
 !
@@ -3110,32 +3109,28 @@ REAL (KIND=wp) :: &
 
 !----------------------------------------------------------------------------
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
-
 !locals XL_GPUOPT: make this variables allocatables
-!$acc data no_create(sav_tend,versmot,remfact)
+   !$acc data create(sav_tend, versmot, remfact) present( cur_tend, disc_mom ) if(lacc)
+   ! This conditional-create + no_create combo is to omit the ACC present checks.
+   !$acc data no_create( sav_tend, versmot, remfact, cur_tend, disc_mom, smotfac ) 
 
    IF (imode_frcsmot.EQ.2 .AND. PRESENT(smotfac)) THEN
-     !$acc parallel default(present) async(1) if(lzacc)
+     !$acc parallel default(present) async(1) if(lacc)
      !$acc loop gang vector
      DO i=i_st,i_en
         versmot(i) = vertsmot*smotfac(i)
      END DO
      !$acc end parallel
    ELSE
-     !$acc parallel default(present) async(1) if(lzacc)
+     !$acc parallel default(present) async(1) if(lacc)
      !$acc loop gang vector
-     DO i=1, SIZE(cur_tend,1)
+     DO i=i_st,i_en
         versmot(i) = vertsmot
      END DO
      !$acc end parallel
    ENDIF
    
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop gang vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
@@ -3145,7 +3140,7 @@ REAL (KIND=wp) :: &
    k=k_tp+1
    j1=1; j2=2
 !DIR$ IVDEP
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop gang vector
    DO i=i_st,i_en
       sav_tend(i,j1)=cur_tend(i,k)
@@ -3155,14 +3150,15 @@ REAL (KIND=wp) :: &
    END DO
    !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop gang vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-2.0_wp*versmot(i)
    END DO
    !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
+   !$acc loop seq
    DO k=k_tp+2, k_sf-2
       j0=j1; j1=j2; j2=j0
 !DIR$ IVDEP
@@ -3177,7 +3173,7 @@ REAL (KIND=wp) :: &
    END DO
    !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop gang vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
@@ -3187,7 +3183,7 @@ REAL (KIND=wp) :: &
    k=k_sf-1
    j2=j1
 !DIR$ IVDEP
-   !$acc parallel default(present) async(1) if(lzacc)
+   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop gang vector
    DO i=i_st,i_en
       cur_tend(i,k) =remfact(i)* cur_tend(i,k)                   &
@@ -3196,6 +3192,7 @@ REAL (KIND=wp) :: &
    END DO
    !$acc end parallel
    
+   !$acc end data
    !$acc end data
    !$acc wait
 
