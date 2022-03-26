@@ -52,6 +52,7 @@ MODULE mo_nwp_ecrad_utilities
                                    &   ecRad_IH2O, ecRad_ICO2, ecRad_IO3,        &
                                    &   ecRad_IN2O, ecRad_ICH4,                   &
                                    &   ecRad_IO2, ecRad_ICFC11, ecRad_ICFC12,    &
+                                   &   ecRad_IHCFC22, ecRad_ICCl4,               &
                                    &   nweight_par_ecrad, iband_par_ecrad,       &
                                    &   weight_par_ecrad
 #endif
@@ -399,6 +400,11 @@ CONTAINS
   !!   11        : Read ozone from SCM input instead of here.
   !! The finish calls in case default should never trigger as the values for irad_xyz
   !! were already checked in mo_nml_crosscheck.
+  !! 
+  !! Care has to be taken for the indices that are passed to ecRad:
+  !! - Values outside i_startidx:i_endidx are not initialized and must not be accessed
+  !! - This interval might be smaller than jcs:jce
+  !! - There is a documentation of the indices in the header of get_indices_rad_subblock
   !!
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-13)
@@ -445,7 +451,7 @@ CONTAINS
         CALL ecrad_gas%put_well_mixed(ecRad_IH2O, IVolumeMixingRatio, 0._wp,  istartcol=i_startidx, iendcol=i_endidx, &
           &                           use_acc=lacc)
       CASE(1) ! Use values from diagnosed water vapor content
-        CALL ecrad_gas%put(ecRad_IH2O, IMassMixingRatio, qv(:,:), use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IH2O, IMassMixingRatio, qv(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_h2o = 0, 1')
     END SELECT
@@ -457,7 +463,7 @@ CONTAINS
           &                           use_acc=lacc)
       CASE(5,7,9,79,97) ! Use values from GEMS/MACC (different profiles)
                         ! or time dependent concentration from external file
-        CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(:,:), use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
       CASE(11) ! Ozone is read from SCM input file
         CALL message('mo_nwp_ecrad_utilities: irad_o3=11', &
           &          'Ozone used for radiation is read from SCM input file')
@@ -536,7 +542,7 @@ CONTAINS
         ALLOCATE(n2o(ncol,nlev))
         !$ACC ENTER DATA CREATE(n2o) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_n2o, pres, vpp_n2o, i_startidx, i_endidx, nlev, n2o(:,:), use_acc=lacc)
-        CALL ecrad_gas%put(ecRad_IN2O,  IVolumeMixingRatio, n2o(:,:), use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IN2O,  IVolumeMixingRatio, n2o(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
         !$ACC WAIT
         !$ACC EXIT DATA DELETE(n2o) IF(lacc)
         DEALLOCATE(n2o)
@@ -559,7 +565,7 @@ CONTAINS
         ALLOCATE(ch4(ncol,nlev))
         !$ACC ENTER DATA CREATE(ch4) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_ch4, pres, vpp_ch4, i_startidx, i_endidx, nlev, ch4(:,:), use_acc=lacc)
-        CALL ecrad_gas%put(ecRad_ICH4,  IVolumeMixingRatio, ch4(:,:), use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_ICH4,  IVolumeMixingRatio, ch4(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
         !$ACC WAIT
         !$ACC EXIT DATA DELETE(ch4) IF(lacc)
         DEALLOCATE(ch4)
@@ -570,9 +576,14 @@ CONTAINS
         CALL finish(routine, 'Current implementation only supports irad_ch4 = 0, 2, 3, 4')
     END SELECT
 
+    ! The following gases are currently not filled from the ICON side. Although they are set to 0 inside ecrad, 
+    ! they are set to 0 here for completeness. 
+    CALL ecrad_gas%put_well_mixed(ecRad_IHCFC22,IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx, &
+      &                           use_acc=lacc)
+    CALL ecrad_gas%put_well_mixed(ecRad_ICCl4,  IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx, &
+      &                           use_acc=lacc)
+
     CALL ecrad_set_gas_units(ecrad_conf, ecrad_gas, use_acc=lacc)
-    ! Possible further gases to be added: CO, HCFC22, CCl4, NO2
-    !$ACC UPDATE DEVICE(ecrad_gas%mixing_ratio) IF(lacc)
 
 #ifndef __ECRAD_ACC
     !$ACC UPDATE DEVICE(ecrad_gas%mixing_ratio) IF(lacc)
