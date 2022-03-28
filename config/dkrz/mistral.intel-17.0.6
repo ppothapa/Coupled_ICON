@@ -42,7 +42,7 @@ FC='mpif90'
 FCFLAGS="-I${NETCDFF_ROOT}/include -gdwarf-4 -g -march=native -pc64 -fp-model source"
 ICON_FCFLAGS='-O2 -assume realloc_lhs -ftz -DDO_NOT_COMBINE_PUT_AND_NOCHECK'
 ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec'
-ICON_ECRAD_FCFLAGS="-qno-opt-dynamic-align -no-fma"
+ICON_ECRAD_FCFLAGS="-qno-opt-dynamic-align -no-fma -fpe0"
 
 LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 ${MKL_LDFLAGS}"
 LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS}"
