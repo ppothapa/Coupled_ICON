@@ -83,7 +83,7 @@ ICON_FCFLAGS='-finline-functions -finline-file=${ICON_DIR}/src/atm_phy_schemes/m
 
 
 ICON_OCEAN_FCFLAGS='-O2'
-ICON_ECRAD_FCFLAGS="-D__ECRAD_LITTLE_ENDIAN -finline-functions -finline-file=${ICON_DIR}/externals/ecrad/radiation/radiation_two_stream.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_liquid_optics_socrates.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_ice_optics_fu.F90"
+ICON_ECRAD_FCFLAGS="-finline-functions -finline-file=${ICON_DIR}/externals/ecrad/radiation/radiation_two_stream.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_liquid_optics_socrates.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_ice_optics_fu.F90"
 
 LDFLAGS="-L${ZLIBROOT}/lib -L${AEC_DIR}/lib -L${SZIPROOT}/lib -L${HDF5_DIR}/lib -L${NETCDF_DIR}/lib -L${RTTOV_ROOT}/lib -L${ECCODES_LIB_DIR} -L${LAPACKROOT}/lib -L${XML2ROOT}/lib -traceback=verbose -static -static-nec"
 
