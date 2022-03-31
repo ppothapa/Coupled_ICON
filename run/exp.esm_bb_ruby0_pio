@@ -643,86 +643,65 @@ cat > ${atm_namelist} << EOF
 &diffusion_nml
 /
 &transport_nml
- tracer_names     = 'hus','clw','cli'
- ivadv_tracer     =    3 ,   3 ,   3
- itype_hlimit     =    3 ,   4 ,   4
- ihadv_tracer     =   52 ,   2 ,   2
+ tracer_names     = 'hus','clw','cli','qr','qs','qg'
+ ivadv_tracer     =    3 ,   3 ,   3 ,  3 ,  3 ,  3
+ itype_hlimit     =    3 ,   4 ,   4 ,  4 ,  4 ,  4
+ ihadv_tracer     =   52 ,   2 ,   2 ,  2 ,  2 ,  2
 /
-&echam_phy_nml
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric phyiscs (""=never)
- echam_phy_config(1)%dt_rad = "${radTimeStep}"
- echam_phy_config(1)%dt_vdf = "${atmTimeStep}"
- echam_phy_config(1)%dt_cnv = "${atmTimeStep}"
- echam_phy_config(1)%dt_cld = "${atmTimeStep}"
- echam_phy_config(1)%dt_gwd = "${atmTimeStep}"
- echam_phy_config(1)%dt_sso = "${atmTimeStep}"
-!
-! atmospheric chemistry (""=never)
- echam_phy_config(1)%dt_mox = "${atmTimeStep}"
- echam_phy_config(1)%dt_car = ""
- echam_phy_config(1)%dt_art = ""
+ aes_phy_config(1)%dt_rad = "${radTimeStep}"
+ aes_phy_config(1)%dt_vdf = "${atmTimeStep}"
+ aes_phy_config(1)%dt_mig = "${atmTimeStep}"
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .TRUE.
- echam_phy_config(1)%lamip  = .FALSE.
- echam_phy_config(1)%lice   = .TRUE.
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = ${llake}
+ aes_phy_config(1)%ljsb   = .TRUE.
+ aes_phy_config(1)%lamip  = .FALSE.
+ aes_phy_config(1)%lice   = .TRUE.
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = ${llake}
 !
 ! fix negative humidity (default=0, no correction)
-! echam_phy_config(1)%iqneg_d2p = 0
-! echam_phy_config(1)%iqneg_p2d = 0
+! aes_phy_config(1)%iqneg_d2p = 0
+! aes_phy_config(1)%iqneg_p2d = 0
 /
-&echam_rad_nml
+&aes_rad_nml
 !
 ! domain 1
 ! --------
 !
- echam_rad_config(1)%isolrad    =  6
- echam_rad_config(1)%irad_h2o   =  1
- echam_rad_config(1)%irad_co2   =  3
- echam_rad_config(1)%irad_ch4   = 13
- echam_rad_config(1)%irad_n2o   = 13 
- echam_rad_config(1)%irad_o3    =  6          ! constant annual cycle climatology
- echam_rad_config(1)%irad_o2    =  2
- echam_rad_config(1)%irad_cfc11 =  3
- echam_rad_config(1)%irad_cfc12 =  3
- echam_rad_config(1)%irad_aero  =  0
- echam_rad_config(1)%vmr_co2    = 284.317e-6  ! constant volume mixing ration
- echam_rad_config(1)%vmr_ch4    = 808.249e-9  ! constant volume mixing ration
- echam_rad_config(1)%vmr_n2o    = 273.021e-9  ! constant volume mixing ration
- echam_rad_config(1)%lyr_perp   =  .TRUE.
- echam_rad_config(1)%yr_perp    =  1850
+ aes_rad_config(1)%isolrad    =  6
+ aes_rad_config(1)%irad_h2o   =  1
+ aes_rad_config(1)%irad_co2   =  3
+ aes_rad_config(1)%irad_ch4   = 13
+ aes_rad_config(1)%irad_n2o   = 13 
+ aes_rad_config(1)%irad_o3    =  6          ! constant annual cycle climatology
+ aes_rad_config(1)%irad_o2    =  2
+ aes_rad_config(1)%irad_cfc11 =  3
+ aes_rad_config(1)%irad_cfc12 =  3
+ aes_rad_config(1)%irad_aero  =  0
+ aes_rad_config(1)%vmr_co2    = 284.317e-6  ! constant volume mixing ration
+ aes_rad_config(1)%vmr_ch4    = 808.249e-9  ! constant volume mixing ration
+ aes_rad_config(1)%vmr_n2o    = 273.021e-9  ! constant volume mixing ration
+ aes_rad_config(1)%lyr_perp   =  .TRUE.
+ aes_rad_config(1)%yr_perp    =  1850
 /
-&echam_gwd_nml
+&aes_vdf_nml
+ !aes_vdf_config(1)%pr0        = 0.8       ! neutral limit Prandtl number - default: 1.0
+ aes_vdf_config(1)%fsl        = 0.5       ! default: 0.4
 /
-&echam_sso_nml
- echam_sso_config(1)%gkdrag     = 0.03      ! default: 0.05
- echam_sso_config(1)%gkwake     = 0.03      ! default: 0.05
- echam_sso_config(:)%gklift     = 0.7       ! default: 0.
+&cloud_mig_nml
+ cloud_mig_config(1)%mu_rain        = 0.5
+ cloud_mig_config(1)%rain_n0_factor = 0.1
+ cloud_mig_config(1)%v0snow         = 25.
 /
-&echam_vdf_nml
- !echam_vdf_config(1)%pr0        = 0.8       ! neutral limit Prandtl number - default: 1.0
- echam_vdf_config(1)%fsl        = 0.5       ! default: 0.4
-/
-&echam_cnv_nml
- echam_cnv_config(1)%entrpen    = 0.00015   ! default: 0.0003  (old default: 0.0002)
- !echam_cnv_config(1)%cmfctop    = 0.1       ! default: 0.1     (old default: 0.2)
- !echam_cnv_config(1)%entrscv    = 0.0003    ! default: 0.0003  (old default: 0.003)
-/
-&echam_cld_nml
- !echam_cld_config(1)%csecfrl    = 1.0e-5    ! threshold for ice and water in clouds, default 1.5e-5
- !echam_cld_config(1)%ccraut     = 2.0       ! default: 2.0     (default was 15.0)
- !echam_cld_config(1)%ccsaut     = 2.0       ! default: 2.0     (default was 95.0)
- !echam_cld_config(1)%cauloc     = 1.0       ! default: 1.0     (default was 10.0)
-/
-&echam_cov_nml
- echam_cov_config(1)%crs        = 0.978     ! Critical relative humidity at surface, default 0.968
- !echam_cov_config(1)%crt        = 0.82      ! Critical relative humidity at toa, default 0.8
+&aes_cov_nml
+ aes_cov_config(1)%crs        = 0.978     ! Critical relative humidity at surface, default 0.968
+ !aes_cov_config(1)%crt        = 0.82      ! Critical relative humidity at toa, default 0.8
 /
 &sea_ice_nml
  !albs                           = 0.8       ! Albedo of snow (not melting)              !  def: 0.85
@@ -1061,8 +1040,7 @@ if [[ "$output_atm_3d" == "yes" ]]; then
                     'rho'     , 'ta'      ,
                     'ua'      , 'va'      , 'wap'     ,
                     'hus'     , 'clw'     , 'cli'     ,
-                    'hur'     , 'cl'      ,
-!                    'qo3_phy' ,
+                    'cl'      ,
 /
 EOF
 fi
@@ -1094,14 +1072,12 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'sic'     , 'sit'     ,
                     'albedo'  ,
                     'clt'     ,
-                    'prlr'    , 'prls'    , 'prcr'    , 'prcs'    ,
+                    'prlr'    , 'prls'    ,
                     'pr'      , 'prw'     , 'cllvi'   , 'clivi'   ,
                     'hfls'    , 'hfss'    , 'evspsbl' ,
                     'tauu'    , 'tauv'    ,
-                    'tauu_sso', 'tauv_sso', 'diss_sso',
                     'sfcwind' , 'uas'     , 'vas'     ,
                     'tas'     , 'dew2'    ,
-                    'ptp'
 /
 EOF
 fi
@@ -1124,16 +1100,13 @@ if [[ "$output_phy_3d" == "yes" ]]; then
  include_last     = .FALSE.
  ml_varlist       = 'ps'           , 'pfull'        ,
                     'tend_ta'      , 'tend_ta_dyn'  , 'tend_ta_phy'  ,
-                    'tend_ta_vdf'  , 'tend_ta_gwd'  , 'tend_ta_sso'  ,
-                    'tend_ta_cnv'  , 'tend_ta_cld'  , 
+                    'tend_ta_vdf'  ,
                     'tend_ua'      , 'tend_ua_dyn'  , 'tend_ua_phy'  ,
-                    'tend_ua_vdf'  , 'tend_ua_gwd'  , 'tend_ua_sso'  ,
-                    'tend_ua_cnv'  ,
+                    'tend_ua_vdf'  ,
                     'tend_va'      , 'tend_va_dyn'  , 'tend_va_phy'  ,
-                    'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
-                    'tend_va_cnv'  ,
+                    'tend_va_vdf'  ,
                     'tend_qhus'    , 'tend_qhus_dyn', 'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf'
+                    'tend_qhus_vdf'
 /
 EOF
 fi

@@ -24,7 +24,7 @@ MODULE mo_cloud_gas_profiles
   USE mo_impl_constants,       ONLY: max_dom
   USE mo_run_config,           ONLY: nlev, ntracer
   USE mo_parallel_config,      ONLY: nproma
-  USE mo_echam_rad_config,     ONLY: echam_rad_config
+  USE mo_aes_rad_config,       ONLY: aes_rad_config
   USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
   USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
   USE mo_bc_ozone,             ONLY: ext_ozone
@@ -47,7 +47,7 @@ MODULE mo_cloud_gas_profiles
     ! irad=0: gas VMR is set to zero
     ! irad=1: gas VMR taken from interactively transported tracer of icon
     ! irad=2: gas VMR taken from namelist as stored in
-    !         echam_rad_config(:)%vmr_<gas>
+    !         aes_rad_config(:)%vmr_<gas>
     ! irad=3: gas VMR taken from greenhouse gas scenario as given by variables
     !         ghg_<gas>mmr (but is volume mixing ratio!) of
     !         mo_bc_greenhouse_gases
@@ -88,56 +88,56 @@ CONTAINS
     DO jg=1,max_dom
 !   H2O
       gas(1,jg)%name = 'h2o  '
-      gas(1,jg)%irad = echam_rad_config(jg)% irad_h2o
+      gas(1,jg)%irad = aes_rad_config(jg)% irad_h2o
       gas(1,jg)%vmr  = missing_value
       gas(1,jg)%itrac= iqv
-      gas(1,jg)%frad = echam_rad_config(jg)% frad_h2o
+      gas(1,jg)%frad = aes_rad_config(jg)% frad_h2o
       gas(1,jg)%mmr2vmr = amd/amw
 !   CO2    
       gas(2,jg)%name = 'co2  '
-      gas(2,jg)%irad = echam_rad_config(jg)% irad_co2
-      gas(2,jg)%vmr  = echam_rad_config(jg)% vmr_co2
+      gas(2,jg)%irad = aes_rad_config(jg)% irad_co2
+      gas(2,jg)%vmr  = aes_rad_config(jg)% vmr_co2
       gas(2,jg)%itrac= MIN(ico2,ntracer)
-      gas(2,jg)%frad = echam_rad_config(jg)% frad_co2
+      gas(2,jg)%frad = aes_rad_config(jg)% frad_co2
       gas(2,jg)%mmr2vmr = amd/amco2
 !   CH4
       gas(3,jg)%name = 'ch4  '
-      gas(3,jg)%irad = echam_rad_config(jg)% irad_ch4
-      gas(3,jg)%vmr  = echam_rad_config(jg)% vmr_ch4
+      gas(3,jg)%irad = aes_rad_config(jg)% irad_ch4
+      gas(3,jg)%vmr  = aes_rad_config(jg)% vmr_ch4
       gas(3,jg)%vpp(:)  = vpp_ch4(:)
-      gas(3,jg)%frad = echam_rad_config(jg)% frad_ch4
+      gas(3,jg)%frad = aes_rad_config(jg)% frad_ch4
       gas(3,jg)%mmr2vmr = amd/amch4
 !   O2
       gas(4,jg)%name = 'o2  '
-      gas(4,jg)%irad = echam_rad_config(jg)% irad_o2
-      gas(4,jg)%vmr  = echam_rad_config(jg)% vmr_o2
-      gas(4,jg)%frad = echam_rad_config(jg)% frad_o2
+      gas(4,jg)%irad = aes_rad_config(jg)% irad_o2
+      gas(4,jg)%vmr  = aes_rad_config(jg)% vmr_o2
+      gas(4,jg)%frad = aes_rad_config(jg)% frad_o2
       gas(4,jg)%mmr2vmr = amd/amo2
 !   O3
       gas(5,jg)%name = 'o3  '
-      gas(5,jg)%irad = echam_rad_config(jg)% irad_o3
+      gas(5,jg)%irad = aes_rad_config(jg)% irad_o3
       gas(5,jg)%vmr  = missing_value
       gas(5,jg)%itrac= MIN(io3,ntracer)
-      gas(5,jg)%frad = echam_rad_config(jg)% frad_o3
+      gas(5,jg)%frad = aes_rad_config(jg)% frad_o3
       gas(5,jg)%mmr2vmr = amd/amo3
 !   N2O
       gas(6,jg)%name = 'n2o  '
-      gas(6,jg)%irad = echam_rad_config(jg)% irad_n2o
-      gas(6,jg)%vmr  = echam_rad_config(jg)% vmr_n2o
+      gas(6,jg)%irad = aes_rad_config(jg)% irad_n2o
+      gas(6,jg)%vmr  = aes_rad_config(jg)% vmr_n2o
       gas(6,jg)%vpp(:)  = vpp_n2o(:)
-      gas(6,jg)%frad = echam_rad_config(jg)% frad_n2o
+      gas(6,jg)%frad = aes_rad_config(jg)% frad_n2o
       gas(6,jg)%mmr2vmr = amd/amn2o
 !   CFC11
       gas(7,jg)%name = 'cfc11  '
-      gas(7,jg)%irad = echam_rad_config(jg)% irad_cfc11
-      gas(7,jg)%vmr  = echam_rad_config(jg)% vmr_cfc11
-      gas(7,jg)%frad = echam_rad_config(jg)% frad_cfc11
+      gas(7,jg)%irad = aes_rad_config(jg)% irad_cfc11
+      gas(7,jg)%vmr  = aes_rad_config(jg)% vmr_cfc11
+      gas(7,jg)%frad = aes_rad_config(jg)% frad_cfc11
       gas(7,jg)%mmr2vmr = amd/amc11
 !   CFC12
       gas(8,jg)%name = 'cfc12  '
-      gas(8,jg)%irad = echam_rad_config(jg)% irad_cfc12
-      gas(8,jg)%vmr  = echam_rad_config(jg)% vmr_cfc12
-      gas(8,jg)%frad = echam_rad_config(jg)% frad_cfc12
+      gas(8,jg)%irad = aes_rad_config(jg)% irad_cfc12
+      gas(8,jg)%vmr  = aes_rad_config(jg)% vmr_cfc12
+      gas(8,jg)%frad = aes_rad_config(jg)% frad_cfc12
       gas(8,jg)%mmr2vmr = amd/amc12
     END DO
 
@@ -167,11 +167,11 @@ CONTAINS
     & xm_trc(kbdim,klev,ntracer),& !> tracer mass in layer [kg/m^2], see remark below:
     !> Dynamics: the transported quantities are tracer mass per mass moist air
     !> in contrast to many other models.
-    !> When the program enters the physics part of "echam physics", the tracer concentrations
+    !> When the program enters the physics part of "aes physics", the tracer concentrations
     !> are converted either to mass mixing ratios (so, tracer mass divided by dry air mass)
-    !> if ldrymoist (echam_phy_nml) is .true. or the mass fractions (tracer mass divided by
+    !> if ldrymoist (aes_phy_nml) is .true. or the mass fractions (tracer mass divided by
     !> the mass of moist air) are directly taken from the dynamics part (ldrymoist=.false.).
-    !> See the interface routine interface_iconam_echam (mo_interface_iconam_echam.f90).
+    !> See the interface routine interface_iconam_aes (mo_interface_iconam_aes.f90).
     !> The result is stored in (prm)field%qtrc such that these values depend on the choice of the
     !> namelist parameter ldrymoist and represent either mass mixing ratios or mass fractions.
     !> Radiation needs volume mixing ratios (so with respect to dry air).
@@ -352,10 +352,10 @@ CONTAINS
     INTEGER                    :: jl, jk
     REAL(wp)                   :: frad
 
-    frad = echam_rad_config(jg)% frad_h2o
+    frad = aes_rad_config(jg)% frad_h2o
 
     !$ACC DATA PRESENT (xm_liq, xm_ice, xm_trc, xc_frc, cld_frc, cld_cvr)
-    SELECT CASE (echam_rad_config(jg)%irad_h2o)
+    SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
       !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
       xm_liq(jcs:jce,:)=0._wp

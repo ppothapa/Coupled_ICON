@@ -41,17 +41,13 @@ MODULE mo_read_namelists
 
   USE mo_advection_nml       ,ONLY: read_transport_namelist
 
-  USE mo_echam_phy_nml       ,ONLY: process_echam_phy_nml
-  USE mo_echam_cld_nml       ,ONLY: process_echam_cld_nml
+  USE mo_aes_phy_nml         ,ONLY: process_aes_phy_nml
   USE mo_cloud_mig_nml       ,ONLY: process_cloud_mig_nml
-  USE mo_echam_cnv_nml       ,ONLY: process_echam_cnv_nml
-  USE mo_echam_cov_nml       ,ONLY: process_echam_cov_nml
-  USE mo_echam_cop_nml       ,ONLY: process_echam_cop_nml
-  USE mo_echam_wmo_nml       ,ONLY: process_echam_wmo_nml
-  USE mo_echam_gwd_nml       ,ONLY: process_echam_gwd_nml
-  USE mo_echam_rad_nml       ,ONLY: process_echam_rad_nml
-  USE mo_echam_sso_nml       ,ONLY: process_echam_sso_nml
-  USE mo_echam_vdf_nml       ,ONLY: process_echam_vdf_nml
+  USE mo_aes_cov_nml         ,ONLY: process_aes_cov_nml
+  USE mo_aes_cop_nml         ,ONLY: process_aes_cop_nml
+  USE mo_aes_wmo_nml         ,ONLY: process_aes_wmo_nml
+  USE mo_aes_rad_nml         ,ONLY: process_aes_rad_nml
+  USE mo_aes_vdf_nml         ,ONLY: process_aes_vdf_nml
   USE mo_ccycle_nml          ,ONLY: process_ccycle_nml
   
   USE mo_nwp_phy_nml         ,ONLY: read_nwp_phy_namelist
@@ -84,14 +80,11 @@ MODULE mo_read_namelists
   USE mo_limarea_nml         ,ONLY: read_limarea_namelist
 
   USE mo_run_config          ,ONLY: iforcing
-  USE mo_impl_constants      ,ONLY: IECHAM, ILDF_ECHAM, INWP
+  USE mo_impl_constants      ,ONLY: iaes, ILDF_ECHAM, INWP
   USE mo_assimilation_nml    ,ONLY: read_assimilation_namelist
   USE mo_nudging_nml         ,ONLY: read_nudging_namelist
   USE mo_upatmo_nml          ,ONLY: read_upatmo_namelist
   USE mo_ser_nml             ,ONLY: read_ser_namelist
-
-  !OEM
-  USE mo_oem_nml             ,ONLY: read_oemctrl_namelist
 
   IMPLICIT NONE
 
@@ -170,24 +163,20 @@ CONTAINS
     ! Physics
     !
     SELECT CASE (iforcing)
-    CASE (IECHAM, ILDF_ECHAM)
+    CASE (iaes, ILDF_ECHAM)
        !
-       ! ECHAM physics ...
-       CALL process_echam_phy_nml        (atm_namelist_filename(1:tlen))
+       ! AES physics ...
+       CALL process_aes_phy_nml          (atm_namelist_filename(1:tlen))
        !
        ! ... and the employed parameterizations
-       CALL process_echam_cld_nml        (atm_namelist_filename(1:tlen))
        CALL process_cloud_mig_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_cnv_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_cov_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_cop_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_wmo_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_gwd_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_rad_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_sso_nml        (atm_namelist_filename(1:tlen))
-       CALL process_echam_vdf_nml        (atm_namelist_filename(1:tlen))
+       CALL process_aes_cov_nml          (atm_namelist_filename(1:tlen))
+       CALL process_aes_cop_nml          (atm_namelist_filename(1:tlen))
+       CALL process_aes_wmo_nml          (atm_namelist_filename(1:tlen))
+       CALL process_aes_rad_nml          (atm_namelist_filename(1:tlen))
+       CALL process_aes_vdf_nml          (atm_namelist_filename(1:tlen))
        !
-       ! Carbon cycle for ECHAM physics/JSBACH/HAMOCC
+       ! Carbon cycle for AES physics/JSBACH/HAMOCC
        CALL process_ccycle_nml           (atm_namelist_filename(1:tlen))
        !
        CALL read_sea_ice_namelist        (atm_namelist_filename(1:tlen))
@@ -239,9 +228,6 @@ CONTAINS
 
     ! Assimilation
     CALL read_assimilation_namelist   (atm_namelist_filename(1:tlen))
-
-    !OEM
-    CALL read_oemctrl_namelist        (atm_namelist_filename(1:tlen))
 
     ! Serialization
     !$ser verbatim CALL read_ser_namelist(atm_namelist_filename(1:tlen))

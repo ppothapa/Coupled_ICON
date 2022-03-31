@@ -140,63 +140,63 @@ cat > ${atmo_namelist} << EOF
  itype_hlimit     =    3 ,   4 ,   4 ,   4 ,   4 ,   4
  ihadv_tracer     =   22 ,   2 ,   2 ,   2 ,   2 ,   2
 /
-&echam_phy_nml
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric physics (""=off)
- echam_phy_config(1)%dt_rad = "PT12M"
- echam_phy_config(1)%dt_vdf = "PT40S"
- echam_phy_config(1)%dt_mig = "PT40S"
+ aes_phy_config(1)%dt_rad = "PT12M"
+ aes_phy_config(1)%dt_vdf = "PT40S"
+ aes_phy_config(1)%dt_mig = "PT40S"
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .TRUE.
- echam_phy_config(1)%lamip  = .TRUE.
- echam_phy_config(1)%lice   = .TRUE.
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = ${llake}
+ aes_phy_config(1)%ljsb   = .TRUE.
+ aes_phy_config(1)%lamip  = .TRUE.
+ aes_phy_config(1)%lice   = .TRUE.
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = ${llake}
 !
 ! top height for cloud processes
- echam_phy_config(1)%zmaxcloudy = ${htop_cloudy}
+ aes_phy_config(1)%zmaxcloudy = ${htop_cloudy}
 !
 ! fix negative humidity
- echam_phy_config(1)%iqneg_d2p  = 2     ! after dynamics: set neg. humidity to 0
- echam_phy_config(1)%iqneg_p2d  = 2     ! after physics : set neg. humidity to 0
+ aes_phy_config(1)%iqneg_d2p  = 2     ! after dynamics: set neg. humidity to 0
+ aes_phy_config(1)%iqneg_p2d  = 2     ! after physics : set neg. humidity to 0
 /
-&echam_cov_nml
- echam_cov_config(1)%icov       = 3     ! 0/1 scheme based on cloud condensate
- echam_cov_config(1)%cqx        = 1.e-6
+&aes_cov_nml
+ aes_cov_config(1)%icov       = 3     ! 0/1 scheme based on cloud condensate
+ aes_cov_config(1)%cqx        = 1.e-6
 /
-&echam_cop_nml
- echam_cop_config(1)%cn1lnd     =  50.0
- echam_cop_config(1)%cn2lnd     = 220.0
- echam_cop_config(1)%cn1sea     =  50.0
- echam_cop_config(1)%cn2sea     = 100.0
- echam_cop_config(1)%cinhomi    =   1.0
- echam_cop_config(1)%cinhoml1   =   1.0
- echam_cop_config(1)%cinhoml2   =   1.0
- echam_cop_config(1)%cinhoml3   =   1.0
+&aes_cop_nml
+ aes_cop_config(1)%cn1lnd     =  50.0
+ aes_cop_config(1)%cn2lnd     = 220.0
+ aes_cop_config(1)%cn1sea     =  50.0
+ aes_cop_config(1)%cn2sea     = 100.0
+ aes_cop_config(1)%cinhomi    =   1.0
+ aes_cop_config(1)%cinhoml1   =   1.0
+ aes_cop_config(1)%cinhoml2   =   1.0
+ aes_cop_config(1)%cinhoml3   =   1.0
 /
-&echam_rad_nml
+&aes_rad_nml
 !
 ! domain 1
 ! --------
 !
- echam_rad_config(1)%isolrad    =  1
- echam_rad_config(1)%irad_h2o   =  1
- echam_rad_config(1)%irad_co2   =  3
- echam_rad_config(1)%irad_ch4   =  13
- echam_rad_config(1)%irad_n2o   =  13
- echam_rad_config(1)%irad_o3    =  5
- echam_rad_config(1)%irad_o2    =  2
- echam_rad_config(1)%irad_cfc11 =  3
- echam_rad_config(1)%irad_cfc12 =  3
- echam_rad_config(1)%irad_aero  =  0
- echam_rad_config(1)%rrtmgp_columns_chunk = 100
+ aes_rad_config(1)%isolrad    =  1
+ aes_rad_config(1)%irad_h2o   =  1
+ aes_rad_config(1)%irad_co2   =  3
+ aes_rad_config(1)%irad_ch4   =  13
+ aes_rad_config(1)%irad_n2o   =  13
+ aes_rad_config(1)%irad_o3    =  5
+ aes_rad_config(1)%irad_o2    =  2
+ aes_rad_config(1)%irad_cfc11 =  3
+ aes_rad_config(1)%irad_cfc12 =  3
+ aes_rad_config(1)%irad_aero  =  0
+ aes_rad_config(1)%rrtmgp_columns_chunk = 100
 /
-&echam_vdf_nml
- echam_vdf_config(1)%pr0        =  0.7
+&aes_vdf_nml
+ aes_vdf_config(1)%pr0        =  0.7
 /
 &cloud_mig_nml
  cloud_mig_config(1)%mu_rain        = 0.5

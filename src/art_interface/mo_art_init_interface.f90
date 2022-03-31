@@ -46,11 +46,11 @@ MODULE mo_art_init_interface
                                           &   deallocateTimedelta
   USE mo_art_collect_atmo_state,        ONLY: art_collect_atmo_state_nwp,       &
                                           &   art_update_atmo_state_nwp,        &
-                                          &   art_collect_atmo_state_echam,     &
-                                          &   art_update_atmo_state_echam,      &
+                                          &   art_collect_atmo_state_aes,       &
+                                          &   art_update_atmo_state_aes,        &
                                           &   art_collect_radiation_properties, &
                                           &   art_init_tracer_values_nwp,       &
-                                          &   art_init_tracer_values_echam
+                                          &   art_init_tracer_values_aes
 
   USE mo_art_init_all_dom,              ONLY: art_init_all_dom
   USE mo_art_init,                      ONLY: art_init
@@ -67,7 +67,7 @@ MODULE mo_art_init_interface
   PRIVATE
 
   PUBLIC :: art_init_interface, art_calc_ntracer_and_names
-  PUBLIC :: art_init_atmo_tracers_nwp, art_init_atmo_tracers_echam
+  PUBLIC :: art_init_atmo_tracers_nwp, art_init_atmo_tracers_aes
   PUBLIC :: art_init_radiation_properties
   PUBLIC :: art_update_atmo_phy
 
@@ -457,7 +457,7 @@ END SUBROUTINE art_init_atmo_tracers_nwp
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-SUBROUTINE art_init_atmo_tracers_echam(jg, mtime_current, p_nh_state, &
+SUBROUTINE art_init_atmo_tracers_aes  (jg, mtime_current, p_nh_state, &
                  &                     p_prog, tracer, p_prog_list,   &
                  &                     nest_level)
   IMPLICIT NONE
@@ -477,16 +477,16 @@ SUBROUTINE art_init_atmo_tracers_echam(jg, mtime_current, p_nh_state, &
     &  nest_level           !< beginning with zero in global domain
 
   IF (lart) THEN
-    CALL art_collect_atmo_state_echam(jg, mtime_current, p_nh_state, p_prog)
+    CALL art_collect_atmo_state_aes(jg, mtime_current, p_nh_state, p_prog)
 
     CALL art_init_one_dom(jg, p_prog_list, tracer, nest_level)
 
     IF ((start_time(jg) <= 0.0_wp) .AND. (.NOT. isRestart())) THEN
-      CALL art_init_tracer_values_echam(jg, tracer, mtime_current, p_prog_list)
+      CALL art_init_tracer_values_aes(jg, tracer, mtime_current, p_prog_list)
     END IF
   END IF
 
-END SUBROUTINE art_init_atmo_tracers_echam
+END SUBROUTINE art_init_atmo_tracers_aes
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
@@ -506,7 +506,7 @@ SUBROUTINE art_update_atmo_phy(jg, mtime_current, p_prog, prm_diag)
     IF (PRESENT(prm_diag)) THEN
       CALL art_update_atmo_state_nwp(jg,mtime_current, p_prog, prm_diag)
     ELSE
-      CALL art_update_atmo_state_echam(jg,mtime_current, p_prog)
+      CALL art_update_atmo_state_aes(jg,mtime_current, p_prog)
     END IF
   END IF
 

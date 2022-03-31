@@ -373,9 +373,9 @@ MODULE mo_nh_testcases
     ! The topography has been initialized to 0 at the begining of this SUB
     CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and NWP physics')
   
-  CASE ('APE_echam')
+  CASE ('APE_aes')
     ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and ECHAM physics')
+    CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and AES physics')
   
   CASE ('APE_nh')
     ! The topography has been initialized to 0 at the begining of this SUB
@@ -388,7 +388,7 @@ MODULE mo_nh_testcases
   CASE ('TPEo')
 
     ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Terra-Planet Experiment with ECHAM physics')
+    CALL message(TRIM(routine),'running Terra-Planet Experiment with AES physics')
     IF ( itopo == 0 ) THEN
       CALL message(TRIM(routine), 'using zero topography for TPEc experiment')
     END IF
@@ -396,7 +396,7 @@ MODULE mo_nh_testcases
   CASE ('TPEc')
 
    ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Terra-Planet Experiment with ECHAM physics')
+    CALL message(TRIM(routine),'running Terra-Planet Experiment with AES physics')
     IF ( itopo == 0 ) THEN
       CALL message(TRIM(routine), 'using zero topography for TPEc experiment')
     END IF
@@ -958,7 +958,7 @@ MODULE mo_nh_testcases
     ENDDO !jg
 
 
-  CASE ('APE_nwp', 'APE_echam', 'APE_nh', 'APEc_nh')  ! Aqua-Planet Experiment, no mountain
+  CASE ('APE_nwp', 'APE_aes', 'APE_nh', 'APEc_nh')  ! Aqua-Planet Experiment, no mountain
 
     p_sfc_jabw   = zp_ape          ! Pa
     global_moist = ztmc_ape        ! kg/m**2 total moisture content
@@ -983,7 +983,7 @@ MODULE mo_nh_testcases
     
     ENDDO !jg
 
-    CALL message(TRIM(routine),'End setup non-hydrostatic APE test (APE_nwp, APE_echam, APE_nh, APEc_nh)')
+    CALL message(TRIM(routine),'End setup non-hydrostatic APE test (APE_nwp, APE_aes, APE_nh, APEc_nh)')
 
 
   CASE ('TPEc', 'TPEo')  ! Terra-Planet Experiment

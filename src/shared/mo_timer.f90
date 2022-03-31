@@ -37,7 +37,7 @@ MODULE mo_timer
 
   USE mo_run_config, ONLY: ltimer, timers_level,  activate_sync_timers, iforcing
 
-  USE mo_impl_constants, ONLY: iecham
+  USE mo_impl_constants, ONLY: iaes
   
   IMPLICIT NONE
   PRIVATE
@@ -83,24 +83,22 @@ MODULE mo_timer
   PUBLIC :: timer_coupling_1stget, timer_coupling_get
   PUBLIC :: timer_coupling_put
 
-  ! iconam - echam coupling
-  PUBLIC :: timer_iconam_echam
+  ! iconam - aes coupling
+  PUBLIC :: timer_iconam_aes
   PUBLIC :: timer_dyn2phy, timer_d2p_prep, timer_d2p_sync, timer_d2p_couple
-  PUBLIC :: timer_echam_bcs, timer_echam_phy
+  PUBLIC :: timer_aes_bcs, timer_aes_phy
   PUBLIC :: timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
   !
-  ! echam physics
+  ! aes physics
   PUBLIC :: timer_cov
   PUBLIC :: timer_rad , timer_rht
   PUBLIC :: timer_vdf , timer_vdf_dn , timer_vdf_sf , timer_vdf_up
-  PUBLIC :: timer_gwd !!$, timer_sso
-  PUBLIC :: timer_cnv , timer_cld
-  PUBLIC :: timer_car , timer_mox
+  PUBLIC :: timer_car
   PUBLIC :: timer_wmo , timer_two
   PUBLIC :: timer_mig , timer_cld_mig
   PUBLIC :: timer_sat , timer_grp
   !
-  ! echam radiation
+  ! aes radiation
   PUBLIC :: timer_rrtm_prep, timer_rrtm_post
   PUBLIC :: timer_lrtm, timer_srtm
 #ifdef PSRAD_TIMING
@@ -162,7 +160,7 @@ MODULE mo_timer
   PUBLIC :: timer_cube_root
 
   PUBLIC :: timer_intrp_diagn
-  PUBLIC :: timer_prep_echam_phy
+  PUBLIC :: timer_prep_aes_phy
   PUBLIC :: timer_prep_phy
   PUBLIC :: timer_prep_tracer
   PUBLIC :: timer_hdiff_expl
@@ -338,24 +336,22 @@ MODULE mo_timer
 
   ! Timer ID's for physics-dynamics coupling
 
-  ! iconam - echam coupling
-  INTEGER :: timer_iconam_echam
+  ! iconam - aes coupling
+  INTEGER :: timer_iconam_aes
   INTEGER :: timer_dyn2phy, timer_d2p_prep, timer_d2p_sync, timer_d2p_couple
-  INTEGER :: timer_echam_bcs, timer_echam_phy
+  INTEGER :: timer_aes_bcs, timer_aes_phy
   INTEGER :: timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
   !
-  ! echam physics
+  ! aes physics
   INTEGER :: timer_cov
   INTEGER :: timer_rad , timer_rht
   INTEGER :: timer_vdf , timer_vdf_dn , timer_vdf_sf , timer_vdf_up
-  INTEGER :: timer_gwd !!$, timer_sso
-  INTEGER :: timer_cnv , timer_cld
-  INTEGER :: timer_car , timer_mox
+  INTEGER :: timer_car
   INTEGER :: timer_wmo , timer_two
   INTEGER :: timer_mig , timer_cld_mig
   INTEGER :: timer_sat , timer_grp
   !
-  ! echam radiation
+  ! aes radiation
   INTEGER :: timer_rrtm_prep, timer_rrtm_post
   INTEGER :: timer_lrtm, timer_srtm
 #ifdef PSRAD_TIMING
@@ -379,7 +375,7 @@ MODULE mo_timer
   INTEGER :: timer_cube_root
 
   INTEGER :: timer_intrp_diagn
-  INTEGER :: timer_prep_echam_phy
+  INTEGER :: timer_prep_aes_phy
   INTEGER :: timer_prep_phy
   INTEGER :: timer_prep_tracer
   INTEGER :: timer_hdiff_expl
@@ -649,41 +645,36 @@ CONTAINS
     timer_coupling_get    = new_timer("coupling_get")
     timer_coupling_put    = new_timer("coupling_put")
 
-    IF (iforcing == iecham) THEN
+    IF (iforcing == iaes) THEN
        !
-       ! iconam - echam coupling
-       timer_iconam_echam= new_timer("iconam_echam")
+       ! iconam - aes coupling
+       timer_iconam_aes  = new_timer("iconam_aes")
        timer_dyn2phy     = new_timer("dyn2phy")
        timer_d2p_prep    = new_timer("d2p_prep")
        timer_d2p_sync    = new_timer("d2p_sync")
        timer_d2p_couple  = new_timer("d2p_couple")
-       timer_echam_bcs   = new_timer("echam_bcs")
-       timer_echam_phy   = new_timer("echam_phy")
+       timer_aes_bcs     = new_timer("aes_bcs")
+       timer_aes_phy     = new_timer("aes_phy")
        timer_phy2dyn     = new_timer("phy2dyn")
        timer_p2d_prep    = new_timer("p2d_prep")
        timer_p2d_sync    = new_timer("p2d_sync")
        timer_p2d_couple  = new_timer("p2d_couple")
        !
-       ! echam physics
-       timer_cov    = new_timer("interface_echam_cov")
-       timer_rad    = new_timer("interface_echam_rad")
-       timer_rht    = new_timer("interface_echam_rht")
-       timer_vdf    = new_timer("interface_echam_vdf")
+       ! aes physics
+       timer_cov    = new_timer("interface_aes_cov")
+       timer_rad    = new_timer("interface_aes_rad")
+       timer_rht    = new_timer("interface_aes_rht")
+       timer_vdf    = new_timer("interface_aes_vdf")
        timer_vdf_dn = new_timer("vdiff_down")
        timer_vdf_sf = new_timer("update_surface")
        timer_vdf_up = new_timer("vdiff_up")
-       timer_gwd    = new_timer("interface_echam_gwd")
-       timer_sso    = new_timer("interface_echam_sso")
-       timer_cnv    = new_timer("interface_echam_cnv")
-       timer_cld    = new_timer("interface_echam_cld")
        timer_two    = new_timer("interface_cloud_two")
        timer_mig    = new_timer("interface_cloud_mig")
        timer_cld_mig= new_timer('cloud_mig')
        timer_sat    = new_timer("satad")
        timer_grp    = new_timer("graupel")
-       timer_car    = new_timer("interface_echam_car")
-       timer_mox    = new_timer("interface_echam_mox")
-       timer_wmo    = new_timer("interface_echam_wmo")
+       timer_car    = new_timer("interface_aes_car")
+       timer_wmo    = new_timer("interface_aes_wmo")
        !
     END IF
     !
@@ -720,7 +711,7 @@ CONTAINS
     timer_phys_acc_par  = new_timer("phys_acc_par")
     timer_phys_sync_ddt_u  = new_timer("phys_sync_ddt_u")
     timer_phys_sync_vn  = new_timer("phys_sync_vn")
-    timer_prep_echam_phy = new_timer("prep_echam_phy")
+    timer_prep_aes_phy = new_timer("prep_aes_phy")
     timer_prep_phy = new_timer("prep_phy")
     timer_phys_reff = new_timer("phys_reff") 
     timer_phys_2mom_dmin_init = new_timer("phys_2mom_dmin_init")
@@ -745,7 +736,7 @@ CONTAINS
     timer_fast_phys = new_timer("rediag_prog_vars")
     timer_nwp_convection = new_timer("nwp_convection")
     timer_pre_radiation_nwp = new_timer("pre_radiation_nwp")
-    IF (iforcing/=iecham) timer_sso = new_timer("sso")
+    IF (iforcing/=iaes) timer_sso = new_timer("sso")
     timer_cover_koe = new_timer("cloud_cover")
     timer_radiation = new_timer("radiation")
     timer_radheat   = new_timer("radheat")
@@ -918,7 +909,7 @@ CONTAINS
     timer_art_washoutInt = new_timer("art_washoutInt")
 
     ! Timers for EMVORADO
-    IF (iforcing /= iecham) THEN
+    IF (iforcing /= iaes) THEN
       timer_radar_tot       = new_timer("EMVORADO_total")
       timer_radar_asynio    = new_timer("EMVORADO_asynio")
       timer_radar_asynio_barrier    = new_timer("EMVORADO_asynio_barrier (minimize!)")

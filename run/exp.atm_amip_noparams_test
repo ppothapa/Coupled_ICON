@@ -168,30 +168,22 @@ cat > ${atm_namelist} << EOF
  itype_hlimit     =    3 ,   4 ,   4
  ihadv_tracer     =   52 ,   2 ,   2
 /
-&echam_phy_nml
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric phyiscs (""=never)
- echam_phy_config(1)%dt_rad = ""
- echam_phy_config(1)%dt_vdf = ""
- echam_phy_config(1)%dt_cnv = ""
- echam_phy_config(1)%dt_cld = ""
- echam_phy_config(1)%dt_gwd = ""
- echam_phy_config(1)%dt_sso = ""
-!
-! atmospheric chemistry (""=never)
- echam_phy_config(1)%dt_mox = ""
- echam_phy_config(1)%dt_car = ""
- echam_phy_config(1)%dt_art = ""
+ aes_phy_config(1)%dt_rad = ""
+ aes_phy_config(1)%dt_vdf = ""
+ aes_phy_config(1)%dt_mig = ""
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .FALSE..
- echam_phy_config(1)%lamip  = .TRUE.
- echam_phy_config(1)%lice   = .FALSE..
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = .FALSE.
+ aes_phy_config(1)%ljsb   = .FALSE..
+ aes_phy_config(1)%lamip  = .TRUE.
+ aes_phy_config(1)%lice   = .FALSE..
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = .FALSE.
 !
 /
 EOF
@@ -324,13 +316,12 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'sic'     , 'sit'     ,
                     'albedo'  ,
                     'clt'     ,
-                    'prlr'    , 'prls'    , 'prcr'    , 'prcs'    ,
+                    'prlr'    , 'prls'    ,
                     'pr'      , 'prw'     , 'cllvi'   , 'clivi'   ,
                     'hfls'    , 'hfss'    , 'evspsbl' ,
                     'tauu'    , 'tauv'    ,
                     'sfcwind' , 'uas'     , 'vas'     ,
                     'tas'     , 'dew2'    ,
-                    'ptp'
 /
 EOF
 fi

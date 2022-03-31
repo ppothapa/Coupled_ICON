@@ -128,11 +128,11 @@ AC_ARG_ENABLE([coupling],
   [AS_IF([test x"$enableval" != xno], [enable_coupling=yes])],
   [enable_coupling=yes])
 
-AC_ARG_ENABLE([echam],
-  [AS_HELP_STRING([--enable-echam],
-     [enable the ECHAM physics @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_echam=yes])],
-  [enable_echam=yes])
+AC_ARG_ENABLE([aes],
+  [AS_HELP_STRING([--enable-aes],
+     [enable the AES physics @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_aes=yes])],
+  [enable_aes=yes])
 
 AC_ARG_ENABLE([ecrad],
   [AS_HELP_STRING([--enable-ecrad],
@@ -583,8 +583,8 @@ AS_VAR_IF([enable_jsbach], [no],
 AS_VAR_IF([enable_coupling], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}YAC_coupling"])])
 
-AS_VAR_IF([enable_echam], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ECHAM__"])])
+AS_VAR_IF([enable_aes], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_AES__"])])
 
 AS_VAR_IF([enable_ecrad], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ECRAD"])])

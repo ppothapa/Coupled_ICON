@@ -32,7 +32,7 @@ MODULE mo_nh_supervise
   USE mo_run_config,          ONLY: dtime, msg_level, output_mode,           &
     &                               ltransport, ntracer, lforcing, iforcing, &
     &                               iqm_max
-  USE mo_impl_constants,      ONLY: SUCCESS, inwp, iecham, &
+  USE mo_impl_constants,      ONLY: SUCCESS, inwp, iaes, &
     &                               min_rlcell_int, min_rledge_int, iheldsuarez
   USE mo_physical_constants,  ONLY: cvd
   USE mo_mpi,                 ONLY: my_process_is_stdio, get_my_mpi_all_id, &
@@ -382,7 +382,7 @@ CONTAINS
       ENDIF
     ENDIF
 
-    IF (ltransport  .OR. ( iforcing == inwp ) .OR. ( iforcing == iecham )) THEN
+    IF (ltransport  .OR. ( iforcing == inwp ) .OR. ( iforcing == iaes )) THEN
 
       z_total_tracer(:)   = 0.0_wp
       z_aux_tracer(:,:,:) = 0.0_wp
@@ -525,7 +525,7 @@ CONTAINS
       '    mean surf press.'
 
     ! Open the datafile for tracer diagnostic
-    IF (ltransport .OR. ( iforcing == inwp ) .OR. ( iforcing == iecham )) THEN
+    IF (ltransport .OR. ( iforcing == inwp ) .OR. ( iforcing == iaes )) THEN
 
       !!$       ALLOCATE(z_total_tracer_old(ntracer), STAT=ist)
       !!$       IF(ist/=SUCCESS)THEN

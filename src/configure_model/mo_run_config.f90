@@ -22,7 +22,7 @@ MODULE mo_run_config
 
   USE mo_kind,           ONLY: wp
   USE mo_memory_log,     ONLY: memory_log_initialize
-  USE mo_impl_constants, ONLY: MAX_DOM, IHELDSUAREZ, INWP, IECHAM, ILDF_ECHAM, &
+  USE mo_impl_constants, ONLY: MAX_DOM, IHELDSUAREZ, INWP, iaes, ILDF_ECHAM,   &
                                IMPIOM, INOFORCING, ILDF_DRY, MAX_CHAR_LENGTH,  &
                                TIMER_MODE_AGGREGATED, TIMER_MODE_DETAILED
   USE mtime,             ONLY: MAX_TIMEDELTA_STR_LEN
@@ -196,7 +196,7 @@ CONTAINS
     ! Logical switch for diabatic forcing
 
     SELECT CASE (iforcing)
-    CASE(IHELDSUAREZ,INWP,IECHAM,ILDF_ECHAM,IMPIOM)
+    CASE(IHELDSUAREZ,INWP,iaes,ILDF_ECHAM,IMPIOM)
       lforcing = .TRUE.
 
     CASE(INOFORCING,ILDF_DRY)

@@ -74,7 +74,7 @@ MODULE mo_atmo_model
     &                                   iforcing, luse_radarfwo
   USE mo_gribout_config,          ONLY: configure_gribout
 #ifndef __NO_JSBACH__
-  USE mo_echam_phy_config,        ONLY: echam_phy_config
+  USE mo_aes_phy_config,          ONLY: aes_phy_config
   USE mo_master_control,          ONLY: master_namelist_filename
   USE mo_jsb_base,                ONLY: jsbach_setup => jsbach_setup_models, jsbach_setup_tiles
   USE mo_jsb_model_init,          ONLY: jsbach_setup_grid
@@ -379,7 +379,7 @@ CONTAINS
     ! This has to be after (!) the ICON zaxes have been created in the above line but
     ! before (!) the restart PEs are detached a few lines below since JSBACH
     ! adds its zaxes to zaxisTypeList
-    IF (ANY(echam_phy_config(:)%ljsb)) THEN
+    IF (ANY(aes_phy_config(:)%ljsb)) THEN
       ! Do basic initialization of JSBACH
       CALL jsbach_setup(master_namelist_filename)
     END IF
@@ -626,7 +626,7 @@ CONTAINS
 #ifndef __NO_JSBACH__
     ! Setup horizontal grids and tiles for JSBACH
     DO jg=1,n_dom
-      IF (echam_phy_config(jg)%ljsb) THEN 
+      IF (aes_phy_config(jg)%ljsb) THEN 
         CALL jsbach_setup_grid( jg, p_patch(jg), type='icon') !< in
         CALL jsbach_setup_tiles(jg)
       END IF

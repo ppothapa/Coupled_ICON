@@ -156,75 +156,78 @@ bubble_config%torus_domain_length = $(echo "$edge_length $num_columns" |awk '{pr
  itype_hlimit     =    3 ,   4 ,   4 ,  4 ,  4 ,  4 ,
  ihadv_tracer     =   52 ,   2 ,   2 ,  2 ,  2 ,  2 ,
 /
-&echam_phy_nml
+&dynamics_nml
+ lcoriolis      = .FALSE.
+/
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric physics (""=never)
- echam_phy_config(1)%dt_rad = "$radiationTimeStep"
- echam_phy_config(1)%dt_vdf = "$modelTimeStep"
- echam_phy_config(1)%dt_mig = "$modelTimeStep"
- echam_phy_config(1)%dt_two = ""
+ aes_phy_config(1)%dt_rad = "$radiationTimeStep"
+ aes_phy_config(1)%dt_vdf = "$modelTimeStep"
+ aes_phy_config(1)%dt_mig = "$modelTimeStep"
+ aes_phy_config(1)%dt_two = ""
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .FALSE.
- echam_phy_config(1)%lamip  = .FALSE.
- echam_phy_config(1)%l2moment  = .FALSE.
- echam_phy_config(1)%lice   = .FALSE.
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = .FALSE.
+ aes_phy_config(1)%ljsb   = .FALSE.
+ aes_phy_config(1)%lamip  = .FALSE.
+ aes_phy_config(1)%l2moment  = .FALSE.
+ aes_phy_config(1)%lice   = .FALSE.
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = .FALSE.
 !
 ! fix negative humidity
- echam_phy_config(1)%iqneg_d2p = 2
- echam_phy_config(1)%iqneg_p2d = 2
+ aes_phy_config(1)%iqneg_d2p = 2
+ aes_phy_config(1)%iqneg_p2d = 2
 ! set htop_moist_proc also as top of graupel calculation
- echam_phy_config(1)%zmaxcloudy = 22500.
+ aes_phy_config(1)%zmaxcloudy = 22500.
 /
-&echam_rad_nml
+&aes_rad_nml
 !
 ! domain 1
 ! --------
 !
- echam_rad_config(1)%isolrad    =  5
- echam_rad_config(1)%l_orbvsop87= .FALSE.
- echam_rad_config(1)%cecc       = 0.0
- echam_rad_config(1)%cobld      = 0.0
- echam_rad_config(1)%ldiur      = .FALSE.
- echam_rad_config(1)%l_sph_symm_irr = .TRUE.
- echam_rad_config(1)%irad_h2o   =  1
- echam_rad_config(1)%irad_co2   =  2
- echam_rad_config(1)%irad_ch4   =  2
- echam_rad_config(1)%irad_n2o   =  2
- echam_rad_config(1)%irad_o3    =  0
- echam_rad_config(1)%irad_o2    =  0
- echam_rad_config(1)%irad_cfc11 =  0
- echam_rad_config(1)%irad_cfc12 =  0
- echam_rad_config(1)%irad_aero  =  0
- echam_rad_config(1)%rrtmgp_columns_chunk = 8000
+ aes_rad_config(1)%isolrad    =  5
+ aes_rad_config(1)%l_orbvsop87= .FALSE.
+ aes_rad_config(1)%cecc       = 0.0
+ aes_rad_config(1)%cobld      = 0.0
+ aes_rad_config(1)%ldiur      = .FALSE.
+ aes_rad_config(1)%l_sph_symm_irr = .TRUE.
+ aes_rad_config(1)%irad_h2o   =  1
+ aes_rad_config(1)%irad_co2   =  2
+ aes_rad_config(1)%irad_ch4   =  2
+ aes_rad_config(1)%irad_n2o   =  2
+ aes_rad_config(1)%irad_o3    =  0
+ aes_rad_config(1)%irad_o2    =  0
+ aes_rad_config(1)%irad_cfc11 =  0
+ aes_rad_config(1)%irad_cfc12 =  0
+ aes_rad_config(1)%irad_aero  =  0
+ aes_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
-&dynamics_nml
- lcoriolis      = .FALSE.
+&aes_vdf_nml
+ aes_vdf_config(1)%pr0        = 0.7
+ aes_vdf_config(1)%turb       = 2
 /
-&echam_vdf_nml
- echam_vdf_config(1)%pr0        = 0.7
- echam_vdf_config(1)%turb       = 2
+&aes_cop_nml
+ aes_cop_config(1)%cn1lnd     =  50.0
+ aes_cop_config(1)%cn2lnd     = 220.0
+ aes_cop_config(1)%cn1sea     =  50.0
+ aes_cop_config(1)%cn2sea     = 100.0
+ aes_cop_config(1)%cinhomi    =   1.0
+ aes_cop_config(1)%cinhoml1   =   1.0
+ aes_cop_config(1)%cinhoml2   =   1.0
+ aes_cop_config(1)%cinhoml3   =   1.0
 /
-&echam_cop_nml
- echam_cop_config(1)%cn1lnd     =  50.0
- echam_cop_config(1)%cn2lnd     = 220.0
- echam_cop_config(1)%cn1sea     =  50.0
- echam_cop_config(1)%cn2sea     = 100.0
- echam_cop_config(1)%cinhomi    =   1.0
- echam_cop_config(1)%cinhoml1   =   1.0
- echam_cop_config(1)%cinhoml2   =   1.0
- echam_cop_config(1)%cinhoml3   =   1.0
+&cloud_mig_nml
+ cloud_mig_config(1)%mu_rain        = 0.5
+ cloud_mig_config(1)%rain_n0_factor = 0.1
+ cloud_mig_config(1)%v0snow         = 25.
 /
-&echam_mig_nml
-/
-&echam_cov_nml
- echam_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
- echam_cov_config(1)%cqx        = 1.e-6
+&aes_cov_nml
+ aes_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
+ aes_cov_config(1)%cqx        = 1.e-6
 /
 EOF
 

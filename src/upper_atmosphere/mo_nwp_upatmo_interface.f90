@@ -287,7 +287,7 @@ CONTAINS
       ! of the model time 'datetime_local' takes place before the call 
       ! of the interfaces: 
       ! * src/atm_phy_nwp/mo_nh_interface_nwp: nwp_nh_interface
-      ! * src/atm_phy_echam/mo_interface_iconam_echam: interface_iconam_echam
+      ! * src/atm_phy_aes/mo_interface_iconam_aes: interface_iconam_aes
       ! Within the two interfaces 'datetime_local' is treated in the following way:
       ! * NWP:   'datetime_local' seems to be regarded as the point in time to work with  
       !          without further ado

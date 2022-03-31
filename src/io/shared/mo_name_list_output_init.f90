@@ -162,7 +162,7 @@ MODULE mo_name_list_output_init
     &                                             setup_zaxes_oce
   USE mo_level_selection_types,             ONLY: t_level_selection
 #ifndef __NO_JSBACH__
-  USE mo_echam_phy_config,                  ONLY: echam_phy_config
+  USE mo_aes_phy_config,                    ONLY: aes_phy_config
   USE mo_jsb_vertical_axes,                 ONLY: setup_zaxes_jsbach
 #endif
   USE mo_name_list_output_zaxes_types,      ONLY: t_verticalAxisList, t_verticalAxis
@@ -1788,7 +1788,7 @@ CONTAINS
         CASE (level_type_ml)
           IF (.NOT. my_process_is_jsbach()) CALL setup_ml_axes_atmo(p_of%verticalAxisList, p_of%level_selection, p_of%log_patch_id)
 #ifndef __NO_JSBACH__
-          IF (ANY(echam_phy_config(:)%ljsb)) CALL setup_zaxes_jsbach(p_of%verticalAxisList)
+          IF (ANY(aes_phy_config(:)%ljsb)) CALL setup_zaxes_jsbach(p_of%verticalAxisList)
 #endif
 #ifndef __NO_ICON_ATMO__
         CASE (level_type_pl)

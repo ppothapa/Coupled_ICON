@@ -110,68 +110,57 @@ cat > ${atmo_namelist} << EOF
  flat_height      = 16000.      ! [m]
 /
 &transport_nml
- tracer_names     = 'hus','clw','cli'
+ tracer_names     = 'hus','clw','cli','qr','qs','qg'
 /
-&echam_phy_nml
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric phyiscs (""=never)
- echam_phy_config(1)%dt_rad = "PT8M", echam_phy_config(1)%fc_rht = 0
- echam_phy_config(1)%dt_vdf = "PT4M", echam_phy_config(1)%fc_vdf = 0
- echam_phy_config(1)%dt_cnv = "PT4M", echam_phy_config(1)%fc_cnv = 0
- echam_phy_config(1)%dt_cld = "PT4M", echam_phy_config(1)%fc_cld = 0
- echam_phy_config(1)%dt_gwd = "PT4M", echam_phy_config(1)%fc_gwd = 0
- echam_phy_config(1)%dt_sso = "PT4M", echam_phy_config(1)%fc_sso = 0
-!
-! atmospheric chemistry (""=never)
- echam_phy_config(1)%dt_mox = "PT4M", echam_phy_config(1)%fc_mox = 0
- echam_phy_config(1)%dt_car = ""
- echam_phy_config(1)%dt_art = ""
+ aes_phy_config(1)%dt_rad = "PT8M", aes_phy_config(1)%fc_rht = 0
+ aes_phy_config(1)%dt_vdf = "PT4M", aes_phy_config(1)%fc_vdf = 0
+ aes_phy_config(1)%dt_mig = "PT4M", aes_phy_config(1)%fc_mig = 0
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .FALSE.
- echam_phy_config(1)%lamip  = .FALSE.
- echam_phy_config(1)%lice   = .TRUE.
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = .FALSE.
+ aes_phy_config(1)%ljsb   = .FALSE.
+ aes_phy_config(1)%lamip  = .FALSE.
+ aes_phy_config(1)%lice   = .TRUE.
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = .FALSE.
 /
-&echam_rad_nml
+&aes_rad_nml
 !
 ! domain 1
 ! --------
 !
- echam_rad_config(1)%isolrad    =  5
- echam_rad_config(1)%l_orbvsop87= .FALSE.
- echam_rad_config(1)%cecc       = 0.0
- echam_rad_config(1)%cobld      = 0.0
- echam_rad_config(1)%ldiur      = .FALSE.
- echam_rad_config(1)%l_sph_symm_irr = .TRUE.
- echam_rad_config(1)%irad_h2o   =  1
- echam_rad_config(1)%irad_co2   =  2
- echam_rad_config(1)%irad_ch4   =  2
- echam_rad_config(1)%irad_n2o   =  2
- echam_rad_config(1)%irad_o3    =  4
- echam_rad_config(1)%irad_o2    =  2
- echam_rad_config(1)%irad_cfc11 =  2
- echam_rad_config(1)%irad_cfc12 =  2
- echam_rad_config(1)%irad_aero  =  0
- echam_rad_config(1)%rrtmgp_columns_chunk = 8000
+ aes_rad_config(1)%isolrad    =  5
+ aes_rad_config(1)%l_orbvsop87= .FALSE.
+ aes_rad_config(1)%cecc       = 0.0
+ aes_rad_config(1)%cobld      = 0.0
+ aes_rad_config(1)%ldiur      = .FALSE.
+ aes_rad_config(1)%l_sph_symm_irr = .TRUE.
+ aes_rad_config(1)%irad_h2o   =  1
+ aes_rad_config(1)%irad_co2   =  2
+ aes_rad_config(1)%irad_ch4   =  2
+ aes_rad_config(1)%irad_n2o   =  2
+ aes_rad_config(1)%irad_o3    =  4
+ aes_rad_config(1)%irad_o2    =  2
+ aes_rad_config(1)%irad_cfc11 =  2
+ aes_rad_config(1)%irad_cfc12 =  2
+ aes_rad_config(1)%irad_aero  =  0
+ aes_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
-&echam_gwd_nml
+&aes_vdf_nml
 /
-&echam_sso_nml
+&cloud_mig_nml
+ cloud_mig_config(1)%mu_rain        = 0.5
+ cloud_mig_config(1)%rain_n0_factor = 0.1
+ cloud_mig_config(1)%v0snow         = 25.
 /
-&echam_vdf_nml
+&aes_cop_nml
 /
-&echam_cnv_nml
-/
-&echam_cld_nml
-/
-&echam_cop_nml
-/
-&echam_cov_nml
+&aes_cov_nml
 /
 &sea_ice_nml
 /
@@ -375,14 +364,12 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'sic'     , 'sit'     ,
                     'albedo'  ,
                     'clt'     ,
-                    'prlr'    , 'prls'    , 'prcr'    , 'prcs'    ,
+                    'prlr'    , 'prls'    ,
                     'pr'      , 'prw'     , 'cllvi'   , 'clivi'   ,
                     'hfls'    , 'hfss'    , 'evspsbl' ,
                     'tauu'    , 'tauv'    ,
-                    'tauu_sso', 'tauv_sso', 'diss_sso',
                     'sfcwind' , 'uas'     , 'vas'     ,
                     'tas'     , 'dew2'    ,
-                    'ptp'     ,
 /
 EOF
 fi
@@ -407,18 +394,13 @@ if [[ "$output_phy_3d" == "yes" ]]; then
  ml_varlist       = 'ps'           , 'pfull'        , 'zg'           ,
                     'tend_ta_phy'  ,
                     'tend_ta_rlw'  , 'tend_ta_rsw'  ,
-                    'tend_ta_vdf'  , 'tend_ta_gwd'  , 'tend_ta_sso'  ,
-                    'tend_ta_cnv'  , 'tend_ta_cld'  ,
+                    'tend_ta_vdf'  ,
                     'tend_ua_phy'  ,
-                    'tend_ua_vdf'  , 'tend_ua_gwd'  , 'tend_ua_sso'  ,
-                    'tend_ua_cnv'  ,
+                    'tend_ua_vdf'  ,
                     'tend_va_phy'  ,
-                    'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
-                    'tend_va_cnv'  ,
+                    'tend_va_vdf'  ,
                     'tend_qhus_phy',
                     'tend_qhus_vdf',
-                    'tend_qhus_cnv', 'tend_qhus_cld',
-                    !'tend_qhus_mox'
 /
 EOF
 fi

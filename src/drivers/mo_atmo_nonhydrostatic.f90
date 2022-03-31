@@ -17,7 +17,7 @@ USE mo_kind,                 ONLY: wp
 USE mo_exception,            ONLY: message, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
-USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iecham
+USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes
 USE mo_timer,                ONLY: timers_level, timer_start, timer_stop, timer_init_latbc, &
   &                                timer_model_init, timer_init_icon, timer_read_restart, timer_init_dace
 USE mo_master_config,        ONLY: isRestart, getModelBaseDir
@@ -98,19 +98,19 @@ USE mo_level_selection,     ONLY: create_mipz_level_selections
 USE mo_name_list_output,    ONLY: close_name_list_output
 USE mo_pp_scheduler,        ONLY: pp_scheduler_init, pp_scheduler_finalize
 
-! ECHAM physics
-USE mo_echam_phy_config,    ONLY: echam_phy_tc, dt_zero, echam_phy_config
-USE mo_echam_rad_config,    ONLY: echam_rad_config
-USE mo_echam_vdf_config,    ONLY: echam_vdf_config
-#ifndef __NO_ECHAM__
-USE mo_echam_phy_memory,    ONLY: construct_echam_phy_memory
+! AES physics
+USE mo_aes_phy_config,      ONLY: aes_phy_tc, dt_zero, aes_phy_config
+USE mo_aes_rad_config,      ONLY: aes_rad_config
+USE mo_aes_vdf_config,      ONLY: aes_vdf_config
+#ifndef __NO_AES__
+USE mo_aes_phy_memory,      ONLY: construct_aes_phy_memory
 USE mo_cloud_mig_memory,    ONLY: construct_cloud_mig_memory
 USE mo_cloud_two_memory,    ONLY: construct_cloud_two_memory
 USE mo_radiation_forcing_memory, ONLY: construct_rad_forcing_list => construct_radiation_forcing_list
 USE mo_physical_constants,  ONLY: amd, amco2
-USE mo_echam_phy_init,      ONLY: init_echam_phy_params, init_echam_phy_external, &
-   &                              init_echam_phy_field, init_o3_lcariolle
-USE mo_echam_phy_cleanup,   ONLY: cleanup_echam_phy
+USE mo_aes_phy_init,        ONLY: init_aes_phy_params, init_aes_phy_external, &
+   &                              init_aes_phy_field, init_o3_lcariolle
+USE mo_aes_phy_cleanup,     ONLY: cleanup_aes_phy
 #endif
 #ifndef __NO_JSBACH__
   USE mo_jsb_model_init,    ONLY: jsbach_init_after_restart
@@ -210,11 +210,11 @@ CONTAINS
         &                            p_patch(jg)%nshift_total  )
     ENDDO
 
-    IF (iforcing == iecham) THEN
-#ifdef __NO_ECHAM__   
-      CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+    IF (iforcing == iaes) THEN
+#ifdef __NO_AES__   
+      CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
-      CALL init_echam_phy_params( p_patch(1:) )
+      CALL init_aes_phy_params( p_patch(1:) )
 #endif
     END IF
 
@@ -283,11 +283,11 @@ CONTAINS
       CALL construct_nwp_lnd_state( p_patch(1:), p_lnd_state, var_in_output(:)%smi, n_timelevels=2 )
     END IF
 
-    IF (iforcing == iecham) THEN
-#ifdef __NO_ECHAM__   
-      CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+    IF (iforcing == iaes) THEN
+#ifdef __NO_AES__   
+      CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
-      CALL construct_echam_phy_memory  ( p_patch(1:), ntracer )
+      CALL construct_aes_phy_memory    ( p_patch(1:), ntracer )
       CALL construct_cloud_mig_memory  ( p_patch(1:) )
       CALL construct_cloud_two_memory  ( p_patch(1:) )
       CALL construct_rad_forcing_list  ( p_patch(1:) )
@@ -315,12 +315,12 @@ CONTAINS
       &                    dt_rad_nwp             = atm_phy_nwp_config(:)%dt_rad,      & !in
       &                    ndyn_substeps          = ndyn_substeps,                     & !in
       &                    flat_height            = flat_height,                       & !in
-      &                    l_orbvsop87            = echam_rad_config(:)%l_orbvsop87,   & !in
-      &                    cecc                   = echam_rad_config(:)%cecc,          & !in
-      &                    cobld                  = echam_rad_config(:)%cobld,         & !in
-      &                    clonp                  = echam_rad_config(:)%clonp,         & !in
-      &                    lyr_perp               = echam_rad_config(:)%lyr_perp,      & !in
-      &                    yr_perp                = echam_rad_config(:)%yr_perp,       & !in
+      &                    l_orbvsop87            = aes_rad_config(:)%l_orbvsop87,     & !in
+      &                    cecc                   = aes_rad_config(:)%cecc,            & !in
+      &                    cobld                  = aes_rad_config(:)%cobld,           & !in
+      &                    clonp                  = aes_rad_config(:)%clonp,           & !in
+      &                    lyr_perp               = aes_rad_config(:)%lyr_perp,        & !in
+      &                    yr_perp                = aes_rad_config(:)%yr_perp,         & !in
       &                    model_base_dir         = model_base_dir,                    & !in
       &                    msg_level              = msg_level,                         & !in
       &                    vct_a                  = vct_a                              ) !(opt)in
@@ -398,7 +398,7 @@ CONTAINS
            &                        p_int_state(jg)       ,&
            &                        p_nh_state(jg)%metrics)
       END IF
-      IF(echam_vdf_config(jg)%turb==2) THEN
+      IF(aes_vdf_config(jg)%turb==2) THEN
         CALL init_les_phy_interface(jg, p_patch(jg)       ,&
            &                        p_int_state(jg)       ,&
            &                        p_nh_state(jg)%metrics)
@@ -428,7 +428,7 @@ CONTAINS
 #ifndef __NO_JSBACH__
       DO jg = 1,n_dom
         IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-        IF (echam_phy_config(jg)%ljsb) THEN
+        IF (aes_phy_config(jg)%ljsb) THEN
           CALL jsbach_init_after_restart(jg)
         END IF
       END DO
@@ -480,9 +480,9 @@ CONTAINS
             &             prm_diag(1:)    ,&
             &             p_lnd_state(1:) )
           !
-        ELSE ! iforcing == iecham, inoforcing, ...
-#ifdef __NO_ECHAM__   
-          CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+        ELSE ! iforcing == iaes, inoforcing, ...
+#ifdef __NO_AES__   
+          CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
           !
           ! Initialize the atmosphere only
@@ -528,11 +528,11 @@ CONTAINS
 
       !
       ! Initialize tracers which are not available in the analysis file,
-      ! but may be used with ECHAM physics, for real cases or test cases.
+      ! but may be used with AES physics, for real cases or test cases.
       !
-      IF (iforcing == iecham ) THEN
-#ifdef __NO_ECHAM__   
-        CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+      IF (iforcing == iaes ) THEN
+#ifdef __NO_AES__   
+        CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
         DO jg = 1,n_dom
           IF (.NOT. p_patch(jg)%ldom_active) CYCLE
@@ -540,16 +540,16 @@ CONTAINS
           ! CO2 tracer
           IF ( iqt <= ico2 .AND. ico2 <= ntracer) THEN
 !$OMP PARALLEL
-            CALL init(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,ico2),echam_rad_config(jg)% vmr_co2*amco2/amd)
+            CALL init(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,ico2),aes_rad_config(jg)% vmr_co2*amco2/amd)
 !$OMP END PARALLEL
             CALL print_value('CO2 tracer initialized with constant vmr', &
-              &              echam_rad_config(jg)% vmr_co2*amco2/amd,    &
+              &              aes_rad_config(jg)% vmr_co2*amco2/amd,    &
               &              routine=routine)
           END IF
           !
           ! O3 tracer
           IF ( iqt <= io3 .AND. io3 <= ntracer) THEN
-            IF (echam_phy_tc(jg)%dt_car > dt_zero) THEN
+            IF (aes_phy_tc(jg)%dt_car > dt_zero) THEN
               CALL init_o3_lcariolle( time_config%tc_current_date                          ,&
                 &                     p_patch(jg)                                          ,&
                 &                     p_nh_state(jg)%diag% pres               (:,:,:)      ,&
@@ -573,23 +573,23 @@ CONTAINS
     END IF ! isRestart()
 
 
-    ! Now set up ECHAM physics fields
+    ! Now set up AES physics fields
     !
-    IF ( iforcing == iecham ) THEN
-#ifdef __NO_ECHAM__   
-        CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+    IF ( iforcing == iaes ) THEN
+#ifdef __NO_AES__   
+        CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
       !
       ! read external data for real case
       IF (.NOT. ltestcase) THEN 
-        CALL init_echam_phy_external( p_patch(1:)                 ,&
+        CALL init_aes_phy_external( p_patch(1:)                   ,&
            &                          time_config%tc_current_date )
       END IF
       !
       ! prepare fields of the physics state, real and test case
       DO jg = 1,n_dom
-        CALL init_echam_phy_field( p_patch(jg)                       ,&
-          &                        p_nh_state(jg)% diag% temp(:,:,:) )
+        CALL init_aes_phy_field( p_patch(jg)                       ,&
+          &                      p_nh_state(jg)% diag% temp(:,:,:) )
       END DO
       !
 #endif
@@ -811,18 +811,18 @@ CONTAINS
       CALL cleanup_nwp_phy()
     ENDIF
 
-    IF (iforcing == iecham) THEN
-#ifdef __NO_ECHAM__   
-      CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+    IF (iforcing == iaes) THEN
+#ifdef __NO_AES__   
+      CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
-      CALL cleanup_echam_phy()
+      CALL cleanup_aes_phy()
 #endif
     ENDIF
 
 #ifndef __NO_ICON_UPPER__
     ! This is required for NWP forcing only. 
-    ! For ECHAM forcing, the following will likely be done in 
-    ! 'src/atm_phy_echam/mo_echam_phy_cleanup: cleanup_echam_phy'
+    ! For AES forcing, the following will likely be done in 
+    ! 'src/atm_phy_aes/mo_aes_phy_cleanup: cleanup_aes_phy'
     DO jg = 1, n_dom
       IF (upatmo_config( jg )%nwp_phy%l_phy_stat( iUpatmoPrcStat%enabled )) THEN
         CALL finalize_upatmo_phy_nwp( p_patch( jg ) ) !in

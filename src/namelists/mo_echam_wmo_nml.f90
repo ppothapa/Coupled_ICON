@@ -13,37 +13,37 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-MODULE mo_echam_wmo_nml
+MODULE mo_aes_wmo_nml
 
-  USE mo_echam_wmo_config ,ONLY: echam_wmo_config, init_echam_wmo_config
+  USE mo_aes_wmo_config   ,ONLY: aes_wmo_config, init_aes_wmo_config
   USE mo_process_nml      ,ONLY: process_nml
   
   IMPLICIT NONE
   PRIVATE
-  PUBLIC :: process_echam_wmo_nml
+  PUBLIC :: process_aes_wmo_nml
 
-  NAMELIST /echam_wmo_nml/ echam_wmo_config
+  NAMELIST /aes_wmo_nml/ aes_wmo_config
 
 CONTAINS
 
   SUBROUTINE nml_read(funit)
     INTEGER, INTENT(in) :: funit
-    READ(funit, NML=echam_wmo_nml)
+    READ(funit, NML=aes_wmo_nml)
   END SUBROUTINE nml_read
   !
   SUBROUTINE nml_write(funit)
     INTEGER, INTENT(in) :: funit
-    WRITE(funit, NML=echam_wmo_nml)
+    WRITE(funit, NML=aes_wmo_nml)
   END SUBROUTINE nml_write
   !
-  SUBROUTINE process_echam_wmo_nml(filename)
+  SUBROUTINE process_aes_wmo_nml(filename)
     !
     CHARACTER(LEN=*), INTENT(in) :: filename
     !
-    CALL init_echam_wmo_config
+    CALL init_aes_wmo_config
     !
-    CALL process_nml(filename, 'echam_wmo_nml', nml_read, nml_write)
+    CALL process_nml(filename, 'aes_wmo_nml', nml_read, nml_write)
     !
-  END SUBROUTINE process_echam_wmo_nml
+  END SUBROUTINE process_aes_wmo_nml
 
-END MODULE mo_echam_wmo_nml
+END MODULE mo_aes_wmo_nml

@@ -394,7 +394,7 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: inoforcing     =  0 ! - no forcing
                                             ! - atmosphere
   INTEGER, PARAMETER :: iheldsuarez    =  1 !   - Held-Suarez test
-  INTEGER, PARAMETER :: iecham         =  2 !   - ECHAM physics
+  INTEGER, PARAMETER :: iaes           =  2 !   - AES physics
   INTEGER, PARAMETER :: inwp           =  3 !   - NWP physics
   INTEGER, PARAMETER :: ildf_dry       =  4 !   - local diabatic forcing test without physics
   INTEGER, PARAMETER :: ildf_echam     =  5 !   - local diabatic forcing test with physics
@@ -643,7 +643,7 @@ MODULE mo_impl_constants
   REAL(wp), PARAMETER :: TORUS_MAX_LAT = 4._wp / 18._wp * ATAN(1._wp)
 
   ! Parameters related to time step weighting in *rhs* of *vdiff* and *scv*
-  ! used in atm_phy_echam, upper_atmospher, jsbach
+  ! used in atm_phy_aes, upper_atmospher, jsbach
   REAL(wp),PARAMETER :: cvdifts = 1.5_wp
 
 

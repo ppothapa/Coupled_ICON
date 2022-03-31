@@ -25,7 +25,7 @@ MODULE mo_advection_config
     &                                 MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
     &                                 FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
     &                                 ino_flx, izero_grad, iparent_flx, inwp,  &
-    &                                 iecham, TRACER_ONLY, SUCCESS, VNAME_LEN, &
+    &                                 iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
     &                                 NO_HADV, NO_VADV
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_mpi,                   ONLY: my_process_is_stdio
@@ -106,7 +106,7 @@ MODULE mo_advection_config
     ! namelist variables
     CHARACTER(len=VNAME_LEN) ::  &       !< tracer-specific name suffixes  
       &  tracer_names(MAX_NTRACER)       !< these are only required for 
-                                         !< idealized runs without NWP or ECHAM forcing.
+                                         !< idealized runs without NWP or AES forcing.
 
     INTEGER :: nname                !< number of names read from transport_nml/tracer_names
                                     !< which are stored in advection_config/tracer_names
@@ -337,7 +337,7 @@ CONTAINS
     !
     advection_config(jg)%iadv_slev(:) = 1
     advection_config(jg)%iadv_qvsubstep_elev = 1
-    IF (iforcing == inwp .OR. iforcing == iecham) THEN
+    IF (iforcing == inwp .OR. iforcing == iaes) THEN
       ! Set iadv_slev to kstart_moist for all moisture fields but QV
       ! note: iqt denotes the first tracer index not related to moisture
       advection_config(jg)%iadv_slev(iqc:iqt-1) = kstart_moist
@@ -684,7 +684,7 @@ CONTAINS
       ! This list contains the IDs of all condensate fields 
       ! which are required for computing the water loading term.
       !
-      IF ( iforcing == inwp .OR. iforcing == iecham ) THEN
+      IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
         ! in these cases it is assured that the hydroMass group is not empty.
 
         advection_config(jg)%trHydroMass = subListExtract(from_list       = tracer_list(itime),         &
@@ -1053,7 +1053,7 @@ CONTAINS
       str_flag = MERGE('X',' ',ANY(config_obj%trNotAdvect%list==tracer_id))
       CALL set_table_entry(table,irow,"in list trNotAdvect", TRIM(str_flag))
       !
-      ! iforcing == inwp/iecham
+      ! iforcing == inwp/iaes
       IF (ALLOCATED(config_obj%trHydroMass%list)) THEN
         str_flag = MERGE('X',' ',ANY(config_obj%trHydroMass%list==tracer_id))
         CALL set_table_entry(table,irow,"in list trHydroMass", TRIM(str_flag))
