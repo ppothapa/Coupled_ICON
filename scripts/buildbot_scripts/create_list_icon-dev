@@ -14,12 +14,10 @@ listname=icon-dev
 #-----------------------------------------------------------
 # AES
 # add amip tests to all builders
-#off for daint#$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_update"    --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines mistral breeze daint --list $listname
-#off for daint#$addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze --list $listname
+$addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze --list $listname
