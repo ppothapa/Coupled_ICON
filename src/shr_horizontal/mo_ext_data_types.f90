@@ -192,6 +192,70 @@ MODULE mo_ext_data_types
     REAL(wp), POINTER ::   &   !< skin conductivity                   [ W/m^2/K ]
       &  skinc_t(:,:,:)        ! index1=1,nproma, index2=1,nblks_c, ntiles_total
 
+    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
+      &  fr_paved(:,:)         ! 1.0 indicates 100% paved (urban) area
+                               ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
+      &  fr_paved_t(:,:,:)     ! 1.0 indicates 100% paved (urban) area
+                               ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< impervious surface area of the urban canopy [ ]
+      &  urb_isa(:,:)          ! 1.0 indicates 100% paved urban area
+                               ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< impervious surface area of the urban canopy [ ]
+      &  urb_isa_t(:,:,:)      ! 1.0 indicates 100% paved urban area
+                               ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< surface area index of the urban canopy      [ ]
+      &  urb_ai(:,:)           ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< surface area index of the urban canopy      [ ]
+      &  urb_ai_t(:,:,:)       ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< albedo reduction factor for the urban canopy [ ]
+      &  urb_alb_red(:,:)      ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< albedo reduction factor for the urban canopy [ ]
+      &  urb_alb_red_t(:,:,:)  ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< building area fraction with respect to urban tile [ ]
+      &  urb_fr_bld(:,:)       ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< building area fraction with respect to urban tile [ ]
+      &  urb_fr_bld_t(:,:,:)   ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< street canyon H/W ratio                 [ m/m ]
+      &  urb_h2w(:,:)          ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< street canyon H/W ratio                 [ m/m ]
+      &  urb_h2w_t(:,:,:)      ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< building height                           [ m ]
+      &  urb_h_bld(:,:)        ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< biulding height                           [ m ]
+      &  urb_h_bld_t(:,:,:)    ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< thermal albedo of urban material            [ ]
+      &  urb_alb_th(:,:)       ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< thermal albedo of urban material            [ ]
+      &  urb_alb_th_t(:,:,:)   ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< solar albedo of urban material              [ ]
+      &  urb_alb_so(:,:)       ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< solar albedo of urban material              [ ]
+      &  urb_alb_so_t(:,:,:)   ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< volumetric heat capacity of urban material [ J/m^3/K ]
+      &  urb_hcap(:,:)         ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< volumetric heat capacity of urban material [ J/m^3/K ]
+      &  urb_hcap_t(:,:,:)     ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< thermal conductivity of urban material [ W/m/K ]
+      &  urb_hcon(:,:)         ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< thermal conductivity of urban material [ W/m/K ]
+      &  urb_hcon_t(:,:,:)     ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< anthropogenic heat flux               [ W/m^2 ]
+      &  ahf(:,:)              ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< anthropogenic heat flux               [ W/m^2 ]
+      &  ahf_t(:,:,:)          ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
     REAL(wp), POINTER ::   &   !< minimum value of stomata resistance     [ s/m ]
       &  rsmin(:,:)            ! index1=1,nproma, index2=1,nblks_c
     REAL(wp), POINTER ::   &   !< minimum value of stomata resistance     [ s/m ]
@@ -325,8 +389,12 @@ MODULE mo_ext_data_types
       & laimax_lcc(:)          ! index1=1,23
     REAL(wp), POINTER ::  &    !< Maximum root depth for each land-cover class  [ ]
       & rootdmax_lcc(:)        ! index1=1,23
-    REAL(wp), POINTER ::  &    !< Skin conductivity for each land use class [ ]
+    REAL(wp), POINTER ::  &    !< Skin conductivity for each land use class [W/m^2/K]
       & skinc_lcc(:)           ! index1=1,23
+    REAL(wp), POINTER ::  &    !< Impervious surface area (ISA) for each land use class [ ]
+      & fr_paved_lcc(:)        ! index1=1,23
+    REAL(wp), POINTER ::  &    !< Anthropogenic heat flux for each land use class [W/m^2]
+      & ahf_lcc(:)             ! index1=1,23
     REAL(wp), POINTER ::  &    !< Minimum stomata resistance for each land-cover class  [ ]
       & stomresmin_lcc(:)      ! index1=1,23
     REAL(wp), POINTER ::  &    !< Albedo in case of snow cover for each land-cover class  [ ]

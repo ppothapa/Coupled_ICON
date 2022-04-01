@@ -3990,7 +3990,7 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2016) &
+4 = Resistance-based scheme by Schulz and Vogel (2020) &
 \tabularnewline
 
 %\hline
@@ -4005,7 +4005,7 @@ should be used only with an appropriate first guess for this variable coming fro
 itype\_canopy &
 I & 1 &  & Type of canopy parameterization with respect to surface energy balance \\
 1 = Surface energy balance equation solved at the ground surface, canopy energetically not represented \\
-2 = Skin temperature formulation by Schulz and Vogel (2017), based on Viterbo and Beljaars (1995) &
+2 = Skin temperature formulation by Schulz and Vogel (2020), based on Viterbo and Beljaars (1995) &
 \tabularnewline
 
 %\hline
@@ -4021,12 +4021,24 @@ tau\_skin &
 R & 3600. & s & Relaxation time scale for the computation of the skin temperature  &
 \tabularnewline
 
+lterra\_urb &
+L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017)
+&
+\tabularnewline
+
+itype\_eisa &
+I & 2 &  & Type of evaporation from impervious surface area \\
+0 = Evaporation like bare soil \\
+1 = No evaporation \\
+2 = PDF-based puddle evaporation (Wouters et al.\ 2015) &
+\tabularnewline
+
 %\hline
 itype\_heatcond &
-I & 2 &  & type of soil heat conductivity \\
-1 = constant soil heat conductivity \\
-2 = moisture dependent soil heat conductivity, cf.\ Schulz et al.\ (2016) \\
-3 = variant of option 2 with reduced near-surface heat conductivity in the presence of plant cover &
+I & 2 &  & type of soil thermal conductivity \\
+1 = constant soil thermal conductivity \\
+2 = moisture dependent soil thermal conductivity, cf.\ Schulz et al.\ (2016) \\
+3 = variant of option 2 with reduced near-surface thermal conductivity in the presence of plant cover &
 \tabularnewline
 
 %\hline
