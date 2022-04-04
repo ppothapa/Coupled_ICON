@@ -400,8 +400,6 @@ CONTAINS
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),               &
               &                         zaeq5(jcs:jce,:,jb),                                    &
               &                         ecrad_conf, ecrad_aerosol)
-            CALL finish(routine, 'irad_aero = 9 not yet fully implemented for ecRad')
-
 
           CASE(12,13,14,15,18,19)
 #ifdef _OPENACC
