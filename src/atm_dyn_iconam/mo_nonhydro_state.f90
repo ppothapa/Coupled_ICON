@@ -4152,6 +4152,8 @@ MODULE mo_nonhydro_state
     &       p_metrics%zgpot_ifc, &
     &       p_metrics%zgpot_mc, &
     &       p_metrics%dzgpot_mc, &
+    &       p_metrics%mask_mtnpoints, &
+    &       p_metrics%mask_mtnpoints_g, &
     &       p_metrics%deepatmo_t1mc, &
     &       p_metrics%deepatmo_t1ifc, &
     &       p_metrics%deepatmo_t2mc)

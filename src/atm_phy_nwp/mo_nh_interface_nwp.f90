@@ -1104,17 +1104,8 @@ CONTAINS
 
     IF ( lcall_phy_jg(itconv)  ) THEN
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "convection", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
-#ifdef _OPENACC
-      IF (.NOT. linit) THEN
-        CALL message('mo_nh_interface_nwp', 'Device to host copy before nwp_convection. This needs to be removed once port is finished!')
-        CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data=ext_data)
-        i_am_accel_node = .FALSE.
-      ENDIF
-#endif
 
-
-      IF (msg_level >= 15) &
-&           CALL message('mo_nh_interface', 'convection')
+      IF (msg_level >= 15)  CALL message('mo_nh_interface', 'convection')
 
       IF (timers_level > 2) CALL timer_start(timer_nwp_convection)
       CALL nwp_convection (  dt_phy_jg(itconv),                 & !>input
@@ -1128,16 +1119,10 @@ CONTAINS
                             & prm_diag,                         & !>inout 
                             & prm_nwp_tend,                     & !>inout
                             & prm_nwp_stochconv,                & !>inout
-                            & pt_int_state                      ) !>in
+                            & pt_int_state,                     & !>in
+                            & lacc=(.not. linit)                ) !>in
 
       IF (timers_level > 2) CALL timer_stop(timer_nwp_convection)
-#ifdef _OPENACC
-      IF (.NOT. linit) THEN
-        CALL message('mo_nh_interface_nwp', 'Host to device copy after nwp_convection. This needs to be removed once port is finished!')
-        CALL gpu_h2d_nh_nwp(pt_patch, prm_diag)
-        i_am_accel_node = my_process_is_work()
-      ENDIF
-#endif
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "convection", .FALSE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
 
     ENDIF! convection

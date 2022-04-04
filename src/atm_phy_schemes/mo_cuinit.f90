@@ -35,11 +35,6 @@ MODULE mo_cuinit
     &                  jpim=>i4
 #endif
 
-#ifdef __GME__
-!  USE parkind1  ,ONLY: jpim     ,jprb
-  USE gme_data_parameters, ONLY:  JPRB =>ireals, JPIM => iintegers
-#endif
-  
 !  USE yomhook   ,ONLY: lhook,   dr_hook
   
   USE mo_cuparameters,  ONLY : rkap,  r4les, r4ies   ,&
@@ -51,6 +46,14 @@ MODULE mo_cuinit
     &                          lhook,   dr_hook
 
   USE mo_adjust ,ONLY: cuadjtq ,cuadjtqs
+
+  !KF new - use module instead of include file
+  USE mo_cufunctions, ONLY: foealfcu, foeewm, foealfa
+
+#ifdef _OPENACC
+  USE mo_cuparameters,  ONLY : r2es, r3les, r3ies, rtt, r5alvcp, r5alscp
+  USE mo_cufunctions,   ONLY : foeldcpmcu
+#endif
 
   IMPLICIT NONE
 
@@ -69,7 +72,7 @@ CONTAINS
     & ptenh,    pqenh,    pqsenh,   pgeoh,&
     & ptu,      pqu,      ptd,      pqd,&
     & puu,      pvu,      pud,      pvd,&
-    & plu  )
+    & plu,      lacc  )
 
     !>
     !! Description:
@@ -182,6 +185,8 @@ CONTAINS
     REAL(KIND=jprb)   ,INTENT(inout)   :: pud(klon,klev)
     REAL(KIND=jprb)   ,INTENT(inout)   :: pvd(klon,klev)
     REAL(KIND=jprb)   ,INTENT(inout)   :: plu(klon,klev)
+    LOGICAL           ,INTENT(in)      :: lacc
+
     REAL(KIND=jprb) ::     zwmax(klon)
     REAL(KIND=jprb) ::     zph(klon)
     LOGICAL ::  llflag(klon)
@@ -194,8 +199,6 @@ CONTAINS
     !#include "cuadjtq.intfb.h"
     !#include "cuadjtqs.intfb.h"
 
-    zph  (:) = 0.0_JPRB
-   
     !----------------------------------------------------------------------
 
     !*    1.           SPECIFY LARGE SCALE PARAMETERS AT HALF LEVELS
@@ -204,9 +207,26 @@ CONTAINS
     !                  ----------------------------------------------
 
     IF (lhook) CALL dr_hook('CUININ',0,zhook_handle)
-    zalfa=LOG(2.0_JPRB)
+
+    !$acc data                                                                  &
+    !$acc present( pten, pqen, pqsen, puen, pven, pvervel, pgeo, paph, klwmin ) &
+    !$acc present( klab, ptenh, pqenh, pqsenh, pgeoh, ptu, pqu, ptd, pqd, puu ) &
+    !$acc present( pvu, pud, pvd, plu )                                         &
+
+    !$acc create( zwmax, zph, llflag )                                          &
+    !$acc if(lacc)
+
+    !is set below:  zph  (:) = 0.0_JPRB
+   
+!   zalfa=LOG(2.0_JPRB)
     zorcpd=1._jprb/rcpd
+
+    !$acc parallel default(none) if (lacc)
+
+    !$acc loop seq
     DO jk=ktdia+1,klev
+
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         ptenh(jl,jk)=(MAX(rcpd*pten(jl,jk-1)+pgeo(jl,jk-1),&
           & rcpd*pten(jl,jk)+pgeo(jl,jk))-pgeoh(jl,jk))*zorcpd
@@ -214,34 +234,39 @@ CONTAINS
         pqsenh(jl,jk)=pqsen(jl,jk-1)
         zph(jl)=paph(jl,jk)
         llflag(jl)=.TRUE.
-     ENDDO
+      ENDDO
 
       !orig   IF(JK.GE.KLEV-1) GO TO 130
       IF(jk >= klev-1 .OR. jk<njkt2) CYCLE
       ik=jk
 
       IF(lphylin)THEN
-         icall=0
+        icall=0
+#ifndef _OPENACC
         CALL cuadjtqs &
           & ( kidia,    kfdia,    klon,  klev,&
           & ik,&
           & zph,      ptenh,    pqsenh,   llflag,   icall)
+#endif
       ELSE
-         icall=3
+        icall=3
         CALL cuadjtq &
           & ( kidia,    kfdia,    klon,    klev,&
           & ik,&
           & zph,      ptenh,    pqsenh,   llflag,   icall)
       ENDIF
 
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         pqenh(jl,jk)=MIN(pqen(jl,jk-1),pqsen(jl,jk-1))&
           & +(pqsenh(jl,jk)-pqsen(jl,jk-1))
         pqenh(jl,jk)=MAX(pqenh(jl,jk),0.0_JPRB)
       ENDDO
+
       !orig  130   continue
     ENDDO
 
+    !$acc loop gang(static:1) vector
     DO jl=kidia,kfdia
       !KF next two statements are commented in cosmo-tiedtke to avoid drizzling 2010-03-10
       ptenh(jl,klev)=(rcpd*pten(jl,klev)+pgeo(jl,klev)-pgeoh(jl,klev))*zorcpd
@@ -252,7 +277,9 @@ CONTAINS
       zwmax(jl)=0.0_JPRB
     ENDDO
 
+    !$acc loop seq
     DO jk=klev-1,ktdia+1,-1
+      !$acc loop gang(static:1) vector private(zzs)
       DO jl=kidia,kfdia
         zzs=MAX(rcpd*ptenh(jl,jk)+pgeoh(jl,jk),&
           & rcpd*ptenh(jl,jk+1)+pgeoh(jl,jk+1))
@@ -260,9 +287,11 @@ CONTAINS
       ENDDO
     ENDDO
 
+    !$acc loop seq
     DO jk=klev,ktdia+2,-1
 !DIR$ IVDEP
 !OCL NOVREC
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         IF(pvervel(jl,jk) < zwmax(jl)) THEN
           zwmax(jl)=pvervel(jl,jk)
@@ -276,9 +305,11 @@ CONTAINS
     !*    2.0          INITIALIZE VALUES FOR UPDRAFTS AND DOWNDRAFTS
     !*                 ---------------------------------------------
 
+    !$acc loop seq
     DO jk=ktdia,klev
       ik=jk-1
       IF(jk == ktdia) ik=ktdia
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         ptu(jl,jk)=ptenh(jl,jk)
         ptd(jl,jk)=ptenh(jl,jk)
@@ -292,7 +323,9 @@ CONTAINS
         klab(jl,jk)=0
       ENDDO
     ENDDO
+    !$acc end parallel
 
+    !$acc end data
 
     IF (lhook) CALL dr_hook('CUININ',1,zhook_handle)
   END SUBROUTINE cuinin
@@ -309,7 +342,7 @@ SUBROUTINE cubasen &
  & ptu,      pqu,      plu,      puu,      pvu ,  pwubase,&
  & klab,     ldcum,    kcbot,                             &
 !& LDSC,     KBOTSC,
- & kctop,    kdpl,     pcape, pvervel650, lvv_shallow_deep )
+ & kctop,    kdpl,     pcape, pvervel650, lvv_shallow_deep, lacc )
 
 !>
 !! Description:
@@ -449,9 +482,6 @@ SUBROUTINE cubasen &
 ! & ralvdcp  ,ralsdcp  ,ralfdcp  ,rtwat    ,rtice    ,rticecu  ,&
 ! & rtwat_rticecu_r    ,rtwat_rtice_r
 !
-    !KF new - use module instead of include file
-    USE mo_cufunctions, ONLY: foealfcu, foeewm, foealfa
-
 
 
 INTEGER(KIND=jpim),INTENT(in)    :: klon
@@ -487,16 +517,19 @@ REAL(KIND=jprb)   ,INTENT(inout) :: pvu(klon,klev)
 REAL(KIND=jprb)   ,INTENT(out)   :: pwubase(klon) 
 INTEGER(KIND=jpim),INTENT(inout) :: klab(klon,klev) 
 LOGICAL           ,INTENT(inout) :: ldcum(klon) 
-!LOGICAL           ,INTENT(out)  :: ldsc(klon) 
-LOGICAL                          :: ldsc(klon)
-LOGICAL           ,INTENT(in)    :: lvv_shallow_deep
 INTEGER(KIND=jpim),INTENT(inout) :: kcbot(klon) 
-!INTEGER(KIND=jpim),INTENT(out)   :: kbotsc(klon) 
-INTEGER(KIND=jpim)               :: kbotsc(klon) 
 INTEGER(KIND=jpim),INTENT(out)   :: kctop(klon) 
 INTEGER(KIND=jpim),INTENT(out)   :: kdpl(klon) 
 REAL(KIND=jprb)   ,INTENT(out)   :: pcape(klon) 
+
 REAL(KIND=jprb)   ,INTENT(in)    :: pvervel650(:) 
+LOGICAL           ,INTENT(in)    :: lvv_shallow_deep
+LOGICAL           ,INTENT(in)    :: lacc
+
+! local variables
+
+LOGICAL                          :: ldsc(klon) 
+INTEGER(KIND=jpim)               :: kbotsc(klon) 
 
 INTEGER(KIND=jpim) ::  ictop(klon),            icbot(klon),&
  & ibotsc(klon),           ilab(klon,klev),&
@@ -518,7 +551,7 @@ REAL(KIND=jprb)    :: &
  & zbuoh(klon,klev)  
 REAL(KIND=jprb) :: zqold(klon),zph(klon)
 REAL(KIND=jprb) :: zmix(klon)
-REAL(KIND=jprb) :: zdz(klon),zcbase(klon)
+REAL(KIND=jprb) :: zdz(klon)
 
 REAL(KIND=jprb) ::    zlu(klon,klev),   zqu(klon,klev),&
  & ztu(klon,klev), &
@@ -538,13 +571,17 @@ REAL(KIND=jprb) :: ztvenh    ! ENVIRONMENT VIRTUAL TEMPERATURE AT HALF LEVELS (K
 REAL(KIND=jprb) :: ztvuh     ! UPDRAFT VIRTUAL TEMPERATURE AT HALF LEVELS     (K)
 REAL(KIND=jprb) :: zlglac    ! UPDRAFT LIQUID WATER FROZEN IN ONE LAYER
 REAL(KIND=jprb) :: zqsu, zcor, zdq, zalfaw, zfacw, zfaci, zfac,&
- & zesdp, zdqsdt, zdtdp, zdp,zpdifftop,zpdiffbot,zsf,zqf,zaw,zbw  
+ & zesdp, zdqsdt, zdtdp, zdp,zpdifftop,zpdiffbot,zsf,zqf,zaw,zbw
 !REAL(KIND=jprb) :: ztven1(klon), ztven2, ztvu1(klon), ztvu2 ! pseudoadiabatique T_v
 REAL(KIND=jprb) :: ztven1(klon,klev),ztven2(klon,klev),ztvu1(klon,klev),ztvu2(klon,klev)
 REAL(KIND=jprb) :: zdtvtrig(klon) ! virtual temperatures
 REAL(KIND=jprb) :: zwork1, zwork2! work arrays for T and w perturbations
-REAL(KIND=jprb) :: zrcpd, zrg, ztmp, zredfac
+REAL(KIND=jprb) :: zrcpd, zrg, ztmp, zredfac, zcbase
 REAL(KIND=jprb) :: zhook_handle
+
+#ifdef _OPENACC
+REAL(KIND=jprb) :: uzqp,uzl,uzi,uzqsat,uzcor,uzf,uzcond,uzcond1
+#endif
 
 !#include "cuadjtq.intfb.h"
 !#include "fcttre.func.h"
@@ -555,37 +592,61 @@ REAL(KIND=jprb) :: zhook_handle
 !----------------------------------------------------------------------
 
 IF (lhook) CALL dr_hook('CUBASEN',0,zhook_handle)
+
+!$acc data                                                                          &
+!$acc present( mtnmask, ldland, ldlake, ptenh, pqenh, pgeoh, paph, pqhfl, pahfs )   &
+!$acc present( pten, pqen, pqsen, pgeo, puen, pven, ptu, pqu, plu, puu, pvu )       &
+!$acc present( pwubase, klab, ldcum, kcbot, kctop, kdpl, pcape, pvervel650 )        &
+
+!$acc create( ldsc, kbotsc, ictop, icbot, ibotsc, ilab, idpl, ll_ldbase, llgo_on )  &
+!$acc create( lldeep, lldcum, lldsc, llfirst, llresetjl, ldocean, zsenh, zqenh )    &
+!$acc create( zsuh , zwu2h, zbuoh, zqold, zph, zmix, zdz, zlu, zqu, ztu )           &
+!$acc create( zuu, zvu, zcape, ztex, zqex, ztven1, ztven2, ztvu1, ztvu2, zdtvtrig ) &
+!$acc if(lacc)
+
 zaw    = 1.0_JPRB
 zbw    = 1.0_JPRB
-
-ztven1(:,:)  = 0._jprb
-ztven2(:,:)  = 0._jprb
-ztvu1 (:,:)  = 0._jprb
-ztvu2 (:,:)  = 0._jprb
-zsenh(:,:)   = 0._jprb
-zqenh(:,:)   = 0._jprb
-zsuh (:,:)   = 0._jprb
-zwu2h(:,:)   = 0._jprb
-zbuoh(:,:)   = 0._jprb
-zqold  (:)   = 0._jprb
-zph    (:)   = 0._jprb
-zdz    (:)   = 0._jprb
-zcbase (:)   = 0._jprb
-
-DO jl=kidia,kfdia
-  pwubase(jl)=0.0_JPRB
-  llgo_on(jl)=.TRUE.
-  llfirst(jl)=.TRUE.
-  ldocean(jl) = .NOT. (ldland(jl) .OR. ldlake(jl) .OR. lgrz_deepconv)
-  kdpl(jl)=klev
-ENDDO
-
 jkt1=njkt1
 jkt2=njkt2
 zrg=1.0_JPRB/rg
 zrcpd=1.0_JPRB/rcpd
 
+!$acc parallel default (none) if (lacc)
+
+!$acc loop seq
+DO jk=1,klev
+  !$acc loop gang(static:1) vector
+  DO jl=kidia,kfdia
+    ztven1(jl,jk)  = 0._jprb
+    ztven2(jl,jk)  = 0._jprb
+    ztvu1 (jl,jk)  = 0._jprb
+    ztvu2 (jl,jk)  = 0._jprb
+    zsenh (jl,jk)  = 0._jprb
+    zqenh (jl,jk)  = 0._jprb
+    zsuh  (jl,jk)  = 0._jprb
+    zwu2h (jl,jk)  = 0._jprb
+    zbuoh (jl,jk)  = 0._jprb
+  ENDDO
+ENDDO
+
+!$acc loop gang(static:1) vector
+DO jl=kidia,kfdia
+  zqold  (jl)         = 0._jprb
+  zph    (jl)         = 0._jprb
+  zdz    (jl)         = 0._jprb
+  zsenh  (jl,klev+1)  = 0._jprb
+  zqenh  (jl,klev+1)  = 0._jprb
+
+  pwubase(jl) = 0.0_JPRB
+  llgo_on(jl) = .TRUE.
+  llfirst(jl) = .TRUE.
+  ldocean(jl) = .NOT. (ldland(jl) .OR. ldlake(jl) .OR. lgrz_deepconv)
+  kdpl   (jl) = klev
+ENDDO
+
+!$acc loop seq
 DO jk=ktdia,klev
+  !$acc loop gang(static:1) vector
   DO jl=kidia,kfdia
     ztu(jl,jk) = ptu(jl,jk)
     zqu(jl,jk) = pqu(jl,jk)
@@ -603,7 +664,9 @@ ENDDO
 !             OF SPECIFIC HUMIDITY AND STATIC ENERGY
 !       -----------------------------------------------------------
 
+!$acc loop seq
 DO jk=ktdia,klev
+  !$acc loop gang(static:1) vector
   DO jl=kidia,kfdia
     ZWU2H(JL,JK)=0.0_JPRB
     zqenh(jl,jk) = pqenh(jl,jk)
@@ -611,6 +674,7 @@ DO jk=ktdia,klev
   ENDDO
 ENDDO
 
+!$acc loop seq
 DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
                                ! find first departure level that produces deepest cloud top
                                ! or take surface level for shallow convection and Sc
@@ -619,10 +683,17 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
    !        1.2    INITIALISE FIELDS AT DEPARTURE HALF MODEL LEVEL
    !        ---------------------------------------------------------
    !
+
+#ifndef _OPENACC
   is=0
+#endif
+
+  !$acc loop gang(static:1) vector
   DO jl=kidia,kfdia
     IF (llgo_on(jl)) THEN
+#ifndef _OPENACC
       is=is+1
+#endif
       idpl(jl)    =jkk      ! departure level
       icbot  (jl) =jkk      ! cloud base level for convection, (-1 if not found)
       ibotsc (jl) =klev-1   ! sc    base level for sc-clouds , (-1 if not found)
@@ -637,10 +708,13 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
     ENDIF 
   ENDDO
 
+#ifndef _OPENACC
   IF(is /= 0) THEN
+#endif
 
     IF(jkk == klev) THEN
 
+      !$acc loop gang(static:1) vector private(zrho, zkhvfl, zws, zredfac, ztvenh, ztvuh)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
           zrho  = paph(jl,jkk+1)/(rd*(pten(jl,jkk)*(1.0_JPRB+retv*pqen(jl,jkk))))
@@ -676,6 +750,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     ELSE
 
+      !$acc loop gang(static:1) vector private(zredfac, ztexc, zqexc, zwork1, jk, zwork2, ztvenh, ztvuh)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
           ilab(jl,jkk)= 1
@@ -746,9 +821,10 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
         ENDIF
       ENDDO
    
-    ENDIF
-
-  ENDIF
+    ENDIF  ! jkk=klev
+#ifndef _OPENACC
+  ENDIF    ! is/=0  or ANY(llgo_on)
+#endif
    
    !----------------------------------------------------------------------
    !     2.0          DO ASCENT IN SUBCLOUD AND LAYER,
@@ -759,14 +835,21 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
    !       ------------------------------------------------------------
    !        1.2  DO THE VERTICAL ASCENT UNTIL VELOCITY BECOMES NEGATIVE
    !       ------------------------------------------------------------
-  DO jk=jkk-1,MAX(ktdia,jkt2),-1
+
+  !$acc loop seq
+  smalldoloop: DO jk=jkk-1,MAX(ktdia,jkt2),-1
+#ifndef _OPENACC
     is=0
+#endif
 
     IF(jkk==klev) THEN ! 1/z mixing for shallow
 
+      !$acc loop gang(static:1) vector private(zeps, zqf, zsf, ztmp) 
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
+#ifndef _OPENACC
           is         = is+1
+#endif
           zdz(jl)    = (pgeoh(jl,jk) - pgeoh(jl,jk+1))*zrg
           zeps       = entstpc1/((pgeoh(jl,jk)-pgeoh(jl,klev+1))*zrg) + entstpc2
   !        zmix(jl)   = 0.5_JPRB*zdz(jl)*zeps
@@ -786,9 +869,12 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     ELSE
 
+      !$acc loop gang(static:1) vector private(zqf, zsf)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
+#ifndef _OPENACC
           is         = is+1
+#endif
           zdz(jl)    = (pgeoh(jl,jk) - pgeoh(jl,jk+1))*zrg
           zqf = (pqenh(jl,jk+1) + pqenh(jl,jk))*0.5_JPRB
           zsf = (zsenh(jl,jk+1) + zsenh(jl,jk))*0.5_JPRB
@@ -808,18 +894,30 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     ENDIF
 
-    IF (is == 0) EXIT
-     
+#ifndef _OPENACC
+    IF (is == 0) EXIT smalldoloop
+#endif
+ 
     ik=jk
     icall=1
      
+#ifdef _OPENACC
+!$acc loop gang(static:1) vector
+do jl=kidia,kfdia
+if (jl==-1292) print *, 'working on:  ', ik, jk, jkk
+enddo
+#endif
+
     CALL cuadjtq &
      & ( kidia,    kfdia,    klon,    klev,      ik,&
-     &   zph,      ztu,      zqu,     llgo_on,   icall)  
+     &   zph,      ztu,      zqu,     llgo_on,   icall)
+
+    !DIR$ IVDEP
+    !OCL NOVREC
    
-   !DIR$ IVDEP
-   !OCL NOVREC
-   
+    !$acc loop gang(static:1) vector private(zdq, zlglac, ztvuh, ztvenh, zbuof, ztmp, ik) &
+    !$acc private (zqsu, zcor, zalfaw, zfacw, zfaci, zfac, zesdp, zdqsdt, zdtdp)&
+    !$acc private (zdp, zpdifftop, zpdiffbot, zcbase, jkb)
     DO jl=kidia,kfdia
       IF(llgo_on(jl)) THEN
    
@@ -896,12 +994,12 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
           zdqsdt=zfac*zcor*zqsu
           zdtdp=rd*ztu(jl,ik)/(rcpd*paph(jl,ik))
           zdp=zdq/(zdqsdt*zdtdp)
-          zcbase(jl)=paph(jl,ik)+zdp
+          zcbase=paph(jl,ik)+zdp
            
    ! chose nearest half level as cloud base
    
-          zpdifftop=zcbase(jl)-paph(jl,jk)
-          zpdiffbot=paph(jl,jk+1)-zcbase(jl)
+          zpdifftop=zcbase-paph(jl,jk)
+          zpdiffbot=paph(jl,jk+1)-zcbase
            
           IF(zpdifftop > zpdiffbot.AND.zwu2h(jl,jk+1)>0.0_JPRB) THEN
             jkb=MIN(klev-1,jk+1)
@@ -945,6 +1043,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
     ENDDO
    
     IF(lmfdudv.AND.jkk==klev) THEN
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         IF(.NOT.ll_ldbase(jl).AND.llgo_on(jl)) THEN
           zuu(jl,jkk)=zuu(jl,jkk)+puen(jl,jk)*(paph(jl,jk+1)-paph(jl,jk))
@@ -954,10 +1053,12 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
     ENDIF
    
 !     IF (IS == 0) EXIT
-  ENDDO
+  ENDDO smalldoloop  ! loop over jk
    
   IF( jkk==klev) THEN
-      ! set values for departure level for PBL clouds = first model level
+    ! set values for departure level for PBL clouds = first model level
+
+    !$acc loop gang(static:1) vector private(jkt, jkb)
     DO jl=kidia,kfdia
       ldsc(jl)  = lldsc(jl)
       IF(ldsc(jl)) THEN
@@ -972,7 +1073,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       
       ! use alternative criterion for "deep convection"
       IF (lvv_shallow_deep) THEN
-         lldeep(jl)= (pvervel650(jl).LT.0.0)
+         lldeep(jl)= (pvervel650(jl) < 0.0_jprb)
       ELSE
          lldeep(jl)=paph(jl,jkb)-paph(jl,jkt)>rdepths
       ENDIF
@@ -996,7 +1097,10 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
         pwubase(jl)=0.0_JPRB
       ENDIF
     ENDDO
+
+    !$acc loop seq
     DO jk=klev,ktdia,-1
+      !$acc loop gang(static:1) vector private(jkt)
       DO jl=kidia,kfdia
         jkt=ictop(jl)
         IF ( jk>=jkt ) THEN
@@ -1008,10 +1112,12 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       ENDDO
     ENDDO
   ENDIF !jkk==klev
-      ! Modification by GZ to close vectorization gap
 
+  ! Modification by GZ to close vectorization gap
   IF( jkk < klev ) THEN
     !llreset=.FALSE.
+
+    !$acc loop gang(static:1) vector
     DO jl=kidia,kfdia
       IF ( .NOT.lldeep(jl) ) THEN
       !  jkt=ictop(jl)
@@ -1019,21 +1125,26 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
       ! test on cloud thickness and buoyancy
       !use alternative criterion for "deep convection"
          IF (lvv_shallow_deep) THEN
-            lldeep(jl)= (pvervel650(jl).LT.0.0)
+            lldeep(jl)= (pvervel650(jl) < 0.0_jprb)
          ELSE
             lldeep(jl)=paph(jl,icbot(jl))-paph(jl,ictop(jl))>=rdepths
          ENDIF
-       !LLDEEP(JL)=PAPH(JL,JKB)-PAPH(JL,JKT)>=RDEPTHS &
-       !   &.AND. ZDTVTRIG(JL)>0._JPRB
+        !LLDEEP(JL)=PAPH(JL,JKB)-PAPH(JL,JKT)>=RDEPTHS &
+        !   &.AND. ZDTVTRIG(JL)>0._JPRB
       ENDIF
       llresetjl(jl)=lldeep(jl).AND.llfirst(jl)
       !llreset=llreset.OR.llresetjl(jl)
     ENDDO
 
-     llreset = ANY(llresetjl(kidia:kfdia))
-    
+#ifndef _OPENACC
+!RS this would be a reduction on GPUs
+    llreset = ANY(llresetjl(kidia:kfdia))
+
     IF(llreset) THEN
+#endif
+      !$acc loop seq
       DO jk=klev,ktdia,-1
+        !$acc loop gang(static:1) vector private(jkt, jkb)
         DO jl=kidia,kfdia
          ! keep first departure level that produces deep cloud
 !          IF ( LLDEEP(JL) .AND. LLFIRST(JL) ) THEN 
@@ -1055,8 +1166,11 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
           ENDIF
         ENDDO
       ENDDO
+#ifndef _OPENACC
     ENDIF
+#endif
 
+    !$acc loop gang(static:1) vector private(jkb)
     DO jl=kidia,kfdia
       IF ( lldeep(jl) .AND. llfirst(jl) ) THEN
         kdpl(jl)  = idpl(jl)
@@ -1077,15 +1191,22 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
 ENDDO ! end of big loop for search of departure level     
 
-      ! compute maximum CAPE value
+! compute maximum CAPE value
+!$acc loop gang(static:1) vector
 DO jl=kidia,kfdia
   pcape(jl) = 0._jprb
 ENDDO
+
+!$acc loop seq
 DO jk=ktdia,klev
+  !$acc loop gang(static:1) vector
   DO jl=kidia,kfdia
     pcape(jl) = MAX(pcape(jl),zcape(jl,jk))
   ENDDO
 ENDDO
+!$acc end parallel
+
+!$acc end data
 
 IF (lhook) CALL dr_hook('CUBASEN',1,zhook_handle)
 END SUBROUTINE cubasen

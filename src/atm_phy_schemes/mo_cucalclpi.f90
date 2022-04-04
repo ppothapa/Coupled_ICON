@@ -56,7 +56,7 @@ MODULE mo_cucalclpi
 CONTAINS
 
 SUBROUTINE cucalclpi(klon, klev, ktype, ztu, zlu, zkineu, zmflxs        &
-      &            , zten, pap, zdgeoh, ldland, lpi)
+      &            , zten, pap, zdgeoh, ldland, lpi, lacc)
 
 ! Code Description:
 !     PARAMETER     DESCRIPTION                                   UNITS
@@ -101,6 +101,7 @@ REAL(KIND=jprb)   ,INTENT(in)  :: pap(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)  :: zdgeoh(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)  :: zkineu(klon,klev)
 LOGICAL           ,INTENT(in)  :: ldland(klon) 
+LOGICAL           ,INTENT(in)  :: lacc
 REAL(KIND=jprb)   ,INTENT(out) :: lpi(klon)
 
 REAL(KIND=jprb)   :: zrho(klon,klev)
@@ -111,6 +112,7 @@ INTEGER (KIND=jpim)   :: kland(klon)
 ! beta(1) for land, beta(2) for sea - Takahashi 2006 (mentioned
 ! in Lopez 2016)
 REAL(KIND=jprb), PARAMETER :: beta(2)= [0.7_jprb , 0.45_jprb ]  
+!$acc declare copyin (beta)
 REAL(KIND=jprb), PARAMETER :: Vgraup=3.0_jprb ! 3   m/s fall speed for graupel
 REAL(KIND=jprb), PARAMETER :: Vsnow=0.5_jprb  ! 0.5 m/s fall speed for snow
 
@@ -122,17 +124,34 @@ REAL(KIND=jprb) :: unitVolume(klon) ! the volume used for the integral - region
 
 INTEGER(KIND=jpim) :: jk, jl
 
-! Make land sea mask for beta
-  kland=2_jpim
-  WHERE (ldland) kland=1_jpim
+!$acc data                                                                                      &
+!$acc present( ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zkineu, ldland, lpi )                &
 
-  zrho=pap/(zten*Rd+1E-10_jprb)
+!$acc create( unitVolume, zrho, kland )                                                         &
+!$acc if(lacc)
 
-  ! Now compute the LPI (Lynn and Yair 2010)
-  LPI=0.0_jprb
-  unitVolume=0.0_jprb
-  DO JK = 1, klev
-    DO JL = 1, klon
+  !$acc parallel default(present) if (lacc)
+
+  ! Make land sea mask for beta
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    kland(jl)      = MERGE (1_jpim, 2_jpim, ldland(jl))
+    LPI(jl)        = 0.0_jprb
+    unitVolume(jl) = 0.0_jprb
+  ENDDO
+
+  !$acc loop seq
+  DO jk = 1, klev
+    !$acc loop gang(static:1) vector
+    DO jl = 1, klon
+      zrho(JL,JK)=pap(JL,JK)/(zten(JL,JK)*Rd+1E-10_jprb)
+    ENDDO
+  ENDDO
+
+  !$acc loop seq
+  DO jk = 1, klev
+    !$acc loop gang(static:1) vector private(zqGraup, zqSnow, zqLiquid, zqIce, zQI, zeps, zdz) 
+    DO jl = 1, klon
       ! only for deep convection LPI is computed
       IF (ktype(JL) == 1) THEN
         IF (ztu(JL,JK) <=273.15_jprb .AND. ztu(JL,JK) >=273.15_jprb-20._jprb) THEN
@@ -155,10 +174,12 @@ INTEGER(KIND=jpim) :: jk, jl
         ENDIF
       ENDIF
     ENDDO
-    !ENDDO
   ENDDO
 
-  lpi=lpi/(unitVolume+1E-20_jprb)
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    lpi(JL)=lpi(JL)/(unitVolume(JL)+1E-20_jprb)
+  ENDDO
 
 !!  ! We use 15 km as vertial unit volume - after all it is just a scaling factor
 !!  ! Note - In the paper the LPI is an average oer the unit volume. If we
@@ -170,9 +191,13 @@ INTEGER(KIND=jpim) :: jk, jl
 !!  ! only.
 !!  lpi=lpi/15000._jprb 
 
+  !$acc end parallel
+
+!$acc end data
+
 END SUBROUTINE cucalclpi
  
-SUBROUTINE CUCALCMLPI(klon, klev, lpi, zten, zqen, pap, paph, koi, mlpi)
+SUBROUTINE CUCALCMLPI(klon, klev, lpi, zten, zqen, pap, paph, koi, mlpi, lacc)
 ! Code Description:
 ! Computes a modified LPI using LPI as in Lynn and Yair and KOI.
 !
@@ -210,8 +235,9 @@ REAL(KIND=jprb),INTENT(in)    :: zqen(klon,klev)
 REAL(KIND=jprb),INTENT(in)    :: pap(klon,klev)
 REAL(KIND=jprb),INTENT(in)    :: paph(klon,klev+1)
 REAL(KIND=jprb),INTENT(in)    :: lpi(klon)
-REAL(KIND=jprb),INTENT(out)    :: mlpi(klon)
-REAL(KIND=jprb),INTENT(out)    :: koi(klon)
+LOGICAL        ,INTENT(in)    :: lacc
+REAL(KIND=jprb),INTENT(out)   :: mlpi(klon)
+REAL(KIND=jprb),INTENT(out)   :: koi(klon)
 ! Equivalent temperatures in 600 and 900 hPa
 ! Note - the average of 500 to 700 hPa is computed for 600hPa
 !        the average below 800 hPa is computed for 900 hPa
@@ -234,21 +260,38 @@ REAL(KIND=jprb), PARAMETER :: fk=0.309079838495018_jprb
 REAL(KIND=jprb), PARAMETER :: fbmax=14.04617_jprb !!2.80923302891783_jprb
 
 INTEGER(KIND=jpim) :: jk, jl
+
+!$acc data                                                                                      &
+!$acc present( zten, zqen, pap, paph, lpi, mlpi, koi )                                          &
+
+!$acc create( thetae600, thetae900, thetae, deltap600, deltap900, fa, fb )                      &
+!$acc if(lacc)
+
+  !$acc parallel default(none) if (lacc)
+
   ! compute equivalent potential temperature
-  DO JK = 1_jpim, klev
-    DO JL = 1_jpim, klon
+  !$acc loop seq
+  DO jk = 1_jpim, klev
+    !$acc loop gang(static:1) vector private(te)
+    DO jl = 1_jpim, klon
        te = zten(JL,JK)+foeldcpm(zten(JL,JK)+1E-20)*zqen(JL,JK)
        thetae(JL,JK)=te*(100000.D0/(pap(JL,JK)+1E-10))**(rd/rcpd)
     ENDDO
   ENDDO
 
   ! Now compute KOI
-  thetae900=0.0_jprb
-  deltap900=0.0_jprb
-  thetae600=0.0_jprb
-  deltap600=0.0_jprb
-  DO JK = 1_jpim, klev
-    DO JL = 1_jpim, klon
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    thetae900(jl)=0.0_jprb
+    deltap900(jl)=0.0_jprb
+    thetae600(jl)=0.0_jprb
+    deltap600(jl)=0.0_jprb
+  ENDDO
+
+  !$acc loop seq
+  DO jk = 1_jpim, klev
+    !$acc loop gang(static:1) vector
+    DO jl = 1_jpim, klon
       IF (pap(JL,JK) > 80000.D0) THEN
         thetae900(JL) = thetae900(JL)                                   &
  &                       +(paph(JL,JK+1)-paph(JL,JK))*thetae(JL,JK)
@@ -260,19 +303,33 @@ INTEGER(KIND=jpim) :: jk, jl
       ENDIF
     ENDDO
   ENDDO
-  thetae900 = thetae900/(deltap900+1E-20)
-  thetae600 = thetae600/(deltap600+1E-20)
-  KOI=thetae600-thetae900
+
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    thetae900(jl) = thetae900(jl)/(deltap900(jl)+1E-20)
+    thetae600(jl) = thetae600(jl)/(deltap600(jl)+1E-20)
+    KOI(jl)=thetae600(jl)-thetae900(jl)
+  ENDDO
+
   ! Over mountains KOI cannot be properly computed - here we set KOI to zero to
   ! leave LPI unchanged.
-  WHERE (deltap900 < 1E-20_jprb) KOI=0_jprb
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    IF (deltap900(jl) < 1E-20_jprb) KOI(jl)=0_jprb
+  ENDDO
 
   ! Compute the modified LPI
-  fa = fg*LPI**fh
-  ! we require a >= b
-  fb = min(fa, fbmax*(1_jprb+tanh(fi*(LPI**fk+fj)))/2_jprb)
-  MLPI= fb+(1_jprb+tanh(-fe*(KOI+fd)))/2_jprb*(fa-fb)
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    fa(jl) = fg*LPI(jl)**fh
+    ! we require a >= b
+    fb(jl) = min(fa(jl), fbmax*(1_jprb+tanh(fi*(LPI(jl)**fk+fj)))/2_jprb)
+    MLPI(jl)= fb(jl)+(1_jprb+tanh(-fe*(KOI(jl)+fd)))/2_jprb*(fa(jl)-fb(jl))
+  ENDDO
+
+  !$acc end parallel
                      
+!$acc end data
 
 END SUBROUTINE CUCALCMLPI
 

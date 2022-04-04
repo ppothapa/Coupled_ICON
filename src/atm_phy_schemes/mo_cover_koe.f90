@@ -287,7 +287,7 @@ ENDDO
 !-----------------------------------------------------------------------
 
 !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+!$ACC LOOP GANG VECTOR COLLAPSE(2)  PRIVATE(vap_pres)
 DO jk = kstart,klev
   DO jl = kidia,kfdia
     vap_pres = qv(jl,jk) * rho(jl,jk) * rv * tt(jl,jk)
@@ -326,11 +326,13 @@ CASE( 0 )
 ! diagnostic cloud cover
 CASE( 1 )
 
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG
+  !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG
   DO jk = kstart,klev
     jkp1 = MIN(jk+1,klev)
-    !$ACC LOOP VECTOR
+    !$ACC LOOP VECTOR PRIVATE(thicklay_fac, zdeltaq, zrcld, deltaq, fac_sfc) &
+    !$ACC             PRIVATE(box_liq_asy, par1, zaux, fac_aux, rhcrit_sgsice)  &
+    !$ACC             PRIVATE(qi_mod, qisat_grid, tfac, satdef_fac, qcc)
     DO jl = kidia,kfdia
 
 ! stratiform cloud
@@ -575,7 +577,7 @@ END SELECT
 
 !PREVENT_INCONSISTENT_IFORT_FMA
 !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+!$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf_ice)
 DO jk = kstart,klev
   DO jl = kidia,kfdia
     qv_tot(jl,jk) = qv(jl,jk) + qc(jl,jk) + qi(jl,jk) - qc_tot(jl,jk) - qi_tot(jl,jk)
@@ -615,6 +617,7 @@ DO jk = kstart,klev
 ENDDO
 !$ACC END PARALLEL
 
+!$ACC WAIT
 !$ACC END DATA
 
 END SUBROUTINE cover_koe

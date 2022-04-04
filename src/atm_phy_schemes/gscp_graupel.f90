@@ -704,8 +704,10 @@ SUBROUTINE graupel     (             &
 
   ! Initialize latent heats to constant values
 #ifdef __LOOP_EXCHANGE
+  !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
   zlhv(:) = lh_v
   zlhs(:) = lh_s
+  !$ACC END KERNELS
 #endif
 
 ! *********************************************************************

@@ -333,7 +333,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ! For lpi_con_max need an hourly reset for the first 48 h,
     ! a 3-hourly reset for day 3 and 4, and a 6 hourly reset thereafter.
     ! lpi_stop 3 is not needed - it is the end of the simulation
-    ! We use he same variables for mlpi_con_max and lfd_con_max.
+    ! We use the same variables for mlpi_con_max and lfd_con_max.
     CHARACTER(len=max_timedelta_str_len) :: lpi_int1, lpi_int2, lpi_int3
     CHARACTER(len=max_timedelta_str_len) :: lpi_start1, lpi_start2, lpi_start3
     CHARACTER(len=max_timedelta_str_len) :: lpi_end1, lpi_end2
@@ -826,8 +826,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & in_group=groups("additional_precip_vars"),                  &
                 & hor_interp=create_hor_interp_metadata(                      &
                 &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
-                &    fallback_type=HINTP_TYPE_LONLAT_NNB                      &
-                & ), lopenacc=.TRUE. )
+                &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & lopenacc=.TRUE. )
     __acc_attach(diag%cape)
 
     ! &      diag%cape_ml(nproma,nblks_c)
@@ -897,7 +897,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'rain_upd', diag%rain_upd,                       &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE. )
+                & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. )
+    __acc_attach(diag%rain_upd)
 
     ! &      diag%con_udd(nproma,nlev,nblks,8)
     cf_desc    = t_cf_var('con_udd', 'unit ', 'convective up/downdraft fields', datatype_flt)
@@ -940,7 +941,9 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'ldshcv', diag%ldshcv,                           &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE., loutput=.FALSE. )
+                & ldims=shape2d, lrestart=.FALSE., loutput=.FALSE.,           &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%ldshcv)
 
     ! &      diag%ktype(nproma,nblks_c)
     cf_desc    = t_cf_var('ktype', '', 'type of convection', datatype_flt)
@@ -3793,7 +3796,7 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_LPI, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_LPI, lrestart=.FALSE.)
     END IF
 
     IF (var_in_output%lpi_max) THEN
@@ -3802,12 +3805,12 @@ __acc_attach(diag%clct)
       cf_desc    = t_cf_var('lpi_max', 'J kg-1',                   &
            &                 'lightning potential index, maximum during the last '//celltracks_int(3:), datatype_flt)
       grib2_desc = grib2_var( 0, 17, 192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'lpi_max', diag%lpi_max,                      &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
-                  & cf_desc, grib2_desc,                                     &
-                  & ldims=shape2d,                                           &
-                  & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
-                  & resetval=0.0_wp, initval=0.0_wp,                         &
+      CALL add_var( diag_list, 'lpi_max', diag%lpi_max,                              &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                              &
+                  & cf_desc, grib2_desc,                                             &
+                  & ldims=shape2d,                                                   &
+                  & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,            &
+                  & resetval=0.0_wp, initval=0.0_wp,                                 &
                   & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
     END IF
 
@@ -3829,7 +3832,8 @@ __acc_attach(diag%clct)
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
                   & ldims=shape2d, lrestart=.FALSE.,                            &
                   & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB) )
+                  & hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+      __acc_attach(diag%lpi_con)
 
       ! For the time being we use as reset intervals:
       !  0-48 h - hourly
@@ -3873,8 +3877,9 @@ __acc_attach(diag%clct)
                     &    new_action( ACTION_RESET, TRIM(lpi_int3),             &
                     &                TRIM(lpi_start3)                 )     ), &
         & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
-        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF)  &
-                    & ) 
+        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
+                    & lopenacc=.TRUE.)
+      __acc_attach(diag%lpi_con_max)
 
 
       ! &      diag%mlpi_con(nproma,nblks_c)
@@ -3884,7 +3889,9 @@ __acc_attach(diag%clct)
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
                   & ldims=shape2d, lrestart=.FALSE.,                            &
                   & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB) )
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%mlpi_con)
 
 
       ! &      diag%mlpi_con_max(nproma,nblks_c)
@@ -3906,8 +3913,9 @@ __acc_attach(diag%clct)
                     &    new_action( ACTION_RESET, TRIM(lpi_int3),             &
                     &                TRIM(lpi_start3)                 )     ), &
         & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
-        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF) &
-                    & ) 
+        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%mlpi_con_max)
 
 
       ! &      diag%koi(nproma,nblks_c)
@@ -3917,7 +3925,8 @@ __acc_attach(diag%clct)
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
                   & ldims=shape2d, lrestart=.FALSE.,                            &
                   & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB) )
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+      __acc_attach(diag%koi)
 
     ELSE ! dummy allocation
       ALLOCATE(diag%lpi_con (0,kblks), STAT=ist)
@@ -3934,6 +3943,8 @@ __acc_attach(diag%clct)
       !
       ALLOCATE(diag%koi (0,kblks), STAT=ist)
       IF (ist/=SUCCESS)  CALL finish(TRIM(routine), 'dummy allocation for diag%koi failed')
+
+      !$ACC ENTER DATA CREATE(diag%lpi_con, diag%lpi_con_max, diag%mlpi_con, diag%mlpi_con_max, diag%koi)
     ENDIF
 
 
@@ -3953,7 +3964,8 @@ __acc_attach(diag%clct)
                   & ldims=shape2d, lrestart=.FALSE.,                            &
                   & isteptype=TSTEP_INSTANT,                                    &
                   & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB) )
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+      __acc_attach(diag%lfd_con)
 
 
       ! For the time being we use as reset intervals:
@@ -4000,14 +4012,17 @@ __acc_attach(diag%clct)
                     &    new_action( ACTION_RESET, TRIM(lpi_int3),             &
                     &                TRIM(lpi_start3)                 )     ), &
         & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
-        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF) &
-                    & )
+        &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
+                    & lopenacc=.TRUE.)
+      __acc_attach(diag%lfd_con_max)
     ELSE ! dummy allocation
       ALLOCATE(diag%lfd_con (0,kblks), STAT=ist)
       IF (ist/=SUCCESS)  CALL finish(TRIM(routine), 'dummy allocation for diag%lfd_con failed')
       !
       ALLOCATE(diag%lfd_con_max (0,kblks), STAT=ist)
       IF (ist/=SUCCESS)  CALL finish(TRIM(routine), 'dummy allocation for diag%lfd_con_max failed')
+
+      !$ACC ENTER DATA CREATE(diag%lfd_con, diag%lfd_con_max)
     ENDIF
 
 

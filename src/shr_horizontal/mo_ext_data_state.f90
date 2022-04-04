@@ -422,7 +422,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'llake_c', p_ext_atm%llake_c,       &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
         &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,       &
-        &           isteptype=TSTEP_CONSTANT )
+        &           isteptype=TSTEP_CONSTANT, lopenacc=.TRUE.           )
+        __acc_attach(p_ext_atm%llake_c)
 
 
       ! land fraction

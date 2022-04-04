@@ -45,8 +45,10 @@ MODULE mo_nwp_conv_interface
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_art_config,           ONLY: art_config
   USE mo_util_phys,            ONLY: nwp_con_gust
+  USE mo_exception,            ONLY: finish
+
+  ! for stochastic convection
   USE mo_sync,                 ONLY: sync_patch_array,sync_patch_array_mult,SYNC_C
-  USE mo_exception,            ONLY: message, message_text
   USE mo_intp_data_strc,       ONLY: t_int_state
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime
@@ -76,7 +78,8 @@ CONTAINS
     &                         prm_diag,                  & !>inout
     &                         prm_nwp_tend,              & !>inout
     &                         prm_nwp_stochconv,         & !>inout
-    &                         pt_int_state               )
+    &                         pt_int_state,              & !
+    &                         lacc                       ) !>in
 
     TYPE(t_patch)               ,INTENT(in)   :: p_patch          !<grid/patch info.
     TYPE(t_external_data)       ,INTENT(in)   :: ext_data         !< external data
@@ -93,6 +96,7 @@ CONTAINS
     REAL(wp)                    ,INTENT(in)   :: tcall_conv_jg    !< time interval for 
                                                                   !< convection
     LOGICAL                     ,INTENT(in)   :: linit            !< .TRUE. if initialization call
+    LOGICAL, OPTIONAL           ,INTENT(in)   :: lacc             !< to run on GPUs
     
     ! Local array bounds:
 
@@ -136,6 +140,19 @@ CONTAINS
     INTEGER  :: iqrd, iqsd
     LOGICAL  :: lcompute_lpi               !< compute lpi_con, mlpi_con, koi, lpi_con_max and mlpi_con_max
     LOGICAL  :: lcompute_lfd               !< compute lfd_con, lfd_con_max
+    LOGICAL  :: lzacc                      !< to check, if lacc is present
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
+
+!$acc data                                                      &
+!$acc present( kstart_moist(jg) )                               &
+!$acc create( z_ddspeed, z_dtdqv  , z_dtdt   , z_dtdt_sv )      &
+!$acc create( z_omega_p, z_plitot , z_qhfl   , z_shfl    )      &
+!$acc if (lzacc)
 
     ! local variables related to the blocking
     jg        = p_patch%id
@@ -178,6 +195,12 @@ CONTAINS
     lvv_shallow_deep=atm_phy_nwp_config(jg)%lvv_shallow_deep
     ! spinup cloud ensemble only during inital slow physics call, and when spinup
     ! is requested via namelist parameter
+
+#ifdef _OPENACC
+    IF (lvv_shallow_deep .OR. lvvcouple) THEN
+       CALL finish('nwp_convection','stochastic convection not ported to GPU')
+    ENDIF
+#endif
     IF (atm_phy_nwp_config(jg)%lstoch_spinup .AND. linit) THEN
        lspinup=.TRUE.
     ELSE
@@ -185,6 +208,9 @@ CONTAINS
     ENDIF
 
     IF (lstoch_expl .or. lstoch_sde .or. lstoch_deep) THEN
+#ifdef _OPENACC
+       CALL finish('nwp_convection','stochastic convection not ported to GPU')
+#endif
        ! initialize stochstic diagnostic variables:
        CALL init(prm_diag%mf_b)
        CALL init(prm_diag%mf_p)
@@ -232,27 +258,47 @@ CONTAINS
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
         CASE (0)
 
-          z_qhfl(i_startidx:i_endidx,nlevp1) = - 4.79846_wp*1.e-5_wp !> moisture flux kg/m2/s
-          z_shfl(i_startidx:i_endidx,nlevp1) = - 17._wp              !! sens. heat fl W/m**2
+          !$acc parallel default(present) if (lzacc)
+          !$acc loop gang vector
+          DO jc = i_startidx,i_endidx
+            z_qhfl(jc,nlevp1) = - 4.79846_wp*1.e-5_wp !> moisture flux kg/m2/s
+            z_shfl(jc,nlevp1) = - 17._wp              !! sens. heat fl W/m**2
+          ENDDO
+          !$acc end parallel
 
 
         CASE (icosmo,igme,iedmf,10,11,12)
 
           ! In turb1,turb2 and turb3, the flux is positive downwards / negative upwards
 
-          z_qhfl(i_startidx:i_endidx,nlevp1) = prm_diag%qhfl_s(i_startidx:i_endidx,jb)
-          z_shfl(i_startidx:i_endidx,nlevp1) = prm_diag%shfl_s(i_startidx:i_endidx,jb)
-
+          !$acc parallel default(present) if (lzacc)
+          !$acc loop gang vector
+          DO jc = i_startidx,i_endidx
+            z_qhfl(jc,nlevp1) = prm_diag%qhfl_s(jc,jb)
+            z_shfl(jc,nlevp1) = prm_diag%shfl_s(jc,jb)
+          ENDDO
+          !$acc end parallel
 
         END SELECT
 
-        z_omega_p (:,1:kstart_moist(jg)-1) = 0._wp
-        z_dtdqv   (:,1:kstart_moist(jg)-1) = 0._wp
-        z_dtdt    (:,1:kstart_moist(jg)-1) = 0._wp
-        z_plitot  (:,1:kstart_moist(jg)-1) = 0._wp
+        !$acc parallel default(present) if (lzacc)
+        !$acc loop gang
+        DO jk = 1, kstart_moist(jg)-1
+          !$acc loop vector
+          DO jc = 1, nproma
+            z_omega_p (jc,jk) = 0._wp
+            z_dtdqv   (jc,jk) = 0._wp
+            z_dtdt    (jc,jk) = 0._wp
+            z_plitot  (jc,jk) = 0._wp
+          ENDDO
+        ENDDO
+        !$acc end parallel
 
 
+        !$acc parallel default(present) if (lzacc)
+        !$acc loop gang
         DO jk = kstart_moist(jg),nlev
+          !$acc loop vector
           DO jc = i_startidx,i_endidx
             ! vertical velocity in p-system
             z_omega_p(jc,jk)= -0.5_wp*(p_prog%w(jc,jk,jb)+p_prog%w(jc,jk+1,jb)) &
@@ -274,16 +320,28 @@ CONTAINS
                             + p_prog_rcf%tracer(jc,jk,jb,iqi)
           ENDDO
         ENDDO
+        !$acc end parallel
 
         ! The following input fields must be reset to zero because the convective
         ! tendencies are added to them
-        prm_nwp_tend%ddt_u_pconv     (:,:,jb)     = 0._wp
-        prm_nwp_tend%ddt_v_pconv     (:,:,jb)     = 0._wp
+        !$acc parallel default(present) if (lzacc)
+        !$acc loop gang
+        DO jk = 1, nlev
+          !$acc loop vector
+          DO jc = 1, nproma
+            prm_nwp_tend%ddt_u_pconv (jc,jk,jb) = 0._wp
+            prm_nwp_tend%ddt_v_pconv (jc,jk,jb) = 0._wp
 
-        prm_diag%rain_con_rate_3d(:,:,jb)         = 0._wp
-        prm_diag%snow_con_rate_3d(:,:,jb)         = 0._wp
+            prm_diag%rain_con_rate_3d(jc,jk,jb) = 0._wp
+            prm_diag%snow_con_rate_3d(jc,jk,jb) = 0._wp
+          ENDDO
+        ENDDO
+        !$acc end parallel
 
         IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
+#ifdef _OPENACC
+          CALL finish('nwp_convection','ART and prm_nwp_tend%conv_tracer_tend not ported to GPU')
+#endif
           DO jt=1,art_config(jg)%nconv_tracer
             prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(:,:) = 0._wp
           ENDDO
@@ -294,9 +352,12 @@ CONTAINS
         !-------------------------------------------------------------------------
 
         IF ( atm_phy_nwp_config(jg)%inwp_turb /= iedmf ) THEN ! DUALM is allowed to turn off shallow convection
+          !$acc parallel default(present) if (lzacc)
+          !$acc loop vector
           DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
             prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
           ENDDO
+          !$acc end parallel
         ENDIF
 
         ! Preparing fields for stochastic convection routines
@@ -459,21 +520,22 @@ CONTAINS
 &            mlpi   =      prm_diag%mlpi_con(:,jb)                            ,& !! OUT
 &            koi    =      prm_diag%koi(:,jb)                                 ,& !! OUT
 &            lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
-&            lspinup      = lspinup                                           ,& !! IN
-&            k650=         prm_diag%k650(:,jb)                                ,& !! IN
-&            temp_s =      p_diag%temp(:,nlev,jb)                             ,& !! IN
-&            cell_area    = p_patch%cells%area(:,jb)                          ,& !! IN
-&            iseed        = iseed                                             ,& !! IN
-&            mf_bulk=      prm_diag%mf_b(:,jb)                                ,& !! OUT  
-&            mf_perturb =  prm_diag%mf_p(:,jb)                                ,& !! OUT
-&            mf_num =      prm_diag%mf_num(:,jb)                              ,& !! OUT
+&            lspinup    =  lspinup                                            ,& !! IN
+&            k650       =  prm_diag%k650(:,jb)                                ,& !! IN
+&            temp_s     =  p_diag%temp(:,nlev,jb)                             ,& !! IN
+&            cell_area  =  p_patch%cells%area(:,jb)                           ,& !! IN
+&            iseed      = iseed                                               ,& !! IN
+&            mf_bulk    = prm_diag%mf_b(:,jb)                                 ,& !! OUT  
+&            mf_perturb = prm_diag%mf_p(:,jb)                                 ,& !! OUT
+&            mf_num     = prm_diag%mf_num(:,jb)                               ,& !! OUT
 &            p_cloud_ensemble = p_cloud_ensemble                              ,& !! INOUT
-&            pclnum_a     = prm_nwp_stochconv%clnum_a(:,jb)                   ,& !! INOUT
-&            pclmf_a      = prm_nwp_stochconv%clmf_a(:,jb)                    ,& !! INOUT
-&            pclnum_p     = prm_nwp_stochconv%clnum_p(:,jb)                   ,& !! INOUT
-&            pclmf_p      = prm_nwp_stochconv%clmf_p(:,jb)                    ,& !! INOUT
-&            pclnum_d     = prm_nwp_stochconv%clnum_d(:,jb)                   ,& !! INOUT
-&            pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                     )!,& !! INOUT
+&            pclnum_a   = prm_nwp_stochconv%clnum_a(:,jb)                     ,& !! INOUT
+&            pclmf_a    = prm_nwp_stochconv%clmf_a(:,jb)                      ,& !! INOUT
+&            pclnum_p   = prm_nwp_stochconv%clnum_p(:,jb)                     ,& !! INOUT
+&            pclmf_p    = prm_nwp_stochconv%clmf_p(:,jb)                      ,& !! INOUT
+&            pclnum_d   = prm_nwp_stochconv%clnum_d(:,jb)                     ,& !! INOUT
+&            pclmf_d    = prm_nwp_stochconv%clmf_d(:,jb)                      ,& !! INOUT
+&            lacc       = .FALSE.                                      )         !! IN
 !&            extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
 
         ELSE
@@ -544,21 +606,31 @@ CONTAINS
 &            pclnum_p     = prm_nwp_stochconv%clnum_p(:,jb)                   ,& !! INOUT
 &            pclmf_p      = prm_nwp_stochconv%clmf_p(:,jb)                    ,& !! INOUT
 &            pclnum_d     = prm_nwp_stochconv%clnum_d(:,jb)                   ,& !! INOUT
-&            pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                    )!,& !! INOUT
+&            pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                    ,& !! INOUT
+&            lacc   = lzacc                                            )         !! IN
 !&            extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
     ENDIF
 
         ! Postprocessing on some fields
 
+        !$acc parallel default(present) if (lzacc)
+
         ! Conversion from temperature tendencies at constant pressure to constant volume is now done here
-        prm_nwp_tend%ddt_temp_pconv  (i_startidx:i_endidx,kstart_moist(jg):,jb) =  &
-          &  ( z_dtdt   (i_startidx:i_endidx,kstart_moist(jg):)                    &
-          &  - z_dtdt_sv(i_startidx:i_endidx,kstart_moist(jg):) ) * cpdocvd
+        !$acc loop seq
+        DO jk = kstart_moist(jg),nlev
+          !$acc loop gang(static:1) vector
+          DO jc = i_startidx,i_endidx
+            prm_nwp_tend%ddt_temp_pconv  (jc,jk,jb) =  &
+              &  ( z_dtdt   (jc,jk) - z_dtdt_sv(jc,jk) ) * cpdocvd
+          ENDDO
+        ENDDO
 
 
         ! Convert detrained cloud ice into cloud water if the temperature is only slightly below freezing
         ! and convective cloud top is not cold enough for substantial ice initiation
+        !$acc loop seq
         DO jk = kstart_moist(jg),nlev
+          !$acc loop gang(static:1) vector private (wfac)
           DO jc = i_startidx,i_endidx
             IF (prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqi) > 0._wp .AND. p_diag%temp(jc,jk,jb) > ticeini) THEN
               wfac = MAX(0._wp, MIN(1._wp,0.25_wp*(p_diag%temp(jc,jk,jb)-ticeini)) + &
@@ -578,6 +650,7 @@ CONTAINS
         ! convective contribution to wind gust
         ! (based on simple parameterization by Peter Bechthold)
         !
+        !$acc loop gang(static:1) vector private (zk850,zk950,u850,u950,v850,v950)
         DO jc=i_startidx,i_endidx
           IF ( prm_diag%ktype(jc,jb) == 1 )  THEN   ! penetrative convection
             zk850 = prm_diag%k850(jc,jb)
@@ -599,6 +672,7 @@ CONTAINS
 
         IF (lcompute_lpi) THEN
           ! Store the maximum of lpi_con and mlpi_con
+          !$acc loop gang(static:1) vector
           DO jc = i_startidx,i_endidx
             prm_diag%lpi_con_max(jc,jb)=MAX(prm_diag%lpi_con_max(jc,jb),      &
               &                             prm_diag%lpi_con    (jc,jb))
@@ -609,16 +683,21 @@ CONTAINS
 
         IF (lcompute_lfd) THEN
           ! Store the maximum of lfd_con
+          !$acc loop gang(static:1) vector
           DO jc = i_startidx,i_endidx
             prm_diag%lfd_con_max(jc,jb)=MAX(prm_diag%lfd_con_max(jc,jb),      &
               &                             prm_diag%lfd_con    (jc,jb))
-            ENDDO
+          ENDDO
         ENDIF
+
+        !$acc end parallel
 
       ENDIF !inwp_conv
 
     ENDDO  ! jb
 !$OMP END PARALLEL DO
+
+    !$acc end data
 
   END SUBROUTINE nwp_convection
 

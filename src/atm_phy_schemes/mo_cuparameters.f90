@@ -37,7 +37,6 @@ MODULE mo_cuparameters
     tune_texc, tune_qexc, tune_rhebc_land_trop, tune_rhebc_ocean_trop, tune_rcucov_trop, tune_gkdrag, &
     tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred
 
-    
   IMPLICIT NONE
 
   PRIVATE
@@ -70,15 +69,14 @@ MODULE mo_cuparameters
   REAL(KIND=jprb) :: rmv
   REAL(KIND=jprb) :: rmo3
   REAL(KIND=jprb) :: rd
-  !$acc declare copyin(rd)
   REAL(KIND=jprb) :: rv
-  !$acc declare copyin(rv)
   REAL(KIND=jprb) :: rcpd
   REAL(KIND=jprb) :: rcpv
   REAL(KIND=jprb) :: rcvd
   REAL(KIND=jprb) :: rcvv
   REAL(KIND=jprb) :: rkappa
   REAL(KIND=jprb) :: retv
+  !$acc declare create( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
   ! A1.5,6 Thermodynamic liquid,solid phases
   REAL(KIND=jprb) :: rcw
   REAL(KIND=jprb) :: rcs
@@ -221,15 +219,12 @@ MODULE mo_cuparameters
   REAL(KIND=jprb) :: ralsdcp
   REAL(KIND=jprb) :: ralfdcp
   REAL(KIND=jprb) :: rtwat
-  !$acc declare copyin(rtwat)
   REAL(KIND=jprb) :: rtber
   REAL(KIND=jprb) :: rtbercu
   REAL(KIND=jprb) :: rtice
   REAL(KIND=jprb) :: rticecu
-  !$acc declare copyin(rticecu)
   REAL(KIND=jprb) :: rtwat_rtice_r
   REAL(KIND=jprb) :: rtwat_rticecu_r
-  !$acc declare copyin(rtwat_rticecu_r)
   
   ! LEPCLD : LOGICAL : TURN THE PROGNOSTIC CLOUD SCHEME ON
   LOGICAL lepcld
@@ -540,6 +535,17 @@ MODULE mo_cuparameters
 ! deep stochastic convection
   PUBLIC :: deep_k_wei, deep_alpha_mf, deep_beta_mf, deep_mean_mf, deep_mean_tau
   
+  ! Module variables used in acc routine need to be in acc declare create()
+  ! these variables are used in mo_cufunctions.f90
+  !$acc declare create( rtice, rtwat, rtwat_rtice_r )
+  !$acc declare create( rticecu, rtwat_rticecu_r )
+  !$acc declare create( r2es, r3les, rtt, r4les, r3ies, r4ies )
+  !$acc declare create( rlvtt, rlstt )
+  !$acc declare create( ralvdcp, ralsdcp )
+  !$acc declare create( r5alscp, r5alvcp )
+
+  !$acc declare create( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+
 CONTAINS
   
   ! fcttrm.h
@@ -930,6 +936,8 @@ CONTAINS
     rkappa=rd/rcpd
     retv=rv/rd-1._jprb
     
+    !$acc update device( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
+
     !     ------------------------------------------------------------------
     
     !*       6.    DEFINE THERMODYNAMIC CONSTANTS, LIQUID PHASE.
@@ -1123,7 +1131,6 @@ LOGICAL           , INTENT(in) :: lvv_shallow_deep
 REAL(KIND=jprb)   , INTENT(in), OPTIONAL :: pmean(klev)
 
 !* change to operations
-
 
 INTEGER(KIND=jpim) :: jlev
 !INTEGER(KIND=JPIM) :: myrank,ierr,size
@@ -1515,12 +1522,6 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     r3ies=22.587_JPRB
     r4les=32.19_JPRB
     r4ies=-0.7_JPRB
-    !GME values KF
-    !R2ES=610.78_JPRB*RD/RV ! =B1
-    !R3LES=17.269388_JPRB   ! =B2_w
-    !R3IES=21.8745584_JPRB  ! =B2_i
-    !R4LES= 35.86_JPRB      ! =B4_w
-    !R4IES= 7.66_JPRB       ! =B4_i
     r5les=r3les*(rtt-r4les)
     r5ies=r3ies*(rtt-r4ies)
     r5alvcp=r5les*rlvtt/rcpd
@@ -1535,7 +1536,13 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     rticecu=rtt-38._jprb
     rtwat_rtice_r=1._jprb/(rtwat-rtice)
     rtwat_rticecu_r=1._jprb/(rtwat-rticecu)
-!$acc update device(rticecu, rtwat, rtwat_rticecu_r)
+
+    !$acc update device( rtice, rtwat, rtwat_rtice_r )
+    !$acc update device( rticecu, rtwat_rticecu_r )
+    !$acc update device( r2es, r3les, rtt, r4les, r3ies, r4ies )
+    !$acc update device( rlvtt, rlstt )
+    !$acc update device( ralvdcp, ralsdcp )
+    !$acc update device( r5alscp, r5alvcp )
 
   END SUBROUTINE su_yoethf
 
@@ -1695,6 +1702,8 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     !                 ------------------------------------------
 
     lphylin = .FALSE.
+    ! ATTENTION NOTE: lphylin=.TRUE. is not supported on GPUs
+
     !LTLEVOL = .FALSE.
 
     !CALL POSNAM(NULNAM,'NAMTLEVOL')
@@ -1764,6 +1773,9 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
 
 !    PRINT*, 'SUPHLI', rlptrc
     !RETURN
+
+    !$acc update device ( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+
   END SUBROUTINE suphli
 
 
