@@ -3744,7 +3744,7 @@ CONTAINS
           ENDIF
         ENDIF
 
-        IF (l_present_dursun_m .AND. l_present_dursun_r) THEN
+        IF (l_present_dursun_m) THEN
           ! estimate direct solar radiation for cloud free conditions 
           ! (after R. G. Allen et al. 2006, Agricultural and Forest Meteorology 
           !  doi:10.1016/j.agrformet.2006.05.012                               )
@@ -3759,7 +3759,7 @@ CONTAINS
           ! from "calculate solar incoming flux at TOA" in mo_nh_interface_nwp.f90 line 1308
           ! get solar constant 
           zsct = pi0(jc,jb)/cosmu0(jc,jb)
-          IF ( swflxsfc(jc,jb) > 0.0001_wp ) THEN
+          IF ( swflxsfc(jc,jb) > 0.0001_wp .AND. SIN(theta_sun) > 0.0001_wp ) THEN
             swrad_dir = zsct * 0.94_wp * EXP(                                    &
                  - 0.00146_wp * pres(jc,jb) / 1.0E3_wp / 0.8_wp / SIN(theta_sun) &
                  - 0.075_wp * (twater(jc,jb)/SIN(theta_sun))**0.4_wp             )
@@ -3774,7 +3774,9 @@ CONTAINS
           ELSEIF (xval > -0.5_wp*pi) THEN
             dursun_m(jc,jb) = dursun_m(jc,jb) + dt_phy* 0.5_wp*(SIN(xval) + 1.0_wp)
           ENDIF
+        ENDIF
   
+        IF (l_present_dursun_r) THEN
           ! relative sunshine duration (%)
           IF (dursun_m(jc,jb) > 0.0_wp) THEN
             dursun_r(jc,jb) = 100.0_wp*dursun(jc,jb)/dursun_m(jc,jb)

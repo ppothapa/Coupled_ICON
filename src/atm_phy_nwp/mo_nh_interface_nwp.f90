@@ -1302,6 +1302,7 @@ CONTAINS
         & zsct       = zsct,                        &
         & slope_ang  = p_metrics%slope_angle,       &
         & slope_azi  = p_metrics%slope_azimuth,     &
+        & horizon    = ext_data%atm%horizon,        &
         & cosmu0_slp = cosmu0_slope,                &
         & lacc=(.not. linit)                        )
 
@@ -1424,6 +1425,7 @@ CONTAINS
           & idx_lst_t        = ext_data%atm%idx_lst_t(:,jb,:),     &! in index list of land points per tile
           & cosmu0=zcosmu0(:,jb)                   ,&! in     cosine of solar zenith angle (w.r.t. plain surface)
           & cosmu0_slp=cosmu0_slope(:,jb)          ,&! in     slope-dependent cosine of solar zenith angle
+          & skyview=ext_data%atm%skyview(:,jb)     ,&! in     skyview factor for islope_rad=2
           & opt_nh_corr=.TRUE.                     ,&! in     switch for NH mode
           & ptsfc=lnd_prog_new%t_g(:,jb)           ,&! in     surface temperature         [K]
           & ptsfc_t=lnd_prog_new%t_g_t(:,jb,:)     ,&! in     tile-specific surface temperature         [K]
@@ -1488,6 +1490,7 @@ CONTAINS
           & ppres_ifc=pt_diag%pres_ifc(:,:,jb)     ,&! in     pressure at layer boundaries [Pa]
           & cosmu0=zcosmu0(:,jb)                   ,&! in     cosine of solar zenith angle
           & cosmu0_slp=cosmu0_slope(:,jb)          ,&! in     slope-dependent cosine of solar zenith angle
+          & skyview=ext_data%atm%skyview(:,jb)     ,&! in     skyview factor for islope_rad=2
           & opt_nh_corr=.TRUE.                     ,&! in     switch for NH mode
           & ptsfc=lnd_prog_new%t_g(:,jb)           ,&! in     surface temperature         [K]
           & ptsfctrad=prm_diag%tsfctrad(:,jb)      ,&! in     sfc temp. used for pflxlw   [K]

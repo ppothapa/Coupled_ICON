@@ -50,12 +50,12 @@ MODULE mo_ext_data_init
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
                                    lterra_urb
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
-  USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,   &
-    &                              generate_td_filename, extpar_varnames_map_file,       &
-    &                              n_iter_smooth_topo, i_lctype, nclass_lu, nmonths_ext, &
+  USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
+    &                              generate_td_filename, extpar_varnames_map_file,              &
+    &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
     &                              itype_vegetation_cycle, read_nc_via_cdi, pp_sso
   USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
-  USE mo_radiation_config,   ONLY: irad_o3, irad_aero, albedo_type
+  USE mo_radiation_config,   ONLY: irad_o3, irad_aero, albedo_type, islope_rad
   USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
@@ -127,7 +127,6 @@ MODULE mo_ext_data_init
   PUBLIC :: interpol_monthly_mean
   PUBLIC :: diagnose_ext_aggr
   PUBLIC :: vege_clim
-
 
 !-------------------------------------------------------------------------
 
@@ -485,6 +484,7 @@ CONTAINS
     ! local variables
     CHARACTER(len=*), PARAMETER :: routine = modname//'::inquire_extpar_file'
     INTEGER                 :: mpi_comm, vlist_id, lu_class_fraction_id, zaxis_id, var_id
+    INTEGER                 :: horizon_id
     LOGICAL                 :: l_exist
     CHARACTER(filename_max) :: extpar_file !< file name for reading in
     INTEGER :: extpar_file_namelen
@@ -528,6 +528,16 @@ CONTAINS
       END IF
       cdi_filetype  = streamInqFileType(cdi_extpar_id)
 
+      IF (islope_rad == 2) THEN
+      ! get the number of horizon sectors
+        horizon_id = get_cdi_varID(cdi_extpar_id, "HORIZON")
+        vlist_id   = streamInqVlist(cdi_extpar_id)
+        zaxis_id   = vlistInqVarZaxis(vlist_id, horizon_id)
+        nhori = zaxisInqSize(zaxis_id)
+        WRITE(message_text,'(A,I4)')  &
+          & 'Number of horizon sectors in external data file = ', nhori
+        CALL message(routine, TRIM(message_text))
+      ENDIF
 
       ! get the number of landuse classes
       lu_class_fraction_id = get_cdi_varID(cdi_extpar_id, "LU_CLASS_FRACTION")
@@ -660,6 +670,8 @@ CONTAINS
     ELSE
       mpi_comm = p_comm_work
     ENDIF
+    ! broadcast nhori from I-Pe to WORK Pes
+    CALL p_bcast(nhori, p_io, mpi_comm)
     ! broadcast nclass_lu from I-Pe to WORK Pes
     CALL p_bcast(nclass_lu(jg), p_io, mpi_comm)
     ! broadcast nmonths from I-Pe to WORK Pes
@@ -1191,6 +1203,36 @@ CONTAINS
         CALL read_extdata('SSO_SIGMA', ext_data(jg)%atm%sso_sigma)
         CALL read_extdata('FR_LAKE',   ext_data(jg)%atm%fr_lake)
         CALL read_extdata('DEPTH_LK',  ext_data(jg)%atm%depth_lk)
+
+        IF (islope_rad == 2) THEN
+          CALL read_extdata('HORIZON', arr3d=ext_data(jg)%atm%horizon,ltime=.FALSE.)
+          CALL read_extdata('SKYVIEW', ext_data(jg)%atm%skyview)
+
+          rl_start = 1
+          rl_end   = min_rlcell
+          i_startblk = p_patch(jg)%cells%start_block(rl_start)
+          i_endblk   = p_patch(jg)%cells%end_block(rl_end)
+
+          ! Test consistency of horizon
+!$OMP DO PRIVATE(jb,jc,im,i_startidx,i_endidx)
+          DO jb = i_startblk, i_endblk
+            CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
+            DO im = 1, nhori
+              DO jc = i_startidx,i_endidx
+                IF (ext_data(jg)%atm%horizon(jc,jb,im) > 90.0_wp .OR. &
+                    ext_data(jg)%atm%horizon(jc,jb,im) < 0.0_wp) THEN
+                  WRITE (message_text,'(A,F8.3)') 'ext_data(jg)%atm%horizon(jc,jb,im) = ',&
+                                                   ext_data(jg)%atm%horizon(jc,jb,im)
+                  CALL message(routine, message_text)
+                  WRITE (message_text,'(A,3I8)') '   DEBUG point: ', jc, jb, im
+                  CALL message(routine, message_text)
+                  CALL finish(routine,'HORIZON is out of bounds!')
+                ENDIF
+              ENDDO
+            ENDDO
+          ENDDO
+!$OMP END DO
+        ENDIF
 
         CALL read_extdata('LU_CLASS_FRACTION', arr3d=ext_data(jg)%atm%lu_class_fraction,ltime=.FALSE.) 
 

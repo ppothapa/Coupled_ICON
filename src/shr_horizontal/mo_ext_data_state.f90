@@ -61,8 +61,9 @@ MODULE mo_ext_data_state
   USE mo_run_config,         ONLY: iforcing
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake,       &
     &                              sstice_mode, lterra_urb
-  USE mo_radiation_config,   ONLY: irad_o3, albedo_type
-  USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nmonths_ext, itype_vegetation_cycle, itype_lwemiss
+  USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad
+  USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nhori,              &
+    &                              nmonths_ext, itype_vegetation_cycle, itype_lwemiss
   USE mo_cdi,                ONLY: DATATYPE_PACK16, DATATYPE_FLT32, DATATYPE_FLT64,     &
     &                              TSTEP_CONSTANT, TSTEP_MAX, TSTEP_AVG, TSTEP_INSTANT, &
     &                              GRID_UNSTRUCTURED
@@ -102,7 +103,6 @@ MODULE mo_ext_data_state
   ! subroutines
   PUBLIC :: construct_ext_data
   PUBLIC :: destruct_ext_data
-
 
   TYPE(t_external_data),TARGET, ALLOCATABLE :: &
     &  ext_data(:)  ! n_dom
@@ -203,13 +203,16 @@ CONTAINS
 
     INTEGER :: shape2d_c(2)
     INTEGER :: shape3d_c(3)
-    INTEGER :: shape3d_sfc(3), shape3d_nt(3), shape3d_ntw(3)
+    INTEGER :: shape3d_sfc(3), shape3d_sfc_sec(3), shape3d_nt(3), shape3d_ntw(3)
 
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: datatype_flt  !< floating point accuracy in NetCDF output
 
     INTEGER          :: jsfc
     CHARACTER(LEN=2) :: csfc
+
+    CHARACTER(len=max_char_length), PARAMETER :: &
+      routine = modname//':new_ext_data_atm_list'
 
     !--------------------------------------------------------------
 
@@ -232,6 +235,7 @@ CONTAINS
     ! predefined array shapes
     shape2d_c  = (/ nproma, nblks_c /)
     shape3d_c  = (/ nproma, nlev, nblks_c       /)
+    shape3d_sfc_sec= (/ nproma, nblks_c, nhori  /)
     shape3d_sfc= (/ nproma, nblks_c, nclass_lu(jg) /)
     shape3d_nt = (/ nproma, nblks_c, ntiles_total     /)
     shape3d_ntw = (/ nproma, nblks_c, ntiles_total + ntiles_water /)
@@ -244,6 +248,8 @@ CONTAINS
       &     p_ext_atm%grad_topo,       &
       &     p_ext_atm%topo_t2mclim,    &
       &     p_ext_atm%fis,             &
+      &     p_ext_atm%horizon,         &
+      &     p_ext_atm%skyview,         &
       &     p_ext_atm%o3,              &
       &     p_ext_atm%llsm_atm_c,      &
       &     p_ext_atm%llake_c,         &
@@ -386,6 +392,32 @@ CONTAINS
 
 
     IF ( iforcing == inwp ) THEN
+
+      IF (islope_rad == 2) THEN
+        CALL message(routine, 'adding horizon angle - topography')
+        ! horizon angle from flat topography in nhori sectors 
+        !
+        ! horizon     p_ext_atm%horizon(nproma,nblks_c,nhori)
+        cf_desc    = t_cf_var('horizon angle - topography', 'deg',      &
+          &                   'horizon angle - topography', datatype_flt)
+        grib2_desc = grib2_var( 0,199, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'horizon', p_ext_atm%horizon,     &
+          &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,    &
+          &           grib2_desc, ldims=shape3d_sfc_sec, loutput=.TRUE. )
+        CALL message(routine, 'adding skyview factor')
+        ! geometric sky-view factor scaled with sinus(horizon)**2
+        !
+        ! skyview     p_ext_atm%skyview(nproma,nblks_c)
+        cf_desc    = t_cf_var('geometric sky-view factor', '-',      &
+          &                   'geometric sky-view factor', datatype_flt)
+        grib2_desc = grib2_var( 0,199, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'skyview', p_ext_atm%skyview,     &
+          &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,    &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE. )
+      ELSE
+         ALLOCATE(p_ext_atm%horizon(0,nblks_c,nhori))
+         ALLOCATE(p_ext_atm%skyview(0,nblks_c))
+      ENDIF
 
       ! ozone mixing ratio
       !
