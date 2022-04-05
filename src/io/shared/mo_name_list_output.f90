@@ -1036,9 +1036,6 @@ CONTAINS
       post_op_apply &
         = ipost_op_type == post_op_scale .OR. ipost_op_type == post_op_luc .OR. ipost_op_type == post_op_lin2dbz
       IF ( post_op_apply ) THEN
-#ifdef _OPENACC
-        CALL finish(routine,'perform_post_op not supported on GPUs')
-#endif
         IF (idata_type == iREAL) THEN
           alloc_shape = SHAPE(r_ptr)
           IF (ALLOCATED(r_ptr_m)) THEN

@@ -1258,6 +1258,11 @@ MODULE mo_nh_stepping
 #endif
     ENDIF
 
+
+    !$ser verbatim DO jg = 1, n_dom
+    !$ser verbatim   CALL serialize_all(nproma, jg, "output_opt", .TRUE., opt_lupdate_cpu=.FALSE.)
+    !$ser verbatim ENDDO
+
     ! Calculate optional diagnostic output variables if requested in the namelist(s)
     IF (iforcing == inwp) THEN
       CALL nwp_opt_diagnostics(p_patch(1:), p_patch_local_parent, p_int_state_local_parent, &
@@ -1310,6 +1315,10 @@ MODULE mo_nh_stepping
         &                 p_patch(1)%nlev)
       IF (l_nml_output) CALL calc_mean_opt_acc(p_nh_opt_diag(1)%acc)
     END IF
+
+    !$ser verbatim DO jg = 1, n_dom
+    !$ser verbatim   CALL serialize_all(nproma, jg, "output_opt", .FALSE., opt_lupdate_cpu=.FALSE.)
+    !$ser verbatim ENDDO
 
     ! output of results
     ! note: nnew has been replaced by nnow here because the update

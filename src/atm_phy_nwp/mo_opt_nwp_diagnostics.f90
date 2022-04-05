@@ -202,8 +202,8 @@ CONTAINS
       lacc = .false.
     end if
 
-    !$ACC DATA CREATE(lfound, wetblb) PRESENT(snowlmt, temp, pres, qv, hhl, &
-    !$ACC   hhlr) IF(lacc)
+    !$ACC DATA CREATE( lfound, wetblb ) PRESENT( snowlmt, temp, pres, qv, hhl, &
+    !$ACC   hhlr ) IF( lacc )
 
     ! Begin subroutine calsnowlmt
 
@@ -213,7 +213,7 @@ CONTAINS
     ! Set the uppermost model level for the occurence of a wet bulb temperature (wbl)
     ! to about 8000m above surface
     ktopmin = nlev+2
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(MIN:ktopmin) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION( MIN:ktopmin ) IF( lacc )
     DO k = nlev+1, 1, -1
       IF ( hhlr(k) < 8000.0_wp ) THEN
         ktopmin = k
@@ -223,7 +223,7 @@ CONTAINS
     if( ktopmin>nlev+1 ) ktopmin = 2
 
     ! Initialize the definition mask and the output array snowlmt
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
     !$ACC LOOP GANG VECTOR
     DO i = 1, SIZE(temp,1)
       lfound (i) = .FALSE.
@@ -231,11 +231,11 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
     !$ACC LOOP SEQ
     DO k = ktopmin, nlev
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zp, ep, CONST, td, tl, tp, ppp, &
-      !$ACC   deltat, zt)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zp, ep, CONST, td, tl, tp, ppp, &
+      !$ACC   deltat, zt )
       DO i = istart, iend
         zp     = (pres(i,k))/100._wp     ! in hPa
         ep     = MAX(1.0E-10_wp,qv(i,k))*zp /      &
@@ -261,7 +261,7 @@ CONTAINS
 
     !$ACC LOOP SEQ
     DO k = ktopmin+1, nlev
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zh_bot, zh_top, zdt)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zh_bot, zh_top, zdt )
       DO i = istart, iend
         IF ( lfound(i) .AND. wetblb(i,k) >= wbl ) THEN
           ! definition of snowlmt is now made once
@@ -331,7 +331,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, rl_start, rl_end)
       
-!$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(w_avg) IF( i_am_accel_node )
+!$ACC PARALLEL DEFAULT(PRESENT) PRIVATE( w_avg ) IF( i_am_accel_node )
 !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -489,7 +489,7 @@ CONTAINS
     i_endblk   = p_patch%cells%end_blk   (rl_end,i_nchdom)
 
 !$ACC DATA CREATE( pv_ef, vt, theta_cf, theta_vf, theta_ef, w_vh, w_eh, ddtw_eh, ddnw_eh, &
-!$ACC              ddtth_ef, ddnth_ef, vor_ef ) IF ( i_am_accel_node )
+!$ACC              ddtth_ef, ddnth_ef, vor_ef ) IF( i_am_accel_node )
     
 !$OMP PARALLEL    
 !$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
@@ -1100,14 +1100,30 @@ CONTAINS
 
     REAL(wp) :: frac_w( nproma, ptr_patch%nblks_c )
 
-    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk
+    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk, idx, blk
+    INTEGER :: size1,size2,size3
     INTEGER :: nblks_c_lp
+    REAL(wp),DIMENSION(:,:,:), POINTER :: area_norm
 
+
+    !$ACC DATA CREATE( vol, nmbr_w, p_nmbr_w_sum, p_nmbr_all_sum, p_frac_w, frac_w ) IF( i_am_accel_node )
+
+    !$ACC DATA PRESENT( p_int%cell_environ%idx, p_int%cell_environ%blk, p_int%cell_environ%area_norm, &
+    !$ACC              p_diag, p_metrics, p_prog, p_prog_rcf, atm_phy_nwp_config(jg), &
+    !$ACC              p_diag%temp, p_metrics%ddqz_z_full, p_prog%w, p_prog_rcf%tracer, &
+    !$ACC              lpi, vol, nmbr_w, p_nmbr_w_sum, p_nmbr_all_sum, p_frac_w, frac_w, &
+    !$ACC              kstart_moist(jg) ) IF( i_am_accel_node )
 
     IF (.not.atm_phy_nwp_config(jg)%lhave_graupel) THEN
       CALL finish( modname//'compute_field_LPI',  &
         &     "no graupel available! Either switch off LPI output or change the microphysics scheme" )
     END IF
+
+#ifdef _OPENACC
+    IF (atm_phy_nwp_config(jg)%l2moment) THEN
+      CALL finish( modname//':compute_field_lpi', "LPI with 2-moment scheme not supported on GPU" )
+    ENDIF
+#endif
 
     Tmelt_m_20K = Tmelt - 20.0_wp
 
@@ -1142,7 +1158,14 @@ CONTAINS
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
     ! nullify every grid point (lateral boundary, too)
-    lpi(:,:) = 0.0_wp
+    !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO jb=1,ptr_patch%nblks_c
+      DO jc=1,nproma
+        lpi(jc,jb) = 0.0_wp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
 
     ! --- calculation of the LPI integral ---
 
@@ -1152,14 +1175,20 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+       
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         vol     (jc)     = 0.0_wp
         nmbr_w  (jc, jb) = 0
        !nmbr_all(jc, jb) = 0  ! only necessary for 'variant 1 of updraft in environment crit.'
       END DO
+      !$ACC END PARALLEL
 
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP SEQ
       DO jk = kstart_moist(jg), ptr_patch%nlev
+        !$ACC LOOP GANG VECTOR PRIVATE( delta_z, w_c, q_liqu, q_i, q_s, q_g, epsw, q_solid, lpi_incr )
         DO jc = i_startidx, i_endidx
 
           IF (      (p_diag%temp(jc,jk,jb) <= Tmelt)     &
@@ -1233,8 +1262,11 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL
 
       ! normalization
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( vol(jc) > 1.0e-30_wp ) THEN
           lpi(jc,jb) = lpi(jc,jb) / vol(jc)
@@ -1242,6 +1274,7 @@ CONTAINS
           lpi(jc,jb) = 0.0_wp
         END IF
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
@@ -1263,12 +1296,16 @@ CONTAINS
     iidx => p_pp%cells%child_idx
     iblk => p_pp%cells%child_blk
 
+    !$ACC DATA PRESENT( iidx, iblk ) IF( i_am_accel_node )
+
     nblks_c_lp = p_pp%cells%end_block( min_rlcell )
 
     ALLOCATE( p_nmbr_w ( nproma, nblks_c_lp), STAT=ist )
     IF ( ist /= 0 ) THEN
       CALL finish( modname//':compute_field_lpi', "allocate failed" )
     END IF
+
+    !$ACC DATA CREATE( p_nmbr_w ) IF( i_am_accel_node )
 
     ! first nullify all lateral grid points
 
@@ -1290,9 +1327,12 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w( jc, jb) = 0.0_wp
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
@@ -1318,6 +1358,8 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w(jc, jb) =                            &
               nmbr_w( iidx(jc,jb,1), iblk(jc,jb,1) )  &
@@ -1325,6 +1367,7 @@ CONTAINS
             + nmbr_w( iidx(jc,jb,3), iblk(jc,jb,3) )  &
             + nmbr_w( iidx(jc,jb,4), iblk(jc,jb,4) ) 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1348,12 +1391,19 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w_sum  (jc)  = 0
         p_nmbr_all_sum(jc) = 0
       END DO
+      !$ACC END PARALLEL
 
+      !$ACC PARALLEL IF( i_am_accel_node )
+      !$ACC LOOP SEQ
       DO l=1, p_int%cell_environ%max_nmbr_nghbr_cells
+        
+        !$ACC LOOP GANG VECTOR PRIVATE( jc2, jb2 )
         DO jc = i_startidx, i_endidx
 
           jc2 = p_int%cell_environ%idx( jc, jb, l)
@@ -1365,21 +1415,29 @@ CONTAINS
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL
 
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_frac_w(jc) = DBLE( p_nmbr_w_sum(jc) ) / DBLE( p_nmbr_all_sum(jc) )
       END DO
+      !$ACC END PARALLEL
 
       ! write back to the 4 child grid cells:
+      !$ACC PARALLEL IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO i = 1, 4
         DO jc = i_startidx, i_endidx
           frac_w( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_frac_w(jc)
         END DO
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+    !$ACC END DATA ! p_nmbr_w
 
     DEALLOCATE( p_nmbr_w, STAT=ist )
     IF ( ist /= 0 ) THEN
@@ -1399,17 +1457,24 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ! finally, this is the 'updraft in environment criterion':
         IF ( frac_w(jc,jb) < w_frac_tresh ) THEN
           lpi(jc, jb) = 0.0_wp
         END IF
-
       END DO
+      !$ACC END PARALLEL
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+  !$ACC END DATA ! iidx,iblk
+
+  !$ACC END DATA ! header
+  !$ACC END DATA ! create data
   END SUBROUTINE compute_field_LPI
 
 
@@ -1443,6 +1508,8 @@ CONTAINS
 
     REAL(wp) :: lpi( nproma, ptr_patch%nblks_c )
 
+    !$ACC DATA CREATE ( lpi ) IF( i_am_accel_node )
+    !$ACC DATA PRESENT( lpi_max, lpi ) IF( i_am_accel_node )
     CALL compute_field_LPI( ptr_patch, jg, ptr_patch_local_parent, p_int,   &
                             p_metrics, p_prog, p_prog_rcf, p_diag,                &
                             lpi )
@@ -1456,15 +1523,21 @@ CONTAINS
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
+
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lpi_max(jc,jb) = MAX( lpi_max(jc,jb), lpi(jc,jb) )
       END DO
+      !$ACC END PARALLEL
     END DO
+    !$ACC END DATA
+    !$ACC END DATA
 !$OMP END PARALLEL
 
   END SUBROUTINE maximize_field_LPI
@@ -2350,12 +2423,12 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA CREATE(k_ml, kstart, lcllev, lfclev, cin_help, buo, tp, qvp, thp, &
-    !$ACC   qvp_start, tp_start, lfcfound) PRESENT(te, qve, prs, hhl, cape_ml, &
-    !$ACC   cin_ml) IF(lacc)
+    !$ACC DATA CREATE( k_ml, kstart, lcllev, lfclev, cin_help, buo, tp, qvp, thp, &
+    !$ACC   qvp_start, tp_start, lfcfound ) PRESENT( te, qve, prs, hhl, cape_ml, &
+    !$ACC   cin_ml ) IF( lacc )
 
     nlev = SIZE( te,2)
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
     !$ACC LOOP GANG VECTOR
     do i = 1, SIZE( te,1)
       k_ml  (i)  = nlev  ! index used to step through the well mixed layer
@@ -2371,7 +2444,7 @@ CONTAINS
 
     ! now calculate the mixed layer average potential temperature and 
     ! specific humidity
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
     !$ACC LOOP SEQ
     DO k = nlev, kmoist, -1
 #ifndef _OPENACC
@@ -2421,7 +2494,7 @@ CONTAINS
   
   ! Initialization
   
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF( lacc )
   DO i = 1, SIZE( te,1)
     cape_ml(i)  = 0.0_wp
     cin_ml(i)   = 0.0_wp
@@ -2437,12 +2510,12 @@ CONTAINS
   !$ACC END PARALLEL
   
   ! Loop over all model levels above kstart
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( lacc )
   !$ACC LOOP SEQ
   kloop: DO k = nlev, kmoist, -1
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(buo_belo, esat, esatp, tguess1, tguess2, &
-    !$ACC   thetae1, thetae2, tvp, tve, icount, q1, q2, qvsp)
+    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( buo_belo, esat, esatp, tguess1, tguess2, &
+    !$ACC   thetae1, thetae2, tvp, tve, icount, q1, q2, qvsp )
     DO i = i_startidx, i_endidx
       IF ( k > kstart(i) ) CYCLE
          

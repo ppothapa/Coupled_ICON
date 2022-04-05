@@ -160,7 +160,8 @@ CONTAINS
 !$ACC               p_int(j)%rbf_vec_blk_c, p_int(j)%rbf_vec_idx_c, p_int(j)%rbf_vec_coeff_c,    &
 !$ACC               p_int(j)%rbf_vec_blk_e, p_int(j)%rbf_vec_idx_e, p_int(j)%rbf_vec_coeff_e,    &
 !$ACC               p_int(j)%rbf_vec_blk_v, p_int(j)%rbf_vec_idx_v, p_int(j)%rbf_vec_coeff_v,    &
-!$ACC               p_int(j)%verts_aw_cells )                                                    &
+!$ACC               p_int(j)%verts_aw_cells, p_int(j)%cell_environ, p_int(j)%cell_environ%idx,   &
+!$ACC               p_int(j)%cell_environ%blk,p_int(j)%cell_environ%area_norm )                  &
 !$ACC       CREATE( p_int(j) )                                                                   &
 !$ACC       IF ( i_am_accel_node )        
 
@@ -185,8 +186,10 @@ CONTAINS
 !$ACC               p_int(j)%rbf_vec_blk_c, p_int(j)%rbf_vec_idx_c, p_int(j)%rbf_vec_coeff_c,    &
 !$ACC               p_int(j)%rbf_vec_blk_e, p_int(j)%rbf_vec_idx_e, p_int(j)%rbf_vec_coeff_e,    &
 !$ACC               p_int(j)%rbf_vec_blk_v, p_int(j)%rbf_vec_idx_v, p_int(j)%rbf_vec_coeff_v,    &
-!$ACC               p_int(j)%verts_aw_cells, p_int(j)%lsq_high, p_int(j)%lsq_lin, p_int(j) )     &
-!$ACC               IF ( i_am_accel_node )        
+!$ACC               p_int(j)%verts_aw_cells, p_int(j)%lsq_high, p_int(j)%lsq_lin,                &
+!$ACC               p_int(j)%cell_environ%idx,p_int(j)%cell_environ%blk,                         &
+!$ACC               p_int(j)%cell_environ%area_norm, p_int(j) )                                  &
+!$ACC               IF ( i_am_accel_node )
 
       ENDIF
 

@@ -3796,7 +3796,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_LPI, lrestart=.FALSE.)
+                    & l_pp_scheduler_task=TASK_COMPUTE_LPI, lrestart=.FALSE.,        &
+                    lopenacc=.TRUE.)
+       __acc_attach(diag%lpi)
     END IF
 
     IF (var_in_output%lpi_max) THEN
@@ -3805,13 +3807,15 @@ __acc_attach(diag%clct)
       cf_desc    = t_cf_var('lpi_max', 'J kg-1',                   &
            &                 'lightning potential index, maximum during the last '//celltracks_int(3:), datatype_flt)
       grib2_desc = grib2_var( 0, 17, 192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'lpi_max', diag%lpi_max,                              &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                              &
-                  & cf_desc, grib2_desc,                                             &
-                  & ldims=shape2d,                                                   &
-                  & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,            &
-                  & resetval=0.0_wp, initval=0.0_wp,                                 &
-                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
+      CALL add_var( diag_list, 'lpi_max', diag%lpi_max,                      &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
+                  & cf_desc, grib2_desc,                                     &
+                  & ldims=shape2d,                                           &
+                  & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
+                  & resetval=0.0_wp, initval=0.0_wp,                         &
+                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                  & lopenacc=.TRUE.)
+       __acc_attach(diag%lpi_max)
     END IF
 
 

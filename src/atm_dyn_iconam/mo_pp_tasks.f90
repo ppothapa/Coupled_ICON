@@ -1294,6 +1294,15 @@ CONTAINS
     p_diag      => ptr_task%data_input%p_nh_state%diag
     prm_diag    => ptr_task%data_input%prm_diag
 
+
+#ifdef _OPENACC
+    IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_RH) THEN
+      CALL finish('pp_task_compute_field','unsupported postproc job-type on GPU')
+    ENDIF
+#endif
+
     SELECT CASE(ptr_task%job_type)
     CASE (TASK_COMPUTE_RH)
 

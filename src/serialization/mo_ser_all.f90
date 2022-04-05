@@ -17,7 +17,7 @@ MODULE mo_ser_all
   USE mo_var_list_register,  ONLY: vlr_get
   USE mo_run_config,         ONLY: iforcing, ldass_lhn
   USE mo_impl_constants,     ONLY: inwp
-  USE mo_ser_nml,            ONLY: ser_initialization, ser_output_diag, ser_output_diag_dyn, &
+  USE mo_ser_nml,            ONLY: ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, &
                                    ser_latbc_data, ser_nesting_save_progvars, &
                                    ser_dynamics, ser_diffusion, ser_nesting_compute_tendencies, &
                                    ser_nesting_boundary_interpolation, ser_nesting_relax_feedback, &
@@ -220,6 +220,8 @@ MODULE mo_ser_all
         ser_setting => ser_output_diag_dyn
       CASE("output_diag")
         ser_setting => ser_output_diag
+      CASE("output_opt")
+        ser_setting => ser_output_opt
       CASE("latbc_data")
         ser_setting => ser_latbc_data
       CASE("nesting_save_progvars")

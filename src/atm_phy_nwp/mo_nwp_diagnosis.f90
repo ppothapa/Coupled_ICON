@@ -1775,6 +1775,9 @@ CONTAINS
       ! update of TCOND_MAX (total column-integrated condensate, max. during the time interval "celltracks_interval") if required
       IF ( ( var_in_output(jg)%tcond_max .OR. var_in_output(jg)%tcond10_max ) .AND.  &
            ( l_output(jg) .OR. l_celltracks_event_active) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('tcond_max or tcond10_max')
+#endif
         CALL compute_field_tcond_max( p_patch(jg), jg, p_nh(jg)%metrics,   &
              &                        p_nh(jg)%prog(nnow(jg)),  p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag, &
              &                        var_in_output(jg)%tcond_max, var_in_output(jg)%tcond10_max,     &
@@ -1785,6 +1788,9 @@ CONTAINS
       ! otherwise, diag%vor is only diagnosed every output time step
       IF ( (ANY(luh_max_out(jg,:)) .OR. var_in_output(jg)%vorw_ctmax) .AND. &
             l_celltracks_event_active .AND. .NOT. l_output(jg) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('uh_max or vorw_ctmax')
+#endif
         CALL rot_vertex (p_nh(jg)%prog(nnow(jg))%vn, p_patch(jg), p_int(jg), p_nh(jg)%diag%omega_z)
         ! Diagnose relative vorticity on cells
         CALL verts2cells_scalar(p_nh(jg)%diag%omega_z, p_patch(jg), &
@@ -1795,6 +1801,9 @@ CONTAINS
 
         ! update of UH_MAX (updraft helicity, max.  during the time interval "celltracks_interval") if required
         IF ( luh_max_out(jg,k) .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+          CALL model_abort_for_unsupported_output_on_GPU('uh_max')
+#endif
           CALL compute_field_uh_max( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), p_nh(jg)%diag,  &
                &                     uh_max_zmin(k), uh_max_zmax(k), prm_diag(jg)%uh_max_3d(:,:,k) )
         END IF
@@ -1803,12 +1812,18 @@ CONTAINS
 
       ! update of VORW_CTMAX (Maximum rotation amplitude during the time interval "celltracks_interval") if required
       IF ( var_in_output(jg)%vorw_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('vorw_ctmax')
+#endif
         CALL compute_field_vorw_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%diag,  &
              &                         prm_diag(jg)%vorw_ctmax  )
       END IF
 
       ! update of W_CTMAX (Maximum updraft track during the ime interval "celltracks_interval") if required
       IF ( var_in_output(jg)%w_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('w_ctmax')
+#endif
         CALL compute_field_w_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)),  &
              &                      prm_diag(jg)%w_ctmax  )
       END IF
@@ -1826,18 +1841,27 @@ CONTAINS
 
       ! output of dbz_ctmax (column maximum reflectivity during a time interval (namelist param. celltracks_interval) is required
       IF ( var_in_output(jg)%dbzctmax .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('dbzctmax')
+#endif
         CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax )
       END IF
 
       ! output of echotop (minimum pressure where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotop .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('echotop')
+#endif
         CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop )
       END IF
 
       ! output of echotopinm (maximum height where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL model_abort_for_unsupported_output_on_GPU('echotopinm')
+#endif
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
                                         prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm )
       END IF
@@ -2362,6 +2386,14 @@ CONTAINS
 
   END SUBROUTINE nwp_diag_output_minmax_micro
 
+#ifdef _OPENACC
+  SUBROUTINE model_abort_for_unsupported_output_on_GPU(output)
+      CHARACTER(LEN=*), INTENT(IN) :: output
+
+      WRITE(message_text,'(A,A)') 'Unsupported output on GPU: ', TRIM(output)
+      CALL finish('mo_nwp_diagnosis',message_text)
+  END SUBROUTINE model_abort_for_unsupported_output_on_GPU
+#endif
 
 END MODULE mo_nwp_diagnosis
 

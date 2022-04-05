@@ -14,6 +14,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_initialization(3)
   INTEGER, TARGET ::  ser_output_diag_dyn(3)
   INTEGER, TARGET ::  ser_output_diag(3)
+  INTEGER, TARGET ::  ser_output_opt(3)
   INTEGER, TARGET ::  ser_latbc_data(3)
   INTEGER, TARGET ::  ser_nesting_save_progvars(3)
   INTEGER, TARGET ::  ser_dynamics(3)
@@ -40,7 +41,7 @@ MODULE mo_ser_nml
   INTEGER ::  ser_nreport
   LOGICAL ::  ser_debug                          !! serialize the debug calls from mo_ser_debug
 
-  NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_diag_dyn, ser_latbc_data, &
+  NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, ser_latbc_data, &
   &                  ser_nesting_save_progvars, ser_dynamics, &
   &                  ser_debug, ser_diffusion, ser_nesting_compute_tendencies, ser_nesting_boundary_interpolation, &
   &                  ser_nesting_relax_feedback, &
@@ -63,6 +64,7 @@ MODULE mo_ser_nml
    ser_initialization = param_def
    ser_output_diag_dyn = param_def
    ser_output_diag = param_def
+   ser_output_opt = param_def
    ser_latbc_data = param_def
    ser_nesting_save_progvars = param_def
    ser_dynamics = param_def
