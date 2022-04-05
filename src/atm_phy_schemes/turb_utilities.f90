@@ -3130,39 +3130,33 @@ REAL (KIND=wp) :: &
      !$acc end parallel
    ENDIF
    
-   !$acc parallel default(present) async(1) if(lacc)
-   !$acc loop gang vector
+   !$acc parallel default(present) private(j0, j1, j2, k) async(1) if(lacc)
+   !$acc loop gang(static:1) vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
    END DO
-   !$acc end parallel
 
    k=k_tp+1
    j1=1; j2=2
 !DIR$ IVDEP
-   !$acc parallel default(present) async(1) if(lacc)
-   !$acc loop gang vector
+   !$acc loop gang(static:1) vector
    DO i=i_st,i_en
       sav_tend(i,j1)=cur_tend(i,k)
       cur_tend(i,k) =remfact(i)* cur_tend(i,k)                   &
                     +versmot(i)* cur_tend(i,k+1)*disc_mom(i,k+1) &
                                                 /disc_mom(i,k)
    END DO
-   !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lacc)
-   !$acc loop gang vector
+   !$acc loop gang(static:1) vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-2.0_wp*versmot(i)
    END DO
-   !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lacc)
    !$acc loop seq
    DO k=k_tp+2, k_sf-2
       j0=j1; j1=j2; j2=j0
 !DIR$ IVDEP
-      !$acc loop gang vector
+      !$acc loop gang(static:1) vector
       DO i=i_st,i_en
          sav_tend(i,j1)=cur_tend(i,k)
          cur_tend(i,k) =remfact(i)* cur_tend(i,k)                    &
@@ -3171,30 +3165,26 @@ REAL (KIND=wp) :: &
                                                    /disc_mom(i,k)
       END DO
    END DO
-   !$acc end parallel
 
-   !$acc parallel default(present) async(1) if(lacc)
-   !$acc loop gang vector
+   !$acc loop gang(static:1) vector
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
    END DO
-   !$acc end parallel
 
    k=k_sf-1
    j2=j1
 !DIR$ IVDEP
-   !$acc parallel default(present) async(1) if(lacc)
-   !$acc loop gang vector
+   !$acc loop gang(static:1) vector
    DO i=i_st,i_en
       cur_tend(i,k) =remfact(i)* cur_tend(i,k)                   &
                     +versmot(i)* sav_tend(i,j2) *disc_mom(i,k-1) &
                                                 /disc_mom(i,k)
    END DO
    !$acc end parallel
-   
+
+   !$acc wait if(lacc)
    !$acc end data
    !$acc end data
-   !$acc wait
 
 END SUBROUTINE vert_smooth
 
