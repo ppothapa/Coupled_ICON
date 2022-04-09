@@ -173,7 +173,8 @@ CONTAINS
                             & prm_nwp_stochconv, lnd_diag,         & !inout
                             & lnd_prog_now, lnd_prog_new,          & !inout
                             & wtr_prog_now, wtr_prog_new,          & !inout
-                            & p_prog_list                          ) !in
+                            & p_prog_list,                         & !in
+                            & lacc                                 ) !in
 
     !>
     ! !INPUT PARAMETERS:
@@ -207,6 +208,8 @@ CONTAINS
     TYPE(t_lnd_diag),           INTENT(inout) :: lnd_diag
 
     TYPE(t_var_list_ptr), INTENT(inout) :: p_prog_list !current prognostic state list
+
+    LOGICAL, OPTIONAL, INTENT(in) :: lacc !flag to run on GPU
 
     ! !OUTPUT PARAMETERS:            !<variables induced by the whole physics
     ! Local array bounds:
@@ -281,7 +284,15 @@ CONTAINS
     ! SCM Nudging
     REAL(wp) :: nudgecoeff
 
+    LOGICAL :: lzacc
+
     IF (ltimer) CALL timer_start(timer_physics)
+
+    IF (PRESENT(lacc)) THEN
+      lzacc=lacc
+    ELSE
+      lzacc=.FALSE.
+    END IF
 
     ! calculate elapsed simulation time in seconds (local time for
     ! this domain!)
@@ -351,7 +362,7 @@ CONTAINS
 
 
     !$acc data create(zddt_v_raylfric,zddt_u_raylfric,sqrt_ri,z_ddt_temp,z_ddt_alpha,z_ddt_v_tot, &
-    !$acc             z_ddt_u_tot,z_exner_sv,z_qsum) if(.NOT. linit)
+    !$acc             z_ddt_u_tot,z_exner_sv,z_qsum) if(lzacc)
     !$acc data copyin(dt_phy_jg)
 
     IF ( lcall_phy_jg(itturb) .OR. lcall_phy_jg(itconv) .OR.           &
@@ -638,7 +649,7 @@ CONTAINS
                           & wtr_prog_now,                     & !>in
                           & lnd_prog_now,                     & !>inout
                           & lnd_diag,                         & !>inout
-                          & lacc=(.not. linit)                ) !>in
+                          & lacc=lzacc                        ) !>in
 
       IF (timers_level > 1) CALL timer_stop(timer_nwp_turbulence)
     ENDIF !lcall(itturb)
@@ -671,7 +682,7 @@ CONTAINS
                              & lnd_prog_now, lnd_prog_new,       & !>inout
                              & wtr_prog_now, wtr_prog_new,       & !>inout
                              & lnd_diag,                         & !>input
-                             & lacc=(.not. linit)                ) !>in
+                             & lacc=lzacc                        ) !>in
 
        !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
       IF (timers_level > 2) CALL timer_stop(timer_nwp_surface)
@@ -1047,7 +1058,7 @@ CONTAINS
                           & wtr_prog_new,                     & !>in
                           & lnd_prog_new,                     & !>inout
                           & lnd_diag,                         & !>inout
-                          & lacc=(.not. linit)                ) !>in
+                          & lacc=lzacc                        ) !>in
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "turbtrans", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 
 
@@ -1120,7 +1131,7 @@ CONTAINS
                             & prm_nwp_tend,                     & !>inout
                             & prm_nwp_stochconv,                & !>inout
                             & pt_int_state,                     & !>in
-                            & lacc=(.not. linit)                ) !>in
+                            & lacc=lzacc                        ) !>in
 
       IF (timers_level > 2) CALL timer_stop(timer_nwp_convection)
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "convection", .FALSE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
@@ -1204,7 +1215,7 @@ CONTAINS
 &              qi     = pt_prog_rcf%tracer   (:,:,jb,iqi) ,       & !! in:  cloud ice
 &              qs     = pt_prog_rcf%tracer   (:,:,jb,iqs) ,       & !! in:  snow
 &              qtvar  = qtvar                             ,       & !! in:  qtvar
-&              lacc=(.not. linit)                         ,       & !! in: prevents openacc in init stage
+&              lacc=lzacc                                 ,       & !! in: prevents openacc in init stage
 &              cc_tot = prm_diag%clc         (:,:,jb)     ,       & !! out: cloud cover
 &              qv_tot = prm_diag%tot_cld     (:,:,jb,iqv) ,       & !! out: qv       -"-
 &              qc_tot = prm_diag%tot_cld     (:,:,jb,iqc) ,       & !! out: clw      -"-
@@ -1273,7 +1284,7 @@ CONTAINS
            &              p_metrics%z_mc,        & ! in
            &              p_metrics%z_ifc,       & ! in
            &              p_metrics%ddqz_z_full, & ! in
-           &              linit                  ) ! in, optional
+           &              lacc=lzacc             ) ! in, optional
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radiation", .FALSE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
       IF (ltimer) CALL timer_stop(timer_nwp_radiation)
 
@@ -1281,9 +1292,9 @@ CONTAINS
 
 
     IF ( lcall_phy_jg(itradheat) ) THEN
-      !$ACC DATA CREATE(zcosmu0, cosmu0_slope) IF(.NOT. linit)
+      !$ACC DATA CREATE(zcosmu0, cosmu0_slope) IF(lzacc)
 #ifdef __CRAY8_5_5_WORKAROUND
-      !$ACC DATA CREATE(pqv) IF(.NOT. linit)
+      !$ACC DATA CREATE(pqv) IF(lzacc)
 #endif
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radheat", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
 
@@ -1304,7 +1315,7 @@ CONTAINS
         & slope_azi  = p_metrics%slope_azimuth,     &
         & horizon    = ext_data%atm%horizon,        &
         & cosmu0_slp = cosmu0_slope,                &
-        & lacc=(.not. linit)                        )
+        & lacc=lzacc                                )
 
       IF (timers_level > 10) CALL timer_stop(timer_pre_radiation_nwp)
 
@@ -1329,7 +1340,7 @@ CONTAINS
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
 &                       i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(.NOT. linit)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           zcosmu0 (jc,jb) &
@@ -1340,7 +1351,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(.NOT. linit)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma
           prm_diag%swflxsfc (jc,jb)=0._wp
@@ -1352,7 +1363,7 @@ CONTAINS
 
 #ifdef __CRAY8_5_5_WORKAROUND
         ! workaround for Cray Fortran 8.5.5
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(.NOT. linit)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = 1, nproma
@@ -1365,15 +1376,15 @@ CONTAINS
         IF (atm_phy_nwp_config(jg)%inwp_surface >= 1) THEN
 
 #ifdef __PGI_WORKAROUND
-          !$ACC DATA CREATE(gp_count_t) IF(.NOT. linit)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(.NOT. linit)
+          !$ACC DATA CREATE(gp_count_t) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP VECTOR
           DO isubs = 1, ntiles_total
             gp_count_t(isubs) = ext_data%atm%gp_count_t(jb,isubs)
           ENDDO
           !$ACC END PARALLEL
 #endif
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(.NOT. linit)
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO isubs = 1, ntiles_total+ntiles_water
             DO jc = 1, nproma
@@ -1457,7 +1468,7 @@ CONTAINS
           & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out shortwave upward flux at the surface [W/m2]
           & swflx_clr_sfc=prm_diag%swflxclr_sfc(:,jb)  ,&   ! out clear-sky shortwave flux at the surface [W/m2]
           & swflx_dn_sfc_diff=prm_diag%swflx_dn_sfc_diff(:,jb), & ! out shortwave diffuse downward flux at the surface [W/m2]
-          & lacc=(.not. linit)                                  )
+          & lacc=lzacc                                          )
 #ifdef __PGI_WORKAROUND
     !$ACC END DATA ! CREATE(gp_count_t)
 #endif
@@ -1516,7 +1527,7 @@ CONTAINS
           & swflx_up_sfc=prm_diag%swflx_up_sfc(:,jb)   ,&   ! out shortwave upward flux at the surface [W/m2]
           & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out shortwave upward flux at the surface [W/m2]
           & swflx_dn_sfc_diff=prm_diag%swflx_dn_sfc_diff(:,jb), & ! out shortwave diffuse downward flux at the surface [W/m2]
-          & lacc=(.not. linit)                                  )
+          & lacc=lzacc                                          )
         ENDIF
 
       ENDDO ! blocks
@@ -1557,7 +1568,7 @@ CONTAINS
         &               ext_data,                  & !>input
         &               pt_diag,                   & !>inout
         &               prm_diag, prm_nwp_tend,    & !>inout
-        &               lacc=(.not. linit)         ) !>in
+        &               lacc=lzacc                 ) !>in
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "gwdrag", .FALSE., opt_lupdate_cpu=.FALSE.)
 
       IF (timers_level > 3) CALL timer_stop(timer_sso)
@@ -2254,7 +2265,7 @@ CONTAINS
         &                 dt            = dt_loc,    &
         &                 pt_diag       = pt_diag,   &
         &                 opt_dpsdt_avg = dpsdt_avg, &
-        &                 linit         = linit      )  ! (only stdio-process has reasonable return value!)
+        &                 lacc          = lzacc      )  ! (only stdio-process has reasonable return value!)
       nudging_config(jg)%dpsdt = dpsdt_avg
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_dpsdt)
@@ -2296,7 +2307,7 @@ CONTAINS
                         & pt_prog, pt_prog_rcf,          & !in
                         & pt_diag,                       & !inout
                         & prm_diag, lnd_diag,            & !inout
-                        & linit                          ) !in
+                        & lacc=lzacc                     ) !in
 
 #ifdef __ICON_ART
     IF (lart) THEN

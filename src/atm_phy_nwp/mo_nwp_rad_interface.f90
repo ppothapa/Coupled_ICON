@@ -80,13 +80,13 @@ MODULE mo_nwp_rad_interface
   !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_radiation ( lredgrid, p_sim_time, mtime_datetime, pt_patch,pt_par_patch, &
-    & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, zh, dz, linit)
+    & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, zh, dz, lacc)
 
     CHARACTER(len=*), PARAMETER :: &
       &  routine = 'mo_nwp_rad_interface:nwp_radiation'
 
     LOGICAL,                 INTENT(in)    :: lredgrid        !< use reduced grid for radiation
-    LOGICAL, OPTIONAL,       INTENT(in)    :: linit
+    LOGICAL, OPTIONAL,       INTENT(in)    :: lacc
 
     REAL(wp),                INTENT(in)    :: p_sim_time   !< simulation time
     REAL(wp),                INTENT(in)    :: zf(:,:,:)    !< model full layer height
@@ -128,7 +128,7 @@ MODULE mo_nwp_rad_interface
     INTEGER :: i_startidx, i_endidx    !< slices
     INTEGER :: i_nchdom                !< domain index
     INTEGER :: istat
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     REAL(wp):: zsct                    ! solar constant (at time of year)
     REAL(wp):: cosmu0_dark             ! minimum cosmu0, for smaller values no shortwave calculations
@@ -146,10 +146,10 @@ MODULE mo_nwp_rad_interface
     i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
 
     ! openACC flag (initialization run is left on)
-    IF(PRESENT(linit)) THEN
-      lacc = .NOT. linit
+    IF(PRESENT(lacc)) THEN
+      lzacc = lacc
     ELSE
-      lacc = .FALSE.
+      lzacc = .FALSE.
     ENDIF
 
 
@@ -262,20 +262,20 @@ MODULE mo_nwp_rad_interface
       & pt_patch     = pt_patch,                          & !in
       & zsmu0        = prm_diag%cosmu0(:,:),              & !out
       & zsct         = zsct,                              & !out, optional
-      & lacc         = lacc                               ) !in
+      & lacc         = lzacc                               ) !in
 
 
     ! Compute tile-based and aggregated surface-albedo
     !
     IF ( albedo_type == MODIS ) THEN
       ! MODIS albedo
-      CALL sfc_albedo_modis(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lacc)
+      CALL sfc_albedo_modis(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lzacc)
     ELSE IF ( albedo_type == 3 ) THEN
       ! globally fixed albedo value for SCM and RCEMIP applications
       CALL sfc_albedo_scm(pt_patch, albedo_fixed, prm_diag)
     ELSE
 #ifdef _OPENACC
-      IF (lacc) CALL finish('nwp_radiation','sfc_albedo not ported to gpu')
+      IF (lzacc) CALL finish('nwp_radiation','sfc_albedo not ported to gpu')
 #endif
       ! albedo based on tabulated bare soil values
       CALL sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag)
@@ -287,12 +287,12 @@ MODULE mo_nwp_rad_interface
     !-------------------------------------------------------------------------
     !
 
-    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lacc)
+    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
     CASE (1) ! RRTM
 
 #ifdef _OPENACC
-    IF(lacc) THEN
+    IF(lzacc) THEN
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
       CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data)
@@ -317,7 +317,7 @@ MODULE mo_nwp_rad_interface
       ENDIF
 
 #ifdef _OPENACC
-      IF(lacc) THEN
+      IF(lzacc) THEN
         CALL message('mo_nh_interface_nwp', &
           &  'Host to device copy after nwp_rrtm_radiation. This needs to be removed once port is finished!')
         CALL gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data)
@@ -329,20 +329,20 @@ MODULE mo_nwp_rad_interface
 #ifdef __ECRAD
       !$ACC WAIT
       CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, use_acc=lacc )
+        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, use_acc=lzacc )
 
       IF (.NOT. lredgrid) THEN
         !$ACC WAIT
         CALL nwp_ecRad_radiation ( mtime_datetime, pt_patch, ext_data,      &
           & zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                              &
           & od_lw, od_sw, ssa_sw, g_sw,                                     &
-          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lacc )
+          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lzacc )
       ELSE
         !$ACC WAIT
         CALL nwp_ecRad_radiation_reduced ( mtime_datetime, pt_patch,pt_par_patch, &
           & ext_data, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                          &
           & od_lw, od_sw, ssa_sw, g_sw,                                           &
-          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lacc )
+          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lzacc )
       ENDIF
 #else
       CALL finish(routine,  &

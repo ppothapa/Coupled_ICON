@@ -24,7 +24,7 @@ MODULE mo_ser_all
                                    ser_step_advection, ser_turbtrans, ser_turbdiff, &
                                    ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
                                    ser_microphysics, ser_convection, ser_cover, ser_radiation, &
-                                   ser_radheat, ser_gwdrag, ser_time_loop_end
+                                   ser_radheat, ser_gwdrag, ser_time_loop_end, ser_physics_init
   USE mo_ser_manually,       ONLY: ser_manually
   USE mo_mpi,                ONLY: get_my_mpi_work_id
 #endif
@@ -240,6 +240,8 @@ MODULE mo_ser_all
         ser_setting => ser_nesting_relax_feedback
       CASE("physics")
         ser_setting => ser_physics
+      CASE("physics_init")
+        ser_setting => ser_physics_init
       CASE("lhn")
         ser_setting => ser_lhn
       CASE("nudging")

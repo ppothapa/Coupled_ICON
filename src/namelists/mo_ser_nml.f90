@@ -24,6 +24,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_nesting_relax_feedback(3)
   INTEGER, TARGET ::  ser_step_advection(3)
   INTEGER, TARGET ::  ser_physics(3)
+  INTEGER, TARGET ::  ser_physics_init(3)
   INTEGER, TARGET ::  ser_lhn(3)
   INTEGER, TARGET ::  ser_nudging(3)
   INTEGER, TARGET ::  ser_surface(3)
@@ -44,7 +45,7 @@ MODULE mo_ser_nml
   NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, ser_latbc_data, &
   &                  ser_nesting_save_progvars, ser_dynamics, &
   &                  ser_debug, ser_diffusion, ser_nesting_compute_tendencies, ser_nesting_boundary_interpolation, &
-  &                  ser_nesting_relax_feedback, &
+  &                  ser_nesting_relax_feedback, ser_physics_init, &
   &                  ser_step_advection, ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
   &                  ser_microphysics, ser_convection, ser_cover, ser_radiation, ser_radheat, &
   &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_nfail, ser_nreport
@@ -74,6 +75,7 @@ MODULE mo_ser_nml
    ser_nesting_relax_feedback = param_def
    ser_step_advection = param_def
    ser_physics = param_def
+   ser_physics_init = param_def
    ser_lhn = param_def
    ser_nudging = param_def
    ser_surface = param_def

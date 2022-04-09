@@ -123,12 +123,12 @@ CONTAINS
                             & pt_prog, pt_prog_rcf,       & !in
                             & pt_diag,                    & !inout
                             & prm_diag, lnd_diag,         & !inout 
-                            & linit                       ) !in  
+                            & lacc                       ) !in  
                             
 
     LOGICAL,            INTENT(IN)   :: lcall_phy_jg(:) !< physics package time control (switches)
                                                         !< for domain jg
-    LOGICAL, OPTIONAL,  INTENT(IN)   :: linit           !< initialization flag
+    LOGICAL, OPTIONAL,  INTENT(IN)   :: lacc            !< initialization flag
     REAL(wp),           INTENT(IN)   :: dt_phy_jg(:)    !< time interval for all physics
                                                         !< packages on domain jg
     REAL(wp),           INTENT(IN)   :: p_sim_time
@@ -157,17 +157,17 @@ CONTAINS
 
     INTEGER :: jc,jk,jb,jg      ! block index
     INTEGER :: jt               ! tracer loop index
-    LOGICAL :: lacc             ! OpenACC flag
+    LOGICAL :: lzacc             ! OpenACC flag
 
 
   !-----------------------------------------------------------------
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-    IF(PRESENT(linit)) THEN
-      lacc = .NOT. linit
+    IF(PRESENT(lacc)) THEN
+      lzacc = lacc
     ELSE
-      lacc = .FALSE.
+      lzacc = .FALSE.
     ENDIF
 
     jg        = pt_patch%id
@@ -198,7 +198,7 @@ CONTAINS
                               & ext_data, kstart_moist,     & !in
                               & ih_clch, ih_clcm,           & !in
                               & pt_diag, prm_diag,          & !inout
-                              & lacc                        ) !in
+                              & lzacc                        ) !in
     ENDIF
 
     ! Calculation of average/accumulated values since model start
@@ -255,7 +255,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lacc)
+        !$acc parallel default(present) if(lzacc)
         !$acc loop gang vector
         DO jc = i_startidx, i_endidx
 
@@ -278,7 +278,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lacc)
+        !$acc parallel default(present) if(lzacc)
         !$acc loop gang vector
         DO jc = i_startidx, i_endidx
 
@@ -306,7 +306,7 @@ CONTAINS
         !$acc end parallel
 
         IF (lcall_phy_jg(itsfc)) THEN
-          !$acc parallel default(present) if(lacc)
+          !$acc parallel default(present) if(lzacc)
           !$acc loop gang vector collapse(2)
           DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -318,7 +318,7 @@ CONTAINS
           !$acc end parallel
           ! special treatment for variable resid_wso
           IF (var_in_output(jg)%res_soilwatb) THEN
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector collapse(2)
             DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -337,7 +337,7 @@ CONTAINS
         ! but the instantaneous max/min over all tiles. In case of no tiles both are equivalent.
         IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-          !$acc parallel default(present) if(lacc)
+          !$acc parallel default(present) if(lzacc)
           !$acc loop gang vector
           DO jc = i_startidx, i_endidx
             prm_diag%tmax_2m(jc,jb) = MAX(prm_diag%t_tilemax_inst_2m(jc,jb), prm_diag%tmax_2m(jc,jb) )
@@ -351,7 +351,7 @@ CONTAINS
 
           IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
@@ -390,7 +390,7 @@ CONTAINS
             ENDDO  ! jc
             !$acc end parallel
 
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector collapse(2)
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
@@ -404,7 +404,7 @@ CONTAINS
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
-              !$acc parallel default(present) if(lacc)
+              !$acc parallel default(present) if(lzacc)
               !$acc loop gang vector
               DO jc = i_startidx, i_endidx
                 ! time averaged surface u-momentum flux SSO
@@ -440,7 +440,7 @@ CONTAINS
             !e.g. dt_phy_jg(itradheat) may then be greater than p_sim_time
             !leading to wrong averaging.
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector
             DO jc = i_startidx, i_endidx
 

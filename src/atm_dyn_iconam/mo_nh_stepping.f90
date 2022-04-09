@@ -474,8 +474,41 @@ MODULE mo_nh_stepping
     IF (.NOT.isRestart()) THEN
       ! Compute diagnostic physics fields
       CALL aggr_landvars
+#if defined( _OPENACC )
+        ! GPU memory is only initialized for a single call to init_slowphysics
+        ! After the call, temporarily allocated data is deallocated and global data copied back to CPU
+        i_am_accel_node = my_process_is_work()    ! Activate GPUs
+        call h2d_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
+          &            p_nh_state, prep_adv, advection_config, iforcing )
+        IF (n_dom > 1 .OR. l_limited_area) THEN
+           CALL devcpy_grf_state (p_grf_state, .TRUE.)
+           CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
+        ENDIF
+        IF ( iforcing == inwp ) THEN
+           DO jg=1, n_dom
+              CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), &
+                phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg))
+           ENDDO
+           CALL devcpy_nwp()
+        ENDIF
+#endif
       ! Initial call of (slow) physics schemes, including computation of transfer coefficients
-      CALL init_slowphysics (mtime_current, 1, dtime)
+      CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
+#if defined( _OPENACC )
+        CALL d2h_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
+          &            p_nh_state, prep_adv, advection_config, iforcing )
+        IF (n_dom > 1 .OR. l_limited_area) THEN
+           CALL devcpy_grf_state (p_grf_state, .FALSE.)
+           CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+        ENDIF
+        IF ( iforcing == inwp ) THEN
+          DO jg=1, n_dom
+             CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+          ENDDO
+          CALL hostcpy_nwp()
+        ENDIF
+        i_am_accel_node = .FALSE.                 ! Deactivate GPUs
+#endif
 
 #ifdef HAVE_RADARFWO
       IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. &
@@ -1551,6 +1584,10 @@ MODULE mo_nh_stepping
 #if defined( _OPENACC )
   CALL d2h_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
     &            p_nh_state, prep_adv, advection_config, iforcing )
+  IF (n_dom > 1 .OR. l_limited_area) THEN
+     CALL devcpy_grf_state (p_grf_state, .FALSE.)
+     CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+  ENDIF
   IF ( iforcing == inwp ) THEN
     DO jg=1, n_dom
        CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
@@ -2119,7 +2156,8 @@ MODULE mo_nh_stepping
                 &                  p_lnd_state(jg)%prog_lnd(n_new_rcf),& !inout
                 &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
                 &                  p_lnd_state(jg)%prog_wtr(n_new_rcf),& !inout
-                &                  p_nh_state_lists(jg)%prog_list(n_new_rcf) ) !in
+                &                  p_nh_state_lists(jg)%prog_list(n_new_rcf), & !in
+                &                  lacc=.TRUE.                         ) !in
             !$ser verbatim CALL serialize_all(nproma, jg, "physics", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr)
 
           CASE (iecham) ! iforcing
@@ -2788,18 +2826,27 @@ MODULE mo_nh_stepping
   !! @par Revision History
   !! Developed by Guenther Zaengl, DWD (2013-01-04)
   !!
-  RECURSIVE SUBROUTINE init_slowphysics (mtime_current, jg, dt_loc)
+  RECURSIVE SUBROUTINE init_slowphysics (mtime_current, jg, dt_loc, lacc)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_slowphysics'
 
     TYPE(datetime), POINTER :: mtime_current
     INTEGER , INTENT(IN)    :: jg           !< current grid level
     REAL(wp), INTENT(IN)    :: dt_loc       !< time step applicable to local grid level
+    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
 
     ! Local variables
     INTEGER                             :: n_now_rcf, nstep
     INTEGER                             :: jgp, jgc, jn
     REAL(wp)                            :: dt_sub       !< (advective) timestep for next finer grid level
+
+    LOGICAL :: lzacc
+
+    IF (PRESENT(lacc)) THEN
+      lzacc=lacc
+    ELSE
+      lzacc=.FALSE.
+    END IF
 
     ! Determine parent domain ID
     IF ( jg > 1) THEN
@@ -2862,6 +2909,7 @@ MODULE mo_nh_stepping
     CASE (inwp) ! iforcing
       !
       ! nwp physics, slow physics forcing
+      !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .TRUE., opt_lupdate_cpu=.FALSE.)
       CALL nwp_nh_interface(atm_phy_nwp_config(jg)%lcall_phy(:), & !in
           &                  .TRUE.,                             & !in
           &                  lredgrid_phys(jg),                  & !in
@@ -2885,7 +2933,9 @@ MODULE mo_nh_stepping
           &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
-          &                  p_nh_state_lists(jg)%prog_list(n_now_rcf) ) !in
+          &                  p_nh_state_lists(jg)%prog_list(n_now_rcf), & !in
+          &                  lacc=lzacc) !in
+      !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .FALSE., opt_lupdate_cpu=.FALSE.)
 
 
     CASE (iecham) ! iforcing
@@ -2930,6 +2980,9 @@ MODULE mo_nh_stepping
         IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
 
         IF(p_patch(jgc)%domain_is_owned) THEN
+#if _OPENACC
+          CALL finish (routine, 'Online initialization of nesting is not supported on GPU')
+#endif
           IF(proc_split) CALL push_glob_comm(p_patch(jgc)%comm, p_patch(jgc)%proc0)
           CALL init_slowphysics( mtime_current, jgc, dt_sub )
           IF(proc_split) CALL pop_glob_comm()
