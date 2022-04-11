@@ -727,9 +727,7 @@ CONTAINS
     REAL(wp) :: z_ddt_q_nudge
 #endif
     !
-    INTEGER, POINTER              :: ptr_conv_list(:)
-    INTEGER, DIMENSION(3), TARGET :: conv_list_small
-    INTEGER, DIMENSION(5), TARGET :: conv_list_large
+    INTEGER, DIMENSION(5) :: conv_list
 
     !$acc data present(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv, &
     !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, &
@@ -745,22 +743,23 @@ CONTAINS
 
     ! get list of water tracers which are affected by convection
     IF (atm_phy_nwp_config(jg)%ldetrain_conv_prec) THEN
-      conv_list_large = (/iqv,iqc,iqi,iqr,iqs/)
-      ptr_conv_list =>conv_list_large
+      conv_list = (/iqv,iqc,iqi,iqr,iqs/)
     ELSE
-      conv_list_small = (/iqv,iqc,iqi/)
-      ptr_conv_list =>conv_list_small
+      conv_list = (/iqv,iqc,iqi,-1,-1/)
     ENDIF
 
-    !$acc kernels default(none) if(i_am_accel_node)
+    !$acc kernels default(none) async(1) if(i_am_accel_node)
     zrhox_clip(:,:) = 0._wp
     !$acc end kernels
 
     ! add tendency due to convection
-    DO jt=1,SIZE(ptr_conv_list)
-      idx = ptr_conv_list(jt)
-      !$acc parallel default(none) if(i_am_accel_node)
-      !$acc loop gang vector collapse(2)
+    !$acc parallel copyin(conv_list) private(pos_qv) default(none) async(1) if(i_am_accel_node)
+    !$acc loop seq
+    DO jt=1,SIZE(conv_list)
+      idx = conv_list(jt)
+      IF (idx <= 0) CYCLE
+
+      !$acc loop gang(static:1) vector collapse(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           zrhox(jc,jk,jt) = p_rho_now(jc,jk)*pt_prog_rcf%tracer(jc,jk,jb,idx)  &
@@ -773,7 +772,6 @@ CONTAINS
           zrhox(jc,jk,jt) = MAX(0._wp, zrhox(jc,jk,jt))
         ENDDO
       ENDDO
-      !$acc end parallel
       !
       ! Re-diagnose tracer mass fraction from partial mass
       IF (idx == iqv) THEN
@@ -781,20 +779,17 @@ CONTAINS
         CYCLE         ! special treatment see below
       ENDIF
       !
-      !$acc parallel default(none) if(i_am_accel_node)
-      !$acc loop gang vector collapse(2)
+      !$acc loop gang(static:1) vector collapse(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,idx) = zrhox(jc,jk,jt)/p_rho_now(jc,jk)
         ENDDO
       ENDDO
-      !$acc end parallel
     ENDDO ! jt
     !
     ! Special treatment for qv. 
     ! Rediagnose tracer mass fraction and substract mass created by artificial clipping.
-    !$acc parallel default(none) if(i_am_accel_node)
-    !$acc loop gang vector collapse(2)
+    !$acc loop gang(static:1) vector collapse(2)
     DO jk = kstart_moist(jg), kend
       DO jc = i_startidx, i_endidx
         pt_prog_rcf%tracer(jc,jk,jb,iqv) = MAX(0._wp, &
@@ -822,9 +817,9 @@ CONTAINS
 
     ! additional clipping for qr, qs, ... up to iqm_max
     ! (very small negative values may occur during the transport process (order 10E-15))
-    iq_start = MAXVAL(ptr_conv_list(:)) + 1  ! all others have already been clipped above
+    iq_start = MAXVAL(conv_list(:)) + 1  ! all others have already been clipped above
     !
-    !$acc parallel default(none) if(i_am_accel_node)
+    !$acc parallel default(none) async(1) if(i_am_accel_node)
     !$acc loop gang vector collapse(3)
     DO jt=iq_start, iqm_max  ! qr,qs,etc. 
       DO jk = kstart_moist(jg), kend
@@ -837,7 +832,7 @@ CONTAINS
     
     ! clipping for number concentrations
     IF(atm_phy_nwp_config(jg)%l2moment)THEN
-      !$acc parallel default(none) if(i_am_accel_node)
+      !$acc parallel default(none) async(1) if(i_am_accel_node)
       !$acc loop gang vector collapse(3)
       DO jt=iqni, ininact  ! qni,qnr,qns,qng,qnh,qnc and ninact (but not yet ninpot)
         DO jk = kstart_moist(jg), kend
@@ -854,7 +849,7 @@ CONTAINS
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN
 !DIR$ IVDEP
-      !$acc parallel default(none) if(i_am_accel_node)
+      !$acc parallel default(none) async(1) if(i_am_accel_node)
       !$acc loop gang vector
       DO jc = i_startidx, i_endidx
 
@@ -907,6 +902,7 @@ CONTAINS
     ENDIF  ! is_ls_forcing
 #endif
 
+    !$acc wait
     !$acc end data !copyin
     !$acc end data !create
     !$acc end data !present

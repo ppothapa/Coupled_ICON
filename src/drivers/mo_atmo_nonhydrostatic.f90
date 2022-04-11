@@ -363,6 +363,7 @@ CONTAINS
      DO jg =1,n_dom
        CALL configure_lhn(jg)
      ENDDO 
+     !$ACC ENTER DATA COPYIN(assimilation_config)
 
      CALL init_radar_data(p_patch(1:), radar_data)
      CALL construct_lhn(lhn_fields,p_patch(1:))

@@ -480,21 +480,10 @@ CONTAINS
 
         iadv_min_slev = advconf%ffsl_hyb_h%iadv_min_slev
 
-#ifdef _OPENACC
-! In GPU mode, copy data to HOST and perform hflux_ffsl_hybrid there, then update device
-! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
-        WRITE(message_text,'(a)') 'GPU mode: performing hflux_ffsl_hybrid on host; for performance use upwind_hflux_miura'
-        CALL message(routine,message_text)
-!$ACC UPDATE HOST( p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt ), &
-!$ACC        IF( i_am_accel_node .AND. acc_on )
-        save_i_am_accel_node = i_am_accel_node
-        i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl_hybrid
-#endif
-
         ! CALL hybrid FFSL/miura3 scheme (i.e. if a prescribed CFL threshold
         ! is exceeded, the scheme switches from MIURA3 to FFSL
         ! DA: this routine is not (yet) async
-        !$ACC WAIT  
+        !$ACC WAIT
         CALL hflux_ffsl_hybrid( p_patch, p_cc(:,:,:,jt),            &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e, &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,        &! in
@@ -506,11 +495,6 @@ CONTAINS
           &                 opt_rlend   = i_rlend,                  &! in
           &                 opt_slev    = advconf%iadv_slev(jt),    &! in
           &                 opt_ti_slev = iadv_min_slev             )! in
-
-#ifdef _OPENACC
-        i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-!$ACC UPDATE DEVICE( p_upflux(:,:,:,jt) ), IF( i_am_accel_node .AND. acc_on )
-#endif
 
       CASE ( MCYCL )   ! ihadv_tracer = 20
 
@@ -648,7 +632,7 @@ CONTAINS
 !$ACC UPDATE HOST( p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt ), &
 !$ACC        IF( i_am_accel_node .AND. acc_on )
         save_i_am_accel_node = i_am_accel_node
-        i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl_hybrid
+        i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl
 #endif
 
         ! CALL standard FFSL for lower atmosphere and the subcycling version of
@@ -704,17 +688,6 @@ CONTAINS
 
         qvsubstep_elev = advconf%iadv_qvsubstep_elev
 
-#ifdef _OPENACC
-! In GPU mode, copy data to HOST and perform hflux_ffsl_hybrid there, then update device
-! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
-        WRITE(message_text,'(a)') 'GPU mode: performing hflux_ffsl_hybrid on host; for performance use upwind_hflux_miura'
-        CALL message(routine,message_text)
-!$ACC UPDATE HOST( p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt ), &
-!$ACC        IF( i_am_accel_node .AND. acc_on )
-        save_i_am_accel_node = i_am_accel_node
-        i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl_hybrid
-#endif
-
         ! CALL hybrid FFSL/MIURA3 for lower atmosphere and the subcycling
         ! version of MIURA for upper atmosphere
         ! DA: this routine is not (yet) async
@@ -732,11 +705,6 @@ CONTAINS
           &                 opt_elev    = p_patch%nlev,             &! in
           &                 opt_ti_slev = qvsubstep_elev+1,         &! in
           &                 opt_ti_elev = p_patch%nlev              )! in
-
-#ifdef _OPENACC
-        i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-!$ACC UPDATE DEVICE( p_upflux(:,:,:,jt) ), IF( i_am_accel_node .AND. acc_on )
-#endif
 
         IF (qvsubstep_elev > 0) THEN
 
@@ -2931,7 +2899,7 @@ CONTAINS
     LOGICAL  :: l_out_edgeval          !< corresponding local variable; default .FALSE.
                                        !< i.e. output flux across the edge
 
-   REAL(wp) ::   &                     !< coefficients of lsq reconstruction
+    REAL(wp) ::  &                     !< coefficients of lsq reconstruction
       &  z_lsq_coeff(lsq_high_set%dim_unk+1,nproma,p_patch%nlev,p_patch%nblks_c)
                                        !< at cell center
                                        !< includes c0 and gradients in zonal and
@@ -3040,8 +3008,13 @@ CONTAINS
     ! number of child domains
     i_nchdom = MAX(1,p_patch%n_childdom)
 
+!$ACC DATA  PRESENT( p_cc, p_rhodz_now, p_rhodz_new, p_mass_flx_e, p_vn, p_vt, p_out_e ), &
+!$ACC       CREATE( z_lsq_coeff, dreg_patch0 ), IF( i_am_accel_node .AND. acc_on )
+
     IF (p_test_run) THEN
+!$ACC KERNELS IF (i_am_accel_node .AND. acc_on)
       z_lsq_coeff(:,:,:,:) = 0._wp
+!$ACC END KERNELS
     ENDIF
 
     dim_unk = lsq_high_set%dim_unk+1
@@ -3066,7 +3039,6 @@ CONTAINS
     !    In addition the Gauss-Legendre quadrature is prepared by
     !    calculating some tracer-invariant (i.e. purely geometric) fields.
     !
-
     IF ( ld_compute ) THEN
       ! allocate temporary arrays for quadrature and upwind cells
       ALLOCATE( patch0_cell_idx(nproma,nlev,p_patch%nblks_e),            &
@@ -3079,8 +3051,13 @@ CONTAINS
         CALL finish(routine,                                        &
           &  'allocation for patch0_cell_idx,  patch0_cell_blk, falist failed' )
       ENDIF
+!$ACC ENTER DATA COPYIN( falist ) CREATE( patch0_cell_idx, patch0_cell_blk,  &
+!$ACC   falist%eidx, falist%elev, falist%len ),                              &
+!$ACC IF( i_am_accel_node .AND. acc_on )
 
+!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
       falist%len(:) = 0 ! To be safe with the subsequent MAXVAL in the case of nesting
+!$ACC END KERNELS
 
       ! compute vertex coordinates for the departure region using a first
       ! order accurate (O(\Delta t)) backward trajectory-method
@@ -3111,6 +3088,10 @@ CONTAINS
           &  'allocation for z_quad_vector_sum0/1/2, z_dreg_area, ' //    &
           &  'patch1/2_cell_idx,  patch1/2_cell_blk, dreg_patch1/2 failed' )
       ENDIF
+!$ACC ENTER DATA CREATE( z_quad_vector_sum0, z_quad_vector_sum1,         &
+!$ACC   z_quad_vector_sum2, z_dreg_area, patch1_cell_idx,                &
+!$ACC   patch2_cell_idx, patch1_cell_blk, patch2_cell_blk, dreg_patch1,  &
+!$ACC   dreg_patch2 ), IF( i_am_accel_node .AND. acc_on )
 
       ! Flux area (aka. departure region) is subdivided according to its overlap
       ! with the underlying grid.
@@ -3174,10 +3155,11 @@ CONTAINS
 
       ENDIF
 
+!$ACC EXIT DATA DELETE( dreg_patch1, dreg_patch2 )                        &
+!$ACC   IF( i_am_accel_node .AND. acc_on )
       DEALLOCATE(dreg_patch1, dreg_patch2)
 
     END IF ! ld_compute
-
 
     !
     ! 2. reconstruction of the tracer subgrid distribution
@@ -3221,7 +3203,7 @@ CONTAINS
         &                    opt_rlstart=2 )
       ENDIF
     ENDIF
-
+    !$ACC WAIT
 
     ! Synchronize polynomial coefficients
     ! Note: a special sync routine is needed here because the fourth dimension
@@ -3256,6 +3238,8 @@ CONTAINS
       SELECT  CASE( lsq_high_ord )
       CASE( 1 )  ! linear reconstruction
 
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
 
@@ -3265,8 +3249,11 @@ CONTAINS
             &     z_quad_vector_sum0(je,1:3,jk,jb))
         ENDDO
       ENDDO
+!$ACC END PARALLEL
 
       ! Correction for points in index list
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
 
@@ -3280,10 +3267,13 @@ CONTAINS
           &    + DOT_PRODUCT(z_lsq_coeff(1:3,patch2_cell_idx(ie,jb),jk,patch2_cell_blk(ie,jb)),  &
           &      z_quad_vector_sum2(ie,1:3,jb) )
       ENDDO  ! ie
+!$ACC END PARALLEL
 
 
       CASE( 2 )  ! quadratic reconstruction
 
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
 
@@ -3293,8 +3283,11 @@ CONTAINS
             &     z_quad_vector_sum0(je,1:6,jk,jb))
         ENDDO
       ENDDO
+!$ACC END PARALLEL
 
       ! Correction for points in index list
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
 
@@ -3308,10 +3301,13 @@ CONTAINS
           &    + DOT_PRODUCT(z_lsq_coeff(1:6,patch2_cell_idx(ie,jb),jk,patch2_cell_blk(ie,jb)),  &
           &      z_quad_vector_sum2(ie,1:6,jb) )
       ENDDO  ! ie
+!$ACC END PARALLEL
 
 
       CASE( 3 )  ! cubic reconstruction
 
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
 !NEC$ ivdep
         DO je = i_startidx, i_endidx
@@ -3322,8 +3318,11 @@ CONTAINS
             &     z_quad_vector_sum0(je,1:10,jk,jb))
         ENDDO
       ENDDO
+!$ACC END PARALLEL
 
       ! Correction for points in index list
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
 
@@ -3337,15 +3336,19 @@ CONTAINS
           &    + DOT_PRODUCT(z_lsq_coeff(1:10,patch2_cell_idx(ie,jb),jk,patch2_cell_blk(ie,jb)),&
           &      z_quad_vector_sum2(ie,1:10,jb) )
       ENDDO  ! ie
+!$ACC END PARALLEL
 
       END SELECT
 
       ! Finally compute total flux
+!$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
           p_out_e(je,jk,jb) = p_mass_flx_e(je,jk,jb) * p_out_e(je,jk,jb) / z_dreg_area(je,jk,jb)
         ENDDO  ! je
       ENDDO  ! jk
+!$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 !$OMP END DO
@@ -3357,6 +3360,7 @@ CONTAINS
     !    to limit computed fluxes.
     !    The flux limiter is based on work by Zalesak (1979)
     !
+!$ACC WAIT
     IF (.NOT. l_out_edgeval .AND. p_itype_hlimit == ifluxl_m) THEN
       CALL hflx_limiter_mo( p_patch, p_int, p_dtime, p_cc,              & !in
         &                   p_rhodz_now, p_rhodz_new, p_mass_flx_e,     & !in
@@ -3368,9 +3372,15 @@ CONTAINS
         &                   p_cc, p_rhodz_now, p_out_e,              & !in,inout
         &                   slev, elev, opt_rlend=i_rlend            ) !in
     ENDIF
+!$ACC WAIT
 
 
     IF ( ld_cleanup ) THEN
+!$ACC EXIT DATA DELETE( z_quad_vector_sum0, z_quad_vector_sum1,               &
+!$ACC    z_quad_vector_sum2, z_dreg_area, patch0_cell_idx, patch1_cell_idx,   &
+!$ACC   patch2_cell_idx, patch0_cell_blk, patch1_cell_blk, patch2_cell_blk,   &
+!$ACC   falist%eidx, falist%elev, falist%len, falist ),                       &
+!$ACC   IF( i_am_accel_node .AND. acc_on )
       ! deallocate temporary arrays for quadrature, departure region and
       ! upwind cell indices
       DEALLOCATE( z_quad_vector_sum0, z_quad_vector_sum1, z_quad_vector_sum2, &
@@ -3385,6 +3395,7 @@ CONTAINS
       ENDIF
     END IF
 
+!$ACC END DATA
 
   END SUBROUTINE hflux_ffsl_hybrid
 

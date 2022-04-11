@@ -695,7 +695,9 @@ CONTAINS
       ENDIF !inwp_conv
 
     ENDDO  ! jb
+#ifndef __PGI
 !$OMP END PARALLEL DO
+#endif
 
     !$acc end data
 
