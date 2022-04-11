@@ -24,7 +24,7 @@ MODULE mo_cloud_mig
   USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_cloud_mig_config    ,ONLY: cloud_mig_config
   USE mo_physical_constants  ,ONLY: cvd
-  USE mo_satad               ,ONLY: satad_v_3d
+  USE mo_satad               ,ONLY: satad_v_3d, satad_v_3D_gpu
   USE mo_satad_v_el          ,ONLY: satad_v_el
   USE mo_satad_v_1col        ,ONLY: satad_v_1col
   USE mo_satad_v_1cell       ,ONLY: satad_v_1cell
@@ -165,7 +165,12 @@ CONTAINS
     !
     SELECT CASE(aes_phy_config(jg)%if_mig)
     CASE(1)
-       CALL satad_v_3d( maxiter  = 10              ,& !> in
+#ifdef _OPENACC
+       CALL satad_v_3d_gpu(                                &
+#else
+       CALL satad_v_3d(                                    &
+#endif
+            &           maxiter  = 10              ,& !> in
             &           idim     = nproma          ,& !> in
             &           kdim     = jke             ,& !> in
             &           ilo      = jcs             ,& !> in
@@ -230,7 +235,12 @@ CONTAINS
     !
     SELECT CASE(aes_phy_config(jg)%if_mig)
     CASE(1)
-       CALL satad_v_3d( maxiter  = 10              ,& !> in
+#ifdef _OPENACC
+       CALL satad_v_3d_gpu(                                &
+#else
+       CALL satad_v_3d(                                    &
+#endif
+            &           maxiter  = 10              ,& !> in
             &           idim     = nproma          ,& !> in
             &           kdim     = jke             ,& !> in
             &           ilo      = jcs             ,& !> in
