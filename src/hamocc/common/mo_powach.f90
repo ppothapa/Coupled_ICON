@@ -149,7 +149,7 @@ CONTAINS
                ! maximal possible aerobe dissolution per time step 
                ! limited by available oxygen concentration, currently max 70 % of O2 
                pomax = disso_po * max(0._wp,local_sediment_mem%sedlay(j,k,issso12))*local_sediment_mem%powtra(j,k,ipowaox)
-               posol = min(0.7_wp*local_sediment_mem%powtra(j,k,ipowaox)/ro2ut,pomax*pors2w(k))
+               posol = min(0.7_wp*local_sediment_mem%powtra(j,k,ipowaox)/ro2ut/pors2w(k),pomax)
             ENDIF
 
          

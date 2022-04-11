@@ -295,7 +295,7 @@ CONTAINS
    ! POM in HAMOCC: 122 C + 263 H + 74 O + 16 N + 1 P
    ! 122*12 + 263*1 + 74 * 16 + 16*14 + 1*31 = 3166g POM / mol organic P
    det_mol2mass   = 3166._wp ! unit: kg POM / (kmol organic P)
-   dp_dust = 2.e-6   ! following the classical HAMOCC parametrization
+   dp_dust = 2.e-6_wp   ! following the classical HAMOCC parametrization
    dp_det  = 4.e-6_wp   ! not well defined
    dp_calc = 3.e-6_wp   ! following Henderiks 2008, Henderiks & Pagani 2008
    dp_opal = 20.e-6_wp  ! rough guestimate - literature search required
