@@ -44,8 +44,10 @@ MODULE mo_nwp_ecrad_init
                                  &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
                                  &   ISolverTripleclouds,                                &
                                  &   IGasModelMonochromatic, IGasModelIFSRRTMG,          &
-                                 &   ILiquidModelSOCRATES,                               &
-                                 &   ILiquidModelSlingo, IIceModelFu, IIceModelBaran2016,&
+                                 &   ILiquidModelMonochromatic, ILiquidModelSOCRATES,    &
+                                 &   ILiquidModelSlingo, IIceModelMonochromatic,         &
+                                &    IIceModelFu, IIceModelBaran,                        &
+                                 &   IIceModelBaran2016, IIceModelBaran2017, IIceModelYi,&
                                  &   IOverlapMaximumRandom, IOverlapExponentialRandom,   &
                                  &   IOverlapExponential,                                &
                                  &   nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
@@ -261,8 +263,150 @@ CONTAINS
     !$ACC                   ecrad_conf%cloud_optics%ice_coeff_sw, &
     !$ACC                   ecrad_conf%pdf_sampler%val)
 
+#ifdef _OPENACC
+    CALL ecrad_openacc_crosscheck(ecrad_conf)
+#endif
+
   END SUBROUTINE setup_ecrad
   !---------------------------------------------------------------------------------------
+
+#ifdef _OPENACC
+  !---------------------------------------------------------------------------------------
+  ! This subroutine checks for unsupported openacc ecRad configurations on the ICON side.
+  ! This minimizes the diff inside ecRad, which is different from the usual openacc error 
+  ! handling approach in ICON where the finish is called when the unported code
+  ! part is about to be called.
+  SUBROUTINE ecrad_openacc_crosscheck ( ecrad_conf )
+
+    CHARACTER(len=*), PARAMETER :: routine = modname//'::ecrad_openacc_crosscheck'
+
+    TYPE(t_ecrad_conf),  INTENT(in) :: &
+      &  ecrad_conf                         !< ecRad configuration state
+
+    SELECT CASE (ecrad_conf%i_overlap_scheme)
+      CASE (IOverlapExponential)
+          CALL finish(routine,'ecrad_conf%i_overlap_scheme == IOverlapExponential not ported to GPU')
+      CASE (IOverlapMaximumRandom)
+        CALL finish(routine,'ecrad_conf%i_overlap_scheme == IOverlapMaximumRandom not ported to GPU')
+      CASE (IOverlapExponentialRandom)
+        ! ok, ported
+      CASE DEFAULT
+        CALL finish(routine,'Unsupported choice for ecrad_conf%i_overlap_scheme')
+    END SELECT
+
+    SELECT CASE(ecrad_conf%i_solver_lw)
+      CASE(ISolverHomogeneous)
+        CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverHomogeneous not ported to GPU')
+      CASE (ISolverMcICA)
+        ! ok, ported
+      CASE (ISolverSpartacus)
+        CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverSPARTACUS not ported to GPU.')
+      CASE (ISolverTripleclouds)
+        CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverTripleclouds not ported to GPU')
+      CASE DEFAULT ! uses solver_cloudless_lw
+        CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverCloudless not ported to GPU')
+    END SELECT
+
+    SELECT CASE(ecrad_conf%i_solver_sw)
+      CASE(ISolverHomogeneous)
+        CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverHomogeneous not ported to GPU')
+      CASE (ISolverMcICA)
+        ! ok, ported
+      CASE (ISolverSpartacus)
+        CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverSPARTACUS not ported to GPU.')
+      CASE (ISolverTripleclouds)
+        CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverTripleclouds not ported to GPU')
+      CASE DEFAULT ! uses solver_cloudless_sw
+        CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverCloudless not ported to GPU')
+    END SELECT
+
+
+    IF (ecrad_conf%use_aerosols == .FALSE.) THEN
+      CALL finish(routine,'ecrad_conf%use_aerosols == .FALSE. not ported to GPU.')
+    ENDIF
+
+    SELECT CASE(ecrad_conf%i_liq_model)
+      CASE (ILiquidModelMonochromatic)
+        CALL finish(routine,'ecrad_conf%i_liq_model == ILiquidModelMonochromatic not ported to GPU.')
+      CASE (ILiquidModelSOCRATES)
+        ! ok, ported
+      CASE (ILiquidModelSlingo)
+        CALL finish(routine,'ecrad_conf%i_liq_model == ILiquidModelSlingo not ported to GPU.')
+      CASE DEFAULT
+        CALL finish(routine,'Unsupported choice for ecrad_conf%i_liq_model')
+    END SELECT
+
+    SELECT CASE(ecrad_conf%i_ice_model)
+      CASE (IIceModelMonochromatic)
+        CALL finish(routine,'ecrad_conf%i_ice_model == IIceModelMonochromatic not ported to GPU.')
+      CASE (IIceModelFu)
+        ! ok, ported
+      CASE (IIceModelBaran)
+        CALL finish(routine,'ecrad_conf%i_ice_model == IIceModelBaran not ported to GPU.')
+      CASE (IIceModelBaran2016)
+        CALL finish(routine,'ecrad_conf%i_ice_model == IIceModelBaran2016 not ported to GPU.')
+      CASE (IIceModelBaran2017)
+        CALL finish(routine,'ecrad_conf%i_ice_model == IIceModelBaran2017 not ported to GPU.')
+      CASE (IIceModelYi)
+        CALL finish(routine,'ecrad_conf%i_ice_model == IIceModelYi not ported to GPU.')
+      CASE DEFAULT
+        CALL finish(routine,'Unsupported choice for ecrad_conf%i_ice_model')
+    END SELECT
+
+    IF (ecrad_conf%do_lw_aerosol_scattering) THEN
+      CALL finish(routine,'ecrad_conf%do_lw_aerosol_scattering not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%use_beta_overlap) THEN
+      CALL finish(routine,'ecrad_conf%use_beta_overlap not ported to GPU')
+    ENDIF
+
+
+    IF (ecrad_conf%do_sw_delta_scaling_with_gases) THEN
+      CALL finish(routine,'ecrad_conf%do_sw_delta_scaling_with_gases not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%do_sw .AND. ecrad_conf%do_canopy_fluxes_sw) THEN
+      CALL finish(routine,'ecrad_conf%do_sw .and. ecrad_conf%do_canopy_fluxes_sw not ported to GPU.')
+    ENDIF
+    IF (ecrad_conf%do_lw .AND. ecrad_conf%do_canopy_fluxes_lw) THEN
+      CALL finish(routine,'ecrad_conf%do_lw .AND. ecrad_conf%do_canopy_fluxes_lw not ported to GPU.')
+    ENDIF
+
+    IF (.NOT. ecrad_conf%do_nearest_spectral_lw_emiss) THEN
+      CALL finish(routine,'ecrad_conf%do_nearest_spectral_lw_emiss == .FALSE. not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%do_nearest_spectral_sw_albedo) THEN
+      CALL finish(routine,'ecrad_conf%do_nearest_spectral_sw_albedo not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%use_canopy_full_spectrum_lw) THEN
+      CALL finish(routine,'ecrad_conf%use_canopy_full_spectrum_lw not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%use_canopy_full_spectrum_sw) THEN
+      CALL finish(routine,'ecrad_conf%use_canopy_full_spectrum_sw not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%i_gas_model == IGasModelMonochromatic) THEN
+      CALL finish(routine,'config%i_gas_model == IGasModelMonochromatic not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%do_save_radiative_properties) THEN
+      CALL finish(routine,'ecrad_conf%do_save_radiative_properties not ported to GPU.')
+    ENDIF
+
+    IF (ecrad_conf%do_lw_derivatives) THEN
+      CALL finish(routine,'ecrad_conf%do_lw_derivatives not ported to GPU')
+    ENDIF
+    IF (ecrad_conf%use_vectorizable_generator) THEN
+      CALL finish(routine,'ecrad_conf%use_vectorizable_generator not ported to GPU')
+    ENDIF
+
+  END SUBROUTINE ecrad_openacc_crosscheck
+  !---------------------------------------------------------------------------------------
+#endif ! _OPENACC
 
 #endif
 END MODULE mo_nwp_ecrad_init
