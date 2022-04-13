@@ -313,7 +313,7 @@ CONTAINS
           SELECT CASE (irad_o3)
           CASE (0) ! ok
             CALL message(routine,'radiation is used without ozone')
-          CASE (2,4,6,7,8,9,11,79,97) ! ok
+          CASE (2,4,5,6,7,9,11,79,97) ! ok
             CALL message(routine,'radiation is used with ozone')
           CASE (10) ! ok
             CALL message(routine,'radiation is used with ozone calculated from ART')
@@ -321,7 +321,7 @@ CONTAINS
               CALL finish(routine,'irad_o3 currently is 10 but lart is false.')
             ENDIF
           CASE default
-            CALL finish(routine,'irad_o3 currently has to be 0, 2, 4, 6, 7, 8, 9, 10, 11, 79 or 97.')
+            CALL finish(routine,'irad_o3 currently has to be 0, 2, 4, 5, 6, 7, 9, 10, 11, 79 or 97.')
           END SELECT
 
           ! Tegen aerosol and itopo (Tegen aerosol data have to be read from external data file)
@@ -349,8 +349,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_ch4 has to be 0, 2, 3 or 4')
             IF (.NOT. ANY( irad_n2o     == (/0,2,3,4/)     ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_n2o has to be 0, 2, 3 or 4')
-            IF (.NOT. ANY( irad_o3      == (/0,7,8,9,11,79,97/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 7, 8, 9, 11, 79 or 97')
+            IF (.NOT. ANY( irad_o3      == (/0,5,7,9,11,79,97/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 5, 7, 9, 11, 79 or 97')
             IF (.NOT. ANY( irad_o2      == (/0,2/)         ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_o2 has to be 0 or 2')
             IF (.NOT. ANY( irad_cfc11   == (/0,2,4/)       ) ) &

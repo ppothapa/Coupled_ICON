@@ -468,7 +468,7 @@ CONTAINS
         CALL message('mo_nwp_ecrad_utilities: irad_o3=11', &
           &          'Ozone used for radiation is read from SCM input file')
       CASE DEFAULT
-        CALL finish(routine, 'Current implementation only supports irad_o3 = 0, 7, 9, 79, 97, 11')
+        CALL finish(routine, 'Current implementation only supports irad_o3 = 0, 5, 7, 9, 79, 97, 11')
     END SELECT
 
     !CO2
