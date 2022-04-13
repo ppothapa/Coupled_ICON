@@ -116,6 +116,8 @@ MODULE mo_ecrad
       &  ptr_ssa  => NULL(), &
       &  ptr_g    => NULL()
     CONTAINS
+! WARNING: Call finalize only if ptr_od, ptr_ssa, ptr_g are associated to a
+!          target. If they were allocated, this might cause a memory leak
       PROCEDURE :: finalize => del_opt_ptrs
   END TYPE t_opt_ptrs
   
@@ -125,15 +127,12 @@ CONTAINS
     CLASS(t_opt_ptrs),INTENT(inout) :: self
 
     IF (ASSOCIATED(self%ptr_od) ) THEN
-      DEALLOCATE(self%ptr_od)
       NULLIFY(self%ptr_od)
     ENDIF
     IF (ASSOCIATED(self%ptr_ssa) ) THEN
-      DEALLOCATE(self%ptr_ssa)
       NULLIFY(self%ptr_ssa)
     ENDIF
     IF (ASSOCIATED(self%ptr_g) ) THEN
-      DEALLOCATE(self%ptr_g)
       NULLIFY(self%ptr_g)
     ENDIF
   END SUBROUTINE del_opt_ptrs
