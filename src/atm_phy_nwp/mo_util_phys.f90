@@ -579,6 +579,9 @@ CONTAINS
     REAL(wp) :: zqin
     REAL(wp) :: zrhw(nproma, kend) ! relative humidity w.r.t. water
 
+#ifdef _OPENACC
+    IF (.not. i_am_accel_node) CALL finish('mo_nh_interface_nwp:','This part should always run on GPU.')
+#endif
 
     ! add analysis increments from data assimilation to qv
     !
@@ -588,8 +591,13 @@ CONTAINS
     CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend, &
       &             opt_lconstgrav=upatmo_config(jg)%nwp_phy%l_constgrav)
 
+    !$ACC DATA CREATE( zrhw ) PRESENT( pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config )
+
     ! Compute relative humidity w.r.t. water
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jk = 1, kend
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jc = i_startidx, i_endidx
         zrhw(jc,jk) = pt_prog_rcf%tracer(jc,jk,jb,iqv)/qsat_rho(pt_diag%temp(jc,jk,jb),pt_prog%rho(jc,jk,jb))
       ENDDO
@@ -598,9 +606,11 @@ CONTAINS
     ! GZ: This loop needs to be split for correct vectorization because rhoc_incr is allocated for qcana_mode >= 1 only;
     !     otherwise, the NEC runs into a segfault. Likewise, the remaining case selections need to be done outside the
     !     vectorized loops in order to avoid invalid memory accesses.
+    !$ACC LOOP SEQ
     DO jk = 1, kend
       IF (qcana_mode >= 1) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          DO jc = i_startidx, i_endidx
           IF (qcana_mode == 2 .AND. pt_prog_rcf%tracer(jc,jk,jb,iqc) > 0._wp) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + &
               iau_wgt_adv*pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
@@ -615,7 +625,8 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          DO jc = i_startidx, i_endidx
           zqin = pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
           ! DA increments of humidity are limited to positive values if p > 150 hPa and RH < 2% or QV < 5.e-7
           IF (pt_diag%pres(jc,jk,jb) > 15000._wp .AND. zrhw(jc,jk) < 0.02_wp .OR. &
@@ -625,14 +636,16 @@ CONTAINS
       ENDIF
 
       IF (qiana_mode > 0) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqi) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqi) + &
             iau_wgt_adv*pt_diag%rhoi_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
         ENDDO
       ENDIF
 
       IF (qrsgana_mode > 0) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqr) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqr) + &
             iau_wgt_adv * pt_diag%rhor_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
           pt_prog_rcf%tracer(jc,jk,jb,iqs) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqs) + &
@@ -641,14 +654,16 @@ CONTAINS
       ENDIF
 
       IF (qrsgana_mode > 0 .AND. iqg <= iqm_max) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqg) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqg) + &
             iau_wgt_adv * pt_diag%rhog_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
         ENDDO
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%l2moment) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           IF (qcana_mode > 0) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqnc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnc) + &
                  iau_wgt_adv * pt_diag%rhonc_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -673,7 +688,10 @@ CONTAINS
       ENDIF
 
     ENDDO
+    !$ACC END PARALLEL
 
+    !$ACC WAIT 
+    !$ACC END DATA
 
   END SUBROUTINE iau_update_tracer
 

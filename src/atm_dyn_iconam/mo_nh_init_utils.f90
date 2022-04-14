@@ -56,7 +56,9 @@ MODULE mo_nh_init_utils
   USE mo_fortran_tools,         ONLY: init, copy
   USE mo_ifs_coord,             ONLY: geopot
   USE mo_radar_data_types,      ONLY : t_lhn_diag
-
+#ifdef _OPENACC
+  USE mo_mpi,                   ONLY: i_am_accel_node
+#endif
 
   IMPLICIT NONE
 
@@ -741,6 +743,10 @@ CONTAINS
     TYPE(t_lnd_diag), POINTER :: lnd_diag
     TYPE(t_wtr_prog), POINTER :: wtr_prog
 
+#ifdef _OPENACC
+    if (i_am_accel_node) CALL finish('save_initial_state', 'This should be called in CPU mode only.')
+#endif
+
     ntl = ntiles_total
     ntw = ntiles_total+ntiles_water
 
@@ -925,6 +931,9 @@ CONTAINS
     TYPE(t_lnd_diag), POINTER :: lnd_diag
     TYPE(t_wtr_prog), POINTER :: wtr_prog
 
+#ifdef _OPENACC
+    if (.not. i_am_accel_node) CALL finish('restore_initial_state', 'This should be called in GPU mode only.')
+#endif
 
     DO jg = 1, n_dom
 
@@ -934,6 +943,15 @@ CONTAINS
       lnd_diag => p_lnd(jg)%diag_lnd
       wtr_prog => p_lnd(jg)%prog_wtr(nnow_rcf(jg))
 
+      !$ACC DATA COPYIN( saveinit(jg)%fr_seaice, saveinit(jg)%t_ice, saveinit(jg)%h_ice, saveinit(jg)%gz0 ) & 
+      !$ACC COPYIN( saveinit(jg)%t_mnw_lk, saveinit(jg)%t_wml_lk, saveinit(jg)%h_ml_lk, saveinit(jg)%t_bot_lk ) & 
+      !$ACC COPYIN( saveinit(jg)%c_t_lk, saveinit(jg)%t_b1_lk, saveinit(jg)%h_b1_lk, saveinit(jg)%theta_v ) & 
+      !$ACC COPYIN( saveinit(jg)%rho, saveinit(jg)%exner, saveinit(jg)%w, saveinit(jg)%tke, saveinit(jg)%vn ) & 
+      !$ACC COPYIN( saveinit(jg)%tracer, saveinit(jg)%gz0_t, saveinit(jg)%t_g_t, saveinit(jg)%t_sk_t ) & 
+      !$ACC COPYIN( saveinit(jg)%qv_s_t, saveinit(jg)%freshsnow_t, saveinit(jg)%snowfrac_t ) & 
+      !$ACC COPYIN( saveinit(jg)%snowfrac_lc_t, saveinit(jg)%w_snow_t, saveinit(jg)%w_i_t, saveinit(jg)%h_snow_t ) & 
+      !$ACC COPYIN( saveinit(jg)%t_snow_t, saveinit(jg)%rho_snow_t, saveinit(jg)%w_so_t, saveinit(jg)%w_so_ice_t ) & 
+      !$ACC COPYIN( saveinit(jg)%t_so_t )
 
 !$OMP PARALLEL
       CALL copy(saveinit(jg)%fr_seaice, lnd_diag%fr_seaice)
@@ -972,14 +990,24 @@ CONTAINS
       CALL copy(saveinit(jg)%w_so_ice_t, lnd_prog%w_so_ice_t)
       CALL copy(saveinit(jg)%t_so_t, lnd_prog%t_so_t)
 
+      !$ACC WAIT
+      !$ACC END DATA
+
       IF (ntiles_total > 1 .AND. lsnowtile .AND. .NOT. ltile_coldstart) THEN
+        !$ACC DATA COPYIN( saveinit(jg)%snowtile_flag_t, saveinit(jg)%idx_lst_t, saveinit(jg)%frac_t) & 
+        !$ACC COPYIN( saveinit(jg)%gp_count_t)
         CALL copy(saveinit(jg)%snowtile_flag_t, ext_data(jg)%atm%snowtile_flag_t)
         CALL copy(saveinit(jg)%idx_lst_t, ext_data(jg)%atm%idx_lst_t)
         CALL copy(saveinit(jg)%frac_t, ext_data(jg)%atm%frac_t)
         CALL copy(saveinit(jg)%gp_count_t, ext_data(jg)%atm%gp_count_t)
+        !$ACC WAIT
+        !$ACC END DATA
       ENDIF
 
       IF (lmulti_snow) THEN
+#ifdef _OPENACC
+        CALL finish('restore_initial_state', 'lmulti_snow is not supported/tested with OpenACC')
+#endif
         CALL copy(saveinit(jg)%t_snow_mult_t, lnd_prog%t_snow_mult_t)
         CALL copy(saveinit(jg)%rho_snow_mult_t, lnd_prog%rho_snow_mult_t)
         CALL copy(saveinit(jg)%wtot_snow_t, lnd_prog%wtot_snow_t)
@@ -990,23 +1018,47 @@ CONTAINS
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
+#ifdef _OPENACC
+        CALL finish('restore_initial_state', 'lstoch_deep is not supported/tested with OpenACC')
+#endif
         CALL copy(saveinit(jg)%clnum_d, prm_stochconv(jg)%clnum_d)
         CALL copy(saveinit(jg)%clmf_d,  prm_stochconv(jg)%clmf_d)
       ENDIF
       IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
+#ifdef _OPENACC
+        CALL finish('restore_initial_state', 'lstoch_sde is not supported/tested with OpenACC')
+#endif
         CALL copy(saveinit(jg)%clnum_a, prm_stochconv(jg)%clnum_a)
         CALL copy(saveinit(jg)%clmf_a,  prm_stochconv(jg)%clmf_a)
         CALL copy(saveinit(jg)%clnum_p, prm_stochconv(jg)%clnum_p)
         CALL copy(saveinit(jg)%clmf_p,  prm_stochconv(jg)%clmf_p)
       ENDIF
 
-      IF (iprog_aero >= 1)  CALL copy(saveinit(jg)%aerosol, prm_diag(jg)%aerosol)
-      IF (lprog_albsi)      CALL copy(saveinit(jg)%alb_si, wtr_prog%alb_si)
-      IF (itype_trvg == 3)  CALL copy(saveinit(jg)%plantevap_t, lnd_diag%plantevap_t)
+      IF (iprog_aero >= 1) THEN
+#ifdef _OPENACC
+        CALL finish('restore_initial_state', 'iprog_aero >= 1 is not supported/tested with OpenACC')
+#endif        
+        CALL copy(saveinit(jg)%aerosol, prm_diag(jg)%aerosol)
+      ENDIF
+      IF (lprog_albsi) THEN
+        !$ACC DATA COPYIN( saveinit(jg)%alb_si )
+        CALL copy(saveinit(jg)%alb_si, wtr_prog%alb_si)
+        !$ACC WAIT
+        !$ACC END DATA
+      ENDIF
+      IF (itype_trvg == 3) THEN
+        !$ACC DATA COPYIN( saveinit(jg)%plantevap_t )
+        CALL copy(saveinit(jg)%plantevap_t, lnd_diag%plantevap_t)
+        !$ACC WAIT
+        !$ACC END DATA
+      ENDIF
       IF (itype_snowevap == 3) THEN
+        !$ACC DATA COPYIN( saveinit(jg)%hsnow_max, saveinit(jg)%h_snow, saveinit(jg)%snow_age )
         CALL copy(saveinit(jg)%hsnow_max, lnd_diag%hsnow_max)
         CALL copy(saveinit(jg)%h_snow, lnd_diag%h_snow)
         CALL copy(saveinit(jg)%snow_age, lnd_diag%snow_age)
+        !$ACC WAIT
+        !$ACC END DATA
       ENDIF
 
       ! Fields that need to be reset to zero in order to obtain identical results
@@ -1079,11 +1131,14 @@ CONTAINS
 
       ! For the limited-area mode and one-way nesting, we also need to reset grf_tend_vn on the nudging points
 
+      !$ACC PARALLEL PRESENT( p_nh ) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE( je, jb )
       DO ic = 1, p_nh(jg)%metrics%nudge_e_dim
         je = p_nh(jg)%metrics%nudge_e_idx(ic)
         jb = p_nh(jg)%metrics%nudge_e_blk(ic)
         p_nh(jg)%diag%grf_tend_vn(je,:,jb) = 0._wp
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 

@@ -24,7 +24,8 @@ MODULE mo_ser_all
                                    ser_step_advection, ser_turbtrans, ser_turbdiff, &
                                    ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
                                    ser_microphysics, ser_convection, ser_cover, ser_radiation, &
-                                   ser_radheat, ser_gwdrag, ser_time_loop_end, ser_physics_init
+                                   ser_radheat, ser_gwdrag, ser_time_loop_end, ser_physics_init, &
+                                   ser_reset_to_initial_state
   USE mo_ser_manually,       ONLY: ser_manually
   USE mo_mpi,                ONLY: get_my_mpi_work_id
 #endif
@@ -266,6 +267,8 @@ MODULE mo_ser_all
         ser_setting => ser_gwdrag
       CASE("time_loop_end")
         ser_setting => ser_time_loop_end
+      CASE("reset_to_initial_state")
+        ser_setting => ser_reset_to_initial_state
       CASE DEFAULT
         CALL warning('SER','Use default ser_all_debug settings for savepoint_base = '//savepoint_base)
         ser_setting => ser_all_debug

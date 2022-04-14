@@ -37,6 +37,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_radheat(3)
   INTEGER, TARGET ::  ser_gwdrag(3)
   INTEGER, TARGET ::  ser_time_loop_end(3)
+  INTEGER, TARGET ::  ser_reset_to_initial_state(3)
   INTEGER, TARGET ::  ser_all_debug(3)                   !! serialize statements using ser_all anywhere for debug purposes
   REAL(wp) ::  ser_nfail
   INTEGER ::  ser_nreport
@@ -48,7 +49,8 @@ MODULE mo_ser_nml
   &                  ser_nesting_relax_feedback, ser_physics_init, &
   &                  ser_step_advection, ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
   &                  ser_microphysics, ser_convection, ser_cover, ser_radiation, ser_radheat, &
-  &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_nfail, ser_nreport
+  &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_reset_to_initial_state, &
+  &                  ser_nfail, ser_nreport
 
   CONTAINS
 
@@ -88,6 +90,7 @@ MODULE mo_ser_nml
    ser_radheat = param_def
    ser_gwdrag = param_def
    ser_time_loop_end = param_def
+   ser_reset_to_initial_state = param_def
    ser_all_debug = param_def
    ser_nfail = 1._wp
    ser_nreport = 10

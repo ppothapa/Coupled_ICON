@@ -1276,8 +1276,7 @@ REAL (KIND=wp), DIMENSION(:), OPTIONAL, INTENT(IN) :: &
 !
   velmin ! location-dependent minimum velocity
 
-LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-LOGICAL :: lzacc
+LOGICAL, INTENT(IN) :: lacc
 
 !------------------------------------------------------------------------------
 
@@ -1335,12 +1334,6 @@ REAL (KIND=wp), DIMENSION(i_st:i_en,0:7), TARGET :: &
 LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 !-------------------------------------------------------------------------------
 
-  IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
-
   add_adv_inc=(PRESENT(avt) .AND. it_s.EQ.it_end)  !add advection increments 
                                                    !(only at the last iteration step)
   lvar_fcd=PRESENT(fcd) !array for small-scale canpy drag is present
@@ -1366,7 +1359,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
   END IF
 
   !Local array
-  !$acc data create(l_dis,l_frc,frc,tvsm,tvs,dd) if(lzacc)
+  !$acc data create(l_dis,l_frc,frc,tvsm,tvs,dd) if(lacc)
 
   !$acc data no_create(tke,ediss,fm2,fh2,ft2,tls,lsm,lsh,tvt, &
   !$acc                fcd,tvs0,fm2_e,avt,velmin, tvs, tvsm, dd, &
@@ -1374,7 +1367,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 ! Stabilitaetskorrektur der turbulenten Laengenskala bei stabilier Schichtung:
 
-  !$acc parallel async(1) default(none) if(lzacc)
+  !$acc parallel async(1) default(none) if(lacc)
   IF (a_stab.GT.0.0_wp .AND. it_s==it_start) THEN
      !$acc loop seq
      DO k=k_st,k_en !von oben nach unten
@@ -1415,7 +1408,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 !----------------------------------------------------------------------
   !XL_GPU_OPT : need to make k and i purely nested
-  !$acc parallel async(1) default(none) if(lzacc)
+  !$acc parallel async(1) default(none) if(lacc)
   !$acc loop seq private(rogh_lay, w1, w2)
   DO k=k_st, k_en !ueber alle Schichten beginnend mit der freien Atm.
 !----------------------------------------------------------------------

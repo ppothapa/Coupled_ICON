@@ -400,8 +400,11 @@ function tolerance_check
         *mch_*)
             FILE_IDS="atm_3d"
             ;;
+        *dwd_run_ICON_*)
+            FILE_IDS="atm_3d"
+            ;;
         *)
-            echo "no file ids specified for ${EXPERIMENT}"
+            echo "no file ids specified for '${EXPERIMENT}'"
             echo "you most likely did not change the entries in"
             echo "icon-dev.checksuite. The checksuite cannot find"
             echo "the model output"

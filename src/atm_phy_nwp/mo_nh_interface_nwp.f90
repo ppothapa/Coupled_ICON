@@ -478,9 +478,7 @@ CONTAINS
       IF (.NOT. linit) THEN
 
         IF (is_iau_active) THEN
-#ifdef _OPENACC
-          CALL finish('mo_nh_interface_nwp:','iau_update_tracer not available on GPU')
-#endif
+
           ! add analysis increments from data assimilation to qv (during IAU phase)
           CALL iau_update_tracer( pt_prog     = pt_prog,     & !in
            &                      p_metrics   = p_metrics,   & !in

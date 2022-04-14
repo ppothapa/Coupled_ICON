@@ -607,7 +607,7 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
   !$ACC DATA CREATE( grad_x, grad_y, maxval_neighb, minval_neighb, val_ctr, h_aux ) &
   !$ACC      COPYIN(p_in) IF ( i_am_accel_node )
 
-  !$ACC SERIAL
+  !$ACC SERIAL IF ( i_am_accel_node )
   IF (p_test_run) h_aux(:,:,:,:) = 0._wp
   !$ACC END SERIAL
 

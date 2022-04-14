@@ -1299,7 +1299,8 @@ CONTAINS
     IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
         ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
         ptr_task%job_type /= TASK_COMPUTE_RH) THEN
-      CALL finish('pp_task_compute_field','unsupported postproc job-type on GPU')
+      CALL finish('pp_task_compute_field','unsupported postproc job-type on GPU for variable '//TRIM(p_info%name))
+
     ENDIF
 #endif
 

@@ -1418,7 +1418,7 @@ create_target_header()
     fi
 
     use_prefetch_procs=0
- 	case $job_name in
+    case $job_name in
         *mch_opr_r04b07.run)
             use_nodes=1
             use_mpi_procs_pernode=2
@@ -1429,9 +1429,14 @@ create_target_header()
             use_mpi_procs_pernode=1
             use_nproma=1600
             ;;
-	    *mch_*)
-	        use_nodes=4
-	        ;;
+        *mch_*)
+            use_nodes=4
+            ;;
+        *dwd_run_ICON_09_R2B4N5_EPS*)
+            # This experiment needs at least 3 procs to pass probtest 
+            # Therefore we use use_prefetch_procs to force 2 procs on 2 nodes on GPU
+            use_prefetch_procs=1
+            ;;
 	esac
 
     # set more default values
