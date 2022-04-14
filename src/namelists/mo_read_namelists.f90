@@ -55,7 +55,6 @@ MODULE mo_read_namelists
   USE mo_ccycle_nml          ,ONLY: process_ccycle_nml
   
   USE mo_nwp_phy_nml         ,ONLY: read_nwp_phy_namelist
-  USE mo_bench_nml           ,ONLY: read_bench_namelist
   USE mo_nwp_tuning_nml      ,ONLY: read_nwp_tuning_namelist
   USE mo_ensemble_pert_nml   ,ONLY: read_ensemble_pert_namelist
   USE mo_radiation_nml       ,ONLY: read_radiation_namelist
@@ -199,7 +198,6 @@ CONTAINS
     CASE (INWP)
        !
        CALL read_nwp_phy_namelist        (atm_namelist_filename(1:tlen))
-       CALL read_bench_namelist          (atm_namelist_filename(1:tlen))
        CALL read_nwp_tuning_namelist     (atm_namelist_filename(1:tlen))
        CALL read_ensemble_pert_namelist  (atm_namelist_filename(1:tlen))
        CALL read_radiation_namelist      (atm_namelist_filename(1:tlen))

@@ -249,7 +249,6 @@ MODULE mo_nh_stepping
   USE mo_nudging,                  ONLY: nudging_interface  
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
   USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
-  USE mo_bench_config,             ONLY: bench_config
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -1022,7 +1021,7 @@ MODULE mo_nh_stepping
     ! * move call of update_nwp_phy_bcs to beginning of NWP physics interface
     ! * instead of skipping the boundary condition upate after the first of 2 IAU iterations, 
     !   do the update and fire a corresponding reset call. 
-    IF (iforcing == inwp .AND. (.NOT. bench_config%d_unpb)) THEN
+    IF (iforcing == inwp) THEN
 
 
       ! Update the following surface fields, if a new day is coming
@@ -1181,7 +1180,7 @@ MODULE mo_nh_stepping
     ! Compute diagnostics for output if necessary
     !
 
-    IF ((l_compute_diagnostic_quants .OR. iforcing==iecham .OR. iforcing==inoforcing)  .AND. (.NOT. bench_config%d_ndfo)) THEN
+    IF ((l_compute_diagnostic_quants .OR. iforcing==iecham .OR. iforcing==inoforcing)) THEN
 
       !$ser verbatim DO jg = 1, n_dom
       !$ser verbatim   CALL serialize_all(nproma, jg, "output_diag_dyn", .TRUE., opt_lupdate_cpu=.TRUE.)
@@ -1355,7 +1354,7 @@ MODULE mo_nh_stepping
 
     ! output of results
     ! note: nnew has been replaced by nnow here because the update
-    IF (l_nml_output .AND. .NOT. bench_config%d_wnlo) THEN
+    IF (l_nml_output) THEN
       CALL write_name_list_output(jstep)
     ENDIF
 
@@ -1533,7 +1532,7 @@ MODULE mo_nh_stepping
 
     ! prefetch boundary data if necessary
     IF(num_prefetch_proc >= 1 .AND. latbc_config%itype_latbc > 0 .AND. &
-    &  .NOT.(jstep == 0 .AND. iau_iter == 1)  .AND. (.NOT. bench_config%d_rld) ) THEN
+    &  .NOT.(jstep == 0 .AND. iau_iter == 1) ) THEN
       !$ser verbatim CALL serialize_all(nproma, 1, "latbc_data", .TRUE., opt_lupdate_cpu=.TRUE.)
       latbc_read_datetime = latbc%mtime_last_read + latbc%delta_dtime
       CALL recv_latbc_data(latbc               = latbc,              &
@@ -2271,7 +2270,7 @@ MODULE mo_nh_stepping
       !
       ! lateral nudging and optional upper boundary nudging in limited area mode
       !
-      IF ( (l_limited_area .AND. (.NOT. l_global_nudging)) .AND. (.NOT. bench_config%d_n) ) THEN
+      IF ( (l_limited_area .AND. (.NOT. l_global_nudging)) ) THEN
         !$ser verbatim CALL serialize_all(nproma, jg, "nudging", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr)
         
         tsrat = REAL(ndyn_substeps,wp) ! dynamics-physics time step ratio
