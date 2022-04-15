@@ -1103,34 +1103,8 @@ CONTAINS
 !$OMP END PARALLEL
 
 
-
-      DEALLOCATE (saveinit(jg)%fr_seaice, saveinit(jg)%t_ice, saveinit(jg)%h_ice, saveinit(jg)%gz0,          &
-                  saveinit(jg)%t_mnw_lk, saveinit(jg)%t_wml_lk, saveinit(jg)%h_ml_lk, saveinit(jg)%t_bot_lk, &
-                  saveinit(jg)%c_t_lk, saveinit(jg)%t_b1_lk, saveinit(jg)%h_b1_lk )
-
-      DEALLOCATE (saveinit(jg)%theta_v, saveinit(jg)%rho,saveinit(jg)%exner, saveinit(jg)%w, saveinit(jg)%tke,      &
-                  saveinit(jg)%vn, saveinit(jg)%t_g_t, saveinit(jg)%t_sk_t, saveinit(jg)%qv_s_t, saveinit(jg)%freshsnow_t, &
-                  saveinit(jg)%snowfrac_t, saveinit(jg)%snowfrac_lc_t, saveinit(jg)%w_snow_t,                         &
-                  saveinit(jg)%w_i_t, saveinit(jg)%h_snow_t, saveinit(jg)%t_snow_t, saveinit(jg)%rho_snow_t,          &
-                  saveinit(jg)%snowtile_flag_t, saveinit(jg)%idx_lst_t, saveinit(jg)%frac_t, saveinit(jg)%gp_count_t, &
-                  saveinit(jg)%gz0_t)
-
-      DEALLOCATE (saveinit(jg)%tracer, saveinit(jg)%w_so_t, saveinit(jg)%w_so_ice_t, saveinit(jg)%t_so_t)
-
-      IF (lmulti_snow) THEN
-        DEALLOCATE (saveinit(jg)%t_snow_mult_t, saveinit(jg)%rho_snow_mult_t, saveinit(jg)%wtot_snow_t, &
-                   saveinit(jg)%wliq_snow_t, saveinit(jg)%dzh_snow_t)
-      ELSE IF (l2lay_rho_snow) THEN
-        DEALLOCATE (saveinit(jg)%rho_snow_mult_t)
-      ENDIF
-
-      IF (iprog_aero >= 1) DEALLOCATE (saveinit(jg)%aerosol)
-      IF (lprog_albsi)     DEALLOCATE (saveinit(jg)%alb_si)
-      IF (itype_trvg == 3) DEALLOCATE (saveinit(jg)%plantevap_t)
-      IF (itype_snowevap == 3) DEALLOCATE (saveinit(jg)%hsnow_max, saveinit(jg)%h_snow, saveinit(jg)%snow_age)
-
       ! For the limited-area mode and one-way nesting, we also need to reset grf_tend_vn on the nudging points
-
+      !
       !$ACC PARALLEL PRESENT( p_nh ) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE( je, jb )
       DO ic = 1, p_nh(jg)%metrics%nudge_e_dim
@@ -1139,6 +1113,9 @@ CONTAINS
         p_nh(jg)%diag%grf_tend_vn(je,:,jb) = 0._wp
       ENDDO
       !$ACC END PARALLEL
+
+      ! deallocate
+      CALL saveinit(jg)%finalize
 
     ENDDO
 

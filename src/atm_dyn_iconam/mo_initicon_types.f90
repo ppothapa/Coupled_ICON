@@ -447,6 +447,7 @@ CONTAINS
     CALL DO_DEALLOCATE(saveinit_data%fr_seaice)
     CALL DO_DEALLOCATE(saveinit_data%t_ice)
     CALL DO_DEALLOCATE(saveinit_data%h_ice)
+    CALL DO_DEALLOCATE(saveinit_data%alb_si)
     CALL DO_DEALLOCATE(saveinit_data%gz0)
     CALL DO_DEALLOCATE(saveinit_data%t_mnw_lk)
     CALL DO_DEALLOCATE(saveinit_data%t_wml_lk)
@@ -496,7 +497,7 @@ CONTAINS
     CALL DO_DEALLOCATE(saveinit_data%clnum_a)
     CALL DO_DEALLOCATE(saveinit_data%clmf_a)
     CALL DO_DEALLOCATE(saveinit_data%clnum_p)
-    CALL DO_DEALLOCATE(saveinit_data%clmf_p)   
+    CALL DO_DEALLOCATE(saveinit_data%clmf_p)
   END SUBROUTINE t_saveinit_state_finalize
 
 END MODULE mo_initicon_types
