@@ -324,10 +324,6 @@ mostlyclean: $(bundled_subdirs)
 @PGI_INLIB_ENABLED@	rm -rf $(pgi_inlib_name)
 
 # Delete files generated at the building stage:
-#   Note that the value of the variable $(pp_files) can be very long, which
-#   might lead to an error "execvp: /bin/bash: Argument list too long". Our
-#   first attempt to overcome this issue is to turn the absolute paths of the
-#   files into relative ones.
 clean: mostlyclean
 	rm -f srclist $(filter-out $(CLAW_mk_targets),$(pp_files)) version.c
 
