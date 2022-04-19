@@ -1435,7 +1435,7 @@ Model Features:
                           [default=yes]
   --enable-edmf           enable the EDMF turbulence component of ICON
                           [default=yes]
-  --enable-les            enable the Large-Eddy Simulation of ICON
+  --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
   --enable-upper          enable the upper atmosphere component of ICON
                           [default=yes]
@@ -2412,6 +2412,7 @@ else
   enable_edmf=yes
 fi
 
+
 # Check whether --enable-les was given.
 if test "${enable_les+set}" = set; then :
   enableval=$enable_les; if test x"$enableval" != xno; then :
@@ -2420,6 +2421,7 @@ fi
 else
   enable_les=yes
 fi
+
 
 # Check whether --enable-upper was given.
 if test "${enable_upper+set}" = set; then :

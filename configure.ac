@@ -94,13 +94,13 @@ AC_ARG_ENABLE([atmo],
   
 AC_ARG_ENABLE([edmf],
   [AS_HELP_STRING([--enable-edmf],
-     [enable the edmf atmosphere component of ICON @<:@default=yes@:>@])],
+     [enable the EDMF turbulence component of ICON @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_edmf=yes])],
   [enable_edmf=yes])
 
 AC_ARG_ENABLE([les],
   [AS_HELP_STRING([--enable-les],
-     [enable the les atmosphere component of ICON @<:@default=yes@:>@])],
+     [enable the Large-Eddy Simulation component of ICON @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_les=yes])],
   [enable_les=yes])
 
@@ -130,7 +130,7 @@ AC_ARG_ENABLE([coupling],
 
 AC_ARG_ENABLE([aes],
   [AS_HELP_STRING([--enable-aes],
-     [enable the AES physics @<:@default=yes@:>@])],
+     [enable the AES physics package @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_aes=yes])],
   [enable_aes=yes])
 
@@ -143,9 +143,9 @@ AC_ARG_ENABLE([ecrad],
 AC_ARG_ENABLE([rte-rrtmgp],
   [AS_HELP_STRING([--enable-rte-rrtmgp],
      [enable usage of the RTE+RRTMGP toolbox for radiation calculations
-@<:@default=no@:>@])],
+@<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_rte_rrtmgp=yes])],
-  [enable_rte_rrtmgp=no])
+  [enable_rte_rrtmgp=yes])
 
 AC_ARG_ENABLE([rttov],
   [AS_HELP_STRING([--enable-rttov],
