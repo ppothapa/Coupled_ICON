@@ -3606,6 +3606,8 @@ elif $FC --version 2>&1 | grep '^Copyright.*NEC Corporation' >/dev/null 2>&1; th
   acx_cv_fc_compiler_vendor=nec
 elif $FC --version 2>/dev/null | grep '^GNU Fortran' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=gnu
+elif $FC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
+  acx_cv_fc_compiler_vendor=amd
 elif $FC -V 2>&1 | grep '^f18 compiler' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
 elif $FC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
@@ -3678,10 +3680,12 @@ fi ;; #(
          if test $? -ne 0 || test -z "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null`
 fi ;; #(
+  amd) :
+    acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   flang) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)/\1/p'`
          if test -z "$acx_cv_fc_compiler_version"; then :
-  acx_cv_fc_compiler_version=`$FC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
+  acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi
@@ -5297,6 +5301,8 @@ elif $CC --version 2>&1 | grep '^Copyright.*NEC Corporation' >/dev/null 2>&1; th
   acx_cv_c_compiler_vendor=nec
 elif $CC --version 2>/dev/null | grep '^gcc' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=gnu
+elif $CC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
+  acx_cv_c_compiler_vendor=amd
 elif $CC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=clang
 else
@@ -5352,8 +5358,10 @@ fi ;; #(
          if test $? -ne 0 || test -z "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null`
 fi ;; #(
+  amd) :
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   clang) :
-    acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   *) :
     acx_cv_c_compiler_version=unknown ;;
 esac
