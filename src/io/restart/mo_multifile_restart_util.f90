@@ -135,7 +135,7 @@ CONTAINS
     IF (isAsync() .AND. .NOT.PRESENT(nr_in)) THEN
       res = nw + res
     ELSE
-      res = CEILING(REAL(res * nw)/REAL(nr))
+      res = CEILING(REAL(res * nw, dp)/REAL(nr, dp))
     END IF
   END FUNCTION rBuddy
 
@@ -150,7 +150,7 @@ CONTAINS
     IF (PRESENT(pe_in)) pe = pe_in
     IF (PRESENT(nw_in)) nw = nw_in
     res = MERGE(pe - nw, &
-      &         FLOOR(REAL(nr * pe)/REAL(nw)), &
+      &         FLOOR(REAL(nr * pe, dp)/REAL(nw, dp)), &
       &         isAsync() .AND. pe .GE. nw)
   END FUNCTION rGroup
 
