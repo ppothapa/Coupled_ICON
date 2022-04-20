@@ -1115,7 +1115,9 @@ MODULE mo_stoch_explicit
           ! Update grid box updraft area fraction by adding the cloud's
           ! (vertically invariant) updraft area fraction to the levels
           ! between the just defined cloud base and cloud top
-          core(i,base_i(icld,i)-current_depth:base_i(icld,i)) = core(i,base_i(icld,i)-current_depth:base_i(icld,i))+carea
+          do j = base_i(icld,i)-current_depth, base_i(icld,i)
+            core(i,j) = core(i,j)+carea
+          end do
 
           ! Update the grid box total mass flux...
           ! ... from all clouds
