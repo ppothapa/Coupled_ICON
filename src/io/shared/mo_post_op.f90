@@ -31,6 +31,9 @@ MODULE mo_post_op
   USE mo_lnd_nwp_config,      ONLY: convert_luc_ICON2GRIB
 #endif
   USE mo_exception,           ONLY: finish
+#ifdef _OPENACC
+  USE openacc,                  ONLY: acc_is_present
+#endif
   IMPLICIT NONE
   
   PRIVATE
@@ -52,15 +55,23 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 2D REAL field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_r2D(post_op, field2D, opt_inverse)
+  SUBROUTINE perform_post_op_r2D(post_op, field2D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     REAL(dp),              INTENT(INOUT) :: field2D(:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_r2D"
     REAL(dp) :: scalfac, lowlim   ! scale factor, lower limit
     INTEGER  :: idim(2), l1,l2
+    LOGICAL  :: lzacc
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
 
     idim = SHAPE(field2D)
@@ -81,11 +92,14 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
           field2D(l1,l2) = field2D(l1,l2) * scalfac
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
       !
@@ -93,15 +107,19 @@ CONTAINS
 
       lowlim  = post_op%arg1%rval
       scalfac = 10.0_dp/LOG(10._dp)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
           field2D(l1,l2) = scalfac * LOG( MAX( field2D(l1,l2), lowlim) )
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
-!$OMP END PARALLEL      
+!$OMP END PARALLEL
 
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
@@ -112,15 +130,24 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 2D REAL field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_s2D(post_op, field2D, opt_inverse)
+  SUBROUTINE perform_post_op_s2D(post_op, field2D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     REAL(sp),              INTENT(INOUT) :: field2D(:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
+
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_s2D"
     REAL(sp) :: scalfac, lowlim   ! scale factor, lower limit
     INTEGER  :: idim(2), l1,l2
+    LOGICAL  :: lzacc
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
 
     idim = SHAPE(field2D)
@@ -141,11 +168,14 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
           field2D(l1,l2) = field2D(l1,l2) * scalfac
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
       !
@@ -153,15 +183,19 @@ CONTAINS
 
       lowlim  = post_op%arg1%sval
       scalfac = 10.0_sp/LOG(10._sp)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
           field2D(l1,l2) = scalfac * LOG( MAX( field2D(l1,l2), lowlim) )
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
-!$OMP END PARALLEL      
+!$OMP END PARALLEL 
 
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
@@ -172,16 +206,23 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 2D INTEGER field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_i2D(post_op, field2D, opt_inverse)
+  SUBROUTINE perform_post_op_i2D(post_op, field2D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     INTEGER              , INTENT(INOUT) :: field2D(:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_i2D"
     INTEGER  :: scalfac           ! scale factor
     INTEGER  :: idim(2), l1,l2
+    LOGICAL  :: lzacc
 
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
     idim = SHAPE(field2D)
 
@@ -201,16 +242,22 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
           field2D(l1,l2) = field2D(l1,l2) * scalfac
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
-      !
+
 #ifndef __NO_ICON_ATMO__
     CASE(POST_OP_LUC)
+#ifdef _OPENACC
+      CALL finish(routine,'convert_luc_ICON2GRIB not supported on GPU')
+#endif
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
       DO l2=1,idim(2)
@@ -232,16 +279,23 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 3D REAL field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_r3D(post_op, field3D, opt_inverse)
+  SUBROUTINE perform_post_op_r3D(post_op, field3D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     REAL(dp),              INTENT(INOUT) :: field3D(:,:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_r3D"
     REAL(dp) :: scalfac, lowlim   ! scale factor, lower limit
     INTEGER  :: idim(3), l1,l2,l3
+    LOGICAL  :: lzacc
 
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
     idim = SHAPE(field3D)
 
@@ -261,6 +315,8 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
           DO l1=1,idim(1)
@@ -268,15 +324,19 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
-      !
+
     CASE (POST_OP_LIN2DBZ)
 
       lowlim  = post_op%arg1%rval
       scalfac = 10.0_dp/LOG(10._dp)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
           DO l1=1,idim(1)
@@ -284,8 +344,9 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
-!$OMP END PARALLEL      
+!$OMP END PARALLEL
 
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
@@ -296,16 +357,23 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 3D REAL field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_s3D(post_op, field3D, opt_inverse)
+  SUBROUTINE perform_post_op_s3D(post_op, field3D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     REAL(sp),              INTENT(INOUT) :: field3D(:,:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_s3D"
     REAL(sp) :: scalfac, lowlim   ! scale factor, lower limit
     INTEGER  :: idim(3), l1,l2,l3
+    LOGICAL  :: lzacc
 
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
     idim = SHAPE(field3D)
 
@@ -325,6 +393,8 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
           DO l1=1,idim(1)
@@ -332,6 +402,7 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
       !
@@ -339,8 +410,11 @@ CONTAINS
 
       lowlim  = post_op%arg1%sval
       scalfac = 10.0_sp/LOG(10._sp)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
           DO l1=1,idim(1)
@@ -348,8 +422,9 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
-!$OMP END PARALLEL      
+!$OMP END PARALLEL
 
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
@@ -360,16 +435,23 @@ CONTAINS
 
   !> Performs small arithmetic operations ("post-ops") on 3D INTEGER field 
   !  as post-processing tasks.
-  SUBROUTINE perform_post_op_i3D(post_op, field3D, opt_inverse)
+  SUBROUTINE perform_post_op_i3D(post_op, field3D, opt_inverse, lacc)
     TYPE (t_post_op_meta), INTENT(IN)    :: post_op
     INTEGER ,              INTENT(INOUT) :: field3D(:,:,:)
     LOGICAL , OPTIONAL   , INTENT(IN)    :: opt_inverse   ! .TRUE.: inverse operation
+    LOGICAL , OPTIONAL   , INTENT(IN)    :: lacc
     !
     ! local variables
     CHARACTER(*), PARAMETER :: routine = TRIM(modname)//":perform_post_op_i3D"
     INTEGER  :: scalfac           ! scale factor
     INTEGER  :: idim(3), l1,l2,l3
+    LOGICAL  :: lzacc
 
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
     idim = SHAPE(field3D)
 
@@ -389,6 +471,8 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
           DO l1=1,idim(1)
@@ -396,11 +480,15 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
       !
 #ifndef __NO_ICON_ATMO__
     CASE(POST_OP_LUC)
+#ifdef _OPENACC
+      CALL finish(routine,'convert_luc_ICON2GRIB not supported on GPU')
+#endif
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
       DO l3=1,idim(3)

@@ -1355,7 +1355,11 @@ MODULE mo_nh_stepping
     ! output of results
     ! note: nnew has been replaced by nnow here because the update
     IF (l_nml_output) THEN
+#ifdef _OPENACC
+      CALL write_name_list_output(jstep, lacc=i_am_accel_node)
+#else
       CALL write_name_list_output(jstep)
+#endif
     ENDIF
 
     ! sample meteogram output

@@ -527,10 +527,11 @@ CONTAINS
   !  This routine also cares about opening the output files the first time
   !  and reopening the files after a certain number of steps.
   !
-  SUBROUTINE write_name_list_output(jstep, opt_lhas_output)
+  SUBROUTINE write_name_list_output(jstep, opt_lhas_output, lacc)
     INTEGER,           INTENT(IN)   :: jstep             !< model step
     !> (Optional) Flag: .TRUE. if this async I/O PE has written during this step:
     LOGICAL, OPTIONAL, INTENT(OUT)  :: opt_lhas_output
+    LOGICAL, OPTIONAL, INTENT(IN)   :: lacc
     ! local variables
     CHARACTER(LEN=*), PARAMETER  :: routine = modname//"::write_name_list_output"
     INTEGER                           :: i, idate, itime, iret
@@ -546,8 +547,15 @@ CONTAINS
          ofile_has_first_write(SIZE(output_file)), &
          ofile_is_assigned_here(SIZE(output_file))
     CHARACTER(len=MAX_DATETIME_STR_LEN) :: current_date_string
+    LOGICAL :: lzacc
 
     IF (ltimer) CALL timer_start(timer_write_output)
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
 
     is_io = my_process_is_io()
     is_test = my_process_is_mpi_test()
@@ -685,7 +693,7 @@ CONTAINS
         END IF
 #endif
       ELSE
-        CALL write_name_list(output_file(i), ofile_has_first_write(i))
+        CALL write_name_list(output_file(i), ofile_has_first_write(i), lzacc)
         do_sync = lkeep_in_sync .AND. ofile_is_assigned_here(i)
       ENDIF
 
@@ -867,7 +875,7 @@ CONTAINS
   !------------------------------------------------------------------------------------------------
   !> Write an output name list. Called by non-IO PEs.
   !
-  SUBROUTINE write_name_list(of, is_first_write)
+  SUBROUTINE write_name_list(of, is_first_write, lacc)
 
 #ifndef NOMPI
 #ifdef  __SUNPRO_F95
@@ -879,6 +887,7 @@ CONTAINS
 
     TYPE (t_output_file), INTENT(INOUT), TARGET :: of
     LOGICAL,              INTENT(IN)            :: is_first_write
+    LOGICAL, OPTIONAL,    INTENT(IN)            :: lacc
     ! local variables:
     CHARACTER(LEN=*), PARAMETER                 :: routine = modname//"::write_name_list"
     INTEGER                                     :: tl, i_dom, i_log_dom, iv, jk, &
@@ -913,6 +922,13 @@ CONTAINS
 #else
     LOGICAL, PARAMETER :: participate_in_async_io = .FALSE.
 #endif
+    LOGICAL :: lzacc
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    ENDIF
     ! Offset in memory window for async I/O
     ioff = 0
 
@@ -1049,7 +1065,7 @@ CONTAINS
           END IF
           r_ptr_m = r_ptr
           r_ptr => r_ptr_m
-          CALL perform_post_op(info%post_op, r_ptr)
+          CALL perform_post_op(info%post_op, r_ptr, lzacc)
         ELSE IF (idata_type == iREAL_sp) THEN
           alloc_shape = SHAPE(s_ptr)
           IF (ALLOCATED(s_ptr_m)) THEN
@@ -1063,7 +1079,7 @@ CONTAINS
           END IF
           s_ptr_m = s_ptr
           s_ptr => s_ptr_m
-          CALL perform_post_op(info%post_op, s_ptr)
+          CALL perform_post_op(info%post_op, s_ptr, lzacc)
         ELSE IF (idata_type == iINTEGER) THEN
           alloc_shape = SHAPE(i_ptr)
           IF (ALLOCATED(i_ptr_m)) THEN
@@ -1077,7 +1093,7 @@ CONTAINS
           END IF
           i_ptr_m = i_ptr
           i_ptr => i_ptr_m
-          CALL perform_post_op(info%post_op, i_ptr)
+          CALL perform_post_op(info%post_op, i_ptr, lzacc)
         ENDIF
       END IF
 

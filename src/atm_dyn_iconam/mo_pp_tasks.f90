@@ -96,6 +96,7 @@ MODULE mo_pp_tasks
   USE mo_run_config,              ONLY: timers_level, msg_level, debug_check_level
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
+  USE openacc,                    ONLY: acc_is_present
 #endif
 
   ! Workaround for SMI computation. Not nice, however by making 
@@ -1019,7 +1020,7 @@ CONTAINS
     IF (.NOT. ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0)))) THEN
 
 ! Temporary workaround to build up functionality: ultimate the operation needs to be on GPU
-!$ACC UPDATE HOST( in_ptr ) IF ( i_am_accel_node )
+!$ACC UPDATE HOST ( in_ptr ) IF ( i_am_accel_node  .AND. acc_is_present( in_ptr ) )
     
       SELECT CASE ( vert_intp_method )
       CASE ( VINTP_METHOD_VN )
@@ -1299,8 +1300,7 @@ CONTAINS
     IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
         ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
         ptr_task%job_type /= TASK_COMPUTE_RH) THEN
-      CALL finish('pp_task_compute_field','unsupported postproc job-type on GPU for variable '//TRIM(p_info%name))
-
+      CALL warning('pp_task_compute_field','untested postproc job-type on GPU for variable '//TRIM(p_info%name) )
     ENDIF
 #endif
 
