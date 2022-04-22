@@ -7800,6 +7800,19 @@ I(ntracer)&
 & & & & 1: on& itype\_vlimit=1, 2 \tabularnewline
 & & & & 0: off& \tabularnewline
 
+
+%\hline
+\textbf{nadv\_substeps}&
+I(max\_\\dom)&
+3& & Tracer substepping:\\
+     Number of time integration substeps per fast physics/advective time step dtime.\\
+     If only one value is specified, it is copied to all child domains, implying that the same value is used in all domains.
+     If the number of values given in the namelist is larger than 1 but less than the number of model domains,
+     then the settings from the highest domain ID are used for the remaining model domains.
+   & only active for the schemes ihadv\_tracer=20, 22, 32, 42, 52.\\ 
+    Starts at minimum height height hbot\_qv\_substep for the schemes 22, 32, 42, 52, whereas it is applied throughout the entire domain for scheme 20.\tabularnewline
+
+
 %\hline
 beta\_fct&
 R& 1.005& & global boost factor for range of permissible values $\left[q_{max},q_{min}\right]$ in (semi-) monotonic flux limiter. A value larger 

@@ -179,6 +179,9 @@ MODULE mo_advection_config
     INTEGER :: npassive_tracer      !< number of additional passive tracers, in addition to
                                     !< microphysical- and ART tracers. 
 
+    INTEGER :: nadv_substeps        !< number of substeps per fast physics time step 
+                                    !< for the Miura-type substepping schemes 20, 22, 32, 42, 52
+
     CHARACTER(len=MAX_CHAR_LENGTH) :: &!< Comma separated list of initialization formulae 
       &  init_formula                  !< for passive tracers.
 
@@ -1015,6 +1018,7 @@ CONTAINS
     CHARACTER(LEN=3) :: str_tracer_id
     CHARACTER(LEN=3) :: str_startlev
     CHARACTER(LEN=7) :: str_substep_range
+    CHARACTER(LEN=3) :: str_nadv_substeps
     CHARACTER(LEN=3) :: str_flag
 
     ! could this be transformed into a table header?
@@ -1031,6 +1035,7 @@ CONTAINS
     CALL add_table_column(table, "in list trHydroMass")
     CALL add_table_column(table, "slev")
     CALL add_table_column(table, "substep range")
+    CALL add_table_column(table, "nadv_substeps")
 
     irow = 0
     ! print tracer meta-information
@@ -1071,18 +1076,23 @@ CONTAINS
         IF (ANY((/MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL, FFSL_HYB_MCYCL/) &
            &     == config_obj%ihadv_tracer(tracer_id))) THEN
           write(str_substep_range,'(i3,a,i3)')  slev,'/',config_obj%iadv_qvsubstep_elev
+          write(str_nadv_substeps,'(i3)')  config_obj%nadv_substeps
         ELSE IF (config_obj%ihadv_tracer(tracer_id) == MCYCL) THEN
           write(str_substep_range,'(i3,a,i3)')  slev,'/',nlev
+          write(str_nadv_substeps,'(i3)')  config_obj%nadv_substeps
         ELSE
           write(str_substep_range,'(a)') '-- / --' 
+          str_nadv_substeps = '--'
         ENDIF
       ELSE
         !
         write(str_startlev,'(a)') '--'
-        write(str_substep_range,'(a)') '-- / --' 
+        write(str_substep_range,'(a)') '-- / --'
+        write(str_nadv_substeps,'(a)') '--' 
       ENDIF
       CALL set_table_entry(table,irow,"slev", TRIM(str_startlev))
       CALL set_table_entry(table,irow,"substep range", TRIM(str_substep_range))
+      CALL set_table_entry(table,irow,"nadv_substeps", TRIM(str_nadv_substeps))
     ENDDO
 
     CALL print_table(table, opt_delimiter=' | ')

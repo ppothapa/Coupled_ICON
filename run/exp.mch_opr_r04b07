@@ -388,6 +388,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ihadv_tracer                =          52, 2, 2, 2, 2, 2         ! gdm: 52 combination of hybrid FFSL/Miura3 with subcycling
                                                            !     of tracer specific method to compute horizontal advection
  llsq_svd                    =                      .TRUE.        ! use SV decomposition for least squares design matrix
+ nadv_substeps               =                          2         ! number of integration steps per fast physics time step
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------

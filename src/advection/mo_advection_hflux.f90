@@ -105,7 +105,6 @@ MODULE mo_advection_hflux
   USE mo_advection_geometry,  ONLY: divide_flux_area, divide_flux_area_list
   USE mo_advection_hlimit,    ONLY: hflx_limiter_mo, hflx_limiter_pd
   USE mo_timer,               ONLY: timer_adv_hflx, timer_start, timer_stop
-  USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_fortran_tools,       ONLY: init, copy
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node, my_process_is_work
@@ -199,6 +198,8 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
      &  opt_rlend                      !< (to avoid calculation of halo points)
 
+    ! local
+    !
     INTEGER :: jt, nt               !< tracer index and loop index
     INTEGER :: i_rlend, i_rlend_vt, i_rlend_tr
     INTEGER :: i_rlstart
@@ -207,7 +208,7 @@ CONTAINS
                                     !< i.e. minimum slev of all tracers which
                                     !< are advected with the given scheme
     INTEGER :: iadv_max_elev        !< scheme specific maximum elev
-    INTEGER :: nsubsteps            !< number of substeps in miura_cycl (2 or 3)
+    INTEGER :: nsubsteps            !< number of substeps in miura_cycl
 
     REAL(wp)::   &                  !< unweighted tangential velocity
       &  z_real_vt(nproma,p_patch%nlev,p_patch%nblks_e)!< component at edges
@@ -332,15 +333,9 @@ CONTAINS
       iadv_max_elev = MERGE( p_patch%nlev,qvsubstep_elev,  &
         &                    ANY(advconf%ihadv_tracer(:)== MCYCL) )
 
-      ! Determine number of substeps in miura_cycl
-      ! It is assumed that three substeps are needed if the top of the currently active
-      ! model domain is higher than 40 km, otherwise, two are sufficient
-      !
-      IF (vct_a(iadv_min_slev+p_patch%nshift_total) > 40000._wp) THEN
-        nsubsteps = 3
-      ELSE
-        nsubsteps = 2
-      ENDIF
+      ! number of substeps in miura_cycl
+      nsubsteps = advconf%nadv_substeps
+
       z_dthalf_cycl = 0.5_wp * p_dtime/REAL(nsubsteps,wp)
 
       !

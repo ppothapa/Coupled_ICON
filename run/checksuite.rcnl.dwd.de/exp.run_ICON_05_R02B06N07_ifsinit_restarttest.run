@@ -367,6 +367,7 @@ cat > NAMELIST_NWP << EOF
  ihadv_tracer                =          52, 2, 2, 2, 2, 0         ! tracer specific method to compute horizontal advection
  llsq_svd                    =                      .false.        ! use SV decomposition for least squares design matrix
  beta_fct                    =                          1.005     ! factor of allowed over-/undershooting in monotonous limiter
+ nadv_substeps               =                       3, 2         ! number of integration steps per fast physics time step
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------
