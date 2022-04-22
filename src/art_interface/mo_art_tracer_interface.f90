@@ -30,9 +30,9 @@ MODULE mo_art_tracer_interface
   USE mo_nwp_phy_types,                 ONLY: t_nwp_phy_tend
   USE mo_nonhydro_types,                ONLY: t_nh_prog
   USE mo_run_config,                    ONLY: lart, iforcing
-  USE mo_impl_constants,                ONLY: iecham
+  USE mo_impl_constants,                ONLY: iaes
   USE mo_radiation_config,              ONLY: irad_o3
-  USE mo_echam_rad_config,              ONLY: echam_rad_config
+  USE mo_aes_rad_config,              ONLY: aes_rad_config
   USE mtime,                            ONLY: MAX_TIMEDELTA_STR_LEN,                            &
                                           &   timedelta, newTimedelta, deallocateTimedelta,     &
                                           &   getTotalMilliSecondsTimeDelta, getPTStringFromMS
@@ -115,8 +115,8 @@ SUBROUTINE art_tracer_interface(defcase,jg,nblks_c,this_list,vname_prefix, &
     
       IF (TRIM(defcase) .EQ. 'prog') THEN
         IF (timelev .EQ. 1) THEN 
-          IF ( iforcing == iecham) THEN
-            irad_o3 = echam_rad_config(jg)%irad_o3
+          IF ( iforcing == iaes) THEN
+            irad_o3 = aes_rad_config(jg)%irad_o3
           END IF
         END IF
       END IF

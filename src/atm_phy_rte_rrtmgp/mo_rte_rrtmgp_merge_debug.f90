@@ -33,7 +33,7 @@ MODULE mo_rte_rrtmgp_merge_debug
   END TYPE
 
   TYPE(TV), SAVE :: vars(nvar_all) = (/ &
-!In write_record_interface_echam
+!In write_record_interface_aes
     TV('kproma', (/5,-1,-1,-1/), nf_int, 1, .true.), &
     TV('cosmu0', (/1,5,-1,-1/), nf_double, 2, .true.), &
     TV('day_frc', (/1,5,-1,-1/), nf_double, 2, .true.), &
@@ -109,7 +109,7 @@ MODULE mo_rte_rrtmgp_merge_debug
 
   PUBLIC :: dump_offset, dump_index, dump_finished, dump_max, is_omp_radiation
   PUBLIC :: open_write_icon
-  PUBLIC :: close_write, write_record_interface_echam
+  PUBLIC :: close_write, write_record_interface_aes
 
   PUBLIC :: init_dump_dictionary, dim_id, var_id, vars, dims, TDumpDictionary
 
@@ -276,7 +276,7 @@ CONTAINS
     if (ret /= nf_noerr) CALL crash(ret, __LINE__)
   END SUBROUTINE write_int
 
-  SUBROUTINE write_record_interface_echam(kproma, cosmu0, day_frc, &
+  SUBROUTINE write_record_interface_aes(kproma, cosmu0, day_frc, &
     rnseeds1, rnseeds2, &
     a_vdir, a_ndir, a_vdif, a_ndif, tk_sfc, zf, zh, dz, &
     pp_fl_in, pp_hl_in, tk_fl_in, tk_hl_in, &
@@ -351,7 +351,7 @@ CONTAINS
     CALL write_double('pus', pus, dump_index)
     CALL write_double('nus', nus, dump_index)
 
-  END SUBROUTINE write_record_interface_echam
+  END SUBROUTINE write_record_interface_aes
 
   SUBROUTINE close_write
     INTEGER :: ret

@@ -39,7 +39,7 @@ MODULE mo_art_aerodyn_interface
   USE mo_util_phys,                     ONLY: rel_hum
   USE mo_timer,                         ONLY: timers_level, timer_start, timer_stop,   &
                                           &   timer_art, timer_art_aeroInt
-  USE mo_echam_phy_memory,              ONLY: t_echam_phy_tend
+  USE mo_aes_phy_memory,                ONLY: t_aes_phy_tend
   USE mo_art_data,                      ONLY: p_art_data
   USE mo_art_modes_linked_list,         ONLY: p_mode_state,t_mode
   USE mo_art_modes,                     ONLY: t_fields_radio, t_fields_2mom
@@ -91,7 +91,7 @@ SUBROUTINE art_aerodyn_interface( p_patch,p_dtime,p_prog_list,p_prog, &
     &  tracer(:,:,:,:)         !< tracer mixing ratios (specific concentrations)
   TYPE(t_nwp_phy_diag),OPTIONAL, INTENT(IN)  :: &
     &  prm_diag                !< NH metrics state
-  TYPE(t_echam_phy_tend) , OPTIONAL,  POINTER  :: tend
+  TYPE(t_aes_phy_tend) , OPTIONAL,  POINTER  :: tend
 ! Local variables
   REAL(wp), ALLOCATABLE   :: &
     &  rh(:,:),              & !< Relative humidty (%)

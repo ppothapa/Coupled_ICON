@@ -34,7 +34,7 @@ MODULE mo_nonhydro_state
 
   USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: SUCCESS, vname_len, vlname_len,                 &
-    &                                INWP, IECHAM,                                   &
+    &                                INWP, iaes,                                   &
     &                                VINTP_METHOD_VN,                                &
     &                                VINTP_METHOD_QV, VINTP_METHOD_PRES,             &
     &                                VINTP_METHOD_LIN,                               &
@@ -105,7 +105,7 @@ MODULE mo_nonhydro_state
   USE mo_action,               ONLY: ACTION_RESET, new_action, actions
   USE mo_upatmo_config,        ONLY: upatmo_dyn_config
   USE mo_upatmo_impl_const,    ONLY: idamtr
-  USE mo_echam_vdf_config,     ONLY: echam_vdf_config
+  USE mo_aes_vdf_config,       ONLY: aes_vdf_config
   USE mo_loopindices,          ONLY: get_indices_c
 
 #include "add_var_acc_macro.inc"
@@ -646,7 +646,7 @@ MODULE mo_nonhydro_state
       ALLOCATE( p_prog%tracer_ptr(ntracer) )
       !$ACC ENTER DATA CREATE(p_prog%tracer_ptr)
 
-      IF ( iforcing == inwp .OR. iforcing == iecham ) THEN
+      IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
         
         ! References to individual tracers, for I/O and setting of additional metadata
         ! ----------------------------------------------------------------------------
@@ -656,7 +656,7 @@ MODULE mo_nonhydro_state
         ! in the model configuration. The setup of the active, i.e. non-zero tracer indices
         ! depends on the selected forcing and is currently handled in these subroutines:
         ! - for iforcing = inwp   : mo_nml_crosscheck:atm_crosscheck
-        ! - for iforcing = iecham : mo_echam_phy_init:init_echam_phy_itracer
+        ! - for iforcing = iaes : mo_aes_phy_init:init_aes_phy_itracer
         !
         ! For additional tracers, which do not have specific index variables, the indices
         ! need to be set via add_tracer_ref. 
@@ -4232,9 +4232,9 @@ MODULE mo_nonhydro_state
     __acc_attach(p_metrics%ddxt_z_full)
 
 #ifndef __NO_ICON_LES__
-    IF (atm_phy_nwp_config(jg)%is_les_phy .OR. echam_vdf_config(jg)%turb==2) THEN
+    IF (atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2) THEN
 #else
-    IF (echam_vdf_config(jg)%turb==2) THEN
+    IF (aes_vdf_config(jg)%turb==2) THEN
 #endif
       ! slope of the terrain in normal direction (half level)
       ! ddxn_z_half_e  p_metrics%ddxn_z_full(nproma,nlevp1,nblks_e)
@@ -4979,9 +4979,9 @@ MODULE mo_nonhydro_state
 
     !Add LES related variables : Anurag Dipankar MPIM (2013-04)
 #ifndef __NO_ICON_LES__
-    IF(atm_phy_nwp_config(jg)%is_les_phy .OR. echam_vdf_config(jg)%turb==2)THEN
+    IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2)THEN
 #else
-    IF(echam_vdf_config(jg)%turb==2)THEN
+    IF(aes_vdf_config(jg)%turb==2)THEN
 #endif
       ! inv_ddqz_z_half_e  p_metrics%inv_ddqz_z_half_e(nproma,nlevp1,nblks_e)
       !

@@ -2,7 +2,7 @@
 !! @brief Subroutine read_bc_ozone reads monthly ozone
 !! concentrations from yearly files. The ozone concentrations are
 !! used as boundary conditions for the radiative forcing of the
-!! atmosphereAMIP. The routine is called from mo_echam_phy_interface.f90.
+!! atmosphereAMIP. The routine is called from mo_aes_phy_interface.f90.
 !!
 !! @author Sebastian Rast, MPI-M
 !!
@@ -31,7 +31,7 @@ MODULE mo_bc_ozone
   USE mo_physical_constants,       ONLY: amo3, amd
   USE mo_impl_constants,           ONLY: max_dom
   USE mo_grid_config,              ONLY: n_dom
-  USE mo_echam_rad_config,         ONLY: echam_rad_config
+  USE mo_aes_rad_config,           ONLY: aes_rad_config
   USE mo_netcdf_errhandler,        ONLY: nf
   USE mo_time_config,              ONLY: time_config
   USE mo_bcs_time_interpolation,   ONLY: t_time_interpolation_weights, &

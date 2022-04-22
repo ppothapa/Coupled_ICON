@@ -24,7 +24,7 @@ MODULE mo_nml_crosscheck
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
     &                                    NO_HADV, UP, MIURA, MIURA3, FFSL, FFSL_HYB,       &
     &                                    MCYCL, MIURA_MCYCL, MIURA3_MCYCL,                 &
-    &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iecham,               &
+    &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
     &                                    max_echotop
@@ -53,7 +53,7 @@ MODULE mo_nml_crosscheck
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile
-  USE mo_echam_phy_config,         ONLY: echam_phy_config
+  USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_o3, irad_aero, irad_h2o, irad_co2, irad_ch4, &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, llw_cloud_scat, iliquid_scat,       &
@@ -266,9 +266,9 @@ CONTAINS
     CALL finish( routine, 'NWP physics only implemented in the '//&
                'nonhydrostatic atm model')
 
-#ifdef __NO_ECHAM
-    IF ( iforcing==iecham ) &
-      CALL finish( routine, 'ECHAM physics desired, but compilation with --disable-echam' )
+#ifdef __NO_AES
+    IF ( iforcing==iaes ) &
+      CALL finish( routine, 'AES physics desired, but compilation with --disable-aes' )
 #endif
 
     !--------------------------------------------------------------------
@@ -920,7 +920,7 @@ CONTAINS
     END IF
     CALL check_meteogram_configuration(num_io_procs)
 
-    IF (iforcing==iecham) CALL land_crosscheck()
+    IF (iforcing==iaes) CALL land_crosscheck()
 
     CALL art_crosscheck()
 
@@ -958,15 +958,15 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::land_crosscheck'
 
 #ifdef __NO_JSBACH__
-    IF (ANY(echam_phy_config(:)%ljsb)) THEN
+    IF (ANY(aes_phy_config(:)%ljsb)) THEN
       CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set ljsb=.FALSE.")
     ENDIF
 #else
     DO jg=1,n_dom
-      IF (.NOT.echam_phy_config(jg)%ljsb) THEN
-         IF (echam_phy_config(jg)%llake) THEN
+      IF (.NOT.aes_phy_config(jg)%ljsb) THEN
+         IF (aes_phy_config(jg)%llake) THEN
             CALL message(routine, 'Setting llake = .FALSE. since ljsb = .FALSE.')
-            echam_phy_config(jg)%llake = .FALSE.
+            aes_phy_config(jg)%llake = .FALSE.
          END IF
       END IF
     END DO

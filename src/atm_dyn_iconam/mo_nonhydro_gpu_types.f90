@@ -40,7 +40,7 @@ MODULE mo_nonhydro_gpu_types
 #if defined( _OPENACC )
 
   USE mo_kind,                 ONLY: wp, vp
-  USE mo_impl_constants,       ONLY: max_var_list_name_len, inwp, iecham
+  USE mo_impl_constants,       ONLY: max_var_list_name_len, inwp, iaes
   USE mo_mpi,                  ONLY: i_am_accel_node
   USE mo_fortran_tools,        ONLY: t_ptr_2d3d
   USE mo_math_types,           ONLY: t_geographical_coordinates
@@ -91,8 +91,8 @@ CONTAINS
 
     CALL transfer_advection_config( advection_config, .TRUE. )
 
-    IF( iforcing == iecham ) THEN
-      CALL transfer_echam( p_patch, .TRUE. )
+    IF( iforcing == iaes ) THEN
+      CALL transfer_aes( p_patch, .TRUE. )
     END IF
 
   END SUBROUTINE h2d_icon
@@ -120,8 +120,8 @@ CONTAINS
     CALL transfer_int_state( p_int_state_local_parent, .FALSE. )
     CALL transfer_advection_config( advection_config, .FALSE. )
 
-    IF( iforcing == iecham ) THEN
-      CALL transfer_echam( p_patch, .FALSE. )
+    IF( iforcing == iaes ) THEN
+      CALL transfer_aes( p_patch, .FALSE. )
     END IF
 
 !$ACC EXIT DATA DELETE(  p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
@@ -379,7 +379,7 @@ CONTAINS
     ENDDO
   END SUBROUTINE transfer_nh_state
 
-  SUBROUTINE transfer_echam( p_patch, host_to_device )
+  SUBROUTINE transfer_aes( p_patch, host_to_device )
     TYPE ( t_patch ),      INTENT(INOUT) :: p_patch(:)
     LOGICAL, INTENT(IN)                  :: host_to_device     !   .TRUE. : h2d   .FALSE. : d2h
     INTEGER :: jg
@@ -388,7 +388,7 @@ CONTAINS
       CALL gpu_update_var_list('prm_field_D', host_to_device, domain=jg)
       CALL gpu_update_var_list('prm_tend_D', host_to_device, domain=jg)
     END DO
-  END SUBROUTINE transfer_echam
+  END SUBROUTINE transfer_aes
 
   SUBROUTINE devcpy_grf_state( p_grf, l_h2d )
 

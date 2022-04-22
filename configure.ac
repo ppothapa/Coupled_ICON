@@ -94,13 +94,13 @@ AC_ARG_ENABLE([atmo],
   
 AC_ARG_ENABLE([edmf],
   [AS_HELP_STRING([--enable-edmf],
-     [enable the edmf atmosphere component of ICON @<:@default=yes@:>@])],
+     [enable the EDMF turbulence component of ICON @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_edmf=yes])],
   [enable_edmf=yes])
 
 AC_ARG_ENABLE([les],
   [AS_HELP_STRING([--enable-les],
-     [enable the les atmosphere component of ICON @<:@default=yes@:>@])],
+     [enable the Large-Eddy Simulation component of ICON @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_les=yes])],
   [enable_les=yes])
 
@@ -128,11 +128,11 @@ AC_ARG_ENABLE([coupling],
   [AS_IF([test x"$enableval" != xno], [enable_coupling=yes])],
   [enable_coupling=yes])
 
-AC_ARG_ENABLE([echam],
-  [AS_HELP_STRING([--enable-echam],
-     [enable the ECHAM physics @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_echam=yes])],
-  [enable_echam=yes])
+AC_ARG_ENABLE([aes],
+  [AS_HELP_STRING([--enable-aes],
+     [enable the AES physics package @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_aes=yes])],
+  [enable_aes=yes])
 
 AC_ARG_ENABLE([ecrad],
   [AS_HELP_STRING([--enable-ecrad],
@@ -143,9 +143,9 @@ AC_ARG_ENABLE([ecrad],
 AC_ARG_ENABLE([rte-rrtmgp],
   [AS_HELP_STRING([--enable-rte-rrtmgp],
      [enable usage of the RTE+RRTMGP toolbox for radiation calculations
-@<:@default=no@:>@])],
+@<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_rte_rrtmgp=yes])],
-  [enable_rte_rrtmgp=no])
+  [enable_rte_rrtmgp=yes])
 
 AC_ARG_ENABLE([rttov],
   [AS_HELP_STRING([--enable-rttov],
@@ -583,8 +583,8 @@ AS_VAR_IF([enable_jsbach], [no],
 AS_VAR_IF([enable_coupling], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}YAC_coupling"])])
 
-AS_VAR_IF([enable_echam], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ECHAM__"])])
+AS_VAR_IF([enable_aes], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_AES__"])])
 
 AS_VAR_IF([enable_ecrad], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ECRAD"])])
@@ -1095,12 +1095,11 @@ version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
          [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
          [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([gpu])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([tests])]],
+         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([gpu])]],
         [[CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
          [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
          [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
-         [--enable-gpu="$enable_gpu"], [--enable-tests=no],
+         [--enable-gpu="$enable_gpu"],
          [--enable-silent-rules="$enable_silent_rules"]])
       AS_VAR_APPEND([bundled_includes],
         ["${FC_MOD_IN}externals/rte-rrtmgp/mod "])

@@ -45,7 +45,7 @@ MODULE mo_run_nml
   USE mo_exception,      ONLY: finish,  &
     &                      config_msg_timestamp   => msg_timestamp
   USE mo_impl_constants, ONLY: max_dom, max_ntracer, inoforcing, IHELDSUAREZ,     &
-                               INWP,IECHAM,ILDF_ECHAM,IMPIOM,INOFORCING,ILDF_DRY, &
+                               INWP,iaes,ILDF_ECHAM,IMPIOM,INOFORCING,ILDF_DRY, &
                                MAX_CHAR_LENGTH
   USE mo_io_units,       ONLY: nnml, nnml_output
   USE mo_namelist,       ONLY: position_nml, positioned, open_nml, close_nml
@@ -222,7 +222,7 @@ CONTAINS
     ! Sanity check
     !----------------------------------------------------
     SELECT CASE (iforcing)                                                     
-    CASE(INOFORCING,IHELDSUAREZ,INWP,IECHAM,ILDF_DRY,ILDF_ECHAM,IMPIOM)
+    CASE(INOFORCING,IHELDSUAREZ,INWP,iaes,ILDF_DRY,ILDF_ECHAM,IMPIOM)
     CASE DEFAULT
       CALL finish( TRIM(routine),'wrong value for iforcing')
     END SELECT

@@ -28,7 +28,7 @@ MODULE mo_bc_aeropt_stenchikov
   USE mo_latitude_interpolation, ONLY: latitude_weights_li
   USE mo_physical_constants,     ONLY: rgrav, rd
   USE mo_math_constants,         ONLY: deg2rad, pi_2
-  USE mo_echam_rad_config,       ONLY: echam_rad_config
+  USE mo_aes_rad_config,         ONLY: aes_rad_config
   USE mtime,                     ONLY: datetime 
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
@@ -426,10 +426,10 @@ SUBROUTINE pressure_index(jcs, kproma,   kbdim,         klev,              &
 ! !INPUT PARAMETERS
   INTEGER, INTENT(in)    :: kbdim, jcs, kproma, klev
   INTEGER, INTENT(in)    :: klevels !number of layers for indices are searched
-  REAL(wp), INTENT(in)   :: pp_mid(kbdim,klev), & !echam midlevel pressures
+  REAL(wp), INTENT(in)   :: pp_mid(kbdim,klev), & !aes midlevel pressures
                             pp_bound(klevels+1) !pressure at layer 
                                     !bounds of reference pressures
-  INTEGER, INTENT(out)   :: kindex(kbdim,klev) !layer indices for echam press.
+  INTEGER, INTENT(out)   :: kindex(kbdim,klev) !layer indices for aes press.
 
 ! !LOCAL VARIABLES
 
@@ -502,10 +502,10 @@ END SUBROUTINE pressure_index
                  'kmonth='//TRIM(ADJUSTL(ckmonth))) 
   END IF
 
-  IF ( echam_rad_config(jg)%irad_aero == 13 .OR. &
-       echam_rad_config(jg)%irad_aero == 14 .OR. &
-       echam_rad_config(jg)%irad_aero == 15 .OR. &
-       echam_rad_config(jg)%irad_aero == 18 ) THEN
+  IF ( aes_rad_config(jg)%irad_aero == 13 .OR. &
+       aes_rad_config(jg)%irad_aero == 14 .OR. &
+       aes_rad_config(jg)%irad_aero == 15 .OR. &
+       aes_rad_config(jg)%irad_aero == 18 ) THEN
 
     WRITE(ckyear,*) kyear
 

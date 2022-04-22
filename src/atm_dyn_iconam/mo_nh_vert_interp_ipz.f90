@@ -34,7 +34,7 @@ MODULE mo_nh_vert_interp_ipz
   USE mo_run_config,          ONLY: iforcing, num_lev
   USE mo_io_config,           ONLY: itype_pres_msl
   USE mo_grid_config,         ONLY: l_limited_area
-  USE mo_impl_constants,      ONLY: inwp, iecham, PRES_MSL_METHOD_GME, PRES_MSL_METHOD_IFS, &
+  USE mo_impl_constants,      ONLY: inwp, iaes, PRES_MSL_METHOD_GME, PRES_MSL_METHOD_IFS,   &
     &                               PRES_MSL_METHOD_DWD, PRES_MSL_METHOD_IFS_CORR,          &
     &                               SUCCESS
   USE mo_exception,           ONLY: finish
@@ -134,7 +134,7 @@ CONTAINS
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
 !$ACC UPDATE HOST( p_diag%temp, p_diag%pres ) IF ( i_am_accel_node )
-    IF (  iforcing == inwp .OR. iforcing == iecham  ) THEN
+    IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv(:,:,:)
 !$ACC UPDATE HOST( ptr_tempv ) IF ( i_am_accel_node )
     ELSE
@@ -304,7 +304,7 @@ CONTAINS
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
 !$ACC UPDATE HOST( p_diag%temp, p_diag%pres ) IF ( i_am_accel_node )    ! temp required farther down
-    IF (  iforcing == inwp .OR. iforcing == iecham  ) THEN
+    IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv
 !$ACC UPDATE HOST( ptr_tempv ) IF ( i_am_accel_node )
     ELSE

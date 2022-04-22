@@ -74,13 +74,13 @@ MODULE mo_nh_stepping
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
     &                                    output_mode, lart, luse_radarfwo, ldass_lhn
-  USE mo_echam_phy_config,         ONLY: echam_phy_config
+  USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_advection_config,         ONLY: advection_config
   USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,   &
     &                                    timer_total, timer_model_init, timer_nudging,    &
     &                                    timer_bdy_interp, timer_feedback, timer_nesting, &
     &                                    timer_integrate_nh, timer_nh_diagnostics,        &
-    &                                    timer_iconam_echam, timer_dace_coupling
+    &                                    timer_iconam_aes, timer_dace_coupling
   USE mo_atm_phy_nwp_config,       ONLY: dt_phy, atm_phy_nwp_config, iprog_aero, setup_nwp_diag_events
   USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
   USE mo_nwp_phy_init,             ONLY: init_nwp_phy, init_cloud_aero_cpl
@@ -113,7 +113,7 @@ MODULE mo_nh_stepping
                                          limarea_nudging_upbdy, save_progvars
   USE mo_nh_feedback,              ONLY: feedback, relax_feedback, lhn_feedback
   USE mo_exception,                ONLY: message, message_text, finish
-  USE mo_impl_constants,           ONLY: SUCCESS, inoforcing, iheldsuarez, inwp, iecham,       &
+  USE mo_impl_constants,           ONLY: SUCCESS, inoforcing, iheldsuarez, inwp, iaes,         &
     &                                    MODE_IAU, MODE_IAU_OLD, SSTICE_CLIM,                  &
     &                                    MODE_IFSANA,MODE_COMBINED,MODE_COSMO,MODE_ICONVREMAP, &
     &                                    SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, SSTICE_INST,    &
@@ -139,9 +139,9 @@ MODULE mo_nh_stepping
 
   USE mo_sync,                     ONLY: sync_patch_array_mult, sync_patch_array, SYNC_C, SYNC_E, global_max
   USE mo_nh_interface_nwp,         ONLY: nwp_nh_interface
-#ifndef __NO_ECHAM__
-  USE mo_interface_iconam_echam,   ONLY: interface_iconam_echam
-  USE mo_echam_phy_memory,         ONLY: prm_tend
+#ifndef __NO_AES__
+  USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
+  USE mo_aes_phy_memory,           ONLY: prm_tend
 #endif
   USE mo_phys_nest_utilities,      ONLY: interpol_phys_grf, feedback_phys_diag, interpol_rrg_grf, copy_rrg_ubc
   USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp
@@ -161,7 +161,7 @@ MODULE mo_nh_stepping
   USE mo_art_sedi_interface,       ONLY: art_sedi_interface
   USE mo_art_tools_interface,      ONLY: art_tools_interface
   USE mo_art_init_interface,       ONLY: art_init_atmo_tracers_nwp,     &
-                                     &   art_init_atmo_tracers_echam,   &
+                                     &   art_init_atmo_tracers_aes,     &
                                      &   art_init_radiation_properties, &
                                      &   art_update_atmo_phy
   USE mo_art_config,               ONLY: art_config
@@ -576,14 +576,14 @@ MODULE mo_nh_stepping
       ! in prognostic equations
       CALL aggr_landvars
     ENDIF!is_restart
-  CASE (iecham)
+  CASE (iaes)
     IF (.NOT.isRestart()) THEN
       CALL init_slowphysics (mtime_current, 1, dtime)
     END IF
 #ifdef __ICON_ART
     IF (lart) THEN
       DO jg = 1, n_dom
-        CALL art_init_atmo_tracers_echam(                      &
+        CALL art_init_atmo_tracers_aes(                        &
                &  jg,                                          &
                &  mtime_current,                               &
                &  p_nh_state(jg),                              &
@@ -1179,8 +1179,7 @@ MODULE mo_nh_stepping
     !
     ! Compute diagnostics for output if necessary
     !
-
-    IF ((l_compute_diagnostic_quants .OR. iforcing==iecham .OR. iforcing==inoforcing)) THEN
+    IF ((l_compute_diagnostic_quants .OR. iforcing==iaes .OR. iforcing==inoforcing)) THEN
 
       !$ser verbatim DO jg = 1, n_dom
       !$ser verbatim   CALL serialize_all(nproma, jg, "output_diag_dyn", .TRUE., opt_lupdate_cpu=.TRUE.)
@@ -1322,7 +1321,7 @@ MODULE mo_nh_stepping
     ! no-output-steps for accumulation purposes; set by l_accumulation_step
     simulation_status = new_simulation_status(l_output_step  = l_nml_output,             &
       &                                       l_last_step    = (jstep==(nsteps+jstep0)), &
-      &                                       l_accumulation_step = (iforcing == iecham),&
+      &                                       l_accumulation_step = (iforcing == iaes),  &
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
@@ -1983,7 +1982,7 @@ MODULE mo_nh_stepping
                         &            datetime_local(jg)%ptr,        &
                         &            p_nh_state(jg)%prog(nnew(jg)), &
                         &            prm_diag(jg))
-          ELSE IF (iforcing == iecham) THEN
+          ELSE IF (iforcing == iaes) THEN
             CALL art_update_atmo_phy(jg,                            &
                          &           datetime_local(jg)%ptr,        &
                          &           p_nh_state(jg)%prog(nnew(jg)))
@@ -2093,7 +2092,7 @@ MODULE mo_nh_stepping
 
         ENDIF
 
-        IF ( ( iforcing==inwp .OR. iforcing==iecham ) ) THEN
+        IF ( ( iforcing==inwp .OR. iforcing==iaes ) ) THEN
 
           ! Determine which physics packages must be called/not called at the current
           ! time step
@@ -2172,15 +2171,15 @@ MODULE mo_nh_stepping
                 &                  lacc=.TRUE.                         ) !in
             !$ser verbatim CALL serialize_all(nproma, jg, "physics", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
 
-          CASE (iecham) ! iforcing
+          CASE (iaes) ! iforcing
 
-#ifdef __NO_ECHAM__   
-            CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+#ifdef __NO_AES__   
+            CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
-            ! echam physics
-            IF (ltimer) CALL timer_start(timer_iconam_echam)
+            ! aes physics
+            IF (ltimer) CALL timer_start(timer_iconam_aes)
             !
-            CALL interface_iconam_echam( dt_loc                                    & !in
+            CALL interface_iconam_aes(     dt_loc                                    & !in
                 &                         ,datetime_local(jg)%ptr                    & !in
                 &                         ,p_patch(jg)                               & !in
                 &                         ,p_int_state(jg)                           & !in
@@ -2190,7 +2189,7 @@ MODULE mo_nh_stepping
                 &                         ,p_nh_state(jg)%diag                       )
 
             !
-            IF (ltimer) CALL timer_stop(timer_iconam_echam)
+            IF (ltimer) CALL timer_stop(timer_iconam_aes)
 #endif
           END SELECT ! iforcing
 
@@ -2947,9 +2946,9 @@ MODULE mo_nh_stepping
       !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .FALSE., opt_lupdate_cpu=.FALSE.)
 
 
-    CASE (iecham) ! iforcing
-#ifdef __NO_ECHAM__   
-      CALL finish (routine, 'Error: remove --disable-echam and reconfigure')
+    CASE (iaes) ! iforcing
+#ifdef __NO_AES__   
+      CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
       !
       ! fast physics coupling only

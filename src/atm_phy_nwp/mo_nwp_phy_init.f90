@@ -294,7 +294,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   lupatmo_phy = (.NOT. lreset_mode) .AND. &
     & upatmo_config(jg)%nwp_phy%l_phy_stat( iUpatmoPrcStat%enabled ) 
 
-  IF ( nh_test_name == 'RCE' .OR. nh_test_name == 'RCE_Tconst' .OR. nh_test_name == 'RCE_Tprescr' ) THEN
+  IF ( nh_test_name == 'RCE' .OR. nh_test_name == 'RCE_Tconst' .OR. nh_test_name == 'RCE_Tprescr' .OR. nh_test_name == 'RCE_bubble' ) THEN
     ! allocate storage var for press to be used in o3_pl2ml
     ALLOCATE (zrefpres(nproma,nlev,nblks_c),STAT=istatus)
     IF(istatus/=SUCCESS)THEN

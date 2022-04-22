@@ -79,6 +79,7 @@ USE mo_convect_tables,     ONLY: b1    => c1es  , & !! constants for computing t
   PUBLIC  :: dqsatdT
   PUBLIC  :: dqsatdT_ice
   PUBLIC  :: qsat_rho
+  PUBLIC  :: dqsatdT_rho
   PUBLIC  :: latent_heat_vaporization
   PUBLIC  :: latent_heat_sublimation
   PUBLIC  :: latent_heat_melting
@@ -549,6 +550,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
             twork = twork - fT / dfT;
           END IF
         END IF
+    !--jsr_baustelle2
       END DO !while
 
       ! Distribute the results back to gridpoints:
