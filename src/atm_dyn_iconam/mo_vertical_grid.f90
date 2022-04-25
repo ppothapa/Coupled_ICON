@@ -70,7 +70,7 @@ MODULE mo_vertical_grid
   USE mo_nudging_config,       ONLY: nudging_config, indg_type, indg_profile
   USE mo_dynamics_config,      ONLY: ldeepatmo
   USE mo_nh_deepatmo_utils,    ONLY: set_deepatmo_metrics
-  USE mo_echam_vdf_config,     ONLY: echam_vdf_config
+  USE mo_aes_vdf_config,       ONLY: aes_vdf_config
   USE mo_var_list,             ONLY: t_var_list_ptr
   USE mo_nonhydro_state,       ONLY: new_zd_metrics  
   IMPLICIT NONE
@@ -319,7 +319,7 @@ MODULE mo_vertical_grid
         p_nh(jg)%metrics%ddxn_z_half_e(:,:,:) = z_ddxn_z_half_e(:,:,:)
       ENDIF
 #endif
-      IF (echam_vdf_config(jg)%turb == 2) THEN
+      IF (aes_vdf_config(jg)%turb == 2) THEN
         ! remark: ddxt_z_half_e, ddxn_z_half_e in p_nh(jg)%metrics are optionally single precision
         p_nh(jg)%metrics%ddxt_z_half_e(:,:,:) = z_ddxt_z_half_e(:,:,:)
         p_nh(jg)%metrics%ddxn_z_half_e(:,:,:) = z_ddxn_z_half_e(:,:,:)
@@ -1735,9 +1735,9 @@ MODULE mo_vertical_grid
     !PREPARE LES, Anurag Dipankar MPIM (2013-04)
     DO jg = 1 , n_dom
 #ifndef __NO_ICON_LES__
-      IF(atm_phy_nwp_config(jg)%is_les_phy .OR. echam_vdf_config(1)%turb == 2) THEN
+      IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(1)%turb == 2) THEN
 #else
-      IF(echam_vdf_config(1)%turb == 2) THEN
+      IF(aes_vdf_config(1)%turb == 2) THEN
 #endif
         CALL prepare_les_model(p_patch(jg), p_nh(jg), p_int(jg), jg)
       END IF
@@ -2101,9 +2101,9 @@ MODULE mo_vertical_grid
 !DIR$ ATTRIBUTES ALIGN : 64 :: z_aux
 #endif
 
-    IF ( echam_vdf_config(1)%turb == 2 ) THEN
-      smag_constant  = echam_vdf_config(jg)%smag_constant
-      max_turb_scale = echam_vdf_config(jg)%max_turb_scale
+    IF ( aes_vdf_config(1)%turb == 2 ) THEN
+      smag_constant  = aes_vdf_config(jg)%smag_constant
+      max_turb_scale = aes_vdf_config(jg)%max_turb_scale
     ELSE
       smag_constant  = les_config(jg)%smag_constant
       max_turb_scale = les_config(jg)%max_turb_scale

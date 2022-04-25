@@ -3,6 +3,30 @@
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
+# Check that the configure script is consistent with configure.ac in the repo:
+if test ! -z "${BB_SLAVE}"; then
+  # Make a copy of the configure script in the repo:
+  cp ${ICON_DIR}/configure ${ICON_DIR}/configure.bb_before
+  # Re-generate the configure script:
+  ( sw_root='/data/mpi/sclab/sip/m300488/sw/gcc-6.3.0'
+    autoconf_root="${sw_root}/autoconf-2.69-6s27zjm"
+    # We need Automake for the aclocal script:
+    automake_root="${sw_root}/automake-1.16.1-vcfcb2c"
+    export PATH="${autoconf_root}/bin:${automake_root}/bin:$PATH"
+    cd ${ICON_DIR}
+    autoreconf -fvi )
+  # Compare the configure scripts before and after the re-generation
+  if cmp ${ICON_DIR}/configure.bb_before ${ICON_DIR}/configure >/dev/null 2>&1; then
+    # Clean up if there is no difference:
+    (cd ${ICON_DIR} && rm -rf configure.bb_before aclocal.m4 autom4te.cache config.h.in~)
+  else
+    # Fail the test if there is a difference:
+    echo "The configure script is incosistent with the contents of configure.ac" >&2
+    diff -u ${ICON_DIR}/configure.bb_before ${ICON_DIR}/configure >&2
+    exit 1
+  fi
+fi
+
 ${ICON_DIR}/config/mpim/stretch.gcc --disable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-art
 
 MAKE_PROCS=8

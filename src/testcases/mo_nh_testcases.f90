@@ -76,6 +76,7 @@ MODULE mo_nh_testcases
   USE mo_grid_geometry_info,   ONLY: planar_torus_geometry
   USE mo_nh_rce_exp,           ONLY: init_nh_state_rce_glb,                       &
                                    & init_nh_state_rce_tprescr_glb
+  USE mo_torus_bubble_exp,     ONLY: init_nh_state_rce_bubble_glb
   USE mo_nh_torus_exp,         ONLY: init_nh_state_cbl, init_nh_state_rico,       &
                                    & init_torus_netcdf_sounding,                  &
                                    & init_torus_ascii_sounding, init_warm_bubble, &
@@ -372,9 +373,9 @@ MODULE mo_nh_testcases
     ! The topography has been initialized to 0 at the begining of this SUB
     CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and NWP physics')
   
-  CASE ('APE_echam')
+  CASE ('APE_aes')
     ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and ECHAM physics')
+    CALL message(TRIM(routine),'running Aqua-Planet Experiment with non-hydrostatic atm. dynamics and AES physics')
   
   CASE ('APE_nh')
     ! The topography has been initialized to 0 at the begining of this SUB
@@ -387,7 +388,7 @@ MODULE mo_nh_testcases
   CASE ('TPEo')
 
     ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Terra-Planet Experiment with ECHAM physics')
+    CALL message(TRIM(routine),'running Terra-Planet Experiment with AES physics')
     IF ( itopo == 0 ) THEN
       CALL message(TRIM(routine), 'using zero topography for TPEc experiment')
     END IF
@@ -395,7 +396,7 @@ MODULE mo_nh_testcases
   CASE ('TPEc')
 
    ! The topography has been initialized to 0 at the begining of this SUB
-    CALL message(TRIM(routine),'running Terra-Planet Experiment with ECHAM physics')
+    CALL message(TRIM(routine),'running Terra-Planet Experiment with AES physics')
     IF ( itopo == 0 ) THEN
       CALL message(TRIM(routine), 'using zero topography for TPEc experiment')
     END IF
@@ -488,8 +489,10 @@ MODULE mo_nh_testcases
   CASE ('RCE_Tprescr')
    ! Running Radiative Convective Equilibrium with prescribed temperature profile
      CALL message(TRIM(routine),'running ICON in RCE with prescribed initial temperature profile')
-     
 
+  CASE ('RCE_bubble')
+   ! Running Radiative Convective Equilibrium with bubble
+     CALL message(TRIM(routine),'running ICON in RCE with moisture and temperature bubble')
   CASE ('RICO')
 
     IF(p_patch(1)%geometry_info%geometry_type/=planar_torus_geometry)&
@@ -955,7 +958,7 @@ MODULE mo_nh_testcases
     ENDDO !jg
 
 
-  CASE ('APE_nwp', 'APE_echam', 'APE_nh', 'APEc_nh')  ! Aqua-Planet Experiment, no mountain
+  CASE ('APE_nwp', 'APE_aes', 'APE_nh', 'APEc_nh')  ! Aqua-Planet Experiment, no mountain
 
     p_sfc_jabw   = zp_ape          ! Pa
     global_moist = ztmc_ape        ! kg/m**2 total moisture content
@@ -980,7 +983,7 @@ MODULE mo_nh_testcases
     
     ENDDO !jg
 
-    CALL message(TRIM(routine),'End setup non-hydrostatic APE test (APE_nwp, APE_echam, APE_nh, APEc_nh)')
+    CALL message(TRIM(routine),'End setup non-hydrostatic APE test (APE_nwp, APE_aes, APE_nh, APEc_nh)')
 
 
   CASE ('TPEc', 'TPEo')  ! Terra-Planet Experiment
@@ -1271,13 +1274,6 @@ MODULE mo_nh_testcases
       CALL init_nh_state_rce_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
 
-      IF (temp_case == 'blob') THEN
-        CALL add_random_noise_global(in_subset=p_patch(jg)%cells%all,          &
-                      & in_var=p_nh_state(jg)%prog(nnow(jg))%theta_v(:,:,:),   &
-                      & start_level=nlev-3,                                    &
-                      & end_level=nlev,                                        &
-                      & noise_scale=th_perturb )   
-      END IF
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
       CALL message(TRIM(routine),'End setup global RCE test')
@@ -1290,6 +1286,7 @@ MODULE mo_nh_testcases
      ! to virtual potential temperature inside init_nh_state_rce_tprescr_glb.
     DO jg = 1, n_dom
       nlev   = p_patch(jg)%nlev
+       write(0,*) 'before init_nh_state_rce_tprescr_glb'
       CALL init_nh_state_rce_tprescr_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
@@ -1297,6 +1294,22 @@ MODULE mo_nh_testcases
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
       CALL message(TRIM(routine),'End setup global RCE_Tprescr test')
+    END DO !jg
+
+  CASE ('RCE_bubble')
+
+     ! u,v,w are initialized to zero.  initialize with temperature profile, add random noise
+     ! to virtual potential temperature inside init_nh_state_rce_bubble_glb.
+    DO jg = 1, n_dom
+       nlev   = p_patch(jg)%nlev
+       write(0,*) 'before init_nh_state_rce_bubble_glb'
+      CALL init_nh_state_rce_bubble_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
+                      & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
+      
+      
+      CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
+!
+      CALL message(TRIM(routine),'End setup global RCE_bubble test')
     END DO !jg
     
 

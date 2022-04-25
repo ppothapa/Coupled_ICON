@@ -21,6 +21,7 @@ $addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze
 $addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze --list $listname
+$addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral breeze --list $listname
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
 #-----------------------------------------------------------

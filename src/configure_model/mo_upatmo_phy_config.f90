@@ -23,7 +23,7 @@ MODULE mo_upatmo_phy_config
   USE mo_kind,                     ONLY: wp, i8
   USE mo_exception,                ONLY: finish, message, message_text
   USE mo_impl_constants,           ONLY: MAX_CHAR_LENGTH, SUCCESS, &
-    &                                    inwp, iecham
+    &                                    inwp, iaes
   USE mo_physical_constants,       ONLY: amd, amco2, amo2, amo3, amo, amno, amn2, avo, &
     &                                    cpd, cvd
   USE mo_math_constants,           ONLY: dbl_eps
@@ -53,7 +53,7 @@ MODULE mo_upatmo_phy_config
   
   PRIVATE
 
-  PUBLIC :: t_upatmo_echam_phy
+  PUBLIC :: t_upatmo_aes_phy
   PUBLIC :: t_upatmo_nwp_phy
   PUBLIC :: t_upatmo_phy_config
   PUBLIC :: t_nwp_gas
@@ -71,7 +71,7 @@ MODULE mo_upatmo_phy_config
   ! Types for the namelist entries:
 
   ! Control type for the groups in which the single upper-atmosphere physics processes are clustered, 
-  ! following the example set by 'src/configre_model/mo_echam_phy_config' (only required for NWP-physics)  
+  ! following the example set by 'src/configre_model/mo_aes_phy_config' (only required for NWP-physics)  
   TYPE t_nwp_prc
     INTEGER                             :: imode         ! Selector for mode/type of group
     REAL(wp)                            :: dt            ! Time step for process group
@@ -87,7 +87,7 @@ MODULE mo_upatmo_phy_config
     INTEGER  :: imode   ! Gas mode
     REAL(wp) :: vmr     ! Volume mixing ratio ((m3/m3), should be equal to mole fraction (mol/mol))
     REAL(wp) :: mmr     ! Mass mixing ratio (kg/kg)
-    REAL(wp) :: fscale  ! Scaling factor for mixing ratio ('frad_<gas>' in 'src/configre_model/mo_echam_rad_config')
+    REAL(wp) :: fscale  ! Scaling factor for mixing ratio ('frad_<gas>' in 'src/configre_model/mo_aes_rad_config')
   END TYPE t_nwp_gas
 
   !-----------------------------------------------------------------------
@@ -112,8 +112,8 @@ MODULE mo_upatmo_phy_config
     LOGICAL  :: lyr_perp     ! Switch for perpetuation of Earth orbit for year 'yr_perp'
     INTEGER  :: yr_perp      ! Year, for which Earth orbit is perpetuated
     LOGICAL  :: lsanitycheck ! Switch for applying sanity checks
-    ! ECHAM-specific
-    REAL(wp) :: echam_start_height(iUpatmoPrcId%nitem)       ! Start heights, above which 
+    ! AES-specific
+    REAL(wp) :: aes_start_height(iUpatmoPrcId%nitem)         ! Start heights, above which 
                                                              ! processes compute tendencies
     ! NWP-specific
     TYPE(t_nwp_prc)    :: nwp_grp(iUpatmoGrpId%nitem)        ! Control for physics groups 
@@ -130,9 +130,9 @@ MODULE mo_upatmo_phy_config
 
   !--------------------------------
 
-  TYPE t_upatmo_echam_phy
-    LOGICAL  :: l_constgrav    ! Const. gravitational acceleration for ECHAM physics
-    LOGICAL  :: l_shallowatmo  ! Shallow-atmosphere metrics for ECHAM physics
+  TYPE t_upatmo_aes_phy
+    LOGICAL  :: l_constgrav    ! Const. gravitational acceleration for AES physics
+    LOGICAL  :: l_shallowatmo  ! Shallow-atmosphere metrics for AES physics
     REAL(wp) :: start_height(iUpatmoPrcId%nitem)  ! Start heights, above which 
                                                   ! processes compute tendencies
     REAL(wp) :: end_height(iUpatmoPrcId%nitem)    ! End heights, below which 
@@ -142,7 +142,7 @@ MODULE mo_upatmo_phy_config
     ! Status variables
     LOGICAL  :: l_enabled = .FALSE.               ! .TRUE.: upper-atmosphere physics are switched on
     LOGICAL  :: l_status(iUpatmoStat%nitem)
-  END TYPE t_upatmo_echam_phy
+  END TYPE t_upatmo_aes_phy
  
   !==================================================================================== 
 
@@ -226,8 +226,8 @@ MODULE mo_upatmo_phy_config
   !--------------------------------
 
   TYPE t_upatmo_nwp_phy
-    LOGICAL :: l_constgrav    ! Const. gravitational acceleration for ECHAM physics
-    LOGICAL :: l_shallowatmo  ! Shallow-atmosphere metrics for ECHAM physics
+    LOGICAL :: l_constgrav    ! Const. gravitational acceleration for AES physics
+    LOGICAL :: l_shallowatmo  ! Shallow-atmosphere metrics for AES physics
     !
     TYPE(t_phy_prc)    :: prc(iUpatmoPrcId%nitem)        ! Control units for single processes
     TYPE(t_phy_prc)    :: grp(iUpatmoGrpId%nitem)        ! --,,-- for process groups
@@ -293,7 +293,7 @@ CONTAINS !......................................................................
     &                                  msg_level,               & !in
     &                                  timers_level,            & !in
     &                                  upatmo_phy_config,       & !inout
-    &                                  upatmo_echam_phy_config, & !inout
+    &                                  upatmo_aes_phy_config,   & !inout
     &                                  upatmo_nwp_phy_config,   & !inout
     &                                  vct_a                    ) !(opt)in
 
@@ -302,9 +302,9 @@ CONTAINS !......................................................................
     LOGICAL,                   INTENT(IN)    :: lupatmo_phy             ! Switch for upper-atmosphere physics in nwp-mode
     LOGICAL,                   INTENT(IN)    :: ldeepatmo               ! Main deep-atmosphere switch
     LOGICAL,                   INTENT(IN)    :: ldeepatmo2phys          ! Switch to make some parts of physics aware 
-                                                                        ! of deep-atmosphere (only for ECHAM physics)
+                                                                        ! of deep-atmosphere (only for AES physics)
     LOGICAL,                   INTENT(IN)    :: lconstgrav              ! Switch for const. grav in case of deepatmo, too
-    INTEGER,                   INTENT(IN)    :: iforcing                ! Switch for physics package (NWP, ECHAM etc.) 
+    INTEGER,                   INTENT(IN)    :: iforcing                ! Switch for physics package (NWP, AES etc.) 
     LOGICAL,                   INTENT(IN)    :: l_orbvsop87             ! .TRUE. for VSOP87 orbit, 
                                                                         ! .FALSE. for Kepler orbit
     REAL(wp),                  INTENT(IN)    :: cecc                    ! Eccentricity  of  orbit
@@ -327,7 +327,7 @@ CONTAINS !......................................................................
     INTEGER,                   INTENT(IN)    :: timers_level            ! Control parameter for timer
     TYPE(t_upatmo_phy_config), INTENT(INOUT) :: upatmo_phy_config       ! Upper-atmosphere configuration 
                                                                         ! with namelist settings
-    TYPE(t_upatmo_echam_phy),  INTENT(INOUT) :: upatmo_echam_phy_config ! Upper-atmosphere configuration for ECHAM
+    TYPE(t_upatmo_aes_phy),    INTENT(INOUT) :: upatmo_aes_phy_config   ! Upper-atmosphere configuration for AES
     TYPE(t_upatmo_nwp_phy),    INTENT(INOUT) :: upatmo_nwp_phy_config   ! Upper-atmosphere configuration for NWP
     REAL(wp),        OPTIONAL, INTENT(IN)    :: vct_a(:)                ! (nlev+1) Nominal heights of grid layer interfaces
 
@@ -358,7 +358,7 @@ CONTAINS !......................................................................
     !         Initialization with default values
     !-----------------------------------------------------
 
-    CALL init_upatmo_phy_config( upatmo_echam_phy_config = upatmo_echam_phy_config, & !inout
+    CALL init_upatmo_phy_config( upatmo_aes_phy_config   = upatmo_aes_phy_config,   & !inout
       &                          upatmo_nwp_phy_config   = upatmo_nwp_phy_config    ) !inout
 
     !-----------------------------------------------------
@@ -374,24 +374,24 @@ CONTAINS !......................................................................
 
     SELECT CASE(iforcing)
       
-    CASE(iecham)
+    CASE(iaes)
       
       !
       !*******************************************************************************
-      !                                ECHAM forcing
+      !                                AES forcing
       !
       !*******************************************************************************
 
       ! Should the input fields to the physics parameterizations 
       ! be modified for the deep atmosphere?      
       ! * Gravitational acceleration:
-      upatmo_echam_phy_config%l_constgrav = MERGE(lconstgrav, .TRUE., ldeepatmo2phys)       
+      upatmo_aes_phy_config%l_constgrav = MERGE(lconstgrav, .TRUE., ldeepatmo2phys)       
       ! * Metrics (concerns especially the cell volume):
-      upatmo_echam_phy_config%l_shallowatmo = MERGE(.NOT. ldeepatmo, .TRUE., ldeepatmo2phys)
+      upatmo_aes_phy_config%l_shallowatmo = MERGE(.NOT. ldeepatmo, .TRUE., ldeepatmo2phys)
 
       ! Extreme-ultraviolet heating requires psrad orbit parameters.
-      ! Only in case of ECHAM-forcing, we overwrite the default settings 
-      ! in 'src/namelists/mo_upatmo_nml' with potential namelist input to 'echam_rad_nml'.
+      ! Only in case of AES-forcing, we overwrite the default settings 
+      ! in 'src/namelists/mo_upatmo_nml' with potential namelist input to 'aes_rad_nml'.
       ! (In all other cases the input variables: 
       ! 'l_orbvsop87', 'cecc', 'cobld', 'clonp', 'lyr_perp' and 'yr_perp'
       ! might contain compiler-dependent default values and should not be used.) 
@@ -407,16 +407,16 @@ CONTAINS !......................................................................
 
         ! Currently, the end height, above which the processes 
         ! would compute no more tendencies, is always the domain top
-        upatmo_echam_phy_config%end_height( jprc ) = vct_a( 1 + nshift_total )
-        upatmo_echam_phy_config%istartlev( jprc )  = 1
+        upatmo_aes_phy_config%end_height( jprc ) = vct_a( 1 + nshift_total )
+        upatmo_aes_phy_config%istartlev( jprc )  = 1
 
         ! Start height, above which processes start to compute tendencies.
         ! (Do not use any namelist input for the start height in case of NLTE.)
-        CALL configure_start_height( start_height_nml = upatmo_phy_config%echam_start_height( jprc ), & !in
+        CALL configure_start_height( start_height_nml = upatmo_phy_config%aes_start_height( jprc ),   & !in
           &                          nlev             = nlev,                                         & !in
           &                          nshift_total     = nshift_total,                                 & !in
-          &                          start_height     = upatmo_echam_phy_config%start_height( jprc ), & !inout
-          &                          iendlev          = upatmo_echam_phy_config%iendlev( jprc ),      & !inout
+          &                          start_height     = upatmo_aes_phy_config%start_height( jprc ),   & !inout
+          &                          iendlev          = upatmo_aes_phy_config%iendlev( jprc ),        & !inout
           &                          vct_a            = vct_a,                                        & !(opt)in
           &                          opt_ldiscardnml  = jprc == iUpatmoPrcId%nlte                     ) !optin
 
@@ -424,11 +424,11 @@ CONTAINS !......................................................................
 
       ! Status changes:
       ! * Required?
-      upatmo_echam_phy_config%l_status(iUpatmoStat%required) = ldeepatmo
+      upatmo_aes_phy_config%l_status(iUpatmoStat%required) = ldeepatmo
       ! * Message output desired?
-      upatmo_echam_phy_config%l_status(iUpatmoStat%message)  = msg_level >= imsg_thr%high
+      upatmo_aes_phy_config%l_status(iUpatmoStat%message)  = msg_level >= imsg_thr%high
       ! * Timer monitoring desired?
-      upatmo_echam_phy_config%l_status(iUpatmoStat%timer)    = timers_level > itmr_thr%med
+      upatmo_aes_phy_config%l_status(iUpatmoStat%timer)    = timers_level > itmr_thr%med
 
     CASE(inwp)
       
@@ -802,7 +802,7 @@ CONTAINS !......................................................................
       !
       ! * Most of the settings below, are copied from 
       !   'src/configure_model/mo_atm_phy_nwp_config' 
-      !   and 'src/configure_model/mo_echam_phy_config',
+      !   and 'src/configure_model/mo_aes_phy_config',
       !   so please see there for any descriptions. 
       !
       ! * Due to the extreme complexity of the NWP-events 
@@ -816,7 +816,7 @@ CONTAINS !......................................................................
       !     to the event start time in the hope that 
       !     the physics tendencies would be computed as soon as 
       !     the model time exceeds the event start time
-      !   - It might be desirable to borrow the ECHAM-functionality of 
+      !   - It might be desirable to borrow the AES-functionality of 
       !     starting physics processes not right away at model start, 
       !     but possibly later on (e.g., if a simulation is initialized 
       !     with IFS-data, the model atmosphere needs some spin-up time 
@@ -869,7 +869,7 @@ CONTAINS !......................................................................
       !   For the update periods of the time interpolation of the external data 
       !   only one value can be set in the namelist, which applies to all domains.
       !
-      ! * To consider: the event management subroutines in 'mo_echam_phy_config', 
+      ! * To consider: the event management subroutines in 'mo_aes_phy_config', 
       !   'mo_atm_phy_nwp_config' and this one might be merged, 
       !   in order to reduce the code overhead and to facilitate maintenance.
 
@@ -1145,7 +1145,7 @@ CONTAINS !......................................................................
     
     ! Status changes:
     ! * Configured?
-    upatmo_echam_phy_config%l_status(iUpatmoStat%configured) = .TRUE.
+    upatmo_aes_phy_config%l_status(iUpatmoStat%configured)   = .TRUE.
     upatmo_nwp_phy_config%l_status(iUpatmoStat%configured)   = .TRUE.
     
   END SUBROUTINE configure_upatmo_physics
@@ -1155,11 +1155,11 @@ CONTAINS !......................................................................
   !>
   !! Initialize configuration types with default values.
   !!
-  SUBROUTINE init_upatmo_phy_config( upatmo_echam_phy_config, & !inout
+  SUBROUTINE init_upatmo_phy_config( upatmo_aes_phy_config,   & !inout
     &                                upatmo_nwp_phy_config    ) !inout
 
     ! In/out variables
-    TYPE(t_upatmo_echam_phy), INTENT(INOUT) :: upatmo_echam_phy_config ! Upper-atmosphere configuration for ECHAM
+    TYPE(t_upatmo_aes_phy),   INTENT(INOUT) :: upatmo_aes_phy_config   ! Upper-atmosphere configuration for AES
     TYPE(t_upatmo_nwp_phy),   INTENT(INOUT) :: upatmo_nwp_phy_config   ! Upper-atmosphere configuration for NWP
 
     ! Local variables
@@ -1180,37 +1180,37 @@ CONTAINS !......................................................................
 
     !
     !*******************************************************************************
-    !                                ECHAM forcing
+    !                                AES forcing
     !
     !*******************************************************************************
 
-    upatmo_echam_phy_config%l_constgrav   = .TRUE.  ! Constant gravitational acceleration
+    upatmo_aes_phy_config%l_constgrav   = .TRUE.    ! Constant gravitational acceleration
                                                     ! in physics interface 
-    upatmo_echam_phy_config%l_shallowatmo = .TRUE.  ! Shallow-atmosphere metrics in physics interface 
+    upatmo_aes_phy_config%l_shallowatmo = .TRUE.    ! Shallow-atmosphere metrics in physics interface 
                                                     ! in physics interface 
     ! Initialize the status switches, 
     ! but skip 'iUpatmoStat%checked', so as not to overwrite 
     ! its assignment in 'src/namelists/mo_upatmo_nml: check_upatmo'
-    CALL init_logical_1d( variable=upatmo_echam_phy_config%l_status,                        &
+    CALL init_logical_1d( variable=upatmo_aes_phy_config%l_status,                          &
       &                   value=.FALSE., opt_ilist=(/iUpatmoStat%checked/), opt_mask="list" )
 
     ! Start height, above which processes compute tendencies
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%srbc )     = startHeightDef%srbc
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%nlte )     = startHeightDef%nlte
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%euv )      = startHeightDef%euv
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%vdfmol )   = startHeightDef%vdfmol
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%fric )     = startHeightDef%fric
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%iondrag )  = startHeightDef%iondrag
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%joule )    = &  ! Joule heating gets same start height as ion drag
-      & upatmo_echam_phy_config%start_height( iUpatmoPrcId%iondrag )
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%no )       = startHeightDef%no
-    upatmo_echam_phy_config%start_height( iUpatmoPrcId%chemheat ) = startHeightDef%chemheat
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%srbc )     = startHeightDef%srbc
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%nlte )     = startHeightDef%nlte
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%euv )      = startHeightDef%euv
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%vdfmol )   = startHeightDef%vdfmol
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%fric )     = startHeightDef%fric
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%iondrag )  = startHeightDef%iondrag
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%joule )    = &  ! Joule heating gets same start height as ion drag
+      & upatmo_aes_phy_config%start_height( iUpatmoPrcId%iondrag )
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%no )       = startHeightDef%no
+    upatmo_aes_phy_config%start_height( iUpatmoPrcId%chemheat ) = startHeightDef%chemheat
     ! End height, below which processes compute tendencies,  
     ! and grid layer indices
     DO jprc = 1, iUpatmoPrcId%nitem
-      upatmo_echam_phy_config%end_height( jprc ) = -999._wp
-      upatmo_echam_phy_config%istartlev( jprc )  = 0
-      upatmo_echam_phy_config%iendlev( jprc )    = 0
+      upatmo_aes_phy_config%end_height( jprc ) = -999._wp
+      upatmo_aes_phy_config%istartlev( jprc )  = 0
+      upatmo_aes_phy_config%iendlev( jprc )    = 0
     ENDDO  !jprc    
     
     !
@@ -1846,19 +1846,19 @@ CONTAINS !......................................................................
     &                                     lupatmo_phy,             & !in
     &                                     msg_level,               & !in
     &                                     upatmo_phy_config,       & !in
-    &                                     upatmo_echam_phy_config, & !in
+    &                                     upatmo_aes_phy_config,   & !in
     &                                     upatmo_nwp_phy_config    ) !inout
 
     ! In/out variables
     INTEGER,                   INTENT(IN)    :: jg                      ! Domain index
     INTEGER,                   INTENT(IN)    :: n_dom                   ! Number of domains
-    INTEGER,                   INTENT(IN)    :: iforcing                ! Switch for physics package (nwp, echam etc.)
+    INTEGER,                   INTENT(IN)    :: iforcing                ! Switch for physics package (nwp, aes etc.)
     LOGICAL,                   INTENT(IN)    :: lrestart                ! Switch for restart mode
     LOGICAL,                   INTENT(IN)    :: lupatmo_phy             ! Switch for upper-atmosphere physics (NWP)
     INTEGER,                   INTENT(IN)    :: msg_level               ! Message level
     TYPE(t_upatmo_phy_config), INTENT(IN)    :: upatmo_phy_config       ! Upper-atmosphere configuration 
                                                                         ! with namelist settings
-    TYPE(t_upatmo_echam_phy),  INTENT(IN)    :: upatmo_echam_phy_config ! Upper-atmosphere configuration for ECHAM
+    TYPE(t_upatmo_aes_phy),    INTENT(IN)    :: upatmo_aes_phy_config   ! Upper-atmosphere configuration for AES
     TYPE(t_upatmo_nwp_phy),    INTENT(INOUT) :: upatmo_nwp_phy_config   ! Upper-atmosphere configuration for NWP
 
     ! Local variables
@@ -1887,11 +1887,11 @@ CONTAINS !......................................................................
       
       SELECT CASE(iforcing)
         
-      CASE(iecham)
+      CASE(iaes)
         
         !
         !*******************************************************************************
-        !                                ECHAM forcing
+        !                                AES forcing
         !
         !*******************************************************************************
         
@@ -1954,44 +1954,44 @@ CONTAINS !......................................................................
 
           SELECT CASE(iforcing)
             
-          CASE(iecham)
+          CASE(iaes)
             
             !
             !*******************************************************************************
-            !                                ECHAM forcing
+            !                                AES forcing
             !
             !*******************************************************************************
 
-            IF (upatmo_echam_phy_config%l_status( iUpatmoStat%required )) THEN
-              msg_prefix = 'upatmo_config('//cjg(cjgadj:)//')%echam_phy%'
+            IF (upatmo_aes_phy_config%l_status( iUpatmoStat%required )) THEN
+              msg_prefix = 'upatmo_config('//cjg(cjgadj:)//')%aes_phy%'
               tlen = LEN_TRIM(msg_prefix)
               !
               WRITE (message_text, '(2a,l7)') msg_prefix(:tlen), 'l_constgrav: ', &
-                & upatmo_echam_phy_config%l_constgrav
+                & upatmo_aes_phy_config%l_constgrav
               CALL message(routine, message_text)
               !
               WRITE (message_text, '(2a,l7)') msg_prefix(:tlen), 'l_shallowatmo: ', &
-                & upatmo_echam_phy_config%l_shallowatmo
+                & upatmo_aes_phy_config%l_shallowatmo
               CALL message(routine, message_text)
             ENDIF
 
-            IF (jg == 1 .AND. upatmo_echam_phy_config%l_enabled) THEN
+            IF (jg == 1 .AND. upatmo_aes_phy_config%l_enabled) THEN
               ! (For the time being, we take the configuration for NWP, 
-              ! where a corresponding configuration for ECHAM is not yet implemented)
+              ! where a corresponding configuration for AES is not yet implemented)
               CALL message(routine, 'Info on processes:')
               DO jprc = 1, iUpatmoPrcId%nitem
                 message_text = '* '//TRIM(upatmo_nwp_phy_config%prc( jprc )%longname) &
                   & // ' (start height = ' &
-                  & //TRIM(ADJUSTL(real2string(upatmo_echam_phy_config%start_height( jprc ), opt_fmt='(F20.1)')))//' m'
+                  & //TRIM(ADJUSTL(real2string(upatmo_aes_phy_config%start_height( jprc ), opt_fmt='(F20.1)')))//' m'
                 tlen = LEN_TRIM(message_text)
-                IF (upatmo_echam_phy_config%iendlev( jprc ) > 0) THEN
+                IF (upatmo_aes_phy_config%iendlev( jprc ) > 0) THEN
                   message_text(tlen+1:) = ')'
                 ELSE
                   message_text(tlen+1:) = ', => switched off effectively!)'
                 ENDIF
                 CALL message(' ', message_text, adjust_right=.TRUE.)
               ENDDO  !jprc
-            ENDIF  !IF (jg == 1 .AND. upatmo_echam_phy_config%l_enabled)
+            ENDIF  !IF (jg == 1 .AND. upatmo_aes_phy_config%l_enabled)
             
           CASE(inwp)
 

@@ -34,12 +34,12 @@ MODULE mo_rte_rrtmgp_interface
   USE mo_timer,                      ONLY: ltimer, timer_start, timer_stop, &
    &                                       timer_lrtm, timer_srtm
   USE mo_radiation_config,           ONLY: lrad_aero_diag
-  USE mo_echam_rad_config,           ONLY: echam_rad_config
+  USE mo_aes_rad_config,             ONLY: aes_rad_config
   USE mtime,                         ONLY: datetime
 
 
 #ifdef RRTMGP_MERGE_DEBUG
-  USE mo_rte_rrtmgp_merge_debug, ONLY: write_record_interface_echam
+  USE mo_rte_rrtmgp_merge_debug, ONLY: write_record_interface_aes
 #endif
 
 ! These need to be sent once in the init phae from the atmo to the ps_rad
@@ -334,7 +334,7 @@ CONTAINS
     !
     ! --------------------------------------------------------------------------
     ! Set flag for the optional computation of clear-sky fluxes
-    lclearsky     = echam_rad_config(jg)%lclearsky
+    lclearsky     = aes_rad_config(jg)%lclearsky
     ! --------------------------------------------------------------------------
     !
     !
@@ -342,7 +342,7 @@ CONTAINS
     !
     ncol_supplied = size(pcos_mu0) ! baustelle - this should be = nproma?
     ncol_needed   = jce-jcs+1
-    ncol_chunk    = echam_rad_config(jg)%rrtmgp_columns_chunk
+    ncol_chunk    = aes_rad_config(jg)%rrtmgp_columns_chunk
     !
     ! RTE+RRTMGP process all columns supplied and assume a starting index of 1.
     !   If these conditions are satisfied we can call the interface directly...
@@ -1249,7 +1249,7 @@ CONTAINS
 
 #ifdef RRTMGP_MERGE_DEBUG
 !$OMP CRITICAL (write_record)
-    CALL write_record_interface_echam(nproma, pcos_mu0, daylght_frc, &
+    CALL write_record_interface_aes(nproma, pcos_mu0, daylght_frc, &
       rnseeds1, rnseeds2, alb_vis_dir, alb_nir_dir, alb_vis_dif, alb_nir_dif, &
       tk_sfc, zf, zh, dz, pp_fl, pp_hl, tk_fl, tk_hl, &
       play, plev, tlay, tlev, &

@@ -19,7 +19,7 @@ MODULE mo_tropopause
 
   USE mo_kind,               ONLY: wp
   USE mo_physical_constants, ONLY: rd, cpd, g=>grav
-  USE mo_echam_wmo_config,   ONLY: echam_wmo_config
+  USE mo_aes_wmo_config,     ONLY: aes_wmo_config
 
   IMPLICIT NONE
   PRIVATE
@@ -114,13 +114,13 @@ CONTAINS
     IF (PRESENT(iplimb_in)) THEN
       iplimb = iplimb_in
     ELSE
-      iplimb = echam_wmo_config(jg)%jkewmo
+      iplimb = aes_wmo_config(jg)%jkewmo
     END IF
 
     IF (PRESENT(iplimt_in)) THEN
       iplimt = iplimt_in
     ELSE
-      iplimt = echam_wmo_config(jg)%jkswmo+2
+      iplimt = aes_wmo_config(jg)%jkswmo+2
     END IF
 
     !$ACC DATA PRESENT( ptm1, papm1, ptropo ) &

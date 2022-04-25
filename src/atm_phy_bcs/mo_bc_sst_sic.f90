@@ -106,7 +106,7 @@ CONTAINS
     ENDIF
 
     IF (n_dom > 1) THEN
-      WRITE(fn, '(a,i2.2)') 'bc_sst_DOM', jg, '.nc'
+      WRITE(fn, '(a,i2.2,a)') 'bc_sst_DOM', jg, '.nc'
     ELSE
       fn = 'bc_sst.nc'
     END IF
@@ -121,7 +121,7 @@ CONTAINS
     CALL read_sst_sic_data(p_patch, ext_sea(jg)%sst, TRIM(fn), year)
 
     IF (n_dom > 1) THEN
-      WRITE(fn, '(a,i2.2)') 'bc_sic_DOM', jg, '.nc'
+      WRITE(fn, '(a,i2.2,a)') 'bc_sic_DOM', jg, '.nc'
     ELSE
       fn = 'bc_sic.nc'
     END IF

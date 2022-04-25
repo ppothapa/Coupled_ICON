@@ -159,7 +159,6 @@ cat > ${atm_namelist} << EOF
  ltestcase        = .FALSE.     ! run testcase
  ldynamics        = .TRUE.      ! dynamics
  ltransport       = .TRUE.      ! transport
- ntracer          = 3           ! number of tracers; 3: hus, clw, cli; 4: hus, clw, cli, o3
  iforcing         = 2           ! 0: none, 1: HS, 2: ECHAM, 3: NWP
  output           = 'nml'
  msg_level        = 12          ! level of details report during integration 
@@ -196,67 +195,56 @@ cat > ${atm_namelist} << EOF
 &diffusion_nml
 /
 &transport_nml
- tracer_names     = 'hus','clw','cli'
- ivadv_tracer     =     3,    3,    3
- itype_hlimit     =     3,    4,    4
- ihadv_tracer     =    52,    2,    2
+ tracer_names     = 'hus','clw','cli','qr','qs','qg'
+ ivadv_tracer     =    3 ,   3 ,   3 ,  3 ,  3 ,  3
+ itype_hlimit     =    3 ,   4 ,   4 ,  4 ,  4 ,  4
+ ihadv_tracer     =   52 ,   2 ,   2 ,  2 ,  2 ,  2
 /
-&echam_phy_nml
+&aes_phy_nml
 !
 ! domain 1
 ! --------
 !
 ! atmospheric phyiscs (""=never)
- echam_phy_config(1)%dt_rad = "${radTimeStep}"
- echam_phy_config(1)%dt_vdf = "${atmTimeStep}"
- echam_phy_config(1)%dt_cnv = "${atmTimeStep}"
- echam_phy_config(1)%dt_cld = "${atmTimeStep}"
- echam_phy_config(1)%dt_gwd = "${atmTimeStep}"
- echam_phy_config(1)%dt_sso = "${atmTimeStep}"
-!
-! atmospheric chemistry (""=never)
- echam_phy_config(1)%dt_mox = "${atmTimeStep}"
- echam_phy_config(1)%dt_car = ""
- echam_phy_config(1)%dt_art = ""
+ aes_phy_config(1)%dt_rad = "${radTimeStep}"
+ aes_phy_config(1)%dt_vdf = "${atmTimeStep}"
+ aes_phy_config(1)%dt_mig = "${atmTimeStep}"
 !
 ! surface (.TRUE. or .FALSE.)
- echam_phy_config(1)%ljsb   = .TRUE.
- echam_phy_config(1)%lamip  = .TRUE.
- echam_phy_config(1)%lice   = .TRUE.
- echam_phy_config(1)%lmlo   = .FALSE.
- echam_phy_config(1)%llake  = ${llake}
+ aes_phy_config(1)%ljsb   = .TRUE.
+ aes_phy_config(1)%lamip  = .TRUE.
+ aes_phy_config(1)%lice   = .TRUE.
+ aes_phy_config(1)%lmlo   = .FALSE.
+ aes_phy_config(1)%llake  = ${llake}
 !
 ! fix negative humidity
- echam_phy_config(1)%iqneg_d2p = 0
- echam_phy_config(1)%iqneg_p2d = 0
+ aes_phy_config(1)%iqneg_d2p = 0
+ aes_phy_config(1)%iqneg_p2d = 0
 /
-&echam_rad_nml
+&aes_rad_nml
 !
 ! domain 1
 ! --------
 !
- echam_rad_config(1)%isolrad    =  1
- echam_rad_config(1)%irad_h2o   =  1
- echam_rad_config(1)%irad_co2   =  3
- echam_rad_config(1)%irad_ch4   = 13
- echam_rad_config(1)%irad_n2o   = 13
- echam_rad_config(1)%irad_o3    =  5
- echam_rad_config(1)%irad_o2    =  2
- echam_rad_config(1)%irad_cfc11 =  3
- echam_rad_config(1)%irad_cfc12 =  3
- echam_rad_config(1)%irad_aero  =  0
+ aes_rad_config(1)%isolrad    =  1
+ aes_rad_config(1)%irad_h2o   =  1
+ aes_rad_config(1)%irad_co2   =  3
+ aes_rad_config(1)%irad_ch4   = 13
+ aes_rad_config(1)%irad_n2o   = 13
+ aes_rad_config(1)%irad_o3    =  5
+ aes_rad_config(1)%irad_o2    =  2
+ aes_rad_config(1)%irad_cfc11 =  3
+ aes_rad_config(1)%irad_cfc12 =  3
+ aes_rad_config(1)%irad_aero  =  0
 /
-&echam_gwd_nml
+&aes_vdf_nml
 /
-&echam_sso_nml
+&cloud_mig_nml
+ cloud_mig_config(1)%mu_rain        = 0.5
+ cloud_mig_config(1)%rain_n0_factor = 0.1
+ cloud_mig_config(1)%v0snow         = 25.
 /
-&echam_vdf_nml
-/
-&echam_cnv_nml
-/
-&echam_cld_nml
-/
-&echam_cov_nml
+&aes_cov_nml
 /
 &sea_ice_nml
 /
@@ -526,8 +514,7 @@ if [[ "$output_atm_3d" == "yes" ]]; then
                     'rho'     , 'ta'      ,
                     'ua'      , 'va'      , 'wap'     ,
                     'hus'     , 'clw'     , 'cli'     ,
-                    'hur'     , 'cl'      ,
-!                    'qo3_phy' ,
+                    'cl'      ,
 /
 EOF
 fi
@@ -559,14 +546,12 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'sic'     , 'sit'     ,
                     'albedo'  ,
                     'clt'     ,
-                    'prlr'    , 'prls'    , 'prcr'    , 'prcs'    ,
+                    'prlr'    , 'prls'    ,
                     'pr'      , 'prw'     , 'cllvi'   , 'clivi'   ,
                     'hfls'    , 'hfss'    , 'evspsbl' ,
                     'tauu'    , 'tauv'    ,
-                    'tauu_sso', 'tauv_sso', 'diss_sso',
                     'sfcwind' , 'uas'     , 'vas'     ,
                     'tas'     , 'dew2'    ,
-                    'ptp'
 /
 EOF
 fi
@@ -589,16 +574,13 @@ if [[ "$output_phy_3d" == "yes" ]]; then
  include_last     = .FALSE.
  ml_varlist       = 'ps'           , 'pfull'        ,
                     'tend_ta_phy'  ,
-                    'tend_ta_vdf'  , 'tend_ta_gwd'  , 'tend_ta_sso'  ,
-                    'tend_ta_cnv'  , 'tend_ta_cld'  , 
+                    'tend_ta_vdf'  ,
                     'tend_ua_phy'  ,
-                    'tend_ua_vdf'  , 'tend_ua_gwd'  , 'tend_ua_sso'  ,
-                    'tend_ua_cnv'  ,
+                    'tend_ua_vdf'  ,
                     'tend_va_phy'  ,
-                    'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
-                    'tend_va_cnv'  ,
+                    'tend_va_vdf'  ,
                     'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf'
+                    'tend_qhus_vdf'
 /
 EOF
 fi

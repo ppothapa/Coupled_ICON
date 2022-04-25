@@ -352,8 +352,8 @@ CONTAINS
 
     USE mo_gribout_nml,           ONLY: read_gribout_namelist
 
-    USE mo_echam_phy_nml,         ONLY: process_echam_phy_nml
-    USE mo_echam_rad_nml,         ONLY: process_echam_rad_nml
+    USE mo_aes_phy_nml,           ONLY: process_aes_phy_nml
+    USE mo_aes_rad_nml,           ONLY: process_aes_rad_nml
 
     CHARACTER(LEN=*), INTENT(in) :: jsb_namelist_filename
     CHARACTER(LEN=*), INTENT(in) :: shr_namelist_filename
@@ -386,8 +386,8 @@ CONTAINS
     ! GRIB output
     CALL read_gribout_namelist           (jsb_namelist_filename)
 
-    CALL process_echam_phy_nml           (jsb_namelist_filename)
-    CALL process_echam_rad_nml           (jsb_namelist_filename)
+    CALL process_aes_phy_nml             (jsb_namelist_filename)
+    CALL process_aes_rad_nml             (jsb_namelist_filename)
 
   END SUBROUTINE read_infrastructure_namelists_for_jsbach
 
@@ -425,7 +425,7 @@ MODULE mo_jsb_time_iface
   USE mo_dynamics_config,        ONLY: iequations
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,              &
     &                                  calculate_time_interpolation_weights
-  USE mo_echam_phy_config,       ONLY: echam_phy_tc, dt_zero
+  USE mo_aes_phy_config,         ONLY: aes_phy_tc, dt_zero
   USE mo_run_config,             ONLY: l_timer_host => ltimer
 
   IMPLICIT NONE
@@ -475,13 +475,24 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':get_time_dt'
 
+    ztime = -1._wp
+
     reference_datetime => newDatetime("1979-01-01T00:00:00.000") ! 1980-06-01T00:00:00.000
-    ztime = REAL(getTotalSecondsTimeDelta(echam_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+
+    ! First try to get time step from the vertical diffusion config in a coupled experiment
+
+    ztime = REAL(getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+
+    IF (ztime <= 0._wp) THEN
+      ! This should only happen for an ICON-Land standalone experiment;
+      ! Use "modeltimestep" from run_nml in this case (same for all model_id's!)
+      ztime = REAL(getTotalSecondsTimeDelta(time_config%tc_dt_model, reference_datetime), wp)
+    END IF
 
     CALL deallocateDatetime(reference_datetime)
 
     IF (ztime <= 0.0_wp) &
-      CALL finish(routine, 'time step not configured yet.')
+      CALL finish(routine, 'Couldn"t get model time step.')
 
     get_time_dt = ztime
 
@@ -604,13 +615,13 @@ CONTAINS
 
     datetime_next => get_time_next(current, dt)
 
-    IF (echam_phy_tc(model_id)%dt_rad > dt_zero) THEN
-      dt_rad = getTotalSecondsTimeDelta(echam_phy_tc(model_id)%dt_rad, datetime_next)
+    IF (aes_phy_tc(model_id)%dt_rad > dt_zero) THEN
+      dt_rad = getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_rad, datetime_next)
       ltrig_rad_m1 = MOD(getNoOfSecondsElapsedInDayDateTime(datetime_next), dt_rad) == 0
       ! Why doesn't this work? It somehow messes up the radiation calculation time step.
-      ! ltrig_rad_m1 = isCurrentEventActive(echam_phy_tc(model_id)%ev_rad, datetime_next)
-      luse_rad  = (echam_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
-        &         (echam_phy_tc(model_id)%ed_rad >  datetime_next)
+      ! ltrig_rad_m1 = isCurrentEventActive(aes_phy_tc(model_id)%ev_rad, datetime_next)
+      luse_rad  = (aes_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
+        &         (aes_phy_tc(model_id)%ed_rad >  datetime_next)
       ltrig_rad_m1 = ltrig_rad_m1 .AND. luse_rad
     ELSE
       ltrig_rad_m1 = .TRUE.
@@ -815,7 +826,7 @@ MODULE mo_jsb_io_iface
             Create_zaxis, cdiDefMissval, read_jsb_io_namelist
             ! Create_zaxis, Destroy_zaxis, cdiDefMissval
 
-  ! The following needs to be defined but is only used with jsbach/echam
+  ! The following needs to be defined but is only used with jsbach/aes
   PUBLIC :: ldebugio
   LOGICAL :: ldebugio = .FALSE.
 
@@ -835,11 +846,11 @@ CONTAINS
 
   END FUNCTION Get_netcdf_precision
 
-  SUBROUTINE Create_zaxis(ZaxisID, echamZaxisIdx, cdi_axis_type, length, name, &
+  SUBROUTINE Create_zaxis(ZaxisID, aesZaxisIdx, cdi_axis_type, length, name, &
     & levels, units, longname, lbounds, ubounds)
 
     INTEGER,           INTENT(out)   :: ZaxisID
-    INTEGER,           INTENT(out)   :: echamZaxisIdx
+    INTEGER,           INTENT(out)   :: aesZaxisIdx
     INTEGER,           INTENT(in)    :: cdi_axis_type
     INTEGER,           INTENT(in)    :: length
     CHARACTER(len=*),  INTENT(in)    :: name
@@ -860,7 +871,7 @@ CONTAINS
       IF (LEN(longname) > 1) CONTINUE
     END IF
 
-    echamZaxisIdx = -1
+    aesZaxisIdx = -1
 
     IF (TRIM(name) == 'surface') THEN
       ZaxisID = ZA_SURFACE
@@ -1697,6 +1708,32 @@ MODULE mo_physical_constants_iface
   REAL(wp), PARAMETER :: tpfac3 = 1._wp - tpfac2
 
 END MODULE mo_physical_constants_iface
+
+!! ==============================================================================================================================
+!>
+!! @brief Contains interfaces to ICON convect_tables
+!!
+!! @author
+!!  Reiner Schnur, MPI-M Hamburg
+!!
+!! @par Revision History
+!! First version                                 by Reiner Schnur (2022-03-07)
+!!
+MODULE mo_jsb_convect_tables_iface
+
+  USE mo_kind,                 ONLY: wp
+  USE mo_aes_convect_tables,   ONLY: init_convect_tables, tlucua, jptlucu1, jptlucu2
+
+  IMPLICIT NONE
+  PRIVATE
+
+  PUBLIC :: init_convect_tables, tlucua, jptlucu1, jptlucu2
+
+  CHARACTER(len=*), PARAMETER :: modname = 'mo_jsb_convect_tables_iface'
+
+! CONTAINS
+
+END MODULE mo_jsb_convect_tables_iface
 
 !! ==============================================================================================================================
 #else

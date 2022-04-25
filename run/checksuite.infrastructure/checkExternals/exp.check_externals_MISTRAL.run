@@ -23,6 +23,24 @@ ulimit -s unlimited
 thisdir=$(pwd)
 basedir=${thisdir%/*}
 
+icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
+
+# Prepare RTE-RRTMGP data:
+rte_data_rootFolder="${icon_data_rootFolder}/buildbot_data/rte-rrtmgp"
+rte_data_id='d2d7cca551'
+
+rte_builddir="${basedir}/externals/rte-rrtmgp"
+if [[ -f "${rte_builddir}/config.status" ]] ; then
+  rte_data_folder="${rte_data_rootFolder}/${rte_data_id}"
+
+  if [[ -d "${rte_data_folder}" ]] ; then
+    ln -s "${rte_data_folder}" "${rte_builddir}/.testcache"
+  else
+    # Most probably, the compute node will attempt to download the data and fail
+    echo "WARNING: directory '${rte_data_folder}' with RTE-RRTMGP test data does not exist" >&2
+  fi
+fi
+
 # Run 'make check' and save its exit code:
 exitcode=0
 make -C "${basedir}" check || exitcode=$?

@@ -117,7 +117,7 @@ MODULE mo_upatmo_nml
 
   ! Start heights, above which physical processes compute tendencies in case of ECHAM-physics
 
-  TYPE t_echam_start_height_nml
+  TYPE t_aes_start_height_nml
     REAL(wp) :: all       ! For all processes
     ! 
     REAL(wp) :: rad       ! For processes of the group RAD (-> SRBC, EUV, NO, CHEMHEAT)
@@ -131,9 +131,9 @@ MODULE mo_upatmo_nml
     REAL(wp) :: iondrag   ! For ion drag / Joule heating
     REAL(wp) :: vdfmol    ! For molecular diffusion
     REAL(wp) :: fric      ! For frictional heating    
-  END TYPE t_echam_start_height_nml
+  END TYPE t_aes_start_height_nml
 
-  TYPE(t_echam_start_height_nml) :: echam_start_height
+  TYPE(t_aes_start_height_nml) :: aes_start_height
 
   ! Auxiliary parameters for evaluation of start heights
   INTEGER, PARAMETER :: iNonNegVal = 1
@@ -141,7 +141,7 @@ MODULE mo_upatmo_nml
   !--------------------------------
 
   ! Control type for the groups in which the single upper-atmosphere physics processes are clustered, 
-  ! following the example set by 'src/configre_model/mo_echam_phy_config' (only required for NWP-physics)  
+  ! following the example set by 'src/configre_model/mo_aes_phy_config' (only required for NWP-physics)  
   ! (Unfortunately, the compilers seem to be unable to cope with string arrays in derived types 
   ! dedicated for the namelist read-in, so for the time being start and end time apply to all domains.)
 
@@ -160,7 +160,7 @@ MODULE mo_upatmo_nml
 
   ! Namelist input required for the radiatively active gases following 
   ! * src/configure_model/mo_radiation_config
-  ! * src/configure_model/mo_echam_rad_config
+  ! * src/configure_model/mo_aes_rad_config
   ! Please note that the upper-atmosphere settings here are independent from the settings there!
   ! NWP physics and upper-atmosphere physics work with different gas climatologies.  
   ! A harmonization is not straightforward and postponed to the future. 
@@ -169,7 +169,7 @@ MODULE mo_upatmo_nml
   TYPE t_nwp_gas_nml
     INTEGER  :: imode    ! Gas mode (corresponds to 'irad' in 'mo_radiation_config')
     REAL(wp) :: vmr      ! Volume mixing ratio ((m3/m3), should be equal to mole fraction (mol/mol))
-    REAL(wp) :: fscale   ! scaling factor for mixing ratio ('frad_<gas>' in 'mo_echam_rad_config')
+    REAL(wp) :: fscale   ! scaling factor for mixing ratio ('frad_<gas>' in 'mo_aes_rad_config')
   END TYPE t_nwp_gas_nml
 
   TYPE(t_nwp_gas_nml) :: nwp_gas_o3  ! Ozone
@@ -220,7 +220,7 @@ MODULE mo_upatmo_nml
     &                   solvar_type,            &
     &                   solvar_data,            &
     &                   solcyc_type,            &
-    &                   echam_start_height,     &
+    &                   aes_start_height,       &
     &                   nwp_grp_imf,            &
     &                   nwp_grp_rad,            &
     &                   nwp_gas_o3,             &
@@ -320,7 +320,7 @@ CONTAINS !......................................................................
     solvar_data  = isolvardat%lean  ! 2 -> J. Lean data
     solcyc_type  = icycle%day27     ! 2 -> 27-day cycle
     ! NO namelist input:
-    cecc         = 0.016715_wp      ! Default from 'src/configure_model/mo_echam_rad_config: init_echam_rad_config'
+    cecc         = 0.016715_wp      ! Default from 'src/configure_model/mo_aes_rad_config: init_aes_rad_config'
     cobld        = 23.44100_wp      ! --,,--
     clonp        = 282.7000_wp      ! --,,--
     lyr_perp     = .FALSE.          ! --,,--
@@ -336,20 +336,20 @@ CONTAINS !......................................................................
     ! Negative values mean that the default start heights, set in
     ! 'src/upper_atmosphere/mo_upatmo_phy_config: init_upatmo_phy_config'
     ! will be used
-    echam_start_height%all      = -999._wp  ! (m) For all processes
+    aes_start_height%all      = -999._wp  ! (m) For all processes
     !
-    echam_start_height%rad      = -999._wp  ! (m) For processes of the group RAD 
+    aes_start_height%rad      = -999._wp  ! (m) For processes of the group RAD 
                                             ! (-> SRBC, EUV, NO, CHEMHEAT)
-    echam_start_height%imf      = -999._wp  ! (m) For processes of the group IMF 
+    aes_start_height%imf      = -999._wp  ! (m) For processes of the group IMF 
                                             ! (-> IONDRAG, VDFMOL, FRIC, JOULE-HEATING)    
     ! For each process separately:
-    echam_start_height%srbc     = -999._wp  ! (m) Heating due to Schumann-Runge bands and continuum of O2
-    echam_start_height%euv      = -999._wp  ! (m) Extreme-ultraviolet heating
-    echam_start_height%no       = -999._wp  ! (m) Near-infrared heating by NO
-    echam_start_height%chemheat = -999._wp  ! (m) Chemical heating
-    echam_start_height%iondrag  = -999._wp  ! (m) Ion drag / Joule heating
-    echam_start_height%vdfmol   = -999._wp  ! (m) Molecular diffusion
-    echam_start_height%fric     = -999._wp  ! (m) Frictional heating    
+    aes_start_height%srbc     = -999._wp  ! (m) Heating due to Schumann-Runge bands and continuum of O2
+    aes_start_height%euv      = -999._wp  ! (m) Extreme-ultraviolet heating
+    aes_start_height%no       = -999._wp  ! (m) Near-infrared heating by NO
+    aes_start_height%chemheat = -999._wp  ! (m) Chemical heating
+    aes_start_height%iondrag  = -999._wp  ! (m) Ion drag / Joule heating
+    aes_start_height%vdfmol   = -999._wp  ! (m) Molecular diffusion
+    aes_start_height%fric     = -999._wp  ! (m) Frictional heating    
 
     ! NWP-specific settings:
 
@@ -708,42 +708,42 @@ CONTAINS !......................................................................
       !
       ! ECHAM-specific:
       !
-      startheightall = echam_start_height%all  ! }
-      startheightimf = echam_start_height%imf  ! } Just for convenience
-      startheightrad = echam_start_height%rad  ! }
+      startheightall = aes_start_height%all  ! }
+      startheightimf = aes_start_height%imf  ! } Just for convenience
+      startheightrad = aes_start_height%rad  ! }
       ! -----------------------
       ! Processes of group: IMF
       ! -----------------------
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%vdfmol )  =       & 
-        & eval_start_height( start_height_process = echam_start_height%vdfmol, &
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%vdfmol )    =       & 
+        & eval_start_height( start_height_process = aes_start_height%vdfmol,   &
         &                    start_height_group   = startheightimf,            &
         &                    start_height_all     = startheightall,            &
         &                    detect_entry_by      = iNonNegVal                 )
       !
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%fric )    =       & 
-        & eval_start_height(echam_start_height%fric, startheightimf, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%fric )    =         &
+        & eval_start_height(aes_start_height%fric, startheightimf, startheightall, iNonNegVal)
       !
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%iondrag ) =       & 
-        & eval_start_height(echam_start_height%iondrag, startheightimf, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%iondrag ) =         &
+        & eval_start_height(aes_start_height%iondrag, startheightimf, startheightall, iNonNegVal)
       ! Joule heating gets same start height as ion drag
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%joule )   =       & 
-        & upatmo_phy_config(jg)%echam_start_height(iUpatmoPrcId%iondrag)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%joule )   =         &
+        & upatmo_phy_config(jg)%aes_start_height(iUpatmoPrcId%iondrag)
       ! -----------------------
       ! Processes of group: RAD
       ! -----------------------
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%srbc )     =  & 
-        & eval_start_height(echam_start_height%srbc, startheightrad, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%srbc )     =  & 
+        & eval_start_height(aes_start_height%srbc, startheightrad, startheightall, iNonNegVal)
       !
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%euv )      =  & 
-        & eval_start_height(echam_start_height%euv, startheightrad, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%euv )      =  & 
+        & eval_start_height(aes_start_height%euv, startheightrad, startheightall, iNonNegVal)
       !
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%no )       =  & 
-        & eval_start_height(echam_start_height%no, startheightrad, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%no )       =  & 
+        & eval_start_height(aes_start_height%no, startheightrad, startheightall, iNonNegVal)
       !
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%chemheat ) =  & 
-        & eval_start_height(echam_start_height%chemheat, startheightrad, startheightall, iNonNegVal)
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%chemheat ) =  & 
+        & eval_start_height(aes_start_height%chemheat, startheightrad, startheightall, iNonNegVal)
       ! NLTE is not modifiable with regard to the start height
-      upatmo_phy_config(jg)%echam_start_height( iUpatmoPrcId%nlte )     = -999._wp
+      upatmo_phy_config(jg)%aes_start_height( iUpatmoPrcId%nlte )     = -999._wp
       !
       ! NWP-specific:
       !

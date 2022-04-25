@@ -41,7 +41,7 @@ MODULE mo_initicon_utils
                                     MODE_IAU_OLD, MODE_IFSANA, MODE_COMBINED,           &
     &                               MODE_COSMO, MODE_ICONVREMAP, MODIS,                 &
     &                               min_rlcell_int, grf_bdywidth_c, min_rlcell,         &
-    &                               iss, iorg, ibc, iso4, idu, SUCCESS, iecham
+    &                               iss, iorg, ibc, iso4, idu, SUCCESS, iaes
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_radiation_config,    ONLY: albedo_type
   USE mo_physical_constants,  ONLY: tf_salt, tmelt
@@ -57,7 +57,7 @@ MODULE mo_initicon_utils
     &                               l2lay_rho_snow, lprog_albsi
   USE mo_nwp_sfc_utils,       ONLY: init_snowtile_lists
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-  USE mo_echam_phy_config,    ONLY: echam_phy_config
+  USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml
   USE mo_physical_constants,  ONLY: cpd, rd, cvd_o_rd, p0ref, vtmpc1
@@ -699,7 +699,7 @@ MODULE mo_initicon_utils
             IF ( (atm_phy_nwp_config(jg)%lhave_graupel) .OR. ( iqg /= 0 .AND. iqg <= ntracer) ) THEN
               p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqg) = 0.0_wp
             END IF
-            IF ( atm_phy_nwp_config(jg)%l2moment .OR. echam_phy_config(jg)%l2moment) THEN
+            IF ( atm_phy_nwp_config(jg)%l2moment .OR. aes_phy_config(jg)%l2moment) THEN
               p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqh)  = 0.0_wp
               p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqnc) = 0.0_wp
               p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqni) = 0.0_wp
@@ -711,7 +711,7 @@ MODULE mo_initicon_utils
           ENDDO
         ENDDO
         !
-        IF (iforcing == iecham) THEN
+        IF (iforcing == iaes) THEN
           ! at and below kstart_moist(jg): copy from initicon%atm or set to zero
           ! HAS TO BE CHECKED for possibility to initialize
           DO jk = kstart_moist(jg), nlev
@@ -728,7 +728,7 @@ MODULE mo_initicon_utils
                 ! as qg is not in atm initialize with zero
                 p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqg) = 0.0_wp
               END IF
-              IF ( echam_phy_config(jg)%l2moment) THEN
+              IF ( aes_phy_config(jg)%l2moment) THEN
                 p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqh)  = 0.0_wp
                 p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqnc) = 0.0_wp
                 p_nh_state(jg)%prog(ntlr)%tracer(jc,jk,jb,iqni) = 0.0_wp

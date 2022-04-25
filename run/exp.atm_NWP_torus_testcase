@@ -122,14 +122,6 @@ cat > ${atmo_namelist} << EOF
  ape_sst_case     = 'sst_const'
  ape_sst_val      = 24.85
  tpe_temp         = 298.00
-! temp_case        = 'prescr'    ! Select bubble case (const = default case)
-! temp_case        = 'blob'      ! Select bubble case (const = default case)
-! lapse_r          = 0.0098      ! Atmospheric lapse rate
-! bubctr_z         = 50.         ! Height of the moisture bubble [m]
-! tpe_mu           = 0.          ! Max Temperature Perturbation of the bubble [K]
-! temp_fwhm_frac   = 0.25        ! Width of the bubble at FWHM as a frac. of damain length
-! bub_ver_width    = 250.        ! Vertical extent of the moisture bubble [m]
-! torus_domain_length = $(echo "$edge_length $num_columns" |awk '{printf("%.1f", $1 * $2)}')
  tpe_psfc         = 1013.25e2
  w_perturb        = 0.1         ! m/s, default=0.05
  th_perturb       = 0.3         ! K, default=0.2

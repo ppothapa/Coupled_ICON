@@ -46,7 +46,7 @@ MODULE mo_nh_diffusion
   USE mo_parallel_config,     ONLY: nproma, cpu_min_nproma
   USE mo_run_config,          ONLY: ltimer, iforcing, lvert_nest
   USE mo_loopindices,         ONLY: get_indices_e, get_indices_c
-  USE mo_impl_constants    ,  ONLY: min_rledge_int, min_rlcell_int, min_rlvert_int, inwp, iecham
+  USE mo_impl_constants    ,  ONLY: min_rledge_int, min_rlcell_int, min_rlvert_int, inwp, iaes
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_e, grf_bdywidth_c
   USE mo_math_laplace,        ONLY: nabla4_vec
   USE mo_math_constants,      ONLY: dbl_eps
@@ -1634,7 +1634,7 @@ MODULE mo_nh_diffusion
 !$OMP END PARALLEL
 
       ! This could be further optimized, but applications without physics are quite rare;
-      IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iecham) ) THEN
+      IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
         !$ACC WAIT
         CALL sync_patch_array_mult(SYNC_C,p_patch,2,p_nh_prog%theta_v,p_nh_prog%exner,  &
                                    opt_varname="diffusion: theta and exner")
@@ -1642,7 +1642,7 @@ MODULE mo_nh_diffusion
 
     ENDIF ! temperature diffusion
 
-    IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iecham) ) THEN
+    IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
       IF (diffusion_config(jg)%lhdiff_w) THEN
         !$ACC WAIT
         CALL sync_patch_array(SYNC_C,p_patch,p_nh_prog%w,"diffusion: w")

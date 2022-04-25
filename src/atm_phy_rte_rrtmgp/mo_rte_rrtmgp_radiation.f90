@@ -44,8 +44,8 @@ MODULE mo_rte_rrtmgp_radiation
   USE mo_physical_constants,  ONLY: rae, amd, amco2, amch4, amn2o, amo2, amc11, amc12
   USE mo_exception,           ONLY: finish, message, message_text
   USE mo_run_config,          ONLY: iqv, iqc, iqi, ico2, io3, ntracer
-  USE mo_echam_phy_config,    ONLY: echam_phy_tc
-  USE mo_echam_rad_config,    ONLY: echam_rad_config
+  USE mo_aes_phy_config,      ONLY: aes_phy_tc
+  USE mo_aes_rad_config,      ONLY: aes_rad_config
   USE mo_bc_ozone,            ONLY: ext_ozone
 
   USE mo_radiation_orbit,     ONLY: orbit_kepler, orbit_vsop87, get_orbit_times
@@ -98,7 +98,7 @@ MODULE mo_rte_rrtmgp_radiation
     REAL(wp) :: dt_ext
     REAL(wp) :: tsi
 
-    ! Shortcuts to components of echam_rad_config
+    ! Shortcuts to components of aes_rad_config
     !
     LOGICAL , POINTER :: l_orbvsop87, ldiur, l_sph_symm_irr, lyr_perp
     INTEGER , POINTER :: isolrad, icosmu0, yr_perp
@@ -109,17 +109,17 @@ MODULE mo_rte_rrtmgp_radiation
 
     !
     jg = p_patch%id
-    isolrad        => echam_rad_config(jg)% isolrad
-    fsolrad        => echam_rad_config(jg)% fsolrad
-    l_orbvsop87    => echam_rad_config(jg)% l_orbvsop87
-    cecc           => echam_rad_config(jg)% cecc
-    cobld          => echam_rad_config(jg)% cobld
-    clonp          => echam_rad_config(jg)% clonp
-    lyr_perp       => echam_rad_config(jg)% lyr_perp
-    yr_perp        => echam_rad_config(jg)% yr_perp
-    ldiur          => echam_rad_config(jg)% ldiur
-    l_sph_symm_irr => echam_rad_config(jg)% l_sph_symm_irr
-    icosmu0        => echam_rad_config(jg)% icosmu0
+    isolrad        => aes_rad_config(jg)% isolrad
+    fsolrad        => aes_rad_config(jg)% fsolrad
+    l_orbvsop87    => aes_rad_config(jg)% l_orbvsop87
+    cecc           => aes_rad_config(jg)% cecc
+    cobld          => aes_rad_config(jg)% cobld
+    clonp          => aes_rad_config(jg)% clonp
+    lyr_perp       => aes_rad_config(jg)% lyr_perp
+    yr_perp        => aes_rad_config(jg)% yr_perp
+    ldiur          => aes_rad_config(jg)% ldiur
+    l_sph_symm_irr => aes_rad_config(jg)% l_sph_symm_irr
+    icosmu0        => aes_rad_config(jg)% icosmu0
 
     !
     ! 1.0 Compute orbital parameters for current time step
@@ -192,7 +192,7 @@ MODULE mo_rte_rrtmgp_radiation
       CASE (1:4)
          ! Extend the sunlit area for the radiative transfer calculations over an extended area
          ! including a rim of width dt_rad/2/86400*2pi (in radian) around the sunlit hemisphere.
-         dt_ext = getTotalSecondsTimeDelta(echam_phy_tc(p_patch%id)%dt_rad,current_datetime)
+         dt_ext = getTotalSecondsTimeDelta(aes_phy_tc(p_patch%id)%dt_rad,current_datetime)
       END SELECT
       !
       CALL solar_parameters(decl_sun,        time_of_day_rt,   &
@@ -231,7 +231,7 @@ MODULE mo_rte_rrtmgp_radiation
       CASE (1)
         tsi=tsi_radt
         ssi_factor=ssi_radt
-        continue ! solar irradiance was read in echam_phy_bcs_global
+        continue ! solar irradiance was read in aes_phy_bcs_global
       CASE (2)
         tsi = SUM(ssi_cmip5_picontrol)
         ssi_factor = ssi_cmip5_picontrol
@@ -423,7 +423,7 @@ MODULE mo_rte_rrtmgp_radiation
     INTEGER   :: jl, jk
 
     !
-    ! Shortcuts to components of echam_rad_config
+    ! Shortcuts to components of aes_rad_config
     !
     !$ACC DATA PRESENT(xv_ozn) &
     !$ACC      CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc,          &
@@ -453,7 +453,7 @@ MODULE mo_rte_rrtmgp_radiation
          &                cld_cvr                                         )
 
     CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev, &
-      echam_rad_config(jg)%irad_aero,  &
+      aes_rad_config(jg)%irad_aero,  &
       ktype, psctm(jg), ssi_factor, loland, loglac, this_datetime        ,&
       pcos_mu0        ,daylght_frc                                       ,&
       alb_vis_dir     ,alb_nir_dir     ,alb_vis_dif     ,alb_nir_dif     ,&

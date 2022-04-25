@@ -24,13 +24,13 @@ MODULE mo_upatmo_config
   USE mo_impl_constants,           ONLY: max_dom,                    &
     &                                    MODE_IFSANA, MODE_COMBINED, &
     &                                    MODE_DWDANA, inoforcing,    &
-    &                                    SUCCESS, inwp, iecham,      &
+    &                                    SUCCESS, inwp, iaes,        &
     &                                    inh_atmosphere, ivexpol
   USE mo_model_domain,             ONLY: t_patch
   USE mo_upatmo_impl_const,        ONLY: iUpatmoStat, imsg_thr, itmr_thr, &
     &                                    iUpatmoPrcStat, iUpatmoGasStat,  &
     &                                    iUpatmoGrpId,  iUpatmoExtdatStat
-  USE mo_upatmo_phy_config,        ONLY: t_upatmo_echam_phy,       &
+  USE mo_upatmo_phy_config,        ONLY: t_upatmo_aes_phy,         &
     &                                    t_upatmo_nwp_phy,         &
     &                                    t_upatmo_phy_config,      &
     &                                    configure_upatmo_physics, &
@@ -77,7 +77,7 @@ MODULE mo_upatmo_config
     LOGICAL :: lconstgrav      ! .TRUE. -> gravitational acceleration is const. 
                                ! like in case of the shallow atmosphere
     LOGICAL :: lcentrifugal    ! .TRUE. -> explicit centrifugal acceleration is switched on
-    LOGICAL :: ldeepatmo2phys  ! .TRUE. -> the input fields to the ECHAM physics parameterizations 
+    LOGICAL :: ldeepatmo2phys  ! .TRUE. -> the input fields to the AES physics parameterizations
                                ! are modified for the deep atmosphere, if required 
                                ! .FALSE. -> the input fields are computed in accordance 
                                ! with the shallow-atmosphere approximation (standard) in any case
@@ -136,7 +136,7 @@ MODULE mo_upatmo_config
   ! Collector
   !
   TYPE t_upatmo_config
-    TYPE(t_upatmo_echam_phy) :: echam_phy
+    TYPE(t_upatmo_aes_phy)   :: aes_phy
     TYPE(t_upatmo_nwp_phy)   :: nwp_phy
     TYPE(t_dyn) :: dyn
     TYPE(t_exp) :: exp
@@ -207,7 +207,7 @@ CONTAINS !......................................................................
     LOGICAL,            INTENT(IN) :: ldeepatmo              ! Switch for deep-atmosphere dynamics
     LOGICAL,            INTENT(IN) :: lupatmo_phy(:)         ! (max_dom) Switch for upper-atmosphere physics in nwp-mode
     INTEGER,            INTENT(IN) :: init_mode              ! Initialization mode
-    INTEGER,            INTENT(IN) :: iforcing               ! Switch for physics package (NWP, ECHAM etc.) 
+    INTEGER,            INTENT(IN) :: iforcing               ! Switch for physics package (NWP, AES etc.)
     TYPE(datetime),     INTENT(IN) :: tc_exp_startdate       ! Experiment start date
     TYPE(datetime),     INTENT(IN) :: tc_exp_stopdate        ! Experiment end date
     REAL(wp),           INTENT(IN) :: start_time(:)          ! (max_dom) Time at which execution of domain starts
@@ -387,7 +387,7 @@ CONTAINS !......................................................................
         &                            msg_level               = msg_level,                            & !in
         &                            timers_level            = timers_level,                         & !in
         &                            upatmo_phy_config       = upatmo_phy_config(jg),                & !inout                     
-        &                            upatmo_echam_phy_config = upatmo_config(jg)%echam_phy,          & !inout
+        &                            upatmo_aes_phy_config   = upatmo_config(jg)%aes_phy,            & !inout
         &                            upatmo_nwp_phy_config   = upatmo_config(jg)%nwp_phy,            & !inout
         &                            vct_a                   = vct_a                                 ) !(opt)in
 
@@ -439,13 +439,13 @@ CONTAINS !......................................................................
       
       ! 'upatmo_config' is allocated in any case, but not necessarily required
       upatmo_config(jg)%l_status(iUpatmoStat%required) = upatmo_config(jg)%dyn%l_status(iUpatmoStat%required)       .OR. &
-        &                                                upatmo_config(jg)%echam_phy%l_status(iUpatmoStat%required) .OR. &
+        &                                                upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%required)   .OR. &
         &                                                upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%required)   .OR. &
         &                                                upatmo_config(jg)%exp%l_status(iUpatmoStat%required)
       
       ! Indicate that configuration has taken place
       upatmo_config(jg)%l_status(iUpatmoStat%configured) = upatmo_config(jg)%dyn%l_status(iUpatmoStat%configured)       .OR. &
-        &                                                  upatmo_config(jg)%echam_phy%l_status(iUpatmoStat%configured) .OR. &
+        &                                                  upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%configured)   .OR. &
         &                                                  upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%configured)   .OR. &
         &                                                  upatmo_config(jg)%exp%l_status(iUpatmoStat%configured)
 
@@ -686,7 +686,7 @@ CONTAINS !......................................................................
     INTEGER,                         INTENT(IN)    :: jg                ! Domain index
     INTEGER,                         INTENT(IN)    :: n_dom             ! Number of domains
     INTEGER,                         INTENT(IN)    :: iforcing          ! Switch for physics package 
-                                                                        ! (NWP, ECHAM etc.)  
+                                                                        ! (NWP, AES etc.)
     INTEGER,                         INTENT(IN)    :: nshift_total      ! Shift of vertical grid index 
     LOGICAL,                         INTENT(IN)    :: lrestart          ! Switch for restart mode
     LOGICAL,                         INTENT(IN)    :: lupatmo_phy       ! Switch for upper-atmosphere physics (NWP)
@@ -800,7 +800,7 @@ CONTAINS !......................................................................
       &                               lupatmo_phy             = lupatmo_phy,             & !in
       &                               msg_level               = msg_level,               & !in
       &                               upatmo_phy_config       = upatmo_phy_config,       & !in
-      &                               upatmo_echam_phy_config = upatmo_config%echam_phy, & !in
+      &                               upatmo_aes_phy_config   = upatmo_config%aes_phy,   & !in
       &                               upatmo_nwp_phy_config   = upatmo_config%nwp_phy    ) !inout
 
   END SUBROUTINE print_config
@@ -885,7 +885,7 @@ CONTAINS !......................................................................
     INTEGER,                               INTENT(IN)    :: iequations             ! Switch for model equations 
                                                                                    ! (non-hydrostatic etc.)
     INTEGER,                               INTENT(IN)    :: iforcing               ! Switch for physics package 
-                                                                                   ! (nwp, echam etc.)  
+                                                                                   ! (nwp, aes etc.)
     LOGICAL,                               INTENT(IN)    :: ldeepatmo              ! Switch for deep-atmosphere dynamics
     LOGICAL,                               INTENT(IN)    :: lupatmo_phy(:)         ! Switch for upper-atmosphere physics
                                                                                    ! in nwp-mode
@@ -978,11 +978,11 @@ CONTAINS !......................................................................
         ! ... only the non-hydrostatic set of equations is allowed
         CALL finish(routine, &
           & "Deep-atmosphere configuration is not available for other than the non-hydrostatic equations.")
-      ELSEIF(.NOT. ANY((/inoforcing, inwp, iecham/) == iforcing)) THEN
-        ! ... only no physics forcing, ECHAM forcing or NWP forcing are allowed
+      ELSEIF(.NOT. ANY((/inoforcing, inwp, iaes/) == iforcing)) THEN
+        ! ... only no physics forcing, AES forcing or NWP forcing are allowed
         WRITE (message_text, '(3(a,i0),a)') "Deep-atmosphere configuration is &
           &not available for all forcings but iforcing = ", inoforcing, &
-          ', or ', iecham, ', or ', inwp, '.'
+          ', or ', iaes, ', or ', inwp, '.'
         CALL finish(routine, message_text)
       ELSEIF (ltestcase .AND. (.NOT. (nh_test_name == 'dcmip_bw_11' .OR. nh_test_name == 'lahade'))) THEN
         ! ... most test cases are not available for the time being
@@ -1061,7 +1061,7 @@ CONTAINS !......................................................................
     
     ! Indicate that crosscheck took place
     upatmo_config(n_dom_start:n_dom)%dyn%l_status(iUpatmoStat%checked)       = .TRUE.
-    upatmo_config(n_dom_start:n_dom)%echam_phy%l_status(iUpatmoStat%checked) = .TRUE.
+    upatmo_config(n_dom_start:n_dom)%aes_phy%l_status(iUpatmoStat%checked)   = .TRUE.
     upatmo_config(n_dom_start:n_dom)%nwp_phy%l_status(iUpatmoStat%checked)   = .TRUE.
     upatmo_config(n_dom_start:n_dom)%exp%l_status(iUpatmoStat%checked)       = .TRUE.
     upatmo_config(n_dom_start:n_dom)%l_status(iUpatmoStat%checked)           = .TRUE.

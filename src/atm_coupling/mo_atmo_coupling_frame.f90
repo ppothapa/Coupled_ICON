@@ -20,8 +20,8 @@ MODULE mo_atmo_coupling_frame
   USE mo_model_domain        ,ONLY: t_patch
   USE mo_nonhydro_types      ,ONLY: t_nh_diag
   USE mo_ext_data_state      ,ONLY: ext_data
-#ifndef __NO_ECHAM__
-  USE mo_echam_phy_memory    ,ONLY: prm_field
+#ifndef __NO_AES__
+  USE mo_aes_phy_memory      ,ONLY: prm_field
 #endif
   USE mo_lnd_nwp_config      ,ONLY: isub_water
 
@@ -30,7 +30,7 @@ MODULE mo_atmo_coupling_frame
   USE mo_run_config          ,ONLY: iforcing, ltimer
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_coupling_init
 
-  USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iecham
+  USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iaes
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
   USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
@@ -272,7 +272,7 @@ CONTAINS
     !           1: boundary land
     !           2: inner land
     !
-    ! The (fractional) mask which is used in the ECHAM physics is prm_field(1)%lsmask(:,:).
+    ! The (fractional) mask which is used in the AES physics is prm_field(1)%lsmask(:,:).
     !
     ! The logical mask for the coupler must be generated from the fractional mask by setting
     !   only those gridpoints to land that have no ocean part at all (lsf<1 is ocean).
@@ -293,10 +293,10 @@ CONTAINS
           ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
-       CASE ( iecham )
-#ifdef __NO_ECHAM__
+       CASE ( iaes )
+#ifdef __NO_AES__
           CALL finish ('mo_atmo_coupling_frame:construct_atmo_coupling' &
-            & //'coupled model needs echam; remove --disable-echam and reconfigure')
+            & //'coupled model needs aes; remove --disable-aes and reconfigure')
 #else
 !ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) ICON_OMP_RUNTIME_SCHEDULE
           DO jb = 1, patch_horz%nblks_c
@@ -446,8 +446,8 @@ CONTAINS
 
 
   !>
-  !! SUBROUTINE destruct_echam_ocean_coupling -- terminates the coupling
-  !! between ECHAM physics and the ocean.
+  !! SUBROUTINE destruct_atmo_coupling -- terminates the coupling
+  !! between AES physics and the ocean.
   !!
   !! This subroutine is called at the end of the time loop of the ICONAM model.
 
