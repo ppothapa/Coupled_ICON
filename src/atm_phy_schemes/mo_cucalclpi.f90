@@ -250,14 +250,13 @@ REAL(KIND=jprb) :: deltap600(klon), deltap900(klon)
 !* Coefficients for the MLPI formula
 !* They were computed in an optimization process
 REAL(KIND=jprb) :: fa(klon),fb(klon)
-REAL(KIND=jprb), PARAMETER :: fe=0.391040135975501_jprb
-REAL(KIND=jprb), PARAMETER :: fd=1.26663689775482_jprb
-REAL(KIND=jprb), PARAMETER :: fg=4.728883_jprb !!2.58697023913754_jprb
-REAL(KIND=jprb), PARAMETER :: fh=0.625209762557336_jprb
-REAL(KIND=jprb), PARAMETER :: fi=1.825632_jprb !! 3.0022767963889_jprb
-REAL(KIND=jprb), PARAMETER :: fj=-2.185377_jprb !!-1.3288895756172_jprb
-REAL(KIND=jprb), PARAMETER :: fk=0.309079838495018_jprb
-REAL(KIND=jprb), PARAMETER :: fbmax=14.04617_jprb !!2.80923302891783_jprb
+REAL(KIND=jprb), PARAMETER :: fe=0.2960515_jprb
+REAL(KIND=jprb), PARAMETER :: fd=4.548663_jprb
+REAL(KIND=jprb), PARAMETER :: fg=15.52337_jprb 
+REAL(KIND=jprb), PARAMETER :: fh=0.3845962_jprb
+REAL(KIND=jprb), PARAMETER :: fi=0.04240491_jprb
+REAL(KIND=jprb), PARAMETER :: fj=1.709239_jprb
+REAL(KIND=jprb), PARAMETER :: LPIconst=86.15723_jprb
 
 INTEGER(KIND=jpim) :: jk, jl
 
@@ -307,15 +306,18 @@ INTEGER(KIND=jpim) :: jk, jl
   !$acc loop gang(static:1) vector
   DO jl = 1, klon
     thetae900(jl) = thetae900(jl)/(deltap900(jl)+1E-20)
+  ! Over mountains where the lowest pressure level is below 800hPa, 
+  ! we use the surface value for thetae
+    IF (pap(jl,klev) <= 80000.D0) THEN
+      thetae900(jl)=thetae(jl,klev)
+    ENDIF
     thetae600(jl) = thetae600(jl)/(deltap600(jl)+1E-20)
+  ! same for the higher level thetae - above 500hPa height, KOI
+  ! will be zero - and thetae600=thetae900=pap(:,klev).
+    IF (pap(jl,klev) <= 50000.D0) THEN
+      thetae600(jl)=thetae(jl,klev)
+    ENDIF
     KOI(jl)=thetae600(jl)-thetae900(jl)
-  ENDDO
-
-  ! Over mountains KOI cannot be properly computed - here we set KOI to zero to
-  ! leave LPI unchanged.
-  !$acc loop gang(static:1) vector
-  DO jl = 1, klon
-    IF (deltap900(jl) < 1E-20_jprb) KOI(jl)=0_jprb
   ENDDO
 
   ! Compute the modified LPI
@@ -323,8 +325,14 @@ INTEGER(KIND=jpim) :: jk, jl
   DO jl = 1, klon
     fa(jl) = fg*LPI(jl)**fh
     ! we require a >= b
-    fb(jl) = min(fa(jl), fbmax*(1_jprb+tanh(fi*(LPI(jl)**fk+fj)))/2_jprb)
+    fb(jl) = min(fa(jl), fi*LPI(jl)**fj)
     MLPI(jl)= fb(jl)+(1_jprb+tanh(-fe*(KOI(jl)+fd)))/2_jprb*(fa(jl)-fb(jl))
+  ! For LPI > LPIconst, we require MLPI=LPI.
+  ! Note that the function is fit in such a way,
+  ! that MLPI=fa=fb when LPI=LPIconst.
+    IF (LPI(JL) >= LPIconst) THEN
+      MLPI(JL)=LPI(JL)
+    ENDIF
   ENDDO
 
   !$acc end parallel

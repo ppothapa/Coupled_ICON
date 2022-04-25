@@ -440,12 +440,12 @@ cat > ${atmo_namelist} << EOF
  lcoriolis      = .true.
 /
 &transport_nml
- ctracer_list = '12345'
- ivadv_tracer = 3,3,3,3,3,3
- itype_hlimit = 3,4,4,4,4,4
- ihadv_tracer = 52,2,2,2,2,2
- llsq_svd     = .false.
- beta_fct     = 1.005
+ ctracer_list  = '12345'
+ ivadv_tracer  = 3,3,3,3,3,3
+ itype_hlimit  = 3,4,4,4,4,4
+ ihadv_tracer  = 52,2,2,2,2,2
+ llsq_svd      = .false.
+ beta_fct      = 1.005
 /
 &diffusion_nml
  hdiff_efdt_ratio = 24

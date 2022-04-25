@@ -529,6 +529,7 @@ cat > ${atmo_namelist} << EOF
  itype_hlimit			= 3,4,4,4,4
  ihadv_tracer			= 52,2,2,2,2
  llsq_svd                       = .false.
+ nadv_substeps                  = 3,2
 /
 &diffusion_nml
  hdiff_order                    = 5

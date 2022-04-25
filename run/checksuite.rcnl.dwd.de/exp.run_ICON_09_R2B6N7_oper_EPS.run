@@ -361,6 +361,7 @@ a_hshr       = 2.0
  llsq_svd       = .false.
  beta_fct       = 1.005
  iadv_tke       = 0
+ nadv_substeps  = 3,2
 /
 &diffusion_nml
  hdiff_order      = 5
