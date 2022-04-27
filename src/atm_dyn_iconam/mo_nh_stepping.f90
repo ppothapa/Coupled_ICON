@@ -212,7 +212,7 @@ MODULE mo_nh_stepping
     &                                    getElapsedSimTimeInSeconds, is_event_active
   USE mo_event_manager,            ONLY: addEventGroup, getEventGroup, printEventGroup
   USE mo_phy_events,               ONLY: mtime_ctrl_physics
-  USE mo_derived_variable_handling, ONLY: update_statistics
+  USE mo_derived_variable_handling, ONLY: update_statistics, statistics_active_on_dom
 #ifdef MESSY
   USE messy_main_channel_bi,       ONLY: messy_channel_write_output &
     &                                  , IOMODE_RST
@@ -795,6 +795,8 @@ MODULE mo_nh_stepping
                                                           ! climatological SST increments
   TYPE(datetime)                      :: latbc_read_datetime  ! validity time of next lbc input file
 
+  LOGICAL :: l_accumulation_step
+
 !!$  INTEGER omp_get_num_threads
 
 
@@ -1132,9 +1134,11 @@ MODULE mo_nh_stepping
     ! meteogram sampling:
 !DR Note that this may be incorrect for meteograms in case that
 !DR meteogram_output_config is not the same for all domains.
+    !RW Computing diagnostics for mvstream could be done per dom, now it runs every timestep on all domains.
     l_compute_diagnostic_quants = l_nml_output
     DO jg = 1, n_dom
       l_compute_diagnostic_quants = l_compute_diagnostic_quants .OR. &
+        &          statistics_active_on_dom(jg) .OR. &
         &          (meteogram_is_sample_step(meteogram_output_config(jg), jstep ) .AND. output_mode%l_nml)
     END DO
     l_compute_diagnostic_quants = jstep >= 0 .AND. l_compute_diagnostic_quants .AND. &
@@ -1320,9 +1324,10 @@ MODULE mo_nh_stepping
     !
     ! Mean sea level pressure needs to be computed also at
     ! no-output-steps for accumulation purposes; set by l_accumulation_step
+    l_accumulation_step = (iforcing == iecham) .OR. ANY(statistics_active_on_dom(:))
     simulation_status = new_simulation_status(l_output_step  = l_nml_output,             &
       &                                       l_last_step    = (jstep==(nsteps+jstep0)), &
-      &                                       l_accumulation_step = (iforcing == iecham),&
+      &                                       l_accumulation_step = l_accumulation_step, &
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
