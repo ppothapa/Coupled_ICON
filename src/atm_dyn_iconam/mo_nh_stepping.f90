@@ -167,7 +167,7 @@ MODULE mo_nh_stepping
   USE mo_art_config,               ONLY: art_config
 #endif
 
-  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, update_sst_and_seaice
+  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, process_sst_and_seaice
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
@@ -1075,7 +1075,7 @@ MODULE mo_nh_stepping
 
       IF (sstice_mode == SSTICE_INST) THEN
 #ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Device to host copy before update_sst_and_seaice. This needs to be removed once port is finished!')
+        CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
         ENDDO
@@ -1096,12 +1096,20 @@ MODULE mo_nh_stepping
             p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = sic_dat(:,1,:,1)
           ENDWHERE
 
-          CALL update_sst_and_seaice( p_patch(jg), ext_data(jg), p_lnd_state(jg),        &
-               &              p_nh_state(jg), sstice_mode, time_config%tc_exp_startdate, &
-               &              mtime_current )
+          ! rebuild index lists for water and seaice based on fr_seaice, 
+          ! and update tiled surface temperatures
+          !
+          CALL process_sst_and_seaice (p_patch      = p_patch(jg),                            &
+            &                          diag         = p_nh_state(jg)%diag,                    &
+            &                          ext_data     = ext_data(jg),                           &
+            &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), &
+            &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)), &
+            &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), &
+            &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)), &
+            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )
         ENDDO
 #ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Host to device copy after update_sst_and_seaice. This needs to be removed once port is finished!')
+        CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
           CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
         ENDDO
