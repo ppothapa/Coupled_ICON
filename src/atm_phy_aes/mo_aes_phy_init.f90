@@ -35,7 +35,7 @@ MODULE mo_aes_phy_init
   USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
   USE mo_parallel_config,      ONLY: nproma
   USE mo_master_config,        ONLY: isrestart
-  USE mo_run_config,           ONLY: ltestcase, lart, msg_level,                  &
+  USE mo_run_config,           ONLY: ltestcase, msg_level,                        &
     &                                iqv, iqc, iqi, iqs, iqr, iqg, iqm_max,       &
     &                                iqh, iqni,iqnr,iqns,iqng,iqnh, iqnc,ininact, &
     &                                iqt, io3, ico2, ich4, in2o, ntracer

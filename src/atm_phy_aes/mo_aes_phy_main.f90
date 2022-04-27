@@ -55,6 +55,7 @@ MODULE mo_aes_phy_main
   USE mo_interface_aes_rht   ,ONLY: interface_aes_rht
   USE mo_interface_aes_vdf   ,ONLY: interface_aes_vdf
   USE mo_interface_aes_car   ,ONLY: interface_aes_car
+  USE mo_interface_aes_art   ,ONLY: interface_aes_art
   !
   ! experimental interfaces selected by aes_phy_config(:)%if_mig = 1,2!!$,3
   USE mo_interface_cloud_mig_1 ,ONLY: interface_cloud_mig_1 ! use 2d interface, jcs:jce loop in cloud_mig
@@ -210,6 +211,41 @@ CONTAINS
        CALL gpu_update_var_list('prm_tend_D', .true., jg)
 #endif
     END IF
+
+    !-------------------------------------------------------------------
+    ! Atmospheric chemistry of ART
+    !-------------------------------------------------------------------
+    !
+    IF (aes_phy_tc(jg)%dt_art > dt_zero) THEN
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU host synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .false., jg)
+       CALL gpu_update_var_list('prm_tend_D', .false., jg)
+#endif
+      !
+      is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_art <= datetime_old) .AND. &
+           &                          (aes_phy_tc(jg)%ed_art >  datetime_old)
+      is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_art,   datetime_old)
+
+      CALL message_forcing_action('ART (rad)'                     ,&
+            &                     is_in_sd_ed_interval, is_active )
+      !
+      ! OMP loops are hidden inside the ART routines. Hence the full patch needs
+      ! to be passed to the ART routines and is it not possible to call the
+      ! ART reaction interface inside the standard omp block loop.
+      ! This should be reprogrammed.
+      !
+      CALL interface_aes_art(patch                           ,&
+           &                   is_in_sd_ed_interval, is_active ,&
+           &                   datetime_old, pdtime            )
+      !
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .true., jg)
+       CALL gpu_update_var_list('prm_tend_D', .true., jg)
+#endif
+    END IF
+    !
 
     !-------------------------------------------------------------------
     ! Graupel (microphysics) processes

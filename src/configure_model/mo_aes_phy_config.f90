@@ -120,6 +120,11 @@ MODULE mo_aes_phy_config
      CHARACTER(len=max_datetime_str_len ) :: ed_car  !< end   time of lin. Cariolle ozone chemistry
      INTEGER                              :: fc_car
      !
+     CHARACTER(len=max_timedelta_str_len) :: dt_art  !< time  step of ART chemistry
+     CHARACTER(len=max_datetime_str_len ) :: sd_art  !< start time of ART chemistry
+     CHARACTER(len=max_datetime_str_len ) :: ed_art  !< end   time of ART chemistry
+     INTEGER                              :: fc_art
+     !
      ! surface
      LOGICAL                              :: lsstice !< .true. for inst. 6hourly sst and ice (prelim)
      LOGICAL                              :: l2moment !< .true. for 2-moment microphysics scheme
@@ -255,6 +260,11 @@ CONTAINS
     aes_phy_config(:)% ed_car = ''
     aes_phy_config(:)% fc_car = 1
     !
+    aes_phy_config(:)% dt_art = ''
+    aes_phy_config(:)% sd_art = ''
+    aes_phy_config(:)% ed_art = ''
+    aes_phy_config(:)% fc_art = 1
+    !
     ! logical switches
     aes_phy_config(:)% ljsb  = .FALSE.
     aes_phy_config(:)% llake = .FALSE.
@@ -318,6 +328,12 @@ CONTAINS
             &                             aes_phy_config (jg)% sd_car  ,&
             &                             aes_phy_config (jg)% ed_car  ,&
             &                             aes_phy_config (jg)% fc_car  )
+       !
+       CALL eval_aes_phy_config_details(TRIM(cg),                'art' ,&
+            &                             aes_phy_config (jg)% dt_art  ,&
+            &                             aes_phy_config (jg)% sd_art  ,&
+            &                             aes_phy_config (jg)% ed_art  ,&
+            &                             aes_phy_config (jg)% fc_art  )
        !
        ! vertical range for cloud related computations
        !
@@ -499,6 +515,16 @@ CONTAINS
             &                         aes_phy_tc    (jg)% ev_car     ,&
             &                         aes_phy_tc    (jg)% dt_car_sec )
        !
+       CALL eval_aes_phy_tc_details(cg,                     'art'    ,&
+            &                         aes_phy_config(jg)% dt_art     ,&
+            &                         aes_phy_config(jg)% sd_art     ,&
+            &                         aes_phy_config(jg)% ed_art     ,&
+            &                         aes_phy_tc    (jg)% dt_art     ,&
+            &                         aes_phy_tc    (jg)% sd_art     ,&
+            &                         aes_phy_tc    (jg)% ed_art     ,&
+            &                         aes_phy_tc    (jg)% ev_art     ,&
+            &                         aes_phy_tc    (jg)% dt_art_sec )
+       !
     END DO
     !
   CONTAINS
@@ -627,6 +653,12 @@ CONTAINS
             &                              aes_phy_config(jg)% ed_car  ,&
             &                              aes_phy_config(jg)% fc_car  )
        !
+       CALL print_aes_phy_config_details(cg,                     'art' ,&
+            &                              aes_phy_config(jg)% dt_art  ,&
+            &                              aes_phy_config(jg)% sd_art  ,&
+            &                              aes_phy_config(jg)% ed_art  ,&
+            &                              aes_phy_config(jg)% fc_art  )
+       !
        CALL message    ('','logical switches')
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% lmlo ',    aes_phy_config(jg)% lmlo  )
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% l2moment ',aes_phy_config(jg)% l2moment  )
@@ -675,6 +707,12 @@ CONTAINS
             &                          aes_phy_tc(jg)% sd_car     ,&
             &                          aes_phy_tc(jg)% ed_car     ,&
             &                          aes_phy_tc(jg)% dt_car_sec )
+       !
+       CALL print_aes_phy_tc_details(cg,                 'art'    ,&
+            &                          aes_phy_tc(jg)% dt_art     ,&
+            &                          aes_phy_tc(jg)% sd_art     ,&
+            &                          aes_phy_tc(jg)% ed_art     ,&
+            &                          aes_phy_tc(jg)% dt_art_sec )
        !
        CALL message    ('','')
        CALL message    ('','------------------------------------------------------------------------')
