@@ -7,7 +7,7 @@ MODULE mo_derived_variable_handling
   USE mo_model_domain,        ONLY: t_patch
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_dynamics_config,     ONLY: nnow, nnew, nold
-  USE mo_impl_constants,      ONLY: vname_len, REAL_T, TIMELEVEL_SUFFIX
+  USE mo_impl_constants,      ONLY: vname_len, REAL_T, TIMELEVEL_SUFFIX, max_dom
   USE mo_cdi_constants,       ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
                               & GRID_ZONAL, GRID_UNSTRUCTURED_VERT
   USE mo_name_list_output_types, ONLY: t_output_name_list
@@ -33,7 +33,7 @@ MODULE mo_derived_variable_handling
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: init_statistics, update_statistics
+  PUBLIC :: init_statistics, update_statistics, statistics_active_on_dom
 
   TYPE :: t_derivate_var
     TYPE(t_var_ptr) :: dst, src(3)
@@ -85,6 +85,9 @@ MODULE mo_derived_variable_handling
 
   CHARACTER(*), PARAMETER :: modname = 'mo_derived_variable_handling'
 
+  !> Flag indicating that statistics accumulation is active on a domain.
+  LOGICAL :: statistics_active_on_dom(max_dom) = .FALSE.
+
 CONTAINS
 
   ! wire up namelist mvstream associations
@@ -112,6 +115,7 @@ CONTAINS
     vls(3)%p => p_onl%hl_varlist
     vls(4)%p => p_onl%il_varlist
     IF (iop .NE. 0) THEN
+      statistics_active_on_dom(p_onl%dom) = .TRUE.
       DO ivl = 1, 4
         IF (vls(ivl)%p(1)(1:1) /= ' ') THEN
           IF (PRESENT(patch_2d)) &
@@ -263,7 +267,7 @@ CONTAINS
       & resetval_r=info%resetval%rval, lmiss=info%lmiss, &
       & missval_r=info%missval%rval, &
       & vert_interp=info%vert_interp, hor_interp=info%hor_interp, &
-      & in_group=info%in_group, l_pp_scheduler_task=info%l_pp_scheduler_task, &
+      & in_group=info%in_group, &
       & loutput=.TRUE., lrestart=.FALSE., var_class=info%var_class, &
       & lopenacc = .FALSE. )
 !    __acc_attach(vl_elem%r_ptr)

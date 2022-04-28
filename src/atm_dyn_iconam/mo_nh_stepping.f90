@@ -167,7 +167,7 @@ MODULE mo_nh_stepping
   USE mo_art_config,               ONLY: art_config
 #endif
 
-  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, update_sst_and_seaice
+  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, process_sst_and_seaice
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
@@ -212,7 +212,7 @@ MODULE mo_nh_stepping
     &                                    getElapsedSimTimeInSeconds, is_event_active
   USE mo_event_manager,            ONLY: addEventGroup, getEventGroup, printEventGroup
   USE mo_phy_events,               ONLY: mtime_ctrl_physics
-  USE mo_derived_variable_handling, ONLY: update_statistics
+  USE mo_derived_variable_handling, ONLY: update_statistics, statistics_active_on_dom
 #ifdef MESSY
   USE messy_main_channel_bi,       ONLY: messy_channel_write_output &
     &                                  , IOMODE_RST
@@ -795,6 +795,8 @@ MODULE mo_nh_stepping
                                                           ! climatological SST increments
   TYPE(datetime)                      :: latbc_read_datetime  ! validity time of next lbc input file
 
+  LOGICAL :: l_accumulation_step
+
 !!$  INTEGER omp_get_num_threads
 
 
@@ -1073,7 +1075,7 @@ MODULE mo_nh_stepping
 
       IF (sstice_mode == SSTICE_INST) THEN
 #ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Device to host copy before update_sst_and_seaice. This needs to be removed once port is finished!')
+        CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
         ENDDO
@@ -1094,12 +1096,20 @@ MODULE mo_nh_stepping
             p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = sic_dat(:,1,:,1)
           ENDWHERE
 
-          CALL update_sst_and_seaice( p_patch(jg), ext_data(jg), p_lnd_state(jg),        &
-               &              p_nh_state(jg), sstice_mode, time_config%tc_exp_startdate, &
-               &              mtime_current )
+          ! rebuild index lists for water and seaice based on fr_seaice, 
+          ! and update tiled surface temperatures
+          !
+          CALL process_sst_and_seaice (p_patch      = p_patch(jg),                            &
+            &                          diag         = p_nh_state(jg)%diag,                    &
+            &                          ext_data     = ext_data(jg),                           &
+            &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), &
+            &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)), &
+            &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), &
+            &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)), &
+            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )
         ENDDO
 #ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Host to device copy after update_sst_and_seaice. This needs to be removed once port is finished!')
+        CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
           CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
         ENDDO
@@ -1132,9 +1142,11 @@ MODULE mo_nh_stepping
     ! meteogram sampling:
 !DR Note that this may be incorrect for meteograms in case that
 !DR meteogram_output_config is not the same for all domains.
+    !RW Computing diagnostics for mvstream could be done per dom, now it runs every timestep on all domains.
     l_compute_diagnostic_quants = l_nml_output
     DO jg = 1, n_dom
       l_compute_diagnostic_quants = l_compute_diagnostic_quants .OR. &
+        &          statistics_active_on_dom(jg) .OR. &
         &          (meteogram_is_sample_step(meteogram_output_config(jg), jstep ) .AND. output_mode%l_nml)
     END DO
     l_compute_diagnostic_quants = jstep >= 0 .AND. l_compute_diagnostic_quants .AND. &
@@ -1319,9 +1331,10 @@ MODULE mo_nh_stepping
     !
     ! Mean sea level pressure needs to be computed also at
     ! no-output-steps for accumulation purposes; set by l_accumulation_step
+    l_accumulation_step = (iforcing == iaes) .OR. ANY(statistics_active_on_dom(:))
     simulation_status = new_simulation_status(l_output_step  = l_nml_output,             &
       &                                       l_last_step    = (jstep==(nsteps+jstep0)), &
-      &                                       l_accumulation_step = (iforcing == iaes),  &
+      &                                       l_accumulation_step = l_accumulation_step, &
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
