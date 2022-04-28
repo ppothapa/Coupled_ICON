@@ -160,14 +160,16 @@ CONTAINS
       ! rebuild index lists for water and seaice based on fr_seaice, 
       ! and update tiled surface temperatures
       !
-      CALL process_sst_and_seaice (p_patch      = p_patch,                            &
-        &                          diag         = p_nh_state%diag,                    &
-        &                          ext_data     = ext_data,                           &
-        &                          prog_lnd_now = p_lnd_state%prog_lnd(nnow_rcf(jg)), &
-        &                          prog_lnd_new = p_lnd_state%prog_lnd(nnew_rcf(jg)), &
-        &                          prog_wtr_now = p_lnd_state%prog_wtr(nnow_rcf(jg)), &
-        &                          prog_wtr_new = p_lnd_state%prog_wtr(nnew_rcf(jg)), &
-        &                          diag_lnd     = p_lnd_state%diag_lnd )
+      CALL process_sst_and_seaice (p_patch      = p_patch,                             & !in
+        &                          fr_seaice    = p_lnd_state%diag_lnd%fr_seaice(:,:), & !in(out)
+        &                          t_seasfc     = p_lnd_state%diag_lnd%t_seasfc(:,:),  & !in
+        &                          pres_sfc     = p_nh_state%diag%pres_sfc(:,:),       & !in
+        &                          ext_data     = ext_data,                            & !inout
+        &                          prog_lnd_now = p_lnd_state%prog_lnd(nnow_rcf(jg)),  & !inout
+        &                          prog_lnd_new = p_lnd_state%prog_lnd(nnew_rcf(jg)),  & !inout
+        &                          prog_wtr_now = p_lnd_state%prog_wtr(nnow_rcf(jg)),  & !inout
+        &                          prog_wtr_new = p_lnd_state%prog_wtr(nnew_rcf(jg)),  & !inout
+        &                          diag_lnd     = p_lnd_state%diag_lnd  )                !inout
 
     CASE DEFAULT
       !

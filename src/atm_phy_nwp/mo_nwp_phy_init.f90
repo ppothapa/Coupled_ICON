@@ -323,8 +323,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   END IF
 
   ! for both restart and non-restart runs. Could not be included into
-  ! mo_ext_data_state/init_index_lists due to its dependence on p_diag_lnd.
-  CALL init_sea_lists(p_patch, ext_data, p_diag_lnd, lseaice)
+  ! mo_ext_data_state/init_index_lists due to its dependence on fr_seaice
+  CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
 
 
   IF (.NOT. lreset_mode .AND. itype_vegetation_cycle >= 2) THEN
@@ -633,7 +633,12 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       IF (init_mode /= MODE_IFSANA) THEN
         ! t_g_t and qv_s_t are initialized in read_dwdfg_sfc, calculate the aggregated values
         ! needed for example for initializing the turbulence fields
-        CALL aggregate_tg_qvs( p_patch, ext_data, p_prog_lnd_now, p_diag_lnd )
+        CALL aggregate_tg_qvs( p_patch = p_patch,                      & ! in
+          &                    frac_t  = ext_data%atm%frac_t(:,:,:),   & ! in
+          &                    t_g_t   = p_prog_lnd_now%t_g_t(:,:,:),  & ! in
+          &                    qv_s_t  = p_diag_lnd%qv_s_t(:,:,:),     & ! in
+          &                    t_g     = p_prog_lnd_now%t_g(:,:),      & ! inout
+          &                    qv_s    = p_diag_lnd%qv_s(:,:)          ) ! inout
       ENDIF
 
       DO jb = i_startblk, i_endblk
