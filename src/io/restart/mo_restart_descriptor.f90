@@ -27,7 +27,7 @@ MODULE mo_restart_descriptor
     & getRestartFilename, restartBcastRoot, t_rfids
   USE mo_restart_var_data,          ONLY: has_valid_time_level
   USE mo_var_list_register_utils,   ONLY: vlr_replicate
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   USE mo_upatmo_flowevent_utils,    ONLY: t_upatmoRestartAttributes, upatmoRestartAttributesSet
 #endif
   USE mo_cdi,                       ONLY: FILETYPE_NC2, FILETYPE_NC4
@@ -131,7 +131,7 @@ CONTAINS
   SUBROUTINE restartDescriptor_updatePatch(me, patch, opt_pvct, opt_t_elapsed_phy, &
                                         &opt_ndyn_substeps, opt_jstep_adv_marchuk_order, opt_depth_lnd, &
                                         &opt_nlev_snow, opt_nice_class, opt_ndom,  &
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
                                         &opt_upatmo_restart_atts, &
 #endif
                                         &opt_ocean_zlevels, &
@@ -142,7 +142,7 @@ CONTAINS
                                    & opt_nlev_snow, opt_nice_class, opt_ndom, opt_ocean_zlevels
     REAL(wp), INTENT(IN), OPTIONAL :: opt_pvct(:), opt_t_elapsed_phy(:), opt_ocean_zheight_cellMiddle(:), &
          & opt_ocean_zheight_cellInterfaces(:)
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     TYPE(t_upatmoRestartAttributes), INTENT(IN), OPTIONAL :: opt_upatmo_restart_atts
 #endif
     INTEGER :: jg
@@ -155,7 +155,7 @@ CONTAINS
         CALL me%patchData(jg)%description%update(patch, opt_pvct, opt_t_elapsed_phy,                &
           &      opt_ndyn_substeps, opt_jstep_adv_marchuk_order, opt_depth_lnd,                     &
           &      opt_nlev_snow, opt_nice_class, opt_ndom,                                           &
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
           &      opt_upatmo_restart_atts,                                                           &
 #endif
           &      opt_ocean_zlevels, opt_ocean_zheight_cellMiddle, opt_ocean_zheight_cellInterfaces)
@@ -222,7 +222,7 @@ CONTAINS
       & CALL rAttribs%put('ndyn_substeps_DOM'//domStr, desc%opt_ndyn_substeps%v)
     IF (desc%opt_jstep_adv_marchuk_order%present) &
       & CALL rAttribs%put('jstep_adv_marchuk_order_DOM'//domStr, desc%opt_jstep_adv_marchuk_order%v)
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     CALL upatmoRestartAttributesSet(desc%id, desc%opt_upatmo_restart_atts, rAttribs)
 #endif
   END SUBROUTINE put_dom_rstrt_attr

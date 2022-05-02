@@ -104,11 +104,11 @@ AC_ARG_ENABLE([les],
   [AS_IF([test x"$enableval" != xno], [enable_les=yes])],
   [enable_les=yes])
 
-AC_ARG_ENABLE([upper],
-  [AS_HELP_STRING([--enable-upper],
+AC_ARG_ENABLE([upatmo],
+  [AS_HELP_STRING([--enable-upatmo],
      [enable the upper atmosphere component of ICON @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_upper=yes])],
-  [enable_upper=yes])
+  [AS_IF([test x"$enableval" != xno], [enable_upatmo=yes])],
+  [enable_upatmo=yes])
 
 AC_ARG_ENABLE([ocean],
   [AS_HELP_STRING([--enable-ocean],
@@ -571,8 +571,8 @@ AS_VAR_IF([enable_edmf], [no],
 AS_VAR_IF([enable_les], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_LES__"])])
 
-AS_VAR_IF([enable_upper], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_UPPER__"])])
+AS_VAR_IF([enable_upatmo], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_UPATMO__"])])
 
 AS_VAR_IF([enable_ocean], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_OCEAN__"])])

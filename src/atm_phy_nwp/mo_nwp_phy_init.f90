@@ -122,7 +122,7 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_reff_interface,  ONLY: init_reff
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat, iUpatmoStat
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   USE mo_upatmo_phy_setup,    ONLY: init_upatmo_phy_nwp
 #endif
 
@@ -1806,7 +1806,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       
   ENDIF
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   ! Upper-atmosphere physics
   !
   IF (lupatmo_phy) THEN
