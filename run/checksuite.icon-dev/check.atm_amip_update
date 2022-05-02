@@ -46,8 +46,7 @@ else
     poolFolder_prefix=""
 fi
 
-export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.e6849700_icon-nwp/${BB_SYSTEM}_${BB_SLAVE}/
-#export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.d20e584f_icon-aes/${BB_SYSTEM}_${BB_SLAVE}/
+export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.c164ed37_icon-nwp/${BB_SYSTEM}_${BB_SLAVE}/
 
 #--------------------------------------------------------------------------------
 # 
