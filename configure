@@ -723,7 +723,7 @@ enable_silent_rules
 enable_atmo
 enable_edmf
 enable_les
-enable_upper
+enable_upatmo
 enable_ocean
 enable_jsbach
 enable_coupling
@@ -1437,7 +1437,7 @@ Model Features:
                           [default=yes]
   --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
-  --enable-upper          enable the upper atmosphere component of ICON
+  --enable-upatmo         enable the upper atmosphere component of ICON
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
@@ -2423,13 +2423,13 @@ else
 fi
 
 
-# Check whether --enable-upper was given.
-if test "${enable_upper+set}" = set; then :
-  enableval=$enable_upper; if test x"$enableval" != xno; then :
-  enable_upper=yes
+# Check whether --enable-upatmo was given.
+if test "${enable_upatmo+set}" = set; then :
+  enableval=$enable_upatmo; if test x"$enableval" != xno; then :
+  enable_upatmo=yes
 fi
 else
-  enable_upper=yes
+  enable_upatmo=yes
 fi
 
 
@@ -4433,8 +4433,8 @@ if test "x$enable_les" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_LES__"
 fi
 
-if test "x$enable_upper" = xno; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_UPPER__"
+if test "x$enable_upatmo" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_UPATMO__"
 fi
 
 if test "x$enable_ocean" = xno; then :

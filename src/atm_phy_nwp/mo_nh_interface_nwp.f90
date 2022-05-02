@@ -129,7 +129,7 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_reff_interface,      ONLY: set_reff , combine_phases_radiation_reff
   USE mo_upatmo_impl_const,       ONLY: iUpatmoPrcStat, iUpatmoStat
   USE mo_upatmo_config,           ONLY: upatmo_config
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
 #endif
 #if defined( _OPENACC )
@@ -1650,7 +1650,7 @@ CONTAINS
     ENDIF
 #endif
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     !-------------------------------------------------------------------------
     !  Upper-atmosphere physics: compute tendencies
     !-------------------------------------------------------------------------
@@ -2223,7 +2223,7 @@ CONTAINS
 
     IF (timers_level > 10) CALL timer_stop(timer_phys_acc_2)
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     !-------------------------------------------------------------------------
     !  Upper-atmosphere physics: add tendencies
     !-------------------------------------------------------------------------

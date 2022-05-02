@@ -236,7 +236,7 @@ MODULE mo_nh_stepping
   USE mo_upatmo_config,            ONLY: upatmo_config
   USE mo_nh_deepatmo_solve,        ONLY: solve_nh_deepatmo
   USE mo_upatmo_impl_const,        ONLY: idamtr, iUpatmoPrcStat
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   USE mo_upatmo_state,             ONLY: prm_upatmo
   USE mo_upatmo_flowevent_utils,   ONLY: t_upatmoRestartAttributes,      &
     &                                    upatmoRestartAttributesPrepare, &
@@ -754,7 +754,7 @@ MODULE mo_nh_stepping
 
   REAL(wp), ALLOCATABLE :: elapsedTime(:)  ! time elapsed since last call of 
                                            ! NWP physics routines. For restart purposes.
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   TYPE(t_upatmoRestartAttributes) :: upatmoRestartAttributes
 #endif
   TYPE(datetime)                      :: target_datetime  ! target date for for update of clim. 
@@ -1443,7 +1443,7 @@ MODULE mo_nh_stepping
             IF (iforcing == inwp) THEN
               CALL atm_phy_nwp_config(jg)%phyProcs%serialize (mtime_current, elapsedTime)
             ENDIF
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
             ! upper-atmosphere physics
             IF (upatmo_config(jg)%nwp_phy%l_phy_stat( iUpatmoPrcStat%enabled )) THEN
               CALL upatmoRestartAttributesPrepare(jg, upatmoRestartAttributes, prm_upatmo(jg), mtime_current)
@@ -1455,7 +1455,7 @@ MODULE mo_nh_stepping
               & opt_jstep_adv_marchuk_order= jstep_adv(jg)%marchuk_order,&
               & opt_depth_lnd              = nlev_soil,                  &
               & opt_nlev_snow              = nlev_snow,                  &
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
               & opt_upatmo_restart_atts    = upatmoRestartAttributes,    &
 #endif
               & opt_ndom                   = n_dom )
@@ -1477,7 +1477,7 @@ MODULE mo_nh_stepping
           DEALLOCATE(elapsedTime, STAT=ierr)
           IF (ierr /= SUCCESS)  CALL finish (routine, 'DEALLOCATE failed!')
         ENDIF
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
         IF (ANY(upatmo_config(:)%nwp_phy%l_phy_stat( iUpatmoPrcStat%enabled ))) THEN
           CALL upatmoRestartAttributesDeallocate(upatmoRestartAttributes)
         ENDIF
@@ -3575,7 +3575,7 @@ MODULE mo_nh_stepping
         ! NWP physics events.
         CALL atm_phy_nwp_config(jg)%phyProcs%deserialize (mtime_current)
       ENDIF
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
       ! upper-atmosphere physics
       IF (isRestart() .AND. upatmo_config(jg)%nwp_phy%l_phy_stat( iUpatmoPrcStat%enabled )) THEN
         CALL upatmoRestartAttributesGet(jg, prm_upatmo(jg), mtime_current)

@@ -123,7 +123,7 @@ USE mo_vertical_coord_table,ONLY: vct_a
 USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat
 USE mo_upatmo_config,       ONLY: upatmo_config, upatmo_phy_config, &
     &                             configure_upatmo, destruct_upatmo
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
 USE mo_upatmo_state,        ONLY: construct_upatmo_state, &
     &                             destruct_upatmo_state
 USE mo_upatmo_phy_setup,    ONLY: finalize_upatmo_phy_nwp
@@ -325,7 +325,7 @@ CONTAINS
       &                    msg_level              = msg_level,                         & !in
       &                    vct_a                  = vct_a                              ) !(opt)in
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
 ! Create state only if enabled
     CALL construct_upatmo_state( n_dom             = n_dom,                 & !in
       &                          nproma            = nproma,                & !in
@@ -819,7 +819,7 @@ CONTAINS
 #endif
     ENDIF
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     ! This is required for NWP forcing only. 
     ! For AES forcing, the following will likely be done in 
     ! 'src/atm_phy_aes/mo_aes_phy_cleanup: cleanup_aes_phy'
