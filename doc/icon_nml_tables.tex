@@ -3054,6 +3054,13 @@ iforcing=3
 \tabularnewline
 
 %\hline
+totprec\_d\_interval&
+C(n\_dom)& "PT01H" & &
+Interval over which the special precipitation variable tot\_prec\_d is accumulated, which can be output alongside or alternatively to tot\_prec and enables a different accumulation time for this field than precip\_interval.&
+iforcing=3
+\tabularnewline
+
+%\hline
 maxt\_interval&
 C(n\_dom)& "PT06H" & &
 Interval over which max/min 2-m temperatures are calculated &
@@ -3083,6 +3090,22 @@ iforcing=3
 \tabularnewline
 
 %\hline
+wshear\_uv\_heights&
+\squeezeme{R(max\_wshear)}\\
+\squeezeme{max\_wshear=10}& 1000.0, 3000.0, 6000.0 & &
+List of height levels (m AGL) for which the vertical windshear output variables ``wshear\_u'' and ``wshear\_v'' are to be output. &
+iforcing=3
+\tabularnewline
+
+%\hline
+srh\_heights&
+\squeezeme{R(max\_srh)}\\
+\squeezeme{max\_srh=10}& 1000.0, 3000.0 & &
+List of height levels (m AGL) for which the storm relative helicity ``srh'' is to be output. ``srh'' is a vertical integral from the ground to a certain height. The listed height levels denote different upper bounds for this integration. &
+iforcing=3
+\tabularnewline
+
+% \hline
 echotop\_meta \\[2\baselineskip]
 \squeezeme{\hspace*{3ex} This type contains:}\\[\baselineskip]
 \squeezeme{\hspace*{3ex} echotop\_meta(1:n\_dom)\%time\_interval}\\[\baselineskip]
@@ -3433,6 +3456,41 @@ parcelfreq2\_mode & [5]
 \tabularnewline
 %
 
+tot\_prec\_d &  total accumulated precipitation during a different time interval compared to tot\_prec &
+kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [6], [7]
+\tabularnewline
+%
+
+lapse\_rate & temperature gradient between 500 and 850 hPa  &
+K m-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
+wshear\_u & difference of U component between certain heights (``wshear\_uv\_heights'') AGL and the lowest model level  &
+m s-1 & iforcing = inwp & 3d & wshear\_uv\_heights & [2]
+\tabularnewline
+%
+
+wshear\_v & difference of V component between certain heights (``wshear\_uv\_heights'') AGL and the lowest model level  &
+m s-1 & iforcing = inwp & 3d & wshear\_uv\_heights & [2]
+\tabularnewline
+%
+
+srh & storm relative helicity considering storm motion estimate of Bunkers et al. (2000) for right-movers. srh is a vertical intergal up to a certain height AGL and may be output for different upper bounds (``srh\_heights''). &
+m2 s-2 & iforcing = inwp & 3d & srh\_heights & [2]
+\tabularnewline
+%
+
+cape\_mu & approximate value of the most unstable CAPE considering a test parcel from the height level with largest equivalent potential temperature between the ground and 3000 m AGL  &
+J kg-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
+cin\_mu & approximate value of the most unstable CIN consistent to cape\_mu  &
+J kg-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
 \hline
 \end{longtable}
 \renewcommand*{\arraystretch}{1.}
@@ -3484,6 +3542,8 @@ is found in the column ``Place of computation in source code'' of table \ref{tab
 \item[{[3]}] \texttt{/src/atm\_phy\_nwp/mo\_nh\_diagnose\_pmsl} 
 \item[{[4]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_flow} 
 \item[{[5]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_parcel}
+\item[{[6]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
+\item[{[7]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
 \end{itemize}
 %
 

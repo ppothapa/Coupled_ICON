@@ -748,7 +748,7 @@ CONTAINS
     INTEGER, DIMENSION(5) :: conv_list
 
     !$acc data present(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv, &
-    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, &
+    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d, &
     !$acc              prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
     !$acc      if(i_am_accel_node)
 
@@ -878,6 +878,10 @@ CONTAINS
           &                      + pdtime * prm_diag%snow_con_rate(jc,jb)
 
         prm_diag%prec_con(jc,jb) = prm_diag%rain_con(jc,jb) + prm_diag%snow_con(jc,jb)
+
+        ! to compute tot_prec_d lateron:
+        prm_diag%prec_con_d(jc,jb) = prm_diag%prec_con_d(jc,jb) + pdtime * ( &
+          &                          prm_diag%rain_con_rate(jc,jb) + prm_diag%snow_con_rate(jc,jb) )
 
       ENDDO
       !$acc end parallel

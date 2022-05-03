@@ -2060,7 +2060,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
   TYPE(t_wtr_prog),             POINTER :: ptr_wprogc ! child level water prog state
 
   ! Local fields
-  INTEGER, PARAMETER  :: nfields_p1=70   ! Number of positive-definite 2D physics fields for which boundary interpolation is needed
+  INTEGER, PARAMETER  :: nfields_p1=75   ! Number of positive-definite 2D physics fields for which boundary interpolation is needed
   INTEGER, PARAMETER  :: nfields_p2=19   ! Number of remaining 2D physics fields for which boundary interpolation is needed
   INTEGER, PARAMETER  :: nfields_l2=19   ! Number of 2D land state fields
 
@@ -2194,7 +2194,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       z_aux3dp1_p(jc,51:53,jb) = prm_diag(jg)%tot_cld_vi(jc,jb,1:3)
       z_aux3dp1_p(jc,54:58,jb) = p_nh_state(jg)%diag%tracer_vi(jc,jb,1:5)
       z_aux3dp1_p(jc,59,jb) = prm_diag(jg)%clct_mod(jc,jb)
-
+      
       IF (atm_phy_nwp_config(jg)%lhave_graupel) THEN
         z_aux3dp1_p(jc,60,jb) = prm_diag(jg)%graupel_gsp(jc,jb)
         z_aux3dp1_p(jc,61,jb) = prm_diag(jg)%graupel_gsp_rate(jc,jb)
@@ -2202,6 +2202,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
         z_aux3dp1_p(jc,60,jb) = 0._wp
         z_aux3dp1_p(jc,61,jb) = 0._wp
       ENDIF
+
       z_aux3dp1_p(jc,62,jb) = prm_diag(jg)%tvm(jc,jb)
       z_aux3dp1_p(jc,63,jb) = prm_diag(jg)%tvh(jc,jb)
       z_aux3dp1_p(jc,64,jb) = prm_diag(jg)%tkr(jc,jb)
@@ -2217,6 +2218,18 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
         z_aux3dp1_p(jc,69,jb) = 0._wp
         z_aux3dp1_p(jc,70,jb) = 0._wp
       ENDIF
+      
+      IF (atm_phy_nwp_config(jg)%l2moment) THEN
+        z_aux3dp1_p(jc,71,jb) = prm_diag(jg)%hail_gsp(jc,jb)
+        z_aux3dp1_p(jc,72,jb) = prm_diag(jg)%hail_gsp_rate(jc,jb)
+      ELSE
+        z_aux3dp1_p(jc,71,jb) = 0._wp
+        z_aux3dp1_p(jc,72,jb) = 0._wp
+      ENDIF
+      
+      z_aux3dp1_p(jc,73,jb)  = prm_diag(jg)%tot_prec_d(jc,jb)
+      z_aux3dp1_p(jc,74,jb)  = prm_diag(jg)%prec_gsp_d(jc,jb)
+      z_aux3dp1_p(jc,75,jb)  = prm_diag(jg)%prec_con_d(jc,jb)
 
       z_aux3dp2_p(jc,1,jb) = prm_diag(jg)%u_10m(jc,jb)
       z_aux3dp2_p(jc,2,jb) = prm_diag(jg)%v_10m(jc,jb)
@@ -2470,10 +2483,19 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       prm_diag(jgc)%rh_2m_land(jc,jb)     = z_aux3dp1_c(jc,68,jb)
 
       IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jgc)%inwp_gscp)) THEN
-        prm_diag(jgc)%ice_gsp(jc,jb)        = MAX(z_aux3dp1_c(jc,69,jb),prm_diag(jgc)%ice_gsp(jc,jb))
-        prm_diag(jgc)%ice_gsp_rate(jc,jb)   = z_aux3dp1_c(jc,70,jb)
+        prm_diag(jgc)%ice_gsp(jc,jb)       = MAX(z_aux3dp1_c(jc,69,jb),prm_diag(jgc)%ice_gsp(jc,jb))
+        prm_diag(jgc)%ice_gsp_rate(jc,jb)  = z_aux3dp1_c(jc,70,jb)
       ENDIF
 
+      IF (atm_phy_nwp_config(jgc)%l2moment) THEN
+        prm_diag(jgc)%hail_gsp(jc,jb)      = MAX(z_aux3dp1_c(jc,71,jb),prm_diag(jgc)%hail_gsp(jc,jb))
+        prm_diag(jgc)%hail_gsp_rate(jc,jb) = z_aux3dp1_c(jc,72,jb)
+      END IF
+      
+      prm_diag(jgc)%tot_prec_d(jc,jb)     = MAX(z_aux3dp1_c(jc,73,jb),prm_diag(jgc)%tot_prec_d(jc,jb))
+      prm_diag(jgc)%prec_gsp_d(jc,jb)     = MAX(z_aux3dp1_c(jc,74,jb),prm_diag(jgc)%prec_gsp_d(jc,jb))
+      prm_diag(jgc)%prec_con_d(jc,jb)     = MAX(z_aux3dp1_c(jc,75,jb),prm_diag(jgc)%prec_con_d(jc,jb))
+      
       prm_diag(jgc)%u_10m(jc,jb)          = z_aux3dp2_c(jc,1,jb)
       prm_diag(jgc)%v_10m(jc,jb)          = z_aux3dp2_c(jc,2,jb)
       prm_diag(jgc)%lhfl_s(jc,jb)         = z_aux3dp2_c(jc,3,jb)
@@ -2875,7 +2897,7 @@ SUBROUTINE feedback_phys_diag(jg, jgp)
 
   ! Allocation of local storage fields
   nblks_c_lp = p_gcp%end_blk(min_rlcell,i_chidx)
-  ALLOCATE(z_aux3d_lp(nproma,7,nblks_c_lp), z_aux3d_par(nproma,7,p_patch(jgp)%nblks_c))
+  ALLOCATE(z_aux3d_lp(nproma,10,nblks_c_lp), z_aux3d_par(nproma,10,p_patch(jgp)%nblks_c))
 
   p_aux3d => z_aux3d_lp
 
@@ -2936,6 +2958,26 @@ SUBROUTINE feedback_phys_diag(jg, jgp)
         prm_diag(jg)%snow_gsp(iidx(jc,jb,3),iblk(jc,jb,3))*p_fbkwgt(jc,jb,3) + &
         prm_diag(jg)%snow_gsp(iidx(jc,jb,4),iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
 
+      p_aux3d(jc,8,jb) =                                         &
+        prm_diag(jg)%tot_prec_d(iidx(jc,jb,1),iblk(jc,jb,1))*p_fbkwgt(jc,jb,1) + &
+        prm_diag(jg)%tot_prec_d(iidx(jc,jb,2),iblk(jc,jb,2))*p_fbkwgt(jc,jb,2) + &
+        prm_diag(jg)%tot_prec_d(iidx(jc,jb,3),iblk(jc,jb,3))*p_fbkwgt(jc,jb,3) + &
+        prm_diag(jg)%tot_prec_d(iidx(jc,jb,4),iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
+
+      p_aux3d(jc,9,jb) =                                         &
+        prm_diag(jg)%prec_gsp_d(iidx(jc,jb,1),iblk(jc,jb,1))*p_fbkwgt(jc,jb,1) + &
+        prm_diag(jg)%prec_gsp_d(iidx(jc,jb,2),iblk(jc,jb,2))*p_fbkwgt(jc,jb,2) + &
+        prm_diag(jg)%prec_gsp_d(iidx(jc,jb,3),iblk(jc,jb,3))*p_fbkwgt(jc,jb,3) + &
+        prm_diag(jg)%prec_gsp_d(iidx(jc,jb,4),iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
+
+      p_aux3d(jc,10,jb) =                                         &
+        prm_diag(jg)%prec_con_d(iidx(jc,jb,1),iblk(jc,jb,1))*p_fbkwgt(jc,jb,1) + &
+        prm_diag(jg)%prec_con_d(iidx(jc,jb,2),iblk(jc,jb,2))*p_fbkwgt(jc,jb,2) + &
+        prm_diag(jg)%prec_con_d(iidx(jc,jb,3),iblk(jc,jb,3))*p_fbkwgt(jc,jb,3) + &
+        prm_diag(jg)%prec_con_d(iidx(jc,jb,4),iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
+
+!!$ ub: what about graupel_gsp and hail_gsp?
+      
     ENDDO
 
   ENDDO
@@ -2966,6 +3008,9 @@ SUBROUTINE feedback_phys_diag(jg, jgp)
         prm_diag(jgp)%snow_con(jc,jb)      = p_aux3d(jc,5,jb)
         prm_diag(jgp)%rain_gsp(jc,jb)      = p_aux3d(jc,6,jb)
         prm_diag(jgp)%snow_gsp(jc,jb)      = p_aux3d(jc,7,jb)
+        prm_diag(jgp)%tot_prec_d(jc,jb)    = p_aux3d(jc,8,jb)
+        prm_diag(jgp)%prec_gsp_d(jc,jb)    = p_aux3d(jc,9,jb)
+        prm_diag(jgp)%prec_con_d(jc,jb)    = p_aux3d(jc,10,jb)
       END IF
 
     ENDDO

@@ -765,6 +765,12 @@ CONTAINS
       &              "accumulated grid-scale surface graupel", &
       &              sfc_var_info, prm_diag%graupel_gsp(:,:))
     ENDIF
+    IF(atm_phy_nwp_config%l2moment) THEN
+      CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+      &              "HAIL_GSP", "kg/m2", &
+      &              "accumulated grid-scale surface hail", &
+      &              sfc_var_info, prm_diag%hail_gsp(:,:))
+    ENDIF
     CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
       &              "PREC_CON", "kg/m2", &
       &              "accumulated convective surface precipitation", &

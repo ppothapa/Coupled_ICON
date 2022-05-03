@@ -61,6 +61,10 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_Q_SEDIM,               &
   &                               TASK_COMPUTE_DBZ850,                &
   &                               TASK_COMPUTE_DBZCMAX,               &
+  &                               TASK_COMPUTE_WSHEAR_U,              &
+  &                               TASK_COMPUTE_WSHEAR_V,              &
+  &                               TASK_COMPUTE_LAPSERATE,             &
+  &                               TASK_COMPUTE_SRH,                   &
   &                               iedmf,                              &
   &                               HINTP_TYPE_LONLAT_NNB,              &
   &                               HINTP_TYPE_LONLAT_BCTR,             &
@@ -97,9 +101,9 @@ USE mo_cdi,                 ONLY: TSTEP_MIN, TSTEP_MAX, TSTEP_INSTANT, TSTEP_CON
 USE mo_zaxis_type,          ONLY: ZA_REFERENCE, ZA_REFERENCE_HALF,          &
   &                               ZA_SURFACE, ZA_HEIGHT_2M, ZA_HEIGHT_10M,       &
   &                               ZA_HEIGHT_2M_LAYER, ZA_TOA, ZA_DEPTH_BELOW_LAND,   &
-  &                               ZA_PRESSURE_0, ZA_PRESSURE_400,&
+  &                               ZA_PRESSURE_0, ZA_PRESSURE_400, ZA_SRH, &
   &                               ZA_PRESSURE_800, ZA_CLOUD_BASE, ZA_CLOUD_TOP,  &
-  &                               ZA_ISOTHERM_ZERO, ZA_ECHOTOP
+  &                               ZA_ISOTHERM_ZERO, ZA_ECHOTOP, ZA_WSHEAR, ZA_PRESSURE_LAPSERATE
 USE mo_physical_constants,  ONLY: grav
 #ifndef __NO_ICON_LES__
 USE mo_ls_forcing_nml,      ONLY: is_ls_forcing
@@ -116,8 +120,10 @@ USE mo_action,               ONLY: ACTION_RESET, new_action, actions
 USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interval, &
   &                                celltracks_interval, echotop_meta, &
   &                                maxt_interval, precip_interval, t_var_in_output, &
+  &                                totprec_d_interval, &
   &                                uh_max_zmin, uh_max_zmax, luh_max_out, uh_max_nlayer, &
-  &                                sunshine_interval
+  &                                sunshine_interval, n_wshear, wshear_uv_heights, &
+  &                                n_srh, srh_heights
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
@@ -311,8 +317,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     INTEGER :: shape2d(2), shape3d(3), shape3dsubs(3), &
       &        shape3dsubsw(3), shape3d_synsat(3),     &
-      &        shape2d_synsat(2), shape3d_aero(3), shape3dechotop(3)
-    INTEGER :: shape3dkp1(3), shape3dflux(3), shape3d_uh_max(3), shape3dturb(3)
+      &        shape2d_synsat(2), shape3d_aero(3), shape3dechotop(3), shape3dwshear(3)
+    INTEGER :: shape3dkp1(3), shape3dflux(3), shape3d_uh_max(3), shape3dturb(3), shape3dsrh(3)
     INTEGER :: ibits,  kcloud
     INTEGER :: jsfc, ist
     CHARACTER(len=NF_MAX_NAME) :: long_name
@@ -362,6 +368,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     shape3d_aero   = (/nproma, nclass_aero,  kblks            /)
     shape3dechotop = (/nproma, echotop_meta(k_jg)%nechotop, kblks/)
     shape3d_uh_max = (/nproma, kblks,        uh_max_nlayer    /)
+    shape3dwshear  = (/nproma, n_wshear,     kblks/)
+    shape3dsrh     = (/nproma, n_srh,        kblks/)
 
     !------------------------------
     ! Ensure that all pointers have a defined association status
@@ -763,6 +771,59 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%tot_prec)
 
+    ! &      diag%tot_prec_d(nproma,nblks_c) = diag%prec_gsp_d(nproma,nblks_c) + diag%prec_con_d(nproma,nblks_c)
+    cf_desc    = t_cf_var('tot_prec_d', 'kg m-2', 'total precip since end of previous full '// &
+                 TRIM(totprec_d_interval(k_jg)(3:))//' since model start', datatype_flt)
+    grib2_desc = grib2_var(0, 1, 52, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
+         &           + t_grib2_int_key("typeOfStatisticalProcessing", 4)
+    CALL add_var( diag_list, 'tot_prec_d', diag%tot_prec_d,                   &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,                                              &
+!                & in_group=groups("precip_vars"),                             &  ! is an optional diagnostic
+                & isteptype=TSTEP_ACCUM,                                      &
+                & hor_interp=create_hor_interp_metadata(                      &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & initval=0._wp, resetval=0._wp,                              &
+                & action_list=actions(new_action(ACTION_RESET,totprec_d_interval(k_jg))), &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%tot_prec_d)
+
+    ! &      diag%prec_gsp_d(nproma,nblks_c) !! have to be in restart
+    cf_desc    = t_cf_var('prec_gsp_d', 'kg m-2', 'gridscale precip since end of previous full '// &
+                          TRIM(totprec_d_interval(k_jg)(3:))//' since model start', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &  ! no grib definitions available yet
+         &           + t_grib2_int_key("typeOfStatisticalProcessing", 4)
+    CALL add_var( diag_list, 'prec_gsp_d', diag%prec_gsp_d,                   &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,                                              &
+!                & in_group=groups("precip_vars"),                             &  ! is an optional diagnostic
+                & isteptype=TSTEP_ACCUM ,                                     &
+                & hor_interp=create_hor_interp_metadata(                      &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & initval=0._wp, resetval=0._wp,                              &
+                & action_list=actions(new_action(ACTION_RESET,totprec_d_interval(k_jg))), &
+                & lopenacc=.TRUE.)
+    __acc_attach(diag%prec_gsp_d)
+
+    ! &      diag%prec_con_d(nproma,nblks_c)
+    cf_desc    = t_cf_var('prec_con_d', 'kg m-2', 'convective precip since end of previous full '// &
+                          TRIM(totprec_d_interval(k_jg)(3:))//' since model start', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &  ! no grib definitions available yet
+         &           + t_grib2_int_key("typeOfStatisticalProcessing", 4)
+    CALL add_var( diag_list, 'prec_con_d', diag%prec_con_d,                   &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d,                                              &
+!                & in_group=groups("precip_vars"),                             &  ! is an optional diagnostic
+                & isteptype=TSTEP_ACCUM ,                                     &
+                & hor_interp=create_hor_interp_metadata(                      &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & initval=0._wp, resetval=0._wp,                              &
+                & action_list=actions(new_action(ACTION_RESET,totprec_d_interval(k_jg))), &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%prec_con_d)
 
 
     ! &      diag%prec_con_rate_avg(nproma,nblks_c)
@@ -860,7 +921,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     ! &      diag%gust10(nproma,nblks_c)
     CALL getPTStringFromMS(NINT(1000*gust_interval(k_jg), i8), gust_int)
-    cf_desc    = t_cf_var('gust10', 'm s-1 ', 'gust at 10 m during the last '//gust_int(3:), datatype_flt)
+    cf_desc    = t_cf_var('gust10', 'm s-1 ', 'gust at 10 m since end of previous full '// &
+                          TRIM(gust_int(3:))//' since model start', datatype_flt)
     grib2_desc = grib2_var( 0, 2, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'gust10', diag%gust10,                              &
                 & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,    &
@@ -3805,7 +3867,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('lpi_max', 'J kg-1',                   &
-           &                 'lightning potential index, maximum during the last '//celltracks_int(3:), datatype_flt)
+           &                 'lightning potential index, maximum since end of previous full '// &
+                             TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 17, 192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'lpi_max', diag%lpi_max,                      &
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
@@ -3864,8 +3927,8 @@ __acc_attach(diag%clct)
 
       ! &      diag%lpi_con_max(nproma,nblks_c)
       cf_desc    = t_cf_var('lpi_con_max', 'J kg-1 ',                          &
-          &  'subgrid-scale lightning potential index, maximum during the last '             &
-          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) ', datatype_flt)
+          &  'subgrid-scale lightning potential index, maximum since end of previous full ' &
+          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) since model start', datatype_flt)
       grib2_desc = grib2_var(0,17,5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'lpi_con_max', diag%lpi_con_max   ,             &
                     & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
@@ -3900,8 +3963,8 @@ __acc_attach(diag%clct)
 
       ! &      diag%mlpi_con_max(nproma,nblks_c)
       cf_desc    = t_cf_var('mlpi_con_max', 'J kg-1 ',                         &
-          &  'modified lightning potential index, maximum during the last '    &
-          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) ', datatype_flt)
+          &  'modified lightning potential index, maximum since end of previous full '    &
+          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) since model start', datatype_flt)
       grib2_desc = grib2_var(0, 17, 193, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'mlpi_con_max', diag%mlpi_con_max   ,           &
                     & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
@@ -3997,8 +4060,8 @@ __acc_attach(diag%clct)
 
       ! &      diag%lfd_con_max(nproma,nblks_c)
       cf_desc    = t_cf_var('lfd_con_max', 'km-2 day-1',                       &
-          &  'maximum lightning flash density km-2 day-1 during the last '     &
-          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) ', datatype_flt)
+          &  'maximum lightning flash density km-2 day-1 since end of previous full '     &
+          &//'01H (- +48h), 03H (+48 - +72h) and 06h (+72h -) since model start', datatype_flt)
       grib2_desc = grib2_var(0,17,4, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
       &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)          &
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 8)
@@ -4099,8 +4162,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('tcond_max', 'kg m-2',                           &
-        &                   'total column-integrated condensate, max. during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'total column-integrated condensate, max. since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 1, 81, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
         &              + t_grib2_int_key("typeOfSecondFixedSurface", 8)
       CALL add_var( diag_list, 'tcond_max', diag%tcond_max,                  &
@@ -4116,8 +4179,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('tcond10_max', 'kg m-2',                         &
-        &                   'total column-integrated condensate above z(T=-10 degC), max. during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'total column-integrated condensate above z(T=-10 degC), max. since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 1, 81, ibits, GRID_UNSTRUCTURED, GRID_CELL)       &
         &              + t_grib2_int_key("typeOfFirstFixedSurface",           20)  &
         &              + t_grib2_int_key("typeOfSecondFixedSurface",           8)  &
@@ -4163,7 +4226,7 @@ __acc_attach(diag%clct)
 
         longname = 'updraft helicity '// &
                    TRIM(real2string(uh_max_zmin(k)))//'-'//TRIM(real2string(uh_max_zmax(k)))// &
-                   ' m, max. during the last '// celltracks_int(3:)
+                   ' m, max. since end of previous full '//TRIM(celltracks_int(3:))//' since model start'
 
         IF (luh_max_out(k_jg, k)) THEN
           cf_desc    = t_cf_var(TRIM(shortname), 'm2 s-2', TRIM(longname), datatype_flt)
@@ -4187,8 +4250,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('vorw_ctmax', 's-1',                   &
-        &                   'Maximum rotation amplitude during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'Maximum rotation amplitude since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 2, 206, ibits, GRID_UNSTRUCTURED, GRID_CELL)   &
         &           + t_grib2_int_key("typeOfFirstFixedSurface",          102)  &
         &           + t_grib2_int_key("typeOfSecondFixedSurface",         102)  &
@@ -4207,8 +4270,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('w_ctmax', ' m s-1',                   &
-        &                   'Maximum updraft track during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'Maximum updraft track since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 2, 207, ibits, GRID_UNSTRUCTURED, GRID_CELL)    &
         &           + t_grib2_int_key("typeOfFirstFixedSurface",           102)  &
         &           + t_grib2_int_key("typeOfSecondFixedSurface",          102)  &
@@ -4223,6 +4286,84 @@ __acc_attach(diag%clct)
                   & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
     END IF
 
+    IF (var_in_output%wshear_u) THEN
+      cf_desc    = t_cf_var('wshear_u', 'm s-1', 'U-component of vertical wind shear vector', datatype_flt)
+      grib2_desc = grib2_var(0, 2, 208, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                       &
+                    & "wshear_u", diag%wshear_u,                                     &
+                    & GRID_UNSTRUCTURED_CELL, ZA_WSHEAR,                             &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape3dwshear,                                           &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_WSHEAR_U, lrestart=.FALSE. )
+    END IF
+    
+    IF (var_in_output%wshear_v) THEN
+      cf_desc    = t_cf_var('wshear_v', 'm s-1', 'V-component of vertical wind shear vector', datatype_flt)
+      grib2_desc = grib2_var(0, 2, 209, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                       &
+                    & "wshear_v", diag%wshear_v,                                     &
+                    & GRID_UNSTRUCTURED_CELL, ZA_WSHEAR,                             &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape3dwshear,                                           &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_WSHEAR_V, lrestart=.FALSE. )
+    END IF
+    
+    IF (var_in_output%lapserate) THEN
+      cf_desc    = t_cf_var('lapse_rate', 'K/m', 'Temperature lapse rate 500hPa - 850hPa', datatype_flt)
+      grib2_desc = grib2_var(0, 0, 8, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                       &
+                    & "lapse_rate", diag%lapse_rate,                                 &
+                    & GRID_UNSTRUCTURED_CELL, ZA_PRESSURE_LAPSERATE,                 &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape2d,                                                 &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_LAPSERATE, lrestart=.FALSE.)
+    END IF
+
+    IF (var_in_output%srh) THEN
+      cf_desc    = t_cf_var('srh', 'm2 s-2', 'Storm relative helicity', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 8, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                       &
+                    & "srh", diag%srh,                                               &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SRH,                                &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape3dsrh,                                              &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_SRH, lrestart=.FALSE.)
+    END IF
+
+    IF (var_in_output%cape_mu .OR. var_in_output%cin_mu) THEN
+      cf_desc    = t_cf_var('cape_mu', 'J kg-1 ',                                 &
+           'Most unstable CAPE, approximated by parcel with largest Theta_e in 3000 m layer', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)        &
+           &           + t_grib2_int_key("typeOfFirstFixedSurface", 193)
+      CALL add_var( diag_list, 'cape_mu', diag%cape_mu,                           &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                         &
+                    & cf_desc, grib2_desc,                                        &
+                    & ldims=shape2d,                                              &
+                    & isteptype=TSTEP_INSTANT,                                    &
+                    & hor_interp=create_hor_interp_metadata(                      &
+                    &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                    & lrestart=.FALSE., lopenacc=.TRUE.)
+      __acc_attach(diag%cape_mu)
+
+      cf_desc    = t_cf_var('cin_mu', 'J kg-1 ',                                  &
+           'Most unstable convective inhibition, approximated by parcel with largest Theta_e in 3000 m layer', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)        &
+           &           + t_grib2_int_key("typeOfFirstFixedSurface", 193)
+      CALL add_var( diag_list, 'cin_mu', diag%cin_mu,                             &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                         &
+                    & cf_desc, grib2_desc,                                        &
+                    & ldims=shape2d,                                              &
+                    & isteptype=TSTEP_INSTANT,                                    &
+                    & hor_interp=create_hor_interp_metadata(                      &
+                    &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                    & lrestart=.FALSE., lopenacc=.TRUE.)
+      __acc_attach(diag%cin_mu)
+    END IF
+    
     IF (var_in_output%dbz .OR. var_in_output%dbz850 .OR. var_in_output%dbzcmax .OR. var_in_output%dbzctmax .OR. &
         var_in_output%echotop .OR. var_in_output%echotopinm) THEN
       cf_desc    = t_cf_var('dbz', 'dBZ',&
@@ -4274,8 +4415,8 @@ __acc_attach(diag%clct)
       celltracks_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
       cf_desc    = t_cf_var('dbz_ctmax', 'dBZ',                   &
-        &                   'Column and time maximum reflectivity during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'Column and time maximum reflectivity since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 15, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)    &
         &           + t_grib2_int_key("typeOfFirstFixedSurface",           1)   &
         &           + t_grib2_int_key("typeOfSecondFixedSurface",          8)
@@ -4293,8 +4434,8 @@ __acc_attach(diag%clct)
       echotop_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*echotop_meta(k_jg)%time_interval, i8), echotop_int)
       cf_desc    = t_cf_var('echotop', 'Pa',                   &
-        &                   'Minimum pressure of exceeding radar reflectivity threshold during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'Minimum pressure of exceeding radar reflectivity threshold since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 3, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)     &
            &        + t_grib2_int_key("typeOfFirstFixedSurface",          25)
 !!$ This seems not to have any effect for creating a bitmap with missing values:
@@ -4306,8 +4447,9 @@ __acc_attach(diag%clct)
                   & ldims=shape3dechotop,                                       &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MIN,       &
                   & resetval=-999.0_wp, initval=-999.0_wp,                      &
-!!$ this would create a bitmap with missing values, but unfortunately does not work for interpolation:
-!!$ & lmiss=.TRUE., missval=-999.0_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
+!!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
                   & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
     END IF
 
@@ -4315,8 +4457,8 @@ __acc_attach(diag%clct)
       echotop_int(:) = ' '
       CALL getPTStringFromMS(NINT(1000*echotop_meta(k_jg)%time_interval, i8), echotop_int)
       cf_desc    = t_cf_var('echotopinm', 'm',                                  &
-        &                   'Maximum height of exceeding radar reflectivity threshold during the last '// &
-        &                   celltracks_int(3:), datatype_flt)
+        &                   'Maximum height of exceeding radar reflectivity threshold since end of previous full '// &
+        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)     &
            &        + t_grib2_int_key("typeOfFirstFixedSurface",          25)
 !!$ This seems not to have any effect for creating a bitmap with missing values:
@@ -4328,8 +4470,9 @@ __acc_attach(diag%clct)
                   & ldims=shape3dechotop,                                       &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
                   & resetval=-999.0_wp, initval=-999.0_wp,                      &
-!!$ this would create a bitmap with missing values, but unfortunately does not work for interpolation:
-!!$ & lmiss=.TRUE., missval=-999.0_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
+!!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
                   & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
     END IF
 

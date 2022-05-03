@@ -34,7 +34,10 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
     & TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,                         &
+    & TASK_COMPUTE_SRH,                                               &
+    & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
     & TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,                    &
+    & TASK_COMPUTE_LAPSERATE,                                         &
     & TASK_INTP_VER_ZLEV,                                             &
     & TASK_INTP_VER_ILEV,                                             &
     & PRES_MSL_METHOD_SAI, PRES_MSL_METHOD_GME, max_dom,              &
@@ -84,12 +87,16 @@ MODULE mo_pp_tasks
     &                                   compute_field_twater, compute_field_q_sedim,  &
     &                                   compute_field_dbz850,                    &
     &                                   compute_field_dbzcmax,                   &
-    &                                   compute_field_smi
+    &                                   compute_field_smi,                       &
+    &                                   compute_field_lapserate,                 &
+    &                                   compute_field_srh,                       &
+    &                                   compute_field_wshear
   USE mo_diag_atmo_air_flow,      ONLY: compute_field_vor => hor_comps_of_rel_vorticity
   USE mo_diag_atmo_air_parcel,    ONLY: compute_field_bvf2 => sqr_of_Brunt_Vaisala_freq, &
     &                                   compute_field_parcelfreq2 => sqr_of_parcel_freq
   USE mo_io_config,               ONLY: itype_pres_msl, itype_rh, var_in_output, &
-    &                                   bvf2_mode, parcelfreq2_mode
+    &                                   bvf2_mode, parcelfreq2_mode, n_wshear, &
+    &                                   wshear_uv_heights, n_srh, srh_heights
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist
@@ -1420,8 +1427,31 @@ CONTAINS
 
     CASE (TASK_COMPUTE_SMI)
       CALL compute_field_smi(p_patch, p_lnd_state(jg)%diag_lnd, &
-        &                    ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1))
+           &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1))
 
+    CASE (TASK_COMPUTE_WSHEAR_U)
+      CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &
+           &                     p_diag%u, wshear_uv_heights(1:n_wshear), out_var%r_ptr(:,:,:,out_var_idx,1) )
+      
+    CASE (TASK_COMPUTE_WSHEAR_V)
+      CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &
+           &                     p_diag%v, wshear_uv_heights(1:n_wshear), out_var%r_ptr(:,:,:,out_var_idx,1) )
+
+    CASE (TASK_COMPUTE_LAPSERATE)
+      CALL compute_field_lapserate( p_patch, ptr_task%data_input%p_nh_state%metrics, &
+           &                        p_diag, 500e2_wp, 850e2_wp, out_var%r_ptr(:,:,out_var_idx,1,1) )
+
+    CASE (TASK_COMPUTE_SRH)
+      CALL compute_field_srh( ptr_patch     = p_patch,   &
+           &                  p_metrics     = ptr_task%data_input%p_nh_state%metrics, &
+           &                  p_diag        = p_diag,    &
+           &                  z_up_srh      = srh_heights(1:n_srh), &
+           &                  z_up_meanwind = 6000.0_wp, &
+           &                  z_low_shear   = 250.0_wp,  &
+           &                  z_up_shear    = 5750.0_wp, &
+           &                  dz_shear      = 500.0_wp,  &
+           &                  srh           = out_var%r_ptr(:,:,:,out_var_idx,1) )
+     
     CASE DEFAULT
       CALL finish(routine, 'Internal error!')
     END SELECT

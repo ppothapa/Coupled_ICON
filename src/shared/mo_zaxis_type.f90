@@ -63,7 +63,8 @@ MODULE mo_zaxis_type
     &   ZA_SEDIMENT_BOTTOM_TW_HALF, ZA_DEPTH_BELOW_SEA, ZA_DEPTH_BELOW_SEA_HALF,        &
     &   ZA_GENERIC_ICE, ZA_OCEAN_SEDIMENT, ZA_PRES_FL_SFC_200, ZA_PRES_FL_200_350,      &
     &   ZA_PRES_FL_350_550, ZA_PRES_FL_SFC_100, ZA_PRES_FL_100_245, ZA_PRES_FL_245_390, &
-    &   ZA_PRES_FL_390_530, ZA_ATMOSPHERE, ZA_HEIGHT_2M_LAYER, ZA_ECHOTOP, ZA_TROPOPAUSE
+    &   ZA_PRES_FL_390_530, ZA_ATMOSPHERE, ZA_HEIGHT_2M_LAYER, ZA_ECHOTOP,              &
+    &   ZA_TROPOPAUSE, ZA_wshear, ZA_PRESSURE_LAPSERATE, ZA_SRH
 
   !> Derived type holding a the ICON-internal key for a single
   !  vertical axis type. See "t_zaxisTypeList" for details.
@@ -194,7 +195,10 @@ CONTAINS
     ZA_SNOW                    = za_list%register(cdi_zaxis_type=ZAXIS_GENERIC            , is_2D=.FALSE.)
     ZA_SNOW_HALF               = za_list%register(cdi_zaxis_type=ZAXIS_GENERIC            , is_2D=.FALSE.)
     ZA_PRESSURE                = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.FALSE.)
+    ZA_PRESSURE_LAPSERATE      = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
     ZA_HEIGHT                  = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.FALSE.)
+    ZA_WSHEAR                  = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.FALSE.)
+    ZA_SRH                     = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.FALSE.)
     ZA_HEIGHT_2M               = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.TRUE.)
     ZA_HEIGHT_10M              = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.TRUE.)
     ZA_ALTITUDE                = za_list%register(cdi_zaxis_type=ZAXIS_ALTITUDE           , is_2D=.FALSE.)

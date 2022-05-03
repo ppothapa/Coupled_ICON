@@ -25,7 +25,7 @@
 MODULE mo_io_config
   USE mo_cdi,                     ONLY: FILETYPE_NC2
   USE mo_exception,               ONLY: finish, message
-  USE mo_impl_constants,          ONLY: max_dom, max_echotop
+  USE mo_impl_constants,          ONLY: max_dom, max_echotop, max_wshear, max_srh
   USE mo_io_units,                ONLY: filename_max
   USE mo_kind,                    ONLY: wp
   USE mo_parallel_config,         ONLY: num_restart_procs
@@ -51,6 +51,7 @@ MODULE mo_io_config
   REAL(wp):: celltracks_interval(max_dom)  ! time interval [seconds] over which extrema of cell track vars are taken
                                            !  (LPI_MAX, UH_MAX, VORW_CTMAX, W_CTMAX, DBZ_CTMAX)
   CHARACTER(len=max_timedelta_str_len) :: precip_interval(max_dom)   ! time interval over which precipitation variables are accumulated
+  CHARACTER(len=max_timedelta_str_len) :: totprec_d_interval(max_dom)! time interval over which the special tot_prec_d is accumulated
   CHARACTER(len=max_timedelta_str_len) :: runoff_interval(max_dom)   ! time interval over which runoff variables are accumulated
   CHARACTER(len=max_timedelta_str_len) :: sunshine_interval(max_dom) ! time interval over which sunshine duration is accumulated
   CHARACTER(len=max_timedelta_str_len) :: melt_interval(max_dom)     ! time interval over which snow melt rate is accumulated
@@ -104,6 +105,12 @@ MODULE mo_io_config
   INTEGER :: bvf2_mode                  !< computation mode for square of Brunt-Vaisala frequency
   INTEGER :: parcelfreq2_mode           !< computation mode for square of general air parcel oscillation frequency
 
+  REAL(wp):: wshear_uv_heights(max_wshear) !< heights AGL for which wind shear components WSHEAR_U, WSHEAR_V are desired
+  INTEGER :: n_wshear                   !< actual number of wshear heights given in namelist
+  
+  REAL(wp):: srh_heights(max_srh)       !< heights AGL for which storm relative helicity calculations are desired
+  INTEGER :: n_srh                      !< actual number of srh heights given in namelist
+  
   ! Derived type to collect logical variables indicating if optional diagnostics are requested for output
   TYPE t_var_in_output
     LOGICAL :: pres_msl     = .FALSE. !< Flag. TRUE if computation of mean sea level pressure desired
@@ -148,6 +155,12 @@ MODULE mo_io_config
     LOGICAL :: dursun_r     = .FALSE. !< Flag. TRUE if computation of relative sunshine duration is required
     LOGICAL :: res_soilwatb = .FALSE. !< Flag. TRUE if computation of residuum of soil water is desired
     LOGICAL :: snow_melt    = .FALSE. !< Flag. TRUE if computation of snow melt desired
+    LOGICAL :: wshear_u     = .FALSE. !< Flag. TRUE if computation of vertical U wind shear components is desired
+    LOGICAL :: wshear_v     = .FALSE. !< Flag. TRUE if computation of vertical V wind shear components is desired
+    LOGICAL :: lapserate    = .FALSE. !< Flag. TRUE if computation of T(500hPa) - T(850hPa) is desired
+    LOGICAL :: srh          = .FALSE. !< Flag. TRUE if computation of storm relative helicity (SRH) is desired
+    LOGICAL :: cape_mu      = .FALSE. !< Flag. TRUE if computation of most unstable CAPE is desired
+    LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition is desired
     !
     ! diagnostics for the horizontal wind tendencies in the dynamical core
     LOGICAL :: ddt_vn_dyn  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_dyn is required
@@ -299,6 +312,12 @@ CONTAINS
         var_in_output(jg)%dursun_m    = is_variable_in_output_dom(var_name="dursun_m", jg=jg)
         var_in_output(jg)%dursun_r    = is_variable_in_output_dom(var_name="dursun_r", jg=jg)
         var_in_output(jg)%snow_melt   = is_variable_in_output_dom(var_name="snow_melt", jg=jg)
+        var_in_output(jg)%wshear_u    = is_variable_in_output_dom(var_name="wshear_u", jg=jg)
+        var_in_output(jg)%wshear_v    = is_variable_in_output_dom(var_name="wshear_v", jg=jg)
+        var_in_output(jg)%lapserate   = is_variable_in_output_dom(var_name="lapse_rate", jg=jg)
+        var_in_output(jg)%srh         = is_variable_in_output_dom(var_name="srh", jg=jg)
+        var_in_output(jg)%cape_mu     = is_variable_in_output_dom(var_name="cape_mu", jg=jg)
+        var_in_output(jg)%cin_mu      = is_variable_in_output_dom(var_name="cin_mu", jg=jg)
 
         ! Check for special case: SMI is not in one of the output lists but it is part of a output group.
         ! In this case, the group can not be checked, as the connection between SMI and the group will be

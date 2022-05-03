@@ -63,7 +63,8 @@ MODULE mo_nwp_diagnosis
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
-  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, maximize_field_lpi, compute_field_tcond_max, &
+  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, &
+                                   maximize_field_lpi, compute_field_tcond_max, &
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
                                    compute_field_echotop, compute_field_echotopinm, compute_field_dursun, &
@@ -288,7 +289,8 @@ CONTAINS
             &                    prm_diag%dyn_gust(jc,jb) + prm_diag%con_gust(jc,jb) )
           
           ! total precipitation
-          prm_diag%tot_prec(jc,jb) = prm_diag%prec_gsp(jc,jb) + prm_diag%prec_con(jc,jb)
+          prm_diag%tot_prec(jc,jb)   = prm_diag%prec_gsp(jc,jb)   + prm_diag%prec_con(jc,jb)
+          prm_diag%tot_prec_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb) + prm_diag%prec_con_d(jc,jb)
 
           ! time averaged total precipitation rate
           prm_diag%tot_prec_rate_avg(jc,jb) = prm_diag%tot_prec(jc,jb) &
@@ -1451,6 +1453,20 @@ CONTAINS
         &                cin_ml  = prm_diag%cin_ml(:,jb)         , & !out
         &                use_acc = lacc                            ) !in
 
+      IF (var_in_output(jg)%cape_mu .OR. var_in_output(jg)%cin_mu ) THEN
+        !$ACC WAIT
+        CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
+             &                kmoist  = kstart_moist,                   & !in
+             &                z_limit = 3000.0_wp,                      & !in
+             &                te      = pt_diag%temp(:,:,jb)          , & !in
+             &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+             &                prs     = pt_diag%pres(:,:,jb)          , & !in
+             &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
+             &                cape_mu = prm_diag%cape_mu(:,jb)        , & !out
+             &                cin_mu  = prm_diag%cin_mu(:,jb)         , & !out
+             &                use_acc = lacc                            ) !in
+      END IF
+      
     ENDDO  ! jb
 !$OMP END DO
 

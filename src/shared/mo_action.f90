@@ -73,8 +73,9 @@ MODULE mo_action
   PUBLIC :: reset_act
   PUBLIC :: action_names, action_reset, new_action, actions
 
-  INTEGER, PARAMETER :: NMAX_VARS = 100 ! maximum number of fields that can be
-                                        ! assigned to a single action
+  INTEGER, PARAMETER :: NMAX_VARS = 220 ! maximum number of fields that can be
+                                        ! assigned to a single action (should be
+                                        ! sufficient for 4 domains in one nested run)
 
   ! type for generating an array of pointers of type t_var_list_element
   TYPE t_var_element_ptr
@@ -150,6 +151,7 @@ CONTAINS
     CHARACTER(LEN=MAX_EVENTNAME_STR_LEN):: event_name
     CHARACTER(LEN=vname_len) :: varlist(NMAX_VARS)
     CHARACTER(*), PARAMETER :: sep = ', '
+    CHARACTER(*), PARAMETER :: routine = TRIM("mo_action:action_collect_vars")
 
     nv = 0
     act_obj%actionTyp = actionTyp
@@ -166,6 +168,11 @@ CONTAINS
           IF (action_list%action(iact)%actionTyp == actionTyp) THEN
             ! Add field to action object
             nv = nv + 1
+            IF (nv > NMAX_VARS) THEN
+              CALL finish(routine, "Max. number of vars for action"// &
+                   &       TRIM(ACTION_NAMES(act_obj%actionTyp))// &
+                   &       " exceeded! Increase NMAX_VARS in mo_action.f90!")
+            END IF
             act_obj%var_element_ptr(nv)%p => elem
             act_obj%var_action_index(nv) = iact
             act_obj%var_element_ptr(nv)%patch_id = vl_iter%cur%p%patch_id
@@ -273,7 +280,7 @@ CONTAINS
     LOGICAL :: isactive
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: cur_dtime_str, slack_str
     TYPE(timedelta), POINTER :: p_slack                    ! slack in 'timedelta'-Format
-    CHARACTER(*), PARAMETER :: routine = TRIM("mo_action:")
+    CHARACTER(*), PARAMETER :: routine = TRIM("mo_action:action_execute")
 
   !-------------------------------------------------------------------------
     ! compute allowed slack in PT-Format
@@ -345,7 +352,7 @@ CONTAINS
     LOGICAL :: isactive(NMAX_VARS)
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: cur_dtime_str, slack_str
     TYPE(timedelta), POINTER :: p_slack                    ! slack in 'timedelta'-Format
-    CHARACTER(*), PARAMETER :: routine = "mo_action:"
+    CHARACTER(*), PARAMETER :: routine = "mo_action:action_execute_SX"
 
   !-------------------------------------------------------------------------
     isactive(:) =.FALSE.

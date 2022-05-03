@@ -284,13 +284,19 @@ MODULE mo_nwp_phy_types
       &  hail_gsp         (:,:),  & !! accumulated grid_scale surface hail             [kg/m2]
       &  graupel_gsp      (:,:),  & !! accumulated grid_scale surface graupel          [kg/m2]
       &  prec_gsp         (:,:),  & !! accumulated grid scale precipitation            [kg/m2]
+      &  prec_gsp_d       (:,:),  & !! accumulated grid scale precipitation            [kg/m2]
+                                    !!  (reset after "tpotprec_d_interval" seconds)
       !  convective
       &  rain_con         (:,:),  & !! accumulated convective surface rain             [kg/m2]
       &  snow_con         (:,:),  & !! accumulated convective surface snow             [kg/m2]
       &  prec_con         (:,:),  & !! accumulated convective precipitation            [kg/m2]
+      &  prec_con_d       (:,:),  & !! accumulated convective precipitation            [kg/m2]
+                                    !!  (reset after "tpotprec_d_interval" seconds)
       !  total
       &  tot_prec         (:,:),  & !! accumulated total precipitation                 [kg/m2]
-                                     !! (grid-scale plus convective)
+                                    !!  (grid-scale plus convective)
+      &  tot_prec_d       (:,:),  & !! accumulated total precipitation over a time interval [kg/m2]
+                                    !!  (grid-scale plus convective; reset after "tpotprec_d_interval" seconds)
       !
       !  Time averaged precipitation rates since model start [kg/m2/s]
       &  prec_con_rate_avg(:,:),  & !! time averaged convective precipitation rate    [kg/m2/s]
@@ -490,7 +496,13 @@ MODULE mo_nwp_phy_types
       dbz_cmax(:,:),       & !< Column maximum radar reflectivity
       dbz_ctmax(:,:),      & !< Column and time maximum radar reflectivity
       echotop(:,:,:),      & !< Echotop pressure in p
-      echotopinm(:,:,:)      !< Echotop altitude in m MSL
+      echotopinm(:,:,:),   & !< Echotop altitude in m MSL
+      wshear_u(:,:,:),     & !< U-component of vertical wind shear vector between some heights AGL and lowest model level
+      wshear_v(:,:,:),     & !< V-component of vertical wind shear vector between some heights AGL and lowest model level
+      lapse_rate(:,:),     & !< T(500hPa) - T(850hPa) with a correction if 850 hPa is below the surface
+      cape_mu (:,:),       & !< Most unstable convective available energy
+      cin_mu(:,:),         & !< Most unstable convective inhibition
+      srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
     ! grid and latm_above_top = .TRUE.

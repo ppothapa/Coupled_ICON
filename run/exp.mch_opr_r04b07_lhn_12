@@ -372,7 +372,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
   'omega','div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
   'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
+  'tot_prec','cape','cape_ml','cin_ml','cape_mu','cin_mu','gust10','dyn_gust','clct_mod','cldepth',
   'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
   'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
   'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',

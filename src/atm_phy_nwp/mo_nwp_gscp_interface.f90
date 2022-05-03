@@ -687,6 +687,15 @@ CONTAINS
                &                      + prm_diag%hail_gsp(jc,jb)  &
                &                      + prm_diag%graupel_gsp(jc,jb)
 
+             ! to compute tot_prec_d lateron:
+             prm_diag%prec_gsp_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb) + tcall_gscp_jg * ( &
+                  &                   + prm_diag%rain_gsp_rate (jc,jb)       &
+!!% no ice because of blowing snow     + prm_diag%ice_gsp_rate (jc,jb)        &
+                  &                   + prm_diag%snow_gsp_rate (jc,jb)       &
+                  &                   + prm_diag%graupel_gsp_rate (jc,jb)    &
+                  &                   + prm_diag%hail_gsp_rate (jc,jb)       &
+                  &                   )
+
            ENDDO
 
           CASE(2)
@@ -714,6 +723,14 @@ CONTAINS
                &                      + prm_diag%snow_gsp(jc,jb)  &
                &                      + prm_diag%graupel_gsp(jc,jb)
 
+             ! to compute tot_prec_d lateron:
+             prm_diag%prec_gsp_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb) + tcall_gscp_jg * ( &
+                  &                   + prm_diag%rain_gsp_rate (jc,jb)       &
+!!% no ice because of blowing snow     + prm_diag%ice_gsp_rate (jc,jb)        &
+                  &                   + prm_diag%snow_gsp_rate (jc,jb)       &
+                  &                   + prm_diag%graupel_gsp_rate (jc,jb)    &
+                  &                   )
+
            ENDDO
            !$acc end parallel
 
@@ -737,6 +754,13 @@ CONTAINS
              ! note: ice is deliberately excluded here because it predominantly contains blowing snow
              prm_diag%prec_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)  &
                &                      + prm_diag%snow_gsp(jc,jb)
+
+             ! to compute tot_prec_d lateron:
+             prm_diag%prec_gsp_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb) + tcall_gscp_jg * ( &
+                  &                   + prm_diag%rain_gsp_rate (jc,jb)       &
+!!% no ice because of blowing snow     + prm_diag%ice_gsp_rate (jc,jb)        &
+                  &                   + prm_diag%snow_gsp_rate (jc,jb)       &
+                  &                   )
 
            ENDDO
            !$acc end parallel
@@ -812,7 +836,6 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
- 
     ! Some more run time diagnostics (can also be used for other schemes)
     IF (msg_level>14 .AND. atm_phy_nwp_config(jg)%l2moment) THEN
        CALL nwp_diag_output_minmax_micro(p_patch, p_prog, p_diag, ptr_tracer)
