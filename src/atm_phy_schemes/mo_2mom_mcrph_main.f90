@@ -133,7 +133,8 @@ MODULE mo_2mom_mcrph_main
        &  setup_graupel_selfcollection, graupel_selfcollection, ice_melting, &
        &  particle_cloud_riming, particle_rain_riming, graupel_melting,      &
        &  hail_melting_simple, graupel_hail_conv_wet_gamlook, ice_riming,    &
-       &  snow_riming, ccn_activation_sk, ccn_activation_hdcp2, ccn_activation_sk_4d
+       &  snow_riming, ccn_activation_sk, ccn_activation_hdcp2,              &
+       &  ccn_activation_sk_4d, set_default_n
   ! Some switches...
   USE mo_2mom_mcrph_processes, ONLY:                                         &
        &  ice_typ, nuc_i_typ, nuc_c_typ, auto_typ, isdebug, isprint
@@ -567,6 +568,9 @@ CONTAINS
     END IF
 
     IF (ischeck) CALL check(ik_slice,'start',cloud,rain,ice,snow,graupel,hail)
+
+    ! Set to default values where qnx =0 and qx>0
+    CALL set_default_n(ik_slice, cloud, ice, rain, snow, graupel)
 
     IF (nuc_c_typ.ne.0) THEN
       DO k=kstart,kend

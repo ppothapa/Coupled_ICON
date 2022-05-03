@@ -143,7 +143,13 @@ MODULE mo_2mom_mcrph_processes
        & dmin_wg_gr_ltab_equi,       &  ! For look-up table of wet growth diameter
        & dmin_wetgrowth_fun,         &  ! For 4d functional fit of wet growth diameter
        & ltabdminwgg,                &
-       & luse_dmin_wetgrowth_table
+       & luse_dmin_wetgrowth_table,  &
+       & set_qnc,                    &
+       & set_qni,                    &
+       & set_qnr,                    &
+       & set_qns,                    &
+       & set_qng,                    &
+       & set_qnh                    
 
   IMPLICIT NONE
 
@@ -299,6 +305,7 @@ MODULE mo_2mom_mcrph_processes
   PUBLIC :: ccn_activation_sk, ccn_activation_hdcp2, ccn_activation_sk_4d
   PUBLIC :: sedi_icon_rain, sedi_icon_sphere, sedi_icon_sphere_lwf
   PUBLIC :: moment_gamma
+  PUBLIC :: set_default_n 
 
 CONTAINS
   
@@ -5270,6 +5277,75 @@ CONTAINS
     END DO
 
   END SUBROUTINE sedi_icon_sphere_lwf
+
+  !*******************************************************************************
+  !       Set to a default number concentration in places with qnx = 0 and qx !=0*
+  !       (implemented by Alberto de Lozar)                                      *
+  !*******************************************************************************
+  SUBROUTINE set_default_n(ik_slice, cloud, ice, rain, snow, graupel, n_cn)
+    INTEGER, INTENT(in) :: ik_slice(4)
+    CLASS(particle), INTENT(inout)      :: cloud
+    CLASS(particle), INTENT(inout)      :: ice
+    CLASS(particle), INTENT(inout)      :: rain
+    CLASS(particle), INTENT(inout)      :: snow
+    CLASS(particle), INTENT(inout)      :: graupel
+    REAL(wp), DIMENSION(:,:), OPTIONAL  :: n_cn
+
+    ! start and end indices for 2D slices
+    INTEGER :: istart, iend, kstart, kend 
+    INTEGER :: i,k
+    REAL(wp), PARAMETER :: eps = 1e-3_wp
+
+    istart = ik_slice(1)
+    iend   = ik_slice(2)
+    kstart = ik_slice(3)
+    kend   = ik_slice(4)
+
+    IF ( .NOT. PRESENT(n_cn)) THEN
+      DO k = kstart,kend
+        DO i = istart,iend
+          IF ( cloud%q(i,k) > 0.0_wp .AND. cloud%n(i,k) < eps) THEN
+            cloud%n(i,k) = set_qnc(cloud%q(i,k)) 
+          END IF
+        END DO
+      END DO
+    END IF
+
+    DO k = kstart,kend
+      DO i = istart,iend
+        IF ( ice%q(i,k) > 0.0_wp .AND. ice%n(i,k) < eps) THEN
+          ice%n(i,k) = set_qni(ice%q(i,k)) 
+        END IF
+      END DO
+    END DO
+
+    DO k = kstart,kend
+      DO i = istart,iend
+        IF ( rain%q(i,k) > 0.0_wp .AND. rain%n(i,k) < eps) THEN
+          rain%n(i,k) = set_qnr(rain%q(i,k)) 
+        END IF
+      END DO
+    END DO
+
+    DO k = kstart,kend
+      DO i = istart,iend
+        IF ( snow%q(i,k) > 0.0_wp .AND. snow%n(i,k) < eps) THEN
+          snow%n(i,k) = set_qns(snow%q(i,k)) 
+        END IF
+      END DO
+    END DO
+
+    DO k = kstart,kend
+      DO i = istart,iend
+        IF ( graupel%q(i,k) > 0.0_wp .AND. graupel%n(i,k) < eps) THEN
+          graupel%n(i,k) = set_qng(graupel%q(i,k)) 
+        END IF
+      END DO
+    END DO
+    
+  END SUBROUTINE set_default_n
+
+
 
   ! UB: This is according to the actual version from the COSMO code, a more efficient and
   !     simplified re-write of the above non-reproducible sedi_icon_core:

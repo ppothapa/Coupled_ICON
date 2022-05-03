@@ -67,8 +67,8 @@ MODULE mo_nwp_gscp_interface
   USE gscp_graupel,            ONLY: graupel
   USE gscp_hydci_pp_ice,       ONLY: hydci_pp_ice
   USE mo_exception,            ONLY: finish
-  USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph, set_qnc, &
-       &                             set_qnr,set_qni,set_qns,set_qng,set_qnh
+  USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph
+  USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,set_qnh
 #ifdef __ICON_ART
   USE mo_art_clouds_interface, ONLY: art_clouds_interface_2mom
 #endif
