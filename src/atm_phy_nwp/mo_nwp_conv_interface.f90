@@ -53,7 +53,7 @@ MODULE mo_nwp_conv_interface
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime
   USE mo_gribout_config,       ONLY: gribout_config 
-  USE mo_fortran_tools,        ONLY: init
+  USE mo_fortran_tools,        ONLY: init, t_ptr_tracer
   
   IMPLICIT NONE
 
@@ -89,7 +89,7 @@ CONTAINS
     TYPE(t_nh_prog), TARGET     ,INTENT(inout):: p_prog_rcf       !<call freq
     TYPE(t_nh_diag), TARGET     ,INTENT(inout):: p_diag           !<the dyn diag vars
     TYPE(t_nwp_phy_diag)        ,INTENT(inout):: prm_diag         !<the atm phys vars
-    TYPE(t_nwp_phy_tend)        ,INTENT(inout):: prm_nwp_tend     !< atm tend vars
+    TYPE(t_nwp_phy_tend), TARGET,INTENT(inout):: prm_nwp_tend     !< atm tend vars
     TYPE(t_nwp_phy_stochconv)   ,INTENT(inout):: prm_nwp_stochconv!< stoch conv vars
     TYPE(t_int_state)           ,INTENT(IN)   :: pt_int_state
 
@@ -141,6 +141,10 @@ CONTAINS
     LOGICAL  :: lcompute_lpi               !< compute lpi_con, mlpi_con, koi, lpi_con_max and mlpi_con_max
     LOGICAL  :: lcompute_lfd               !< compute lfd_con, lfd_con_max
     LOGICAL  :: lzacc                      !< to check, if lacc is present
+
+    ! ART specific
+    TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer_tend(:)
+    TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer(:)
 
     IF (PRESENT(lacc)) THEN
       lzacc = lacc
@@ -345,6 +349,11 @@ CONTAINS
           DO jt=1,art_config(jg)%nconv_tracer
             prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(:,:) = 0._wp
           ENDDO
+          ptr_conv_tracer_tend => prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
+          ptr_conv_tracer      => p_prog_rcf%conv_tracer(jb,1:art_config(jg)%nconv_tracer) 
+        ELSE
+          ptr_conv_tracer      => NULL()
+          ptr_conv_tracer_tend => NULL()
         ENDIF
 
         !-------------------------------------------------------------------------
@@ -440,176 +449,103 @@ CONTAINS
           p_qv       => p_prog_rcf%tracer(:,:,jb,iqv)
           p_shfl_avg => z_shfl(:,:)
           p_qhfl_avg => z_qhfl(:,:)
-       ENDIF
+        ENDIF
 
-       IF (lstoch_expl) THEN
-          p_cloud_ensemble%mf_i       => prm_nwp_stochconv%mf_i(:,:,jb)
-          p_cloud_ensemble%time_i     => prm_nwp_stochconv%time_i(:,:,jb)
-          p_cloud_ensemble%life_i     => prm_nwp_stochconv%life_i(:,:,jb)
-          p_cloud_ensemble%area_i     => prm_nwp_stochconv%area_i(:,:,jb)
-          p_cloud_ensemble%type_i     => prm_nwp_stochconv%type_i(:,:,jb)
-          p_cloud_ensemble%ktype_i    => prm_nwp_stochconv%ktype_i(:,:,jb)
-          p_cloud_ensemble%depth_i    => prm_nwp_stochconv%depth_i(:,:,jb)
-          p_cloud_ensemble%base_i     => prm_nwp_stochconv%base_i(:,:,jb)
-          p_cloud_ensemble%used_cell  => prm_nwp_stochconv%used_cell(:,:,jb)
-       ELSE
-          NULLIFY(p_cloud_ensemble%mf_i)
-          NULLIFY(p_cloud_ensemble%time_i)
-          NULLIFY(p_cloud_ensemble%life_i)
-          NULLIFY(p_cloud_ensemble%area_i)
-          NULLIFY(p_cloud_ensemble%type_i)
-          NULLIFY(p_cloud_ensemble%ktype_i)
-          NULLIFY(p_cloud_ensemble%depth_i)
-          NULLIFY(p_cloud_ensemble%base_i)
-          NULLIFY(p_cloud_ensemble%used_cell)          
-       ENDIF
-
-        IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
-          CALL cumastrn &
-&           (kidia  = i_startidx            , kfdia  = i_endidx               ,& !> IN
-&            klon   = nproma ,     ktdia  = kstart_moist(jg)  , klev = nlev   ,& !! IN
-&            ldland = ext_data%atm%llsm_atm_c(:,jb), ptsphy = tcall_conv_jg   ,& !! IN
-&            ldlake = ext_data%atm%llake_c(:,jb), k950 = prm_diag%k950(:,jb)  ,& !! IN
-&            phy_params = phy_params(jg),trop_mask=prm_diag%tropics_mask(:,jb),& !! IN
-&            mtnmask=p_metrics%mask_mtnpoints(:,jb), pten=p_temp(:,:)         ,& !! IN
-&            pqen   = p_qv(:,:)                                               ,& !! IN
-&            puen   = p_u(:,:)              , pven   = p_v(:,:)               ,& !! IN
-&            plitot = z_plitot              , pvervel= z_omega_p              ,& !! IN
-&            shfl_s = prm_diag%shfl_s(:,jb) , qhfl_s=prm_diag%qhfl_s(:,jb)    ,& !! IN
-&            pqhfl  = p_qhfl_avg            , pahfs  = p_shfl_avg             ,& !! IN
-&            pap    = p_pres(:,:)       , paph   = p_diag%pres_ifc(:,:,jb)    ,& !! IN
-&            pgeo   = p_metrics%geopot_agl (:,:,jb)                           ,& !! IN
-&            pgeoh  = p_metrics%geopot_agl_ifc(:,:,jb)                        ,& !! IN
-&            zdph   = p_diag%dpres_mc     (:,:,jb)                            ,& !! IN
-&            zdgeoh = p_metrics%dgeopot_mc(:,:,jb)                            ,& !! IN
-&            pcloudnum = prm_diag%cloud_num(:,jb)                             ,& !! IN
-&            ptent  = z_dtdt                                                  ,& !! INOUT
-&            ptenu  = prm_nwp_tend%ddt_u_pconv     (:,:,jb)                   ,& !! OUT
-&            ptenv  = prm_nwp_tend%ddt_v_pconv     (:,:,jb)                   ,& !! OUT
-&            ptenq  = z_dtdqv                                                 ,& !! INOUT
-&            ptenrhoq  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqv)            ,& !! OUT
-&            ptenrhol  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqc)            ,& !! OUT
-&            ptenrhoi  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqi)            ,& !! OUT
-&            ptenrhor  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqrd)           ,& !! OUT
-&            ptenrhos  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqsd)           ,& !! OUT
-&            ldcum  = prm_diag%locum   (:,jb)                                 ,& !! OUT
-&            ktype  = prm_diag%ktype   (:,jb)                                 ,& !! OUT
-&            kcbot  = prm_diag%mbas_con(:,jb)                                 ,& !! OUT
-&            kctop  = prm_diag%mtop_con(:,jb)                                 ,& !! OUT
-&            LDSHCV = prm_diag%ldshcv  (:,jb)                                 ,& !! IN
-&            pmfu   =      prm_diag%con_udd(:,:,jb,1)                         ,& !! OUT
-&            pmfd   =      prm_diag%con_udd(:,:,jb,2)                         ,& !! OUT
-&            pmfude_rate = prm_diag%con_udd(:,:,jb,3)                         ,& !! OUT
-&            pmfdde_rate = prm_diag%con_udd(:,:,jb,4)                         ,& !! OUT
-&            ptu    =      prm_diag%con_udd(:,:,jb,5)                         ,& !! OUT
-&            pqu    =      prm_diag%con_udd(:,:,jb,6)                         ,& !! OUT
-&            plu    =      prm_diag%con_udd(:,:,jb,7)                         ,& !! OUT
-&            pcore  =      prm_diag%con_udd(:,:,jb,8)                         ,& !! OUT
-&            pmflxr =      prm_diag%rain_con_rate_3d(:,:,jb)                  ,& !! OUT
-&            pmflxs =      prm_diag%snow_con_rate_3d(:,:,jb)                  ,& !! OUT
-&            prain  =      prm_diag%rain_upd (:,jb)                           ,& !! OUT
-&            pdtke_con =   prm_nwp_tend%ddt_tke_pconv(:,:,jb)                 ,& !! OUT
-&            pcape  =      prm_diag%cape     (:,jb)                           ,& !! OUT
-&            pvddraf =     z_ddspeed(:)                                       ,& !! OUT
-&            ktrac  = art_config(jg)%nconv_tracer                             ,& !! IN 
-&            pcen   = p_prog_rcf%conv_tracer(jb,:)                            ,& !! IN
-&            ptenrhoc = prm_nwp_tend%conv_tracer_tend(jb,:)                   ,& !! OUT
-&            l_lpi  =      lcompute_lpi                                       ,& !! IN
-&            l_lfd  =      lcompute_lfd                                       ,& !! IN
-&            lpi    =      prm_diag%lpi_con(:,jb)                             ,& !! OUT
-&            mlpi   =      prm_diag%mlpi_con(:,jb)                            ,& !! OUT
-&            koi    =      prm_diag%koi(:,jb)                                 ,& !! OUT
-&            lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
-&            lspinup    =  lspinup                                            ,& !! IN
-&            k650       =  prm_diag%k650(:,jb)                                ,& !! IN
-&            temp_s     =  p_diag%temp(:,nlev,jb)                             ,& !! IN
-&            cell_area  =  p_patch%cells%area(:,jb)                           ,& !! IN
-&            iseed      = iseed                                               ,& !! IN
-&            mf_bulk    = prm_diag%mf_b(:,jb)                                 ,& !! OUT  
-&            mf_perturb = prm_diag%mf_p(:,jb)                                 ,& !! OUT
-&            mf_num     = prm_diag%mf_num(:,jb)                               ,& !! OUT
-&            p_cloud_ensemble = p_cloud_ensemble                              ,& !! INOUT
-&            pclnum_a   = prm_nwp_stochconv%clnum_a(:,jb)                     ,& !! INOUT
-&            pclmf_a    = prm_nwp_stochconv%clmf_a(:,jb)                      ,& !! INOUT
-&            pclnum_p   = prm_nwp_stochconv%clnum_p(:,jb)                     ,& !! INOUT
-&            pclmf_p    = prm_nwp_stochconv%clmf_p(:,jb)                      ,& !! INOUT
-&            pclnum_d   = prm_nwp_stochconv%clnum_d(:,jb)                     ,& !! INOUT
-&            pclmf_d    = prm_nwp_stochconv%clmf_d(:,jb)                      ,& !! INOUT
-&            lacc       = .FALSE.                                      )         !! IN
-!&            extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
-
+        IF (lstoch_expl) THEN
+           p_cloud_ensemble%mf_i       => prm_nwp_stochconv%mf_i(:,:,jb)
+           p_cloud_ensemble%time_i     => prm_nwp_stochconv%time_i(:,:,jb)
+           p_cloud_ensemble%life_i     => prm_nwp_stochconv%life_i(:,:,jb)
+           p_cloud_ensemble%area_i     => prm_nwp_stochconv%area_i(:,:,jb)
+           p_cloud_ensemble%type_i     => prm_nwp_stochconv%type_i(:,:,jb)
+           p_cloud_ensemble%ktype_i    => prm_nwp_stochconv%ktype_i(:,:,jb)
+           p_cloud_ensemble%depth_i    => prm_nwp_stochconv%depth_i(:,:,jb)
+           p_cloud_ensemble%base_i     => prm_nwp_stochconv%base_i(:,:,jb)
+           p_cloud_ensemble%used_cell  => prm_nwp_stochconv%used_cell(:,:,jb)
         ELSE
-          CALL cumastrn &
-&           (kidia  = i_startidx            , kfdia  = i_endidx               ,& !> IN
-&            klon   = nproma ,     ktdia  = kstart_moist(jg)  , klev = nlev   ,& !! IN
-&            ldland = ext_data%atm%llsm_atm_c(:,jb), ptsphy = tcall_conv_jg   ,& !! IN
-&            ldlake = ext_data%atm%llake_c(:,jb), k950 = prm_diag%k950(:,jb)  ,& !! IN
-&            phy_params = phy_params(jg),trop_mask=prm_diag%tropics_mask(:,jb),& !! IN
-&            mtnmask=p_metrics%mask_mtnpoints(:,jb), pten=p_temp(:,:)         ,& !! IN
-&            pqen   = p_qv(:,:)                                               ,& !! IN
-&            puen   = p_u(:,:)              , pven   = p_v(:,:)               ,& !! IN
-&            plitot = z_plitot              , pvervel= z_omega_p              ,& !! IN
-&            shfl_s = prm_diag%shfl_s(:,jb) , qhfl_s=prm_diag%qhfl_s(:,jb)    ,& !! IN
-&            pqhfl  = p_qhfl_avg            , pahfs  = p_shfl_avg             ,& !! IN
-&            pap    = p_pres(:,:)       , paph   = p_diag%pres_ifc(:,:,jb)    ,& !! IN
-&            pgeo   = p_metrics%geopot_agl (:,:,jb)                           ,& !! IN
-&            pgeoh  = p_metrics%geopot_agl_ifc(:,:,jb)                        ,& !! IN
-&            zdph   = p_diag%dpres_mc     (:,:,jb)                            ,& !! IN
-&            zdgeoh = p_metrics%dgeopot_mc(:,:,jb)                            ,& !! IN
-&            pcloudnum = prm_diag%cloud_num(:,jb)                             ,& !! IN
-&            ptent  = z_dtdt                                                  ,& !! INOUT
-&            ptenu  = prm_nwp_tend%ddt_u_pconv     (:,:,jb)                   ,& !! OUT
-&            ptenv  = prm_nwp_tend%ddt_v_pconv     (:,:,jb)                   ,& !! OUT
-&            ptenq  = z_dtdqv                                                 ,& !! INOUT
-&            ptenrhoq  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqv)            ,& !! OUT
-&            ptenrhol  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqc)            ,& !! OUT
-&            ptenrhoi  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqi)            ,& !! OUT
-&            ptenrhor  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqrd)           ,& !! OUT
-&            ptenrhos  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqsd)           ,& !! OUT
-&            ldcum  = prm_diag%locum   (:,jb)                                 ,& !! OUT
-&            ktype  = prm_diag%ktype   (:,jb)                                 ,& !! OUT
-&            kcbot  = prm_diag%mbas_con(:,jb)                                 ,& !! OUT
-&            kctop  = prm_diag%mtop_con(:,jb)                                 ,& !! OUT
-&            LDSHCV = prm_diag%ldshcv  (:,jb)                                 ,& !! IN
-&            pmfu   =      prm_diag%con_udd(:,:,jb,1)                         ,& !! OUT
-&            pmfd   =      prm_diag%con_udd(:,:,jb,2)                         ,& !! OUT
-&            pmfude_rate = prm_diag%con_udd(:,:,jb,3)                         ,& !! OUT
-&            pmfdde_rate = prm_diag%con_udd(:,:,jb,4)                         ,& !! OUT
-&            ptu    =      prm_diag%con_udd(:,:,jb,5)                         ,& !! OUT
-&            pqu    =      prm_diag%con_udd(:,:,jb,6)                         ,& !! OUT
-&            plu    =      prm_diag%con_udd(:,:,jb,7)                         ,& !! OUT
-&            pcore  =      prm_diag%con_udd(:,:,jb,8)                         ,& !! OUT
-&            pmflxr =      prm_diag%rain_con_rate_3d(:,:,jb)                  ,& !! OUT
-&            pmflxs =      prm_diag%snow_con_rate_3d(:,:,jb)                  ,& !! OUT
-&            prain  =      prm_diag%rain_upd (:,jb)                           ,& !! OUT
-&            pdtke_con =   prm_nwp_tend%ddt_tke_pconv(:,:,jb)                 ,& !! OUT
-&            pcape  =      prm_diag%cape     (:,jb)                           ,& !! OUT
-&            pvddraf =     z_ddspeed(:)                                       ,& !! OUT
-&            ktrac  = 0                                                       ,& !! IN
-&            l_lpi  =      lcompute_lpi                                       ,& !! IN
-&            l_lfd  =      lcompute_lfd                                       ,& !! IN
-&            lpi    =      prm_diag%lpi_con(:,jb)                             ,& !! OUT
-&            mlpi   =      prm_diag%mlpi_con(:,jb)                            ,& !! OUT
-&            koi    =      prm_diag%koi(:,jb)                                 ,& !! OUT
-&            lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
-&            lspinup      = lspinup                                           ,& !! IN
-&            k650=         prm_diag%k650(:,jb)                                ,& !! IN
-&            temp_s =      p_diag%temp(:,nlev,jb)                             ,& !! IN
-&            cell_area    = p_patch%cells%area(:,jb)                          ,& !! IN
-&            iseed        = iseed                                             ,& !! IN
-&            mf_bulk=      prm_diag%mf_b(:,jb)                                ,& !! OUT  
-&            mf_perturb =  prm_diag%mf_p(:,jb)                                ,& !! OUT
-&            mf_num =      prm_diag%mf_num(:,jb)                              ,& !! OUT
-&            p_cloud_ensemble = p_cloud_ensemble                              ,& !! INOUT
-&            pclnum_a     = prm_nwp_stochconv%clnum_a(:,jb)                   ,& !! INOUT
-&            pclmf_a      = prm_nwp_stochconv%clmf_a(:,jb)                    ,& !! INOUT
-&            pclnum_p     = prm_nwp_stochconv%clnum_p(:,jb)                   ,& !! INOUT
-&            pclmf_p      = prm_nwp_stochconv%clmf_p(:,jb)                    ,& !! INOUT
-&            pclnum_d     = prm_nwp_stochconv%clnum_d(:,jb)                   ,& !! INOUT
-&            pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                    ,& !! INOUT
-&            lacc   = lzacc                                            )         !! IN
-!&            extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
-    ENDIF
+           NULLIFY(p_cloud_ensemble%mf_i)
+           NULLIFY(p_cloud_ensemble%time_i)
+           NULLIFY(p_cloud_ensemble%life_i)
+           NULLIFY(p_cloud_ensemble%area_i)
+           NULLIFY(p_cloud_ensemble%type_i)
+           NULLIFY(p_cloud_ensemble%ktype_i)
+           NULLIFY(p_cloud_ensemble%depth_i)
+           NULLIFY(p_cloud_ensemble%base_i)
+           NULLIFY(p_cloud_ensemble%used_cell)          
+        ENDIF
+
+
+        CALL cumastrn &
+&         (kidia  = i_startidx            , kfdia  = i_endidx               ,& !> IN
+&          klon   = nproma ,     ktdia  = kstart_moist(jg)  , klev = nlev   ,& !! IN
+&          ldland = ext_data%atm%llsm_atm_c(:,jb), ptsphy = tcall_conv_jg   ,& !! IN
+&          ldlake = ext_data%atm%llake_c(:,jb), k950 = prm_diag%k950(:,jb)  ,& !! IN
+&          phy_params = phy_params(jg),trop_mask=prm_diag%tropics_mask(:,jb),& !! IN
+&          mtnmask=p_metrics%mask_mtnpoints(:,jb), pten=p_temp(:,:)         ,& !! IN
+&          pqen   = p_qv(:,:)                                               ,& !! IN
+&          puen   = p_u(:,:)              , pven   = p_v(:,:)               ,& !! IN
+&          plitot = z_plitot              , pvervel= z_omega_p              ,& !! IN
+&          shfl_s = prm_diag%shfl_s(:,jb) , qhfl_s=prm_diag%qhfl_s(:,jb)    ,& !! IN
+&          pqhfl  = p_qhfl_avg            , pahfs  = p_shfl_avg             ,& !! IN
+&          pap    = p_pres(:,:)       , paph   = p_diag%pres_ifc(:,:,jb)    ,& !! IN
+&          pgeo   = p_metrics%geopot_agl (:,:,jb)                           ,& !! IN
+&          pgeoh  = p_metrics%geopot_agl_ifc(:,:,jb)                        ,& !! IN
+&          zdph   = p_diag%dpres_mc     (:,:,jb)                            ,& !! IN
+&          zdgeoh = p_metrics%dgeopot_mc(:,:,jb)                            ,& !! IN
+&          pcloudnum = prm_diag%cloud_num(:,jb)                             ,& !! IN
+&          ptent  = z_dtdt                                                  ,& !! INOUT
+&          ptenu  = prm_nwp_tend%ddt_u_pconv     (:,:,jb)                   ,& !! OUT
+&          ptenv  = prm_nwp_tend%ddt_v_pconv     (:,:,jb)                   ,& !! OUT
+&          ptenq  = z_dtdqv                                                 ,& !! INOUT
+&          ptenrhoq  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqv)            ,& !! OUT
+&          ptenrhol  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqc)            ,& !! OUT
+&          ptenrhoi  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqi)            ,& !! OUT
+&          ptenrhor  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqrd)           ,& !! OUT
+&          ptenrhos  = prm_nwp_tend%ddt_tracer_pconv(:,:,jb,iqsd)           ,& !! OUT
+&          ldcum  = prm_diag%locum   (:,jb)                                 ,& !! OUT
+&          ktype  = prm_diag%ktype   (:,jb)                                 ,& !! OUT
+&          kcbot  = prm_diag%mbas_con(:,jb)                                 ,& !! OUT
+&          kctop  = prm_diag%mtop_con(:,jb)                                 ,& !! OUT
+&          LDSHCV = prm_diag%ldshcv  (:,jb)                                 ,& !! IN
+&          pmfu   =      prm_diag%con_udd(:,:,jb,1)                         ,& !! OUT
+&          pmfd   =      prm_diag%con_udd(:,:,jb,2)                         ,& !! OUT
+&          pmfude_rate = prm_diag%con_udd(:,:,jb,3)                         ,& !! OUT
+&          pmfdde_rate = prm_diag%con_udd(:,:,jb,4)                         ,& !! OUT
+&          ptu    =      prm_diag%con_udd(:,:,jb,5)                         ,& !! OUT
+&          pqu    =      prm_diag%con_udd(:,:,jb,6)                         ,& !! OUT
+&          plu    =      prm_diag%con_udd(:,:,jb,7)                         ,& !! OUT
+&          pcore  =      prm_diag%con_udd(:,:,jb,8)                         ,& !! OUT
+&          pmflxr =      prm_diag%rain_con_rate_3d(:,:,jb)                  ,& !! OUT
+&          pmflxs =      prm_diag%snow_con_rate_3d(:,:,jb)                  ,& !! OUT
+&          prain  =      prm_diag%rain_upd (:,jb)                           ,& !! OUT
+&          pdtke_con =   prm_nwp_tend%ddt_tke_pconv(:,:,jb)                 ,& !! OUT
+&          pcape  =      prm_diag%cape     (:,jb)                           ,& !! OUT
+&          pvddraf =     z_ddspeed(:)                                       ,& !! OUT
+&          pcen     =    ptr_conv_tracer                                    ,& !! IN
+&          ptenrhoc =    ptr_conv_tracer_tend                               ,& !! OUT
+&          l_lpi  =      lcompute_lpi                                       ,& !! IN
+&          l_lfd  =      lcompute_lfd                                       ,& !! IN
+&          lpi    =      prm_diag%lpi_con(:,jb)                             ,& !! OUT
+&          mlpi   =      prm_diag%mlpi_con(:,jb)                            ,& !! OUT
+&          koi    =      prm_diag%koi(:,jb)                                 ,& !! OUT
+&          lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
+&          lspinup      = lspinup                                           ,& !! IN
+&          k650=         prm_diag%k650(:,jb)                                ,& !! IN
+&          temp_s =      p_diag%temp(:,nlev,jb)                             ,& !! IN
+&          cell_area    = p_patch%cells%area(:,jb)                          ,& !! IN
+&          iseed        = iseed                                             ,& !! IN
+&          mf_bulk=      prm_diag%mf_b(:,jb)                                ,& !! OUT  
+&          mf_perturb =  prm_diag%mf_p(:,jb)                                ,& !! OUT
+&          mf_num =      prm_diag%mf_num(:,jb)                              ,& !! OUT
+&          p_cloud_ensemble = p_cloud_ensemble                              ,& !! INOUT
+&          pclnum_a     = prm_nwp_stochconv%clnum_a(:,jb)                   ,& !! INOUT
+&          pclmf_a      = prm_nwp_stochconv%clmf_a(:,jb)                    ,& !! INOUT
+&          pclnum_p     = prm_nwp_stochconv%clnum_p(:,jb)                   ,& !! INOUT
+&          pclmf_p      = prm_nwp_stochconv%clmf_p(:,jb)                    ,& !! INOUT
+&          pclnum_d     = prm_nwp_stochconv%clnum_d(:,jb)                   ,& !! INOUT
+&          pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                    ,& !! INOUT
+&          lacc   = lzacc                                            )         !! IN
+!&          extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
+
 
         ! Postprocessing on some fields
 

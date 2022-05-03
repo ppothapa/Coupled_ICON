@@ -65,14 +65,15 @@ MODULE mo_name_list_output_zaxes
     &                                             ZA_PRES_FL_390_530, ZA_reference, ZA_reference_half,           &
     &                                             ZA_reference_half_hhl,                                         &
     &                                             ZA_sediment_bottom_tw_half, ZA_snow, ZA_snow_half, ZA_toa,     &
-    &                                             ZA_OCEAN_SEDIMENT, ZA_height_2m_layer, ZA_ECHOTOP, ZA_TROPOPAUSE
+    &                                             ZA_OCEAN_SEDIMENT, ZA_height_2m_layer, ZA_ECHOTOP,             &
+    &                                             ZA_TROPOPAUSE, ZA_WSHEAR, ZA_PRESSURE_LAPSERATE, ZA_SRH
   USE mo_level_selection_types,             ONLY: t_level_selection
   USE mo_util_vgrid_types,                  ONLY: vgrid_buffer
   USE mo_math_utilities,                    ONLY: set_zlev, t_value_set
   USE mo_run_config,                        ONLY: num_lev, iforcing, nlev
   USE mo_name_list_output_zaxes_types,      ONLY: t_verticalAxis, t_verticalAxisList
 #ifndef __NO_ICON_ATMO__
-  USE mo_io_config,                         ONLY: echotop_meta
+  USE mo_io_config,                         ONLY: echotop_meta, wshear_uv_heights, srh_heights
   USE mo_nonhydrostatic_config,             ONLY: ivctype
   USE mo_lnd_nwp_config,                    ONLY: nlev_snow, zml_soil
 #endif
@@ -109,7 +110,7 @@ CONTAINS
     ! local variables
     REAL(dp), ALLOCATABLE             :: levels(:), lbounds(:), ubounds(:)
     INTEGER                           :: k, nlev, nlevp1, znlev_soil
-    INTEGER                           :: n_echotop
+    INTEGER                           :: n_echotop, n_wshear, n_srh
     TYPE(t_verticalAxisList), POINTER :: it
 #ifndef __NO_ICON_ATMO__
 
@@ -225,6 +226,37 @@ CONTAINS
                                    zaxisLevels=echotop_meta(log_patch_id)%dbzthresh(1:n_echotop), &
                                    zaxisUnits="dBZ") )
     END IF
+
+    ! --------------------------------------------------------------------------------------
+    ! Definitions for vertical windshear components
+    !   (u/v differences between a height AGL and lowest model level AGL)
+    ! --------------------------------------------------------------------------------------
+    n_wshear = COUNT(wshear_uv_heights > 0.0_wp)
+    IF ( n_wshear > 0) THEN
+      CALL verticalAxisList%append(t_verticalAxis(zaxisTypeList%getEntry(ZA_WSHEAR), &
+           &                                         n_wshear, &
+           &                                         zaxisLevels  = wshear_uv_heights(1:n_wshear), &
+           &                                         zaxisLbounds = wshear_uv_heights(1:n_wshear), &
+           &                                         zaxisUbounds = (/ (0.0_wp, k=1,n_wshear) /),  &
+           &                                         zaxisUnits="m"))
+    END IF
+    
+    ! --------------------------------------------------------------------------------------
+    ! Definitions for storm relative helicity
+    !   (integral between a height AGL and GND)
+    ! --------------------------------------------------------------------------------------
+    n_srh = COUNT(srh_heights > 0.0_wp)
+    IF ( n_srh > 0) THEN
+      CALL verticalAxisList%append(t_verticalAxis(zaxisTypeList%getEntry(ZA_SRH), &
+           &                                         n_srh, &
+           &                                         zaxisLevels  = srh_heights(1:n_srh), &
+           &                                         zaxisLbounds = srh_heights(1:n_srh), &
+           &                                         zaxisUbounds = (/ (0.0_wp, k=1,n_srh) /),&
+           &                                         zaxisUnits="m"))
+    END IF
+    
+    ! Isobaric pressure layer 500 hPa - 850 hPa for the temperature lapse_rate:
+    CALL verticalAxisList%append(single_layer_axis(ZA_pressure_lapserate, 500._dp, 850._dp, "hPa"))
 
     ! --------------------------------------------------------------------------------------
     ! Definitions for reference grids (ZAXIS_REFERENCE) ------------------------------------

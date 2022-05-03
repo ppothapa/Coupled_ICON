@@ -1451,11 +1451,11 @@ CONTAINS
     INTEGER(KIND=jpim),INTENT(in)    :: ktrac
     INTEGER(KIND=jpim),INTENT(in)    :: kidia
     INTEGER(KIND=jpim),INTENT(in)    :: kfdia
-    INTEGER(KIND=jpim)               :: ktdia
+    INTEGER(KIND=jpim),INTENT(in)    :: ktdia
     INTEGER(KIND=jpim),INTENT(in)    :: kctop(klon)
     INTEGER(KIND=jpim),INTENT(in)    :: kdtop(klon)
-    LOGICAL ,INTENT(in)    :: ldcum(klon)
-    LOGICAL ,INTENT(in)    :: lddraf(klon)
+    LOGICAL           ,INTENT(in)    :: ldcum(klon)
+    LOGICAL           ,INTENT(in)    :: lddraf(klon)
     REAL(KIND=jprb)   ,INTENT(in)    :: ptsphy
     REAL(KIND=jprb)   ,INTENT(in)    :: paph(klon,klev+1)
     REAL(KIND=jprb)   ,INTENT(in)    :: zdph(klon,klev)
@@ -1464,8 +1464,8 @@ CONTAINS
     REAL(KIND=jprb)   ,INTENT(in)    :: pmfd(klon,klev)
     REAL(KIND=jprb)   ,INTENT(in)    :: pudrate(klon,klev)
     REAL(KIND=jprb)   ,INTENT(in)    :: pddrate(klon,klev)
-    TYPE(t_ptr_tracer)   ,INTENT(in), OPTIONAL :: pcen(ktrac)
-    TYPE(t_ptr_tracer)   ,INTENT(inout),OPTIONAL :: ptenrhoc(ktrac)
+    TYPE(t_ptr_tracer),INTENT(in)    :: pcen(:)
+    TYPE(t_ptr_tracer),INTENT(inout) :: ptenrhoc(:)
 
 
     ! Set MODULE PARAMETERS for offline

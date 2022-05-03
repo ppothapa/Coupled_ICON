@@ -27,10 +27,11 @@ MODULE mo_nml_crosscheck
     &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
-    &                                    max_echotop
+    &                                    max_echotop, max_wshear, max_srh
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo                                             
-  USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta
+  USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
+    &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
     &                                    num_io_procs, itype_comm,                         &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
@@ -854,6 +855,46 @@ CONTAINS
         CALL finish(routine, message_text)
       END IF
     END DO
+
+    n_wshear = 0
+    DO i=1, max_wshear
+      IF (wshear_uv_heights(i) > 0.0_wp) THEN
+        n_wshear = n_wshear + 1
+        ! shift valid values towards the start of the vector:
+        wshear_uv_heights(n_wshear) = wshear_uv_heights(i)
+      END IF
+    END DO
+    IF (n_wshear < max_wshear) wshear_uv_heights(n_wshear+1:) = -999.99_wp
+    DO jg=1, n_dom
+      IF ( ( is_variable_in_output_dom(var_name="wshear_u" , jg=jg) .OR. &
+             is_variable_in_output_dom(var_name="wshear_v" , jg=jg) ) .AND. &
+           n_wshear == 0 ) THEN
+        message_text(:) = ' '
+        WRITE (message_text, '(a)') 'output of "wshear_u" and/or "wshear_v" in ml_varlist'// &
+             ' not possible because nml-parameter "wshear_uv_heights" (io_nml) contains no heights > 0.0!'
+        CALL finish(routine, message_text)
+      END IF
+    END DO
+
+    n_srh = 0
+    DO i=1, max_srh
+      IF (srh_heights(i) > 0.0_wp) THEN
+        n_srh = n_srh + 1
+        ! shift valid values towards the start of the vector:
+        srh_heights(n_srh) = srh_heights(i)
+      END IF
+    END DO
+    IF (n_srh < max_srh) srh_heights(n_srh+1:) = -999.99_wp
+    DO jg=1, n_dom
+      IF ( ( is_variable_in_output_dom(var_name="srh" , jg=jg) ) .AND. &
+           n_srh == 0 ) THEN
+        message_text(:) = ' '
+        WRITE (message_text, '(a)') 'output of "srh" in ml_varlist'// &
+             ' not possible because nml-parameter "srh_heights" (io_nml) contains no heights > 0.0!'
+        CALL finish(routine, message_text)
+      END IF
+    END DO
+
     
     !--------------------------------------------------------------------
     ! Realcase runs

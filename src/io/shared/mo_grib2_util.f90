@@ -488,11 +488,12 @@ CONTAINS
     ! special fields for which time-dependent metainfos should be set even though they are not of 
     ! steptype TSTEP_MAX or TSTEP_MIN. These fields are special in the sense that averaging is not 
     ! performed over the entire model run but over only some intervals.
-    CHARACTER(LEN=17) :: ana_avg_vars(18) = (/"u_avg            ", "v_avg            ", "pres_avg         ",&
+    CHARACTER(LEN=17) :: ana_avg_vars(21) = (/"u_avg            ", "v_avg            ", "pres_avg         ",&
                                             & "temp_avg         ", "qv_avg           ", "rain_gsp         ",&
                                             & "snow_gsp         ", "graupel_gsp      ", "ice_gsp          ",&
                                             & "hail_gsp         ", "prec_gsp         ", "rain_con         ",&
                                             & "snow_con         ", "prec_con         ", "tot_prec         ",&
+                                            & "tot_prec_d       ", "prec_gsp_d       ", "prec_con_d       ",&
                                             & "prec_con_rate_avg", "prec_gsp_rate_avg", "tot_prec_rate_avg"/)
 
 
@@ -503,8 +504,12 @@ CONTAINS
     ! Skip inapplicable fields
     ! Currently all TSTEP_AVG and TSTEP_ACC fields are skipped, except for special ones 
     ! listed in ana_avg_vars
-    IF ((ALL((/TSTEP_MAX, TSTEP_MIN/) /= info%isteptype)) .AND. &
-      & (one_of(TRIM(info%name),ana_avg_vars) == -1) ) RETURN
+
+    ! UB: this method does not work for the internally interpolated vars of name ana_avg_vars, because
+    !     the internal info%name gets a prefix "latlon_internal_".
+
+!    IF ((ALL((/TSTEP_MAX, TSTEP_MIN/) /= info%isteptype)) .AND. &
+!      & (one_of(TRIM(info%name),ana_avg_vars) == -1) ) RETURN
 
     ! DR
     ! less cumbersome solution, which does no longer skip variables of type 
@@ -518,7 +523,7 @@ CONTAINS
     ! still correct. Putting it the other way around: It is not clear 
     ! to me why with the currently active version the keys forecastTime and lengthOfTimeRange are 
     ! set correctly for variables of type TSTEP_AVG, TSTEP_ACCUM.
-    !IF ((ALL((/TSTEP_MAX, TSTEP_MIN, TSTEP_AVG, TSTEP_ACCUM/) /= info%isteptype))) RETURN
+    IF ((ALL((/TSTEP_MAX, TSTEP_MIN, TSTEP_AVG, TSTEP_ACCUM/) /= info%isteptype))) RETURN
 
     ! get vlistID. Note that the stream-internal vlistID must be used. 
     ! It is obtained via streamInqVlist(streamID)

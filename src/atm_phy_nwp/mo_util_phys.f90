@@ -53,7 +53,7 @@ MODULE mo_util_phys
   USE mo_mpi,                   ONLY: i_am_accel_node
   USE openacc,                  ONLY: acc_is_present
 #endif
-
+  USE mo_2mom_mcrph_util,       ONLY: set_qnc, set_qnr, set_qni, set_qns
 
   IMPLICIT NONE
 
@@ -748,7 +748,7 @@ CONTAINS
     INTEGER, DIMENSION(5) :: conv_list
 
     !$acc data present(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv, &
-    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, &
+    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d, &
     !$acc              prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
     !$acc      if(i_am_accel_node)
 
@@ -818,7 +818,50 @@ CONTAINS
     ENDDO
     !$acc end parallel
 
-
+!!  Update of two-moment number densities using the updates from the convective parameterization
+    IF (atm_phy_nwp_config(jg)%l2moment) THEN
+      DO jt=1,SIZE(conv_list)
+        idx = conv_list(jt)
+        IF ( idx == iqv ) THEN ! No number concentration for iqv
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
+                   + set_qnc( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqv) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqc ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
+                 + set_qnc( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqc) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqi ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqni) =  pt_prog_rcf%tracer(jc,jk,jb,iqni)    &
+                 + set_qni( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqi) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqr ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnr) =  pt_prog_rcf%tracer(jc,jk,jb,iqnr)    &
+                 + set_qnr( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqr) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqs ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqns) =  pt_prog_rcf%tracer(jc,jk,jb,iqns)    &
+                 + set_qns( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqs) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSE
+          CALL finish("mo_util_phys", "Not valid update from convective parameterization for two-moment scheme.")          
+        END IF
+      END DO
+    END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
       ! add convective tendency and fix to positive values
@@ -878,6 +921,10 @@ CONTAINS
           &                      + pdtime * prm_diag%snow_con_rate(jc,jb)
 
         prm_diag%prec_con(jc,jb) = prm_diag%rain_con(jc,jb) + prm_diag%snow_con(jc,jb)
+
+        ! to compute tot_prec_d lateron:
+        prm_diag%prec_con_d(jc,jb) = prm_diag%prec_con_d(jc,jb) + pdtime * ( &
+          &                          prm_diag%rain_con_rate(jc,jb) + prm_diag%snow_con_rate(jc,jb) )
 
       ENDDO
       !$acc end parallel

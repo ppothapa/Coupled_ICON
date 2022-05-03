@@ -82,7 +82,7 @@ MODULE mo_initicon_utils
     &                                  calculate_time_interpolation_weights
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
   USE mo_upatmo_config,       ONLY: upatmo_config
-  USE mo_2mom_mcrph_driver,   ONLY: set_qnc, set_qnr, set_qni,   &
+  USE mo_2mom_mcrph_util,     ONLY: set_qnc, set_qnr, set_qni,   &
     &                               set_qns, set_qng, set_qnh
 
 

@@ -85,7 +85,7 @@ MODULE mo_cf_convention
   TYPE t_cf_var
     CHARACTER(len=128) :: standard_name = ''
     CHARACTER(len=128) :: units         = ''
-    CHARACTER(len=128) :: long_name     = ''
+    CHARACTER(len=256) :: long_name     = ''
     INTEGER            :: datatype      = -1
     CHARACTER(len=256) :: short_name    = ''
   END TYPE t_cf_var

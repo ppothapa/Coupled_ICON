@@ -1099,14 +1099,16 @@ MODULE mo_nh_stepping
           ! rebuild index lists for water and seaice based on fr_seaice, 
           ! and update tiled surface temperatures
           !
-          CALL process_sst_and_seaice (p_patch      = p_patch(jg),                            &
-            &                          diag         = p_nh_state(jg)%diag,                    &
-            &                          ext_data     = ext_data(jg),                           &
-            &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), &
-            &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)), &
-            &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), &
-            &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)), &
-            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )
+          CALL process_sst_and_seaice (p_patch      = p_patch(jg),                             & !in
+            &                          fr_seaice = p_lnd_state(jg)%diag_lnd%fr_seaice(:,:),    & !in(out)
+            &                          t_seasfc  = p_lnd_state(jg)%diag_lnd%t_seasfc(:,:),     & !in
+            &                          pres_sfc     = p_nh_state(jg)%diag%pres_sfc(:,:),       & !in
+            &                          ext_data     = ext_data(jg),                            & !inout
+            &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)),  & !inout
+            &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)),  & !inout
+            &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)),  & !inout
+            &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)),  & !inout
+            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )                 !inout
         ENDDO
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
