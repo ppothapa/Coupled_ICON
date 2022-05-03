@@ -129,7 +129,7 @@ SUBROUTINE cumastrn &
  & ptu,      pqu,      plu,  pcore,              &
  & pmflxr,   pmflxs,   prain, pdtke_con,         &
  & pcape,    pvddraf,                            &
- & ktrac, pcen, ptenrhoc,                        &
+ & pcen, ptenrhoc,                               &
  & l_lpi, l_lfd, lpi, mlpi, koi, lfd,            &
 ! stochastic, extra diagnostics and logical switches
  & lspinup, k650, temp_s,                        &
@@ -149,7 +149,6 @@ SUBROUTINE cumastrn &
 !    *KLON*         NUMBER OF GRID POINTS PER PACKET
 !    *KTDIA*        START OF THE VERTICAL LOOP
 !    *KLEV*         NUMBER OF LEVELS
-!    *KTRAC*        NUMBER OF CHEMICAL TRACERS
 !    *KSTEP*        CURRENT TIME STEP INDEX
 !    *KSTART*       FIRST STEP OF MODEL
 
@@ -354,7 +353,6 @@ INTEGER(KIND=jpim),INTENT(in)    :: klon
 INTEGER(KIND=jpim),INTENT(in)    :: klev
 INTEGER(KIND=jpim),INTENT(in)    :: kidia
 INTEGER(KIND=jpim),INTENT(in)    :: kfdia
-INTEGER(KIND=jpim),INTENT(in)    :: ktrac
 INTEGER(KIND=jpim),INTENT(in)    :: k950(klon)
 INTEGER(KIND=jpim)               :: ktdia
 LOGICAL           ,INTENT(in)    :: ldland(klon) 
@@ -384,9 +382,8 @@ REAL(KIND=jprb)   ,INTENT(in)    :: pgeo(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)    :: pgeoh(klon,klev+1) 
 REAL(KIND=jprb)   ,INTENT(in)    :: zdgeoh(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)    :: pcloudnum(klon)
-! with ktrac=0 this has zero size
-!REAL(KIND=jprb)   ,INTENT(in), OPTIONAL :: pcen(klon,klev,ktrac)
-TYPE(t_ptr_tracer),INTENT(in), OPTIONAL :: pcen(ktrac)
+TYPE(t_ptr_tracer),INTENT(in), POINTER :: pcen(:)
+TYPE(t_ptr_tracer),INTENT(inout), POINTER :: ptenrhoc(:)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptent(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenq(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhoq(klon,klev)
@@ -396,8 +393,6 @@ REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhor(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhos(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenu(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenv(klon,klev) 
-! with ktrac=0 this has zero size
-TYPE(t_ptr_tracer),INTENT(inout), OPTIONAL :: ptenrhoc(ktrac)
 LOGICAL           ,INTENT(inout) :: ldcum(klon)
 INTEGER(KIND=jpim),INTENT(inout) :: ktype(klon)
 INTEGER(KIND=jpim),INTENT(inout) :: kcbot(klon)
@@ -537,6 +532,8 @@ REAL(KIND=jprb), DIMENSION(klon)  :: zdhout
 LOGICAL, PARAMETER :: luse3d   = .FALSE. !write extra output from stoch scheme
 LOGICAL, PARAMETER :: lpassive = .FALSE. !run stoch schemes in piggy-backing mode
 
+INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
+
 !#include "cuascn.intfb.h"
 !#include "cubasen.intfb.h"
 !#include "cuddrafn.intfb.h"
@@ -590,11 +587,25 @@ zorcpd  = 1.0_JPRB/rcpd
 zrdocpd = rd*zorcpd
 zeps    = 0.0_JPRB
 
+
+IF (ASSOCIATED(pcen) .AND. ASSOCIATED(ptenrhoc)) THEN
+  ktrac = SIZE(pcen)
+  !
+  ! sanity check
+  IF (SIZE(pcen) /= SIZE(ptenrhoc)) THEN
+    CALL finish('mo_cumaster:', 'Size of pcen and ptenrhoc does not match')
+  ENDIF
+ELSE
+  ktrac = 0
+ENDIF
+
+
 !---------------------------------------------------------------------
 !*UPG Change to operations call SATUR routine here
 
 !     1.           Compute Saturation specific humidity
 !                  ------------------------------------
+
 
 !$acc parallel default (none) if (lacc)
 
