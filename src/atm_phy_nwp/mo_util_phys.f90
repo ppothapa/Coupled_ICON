@@ -822,6 +822,8 @@ CONTAINS
     IF (atm_phy_nwp_config(jg)%l2moment) THEN
       DO jt=1,SIZE(conv_list)
         idx = conv_list(jt)
+        IF (idx <= 0) CYCLE
+
         IF ( idx == iqv ) THEN ! No number concentration for iqv
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
