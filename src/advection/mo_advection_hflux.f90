@@ -3046,13 +3046,8 @@ CONTAINS
         CALL finish(routine,                                        &
           &  'allocation for patch0_cell_idx,  patch0_cell_blk, falist failed' )
       ENDIF
-!$ACC ENTER DATA COPYIN( falist ) CREATE( patch0_cell_idx, patch0_cell_blk,  &
-!$ACC   falist%eidx, falist%elev, falist%len ),                              &
+!$ACC ENTER DATA CREATE( falist, patch0_cell_idx, patch0_cell_blk, falist%eidx, falist%elev, falist%len ) &
 !$ACC IF( i_am_accel_node .AND. acc_on )
-
-!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
-      falist%len(:) = 0 ! To be safe with the subsequent MAXVAL in the case of nesting
-!$ACC END KERNELS
 
       ! compute vertex coordinates for the departure region using a first
       ! order accurate (O(\Delta t)) backward trajectory-method
@@ -3063,8 +3058,8 @@ CONTAINS
         &              opt_slev=slev_ti, opt_elev=elev_ti,             &! in
         &              opt_falist=falist                               )! inout
 
-      npoints = MAXVAL(falist%len(:))
-      falist%npoints = npoints
+      npoints = MAXVAL(falist%len(:)) ! ACC: %len is set and updated to host in btraj_dreg
+      falist%npoints = npoints ! ACC: caution this is not updated to GPU as it is not used on GPU
 
       ! allocate temporary arrays for quadrature and upwind cells
       ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &
