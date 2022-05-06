@@ -44,19 +44,17 @@ MODULE mo_nwp_phy_types
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d,t_ptr_tracer
-
+  
   IMPLICIT NONE
   PRIVATE
-
-
 
   !public interface
   !
   !types
   PUBLIC :: t_nwp_phy_diag
   PUBLIC :: t_nwp_phy_tend
-
-
+  PUBLIC :: t_ptr_cloud_ensemble
+  PUBLIC :: t_nwp_phy_stochconv
 
   !> derived data type for synthetic satellite images
   TYPE t_rttov_image
@@ -74,7 +72,6 @@ MODULE mo_nwp_phy_types
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: tot_ptr(:)  !< pointer array: one pointer for each tot var (grid+subgrid)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: tci_ptr(:)  !< pointer array: total column-integrated values
-    TYPE(t_ptr_2d3d),ALLOCATABLE :: tav_ptr(:)  !< pointer array: average of tci
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfm_ptr(:)  !< pointer array: average of cfm
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfh_ptr(:)  !< pointer array: average of cfh
@@ -127,6 +124,7 @@ MODULE mo_nwp_phy_types
                                  !! 5= temperature in updraft region (ptu)
                                  !! 6= humidity in updraft region (pqu)
                                  !! 7= condensate in updraft region (plu)
+                                 !! 8= updraft core fraction
       &  rain_upd(:,:),        & !! total precipitation produced in updrafts [kg/m2/s]
       &  hzerocl(:,:),         & !! height of 0 deg C level [m]
       &  shfl_s(:,:),          & !! sensible heat flux (surface) ( W/m2)
@@ -163,9 +161,6 @@ MODULE mo_nwp_phy_types
       &  tot_cld(:,:,:,:),     & !! total cloud variables (qv,qc,qi)
       &  tot_cld_vi(:,:,:),    & !! vertically integrated tot_cld (qv,qc,qi), including vertical 
                                  !! integrals of qr and qs 
-      &  tot_cld_vi_avg(:,:,:),& !! average since model start of the 
-                                 !! vertically integrated tot_cld (qv,qc,qi)
-      &  clct_avg(:,:),        & !! average since model start of the total cloud cover  
       &  cosmu0(:,:),          & !! cosine of solar zenith angle
       &  albdif(:,:),          & !! Shortwave albedo for diffuse radiation  (0.3-5.0um)
       &  albvisdif(:,:),       & !! UV visible albedo for diffuse radiation (0.3-0.7um)
@@ -179,6 +174,7 @@ MODULE mo_nwp_phy_types
       &  snowalb_fac(:,:),     & !! Factor for adaptive snow albedo tuning (coupled to DA increments for T)
       &  heatcond_fac(:,:),    & !! Factor for adaptive soil heat conductivity tuning (coupled to DA increments for T)
       &  heatcap_fac(:,:),     & !! Factor for adaptive soil heat capacity tuning (coupled to DA increments for T)
+      &  sfcfric_fac(:,:),     & !! Factor for adaptive surface friction tuning (coupled to DA increments for V_abs)
       &  vio3(:,:),            & !! vertically integrated ozone amount (Pa O3)
       &  hmo3(:,:),            & !! height of O3 maximum (Pa)
       &  flxdwswtoa(:,:),      & !! downward shortwave flux at TOA [W/m2]
@@ -248,7 +244,10 @@ MODULE mo_nwp_phy_types
       &  tt_lheat (:,:,:),     & !! latent heat release
       &  ttend_lhn (:,:,:),    & !! temperature increment of LHN
       &  qvtend_lhn (:,:,:),   & !! moisture increment of LHN
-      &  qrs_flux (:,:,:)        !! precipitation flux
+      &  qrs_flux (:,:,:),     & !! precipitation flux
+      &  mf_b(:,:),            & !! bulk cloud-base mass-flux  
+      &  mf_p(:,:),            & !! perturbed cloud-base mass-flux 
+      &  mf_num(:,:)             !! number of clouds per grid box
 
     !> Precipitation fields
     REAL(wp), POINTER          &
@@ -285,13 +284,19 @@ MODULE mo_nwp_phy_types
       &  hail_gsp         (:,:),  & !! accumulated grid_scale surface hail             [kg/m2]
       &  graupel_gsp      (:,:),  & !! accumulated grid_scale surface graupel          [kg/m2]
       &  prec_gsp         (:,:),  & !! accumulated grid scale precipitation            [kg/m2]
+      &  prec_gsp_d       (:,:),  & !! accumulated grid scale precipitation            [kg/m2]
+                                    !!  (reset after "tpotprec_d_interval" seconds)
       !  convective
       &  rain_con         (:,:),  & !! accumulated convective surface rain             [kg/m2]
       &  snow_con         (:,:),  & !! accumulated convective surface snow             [kg/m2]
       &  prec_con         (:,:),  & !! accumulated convective precipitation            [kg/m2]
+      &  prec_con_d       (:,:),  & !! accumulated convective precipitation            [kg/m2]
+                                    !!  (reset after "tpotprec_d_interval" seconds)
       !  total
       &  tot_prec         (:,:),  & !! accumulated total precipitation                 [kg/m2]
-                                     !! (grid-scale plus convective)
+                                    !!  (grid-scale plus convective)
+      &  tot_prec_d       (:,:),  & !! accumulated total precipitation over a time interval [kg/m2]
+                                    !!  (grid-scale plus convective; reset after "tpotprec_d_interval" seconds)
       !
       !  Time averaged precipitation rates since model start [kg/m2/s]
       &  prec_con_rate_avg(:,:),  & !! time averaged convective precipitation rate    [kg/m2/s]
@@ -433,6 +438,8 @@ MODULE mo_nwp_phy_types
       &  mbas_con(:,:),     & !< cloud base level index
       &  mtop_con(:,:),     & !< cloud top  level index
       &  ktype   (:,:),     & !< Type of convection
+      &  k650    (:,:),     & !< level index that corrsponds to the height
+                              !< of the standard atmosphere 650hPa level above ground
       &  k850    (:,:),     & !< level index that corrsponds to the height 
                               !< of the standard atmosphere 850hPa level above ground
       &  k950    (:,:),     & !< level index that corresponds to the height 
@@ -456,6 +463,9 @@ MODULE mo_nwp_phy_types
       & ::                  &
       & locum     (:,:),    & !< convective  activity indicator
       & ldshcv    (:,:)       !< shallow convection indicator
+
+
+
 
     !> (Optional:) Additional diagnostic fields:
     REAL(wp), POINTER ::   &
@@ -486,7 +496,13 @@ MODULE mo_nwp_phy_types
       dbz_cmax(:,:),       & !< Column maximum radar reflectivity
       dbz_ctmax(:,:),      & !< Column and time maximum radar reflectivity
       echotop(:,:,:),      & !< Echotop pressure in p
-      echotopinm(:,:,:)      !< Echotop altitude in m MSL
+      echotopinm(:,:,:),   & !< Echotop altitude in m MSL
+      wshear_u(:,:,:),     & !< U-component of vertical wind shear vector between some heights AGL and lowest model level
+      wshear_v(:,:,:),     & !< V-component of vertical wind shear vector between some heights AGL and lowest model level
+      lapse_rate(:,:),     & !< T(500hPa) - T(850hPa) with a correction if 850 hPa is below the surface
+      cape_mu (:,:),       & !< Most unstable convective available energy
+      cin_mu(:,:),         & !< Most unstable convective inhibition
+      srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
     ! grid and latm_above_top = .TRUE.
@@ -597,4 +613,70 @@ MODULE mo_nwp_phy_types
 
   END TYPE t_nwp_phy_tend
 
+  TYPE t_nwp_phy_stochconv
+     
+! Variables for SDE stochastic convection schemes
+     REAL(wp), POINTER           &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS              &
+#endif
+      & ::                        &
+      & clnum_a        (:,:)     ,& ! number density of active convective clouds    ( - )
+      & clmf_a         (:,:)     ,& ! cloud-base mass flux for active conv. clouds  (kg/m**2s)
+      & clnum_p        (:,:)     ,& ! number density of passive convective clouds   ( - )
+      & clmf_p         (:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
+      & clnum_d        (:,:)     ,& ! number density of deep convective clouds      ( - )
+      & clmf_d         (:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
+     
+! Variables for explicit stochastic convection scheme
+     REAL(wp), POINTER           &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS               &
+#endif
+      & ::                       &
+      & mf_i        (:,:,:)     ,& ! number density of active convective clouds    ( - )
+      & time_i      (:,:,:)     ,& ! time since birth of cloud
+      & life_i      (:,:,:)     ,& ! expected lifetime of cloud
+      & area_i      (:,:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
+      & type_i      (:,:,:)     ,& ! number density of deep convective clouds      ( - )
+      & ktype_i     (:,:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
+     
+    INTEGER, POINTER             &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS               &
+#endif
+      & ::                       &      
+      & depth_i     (:,:,:)     ,& ! number density of passive convective clouds   ( - )
+      & base_i      (:,:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
+      & used_cell   (:,:,:)        ! number density of deep convective clouds      ( - )
+
+  END TYPE t_nwp_phy_stochconv
+    
+  TYPE t_ptr_cloud_ensemble
+     ! Pointer to variables for explicit stochastic convection scheme
+     ! (nproma,nlev) dimension only
+     REAL(wp), POINTER           &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS               &
+#endif
+      & ::                       &
+      & mf_i        (:,:)     ,& ! number density of active convective clouds    ( - )
+      & time_i      (:,:)     ,& ! time since birth of cloud
+      & life_i      (:,:)     ,& ! expected lifetime of cloud
+      & area_i      (:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
+      & type_i      (:,:)     ,& ! number density of deep convective clouds      ( - )
+      & ktype_i     (:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
+     
+     INTEGER, POINTER             &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS               &
+#endif
+      & ::                       &      
+      & depth_i     (:,:)     ,& ! number density of passive convective clouds   ( - )
+      & base_i      (:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
+      & used_cell   (:,:)        ! number density of deep convective clouds      ( - )
+
+  END TYPE t_ptr_cloud_ensemble
+
+  
 END MODULE mo_nwp_phy_types

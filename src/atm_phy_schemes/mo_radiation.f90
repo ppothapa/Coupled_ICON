@@ -50,7 +50,7 @@ MODULE mo_radiation
   USE mo_model_domain,         ONLY: t_patch
   USE mo_nonhydro_state,       ONLY: p_nh_state
 
-  USE mo_math_constants,       ONLY: pi, rpi
+  USE mo_math_constants,       ONLY: pi, rpi, rad2deg
   USE mo_math_types,           ONLY: t_geographical_coordinates
   USE mo_physical_constants,   ONLY: grav,  rd,    avo,   amd,  amw,  &
     &                                amco2, amch4, amn2o, amo3, amo2, &
@@ -65,6 +65,7 @@ MODULE mo_radiation
     &                                irad_cfc12, vmr_cfc12,           &
     &                                irad_aero,                       &
     &                                izenith, cos_zenith_fixed, islope_rad
+  USE mo_extpar_config,        ONLY: nhori
   USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_newcld_optics,        ONLY: newcld_optics
@@ -422,7 +423,8 @@ CONTAINS
 
   END SUBROUTINE pre_radiation_nwp_steps
 
-  SUBROUTINE pre_radiation_nwp(kbdim,p_inc_rad,p_sim_time,pt_patch,zsmu0,zsct,slope_ang,slope_azi,cosmu0_slp,lacc)
+  SUBROUTINE pre_radiation_nwp(kbdim,p_inc_rad,p_sim_time,pt_patch,zsmu0,zsct,&
+    &                          slope_ang,slope_azi,horizon,cosmu0_slp,lacc)
 
     INTEGER, INTENT(IN)   :: &
       & kbdim
@@ -437,23 +439,34 @@ CONTAINS
     REAL(wp), INTENT(OUT)             :: zsmu0(kbdim,pt_patch%nblks_c)   ! Cosine of zenith angle
     ! Optional fields for slope-dependent surface radiation: slope angle, slope azimuth, and slope-dependent cosine of zenith angle
     REAL(wp), INTENT(IN),  OPTIONAL, DIMENSION(kbdim,pt_patch%nblks_c) :: slope_ang,slope_azi
+    REAL(wp), INTENT(IN),  OPTIONAL, DIMENSION(kbdim,pt_patch%nblks_c,nhori) :: horizon
     REAL(wp), INTENT(OUT), OPTIONAL, DIMENSION(kbdim,pt_patch%nblks_c) :: cosmu0_slp
     LOGICAL, OPTIONAL,           INTENT(in)   :: lacc            !< GPU flag
 
-    LOGICAL :: lzacc
-
-    REAL(wp) ::                     &
-      & p_sim_time_rad,  &
-      & zstunde,                   &
+! Local arrays
+! --------------------------------------------------------------------
+    REAL(wp), DIMENSION(kbdim) :: zsinphi, zcosphi, zeitrad, czra, szra, csang, ssang, csazi, ssazi, &
+                                  zha_sun,    & ! interpolated horizon angle below the sun [degree]
+                                  zphi_sun,   & ! sun azimuth angle [rad]
+                                  ztheta_sun, & ! sun elevation angle [rad]
+                                  ztheta        ! slope angle [rad]
+! Local scalars
+! --------------------------------------------------------------------
+    REAL(wp) ::                    &
+      & p_sim_time_rad, x1, x2,    &
+      & zihor, zstunde,            &
       & ztwo  , ztho  ,            &
       & zdtzgl, zdek  ,            &
       & zsocof, zeit0 ,            &
       & zdeksin,zdekcos
 
-    REAL(wp), DIMENSION(kbdim) :: zsinphi, zcosphi, zeitrad, czra, szra, csang, ssang, csazi, ssazi
-
     INTEGER :: &
-      & jc, jj, itaja, jb, ie
+      & k, ii, jc, jj, itaja, jb, ie, shadow
+
+    LOGICAL :: &
+      & lshade, lslope_aspect, lzacc      !switches
+
+!------------------------------------------------------------------------------
 
     INTEGER , SAVE :: itaja_zsct_previous = 0
     REAL(wp), SAVE :: zsct_save
@@ -467,7 +480,7 @@ CONTAINS
 
 
 #ifdef __INTEL_COMPILER
-!DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi
+!DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta
 #endif
 
     IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
@@ -493,7 +506,7 @@ CONTAINS
       lzacc = .FALSE.
     ENDIF
 
-    !$ACC DATA CREATE(zsinphi, zcosphi, zeitrad, czra, szra, csang, ssang, csazi, ssazi) IF(lzacc)
+    !$ACC DATA CREATE(zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta) IF(lzacc)
 
     !First case: izenith==0 to izenith==2 and izenith=6 (no date and time needed)
     IF (izenith == 0) THEN
@@ -608,6 +621,18 @@ CONTAINS
           zsct = zsct_save
         ENDIF
 
+        lshade        = .TRUE.
+        lslope_aspect = .TRUE.
+
+        IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. &
+              PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
+          CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
+        ENDIF
+
+        IF (islope_rad == 2 .AND. .NOT. PRESENT(horizon)) THEN
+            ! we need horizon
+          CALL finish('pre_radiation_nwp', 'I/O field horizon for shading is missing')
+        ENDIF
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
           !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
@@ -621,7 +646,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
 
-          IF (islope_rad > 0) THEN
+          IF (islope_rad == 1) THEN
             !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = 1, ie
@@ -639,6 +664,92 @@ CONTAINS
             !$ACC END PARALLEL
           ENDIF
 
+          IF (islope_rad == 2) THEN
+            zihor = REAL(INT(360.0_wp/nhori),wp)
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR
+            DO jc = 1, ie
+              szra(jc)  = SIN(zeitrad(jc))
+
+              ! The following code is from COSMO V5.10 in subroutine calc_rad_corrections of
+              ! radiation_utilities.f90 where :
+              ! thetain  (:) is replaced by the slope_ang(jc,jb)
+              ! phi      (:) is replaced by the slope_azi(jc,jb)
+
+              ! sun elevation angle
+              ztheta_sun(jc) = ASIN(zsmu0(jc,jb))
+
+              ! sun azimuth angle
+              x1 = zdekcos * szra(jc) / COS(ztheta_sun(jc))
+              x2 = ( zsinphi(jc) * zdekcos * czra(jc) -   &
+                   & zcosphi(jc) * zdeksin ) / COS(ztheta_sun(jc))
+
+              IF (x2 < -1.0_wp) x2 = -1.0_wp
+              IF (x2 >  1.0_wp) x2 =  1.0_wp
+              zphi_sun(jc) = ACOS(x2)
+              IF (x1 < 0) zphi_sun(jc) = - zphi_sun(jc)
+              zphi_sun(jc) = zphi_sun(jc) + pi
+
+              ! sun elevation angle corrected by refraction (empiric formula, A.H.Siemer(1988))
+              ztheta_sun(jc) = ztheta_sun(jc) + (1.569000_wp - ztheta_sun(jc)) / &
+                                 &     (185.5_wp + 3620.0_wp * ztheta_sun(jc))
+
+              ! night or day
+              IF (ztheta_sun(jc) < 0.0_wp) THEN
+                ztheta_sun(jc) = 0.0_wp
+              ENDIF
+
+              ! the horizon has a spatial resolution of 360/nhori degrees.
+              ! a distance weighted linear interpolation is 
+              ! done between the two neighboring points.
+              ii = INT(rad2deg*zphi_sun(jc)/zihor)
+              IF (ii >= nhori) THEN
+                ii = nhori - 1
+              ENDIF
+
+              k = MOD(ii+1,nhori)
+
+              zha_sun(jc) = (horizon(jc,jb,k+1) *(rad2deg*zphi_sun(jc)-zihor*ii) +     &
+                &            horizon(jc,jb,ii+1)*(zihor*(ii+1)-rad2deg*zphi_sun(jc)))/ &
+                &            zihor
+
+              ! compute shadowmask
+              shadow = 1
+              IF (rad2deg*ztheta_sun(jc) < zha_sun(jc) .AND. lshade) THEN
+                shadow = 0
+              ENDIF
+
+              ! compute correction factor and multiply by sin(ztheta_sun) to get cosmu0_slp
+              ! slope angle and aspect switched off
+              IF (.NOT. lslope_aspect) THEN
+                ztheta(jc) = 0.0_wp
+              ELSE
+                ztheta(jc) = slope_ang(jc,jb) ! thetain(ip)
+              ENDIF
+
+              IF (ztheta_sun(jc) > 0.01_wp) THEN
+              ! Mueller and Scherer (2005) formula (MWR)
+              ! New formula (lower correction, theoretically correct derived)
+                cosmu0_slp(jc,jb) = SIN(ztheta_sun(jc)) * REAL(shadow, wp) * &
+                  ( COS(ztheta(jc)) + (SIN(ztheta(jc))/TAN(ztheta_sun(jc)))* &
+                                        COS(zphi_sun(jc) - slope_azi(jc,jb)) )
+              ELSE
+                cosmu0_slp(jc,jb) = SIN(ztheta_sun(jc)) * REAL(shadow, wp)
+              ENDIF
+
+              ! Consistency check to avoid negative corrections:
+              ! active in situations with low sun elevation (slope angles > sun elevation)
+              ! when the slope aspect is greater than the daily maxima or smaller than the
+              ! daily minima of the sun azimuth angle (during the sunshine time, a kind
+              ! of self shading effect).
+              IF (cosmu0_slp(jc,jb) < 0.0_wp) THEN
+                cosmu0_slp(jc,jb) = 0.0_wp
+              ENDIF
+
+            ENDDO
+            !$ACC END PARALLEL
+
+          ENDIF
         ENDDO
 
       ELSEIF (izenith == 5) THEN
@@ -666,7 +777,7 @@ CONTAINS
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
     ENDIF
-    !$ACC END DATA ! CREATE(zsinphi, zcosphi, zeitrad, czra, szra, csang, ssang, csazi, ssazi)
+    !$ACC END DATA ! CREATE(zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta)
 
   END SUBROUTINE pre_radiation_nwp
 
@@ -1655,6 +1766,7 @@ CONTAINS
     &                 idx_lst_t,       & ! optional: index list of land points per tile
     &                 cosmu0,          & ! optional: cosine of zenith angle
     &                 cosmu0_slp,      & ! optional: slope-dependent cosine of zenith angle
+    &                 skyview,         & ! optional: skyview factor for islope_rad=2
     &                 opt_nh_corr   ,  & ! optional: switch for applying corrections for NH model
     &                 use_trsolclr_sfc,& ! optional: use clear-sky surface transmissivity passed on input
     &                 ptrmsw        ,  &
@@ -1699,6 +1811,7 @@ CONTAINS
                                        ! dim: (kbdim,,ntiles+ntiles_wtr)
       &     cosmu0    (kbdim),       & ! cosine of solar zenith angle (w.r.t. plain surface)
       &     cosmu0_slp(kbdim),       & ! slope-dependent cosine of solar zenith angle
+      &     skyview   (:),           & ! skyview factor for islope_rad=2
       &     albedo    (kbdim),       & ! grid-box average albedo
       &     albedo_t  (:,:),         & ! tile-specific albedo
                                        ! dim: (kbdim,ntiles+ntiles_wtr)
@@ -1788,6 +1901,11 @@ CONTAINS
       l_nh_corr = .FALSE.
     ENDIF
 
+    IF (islope_rad == 2 .AND. .NOT. (PRESENT(skyview) )) THEN
+      ! we need skyview
+      CALL finish('radheat', 'I/O field skyview is missing')
+    ENDIF
+
     IF(PRESENT(lacc)) THEN
       lzacc = lacc
     ELSE
@@ -1848,13 +1966,24 @@ CONTAINS
 
     IF (l_nh_corr) THEN !
 
-      IF (islope_rad > 0) THEN
+      IF (islope_rad == 1) THEN
         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
           solrad = MAX(0.1_wp,ptrmsw(jc,klevp1)/(1._wp-albedo(jc)),trsol_dn_sfc_diff(jc))
           angle_ratio = MIN(10._wp,cosmu0_slp(jc)/MAX(1.e-5_wp,cosmu0(jc)))
           slope_corr(jc) = (trsol_dn_sfc_diff(jc) + (solrad-trsol_dn_sfc_diff(jc))*angle_ratio)/solrad
+        ENDDO
+        !$ACC END PARALLEL
+      ELSEIF (islope_rad == 2) THEN ! with correction of horizon and skyview
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
+        DO jc = jcs, jce
+          solrad = MAX(0.1_wp,ptrmsw(jc,klevp1)/(1._wp-albedo(jc)),trsol_dn_sfc_diff(jc))
+          angle_ratio = MIN(10._wp,cosmu0_slp(jc)/MAX(1.e-5_wp,cosmu0(jc)))
+          slope_corr(jc) = (trsol_dn_sfc_diff(jc) + (solrad-trsol_dn_sfc_diff(jc))*angle_ratio)/solrad
+        ! skyview is not used but should have an impact in the following form:
+        ! slope_corr(jc) = (trsol_dn_sfc_diff(jc)*skyview(jc) + (1._wp-skyview(jc))*(solrad-trsol_dn_sfc_diff(jc))*angle_ratio)/solrad
         ENDDO
         !$ACC END PARALLEL
       ENDIF

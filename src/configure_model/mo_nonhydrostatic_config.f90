@@ -176,6 +176,7 @@ CONTAINS
 
     ! Initialize kstart_tracer; will be overwritten for ART aerosol tracers
     ! (specified by htop_aero_proc)
+    ! Is set in the module mo_art_tracer of the ART external.
     kstart_tracer(jg,:) = 1
 
 

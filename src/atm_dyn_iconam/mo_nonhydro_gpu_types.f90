@@ -160,7 +160,9 @@ CONTAINS
 !$ACC               p_int(j)%rbf_vec_blk_c, p_int(j)%rbf_vec_idx_c, p_int(j)%rbf_vec_coeff_c,    &
 !$ACC               p_int(j)%rbf_vec_blk_e, p_int(j)%rbf_vec_idx_e, p_int(j)%rbf_vec_coeff_e,    &
 !$ACC               p_int(j)%rbf_vec_blk_v, p_int(j)%rbf_vec_idx_v, p_int(j)%rbf_vec_coeff_v,    &
-!$ACC               p_int(j)%verts_aw_cells )                                                    &
+!$ACC               p_int(j)%verts_aw_cells, p_int(j)%cell_environ, p_int(j)%cell_environ%idx,   &
+!$ACC               p_int(j)%cell_environ%blk,p_int(j)%cell_environ%area_norm,                   &
+!$ACC               p_int(j)%pos_on_tplane_c_edge)                                               &
 !$ACC       CREATE( p_int(j) )                                                                   &
 !$ACC       IF ( i_am_accel_node )        
 
@@ -185,8 +187,11 @@ CONTAINS
 !$ACC               p_int(j)%rbf_vec_blk_c, p_int(j)%rbf_vec_idx_c, p_int(j)%rbf_vec_coeff_c,    &
 !$ACC               p_int(j)%rbf_vec_blk_e, p_int(j)%rbf_vec_idx_e, p_int(j)%rbf_vec_coeff_e,    &
 !$ACC               p_int(j)%rbf_vec_blk_v, p_int(j)%rbf_vec_idx_v, p_int(j)%rbf_vec_coeff_v,    &
-!$ACC               p_int(j)%verts_aw_cells, p_int(j)%lsq_high, p_int(j)%lsq_lin, p_int(j) )     &
-!$ACC               IF ( i_am_accel_node )        
+!$ACC               p_int(j)%verts_aw_cells, p_int(j)%lsq_high, p_int(j)%lsq_lin,                &
+!$ACC               p_int(j)%cell_environ%idx, p_int(j)%cell_environ%blk,                        &
+!$ACC               p_int(j)%cell_environ%area_norm, p_int(j)%pos_on_tplane_c_edge,              &
+!$ACC               p_int(j) )                                                                   &
+!$ACC               IF ( i_am_accel_node )
 
       ENDIF
 
@@ -229,7 +234,8 @@ CONTAINS
 !$ACC              p_patch(j)%verts, p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk,                  &
 !$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
 !$ACC              p_patch(j)%edges%parent_loc_idx, p_patch(j)%edges%parent_loc_blk,                        &
-!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl ),     &
+!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl,       &
+!$ACC              p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk ),                        &
 !$ACC      IF ( i_am_accel_node  )
      
         ELSE
@@ -239,7 +245,7 @@ CONTAINS
 !$ACC              p_patch(j)%cells%area, p_patch(j)%cells%edge_idx, p_patch(j)%cells%edge_blk,             &
 !$ACC              p_patch(j)%cells%neighbor_idx, p_patch(j)%cells%neighbor_blk,                            &
 !$ACC              p_patch(j)%cells%center, p_patch(j)%cells%refin_ctrl, p_patch(j)%cells%f_c,              &
-!$ACC              p_patch(j)%cells%start_index, p_patch(j)%cells%end_index,              &
+!$ACC              p_patch(j)%cells%start_index, p_patch(j)%cells%end_index,                                &
 !$ACC              p_patch(j)%cells%vertex_blk, p_patch(j)%cells%vertex_idx, p_patch(j)%cells,              &
 !$ACC              p_patch(j)%edges%area_edge, p_patch(j)%edges%cell_idx,                                   &
 !$ACC              p_patch(j)%edges%cell_blk, p_patch(j)%edges%edge_cell_length, p_patch(j)%edges%f_e,      &
@@ -249,11 +255,12 @@ CONTAINS
 !$ACC              p_patch(j)%edges%dual_normal_cell, p_patch(j)%edges%primal_normal_vert,                  &
 !$ACC              p_patch(j)%edges%dual_normal_vert, p_patch(j)%edges%inv_vert_vert_length,                &
 !$ACC              p_patch(j)%edges%inv_dual_edge_length, p_patch(j)%edges%inv_primal_edge_length,          &
-!$ACC              p_patch(j)%edges%tangent_orientation, p_patch(j)%edges%refin_ctrl, p_patch(j)%edges,     &
+!$ACC              p_patch(j)%edges%tangent_orientation, p_patch(j)%edges%refin_ctrl,                       &
 !$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
 !$ACC              p_patch(j)%edges%parent_loc_idx, p_patch(j)%edges%parent_loc_blk,                        &
 !$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl,       &
-!$ACC              p_patch(j)%verts  ), &
+!$ACC              p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk,                          &
+!$ACC              p_patch(j)%edges, p_patch(j)%verts),                                                     &
 !$ACC      IF ( i_am_accel_node  )
 
       ENDIF   

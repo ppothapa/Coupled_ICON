@@ -2005,7 +2005,7 @@ CONTAINS
           ENDDO
         ENDDO
       ENDIF
-      CALL finish(routine,'Output name list variable not found: '//TRIM(varlist(iv))//&
+      CALL finish(routine,'Output name list variable not found: '//TRIM(vname)//&
         &", patch "//int2string(of%log_patch_id,'(i0)'))
     ENDDO ! ivar = 1,nvars
   END SUBROUTINE add_varlist_to_output_file
@@ -2880,6 +2880,7 @@ CONTAINS
     INTEGER :: ivct_len, nvgrid, ivgrid, temp(4), dummy, vgd_size, i, vgd_sloc
     LOGICAL :: is_io
     CHARACTER(LEN=vname_len) :: vgd_temp(MAX_GROUPS)
+    TYPE(t_output_name_list), POINTER :: p_onl
 
     is_io = my_process_is_io()
     !-----------------------------------------------------------------------------------------------
@@ -2922,14 +2923,21 @@ CONTAINS
     IF (.NOT. is_io) vgd_temp(1:vgd_size) = var_groups_dyn%gname(1:vgd_size)
     CALL p_bcast(vgd_temp(1:vgd_size), bcast_root, p_comm_work_2_io)
     IF (is_io .AND. vgd_size .GT. vgd_sloc) THEN
-      DO i = vgd_sloc + 1, vgd_size 
+      DO i = vgd_sloc + 1, vgd_size
         dummy = var_groups_dyn%group_id(vgd_temp(i))
       END DO
     END IF
 
-    ! Map the variable groups given in the output namelist onto the
-    ! corresponding variable subsets:
-    IF (is_io) CALL parse_variable_groups()
+    ! Copy the group-expanded and modified output namelists over to the IO procs.
+    p_onl => first_output_name_list
+    DO WHILE (ASSOCIATED(p_onl))
+      CALL p_bcast(p_onl%hl_varlist, bcast_root, comm=p_comm_work_2_io)
+      CALL p_bcast(p_onl%il_varlist, bcast_root, comm=p_comm_work_2_io)
+      CALL p_bcast(p_onl%ml_varlist, bcast_root, comm=p_comm_work_2_io)
+      CALL p_bcast(p_onl%pl_varlist, bcast_root, comm=p_comm_work_2_io)
+
+      p_onl => p_onl%next
+    END DO
 
 #ifndef __NO_ICON_ATMO__
     ! Go over all output domains

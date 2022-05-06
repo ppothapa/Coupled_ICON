@@ -125,7 +125,7 @@ CONTAINS
 SUBROUTINE sso (                                                       &
            ie     , ke     , ke1    ,  istart  , iend   ,              &
            ppf    , pph    , pfif   , pt       , pu , pv  , pfis     , &
-           psso_stdh, psso_gamma, psso_theta, psso_sigma,              &
+           psso_stdh, psso_gamma, psso_theta, psso_sigma, sfcfric_fac, &
            pdt    , mkenvh, params,                                    &
            ldebug ,                                                    &
            pdu_sso, pdv_sso, pustr_sso, pvstr_sso, pvdis_sso, use_acc  )
@@ -206,6 +206,9 @@ SUBROUTINE sso (                                                       &
       REAL(KIND=wp), INTENT(IN) :: psso_theta (:)  !  (ie)
       REAL(KIND=wp), INTENT(IN) :: psso_sigma (:)  !  (ie)
 
+      ! Factor for adaptive tuning of surface friction
+      REAL(KIND=wp), INTENT(IN) :: sfcfric_fac(:)  !  (ie)
+
       REAL(KIND=wp) :: pdt           ! time step
 
       LOGICAL ldebug ! debug control switch
@@ -280,7 +283,7 @@ SUBROUTINE sso (                                                       &
 !     -----------------
       REAL(KIND=wp) :: zgdph,zcons1
       REAL(KIND=wp) :: zdelp,ztemp,zb,zc,zcs,zss,zconb,zabsv,zzd1
-      REAL(KIND=wp) :: zratio,zbet,zdt2
+      REAL(KIND=wp) :: zratio,zbet,zdt2,fac_sfc
 !     REAL(KIND=wp) :: zust,zvst
 
       INTEGER j1,j3      ! loop indices
@@ -301,7 +304,7 @@ SUBROUTINE sso (                                                       &
       ENDIF
 
       !Declaration of GPU arrays  
-      !$ACC DATA PRESENT(pt, pu, pv, pfif, pfis, pph, ppf, psso_stdh, psso_gamma,                 &
+      !$ACC DATA PRESENT(pt, pu, pv, pfif, pfis, pph, ppf, psso_stdh, psso_gamma, sfcfric_fac,     &
       !$ACC             psso_theta, psso_sigma, pdv_sso, pdu_sso, pustr_sso, pvstr_sso, pvdis_sso) &
       !$ACC CREATE(mcrit, mkcrith, mknu, mknu2, lo_sso,                                       &
       !$ACC       zfi, ztau, zstrdu, zstrdv, zstab, zvph, zrho, zri, zpsi, zzdep,                    &
@@ -414,6 +417,12 @@ SUBROUTINE sso (                                                       &
          zdvdt(j1)= SIGN(MIN(ABS(zdvdt(j1)),20._wp/3600._wp),zdvdt(j1))
         ENDIF
 
+        IF (j3==ke) THEN
+          fac_sfc = sfcfric_fac(j1)
+        ELSE
+          fac_sfc = 1._wp
+        ENDIF
+
 !       Low level drag ('blocking') (cf. documentation EQ.4.14 ff.)
 !       -----------------------------------------------------------
         IF (j3.GE.mkenvh(j1)) THEN
@@ -426,7 +435,7 @@ SUBROUTINE sso (                                                       &
          zabsv =0.5_wp*SQRT(pu(j1,j3)**2+pv(j1,j3)**2)
          zratio=(zcs+psso_gamma(j1)*zss)/(psso_gamma(j1)*zcs+zss)
          zbet  =MAX(0._wp,2._wp-1._wp/zratio)*zconb*zzdep(j1,j3)*zzd1*zabsv
-         zbet = zbet * MIN(1._wp,blockred*psso_stdh(j1)/(zfi(j1,j3)/G))
+         zbet = zbet * fac_sfc*MIN(1._wp,blockred*psso_stdh(j1)/(zfi(j1,j3)/G))
 !        Partially implicit tendency calculation
 !        ---------------------------------------
          zdudt(j1)=-pu(j1,j3)/zdt2*(zbet/(1._wp+zbet))

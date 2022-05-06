@@ -805,13 +805,13 @@ CONTAINS
   !! @par Revision History
   !! Moved here from the physics interfaces by Daniel Reinert, DWD (2017-09-19)
   !!
-  SUBROUTINE compute_dpsdt (pt_patch, dt, pt_diag, opt_dpsdt_avg, linit)
+  SUBROUTINE compute_dpsdt (pt_patch, dt, pt_diag, opt_dpsdt_avg, lacc)
 
     TYPE(t_patch),       INTENT(IN)    :: pt_patch      !< grid/patch info
     REAL(wp),            INTENT(IN)    :: dt            !< time step [s]
     TYPE(t_nh_diag),     INTENT(INOUT) :: pt_diag       !< the diagnostic variables
     REAL(wp), OPTIONAL,  INTENT(OUT)   :: opt_dpsdt_avg !< mean |dPS/dt|
-    LOGICAL,  OPTIONAL,  INTENT(IN)    :: linit         !< Initialization flag (no OpenACC for linit==.TRUE.)
+    LOGICAL,  OPTIONAL,  INTENT(IN)    :: lacc          !< running on GPU if lacc=.TRUE.
 
     ! local
     INTEGER :: jc, jb                         !< loop indices
@@ -823,13 +823,13 @@ CONTAINS
     INTEGER  :: npoints_blk(pt_patch%nblks_c)
     REAL(wp) :: dpsdt_avg                     !< spatial average of ABS(dpsdt)
     INTEGER  :: npoints
-    LOGICAL  :: l_opt_dpsdt_avg, lacc
+    LOGICAL  :: l_opt_dpsdt_avg, lzacc
   !-------------------------------------------------------------------------
 
-    IF (PRESENT(linit)) THEN
-      lacc = .NOT. linit
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
    ELSE
-      lacc = .FALSE.
+      lzacc = .FALSE.
    END IF
 
     rl_start = grf_bdywidth_c+1
@@ -840,8 +840,8 @@ CONTAINS
 
     ! Initialize fields for runtime diagnostics
     ! In case that average ABS(dpsdt) is diagnosed
-    !$acc data create (dps_blk, npoints_blk) if(lacc)
-    !$acc kernels if(lacc)
+    !$acc data create (dps_blk, npoints_blk) if(lzacc)
+    !$acc kernels if(lzacc)
     IF (msg_level >= 11) THEN
       dps_blk(:)     = 0._wp
       npoints_blk(:) = 0
@@ -863,7 +863,7 @@ CONTAINS
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$acc parallel default (present) if(lacc)
+      !$acc parallel default (present) if(lzacc)
       !$acc loop private(jc)
       DO jc = i_startidx, i_endidx
         pt_diag%ddt_pres_sfc(jc,jb) = (pt_diag%pres_sfc(jc,jb)-pt_diag%pres_sfc_old(jc,jb))/dt
@@ -883,7 +883,7 @@ CONTAINS
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$acc parallel default (present) if(lacc)
+        !$acc parallel default (present) if(lzacc)
         !$acc loop seq
         DO jc = i_startidx, i_endidx
           dps_blk(jb) = dps_blk(jb) + ABS(pt_diag%ddt_pres_sfc(jc,jb))
@@ -894,7 +894,7 @@ CONTAINS
 !$OMP END DO
 
 
-!$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lacc)
+!$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
 
 !$OMP MASTER
       dpsdt_avg = SUM(dps_blk)

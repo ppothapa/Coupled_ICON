@@ -482,6 +482,15 @@ CONTAINS
     ! for index list generation
     LOGICAL :: llist_gen           !< if TRUE, generate index list
     INTEGER :: ie, ie_capture      !< counter, and its captured value
+
+    INTEGER, PARAMETER :: &
+         &  gang_size = 128
+    INTEGER :: num_gangs, jg, jl
+    INTEGER :: gang_ie(1)
+    INTEGER :: gang_captured_ie(1) !< OpenACC captures
+    INTEGER :: gang_eidx(gang_size)!< OpenACC gang-local lists
+    INTEGER :: gang_elev(gang_size)
+
     REAL(wp):: traj_length         !< backward trajectory length [m]
     REAL(wp):: e2c_length          !< edge-upwind cell circumcenter length [m]
     !-------------------------------------------------------------------------
@@ -526,12 +535,15 @@ CONTAINS
     i_endblk   = ptr_p%edges%end_block(i_rlend)
 
 
-!$ACC DATA PCOPYIN( p_vn, p_vt ), PCOPYOUT( p_coords_dreg_v, p_cell_idx, p_cell_blk ),  &
-!$ACC      CREATE(  edge_verts,lvn_sys_pos ), &
-!$ACC      PRESENT( ptr_p%edges%cell_idx, ptr_p%edges%cell_blk, ptr_p%edges%primal_normal_cell, &
-!$ACC               ptr_p%edges%dual_normal_cell, ptr_p%edges%tangent_orientation, &
-!$ACC               ptr_p%edges%edge_cell_length, ptr_int%pos_on_tplane_e ), &
+!$ACC DATA PRESENT( ptr_p, ptr_int, p_vn, p_vt, p_coords_dreg_v, p_cell_idx, p_cell_blk )  &
+!$ACC      NO_CREATE( opt_falist ) CREATE( edge_verts,lvn_sys_pos )                        &
 !$ACC IF( i_am_accel_node .AND. acc_on )
+
+    IF (llist_gen) THEN
+!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
+      opt_falist%len(:) = 0
+!$ACC END KERNELS
+    ENDIF
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,je,ie,i_startidx,i_endidx,traj_length,e2c_length, &
@@ -544,7 +556,7 @@ CONTAINS
 
 
       ! get local copy of edge vertices
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR
 !NEC$ ivdep
       DO je = i_startidx, i_endidx
@@ -555,7 +567,7 @@ CONTAINS
       ! logical switch for merge options regarding the counterclockwise numbering
       IF (lcounterclock) THEN
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -564,7 +576,7 @@ CONTAINS
         ENDDO
 !$ACC END PARALLEL
       ELSE
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -578,7 +590,15 @@ CONTAINS
       !
       IF (llist_gen) THEN
         ie = 0
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+        ! OpenACC/GPU - using a two-stage atomics below: each gang has one atomic counter in its shared memory.
+        ! There is then a global counter that is only updated by a single thread from each gang
+
+        num_gangs = ( (elev-slev+1)*(i_endidx-i_startidx+1) + gang_size-1) / gang_size
+        !$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on ) &
+        !$ACC          PRIVATE( gang_ie, gang_captured_ie, gang_elev, gang_eidx ) &
+        !$ACC          NUM_GANGS(num_gangs) VECTOR_LENGTH(gang_size)
+        gang_ie(1) = 0
+
         !$ACC LOOP GANG VECTOR PRIVATE( lvn_pos, traj_length, e2c_length, ie_capture ) COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -593,30 +613,60 @@ CONTAINS
               &                 ptr_p%edges%edge_cell_length(je,jb,2),lvn_pos)
 
             IF (traj_length > 1.25_wp*e2c_length) THEN   ! add point to index list
-
-! OpenACC:  This seems to be the only atomic operation in the calculation
-!$ACC ATOMIC CAPTURE
+              ! Nvidia HPC compiler 21.3 has an issue with this kernel
+              ! When 21.3 is not used in testing/operation anymore, this WAR could be removed
+#if (!defined (_OPENACC)) || (__NVCOMPILER_MAJOR__ == 21 && __NVCOMPILER_MINOR__ == 3)
+              ! Default code path and NV HPC 21.3 path
               ie = ie + 1
               ie_capture = ie
-!$ACC END ATOMIC
               opt_falist%eidx(ie_capture,jb) = je
               opt_falist%elev(ie_capture,jb) = jk
+#else
+              ! OpenACC path
+              !$ACC ATOMIC CAPTURE
+              gang_ie(1) = gang_ie(1) + 1
+              ie_capture = gang_ie(1)
+              !$ACC END ATOMIC
+              gang_eidx(ie_capture) = je
+              gang_elev(ie_capture) = jk
+#endif
             ENDIF
           ENDDO ! loop over edges
         ENDDO   ! loop over vertical levels
-!$ACC END PARALLEL
 
+#if (!defined (_OPENACC)) || (__NVCOMPILER_MAJOR__ == 21 && __NVCOMPILER_MINOR__ == 3)
+        ! Default code path
         ! store list dimension
         opt_falist%len(jb) = ie
+#else
+        ! OpenACC path
+        ! Copy gang-local lists into the global array
+        !$ACC ATOMIC CAPTURE
+        opt_falist%len(jb)  = opt_falist%len(jb) + gang_ie(1)
+        gang_captured_ie(1) = opt_falist%len(jb)
+        !$ACC END ATOMIC
+        gang_captured_ie(1) = gang_captured_ie(1) - gang_ie(1)
+
+        !$ACC LOOP GANG
+        DO jg = 1, num_gangs
+          !$ACC LOOP VECTOR
+          DO jl = 1, gang_size
+            IF (jl <= gang_ie(1)) THEN
+              opt_falist%eidx(gang_captured_ie(1)+jl, jb) = gang_eidx(jl)
+              opt_falist%elev(gang_captured_ie(1)+jl, jb) = gang_elev(jl)
+            END IF
+          END DO
+        END DO
+#endif
+        !$ACC END PARALLEL
       ENDIF
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG PRIVATE( depart_pts, pos_dreg_vert_c, pos_on_tplane_e )
-
+!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( depart_pts, pos_dreg_vert_c, pos_on_tplane_e,         &
+      !$ACC                                       lvn_pos, pn_cell_1, pn_cell_2, dn_cell_1, dn_cell_2 )
       DO jk = slev, elev
 !DIR$ IVDEP, PREFERVECTOR
 !$NEC ivdep
-        !$ACC LOOP VECTOR
         DO je = i_startidx, i_endidx
 
 
@@ -742,6 +792,8 @@ CONTAINS
 !$ACC END PARALLEL
     END DO    ! loop over blocks
 
+!$ACC WAIT
+!$ACC UPDATE HOST(opt_falist%len) IF( i_am_accel_node .AND. acc_on .AND. llist_gen )
 !$ACC END DATA
 
 !$OMP END DO NOWAIT

@@ -35,9 +35,6 @@ else
     ECCODES_LIBS='-leccodes'
     ECCODESI="-I${ECCODES_ROOT}/include"
 fi
-if [ -z "${CSCS_APPS_PATH+x}" ]; then
-    echo "Warning: CSCS_APPS_PATH is not set, please use spack or set it manually"
-fi
 
 # Mandatory LIBS
 BLAS_LAPACK_LIBS='-llapack -lblas'
@@ -47,7 +44,7 @@ STDCPP_LIBS='-lstdc++fs -lstdc++'
 
 ################################################################################
 
-BUILD_ENV=". \"${SCRIPT_DIR}/module_switcher\"; module use ${CSCS_APPS_PATH}/generic/easybuild/modules/all/; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${XML2_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
+BUILD_ENV=". \"${SCRIPT_DIR}/module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${XML2_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
 
 # We need some of the environment variables set by the modules now:
 eval "$BUILD_ENV"
@@ -69,7 +66,6 @@ CPPFLAGS="-I${XML2_ROOT}/include/libxml2 -I${EBROOTNETCDF}/include"
 
 FC='mpif90'
 FCFLAGS="-g -traceback -O -Mrecursive -Mallocatable=03 -acc=verystrict -ta=nvidia:cc70 -ta=tesla:lineinfo -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} ${NETCDFFI} -D__SWAPDIM -D__USE_G2G"
-ICON_ECRAD_FCFLAGS="-D__ECRAD_LITTLE_ENDIAN"
 
 LDFLAGS="-L${SERIALBOX2_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib -L${EBROOTNETCDF}/lib64 -L${EBROOTNETCDFMINFORTRAN}/lib"
 
@@ -102,7 +98,6 @@ CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \
-ICON_ECRAD_FCFLAGS="$ICON_ECRAD_FCFLAGS" \
 LDFLAGS="$LDFLAGS" \
 LIBS="$LIBS" \
 MPI_LAUNCH="$MPI_LAUNCH" \

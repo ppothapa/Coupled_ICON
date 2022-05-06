@@ -233,8 +233,8 @@ CONTAINS
     iilnc => ptr_patch%cells%neighbor_idx
     iibnc => ptr_patch%cells%neighbor_blk
 
-!$ACC DATA CREATE( z_mflx_low, z_anti, z_mflx_anti_in, z_mflx_anti_out, r_m, r_p ),          &
-!$ACC      CREATE( z_tracer_new_low, z_tracer_max, z_tracer_min, z_min, z_max, z_fluxdiv_c ),&
+!$ACC DATA CREATE( z_mflx_low, z_anti, z_mflx_anti_in, z_mflx_anti_out, r_m, r_p,            &
+!$ACC              z_tracer_new_low, z_tracer_max, z_tracer_min, z_min, z_max, z_fluxdiv_c ),&
 !$ACC      PCOPYIN( p_cc, p_mass_flx_e, p_rhodz_now, p_rhodz_new ), PCOPY( p_mflx_tracer_h ),&
 !$ACC      PRESENT( ptr_patch, ptr_int, iilc, iibc, iilnc, iibnc, iidx, iblk ),              &
 !$ACC      IF( i_am_accel_node .AND. acc_on )

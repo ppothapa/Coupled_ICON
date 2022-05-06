@@ -30,7 +30,7 @@ MODULE mo_initicon
   USE mo_dynamics_config,     ONLY: nnow, nnow_rcf
   USE mo_model_domain,        ONLY: t_patch
   USE mo_nonhydro_types,      ONLY: t_nh_state, t_nh_prog, t_nh_diag
-  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
+  USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag, t_nwp_phy_stochconv
   USE mo_nwp_lnd_types,       ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag
   USE mo_intp_data_strc,      ONLY: t_int_state
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -40,7 +40,7 @@ MODULE mo_initicon
     &                               lp2cintp_incr, lp2cintp_sfcana, ltile_coldstart, lconsistency_checks, &
     &                               niter_divdamp, niter_diffu, lanaread_tseasfc, qcana_mode, qiana_mode, &
     &                               qrsgana_mode, fgFilename, anaFilename, ana_varnames_map_file,         &
-    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow
+    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow, icpl_da_sfcfric
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_advection_config,    ONLY: advection_config
   USE mo_nwp_tuning_config,   ONLY: max_freshsnow_inc
@@ -115,15 +115,16 @@ MODULE mo_initicon
   !!
   !!
   SUBROUTINE init_icon (p_patch,  p_int_state, p_grf_state, p_nh_state, &
-    &                   ext_data, prm_diag, p_lnd_state)
+    &                   ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
 
-    TYPE(t_patch),          INTENT(INOUT)              :: p_patch(:)
-    TYPE(t_int_state),      INTENT(IN)              :: p_int_state(:)
-    TYPE(t_gridref_state),  INTENT(IN)              :: p_grf_state(:)
-    TYPE(t_nh_state),       INTENT(INOUT)           :: p_nh_state(:)
-    TYPE(t_nwp_phy_diag),   INTENT(INOUT), OPTIONAL :: prm_diag(:)
-    TYPE(t_lnd_state),      INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
-    TYPE(t_external_data),  INTENT(INOUT), OPTIONAL :: ext_data(:)
+    TYPE(t_patch),            INTENT(INOUT)              :: p_patch(:)
+    TYPE(t_int_state),        INTENT(IN)              :: p_int_state(:)
+    TYPE(t_gridref_state),    INTENT(IN)              :: p_grf_state(:)
+    TYPE(t_nh_state),         INTENT(INOUT)           :: p_nh_state(:)
+    TYPE(t_nwp_phy_diag),     INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv),INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)    
+    TYPE(t_lnd_state),        INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
+    TYPE(t_external_data),    INTENT(INOUT), OPTIONAL :: ext_data(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//':init_icon'
     INTEGER :: jg, ist
@@ -173,7 +174,8 @@ MODULE mo_initicon
 
     ! read and initialize ICON prognostic fields
     !
-    CALL process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, p_lnd_state)
+    CALL process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, &
+         &                  ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
     !CALL printChecksums(initicon, p_nh_state, p_lnd_state)
 
     ! Deallocate initicon data type
@@ -231,11 +233,12 @@ MODULE mo_initicon
   END FUNCTION gridUuids
 
   ! Read the data from the first-guess file.
-  SUBROUTINE read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, p_lnd_state)
+  SUBROUTINE read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag,prm_nwp_stochconv, p_lnd_state)
     TYPE(t_patch), INTENT(INOUT) :: p_patch(:)
     TYPE(t_readInstructionListPtr) :: inputInstructions(n_dom)
     TYPE(t_nh_state), INTENT(INOUT) :: p_nh_state(:)
     TYPE(t_nwp_phy_diag), INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)
     TYPE(t_lnd_state), INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//":read_dwdfg"
@@ -306,12 +309,12 @@ MODULE mo_initicon
     SELECT CASE(init_mode)
         CASE(MODE_DWDANA, MODE_IAU_OLD, MODE_IAU)
             CALL fetch_dwdfg_atm(requestList, p_patch, p_nh_state, initicon, inputInstructions)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
         CASE(MODE_ICONVREMAP)
             CALL fetch_dwdfg_atm_ii(requestList, p_patch, initicon, inputInstructions)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
         CASE(MODE_COMBINED, MODE_COSMO)
-            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, p_nh_state, p_lnd_state, inputInstructions)
+            CALL fetch_dwdfg_sfc(requestList, p_patch, prm_diag, prm_nwp_stochconv, p_nh_state, p_lnd_state, inputInstructions)
     END SELECT
 
     ! Cleanup.
@@ -632,7 +635,7 @@ MODULE mo_initicon
   END SUBROUTINE process_dwdana
 
   ! Reads the data from the first-guess and analysis files, and does any required processing of that input data.
-  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, p_lnd_state)
+  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
     TYPE(t_patch), INTENT(INOUT) :: p_patch(:)
     TYPE(t_readInstructionListPtr) :: inputInstructions(n_dom)
     TYPE(t_nh_state), INTENT(INOUT) :: p_nh_state(:)
@@ -640,11 +643,12 @@ MODULE mo_initicon
     TYPE(t_gridref_state), INTENT(IN) :: p_grf_state(:)
     TYPE(t_external_data), INTENT(INOUT) :: ext_data(:)
     TYPE(t_nwp_phy_diag), INTENT(INOUT), OPTIONAL :: prm_diag(:)
+    TYPE(t_nwp_phy_stochconv), INTENT(INOUT), OPTIONAL :: prm_nwp_stochconv(:)
     TYPE(t_lnd_state), INTENT(INOUT), OPTIONAL :: p_lnd_state(:)
 
     CHARACTER(LEN = *), PARAMETER :: routine = modname//":process_input_data"
 
-    CALL read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, p_lnd_state)
+    CALL read_dwdfg(p_patch, inputInstructions, p_nh_state, prm_diag, prm_nwp_stochconv, p_lnd_state)
     CALL process_dwdfg(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, p_lnd_state, prm_diag)
 
     CALL read_dwdana(p_patch, inputInstructions, p_nh_state, p_lnd_state)
@@ -1157,6 +1161,16 @@ MODULE mo_initicon
       iqidx          => p_patch(jg)%edges%quad_idx
       iqblk          => p_patch(jg)%edges%quad_blk
 
+      IF (lp2cintp_incr(jg)) THEN
+        ! Interpolate wind increments from parent domain (includes synchronization)
+        CALL interpolate_vn_increments(initicon, p_patch(jg)%parent_id, jg)
+      END IF
+
+      IF (icpl_da_sfcfric >= 1) THEN
+        CALL rbf_vec_interpol_cell(p_prog_now%vn, p_patch(jg), p_int_state(jg), p_diag%u, p_diag%v)
+        IF (lp2cintp_incr(jg)) CALL rbf_vec_interpol_cell(initicon(jg)%atm_inc%vn, p_patch(jg), &
+          p_int_state(jg), initicon(jg)%atm_inc%u, initicon(jg)%atm_inc%v)
+      ENDIF
 
       ! 1) Compute analysis increments for rho, exner (rho*theta_v), and rho*qv
       ! 
@@ -1304,6 +1318,15 @@ MODULE mo_initicon
           ENDDO
         ENDIF
 
+        IF (icpl_da_sfcfric >= 1) THEN
+          DO jc = i_startidx, i_endidx
+            p_diag%vabs_avginc(jc,jb) = p_diag%vabs_avginc(jc,jb) + dt_ana/216000._wp * (         &
+              SQRT( (p_diag%u(jc,nlev,jb)+initicon(jg)%atm_inc%u(jc,nlev,jb))**2 +                &
+                    (p_diag%v(jc,nlev,jb)+initicon(jg)%atm_inc%v(jc,nlev,jb))**2 ) -              &
+              SQRT(p_diag%u(jc,nlev,jb)**2 + p_diag%v(jc,nlev,jb)**2) - p_diag%vabs_avginc(jc,jb) )
+          ENDDO
+        ENDIF
+
       ENDDO  ! jb
 !$OMP END DO NOWAIT
 
@@ -1311,7 +1334,7 @@ MODULE mo_initicon
 
       ! 2) compute vn increments (w increment neglected)
       !
-      IF (.NOT. lp2cintp_incr(jg)) THEN ! If increments are interpolated from the parent domain (see below),
+      IF (.NOT. lp2cintp_incr(jg)) THEN ! If increments are interpolated from the parent domain (see top of routine),
                                         ! they are already provided as vn increments
 
         ! include boundary interpolation zone of nested domains and the halo edges as far as possible
@@ -1351,10 +1374,7 @@ MODULE mo_initicon
       ENDIF
 !$OMP END PARALLEL
 
-      IF (lp2cintp_incr(jg)) THEN
-        ! Interpolate wind increments from parent domain (includes synchronization)
-        CALL interpolate_vn_increments(initicon, p_patch(jg)%parent_id, jg)
-      ELSE ! apply synchronization
+      IF (.NOT. lp2cintp_incr(jg)) THEN ! apply synchronization
         CALL sync_patch_array(SYNC_E,p_patch(jg),initicon(jg)%atm_inc%vn)
       END IF
 

@@ -34,7 +34,7 @@ if [[ -f "${rte_builddir}/config.status" ]] ; then
   rte_data_folder="${rte_data_rootFolder}/${rte_data_id}"
 
   if [[ -d "${rte_data_folder}" ]] ; then
-    ln -s "${rte_data_folder}" "${rte_builddir}/.testcache"
+    rsync -rtvz --chmod=u=rwX "${rte_data_folder}/" "${rte_builddir}/.testcache"
   else
     # Most probably, the compute node will attempt to download the data and fail
     echo "WARNING: directory '${rte_data_folder}' with RTE-RRTMGP test data does not exist" >&2

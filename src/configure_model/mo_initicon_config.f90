@@ -59,7 +59,7 @@ MODULE mo_initicon_config
   PUBLIC :: qcana_mode, qiana_mode, qrsgana_mode, qnxana_2mom_mode
   PUBLIC :: ltile_coldstart
   PUBLIC :: ltile_init
-  PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, dt_ana
+  PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, dt_ana
   PUBLIC :: adjust_tso_tsnow
   PUBLIC :: lvert_remap_fg
   PUBLIC :: lcalc_avg_fg
@@ -144,6 +144,8 @@ MODULE mo_initicon_config
   INTEGER  :: icpl_da_skinc    ! Coupling between data assimilation and skin conductivity
 
   INTEGER  :: icpl_da_snowalb  ! Coupling between data assimilation and snow albedo
+
+  INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 

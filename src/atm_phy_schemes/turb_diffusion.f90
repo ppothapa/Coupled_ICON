@@ -2195,13 +2195,13 @@ my_thrd_id = omp_get_thread_num()
   ! Optionale vertikale Glaettung des mechanischen Antriebs:
   IF (lcalc_frcsmot) THEN
     CALL vert_smooth (i_st=ivstart, i_en=ivend, k_tp=1, k_sf=ke1, &
-                      disc_mom=dicke, cur_tend=frm, vertsmot=frcsmot, smotfac=trop_mask )
+                      disc_mom=dicke, cur_tend=frm, vertsmot=frcsmot, smotfac=trop_mask, lacc=lzacc )
   END IF
 
   ! Optionale vertikale Glaettung des thermischen Antriebs:
   IF (lcalc_frcsmot) THEN
     CALL vert_smooth (i_st=ivstart, i_en=ivend, k_tp=1, k_sf=ke1, &
-                      disc_mom=dicke, cur_tend=frh, vertsmot=frcsmot, smotfac=trop_mask )
+                      disc_mom=dicke, cur_tend=frh, vertsmot=frcsmot, smotfac=trop_mask, lacc=lzacc )
   END IF
 
   ! Belegung von tkvh und tkvm mit den stabilitaetsabhaengigen Laengenmassen:
@@ -3059,7 +3059,7 @@ my_thrd_id = omp_get_thread_num()
       IF (tndsmot.GT.z0) THEN
         !$acc wait
         CALL vert_smooth ( i_st=ivstart, i_en=ivend, k_tp=1, k_sf=ke1, &
-                           disc_mom=dicke, cur_tend=tketens, vertsmot=tndsmot )
+                           disc_mom=dicke, cur_tend=tketens, vertsmot=tndsmot, lacc=lzacc )
       END IF
 
     ELSE !keine q-Tendenzen, weder durch TKE-Diffusion noch durch den Zirkulationsterm

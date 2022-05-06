@@ -127,6 +127,9 @@ MODULE mo_advection_nml
   INTEGER :: npassive_tracer       !< number of additional passive tracers, in addition to
                                    !< microphysical- and ART tracers. 
 
+  INTEGER :: nadv_substeps(max_dom)!< domain specific number of substeps per fast physics time step 
+                                   !< for the Miura-type substepping schemes 20, 22, 32, 42, 52
+
   CHARACTER(len=MAX_CHAR_LENGTH) :: &!< Comma separated list of initialization formulae 
     &  init_formula                  !< for passive tracers.
 
@@ -136,7 +139,7 @@ MODULE mo_advection_nml
     &                     iadv_tke, beta_fct,                             &
     &                     iord_backtraj, lclip_tracer, tracer_names,      &
     &                     ctracer_list, igrad_c_miura, llsq_svd,          &
-    &                     npassive_tracer, init_formula
+    &                     npassive_tracer, init_formula, nadv_substeps
 
 
 
@@ -171,6 +174,8 @@ CONTAINS
     INTEGER :: nname       !< number of names given in transport_nml/tracer_names
     CHARACTER(len=VNAME_LEN) :: tname
 
+    INTEGER, PARAMETER :: default_nadv_substeps = 3 ! default value for nadv_substeps
+
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = 'mo_advection_nml: read_transport_nml'
 
@@ -198,6 +203,9 @@ CONTAINS
 
     tracer_names(:) = '...'          ! default name for undefined tracers
 
+    nadv_substeps(:)     = default_nadv_substeps  ! domain specific number of substeps per fast physics time step 
+                                                  ! for the Miura-type substepping schemes 20, 22, 32, 42, 52
+
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
     !    by values used in the previous integration.
@@ -211,15 +219,33 @@ CONTAINS
     !--------------------------------------------------------------------
     ! 3. Read user's (new) specifications (Done so far by all MPI processes)
     !--------------------------------------------------------------------
-    CALL open_nml(TRIM(filename))
-    CALL position_nml ('transport_nml', STATUS=istat)
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
       WRITE(iunit, transport_nml)   ! write defaults to temporary text file
     END IF
+
+    CALL open_nml(TRIM(filename))
+    CALL position_nml ('transport_nml', STATUS=istat)
+    !
     SELECT CASE (istat)
     CASE (POSITIONED)
+
+      ! Set array parameters to dummy values to determine which ones are actively set in the namelist
+      !
+      nadv_substeps(:) = -1
+
       READ (nnml, transport_nml)                                        ! overwrite default settings
+
+      ! Restore default values for global domain where nothing at all has been specified
+      ! 
+      IF (nadv_substeps(1) < 0) nadv_substeps(1) = default_nadv_substeps
+
+      ! Copy values of parent domain (in case of linear nesting) to nested domains where nothing has been specified
+      !
+      DO jg = 2, max_dom
+        IF (nadv_substeps(jg) < 0) nadv_substeps(jg) = nadv_substeps(jg-1)
+      ENDDO
+
       IF (my_process_is_stdio()) THEN
         iunit = temp_settings()
         WRITE(iunit, transport_nml)    ! write settings to temporary text file
@@ -365,6 +391,11 @@ CONTAINS
       advection_config(jg)%iadv_tke            = iadv_tke
       advection_config(jg)%ivcfl_max           = ivcfl_max
       advection_config(jg)%npassive_tracer     = npassive_tracer 
+      IF (jg==0) THEN
+        advection_config(jg)%nadv_substeps     = -1   ! dummy value, as nadv_substeps is only defined from dom01 onwards.
+      ELSE
+        advection_config(jg)%nadv_substeps     = nadv_substeps(jg) 
+      ENDIF
       advection_config(jg)%init_formula        = init_formula 
     ENDDO
 

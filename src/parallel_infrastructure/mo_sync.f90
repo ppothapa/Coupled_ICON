@@ -220,7 +220,7 @@ END SUBROUTINE disable_sync_checks
 !
 SUBROUTINE sync_patch_array_r3(typ, p_patch, arr, opt_varname)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+   TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
    REAL(wp),      INTENT(INOUT) :: arr(:,:,:)
    CHARACTER(len=*), TARGET, INTENT(IN), OPTIONAL :: opt_varname
    CLASS(t_comm_pattern), POINTER :: p_pat
@@ -314,7 +314,7 @@ END SUBROUTINE sync_patch_array_i3
 !
 SUBROUTINE sync_patch_array_r2(typ, p_patch, arr, opt_varname)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), INTENT(INOUT) :: p_patch
+   TYPE(t_patch), INTENT(IN) :: p_patch
    REAL(wp), TARGET, INTENT(INOUT) :: arr(:,:)
    CHARACTER*(*), INTENT(IN), OPTIONAL :: opt_varname
    ! local variable

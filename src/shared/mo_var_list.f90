@@ -1068,7 +1068,7 @@ CONTAINS
       & vert_interp=vert_interp, hor_interp=hor_interp, post_op=post_op,       &
       & l_pp_scheduler_task=l_pp_scheduler_task, action_list=action_list,      &
       & var_class=var_class, data_type=dtype, lmiss=lmiss, in_group=in_group,  &
-      & idx_tracer=idx_tracer, idx_diag=idx_diag)
+      & idx_tracer=idx_tracer, idx_diag=idx_diag, lopenacc=target_info%lopenacc)
     ! set dynamic metadata, i.e. polymorphic tracer metadata
     CALL set_var_metadata_dyn(new_list_element%info_dyn, tracer_info=tracer_info)
     ref_info%ndims = ndims

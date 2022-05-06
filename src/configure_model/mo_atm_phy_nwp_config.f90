@@ -87,6 +87,17 @@ MODULE mo_atm_phy_nwp_config
     INTEGER ::  inwp_satad       !! saturation adjustment
     INTEGER ::  inwp_convection  !! convection
     LOGICAL ::  lshallowconv_only !! use shallow convection only
+    LOGICAL  :: lstoch_expl        !! use explicit stochastic shallow convection
+    LOGICAL  :: lstoch_sde         !! use stochastic differential equations for shallow convection
+    LOGICAL  :: lstoch_deep        !! use stochastic deep convection (SDE scheme)
+    LOGICAL  :: lvvcouple          !! use vertical velocity at 650hPa as criterion to couple shallow convection
+                                   !! shallow convection with resolved deep convection 
+    LOGICAL  :: lvv_shallow_deep   !! use vertical velocity at 650hPa to distinguish between shallow and 
+                                   !! deep convection within convection routines (instead of cloud depth)
+    LOGICAL ::  lstoch_spinup      !! spinup stochastic cloud ensemble into equilibrium at first time step
+    LOGICAL ::  lrestune_off       !! switch off all resolution-dependent tuning in convection setup
+    LOGICAL ::  lmflimiter_off     !! switch off mass flux limiters in convection
+    INTEGER ::  nclds              !! max number of clouds in stochastic cloud ensemble
     LOGICAL ::  lgrayzone_deepconv !! use grayzone tuning for deep convection
     LOGICAL ::  ldetrain_conv_prec !! detrain convective rain and snow
     INTEGER ::  inwp_radiation   !! radiation
@@ -135,8 +146,6 @@ MODULE mo_atm_phy_nwp_config
       &  lcall_phy(:)              !! TRUE/FALSE, time dependent
 
     LOGICAL :: lcalc_acc_avg       ! TRUE: calculate accumulated and averaged quantities
-
-    LOGICAL :: lcalc_moist_integral_avg ! TRUE: calculate temporally averaged vertical integrals of moisture fields
 
     LOGICAL :: lcalc_extra_avg     ! TRUE: calculate aditional temporally averaged fields, which normally 
                                    !       are not computed in operational runs.
@@ -339,6 +348,20 @@ CONTAINS
       END SELECT
       atm_phy_nwp_config(jg)%lhydrom_read_from_fg(:) = .FALSE.
       atm_phy_nwp_config(jg)%lhydrom_read_from_ana(:) = .FALSE.
+
+      ! Switch off stochastic convection for horizontal resolution greater than 20km
+      IF ((atm_phy_nwp_config(jg)%lstoch_sde .or. atm_phy_nwp_config(jg)%lstoch_expl) .and. &
+           & p_patch(jg)%geometry_info%mean_characteristic_length .GT. 2.e4_wp) THEN
+        atm_phy_nwp_config(jg)%lstoch_expl      = .FALSE.
+        atm_phy_nwp_config(jg)%lstoch_sde       = .FALSE.
+        atm_phy_nwp_config(jg)%lrestune_off     = .FALSE.
+        atm_phy_nwp_config(jg)%lmflimiter_off   = .FALSE.
+        atm_phy_nwp_config(jg)%lvvcouple        = .FALSE.
+        atm_phy_nwp_config(jg)%lvv_shallow_deep = .FALSE.
+        atm_phy_nwp_config(jg)%lstoch_spinup    = .FALSE.
+        WRITE(message_text,'(a,i2)') 'Resolution greater than 20km, stochastic shallow convection has been switched off for domain ',jg
+        CALL message(TRIM(routine), TRIM(message_text))
+      ENDIF
 
       !$acc enter data copyin(atm_phy_nwp_config(jg)%lhydrom_read_from_fg, atm_phy_nwp_config(jg)%lhydrom_read_from_ana)
 

@@ -23,7 +23,7 @@ MODULE mo_nh_feedback
   !
   !
   USE mo_kind,                ONLY: wp, vp
-  USE mo_exception,           ONLY: message_text, message
+  USE mo_exception,           ONLY: message_text, message, finish
   USE mo_model_domain,        ONLY: t_patch, t_grid_cells, t_grid_edges, p_patch_local_parent
   USE mo_grid_config,         ONLY: n_dom, n_dom_start
   USE mo_intp_data_strc,      ONLY: t_int_state
@@ -158,6 +158,9 @@ CONTAINS
       CALL message(routine,message_text)
     ENDIF
 
+#ifdef _OPENACC
+    IF (i_am_accel_node) CALL finish(routine, 'is not ported to openACC')
+#endif
 
     p_parent_prog    => p_nh_state(jgp)%prog(nnew(jgp))
     p_parent_prog_rcf=> p_nh_state(jgp)%prog(nnew_rcf(jgp))

@@ -49,7 +49,10 @@ MODULE mo_ensemble_pert_config
   USE mo_exception,          ONLY: message_text, message, finish
   USE mtime,                 ONLY: datetime, getDayOfYearFromDateTime
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
-
+#ifdef _OPENACC
+  USE ISO_C_BINDING,         ONLY: C_SIZEOF
+  USE openacc,               ONLY: acc_is_present
+#endif
   IMPLICIT NONE
   PRIVATE
 
@@ -436,6 +439,7 @@ MODULE mo_ensemble_pert_config
     LOGICAL, INTENT(in) :: lprint ! print control output
 
     REAL(wp) :: rnd_fac, rnd_num, tkfac
+    INTEGER :: jg
 
     ! SSO tuning
     CALL random_gen(rnd_gkwake, rnd_num)
@@ -502,6 +506,7 @@ MODULE mo_ensemble_pert_config
 
     CALL random_gen(rnd_texc, rnd_num)
     tune_texc = texc_sv + 2._wp*(rnd_num-0.5_wp)*range_texc
+    
     CALL random_gen(rnd_qexc, rnd_num)
     tune_qexc = qexc_sv + 2._wp*(rnd_num-0.5_wp)*range_qexc
 
@@ -585,6 +590,71 @@ MODULE mo_ensemble_pert_config
     CALL random_gen(rnd_fac_lhn_up, rnd_num)
     assimilation_config(1:max_dom)%fac_lhn_up = MAX(1._wp, fac_lhn_up_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_up)
 
+#ifdef _OPENACC
+    IF(acc_is_present(tune_gkdrag)) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_gkdrag` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_gkwake)) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_gkwake` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_gfrcrit)) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_gfrcrit` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_gfluxlaun, 1)) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_gfluxlaun` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_zvz0i, C_SIZEOF(tune_zvz0i))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_zvz0i` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rprcon, C_SIZEOF(tune_rprcon))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rprcon` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_entrorg, C_SIZEOF(tune_entrorg))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_entrorg` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_capdcfac_et, C_SIZEOF(tune_capdcfac_et))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_capdcfac_et` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rdepths, C_SIZEOF(tune_rdepths))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rdepths` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_capdcfac_tr, C_SIZEOF(tune_capdcfac_tr))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_capdcfac_tr` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_lowcapefac, C_SIZEOF(tune_lowcapefac))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_lowcapefac` is supposed to be on CPU only.")
+    IF(acc_is_present(limit_negpblcape, C_SIZEOF(limit_negpblcape))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `limit_negpblcape` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rhebc_land, C_SIZEOF(tune_rhebc_land))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rhebc_land` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rhebc_ocean, C_SIZEOF(tune_rhebc_ocean))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rhebc_ocean` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rhebc_land_trop, C_SIZEOF(tune_rhebc_land_trop))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rhebc_land_trop` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rhebc_ocean_trop, C_SIZEOF(tune_rhebc_ocean_trop))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rhebc_ocean_trop` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rcucov, C_SIZEOF(tune_rcucov))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rcucov` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_rcucov_trop, C_SIZEOF(tune_rcucov_trop))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_rcucov_trop` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_texc, C_SIZEOF(tune_texc))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_texc` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_qexc, C_SIZEOF(tune_qexc))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_qexc` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_box_liq, C_SIZEOF(tune_box_liq))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_box_liq` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_thicklayfac, C_SIZEOF(tune_thicklayfac))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_thicklayfac` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_box_liq_asy, C_SIZEOF(tune_box_liq_asy))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_box_liq_asy` is supposed to be on CPU only.")
+    IF(acc_is_present(tune_minsnowfrac, C_SIZEOF(tune_minsnowfrac))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `tune_minsnowfrac` is supposed to be on CPU only.")
+    IF(acc_is_present(c_soil, C_SIZEOF(c_soil))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `c_soil` is supposed to be on CPU only.")
+    IF(acc_is_present(cwimax_ml, C_SIZEOF(cwimax_ml))) CALL finish("set_scalar_ens_pert", & 
+        "Internal error. `cwimax_ml` is supposed to be on CPU only.")
+
+    DO jg = 1, max_dom
+      !$ACC UPDATE DEVICE( atm_phy_nwp_config(jg)%rain_n0_factor, turbdiff_config(jg)%tkhmin ) &
+      !$ACC DEVICE( turbdiff_config(jg)%tkhmin_strat, turbdiff_config(jg)%tkmmin, turbdiff_config(jg)%tkmmin_strat ) &
+      !$ACC DEVICE( turbdiff_config(jg)%rlam_heat, turbdiff_config(jg)%rat_sea, turbdiff_config(jg)%tur_len ) &
+      !$ACC DEVICE( turbdiff_config(jg)%a_hshr, turbdiff_config(jg)%a_stab, turbdiff_config(jg)%c_diff ) &
+      !$ACC DEVICE( turbdiff_config(jg)%q_crit, turbdiff_config(jg)%alpha0, turbdiff_config(jg)%alpha0_max ) &
+      !$ACC DEVICE( turbdiff_config(jg)%alpha0_pert, assimilation_config(jg)%lhn_coef ) &
+      !$ACC DEVICE( assimilation_config(jg)%fac_lhn_artif_tune, assimilation_config(jg)%fac_lhn_down ) &
+      !$ACC DEVICE( assimilation_config(jg)%fac_lhn_up )
+    ENDDO
+#endif
 
     IF (lprint) THEN
 
@@ -643,7 +713,7 @@ MODULE mo_ensemble_pert_config
     REAL(wp) :: wrnd_num(nproma), log_range_tkred, phaseshift
 
 #ifdef _OPENACC
-     CALL finish ('', 'compute_ensemble_pert: OpenACC version currently not implemented')
+     CALL message ('', 'compute_ensemble_pert: OpenACC version currently not tested')
 #endif
 
     rl_start = grf_bdywidth_c+1
@@ -677,18 +747,32 @@ MODULE mo_ensemble_pert_config
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, rl_start, rl_end)
 
-        wrnd_num(:) = 0._wp
+        !$ACC DATA CREATE( rnd_tkred_sfc, wrnd_num ) PRESENT( ext_data, rnd_tkred_sfc, prm_diag )
+        !$ACC UPDATE DEVICE( rnd_tkred_sfc )
+
+        !$ACC PARALLEL DEFAULT(NONE)  ASYNC(1)
+        !$ACC LOOP GANG(STATIC:1) VECTOR
+        DO jc = i_startidx, i_endidx
+          wrnd_num(jc) = 0._wp
+        ENDDO
+        !$ACC LOOP SEQ
         DO jt = 1, ntiles_total+ntiles_water
           IF (jt <= ntiles_lnd .OR. jt >= ntiles_total+1) THEN
+            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( ilu )
             DO jc = i_startidx, i_endidx
               ilu = MAX(1,ext_data(jg)%atm%lc_class_t(jc,jb,jt))
               wrnd_num(jc) = wrnd_num(jc) + rnd_tkred_sfc(ilu)*ext_data(jg)%atm%lc_frac_t(jc,jb,jt)
             ENDDO
           ENDIF
         ENDDO
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag(jg)%tkred_sfc(jc,jb) = EXP(log_range_tkred*SIN(pi2*(wrnd_num(jc)+phaseshift)))
         ENDDO
+        !$ACC END PARALLEL
+
+        !$ACC WAIT
+        !$ACC END DATA
 
       ENDDO
 !$OMP END DO
@@ -704,10 +788,14 @@ MODULE mo_ensemble_pert_config
         DO jg = 1, n_dom
           CALL sucumf(p_patch(jg)%geometry_info%mean_characteristic_length,p_patch(jg)%nlev,phy_params(jg),&
             atm_phy_nwp_config(jg)%lshallowconv_only,atm_phy_nwp_config(jg)%lgrayzone_deepconv,            &
-            atm_phy_nwp_config(jg)%ldetrain_conv_prec)
+            atm_phy_nwp_config(jg)%ldetrain_conv_prec,atm_phy_nwp_config(jg)%lrestune_off,atm_phy_nwp_config(jg)%lmflimiter_off, &
+            atm_phy_nwp_config(jg)%lstoch_expl,atm_phy_nwp_config(jg)%lstoch_sde,atm_phy_nwp_config(jg)%lstoch_deep, &
+            atm_phy_nwp_config(jg)%lvvcouple, atm_phy_nwp_config(jg)%lvv_shallow_deep)
+          
           phy_params(jg)%gkdrag  = tune_gkdrag(jg)
           phy_params(jg)%gkwake  = tune_gkwake(jg)
           phy_params(jg)%gfrcrit = tune_gfrcrit(jg)
+          !$ACC UPDATE DEVICE( phy_params(jg) ) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
         gfluxlaun = tune_gfluxlaun

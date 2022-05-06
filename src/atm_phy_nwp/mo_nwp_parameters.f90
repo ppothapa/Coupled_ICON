@@ -54,6 +54,16 @@ MODULE mo_nwp_parameters
     LOGICAL :: lmfdsnow
     ! switch for grayzone tuning for deep convection
     LOGICAL :: lgrayzone_deepconv
+    ! switches on explicit stochastic shallow convection
+    LOGICAL :: lstoch_expl
+    ! switches on SDE stochastic shallow convection    
+    LOGICAL :: lstoch_sde
+    ! switches on SDE stochastic deep convection    
+    LOGICAL :: lstoch_deep
+    ! use 650hPa vertical velocity to switch off conv param at points with rising motion     
+    LOGICAL :: lvvcouple
+    ! use 650hPa vertical velocity to distinguish shallow vs deep convection
+    LOGICAL :: lvv_shallow_deep
     !
     ! Parameters which are only computed if Gravity wave drag scheme is switched on
     !

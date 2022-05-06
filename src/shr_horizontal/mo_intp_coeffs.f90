@@ -152,7 +152,7 @@ MODULE mo_intp_coeffs
   USE mo_kind,                ONLY: wp
   USE mo_math_constants,      ONLY: pi2, pi_2
   USE mo_exception,           ONLY: message, finish
-  USE mo_impl_constants,      ONLY: min_rlcell, min_rledge, min_rlvert
+  USE mo_impl_constants,      ONLY: min_rlcell, min_rledge, min_rlvert, min_rlcell_int, min_rledge_int
   USE mo_impl_constants_grf,  ONLY: grf_nudge_start_c, grf_nudge_start_e
   USE mo_model_domain,        ONLY: t_patch, t_grid_edges, t_grid_vertices, t_grid_cells
   USE mo_grid_config,         ONLY: lplane, lfeedback, grid_sphere_radius
@@ -1859,13 +1859,13 @@ CONTAINS
 
     ! a) Nudging coefficients for cells
     i_startblk = ptr_patch%cells%start_blk(grf_nudge_start_c,1)
-    i_endblk   = ptr_patch%cells%end_blk(0,i_nchdom)
+    i_endblk   = ptr_patch%cells%end_blk(min_rlcell_int,i_nchdom)
 
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
-        & i_startidx, i_endidx, grf_nudge_start_c, 0)
+        & i_startidx, i_endidx, grf_nudge_start_c, min_rlcell_int)
 
       DO jc = i_startidx, i_endidx
 
@@ -1883,7 +1883,7 @@ CONTAINS
 
     ! b) Nudging coefficients for edges
     i_startblk = ptr_patch%edges%start_blk(grf_nudge_start_e,1)
-    i_endblk   = ptr_patch%edges%end_blk(0,i_nchdom)
+    i_endblk   = ptr_patch%edges%end_blk(min_rledge_int,i_nchdom)
 
     IF (ptr_patch%id > 1 .AND. lfeedback(ptr_patch%id)) THEN
       ! Use nudging coefficients optimized for velocity boundary diffusion
@@ -1891,7 +1891,7 @@ CONTAINS
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
-          & i_startidx, i_endidx, grf_nudge_start_e, 0)
+          & i_startidx, i_endidx, grf_nudge_start_e, min_rledge_int)
 
         DO je = i_startidx, i_endidx
 
@@ -1911,7 +1911,7 @@ CONTAINS
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
-          & i_startidx, i_endidx, grf_nudge_start_e, 0)
+          & i_startidx, i_endidx, grf_nudge_start_e, min_rledge_int)
 
         DO je = i_startidx, i_endidx
 

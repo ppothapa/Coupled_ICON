@@ -17,14 +17,15 @@ MODULE mo_ser_all
   USE mo_var_list_register,  ONLY: vlr_get
   USE mo_run_config,         ONLY: iforcing, ldass_lhn
   USE mo_impl_constants,     ONLY: inwp
-  USE mo_ser_nml,            ONLY: ser_initialization, ser_output_diag, ser_output_diag_dyn, &
+  USE mo_ser_nml,            ONLY: ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, &
                                    ser_latbc_data, ser_nesting_save_progvars, &
                                    ser_dynamics, ser_diffusion, ser_nesting_compute_tendencies, &
                                    ser_nesting_boundary_interpolation, ser_nesting_relax_feedback, &
                                    ser_step_advection, ser_turbtrans, ser_turbdiff, &
                                    ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
                                    ser_microphysics, ser_convection, ser_cover, ser_radiation, &
-                                   ser_radheat, ser_gwdrag, ser_time_loop_end
+                                   ser_radheat, ser_gwdrag, ser_time_loop_end, ser_physics_init, &
+                                   ser_reset_to_initial_state
   USE mo_ser_manually,       ONLY: ser_manually
   USE mo_mpi,                ONLY: get_my_mpi_work_id
 #endif
@@ -220,6 +221,8 @@ MODULE mo_ser_all
         ser_setting => ser_output_diag_dyn
       CASE("output_diag")
         ser_setting => ser_output_diag
+      CASE("output_opt")
+        ser_setting => ser_output_opt
       CASE("latbc_data")
         ser_setting => ser_latbc_data
       CASE("nesting_save_progvars")
@@ -238,6 +241,8 @@ MODULE mo_ser_all
         ser_setting => ser_nesting_relax_feedback
       CASE("physics")
         ser_setting => ser_physics
+      CASE("physics_init")
+        ser_setting => ser_physics_init
       CASE("lhn")
         ser_setting => ser_lhn
       CASE("nudging")
@@ -262,6 +267,8 @@ MODULE mo_ser_all
         ser_setting => ser_gwdrag
       CASE("time_loop_end")
         ser_setting => ser_time_loop_end
+      CASE("reset_to_initial_state")
+        ser_setting => ser_reset_to_initial_state
       CASE DEFAULT
         CALL warning('SER','Use default ser_all_debug settings for savepoint_base = '//savepoint_base)
         ser_setting => ser_all_debug

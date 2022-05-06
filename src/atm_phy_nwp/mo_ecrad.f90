@@ -36,7 +36,7 @@ MODULE mo_ecrad
                                     &   IOverlapExponential,                              &
                                     &   IIceModelMonochromatic,                           &
                                     &   IIceModelFu, IIceModelBaran, IIceModelBaran2016,  &
-                                    &   IIceModelBaran2017
+                                    &   IIceModelBaran2017, IIceModelYi
   USE radiation_single_level,     ONLY: t_ecrad_single_level_type=>single_level_type
   USE radiation_thermodynamics,   ONLY: t_ecrad_thermodynamics_type=>thermodynamics_type
   USE radiation_gas,              ONLY: t_ecrad_gas_type=>gas_type,                       &
@@ -86,7 +86,7 @@ MODULE mo_ecrad
   ! Liquid hydrometeor scattering
   PUBLIC :: ILiquidModelMonochromatic, ILiquidModelSlingo, ILiquidModelSOCRATES
   ! Ice scattering
-  PUBLIC :: IIceModelMonochromatic, IIceModelFu, IIceModelBaran, IIceModelBaran2016, IIceModelBaran2017
+  PUBLIC :: IIceModelMonochromatic, IIceModelFu, IIceModelBaran, IIceModelBaran2016, IIceModelBaran2017, IIceModelYi
   ! Cloud overlap
   PUBLIC :: IOverlapMaximumRandom, IOverlapExponentialRandom, IOverlapExponential
   ! Gas units
@@ -116,6 +116,8 @@ MODULE mo_ecrad
       &  ptr_ssa  => NULL(), &
       &  ptr_g    => NULL()
     CONTAINS
+! WARNING: Call finalize only if ptr_od, ptr_ssa, ptr_g are associated to a
+!          target. If they were allocated, this might cause a memory leak
       PROCEDURE :: finalize => del_opt_ptrs
   END TYPE t_opt_ptrs
   
@@ -125,15 +127,12 @@ CONTAINS
     CLASS(t_opt_ptrs),INTENT(inout) :: self
 
     IF (ASSOCIATED(self%ptr_od) ) THEN
-      DEALLOCATE(self%ptr_od)
       NULLIFY(self%ptr_od)
     ENDIF
     IF (ASSOCIATED(self%ptr_ssa) ) THEN
-      DEALLOCATE(self%ptr_ssa)
       NULLIFY(self%ptr_ssa)
     ENDIF
     IF (ASSOCIATED(self%ptr_g) ) THEN
-      DEALLOCATE(self%ptr_g)
       NULLIFY(self%ptr_g)
     ENDIF
   END SUBROUTINE del_opt_ptrs

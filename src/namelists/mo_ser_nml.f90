@@ -14,6 +14,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_initialization(3)
   INTEGER, TARGET ::  ser_output_diag_dyn(3)
   INTEGER, TARGET ::  ser_output_diag(3)
+  INTEGER, TARGET ::  ser_output_opt(3)
   INTEGER, TARGET ::  ser_latbc_data(3)
   INTEGER, TARGET ::  ser_nesting_save_progvars(3)
   INTEGER, TARGET ::  ser_dynamics(3)
@@ -23,6 +24,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_nesting_relax_feedback(3)
   INTEGER, TARGET ::  ser_step_advection(3)
   INTEGER, TARGET ::  ser_physics(3)
+  INTEGER, TARGET ::  ser_physics_init(3)
   INTEGER, TARGET ::  ser_lhn(3)
   INTEGER, TARGET ::  ser_nudging(3)
   INTEGER, TARGET ::  ser_surface(3)
@@ -35,18 +37,20 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_radheat(3)
   INTEGER, TARGET ::  ser_gwdrag(3)
   INTEGER, TARGET ::  ser_time_loop_end(3)
+  INTEGER, TARGET ::  ser_reset_to_initial_state(3)
   INTEGER, TARGET ::  ser_all_debug(3)                   !! serialize statements using ser_all anywhere for debug purposes
   REAL(wp) ::  ser_nfail
   INTEGER ::  ser_nreport
   LOGICAL ::  ser_debug                          !! serialize the debug calls from mo_ser_debug
 
-  NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_diag_dyn, ser_latbc_data, &
+  NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, ser_latbc_data, &
   &                  ser_nesting_save_progvars, ser_dynamics, &
   &                  ser_debug, ser_diffusion, ser_nesting_compute_tendencies, ser_nesting_boundary_interpolation, &
-  &                  ser_nesting_relax_feedback, &
+  &                  ser_nesting_relax_feedback, ser_physics_init, &
   &                  ser_step_advection, ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
   &                  ser_microphysics, ser_convection, ser_cover, ser_radiation, ser_radheat, &
-  &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_nfail, ser_nreport
+  &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_reset_to_initial_state, &
+  &                  ser_nfail, ser_nreport
 
   CONTAINS
 
@@ -63,6 +67,7 @@ MODULE mo_ser_nml
    ser_initialization = param_def
    ser_output_diag_dyn = param_def
    ser_output_diag = param_def
+   ser_output_opt = param_def
    ser_latbc_data = param_def
    ser_nesting_save_progvars = param_def
    ser_dynamics = param_def
@@ -72,6 +77,7 @@ MODULE mo_ser_nml
    ser_nesting_relax_feedback = param_def
    ser_step_advection = param_def
    ser_physics = param_def
+   ser_physics_init = param_def
    ser_lhn = param_def
    ser_nudging = param_def
    ser_surface = param_def
@@ -84,6 +90,7 @@ MODULE mo_ser_nml
    ser_radheat = param_def
    ser_gwdrag = param_def
    ser_time_loop_end = param_def
+   ser_reset_to_initial_state = param_def
    ser_all_debug = param_def
    ser_nfail = 1._wp
    ser_nreport = 10

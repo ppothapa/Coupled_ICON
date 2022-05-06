@@ -82,7 +82,7 @@ MODULE mo_initicon_utils
     &                                  calculate_time_interpolation_weights
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
   USE mo_upatmo_config,       ONLY: upatmo_config
-  USE mo_2mom_mcrph_driver,   ONLY: set_qnc, set_qnr, set_qni,   &
+  USE mo_2mom_mcrph_util,     ONLY: set_qnc, set_qnr, set_qni,   &
     &                               set_qns, set_qng, set_qnh
 
 
@@ -2403,9 +2403,6 @@ MODULE mo_initicon_utils
       IF(ASSOCIATED(p_nh_state(jg)%diag%tracer_vi)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"tracer_vi: ", &
         & p_nh_state(jg)%diag%tracer_vi)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%tracer_vi_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"tracer_vi_avg: ", &
-        & p_nh_state(jg)%diag%tracer_vi_avg)
       IF(ASSOCIATED(p_nh_state(jg)%diag%exner_pr)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"exner_pr: ", &
         & p_nh_state(jg)%diag%exner_pr)
@@ -3182,6 +3179,8 @@ MODULE mo_initicon_utils
     my_qns_inc => initicon%atm_inc%qns
     my_qng_inc => initicon%atm_inc%qng
     my_qnh_inc => initicon%atm_inc%qnh
+
+            ! Alberto: performance could be improved by defining 1ovmeanmas
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,nlen,qtmp0,qtmp1,rholoc,meanmass) ICON_OMP_DEFAULT_SCHEDULE

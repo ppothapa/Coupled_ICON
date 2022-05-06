@@ -99,35 +99,6 @@ add_required_file ${basedir}/run/${dict_file} .
 # Add IFS2ICON file
 add_link_file ${initial_condition} ifs2icon_file.nc
 
-# ===========================================================================
-# Create ICON master namelist
-# ==========================================================================
-
-cat > ${basedir}/run/icon_master.namelist << EOF
-
-! master_nml: ----------------------------------------------------------------
-&master_nml
- lrestart                   =                      .FALSE.        ! .TRUE.=current experiment is resumed
-/
-
-! master_model_nml: repeated for each model ----------------------------------
-&master_model_nml
- model_type                  =                          1         ! identifies which component to run (atmosphere,ocean,...)
- model_name                  =                      "ATMO"        ! character string for naming this component.
- model_namelist_filename     =          "${atmo_namelist}"        ! file name containing the model namelists
- model_min_rank              =                          1         ! start MPI rank for this model
- model_max_rank              =                      65536         ! end MPI rank for this model
- model_inc_rank              =                          1         ! stride of MPI ranks
-/
-
-! time_nml: specification of date and time------------------------------------
-&time_nml
- ini_datetime_string         =             "${start_date}"        ! initial date and time of the simulation
- end_datetime_string         =               "${end_date}"        ! end date and time of the simulation
-                                                                  ! example date: 2001-01-01T01:00:00Z
-/
-EOF
-
 # ----------------------------------------------------------------------
 # Model namelists
 # ----------------------------------------------------------------------
@@ -402,7 +373,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'omega','div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
   'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
   'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia','avg_qv','avg_qc','avg_qi',
+  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
   'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
   'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
   't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
@@ -452,6 +423,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ihadv_tracer                =             52, 2, 2, 2, 2         ! gdm: 52 combination of hybrid FFSL/Miura3 with subcycling
                                                            !     of tracer specific method to compute horizontal advection
  llsq_svd                    =                      .TRUE.        ! use SV decomposition for least squares design matrix
+ nadv_substeps               =                          2         ! number of integration steps per fast physics time step
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------

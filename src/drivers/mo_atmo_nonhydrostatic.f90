@@ -76,7 +76,7 @@ USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
 USE mo_prepadv_state,        ONLY: construct_prepadv_state, destruct_prepadv_state
 USE mo_opt_diagnostics,      ONLY: construct_opt_diag, destruct_opt_diag,      &
   &                                compute_lonlat_area_weights
-USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend,                     &
+USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend, prm_nwp_stochconv,  &
   &                                construct_nwp_phy_state
 USE mo_nwp_lnd_state,        ONLY: p_lnd_state, construct_nwp_lnd_state
 USE mo_nwp_phy_cleanup,      ONLY: cleanup_nwp_phy
@@ -123,7 +123,7 @@ USE mo_vertical_coord_table,ONLY: vct_a
 USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat
 USE mo_upatmo_config,       ONLY: upatmo_config, upatmo_phy_config, &
     &                             configure_upatmo, destruct_upatmo
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
 USE mo_upatmo_state,        ONLY: construct_upatmo_state, &
     &                             destruct_upatmo_state
 USE mo_upatmo_phy_setup,    ONLY: finalize_upatmo_phy_nwp
@@ -325,7 +325,7 @@ CONTAINS
       &                    msg_level              = msg_level,                         & !in
       &                    vct_a                  = vct_a                              ) !(opt)in
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
 ! Create state only if enabled
     CALL construct_upatmo_state( n_dom             = n_dom,                 & !in
       &                          nproma            = nproma,                & !in
@@ -365,6 +365,7 @@ CONTAINS
      DO jg =1,n_dom
        CALL configure_lhn(jg)
      ENDDO 
+     !$ACC ENTER DATA COPYIN(assimilation_config)
 
      CALL init_radar_data(p_patch(1:), radar_data)
      CALL construct_lhn(lhn_fields,p_patch(1:))
@@ -478,6 +479,7 @@ CONTAINS
             &             p_nh_state(1:)  ,&
             &             ext_data(1:)    ,&
             &             prm_diag(1:)    ,&
+            &             prm_nwp_stochconv(1:),&
             &             p_lnd_state(1:) )
           !
         ELSE ! iforcing == iaes, inoforcing, ...
@@ -698,15 +700,6 @@ CONTAINS
     ! Determine if temporally averaged vertically integrated moisture quantities need to be computed
 
     IF (iforcing == inwp) THEN
-        atm_phy_nwp_config(1:n_dom)%lcalc_moist_integral_avg = &
-        is_variable_in_output(var_name="clct_avg")        .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg01") .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg02") .OR. &
-        is_variable_in_output(var_name="tracer_vi_avg03") .OR. &
-        is_variable_in_output(var_name="avg_qv")          .OR. &
-        is_variable_in_output(var_name="avg_qc")          .OR. &
-        is_variable_in_output(var_name="avg_qi")
-
         atm_phy_nwp_config(1:n_dom)%lcalc_extra_avg = &
         is_variable_in_output(var_name="astr_u_sso")      .OR. &
         is_variable_in_output(var_name="accstr_u_sso")    .OR. &
@@ -716,15 +709,6 @@ CONTAINS
         is_variable_in_output(var_name="adrag_v_grid")
      ENDIF
 
-#ifndef __NO_ICON_LES__
-    !Anurag Dipankar, MPIM (2015-08-01): always call this routine
-    !for LES simulation
-    DO jg = 1 , n_dom
-      atm_phy_nwp_config(jg)%lcalc_moist_integral_avg &
-           = atm_phy_nwp_config(jg)%lcalc_moist_integral_avg &
-           .OR. atm_phy_nwp_config(jg)%is_les_phy
-    END DO
-#endif
 
     !----------------------!
     !  Initialize actions  !
@@ -819,7 +803,7 @@ CONTAINS
 #endif
     ENDIF
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
     ! This is required for NWP forcing only. 
     ! For AES forcing, the following will likely be done in 
     ! 'src/atm_phy_aes/mo_aes_phy_cleanup: cleanup_aes_phy'
