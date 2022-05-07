@@ -155,6 +155,11 @@ for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
 
+# art/ecrad testing
+$addexp checksuite.art/exp.art_mistral_test.run --builders MISTRAL_intel17 --list $listname
+$addexp checksuite.art/exp.art_mistral_test.run --builders MISTRAL_intel17_hybrid --list $listname
+$addexp checksuite.art/exp.art_mistral_test.run --builders MISTRAL_intel17_hybrid_mixed --list $listname
+$addexp checksuite.art/exp.art_mistral_test_short.run --builders MISTRAL_gcc --list $listname
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_MISTRAL.run --builders MISTRAL_gcc --list ${listname}
