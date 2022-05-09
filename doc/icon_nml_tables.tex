@@ -5928,7 +5928,8 @@ I&
 &
 MODIS albedo tuning\\
 0: None\\
-1: dimmed sahara&
+1: dimmed sahara\\
+2: dimmed sahara + brightened Antarctic (by $5\%$)&
 run\_nml:iforcing = inwp\\
 albedo\_type=2
 \tabularnewline
@@ -7907,13 +7908,6 @@ Passive tracers are named Qpassive\_ID, where ID is a number between \texttt{ntr
 %\hline
 init\_formula&
 C& ' ' & & Comma-separated list of initialization formulas for additional passive tracers. & npassive\_tracer > 0
-\tabularnewline
-
-%\hline
-iord\_backtraj&
-I& 1& & order of backward trajectory calculation:& \tabularnewline
-& & & & 1: first order& \tabularnewline
-& & & & 2: second order (iterative; currently 1 iteration hardcoded; experimental!)& ihadv\_tracer='miura'
 \tabularnewline
 
 %\hline
