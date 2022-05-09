@@ -245,6 +245,7 @@ CONTAINS
     INTEGER                             :: jb,jbs,jbe,jcs,jce,ncd,rls,rle
 
     !$ACC DATA PRESENT( pxtm1, pxt_emis ) IF( ktrac > 0 )
+    !$ACC DATA PRESENT( ta_hori_tend,qv_hori_tend,ql_hori_tend,qi_hori_tend,qnc_hori_tend,qni_hori_tend ) IF( turb == 2 )
     !$ACC DATA &
     !$ACC PRESENT(pcoriol,pzf,pzh,pfrc,ptsfc_tile,pocu,pocv,ppsfc) &
     !$ACC PRESENT(pum1,pvm1,pwp1,ptm1,pqm1,pxlm1,pxim1,pxm1) &
@@ -438,6 +439,9 @@ CASE ( itte ) ! TTE scheme
 
 CASE ( isma ) ! 3D Smagorinksy scheme
 
+    !$ACC DATA &
+    !$ACC CREATE(kh_ic,km_ic,km_c,km_iv,km_ie,vn,u_vert,v_vert,w_vert,rho_ic,div_c,w_ie)
+
     CALL atm_exchange_coeff3d ( jg, kbdim, nblks_c, nblks_v, nblks_e,                &! in
                            & klev, klevm1, klevp1,                                   &! in
                            & ksfc_type, idx_lnd,                                     &! in
@@ -536,6 +540,7 @@ CASE ( isma ) ! 3D Smagorinksy scheme
                          & rho,                            &
                          & tracer_water)
     END IF
+    !$ACC END DATA
 
 END SELECT    !select turbulent scheme
 
@@ -624,6 +629,7 @@ END SELECT    !select turbulent scheme
 !##############################################################################
 
     !$ACC WAIT
+    !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA
 

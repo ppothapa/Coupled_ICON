@@ -139,7 +139,7 @@ CONTAINS
 
 #ifdef _OPENACC
     IF ( ANY (aes_vdf_config(:)%turb == 2) ) THEN ! turb=2 is Smagorinsky
-      CALL finish (routine, 'Smagorinsky not yet implemented with OpenACC')
+      CALL finish (routine, 'Smagorinsky not yet tested with OpenACC')
     END IF
 #endif
     !

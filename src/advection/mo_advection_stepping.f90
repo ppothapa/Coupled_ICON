@@ -860,7 +860,7 @@ CONTAINS
     trAdvect => advection_config(jg)%trAdvect       ! 2018-06-05: cray bug do not add to PRESENT list
 
 !$ACC DATA  PRESENT(p_mflx_tracer_v, tracer_now, tracer_new, rhodz_now, rhodz_new, &
-!$ACC               deepatmo_divzl, deepatmo_divzu ),                              &
+!$ACC               deepatmo_divzl, deepatmo_divzu, p_patch ),                     &
 !$ACC       IF( i_am_accel_node .AND. acc_on )
 
     i_startblk = p_patch%cells%start_block(i_rlstart)

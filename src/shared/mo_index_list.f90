@@ -176,9 +176,8 @@ MODULE mo_index_list
     ! This argument is used in the OpenACC variant, but not in the GPU one 
     INTEGER,     INTENT(in), OPTIONAL :: dummy
 
-    INTEGER :: i, batch, batch_size, sh(2)
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    INTEGER :: i, batch, batch_size
+    batch_size = size(conditions, 2)
     nvalid = 0
 
     DO batch = 1, batch_size
@@ -198,9 +197,8 @@ MODULE mo_index_list
     ! This argument is used in the OpenACC variant, but not in the GPU one
     INTEGER,     INTENT(in), OPTIONAL :: dummy
 
-    INTEGER :: i, batch, batch_size, sh(2)
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    INTEGER :: i, batch, batch_size
+    batch_size = size(conditions, 2)
     nvalid = 0
 
     DO batch = 1, batch_size
@@ -312,7 +310,7 @@ MODULE mo_index_list
 
     INTEGER(acc_handle_kind) :: stream
     INTEGER :: i
-    INTEGER :: batch_size, sh(2)
+    INTEGER :: batch_size
     INTEGER :: cond_stride, idx_stride
 
 
@@ -322,8 +320,7 @@ MODULE mo_index_list
       stream = acc_get_cuda_stream(acc_async_sync)
     END IF
 
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    batch_size = size(conditions, 2)
 
     ! Hacky way to support non-contiguous slices
     IF ( batch_size > 1 ) THEN
@@ -354,7 +351,7 @@ MODULE mo_index_list
 
     INTEGER(acc_handle_kind) :: stream
     INTEGER :: i
-    INTEGER :: batch_size, sh(2)
+    INTEGER :: batch_size
     INTEGER :: cond_stride, idx_stride
 
 
@@ -364,8 +361,7 @@ MODULE mo_index_list
       stream = acc_get_cuda_stream(acc_async_sync)
     END IF
 
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    batch_size = size(conditions, 2)
 
     ! Hacky way to support non-contiguous slices
     IF ( batch_size > 1 ) THEN
