@@ -48,7 +48,7 @@ MODULE mo_ext_data_init
                                    frlndtile_thrhld, frlake_thrhld, frsea_thrhld, isub_water,       &
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
-                                   lterra_urb
+                                   lterra_urb, cr_bsmin, itype_evsl
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
@@ -1611,7 +1611,7 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk    !> blocks
     INTEGER :: i_startidx, i_endidx    !< slices
     INTEGER :: i_nchdom                !< domain index
-    LOGICAL  :: tile_mask(num_lcc)
+    LOGICAL  :: tile_mask(num_lcc), lhave_urban
     REAL(wp) :: tile_frac(num_lcc), sum_frac, dtdz_clim, t2mclim_hc, lat
     INTEGER  :: lu_subs, it_count(ntiles_total)
     INTEGER  :: npoints, npoints_sea, npoints_lake
@@ -1668,7 +1668,7 @@ CONTAINS
 ! turn off OpenMP on the NEC until MAXLOC bug (not threadsafe) is fixed
 !$OMP SINGLE
 #else
-!$OMP DO PRIVATE(jb,jc,i_lu,i_startidx,i_endidx,i_count,i_count_sea,i_count_flk,tile_frac,&
+!$OMP DO PRIVATE(jb,jc,i_lu,i_startidx,i_endidx,i_count,i_count_sea,i_count_flk,tile_frac,lhave_urban,&
 !$OMP            tile_mask,lu_subs,sum_frac,scalfac,zfr_land,it_count,ic,jt,jt_in,t2mclim_hc,lat ) ICON_OMP_DEFAULT_SCHEDULE
 #endif
        DO jb=i_startblk, i_endblk
@@ -1693,6 +1693,8 @@ CONTAINS
              tile_mask(:)=.true.
              tile_mask(i_lc_water)=.false. ! exclude water points
 
+             lhave_urban = .false.
+
              ext_data(jg)%atm%list_land%ncount(jb) = i_count
 
              IF (ntiles_lnd == 1) THEN
@@ -1701,6 +1703,7 @@ CONTAINS
                !
                ext_data(jg)%atm%lc_frac_t(jc,jb,1)  = 1._wp
                ext_data(jg)%atm%lc_class_t(jc,jb,1) = MAXLOC(tile_frac,1,tile_mask)
+               lhave_urban = ext_data(jg)%atm%lc_class_t(jc,jb,1) == ext_data(jg)%atm%i_lc_urban
                !
                ! root depth
                ext_data(jg)%atm%rootdp_t (jc,jb,1)  = ext_data(jg)%atm%rootdp(jc,jb)
@@ -1714,8 +1717,14 @@ CONTAINS
                ! surface area index
                ext_data(jg)%atm%sai_t    (jc,jb,1)  = c_lnd+ext_data(jg)%atm%tai_t(jc,jb,1)
                ! evaporative soil area index
-               ext_data(jg)%atm%eai_t(jc,jb,1) = &
-                 MERGE(c_soil_urb,c_soil,ext_data(jg)%atm%lc_class_t(jc,jb,1) == ext_data(jg)%atm%i_lc_urban)
+               IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(0.75_wp,                   &
+                   2.0_wp-1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban),lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
+               ELSE
+                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(c_soil_urb,c_soil,lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
+               ENDIF
                ! skin conductivity
                ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
 
@@ -1813,6 +1822,7 @@ CONTAINS
 
                    ext_data(jg)%atm%lc_frac_t(jc,jb,i_lu)  = tile_frac(lu_subs)
                    ext_data(jg)%atm%lc_class_t(jc,jb,i_lu) = lu_subs
+                   IF (lu_subs == ext_data(jg)%atm%i_lc_urban) lhave_urban = .true.
                  ELSE
                    EXIT ! no more land cover classes exceeding the threshold
                  ENDIF
@@ -1910,7 +1920,16 @@ CONTAINS
                  ext_data(jg)%atm%sai_t    (jc,jb,i_lu)  = c_lnd+ ext_data(jg)%atm%tai_t (jc,jb,i_lu)
 
                  ! evaporative soil area index
-                 ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                 IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(0.75_wp,2.0_wp,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
+                   ! on non-urban tiles, the eai is reduced only if no urban tile is present on the grid point
+                   IF (.NOT. lhave_urban) ext_data(jg)%atm%eai_t(jc,jb,i_lu) =                  &
+                                          2.0_wp - 1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban)
+                 ELSE
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
+                 ENDIF
 
                  ! skin conductivity
                  lat = p_patch(jg)%cells%center(jc,jb)%lat*rad2deg
@@ -2585,7 +2604,8 @@ CONTAINS
     INTEGER  :: i_startblk, i_endblk,i_startidx, i_endidx
     INTEGER  :: i_count,ilu
 
-    REAL(wp) :: t2mclim_hc(nproma),t_asyfac(nproma),tdiff_norm,wfac,dtdz_clim,trans_width,trh_bias,skinc_fac,lat,scal
+    REAL(wp) :: t2mclim_hc(nproma),t_asyfac(nproma),tdiff_norm,wfac,dtdz_clim,trans_width,trh_bias, &
+                skinc_fac,lat,scal,dtfac_skinc
     REAL(wp), DIMENSION(num_lcc) :: laimin,threshold_temp,temp_asymmetry,rd_fac
 
     INTEGER, PARAMETER :: nparam = 4  ! Number of parameters used in lookup table 
@@ -2639,6 +2659,8 @@ CONTAINS
     ! transition width for temperature-dependent tai limitation
     trans_width = 2.0_wp
 
+    ! adaptation factor to analysis interval for adaptive skin conductivity
+    dtfac_skinc = (10800._wp/dt_ana)**(2._wp/3._wp)
 
     ! exclude the boundary interpolation zone of nested domains
     rl_start = grf_bdywidth_c+1
@@ -2727,7 +2749,15 @@ CONTAINS
             trh_bias = 0._wp
           ENDIF
 
-          IF (icpl_da_sfcevap >= 1) THEN
+          IF (icpl_da_sfcevap >= 4) THEN
+            IF (trh_bias < 0._wp) THEN
+              ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)*(1._wp-0.75_wp*trh_bias)
+              ext_data%atm%r_bsmin(jc,jb)      = cr_bsmin*(1._wp-trh_bias)
+            ELSE
+              ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)/(1._wp+0.75_wp*trh_bias)
+              ext_data%atm%r_bsmin(jc,jb)      = cr_bsmin/(1._wp+trh_bias)
+            ENDIF
+          ELSE IF (icpl_da_sfcevap >= 1) THEN
             IF (trh_bias < 0._wp) THEN
               ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)*(1._wp-0.5_wp*trh_bias)
               ext_data%atm%eai_t(jc,jb,jt)     = MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) / &
@@ -2745,9 +2775,9 @@ CONTAINS
           IF (icpl_da_skinc >= 1) THEN
             scal = MERGE(4._wp, 2.5_wp, icpl_da_skinc == 1)
             IF (nh_diag%t_wgt_avginc(jc,jb) < 0._wp) THEN
-              skinc_fac = MAX(0.1_wp,1._wp+10800._wp/dt_ana*scal*nh_diag%t_wgt_avginc(jc,jb))
+              skinc_fac = MAX(0.1_wp,1._wp+dtfac_skinc*scal*nh_diag%t_wgt_avginc(jc,jb))
             ELSE
-              skinc_fac = 1._wp/MAX(0.1_wp,1._wp-10800._wp/dt_ana*scal*nh_diag%t_wgt_avginc(jc,jb))
+              skinc_fac = 1._wp/MAX(0.1_wp,1._wp-dtfac_skinc*scal*nh_diag%t_wgt_avginc(jc,jb))
             ENDIF
 
             lat = p_patch%cells%center(jc,jb)%lat*rad2deg

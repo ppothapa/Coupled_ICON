@@ -50,7 +50,7 @@ MODULE mo_lnd_nwp_config
   PUBLIC :: lseaice, lprog_albsi, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
   PUBLIC :: itype_trvg, itype_evsl, itype_lndtbl, l2lay_rho_snow
   PUBLIC :: itype_root, itype_heatcond, itype_interception, &
-            itype_hydbound, idiag_snowfrac, itype_snowevap, cwimax_ml, c_soil, c_soil_urb
+            itype_hydbound, idiag_snowfrac, itype_snowevap, cwimax_ml, c_soil, c_soil_urb, cr_bsmin
   PUBLIC :: itype_canopy, cskinc, tau_skin
   PUBLIC :: lterra_urb, itype_eisa
   PUBLIC :: lstomata, l2tls, lana_rho_snow
@@ -85,6 +85,7 @@ MODULE mo_lnd_nwp_config
   REAL(wp)::  cwimax_ml          !< scaling parameter for maximum interception storage
   REAL(wp)::  c_soil             !< surface area density of the (evaporative) soil surface
   REAL(wp)::  c_soil_urb         !< surface area density of the (evaporative) soil surface, urban areas
+  REAL(wp)::  cr_bsmin           !< minimum bare soil evap resistance
   INTEGER ::  itype_canopy       !< type of canopy parameterisation with respect to the surface energy balance
   REAL(wp)::  cskinc             !< skin conductivity (W/m**2/K)
   REAL(wp)::  tau_skin           !< relaxation time scale for the computation of the skin temperature

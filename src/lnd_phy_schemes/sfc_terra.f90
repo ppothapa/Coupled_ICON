@@ -202,6 +202,7 @@ CONTAINS
                   heatcap_fac      , & ! tuning factor for soil heat capacity
 !
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
+                  r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   z0               , & ! vegetation roughness length                   ( m   )
 !
                   u                , & ! zonal wind speed                              ( m/s )
@@ -356,6 +357,7 @@ CONTAINS
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
+                  r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   u                , & ! zonal wind speed                              ( m/s )
                   v                , & ! meridional wind speed                         ( m/s )
                   t                , & ! temperature                                   (  k  )
@@ -1164,7 +1166,7 @@ ENDDO
   !$acc present(fr_paved, urb_isa, urb_ai, urb_h_bld)                &
   !$acc present(urb_hcap, urb_hcon)                                  &
   !$acc present(heatcond_fac, heatcap_fac)                           &
-  !$acc present(rsmin2d, u, v, t, qv, ptot, ps, h_snow_gp, u_10m)    &
+  !$acc present(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m)    &
   !$acc present(v_10m, prr_con, prs_con, conv_frac, prr_gsp,prs_gsp,pri_gsp) &
 #ifdef TWOMOM_SB
   !$acc present(prh_gsp)                                             &
@@ -1540,7 +1542,7 @@ ENDDO
     !    zkebl = 1.6879_wp     ! 
 
     ! tuning constants for dry thermal conductivity formula
-    IF (itype_evsl == 4) THEN
+    IF (itype_evsl == 4 .OR. itype_evsl == 5) THEN
       zlamdry_c1 = 437.0_wp
       zlamdry_c2 = 0.901_wp
     ELSE
@@ -2317,7 +2319,7 @@ ENDDO
   ! Section I.4.2d: Bare soil evaporation, resistance version
   !----------------------------------------------------------------------------
 
-  IF (itype_evsl.EQ.4) THEN   ! Resistance version
+  IF (itype_evsl == 4 .OR. itype_evsl == 5) THEN   ! Resistance version
     ! Calculation of bare soil evaporation using a resistance formulation.
     ! For a review see Schulz et al. (1998) 
     !$acc loop gang(static:1) vector private(zice, zevap, zbeta, zalpha)
@@ -2331,7 +2333,7 @@ ENDDO
         IF (m_styp(i).GE.3) THEN ! Computations not for ice and rocks
            zalpha = MAX( 0.0_wp, MIN( 1.0_wp,                     &
                     (zw_fr(i,1) - zadp(i,1)) / (zfcap(i,1) - zadp(i,1)) ) )
-           zalpha = 50.0_wp / (zalpha + eps_soil)
+           zalpha = r_bsmin(i) / (zalpha + eps_soil)
            zbeta  = 1.0_wp                                &
                   / (1.0_wp + zrhoch(i)*zalpha/zrho_atm(i))
         END IF ! Computations not for ice and rocks

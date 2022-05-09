@@ -2580,7 +2580,9 @@ Choosing values $>$ 0 requires itype\_vegetation\_cycle=2 (in extpar\_nml) :\\
 1: use time-filtered T2M bias provided by the soil moisture analysis \\
 2: use in addition a time-filtered RH increment at the lowest model level (requires assimilation of RH2M)  \\
 3: as option 2, but use a time-filtered temperature increment at the lowest model level instead of the T2M bias provided by the SMA 
-(requires assimilation of T2M and RH2M)&
+(requires assimilation of T2M and RH2M) \\
+4: as option 3, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for adaptive
+tuning of bare-soil evaporation &
 init\_mode=5
 \tabularnewline
 
@@ -4039,7 +4041,9 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2020) &
+4 = Resistance-based scheme by Schulz and Vogel (2020) \\
+5 = same as 4, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for tuning; 
+the namelist parameter c\_soil is ignored in this case, and a value of 2 is used internally &
 \tabularnewline
 
 %\hline
@@ -4106,13 +4110,19 @@ use $5.e-4$ to activate interception storage & itype\_interception = 1
 %\hline
 c\_soil &
 R & 1. &  & surface area density of the (evaporative) soil surface \\
-allowed range: 0 -- 2 &
+allowed range: 0 -- 2 & itype\_evsl = 2,3,4
 \tabularnewline
 
 %\hline
 c\_soil\_urb &
 R & 1. &  & surface area density of the (evaporative) soil surface, urban areas \\
-allowed range: 0 -- 2 &
+allowed range: 0 -- 2 & itype\_evsl = 2,3,4
+\tabularnewline
+
+%\hline
+cr\_bsmin &
+R & 110. & s/m & minimum bare-soil evaporation resistance \\
+Note: c\_soil and c\_soil\_urb are ignored in this case & itype\_evsl = 5 or icpl\_da\_sfcevap = 4
 \tabularnewline
 
 %\hline

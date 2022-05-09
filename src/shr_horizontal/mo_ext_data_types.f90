@@ -260,6 +260,8 @@ MODULE mo_ext_data_types
       &  rsmin(:,:)            ! index1=1,nproma, index2=1,nblks_c
     REAL(wp), POINTER ::   &   !< minimum value of stomata resistance     [ s/m ]
       &  rsmin2d_t(:,:,:)      ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+    REAL(wp), POINTER ::   &   !< minimum value of bare soil evaporation resistance     [ s/m ]
+      &  r_bsmin(:,:)          ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::   &   !< annual maximum NDVI                     [ ]
       &  ndvi_max(:,:)         ! index1=1,nproma, index2=1,nblks_c
