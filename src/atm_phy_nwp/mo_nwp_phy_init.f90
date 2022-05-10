@@ -327,6 +327,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! for both restart and non-restart runs. Could not be included into
   ! mo_ext_data_state/init_index_lists due to its dependence on fr_seaice
+  IF (msg_level >= 12) CALL message('mo_nwp_phy_init:', 'initialize sea-ice lists, call init_sea_lists')
   CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
 
 

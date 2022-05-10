@@ -145,17 +145,18 @@ MODULE mo_nwp_lnd_types
     &  runoff_s     (:,:)   , & ! surface water runoff; sum over forecast       (kg/m2)
     &  runoff_g     (:,:)   , & ! soil water runoff; sum over forecast          (kg/m2)
     &  resid_wso    (:,:)   , & ! residuum of soil water budget; sum over fcst  (kg/m2)
-    &  fr_seaice    (:,:)   , & !< fraction of sea ice                          ( )   
-                                !< as partition of total area of the
-                                !< grid element, but set to 0 or 1
-                                !< index1=1,nproma, index2=1,nblks_c
+    &  fr_seaice    (:,:)   , & ! fraction of sea ice                           ( )
+                                ! as partition of total area of the
+                                ! grid element, but set to 0 or 1
+                                ! index1=1,nproma, index2=1,nblks_c
+    &  condhf_ice   (:,:)   , & ! conductive heat flux at sea-ice bottom        ( W/m2)
     &  qv_s_t       (:,:,:) , & ! specific humidity at the surface              (kg/kg)
     &  runoff_s_t   (:,:,:) , & ! surface water runoff; sum over forecast       (kg/m2)
     &  runoff_g_t   (:,:,:) , & ! soil water runoff; sum over forecast          (kg/m2)
     &  resid_wso_t  (:,:,:) , & ! residuum of soil water budget; sum over fcst  (kg/m2)
-    &  runoff_s_inst_t(:,:,:), & ! surface water runoff; instantaneous value   (kg/m2)
-    &  runoff_g_inst_t(:,:,:), & ! soil water runoff; instantaneous value      (kg/m2)
-    &  resid_wso_inst_t(:,:,:), & ! residuum of soil water; instantaneous value (kg/m2)
+    &  runoff_s_inst_t(:,:,:),& ! surface water runoff; instantaneous value     (kg/m2)
+    &  runoff_g_inst_t(:,:,:),& ! soil water runoff; instantaneous value        (kg/m2)
+    &  resid_wso_inst_t(:,:,:),&! residuum of soil water; instantaneous value   (kg/m2)
     &  rstom        (:,:)   , & ! stomatal resistance                           ( s/m )
     &  rstom_t      (:,:,:) , & ! tile based stomatal resistance                ( s/m )
     &  plantevap    (:,:)   , & ! integral function of plant evaporation        (kg/m2)

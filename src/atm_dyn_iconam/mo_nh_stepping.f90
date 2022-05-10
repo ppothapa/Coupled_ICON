@@ -74,7 +74,6 @@ MODULE mo_nh_stepping
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
     &                                    output_mode, lart, luse_radarfwo, ldass_lhn
-  USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_advection_config,         ONLY: advection_config
   USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,   &
     &                                    timer_total, timer_model_init, timer_nudging,    &
@@ -86,9 +85,8 @@ MODULE mo_nh_stepping
   USE mo_nwp_phy_init,             ONLY: init_nwp_phy, init_cloud_aero_cpl
   USE mo_nwp_phy_state,            ONLY: prm_diag, prm_nwp_tend, phy_params, prm_nwp_stochconv
   USE mo_lnd_nwp_config,           ONLY: nlev_soil, nlev_snow, sstice_mode, sst_td_filename, &
-    &                                    ci_td_filename 
+    &                                    ci_td_filename, frsi_min
   USE mo_nwp_lnd_state,            ONLY: p_lnd_state
-  USE sfc_seaice,                  ONLY: frsi_min
   USE mo_ext_data_state,           ONLY: ext_data
   USE mo_limarea_config,           ONLY: latbc_config
   USE mo_model_domain,             ONLY: p_patch, t_patch, p_patch_local_parent
@@ -109,7 +107,7 @@ MODULE mo_nh_stepping
   USE mo_nh_nest_utilities,        ONLY: compute_tendencies, boundary_interpolation,    &
                                          prep_bdy_nudging, nest_boundary_nudging,       &
                                          prep_rho_bdy_nudging, density_boundary_nudging,&
-                                         limarea_nudging_bdy, limarea_nudging_latbdy,   &
+                                         limarea_nudging_latbdy,                        &
                                          limarea_nudging_upbdy, save_progvars
   USE mo_nh_feedback,              ONLY: feedback, relax_feedback, lhn_feedback
   USE mo_exception,                ONLY: message, message_text, finish

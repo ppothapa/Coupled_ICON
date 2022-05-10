@@ -44,6 +44,7 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
   USE mo_time_config         ,ONLY: time_config
+  USE mo_util_dbg_prnt       ,ONLY: dbg_print
 
   USE mo_exception           ,ONLY: finish, message
 
@@ -61,6 +62,8 @@ MODULE mo_atmo_coupling_frame
   IMPLICIT NONE
 
   PRIVATE
+
+  CHARACTER(len=*), PARAMETER :: str_module = 'mo_atmo_coupling_frame' ! Output of module for debug
 
   PUBLIC :: construct_atmo_coupling, destruct_atmo_coupling
   PUBLIC :: lyac_very_1st_get, nbr_inner_cells, mask_checksum, field_id
@@ -103,7 +106,7 @@ CONTAINS
     INTEGER :: comp_id
     INTEGER :: comp_ids(1)
     INTEGER :: cell_point_ids(1)
-    INTEGER :: cell_mask_ids(1)
+    INTEGER :: cell_mask_ids(2)
     INTEGER :: grid_id
 
     INTEGER :: jg
@@ -114,6 +117,7 @@ CONTAINS
     REAL(wp), ALLOCATABLE :: buffer_lon(:)
     REAL(wp), ALLOCATABLE :: buffer_lat(:)
     INTEGER,  ALLOCATABLE :: buffer_c(:,:)
+
     LOGICAL,  ALLOCATABLE :: is_valid(:)
 
     REAL(wp), ALLOCATABLE :: lsmnolake(:,:)
@@ -287,11 +291,16 @@ CONTAINS
  !ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) ICON_OMP_RUNTIME_SCHEDULE
           DO jb = 1, patch_horz%nblks_c
              DO jc = 1, nproma
-                !RR check 
-                lsmnolake(jc, jb) = ext_data(jg)%atm%frac_t(jc,jb,isub_water) + ext_data(jg)%atm%fr_lake(jc,jb)
+                ! mask: 1.0: land or lake, 0.0: ocean or sea ice, fraction: coast
+                ! slo: later: use interpolated or adjusted fr_land and fr_lake - at first: use read in cell_sea_land_mask of extpar
+                ! lsmnolake(jc, jb) = ext_data(jg)%atm%fr_land(jc,jb) + ext_data(jg)%atm%fr_lake(jc,jb)
+                lsmnolake(jc, jb) = ext_data(jg)%atm%lsm_ctr_c(jc,jb)
              ENDDO
           ENDDO
 !ICON_OMP_END_PARALLEL_DO
+          CALL dbg_print('AtmFrame: fr_land',ext_data(jg)%atm%fr_land,str_module,3,in_subset=patch_horz%cells%owned)
+          CALL dbg_print('AtmFrame: fr_lake',ext_data(jg)%atm%fr_lake,str_module,3,in_subset=patch_horz%cells%owned)
+          CALL dbg_print('AtmFrame: lsmnolake',lsmnolake,str_module,2,in_subset=patch_horz%cells%owned)
 
        CASE ( iaes )
 #ifdef __NO_AES__
@@ -384,12 +393,11 @@ CONTAINS
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
     !
-    ! ! Define a new cell_mask_ids(1) for runoff:
+    ! ! Define cell_mask_ids(2) for runoff:
     ! !slo old!   Ocean coastal points with respect to HDmodel mask only are valid.
     ! !slo old!   The integer mask for the HDmodel is ext_data(1)%atm%lsm_hd_c(:,:).
     ! !slo old!   Caution: jg=1 is only valid for coupling to ocean
     ! !
-    ! Define cell_mask_ids(1) for runoff - same as above, ocean wet points are valid
     IF ( mask_checksum > 0 ) THEN
 
 !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
@@ -421,14 +429,14 @@ CONTAINS
       & patch_horz%n_patch_cells, &
       & YAC_LOCATION_CELL,        &
       & is_valid,                 &
-      & cell_mask_ids(1) )
+      & cell_mask_ids(2) )
 
     ! Define additional coupling field(s) for JSBACH/HD
     ! Utilize mask field for runoff
-    ! cell_mask_ids(1) shall contain ocean coast points only for source point mapping (source_to_target_map)
+    ! cell_mask_ids(2) shall contain ocean coast points only for source point mapping (source_to_target_map)
     ! Currently it is the same mask as for the rest. 
 
-    CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids )
+    CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids(2:2) )
 
 #endif
 

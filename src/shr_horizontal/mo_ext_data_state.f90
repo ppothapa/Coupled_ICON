@@ -333,6 +333,7 @@ CONTAINS
       &     p_ext_atm%albuv_dif,       &
       &     p_ext_atm%albni_dif,       &
       &     p_ext_atm%lsm_ctr_c,       &
+      &     p_ext_atm%lsm_switch,      &
       &     p_ext_atm%elevation_c      )
 
 
@@ -1477,20 +1478,25 @@ CONTAINS
 
       END IF  ! albedo_type
 
-    ELSE ! iforcing
+    END IF! iforcing
 
-      ! atmosphere land-sea-mask at surface on cell centers
-      ! lsm_ctr_c  p_ext_atm%lsm_ctr_c(nproma,nblks_c)
-      cf_desc    = t_cf_var('Atmosphere model land-sea-mask at cell center', '-2/-1/1/2', &
-        &                   'Atmosphere model land-sea-mask', datatype_flt)
-      grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'lsm_ctr_c', p_ext_atm%lsm_ctr_c,        &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
-        grib2_desc, ldims=shape2d_c )
+    ! atmosphere land-sea-mask at surface on cell centers
+    ! lsm_ctr_c  p_ext_atm%lsm_ctr_c(nproma,nblks_c)
+    cf_desc    = t_cf_var('lsm_ctr_c', '0/1',                              &
+      &                   'Ocean model land-sea-mask', datatype_flt)
+    grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_ext_atm_list, 'lsm_ctr_c', p_ext_atm%lsm_ctr_c,        &
+      &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
+      &           grib2_desc, ldims=shape2d_c )
 
-
-
-    END IF
+    ! land-sea-mask switched by ocean on cell centers
+    ! lsm_switch  p_ext_atm%lsm_switch(nproma,nblks_c)
+    cf_desc    = t_cf_var('lsm_switch', '0/1/2',                           &
+      &                   'land-sea-mask switched by ocean', datatype_flt)
+    grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_ext_atm_list, 'lsm_switch', p_ext_atm%lsm_switch,      &
+      &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
+      &           grib2_desc, ldims=shape2d_c )
 
   END SUBROUTINE new_ext_data_atm_list
 

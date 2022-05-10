@@ -33,7 +33,7 @@
 !! Prognostic equations for the ice thickness and the ice surface temperature are solved 
 !! for the ICON grid boxes with the ice fraction 
 !! (area fraction of a given model grid box of the type "sea water" that is covered by ice)
-!! that exceeds a threshold value of 0.03. Otherwise, the grid box is treated as ice-free.
+!! that exceeds a threshold value of 0.0015. Otherwise, the grid box is treated as ice-free.
 !! The ice fraction is determined on the basis of observational data
 !! by the data assimilation scheme and is kept constant over the entire model forecast period. 
 !! However, if the ice melts away during the forecast, the ice fraction is reset to zero. 
@@ -150,12 +150,17 @@ MODULE sfc_seaice
                                  &             ki          !< molecular heat conductivity of ice [J/(m s K)]  
 
   USE mo_lnd_nwp_config,     ONLY:                      &
-                                 & lprog_albsi             !< sea-ice albedo is computed prognostically 
+                                 & lprog_albsi        , &  !< sea-ice albedo is computed prognostically 
+                                 & frsi_min           , &  !< minimum sea-ice fraction  [-]
+                                 & hice_min           , &  !< minimum sea-ice thickness [m]
+                                 & hice_max                !< maximum sea-ice thickness [m]
 #endif
 
   USE sfc_terra_data,        ONLY:                      &
                                  & csalb              , &  !< solar albedo for different soil types
                                  & ist_seaice              !< ID of soiltype "sea ice"
+
+  USE mo_coupling_config,    ONLY: is_coupled_run
 
   IMPLICIT NONE
 
@@ -166,9 +171,6 @@ MODULE sfc_seaice
 #endif
 
   REAL (wp), PARAMETER ::                             &
-                       &  frsi_min     = 0.015_wp   , &  !< minimum sea-ice fraction [-]
-                       &  hice_min     = 0.05_wp    , &  !< minimum sea-ice thickness [m]
-                       &  hice_max     = 3.0_wp     , &  !< maximum sea-ice thickness [m]
                        &  hice_ini_min = 0.1_wp     , &  !< minimum thickness of the newly formed sea ice [m]
                        &  hice_ini_max = 0.5_wp     , &  !< maximum thickness of the newly formed sea ice [m]
                        &  csi_lin      = 0.5_wp     , &  !< shape factor for linear temperature profile [-]
@@ -240,8 +242,6 @@ MODULE sfc_seaice
          &  seaice_wkarr_alloc       , & ! subroutine for allocation
          &  seaice_wkarr_dealloc     , & ! subroutine for deallocation
 #endif
-         &  frsi_min                 , & ! parameter
-         &  hice_min                 , & ! parameter 
          &  hice_ini_min             , & ! parameter
          &  hice_ini_max             , & ! parameter
          &  seaice_init_nwp          , & ! procedure     
@@ -328,9 +328,9 @@ CONTAINS
                                           &  frsi       !< sea-ice fraction [-]
  
     REAL(wp), DIMENSION(:), INTENT(INOUT) ::           &
-                                          &  tice_p  , &  !< temperature of ice upper surface at previous time level [K] 
+                                          &  tice_p  , &  !< temperature of ice upper surface at previous time level [K]
                                           &  hice_p  , &  !< ice thickness at previous time level [m] 
-                                          &  tsnow_p , &  !< temperature of snow upper surface at previous time level [K] 
+                                          &  tsnow_p , &  !< temperature of snow upper surface at previous time level [K]
                                           &  hsnow_p , &  !< snow thickness at previous time level [m] 
                                           &  albsi_p , &  !< sea-ice albedo at previous time level [-] 
                                           &  tice_n  , &  !< temperature of ice upper surface at new time level [K] 
@@ -358,7 +358,7 @@ CONTAINS
     !-----------------------------------------------------------------------------------------------
 
     ! Logical switch, default value is .FALSE. 
-    lcallabort = .FALSE.  
+    lcallabort = .FALSE.
 
     ! Loop over grid boxes where sea ice is present
     GridBoxesWithSeaIce: DO isi=1, nsigb
@@ -372,8 +372,8 @@ CONTAINS
         EXIT GridBoxesWithSeaIce 
       END IF 
 
-      ! Create new ice as needed (otherwise do nothing)
-      IF( hice_p(isi) < (hice_min-csmall) ) THEN 
+      ! Create new ice as needed (hice_p close to zero)
+      IF( hice_p(isi) < (hice_min-csmall) ) THEN
         hice_p(isi) = hice_ini_min + frsi(isi) * (hice_ini_max-hice_ini_min)
         tice_p(isi) = tf_salt
         ! Set sea-ice albedo to its equilibrium value
@@ -381,7 +381,20 @@ CONTAINS
         IF ( lprog_albsi ) THEN
           albsi_p(isi) = alb_seaice_equil( tice_p(isi) )
         ENDIF
+      ELSE 
+        ! Educated guess for hice available (e.g. from coupled ocean model, 
+        ! data assimilation or from file), but not for tice.
+        IF (tice_p(isi) >= tf_fresh) THEN
+          tice_p(isi) = tf_salt
+          ! Set sea-ice albedo to its equilibrium value
+          ! (only required if sea-ice albedo is treated prognostically)
+          IF ( lprog_albsi ) THEN
+            albsi_p(isi) = alb_seaice_equil( tice_p(isi) )
+          ENDIF
+        ENDIF
+        ! Third case of hice_p >> 0 and tice_p < 0'C should already been properly defined 
       END IF
+
       ! In general we assume that new seaice points are characterized by 
       ! ( fr_seaice>0, h_ice_p=0 ). However, it may happen that h_ice_p 
       ! has already been adjusted consistently by the data assimilation process. 
@@ -437,6 +450,7 @@ CONTAINS
     !===============================================================================================
 
   END SUBROUTINE seaice_init_nwp
+
 
 !234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
 
@@ -507,7 +521,7 @@ CONTAINS
                               &  tice_p, hice_p, tsnow_p, hsnow_p,      &
                               &  albsi_p,                               &
                               &  tice_n, hice_n, tsnow_n, hsnow_n,      &
-                              &  albsi_n,                               &
+                              &  condhf, albsi_n,                       &
                               &  opt_dticedt, opt_dhicedt, opt_dtsnowdt,&
                               &  opt_dhsnowdt                           )
 
@@ -544,6 +558,8 @@ CONTAINS
                                        &  hice_n  , &  !< ice thickness at new time level [m] 
                                        &  tsnow_n , &  !< temperature of snow upper surface at new time level [K] 
                                        &  hsnow_n , &  !< snow thickness at new time level [m] 
+                                       &  condhf  , &  !< conductive heat flux within the sea ice
+                                                       !< just above the ice lower boundary [W/m^2]
                                        &  albsi_n      !< sea-ice albedo at new time level [-] 
 
     REAL(wp), DIMENSION(:), INTENT(OUT), OPTIONAL ::    &
@@ -598,12 +614,17 @@ CONTAINS
               &  rtaualbsisn  , &  !< reciprocal of relaxation time scale for snow-over-ice albedo [s^{-1}]
               &  albsi_e_wghtd     !< weighted equilibrium albedo (storage variable) [-] 
 
+    LOGICAL ::   lis_coupled_run   !< TRUE for coupled ocean-atmosphere runs (copy for vectorisation)
+
     !===============================================================================================
     !  Start calculations
     !-----------------------------------------------------------------------------------------------
 
     ! Reciprocal of the time step 
     r_dtime = 1._wp/dtime
+
+    ! for vectorisation
+    lis_coupled_run = is_coupled_run()
 
     ! Loop over grid boxes where sea ice is present
     GridBoxesWithSeaIce: DO isi=1, nsigb
@@ -618,12 +639,12 @@ CONTAINS
       ! Compute total atmospheric heat flux for the ice slab  (positive downward) 
       qatm = qsen(isi) + qlat(isi) + qlwrnet(isi) + qsolnet(isi) - qsoliw 
 
-!_dev>
-      ! Provision is made to account for the heat flux from water to ice 
-      ! (upward flux is negative)
-      ! Currently the heat flux from water to ice is set to zero 
+      ! Provision is made to account for the heat flux from water to ice. (upward flux is negative)
+      ! This is the ocean heat flux just below the ice, not including the latent flux from
+      ! melting and freezing.
+      ! For uncoupled setups the heat flux from water to ice is set to zero.
+      ! In the case of coupled icon-ocean, this flux has to be passed from the ocean if available.
       qwat = 0._wp
-!_dev<
 
       ! Compute temperature profile shape factor and temporary storage variables
       ! (to recover linear temperature profile, set csice=csi_lin)
@@ -639,10 +660,23 @@ CONTAINS
         ! Set the ice surface temperature equal to the fresh-water freezing point
         tice_n(isi) = tf_fresh
 
-        ! Compute the rate of ice melting (note the sign of heat fluxes)
-        dhicedt(isi) = -(qatm-qwat)*r_rhoialf/strg_2 
-        ! Update the ice thickness
-        hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+        ! Condition for coupling to icon-o: compute conductive heat flux using linear function
+        IF ( lis_coupled_run ) THEN
+
+          phiipr0 = 1._wp - hice_p(isi)/hice_max
+          condhf(isi) = ki*phiipr0*(tice_n(isi)-tf_salt)/hice_p(isi)
+
+          ! No change of ice thickness
+          hice_n(isi) = hice_p(isi)
+
+        ELSE
+
+          ! Compute the rate of ice melting (note the sign of heat fluxes)
+          dhicedt(isi) = -(qatm-qwat)*r_rhoialf/strg_2 
+          ! Update the ice thickness
+          hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+
+        END IF
 
       ELSE FreezingMeltingRegime 
 
@@ -650,6 +684,7 @@ CONTAINS
 
         ! Derivative (at zeta=0) of the temperature profile shape function 
         ! (to recover linear temperature profile, set phiipr0=1)
+        ! in case of icon-o coupling hice_p is limited to hice_max in mo_nwp_ocean_interface
         phiipr0 = 1._wp - hice_p(isi)/hice_max
 
         ! Compute threshold value of the ice thickness  
@@ -663,10 +698,21 @@ CONTAINS
 
           ! Use a quasi-equilibrium model of heat transfer through the ice 
 
-          ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
-          dhicedt(isi) = -(qatm-qwat)*r_rhoialf/strg_2
-          ! Update the ice thickness
-          hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+          ! Condition for coupling to icon-o: compute conductive heat flux using linear function
+          IF ( lis_coupled_run ) THEN
+
+            condhf(isi) = ki*phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
+            ! No change of ice thickness
+            hice_n(isi) = hice_p(isi)
+
+          ELSE
+
+            ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
+            dhicedt(isi) = -(qatm-qwat)*r_rhoialf/strg_2
+            ! Update the ice thickness
+            hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+
+          END IF
 
           ! Compute the (updated) ice surface temperature (note the sign of heat fluxes)
           tice_n(isi) = tf_salt + (qatm+qwat*strg_1)*hice_n(isi)/(phiipr0*ki*strg_2)
@@ -674,6 +720,12 @@ CONTAINS
         ELSE
 
           ! Use a complete model of heat transfer through the ice 
+
+          ! Condition for coupling to icon-o:
+          ! compute conductive heat flux near the ice lower surface using shape function
+          IF ( lis_coupled_run ) THEN
+            condhf(isi) = ki*phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
+          END IF
 
           ! Use dhsnowdt as a temporary storage
           dhsnowdt(isi) = phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
@@ -685,10 +737,15 @@ CONTAINS
           ! Update the ice surface temperature
           tice_n(isi) = tice_p(isi) + dtime*dticedt(isi)
 
-          ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
-          dhicedt(isi) = -ki_o_rhoialf*dhsnowdt(isi) + qwat*r_rhoialf
-          ! Update the ice thickness
-          hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+          ! Condition when coupled to icon-o: no change of ice thickness
+          IF ( lis_coupled_run ) THEN
+            hice_n(isi) = hice_p(isi)
+          ELSE
+            ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
+            dhicedt(isi) = -ki_o_rhoialf*dhsnowdt(isi) + qwat*r_rhoialf
+            ! Update the ice thickness
+            hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
+          END IF
 
         END IF 
 

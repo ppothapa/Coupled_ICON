@@ -66,6 +66,7 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_lnd_types,           ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types,          ONLY: t_external_data
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
+  USE mo_coupling_config,         ONLY: is_coupled_run
   USE mo_parallel_config,         ONLY: nproma, p_test_run, use_physics_barrier
   USE mo_diffusion_config,        ONLY: diffusion_config
   USE mo_initicon_config,         ONLY: is_iau_active
@@ -91,6 +92,7 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_sfc_interface,       ONLY: nwp_surface
   USE mo_nwp_conv_interface,      ONLY: nwp_convection
   USE mo_nwp_rad_interface,       ONLY: nwp_radiation
+  USE mo_nwp_ocean_interface,     ONLY: nwp_couple_ocean
   USE mo_sync,                    ONLY: sync_patch_array, sync_patch_array_mult, SYNC_E,      &
                                         SYNC_C, SYNC_C1
 #ifdef _OPENACC
@@ -142,6 +144,8 @@ MODULE mo_nh_interface_nwp
   USE mo_run_config,                ONLY: luse_radarfwo
   USE mo_emvorado_warmbubbles,      ONLY: set_artif_heatrate_dist
 #endif
+
+  USE mo_nwp_sfc_utils,           ONLY: process_sst_and_seaice
   
   !$ser verbatim USE mo_ser_all,              ONLY: serialize_all
 
@@ -1371,7 +1375,7 @@ CONTAINS
         !$ACC END PARALLEL
 #endif
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1 .OR. is_coupled_run()) THEN
 
 #ifdef __PGI_WORKAROUND
           !$ACC DATA CREATE(gp_count_t) IF(lzacc)
@@ -1422,6 +1426,8 @@ CONTAINS
           & albedo_t=prm_diag%albdif_t(:,jb,:)     ,&! in     tile-specific shortwave albedo
           & list_land_count  = ext_data%atm%list_land%ncount(jb),  &! in number of land points
           & list_land_idx    = ext_data%atm%list_land%idx(:,jb),   &! in index list of land points
+          & list_seawtr_count= ext_data%atm%list_seawtr%ncount(jb),&! in number of water points
+          & list_seawtr_idx  = ext_data%atm%list_seawtr%idx(:,jb), &! in index list of water points
           & list_seaice_count= ext_data%atm%list_seaice%ncount(jb),&! in number of seaice points
           & list_seaice_idx  = ext_data%atm%list_seaice%idx(:,jb), &! in index list of seaice points
           & list_lake_count  = ext_data%atm%list_lake%ncount(jb),  &! in number of (f)lake points
@@ -1546,7 +1552,7 @@ CONTAINS
 
 
     !-------------------------------------------------------------------------
-    !  Gravity waves drag: orographic and non-orographic
+    !> Gravity waves drag: orographic and non-orographic
     !-------------------------------------------------------------------------
 
     IF (lcall_phy_jg(itsso) .OR. lcall_phy_jg(itgwd)) THEN
@@ -1571,7 +1577,31 @@ CONTAINS
 
       IF (timers_level > 3) CALL timer_stop(timer_sso)
     ENDIF ! inwp_sso
+
+
     !-------------------------------------------------------------------------
+    !> Ocean coupling: if coupling time step
+    !-------------------------------------------------------------------------
+
+    IF ( is_coupled_run() .AND. (.NOT. linit) ) THEN
+
+      IF (ltimer) CALL timer_start(timer_coupling)
+
+      CALL nwp_couple_ocean( pt_patch, pt_diag, lnd_diag, &
+        &                    wtr_prog_now, wtr_prog_new, prm_diag, ext_data )
+
+      !------------------------------------------------
+      !  After receiving new sea-ice fraction (fr_seaice) and thickness (h_ice)
+      !  update sea/seaice index lists
+      !
+      CALL process_sst_and_seaice( pt_patch, lnd_diag%fr_seaice, lnd_diag%t_seasfc, pt_diag%pres_sfc, &
+        & ext_data, lnd_prog_now, lnd_prog_new, wtr_prog_now, wtr_prog_new, lnd_diag, wtr_prog_new%h_ice )
+
+      IF (ltimer) CALL timer_stop(timer_coupling)
+
+    END IF
+
+
 #ifndef __NO_ICON_LES__
     !-------------------------------------------------------------------------
     ! Anurag Dipankar MPIM (2013-May-29)

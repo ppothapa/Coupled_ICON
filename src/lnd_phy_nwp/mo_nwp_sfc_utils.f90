@@ -52,14 +52,13 @@ MODULE mo_nwp_sfc_utils
     &                               lseaice, llake, lmulti_snow, idiag_snowfrac, ntiles_lnd, &
     &                               lsnowtile, isub_water, isub_seaice, isub_lake,    &
     &                               itype_interception, l2lay_rho_snow, lprog_albsi, itype_trvg, &
-                                    itype_snowevap, zml_soil, dzsoil
+                                    itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
   USE mo_nwp_tuning_config,   ONLY: tune_minsnowfrac
   USE mo_initicon_config,     ONLY: init_mode_soil, ltile_coldstart, init_mode, lanaread_tseasfc, use_lakeiceana
   USE mo_run_config,          ONLY: msg_level
   USE sfc_terra_init,         ONLY: terra_init
   USE sfc_flake,              ONLY: flake_init
-  USE sfc_seaice,             ONLY: seaice_init_nwp, hice_min, frsi_min, &
-    &                               seaice_coldinit_albsi_nwp
+  USE sfc_seaice,             ONLY: seaice_init_nwp, seaice_coldinit_albsi_nwp
   USE sfc_terra_data,         ONLY: cadp, cf_snow, crhosmin_ml, crhosmax_ml
   USE turb_data,              ONLY: c_lnd, c_sea
   USE mo_satad,               ONLY: sat_pres_water, sat_pres_ice, spec_humi
@@ -2256,7 +2255,7 @@ CONTAINS
     &                              frac_t_water, lc_frac_t_water, fr_seaice,            &
     &                              hice_old, tice_old, albsi_now, albsi_new,            &
     &                              t_g_t_now, t_g_t_new, t_s_t_now, t_s_t_new,          &
-    &                              t_sk_t_now, t_sk_t_new, qv_s_t, t_seasfc )
+    &                              t_sk_t_now, t_sk_t_new, qv_s_t, t_seasfc, condhf )
 
 
     REAL(wp),    INTENT(IN)    ::  &   !< sea-ice depth at new time level  [m]
@@ -2317,6 +2316,9 @@ CONTAINS
 
     REAL(wp),    INTENT(INOUT) ::  &   !< sea surface temperature          [kg/kg]
       &  t_seasfc(:)
+
+    REAL(wp),    INTENT(INOUT) ::  &   !< conductive heat flux at bottom of sea-ice [W/m^2]
+      &  condhf(:)
 
     ! Local variables
     INTEGER  :: list_seaice_count_old      !< old seaice index list and count
@@ -2384,6 +2386,9 @@ CONTAINS
           tice_old(jc) = tmelt
           hice_old(jc) = 0._wp
           !
+          ! also reset conductive heat flux below ice
+          condhf(jc)   = 0._wp
+          !
           ! Reset prognostic sea ice albedo for consistency
           IF (lprog_albsi) THEN
             albsi_now(jc) = ALB_SI_MISSVAL
@@ -2448,6 +2453,9 @@ CONTAINS
           ! other schemes from using them incorrectly
           tice_old(jc) = tmelt
           hice_old(jc) = 0._wp
+          !
+          ! also reset conductive heat flux below ice
+          condhf(jc)   = 0._wp
           !
           ! Reset prognostic sea ice albedo for consistency
           IF (lprog_albsi) THEN
@@ -2827,6 +2835,7 @@ CONTAINS
 
         ! I) retained seaice points
         !
+
         ! no further action required
         ! handled by the seaice scheme
 
@@ -2852,7 +2861,6 @@ CONTAINS
         ! as seen from the atmospheric model perspective does not necessarily mean that 
         ! the seaice was created due to freezing. It might have been transported into the 
         ! cell by advective processes.
-        ! We might add the switch linit_hice rather than duplicating the routine.
         !
         CALL seaice_init_nwp ( list_seaice_created%ncount(jb), frsi,                & ! in
           &                    tice_now, hice_now, tsnow_now, hsnow_now, albsi_now, & ! inout
@@ -3094,7 +3102,6 @@ CONTAINS
       &                    qv_s    = diag_lnd%qv_s(:,:)          ) ! inout
 
   END SUBROUTINE process_sst_and_seaice
-
 
 
   !>

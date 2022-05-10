@@ -57,6 +57,7 @@ MODULE mo_initicon_config
   PUBLIC :: l_coarse2fine_mode
   PUBLIC :: lp2cintp_incr, lp2cintp_sfcana
   PUBLIC :: qcana_mode, qiana_mode, qrsgana_mode, qnxana_2mom_mode
+  PUBLIC :: lcouple_ocean_coldstart
   PUBLIC :: ltile_coldstart
   PUBLIC :: ltile_init
   PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, dt_ana
@@ -135,6 +136,8 @@ MODULE mo_initicon_config
                                      ! assimilation increments
   LOGICAL  :: lp2cintp_sfcana(max_dom) ! If true, perform parent-to-child interpolation of
                                        ! surface analysis data
+  LOGICAL  :: lcouple_ocean_coldstart  ! If true, initialize newly defined land points from ICON-O 
+                                       ! with default T and Q profiles 
   LOGICAL  :: ltile_coldstart  ! If true, initialize tile-based surface fields from first guess with tile-averaged fields
 
   LOGICAL  :: ltile_init       ! If true, initialize tile-based surface fields from first guess without tiles

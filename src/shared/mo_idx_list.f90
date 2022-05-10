@@ -23,10 +23,14 @@ MODULE mo_idx_list
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, SUCCESS
   USE mo_exception,           ONLY: finish
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_util_sort,           ONLY: quicksort
   USE mo_fortran_tools,       ONLY: DO_DEALLOCATE
   USE mo_communication,       ONLY: idx_1d, blk_no, idx_no
   USE mo_sync,                ONLY: global_sum_array
+#ifdef __SX__
+  USE mo_util_sort,           ONLY: radixsort
+#else
+  USE mo_util_sort,           ONLY: quicksort
+#endif
 
   IMPLICIT NONE
 
@@ -477,7 +481,7 @@ CONTAINS
   !!
   !! The basic concept is as follows:
   !! 1) convert blocked lists into unblocked 1D lists
-  !! 2) sort lists using the quicksort algorithm
+  !! 2) sort lists using the quicksort/radixsort algorithm
   !! 3) compare the two lists and group the elements into 3 sublists
   !! 4) transform the sublists back into blocked lists
   !!
@@ -508,8 +512,13 @@ CONTAINS
 
 
     ! sort
+#ifdef __SX__
+    CALL radixsort(list1_1d%idx(1:list1_1d%ncount))
+    CALL radixsort(list2_1d%idx(1:list2_1d%ncount))
+#else
     CALL quicksort(a=list1_1d%idx, l_in=1, r_in=list1_1d%ncount)
     CALL quicksort(a=list2_1d%idx, l_in=1, r_in=list2_1d%ncount)
+#endif
 
 
     ! compare sorted 1D lists

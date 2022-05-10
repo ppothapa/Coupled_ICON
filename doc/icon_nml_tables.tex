@@ -444,7 +444,8 @@ ccycle\_config(jg)\% ico2conc = 2
 coupled\_mode &
 L &
 .FALSE. &  &
-.TRUE.: if yac coupling routines have to be called &
+.TRUE.: if yac coupling routines have to be called. Required for
+coupled ocean-atmosphere similations. &
 \tabularnewline
 
 \end{longtab}
@@ -2671,6 +2672,12 @@ A neighbor search is applied to subgrid-scale ocean points for SST and sea-ice f
 \tabularnewline
 
 %\hline
+lcouple\_ocean\_coldstart&
+L & .TRUE.& &
+ If true, initialize newly defined land points from ICON-O with default T and Q profiles. & is\_coupled\_mode=T
+\tabularnewline
+
+%\hline
 lvert\_remap\_fg&
 L & .FALSE.& &
 If true, vertical remapping is applied to the atmospheric first-guess fields, whereas the analysis increments
@@ -4153,7 +4160,6 @@ L&
 .TRUE. for use of sea-ice model&
 \tabularnewline
 
-
 %\hline
 lprog\_albsi &
 L&
@@ -4162,7 +4168,6 @@ L&
 If .TRUE., sea-ice albedo is computed prognostically & lseaice=.TRUE.
 \tabularnewline
 
-
 %\hline
 \textbf{llake} &
 L&
@@ -4170,13 +4175,15 @@ L&
 &
 .TRUE. for use of lake model&
 \tabularnewline
+
 %\hline
 sstice\_mode &
 I&
 1&
 &
 1: SST and sea ice fraction are read from the analysis. The SST is kept constant 
-whereas the sea ice fraction can be modified by the seaice model.\\
+whereas the sea ice fraction can be modified by the seaice model. (This
+mode also applices to coupled atmo/ocean simulations.) \\
 2: SST and sea ice fraction are read from the analysis. The SST is updated by climatological 
 increments on a daily basis. The sea ice fraction can be modified by the seaice model.\\
 3: SST and sea ice fraction are updated daily, based on climatological monthly
@@ -4187,6 +4194,23 @@ means\\
 iequations=3\\
 iforcing=3
 \tabularnewline
+
+%\hline
+hice\_min &
+R&
+0.05&
+m&
+Minimum sea-ice thickness & lseaice=.TRUE.
+\tabularnewline
+
+%\hline
+hice\_max &
+R&
+3.0&
+m&
+Maximum sea-ice thickness (for coupled runs assure consistency with seaice\_limit)  & lseaice=.TRUE.
+\tabularnewline
+
 %\hline
 sst\_td\_filename &
 C&

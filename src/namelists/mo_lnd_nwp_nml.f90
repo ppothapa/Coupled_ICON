@@ -40,6 +40,8 @@ MODULE mo_lnd_nwp_nml
     &                               config_frlndtile_thrhld   => frlndtile_thrhld  , &
     &                               config_frlake_thrhld      => frlake_thrhld     , &
     &                               config_frsea_thrhld       => frsea_thrhld      , &
+    &                               config_hice_min           => hice_min          , &
+    &                               config_hice_max           => hice_max          , &
     &                               config_lseaice            => lseaice           , &
     &                               config_lprog_albsi        => lprog_albsi       , &
     &                               config_llake              => llake             , &
@@ -124,6 +126,8 @@ CONTAINS
     !! tile for a grid point
     REAL(wp)::  frlake_thrhld     !< fraction threshold for creating a lake grid point
     REAL(wp)::  frsea_thrhld      !< fraction threshold for creating a sea grid point
+    REAL(wp)::  hice_min          !< minimum sea-ice thickness [m]
+    REAL(wp)::  hice_max          !< maximum sea-ice thickness [m]
     REAL(wp)::  max_toplaydepth   !< maximum depth of uppermost snow layer for multi-layer snow scheme
     INTEGER ::  itype_trvg        !< type of vegetation transpiration parameterization
     INTEGER ::  itype_evsl        !< type of parameterization of bare soil evaporation
@@ -167,6 +171,7 @@ CONTAINS
          &               frlnd_thrhld, lseaice, lprog_albsi, llake, lmelt, &
          &               frlndtile_thrhld, frlake_thrhld                 , &
          &               frsea_thrhld, lmelt_var, lmulti_snow            , &
+         &               hice_min, hice_max                              , &
          &               itype_trvg, idiag_snowfrac, max_toplaydepth     , &
          &               itype_evsl                                      , &
          &               itype_lndtbl                                    , &
@@ -212,6 +217,8 @@ CONTAINS
     frsea_thrhld   = 0.05_wp ! fraction threshold for creating a sea grid point
     frlndtile_thrhld = 0.05_wp ! fraction threshold for retaining the respective 
                              ! tile for a grid point
+    hice_min       = 0.05_wp ! minimum sea-ice thickness [m]
+    hice_max       = 3.0_wp  ! maximum sea-ice thickness [m]
     lmelt          = .TRUE.  ! soil model with melting process
     lmelt_var      = .TRUE.  ! freezing temperature dependent on water content
     lmulti_snow    = .FALSE. ! .TRUE. = run the multi-layer snow model, .FALSE. = use single-layer scheme
@@ -364,6 +371,8 @@ CONTAINS
     config_frlndtile_thrhld   = frlndtile_thrhld
     config_frlake_thrhld      = frlake_thrhld
     config_frsea_thrhld       = frsea_thrhld
+    config_hice_min           = hice_min
+    config_hice_max           = hice_max
     config_lseaice            = lseaice
     config_lprog_albsi        = lprog_albsi 
     config_llake              = llake

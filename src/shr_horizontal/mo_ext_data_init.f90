@@ -34,7 +34,7 @@
 
 MODULE mo_ext_data_init
 
-  USE mo_kind,               ONLY: wp, vp
+  USE mo_kind,               ONLY: wp
   USE mo_io_units,           ONLY: filename_max
   USE mo_impl_constants,     ONLY: inwp, io3_clim, io3_ape,                                         &
     &                              max_char_length, min_rlcell_int, min_rlcell,                     &
@@ -67,7 +67,6 @@ MODULE mo_ext_data_init
   USE mo_sync,               ONLY: global_sum_array
   USE mo_parallel_config,    ONLY: p_test_run, nproma
   USE mo_ext_data_types,     ONLY: t_external_data
-  USE mo_nwp_lnd_types,      ONLY: t_lnd_diag
   USE mo_nonhydro_types,     ONLY: t_nh_diag
   USE mo_ext_data_state,     ONLY: construct_ext_data, levelname, cellname, o3name, o3unit, &
     &                              nlev_o3, nmonths
@@ -1033,24 +1032,28 @@ CONTAINS
     END IF
 
     ! If ocean coupling is used, then read the land sea masks
-    IF ( iforcing /= inwp .AND. is_coupled_run() ) THEN
-
+    IF ( is_coupled_run() ) THEN
       DO jg = 1,n_dom
+        IF ( iforcing == inwp ) THEN
 
-        ! get land-sea-mask on cells, integer marks are:
-        ! inner sea (-2), boundary sea (-1, cells and vertices), boundary (0, edges),
-        ! boundary land (1, cells and vertices), inner land (2)
+          ! --- option NWP grids: see below in read_extdata
 
-        CALL openInputFile(stream_id, p_patch(jg)%grid_filename, p_patch(jg), default_read_method)
+        ELSE
 
-        CALL read_2D_int(stream_id, on_cells, 'cell_sea_land_mask', &
-          &              ext_data(jg)%atm%lsm_ctr_c)
+          ! --- option MPI grids: read full [-2,2] land-sea mask in grid file
+          ! get land-sea-mask on cells, integer marks are:
+          ! inner sea (-2), boundary sea (-1, cells and vertices), boundary (0, edges),
+          ! boundary land (1, cells and vertices), inner land (2)
 
-        CALL closeFile(stream_id)
+          CALL openInputFile(stream_id, p_patch(jg)%grid_filename, p_patch(jg), default_read_method)
 
+          CALL read_2D_int(stream_id, on_cells, 'cell_sea_land_mask', &
+            &              ext_data(jg)%atm%lsm_ctr_c)
 
+          CALL closeFile(stream_id)
+
+        END IF
       END DO
-
     END IF
 
     !------------------------------------------------!
@@ -1187,6 +1190,18 @@ CONTAINS
         !--------------------------------------------------------------------
         CALL read_extdata('topography_c', ext_data(jg)%atm%topography_c)
 
+        ! If ocean coupling is used, then read the land sea masks
+
+        IF ( is_coupled_run() ) THEN
+
+          ! --- option NWP grids: read ocean [0,1] land-sea mask in extpar file
+          ! get land-sea-mask on cells - interpolated from ocean land-sea-mask
+          ! integer marks are: sea (0), land (1)
+
+          CALL read_extdata('cell_sea_land_mask', arr2di=ext_data(jg)%atm%lsm_ctr_c)
+
+        ENDIF
+
         !
         ! other external parameters on triangular grid
         !
@@ -1194,47 +1209,47 @@ CONTAINS
 
         SELECT CASE ( iforcing )
         CASE ( inwp )
-        CALL read_extdata('NDVI_MAX',  ext_data(jg)%atm%ndvi_max)
-        CALL read_extdata('SOILTYP',   arr2di=ext_data(jg)%atm%soiltyp)
-        CALL read_extdata('T_CL',      ext_data(jg)%atm%t_cl)
-        CALL read_extdata('SSO_STDH',  ext_data(jg)%atm%sso_stdh)
-        CALL read_extdata('SSO_THETA', ext_data(jg)%atm%sso_theta)
-        CALL read_extdata('SSO_GAMMA', ext_data(jg)%atm%sso_gamma)
-        CALL read_extdata('SSO_SIGMA', ext_data(jg)%atm%sso_sigma)
-        CALL read_extdata('FR_LAKE',   ext_data(jg)%atm%fr_lake)
-        CALL read_extdata('DEPTH_LK',  ext_data(jg)%atm%depth_lk)
+          CALL read_extdata('NDVI_MAX',  ext_data(jg)%atm%ndvi_max)
+          CALL read_extdata('SOILTYP',   arr2di=ext_data(jg)%atm%soiltyp)
+          CALL read_extdata('T_CL',      ext_data(jg)%atm%t_cl)
+          CALL read_extdata('SSO_STDH',  ext_data(jg)%atm%sso_stdh)
+          CALL read_extdata('SSO_THETA', ext_data(jg)%atm%sso_theta)
+          CALL read_extdata('SSO_GAMMA', ext_data(jg)%atm%sso_gamma)
+          CALL read_extdata('SSO_SIGMA', ext_data(jg)%atm%sso_sigma)
+          CALL read_extdata('FR_LAKE',   ext_data(jg)%atm%fr_lake)
+          CALL read_extdata('DEPTH_LK',  ext_data(jg)%atm%depth_lk)
 
-        IF (islope_rad == 2) THEN
-          CALL read_extdata('HORIZON', arr3d=ext_data(jg)%atm%horizon,ltime=.FALSE.)
-          CALL read_extdata('SKYVIEW', ext_data(jg)%atm%skyview)
-
-          rl_start = 1
-          rl_end   = min_rlcell
-          i_startblk = p_patch(jg)%cells%start_block(rl_start)
-          i_endblk   = p_patch(jg)%cells%end_block(rl_end)
-
-          ! Test consistency of horizon
+          IF (islope_rad == 2) THEN
+            CALL read_extdata('HORIZON', arr3d=ext_data(jg)%atm%horizon,ltime=.FALSE.)
+            CALL read_extdata('SKYVIEW', ext_data(jg)%atm%skyview)
+  
+            rl_start = 1
+            rl_end   = min_rlcell
+            i_startblk = p_patch(jg)%cells%start_block(rl_start)
+            i_endblk   = p_patch(jg)%cells%end_block(rl_end)
+  
+            ! Test consistency of horizon
 !$OMP DO PRIVATE(jb,jc,im,i_startidx,i_endidx)
-          DO jb = i_startblk, i_endblk
-            CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
-            DO im = 1, nhori
-              DO jc = i_startidx,i_endidx
-                IF (ext_data(jg)%atm%horizon(jc,jb,im) > 90.0_wp .OR. &
-                    ext_data(jg)%atm%horizon(jc,jb,im) < 0.0_wp) THEN
-                  WRITE (message_text,'(A,F8.3)') 'ext_data(jg)%atm%horizon(jc,jb,im) = ',&
-                                                   ext_data(jg)%atm%horizon(jc,jb,im)
-                  CALL message(routine, message_text)
-                  WRITE (message_text,'(A,3I8)') '   DEBUG point: ', jc, jb, im
-                  CALL message(routine, message_text)
-                  CALL finish(routine,'HORIZON is out of bounds!')
-                ENDIF
+            DO jb = i_startblk, i_endblk
+              CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
+              DO im = 1, nhori
+                DO jc = i_startidx,i_endidx
+                  IF (ext_data(jg)%atm%horizon(jc,jb,im) > 90.0_wp .OR. &
+                      ext_data(jg)%atm%horizon(jc,jb,im) < 0.0_wp) THEN
+                    WRITE (message_text,'(A,F8.3)') 'ext_data(jg)%atm%horizon(jc,jb,im) = ',&
+                                                     ext_data(jg)%atm%horizon(jc,jb,im)
+                    CALL message(routine, message_text)
+                    WRITE (message_text,'(A,3I8)') '   DEBUG point: ', jc, jb, im
+                    CALL message(routine, message_text)
+                    CALL finish(routine,'HORIZON is out of bounds!')
+                  ENDIF
+                ENDDO
               ENDDO
             ENDDO
-          ENDDO
 !$OMP END DO
-        ENDIF
-
-        CALL read_extdata('LU_CLASS_FRACTION', arr3d=ext_data(jg)%atm%lu_class_fraction,ltime=.FALSE.) 
+          ENDIF
+  
+          CALL read_extdata('LU_CLASS_FRACTION', arr3d=ext_data(jg)%atm%lu_class_fraction,ltime=.FALSE.) 
 
           ! The following fields are only required without surface tiles
           IF (ntiles_lnd == 1) THEN
@@ -1377,6 +1392,13 @@ CONTAINS
 
         ! land sea mask at cell centers (LOGICAL)
         !
+
+        ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
+
+        IF ( iforcing == inwp .AND. is_coupled_run() ) THEN
+          CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
+        ENDIF
+
         i_nchdom  = MAX(1,p_patch(jg)%n_childdom)
 
         rl_start = 1
@@ -1395,12 +1417,12 @@ CONTAINS
             IF (ext_data(jg)%atm%fr_land(jc,jb) > 0.5_wp) THEN
               ext_data(jg)%atm%llsm_atm_c(jc,jb) = .TRUE.  ! land point
             ELSE
-              ext_data(jg)%atm%llsm_atm_c(jc,jb) = .FALSE.  ! water point
+              ext_data(jg)%atm%llsm_atm_c(jc,jb) = .FALSE. ! water point
             ENDIF
             IF (ext_data(jg)%atm%fr_lake(jc,jb) >= 0.5_wp) THEN
-              ext_data(jg)%atm%llake_c(jc,jb) = .TRUE.   ! lake point
+              ext_data(jg)%atm%llake_c(jc,jb) = .TRUE.     ! lake point
             ELSE
-              ext_data(jg)%atm%llake_c(jc,jb) = .FALSE.  ! no lake point
+              ext_data(jg)%atm%llake_c(jc,jb) = .FALSE.    ! no lake point
             ENDIF
           ENDDO
         ENDDO
@@ -2798,6 +2820,120 @@ CONTAINS
 
 
   END SUBROUTINE vege_clim
+
+
+  !-------------------------------------------------------------------------
+  !>
+  !! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
+  !!
+  !! coupled A-O: ocean LSM dominates over atmospheric LSM: sea (0), land (1)
+  !!   some fixes are done later in init_index_lists (also in mo_ext_data_init)
+  !!
+  !! ICON-O and ICON-A decision tree for LSM:
+  !!
+  !!                ICON-A (fr_land + fr_lake)
+  !!                      0    0.6    1
+  !!            ___________________________________
+  !!             0    |   0   !0     !0       ICON-O deletes all ICON-A land
+  !! ICON-O      0.4  |   0    0.6   !0.4
+  !! lsm_ctr_c   1    |  !1    0.6    1       
+  !!
+  !! note: idential  ocean/atmo grids: lsm_ctr_c is integer
+  !!       different ocean/atmo grids: lsm_ctr_c is float (fraction)
+  !! ICON-seamless prototype 1 - common grid supports only integer
+  !! This routine doesn't support the case ntiles=1.  Additional surface parameters
+  !! would have to be implemented
+  !!
+  !! @par Revision History
+  !! Initial revision by Martin Koehler, DWD (2021-01-27)
+  !!
+  !-------------------------------------------------------------------------
+
+  SUBROUTINE lsm_ocean_atmo (p_patch, ext_data)
+
+    TYPE(t_patch), INTENT(IN)            :: p_patch
+    TYPE(t_external_data), INTENT(INOUT) :: ext_data
+
+    INTEGER  :: jb,jc,i_nchdom
+    INTEGER  :: rl_start, rl_end
+    INTEGER  :: i_startblk, i_endblk,i_startidx, i_endidx
+
+    !-----------------------------------------------------------------------
+
+    CALL message('','Adjust atmo LSM to ocean LSM for coupled simulation.')
+
+    i_nchdom  = MAX(1,p_patch%n_childdom)
+
+    rl_start = 1
+    rl_end   = min_rlcell
+
+    i_startblk = p_patch%cells%start_blk(rl_start,1)
+    i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+    DO jb = i_startblk, i_endblk
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+        &                i_startidx, i_endidx, rl_start, rl_end)
+
+      DO jc = i_startidx,i_endidx
+
+        ! land-sea-mask switched by ocean, 0: no change, 1: new land, 2: new ocean
+        ext_data%atm%lsm_switch     (jc,jb)   = 0
+ 
+        SELECT CASE(ext_data%atm%lsm_ctr_c(jc,jb))
+
+        CASE (0)         ! ICON-O ocean but ICON-A fractional land:  delete all ICON-A land and lake
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) > 0.0_wp ) THEN
+            ext_data%atm%lsm_switch (jc,jb)   = 2
+            ext_data%atm%fr_land    (jc,jb)   = 0.0_wp
+            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
+            ext_data%atm%topography_c(jc,jb)  = 0.0_wp      ! topography to zero
+          ENDIF
+
+        CASE (1)         ! ICON-O land but ICON-A fractional ocean:  make artificial ICON-A pure land
+                         !                                           (another option: artificial lake)
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1.0_wp ) THEN
+            ext_data%atm%lsm_switch (jc,jb)   = 1
+            ! set fraction to land
+            ext_data%atm%fr_land    (jc,jb)   = 1.0_wp
+            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
+            ext_data%atm%soiltyp    (jc,jb)   = 4           ! soil type to sandy loam (sfc_terra_data)
+            ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0.0_wp
+            ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1.0_wp  ! grass-land (read_ext_data_atm)
+            ! land use variables will then automatically be set in init_index_lists
+            ! frac_t, lc_frac_t, fr_land_smt, fr_glac_smt, fr_glac_smt, lc_class_t, llsm_atm_c, llake_c,
+            ! plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
+
+            ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean
+
+            ! topography values
+            ext_data%atm%topography_c(jc,jb) = 0.0_wp
+
+          ENDIF
+
+        CASE DEFAULT     ! ICON-O fractional (coast) but ICON-A pure land: reduce land & lake accordingly
+                         ! Attention: this case is not yet supported
+          IF  (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb))== 1.0_wp ) THEN 
+          ! set fr_land for all coastal points to lsm-oce:
+          ! IF  ( ext_data%atm%fr_land  (jc,jb) .NE. ext_data%atm%lsm_ctr_c  (jc,jb) ) THEN 
+          ! ext_data%atm%fr_land  (jc,jb) = ext_data%atm%lsm_ctr_c(jc,jb)
+          ! ext_data%atm%fr_lake  (jc,jb) = 0.0_wp
+
+            ext_data%atm%fr_land  (jc,jb) = ext_data%atm%fr_land  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake  (jc,jb) = ext_data%atm%fr_lake  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+          ! tile adjustments!
+          ENDIF
+
+        END SELECT
+
+      ENDDO
+    ENDDO
+!$OMP END DO
+!$OMP END PARALLEL
+
+  END SUBROUTINE lsm_ocean_atmo
+
 
 END MODULE mo_ext_data_init
 

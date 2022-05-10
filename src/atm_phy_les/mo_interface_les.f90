@@ -906,6 +906,8 @@ CONTAINS
           & list_seaice_idx  = ext_data%atm%list_seaice%idx(:,jb), &! in index list of seaice points
           & list_lake_count  = ext_data%atm%list_lake%ncount(jb),  &! in number of (f)lake points
           & list_lake_idx    = ext_data%atm%list_lake%idx(:,jb),   &! in index list of (f)lake points
+          & list_seawtr_count= ext_data%atm%list_seawtr%ncount(jb),&! in number of seawtr points
+          & list_seawtr_idx  = ext_data%atm%list_seawtr%idx(:,jb), &! in index list of seawtr points
           & gp_count_t       = ext_data%atm%gp_count_t(jb,:),      &! in number of land points per tile
           & idx_lst_t        = ext_data%atm%idx_lst_t(:,jb,:),     &! in index list of land points per tile
           & cosmu0=zcosmu0(:,jb)                   ,&! in     cosine of solar zenith angle

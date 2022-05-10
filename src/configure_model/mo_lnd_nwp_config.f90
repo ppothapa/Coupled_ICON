@@ -33,6 +33,7 @@ MODULE mo_lnd_nwp_config
   USE mo_io_units,           ONLY: filename_max
   USE mo_nwp_sfc_tiles,      ONLY: t_tile_list, setup_tile_list
   USE mo_exception,          ONLY: message, message_text, finish
+  USE mo_coupling_config,    ONLY: is_coupled_run
 
 
   IMPLICIT NONE
@@ -46,7 +47,7 @@ MODULE mo_lnd_nwp_config
 
   ! VARIABLES
   PUBLIC :: dzsoil, zml_soil, nlev_soil, nlev_snow, ibot_w_so, ntiles_total, ntiles_lnd, ntiles_water
-  PUBLIC :: frlnd_thrhld, frlndtile_thrhld, frlake_thrhld, frsea_thrhld
+  PUBLIC :: frlnd_thrhld, frlndtile_thrhld, frlake_thrhld, frsea_thrhld, frsi_min, hice_min, hice_max
   PUBLIC :: lseaice, lprog_albsi, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
   PUBLIC :: itype_trvg, itype_evsl, itype_lndtbl, l2lay_rho_snow
   PUBLIC :: itype_root, itype_heatcond, itype_interception, &
@@ -75,6 +76,9 @@ MODULE mo_lnd_nwp_config
                                  !< tile for a grid point
   REAL(wp)::  frlake_thrhld      !< fraction threshold for creating a lake grid point
   REAL(wp)::  frsea_thrhld       !< fraction threshold for creating a sea grid point
+  REAL(wp)::  frsi_min           !< minimum sea-ice fraction  [-]
+  REAL(wp)::  hice_min           !< minimum sea-ice thickness [m]
+  REAL(wp)::  hice_max           !< maximum sea-ice thickness [m]
   INTEGER ::  itype_trvg         !< type of vegetation transpiration parameterization
   INTEGER ::  itype_evsl         !< type of parameterization of bare soil evaporation
   INTEGER ::  itype_lndtbl       !< choice of table for associating surface parameters to land-cover classes
@@ -190,6 +194,13 @@ CONTAINS
     WRITE(message_text,'(a,I2)') 'Number of hydrological active soil layers ibot_w_so is set to: ',ibot_w_so
     CALL message(TRIM(routine),message_text)
 
+    ! seaice fraction limit
+    IF ( is_coupled_run() ) THEN
+       frsi_min = 1.0E-10_wp  ! ICON coupled with ocean, epsilon because ICON-O determines seaice fraction
+    ELSE
+       frsi_min = 0.015_wp    ! ICON uncoupled, limit at 1.5% seaice fraction (Dmitrii Mironov)
+    END IF
+ 
     !
     ! settings dealing with surface tiles
     !
@@ -217,8 +228,6 @@ CONTAINS
                        ! another one for lake points
                        ! another one for seaice
     ENDIF
-
-
 
     ! (open) water points tile number
     isub_water  = MAX(1,ntiles_total + ntiles_water - 2)
