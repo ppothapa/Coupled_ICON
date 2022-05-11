@@ -25,7 +25,7 @@ MODULE mo_nudging_nml
   USE mo_namelist,            ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_master_control,      ONLY: use_restart_namelists
-  USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, inh_atmosphere, inwp, max_dom
+  USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, inwp, max_dom
   USE mo_math_constants,      ONLY: dbl_eps
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist,  &
     &                               open_and_restore_namelist, close_tmpfile

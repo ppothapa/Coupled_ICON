@@ -76,6 +76,7 @@ MODULE mo_nonhydro_state
     &                                iso8601_end_timedelta_avg_fg, iso8601_interval_avg_fg, &
     &                                qcana_mode, qiana_mode, qrsgana_mode, icpl_da_sfcevap, icpl_da_skinc, &
     &                                icpl_da_sfcfric
+  USE mo_nudging_config,       ONLY: nudging_config, indg_type
   USE mo_var_list, ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
   USE mo_var_list_register, ONLY: vlr_add, vlr_del
   USE mo_var_list_register_utils, ONLY: vlr_add_vref
@@ -4976,6 +4977,25 @@ MODULE mo_nonhydro_state
                   & isteptype=TSTEP_CONSTANT,                                   &
                   & lopenacc = .TRUE. )
       __acc_attach(p_metrics%slope_azimuth)
+
+
+      IF (nudging_config(jg)%nudge_type==indg_type%ubn .OR. &
+        & nudging_config(jg)%nudge_type==indg_type%globn) THEN
+        !
+        ! vertically varying nudging coefficient
+        ! p_metrics%nudgecoeff_vert(nlev)
+        !
+        cf_desc    = t_cf_var('nudgecoeff_vert', '-',              &
+        &                     'vertically varying nudging coefficient', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_metrics_list, 'nudgecoeff_vert', p_metrics%nudgecoeff_vert, &
+                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,  &
+                    & ldims=shape1d_c,                                            &
+                    & isteptype=TSTEP_CONSTANT,                                   &
+                    & lopenacc = .TRUE. )
+        __acc_attach(p_metrics%nudgecoeff_vert)
+      ENDIF
+
 
     !Add LES related variables : Anurag Dipankar MPIM (2013-04)
 #ifndef __NO_ICON_LES__
