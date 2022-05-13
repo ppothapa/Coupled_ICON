@@ -104,7 +104,6 @@ CPPFLAGS="-I${ECCODES_INCLUDE} -I${HDF5_INCLUDE} -I${NETCDF_INCLUDE} -I${XML2_IN
 
 ICON_CFLAGS='-O2'
 ICON_BUNDLED_CFLAGS='-g -O2'
-ICON_ECRAD_FCFLAGS="-D__ECRAD_LITTLE_ENDIAN"
 
 # Fortran compiler wrapper on Linux workstation using OpenMPI
 FC="${PGI_ROOT}/comm_libs/mpi/bin/mpif90"
@@ -145,7 +144,6 @@ ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
-ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \
@@ -165,7 +163,7 @@ done
 if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
   echo "Copying runscript input files from the source directory..."
   rsync -uavz ${ICON_DIR}/run . --exclude='*in' --exclude='.*'
-  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='rrtmgp*.nc' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${ICON_DIR}/make_runscripts .
   ln -sf ${ICON_DIR}/data
   ln -sf ${ICON_DIR}/vertical_coord_tables

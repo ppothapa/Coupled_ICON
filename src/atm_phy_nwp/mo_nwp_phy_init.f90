@@ -45,7 +45,7 @@ MODULE mo_nwp_phy_init
   USE mo_parallel_config,     ONLY: nproma
   USE mo_fortran_tools,       ONLY: copy
   USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level
-  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,              &
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,               &
     &                               cldopt_filename, icpl_aero_conv, iprog_aero
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
   !radiation
@@ -106,7 +106,8 @@ MODULE mo_nwp_phy_init
   USE mo_master_config,       ONLY: isRestart
   USE mo_nwp_parameters,      ONLY: t_phy_params
 
-  USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc
+  USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
+                                    icpl_da_sfcfric
 
   USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
   USE mo_cuparameters,        ONLY: sugwd
@@ -121,23 +122,9 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_reff_interface,  ONLY: init_reff
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat, iUpatmoStat
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   USE mo_upatmo_phy_setup,    ONLY: init_upatmo_phy_nwp
 #endif
-
-  USE mo_ape_params,          ONLY: ape_sst
-  USE mo_nh_testcases_nml,    ONLY: nh_test_name, ape_sst_case, th_cbl, sol_const
-  USE mo_grid_config,         ONLY: l_scm_mode
-  USE mo_scm_nml,             ONLY: i_scm_netcdf, lscm_read_tke, lscm_read_z0, &
-                                    scm_sfc_temp, scm_sfc_qv
-  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc,read_soil_profile_nc_uf
-
-  USE mo_ape_params,          ONLY: ape_sst
-  USE mo_nh_testcases_nml,    ONLY: nh_test_name, ape_sst_case, th_cbl, sol_const
-  USE mo_grid_config,         ONLY: l_scm_mode
-  USE mo_scm_nml,             ONLY: i_scm_netcdf, lscm_read_tke, lscm_read_z0, &
-                                    scm_sfc_temp, scm_sfc_qv
-  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc,read_soil_profile_nc_uf
 
   USE mo_ape_params,          ONLY: ape_sst
   USE mo_nh_testcases_nml,    ONLY: nh_test_name, ape_sst_case, th_cbl, sol_const
@@ -149,7 +136,9 @@ MODULE mo_nwp_phy_init
   USE mo_cover_koe,           ONLY: cover_koe_config
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
+  USE mo_bc_aeropt_splumes,   ONLY: setup_bc_aeropt_splumes
   USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_ecrad
+  USE mo_bc_ozone,            ONLY: read_bc_ozone
 
   IMPLICIT NONE
 
@@ -189,7 +178,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   INTEGER             :: jk, jk1
   REAL(wp)            :: rsltn   ! horizontal resolution
   REAL(wp)            :: pref(p_patch%nlev)
-  REAL(wp)            :: zlat, zprat, zn1, zn2, zcdnc
+  REAL(wp)            :: zlat, zlon, zprat, zn1, zn2, zcdnc
   REAL(wp)            :: zpres, zpres0
   REAL(wp)            :: gz0(nproma), l_hori(nproma)
   REAL(wp)            :: scale_fac ! scale factor used only for RCE cases
@@ -220,7 +209,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   REAL(wp), ALLOCATABLE :: zpres_sfc(:,:)    ! ref sfc press
   REAL(wp), ALLOCATABLE :: zpres_ifc(:,:,:)  ! ref press at interfaces
 
-  LOGICAL :: lland, lglac, lshallow, lgrayzone_dc, ldetrain_prec
+  LOGICAL :: lland, lglac, lshallow, ldetrain_prec, lgrayzone_dc, lrestune_off, lmflimiter_off
+  LOGICAL :: lstoch_expl, lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
   LOGICAL :: lupatmo_phy, l_filename_year
@@ -244,7 +234,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   INTEGER :: istatus=0
 
   REAL(wp) :: hag                    ! height above ground
-  REAL(wp) :: h850_standard, h950_standard  ! height of 850hPa and 950hPa level in m
+  REAL(wp) :: h650_standard, h850_standard, h950_standard  ! height of 850hPa and 950hPa level in m 
 
   REAL(wp) :: N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin     ! for CCN and IN in case of gscp=5
 
@@ -333,8 +323,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   END IF
 
   ! for both restart and non-restart runs. Could not be included into
-  ! mo_ext_data_state/init_index_lists due to its dependence on p_diag_lnd.
-  CALL init_sea_lists(p_patch, ext_data, p_diag_lnd, lseaice)
+  ! mo_ext_data_state/init_index_lists due to its dependence on fr_seaice
+  CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
 
 
   IF (.NOT. lreset_mode .AND. itype_vegetation_cycle >= 2) THEN
@@ -447,6 +437,30 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           prm_diag%heatcond_fac(jc,jb) = 1._wp/MAX(0.1_wp,  1._wp-10800._wp/dt_ana*2.5_wp*p_diag%t_wgt_avginc(jc,jb)) 
           prm_diag%heatcap_fac(jc,jb)  = 1._wp/MAX(0.25_wp, 1._wp-10800._wp/dt_ana*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
         ENDIF
+      ENDDO
+    ENDIF
+    IF (icpl_da_sfcfric >= 1) THEN
+      ! Tuning factor for surface friction (roughness length and SSO blocking)
+      DO jc = i_startidx,i_endidx
+        IF (p_diag%vabs_avginc(jc,jb) > 0._wp) THEN
+          prm_diag%sfcfric_fac(jc,jb) = MAX(0.25_wp, 1._wp-2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+        ELSE
+          prm_diag%sfcfric_fac(jc,jb) = 1._wp/MAX(0.25_wp, 1._wp+2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+        ENDIF
+
+        zlat = p_patch%cells%center(jc,jb)%lat*rad2deg
+        zlon = p_patch%cells%center(jc,jb)%lon*rad2deg
+
+        ! exclude Antarctic glaciers
+        IF (ext_data%atm%fr_glac(jc,jb) > 0.99_wp .AND. zlat < -60._wp) prm_diag%sfcfric_fac(jc,jb) = 1._wp
+
+        ! prevent reduction of surface friction in regions where 10m wind data are blacklisted
+        IF (zlon >= 30._wp .AND. zlon <= 50._wp .AND. zlat >= 40._wp .AND. zlat <= 70._wp .OR. &
+            zlon >= 50._wp .AND. zlon <= 90._wp .AND. zlat >= 55._wp .AND. zlat <= 70._wp .OR. &
+            zlon >= 90._wp .AND. zlon <= 140._wp .AND. zlat >= 50._wp .AND. zlat <= 70._wp) THEN 
+          prm_diag%sfcfric_fac(jc,jb) = MAX(1._wp, prm_diag%sfcfric_fac(jc,jb))
+        ENDIF
+
       ENDDO
     ENDIF
   ENDDO
@@ -619,7 +633,12 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       IF (init_mode /= MODE_IFSANA) THEN
         ! t_g_t and qv_s_t are initialized in read_dwdfg_sfc, calculate the aggregated values
         ! needed for example for initializing the turbulence fields
-        CALL aggregate_tg_qvs( p_patch, ext_data, p_prog_lnd_now, p_diag_lnd )
+        CALL aggregate_tg_qvs( p_patch = p_patch,                      & ! in
+          &                    frac_t  = ext_data%atm%frac_t(:,:,:),   & ! in
+          &                    t_g_t   = p_prog_lnd_now%t_g_t(:,:,:),  & ! in
+          &                    qv_s_t  = p_diag_lnd%qv_s_t(:,:,:),     & ! in
+          &                    t_g     = p_prog_lnd_now%t_g(:,:),      & ! inout
+          &                    qv_s    = p_diag_lnd%qv_s(:,:)          ) ! inout
       ENDIF
 
       DO jb = i_startblk, i_endblk
@@ -925,7 +944,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     SELECT CASE ( irad_aero )
     ! Note (GZ): irad_aero=2 does no action but is the default in radiation_nml
     ! and therefore should not cause the model to stop
-    CASE (0,2,6,9,12,13,14,15)
+    CASE (0,2,6,9,12,13,14,15,18,19)
       !ok
     CASE (5)
       !ok for RRTM and captured in mo_nml_crosscheck for ecRad
@@ -1009,13 +1028,18 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         IF (irad_aero == 12) THEN                 ! Use constant Kinne aerosol
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .FALSE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/13,15/) )) THEN   ! Use Kinne climatology
+        IF (ANY( irad_aero == (/13,15,18,19/) )) THEN   ! Use Kinne climatology
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/14,15/) )) THEN   ! Use volcanic aerosol from CMIP6
+        IF (ANY( irad_aero == (/14,15,18/) )) THEN      ! Use volcanic aerosol from CMIP6
           CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
+        IF (ANY( irad_aero == (/18,19/) )) THEN   ! Use anthropogenic aerosol
+          CALL setup_bc_aeropt_splumes
+        ENDIF
         !
+        ! Read ozone transient data
+        IF (irad_o3 == 5) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
 #else
         CALL finish(routine,  &
           &      'atm_phy_nwp_config(jg)%inwp_radiation = 4 needs -D__ECRAD.')
@@ -1200,10 +1224,20 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 !    WRITE(message_text,'(i3,i10,f20.10)') jg, nsmax, phy_params%mean_charlen
 !    CALL message('nwp_phy_init, nsmax=', message_text)
 
-    lshallow = atm_phy_nwp_config(jg)%lshallowconv_only
+    lshallow   = atm_phy_nwp_config(jg)%lshallowconv_only
     lgrayzone_dc = atm_phy_nwp_config(jg)%lgrayzone_deepconv
     ldetrain_prec = atm_phy_nwp_config(jg)%ldetrain_conv_prec
-    CALL sucumf(rsltn,nlev,phy_params,lshallow,lgrayzone_dc,ldetrain_prec,pref)
+    lrestune_off = atm_phy_nwp_config(jg)%lrestune_off
+    lmflimiter_off = atm_phy_nwp_config(jg)%lmflimiter_off
+    lstoch_expl = atm_phy_nwp_config(jg)%lstoch_expl
+    lstoch_sde = atm_phy_nwp_config(jg)%lstoch_sde
+    lstoch_deep = atm_phy_nwp_config(jg)%lstoch_deep
+    lvvcouple = atm_phy_nwp_config(jg)%lvvcouple
+    lvv_shallow_deep = atm_phy_nwp_config(jg)%lvv_shallow_deep
+    
+    CALL sucumf(rsltn,nlev,phy_params,lshallow,lgrayzone_dc,ldetrain_prec,lrestune_off, &
+         & lmflimiter_off,lstoch_expl,lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep, &
+         & pref)
     CALL suphli
     CALL suvdf
     CALL suvdfs
@@ -1229,6 +1263,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   ! k800, k400 will be used for inwp_convection==0 as well. 
   ! k700 is used for LHN data assimilation
   ! Thus we need to make sure that they are initialized.
+  prm_diag%k650(:,:) = nlev
   prm_diag%k850(:,:) = nlev
   prm_diag%k950(:,:) = nlev
   prm_diag%k800(:,:) = nlev
@@ -1243,11 +1278,13 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! height of 850 and 950hPa surface for US standard atmosphere in m
   ! For derivation, see documentation of US standard atmosphere
+  h650_standard = 3590.69_wp
   h850_standard = 1457.235199_wp
   h950_standard = 540.3130233_wp
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx,hag,zpres,zpres0) ICON_OMP_DEFAULT_SCHEDULE
+
   DO jb = i_startblk, i_endblk
 
     CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
@@ -1259,6 +1296,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ! height above ground
         hag = p_metrics%z_mc(jc,jk,jb)-ext_data%atm%topography_c(jc,jb)
 
+        IF (hag < h650_standard) THEN
+          prm_diag%k650(jc,jb) = jk
+        ENDIF
         IF (hag < h950_standard) THEN
           prm_diag%k950(jc,jb) = jk
         ENDIF
@@ -1269,6 +1309,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
       ENDDO
       ! security measure
+      prm_diag%k650(jc,jb) = MAX(prm_diag%k650(jc,jb),2)
       prm_diag%k950(jc,jb) = MAX(prm_diag%k950(jc,jb),2)
       prm_diag%k850(jc,jb) = MAX(prm_diag%k850(jc,jb),2)
 
@@ -1285,8 +1326,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           EXIT
         ENDIF
       ENDDO
+   ENDDO  ! jc
 
-    ENDDO  ! jc
   ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1770,7 +1811,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       
   ENDIF
 
-#ifndef __NO_ICON_UPPER__
+#ifndef __NO_ICON_UPATMO__
   ! Upper-atmosphere physics
   !
   IF (lupatmo_phy) THEN

@@ -34,6 +34,7 @@ MODULE mo_td_ext_data
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_radiation_config,    ONLY: albedo_type
   USE mo_run_config,          ONLY: msg_level
+  USE mo_dynamics_config,     ONLY: nnow_rcf, nnew_rcf
   USE mo_read_interface,      ONLY: openInputFile, closeFile, on_cells, &
     &                               t_stream_id, read_2D_1time
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -43,7 +44,8 @@ MODULE mo_td_ext_data
     &                               SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, SSTICE_ANA_CLINC, &
     &                               MODIS
   USE mo_ext_data_init,       ONLY: interpol_monthly_mean
-  USE mo_nwp_sfc_utils,       ONLY: update_sst_and_seaice, update_ndvi_dependent_fields
+  USE mo_nwp_sfc_utils,       ONLY: process_sst_and_seaice, sst_add_climatological_incr, &
+    &                               update_ndvi_dependent_fields
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE sfc_seaice,             ONLY: frsi_min
@@ -75,11 +77,11 @@ CONTAINS
   !! modis albedo           : alb_dif, albuv_dif, albni_dif
   !!
   !! Update of aerosol fields, which is based on a monthly climatology 
-  !! happens in mo_nwp_rrtm_interface:nwp_ozon_aerosol.
+  !! happens in mo_nwp_rrtm_interface:nwp_aerosol.
   !!
   !! In addition, some fields which directly depend on the above ones
   !! are updated as well, in order to have a consistent state.
-  !! Promiment examples are the sea index lists, t_g, t_s, plcov, sai, tai.
+  !! Prominent examples are the sea index lists, t_g, t_s, plcov, sai, tai.
   !!
   !!
   !! @par Revision History
@@ -134,20 +136,45 @@ CONTAINS
     END IF
 
 
-    ! Check if the SST and Sea ice fraction have to be updated (sstice_mode 3,4,5)
-    IF ( ANY((/SSTICE_ANA_CLINC,SSTICE_CLIM,SSTICE_AVG_MONTHLY,SSTICE_AVG_DAILY/) == sstice_mode) &
-      & ) THEN
+    SELECT CASE(sstice_mode)
+    CASE (SSTICE_ANA_CLINC)
+      !
+      ! add climatological SST increment (updates t_g_t, t_s_t, t_sk_t, qv_s_t)
+      !
+      CALL sst_add_climatological_incr (p_patch        = p_patch,                       &
+        &                               ext_data       = ext_data,                      &
+        &                               prog_lnd       = p_lnd_state%prog_lnd(:),       &
+        &                               diag_lnd       = p_lnd_state%diag_lnd,          &
+        &                               pres_sfc       = p_nh_state%diag%pres_sfc(:,:), &
+        &                               ref_datetime   = ref_datetime,                  &
+        &                               target_datetime= target_datetime )
 
+    CASE(SSTICE_CLIM, SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY)
+      !
+      ! update SST (t_seasfc) and sea ice fraction (fr_seaice)
+      !
       CALL set_sst_and_seaice (.FALSE., target_datetime,                   &
                                 &  mtime_old, sstice_mode,                 &
                                 &  p_patch, ext_data, p_lnd_state)
 
-      CALL update_sst_and_seaice( p_patch, ext_data, p_lnd_state,          &
-        &                 p_nh_state, sstice_mode,                         &
-        &                 ref_datetime,                                    &
-        &                 target_datetime )
+      ! rebuild index lists for water and seaice based on fr_seaice, 
+      ! and update tiled surface temperatures
+      !
+      CALL process_sst_and_seaice (p_patch      = p_patch,                             & !in
+        &                          fr_seaice    = p_lnd_state%diag_lnd%fr_seaice(:,:), & !in(out)
+        &                          t_seasfc     = p_lnd_state%diag_lnd%t_seasfc(:,:),  & !in
+        &                          pres_sfc     = p_nh_state%diag%pres_sfc(:,:),       & !in
+        &                          ext_data     = ext_data,                            & !inout
+        &                          prog_lnd_now = p_lnd_state%prog_lnd(nnow_rcf(jg)),  & !inout
+        &                          prog_lnd_new = p_lnd_state%prog_lnd(nnew_rcf(jg)),  & !inout
+        &                          prog_wtr_now = p_lnd_state%prog_wtr(nnow_rcf(jg)),  & !inout
+        &                          prog_wtr_new = p_lnd_state%prog_wtr(nnew_rcf(jg)),  & !inout
+        &                          diag_lnd     = p_lnd_state%diag_lnd  )                !inout
 
-    END IF  !sstice_mode>1
+    CASE DEFAULT
+      !
+      ! do nothing (sstice_mode = SSTICE_ana, SSTICE_INST) 
+    END SELECT
 
 
     ! Check if MODIS albedo needs to be updated

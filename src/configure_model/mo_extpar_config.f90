@@ -52,6 +52,7 @@ MODULE mo_extpar_config
   PUBLIC :: extpar_varnames_map_file
   PUBLIC :: i_lctype
   PUBLIC :: nclass_lu
+  PUBLIC :: nhori          ! number of sectors for horizon
   PUBLIC :: nmonths_ext
 
   ! subroutines/functions
@@ -82,6 +83,7 @@ MODULE mo_extpar_config
   LOGICAL  :: lrevert_sea_height  ! if true: bring sea points back to original height
   INTEGER  :: pp_sso      ! if >0: postprocess SSO over glaciers to reduce contribution of mean slope
   INTEGER  :: itype_vegetation_cycle
+  INTEGER  :: nhori           ! number of sectors for horizon
 
   ! ExtPar input filename, may contain keywords, by default
   ! extpar_filename = "<path>extpar_<gridfile>"

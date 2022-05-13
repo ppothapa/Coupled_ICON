@@ -130,6 +130,7 @@ USE mo_lnd_nwp_config,     ONLY: lmulti_snow, l2lay_rho_snow,     &
   &                              itype_root, itype_heatcond,      &
   &                              itype_hydbound,                  &
   &                              itype_canopy, tau_skin,          &
+  &                              lterra_urb, itype_eisa,          &
   &                              lstomata,                        &
   &                              max_toplaydepth, itype_interception, &
   &                              cwimax_ml
@@ -188,15 +189,20 @@ CONTAINS
                   laifac           , & ! ratio between current LAI and laimax            --
                   eai              , & ! earth area (evaporative surface area) index     --
                   skinc            , & ! skin conductivity                        ( W/m**2/K )
-                  heatcond_fac     , & ! tuning factor for soil heat conductivity
+! for TERRA_URB
+                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
+                  urb_isa          , & ! urban impervious surface area                 (  -  )
+                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
+!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
+                  urb_h_bld        , & ! building height                               (  m  )
+                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
+!
+                  heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
+!
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
                   z0               , & ! vegetation roughness length                   ( m   )
-! for TERRA_URB
-!                 fr_paved         , & ! fraction of paved area                          --
-!                 sa_uf            , & ! total impervious surface-area index
-!                 ai_uf            , & ! surface area index of the urban fabric
-!                 alb_red_uf       , & ! albedo reduction factor for the urban fabric
 !
                   u                , & ! zonal wind speed                              ( m/s )
                   v                , & ! meridional wind speed                         ( m/s )
@@ -338,13 +344,17 @@ CONTAINS
                   laifac           , & ! ratio between current LAI and laimax
                   eai              , & ! earth area (evaporative surface area) index     --
                   skinc            , & ! skin conductivity                        ( W/m**2/K )
-                  heatcond_fac     , & ! tuning factor for soil heat conductivity
-                  heatcap_fac      , & ! tuning factor for soil heat capacity
 ! for TERRA_URB
-!                 fr_paved         , & ! fraction of paved ared                          --
-!                 sa_uf            , & ! total impervious surface-area index
-!                 ai_uf            , & ! surface area index of the urban fabric
-!                 alb_red_uf       , & ! albedo reduction factor for the urban fabric
+                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
+                  urb_isa          , & ! urban impervious surface area                 (  -  )
+                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
+!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
+                  urb_h_bld        , & ! building height                               (  m  )
+                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
+!
+                  heatcond_fac     , & ! tuning factor for soil thermal conductivity
+                  heatcap_fac      , & ! tuning factor for soil heat capacity
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
                   u                , & ! zonal wind speed                              ( m/s )
                   v                , & ! meridional wind speed                         ( m/s )
@@ -1047,10 +1057,13 @@ mvid =   8
         WRITE(*,'(A,F28.16)') '   eai              :  ', eai         (i)
         WRITE(*,'(A,F28.16)') '   skinc            :  ', skinc       (i)
 ! for TERRA_URB
-!       WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
-!       WRITE(*,'(A,F28.16)') '   sa_uf            :  ', sa_uf       (i)
-!       WRITE(*,'(A,F28.16)') '   ai_uf            :  ', ai_uf       (i)
-!       WRITE(*,'(A,F28.16)') '   alb_red_uf       :  ', alb_red_uf  (i)
+        WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
+        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
+        WRITE(*,'(A,F28.16)') '   urb_ai           :  ', urb_ai      (i)
+!       WRITE(*,'(A,F28.16)') '   urb_alb_red      :  ', urb_alb_red (i)
+        WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
         WRITE(*,'(A,F28.16)') '   rsmin2d          :  ', rsmin2d     (i)
         WRITE(*,'(A       )') ' Other input parameters:'
         WRITE(*,'(A,F28.16)') '   u     ke         :  ', u           (i)
@@ -1147,7 +1160,10 @@ ENDDO
   !$acc present(zmls)                                                &
   !$acc present(soiltyp_subs, plcov, rootdp, sai, eai, tai)    &
   !$acc present(laifac)                                              &
-  !$acc present(skinc, heatcond_fac, heatcap_fac)                    &
+  !$acc present(skinc)                                               &
+  !$acc present(fr_paved, urb_isa, urb_ai, urb_h_bld)                &
+  !$acc present(urb_hcap, urb_hcon)                                  &
+  !$acc present(heatcond_fac, heatcap_fac)                           &
   !$acc present(rsmin2d, u, v, t, qv, ptot, ps, h_snow_gp, u_10m)    &
   !$acc present(v_10m, prr_con, prs_con, conv_frac, prr_gsp,prs_gsp,pri_gsp) &
 #ifdef TWOMOM_SB
@@ -1659,31 +1675,34 @@ ENDDO
   ENDIF
 
 
-! IF ( lterra_urb .AND. lurbfab) THEN
-!   ! HW: modification of the surface-heat conductivity: 
-!   ! - according to the building materials, 
-!   ! - area index of buildings (ai_uf), height of building elements (c_uf_h)
-!   !   and building fraction (sa_uf)
-!   ! - area index of natural surfaces (c_lnd) and height of natural soil elements (c_lnd_h)
-!   ! 
-!   ! Because of the curvature of the surface, the uppermost soil layer heat 
-!   ! transfer is larger compared to the heat conductivity of a plan area. 
-!   ! As a result, the effective heat conductivity of the upper surface is increased.
-!   ! This is also the surface layers beneath in which the effect heat conductivity 
-!   ! decreases with depth.
+  IF (lterra_urb) THEN
+    ! HW: Modification of the surface thermal conductivity:
+    ! - according to the building materials,
+    ! - area index of buildings (urb_ai), height of building elements (urb_h_bld)
+    !   and building fraction (urb_isa)
+    ! - area index of natural surfaces (c_lnd) and height of natural soil elements (c_lnd_h)
+    !
+    ! Because of the curvature of the surface, the uppermost soil layer heat
+    ! transfer is larger compared to the thermal conductivity of a plan area.
+    ! As a result, the effective thermal conductivity of the upper surface is increased.
+    ! This is also the case in the layers beneath, in which the effective thermal conductivity
+    ! decreases with depth.
 
-!   ! this modification decreases with depth with respect to the 
-!   ! natural soil below the buildings.
-!   DO kso = 1, ke_soil
-!     zalpha_uf  = MAX (0.0_wp, MIN(zmls(kso)/c_uf_h ,1.0_wp))
-!     zalpha_lnd = MAX (0.0_wp, MIN(zmls(kso)/c_lnd_h,1.0_wp))
+    ! This modification decreases with depth with respect to the
+    ! natural soil below the buildings.
 
-!     DO i = ivstart, ivend
-!       zalam(i,kso) = sa_uf(i) * c_ala_bm     * ( ai_uf(i)*(1.0_wp - zalpha_uf ) + zalpha_uf ) + &
-!             (1.0_wp-sa_uf(i)) * zalam(i,kso) *    ( c_lnd*(1.0_wp - zalpha_lnd) + zalpha_lnd)
-!     ENDDO
-!   ENDDO
-! END IF
+    DO kso = 1, ke_soil
+      DO i = ivstart, ivend
+
+        zalpha_uf    = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
+
+        zalam(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcon(i)*urb_ai(i)  &
+                                                 +         zalpha_uf  * zalam(i,kso)        )  &
+                     + (1.0_wp - urb_isa(i)) * zalam(i,kso)
+
+      ENDDO
+    ENDDO
+  END IF
 
 ! Initialisations and conversion of tch to tmch
   !$acc loop gang(static:1) vector
@@ -2786,18 +2805,24 @@ ENDDO
     END DO
   END DO      !soil layers
 
-! IF (lterra_urb .AND. lurbfab) THEN
-!   ! HW: modification of soil heat capacity in urban areas: interpolation between buildings and non-buildings, 
-!   !     modification decreases with respect to the natural soil below. 
-!   !     Below c_uf_h, everything is natural soil.
-!   DO kso = 1, ke_soil+1
-!     DO i = ivstart, ivend
-!       zalpha_uf   = MAX (0.0_wp, MIN(zmls(kso)/c_uf_h,1.0_wp))
-!       zroc(i,kso) = sa_uf(i) * (1.0_wp - zalpha_uf) *  c_rhoc_bm  +       &
-!                     (1.0_wp - sa_uf(i) + sa_uf(i)*zalpha_uf) *  zroc(i,kso)
-!     ENDDO
-!   ENDDO
-! END IF
+  IF (lterra_urb) THEN
+    ! HW: modification of soil heat capacity in urban areas:
+    !     interpolation between buildings and non-buildings, 
+    !     modification decreases with respect to the natural soil below. 
+    !     Below urb_h_bld, everything is natural soil.
+
+    DO kso = 1, ke_soil+1
+      DO i = ivstart, ivend
+
+        zalpha_uf   = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
+
+        zroc(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcap(i)*urb_ai(i)  &
+                                                +         zalpha_uf  * zroc(i,kso)         )  &
+                    + (1.0_wp - urb_isa(i)) * zroc(i,kso)
+
+      ENDDO
+    ENDDO
+  END IF
 
 !------------------------------------------------------------------------------
 ! Section II.3: Estimate thermal surface fluxes
@@ -3726,7 +3751,7 @@ ENDDO
       ! part of surface based on area mean values calculated in radiation
       ! code (positive = downward)
 
-!     IF (lterra_urb .AND. lurbfab) THEN
+!     IF (lterra_urb) THEN
 !       ! modification of the infrared albedo according to the buliding fraction
 !       ztalb = sa_uf(i) * ctalb_bm * alb_red_uf(i) + (1.0_wp - sa_uf(i)) * Ctalb
 !     ELSE
@@ -4006,7 +4031,7 @@ ENDDO
       ! part of surface based on area mean values calculated in radiation
       ! code (positive = downward)
 
-!     IF (lterra_urb .AND. lurbfab) THEN
+!     IF (lterra_urb) THEN
 !       ! modification of the infrared albedo according to the buliding fraction
 !       ztalb = sa_uf(i) * ctalb_bm * alb_red_uf(i) + (1.0_wp - sa_uf(i)) * Ctalb
 !     ELSE
@@ -5007,7 +5032,8 @@ ENDDO
       t_sk_new(i)    = t_s_new(i)
     ELSE IF (itype_canopy == 2) THEN
 
-      ! Calculation of the skin temperature (snow free area), based on Viterbo and Beljaars (1995)
+      ! Calculation of the skin temperature (snow free area), 
+      ! based on Viterbo and Beljaars (1995) and Schulz and Vogel (2020).
       ! A Newtonian relaxation approach is used to ensure numerical stability
 
       IF (w_snow_now(i) > eps_soil .OR. w_snow_new(i) > eps_soil) THEN

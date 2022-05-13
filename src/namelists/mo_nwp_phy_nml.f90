@@ -58,6 +58,19 @@ MODULE mo_nwp_phy_nml
   ! switches defining physics packages
   INTEGER  :: inwp_convection(max_dom)    !! convection
   LOGICAL  :: lshallowconv_only(max_dom)  !! use shallow convection only
+  LOGICAL  :: lstoch_expl(max_dom)        !! use explicit stochastic shallow convection
+  !!! NOTE! Explicit stochastic scheme is experimental, cloud ensemble variables not saved for restart!!!
+  !!! --> Will fail restart test. Use SDE version if restart capability is required.
+  LOGICAL  :: lstoch_sde(max_dom)         !! use stochastic differential eqns for convection
+  LOGICAL  :: lstoch_deep(max_dom)        !! use stochastic deep convection parameterization
+  LOGICAL  :: lvvcouple(max_dom)          !! use vertical velocity at 650hPa as criterion to couple
+                                          !! shallow convection with resolved deep convection 
+  LOGICAL  :: lvv_shallow_deep(max_dom)   !! use vertical velocity at 650hPa to distinguish between shallow and 
+                                          !! deep convection within convection routines (instead of cloud depth)
+  LOGICAL  :: lstoch_spinup(max_dom)      !! spin up cloud ensemble to equilibrium, in shallow stochastic convection
+  LOGICAL  :: lrestune_off(max_dom)       !! switch off all resolution-dependent tuning in convection setup
+  LOGICAL  :: lmflimiter_off(max_dom)     !! switch off MF limiters in convection setup
+  INTEGER  :: nclds(max_dom)              !! max number of clouds in stochastic cloud ensemble
   LOGICAL  :: lgrayzone_deepconv(max_dom) !! use grayzone tuning for deep convection
   LOGICAL  :: ldetrain_conv_prec(max_dom) !! detrain convective rain and snow
   INTEGER  :: inwp_cldcover(max_dom)      !! cloud cover
@@ -105,11 +118,14 @@ MODULE mo_nwp_phy_nml
     &                    latm_above_top, itype_z0, mu_rain,          &
     &                    mu_snow, icapdcycl, icpl_aero_conv,         &
     &                    lrtm_filename, cldopt_filename, icpl_o3_tp, &
-    &                    iprog_aero, lshallowconv_only,              &
+    &                    iprog_aero, lshallowconv_only,lstoch_expl,  &
+    &                    lvvcouple, lvv_shallow_deep,lstoch_spinup,  &
+    &                    lrestune_off,nclds,                         &
+    &                    lmflimiter_off, lstoch_sde,lstoch_deep,     &
     &                    ldetrain_conv_prec, rain_n0_factor,         &
     &                    icalc_reff, lupatmo_phy, icpl_rad_reff,     &
     &                    lgrayzone_deepconv, ithermo_water
- 
+
 CONTAINS
 
   !-------------------------------------------------------------------------
@@ -176,7 +192,16 @@ CONTAINS
     ! 1b. Defaults for some other variables
     !------------------------------------------------------------------
 
+    nclds(:)              = 5000
     lshallowconv_only(:)  = .FALSE.
+    lstoch_expl(:)        = .FALSE. ! default: no stochastic convection
+    lstoch_sde(:)         = .FALSE. ! default: no stochastic convection with differential equations
+    lstoch_deep(:)        = .FALSE. ! default: no stochastic deep convection is used
+    lvvcouple(:)          = .FALSE. ! default: no vertical velocity used to couple shallow and resolve deep convection
+    lvv_shallow_deep(:)   = .FALSE. ! default: shallow/deep distinguished by cloud depth (rdepths), not by vertical velocity
+    lstoch_spinup(:)      = .FALSE. ! default: no spinup of stochastic shallow cloud ensemble
+    lrestune_off(:)       = .FALSE. ! default: all tunings as for default master branch
+    lmflimiter_off(:)     = .FALSE. ! default: mass flux limiters on
     lgrayzone_deepconv(:) = .FALSE.
     ldetrain_conv_prec(:) = .FALSE.
 
@@ -402,8 +427,8 @@ CONTAINS
         CALL finish(routine,'GPU version only available for cloud cover 1.')
       ENDIF
 
-      IF (inwp_sso(jg) /= 1) THEN
-        CALL finish(routine,'GPU version only available for inwp_sso == 1.')
+      IF (ALL((/0,1/) /= inwp_sso(jg))) THEN
+        CALL finish(routine,'GPU version only available for inwp_sso == 0 or 1.')
       ENDIF
 #endif
 
@@ -413,6 +438,12 @@ CONTAINS
       IF ( ANY((/10,11,12/) == inwp_turb(jg)) ) THEN
         inwp_turb(jg) = 1
         WRITE(message_text,'(a,i2)') 'Reset inwp_turb to 1 for domain ', jg
+        CALL message(TRIM(routine), TRIM(message_text))
+      ENDIF
+
+      IF (lstoch_expl(jg) .and. lstoch_sde(jg) ) THEN
+         lstoch_sde(jg)=.FALSE.
+         WRITE(message_text,'(a,i2)') 'lstoch_expl and lstoch_sde cannot both be true. SDE has been switched off for domain ', jg
         CALL message(TRIM(routine), TRIM(message_text))
       ENDIF
 
@@ -436,7 +467,16 @@ CONTAINS
       atm_phy_nwp_config(jg)%inwp_surface    = inwp_surface(jg)
       atm_phy_nwp_config(jg)%itype_z0        = itype_z0
 
+      atm_phy_nwp_config(jg)%nclds              = nclds(jg)
       atm_phy_nwp_config(jg)%lshallowconv_only  = lshallowconv_only(jg)
+      atm_phy_nwp_config(jg)%lstoch_expl        = lstoch_expl(jg)
+      atm_phy_nwp_config(jg)%lstoch_sde         = lstoch_sde(jg)
+      atm_phy_nwp_config(jg)%lstoch_deep        = lstoch_deep(jg)
+      atm_phy_nwp_config(jg)%lvvcouple          = lvvcouple(jg)
+      atm_phy_nwp_config(jg)%lvv_shallow_deep   = lvv_shallow_deep(jg)
+      atm_phy_nwp_config(jg)%lstoch_spinup      = lstoch_spinup(jg)
+      atm_phy_nwp_config(jg)%lrestune_off       = lrestune_off(jg)
+      atm_phy_nwp_config(jg)%lmflimiter_off     = lmflimiter_off(jg)
       atm_phy_nwp_config(jg)%lgrayzone_deepconv = lgrayzone_deepconv(jg)
       atm_phy_nwp_config(jg)%ldetrain_conv_prec = ldetrain_conv_prec(jg)
 

@@ -51,7 +51,7 @@ and compiler flags, and *building* the source code with those options and flags.
 
 The configuration step is normally done by running the
 [./configure](./configure) script with command-line arguments, which, among
-other things, tell the script where to locate libraries and tools required for
+other things, tells the script where to locate libraries and tools required for
 building. The list of arguments enabling a successful configuration might be
 quite long and difficult to compose, therefore, instead of running the generic
 [./configure](./configure) script directly, users are recommended to execute a
@@ -746,11 +746,10 @@ Fortran preprocessor directives);
 The list of source files is a result of recursive search for files that have
 the aforementioned extenions and reside in the [src](./src) and
 [support](./support) subdirectories of the source root directory of ICON.
-Additionaly, depending on the whether the corresponding components of the model
-were enabled at the configuration stage, the list is extended with Fortran
-source files from the `./externals/jsbach/src`,
-`./externals/dace_icon/src_for_icon`, `./externals/emvorado` and
-`./externals/art` subdirectories.
+Additionaly, depending on whether the corresponding components of the model were
+enabled at the configuration stage, the list is extended with Fortran source
+files from the `./externals/jsbach/src`, `./externals/dace_icon/src_for_icon`,
+`./externals/emvorado` and `./externals/art` subdirectories.
 
 > **_NOTE:_** In general, you can extend the source base of ICON just by adding
 the source files to the [src](./src) subdirectory of the source root directory
@@ -772,7 +771,7 @@ configuration stage (`--enable-jsbach`). Otherwise, the source files of the
 component are completely ignored. The output files of this procedure have the
 same name as the input files plus an additional infix `.pp-jsb`.
 2. Depending on whether the *CLAW preprocessing* (`--enable-claw`) is enabled,
-the result of the previous step (currently, only JSBACH files are preprocessed
+the results of the previous step (currently, only JSBACH files are preprocessed
 at this step) are preprocessed with the [CLAW](https://claw-project.github.io/)
 compiler. The output files of this procedure have the same name as the input
 files plus an additional infix `.pp-clw`.
@@ -1224,3 +1223,19 @@ for example:
 $ export icon_data_rootFolder='/path/to/ICON/data'
 $ ./make_runscripts -s atm_amip_test
 ```
+
+<a name="faq-5" href="#faq-5">5. **I have problems configuring/building ICON.
+What is the most efficient way to ask for help?**</a>
+
+Whoever you ask for help will appreciate receiving the log files. You can
+generate a tarball with the log files by running the following commands from the
+root build directory of ICON:
+```console
+$ make V=1 2>&1 | tee make.log
+$ tar --transform 's:^:build-report/:' -czf build-report.tar.gz $(find . -name 'config.log') make.log
+```
+The result of the commands above will be file `build-report.tar.gz`, which
+should be attached to the very first email describing your problem. Please, do
+not forget to specify the **repository** and the **branch** that you experience
+the issue with, preferably in the form of a URL
+(e.g. https://gitlab.dkrz.de/icon/icon/-/tree/icon-2.6.5-rc).

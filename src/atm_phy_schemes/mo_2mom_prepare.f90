@@ -147,6 +147,13 @@ CONTAINS
       END DO
     END DO
 
+     WHERE(cloud%q(its:ite,kts:kte)   <= 1.0e-12_wp) cloud%n(its:ite,kts:kte)   = 0.0_wp  
+     WHERE(rain%q(its:ite,kts:kte)    <= 1.0e-12_wp) rain%n(its:ite,kts:kte)    = 0.0_wp  
+     WHERE(ice%q(its:ite,kts:kte)     <= 1.0e-12_wp) ice%n(its:ite,kts:kte)     = 0.0_wp  
+     WHERE(snow%q(its:ite,kts:kte)    <= 1.0e-12_wp) snow%n(its:ite,kts:kte)    = 0.0_wp  
+     WHERE(graupel%q(its:ite,kts:kte) <= 1.0e-12_wp) graupel%n(its:ite,kts:kte) = 0.0_wp  
+     WHERE(hail%q(its:ite,kts:kte)    <= 1.0e-12_wp) hail%n(its:ite,kts:kte)     = 0.0_wp  
+
   END SUBROUTINE prepare_twomoment
 
   SUBROUTINE post_twomoment(atmo, cloud, rain, ice, snow, graupel, hail, &

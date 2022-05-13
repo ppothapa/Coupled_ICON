@@ -278,6 +278,12 @@ MODULE mo_impl_constants
   ! maximum allowed number of echotop levels:
   INTEGER, PARAMETER :: max_echotop = 10
   
+  ! maximum allowed number of wshear levels:
+  INTEGER, PARAMETER :: max_wshear = 10
+  
+  ! maximum allowed number of srh levels:
+  INTEGER, PARAMETER :: max_srh = 10
+  
   ! identifiers for model initialization
   INTEGER, PARAMETER :: ianalytic      =  0 ! - from analytical functions
   INTEGER, PARAMETER :: irestart       =  1 ! - from restart file
@@ -579,6 +585,10 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_VOR_V     = 27 !< task: compute meridional component of relative vorticity
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_BVF2      = 28 !< task: compute square of Brunt-Vaisala frequency
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_PARCELFREQ2 = 29 !< task: compute square of general parcel oscillation frequency
+  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_WSHEAR_U  = 30 !< task: compute vertical U-wind shear component
+  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_WSHEAR_V  = 31 !< task: compute vertical V-wind shear component
+  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_LAPSERATE = 32 !< task: compute T(500hPa) - T(850hPa)
+  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_SRH       = 33 !< task: compute storm relative helicity
 
   !--------------------------------------------------------------------!
   !  VARIABLE TIMELEVEL SPECIFICATION (FOR POST-PROCESSING SCHEDULER)  !

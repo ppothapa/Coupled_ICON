@@ -165,6 +165,9 @@ MODULE mo_pp_scheduler
     &                                   TASK_COMPUTE_CEILING,                               &
     &                                   TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,             &
     &                                   TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,        &
+    &                                   TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,       &
+    &                                   TASK_COMPUTE_LAPSERATE,                             &
+    &                                   TASK_COMPUTE_SRH,                                   &
     &                                   TASK_INTP_VER_ZLEV,                                 &
     &                                   TASK_INTP_VER_ILEV, TASK_INTP_EDGE2CELL,            &
     &                                   UNDEF_TIMELEVEL, ALL_TIMELEVELS,                    &
@@ -261,11 +264,12 @@ CONTAINS
         SELECT CASE(elem%info%l_pp_scheduler_task)
         CASE (TASK_COMPUTE_RH,      TASK_COMPUTE_OMEGA,   TASK_COMPUTE_PV,      &
           &   TASK_COMPUTE_VOR_U,   TASK_COMPUTE_VOR_V,   TASK_COMPUTE_BVF2,    &
-          &   TASK_COMPUTE_PARCELFREQ2,                                         &
+          &   TASK_COMPUTE_PARCELFREQ2, TASK_COMPUTE_LAPSERATE,                 &
+          &   TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V, TASK_COMPUTE_SRH,   &
           &   TASK_COMPUTE_LPI,     TASK_COMPUTE_CEILING, TASK_COMPUTE_HBAS_SC, &
           &   TASK_COMPUTE_HTOP_SC, TASK_COMPUTE_TWATER,  TASK_COMPUTE_Q_SEDIM, &
           &   TASK_COMPUTE_DBZ850,  TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_SMI,     &
-          &   TASK_COMPUTE_SDI2)
+          &   TASK_COMPUTE_SDI2 )
           CALL pp_scheduler_register(name=elem%info%name, jg=jg, p_out_var=elem, &
             &    l_init_prm_diag=l_init_prm_diag, job_type=elem%info%l_pp_scheduler_task ) 
         CASE (TASK_INTP_MSL)
@@ -1303,6 +1307,7 @@ CONTAINS
   SUBROUTINE pp_scheduler_register(name, jg, p_out_var,             &
     &                              l_init_prm_diag, job_type,       &
     &                              opt_priority, opt_l_output_step, &
+    &                              opt_l_accumulation_step,         &
     &                              opt_p_in_var)
 
     CHARACTER(LEN=*)                   , INTENT(IN) :: name
@@ -1312,18 +1317,22 @@ CONTAINS
     INTEGER                            , INTENT(IN) :: job_type
     INTEGER, OPTIONAL                  , INTENT(IN) :: opt_priority
     LOGICAL, OPTIONAL                  , INTENT(IN) :: opt_l_output_step
+    LOGICAL, OPTIONAL                  , INTENT(IN) :: opt_l_accumulation_step
     TYPE (t_var), POINTER, OPTIONAL        :: opt_p_in_var
     ! local variables
     LOGICAL                    :: l_output_step
+    LOGICAL                    :: l_accumulation_step
     INTEGER                    :: priority
     TYPE(t_job_queue), POINTER :: task
     
     ! set default values
     l_output_step = .TRUE.
+    l_accumulation_step = .TRUE.
     priority      = DEFAULT_PRIORITY0
     ! assign optional parameters:
     IF (PRESENT(opt_priority)) priority = opt_priority
     IF (PRESENT(opt_l_output_step)) l_output_step = opt_l_output_step
+    IF (PRESENT(opt_l_accumulation_step)) l_accumulation_step = opt_l_accumulation_step
     ! create a post-processing task and fill its input/output data:
     task => pp_task_insert(priority)
     WRITE (task%job_name, *) TRIM(name),", DOM ",jg
@@ -1339,7 +1348,10 @@ CONTAINS
     END IF
     task%data_output%var             => p_out_var
     task%job_type                    =  job_type
-    task%activity                    =  new_activity_status(l_output_step=l_output_step)
+    task%activity                    =  new_activity_status( &
+      &   l_output_step=l_output_step, &
+      &   l_accumulation_step=l_accumulation_step &
+      )
     task%activity%check_dom_active   =  .TRUE.
     task%activity%i_timelevel        =  ALL_TIMELEVELS
   END SUBROUTINE pp_scheduler_register
@@ -1403,7 +1415,8 @@ CONTAINS
         &    TASK_COMPUTE_LPI, TASK_COMPUTE_CEILING, TASK_COMPUTE_HBAS_SC, TASK_COMPUTE_HTOP_SC,   &
         &    TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM, TASK_COMPUTE_DBZ850, TASK_COMPUTE_DBZCMAX, &
         &    TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V, TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,  &
-        &    TASK_COMPUTE_SMI )
+        &    TASK_COMPUTE_SMI, TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V, TASK_COMPUTE_SRH,     &
+        &    TASK_COMPUTE_LAPSERATE )
         IF (timers_level >= 5) CALL timer_start(timer_opt_diag_atmo)
         CALL pp_task_compute_field(ptr_task, simulation_status)
         IF (timers_level >= 5) CALL timer_stop(timer_opt_diag_atmo)
@@ -1464,9 +1477,6 @@ CONTAINS
     pp_task_is_active = .FALSE.
     IF (ANY(ptr_task%activity%status_flags(:)  .AND.  &
       &     sim_status%status_flags(:))) pp_task_is_active = .TRUE.
-
-    IF ( ptr_task%job_type  == TASK_INTP_MSL .AND. &
-      &  sim_status%status_flags(4))  pp_task_is_active = .TRUE.
 
     ! check, if current task applies only to domains which are
     ! "active":
@@ -1587,13 +1597,13 @@ CONTAINS
   ! Quasi-constructor for "t_simulation_status" variables
   ! 
   ! Fills data structure with default values (unless set otherwise).
-  FUNCTION new_activity_status(l_output_step, l_first_step, l_last_step, &
+  FUNCTION new_activity_status(l_output_step, l_first_step, l_last_step, l_accumulation_step, &
     &                          check_dom_active, i_timelevel)  &
     RESULT(activity_status)
 
     TYPE(t_activity_status) :: activity_status
     LOGICAL, INTENT(IN), OPTIONAL      :: &
-      &  l_output_step, l_first_step, l_last_step
+      &  l_output_step, l_first_step, l_last_step, l_accumulation_step
     LOGICAL, INTENT(IN), OPTIONAL      :: &
       &  check_dom_active
     INTEGER, INTENT(IN), OPTIONAL      :: &
@@ -1606,6 +1616,7 @@ CONTAINS
     IF (PRESENT(l_output_step)) activity_status%status_flags(1) = l_output_step
     IF (PRESENT(l_first_step)) activity_status%status_flags(2) = l_first_step
     IF (PRESENT(l_last_step)) activity_status%status_flags(3) = l_last_step
+    IF (PRESENT(l_accumulation_step)) activity_status%status_flags(4) = l_accumulation_step
 
     ! as a default, all domains are "inactive", i.e. the activity
     ! flags are not considered:

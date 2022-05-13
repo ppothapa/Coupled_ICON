@@ -1549,7 +1549,7 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(2, 0, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'runoff_s', p_diag_lnd%runoff_s,        &
            & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_RUNOFF_S, cf_desc, grib2_desc,       &
-           & ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.,                      &
+           & ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.,                      &
            & isteptype=TSTEP_ACCUM,                                                &
            & hor_interp=create_hor_interp_metadata(                                &
            &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                              &
@@ -1566,7 +1566,7 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(2, 0, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'runoff_g', p_diag_lnd%runoff_g,        &
            & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_RUNOFF_G, cf_desc, grib2_desc,       &
-           & ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.,                      &
+           & ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.,                      &
            & isteptype=TSTEP_ACCUM,                                                &
            & hor_interp=create_hor_interp_metadata(                                &
            &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                              &

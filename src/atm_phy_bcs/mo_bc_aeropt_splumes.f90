@@ -31,9 +31,6 @@ MODULE mo_bc_aeropt_splumes
   USE mo_model_domain,         ONLY: p_patch
   USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
-  USE mo_radiation_general,    ONLY: &
-      &  sw_wv1 => wavenum1     ,&     !< smallest wave number in each of the sw bands
-      &  sw_wv2 => wavenum2            !< largest wave number in each of the sw bands
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime, getDayOfYearFromDateTime, &
        &                             getNoOfSecondsElapsedInDayDateTime, &
@@ -440,7 +437,8 @@ MODULE mo_bc_aeropt_splumes
   SUBROUTINE add_bc_aeropt_splumes                                                ( &
      & jg, jcs        ,kproma         ,kbdim          ,klev           ,krow        ,&
      & nb_sw          ,this_datetime  ,zf             ,dz             ,z_sfc       ,&
-     & aod_sw_vr      ,ssa_sw_vr      ,asy_sw_vr      ,x_cdnc                      )
+     & sw_wv1         ,sw_wv2         ,aod_sw_vr      ,ssa_sw_vr      ,asy_sw_vr   ,&
+     & x_cdnc                                                                      )                                                  
     !
     ! --- 0.1 Variables passed through argument list
     INTEGER, INTENT(IN) ::            &
@@ -457,7 +455,9 @@ MODULE mo_bc_aeropt_splumes
     REAL(wp), INTENT (IN)        :: &
          zf(kbdim,klev),            & !< geometric height at full level [m]
          dz(kbdim,klev),            & !< geometric height thickness     [m]
-         z_sfc(kbdim)                 !< geometric height of surface    [m]
+         z_sfc(kbdim),              & !< geometric height of surface    [m]
+         sw_wv1(nb_sw),             & !< smallest wave number in each of the sw bands
+         sw_wv2(nb_sw)                !< largest  wave number in each of the sw bands
 
     REAL(wp), INTENT (INOUT) ::       &
          aod_sw_vr(kbdim,klev,nb_sw) ,& !< Aerosol shortwave optical depth

@@ -50,7 +50,7 @@ MODULE mo_cucalclfd
 CONTAINS
 
 SUBROUTINE cucalclfd(klon, klev, ktype, ztu, zlu, kcbot, zcape, zmflxs &
-      &            , zten, pap, zdgeoh, zgeoh, ldland, lfd)
+      &            , zten, pap, zdgeoh, zgeoh, ldland, lfd, lacc)
 
 ! Code Description:
 !     PARAMETER     DESCRIPTION                                   UNITS
@@ -99,6 +99,7 @@ REAL(KIND=jprb)   ,INTENT(in)  :: zgeoh(klon,klev+1)
 REAL(KIND=jprb)   ,INTENT(in)  :: zcape(klon) 
 INTEGER(KIND=jpim),INTENT(in)  :: kcbot(klon)
 LOGICAL           ,INTENT(in)  :: ldland(klon) 
+LOGICAL           ,INTENT(in)  :: lacc
 REAL(KIND=jprb)   ,INTENT(out) :: lfd(klon)
 
 REAL(KIND=jprb)   :: zrho(klon,klev)
@@ -111,6 +112,7 @@ REAL(KIND=jprb)   :: zqr(klon)
 ! beta(1) for land, beta(2) for sea - Takahashi 2006 (mentioned
 ! in Lopez 2016)
 REAL(KIND=jprb), PARAMETER :: beta(2)= [0.7_jprb , 0.45_jprb ]
+!$acc declare copyin (beta)
 ! some constants from Lopez 2016
 REAL(KIND=jprb), PARAMETER :: Vgraup=3.0_jprb ! 3   m/s fall speed for graupel
 REAL(KIND=jprb), PARAMETER :: Vsnow=0.5_jprb  ! 0.5 m/s fall speed for snow
@@ -121,18 +123,37 @@ REAL(KIND=jprb) :: zqIce, zqLiquid, zqGraup, zqSnow, zEps, zQi, zdz
 
 INTEGER(KIND=jpim) :: jk, jl
 
+!$acc data                                                                                      &
+!$acc present( ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zgeoh, zcape, kcbot, ldland, lfd )   &
 
-! Make land sea-mask for beta
-  kland=2_jpim
-  WHERE (ldland) kland=1_jpim
+!$acc create( zrho, zqr, kland )                                                                &
+!$acc if(lacc)
 
-  zrho=pap/(zten*Rd+1E-10_jprb)
+  !US we could use default (none) here, but PGI complains about beta then!?
+  !$acc parallel default(present) if (lacc)
+
+  ! Make land sea-mask for beta
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
+    kland(jl) = MERGE (1_jpim, 2_jpim, ldland(jl))
+    zQR  (jl) = 0.0_jprb
+    lfd  (jl) = 0.0_jprb
+  ENDDO
+
+  !$acc loop seq
+  DO jk = 1, klev
+    !$acc loop gang(static:1) vector
+    DO JL = 1, klon
+      zrho(JL,JK)=pap(JL,JK)/(zten(JL,JK)*Rd+1E-10_jprb)
+    ENDDO
+  ENDDO
 
   ! Compute the LFD (Lopez 2016)
   !-----------------------------
 
-  zQR=0.0_jprb
-  DO JK = 1, klev
+  !$acc loop seq
+  DO jk = 1, klev
+    !$acc loop gang(static:1) vector private( zqGraup, zqSnow, zdz)
     DO JL = 1, klon
       ! only for deep convection LPI is computed
       IF (ktype(JL) == 1) THEN
@@ -151,8 +172,8 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDDO
   ENDDO
 
-  lfd=0
-  DO JL = 1, klon
+  !$acc loop gang(static:1) vector
+  DO jl = 1, klon
       ! Eq. 5 in Lopez (2016)
       ! Cloud base height is zgeoh(JL, kcbot(JL))/rg
     IF (ktype(JL) == 1_jpim .AND. kcbot(JL) > 0_jpim) THEN
@@ -160,6 +181,10 @@ INTEGER(KIND=jpim) :: jk, jl
  &       MIN(zgeoh(JL, kcbot(JL))/rg/1000._jprb, 1.8_jprb)**2  
     ENDIF
   ENDDO
+
+  !$acc end parallel
+
+!$acc end data
 
 END SUBROUTINE cucalclfd
  

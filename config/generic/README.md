@@ -92,6 +92,12 @@ platforms are provided in section [Tested platforms](#tested-platforms).
 other [MPI](https://www.mpi-forum.org) implementation that provides compiler
 wrappers `mpicc` and `mpif90` for C and Fortran, repsectively, as well as the
 job launcher `mpiexec`.
+    > **_NOTE:_** The compiler wrappers of [OpenMPI](https://www.open-mpi.org)
+fail to run (without additional arguments) more MPI jobs than the number of real
+processor cores available on the machine. That might lead to failures when
+configuring or running ICON. The solution to the problem is to use
+[MPICH](https://www.mpich.org) or run the configure wrapper with an additional
+argument `MPI_LAUNCH='mpiexec --oversubscribe'`.
 - [HDF5](https://support.hdfgroup.org/HDF5) with high-level interface (for
 <a href="#netcdf-c">NetCDF-С</a>), thread-safety (for <a href="#cdo">CDO</a>),
 and szlib filtering support (only C interface required, not a direct dependency
@@ -225,6 +231,7 @@ git clone https://aur.archlinux.org/eccodes.git && cd eccodes && makepkg -csi --
 
 # Install optional tools:
 sudo pacman -S --noconfirm rsync ksh
+git clone https://aur.archlinux.org/cdo.git && cd cdo && makepkg -csi --noconfirm && cd ..
 ```
 
 > **_NOTE:_** [ecCodes package](https://aur.archlinux.org/packages/eccodes) is

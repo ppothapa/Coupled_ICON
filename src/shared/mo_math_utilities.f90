@@ -2282,6 +2282,7 @@ CONTAINS
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 350
   !!
   ELEMENTAL FUNCTION ccw( p0, p1, p2 )
+!$ACC ROUTINE SEQ
     !
 
     IMPLICIT NONE
@@ -2338,6 +2339,7 @@ CONTAINS
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 351
   !!
   ELEMENTAL FUNCTION lintersect( line1, line2 )
+!$ACC ROUTINE SEQ
 
     TYPE(t_line), INTENT(in) :: line1
     TYPE(t_line), INTENT(in) :: line2
@@ -2379,6 +2381,7 @@ CONTAINS
   !! Initial revision by Daniel Reinert  (2012-04-03)
   !!
   FUNCTION line_intersect( line1, line2 ) result(intersect)
+!$ACC ROUTINE SEQ
 
     TYPE(t_line), INTENT(in) :: line1
     TYPE(t_line), INTENT(in) :: line2

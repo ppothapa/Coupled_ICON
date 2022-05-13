@@ -21,7 +21,7 @@ MODULE mo_io_nml
 !-------------------------------------------------------------------------
   USE mo_kind,               ONLY: wp
   USE mo_impl_constants,     ONLY: max_char_length, max_ntracer, max_dom, &
-    &                              PRES_MSL_METHOD_GME, RH_METHOD_WMO, max_echotop
+    &                              PRES_MSL_METHOD_GME, RH_METHOD_WMO, max_echotop, max_wshear, max_srh
   USE mo_io_units,           ONLY: nnml, nnml_output, filename_max
   USE mo_namelist,           ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_mpi,                ONLY: my_process_is_stdio, p_n_work
@@ -39,6 +39,7 @@ MODULE mo_io_nml
                                  & config_echotop_meta            => echotop_meta           , &
                                  & t_echotop_meta                                           , &
                                  & config_precip_interval         => precip_interval        , &
+                                 & config_totprec_d_interval      => totprec_d_interval     , &
                                  & config_runoff_interval         => runoff_interval        , &
                                  & config_itype_dursun            => itype_dursun           , &
                                  & config_sunshine_interval       => sunshine_interval      , &
@@ -62,7 +63,9 @@ MODULE mo_io_nml
                                  & config_restart_write_mode        => restart_write_mode   , &
                                  & config_nrestart_streams          => nrestart_streams     , &
                                  & config_bvf2_mode                 => bvf2_mode            , &
-                                 & config_parcelfreq2_mode          => parcelfreq2_mode  
+                                 & config_parcelfreq2_mode          => parcelfreq2_mode     , &
+                                 & config_wshear_uv_heights       => wshear_uv_heights      , &
+                                 & config_srh_heights             => srh_heights
 
   USE mo_exception,        ONLY: finish
   USE mo_util_string,      ONLY: tolower
@@ -111,6 +114,7 @@ CONTAINS
                                              !  (LPI_MAX, UH_MAX, VORW_CTMAX, W_CTMAX, DBZ_CTMAX)
     TYPE(t_echotop_meta) :: echotop_meta(max_dom) ! meta data for echotops (ECHOTOP, ECHOTOPinM)
     CHARACTER(len=max_timedelta_str_len) :: precip_interval(max_dom)   ! time interval over which precipitation variables are accumulated
+    CHARACTER(len=max_timedelta_str_len) :: totprec_d_interval(max_dom)! time interval over which the special tot_prec_d is accumulated
     CHARACTER(len=max_timedelta_str_len) :: runoff_interval(max_dom)   ! time interval over which runoff variables are accumulated
     CHARACTER(len=max_timedelta_str_len) :: sunshine_interval(max_dom) ! time interval over which sunshine duration is accumulated
     CHARACTER(len=max_timedelta_str_len) :: melt_interval(max_dom)     ! time interval over which snow melt is accumulated
@@ -180,7 +184,11 @@ CONTAINS
                                           !< 12: standard + vertical oscillation
                                           !< 21: hydrostatic + unrestricted oscillation
                                           !< 22: hydrostatic + vertical oscillation
-    
+
+    REAL(wp) :: wshear_uv_heights(1:max_wshear)
+
+    REAL(wp) :: srh_heights(1:max_srh)
+
     NAMELIST/io_nml/ lkeep_in_sync, dt_diag, dt_checkpoint,               &
       &              inextra_2d, inextra_3d,                              &
       &              lflux_avg, itype_pres_msl, itype_rh,                 &
@@ -190,10 +198,12 @@ CONTAINS
       &              write_last_restart, timeSteps_per_outputStep,        &
       &              lmask_boundary, gust_interval, restart_write_mode,   &
       &              nrestart_streams, celltracks_interval, echotop_meta, &
-      &              precip_interval, runoff_interval, maxt_interval,     &
+      &              precip_interval, totprec_d_interval, runoff_interval,&
+      &              maxt_interval,                                       &
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
       &              dt_radar_dbz, bvf2_mode, parcelfreq2_mode,           &
-      &              sunshine_interval, itype_dursun, melt_interval
+      &              sunshine_interval, itype_dursun, melt_interval,      &
+      &              wshear_uv_heights, srh_heights
 
     !-----------------------
     ! 1. default settings
@@ -215,6 +225,7 @@ CONTAINS
       echotop_meta(jg)%dbzthresh(1:max_echotop)  = -999.99_wp   ! missing value
     END DO
     precip_interval(:)      = "P01Y"       ! 1 year
+    totprec_d_interval(:)   = "PT01H"      ! 1 hour
     runoff_interval(:)      = "P01Y"       ! 1 year
     sunshine_interval(:)    = "P01Y"       ! 1 year
     melt_interval(:)        = "P01Y"       ! 1 year
@@ -245,6 +256,13 @@ CONTAINS
 
     bvf2_mode          = 1
     parcelfreq2_mode   = 11
+
+    wshear_uv_heights(:) = -999.99_wp  ! missing value
+    wshear_uv_heights(1:3) = (/ 1000.0_wp, 3000.0_wp, 6000.0_wp /)
+    
+    srh_heights(:) = -999.99_wp  ! missing value
+    srh_heights(1:2) = (/ 1000.0_wp, 3000.0_wp /)
+    
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above
@@ -298,6 +316,7 @@ CONTAINS
     config_celltracks_interval(:)  = celltracks_interval(:)
     config_echotop_meta(:)         = echotop_meta(:)
     config_precip_interval(:)      = precip_interval(:)
+    config_totprec_d_interval(:)   = totprec_d_interval(:)
     config_runoff_interval(:)      = runoff_interval(:)
     config_itype_dursun            = itype_dursun
     config_sunshine_interval(:)    = sunshine_interval(:)
@@ -325,7 +344,9 @@ CONTAINS
     config_nrestart_streams        = nrestart_streams
     config_bvf2_mode               = bvf2_mode
     config_parcelfreq2_mode        = parcelfreq2_mode
-
+    config_wshear_uv_heights       = wshear_uv_heights
+    config_srh_heights             = srh_heights
+    
     ! --- consistency check:
 
     ! Each work can send its data only to one restart PE. Therefore it

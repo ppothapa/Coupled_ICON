@@ -39,7 +39,7 @@ MODULE mo_nwp_diagnosis
     &                              min_rlcell_int
   USE mo_impl_constants_grf, ONLY: grf_bdywidth_c
   USE mo_loopindices,        ONLY: get_indices_c
-  USE mo_exception,          ONLY: message, message_text
+  USE mo_exception,          ONLY: message, message_text, warning
   USE mo_model_domain,       ONLY: t_patch
   USE mo_run_config,         ONLY: iqv, iqc, iqi, iqr, iqs,  &
                                    iqni, iqg, iqh, iqnc, iqm_max, iqgl, iqhl
@@ -63,15 +63,15 @@ MODULE mo_nwp_diagnosis
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
-  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, maximize_field_lpi, compute_field_tcond_max, &
+  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, &
+                                   maximize_field_lpi, compute_field_tcond_max, &
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
                                    compute_field_echotop, compute_field_echotopinm, compute_field_dursun, &
                                    compute_field_twater
   USE mo_nwp_ww,             ONLY: ww_diagnostics, ww_datetime
   USE mtime,                 ONLY: datetime, timeDelta, getTimeDeltaFromDateTime,  &
-    &                              deallocateTimedelta, newTimeDelta, newDatetime, &
-    &                              deallocateDatetime, event
+    &                              deallocateTimedelta, newTimeDelta, event
   USE mo_util_mtime,         ONLY: is_event_active
   USE mo_exception,          ONLY: finish
   USE mo_math_constants,     ONLY: pi
@@ -124,12 +124,12 @@ CONTAINS
                             & pt_prog, pt_prog_rcf,       & !in
                             & pt_diag,                    & !inout
                             & prm_diag, lnd_diag,         & !inout 
-                            & linit                       ) !in  
+                            & lacc                       ) !in  
                             
 
     LOGICAL,            INTENT(IN)   :: lcall_phy_jg(:) !< physics package time control (switches)
                                                         !< for domain jg
-    LOGICAL, OPTIONAL,  INTENT(IN)   :: linit           !< initialization flag
+    LOGICAL, OPTIONAL,  INTENT(IN)   :: lacc            !< initialization flag
     REAL(wp),           INTENT(IN)   :: dt_phy_jg(:)    !< time interval for all physics
                                                         !< packages on domain jg
     REAL(wp),           INTENT(IN)   :: p_sim_time
@@ -158,17 +158,17 @@ CONTAINS
 
     INTEGER :: jc,jk,jb,jg      ! block index
     INTEGER :: jt               ! tracer loop index
-    LOGICAL :: lacc             ! OpenACC flag
+    LOGICAL :: lzacc             ! OpenACC flag
 
 
   !-----------------------------------------------------------------
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-    IF(PRESENT(linit)) THEN
-      lacc = .NOT. linit
+    IF(PRESENT(lacc)) THEN
+      lzacc = lacc
     ELSE
-      lacc = .FALSE.
+      lzacc = .FALSE.
     ENDIF
 
     jg        = pt_patch%id
@@ -188,15 +188,18 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block(rl_end)
     
 
-    ! Calculate vertical integrals of moisture quantities and cloud cover if 
-    ! averages of these variables are requested for output
-    IF (atm_phy_nwp_config(jg)%lcalc_moist_integral_avg) THEN
+    ! Calculate vertical integrals of moisture quantities and cloud cover
+    ! Anurag Dipankar, MPIM (2015-08-01): always call this routine
+    ! for LES simulation
+    IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
+      ! This call is required in LES to have prm_diag%clct up-to-date in
+      ! calculate_turbulent_diagnostics.
       CALL calc_moist_integrals(pt_patch, p_metrics,        & !in
                               & pt_prog, pt_prog_rcf,       & !in
                               & ext_data, kstart_moist,     & !in
                               & ih_clch, ih_clcm,           & !in
                               & pt_diag, prm_diag,          & !inout
-                              & lacc                        ) !in
+                              & lzacc                        ) !in
     ENDIF
 
     ! Calculation of average/accumulated values since model start
@@ -212,9 +215,6 @@ CONTAINS
     !-----------
     ! - total precipitation amount
     ! - time averaged precipitation rates (total, grid-scale, convective)
-    ! - time averaged total cloud cover
-    ! - time averaged TQV, TQC, TQI, TQR, TQS
-    ! - time averaged TQV_DIA, TQC_DIA, TQI_DIA
     !
     ! soil
     !-----
@@ -256,7 +256,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lacc)
+        !$acc parallel default(present) if(lzacc)
         !$acc loop gang vector
         DO jc = i_startidx, i_endidx
 
@@ -279,7 +279,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lacc)
+        !$acc parallel default(present) if(lzacc)
         !$acc loop gang vector
         DO jc = i_startidx, i_endidx
 
@@ -289,7 +289,8 @@ CONTAINS
             &                    prm_diag%dyn_gust(jc,jb) + prm_diag%con_gust(jc,jb) )
           
           ! total precipitation
-          prm_diag%tot_prec(jc,jb) = prm_diag%prec_gsp(jc,jb) + prm_diag%prec_con(jc,jb)
+          prm_diag%tot_prec(jc,jb)   = prm_diag%prec_gsp(jc,jb)   + prm_diag%prec_con(jc,jb)
+          prm_diag%tot_prec_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb) + prm_diag%prec_con_d(jc,jb)
 
           ! time averaged total precipitation rate
           prm_diag%tot_prec_rate_avg(jc,jb) = prm_diag%tot_prec(jc,jb) &
@@ -306,45 +307,8 @@ CONTAINS
         ENDDO  ! jc
         !$acc end parallel
 
-        IF (atm_phy_nwp_config(jg)%lcalc_moist_integral_avg) THEN
-!DIR$ IVDEP
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector
-          DO jc = i_startidx, i_endidx
-            ! time averaged total cloud cover
-            prm_diag%clct_avg(jc,jb) = time_avg(prm_diag%clct_avg(jc,jb), &
-              &                                 prm_diag%clct    (jc,jb), &
-              &                                 t_wgt)
-          ENDDO  ! jc
-          !$acc end parallel
-
-          ! time averaged tracer vertical integrals (mass concentrations only)  
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector collapse(2)
-          DO jt = 1, iqm_max
-!DIR$ IVDEP
-            DO jc = i_startidx, i_endidx
-              pt_diag%tracer_vi_avg(jc,jb,jt) = (1._wp - t_wgt)*pt_diag%tracer_vi_avg(jc,jb,jt) &
-                &                              + t_wgt * pt_diag%tracer_vi(jc,jb,jt)
-            ENDDO  ! jc
-          ENDDO  ! jt
-          !$acc end parallel
-
-         ! time averaged TQV_DIA, TQC_DIA, TQI_DIA
-          !$acc parallel default(present) if(lacc)
-          !$acc loop gang vector collapse(2)
-          DO jt = 1, 3
-!DIR$ IVDEP
-           DO jc = i_startidx, i_endidx
-             prm_diag%tot_cld_vi_avg(jc,jb,jt) = (1._wp - t_wgt)*prm_diag%tot_cld_vi_avg(jc,jb,jt) &
-               &                                + t_wgt * prm_diag%tot_cld_vi(jc,jb,jt)
-            ENDDO
-          ENDDO  ! jt
-          !$acc end parallel
-        ENDIF
-
         IF (lcall_phy_jg(itsfc)) THEN
-          !$acc parallel default(present) if(lacc)
+          !$acc parallel default(present) if(lzacc)
           !$acc loop gang vector collapse(2)
           DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -356,7 +320,7 @@ CONTAINS
           !$acc end parallel
           ! special treatment for variable resid_wso
           IF (var_in_output(jg)%res_soilwatb) THEN
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector collapse(2)
             DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -375,7 +339,7 @@ CONTAINS
         ! but the instantaneous max/min over all tiles. In case of no tiles both are equivalent.
         IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-          !$acc parallel default(present) if(lacc)
+          !$acc parallel default(present) if(lzacc)
           !$acc loop gang vector
           DO jc = i_startidx, i_endidx
             prm_diag%tmax_2m(jc,jb) = MAX(prm_diag%t_tilemax_inst_2m(jc,jb), prm_diag%tmax_2m(jc,jb) )
@@ -389,7 +353,7 @@ CONTAINS
 
           IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
@@ -428,7 +392,7 @@ CONTAINS
             ENDDO  ! jc
             !$acc end parallel
 
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector collapse(2)
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
@@ -442,7 +406,7 @@ CONTAINS
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
-              !$acc parallel default(present) if(lacc)
+              !$acc parallel default(present) if(lzacc)
               !$acc loop gang vector
               DO jc = i_startidx, i_endidx
                 ! time averaged surface u-momentum flux SSO
@@ -478,7 +442,7 @@ CONTAINS
             !e.g. dt_phy_jg(itradheat) may then be greater than p_sim_time
             !leading to wrong averaging.
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lacc)
+            !$acc parallel default(present) if(lzacc)
             !$acc loop gang vector
             DO jc = i_startidx, i_endidx
 
@@ -1489,6 +1453,20 @@ CONTAINS
         &                cin_ml  = prm_diag%cin_ml(:,jb)         , & !out
         &                use_acc = lacc                            ) !in
 
+      IF (var_in_output(jg)%cape_mu .OR. var_in_output(jg)%cin_mu ) THEN
+        !$ACC WAIT
+        CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
+             &                kmoist  = kstart_moist,                   & !in
+             &                z_limit = 3000.0_wp,                      & !in
+             &                te      = pt_diag%temp(:,:,jb)          , & !in
+             &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+             &                prs     = pt_diag%pres(:,:,jb)          , & !in
+             &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
+             &                cape_mu = prm_diag%cape_mu(:,jb)        , & !out
+             &                cin_mu  = prm_diag%cin_mu(:,jb)         , & !out
+             &                use_acc = lacc                            ) !in
+      END IF
+      
     ENDDO  ! jb
 !$OMP END DO
 
@@ -1813,6 +1791,9 @@ CONTAINS
       ! update of TCOND_MAX (total column-integrated condensate, max. during the time interval "celltracks_interval") if required
       IF ( ( var_in_output(jg)%tcond_max .OR. var_in_output(jg)%tcond10_max ) .AND.  &
            ( l_output(jg) .OR. l_celltracks_event_active) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('tcond_max or tcond10_max')
+#endif
         CALL compute_field_tcond_max( p_patch(jg), jg, p_nh(jg)%metrics,   &
              &                        p_nh(jg)%prog(nnow(jg)),  p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag, &
              &                        var_in_output(jg)%tcond_max, var_in_output(jg)%tcond10_max,     &
@@ -1823,6 +1804,9 @@ CONTAINS
       ! otherwise, diag%vor is only diagnosed every output time step
       IF ( (ANY(luh_max_out(jg,:)) .OR. var_in_output(jg)%vorw_ctmax) .AND. &
             l_celltracks_event_active .AND. .NOT. l_output(jg) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('uh_max or vorw_ctmax')
+#endif
         CALL rot_vertex (p_nh(jg)%prog(nnow(jg))%vn, p_patch(jg), p_int(jg), p_nh(jg)%diag%omega_z)
         ! Diagnose relative vorticity on cells
         CALL verts2cells_scalar(p_nh(jg)%diag%omega_z, p_patch(jg), &
@@ -1833,6 +1817,9 @@ CONTAINS
 
         ! update of UH_MAX (updraft helicity, max.  during the time interval "celltracks_interval") if required
         IF ( luh_max_out(jg,k) .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+          CALL warn_for_untested_output_on_GPU('uh_max')
+#endif
           CALL compute_field_uh_max( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), p_nh(jg)%diag,  &
                &                     uh_max_zmin(k), uh_max_zmax(k), prm_diag(jg)%uh_max_3d(:,:,k) )
         END IF
@@ -1841,12 +1828,18 @@ CONTAINS
 
       ! update of VORW_CTMAX (Maximum rotation amplitude during the time interval "celltracks_interval") if required
       IF ( var_in_output(jg)%vorw_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('vorw_ctmax')
+#endif
         CALL compute_field_vorw_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%diag,  &
              &                         prm_diag(jg)%vorw_ctmax  )
       END IF
 
       ! update of W_CTMAX (Maximum updraft track during the ime interval "celltracks_interval") if required
       IF ( var_in_output(jg)%w_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('w_ctmax')
+#endif
         CALL compute_field_w_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)),  &
              &                      prm_diag(jg)%w_ctmax  )
       END IF
@@ -1864,18 +1857,27 @@ CONTAINS
 
       ! output of dbz_ctmax (column maximum reflectivity during a time interval (namelist param. celltracks_interval) is required
       IF ( var_in_output(jg)%dbzctmax .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('dbzctmax')
+#endif
         CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax )
       END IF
 
       ! output of echotop (minimum pressure where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotop .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('echotop')
+#endif
         CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop )
       END IF
 
       ! output of echotopinm (maximum height where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
+#ifdef _OPENACC
+        CALL warn_for_untested_output_on_GPU('echotopinm')
+#endif
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
                                         prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm )
       END IF
@@ -1923,7 +1925,7 @@ CONTAINS
     jg = p_patch%id
 
     IF (var_in_output(jg)%dursun .AND. (p_sim_time > 0._wp) ) THEN
-      IF (l_present_dursun_m .AND. l_present_dursun_r) THEN
+      IF (l_present_dursun_m .OR. l_present_dursun_r) THEN
         CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater)
       ENDIF
       IF (itype_dursun == 0) THEN
@@ -2400,6 +2402,14 @@ CONTAINS
 
   END SUBROUTINE nwp_diag_output_minmax_micro
 
+#ifdef _OPENACC
+  SUBROUTINE warn_for_untested_output_on_GPU(output)
+      CHARACTER(LEN=*), INTENT(IN) :: output
+
+      WRITE(message_text,'(A,A)') 'Untested output on GPU: ', TRIM(output)
+      CALL warning('mo_nwp_diagnosis',message_text)
+  END SUBROUTINE warn_for_untested_output_on_GPU
+#endif
 
 END MODULE mo_nwp_diagnosis
 

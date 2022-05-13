@@ -36,7 +36,8 @@ MODULE mo_init_vgrid
   USE mo_parallel_config,       ONLY: nproma
   USE mo_nonhydrostatic_config, ONLY: ivctype
   USE mo_sleve_config,          ONLY: itype_laydistr, min_lay_thckn, max_lay_thckn, htop_thcknlimit, top_height, &
-                                      decay_scale_1, decay_scale_2, decay_exp, flat_height, stretch_fac
+                                      decay_scale_1, decay_scale_2, decay_exp, flat_height, stretch_fac,         &
+                                      nshift_above_thcklay
   USE mo_vertical_coord_table,  ONLY: read_vct
 
 
@@ -256,7 +257,7 @@ CONTAINS
             zvcta(jk) = zvcta(jk+1)+MIN(max_lay_thckn,dvct(jk))
           ELSE IF (jk2 == 0) THEN
             jk2 = jk+1
-            jks = MAX(0,jk1-jk2)  ! shift layers from which thicknesses are taken downward in order to prevent sudden jumps
+            jks = MAX(0,jk1-jk2+nshift_above_thcklay)  ! shift layers from which thicknesses are taken downward in order to prevent sudden jumps
             zvcta(jk) = zvcta(jk+1)+dvct(jk+jks)
           ELSE
             zvcta(jk) = zvcta(jk+1)+dvct(jk+jks)

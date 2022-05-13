@@ -16,6 +16,14 @@
 #PBS -j o
 #PBS -o LOG.exp.run_ICON_15_R19B7-ID2_ass.run.run.o
 # ----------------------------------------------------------------------------
+
+#=============================================================================
+#
+# This test makes 2 runs, the first for computing Mie LUTs and the second for
+# re-using them.
+#
+#=============================================================================
+
 date
 source ${NMPI_ROOT}/bin/necmpivars.sh
 
@@ -205,7 +213,23 @@ for gridfile in ${atmo_rad_grids}; do
 done
 
 
+# ----------------------------------------------------------------------
+# loop over two model runs
+# ----------------------------------------------------------------------
 
+
+# make 2 runs, the first for computing Mie LUTs and the second for re-using them:
+for i in 1 2; do
+
+if [ $i -eq 1 ]; then
+    # Only one timestep for the first run, which only creates the Mie lookup tables and exits:
+    nsteps=1
+    dace_coupling=.false.
+else
+    # The second run has the full forecast length of 1 h:
+    nsteps=180
+    dace_coupling=.true.
+fi
 
 cat > ${atmo_namelist} << EOF
 &parallel_nml
@@ -285,7 +309,7 @@ cat > ${atmo_namelist} << EOF
  ltransport            = .true.
  lvert_nest            = .false.
  msg_level             = 7          ! 7: print maximum wind speeds every 5th time steps
- nsteps                = 180        ! 4860 for full forecast period
+ nsteps                = ${nsteps}  ! 180        ! 4860 for full forecast period
  ntracer               = 5                    ! default: 0
  num_lev               = 65           ! 65, nest the same always
  output                = "nml"
@@ -416,12 +440,12 @@ cat > ${atmo_namelist} << EOF
  lcoriolis      = .true.
 /
 &transport_nml
- ctracer_list = '12345'
- ivadv_tracer = 3,3,3,3,3,3
- itype_hlimit = 3,4,4,4,4,4
- ihadv_tracer = 52,2,2,2,2,2
- llsq_svd     = .false.
- beta_fct     = 1.005
+ ctracer_list  = '12345'
+ ivadv_tracer  = 3,3,3,3,3,3
+ itype_hlimit  = 3,4,4,4,4,4
+ ihadv_tracer  = 52,2,2,2,2,2
+ llsq_svd      = .false.
+ beta_fct      = 1.005
 /
 &diffusion_nml
  hdiff_efdt_ratio = 24
@@ -507,7 +531,7 @@ cat > ${atmo_namelist} << EOF
  tablesVersion                   = 19
 /
 &assimilation_nml
- dace_coupling   = .true.
+ dace_coupling   = ${dace_coupling}
  dace_debug      = 1
  dace_time_ctrl  = 0,3600,1800 ! [s] time slices of DACE (start, stop, inc)
  rttend =            0.0
@@ -756,7 +780,8 @@ dom =  1
     !   Might however help if some records are missing in a 
     !   certain file (e.g., for qv) and are present in another file (e.g., vr).
     lcheck_inputrecords = .true.,
-    lequal_azi_alldatasets = .false.,
+    lequal_azi_alldatasets = .true.,
+    labort_if_problems_obsfiles = .true.,
     ! Input directory of radar NetCDF files:
     ydirradarin = '${RADARINPUTDIR}'
     ! option for superobing for data assimilation: 0: no superobing; 1: averaging;  2: median
@@ -786,14 +811,13 @@ dom =  1
     itype_obserr_vr=2
       ramp_lowdbz_obserr_vr=-10.0,
       ramp_highdbz_obserr_vr=10.0,
-      maxval_obserr_vr=23.0,
-      baseval_obserr_vr=3.5,
+      maxval_obserr_vr=10.0,
+      baseval_obserr_vr=1.0,
     ! if no superobing: step width of data thinning in azimut and range directions for feedback files:
     !  (has no effect in case of superobing!)
     thin_step_azi = 1,
     thin_step_range = 1,
     thin_step_ele = 1,
-!!!    ind_ele_fdbk_glob = 1, 4, 7,
 !
 !
 !========================================================
@@ -1170,6 +1194,23 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
               -vh     -node 1        -np 4      -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
 
 
+# prepare checking of the successful re-use of Mie lookup tables in the second run:
+num_luts=$(ls -1 $YDIR_MIELOOKUP/radar_mietab_*nc  | wc -l)
+if [ $i -eq 1 ]; then
+    let num_luts_check=$num_luts
+fi
+
 date
 
 
+done  # iteration over two model runs
+
+
+# Check uniqueness of lookup table files. Otherwise, the second run has produced his own files and this would be an error:
+if [ $num_luts -eq $num_luts_check ]; then
+    # 
+    exit
+else
+    echo ERROR Lookup tables not cleanly re-used!
+    exit 3
+fi

@@ -27,10 +27,11 @@ MODULE mo_nml_crosscheck
     &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
-    &                                    max_echotop
+    &                                    max_echotop, max_wshear, max_srh
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo                                             
-  USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta
+  USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
+    &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
     &                                    num_io_procs, itype_comm,                         &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
@@ -313,7 +314,7 @@ CONTAINS
           SELECT CASE (irad_o3)
           CASE (0) ! ok
             CALL message(routine,'radiation is used without ozone')
-          CASE (2,4,6,7,8,9,11,79,97) ! ok
+          CASE (2,4,5,6,7,9,11,79,97) ! ok
             CALL message(routine,'radiation is used with ozone')
           CASE (10) ! ok
             CALL message(routine,'radiation is used with ozone calculated from ART')
@@ -321,7 +322,7 @@ CONTAINS
               CALL finish(routine,'irad_o3 currently is 10 but lart is false.')
             ENDIF
           CASE default
-            CALL finish(routine,'irad_o3 currently has to be 0, 2, 4, 6, 7, 8, 9, 10, 11, 79 or 97.')
+            CALL finish(routine,'irad_o3 currently has to be 0, 2, 4, 5, 6, 7, 9, 10, 11, 79 or 97.')
           END SELECT
 
           ! Tegen aerosol and itopo (Tegen aerosol data have to be read from external data file)
@@ -335,8 +336,8 @@ CONTAINS
           ENDIF
          
           ! Kinne, CMIP6 volcanic aerosol only work with ecRad
-          IF ( ANY( irad_aero == (/12,13,14,15/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
-            CALL finish(routine,'irad_aero = 12, 13, 14 or 15 requires inwp_radiation=4')
+          IF ( ANY( irad_aero == (/12,13,14,15,18,19/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
+            CALL finish(routine,'irad_aero = 12, 13, 14, 15, 18 or 19 requires inwp_radiation=4')
           ENDIF
 
           ! ecRad specific checks
@@ -349,16 +350,16 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_ch4 has to be 0, 2, 3 or 4')
             IF (.NOT. ANY( irad_n2o     == (/0,2,3,4/)     ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_n2o has to be 0, 2, 3 or 4')
-            IF (.NOT. ANY( irad_o3      == (/0,7,9,11,79,97/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 7, 9, 11, 79 or 97')
+            IF (.NOT. ANY( irad_o3      == (/0,5,7,9,11,79,97/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 5, 7, 9, 11, 79 or 97')
             IF (.NOT. ANY( irad_o2      == (/0,2/)         ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_o2 has to be 0 or 2')
             IF (.NOT. ANY( irad_cfc11   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc11 has to be 0, 2 or 4')
             IF (.NOT. ANY( irad_cfc12   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc12 has to be 0, 2 or 4')
-            IF (.NOT. ANY( irad_aero    == (/0,2,6,9,12,13,14,15/)   ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, irad_aero has to be 0, 2, 6, 9, 12, 13, 14 or 15')
+            IF (.NOT. ANY( irad_aero    == (/0,2,6,9,12,13,14,15,18,19/)   ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, irad_aero has to be 0, 2, 6, 9, 12, 13, 14, 15, 18 or 19')
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
             IF (.NOT. ANY( iliquid_scat == (/0,1/)         ) ) &
@@ -854,6 +855,46 @@ CONTAINS
         CALL finish(routine, message_text)
       END IF
     END DO
+
+    n_wshear = 0
+    DO i=1, max_wshear
+      IF (wshear_uv_heights(i) > 0.0_wp) THEN
+        n_wshear = n_wshear + 1
+        ! shift valid values towards the start of the vector:
+        wshear_uv_heights(n_wshear) = wshear_uv_heights(i)
+      END IF
+    END DO
+    IF (n_wshear < max_wshear) wshear_uv_heights(n_wshear+1:) = -999.99_wp
+    DO jg=1, n_dom
+      IF ( ( is_variable_in_output_dom(var_name="wshear_u" , jg=jg) .OR. &
+             is_variable_in_output_dom(var_name="wshear_v" , jg=jg) ) .AND. &
+           n_wshear == 0 ) THEN
+        message_text(:) = ' '
+        WRITE (message_text, '(a)') 'output of "wshear_u" and/or "wshear_v" in ml_varlist'// &
+             ' not possible because nml-parameter "wshear_uv_heights" (io_nml) contains no heights > 0.0!'
+        CALL finish(routine, message_text)
+      END IF
+    END DO
+
+    n_srh = 0
+    DO i=1, max_srh
+      IF (srh_heights(i) > 0.0_wp) THEN
+        n_srh = n_srh + 1
+        ! shift valid values towards the start of the vector:
+        srh_heights(n_srh) = srh_heights(i)
+      END IF
+    END DO
+    IF (n_srh < max_srh) srh_heights(n_srh+1:) = -999.99_wp
+    DO jg=1, n_dom
+      IF ( ( is_variable_in_output_dom(var_name="srh" , jg=jg) ) .AND. &
+           n_srh == 0 ) THEN
+        message_text(:) = ' '
+        WRITE (message_text, '(a)') 'output of "srh" in ml_varlist'// &
+             ' not possible because nml-parameter "srh_heights" (io_nml) contains no heights > 0.0!'
+        CALL finish(routine, message_text)
+      END IF
+    END DO
+
     
     !--------------------------------------------------------------------
     ! Realcase runs

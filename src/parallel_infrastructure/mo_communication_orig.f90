@@ -1006,17 +1006,19 @@ CONTAINS
 
     ndim2 = SIZE(recv,2)
 
+    !recv may or may not already be on the gpu
 #ifdef __ENABLE_REALLOC
     CALL realloc_global_buffer_dp(send_buffer_dp, ndim2*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, ndim2*p_pat%n_recv)
     send_buf(1:ndim2, 1:p_pat%n_send) => send_buffer_dp(1:ndim2*p_pat%n_send)
     recv_buf(1:ndim2, 1:p_pat%n_recv) => recv_buffer_dp(1:ndim2*p_pat%n_recv)
-!$ACC DATA PRESENT( send_buf, recv_buf )   &
+!$ACC DATA PRESENT( send_buf, recv_buf )    &
 #else
-!$ACC DATA CREATE( send_buf, recv_buf ) &
+!$ACC DATA CREATE( send_buf, recv_buf )     &
 #endif
-!$ACC      PRESENT( recv, p_pat ) &
-!$ACC      IF (use_gpu)
+!$ACC      PRESENT( p_pat )                 &
+!$ACC      COPYIN( recv )                   &
+!$ACC      IF( use_gpu )
 
     IF (iorder_sendrecv == 1 .OR. iorder_sendrecv == 3) THEN
       ! Set up irecv's for receive buffers
@@ -1709,8 +1711,10 @@ CONTAINS
 
     ndim2 = SIZE(recv,2)
 
-!$ACC DATA CREATE( send_buf, recv_buf )                                                      &
-!$ACC      PRESENT( recv, recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx ) &
+!recv may or may not already be on the gpu
+!$ACC DATA COPYIN( recv )                                                                    &
+!$ACC      CREATE( send_buf, recv_buf )                                                      &
+!$ACC      PRESENT( recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx )       &
 !$ACC      IF (use_gpu)
 
     IF (iorder_sendrecv == 1 .OR. iorder_sendrecv == 3) THEN

@@ -113,11 +113,11 @@ SUBROUTINE cover_koe( &
   & ldcum, kcbot, kctop, ktype      , & ! in:    convection: on/off, bottom, top, type
   & pmfude_rate                     , & ! in:    convection: updraft detrainment rate
   & plu                             , & ! in:    convection: updraft condensate
+  & pcore                           , & ! in:    convection: updraft core fraction
   & rhoc_tend                       , & ! in:    convective rhoc tendency
   & qv, qc, qi, qs, qtvar           , & ! inout: prognostic cloud variables
   & lacc                            , & ! in:    parameter to prevent openacc during init
-  & cc_tot, qv_tot, qc_tot, qi_tot )    ! out:   cloud output diagnostic
-
+  & cc_tot, qv_tot, qc_tot, qi_tot    ) ! out:   cloud output diagnostic
 
 !! Subroutine arguments:
 !! --------------------
@@ -164,6 +164,7 @@ INTEGER(KIND=i4), DIMENSION(klon), INTENT(IN) ::  &
 REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
   & pmfude_rate      , & ! convective updraft detrainment rate           (kg/(m3*s))
   & plu              , & ! updraft condensate                            (kg/kg)
+  & pcore            , & ! updraft core fraction                         (0-1)
   & rhoc_tend            ! convective rho_c tendency                     (kg/(m3*s))
 
 LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! parameter to prevent openacc during init
@@ -174,12 +175,13 @@ REAL(KIND=wp), DIMENSION(klon,klev), INTENT(INOUT) ::   &
   & qc_tot           , & ! specific cloud water content diagnostic       (kg/kg)
   & qi_tot               ! specific cloud ice   content diagnostic       (kg/kg)
 
-
 !! Local variables:
 !! ----------------
 
 LOGICAL ::  &
-  & lprog_qi, l_addsnow, lzacc
+   & lprog_qi, l_addsnow, lzacc
+
+LOGICAL, PARAMETER ::  luse_core=.FALSE.
 
 INTEGER (KIND=i4) :: &
   & jl, jk, jkp1,         &
@@ -285,7 +287,7 @@ ENDDO
 !-----------------------------------------------------------------------
 
 !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+!$ACC LOOP GANG VECTOR COLLAPSE(2)  PRIVATE(vap_pres)
 DO jk = kstart,klev
   DO jl = kidia,kfdia
     vap_pres = qv(jl,jk) * rho(jl,jk) * rv * tt(jl,jk)
@@ -324,11 +326,13 @@ CASE( 0 )
 ! diagnostic cloud cover
 CASE( 1 )
 
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG
+  !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG
   DO jk = kstart,klev
     jkp1 = MIN(jk+1,klev)
-    !$ACC LOOP VECTOR
+    !$ACC LOOP VECTOR PRIVATE(thicklay_fac, zdeltaq, zrcld, deltaq, fac_sfc) &
+    !$ACC             PRIVATE(box_liq_asy, par1, zaux, fac_aux, rhcrit_sgsice)  &
+    !$ACC             PRIVATE(qi_mod, qisat_grid, tfac, satdef_fac, qcc)
     DO jl = kidia,kfdia
 
 ! stratiform cloud
@@ -417,10 +421,17 @@ CASE( 1 )
       ! reduction of decay time scale depending on saturation deficit
       satdef_fac = 1._wp - MIN(0.9_wp,125._wp*( tfac*(zqlsat(jl,jk)-qv(jl,jk)) + (1._wp-tfac)*(zqisat(jl,jk)-qv(jl,jk)) ))
       cc_conv(jl,jk) = ( pmfude_rate(jl,jk) / rho(jl,jk) ) &  ! cc = detrainment/rho / (Du/rho + 1/tau,decay)
-                   & / ( pmfude_rate(jl,jk) / rho(jl,jk) + 1.0_wp / (taudecay*satdef_fac) )
+           & / ( pmfude_rate(jl,jk) / rho(jl,jk) + 1.0_wp / (taudecay*satdef_fac) )
+
+      ! Option to add updraft core fraction to convective cloud fraction contribution
+      IF (luse_core) THEN
+        cc_conv(jl,jk) = cc_conv(jl,jk)+pcore(jl,jk)
+      ENDIF
+         
       ! detrainment water is defined as detrainment rate * updraft liquid water in layer below
       qc_conv(jl,jk) = cc_conv(jl,jk) * plu(jl,jkp1)*       tfac ! ql up
       qi_conv(jl,jk) = cc_conv(jl,jk) * plu(jl,jkp1)*(1._wp-tfac)! qi up
+      
       ! alternative formulation of source term for liquid convective clouds depending on detrained cloud water and RH;
       ! as most important difference, it uses the same clcov-qc relationship as turbulent clouds but is restricted to low mixing ratios
       qcc = MAX(0._wp, MIN(0.075_wp*tune_box_liq*zqlsat(jl,jk), (rhoc_tend(jl,jk)/rho(jl,jk))*taudecay* &
@@ -566,7 +577,7 @@ END SELECT
 
 !PREVENT_INCONSISTENT_IFORT_FMA
 !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+!$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf_ice)
 DO jk = kstart,klev
   DO jl = kidia,kfdia
     qv_tot(jl,jk) = qv(jl,jk) + qc(jl,jk) + qi(jl,jk) - qc_tot(jl,jk) - qi_tot(jl,jk)
@@ -606,6 +617,7 @@ DO jk = kstart,klev
 ENDDO
 !$ACC END PARALLEL
 
+!$ACC WAIT
 !$ACC END DATA
 
 END SUBROUTINE cover_koe

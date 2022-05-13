@@ -60,6 +60,8 @@ MODULE mo_lnd_nwp_nml
     &                               config_itype_canopy       => itype_canopy      , &
     &                               config_cskinc             => cskinc            , &
     &                               config_tau_skin           => tau_skin          , &
+    &                               config_lterra_urb         => lterra_urb        , &
+    &                               config_itype_eisa         => itype_eisa        , &
     &                               config_lstomata           => lstomata          , &
     &                               config_l2tls              => l2tls             , &
     &                               config_itype_heatcond     => itype_heatcond    , &
@@ -134,6 +136,8 @@ CONTAINS
     INTEGER ::  itype_canopy      !< type of canopy parameterisation with respect to the surface energy balance
     REAL(wp)::  cskinc            !< skin conductivity (W/m**2/K)
     REAL(wp)::  tau_skin          !< relaxation time scale for the computation of the skin temperature
+    LOGICAL ::  lterra_urb        !< activate urban model TERRA_URB
+    INTEGER ::  itype_eisa        !< type of evaporation from impervious surface area
     INTEGER ::  itype_hydbound    !< type of hydraulic lower boundary condition
     INTEGER ::  idiag_snowfrac    !< method for diagnosis of snow-cover fraction
     INTEGER ::  itype_snowevap    !< treatment of snow evaporation in the presence of vegetation
@@ -169,6 +173,7 @@ CONTAINS
          &               itype_interception                              , &
          &               itype_hydbound                                  , &
          &               itype_canopy, cskinc, tau_skin                  , &
+         &               lterra_urb, itype_eisa                          , &
          &               lstomata                                        , &
          &               l2tls                                           , &
          &               lana_rho_snow, l2lay_rho_snow                   , &
@@ -218,11 +223,15 @@ CONTAINS
     itype_trvg     = 2       ! type of vegetation transpiration parameterization
                              ! Note that this is currently the only available option!
     itype_evsl     = 2       ! type of parameterization of bare soil evaporation
-    itype_lndtbl   = 3       ! choice of table for associating surface parameters to land-cover classes
+                             !  2: based on BATS (Dickinson 1984)
+                             !  4: resistance formulation by Schulz and Vogel (2020)
+    itype_lndtbl   = 3       ! choice of look-up table for associating surface parameters to land-cover classes
     itype_root     = 2       ! type of root density distribution
-                             ! 1: constant
-                             ! 2: exponential
-    itype_heatcond = 2       ! type of soil heat conductivity
+                             !  1: uniform
+                             !  2: exponential
+    itype_heatcond = 2       ! type of soil thermal conductivity (see Schulz et al. 2016)
+                             !  1: vertically constant, representing a mean soil water content
+                             !  2: dependent on soil water content in each layer (Johansen 1975)
     itype_interception = 1   ! type of plant interception
     cwimax_ml      = 1.e-6_wp ! scaling parameter for maximum interception storage. Almost turned off by default;
                               ! the recommended value to activate interception storage is 5.e-4
@@ -233,10 +242,16 @@ CONTAINS
     itype_canopy   = 1       ! type of canopy parameterisation with respect to the surface energy balance
                              !  1: surface energy balance equation solved at the ground surface,
                              !     canopy energetically not represented
-                             !  2: skin temperature formulation by Schulz and Vogel (2017),
+                             !  2: skin temperature formulation by Schulz and Vogel (2020),
                              !     based on Viterbo and Beljaars (1995)
-    cskinc         = -1._wp  ! skin conductivity (W/m**2/K)
+    cskinc         = -1._wp  ! use map of skin conductivity (W/m**2/K)
     tau_skin      = 3600._wp ! relaxation time scale for the computation of the skin temperature
+    !
+    lterra_urb     =.FALSE.  ! if .TRUE., activate urban model TERRA_URB by Wouters et al. (2016, 2017)
+    itype_eisa     = 2       ! type of evaporation from impervious surface area
+                             !  0: evaporation like bare soil
+                             !  1: no evaporation
+                             !  2: PDF-based puddle evaporation (Wouters et al. 2015)
     !
     lstomata       =.TRUE.   ! map of minimum stomata resistance
     l2tls          =.TRUE.   ! forecast with 2-TL integration scheme
@@ -332,7 +347,6 @@ CONTAINS
 
     !Check if target GPU configuration is supported
 #ifdef _OPENACC
-    IF(ntiles == 1) CALL finish(routine, "GPU version not available for ntiles == 1.")
     IF(lmulti_snow) CALL finish(routine, "GPU version not available for lmulti_snow == .TRUE.")
 #endif
 
@@ -362,6 +376,8 @@ CONTAINS
     config_itype_canopy       = itype_canopy
     config_cskinc             = cskinc
     config_tau_skin           = tau_skin
+    config_lterra_urb         = lterra_urb
+    config_itype_eisa         = itype_eisa
     config_lstomata           = lstomata
     config_l2tls              = l2tls
     config_itype_heatcond     = itype_heatcond

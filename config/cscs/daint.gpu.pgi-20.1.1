@@ -31,7 +31,6 @@ CPPFLAGS="-I${XML2_ROOT}/include/libxml2"
 
 FC='ftn'
 FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc60 -Minfo=accel,inline -I${SERIALBOX2_ROOT}/include -D__SWAPDIM"
-ICON_ECRAD_FCFLAGS="-D__ECRAD_LITTLE_ENDIAN"
 
 LDFLAGS="-L${GCC_PATH}/snos/lib64 -L${SERIALBOX2_ROOT}/lib -L${XML2_ROOT}/lib"
 
@@ -70,7 +69,6 @@ CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \
-ICON_ECRAD_FCFLAGS="$ICON_ECRAD_FCFLAGS" \
 LDFLAGS="$LDFLAGS" \
 LIBS="$LIBS" \
 MPI_LAUNCH="$MPI_LAUNCH" \
@@ -94,7 +92,7 @@ if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
   rsync -uavz ${ICON_DIR}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
   ln -sf -t run/ ${ICON_DIR}/run/standard_*
   ln -sf set-up.info run/SETUP.config
-  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='rrtmgp*.nc' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${ICON_DIR}/make_runscripts .
   ln -sf ${ICON_DIR}/data
   ln -sf ${ICON_DIR}/vertical_coord_tables

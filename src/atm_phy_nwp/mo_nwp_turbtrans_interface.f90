@@ -48,6 +48,7 @@ MODULE mo_nwp_turbtrans_interface
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqtke
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_advection_config,     ONLY: advection_config
+  USE mo_initicon_config,      ONLY: icpl_da_sfcfric
   USE turb_data,               ONLY: get_turbdiff_param
   USE sfc_flake_data,          ONLY: h_Ice_min_flk, tpl_T_f
   USE turb_transfer,           ONLY: turbtran
@@ -292,6 +293,9 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           IF (jt > ntiles_lnd .AND. lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0.999_wp) THEN
             prm_diag%gz0_t(jc,jb,jt-ntiles_lnd) = grav*z0_mod
           ENDIF
+          IF (icpl_da_sfcfric >= 1) THEN
+            prm_diag%gz0_t(jc,jb,jt) = MIN(1.5_wp*grav,prm_diag%sfcfric_fac(jc,jb)*prm_diag%gz0_t(jc,jb,jt))
+          ENDIF
         ENDDO
         !$acc end parallel
         IF (atm_phy_nwp_config(jg)%itype_z0 == 3) THEN ! Add SSO contribution to tile-specific roughness length
@@ -382,9 +386,6 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       ! First call of turbtran for all grid points (water points with > 50% water
       ! fraction and tile 1 of the land points)
       IF (ntiles_total == 1) THEN ! tile approach not used; use tile-averaged fields from extpar
-
-        ! WARNING: This has been ported to GPU but has not been tested. If ntiles_total == 1 is
-        ! read from the namelist with GPU enabled, the code finishes.
 
         !should be dependent on location in future!
         !$acc kernels async(1) default(present) if(lzacc)

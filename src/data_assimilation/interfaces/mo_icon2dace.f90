@@ -1603,8 +1603,9 @@ contains
     end do
 
     fields = fields_default
-    if (l_rad_cld .and. .not. use_reff ) fields = trim(fields)//' '//trim(fields_rad_cld)
-    if (l_rad_cld .and.  use_reff )      fields = trim(fields)//' '//trim(fields_rad_cld)//' '//trim(fields_rad_reff)
+    if (l_rad_cld) fields = trim(fields)//' '//trim(fields_rad_cld)
+    if (l_rad_cld .and. use_reff .and. atm_phy_nwp_config(1)% icalc_reff .gt. 0) &
+       fields = trim(fields)//' '//trim(fields_rad_reff)
 
     call allocate (state, fields)
     
@@ -1624,11 +1625,6 @@ contains
     if (lqr) call allocate (state, "qr")
     if (lqs) call allocate (state, "qs")
     if (lqg) call allocate (state, "qg")
-
-    if  (atm_phy_nwp_config(1)% icalc_reff .gt. 0 .and. use_reff ) then 
-       call allocate (state, "reff_qc") 
-       call allocate (state, "reff_qi") 
-    end if  
 
     if (dbg_level > 1) then
        if (dace% lpio) write(0,*) "iqv,iqc,iqi,iqr,iqs,iqg=",iqv,iqc,iqi,iqr,iqs,iqg

@@ -93,7 +93,7 @@ MODULE mo_radiation_config
     INTEGER :: islope_rad      ! slope correction for surface radiation
                                ! 0: none
                                ! 1: slope correction for solar radiation without shading effects
-                               ! option 2 is reserved for slope-dependent radiation with shading (not yet implemented)
+                               ! 2: is for slope-dependent radiation with shading and skyview
 
     ! --- Switches for radiative agents
     !     irad_x=0 : radiation uses tracer x = 0

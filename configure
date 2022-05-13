@@ -723,7 +723,7 @@ enable_silent_rules
 enable_atmo
 enable_edmf
 enable_les
-enable_upper
+enable_upatmo
 enable_ocean
 enable_jsbach
 enable_coupling
@@ -1435,9 +1435,9 @@ Model Features:
                           [default=yes]
   --enable-edmf           enable the EDMF turbulence component of ICON
                           [default=yes]
-  --enable-les            enable the Large-Eddy Simulation of ICON
+  --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
-  --enable-upper          enable the upper atmosphere component of ICON
+  --enable-upatmo         enable the upper atmosphere component of ICON
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
@@ -2412,6 +2412,7 @@ else
   enable_edmf=yes
 fi
 
+
 # Check whether --enable-les was given.
 if test "${enable_les+set}" = set; then :
   enableval=$enable_les; if test x"$enableval" != xno; then :
@@ -2421,13 +2422,14 @@ else
   enable_les=yes
 fi
 
-# Check whether --enable-upper was given.
-if test "${enable_upper+set}" = set; then :
-  enableval=$enable_upper; if test x"$enableval" != xno; then :
-  enable_upper=yes
+
+# Check whether --enable-upatmo was given.
+if test "${enable_upatmo+set}" = set; then :
+  enableval=$enable_upatmo; if test x"$enableval" != xno; then :
+  enable_upatmo=yes
 fi
 else
-  enable_upper=yes
+  enable_upatmo=yes
 fi
 
 
@@ -3604,6 +3606,8 @@ elif $FC --version 2>&1 | grep '^Copyright.*NEC Corporation' >/dev/null 2>&1; th
   acx_cv_fc_compiler_vendor=nec
 elif $FC --version 2>/dev/null | grep '^GNU Fortran' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=gnu
+elif $FC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
+  acx_cv_fc_compiler_vendor=amd
 elif $FC -V 2>&1 | grep '^f18 compiler' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
 elif $FC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
@@ -3676,10 +3680,12 @@ fi ;; #(
          if test $? -ne 0 || test -z "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null`
 fi ;; #(
+  amd) :
+    acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   flang) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)/\1/p'`
          if test -z "$acx_cv_fc_compiler_version"; then :
-  acx_cv_fc_compiler_version=`$FC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
+  acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi
@@ -4427,8 +4433,8 @@ if test "x$enable_les" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_LES__"
 fi
 
-if test "x$enable_upper" = xno; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_UPPER__"
+if test "x$enable_upatmo" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_UPATMO__"
 fi
 
 if test "x$enable_ocean" = xno; then :
@@ -5295,6 +5301,8 @@ elif $CC --version 2>&1 | grep '^Copyright.*NEC Corporation' >/dev/null 2>&1; th
   acx_cv_c_compiler_vendor=nec
 elif $CC --version 2>/dev/null | grep '^gcc' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=gnu
+elif $CC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
+  acx_cv_c_compiler_vendor=amd
 elif $CC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=clang
 else
@@ -5350,8 +5358,10 @@ fi ;; #(
          if test $? -ne 0 || test -z "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null`
 fi ;; #(
+  amd) :
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   clang) :
-    acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   *) :
     acx_cv_c_compiler_version=unknown ;;
 esac
@@ -6824,8 +6834,6 @@ fi
      ;; #(
   -enable-gpu|-enable-gpu=*|--enable-gpu|--enable-gpu=*|-disable-gpu|--disable-gpu) :
      ;; #(
-  -enable-tests|-enable-tests=*|--enable-tests|--enable-tests=*|-disable-tests|--disable-tests) :
-     ;; #(
   *) :
 
            case $acx_config_subdir_arg in #(
@@ -6840,7 +6848,7 @@ else
   acx_config_subdir_ignore_arg=no
 fi
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$enable_gpu" --enable-tests=no --enable-silent-rules="$enable_silent_rules" ; shift
+         set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$enable_gpu" --enable-silent-rules="$enable_silent_rules" ; shift
       for acx_config_subdir_arg; do
         case $acx_config_subdir_arg in #(
   *\'*) :

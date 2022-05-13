@@ -53,7 +53,7 @@ MODULE mo_util_phys
   USE mo_mpi,                   ONLY: i_am_accel_node
   USE openacc,                  ONLY: acc_is_present
 #endif
-
+  USE mo_2mom_mcrph_util,       ONLY: set_qnc, set_qnr, set_qni, set_qns
 
   IMPLICIT NONE
 
@@ -579,6 +579,9 @@ CONTAINS
     REAL(wp) :: zqin
     REAL(wp) :: zrhw(nproma, kend) ! relative humidity w.r.t. water
 
+#ifdef _OPENACC
+    IF (.not. i_am_accel_node) CALL finish('mo_nh_interface_nwp:','This part should always run on GPU.')
+#endif
 
     ! add analysis increments from data assimilation to qv
     !
@@ -588,8 +591,13 @@ CONTAINS
     CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend, &
       &             opt_lconstgrav=upatmo_config(jg)%nwp_phy%l_constgrav)
 
+    !$ACC DATA CREATE( zrhw ) PRESENT( pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config )
+
     ! Compute relative humidity w.r.t. water
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jk = 1, kend
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jc = i_startidx, i_endidx
         zrhw(jc,jk) = pt_prog_rcf%tracer(jc,jk,jb,iqv)/qsat_rho(pt_diag%temp(jc,jk,jb),pt_prog%rho(jc,jk,jb))
       ENDDO
@@ -598,9 +606,11 @@ CONTAINS
     ! GZ: This loop needs to be split for correct vectorization because rhoc_incr is allocated for qcana_mode >= 1 only;
     !     otherwise, the NEC runs into a segfault. Likewise, the remaining case selections need to be done outside the
     !     vectorized loops in order to avoid invalid memory accesses.
+    !$ACC LOOP SEQ
     DO jk = 1, kend
       IF (qcana_mode >= 1) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          DO jc = i_startidx, i_endidx
           IF (qcana_mode == 2 .AND. pt_prog_rcf%tracer(jc,jk,jb,iqc) > 0._wp) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + &
               iau_wgt_adv*pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
@@ -615,7 +625,8 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          DO jc = i_startidx, i_endidx
           zqin = pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
           ! DA increments of humidity are limited to positive values if p > 150 hPa and RH < 2% or QV < 5.e-7
           IF (pt_diag%pres(jc,jk,jb) > 15000._wp .AND. zrhw(jc,jk) < 0.02_wp .OR. &
@@ -625,14 +636,16 @@ CONTAINS
       ENDIF
 
       IF (qiana_mode > 0) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqi) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqi) + &
             iau_wgt_adv*pt_diag%rhoi_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
         ENDDO
       ENDIF
 
       IF (qrsgana_mode > 0) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqr) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqr) + &
             iau_wgt_adv * pt_diag%rhor_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
           pt_prog_rcf%tracer(jc,jk,jb,iqs) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqs) + &
@@ -641,14 +654,16 @@ CONTAINS
       ENDIF
 
       IF (qrsgana_mode > 0 .AND. iqg <= iqm_max) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqg) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqg) + &
             iau_wgt_adv * pt_diag%rhog_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
         ENDDO
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%l2moment) THEN
-        DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC:1) VECTOR
+          DO jc = i_startidx, i_endidx
           IF (qcana_mode > 0) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqnc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnc) + &
                  iau_wgt_adv * pt_diag%rhonc_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -673,7 +688,10 @@ CONTAINS
       ENDIF
 
     ENDDO
+    !$ACC END PARALLEL
 
+    !$ACC WAIT 
+    !$ACC END DATA
 
   END SUBROUTINE iau_update_tracer
 
@@ -727,12 +745,10 @@ CONTAINS
     REAL(wp) :: z_ddt_q_nudge
 #endif
     !
-    INTEGER, POINTER              :: ptr_conv_list(:)
-    INTEGER, DIMENSION(3), TARGET :: conv_list_small
-    INTEGER, DIMENSION(5), TARGET :: conv_list_large
+    INTEGER, DIMENSION(5) :: conv_list
 
     !$acc data present(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv, &
-    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, &
+    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d, &
     !$acc              prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
     !$acc      if(i_am_accel_node)
 
@@ -745,22 +761,23 @@ CONTAINS
 
     ! get list of water tracers which are affected by convection
     IF (atm_phy_nwp_config(jg)%ldetrain_conv_prec) THEN
-      conv_list_large = (/iqv,iqc,iqi,iqr,iqs/)
-      ptr_conv_list =>conv_list_large
+      conv_list = (/iqv,iqc,iqi,iqr,iqs/)
     ELSE
-      conv_list_small = (/iqv,iqc,iqi/)
-      ptr_conv_list =>conv_list_small
+      conv_list = (/iqv,iqc,iqi,-1,-1/)
     ENDIF
 
-    !$acc kernels default(none) if(i_am_accel_node)
+    !$acc kernels default(none) async(1) if(i_am_accel_node)
     zrhox_clip(:,:) = 0._wp
     !$acc end kernels
 
     ! add tendency due to convection
-    DO jt=1,SIZE(ptr_conv_list)
-      idx = ptr_conv_list(jt)
-      !$acc parallel default(none) if(i_am_accel_node)
-      !$acc loop gang vector collapse(2)
+    !$acc parallel copyin(conv_list) private(pos_qv) default(none) async(1) if(i_am_accel_node)
+    !$acc loop seq
+    DO jt=1,SIZE(conv_list)
+      idx = conv_list(jt)
+      IF (idx <= 0) CYCLE
+
+      !$acc loop gang(static:1) vector collapse(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           zrhox(jc,jk,jt) = p_rho_now(jc,jk)*pt_prog_rcf%tracer(jc,jk,jb,idx)  &
@@ -773,7 +790,6 @@ CONTAINS
           zrhox(jc,jk,jt) = MAX(0._wp, zrhox(jc,jk,jt))
         ENDDO
       ENDDO
-      !$acc end parallel
       !
       ! Re-diagnose tracer mass fraction from partial mass
       IF (idx == iqv) THEN
@@ -781,20 +797,17 @@ CONTAINS
         CYCLE         ! special treatment see below
       ENDIF
       !
-      !$acc parallel default(none) if(i_am_accel_node)
-      !$acc loop gang vector collapse(2)
+      !$acc loop gang(static:1) vector collapse(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,idx) = zrhox(jc,jk,jt)/p_rho_now(jc,jk)
         ENDDO
       ENDDO
-      !$acc end parallel
     ENDDO ! jt
     !
     ! Special treatment for qv. 
     ! Rediagnose tracer mass fraction and substract mass created by artificial clipping.
-    !$acc parallel default(none) if(i_am_accel_node)
-    !$acc loop gang vector collapse(2)
+    !$acc loop gang(static:1) vector collapse(2)
     DO jk = kstart_moist(jg), kend
       DO jc = i_startidx, i_endidx
         pt_prog_rcf%tracer(jc,jk,jb,iqv) = MAX(0._wp, &
@@ -805,7 +818,52 @@ CONTAINS
     ENDDO
     !$acc end parallel
 
+!!  Update of two-moment number densities using the updates from the convective parameterization
+    IF (atm_phy_nwp_config(jg)%l2moment) THEN
+      DO jt=1,SIZE(conv_list)
+        idx = conv_list(jt)
+        IF (idx <= 0) CYCLE
 
+        IF ( idx == iqv ) THEN ! No number concentration for iqv
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
+                   + set_qnc( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqv) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqc ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
+                 + set_qnc( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqc) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqi ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqni) =  pt_prog_rcf%tracer(jc,jk,jb,iqni)    &
+                 + set_qni( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqi) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqr ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqnr) =  pt_prog_rcf%tracer(jc,jk,jb,iqnr)    &
+                 + set_qnr( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqr) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSEIF ( idx == iqs ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx              
+              pt_prog_rcf%tracer(jc,jk,jb,iqns) =  pt_prog_rcf%tracer(jc,jk,jb,iqns)    &
+                 + set_qns( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqs) )/p_rho_now(jc,jk)   
+            END DO
+          END DO
+        ELSE
+          CALL finish("mo_util_phys", "Not valid update from convective parameterization for two-moment scheme.")          
+        END IF
+      END DO
+    END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
       ! add convective tendency and fix to positive values
@@ -822,9 +880,9 @@ CONTAINS
 
     ! additional clipping for qr, qs, ... up to iqm_max
     ! (very small negative values may occur during the transport process (order 10E-15))
-    iq_start = MAXVAL(ptr_conv_list(:)) + 1  ! all others have already been clipped above
+    iq_start = MAXVAL(conv_list(:)) + 1  ! all others have already been clipped above
     !
-    !$acc parallel default(none) if(i_am_accel_node)
+    !$acc parallel default(none) async(1) if(i_am_accel_node)
     !$acc loop gang vector collapse(3)
     DO jt=iq_start, iqm_max  ! qr,qs,etc. 
       DO jk = kstart_moist(jg), kend
@@ -837,7 +895,7 @@ CONTAINS
     
     ! clipping for number concentrations
     IF(atm_phy_nwp_config(jg)%l2moment)THEN
-      !$acc parallel default(none) if(i_am_accel_node)
+      !$acc parallel default(none) async(1) if(i_am_accel_node)
       !$acc loop gang vector collapse(3)
       DO jt=iqni, ininact  ! qni,qnr,qns,qng,qnh,qnc and ninact (but not yet ninpot)
         DO jk = kstart_moist(jg), kend
@@ -854,7 +912,7 @@ CONTAINS
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN
 !DIR$ IVDEP
-      !$acc parallel default(none) if(i_am_accel_node)
+      !$acc parallel default(none) async(1) if(i_am_accel_node)
       !$acc loop gang vector
       DO jc = i_startidx, i_endidx
 
@@ -865,6 +923,10 @@ CONTAINS
           &                      + pdtime * prm_diag%snow_con_rate(jc,jb)
 
         prm_diag%prec_con(jc,jb) = prm_diag%rain_con(jc,jb) + prm_diag%snow_con(jc,jb)
+
+        ! to compute tot_prec_d lateron:
+        prm_diag%prec_con_d(jc,jb) = prm_diag%prec_con_d(jc,jb) + pdtime * ( &
+          &                          prm_diag%rain_con_rate(jc,jb) + prm_diag%snow_con_rate(jc,jb) )
 
       ENDDO
       !$acc end parallel
@@ -907,6 +969,7 @@ CONTAINS
     ENDIF  ! is_ls_forcing
 #endif
 
+    !$acc wait
     !$acc end data !copyin
     !$acc end data !create
     !$acc end data !present

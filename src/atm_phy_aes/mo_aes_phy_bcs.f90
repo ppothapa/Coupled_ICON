@@ -37,7 +37,9 @@ MODULE mo_aes_phy_bcs
   USE mo_aes_rad_config             ,ONLY: aes_rad_config
   USE mo_ccycle_config              ,ONLY: ccycle_config
   USE mo_radiation_solar_data       ,ONLY: ssi_radt, tsi_radt, tsi
+#ifndef __NO_RTE_RRTMGP__
   USE mo_rte_rrtmgp_radiation       ,ONLY: pre_rte_rrtmgp_radiation
+#endif
   USE mo_radiation_general          ,ONLY: nbndlw, nbndsw
   USE mo_bc_aeropt_stenchikov       ,ONLY: read_bc_aeropt_stenchikov
 
@@ -309,7 +311,7 @@ CONTAINS
              & .OR. aes_rad_config(jg)% irad_o3 ==  6 &       ! climatological annual cycle defined by monthly data
              & .OR. aes_rad_config(jg)% irad_o3 ==  5 &       ! transient monthly means
              & .OR. aes_rad_config(jg)% irad_o3 == 10 ) THEN  ! coupled to ART
-          CALL read_bc_ozone(mtime_old%date%year, patch)
+          CALL read_bc_ozone(mtime_old%date%year, patch, aes_rad_config(jg)%irad_o3)
         END IF
         !
         ! tropospheric aerosol optical properties after S. Kinne

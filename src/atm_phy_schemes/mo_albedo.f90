@@ -1294,7 +1294,9 @@ CONTAINS
         ! Aggregate surface albedo on all points
         !
         IF (ntiles_total == 1) THEN
- 
+
+          !$acc parallel default (present) if (lacc)
+          !$acc loop gang vector
           DO jc = i_startidx, i_endidx
             prm_diag%albdif(jc,jb) = prm_diag%albdif_t(jc,jb,1)
             ! albvisdif, albnirdif only needed for RRTM 
@@ -1307,6 +1309,7 @@ CONTAINS
 
             zsnowfrac(jc) = lnd_diag%snowfrac_t(jc,jb,1)
           ENDDO
+          !$acc end parallel
 
         ELSE ! aggregate fields over tiles
 

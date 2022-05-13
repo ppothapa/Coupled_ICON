@@ -59,10 +59,11 @@ MODULE mo_ext_data_state
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
   USE mo_grid_config,        ONLY: n_dom
   USE mo_run_config,         ONLY: iforcing
-  USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake, &
-    &                              sstice_mode
-  USE mo_radiation_config,   ONLY: irad_o3, albedo_type
-  USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nmonths_ext, itype_vegetation_cycle, itype_lwemiss
+  USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake,       &
+    &                              sstice_mode, lterra_urb
+  USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad
+  USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nhori,              &
+    &                              nmonths_ext, itype_vegetation_cycle, itype_lwemiss
   USE mo_cdi,                ONLY: DATATYPE_PACK16, DATATYPE_FLT32, DATATYPE_FLT64,     &
     &                              TSTEP_CONSTANT, TSTEP_MAX, TSTEP_AVG, TSTEP_INSTANT, &
     &                              GRID_UNSTRUCTURED
@@ -102,7 +103,6 @@ MODULE mo_ext_data_state
   ! subroutines
   PUBLIC :: construct_ext_data
   PUBLIC :: destruct_ext_data
-
 
   TYPE(t_external_data),TARGET, ALLOCATABLE :: &
     &  ext_data(:)  ! n_dom
@@ -203,13 +203,16 @@ CONTAINS
 
     INTEGER :: shape2d_c(2)
     INTEGER :: shape3d_c(3)
-    INTEGER :: shape3d_sfc(3), shape3d_nt(3), shape3d_ntw(3)
+    INTEGER :: shape3d_sfc(3), shape3d_sfc_sec(3), shape3d_nt(3), shape3d_ntw(3)
 
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: datatype_flt  !< floating point accuracy in NetCDF output
 
     INTEGER          :: jsfc
     CHARACTER(LEN=2) :: csfc
+
+    CHARACTER(len=max_char_length), PARAMETER :: &
+      routine = modname//':new_ext_data_atm_list'
 
     !--------------------------------------------------------------
 
@@ -232,6 +235,7 @@ CONTAINS
     ! predefined array shapes
     shape2d_c  = (/ nproma, nblks_c /)
     shape3d_c  = (/ nproma, nlev, nblks_c       /)
+    shape3d_sfc_sec= (/ nproma, nblks_c, nhori  /)
     shape3d_sfc= (/ nproma, nblks_c, nclass_lu(jg) /)
     shape3d_nt = (/ nproma, nblks_c, ntiles_total     /)
     shape3d_ntw = (/ nproma, nblks_c, ntiles_total + ntiles_water /)
@@ -244,6 +248,8 @@ CONTAINS
       &     p_ext_atm%grad_topo,       &
       &     p_ext_atm%topo_t2mclim,    &
       &     p_ext_atm%fis,             &
+      &     p_ext_atm%horizon,         &
+      &     p_ext_atm%skyview,         &
       &     p_ext_atm%o3,              &
       &     p_ext_atm%llsm_atm_c,      &
       &     p_ext_atm%llake_c,         &
@@ -282,6 +288,30 @@ CONTAINS
       &     p_ext_atm%for_d,           &
       &     p_ext_atm%skinc,           &
       &     p_ext_atm%skinc_t,         &
+      &     p_ext_atm%fr_paved,        &
+      &     p_ext_atm%fr_paved_t,      &
+      &     p_ext_atm%urb_isa,         &
+      &     p_ext_atm%urb_isa_t,       &
+      &     p_ext_atm%urb_ai,          &
+      &     p_ext_atm%urb_ai_t,        &
+      &     p_ext_atm%urb_alb_red,     &
+      &     p_ext_atm%urb_alb_red_t,   &
+      &     p_ext_atm%urb_fr_bld,      &
+      &     p_ext_atm%urb_fr_bld_t,    &
+      &     p_ext_atm%urb_h2w,         &
+      &     p_ext_atm%urb_h2w_t,       &
+      &     p_ext_atm%urb_h_bld,       &
+      &     p_ext_atm%urb_h_bld_t,     &
+      &     p_ext_atm%urb_alb_th,      &
+      &     p_ext_atm%urb_alb_th_t,    &
+      &     p_ext_atm%urb_alb_so,      &
+      &     p_ext_atm%urb_alb_so_t,    &
+      &     p_ext_atm%urb_hcap,        &
+      &     p_ext_atm%urb_hcap_t,      &
+      &     p_ext_atm%urb_hcon,        &
+      &     p_ext_atm%urb_hcon_t,      &
+      &     p_ext_atm%ahf,             &
+      &     p_ext_atm%ahf_t,           &
       &     p_ext_atm%rsmin,           &
       &     p_ext_atm%rsmin2d_t,       &
       &     p_ext_atm%ndvi_max,        &
@@ -363,6 +393,32 @@ CONTAINS
 
     IF ( iforcing == inwp ) THEN
 
+      IF (islope_rad == 2) THEN
+        CALL message(routine, 'adding horizon angle - topography')
+        ! horizon angle from flat topography in nhori sectors 
+        !
+        ! horizon     p_ext_atm%horizon(nproma,nblks_c,nhori)
+        cf_desc    = t_cf_var('horizon angle - topography', 'deg',      &
+          &                   'horizon angle - topography', datatype_flt)
+        grib2_desc = grib2_var( 0,199, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'horizon', p_ext_atm%horizon,     &
+          &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,    &
+          &           grib2_desc, ldims=shape3d_sfc_sec, loutput=.TRUE. )
+        CALL message(routine, 'adding skyview factor')
+        ! geometric sky-view factor scaled with sinus(horizon)**2
+        !
+        ! skyview     p_ext_atm%skyview(nproma,nblks_c)
+        cf_desc    = t_cf_var('geometric sky-view factor', '-',      &
+          &                   'geometric sky-view factor', datatype_flt)
+        grib2_desc = grib2_var( 0,199, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'skyview', p_ext_atm%skyview,     &
+          &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,    &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE. )
+      ELSE
+         ALLOCATE(p_ext_atm%horizon(0,nblks_c,nhori))
+         ALLOCATE(p_ext_atm%skyview(0,nblks_c))
+      ENDIF
+
       ! ozone mixing ratio
       !
       ! o3            p_ext_atm%o3(nproma,nlev,nblks_c)
@@ -398,7 +454,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'llake_c', p_ext_atm%llake_c,       &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
         &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,       &
-        &           isteptype=TSTEP_CONSTANT )
+        &           isteptype=TSTEP_CONSTANT, lopenacc=.TRUE.           )
+        __acc_attach(p_ext_atm%llake_c)
 
 
       ! land fraction
@@ -841,6 +898,250 @@ CONTAINS
       __acc_attach(p_ext_atm%skinc_t)
 
 
+      IF (lterra_urb) THEN
+
+      ! Impervious surface area (ISA)
+      !
+      ! fr_paved        p_ext_atm%fr_paved(nproma,nblks_c)
+      cf_desc    = t_cf_var('fr_paved', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'fr_paved', p_ext_atm%fr_paved,         &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! fr_paved_t        p_ext_atm%fr_paved_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('fr_paved', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'fr_paved_t', p_ext_atm%fr_paved_t,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%fr_paved_t)
+
+
+      ! Impervious surface area of the urban canopy
+      !
+      ! urb_isa        p_ext_atm%urb_isa(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_isa', p_ext_atm%urb_isa,           &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_isa_t        p_ext_atm%urb_isa_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_isa_t', p_ext_atm%urb_isa_t,       &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_isa_t)
+
+
+      ! Surface area index of the urban canopy
+      !
+      ! urb_ai        p_ext_atm%urb_ai(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_ai', '-', 'Urban area index', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_ai', p_ext_atm%urb_ai,             &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_ai_t        p_ext_atm%urb_ai_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_ai', '-', 'Urban area index', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_ai_t', p_ext_atm%urb_ai_t,         &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_ai_t)
+
+
+      ! Albedo reduction factor for the urban canopy
+      !
+      ! urb_alb_red        p_ext_atm%urb_alb_red(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_alb_red', '-', 'Albedo reduction factor', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_red', p_ext_atm%urb_alb_red,   &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_alb_red_t        p_ext_atm%urb_alb_red_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_alb_red', '-', 'Albedo reduction factor', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_red_t', p_ext_atm%urb_alb_red_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_alb_red_t)
+
+
+      ! Building area fraction with respect to urban tile
+      !
+      ! urb_fr_bld        p_ext_atm%urb_fr_bld(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_fr_bld', '-', 'Building area fraction', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_fr_bld', p_ext_atm%urb_fr_bld,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_fr_bld_t        p_ext_atm%urb_fr_bld_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_fr_bld', '-', 'Building area fraction', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_fr_bld_t', p_ext_atm%urb_fr_bld_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_fr_bld_t)
+
+
+      ! Street canyon H/W ratio
+      !
+      ! urb_h2w        p_ext_atm%urb_h2w(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_h2w', 'm m-1', 'Street canyon ratio', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_h2w', p_ext_atm%urb_h2w,           &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_h2w_t        p_ext_atm%urb_h2w_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_h2w', 'm m-1', 'Street canyon ratio', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_h2w_t', p_ext_atm%urb_h2w_t,       &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_h2w_t)
+
+
+      ! Building height
+      !
+      ! urb_h_bld        p_ext_atm%urb_h_bld(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_h_bld', 'm', 'Building height', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_h_bld', p_ext_atm%urb_h_bld,       &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_h_bld_t        p_ext_atm%urb_h_bld_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_h_bld', 'm', 'Building height', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_h_bld_t', p_ext_atm%urb_h_bld_t,   &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_h_bld_t)
+
+
+      ! Thermal albedo of urban material
+      !
+      ! urb_alb_th        p_ext_atm%urb_alb_th(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_alb_th', '-', 'Urban thermal albedo', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_th', p_ext_atm%urb_alb_th,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_alb_th_t        p_ext_atm%urb_alb_th_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_alb_th', '-', 'Urban thermal albedo', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_th_t', p_ext_atm%urb_alb_th_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_alb_th_t)
+
+
+      ! Solar albedo of urban material
+      !
+      ! urb_alb_so        p_ext_atm%urb_alb_so(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_alb_so', '-', 'Urban solar albedo', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 4, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_so', p_ext_atm%urb_alb_so,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_alb_so_t        p_ext_atm%urb_alb_so_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_alb_so', '-', 'Urban solar albedo', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 4, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_alb_so_t', p_ext_atm%urb_alb_so_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_alb_so_t)
+
+
+      ! Volumetric heat capacity of urban material
+      !
+      ! urb_hcap        p_ext_atm%urb_hcap(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_hcap', 'J m-3 K-1', 'Urban heat capacity', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_hcap', p_ext_atm%urb_hcap,         &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_hcap_t        p_ext_atm%urb_hcap_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_hcap', 'J m-3 K-1', 'Urban heat capacity', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_hcap_t', p_ext_atm%urb_hcap_t,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_hcap_t)
+
+
+      ! Thermal conductivity of urban material
+      !
+      ! urb_hcon        p_ext_atm%urb_hcon(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_hcon', 'W m-1 K-1', 'Urban thermal conductivity', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_hcon', p_ext_atm%urb_hcon,         &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_hcon_t        p_ext_atm%urb_hcon_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('urb_hcon', 'W m-1 K-1', 'Urban thermal conductivity', datatype_flt)
+      grib2_desc = grib2_var( 2, 192, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_hcon_t', p_ext_atm%urb_hcon_t,     &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_hcon_t)
+
+
+      ! Anthropogenic heat flux
+      !
+      ! ahf        p_ext_atm%ahf(nproma,nblks_c)
+      cf_desc    = t_cf_var('ahf', 'W m-2', 'Anthropogenic heat flux', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 197, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'ahf', p_ext_atm%ahf,                   &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! ahf_t        p_ext_atm%ahf_t(nproma,nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('ahf', 'W m-2', 'Anthropogenic heat flux', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 197, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'ahf_t', p_ext_atm%ahf_t,               &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%ahf_t)
+
+      ENDIF
+
+
       ! Minimal stomata resistence
       !
       ! rsmin        p_ext_atm%rsmin(nproma,nblks_c)
@@ -1004,6 +1305,8 @@ CONTAINS
                 p_ext_atm%laimax_lcc(nclass_lu(jg)),    & ! Maximum leaf area index for each land-cover class
                 p_ext_atm%rootdmax_lcc(nclass_lu(jg)),  & ! Maximum root depth each land-cover class
                 p_ext_atm%skinc_lcc(nclass_lu(jg)),     & ! Skin conductivity for each land use class
+                p_ext_atm%fr_paved_lcc(nclass_lu(jg)),  & ! Impervious surface area (ISA) for each land use class
+                p_ext_atm%ahf_lcc(nclass_lu(jg)),       & ! Anthropogenic heat flux for each land use class
                 p_ext_atm%stomresmin_lcc(nclass_lu(jg)),& ! Minimum stomata resistance for each land-cover class
                 p_ext_atm%snowalb_lcc(nclass_lu(jg)),   & ! Albedo in case of snow cover for each land-cover class
                 p_ext_atm%snowtile_lcc(nclass_lu(jg))   ) ! Specification of snow tiles for land-cover class

@@ -2604,6 +2604,15 @@ temperature increment at the lowest model level  \\
 init\_mode=5
 \tabularnewline
 
+icpl\_da\_sfcfric&
+I & 0 & &
+Coupling between data assimilation and model parameters controlling surface friction (roughness length and SSO blocking tendency at lowest level). \\
+0: off \\
+1: on; requires assimilation of 10m-winds and cycling a time-filtered assimilation increment of absolute wind speed at the lowest model level;
+moreover, it is strongly recommended to use extpar data with full SSO information (generated in Feb. 2022 or later). &
+init\_mode=5
+\tabularnewline
+
 
 adjust\_tso\_tsnow&
 L & .FALSE. & &
@@ -3034,6 +3043,13 @@ iforcing=3
 \tabularnewline
 
 %\hline
+totprec\_d\_interval&
+C(n\_dom)& "PT01H" & &
+Interval over which the special precipitation variable tot\_prec\_d is accumulated, which can be output alongside or alternatively to tot\_prec and enables a different accumulation time for this field than precip\_interval.&
+iforcing=3
+\tabularnewline
+
+%\hline
 maxt\_interval&
 C(n\_dom)& "PT06H" & &
 Interval over which max/min 2-m temperatures are calculated &
@@ -3063,6 +3079,22 @@ iforcing=3
 \tabularnewline
 
 %\hline
+wshear\_uv\_heights&
+\squeezeme{R(max\_wshear)}\\
+\squeezeme{max\_wshear=10}& 1000.0, 3000.0, 6000.0 & &
+List of height levels (m AGL) for which the vertical windshear output variables ``wshear\_u'' and ``wshear\_v'' are to be output. &
+iforcing=3
+\tabularnewline
+
+%\hline
+srh\_heights&
+\squeezeme{R(max\_srh)}\\
+\squeezeme{max\_srh=10}& 1000.0, 3000.0 & &
+List of height levels (m AGL) for which the storm relative helicity ``srh'' is to be output. ``srh'' is a vertical integral from the ground to a certain height. The listed height levels denote different upper bounds for this integration. &
+iforcing=3
+\tabularnewline
+
+% \hline
 echotop\_meta \\[2\baselineskip]
 \squeezeme{\hspace*{3ex} This type contains:}\\[\baselineskip]
 \squeezeme{\hspace*{3ex} echotop\_meta(1:n\_dom)\%time\_interval}\\[\baselineskip]
@@ -3413,6 +3445,41 @@ parcelfreq2\_mode & [5]
 \tabularnewline
 %
 
+tot\_prec\_d &  total accumulated precipitation during a different time interval compared to tot\_prec &
+kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [6], [7]
+\tabularnewline
+%
+
+lapse\_rate & temperature gradient between 500 and 850 hPa  &
+K m-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
+wshear\_u & difference of U component between certain heights (``wshear\_uv\_heights'') AGL and the lowest model level  &
+m s-1 & iforcing = inwp & 3d & wshear\_uv\_heights & [2]
+\tabularnewline
+%
+
+wshear\_v & difference of V component between certain heights (``wshear\_uv\_heights'') AGL and the lowest model level  &
+m s-1 & iforcing = inwp & 3d & wshear\_uv\_heights & [2]
+\tabularnewline
+%
+
+srh & storm relative helicity considering storm motion estimate of Bunkers et al. (2000) for right-movers. srh is a vertical intergal up to a certain height AGL and may be output for different upper bounds (``srh\_heights''). &
+m2 s-2 & iforcing = inwp & 3d & srh\_heights & [2]
+\tabularnewline
+%
+
+cape\_mu & approximate value of the most unstable CAPE considering a test parcel from the height level with largest equivalent potential temperature between the ground and 3000 m AGL  &
+J kg-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
+cin\_mu & approximate value of the most unstable CIN consistent to cape\_mu  &
+J kg-1 & iforcing = inwp & 2d & - & [2]
+\tabularnewline
+%
+
 \hline
 \end{longtable}
 \renewcommand*{\arraystretch}{1.}
@@ -3464,6 +3531,8 @@ is found in the column ``Place of computation in source code'' of table \ref{tab
 \item[{[3]}] \texttt{/src/atm\_phy\_nwp/mo\_nh\_diagnose\_pmsl} 
 \item[{[4]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_flow} 
 \item[{[5]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_parcel}
+\item[{[6]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
+\item[{[7]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
 \end{itemize}
 %
 
@@ -3970,7 +4039,7 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2016) &
+4 = Resistance-based scheme by Schulz and Vogel (2020) &
 \tabularnewline
 
 %\hline
@@ -3985,7 +4054,7 @@ should be used only with an appropriate first guess for this variable coming fro
 itype\_canopy &
 I & 1 &  & Type of canopy parameterization with respect to surface energy balance \\
 1 = Surface energy balance equation solved at the ground surface, canopy energetically not represented \\
-2 = Skin temperature formulation by Schulz and Vogel (2017), based on Viterbo and Beljaars (1995) &
+2 = Skin temperature formulation by Schulz and Vogel (2020), based on Viterbo and Beljaars (1995) &
 \tabularnewline
 
 %\hline
@@ -4001,12 +4070,24 @@ tau\_skin &
 R & 3600. & s & Relaxation time scale for the computation of the skin temperature  &
 \tabularnewline
 
+lterra\_urb &
+L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017)
+&
+\tabularnewline
+
+itype\_eisa &
+I & 2 &  & Type of evaporation from impervious surface area \\
+0 = Evaporation like bare soil \\
+1 = No evaporation \\
+2 = PDF-based puddle evaporation (Wouters et al.\ 2015) &
+\tabularnewline
+
 %\hline
 itype\_heatcond &
-I & 2 &  & type of soil heat conductivity \\
-1 = constant soil heat conductivity \\
-2 = moisture dependent soil heat conductivity, cf.\ Schulz et al.\ (2016) \\
-3 = variant of option 2 with reduced near-surface heat conductivity in the presence of plant cover &
+I & 2 &  & type of soil thermal conductivity \\
+1 = constant soil thermal conductivity \\
+2 = moisture dependent soil thermal conductivity, cf.\ Schulz et al.\ (2016) \\
+3 = variant of option 2 with reduced near-surface thermal conductivity in the presence of plant cover &
 \tabularnewline
 
 %\hline
@@ -5000,62 +5081,6 @@ msg\_level >= 11
 
 Defined and used in: \verb+src/namelists/mo_nudging_nml.f90+
 
-
-%------------------------------------------------------------------------------
-% nwp_bench_nml:
-%------------------------------------------------------------------------------
-\subsection{nwp\_bench\_nml}
-
-The switches to disable subroutine calls inside the time\_loop. These are used for early GPU benchmarks of ICON while not everything is ported. They should be removed again once the port is ready to support all the subroutine calls in this list.
-
-\begin{longtab}
-
-\hline
-d\_unpb&
-L&
-.FALSE.&
-&
-disables the call to update\_nwp\_phy\_bcs if set to .TRUE.&
-\tabularnewline
-
-\hline
-d\_ndfo&
-L&
-.FALSE.&
-&
-disables the call to nwp\_diag\_for\_output if set to .TRUE.&
-\tabularnewline
-
-\hline
-d\_rld&
-L&
-.FALSE.&
-&
-disables the call to recv\_latbc\_data if set to .TRUE.&
-\tabularnewline
-
-\hline
-d\_n&
-L&
-.FALSE.&
-&
-disables the call to nudging if set to .TRUE.&
-\tabularnewline
-
-\hline
-d\_wnlo&
-L&
-.FALSE.&
-&
-disables the call to write\_name\_list\_output if set to .TRUE.&
-\tabularnewline
-
-\end{longtab}
-
-Defined and used in: \verb+src/namelists/mo_bench_nml.f90+
-
-
-
 %------------------------------------------------------------------------------
 % nwp_phy_nml:
 %------------------------------------------------------------------------------
@@ -5192,6 +5217,69 @@ I & 0 &  & Type of CAPE correction to improve diurnal cycle for convection: \\
 inwp\_convection = 1
 \tabularnewline
 
+%\hline
+lstoch\_expl&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate explicit stochastic shallow convection scheme \\
+EXPERIMENTAL! will not produce clean restart \\
+to be used in conjunction with lrestune\_off=.T. and lmflimiter\_off=.T. &
+inwp\_convection = 1
+\tabularnewline
+
+
+%\hline
+lstoch\_sde&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate stochastic differential equation (SDE) shallow convection scheme \\
+to be used in conjunction with lrestune\_off=.T. and lmflimiter\_off=.T. &
+inwp\_convection = 1
+\tabularnewline
+
+
+%\hline
+lstoch\_deep&
+L (max\_ dom) & .FALSE. &  & .TRUE.: activate stochastic differential equation (SDE) deep convection scheme &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lrestune\_off&
+L (max\_ dom) & .FALSE. &  & .TRUE.: switches off resolution-dependent tuning of shallow convection parameters &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lmflimiter\_off&
+L (max\_ dom) & .FALSE. &  & .TRUE.: disables mass flux limiter by setting it to high values that are rarely reached by shallow convection &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lvvcouple&
+L (max\_ dom) & .FALSE. &  & .TRUE.: use vertical velocity at 650hPa as criterion to couple shallow convection \\
+with resolved deep convection &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lvv\_shallow\_deep&
+L (max\_ dom) & .FALSE. &  & .TRUE.: use vertical velocity at 650hPa to distinguish between shallow and \\
+ deep convection within convection routines (instead of cloud depth)&
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+lstoch\_spinup&
+L (max\_ dom) & .FALSE. &  & .TRUE.: spin up cloud ensemble to equilibrium in stochastic shallow convection schemes, \\
+only takes effect when lstoch\_expl=T or lstoch\_sde=T &
+inwp\_convection = 1
+\tabularnewline
+
+%\hline
+nclds&
+I (max\_ dom) & 5000 &  & maximum possible number of shallow clouds per grid box in explicit stochastic cloud ensemble. \\
+only takes effect when lstoch\_expl=T &
+inwp\_convection = 1
+\tabularnewline
+
 icpl\_aero\_conv&
 I&
 0&
@@ -5199,6 +5287,7 @@ I&
 0: off \\
 1: simple coupling between autoconversion and Tegen aerosol climatology; requires irad\_aero=6 &
 \tabularnewline
+
 
 iprog\_aero &
 I&
@@ -5458,7 +5547,14 @@ inwp\_radiation $>$ 0
 
 Defined and used in: \verb+src/namelists/mo_nwp_phy_nml.f90+
 
+\subsubsection{Notes on use of stochastic convection schemes}
+There are currently three stochastic convection schemes available, two versions for shallow convection and one for deep convection. Conceptually, these schemes attempt to represent that for grid box sizes smaller than the size of a typical cloud ensemble, the clouds actually populating the grid box will not be fully representative of that cloud ensemble.
+The two stochastic shallow schemes (lstoch\_expl, lstoch\_sde) are therefore aimed at resolutions of a few kilometers (typically used for LAM simulations, where deep convection is resolved) and will in fact be automatically switched off for resolutions greater than 20km. The scheme converges to the standard Tiedtke-Bechtold mass flux scheme at resolutions sufficiently coarse, such that there is no additional gain from using the stochastic schemes. They should therefore be run with lshalloconv\_only=T. A combination with the grayzone tuning (lgrayzone\_deepconv) is technically possible, but not recommended as the grayzone tuning interferes with the intended behaviour of the stochastic scheme. 
 
+The stochastic deep convection scheme (lstoch\_deep) is intended for resolutions where the deep convection parameterization is still active, but again, grid size is not large enough to contain a fully representative cloud ensemble (e.g. global runs with resolution on the order of 10s of kilometers). Thus the deep and shallow stochastic schemes are not intended to be used together, as the resolutions they are designed for are (mostly) mutually exclusive.
+
+The shallow schemes should be run without resolution-dependent tuning of the convection parameters (lrestune\_off=T) and with disabled mass flux limiters (lmflimiter\_off=T). The mass flux limiters are in fact not fully disabled but set to values high enough to be rarely reached during shallow cloud simulations.
+The deep stochastic scheme cannot be run without mass flux limiters or simulatons will become unstable.
 
 %------------------------------------------------------------------------------
 % nwp_tuning_nml:
@@ -6864,7 +6960,8 @@ I&
 &
 Slope correction for surface radiation:\\
 0: None \\
-1: Slope correction for direct solar radiation without shading effects
+1: Slope correction for direct solar radiation without shading effects \\
+2: Slope and horizon correction for direct solar radiation (with shading effects)
 &
 \tabularnewline
 
@@ -6987,9 +7084,9 @@ irad\_co2/cfc11/cfc12 = 4: time dependent concentration from greenhouse gas file
 irad\_ch4/n2o = 4: time dependent tanh-profile with surface concentration from greenhouse gas file\par
 irad\_o3 = 2: ozone climatology from MPI \par
 irad\_o3 = 4: ozone clim for Aqua Planet Exp \par
+irad\_o3 = 5: ozone climatology for AMIP \par
 irad\_o3 = 6: ozone climatology with T5 geographical distribution and Fourier series for seasonal cycle {\color{red}for run\_nml/iforcing = 3 (NWP)} \par
 irad\_o3 = 7: GEMS ozone climatology (from IFS) {\color{red}for run\_nml/iforcing = 3 (NWP)} \par
-irad\_o3 = 8: ozone climatology for AMIP \par
 irad\_o3 = 9: MACC ozone climatology (from IFS) {\color{red}for run\_nml/iforcing = 3 (NWP)} \par
 irad\_o3 = 79: Blending between GEMS and MACC ozone climatologies (from IFS) {\color{red}for run\_nml/iforcing = 3 (NWP)}; MACC is used over Antarctica \par
 irad\_o3 = 97: As 79, but MACC is also used above 1 hPa with transition zone between 5 hPa and 1 hPa \par
@@ -7060,6 +7157,12 @@ natural background of aerosols is applied)\\
 15: tropospheric 'Kinne' aerosols + volcanic stratospheric aerosols for CMIP6,
 time dependent, both from file.
 If the 1850--file of the 'Kinne' aerosols is given, only the natural background from Kinne aerosol is applied.\\
+18: tropospheric natural 'Kinne' aerosols for 1850 (the 1850--file has to be linked for all
+years!) + time dep. volcanic stratospheric aerosols for CMIP6, both from file + param.
+time dep. anthropogenic 'simple plumes' \\
+19: tropospheric natural 'Kinne' aerosols for 1850
+(the 1850--file has to be linked for all years!) +
+param. time dep. anthropogenic 'simple plumes' \\
 &
 \tabularnewline
 
@@ -7403,6 +7506,14 @@ Height below which the layer thickness does not exceed max\_lay\_thckn &
 \tabularnewline
 
 %\hline
+nshift\_above\_thcklay&
+I & 0 & &
+Level shift above constant-thickness layer for further calculation of layer distribution. For strongly stretched
+grids with a deep constant-thickness layer, this parameter may be set to 1 in order to reduce the thickness jump
+right above the constant-thickness layer.  &
+\tabularnewline
+
+%\hline
 itype\_laydistr&
 I& 1& &
 Type of analytical function used to specify the distribution of the vertical coordinate surfaces \\
@@ -7738,6 +7849,19 @@ I(ntracer)&
 0& & Reduce detrimental effect of vertical limiter by applying a method for identifying and avoiding spurious limiting of smooth extrema.& \tabularnewline
 & & & & 1: on& itype\_vlimit=1, 2 \tabularnewline
 & & & & 0: off& \tabularnewline
+
+
+%\hline
+\textbf{nadv\_substeps}&
+I(max\_\\dom)&
+3& & Tracer substepping:\\
+     Number of time integration substeps per fast physics/advective time step dtime.\\
+     If only one value is specified, it is copied to all child domains, implying that the same value is used in all domains.
+     If the number of values given in the namelist is larger than 1 but less than the number of model domains,
+     then the settings from the highest domain ID are used for the remaining model domains.
+   & only active for the schemes ihadv\_tracer=20, 22, 32, 42, 52.\\ 
+    Starts at minimum height height hbot\_qv\_substep for the schemes 22, 32, 42, 52, whereas it is applied throughout the entire domain for scheme 20.\tabularnewline
+
 
 %\hline
 beta\_fct&
@@ -9642,6 +9766,13 @@ Some developments must not change model results. Serialbox allows reading and wr
   Serialization switch for output diagnostics &
   \tabularnewline
 
+  ser\_output\_opt &
+  I (3)&
+  0,12,12&
+  -, $10^{-N}$, $10^{-N}$&
+  Serialization switch for optional output &
+  \tabularnewline
+
   ser\_latbc\_data &
   I (3)&
   0,12,12&
@@ -9703,7 +9834,14 @@ Some developments must not change model results. Serialbox allows reading and wr
   I (3)&
   0,12,12&
   -, $10^{-N}$, $10^{-N}$ &
-  Serialization switch for the subroutine step\_physics &
+  Serialization switch for the subroutine nwp\_nh\_interface &
+  \tabularnewline
+
+  ser\_physics\_init &
+  I (3)&
+  0,12,12&
+  -, $10^{-N}$, $10^{-N}$ &
+  Serialization switch for the subroutine nwp\_nh\_interface during initialization &
   \tabularnewline
 
   ser\_lhn &
@@ -9790,6 +9928,12 @@ Some developments must not change model results. Serialbox allows reading and wr
   Check the state at the end of the time loop (does not read in data) &
   \tabularnewline
 
+  ser\_reset\_to\_initial\_state  &
+  I (3)&
+  0,12,12&
+  -, $10^{-N}$, $10^{-N}$ &
+  Check the reset to initial state after the first phase of IAU&
+  \tabularnewline
 
   ser\_all\_debug &
   I (3)&

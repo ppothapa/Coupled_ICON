@@ -22,9 +22,10 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-#ifndef _OPENMP
+#if !defined _OPENMP && !defined _OPENACC
 #include "consistent_fma.inc"
 #endif
+
 MODULE mo_cudescn
 
 #ifdef __ICON__
@@ -32,11 +33,6 @@ MODULE mo_cudescn
     &                  jpim=>i4
 #endif
 
-#ifdef __GME__
-!  USE parkind1  ,ONLY : jpim     ,jprb
-  USE gme_data_parameters, ONLY:  JPRB =>ireals, JPIM => iintegers
-#endif
-  
 !  USE yomhook   ,ONLY : lhook,   dr_hook
   
   !KF new - use modules instead of include files
@@ -46,7 +42,7 @@ MODULE mo_cudescn
     &                        rlvtt    ,rlstt, rmfcmin,       &
     &                        rmfdeps  ,rmfdeps_ocean, lmfdd,   &
     &                        lhook,   dr_hook
-  
+
   IMPLICIT NONE
 
   PRIVATE
@@ -65,7 +61,7 @@ CONTAINS
     & pmfub,    prfl,&
     & ptd,      pqd,&
     & pmfd,     pmfds,    pmfdq,    pdmfdp,&
-    & kdtop,    lddraf, ldland,   ldlake)
+    & kdtop,    lddraf, ldland,   ldlake, lacc)
     !!
     !! Description:
     !!          THIS ROUTINE CALCULATES LEVEL OF FREE SINKING FOR
@@ -176,7 +172,7 @@ CONTAINS
     INTEGER(KIND=jpim),INTENT(in)    :: ktdia
     INTEGER(KIND=jpim)               :: kcbot(klon) ! Argument NOT used
     INTEGER(KIND=jpim)               :: kctop(klon) ! Argument NOT used
-    LOGICAL :: ldcum(klon)
+    LOGICAL           ,INTENT(in)    :: ldcum(klon)
     REAL(KIND=jprb)   ,INTENT(in)    :: ptenh(klon,klev)
     REAL(KIND=jprb)   ,INTENT(in)    :: pqenh(klon,klev)
     REAL(KIND=jprb)   ,INTENT(in)    :: pten(klon,klev)
@@ -197,7 +193,9 @@ CONTAINS
     REAL(KIND=jprb)   ,INTENT(inout) :: pdmfdp(klon,klev)
     INTEGER(KIND=jpim),INTENT(out)   :: kdtop(klon)
     LOGICAL ,INTENT(in)              :: ldland(klon),   ldlake(klon)
-    LOGICAL ,INTENT(out)   :: lddraf(klon)
+    LOGICAL ,INTENT(out)             :: lddraf(klon)
+    LOGICAL ,INTENT(in)              :: lacc
+
     INTEGER(KIND=jpim) ::            ikhsmin(klon)
     REAL(KIND=jprb) ::     ztenwb(klon,klev),      zqenwb(klon,klev),&
       & zcond(klon),            zph(klon),&
@@ -218,17 +216,37 @@ CONTAINS
     !!                  ---------------------------------
 
     IF (lhook) CALL dr_hook('CUDLFSN',0,zhook_handle)
+
+    !$acc data                                                                         &
+    !$acc present( kcbot, kctop, ptenh, pqenh, pten, pqsen, pgeo, pgeoh, paph, ptu )   &
+    !$acc present( pqu, pmfub, prfl, ptd, pqd, pmfd, pmfds, pmfdq, pdmfdp, kdtop )     &
+    !$acc present( ldland, ldlake, lddraf,ldcum )                                      & 
+
+    !$acc create( ikhsmin, ztenwb, zqenwb, zcond, zph, zhsmin, llo2 )                  &
+    !$acc if(lacc)
+
 !PREVENT_INCONSISTENT_IFORT_FMA
+
+    !$acc parallel default(none) if (lacc)
+
+    !$acc loop gang(static:1) vector
     DO jl=kidia,kfdia
       lddraf(jl)=.FALSE.
       kdtop(jl)=klev+1
       ikhsmin(jl)=klev+1
       zhsmin(jl)=1.e8_jprb
+      zcond (jl)  = 0._jprb
+      zph   (jl)  = 0._jprb
     ENDDO
-    ztenwb(:,:) = 0._jprb
-    zqenwb(:,:) = 0._jprb
-    zcond (:)   = 0._jprb
-    zph   (:)   = 0._jprb
+
+    !$acc loop seq
+    DO jk=ktdia,klev
+      !$acc loop gang(static:1) vector
+      DO jl=kidia,kfdia
+        ztenwb(jl,jk) = 0._jprb
+        zqenwb(jl,jk) = 0._jprb
+      ENDDO
+    ENDDO
 
 
     !orig IF(.NOT.LMFDD) GO TO 300
@@ -256,10 +274,12 @@ CONTAINS
       !!                  EVAPORATION OF RAIN AND CLOUD WATER)
       !!                  ----------------------------------------------------
 
+      !$acc loop seq
       DO jk=ktdia+2,klev-2
 
         IF (lphylin) THEN
 
+          !$acc loop gang(static:1) vector private(ztarg, zoealfa, zoelhm, zhsk)
           DO jl=kidia,kfdia
             ztarg=pten(jl,jk)
             zoealfa=0.545_JPRB*(TANH(0.17_JPRB*(ztarg-rlptrc))+1.0_JPRB)
@@ -273,6 +293,7 @@ CONTAINS
 
         ELSE
 
+          !$acc loop gang(static:1) vector private(zhsk)
           DO jl=kidia,kfdia
             zhsk=rcpd*pten(jl,jk)+pgeo(jl,jk)+foelhmcu(pten(jl,jk))*pqsen(jl,jk)
             IF(zhsk < zhsmin(jl)) THEN
@@ -284,14 +305,20 @@ CONTAINS
         ENDIF
 
       ENDDO
+
       ike=klev-3
+
+      !$acc loop seq
       DO jk=ktdia+2,ike
 
         !!     2.1          CALCULATE WET-BULB TEMPERATURE AND MOISTURE
         !!                  FOR ENVIRONMENTAL AIR IN *CUADJTQ*
         !!                  -------------------------------------------
 
+#ifndef _OPENACC
         is=0
+#endif
+        !$acc loop gang(static:1) vector
         DO jl=kidia,kfdia
           ztenwb(jl,jk)=ptenh(jl,jk)
           zqenwb(jl,jk)=pqenh(jl,jk)
@@ -299,12 +326,17 @@ CONTAINS
           llo2(jl)=ldcum(jl).AND.prfl(jl) > 0.0_JPRB.AND..NOT.lddraf(jl).AND.&
             & (jk < kcbot(jl).AND.jk > kctop(jl)).AND.&
             & jk >= ikhsmin(jl)
+#ifndef _OPENACC
           IF(llo2(jl))THEN
             is=is+1
           ENDIF
+#endif
         ENDDO
+
         !orig   IF(IS.EQ.0) GO TO 290
+#ifndef _OPENACC
         IF(is == 0) CYCLE
+#endif
 
         ik=jk
         icall=2
@@ -313,6 +345,7 @@ CONTAINS
           & ik,&
           & zph,      ztenwb,   zqenwb,   llo2,     icall)
 
+
         !!     2.2          DO MIXING OF CUMULUS AND ENVIRONMENTAL AIR
         !!                  AND CHECK FOR NEGATIVE BUOYANCY.
         !!                  THEN SET VALUES FOR DOWNDRAFT AT LFS.
@@ -320,6 +353,7 @@ CONTAINS
 
 !DIR$ IVDEP
 !OCL NOVREC
+        !$acc loop gang(static:1) vector private(zttest, zqtest, zbuo, zmftop) 
         DO jl=kidia,kfdia
           IF(llo2(jl)) THEN
             zttest=0.5_JPRB*(ptu(jl,jk)+ztenwb(jl,jk))
@@ -343,12 +377,16 @@ CONTAINS
         ENDDO
 
         ! 290   continue
-      ENDDO
+      ENDDO !! do over jk=ktdia+2,ike
 
       !300  CONTINUE
-    ENDIF
+    ENDIF   !! if over lmfdd
+    !$acc end parallel
+
+    !$acc end data
 
     IF (lhook) CALL dr_hook('CUDLFSN',1,zhook_handle)
+
   END SUBROUTINE cudlfsn
 
   !=======================================================================
@@ -362,7 +400,7 @@ CONTAINS
     & ptd,      pqd,      pmfu,&
     & pmfd,     pmfds,    pmfdq,    pdmfdp,&
     & pdmfde,   pmfdde_rate,        pkined,&
-    & pvbuo )
+    & pvbuo,    lacc )
     !!
     !! Description:
 
@@ -476,10 +514,12 @@ CONTAINS
     REAL(KIND=jprb)   ,INTENT(inout) :: pmfds(klon,klev)
     REAL(KIND=jprb)   ,INTENT(inout) :: pmfdq(klon,klev)
     REAL(KIND=jprb)   ,INTENT(inout) :: pdmfdp(klon,klev)
-    REAL(KIND=jprb)   ,INTENT(inout)   :: pdmfde(klon,klev)
-    REAL(KIND=jprb)   ,INTENT(inout)   :: pmfdde_rate(klon,klev)
-    REAL(KIND=jprb)   ,INTENT(inout)   :: pkined(klon,klev)
-    REAL(KIND=jprb)   ,INTENT(OUT)     :: pvbuo(klon)  ! buoyancy for convective gusts 
+    REAL(KIND=jprb)   ,INTENT(inout) :: pdmfde(klon,klev)
+    REAL(KIND=jprb)   ,INTENT(inout) :: pmfdde_rate(klon,klev)
+    REAL(KIND=jprb)   ,INTENT(inout) :: pkined(klon,klev)
+    REAL(KIND=jprb)   ,INTENT(OUT)   :: pvbuo(klon)  ! buoyancy for convective gusts 
+    LOGICAL           ,INTENT(in)    :: lacc
+
     REAL(KIND=jprb) ::     zdmfen(klon),           zdmfde(klon),&
       & zcond(klon),            zoentr(klon),&
       & zbuoy(klon)
@@ -488,7 +528,7 @@ CONTAINS
     INTEGER(KIND=jpim) :: icall, ik, is, jk, jl
 
     REAL(KIND=jprb) :: zbuo, zbuoyz, zbuoyv, zdmfdp, zdz, zentr, zmfdqk,&
-      & zmfdsk, zqdde, zqeen, zrain, &
+      & zmfdsk, zqdde, zqeen, zrain,                                    &
       & zsdde, zseen, zzentr, zrg, zfacbuo, z_cwdrag , zdkbuo, zdken
     REAL(KIND=jprb) :: zhook_handle
 
@@ -499,6 +539,15 @@ CONTAINS
     !#include "cuadjtq.intfb.h"
 
     IF (lhook) CALL dr_hook('CUDDRAFN',0,zhook_handle)
+
+    !$acc data                                                                          &
+    !$acc present( k950, lddraf, ptenh, pqenh, pgeo, pgeoh, zdgeoh, paph, zdph, prfl )  &
+    !$acc present( ptd, pqd, pmfu, pmfd, pmfds, pmfdq, pdmfdp, pdmfde, pmfdde_rate )    &
+    !$acc present( pkined, pvbuo )                                                      &
+
+    !$acc create( zdmfen, zdmfde, zcond, zoentr, zbuoy, zph, llo2 )                     &
+    !$acc if(lacc)
+
     zrg=1.0_JPRB/rg
     zfacbuo=0.5_JPRB/(1.0_JPRB+0.5_JPRB)
     z_cwdrag=(3._jprb/8._jprb)*0.506_JPRB/0.2_JPRB/rg
@@ -515,6 +564,9 @@ CONTAINS
     !!                         SPECIFYING FINAL T,Q,U,V AND DOWNWARD FLUXES
     !!                    -------------------------------------------------
 
+    !$acc parallel default (none) if (lacc)
+
+    !$acc loop gang(static:1) vector
     DO jl=kidia,kfdia
       zoentr     (jl)  =0.0_JPRB
       zbuoy      (jl)  =0.0_JPRB
@@ -523,24 +575,38 @@ CONTAINS
       zcond      (jl)  =0.0_JPRB
       pvbuo      (jl)  =0.0_JPRB
     ENDDO
+
+    !$acc loop seq
     DO jk=1,klev
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         pmfdde_rate(jl,jk)=0.0_JPRB
         pkined     (jl,jk)=0.0_JPRB
       ENDDO
     ENDDO
 
+    !$acc loop seq
     DO jk=ktdia+2,klev
+
+#ifndef _OPENACC
       is=0
+#endif
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         zph(jl)=paph(jl,jk)
         llo2(jl)=lddraf(jl).AND.pmfd(jl,jk-1) < 0.0_JPRB
+#ifndef _OPENACC
         IF(llo2(jl)) THEN
           is=is+1
         ENDIF
+#endif
       ENDDO
-      IF(is == 0) CYCLE
 
+#ifndef _OPENACC
+      IF(is == 0) CYCLE
+#endif
+
+      !$acc loop gang(static:1) vector private(zentr)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           !>KF
@@ -552,6 +618,7 @@ CONTAINS
         ENDIF
       ENDDO
 
+      !$acc loop gang(static:1) vector
       DO jl=kidia,kfdia
         IF (jk > k950(jl)) THEN
           IF(llo2(jl)) THEN
@@ -564,7 +631,7 @@ CONTAINS
         ENDIF
       ENDDO
 
-
+      !$acc loop gang(static:1) vector private(zdz, zzentr)
       DO jl=kidia,kfdia
         IF (jk <= k950(jl)) THEN
           IF(llo2(jl)) THEN
@@ -584,6 +651,7 @@ CONTAINS
         ENDIF
       ENDDO
 
+      !$acc loop gang(static:1) vector private(zseen, zqeen, zsdde, zqdde, zmfdsk, zmfdqk)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           pmfd(jl,jk)=pmfd(jl,jk-1)+zdmfen(jl)-zdmfde(jl)
@@ -606,8 +674,9 @@ CONTAINS
       CALL cuadjtq &
         & ( kidia,    kfdia,    klon,   klev,&
         & ik,&
-        & zph,      ptd,      pqd,      llo2,     icall )
+        & zph,      ptd,      pqd,      llo2,     icall)
 
+      !$acc loop gang(static:1) vector private(zbuo, zrain, zdmfdp, zbuoyz, zbuoyv, zdz, zdkbuo, zdken, zqprec)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           zcond(jl)=zcond(jl)-pqd(jl,jk)
@@ -664,6 +733,9 @@ CONTAINS
       ENDDO
 
     ENDDO
+    !$acc end parallel
+
+    !$acc end data
 
     IF (lhook) CALL dr_hook('CUDDRAFN',1,zhook_handle)
   END SUBROUTINE cuddrafn

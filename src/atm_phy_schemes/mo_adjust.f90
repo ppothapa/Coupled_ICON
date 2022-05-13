@@ -31,16 +31,10 @@ MODULE mo_adjust
   
   
 #ifdef __ICON__
-  
   USE mo_kind   ,ONLY: jprb=>wp     , &
     & jpim=>i4
 #endif
   
-#ifdef __GME__
-!  USE parkind1  ,ONLY : jpim     ,jprb
-  USE gme_data_parameters, ONLY:  JPRB =>ireals, JPIM => iintegers
-#endif
-
 !  USE yomhook   ,ONLY : lhook,   dr_hook
 
    USE mo_cufunctions, ONLY: foealfa, foeewmcu, foeewm,     &
@@ -73,10 +67,6 @@ MODULE mo_adjust
 
    !     ------------------------------------------------------------
 
-   INTEGER(KIND=jpim), PARAMETER :: n_vmass=0
-
-   !    -----------------------------------------------------------------
-
    PUBLIC :: satur, cuadjtq, cuadjtqs
 
 
@@ -85,6 +75,9 @@ MODULE mo_adjust
 
    SUBROUTINE satur ( kidia , kfdia , klon, ktdia  , klev,&
      & paprsf, pt, pqv, pqsat , kflag)
+
+!$acc routine gang
+
      !>
      !! Description:
 
@@ -154,6 +147,7 @@ MODULE mo_adjust
      REAL(KIND=jprb)   ,INTENT(in)    :: pqv(klon,klev)
      REAL(KIND=jprb)   ,INTENT(inout) :: pqsat(klon,klev)
      INTEGER(KIND=jpim),INTENT(in)    :: kflag
+
      INTEGER(KIND=jpim) :: jk, jl, jlen
 
      REAL(KIND=jprb) :: zcor, zew, zfoeew, zqmax, zqs, ztarg
@@ -171,7 +165,9 @@ MODULE mo_adjust
      !>*    1.           DEFINE CONSTANTS
      !!                  ----------------
 
+#ifndef _OPENACC
      IF (lhook) CALL dr_hook('SATUR',0,zhook_handle)
+#endif
      zqmax=0.5_JPRB
 
      !     *
@@ -180,8 +176,11 @@ MODULE mo_adjust
      !!     *    2.           CALCULATE SATURATION SPECIFIC HUMIDITY
      !!                       --------------------------------------
 
-     IF (lphylin) THEN
+     IF (lphylin) THEN     ! linear physics: set to .FALSE. in mo_cuparameters.f90
+
+       !$acc loop seq
        DO jk=ktdia,klev
+         !$acc loop gang(static:1) vector private(ztarg, zalfa, zfoeew, zqs, zcor)
          DO jl=kidia, kfdia
            ztarg = pt(jl,jk)
            zalfa = foealfa(ztarg)
@@ -201,55 +200,33 @@ MODULE mo_adjust
            pqsat(jl,jk)=zqs*zcor
          ENDDO
        ENDDO
+
      ELSE
 
-       IF(n_vmass <= 0) THEN ! Not using Vector MASS
-         DO jk=ktdia,klev
-           DO jl=kidia, kfdia
-             IF(kflag == 1) THEN
-               zew  = foeewmcu(pt(jl,jk))
-             ELSE
-               zew  = foeewm(pt(jl,jk))
-             ENDIF
-             zqs  = zew/paprsf(jl,jk)
-             zqs  = MIN(zqmax,zqs)
-             ! Modification, GZ (2014-07-23): define qv_sat as qv/RH, implying that the qv_sat in the 
-             ! denominator needs to be replaced with qv
-             zcor = 1.0_JPRB/(1.0_JPRB-retv*pqv(jl,jk))
-             pqsat(jl,jk)=zqs*zcor
-           ENDDO
+       !$acc loop seq
+       DO jk=ktdia,klev
+         !$acc loop gang(static:1) vector private(zew, zqs, zcor)
+         DO jl=kidia, kfdia
+           IF(kflag == 1) THEN
+             zew  = foeewmcu(pt(jl,jk))
+           ELSE
+             zew  = foeewm(pt(jl,jk))
+           ENDIF
+           zqs  = zew/paprsf(jl,jk)
+           zqs  = MIN(zqmax,zqs)
+           ! Modification, GZ (2014-07-23): define qv_sat as qv/RH, implying that the qv_sat in the 
+           ! denominator needs to be replaced with qv
+           zcor = 1.0_JPRB/(1.0_JPRB-retv*pqv(jl,jk))
+           pqsat(jl,jk)=zqs*zcor
          ENDDO
-       ELSE ! Using Vector MASS
-
-         jlen=kfdia-kidia+1
-
-         DO jk=ktdia,klev
-           DO jl=kidia, kfdia
-             z_exparg1(jl)=foeles_v(pt(jl,jk))
-             z_exparg2(jl)=foeies_v(pt(jl,jk))
-           ENDDO
-           CALL vexp(z_expout1,z_exparg1,jlen)
-           CALL vexp(z_expout2,z_exparg2,jlen)
-           DO jl=kidia, kfdia
-             IF(kflag == 1) THEN
-               zew  = foeewmcu_v( pt(jl,jk),z_expout1(jl),z_expout2(jl) )
-             ELSE
-               zew  = foeewm_v  ( pt(jl,jk),z_expout1(jl),z_expout2(jl) )
-             ENDIF
-             !       ZQS  = ZEW/PAPRSF(JL,JK)
-             !       ZQS  = MIN(ZQMAX,ZQS)
-             !!      ZCOR = _ONE_/(_ONE_-RETV*ZQS)
-             !       PQSAT(JL,JK)=ZQS/(_ONE_-RETV*ZQS)
-             zqs  = MIN(zqmax*paprsf(jl,jk),zew)
-             pqsat(jl,jk)=zqs/(paprsf(jl,jk)-retv*pqv(jl,jk))
-           ENDDO
-         ENDDO
-
-       ENDIF
+       ENDDO
 
      ENDIF
 
+#ifndef _OPENACC
      IF (lhook) CALL dr_hook('SATUR',1,zhook_handle)
+#endif
+
    END SUBROUTINE satur
 
 
@@ -261,6 +238,9 @@ MODULE mo_adjust
      & (kidia,    kfdia,    klon,    klev,&
      & kk,&
      & psp,      pt,       pq,       ldflag,   kcall)
+
+!$acc routine gang
+
      !!
      !! Description:
      !!          M.TIEDTKE         E.C.M.W.F.     12/89
@@ -344,17 +324,9 @@ MODULE mo_adjust
      INTEGER(KIND=jpim),INTENT(in)    :: kcall
      INTEGER(KIND=jpim) :: jl, jlen
 
-     REAL(KIND=jprb) :: ztmp0(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp1(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp2(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp3(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp4(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp5(kfdia-kidia+1)
-     REAL(KIND=jprb) :: ztmp6(kfdia-kidia+1)
-
      REAL(KIND=jprb) :: z1s, z2s, zcond,zcond1, zcor,      &
        &                zoealfa, zqmax, zqsat, ztarg, zqp
-     REAL(kind=jprb) :: pt1, pq1
+     REAL(KIND=jprb) :: pt1, pq1
 !     REAL(KIND=jprb) :: zfoeewi, zfoeewl
 
      REAL(KIND=jprb) :: zl, zi, zf
@@ -374,18 +346,16 @@ MODULE mo_adjust
      !     1.           DEFINE CONSTANTS
      !                  ----------------
 
+#ifndef _OPENACC
      IF (lhook) CALL dr_hook('CUADJTQ',0,zhook_handle)
-
-     IF(n_vmass >  0) THEN
-       jlen=kfdia-kidia+1
-     ENDIF
+#endif
 
      zqmax=0.5_JPRB
 
 
      !*********************************************
      IF (.NOT.lphylin) THEN
-       !*********************************************
+     !*********************************************
 
        !     2.           CALCULATE CONDENSATION AND ADJUST T AND Q ACCORDINGLY
        !                  -----------------------------------------------------
@@ -395,6 +365,7 @@ MODULE mo_adjust
 
 !DIR$ IVDEP
 !$NEC sparse
+         !$acc loop gang(static:1) vector private(zqp,zl,zi,zqsat,zcor,zf,zcond,zcond1)
          DO jl=kidia,kfdia
            IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
@@ -437,13 +408,13 @@ MODULE mo_adjust
              ENDIF
            ENDIF
          ENDDO
-
-       ENDIF
+       ENDIF  ! kcall == 1
 
        IF(kcall == 2) THEN
 
 !DIR$ IVDEP
 !OCL NOVREC
+         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
          DO jl=kidia,kfdia
            IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
@@ -465,14 +436,13 @@ MODULE mo_adjust
              pq(jl,kk)=pq(jl,kk)-zcond1
            ENDIF
          ENDDO
-
-       ENDIF
+       ENDIF  ! kcall == 2
 
        IF(kcall == 0) THEN
 
 !DIR$ IVDEP
 !OCL NOVREC
-
+         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
            zqsat=foeewm(pt(jl,kk))*zqp
@@ -490,188 +460,89 @@ MODULE mo_adjust
            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
            pq(jl,kk)=pq(jl,kk)-zcond1
          ENDDO
+       ENDIF  ! kcall == 0
 
-       ENDIF
-
-  IF(kcall == 4 )THEN
+       IF(kcall == 4 )THEN
         
 !DIR$ IVDEP
- !OCL NOVREC
-        DO jl=kidia,kfdia
-          IF(ldflag(jl)) THEN
-            zqp    =1.0_JPRB/psp(jl)
-            zqsat=foeewm(pt(jl,kk))*zqp
-            zqsat=MIN(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-            zqsat=zqsat*zcor
-            zcond=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond
-            pq(jl,kk)=pq(jl,kk)-zcond
-            zqsat=foeewm(pt(jl,kk))*zqp
-            zqsat=MIN(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-            zqsat=zqsat*zcor
-            zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
-            pq(jl,kk)=pq(jl,kk)-zcond1
-          ENDIF
-        ENDDO
-      ENDIF
-      
-      IF(kcall == 5) THEN  ! Same as 4 but with LDFLAG all true
-        
 !OCL NOVREC
-        IF(n_vmass <= 0)  THEN ! Not using Vector MASS
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            zqp    =1.0_JPRB/psp(jl)
-            zqsat=foeewm(pt(jl,kk))*zqp
-            zqsat=MIN(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-            zqsat=zqsat*zcor
-            zcond=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond
-            pq(jl,kk)=pq(jl,kk)-zcond
-            zqsat=foeewm(pt(jl,kk))*zqp
-            zqsat=MIN(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-            zqsat=zqsat*zcor
-            zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
-            pq(jl,kk)=pq(jl,kk)-zcond1
-          ENDDO
-        ELSE ! Using Vector VMASS
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            ztmp1(jl-kidia+1)=r3les*(pt(jl,kk)-rtt)
-            ztmp2(jl-kidia+1)=r3ies*(pt(jl,kk)-rtt)
-            ztmp3(jl-kidia+1)=pt(jl,kk)-r4les
-            ztmp4(jl-kidia+1)=pt(jl,kk)-r4ies
-          ENDDO
-          CALL vdiv(ztmp5,ztmp1,ztmp3,jlen)
-          CALL vdiv(ztmp6,ztmp2,ztmp4,jlen)
-          CALL vexp(ztmp1,ztmp5,jlen)
-          CALL vexp(ztmp2,ztmp6,jlen)
-          CALL vrec(ztmp5,ztmp3,jlen)
-          CALL vrec(ztmp6,ztmp4,jlen)
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            zqp    =1.0_JPRB/psp(jl)
-            zqsat=r2es*(foealfa(pt(jl,kk))*ztmp1(jl-kidia+1)+&
-              & (1.0_JPRB-foealfa(pt(jl,kk)))*ztmp2(jl-kidia+1))*zqp
-            zqsat=minj(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB-retv*zqsat
-            !       ZCOND=(PQ(JL,KK)*ZCOR**2-ZQSAT*ZCOR)/(ZCOR**2+ZQSAT*FOEDEM(PT(JL,KK)))
-            ! FOEDEM(PTARE) = FOEALFA(PTARE)*R5ALVCP*(1.0_JPRB/(PTARE-R4LES)**2)+&
-            !   &(1.0_JPRB-FOEALFA(PTARE))*R5ALSCP*(1.0_JPRB/(PTARE-R4IES)**2)
-            zf = foealfa(pt(jl,kk))*r5alvcp*(ztmp5(jl-kidia+1)**2)+&
-              & (1.0_JPRB-foealfa(pt(jl,kk)))*r5alscp*(ztmp6(jl-kidia+1)**2)
-            zcond=(pq(jl,kk)*zcor**2-zqsat*zcor)/(zcor**2+zqsat*zf)
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond
-            pq(jl,kk)=pq(jl,kk)-zcond
-            ztmp0(jl-kidia+1)=zqp
-            ztmp1(jl-kidia+1)=r3les*(pt(jl,kk)-rtt)
-            ztmp2(jl-kidia+1)=r3ies*(pt(jl,kk)-rtt)
-            ztmp3(jl-kidia+1)=pt(jl,kk)-r4les
-            ztmp4(jl-kidia+1)=pt(jl,kk)-r4ies
-          ENDDO
-          CALL vdiv(ztmp5,ztmp1,ztmp3,jlen)
-          CALL vdiv(ztmp6,ztmp2,ztmp4,jlen)
-          CALL vexp(ztmp1,ztmp5,jlen)
-          CALL vexp(ztmp2,ztmp6,jlen)
-          CALL vrec(ztmp5,ztmp3,jlen)
-          CALL vrec(ztmp6,ztmp4,jlen)
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            zqp  = ztmp0(jl-kidia+1)
-            zqsat=r2es*(foealfa(pt(jl,kk))*ztmp1(jl-kidia+1)+&
-              & (1.0_JPRB-foealfa(pt(jl,kk)))*ztmp2(jl-kidia+1))*zqp
-            zqsat=minj(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB-retv*zqsat
-            !       ZCOND1=(PQ(JL,KK)*ZCOR**2-ZQSAT*ZCOR)/(ZCOR**2+ZQSAT*FOEDEM(PT(JL,KK)))
-            ! FOEDEM(PTARE) = FOEALFA(PTARE)*R5ALVCP*(1.0_JPRB/(PTARE-R4LES)**2)+&
-            !   &(1.0_JPRB-FOEALFA(PTARE))*R5ALSCP*(1.0_JPRB/(PTARE-R4IES)**2)
-            zf = foealfa(pt(jl,kk))*r5alvcp*(ztmp5(jl-kidia+1)**2)+&
-              & (1.0_JPRB-foealfa(pt(jl,kk)))*r5alscp*(ztmp6(jl-kidia+1)**2)
-            zcond1=(pq(jl,kk)*zcor**2-zqsat*zcor)/(zcor**2+zqsat*zf)
-            pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
-            pq(jl,kk)=pq(jl,kk)-zcond1
-          ENDDO
-        ENDIF
-      ENDIF
-      
-      IF(kcall == 3) THEN
-
-!OCL NOVREC
-        IF(n_vmass <=  0)  THEN ! Not using Vector MASS
-!DIR$ IVDEP
-           DO jl=kidia,kfdia
+         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
+         DO jl=kidia,kfdia
+           IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
-              zqsat=foeewmcu(pt(jl,kk))*zqp
-              zqsat=MIN(0.5_JPRB,zqsat)
-              zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-              zqsat=zqsat*zcor
-            zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedemcu(pt(jl,kk)))
-            pt1=pt(jl,kk)+foeldcpmcu(pt(jl,kk))*zcond1
-            pq1=pq(jl,kk)-zcond1
-            zqsat=foeewmcu(pt1)*zqp
-            zqsat=MIN(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
-            zqsat=zqsat*zcor
-            zcond1=(pq1-zqsat)/(1.0_JPRB+zqsat*zcor*foedemcu(pt1))
-            pt(jl,kk)=pt1+foeldcpmcu(pt1)*zcond1
-            pq(jl,kk)=pq1-zcond1
-          ENDDO
-        ELSE
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            ztmp1(jl-kidia+1)=r3les*(pt(jl,kk)-rtt)
-            ztmp2(jl-kidia+1)=r3ies*(pt(jl,kk)-rtt)
-            ztmp3(jl-kidia+1)=pt(jl,kk)-r4les
-            ztmp4(jl-kidia+1)=pt(jl,kk)-r4ies
-          ENDDO
-          CALL vdiv(ztmp5,ztmp1,ztmp3,jlen)
-          CALL vdiv(ztmp6,ztmp2,ztmp4,jlen)
-          CALL vexp(ztmp1,ztmp5,jlen)
-          CALL vexp(ztmp2,ztmp6,jlen)
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            zqp    =1.0_JPRB/psp(jl)
-            zqsat=r2es*(foealfcu(pt(jl,kk))*ztmp1(jl-kidia+1)+&
-              & (1.0_JPRB-foealfcu(pt(jl,kk)))*ztmp2(jl-kidia+1))*zqp
-            zqsat=minj(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB-retv*zqsat
-            zcond1=(pq(jl,kk)*zcor**2-zqsat*zcor)/(zcor**2+zqsat*foedemcu(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpmcu(pt(jl,kk))*zcond1
-            pq(jl,kk)=pq(jl,kk)-zcond1
-            ztmp0(jl-kidia+1)=zqp
-            ztmp1(jl-kidia+1)=r3les*(pt(jl,kk)-rtt)
-            ztmp2(jl-kidia+1)=r3ies*(pt(jl,kk)-rtt)
-            ztmp3(jl-kidia+1)=pt(jl,kk)-r4les
-            ztmp4(jl-kidia+1)=pt(jl,kk)-r4ies
-          ENDDO
-          CALL vdiv(ztmp5,ztmp1,ztmp3,jlen)
-          CALL vdiv(ztmp6,ztmp2,ztmp4,jlen)
-          CALL vexp(ztmp1,ztmp5,jlen)
-          CALL vexp(ztmp2,ztmp6,jlen)
-!DIR$ IVDEP
-          DO jl=kidia,kfdia
-            zqp  = ztmp0(jl-kidia+1)
-            zqsat=r2es*(foealfcu(pt(jl,kk))*ztmp1(jl-kidia+1)+&
-              & (1.0_JPRB-foealfcu(pt(jl,kk)))*ztmp2(jl-kidia+1))*zqp
-            zqsat=minj(0.5_JPRB,zqsat)
-            zcor=1.0_JPRB-retv*zqsat
-            zcond1=(pq(jl,kk)*zcor**2-zqsat*zcor)/(zcor**2+zqsat*foedemcu(pt(jl,kk)))
-            pt(jl,kk)=pt(jl,kk)+foeldcpmcu(pt(jl,kk))*zcond1
-            pq(jl,kk)=pq(jl,kk)-zcond1
-          ENDDO
-        ENDIF
-        
-      ENDIF
-      !*********************************************
-    ELSE
-      !*********************************************
+             zqsat=foeewm(pt(jl,kk))*zqp
+             zqsat=MIN(0.5_JPRB,zqsat)
+             zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+             zqsat=zqsat*zcor
+             zcond=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
+             pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond
+             pq(jl,kk)=pq(jl,kk)-zcond
+             zqsat=foeewm(pt(jl,kk))*zqp
+             zqsat=MIN(0.5_JPRB,zqsat)
+             zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+             zqsat=zqsat*zcor
+             zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
+             pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
+             pq(jl,kk)=pq(jl,kk)-zcond1
+           ENDIF
+         ENDDO
+       ENDIF  ! kcall == 4
       
+       IF(kcall == 5) THEN  ! Same as 4 but with LDFLAG all true
+        
+!OCL NOVREC
+!DIR$ IVDEP
+         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
+         DO jl=kidia,kfdia
+           zqp    =1.0_JPRB/psp(jl)
+           zqsat=foeewm(pt(jl,kk))*zqp
+           zqsat=MIN(0.5_JPRB,zqsat)
+           zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+           zqsat=zqsat*zcor
+           zcond=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
+           pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond
+           pq(jl,kk)=pq(jl,kk)-zcond
+           zqsat=foeewm(pt(jl,kk))*zqp
+           zqsat=MIN(0.5_JPRB,zqsat)
+           zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+           zqsat=zqsat*zcor
+           zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedem(pt(jl,kk)))
+           pt(jl,kk)=pt(jl,kk)+foeldcpm(pt(jl,kk))*zcond1
+           pq(jl,kk)=pq(jl,kk)-zcond1
+         ENDDO
+
+       ENDIF     ! kcall == 5
+      
+       IF(kcall == 3) THEN
+
+!OCL NOVREC
+!DIR$ IVDEP
+         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond1)
+         DO jl=kidia,kfdia
+           zqp    =1.0_JPRB/psp(jl)
+           zqsat=foeewmcu(pt(jl,kk))*zqp
+           zqsat=MIN(0.5_JPRB,zqsat)
+           zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+           zqsat=zqsat*zcor
+           zcond1=(pq(jl,kk)-zqsat)/(1.0_JPRB+zqsat*zcor*foedemcu(pt(jl,kk)))
+           pt1=pt(jl,kk)+foeldcpmcu(pt(jl,kk))*zcond1
+           pq1=pq(jl,kk)-zcond1
+           zqsat=foeewmcu(pt1)*zqp
+           zqsat=MIN(0.5_JPRB,zqsat)
+           zcor=1.0_JPRB/(1.0_JPRB-retv  *zqsat)
+           zqsat=zqsat*zcor
+           zcond1=(pq1-zqsat)/(1.0_JPRB+zqsat*zcor*foedemcu(pt1))
+           pt(jl,kk)=pt1+foeldcpmcu(pt1)*zcond1
+           pq(jl,kk)=pq1-zcond1
+         ENDDO
+        
+       ENDIF     ! kcall == 3
+
+     !*********************************************
+     ELSE   ! lphylin
+     !*********************************************
+     ! US not ported to GPUs, because lphylin is set to .FALSE. 
+
       !     2.           CALCULATE CONDENSATION AND ADJUST T AND Q ACCORDINGLY
       !                  -----------------------------------------------------
       
@@ -906,15 +777,19 @@ MODULE mo_adjust
         
       ENDIF
       
-      !*********************************************
-    ENDIF
-    !*********************************************
+     !*********************************************
+     ENDIF  ! lphylin
+     !*********************************************
     
-    IF (lhook) CALL dr_hook('CUADJTQ',1,zhook_handle)
+#ifndef _OPENACC
+     IF (lhook) CALL dr_hook('CUADJTQ',1,zhook_handle)
+#endif
+
   END SUBROUTINE cuadjtq
   
-  !!KF  NOTE: The following routien is only called in case of linearized Physics.
+  !!KF  NOTE: The following routine is only called in case of linearized Physics.
   !! Therefore no modifications for DWD purposes are made there
+  !! And also no GPU port
   
   !
   SUBROUTINE cuadjtqs &

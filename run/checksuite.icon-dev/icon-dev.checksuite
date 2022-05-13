@@ -1,6 +1,23 @@
 #!/bin/ksh
 set +x
 #################### functions ##########################################
+function one_or_more_are_files
+{
+    # Test if one or more of given arguments are real files
+    #
+    # Invocation: one_or_more_are_files foo*
+
+    #        $# is the number of arguments passed to this function
+    while [ "$#" != "0" ]; do # loop as long as there is an argument left 
+        if [ -f "$1" ]; then
+            # at least one file was found
+            return 0
+        fi
+        shift 1 # drop $1 argument, shift next argument to $1 and decrement $# by 1
+    done
+    # no file found for given argument
+    return 1
+}
 function copy_experiment
 {
     typeset MODEL_DIR EXP_ORI EXP_NEW
@@ -22,22 +39,23 @@ function copy_experiment
     #   - a (multifile) "*.mfr"-restart directory
     #
     COMPS=''
-    if [ -f ${EXP_ORI}/${EXP_ORI}_restart_*${RESTART_DATE}.nc ]; then
+
+    if one_or_more_are_files ${EXP_ORI}/${EXP_ORI}_restart_*${RESTART_DATE}.nc 1> /dev/null 2>&1; then
 
         # CASE 1: (Standard) Single-file restart
 
         echo "(Standard) Single-file restart"
-        if [ -f ${EXP_ORI}/${EXP_ORI}_restart_atm_*${RESTART_DATE}.nc ]; then
+        if one_or_more_are_files ${EXP_ORI}/${EXP_ORI}_restart_atm_*${RESTART_DATE}.nc 1> /dev/null 2>&1; then
             COMPS=${COMPS}' atm'
         fi
-        if [ -f ${EXP_ORI}/${EXP_ORI}_restart_oce_*${RESTART_DATE}.nc ]; then
+        if one_or_more_are_files ${EXP_ORI}/${EXP_ORI}_restart_oce_*${RESTART_DATE}.nc 1> /dev/null 2>&1; then
             COMPS=${COMPS}' oce'
         fi
-        if [ -f ${EXP_ORI}/${EXP_ORI}_restart_lnd_*${RESTART_DATE}.nc ]; then
+        if one_or_more_are_files ${EXP_ORI}/${EXP_ORI}_restart_lnd_*${RESTART_DATE}.nc 1> /dev/null 2>&1; then
             COMPS=${COMPS}' lnd'
         fi
 
-	cd ${EXP_NEW}
+        cd ${EXP_NEW}
 
         for COMP in ${COMPS}; do
             cp ../${EXP_ORI}/${EXP_ORI}_restart_${COMP}_*${RESTART_DATE}.nc .
@@ -71,7 +89,7 @@ function copy_experiment
                 COMPS=${COMPS}' lnd'
             fi
 
-	    cd ${EXP_NEW}
+            cd ${EXP_NEW}
 
             for COMP in ${COMPS}; do
                 cp -r ../${EXP_ORI}/${EXP_ORI}_restart_${COMP}_*${RESTART_DATE}.nc .
@@ -382,8 +400,11 @@ function tolerance_check
         *mch_*)
             FILE_IDS="atm_3d"
             ;;
+        *dwd_run_ICON_*)
+            FILE_IDS="atm_3d"
+            ;;
         *)
-            echo "no file ids specified for ${EXPERIMENT}"
+            echo "no file ids specified for '${EXPERIMENT}'"
             echo "you most likely did not change the entries in"
             echo "icon-dev.checksuite. The checksuite cannot find"
             echo "the model output"
@@ -745,7 +766,7 @@ if string_in_list $MD $CMODES; then
 fi # MODE
 
 
-CMODES="r ur rn rm ro urn urm uro rnm rno rmo urnm urno urmo rnmo urnmo rnmot"
+CMODES="r ur rn rm ro urn urm uro rnm rno rmo urnm urno urmo rnmo urnmo rnmot rt"
 if string_in_list $MD $CMODES; then
     TEST='restart'
     echo ' '
@@ -1076,7 +1097,7 @@ if string_in_list $MD $CMODES; then
     fi # TEST_POSSIBLE
 fi # MODE
 
-CMODES="t tm rnmot"
+CMODES="t tm rnmot rt"
 if string_in_list $MD $CMODES; then
     TEST='tolerance'
     echo ' '
