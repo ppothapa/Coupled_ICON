@@ -1751,10 +1751,6 @@ MODULE mo_vertical_grid
         ! if upper boundary nudging is activated for domain jg, 
         ! copy nudging coefficients from DOM 1 to child domain.
         !
-        ! Note: no explicit deallocation is implemented for 'nudgecoeff_vert'
-        ALLOCATE(p_nh(jg)%metrics%nudgecoeff_vert(p_patch(jg)%nlev), STAT=error_status)
-        IF (error_status /= SUCCESS)  CALL finish (routine, 'Allocation of nudgecoeff_vert failed!') 
-        !
         DO jk = 1, p_patch(jg)%nlev
           jk1 = jk + p_patch(jg)%nshift_total
           p_nh(jg)%metrics%nudgecoeff_vert(jk) = p_nh(1)%metrics%nudgecoeff_vert(jk1)
@@ -1764,7 +1760,6 @@ MODULE mo_vertical_grid
           WRITE(message_text,'(a,i2)') 'Nudging coefficients copied to DOM: ', jg
           CALL message(routine, message_text)
         ENDIF
-!$ACC ENTER DATA COPYIN( p_nh(jg)%metrics%nudgecoeff_vert )
       ENDIF 
     ENDDO  ! jg
 
@@ -2194,7 +2189,6 @@ MODULE mo_vertical_grid
     REAL(wp) :: start_height, end_height
     REAL(wp) :: height, nudge_coeff
     INTEGER  :: jg, jk, irow
-    INTEGER  :: nlev
     INTEGER  :: istart, iend
     INTEGER  :: istat
     INTEGER  :: nexp
@@ -2224,19 +2218,7 @@ MODULE mo_vertical_grid
       RETURN
     ENDIF
     
-    ! Number of vertical grid levels
-    nlev = p_patch%nlev
-    
-    ! Allocate field for nudging coefficient
-    ! (Note: 
-    !  * no explicit deallocation is implemented for 'nudgecoeff_vert'
-    !  * already nullified in 'src/atm_dyn_iconam/mo_nonhydro_state: new_nh_metrics_list')
-    ALLOCATE(p_nh%metrics%nudgecoeff_vert(nlev), STAT=istat)
-    IF (istat /= SUCCESS)  CALL finish (routine, 'Allocation of nudgecoeff_vert failed!') 
-    
-    ! Initialization
-    p_nh%metrics%nudgecoeff_vert(:) = 0._wp
-    
+
     ! Start and end indices for vertical loop
     istart = nudging_config(jg)%ilev_start
     iend   = nudging_config(jg)%ilev_end
@@ -2302,7 +2284,6 @@ MODULE mo_vertical_grid
       ENDDO  !jk      
     END SELECT
 
-!$ACC ENTER DATA COPYIN( p_nh%metrics%nudgecoeff_vert )
 
     ! Print some info
     IF (msg_level >= nudging_config(jg)%msg_thr%high .AND. my_process_is_stdio()) THEN 

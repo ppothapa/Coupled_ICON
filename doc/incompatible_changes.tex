@@ -470,4 +470,11 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
    \item removed horizontal diffusion options \texttt{hdiff\_order=24,42}
   \end{itemize}
 \end{changeitem}
+
+\begin{changeitem}{transport\_nml}{2022-05-07}{icon-nwp:master 8a351b13}
+  \begin{itemize}
+   \item removed Namelist parameter \texttt{iord\_backtraj}, as the option for 2nd order accurate backward trajectory calculation has been removed. 
+         The default behaviour of the code is unchanged.
+  \end{itemize}
+\end{changeitem}
 % --------------------------------------------------------------------------------------------

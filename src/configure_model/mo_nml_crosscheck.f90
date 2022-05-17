@@ -53,7 +53,7 @@ MODULE mo_nml_crosscheck
     &                                    ivctype, ndyn_substeps
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
-  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile
+  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
   USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_o3, irad_aero, irad_h2o, irad_co2, irad_ch4, &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
@@ -81,6 +81,7 @@ MODULE mo_nml_crosscheck
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
   USE mo_nh_testcase_check,        ONLY: check_nh_testcase
+  USE mo_coupling_config,          ONLY: is_coupled_run
 
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
 #ifndef __NO_ICON_LES__
@@ -963,6 +964,8 @@ CONTAINS
 
     IF (iforcing==iaes) CALL land_crosscheck()
 
+    IF (iforcing==inwp) CALL coupled_crosscheck()
+
     CALL art_crosscheck()
 
     CALL check_nudging( n_dom, iforcing, ivctype, top_height,                            &
@@ -1014,6 +1017,22 @@ CONTAINS
 #endif
 
   END SUBROUTINE land_crosscheck
+  !---------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------
+  SUBROUTINE coupled_crosscheck
+
+    CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
+
+    IF ( ntiles_lnd == 1 .AND. is_coupled_run() ) THEN
+       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1")
+    ENDIF
+
+    IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN
+       CALL finish(routine, "Coupled atm/ocean runs only supported with sstice_mode=1 named SSTICE_ANA")
+    ENDIF
+
+  END SUBROUTINE coupled_crosscheck
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------

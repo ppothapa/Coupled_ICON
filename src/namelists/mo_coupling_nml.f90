@@ -27,7 +27,7 @@ MODULE mo_coupling_nml
   USE mo_impl_constants,  ONLY: max_char_length
   USE mo_io_units,        ONLY: nnml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
-
+  USE mo_exception,       ONLY: finish
   USE mo_coupling_config, ONLY: config_coupled_mode
 
   IMPLICIT NONE
@@ -88,6 +88,13 @@ CONTAINS
 #endif
 
     config_coupled_mode = coupled_mode
+
+#ifdef _OPENACC
+    IF ( coupled_mode ) THEN
+      CALL finish(routine,'GPU version not available for coupled ICON-0/A configurations.')
+    ENDIF
+#endif
+
 
   END SUBROUTINE read_coupling_namelist
 

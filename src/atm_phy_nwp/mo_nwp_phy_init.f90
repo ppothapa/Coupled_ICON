@@ -201,7 +201,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   REAL(wp), PARAMETER :: pr400  = 400._wp / 1013.25_wp
   REAL(wp), PARAMETER :: pr700  = 700._wp / 1013.25_wp
 
-  REAL(wp) :: ttropo, ptropo, temp, zfull
+  REAL(wp) :: ttropo, ptropo, temp, zfull, dtfac_heatc
 
   REAL(wp) :: dz1, dz2, dz3, fact_z0rough
   REAL(wp), ALLOCATABLE :: zrefpres(:,:,:)   ! ref press computed from ref exner
@@ -288,6 +288,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   dz2 = 0.0_wp
   dz3 = 0.0_wp
 
+  ! adaptation factor to analysis interval for adaptive heat conductivity/capacity
+  dtfac_heatc = (10800._wp/dt_ana)**(2._wp/3._wp)
+
   ! Initialization of upper-atmosphere physics 
   ! only in case of no reset and if the upatmo physics are switched on
   ! (upper-atmosphere physics are not integrated into the IAU iterations)
@@ -324,6 +327,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! for both restart and non-restart runs. Could not be included into
   ! mo_ext_data_state/init_index_lists due to its dependence on fr_seaice
+  IF (msg_level >= 12) CALL message('mo_nwp_phy_init:', 'initialize sea-ice lists, call init_sea_lists')
   CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
 
 
@@ -382,7 +386,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     ENDDO
 
     ! tuning factor for rlam_heat depending on skin conductivity and analyzed T2M/RH2M bias
-    IF (itype_canopy == 2 .AND. icpl_da_sfcevap == 3) THEN
+    IF (itype_canopy == 2 .AND. icpl_da_sfcevap >= 3) THEN
       DO jt = 1, ntiles_total + ntiles_water
         DO jc = i_startidx,i_endidx
           IF (jt <= ntiles_lnd) THEN ! snow-free land points
@@ -431,11 +435,11 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       ! Tuning factors for soil heat capacity and conductivity
       DO jc = i_startidx,i_endidx
         IF (p_diag%t_wgt_avginc(jc,jb) < 0._wp) THEN
-          prm_diag%heatcond_fac(jc,jb) = MAX(0.1_wp,  1._wp+10800._wp/dt_ana*2.5_wp*p_diag%t_wgt_avginc(jc,jb))
-          prm_diag%heatcap_fac(jc,jb)  = MAX(0.25_wp, 1._wp+10800._wp/dt_ana*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
+          prm_diag%heatcond_fac(jc,jb) = MAX(0.1_wp,  1._wp+dtfac_heatc*2.5_wp*p_diag%t_wgt_avginc(jc,jb))
+          prm_diag%heatcap_fac(jc,jb)  = MAX(0.25_wp, 1._wp+dtfac_heatc*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
         ELSE
-          prm_diag%heatcond_fac(jc,jb) = 1._wp/MAX(0.1_wp,  1._wp-10800._wp/dt_ana*2.5_wp*p_diag%t_wgt_avginc(jc,jb)) 
-          prm_diag%heatcap_fac(jc,jb)  = 1._wp/MAX(0.25_wp, 1._wp-10800._wp/dt_ana*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
+          prm_diag%heatcond_fac(jc,jb) = 1._wp/MAX(0.1_wp,  1._wp-dtfac_heatc*2.5_wp*p_diag%t_wgt_avginc(jc,jb)) 
+          prm_diag%heatcap_fac(jc,jb)  = 1._wp/MAX(0.25_wp, 1._wp-dtfac_heatc*2.0_wp*p_diag%t_wgt_avginc(jc,jb))
         ENDIF
       ENDDO
     ENDIF

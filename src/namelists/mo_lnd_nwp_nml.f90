@@ -40,6 +40,8 @@ MODULE mo_lnd_nwp_nml
     &                               config_frlndtile_thrhld   => frlndtile_thrhld  , &
     &                               config_frlake_thrhld      => frlake_thrhld     , &
     &                               config_frsea_thrhld       => frsea_thrhld      , &
+    &                               config_hice_min           => hice_min          , &
+    &                               config_hice_max           => hice_max          , &
     &                               config_lseaice            => lseaice           , &
     &                               config_lprog_albsi        => lprog_albsi       , &
     &                               config_llake              => llake             , &
@@ -53,6 +55,7 @@ MODULE mo_lnd_nwp_nml
     &                               config_cwimax_ml          => cwimax_ml         , &
     &                               config_c_soil             => c_soil            , &
     &                               config_c_soil_urb         => c_soil_urb        , &
+    &                               config_cr_bsmin           => cr_bsmin          , &
     &                               config_itype_trvg         => itype_trvg        , &
     &                               config_itype_evsl         => itype_evsl        , &
     &                               config_itype_lndtbl       => itype_lndtbl      , &
@@ -123,6 +126,8 @@ CONTAINS
     !! tile for a grid point
     REAL(wp)::  frlake_thrhld     !< fraction threshold for creating a lake grid point
     REAL(wp)::  frsea_thrhld      !< fraction threshold for creating a sea grid point
+    REAL(wp)::  hice_min          !< minimum sea-ice thickness [m]
+    REAL(wp)::  hice_max          !< maximum sea-ice thickness [m]
     REAL(wp)::  max_toplaydepth   !< maximum depth of uppermost snow layer for multi-layer snow scheme
     INTEGER ::  itype_trvg        !< type of vegetation transpiration parameterization
     INTEGER ::  itype_evsl        !< type of parameterization of bare soil evaporation
@@ -133,6 +138,7 @@ CONTAINS
     REAL(wp)::  cwimax_ml         !< scaling parameter for maximum interception storage
     REAL(wp)::  c_soil            !< surface area density of the (evaporative) soil surface
     REAL(wp)::  c_soil_urb        !< surface area density of the (evaporative) soil surface, urban areas
+    REAL(wp)::  cr_bsmin          !< minimum bare soil evap resistance
     INTEGER ::  itype_canopy      !< type of canopy parameterisation with respect to the surface energy balance
     REAL(wp)::  cskinc            !< skin conductivity (W/m**2/K)
     REAL(wp)::  tau_skin          !< relaxation time scale for the computation of the skin temperature
@@ -165,6 +171,7 @@ CONTAINS
          &               frlnd_thrhld, lseaice, lprog_albsi, llake, lmelt, &
          &               frlndtile_thrhld, frlake_thrhld                 , &
          &               frsea_thrhld, lmelt_var, lmulti_snow            , &
+         &               hice_min, hice_max                              , &
          &               itype_trvg, idiag_snowfrac, max_toplaydepth     , &
          &               itype_evsl                                      , &
          &               itype_lndtbl                                    , &
@@ -181,7 +188,7 @@ CONTAINS
          &               sstice_mode                                     , &
          &               sst_td_filename                                 , &
          &               ci_td_filename, cwimax_ml, c_soil, c_soil_urb   , &
-         &               czbot_w_so
+         &               czbot_w_so, cr_bsmin
 
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = 'mo_lnd_nwp_nml:read_nwp_lnd_namelist'
@@ -210,6 +217,8 @@ CONTAINS
     frsea_thrhld   = 0.05_wp ! fraction threshold for creating a sea grid point
     frlndtile_thrhld = 0.05_wp ! fraction threshold for retaining the respective 
                              ! tile for a grid point
+    hice_min       = 0.05_wp ! minimum sea-ice thickness [m]
+    hice_max       = 3.0_wp  ! maximum sea-ice thickness [m]
     lmelt          = .TRUE.  ! soil model with melting process
     lmelt_var      = .TRUE.  ! freezing temperature dependent on water content
     lmulti_snow    = .FALSE. ! .TRUE. = run the multi-layer snow model, .FALSE. = use single-layer scheme
@@ -225,6 +234,7 @@ CONTAINS
     itype_evsl     = 2       ! type of parameterization of bare soil evaporation
                              !  2: based on BATS (Dickinson 1984)
                              !  4: resistance formulation by Schulz and Vogel (2020)
+                             !  5: same as 4, but uses cr_bsmin instead of c_soil for tuning, and c_soil is set to 2
     itype_lndtbl   = 3       ! choice of look-up table for associating surface parameters to land-cover classes
     itype_root     = 2       ! type of root density distribution
                              !  1: uniform
@@ -237,6 +247,7 @@ CONTAINS
                               ! the recommended value to activate interception storage is 5.e-4
     c_soil         = 1._wp   ! surface area density of the (evaporative) soil surface
     c_soil_urb     = 1._wp   ! surface area density of the (evaporative) soil surface, urban areas
+    cr_bsmin       = 110._wp ! minimum bare soil evap resistance (s/m)
     itype_hydbound = 1       ! type of hydraulic lower boundary condition
     !
     itype_canopy   = 1       ! type of canopy parameterisation with respect to the surface energy balance
@@ -360,6 +371,8 @@ CONTAINS
     config_frlndtile_thrhld   = frlndtile_thrhld
     config_frlake_thrhld      = frlake_thrhld
     config_frsea_thrhld       = frsea_thrhld
+    config_hice_min           = hice_min
+    config_hice_max           = hice_max
     config_lseaice            = lseaice
     config_lprog_albsi        = lprog_albsi 
     config_llake              = llake
@@ -385,6 +398,7 @@ CONTAINS
     config_cwimax_ml          = cwimax_ml
     config_c_soil             = c_soil
     config_c_soil_urb         = c_soil_urb
+    config_cr_bsmin           = cr_bsmin
     config_itype_hydbound     = itype_hydbound
     config_lana_rho_snow      = lana_rho_snow
     config_l2lay_rho_snow     = l2lay_rho_snow

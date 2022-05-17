@@ -204,6 +204,7 @@ CONTAINS
     REAL(wp) :: urb_hcon_t    (nproma)
 !
     REAL(wp) :: rsmin2d_t (nproma)
+    REAL(wp) :: r_bsmin (nproma)
 
     ! local dummy variable for precipitation rate of graupel, grid-scale
     REAL(wp), TARGET  :: dummy_graupel_gsp_rate(nproma,p_patch%nblks_c)
@@ -330,7 +331,7 @@ CONTAINS
     !$acc data create (soiltyp_t, plcov_t, rootdp_t, sai_t, eai_t, tai_t, laifac_t,          &
     !$acc              skinc_t,                                                              &
     !$acc              fr_paved_t, urb_isa_t, urb_ai_t, urb_h_bld_t,                         &
-    !$acc              urb_hcap_t, urb_hcon_t,                                               &
+    !$acc              urb_hcap_t, urb_hcon_t, r_bsmin,                                      &
     !$acc              rsmin2d_t, u_t, v_t, t_t, qv_t, p0_t, ps_t, h_snow_gp_t,              &
     !$acc              u_10m_t, v_10m_t, prr_con_t, prs_con_t, conv_frac, prr_gsp_t,         &
     !$acc              prs_gsp_t, pri_gsp_t, prg_gsp_t, sobs_t, thbs_t, pabs_t, tsnred,      &
@@ -355,7 +356,7 @@ CONTAINS
 !$OMP   prr_gsp_t,prs_gsp_t,pri_gsp_t,u_t,v_t,t_t,qv_t,p0_t,sso_sigma_t,lc_class_t,t_snow_now_t,t_s_now_t,  &
 !$OMP   t_g_t,qv_s_t,w_snow_now_t,rho_snow_now_t,w_i_now_t,w_p_now_t,w_s_now_t,freshsnow_t,                 &
 !$OMP   snowfrac_t,runoff_s_inst_t,runoff_g_inst_t,resid_wso_inst_t,u_10m_t,v_10m_t,tch_t,tcm_t,tfv_t,      &
-!$OMP   sobs_t,thbs_t,pabs_t,                                                                               &
+!$OMP   sobs_t,thbs_t,pabs_t,r_bsmin,                                                                       &
 !$OMP   soiltyp_t,plcov_t,rootdp_t,sai_t,tai_t,eai_t,rsmin2d_t,t_snow_mult_now_t,wliq_snow_now_t,           &
 !$OMP   rho_snow_mult_now_t,wtot_snow_now_t,dzh_snow_now_t,t_so_now_t,w_so_now_t,w_so_ice_now_t,            &
 !$OMP   t_s_new_t,w_snow_new_t,rho_snow_new_t,h_snow_t,w_i_new_t,w_p_new_t,w_s_new_t,t_so_new_t,            &
@@ -705,6 +706,7 @@ CONTAINS
           ENDIF
 
           rsmin2d_t(ic)             =  ext_data%atm%rsmin2d_t(jc,jb,isubs)
+          r_bsmin(ic)               =  ext_data%atm%r_bsmin(jc,jb)
 
           t_so_now_t(ic,nlev_soil+1)= lnd_prog_now%t_so_t(jc,nlev_soil+1,jb,isubs)
 
@@ -847,6 +849,7 @@ CONTAINS
         &  heatcap_fac  = heatcap_fac                        , & !IN tuning factor for soil heat capacity
 !
         &  rsmin2d      = rsmin2d_t                          , & !IN minimum stomata resistance        ( s/m )
+        &  r_bsmin      = r_bsmin                            , & !IN minimum bare soil evap resistance ( s/m )
         &  z0           = z0_t                               , & !IN vegetation roughness length        ( m )
 !
         &  u            =  u_t                               , & !IN zonal wind speed
@@ -1681,6 +1684,7 @@ CONTAINS
     REAL(wp) :: lhfl_s   (nproma)   ! latent heat flux at the surface                 [W/m^2]
     REAL(wp) :: lwflxsfc (nproma)   ! net long-wave radiation flux at the surface     [W/m^2] 
     REAL(wp) :: swflxsfc (nproma)   ! net solar radiation flux at the surface         [W/m^2]
+    REAL(wp) :: condhf_i (nproma)   ! conductive heat flux at sea-ice bottom          [W/m^2]
     REAL(wp) :: snow_rate(nproma)   ! snow rate (convecive + grid-scale)              [kg/(m^2 s)]
     REAL(wp) :: rain_rate(nproma)   ! rain rate (convecive + grid-scale)              [kg/(m^2 s)]
     REAL(wp) :: tice_now (nproma)   ! temperature of ice upper surface at previous time  [K]
@@ -1724,7 +1728,7 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_count,ic,jc,shfl_s,lhfl_s,lwflxsfc,swflxsfc,snow_rate,rain_rate, &
 !$OMP            tice_now, hice_now,tsnow_now,hsnow_now,tice_new,hice_new,tsnow_new,   &
-!$OMP            hsnow_new,albsi_now,albsi_new) ICON_OMP_GUIDED_SCHEDULE
+!$OMP            hsnow_new,albsi_now,albsi_new,condhf_i) ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       !
@@ -1774,9 +1778,15 @@ CONTAINS
                             &   hice_n  = hice_new(:),         & !out
                             &   tsnow_n = tsnow_new(:),        & !out   ! DUMMY: not used yet
                             &   hsnow_n = hsnow_new(:),        & !out   ! DUMMY: not used yet
+                            &   condhf  = condhf_i(:),         & !out
                             &   albsi_n = albsi_new(:)         ) !out
-! optional arguments dticedt, dhicedt, dtsnowdt, dhsnowdt (tendencies) are neglected
+      ! optional arguments dticedt, dhicedt, dtsnowdt, dhsnowdt (tendencies) are neglected
 
+
+      !  set conductive heat flux to zero outside list_seaice, 
+      !  may be used by ocean (e.g. through interpolation)
+
+      p_lnd_diag%condhf_ice (:,jb) = 0.0_wp
 
 
       !  Recover fields from index list
@@ -1792,12 +1802,13 @@ CONTAINS
         IF (lprog_albsi) THEN
           p_prog_wtr_new%alb_si(jc,jb)  = albsi_new(ic)
         ENDIF
+        ! conductive heat flux at bottom of sea-ice [W/m^2]
+        p_lnd_diag%condhf_ice (jc,jb)   = condhf_i (ic)
 
         lnd_prog_new%t_g_t(jc,jb,isub_seaice) = tice_new(ic)
-        ! surface saturation specific humidity (uses saturation water vapor pressure 
-        ! over ice)
-        p_lnd_diag%qv_s_t(jc,jb,isub_seaice) = spec_humi(sat_pres_ice(tice_new(ic)),&
-          &                                   p_diag%pres_sfc(jc,jb) )
+        ! surface saturation specific humidity (uses saturation water vapor pressure over ice)
+        p_lnd_diag%qv_s_t(jc,jb,isub_seaice)  = spec_humi(sat_pres_ice(tice_new(ic)), &
+          &                                     p_diag%pres_sfc(jc,jb) )
       ENDDO  ! ic
 
 
@@ -1825,7 +1836,8 @@ CONTAINS
         &              t_sk_t_now       = lnd_prog_now%t_sk_t(:,jb,isub_water),   &!inout
         &              t_sk_t_new       = lnd_prog_new%t_sk_t(:,jb,isub_water),   &!inout
         &              qv_s_t           = p_lnd_diag%qv_s_t(:,jb,isub_water),     &!inout
-        &              t_seasfc         = p_lnd_diag%t_seasfc(:,jb)               )!inout
+        &              t_seasfc         = p_lnd_diag%t_seasfc(:,jb),              &!inout
+        &              condhf           = p_lnd_diag%condhf_ice(:,jb)             )!inout
 
     ENDDO  ! jb
 !$OMP END DO

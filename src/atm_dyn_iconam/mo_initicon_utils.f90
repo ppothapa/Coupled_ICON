@@ -54,15 +54,16 @@ MODULE mo_initicon_utils
   USE mo_lnd_nwp_config,      ONLY: nlev_soil, ntiles_total, lseaice, llake, lmulti_snow,         &
     &                               isub_lake, frlnd_thrhld,             &
     &                               frlake_thrhld, frsea_thrhld, nlev_snow, ntiles_lnd,           &
-    &                               l2lay_rho_snow, lprog_albsi
+    &                               l2lay_rho_snow, lprog_albsi, dzsoil, frsi_min
   USE mo_nwp_sfc_utils,       ONLY: init_snowtile_lists
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
-  USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml
+  USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml, &
+    &                               cpwp, cfcap
   USE mo_physical_constants,  ONLY: cpd, rd, cvd_o_rd, p0ref, vtmpc1
   USE mo_hydro_adjust,        ONLY: hydro_adjust
-  USE sfc_seaice,             ONLY: frsi_min, seaice_coldinit_nwp
+  USE sfc_seaice,             ONLY: seaice_coldinit_nwp
   USE mo_post_op,             ONLY: perform_post_op
   USE mo_var_metadata_types,  ONLY: t_var_metadata, POST_OP_NONE
   USE mo_var_metadata,        ONLY: get_var_name
@@ -114,6 +115,7 @@ MODULE mo_initicon_utils
   PUBLIC :: init_qnx_from_qx_twomom
   PUBLIC :: init_qnxinc_from_qxinc_twomom
   PUBLIC :: get_diag_stat_comm_work
+  PUBLIC :: new_land_from_ocean
 
   CONTAINS
 
@@ -3430,6 +3432,84 @@ MODULE mo_initicon_utils
     END IF
 
   END FUNCTION get_diag_stat_comm_work
+
+
+  !-------------------------------------------------------------------------
+  !>
+  !! for coupled simulation with new land points forced from the ocean: initialize soil
+  !!
+  !! @par Revision History
+  !! Initial revision by Martin Koehler, DWD (2021-02-04)
+  !!
+  !-------------------------------------------------------------------------
+
+  SUBROUTINE new_land_from_ocean (p_patch, p_nh_state, p_lnd_state, ext_data)
+
+    TYPE(t_patch)                 ,INTENT(IN)    :: p_patch(:)
+    TYPE(t_nh_state) , TARGET     ,INTENT(IN)    :: p_nh_state(:)
+    TYPE(t_lnd_state), TARGET     ,INTENT(INOUT) :: p_lnd_state(:)
+    TYPE(t_external_data)         ,INTENT(IN)    :: ext_data(:)
+
+    INTEGER :: jg, jb, jt, jk, jc, nlev            ! loop indices
+    INTEGER :: rl_start, rl_end
+    INTEGER :: i_startblk, i_endblk 
+    INTEGER :: i_startidx, i_endidx
+    INTEGER :: ist
+
+    TYPE(t_nh_diag) , POINTER :: p_diag            ! shortcut to diag state
+    TYPE(t_lnd_prog), POINTER :: lnd_prog_now      ! shortcut to prognostic land state
+
+    !-----------------------------------------------------------------------
+
+    CALL message('','Initialize soil w_so and t_so for coupled simulation new land points.')
+
+    DO jg = 1, n_dom
+
+      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+      rl_start  = 1
+      rl_end    = min_rlcell
+
+      i_startblk = p_patch(jg)%cells%start_block(rl_start)
+      i_endblk   = p_patch(jg)%cells%end_block(rl_end)
+
+      p_diag       => p_nh_state (jg)%diag
+      lnd_prog_now => p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))
+
+      nlev         =  p_patch(jg)%nlev
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb, jt, jk, jc, ist,i_startidx, i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+
+        CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
+
+        DO jt = 1, ntiles_total
+          DO jk = 1, nlev_soil+1
+            DO jc = i_startidx, i_endidx
+ 
+              IF ( ext_data(jg)%atm%lsm_switch(jc,jb) == 1 ) THEN
+                ist = ext_data(jg)%atm%soiltyp(jc,jb)
+
+                IF ( jk <= nlev_soil ) THEN  ! t_so_t has one level more than w_so_t
+                  ! set default soil moisture between field capacity and wilting point
+                  lnd_prog_now%w_so_t(jc,jk,jb,jt) = 0.5_wp * ( cfcap(ist) + cpwp(ist) ) * dzsoil(jk)
+                  !          ( cporv(ist) + cadp(ist)                ! pore capacity + field capacity
+                ENDIF
+
+                lnd_prog_now%t_so_t(jc,jk,jb,jt) = p_diag%temp(jc,nlev,jb)
+ 
+              ENDIF
+
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO
+!$OMP END DO
+!$OMP END PARALLEL
+    ENDDO
+
+  END SUBROUTINE new_land_from_ocean
 
 END MODULE mo_initicon_utils
 !

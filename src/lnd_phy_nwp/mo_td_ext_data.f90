@@ -30,7 +30,7 @@ MODULE mo_td_ext_data
   USE mo_io_config,           ONLY: default_read_method
   USE mo_grid_config,         ONLY: n_dom
   USE mo_extpar_config,       ONLY: generate_td_filename, itopo, itype_vegetation_cycle, itype_lwemiss
-  USE mo_lnd_nwp_config,      ONLY: sst_td_filename, ci_td_filename, sstice_mode
+  USE mo_lnd_nwp_config,      ONLY: sst_td_filename, ci_td_filename, sstice_mode, frsi_min
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_radiation_config,    ONLY: albedo_type
   USE mo_run_config,          ONLY: msg_level
@@ -48,7 +48,6 @@ MODULE mo_td_ext_data
     &                               update_ndvi_dependent_fields
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
-  USE sfc_seaice,             ONLY: frsi_min
   USE mtime,                  ONLY: datetime, newDatetime, deallocateDatetime, &
     &                               datetimeToString, MAX_DATETIME_STR_LEN
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &

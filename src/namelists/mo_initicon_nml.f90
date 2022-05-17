@@ -69,7 +69,8 @@ MODULE mo_initicon_nml
     & config_itype_vert_expol    => itype_vert_expol,    &
     & config_ana_varnames_map_file => ana_varnames_map_file, &
     & config_pinit_seed          => pinit_seed,          &
-    & config_pinit_amplitude     => pinit_amplitude
+    & config_pinit_amplitude     => pinit_amplitude,     &
+    & config_lcouple_ocean_coldstart => lcouple_ocean_coldstart
 
   USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
 
@@ -130,6 +131,9 @@ CONTAINS
                                      ! assimilation increments
   LOGICAL  :: lp2cintp_sfcana(max_dom) ! If true, perform parent-to-child interpolation of
                                        ! surface analysis data
+  LOGICAL  :: lcouple_ocean_coldstart  ! If true, initialize newly defined land points from ICON-O 
+                                       ! with default T and Q profiles 
+
   LOGICAL  :: ltile_coldstart  ! If true, initialize tile-based surface fields from first guess with tile-averaged fields
 
   LOGICAL  :: ltile_init       ! If true, initialize tile-based surface fields from first guess without tiles
@@ -236,7 +240,7 @@ CONTAINS
                           qnxana_2mom_mode, itype_vert_expol, pinit_seed,   &
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
-                          icpl_da_sfcfric
+                          icpl_da_sfcfric, lcouple_ocean_coldstart
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -290,6 +294,7 @@ CONTAINS
   l_coarse2fine_mode(:) = .FALSE. ! true: apply corrections for coarse-to-fine-mesh interpolation
   lp2cintp_incr(:)      = .FALSE. ! true: perform parent-to-child interpolation of atmospheric data assimilation increments
   lp2cintp_sfcana(:)    = .FALSE. ! true: perform parent-to-child interpolation of surface analysis data
+  lcouple_ocean_coldstart= .TRUE. ! true: initialize newly defined land points from ICON-O with default T and Q profiles
   ltile_coldstart       = .FALSE. ! true: initialize tile-based surface fields from first guess with tile-averaged fields
   ltile_init            = .FALSE. ! true: initialize tile-based surface fields from first guess without tiles
   lvert_remap_fg        = .FALSE. ! true: perform vertical remapping of first-guess input
@@ -469,6 +474,7 @@ CONTAINS
   config_itype_vert_expol      = itype_vert_expol
   config_pinit_seed            = pinit_seed
   config_pinit_amplitude       = pinit_amplitude
+  config_lcouple_ocean_coldstart = lcouple_ocean_coldstart
 
   DO jg=1,max_dom
     initicon_config(jg)%ana_checklist = check_ana(jg)%list

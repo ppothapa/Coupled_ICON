@@ -444,7 +444,8 @@ ccycle\_config(jg)\% ico2conc = 2
 coupled\_mode &
 L &
 .FALSE. &  &
-.TRUE.: if yac coupling routines have to be called &
+.TRUE.: if yac coupling routines have to be called. Required for
+coupled ocean-atmosphere similations. &
 \tabularnewline
 
 \end{longtab}
@@ -2580,7 +2581,9 @@ Choosing values $>$ 0 requires itype\_vegetation\_cycle=2 (in extpar\_nml) :\\
 1: use time-filtered T2M bias provided by the soil moisture analysis \\
 2: use in addition a time-filtered RH increment at the lowest model level (requires assimilation of RH2M)  \\
 3: as option 2, but use a time-filtered temperature increment at the lowest model level instead of the T2M bias provided by the SMA 
-(requires assimilation of T2M and RH2M)&
+(requires assimilation of T2M and RH2M) \\
+4: as option 3, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for adaptive
+tuning of bare-soil evaporation &
 init\_mode=5
 \tabularnewline
 
@@ -2666,6 +2669,12 @@ ltile\_coldstart&
 L & .FALSE.& &
 If true, tiled surface fields are initialized with tile-averaged fields from a previous run with tiles. \\
 A neighbor search is applied to subgrid-scale ocean points for SST and sea-ice fraction. & init\_mode=1,5,6
+\tabularnewline
+
+%\hline
+lcouple\_ocean\_coldstart&
+L & .TRUE.& &
+ If true, initialize newly defined land points from ICON-O with default T and Q profiles. & is\_coupled\_mode=T
 \tabularnewline
 
 %\hline
@@ -4039,7 +4048,9 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2020) &
+4 = Resistance-based scheme by Schulz and Vogel (2020) \\
+5 = same as 4, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for tuning; 
+the namelist parameter c\_soil is ignored in this case, and a value of 2 is used internally &
 \tabularnewline
 
 %\hline
@@ -4106,13 +4117,19 @@ use $5.e-4$ to activate interception storage & itype\_interception = 1
 %\hline
 c\_soil &
 R & 1. &  & surface area density of the (evaporative) soil surface \\
-allowed range: 0 -- 2 &
+allowed range: 0 -- 2 & itype\_evsl = 2,3,4
 \tabularnewline
 
 %\hline
 c\_soil\_urb &
 R & 1. &  & surface area density of the (evaporative) soil surface, urban areas \\
-allowed range: 0 -- 2 &
+allowed range: 0 -- 2 & itype\_evsl = 2,3,4
+\tabularnewline
+
+%\hline
+cr\_bsmin &
+R & 110. & s/m & minimum bare-soil evaporation resistance \\
+Note: c\_soil and c\_soil\_urb are ignored in this case & itype\_evsl = 5 or icpl\_da\_sfcevap = 4
 \tabularnewline
 
 %\hline
@@ -4143,7 +4160,6 @@ L&
 .TRUE. for use of sea-ice model&
 \tabularnewline
 
-
 %\hline
 lprog\_albsi &
 L&
@@ -4152,7 +4168,6 @@ L&
 If .TRUE., sea-ice albedo is computed prognostically & lseaice=.TRUE.
 \tabularnewline
 
-
 %\hline
 \textbf{llake} &
 L&
@@ -4160,13 +4175,15 @@ L&
 &
 .TRUE. for use of lake model&
 \tabularnewline
+
 %\hline
 sstice\_mode &
 I&
 1&
 &
 1: SST and sea ice fraction are read from the analysis. The SST is kept constant 
-whereas the sea ice fraction can be modified by the seaice model.\\
+whereas the sea ice fraction can be modified by the seaice model. (This
+mode also applices to coupled atmo/ocean simulations.) \\
 2: SST and sea ice fraction are read from the analysis. The SST is updated by climatological 
 increments on a daily basis. The sea ice fraction can be modified by the seaice model.\\
 3: SST and sea ice fraction are updated daily, based on climatological monthly
@@ -4177,6 +4194,23 @@ means\\
 iequations=3\\
 iforcing=3
 \tabularnewline
+
+%\hline
+hice\_min &
+R&
+0.05&
+m&
+Minimum sea-ice thickness & lseaice=.TRUE.
+\tabularnewline
+
+%\hline
+hice\_max &
+R&
+3.0&
+m&
+Maximum sea-ice thickness (for coupled runs assure consistency with seaice\_limit)  & lseaice=.TRUE.
+\tabularnewline
+
 %\hline
 sst\_td\_filename &
 C&
@@ -5918,7 +5952,8 @@ I&
 &
 MODIS albedo tuning\\
 0: None\\
-1: dimmed sahara&
+1: dimmed sahara\\
+2: dimmed sahara + brightened Antarctic (by $5\%$)&
 run\_nml:iforcing = inwp\\
 albedo\_type=2
 \tabularnewline
@@ -7897,13 +7932,6 @@ Passive tracers are named Qpassive\_ID, where ID is a number between \texttt{ntr
 %\hline
 init\_formula&
 C& ' ' & & Comma-separated list of initialization formulas for additional passive tracers. & npassive\_tracer > 0
-\tabularnewline
-
-%\hline
-iord\_backtraj&
-I& 1& & order of backward trajectory calculation:& \tabularnewline
-& & & & 1: first order& \tabularnewline
-& & & & 2: second order (iterative; currently 1 iteration hardcoded; experimental!)& ihadv\_tracer='miura'
 \tabularnewline
 
 %\hline
