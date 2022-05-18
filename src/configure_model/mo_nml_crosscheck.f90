@@ -65,7 +65,8 @@ MODULE mo_nml_crosscheck
   USE mo_nh_testcases_nml,         ONLY: nh_test_name, layer_thickness
   USE mo_meteogram_config,         ONLY: meteogram_output_config, check_meteogram_configuration
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
-    &                                    nroot, is_plane_torus, n_dom_start, l_scm_mode
+    &                                    nroot, is_plane_torus, n_dom_start, l_scm_mode,   &
+    &                                    vct_filename
   USE mo_art_config,               ONLY: art_config, ctracer_art
   USE mo_time_management,          ONLY: compute_timestep_settings,                        &
     &                                    compute_restart_settings,                         &
@@ -75,7 +76,7 @@ MODULE mo_nml_crosscheck
     &                                    newDatetime, deallocateDatetime
   USE mo_gridref_config,           ONLY: grf_intmethod_e
   USE mo_interpol_config
-  USE mo_sleve_config
+  USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
@@ -199,11 +200,15 @@ CONTAINS
     !--------------------------------------------------------------------
 
     ! Vertical grid
-    IF (ivctype == 12 .AND. (.NOT. ldeepatmo)) THEN
-      CALL finish(routine, "ivctype = 12 requires ldeepatmo = .true.")
-    ELSEIF (ivctype == 12 .AND. .NOT. (layer_thickness < 0.0_wp)) THEN
-      CALL finish(routine, "ivctype = 12 requires layer_thickness < 0.")
+    IF (ivctype==1) THEN 
+      IF (TRIM(vct_filename) == "") THEN
+        IF (itype_laydistr /= 3 .AND. layer_thickness < 0) THEN
+          CALL finish(routine, &
+            & "ivctype=1 requires layer_thickness>0 or itype_laydistr=3 or vct_filename/=''")
+        ENDIF
+      ENDIF
     ENDIF
+
 
 
     !--------------------------------------------------------------------

@@ -56,7 +56,8 @@ MODULE mo_grid_nml
     & config_use_dummy_cell_closure       => use_dummy_cell_closure,        &
     & DEFAULT_ENDTIME,                                         &
     & config_create_vgrid                 => create_vgrid,                  &
-    & config_vertical_grid_filename       => vertical_grid_filename
+    & config_vertical_grid_filename       => vertical_grid_filename,        &
+    & config_vct_filename                 => vct_filename
 
   USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
 
@@ -64,7 +65,6 @@ MODULE mo_grid_nml
 
   PRIVATE
   PUBLIC :: read_grid_namelist
- !PUBLIC :: fill_grid_nml_configure
   
 
   ! ------------------------------------------------------------------------
@@ -124,6 +124,10 @@ MODULE mo_grid_nml
 
     !> files containing vct_a, vct_b, z_ifc
     CHARACTER(LEN=filename_max) :: vertical_grid_filename(max_dom)
+    CHARACTER(LEN=filename_max) :: vct_filename ! for reading in vct_a, vct_b
+                                                ! we implicitly assume that all other domains 
+                                                ! share their levels wih dom01.
+
 
 
     NAMELIST /grid_nml/ lfeedback, ifeedback_type,                 &
@@ -134,7 +138,8 @@ MODULE mo_grid_nml
       &  dynamics_grid_filename,  dynamics_parent_grid_id,         &
       &  radiation_grid_filename,                                  &
       &  grid_angular_velocity, use_duplicated_connectivity,       &
-      &  use_dummy_cell_closure, create_vgrid, vertical_grid_filename
+      &  use_dummy_cell_closure, create_vgrid,                     &
+      &  vertical_grid_filename, vct_filename
 
 
 !    INTEGER  :: funit
@@ -162,6 +167,7 @@ MODULE mo_grid_nml
 
     radiation_grid_filename  = ""
     vertical_grid_filename   = " "
+    vct_filename             = ""
       
     lfeedback   = .TRUE.
     ifeedback_type = 2
@@ -258,6 +264,7 @@ MODULE mo_grid_nml
     config_lrescale_ang_vel        = lrescale_ang_vel
     config_create_vgrid            = create_vgrid
     config_vertical_grid_filename  = vertical_grid_filename
+    config_vct_filename            = vct_filename
 
     ! Throw a warning for deprecated parameters: ---------
 

@@ -2282,6 +2282,14 @@ If empty, the vertical grid is created within ICON during the setup phase.&
 \tabularnewline
 
 %\hline
+vct\_filename &
+C & & &
+Filename of ASCII file containing the 1D vertical coordinate tables \texttt{vct\_a}, \texttt{vct\_b}. 
+See Sect.~\ref{sec:vct_info} for further information on the format. 
+If empty, \texttt{vct\_a}, \texttt{vct\_b} are created within ICON during the setup phase.&
+\tabularnewline
+
+%\hline
 use\_duplicated\_\par connectivity &
 L & .TRUE. & &
 if .TRUE., the zero connectivity is replaced by the last non-zero value&
@@ -2770,9 +2778,10 @@ Type of vertical extrapolation of initial data: \\
 1: Linear extrapolation (standard) \\
 2: Blend of linear extrapolation and simple climatology. 
 Intended for upper-atmosphere simulations and specific settings 
-can be found in upatmo\_nml. Requires: 
-ivctype = 2, 12; l\_limited\_area = .FALSE.
-& 
+can be found in upatmo\_nml.
+&
+Requires: 
+ivctype = 2; l\_limited\_area = .FALSE. 
 \tabularnewline
 
 
@@ -4675,19 +4684,8 @@ ivctype&
 I& 2& &
 Type of vertical coordinate:\\
 1: Gal-Chen hybrid \\
-2: SLEVE (uses sleve\_nml)\\
-12: as 2, but nominal interface heights (vct\_a (\& vct\_b)) from file, as in
-case of 1.
-Requires: ldeepatmo = .TRUE. (and layer\_thickness < 0, 
-to trigger read-in of vertical coordinates from file). 
-Please, see <icon\_home>/vertical\_coord\_tables/README: 
-section ``atm\_hyb\_sz\_<nlev>'' for the format of the coordinate file, 
-and \\
-<icon\_home>/src/atm\_dyn\_iconam$\ldots$ \\
-$\ldots$/mo\_init\_vgrid: init\_sleve\_coord 
-for the entrie to the column ``vct\_b'' of the file. 
-(Please, use with care. It has not been thoroughly checked for all possible
-negative interferences with other parts of the code.)&
+2: SLEVE (uses sleve\_nml)
+&
 \tabularnewline
 
 %\hline
@@ -7552,8 +7550,10 @@ right above the constant-thickness layer.  &
 itype\_laydistr&
 I& 1& &
 Type of analytical function used to specify the distribution of the vertical coordinate surfaces \\
-1: transformed cosine, 2: third-order polynomial; in this case, stretch\_fac should be less than 1,
-particularly for large numbers of model levels; the algorithm always works for stretch\_fac=0.5 &
+1: transformed cosine,\\
+2: third-order polynomial; in this case, stretch\_fac should be less than 1,
+particularly for large numbers of model levels; the algorithm always works for stretch\_fac=0.5\\
+3: second-order polynomial (see M.\ Baldauf COSMO-TR p. 33) &
 \tabularnewline
 
 
@@ -10001,12 +10001,19 @@ Defined and used in: \verb+src/namelists/mo_ser_nml.f90+
 
 
 \section{Information on vertical level distribution}
+\label{sec:vct_info}
 
-If no vertical sleve coodinate is chosen (ivctype $/=$2), the hydrostatic and nonhydrostatic models need hybrid vertical level information to generate the
-terrain following coordinates. The hybrid level specification is stored in
-$<$icon home$>$/hyb\_params/HYB\_PARAMS\_$<$nlev$>$.
-The \textbf{hydrostatic} model assumes to get \textbf{pressure based} coordinates, the \textbf{nonhydrostatic}
-model expects \textbf{height based} coordinates. For further information see $<$icon home$>$/hyb\_params/README.
+The atmospheric model needs hybrid vertical level information (i.e.\ the so called vertical coordinate tables \texttt{vct\_a}, 
+\texttt{vct\_b} specifying the distribution of coordinate surfaces) to generate the terrain following height based coordinates. The 1D fields \texttt{vct\_a}, \texttt{vct\_b} are created within ICON 
+during the setup phase, given that no input file is provided (\texttt{grid\_nml:}\texttt{vct\_filename=''}). 
+For the SLEVE vertical coordinate (\texttt{ivctype=2}), the creation  of \texttt{vct\_a}, \texttt{vct\_b} is controlled by the 
+Namelist \texttt{sleve\_nml} together with the parameter \texttt{num\_lev} (\texttt{run\_nml}). 
+For the Gal-Chen vertical coordinate (\texttt{ivctype=1}), the user has only very limited control regarding its ICON internal creation. 
+It is e.g.\ possible to create an equidistant level distribution for idealized testcases, by specifying the parameters \texttt{layer\_thickness} 
+and \texttt{n\_flat\_level} (\texttt{nh\_testcase\_nml}). For more general grids, it is recommended to read the vertical coordinate tables from file. 
+Example files and information on the required format can be found in $<$icon home$>$/vertical\_coord\_tables, as well as in the ICON tutorial. 
+Note that for the SLEVE coordinate, only \texttt{vct\_a} must be provided in the input file. It is recommended to set \texttt{vct\_b} to zero.
+
 
 \section{Compile flag for mixed precision}
 
