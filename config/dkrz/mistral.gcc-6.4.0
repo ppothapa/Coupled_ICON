@@ -50,7 +50,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${MKL_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} $
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS='--enable-rte-rrtmgp --enable-parallel-netcdf --enable-ecrad --enable-art --enable-grib2'
+EXTRA_CONFIG_ARGS='--enable-rte-rrtmgp --enable-parallel-netcdf --enable-ecrad --enable-art --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

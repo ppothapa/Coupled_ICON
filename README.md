@@ -28,6 +28,7 @@ of the
     - [Bundled libraries](#bundled-libraries)
     - [Compilers and tools](#compilers-and-tools)
     - [Compiler flags](#compiler-flags)
+        - [Fortran compile groups](#fortran-compile-groups)
     - [Dynamic libraries](#dynamic-libraries)
     - [Configuration and building environments](#configuration-and-building-environments)
     - [Configuration wrappers](#configuration-wrappers)
@@ -361,18 +362,11 @@ bundled libraries (in contrast to standard
 default);
 - `ICON_FCFLAGS` &mdash; Fortran compiler flags to be appended to `FCFLAGS` when
 configuring, compiling and linking ICON;
-- `ICON_OCEAN_FCFLAGS` &mdash; Fortran compiler flags to be appended to
-`FCFLAGS` instead of `ICON_FCFLAGS` when compiling the ocean component of ICON,
-i.e. the Fortran source files residing in subdirectories of the
-[src/hamocc](./src/hamocc), [src/ocean](./src/ocean), and
-[src/sea_ice](./src/sea_ice) directories (defaults to `ICON_FCFLAGS`, which can
-be overridden by setting the variable to an empty value: `ICON_OCEAN_FCFLAGS=`);
-- `ICON_DACE_FCFLAGS` &mdash; Fortran compiler flags to be appended to
-`FCFLAGS` instead of `ICON_FCFLAGS` when compiling the DACE modules for data
-assimilation, i.e. the Fortran source files residing in subdirectories of the
-[externals/dace_icon/src_for_icon](https://gitlab.dkrz.de/dwd-sw/dace-icon-interface/-/tree/master/src_for_icon)
-directory (defaults to `ICON_FCFLAGS`, which can be overridden by setting the
-variable to an empty value: `ICON_DACE_FCFLAGS=`);
+- `ICON_<NAME>_FCFLAGS` &mdash; Fortran compiler flags to be appended to 
+`FCFLAGS` instead of `ICON_FCFLAGS` when compiling files of the
+[compile group](#fortran-compile-groups) `<NAME>` (defaults to `ICON_FCFLAGS`,
+which can be overridden by setting the variable to an empty value:
+`ICON_OCEAN_FCFLAGS=`);
 - `ICON_BUNDLED_FCFLAGS` &mdash; Fortran compiler flags to be appended to
 `FCFLAGS` when configuring the bundled libraries (defaults to `ICON_FCFLAGS`,
 which can be overridden by setting the variable to an empty value:
@@ -438,8 +432,9 @@ Gfortran) or the functionality of the bundled libraries (e.g. the optimization
 level required for ICON is too high and leads to errors in the functionality of
 the bundled libraries) can be put to `ICON_FCFLAGS`, `ICON_CFLAGS` or
 `ICON_LDFLAGS`.
-4. Special optimization flags for the ocean component of ICON can be put to
-`ICON_OCEAN_FCFLAGS`.
+4. Special optimization flags for a selected set of Fortran source files of ICON
+can be put to `ICON_<NAME>_FCFLAGS`, where `<NAME>` is a name of a
+[Fortran compile group](#fortran-compile-groups).
 5. Fortran and C compiler flags that need to be used when compiling and linking
 the bundled libraries but at the same time conflict with the flags required for
 ICON (e.g. you want to compile ICON with `-O3` flag but the bundled libraies
@@ -448,6 +443,34 @@ need to be compiled with `-O2`) can be specified as `ICON_BUNDLED_FCFLAGS` and
 6. If a set of Fortran (or C) compiler flags needs to be passed only to some
 particular bundled library, it can be specified in the respective variable,
 e.g. in `ICON_CDI_FCFLAGS` (or `ICON_CDI_CFLAGS`).
+
+### Fortran compile groups
+
+Certain Fortran source files of ICON, including its components that do not have
+their own build system (currently, `JSBACH`, `ART`, `DACE` and `EMVORADO`) might
+require special compiler flags. Either due to a decision made by the developers
+(e.g. the ocean component) or due to compiler bugs (e.g. several source files of
+the `EMVORADO` component cannot be compiled with `PGI/NVHPC` compilers and
+optimization level `-O2`). Such cases can be covered with Fortran compile
+groups. For example, a separate set of flags for the ocean component can be
+specified at the configure time as follows:
+
+```console
+$ ./configure \
+  --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice \
+  ICON_OCEAN_FCFLAGS=<special ocean component flags> \
+  <other arguments>
+```
+
+or alternatively:
+
+```console
+$ ./configure \
+  --enable-fcgroup-OCEAN \
+  ICON_OCEAN_PATH=src/hamocc:src/ocean:src/sea_ice \
+  ICON_OCEAN_FCFLAGS=<special ocean component flags> \
+  <other arguments>
+```
 
 ## Dynamic libraries
 

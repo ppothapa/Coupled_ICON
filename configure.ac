@@ -8,7 +8,11 @@ dnl means that the AC_AUTOCONF_VERSION macro is available.
      [m4_fatal([Autoconf version 2.69 is required but version ]dnl
 m4_defn([AC_AUTOCONF_VERSION])[ is used], [63])])],
   [m4_fatal([Autoconf version 2.69 is required], [63])])
+
+ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
+
 AC_INIT([icon], [2.6.3], [], [icon-2.6.3])
+
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([utils])
 AC_CONFIG_SRCDIR([src/drivers/icon.f90])
@@ -253,7 +257,7 @@ AC_ARG_ENABLE([claw],
                             std|yes   enable STANDARD mode
                             validate  enable VALIDATE mode
                             no        disable CLAW preprocessing],
-[AS_CASE(["$enableval"],
+[AS_CASE([$enableval],
    [yes], [enable_claw=std],
    [std|validate|no], [],
    [AC_MSG_ERROR([unexpected value for the argument dnl
@@ -276,7 +280,7 @@ AC_ARG_ENABLE([serialization],
                             perturb   enable READ & PERTURB mode
                             create    enable CREATE mode
                             no        disable serialization],
-[AS_CASE(["$enableval"],
+[AS_CASE([$enableval],
    [yes], [enable_serialization=read],
    [read|perturb|create|no], [],
    [AC_MSG_ERROR([unexpected value for the argument dnl
@@ -302,9 +306,9 @@ AC_ARG_ENABLE([memory-tracing],
 [  --enable-memory-tracing enable native dynamic memory tracing facility. The
                           value of the argument must be one of the following
                           @<:@default=no@:>@:
-                            mtrace|yes enable tracing with mtrace (glibc)
-                            no         disable memory tracing],
-[AS_CASE(["$enableval"],
+                            mtrace|yes  enable tracing with mtrace (glibc)
+                            no          disable memory tracing],
+[AS_CASE([$enableval],
    [yes], [enable_memory_tracing=mtrace],
    [mtrace|no], [],
    [AC_MSG_ERROR([unexpected value for the argument dnl
@@ -349,6 +353,105 @@ AC_ARG_ENABLE([pgi-inlib],
   [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
      [enable_pgi_inlib=yes])],
   [enable_pgi_inlib=no])
+
+m4_divert_once([HELP_ENABLE],
+[  --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
+                          compiled with an extra set of compiler flags. <NAME>
+                          can be any non-empty string consisting of capital
+                          letters, digits and underscores. The Fortran
+                          compiler flags to be appended to FCFLAGS when
+                          compiling files of the group are read from the
+                          environment variable ICON_<NAME>_FCFLAGS. The paths
+                          to the directories and files included in the group
+                          must be provided relative to the root source
+                          directory. The value of the argument must be one of
+                          the following @<:@default=no@:>@:
+                            path1:path2  a colon-separated list of paths to
+                                         the directories and files included in
+                                         the group
+                            yes          read paths to the directories and
+                                         files of the group from the
+                                         environment variable ICON_<NAME>_PATH
+                            no           disable the group])
+AC_SUBST([ICON_FCGROUP_ASSIGNMENTS], [''])
+icon_fcgroups_unique=
+icon_fcgroup_all_entries=
+for icon_fcgroup in $icon_fcgroups; do
+dnl Skip if the group has already been processed:
+  AS_CASE([" $icon_fcgroups_unique "],
+    [*"$icon_fcgroup"*], [continue],
+    [AS_VAR_APPEND([icon_fcgroups_unique], [" $icon_fcgroup"])])
+dnl Check that the name of the group consists of capital letters, digits and
+dnl underscores:
+  expr "X$icon_fcgroup" : "[.*[^_$as_cr_LETTERS$as_cr_digits]]" >/dev/null &&
+    AC_MSG_ERROR([invalid compile group name '$icon_fcgroup': only capital dnl
+letters and digits are allowed])
+dnl Resolve trivial option values:
+  enableval=AS_VAR_GET([enable_fcgroup_$icon_fcgroup])
+  AS_CASE([$enableval],
+    [no], [continue],
+    [yes], [AS_VAR_COPY([enableval], [ICON_${icon_fcgroup}_PATH])])
+  enableval=`AS_ECHO(["$enableval"]) | sed 's/::*/:/g;s/^://;s/:*$//'`
+dnl
+  icon_save_IFS=$IFS
+  IFS=':'
+  for icon_fcgroup_entry in $enableval; do
+    IFS=$icon_save_IFS
+    AS_CASE([$icon_fcgroup_entry],
+      [[[\\/]]* | ?:[[\\/]]*],
+      [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
+'$icon_fcgroup' is ignored: not a relative path])
+       continue])
+    icon_fcgroup_path="$srcdir/$icon_fcgroup_entry"
+    AS_IF(
+      [test -d "$icon_fcgroup_path"],
+      [icon_fcgroup_entry_dirname=$icon_fcgroup_path
+       icon_fcgroup_entry_basename=],
+      [test -f "$icon_fcgroup_path"],
+      [icon_fcgroup_entry_dirname=`AS_DIRNAME(["$icon_fcgroup_path"])`
+       icon_fcgroup_entry_basename=`AS_BASENAME(["$icon_fcgroup_path"])`],
+      [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
+'$icon_fcgroup' is ignored: not recognized as an existing directory or a file])
+       continue])
+    icon_fcgroup_entry_dirname=`cd "$icon_fcgroup_entry_dirname" >/dev/null dnl
+2>&1 && pwd` || { AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran dnl
+compile group '$icon_fcgroup' is ignored: unable to detect absolute path to dnl
+'$icon_fcgroup_entry_dirname']); continue; }
+    AS_CASE([$icon_fcgroup_entry_dirname],
+      ["$ac_abs_confdir"[[\\/]]*], [],
+      [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
+'$icon_fcgroup' is ignored: not a subdirectory of the root source directory])
+       continue])
+    icon_fcgroup_entry_dirname=`AS_ECHO(["$icon_fcgroup_entry_dirname"]) | dnl
+sed "s:^$ac_abs_confdir[[\\/]]::"`
+    icon_fcgroup_entry_basename=`AS_ECHO(["$icon_fcgroup_entry_basename"]) | dnl
+sed 's:[[^\.]]*$:%:'`
+    icon_fcgroup_pattern=dnl
+"${icon_fcgroup_entry_dirname}/${icon_fcgroup_entry_basename}"
+    AS_CASE(["$icon_fcgroup_all_entries:"],
+      [*":$icon_fcgroup_pattern:"*],
+      [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
+'$icon_fcgroup' is ignored: an entry with the same relative path (modulo file dnl
+extension) has already been registered])
+       continue],
+      [AS_VAR_APPEND([icon_fcgroup_all_entries], [":$icon_fcgroup_pattern"])])
+    AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
+      [AS_VAR_APPEND([ICON_FCGROUP_ASSIGNMENTS], ["
+"])])
+    AS_VAR_APPEND([ICON_FCGROUP_ASSIGNMENTS],
+      ["${icon_fcgroup_pattern}: dnl
+ICON_FCFLAGS:= \$(ICON_${icon_fcgroup}_FCFLAGS)"])
+  done
+  IFS=$icon_save_IFS
+done
+dnl Newer versions of GNU Make (starting at least 4.1) give preference to the
+dnl MOST SPECIALIZED matching pattern when performing pattern-specific variable
+dnl assignment. Older versions (at least up to 3.81), however, prefer the LAST
+dnl matching pattern. This means that, as long as we support the older version
+dnl of GNU Make, we have to declare the most general assignments first. We can
+dnl achieve that by sorting the list of assignments:
+AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
+  [ICON_FCGROUP_ASSIGNMENTS=`AS_ECHO(["$ICON_FCGROUP_ASSIGNMENTS"]) | sort`])
 
 dnl Optional Packages:
 
@@ -481,15 +584,27 @@ AC_ARG_VAR([ICON_FCFLAGS],
 AC_ARG_VAR([ICON_LDFLAGS],
   [Fortran compiler flags to be appended to LDFLAGS when configuring ICON])dnl
 
-AC_ARG_VAR([ICON_OCEAN_FCFLAGS],
+m4_divert_push([HELP_VAR])dnl
+AS_HELP_STRING([ICON_<NAME>_FCFLAGS],
   [Fortran compiler flags to be appended to FCFLAGS instead of ICON_FCFLAGS when
-compiling the ocean component of ICON @<:@default=$ICON_FCFLAGS@:>@])dnl
-ICON_OCEAN_FCFLAGS=${ICON_OCEAN_FCFLAGS-$ICON_FCFLAGS}
-AC_ARG_VAR([ICON_DACE_FCFLAGS],
-  [Fortran compiler flags to be appended to FCFLAGS instead of ICON_FCFLAGS when
-compiling the DACE modules for data assimilation
-@<:@default=$ICON_FCFLAGS@:>@])dnl
-ICON_DACE_FCFLAGS=${ICON_DACE_FCFLAGS-$ICON_FCFLAGS}
+compiling files of the compile group <NAME> (see --enable-fcgroup-<NAME>)
+@<:@default=$ICON_FCFLAGS@:>@], [14])
+AS_HELP_STRING([ICON_<NAME>_PATH],
+  [colon-separated list of paths (relative to the root source directory) to
+files and directories included in the compile group <NAME> (see
+--enable-fcgroup-<NAME>)], [14])
+m4_divert_pop([HELP_VAR])dnl
+
+AC_SUBST([ICON_FCGROUP_FLAGS], [''])dnl
+for icon_fcgroup in $icon_fcgroups_unique; do
+  eval "icon_fcgroup_flags=\${ICON_${icon_fcgroup}_FCFLAGS-\$ICON_FCFLAGS}"
+  AS_IF([test -n "$ICON_FCGROUP_FLAGS"],
+    [AS_VAR_APPEND([ICON_FCGROUP_FLAGS], ["
+"])])
+  AS_VAR_APPEND([ICON_FCGROUP_FLAGS],
+    ["ICON_${icon_fcgroup}_FCFLAGS= ${icon_fcgroup_flags}"])
+done
+
 AC_ARG_VAR([ICON_BUNDLED_FCFLAGS],
   [Fortran compiler flags to be appended to FCFLAGS when configuring the bundled
 libraries @<:@default=$ICON_FCFLAGS@:>@])dnl
@@ -631,7 +746,7 @@ AS_IF([test x"$enable_claw" != xno],
 
 AS_IF([test x"$enable_serialization" != xno],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}SERIALIZE"])
-   AS_CASE(["$enable_serialization"],
+   AS_CASE([$enable_serialization],
      [read], [AS_VAR_APPEND([FCFLAGS],
                 [" ${FC_PP_DEF}SERIALIZE_READ_REFERENCE"])],
      [perturb], [AS_VAR_APPEND([FCFLAGS],
@@ -855,7 +970,7 @@ dnl The configure scripts of the most of the bundled libraries expect
 dnl MPI_LAUNCH to be set in the form of an absolute path, which we try to
 dnl accommodate when required and if possible:
 AS_IF([test -n "$MPI_LAUNCH"],
-  [AS_CASE(["$MPI_LAUNCH"],
+  [AS_CASE([$MPI_LAUNCH],
      [[[\\/]]* | ?:[[\\/]]*], [],
      [ACX_PROG_SEARCH_ABSPATH([$MPI_LAUNCH],
         [MPI_LAUNCH="$acx_prog_search_abspath"],
@@ -1288,7 +1403,7 @@ dnl
      [test x"$enable_coupling" = xyes && test x"$with_external_yac" = xno],
      [icon_bundled_yaxt_c=transitive])
 dnl Ensure consistency:
-   AS_CASE(["$icon_bundled_yaxt_fc"],
+   AS_CASE([$icon_bundled_yaxt_fc],
 dnl Promote icon_bundled_yaxt_c (if it's not higher yet) to transitive if we
 dnl need to link to the Fortran libraries (this is correct because we link
 dnl statically):
