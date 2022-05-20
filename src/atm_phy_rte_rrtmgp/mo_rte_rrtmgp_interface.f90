@@ -557,7 +557,7 @@ CONTAINS
          xvmr_o3(:,:),     & !< o3  volume mixing ratio
          xvmr_o2(:,:)        !< o2  volume mixing ratio
 
-    REAL (wp), TARGET, INTENT (OUT) ::       &
+    REAL (wp), TARGET, INTENT (INOUT) ::       &
          flx_uplw    (:,:), & !<   upward LW flux profile, all sky
          flx_uplw_clr(:,:), & !<   upward LW flux profile, clear sky
          flx_dnlw    (:,:), & !< downward LW flux profile, all sky
@@ -567,7 +567,7 @@ CONTAINS
          flx_dnsw    (:,:), & !< downward SW flux profile, all sky
          flx_dnsw_clr(:,:)    !< downward SW flux profile, clear sky
 
-    REAL (wp), TARGET, INTENT (OUT) :: &
+    REAL (wp), TARGET, INTENT (INOUT) :: &
          vis_dn_dir_sfc(:) , & !< Diffuse downward flux surface visible radiation
          par_dn_dir_sfc(:) , & !< Diffuse downward flux surface PAR
          nir_dn_dir_sfc(:) , & !< Diffuse downward flux surface near-infrared radiation
@@ -1346,7 +1346,7 @@ CONTAINS
       & aer_ssa_sw(:,:,:),& !< aerosol single-scattering albedo, shortwave (ncol, nlay, nbndlw)
       & aer_asy_sw(:,:,:)   !< aerosol asymetry parameter,       shortwave (ncol, nlay, nbndlw)
 
- REAL (wp), TARGET, INTENT (OUT) ::       &
+ REAL (wp), TARGET, INTENT (INOUT) ::       &
       & lw_upw    (:,:), & !<   upward LW flux profile, all sky
       & lw_upw_clr(:,:), & !<   upward LW flux profile, clear sky
       & lw_dnw    (:,:), & !< downward LW flux profile, all sky
@@ -1356,7 +1356,7 @@ CONTAINS
       & sw_dnw    (:,:), & !< downward SW flux profile, all sky
       & sw_dnw_clr(:,:)    !< downward SW flux profile, clear sky
 
- REAL (wp), TARGET, INTENT (OUT) :: &
+ REAL (wp), TARGET, INTENT (INOUT) :: &
       & vis_dn_dir_sfc(:) , & !< Diffuse downward flux surface visible radiation
       & par_dn_dir_sfc(:) , & !< Diffuse downward flux surface PAR
       & nir_dn_dir_sfc(:) , & !< Diffuse downward flux surface near-infrared radiation
