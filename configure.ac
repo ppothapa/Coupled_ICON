@@ -747,7 +747,7 @@ dnl (run ./utils/icon_sorted_deps.sh):
 dnl
 dnl '-licon_tixi', '-lyac', '-lmtime', '-lSerialboxFortranShared',
 dnl '-lcdi_f2003 -lcdipio -lcdi', '-leccodes_f90', '-lyaxt -lyaxt_c', '-lsct',
-dnl '-lradiance -lrttov10.2 (etc.)', '-llapack -lblas (or other)',
+dnl '-lrttov_other -lrttov_emis_atlas (etc.)', '-llapack -lblas (or other)',
 dnl '-lradiation -lifsrrtm -lutilities -lifsaux', '-lrrtmgp -lrte',
 dnl '-lnetcdff', '-lhdf5hl_fortran -lhdf5_fortran', '-lz', '-lgomp (or other)',
 dnl '-lmpifort -lmpi (or other)'
