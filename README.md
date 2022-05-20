@@ -362,7 +362,7 @@ bundled libraries (in contrast to standard
 default);
 - `ICON_FCFLAGS` &mdash; Fortran compiler flags to be appended to `FCFLAGS` when
 configuring, compiling and linking ICON;
-- `ICON_<NAME>_FCFLAGS` &mdash; Fortran compiler flags to be appended to 
+- `ICON_<NAME>_FCFLAGS` &mdash; Fortran compiler flags to be appended to
 `FCFLAGS` instead of `ICON_FCFLAGS` when compiling files of the
 [compile group](#fortran-compile-groups) `<NAME>` (defaults to `ICON_FCFLAGS`,
 which can be overridden by setting the variable to an empty value:

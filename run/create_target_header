@@ -668,6 +668,13 @@ set_run_target_mpipc()
 }
 
 #=============================================================================
+set_run_target_lumi()
+{
+    # LUMI at CSC
+    set_run_target_default
+}
+
+#=============================================================================
 set_run_target_docker_cpu()
 {
     # Docker container
