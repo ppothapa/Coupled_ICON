@@ -392,9 +392,8 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'prw'     , 'cllvi'   , 'clivi'   ,
                     'qrvi','qsvi','qgvi',
                     'hfls'    , 'hfss'    , 'evspsbl' ,
-                    'prlr'    , 'prls'    , 'cptgzvi',
-                    'rain_gsp_rate','graupel_gsp_rate',
-                    'snow_gsp_rate',
+                    'prlr'    , 'prls'    , 'cptgzvi' ,
+                    'pr_rain' , 'pr_snow' , 'pr_grpl' ,
 /
 EOF
 fi

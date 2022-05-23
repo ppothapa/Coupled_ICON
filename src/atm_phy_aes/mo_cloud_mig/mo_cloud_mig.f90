@@ -25,25 +25,20 @@ MODULE mo_cloud_mig
   USE mo_cloud_mig_config    ,ONLY: cloud_mig_config
   USE mo_physical_constants  ,ONLY: cvd
   USE mo_satad               ,ONLY: satad_v_3d, satad_v_3D_gpu
-  USE mo_satad_v_el          ,ONLY: satad_v_el
-  USE mo_satad_v_1col        ,ONLY: satad_v_1col
-  USE mo_satad_v_1cell       ,ONLY: satad_v_1cell
   USE gscp_data              ,ONLY: cloud_num
   USE gscp_graupel           ,ONLY: graupel
-  USE gscp_graupel_1col      ,ONLY: graupel_1col
 
   IMPLICIT NONE
   PRIVATE
   PUBLIC  :: cloud_mig
 
   INTERFACE cloud_mig
-     MODULE PROCEDURE cloud_mig_1col
-     MODULE PROCEDURE cloud_mig_ncol
+     MODULE PROCEDURE cloud_mig
   END INTERFACE cloud_mig
 
 CONTAINS
 
-  SUBROUTINE cloud_mig_ncol( jg         ,&
+  SUBROUTINE cloud_mig     ( jg         ,&
        &                     jcs, jce   ,&
        &                     msg_level  ,&
        &                     pdtime     ,&
@@ -163,32 +158,24 @@ CONTAINS
     !
     IF (ltimer) call timer_start(timer_sat)
     !
-    SELECT CASE(aes_phy_config(jg)%if_mig)
-    CASE(1)
 #ifdef _OPENACC
-       CALL satad_v_3d_gpu(                                &
+     CALL satad_v_3d_gpu(                                &
 #else
-       CALL satad_v_3d(                                    &
+     CALL satad_v_3d(                                    &
 #endif
-            &           maxiter  = 10              ,& !> in
-            &           idim     = nproma          ,& !> in
-            &           kdim     = jke             ,& !> in
-            &           ilo      = jcs             ,& !> in
-            &           iup      = jce             ,& !> in
-            &           klo      = jks             ,& !> in
-            &           kup      = jke             ,& !> in
-            &           tol      = 1.e-3_wp        ,& !> in
-            &           te       = zta       (:,:) ,& !> inout
-            &           qve      = zqv       (:,:) ,& !> inout
-            &           qce      = zqc       (:,:) ,& !> inout
-            &           rhotot   = rho       (:,:) )
-    CASE(11)
-       CALL satad_v_el( rho(jcs:jce,jks:jke) ,& !> in
-            &           zta(jcs:jce,jks:jke) ,& !> inout
-            &           zqv(jcs:jce,jks:jke) ,& !> inout
-            &           zqc(jcs:jce,jks:jke) )  !> inout
-    END SELECT
-          !
+          &           maxiter  = 10              ,& !> in
+          &           idim     = nproma          ,& !> in
+          &           kdim     = jke             ,& !> in
+          &           ilo      = jcs             ,& !> in
+          &           iup      = jce             ,& !> in
+          &           klo      = jks             ,& !> in
+          &           kup      = jke             ,& !> in
+          &           tol      = 1.e-3_wp        ,& !> in
+          &           te       = zta       (:,:) ,& !> inout
+          &           qve      = zqv       (:,:) ,& !> inout
+          &           qce      = zqc       (:,:) ,& !> inout
+          &           rhotot   = rho       (:,:) )
+    !
     IF (ltimer) call timer_stop(timer_sat)
 
     ! Single moment cloud microphyiscs for water vapor,
@@ -233,31 +220,23 @@ CONTAINS
     !
     IF (ltimer) call timer_start(timer_sat)
     !
-    SELECT CASE(aes_phy_config(jg)%if_mig)
-    CASE(1)
 #ifdef _OPENACC
-       CALL satad_v_3d_gpu(                                &
+    CALL satad_v_3d_gpu(                                &
 #else
-       CALL satad_v_3d(                                    &
+    CALL satad_v_3d(                                    &
 #endif
-            &           maxiter  = 10              ,& !> in
-            &           idim     = nproma          ,& !> in
-            &           kdim     = jke             ,& !> in
-            &           ilo      = jcs             ,& !> in
-            &           iup      = jce             ,& !> in
-            &           klo      = jks             ,& !> in
-            &           kup      = jke             ,& !> in
-            &           tol      = 1.e-3_wp        ,& !> in
-            &           te       = zta       (:,:) ,& !> inout
-            &           qve      = zqv       (:,:) ,& !> inout
-            &           qce      = zqc       (:,:) ,& !> inout
-            &           rhotot   = rho       (:,:) )
-    CASE(11)
-       CALL satad_v_el( rho(jcs:jce,jks:jke) ,& !> in
-            &           zta(jcs:jce,jks:jke) ,& !> inout
-            &           zqv(jcs:jce,jks:jke) ,& !> inout
-            &           zqc(jcs:jce,jks:jke) )  !> inout
-    END SELECT
+         &           maxiter  = 10              ,& !> in
+         &           idim     = nproma          ,& !> in
+         &           kdim     = jke             ,& !> in
+         &           ilo      = jcs             ,& !> in
+         &           iup      = jce             ,& !> in
+         &           klo      = jks             ,& !> in
+         &           kup      = jke             ,& !> in
+         &           tol      = 1.e-3_wp        ,& !> in
+         &           te       = zta       (:,:) ,& !> inout
+         &           qve      = zqv       (:,:) ,& !> inout
+         &           qce      = zqc       (:,:) ,& !> inout
+         &           rhotot   = rho       (:,:) )
     !
     IF (ltimer) call timer_stop(timer_sat)
 
@@ -281,214 +260,7 @@ CONTAINS
 
     !$ACC END DATA
 
-  END SUBROUTINE cloud_mig_ncol
+  END SUBROUTINE cloud_mig
 
   !-------------------------
-
-  SUBROUTINE cloud_mig_1col( jg         ,&
-       &                     msg_level  ,&
-       &                     pdtime     ,&
-       &                     dz         ,&
-       &                     rho        ,&
-       &                     pf         ,&
-       &                     cpair      ,&
-       &                     ta         ,&
-       &                     qv         ,&
-       &                     qc         ,&
-       &                     qi         ,&
-       &                     qr         ,&
-       &                     qs         ,&
-       &                     qg         ,&
-       &                     tend_ta    ,&
-       &                     tend_qv    ,&
-       &                     tend_qc    ,&
-       &                     tend_qi    ,&
-       &                     tend_qr    ,&
-       &                     tend_qs    ,&
-       &                     tend_qg    ,&
-       &                     pr_rain    ,&
-       &                     pr_snow    ,&
-       &                     pr_grpl    )
-
-    INTEGER , INTENT(in)  :: jg          !< grid index
-    INTEGER , INTENT(in)  :: msg_level   !< message level
-    REAL(wp), INTENT(in)  :: pdtime      !< timestep
-    !
-    REAL(wp), INTENT(in)  :: dz      (:) !< vertical layer thickness
-    REAL(wp), INTENT(in)  :: rho     (:) !< density
-    REAL(wp), INTENT(in)  :: pf      (:) !< pressure
-    REAL(wp), INTENT(in)  :: cpair   (:) !< specific heat of air
-    !
-    REAL(wp), INTENT(in)  :: ta      (:) !< temperature
-    REAL(wp), INTENT(in)  :: qv      (:) !< sp humidity
-    REAL(wp), INTENT(in)  :: qc      (:) !< cloud water
-    REAL(wp), INTENT(in)  :: qi      (:) !< ice
-    REAL(wp), INTENT(in)  :: qr      (:) !< rain
-    REAL(wp), INTENT(in)  :: qs      (:) !< snow
-    REAL(wp), INTENT(in)  :: qg      (:) !< graupel
-    !
-    REAL(wp), INTENT(out) :: tend_ta (:) !< tendency of temperature
-    REAL(wp), INTENT(out) :: tend_qv (:) !< tendency of water vapor
-    REAL(wp), INTENT(out) :: tend_qc (:) !< tendency of cloud water
-    REAL(wp), INTENT(out) :: tend_qi (:) !< tendency of cloud ice
-    REAL(wp), INTENT(out) :: tend_qr (:) !< tendency of rain
-    REAL(wp), INTENT(out) :: tend_qs (:) !< tendency of snow
-    REAL(wp), INTENT(out) :: tend_qg (:) !< tendency of graupel
-    !
-    REAL(wp), INTENT(out) :: pr_rain     !< precip rate rain
-    REAL(wp), INTENT(out) :: pr_snow     !< precip rate snow
-    REAL(wp), INTENT(out) :: pr_grpl     !< precip rate graupel
-
-    ! Local variables
-    !
-    INTEGER  :: jk, jks, jke
-    !
-    REAL(wp) :: qi0, qc0
-    !
-    REAL(wp) :: zta(SIZE(dz))
-    REAL(wp) :: zqv(SIZE(dz))
-    REAL(wp) :: zqc(SIZE(dz))
-    REAL(wp) :: zqi(SIZE(dz))
-    REAL(wp) :: zqr(SIZE(dz))
-    REAL(wp) :: zqs(SIZE(dz))
-    REAL(wp) :: zqg(SIZE(dz))
-    REAL(wp) :: zqnc(SIZE(dz))
-    !
-    REAL(wp) :: zqrsflux(SIZE(dz))
-    !
-    REAL(wp) :: zdtr ! reciprocal of timestep
-
-    jks = 1
-    jke = (SIZE(dz))
-
-    qi0 = cloud_mig_config(jg)% qi0
-    qc0 = cloud_mig_config(jg)% qc0
-
-    DO jk = jks,jke
-       zta(jk) = ta(jk)
-       zqv(jk) = qv(jk)
-       zqc(jk) = qc(jk)
-       zqi(jk) = qi(jk)
-       zqr(jk) = qr(jk)
-       zqs(jk) = qs(jk)
-       zqg(jk) = qg(jk)
-       zqnc(jk) = cloud_num
-    END DO
-
-    zdtr = 1._wp/pdtime
-
-    ! Initial saturation adjustment
-    !
-    IF (ltimer) call timer_start(timer_sat)
-    !
-    SELECT CASE(aes_phy_config(jg)%if_mig)
-    CASE(2,3)
-       CALL satad_v_1col( rho(:) ,& !> in
-            &             zta(:) ,& !> inout
-            &             zqv(:) ,& !> inout
-            &             zqc(:) )  !> inout
-    CASE(4)
-       DO jk = jks,jke
-          CALL satad_v_1cell( rho(jk) ,& !> in
-               &              zta(jk) ,& !> inout
-               &              zqv(jk) ,& !> inout
-               &              zqc(jk) )  !> inout
-       END DO
-    CASE(12,13)
-       CALL satad_v_el( rho(:) ,& !> in
-            &           zta(:) ,& !> inout
-            &           zqv(:) ,& !> inout
-            &           zqc(:) )  !> inout
-    CASE(14)
-       DO jk = jks,jke
-          CALL satad_v_el( rho(jk) ,& !> in
-               &           zta(jk) ,& !> inout
-               &           zqv(jk) ,& !> inout
-               &           zqc(jk) )  !> inout
-       END DO
-    END SELECT
-    !
-    IF (ltimer) call timer_stop(timer_sat)
-
-    ! Single moment cloud microphyiscs for water vapor,
-    ! cloud water, cloud ice, rain, snow and graupel
-    !
-    IF (ltimer) call timer_start(timer_grp)
-    !
-    CALL graupel_1col( msg_level   ,& !< in   : message level 
-         &             pdtime      ,& !< in   : timestep
-         &             qi0         ,& !< in   : cloud ice threshold for autoconversion
-         &             qc0         ,& !< in   : cloud water threshold for autoconversion
-         &             .TRUE.      ,& !< in   : if temp. is changed for const. volumes
-!!!      & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) ,& !< in: latent heat choice
-!!!                Not yet in use in sapphire physics part
-         !
-         &             dz      (:) ,& !< in   : vertical layer thickness
-         &             rho     (:) ,& !< in   : density
-         &             pf      (:) ,& !< in   : pressure
-         !
-         &             zta     (:) ,& !< inout: temp
-         &             zqv     (:) ,& !< inout: sp humidity
-         &             zqc     (:) ,& !< inout: cloud water
-         &             zqi     (:) ,& !< inout: ice
-         &             zqr     (:) ,& !< inout: rain
-         &             zqs     (:) ,& !< inout: snow
-         &             zqg     (:) ,& !< inout: graupel
-         &             zqnc    (:) ,& !< in
-         &             zqrsflux(:) ,& !<   out: precip flux in atmosphere
-         !
-         &             pr_rain     ,& !<   out: precip rate rain
-         &             pr_snow     ,& !<   out: precip rate snow
-         &             pr_grpl     )  !<   out: precip rate graupel
-    !
-    IF (ltimer) call timer_stop(timer_grp)
-
-    ! Final saturation adjustment
-    !
-    IF (ltimer) call timer_start(timer_sat)
-    !
-    SELECT CASE(aes_phy_config(jg)%if_mig)
-    CASE(2,3)
-       CALL satad_v_1col( rho(:) ,& !> in
-            &             zta(:) ,& !> inout
-            &             zqv(:) ,& !> inout
-            &             zqc(:) )  !> inout
-    CASE(4)
-       DO jk = jks,jke
-          CALL satad_v_1cell( rho(jk) ,& !> in
-               &              zta(jk) ,& !> inout
-               &              zqv(jk) ,& !> inout
-               &              zqc(jk) )  !> inout
-       END DO
-    CASE(12,13)
-       CALL satad_v_el( rho(:) ,& !> in
-            &           zta(:) ,& !> inout
-            &           zqv(:) ,& !> inout
-            &           zqc(:) )  !> inout
-    CASE(14)
-       DO jk = jks,jke
-          CALL satad_v_el( rho(jk) ,& !> in
-               &           zta(jk) ,& !> inout
-               &           zqv(jk) ,& !> inout
-               &           zqc(jk) )  !> inout
-       END DO
-    END SELECT
-    !
-    IF (ltimer) call timer_stop(timer_sat)
-
-    ! Calculate tendencies and convert temperature tendency, as computed
-    ! in satad/graupel for constant volume to constant pressure
-    !
-    DO jk = jks,jke
-       tend_ta(jk) =     (zta(jk)-ta(jk))*zdtr*cvd/cpair(jk)
-       tend_qv(jk) = MAX((zqv(jk)-qv(jk))*zdtr,-qv(jk)*zdtr)
-       tend_qc(jk) = MAX((zqc(jk)-qc(jk))*zdtr,-qc(jk)*zdtr)
-       tend_qi(jk) = MAX((zqi(jk)-qi(jk))*zdtr,-qi(jk)*zdtr)
-       tend_qr(jk) = MAX((zqr(jk)-qr(jk))*zdtr,-qr(jk)*zdtr)
-       tend_qs(jk) = MAX((zqs(jk)-qs(jk))*zdtr,-qs(jk)*zdtr)
-       tend_qg(jk) = MAX((zqg(jk)-qg(jk))*zdtr,-qg(jk)*zdtr)
-    END DO
-
-  END SUBROUTINE cloud_mig_1col
-
 END MODULE mo_cloud_mig

@@ -57,10 +57,7 @@ MODULE mo_aes_phy_main
   USE mo_interface_aes_car   ,ONLY: interface_aes_car
   USE mo_interface_aes_art   ,ONLY: interface_aes_art
   !
-  ! experimental interfaces selected by aes_phy_config(:)%if_mig = 1,2!!$,3
-  USE mo_interface_cloud_mig_1 ,ONLY: interface_cloud_mig_1 ! use 2d interface, jcs:jce loop in cloud_mig
-  USE mo_interface_cloud_mig_2 ,ONLY: interface_cloud_mig_2 ! use 2d interface, jcs:jce loop in interface
-  USE mo_interface_cloud_mig_3 ,ONLY: interface_cloud_mig_3 ! use 1d interface, jcs:jce loop in omp_loop_cell_1d
+  USE mo_interface_cloud_mig ,ONLY: interface_cloud_mig
   !
   USE mo_interface_cloud_two ,ONLY: interface_cloud_two
 
@@ -260,20 +257,9 @@ CONTAINS
        CALL message_forcing_action('graupel microphysics (mig)',    &
             &                      is_in_sd_ed_interval, is_active)
        !
-       SELECT CASE(aes_phy_config(jg)%if_mig)
-       CASE(1,11)
-          CALL omp_loop_cell  (patch, interface_cloud_mig_1    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       CASE(2,12)
-          CALL omp_loop_cell  (patch, interface_cloud_mig_2    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       CASE(3,4,13,14)
-          CALL omp_loop_cell_3(patch, interface_cloud_mig_3    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       END SELECT
+       CALL omp_loop_cell  (patch, interface_cloud_mig      ,&
+            &               is_in_sd_ed_interval, is_active ,&
+            &               datetime_old, pdtime            )
        !
     END IF
 

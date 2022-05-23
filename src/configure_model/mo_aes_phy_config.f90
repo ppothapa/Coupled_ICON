@@ -314,8 +314,7 @@ CONTAINS
             &                             aes_phy_config (jg)% dt_mig  ,&
             &                             aes_phy_config (jg)% sd_mig  ,&
             &                             aes_phy_config (jg)% ed_mig  ,&
-            &                             aes_phy_config (jg)% fc_mig  ,&
-            &                             aes_phy_config (jg)% if_mig  )
+            &                             aes_phy_config (jg)% fc_mig  )
        !
        CALL eval_aes_phy_config_details(TRIM(cg),                'two' ,&
             &                             aes_phy_config (jg)% dt_two  ,&
@@ -354,8 +353,7 @@ CONTAINS
          &                                   config_dt  ,&
          &                                   config_sd  ,&
          &                                   config_ed  ,&
-         &                                   config_fc  ,&
-         &                                   config_if  )
+         &                                   config_fc  )
       !
       CHARACTER(LEN=*),PARAMETER  :: method_name ='eval_aes_phy_config_details'
       !
@@ -370,9 +368,6 @@ CONTAINS
       !
       ! forcing control
       INTEGER                             , INTENT(in)    :: config_fc
-      !
-      ! interface selector
-      INTEGER                   , OPTIONAL, INTENT(in)    :: config_if 
       !
       ! mtime time control (TC) variables
       TYPE(timedelta), POINTER :: tc_dt
@@ -422,18 +417,6 @@ CONTAINS
          ! not allowed
          CALL finish(method_name,'aes_phy_config('//TRIM(cg)//')% fc_'//TRIM(process)//' must be 0 or 1')
       END SELECT
-      !
-      ! 6. config_if must be in {1,2,3,4,11,12,13,14}
-      !
-      IF (PRESENT(config_if)) THEN
-         SELECT CASE(config_if)
-         CASE(1,2,3,4,11,12,13,14)
-            ! OK
-         CASE DEFAULT
-            ! not allowed
-            CALL finish(method_name,'aes_phy_config('//TRIM(cg)//')% if_'//TRIM(process)//' must be in {1,2,3,4,11,12,13,14}')
-         END SELECT
-      END IF
       !
       CALL deallocateTimeDelta(tc_dt)
       !
@@ -638,8 +621,7 @@ CONTAINS
             &                              aes_phy_config(jg)% dt_mig  ,&
             &                              aes_phy_config(jg)% sd_mig  ,&
             &                              aes_phy_config(jg)% ed_mig  ,&
-            &                              aes_phy_config(jg)% fc_mig  ,&
-            &                              aes_phy_config(jg)% if_mig  )
+            &                              aes_phy_config(jg)% fc_mig  )
        !
        CALL print_aes_phy_config_details(cg,                     'two' ,&
             &                              aes_phy_config(jg)% dt_two  ,&
@@ -733,8 +715,7 @@ CONTAINS
          &                                    config_dt   ,&
          &                                    config_sd   ,&
          &                                    config_ed   ,&
-         &                                    config_fc   ,&
-         &                                    config_if   )
+         &                                    config_fc   )
       !
       ! grid and name of evaluated configuration
       CHARACTER(len=*)                    , INTENT(in) :: cg
@@ -748,9 +729,6 @@ CONTAINS
       ! forcing control
       INTEGER                             , INTENT(in) :: config_fc
       !
-      ! interface selector
-      INTEGER                   , OPTIONAL, INTENT(in) :: config_if 
-      !
       CALL message       ('    aes_phy_config('//cg//')% dt_'//process,config_dt )
       IF (config_dt /= 'PT0S') THEN
          CALL message    ('    aes_phy_config('//cg//')% sd_'//process,config_sd )
@@ -762,26 +740,6 @@ CONTAINS
          CASE(1)
             CALL message ('',process//' tendencies are used to update the model state')
          END SELECT
-         IF (PRESENT(config_if)) THEN
-            SELECT CASE(config_if)
-            CASE(1)
-               CALL message ('',process//' interface:ncol, cloud_mig:ncol, graupel:ncol, satad:ncol (=default)')
-            CASE(2)
-               CALL message ('',process//' interface:ncol, cloud_mig:1col, graupel:1col, satad:1col')
-            CASE(3)
-               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:1col')
-            CASE(4)
-               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:1cell')
-            CASE(11)
-               CALL message ('',process//' interface:ncol, cloud_mig:ncol, graupel:ncol, satad:elem(jks:jke,jcs:jce')
-            CASE(12)
-               CALL message ('',process//' interface:ncol, cloud_mig:1col, graupel:1col, satad:elem(jks:jke)')
-            CASE(13)
-               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:elem(jks:jke)')
-            CASE(14)
-               CALL message ('',process//' interface:1col, cloud_mig:1col, graupel:1col, satad:elem(jk)')
-            END SELECT
-         END IF
       END IF
       CALL message   ('','')
       !
