@@ -136,12 +136,6 @@ CONTAINS
   SUBROUTINE eval_aes_vdf_config
     !
     CHARACTER(LEN=*), PARAMETER :: routine = 'eval_aes_vdf_config'
-
-#ifdef _OPENACC
-    IF ( ANY (aes_vdf_config(:)%turb == 2) ) THEN ! turb=2 is Smagorinsky
-      CALL finish (routine, 'Smagorinsky not yet tested with OpenACC')
-    END IF
-#endif
     !
     ! check range of pr0
     IF ( ANY(aes_vdf_config(:)% pr0 <0.6_wp ) ) CALL message(routine//' WARNING:',' aes_vdf_config(:)% pr0 < 0.6 ')
