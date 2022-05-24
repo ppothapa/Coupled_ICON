@@ -480,6 +480,8 @@ MODULE mo_nh_stepping
         IF (n_dom > 1 .OR. l_limited_area) THEN
            CALL devcpy_grf_state (p_grf_state, .TRUE.)
            CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
+        ELSEIF (ANY(lredgrid_phys)) THEN
+          CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
         ENDIF
         IF ( iforcing == inwp ) THEN
            DO jg=1, n_dom
@@ -497,6 +499,8 @@ MODULE mo_nh_stepping
         IF (n_dom > 1 .OR. l_limited_area) THEN
            CALL devcpy_grf_state (p_grf_state, .FALSE.)
            CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+        ELSEIF (ANY(lredgrid_phys)) THEN
+          CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
         ENDIF
         IF ( iforcing == inwp ) THEN
           DO jg=1, n_dom
@@ -938,6 +942,8 @@ MODULE mo_nh_stepping
     &            p_nh_state, prep_adv, advection_config, iforcing )
   IF (n_dom > 1 .OR. l_limited_area) THEN
      CALL devcpy_grf_state (p_grf_state, .TRUE.)
+     CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
+  ELSEIF (ANY(lredgrid_phys)) THEN
      CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
   ENDIF
   IF ( iforcing == inwp ) THEN
@@ -1610,6 +1616,8 @@ MODULE mo_nh_stepping
     &            p_nh_state, prep_adv, advection_config, iforcing )
   IF (n_dom > 1 .OR. l_limited_area) THEN
      CALL devcpy_grf_state (p_grf_state, .FALSE.)
+     CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+  ELSEIF (ANY(lredgrid_phys)) THEN
      CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
   ENDIF
   IF ( iforcing == inwp ) THEN
@@ -3001,11 +3009,8 @@ MODULE mo_nh_stepping
         IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
 
         IF(p_patch(jgc)%domain_is_owned) THEN
-#if _OPENACC
-          CALL finish (routine, 'Online initialization of nesting is not supported on GPU')
-#endif
           IF(proc_split) CALL push_glob_comm(p_patch(jgc)%comm, p_patch(jgc)%proc0)
-          CALL init_slowphysics( mtime_current, jgc, dt_sub )
+          CALL init_slowphysics( mtime_current, jgc, dt_sub, lacc=lzacc )
           IF(proc_split) CALL pop_glob_comm()
         ENDIF
 

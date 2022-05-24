@@ -401,7 +401,7 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *dwd_run_ICON_*)
-            FILE_IDS="atm_3d"
+            FILE_IDS="atm_3d_DOM01,atm_3d_DOM02"
             ;;
         *)
             echo "no file ids specified for '${EXPERIMENT}'"

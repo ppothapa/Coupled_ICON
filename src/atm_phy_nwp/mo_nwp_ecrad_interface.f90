@@ -875,8 +875,12 @@ CONTAINS
       ENDDO
     END IF
 
-    !$ACC DATA COPYIN(input_extra_flds, input_extra_2D, input_extra_reff) &
-    !$ACC      COPYIN(input_extra_flds%field, input_extra_2D%field) IF(lacc)
+    !$ACC DATA COPYIN( input_extra_flds, input_extra_2D, input_extra_reff ) IF( lacc )
+    IF( lacc ) THEN
+      CALL input_extra_flds%acc_attach()
+      CALL input_extra_2D%acc_attach()
+      CALL input_extra_reff%acc_attach()
+    END IF
 
     ! Allocate output arrays
     IF ( input_extra_flds%ntot > 0 )  THEN

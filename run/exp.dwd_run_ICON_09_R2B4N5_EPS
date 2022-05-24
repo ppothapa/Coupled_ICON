@@ -66,10 +66,6 @@ add_link_file ${INDIR}/external_parameter_icon_domain2_DOM02_tiles.nc extpar_ico
 # files needed for radiation
 add_link_file ${basedir}/externals/ecrad/data ecrad_data
 
-#TODO: After switching to ecRAD (inwp_radiation=4), remove these two files as they are only needed for RRTM radiation
-add_required_file ${basedir}/data/ECHAM6_CldOptProps.nc .
-add_required_file ${basedir}/data/rrtmg_lw.nc .
-
 # ----------------------------------------------------------------------
 # global namelist settings
 # ----------------------------------------------------------------------
@@ -90,9 +86,7 @@ dtime=540
 nsteps=9
 
 # the grid parameters
-#TODO: use nesting when additional FG file for nest is available
-#atmo_dyn_grids="icon_grid_0012b_R02B04_G.nc icon_grid_0099_R02B05_N02.nc"
-atmo_dyn_grids="icon_grid_0012b_R02B04_G.nc"
+atmo_dyn_grids="icon_grid_0012b_R02B04_G.nc icon_grid_0099_R02B05_N02.nc"
 atmo_rad_grids="icon_grid_0011_R02B03_R.nc"
 
 add_link_file ${INDIR}/an_20220228.grb an_R02B04_DOM01.grb
@@ -145,7 +139,8 @@ done
 cat > ${basedir}/run/${atmo_namelist} << EOF
 &parallel_nml
  nproma          =  ${nproma}
- nblocks_c       =  ${nblocks_c:--1}
+ !nblocks_c       =  ${nblocks_c:-0} ! does not work with nesting. TODO make this work (maybe)
+ nblocks_c       =  0
  p_test_run      = .false.
  l_test_openmp   = .true.
  l_log_checks    = .true.
@@ -160,8 +155,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  dynamics_grid_filename  = ${dynamics_grid_filename}
  radiation_grid_filename = ${radiation_grid_filename}
  dynamics_parent_grid_id = 0,1
-! lredgrid_phys           = .false.
- lredgrid_phys           = .true.,.true., !TODO use after enabling it for a single global domain
+ lredgrid_phys           = .true.,.true.
  lfeedback               = .true.
  ifeedback_type          = 2
  start_time              = 0., -5400.,
@@ -210,8 +204,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 &nwp_phy_nml
 inwp_gscp       = 1               ! 10 in test case 35
 inwp_convection = 1
-!inwp_radiation  = 4 ! TODO: use, after fixing lredgrid_phys.
-inwp_radiation  = 1
+inwp_radiation  = 4
 inwp_cldcover   = 1 ! 3 geaendert ab Test2
 inwp_turb       = 1
 inwp_satad      = 1
@@ -419,7 +412,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
   'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
   'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
   't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
-  'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_drag',
+  'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_drag','ddt_qv_turb','ddt_temp_turb',
   'ddt_temp_pconv','ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso',
   'ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
 EOF
@@ -428,14 +421,14 @@ if [[ "$mpi_procs_pernode" -ge 10 ]]; then
   # This is a hackish workaround to temporarily avoid marginal errors being shown by probtest
   # The following output variables should only be used when on CPU, not no GPU.
   # mpi_procs_pernode is abused here as proxy to differentiate between GPU and CPU
-  # TODO (from 2022-04-13): Try to output these variable again with the GPU code when other numeric are changed.
+  # TODO (from 2022-05-10): Try to output these variable again with the GPU code when other numeric are changed.
   cat >> ${basedir}/run/${atmo_namelist} << EOF
-    'ddt_qv_turb','ddt_temp_turb',
+    'exner',
 EOF
 fi
 
 cat >> ${basedir}/run/${atmo_namelist} << EOF
-  'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','exner','rh'
+  'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','rh'
   ! 'plantevap','dwdx','dwdy'
 /
 !output!! ser_nml: serialization configuration ----------------------------------------

@@ -33,6 +33,7 @@ MODULE mo_nml_crosscheck
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
     &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
+    &                                    ignore_nproma_use_nblocks_c,                      &
     &                                    num_io_procs, itype_comm,                         &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
   USE mo_limarea_config,           ONLY: latbc_config, LATBC_TYPE_CONST, LATBC_TYPE_EXT
@@ -140,6 +141,12 @@ CONTAINS
     !--------------------------------------------------------------------
     CALL check_parallel_configuration()
 
+    !
+    ! nblock_c does not work with nesting
+    ! It crashes and would be a waste of memory, if the nest were significant smaller than the parent.
+    !
+    IF (ignore_nproma_use_nblocks_c .AND. (n_dom > 1)) CALL finish(routine, &
+      'Currently nblocks_c (>0) is not supported for nested domains.')
 
     !--------------------------------------------------------------------
     ! Limited Area Mode and LatBC read-in:
