@@ -36,7 +36,6 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,                         &
     & TASK_COMPUTE_SRH,                                               &
     & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
-    & TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,                    &
     & TASK_COMPUTE_LAPSERATE,                                         &
     & TASK_INTP_VER_ZLEV,                                             &
     & TASK_INTP_VER_ILEV,                                             &
@@ -92,15 +91,11 @@ MODULE mo_pp_tasks
     &                                   compute_field_srh,                       &
     &                                   compute_field_wshear
   USE mo_diag_atmo_air_flow,      ONLY: compute_field_vor => hor_comps_of_rel_vorticity
-  USE mo_diag_atmo_air_parcel,    ONLY: compute_field_bvf2 => sqr_of_Brunt_Vaisala_freq, &
-    &                                   compute_field_parcelfreq2 => sqr_of_parcel_freq
   USE mo_io_config,               ONLY: itype_pres_msl, itype_rh, var_in_output, &
-    &                                   bvf2_mode, parcelfreq2_mode, n_wshear, &
-    &                                   wshear_uv_heights, n_srh, srh_heights
+    &                                   n_wshear, wshear_uv_heights, n_srh, srh_heights
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
-  USE mo_nonhydrostatic_config,   ONLY: kstart_moist
-  USE mo_run_config,              ONLY: timers_level, msg_level, debug_check_level
+  USE mo_run_config,              ONLY: timers_level, msg_level
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
   USE openacc,                    ONLY: acc_is_present
@@ -1270,10 +1265,9 @@ CONTAINS
   !  @todo Change order of processing: First, interpolate input fields
   !        onto z-levels, then compute rel_hum.
   !
-  SUBROUTINE pp_task_compute_field(ptr_task, opt_simulation_status)
+  SUBROUTINE pp_task_compute_field(ptr_task)
 
     TYPE(t_job_queue), POINTER :: ptr_task
-    TYPE(t_simulation_status), OPTIONAL, INTENT(IN) :: opt_simulation_status
     ! local variables
     INTEGER                            :: jg, out_var_idx
     TYPE (t_var), POINTER :: out_var
@@ -1356,22 +1350,6 @@ CONTAINS
         &   opt_vor_v = out_var%r_ptr(:,:,:,out_var_idx,1),        &
         &   opt_timer = timers_level > 4,                          &
         &   opt_verbose = msg_level > 14)
-
-    CASE (TASK_COMPUTE_BVF2)
-      CALL compute_field_bvf2(p_patch, ptr_task%data_input%p_nh_state%metrics, &
-        &   p_prog, p_prog_rcf, p_diag, out_var%r_ptr(:,:,:,out_var_idx,1),    &
-        &   bvf2_mode, opt_kstart_moist = kstart_moist(jg),                    &
-        &   opt_timer = timers_level > 4,                                      &
-        &   opt_verbose = msg_level > 14)
-
-    CASE (TASK_COMPUTE_PARCELFREQ2)
-      CALL compute_field_parcelfreq2(p_patch, p_int_state(jg),      &
-        &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag, &  
-        &   out_var%r_ptr(:,:,:,out_var_idx,1), parcelfreq2_mode,   &
-        &   opt_lastcall = opt_simulation_status%status_flags(3),   &
-        &   opt_timer = timers_level > 4,                           &
-        &   opt_verbose = msg_level > 14,                           &
-        &   opt_minute = debug_check_level > 0)
 
     CASE (TASK_COMPUTE_SDI2)
       IF ( jg >= n_dom_start+1 ) THEN

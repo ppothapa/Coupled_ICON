@@ -62,8 +62,6 @@ MODULE mo_io_nml
                                  & config_lmask_boundary            => lmask_boundary          , &
                                  & config_restart_write_mode        => restart_write_mode   , &
                                  & config_nrestart_streams          => nrestart_streams     , &
-                                 & config_bvf2_mode                 => bvf2_mode            , &
-                                 & config_parcelfreq2_mode          => parcelfreq2_mode     , &
                                  & config_wshear_uv_heights       => wshear_uv_heights      , &
                                  & config_srh_heights             => srh_heights
 
@@ -175,16 +173,6 @@ CONTAINS
     ! files may then be read in parallel.
     INTEGER :: nrestart_streams
 
-    INTEGER :: bvf2_mode                  !< computation mode for square of Brunt-Vaisala frequency:
-                                          !< 1: standard
-                                          !< 2: hydrostatic
-                                          !< 3: after Durran & Klemp (1982)
-    INTEGER :: parcelfreq2_mode           !< computation mode for square of general air parcel oscillation frequency:
-                                          !< 11: standard + unrestricted oscillation
-                                          !< 12: standard + vertical oscillation
-                                          !< 21: hydrostatic + unrestricted oscillation
-                                          !< 22: hydrostatic + vertical oscillation
-
     REAL(wp) :: wshear_uv_heights(1:max_wshear)
 
     REAL(wp) :: srh_heights(1:max_srh)
@@ -201,9 +189,8 @@ CONTAINS
       &              precip_interval, totprec_d_interval, runoff_interval,&
       &              maxt_interval,                                       &
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
-      &              dt_radar_dbz, bvf2_mode, parcelfreq2_mode,           &
-      &              sunshine_interval, itype_dursun, melt_interval,      &
-      &              wshear_uv_heights, srh_heights
+      &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
+      &              melt_interval, wshear_uv_heights, srh_heights
 
     !-----------------------
     ! 1. default settings
@@ -253,9 +240,6 @@ CONTAINS
 
     restart_write_mode = ""
     nrestart_streams   = 1
-
-    bvf2_mode          = 1
-    parcelfreq2_mode   = 11
 
     wshear_uv_heights(:) = -999.99_wp  ! missing value
     wshear_uv_heights(1:3) = (/ 1000.0_wp, 3000.0_wp, 6000.0_wp /)
@@ -342,8 +326,6 @@ CONTAINS
     config_lmask_boundary          = lmask_boundary
     config_restart_write_mode      = tolower(restart_write_mode)
     config_nrestart_streams        = nrestart_streams
-    config_bvf2_mode               = bvf2_mode
-    config_parcelfreq2_mode        = parcelfreq2_mode
     config_wshear_uv_heights       = wshear_uv_heights
     config_srh_heights             = srh_heights
     

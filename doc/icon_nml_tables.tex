@@ -3236,31 +3236,6 @@ Set to \texttt{.TRUE.}, if interpolation zone should be masked in triangular out
 \tabularnewline
 
 %\hline
-bvf2\_mode&
-I&  1& &
-Computation mode for square of Brunt-Vaisala frequency:\\
-1: standard, $N^2 = (g / \theta_v) \partial \theta_v / \partial z$ \\
-2: hydrostatic, $N^2 = (g / T_v)(\partial T_v / \partial z + g / c_p)$ \\
-3: dk1982, standard computation is extended by considering water vapor saturation effects 
-(after Durran \& Klemp, 1982, ``On the effects of moisture on the Brunt-Vaisala frequency''). 
-&
-\tabularnewline
-
-%\hline
-parcelfreq2\_mode&
-I&  11& &
-Computation mode for square of general air parcel oscillation frequency${}^\ast$:\\
-11: standard + unrestricted oscillation \\
-12: standard + vertical oscillation \\
-21: hydrostatic + unrestricted oscillation \\
-12: hydorstatic + vertical oscillation \\
-Please not: the computation of parcelfreq2 is extremely expensive (runtime and memory), 
-use with care! \\
-(${}^\ast$ See Ertel, Jaw \& Li, 1941, ``Tensorielle Theorie der Stabilit{\"a}t''.)
-&
-\tabularnewline
-
-%\hline
 \end{longtab}
 
 
@@ -3461,17 +3436,8 @@ vor\_v & meridional component of relative vorticity & s-1 & - & 3d & - & [4]
 \tabularnewline
 %
 
-bvf2 & square of Brunt-Vaisala frequency & s-2 & - & 3d & bvf2\_mode & [5]
-\tabularnewline
-%
-
-parcelfreq2 & square of air parcel oscillation frequency & s-2 & - & 3d & 
-parcelfreq2\_mode & [5]
-\tabularnewline
-%
-
 tot\_prec\_d &  total accumulated precipitation during a different time interval compared to tot\_prec &
-kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [6], [7]
+kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [5], [6]
 \tabularnewline
 %
 
@@ -3555,9 +3521,8 @@ is found in the column ``Place of computation in source code'' of table \ref{tab
 \item[{[2]}] \texttt{/src/atm\_phy\_nwp/mo\_opt\_nwp\_diagnostics}
 \item[{[3]}] \texttt{/src/atm\_phy\_nwp/mo\_nh\_diagnose\_pmsl} 
 \item[{[4]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_flow} 
-\item[{[5]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_parcel}
-\item[{[6]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
-\item[{[7]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
+\item[{[5]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
+\item[{[6]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
 \end{itemize}
 %
 

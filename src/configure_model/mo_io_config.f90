@@ -102,9 +102,6 @@ MODULE mo_io_config
 
   TYPE(t_echotop_meta) :: echotop_meta(max_dom)
 
-  INTEGER :: bvf2_mode                  !< computation mode for square of Brunt-Vaisala frequency
-  INTEGER :: parcelfreq2_mode           !< computation mode for square of general air parcel oscillation frequency
-
   REAL(wp):: wshear_uv_heights(max_wshear) !< heights AGL for which wind shear components WSHEAR_U, WSHEAR_V are desired
   INTEGER :: n_wshear                   !< actual number of wshear heights given in namelist
   
@@ -148,8 +145,6 @@ MODULE mo_io_config
     LOGICAL :: w_ctmax      = .FALSE. !< Flag. TRUE if computation of maximum updraft track desired
     LOGICAL :: vor_u        = .FALSE. !< Flag. TRUE if computation of zonal component of relative vorticity desired
     LOGICAL :: vor_v        = .FALSE. !< Flag. TRUE if computation of meridional component of relative vorticity desired
-    LOGICAL :: bvf2         = .FALSE. !< Flag. TRUE if computation of square of Brunt-Vaisala frequency desired
-    LOGICAL :: parcelfreq2  = .FALSE. !< Flag. TRUE if computation of square of general parcel oscillation frequency desired
     LOGICAL :: dursun       = .FALSE. !< Flag. TRUE if computation of sunshine duration is required
     LOGICAL :: dursun_m     = .FALSE. !< Flag. TRUE if computation of maximum sunshine duration is required
     LOGICAL :: dursun_r     = .FALSE. !< Flag. TRUE if computation of relative sunshine duration is required
@@ -269,8 +264,6 @@ CONTAINS
         &                          is_variable_in_output(var_name="wap_m")
       var_in_output(jg)%vor_u    = is_variable_in_output_dom(var_name="vor_u", jg=jg)
       var_in_output(jg)%vor_v    = is_variable_in_output_dom(var_name="vor_v", jg=jg)
-      var_in_output(jg)%bvf2     = is_variable_in_output_dom(var_name="bvf2", jg=jg)
-      var_in_output(jg)%parcelfreq2  = is_variable_in_output_dom(var_name="parcelfreq2", jg=jg)
       var_in_output(jg)%res_soilwatb = is_variable_in_output_dom(var_name="resid_wso", jg=jg)
     END DO
 
