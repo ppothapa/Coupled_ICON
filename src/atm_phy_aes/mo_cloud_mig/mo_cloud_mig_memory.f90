@@ -590,14 +590,11 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_air_temperature_'//                &
-            &                                'due_to_stratiform_cloud_and_precipitation',    &
-            &                                'K/s',                                          &
-            &                                'tendency of air temperature '//                &
-            &                                'due to stratiform cloud and precipitation '//  &
+            &        cf          = t_cf_var ('temperature_tendency_graupel','K s-1',         &
+            &                       'temperature tendency due to graupel processes (cp) '//  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,0,193,                                        &
+            &        grib2       = grib2_var(0,0,203,                                        &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -617,14 +614,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_specific_humidity_'//              &
-            &                                'due_to_stratiform_cloud_and_precipitation',    &
-            &                                '1/s',                                          &
-            &                                'tendency of specific humidity '//              &
-            &                                'due to stratiform cloud and precipitation '//  &
+            &        cf          = t_cf_var ('tend_qhus_mig',  'kg kg-1 s-1',                &
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qhus  due to graupel processes '//             &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,200,                                        &
+            &        grib2       = grib2_var(0,1,203,                                        &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -644,16 +639,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
-            &                                'stratiform_cloud_liquid_water_in_air_'//       &
-            &                                'due_to_cloud_microphysics',                    &
-            &                                '1/s',                                          &
-            &                                'tendency of mass fraction of '//               &
-            &                                'stratiform cloud liquid water in air '//       &
-            &                                'due to cloud microphysics '//                  &
+            &        cf          = t_cf_var ('tend_qclw_mig',  'kg kg-1 s-1'                ,&
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qclw  due to graupel processes '//             &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,201,                                        &
+            &        grib2       = grib2_var(0,6,203,                                        &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -673,16 +664,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
-            &                                'stratiform_cloud_ice_in_air_'//                &
-            &                                'due_to_cloud_microphysics',                    &
-            &                                '1/s',                                          &
-            &                                'tendency of mass fraction of '//               &
-            &                                'stratiform cloud ice in air '//                &
-            &                                'due to cloud microphysics '//                  &
+            &        cf          = t_cf_var ('tend_qcli_mig',  'kg kg-1 s-1'                ,&
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qcli  due to graupel processes '//             &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,202,                                        &
+            &        grib2       = grib2_var(0,6,213,                                        &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -702,16 +689,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
-            &                                'rain_in_air_'//                                &
-            &                                'due_to_cloud_microphysics',                    &
-            &                                '1/s',                                          &
-            &                                'tendency of mass fraction of '//               &
-            &                                'rain in air '//                                &
-            &                                'due to cloud microphysics '//                  &
+            &        cf          = t_cf_var ('tend_qr_mig',  'kg kg-1 s-1'                  ,&
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qr  due to graupel processes '//               &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,255,                                        &
+            &        grib2       = grib2_var(255,255,255,                                    &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -731,16 +714,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
-            &                                'snow_in_air_'//                                &
-            &                                'due_to_cloud_microphysics',                    &
-            &                                '1/s',                                          &
-            &                                'tendency of mass fraction of '//               &
-            &                                'snow in air '//                                &
-            &                                'due to cloud microphysics '//                  &
+            &        cf          = t_cf_var ('tend_qs_mig',  'kg kg-1 s-1'                  ,&
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qs  due to graupel processes '//               &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,255,                                        &
+            &        grib2       = grib2_var(255,255,255,                                    &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -760,16 +739,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
-            &                                'graupel_in_air_'//                             &
-            &                                'due_to_cloud_microphysics',                    &
-            &                                '1/s',                                          &
-            &                                'tendency of mass fraction of '//               &
-            &                                'graupel in air '//                             &
-            &                                'due to cloud microphysics '//                  &
+            &        cf          = t_cf_var ('tend_qg_mig',  'kg kg-1 s-1'                  ,&
+            &                                'tendency of mass mixing ratio of tracer '//    &
+            &                                'qg  due to graupel processes '//               &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,255,                                        &
+            &        grib2       = grib2_var(255,255,255,                                    &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
