@@ -43,7 +43,7 @@ VERSION_='@PACKAGE_VERSION@'
 use_host='@host_fqdn@'
 use_site='local.net'
 case "$use_host" in
-  wizard*|mlogin*|btlogin*|btc*|l*|m*) use_site=dkrz.de ;;
+  l*atos.local|mlogin*) use_site=dkrz.de ;;
   daint*|tave*|santis*|kesch*|tsa*|nid*) use_site=cscs.ch ;;
   uc2*|fh2*|hk*) use_site=kit.edu ;;
   xc*|rcnl*|oflws*) use_site=dwd.de ;;
