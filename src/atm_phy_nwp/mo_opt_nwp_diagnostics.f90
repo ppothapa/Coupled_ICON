@@ -3315,7 +3315,7 @@ CONTAINS
         ELSE
           itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
         END IF
-        CALL init_1mom_types(itype_gscp_fwo=itype_gscp_emvo)
+        CALL init_1mom_types(itype_gscp_fwo=itype_gscp_emvo, rho_w=rhoh2o)
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )

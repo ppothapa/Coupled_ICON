@@ -327,7 +327,11 @@ CONTAINS
          &                          num_dio_procs=proc0_shift)
 
 #ifdef HAVE_RADARFWO
-    IF (iequations == inh_atmosphere .AND. iforcing == inwp .AND. ANY(luse_radarfwo(1:n_dom))) THEN
+!! EMVORADO MPI initialization is also needed in case of output of grid point reflectivities using
+!! Mie- or Tmatrix-scattering from EMVORADO.
+!! Because in case of luse_radarfwo(:) = .FALSE. this initialization does only very few things, we call it
+!! in any case for the NWP ICON:
+    IF (iequations == inh_atmosphere .AND. iforcing == inwp) THEN
       message_text(:) = ' '
 #ifdef NOMPI
       CALL init_emvorado_mpi ( luse_radarfwo(1:n_dom), & ! INPUT
