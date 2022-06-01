@@ -13,7 +13,7 @@ class model_paths(object):
   def __init__(self):
     callPath=os.path.dirname(sys.argv[0])
     if not (callPath == "." or callPath == ""):
-      self.thisPath   = os.getcwd()+'/'+os.path.dirname(sys.argv[0])
+      self.thisPath   = os.path.dirname(os.path.realpath(__file__))
     else:
       self.thisPath   = os.getcwd()
     #print(callPath, self.thisPath)

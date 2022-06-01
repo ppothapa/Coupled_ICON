@@ -16,7 +16,7 @@ args = parser.parse_args()
 #print(args.name)
 paths = model_paths()
 if not paths.thisListExists(args.list_name):
-  print("This list does not exist.")
+  print("This list does not exist: {0}".format(args.list_name))
   quit(1)
   
 thisList  = buildbot_experiments_list(args.list_name)

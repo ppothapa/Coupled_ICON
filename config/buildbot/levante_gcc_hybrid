@@ -7,13 +7,13 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 
 if [ ! -z "${BB_NAME}" ] ; then
-  MPI_LAUNCH='srun -A mh0156 -p compute,compute2 -N 1'
+  MPI_LAUNCH='srun -A mh0156 -p compute -N 1'
 else
   MPI_LAUNCH=''
 fi
 
 
-${ICON_DIR}/config/dkrz/mistral.gcc --enable-yaxt --disable-openmp MPI_LAUNCH="${MPI_LAUNCH}"
+${ICON_DIR}/config/dkrz/levante.gcc --enable-yaxt --enable-openmp MPI_LAUNCH="${MPI_LAUNCH}"
 
 if test 0 -ne "$?" ; then
   find . -name 'config.log' -print | xargs -I {} sh -c "echo '#====== FILE:{} =======================================' && cat {}"
