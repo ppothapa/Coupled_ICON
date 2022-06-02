@@ -27,7 +27,7 @@ if test ! -z "${BB_SLAVE}"; then
   fi
 fi
 
-${ICON_DIR}/config/mpim/stretch.gcc --disable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-art
+${ICON_DIR}/config/mpim/stretch.gcc --disable-yaxt --disable-openmp --enable-art
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}

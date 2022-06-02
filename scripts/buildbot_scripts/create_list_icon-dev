@@ -22,6 +22,13 @@ $addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral breeze
 $addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze --list $listname
 $addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral breeze --list $listname
+
+# add atm_qubicc tests to builders with MPI
+$addexp checksuite.icon-dev/check.atm_qubicc         --builders MISTRAL_gcc MISTRAL_intel17 MISTRAL_intel17_hybrid MISTRAL_intel17_hybrid_mixed MISTRAL_intel18 MISTRAL_intel18_hybrid MISTRAL_intel18_hybrid_mixed MISTRAL_nag --list $listname
+$addexp checksuite.icon-dev/check.atm_qubicc_nofor   --builders MISTRAL_gcc MISTRAL_intel17 MISTRAL_intel17_hybrid MISTRAL_intel17_hybrid_mixed MISTRAL_intel18 MISTRAL_intel18_hybrid MISTRAL_intel18_hybrid_mixed MISTRAL_nag --list $listname
+$addexp checksuite.icon-dev/check.atm_qubicc_onlyfor --builders MISTRAL_gcc MISTRAL_intel17 MISTRAL_intel17_hybrid MISTRAL_intel17_hybrid_mixed MISTRAL_intel18 MISTRAL_intel18_hybrid MISTRAL_intel18_hybrid_mixed MISTRAL_nag --list $listname
+#$addexp checksuite.icon-dev/check.atm_qubicc_update  --builders MISTRAL_gcc MISTRAL_intel17 MISTRAL_intel17_hybrid MISTRAL_intel17_hybrid_mixed MISTRAL_intel18 MISTRAL_intel18_hybrid MISTRAL_intel18_hybrid_mixed MISTRAL_nag --list $listname
+
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
 #-----------------------------------------------------------
@@ -58,6 +65,12 @@ $addexp checksuite.infrastructure/testbed/exp.icon-testbed_read-netcdf --builder
 
 # But add the RTE-RRTMGP based tests
 $addexp checksuite.icon-dev/check.atm_amip_diagparams_constbc_nojsb_notransport_nodynamics --builders DAINT_CPU_cce DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+
+# add atm_qubicc tests
+$addexp checksuite.icon-dev/check.atm_qubicc         --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+$addexp checksuite.icon-dev/check.atm_qubicc_nofor   --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+$addexp checksuite.icon-dev/check.atm_qubicc_onlyfor --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+#$addexp checksuite.icon-dev/check.atm_qubicc_update  --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
 
 # NVIDIA for GPU: failing currently because:
 #              mo_ice_interface:ice_fast_interface: This part has not been ported to GPU.
@@ -152,6 +165,7 @@ done
 for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
   ./set_builder_flags Active --builders ${builder}  --list $listname
   $addexp exp.atm_amip_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
+  $addexp exp.atm_qubicc_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
 
