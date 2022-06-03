@@ -319,6 +319,7 @@ a_hshr       = 2.0
  vmr_cfc11  = 240.e-12
  vmr_cfc12  = 532.e-12
  ecrad_data_path = './ecrad_data'
+ isolrad    = 1
 /
 &nonhydrostatic_nml
  itime_scheme    = 4

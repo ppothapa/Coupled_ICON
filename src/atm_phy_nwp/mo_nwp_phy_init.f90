@@ -53,8 +53,8 @@ MODULE mo_nwp_phy_init
   USE mo_lrtm_setup,          ONLY: lrtm_setup
   USE mo_radiation_config,    ONLY: ssi_radt, tsi_radt,irad_o3, irad_aero, rad_csalbw,&
     &                               ghg_filename, irad_co2, irad_cfc11, irad_cfc12,   &
-    &                               irad_n2o,irad_ch4
-  USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip
+    &                               irad_n2o, irad_ch4, isolrad
+  USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip, ssi_coddington
   USE mo_aerosol_util,        ONLY: init_aerosol_dstrb_tanre,                       &
     &                               init_aerosol_props_tanre_rrtm,                  &
     &                               init_aerosol_props_tegen_rrtm,                  &
@@ -62,7 +62,8 @@ MODULE mo_nwp_phy_init
   USE mo_o3_util,             ONLY: o3_pl2ml!, o3_zl2ml
 #ifdef __ECRAD
   USE mo_nwp_ecrad_init,      ONLY: setup_ecrad
-  USE mo_ecrad,               ONLY: ecrad_conf, IGasModelIFSRRTMG
+  USE mo_ecrad,               ONLY: ecrad_conf, IGasModelIFSRRTMG,                  &
+    &                               ecrad_ssi_default, ecrad_ssi_coddington
 #endif
 
   ! microphysics
@@ -945,43 +946,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   SELECT CASE ( atm_phy_nwp_config(jg)%inwp_radiation )
   CASE (1, 4)
 
-    SELECT CASE ( irad_aero )
-    ! Note (GZ): irad_aero=2 does no action but is the default in radiation_nml
-    ! and therefore should not cause the model to stop
-    CASE (0,2,6,9,12,13,14,15,18,19)
-      !ok
-    CASE (5)
-      !ok for RRTM and captured in mo_nml_crosscheck for ecRad
-    CASE DEFAULT
-      WRITE (message_text, '(a,i2,a)') 'irad_aero = ',irad_aero, &
-        &                  ' not implemented for RRTM/ecRad'
-      CALL finish(routine,message_text)
-    END SELECT
-
 !    prm_diag%lfglac (:,:) = ext_data%atm%soiltyp(:,:) == 1  !soiltyp=ice
-
-    ! solar flux (W/m2) in 14 SW bands
-    ssi_radt(:) = ssi_amip(:)
-    ! solar constant (W/m2)
-    tsi_radt    = SUM(ssi_radt(:))
-
-
-    !--------------------------------------------------
-    !< set conditions for Aqua planet or RCE experiment
-    !--------------------------------------------------
-    IF ( nh_test_name == 'APE_nwp' .OR. nh_test_name == 'dcmip_tc_52' ) THEN
-      ssi_radt(:) = ssi_radt(:)*1365._wp/tsi_radt
-      tsi_radt = 1365._wp
-    ENDIF  ! APE
-
-    IF ( nh_test_name == 'RCE' .OR. nh_test_name == 'RCE_Tconst' .OR. &
-         & nh_test_name == 'RCE_Tprescr' .OR. nh_test_name == 'RCEMIP_analytical') THEN
-      ! solar flux (W/m2) in 14 SW bands
-      scale_fac = sol_const/1361.371_wp ! computed relative to amip (1361)
-      ssi_radt(:) = scale_fac*ssi_amip(:)
-      ! solar constant (W/m2)
-      tsi_radt    = SUM(ssi_radt(:))
-    ENDIF
 
     SELECT CASE(atm_phy_nwp_config(jg)%inwp_radiation)
       CASE(1) ! RRTM init
@@ -1010,6 +975,30 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           zaeg_rrtm(:,:) = 0.0_wp
         ENDIF
 
+        !------------------------------------------------------------
+        ! Initialize solar flux in SW bands and solar constant (W/m2)
+        !------------------------------------------------------------
+        SELECT CASE(isolrad)
+          CASE(0)       ! Use ssi values for AMIP-type CMIP5 simulation
+            ssi_radt(:) = ssi_amip(:)
+          CASE(1)       ! Use ssi values from Coddington et al (2016)
+            ssi_radt(:) = ssi_coddington(:)
+        END SELECT
+        tsi_radt    = SUM(ssi_radt(:))
+
+        ! In case of Aqua planet or RCE experiment:
+        IF ( nh_test_name == 'APE_nwp' .OR. nh_test_name == 'dcmip_tc_52' ) THEN
+          ssi_radt(:) = ssi_radt(:)*1365._wp/tsi_radt
+          tsi_radt    = 1365._wp
+        ENDIF  ! APE
+
+        IF ( nh_test_name == 'RCE'         .OR. nh_test_name == 'RCE_Tconst'         .OR. &
+           & nh_test_name == 'RCE_Tprescr' .OR. nh_test_name == 'RCEMIP_analytical') THEN
+          scale_fac   = sol_const/1361.371_wp   ! computed relative to amip (1361)
+          ssi_radt(:) = scale_fac*ssi_amip(:)
+          tsi_radt    = SUM(ssi_radt(:))
+        ENDIF
+        !
       CASE(4) ! ecRad init
 #ifdef __ECRAD
         IF (msg_level >= 12)  CALL message(modname, 'init ECRAD')
@@ -1044,6 +1033,32 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         !
         ! Read ozone transient data
         IF (irad_o3 == 5) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
+
+        !------------------------------------------------------------
+        ! Initialize solar flux in SW bands and solar constant (W/m2)
+        !------------------------------------------------------------
+        SELECT CASE (isolrad)
+          CASE(0)       ! Use default ssi values from ecRad
+            ssi_radt(:) = ecrad_ssi_default(:)
+          CASE(1)       ! 1: Use ssi values from Coddington et al (2016)
+            ssi_radt(:) = ecrad_ssi_coddington(:)
+          CASE(2)       ! 2: Use ssi values from external file
+            ssi_radt(:) = 0
+        END SELECT
+        tsi_radt    = SUM(ssi_radt(:))
+
+        ! In case of Aqua planet or RCE experiment:
+        IF ( nh_test_name == 'APE_nwp' .OR. nh_test_name == 'dcmip_tc_52' ) THEN
+          ssi_radt(:) = ssi_radt(:)*1365._wp/tsi_radt
+          tsi_radt    = 1365._wp
+        ENDIF  ! APE
+        IF ( nh_test_name == 'RCE'         .OR. nh_test_name == 'RCE_Tconst'         .OR. &
+           & nh_test_name == 'RCE_Tprescr' .OR. nh_test_name == 'RCEMIP_analytical') THEN
+          scale_fac   = sol_const/1361.371_wp   ! computed relative to amip (1361)
+          ssi_radt(:) = scale_fac*ssi_amip(:)
+          tsi_radt    = SUM(ssi_radt(:))
+        ENDIF
+        !
 #else
         CALL finish(routine,  &
           &      'atm_phy_nwp_config(jg)%inwp_radiation = 4 needs -D__ECRAD.')

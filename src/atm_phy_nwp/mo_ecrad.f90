@@ -8,6 +8,11 @@
 !! - This module also holds a few ecRad configuration objects:
 !!   ecrad_conf, nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
 !!
+!! Literature references:
+!! Coddington et al. (2016) - Coddington, O., Lean, J. L., Pilewskie, P., Snow, M., & Lindholm, D. (2016).
+!!                            A solar irradiance climate data record.
+!!                            Bulletin of the American Meteorological Society, 97(7), 1265-1282.
+!!
 !! @author Daniel Rieger, DWD, Offenbach
 !!
 !! @par Revision History
@@ -96,6 +101,8 @@ MODULE mo_ecrad
   PUBLIC :: ecRad_IO2, ecRad_ICFC11, ecRad_ICFC12, ecRad_IHCFC22, ecRad_ICCl4
   ! Photosynthetically active radiation weightings
   PUBLIC :: nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
+  ! Spectral Solar Insolation
+  PUBLIC :: ecrad_ssi_default, ecrad_ssi_coddington
 
 ! ----------------------------------------------------
 ! Configuration state
@@ -120,7 +127,15 @@ MODULE mo_ecrad
 !          target. If they were allocated, this might cause a memory leak
       PROCEDURE :: finalize => del_opt_ptrs
   END TYPE t_opt_ptrs
-  
+
+  REAL(wp) :: ecrad_ssi_default(14) = (/ 12.045647_wp, 20.257584_wp, 23.604472_wp , 22.309308_wp , 55.332985_wp , &
+    &                                   102.388219_wp, 24.165380_wp, 343.917494_wp, 217.035256_wp, 345.359642_wp, &
+    &                                   128.811472_wp, 49.887519_wp, 3.063681_wp  , 12.821340_wp /)
+  ! New measurements of SSI from Coddington et al. 2016
+  REAL(wp) :: ecrad_ssi_coddington(14) = (/ 12.045647_wp  , 20.257584_wp  , 23.604472_wp  , 23.37569292_wp, 57.56843759_wp, &
+                                            105.6339255_wp, 24.72360028_wp, 345.7746485_wp, 213.5909065_wp, 344.8864993_wp, &
+                                            128.6916773_wp, 45.19260459_wp, 2.825112161_wp, 12.821340_wp/)
+
 CONTAINS
 
   SUBROUTINE del_opt_ptrs(self)

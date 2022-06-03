@@ -59,7 +59,7 @@ MODULE mo_nml_crosscheck
   USE mo_radiation_config,         ONLY: irad_o3, irad_aero, irad_h2o, irad_co2, irad_ch4, &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, llw_cloud_scat, iliquid_scat,       &
-    &                                    iice_scat
+    &                                    iice_scat, isolrad
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
@@ -353,6 +353,11 @@ CONTAINS
             CALL finish(routine,'irad_aero = 12, 13, 14, 15, 18 or 19 requires inwp_radiation=4')
           ENDIF
 
+          ! Transient solar radiation only works with ecRad
+          IF ( ANY( isolrad == (/2/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
+            CALL finish(routine,'isolrad = 2 requires inwp_radiation = 4')
+          ENDIF
+
           ! ecRad specific checks
           IF ( (atm_phy_nwp_config(jg)%inwp_radiation == 4) )  THEN
             IF (.NOT. ANY( irad_h2o     == (/0,1/)         ) ) &
@@ -379,6 +384,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, iliquid_scat has to be 0 or 1')
             IF (.NOT. ANY( iice_scat    == (/0,1/)         ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, iice_scat has to be 0 or 1')
+            IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
           ELSE
             IF ( llw_cloud_scat ) &
               &  CALL message(routine,'Warning: llw_cloud_scat is set to .true., but ecRad is not used')

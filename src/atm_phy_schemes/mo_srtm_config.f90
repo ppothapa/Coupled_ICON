@@ -33,7 +33,7 @@
       &       ng18, ng19, ng20, ng21, ng22, ng23, ng24, ng25, ng26, ng27,  &
       &       ng28, ng29, nspa, nspb, ngc, preflog, tref, repclc, replog,  &
       &       wavenum1, wavenum2, delwave, ssi_default, ssi_amip, ssi_rce, &
-      &       ssi_preind
+      &       ssi_preind, ssi_coddington
 
 
     SAVE
@@ -287,6 +287,11 @@
       & 102.512_wp , 24.69536_wp, 347.4719_wp, 217.2217_wp, 343.2816_wp, &
       & 129.3001_wp, 47.07624_wp, 3.130199_wp, 13.17521_wp /)
     ! sum of 14 bands is: 1360.875
+
+    REAL(wp), PARAMETER :: ssi_coddington(14) = (/ & !< solar flux (W/m2) in 14 SW bands from Coddington et al. (2016)
+      & 12.045647_wp  , 20.257584_wp  , 23.604472_wp  , 23.37569292_wp, 57.56843759_wp, &
+      & 105.6339255_wp, 24.72360028_wp, 345.7746485_wp, 213.5909065_wp, 344.8864993_wp, &
+      & 128.6916773_wp, 45.19260459_wp, 2.825112161_wp, 12.821340_wp  /)
     !--hs
 
   CONTAINS

@@ -55,11 +55,11 @@ MODULE mo_nwp_ecrad_interface
   USE mo_physical_constants,     ONLY: rhoh2o
   USE mo_run_config,             ONLY: msg_level, iqv, iqi, iqc, iqr, iqs, iqg
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
-  USE mo_radiation_config,       ONLY: irad_aero
+  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
-  USE mo_ecrad,                  ONLY: ecrad,                                    &
+  USE mo_ecrad,                  ONLY: ecrad, ecrad_ssi_default,                 &
                                    &   t_ecrad_conf, t_ecrad_aerosol_type,       &
                                    &   t_ecrad_single_level_type,                &
                                    &   t_ecrad_thermodynamics_type,              &
@@ -238,8 +238,7 @@ CONTAINS
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
-      ecrad_single_level%spectral_solar_scaling = (/  1.0_wp, 1.0_wp, 1.0_wp, 1.0478_wp, 1.0404_wp, 1.0317_wp, &
-         &   1.0231_wp, 1.0054_wp, 0.98413_wp, 0.99863_wp, 0.99907_wp, 0.90589_wp, 0.92213_wp, 1.0_wp /)
+      ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
       !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lzacc)
     ENDIF
 
@@ -987,8 +986,7 @@ CONTAINS
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
-      ecrad_single_level%spectral_solar_scaling = (/  1.0_wp, 1.0_wp, 1.0_wp, 1.0478_wp, 1.0404_wp, 1.0317_wp, &
-         &   1.0231_wp, 1.0054_wp, 0.98413_wp, 0.99863_wp, 0.99907_wp, 0.90589_wp, 0.92213_wp, 1.0_wp /)
+      ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
       !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lacc)
     ENDIF
 

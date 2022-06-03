@@ -38,7 +38,7 @@ MODULE mo_nwp_ecrad_init
   USE mtime,                   ONLY: datetime
   USE mo_model_domain,         ONLY: t_patch
   USE mo_radiation_config,     ONLY: icld_overlap, irad_aero, ecrad_data_path,           &
-                                 &   llw_cloud_scat, iliquid_scat, iice_scat
+                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad
 #ifdef __ECRAD
   USE mo_ecrad,                ONLY: t_ecrad_conf, ecrad_setup,                          &
                                  &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
@@ -159,6 +159,13 @@ CONTAINS
         CALL finish(routine, 'i_ice_scat not valid for ecRad')
     END SELECT
 
+    IF (isolrad == 0) THEN
+      ecrad_conf%use_spectral_solar_scaling  = .false.
+    ELSE
+      ecrad_conf%use_spectral_solar_scaling  = .true. !< Apply scaling to solar spectrum in order to match 
+                                                      !< Coddington et al.(2016) measurements or the transient external data
+    ENDIF
+
     !---------------------------------------------------------------------------------------
     ! Currently hardcoded configuration
     !---------------------------------------------------------------------------------------
@@ -187,8 +194,6 @@ CONTAINS
     !
     ecrad_conf%do_surface_sw_spectral_flux = .true.       !< Save the surface downwelling shortwave fluxes in each band
                                                           !< Needed for photosynthetic active radiation
-    !
-    ecrad_conf%use_spectral_solar_scaling  = .true.       !< Apply correction to solar spectrum in order to match recent measurements
     !
     ecrad_conf%do_fu_lw_ice_optics_bug     = .false.      !< In the IFS environment there was a bug in the Fu longwave
                                                           !< ice optics producing better results than the fixed version

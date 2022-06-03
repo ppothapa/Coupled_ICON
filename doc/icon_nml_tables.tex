@@ -6917,18 +6917,12 @@ year used for lyr\_perp = .TRUE.&
 %\hline
 isolrad &
 I&
-0&
+1&
 &
 Insolation scheme\\
-0: Use original SRTM insolation.\\
-1: Use insolation from external file containing the spectrally
-resolved insolation (monthly means)\\
-2: Use preindustrial insolation as in CMIP5 (average from 1844--1856)\\
-3: Use insolation for AMIP--type CMIP5 simulation (average from 1979--1988)\\
-4: Use insolation for RCE--type simulation with cos(zenith angle) =
-pi/4 (with PSRAD: use ``4'' if the diurnal cycle is switched on)\\
-5: Use insolation for RCE--type simulation with PSRAD if the diurnal
-cycle is switched off.
+0: Use original insolation (from SRTM in case inwp\_radiation=1 or from ecRad in case inwp\_radiation=4) \\
+1: Use SSI values from Coddington et al. (2016) (inwp\_radiation=1) or scale SSI values to Coddington et al. (2016) values (inwp\_radiation=4) \\
+2: SSI from an external file containing monthly mean time series (inwp\_radiation=4) \\
  &
 \tabularnewline
 
@@ -7089,7 +7083,7 @@ irad\_co2/cfc11/cfc12 = 4: time dependent concentration from greenhouse gas file
 irad\_ch4/n2o = 4: time dependent tanh-profile with surface concentration from greenhouse gas file\par
 irad\_o3 = 2: ozone climatology from MPI \par
 irad\_o3 = 4: ozone clim for Aqua Planet Exp \par
-irad\_o3 = 5: ozone climatology for AMIP \par
+irad\_o3 = 5: 3-dim concentration, time dependent, monthly means from yearly files bc\_ozone\_<year>.nc or - with nesting - bc\_ozone\_DOM<jg>\_<year>.nc \par
 irad\_o3 = 6: ozone climatology with T5 geographical distribution and Fourier series for seasonal cycle {\color{red}for run\_nml/iforcing = 3 (NWP)} \par
 irad\_o3 = 7: GEMS ozone climatology (from IFS) {\color{red}for run\_nml/iforcing = 3 (NWP)} \par
 irad\_o3 = 9: MACC ozone climatology (from IFS) {\color{red}for run\_nml/iforcing = 3 (NWP)} \par

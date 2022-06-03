@@ -35,7 +35,7 @@ MODULE mo_nwp_rad_interface
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,      &
     &                                irad_co2, irad_n2o, irad_ch4,   &
     &                                irad_cfc11, irad_cfc12,         &
-    &                                irad_aero
+    &                                irad_aero, tsi_radt, ssi_radt, isolrad
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -46,7 +46,9 @@ MODULE mo_nwp_rad_interface
   USE mo_ecrad,                ONLY: ecrad_conf
 #endif
   USE mo_albedo,               ONLY: sfc_albedo, sfc_albedo_modis, sfc_albedo_scm
-  USE mtime,                   ONLY: datetime
+  USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,           &          
+    &                                operator(+), newTimedelta, deallocateDatetime,        &
+    &                                getPTStringFromSeconds, newDatetime
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nwp_gpu_util,         ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
@@ -57,6 +59,9 @@ MODULE mo_nwp_rad_interface
   USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc, ONLY: add_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,    ONLY: add_bc_aeropt_splumes
+  USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
+  USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
+    &                                 calculate_time_interpolation_weights
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_o3_util,              ONLY: o3_interface 
 
@@ -104,6 +109,10 @@ MODULE mo_nwp_rad_interface
     TYPE(t_lnd_prog),        INTENT(inout) :: lnd_prog   ! time level new
     TYPE(t_wtr_prog),        INTENT(in)    :: wtr_prog   ! time level new
 
+    TYPE(datetime) , POINTER :: radiation_time => NULL() !< date and time for radiative transfer and time for radiative transfer
+    TYPE(timedelta), POINTER :: td_radiation_offset      !< Offset to center of radiation time step
+    TYPE(t_time_interpolation_weights) :: radiation_time_interpolation_weights
+
     REAL(wp) :: &
       & zaeq1(nproma,pt_patch%nlev,pt_patch%nblks_c), &
       & zaeq2(nproma,pt_patch%nlev,pt_patch%nblks_c), &
@@ -121,6 +130,7 @@ MODULE mo_nwp_rad_interface
       & g_sw (:,:,:,:)  , & !< SW aerosol asymmetry factor
       & ssa_sw(:,:,:,:)     !< SW aerosol single scattering albedo
 
+    CHARACTER(len=max_timedelta_str_len) :: dstring
     INTEGER :: jg, irad
     INTEGER :: jb, jc, jk              !< loop indices
     INTEGER :: rl_start, rl_end
@@ -133,6 +143,7 @@ MODULE mo_nwp_rad_interface
     REAL(wp):: zsct                    ! solar constant (at time of year)
     REAL(wp):: cosmu0_dark             ! minimum cosmu0, for smaller values no shortwave calculations
     REAL(wp):: x_cdnc(nproma)          ! Scale factor for Cloud Droplet Number Concentration
+    REAL(wp):: dsec                    ! [s] time increment of radiative transfer wrt. datetime
 
 
     ! patch ID
@@ -250,6 +261,27 @@ MODULE mo_nwp_rad_interface
       cosmu0_dark = -1.e-9_wp
     END SELECT
 
+#ifdef __ECRAD
+    IF (isolrad == 2 .AND. atm_phy_nwp_config(jg)%inwp_radiation == 4) THEN
+      IF (ecrad_conf%n_bands_sw /= 14) &
+        &  CALL finish('nwp_radiation','isolrad = 2 not available for flexible wavelength bands')
+      ! Set the time instance for the zenith angle to be used
+      ! in the radiative transfer.
+      !
+      dsec = 0.5_wp*atm_phy_nwp_config(jg)%dt_rad
+      CALL getPTStringFromSeconds(dsec, dstring)
+      td_radiation_offset => newTimedelta(dstring)
+      radiation_time => newDatetime(mtime_datetime + td_radiation_offset)
+      !
+      ! interpolation weights for linear interpolation
+      ! of monthly means onto the radiation time step
+      radiation_time_interpolation_weights = calculate_time_interpolation_weights(radiation_time)
+      !
+      ! total and spectral solar irradiation at the mean sun earth distance
+      CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
+      CALL ssi_time_interpolation(radiation_time_interpolation_weights,.TRUE.,tsi_radt,ssi_radt)
+    ENDIF
+#endif
 
     ! Calculation of zenith angle optimal during dt_rad.
     ! (For radheat, actual zenith angle is calculated separately.)
@@ -373,6 +405,8 @@ MODULE mo_nwp_rad_interface
       DEALLOCATE(g_sw, STAT=istat)
       IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of g_sw failed.')
     ENDIF
+
+    IF (ASSOCIATED(radiation_time)) CALL deallocateDatetime(radiation_time)
 
   END SUBROUTINE nwp_radiation
 
