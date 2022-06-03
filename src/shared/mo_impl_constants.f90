@@ -588,6 +588,7 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_WSHEAR_V  = 31 !< task: compute vertical V-wind shear component
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_LAPSERATE = 32 !< task: compute T(500hPa) - T(850hPa)
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_SRH       = 33 !< task: compute storm relative helicity
+  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_VIS       = 34 !< task: compute near-surface visibility
 
   !--------------------------------------------------------------------!
   !  VARIABLE TIMELEVEL SPECIFICATION (FOR POST-PROCESSING SCHEDULER)  !

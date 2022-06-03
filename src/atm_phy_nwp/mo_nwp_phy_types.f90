@@ -482,6 +482,7 @@ MODULE mo_nwp_phy_types
       lfd_con(:,:),        & !> lightening flash density computed with convection scheme variables
       lfd_con_max(:,:),    & !> maximum of LFD
       ceiling_height(:,:), & !> ceiling height
+      vis(:,:),            & !> near surface visibility [meters]
       hbas_sc(:,:),        & !> height of base above MSL from shallow convection parameterization
       htop_sc(:,:),        & !> height of top  above MSL from shallow convection parameterization
       twater(:,:),         & !> Total column integrated water

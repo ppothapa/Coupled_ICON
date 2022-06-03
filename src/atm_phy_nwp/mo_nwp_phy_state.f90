@@ -55,6 +55,7 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_SDI2,                  &
   &                               TASK_COMPUTE_LPI,                   &
   &                               TASK_COMPUTE_CEILING,               &
+  &                               TASK_COMPUTE_VIS,                   &
   &                               TASK_COMPUTE_HBAS_SC,               &
   &                               TASK_COMPUTE_HTOP_SC,               &
   &                               TASK_COMPUTE_TWATER,                &
@@ -4105,6 +4106,18 @@ __acc_attach(diag%clct)
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
                     & l_pp_scheduler_task=TASK_COMPUTE_CEILING, lrestart=.FALSE. )
+    END IF
+
+    IF (var_in_output%vis) THEN
+      cf_desc    = t_cf_var('vis', 'm', 'near surface visibility', datatype_flt)
+      grib2_desc = grib2_var(0, 19, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)          
+      CALL add_var( diag_list,                                                       &
+                    & "vis", diag%vis,                                               &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                            &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape2d,                                                 &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_VIS, lrestart=.FALSE. )
     END IF
 
     IF (var_in_output%hbas_sc) THEN

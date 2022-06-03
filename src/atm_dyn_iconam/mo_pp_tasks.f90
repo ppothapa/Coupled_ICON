@@ -34,7 +34,7 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
     & TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,                         &
-    & TASK_COMPUTE_SRH,                                               &
+    & TASK_COMPUTE_SRH, TASK_COMPUTE_VIS,                             &
     & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
     & TASK_COMPUTE_LAPSERATE,                                         &
     & TASK_INTP_VER_ZLEV,                                             &
@@ -82,6 +82,7 @@ MODULE mo_pp_tasks
     &                                   compute_field_sdi,                       &
     &                                   compute_field_lpi,                       &
     &                                   compute_field_ceiling,                   &
+    &                                   compute_field_visibility,                &
     &                                   compute_field_hbas_sc, compute_field_htop_sc, &
     &                                   compute_field_twater, compute_field_q_sedim,  &
     &                                   compute_field_dbz850,                    &
@@ -1374,6 +1375,10 @@ CONTAINS
     CASE (TASK_COMPUTE_CEILING)
       CALL compute_field_ceiling( p_patch, jg,                                       &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
+          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+
+    CASE (TASK_COMPUTE_VIS)
+      CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_HBAS_SC)

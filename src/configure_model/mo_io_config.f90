@@ -125,6 +125,7 @@ MODULE mo_io_config
     LOGICAL :: lfd_con_max  = .FALSE. !< Flag. TRUE if computation of maximum lighting flash density  desired
     LOGICAL :: koi          = .FALSE. !< Flag. TRUE if computation of convection index
     LOGICAL :: ceiling      = .FALSE. !< Flag. TRUE if computation of ceiling height desired
+    LOGICAL :: vis          = .FALSE. !< Flag. TRUE if computation of visibility desired
     LOGICAL :: hbas_sc      = .FALSE. !< Flag. TRUE if computation of height of base from shallow convection desired
     LOGICAL :: htop_sc      = .FALSE. !< Flag. TRUE if computation of height of top  from shallow convection desired
     LOGICAL :: twater       = .FALSE. !< Flag. TRUE if computation of total column integrated water desired
@@ -283,6 +284,7 @@ CONTAINS
         var_in_output(jg)%lfd_con_max = is_variable_in_output_dom(var_name="lfd_con_max", jg=jg)
         var_in_output(jg)%koi         = is_variable_in_output_dom(var_name="koi", jg=jg)
         var_in_output(jg)%ceiling     = is_variable_in_output_dom(var_name="ceiling", jg=jg)
+        var_in_output(jg)%vis         = is_variable_in_output_dom(var_name="vis", jg=jg)
         var_in_output(jg)%hbas_sc     = is_variable_in_output_dom(var_name="hbas_sc", jg=jg)
         var_in_output(jg)%htop_sc     = is_variable_in_output_dom(var_name="htop_sc", jg=jg)
         var_in_output(jg)%twater      = is_variable_in_output_dom(var_name="twater", jg=jg)
