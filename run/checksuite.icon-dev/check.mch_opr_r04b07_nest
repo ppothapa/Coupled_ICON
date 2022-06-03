@@ -30,6 +30,22 @@ export DATES='20201210T060140Z 20201210T060150Z 20201210T060200Z'
 # 
 export RESTART_DATE='20201210T060100Z'
 
+# REFERENCE model directory and reference experiment for update test
+# (abs. path or relative paths w.r.t. <model dir>/run, e.g. .../icon-dev/run)
+#
+export OVERWRITE=no
+#
+if [ -d /users/icontest ]
+then
+    poolFolder_prefix="/users/icontest"
+else
+    poolFolder_prefix=""
+fi
+builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.1456fd06_icon-cscs/${builder}/
+
+
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode

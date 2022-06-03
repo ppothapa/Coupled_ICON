@@ -195,18 +195,6 @@ function diff_results
     MODEL_DIR2=$3
     DEXP2=$4
     TEST=$5
-    DISTRO=$(lsb_release -cs)
-    case $DISTRO in
-        squeeze)
-            module load cdo/1.6.5.1
-            ;;
-        wheezy)
-            module load cdo/1.6.5.1
-            ;;
-	jessie)
-	    eval `/usr/bin/tclsh /sw/share/Modules/modulecmd.tcl bash load cdo/1.8.0-gccsys`
-	    ;;
-    esac
     #TYPES: defined in main script and used from main script 
     #DATES: defined in main script and used from main script 
 
@@ -384,7 +372,8 @@ function tolerance_check
     TOL_STATUS=0
     cd $MODEL_DIR
 
-    REF_BUILDER=${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}
+    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+    [[ -z $REF_BUILDER ]] && REF_BUILDER="${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}" # old buildbot
 
     # find relevant config
     case $EXPERIMENT in
@@ -620,8 +609,8 @@ CMODES="u ur un um uo urn urm uro unm uno umo urnm urno urmo unmo urnmo"
 if string_in_list $MD $CMODES; then
     echo "- REFERENCE    = ${REFERENCE:?  is not defined --> ERROR}"
 
-    # get reference path standardized by pwd
-    cd ${REFERENCE}; REFERENCE=`pwd`
+    # get reference path standardized by pwd; exit if path is not available
+    cd ${REFERENCE} || exit 1; REFERENCE=`pwd`
     if [ "${REFERENCE}" == "${MODEL_DIR}" ]; then
         if [ "$COLOUR" == 'no' ]; then
             echo 'reference model and test model are the same'
@@ -708,7 +697,7 @@ if string_in_list $MD $CMODES; then
     echo ' '
     echo "#################### perform $TEST test          ####################"
     echo ' '
-    cd ${REFERENCE} 
+    cd ${REFERENCE} || exit 1
     RUN_STATUS=-1
     if [ ! -d experiments/${EXP_BASE} ] ;then 
         if [ ! -f run/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then

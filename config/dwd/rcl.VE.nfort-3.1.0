@@ -92,7 +92,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${RTTOV_LIBS} ${LAPACK_LIBS} ${ECCODES__LIBS}
 MPI_LAUNCH=''  # needed e.g. for yac configuration ?? 
 
 # basic ICON-NWP configuration excluding ecRad and DACE+EMVORADO coupling
-EXTRA_CONFIG_ARGS='--host='${HOST}' --disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-mixed-precision --disable-loop-exchange --enable-grib2 --enable-mpi --disable-openmp --enable-rttov --disable-aes --disable-jsbach --disable-ocean --disable-coupling'
+EXTRA_CONFIG_ARGS='--host='${HOST}' --disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-mixed-precision --disable-loop-exchange --enable-grib2 --enable-mpi --disable-openmp --enable-rttov --disable-aes --disable-jsbach --disable-ocean --disable-coupling --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

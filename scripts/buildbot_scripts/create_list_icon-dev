@@ -14,14 +14,17 @@ listname=icon-dev
 #-----------------------------------------------------------
 # AES
 # add amip tests to all builders
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze levante daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_update"    --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral breeze daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze --list $listname
+$addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze levante --list $listname
 $addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral breeze --list $listname
+
+
+
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
 #-----------------------------------------------------------
@@ -32,7 +35,7 @@ $addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral breeze
 # OES
 # add omip technical tests only with mpi parallelization
 $addexp checksuite.ocean_internal/technical/exp.ocean_omip_ptest checksuite.ocean_internal/technical/exp.test_ocean_omip_technical \
-  --without-configureflags without-mpi enable-mixed --runflags "cpu_time=00:30:00 mpi_procs_pernode=5"  --list $listname
+ --machines mistral --without-configureflags without-mpi enable-mixed --runflags "cpu_time=00:30:00 mpi_procs_pernode=5"  --list $listname
 # add omip binary-identical test on mistral
 $addexp checksuite.ocean_internal/omip/exp.test_ocean_omip_10days checksuite.ocean_internal/omip/exp.test_ocean_newice_omip_10days \
 checksuite.ocean_internal/ShallowWater/exp.ocean_WilliamsonTestCase2_Hex \
@@ -42,7 +45,10 @@ $addexp checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days 
 $addexp checksuite.ocean_internal/technical/exp.test_multioutput_model_40km \
 --machines mistral --without-configureflags without-mpi with-openmp enable-mixed --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
 
-
+$addexp checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days  \
+--machines levante --without-configureflags without-mpi enable-mixed --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
+$addexp checksuite.ocean_internal/omip/exp.test_ocean_omip_10days  \
+ --machines levante --without-configureflags enable-mixed --runflags "cpu_time=00:30:00 queue=compute" --list $listname
 
 #-----------------------------------------------------------
 # communication
@@ -66,16 +72,18 @@ $addexp checksuite.icon-dev/check.atm_amip_diagparams_constbc_nojsb_notransport_
 ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical         --builders DAINT_GPU_pgi DAINT_GPU_nvidia --list $listname
 
 # add tolerance check to daint builders
-$addexp checksuite.icon-dev/check.mch_ch_lowres                                   --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-$addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"                    --builders DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+$addexp checksuite.icon-dev/check.mch_ch_lowres                --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "no_of_nodes=4" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r04b07"             --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "nproma=4250 mpi_procs_pernode=2 no_of_nodes=1" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r04b07_nest"        --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "nproma=1600 mpi_procs_pernode=1 no_of_nodes=4" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r04b07_lhn*"        --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "no_of_nodes=4" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"         --builders DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "no_of_nodes=4" --list $listname
+$addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS" --builders DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
 
 # add benchmark with operational namelist only to nvidia where it works
-$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev"                          --builders DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
+$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev"                          --builders DAINT_CPU_nvidia DAINT_GPU_nvidia --runflags "no_of_nodes=4" --list $listname
 
 # GPU builders explicitly turned off due to unresolved bug
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders DAINT_CPU_pgi DAINT_CPU_nvidia --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders DAINT_CPU_pgi DAINT_CPU_nvidia --runflags "no_of_nodes=4" --list $listname
 
 # add tracer only test to DAINT builders (for checking equivalence of vertical transport code for GPU vs CPU)
 $addexp checksuite.icon-dev/check.atm_tracer_Hadley                                  --builders DAINT_CPU_pgi DAINT_CPU_nvidia --list $listname
@@ -87,6 +95,7 @@ $addexp checksuite.icon-dev/check.atm_tracer_Hadley                             
 # builder: mistral
 # tests for nwp
 $addexp exp.test_nwp_R02B04N06multi exp.test_nwp_R02B04_R02B05_nest  --without-configureflags without-mpi --runflags "cpu_time=00:30:00"  --machines mistral --list $listname
+$addexp exp.test_nwp_R02B04N06multi exp.test_nwp_R02B04_R02B05_nest  --without-configureflags without-mpi --runflags "cpu_time=00:30:00"  --machines levante --list $listname
 $addexp exp.test_nwp_R02B04N06_multifile_restart  --without-configureflags without-mpi --runflags "cpu_time=00:30:00 no_of_nodes=2"  --machines mistral --list $listname
 # this experiment runs only with-mpi and without openmp
 $addexp exp.test_nwp_R02B04N06multi2 --machines mistral --without-configureflags without-mpi with-openmp \
@@ -119,6 +128,7 @@ $addexp checksuite.rcnl.dwd.de/exp.run_ICON_17_R2B4_AO_coupled.run              
 #-----------------------------------------------------------
 # Ruby0 coupled tests, only with mpi
 $addexp exp.esm_bb_ruby0 --without-configureflags without-mpi --machines mistral --runflags "cpu_time=00:20:00 no_of_nodes=4" --list $listname
+$addexp exp.esm_bb_ruby0 --without-configureflags without-mpi --machines levante --runflags "cpu_time=00:20:00 no_of_nodes=4" --list $listname
 
 #-----------------------------------------------------------
 # New icon-seamless prototyp1 coupled test, initially with some compilers on mistral:
@@ -126,16 +136,6 @@ $addexp exp.seamless_bb-proto1 --builders MISTRAL_intel17 MISTRAL_intel18 MISTRA
 # miminum NWP atmosphere test with ecrad radiation on mistral:
 $addexp exp.seamless_bb-ecradmin  --builders MISTRAL_intel17 MISTRAL_intel18 MISTRAL_gcc --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
 
-#-----------------------------------------------------------
-# Other tests
-#   torus test from Anurag : red, move to problems list
-#off#$addexp checksuite.icon-dev/check.atm_rce_les  --machines mistral  --runflags "cpu_time=00:30:00" --list $listname
-#   old test from Anurag
-#off#$addexp checksuite.icon-dev/check.atm_icoles_nested --machines mistral  --runflags "cpu_time=00:30:00 queue=compute" --list $listname
-#   old test from Levi
-#off#$addexp exp.nat_rce_cbl_120km_nwp  --machines mistral  --runflags "cpu_time=00:30:00" --list $listname
-#   very old test from Pilar
-#off#$addexp exp.nat_jww_nwp_mpiomp --without-configureflags without-mpi  --machines mistral --runflags "cpu_time=00:30:00" --list $listname
 
 # test memory loggin in amip setup
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog         --builders MISTRAL_intel18_hybrid MISTRAL_intel17_hybrid MISTRAL_gcc --runflags "cpu_time=00:10:00 no_of_nodes=8" --list $listname

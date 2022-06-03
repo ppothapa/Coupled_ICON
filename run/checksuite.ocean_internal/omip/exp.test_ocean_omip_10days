@@ -385,14 +385,23 @@ EOF
 #-----------------------------------------------------------------------------
 . ${thisdir}/exec.iconrun
 #-----------------------------------------------------------------------------
-#  compare with reference
-if [[ x$BB_SYSTEM != x ]]; then
+# use lower case builder name (temp solution for the using old and new bb for the same code)
+echo "BB_NAME = ${BB_NAME}"
+echo "BB_SYSTEM = ${BB_SYSTEM}"
+echo "BB_SLAVE = ${BB_SLAVE}"
+set -x
+# no referce data on levante, yet
+[[ x"${BB_SYSTEM}" = 'xlevante' ]] && exit 0
+
+builder=''
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+[[ ! -z $BB_SLAVE ]] && builder="${BB_SYSTEM}_${BB_SLAVE}"  # old buildbot
+if [[ "x${builder}" != "x" ]]; then
   rm -f ${final_status_file}
 . ${thisdir}/postFunx.sh
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
-  slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-  refDir=${builbot_ocean_reference_path}/${slave}/${EXPNAME}
+  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_final_status $? "DIFFCHECK for exp: ${EXPNAME}"

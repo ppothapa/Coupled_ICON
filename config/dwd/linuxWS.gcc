@@ -137,7 +137,7 @@ LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIB
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --disable-openmp --disable-ocean --disable-jsbach --enable-rttov'
+EXTRA_CONFIG_ARGS='--enable-grib2 --disable-openmp --disable-ocean --disable-jsbach --enable-rttov --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

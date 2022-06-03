@@ -301,8 +301,7 @@ fi
 EOF
 #
 if [[ -n ${atmo_dyn_grids} ]]; then
-  set -A gridfiles $atmo_dyn_grids
-  no_of_domains=${#gridfiles[*]}
+  no_of_domains=${#atmo_dyn_grids[@]}
 else
   no_of_domains=1
 fi

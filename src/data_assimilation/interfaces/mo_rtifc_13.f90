@@ -101,7 +101,7 @@ MODULE mo_rtifc_13
   use rttov_types,          only: rttov_profiles
 #endif
 
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
   use rttov_types,          only: ipr_deb,               &!
                                   pe_rt => pe
 #endif
@@ -331,7 +331,7 @@ MODULE mo_rtifc_13
   type(rttov_profiles)                          :: profdat_k
 #endif
 
-#if !defined(_DACE_)
+#if !defined(_DACE_) || defined (__ICON__)
   ! we are not sure, that we use a DWD version of RTTOV -> use dummy variables
   integer :: ipr_deb, pe_rt
 #endif
@@ -461,7 +461,7 @@ contains
                                                  ! set to false to revert to behaviour of previos RTTOV versions
         ropts%rt_all%use_q2m           = .false.
         ropts%rt_all%do_lambertian     = .false.
-#if defined(_DACE_)                                       
+#if defined(_DACE_) && !defined(__ICON__)
         ropts%config%crop_k_reg_limits = .false.
         ropts%config%conv_overc        = .false.
 #endif
@@ -491,7 +491,7 @@ contains
     if (present(use_t2m_opdep    )) ropts%rt_all%use_t2m_opdep     = use_t2m_opdep
     if (present(use_q2m          )) ropts%rt_all%use_q2m           = use_q2m
     if (present(do_lambertian    )) ropts%rt_all%do_lambertian     = do_lambertian
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
     if (present(crop_k_reg_lims  )) ropts%config%crop_k_reg_limits = crop_k_reg_lims
     if (present(conv_overc       )) ropts%config%conv_overc        = conv_overc
 #endif
@@ -1918,7 +1918,9 @@ FTRACE_END('rtifc_fill_input_var')
     type(rttov_chanprof)         :: chanprof(size(chans))
     integer                      :: lims_flag(nlevs,2)
     
+#if defined(_DACE_)
     real(kind=jprb),     pointer :: height_aux(:) => NULL() ! height of weighting function
+#endif
     
     logical                      :: lpio
     logical                      :: lopdep, l_transm
@@ -2304,7 +2306,7 @@ FTRACE_BEGIN('rtifc_direct')
 
 
     ! Allocate/initialize arrays
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
     transmission%l_opdep = lopdep
 #endif
     call realloc_rttov_arrays(status, nprof, nlevs + nlevs_top, nchansprofs, &
@@ -2435,11 +2437,13 @@ FTRACE_BEGIN('rtifc_direct')
         if (present(quality )) quality (1:nchans,iprof)=radiance%quality   (sind:eind)
         if (present(radovercast)) &
              radovercast(:,1:nchans,iprof) = dble(radiance% overcast(:,sind:eind))
+#if defined(_DACE_)
         if (present(height))    height   (1:nchans,iprof)=height_aux(sind:eind)
+#endif
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
         if (present(transmtotal)) transmtotal(1:nchans,iprof) = dble(transmission%tau_total(sind:eind))
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (lopdep) &
              opdep (:,1:nchans,iprof) = dble(transmission%opdep_ref (1+nlevs_top:,sind:eind))
 #endif
@@ -2470,7 +2474,9 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if (present(radtotal   )) radtotal    (istore(i,1),istore(i,2))   = dble(radiance% clear   (i))
         if (present(radovercast)) radovercast (:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
+#if defined(_DACE_)
         if (present(height     )) height      (istore(i,1),istore(i,2))   = height_aux(i)
+#endif
         if (present(transm     )) transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
         if (present(transmtotal)) transmtotal(istore(i,1),istore(i,2)) = dble(transmission%tau_total(i))
         if (btest(rad_out,OUT_VIS)) then
@@ -2480,7 +2486,7 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if (present(quality    )) quality     (istore(i,1),istore(i,2))   = radiance% quality (i)
 
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (lopdep) &
              opdep(:,istore(i,1),istore(i,2)) = dble(transmission%opdep_ref(1+nlevs_top:,i))
 #endif
@@ -3027,7 +3033,7 @@ FTRACE_BEGIN('rtifc_k')
 
 #undef DIM_ERROR
 
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
     transmission%l_opdep   = lopdep
     transmission_k%l_opdep = .false.
 #endif
@@ -3203,7 +3209,7 @@ FTRACE_BEGIN('rtifc_k')
         if (present(quality )) quality (1:nusedchans,iprof) = radiance%quality   (sind:eind)
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (lopdep) &
              opdep(:,1:nchans,iprof) = dble(transmission%opdep_ref(1+nlevs_top:,sind:eind))
 #endif
@@ -3246,7 +3252,7 @@ FTRACE_BEGIN('rtifc_k')
         if (present(radovercast)) radovercast(:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
         if (l_transm) &
              transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (lopdep) &
              opdep(:,istore(i,1),istore(i,2)) = dble(transmission%opdep_ref(1+nlevs_top:,i))
 #endif
@@ -3609,7 +3615,9 @@ FTRACE_END('rtifc_k')
      if (.not. mw_atlas(irun)% init) cycle
      if (.not. mw_atlas(irun)% is_mw) cycle
      if (mw_atlas(irun)% atlas_id /= atlas_id) cycle
+#if !defined(__ICON__)
      if (atlas_id == 2 .and. mw_atlas(irun)% cnrm_mw_atlas% inst_id /= coefs(insidx)% coef% id_inst) cycle
+#endif
      atlas = mw_atlas(irun)
    end do
    if ( .not. atlas% init ) then
