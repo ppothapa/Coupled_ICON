@@ -247,6 +247,7 @@ MODULE mo_nh_stepping
   USE mo_nudging,                  ONLY: nudging_interface  
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
   USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
+  USE mo_nwp_diagnosis,            ONLY: nwp_diag_global
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -635,6 +636,14 @@ MODULE mo_nh_stepping
       &                                       l_dom_active   = p_patch(1:)%ldom_active, &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
+
+    ! global mean diagnostics
+    DO jg = 1, n_dom
+      IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
+        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
+        CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
+      ENDIF
+    ENDDO
 
     CALL update_statistics
     IF (p_nh_opt_diag(1)%acc%l_any_m) THEN
@@ -1344,6 +1353,14 @@ MODULE mo_nh_stepping
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
+
+    ! global mean diagnostics
+    DO jg = 1, n_dom
+      IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
+        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
+        CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
+      ENDIF
+    ENDDO
 
 #ifdef MESSY
     DO jg = 1, n_dom

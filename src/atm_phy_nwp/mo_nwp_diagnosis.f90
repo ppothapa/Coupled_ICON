@@ -58,7 +58,7 @@ MODULE mo_nwp_diagnosis
   USE mo_advection_config,   ONLY: advection_config
   USE mo_io_config,          ONLY: lflux_avg, uh_max_zmin, uh_max_zmax, &
     &                              luh_max_out, uh_max_nlayer, var_in_output, &
-    &                              itype_dursun
+    &                              itype_dursun, t_var_in_output
   USE mo_sync,               ONLY: global_max, global_min
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
@@ -75,7 +75,7 @@ MODULE mo_nwp_diagnosis
   USE mo_util_mtime,         ONLY: is_event_active
   USE mo_exception,          ONLY: finish
   USE mo_math_constants,     ONLY: pi
-  USE mo_statistics,         ONLY: time_avg
+  USE mo_statistics,         ONLY: time_avg, levels_horizontal_mean
   USE mo_ext_data_types,     ONLY: t_external_data
   USE mo_nwp_parameters,     ONLY: t_phy_params
   USE mo_time_config,        ONLY: time_config
@@ -94,6 +94,7 @@ MODULE mo_nwp_diagnosis
   PUBLIC  :: nwp_diag_output_1
   PUBLIC  :: nwp_diag_output_2
   PUBLIC  :: nwp_diag_output_minmax_micro
+  PUBLIC  :: nwp_diag_global
 
 
  !> module name string
@@ -2410,6 +2411,129 @@ CONTAINS
       CALL warning('mo_nwp_diagnosis',message_text)
   END SUBROUTINE warn_for_untested_output_on_GPU
 #endif
+
+  SUBROUTINE nwp_diag_global(pt_patch,prm_diag,var_in_output)
+  ! this routine is to calculate global means based 
+  ! on echam_global_diagnostics of src/atm_phy_echam/mo_echam_diagnostics.f90
+  ! TODO: add fwfoce_gmean, icefrc_gmean when available
+    TYPE(t_patch)         ,TARGET ,INTENT(in) :: pt_patch
+    TYPE(t_nwp_phy_diag)  ,TARGET, INTENT(in) :: prm_diag
+    TYPE(t_var_in_output) ,TARGET, INTENT(in) :: var_in_output
+    REAL(wp)                           :: scr(nproma,pt_patch%alloc_cell_blocks)
+
+    REAL(wp) :: tas_gmean, rsdt_gmean, rsut_gmean, rlut_gmean, prec_gmean, evap_gmean, radtop_gmean
+    TYPE(t_nwp_phy_diag), POINTER    :: field
+    INTEGER  :: jc, jcs, jce, jk, jks, jke, rls, rle
+
+    ! Compute row and block bounds for derived variables
+    rls = grf_bdywidth_c + 1
+    rle = min_rlcell_int
+    jks = pt_patch%cells%start_blk(rls, 1)
+    jke = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+
+    ! global mean t2m, tas_gmean, if requested for output
+    tas_gmean = 0.0_wp
+    IF (var_in_output%tas_gmean) THEN
+      CALL levels_horizontal_mean( prm_diag%t_2m(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & tas_gmean, lopenacc=.TRUE.)
+      prm_diag%tas_gmean = tas_gmean
+    END IF
+
+    ! global mean toa incident shortwave radiation, rsdt
+    rsdt_gmean = 0.0_wp
+    IF (var_in_output%rsdt_gmean) THEN
+      !call levels_horizontal_mean( prm_diag%sod_t(:,:), &
+      CALL levels_horizontal_mean( prm_diag%flxdwswtoa(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & rsdt_gmean, lopenacc=.TRUE.)
+      prm_diag%rsdt_gmean = rsdt_gmean
+    END IF
+
+    ! global mean toa outgoing shortwave radiation, rsut
+    rsut_gmean = 0.0_wp
+    IF (var_in_output%rsut_gmean) THEN
+      !CALL levels_horizontal_mean( prm_diag%sou_t(:,:), &
+      CALL levels_horizontal_mean( prm_diag%swflx_up_toa(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & rsut_gmean, lopenacc=.TRUE.)
+      prm_diag%rsut_gmean = rsut_gmean
+    END IF
+
+    ! global mean toa outgoing longwave radiation, rlut
+    rlut_gmean = 0.0_wp
+    IF (var_in_output%rlut_gmean) THEN
+      CALL levels_horizontal_mean( prm_diag%lwflxtoa(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & rlut_gmean, lopenacc=.TRUE.)
+      prm_diag%rlut_gmean = rlut_gmean
+    END IF
+
+    ! global mean precipitation flux, prec
+    prec_gmean = 0.0_wp
+    IF (var_in_output%prec_gmean) THEN
+      CALL levels_horizontal_mean( prm_diag%tot_prec_rate(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & prec_gmean, lopenacc=.TRUE.)
+      prm_diag%prec_gmean = prec_gmean
+    END IF
+
+    ! global mean evaporation flux, evap
+    evap_gmean = 0.0_wp
+    IF (var_in_output%evap_gmean) THEN
+      CALL levels_horizontal_mean( prm_diag%qhfl_s(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & evap_gmean, lopenacc=.TRUE.)
+      prm_diag%evap_gmean = evap_gmean
+    END IF
+
+    ! global mean P-E, derived from prec and evap
+    IF (var_in_output%pme_gmean  .AND. &
+        var_in_output%prec_gmean .AND. &
+        var_in_output%evap_gmean) THEN
+      prm_diag%pme_gmean = prm_diag%prec_gmean + &
+                           prm_diag%evap_gmean
+    ENDIF
+
+    ! global mean toa total radiation, radtop, derived variable
+    radtop_gmean = 0.0_wp
+    IF (var_in_output%radtop_gmean) THEN
+
+      field => prm_diag
+
+      !$ACC DATA PRESENT( field%rsdt, field%rsut, field%rlut ) &
+      !$ACC       CREATE( scr )
+
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP SEQ
+      DO jk = jks, jke
+        CALL get_indices_c(pt_patch, jk, jks, jke, jcs, jce, rls, rle)
+        !$ACC LOOP GANG VECTOR
+        DO jc = jcs, jce
+          scr(jc,jk) = 0.0_wp
+          !scr(jc,jk) = field%sod_t(jc,jk) - field%sou_t(jc,jk) + field%thb_t(jc,jk)
+          scr(jc,jk) = field%flxdwswtoa(jc,jk) - field%swflx_up_toa(jc,jk) + field%lwflxtoa(jc,jk)
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      CALL levels_horizontal_mean( scr(:,:), &
+          & pt_patch%cells%area(:,:), &
+          & pt_patch%cells%owned, &
+          & radtop_gmean, lopenacc=.TRUE.)
+
+      !$ACC END DATA
+
+      NULLIFY(field)
+      prm_diag%radtop_gmean = radtop_gmean
+    END IF
+
+  END SUBROUTINE nwp_diag_global
 
 END MODULE mo_nwp_diagnosis
 

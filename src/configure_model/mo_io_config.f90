@@ -157,6 +157,15 @@ MODULE mo_io_config
     LOGICAL :: srh          = .FALSE. !< Flag. TRUE if computation of storm relative helicity (SRH) is desired
     LOGICAL :: cape_mu      = .FALSE. !< Flag. TRUE if computation of most unstable CAPE is desired
     LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition is desired
+    ! add vars for global mean claclulations
+    LOGICAL :: tas_gmean    = .FALSE. !< Flag. TRUE if computation of global mean T2m 
+    LOGICAL :: rsdt_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa downward short wave rad
+    LOGICAL :: rsut_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa upward short wave rad
+    LOGICAL :: rlut_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa upward long wave rad
+    LOGICAL :: prec_gmean   = .FALSE. !< Flag. TRUE if computation of global mean precipitation
+    LOGICAL :: evap_gmean   = .FALSE. !< Flag. TRUE if computation of global mean evapotranspiration
+    LOGICAL :: pme_gmean    = .FALSE. !< Flag. TRUE if computation of global mean P-E
+    LOGICAL :: radtop_gmean = .FALSE. !< Flag. TRUE if computation of global mean net radiation
     !
     ! diagnostics for the horizontal wind tendencies in the dynamical core
     LOGICAL :: ddt_vn_dyn  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_dyn is required
@@ -313,6 +322,15 @@ CONTAINS
         var_in_output(jg)%srh         = is_variable_in_output_dom(var_name="srh", jg=jg)
         var_in_output(jg)%cape_mu     = is_variable_in_output_dom(var_name="cape_mu", jg=jg)
         var_in_output(jg)%cin_mu      = is_variable_in_output_dom(var_name="cin_mu", jg=jg)
+        ! add vars for global mean claclulations
+        var_in_output(jg)%tas_gmean   = is_variable_in_output_dom(var_name="tas_gmean", jg=jg)
+        var_in_output(jg)%rsdt_gmean  = is_variable_in_output_dom(var_name="rsdt_gmean", jg=jg)
+        var_in_output(jg)%rsut_gmean  = is_variable_in_output_dom(var_name="rsut_gmean", jg=jg)
+        var_in_output(jg)%rlut_gmean  = is_variable_in_output_dom(var_name="rlut_gmean", jg=jg)
+        var_in_output(jg)%prec_gmean  = is_variable_in_output_dom(var_name="prec_gmean", jg=jg)
+        var_in_output(jg)%evap_gmean  = is_variable_in_output_dom(var_name="evap_gmean", jg=jg)
+        var_in_output(jg)%pme_gmean   = is_variable_in_output_dom(var_name="pme_gmean", jg=jg)
+        var_in_output(jg)%radtop_gmean= is_variable_in_output_dom(var_name="radtop_gmean", jg=jg)
 
         ! Check for special case: SMI is not in one of the output lists but it is part of a output group.
         ! In this case, the group can not be checked, as the connection between SMI and the group will be

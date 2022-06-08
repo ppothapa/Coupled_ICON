@@ -522,6 +522,18 @@ MODULE mo_nwp_phy_types
     REAL(wp), ALLOCATABLE :: &
       turb_diag_1dvar(:,:), turb_diag_0dvar(:)  
 
+    ! vars for global diagnostics based on src/atm_phy_echam/mo_echam_phy_memory.f90
+    REAL(wp),POINTER ::       &
+      !
+      & tas_gmean    (:)=>NULL(),      &!< [K] global mean 2m-temperature
+      & rsdt_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa incident shortwave radiation
+      & rsut_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa outgoing shortwave radiation
+      & rlut_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa outgoing longwave radiation
+      & prec_gmean   (:)=>NULL(),      &!< [kg/m2/s] global mean precipitation flux
+      & evap_gmean   (:)=>NULL(),      &!< [kg/m2/s] global mean evaporation flux
+      & pme_gmean    (:)=>NULL(),      &!< [kg/m2/s] global mean P-E
+      & radtop_gmean (:)=>NULL()        !< [W/m2] global mean toa total radiation, derived variable
+
   END TYPE t_nwp_phy_diag
   !
   ! !---tendencies of type global!

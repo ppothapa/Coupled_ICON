@@ -98,7 +98,7 @@ USE mo_cf_convention,       ONLY: t_cf_var
 USE mo_grib2,               ONLY: t_grib2_var, grib2_var, t_grib2_int_key, OPERATOR(+)
 USE mo_cdi,                 ONLY: TSTEP_MIN, TSTEP_MAX, TSTEP_INSTANT, TSTEP_CONSTANT, &
     &                             TSTEP_AVG, TSTEP_ACCUM, DATATYPE_PACK16,             &
-    &                             DATATYPE_FLT32, DATATYPE_FLT64, GRID_UNSTRUCTURED
+    &                             DATATYPE_FLT32, DATATYPE_FLT64, GRID_UNSTRUCTURED, GRID_LONLAT
 USE mo_zaxis_type,          ONLY: ZA_REFERENCE, ZA_REFERENCE_HALF,          &
   &                               ZA_SURFACE, ZA_HEIGHT_2M, ZA_HEIGHT_10M,       &
   &                               ZA_HEIGHT_2M_LAYER, ZA_TOA, ZA_DEPTH_BELOW_LAND,   &
@@ -4643,6 +4643,80 @@ __acc_attach(diag%clct)
         END DO
       END DO sensor_loop
 
+    ENDIF
+
+    ! vars for global diagnostics as in src/atm_phy_echam/mo_echam_phy_memory.f90
+    IF (var_in_output%tas_gmean) THEN
+      cf_desc    = t_cf_var('tas_gmean', 'K', 'global mean temperature at 2m', datatype_flt,'tas_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'tas_gmean', diag%tas_gmean,            &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%tas_gmean)
+    ENDIF
+    IF (var_in_output%rsdt_gmean) THEN
+      cf_desc    = t_cf_var('rsdt_gmean', 'W m-2', 'global mean toa incident shortwave radiation', datatype_flt,'rsdt_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'rsdt_gmean', diag%rsdt_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%rsdt_gmean)
+    ENDIF
+    IF (var_in_output%rsut_gmean) THEN
+      cf_desc    = t_cf_var('rsut_gmean', 'W m-2', 'global mean toa outgoing shortwave radiation', datatype_flt,'rsut_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'rsut_gmean', diag%rsut_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%rsut_gmean)
+    ENDIF
+    IF (var_in_output%rlut_gmean) THEN
+      cf_desc    = t_cf_var('rlut_gmean', 'W m-2', 'global mean toa outgoing longwave radiation', datatype_flt,'rlut_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'rlut_gmean', diag%rlut_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%rlut_gmean)
+    ENDIF
+    IF (var_in_output%prec_gmean) THEN
+      cf_desc    = t_cf_var('prec_gmean', 'kg m-2 s-1', 'global mean precipitation flux', datatype_flt,'prec_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'prec_gmean', diag%prec_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%prec_gmean)
+    ENDIF
+    IF (var_in_output%evap_gmean) THEN
+      cf_desc    = t_cf_var('evap_gmean', 'kg m-2 s-1', 'global mean evaporation flux', datatype_flt,'evap_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'evap_gmean', diag%evap_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%evap_gmean)
+    ENDIF
+    IF (var_in_output%pme_gmean) THEN
+      cf_desc    = t_cf_var('pme_gmean', 'kg m-2 s-1', 'global mean P-E', datatype_flt,'pme_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'pme_gmean', diag%pme_gmean,          &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%pme_gmean)
+    ENDIF
+    IF (var_in_output%radtop_gmean) THEN
+      cf_desc    = t_cf_var('radtop_gmean', 'W m-2', 'global mean toa total radiation', datatype_flt,'radtop_gmean')
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_LONLAT)
+      CALL add_var( diag_list, 'radtop_gmean', diag%radtop_gmean,      &
+                  & GRID_LONLAT, ZA_SURFACE, cf_desc, grib2_desc,                &
+                  & lrestart = .FALSE., ldims=(/1/),                             &
+                  & lopenacc=.TRUE.)
+      __acc_attach(diag%radtop_gmean)
     ENDIF
 
     CALL message('mo_nwp_phy_state:construct_nwp_phy_diag', &
