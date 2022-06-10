@@ -2507,7 +2507,7 @@ CONTAINS
 
       field => prm_diag
 
-      !$ACC DATA PRESENT( field%rsdt, field%rsut, field%rlut ) &
+      !$ACC DATA PRESENT( field ) &
       !$ACC       CREATE( scr )
 
       !$ACC PARALLEL DEFAULT(PRESENT)
