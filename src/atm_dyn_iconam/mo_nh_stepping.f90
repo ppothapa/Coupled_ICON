@@ -69,7 +69,7 @@ MODULE mo_nh_stepping
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
     &                                    ldeepatmo
-  USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output
+  USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, itype_comm, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
@@ -185,6 +185,7 @@ MODULE mo_nh_stepping
                                          sampl_freq_step, les_cloud_diag  
 #endif
   USE mo_restart,                  ONLY: t_RestartDescriptor, createRestartDescriptor, deleteRestartDescriptor
+  USE mo_restart_util,             ONLY: check_for_checkpoint
   USE mo_prepadv_types,            ONLY: t_prepare_adv
   USE mo_prepadv_state,            ONLY: prep_adv, jstep_adv
   USE mo_action,                   ONLY: reset_act
@@ -264,6 +265,7 @@ MODULE mo_nh_stepping
   LOGICAL, ALLOCATABLE :: linit_dyn(:)  ! determines whether dynamics must be initialized
                                         ! on given patch
 
+  LOGICAL :: lready_for_checkpoint = .FALSE.
   ! event handling manager, wrong place, have to move later
 
   TYPE(eventGroup), POINTER :: checkpointEventGroup => NULL()
@@ -794,6 +796,7 @@ MODULE mo_nh_stepping
   REAL(wp)                             :: sim_time     !< elapsed simulation time
 
   LOGICAL :: l_isStartdate, l_isExpStopdate, l_isRestart, l_isCheckpoint, l_doWriteRestart
+  LOGICAL :: lstop_on_demand = .FALSE. , lchkp_allowed = .FALSE.
 
   REAL(wp), ALLOCATABLE :: elapsedTime(:)  ! time elapsed since last call of 
                                            ! NWP physics routines. For restart purposes.
@@ -990,6 +993,21 @@ MODULE mo_nh_stepping
     ! update model date and time mtime based
     mtime_current = mtime_current + model_time_step
 
+    ! provisional implementation for checkpoint+stop on demand
+    IF (checkpoint_on_demand) CALL check_for_checkpoint(lready_for_checkpoint, lchkp_allowed, lstop_on_demand)
+
+    IF (lstop_on_demand) THEN
+      ! --- --- create restart event, ie. checkpoint + model stop
+      eventInterval  => model_time_step
+      restartEvent => newEvent('restart', restartRefDate, eventStartDate, mtime_current, eventInterval, errno=ierr)
+      IF (ierr /= no_Error) THEN
+        CALL mtime_strerror(ierr, errstring)
+        CALL finish('perform_nh_timeloop', "event 'restart': "//errstring)
+      ENDIF
+      CALL message('perform_nh_timeloop', "checkpoint+stop forced during runtime")
+      lret = addEventToEventGroup(restartEvent, checkpointEventGroup)
+    ENDIF
+
     ! store state of output files for restarting purposes
     IF (output_mode%l_nml .AND. jstep>=0 ) THEN
       DO i=1,SIZE(output_file)
@@ -1171,13 +1189,13 @@ MODULE mo_nh_stepping
     ! Calculations for enhanced sound-wave and gravity-wave damping during the spinup phase
     ! if mixed second-order/fourth-order divergence damping (divdamp_order=24) is chosen.
     ! Includes increased vertical wind off-centering during the first 2 hours of integration.
-    IF (divdamp_order==24 .AND. .NOT. isRestart()) THEN
+    IF (divdamp_order==24) THEN
       elapsed_time_global = (REAL(jstep,wp)-0.5_wp)*dtime
       IF (elapsed_time_global <= 7200._wp+0.5_wp*dtime .AND. .NOT. ltestcase) THEN
         CALL update_spinup_damping(elapsed_time_global)
+      ELSE
+        divdamp_fac_o2 = 0._wp
       ENDIF
-    ELSE IF (divdamp_order==24) THEN
-      divdamp_fac_o2 = 0._wp
     ENDIF
 
 
@@ -1589,7 +1607,7 @@ MODULE mo_nh_stepping
     !$ser verbatim   CALL serialize_all(nproma, jg, "time_loop_end", .FALSE., opt_lupdate_cpu=.FALSE., opt_id=iau_iter)
     !$ser verbatim ENDDO
 
-    IF (mtime_current >= time_config%tc_stopdate) THEN
+    IF (mtime_current >= time_config%tc_stopdate .OR. lstop_on_demand) THEN
        ! leave time loop
        EXIT TIME_LOOP
     END IF
@@ -2850,6 +2868,12 @@ MODULE mo_nh_stepping
       ENDIF
 
     END DO SUBSTEPS
+
+    IF ( ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode) ) THEN
+      IF (cur_time > dt_iau) lready_for_checkpoint = .TRUE.
+    ELSE
+      lready_for_checkpoint = .TRUE.
+    ENDIF
 
     ! airmass_new
     CALL compute_airmass(p_patch   = p_patch,                       & !in

@@ -3229,6 +3229,17 @@ I& 1 & &
 & \verb+restart_write_mode+ = \verb+"dedicated procs multifile"+ 
 \tabularnewline
 
+
+%\hline
+checkpoint\_on\_demand&
+L&  F& &
+\texttt{.TRUE.} allows checkpointing (followed by stopping) during runtime triggered by a file named 'stop\_icon' in the working directory.
+In addition, a file named 'ready\_for\_checkpoint' is generated in the working directory once the model is ready for checkpointing, i.e. after
+the end of the setup phase, or, if applicable, the end of the IAU phase. & 
+Combination with \verb+restart_write_mode+ = \verb+"joint procs multifile"+ is strongly recommended
+\tabularnewline
+
+
 %\hline
 lmask\_boundary&
 L&  F& &

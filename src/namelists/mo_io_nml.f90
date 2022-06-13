@@ -62,6 +62,7 @@ MODULE mo_io_nml
                                  & config_lmask_boundary            => lmask_boundary          , &
                                  & config_restart_write_mode        => restart_write_mode   , &
                                  & config_nrestart_streams          => nrestart_streams     , &
+                                 & config_checkpoint_on_demand      => checkpoint_on_demand , &
                                  & config_wshear_uv_heights       => wshear_uv_heights      , &
                                  & config_srh_heights             => srh_heights
 
@@ -173,6 +174,9 @@ CONTAINS
     ! files may then be read in parallel.
     INTEGER :: nrestart_streams
 
+    ! Allows checkpointing (followed by stopping) during runtime triggered by a file named 'stop_icon' in the workdir
+    LOGICAL :: checkpoint_on_demand
+
     REAL(wp) :: wshear_uv_heights(1:max_wshear)
 
     REAL(wp) :: srh_heights(1:max_srh)
@@ -187,7 +191,7 @@ CONTAINS
       &              lmask_boundary, gust_interval, restart_write_mode,   &
       &              nrestart_streams, celltracks_interval, echotop_meta, &
       &              precip_interval, totprec_d_interval, runoff_interval,&
-      &              maxt_interval,                                       &
+      &              maxt_interval, checkpoint_on_demand,                 &
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
       &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
       &              melt_interval, wshear_uv_heights, srh_heights
@@ -240,6 +244,7 @@ CONTAINS
 
     restart_write_mode = ""
     nrestart_streams   = 1
+    checkpoint_on_demand = .FALSE.
 
     wshear_uv_heights(:) = -999.99_wp  ! missing value
     wshear_uv_heights(1:3) = (/ 1000.0_wp, 3000.0_wp, 6000.0_wp /)
@@ -326,6 +331,7 @@ CONTAINS
     config_lmask_boundary          = lmask_boundary
     config_restart_write_mode      = tolower(restart_write_mode)
     config_nrestart_streams        = nrestart_streams
+    config_checkpoint_on_demand    = checkpoint_on_demand
     config_wshear_uv_heights       = wshear_uv_heights
     config_srh_heights             = srh_heights
     

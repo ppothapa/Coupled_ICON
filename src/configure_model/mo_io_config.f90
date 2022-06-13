@@ -235,6 +235,9 @@ MODULE mo_io_config
   ! may then be read in parallel.
   INTEGER :: nrestart_streams
 
+  ! Allows checkpointing (followed by stopping) during runtime triggered by a file named 'stop_icon' in the workdir
+  LOGICAL :: checkpoint_on_demand
+
   ! constants to communicate which restart writing MODULE to USE
   ENUM, BIND(C)
     ENUMERATOR :: kSyncRestartModule = 1, kAsyncRestartModule, kMultifileRestartModule
