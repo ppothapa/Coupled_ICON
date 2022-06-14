@@ -162,9 +162,6 @@ MODULE mo_advection_config
                                     !< of 1 gives strict monotonicity (at the price of increased 
                                     !< diffusivity).
 
-    INTEGER :: iord_backtraj        !< parameter to select the spacial order     
-                                    !< of accuracy for the backward trajectory   
-
     INTEGER :: igrad_c_miura        !< parameter used to select the gradient     
                                     !< reconstruction method at cell center      
                                     !< for second order miura scheme             
@@ -322,13 +319,11 @@ CONTAINS
     !
 
     ! The full set of setup computations is NOT executed in prepare_tracer 
-    ! when the tracer advection is running together with the dynmical core 
+    ! when the tracer advection is running together with the dynamical core 
     ! (solve_nh) and only standard namelist settings are chosen (i.e. 
-    ! first-order backward trajectory computation, idiv_method = 1)
+    ! idiv_method = 1)
     !
-    IF ( advection_config(jg)%iord_backtraj == 2      .OR. &
-      &  idiv_method  == 2                            .OR. &
-      &  itime_scheme == TRACER_ONLY                       ) THEN
+    IF ( idiv_method == 2 .OR. itime_scheme == TRACER_ONLY ) THEN
       advection_config(jg)%lfull_comp = .TRUE.
     ELSE
       advection_config(jg)%lfull_comp = .FALSE. ! do not perform full set of computations in prepare_tracer

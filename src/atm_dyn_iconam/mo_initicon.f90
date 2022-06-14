@@ -40,7 +40,8 @@ MODULE mo_initicon
     &                               lp2cintp_incr, lp2cintp_sfcana, ltile_coldstart, lconsistency_checks, &
     &                               niter_divdamp, niter_diffu, lanaread_tseasfc, qcana_mode, qiana_mode, &
     &                               qrsgana_mode, fgFilename, anaFilename, ana_varnames_map_file,         &
-    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow, icpl_da_sfcfric
+    &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow, icpl_da_sfcfric, &
+    &                               lcouple_ocean_coldstart
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_advection_config,    ONLY: advection_config
   USE mo_nwp_tuning_config,   ONLY: max_freshsnow_inc
@@ -61,8 +62,8 @@ MODULE mo_initicon
   USE mo_satad,               ONLY: sat_pres_ice, spec_humi, sat_pres_water
   USE mo_lnd_nwp_config,      ONLY: nlev_soil, ntiles_total, ntiles_lnd, llake, &
     &                               isub_lake, isub_water, lsnowtile, frlnd_thrhld, &
-    &                               frlake_thrhld, lprog_albsi, dzsoil_icon => dzsoil
-  USE sfc_seaice,             ONLY: frsi_min
+    &                               frlake_thrhld, lprog_albsi, dzsoil_icon => dzsoil, &
+    &                               frsi_min
   USE mo_atm_phy_nwp_config,  ONLY: iprog_aero, atm_phy_nwp_config
   USE sfc_terra_data,         ONLY: cporv, cadp, cpwp, cfcap, crhosmaxf, crhosmin_ml, crhosmax_ml
   USE sfc_terra_init,         ONLY: get_wsnow
@@ -76,7 +77,7 @@ MODULE mo_initicon
   USE sfc_flake,              ONLY: flake_coldinit
   USE mo_initicon_utils,      ONLY: fill_tile_points, init_snowtiles, copy_initicon2prog_atm, copy_initicon2prog_sfc, &
                                   & construct_initicon, deallocate_initicon, copy_fg2initicon, &
-                                  & initVarnamesDict, printChecksums, init_aerosol
+                                  & initVarnamesDict, printChecksums, init_aerosol, new_land_from_ocean
   USE mo_initicon_io,         ONLY: read_extana_atm, read_extana_sfc, fetch_dwdfg_atm, fetch_dwdana_sfc, &
                                   & process_input_dwdana_sfc, process_input_dwdana_atm, process_input_dwdfg_sfc, &
                                   & fetch_dwdfg_sfc, fetch_dwdfg_atm_ii, fetch_dwdana_atm
@@ -88,6 +89,7 @@ MODULE mo_initicon
   USE mo_nwp_sfc_utils,       ONLY: seaice_albedo_coldstart
   USE mo_fortran_tools,       ONLY: init
   USE mo_upatmo_config,       ONLY: upatmo_config
+  USE mo_coupling_config,     ONLY: is_coupled_run
 
 
   IMPLICIT NONE
@@ -632,6 +634,14 @@ MODULE mo_initicon
       ENDIF
     ENDDO  !jg
 
+    ! for coupled ocean-atmosphere run define w_so and t_so for new land points
+
+    IF ( iforcing == inwp .AND. is_coupled_run() .AND. lcouple_ocean_coldstart ) THEN
+
+      CALL new_land_from_ocean(p_patch, p_nh_state, p_lnd_state, ext_data)
+
+    ENDIF
+  
   END SUBROUTINE process_dwdana
 
   ! Reads the data from the first-guess and analysis files, and does any required processing of that input data.

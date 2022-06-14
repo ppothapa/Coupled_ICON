@@ -7,12 +7,16 @@ hostname=${HOSTNAME:-unknown}
 echo "Start runexp switcher on $hostname ..."
 
 case $hostname in
-    daint*)
-        echo "   select bash variant ..."        
-	exec ./scripts/buildbot_scripts/runexp.bash
-	;;  
-    *)
-        echo "   select ksh variant ..."                
-	exec ./scripts/buildbot_scripts/runexp.ksh
-	;;	
+  daint*)
+    echo "   execute with bash ..."
+    /bin/bash ./scripts/buildbot_scripts/runexp.bash
+    ;;
+  levant*)
+    echo "   execute with bash ..."
+    /bin/bash ./scripts/buildbot_scripts/runexp.bash
+    ;;
+  *)
+    echo "   execute with ksh ..."
+    /bin/ksh ./scripts/buildbot_scripts/runexp.bash
+    ;;
 esac

@@ -166,10 +166,8 @@ cat > ${atmo_namelist} << EOF
 ! ivadv_tracer  = 3,3,3,3,3,0
 ! ! igrad_c_miura = 1
 ! lvadv_tracer  = .TRUE.
-! lstrang       = .FALSE.
 ! itype_hlimit = 3,4,4,4,4,0
 ! itype_vlimit  = 1
-! iord_backtraj = 1          ! default: 1
 /
 &diffusion_nml
  hdiff_order      = 5

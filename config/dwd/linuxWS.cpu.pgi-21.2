@@ -120,7 +120,7 @@ fi
 LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIBS} ${OPENJPB_LIBS} ${AEC_LIBS} ${SERIALBOX2_LIBS} ${STDCPP_LIBS}"
 #LIBS+=" ${ZLIB_LIBS} ${RTTOV_LIB}"
 
-EXTRA_CONFIG_ARGS='--without-external-yac --disable-ocean --disable-jsbach --disable-rttov'
+EXTRA_CONFIG_ARGS='--without-external-yac --disable-ocean --disable-jsbach --disable-rttov --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt'
 EXTRA_CONFIG_ARGS+=' --enable-ecrad'
 # --enable-grib2

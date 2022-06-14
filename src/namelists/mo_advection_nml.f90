@@ -112,10 +112,6 @@ MODULE mo_advection_nml
                                    !< of 1 gives strict monotonicity (at the price of increased 
                                    !< diffusivity).
 
-
-  INTEGER :: iord_backtraj         !< parameter to select the spacial order
-                                   !< of accuracy for the backward trajectory
-
   INTEGER :: igrad_c_miura         !< parameter used to select the gradient
                                    !< reconstruction method at cell center
                                    !< for second order miura scheme
@@ -137,7 +133,7 @@ MODULE mo_advection_nml
     &                     itype_vlimit, ivlimit_selective,                &
     &                     ivcfl_max, itype_hlimit,                        &
     &                     iadv_tke, beta_fct,                             &
-    &                     iord_backtraj, lclip_tracer, tracer_names,      &
+    &                     lclip_tracer, tracer_names,                     &
     &                     ctracer_list, igrad_c_miura, llsq_svd,          &
     &                     npassive_tracer, init_formula, nadv_substeps
 
@@ -191,7 +187,6 @@ CONTAINS
     iadv_tke             = 0         ! no TKE advection
     beta_fct             = 1.005_wp  ! factor of allowed over-/undershooting in monotonous limiter
     ivcfl_max            = 5         ! CFL-stability range for vertical advection
-    iord_backtraj        = 1         ! 1st order backward trajectory
     lvadv_tracer         = .TRUE.    ! vertical advection yes/no
     lclip_tracer         = .FALSE.   ! clipping of negative values yes/no
 
@@ -386,7 +381,6 @@ CONTAINS
       advection_config(jg)%itype_hlimit(:)     = itype_hlimit(:)
       advection_config(jg)%ivlimit_selective(:)= ivlimit_selective(:)
       advection_config(jg)%beta_fct            = beta_fct
-      advection_config(jg)%iord_backtraj       = iord_backtraj
       advection_config(jg)%igrad_c_miura       = igrad_c_miura
       advection_config(jg)%iadv_tke            = iadv_tke
       advection_config(jg)%ivcfl_max           = ivcfl_max

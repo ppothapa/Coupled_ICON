@@ -38,7 +38,6 @@ MODULE mo_nh_dtp_interface
   USE mo_intp_data_strc,     ONLY: t_int_state
   USE mo_loopindices,        ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants,     ONLY: min_rledge_int, min_rlcell_int, min_rlcell
-  USE mo_advection_config,   ONLY: advection_config
   USE mo_timer,              ONLY: timers_level, timer_start, timer_stop, timer_prep_tracer
   USE mo_fortran_tools,      ONLY: init
 #ifdef _OPENACC
@@ -86,12 +85,12 @@ CONTAINS
     &                        p_vn_traj, p_mass_flx_me,                        &!inout
     &                        p_mass_flx_ic                                    )!inout
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+    TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
 
-    TYPE(t_nh_prog),INTENT(IN)    :: p_now, p_new
-    TYPE(t_nh_metrics),INTENT(IN) :: p_metrics
-    TYPE(t_int_state), INTENT(IN) :: p_int
-    TYPE(t_nh_diag),INTENT(INOUT) :: p_nh_diag
+    TYPE(t_nh_prog),       INTENT(IN) :: p_now, p_new
+    TYPE(t_nh_metrics),    INTENT(IN) :: p_metrics
+    TYPE(t_int_state),     INTENT(IN) :: p_int
+    TYPE(t_nh_diag),       INTENT(IN) :: p_nh_diag
 
 
     INTEGER, INTENT(IN) :: ndyn_substeps !< used here to switch off time-averaging
@@ -114,7 +113,7 @@ CONTAINS
     ! Pointers to quad edge indices
     INTEGER,  POINTER :: iqidx(:,:,:), iqblk(:,:,:)
 
-    INTEGER  :: je, jc, jk, jb, jg       !< loop indices and domain ID
+    INTEGER  :: je, jc, jk, jb       !< loop indices and domain ID
     INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER  :: i_rlstart_e, i_rlend_e, i_rlstart_c, i_rlend_c
     INTEGER  :: nlev, nlevp1       !< number of full and half levels
@@ -130,9 +129,6 @@ CONTAINS
     ! refinement control start/end level for cells
     i_rlstart_c = 1
     i_rlend_c   = min_rlcell_int
-
-    ! domain ID
-    jg = p_patch%id
 
 
     ! Set pointers to quad edges
@@ -150,9 +146,7 @@ CONTAINS
 !!$    !
 !!$    ! lfull_comp is only used by the nonhydrostatic core.
 !!$    lfull_computations = lfull_comp
-!!$    IF ( advection_config(jg)%iord_backtraj == 2            .OR. &
-!!$      &  idiv_method  == 2                                  .OR. &
-!!$      &  itime_scheme == TRACER_ONLY                             ) THEN
+!!$    IF ( idiv_method == 2 .OR. itime_scheme == TRACER_ONLY ) THEN
 !!$      lfull_computations = .TRUE.
 !!$    ENDIF
 
@@ -160,7 +154,7 @@ CONTAINS
 !$OMP PARALLEL PRIVATE(i_rlstart_e,i_rlend_e,i_startblk,i_endblk)
 
     i_rlstart_e = 1
-    IF ( advection_config(jg)%iord_backtraj == 2 .OR. idiv_method == 2 ) THEN
+    IF ( idiv_method == 2 ) THEN
       i_rlend_e   = min_rledge_int - 3
     ELSE
       i_rlend_e   = min_rledge_int - 2
@@ -280,15 +274,11 @@ CONTAINS
     !
     IF (lfull_comp .AND. lstep_advphy .AND. ndyn_substeps > 1 ) THEN
 
-
       r_ndyn_substeps = 1._wp/REAL(ndyn_substeps,wp)
 
-      i_rlstart_e  = 2
-      IF ( advection_config(jg)%iord_backtraj == 2 ) THEN
-        i_rlend_e   = min_rledge_int - 3
-      ELSE
-        i_rlend_e   = min_rledge_int - 2
-      ENDIF
+      i_rlstart_e = 2
+      i_rlend_e   = min_rledge_int - 2
+
       i_startblk   = p_patch%edges%start_block(i_rlstart_e)
       i_endblk     = p_patch%edges%end_block(i_rlend_e)
 

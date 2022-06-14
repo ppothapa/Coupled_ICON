@@ -52,7 +52,7 @@ MODULE mo_nh_init_nest_utils
   USE mo_nwp_lnd_types,         ONLY: t_lnd_prog, t_lnd_diag, t_wtr_prog
   USE mo_lnd_nwp_config,        ONLY: ntiles_total, ntiles_water, nlev_soil, lseaice, itype_trvg, &
     &                                 llake, isub_lake, frlake_thrhld, frsea_thrhld, lprog_albsi, &
-    &                                 itype_snowevap, dzsoil
+    &                                 itype_snowevap, dzsoil, frsi_min
   USE mo_initicon_config,       ONLY: icpl_da_sfcevap, icpl_da_skinc
   USE mo_nwp_lnd_state,         ONLY: p_lnd_state
   USE mo_nwp_phy_state,         ONLY: prm_diag
@@ -61,7 +61,6 @@ MODULE mo_nh_init_nest_utils
   USE mo_ext_data_state,        ONLY: ext_data
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
   USE mo_intp_rbf,              ONLY: rbf_vec_interpol_cell
-  USE sfc_seaice,               ONLY: frsi_min
   USE mo_nwp_sfc_interp,        ONLY: smi_to_wsoil, wsoil_to_smi
   USE sfc_flake,                ONLY: flake_coldinit
   USE mo_upatmo_config,         ONLY: upatmo_config

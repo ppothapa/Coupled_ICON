@@ -52,6 +52,7 @@ MODULE mo_nwp_lnd_state
     &                                HINTP_TYPE_LONLAT_BCTR, TLEV_NNOW_RCF,           &
     &                                ALB_SI_MISSVAL, TASK_COMPUTE_SMI
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL
+  USE mo_physical_constants,   ONLY: tmelt
   USE mo_parallel_config,      ONLY: nproma
   USE mo_nwp_lnd_types,        ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag, t_wtr_prog
   USE mo_exception,            ONLY: message, finish
@@ -1052,6 +1053,7 @@ MODULE mo_nwp_lnd_state
     CALL add_var( prog_list, vname_prefix//'t_ice'//suffix, p_prog_wtr%t_ice,  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
          & ldims=shape2d, tlev_source=TLEV_NNOW_RCF,                           &
+         & initval = tmelt,                                                    &
          & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in","mode_iau_fg_in", &
          &                 "mode_iau_old_fg_in","mode_combined_in","mode_cosmo_in", &
          &                 "mode_iniana"), lopenacc=.TRUE. )
@@ -1306,7 +1308,8 @@ MODULE mo_nwp_lnd_state
     &       p_diag_lnd%dzh_snow,  &
     &       p_diag_lnd%resid_wso, &
     &       p_diag_lnd%resid_wso_t, &
-    &       p_diag_lnd%resid_wso_inst_t)
+    &       p_diag_lnd%resid_wso_inst_t, &
+    &       p_diag_lnd%condhf_ice)
 
 
     !
@@ -1344,6 +1347,14 @@ MODULE mo_nwp_lnd_state
            &                 "mode_iniana"), lopenacc=.TRUE. )      
     __acc_attach(p_diag_lnd%fr_seaice)
 
+
+    ! & p_diag_lnd%condhf_ice(nproma,nblks_c)
+    cf_desc    = t_cf_var('condhf_ice', 'W m-2', 'conductive heat flux at sea-ice bottom', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, vname_prefix//'condhf_ice', p_diag_lnd%condhf_ice,&
+           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+           & ldims=shape2d, lrestart=.TRUE.,                                   &
+           & in_group=groups("land_vars"))
 
 
     ! & p_diag_lnd%qv_s_t(nproma,nblks_c,ntiles_total+ntiles_water)

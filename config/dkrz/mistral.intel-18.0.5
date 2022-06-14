@@ -49,7 +49,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS='--enable-intel-consistency --enable-vectorized-lrtm --enable-rte-rrtmgp --enable-parallel-netcdf --enable-art --enable-grib2 --enable-ecrad'
+EXTRA_CONFIG_ARGS='--enable-intel-consistency --enable-vectorized-lrtm --enable-rte-rrtmgp --enable-parallel-netcdf --enable-art --enable-grib2 --enable-ecrad --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

@@ -1900,7 +1900,10 @@
       INTEGER :: jm, jk, j, jb, jl
 
       jm = get_field_index(latbc%buffer, TRIM(name))
-      IF (jm <= 0)  CALL finish(routine//"_"//TRIM(name), "Internal error, invalid field index!")
+      ! buffer%internal_name is constructed based on the inverted latbc_varnames_map_file dictionary. 
+      ! A wrong name in the left column of latbc_varnames_map_file (internal name) will trigger the following error.
+      IF (jm <= 0)  CALL finish(routine//"_"//TRIM(name), &
+        &  "Internal error, invalid field index! Is "//TRIM(name)//" listed in latbc dict?")
 
       ! consistency check
       IF ((SIZE(target_buf,2) < latbc%buffer%nlev(jm)) .OR.  &

@@ -65,8 +65,8 @@ MODULE mo_radiation
     &                                irad_cfc12, vmr_cfc12,           &
     &                                irad_aero,                       &
     &                                izenith, cos_zenith_fixed, islope_rad
+  USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake, isub_water
   USE mo_extpar_config,        ONLY: nhori
-  USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_newcld_optics,        ONLY: newcld_optics
   USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
@@ -1758,6 +1758,8 @@ CONTAINS
     &                 trsol_clr_sfc,   & ! optional: normalized shortwave clear-sky net radiative flux at the surface
     &                 list_land_count, & ! optional: number of land points
     &                 list_land_idx,   & ! optional: index list of land points
+    &                 list_seawtr_count,&! optional: number of water points
+    &                 list_seawtr_idx, & ! optional: index list of water points
     &                 list_seaice_count,&! optional: number of seaice points
     &                 list_seaice_idx, & ! optional: index list of seaice points
     &                 list_lake_count, & ! optional: number of lake points
@@ -1825,6 +1827,8 @@ CONTAINS
     INTEGER, INTENT(in), OPTIONAL  ::   &
       &     list_land_count,            &  ! number of land points
       &     list_land_idx(kbdim),       &  ! index list of land points
+      &     list_seawtr_count,          &  ! number of water points
+      &     list_seawtr_idx(kbdim),     &  ! index list of water points
       &     list_lake_count,            &  ! number of lake points
       &     list_lake_idx(kbdim),       &  ! index list of lake points
       &     list_seaice_count,          &  ! number of seaice points
@@ -2134,8 +2138,15 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        ! (open) water points
-        ! not needed, yet
+        ! (open) water points (needed for A-O coupling)
+        !
+        DO ic = 1, list_seawtr_count
+          jc = list_seawtr_idx(ic)
+          pflxsfcsw_t(jc,isub_water) = MAX(0.1_wp*zflxsw(jc,klevp1), zflxsw(jc,klevp1) &
+            &                  + dflxsw_o_dalb(jc)*(albedo_t(jc,isub_water)-albedo(jc)))
+          pflxsfclw_t(jc,isub_water) = zflxlw(jc,klevp1) + dlwflxall_o_dtg(jc,klevp1) &
+            &                  * (ptsfc_t(jc,isub_water)-ptsfc(jc))
+        ENDDO
 
       ELSE IF (PRESENT(pflxsfcsw_t) .AND. PRESENT(pflxsfclw_t)) THEN
 
@@ -2165,6 +2176,12 @@ CONTAINS
           pflxsfclw_t(jc,1) = zflxlw(jc,klevp1)
         ENDDO
         !$ACC END PARALLEL
+
+        DO ic = 1, list_seawtr_count
+          jc = list_seawtr_idx(ic)
+          pflxsfcsw_t(jc,1) = zflxsw(jc,klevp1)
+          pflxsfclw_t(jc,1) = zflxlw(jc,klevp1)
+        ENDDO
 
       ENDIF ! ntiles
 

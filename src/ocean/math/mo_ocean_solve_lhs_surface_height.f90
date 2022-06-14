@@ -121,7 +121,7 @@ CONTAINS
     lhs_coeffs => this%op_coeffs_wp%lhs_all
     idx => this%op_coeffs_wp%lhs_CellToCell_index
     blk => this%op_coeffs_wp%lhs_CellToCell_block
-!ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, xco, ico) ICON_OMP_DEFAULT_SCHEDULE
+!ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
       lhs(:,blkNo) = 0.0_wp

@@ -100,8 +100,7 @@ MODULE mo_advection_hflux
     &                               prep_gauss_quadrature_q_list,               &
     &                               prep_gauss_quadrature_c,                    &
     &                               prep_gauss_quadrature_c_list
-  USE mo_advection_traj,      ONLY: btraj_dreg, t_back_traj,                    &
-    &                               btraj_compute_o1, btraj_compute_o2
+  USE mo_advection_traj,      ONLY: btraj_dreg, t_back_traj, btraj_compute_o1
   USE mo_advection_geometry,  ONLY: divide_flux_area, divide_flux_area_list
   USE mo_advection_hlimit,    ONLY: hflx_limiter_mo, hflx_limiter_pd
   USE mo_timer,               ONLY: timer_adv_hflx, timer_start, timer_stop
@@ -271,10 +270,6 @@ CONTAINS
 
       i_rlend_vt = MIN(i_rlend, min_rledge_int - 1)
 
-      IF ( advconf%iord_backtraj /= 1 ) THEN
-        i_rlend_vt = min_rledge_int - 3
-      ENDIF
-
       ! reconstruct tangential velocity component at edge midpoints
       CALL rbf_vec_interpol_edge( p_vn, p_patch, p_int,            &! in
         &                         z_real_vt, opt_rlend=i_rlend_vt, &! inout
@@ -292,42 +287,27 @@ CONTAINS
 
 
     IF (advconf%isAnyTypeMiura) THEN
-
+      !
       iadv_min_slev = advconf%miura_h%iadv_min_slev
       z_dthalf = 0.5_wp * p_dtime
 
-      IF (advconf%iord_backtraj == 1)  THEN
-
-        ! 1st order backward trajectory
-        CALL btraj_compute_o1( btraj       = btraj,            & !inout
-          &                  ptr_p         = p_patch,          & !in
-          &                  ptr_int       = p_int,            & !in
-          &                  p_vn          = p_vn,             & !in
-          &                  p_vt          = z_real_vt,        & !in
-          &                  p_dthalf      = z_dthalf,         & !in
-          &                  opt_rlstart   = i_rlstart,        & !in
-          &                  opt_rlend     = i_rlend_tr,       & !in
-          &                  opt_slev      = iadv_min_slev,    & !in
-          &                  opt_elev      = p_patch%nlev,     & !in
-          &                  opt_acc_async = .TRUE.            ) !in
-      ELSE
-        ! 2nd order backward trajectory
-        CALL btraj_compute_o2 ( btraj       = btraj,            & !inout
-          &                     ptr_p       = p_patch,          & !in
-          &                     ptr_int     = p_int,            & !in
-          &                     p_vn        = p_vn,             & !in
-          &                     p_vt        = z_real_vt,        & !in
-          &                     p_dthalf    = z_dthalf,         & !in
-          &                     opt_rlstart = i_rlstart,        & !in
-          &                     opt_rlend   = i_rlend_tr,       & !in
-          &                     opt_slev    = iadv_min_slev,    & !in
-          &                     opt_elev    = p_patch%nlev      ) !in
-      ENDIF
+      ! 1st order backward trajectory
+      CALL btraj_compute_o1( btraj       = btraj,            & !inout
+        &                  ptr_p         = p_patch,          & !in
+        &                  ptr_int       = p_int,            & !in
+        &                  p_vn          = p_vn,             & !in
+        &                  p_vt          = z_real_vt,        & !in
+        &                  p_dthalf      = z_dthalf,         & !in
+        &                  opt_rlstart   = i_rlstart,        & !in
+        &                  opt_rlend     = i_rlend_tr,       & !in
+        &                  opt_slev      = iadv_min_slev,    & !in
+        &                  opt_elev      = p_patch%nlev,     & !in
+        &                  opt_acc_async = .TRUE.            ) !in
     ENDIF
 
 
     IF (advconf%isAnyTypeMcycl) THEN
-
+      !
       iadv_min_slev = advconf%mcycl_h%iadv_min_slev
       ! should be moved to advection_config
       iadv_max_elev = MERGE( p_patch%nlev,qvsubstep_elev,  &
@@ -338,36 +318,18 @@ CONTAINS
 
       z_dthalf_cycl = 0.5_wp * p_dtime/REAL(nsubsteps,wp)
 
-      !
-      IF (advconf%iord_backtraj == 1)  THEN
-        !
-        ! 1st order backward trajectory for subcycled version
-        ! The only thing that differs is the time step passed in
-        CALL btraj_compute_o1( btraj     = btraj_cycl,       & !inout
-          &                  ptr_p       = p_patch,          & !in
-          &                  ptr_int     = p_int,            & !in
-          &                  p_vn        = p_vn,             & !in
-          &                  p_vt        = z_real_vt,        & !in
-          &                  p_dthalf    = z_dthalf_cycl,    & !in
-          &                  opt_rlstart = i_rlstart,        & !in
-          &                  opt_rlend   = i_rlend_tr,       & !in
-          &                  opt_slev    = iadv_min_slev,    & !in
-          &                  opt_elev    = iadv_max_elev     ) !in
-      ELSE
-        !
-        ! 2nd order backward trajectory for subcycled version
-        ! The only thing that differs is the time step passed in
-        CALL btraj_compute_o2 ( btraj       = btraj_cycl,       & !inout
-          &                     ptr_p       = p_patch,          & !in
-          &                     ptr_int     = p_int,            & !in
-          &                     p_vn        = p_vn,             & !in
-          &                     p_vt        = z_real_vt,        & !in
-          &                     p_dthalf    = z_dthalf_cycl,    & !in
-          &                     opt_rlstart = i_rlstart,        & !in
-          &                     opt_rlend   = i_rlend_tr,       & !in
-          &                     opt_slev    = iadv_min_slev,    & !in
-          &                     opt_elev    = iadv_max_elev     ) !in
-      ENDIF
+      ! 1st order backward trajectory for subcycled version
+      ! The only thing that differs is the time step passed in
+      CALL btraj_compute_o1( btraj     = btraj_cycl,       & !inout
+        &                  ptr_p       = p_patch,          & !in
+        &                  ptr_int     = p_int,            & !in
+        &                  p_vn        = p_vn,             & !in
+        &                  p_vt        = z_real_vt,        & !in
+        &                  p_dthalf    = z_dthalf_cycl,    & !in
+        &                  opt_rlstart = i_rlstart,        & !in
+        &                  opt_rlend   = i_rlend_tr,       & !in
+        &                  opt_slev    = iadv_min_slev,    & !in
+        &                  opt_elev    = iadv_max_elev     ) !in
     ENDIF
 
 
@@ -3046,13 +3008,8 @@ CONTAINS
         CALL finish(routine,                                        &
           &  'allocation for patch0_cell_idx,  patch0_cell_blk, falist failed' )
       ENDIF
-!$ACC ENTER DATA COPYIN( falist ) CREATE( patch0_cell_idx, patch0_cell_blk,  &
-!$ACC   falist%eidx, falist%elev, falist%len ),                              &
+!$ACC ENTER DATA CREATE( falist, patch0_cell_idx, patch0_cell_blk, falist%eidx, falist%elev, falist%len ) &
 !$ACC IF( i_am_accel_node .AND. acc_on )
-
-!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
-      falist%len(:) = 0 ! To be safe with the subsequent MAXVAL in the case of nesting
-!$ACC END KERNELS
 
       ! compute vertex coordinates for the departure region using a first
       ! order accurate (O(\Delta t)) backward trajectory-method
@@ -3063,8 +3020,8 @@ CONTAINS
         &              opt_slev=slev_ti, opt_elev=elev_ti,             &! in
         &              opt_falist=falist                               )! inout
 
-      npoints = MAXVAL(falist%len(:))
-      falist%npoints = npoints
+      npoints = MAXVAL(falist%len(:)) ! ACC: %len is set and updated to host in btraj_dreg
+      falist%npoints = npoints ! ACC: caution this is not updated to GPU as it is not used on GPU
 
       ! allocate temporary arrays for quadrature and upwind cells
       ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &

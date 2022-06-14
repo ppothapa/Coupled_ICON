@@ -568,7 +568,7 @@ cat > coupling_${EXPNAME}.xml << EOF
          </transient_couple>
       </couple>
    </couples>
-   <created date="16-04-2019 15:49" tool="YAC-CouplingGUI v.1.5"/>
+   <created date="08-11-2021 13:00" tool="YAC-CouplingGUI v.2.0.0"/>
 </coupling>
 EOF
 

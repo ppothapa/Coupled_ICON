@@ -5,5 +5,10 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 ${ICON_DIR}/config/dkrz/mistral.intel-18.0.5 --enable-yaxt --enable-openmp
 
-MAKE_PROCS=22
+if [ ! -z "${BB_NAME}" ] ; then
+  MAKE_PROCS=22
+  echo "MAKE_PROCS=${MAKE_PROCS}"
+else
+  MAKE_PROCS=8
+fi
 make -j ${MAKE_PROCS}

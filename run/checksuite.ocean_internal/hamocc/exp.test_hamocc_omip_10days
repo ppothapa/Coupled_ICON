@@ -366,12 +366,15 @@ EOF4
 
 #-----------------------------------------------------------------------------
 #  compare with reference
-if [[ x$BB_SYSTEM != x ]]; then
+builder=''
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+[[ ! -z $BB_SYSTEM ]] && builder="${BB_SYSTEM}_${BB_SLAVE}"  # old buildbot
+
+if [[ "x${builder}" != "x" ]]; then
 . ${thisdir}/postFunx.sh
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
-  slave=${BB_SYSTEM:-mistral}_${BB_SLAVE:-gcc}
-  refDir=${builbot_ocean_reference_path}/${slave}/${EXPNAME}
+  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_error $? "DIFFCHECK for exp: ${EXPNAME}"

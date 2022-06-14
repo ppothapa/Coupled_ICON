@@ -63,17 +63,21 @@ MODULE mo_ext_data_types
     !
     ! *** Land-Sea-Mask ***
 
-    LOGICAL, POINTER  ::   &   !< land-sea-mask for cell centers          [ ]
+    LOGICAL, POINTER  ::   &   !< atmosphere land-sea-mask on cell centers [ ]
       &  llsm_atm_c(:,:)       ! .TRUE. if landpoint
                                ! index1=1,nproma, index2=1,nblks_c
 
-    LOGICAL, POINTER  ::   &   !< mask function for lake points           [ ]
+    LOGICAL, POINTER  ::   &   !< mask function for lake points            [ ]
       &  llake_c(:,:)          ! .TRUE. if lake point
                                ! index1=1,nproma, index2=1,nblks_c
 
-    INTEGER, POINTER  ::   &   !< atmosphere land-sea-mask on cell centers [ ]
+    INTEGER, POINTER  ::   &   !< ocean land-sea-mask on cell centers [ ]
       &  lsm_ctr_c(:,:)        !  index1=1,nproma, index2=1,nblks_c
+                               ! 0: ocean, 1: land (read from extpar file)
 
+    INTEGER, POINTER  ::   &   !< land-sea-mask switched by ocean         [ ]
+      &  lsm_switch(:,:)       !  index1=1,nproma, index2=1,nblks_c
+                               ! 0: no change, 1: new land, 2: new ocean
 
     REAL(wp), POINTER  ::   &  !< elevation at cell centers               [m]
       &  elevation_c(:,:)
@@ -260,6 +264,8 @@ MODULE mo_ext_data_types
       &  rsmin(:,:)            ! index1=1,nproma, index2=1,nblks_c
     REAL(wp), POINTER ::   &   !< minimum value of stomata resistance     [ s/m ]
       &  rsmin2d_t(:,:,:)      ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+    REAL(wp), POINTER ::   &   !< minimum value of bare soil evaporation resistance     [ s/m ]
+      &  r_bsmin(:,:)          ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::   &   !< annual maximum NDVI                     [ ]
       &  ndvi_max(:,:)         ! index1=1,nproma, index2=1,nblks_c
@@ -528,7 +534,7 @@ MODULE mo_ext_data_types
   !>
   !! ocean external data class
   !!
-  !! ocean external data class
+  !! read from grid file
   !!
   TYPE :: t_external_ocean
 
@@ -545,6 +551,8 @@ MODULE mo_ext_data_types
   !   &  bathymetry_v(:,:)    !  index1=1,nproma, index2=1,nblks_v
 
     ! *** Land-Sea-Mask ***
+    ! inner sea (-2), boundary sea (-1, cells and vertices), boundary (0, edges),
+    ! boundary land (1, cells and vertices), inner land (2)
     INTEGER, POINTER  ::   &  !< land-sea-mask for cell centers          [ ]
       &  lsm_ctr_c(:,:)       !  index1=1,nproma, index2=1,nblks_c
     INTEGER, POINTER ::    &  !< land-sea-mask for cell edges
