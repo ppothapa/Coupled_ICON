@@ -4417,7 +4417,7 @@ CONTAINS
         v_shear(jc) = v_shear_up(jc) - v_shear_low(jc)
         speed_shear = SQRT(u_shear(jc)**2 + v_shear(jc)**2)
         u_storm(jc) = u_mean(jc) + r_or_left_fac * ref_speed_bunkers * v_shear(jc) / speed_shear
-        v_storm(jc) = u_mean(jc) - r_or_left_fac * ref_speed_bunkers * u_shear(jc) / speed_shear
+        v_storm(jc) = v_mean(jc) - r_or_left_fac * ref_speed_bunkers * u_shear(jc) / speed_shear
       END DO
 
       ! SRH-contribution in each model layer:
