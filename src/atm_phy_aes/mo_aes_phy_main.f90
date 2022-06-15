@@ -127,6 +127,25 @@ CONTAINS
     CALL omp_loop_cell(patch,droplet_number)
 
     !-------------------------------------------------------------------
+    ! Graupel (microphysics) processes
+    !-------------------------------------------------------------------
+    !
+    IF ( aes_phy_tc(jg)%dt_mig > dt_zero ) THEN
+       !
+       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_mig <= datetime_old) .AND. &
+            &                          (aes_phy_tc(jg)%ed_mig >  datetime_old)
+       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_mig,   datetime_old)
+       !
+       CALL message_forcing_action('graupel microphysics (mig)',    &
+            &                      is_in_sd_ed_interval, is_active)
+       !
+       CALL omp_loop_cell  (patch, interface_cloud_mig      ,&
+            &               is_in_sd_ed_interval, is_active ,&
+            &               datetime_old, pdtime            )
+       !
+    END IF
+
+    !-------------------------------------------------------------------
     ! Radiation (one interface for LW+SW)
     !-------------------------------------------------------------------
     !
@@ -243,25 +262,6 @@ CONTAINS
 #endif
     END IF
     !
-
-    !-------------------------------------------------------------------
-    ! Graupel (microphysics) processes
-    !-------------------------------------------------------------------
-    !
-    IF ( aes_phy_tc(jg)%dt_mig > dt_zero ) THEN
-       !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_mig <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_mig >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_mig,   datetime_old)
-       !
-       CALL message_forcing_action('graupel microphysics (mig)',    &
-            &                      is_in_sd_ed_interval, is_active)
-       !
-       CALL omp_loop_cell  (patch, interface_cloud_mig      ,&
-            &               is_in_sd_ed_interval, is_active ,&
-            &               datetime_old, pdtime            )
-       !
-    END IF
 
     !--------------------------------------------------------------------
     ! two-moment bulk microphysics by Seifert and Beheng (2006) processes

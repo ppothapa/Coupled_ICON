@@ -23,10 +23,9 @@ MODULE mo_cloud_mig
 
   USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_cloud_mig_config    ,ONLY: cloud_mig_config
-  USE mo_physical_constants  ,ONLY: cvd
-  USE mo_satad               ,ONLY: satad_v_3d, satad_v_3D_gpu
+  USE mo_aes_thermo          ,ONLY: saturation_adjustment
   USE gscp_data              ,ONLY: cloud_num
-  USE gscp_graupel           ,ONLY: graupel
+  USE mo_aes_graupel         ,ONLY: graupel
 
   IMPLICIT NONE
   PRIVATE
@@ -46,6 +45,7 @@ CONTAINS
        &                     rho        ,&
        &                     pf         ,&
        &                     cpair      ,&
+       &                     cvair      ,&
        &                     ta         ,&
        &                     qv         ,&
        &                     qc         ,&
@@ -61,6 +61,7 @@ CONTAINS
        &                     tend_qs    ,&
        &                     tend_qg    ,&
        &                     pr_rain    ,&
+       &                     pr_ice     ,&
        &                     pr_snow    ,&
        &                     pr_grpl    )
 
@@ -74,7 +75,8 @@ CONTAINS
     REAL(wp), INTENT(in)  :: dz      (:,:) !< vertical layer thickness
     REAL(wp), INTENT(in)  :: rho     (:,:) !< density
     REAL(wp), INTENT(in)  :: pf      (:,:) !< pressure
-    REAL(wp), INTENT(in)  :: cpair   (:,:) !< specific heat of air
+    REAL(wp), INTENT(in)  :: cpair   (:,:) !< isobaric specific heat of air
+    REAL(wp), INTENT(in)  :: cvair   (:,:) !< isometric specific heat of air
     !
     REAL(wp), INTENT(in)  :: ta      (:,:) !< temperature
     REAL(wp), INTENT(in)  :: qv      (:,:) !< sp humidity
@@ -93,6 +95,7 @@ CONTAINS
     REAL(wp), INTENT(out) :: tend_qg (:,:) !< tendency of graupel
 
     REAL(wp), INTENT(out) :: pr_rain (:)   !< precip rate rain
+    REAL(wp), INTENT(out) :: pr_ice  (:)   !< precip rate ice
     REAL(wp), INTENT(out) :: pr_snow (:)   !< precip rate snow
     REAL(wp), INTENT(out) :: pr_grpl (:)   !< precip rate graupel
 
@@ -102,7 +105,6 @@ CONTAINS
     INTEGER  :: jc
     INTEGER  :: jk, jks, jke
     !
-    REAL(wp) :: qi0, qc0
     REAL(wp) :: zqnc(SIZE(dz,1))
     !
     REAL(wp) :: zta(SIZE(dz,1),SIZE(dz,2))
@@ -112,23 +114,20 @@ CONTAINS
     REAL(wp) :: zqr(SIZE(dz,1),SIZE(dz,2))
     REAL(wp) :: zqs(SIZE(dz,1),SIZE(dz,2))
     REAL(wp) :: zqg(SIZE(dz,1),SIZE(dz,2))
-    !
-    REAL(wp) :: zqrsflux(SIZE(dz,1),SIZE(dz,2))
+    REAL(wp) :: total_ice(SIZE(dz,1),SIZE(dz,2))
+    REAL(wp) :: zqrsflux (SIZE(dz,1),SIZE(dz,2))
     !
     REAL(wp) :: zdtr ! reciprocal of timestep
 
-    !$ACC DATA PRESENT( dz, rho, pf, cpair, ta, qv, qc, qi, qr, qs, qg,                &
+    !$ACC DATA PRESENT( dz, rho, pf, cpair, cvair, ta, qv, qc, qi, qr, qs, qg,         &
     !$ACC               tend_ta, tend_qv, tend_qc, tend_qi, tend_qr, tend_qs, tend_qg, &
-    !$ACC               pr_rain, pr_snow, pr_grpl )                                    &
-    !$ACC       CREATE( zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, zqrsflux )
+    !$ACC               pr_ice, pr_rain, pr_snow, pr_grpl )                            &
+    !$ACC       CREATE( zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, total_ice, zqrsflux )
 
     nproma = SIZE(dz,1)
 
     jks = 1
     jke = (SIZE(dz,2))
-
-    qi0 = cloud_mig_config(jg)% qi0
-    qc0 = cloud_mig_config(jg)% qc0
 
     !$ACC PARALLEL DEFAULT(NONE)
     !$ACC LOOP GANG VECTOR
@@ -148,6 +147,7 @@ CONTAINS
           zqr(jc,jk) = qr(jc,jk)
           zqs(jc,jk) = qs(jc,jk)
           zqg(jc,jk) = qg(jc,jk)
+          total_ice(jc,jk) = qg(jc,jk)+qs(jc,jk)+qi(jc,jk)
        END DO
     END DO
     !$ACC END PARALLEL
@@ -158,24 +158,20 @@ CONTAINS
     !
     IF (ltimer) call timer_start(timer_sat)
     !
-#ifdef _OPENACC
-     CALL satad_v_3d_gpu(                                &
-#else
-     CALL satad_v_3d(                                    &
-#endif
-          &           maxiter  = 10              ,& !> in
-          &           idim     = nproma          ,& !> in
-          &           kdim     = jke             ,& !> in
-          &           ilo      = jcs             ,& !> in
-          &           iup      = jce             ,& !> in
-          &           klo      = jks             ,& !> in
-          &           kup      = jke             ,& !> in
-          &           tol      = 1.e-3_wp        ,& !> in
-          &           te       = zta       (:,:) ,& !> inout
-          &           qve      = zqv       (:,:) ,& !> inout
-          &           qce      = zqc       (:,:) ,& !> inout
-          &           rhotot   = rho       (:,:) )
-    !
+    CALL saturation_adjustment(                  &
+         &           idim     = nproma          ,& !> in
+         &           kdim     = jke             ,& !> in
+         &           ilo      = jcs             ,& !> in
+         &           iup      = jce             ,& !> in
+         &           klo      = jks             ,& !> in
+         &           kup      = jke             ,& !> in
+         &           te       = zta       (:,:) ,& !> inout
+         &           qve      = zqv       (:,:) ,& !> inout
+         &           qce      = zqc       (:,:) ,& !> inout
+         &           qre      = zqr       (:,:) ,& !> in
+         &           qti      = total_ice (:,:) ,& !> in
+         &           rho      = rho       (:,:) )  !> in
+
     IF (ltimer) call timer_stop(timer_sat)
 
     ! Single moment cloud microphyiscs for water vapor,
@@ -188,15 +184,8 @@ CONTAINS
          &        ivstart = jcs           ,& !< in
          &        ivend   = jce           ,& !< in
          &        kstart  = jks           ,& !< in
-         &        idbg    = msg_level     ,& !< in   : message level 
-         &        l_cv    = .TRUE.        ,& !< in   : if temp. is changed for const. volumes
-!!!      & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) ,& !< in: latent heat choice
-!!!                Not yet in use in sapphire physics part
          &        zdt     = pdtime        ,& !< in   : timestep
-         &        qi0     = qi0           ,& !< in   : cloud ice threshold for autoconversion
-         &        qc0     = qc0           ,& !< in   : cloud water threshold for autoconversion
          &        qnc     = zqnc    (:)   ,& !< in
-         !
          &        dz      = dz      (:,:) ,& !< in   : vertical layer thickness
          &        rho     = rho     (:,:) ,& !< in   : density
          &        p       = pf      (:,:) ,& !< in   : pressure
@@ -208,9 +197,10 @@ CONTAINS
          &        qr      = zqr     (:,:) ,& !< inout: rain
          &        qs      = zqs     (:,:) ,& !< inout: snow
          &        qg      = zqg     (:,:) ,& !< inout: graupel
+
          &        qrsflux = zqrsflux(:,:) ,& !<   out: precip flux in atmosphere
-         !
          &        prr_gsp = pr_rain (:)   ,& !<   out: precip rate rain
+         &        pri_gsp = pr_ice  (:)   ,& !<   out: precip rate cloud ice
          &        prs_gsp = pr_snow (:)   ,& !<   out: precip rate snow
          &        prg_gsp = pr_grpl (:)   )  !<   out: precip rate graupel
     !
@@ -220,23 +210,19 @@ CONTAINS
     !
     IF (ltimer) call timer_start(timer_sat)
     !
-#ifdef _OPENACC
-    CALL satad_v_3d_gpu(                                &
-#else
-    CALL satad_v_3d(                                    &
-#endif
-         &           maxiter  = 10              ,& !> in
+    CALL saturation_adjustment(                  &
          &           idim     = nproma          ,& !> in
          &           kdim     = jke             ,& !> in
          &           ilo      = jcs             ,& !> in
          &           iup      = jce             ,& !> in
          &           klo      = jks             ,& !> in
          &           kup      = jke             ,& !> in
-         &           tol      = 1.e-3_wp        ,& !> in
          &           te       = zta       (:,:) ,& !> inout
          &           qve      = zqv       (:,:) ,& !> inout
          &           qce      = zqc       (:,:) ,& !> inout
-         &           rhotot   = rho       (:,:) )
+         &           qre      = zqr       (:,:) ,& !> in
+         &           qti      = total_ice (:,:) ,& !> in
+         &           rho      = rho       (:,:) )  !> in
     !
     IF (ltimer) call timer_stop(timer_sat)
 
@@ -247,7 +233,7 @@ CONTAINS
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = jks,jke
        DO jc = jcs,jce
-          tend_ta(jc,jk) =     (zta(jc,jk)-ta(jc,jk))*zdtr*cvd/cpair(jc,jk)
+          tend_ta(jc,jk) =     (zta(jc,jk)-ta(jc,jk))*zdtr*cvair(jc,jk)/cpair(jc,jk)
           tend_qv(jc,jk) = MAX((zqv(jc,jk)-qv(jc,jk))*zdtr,-qv(jc,jk)*zdtr)
           tend_qc(jc,jk) = MAX((zqc(jc,jk)-qc(jc,jk))*zdtr,-qc(jc,jk)*zdtr)
           tend_qi(jc,jk) = MAX((zqi(jc,jk)-qi(jc,jk))*zdtr,-qi(jc,jk)*zdtr)

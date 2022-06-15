@@ -779,6 +779,27 @@ CONTAINS
        __acc_attach(cloud_mig_output%pr_rain)
     END IF
     !
+    IF ( is_variable_in_output(var_name='pr_ice') ) THEN
+       CALL add_var( this_list   = cloud_mig_list                                           ,&
+            &        varname     = 'pr_ice'                                                 ,&
+            &        ptr         = cloud_mig_output%pr_ice                                  ,&
+            &        hgrid       = grid_unstructured_cell                                   ,&
+            &        vgrid       = za_surface                                               ,&
+            &        ldims       = shape2d                                                  ,&
+            &        cf          = t_cf_var ('stratiform_icefall_flux',                      &
+            &                                'kg/m2/s',                                      &
+            &                                'stratiform icefall flux '//                    &
+            &                                '(cloud_mig output)',                           &
+            &                                datatype_flt)                                  ,&
+            &        grib2       = grib2_var(0,1,78,                                         &
+            &                                datatype_grb,                                   &
+            &                                grid_unstructured,                              &
+            &                                grid_cell)                                     ,&
+            &        isteptype   = tstep_instant                                            ,&
+            &        lopenacc    =.TRUE.                                                    )
+       __acc_attach(cloud_mig_output%pr_ice)
+    END IF
+    !
     IF ( is_variable_in_output(var_name='pr_snow') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'pr_snow'                                                ,&
