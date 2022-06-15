@@ -1188,10 +1188,13 @@ END SUBROUTINE upscale_rad_input
 !!
 SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc, rg_lwflx_up_sfc,         &
-  rg_trsol_up_toa, rg_trsol_up_sfc, rg_trsol_par_sfc, rg_trsol_dn_sfc_diff, &
+  rg_trsol_up_toa, rg_trsol_up_sfc, rg_trsol_nir_sfc, rg_trsol_vis_sfc,     &
+  rg_trsol_par_sfc, rg_fr_nir_sfc_diff, rg_fr_vis_sfc_diff,                 &
+  rg_fr_par_sfc_diff, rg_trsol_dn_sfc_diff,                                 &
   tsfc_rg, albdif_rg, emis_rad_rg, cosmu0_rg, tot_cld_rg, z_tot_cld,        &
   pres_ifc_rg, z_pres_ifc, tsfc, albdif, aclcov, lwflxall, trsolall,        &
-  lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_par_sfc,                  &
+  lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_nir_sfc, trsol_vis_sfc,   &
+  trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff,         &
   trsol_dn_sfc_diff, trsol_clr_sfc, lwflx_clr_sfc,                          &
   rg_lwflx_up    , rg_lwflx_dn    , rg_swflx_up    , rg_swflx_dn,           &
   rg_lwflx_up_clr, rg_lwflx_dn_clr, rg_swflx_up_clr, rg_swflx_dn_clr,       &
@@ -1206,7 +1209,9 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   ! Input fields (on reduced grid) to be downscaled to full grid
   REAL(wp), TARGET, INTENT(IN) ::                                                                   &
     rg_aclcov(:,:), rg_lwflxall(:,:,:), rg_trsolall(:,:,:), rg_lwflx_up_sfc(:,:),                   &
-    rg_trsol_up_toa(:,:), rg_trsol_up_sfc(:,:), rg_trsol_par_sfc(:,:), rg_trsol_dn_sfc_diff(:,:),   &
+    rg_trsol_up_toa(:,:), rg_trsol_up_sfc(:,:), rg_trsol_nir_sfc(:,:), rg_trsol_vis_sfc(:,:),       &
+    rg_trsol_par_sfc(:,:), rg_fr_nir_sfc_diff(:,:), rg_fr_vis_sfc_diff(:,:),                        &
+    rg_fr_par_sfc_diff(:,:), rg_trsol_dn_sfc_diff(:,:),                                             &
     rg_lwflx_up(:,:,:)    , rg_lwflx_dn(:,:,:)    , rg_swflx_up(:,:,:)    , rg_swflx_dn(:,:,:)    , &
     rg_lwflx_up_clr(:,:,:), rg_lwflx_dn_clr(:,:,:), rg_swflx_up_clr(:,:,:), rg_swflx_dn_clr(:,:,:)
 
@@ -1220,8 +1225,9 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
 
   ! Downscaled output fields (on full grid)
   REAL(wp), INTENT(INOUT) :: aclcov(:,:), lwflxall(:,:,:), trsolall(:,:,:), lwflx_up_sfc(:,:),            &
-    trsol_up_toa(:,:), trsol_up_sfc(:,:), trsol_par_sfc(:,:), trsol_dn_sfc_diff(:,:), trsol_clr_sfc(:,:), &
-    lwflx_clr_sfc(:,:),                                                                                   &
+    trsol_up_toa(:,:), trsol_up_sfc(:,:), trsol_nir_sfc(:,:), trsol_vis_sfc(:,:), trsol_par_sfc(:,:),     &
+    fr_nir_sfc_diff(:,:), fr_vis_sfc_diff(:,:), fr_par_sfc_diff(:,:), trsol_dn_sfc_diff(:,:),             &
+    trsol_clr_sfc(:,:), lwflx_clr_sfc(:,:),                                                               &
     lwflx_up(:,:,:)       , lwflx_dn(:,:,:)       , swflx_up(:,:,:)       , swflx_dn(:,:,:),              &
     lwflx_up_clr(:,:,:)   , lwflx_dn_clr(:,:,:)   , swflx_up_clr(:,:,:)   , swflx_dn_clr(:,:,:) 
 
@@ -1277,7 +1283,14 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk
 
   INTEGER :: n2dvars, n2dvars_rg, iclcov, itsfc, ialb, iemis, icosmu0, ilwsfc, itrutoa, &
-             itrusfc, itrdiff, itrclrsfc, itrparsfc, ilwclrsfc
+             itrusfc, itrdiff, itrclrsfc, itrnirsfc, itrvissfc, itrparsfc, ifrnirsfcdf, &
+             ifrvissfcdf, ifrparsfcdf, ilwclrsfc
+
+  INTEGER, PARAMETER :: var_clcov = 1, var_tsfc = 2, var_alb = 3, var_emis = 4, var_cosmu0 = 5, &
+      & var_lwsfc = 6, var_trutoa = 7, var_trusfc = 8, var_trdiff = 9, var_trclrsfc = 10, &
+      & var_trnirsfc = 11, var_trvissfc = 12, var_trparsfc = 13, var_frnirsfcdf = 14, &
+      & var_frvissfcdf = 15, var_frparsfcdf = 16, var_lwclrsfc = 17, var_numvars = 17
+
 
   LOGICAL :: l_limit(3), lacc
 !-----------------------------------------------------------------------
@@ -1321,20 +1334,25 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   iblk => p_gcp%child_blk
 
   ! named constants for accessing 2D variables contained in zrg_aux3d
-  n2dvars    = 12
+  n2dvars    = var_numvars
   n2dvars_rg = nshift+n2dvars
-  iclcov     = nshift+1
-  itsfc      = nshift+2
-  ialb       = nshift+3
-  iemis      = nshift+4
-  icosmu0    = nshift+5
-  ilwsfc     = nshift+6
-  itrutoa    = nshift+7
-  itrusfc    = nshift+8
-  itrdiff    = nshift+9
-  itrclrsfc  = nshift+10
-  itrparsfc  = nshift+11
-  ilwclrsfc  = nshift+12
+  iclcov     = nshift+var_clcov
+  itsfc      = nshift+var_tsfc
+  ialb       = nshift+var_alb
+  iemis      = nshift+var_emis
+  icosmu0    = nshift+var_cosmu0
+  ilwsfc     = nshift+var_lwsfc
+  itrutoa    = nshift+var_trutoa
+  itrusfc    = nshift+var_trusfc
+  itrdiff    = nshift+var_trdiff
+  itrclrsfc  = nshift+var_trclrsfc
+  itrnirsfc  = nshift+var_trnirsfc
+  itrvissfc  = nshift+var_trvissfc
+  itrparsfc  = nshift+var_trparsfc
+  ifrnirsfcdf= nshift+var_frnirsfcdf
+  ifrvissfcdf= nshift+var_frvissfcdf
+  ifrparsfcdf= nshift+var_frparsfcdf
+  ilwclrsfc  = nshift+var_lwclrsfc
 
   ! Set dimensions for 3D radiative flux variables
   IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
@@ -1346,10 +1364,14 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   END IF
 
   !$ACC DATA PRESENT( rg_aclcov, rg_lwflxall, rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc,      &
-  !$ACC             & rg_lwflx_up_sfc, rg_trsol_up_toa, rg_trsol_up_sfc, rg_trsol_par_sfc,          &
+  !$ACC             & rg_lwflx_up_sfc, rg_trsol_up_toa, rg_trsol_up_sfc,                            &
+  !$ACC             & rg_trsol_nir_sfc, rg_trsol_vis_sfc, rg_trsol_par_sfc,                         &
+  !$ACC             & rg_fr_nir_sfc_diff, rg_fr_vis_sfc_diff, rg_fr_par_sfc_diff,                   &
   !$ACC             & rg_trsol_dn_sfc_diff, tsfc_rg, albdif_rg, emis_rad_rg, cosmu0_rg, tot_cld_rg, &
   !$ACC             & z_tot_cld, pres_ifc_rg, z_pres_ifc, tsfc, albdif, aclcov, lwflxall, trsolall, &
-  !$ACC             & lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_par_sfc, trsol_dn_sfc_diff,   &
+  !$ACC             & lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_dn_sfc_diff,                  &
+  !$ACC             & trsol_nir_sfc, trsol_vis_sfc, trsol_par_sfc,                                  &
+  !$ACC             & fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff,                            &
   !$ACC             & trsol_clr_sfc, lwflx_clr_sfc, rg_lwflx_up, rg_lwflx_dn, rg_swflx_up,          &
   !$ACC             & rg_swflx_dn, rg_lwflx_up_clr, rg_lwflx_dn_clr, rg_swflx_up_clr,               &
   !$ACC             & rg_swflx_dn_clr, lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr,        &
@@ -1397,7 +1419,12 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL copy(rg_trsol_dn_sfc_diff(:,:), zpg_aux3d(:,itrdiff,:))
     CALL copy(rg_trsol_clr_sfc(:,:), zpg_aux3d(:,itrclrsfc,:))
     CALL copy(rg_lwflx_clr_sfc(:,:), zpg_aux3d(:,ilwclrsfc,:))
+    CALL copy(rg_trsol_nir_sfc(:,:), zpg_aux3d(:,itrnirsfc,:))
+    CALL copy(rg_trsol_vis_sfc(:,:), zpg_aux3d(:,itrvissfc,:))
     CALL copy(rg_trsol_par_sfc(:,:), zpg_aux3d(:,itrparsfc,:))
+    CALL copy(rg_fr_nir_sfc_diff(:,:), zpg_aux3d(:,ifrnirsfcdf,:))
+    CALL copy(rg_fr_vis_sfc_diff(:,:), zpg_aux3d(:,ifrvissfcdf,:))
+    CALL copy(rg_fr_par_sfc_diff(:,:), zpg_aux3d(:,ifrparsfcdf,:))
 !$OMP END PARALLEL
 
     nlev_tot =  2*nlevp1_rg + n2dvars_rg
@@ -1470,7 +1497,12 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL copy(rg_trsol_dn_sfc_diff(:,:), zrg_aux3d(:,itrdiff,:))
     CALL copy(rg_trsol_clr_sfc(:,:), zrg_aux3d(:,itrclrsfc,:))
     CALL copy(rg_lwflx_clr_sfc(:,:), zrg_aux3d(:,ilwclrsfc,:))
+    CALL copy(rg_trsol_nir_sfc(:,:), zrg_aux3d(:,itrnirsfc,:))
+    CALL copy(rg_trsol_vis_sfc(:,:), zrg_aux3d(:,itrvissfc,:))
     CALL copy(rg_trsol_par_sfc(:,:), zrg_aux3d(:,itrparsfc,:))
+    CALL copy(rg_fr_nir_sfc_diff(:,:), zrg_aux3d(:,ifrnirsfcdf,:))
+    CALL copy(rg_fr_vis_sfc_diff(:,:), zrg_aux3d(:,ifrvissfcdf,:))
+    CALL copy(rg_fr_par_sfc_diff(:,:), zrg_aux3d(:,ifrparsfcdf,:))
 !$OMP END PARALLEL
 
     !$ACC END DATA
@@ -1751,9 +1783,9 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
 !$OMP END DO
   ENDIF
 
-  CALL copy(z_aux3d(:,1,:), aclcov(:,:))
-  CALL copy(z_aux3d(:,2,:), tsfc_backintp(:,:))
-  CALL copy(z_aux3d(:,3,:), alb_backintp(:,:))
+  CALL copy(z_aux3d(:,var_clcov,:), aclcov(:,:))
+  CALL copy(z_aux3d(:,var_tsfc,:), tsfc_backintp(:,:))
+  CALL copy(z_aux3d(:,var_alb,:), alb_backintp(:,:))
 !$OMP BARRIER
 
   ! Reconstruct solar transmissivities from interpolated transmissivity differences
@@ -1935,55 +1967,55 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       jb3 = iblk(jc,jb,3)
       jb4 = iblk(jc,jb,4)
 
-      lwflx_up_sfc(jc1,jb1) = z_aux3d(jc1,6,jb1) + dlwem_o_dtg(jc)* (tsfc(jc1,jb1) - tsfc_backintp(jc1,jb1))
-      lwflx_up_sfc(jc2,jb2) = z_aux3d(jc2,6,jb2) + dlwem_o_dtg(jc)* (tsfc(jc2,jb2) - tsfc_backintp(jc2,jb2))
-      lwflx_up_sfc(jc3,jb3) = z_aux3d(jc3,6,jb3) + dlwem_o_dtg(jc)* (tsfc(jc3,jb3) - tsfc_backintp(jc3,jb3))
-      lwflx_up_sfc(jc4,jb4) = z_aux3d(jc4,6,jb4) + dlwem_o_dtg(jc)* (tsfc(jc4,jb4) - tsfc_backintp(jc4,jb4))
+      lwflx_up_sfc(jc1,jb1) = z_aux3d(jc1,var_lwsfc,jb1) + dlwem_o_dtg(jc)* (tsfc(jc1,jb1) - tsfc_backintp(jc1,jb1))
+      lwflx_up_sfc(jc2,jb2) = z_aux3d(jc2,var_lwsfc,jb2) + dlwem_o_dtg(jc)* (tsfc(jc2,jb2) - tsfc_backintp(jc2,jb2))
+      lwflx_up_sfc(jc3,jb3) = z_aux3d(jc3,var_lwsfc,jb3) + dlwem_o_dtg(jc)* (tsfc(jc3,jb3) - tsfc_backintp(jc3,jb3))
+      lwflx_up_sfc(jc4,jb4) = z_aux3d(jc4,var_lwsfc,jb4) + dlwem_o_dtg(jc)* (tsfc(jc4,jb4) - tsfc_backintp(jc4,jb4))
 
       ! Clear-sky LW fluxes
-      lwflx_clr_sfc(jc1,jb1) = z_aux3d(jc1,12,jb1) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc1,jb1)-tsfc_backintp(jc1,jb1))
-      lwflx_clr_sfc(jc2,jb2) = z_aux3d(jc2,12,jb2) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc2,jb2)-tsfc_backintp(jc2,jb2))
-      lwflx_clr_sfc(jc3,jb3) = z_aux3d(jc3,12,jb3) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc3,jb3)-tsfc_backintp(jc3,jb3))
-      lwflx_clr_sfc(jc4,jb4) = z_aux3d(jc4,12,jb4) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc4,jb4)-tsfc_backintp(jc4,jb4))
+      lwflx_clr_sfc(jc1,jb1) = z_aux3d(jc1,var_lwclrsfc,jb1) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc1,jb1)-tsfc_backintp(jc1,jb1))
+      lwflx_clr_sfc(jc2,jb2) = z_aux3d(jc2,var_lwclrsfc,jb2) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc2,jb2)-tsfc_backintp(jc2,jb2))
+      lwflx_clr_sfc(jc3,jb3) = z_aux3d(jc3,var_lwclrsfc,jb3) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc3,jb3)-tsfc_backintp(jc3,jb3))
+      lwflx_clr_sfc(jc4,jb4) = z_aux3d(jc4,var_lwclrsfc,jb4) - dlwem_o_dtg(jc)*lwfac2(jc)*(tsfc(jc4,jb4)-tsfc_backintp(jc4,jb4))
 
       ! The downscaling corrections for the upward fluxes assume that the downward radiation is unaffected by
       ! the surface albedo, so that the correction on upward radiation is the same as on net radiation
       ! except for the sign because the convention is that upward fluxes are upward-positive
-      trsol_up_toa(jc1,jb1) = MAX(z_aux3d(jc1,7,jb1) - dtrans_o_dalb_all(jc,1)* &
+      trsol_up_toa(jc1,jb1) = MAX(z_aux3d(jc1,var_trutoa,jb1) - dtrans_o_dalb_all(jc,1)* &
           ( albdif(jc1,jb1) - alb_backintp(jc1,jb1) ), 0._wp)
-      trsol_up_toa(jc2,jb2) = MAX(z_aux3d(jc2,7,jb2) - dtrans_o_dalb_all(jc,1)* &
+      trsol_up_toa(jc2,jb2) = MAX(z_aux3d(jc2,var_trutoa,jb2) - dtrans_o_dalb_all(jc,1)* &
           ( albdif(jc2,jb2) - alb_backintp(jc2,jb2) ), 0._wp)
-      trsol_up_toa(jc3,jb3) = MAX(z_aux3d(jc3,7,jb3) - dtrans_o_dalb_all(jc,1)* &
+      trsol_up_toa(jc3,jb3) = MAX(z_aux3d(jc3,var_trutoa,jb3) - dtrans_o_dalb_all(jc,1)* &
           ( albdif(jc3,jb3) - alb_backintp(jc3,jb3) ), 0._wp)
-      trsol_up_toa(jc4,jb4) = MAX(z_aux3d(jc4,7,jb4) - dtrans_o_dalb_all(jc,1)* &
+      trsol_up_toa(jc4,jb4) = MAX(z_aux3d(jc4,var_trutoa,jb4) - dtrans_o_dalb_all(jc,1)* &
           ( albdif(jc4,jb4) - alb_backintp(jc4,jb4) ), 0._wp)
 
-      trsol_up_sfc(jc1,jb1) = MAX(z_aux3d(jc1,8,jb1) - dtrans_o_dalb_all(jc,nlevp1)* &
+      trsol_up_sfc(jc1,jb1) = MAX(z_aux3d(jc1,var_trusfc,jb1) - dtrans_o_dalb_all(jc,nlevp1)* &
           ( albdif(jc1,jb1) - alb_backintp(jc1,jb1) ), 0._wp)
-      trsol_up_sfc(jc2,jb2) = MAX(z_aux3d(jc2,8,jb2) - dtrans_o_dalb_all(jc,nlevp1)* &
+      trsol_up_sfc(jc2,jb2) = MAX(z_aux3d(jc2,var_trusfc,jb2) - dtrans_o_dalb_all(jc,nlevp1)* &
           ( albdif(jc2,jb2) - alb_backintp(jc2,jb2) ), 0._wp)
-      trsol_up_sfc(jc3,jb3) = MAX(z_aux3d(jc3,8,jb3) - dtrans_o_dalb_all(jc,nlevp1)* &
+      trsol_up_sfc(jc3,jb3) = MAX(z_aux3d(jc3,var_trusfc,jb3) - dtrans_o_dalb_all(jc,nlevp1)* &
           ( albdif(jc3,jb3) - alb_backintp(jc3,jb3) ), 0._wp)
-      trsol_up_sfc(jc4,jb4) = MAX(z_aux3d(jc4,8,jb4) - dtrans_o_dalb_all(jc,nlevp1)* &
+      trsol_up_sfc(jc4,jb4) = MAX(z_aux3d(jc4,var_trusfc,jb4) - dtrans_o_dalb_all(jc,nlevp1)* &
           ( albdif(jc4,jb4) - alb_backintp(jc4,jb4) ), 0._wp)
 
       ! Downscaling of clear-sky net transmissivities at the surface
       ! They are used in radheat for the tile corrections
-      trsol_clr_sfc(jc1,jb1) = MAX(z_aux3d(jc1,10,jb1) + dtrans_o_dalb_clrsfc(jc)* &
+      trsol_clr_sfc(jc1,jb1) = MAX(z_aux3d(jc1,var_trclrsfc,jb1) + dtrans_o_dalb_clrsfc(jc)* &
           ( albdif(jc1,jb1) - alb_backintp(jc1,jb1) ), 0._wp)
-      trsol_clr_sfc(jc2,jb2) = MAX(z_aux3d(jc2,10,jb2) + dtrans_o_dalb_clrsfc(jc)* &
+      trsol_clr_sfc(jc2,jb2) = MAX(z_aux3d(jc2,var_trclrsfc,jb2) + dtrans_o_dalb_clrsfc(jc)* &
           ( albdif(jc2,jb2) - alb_backintp(jc2,jb2) ), 0._wp)
-      trsol_clr_sfc(jc3,jb3) = MAX(z_aux3d(jc3,10,jb3) + dtrans_o_dalb_clrsfc(jc)* &
+      trsol_clr_sfc(jc3,jb3) = MAX(z_aux3d(jc3,var_trclrsfc,jb3) + dtrans_o_dalb_clrsfc(jc)* &
           ( albdif(jc3,jb3) - alb_backintp(jc3,jb3) ), 0._wp)
-      trsol_clr_sfc(jc4,jb4) = MAX(z_aux3d(jc4,10,jb4) + dtrans_o_dalb_clrsfc(jc)* &
+      trsol_clr_sfc(jc4,jb4) = MAX(z_aux3d(jc4,var_trclrsfc,jb4) + dtrans_o_dalb_clrsfc(jc)* &
           ( albdif(jc4,jb4) - alb_backintp(jc4,jb4) ), 0._wp)
 
       ! Note: the downward diffuse radiation must not undergo a correction based on the surface albedo!
       ! Only upward and net radiation are affected by the surface properties
-      trsol_dn_sfc_diff(jc1,jb1) = MAX(z_aux3d(jc1,9,jb1), 0._wp)
-      trsol_dn_sfc_diff(jc2,jb2) = MAX(z_aux3d(jc2,9,jb2), 0._wp)
-      trsol_dn_sfc_diff(jc3,jb3) = MAX(z_aux3d(jc3,9,jb3), 0._wp)
-      trsol_dn_sfc_diff(jc4,jb4) = MAX(z_aux3d(jc4,9,jb4), 0._wp)
+      trsol_dn_sfc_diff(jc1,jb1) = MAX(z_aux3d(jc1,var_trdiff,jb1), 0._wp)
+      trsol_dn_sfc_diff(jc2,jb2) = MAX(z_aux3d(jc2,var_trdiff,jb2), 0._wp)
+      trsol_dn_sfc_diff(jc3,jb3) = MAX(z_aux3d(jc3,var_trdiff,jb3), 0._wp)
+      trsol_dn_sfc_diff(jc4,jb4) = MAX(z_aux3d(jc4,var_trdiff,jb4), 0._wp)
 
       ! Ensure that the diffuse downward radiation does not exceed the total radiation
       trsol_dn_sfc_diff(jc1,jb1) = MIN(trsol_dn_sfc_diff(jc1,jb1),trsolall(jc1,nlevp1,jb1)/(1._wp-albdif(jc1,jb1)))
@@ -1991,11 +2023,37 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       trsol_dn_sfc_diff(jc3,jb3) = MIN(trsol_dn_sfc_diff(jc3,jb3),trsolall(jc3,nlevp1,jb3)/(1._wp-albdif(jc3,jb3)))
       trsol_dn_sfc_diff(jc4,jb4) = MIN(trsol_dn_sfc_diff(jc4,jb4),trsolall(jc4,nlevp1,jb4)/(1._wp-albdif(jc4,jb4)))
 
-      ! No albedo correction for transmissivity of photosynthetically active radiation
-      trsol_par_sfc(jc1,jb1) = MAX(z_aux3d(jc1,11,jb1), 0._wp)
-      trsol_par_sfc(jc2,jb2) = MAX(z_aux3d(jc2,11,jb2), 0._wp)
-      trsol_par_sfc(jc3,jb3) = MAX(z_aux3d(jc3,11,jb3), 0._wp)
-      trsol_par_sfc(jc4,jb4) = MAX(z_aux3d(jc4,11,jb4), 0._wp)
+      ! No albedo correction for transmissivity of downward near-IR, visible, and photosynthetically active radiation
+      trsol_nir_sfc(jc1,jb1) = MAX(z_aux3d(jc1,var_trnirsfc,jb1), 0._wp)
+      trsol_nir_sfc(jc2,jb2) = MAX(z_aux3d(jc2,var_trnirsfc,jb2), 0._wp)
+      trsol_nir_sfc(jc3,jb3) = MAX(z_aux3d(jc3,var_trnirsfc,jb3), 0._wp)
+      trsol_nir_sfc(jc4,jb4) = MAX(z_aux3d(jc4,var_trnirsfc,jb4), 0._wp)
+
+      trsol_vis_sfc(jc1,jb1) = MAX(z_aux3d(jc1,var_trvissfc,jb1), 0._wp)
+      trsol_vis_sfc(jc2,jb2) = MAX(z_aux3d(jc2,var_trvissfc,jb2), 0._wp)
+      trsol_vis_sfc(jc3,jb3) = MAX(z_aux3d(jc3,var_trvissfc,jb3), 0._wp)
+      trsol_vis_sfc(jc4,jb4) = MAX(z_aux3d(jc4,var_trvissfc,jb4), 0._wp)
+
+      trsol_par_sfc(jc1,jb1) = MAX(z_aux3d(jc1,var_trparsfc,jb1), 0._wp)
+      trsol_par_sfc(jc2,jb2) = MAX(z_aux3d(jc2,var_trparsfc,jb2), 0._wp)
+      trsol_par_sfc(jc3,jb3) = MAX(z_aux3d(jc3,var_trparsfc,jb3), 0._wp)
+      trsol_par_sfc(jc4,jb4) = MAX(z_aux3d(jc4,var_trparsfc,jb4), 0._wp)
+
+      ! Clamp diffuse fractions between 0 and 1.
+      fr_nir_sfc_diff(jc1,jb1) = MIN(MAX(z_aux3d(jc1,var_frnirsfcdf,jb1), 0._wp), 1._wp)
+      fr_nir_sfc_diff(jc2,jb2) = MIN(MAX(z_aux3d(jc2,var_frnirsfcdf,jb2), 0._wp), 1._wp)
+      fr_nir_sfc_diff(jc3,jb3) = MIN(MAX(z_aux3d(jc3,var_frnirsfcdf,jb3), 0._wp), 1._wp)
+      fr_nir_sfc_diff(jc4,jb4) = MIN(MAX(z_aux3d(jc4,var_frnirsfcdf,jb4), 0._wp), 1._wp)
+
+      fr_vis_sfc_diff(jc1,jb1) = MIN(MAX(z_aux3d(jc1,var_frvissfcdf,jb1), 0._wp), 1._wp)
+      fr_vis_sfc_diff(jc2,jb2) = MIN(MAX(z_aux3d(jc2,var_frvissfcdf,jb2), 0._wp), 1._wp)
+      fr_vis_sfc_diff(jc3,jb3) = MIN(MAX(z_aux3d(jc3,var_frvissfcdf,jb3), 0._wp), 1._wp)
+      fr_vis_sfc_diff(jc4,jb4) = MIN(MAX(z_aux3d(jc4,var_frvissfcdf,jb4), 0._wp), 1._wp)
+
+      fr_par_sfc_diff(jc1,jb1) = MIN(MAX(z_aux3d(jc1,var_frparsfcdf,jb1), 0._wp), 1._wp)
+      fr_par_sfc_diff(jc2,jb2) = MIN(MAX(z_aux3d(jc2,var_frparsfcdf,jb2), 0._wp), 1._wp)
+      fr_par_sfc_diff(jc3,jb3) = MIN(MAX(z_aux3d(jc3,var_frparsfcdf,jb3), 0._wp), 1._wp)
+      fr_par_sfc_diff(jc4,jb4) = MIN(MAX(z_aux3d(jc4,var_frparsfcdf,jb4), 0._wp), 1._wp)
     ENDDO
     !$ACC END PARALLEL
   ENDDO

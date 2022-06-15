@@ -53,6 +53,9 @@ MODULE mo_nwp_ecrad_utilities
                                    &   ecRad_IN2O, ecRad_ICH4,                   &
                                    &   ecRad_IO2, ecRad_ICFC11, ecRad_ICFC12,    &
                                    &   ecRad_IHCFC22, ecRad_ICCl4,               &
+                                   &   nweight_nir_ecrad, iband_nir_ecrad,       &
+                                   &   weight_nir_ecrad, nweight_vis_ecrad,      &
+                                   &   iband_vis_ecrad, weight_vis_ecrad,        &
                                    &   nweight_par_ecrad, iband_par_ecrad,       &
                                    &   weight_par_ecrad
 #endif
@@ -595,15 +598,18 @@ CONTAINS
   !---------------------------------------------------------------------------------------
   !>
   !! SUBROUTINE ecrad_store_fluxes:
-  !! Stores radiative fluxes calculated by ecRad from the ecRad type t_ecrad_flux_type 
+  !! Stores radiative fluxes calculated by ecRad from the ecRad type t_ecrad_flux_type
   !! in the corresponding ICON data structure.
   !!
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-13)
+  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
+  !!     Wetterdienst, Offenbach (2021-09-15)
   !!
-  SUBROUTINE ecrad_store_fluxes(jg, ecrad_flux, cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_par_sfc,  &
-    &                           trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs, lwflxclr_sfc, &
-    &                           lwflx_up    , lwflx_dn    , swflx_up    , swflx_dn,                       &
+  SUBROUTINE ecrad_store_fluxes(jg, ecrad_flux, cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_nir_sfc,   &
+    &                           trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff,                &
+    &                           fr_par_sfc_diff,trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs,    &
+    &                           lwflxclr_sfc, lwflx_up    , lwflx_dn    , swflx_up    , swflx_dn,              &
     &                           lwflx_up_clr, lwflx_dn_clr, swflx_up_clr, swflx_dn_clr,                   &
     &                           cosmu0mask, i_startidx, i_endidx, nlevp1, use_acc)
 
@@ -617,7 +623,12 @@ CONTAINS
       &  trsolall(:,:),         & !< solar transmissivity, all sky, net down
       &  trsol_up_toa(:),       & !< upward solar transmissivity at TOA
       &  trsol_up_sfc(:),       & !< upward solar transmissivity at surface
+      &  trsol_nir_sfc(:),      & !< downward transmissivity for near-IR rad. at surface
+      &  trsol_vis_sfc(:),      & !< downward transmissivity for visible rad. at surface
       &  trsol_par_sfc(:),      & !< downward transmissivity for photosynthetically active rad. at surface
+      &  fr_nir_sfc_diff(:),    & !< diffuse fraction for downward near-IR rad. at surface
+      &  fr_vis_sfc_diff(:),    & !< diffuse fraction for downward visible rad. at surface
+      &  fr_par_sfc_diff(:),    & !< diffuse fraction for downward photosynthetically active rad. at surface
       &  trsol_dn_sfc_diff(:),  & !< downward diffuse solar transmissivity at surface
       &  trsolclr_sfc(:),       & !< clear-sky net transmissivity at surface
       &  lwflxall(:,:),         & !< terrestrial flux, all sky, net down
@@ -650,11 +661,12 @@ CONTAINS
     else
       lacc = .false.
     end if
-    
-      !$ACC DATA PRESENT(ecrad_flux , cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_par_sfc,      &
-      !$ACC             trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs, lwflxclr_sfc,       &
-      !$ACC             lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr, lwflx_dn_clr,             &
-      !$ACC             swflx_up_clr, swflx_dn_clr, cosmu0mask) IF(lacc)
+
+      !$ACC DATA PRESENT(ecrad_flux , cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_nir_sfc,      &
+      !$ACC             trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff,                 &
+      !$ACC             fr_par_sfc_diff, trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs,    &
+      !$ACC             lwflxclr_sfc, lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr,             &
+      !$ACC             lwflx_dn_clr, swflx_up_clr, swflx_dn_clr, cosmu0mask) IF(lacc)
 
       ! Initialize output fields
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
@@ -669,7 +681,12 @@ CONTAINS
       DO jc = 1,SIZE(trsolall,1)
         trsol_up_toa(jc)      = 0._wp
         trsol_up_sfc(jc)      = 0._wp
+        trsol_nir_sfc(jc)     = 0._wp
+        trsol_vis_sfc(jc)     = 0._wp
         trsol_par_sfc(jc)     = 0._wp
+        fr_nir_sfc_diff(jc)   = 0._wp
+        fr_vis_sfc_diff(jc)   = 0._wp
+        fr_par_sfc_diff(jc)   = 0._wp
         trsol_dn_sfc_diff(jc) = 0._wp
         trsolclr_sfc(jc)      = 0._wp
       ENDDO
@@ -729,18 +746,42 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
+      ! Total transmissivities in nir, vis, and par bands.
+      CALL transmissivity_in_band(weight_nir_ecrad(:), iband_nir_ecrad(:), &
+          & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), trsol_nir_sfc(i_startidx:i_endidx), nbands=nweight_nir_ecrad, &
+          & use_acc=lacc)
+      CALL transmissivity_in_band(weight_vis_ecrad(:), iband_vis_ecrad(:), &
+          & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), trsol_vis_sfc(i_startidx:i_endidx), nbands=nweight_vis_ecrad, &
+          & use_acc=lacc)
+      CALL transmissivity_in_band(weight_par_ecrad(:), iband_par_ecrad(:), &
+          & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), trsol_par_sfc(i_startidx:i_endidx), nbands=nweight_par_ecrad, &
+          & use_acc=lacc)
+
+      ! Transmissivities for direct radiation. We want the diffuse fraction, so this gets subtracted from and
+      ! divided by the total below.
+      CALL transmissivity_in_band(weight_nir_ecrad(:), iband_nir_ecrad(:), &
+          & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), fr_nir_sfc_diff(i_startidx:i_endidx), nbands=nweight_nir_ecrad, &
+          & use_acc=lacc)
+      CALL transmissivity_in_band(weight_vis_ecrad(:), iband_vis_ecrad(:), &
+          & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), fr_vis_sfc_diff(i_startidx:i_endidx), nbands=nweight_vis_ecrad, &
+          & use_acc=lacc)
+      CALL transmissivity_in_band(weight_par_ecrad(:), iband_par_ecrad(:), &
+          & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
+          & cosmu0mask(i_startidx:i_endidx), fr_par_sfc_diff(i_startidx:i_endidx), nbands=nweight_par_ecrad, &
+          & use_acc=lacc)
+
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP SEQ
-      DO jband = 1, nweight_par_ecrad
-        !$ACC LOOP GANG VECTOR
-        DO jc = i_startidx, i_endidx
-          IF ( cosmu0mask(jc) ) THEN
-            trsol_par_sfc(jc)   = trsol_par_sfc(jc)                                                       &
-              &  + (weight_par_ecrad(jband) * ecrad_flux%sw_dn_surf_band(iband_par_ecrad(jband),jc))      &
-              &  / cosmu0(jc)
-          ENDIF
-        ENDDO
-      ENDDO
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        fr_nir_sfc_diff(jc) = 1._wp - MIN(1._wp, fr_nir_sfc_diff(jc) / MAX(trsol_nir_sfc(jc), EPSILON(1._wp)))
+        fr_vis_sfc_diff(jc) = 1._wp - MIN(1._wp, fr_vis_sfc_diff(jc) / MAX(trsol_vis_sfc(jc), EPSILON(1._wp)))
+        fr_par_sfc_diff(jc) = 1._wp - MIN(1._wp, fr_par_sfc_diff(jc) / MAX(trsol_par_sfc(jc), EPSILON(1._wp)))
+      END DO
       !$ACC END PARALLEL
 
       !$ACC END DATA
@@ -748,6 +789,66 @@ CONTAINS
   END SUBROUTINE ecrad_store_fluxes
   !---------------------------------------------------------------------------------------
 
+  !---------------------------------------------------------------------------------------
+  !>
+  !! FUNCTION transmissivity_in_band:
+  !! Computes a total transmissivity given a set of band-based transmissivities with their
+  !! accompanying weights. NOTE: `tr_wgt` must be zero-initialized.
+  !!
+  !! @par Revision History
+  !! Initial release by Roland Wirth, Deutscher Wetterdienst, Offenbach (2021-09-15)
+  !! OpenACC support by Roland Wirth, Deutscher Wetterdienst, Offenbach (2022-02-02)
+  !!
+  SUBROUTINE transmissivity_in_band (weights, bands, tr_band, cosmu0, mask, tr_wgt, nbands, use_acc)
+
+    REAL(wp), INTENT(IN) :: weights(:) !< Weight for each band index present in `band`.
+    INTEGER, INTENT(IN) :: bands(:) !< List of band indices.
+    REAL(wp), INTENT(IN) :: tr_band(:,:) !< Transmissivities for each band (nbands,ncells).
+    REAL(wp), INTENT(IN) :: cosmu0(:) !< Cosine of the solar zenith angle.
+    LOGICAL, INTENT(IN) :: mask(:) !< Set to .TRUE. for elements that should be processed.
+    REAL(wp), INTENT(INOUT) :: tr_wgt(:) !< Total (band-weighted) transmissivity (ncells).
+
+    INTEGER, INTENT(IN), OPTIONAL :: nbands !< Number of bands (default: SIZE(bands))
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc !< Use OpenACC.
+
+    INTEGER :: jband
+    INTEGER :: jc
+    INTEGER :: nb
+    INTEGER :: ncells
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    IF (PRESENT(nbands)) THEN
+      nb = nbands
+    ELSE
+      nb = SIZE(bands)
+    END IF
+
+    ncells = SIZE(tr_band, 2)
+
+    !$ACC DATA PRESENT(weights, bands, tr_band, cosmu0, mask, tr_wgt) IF(lacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC LOOP SEQ
+      DO jband = 1, nb
+      !$ACC LOOP GANG VECTOR
+      DO jc = 1, ncells
+        IF (mask(jc)) THEN
+          tr_wgt(jc) = tr_wgt(jc) + &
+              & weights(jband) * tr_band(bands(jband),jc) / cosmu0(jc)
+        END IF
+      END DO
+    END DO
+    !$ACC END PARALLEL
+
+    !$acc END DATA
+
+  END SUBROUTINE transmissivity_in_band
 
   !---------------------------------------------------------------------------------------
   !>
@@ -757,10 +858,12 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Guenther Zaengl, Deutscher Wetterdienst, Offenbach (2019-12-06)
   !!
-  SUBROUTINE add_3D_diffuse_rad(ecrad_flux, clc, pres, temp, cosmu0, trsol_dn_sfc_diff, i_startidx, i_endidx, nlev, &
-      &                         use_acc)
+  SUBROUTINE add_3D_diffuse_rad( &
+        & ecrad_flux, clc, pres, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff, &
+        & trsol_dn_sfc_diff, i_startidx, i_endidx, nlev, use_acc &
+      )
 
-    TYPE(t_ecrad_flux_type), INTENT(inout) :: ecrad_flux !< ecRad cloud information
+    TYPE(t_ecrad_flux_type), INTENT(in) :: ecrad_flux !< ecRad cloud information
 
     REAL(wp), INTENT(in)  :: &
       &  cosmu0(:),             & !< Cosine of solar zenith angle
@@ -768,6 +871,9 @@ CONTAINS
       &  pres(:,:),             & !< pressure
       &  temp(:,:)                !< temperature
 
+    REAL(wp), INTENT(inout)  :: fr_nir_sfc_diff(:) !< diffuse fraction of downward near-IR transmissivity at surface
+    REAL(wp), INTENT(inout)  :: fr_vis_sfc_diff(:) !< diffuse fraction of downward visible transmissivity at surface
+    REAL(wp), INTENT(inout)  :: fr_par_sfc_diff(:) !< diffuse fraction of downward PAR transmissivity at surface
     REAL(wp), INTENT(inout)  :: trsol_dn_sfc_diff(:) !< downward diffuse solar transmissivity at surface
 
     INTEGER, INTENT(in)      :: &
@@ -781,7 +887,8 @@ CONTAINS
     REAL(wp), PARAMETER :: zdecorr = 2000.0_wp, & ! decorrelation length scale for cloud overlap scheme
                            epsi    = 1.e-20_wp
 
-    REAL(wp) :: zcloud(i_endidx), ccmax, ccran, deltaz, alpha
+    REAL(wp) :: zcloud(i_startidx:i_endidx), ccmax, ccran, deltaz, alpha
+    REAL(wp) :: diff_frac_corr !< Correction to the diffuse fraction.
     LOGICAL  :: lacc
 
     if (present(use_acc)) then
@@ -790,7 +897,8 @@ CONTAINS
       lacc = .false.
     end if
 
-    !$ACC DATA PRESENT(ecrad_flux, pres, clc, temp, cosmu0, trsol_dn_sfc_diff) CREATE(zcloud) IF(lacc)
+    !$ACC DATA PRESENT(ecrad_flux, pres, clc, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff, &
+    !$ACC   trsol_dn_sfc_diff) CREATE(zcloud) IF(lacc)
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG VECTOR
@@ -822,11 +930,17 @@ CONTAINS
     !$ACC END PARALLEL
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC LOOP GANG VECTOR PRIVATE(diff_frac_corr)
     DO jc = i_startidx, i_endidx
       IF (cosmu0(jc) > 0.05_wp) THEN
+        diff_frac_corr = tune_difrad_3dcont * zcloud(jc) * (1._wp-zcloud(jc))**2
+
+        fr_nir_sfc_diff(jc) = MIN(1._wp, fr_nir_sfc_diff(jc) + diff_frac_corr)
+        fr_vis_sfc_diff(jc) = MIN(1._wp, fr_vis_sfc_diff(jc) + diff_frac_corr)
+        fr_vis_sfc_diff(jc) = MIN(1._wp, fr_par_sfc_diff(jc) + diff_frac_corr)
+
         trsol_dn_sfc_diff(jc) = MIN(ecrad_flux%sw_dn(jc,nlev+1)/cosmu0(jc), trsol_dn_sfc_diff(jc) + &
-          tune_difrad_3dcont*ecrad_flux%sw_dn(jc,nlev+1)/cosmu0(jc)*zcloud(jc)*(1._wp-zcloud(jc))**2)
+            & diff_frac_corr * ecrad_flux%sw_dn(jc,nlev+1)/cosmu0(jc))
       ENDIF
     ENDDO
     !$ACC END PARALLEL

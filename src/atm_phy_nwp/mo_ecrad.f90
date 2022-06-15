@@ -99,7 +99,9 @@ MODULE mo_ecrad
   ! Gas indices
   PUBLIC :: ecRad_IH2O, ecRad_ICO2, ecRad_IO3, ecRad_IN2O, ecRad_ICO, ecRad_ICH4
   PUBLIC :: ecRad_IO2, ecRad_ICFC11, ecRad_ICFC12, ecRad_IHCFC22, ecRad_ICCl4
-  ! Photosynthetically active radiation weightings
+  ! Near-IR, visible, and photosynthetically active radiation weightings
+  PUBLIC :: nweight_nir_ecrad, iband_nir_ecrad, weight_nir_ecrad
+  PUBLIC :: nweight_vis_ecrad, iband_vis_ecrad, weight_vis_ecrad
   PUBLIC :: nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
   ! Spectral Solar Insolation
   PUBLIC :: ecrad_ssi_default, ecrad_ssi_coddington
@@ -109,11 +111,21 @@ MODULE mo_ecrad
 
   TYPE(t_ecrad_conf) :: ecrad_conf
 
-! Photosynthetically active radiation weightings
+! Near-IR, visible, and photosynthetically active radiation weightings
+  INTEGER            :: nweight_nir_ecrad
+  INTEGER            :: iband_nir_ecrad(100)
+  REAL(KIND=wp)      :: weight_nir_ecrad(100)
+
+  INTEGER            :: nweight_vis_ecrad
+  INTEGER            :: iband_vis_ecrad(100)
+  REAL(KIND=wp)      :: weight_vis_ecrad(100)
+
   INTEGER            :: nweight_par_ecrad
   INTEGER            :: iband_par_ecrad(100)
   REAL(KIND=wp)      :: weight_par_ecrad(100)
 
+  !$ACC DECLARE COPYIN(iband_nir_ecrad, weight_nir_ecrad)
+  !$ACC DECLARE COPYIN(iband_vis_ecrad, weight_vis_ecrad)
   !$ACC DECLARE COPYIN(iband_par_ecrad, weight_par_ecrad)
 
 ! Pointers to aerosol optical properties

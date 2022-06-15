@@ -1802,7 +1802,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%lwflxtoa)
 
     ! &      diag%trsolclr_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsolclr_sfc', '', 'shortwave clear-sky transmisivity at suface', datatype_flt)
+    cf_desc    = t_cf_var('trsolclr_sfc', '', 'shortwave clear-sky transmissivity at suface', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsolclr_sfc', diag%trsolclr_sfc,             &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
@@ -1810,7 +1810,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%trsolclr_sfc)
 
     ! &      diag%trsol_up_toa(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsol_up_toa', '', 'shortwave upward transmisivity at TOA', datatype_flt)
+    cf_desc    = t_cf_var('trsol_up_toa', '', 'shortwave upward transmissivity at TOA', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsol_up_toa', diag%trsol_up_toa,             &
       & GRID_UNSTRUCTURED_CELL, ZA_TOA, cf_desc, grib2_desc,                &
@@ -1818,15 +1818,31 @@ __acc_attach(diag%clct)
     __acc_attach(diag%trsol_up_toa)
 
     ! &      diag%trsol_up_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsol_up_sfc', '', 'shortwave upward transmisivity at surface', datatype_flt)
+    cf_desc    = t_cf_var('trsol_up_sfc', '', 'shortwave upward transmissivity at surface', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsol_up_sfc', diag%trsol_up_sfc,             &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
       & ldims=shape2d, lrestart=.TRUE., loutput=.FALSE., lopenacc=.TRUE.   )
     __acc_attach(diag%trsol_up_sfc)
 
+    ! &      diag%trsol_nir_sfc(nproma,nblks_c)
+    cf_desc    = t_cf_var('trsol_nir_sfc', '', 'near-infrared downward transmissivity at surface', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'trsol_nir_sfc', diag%trsol_nir_sfc,           &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., loutput=.FALSE., lopenacc=.TRUE.    )
+    __acc_attach(diag%trsol_nir_sfc)
+
+    ! &      diag%trsol_vis_sfc(nproma,nblks_c)
+    cf_desc    = t_cf_var('trsol_vis_sfc', '', 'visible downward transmissivity at surface', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'trsol_vis_sfc', diag%trsol_vis_sfc,           &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., loutput=.FALSE., lopenacc=.TRUE.    )
+    __acc_attach(diag%trsol_vis_sfc)
+
     ! &      diag%trsol_par_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsol_par_sfc', '', 'photosynthetically active downward transmisivity at surface', datatype_flt)
+    cf_desc    = t_cf_var('trsol_par_sfc', '', 'photosynthetically active downward transmissivity at surface', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsol_par_sfc', diag%trsol_par_sfc,           &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
@@ -1834,7 +1850,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%trsol_par_sfc)
 
     ! &      diag%trsol_dn_sfc_diff(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsol_dn_sfc_diff', '', 'shortwave diffuse downward transmisivity at surface', datatype_flt)
+    cf_desc    = t_cf_var('trsol_dn_sfc_diff', '', 'shortwave diffuse downward transmissivity at surface', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsol_dn_sfc_diff', diag%trsol_dn_sfc_diff,   &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
@@ -1859,6 +1875,24 @@ __acc_attach(diag%clct)
       & lopenacc=.TRUE. )
     __acc_attach(diag%swflx_up_sfc)
 
+    ! &      diag%swflx_nir_sfc(nproma,nblks_c)
+    cf_desc    = t_cf_var('swflx_nir_sfc', 'W m-2', 'downward near-infrared flux at surface', datatype_flt)
+    grib2_desc = grib2_var(0, 4, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'swflx_nir_sfc', diag%swflx_nir_sfc,           &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
+      & lopenacc=.TRUE.)
+    __acc_attach(diag%swflx_nir_sfc)
+
+    ! &      diag%swflx_vis_sfc(nproma,nblks_c)
+    cf_desc    = t_cf_var('swflx_vis_sfc', 'W m-2', 'downward visible flux at surface', datatype_flt)
+    grib2_desc = grib2_var(0, 4, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'swflx_vis_sfc', diag%swflx_vis_sfc,           &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
+      & lopenacc=.TRUE.)
+    __acc_attach(diag%swflx_vis_sfc)
+
     ! &      diag%swflx_par_sfc(nproma,nblks_c)
     cf_desc    = t_cf_var('swflx_par_sfc', 'W m-2', 'downward photosynthetically active flux at surface', datatype_flt)
     grib2_desc = grib2_var(0, 4, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -1867,6 +1901,33 @@ __acc_attach(diag%clct)
       & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
       & lopenacc=.TRUE.)
     __acc_attach(diag%swflx_par_sfc)
+
+    ! &      diag%fr_nir_sfc_diff(nproma,nblks_c)
+    cf_desc    = t_cf_var('fr_nir_sfc_diff', '', 'diffuse fraction of downward near-infrared flux at surface', datatype_flt)
+    grib2_desc = grib2_var(0, 4, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fr_nir_sfc_diff', diag%fr_nir_sfc_diff,       &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
+      & lopenacc=.TRUE.)
+    __acc_attach(diag%fr_nir_sfc_diff)
+
+    ! &      diag%fr_vis_sfc_diff(nproma,nblks_c)
+    cf_desc    = t_cf_var('fr_vis_sfc_diff', '', 'diffuse fraction of downward visible flux at surface', datatype_flt)
+    grib2_desc = grib2_var(0, 4, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fr_vis_sfc_diff', diag%fr_vis_sfc_diff,       &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
+      & lopenacc=.TRUE.)
+    __acc_attach(diag%fr_vis_sfc_diff)
+
+    ! &      diag%fr_par_sfc_diff(nproma,nblks_c)
+    cf_desc    = t_cf_var('fr_par_sfc_diff', '', 'diffuse fraction of downward photosynthetically active flux at surface', datatype_flt)
+    grib2_desc = grib2_var(0, 4, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fr_par_sfc_diff', diag%fr_par_sfc_diff,       &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
+      & ldims=shape2d, lrestart=.TRUE., in_group=groups("rad_vars"),        &
+      & lopenacc=.TRUE.)
+    __acc_attach(diag%fr_par_sfc_diff)
 
     ! &      diag%swflx_dn_sfc_diff(nproma,nblks_c)
     cf_desc    = t_cf_var('sodifd_s', 'W m-2', 'shortwave diffuse downward flux at surface', datatype_flt)

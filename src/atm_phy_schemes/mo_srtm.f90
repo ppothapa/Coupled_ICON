@@ -377,7 +377,7 @@ CONTAINS
       zflxd_diff(:) = 0._wp
     ENDIF
 
-    IF (PRESENT(flxd_par_sfc)) THEN ! compute photosynthetically active parts of surface radiation
+    IF (PRESENT(flxd_par_sfc) .OR. lcomp_fractions) THEN ! compute photosynthetically active parts of surface radiation
       zflxd_par(:)  = 0._wp
     ENDIF
 
@@ -386,7 +386,6 @@ CONTAINS
       zflxn(:)          = 0._wp
       zflxd_vis(:)      = 0._wp
       zflxd_nir(:)      = 0._wp
-      zflxd_par(:)      = 0._wp
       zflxd_vis_diff(:) = 0._wp
       zflxd_nir_diff(:) = 0._wp
       zflxd_par_diff(:) = 0._wp
@@ -515,7 +514,7 @@ CONTAINS
         ENDDO
       ENDIF
 
-      IF (PRESENT(flxd_par_sfc)) THEN ! compute photosynthetically active parts of surface radiation
+      IF (PRESENT(flxd_par_sfc) .OR. lcomp_fractions) THEN ! compute photosynthetically active parts of surface radiation
         DO ic = 1, icount
           zflxd_par(ic)  = zflxd_par(ic)  + frc_par*bnd_wght(jb)*( zcloud(ic)*zbbfd(ic,klev+1,jb) &
             &                                                    + zclear(ic)*zbbcd(ic,klev+1,jb) )
@@ -539,9 +538,6 @@ CONTAINS
             &                 zcloud(ic)*zbbfd(ic,klev+1,jb)     &
             &               + zclear(ic)*zbbcd(ic,klev+1,jb)     )
           zflxd_nir(ic)  = zflxd_nir(ic) + zfnir*(               &
-            &                 zcloud(ic)*zbbfd(ic,klev+1,jb)     &
-            &               + zclear(ic)*zbbcd(ic,klev+1,jb)     )
-          zflxd_par(ic)  = zflxd_par(ic) + zfpar*(               &
             &                 zcloud(ic)*zbbfd(ic,klev+1,jb)     &
             &               + zclear(ic)*zbbcd(ic,klev+1,jb)     )
           zflxd_vis_diff(ic) = zflxd_vis_diff(ic) + zfvis*(      &

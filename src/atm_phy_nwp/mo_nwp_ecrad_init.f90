@@ -18,6 +18,7 @@
 !!
 !! @par Revision History
 !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
+!! Add nir and vis weightings by Roland Wirth, Deutscher Wetterdienst, Offenbach (2021-09-15)
 !!
 !! @par Copyright and License
 !!
@@ -50,6 +51,8 @@ MODULE mo_nwp_ecrad_init
                                  &   IIceModelBaran2016, IIceModelBaran2017, IIceModelYi,&
                                  &   IOverlapMaximumRandom, IOverlapExponentialRandom,   &
                                  &   IOverlapExponential,                                &
+                                 &   nweight_nir_ecrad, iband_nir_ecrad, weight_nir_ecrad,&
+                                 &   nweight_vis_ecrad, iband_vis_ecrad, weight_vis_ecrad,&
                                  &   nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
 #endif
 
@@ -232,11 +235,20 @@ CONTAINS
     ! Tell ecRad about the wavelength bounds of ICON data
     !---------------------------------------------------------------------------------------
 
-    ! Set up the photosynthetically active radiation wavelength bounds
+    ! Set up the near-IR, visible, and photosynthetically active radiation wavelength bounds.
+    ! Bounds for nir and vis are from mo_nwp_phy_types.
+    CALL ecrad_conf%get_sw_weights(0.7e-6_wp, 5.0e-6_wp, &
+      &  nweight_nir_ecrad, iband_nir_ecrad, weight_nir_ecrad, &
+      &  'near-IR radiation')
+    CALL ecrad_conf%get_sw_weights(0.3e-6_wp, 0.7e-6_wp, &
+      &  nweight_vis_ecrad, iband_vis_ecrad, weight_vis_ecrad, &
+      &  'visible radiation')
     CALL ecrad_conf%get_sw_weights(0.4e-6_wp, 0.7e-6_wp, &
       &  nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad, &
       &  'photosynthetically active radiation, PAR')
 
+    !$ACC UPDATE DEVICE(iband_nir_ecrad, weight_nir_ecrad)
+    !$ACC UPDATE DEVICE(iband_vis_ecrad, weight_vis_ecrad)
     !$ACC UPDATE DEVICE(iband_par_ecrad, weight_par_ecrad)
 
     ! ICON external parameters have SW albedo for two different wavelength bands, visible and near infrared. The following call to
