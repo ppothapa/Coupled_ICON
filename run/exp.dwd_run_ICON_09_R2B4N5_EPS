@@ -196,10 +196,11 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  pinit_amplitude              = 1e-14      ! amplitude of perturbation 
 /
 &io_nml
- itype_pres_msl               = 5        ! (1) 3: IFS-type extrapolation
+ itype_pres_msl               = 5         ! (1) 3: IFS-type extrapolation
  itype_rh                     = 1         ! (1) 2: mixed phase (water and ice)
  output_nml_dict              = 'map_file.fc'
- dt_checkpoint           = 2592000.  ! 30 days
+ dt_checkpoint                = 2592000.  ! 30 days
+ lnetcdf_flt64_output         = .TRUE.    ! double precision output
 /
 &nwp_phy_nml
 inwp_gscp       = 1               ! 10 in test case 35
