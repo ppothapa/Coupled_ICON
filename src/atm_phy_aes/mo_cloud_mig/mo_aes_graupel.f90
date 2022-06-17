@@ -310,7 +310,6 @@ SUBROUTINE graupel                 ( &
   LOGICAL :: &
     llqs,llqc,llqi,llqg,llqr  !   switch for existence of qr, qs, qc, qi
 
-  LOGICAL :: lldiag_ttend, lldiag_qtend, lpres_pri
 
   REAL(KIND=wp), DIMENSION(nvec,ke) ::   &
     t_in               ,    & !> temperature                                   (  K  )
@@ -505,6 +504,7 @@ SUBROUTINE graupel                 ( &
     !$ACC                           zsgmax, zsimax, zsisum, zsrmax, zsrsum,      &
     !$ACC                           zssmax, zsssum, zsvidep, zsvisub, zsvmax,    &
     !$ACC                           ztau, ztc, ztfrzdiff, ztt, zvz0s, zx1,       &
+    !$ACC                           qliq, qice, qtot, cv,                        &
     !$ACC                           zxfac, zzag, zzai, zzar, zzas, zztau )
     DO iv = ivstart, ivend  !loop over horizontal domain
     
