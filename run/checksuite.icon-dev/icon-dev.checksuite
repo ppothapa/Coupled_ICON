@@ -372,7 +372,7 @@ function tolerance_check
     TOL_STATUS=0
     cd $MODEL_DIR
 
-    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]' | sed 's/_gpu/_cpu/') # new buildbot
     [[ -z $REF_BUILDER ]] && REF_BUILDER="${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}" # old buildbot
 
     # find relevant config
