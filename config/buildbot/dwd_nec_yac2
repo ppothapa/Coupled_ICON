@@ -40,12 +40,12 @@ cd build/vector
 # additional check, we set another cache variable 'acx_cv_fc_c_compatible_mpi'
 # to 'yes'.
 
-# We need two additional patches to skip/adjust the tests (see
-# config/buildbot/dwd_nec_patches/README.md). Also, the program 'patch' exits
-# with exit code '1' if the patch has already been applied. We consider this a
-# normal scenario:
+# We need to patch one of the YAXT tests
+# (see config/buildbot/dwd_nec_patches/README.md):
 PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
-$PATCH -d "${ICON_DIR}/externals/yaxt" -i "${MY_DIR}/dwd_nec_patches/yaxt_mpi_abort_test.patch" || test $? -eq 1 || exit 2
+# Apply the patch but do not fail if it has already been applied
+# (does not work correcly if there are several hunks in the patch file):
+patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/yaxt" -i "${MY_DIR}/dwd_nec_patches/yaxt_mpi_abort_test.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
 
 
 ${ICON_DIR}/config/dwd/rcl.VE.nfort-3.2.0_oper --disable-openmp --enable-ocean --prefix=${ICON_DIR}/vector MPI_LAUNCH='/opt/nec/ve/bin/mpirun' acx_cv_prog_mpirun='/opt/nec/ve/bin/mpirun' acx_cv_fc_c_compatible_mpi=yes

@@ -93,10 +93,7 @@ make_CLAWFLAGS+= $(addprefix @CLAW_MOD_IN@$(srcdir)/externals/omni-xmod-pool/,mp
 @CLAW_OLD_DRIVER_ENABLED@make_CLAWFLAGS+= --Wf-no-module-cache
 @CLAW_NEW_DRIVER_ENABLED@make_CLAWFLAGS+= --disable-mp --no-module-cache
 @JSBACH_ENABLED@make_CLAWFLAGS+= --model-config=$(srcdir)/externals/jsbach/config/icon_jsbach.toml
-
 ICON_CLAWFLAGS=
-ICON_OCEAN_CLAWFLAGS=
-ICON_DACE_CLAWFLAGS=
 DEPGEN_CLAWFLAGS= @DEPGEN_CLAWFLAGS@
 
 ####################### FORTRAN TO CLAW FLAG CONVERSION ########################
@@ -122,28 +119,36 @@ convert_fcflags= $(filter $(2)%,$(subst $(2) ,$(2),$(subst $(1),$(2),$(strip $(3
 # Fortran compiler flags:
 FCFLAGS= @FCFLAGS@
 ICON_FCFLAGS= @ICON_FCFLAGS@
-ICON_OCEAN_FCFLAGS= @ICON_OCEAN_FCFLAGS@
-ICON_DACE_FCFLAGS= @ICON_DACE_FCFLAGS@
+@ICON_FCGROUP_FLAGS@
+
+# Pattern- and target-specific assignments are propagated to the prerequisites
+# and override the global assignments. Therefore, we introduce the following
+# match-anything pattern assignments to prevent that:
+%: ICON_FCFLAGS:= $(ICON_FCFLAGS)
+
+# Pattern-specific Fortran compiler flags:
+#   Note the difference in how older versions of GNU Make (at least up to 3.81)
+#   treat pattern-specific variable ASSIGNMENTS and pattern RULES: the last
+#   matching ASSIGNMENT and the first matching RULE win. Newer versions of GNU
+#   Make (starting at least 4.1) give preference to the most specialized pattern
+#   in both cases. This means that, as long as we support older version of GNU
+#   Make, we have to declare the most general ASSIGNMENTS first and the most
+#   general RULES last.
+@ICON_FCGROUP_ASSIGNMENTS@
 
 FC_INC_FLAG_PP= @FC_INC_FLAG_PP_f90@
 CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG_PP),-I,$(FCFLAGS))
 ICON_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG_PP),-I,$(ICON_FCFLAGS))
-ICON_OCEAN_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG_PP),-I,$(ICON_OCEAN_FCFLAGS))
-ICON_DACE_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG_PP),-I,$(ICON_DACE_FCFLAGS))
 
 FC_INC_FLAG= @FC_INC_FLAG@
 ifneq ($(FC_INC_FLAG),$(FC_INC_FLAG_PP))
 CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG),-I,$(FCFLAGS))
 ICON_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG),-I,$(ICON_FCFLAGS))
-ICON_OCEAN_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG),-I,$(ICON_OCEAN_FCFLAGS))
-ICON_DACE_CLAWFLAGS+= $(call convert_fcflags,$(FC_INC_FLAG),-I,$(ICON_DACE_FCFLAGS))
 endif
 
 FC_PP_MACRO_FLAG= @FC_PP_DEF@
 CLAWFLAGS+= $(call convert_fcflags,$(FC_PP_MACRO_FLAG),-D,$(FCFLAGS))
 ICON_CLAWFLAGS+= $(call convert_fcflags,$(FC_PP_MACRO_FLAG),-D,$(ICON_FCFLAGS))
-ICON_OCEAN_CLAWFLAGS+= $(call convert_fcflags,$(FC_PP_MACRO_FLAG),-D,$(ICON_OCEAN_FCFLAGS))
-ICON_DACE_CLAWFLAGS+= $(call convert_fcflags,$(FC_PP_MACRO_FLAG),-D,$(ICON_DACE_FCFLAGS))
 
 ############################ SOURCE FILE COLLECTION ############################
 
@@ -207,14 +212,9 @@ distclean: clean
 
 ########################### CLAW PREPROCESSING RULES ###########################
 
-# Pattern-specific Fortran compiler flags:
-%: spec_CLAWFLAGS= $(ICON_CLAWFLAGS)
-src/hamocc/% src/ocean/% src/sea_ice/%: spec_CLAWFLAGS= $(ICON_OCEAN_CLAWFLAGS)
-@DACE_ENABLED_OR_NEEDED@externals/dace_icon/src_for_icon/%: spec_CLAWFLAGS= $(ICON_DACE_CLAWFLAGS)
-
 # CLAW preprocessing rule:
 %$(CLAW_infix).f90: %.f90 | $(dir_files)
-	$(silent_CLAW)$(CLAW) -o $@ $(make_CLAWFLAGS) $(CLAWFLAGS) $(spec_CLAWFLAGS) $<
+	$(silent_CLAW)$(CLAW) -o $@ $(make_CLAWFLAGS) $(CLAWFLAGS) $(ICON_CLAWFLAGS) $<
 
 ############################ XMOD GENERATION RULES #############################
 
@@ -226,8 +226,8 @@ src/hamocc/% src/ocean/% src/sea_ice/%: spec_CLAWFLAGS= $(ICON_OCEAN_CLAWFLAGS)
 #   3b) errors in non-interface parts of the Fortran modules are ignored (new
 #       driver only).
 
-@CLAW_OLD_DRIVER_ENABLED@ICON_XMOD_CMD= $(CLAW) -f $(make_CLAWFLAGS) $(CLAWFLAGS) $(spec_CLAWFLAGS) $< >/dev/null; touch $@
-@CLAW_NEW_DRIVER_ENABLED@ICON_XMOD_CMD= $(CLAW) -f --gen-mod-files $(make_CLAWFLAGS) $(CLAWFLAGS) $(spec_CLAWFLAGS) $< && touch $@
+@CLAW_OLD_DRIVER_ENABLED@ICON_XMOD_CMD= $(CLAW) -f $(make_CLAWFLAGS) $(CLAWFLAGS) $(ICON_CLAWFLAGS) $< >/dev/null; touch $@
+@CLAW_NEW_DRIVER_ENABLED@ICON_XMOD_CMD= $(CLAW) -f --gen-mod-files $(make_CLAWFLAGS) $(CLAWFLAGS) $(ICON_CLAWFLAGS) $< && touch $@
 
 %.xmodstamp: %.f90 | $(dir_files)
 	$(silent_XMOD)$(ICON_XMOD_CMD)
@@ -262,7 +262,7 @@ DEPGEN_CMD= $(DEPGEN) @depgen.f90.config --pp-inc-flag=-I --pp-macro-flag=-D \
             --fc-mod-ext=xmod.proxy --fc-mod-upper=no --fc-inc-flag=-I \
             --fc-mod-dir-flag='@CLAW_MOD_OUT@' -o $@ -i $< \
             --obj-name "$$oname" -- \
-            $(DEPGEN_CLAWFLAGS) $(make_CLAWFLAGS) $(CLAWFLAGS) $(spec_CLAWFLAGS)
+            $(DEPGEN_CLAWFLAGS) $(make_CLAWFLAGS) $(CLAWFLAGS) $(ICON_CLAWFLAGS)
 
 # Command that checks input files for the presence of CLAW directives:
 @CLAW_OLD_DRIVER_ENABLED@CLAW_FILTER_CMD= $(srcdir)/utils/claw-helpers/claw_filter.sh $< >/dev/null

@@ -86,7 +86,14 @@ MODULE mo_icon2dace
   !-----------------------------
   use mo_mpi_dace,    only: dace,            &! DACE communicator
                             set_dace_comm,   &! set the DACE MPI communicator
+#ifdef __PGI
+  ! PGI and NVIDIA compilers cannot choose the correct implementention of the
+  ! generic procedure p_bcast.
+                            p_bcast_alias => p_bcast, &
+# define p_bcast p_bcast_alias
+#else
                             p_bcast,         &! generic MPI bcast routine
+#endif
                             p_ibcast,        &! generic MPI bcast routine (non-blocking)
                             p_sum,           &! generic MPI sum
                             p_allgather,     &! generic MPI allgather routine
@@ -1325,6 +1332,9 @@ contains
     ! Test with model grid points (cell centers, vertices)
     !-----------------------------------------------------
     if (dbg_level > 1) then
+#if defined(__PGI) && __PGIC__ <= 19
+      ! The compiler does not support BLOCK constructs
+#else
        block
           integer  :: idx(3,n_cells), blk(3,n_cells), ngp(n_cells)
           real(wp) :: clon(n_cells), clat(n_cells), w(3,n_cells)
@@ -1425,6 +1435,7 @@ contains
              write(0,*)
           end if
        end block
+#endif
     end if
 
   end subroutine icongrid_from_icon

@@ -1,0 +1,13 @@
+See config/buildbot/breeze_nag_patches/README.md
+
+--- a/rrtmgp/kernels/mo_gas_optics_kernels.F90
++++ b/rrtmgp/kernels/mo_gas_optics_kernels.F90
+@@ -31,7 +31,7 @@ contains
+                 temp_ref_min,temp_ref_delta,press_ref_trop_log, &
+                 vmr_ref,                                        &
+                 play,tlay,col_gas,                              &
+-                jtemp,fmajor,fminor,col_mix,tropo,jeta,jpress) bind(C, name="interpolation")
++                jtemp,fmajor,fminor,col_mix,tropo,jeta,jpress) bind(C, name="rrtmgp_interpolation")
+     ! input dimensions
+     integer,                            intent(in) :: ncol,nlay
+     integer,                            intent(in) :: ngas,nflav,neta,npres,ntemp

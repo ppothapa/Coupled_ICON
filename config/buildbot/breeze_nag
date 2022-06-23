@@ -3,7 +3,14 @@
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization
+# We need to patch RTE-RRTMGP to resolve a name collision with DACE
+# (see config/buildbot/breeze_nag_patches/README.md):
+PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
+# Apply the patch but do not fail if it has already been applied
+# (does not work correcly if there are several hunks in the patch file):
+patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/rte-rrtmgp" -i "${MY_DIR}/breeze_nag_patches/name_collision.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
+
+${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}

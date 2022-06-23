@@ -58,7 +58,7 @@ MPI_LAUNCH='srun -p debug -C gpu'
 SB2PP="${SERIALBOX_ROOT}/python/pp_ser/pp_ser.py"
 CLAW="${CLAW_ROOT}/bin/clawfc"
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --enable-rte-rrtmgp --disable-psrad'
+EXTRA_CONFIG_ARGS='--enable-grib2 --enable-rte-rrtmgp --disable-psrad --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

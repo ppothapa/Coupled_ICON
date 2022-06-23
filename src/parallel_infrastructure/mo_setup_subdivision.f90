@@ -149,6 +149,9 @@ CONTAINS
   !!        the patch data structure.
   !!
   SUBROUTINE decompose_domain( p_patch, p_patch_pre )
+#if defined(_CRAYFTN) && _RELEASE_MAJOR == 12 && _RELEASE_MINOR == 0 && _RELEASE_PATCHLEVEL == 2
+!dir$ optimize(-O0)
+#endif
 
     TYPE(t_patch), INTENT(INOUT), TARGET :: p_patch(n_dom_start:)
     TYPE(t_pre_patch), INTENT(INOUT), TARGET :: p_patch_pre(n_dom_start:)
