@@ -2469,7 +2469,7 @@ CONTAINS
 
     INTEGER  :: jk, jc, nk
     REAL(wp) :: t_lcl    !> T at lifting condensation level approximation of Bolton (1980)
-    REAL(wp) :: t_dew, zml
+    REAL(wp) :: t_dew, zml, p_lcl
     INTEGER,  DIMENSION(SIZE(te,1))            :: kstart
     REAL(wp), DIMENSION(SIZE(te,1))            :: qvp_start, te_start
     REAL(wp), DIMENSION(SIZE(te,1),SIZE(te,2)) :: tequiv
@@ -2494,7 +2494,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
     !$ACC LOOP SEQ
     DO jk = kmoist, nk
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zml,t_dew,t_lcl)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zml,t_dew,t_lcl,p_lcl)
       DO jc = i_startidx, i_endidx
         zml = 0.5_wp * (hhl(jc,jk)+hhl(jc,jk+1)) - hhl(jc,nk+1)  ! m AGL
         IF (zml <= z_limit) THEN
@@ -2503,8 +2503,10 @@ CONTAINS
           ! T at LCL approximation after Bolton (1980), Eq. 15. If te == t_dew, we are already at saturation:
           t_dew = MAX(t_dew,57.0_wp) ! for security
           t_lcl = 56.0_wp + 1.0_wp / ( 1.0_wp/(t_dew-56.0_wp) + LOG(MAX(te(jc,jk)/t_dew,1.0_wp))/800.0_wp )
-          ! Equivalent potential temperature, Bolton (1980), Eq. 28:
-          tequiv(jc,jk) = fthetae( t_lcl, prs(jc,jk), qve(jc,jk) )
+          ! p at LCL:
+          p_lcl = prs(jc,jk) * (t_lcl/te(jc,jk))**(1.0_wp/rd_o_cpd)
+          ! Equivalent potential temperature using Bolton (1980), Eq. 28 at saturation:
+          tequiv(jc,jk) = fthetae( t_lcl, p_lcl, qve(jc,jk) )
         ELSE
           tequiv(jc,jk) = -HUGE(1.0_wp)
         END IF
@@ -2989,7 +2991,7 @@ CONTAINS
   END FUNCTION fqvs
 
   !!>
-  !! Equivalent potential temperature to hold constant during ascent.
+  !! Equivalent potential temperature to hold constant during ascent, assuming saturation.
   !!   Bolton (1980), the simple approx. Eq. 28, not the full-fledged Eq. 43
   !! Initial version: Helmut Frank
   ELEMENTAL FUNCTION fthetae( ztx,zpx,zqx)
