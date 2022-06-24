@@ -155,6 +155,7 @@ MODULE mo_nwp_phy_types
       &  clcl(:,:),            & !! cloud cover of low-level clouds
       &  cldepth(:,:),         & !! modified cloud depth for media
       &  clct_mod(:,:),        & !! modified total cloud cover for media
+      &  fac_ccqc(:,:),        & !! tuning factor (for ensemble perturbations) for CLC-QC relationship in cloud cover scheme
       &  hbas_con(:,:),        & !! height of base of convection [m]
       &  htop_con(:,:),        & !! height of top of convection [m]
       &  htop_dc(:,:),         & !! height above msl of the top of dry convection [m]
@@ -255,6 +256,14 @@ MODULE mo_nwp_phy_types
       &  mf_b(:,:),            & !! bulk cloud-base mass-flux  
       &  mf_p(:,:),            & !! perturbed cloud-base mass-flux 
       &  mf_num(:,:)             !! number of clouds per grid box
+
+
+    REAL(vp), POINTER          &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS             &
+#endif
+      &  ::                    &
+      &  qc_sgs(:,:,:)           !! subgrid-scale cloud water from cloud cover diagnostic
 
     !> Precipitation fields
     REAL(wp), POINTER          &
@@ -575,6 +584,7 @@ MODULE mo_nwp_phy_types
       ::                        &
       ddt_temp_drag   (:,:,:)  ,& !! Temp-tendency from sso + gravity-wave drag + Rayleigh friction
       ddt_temp_pconv  (:,:,:)  ,& !! Temp-tendency from convective prec
+      ddt_temp_clcov  (:,:,:)  ,& !! Temp-tendency from cloud cover scheme
       ddt_u_gwd       (:,:,:)  ,& !! ZonalW-tendency from gravity wave drag
       ddt_u_sso       (:,:,:)  ,& !! ZonalW-tendency from sso drag
       ddt_v_gwd       (:,:,:)  ,& !! MeridW-tendency from gravity wave drag

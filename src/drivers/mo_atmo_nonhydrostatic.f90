@@ -193,7 +193,7 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "construct_atmo_nonhydrostatic"
 
-    INTEGER :: jg, ist
+    INTEGER :: jg, ist, jt
 
     TYPE(t_sim_step_info) :: sim_step_info  
     REAL(wp) :: sim_time
@@ -504,26 +504,29 @@ CONTAINS
 
       IF(pinit_seed > 0) THEN
         DO jg=1,n_dom
-          CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
                                 p_nh_state(jg)%prog(nnow(jg))%w)
-          CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, pinit_seed, &
                                 p_nh_state(jg)%prog(nnow(jg))%vn)
-          CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
                                 p_nh_state(jg)%prog(nnow(jg))%theta_v)
-          CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
                                 p_nh_state(jg)%prog(nnow(jg))%exner)
-          CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
                                 p_nh_state(jg)%prog(nnow(jg))%rho)
-          IF(nh_test_name == 'dcmip_pa_12') THEN
-             CALL add_random_noise(p_patch(jg)%cells%all, nproma, p_patch(jg)%nlev, &
-                                   p_patch(jg)%nblks_c, pinit_amplitude, pinit_seed, &
-                                   p_nh_state(jg)%prog(nnow(jg))%tracer(:,:,:,1))
+
+          IF (.NOT. ltestcase .OR. nh_test_name == 'dcmip_pa_12') THEN
+             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+                                   p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,1))
           ENDIF
+
+          IF (iforcing == inwp ) THEN
+            DO jt = 1, SIZE(p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t,4)
+              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+                                p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t(:,:,:,jt) )
+            ENDDO
+          ENDIF
+
           CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%prog(nnew(jg)))
         ENDDO
       ENDIF

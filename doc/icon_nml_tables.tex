@@ -1733,6 +1733,15 @@ inwp\_cldcover = 1
 \tabularnewline
 
 \hline
+range\_fac\_ccqc&
+R&
+4&
+&
+Factor for latent-heat correction in CLC-QC relationship in cloud cover scheme &
+inwp\_cldcover = 1
+\tabularnewline
+
+\hline
 range\_tkhmin&
 R&
 0.2&
@@ -5337,6 +5346,14 @@ cloud cover scheme for radiation\\
 \tabularnewline
 
 %\hline
+lsgs\_cond&
+L (max\_ dom) & .TRUE. &  & Apply subgrid-scale condensational heating related to the non-convective
+part of diagnosed cloud water&
+inwp\_cldcover = 1
+\tabularnewline
+
+
+%\hline
 \textbf{inwp\_radiation}&
 I (max\_ dom)&
 1&
@@ -5444,11 +5461,22 @@ inwp\_turb $>$ 0
 R (max\_ dom)&
 600.&
 s&
-time interval of convection and cloud-cover call.\\
-If convection is switched off, dt\_conv controlls the time intervall of cloud-cover, only.\\
-currently each subdomain has the same value
+time interval of convection call.\\
+by default, each subdomain has the same value
 &run\_nml:iforcing = inwp
 \tabularnewline
+
+
+%\hline
+\textbf{dt\_ccov} &
+R (max\_ dom)&
+dt\_conv &
+s&
+time interval of cloud-cover call.\\
+by default, dt\_ccov equals dt\_conv for each domain
+&run\_nml:iforcing = inwp
+\tabularnewline
+
 
 %\hline
 \textbf{dt\_rad} &
@@ -5456,7 +5484,7 @@ R (max\_ dom)&
 1800.&
 s&
 time interval of radiation call\\
-currently each subdomain has the same value
+by default, each subdomain has the same value
 &run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -5466,7 +5494,7 @@ R (max\_ dom)&
 1200.&
 s&
 time interval of sso call\\
-currently each subdomain has the same value
+by default, each subdomain has the same value
 &run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -5476,7 +5504,7 @@ R (max\_ dom)&
 1200.&
 s&
 time interval of gwd call\\
-currently each subdomain has the same value
+by default, each subdomain has the same value
 &run\_nml:iforcing = inwp
 \tabularnewline
 

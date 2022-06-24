@@ -757,6 +757,8 @@ CONTAINS
 &             (kidia  = i_startidx ,   kfdia  = i_endidx  ,       & !! in:  horizonal begin, end indices
 &              klon = nproma,  kstart = kstart_moist(jg)  ,       & !! in:  horiz. and vert. vector length
 &              klev   = nlev                              ,       &
+&              linit  = linit                             ,       &
+&              dtime  = dt_phy_jg(itccov)                 ,       &
 &              cover_koe_config = cover_koe_config(jg)    ,       & !! in:  physics config state
 &              tt     = pt_diag%temp         (:,:,jb)     ,       & !! in:  temperature at full levels
 &              pp     = pt_diag%pres         (:,:,jb)     ,       & !! in:  pressure at full levels
@@ -771,6 +773,7 @@ CONTAINS
 &              kcbot  = prm_diag%mbas_con    (:,jb)       ,       & !! in:  convective cloud base
 &              kctop  = prm_diag%mtop_con    (:,jb)       ,       & !! in:  convective cloud top
 &              ktype  = prm_diag%ktype       (:,jb)       ,       & !! in:  convection type
+&              fac_ccqc = prm_diag%fac_ccqc  (:,jb)       ,       & !! in:  factor for CLC-QC relationship (for EPS perturbations) 
 &              pmfude_rate = prm_diag%con_udd(:,:,jb,3)   ,       & !! in:  convective updraft detrainment rate
 &              plu         = prm_diag%con_udd(:,:,jb,7)   ,       & !! in:  updraft condensate
 &              pcore       = prm_diag%con_udd(:,:,jb,8)   ,       & !! in:  updraft core fraction
@@ -780,12 +783,14 @@ CONTAINS
 &              qi     = pt_prog_rcf%tracer   (:,:,jb,iqi) ,       & !! in:  cloud ice
 &              qs     = pt_prog_rcf%tracer   (:,:,jb,iqs) ,       & !! in:  snow
 &              qtvar  = qtvar                             ,       & !! in:  qtvar !ONLY for inwp_turb==iedmf
+&              ttend_clcov = prm_nwp_tend%ddt_temp_clcov(:,:,jb) ,& !! out: temp tendency from sgs condensation
 ! &              dz_full= p_metrics%ddqz_z_full(:,:,jb)     ,       & !! in:  vertical grid spacing
 ! &              area   = pt_patch%cells%area  (:,jb)       ,       & !! in:  triangle area
 ! &              e      = pt_prog_rcf%tke      (:,:,jb)     ,       & !! in:  SGS-TKE
 &              cc_tot = prm_diag%clc         (:,:,jb)     ,       & !! out: cloud cover
 &              qv_tot = prm_diag%tot_cld     (:,:,jb,iqv) ,       & !! out: qv       -"-
 &              qc_tot = prm_diag%tot_cld     (:,:,jb,iqc) ,       & !! out: clw      -"-
+&              qc_sgs = prm_diag%qc_sgs      (:,:,jb) ,           & !! inout: sgs clw from RH scheme
 &              qi_tot = prm_diag%tot_cld     (:,:,jb,iqi) )         !! out: ci       -"-
 
       ENDDO
@@ -1090,7 +1095,8 @@ CONTAINS
 
         z_ddt_temp(i_startidx:i_endidx,:,jb) =                                                   &
    &                                       prm_nwp_tend%ddt_temp_radsw(i_startidx:i_endidx,:,jb) &
-   &                                    +  prm_nwp_tend%ddt_temp_radlw(i_startidx:i_endidx,:,jb)
+   &                                    +  prm_nwp_tend%ddt_temp_radlw(i_startidx:i_endidx,:,jb) &
+   &                                    +  prm_nwp_tend%ddt_temp_clcov(i_startidx:i_endidx,:,jb)
 
 
         CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)

@@ -1223,6 +1223,14 @@ __acc_attach(diag%clct)
       & lopenacc=.TRUE.  )
     __acc_attach(diag%cldepth)
 
+    ! &      diag%fac_ccqc(nproma,nblks_c)
+    cf_desc    = t_cf_var('fac_ccqc', ' ','factor for cloud cover - cloud water relationship', &
+         &                DATATYPE_FLT32)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fac_ccqc', diag%fac_ccqc,                   &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
+    __acc_attach(diag%fac_ccqc)
 
     ! &      diag%hbas_con(nproma,nblks_c)
     cf_desc    = t_cf_var('hbas_con', 'm', 'height of convective cloud base', datatype_flt)
@@ -1473,6 +1481,16 @@ __acc_attach(diag%clct)
       & grib2_var(0, 1, 216, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
       & ref_idx=iqi,                                               &
       & ldims=shape2d, lrestart=.FALSE., in_group=groups("additional_precip_vars"))
+
+    ! &      diag%qc_sgs(nproma,nlev,nblks_c)
+    cf_desc      = t_cf_var('qc_sgs', 'kg kg-1',  'subgrid-scale cloud water', datatype_flt)
+    grib2_desc   = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'qc_sgs', diag%qc_sgs,                          &
+      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,           &
+      & ldims=shape3d, lrestart=.TRUE.,                                      &
+      & in_group=groups("cloud_diag"),                                       &
+      & lopenacc=.TRUE.  )
+     __acc_attach(diag%qc_sgs)
 
 
     !------------------
@@ -5109,6 +5127,16 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & ldims=shape3d, lrestart=.FALSE.,                                &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE. )
     __acc_attach(phy_tend%ddt_temp_turb)
+
+    ! &      phy_tend%ddt_temp_clcov(nproma,nlev,nblks)
+    cf_desc    = t_cf_var('ddt_temp_clcov', 'K s-1', &
+         &                            'sgs condensation temperature tendency', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( phy_tend_list, 'ddt_temp_clcov', phy_tend%ddt_temp_clcov,       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,      &
+                & ldims=shape3d, lrestart=.TRUE.,                                 &
+                & in_group=groups("phys_tendencies"), lopenacc=.TRUE. )
+    __acc_attach(phy_tend%ddt_temp_clcov)
 
 #ifndef __NO_ICON_LES__
     IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN

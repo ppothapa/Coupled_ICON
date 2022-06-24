@@ -1967,7 +1967,7 @@ my_thrd_id = omp_get_thread_num()
 
             x4i = MIN( 1._wp, 0.5e-3_wp*(hhl(i,k)-hhl(i,ke1)) )
             x4 = 3._wp*x4i**2 - 2._wp*x4i**3                   ! low-level reduction factor
-            hor_scale(i,k) = lay(i)*MIN( 5.0_wp, MAX( 0.01_wp, x4*xri(i,k) ) )
+            hor_scale(i,k) = lay(i)*MIN( 5.0_wp, MAX( 0.01_wp, x4*xri(i,k) ) )/MAX(1._wp,0.2_wp*tke(i,k,1))
           END DO
         END DO
         !$acc end parallel
