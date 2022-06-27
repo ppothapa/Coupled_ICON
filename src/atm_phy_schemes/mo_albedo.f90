@@ -1133,8 +1133,6 @@ CONTAINS
           ENDDO
           !$acc end parallel
 
-          ENDIF
-
         ENDIF
 
 
