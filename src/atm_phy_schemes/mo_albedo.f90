@@ -1123,26 +1123,29 @@ CONTAINS
 
           ! whitecap albedo by breaking ocean waves
 
-          IF ( albedo_whitecap == 1 .AND. .NOT. lfrozenwater ) THEN
+          IF ( albedo_whitecap == 1 ) THEN
 
             !$acc parallel default (present) if (lacc)
-            !$acc loop gang vector private (jc,wc_fraction, wc_albedo)
+            !$acc loop gang vector private( jc, wc_fraction, wc_albedo, lfrozenwater )
             DO ic = 1, i_count_sea
               jc = ext_data%atm%list_seawtr%idx(ic,jb)
+              lfrozenwater = lnd_prog%t_g_t(jc,jb,isub_water) < tf_salt
 
-              wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
-              wc_albedo   = 0.174_wp
-  
-              prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
-            & prm_diag%albdif_t   (jc,jb,isub_water) * (1.0_wp - wc_fraction)
-              prm_diag%albvisdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
-            & prm_diag%albvisdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
-              prm_diag%albnirdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
-            & prm_diag%albnirdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
-              zalbvisdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
-            & zalbvisdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
-              zalbnirdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
-            & zalbnirdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
+              IF ( .NOT. lfrozenwater) THEN
+                wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
+                wc_albedo   = 0.174_wp
+    
+                prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
+              & prm_diag%albdif_t   (jc,jb,isub_water) * (1.0_wp - wc_fraction)
+                prm_diag%albvisdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
+              & prm_diag%albvisdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
+                prm_diag%albnirdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
+              & prm_diag%albnirdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
+                zalbvisdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
+              & zalbvisdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
+                zalbnirdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
+              & zalbnirdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
+              ENDIF
             ENDDO
             !$acc end parallel
 
