@@ -1,0 +1,69 @@
+#!/bin/bash
+
+set -x
+
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
+
+#DONT TOUCH
+#  this logfile name is used in by buildbot
+LOGFILE="${ICON_DIR}/LOG.buildModel.o"
+
+[[ -f ${LOGFILE} ]] && rm ${LOGFILE}
+
+# slurm specific stuff is set here in this file to keep the jobscripts as general as possible
+#TODO use mh0156 for dkrz
+case $(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') in
+  mistral_nag*)
+    # NAG license servers are not available on the mistral compute nodes
+    #sbatch --wait -A k20200 -p prepost -n 22 --time=02:00:00 -o ${LOGFILE} -D $(pwd) ${ICON_DIR}/config/buildbot/buildModel.sbatch
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  mistral_gcc*|mistral_intel*)
+    sbatch --wait -A mh0156 --qos=buildbot -p compute,compute2 -N 1 -o ${LOGFILE} -D $(pwd) ${ICON_DIR}/config/buildbot/buildModel.sbatch
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  levante*)
+    sbatch --wait -A mh0156 --qos=buildbot -p compute -N 1 -o ${LOGFILE} -D $(pwd) ${ICON_DIR}/config/buildbot/buildModel.sbatch
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  daint*)
+    #sbatch --wait -A d56 --constraint=gpu -o ${LOGFILE} -D $(pwd) ${ICON_DIR}/config/buildbot/buildModel.sbatch
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  breeze*|mpimac*)
+    # MPIMET workstation (and macs) do not have any scheduler - local execution
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  dwd*)
+    # DWD might avoid job submission for building the model
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  cluster_*|booster_*)
+    # JSC cpu and gpu setups - no queue known, yet
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
+  *)
+    echo "unknown builder ${BB_NAME}!"
+    exit 1;
+    ;;
+esac

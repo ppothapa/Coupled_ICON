@@ -45,7 +45,7 @@ grid_refinement=R02B04
 grid_label=G
 grid_name=icon_grid_${grid_id}_${grid_refinement}_${grid_label}
 #
-atmo_dyn_grids="'${grid_name}.nc',"
+atmo_dyn_grids="'${grid_name}.nc'"
 
 # start and end date+time
 start_date=${start_date:="1979-01-01T00:00:00Z"}

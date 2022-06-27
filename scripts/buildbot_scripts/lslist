@@ -3,6 +3,7 @@
 #==============================================================================
 # create an experiment list
 #==============================================================================
+from sys import exit as quit
 from buildbot_builders import *
 from model_paths import *
 import argparse
@@ -15,7 +16,7 @@ args = parser.parse_args()
 name=args.name
 paths = model_paths()
 if not paths.thisListExists(name):
-  print("This list does not exist.")
+  print("This list does not exist: {0}".format(name))
   quit(1)
   
 thisList  = buildbot_experiments_list(name)
