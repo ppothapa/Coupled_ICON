@@ -1116,7 +1116,7 @@ CONTAINS
             END SELECT
 
             ! whitecap albedo by breaking ocean waves
-            IF ( albedo_whitecap == 1 ) THEN
+            IF ( albedo_whitecap == 1 .AND. .NOT. lfrozenwater ) THEN
               wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
     
               prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
