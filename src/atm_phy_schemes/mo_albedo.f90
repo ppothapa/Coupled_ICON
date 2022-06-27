@@ -116,7 +116,7 @@ CONTAINS
     REAL(wp):: zsalb_snow              !< snow albedo (predictor)
     REAL(wp):: zsnow_alb               !< snow albedo (corrector)
     REAL(wp):: wc_fraction             !< whitecap fraction
-    REAL(wp):: wc_albedo               !< whitecap albedo
+    REAL(wp), PARAMETER:: wc_albedo = 0.174_wp !< whitecap albedo
 
     INTEGER :: jg                      !< patch ID
     INTEGER :: jb, jc, ic, jt          !< loop indices
@@ -147,7 +147,7 @@ CONTAINS
 !$OMP DO PRIVATE(jb,jt,jc,ic,i_startidx,i_endidx,ist,zvege,zsnow,  &
 !$OMP            zsalb_snow,zsnow_alb,ilu,i_count_lnd,i_count_sea, &
 !$OMP            i_count_flk,i_count_seaice,zminsnow_alb,t_fac,    &
-!$OMP            wc_fraction, wc_albedo) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP            wc_fraction) ICON_OMP_DEFAULT_SCHEDULE
 
     DO jb = i_startblk, i_endblk
 
@@ -316,7 +316,6 @@ CONTAINS
               jc = ext_data%atm%list_seawtr%idx(ic,jb)
 
               wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
-              wc_albedo   = 0.174_wp
   
               prm_diag%albdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
             & prm_diag%albdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
@@ -390,7 +389,6 @@ CONTAINS
               jc = ext_data%atm%list_seawtr%idx(ic,jb)
 
               wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
-              wc_albedo   = 0.174_wp
   
               prm_diag%albdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
             & prm_diag%albdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
@@ -637,7 +635,7 @@ CONTAINS
     REAL(wp):: t_fac                   !< factor for temperature dependency of zminsnow_alb over glaciers
     REAL(wp):: zsnowfrac(nproma)       !< aggregated snow-cover fraction
     REAL(wp):: wc_fraction             !< whitecap fraction
-    REAL(wp):: wc_albedo               !< whitecap albedo
+    REAL(wp), PARAMETER:: wc_albedo = 0.174_wp !< whitecap albedo
 
     REAL(wp):: zsnow_alb(nproma,ntiles_total) !< snow albedo
 
@@ -676,7 +674,7 @@ CONTAINS
 !$OMP DO PRIVATE(jb,jt,jc,ic,i_startidx,i_endidx,ist,snow_frac,t_fac,               &
 !$OMP            zsnow_alb,ilu,i_count_lnd,i_count_sea,i_count_flk,                 &
 !$OMP            i_count_seaice,zminsnow_alb,zmaxsnow_alb,zlimsnow_alb,zsnowalb_lu, &
-!$OMP            zalbvisdir_t,zalbnirdir_t,zsnowfrac, wc_fraction, wc_albedo,       &
+!$OMP            zalbvisdir_t,zalbnirdir_t,zsnowfrac, wc_fraction,       &
 !$OMP            lfrozenwater)                                                      &
 !$OMP            ICON_OMP_DEFAULT_SCHEDULE
 
@@ -982,12 +980,11 @@ CONTAINS
           IF (albedo_whitecap == 1) THEN
 !$NEC ivdep
             !$acc parallel default (present) if (lacc)
-            !$acc loop gang vector private (jc,wc_fraction, wc_albedo)
+            !$acc loop gang vector private (jc,wc_fraction)
             DO ic = 1, i_count_sea
               jc = ext_data%atm%list_seawtr%idx(ic,jb)
 
               wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
-              wc_albedo   = 0.174_wp
   
               prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
             & prm_diag%albdif_t   (jc,jb,isub_water) * (1.0_wp - wc_fraction)
@@ -1076,7 +1073,7 @@ CONTAINS
           i_count_sea = ext_data%atm%list_seawtr%ncount(jb)
 !$NEC ivdep
           !$acc parallel default (present) if (lacc)
-          !$acc loop gang vector private (jc,ist,lfrozenwater)
+          !$acc loop gang vector private( jc, ist, lfrozenwater, wc_fraction )
           DO ic = 1, i_count_sea
             jc = ext_data%atm%list_seawtr%idx(ic,jb)
 
@@ -1118,36 +1115,23 @@ CONTAINS
                 ENDIF
             END SELECT
 
+            ! whitecap albedo by breaking ocean waves
+            IF ( albedo_whitecap == 1 ) THEN
+              wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
+    
+              prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
+            & prm_diag%albdif_t   (jc,jb,isub_water) * (1.0_wp - wc_fraction)
+              prm_diag%albvisdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
+            & prm_diag%albvisdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
+              prm_diag%albnirdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
+            & prm_diag%albnirdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
+              zalbvisdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
+            & zalbvisdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
+              zalbnirdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
+            & zalbnirdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
+            ENDIF
           ENDDO
           !$acc end parallel
-
-          ! whitecap albedo by breaking ocean waves
-
-          IF ( albedo_whitecap == 1 ) THEN
-
-            !$acc parallel default (present) if (lacc)
-            !$acc loop gang vector private( jc, wc_fraction, wc_albedo, lfrozenwater )
-            DO ic = 1, i_count_sea
-              jc = ext_data%atm%list_seawtr%idx(ic,jb)
-              lfrozenwater = lnd_prog%t_g_t(jc,jb,isub_water) < tf_salt
-
-              IF ( .NOT. lfrozenwater) THEN
-                wc_fraction = 0.000397_wp * min(prm_diag%sp_10m(jc,jb),20.0_wp) ** 1.59_wp
-                wc_albedo   = 0.174_wp
-    
-                prm_diag%albdif_t   (jc,jb,isub_water) = wc_fraction * wc_albedo + &
-              & prm_diag%albdif_t   (jc,jb,isub_water) * (1.0_wp - wc_fraction)
-                prm_diag%albvisdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
-              & prm_diag%albvisdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
-                prm_diag%albnirdif_t(jc,jb,isub_water) = wc_fraction * wc_albedo + &
-              & prm_diag%albnirdif_t(jc,jb,isub_water) * (1.0_wp - wc_fraction)
-                zalbvisdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
-              & zalbvisdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
-                zalbnirdir_t           (jc,isub_water) = wc_fraction * wc_albedo + &
-              & zalbnirdir_t           (jc,isub_water) * (1.0_wp - wc_fraction)
-              ENDIF
-            ENDDO
-            !$acc end parallel
 
           ENDIF
 
