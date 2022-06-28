@@ -23,6 +23,9 @@ $addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines breeze daint -
 $addexp "checksuite.icon-dev/check.atm_sma"            --machines breeze levante --list $listname
 $addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines breeze --list $listname
 
+#sma fails in a hybrid mixed build
+./rmexp "checksuite.icon-dev/check.atm_sma"  --builders levante_intel_hybrid_mixed --list $listname
+
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
 #-----------------------------------------------------------

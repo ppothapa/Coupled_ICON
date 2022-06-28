@@ -100,39 +100,37 @@ run_scripts_submit()
 
   stop_check="warning_on_error"
 
-  # check if the tolerance infrastructure needs to be initialized
-  if [[ $(hostname) == *"daint"* ]]; then
-    echo "Initializing tolerance infrastructure..."
-    # make sure that repos do not exist
-    if [ -d probtest ]; then
-        rm -rf probtest
-    fi
-    if [ -d icon-test-references ]; then
-        rm -rf icon-test-references
-    fi
-    
-    # Clone the testsuite
-    git clone git@gitlab.dkrz.de:cscs-sw/probtest.git
-
-    # This variable stores the version of the probtest repository
-    PROBTEST_HASH=$(cat scripts/buildbot_scripts/probtest_hash)
-
-    # change to the relevant version of the reference data
-    cd probtest
-    git reset --hard ${PROBTEST_HASH}
-    cd ..
-
-    # Clone the reference data
-    git clone git@gitlab.dkrz.de:cscs-sw/icon-test-references.git
-
-    # This variable stores the version of the reference data
-    REFERENCE_HASH=$(cat scripts/buildbot_scripts/tolerance_hash)
-
-    # change to the relevant version of the reference data
-    cd icon-test-references
-    git reset --hard ${REFERENCE_HASH}
-    cd ..
+  # check out tolerance data
+  echo "Initializing tolerance infrastructure..."
+  # make sure that repos do not exist
+  if [ -d probtest ]; then
+      rm -rf probtest
   fi
+  if [ -d icon-test-references ]; then
+      rm -rf icon-test-references
+  fi
+  
+  # Clone the testsuite
+  git clone git@gitlab.dkrz.de:cscs-sw/probtest.git
+
+  # This variable stores the version of the probtest repository
+  PROBTEST_HASH=$(cat scripts/buildbot_scripts/probtest_hash)
+
+  # change to the relevant version of the reference data
+  cd probtest
+  git reset --hard ${PROBTEST_HASH}
+  cd ..
+
+  # Clone the reference data
+  git clone git@gitlab.dkrz.de:cscs-sw/icon-test-references.git
+
+  # This variable stores the version of the reference data
+  REFERENCE_HASH=$(cat scripts/buildbot_scripts/tolerance_hash)
+
+  # change to the relevant version of the reference data
+  cd icon-test-references
+  git reset --hard ${REFERENCE_HASH}
+  cd ..
 
   echo "Run all *.run in run directory"
   cd run
