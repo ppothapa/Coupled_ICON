@@ -394,10 +394,11 @@ EOF
 # setup for levante.dkrz.de
 set_run_target_bull_milan()
 {
-    # mistral.dkrz.de
+    # levante.dkrz.de
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 32
+    set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
     if [[ "x$BB_SYSTEM" != "x" ]]
