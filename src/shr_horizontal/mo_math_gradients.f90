@@ -129,10 +129,6 @@ INTERFACE grad_fe_cell
   MODULE PROCEDURE grad_fe_cell_dycore
 END INTERFACE
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
 CONTAINS
 
 !-------------------------------------------------------------------------
@@ -241,7 +237,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 IF (timers_level > 10) CALL timer_start(timer_grad)
 
 !$ACC DATA PCOPYIN( psi_c ) PCOPYOUT( grad_norm_psi_e )                    &
-!$ACC      PRESENT( ptr_patch%edges%inv_dual_edge_length, iidx, iblk ) IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( ptr_patch%edges%inv_dual_edge_length, iidx, iblk ) IF( i_am_accel_node )
 
 !$OMP PARALLEL
 
@@ -251,7 +247,7 @@ IF (timers_level > 10) CALL timer_start(timer_grad)
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF( i_am_accel_node )
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO je = i_startidx, i_endidx
@@ -382,10 +378,7 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 i_startblk = ptr_patch%edges%start_blk(rl_start,1)
 i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
-!$ACC DATA PCOPYIN( psi_v ) PCOPYOUT( grad_tang_psi_e ) &
-!$ACC      PRESENT( ptr_patch%edges%vertex_idx, ptr_patch%edges%vertex_blk, &
-!$ACC               ptr_patch%edges%tangent_orientation, ptr_patch%edges%primal_edge_length )   &
-!$ACC      CREATE( ilv1, ibv1, ilv2, ibv2 ) IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA PRESENT( psi_v, grad_tang_psi_e, ptr_patch) CREATE( ilv1, ibv1, ilv2, ibv2 ) IF( i_am_accel_node )
 
 !
 ! TODO: OpenMP
@@ -399,8 +392,8 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-  !$ACC LOOP GANG VECTOR
+  !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+  !$ACC LOOP GANG(STATIC:1) VECTOR
   DO je = i_startidx, i_endidx
     !
     !  get the line and block indices of the vertices of edge je
@@ -410,13 +403,10 @@ DO jb = i_startblk, i_endblk
     ilv2(je) = ptr_patch%edges%vertex_idx(je,jb,2)
     ibv2(je) = ptr_patch%edges%vertex_blk(je,jb,2)
   END DO
-  !$ACC END PARALLEL
 
-  !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-  !$ACC LOOP GANG
   DO jk = slev, elev
 
-    !$ACC LOOP VECTOR PRIVATE( iorient )
+    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( iorient )
     DO je = i_startidx, i_endidx
       !
       ! compute the tangential derivative
@@ -532,7 +522,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !
 
 !$ACC DATA PCOPYIN( p_cc ) PCOPYOUT( p_grad )                                      &
-!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node )
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -543,7 +533,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 
 #ifdef _OPENACC
-!$ACC KERNELS PRESENT( p_grad ), IF( i_am_accel_node .AND. acc_on )
+!$ACC KERNELS PRESENT( p_grad ), IF( i_am_accel_node )
     p_grad(:,:,:,1:i_startblk) = 0._wp
 !$ACC END KERNELS
 #else
@@ -558,7 +548,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF( i_am_accel_node )
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -820,7 +810,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !
 
 !$ACC DATA PCOPYIN( p_ccpr ) PCOPYOUT( p_grad )                                      &
-!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node )
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -834,7 +824,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF( i_am_accel_node )
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -995,7 +985,7 @@ ENDIF
 ! 2. reconstruction of cell based geographical gradient
 !
 !$ACC DATA PCOPYIN( p_cc ) PCOPYOUT( p_grad )                                  &
-!$ACC      PRESENT( ptr_int%geofac_grg, iidx, iblk ) IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( ptr_int%geofac_grg, iidx, iblk ) IF( i_am_accel_node )
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -1005,7 +995,7 @@ ENDIF
   IF (ptr_patch%id > 1) THEN
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 #ifdef _OPENACC
-!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
+!$ACC KERNELS IF( i_am_accel_node )
     p_grad(:,:,:,1:i_startblk) = 0._wp
 !$ACC END KERNELS
 #else
@@ -1020,7 +1010,7 @@ ENDIF
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF( i_am_accel_node )
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -1133,7 +1123,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
   !
 
 !$ACC DATA PCOPYIN( p_ccpr ) PCOPYOUT( p_grad )                                     &
-!$ACC      PRESENT( ptr_int, iidx, iblk ) IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( ptr_int, iidx, iblk ) IF( i_am_accel_node )
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -1146,7 +1136,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on ) 
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node ) 
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx

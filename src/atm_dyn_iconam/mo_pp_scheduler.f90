@@ -1088,7 +1088,7 @@ CONTAINS
         grib2_desc = grib2_var(0, 3, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
         CALL add_var( p_opt_diag_list_p, 'gh', p_diag_pz%p_gh,                  &
           & GRID_UNSTRUCTURED_CELL, ZA_PRESSURE, cf_desc, grib2_desc,           &
-          & ldims=shape3d, lrestart=.FALSE.)
+          & ldims=shape3d, lrestart=.FALSE., lopenacc=.TRUE.)
         CALL copy_variable("temp",   p_nh_state_lists(jg)%diag_list,    ZA_PRESSURE, shape3d, &
           &                p_diag_pz%p_temp, p_opt_diag_list_p)
       END IF

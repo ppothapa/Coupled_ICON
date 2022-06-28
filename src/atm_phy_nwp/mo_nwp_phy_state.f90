@@ -3914,7 +3914,9 @@ __acc_attach(diag%clct)
                     &             vert_intp_method=VINTP_METHOD_LIN,                 &
                     &             l_loglin=.FALSE.,                                  &
                     &             l_extrapol=.FALSE.),                               &
-                    & l_pp_scheduler_task=TASK_COMPUTE_PV, lrestart=.FALSE.          )
+                    & l_pp_scheduler_task=TASK_COMPUTE_PV, lrestart=.FALSE.,         &
+                    & lopenacc=.TRUE.)
+      __acc_attach(diag%pv)
     END IF
 
     IF (var_in_output%sdi2) THEN
@@ -3939,8 +3941,8 @@ __acc_attach(diag%clct)
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
                     & l_pp_scheduler_task=TASK_COMPUTE_LPI, lrestart=.FALSE.,        &
-                    lopenacc=.TRUE.)
-       __acc_attach(diag%lpi)
+                    & lopenacc=.TRUE.)
+      __acc_attach(diag%lpi)
     END IF
 
     IF (var_in_output%lpi_max) THEN
@@ -3958,7 +3960,7 @@ __acc_attach(diag%clct)
                   & resetval=0.0_wp, initval=0.0_wp,                         &
                   & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
                   & lopenacc=.TRUE.)
-       __acc_attach(diag%lpi_max)
+      __acc_attach(diag%lpi_max)
     END IF
 
 
