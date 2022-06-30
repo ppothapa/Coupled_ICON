@@ -108,14 +108,13 @@ CONTAINS
                                                      ! - string with a comma-separated list with variables, e.g., 'vn,thermdyn'
                                                      ! - 'all'      -> all variables (i.e., 'vn,thermdyn,qv')
     REAL(wp) :: max_nudge_coeff_qv(initem)           ! Max. nudging coefficient for water vapour (for global nudging only)
-    INTEGER  :: idiagnose(initem)                    ! Multiple of 'run_nml: dtime' for diagnosing the nudging success/impact 
-                                                     ! during runtime (i.e., output quality measures)
+
     !.................................................................................................................
 
     
     NAMELIST /nudging_nml/ nudge_type, max_nudge_coeff_vn, max_nudge_coeff_thermdyn,         &
       &                    nudge_start_height, nudge_var, nudge_profile, max_nudge_coeff_qv, &
-      &                    nudge_end_height, nudge_scale_height, thermdyn_type, idiagnose    
+      &                    nudge_end_height, nudge_scale_height, thermdyn_type
 
     !----------------------------------------
 
@@ -139,7 +138,6 @@ CONTAINS
     thermdyn_type(:)            = -ithermdyn_type%nitem 
     nudge_profile(:)            = -indg_profile%nitem
     nudge_var(:)                = " "
-    idiagnose(:)                = -999 
 
     ! For upper-boundary nudging
     ! --------------------------
@@ -162,7 +160,6 @@ CONTAINS
                                                                  ! 'nudge_scale_height = nudge_end_height - nudge_start_height'
     max_nudge_coeff_qv(iitem)       = 0._wp                      ! Max. nudging coefficient for water vapour
     nudge_var(iitem)                = "vn,thermdyn"              ! Horizontal wind and thermodynamic variables are nudged
-    idiagnose(iitem)                = -1                         ! No analysis of nudging success/impact
 
     ! For global nudging
     ! ------------------
@@ -182,7 +179,6 @@ CONTAINS
     thermdyn_type(iitem)            = ithermdyn_type%hydrostatic   ! 1 -> diagnostic variables: hydrostatic pressure 
                                                                    !      and temperature are nudged 
     nudge_var(iitem)                = TRIM(cndg_var(indg_var%all)) ! 'all' -> nudge all variables
-    idiagnose(iitem)                = -1                           ! Negative number -> no analysis of nudging success/impact
 
     !------------------------------------------------------------------------
     ! If this is a resumed integration, overwrite the defaults above 
@@ -287,10 +283,6 @@ CONTAINS
       lentry = lapplicable .AND. (TRIM(nudge_var(inml)) /= TRIM(nudge_var(iref)))
       iitem  = MERGE(inml, jitem, lentry)
       nudging_config(jg)%nudge_var = nudge_var(iitem)
-      ! dtime-sampling interval for analysis of nudging success/impact
-      lentry = lapplicable .AND. (idiagnose(inml) /= idiagnose(iref))
-      iitem  = MERGE(inml, jitem, lentry)
-      nudging_config(jg)%idiagnose = idiagnose(iitem) 
 
     ENDDO ! jg
 
@@ -404,8 +396,7 @@ CONTAINS
   SUBROUTINE check_nudging( n_dom, iforcing, ivctype, top_height,                           &
     &                       l_limited_area, num_prefetch_proc, lsparse_latbc, itype_latbc,  &
     &                       nudge_hydro_pres, latbc_varnames_map_file, LATBC_TYPE_CONST,    & 
-    &                       LATBC_TYPE_EXT, is_plane_torus, lart,ndyn_substeps, ltransport, &
-    &                       nsteps, msg_level                                               )
+    &                       LATBC_TYPE_EXT, is_plane_torus, lart,ndyn_substeps, ltransport  )
 
     ! In/out variables
     ! (In order to avoid circular dependencies, 
@@ -428,8 +419,6 @@ CONTAINS
     LOGICAL,          INTENT(IN) :: lart                    ! .TRUE.: ART interface cut in
     INTEGER,          INTENT(IN) :: ndyn_substeps           ! Number of dynamics substeps per fast-physics step
     LOGICAL,          INTENT(IN) :: ltransport              ! .TRUE.: tracer transport switched on 
-    INTEGER,          INTENT(IN) :: nsteps                  ! Number of time steps
-    INTEGER,          INTENT(IN) :: msg_level               ! Verbosity level
 
     ! Local variables
     INTEGER :: jg
@@ -451,9 +440,6 @@ CONTAINS
       nudging_config(jg)%lnudging = ( ( nudging_config(jg)%nudge_type == indg_type%ubn .AND. &
         &                           l_limited_area                                   ) .OR.  &
         &                           ( nudging_config(jg)%nudge_type == indg_type%globn )     )
-
-      ! Asynchronous read-in of driving data
-      nudging_config(jg)%lasync = num_prefetch_proc > 0
 
       !---------------------------------------------
       ! Crosschecks
@@ -481,6 +467,9 @@ CONTAINS
           ! For upper boundary nudging it is essential that "latbc"-data are read in 
           ! on the entire limited-area domain, not only on a small strip along the lateral boundary
           CALL finish(routine, "Upper boundary nudging requires read-in of nudging-data on entire domain.")
+        ELSEIF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND. .NOT. (num_prefetch_proc > 0)) THEN
+          ! Global nudging requires num_prefetch_proc > 0
+          CALL finish(routine, "Global nudging requires num_prefetch_proc > 0.")
         ELSEIF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND. lsparse_latbc) THEN
           ! For global nudging it is essential that "latbc"-data are read in on the entire domain
           CALL finish(routine, "Global nudging requires read-in of nudging-data on entire domain.")
@@ -489,8 +478,7 @@ CONTAINS
           ! Global nudging requires time-dependent driving data
           WRITE(message_text,'(a)') "Global nudging requires: itype_latbc = "//TRIM(int2string(LATBC_TYPE_EXT))
           CALL finish(routine, message_text)
-        ELSEIF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND. nudging_config(jg)%lasync .AND. &
-          &     (LEN_TRIM(latbc_varnames_map_file) == 0)) THEN
+        ELSEIF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND. (LEN_TRIM(latbc_varnames_map_file) == 0)) THEN
           ! In case of asynchronous read-in of driving data in a limited-area configuration, 
           ! the presence of a variable dictionary file is not mandatory 
           ! (see 'src/configure_model/mo_limarea_config: configure_latbc'). 
@@ -501,19 +489,9 @@ CONTAINS
           ! although it is there (for instance, you may have stored temperature under the short name "T" 
           ! in the driving data files, but 'check_variables' locks for "TEMP"). 
           ! For this reason, we decided that a dictionary file is mandatory in case of global nudging.
-          ! Synchronous read-in does not use the dictionary file, but provides different reading subroutines 
-          ! in 'src/io/atmo/mo_sync_latbc'.
           WRITE(message_text,'(a)') "Global nudging with num_prefetch_proc = 1 requires to specify " &
             & //"a dictionary file in latbc_varnames_map_file (try icon/run/dict.latbc)."
           CALL finish(routine, message_text)
-        ELSEIF ((nudging_config(jg)%idiagnose > 0) .AND. (msg_level < 11)) THEN
-          ! The analysis of the nudging impact includes the global mean of
-          ! the absolute surface pressure tendency. However, this quantity is diagnosed 
-          ! only if 'msg_level >= 11'. 
-          ! ('msg_level' might be regarded as a "secondary" parameter, 
-          ! which we could simply set to the desired value here. 
-          ! However, for safety reasons, we prefer not to touch parameters from other namelists.)
-          CALL finish(routine, "idiagnose > 0 requires msg_level >= 11.")
         ENDIF
 
         ! Warning criteria:
@@ -650,20 +628,6 @@ CONTAINS
           !
           ! Nudging water vapour is not possible, if tracer transport is switched off 
           nudging_config(jg)%lqv_nudgable = ltransport
-          !
-          ! If analysis of nudging success/impact is switched on, 
-          ! the analysis interval in units of the time step 'dtime' should be less than 
-          ! the total number of time steps
-          ! ('nsteps' is not necessarily directly entered via namelist, but might be derived 
-          ! from other namelist entries. This potential derivation should have happened before 
-          ! the call of this subroutine. To be on the safe side, we check for its default value 
-          ! 'nsteps = -999', see 'src/namelists/mo_run_nml'.)
-          IF (nudging_config(jg)%idiagnose > 0 .AND. nsteps < 0) THEN
-            CALL finish(routine, "nsteps seems to be not yet configured") 
-          ELSEIF (nudging_config(jg)%idiagnose >= nsteps) THEN
-            WRITE(message_text,'(a)') "idiagnose < nsteps = "//TRIM(int2string(nsteps))//" required"
-            CALL finish(routine, message_text)
-          ENDIF
         ENDIF  !nudging type
 
       ENDIF  !IF (nudging_config(jg)%lnudging)

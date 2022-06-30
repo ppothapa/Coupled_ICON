@@ -5077,30 +5077,6 @@ nudge\_type = 2 \\
 nudge\_var = "{all}" { or} "...,thermdyn,..."
 \tabularnewline
 
-%\hline
-idiagnose&
-I &
--1 &
- &
-Switch for nudging diagnostics:\\
-{\textasteriskcentered} $\leq$ 0: switched off\\
-{\textasteriskcentered} $>$ 0: each (idiagnose * dtime) time diagnostics are computed 
-and written to the ASCII file ``nudging\_diagnostics.txt''.\\
-The nudging diagnostics are:\\
-{\textbullet} correlation between the mean sea-level pressure from ICON 
-on the one hand and from the driving model on the other hand (a measure for 
-the nudging success)\\
-{\textbullet} global mean of the absolute horizontal wind divergence 
-(a measure for the nudging impact on the atmospheric ``noise'' 
-or the gravity wave activity, depending on the perspective)\\
-{\textbullet} global mean of the absolute 
-surface pressure time tendency (a further measure for the nudging impact)\\
-(For global nudging only.)
-&
-nudge\_type = 2 \\
-msg\_level >= 11
-\tabularnewline
-
 \end{longtab}
 
 Defined and used in: \verb+src/namelists/mo_nudging_nml.f90+

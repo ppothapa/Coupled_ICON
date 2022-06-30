@@ -2406,10 +2406,7 @@ MODULE mo_nh_stepping
         CALL nudging_interface( p_patch          = p_patch(jg),            & !in
           &                     p_nh_state       = p_nh_state(jg),         & !inout
           &                     latbc            = latbc,                  & !in
-          &                     p_int_state      = p_int_state(jg),        & !in
           &                     mtime_datetime   = datetime_local(jg)%ptr, & !in
-          &                     sim_time         = sim_time,               & !in
-          &                     time_config      = time_config,            & !in
           &                     ndyn_substeps    = ndyn_substeps,          & !in
           &                     nnew             = nnew(jg),               & !in
           &                     nnew_rcf         = n_new_rcf,              & !in

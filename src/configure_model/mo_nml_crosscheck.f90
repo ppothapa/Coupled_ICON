@@ -991,8 +991,7 @@ CONTAINS
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
-      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport, &
-      &                 nsteps, msg_level                                                )
+      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
       &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &
