@@ -1,15 +1,15 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #==============================================================================
-import os,sys
+import os,sys,subprocess
 from model_paths import paths
 
 #-----------------------------------------------------------------------
 # some help method to call commands and return stdout and stderr
 def runCommand(cmd):
   sys.stderr.write("COMMAND: "+cmd+"\n")
-  status = os.system(cmd)
-  return status
+  exitCode = subprocess.call([cmd], shell=True)
+  return exitCode
 #-----------------------------------------------------------------------
 
 def make_binaries_interface(build_script, configure_flags, builder_flags):

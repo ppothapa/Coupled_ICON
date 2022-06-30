@@ -336,12 +336,11 @@ EOF4
 
 #-----------------------------------------------------------------------------
 #  compare with reference
-if [[ x$BB_SYSTEM != x ]]; then
+if [[ "x${BB_NAME}" != "x" ]]; then
 . ${thisdir}/postFunx.sh
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
-  slave=${BB_SYSTEM:-mistral}_${BB_SLAVE:-gcc}
-  refDir=${builbot_ocean_reference_path}/${slave}/${EXPNAME}
+  refDir=${builbot_ocean_reference_path}/${BB_NAME}/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_error $? "DIFFCHECK for exp: ${EXPNAME}"

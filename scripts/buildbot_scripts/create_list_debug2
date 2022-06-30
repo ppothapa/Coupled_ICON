@@ -1,0 +1,48 @@
+#!/bin/bash
+
+addexp="./addexp"
+#############################################################################
+listname=debug2
+./rmlist $listname
+
+./create_all_builders $listname
+
+# deactivate all builders
+./set_builder_flags Inactive --builders mistral_gcc                  --list $listname
+./set_builder_flags Inactive --builders mistral_intel                --list $listname
+./set_builder_flags Inactive --builders mistral_intel_hybrid         --list $listname
+./set_builder_flags Inactive --builders mistral_intel_openmp         --list $listname
+./set_builder_flags Inactive --builders mistral_intel_hybrid_mixed   --list $listname
+./set_builder_flags Inactive --builders mistral_intel17              --list $listname
+./set_builder_flags Inactive --builders mistral_intel17_hybrid       --list $listname
+./set_builder_flags Inactive --builders mistral_intel17_openmp       --list $listname
+./set_builder_flags Inactive --builders mistral_intel17_hybrid_mixed --list $listname
+./set_builder_flags Inactive --builders mistral_intel18              --list $listname
+./set_builder_flags Inactive --builders mistral_intel18_hybrid       --list $listname
+./set_builder_flags Inactive --builders mistral_intel18_openmp       --list $listname
+./set_builder_flags Inactive --builders mistral_intel18_hybrid_mixed --list $listname
+./set_builder_flags Inactive --builders mistral_nag                  --list $listname
+./set_builder_flags Inactive --builders mistral_nag_serial           --list $listname
+./set_builder_flags Inactive --builders mistral_ocean                --list $listname
+./set_builder_flags Inactive --builders mistral_ocean_intel17        --list $listname
+./set_builder_flags Inactive --builders mistral_ocean_intel18        --list $listname
+./set_builder_flags Inactive --builders breeze_gcc                   --list $listname
+./set_builder_flags Inactive --builders breeze_gcc_openmp            --list $listname
+./set_builder_flags Inactive --builders breeze_intel                 --list $listname
+./set_builder_flags Inactive --builders breeze_intel_openmp          --list $listname
+./set_builder_flags Inactive --builders breeze_nag                   --list $listname
+./set_builder_flags Inactive --builders daint_cpu_cce                --list $listname
+./set_builder_flags Inactive --builders daint_cpu_pgi                --list $listname
+./set_builder_flags Inactive --builders daint_gpu_pgi                --list $listname
+./set_builder_flags Inactive --builders daint_cpu_nvidia             --list $listname
+./set_builder_flags Inactive --builders daint_gpu_nvidia             --list $listname
+./set_builder_flags Inactive --builders mpimac_gcc                   --list $listname
+./set_builder_flags Inactive --builders dwd_nec                      --list $listname
+./set_builder_flags Inactive --builders dwd_nec_hybrid               --list $listname
+./set_builder_flags Inactive --builders dwd_nec_yac2                 --list $listname
+./set_builder_flags Inactive --builders dwd_cray                     --list $listname
+
+#lets see the list
+./lslist $listname
+#-----------------------------------------------------------
+

@@ -34,11 +34,17 @@ XML2_LIBS='-lxml2'
 MPI_ROOT="${SW_ROOT}/openmpi-4.1.2-yfwe6t"
 
 PYTHON='/usr/bin/python3'
-################################################################################
-PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
-$PATCH -d "${ICON_DIR}/externals/rte-rrtmgp" -i "${SCRIPT_DIR}/levante_intel_patches/gas_fix.patch" || test $? -eq 1 || exit 2
+
 ################################################################################
 
+# We need to patch RTE-RRTMGP to resolve the vectorization problem
+# (see config/dkrz/levante_intel_patches/README.md):
+PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
+# Apply the patch but do not fail if it has already been applied
+# (does not work correcly if there are several hunks in the patch file):
+patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/rte-rrtmgp" -i "${SCRIPT_DIR}/levante_intel_patches/gas_fix.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
+
+################################################################################
 
 AR='/sw/spack-levante/intel-oneapi-compilers-2022.0.1-an2cbq/compiler/2022.0.1/linux/bin/intel64/xiar'
 

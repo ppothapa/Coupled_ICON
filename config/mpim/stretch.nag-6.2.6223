@@ -25,28 +25,56 @@ SPACK_SW_ROOT='/data/mpi/sclab/sip/m300488/sw/nag-6.2'
 MPICH_ROOT="${XAS_SW_ROOT}/mpi/mpich3-3.2.1-nag62"
 MPICH_LIBS='-lmpifort -lmpi'
 
-# We cannot use ${XAS_SW_ROOT}/netcdf/netcdf_fortran-4.4.4-nag62 because the
-# file ${XAS_SW_ROOT}/netcdf/netcdf_fortran-4.4.4-nag62/lib/libnetcdff.la has an
-# entry "inherited_linker_flags=' -Wl,-pthread'", which seems to be inherited
-# from curl. The problem is that '-Wl,-pthread' is injected by libtool, which is
-# used by several bundled libraries, when linking with 'gcc' and that leads to
-# the linker error '/usr/bin/ld: unrecognized option '-pthread'. Therefore, we
-# use libraries from ${SPACK_SW_ROOT}:
-HDF5_ROOT="${SPACK_SW_ROOT}/hdf5-1.10.3-apnriqy"
-HDF5_LIBS='-lhdf5'
+# We need ZLIB that is used by HDF5 and other libraries (see below):
+ZLIB_ROOT="${SPACK_SW_ROOT}/zlib-1.2.11-ysrsnci"
+ZLIB_LIBS='-lz'
 
-NETCDF_ROOT="${SPACK_SW_ROOT}/netcdf-4.6.1-4x2bjig"
+# We cannot use ${XAS_SW_ROOT}/netcdf/netcdf_fortran-4.4.4-nag62 because:
+#   1. The file
+#      ${XAS_SW_ROOT}/netcdf/netcdf_fortran-4.4.4-nag62/lib/libnetcdff.la has an
+#      entry "inherited_linker_flags=' -Wl,-pthread'", which seems to be
+#      inherited from curl. The problem is that '-Wl,-pthread' is injected by
+#      libtool, which is used by several bundled libraries, when linking with
+#      'gcc' and that leads to the linker error '/usr/bin/ld: unrecognized
+#      option '-pthread'.
+#   2. We need HDF5 with the Fortran interface enabled, which means we need to
+#      build it, as well as the NetCDF libraries that depend on it.
+# Therefore, we use libraries from ${SPACK_SW_ROOT}:
+HDF5_ROOT="${SPACK_SW_ROOT}/hdf5-1.10.3-sbppuer"
+HDF5_LIBS='-lhdf5hl_fortran -lhdf5_fortran -lhdf5'
+
+NETCDF_ROOT="${SPACK_SW_ROOT}/netcdf-4.6.1-3eomrh2"
 NETCDF_LIBS='-lnetcdf'
 
-NETCDFF_ROOT="${SPACK_SW_ROOT}/netcdf-fortran-4.4.4-insiw2u"
+NETCDFF_ROOT="${SPACK_SW_ROOT}/netcdf-fortran-4.4.4-4cbmdpv"
 NETCDFF_LIBS='-lnetcdff'
 
-BLAS_LAPACK_LIBS='-llapack -lblas'
+# We need LAPACK library that is used by RTTOV (see below):
+NETLIB_LAPACK_ROOT="${SPACK_SW_ROOT}/netlib-lapack-3.8.0-jgcutoo"
+NETLIB_LAPACK_LIBS='-llapack -lblas'
 
-GRIBAPI_ROOT="${XAS_SW_ROOT}/grib_api/grib_api-1.21.0-gccsys"
-GRIBAPI_LIBS='-lgrib_api'
+RTTOV_ROOT="${SPACK_SW_ROOT}/rttov-13.1-qsh5z5l"
+RTTOV_LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'
 
-SERIALBOX2_ROOT="${SPACK_SW_ROOT}/serialbox-2.6.0-zedamgc"
+# The RTTOV license does not allow for a public installation (at least, we are
+# not sure whether it does). Therefore, the Buildbot user (m215048) is the only
+# one that has access to ${RTTOV_ROOT}. To make the configure wrapper work for
+# other users, we have to set RTTOV_ROOT and RTTOV_LIBS to empty strings. That,
+# of course, means that other users cannot use the wrapper as-is to build ICON
+# with RTTOV. They will need to download (implies accepting the license) and
+# install RTTOV themselves and set FCFLAGS, LDFLAGS, and LIBS accordingly
+# (see https://gitlab.dkrz.de/icon/icon#icon-dependencies). Note that the
+# Fortran module files of the library in ${RTTOV_ROOT} have been moved from
+# ${RTTOV_ROOT}/mod to ${RTTOV_ROOT}/include to make them accessible with a
+# single compiler flags -I${RTTOV_ROOT}/include.
+ls "${RTTOV_ROOT}" >/dev/null 2>&1 || { RTTOV_ROOT=; RTTOV_LIBS=; }
+
+# We need GRIB2 library with the Fortran interface. Therefore we use one from
+# ${SPACK_SW_ROOT}:
+ECCODES_ROOT="${SPACK_SW_ROOT}/eccodes-2.5.0-xwiaetz"
+ECCODES_LIBS='-leccodes_f90 -leccodes'
+
+SERIALBOX2_ROOT="${SPACK_SW_ROOT}/serialbox-2.6.0-6rgmay3"
 SERIALBOX2_LIBS='-lSerialboxFortran'
 
 XML2_ROOT='/usr'
@@ -54,7 +82,7 @@ XML2_LIBS='-lxml2'
 
 ################################################################################
 
-BUILD_ENV=". /etc/profile.d/mpim.sh; . \"${SCRIPT_DIR}/module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${MPICH_ROOT}/lib:${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${GRIBAPI_ROOT}/lib:${SERIALBOX2_ROOT}/lib\${LD_LIBRARY_PATH}\";"
+BUILD_ENV=". /etc/profile.d/mpim.sh; . \"${SCRIPT_DIR}/module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${MPICH_ROOT}/lib:${ZLIB_ROOT}/lib:${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${NETLIB_LAPACK_ROOT}/lib"${RTTOV_ROOT:+":${RTTOV_ROOT}/lib"}":${ECCODES_ROOT}/lib:${SERIALBOX2_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
 
 # We need the absolute path to 'gcc':
 set +eu
@@ -66,16 +94,23 @@ CC='gcc'
 CFLAGS='-g -march=native'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
-CPPFLAGS="-I${MPICH_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${GRIBAPI_ROOT}/include -I${XML2_ROOT}/include/libxml2"
+CPPFLAGS="-I${MPICH_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2"
 
 FC='nagfor'
-FCFLAGS="-I${MPICH_ROOT}/include -I${NETCDFF_ROOT}/include -I${SERIALBOX2_ROOT}/include -colour -f2008 -Wc=${GCC_PATH} -w=uep -O0 -Wc,-g -float-store -nan -gline -g"
-ICON_FCFLAGS='-Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -Wc,-mno-fma -C=all -wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create,nf_def_var,nf_get_att_double,nf_get_att_int,nf_get_vara_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int'
-ICON_BUNDLED_FCFLAGS=''
-ICON_YAXT_FCFLAGS='-wmismatch=xt_slice_c_loc' # not needed starting YAXT 0.8.0
+FCFLAGS="-I${MPICH_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include "${RTTOV_ROOT:+"-I${RTTOV_ROOT}/include "}"-I${ECCODES_ROOT}/include -I${SERIALBOX2_ROOT}/include -colour -f2008 -Wc=${GCC_PATH} -w=uep -O0 -float-store -nan -gline -g -C=all"
 
-LDFLAGS="-L${MPICH_ROOT}/lib -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${GRIBAPI_ROOT}/lib -L${SERIALBOX2_ROOT}/lib"
-LIBS="${XML2_LIBS} ${SERIALBOX2_LIBS} ${GRIBAPI_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${MPICH_LIBS}"
+# Fortran compiler flags that cannot be handled by libtool scripts of some of
+# the bundled libraries:
+non_libtool_FCFLAGS="-Wc,-g -Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -Wc,-mno-fma"
+
+ICON_FCFLAGS="${non_libtool_FCFLAGS} -dcfuns -wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_ibcast,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create,nf_def_var,nf_get_att_double,nf_get_att_int,nf_get_att_real,nf_get_vara_double,nf_get_vara_int,nf_get_vars_double,nf_get_vars_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int,nf_put_vara_real,p_bcast_derivedtype"
+ICON_BUNDLED_FCFLAGS=${non_libtool_FCFLAGS}
+ICON_CDI_FCFLAGS=
+ICON_MTIME_FCFLAGS=
+ICON_SCT_FCFLAGS=
+
+LDFLAGS="-L${MPICH_ROOT}/lib -L${ZLIB_ROOT}/lib -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${NETLIB_LAPACK_ROOT}/lib "${RTTOV_ROOT:+"-L${RTTOV_ROOT}/lib "}"-L${ECCODES_ROOT}/lib -L${SERIALBOX2_ROOT}/lib"
+LIBS="${XML2_LIBS} ${SERIALBOX2_LIBS} ${ECCODES_LIBS} ${RTTOV_LIBS} ${NETLIB_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS} ${MPICH_LIBS}"
 
 # In order to avoid redundant dependencies on the libraries (e.g. -lgrib_api is
 # not needed when GRIB2 support is disabled), we can use linker flag
@@ -85,15 +120,19 @@ LIBS="${XML2_LIBS} ${SERIALBOX2_LIBS} ${GRIBAPI_LIBS} ${BLAS_LAPACK_LIBS} ${NETC
 #   1) We put '-Wl,-Wl,,--as-needed' not to LDFLAGS or LIBS, which are used by
 #      both Fortran and C compilers (the latter is used for linking by the
 #      bundled libraries) but to ICON_LDFLAGS:
-ICON_LDFLAGS='-Wl,-Wl,,--as-needed'
+ICON_LDFLAGS='-Wl,-Wl,,--disable-new-dtags -Wl,-Wl,,--as-needed'
 #   2) We prepend each '-l<library>' flag with '-Wl,' because otherwise NAG
 #      puts them before '-Wl,--as-needed' when calling gcc for linking and the
 #      flag does not give the desired effect:
 LIBS=$(echo "${LIBS}" | sed 's/\([ ]\|^\)-l/\1-Wl,-l/g')
 
-MPI_LAUNCH='mpiexec'
+# The Serialbox2 preprocessor (pp_set.py) in ${SERIALBOX2_ROOT} is modified
+# with a wrong patch, which does not really help with the parsing of UTF-8
+# symbols in the Fortran source files with Python 3. Therefore, we enforce the
+# usage of Python 2:
+SB2PP="python2 ${SERIALBOX2_ROOT}/python/pp_ser/pp_ser.py"
 
-SB2PP="${SERIALBOX2_ROOT}/python/pp_ser/pp_ser.py"
+MPI_LAUNCH='mpiexec'
 
 EXTRA_CONFIG_ARGS=''
 
@@ -108,10 +147,12 @@ FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
 ICON_BUNDLED_FCFLAGS="${ICON_BUNDLED_FCFLAGS}" \
+ICON_CDI_FCFLAGS="${ICON_CDI_FCFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
-ICON_YAXT_FCFLAGS="${ICON_YAXT_FCFLAGS}" \
+ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
+ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

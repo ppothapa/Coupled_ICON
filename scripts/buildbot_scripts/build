@@ -29,22 +29,21 @@ args = parser.parse_args()
 
 paths = model_paths()
 if not paths.thisListExists(args.list_name):
-    print("This list does not exist.")
-    quit(1)
+  print("This list does not exist: {0}".format(args.list_name))
+  quit(1)
   
 thisList = buildbot_experiments_list(args.list_name)
-if args.create_binaries:
-  status = thisList.make_binaries(args.builder_name)
-  if not status == 0: quit(1)
+#TODO[ram] use internal methods of the builder to return Boolean instead a string
+if  thisList.get_builder_flags(args.builder_name).lower() in ['inactive', 'build_only']:
+  runscriptsList = []
+else:
+  if args.create_binaries:
+    status = thisList.make_binaries(args.builder_name)
+    if not status == 0: quit(1)
 
-runscriptsList = thisList.make_runscripts(args.builder_name)
-
-# write runscripts
+  runscriptsList = thisList.make_runscripts(args.builder_name)
 
 listfile = open(os.path.join(paths.get_runpath(), "runscript_list"), 'w')
 for runscript in runscriptsList:
   listfile.write(runscript+" ")
 listfile.close()
-
-
-

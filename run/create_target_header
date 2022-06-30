@@ -1,6 +1,5 @@
 #! /usr/bash
 #______________________________________________________________________________
-#
 # Sets the parameters for various machine use_compiler configurations
 # and creates the run script headers for these configurations
 #
@@ -52,7 +51,7 @@ start_header()
     cat >> $output_script << EOF
 #=============================================================================
 set +x
-$(test x"${use_ulimit}" = xno || printf 'ulimit -s unlimited')
+$(test x"${use_ulimit:-yes}" != xyes || printf 'ulimit -s unlimited')
 #=============================================================================
 #
 # ICON run script:
@@ -665,6 +664,13 @@ set_run_target_mpipc()
     fi
 
     start_header
+}
+
+#=============================================================================
+set_run_target_lumi()
+{
+    # LUMI at CSC
+    set_run_target_default
 }
 
 #=============================================================================

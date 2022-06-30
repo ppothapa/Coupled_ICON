@@ -859,10 +859,6 @@ CONTAINS
     ! tracer fields which are advected
     trAdvect => advection_config(jg)%trAdvect       ! 2018-06-05: cray bug do not add to PRESENT list
 
-!$ACC DATA  PRESENT(p_mflx_tracer_v, tracer_now, tracer_new, rhodz_now, rhodz_new, &
-!$ACC               deepatmo_divzl, deepatmo_divzu ),                              &
-!$ACC       IF( i_am_accel_node .AND. acc_on )
-
     i_startblk = p_patch%cells%start_block(i_rlstart)
     i_endblk   = p_patch%cells%end_block(i_rlend)
 
@@ -876,8 +872,7 @@ CONTAINS
 
       ! compute vertical flux divergences and update tracer mass fractions
       !
-!$ACC PARALLEL DEFAULT(NONE) PRESENT( trAdvect, advection_config ) &
-!$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP SEQ
       TRACERLOOP: DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -925,8 +920,6 @@ CONTAINS
     END DO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
-!$ACC END DATA
 
     IF (timers_level > 2) CALL timer_stop(timer_adv_vert)
 

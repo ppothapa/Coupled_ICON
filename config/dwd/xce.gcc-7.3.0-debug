@@ -82,7 +82,7 @@ LIBS="${XML2_LIBS} ${ECCODES_LIBS}"
 
 MPI_LAUNCH=''  # needed e.g. for yac configuration. What is the correct setting for gnu ?? 
 
-EXTRA_CONFIG_ARGS='--disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-loop-exchange --enable-grib2 --enable-mpi --enable-openmp --disable-coupling --enable-ecrad'
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-loop-exchange --enable-grib2 --enable-mpi --enable-openmp --disable-coupling --enable-ecrad --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

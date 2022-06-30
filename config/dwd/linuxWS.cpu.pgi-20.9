@@ -98,7 +98,7 @@ LDFLAGS="-L${HDF5_LIBDIR} -L${NETCDF_LIBDIR} -L${ECCODES_LIBDIR} -L${XML2_LIBDIR
 LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIBS} ${STDCPP_LIBS}"
 #LIBS+=" ${ZLIB_LIBS} ${RTTOV_LIB}"
 
-EXTRA_CONFIG_ARGS='--without-external-yac --disable-ocean --disable-jsbach --disable-rttov'
+EXTRA_CONFIG_ARGS='--without-external-yac --disable-ocean --disable-jsbach --disable-rttov --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt'
 # --enable-grib2
 # --disable-openmp
