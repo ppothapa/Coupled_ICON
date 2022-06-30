@@ -656,8 +656,7 @@ FC_VERSION
 FC_VENDOR
 FCFLAGS_f90
 ICON_BUNDLED_FCFLAGS
-ICON_DACE_FCFLAGS
-ICON_OCEAN_FCFLAGS
+ICON_FCGROUP_FLAGS
 ICON_LDFLAGS
 ICON_FCFLAGS
 OBJEXT
@@ -677,6 +676,7 @@ build_cpu
 build
 BUILD_ENV_MAKE
 BUILD_ENV
+ICON_FCGROUP_ASSIGNMENTS
 target_alias
 host_alias
 build_alias
@@ -775,8 +775,6 @@ LDFLAGS
 LIBS
 ICON_FCFLAGS
 ICON_LDFLAGS
-ICON_OCEAN_FCFLAGS
-ICON_DACE_FCFLAGS
 ICON_BUNDLED_FCFLAGS
 CC
 CFLAGS
@@ -1226,6 +1224,34 @@ if test -n "$ac_prev"; then
   as_fn_error $? "missing argument to $ac_option"
 fi
 
+icon_fcgroups=
+acx_unrecognized_opts=
+acx_save_IFS=$IFS
+IFS=','
+for acx_opt in $ac_unrecognized_opts; do
+  IFS=$acx_save_IFS
+  acx_opt=`$as_echo "$acx_opt" | sed 's/^ //'`
+  acx_opt_recognized=no
+  case $acx_opt in #(
+  --disable-fcgroup-* | --enable-fcgroup-*) :
+         acx_opt_name=`expr "$acx_opt" : '--[^-]*able-fcgroup-\(.*\)'`
+          if test -n "$acx_opt_name"; then :
+  as_fn_append icon_fcgroups " $acx_opt_name"
+        acx_opt_recognized=yes
+fi ;; #(
+  *) :
+     ;;
+esac
+  if test "x$acx_opt_recognized" = xno; then :
+  if test -n "$acx_unrecognized_opts"; then :
+  as_fn_append acx_unrecognized_opts ", $acx_opt"
+else
+  acx_unrecognized_opts=$acx_opt
+fi
+fi
+done
+IFS=$acx_save_IFS
+ac_unrecognized_opts=$acx_unrecognized_opts
 if test -n "$ac_unrecognized_opts"; then
   case $enable_option_checking in
     no) ;;
@@ -1491,8 +1517,8 @@ Infrastructural Features:
   --enable-memory-tracing enable native dynamic memory tracing facility. The
                           value of the argument must be one of the following
                           [default=no]:
-                            mtrace|yes enable tracing with mtrace (glibc)
-                            no         disable memory tracing
+                            mtrace|yes  enable tracing with mtrace (glibc)
+                            no          disable memory tracing
 
 Optimization Features:
   --enable-loop-exchange  enable loop exchange [default=yes]
@@ -1506,6 +1532,24 @@ Optimization Features:
                           consistency [default=auto]
   --enable-pgi-inlib      enable PGI/NVIDIA cross-file function inlining via
                           an inline library [default=no]
+  --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
+                          compiled with an extra set of compiler flags. <NAME>
+                          can be any non-empty string consisting of capital
+                          letters, digits and underscores. The Fortran
+                          compiler flags to be appended to FCFLAGS when
+                          compiling files of the group are read from the
+                          environment variable ICON_<NAME>_FCFLAGS. The paths
+                          to the directories and files included in the group
+                          must be provided relative to the root source
+                          directory. The value of the argument must be one of
+                          the following [default=no]:
+                            path1:path2  a colon-separated list of paths to
+                                         the directories and files included in
+                                         the group
+                            yes          read paths to the directories and
+                                         files of the group from the
+                                         environment variable ICON_<NAME>_PATH
+                            no           disable the group
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -1536,14 +1580,14 @@ Some influential environment variables:
   ICON_LDFLAGS
               Fortran compiler flags to be appended to LDFLAGS when
               configuring ICON
-  ICON_OCEAN_FCFLAGS
+  ICON_<NAME>_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS instead of
-              ICON_FCFLAGS when compiling the ocean component of ICON
-              [default=$ICON_FCFLAGS]
-  ICON_DACE_FCFLAGS
-              Fortran compiler flags to be appended to FCFLAGS instead of
-              ICON_FCFLAGS when compiling the DACE modules for data
-              assimilation [default=$ICON_FCFLAGS]
+              ICON_FCFLAGS when compiling files of the compile group <NAME>
+              (see --enable-fcgroup-<NAME>) [default=$ICON_FCFLAGS]
+  ICON_<NAME>_PATH
+              colon-separated list of paths (relative to the root source
+              directory) to files and directories included in the compile
+              group <NAME> (see --enable-fcgroup-<NAME>)
   ICON_BUNDLED_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled libraries [default=$ICON_FCFLAGS]
@@ -2320,6 +2364,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+
 ac_aux_dir=
 for ac_dir in utils "$srcdir"/utils; do
   if test -f "$ac_dir/install-sh"; then
@@ -2647,7 +2692,7 @@ fi
 
 # Check whether --enable-claw was given.
 if test "${enable_claw+set}" = set; then :
-  enableval=$enable_claw; case "$enableval" in #(
+  enableval=$enable_claw; case $enableval in #(
   yes) :
     enable_claw=std ;; #(
   std|validate|no) :
@@ -2672,7 +2717,7 @@ fi
 
 # Check whether --enable-serialization was given.
 if test "${enable_serialization+set}" = set; then :
-  enableval=$enable_serialization; case "$enableval" in #(
+  enableval=$enable_serialization; case $enableval in #(
   yes) :
     enable_serialization=read ;; #(
   read|perturb|create|no) :
@@ -2707,7 +2752,7 @@ fi
 
 # Check whether --enable-memory-tracing was given.
 if test "${enable_memory_tracing+set}" = set; then :
-  enableval=$enable_memory_tracing; case "$enableval" in #(
+  enableval=$enable_memory_tracing; case $enableval in #(
   yes) :
     enable_memory_tracing=mtrace ;; #(
   mtrace|no) :
@@ -2771,6 +2816,126 @@ else
   enable_pgi_inlib=no
 fi
 
+
+
+ICON_FCGROUP_ASSIGNMENTS=''
+
+icon_fcgroups_unique=
+icon_fcgroup_all_entries=
+for icon_fcgroup in $icon_fcgroups; do
+  case " $icon_fcgroups_unique " in #(
+  *"$icon_fcgroup"*) :
+    continue ;; #(
+  *) :
+    as_fn_append icon_fcgroups_unique " $icon_fcgroup" ;;
+esac
+  expr "X$icon_fcgroup" : ".*[^_$as_cr_LETTERS$as_cr_digits]" >/dev/null &&
+    as_fn_error $? "invalid compile group name '$icon_fcgroup': only capital letters and digits are allowed" "$LINENO" 5
+  enableval=`eval 'as_val=${'enable_fcgroup_$icon_fcgroup'};$as_echo "$as_val"'`
+  case $enableval in #(
+  no) :
+    continue ;; #(
+  yes) :
+    eval enableval=\$ICON_${icon_fcgroup}_PATH ;; #(
+  *) :
+     ;;
+esac
+  enableval=`$as_echo "$enableval" | sed 's/::*/:/g;s/^://;s/:*$//'`
+  icon_save_IFS=$IFS
+  IFS=':'
+  for icon_fcgroup_entry in $enableval; do
+    IFS=$icon_save_IFS
+    case $icon_fcgroup_entry in #(
+  [\\/]* | ?:[\\/]*) :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not a relative path" >&5
+$as_echo "$as_me: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not a relative path" >&2;}
+       continue ;; #(
+  *) :
+     ;;
+esac
+    icon_fcgroup_path="$srcdir/$icon_fcgroup_entry"
+    if test -d "$icon_fcgroup_path"; then :
+  icon_fcgroup_entry_dirname=$icon_fcgroup_path
+       icon_fcgroup_entry_basename=
+elif test -f "$icon_fcgroup_path"; then :
+  icon_fcgroup_entry_dirname=`$as_dirname -- "$icon_fcgroup_path" ||
+$as_expr X"$icon_fcgroup_path" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+	 X"$icon_fcgroup_path" : 'X\(//\)[^/]' \| \
+	 X"$icon_fcgroup_path" : 'X\(//\)$' \| \
+	 X"$icon_fcgroup_path" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X"$icon_fcgroup_path" |
+    sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)[^/].*/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\).*/{
+	    s//\1/
+	    q
+	  }
+	  s/.*/./; q'`
+       icon_fcgroup_entry_basename=`$as_basename -- "$icon_fcgroup_path" ||
+$as_expr X/"$icon_fcgroup_path" : '.*/\([^/][^/]*\)/*$' \| \
+	 X"$icon_fcgroup_path" : 'X\(//\)$' \| \
+	 X"$icon_fcgroup_path" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X/"$icon_fcgroup_path" |
+    sed '/^.*\/\([^/][^/]*\)\/*$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\/\(\/\/\)$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\/\(\/\).*/{
+	    s//\1/
+	    q
+	  }
+	  s/.*/./; q'`
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not recognized as an existing directory or a file" >&5
+$as_echo "$as_me: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not recognized as an existing directory or a file" >&2;}
+       continue
+fi
+    icon_fcgroup_entry_dirname=`cd "$icon_fcgroup_entry_dirname" >/dev/null 2>&1 && pwd` || { { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: unable to detect absolute path to '$icon_fcgroup_entry_dirname'" >&5
+$as_echo "$as_me: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: unable to detect absolute path to '$icon_fcgroup_entry_dirname'" >&2;}; continue; }
+    case $icon_fcgroup_entry_dirname in #(
+  "$ac_abs_confdir"[\\/]*) :
+     ;; #(
+  *) :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not a subdirectory of the root source directory" >&5
+$as_echo "$as_me: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: not a subdirectory of the root source directory" >&2;}
+       continue ;;
+esac
+    icon_fcgroup_entry_dirname=`$as_echo "$icon_fcgroup_entry_dirname" | sed "s:^$ac_abs_confdir[\\/]::"`
+    icon_fcgroup_entry_basename=`$as_echo "$icon_fcgroup_entry_basename" | sed 's:[^\.]*$:%:'`
+    icon_fcgroup_pattern="${icon_fcgroup_entry_dirname}/${icon_fcgroup_entry_basename}"
+    case "$icon_fcgroup_all_entries:" in #(
+  *":$icon_fcgroup_pattern:"*) :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: an entry with the same relative path (modulo file extension) has already been registered" >&5
+$as_echo "$as_me: WARNING: entry '$icon_fcgroup_entry' of the Fortran compile group '$icon_fcgroup' is ignored: an entry with the same relative path (modulo file extension) has already been registered" >&2;}
+       continue ;; #(
+  *) :
+    as_fn_append icon_fcgroup_all_entries ":$icon_fcgroup_pattern" ;;
+esac
+    if test -n "$ICON_FCGROUP_ASSIGNMENTS"; then :
+  as_fn_append ICON_FCGROUP_ASSIGNMENTS "
+"
+fi
+    as_fn_append ICON_FCGROUP_ASSIGNMENTS "${icon_fcgroup_pattern}: ICON_FCFLAGS:= \$(ICON_${icon_fcgroup}_FCFLAGS)"
+  done
+  IFS=$icon_save_IFS
+done
+if test -n "$ICON_FCGROUP_ASSIGNMENTS"; then :
+  ICON_FCGROUP_ASSIGNMENTS=`$as_echo "$ICON_FCGROUP_ASSIGNMENTS" | sort`
+fi
 
 
 
@@ -3513,8 +3678,17 @@ ac_compiler_gnu=$ac_cv_fc_compiler_gnu
 
 
 
-ICON_OCEAN_FCFLAGS=${ICON_OCEAN_FCFLAGS-$ICON_FCFLAGS}
-ICON_DACE_FCFLAGS=${ICON_DACE_FCFLAGS-$ICON_FCFLAGS}
+
+ICON_FCGROUP_FLAGS=''
+for icon_fcgroup in $icon_fcgroups_unique; do
+  eval "icon_fcgroup_flags=\${ICON_${icon_fcgroup}_FCFLAGS-\$ICON_FCFLAGS}"
+  if test -n "$ICON_FCGROUP_FLAGS"; then :
+  as_fn_append ICON_FCGROUP_FLAGS "
+"
+fi
+  as_fn_append ICON_FCGROUP_FLAGS "ICON_${icon_fcgroup}_FCFLAGS= ${icon_fcgroup_flags}"
+done
+
 ICON_BUNDLED_FCFLAGS=${ICON_BUNDLED_FCFLAGS-$ICON_FCFLAGS}
 
 
@@ -4507,7 +4681,7 @@ fi
 
 if test x"$enable_serialization" != xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}SERIALIZE"
-   case "$enable_serialization" in #(
+   case $enable_serialization in #(
   read) :
     as_fn_append FCFLAGS " ${FC_PP_DEF}SERIALIZE_READ_REFERENCE" ;; #(
   perturb) :
@@ -6119,7 +6293,7 @@ fi
 fi
 
 if test -n "$MPI_LAUNCH"; then :
-  case "$MPI_LAUNCH" in #(
+  case $MPI_LAUNCH in #(
   [\\/]* | ?:[\\/]*) :
      ;; #(
   *) :
@@ -7219,7 +7393,7 @@ else
 elif test x"$enable_coupling" = xyes && test x"$with_external_yac" = xno; then :
   icon_bundled_yaxt_c=transitive
 fi
-   case "$icon_bundled_yaxt_fc" in #(
+   case $icon_bundled_yaxt_fc in #(
        direct|transitive) :
     if test x"$icon_bundled_yaxt_c" != xdirect; then :
   icon_bundled_yaxt_c=transitive

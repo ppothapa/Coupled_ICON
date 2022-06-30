@@ -1,0 +1,117 @@
+#!/bin/bash
+
+set -eu
+unset CDPATH
+
+script_dir=$(cd "$(dirname "$0")"; pwd)
+icon_dir=$(cd "${script_dir}/../.."; pwd)
+
+modules='CrayEnv PrgEnv-cray cce/13.0.0'
+
+# There are several groups working on LUMI who do not have access to the same
+# software stack and have to install it to their project directories. We try to
+# support all of them. Take the environment variable ICON_SW_PREFIX as the path
+# to the software stack and guess it otherwise:
+${ICON_SW_PREFIX+:} false || ICON_SW_PREFIX="/project/$(id -Gn | sed 's/^.*\(project_[0-9]*\).*$/\1/')/sw/cce-13.0.0-zen2"
+# Fail if the directory does not exist:
+test -d "${ICON_SW_PREFIX}" && sw_root=$ICON_SW_PREFIX || {
+  echo "ERROR: directory '${ICON_SW_PREFIX}' not found: \
+set environment variable ICON_SW_PREFIX to the directory with ICON dependencies" >&2
+  exit 1; }
+
+echo "Using software stack from $sw_root"
+
+ZLIB_LIBS='-lz'
+
+HDF5_ROOT="${sw_root}/hdf5-1.10.7-cray-mpich-8.1.12"
+HDF5_LIBS='-lhdf5_hl_fortran -lhdf5_fortran -lhdf5'
+
+NETCDF_ROOT="${sw_root}/netcdf-c-4.8.0-cray-mpich-8.1.12"
+NETCDF_LIBS='-lnetcdf'
+
+NETCDFF_ROOT="${sw_root}/netcdf-fortran-4.5.3-cray-mpich-8.1.12"
+NETCDFF_LIBS='-lnetcdff'
+
+ECCODES_ROOT="${sw_root}/eccodes-2.24.2"
+ECCODES_LIBS='-leccodes_f90 -leccodes'
+
+XML2_ROOT="${sw_root}/libxml2-2.9.10"
+XML2_LIBS='-lxml2'
+
+################################################################################
+
+# Module craype-accel-host not only enables OpenACC, which we can easily disable
+# with the -hnoacc flag but also breaks compilation of
+# src/ocean/math/mo_ocean_solve_legacy_gmres.f90. Therefore, we unload it:
+BUILD_ENV="module load ${modules}; module unload craype-accel-host; export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:${XML2_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
+
+# Cray MPI library (libmpifort_cray.so.12) requires (i.e. has the DT_NEEDED
+# tag) libfabric.so.1 but does not have either a DT_RPATH or a DT_RUNPATH tag
+# telling the dynamic linker where to find the dependency. Given that the MPI
+# library does not contain any DT_RUNPATH entries, adding a DT_RPATH entry for
+# libfabric.so.1 to the icon executable is enough to make it runnable without
+# additional environment manipulations. The following lines construct linker
+# flags required for the workaround based on the information from the libfabric
+# environment module:
+eval "$BUILD_ENV"
+LIBFABRIC_LDFLAGS="-Wl,-rpath -Wl,$(module --raw show libfabric 2>&1 | sed -n 's/^prepend-path[ \t][ \t]*LD_LIBRARY_PATH[ \t][ \t]*\([^:][^:]*\)$/\1/p')"
+
+CC='cc'
+CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2"
+CFLAGS='-g'
+ICON_CFLAGS='-O3'
+ICON_BUNDLED_CFLAGS='-O2'
+
+FC='ftn'
+FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -hadd_paren -Ktrap=divz,ovf,inv -hflex_mp=intolerant -hfp1"
+ICON_FCFLAGS='-O1,cache0'
+
+# It takes ages (if at all) to compile
+# externals/jsbach/src/base/mo_jsb_process_factory.f90 with optimization level
+# other than -O0 (!$dir optimize(-O0) does not help either).
+ICON_O0_PATH='externals/jsbach/src/base/mo_jsb_process_factory.f90'
+ICON_O0_FCFLAGS='-O0'
+
+LDFLAGS="${LIBFABRIC_LDFLAGS} -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
+
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-fcgroup-O0'
+
+################################################################################
+
+"${icon_dir}/configure" \
+BUILD_ENV="${BUILD_ENV}" \
+CC="${CC}" \
+CFLAGS="${CFLAGS}" \
+CPPFLAGS="${CPPFLAGS}" \
+FC="${FC}" \
+FCFLAGS="${FCFLAGS}" \
+ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
+ICON_CFLAGS="${ICON_CFLAGS}" \
+ICON_O0_FCFLAGS="${ICON_O0_FCFLAGS}" \
+ICON_O0_PATH="${ICON_O0_PATH}" \
+LDFLAGS="${LDFLAGS}" \
+LIBS="${LIBS}" \
+${EXTRA_CONFIG_ARGS} \
+"$@"
+
+for arg in "$@"; do
+  case $arg in
+    -help | --help | --hel | --he | -h | -help=r* | --help=r* | --hel=r* | --he=r* | -hr* | -help=s* | --help=s* | --hel=s* | --he=s* | -hs*)
+      test -n "${EXTRA_CONFIG_ARGS}" && echo '' && echo "This wrapper script ('$0') calls the configure script with the following extra arguments, which might override the default values listed above: ${EXTRA_CONFIG_ARGS}"
+      exit 0 ;;
+  esac
+done
+
+# Copy runscript-related files when building out-of-source:
+if test $(pwd) != $(cd "${icon_dir}"; pwd); then
+  echo "Copying runscript input files from the source directory..."
+  rsync -uavz ${icon_dir}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
+  ln -sf -t run/ ${icon_dir}/run/standard_*
+  ln -sf set-up.info run/SETUP.config
+  rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='rrtmgp*.nc' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${icon_dir}/make_runscripts .
+  ln -sf ${icon_dir}/data
+  ln -sf ${icon_dir}/vertical_coord_tables
+fi
+

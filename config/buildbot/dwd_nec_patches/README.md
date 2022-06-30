@@ -6,13 +6,12 @@ to see this file rendered or use a Markdown viewer of your choice
 (https://www.google.com/search?q=markdown+viewer).
 -->
 
-This directory contains a patch that we have (hopefully, temporarily) to apply
-to YAXT on the NEC machine at DWD:
-
-1. [`yaxt_mpi_abort_test.patch`](yaxt_mpi_abort_test.patch) &mdash; modifies the
-`test_xmap_all2all_fail_run` test of YAXT, which expects a failure from the
-`mpirun` process with exit code `3`. The existing workaround implemented in YAXT
-for such cases is unfortunately not enough. Therefore, the test is modified to
-pass if the `mpirun` program terminates with any non-zero exit code. See
-https://gitlab.dkrz.de/icon/icon-cimd/-/merge_requests/36#note_72444 for more
-information.
+This directory contains a patch that we have to apply to YAXT on the NEC machine
+at DWD. The patch modifies `test_xmap_all2all_fail_run` test of YAXT, which
+expects a failure from the `mpirun` process with exit code `3`. The existing
+workaround implemented in YAXT for such cases is unfortunately not enough.
+Therefore, the test is modified to pass if the `mpirun` program terminates with
+any non-zero exit code. The problem has been reported upstream (see
+[here](https://gitlab.dkrz.de/dkrz-sw/yaxt/-/issues/2)) and seems to be
+addressed in the `master` branch (see
+[here](https://gitlab.dkrz.de/dkrz-sw/yaxt/-/commit/5a7e9e42ae85fec4d900efdc19690ffe0c772956)).

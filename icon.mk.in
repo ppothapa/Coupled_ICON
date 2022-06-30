@@ -46,9 +46,23 @@ INSTALL= @INSTALL@
 FCFLAGS= @FCFLAGS@
 make_FCFLAGS= @FC_MOD_IN@$(moddir) @FC_MOD_OUT@$(moddir)
 ICON_FCFLAGS= @ICON_FCFLAGS@
-ICON_OCEAN_FCFLAGS= @ICON_OCEAN_FCFLAGS@
-@DACE_ENABLED_OR_NEEDED@ICON_DACE_FCFLAGS= @ICON_DACE_FCFLAGS@
+@ICON_FCGROUP_FLAGS@
 DEPGEN_FCFLAGS= @DEPGEN_FCFLAGS@
+
+# Pattern- and target-specific assignments are propagated to the prerequisites
+# and override the global assignments. Therefore, we introduce the following
+# match-anything pattern assignments to prevent that:
+%: ICON_FCFLAGS:= $(ICON_FCFLAGS)
+
+# Pattern-specific Fortran compiler flags:
+#   Note the difference in how older versions of GNU Make (at least up to 3.81)
+#   treat pattern-specific variable ASSIGNMENTS and pattern RULES: the last
+#   matching ASSIGNMENT and the first matching RULE win. Newer versions of GNU
+#   Make (starting at least 4.1) give preference to the most specialized pattern
+#   in both cases. This means that, as long as we support older version of GNU
+#   Make, we have to declare the most general ASSIGNMENTS first and the most
+#   general RULES last.
+@ICON_FCGROUP_ASSIGNMENTS@
 
 # C compiler and preprocessor flags:
 CFLAGS= @CFLAGS@
@@ -192,7 +206,6 @@ lib_files:=
 # input paths are excluded from the output.
 get_prereq_objs= $(filter-out $(1),$(filter %.@OBJEXT@, \
                      $(shell $(DEPLIST) --inc-oo @deplist.config -t $(1) -f $(dep_files))))
-
 
 # Common convenience library (holds prerequisite objects of the generated
 # executables):
@@ -382,7 +395,7 @@ $(ICON_exec_file): $(ICON_prog_obj_file) $(common_lib_file) $(BUNDLED_LIBFILES)
 
 # Common linking rule for the executables:
 $(exec_files): | $(dir_files)
-	$(silent_FCLD)$(FC) -o $@ $(make_FCFLAGS) $(FCFLAGS) $(spec_FCFLAGS) $(LDFLAGS) $+ $(LIBS)
+	$(silent_FCLD)$(FC) -o $@ $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(LDFLAGS) $+ $(LIBS)
 
 # Dependencies of the common convenience library:
 $(common_lib_file): $(common_lib_obj_files)
@@ -391,26 +404,15 @@ $(common_lib_file): $(common_lib_obj_files)
 $(lib_files): | $(dir_files)
 	$(silent_AR)rm -f $@ && $(AR) $(ARFLAGS) $@ $^ && $(RANLIB) $@
 
-# Pattern- and target-specific assignments are propagated to the prerequisites
-# and override the global assignments. Therefore, we introduce the following
-# match-anything pattern assignments to prevent that:
-%: spec_silent_FC= $(silent_FC)
-%: spec_FCFLAGS= $(ICON_FCFLAGS)
-
-# Pattern-specific Fortran compiler flags:
-#   Note the difference in how older versions of GNU Make (at least up to 3.81)
-#   treat pattern-specific variable ASSIGNMENTS and pattern RULES: the last
-#   matching ASSIGNMENT and the first matching RULE win. Newer versions of GNU
-#   Make (starting at least 4.1) give preference to the most specialized pattern
-#   in both cases. This means that, as long as we support older version of GNU
-#   Make, we have to declare the most general ASSIGNMENTS first and the most
-#   general RULES last.
-src/hamocc/% src/ocean/% src/sea_ice/%: spec_FCFLAGS= $(ICON_OCEAN_FCFLAGS)
-@DACE_ENABLED_OR_NEEDED@$(DACE_subdir)/%: spec_FCFLAGS= $(ICON_DACE_FCFLAGS)
-
 # Target-specific variables enabling the PGI/NVIDIA inlining during compilation:
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): spec_silent_FC= $(silent_FCIL)
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): spec_FCFLAGS += $(pgi_inlib_in_FCFLAGS)
+#   The eval/value trick below prevents propagation of the target-specific
+#   values (which override the global ones) to the prerequisites while keeping
+#   the recursive flavor of the variables (i.e. they will be lazily expanded
+#   when running the recipes).
+@PGI_INLIB_ENABLED@$(eval %: silent_FC= $(value silent_FC))
+@PGI_INLIB_ENABLED@$(eval %: make_FCFLAGS= $(value make_FCFLAGS))
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): silent_FC= $(silent_FCIL)
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): make_FCFLAGS += $(pgi_inlib_in_FCFLAGS)
 
 # All object that can be built with the inline library depend on it:
 @PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): $(pgi_inlib_name)
@@ -419,11 +421,11 @@ src/hamocc/% src/ocean/% src/sea_ice/%: spec_FCFLAGS= $(ICON_OCEAN_FCFLAGS)
 # provided to the compiler in the topological order and we also have to delete
 # the partially generated library if the compiler fails):
 @PGI_INLIB_ENABLED@$(pgi_inlib_name): $(pgi_inlib_prereq_mod_files) $(pgi_inlib_obj_files:.@OBJEXT@=.f90) | $(dir_files)
-@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $@ && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(spec_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter-out $(pgi_inlib_prereq_mod_files),$^) || (ec=$$?; rm -rf $@; exit $$ec)
+@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $@ && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter-out $(pgi_inlib_prereq_mod_files),$^) || (ec=$$?; rm -rf $@; exit $$ec)
 
 # Fortran compilation rule:
 %.@OBJEXT@: %.f90 | $(dir_files) $(bundled_subdirs)
-	$(spec_silent_FC)$(FC) -o $@ -c $(make_FCFLAGS) $(FCFLAGS) $(spec_FCFLAGS) @FCFLAGS_f90@ $<
+	$(silent_FC)$(FC) -o $@ -c $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) @FCFLAGS_f90@ $<
 
 # Fortran module file rule:
 $(moddir)/%.@FC_MOD_FILE_EXT@.proxy:| sanitize-mod-proxies
@@ -469,7 +471,7 @@ sanitize-mod-proxies:
 ##################### EXPLICIT FORTRAN PREPROCESSING RULES #####################
 
 @FPP_ENABLED@%$(FPP_infix).f90: %.f90 | $(dir_files)
-@FPP_ENABLED@	$(silent_FPP)$(FPP) $(make_FCFLAGS) $(FCFLAGS) $(spec_FCFLAGS) $< >$@
+@FPP_ENABLED@	$(silent_FPP)$(FPP) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $< >$@
 
 ######################## SERIALBOX2 PREPROCESSING RULES ########################
 
@@ -513,7 +515,7 @@ version.c: force-create-version
 
 # Fortran dependency generation rule:
 %.f90.d: %.f90 icon.mk depgen.f90.config | $(dir_files)
-	$(silent_DEPGEN)$(DEPGEN) @depgen.f90.config -o $@ --obj-name $(@:.f90.d=.@OBJEXT@) -i $< -- $(DEPGEN_FCFLAGS) $(make_FCFLAGS) $(FCFLAGS) $(spec_FCFLAGS)
+	$(silent_DEPGEN)$(DEPGEN) @depgen.f90.config -o $@ --obj-name $(@:.f90.d=.@OBJEXT@) -i $< -- $(DEPGEN_FCFLAGS) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS)
 
 # C dependency generation rule:
 %.c.d: %.c icon.mk depgen.c.config | $(dir_files)

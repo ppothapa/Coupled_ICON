@@ -48,7 +48,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${CDI_LIBS} ${YAXT_LIBS} ${NETCDFF_LIBS} ${NE
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-vectorized-lrtm --enable-parallel-netcdf --enable-cdi-pio --with-external-yaxt --with-external-cdi --enable-mpi-checks'
+EXTRA_CONFIG_ARGS='--enable-vectorized-lrtm --enable-parallel-netcdf --enable-cdi-pio --with-external-yaxt --with-external-cdi --enable-mpi-checks --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

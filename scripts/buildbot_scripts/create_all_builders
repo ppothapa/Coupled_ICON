@@ -34,7 +34,9 @@ machine=mistral
 # testing for CDI-PIO
 ./addbuilder MISTRAL_intel18_pio    --machine $machine       --build_script="./config/buildbot/mistral_intel18_pio"          --configureflags="--with-mpi --without-openmp"      --builderflags="Inactive"  --list $list
 
-./addbuilder MPIMAC_gcc             --machine $machine       --build_script="./config/buildbot/mpimac_gcc"               --configureflags="--with-mpi --with-openmp"             --builderflags="build_only"  --list $list
+machine=mpimac
+./addmachine $machine --list $list
+./addbuilder MPIMAC_gcc             --machine $machine       --build_script="./config/buildbot/mpimac_gcc"                   --configureflags="--with-mpi --with-openmp"         --builderflags="build_only"  --list $list
 
 # breeze builders
 machine=breeze
@@ -61,4 +63,16 @@ machine=dwd_nec
 ./addbuilder DWD_nec_hybrid      --machine $machine  --build_script="./config/buildbot/dwd_nec_hybrid" --builderflags="Active"  --list $list
 ./addbuilder DWD_nec_yac2        --machine $machine  --build_script="./config/buildbot/dwd_nec_yac2"   --builderflags="Active"  --list $list
 
+machine=levante
+./addmachine $machine --list $list
+./addbuilder levante_gcc                --machine $machine  --build_script="config/buildbot/levante_gcc"   --builderflags="Active" --list $list
+./addbuilder levante_gcc_hybrid         --machine $machine  --build_script="config/buildbot/levante_gcc_hybrid"   --builderflags="Active" --list $list
+./addbuilder levante_intel              --machine $machine  --build_script="config/buildbot/levante_intel" --builderflags="Active" --list $list
+./addbuilder levante_intel_hybrid       --machine $machine  --build_script="config/buildbot/levante_intel_hybrid" --builderflags="Active" --list $list
+./addbuilder levante_intel_hybrid_mixed --machine $machine  --build_script="config/buildbot/levante_intel_hybrid_mixed" --builderflags="Active" --list $list
 
+machine=jsc
+./addmachine $machine --list $list
+./addbuilder cluster_gcc         --machine $machine  --build_script="config/buildbot/cluster_gcc"   --builderflags="Inctive" --list $list
+./addbuilder cluster_intel       --machine $machine  --build_script="config/buildbot/cluster_intel"   --builderflags="build_only" --list $list
+./addbuilder booster_nvhpc       --machine $machine  --build_script="config/buildbot/booster_nvhpc"   --builderflags="build_only" --list $list

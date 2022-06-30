@@ -2,9 +2,13 @@
 #------------------------------------------------------------------------------
 # This script is called on all buildbot slaves and should be used to run the runscripts
 #------------------------------------------------------------------------------
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
+
+# file with the list of runscripts
+LIST_OF_RUNSCRIPTS="${ICON_DIR}/run/runscript_list"
 
 # Define of the text which is written in case of a script fail or OK run
-
 TEXT_RUN_FAILED="FAILED"
 TEXT_RUN_OK="OK"
 
@@ -96,43 +100,41 @@ run_scripts_submit()
 
   stop_check="warning_on_error"
 
-  # check if the tolerance infrastructure needs to be initialized
-  if [[ $(hostname) == *"daint"* ]]; then
-    echo "Initializing tolerance infrastructure..."
-    # make sure that repos do not exist
-    if [ -d probtest ]; then
-        rm -rf probtest
-    fi
-    if [ -d icon-test-references ]; then
-        rm -rf icon-test-references
-    fi
-    
-    # Clone the testsuite
-    git clone git@gitlab.dkrz.de:cscs-sw/probtest.git
-
-    # This variable stores the version of the probtest repository
-    PROBTEST_HASH=$(cat scripts/buildbot_scripts/probtest_hash)
-
-    # change to the relevant version of the reference data
-    cd probtest
-    git reset --hard ${PROBTEST_HASH}
-    cd ..
-
-    # Clone the reference data
-    git clone git@gitlab.dkrz.de:cscs-sw/icon-test-references.git
-
-    # This variable stores the version of the reference data
-    REFERENCE_HASH=$(cat scripts/buildbot_scripts/tolerance_hash)
-
-    # change to the relevant version of the reference data
-    cd icon-test-references
-    git reset --hard ${REFERENCE_HASH}
-    cd ..
+  # check out tolerance data
+  echo "Initializing tolerance infrastructure..."
+  # make sure that repos do not exist
+  if [ -d probtest ]; then
+      rm -rf probtest
   fi
+  if [ -d icon-test-references ]; then
+      rm -rf icon-test-references
+  fi
+  
+  # Clone the testsuite
+  git clone git@gitlab.dkrz.de:cscs-sw/probtest.git
+
+  # This variable stores the version of the probtest repository
+  PROBTEST_HASH=$(cat scripts/buildbot_scripts/probtest_hash)
+
+  # change to the relevant version of the reference data
+  cd probtest
+  git reset --hard ${PROBTEST_HASH}
+  cd ..
+
+  # Clone the reference data
+  git clone git@gitlab.dkrz.de:cscs-sw/icon-test-references.git
+
+  # This variable stores the version of the reference data
+  REFERENCE_HASH=$(cat scripts/buildbot_scripts/tolerance_hash)
+
+  # change to the relevant version of the reference data
+  cd icon-test-references
+  git reset --hard ${REFERENCE_HASH}
+  cd ..
 
   echo "Run all *.run in run directory"
   cd run
-  EXP_FILES=`cat runscript_list`
+  EXP_FILES=`cat ${LIST_OF_RUNSCRIPTS}`
 
   case $HOSTNAME in
       rcnl*)
@@ -249,7 +251,7 @@ run_scripts_submit()
       echo " Start of ${EXP_FILE}"
       echo " "
       echo "---------------------------------------------------------"
-      cat LOG.$EXP_FILE.*
+      echo "logfile: $(ls LOG.$EXP_FILE.*)"
       echo "---------------------------------------------------------"
       echo " "
       echo " End of ${EXP_FILE}"
@@ -341,19 +343,25 @@ run_scripts_submit()
 }
 #==============================================================================
 
-#------------------------------------------------------------------------------\
-# read set-up info
-. ./run/set-up.info
-submit=$use_sync_submit
-#-----------------------------------------------------------------------------
-# load ../setting if exists
-if [ -a ./setting ]
-then
-  . ./setting
+# try to submit jobs only iff there are some listed by the build command (runscript_list)
+if test -s "${LIST_OF_RUNSCRIPTS}"; then
+  #------------------------------------------------------------------------------
+  # read set-up info
+  . ./run/set-up.info
+  submit=$use_sync_submit
+  #-----------------------------------------------------------------------------
+  # load ../setting if exists
+  if [ -a ./setting ]
+  then
+    . ./setting
+  fi
+  #-----------------------------------------------------------------------------
+  run_scripts_submit
+  #------------------------------------------------------------------------------
+  # return OK Status
+  exit ${RETURN_STATUS}
+else
+  echo "No experiments are selected to run on this builder: ${LIST_OF_RUNSCRIPTS}"
+  exit 0
 fi
-#-----------------------------------------------------------------------------
-run_scripts_submit
-#------------------------------------------------------------------------------
-# return OK Status
-exit ${RETURN_STATUS}
 
