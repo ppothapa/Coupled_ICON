@@ -196,18 +196,18 @@ MODULE mo_ext_data_types
     REAL(wp), POINTER ::   &   !< skin conductivity                   [ W/m^2/K ]
       &  skinc_t(:,:,:)        ! index1=1,nproma, index2=1,nblks_c, ntiles_total
 
-    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
-      &  fr_paved(:,:)         ! 1.0 indicates 100% paved (urban) area
-                               ! index1=1,nproma, index2=1,nblks_c
-    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
-      &  fr_paved_t(:,:,:)     ! 1.0 indicates 100% paved (urban) area
-                               ! index1=1,nproma, index2=1,nblks_c, ntiles_total
-
     REAL(wp), POINTER ::   &   !< impervious surface area of the urban canopy [ ]
       &  urb_isa(:,:)          ! 1.0 indicates 100% paved urban area
                                ! index1=1,nproma, index2=1,nblks_c
     REAL(wp), POINTER ::   &   !< impervious surface area of the urban canopy [ ]
       &  urb_isa_t(:,:,:)      ! 1.0 indicates 100% paved urban area
+                               ! index1=1,nproma, index2=1,nblks_c, ntiles_total
+
+    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
+      &  fr_paved(:,:)         ! 1.0 indicates 100% paved (urban) area
+                               ! index1=1,nproma, index2=1,nblks_c
+    REAL(wp), POINTER ::   &   !< impervious surface area (ISA)               [ ]
+      &  fr_paved_t(:,:,:)     ! 1.0 indicates 100% paved (urban) area
                                ! index1=1,nproma, index2=1,nblks_c, ntiles_total
 
     REAL(wp), POINTER ::   &   !< surface area index of the urban canopy      [ ]

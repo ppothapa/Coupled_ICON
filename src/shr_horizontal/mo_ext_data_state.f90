@@ -288,10 +288,10 @@ CONTAINS
       &     p_ext_atm%for_d,           &
       &     p_ext_atm%skinc,           &
       &     p_ext_atm%skinc_t,         &
-      &     p_ext_atm%fr_paved,        &
-      &     p_ext_atm%fr_paved_t,      &
       &     p_ext_atm%urb_isa,         &
       &     p_ext_atm%urb_isa_t,       &
+      &     p_ext_atm%fr_paved,        &
+      &     p_ext_atm%fr_paved_t,      &
       &     p_ext_atm%urb_ai,          &
       &     p_ext_atm%urb_ai_t,        &
       &     p_ext_atm%urb_alb_red,     &
@@ -900,6 +900,26 @@ CONTAINS
       __acc_attach(p_ext_atm%skinc_t)
 
 
+      ! Impervious surface area of the urban canopy
+      !
+      ! urb_isa        p_ext_atm%urb_isa(nproma,nblks_c)
+      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_isa', p_ext_atm%urb_isa,           &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
+        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
+
+      ! urb_isa_t        p_ext_atm%urb_isa_t(nproma,nblks_c,ntiles_total+ntiles_water)
+      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
+      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'urb_isa_t', p_ext_atm%urb_isa_t,       &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
+        &           grib2_desc, ldims=shape3d_ntw, loutput=.FALSE.,         &
+        &           initval=-1._wp, lopenacc=.TRUE.)
+      __acc_attach(p_ext_atm%urb_isa_t)
+
+
       IF (lterra_urb) THEN
 
       ! Impervious surface area (ISA)
@@ -920,26 +940,6 @@ CONTAINS
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
         &           initval=-1._wp, lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%fr_paved_t)
-
-
-      ! Impervious surface area of the urban canopy
-      !
-      ! urb_isa        p_ext_atm%urb_isa(nproma,nblks_c)
-      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
-      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'urb_isa', p_ext_atm%urb_isa,           &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
-        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,            &
-        &           initval=-1._wp, isteptype=TSTEP_CONSTANT )
-
-      ! urb_isa_t        p_ext_atm%urb_isa_t(nproma,nblks_c,ntiles_total)
-      cf_desc    = t_cf_var('urb_isa', '-', 'Impervious surface area', datatype_flt)
-      grib2_desc = grib2_var( 2, 0, 196, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'urb_isa_t', p_ext_atm%urb_isa_t,       &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,            &
-        &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,          &
-        &           initval=-1._wp, lopenacc=.TRUE.)
-      __acc_attach(p_ext_atm%urb_isa_t)
 
 
       ! Surface area index of the urban canopy

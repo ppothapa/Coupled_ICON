@@ -400,7 +400,7 @@ USE turb_data, ONLY : &
 !-------------------------------------------------------------------------------
 
 ! Switches controlling other physical parameterizations:
-USE mo_lnd_nwp_config,       ONLY: lseaice, llake
+USE mo_lnd_nwp_config,       ONLY: lseaice, llake, lterra_urb, itype_kbmo
 !   
 USE turb_data,         ONLY:   &
     itype_diag_t2m    !
@@ -483,7 +483,7 @@ SUBROUTINE turbtran (                                                         &
 !
           nvec, ke, ke1, kcm, iblock, ivstart, ivend,                         &
 !
-          l_hori, hhl, fr_land, depth_lk, h_ice, rlamh_fac, sai, gz0,         &
+          l_hori, hhl, fr_land, depth_lk, h_ice, rlamh_fac, sai, urb_isa, gz0,&
 !
           t_g, qv_s, ps, u, v, w, t, qv, qc, prs, epr,                        &
 !
@@ -698,7 +698,8 @@ REAL (KIND=wp), DIMENSION(:), INTENT(IN) :: &
 ! ----------------------------
     fr_land,      & ! land portion of a grid point area             ( 1 )
     depth_lk,     & ! lake depth                                    ( m )
-    sai             ! surface area index                            ( 1 )
+    sai,          & ! surface area index                            ( 1 )
+    urb_isa         ! urban impervious surface area                 ( 1 )
 
 ! Fields for surface values and soil/canopy model variables:
 ! ------------------------------------------------------------
@@ -754,10 +755,12 @@ REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(OUT) :: &
 !    turbulent transfer factors for laminar- and roughness-layer transfer
      tfm,          & ! of momentum                                     --
      tfh,          & ! of scalars                                      --
-     tfv,          & ! of water vapor compared to heat                 --
+     tfv             ! of water vapor compared to heat                 --
 
 !    turbulent transfer coefficients at the surface
-     tcm,          & ! for momentum                                  ( -- )
+REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(INOUT) :: &
+     tcm             ! for momentum                                  ( -- )
+REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(OUT) :: &
      tch             ! for scalars (heat and moisture)               ( -- )
 
 REAL (KIND=wp), DIMENSION(:), TARGET, OPTIONAL, INTENT(INOUT) :: &
@@ -856,6 +859,10 @@ REAL (KIND=wp) :: &
     h_2m, h_10m, & !level heights (equal 2m and 10m)
     a_2m, a_10m, & !turbulent distance of 2m- and 10m-level (with respect to diag. roughness)
     a_atm, &       !turbulent distance of the atmosp. level (with respect to mean  roughness)
+
+!   for TERRA_URB
+    zkbmo_dia, zkbmo_urb, zustar, & ! inverse Stanton number
+!   zdz_s0_h , &
 
 !   sonstiges:
     rin_m,rin_h, fr_sd_h, xf
@@ -1054,6 +1061,7 @@ my_thrd_id = omp_get_thread_num()
         WRITE(*,'(A,F28.16)') '   depth_lk         :  ', depth_lk    (i)
         WRITE(*,'(A,F28.16)') '   h_ice            :  ', h_ice       (i)
         WRITE(*,'(A,F28.16)') '   sai              :  ', sai         (i)
+        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
         WRITE(*,'(A,F28.16)') '   gz0              :  ', gz0         (i)
         WRITE(*,'(A,F28.16)') '   t_g              :  ', t_g         (i)
         WRITE(*,'(A,F28.16)') '   qv_s             :  ', qv_s        (i)
@@ -1140,7 +1148,7 @@ my_thrd_id = omp_get_thread_num()
       !$acc data no_create(fr_land,t_g,h_ice,depth_lk,&
       !$acc                hhl,epr_2d,u,v,t,&
       !$acc                epr,tke,tkvm,tkvh,gz0,tkr,&
-      !$acc                l_tur_z0,ps,sai,rlamh_fac,&
+      !$acc                l_tur_z0,ps,sai,urb_isa,rlamh_fac,&
       !$acc                tfm,tfh,tfv,qv_s,qv,qc,&
       !$acc                dwdx,dwdy,hdef2,g_tet,&
       !$acc                g_vap,tcm,tch,z0d_2d,shfl_s,&
@@ -1409,7 +1417,7 @@ my_thrd_id = omp_get_thread_num()
 
 !DIR$ IVDEP
          !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang(static:1) vector private(z_surf,fakt,rin_m,rin_h)
+         !$acc loop gang(static:1) vector private(z_surf,fakt,rin_m,rin_h,zkbmo_dia,zkbmo_urb,zustar)
          DO i=ivstart, ivend
 
             z_surf= z0m_2d(i)/sai(i) !effektive Rauhigkeitslaenge
@@ -1436,6 +1444,27 @@ my_thrd_id = omp_get_thread_num()
 
           ! inclusive lam. Grenzschicht fuer Skalare:
             dz_s0_h(i)=dz_sg_h(i)+dz_g0_h(i)
+
+            IF (lterra_urb .AND. (.NOT. itype_kbmo == 1)) THEN
+
+              IF (urb_isa(i) > 0.0_wp) THEN
+                zkbmo_dia    = dz_s0_h(i)/z0m_2d(i)
+                zustar       = SQRT(tcm(i))*vel_2d(i)
+
+                IF (itype_kbmo == 2) THEN
+                  ! Brutsaert Kanda parameterisation for bluff-body elements
+                  ! for some reason, it doesn't withstand zero values of ustar
+                  zkbmo_urb = MAX(0.1_wp, 1.29_wp * (z0m_2d(i)*zustar/con_m)**0.25_wp - z2)
+                ELSEIF (itype_kbmo == 3) THEN
+                  ! Zilitinkevich
+                  zkbmo_urb = MAX(0.1_wp, 0.13_wp * (z0m_2d(i)*zustar/con_m)**0.45_wp)
+                END IF
+
+                dz_s0_h(i) = (urb_isa(i)*zkbmo_urb + (1.0_wp - urb_isa(i))*zkbmo_dia) * z0m_2d(i)
+
+              ENDIF
+
+            ENDIF
 
          END DO    
 

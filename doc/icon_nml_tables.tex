@@ -4074,24 +4074,30 @@ cskinc &
 R & $-1.0$ & $\mathrm{W m^{-2} K^{-1}}$ & Skin conductivity \\
 For cskinc < 0, an external parameter field SKC is read and used \\
 For cskinc > 0, this globally constant value is used in the whole model domain \\
-Reasonable range: 10.0 -- 1000.0 &
+Reasonable range: 10.0 -- 1000.0 & itype\_canopy = 2
 \tabularnewline
 
 %\hline
 tau\_skin &
-R & 3600. & s & Relaxation time scale for the computation of the skin temperature  &
+R & 3600. & s & Relaxation time scale for the computation of the skin temperature & itype\_canopy = 2
 \tabularnewline
 
 lterra\_urb &
-L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017)
-&
+L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017) &
 \tabularnewline
 
 itype\_eisa &
-I & 2 &  & Type of evaporation from impervious surface area \\
-0 = Evaporation like bare soil \\
-1 = No evaporation \\
-2 = PDF-based puddle evaporation (Wouters et al.\ 2015) &
+I & 3 &  & Type of evaporation from impervious surface area \\
+1 = Evaporation like bare soil \\
+2 = No evaporation \\
+3 = PDF-based puddle evaporation (Wouters et al.\ 2015) & lterra\_urb = .TRUE.
+\tabularnewline
+
+itype\_kbmo &
+I & 2 &  & Type of bluff-body thermal roughness length parameterisation \\
+1 = Raschendorfer (2001) \\
+2 = Brutsaert Kanda parameterisation for bluff-body elements (kB-1) (Kanda et al.\ 2007) \\
+3 = Zilitinkevich (1970) & lterra\_urb = .TRUE.
 \tabularnewline
 
 %\hline

@@ -53,7 +53,7 @@ MODULE mo_lnd_nwp_config
   PUBLIC :: itype_root, itype_heatcond, itype_interception, &
             itype_hydbound, idiag_snowfrac, itype_snowevap, cwimax_ml, c_soil, c_soil_urb, cr_bsmin
   PUBLIC :: itype_canopy, cskinc, tau_skin
-  PUBLIC :: lterra_urb, itype_eisa
+  PUBLIC :: lterra_urb, itype_kbmo, itype_eisa
   PUBLIC :: lstomata, l2tls, lana_rho_snow
   PUBLIC :: isub_water, isub_lake, isub_seaice
   PUBLIC :: sstice_mode, sst_td_filename, ci_td_filename
@@ -94,6 +94,7 @@ MODULE mo_lnd_nwp_config
   REAL(wp)::  cskinc             !< skin conductivity (W/m**2/K)
   REAL(wp)::  tau_skin           !< relaxation time scale for the computation of the skin temperature
   LOGICAL ::  lterra_urb         !< activate urban model TERRA_URB
+  INTEGER ::  itype_kbmo         !< type of bluff-body thermal roughness length parameterisation
   INTEGER ::  itype_eisa         !< type of evaporation from impervious surface area
   INTEGER ::  itype_hydbound     !< type of hydraulic lower boundary condition
   INTEGER ::  idiag_snowfrac     !< method for diagnosis of snow-cover fraction

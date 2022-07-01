@@ -1625,6 +1625,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
        &  h_ice=p_prog_wtr_now%h_ice(:,jb),                                   &
        &  rlamh_fac=prm_diag%rlamh_fac_t(:,jb,1),                             &
        &  sai=ext_data%atm%sai(:,jb),                                         &
+       &  urb_isa=ext_data%atm%urb_isa_t(:,jb,1),                             &
        &  gz0=prm_diag%gz0(:,jb),                                             &
        &  t_g=p_prog_lnd_now%t_g(:,jb),                                       &
        &  qv_s=p_diag_lnd%qv_s(:,jb),                                         &
@@ -1731,6 +1732,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         prm_diag%tvs_s_t (:,jb,jt) = p_prog_now%tke(:,nlevp1,jb)  !here: SQRT(2*TKE)
         prm_diag%tkvm_s_t(:,jb,jt) = prm_diag%tkvm(:,nlevp1,jb)
         prm_diag%tkvh_s_t(:,jb,jt) = prm_diag%tkvh(:,nlevp1,jb)
+        prm_diag%tcm_t   (:,jb,jt) = prm_diag%tcm(:,jb)
         prm_diag%tkr_t   (:,jb,jt) = prm_diag%tkr(:,jb)
       ENDDO
 
