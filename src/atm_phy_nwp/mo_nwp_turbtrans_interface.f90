@@ -153,8 +153,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ! 2D fields (tiles)
   REAL(wp), DIMENSION(nproma,ntiles_total+ntiles_water) :: &
    gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, &
-   t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, shfl_s_t,  &
-   lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t
+   t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t,  &
+   shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t
 
   REAL(wp), DIMENSION(nproma) :: &
    PGEOMLEV,PCPTGZLEV,PCPTSTI,PUCURR,PVCURR,ZCFMTI,PCFHTI,PCFQTI,ZBUOMTI,ZZDLTI,  &
@@ -180,10 +180,20 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ! domain
   jg = p_patch%id
 
-!$acc data create(gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, &
-!$acc             u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t, &
-!$acc             tkvm_t, tkvh_t, u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, rcld_t, z_ifc_t, pres_sfc_t, l_hori, &
-!$acc             z_tvs, tvs_t, fr_land_t, depth_lk_t, h_ice_t, jk_gust, rlamh_fac) if(lzacc)
+!$ACC DATA CREATE(gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t) &
+!$ACC      CREATE(u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t) &
+!$ACC      CREATE(tkvm_t, tkvh_t, u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, rcld_t, z_ifc_t, pres_sfc_t, l_hori) &
+!$ACC      CREATE(z_tvs, tvs_t, fr_land_t, depth_lk_t, h_ice_t, jk_gust, rlamh_fac) &
+!$ACC      PRESENT(p_metrics, p_diag, prm_diag, lnd_prog_new, lnd_diag, ext_data, p_prog, p_prog_rcf, phy_params) &
+!$ACC      PRESENT(advection_config, wtr_prog_new) &
+!$ACC      IF( lzacc )
+
+!$ACC DATA NO_CREATE(gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t) &
+!$ACC      NO_CREATE(u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t) &
+!$ACC      NO_CREATE(tkvm_t, tkvh_t, u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, rcld_t, z_ifc_t, pres_sfc_t, l_hori) &
+!$ACC      NO_CREATE(z_tvs, tvs_t, fr_land_t, depth_lk_t, h_ice_t, jk_gust, rlamh_fac) &
+!$ACC      NO_CREATE(p_metrics, p_diag, prm_diag, lnd_prog_new, lnd_diag, ext_data, p_prog, p_prog_rcf, phy_params) &
+!$ACC      NO_CREATE(advection_config, wtr_prog_new)
 
   ! exclude boundary interpolation zone of nested domains
   rl_start = grf_bdywidth_c+1
@@ -205,8 +215,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 !$OMP DO PRIVATE(jb,jt,jc,jk,ic,ilist,i_startidx,i_endidx,i_count,   &
 !$OMP nzprv,lc_class,z_tvs,z0_mod,gz0_t,tcm_t,tch_t,tfm_t,tfh_t,tfv_t,tvm_t,tvh_t,tkr_t,l_hori, &
 !$OMP t_g_t,qv_s_t,t_2m_t,qv_2m_t,td_2m_t,rh_2m_t,u_10m_t,v_10m_t,tvs_t,pres_sfc_t,u_t,v_t,     &
-!$OMP temp_t,pres_t,qv_t,qc_t,tkvm_t,tkvh_t,z_ifc_t,rcld_t,sai_t,fr_land_t,depth_lk_t,h_ice_t,  &
-!$OMP area_frac,shfl_s_t,lhfl_s_t,qhfl_s_t,umfl_s_t,vmfl_s_t,nlevcm,jk_gust,epr_t,              &
+!$OMP temp_t,pres_t,qv_t,qc_t,tkvm_t,tkvh_t,z_ifc_t,rcld_t,sai_t,urb_isa_t,fr_land_t,depth_lk_t,&
+!$OMP h_ice_t,area_frac,shfl_s_t,lhfl_s_t,qhfl_s_t,umfl_s_t,vmfl_s_t,nlevcm,jk_gust,epr_t,      &
 !$OMP PGEOMLEV,PCPTGZLEV,PCPTSTI,PUCURR,PVCURR,ZCFMTI,PCFHTI,PCFQTI,ZBUOMTI,ZZDLTI,             &
 !$OMP ZZ0MTI,ZZ0HTI,ZZ0QTI,rho_s,rlamh_fac ) ICON_OMP_GUIDED_SCHEDULE
 !MR:>
@@ -237,8 +247,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 !DR Note that this must be re-checked, once turbtran is called at the very end
 !DR of the fast physics part.
 !DIR$ IVDEP
-         !$acc parallel async(1) default(present) if(lzacc)
-         !$acc loop gang vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+         !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
           lnd_prog_new%t_g(jc,jb) = p_diag%temp(jc,nlev,jb)*  &
                       ((p_diag%pres_sfc(jc,jb))/p_diag%pres(jc,nlev,jb))**rd_o_cpd
@@ -247,20 +257,20 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
              &                                   p_diag%pres_sfc(jc,jb) )
           lnd_diag%qv_s(jc,jb) = MIN (lnd_diag%qv_s(jc,jb) ,p_prog_rcf%tracer(jc,nlev,jb,iqv))
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
         ELSE
          !
          !> adjust humidity at water surface because of changed surface pressure
          !
 !DIR$ IVDEP
-         !$acc parallel async(1) default(present) if(lzacc)
-         !$acc loop gang vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+         !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
            lnd_diag%qv_s (jc,jb) = &
              &         spec_humi(sat_pres_water(lnd_prog_new%t_g(jc,jb)),&
              &                                   p_diag%pres_sfc(jc,jb) )
          ENDDO
-         !$acc end parallel
+         !$ACC END PARALLEL
         END IF
       ENDIF
     ELSE IF (atm_phy_nwp_config(jg)%itype_z0 >= 2) THEN
@@ -268,8 +278,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       ! NOTE:  open water, lake and sea-ice points are set in turbtran
       DO jt = 1, ntiles_total
 !$NEC ivdep
-        !$acc parallel async(1) default(present) if(lzacc)
-        !$acc loop gang vector private(jc,lc_class,z0_mod)
+        !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+        !$ACC LOOP GANG VECTOR PRIVATE( jc, lc_class, z0_mod )
         DO ic = 1, ext_data%atm%gp_count_t(jb,jt)
           ! works for the following two cases
           ! 1. snow-covered and snow_free tiles treated separately
@@ -297,33 +307,33 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             prm_diag%gz0_t(jc,jb,jt) = MIN(1.5_wp*grav,prm_diag%sfcfric_fac(jc,jb)*prm_diag%gz0_t(jc,jb,jt))
           ENDIF
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
         IF (atm_phy_nwp_config(jg)%itype_z0 == 3) THEN ! Add SSO contribution to tile-specific roughness length
-          !$acc parallel async(1) default(present) if(lzacc)
-          !$acc loop gang vector private(jc)
+          !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+          !$ACC LOOP GANG VECTOR PRIVATE( jc )
 !$NEC ivdep
           DO ic = 1, ext_data%atm%gp_count_t(jb,jt)
             jc = ext_data%atm%idx_lst_t(ic,jb,jt)
             prm_diag%gz0_t(jc,jb,jt) = prm_diag%gz0_t(jc,jb,jt) + grav * &
               MIN(fact_z0rough*ext_data%atm%sso_stdh_raw(jc,jb)**2,7.5_wp)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
       ENDDO
     ELSE ! uniform tile-averaged roughness length if SSO contribution is to be included
-      !$acc parallel async(1) default(present) if(lzacc)
-      !$acc loop gang vector collapse(2)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jt = 1, ntiles_total + ntiles_water
         DO jc = i_startidx, i_endidx
           prm_diag%gz0_t(jc,jb,jt) = prm_diag%gz0(jc,jb)
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
     ENDIF
 
     IF (atm_phy_nwp_config(jg)%inwp_sso > 0) THEN
-      !$acc parallel async(1) default(present) if(lzacc)
-      !$acc loop gang vector
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF (prm_diag%ktop_envel(jc,jb) < nlev) THEN
           jk_gust(jc) = MERGE(prm_diag%ktop_envel(jc,jb)-1, prm_diag%ktop_envel(jc,jb), itune_gust_diag == 1)
@@ -331,15 +341,18 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           jk_gust(jc) = nlev
         ENDIF
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
     ELSE
-      !$acc kernels async(1) default(present) if(lzacc)
+      !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
       jk_gust(:) = nlev
-      !$acc end kernels
+      !$ACC END KERNELS
     ENDIF
 
     IF ( ltestcase .AND. l_scm_mode .AND. lzacc .AND. &   !lzacc false in init  step
       &  ((scm_sfc_mom .GE. 1) .OR. (scm_sfc_temp .GE. 1) .OR. (scm_sfc_qv .GE. 1)) ) THEN
+#ifdef _OPENACC
+      CALL finish( TRIM(routine),'set_scm_bnd is not supported with OpenACC.')
+#endif
       CALL set_scm_bnd( nvec=nproma, ivstart=i_startidx, ivend=i_endidx,   &
           & u_s          = p_diag%u(:,nlev,jb),                            & !in
           & v_s          = p_diag%v(:,nlev,jb),                            & !in
@@ -375,27 +388,27 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       ! note that TKE must be converted to the turbulence velocity scale SQRT(2*TKE)
       ! for turbdiff
       ! INPUT to turbtran is timestep new
-      !$acc parallel async(1) default(present) if(lzacc)
-      !$acc loop gang vector collapse(2)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, 3
         DO jc = i_startidx, i_endidx
           z_tvs(jc,jk,1) = SQRT(2._wp * p_prog_rcf%tke(jc,nlev-2+jk,jb))
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
       ! First call of turbtran for all grid points (water points with > 50% water
       ! fraction and tile 1 of the land points)
       IF (ntiles_total == 1) THEN ! tile approach not used; use tile-averaged fields from extpar
 
         !should be dependent on location in future!
-        !$acc kernels async(1) default(present) if(lzacc)
+        !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
         l_hori(i_startidx:i_endidx)=phy_params(jg)%mean_charlen
-        !$acc end kernels
+        !$ACC END KERNELS
 
         nzprv  = 1
         nlevcm = 3
 
-        !$acc wait
+        !$ACC WAIT IF( lzacc )
 
         IF (timers_level > 9) CALL timer_start(timer_nwp_turbtrans)
 
@@ -419,6 +432,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           &  h_ice=wtr_prog_new%h_ice(:,jb),                                           & !in
           &  rlamh_fac=prm_diag%rlamh_fac_t(:,jb,1),                                   & !in
           &  sai=ext_data%atm%sai_t(:,jb,1),                                           & !in
+          &  urb_isa=ext_data%atm%urb_isa_t(:,jb,1),                                   & !in
           &  gz0=prm_diag%gz0_t(:,jb,1),                                               & !inout
           &  t_g=lnd_prog_new%t_g(:,jb),                                               & !in
           &  qv_s=lnd_diag%qv_s(:,jb),                                                 & !in
@@ -430,7 +444,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           &  qv=p_prog_rcf%tracer(:,nlev-1:nlev,jb,iqv),                               & !in
           &  qc=p_prog_rcf%tracer(:,nlev-1:nlev,jb,iqc),                               & !in
           &  epr=p_prog%exner(:,nlev-1:nlev,jb),                                       & !in
-          &  tcm=prm_diag%tcm_t(:,jb,1),                                               & !out
+          &  tcm=prm_diag%tcm_t(:,jb,1),                                               & !inout
           &  tch=prm_diag%tch_t(:,jb,1),                                               & !out
           &  tvm=prm_diag%tvm_t(:,jb,1),                                               & !inout
           &  tvh=prm_diag%tvh_t(:,jb,1),                                               & !inout
@@ -457,8 +471,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
         IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
 
-        !$acc parallel async(1) default(present) if(lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag%lhfl_s_t(jc,jb,1) = &
             &  prm_diag%qhfl_s_t(jc,jb,1) * lh_v
@@ -487,16 +501,16 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           prm_diag%tmin_2m(jc,jb) = MIN(prm_diag%t_2m(jc,jb), &
             &                                        prm_diag%tmin_2m(jc,jb) )
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
       ELSE ! tile approach used
 
         ! preset variables for land tile indices
-        !$acc kernels async(1) default(present) if(lzacc)
+        !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
         fr_land_t(:)  = 1._wp
         depth_lk_t(:) = 0._wp
         h_ice_t(:)    = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
 
 
         ! Loop over land tile points, sea, lake points and seaice points
@@ -509,42 +523,42 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           ELSE IF (jt == ntiles_total + 1) THEN ! sea points (open water)
             i_count =  ext_data%atm%list_seawtr%ncount(jb)
             ilist   => ext_data%atm%list_seawtr%idx(:,jb)
-            !$acc kernels async(1) default(present) if(lzacc)
+            !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
             fr_land_t(:) = 0._wp
-            !$acc end kernels
+            !$ACC END KERNELS
           ELSE IF (jt == ntiles_total + 2) THEN ! lake points
             i_count =  ext_data%atm%list_lake%ncount(jb)
             ilist   => ext_data%atm%list_lake%idx(:,jb)
-            !$acc kernels async(1) default(present) if(lzacc)
+            !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
             fr_land_t (:) = 0._wp
             depth_lk_t(:) = 1._wp
-            !$acc end kernels
+            !$ACC END KERNELS
             IF (llake) THEN
-              !$acc parallel async(1) default(present) if(lzacc)
-              !$acc loop gang vector private (jc)
+              !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc ) NO_CREATE( ilist )
+              !$ACC LOOP GANG VECTOR PRIVATE( jc )
               DO ic= 1, i_count
                 jc = ilist(ic)
                 h_ice_t(ic) = MERGE(1._wp, 0._wp, wtr_prog_new%h_ice(jc,jb)>=h_Ice_min_flk)
               ENDDO
-              !$acc end parallel
+              !$ACC END PARALLEL
             ELSE
-              !$acc parallel async(1) default(present) if(lzacc)
-              !$acc loop gang vector private (jc)
+              !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc ) NO_CREATE( ilist )
+              !$ACC LOOP GANG VECTOR PRIVATE( jc )
               DO ic= 1, i_count
                 jc = ilist(ic)
                 h_ice_t(ic) = MERGE(1._wp, 0._wp, lnd_prog_new%t_g_t(jc,jb,isub_lake)< tpl_T_f)
               ENDDO
-              !$acc end parallel
+              !$ACC END PARALLEL
             ENDIF
           ELSE IF (jt == ntiles_total + 3) THEN ! seaice points
             ! Note that if the sea-ice scheme is not used (lseaice=.FALSE.), list_seaice%ncount=0.
             i_count =  ext_data%atm%list_seaice%ncount(jb)
             ilist   => ext_data%atm%list_seaice%idx(:,jb)
-            !$acc kernels async(1) default(present) if(lzacc)
+            !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
             fr_land_t (:) = 0._wp
             depth_lk_t(:) = 0._wp
             h_ice_t   (:) = 1._wp  ! Only needed for checking whether ice is present or not
-            !$acc end kernels
+            !$ACC END KERNELS
           ELSE
             ! Paranoia
             CALL finish( TRIM(routine),'wrong value of ntiles_total + ntiles_water')
@@ -557,8 +571,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           !
           !MR: Hauptflaechengroessen nur fuer level nlev
 !$NEC ivdep
-          !$acc parallel async(1) default(present) if(lzacc)
-          !$acc loop gang vector private(jc)
+          !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc ) NO_CREATE( ilist )
+          !$ACC LOOP GANG VECTOR PRIVATE( jc )
           DO ic = 1, i_count
             jc = ilist(ic)
 
@@ -576,6 +590,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             t_g_t  (ic,jt)      = lnd_prog_new%t_g_t(jc,jb,jt)
             qv_s_t (ic,jt)      = lnd_diag%qv_s_t   (jc,jb,jt)
             sai_t  (ic,jt)      = ext_data%atm%sai_t(jc,jb,jt)
+            urb_isa_t(ic,jt)    = ext_data%atm%urb_isa_t(jc,jb,jt)
+
 !MR: rcld: benoetigt nur fuer level nlev (als Nebenflaechenvariable)
             rcld_t (ic,1:3,jt)  = prm_diag%rcld     (jc,nlev-1:nlevp1,jb)
             tvs_t  (ic,1:2,1,jt)= z_tvs             (jc,1:2,1)
@@ -584,6 +600,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             tkvm_t (ic,3,jt)    = prm_diag%tkvm_s_t (jc,jb,jt)     ! tile-specific for lowest level
             tkvh_t (ic,1:2,jt)  = prm_diag%tkvh     (jc,nlev-1:nlev,jb)
             tkvh_t (ic,3,jt)    = prm_diag%tkvh_s_t (jc,jb,jt)     ! tile-specific for lowest level
+            tcm_t  (ic,jt)      = prm_diag%tcm_t    (jc,jb,jt)
             tkr_t  (ic,jt)      = prm_diag%tkr_t    (jc,jb,jt)
             rlamh_fac(ic)       = prm_diag%rlamh_fac_t(jc,jb,jt)
 
@@ -591,12 +608,12 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             l_hori(ic)=phy_params(jg)%mean_charlen
 
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
           nlevcm = 3
           nzprv  = 1
           
-          !$acc wait
+          !$ACC WAIT IF( lzacc )
 
           IF (timers_level > 9) CALL timer_start(timer_nwp_turbtrans)
 
@@ -622,6 +639,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             &  h_ice=h_ice_t(:),                                            & !in
             &  rlamh_fac=rlamh_fac(:),                                      & !in
             &  sai=sai_t(:,jt),                                             & !in
+            &  urb_isa=urb_isa_t(:,jt),                                     & !in
             &  gz0=gz0_t(:,jt),                                             & !inout
             &  t_g=t_g_t(:,jt),                                             & !in
             &  qv_s=qv_s_t(:,jt),                                           & !in
@@ -633,7 +651,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             &  qv=qv_t(:,:),                                                & !in
             &  qc=qc_t(:,:),                                                & !in
             &  epr=epr_t(:,:),                                              & !in
-            &  tcm=tcm_t(:,jt),                                             & !out
+            &  tcm=tcm_t(:,jt),                                             & !inout
             &  tch=tch_t(:,jt),                                             & !out
             &  tvm=tvm_t(:,jt),                                             & !inout
             &  tvh=tvh_t(:,jt),                                             & !inout
@@ -660,20 +678,20 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
 
           ! Decision as to "ice" vs. "no ice" is made on the basis of h_ice_t(:).
-          !$acc parallel async(1) default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+          !$ACC LOOP GANG VECTOR
           DO ic= 1, i_count
             lhfl_s_t(ic,jt) = MERGE(qhfl_s_t(ic,jt)*lh_v, qhfl_s_t(ic,jt)*lh_s,  &
               &                     h_ice_t(ic)<h_Ice_min_flk)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
         ENDDO ! loop over tiles
 
 
         ! Aggregate tile-based output fields of turbtran over tiles
         ! i) initialize fields to zero before starting the summation
-        !$acc kernels async(1) default(present) if(lzacc)
+        !$ACC KERNELS ASYNC(1) DEFAULT(NONE) IF( lzacc )
         prm_diag%gz0   (i_startidx:i_endidx,jb) = 0._wp
         prm_diag%tcm   (i_startidx:i_endidx,jb) = 0._wp
         prm_diag%tch   (i_startidx:i_endidx,jb) = 0._wp
@@ -705,7 +723,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
         prm_diag%t_tilemax_inst_2m(i_startidx:i_endidx,jb) = -999._wp
         prm_diag%t_tilemin_inst_2m(i_startidx:i_endidx,jb) = 999._wp
-        !$acc end kernels
+        !$ACC END KERNELS
 
          ! ii) loop over index lists
         DO  jt = 1, ntiles_total + ntiles_water
@@ -726,16 +744,9 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
           IF (i_count == 0) CYCLE ! skip loop if the index list for the given tile is empty
 
-          !$acc data no_create(prm_diag, ext_data, rh_2m_t, td_2m_t, t_2m_t, &
-          !$acc              ilist, gz0_t, tcm_t, tch_t, tfm_t, tfh_t,  &
-          !$acc              tfv_t, tvm_t, tvh_t, tkr_t, z_tvs, tvs_t, tkvm_t, tkvh_t, rcld_t, &
-          !$acc              t_2m_t, qv_2m_t, td_2m_t, u_10m_t, v_10m_t, t_2m_t, &
-          !$acc              t_2m_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t, &
-          !$acc              u_10m_t, v_10m_t, tch_t) 
-
 !$NEC ivdep
-          !$acc parallel async(1) default(none) if(lzacc)
-          !$acc loop gang(static:1) vector private(jc,area_frac)
+          !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc ) NO_CREATE( ilist )
+          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( jc, area_frac )
           DO ic = 1, i_count
             jc = ilist(ic)
             area_frac = ext_data%atm%frac_t(jc,jb,jt)
@@ -776,7 +787,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             prm_diag%u_10m_t (jc,jb,jt) = u_10m_t(ic,jt)  ! needed by TERRA and turbtran
             prm_diag%v_10m_t (jc,jb,jt) = v_10m_t(ic,jt)  ! needed by TERRA and turbtran
             prm_diag%tch_t   (jc,jb,jt) = tch_t(ic,jt)    ! needed by TERRA
-            prm_diag%tcm_t   (jc,jb,jt) = tcm_t(ic,jt)    ! needed by TERRA
+            prm_diag%tcm_t   (jc,jb,jt) = tcm_t(ic,jt)    ! needed by TERRA and turbtran
             prm_diag%tfv_t   (jc,jb,jt) = tfv_t(ic,jt)    ! needed by TERRA
 
             prm_diag%tvm_t   (jc,jb,jt) = tvm_t(ic,jt)    ! to be used by TERRA instead of 'tcm'
@@ -792,7 +803,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
           ! averages over land fraction of mixed land-water points
           IF (jt <= ntiles_total) THEN
-            !$acc loop gang(static:1) vector private(jc,area_frac)
+            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( jc, area_frac )
 !$NEC ivdep
             DO ic = 1, i_count
               jc = ilist(ic)
@@ -802,7 +813,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
               prm_diag%rh_2m_land (jc,jb) = prm_diag%rh_2m_land(jc,jb) + rh_2m_t(ic,jt) * area_frac
             ENDDO
           ELSE
-            !$acc loop gang(static:1) vector private(jc,area_frac)
+            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( jc, area_frac )
 !$NEC ivdep
             DO ic = 1, i_count
               jc = ilist(ic)
@@ -815,19 +826,14 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             ENDDO
           ENDIF
 
-          !$acc end parallel
-          !$acc end data
+          !$ACC END PARALLEL
         ENDDO  ! jt
 
       ENDIF ! tiles / no tiles
 
-      !$acc data no_create(p_prog_rcf%tracer, p_metrics, &
-      !$acc                p_diag, prm_diag, prm_diag%dyn_gust, &
-      !$acc                p_prog_rcf%tke, p_prog_rcf, advection_config)
-
       ! Dynamic gusts are diagnosed from averaged values in order to avoid artifacts along coastlines
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang(static:1) vector
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%dyn_gust(jc,jb) =  nwp_dyn_gust (prm_diag%u_10m(jc,jb),      &
           &                                       prm_diag%v_10m(jc,jb),      &
@@ -840,7 +846,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       ENDDO
 
       ! transform updated turbulent velocity scale back to TKE
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jc = i_startidx, i_endidx
         p_prog_rcf%tke(jc,nlevp1,jb)= 0.5_wp*(z_tvs(jc,3,1))**2
       ENDDO
@@ -848,13 +854,12 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       ! Re-compute TKE at lowest main levels. Note that slight temporal inconsistencies are
       ! ignored at this point.
       IF (advection_config(jg)%iadv_tke > 0) THEN
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jc=i_startidx, i_endidx
           p_prog_rcf%tracer(jc,nlev,jb,iqtke) = 0.5_wp* ( z_tvs(jc,2,1) + z_tvs(jc,3,1) )
         ENDDO
       ENDIF
-      !$acc end parallel
-      !$acc end data
+      !$ACC END PARALLEL
 
     CASE(igme,ismag,iprog)
 
@@ -1082,19 +1087,20 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
     ! Compute wind speed in 10m
     ! used by mo_albedo (albedo_whitecap=1)
     ! 
-    !$acc parallel async(1) default(present) if(lzacc)
-    !$acc loop gang vector
+    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lzacc )
+    !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       prm_diag%sp_10m(jc,jb) = SQRT(prm_diag%u_10m(jc,jb)**2 + prm_diag%v_10m(jc,jb)**2 )
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
   ENDDO ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-!$acc wait
+!$ACC WAIT IF( lzacc )
 
-!$acc end data
+!$ACC END DATA
+!$ACC END DATA
 
 END SUBROUTINE nwp_turbtrans
 

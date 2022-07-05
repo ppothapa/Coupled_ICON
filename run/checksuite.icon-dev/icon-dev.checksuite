@@ -195,18 +195,6 @@ function diff_results
     MODEL_DIR2=$3
     DEXP2=$4
     TEST=$5
-    DISTRO=$(lsb_release -cs)
-    case $DISTRO in
-        squeeze)
-            module load cdo/1.6.5.1
-            ;;
-        wheezy)
-            module load cdo/1.6.5.1
-            ;;
-	jessie)
-	    eval `/usr/bin/tclsh /sw/share/Modules/modulecmd.tcl bash load cdo/1.8.0-gccsys`
-	    ;;
-    esac
     #TYPES: defined in main script and used from main script 
     #DATES: defined in main script and used from main script 
 
@@ -384,7 +372,8 @@ function tolerance_check
     TOL_STATUS=0
     cd $MODEL_DIR
 
-    REF_BUILDER=${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}
+    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]' | sed 's/_gpu/_cpu/') # new buildbot
+    [[ -z $REF_BUILDER ]] && REF_BUILDER="${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}" # old buildbot
 
     # find relevant config
     case $EXPERIMENT in
@@ -395,13 +384,13 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *mch_*nest*)
-            FILE_IDS="atm_3d_DOM01,atm_3d_DOM02"
+            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
         *mch_*)
             FILE_IDS="atm_3d"
             ;;
         *dwd_run_ICON_*)
-            FILE_IDS="atm_3d_DOM01,atm_3d_DOM02"
+            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
         *)
             echo "no file ids specified for '${EXPERIMENT}'"
@@ -415,27 +404,48 @@ function tolerance_check
 
     echo "Running tolerance check with compiler-specific reference from builder (${REF_BUILDER})"
 
+    export PROBTEST_CONFIG=${EXP_BASE}.json
+    # initialize configuration file
+    python probtest/probtest.py --log-file stats-${EXPERIMENT}.log init \
+        --codebase-install "${MODEL_DIR1}" \
+        --reference "not-used" \
+        --experiment-name "${EXP_BASE}" \
+        --file-ids "${FILE_IDS}" \
+        --config "${PROBTEST_CONFIG}"
+    if [[ $? != 0 ]] ; then
+        echo "probtest did not initialized successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
+
     # generate the aggregated "single-column" stats file
     python probtest/probtest.py --log-file stats-${EXPERIMENT}.log stats \
-        --time-dim "time" \
-        --model-output-dir experiments/${EXP_BASE} \
         --stats-file-name ${EXPERIMENT}.csv \
-        --file-ids $FILE_IDS \
         --no-ensemble
+    if [[ $? != 0 ]] ; then
+        echo "probtest did not generate stats successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
+
     # validate the generated stats against the reference
     python probtest/probtest.py --log-file check-${EXPERIMENT}.log check \
         --input-file-cur ${EXPERIMENT}.csv \
         --input-file-ref icon-test-references/${REF_BUILDER}/reference/${EXPERIMENT}.csv \
-        --tolerance-file-name icon-test-references/${REF_BUILDER}/tolerance/${EXPERIMENT}.csv \
-        --factor 5
+        --tolerance-file-name icon-test-references/${REF_BUILDER}/tolerance/${EXPERIMENT}.csv
+    if [[ $? != 0 ]] ; then
+        echo "probtest tolerance test did not complete successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
 
     # get the relevant success check
     fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
     crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
     finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
     if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
-       echo "testsuite did not complete successfully"
-       TOL_STATUS=1
+        echo "testsuite did not complete successfully"
+        TOL_STATUS=1
     fi
 
     return $TOL_STATUS
@@ -620,8 +630,8 @@ CMODES="u ur un um uo urn urm uro unm uno umo urnm urno urmo unmo urnmo"
 if string_in_list $MD $CMODES; then
     echo "- REFERENCE    = ${REFERENCE:?  is not defined --> ERROR}"
 
-    # get reference path standardized by pwd
-    cd ${REFERENCE}; REFERENCE=`pwd`
+    # get reference path standardized by pwd; exit if path is not available
+    cd ${REFERENCE} || exit 1; REFERENCE=`pwd`
     if [ "${REFERENCE}" == "${MODEL_DIR}" ]; then
         if [ "$COLOUR" == 'no' ]; then
             echo 'reference model and test model are the same'
@@ -708,7 +718,7 @@ if string_in_list $MD $CMODES; then
     echo ' '
     echo "#################### perform $TEST test          ####################"
     echo ' '
-    cd ${REFERENCE} 
+    cd ${REFERENCE} || exit 1
     RUN_STATUS=-1
     if [ ! -d experiments/${EXP_BASE} ] ;then 
         if [ ! -f run/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then

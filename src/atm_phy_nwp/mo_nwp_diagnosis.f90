@@ -1102,7 +1102,7 @@ CONTAINS
                             & p_prog_wtr_now,             & !inout
                             & ext_data,                   & !in
                             & prm_diag,                   & !inout
-                            & use_acc                     ) !in
+                            & lacc                        ) !in
               
     TYPE(datetime),   POINTER     :: mtime_current     ! current datetime (mtime)
     INTEGER,         INTENT(IN)   :: kstart_moist
@@ -1122,7 +1122,7 @@ CONTAINS
     TYPE(t_external_data),INTENT(IN)  :: ext_data       !< external data
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag
 
-    LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+    LOGICAL,             INTENT(IN)   :: lacc
 
     ! Local
     INTEGER :: jc,jk,jb,jg             !< loop index
@@ -1143,17 +1143,9 @@ CONTAINS
 
     TYPE(timeDelta), POINTER :: time_diff
 
-    LOGICAL :: lacc
-
   !-----------------------------------------------------------------
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
 
     !$ACC DATA CREATE(ztp, zqp, mlab) PRESENT(p_metrics, pt_prog_rcf, pt_diag, &
     !$ACC   lnd_diag, p_prog_wtr_now, ext_data, prm_diag) IF(lacc)

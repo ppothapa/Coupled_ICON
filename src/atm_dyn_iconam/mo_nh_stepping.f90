@@ -542,7 +542,9 @@ MODULE mo_nh_stepping
                &                      p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), & !in
                &                      p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), & !inout
                &                      ext_data(jg),                           & !in
-               &                      prm_diag(jg)                            ) !inout
+               &                      prm_diag(jg),                           & !inout
+               &                      lacc=.FALSE.                             ) !in
+
 #ifndef __NO_ICON_LES__
         ELSE !is_les_phy
 
@@ -583,7 +585,7 @@ MODULE mo_nh_stepping
     ENDIF!is_restart
   CASE (iaes)
     IF (.NOT.isRestart()) THEN
-      CALL init_slowphysics (mtime_current, 1, dtime)
+      CALL init_slowphysics (mtime_current, 1, dtime, lacc=.FALSE.)
     END IF
 #ifdef __ICON_ART
     IF (lart) THEN
@@ -1262,7 +1264,7 @@ MODULE mo_nh_stepping
                  &                      p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), & !inout
                  &                      ext_data(jg),                           & !in
                  &                      prm_diag(jg),                           & !inout
-                 &                      use_acc=.TRUE.                          ) !in
+                 &                      lacc=.TRUE.                             ) !in
 
 #ifndef __NO_ICON_LES__
           ELSE !is_les_phy
@@ -2406,10 +2408,7 @@ MODULE mo_nh_stepping
         CALL nudging_interface( p_patch          = p_patch(jg),            & !in
           &                     p_nh_state       = p_nh_state(jg),         & !inout
           &                     latbc            = latbc,                  & !in
-          &                     p_int_state      = p_int_state(jg),        & !in
           &                     mtime_datetime   = datetime_local(jg)%ptr, & !in
-          &                     sim_time         = sim_time,               & !in
-          &                     time_config      = time_config,            & !in
           &                     ndyn_substeps    = ndyn_substeps,          & !in
           &                     nnew             = nnew(jg),               & !in
           &                     nnew_rcf         = n_new_rcf,              & !in
@@ -2675,7 +2674,7 @@ MODULE mo_nh_stepping
               ENDIF
             ENDIF
 
-            CALL init_slowphysics (datetime_local(jgc)%ptr, jgc, dt_sub)
+            CALL init_slowphysics (datetime_local(jgc)%ptr, jgc, dt_sub, lacc=.FALSE.)
 
             WRITE(message_text,'(a,i2,a,f12.2)') 'domain ',jgc,' started at time ',sim_time
             CALL message('integrate_nh', message_text)
@@ -2903,20 +2902,13 @@ MODULE mo_nh_stepping
     TYPE(datetime), POINTER :: mtime_current
     INTEGER , INTENT(IN)    :: jg           !< current grid level
     REAL(wp), INTENT(IN)    :: dt_loc       !< time step applicable to local grid level
-    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+    LOGICAL, INTENT(IN) :: lacc
 
     ! Local variables
     INTEGER                             :: n_now_rcf, nstep
     INTEGER                             :: jgp, jgc, jn
     REAL(wp)                            :: dt_sub       !< (advective) timestep for next finer grid level
 
-    LOGICAL :: lzacc
-
-    IF (PRESENT(lacc)) THEN
-      lzacc=lacc
-    ELSE
-      lzacc=.FALSE.
-    END IF
 
     ! Determine parent domain ID
     IF ( jg > 1) THEN
@@ -3004,7 +2996,7 @@ MODULE mo_nh_stepping
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
           &                  p_nh_state_lists(jg)%prog_list(n_now_rcf), & !in
-          &                  lacc=lzacc) !in
+          &                  lacc=lacc) !in
       !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .FALSE., opt_lupdate_cpu=.FALSE.)
 
 
@@ -3051,7 +3043,7 @@ MODULE mo_nh_stepping
 
         IF(p_patch(jgc)%domain_is_owned) THEN
           IF(proc_split) CALL push_glob_comm(p_patch(jgc)%comm, p_patch(jgc)%proc0)
-          CALL init_slowphysics( mtime_current, jgc, dt_sub, lacc=lzacc )
+          CALL init_slowphysics( mtime_current, jgc, dt_sub, lacc=lacc )
           IF(proc_split) CALL pop_glob_comm()
         ENDIF
 

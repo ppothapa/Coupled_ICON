@@ -104,7 +104,7 @@ all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
 
 # DACE sources:
 @DACE_ENABLED_OR_NEEDED@DACE_subdir:= externals/dace_icon/src_for_icon
-@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf')
+@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf' '*.c')
 
 # EMVORADO sources:
 @EMVORADO_ENABLED@EMVORADO_subdir:= externals/emvorado
@@ -576,6 +576,7 @@ c_binding.d: icon.mk
 	} >$@
 @ART_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/art/shared/mo_art_util_vcs.f90):| version.@OBJEXT@' >>$@
 @GPU_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/shared/mo_index_list.f90):| src/shared_cuda/index_list_cuda.@OBJEXT@' >>$@
+@DACE_ENABLED_OR_NEEDED@	$(silent_none)echo '$(call get_obj_names,externals/dace_icon/src_for_icon/mo_wigos.f90):| externals/dace_icon/src_for_icon/dace_md5_ifc.@OBJEXT@ externals/dace_icon/src_for_icon/md5.@OBJEXT@' >>$@
 
 # Dummy dependency file generation rule (called by config.status):
 dummy-depend: | $(dir_files)

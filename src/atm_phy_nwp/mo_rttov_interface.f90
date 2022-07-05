@@ -56,7 +56,7 @@ MODULE mo_rttov_interface
     &                               get_my_mpi_all_id
 #ifdef __USE_RTTOV
   USE mo_rtifc,               ONLY: rtifc_set_opts, rtifc_init, rtifc_fill_input, &
-                                    rtifc_direct, rtifc_errmsg, rttov_opts_def,   &
+                                    rtifc_direct, rtifc_errmsg,                   &
                                     NO_ERROR, default_gas_units, gas_unit_ppmvdry
 #endif
 
@@ -85,6 +85,9 @@ MODULE mo_rttov_interface
 
   !> RTTOV-indices of sensors
   INTEGER  :: rttov_indx(jpnsat)
+
+  !> RTTOV-indices of channels
+  INTEGER, ALLOCATABLE :: chan_rtidx(:,:)
 
   !> computed channel index (necessary if only a small number of channels is selected)
   INTEGER, ALLOCATABLE :: chan_idx(:,:) ! (1:numchans, isens)
@@ -163,7 +166,7 @@ CONTAINS
 
     ! --- set up a mapping: computed channel -> list of available channels
 
-    ALLOCATE(chan_idx(mchans,num_sensors), STAT=ierrstat)
+    ALLOCATE(chan_idx(mchans,num_sensors), chan_rtidx(mchans,num_sensors), STAT=ierrstat)
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
     chan_idx(:,:) = 0    
@@ -196,28 +199,32 @@ CONTAINS
         WRITE (0,*) routine, ": CALL to rttov_init"
       END IF
 
-      CALL rtifc_set_opts(        &
-        addclouds      = .true.,  &
-        apply_reg_lims = .true.,  &
-        addsolar       = .false., &
-        addrefrac      = .true.,  &
-        addinterp      = .false., &
-        use_q2m        = .true.,  &
-        cloud_overlap  = 2,       & !Simplified, much faster scheme
-        do_checkinput  = .false., & !do_checkinput is expensive on vector machine
-        init           = .true.)
+      DO isens = 1, num_sensors
+        CALL rtifc_set_opts(                  &
+          iopt           = rttov_indx(isens), &
+          new            = .true.,            &
+          addclouds      = .true.,            &
+          apply_reg_lims = .true.,            &
+          addsolar       = .false.,           &
+          addrefrac      = .true.,            &
+          addinterp      = .false.,           &
+          use_q2m        = .true.,            &
+          cloud_overlap  = 2,                 & !Simplified, much faster scheme
+          do_checkinput  = .false.,           & !do_checkinput is expensive on vector machine
+          init           = .true.)
+      END DO
 
-      CALL rtifc_init(                            &
-        instruments                             , &
-        channels                                , &
-        n_chans                                 , &
-        (/(rttov_opts_def,isens=1,num_sensors)/), &
-        p_pe                                    , &
-        num_work_procs                          , &
-        p_io                                    , &
-        p_comm_work                             , &
-        istatus                                 , &
-        idx = rttov_indx                        )
+      CALL rtifc_init(  &
+        instruments,    &
+        channels,       &
+        n_chans,        &
+        chan_rtidx,     &
+        rttov_indx,     &
+        p_pe,           &
+        num_work_procs, &
+        p_io,           &
+        p_comm_work,    &
+        istatus      )
 
       IF (istatus /= NO_ERROR) THEN
         WRITE(message_text,'(a)') TRIM(rtifc_errmsg(istatus))
@@ -238,7 +245,7 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER    :: routine = modname//"::rttov_finalize"
     INTEGER :: ierrstat
 
-    DEALLOCATE(lsynsat_product, lsynsat_chan, chan_idx, STAT=ierrstat)
+    DEALLOCATE(lsynsat_product, lsynsat_chan, chan_idx, chan_rtidx, STAT=ierrstat)
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed.')
   END SUBROUTINE rttov_finalize
 
@@ -397,9 +404,9 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, use_acc)
       ENDDO
     ENDDO
 
-    CALL rtifc_fill_input(                            &
-         istatus, &
-         rttov_opts_def, &
+    CALL rtifc_fill_input(                                &
+         istatus,                                         &
+         rttov_indx(1:num_sensors),                       &
          press      = pres(:,is:ie) ,                     &
          temp       = temp(:,is:ie),                      &
          humi       = qv(:,is:ie),                        &
@@ -439,7 +446,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, use_acc)
         iprof(j:ncalc:numchans(isens)) = (/ (k, k=1,n_profs) /)
         ! note: ichan contains the list of channel indices wrt. the
         ! list provided to rttov_init:
-        ichan(j:ncalc:numchans(isens)) =  (/ (j, k=1,n_profs) /)
+        ichan(j:ncalc:numchans(isens)) =  (/ (chan_rtidx(j,isens), k=1,n_profs) /)
       ENDDO
 
       ! Set/compute some sensor dependent quantities
@@ -474,7 +481,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, use_acc)
              rttov_indx(isens),                                   &
              iprof(1:ncalc),                                      &
              ichan(1:ncalc),                                      &
-             rttov_opts_def,                                      &
              emiss(1:numchans(isens), 1:n_profs),                 &
              T_b(1:numchans(isens), 1:n_profs),                   &
              istatus,                                             &

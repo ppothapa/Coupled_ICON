@@ -10,7 +10,7 @@ PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
 # (does not work correcly if there are several hunks in the patch file):
 patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/rte-rrtmgp" -i "${MY_DIR}/breeze_nag_patches/name_collision.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
 
-${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
+${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-dace --enable-emvorado
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}

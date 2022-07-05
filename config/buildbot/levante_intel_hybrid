@@ -1,0 +1,29 @@
+#!/bin/bash
+
+MY_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+
+MPI_LAUNCH=''
+if [ ! -z "${BB_NAME}" ]; then
+  set -x
+  MPI_LAUNCH='srun -A mh0156 -p compute -N 1'
+fi
+
+${ICON_DIR}/config/dkrz/levante.intel --enable-yaxt --enable-openmp MPI_LAUNCH="${MPI_LAUNCH}"
+
+if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
+  echo " ***** Configuration logs from '$(pwd)' ***** "
+  for f in $(find . -name 'config.log' -print); do
+    echo " ||||| '$f' ||||| "
+    cat "$f"
+  done
+  echo " ***** End of configuration logs from '$(pwd)' ***** "
+fi
+
+if [ ! -z "${BB_NAME}" ] ; then
+  MAKE_PROCS=22
+  echo "MAKE_PROCS=${MAKE_PROCS}"
+else
+  MAKE_PROCS=8
+fi
+make -j ${MAKE_PROCS}

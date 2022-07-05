@@ -53,20 +53,7 @@ done
 check_error $? "oce_numeric: $nclCaller"
 
 # check for identical results compared to the reference
-slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-refDir=${ocean_data_MainFolder}/reference/${slave}/${EXPNAME}
-#case ${slave} in  
-#  thunder*)
-#    refDir=/scratch/mpi/CC/mh0287/reference/${slave}/${EXPNAME}
-#    ;;
-#  bliz*)
-#    refDir=/work/mh0287/reference/${slave}/${EXPNAME}
-#    ;;
-#  *)
-#    echo "Unknown slave: ${slave}!"
-#    exit 1
-#    ;;
-#esac
+refDir=${ocean_data_MainFolder}/reference/${BB_NAME}/${EXPNAME}
 
 directoryDiff ${refDir} .
 

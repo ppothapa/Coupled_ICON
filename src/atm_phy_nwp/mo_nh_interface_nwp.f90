@@ -127,7 +127,6 @@ MODULE mo_nh_interface_nwp
   USE mo_radar_data_state,        ONLY: radar_data, lhn_fields
   USE mo_latent_heat_nudging,     ONLY: organize_lhn
   USE mo_assimilation_config,     ONLY: assimilation_config
-  USE mo_nudging_config,          ONLY: nudging_config
   USE mo_nwp_reff_interface,      ONLY: set_reff , combine_phases_radiation_reff
   USE mo_upatmo_impl_const,       ONLY: iUpatmoPrcStat, iUpatmoStat
   USE mo_upatmo_config,           ONLY: upatmo_config
@@ -282,8 +281,6 @@ CONTAINS
     REAL(wp) :: p_sim_time      !< elapsed simulation time on this grid level
 
     LOGICAL :: lconstgrav  !< const. gravitational acceleration?
-
-    REAL(wp) :: dpsdt_avg  !< mean absolute surface pressure tendency
 
     ! SCM Nudging
     REAL(wp) :: nudgecoeff
@@ -2309,9 +2306,7 @@ CONTAINS
       CALL compute_dpsdt (pt_patch      = pt_patch,  &
         &                 dt            = dt_loc,    &
         &                 pt_diag       = pt_diag,   &
-        &                 opt_dpsdt_avg = dpsdt_avg, &
-        &                 lacc          = lzacc      )  ! (only stdio-process has reasonable return value!)
-      nudging_config(jg)%dpsdt = dpsdt_avg
+        &                 lacc          = lzacc      )
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_dpsdt)
 

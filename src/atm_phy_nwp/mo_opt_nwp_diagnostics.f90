@@ -494,7 +494,8 @@ CONTAINS
     i_endblk   = p_patch%cells%end_blk   (rl_end,i_nchdom)
 
 !$ACC DATA CREATE( pv_ef, vt, theta_cf, theta_vf, theta_ef, w_vh, w_eh, ddtw_eh, ddnw_eh, &
-!$ACC              ddtth_ef, ddnth_ef, vor_ef ) IF( i_am_accel_node )
+!$ACC              ddtth_ef, ddnth_ef, vor_ef ) &
+!$ACC     PRESENT( ddnz, ddtz, gamma, p_prog, p_diag, p_patch, out_var ) IF( i_am_accel_node )
     
 !$OMP PARALLEL    
 !$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
@@ -504,7 +505,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
-!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+!$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
 !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -559,8 +560,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL DEFAULT(PRESENT) PRIVATE( ivd1, ivd2, vdfac )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)     
+!$ACC PARALLEL DEFAULT(NONE) PRIVATE( ivd1, ivd2, vdfac ) IF( i_am_accel_node )
+!$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
 
@@ -633,11 +634,14 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
+!$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+!$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
           out_var(jc,jk,jb) = out_var(jc,jk,jb) / p_prog%rho(jc,jk,jb)
         ENDDO
       ENDDO
+!$ACC END PARALLEL    
     ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL    

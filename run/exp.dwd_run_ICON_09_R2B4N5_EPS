@@ -431,7 +431,29 @@ fi
 cat >> ${basedir}/run/${atmo_namelist} << EOF
   'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','rh'
   ! 'plantevap','dwdx','dwdy'
+
+ pl_varlist           = 'temp', 'w', 'omega'
+ p_levels             = 100, 200, 92500, 100000
+ 
+ hl_varlist           = 'temp', 'w', 'omega'
+ h_levels             = 5000, 3000, 1500
 /
+
+&output_nml
+ output_filename  = "${EXPNAME}_atm_3d_ll"
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ filetype         = 5
+ remap            = 1
+ output_grid      = .TRUE.
+ output_bounds    = 0,9999999,${dtime}        ! start, end, increment
+ steps_per_file   = 20
+ include_last     = .FALSE.
+ reg_lon_def      = 0.,2.5,359.501
+ reg_lat_def      = -90.,2.5,90.
+ output_grid      = .false.
+ ml_varlist       = 'u','v','qc','rho'
+/
+
 !output!! ser_nml: serialization configuration ----------------------------------------
 !&ser_nml
 ! ser_initialization          =                            1,12,12 !

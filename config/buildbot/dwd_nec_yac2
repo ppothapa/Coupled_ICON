@@ -51,7 +51,7 @@ patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/yaxt" -i "${MY_DIR}/dwd_nec_patc
 ${ICON_DIR}/config/dwd/rcl.VE.nfort-3.2.0_oper --disable-openmp --enable-ocean --prefix=${ICON_DIR}/vector MPI_LAUNCH='/opt/nec/ve/bin/mpirun' acx_cv_prog_mpirun='/opt/nec/ve/bin/mpirun' acx_cv_fc_c_compatible_mpi=yes
 
 
-if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
+if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
   for f in $(find . -name 'config.log' -print); do
     echo " ||||| '$f' ||||| "
@@ -63,7 +63,6 @@ fi
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
 make install
-
 
 cd ../../
 
@@ -77,7 +76,7 @@ mkdir -p build/host
 cd build/host
 ${ICON_DIR}/config/dwd/rcl.VH.gcc --enable-ocean --enable-coupling --prefix=${ICON_DIR}/host
 
-if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
+if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
   for f in $(find . -name 'config.log' -print); do
     echo " ||||| '$f' ||||| "

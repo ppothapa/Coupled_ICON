@@ -153,9 +153,9 @@ CONTAINS
 
     seed_in_time = create_rdm_seed_in_time(current_datetime)
 
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(cosmu0, tsfc, albvisdif, albnirdif, albvisdir,  &
-    !$ACC                               albnirdir, emis_rad, ecrad_single_level) &
-    !$ACC                        COPYIN(ptr_center) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) PRESENT( cosmu0, tsfc, albvisdif, albnirdif, albvisdir ) &
+    !$ACC                        PRESENT( albnirdir, emis_rad, ecrad_single_level, ptr_center ) &
+    !$ACC                        IF( lacc )
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         ecrad_single_level%cos_sza(jc)            = cosmu0(jc)

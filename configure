@@ -7231,10 +7231,6 @@ as_fn_error $? "unable to link a test program using RTTOV library: either disabl
 See \`config.log' for more details
 ${icon_usr_note}" "$LINENO" 5; }
 fi
-else
-  if test "x$enable_dace" = xyes; then :
-        as_fn_error $? "unsupported combination of the configure options: you are trying to configure with the DACE modules for data assimilation but usage of the radiative transfer model for TOVS is disabled: either disable the DACE modules for data assimilation (--disable-dace) or enable usage of the radiative transfer model for TOVS (--enable-rttov)" "$LINENO" 5
-fi
 fi
 
 if test "x$enable_sct" = xyes; then :
