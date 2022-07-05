@@ -1138,8 +1138,10 @@ CONTAINS
 
     ! hack inhom implementation by scaling the liquid water path
     ! it's important to run this AFTER the longwave
-    zlwp = zlwp * inhoml
-    ziwp = ziwp * inhomi
+    !$ACC KERNELS DEFAULT(PRESENT)
+    zlwp(:,:) = zlwp(:,:) * inhoml
+    ziwp(:,:) = ziwp(:,:) * inhomi
+    !$ACC END KERNELS
     
     ! new cloud optics: allocate memory for cloud optical properties:
     CALL stop_on_err(clouds_bnd_sw%alloc_2str(ncol, klev, &
