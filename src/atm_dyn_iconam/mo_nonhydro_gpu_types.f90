@@ -83,7 +83,7 @@ CONTAINS
     CALL transfer_int_state( p_int_state_local_parent, .TRUE. )
 
     CALL transfer_patch( p_patch, .TRUE. )
-    CALL transfer_patch_local_parent( p_patch_local_parent, .TRUE. )
+    CALL transfer_patch( p_patch_local_parent, .TRUE. )
 
     CALL transfer_prep_adv( prep_adv, .TRUE. )
 
@@ -115,7 +115,7 @@ CONTAINS
     CALL transfer_nh_state( p_nh_state, .FALSE. )
     CALL transfer_prep_adv( prep_adv, .FALSE. )
     CALL transfer_patch( p_patch, .FALSE. )
-    CALL transfer_patch_local_parent( p_patch_local_parent, .FALSE. )
+    CALL transfer_patch( p_patch_local_parent, .FALSE. )
     CALL transfer_int_state( p_int_state, .FALSE. )
     CALL transfer_int_state( p_int_state_local_parent, .FALSE. )
     CALL transfer_advection_config( advection_config, .FALSE. )
@@ -216,38 +216,15 @@ CONTAINS
         IF ( host_to_device ) THEN
 
 !$ACC ENTER DATA &
-!$ACC      COPYIN( p_patch(j)%cells, p_patch(j)%cells%decomp_info, p_patch(j)%cells%decomp_info%owner_mask, &
-!$ACC              p_patch(j)%cells%area, p_patch(j)%cells%edge_idx, p_patch(j)%cells%edge_blk,             &
+!$ACC      COPYIN( p_patch(j)%cells, p_patch(j)%edges, p_patch(j)%verts,                                    &
+!$ACC              p_patch(j)%cells%decomp_info, p_patch(j)%cells%decomp_info%owner_mask,                   &
+!$ACC              p_patch(j)%cells%ddqz_z_full, p_patch(j)%cells%area,                                     &
+!$ACC              p_patch(j)%cells%edge_idx, p_patch(j)%cells%edge_blk,                                    &
 !$ACC              p_patch(j)%cells%neighbor_idx, p_patch(j)%cells%neighbor_blk,                            &
 !$ACC              p_patch(j)%cells%center, p_patch(j)%cells%refin_ctrl, p_patch(j)%cells%f_c,              &
 !$ACC              p_patch(j)%cells%vertex_blk, p_patch(j)%cells%vertex_idx,                                &
+!$ACC              p_patch(j)%cells%child_blk, p_patch(j)%cells%child_idx,                                  &
 !$ACC              p_patch(j)%cells%start_index, p_patch(j)%cells%end_index,                                &
-!$ACC              p_patch(j)%edges, p_patch(j)%edges%area_edge, p_patch(j)%edges%cell_idx,                 &
-!$ACC              p_patch(j)%edges%cell_blk, p_patch(j)%edges%edge_cell_length, p_patch(j)%edges%f_e,      &
-!$ACC              p_patch(j)%edges%quad_idx, p_patch(j)%edges%quad_blk, p_patch(j)%edges%vertex_idx,       &
-!$ACC              p_patch(j)%edges%vertex_blk, p_patch(j)%edges%primal_normal_cell,                        &
-!$ACC              p_patch(j)%edges%start_index, p_patch(j)%edges%end_index,                                &
-!$ACC              p_patch(j)%edges%dual_normal_cell, p_patch(j)%edges%primal_normal_vert,                  &
-!$ACC              p_patch(j)%edges%dual_normal_vert, p_patch(j)%edges%inv_vert_vert_length,                &
-!$ACC              p_patch(j)%edges%inv_dual_edge_length, p_patch(j)%edges%inv_primal_edge_length,          &
-!$ACC              p_patch(j)%edges%primal_edge_length,                                                     &
-!$ACC              p_patch(j)%edges%tangent_orientation, p_patch(j)%edges%refin_ctrl,                       &
-!$ACC              p_patch(j)%verts, p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk,                  &
-!$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
-!$ACC              p_patch(j)%edges%parent_loc_idx, p_patch(j)%edges%parent_loc_blk,                        &
-!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl,       &
-!$ACC              p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk ),                        &
-!$ACC      IF ( i_am_accel_node  )
-     
-        ELSE
-
-!$ACC EXIT DATA &
-!$ACC      DELETE( p_patch(j)%cells%decomp_info, p_patch(j)%cells%decomp_info%owner_mask,                   &
-!$ACC              p_patch(j)%cells%area, p_patch(j)%cells%edge_idx, p_patch(j)%cells%edge_blk,             &
-!$ACC              p_patch(j)%cells%neighbor_idx, p_patch(j)%cells%neighbor_blk,                            &
-!$ACC              p_patch(j)%cells%center, p_patch(j)%cells%refin_ctrl, p_patch(j)%cells%f_c,              &
-!$ACC              p_patch(j)%cells%start_index, p_patch(j)%cells%end_index,                                &
-!$ACC              p_patch(j)%cells%vertex_blk, p_patch(j)%cells%vertex_idx, p_patch(j)%cells,              &
 !$ACC              p_patch(j)%edges%area_edge, p_patch(j)%edges%cell_idx,                                   &
 !$ACC              p_patch(j)%edges%cell_blk, p_patch(j)%edges%edge_cell_length, p_patch(j)%edges%f_e,      &
 !$ACC              p_patch(j)%edges%quad_idx, p_patch(j)%edges%quad_blk, p_patch(j)%edges%vertex_idx,       &
@@ -257,12 +234,43 @@ CONTAINS
 !$ACC              p_patch(j)%edges%dual_normal_vert, p_patch(j)%edges%inv_vert_vert_length,                &
 !$ACC              p_patch(j)%edges%inv_dual_edge_length, p_patch(j)%edges%inv_primal_edge_length,          &
 !$ACC              p_patch(j)%edges%primal_edge_length,                                                     &
+!$ACC              p_patch(j)%edges%child_idx, p_patch(j)%edges%child_blk,                                  &
 !$ACC              p_patch(j)%edges%tangent_orientation, p_patch(j)%edges%refin_ctrl,                       &
-!$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
 !$ACC              p_patch(j)%edges%parent_loc_idx, p_patch(j)%edges%parent_loc_blk,                        &
-!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl,       &
 !$ACC              p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk,                          &
-!$ACC              p_patch(j)%edges, p_patch(j)%verts),                                                     &
+!$ACC              p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk,                                    &
+!$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
+!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl )      &
+!$ACC      IF ( i_am_accel_node  )
+     
+        ELSE
+
+!$ACC EXIT DATA &
+!$ACC      DELETE( p_patch(j)%cells%decomp_info%owner_mask, p_patch(j)%cells%decomp_info,                   &
+!$ACC              p_patch(j)%cells%ddqz_z_full, p_patch(j)%cells%area,                                     &
+!$ACC              p_patch(j)%cells%edge_idx, p_patch(j)%cells%edge_blk,                                    &
+!$ACC              p_patch(j)%cells%neighbor_idx, p_patch(j)%cells%neighbor_blk,                            &
+!$ACC              p_patch(j)%cells%center, p_patch(j)%cells%refin_ctrl, p_patch(j)%cells%f_c,              &
+!$ACC              p_patch(j)%cells%vertex_blk, p_patch(j)%cells%vertex_idx,                                &
+!$ACC              p_patch(j)%cells%child_blk, p_patch(j)%cells%child_idx,                                  &
+!$ACC              p_patch(j)%cells%start_index, p_patch(j)%cells%end_index,                                &
+!$ACC              p_patch(j)%edges%area_edge, p_patch(j)%edges%cell_idx,                                   &
+!$ACC              p_patch(j)%edges%cell_blk, p_patch(j)%edges%edge_cell_length, p_patch(j)%edges%f_e,      &
+!$ACC              p_patch(j)%edges%quad_idx, p_patch(j)%edges%quad_blk, p_patch(j)%edges%vertex_idx,       &
+!$ACC              p_patch(j)%edges%vertex_blk, p_patch(j)%edges%primal_normal_cell,                        &
+!$ACC              p_patch(j)%edges%start_index, p_patch(j)%edges%end_index,                                &
+!$ACC              p_patch(j)%edges%dual_normal_cell, p_patch(j)%edges%primal_normal_vert,                  &
+!$ACC              p_patch(j)%edges%dual_normal_vert, p_patch(j)%edges%inv_vert_vert_length,                &
+!$ACC              p_patch(j)%edges%inv_dual_edge_length, p_patch(j)%edges%inv_primal_edge_length,          &
+!$ACC              p_patch(j)%edges%primal_edge_length,                                                     &
+!$ACC              p_patch(j)%edges%child_idx, p_patch(j)%edges%child_blk,                                  &
+!$ACC              p_patch(j)%edges%tangent_orientation, p_patch(j)%edges%refin_ctrl,                       &
+!$ACC              p_patch(j)%edges%parent_loc_idx, p_patch(j)%edges%parent_loc_blk,                        &
+!$ACC              p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk,                          &
+!$ACC              p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk,                                    &
+!$ACC              p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx,       &
+!$ACC              p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl,       &
+!$ACC              p_patch(j)%cells, p_patch(j)%edges, p_patch(j)%verts )                                   &
 !$ACC      IF ( i_am_accel_node  )
 
       ENDIF   
@@ -270,51 +278,6 @@ CONTAINS
     ENDDO
 
   END SUBROUTINE transfer_patch
-
-  !USE mo_model_domain,         ONLY: p_patch_local_parent
-  ! transfer p_patch_local_parent. This is a partially filled t_patch
-  SUBROUTINE transfer_patch_local_parent( p_patch_local_parent, host_to_device )
-
-    LOGICAL, INTENT(IN)                        :: host_to_device     !   .TRUE. : h2d   .FALSE. : d2h
-    TYPE ( t_patch ), TARGET, INTENT(INOUT)    :: p_patch_local_parent(:)
-    
-    TYPE ( t_patch ), POINTER                  :: p_pp(:)
-
-    INTEGER :: j
-
-    p_pp => p_patch_local_parent
-!
-! Copy the static data structures in p_patch_local_parent to the device -- this is a small subset of all the components
-!
-
-      DO j=1,SIZE(p_pp)
-
-        IF ( host_to_device ) THEN
-
-!$ACC ENTER DATA &
-!$ACC      COPYIN( p_pp(j)%cells, p_pp(j)%cells%child_idx, p_pp(j)%cells%child_blk, &
-!$ACC              p_pp(j)%edges%vertex_idx, p_pp(j)%edges%vertex_blk,              &
-!$ACC              p_pp(j)%edges%primal_normal_vert, p_pp(j)%edges%refin_ctrl,      &
-!$ACC              p_pp(j)%cells%area, p_pp(j)%cells%ddqz_z_full,                   &
-!$ACC              p_pp(j)%edges, p_pp(j)%edges%child_idx, p_pp(j)%edges%child_blk) &
-!$ACC      IF ( i_am_accel_node  )
-     
-        ELSE
-
-!$ACC EXIT DATA &
-!$ACC      DELETE( p_pp(j)%cells%child_idx, p_pp(j)%cells%child_blk,                &
-!$ACC              p_pp(j)%edges%vertex_idx, p_pp(j)%edges%vertex_blk,              &
-!$ACC              p_pp(j)%edges%primal_normal_vert, p_pp(j)%edges%refin_ctrl,      &
-!$ACC              p_pp(j)%cells%area, p_pp(j)%cells%ddqz_z_full, p_pp(j)%cells,    &
-!$ACC              p_pp(j)%edges%child_idx, p_pp(j)%edges%child_blk, p_pp(j)%edges) &
-!$ACC      IF ( i_am_accel_node  )
-
-      ENDIF   
-
-    ENDDO
-
-  END SUBROUTINE transfer_patch_local_parent
-
 
 
   SUBROUTINE transfer_prep_adv( prep_adv, host_to_device )
