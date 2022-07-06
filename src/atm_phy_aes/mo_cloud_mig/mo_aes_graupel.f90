@@ -653,8 +653,8 @@ SUBROUTINE graupel                 ( &
       ENDIF  ! qi_sedi
 
       ! Prevent terminal fall speeds of precip hydrometeors from being zero at the surface level
-      IF ( k == ke ) THEN
-        zvzr(iv) = MAX( zvzr(iv), v_sedi_rain_min ) *0.0_wp
+      IF ( k == ke .AND. lrain ) THEN
+        zvzr(iv) = MAX( zvzr(iv), v_sedi_rain_min )
         zvzs(iv) = MAX( zvzs(iv), v_sedi_snow_min )
         zvzg(iv) = MAX( zvzg(iv), v_sedi_graupel_min )
       ENDIF
@@ -958,13 +958,10 @@ SUBROUTINE graupel                 ( &
 
           zxfac = 1.0_wp + zbsdep * EXP(ccsdxp*LOG(zcslam))
           ssdep = zcsdep * zxfac * zqvsidiff / (zcslam+zeps)**2
-          !FR new: depositional growth reduction
-          IF (ssdep > 0.0_wp) THEN
-            ssdep = ssdep*reduce_dep
-          END IF
+          ! FR new: depositional growth reduction
           ! GZ: This limitation, which was missing in the original graupel scheme,
           ! is crucial for numerical stability in the tropics!
-          IF (ssdep > 0.0_wp) ssdep = MIN(ssdep, zsvmax-zsvidep)
+          IF (ssdep > 0.0_wp) ssdep = MIN(ssdep*reduce_dep, zsvmax-zsvidep)
           ! Suppress depositional growth of snow if the existing amount is too small for a
           ! a meaningful distiction between cloud ice and snow
           IF (qsg <= 1.e-7_wp) ssdep = MIN(ssdep, 0.0_wp)

@@ -123,7 +123,8 @@ SUBROUTINE saturation_adjustment ( idim, kdim,  ilo,  iup,  klo,  kup, &
         qve(i,k)  = qve(i,k)+qce(i,k)
         qce(i,k)  = 0.0_wp
       ELSE 
-      !$ACC LOOP SEQ
+        Tx = te(i,k)
+        !$ACC LOOP SEQ
         DO iter = 1, 6 
            qx   = qsat_rho(Tx, rho(i,k))
            dqx  = dqsatdT_rho(qx, Tx, rho(i,k) )
