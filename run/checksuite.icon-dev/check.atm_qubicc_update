@@ -58,7 +58,11 @@ then
 else
     poolFolder_prefix=""
 fi
-export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.<revision_repository>/${BB_SYSTEM}_${BB_SLAVE}/
+
+builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+
+export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.caa20e4e_icon-aes/${builder}/
 
 #--------------------------------------------------------------------------------
 # 

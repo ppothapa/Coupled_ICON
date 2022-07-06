@@ -14,12 +14,13 @@ listname=icon-dev
 #-----------------------------------------------------------
 # AES
 # add amip tests to all builders
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines breeze levante daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_update"    --machines breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_ape"            --machines breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines breeze daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc"         --machines breeze levante daint --list $listname
+#$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines breeze levante daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"   --machines breeze levante daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor" --machines breeze levante daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines breeze levante daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_ape"            --machines breeze levante daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_sma"            --machines breeze levante --list $listname
 $addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines breeze --list $listname
 
@@ -65,12 +66,6 @@ $addexp checksuite.infrastructure/testbed/exp.icon-testbed_read-netcdf --builder
 
 # But add the RTE-RRTMGP based tests
 $addexp checksuite.icon-dev/check.atm_amip_diagparams_constbc_nojsb_notransport_nodynamics --builders DAINT_CPU_cce DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-
-# add atm_qubicc tests
-$addexp checksuite.icon-dev/check.atm_qubicc         --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-$addexp checksuite.icon-dev/check.atm_qubicc_nofor   --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-$addexp checksuite.icon-dev/check.atm_qubicc_onlyfor --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
-#$addexp checksuite.icon-dev/check.atm_qubicc_update  --builders DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia --list $listname
 
 # NVIDIA for GPU: failing currently because:
 #              mo_ice_interface:ice_fast_interface: This part has not been ported to GPU.
