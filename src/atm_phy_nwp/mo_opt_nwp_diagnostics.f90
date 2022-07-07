@@ -1118,7 +1118,7 @@ CONTAINS
     !$ACC DATA CREATE( vol, nmbr_w, p_nmbr_w_sum, p_nmbr_all_sum, p_frac_w, frac_w ) IF( i_am_accel_node )
 
     !$ACC DATA PRESENT( p_int%cell_environ%idx, p_int%cell_environ%blk, p_int%cell_environ%area_norm, &
-    !$ACC              p_diag, p_metrics, p_prog, p_prog_rcf, atm_phy_nwp_config(jg), &
+    !$ACC              ptr_patch, p_diag, p_metrics, p_prog, p_prog_rcf, atm_phy_nwp_config(jg), &
     !$ACC              p_diag%temp, p_metrics%ddqz_z_full, p_prog%w, p_prog_rcf%tracer, &
     !$ACC              lpi, vol, nmbr_w, p_nmbr_w_sum, p_nmbr_all_sum, p_frac_w, frac_w, &
     !$ACC              kstart_moist(jg) ) IF( i_am_accel_node )

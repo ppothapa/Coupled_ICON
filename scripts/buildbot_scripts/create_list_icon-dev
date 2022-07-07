@@ -14,14 +14,14 @@ listname=icon-dev
 #-----------------------------------------------------------
 # AES
 # add amip tests to all builders
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_update"    --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral breeze daint --list $listname
-$addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral breeze levante --list $listname
-$addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral breeze --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip"           --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_update"    --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_ape"            --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines mistral daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_sma"            --machines mistral levante --list $listname
+$addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines mistral --list $listname
 
 
 #sma fails in a hybrid mixed build
@@ -160,7 +160,7 @@ done
 
 # activate experiments for the Mac builder and breeze
 for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
-  ./set_builder_flags Active --builders ${builder}  --list $listname
+  [[ 'MPIMAC_gcc' = "${builder}" ]] && ./set_builder_flags Active --builders ${builder}  --list $listname
   $addexp exp.atm_amip_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done

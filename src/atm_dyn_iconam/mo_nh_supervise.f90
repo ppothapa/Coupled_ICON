@@ -665,7 +665,7 @@ CONTAINS
     iendblk_e   = patch%edges%end_blk(min_rledge_int,i_nchdom)
     jg          = patch%id
 
-!$ACC DATA PRESENT( vn, w ) COPYOUT( vn_aux, w_aux ) &
+!$ACC DATA PRESENT( vn, w, patch ) COPYOUT( vn_aux, w_aux ) &
 !$ACC      IF ( i_am_accel_node .AND. acc_on )
 
     IF (jg > 1 .OR. l_limited_area) THEN
