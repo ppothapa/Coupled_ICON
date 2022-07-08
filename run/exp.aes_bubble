@@ -2,7 +2,7 @@
 #
 # Radiative convective equilibrium (RCE) experiment
 #
-author_list="Tobias Becker, Rene Redler, Monika Esch, MPIM"
+author_list="Bjorn Stevens, Sebastian Rast, Monika Esch (MPI-M)"
 #
 #--------------------------------------------------------------------------------------------------
 #
@@ -25,7 +25,7 @@ author_list="Tobias Becker, Rene Redler, Monika Esch, MPIM"
 # icon_data_poolFolder          = base directory, where grids/, input/ and setup/ exist
 # nproma                        = blocking length for array dimensioning and inner loop lengths
 
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/rene/mpim"
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/public/mpim"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -33,19 +33,17 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/ren
 
 # horizontal grid(s)
 #
-grids_folder=${icon_data_poolFolder}/Torus_Triangles_20x22_5000m
+grids_folder=${icon_data_poolFolder}/Torus_Triangles_20x4_5000m
 #
 # domain Torus
-grid_name=Torus_Triangles_20x22_5000m
+grid_name=Torus_Triangles_20x4_5000m
 edge_length=5000 #Resolution [m]
 num_columns=20 # Number of columns in y-direction
-num_row=22 # Number of rows in x-direction^
 #
 atmo_dyn_grids="'${grid_name}.nc',"
 
 modelTimeStep="PT30S"
 radiationTimeStep="PT2M"
-
 
 # start and end date+time
 start_date=${start_date:="2008-08-01T00:00:00Z"}
@@ -54,8 +52,8 @@ start_date=${start_date:="2008-08-01T00:00:00Z"}
 calendar="360 day year"
 
 # restart intervals
-checkpoint_interval="PT30M"
-restart_interval="PT3H"
+checkpoint_interval="P1D"
+restart_interval="P1D"
 
 # output intervals
 output_interval_2d="PT30S"
@@ -63,13 +61,13 @@ output_interval_3d="PT30S"
 file_interval_2d="P1D"
 file_interval_3d="P1D"
 
-output_atm_cgrid="no" # 1 file
+output_atm_cgrid="yes" # 1 file
 output_atm_2d="yes"   # 1 file 
 output_atm_3d="yes"   # 1 file
 
 # determine the number of io processes
 
-num_io_procs=4
+num_io_procs=2
 
 # namelist files
 atmo_namelist=NAMELIST_${EXPNAME}_atm
@@ -112,17 +110,7 @@ cat > ${atmo_namelist} << EOF
  sol_const        = 551.58
 /
 &aes_bubble_nml
- aes_bubble_config%psfc        =101325.
- aes_bubble_config%t0          =303.15
- aes_bubble_config%gamma0      =0.009
- aes_bubble_config%gamma1      =0.00001
- aes_bubble_config%z0          =3000.
- aes_bubble_config%t_perturb   =10.
- aes_bubble_config%relhum_bg   =0.7
- aes_bubble_config%relhum_mx   =0.95
- aes_bubble_config%hw_x        =12500.
- aes_bubble_config%hw_z        =500.
- aes_bubble_config%x_center    =0.
+ aes_bubble_config%t0  =303.15
 /
 &nonhydrostatic_nml
  ndyn_substeps    = 5           ! dtime/dt_dyn
@@ -164,8 +152,8 @@ cat > ${atmo_namelist} << EOF
 ! --------
 !
 ! atmospheric physics (""=never)
- aes_phy_config(1)%dt_rad = "$radiationTimeStep"
- aes_phy_config(1)%dt_vdf = "$modelTimeStep"
+ aes_phy_config(1)%dt_rad = ""
+ aes_phy_config(1)%dt_vdf = ""
  aes_phy_config(1)%dt_mig = "$modelTimeStep"
  aes_phy_config(1)%dt_two = ""
 !
@@ -278,19 +266,16 @@ cat >> ${atmo_namelist} << EOF
  lnetcdf_flt64_output = .TRUE.
  itype_pres_msl   = 4
  restart_file_type= 5
- inextra_3d       = 10
+ inextra_3d       = 0
+ inextra_2d       = 0
  !restart_write_mode = "joint procs multifile"    !not necessary/useful in default r2b4 setup
 /
 EOF
-
-# Define output files
-# -------------------
 #
 # output_<xyz>=yes : yes --> output files for <xyz>, any other value --> no files for <xyz>
 #
 # 3-dimensional files include 'ps' and 'pfull' to allow the vertical
 # interpolation to pressure levels by cdo ap2pl.
-
 #
 if [[ "$output_atm_cgrid" == "yes" ]]; then
   #
@@ -309,8 +294,6 @@ if [[ "$output_atm_cgrid" == "yes" ]]; then
 /
 EOF
 fi
-
-
 #
 if [[ "$output_atm_3d" == "yes" ]]; then
   #
@@ -328,46 +311,12 @@ if [[ "$output_atm_3d" == "yes" ]]; then
  include_last     = .FALSE.
  ml_varlist       = 'ps'      , 'pfull'   , 'zg'      ,
                     'rho'     , 'ta'      , 'theta_v' ,
-                    'ua'      , 'va'      , 'wa'     ,
+                    'ua'      , 'va'      , 'wa'      ,
                     'hus'     , 'clw'     , 'cli'     ,
-                    'qr','qs','qg', 'cptgz',
+                    'qr'      , 'qs'      , 'qg'      , 'cptgz',
 /
 EOF
 fi
-
-#if [[ "$output_atm_3d" == "yes" ]]; then
-#  #
-#  cat >> ${atmo_namelist} << EOF
-#&output_nml
-# output_filename  = "${EXPNAME}_atm_3d_iconam_extra_in"
-# filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
-# filetype         = 5
-# remap            = 0
-# output_grid      = .FALSE.
-# output_start     = "${start_date}"
-# output_end       = "${end_date}"
-# output_interval  = "${output_interval_3d}"
-# file_interval    = "${file_interval_3d}"
-# include_last     = .FALSE.
-# ml_varlist       = 'extra_3d1', 'extra_3d2', 'extra_3d3' , 'extra_3d4' , 'extra_3d5' , 
-#/
-#&output_nml
-# output_filename  = "${EXPNAME}_atm_3d_iconam_extra_out"
-# filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
-# filetype         = 5
-# remap            = 0
-# output_grid      = .FALSE.
-# output_start     = "${start_date}"
-# output_end       = "${end_date}"
-# output_interval  = "${output_interval_3d}"
-# file_interval    = "${file_interval_3d}"
-# include_last     = .FALSE.
-# ml_varlist       = 'extra_3d6', 'extra_3d7', 'extra_3d8' , 'extra_3d9' , 'extra_3d10' , 
-#/
-#EOF
-#fi
-##
-
 #
 if [[ "$output_atm_2d" == "yes" ]]; then
   #
@@ -383,16 +332,14 @@ if [[ "$output_atm_2d" == "yes" ]]; then
  output_interval  = "${output_interval_2d}"
  file_interval    = "${file_interval_2d}"
  include_last     = .FALSE.
- ml_varlist       = 'ps'      , 'psl'     ,
-                    'rsdt'    , 'rsut'    ,
-                    'rsds'    , 'rsus'    ,
-                    'rlds'    , 'rlus'    ,
-                    'ts'      , 'clt'     ,
+ ml_varlist       = 'ps'      , 'psl'     , 'ts'      , 'clt'     , 
                     'prw'     , 'cllvi'   , 'clivi'   ,
-                    'qrvi','qsvi','qgvi',
+                    'qrvi'    , 'qsvi'    , 'qgvi'    , 
                     'hfls'    , 'hfss'    , 'evspsbl' ,
-                    'prlr'    , 'prls'    , 'cptgzvi' ,
-                    'pr_rain' , 'pr_snow' , 'pr_grpl' ,
+                    'prlr'    , 'prls'    , 'cptgzvi' , 
+                    'pr_rain' , 'pr_snow' , 'pr_grpl' , 'pr_ice'  , 
+!                    'uphyvi'  , 'udynvi'  , 'evap_tsa',
+!                    'shfl_qsa', 'rsfl_tsa', 'ssfl_tsa',
 /
 EOF
 fi

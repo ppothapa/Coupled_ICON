@@ -1,26 +1,28 @@
 !>
-!>
-!! @brief Module aes_thermo thermodyanmic routines for moist atmosphere
+!! @brief Module containing thermodynamic functions used by the AES department in MPI-M
 !!
-!! @author Bjorn Stevens, MPI-M, 2020-01
+!! @contact B. Stevens, MPI-M, 2022-06
 !!
 !! @par Copyright and License
 !!
-!!   Code distributed under BSD-3Clause license
+!! Copyright 2022 Max Planck Institute for Meteorology
+!! This program is free software: you can redistribute it and/or modify it under the terms of the
+!! BSD-3-clause license
 !!
 MODULE mo_aes_thermo
 
 USE mo_kind,               ONLY: wp     , &
                                  i4
-USE mo_physical_constants, ONLY: rv    , & !> gas constant for water vapour
-                                 rd    , & !! rd
-                                 vtmpc1, & !! rv/rd-1._wp
-                                 cvd   , & !!
-                                 cpv   , & !!
-                                 cvv   , & !!
-                                 clw   , & !! specific heat of water
-                                 alv   , & !! latent heat of vaporization
-                                 als   , & !! latent heat of sublimation
+
+USE mo_physical_constants, ONLY: rv     , & !> gas constant for water vapour
+                                 rd     , & !! rd
+                                 vtmpc1 , & !! rv/rd-1._wp
+                                 cvd    , & !! isometric specific heat of dry air
+                                 cvv    , & !! isometric specific heat of water vapor
+                                 cpv    , & !! isobaric specific heat of water vapor
+                                 clw    , & !! specific heat of water
+                                 alv    , & !! latent heat of vaporization
+                                 als    , & !! latent heat of sublimation
                                  tmelt
 
   IMPLICIT NONE
@@ -34,6 +36,7 @@ USE mo_physical_constants, ONLY: rv    , & !> gas constant for water vapour
   PUBLIC  :: vaporization_energy   ! internal energy of vaporization
   PUBLIC  :: sublimation_energy    ! internal energy of sublimation
   PUBLIC  :: sat_pres_water        ! saturation pressure over water
+  PUBLIC  :: specific_humidity     ! calculate specific humidity from vapor and total pressure
   
   REAL (KIND=wp), PARAMETER ::     &
        ci  = 2108.0_wp,            & !! specific heat of ice
@@ -68,8 +71,6 @@ SUBROUTINE saturation_adjustment ( idim, kdim,  ilo,  iup,  klo,  kup, &
   !   and the internal energy at the initial T and qc, denoted ue.
   !
   !-------------------------------------------------------------------------------
-
-  IMPLICIT NONE
 
   INTEGER (KIND=i4), INTENT (IN) ::  &
        idim, kdim,              & !  Dimension of I/O-fields
@@ -171,9 +172,28 @@ END SUBROUTINE saturation_adjustment
 #ifndef _OPENACC
 ELEMENTAL &
 #endif
+FUNCTION specific_humidity(pvapor,ptotal)
+
+  REAL (KIND=wp)              :: specific_humidity
+  REAL (KIND=wp), INTENT(IN)  :: ptotal  !! total pressure
+  REAL (KIND=wp), INTENT(IN)  :: pvapor  !! vapor pressure
+
+  REAL (KIND=wp), PARAMETER   :: rdv     = rd/rv
+  REAL (KIND=wp), PARAMETER   :: o_m_rdv = 1.0_wp - rdv
+
+  !$ACC ROUTINE SEQ
+
+  specific_humidity = rdv*pvapor/( ptotal - o_m_rdv*pvapor )
+
+END FUNCTION specific_humidity
+
+!!!=============================================================================================
+
+#ifndef _OPENACC
+ELEMENTAL &
+#endif
 FUNCTION sat_pres_water(TK)
 
-  IMPLICIT NONE
   REAL (KIND=wp)              :: sat_pres_water
   REAL (KIND=wp), INTENT(IN)  :: TK
 
@@ -189,7 +209,6 @@ ELEMENTAL &
 #endif
 FUNCTION sat_pres_ice(TK)
 
-  IMPLICIT NONE
   REAL (KIND=wp)              :: sat_pres_ice
   REAL (KIND=wp), INTENT(IN)  :: TK
 
@@ -205,7 +224,6 @@ ELEMENTAL &
 #endif
 FUNCTION qsat_rho(TK, rho)
 
-  IMPLICIT NONE
   REAL (KIND=wp)             :: qsat_rho
   REAL (KIND=wp), INTENT(IN) :: TK, rho
 
@@ -221,7 +239,6 @@ ELEMENTAL &
 #endif
 FUNCTION qsat_ice_rho(TK, rho)
 
-  IMPLICIT NONE
   REAL (KIND=wp)             :: qsat_ice_rho
   REAL (KIND=wp), INTENT(IN) :: TK, rho
 
@@ -237,7 +254,6 @@ ELEMENTAL &
 #endif
 FUNCTION dqsatdT_rho(qs, TK, rho)
 
-  IMPLICIT NONE
   REAL (KIND=wp)            :: dqsatdT_rho
   REAL (KIND=wp), INTENT(IN):: qs, TK, rho
 
@@ -247,12 +263,12 @@ FUNCTION dqsatdT_rho(qs, TK, rho)
 END FUNCTION dqsatdT_rho
 
 !!!=============================================================================================
+
 #ifndef _OPENACC
 ELEMENTAL &
 #endif
 FUNCTION dqsatdT (qs, TK)
 
-  IMPLICIT NONE
   REAL (KIND=wp)            :: dqsatdT
   REAL (KIND=wp), INTENT(IN):: qs, TK
 
@@ -268,7 +284,6 @@ ELEMENTAL &
 #endif
 FUNCTION dqsatdT_ice (qs, TK)
 
-  IMPLICIT NONE
   REAL (KIND=wp)            :: dqsatdT_ice
   REAL (KIND=wp), INTENT(IN):: qs, TK
 
@@ -284,7 +299,6 @@ ELEMENTAL &
 #endif
 FUNCTION vaporization_energy(TK)
 
-  IMPLICIT NONE
   REAL(KIND=wp)             :: vaporization_energy
   REAL(KIND=wp), INTENT(IN) :: TK
 
@@ -300,7 +314,6 @@ ELEMENTAL &
 #endif
 FUNCTION sublimation_energy(TK)
 
-  IMPLICIT NONE
   REAL(KIND=wp)             :: sublimation_energy
   REAL(KIND=wp), INTENT(IN) :: TK
 

@@ -1,20 +1,15 @@
 !>
 !! @brief Contains subroutines for initializing the AES physics package.
 !!
-!! @author Hui Wan, MPI-M
-!!
 !! @par Revision History
 !! First version by Hui Wan, 2010-07-20
 !!
 !! @par Copyright and License
 !!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!! Copyright 2022 Max Planck Institute for Meteorology
+!! This program is free software: you can redistribute it and/or modify it under the terms of the
+!! BSD-3-clause license
 !!
-
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -907,7 +902,7 @@ CONTAINS
 
       SELECT CASE (nh_test_name)
 
-      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','CBL_flxconst','RCEMIP_analytical') 
+      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','aes_bubble','CBL_flxconst','RCEMIP_analytical') 
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

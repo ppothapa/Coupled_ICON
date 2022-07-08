@@ -62,7 +62,7 @@ MODULE mo_read_namelists
 
   USE mo_initicon_nml        ,ONLY: read_initicon_namelist
   USE mo_nh_testcases_nml    ,ONLY: read_nh_testcase_namelist, nh_test_name
-  USE mo_torus_bubble_exp_nml,ONLY: process_torus_bubble_exp_nml
+  USE mo_aes_bubble_nml      ,ONLY: process_aes_bubble_nml
   USE mo_scm_nml             ,ONLY: read_scm_namelist
   USE mo_meteogram_nml       ,ONLY: read_meteogram_namelist
 
@@ -208,8 +208,8 @@ CONTAINS
     !
     CALL read_initicon_namelist       (atm_namelist_filename(1:tlen))
     CALL read_nh_testcase_namelist    (atm_namelist_filename(1:tlen))
-    IF (TRIM(nh_test_name) == 'RCE_bubble') THEN
-      CALL process_torus_bubble_exp_nml (atm_namelist_filename(1:tlen))
+    IF (TRIM(nh_test_name) == 'aes_bubble') THEN
+      CALL process_aes_bubble_nml     (atm_namelist_filename(1:tlen))
     END IF  
     
     CALL read_scm_namelist            (atm_namelist_filename(1:tlen))
