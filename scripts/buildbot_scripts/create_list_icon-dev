@@ -17,6 +17,7 @@ listname=icon-dev
 $addexp "checksuite.icon-dev/check.atm_qubicc"         --machines breeze levante daint --list $listname
 #$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines breeze levante daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines daint --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip"           --machines daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nofor"   --machines breeze levante daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor" --machines breeze levante daint --list $listname
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines breeze levante daint --list $listname
