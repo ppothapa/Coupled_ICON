@@ -37,6 +37,10 @@
 [submodule "externals/emvorado"]
 	path = externals/emvorado
 	url = ../../dwd-sw/emvorado-for-icon.git
+	ignore = untracked
+[submodule "externals/probtest"]
+	path = externals/probtest
+	url = git@gitlab.dkrz.de:cscs-sw/probtest.git
 [submodule "utils/mkexp"]
 	path = utils/mkexp
 	url = https://git.mpimet.mpg.de/public/mkexp

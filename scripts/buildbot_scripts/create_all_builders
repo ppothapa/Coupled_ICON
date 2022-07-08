@@ -7,8 +7,6 @@ if [ x$list == x ]; then
   exit 1
 fi
 
-./mklist $list
-
 # mistral builders
 machine=mistral
 ./addmachine $machine --list $list
@@ -27,9 +25,6 @@ machine=mistral
 
 ./addbuilder MISTRAL_nag            --machine $machine       --build_script="./config/buildbot/mistral_nag"        --configureflags="--with-mpi    --without-openmp"          --builderflags="Active"  --list $list
 ./addbuilder MISTRAL_nag_serial     --machine $machine       --build_script="./config/buildbot/mistral_nag_serial" --configureflags="--without-mpi --without-openmp"          --builderflags="build_only"  --list $list
-
-./addbuilder MISTRAL_ocean_intel17  --machine $machine       --build_script="./config/buildbot/mistral_intel17_ocean"        --configureflags="--with-openmp --with-mpi" --builderflags="build_only"  --list $list
-./addbuilder MISTRAL_ocean_intel18  --machine $machine       --build_script="./config/buildbot/mistral_intel18_ocean"        --configureflags="--with-openmp --with-mpi" --builderflags="build_only"  --list $list
 #---------------------------------------------------------------
 # testing for CDI-PIO
 ./addbuilder MISTRAL_intel18_pio    --machine $machine       --build_script="./config/buildbot/mistral_intel18_pio"          --configureflags="--with-mpi --without-openmp"      --builderflags="Inactive"  --list $list
@@ -51,8 +46,6 @@ machine=breeze
 machine=daint
 ./addmachine $machine --list $list
 ./addbuilder DAINT_CPU_cce        --machine $machine --build_script="./config/buildbot/daint_cpu_cray" --builderflags="Active"  --list $list
-./addbuilder DAINT_CPU_pgi        --machine $machine --build_script="./config/buildbot/daint_cpu_pgi"  --builderflags="Active"  --list $list
-./addbuilder DAINT_GPU_pgi        --machine $machine --build_script="./config/buildbot/daint_gpu_pgi"  --builderflags="Active"  --list $list
 ./addbuilder DAINT_CPU_nvidia     --machine $machine --build_script="./config/buildbot/daint_cpu_nvidia"  --builderflags="Active"  --list $list
 ./addbuilder DAINT_GPU_nvidia     --machine $machine --build_script="./config/buildbot/daint_gpu_nvidia"  --builderflags="Active"  --list $list
 
@@ -73,6 +66,6 @@ machine=levante
 
 machine=jsc
 ./addmachine $machine --list $list
-./addbuilder cluster_gcc         --machine $machine  --build_script="config/buildbot/cluster_gcc"   --builderflags="Inctive" --list $list
+./addbuilder cluster_gcc         --machine $machine  --build_script="config/buildbot/cluster_gcc"   --builderflags="Inactive" --list $list
 ./addbuilder cluster_intel       --machine $machine  --build_script="config/buildbot/cluster_intel"   --builderflags="build_only" --list $list
 ./addbuilder booster_nvhpc       --machine $machine  --build_script="config/buildbot/booster_nvhpc"   --builderflags="build_only" --list $list

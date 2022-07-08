@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# set experiment specific variables
+file_ids=atm_3d
+exp=mch_opr_r04b07
+
+. ./add_refgen_routines
+
+# execute probtest
+generate_probtest_tolerance
+
+status=$?
+echo $status > pp.${EXPNAME}.run.final_status
+exit $status

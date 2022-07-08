@@ -367,13 +367,16 @@ function tolerance_check
     MODEL_DIR1=$1
     EXP_BASE=$2
     EXPERIMENT=$3
+    PROBTEST=externals/probtest/probtest.py
 
     # status variable that is evaluated after the function call
     TOL_STATUS=0
     cd $MODEL_DIR
 
-    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]' | sed 's/_gpu/_cpu/') # new buildbot
-    [[ -z $REF_BUILDER ]] && REF_BUILDER="${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}" # old buildbot
+    # always use CPU reference
+    builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
+    [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+    CPU_REFERENCE=${REFERENCE}/${builder/_gpu_/_cpu_}
 
     # find relevant config
     case $EXPERIMENT in
@@ -402,11 +405,11 @@ function tolerance_check
             ;;
     esac
 
-    echo "Running tolerance check with compiler-specific reference from builder (${REF_BUILDER})"
+    echo "Running tolerance check with compiler-specific reference at ${CPU_REFERENCE}"
 
     export PROBTEST_CONFIG=${EXP_BASE}.json
     # initialize configuration file
-    python probtest/probtest.py --log-file stats-${EXPERIMENT}.log init \
+    python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
         --codebase-install "${MODEL_DIR1}" \
         --reference "not-used" \
         --experiment-name "${EXP_BASE}" \
@@ -419,7 +422,7 @@ function tolerance_check
     fi
 
     # generate the aggregated "single-column" stats file
-    python probtest/probtest.py --log-file stats-${EXPERIMENT}.log stats \
+    ${PROBTEST} --log-file stats-${EXPERIMENT}.log stats \
         --stats-file-name ${EXPERIMENT}.csv \
         --no-ensemble
     if [[ $? != 0 ]] ; then
@@ -429,10 +432,11 @@ function tolerance_check
     fi
 
     # validate the generated stats against the reference
-    python probtest/probtest.py --log-file check-${EXPERIMENT}.log check \
+    ${PROBTEST} --log-file check-${EXPERIMENT}.log check \
         --input-file-cur ${EXPERIMENT}.csv \
-        --input-file-ref icon-test-references/${REF_BUILDER}/reference/${EXPERIMENT}.csv \
-        --tolerance-file-name icon-test-references/${REF_BUILDER}/tolerance/${EXPERIMENT}.csv
+        --input-file-ref ${CPU_REFERENCE}/reference/${EXPERIMENT}.csv \
+        --tolerance-file-name ${CPU_REFERENCE}/tolerance/${EXPERIMENT}.csv \
+        --factor 5
     if [[ $? != 0 ]] ; then
         echo "probtest tolerance test did not complete successfully"
         TOL_STATUS=1
