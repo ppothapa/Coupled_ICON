@@ -71,7 +71,7 @@
 MODULE mo_cumaster
   
 #ifdef __ICON__
-  USE mo_kind   ,ONLY: JPRB=>wp     , &
+  USE mo_kind   ,ONLY: JPRB=>wp, vp   , &
     &                  jpim=>i4
 #endif
 
@@ -81,7 +81,7 @@ MODULE mo_cumaster
     & rmflic  ,rmflia  ,rmflmax, rmfsoluv, rmfdef               ,&
     & ruvper    ,rmfsoltq,rmfsolct,rmfcmin  ,lmfsmooth,lmfwstar ,&
     & lmftrac   ,   LMFUVDIS                                    ,&
-    & rg       ,rd      ,rcpd  ,retv , rlvtt                    ,&
+    & rg       ,rd, rv      ,rcpd  ,retv , rlvtt                ,&
     & lhook,   dr_hook, icapdcycl
 
   USE mo_adjust,      ONLY: satur
@@ -93,7 +93,7 @@ MODULE mo_cumaster
   USE mo_cucalclpi,   ONLY: cucalclpi, cucalcmlpi
   USE mo_cucalclfd,   ONLY: cucalclfd
   USE mo_nwp_parameters,  ONLY: t_phy_params
-  USE mo_nwp_tuning_config, ONLY: tune_capdcfac_et, tune_capdcfac_tr, tune_lowcapefac, limit_negpblcape
+  USE mo_nwp_tuning_config, ONLY: tune_capdcfac_et, tune_capdcfac_tr, tune_lowcapefac, limit_negpblcape, tune_rcapqadv
   USE mo_fortran_tools,   ONLY: t_ptr_tracer
   USE mo_exception,   ONLY: finish
   USE mo_stoch_sde,            ONLY: shallow_stoch_sde, shallow_stoch_sde_passive
@@ -119,7 +119,7 @@ SUBROUTINE cumastrn &
  & pvervel,  shfl_s, qhfl_s, pqhfl,    pahfs,    &
  & pap,      paph,     pgeo,     pgeoh,          &
  & zdph,               zdgeoh,   pcloudnum,      &
- & ptent,    ptenu,    ptenv,                    &
+ & ptent,    ptenu,    ptenv,    ptenta, ptenqa, &
  & ptenq,    ptenrhoq, ptenrhol, ptenrhoi,       &
  & ptenrhor, ptenrhos,                           &
  & ldcum,      ktype , kcbot,    kctop,          &
@@ -189,6 +189,9 @@ SUBROUTINE cumastrn &
 !
 !    *PSSTRU*       SURFACE MOMENTUM FLUX U                - not used presently
 !    *PSSTRV*       SURFACE MOMENTUM FLUX V                - not used presently
+!
+!    *PTENTA*       TEMPERATURE TENDENCY DYNAMICS=TOT ADVECTION    K/S
+!    *PTENQA*       MOISTURE    TENDENCY DYNAMICS=TOT ADVECTION    1/S
 
 !    *temp_s*       TEMPERATURE IN LOWEST MODEL LEVEL                K
 !    *cell_area*    GRID CELL AREA                                  M2? 
@@ -327,6 +330,10 @@ SUBROUTINE cumastrn &
 !      04-10-12 : Add RPLRG/RPLDARE for small planet  N.Semane+P.Bechtold  
 !      13-02-23 : modif diurnal cycle CAPE closure P. Bechtold
 !      13-10-01 : modified option RCAPDCYCL=1 for diurnal cycle N. Semane
+!      16-01-27 : Introduced SPP scheme (LSPP)     M. Leutbecher & S.-J. Lock
+!      20180303 : Gabor: Just a comment line to force recompilation due to 
+!                        compiler wrapper optimization exception liat change
+!      19-08-25 : Additional total moisture advection in CAPE closure RCAPQADV=1
 !----------------------------------------------------------------------
 
 !USE PARKIND1  ,ONLY : JPIM     ,JPRB
@@ -386,6 +393,8 @@ TYPE(t_ptr_tracer),INTENT(in), POINTER :: pcen(:)
 TYPE(t_ptr_tracer),INTENT(inout), POINTER :: ptenrhoc(:)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptent(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenq(klon,klev)
+REAL(KIND=vp)     ,INTENT(in)    :: ptenta(klon,klev) 
+REAL(KIND=jprb)   ,INTENT(in)    :: ptenqa(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhoq(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhol(klon,klev)
 REAL(KIND=jprb)   ,INTENT(inout) :: ptenrhoi(klon,klev)
@@ -471,7 +480,8 @@ REAL(KIND=jprb) :: ztenh(klon,klev),       zqenh(klon,klev),&
   & zuu(klon,klev),         zvu(klon,klev),&
   & zud(klon,klev),         zvd(klon,klev),&
   & zkineu(klon,klev),      zkined(klon,klev), &
-  & zvbuo(klon),            zlrain(klon,klev)
+  & zvbuo(klon),            zlrain(klon,klev),&
+  & zsatfr(klon)
 REAL(KIND=jprb) :: &
   & zmfub(klon),            zmfub1(klon),  zkhvfl(klon), zkhfl(klon),&
   & zdqcv(klon)
@@ -482,9 +492,9 @@ REAL(KIND=jprb) :: zdmfen(klon,klev),zdmfde(klon,klev)
 
 INTEGER(KIND=jpim) ::  ilab(klon,klev), idtop(klon), ictop0(klon), ilwmin(klon)
 INTEGER(KIND=jpim) ::  idpl(klon) ! departure level for convection
-REAL(KIND=jprb) ::     zcape(klon), zheat(klon), zcappbl(klon), zcapdcycl(klon)
+REAL(KIND=jprb) ::     zcape(klon), zcape2(klon), zheat(klon), zcappbl(klon), zcapdcycl(klon)
 LOGICAL ::             llddraf(klon), llddraf3(klon), lldcum(klon)
-LOGICAL ::             llo1, llo2(klon)
+LOGICAL ::             llo1, llo2(klon), llo3
 
 INTEGER(KIND=jpim) :: ikb, ikd, itopm2, jk, ik, jl
 
@@ -492,7 +502,7 @@ REAL(KIND=jprb) ::   zcons2, zcons, zdh,&
   & zdqmin, zdz, zeps, zfac, &
   & zmfmax, zpbmpt, zqumqe, zro, zmfa, zerate, zderate, zorcpd, zrdocpd,&
   & ZDUTEN, ZDVTEN, ZTDIS,&
-  & zalv, zsfl(klon), zcapefac, zcapethr, zmaxkined
+  & zalv, zsfl(klon), zcapefac, zcapethr, zmaxkined, ztenh2, zqenh2
 
 REAL(KIND=jprb) :: ztau(klon), ztaupbl(klon)  ! adjustment time
 
@@ -511,7 +521,7 @@ REAL(KIND=jprb) :: zhook_handle
 
 
 ! total convective flux density or dry static energy and vater vapour
-REAL(KIND=jprb) :: zcvfl_s, zcvfl_q
+REAL(KIND=jprb) :: zcvfl_s, zcvfl_q, zcaplim
 
 !*UPG change to operations
 !    LOCALS FOR CONSERVATION CHECK
@@ -553,6 +563,7 @@ INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 !$acc present( ptenrhos, ptenu, ptenv, ldcum, ktype, kcbot, kctop, ldshcv, ptu, pqu )  &
 !$acc present( plu, pmflxr, pmflxs, pdtke_con, prain, pmfu, pmfd, pmfude_rate )        &
 !$acc present( pmfdde_rate, pcape, pvddraf, phy_params, zdph, shfl_s, qhfl_s, pcore )  &
+!$acc present( ptenta, ptenqa)                                                         &
 
 !$acc create( pwmean, plude, penth, pqsen, psnde, ztenq_sv, ztenh, zqenh, zqsenh )     &
 !$acc create( ztd, zqd, zmfus, zmfds, zmfuq, zmfdq, zdmfup, zdmfdp, zmful, zrfl )      &
@@ -561,7 +572,7 @@ INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 !$acc create( ilab, idtop, ictop0, ilwmin, idpl, zcape, zheat, zcappbl, zcapdcycl )    &
 !$acc create( llddraf, llddraf3, lldcum, llo2, zsfl, ztau, ztaupbl, zmfs, zmfuus )     &
 !$acc create( zmfdus, zmfudr, zmfddr, ZTENU, ZTENV, zmfuub, zmfuvb, ZUV2, ZSUM12 )     &
-!$acc create( ZSUM22, zmf_shal, pvervel650, deprof, zdhout )                           &
+!$acc create( ZSUM22, zmf_shal, pvervel650, deprof, zdhout, zsatfr, zcape2 )           &
 !$acc if(lacc)
     
 !$acc data                                                                             &
@@ -586,6 +597,7 @@ zcons   = 1.0_JPRB/(rg*ptsphy)
 zorcpd  = 1.0_JPRB/rcpd
 zrdocpd = rd*zorcpd
 zeps    = 0.0_JPRB
+zcaplim = MERGE(0.0_jprb, 0.05_jprb, phy_params%lgrayzone_deepconv)
 
 
 IF (ASSOCIATED(pcen) .AND. ASSOCIATED(ptenrhoc)) THEN
@@ -763,7 +775,6 @@ CALL cubasen &
 
 !$acc loop gang(static:1) vector
 DO jl=kidia,kfdia
-  zdqcv(jl) =0.0_JPRB
   zdhpbl(jl)=0.0_JPRB
   idtop(jl)=0
   zcappbl(jl)=0.
@@ -775,7 +786,6 @@ ENDDO
 DO jk=MAX(ktdia,phy_params%kcon2),klev
   !$acc loop gang(static:1) vector private(zdz)
   DO jl=kidia,kfdia
-    zdqcv(jl)=zdqcv(jl)+MAX(0.0_JPRB,ptenq(jl,jk))*(paph(jl,jk+1)-paph(jl,jk))
     IF(ldcum(jl).AND.jk >= kcbot(jl)) THEN
       ZDZ=(PAPH(JL,JK+1)-PAPH(JL,JK))
       zdhpbl(jl)=zdhpbl(jl)+(rlvtt*ptenq(jl,jk)+rcpd*ptent(jl,jk))*zdz
@@ -1055,15 +1065,19 @@ ENDIF
 DO jl=kidia,kfdia
   zheat(jl)=0.0_JPRB
   zcape(jl)=0.0_JPRB
+  zcape2(jl)=0.0_JPRB
   zmfub1(jl)=zmfub(jl)
+  zdqcv(jl)=0.0_JPRB
+  zsatfr(jl)=0.0_JPRB
 ENDDO
 
 !$acc loop seq
 DO jk=ktdia,klev
-  !$acc loop gang(static:1) vector private(llo1, zdz)
+  !$acc loop gang(static:1) vector private(llo1, llo3, zdz, ztenh2, zqenh2)
   DO jl=kidia,kfdia
     llo1=ldcum(jl).AND.ktype(jl) == 1
-    IF(llo1.AND.jk <= kcbot(jl).AND.jk > kctop(jl)) THEN
+    llo3 = llo1 .AND. jk <= kcbot(jl) .AND. jk > kctop(jl)
+    IF (llo3) THEN
       ZDZ=(PGEO(JL,JK-1)-PGEO(JL,JK))
       zheat(jl)=zheat(jl) +&
        & (  (pten(jl,jk-1)-pten(jl,jk) + zdz*zorcpd)/ztenh(jl,jk)&
@@ -1074,6 +1088,17 @@ DO jk=ktdia,klev
        & ((ptu(jl,jk)-ztenh(jl,jk))/ztenh(jl,jk)&
        & +retv*(pqu(jl,jk)-zqenh(jl,jk))&
        & -plu(jl,jk) ) * zdz
+      IF (tune_rcapqadv > 0.0_JPRB) THEN
+        ztenh2=ztenh(JL,JK)-0.5_JPRB*(ptenta(JL,JK)+ptenta(JL,JK-1))*ptsphy
+        zqenh2=zqenh(JL,JK)-0.5_JPRB*(ptenqa(JL,JK)+ptenqa(JL,JK-1))*ptsphy
+        zcape2(JL)=zcape2(JL) + ( (ptu(JL,JK)-ztenh2)/ztenh2&
+         & +RETV*(pqu(JL,JK)-zqenh2) -plu(JL,JK) ) * ZDZ
+      ENDIF
+    ENDIF
+    IF (llo1) THEN
+      ZDZ=(paph(JL,JK+1)-paph(JL,JK))
+      zdqcv(jl)=zdqcv(jl)+ptenqa(jl,jk)*zdz*(pqen(jl,jk)/pqsen(jl,jk))
+      IF (jk >= kctop(jl)) zsatfr(jl)=zsatfr(jl)+(pqen(jl,jk)/pqsen(jl,jk))*zdz
     ENDIF
   ENDDO
 ENDDO
@@ -1101,7 +1126,10 @@ DO jl = kidia, kfdia
     IF (phy_params%lgrayzone_deepconv) zcapdcycl(jl) = MAX(zcapdcycl(jl),                     &
       MAX(0._jprb,mtnmask(jl)-0.2_jprb)*MERGE(10._jprb,0.1_jprb,llo1)*ztau(jl)*phy_params%tau0)
     ! Reduce adjustment time scale for extreme CAPE values
-    IF (pcape(jl) > zcapethresh) ztau(jl) = ztau(jl)/phy_params%tau
+    IF (pcape(jl) > zcapethresh) ztau(jl) = ztau(jl)*phy_params%tau0
+    ! dynamic contribution to cape correction
+    zdqcv(jl)=zdqcv(jl)*rlvtt/pgeoh(jl,ik)*ztau(jl)*phy_params%tau0*tune_rcapqadv
+    zsatfr(jl)=zsatfr(jl)/(paph(jl,klev+1)-paph(jl,ik)) 
   ELSE IF (ldcum(jl) .AND. ktype(jl) == 1) THEN
     ikd = idpl(jl)
     ikb = kcbot(jl)
@@ -1129,7 +1157,14 @@ ENDDO
 DO jl=kidia,kfdia
   IF(ldcum(jl).AND.ktype(jl) == 1) THEN
     ikb=kcbot(jl)
-    zcape(jl)=zcape(jl)-zcapdcycl(jl)
+    zcape2(jl)=tune_rcapqadv*zcape2(jl)+(1.0_JPRB-tune_rcapqadv)*zcape(jl)
+    zcapdcycl(jl)=MAX(zcapdcycl(jl),-2*zcape2(jl))
+    IF(zsatfr(jl)<=0.94_JPRB) THEN
+!GZ: the additional limitation to 2.5*zcape2 is needed in ICON
+      zcape(jl)=MIN(2.5_jprb*zcape2(jl),MAX(zcaplim*zcape(jl),zcape2(jl)-zcapdcycl(jl)+zdqcv(jl)))
+    ELSE
+      zcape(jl)=MAX(zcaplim*zcape(jl),zcape(jl)-zcapdcycl(jl))
+    ENDIF
     zcape(jl)=MAX(0.0_jprb,MIN(zcape(jl),5000.0_jprb))
     zheat(jl)=MAX(1.e-4_jprb,zheat(jl))
     ztau(jl)=MAX(720._jprb,ztau(jl))

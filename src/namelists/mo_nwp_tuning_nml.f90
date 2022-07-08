@@ -52,7 +52,8 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_rhebc_ocean_trop => tune_rhebc_ocean_trop, &  
     &                               config_tune_rcucov_trop      => tune_rcucov_trop,      &  
     &                               config_tune_texc        => tune_texc,        &  
-    &                               config_tune_qexc        => tune_qexc,        &  
+    &                               config_tune_qexc        => tune_qexc,        &
+    &                               config_tune_rcapqadv    => tune_rcapqadv,    &
     &                               config_tune_minsnowfrac => tune_minsnowfrac, &  
     &                               config_tune_box_liq   => tune_box_liq,       &
     &                               config_tune_box_liq_asy => tune_box_liq_asy, &
@@ -152,6 +153,9 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< Excess fraction of grid-scale QV used in test parcel ascent
     &  tune_qexc
 
+  REAL(wp) :: &                    !< Factor for dynamic correction of cape closure
+    &  tune_rcapqadv
+
   REAL(wp) :: &                    !< Minimum value to which the snow cover fraction is artificially reduced
     &  tune_minsnowfrac            !  in case of melting show (in case of idiag_snowfrac = 20)
 
@@ -216,7 +220,7 @@ MODULE mo_nwp_tuning_nml
     &                      tune_rdepths, tune_thicklayfac, tune_sgsclifac,      &
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,&
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,   &
-    &                      tune_blockred, itune_gust_diag
+    &                      tune_blockred, itune_gust_diag, tune_rcapqadv
 
 
 CONTAINS
@@ -316,6 +320,9 @@ CONTAINS
     !> Excess fraction of grid-scale QV used in test parcel ascent
     !  (original IFS value 0.1 g/kg independent of grid-scale QV))
     tune_qexc        = 1.25e-2_wp
+
+    ! Factor for dynamic correction of cape closure (turned off by default for the time being)
+    tune_rcapqadv    = 0.0_wp
 
     ! The following switches allow separate tuning for evaporation below cloud base in the tropics
     tune_rhebc_land_trop  = 0.70_wp
@@ -443,6 +450,7 @@ CONTAINS
     config_tune_rcucov_trop      = tune_rcucov_trop
     config_tune_texc             = tune_texc
     config_tune_qexc             = tune_qexc
+    config_tune_rcapqadv         = tune_rcapqadv
     config_tune_minsnowfrac      = tune_minsnowfrac
     config_tune_box_liq          = tune_box_liq
     config_tune_box_liq_asy      = tune_box_liq_asy
