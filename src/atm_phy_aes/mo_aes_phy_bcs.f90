@@ -73,6 +73,26 @@ MODULE mo_aes_phy_bcs
   REAL(wp), ALLOCATABLE  :: sst_dat(:,:,:,:)
   REAL(wp), ALLOCATABLE  :: sic_dat(:,:,:,:)
 
+  ! NAG 7.1 Build 7101 fails to compile src/atm_phy_aes/mo_interface_iconam_aes.f90:
+  ! Error: src/atm_phy_aes/mo_interface_iconam_aes.f90, line 87: Inconsistent use of host associated derived type DATETIME
+  !        detected at :@AES_PHY_BCS
+  ! Therefore, we have to introduce the following workaround
+  !   (NAG 6.2 Build 6252 and NAG 7.0 Build 7048 are not affected):
+# if defined(NAGFOR) && __NAG_COMPILER_BUILD == 7101
+#   define NAGFOR_WORKAROUND
+# endif
+
+#ifdef NAGFOR_WORKAROUND
+  ! The following declaration actually belongs to subroutine aes_phy_bcs but we
+  ! have to move it here as a workaround:
+
+  ! mtime currently does not work with arrays of datetime pointers
+  ! therefore a type is constructed around the mtime pointer
+  TYPE t_radtime_domains
+    TYPE(datetime) , POINTER               :: radiation_time => NULL() !< date and time for radiative transfer
+  END TYPE t_radtime_domains
+#endif
+
 CONTAINS
   !>
   !! SUBROUTINE aes_phy_bcs
@@ -100,11 +120,16 @@ CONTAINS
 
     ! Local variables
 
+#ifndef NAGFOR_WORKAROUND
+    ! The following declaration actually belongs here but we have to move it to
+    ! the specification part of the module as a workaround:
+
     ! mtime currently does not work with arrays of datetime pointers
     ! therefore a type is constructed around the mtime pointer
     TYPE t_radtime_domains
       TYPE(datetime) , POINTER               :: radiation_time => NULL() !< date and time for radiative transfer
     END TYPE t_radtime_domains
+#endif
     !
     TYPE(t_radtime_domains), SAVE            :: radtime_domains(max_dom)
 

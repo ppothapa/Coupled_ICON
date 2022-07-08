@@ -65,11 +65,20 @@ machine=dwd_nec
 
 machine=levante
 ./addmachine $machine --list $list
-./addbuilder levante_gcc                --machine $machine  --build_script="config/buildbot/levante_gcc"   --builderflags="Active" --list $list
-./addbuilder levante_gcc_hybrid         --machine $machine  --build_script="config/buildbot/levante_gcc_hybrid"   --builderflags="Active" --list $list
-./addbuilder levante_intel              --machine $machine  --build_script="config/buildbot/levante_intel" --builderflags="Active" --list $list
-./addbuilder levante_intel_hybrid       --machine $machine  --build_script="config/buildbot/levante_intel_hybrid" --builderflags="Active" --list $list
-./addbuilder levante_intel_hybrid_mixed --machine $machine  --build_script="config/buildbot/levante_intel_hybrid_mixed" --builderflags="Active" --list $list
+./addbuilder levante_gcc                --machine $machine  --build_script="config/buildbot/levante_gcc" \
+  --configureflags="--with-mpi --without-openmp"    --builderflags="Active" --list $list
+./addbuilder levante_gcc_hybrid         --machine $machine  --build_script="config/buildbot/levante_gcc_hybrid" \
+  --configureflags="--with-mpi --with-openmp"    --builderflags="Active" --list $list
+./addbuilder levante_intel              --machine $machine  --build_script="config/buildbot/levante_intel" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_intel_hybrid       --machine $machine  --build_script="config/buildbot/levante_intel_hybrid" \
+  --configureflags="--with-mpi --with-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_intel_hybrid_mixed --machine $machine  --build_script="config/buildbot/levante_intel_hybrid_mixed" \
+  --configureflags="--with-mpi --with-openmp --enable-mixed"  --builderflags="Active" --list $list
+./addbuilder levante_nag                --machine $machine  --build_script="config/buildbot/levante_nag" --builderflags="Active" \
+  --configureflags="--with-mpi"  --list $list
+./addbuilder levante_nag_serial         --machine $machine  --build_script="config/buildbot/levante_nag_serial" --builderflags="Active" \
+  --configureflags="--without-mpi --without-openmp"  --list $list
 
 machine=jsc
 ./addmachine $machine --list $list

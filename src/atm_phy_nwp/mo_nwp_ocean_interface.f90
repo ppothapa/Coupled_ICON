@@ -44,8 +44,10 @@ MODULE mo_nwp_ocean_interface
 
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
 
+#ifdef YAC_coupling
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
   USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
+#endif
 #endif
 
   USE mo_parallel_config     ,ONLY: nproma
