@@ -985,8 +985,7 @@ SUBROUTINE organize_lhn ( &
          CALL lhn_verification ('HR',pt_patch,radar_data,lhn_fields,p_sim_time/3600.,wobs_space,&
                                 lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum,lhn_fields%pr_obs_sum)
       ENDIF
-!$ACC DATA PRESENT(lhn_fields, lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
-!$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE)
+!$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
       DO jb = 1, pt_patch%nblks_c
         DO jc = 1, nproma
           lhn_fields%pr_obs_sum(jc,jb)  = 0.0_wp
@@ -994,7 +993,6 @@ SUBROUTINE organize_lhn ( &
           lhn_fields%pr_ref_sum(jc,jb)  = 0.0_wp
         END DO
       END DO
-!$ACC END DATA
 !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
    ENDIF
 
