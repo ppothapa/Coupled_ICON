@@ -36,6 +36,7 @@
 /srclist
 /version.c
 /xmod
+/build
 
 # Dist stage files:
 /icon-*.tar.bz2
