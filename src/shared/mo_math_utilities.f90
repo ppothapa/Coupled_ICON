@@ -2511,6 +2511,7 @@ CONTAINS
     ENDDO
 !$ACC END PARALLEL
 
+!$ACC WAIT
 !$ACC END DATA
   END SUBROUTINE tdma_solver_vec
   !-------------------------------------------------------------------------

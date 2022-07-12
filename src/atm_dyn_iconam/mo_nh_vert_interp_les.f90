@@ -145,6 +145,9 @@ MODULE mo_nh_vert_interp_les
     INTEGER :: i_endidx, i_startidx, nlevp1, nlev
     INTEGER :: jk, jc, jb
 
+    !$ACC DATA &
+    !$ACC PRESENT(p_metrics,varin,varout)
+
     nlev      = p_patch%nlev
     nlevp1    = p_patch%nlev+1
 
@@ -156,6 +159,9 @@ MODULE mo_nh_vert_interp_les
       DO jb = i_startblk, i_endblk
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
+
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx , i_endidx
          DO jk = 2 , nlev  
@@ -167,6 +173,9 @@ MODULE mo_nh_vert_interp_les
                         (1._wp-p_metrics%wgtfac_c(jc,jk,jb))*varin(jc,jk-1,jb)
          END DO
         END DO
+        !$ACC END PARALLEL
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
            varout(jc,1,jb) =                                &
              p_metrics%wgtfacq1_c(jc,1,jb)*varin(jc,1,jb) + &
@@ -178,10 +187,13 @@ MODULE mo_nh_vert_interp_les
              p_metrics%wgtfacq_c(jc,2,jb)*varin(jc,nlev-1,jb) + &
              p_metrics%wgtfacq_c(jc,3,jb)*varin(jc,nlev-2,jb)
         END DO     
+        !$ACC END PARALLEL
     END DO 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL 
 
+  !$ACC WAIT
+  !$ACC END DATA
 
   END SUBROUTINE vert_intp_full2half_cell_3d
 
@@ -311,6 +323,10 @@ MODULE mo_nh_vert_interp_les
     INTEGER  :: i_endidx, i_startidx, nlev
     INTEGER  :: jk, jc, jb
 
+    !$ACC DATA &
+    !$ACC PRESENT(thetav,bru_vais,p_metrics,p_metrics%inv_ddqz_z_half) &
+    !$ACC CREATE(thetav_ic)
+
     !To be calculated at all cells at interface levels, except top/bottom 
     !boundaries
 
@@ -328,6 +344,8 @@ MODULE mo_nh_vert_interp_les
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx , i_endidx
         DO jk = 2 , nlev
@@ -339,9 +357,13 @@ MODULE mo_nh_vert_interp_les
                                p_metrics%inv_ddqz_z_half(jc,jk,jb)/thetav_ic(jc,jk,jb)    
         END DO
       END DO     
+      !$ACC END PARALLEL
     END DO 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL     
+
+  !$ACC WAIT
+  !$ACC END DATA
    
   END SUBROUTINE brunt_vaisala_freq
 

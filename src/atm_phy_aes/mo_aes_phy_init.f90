@@ -1,20 +1,15 @@
 !>
 !! @brief Contains subroutines for initializing the AES physics package.
 !!
-!! @author Hui Wan, MPI-M
-!!
 !! @par Revision History
 !! First version by Hui Wan, 2010-07-20
 !!
 !! @par Copyright and License
 !!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!! Copyright 2022 Max Planck Institute for Meteorology
+!! This program is free software: you can redistribute it and/or modify it under the terms of the
+!! BSD-3-clause license
 !!
-
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -35,7 +30,7 @@ MODULE mo_aes_phy_init
   USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
   USE mo_parallel_config,      ONLY: nproma
   USE mo_master_config,        ONLY: isrestart
-  USE mo_run_config,           ONLY: ltestcase, lart, msg_level,                  &
+  USE mo_run_config,           ONLY: ltestcase, msg_level,                        &
     &                                iqv, iqc, iqi, iqs, iqr, iqg, iqm_max,       &
     &                                iqh, iqni,iqnr,iqns,iqng,iqnh, iqnc,ininact, &
     &                                iqt, io3, ico2, ich4, in2o, ntracer
@@ -907,7 +902,7 @@ CONTAINS
 
       SELECT CASE (nh_test_name)
 
-      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','CBL_flxconst','RCEMIP_analytical') 
+      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','aes_bubble','CBL_flxconst','RCEMIP_analytical') 
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

@@ -14,7 +14,7 @@
 !! headers of the routines.
 !!
 
-MODULE mo_interface_cloud_mig_2
+MODULE mo_interface_cloud_mig
 
   USE mo_kind                ,ONLY: wp
   USE mtime                  ,ONLY: datetime
@@ -35,11 +35,11 @@ MODULE mo_interface_cloud_mig_2
 
   IMPLICIT NONE
   PRIVATE
-  PUBLIC  :: interface_cloud_mig_2
+  PUBLIC  :: interface_cloud_mig
 
 CONTAINS
 
-  SUBROUTINE interface_cloud_mig_2(jg,jb,jcs,jce        ,&
+  SUBROUTINE interface_cloud_mig  (jg,jb,jcs,jce        ,&
        &                           nproma,nlev,ntracer  ,& 
        &                           is_in_sd_ed_interval ,&
        &                           is_active            ,&
@@ -58,8 +58,8 @@ CONTAINS
     ! Pointers
     !
     ! to aes_phy_memory
-    TYPE(t_aes_phy_field) ,POINTER    :: field
-    TYPE(t_aes_phy_tend)  ,POINTER    :: tend
+    TYPE(t_aes_phy_field)   ,POINTER    :: field
+    TYPE(t_aes_phy_tend)    ,POINTER    :: tend
     !
     ! to cloud_mig_memory
     TYPE(t_cloud_mig_input ),POINTER    :: input
@@ -79,6 +79,7 @@ CONTAINS
     REAL(wp) :: tend_qg_mig(nproma,nlev)
     !
     REAL(wp) :: pr_rain(nproma)
+    REAL(wp) :: pr_ice(nproma)
     REAL(wp) :: pr_snow(nproma)
     REAL(wp) :: pr_grpl(nproma)
 
@@ -101,7 +102,7 @@ CONTAINS
     !$ACC      CREATE (tend_ta_mig,                         &
     !$ACC              tend_qv_mig,tend_qc_mig,tend_qi_mig, &
     !$ACC              tend_qr_mig,tend_qs_mig,tend_qg_mig, &
-    !$ACC              pr_rain,pr_snow,pr_grpl)
+    !$ACC              pr_rain,pr_ice,pr_snow,pr_grpl)
 
     lparamcpl = aes_phy_config(jg)% lparamcpl
     fc_mig    = aes_phy_config(jg)% fc_mig
@@ -114,6 +115,8 @@ CONTAINS
     ! input parameters
     !
     IF (ASSOCIATED(input% jg        )) CALL copy(jcs,jce, jg       , input% jg        (:,jb))
+    IF (ASSOCIATED(input% jcs       )) CALL copy(jcs,jce, jcs      , input% jcs       (:,jb))
+    IF (ASSOCIATED(input% jce       )) CALL copy(jcs,jce, jce      , input% jce       (:,jb))
     IF (ASSOCIATED(input% msg_level )) CALL copy(jcs,jce, msg_level, input% msg_level (:,jb))
     IF (ASSOCIATED(input% pdtime    )) CALL copy(jcs,jce, pdtime   , input% pdtime    (:,jb))
     !
@@ -123,6 +126,7 @@ CONTAINS
     IF (ASSOCIATED(input% rho   )) CALL copy(jcs,jce, jks,jke, field% rho       (:,:,jb)    , input% rho   (:,:,jb))
     IF (ASSOCIATED(input% pf    )) CALL copy(jcs,jce, jks,jke, field% pfull     (:,:,jb)    , input% pf    (:,:,jb))
     IF (ASSOCIATED(input% cpair )) CALL copy(jcs,jce, jks,jke, field% cpair     (:,:,jb)    , input% cpair (:,:,jb))
+    IF (ASSOCIATED(input% cvair )) CALL copy(jcs,jce, jks,jke, field% cvair     (:,:,jb)    , input% cvair (:,:,jb))
     IF (ASSOCIATED(input% ta    )) CALL copy(jcs,jce, jks,jke, field% ta        (:,:,jb)    , input% ta    (:,:,jb))
     IF (ASSOCIATED(input% qv    )) CALL copy(jcs,jce, jks,jke, field% qtrc      (:,:,jb,iqv), input% qv    (:,:,jb))
     IF (ASSOCIATED(input% qc    )) CALL copy(jcs,jce, jks,jke, field% qtrc      (:,:,jb,iqc), input% qc    (:,:,jb))
@@ -137,34 +141,33 @@ CONTAINS
 
           IF (ltimer) CALL timer_start(timer_cld_mig)
           !
-          DO jc = jcs,jce ! loop over columns
-             !
-             CALL cloud_mig( jg                                   ,& !< in : grid index
-                  &          msg_level                            ,& !< in : message level 
-                  &          pdtime                               ,& !< in : timestep
-                  &          field% dz        (jc,jks:jke,jb)     ,& !< in : vertical layer thickness
-                  &          field% rho       (jc,jks:jke,jb)     ,& !< in : density
-                  &          field% pfull     (jc,jks:jke,jb)     ,& !< in : pressure
-                  &          field% cpair     (jc,jks:jke,jb)     ,& !< in : specific heat of air
-                  &          field% ta        (jc,jks:jke,jb)     ,& !< in : temperature
-                  &          field% qtrc      (jc,jks:jke,jb,iqv) ,& !< in : sp humidity
-                  &          field% qtrc      (jc,jks:jke,jb,iqc) ,& !< in : cloud water
-                  &          field% qtrc      (jc,jks:jke,jb,iqi) ,& !< in : ice
-                  &          field% qtrc      (jc,jks:jke,jb,iqr) ,& !< in : rain
-                  &          field% qtrc      (jc,jks:jke,jb,iqs) ,& !< in : snow
-                  &          field% qtrc      (jc,jks:jke,jb,iqg) ,& !< in : graupel
-                  &          tend_ta_mig      (jc,jks:jke)        ,& !< out: tendency of temperature
-                  &          tend_qv_mig      (jc,jks:jke)        ,& !< out: tendency of water vapor
-                  &          tend_qc_mig      (jc,jks:jke)        ,& !< out: tendency of cloud water
-                  &          tend_qi_mig      (jc,jks:jke)        ,& !< out: tendency of cloud ice
-                  &          tend_qr_mig      (jc,jks:jke)        ,& !< out: tendency of rain
-                  &          tend_qs_mig      (jc,jks:jke)        ,& !< out: tendency of snow
-                  &          tend_qg_mig      (jc,jks:jke)        ,& !< out: tendency of graupel 
-                  &          pr_rain          (jc)                ,& !& out: precip rate rain
-                  &          pr_snow          (jc)                ,& !& out: precip rate snow
-                  &          pr_grpl          (jc)                )  !& out: precip rate graupel
-             !
-          END DO ! loop over columns
+          CALL cloud_mig( jg                                  ,& !< in : grid index
+               &          jcs, jce                            ,& !< in : column index range
+               &          msg_level                           ,& !< in : message level 
+               &          pdtime                              ,& !< in : timestep
+               &          field% dz        (:,jks:jke,jb)     ,& !< in : vertical layer thickness
+               &          field% rho       (:,jks:jke,jb)     ,& !< in : density
+               &          field% pfull     (:,jks:jke,jb)     ,& !< in : pressure
+               &          field% cpair     (:,jks:jke,jb)     ,& !< in : isobaric specific heat of air
+               &          field% cvair     (:,jks:jke,jb)     ,& !< in : isometric specific heat of air
+               &          field% ta        (:,jks:jke,jb)     ,& !< in : temperature
+               &          field% qtrc      (:,jks:jke,jb,iqv) ,& !< in : sp humidity
+               &          field% qtrc      (:,jks:jke,jb,iqc) ,& !< in : cloud water
+               &          field% qtrc      (:,jks:jke,jb,iqi) ,& !< in : ice
+               &          field% qtrc      (:,jks:jke,jb,iqr) ,& !< in : rain
+               &          field% qtrc      (:,jks:jke,jb,iqs) ,& !< in : snow
+               &          field% qtrc      (:,jks:jke,jb,iqg) ,& !< in : graupel
+               &          tend_ta_mig      (:,jks:jke)        ,& !< out: tendency of temperature
+               &          tend_qv_mig      (:,jks:jke)        ,& !< out: tendency of water vapor
+               &          tend_qc_mig      (:,jks:jke)        ,& !< out: tendency of cloud water
+               &          tend_qi_mig      (:,jks:jke)        ,& !< out: tendency of cloud ice
+               &          tend_qr_mig      (:,jks:jke)        ,& !< out: tendency of rain
+               &          tend_qs_mig      (:,jks:jke)        ,& !< out: tendency of snow
+               &          tend_qg_mig      (:,jks:jke)        ,& !< out: tendency of graupel 
+               &          pr_rain          (:)                ,& !& out: precip rate rain
+               &          pr_ice           (:)                ,& !& out: precip rate rain
+               &          pr_snow          (:)                ,& !& out: precip rate snow
+               &          pr_grpl          (:)                )  !& out: precip rate graupel
           !
           IF (ltimer) CALL timer_stop(timer_cld_mig)
 
@@ -172,7 +175,7 @@ CONTAINS
           !$ACC LOOP GANG VECTOR
           DO jc = jcs,jce
              field% rsfl(jc,jb) = pr_rain(jc)
-             field% ssfl(jc,jb) = pr_snow(jc) + pr_grpl(jc)
+             field% ssfl(jc,jb) = pr_ice(jc) + pr_snow(jc) + pr_grpl(jc)
           END DO
           !$ACC END PARALLEL
 
@@ -187,6 +190,7 @@ CONTAINS
           IF (ASSOCIATED(output% tend_qg_mig )) CALL copy(jcs,jce, jks,jke, tend_qg_mig (:,:), output% tend_qg_mig (:,:,jb))
           !
           IF (ASSOCIATED(output% pr_rain     )) CALL copy(jcs,jce, pr_rain (:), output% pr_rain (:,jb))
+          IF (ASSOCIATED(output% pr_ice      )) CALL copy(jcs,jce, pr_ice  (:), output% pr_ice  (:,jb))
           IF (ASSOCIATED(output% pr_snow     )) CALL copy(jcs,jce, pr_snow (:), output% pr_snow (:,jb))
           IF (ASSOCIATED(output% pr_grpl     )) CALL copy(jcs,jce, pr_grpl (:), output% pr_grpl (:,jb))
           !
@@ -269,6 +273,7 @@ CONTAINS
        IF (ASSOCIATED(output% tend_qg_mig )) CALL copy(jcs,jce, jks,jke, 0._wp, output% tend_qg_mig (:,:,jb))
        !
        IF (ASSOCIATED(output% pr_rain )) CALL copy(jcs,jce, 0._wp, output% pr_rain (:,jb))
+       IF (ASSOCIATED(output% pr_ice  )) CALL copy(jcs,jce, 0._wp, output% pr_ice  (:,jb))
        IF (ASSOCIATED(output% pr_snow )) CALL copy(jcs,jce, 0._wp, output% pr_snow (:,jb))
        IF (ASSOCIATED(output% pr_grpl )) CALL copy(jcs,jce, 0._wp, output% pr_grpl (:,jb))
        !
@@ -280,8 +285,8 @@ CONTAINS
     NULLIFY(field, tend)
     NULLIFY(input, output)
 
-    IF (ltimer) call timer_stop(timer_mig)
+    IF (ltimer) CALL timer_stop(timer_mig)
 
-  END SUBROUTINE interface_cloud_mig_2
+  END SUBROUTINE interface_cloud_mig
 
-END MODULE mo_interface_cloud_mig_2
+END MODULE mo_interface_cloud_mig

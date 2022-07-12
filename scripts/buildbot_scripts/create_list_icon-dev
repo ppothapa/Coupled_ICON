@@ -17,14 +17,16 @@ listname=${1:-icon-dev}
 #-----------------------------------------------------------
 # AES
 # add amip tests to all builders
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_update"    --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_ape"            --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noforcing" --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noparams"  --machines "mistral daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_sma"            --machines "mistral levante" --list $listname
-$addexp "checksuite.icon-dev/check.atm_1mom_bub"       --machines "mistral" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc"         --machines "levante daint" --list $listname
+#$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip"           --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"   --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor" --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_ape"            --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_sma"            --machines "levante" --list $listname
+
 
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
@@ -161,6 +163,7 @@ done
 for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
   [[ 'MPIMAC_gcc' = "${builder}" ]] && ./set_builder_flags Active --builders ${builder}  --list $listname
   $addexp exp.atm_amip_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
+  $addexp exp.atm_qubicc_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
 
@@ -173,6 +176,7 @@ $addexp checksuite.art/exp.art_mistral_test_short.run --builders MISTRAL_gcc --l
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_MISTRAL.run --builders MISTRAL_gcc --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
+$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 
 # add a test for the lrestart_cont parameter of add_var()
 $addexp checksuite.infrastructure/restart/exp.oce_lrestart_cont --builders MISTRAL_gcc            --list ${listname}

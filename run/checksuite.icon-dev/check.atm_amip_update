@@ -45,6 +45,7 @@ then
 else
     poolFolder_prefix=""
 fi
+
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode
