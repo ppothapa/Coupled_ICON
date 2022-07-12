@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# This script generates the ensemble runscript templates needed for computing
+# probtest tolerances and adds them to the list specified by `listname`.
+# Note: This list must always be called as part of a full `create_list_<list>`,
+#       it does not initialize any machines and builders.
+
+cd $(dirname "${BASH_SOURCE[0]}")
+
+# get the ICON root directory
+basedir=$(cd ../.. && pwd)
+    
+# set path to probtest entry script
+PROBTEST=$basedir/externals/probtest/probtest.py
+
+# get list name from argument
+listname=$1
+
+add_tolerance_exp () {
+    # rename function arguments for clarity
+    exp=$1
+    builders=$2
+
+    # define seeds once
+    seeds=(1 2 3 4 5 6 7 8 9)
+
+    # initialize probtest namelist (most of it is unused, but makes life easier)
+    $PROBTEST init --codebase-install $basedir --experiment-name ${exp} 
+
+    # create the runscripts for the ensemble (exp.<EXP>_seed_N)
+    # needs to be overwritten from namelist because here we deal with the templates
+    $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_seed_{seed}
+
+    # add base experiment and tolerance generation script
+    ./addexp exp.${exp} --builders "${builders}" --list $listname
+    ./addexp checksuite.icon-dev/pp.refgen_${exp} --builders "${builders}" --list $listname
+
+    # create the list of perturbed experiments
+    perturbed_experiments=$(printf "exp.${exp}_seed_%s " "${seeds[@]}")
+    
+    # add all the ensemble experiments and make refgen depend on all of them
+    ./addexp "${perturbed_experiments}" --builders "${builders}" --list $listname
+    ./adddep --from-experiment checksuite.icon-dev/pp.refgen_${exp} --to-experiment "${perturbed_experiments}" --builders "${builders}" --list $listname
+}
+
+add_tolerance_exp mch_ch_lowres "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07 "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07_lhn_00 "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07_lhn_12 "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07_nest "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_lpi "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_midnight "DAINT_CPU_nvidia"
+add_tolerance_exp mch_bench_r19b07_dev "DAINT_CPU_nvidia"
+add_tolerance_exp atm_amip_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp atm_amip_diagparams_constbc_nojsb_notransport_nodynamics_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp atm_amip_noforcing_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp atm_amip_noparams_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp dwd_run_ICON_09_R2B4N5_EPS "DAINT_CPU_nvidia"

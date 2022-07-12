@@ -90,6 +90,7 @@ cat > ${atmo_namelist} << EOF
  grid_rescale_factor     = ${rescale_factor}
  lrescale_timestep = .TRUE.
  lrescale_ang_vel  = .TRUE.
+ vct_filename = "vertical/coord_tables/atm_hyb_sz_30"
 /
 &nh_testcase_nml
  nh_test_name     = 'dcmip_tc_52'

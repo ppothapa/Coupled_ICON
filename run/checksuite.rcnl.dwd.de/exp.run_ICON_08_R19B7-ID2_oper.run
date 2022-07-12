@@ -358,6 +358,7 @@ cat > ${atmo_namelist} << EOF
 ! cp-cv-bugfix:
   direct_albedo_water = 3
   albedo_whitecap = 1
+  isolrad     = 1
 /
 &nonhydrostatic_nml
   damp_height     = 12250.

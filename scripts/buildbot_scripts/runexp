@@ -1,22 +1,93 @@
-#! /bin/bash
+#! /usr/bin/env python3
+from buildbot_config import BuildbotConfig
+from icon_paths import run_path, buildbot_list_path, base_path
+from cmd_line_job import CmdLineJob
+from slurm_job import SlurmJob
+from pbs_job import PBSJob
 
-set -eu
+from pathlib import Path
+import sys
+import json
 
-hostname=${HOSTNAME:-unknown}
+def parse_line(line):
+    return line.strip("\n").replace("'","").split("=")
 
-echo "Start runexp switcher on $hostname ..."
+def parse_setup_info():
+    try:
+        with open(str(run_path / "set-up.info"), "r") as f:
+            setup_dict = {parse_line(l)[0]: parse_line(l)[1] for l in f.readlines()}
+    except:
+        print("could not find set-up.info file")
+        sys.exit(1)
 
-case $hostname in
-  daint*)
-    echo "   execute with bash ..."
-    /bin/bash ./scripts/buildbot_scripts/runexp.bash
-    ;;
-  levant*)
-    echo "   execute with bash ..."
-    /bin/bash ./scripts/buildbot_scripts/runexp.bash
-    ;;
-  *)
-    echo "   execute with ksh ..."
-    /bin/ksh ./scripts/buildbot_scripts/runexp.bash
-    ;;
-esac
+    return setup_dict
+
+def runexp():
+    setup_dict = parse_setup_info()
+
+    builder = "{}_{}".format(setup_dict["use_target"].upper(), setup_dict["use_compiler"])
+
+    with open(str(run_path / "buildbot_config.json"), "r") as f:
+      config = json.load(f)
+
+    builder = config["builder"]
+    list_name = config["list_name"]
+
+    print("initializing experiments for builder {} in list {}".format(builder, list_name))
+
+    full_list_name = buildbot_list_path / list_name
+
+    if Path(full_list_name).exists():
+      thisList = BuildbotConfig.from_pickle(full_list_name)
+    else:
+      print("did not find experiment list {}".format(full_list_name))
+      sys.exit(1)
+
+    bobj = thisList.builder_meta[builder]
+    bobj.submit = setup_dict["use_submit"]
+
+    if bobj.submit.startswith("sbatch"):
+        BatchJob = SlurmJob
+    elif bobj.submit.startswith("qsub"):
+        BatchJob = PBSJob
+    elif bobj.submit == "":
+        BatchJob = CmdLineJob
+    else:
+        print("no batch job helper class implemented for machine {}".format(bobj.machine))
+        sys.exit(1)
+
+    # set up the experiments for job submission
+    # builder info and batch system information need to be added
+    eobjs = thisList.get_experiments_by_builder(builder)
+    for eobj in eobjs:
+        # BatchJob keeps track of dependencies and is responsible for submitting to the queue
+        eobj.batch_job = BatchJob(bobj.submit, run_path) 
+    
+    for eobj in eobjs:
+        # finally submit the jobs
+        eobj.submit(bobj)
+
+    # wait for completion of all gathered processes
+    for eobj in eobjs:
+        eobj.batch_job.wait()
+
+    # parse returncode and write STATUS file
+    loop_status_exp_file = Path(base_path) / "LOOP_STATUS_EXP_FILE"
+    exit_code = 0
+    with open(str(loop_status_exp_file), "w") as f:
+        for eobj in eobjs:
+            exp_file = eobj.get_run_name(relative=False)
+            if eobj.batch_job.returncode is not None:
+                x = "OK" if eobj.batch_job.returncode == 0 else "FAILED"
+            else:
+                print("internal error, did not get returncode for {}".format(eobj.name))
+                x = "FAILED"
+
+            exit_code = exit_code if x == "OK" else 1
+            print("exit code for {}: {}".format(exp_file, x, int(exit_code)))
+            f.write("{0:50}: {1}\n".format(exp_file.name, x))
+
+    sys.exit(exit_code)
+
+if __name__ == "__main__":
+    runexp()

@@ -51,6 +51,7 @@ MODULE mo_nwp_phy_nml
    ! user defined calling intervals
    !
   REAL(wp) :: dt_conv(max_dom)   !> field element for convection
+  REAL(wp) :: dt_ccov(max_dom)   !> field element for cloud cover
   REAL(wp) :: dt_rad(max_dom)    !! "-"                     radiation
   REAL(wp) :: dt_sso(max_dom)    !! "-"  for subscale orographic gravity waves
   REAL(wp) :: dt_gwd(max_dom)    !! "-"  for subscale gravity waves
@@ -74,6 +75,7 @@ MODULE mo_nwp_phy_nml
   LOGICAL  :: lgrayzone_deepconv(max_dom) !! use grayzone tuning for deep convection
   LOGICAL  :: ldetrain_conv_prec(max_dom) !! detrain convective rain and snow
   INTEGER  :: inwp_cldcover(max_dom)      !! cloud cover
+  LOGICAL  :: lsgs_cond(max_dom)          !! subgrid-scale condensation related to cloud cover
   INTEGER  :: inwp_radiation(max_dom)     !! radiation
   INTEGER  :: inwp_sso(max_dom)           !! sso
   INTEGER  :: inwp_gwd(max_dom)           !! non-orographic gravity wave drag
@@ -108,11 +110,11 @@ MODULE mo_nwp_phy_nml
   !> NetCDF file with RRTM Cloud Optical Properties for ECHAM6
   CHARACTER(LEN=filename_max) :: cldopt_filename
 
-  NAMELIST /nwp_phy_nml/ inwp_convection, inwp_cldcover,             &
+  NAMELIST /nwp_phy_nml/ inwp_convection, inwp_cldcover, lsgs_cond,  &
     &                    inwp_radiation, inwp_sso, inwp_gwd,         &
     &                    inwp_gscp, inwp_satad,                      &
     &                    inwp_turb, inwp_surface,                    &
-    &                    dt_conv, dt_rad, dt_sso, dt_gwd,            &
+    &                    dt_conv, dt_rad, dt_sso, dt_gwd, dt_ccov,   &
     &                    qi0, qc0, icpl_aero_gscp,                   &
     &                    ustart_raylfric, efdt_min_raylfric,         &
     &                    latm_above_top, itype_z0, mu_rain,          &
@@ -204,6 +206,8 @@ CONTAINS
     lmflimiter_off(:)     = .FALSE. ! default: mass flux limiters on
     lgrayzone_deepconv(:) = .FALSE.
     ldetrain_conv_prec(:) = .FALSE.
+    lsgs_cond(:)          = .TRUE.  ! activate subgrid-scale condensation in cloud cover scheme
+
 
     lrtm_filename   = 'rrtmg_lw.nc'  
     cldopt_filename = 'ECHAM6_CldOptProps.nc'
@@ -297,6 +301,7 @@ CONTAINS
       inwp_surface(:)    = -1
 
       dt_conv (:) = -999._wp
+      dt_ccov (:) = -999._wp
       dt_rad  (:) = -999._wp
       dt_sso  (:) = -999._wp
       dt_gwd  (:) = -999._wp
@@ -322,6 +327,7 @@ CONTAINS
 
       ! Time steps
       IF (dt_conv (1) < 0._wp) dt_conv (1) = dt_conv_def
+      IF (dt_ccov (1) < 0._wp) dt_ccov (1) = dt_conv (1) ! this sets the previous default of dt_ccov=dt_conv
       IF (dt_sso  (1) < 0._wp) dt_sso  (1) = dt_sso_def
       IF (dt_gwd  (1) < 0._wp) dt_gwd  (1) = dt_gwd_def
       IF (dt_rad  (1) < 0._wp) dt_rad  (1) = dt_rad_def
@@ -348,6 +354,7 @@ CONTAINS
 
         ! Time steps
         IF (dt_conv (jg) < 0._wp) dt_conv (jg) = dt_conv (jg-1) 
+        IF (dt_ccov (jg) < 0._wp) dt_ccov (jg) = dt_conv (jg) ! this sets the previous default of dt_ccov=dt_conv
         IF (dt_sso  (jg) < 0._wp) dt_sso  (jg) = dt_sso  (jg-1)
         IF (dt_gwd  (jg) < 0._wp) dt_gwd  (jg) = dt_gwd  (jg-1)
         IF (dt_rad  (jg) < 0._wp) dt_rad  (jg) = dt_rad  (jg-1)
@@ -412,6 +419,11 @@ CONTAINS
       IF (inwp_surface(jg) == 0 .AND. itype_z0 > 1) THEN
         CALL message(TRIM(routine), 'Warning: itype_z0 is reset to 1 because surface scheme is turned off')
         itype_z0 = 1
+      ENDIF
+
+      IF (lsgs_cond(jg) .AND. inwp_cldcover(jg) /= 1) THEN
+        CALL message(TRIM(routine),'Subgrid-scale condensation only available for cloud cover 1.')
+        lsgs_cond(jg) = .FALSE.
       ENDIF
 
       IF (icpl_aero_gscp > 0 .AND. inwp_gscp(jg) > 2) THEN
@@ -479,9 +491,10 @@ CONTAINS
       atm_phy_nwp_config(jg)%lmflimiter_off     = lmflimiter_off(jg)
       atm_phy_nwp_config(jg)%lgrayzone_deepconv = lgrayzone_deepconv(jg)
       atm_phy_nwp_config(jg)%ldetrain_conv_prec = ldetrain_conv_prec(jg)
+      atm_phy_nwp_config(jg)%lsgs_cond          = lsgs_cond(jg)
 
       atm_phy_nwp_config(jg)%dt_conv         = dt_conv (jg)
-      atm_phy_nwp_config(jg)%dt_ccov         = dt_conv (jg)
+      atm_phy_nwp_config(jg)%dt_ccov         = dt_ccov (jg)
       atm_phy_nwp_config(jg)%dt_rad          = dt_rad  (jg)
       atm_phy_nwp_config(jg)%dt_sso          = dt_sso  (jg)
       atm_phy_nwp_config(jg)%dt_gwd          = dt_gwd  (jg)

@@ -631,7 +631,6 @@ CONTAINS
   !  =====================================================================
   !  | height based hybrid Gal-Chen    |    1      |       2             |
   !  | height based SLEVE              |    2      |       4             |
-  !  | SLEVE, but as Gal-Chen from file|   12      |       6             |
   !
   !
   FUNCTION get_numberOfVgridUsed(ivctype)
@@ -645,10 +644,8 @@ CONTAINS
         get_numberOfVgridUsed = 2
       CASE(2)
         get_numberOfVgridUsed = 4
-      CASE(12)
-        get_numberOfVgridUsed = 6
       CASE DEFAULT
-        CALL finish(routine, "invalid ivctype! Must be 1, 2 or 12")
+        CALL finish(routine, "invalid ivctype! Must be 1 or 2")
     END SELECT
   END FUNCTION get_numberOfVgridUsed
 

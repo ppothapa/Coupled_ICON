@@ -155,12 +155,8 @@ MODULE mo_nonhydro_types
     &  omega(:,:,:),        & ! vertical velocity ( omega=dp/dt )           [Pa/s]
     &  vor_u(:,:,:),        & ! zonal component of relative vorticity
                               ! (nproma,nlev,nblks_c)            [s-1]
-    &  vor_v(:,:,:),        & ! meridional component of relative vorticity
+    &  vor_v(:,:,:)         & ! meridional component of relative vorticity
                               ! (nproma,nlev,nblks_c)            [s-1]
-    &  bvf2(:,:,:),         & ! square of Brunt-Vaisala frequency
-                              ! (nproma,nlev,nblks_c)            [s-2]
-    &  parcelfreq2(:,:,:)   & ! square of general parcel oscillation frequency
-                              ! (nproma,nlev,nblks_c)            [s-2]
     &  => NULL()
 
     ! d) variables that are in single precision when "__MIXED_PRECISION" is defined

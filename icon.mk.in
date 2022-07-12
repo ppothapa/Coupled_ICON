@@ -104,7 +104,7 @@ all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
 
 # DACE sources:
 @DACE_ENABLED_OR_NEEDED@DACE_subdir:= externals/dace_icon/src_for_icon
-@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf')
+@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf' '*.c')
 
 # EMVORADO sources:
 @EMVORADO_ENABLED@EMVORADO_subdir:= externals/emvorado
@@ -225,12 +225,44 @@ dir_files:= $(filter-out ./.dirstamp,$(addsuffix .dirstamp,$(sort $(dir $(dep_fi
 
 # Additional PGI/NVIDIA Fortran compiler flags enabling the inline library
 # generation and usage:
-@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name)
-@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name)
+
+# function and subroutine names to be inlined
+@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name),name:jac,laxfr_upflux,laxfr_upflux_v,isExtremumSpurious,mc_limiter,create_rdm_seed_in_time,create_rdm_seed,reff_crystal,reff_droplet,ko_index,gefr,clct2ww,fqvs,fthetae,esat_water,dewpoint_water,nwp_dyn_gust,calc_ustar,swdir_s,rel_hum,rel_hum_ifs,pade_eval_1,make_normalized,make_normalized,sat_pres_water,sat_pres_ice,spec_humi,satur,cuadjtq,sfc_albedo_dir_rg,sfc_albedo_dir_taylor,sfc_albedo_dir_zaengl,sfc_albedo_dir_yang,sfc_albedo_dir_briegleb,cubidiag,foedelta,foeldcp,foeewl,foeewi,foealfa,foeewm,foedem,foeldcpm,foealfcu,foeewmcu,foedemcu,foeldcpmcu,foelhmcu,foeles_v,foeies_v,foeewm_v,foeewmcu_v,sat_pres_water,sat_pres_ice,spec_humi,qsat_rho,dqsatdT_rho,dqsatdT_ice,latent_heat_vaporization,latent_heat_sublimation,alpha0_char,zexner,zpsat_w,zqvap_old,zqvap,zdqsdt_old,zdqsdt,flake_radflux,flake_driver,flake_buoypar,flake_snowdensity,flake_snowheatconduct,alb_seaice_equil,zsf_heav,zsf_psat_iw,zsf_dqvdt_iw,watrcon_RT,watrdiff_RT,is_close_r,is_close_s,is_close_i,get_indices_c,get_indices_e,get_indices_v,ccw,lintersect,line_intersect,time_avg
+
+# acc routines that are not inlined:
+# functions and subroutines in submodules dace and rte-rrtmgp
+# name:blk_no,name:idx_no,name:idx_1d, from src/configure_model/mo_parallel_config.f90
+# name:binary_search,name:get_local_index,name:get_valid_local_index_prev,name:get_valid_local_index_next, from src/parallel_infrastructure/mo_decomposition_tools.f90
+# name:nwp_con_gust from src/atm_phy_nwp/mo_util_phys.f90
+
+@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name),reshape
 
 # List of original Fortran '.f90' files containing functions that need to be
 # inlined:
-@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=
+@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=src/advection/mo_advection_quadrature.f90 \
+src/advection/mo_advection_utils.f90 \
+src/advection/mo_advection_vlimit.f90 \
+src/atm_phy_nwp/mo_nwp_ecrad_utilities.f90 \
+src/atm_phy_nwp/mo_nwp_ww.f90 \
+src/atm_phy_nwp/mo_opt_nwp_diagnostics.f90 \
+src/atm_phy_nwp/mo_util_phys.f90 \
+src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90 \
+src/atm_phy_schemes/gscp_cloudice.f90 \
+src/atm_phy_schemes/gscp_graupel.f90 \
+src/atm_phy_schemes/gscp_hydci_pp_ice.f90 \
+src/atm_phy_schemes/mo_adjust.f90 \
+src/atm_phy_schemes/mo_albedo.f90 \
+src/atm_phy_schemes/mo_cuflxtends.f90 \
+src/atm_phy_schemes/mo_cufunctions.f90 \
+src/atm_phy_schemes/mo_satad.f90 \
+src/atm_phy_schemes/turb_utilities.f90 \
+src/lnd_phy_schemes/sfc_flake.f90 \
+src/lnd_phy_schemes/sfc_seaice.f90 \
+src/lnd_phy_schemes/sfc_terra.f90 \
+src/serialization/mo_ser_common.f90 \
+src/shared/mo_loopindices.f90 \
+src/shared/mo_math_utilities.f90 \
+src/shared/mo_statistics.f90									
 
 ########################################
 
@@ -544,6 +576,7 @@ c_binding.d: icon.mk
 	} >$@
 @ART_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/art/shared/mo_art_util_vcs.f90):| version.@OBJEXT@' >>$@
 @GPU_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/shared/mo_index_list.f90):| src/shared_cuda/index_list_cuda.@OBJEXT@' >>$@
+@DACE_ENABLED_OR_NEEDED@	$(silent_none)echo '$(call get_obj_names,externals/dace_icon/src_for_icon/mo_wigos.f90):| externals/dace_icon/src_for_icon/dace_md5_ifc.@OBJEXT@ externals/dace_icon/src_for_icon/md5.@OBJEXT@' >>$@
 
 # Dummy dependency file generation rule (called by config.status):
 dummy-depend: | $(dir_files)

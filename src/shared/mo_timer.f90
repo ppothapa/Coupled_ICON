@@ -243,10 +243,8 @@ MODULE mo_timer
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  PUBLIC :: timer_opt_diag_atmo,             &
-    &       timer_opt_diag_atmo_vor,         &
-    &       timer_opt_diag_atmo_bvf2,        &
-    &       timer_opt_diag_atmo_parcelfreq2
+  PUBLIC :: timer_opt_diag_atmo,     &
+    &       timer_opt_diag_atmo_vor
 
   ! low level timing routine
   PUBLIC :: tic, toc
@@ -463,10 +461,8 @@ MODULE mo_timer
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  INTEGER :: timer_opt_diag_atmo,             &
-    &        timer_opt_diag_atmo_vor,         &
-    &        timer_opt_diag_atmo_bvf2,        &
-    &        timer_opt_diag_atmo_parcelfreq2
+  INTEGER :: timer_opt_diag_atmo,     &
+    &        timer_opt_diag_atmo_vor
 
 
 CONTAINS
@@ -929,8 +925,6 @@ CONTAINS
     ! Model atmosphere
     timer_opt_diag_atmo             = new_timer("optional_diagnostics_atmosphere")
     timer_opt_diag_atmo_vor         = new_timer("opt_diag_atmo_vorticity")
-    timer_opt_diag_atmo_bvf2        = new_timer("opt_diag_atmo_bruntvaisala")
-    timer_opt_diag_atmo_parcelfreq2 = new_timer("opt_diag_atmo_parcelfrequency")
 
   END SUBROUTINE init_timer
 

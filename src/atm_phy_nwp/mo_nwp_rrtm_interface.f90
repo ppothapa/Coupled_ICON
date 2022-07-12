@@ -625,7 +625,12 @@ CONTAINS
         & flx_uplw_sfc = prm_diag%lwflx_up_sfc_rs(:,jb),& !< out longwave upward flux at surface
         & trsol_up_toa = prm_diag%trsol_up_toa(:,jb), &   !< out upward solar transmissivity at TOA
         & trsol_up_sfc = prm_diag%trsol_up_sfc(:,jb), &   !< out upward solar transmissivity at surface
+        & trsol_nir_sfc = prm_diag%trsol_nir_sfc(:,jb), & !< out downward transmissivity for near-infrared rad. at surface
+        & trsol_vis_sfc = prm_diag%trsol_vis_sfc(:,jb), & !< out downward transmissivity for visible rad. at surface
         & trsol_par_sfc = prm_diag%trsol_par_sfc(:,jb), & !< out downward transmissivity for photosynthetically active rad. at surface
+        & fr_nir_sfc_diffus = prm_diag%fr_nir_sfc_diff(:,jb), & !< out diffuse fraction of downward near-infrared rad. at surface
+        & fr_vis_sfc_diffus = prm_diag%fr_vis_sfc_diff(:,jb), & !< out diffuse fraction of downward visible rad. at surface
+        & fr_par_sfc_diffus = prm_diag%fr_par_sfc_diff(:,jb), & !< out diffuse fraction of downward photosynthetically active rad. at surface
         & trsol_dn_sfc_diffus = prm_diag%trsol_dn_sfc_diff(:,jb), &  !< out downward diffuse solar transmissivity at surface
         & trsol_clr_sfc = prm_diag%trsolclr_sfc(:,jb), &   !< out clear-sky net transmissvity at surface
         & lwflx_clr_sfc = prm_diag%lwflxclr_sfc(:,jb), &  !< out clear-sky net LW flux at surface
@@ -718,7 +723,12 @@ CONTAINS
     REAL(wp), ALLOCATABLE, TARGET:: zrg_lwflx_up_sfc   (:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_up_toa   (:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_up_sfc   (:,:)
+    REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_nir_sfc  (:,:)
+    REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_vis_sfc  (:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_par_sfc  (:,:)
+    REAL(wp), ALLOCATABLE, TARGET:: zrg_fr_nir_sfc_diff(:,:)
+    REAL(wp), ALLOCATABLE, TARGET:: zrg_fr_vis_sfc_diff(:,:)
+    REAL(wp), ALLOCATABLE, TARGET:: zrg_fr_par_sfc_diff(:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_dn_sfc_diff(:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_trsol_clr_sfc   (:,:)
     REAL(wp), ALLOCATABLE, TARGET:: zrg_lwflx_clr_sfc   (:,:)
@@ -765,7 +775,8 @@ CONTAINS
 !DIR$ ATTRIBUTES ALIGN : 64 :: zlp_tot_cld,zrg_clc,zrg_aeq1,zrg_aeq2,zrg_aeq3
 !DIR$ ATTRIBUTES ALIGN : 64 :: zrg_aeq4,zrg_aeq5,zrg_aclcov,zrg_lwflxall
 !DIR$ ATTRIBUTES ALIGN : 64 :: zrg_trsolall,zrg_lwflx_up_sfc,zrg_trsol_up_toa
-!DIR$ ATTRIBUTES ALIGN : 64 :: zrg_trsol_up_sfc,zrg_trsol_par_sfc
+!DIR$ ATTRIBUTES ALIGN : 64 :: zrg_trsol_up_sfc,zrg_trsol_nir_sfc,zrg_trsol_vis_sfc,zrg_trsol_par_sfc
+!DIR$ ATTRIBUTES ALIGN : 64 :: zrg_fr_nir_sfc_diff,zrg_fr_vis_sfc_diff,zrg_fr_par_sfc_diff
 !DIR$ ATTRIBUTES ALIGN : 64 :: zrg_trsol_dn_sfc_diff,zrg_trsol_clr_sfc,zrg_lwflx_clr_sfc
 !DIR$ ATTRIBUTES ALIGN : 64 :: max_albvisdir,min_albvisdir,max_albvisdif,min_albvisdif
 !DIR$ ATTRIBUTES ALIGN : 64 :: max_albdif, min_albdif, max_tsfc, min_tsfc,max_psfc, min_psfc
@@ -873,7 +884,12 @@ CONTAINS
         zrg_lwflx_up_sfc   (nproma,    nblks_par_c),   &
         zrg_trsol_up_toa   (nproma,    nblks_par_c),   &
         zrg_trsol_up_sfc   (nproma,    nblks_par_c),   &
+        zrg_trsol_nir_sfc  (nproma,    nblks_par_c),   &
+        zrg_trsol_vis_sfc  (nproma,    nblks_par_c),   &
         zrg_trsol_par_sfc  (nproma,    nblks_par_c),   &
+        zrg_fr_nir_sfc_diff  (nproma,  nblks_par_c),   &
+        zrg_fr_vis_sfc_diff  (nproma,  nblks_par_c),   &
+        zrg_fr_par_sfc_diff  (nproma,  nblks_par_c),   &
         zrg_trsol_dn_sfc_diff(nproma,  nblks_par_c),   &
         zrg_trsol_clr_sfc    (nproma,  nblks_par_c),   &
         zrg_lwflx_clr_sfc    (nproma,  nblks_par_c),   &
@@ -928,7 +944,12 @@ CONTAINS
         zrg_lwflx_up_sfc(1:i_startidx-1,i_startblk) = 0
         zrg_trsol_up_toa(1:i_startidx-1,i_startblk) = 0
         zrg_trsol_up_sfc(1:i_startidx-1,i_startblk) = 0
+        zrg_trsol_nir_sfc(1:i_startidx-1,i_startblk) = 0
+        zrg_trsol_vis_sfc(1:i_startidx-1,i_startblk) = 0
         zrg_trsol_par_sfc(1:i_startidx-1,i_startblk) = 0
+        zrg_fr_nir_sfc_diff(1:i_startidx-1,i_startblk) = 0
+        zrg_fr_vis_sfc_diff(1:i_startidx-1,i_startblk) = 0
+        zrg_fr_par_sfc_diff(1:i_startidx-1,i_startblk) = 0
         zrg_trsol_dn_sfc_diff(1:i_startidx-1,i_startblk) = 0
         zrg_trsol_clr_sfc(1:i_startidx-1,i_startblk) = 0
         zrg_lwflx_clr_sfc(1:i_startidx-1,i_startblk) = 0
@@ -1299,7 +1320,12 @@ CONTAINS
           & flx_uplw_sfc = zrg_lwflx_up_sfc(:,jb), &   !< out longwave upward flux at surface
           & trsol_up_toa = zrg_trsol_up_toa(:,jb), &   !< out upward solar transmissivity at TOA
           & trsol_up_sfc = zrg_trsol_up_sfc(:,jb), &   !< out upward solar transmissivity at surface
+          & trsol_nir_sfc = zrg_trsol_nir_sfc(:,jb), & !< downward transmissivity for near-infrared rad. at surface
+          & trsol_vis_sfc = zrg_trsol_vis_sfc(:,jb), & !< downward transmissivity for visible rad. at surface
           & trsol_par_sfc = zrg_trsol_par_sfc(:,jb), & !< downward transmissivity for photosynthetically active rad. at surface
+          & fr_nir_sfc_diffus = zrg_fr_nir_sfc_diff(:,jb), & !< diffuse fraction of downward near-infrared rad. at surface
+          & fr_vis_sfc_diffus = zrg_fr_vis_sfc_diff(:,jb), & !< diffuse fraction of downward visible rad. at surface
+          & fr_par_sfc_diffus = zrg_fr_par_sfc_diff(:,jb), & !< diffuse fraction of downward photosynthetically active rad. at surface
           & trsol_dn_sfc_diffus = zrg_trsol_dn_sfc_diff(:,jb), &  !< out downward diffuse solar transmissivity at surface
           & trsol_clr_sfc = zrg_trsol_clr_sfc(:,jb), & !< out clear-sky net transmissvity at surface (used with reduced grid only)
           & lwflx_clr_sfc = zrg_lwflx_clr_sfc(:,jb), & !< out clear-sky net LW flux at surface
@@ -1317,12 +1343,14 @@ CONTAINS
 
       CALL downscale_rad_output(pt_patch%id, pt_par_patch%id, nlev_rg, zrg_aclcov,                     &
         &  zrg_lwflxall, zrg_trsolall, zrg_trsol_clr_sfc, zrg_lwflx_clr_sfc, zrg_lwflx_up_sfc,         &
-        &  zrg_trsol_up_toa, zrg_trsol_up_sfc, zrg_trsol_par_sfc, zrg_trsol_dn_sfc_diff,               &
+        &  zrg_trsol_up_toa, zrg_trsol_up_sfc, zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc,&
+        &  zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, zrg_trsol_dn_sfc_diff,       &
         &  zrg_tsfc, zrg_albdif, zrg_emis_rad, zrg_cosmu0, zrg_tot_cld, zlp_tot_cld, zrg_pres_ifc,     &
         &  zlp_pres_ifc, prm_diag%tsfctrad, prm_diag%albdif, aclcov, prm_diag%lwflxall,                &
         &  prm_diag%trsolall, prm_diag%lwflx_up_sfc_rs, prm_diag%trsol_up_toa,                         &
-        &  prm_diag%trsol_up_sfc, prm_diag%trsol_par_sfc, prm_diag%trsol_dn_sfc_diff,                  &
-        &  prm_diag%trsolclr_sfc, prm_diag%lwflxclr_sfc,                                               & 
+        &  prm_diag%trsol_up_sfc, prm_diag%trsol_nir_sfc, prm_diag%trsol_vis_sfc, prm_diag%trsol_par_sfc,&
+        &  prm_diag%fr_nir_sfc_diff, prm_diag%fr_vis_sfc_diff, prm_diag%fr_par_sfc_diff,               &
+        &  prm_diag%trsol_dn_sfc_diff, prm_diag%trsolclr_sfc, prm_diag%lwflxclr_sfc,                   &
         &  zrg_lwflx_up         , zrg_lwflx_dn         , zrg_swflx_up         , zrg_swflx_dn,          &
         &  zrg_lwflx_up_clr     , zrg_lwflx_dn_clr     , zrg_swflx_up_clr     , zrg_swflx_dn_clr,      &
         &  prm_diag%lwflx_up    , prm_diag%lwflx_dn    , prm_diag%swflx_up    , prm_diag%swflx_dn,     &
@@ -1374,7 +1402,9 @@ CONTAINS
         zrg_albdif, zrg_tsfc, zrg_pres_ifc, zrg_pres, zrg_temp, zrg_o3, zrg_ktype,        &
         zrg_aeq1,zrg_aeq2,zrg_aeq3,zrg_aeq4,zrg_aeq5, zrg_tot_cld, zrg_clc,               &
         zrg_aclcov, zrg_lwflxall, zrg_trsolall, zrg_lwflx_up_sfc, zrg_trsol_up_toa,       &
-        zrg_trsol_up_sfc, zrg_trsol_par_sfc, zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc,    &
+        zrg_trsol_up_sfc, zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc,        &
+        zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff,                    &
+        zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc,                                         &
         zrg_lwflx_clr_sfc, zrg_emis_rad, zlp_pres_ifc, zlp_tot_cld,                       &
         zrg_lwflx_up    , zrg_lwflx_dn    , zrg_swflx_up    , zrg_swflx_dn,               &
         zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr, zrg_swflx_dn_clr            )

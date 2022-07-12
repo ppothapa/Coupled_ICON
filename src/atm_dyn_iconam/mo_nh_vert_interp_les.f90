@@ -34,9 +34,8 @@ MODULE mo_nh_vert_interp_les
   USE mo_sync,                ONLY: sync_patch_array_mult_mp
 #endif
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
-  USE mo_impl_constants,      ONLY: SUCCESS
+  USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int
   USE mo_parallel_config,     ONLY: nproma, p_test_run
-  USE mo_impl_constants,      ONLY: success, min_rlcell_int
   USE mo_physical_constants,  ONLY: grav
   USE mo_les_config,          ONLY: les_config
   USE mo_exception,           ONLY: finish
@@ -46,7 +45,7 @@ MODULE mo_nh_vert_interp_les
   PRIVATE
 
   PUBLIC :: vert_intp_full2half_cell_3d, vert_intp_linear_1d, global_hor_mean
-  PUBLIC :: vertical_derivative, brunt_vaisala_freq, init_vertical_grid_for_les, intrpl_full2half_inblk
+  PUBLIC :: vertical_derivative, brunt_vaisala_freq, init_vertical_grid_for_les
 
   CONTAINS
 
@@ -368,89 +367,6 @@ MODULE mo_nh_vert_interp_les
    
   END SUBROUTINE brunt_vaisala_freq
 
-  !>
-  !! in-block variant of vert_intp_full2half_cell_3d
-  !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
-  SUBROUTINE intrpl_full2half_inblk( i_startidx,      & !in
-    &                                i_endidx,        & !in
-    &                                i_startlev_half, & !in
-    &                                i_endlev_half,   & !in
-    &                                nproma,          & !in
-    &                                nlev,            & !in
-    &                                p_wgtfac,        & !in
-    &                                p_wgtfacq,       & !in
-    &                                p_wgtfacq1,      & !in
-    &                                p_var_full,      & !in
-    &                                p_var_half       ) !inout
-
-    ! in/out variables
-
-    INTEGER,  INTENT(IN)    :: i_startidx      !< start index for horizontal loop within block
-    INTEGER,  INTENT(IN)    :: i_endidx        !< end index for horizontal loop within block
-    INTEGER,  INTENT(IN)    :: i_startlev_half !< start index for vertical loop
-    INTEGER,  INTENT(IN)    :: i_endlev_half   !< end index for vertical loop
-    INTEGER,  INTENT(IN)    :: nproma          !< number of grid columns in block
-    INTEGER,  INTENT(IN)    :: nlev            !< number of full levels
-    REAL(wp), INTENT(IN)    :: p_wgtfac(:,:)   !< (nproma,nlev+1) weighting factor 
-                                               !< for interpolation from full to half levels
-    REAL(wp), INTENT(IN)    :: p_wgtfacq(:,:)  !< (nproma,3) weighting factor 
-                                               !< for quadratic extrapolation to surface
-    REAL(wp), INTENT(IN)    :: p_wgtfacq1(:,:) !< (nproma,3) weighting factor 
-                                               !< for quadratic extrapolation to model top
-    REAL(wp), INTENT(IN)    :: p_var_full(:,:) !< (nproma,nlev) input field to be interplated
-    REAL(wp), INTENT(INOUT) :: p_var_half(:,:) !< (nproma,nlev+1) interpolated output field
-
-    ! local variables
-
-    INTEGER :: startlev, endlev, nlevp1
-    INTEGER :: jk, jc
-
-    !------------------------------------------------
-
-    nlevp1 = nlev + 1
-
-    IF (i_startlev_half == 1) THEN
-      startlev = 2
-    ELSE
-      startlev = i_startlev_half
-    ENDIF
-
-    IF (i_endlev_half == nlevp1) THEN
-      endlev = nlev
-    ELSE
-      endlev = i_endlev_half
-    ENDIF
-
-    ! interpolation of entire column except for model bottom and top
-    DO jk = startlev, endlev
-      DO jc = i_startidx, i_endidx
-        p_var_half(jc,jk) = p_wgtfac(jc,jk) * p_var_full(jc,jk)               &
-          &               + ( 1._wp - p_wgtfac(jc,jk) ) * p_var_full(jc,jk-1)
-      ENDDO  !jc
-    ENDDO  !jk
-
-    ! quadratic extrapolation to model top if required
-    IF (i_startlev_half == 1) THEN
-      DO jc = i_startidx, i_endidx
-        p_var_half(jc,i_startlev_half) = p_wgtfacq1(jc,1) * p_var_full(jc,1) & 
-          &                            + p_wgtfacq1(jc,2) * p_var_full(jc,2) & 
-          &                            + p_wgtfacq1(jc,3) * p_var_full(jc,3)  
-      ENDDO  !jc
-    ENDIF
-
-    ! quadratic extrapolation to model bottom if required
-    IF (i_endlev_half == nlev + 1) THEN
-      DO jc = i_startidx, i_endidx
-        p_var_half(jc,i_endlev_half) = p_wgtfacq(jc,1) * p_var_full(jc,nlev)   & 
-          &                          + p_wgtfacq(jc,2) * p_var_full(jc,nlev-1) & 
-          &                          + p_wgtfacq(jc,3) * p_var_full(jc,nlev-2) 
-      ENDDO  !jc
-    ENDIF
-
-  END SUBROUTINE intrpl_full2half_inblk
-   
 !-------------------------------------------------------------------------------
 
 END MODULE mo_nh_vert_interp_les

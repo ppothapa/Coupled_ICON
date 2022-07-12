@@ -52,6 +52,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_rcucov_trop
   PUBLIC :: tune_texc
   PUBLIC :: tune_qexc
+  PUBLIC :: tune_rcapqadv
   PUBLIC :: tune_minsnowfrac
   PUBLIC :: tune_box_liq
   PUBLIC :: tune_box_liq_asy
@@ -154,6 +155,9 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< Excess fraction of grid-scale QV used in test parcel ascent
     &  tune_qexc
+
+  REAL(wp) :: &                    !< Factor for dynamic correction of cape closure
+    &  tune_rcapqadv
 
   REAL(wp) :: &                    !< Minimum value to which the snow cover fraction is artificially reduced
     &  tune_minsnowfrac            !  in case of melting show (in case of idiag_snowfrac = 20)

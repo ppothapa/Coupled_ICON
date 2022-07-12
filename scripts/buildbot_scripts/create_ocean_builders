@@ -1,19 +1,21 @@
 #!/bin/bash
+
+cd $(dirname "${BASH_SOURCE[0]}")
 set -x
 # create all builders for a given list
-list=$1
-if [ x$list == x ]; then
+listname=$1
+if [ x$listname == x ]; then
   echo "Builbot list name missing"
   exit 1
 fi
 
-./mklist $list
+./create_all_builders $listname
 
-# mistral builders
-machine=mistral
-./addmachine $machine --list $list
-#---------------------------------------------------------------
-./addbuilder MISTRAL_gcc            --machine $machine       --build_script="./config/buildbot/mistral_gcc"                         --configureflags="--with-mpi --with-openmp"                --builderflags="Active"  --list $list
+./set_builder_flags build_only --builders MISTRAL_nag_serial --list $listname
+./set_builder_flags Inactive --builders "DAINT_CPU_cce DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+./set_builder_flags Inactive --builders "DWD_nec DWD_nec_hybrid DWD_nec_yac2" --list $listname
+./set_builder_flags Inactive --builders "MISTRAL_intel18_pio MISTRAL_intel17_hybrid_mixed MISTRAL_intel18_hybrid_mixed MISTRAL_intel18_pio" --list $listname
+./set_builder_flags Inactive --builders "BREEZE_gcc BREEZE_gcc_openmp BREEZE_intel BREEZE_intel_openmp BREEZE_nag" --list $listname
 
 ./addbuilder MISTRAL_intel17          --machine $machine     --build_script="./config/buildbot/mistral_intel17"              --configureflags="--with-mpi --without-openmp"             --builderflags="Active"  --list $list
 ./addbuilder MISTRAL_intel17_hybrid   --machine $machine     --build_script="./config/buildbot/mistral_intel17_hybrid"       --configureflags="--with-mpi --with-openmp"                --builderflags="Active"  --list $list

@@ -307,7 +307,8 @@ cat > NAMELIST_${EXPNAME} << EOF
  direct_albedo_water          = 3
  albedo_whitecap              = 1
  llw_cloud_scat               = .true.
- ecRad_data_path              = '${ecRad_data_path}' 
+ ecRad_data_path              = '${ecRad_data_path}'
+ isolrad                      = 1
 /
 
 &ls_forcing_nml

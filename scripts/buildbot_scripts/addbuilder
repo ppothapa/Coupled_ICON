@@ -1,27 +1,39 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 #==============================================================================
 # create an experiment list
 #==============================================================================
-from buildbot_builders import *
-#from model_paths import *
-import argparse
+from buildbot_config import BuildbotConfig
+from util import WhitespaceSeperatedList, WhitespaceSeperatedDict
+from icon_paths import buildbot_list_path
 
-parser = argparse.ArgumentParser(description='Add a builder to a machine.')
-parser.add_argument('builder_name', type=str,  help='builder name')
-parser.add_argument('--build_script', dest="build_script", type=str, help='the configure wrapper file', required=False, default='./configure')
-parser.add_argument('--configureflags', dest="configureflags", type=str, help='the configure flags for the buildber', required=False,default='')
-parser.add_argument('--builderflags', dest="builderflags", type=str, help='the builder flags', required=True)
-parser.add_argument('--machine', dest="machine_name", type=str, help='the machine name to add the builder', required=True)
-parser.add_argument('--list', dest="list_name", type=str, help='the list', required=True)
+from pathlib import Path
+import pickle
+import click
+import sys
 
-args = parser.parse_args()
-  
-thisList  = buildbot_experiments_list(args.list_name)
-thisList.add_builder(args.builder_name, args.machine_name, args.build_script, args.configureflags, args.builderflags)
-thisList.write()
-print("Builder "+args.builder_name+" is added to the Machine "+ args.machine_name+".")
+@click.command()
+@click.argument("builder_name", type=str)
+@click.option("--build_script", type=str, help="the configure wrapper file")
+@click.option("--configureflags", type=WhitespaceSeperatedDict(), help="the configure flags for the builder")
+@click.option("--builderflags", "--builderflag", "builderflag", type=click.Choice(["Active", "Inactive", "build_only"]), help="the builder flag (Active, Inactive, build_only)", required=True)
+@click.option("--machine", type=str, help="the machine name to add the builder", required=True)
+@click.option("--list", "list_name", type=str, help="the list", required=True)
+def addbuilder(builder_name, build_script, configureflags, builderflag, machine, list_name):
 
-quit()
+    full_list_name = buildbot_list_path / list_name
+
+    if Path(full_list_name).exists():
+      thisList = BuildbotConfig.from_pickle(full_list_name)
+    else:
+      print("did not find experiment list {}".format(full_list_name))
+      sys.exit(1)
+
+    thisList.add_builders(builder_name, machine, build_script, config=configureflags, flag=builderflag)
+
+    thisList.to_pickle(full_list_name)
+
+if __name__ == "__main__":
+    addbuilder()
 
 

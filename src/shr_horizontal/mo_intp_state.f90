@@ -227,7 +227,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
   LOGICAL :: lsdi         = .FALSE. ,&
              llpi         = .FALSE. ,&
              llpim        = .FALSE. ,&
-             lparcelfreq2 = .FALSE. ,&
              llsc         = .FALSE. ,&
              llsd         = .FALSE. ,&
              llde         = .FALSE.
@@ -625,12 +624,11 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
                             lsdi         = is_variable_in_output(var_name="sdi2")
     IF (.NOT. lsdi)         llpi         = is_variable_in_output(var_name="lpi")
     IF (.NOT. llpi)         llpim        = is_variable_in_output(var_name="lpi_max")
-    IF (.NOT. llpim)        lparcelfreq2 = is_variable_in_output(var_name="parcelfreq2")
-    IF (.NOT. lparcelfreq2) llsc         = atm_phy_nwp_config(MAX(1,ptr_patch%id))%lstoch_expl 
+    IF (.NOT. llpim)        llsc         = atm_phy_nwp_config(MAX(1,ptr_patch%id))%lstoch_expl 
     IF (.NOT. llsc)         llsd         = atm_phy_nwp_config(MAX(1,ptr_patch%id))%lstoch_sde
     IF (.NOT. llsd)         llde         = atm_phy_nwp_config(MAX(1,ptr_patch%id))%lstoch_deep
     
-    ptr_int%cell_environ%is_used = lsdi .OR. llpi .OR. llpim .OR. lparcelfreq2 .OR. llsc .OR. llsd .OR. llde
+    ptr_int%cell_environ%is_used = lsdi .OR. llpi .OR. llpim .OR. llsc .OR. llsd .OR. llde
 
     IF ( ptr_int%cell_environ%is_used ) THEN
       !

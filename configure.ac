@@ -1305,18 +1305,7 @@ either disable usage of the radiative transfer model for TOVS dnl
 (--disable-rttov) or set FCFLAGS, LDFLAGS and LIBS accordingly])])dnl
 dnl We need an extra check for the availability of the "god stuff (generalized
 dnl optical depth, RTTOV smoothing)" when the DACE modules are enabled.
-],
-  [AS_VAR_IF([enable_dace], [yes],
-     [dnl
-dnl It is technically possible to build the DACE modules without RTTOV library
-dnl but it is currently unclear whether that makes sense. Therefore, we fail
-dnl the configuration when the modules are enabled but usage of the library is
-dnl disabled:
-      AC_MSG_ERROR([unsupported combination of the configure options: dnl
-you are trying to configure with the DACE modules for data assimilation but dnl
-usage of the radiative transfer model for TOVS is disabled: either disable dnl
-the DACE modules for data assimilation (--disable-dace) or enable usage of dnl
-the radiative transfer model for TOVS (--enable-rttov)])])])
+])
 
 AS_VAR_IF([enable_sct], [yes],
   [AS_VAR_IF([with_external_sct], [yes],

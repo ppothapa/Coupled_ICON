@@ -66,7 +66,7 @@ MODULE mo_ensemble_pert_config
             range_rprcon, range_qexc, range_turlen, range_a_hshr, range_rain_n0fac, range_box_liq_asy,  &
             itype_pert_gen, timedep_pert, range_a_stab, range_c_diff, range_q_crit, range_thicklayfac,  &
             box_liq_sv, thicklayfac_sv, box_liq_asy_sv, range_lhn_coef, range_lhn_artif_fac,            &
-            range_fac_lhn_down, range_fac_lhn_up
+            range_fac_lhn_down, range_fac_lhn_up, range_fac_ccqc
 
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for ensemble perturbations
@@ -139,6 +139,12 @@ MODULE mo_ensemble_pert_config
 
   REAL(wp) :: &                    !< Asymmetry factor for sub-grid scale liquid cloud diagnostic
     &  range_box_liq_asy, rnd_box_liq_asy       ! (in case of inwp_cldcover = 1)
+
+  REAL(wp) :: &                    !< Factor for CLC-QC relationship in cloud cover scheme
+    &  range_fac_ccqc              ! (in case of inwp_cldcover = 1)
+
+  REAL(wp), ALLOCATABLE :: &       !< Array of random numbers used for computing the above-mentioned perturbation
+    &  rnd_fac_ccqc(:)
 
   REAL(wp) :: &                    !< Minimum vertical diffusion for heat/moisture 
     &  range_tkhmin, rnd_tkhmin
@@ -286,7 +292,7 @@ MODULE mo_ensemble_pert_config
         CALL RANDOM_NUMBER(rnd_num)
       ENDDO
 
-      ALLOCATE(rnd_tkred_sfc(nclass_lu(1)))
+      ALLOCATE(rnd_tkred_sfc(nclass_lu(1)), rnd_fac_ccqc(nclass_lu(1)))
 
       CALL message('','')
       CALL message('','Perturbed external parameters: roughness length, root depth, min. stomata resistance,&
@@ -327,11 +333,15 @@ MODULE mo_ensemble_pert_config
         CALL RANDOM_NUMBER(rnd_num)
         rnd_tkred_sfc(i) = rnd_num
 
+        CALL RANDOM_NUMBER(rnd_num)
+        rnd_fac_ccqc(i) = rnd_num
+
       ENDDO
 
       ! Ensure that perturbations on VH and VE cores are the same
 #if defined (__SX__) || defined (__NEC_VH__)
       CALL p_bcast(rnd_tkred_sfc, p_io, p_comm_work)
+      CALL p_bcast(rnd_fac_ccqc, p_io, p_comm_work)
 #endif
 
       DEALLOCATE(rnd_seed)
@@ -710,7 +720,7 @@ MODULE mo_ensemble_pert_config
 
     INTEGER  :: jg, jb, jc, jt, ilu, iyr
     INTEGER  :: rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx
-    REAL(wp) :: wrnd_num(nproma), log_range_tkred, phaseshift
+    REAL(wp) :: wrnd_num(nproma), wrnd_num2(nproma), log_range_tkred, log_range_ccqc, phaseshift, phaseshift2
 
 #ifdef _OPENACC
      CALL message ('', 'compute_ensemble_pert: OpenACC version currently not tested')
@@ -720,6 +730,7 @@ MODULE mo_ensemble_pert_config
     rl_end   = min_rlcell_int
 
     log_range_tkred = LOG(range_tkred_sfc)
+    log_range_ccqc  = LOG(range_fac_ccqc)
 
     ! ssny = seconds since New Year
     ssny = (getDayOfYearFromDateTime(mtime_date)-1)*86400._wp + mtime_date%time%hour*3600._wp + &
@@ -733,6 +744,8 @@ MODULE mo_ensemble_pert_config
     ENDIF
     phaseshift = 20._wp*ssny/secyr
     phaseshift = phaseshift - INT(phaseshift)
+    phaseshift2 = 250._wp*ssny/secyr
+    phaseshift2 = phaseshift2 - INT(phaseshift2)
 
 
 !$OMP PARALLEL PRIVATE(jg,i_startblk,i_endblk)
@@ -741,19 +754,21 @@ MODULE mo_ensemble_pert_config
       i_startblk = p_patch(jg)%cells%start_block(rl_start)
       i_endblk   = p_patch(jg)%cells%end_block(rl_end)
 
-!$OMP DO PRIVATE(jb,jc,jt,i_startidx,i_endidx,wrnd_num,ilu)
+!$OMP DO PRIVATE(jb,jc,jt,i_startidx,i_endidx,wrnd_num,wrnd_num2,ilu)
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC DATA CREATE( rnd_tkred_sfc, wrnd_num ) PRESENT( ext_data, rnd_tkred_sfc, prm_diag )
-        !$ACC UPDATE DEVICE( rnd_tkred_sfc )
+        !$ACC DATA CREATE( rnd_tkred_sfc, rnd_fac_ccqc, wrnd_num, wrnd_num2 ) &
+        !$ACC PRESENT( ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc )
+        !$ACC UPDATE DEVICE( rnd_tkred_sfc, rnd_fac_ccqc )
 
         !$ACC PARALLEL DEFAULT(NONE)  ASYNC(1)
         !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jc = i_startidx, i_endidx
           wrnd_num(jc) = 0._wp
+          wrnd_num2(jc) = 0._wp
         ENDDO
         !$ACC LOOP SEQ
         DO jt = 1, ntiles_total+ntiles_water
@@ -762,12 +777,20 @@ MODULE mo_ensemble_pert_config
             DO jc = i_startidx, i_endidx
               ilu = MAX(1,ext_data(jg)%atm%lc_class_t(jc,jb,jt))
               wrnd_num(jc) = wrnd_num(jc) + rnd_tkred_sfc(ilu)*ext_data(jg)%atm%lc_frac_t(jc,jb,jt)
+              wrnd_num2(jc) = wrnd_num2(jc) + rnd_fac_ccqc(ilu)*ext_data(jg)%atm%lc_frac_t(jc,jb,jt)
             ENDDO
           ENDIF
         ENDDO
         !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jc = i_startidx, i_endidx
-          prm_diag(jg)%tkred_sfc(jc,jb) = EXP(log_range_tkred*SIN(pi2*(wrnd_num(jc)+phaseshift)))
+          IF (lrecomp) THEN
+            prm_diag(jg)%tkred_sfc(jc,jb) = EXP(log_range_tkred*SIN(pi2*(wrnd_num(jc)+phaseshift)))
+            prm_diag(jg)%fac_ccqc(jc,jb)  = EXP(log_range_ccqc*SIN(pi2*(wrnd_num2(jc)+phaseshift2)+&
+              4._wp*p_patch(jg)%cells%center(jc,jb)%lon+8._wp*p_patch(jg)%cells%center(jc,jb)%lat))
+          ELSE
+            prm_diag(jg)%tkred_sfc(jc,jb) = 1._wp
+            prm_diag(jg)%fac_ccqc(jc,jb)  = 1._wp
+          ENDIF
         ENDDO
         !$ACC END PARALLEL
 

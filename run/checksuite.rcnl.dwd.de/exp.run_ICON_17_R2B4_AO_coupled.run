@@ -950,6 +950,7 @@ rbf_scale_mode_ll        = 2
  albedo_whitecap         = 1
  llw_cloud_scat          = .true.
  ecRad_data_path         = '${ecRad_data_path}' 
+ isolrad                 = 1
 /
 &meteogram_output_nml
   lmeteogram_enabled     = .false., .false.
