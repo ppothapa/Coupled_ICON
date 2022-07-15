@@ -1,21 +1,16 @@
 #!/bin/bash
 
-set +x
+set -e
 
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
+if [ ! -z "${BB_NAME}" ]; then
+  set -x
+fi
+
 # Make sure we disable all features that require MPI:
 ${ICON_DIR}/config/dkrz/levante.nag --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-openmp
-
-if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
-  echo " ***** Configuration logs from '$(pwd)' ***** "
-  for f in $(find . -name 'config.log' -print); do
-    echo " ||||| '$f' ||||| "
-    cat "$f"
-  done
-  echo " ***** End of configuration logs from '$(pwd)' ***** "
-fi
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22
@@ -23,7 +18,8 @@ if [ ! -z "${BB_NAME}" ] ; then
 else
   MAKE_PROCS=8
 fi
-make -j ${MAKE_PROCS} || exit $?
+
+make -j ${MAKE_PROCS}
 
 # Check that the executable does not *directly* depend on MPI:
 executable='bin/icon'
