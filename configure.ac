@@ -1302,10 +1302,7 @@ AS_VAR_IF([enable_rttov], [yes],
      [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}_RTTOV_VERSION=13"])],
      [AC_MSG_FAILURE([unable to link a test program using RTTOV library: dnl
 either disable usage of the radiative transfer model for TOVS dnl
-(--disable-rttov) or set FCFLAGS, LDFLAGS and LIBS accordingly])])dnl
-dnl We need an extra check for the availability of the "god stuff (generalized
-dnl optical depth, RTTOV smoothing)" when the DACE modules are enabled.
-])
+(--disable-rttov) or set FCFLAGS, LDFLAGS and LIBS accordingly])])])
 
 AS_VAR_IF([enable_sct], [yes],
   [AS_VAR_IF([with_external_sct], [yes],
