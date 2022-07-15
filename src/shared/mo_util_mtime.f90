@@ -43,6 +43,7 @@ MODULE mo_util_mtime
   PUBLIC :: mtime_convert_netcdf_units
   PUBLIC :: mtime_divide_timedelta
   PUBLIC :: mtime_timedelta_from_fseconds
+  PUBLIC :: mtime_timedelta_to_seconds
 
   TYPE t_datetime_ptr
     TYPE(datetime), POINTER :: ptr => NULL()

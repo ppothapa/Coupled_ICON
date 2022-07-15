@@ -194,7 +194,7 @@ MODULE mo_nh_stepping
   USE mo_opt_diagnostics,          ONLY: update_opt_acc, reset_opt_acc, &
     &                                    calc_mean_opt_acc, p_nh_opt_diag
   USE mo_var_list_register_utils,  ONLY: vlr_print_vls
-  USE mo_async_latbc_utils,        ONLY: recv_latbc_data, update_lin_interpolation
+  USE mo_async_latbc_utils,        ONLY: recv_latbc_data
   USE mo_async_latbc_types,        ONLY: t_latbc_data
   USE mo_nonhydro_types,           ONLY: t_nh_state, t_nh_diag
   USE mo_fortran_tools,            ONLY: swap, copy, init
@@ -2352,8 +2352,10 @@ MODULE mo_nh_stepping
 
           IF (num_prefetch_proc >= 1) THEN  ! Asynchronous LatBC read-in
 
-            ! update the coefficients for the linear interpolation
-            CALL update_lin_interpolation(latbc, datetime_local(jg)%ptr)
+            ! update the linear time interpolation weights 
+            ! latbc%lc1
+            ! latbc%lc2
+            CALL latbc%update_intp_wgt(datetime_local(jg)%ptr)
 
             IF (jg==1) THEN
               ! lateral boundary nudging (for DOM01 only)
@@ -2361,7 +2363,8 @@ MODULE mo_nh_stepping
                 &  p_nh_state(jg)%prog(n_new_rcf)%tracer,                             &
                 &  p_nh_state(jg)%metrics,p_nh_state(jg)%diag,p_int_state(jg),tsrat,  &
                 &  p_latbc_old=latbc%latbc_data(latbc%prev_latbc_tlev())%atm,         &
-                &  p_latbc_new=latbc%latbc_data(latbc%new_latbc_tlev)%atm)
+                &  p_latbc_new=latbc%latbc_data(latbc%new_latbc_tlev)%atm,            &
+                &  lc1=latbc%lc1, lc2=latbc%lc2)
             ENDIF
 
             IF (nudging_config(jg)%ltype(indg_type%ubn)) THEN
@@ -2379,7 +2382,8 @@ MODULE mo_nh_stepping
                 &  p_nh_state(jg)%prog(n_new_rcf)%tracer,                             &
                 &  p_nh_state(jg)%metrics,p_nh_state(jg)%diag,p_int_state(jg),tsrat,  &
                 &  p_latbc_old=ptr_latbc_data_atm_old,                                &
-                &  p_latbc_new=ptr_latbc_data_atm_new )
+                &  p_latbc_new=ptr_latbc_data_atm_new,                                &
+                &  lc1=latbc%lc1, lc2=latbc%lc2)
             ENDIF
 
           ENDIF
@@ -2393,7 +2397,7 @@ MODULE mo_nh_stepping
             CALL limarea_nudging_latbdy(p_patch(jg),p_nh_state(jg)%prog(nnew(jg)),  &
               &                         p_nh_state(jg)%prog(n_new_rcf)%tracer,      &
               &                         p_nh_state(jg)%metrics,p_nh_state(jg)%diag,p_int_state(jg), &
-              &                         tsrat,p_latbc_const=p_nh_state(jg)%prog(nsav2(jg)))
+              &                         tsrat, p_latbc_const=p_nh_state(jg)%prog(nsav2(jg)))
           ENDIF
 
         ENDIF

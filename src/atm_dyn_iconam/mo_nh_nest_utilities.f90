@@ -80,7 +80,7 @@ MODULE mo_nh_nest_utilities
   PUBLIC :: nest_boundary_nudging
   PUBLIC :: prep_rho_bdy_nudging
   PUBLIC :: density_boundary_nudging
-  PUBLIC :: limarea_nudging_bdy, limarea_nudging_latbdy, limarea_nudging_upbdy
+  PUBLIC :: limarea_nudging_latbdy, limarea_nudging_upbdy
   PUBLIC :: intp_nestubc_nudging
 
   CHARACTER(len=*), PARAMETER :: modname = 'mo_nh_nest_utilities'
@@ -1582,45 +1582,6 @@ CONTAINS
   END SUBROUTINE prep_rho_bdy_nudging
 
 
-  !>
-  !! Wrapper routine which executes LATERAL and UPPER boundary nudging 
-  !! for the limited-area mode.
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2013-21-10
-  !!
-  SUBROUTINE limarea_nudging_bdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-
-    TYPE(t_patch),      INTENT(IN)    :: p_patch
-    TYPE(t_nh_prog),    INTENT(INOUT)    :: p_prog
-    REAL(wp), CONTIGUOUS_ARGUMENT(inout) :: ptr_tracer(:,:,:,:)
-    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
-    TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
-    TYPE(t_int_state),  INTENT(IN)    :: p_int
-
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
-
-    ! alternative input data, either for constant or time-dependent lateral boundary conditions
-    TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
-    TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
-
-
-    ! lateral boundary nudging
-    !
-    CALL limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-
-    IF (nudging_config(p_patch%id)%ltype(indg_type%ubn)) THEN
-      ! upper boundary nudging
-      !
-      CALL limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                   p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-    ENDIF
-
-  END SUBROUTINE limarea_nudging_bdy
-
-
 
   !>
   !! This routine executes LATERAL boundary nudging for the limited-area mode.
@@ -1629,7 +1590,8 @@ CONTAINS
   !! Developed by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
+                                  p_int, tsrat, p_latbc_const, p_latbc_old,          &
+                                  p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1643,7 +1605,9 @@ CONTAINS
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
     TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
-
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc1     ! time interpolation weight
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc2     ! time interpolation weight
+    
     ! local variables
     INTEGER  :: jb, jc, jk, je, ic, nlev
     INTEGER  :: jg, nshift
@@ -1667,6 +1631,13 @@ CONTAINS
     ! R / p0ref
     rd_o_p0ref = rd / p0ref
 
+    IF (PRESENT(lc1) .AND. PRESENT(lc2)) THEN
+      wfac_old = lc1
+      wfac_new = lc2  
+    ELSE
+      wfac_old = -999._wp
+      wfac_new = -999._wp
+    ENDIF
 
     IF (nudging_config(jg)%ltype(indg_type%ubn)) THEN
       ! Upper boundary nudging is switched on
@@ -1769,10 +1740,14 @@ CONTAINS
       !$acc present(p_int, p_prog, p_diag, p_metrics)                                        &
       !$acc present(p_metrics%nudge_e_idx, p_metrics%nudge_e_blk)
 
+
+      ! check if interpolation weights are provided
+      IF (.NOT. PRESENT(lc1) .OR. .NOT. PRESENT(lc2)) THEN
+        CALL finish(routine,'missing interpolation weights wfac_old, wfac_new')
+      ENDIF
+
       ! compute differences between lateral boundary data and prognostic variables
 
-      wfac_old = latbc_config%lc1
-      wfac_new = latbc_config%lc2
 
 !$OMP PARALLEL
       IF (latbc_config%nudge_hydro_pres .AND. ltransport) THEN
@@ -1934,7 +1909,8 @@ CONTAINS
   !! Developed  by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
+                                  p_int, tsrat, p_latbc_const, p_latbc_old,         &
+                                  p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1948,6 +1924,8 @@ CONTAINS
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
     TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc1     ! time interpolation weight
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc2     ! time interpolation weight
 
     ! local variables
     INTEGER  :: jg
@@ -1972,6 +1950,14 @@ CONTAINS
 
     ke_nudge = nudging_config(jg)%ilev_end
 
+    IF (PRESENT(lc1) .AND. PRESENT(lc2)) THEN
+      wfac_old = lc1
+      wfac_new = lc2  
+    ELSE
+      wfac_old = -999._wp
+      wfac_new = -999._wp
+   ENDIF
+   
     !
     ! Check if hydrostatic or nonhydrostatic thermodynamic variables shall be used for computing nudging increments 
     lnudge_hydro_pres_ubn = nudging_config(jg)%thermdyn_type == ithermdyn_type%hydrostatic .AND. ltransport
@@ -1996,8 +1982,6 @@ CONTAINS
 
     ELSE IF (PRESENT(p_latbc_old) .AND. PRESENT(p_latbc_new)) THEN ! Mode for time-dependent lateral boundary data
 
-      wfac_old = latbc_config%lc1
-      wfac_new = latbc_config%lc2
 
       !$acc data present(p_diag%temp,p_diag%pres,p_diag%tempv,p_prog%rho)                    &
       !$acc present(ptr_tracer,p_prog%theta_v,p_prog%exner,p_prog%vn)                        &
@@ -2011,7 +1995,11 @@ CONTAINS
       !$acc present(p_latbc_old%theta_v,p_latbc_old%rho,p_latbc_old%vn)                      &
       !$acc present(p_latbc_new%theta_v,p_latbc_new%rho,p_latbc_new%vn)                      &
       !$acc present(p_prog, p_diag, p_metrics, p_patch)
- 
+
+      IF (.NOT. PRESENT(lc1) .OR. .NOT. PRESENT(lc2)) THEN
+        CALL finish(routine,'missing interpolation weights wfac_old, wfac_new')
+      ENDIF
+
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
       i_startblk = p_patch%cells%start_block(grf_bdywidth_c+1)

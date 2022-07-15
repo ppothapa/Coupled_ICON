@@ -3718,7 +3718,7 @@ source (IFS, COSMO or a coarser-resolution ICON run)
 %\hline
 \textbf{dtime\_latbc}&
 R &
-10800.0& s
+-1.0& s
 &
 Time difference between two consecutive boundary data. 
 (Upper bound for asynchronous read-in: 1 day = 86400 s.)
@@ -3784,6 +3784,7 @@ itype\_latbc = 1
 %\hline
 \textbf{latbc\_path}&
 C &
+'./'
 &
 &
 Absolute path to boundary data.
@@ -3794,7 +3795,7 @@ itype\_latbc = 1
 %\hline
 latbc\_boundary\_grid&
 C &
-'' ''
+' '
 &
 &
 Grid file defining the lateral boundary. Empty string means: whole

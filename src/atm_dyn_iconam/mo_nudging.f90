@@ -44,7 +44,6 @@ MODULE mo_nudging
   USE mo_physical_constants,    ONLY: rd, cvd_o_rd, p0ref, vtmpc1, rcpd
   USE mo_run_config,            ONLY: iqv, iqc
   USE mo_parallel_config,       ONLY: nproma
-  USE mo_limarea_config,        ONLY: latbc_config
   USE mo_nudging_config,        ONLY: t_nudging_config, indg_type, indg_var, ithermdyn_type
   USE mo_upatmo_config,         ONLY: t_upatmo_config
   USE mo_model_domain,          ONLY: t_patch
@@ -53,7 +52,6 @@ MODULE mo_nudging
   USE mo_async_latbc_types,     ONLY: t_latbc_data
   USE mtime,                    ONLY: datetime
   USE mo_loopindices,           ONLY: get_indices_c, get_indices_e
-  USE mo_async_latbc_utils,     ONLY: update_lin_interpolation
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
   USE mo_timer,                 ONLY: timer_start, timer_stop, timer_global_nudging
 
@@ -90,7 +88,7 @@ CONTAINS !..................................................................
     ! In/out variables
     TYPE(t_patch),            TARGET,  INTENT(IN)    :: p_patch           !< Grid/patch info
     TYPE(t_nh_state),         TARGET,  INTENT(INOUT) :: p_nh_state        !< Prognostic and diagnostic variables etc.
-    TYPE(t_latbc_data),       TARGET,  INTENT(IN)    :: latbc             !< Data structure for async latbc prefetching
+    TYPE(t_latbc_data),       TARGET,  INTENT(INOUT) :: latbc             !< Data structure for async latbc prefetching
     TYPE(datetime),           POINTER, INTENT(IN)    :: mtime_datetime    !< Date/time information
     INTEGER,                           INTENT(IN)    :: ndyn_substeps     !< Number of dynamics' substeps
     INTEGER,                           INTENT(IN)    :: nnew, nnew_rcf    !< Time level indices
@@ -114,11 +112,6 @@ CONTAINS !..................................................................
     !   before the actual call of the nudging procedures), 
     !   we introduced this interface, to reduce the optical overload 
     !   of 'src/atm_dyn_iconam/mo_nh_stepping'
-    !
-    ! - In contrast to 'nudging_config', 'latbc_config' became no input, 
-    !   because subroutines such as 'update_lin_interpolation' change 'latbc_config' 
-    !   and access it via a USE-binding in their modules. 
-    !   So there is no reason for us, to do differently here
     !
     ! - This subroutine is called in 'mo_nh_stepping: integrate_nh' 
     !   only if global nudging is switched on (NOT nudging in general!) 
@@ -164,10 +157,11 @@ CONTAINS !..................................................................
       ! Asynchronous read-in of driving data:
       !
       ! The following subroutine updates the weights: 
-      ! * latbc_config%lc1 
-      ! * latbc_config%lc2 
-      ! for interpolation of the driving data in time 
-      CALL update_lin_interpolation(latbc, mtime_datetime)
+      ! * latbc%lc1 
+      ! * latbc%lc2 
+      ! for interpolation of the driving data in time
+      CALL latbc%update_intp_wgt(mtime_datetime)
+
 
       ! Set pointer to past and future state of driving data,
       ! from which their current state is estimated by 
@@ -176,8 +170,8 @@ CONTAINS !..................................................................
       p_latbc_new => latbc%latbc_data( latbc%new_latbc_tlev    )%atm
 
       ! Get weights for time interpolation of driving data
-      wfac_old = latbc_config%lc1
-      wfac_new = latbc_config%lc2
+      wfac_old = latbc%lc1
+      wfac_new = latbc%lc2
       
       !---------------------------------------------------------------
       !                 Update diagnostic variables
