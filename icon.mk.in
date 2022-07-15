@@ -379,14 +379,14 @@ distclean: clean
 	rm -f run/collect.set-up.info run/set-up.info
 	rm -f $(dep_files)
 	rm -f $(dir_files)
-	@for dir in $(bindir) $(moddir); do \
+	@for dir in $(bindir) $(libdir) $(moddir); do \
           if test -d "$$dir"; then \
             echo "find '$$dir' -type d -empty -delete"; \
             find "$$dir" -type d -empty -delete; \
           fi; \
 	done
 	@if test '.' != '$(srcdir)'; then \
-	  for dir in $(subdirs) $(libdir) externals run; do \
+	  for dir in $(subdirs) externals run; do \
 	    if test -d "$$dir"; then \
 	      echo "find '$$dir' -type d -empty -delete"; \
 	      find "$$dir" -type d -empty -delete; \

@@ -36,7 +36,6 @@
 /srclist
 /version.c
 /xmod
-/build
 
 # Dist stage files:
 /icon-*.tar.bz2
@@ -65,13 +64,24 @@ GTAGS
 /core.[0-9][0-9][0-9][0-9][0-9][0-9]
 /core.[0-9][0-9][0-9][0-9][0-9][0-9][0-9]
 
-# Other files:
-*#
+# Byte-compiled and optimized python files:
+*.pyc
+*.pyo
+__pychache__
+
+# IDE files:
 *.settings
-*~
 .cproject
 .history
+.idea
 .project
+
+# Common user-generated files:
+/build
+
+# Other files (possibly redundant legacy of the old .gitignore):
+*#
+*~
 .status.file
 /Rakefile
 /tempList
