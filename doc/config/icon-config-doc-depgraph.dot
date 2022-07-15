@@ -8,7 +8,7 @@ digraph ICON {
 
 		"ICON" [shape=box; fillcolor=white; fontsize=20; penwidth=2.0];
 		"ICON" -> {"STDC++"; "CUDA"; "CUB"; "MPI"; "NetCDF-Fortran"; "RTE+RRTMGP";
-			       "ECRAD"; "RTTOV"; "SCT"; "YAXT"; "CDI*"; "CDI-PIO*"; "SERIALBOX";
+			       "ECRAD"; "RTTOV"; "SCT"; "YAXT"; "CDI"; "SERIALBOX";
 			       "MTIME"; "BLAS"; "LAPACK"; "YAC"; "ICON-TIXI";
 			       "ECCODES"; "HDF5"; "ZLIB"};
 
@@ -38,11 +38,11 @@ digraph ICON {
 		"YAXT" [shape=box];
 		"YAXT" -> {"MPI"};
 
-		"CDI*" [shape=box; fillcolor="#47A1F1"];
-		"CDI*" -> {"ECCODES"; "NetCDF-C"; "AEC / SZIP"};
+		"CDI" [shape=box; fillcolor="#47A1F1"];
+		"CDI" -> {"MPI"; "YAXT"; "PPM"; "ECCODES"; "NetCDF-C"; "AEC / SZIP"};
 
-		"CDI-PIO*";
-		"CDI-PIO*" -> {"MPI"; "YAXT"; "CDI*"};
+		"PPM" [shape=box; fillcolor="#DEF1D1"];
+		"PPM" -> {"MPI"};
 
 		"SERIALBOX";
 		"SERIALBOX" -> {"STDC++"; "NetCDF-C"};
@@ -79,8 +79,7 @@ digraph ICON {
 
 		{
 			rank=sink;
-			bottomNode [label="* CDI and CDI-PIO are technically one package. Unfortunately, the bundled version of CDI cannot currently provide CDI-PIO features.\lTherefore, an external version of CDI (with CDI-PIO features enabled) needs to be provided if those features are required."; shape=plaintext; fillcolor=white];
-			# bottomNode [shape=point; style=invis];
+			bottomNode [shape=point; style=invis];
 		}
 	}
 
@@ -97,6 +96,5 @@ digraph ICON {
 		}
 	}
 
-	bottomNode -> optionalIcon:nw [style=invis];
-	# bottomNode -> external:nw [style=invis];
+	bottomNode -> external:nw [style=invis];
 }

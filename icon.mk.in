@@ -513,6 +513,9 @@ $(bundled_subdirs):
 # Build the bundled mtime and yaxt before the bundled yac:
 externals/yac: $(filter externals/mtime externals/yaxt,$(bundled_subdirs))
 
+# Build the bundled yaxt and ppm before the bundled cdi:
+externals/cdi: $(filter externals/yaxt externals/ppm,$(bundled_subdirs))
+
 # Relink executables if any of the source files of the bundled libraries
 # is updated (the semicolon is required to support parallel rebuild):
 $(BUNDLED_LIBFILES): $(bundled_subdirs);

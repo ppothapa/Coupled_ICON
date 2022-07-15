@@ -46,3 +46,6 @@
 [submodule "externals/art"]
 	path = externals/art
 	url = ../../art/art.git
+[submodule "externals/ppm"]
+	path = externals/ppm
+	url = ../../jahns/ppm.git

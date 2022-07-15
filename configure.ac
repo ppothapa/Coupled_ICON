@@ -479,6 +479,12 @@ AC_ARG_WITH([external-yaxt],
   [AS_IF([test x"$withval" != xno], [with_external_yaxt=yes])],
   [with_external_yaxt=no])
 
+AC_ARG_WITH([external-ppm],
+  [AS_HELP_STRING([--with-external-ppm],
+     [use external PPM library @<:@default=no@:>@])],
+  [AS_IF([test x"$withval" != xno], [with_external_ppm=yes])],
+  [with_external_ppm=no])
+
 AC_ARG_WITH([external-cdi],
   [AS_HELP_STRING([--with-external-cdi],
      [use external CDI library @<:@default=no@:>@])],
@@ -861,11 +867,11 @@ dnl One of the topological orderings of the ICON dependency graph
 dnl (run ./utils/icon_sorted_deps.sh):
 dnl
 dnl '-licon_tixi', '-lyac', '-lmtime', '-lSerialboxFortranShared',
-dnl '-lcdi_f2003 -lcdipio -lcdi', '-leccodes_f90', '-lyaxt -lyaxt_c', '-lsct',
-dnl '-lrttov_other -lrttov_emis_atlas (etc.)', '-llapack -lblas (or other)',
-dnl '-lradiation -lifsrrtm -lutilities -lifsaux', '-lrrtmgp -lrte',
-dnl '-lnetcdff', '-lhdf5hl_fortran -lhdf5_fortran', '-lz', '-lgomp (or other)',
-dnl '-lmpifort -lmpi (or other)'
+dnl '-lcdi_f2003 -lcdipio -lcdi', '-lscalesppmcore', '-leccodes_f90',
+dnl '-lyaxt -lyaxt_c', '-lsct', '-lrttov_other -lrttov_emis_atlas (etc.)',
+dnl '-llapack -lblas (or other)', '-lradiation -lifsrrtm -lutilities -lifsaux',
+dnl '-lrrtmgp -lrte', '-lnetcdff', '-lhdf5hl_fortran -lhdf5_fortran', '-lz',
+dnl '-lgomp (or other)', '-lmpifort -lmpi (or other)'
 dnl
 dnl We check these dependencies in the reverse order.
 
@@ -920,7 +926,7 @@ available], [icon_cv_have_mpi],
        implicit none
        integer :: error
        call mpi_init(error)]])],
-     [icon_cv_have_mpi=yes])])
+        [icon_cv_have_mpi=yes])])
    AS_VAR_IF([icon_cv_have_mpi], [yes],
      [AS_IF([test x"$icon_dace_enabled_or_needed" = xyes || dnl
 test x"$enable_rttov" = xyes],
@@ -1425,7 +1431,6 @@ version of YAXT library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
          [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
          [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
          [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([dependency-tracking])],
          [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
          [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
          [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
@@ -1443,8 +1448,7 @@ version of YAXT library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
          [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
          [BUILD_LDFLAGS=], [BUILD_LIBS=],
          [--enable-silent-rules="$enable_silent_rules"],
-         [--disable-maintainer-mode], [--enable-dependency-tracking],
-         [--disable-shared], [--enable-static],
+         [--disable-maintainer-mode], [--disable-shared], [--enable-static],
          [--with-regard-for-quality="$enable_mpi_checks"],
          [--with-on-demand-check-programs], [--without-example-programs],
          [--without-perf-programs]])
@@ -1492,6 +1496,81 @@ available], [icon_cv_have_eccodes],
      [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}GRIBAPI"])],
      [AC_MSG_FAILURE([unable to link a test program using the Fortran 90 dnl
 interfaces of ECCODES library: set FCFLAGS, LDFLAGS and LIBS accordingly])])])
+
+AS_VAR_IF([with_external_ppm], [yes],
+dnl ICON currently does not use PPM directly, therefore we do not check
+dnl 'whether the C interface of PPM library is available' when an external
+dnl version of PPM library is used. It is the job of the configure script of
+dnl CDI.
+  [],
+dnl
+  [icon_bundled_ppm_needed=no
+   AS_IF(
+     [test x"$enable_cdi_pio" = xyes && test x"$with_external_cdi" = xno],
+     [icon_bundled_ppm_needed=transitive_c])
+   AS_IF([test x"$icon_bundled_ppm_needed" != xno],
+     [icon_subdir_srcdir="$srcdir/externals/ppm"
+   icon_subdir_unique_file="src/core/core.c"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
+PPM library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either dnl
+disable usage of the parallel features of CDI (--disable-cdi-pio) or provide dnl
+an external version of PPM library (--with-external-ppm), or an external dnl
+version of CDI library (--with-external-cdi) by setting FCFLAGS, LDFLAGS and dnl
+LIBS accordingly])])
+   AC_ARG_VAR([ICON_PPM_FCFLAGS],
+     [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of PPM library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+   ICON_PPM_FCFLAGS=${ICON_PPM_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+   AC_ARG_VAR([ICON_PPM_CFLAGS],
+     [C compiler flags to be appended to CFLAGS when configuring the bundled
+version of PPM library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
+   ICON_PPM_CFLAGS=${ICON_PPM_CFLAGS-$ICON_BUNDLED_CFLAGS}
+   ACX_CONFIG_SUBDIR([externals/ppm],
+     [[BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
+      [PLATFORM_OPT_LIBM=*|IEEE_ARITHMETICROOT=*|IEEE_ARITHMETIC_FC_MOD=*],
+      [IEEE_ARITHMETIC_FC_LIB=*|IEEE_ARHMETIC_FCFLAGS=*|MPIROOT=*],
+      [MPI_FC_MOD=*|MPI_FC_LIB=*|MPI_FC_INCLUDE=*|MPI_C_INCLUDE=*|MPI_C_LIB=*],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mh-file])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([MPI])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([netcdf])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([hdf5])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([parmetis])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([metis])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([crypto])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([setup])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-root])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-fc-mod])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-fc-lib])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-mod])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-lib])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-include])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-lib])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([regard-for-quality])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([on-demand-check-programs])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([example-programs])]],
+     [[CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS"],
+      [FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS"],
+      [MPI_LAUNCH="$MPI_LAUNCH"], [PLATFORM_OPT_LIBM=], [IEEE_ARITHMETICROOT=],
+      [IEEE_ARITHMETIC_FC_MOD=], [IEEE_ARITHMETIC_FC_LIB=],
+      [IEEE_ARHMETIC_FCFLAGS=], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+      [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
+      [BUILD_LDFLAGS=], [BUILD_FCLDFLAGS=],
+      [--enable-silent-rules="$enable_silent_rules"],
+      [--disable-maintainer-mode], [--disable-shared], [--enable-static],
+      [--enable-MPI], [--disable-netcdf], [--disable-hdf5],
+      [--disable-parmetis], [--disable-metis], [--disable-crypto],
+      [--with-regard-for-quality="$enable_mpi_checks"],
+      [--with-on-demand-check-programs], [--without-example-programs],
+dnl There is currently no need in the Fortran interface of the library:
+      [FC=no]])
+   BUNDLED_LIBFILES="externals/ppm/src/.libs/libscalesppmcore.a dnl
+$BUNDLED_LIBFILES"])])
 
 AS_IF([test "x$enable_mpi" = xno && test "x$enable_cdi_pio" = xyes],
   [dnl
@@ -1607,12 +1686,7 @@ parallel I/O interface of CDI library: either disable usage of the parallel dnl
 features of CDI (--disable-cdi-pio) or set FCFLAGS, LDFLAGS and LIBS dnl
 accordingly])])])],
 dnl Configure the bundled version of CDI:
-  [AS_VAR_IF([enable_cdi_pio], [yes],
-     [AC_MSG_ERROR([the bundled version of CDI library does not currently dnl
-support the parallel features: either disable usage of the parallel features dnl
-of CDI (--disable-cdi-pio) or provide an external version of CDI library dnl
-(--with-external-cdi) by setting FCFLAGS, LDFLAGS and LIBS accordingly])])
-   icon_subdir_srcdir="$srcdir/externals/cdi"
+  [icon_subdir_srcdir="$srcdir/externals/cdi"
    icon_subdir_unique_file="src/cdi.h"
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the bundled version of CDI dnl
@@ -1629,8 +1703,12 @@ version of CDI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_CDI_CFLAGS=${ICON_CDI_CFLAGS-$ICON_BUNDLED_CFLAGS}
    ACX_CONFIG_SUBDIR([externals/cdi],
      [[BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*],
+      [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
+      [PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*],
+      [PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mpi])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([iso-c-interface])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cf-interface])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
@@ -1638,59 +1716,107 @@ version of CDI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([grib])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cgribex])],
       [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cdi-app])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mpi])],
+      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([ppm-dist-array])],
       [ACX_CONFIG_SUBDIR_PATTERN_WITH([threads])],
       [ACX_CONFIG_SUBDIR_PATTERN_WITH([szlib])],
       [ACX_CONFIG_SUBDIR_PATTERN_WITH([netcdf])],
       [ACX_CONFIG_SUBDIR_PATTERN_WITH([eccodes])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([grib_api])]],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([grib_api])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-include])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-lib])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-mod])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-lib])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([on-demand-check-programs])],
+      [ACX_CONFIG_SUBDIR_PATTERN_WITH([example-programs])]],
      [[CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS"],
       [FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"],
-dnl Disable the compilers we do not need.
+dnl No need to check for compatibility with F77.
       [F77=no],
-dnl Note that we need to set CXX to 'no' not only to disable the redundant
-dnl checks but also to avoid the inconsistency in the generation of the
-dnl 'postdeps' variable for Fortran (!!!) compiler inside the *.la files. We
-dnl care about those files because they are used when linking the test suite of
-dnl CDI (i.e. when running 'make check'). If you want to know more, take a look
-dnl at the macro _LT_LANG_FC_CONFIG in libtool.m4 and note that it does not
-dnl initialize the variable 'output_verbose_link_cmd' as it should but uses the
-dnl value that is set for the C++ compiler. Therefore, by disabling CXX we get
-dnl the same behaviour (still questionable but satisfactory for us) as if CDI
-dnl didn't use the C++ compiler at all (e.g. like in YAXT).
+dnl Avoid possible inconsistency in the generation of the 'postdeps' variable
+dnl for Fortran (!!!) compiler inside the *.la files. We care about those files
+dnl because they are used when linking the test suite of CDI (i.e. when running
+dnl 'make check'). If you want to know more, take a look at the macro
+dnl _LT_LANG_FC_CONFIG in libtool.m4 and note that it does not initialize the
+dnl variable 'output_verbose_link_cmd' as it should but uses the value that is
+dnl set for the C++ compiler. Therefore, by disabling CXX we get the same
+dnl behaviour (still questionable but satisfactory for us) as if CDI didn't use
+dnl the C++ compiler at all (e.g. like in YAXT).
       [CXX=no],
-      [MPI_LAUNCH="$MPI_LAUNCH"], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
-      [BUILD_LDFLAGS=], [BUILD_LIBS=], [BUILD_CXX=no], [BUILD_F77=no],
+      [MPI_LAUNCH="$MPI_LAUNCH"], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+      [MPI_FC_MOD=], [MPI_FC_LIB=], [PKG_CONFIG=], [YAXT_C_INCLUDE=],
+      [YAXT_C_LIB=], [YAXT_FC_MOD=], [YAXT_FC_LIB=], [PPM_CORE_C_INCLUDE=],
+      [PPM_CORE_C_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=], [BUILD_LDFLAGS=],
+      [BUILD_LIBS=], [BUILD_MPI_C_LIB=], [BUILD_MPI_FC_LIB=], [BUILD_CC=],
+      [BUILD_CXX=], [BUILD_FC=], [BUILD_F77=],
       [--enable-silent-rules="$enable_silent_rules"],
-      [--disable-maintainer-mode], [--enable-iso-c-interface],
-      [--disable-cf-interface], [--disable-shared], [--enable-static],
-      [--enable-grib], [--enable-cgribex], [--disable-cdi-app], [--disable-mpi],
-      [--without-threads], [--without-szlib], [--with-netcdf],
+      [--disable-maintainer-mode], [--enable-mpi="$enable_cdi_pio"],
+      [--enable-iso-c-interface], [--enable-cf-interface="$enable_cdi_pio"],
+      [--disable-shared], [--enable-static], [--enable-grib],
+      [--enable-cgribex], [--disable-cdi-app],
+      [--enable-ppm-dist-array="$enable_cdi_pio"], [--without-threads],
+      [--without-szlib], [--with-netcdf],
 dnl Currently, we don't have full control on choosing the GRIB2 backend (e.g.
 dnl grib_api, eccodes) due to the limitations of the configure script of
-dnl libcdi. Therefore, we set --without-eccodes --with-grib_api=$enable_grib2
+dnl libcdi. Therefore, we set --with-eccodes=$enable_grib2 --without-grib_api
 dnl unconditionally. This way, the configure script of libcdi enables support
 dnl for grib2 regardless of whether grib_api or eccodes library is provided
 dnl with the LDFLAGS and LIBS variables.
-      [--without-eccodes], [--with-grib_api="$enable_grib2"],
+      [--with-eccodes="$enable_grib2"], [--without-grib_api],
+      [--with-on-demand-check-programs], [--without-example-programs],
 dnl The configure script of CDI runs nc-config to check for the features of the
 dnl provided NetCDF library. The script might not be available or might belong
 dnl to another NetCDF installation. Therefore, we enforce enabling of NetCDF2
 dnl and NetCDF4 features by setting the corresponding cache variables on the
 dnl command line.
       [acx_cv_have_netcdf2=yes], [acx_cv_have_netcdf4=yes],
+dnl For the same reasons as above, we tell CDI not to use the Parallel-NetCDF
+dnl features by default. If the version of the provided NetCDF library is not
+dnl very old (i.e. 4.3.3 or later) and the library is configured with the
+dnl Parallel-NetCDF features enabled, CDI will override the default value.
+      [acx_cv_have_pnetcdf=no],
 dnl Disable unwanted extra dependencies.
       [acx_cv_have_libnc_dap=no], [acx_cv_have_nc4hdf5=no],
       [ac_cv_lib_uuid_uuid_generate=no], [ac_cv_func_uuid_create=no]])
-dnl Currently, we cannot properly override the environment variables BUILD_CC
-dnl and BUILD_FC on the command line when configuring CDI because the variables
-dnl are used even if they are set to empty strings. We could set the variables
-dnl on the command line to "$CC" and "$FC", respectively, but that would discard
-dnl any compiler flags that the configure script of CDI might append to CC and
-dnl FC instead of CFLAGS and FCFLAGS. As a temporary solution we unset BUILD_CC
-dnl and BUILD_FC here (and hope that they will not be unexpectedly set anywhere
-dnl below) since it should not affect any other bundled libraries.
-   AS_UNSET([BUILD_CC]); AS_UNSET([BUILD_FC])
+   AS_VAR_IF([enable_cdi_pio], [yes],
+dnl To enable the test suite of CDI, we need to provide the configure script of
+dnl the library with information on how to link to the bundled YAXT and PPM
+dnl (when they are used). The general approach that we currently follow is to
+dnl avoid building the shared versions of the bundled libraries and link to the
+dnl static ones without the -L and -l flags. Instead, to avoid possible
+dnl ambiguity, the linking is done by passing paths to static libraries as
+dnl positional arguments for the linker. That, however, does not work well with
+dnl libtool scripts as they inject all files referred by the positional
+dnl arguments into the generated static libraries (archives). For example,
+dnl libcdipio.a will contain libyaxt_c.a if we tell the configure script of CDI
+dnl that linking to YAXT should be done with
+dnl "${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a". Although
+dnl that is usually fine with the GNU linker, the MacOS one might ignore the
+dnl whole library file:
+dnl   ld: warning: ignoring file libcdipio.a, building for macOS-x86_64 but attempting to link with file built for macOS-x86_64
+dnl To circumvent all those problems, we tell the configure of CDI to link the
+dnl test programs to the bundled YAXT and PPM using libtool .la files.
+     [AS_VAR_IF([with_external_yaxt], [no],
+        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/cdi],
+           [[acx_cv_c_include_yaxt_h=dnl
+"-I${icon_abs_top_builddir}/externals/yaxt/inst_headers"],
+            [acx_cv_option_search_xt_initialized_c=dnl
+"${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"],
+            [acx_cv_fortran_mod_yaxt=dnl
+"${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90"],
+            [acx_cv_option_search_xt_initialized_fc=dnl
+"${icon_abs_top_builddir}/externals/yaxt/src/libyaxt.la dnl
+${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"]])])
+      AS_VAR_IF([with_external_ppm], [no],
+        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/cdi],
+           [[acx_cv_c_include_ppm_ppm_h=dnl
+"-I${icon_abs_top_builddir}/externals/ppm/include"],
+            [ac_cv_header_ppm_dist_array_h=yes],
+            [acx_cv_option_search_PPM_initialize_c=dnl
+"${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la"]])])
+      AS_VAR_APPEND([bundled_includes],
+        ["${FC_INC_FLAG}${srcdir}/externals/cdi/src "])
+      BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdipio.a $BUNDLED_LIBFILES"])
    AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/cdi/src "])
    BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdi_f2003.a dnl
 externals/cdi/src/.libs/libcdi.a $BUNDLED_LIBFILES"])
@@ -1930,11 +2056,13 @@ AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
 
 dnl Collect extra dependencies of the bundled libraries:
 AC_CONFIG_COMMANDS_PRE([dnl
+dnl We use $ac_link below, make sure it is set for the Fortran compiler:
+   AC_LANG([Fortran])
    ACX_CONFIG_SUBDIR_IFELSE([externals/sct],
 dnl The bundled version of SCT, which we link statically, might require
 dnl additional linker flags:
 dnl   1) a flag enabling linking to librt;
-dnl   2) a flag enabling the Fortran compiler to link C code that uses OpenMP.
+dnl   2) a flag enabling linking to C code that uses OpenMP.
      [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
 [SCT library])
       AC_CACHE_VAL([icon_cv_SCT_extra_libs],
@@ -1945,28 +2073,84 @@ dnl First, we check whether we already have '-lrt' in the LIBS:
 dnl If that is not the case, check whether the configure script of SCT "decided"
 dnl to include '-lrt' in the LIBS of SCT:
            [ACX_CONFIG_SUBDIR_VAR([icon_sct_LIBS], [externals/sct], [@LIBS@])
+            icon_sct_LIBS=dnl
+`AS_ECHO(["$icon_sct_LIBS"]) | sed 's/^ *//;s/ *$//'`
             AS_CASE([" $icon_sct_LIBS "],
 dnl If yes, we need to link with '-lrt':
               [*' -lrt '*], [icon_cv_SCT_extra_libs='-lrt'])])
 dnl Second, get the flags enabling the Fortran compiler to link C code that uses
 dnl OpenMP.
-         AS_VAR_IF([enable_openmp], [yes],
-           [ACX_CONFIG_SUBDIR_VAR([sct_OPENMP_FC_C_FLAGS], [externals/sct],
-               [@OPENMP_FC_C_FLAGS@])
+         ACX_CONFIG_SUBDIR_VAR([icon_sct_OPENMP_FC_C_FLAGS], [externals/sct],
+            [@OPENMP_FC_C_FLAGS@])
+         icon_sct_OPENMP_FC_C_FLAGS=dnl
+`AS_ECHO(["$icon_sct_OPENMP_FC_C_FLAGS"]) | sed 's/^ *//;s/ *$//'`
 dnl Check, whether we already have the flag in the linking command:
-            AS_IF([test -n "$sct_OPENMP_FC_C_FLAGS"],
-              [AS_CASE([" $FC $FCFLAGS $ICON_FCFLAGS $LDFLAGS $LIBS "],
+         AS_IF([test -n "$icon_sct_OPENMP_FC_C_FLAGS"],
+           [eval "icon_link_cmd=\"$ac_link\""
+            AS_CASE([" $icon_link_cmd "],
 dnl (note that the following does not properly account for multiple flags, which
 dnl is, however, very unlikely):
-                 [*" $sct_OPENMP_FC_C_FLAGS "*], [],
+              [*" $icon_sct_OPENMP_FC_C_FLAGS "*], [],
 dnl If that is not the case, we need to link with the flag:
-                 [icon_cv_SCT_extra_libs=dnl
-"$sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}"])dnl
-])])])
+              [icon_cv_SCT_extra_libs=dnl
+"$icon_sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}"])])])
       AS_VAR_IF([icon_cv_SCT_extra_libs], [],
         [AC_MSG_RESULT([none needed])],
         [AC_MSG_RESULT([$icon_cv_SCT_extra_libs])
-         LIBS="$icon_cv_SCT_extra_libs $LIBS"])])])
+         LIBS="$icon_cv_SCT_extra_libs $LIBS"])])
+dnl
+   ACX_CONFIG_SUBDIR_IFELSE([externals/cdi],
+dnl The bundled version of CDI, which we link statically, might require an
+dnl additional linker flags enabling linking to librt:
+     [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
+[CDI library])
+      AC_CACHE_VAL([icon_cv_CDI_extra_libs],
+        [icon_cv_CDI_extra_libs=
+         ACX_CONFIG_SUBDIR_VAR([icon_cv_CDI_extra_libs],
+           [externals/cdi], [@LIBRT@])
+         icon_cv_CDI_extra_libs=dnl
+`AS_ECHO(["$icon_cv_CDI_extra_libs"]) | sed 's/^ *//;s/ *$//'`
+         AS_IF([test "x$icon_cv_CDI_extra_libs" = x && dnl
+test "x$enable_cdi_pio" = xyes],
+           [dnl
+dnl We are here because either CDI does not depend on librt or the dependency
+dnl is hidden by the libtool script of CDI (e.g. it found a libtool .la file
+dnl that has '-lrt' among the 'dependency_libs', overlinked to librt and the
+dnl configure script of CDI reported that no additional linker flags are
+dnl required to link to the library, hence LIBRT was set to an empty string).
+dnl The absence of the dependency on librt is very unlikely and here we could
+dnl simply set the variable icon_cv_CDI_extra_libs to '-lrt'. However, we use
+dnl this case as an example of how such issues can be resolved in general.
+dnl
+dnl Note that libcdipio.la does not exist yet, therefore we cannot parse it.
+dnl Instead, we are going to run the libtool script of CDI in a way that is
+dnl close to how the make program will call it:
+            ACX_CONFIG_SUBDIR_VAR([icon_cdi_LINK], [externals/cdi],
+              ["@SHELL@ ${icon_abs_top_builddir}/externals/cdi/libtool dnl
+--tag=CC --mode=link @CC@ @CFLAGS@ @LDFLAGS@ -o libconftest.la @LIBS@"])
+dnl The libtool script generates some extra files and subdirectories, which we
+dnl would like to remove easily. Therefore, we create a temporary subdirectory
+dnl and switch to it:
+            AS_MKDIR_P([conftest.dir])
+            cd conftest.dir
+dnl If calling the libtool script of CDI is successful and the created dummy
+dnl libtool file 'libconftest.la' has '-lrt' among the 'dependency_libs', we set
+dnl icon_cv_CDI_extra_libs to '-lrt':
+            AS_IF([AC_TRY_EVAL([icon_cdi_LINK]) >&AS_MESSAGE_LOG_FD],
+              [ac_try=dnl
+["grep \"dependency_libs=.*[ ']-lrt[ '].*\" libconftest.la"]
+               AS_IF([AC_TRY_EVAL([ac_try]) >&AS_MESSAGE_LOG_FD],
+                 [icon_cv_CDI_extra_libs='-lrt'])])
+            cd ..
+            rm -rf conftest.dir])
+dnl We do not need icon_cv_CDI_extra_libs if its value is already in the LIBS:
+         AS_IF([test -n "$icon_cv_CDI_extra_libs"],
+           [AS_CASE([" $LIBS "],
+              [*" $icon_cv_CDI_extra_libs "*], [icon_cv_CDI_extra_libs=])])])
+      AS_VAR_IF([icon_cv_CDI_extra_libs], [],
+        [AC_MSG_RESULT([none needed])],
+        [AC_MSG_RESULT([$icon_cv_CDI_extra_libs])
+         LIBS="$icon_cv_CDI_extra_libs $LIBS"])])])
 
 ##################### PREPROCESSORS AND AUXILIARY COMMANDS #####################
 
