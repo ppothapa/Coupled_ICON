@@ -22,6 +22,7 @@
 /depgen.f90.config
 /deplist.config
 /icon.mk
+/inlib.mk
 
 # Build stage files:
 *.a

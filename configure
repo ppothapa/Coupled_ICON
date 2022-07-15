@@ -9310,6 +9310,8 @@ fi
 if test "x$enable_pgi_inlib" = xyes; then :
   PGI_INLIB_ENABLED=''
 
+   ac_config_files="$ac_config_files inlib.mk"
+
 else
   PGI_INLIB_ENABLED='#'
 
@@ -10177,6 +10179,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "claw.mk") CONFIG_FILES="$CONFIG_FILES claw.mk" ;;
+    "inlib.mk") CONFIG_FILES="$CONFIG_FILES inlib.mk" ;;
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "depgen.c.config") CONFIG_FILES="$CONFIG_FILES depgen.c.config" ;;

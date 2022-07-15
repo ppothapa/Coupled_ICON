@@ -2164,7 +2164,8 @@ AS_IF([test x"$enable_serialization" != xno],
   [AC_SUBST([SB2_ENABLED], ['#'])])
 
 AS_VAR_IF([enable_pgi_inlib], [yes],
-  [AC_SUBST([PGI_INLIB_ENABLED], [''])],
+  [AC_SUBST([PGI_INLIB_ENABLED], [''])
+   AC_CONFIG_FILES([inlib.mk])],
   [AC_SUBST([PGI_INLIB_ENABLED], ['#'])])
 
 AC_SUBST([CLAW_NEW_DRIVER_ENABLED])

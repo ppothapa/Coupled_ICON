@@ -223,46 +223,26 @@ dir_files:= $(filter-out ./.dirstamp,$(addsuffix .dirstamp,$(sort $(dir $(dep_fi
 # Name of the inline library (a directory):
 @PGI_INLIB_ENABLED@pgi_inlib_name:= $(libdir)/icon.il
 
+# List of procedures to be inlined:
+@PGI_INLIB_ENABLED@pgi_inlib_procedures:=
+
+# List of original Fortran '.f90' files containing $(pgi_inlib_procedures):
+@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=
+
+# Two lengthy space-separated lists of procedures and files that control the
+# contents of the inline library - $(pgi_inlib_procedures) and
+# $(pgi_inlib_f90_files) - are set in a separate file for the sake of
+# readability:
+@PGI_INLIB_ENABLED@include inlib.mk
+
+# Auxiliary function. Turns a space-separated list into a comma-separated one.
+join_comma_symbol:= ,
+join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
+
 # Additional PGI/NVIDIA Fortran compiler flags enabling the inline library
 # generation and usage:
-
-# function and subroutine names to be inlined
-@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name),name:jac,laxfr_upflux,laxfr_upflux_v,isExtremumSpurious,mc_limiter,create_rdm_seed_in_time,create_rdm_seed,reff_crystal,reff_droplet,ko_index,gefr,clct2ww,fqvs,fthetae,esat_water,dewpoint_water,nwp_dyn_gust,calc_ustar,swdir_s,rel_hum,rel_hum_ifs,pade_eval_1,make_normalized,make_normalized,sat_pres_water,sat_pres_ice,spec_humi,satur,cuadjtq,sfc_albedo_dir_rg,sfc_albedo_dir_taylor,sfc_albedo_dir_zaengl,sfc_albedo_dir_yang,sfc_albedo_dir_briegleb,cubidiag,foedelta,foeldcp,foeewl,foeewi,foealfa,foeewm,foedem,foeldcpm,foealfcu,foeewmcu,foedemcu,foeldcpmcu,foelhmcu,foeles_v,foeies_v,foeewm_v,foeewmcu_v,sat_pres_water,sat_pres_ice,spec_humi,qsat_rho,dqsatdT_rho,dqsatdT_ice,latent_heat_vaporization,latent_heat_sublimation,alpha0_char,zexner,zpsat_w,zqvap_old,zqvap,zdqsdt_old,zdqsdt,flake_radflux,flake_driver,flake_buoypar,flake_snowdensity,flake_snowheatconduct,alb_seaice_equil,zsf_heav,zsf_psat_iw,zsf_dqvdt_iw,watrcon_RT,watrdiff_RT,is_close_r,is_close_s,is_close_i,get_indices_c,get_indices_e,get_indices_v,ccw,lintersect,line_intersect,time_avg
-
-# acc routines that are not inlined:
-# functions and subroutines in submodules dace and rte-rrtmgp
-# name:blk_no,name:idx_no,name:idx_1d, from src/configure_model/mo_parallel_config.f90
-# name:binary_search,name:get_local_index,name:get_valid_local_index_prev,name:get_valid_local_index_next, from src/parallel_infrastructure/mo_decomposition_tools.f90
-# name:nwp_con_gust from src/atm_phy_nwp/mo_util_phys.f90
-
+@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
 @PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name),reshape
-
-# List of original Fortran '.f90' files containing functions that need to be
-# inlined:
-@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=src/advection/mo_advection_quadrature.f90 \
-src/advection/mo_advection_utils.f90 \
-src/advection/mo_advection_vlimit.f90 \
-src/atm_phy_nwp/mo_nwp_ecrad_utilities.f90 \
-src/atm_phy_nwp/mo_nwp_ww.f90 \
-src/atm_phy_nwp/mo_opt_nwp_diagnostics.f90 \
-src/atm_phy_nwp/mo_util_phys.f90 \
-src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90 \
-src/atm_phy_schemes/gscp_cloudice.f90 \
-src/atm_phy_schemes/gscp_graupel.f90 \
-src/atm_phy_schemes/gscp_hydci_pp_ice.f90 \
-src/atm_phy_schemes/mo_adjust.f90 \
-src/atm_phy_schemes/mo_albedo.f90 \
-src/atm_phy_schemes/mo_cuflxtends.f90 \
-src/atm_phy_schemes/mo_cufunctions.f90 \
-src/atm_phy_schemes/mo_satad.f90 \
-src/atm_phy_schemes/turb_utilities.f90 \
-src/lnd_phy_schemes/sfc_flake.f90 \
-src/lnd_phy_schemes/sfc_seaice.f90 \
-src/lnd_phy_schemes/sfc_terra.f90 \
-src/serialization/mo_ser_common.f90 \
-src/shared/mo_loopindices.f90 \
-src/shared/mo_math_utilities.f90 \
-src/shared/mo_statistics.f90									
 
 ########################################
 
@@ -446,14 +426,21 @@ $(lib_files): | $(dir_files)
 @PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): silent_FC= $(silent_FCIL)
 @PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): make_FCFLAGS += $(pgi_inlib_in_FCFLAGS)
 
-# All object that can be built with the inline library depend on it:
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): $(pgi_inlib_name)
+# All objects that can be built with the inline library depend on it:
+#   The compiler documentation suggests that we use $(pgi_inlib_name) as a
+#   target and as a prerequisite but $(pgi_inlib_name) is a directory and using
+#   directories as makefile targets is generally a bad idea. In particular, a
+#   target directory is not removed on error, which means that if 'make' is
+#   interrupted during the generation of the library, the subsequent 'make'
+#   command will consider the library successfully created and erroneously
+#   proceed with the next step. Therefore we use the table of contents of the
+#   library, which is a regular file, as a target and as a dependency:
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): $(pgi_inlib_name)/TOC
 
 # PGI/NVIDIA inline library generation rule (note that the source files are
-# provided to the compiler in the topological order and we also have to delete
-# the partially generated library if the compiler fails):
-@PGI_INLIB_ENABLED@$(pgi_inlib_name): $(pgi_inlib_prereq_mod_files) $(pgi_inlib_obj_files:.@OBJEXT@=.f90) | $(dir_files)
-@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $@ && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter-out $(pgi_inlib_prereq_mod_files),$^) || (ec=$$?; rm -rf $@; exit $$ec)
+# provided to the compiler in the topological order):
+@PGI_INLIB_ENABLED@$(pgi_inlib_name)/TOC: $(pgi_inlib_prereq_mod_files) $(pgi_inlib_obj_files:.@OBJEXT@=.f90) inlib.mk | $(dir_files)
+@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $(@D) && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter %.f90,$^)
 
 # Fortran compilation rule:
 %.@OBJEXT@: %.f90 | $(dir_files) $(bundled_subdirs)
