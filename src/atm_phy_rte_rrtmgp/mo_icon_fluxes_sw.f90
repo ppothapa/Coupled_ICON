@@ -108,7 +108,7 @@ contains
     endif
 
     !DA TODO: this has to run on GPU
-    band2gpt(:,:) = spectral_disc%band2gpt(:,:)
+    band2gpt(:,:) = spectral_disc%get_band_lims_gpoint()
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
     !$ACC parallel default(present) copyin(band2gpt) vector_length(64)

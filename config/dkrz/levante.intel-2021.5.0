@@ -71,15 +71,6 @@ XML2_LIBS='-lxml2'
 
 ################################################################################
 
-# We need to patch RTE-RRTMGP to resolve the vectorization problem
-# (see config/dkrz/levante_intel_patches/README.md):
-patch_cmd='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
-# Apply the patch but do not fail if it has already been applied
-# (does not work correcly if there are several hunks in the patch file):
-patch_out=$( ${patch_cmd} -d "${icon_dir}/externals/rte-rrtmgp" -i "${script_dir}/levante_intel_patches/gas_fix.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
-
-################################################################################
-
 BUILD_ENV="export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:\${LD_LIBRARY_PATH}\"; export PATH=\"${HDF5_ROOT}/bin:\${PATH}\"; ${BLAS_LAPACK_BUILD_ENV}"
 
 CC="${MPI_ROOT}/bin/mpicc"

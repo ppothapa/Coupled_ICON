@@ -181,17 +181,11 @@ MPI_LAUNCH="${MPI_LAUNCH}" \
 ${EXTRA_CONFIG_ARGS} \
 "$@"
 
-
-enable_dace=no
 for arg in "$@"; do
   case $arg in
     -help | --help | --hel | --he | -h | -help=r* | --help=r* | --hel=r* | --he=r* | -hr* | -help=s* | --help=s* | --hel=s* | --he=s* | -hs*)
       test -n "${EXTRA_CONFIG_ARGS}" && echo '' && echo "This wrapper script ('$0') calls the configure script with the following extra arguments, which might override the default values listed above: ${EXTRA_CONFIG_ARGS}"
       exit 0 ;;
-    -enable-dace=no | --enable-dace=no | -disable-dace | --disable-dace)
-      enable_dace=no ;;
-    -enable-dace | -enable-dace=* | --enable-dace | --enable-dace=* )
-      enable_dace=yes ;;
   esac
 done
 
@@ -207,14 +201,3 @@ if test $(pwd) != $(cd "${icon_dir}"; pwd); then
   ln -sf ${icon_dir}/vertical_coord_tables
 fi
 
-if test "x${enable_dace}" = xyes; then
-  cat >&2 <<_EOF
-
-WARNING: you are trying to configure with the NAG compiler and the DACE modules
-for data assimilation. You might have to patch the RTE+RRTMGP toolbox for
-radiation calculations to build ICON successfully.
-
-  See "${icon_dir}/config/buildbot/breeze_nag_patches/README.md" for more details.
-
-_EOF
-fi
