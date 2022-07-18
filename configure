@@ -624,6 +624,8 @@ ICON_MTIME_CFLAGS
 ICON_MTIME_FCFLAGS
 ICON_CDI_CFLAGS
 ICON_CDI_FCFLAGS
+ICON_PPM_CFLAGS
+ICON_PPM_FCFLAGS
 ICON_YAXT_CFLAGS
 ICON_YAXT_FCFLAGS
 ICON_SCT_CFLAGS
@@ -759,6 +761,7 @@ with_external_ecrad
 with_external_rte_rrtmgp
 with_external_sct
 with_external_yaxt
+with_external_ppm
 with_external_cdi
 with_external_mtime
 with_external_yac
@@ -791,6 +794,8 @@ ICON_SCT_FCFLAGS
 ICON_SCT_CFLAGS
 ICON_YAXT_FCFLAGS
 ICON_YAXT_CFLAGS
+ICON_PPM_FCFLAGS
+ICON_PPM_CFLAGS
 ICON_CDI_FCFLAGS
 ICON_CDI_CFLAGS
 ICON_MTIME_FCFLAGS
@@ -1559,6 +1564,7 @@ Optional Packages:
                           use external RTE+RRTMGP library [default=no]
   --with-external-sct     use external SCT library [default=no]
   --with-external-yaxt    use external YAXT library [default=no]
+  --with-external-ppm     use external PPM library [default=no]
   --with-external-cdi     use external CDI library [default=no]
   --with-external-mtime   use external MTIME library [default=no]
   --with-external-yac     use external YAC library [default=no]
@@ -1630,6 +1636,13 @@ Some influential environment variables:
   ICON_YAXT_CFLAGS
               C compiler flags to be appended to CFLAGS when configuring the
               bundled version of YAXT library [default=$ICON_BUNDLED_CFLAGS]
+  ICON_PPM_FCFLAGS
+              Fortran compiler flags to be appended to FCFLAGS when
+              configuring the bundled version of PPM library
+              [default=$ICON_BUNDLED_FCFLAGS]
+  ICON_PPM_CFLAGS
+              C compiler flags to be appended to CFLAGS when configuring the
+              bundled version of PPM library [default=$ICON_BUNDLED_CFLAGS]
   ICON_CDI_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of CDI library
@@ -2983,6 +2996,17 @@ fi
 
 
 
+# Check whether --with-external-ppm was given.
+if test "${with_external_ppm+set}" = set; then :
+  withval=$with_external_ppm; if test x"$withval" != xno; then :
+  with_external_ppm=yes
+fi
+else
+  with_external_ppm=no
+fi
+
+
+
 # Check whether --with-external-cdi was given.
 if test "${with_external_cdi+set}" = set; then :
   withval=$with_external_cdi; if test x"$withval" != xno; then :
@@ -3692,24 +3716,26 @@ done
 ICON_BUNDLED_FCFLAGS=${ICON_BUNDLED_FCFLAGS-$ICON_FCFLAGS}
 
 
-         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Fortran compiler flag needed to compile preprocessed .f90 files" >&5
-$as_echo_n "checking for Fortran compiler flag needed to compile preprocessed .f90 files... " >&6; }
-   if ${acx_cv_fc_pp_srcext_f90+:} false; then :
+   acx_ext_save=$ac_ext
+            { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Fortran flag to compile preprocessed .f90 files" >&5
+$as_echo_n "checking for Fortran flag to compile preprocessed .f90 files... " >&6; }
+if ${acx_cv_fc_pp_srcext_f90+:} false; then :
   $as_echo_n "(cached) " >&6
 else
-  acx_cv_fc_pp_srcext_f90=unknown
-      acx_ext_save=$ac_ext
-      acx_fcflags_srcext_save=$ac_fcflags_srcext
-      ac_ext=f90
-      case $acx_fc_pp_srcext_ext in #(
-  [fF]77) :
-    acx_fc_pp_srcext_try=f77-cpp-input ;; #(
-  *) :
-    acx_fc_pp_srcext_try=f95-cpp-input ;;
+  ac_ext=f90
+ac_fcflags_pp_srcext_save=$ac_fcflags_srcext
+ac_fcflags_srcext=
+acx_cv_fc_pp_srcext_f90=unknown
+case $ac_ext in #(
+  [fF]77) ac_try=f77-cpp-input;; #(
+  *) ac_try=f95-cpp-input;;
 esac
-      for ac_fcflags_srcext in '' -ftpp -fpp -Tf '-fpp -Tf' -xpp=fpp -Mpreprocess '-e T' '-e Z' -cpp -xpp=cpp -qsuffix=cpp=f90 "-x $acx_fc_pp_srcext_try" +cpp -Cpp; do
-        cat > conftest.$ac_ext <<_ACEOF
+for ac_flag in none -ftpp -fpp -Tf "-fpp -Tf" -xpp=fpp -Mpreprocess "-e T" "-e Z" \
+               -cpp -xpp=cpp -qsuffix=cpp=f90 "-x $ac_try" +cpp -Cpp; do
+  test "x$ac_flag" != xnone && ac_fcflags_srcext="$ac_flag"
+  cat > conftest.$ac_ext <<_ACEOF
       program main
+
 #if 0
 #include <ac_nonexistent.h>
       choke me
@@ -3719,6 +3745,7 @@ _ACEOF
 if ac_fn_fc_try_compile "$LINENO"; then :
   cat > conftest.$ac_ext <<_ACEOF
       program main
+
 #if 1
 #include <ac_nonexistent.h>
       choke me
@@ -3728,38 +3755,42 @@ _ACEOF
 if ac_fn_fc_try_compile "$LINENO"; then :
 
 else
-  acx_cv_fc_pp_srcext_f90=$ac_fcflags_srcext
+  acx_cv_fc_pp_srcext_f90=$ac_flag; break
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-        test "x$acx_cv_fc_pp_srcext_f90" != xunknown && break
-      done
-      ac_fcflags_srcext=$acx_fcflags_srcext_save
-      ac_ext=$acx_ext_save
-fi
+done
+rm -f conftest.$ac_objext conftest.f90
+ac_fcflags_srcext=$ac_fcflags_pp_srcext_save
 
-   if test -n "$acx_cv_fc_pp_srcext_f90"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $acx_cv_fc_pp_srcext_f90" >&5
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $acx_cv_fc_pp_srcext_f90" >&5
 $as_echo "$acx_cv_fc_pp_srcext_f90" >&6; }
+if test "x$acx_cv_fc_pp_srcext_f90" = xunknown; then
+  :
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-$as_echo "none needed" >&6; }
+  ac_fc_srcext=f90
+  if test "x$acx_cv_fc_pp_srcext_f90" = xnone; then
+    ac_fcflags_srcext=""
+    FCFLAGS_f90=""
+  else
+    ac_fcflags_srcext=$acx_cv_fc_pp_srcext_f90
+    FCFLAGS_f90=$acx_cv_fc_pp_srcext_f90
+  fi
+
+
 fi
 
-   if test "x$acx_cv_fc_pp_srcext_f90" = xunknown; then :
-  ac_fcflags_srcext=
-      FCFLAGS_f90=$ac_fcflags_srcext
+         if test "x$acx_cv_fc_pp_srcext_f90" = xunknown; then :
+  ac_ext=$acx_ext_save
       { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 as_fn_error $? "unable to detect Fortran compiler flag needed to compile preprocessed .f90 files
 See \`config.log' for more details
 ${icon_usr_note}" "$LINENO" 5; }
 else
-  ac_fcflags_srcext=$acx_cv_fc_pp_srcext_f90
-      FCFLAGS_f90=$ac_fcflags_srcext
-      ac_fc_srcext=f90
-      ac_ext=$ac_fc_srcext
+  ac_ext=$ac_fc_srcext
 
 fi
 
@@ -4001,47 +4032,71 @@ $as_echo "$cross_compiling" >&6; }
 
    rm -f conftest.$ac_ext conftest$ac_exeext conftest.out
 
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for fortran flag needed to accept unlimited column source lines" >&5
-$as_echo_n "checking for fortran flag needed to accept unlimited column source lines... " >&6; }
+               acx_fc_line_length_none_in_cache=no
    if ${acx_cv_fc_line_length_unlimited+:} false; then :
+  case $acx_cv_fc_line_length_unlimited in #(
+  none) :
+    acx_fc_line_length_none_in_cache=yes ;; #(
+  '') :
+    acx_cv_fc_line_length_unlimited=none ;; #(
+  *) :
+     ;;
+esac
+fi
+   acx_save_FCFLAGS=$FCFLAGS
+   ac_fc_line_len_string=unlimited
+	               ac_fc_line_len=0
+                       ac_fc_line_length_test='
+      subroutine longer_than_132(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,'\
+'arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16,arg17,arg18,arg19)'
+: ${ac_fc_line_len_string=$ac_fc_line_len}
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Fortran flag needed to accept $ac_fc_line_len_string column source lines" >&5
+$as_echo_n "checking for Fortran flag needed to accept $ac_fc_line_len_string column source lines... " >&6; }
+if ${acx_cv_fc_line_length_unlimited+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   acx_cv_fc_line_length_unlimited=unknown
-      acx_flag_suffix=0
-         cat > conftest.$ac_ext <<_ACEOF
-
-      subroutine longer_than_132(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16,arg17,arg18,arg19)
-        implicit none
-        integer :: arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16,arg17,arg18,arg19
+ac_fc_line_length_FCFLAGS_save=$FCFLAGS
+for ac_flag in none \
+	       -ffree-line-length-none -ffixed-line-length-none \
+	       -ffree-line-length-huge \
+	       -ffree-line-length-$ac_fc_line_len \
+	       -ffixed-line-length-$ac_fc_line_len \
+	       -qfixed=$ac_fc_line_len -Mextend \
+	       -$ac_fc_line_len -extend_source \
+	       -W$ac_fc_line_len -W +extend_source +es -wide --wide -w -e \
+               -f -Wf,-f -xline
+do
+  test "x$ac_flag" != xnone && FCFLAGS="$ac_fc_line_length_FCFLAGS_save $ac_flag"
+  cat > conftest.$ac_ext <<_ACEOF
+$ac_fc_line_length_test
+        implicit integer (a)
       end subroutine
 _ACEOF
-      acx_save_FCFLAGS=$FCFLAGS
-      for acx_flag in '' \
-               -ffree-line-length-none -ffixed-line-length-none \
-               -ffree-line-length-huge \
-               -ffree-line-length-$acx_flag_suffix \
-               -ffixed-line-length-$acx_flag_suffix \
-               -qfixed=$acx_flag_suffix -Mextend \
-               -$acx_flag_suffix -extend_source \
-               -W$acx_flag_suffix -W +extend_source +es -wide --wide -w -e \
-               -f -Wf,-f -xline; do
-        FCFLAGS="$acx_save_FCFLAGS $acx_flag"
-        if ac_fn_fc_try_compile "$LINENO"; then :
-  acx_cv_fc_line_length_unlimited=$acx_flag
+if ac_fn_fc_try_compile "$LINENO"; then :
+  acx_cv_fc_line_length_unlimited=$ac_flag; break
 fi
-rm -f core conftest.err conftest.$ac_objext
-        test "x$acx_cv_fc_line_length_unlimited" != xunknown && break
-      done
-      rm -f conftest.$ac_ext
-      FCFLAGS=$acx_save_FCFLAGS
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+done
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+FCFLAGS=$ac_fc_line_length_FCFLAGS_save
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $acx_cv_fc_line_length_unlimited" >&5
+$as_echo "$acx_cv_fc_line_length_unlimited" >&6; }
+if test "x$acx_cv_fc_line_length_unlimited" = xunknown; then
+  :
+else
+  if test "x$acx_cv_fc_line_length_unlimited" != xnone; then
+    FCFLAGS="$FCFLAGS $acx_cv_fc_line_length_unlimited"
+  fi
+
 fi
 
-   if test -n "$acx_cv_fc_line_length_unlimited"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $acx_cv_fc_line_length_unlimited" >&5
-$as_echo "$acx_cv_fc_line_length_unlimited" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-$as_echo "none needed" >&6; }
+
+   FCFLAGS=$acx_save_FCFLAGS
+         if test "x$acx_cv_fc_line_length_unlimited$acx_fc_line_length_none_in_cache" = xnoneno; then :
+  acx_cv_fc_line_length_unlimited=
 fi
    if test "x$acx_cv_fc_line_length_unlimited" = xunknown; then :
   { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
@@ -5477,6 +5532,8 @@ elif $CC --version 2>/dev/null | grep '^gcc' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=gnu
 elif $CC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=amd
+elif $CC --version 2>&1 | grep '^Apple \(LLVM\|clang\) version' >/dev/null 2>&1; then :
+  acx_cv_c_compiler_vendor=apple
 elif $CC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=clang
 else
@@ -5534,6 +5591,8 @@ fi ;; #(
 fi ;; #(
   amd) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
+  apple) :
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -E -n 's/^Apple (LLVM|clang) version ([0-9]+\.[0-9]+\.[0-9]+).*/\2/p'` ;; #(
   clang) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   *) :
@@ -7435,8 +7494,6 @@ fi
      ;; #(
   -enable-maintainer-mode|-enable-maintainer-mode=*|--enable-maintainer-mode|--enable-maintainer-mode=*|-disable-maintainer-mode|--disable-maintainer-mode) :
      ;; #(
-  -enable-dependency-tracking|-enable-dependency-tracking=*|--enable-dependency-tracking|--enable-dependency-tracking=*|-disable-dependency-tracking|--disable-dependency-tracking) :
-     ;; #(
   -enable-shared|-enable-shared=*|--enable-shared|--enable-shared=*|-disable-shared|--disable-shared) :
      ;; #(
   -enable-static|-enable-static=*|--enable-static|--enable-static=*|-disable-static|--disable-static) :
@@ -7473,7 +7530,7 @@ else
   acx_config_subdir_ignore_arg=no
 fi
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-dependency-tracking --disable-shared --enable-static --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs --without-perf-programs ; shift
+         set dummy CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs --without-perf-programs ; shift
       for acx_config_subdir_arg; do
         case $acx_config_subdir_arg in #(
   *\'*) :
@@ -7550,6 +7607,122 @@ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 as_fn_error $? "unable to link a test program using the Fortran 90 interfaces of ECCODES library: set FCFLAGS, LDFLAGS and LIBS accordingly
 See \`config.log' for more details
 ${icon_usr_note}" "$LINENO" 5; }
+fi
+fi
+
+if test "x$with_external_ppm" = xyes; then :
+
+else
+    icon_bundled_ppm_needed=no
+   if test x"$enable_cdi_pio" = xyes && test x"$with_external_cdi" = xno; then :
+  icon_bundled_ppm_needed=transitive_c
+fi
+   if test x"$icon_bundled_ppm_needed" != xno; then :
+  icon_subdir_srcdir="$srcdir/externals/ppm"
+   icon_subdir_unique_file="src/core/core.c"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of PPM library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable usage of the parallel features of CDI (--disable-cdi-pio) or provide an external version of PPM library (--with-external-ppm), or an external version of CDI library (--with-external-cdi) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
+fi
+      ICON_PPM_FCFLAGS=${ICON_PPM_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+      ICON_PPM_CFLAGS=${ICON_PPM_CFLAGS-$ICON_BUNDLED_CFLAGS}
+         acx_config_subdir_args_externals_ppm=
+   acx_config_subdir_ignore_arg=no
+   eval "set dummy $ac_configure_args"; shift
+   for acx_config_subdir_arg; do
+     if test "x$acx_config_subdir_ignore_arg" = xno; then :
+  case $acx_config_subdir_arg in #(
+  -cache-file|--cache-file|--cache-fil|--cache-fi| \
+           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
+           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
+           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
+    acx_config_subdir_ignore_arg=yes ;; #(
+  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
+           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
+           --config-cache|-C| \
+           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
+           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
+           --disable-option-checking) :
+     ;; #(
+  BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*) :
+     ;; #(
+  PLATFORM_OPT_LIBM=*|IEEE_ARITHMETICROOT=*|IEEE_ARITHMETIC_FC_MOD=*) :
+     ;; #(
+  IEEE_ARITHMETIC_FC_LIB=*|IEEE_ARHMETIC_FCFLAGS=*|MPIROOT=*) :
+     ;; #(
+  MPI_FC_MOD=*|MPI_FC_LIB=*|MPI_FC_INCLUDE=*|MPI_C_INCLUDE=*|MPI_C_LIB=*) :
+     ;; #(
+  -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
+     ;; #(
+  -enable-maintainer-mode|-enable-maintainer-mode=*|--enable-maintainer-mode|--enable-maintainer-mode=*|-disable-maintainer-mode|--disable-maintainer-mode) :
+     ;; #(
+  -enable-mh-file|-enable-mh-file=*|--enable-mh-file|--enable-mh-file=*|-disable-mh-file|--disable-mh-file) :
+     ;; #(
+  -enable-shared|-enable-shared=*|--enable-shared|--enable-shared=*|-disable-shared|--disable-shared) :
+     ;; #(
+  -enable-static|-enable-static=*|--enable-static|--enable-static=*|-disable-static|--disable-static) :
+     ;; #(
+  -enable-MPI|-enable-MPI=*|--enable-MPI|--enable-MPI=*|-disable-MPI|--disable-MPI) :
+     ;; #(
+  -enable-netcdf|-enable-netcdf=*|--enable-netcdf|--enable-netcdf=*|-disable-netcdf|--disable-netcdf) :
+     ;; #(
+  -enable-hdf5|-enable-hdf5=*|--enable-hdf5|--enable-hdf5=*|-disable-hdf5|--disable-hdf5) :
+     ;; #(
+  -enable-parmetis|-enable-parmetis=*|--enable-parmetis|--enable-parmetis=*|-disable-parmetis|--disable-parmetis) :
+     ;; #(
+  -enable-metis|-enable-metis=*|--enable-metis|--enable-metis=*|-disable-metis|--disable-metis) :
+     ;; #(
+  -enable-crypto|-enable-crypto=*|--enable-crypto|--enable-crypto=*|-disable-crypto|--disable-crypto) :
+     ;; #(
+  -with-setup|-with-setup=*|--with-setup|--with-setup=*|-without-setup|--without-setup) :
+     ;; #(
+  -with-ieee-arithmetic-root|-with-ieee-arithmetic-root=*|--with-ieee-arithmetic-root|--with-ieee-arithmetic-root=*|-without-ieee-arithmetic-root|--without-ieee-arithmetic-root) :
+     ;; #(
+  -with-ieee-arithmetic-fc-mod|-with-ieee-arithmetic-fc-mod=*|--with-ieee-arithmetic-fc-mod|--with-ieee-arithmetic-fc-mod=*|-without-ieee-arithmetic-fc-mod|--without-ieee-arithmetic-fc-mod) :
+     ;; #(
+  -with-ieee-arithmetic-fc-lib|-with-ieee-arithmetic-fc-lib=*|--with-ieee-arithmetic-fc-lib|--with-ieee-arithmetic-fc-lib=*|-without-ieee-arithmetic-fc-lib|--without-ieee-arithmetic-fc-lib) :
+     ;; #(
+  -with-mpi-root|-with-mpi-root=*|--with-mpi-root|--with-mpi-root=*|-without-mpi-root|--without-mpi-root) :
+     ;; #(
+  -with-mpi-fc-mod|-with-mpi-fc-mod=*|--with-mpi-fc-mod|--with-mpi-fc-mod=*|-without-mpi-fc-mod|--without-mpi-fc-mod) :
+     ;; #(
+  -with-mpi-fc-lib|-with-mpi-fc-lib=*|--with-mpi-fc-lib|--with-mpi-fc-lib=*|-without-mpi-fc-lib|--without-mpi-fc-lib) :
+     ;; #(
+  -with-mpi-include|-with-mpi-include=*|--with-mpi-include|--with-mpi-include=*|-without-mpi-include|--without-mpi-include) :
+     ;; #(
+  -with-mpi-lib|-with-mpi-lib=*|--with-mpi-lib|--with-mpi-lib=*|-without-mpi-lib|--without-mpi-lib) :
+     ;; #(
+  -with-regard-for-quality|-with-regard-for-quality=*|--with-regard-for-quality|--with-regard-for-quality=*|-without-regard-for-quality|--without-regard-for-quality) :
+     ;; #(
+  -with-on-demand-check-programs|-with-on-demand-check-programs=*|--with-on-demand-check-programs|--with-on-demand-check-programs=*|-without-on-demand-check-programs|--without-on-demand-check-programs) :
+     ;; #(
+  -with-example-programs|-with-example-programs=*|--with-example-programs|--with-example-programs=*|-without-example-programs|--without-example-programs) :
+     ;; #(
+  *) :
+
+           case $acx_config_subdir_arg in #(
+  *\'*) :
+    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+            as_fn_append acx_config_subdir_args_externals_ppm " '$acx_config_subdir_arg'" ;;
+esac
+else
+  acx_config_subdir_ignore_arg=no
+fi
+   done
+         set dummy CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" PLATFORM_OPT_LIBM= IEEE_ARITHMETICROOT= IEEE_ARITHMETIC_FC_MOD= IEEE_ARITHMETIC_FC_LIB= IEEE_ARHMETIC_FCFLAGS= MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_FCLDFLAGS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --enable-MPI --disable-netcdf --disable-hdf5 --disable-parmetis --disable-metis --disable-crypto --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs FC=no ; shift
+      for acx_config_subdir_arg; do
+        case $acx_config_subdir_arg in #(
+  *\'*) :
+    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_config_subdir_args_externals_ppm " '$acx_config_subdir_arg'"
+      done
+      as_fn_append subdirs_extra " externals/ppm"
+   BUNDLED_LIBFILES="externals/ppm/src/.libs/libscalesppmcore.a $BUNDLED_LIBFILES"
 fi
 fi
 
@@ -7717,10 +7890,7 @@ ${icon_usr_note}" "$LINENO" 5; }
 fi
 fi
 else
-    if test "x$enable_cdi_pio" = xyes; then :
-  as_fn_error $? "the bundled version of CDI library does not currently support the parallel features: either disable usage of the parallel features of CDI (--disable-cdi-pio) or provide an external version of CDI library (--with-external-cdi) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
-fi
-   icon_subdir_srcdir="$srcdir/externals/cdi"
+    icon_subdir_srcdir="$srcdir/externals/cdi"
    icon_subdir_unique_file="src/cdi.h"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the bundled version of CDI library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': provide an external version of CDI library (--with-external-cdi) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
@@ -7747,9 +7917,17 @@ fi
      ;; #(
   BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*) :
      ;; #(
+  MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*) :
+     ;; #(
+  PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*) :
+     ;; #(
+  PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*) :
+     ;; #(
   -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
      ;; #(
   -enable-maintainer-mode|-enable-maintainer-mode=*|--enable-maintainer-mode|--enable-maintainer-mode=*|-disable-maintainer-mode|--disable-maintainer-mode) :
+     ;; #(
+  -enable-mpi|-enable-mpi=*|--enable-mpi|--enable-mpi=*|-disable-mpi|--disable-mpi) :
      ;; #(
   -enable-iso-c-interface|-enable-iso-c-interface=*|--enable-iso-c-interface|--enable-iso-c-interface=*|-disable-iso-c-interface|--disable-iso-c-interface) :
      ;; #(
@@ -7765,7 +7943,7 @@ fi
      ;; #(
   -enable-cdi-app|-enable-cdi-app=*|--enable-cdi-app|--enable-cdi-app=*|-disable-cdi-app|--disable-cdi-app) :
      ;; #(
-  -enable-mpi|-enable-mpi=*|--enable-mpi|--enable-mpi=*|-disable-mpi|--disable-mpi) :
+  -enable-ppm-dist-array|-enable-ppm-dist-array=*|--enable-ppm-dist-array|--enable-ppm-dist-array=*|-disable-ppm-dist-array|--disable-ppm-dist-array) :
      ;; #(
   -with-threads|-with-threads=*|--with-threads|--with-threads=*|-without-threads|--without-threads) :
      ;; #(
@@ -7776,6 +7954,20 @@ fi
   -with-eccodes|-with-eccodes=*|--with-eccodes|--with-eccodes=*|-without-eccodes|--without-eccodes) :
      ;; #(
   -with-grib_api|-with-grib_api=*|--with-grib_api|--with-grib_api=*|-without-grib_api|--without-grib_api) :
+     ;; #(
+  -with-mpi-root|-with-mpi-root=*|--with-mpi-root|--with-mpi-root=*|-without-mpi-root|--without-mpi-root) :
+     ;; #(
+  -with-mpi-include|-with-mpi-include=*|--with-mpi-include|--with-mpi-include=*|-without-mpi-include|--without-mpi-include) :
+     ;; #(
+  -with-mpi-lib|-with-mpi-lib=*|--with-mpi-lib|--with-mpi-lib=*|-without-mpi-lib|--without-mpi-lib) :
+     ;; #(
+  -with-mpi-fc-mod|-with-mpi-fc-mod=*|--with-mpi-fc-mod|--with-mpi-fc-mod=*|-without-mpi-fc-mod|--without-mpi-fc-mod) :
+     ;; #(
+  -with-mpi-fc-lib|-with-mpi-fc-lib=*|--with-mpi-fc-lib|--with-mpi-fc-lib=*|-without-mpi-fc-lib|--without-mpi-fc-lib) :
+     ;; #(
+  -with-on-demand-check-programs|-with-on-demand-check-programs=*|--with-on-demand-check-programs|--with-on-demand-check-programs=*|-without-on-demand-check-programs|--without-on-demand-check-programs) :
+     ;; #(
+  -with-example-programs|-with-example-programs=*|--with-example-programs|--with-example-programs=*|-without-example-programs|--without-example-programs) :
      ;; #(
   *) :
 
@@ -7791,7 +7983,7 @@ else
   acx_config_subdir_ignore_arg=no
 fi
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS" F77=no CXX=no MPI_LAUNCH="$MPI_LAUNCH" BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_CXX=no BUILD_F77=no --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-iso-c-interface --disable-cf-interface --disable-shared --enable-static --enable-grib --enable-cgribex --disable-cdi-app --disable-mpi --without-threads --without-szlib --with-netcdf --without-eccodes --with-grib_api="$enable_grib2" acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no ac_cv_lib_uuid_uuid_generate=no ac_cv_func_uuid_create=no ; shift
+         set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS" F77=no CXX=no MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= PKG_CONFIG= YAXT_C_INCLUDE= YAXT_C_LIB= YAXT_FC_MOD= YAXT_FC_LIB= PPM_CORE_C_INCLUDE= PPM_CORE_C_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_MPI_C_LIB= BUILD_MPI_FC_LIB= BUILD_CC= BUILD_CXX= BUILD_FC= BUILD_F77= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-mpi="$enable_cdi_pio" --enable-iso-c-interface --enable-cf-interface="$enable_cdi_pio" --disable-shared --enable-static --enable-grib --enable-cgribex --disable-cdi-app --enable-ppm-dist-array="$enable_cdi_pio" --without-threads --without-szlib --with-netcdf --with-eccodes="$enable_grib2" --without-grib_api --with-on-demand-check-programs --without-example-programs acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes acx_cv_have_pnetcdf=no acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no ac_cv_lib_uuid_uuid_generate=no ac_cv_func_uuid_create=no ; shift
       for acx_config_subdir_arg; do
         case $acx_config_subdir_arg in #(
   *\'*) :
@@ -7802,7 +7994,36 @@ esac
         as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
       done
       as_fn_append subdirs_extra " externals/cdi"
-   { BUILD_CC=; unset BUILD_CC;}; { BUILD_FC=; unset BUILD_FC;}
+   if test "x$enable_cdi_pio" = xyes; then :
+       if test "x$with_external_yaxt" = xno; then :
+        set dummy acx_cv_c_include_yaxt_h="-I${icon_abs_top_builddir}/externals/yaxt/inst_headers" acx_cv_option_search_xt_initialized_c="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la" acx_cv_fortran_mod_yaxt="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90" acx_cv_option_search_xt_initialized_fc="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt.la ${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la" ; shift
+      for acx_config_subdir_arg; do
+        case $acx_config_subdir_arg in #(
+  *\'*) :
+    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
+      done
+
+fi
+      if test "x$with_external_ppm" = xno; then :
+        set dummy acx_cv_c_include_ppm_ppm_h="-I${icon_abs_top_builddir}/externals/ppm/include" ac_cv_header_ppm_dist_array_h=yes acx_cv_option_search_PPM_initialize_c="${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la" ; shift
+      for acx_config_subdir_arg; do
+        case $acx_config_subdir_arg in #(
+  *\'*) :
+    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
+      done
+
+fi
+      as_fn_append bundled_includes "${FC_INC_FLAG}${srcdir}/externals/cdi/src "
+      BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdipio.a $BUNDLED_LIBFILES"
+fi
    as_fn_append bundled_includes "${FC_MOD_IN}externals/cdi/src "
    BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdi_f2003.a externals/cdi/src/.libs/libcdi.a $BUNDLED_LIBFILES"
 fi
@@ -9275,6 +9496,8 @@ fi
 if test "x$enable_pgi_inlib" = xyes; then :
   PGI_INLIB_ENABLED=''
 
+   ac_config_files="$ac_config_files inlib.mk"
+
 else
   PGI_INLIB_ENABLED='#'
 
@@ -9501,6 +9724,11 @@ fi
                $as_echo "$as_me:${as_lineno-$LINENO}: ===" >&5
 fi
 fi
+   ac_ext=${ac_fc_srcext-f}
+ac_compile='$FC -c $FCFLAGS $ICON_FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
+ac_link='$FC -o conftest$ac_exeext $FCFLAGS $ICON_FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_fc_compiler_gnu
+
    case " $subdirs_extra " in #(
   *' externals/sct '*) :
          { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled SCT library" >&5
@@ -9519,6 +9747,7 @@ else
 else
   as_fn_error $? "unable to run 'externals/sct/config.status'" "$LINENO" 5
 fi
+            icon_sct_LIBS=`$as_echo "$icon_sct_LIBS" | sed 's/^ *//;s/ *$//'`
             case " $icon_sct_LIBS " in #(
                 *' -lrt '*) :
     icon_cv_SCT_extra_libs='-lrt' ;; #(
@@ -9526,21 +9755,21 @@ fi
      ;;
 esac ;;
 esac
-         if test "x$enable_openmp" = xyes; then :
-  acx_exec_result=`$as_echo @OPENMP_FC_C_FLAGS@ | "externals/sct/config.status" -q --file=- 2>/dev/null`
+         acx_exec_result=`$as_echo @OPENMP_FC_C_FLAGS@ | "externals/sct/config.status" -q --file=- 2>/dev/null`
    if test $? -eq 0; then :
-  sct_OPENMP_FC_C_FLAGS=$acx_exec_result
+  icon_sct_OPENMP_FC_C_FLAGS=$acx_exec_result
 else
   as_fn_error $? "unable to run 'externals/sct/config.status'" "$LINENO" 5
 fi
-            if test -n "$sct_OPENMP_FC_C_FLAGS"; then :
-  case " $FC $FCFLAGS $ICON_FCFLAGS $LDFLAGS $LIBS " in #(
-                   *" $sct_OPENMP_FC_C_FLAGS "*) :
+         icon_sct_OPENMP_FC_C_FLAGS=`$as_echo "$icon_sct_OPENMP_FC_C_FLAGS" | sed 's/^ *//;s/ *$//'`
+         if test -n "$icon_sct_OPENMP_FC_C_FLAGS"; then :
+  eval "icon_link_cmd=\"$ac_link\""
+            case " $icon_link_cmd " in #(
+                *" $icon_sct_OPENMP_FC_C_FLAGS "*) :
      ;; #(
   *) :
-                     icon_cv_SCT_extra_libs="$sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}" ;;
+                  icon_cv_SCT_extra_libs="$icon_sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}" ;;
 esac
-fi
 fi
 fi
 
@@ -9551,6 +9780,68 @@ else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_SCT_extra_libs" >&5
 $as_echo "$icon_cv_SCT_extra_libs" >&6; }
          LIBS="$icon_cv_SCT_extra_libs $LIBS"
+fi ;; #(
+  *) :
+     ;;
+esac
+   case " $subdirs_extra " in #(
+  *' externals/cdi '*) :
+         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled CDI library" >&5
+$as_echo_n "checking for extra linker flags needed to link the bundled CDI library... " >&6; }
+      if ${icon_cv_CDI_extra_libs+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  icon_cv_CDI_extra_libs=
+         acx_exec_result=`$as_echo @LIBRT@ | "externals/cdi/config.status" -q --file=- 2>/dev/null`
+   if test $? -eq 0; then :
+  icon_cv_CDI_extra_libs=$acx_exec_result
+else
+  as_fn_error $? "unable to run 'externals/cdi/config.status'" "$LINENO" 5
+fi
+         icon_cv_CDI_extra_libs=`$as_echo "$icon_cv_CDI_extra_libs" | sed 's/^ *//;s/ *$//'`
+         if test "x$icon_cv_CDI_extra_libs" = x && test "x$enable_cdi_pio" = xyes; then :
+              acx_exec_result=`$as_echo "@SHELL@ ${icon_abs_top_builddir}/externals/cdi/libtool --tag=CC --mode=link @CC@ @CFLAGS@ @LDFLAGS@ -o libconftest.la @LIBS@" | "externals/cdi/config.status" -q --file=- 2>/dev/null`
+   if test $? -eq 0; then :
+  icon_cdi_LINK=$acx_exec_result
+else
+  as_fn_error $? "unable to run 'externals/cdi/config.status'" "$LINENO" 5
+fi
+            as_dir=conftest.dir; as_fn_mkdir_p
+            cd conftest.dir
+            if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$icon_cdi_LINK\""; } >&5
+  (eval $icon_cdi_LINK) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; } >&5; then :
+  ac_try="grep \"dependency_libs=.*[ ']-lrt[ '].*\" libconftest.la"
+               if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; } >&5; then :
+  icon_cv_CDI_extra_libs='-lrt'
+fi
+fi
+            cd ..
+            rm -rf conftest.dir
+fi
+         if test -n "$icon_cv_CDI_extra_libs"; then :
+  case " $LIBS " in #(
+  *" $icon_cv_CDI_extra_libs "*) :
+    icon_cv_CDI_extra_libs= ;; #(
+  *) :
+     ;;
+esac
+fi
+fi
+
+      if ${icon_cv_CDI_extra_libs:+false} :; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
+$as_echo "none needed" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_CDI_extra_libs" >&5
+$as_echo "$icon_cv_CDI_extra_libs" >&6; }
+         LIBS="$icon_cv_CDI_extra_libs $LIBS"
 fi ;; #(
   *) :
      ;;
@@ -10142,6 +10433,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "claw.mk") CONFIG_FILES="$CONFIG_FILES claw.mk" ;;
+    "inlib.mk") CONFIG_FILES="$CONFIG_FILES inlib.mk" ;;
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "depgen.c.config") CONFIG_FILES="$CONFIG_FILES depgen.c.config" ;;

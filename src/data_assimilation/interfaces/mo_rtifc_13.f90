@@ -5192,6 +5192,7 @@ FTRACE_END('dealloc_rttov_arrays')
       if (.not.l_req) l_req = (n_channels /= size(transm%tau_total) .and. rtifc_alloc_mode == 0) .or. &
                               (n_channels >  size(transm%tau_total) .and. rtifc_alloc_mode >= 1)
       if (.not.l_req) l_req = n_levels   /= size(transm%tau_levels,1)
+#if defined(_RTTOV_GOD)
       if (.not.l_req .and. transm%l_opdep) then
         if (associated(transm%opdep_ref)) then
           l_req = (size(transm%opdep_ref,1) < n_levels_coef-1)
@@ -5199,6 +5200,7 @@ FTRACE_END('dealloc_rttov_arrays')
           l_req = .true.
         end if
       end if
+#endif
       if (l_req) then
         call dealloc_rttov_arrays(status, transm=transm)
         if (status /= NO_ERROR) return

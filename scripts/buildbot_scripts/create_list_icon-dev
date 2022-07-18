@@ -150,8 +150,8 @@ $addexp checksuite.infrastructure/memLog/exp.oce_memLog         --builders "MIST
 #-----------------------------------------------------------
 
 # activate runs for the CDI-PIO builder on mistral
-./set_builder_flags Active --builders MISTRAL_intel18_pio --list $listname
-for builder in MISTRAL_intel18_pio; do
+./set_builder_flags Active --builders 'MISTRAL_intel18_pio levante_intel_pio' --list $listname
+for builder in MISTRAL_intel18_pio levante_intel_pio; do
   $addexp checksuite.infrastructure/output/exp.atm_amip_R2B4_1day_pio --builders ${builder} --list $listname
   $addexp checksuite.infrastructure/output/exp.atm_amip_R2B4_1day     --builders ${builder} --list $listname
   $addexp exp.esm_bb_ruby0_pio  --builders ${builder} --list $listname --runflags "cpu_time=00:20:00 no_of_nodes=4"
@@ -174,7 +174,7 @@ $addexp checksuite.art/exp.art_mistral_test.run --builders MISTRAL_intel17_hybri
 $addexp checksuite.art/exp.art_mistral_test_short.run --builders MISTRAL_gcc --list $listname
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
-$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_MISTRAL.run --builders MISTRAL_gcc --list ${listname}
+$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_MISTRAL.run --builders MISTRAL_gcc MISTRAL_intel18_pio --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 

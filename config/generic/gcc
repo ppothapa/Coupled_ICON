@@ -30,7 +30,7 @@ if test -d "${ICON_SW_PREFIX}"; then
   fi
   if test -d "${ICON_SW_PREFIX}/lib64"; then
     LDFLAGS="-L${ICON_SW_PREFIX}/lib64"
-    BUILD_ENV="export LD_LIBRARY_PATH=\"${ICON_SW_PREFIX}/lib64:\${LD_LIBRARY_PATH}\";"
+    BUILD_ENV="${BUILD_ENV-} export LD_LIBRARY_PATH=\"${ICON_SW_PREFIX}/lib64:\${LD_LIBRARY_PATH}\";"
   fi
   if test -d "${ICON_SW_PREFIX}/lib"; then
     LDFLAGS="${LDFLAGS-} -L${ICON_SW_PREFIX}/lib"

@@ -41,6 +41,10 @@ if [[ -f "${rte_builddir}/config.status" ]] ; then
   fi
 fi
 
+# Speed up the 'make check' (this step is allowed to fail):
+MAKE_PROCS=22
+make -C "${basedir}" -j ${MAKE_PROCS} check-bundled TESTS= XFAIL_TESTS=
+
 # Run 'make check' and save its exit code:
 exitcode=0
 make -C "${basedir}" check || exitcode=$?

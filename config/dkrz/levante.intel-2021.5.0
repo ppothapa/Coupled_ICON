@@ -71,15 +71,6 @@ XML2_LIBS='-lxml2'
 
 ################################################################################
 
-# We need to patch RTE-RRTMGP to resolve the vectorization problem
-# (see config/dkrz/levante_intel_patches/README.md):
-patch_cmd='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
-# Apply the patch but do not fail if it has already been applied
-# (does not work correcly if there are several hunks in the patch file):
-patch_out=$( ${patch_cmd} -d "${icon_dir}/externals/rte-rrtmgp" -i "${script_dir}/levante_intel_patches/gas_fix.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
-
-################################################################################
-
 BUILD_ENV="export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:\${LD_LIBRARY_PATH}\"; export PATH=\"${HDF5_ROOT}/bin:\${PATH}\"; ${BLAS_LAPACK_BUILD_ENV}"
 
 CC="${MPI_ROOT}/bin/mpicc"
@@ -116,6 +107,7 @@ case $flag_set in
     ICON_CFLAGS='-march=native'
     ICON_BUNDLED_CFLAGS=${ICON_CFLAGS}
     ICON_YAC_CFLAGS=''  # the compiler crashes when compiling area.c with -march=native
+    ICON_CDI_CFLAGS=''  # the compiler crashes when compiling cgribexlib.c with -march=native
     FCFLAGS="${FCFLAGS} -march=native"
     ICON_FCFLAGS="${ICON_FCFLAGS} -O2 -assume realloc_lhs -ftz"
     ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?
@@ -138,6 +130,7 @@ CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
+ICON_CDI_CFLAGS="${ICON_CDI_CFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \

@@ -68,10 +68,12 @@ machine=levante
   --configureflags="--with-mpi --with-openmp"  --builderflags="Active" --list $list
 ./addbuilder levante_intel_hybrid_mixed --machine $machine  --build_script="config/buildbot/levante_intel_hybrid_mixed" \
   --configureflags="--with-mpi --with-openmp --enable-mixed"  --builderflags="Active" --list $list
-./addbuilder levante_nag                --machine $machine  --build_script="config/buildbot/levante_nag" --builderflags="Active" \
-  --configureflags="--with-mpi"  --list $list
-./addbuilder levante_nag_serial         --machine $machine  --build_script="config/buildbot/levante_nag_serial" --builderflags="Active" \
-  --configureflags="--without-mpi --without-openmp"  --list $list
+./addbuilder levante_intel_pio          --machine $machine  --build_script="config/buildbot/levante_intel_pio" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Inactive" --list $list
+./addbuilder levante_nag                --machine $machine  --build_script="config/buildbot/levante_nag" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_nag_serial         --machine $machine  --build_script="config/buildbot/levante_nag_serial" \
+  --configureflags="--without-mpi --without-openmp"  --builderflags="Active" --list $list
 
 machine=jsc
 ./addmachine $machine --list $list
