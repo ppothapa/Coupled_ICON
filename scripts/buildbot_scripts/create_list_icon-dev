@@ -16,17 +16,28 @@ listname=${1:-icon-dev}
 
 #-----------------------------------------------------------
 # AES
-# add amip tests to all builders
-$addexp "checksuite.icon-dev/check.atm_qubicc"         --machines "levante daint" --list $listname
-#$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines "levante daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_qubicc_update"  --machines "daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip"           --machines "daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"   --machines "levante daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor" --machines "levante daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_heldsuarez"     --machines "levante daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_ape"            --machines "levante daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_sma"            --machines "levante" --list $listname
-
+# add qubicc tests incl. GRIB output to Levante only
+$addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname
+#$addexp "checksuite.icon-dev/check.atm_qubicc_update"     --machines "levante" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname
+# add amip tests incl. update test to levante
+$addexp "checksuite.icon-dev/check.atm_amip"              --machines "levante" --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_update"       --machines "levante" --list $listname
+# add amip tests incl. tolerance test to daint
+$addexp "checksuite.icon-dev/check.atm_amip"              --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_update"       --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_noforcing"    --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_amip_noparams"     --machines "daint" --list $listname
+# add qubicc tests without tolerances on netcdf to daint
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --machines "daint" --list $listname
+#$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_nofor"   --machines "daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_onlyfor" --machines "daint" --list $listname
+# other tests
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante daint" --list $listname
+$addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname
 
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
