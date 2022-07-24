@@ -1027,7 +1027,7 @@ CONTAINS !......................................................................
 
     IF (itype_vert_expol == ivexpol%upatmo) THEN
 
-      IF ((ivctype == 2 .OR. ivctype == 12) .AND. &
+      IF (ivctype == 2 .AND. &
         & ANY(upatmo_exp_config(:)%expol_start_height < flat_height)) THEN
         ! Upper-atmosphere extrapolation: start height above which extrapolation takes place 
         ! should not lie below 'flat_height'

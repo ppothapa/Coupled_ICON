@@ -44,7 +44,7 @@ MODULE mo_delaunay_types
   PUBLIC :: t_point_list, t_sphcap_list
   PUBLIC :: point, triangle, point_list, triangulation, triangulation_ptr, spherical_cap
   PUBLIC :: OPERATOR(<), OPERATOR(/), OPERATOR(*), OPERATOR(==), OPERATOR(+)
-  PUBLIC :: ccw_spherical, circum_circle_spherical
+  PUBLIC :: circum_circle_spherical, ccw_spherical, sagitta_on_unit_sphere
 
 #ifndef NOMPI
 #if defined (__SUNPRO_F95)
@@ -56,7 +56,7 @@ MODULE mo_delaunay_types
 
   ! quadruple precision, needed for some determinant computations
 #if ( defined __PGI )
-  INTEGER, PARAMETER :: QR_K = SELECTED_REAL_KIND (precision(1.0_wp))
+#define _NO_QUAD_PRECISION
 #elif ( ! defined NAGFOR && ! defined _SX )
   INTEGER, PARAMETER :: QR_K = SELECTED_REAL_KIND (32)
 #else
@@ -257,14 +257,15 @@ MODULE mo_delaunay_types
     MODULE PROCEDURE t_point_plus
   END INTERFACE
 
-  !> operator: dot product
+  !> operator: dot product and product with scalar
   INTERFACE OPERATOR ( * )
     MODULE PROCEDURE t_point_mul
+    MODULE PROCEDURE t_point_mul_scalar
   END INTERFACE
 
   !> operator: division of point by scalar
   INTERFACE OPERATOR ( / )
-    MODULE PROCEDURE t_point_div
+    MODULE PROCEDURE t_point_div_scalar
   END INTERFACE
 
   !> operator: comparison of points and triangles (wrt. sorting direction)
@@ -287,7 +288,10 @@ CONTAINS
   !  Renka, R. J. Interpolation of Data on the Surface of a Sphere
   !               ACM Trans. Math. Softw., ACM, 1984, 10, 417-436
   !  Renka's STRIPACK algorithm (http://www.netlib.org/toms/772)
-  PURE FUNCTION circum_circle_spherical(p, pxyz, ip)
+#ifndef _NO_QUAD_PRECISION
+  PURE &
+#endif
+  FUNCTION circum_circle_spherical(p, pxyz, ip)
     LOGICAL :: circum_circle_spherical
     TYPE (t_point),      INTENT(IN)   :: p
     TYPE (t_point_list), INTENT(IN)   :: pxyz
@@ -329,6 +333,7 @@ CONTAINS
   !  Renka, R. J. Interpolation of Data on the Surface of a Sphere
   !               ACM Trans. Math. Softw., ACM, 1984, 10, 417-436
   !  Renka's STRIPACK algorithm (http://www.netlib.org/toms/772)
+#ifndef _NO_QUAD_PRECISION
   PURE FUNCTION circum_circle_spherical_q128(p, pxyz, ip)
     LOGICAL :: circum_circle_spherical_q128
     TYPE (t_point),      INTENT(IN)   :: p
@@ -360,6 +365,17 @@ CONTAINS
       circum_circle_spherical_q128 = .FALSE.
     END IF
   END FUNCTION circum_circle_spherical_q128
+#else
+  FUNCTION circum_circle_spherical_q128(p, pxyz, ip)
+    LOGICAL :: circum_circle_spherical_q128
+    TYPE (t_point),      INTENT(IN)   :: p
+    TYPE (t_point_list), INTENT(IN)   :: pxyz
+    INTEGER,             INTENT(IN)   :: ip(0:2)
+    CALL finish("circum_circle_spherical_q128", &
+      "This function cannot be used without quadruple precision support")
+    circum_circle_spherical_q128 = .FALSE.
+  END FUNCTION circum_circle_spherical_q128
+#endif
 
 
   ! --------------------------------------------------------------------
@@ -370,8 +386,9 @@ CONTAINS
   !  contains v3, or, in other words, if we "turn left" when going
   !  from v1 to v2 to v3.
   PURE FUNCTION ccw_spherical(v1,v2,v3)
-    LOGICAL :: ccw_spherical
+    INTEGER :: ccw_spherical ! -1: clearly left, 0: numerically uncertain, 1: clearly right
     TYPE (t_point), INTENT(IN)  :: v1,v2,v3
+    REAL(wp), PARAMETER :: FLOAT_ERROR_MARGIN = 1.1e-14_wp
     REAL(wp) :: ccw
 
     ! det(v1,v2,v3) = <v1 x v2, v3> = | v1 x v2 | cos(a) 
@@ -383,6 +400,7 @@ CONTAINS
       &        -    v3%y*(v1%x*v2%z - v2%x*v1%z) &
       &        +    v3%z*(v1%x*v2%y - v2%x*v1%y) 
 
+
     ! we apply a static error of
     !   | e - e'| <= 3*2^-48
     ! to decide if a floating-point evaluation e' of an expression e
@@ -392,45 +410,41 @@ CONTAINS
     ! "Exact geometric computation using Cascading"
     ! International Journal of Computational Geometry & Applications, 
     ! World Scientific, 2001, 11, 245-266
-    IF (ABS(ccw) <= 1.1e-14_wp) THEN
-      ccw_spherical = ccw_spherical_q128(v1,v2,v3)
+    IF (ccw < -FLOAT_ERROR_MARGIN) THEN
+      ccw_spherical = -1
+    ELSE IF (ccw > FLOAT_ERROR_MARGIN) THEN
+      ccw_spherical = 1
     ELSE
-      ccw_spherical = ccw <= 0._wp
+      ccw_spherical = 0
     END IF
   END FUNCTION ccw_spherical
 
 
+
   ! --------------------------------------------------------------------
-  !> Locates a point relative to a directed arc. Let v1, v2, and v3 be
-  !  distinct points on the sphere, and denote by v1 -> v2 the
-  !  geodesic connecting v1 and v2 and directed toward v2. This test
-  !  determines which of the two hemispheres defined by v1 -> v2
-  !  contains v3, or, in other words, if we "turn left" when going
-  !  from v1 to v2 to v3.
-  PURE FUNCTION ccw_spherical_q128(v1,v2,v3)
-    LOGICAL :: ccw_spherical_q128
-    TYPE (t_point), INTENT(IN)  :: v1,v2,v3
-    REAL(QR_K) :: v1_x, v1_y, v1_z,v2_x, v2_y, v2_z,v3_x, v3_y, v3_z
+  !> Computes sagitta of great circle arc, which connects points a1 and a2 on a unit sphere
+  REAL(wp) PURE FUNCTION sagitta_on_unit_sphere(a1,a2)
+    TYPE(t_point), INTENT(IN) :: a1, a2
+    ! The sagitta of an arc is distance from the center of the arc to the center of its base.
+    ! The base is the chord that connects a1 and a2.
+    ! 
+    ! This function assumes 3D points on a unit sphere.
+    !
+    !       a1          Let 2*q be the chord length between a1 and a2.
+    !     , '\          Let s be sagitta that we are looking for and h the height of the 
+    !   ,   | \         triangle (center, a1, a2).
+    !  ,   q|  \ 1      Then s = 1 - h
+    ! ,     |   \         len(a1) = len(a2) = 1
+    ! ,_____|___ \cen     h**2 + q**2 = 1**2 ! Pythagoras
+    ! , s   | h  /ter     (2*q)**2 = len(a1)**2 + len(a2)**2 - 2 * len(a1) * len(a1) &
+    !  ,   q|   /                  & * cos(angle(a1,a2)) ! Law of cosines
+    !   ,   |  /1         cos(angle(a1,a2)) = abs(dot(a1, a2)) / (len(a1) * len(a2)) &
+    !     , | /                    & ! definition of scalar product
+    !       '/          Combine and simplify: q**2 = 0.5 - 0.5 * abs(dot(a1, a2))
+    !       a2          Thus sagitta s = 1 - SQRT(0.5 * (1 + ABS(dot(a1, a2))))
 
-    ! det(v1,v2,v3) = <v1 x v2, v3> = | v1 x v2 | cos(a) 
-    !  
-    ! where a is the angle between v3 and the normal to the plane
-    ! defined by v1 and v2.
-    
-    v1_x = v1%x
-    v1_y = v1%y
-    v1_z = v1%z
-    v2_x = v2%x
-    v2_y = v2%y
-    v2_z = v2%z
-    v3_x = v3%x
-    v3_y = v3%y
-    v3_z = v3%z
-
-    ccw_spherical_q128 = v3_x*(v1_y*v2_z - v2_y*v1_z) &
-      &             -    v3_y*(v1_x*v2_z - v2_x*v1_z) &
-      &             +    v3_z*(v1_x*v2_y - v2_x*v1_y)  <= 0._wp
-  END FUNCTION ccw_spherical_q128
+    sagitta_on_unit_sphere = 1._wp - SQRT( 0.5_wp * (1._wp + ABS(a1 * a2)) )
+  END FUNCTION sagitta_on_unit_sphere
 
 
   ! --------------------------------------------------------------------
@@ -485,13 +499,23 @@ CONTAINS
 
 
   ! --------------------------------------------------------------------
-  !> operator: division of point by scalar
-  TYPE(t_point) PURE FUNCTION t_point_div(t,v)
+  !> operator: product of scalar and point
+  TYPE(t_point) PURE FUNCTION t_point_mul_scalar(v,t)
     TYPE(t_point), INTENT(IN) :: t
     REAL(wp),      INTENT(IN) :: v
-    t_point_div = t_point(x=t%x/v, y=t%y/v, z=t%z/v, &
+    t_point_mul_scalar = t_point(x=v*t%x, y=v*t%y, z=v*t%z, &
       &                   ps=t%ps, gindex=t%gindex)
-  END FUNCTION t_point_div
+  END FUNCTION t_point_mul_scalar
+
+
+  ! --------------------------------------------------------------------
+  !> operator: division of point by scalar
+  TYPE(t_point) PURE FUNCTION t_point_div_scalar(t,v)
+    TYPE(t_point), INTENT(IN) :: t
+    REAL(wp),      INTENT(IN) :: v
+    t_point_div_scalar = t_point(x=t%x/v, y=t%y/v, z=t%z/v, &
+      &                   ps=t%ps, gindex=t%gindex)
+  END FUNCTION t_point_div_scalar
 
 
   ! --------------------------------------------------------------------

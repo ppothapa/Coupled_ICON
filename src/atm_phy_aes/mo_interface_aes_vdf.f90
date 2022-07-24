@@ -220,9 +220,10 @@ CONTAINS
     nice   = prm_field(jg)%kice
     turb => aes_vdf_config(jg)%turb
 
-    !$ACC DATA  CREATE( zxt_emis ) IF( ntrac > 0 )
+    !$ACC DATA CREATE(  zxt_emis ) IF( ntrac > 0 )
+    !$ACC DATA CREATE(  ta_hori_tend,qv_hori_tend,ql_hori_tend,qi_hori_tend) IF( turb == 2 )
     !$ACC DATA PRESENT( field, tend, ccycle_config ),                           &
-    !$ACC       CREATE( zcpt_sfc_tile, ri_tile, zqx, zbn_tile,                  &
+    !$ACC      CREATE(  zcpt_sfc_tile, ri_tile, zqx, zbn_tile,                  &
     !$ACC               zbhn_tile, zbm_tile, zbh_tile, dummy, dummyx,           &
     !$ACC               wstar, qs_sfc_tile, hdtcbl, ri_atm, mixlen, cfm,        &
     !$ACC               cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa,      &
@@ -1725,6 +1726,7 @@ CONTAINS
     END IF ! if ( is_in_sd_ed_interval )
 
     !$ACC WAIT
+    !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA
 

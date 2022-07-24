@@ -47,9 +47,9 @@
       &                               my_process_is_stdio, p_n_work, p_bcast, p_barrier
     USE mo_communication,       ONLY: idx_1d, blk_no, idx_no
     USE mo_delaunay_types,      ONLY: t_point_list, point_list, point, t_spherical_cap,     &
-      &                               spherical_cap, OPERATOR(/), t_triangulation,          &
-      &                               ccw_spherical, t_point, OPERATOR(+), triangulation,   &
-      &                               t_sphcap_list
+      &                               spherical_cap, OPERATOR(/), OPERATOR(+), OPERATOR(*), &
+      &                               ccw_spherical, t_point, t_triangulation,              &
+      &                               triangulation, t_sphcap_list, sagitta_on_unit_sphere
     USE mo_delaunay,            ONLY: point_cloud_diam, triangulate,                        &
       &                               triangulate_mthreaded, create_thin_covering
     USE mo_util_string,         ONLY: int2string
@@ -161,7 +161,7 @@
       REAL(wp),       INTENT(IN)     :: v(3)          !< query point
       TYPE(t_point),  INTENT(IN)     :: v1,v2,v3      !< vertex longitudes/latitudes
       ! local variables
-      LOGICAL       :: c1,c2,c3
+      INTEGER       :: c1,c2,c3
       TYPE(t_point) :: p
 
       p%x = v(1)
@@ -171,10 +171,31 @@
       c1  = ccw_spherical(v1,v2,p)
       c2  = ccw_spherical(v2,v3,p)
       c3  = ccw_spherical(v3,v1,p)
-      inside_triangle = ((      c1) .AND. (      c2) .AND. (      c3)) .OR. &
-        &               ((.NOT. c1) .AND. (.NOT. c2) .AND. (.NOT. c3))
+      inside_triangle = (c1 + c2 + c3) == 3 .OR. (c1 + c2 + c3) == -3
     END FUNCTION inside_triangle
 
+    FUNCTION inside_scaled_triangle(v, v1, v2, v3, rscale)
+      ! Test if point v is inside a triange around (v1, v2, v3), that is scaled in size by given rscale.
+      ! The area of (v1, v2, v3) is approximately increased to (1+rscale)**2
+      LOGICAL :: inside_scaled_triangle
+      REAL(wp),       INTENT(IN)     :: v(3)          !< query point
+      REAL(wp),       INTENT(IN)     :: rscale         !< factor by which to increase the triangle size (>0 for growth)
+      TYPE(t_point),  INTENT(IN)     :: v1,v2,v3      !< vertex longitudes/latitudes
+      ! local variables
+      TYPE(t_point) :: center, g1, g2, g3
+      REAL(wp) :: rscale1
+
+      center = (v1 + v2 + v3)/3._wp
+      
+      ! grow the v-triangle from the center by rscale
+      ! \vec{g_i} = \vec{v_i} + scale * (\vec{v_i} - \vec{center}) = (scale+1) * \vec{v_i} - scale * \vec{center}
+      rscale1 = 1._wp + rscale
+      g1 = rscale1 * v1 + (-rscale) * center
+      g2 = rscale1 * v2 + (-rscale) * center
+      g3 = rscale1 * v3 + (-rscale) * center
+
+      inside_scaled_triangle = inside_triangle(v, g1, g2, g3)
+    END FUNCTION inside_scaled_triangle
 
     !-------------------------------------------------------------------------
     !> Build a global list of cell circumcenters of "ptr_patch".
@@ -578,7 +599,7 @@
     !  outside a given range are ommitted.
     !
     SUBROUTINE compute_triangle_bboxes(p_global, tri_global, octree, opt_minrange, opt_maxrange)
-      TYPE (t_point_list),    INTENT(IN)    :: p_global             !< set of global points
+      TYPE (t_point_list), TARGET, INTENT(IN) :: p_global           !< set of global points
       TYPE (t_triangulation), INTENT(IN)    :: tri_global           !< global auxiliary triangulation
       REAL(wp), OPTIONAL,     INTENT(IN)    :: opt_minrange(0:2)    !< corner of minimum coords (Cart. coords)
       REAL(wp), OPTIONAL,     INTENT(IN)    :: opt_maxrange(0:2)    !< corner of maximum coords (Cart. coords)
@@ -586,15 +607,15 @@
 
       ! local parameters
       CHARACTER(*), PARAMETER :: routine = modname//"::compute_triangle_bboxes"
-      ! enlarge the triangle bounding boxes to prevent empty queries
-      REAL(wp),     PARAMETER :: BBOX_MARGIN = 1.e-4_wp
       ! local variables
       INTEGER                         :: nlocal_triangles, l, i, j, k, errstat
       REAL(wp)                        :: pmin0(0:2), pmax0(0:2)
       REAL(wp), ALLOCATABLE           :: pmin(:,:), pmax(:,:)
       INTEGER,  ALLOCATABLE           :: glb_index_tri(:)
       REAL(wp)                        :: pp(0:2)
+      REAL(wp)                        :: max_sagitta
       REAL(wp)                        :: brange(2,3)          !< box range (min/max, dim=1,2,3)
+      TYPE (t_point), POINTER         :: previous_p, current_p
       !$  DOUBLE PRECISION            :: time_s, toc
       LOGICAL                         :: llocal_partition
 
@@ -614,18 +635,28 @@
         DO l=0,(tri_global%nentries-1)
           pmin0(:) =  99._wp
           pmax0(:) = -99._wp
+          max_sagitta = 0._wp
+          current_p => p_global%a(tri_global%a(l)%p(2)) ! initialize with the last point
           DO j=0,2
-            pp(0) = p_global%a(tri_global%a(l)%p(j))%x
-            pp(1) = p_global%a(tri_global%a(l)%p(j))%y
-            pp(2) = p_global%a(tri_global%a(l)%p(j))%z
+            previous_p => current_p
+            current_p => p_global%a(tri_global%a(l)%p(j))
+            pp(0) = current_p%x
+            pp(1) = current_p%y
+            pp(2) = current_p%z
+
             DO k=0,2
               pmin0(k) = MIN(pmin0(k), pp(k))
               pmax0(k) = MAX(pmax0(k), pp(k))
             END DO
+
+            ! Determine sagitta of the longest triangle edge
+            max_sagitta = MAX(max_sagitta, sagitta_on_unit_sphere(current_p, previous_p))
           END DO
-          ! [FP] enlarge the triangle bounding boxes to prevent empty queries
-          pmin0(:) = pmin0(:) - BBOX_MARGIN
-          pmax0(:) = pmax0(:) + BBOX_MARGIN
+
+          ! Enlarge the triangle bounding to include the bulge of the triangle.
+          ! See comment and descriptions of "bulge height" and "sagitta" below
+          pmin0(:) = pmin0(:) - 2._wp*max_sagitta
+          pmax0(:) = pmax0(:) + 2._wp*max_sagitta
           
           IF (.NOT. ((pmax0(0) < opt_minrange(0)) .OR. (pmin0(0) > opt_maxrange(0)) .OR.  &
             &        (pmax0(1) < opt_minrange(1)) .OR. (pmin0(1) > opt_maxrange(1)) .OR.  &
@@ -666,18 +697,34 @@
       DO l=0,(tri_global%nentries-1)
         pmin0(:) =  99._wp
         pmax0(:) = -99._wp
+        max_sagitta = 0._wp
+        current_p => p_global%a(tri_global%a(l)%p(2)) ! initialize with the last point
         DO j=0,2
-          pp(0) = p_global%a(tri_global%a(l)%p(j))%x
-          pp(1) = p_global%a(tri_global%a(l)%p(j))%y
-          pp(2) = p_global%a(tri_global%a(l)%p(j))%z
+          previous_p => current_p
+          current_p => p_global%a(tri_global%a(l)%p(j))
+          pp(0) = current_p%x
+          pp(1) = current_p%y
+          pp(2) = current_p%z
+
           DO k=0,2
             pmin0(k) = MIN(pmin0(k), pp(k))
             pmax0(k) = MAX(pmax0(k), pp(k))
           END DO
+
+          ! Determine sagitta of the longest triangle edge
+          max_sagitta = MAX(max_sagitta, sagitta_on_unit_sphere(current_p, previous_p))
         END DO
-        ! [FP] enlarge the triangle bounding boxes to prevent empty queries
-        pmin0(:) = pmin0(:) - BBOX_MARGIN
-        pmax0(:) = pmax0(:) + BBOX_MARGIN
+        ! Enlarge the triangle bounding by the maximum sagitta of all edges to include the bulge 
+        ! height of the triangle.
+        ! The "bulge height" describes the maximum distance of any point on the spherical triangle 
+        ! from the plane trough all vertices.  The bulge height of a spherical triangle might be 
+        ! more than the sagitta of its longest edge, but is less then _two times_ this sagitta (3D 
+        ! effect).  The sagitta of an edge is distance from the center of the arc (i.e. the edge) to
+        ! the center of its base (i.e. n chord). The longest edge however has the smallest dot 
+        ! product between a pair of vertices, i.e. min_dot_product.
+
+        pmin0(:) = pmin0(:) - 2._wp*max_sagitta
+        pmax0(:) = pmax0(:) + 2._wp*max_sagitta
 
         IF (.NOT. llocal_partition) THEN
           pmin(i,1:3) = pmin0(0:2)
@@ -740,13 +787,17 @@
       CHARACTER(*), PARAMETER :: routine = modname//"::compute_barycentric_coordinates"
       ! we use the barycentric coords for the "point in triangle
       ! test"; this is the threshold for this test
-      REAL(wp),     PARAMETER :: INSIDETEST_TOL = 1.e-4
+      REAL(wp),     PARAMETER :: INSIDETEST_TOL = 1.e-4_wp
+      ! the factor by which the interpolation triangles are scaled-up, if no enclosing triangle was found initially
+      REAL(wp),     PARAMETER :: UP_SCALE_FACTOR = 1.e5_wp * EPSILON(1._wp) ! eps is 2.2e-16 for dp
+      ! max. iterations of UP_SCALE_FACTOR doubling for triangle up-scaling
+      INTEGER,      PARAMETER :: NMAX_UP_SCALE = 10
       ! max. no. of triangles (bounding boxes) containing a single lat-lon point.
       INTEGER,      PARAMETER :: NMAX_HITS = 99
       ! local variables
       INTEGER                               :: jb, jc, start_idx, end_idx, nobjects, &
         &                                      i, j, k, idx0, idx1(3), nblks_lonlat, &
-        &                                      npromz_lonlat
+        &                                      npromz_lonlat, i_scale
       !$  DOUBLE PRECISION                  :: time_s, toc
       INTEGER                               :: obj_list(NMAX_HITS)  !< query result (triangle search)
       TYPE(t_cartesian_coordinates)         :: ll_point_c           !< cartes. coordinates of lon-lat points
@@ -801,64 +852,101 @@
           ! contains "ll_point_c":
           idx0         = -1
           last_idx1(:) = -1
-          LOOP: DO i=1,nobjects
-            j = obj_list(i)
+          ! If no triangle is found in the first round of LOOP_SCALING, increase the size of the test triangles 
+          ! by scaling them up. The up-scaling is necessary to solve numerically unclear situations when the
+          ! test point is on the edge of a triangle.
+          LOOP_SCALING: DO i_scale=0,NMAX_UP_SCALE
+            LOOP: DO i=1,nobjects
+              j = obj_list(i)
 
-            DO k=0,2
-              v(1,k) = p_global%a(tri_global%a(j)%p(k))%x
-              v(2,k) = p_global%a(tri_global%a(j)%p(k))%y
-              v(3,k) = p_global%a(tri_global%a(j)%p(k))%z
-            END DO
+              IF (i_scale == 0) THEN
+                DO k=0,2
+                  v(1,k) = p_global%a(tri_global%a(j)%p(k))%x
+                  v(2,k) = p_global%a(tri_global%a(j)%p(k))%y
+                  v(3,k) = p_global%a(tri_global%a(j)%p(k))%z
+                END DO
 
-            ! --- compute the barycentric interpolation weights for
-            ! --- this triangle
+                ! --- compute the barycentric interpolation weights for
+                ! --- this triangle
 
-            CALL compute_barycentric_coords(ptr_int_lonlat%ll_coord(jc,jb), v,               &
-              &                             ptr_int_lonlat%baryctr%coeff(1:3,jc,jb))
+                CALL compute_barycentric_coords(ptr_int_lonlat%ll_coord(jc,jb), v,               &
+                  &                             ptr_int_lonlat%baryctr%coeff(1:3,jc,jb))
 
-            ! test if either the barycentric interpolation weights
-            ! indicate that "ll_point_c" lies inside the triangle or
-            ! if the test by dot-product succeeds:
-            inside_test = ( ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) >= -1._wp*INSIDETEST_TOL)  .AND. &
-              &             ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) <=  1._wp+INSIDETEST_TOL))
-            IF (.NOT. inside_test)  CYCLE
-            inside_test = inside_triangle(ll_point_c%x, &
-              &                           p_global%a(tri_global%a(j)%p(0)), &
-              &                           p_global%a(tri_global%a(j)%p(1)), &
-              &                           p_global%a(tri_global%a(j)%p(2)))
+                ! test if either the barycentric interpolation weights
+                ! indicate that "ll_point_c" lies inside the triangle or
+                ! if the test by dot-product succeeds:
+                inside_test = ( ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) >= -1._wp*INSIDETEST_TOL)  .AND. &
+                  &             ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) <=  1._wp+INSIDETEST_TOL))
+                IF (.NOT. inside_test)  THEN
+                  obj_list(i) = -1 ! this candidate must not be considered in the second round of LOOP_SCALING
+                  CYCLE LOOP
+                END IF
 
-            IF (inside_test) THEN
-              idx0    = j
-              ! get global index of cell circumcenters:
-              idx1(:) = p_global%a(tri_global%a(idx0)%p(0:2))%gindex + 1
-              ! a query point may lie exactly on the edge between two
-              ! triangles. We need to make sure that the result is
-              ! processor-independent by choosing the triangles with
-              ! larger indices.
-              IF  (.NOT.  ((idx1(1) >  last_idx1(1))                                    .OR. &
-                &         ((idx1(1) == last_idx1(1)) .AND. (idx1(2) >  last_idx1(2)))   .OR. &
-                &         ((idx1(1) == last_idx1(1)) .AND. (idx1(2) == last_idx1(2)) &
-                &                                    .AND. (idx1(3) >  last_idx1(3))))) THEN
-                CYCLE LOOP
-              END IF
-              ! convert global to local indices
-              idx1(:) = g2l_index(idx1(:))
-              last_idx1(:) = idx1(:)
+                inside_test = inside_triangle(ll_point_c%x, &
+                  &                           p_global%a(tri_global%a(j)%p(0)), &
+                  &                           p_global%a(tri_global%a(j)%p(1)), &
+                  &                           p_global%a(tri_global%a(j)%p(2)))
 
-              IF (lcheck_locality) THEN
-                IF (ANY(idx1(:) == -1)) THEN
-                  ! the containing triangle is not local for this PE?
-                  WRITE (0,*) "indices: ", idx1
-                  WRITE (0,*) "baryctr coeffs: ", ptr_int_lonlat%baryctr%coeff(1:3,jc,jb)
-                  WRITE (0,*) "lon-lat point: ", ll_point_c%x
-                  CALL finish(routine, "Internal error: The containing triangle is not local for this PE!")
+              ELSE ! i_scale > 0
+                IF (j == -1) CYCLE LOOP
+
+                inside_test = inside_scaled_triangle(ll_point_c%x, &
+                  &                           p_global%a(tri_global%a(j)%p(0)), &
+                  &                           p_global%a(tri_global%a(j)%p(1)), &
+                  &                           p_global%a(tri_global%a(j)%p(2)), &
+                  &                           2**i_scale * UP_SCALE_FACTOR) 
+                IF (inside_test) THEN
+                  ! If the inside test passed after scaling up the triangle, we have to retrieve the coefficients.
+                  DO k=0,2
+                    v(1,k) = p_global%a(tri_global%a(j)%p(k))%x
+                    v(2,k) = p_global%a(tri_global%a(j)%p(k))%y
+                    v(3,k) = p_global%a(tri_global%a(j)%p(k))%z
+                  END DO
+
+                  ! --- compute the barycentric interpolation weights for
+                  ! --- this enclosing triangle
+
+                  CALL compute_barycentric_coords(ptr_int_lonlat%ll_coord(jc,jb), v,               &
+                    &                             ptr_int_lonlat%baryctr%coeff(1:3,jc,jb))
+
                 END IF
               END IF
 
-              EXIT LOOP
-              
-            END IF
-          END DO LOOP
+              IF (inside_test) THEN
+                idx0    = j
+                ! get global index of cell circumcenters:
+                idx1(:) = p_global%a(tri_global%a(idx0)%p(0:2))%gindex + 1
+                ! a query point may lie exactly on the edge between two
+                ! triangles. We need to make sure that the result is
+                ! processor-independent by choosing the triangles with
+                ! larger indices.
+                IF  (.NOT.  ((idx1(1) >  last_idx1(1))                                    .OR. &
+                  &         ((idx1(1) == last_idx1(1)) .AND. (idx1(2) >  last_idx1(2)))   .OR. &
+                  &         ((idx1(1) == last_idx1(1)) .AND. (idx1(2) == last_idx1(2)) &
+                  &                                    .AND. (idx1(3) >  last_idx1(3))))) THEN
+                  CYCLE LOOP
+                END IF
+                ! convert global to local indices
+                idx1(:) = g2l_index(idx1(:))
+                last_idx1(:) = idx1(:)
+
+                IF (lcheck_locality) THEN
+                  IF (ANY(idx1(:) == -1)) THEN
+                    ! the containing triangle is not local for this PE?
+                    WRITE (0,*) "indices: ", idx1
+                    WRITE (0,*) "baryctr coeffs: ", ptr_int_lonlat%baryctr%coeff(1:3,jc,jb)
+                    WRITE (0,*) "lon-lat point: ", ll_point_c%x
+                    CALL finish(routine, "Internal error: The containing triangle is not local for this PE!")
+                  END IF
+                END IF
+
+                EXIT LOOP
+                
+              END IF
+            END DO LOOP
+            ! a matching triangle was found?
+            IF (last_idx1(1) /= -1) EXIT LOOP_SCALING
+          END DO LOOP_SCALING
           
           ! no triangle was matching?
           IF (last_idx1(1) == -1) THEN
@@ -870,11 +958,13 @@
             ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) = 0._wp
 
           ELSE
-
             CALL compute_barycentric_coords(ptr_int_lonlat%ll_coord(jc,jb), v, &
               &                             ptr_int_lonlat%baryctr%coeff(1:3,jc,jb))
 
             IF (dbg_level > 5) THEN
+              if (i_scale > 0) call message (routine, &
+                "Triangle up-scaling was necessary "//TRIM(int2string(i_scale))// &
+                " time(s) to achieve a numerical stable result.")
               ptr_int_lonlat%baryctr%v(:,1,jc,jb) = v(:,0)
               ptr_int_lonlat%baryctr%v(:,2,jc,jb) = v(:,1)
               ptr_int_lonlat%baryctr%v(:,3,jc,jb) = v(:,2)

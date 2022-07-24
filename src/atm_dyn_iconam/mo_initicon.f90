@@ -645,7 +645,8 @@ MODULE mo_initicon
   END SUBROUTINE process_dwdana
 
   ! Reads the data from the first-guess and analysis files, and does any required processing of that input data.
-  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
+  SUBROUTINE process_input_data(p_patch, inputInstructions, p_nh_state, p_int_state, p_grf_state, ext_data, prm_diag, &
+                                prm_nwp_stochconv, p_lnd_state)
     TYPE(t_patch), INTENT(INOUT) :: p_patch(:)
     TYPE(t_readInstructionListPtr) :: inputInstructions(n_dom)
     TYPE(t_nh_state), INTENT(INOUT) :: p_nh_state(:)

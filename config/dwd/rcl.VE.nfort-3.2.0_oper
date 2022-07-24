@@ -72,7 +72,7 @@ CC='mpincc'
 CFLAGS='-std=gnu11 -mno-vector-fma -fno-associative-math -msched-block -DUSE_XML2 -USX -D__SX__=__NEC__'
 ICON_CFLAGS='-O3 -fcse-after-vectorization -finline-functions'
 ICON_BUNDLED_CFLAGS='-O2 -fcse-after-vectorization -finline-functions'
-ICON_YAXT_CFLAGS='-O2 -finline-functions -DXT_NEED_MPI_ABORT_WORK_AROUND'
+ICON_YAXT_CFLAGS='-O2 -finline-functions -DXT_NEED_MPI_ABORT_WORK_AROUND=2'
 CPPFLAGS="${ECCODES_INCLUDE} -I${HDF5_DIR}/include -I${NETCDF_DIR}/include ${ECCODES_INCLUDE} -I${XML2ROOT}/include/libxml2"
 
 # Fortran compiler wrapper on cray machine
@@ -84,7 +84,7 @@ ICON_FCFLAGS="-finline-functions -finline-file=${ICON_DIR}/src/atm_phy_schemes/m
 ICON_OCEAN_FCFLAGS='-O2'
 ICON_ECRAD_FCFLAGS="-finline-functions -finline-file=${ICON_DIR}/externals/ecrad/radiation/radiation_two_stream.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_liquid_optics_socrates.F90:${ICON_DIR}/externals/ecrad/radiation/radiation_ice_optics_fu.F90"
 
-ICON_YAXT_FCFLAGS='-DXT_NEED_MPI_ABORT_WORK_AROUND'
+ICON_YAXT_FCFLAGS='-DXT_NEED_MPI_ABORT_WORK_AROUND=2'
 
 LDFLAGS="-L${ZLIBROOT}/lib -L${AEC_DIR}/lib -L${SZIPROOT}/lib -L${HDF5_DIR}/lib -L${NETCDF_DIR}/lib -L${RTTOV_ROOT}/lib -L${ECCODES_LIB_DIR} -L${LAPACKROOT}/lib -L${XML2ROOT}/lib -L/opt/nec/ve/nfort/3.2.0/lib -traceback=verbose -static -static-nec"
 

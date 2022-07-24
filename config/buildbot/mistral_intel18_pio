@@ -3,7 +3,7 @@
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-${ICON_DIR}/config/dkrz/mistral.cdi-pio.yac2.yaxt-0.9.0.intel-18.0.5 --disable-openmp
+${ICON_DIR}/config/dkrz/mistral.intel-18.0.5 --enable-cdi-pio --disable-openmp
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22

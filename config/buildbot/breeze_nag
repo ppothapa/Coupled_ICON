@@ -1,16 +1,45 @@
 #!/bin/bash
 
+set -e
+
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
-
-# We need to patch RTE-RRTMGP to resolve a name collision with DACE
-# (see config/buildbot/breeze_nag_patches/README.md):
-PATCH='patch --forward --no-backup-if-mismatch --strip=1 --reject-file=-'
-# Apply the patch but do not fail if it has already been applied
-# (does not work correcly if there are several hunks in the patch file):
-patch_out=$( ${PATCH} -d "${ICON_DIR}/externals/rte-rrtmgp" -i "${MY_DIR}/breeze_nag_patches/name_collision.patch" ) || echo "${patch_out}" | grep '.Skipping patch' >/dev/null 2>&1 || { echo "${patch_out}" >&2; exit 2; }
 
 ${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}
+
+# Check whether the building generated any untracked files in the main repository:
+untracked_files=`git -C "${ICON_DIR}" ls-files --other --exclude-standard` || {
+  echo "ERROR: failed to get a list of untracked files in the main repository" >&2
+  exit 1
+}
+if test -n "${untracked_files}"; then
+  cat >&2 <<_EOF
+ERROR: the building process generated untracked files in the main repository:
+(the paths are relative to the source root directory '${ICON_DIR}')
+
+${untracked_files}
+
+Update '.gitignore' to ignore them.
+_EOF
+  exit 1
+fi
+
+# Check whether the building generated any untracked files in the submodules:
+untracked_files=`git -C "${ICON_DIR}" submodule --quiet foreach --recursive 'git ls-files --other --exclude-standard | sed "s|^|$path/|"'` || {
+  echo "ERROR: failed to get a list of untracked files in the git submodules" >&2
+  exit 1
+}
+if test -n "${untracked_files}"; then
+  cat >&2 <<_EOF
+ERROR: the building process generated untracked files in the git submodules:
+(the paths are relative to the source root directory '${ICON_DIR}')
+
+${untracked_files}
+
+Update the respective '.gitignore' files to ignore them.
+_EOF
+  exit 1
+fi

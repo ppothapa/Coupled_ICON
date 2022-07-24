@@ -1,0 +1,12 @@
+#!/bin/bash
+
+cd $(dirname "${BASH_SOURCE[0]}")
+
+listname=tolerance-update
+./rmlist $listname
+./create_all_builders $listname
+
+./list_part_update $listname
+./list_part_tolerance $listname
+
+./lslist $listname

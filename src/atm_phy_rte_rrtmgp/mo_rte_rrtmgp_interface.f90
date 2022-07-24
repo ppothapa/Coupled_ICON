@@ -28,7 +28,7 @@ MODULE mo_rte_rrtmgp_interface
   USE mo_icon_fluxes_sw,             ONLY: ty_icon_fluxes_sw, set_fractions
   USE mo_rte_rrtmgp_setup,           ONLY: k_dist_lw, k_dist_sw, &
                                            cloud_optics_lw, cloud_optics_sw, &
-                                           stop_on_err
+                                           stop_on_err, inhoml, inhomi
 
   USE mo_rad_diag,                   ONLY: rad_aero_diag
   USE mo_timer,                      ONLY: ltimer, timer_start, timer_stop, &
@@ -557,7 +557,7 @@ CONTAINS
          xvmr_o3(:,:),     & !< o3  volume mixing ratio
          xvmr_o2(:,:)        !< o2  volume mixing ratio
 
-    REAL (wp), TARGET, INTENT (OUT) ::       &
+    REAL (wp), TARGET, INTENT (INOUT) ::       &
          flx_uplw    (:,:), & !<   upward LW flux profile, all sky
          flx_uplw_clr(:,:), & !<   upward LW flux profile, clear sky
          flx_dnlw    (:,:), & !< downward LW flux profile, all sky
@@ -567,7 +567,7 @@ CONTAINS
          flx_dnsw    (:,:), & !< downward SW flux profile, all sky
          flx_dnsw_clr(:,:)    !< downward SW flux profile, clear sky
 
-    REAL (wp), TARGET, INTENT (OUT) :: &
+    REAL (wp), TARGET, INTENT (INOUT) :: &
          vis_dn_dir_sfc(:) , & !< Diffuse downward flux surface visible radiation
          par_dn_dir_sfc(:) , & !< Diffuse downward flux surface PAR
          nir_dn_dir_sfc(:) , & !< Diffuse downward flux surface near-infrared radiation
@@ -1134,6 +1134,14 @@ CONTAINS
        CALL stop_on_err(rte_sw(atmos_sw, top_at_1, mu0, toa_flux, albdir, albdif, fluxes_swcs))
        !
     END IF
+
+
+    ! hack inhom implementation by scaling the liquid water path
+    ! it's important to run this AFTER the longwave
+    !$ACC KERNELS DEFAULT(PRESENT)
+    zlwp(:,:) = zlwp(:,:) * inhoml
+    ziwp(:,:) = ziwp(:,:) * inhomi
+    !$ACC END KERNELS
     
     ! new cloud optics: allocate memory for cloud optical properties:
     CALL stop_on_err(clouds_bnd_sw%alloc_2str(ncol, klev, &
@@ -1346,7 +1354,7 @@ CONTAINS
       & aer_ssa_sw(:,:,:),& !< aerosol single-scattering albedo, shortwave (ncol, nlay, nbndlw)
       & aer_asy_sw(:,:,:)   !< aerosol asymetry parameter,       shortwave (ncol, nlay, nbndlw)
 
- REAL (wp), TARGET, INTENT (OUT) ::       &
+ REAL (wp), TARGET, INTENT (INOUT) ::       &
       & lw_upw    (:,:), & !<   upward LW flux profile, all sky
       & lw_upw_clr(:,:), & !<   upward LW flux profile, clear sky
       & lw_dnw    (:,:), & !< downward LW flux profile, all sky
@@ -1356,7 +1364,7 @@ CONTAINS
       & sw_dnw    (:,:), & !< downward SW flux profile, all sky
       & sw_dnw_clr(:,:)    !< downward SW flux profile, clear sky
 
- REAL (wp), TARGET, INTENT (OUT) :: &
+ REAL (wp), TARGET, INTENT (INOUT) :: &
       & vis_dn_dir_sfc(:) , & !< Diffuse downward flux surface visible radiation
       & par_dn_dir_sfc(:) , & !< Diffuse downward flux surface PAR
       & nir_dn_dir_sfc(:) , & !< Diffuse downward flux surface near-infrared radiation

@@ -18,6 +18,8 @@
 !!              to avoid circular dependencies in submodels
 !!                                      (2010-06-03):
 !!              Added submodel calls, decl_sun_cur
+!!         Roland Wirth, DWD, Offenbach (2021-09-16):
+!!              Add output fluxes for near-IR, visible, and diffuse radiation.
 !!
 !! $ID: n/a$
 !!
@@ -810,7 +812,9 @@ CONTAINS
     & ,zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, dust_tunefac                     &
     ! output
     & ,cld_cvr, flx_lw_net, flx_uplw_sfc, trsol_net, trsol_up_toa          &
-    & ,trsol_up_sfc, trsol_dn_sfc_diffus, trsol_clr_sfc, trsol_par_sfc     &
+    & ,trsol_up_sfc, trsol_dn_sfc_diffus, trsol_clr_sfc, trsol_nir_sfc     &
+    & ,trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diffus                     &
+    & ,fr_vis_sfc_diffus, fr_par_sfc_diffus                                &
     & ,lwflx_clr_sfc                                                       &
     ! optional output: 3D flux output
     & ,flx_lw_dn      ,flx_sw_dn     ,flx_lw_up     ,flx_sw_up             &
@@ -877,7 +881,12 @@ CONTAINS
       &  trsol_dn_sfc_diffus(kbdim),& !< Surface downward diffuse shortwave transmissivity (normalized diffuse downward flux)
       &  trsol_clr_sfc(kbdim),      & !< Surface net clear-sky solar transmissivity at surface
       &  lwflx_clr_sfc(kbdim),      & !< Longwave net clear-sky surface flux
-      &  trsol_par_sfc(kbdim)         !< Surface transmissivity for photosynthetically active part of solar radiation
+      &  trsol_nir_sfc(kbdim),      & !< Surface transmissivity for near-IR part of solar radiation
+      &  trsol_vis_sfc(kbdim),      & !< Surface transmissivity for visible part of solar radiation
+      &  trsol_par_sfc(kbdim),      & !< Surface transmissivity for photosynthetically active part of solar radiation
+      &  fr_nir_sfc_diffus(kbdim),  & !< Diffuse fraction of near-IR part of solar radiation
+      &  fr_vis_sfc_diffus(kbdim),  & !< Diffuse fraction of visible part of solar radiation
+      &  fr_par_sfc_diffus(kbdim)     !< Diffuse fraction of photosynthetically active part of solar radiation
 
     INTEGER  :: jk, jl
 
@@ -901,7 +910,9 @@ CONTAINS
       &  flx_upsw_toa(kbdim),       & !< TOA  upward sw flux (total) [Wm2]
       &  flx_dnsw_diff_sfc(kbdim),  & !< Srfc diffuse downward sw flux (total) [Wm2]
       &  flx_par_sfc(kbdim),        & !< Srfc downward PAR flux [Wm2]
+      &  fr_vis_sfc(kbdim),         & !< Srfc downward visible flux fraction [Wm2]
       &  flx_sw_net(kbdim,klevp1),  & !< Net dwnwrd SW flux [Wm2]
+      &  flx_sw_dn_sfc(kbdim),      & !< Downward SW flux [Wm2]
       &  flx_lw_net_clr(kbdim,klevp1),& !< Net dn LW flux (clear sky) [Wm2]
       &  flx_sw_net_clr(kbdim,klevp1)   !< Net dn SW flux (clear sky) [Wm2]
     !optional output: 3D flux output
@@ -920,6 +931,7 @@ CONTAINS
 !DIR$ ATTRIBUTES ALIGN : 64 :: xm_n2o
 !DIR$ ATTRIBUTES ALIGN : 64 :: flx_uplw_sfc_clr,flx_upsw_sfc_clr,flx_upsw_sfc
 !DIR$ ATTRIBUTES ALIGN : 64 :: flx_upsw_toa,flx_dnsw_diff_sfc,flx_par_sfc
+!DIR$ ATTRIBUTES ALIGN : 64 :: fr_vis_sfc
 !DIR$ ATTRIBUTES ALIGN : 64 :: flx_sw_net,flx_lw_net_clr,flx_sw_net_clr
 #endif
 
@@ -1047,7 +1059,9 @@ CONTAINS
       & flx_lw_dn_clr   ,flx_sw_dn_clr   ,flx_lw_up_clr   ,flx_sw_up_clr   ,&
       ! optional arguments
       & dust_tunefac=dust_tunefac ,flx_dnsw_diff_sfc=flx_dnsw_diff_sfc     ,&
-      & flx_upsw_toa=flx_upsw_toa ,flx_dnpar_sfc=flx_par_sfc               )
+      & flx_upsw_toa=flx_upsw_toa ,flx_dnpar_sfc=flx_par_sfc               ,&
+      & vis_frc_sfc=fr_vis_sfc, nir_dff_frc_sfc=fr_nir_sfc_diffus          ,&
+      & vis_dff_frc_sfc=fr_vis_sfc_diffus, par_dff_frc_sfc=fr_par_sfc_diffus)
 
 
     !
@@ -1061,6 +1075,11 @@ CONTAINS
     trsol_up_sfc(1:jce)        = flx_upsw_sfc  (1:jce)/(cos_mu0(1:jce)*tsi_radt)
     trsol_up_toa(1:jce)        = flx_upsw_toa  (1:jce)/(cos_mu0(1:jce)*tsi_radt)
     trsol_dn_sfc_diffus(1:jce) = flx_dnsw_diff_sfc(1:jce)/(cos_mu0(1:jce)*tsi_radt)
+
+    flx_sw_dn_sfc(1:jce)       = flx_sw_net(1:jce,klevp1) + flx_upsw_sfc(1:jce)
+
+    trsol_nir_sfc(1:jce)       = (1._wp - fr_vis_sfc(1:jce)) * flx_sw_dn_sfc(1:jce)/(cos_mu0(1:jce)*tsi_radt)
+    trsol_vis_sfc(1:jce)       = fr_vis_sfc(1:jce) * flx_sw_dn_sfc(1:jce)/(cos_mu0(1:jce)*tsi_radt)
     trsol_par_sfc(1:jce)       = flx_par_sfc(1:jce)/(cos_mu0(1:jce)*tsi_radt)
 
     lwflx_clr_sfc(1:jce)       = flx_lw_net_clr(1:jce,klevp1)
@@ -1753,6 +1772,8 @@ CONTAINS
     &                 lwflx_up_sfc_rs, & ! optional: longwave upward flux at surface
     &                 trsol_up_toa,    & ! optional: normalized shortwave upward flux at the top of the atmosphere
     &                 trsol_up_sfc,    & ! optional: normalized shortwave upward flux at the surface
+    &                 trsol_nir_sfc,   & ! optional: normalized near-infrared downward flux at the surface
+    &                 trsol_vis_sfc,   & ! optional: normalized visible downward flux at the surface
     &                 trsol_par_sfc,   & ! optional: normalized photosynthetically active downward flux at the surface
     &                 trsol_dn_sfc_diff,&! optional: normalized shortwave diffuse downward radiative flux at the surface
     &                 trsol_clr_sfc,   & ! optional: normalized shortwave clear-sky net radiative flux at the surface
@@ -1784,6 +1805,8 @@ CONTAINS
     &                 lwflx_up_sfc  ,  &
     &                 swflx_up_toa  ,  &
     &                 swflx_up_sfc  ,  &
+    &                 swflx_nir_sfc ,  &
+    &                 swflx_vis_sfc ,  &
     &                 swflx_par_sfc ,  &
     &                 swflx_clr_sfc ,  &
     &                 swflx_dn_sfc_diff, &
@@ -1820,6 +1843,8 @@ CONTAINS
       &     lwflx_up_sfc_rs(kbdim),& ! longwave upward flux at surface calculated at radiation time steps
       &     trsol_up_toa(kbdim),   & ! normalized shortwave upward flux at the top of the atmosphere
       &     trsol_up_sfc(kbdim),   & ! normalized shortwave upward flux at the surface
+      &     trsol_nir_sfc(kbdim),  & ! normalized near-infrared downward flux at the surface
+      &     trsol_vis_sfc(kbdim),  & ! normalized visible downward flux at the surface
       &     trsol_par_sfc(kbdim),  & ! normalized photosynthetically active downward flux at the surface
       &     trsol_clr_sfc(kbdim),  & ! normalized shortwave clear-sky net radiative flux at the surface
       &     trsol_dn_sfc_diff(kbdim) ! normalized shortwave diffuse downward radiative flux at the surface
@@ -1857,6 +1882,8 @@ CONTAINS
       &     lwflx_up_sfc(kbdim), &     ! longwave upward flux at surface [W/m2]
       &     swflx_up_toa(kbdim), &     ! shortwave upward flux at the top of the atmosphere [W/m2]
       &     swflx_up_sfc(kbdim), &     ! shortwave upward flux at the surface [W/m2]
+      &     swflx_nir_sfc(kbdim), &    ! near-infrared downward flux at the surface [W/m2]
+      &     swflx_vis_sfc(kbdim), &    ! visible downward flux at the surface [W/m2]
       &     swflx_par_sfc(kbdim), &    ! photosynthetically active downward flux at the surface [W/m2]
       &     swflx_clr_sfc(kbdim), &    ! clear-sky net shortwave flux at the surface [W/m2]
       &     swflx_dn_sfc_diff(kbdim)   ! shortwave diffuse downward radiative flux at the surface [W/m2]
@@ -1999,6 +2026,8 @@ CONTAINS
         swflx_up_toa(jc)      = pi0(jc)*trsol_up_toa(jc)
         swflx_up_sfc(jc)      = pi0(jc)*trsol_up_sfc(jc) * slope_corr(jc)
         swflx_dn_sfc_diff(jc) = pi0(jc)*trsol_dn_sfc_diff(jc) * slope_corr(jc)
+        swflx_nir_sfc(jc)     = pi0(jc)*trsol_nir_sfc(jc) * slope_corr(jc)
+        swflx_vis_sfc(jc)     = pi0(jc)*trsol_vis_sfc(jc) * slope_corr(jc)
         swflx_par_sfc(jc)     = pi0(jc)*trsol_par_sfc(jc) * slope_corr(jc)
       ENDDO
       !$ACC END PARALLEL

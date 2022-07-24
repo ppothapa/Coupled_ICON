@@ -52,8 +52,7 @@ MODULE mo_rtifc_12
                                   jprb,                  &! default double precision (hopefully)
                                   jplm                    ! default logical type
 
-  use rttov_const,          only: fastem_sp,             &! max. number of fastem surface parameters
-                                  errorstatus_success,   &! RTTOV errorstatus (0)
+  use rttov_const,          only: errorstatus_success,   &! RTTOV errorstatus (0)
                                   errorstatus_fatal,     &! RTTOV errorstatus (2)
                                   gas_id_mixed,          &!
                                   ngases_max,            &!
@@ -62,8 +61,14 @@ MODULE mo_rtifc_12
                                   gas_unit_specconc,     &! specific concentration (kg/kg over wet air)
                                   gas_unit_ppmv,         &! ppmv over wet air
                                   gas_unit_ppmvdry,      &! ppmv over dry air
+                                  gas_id_ozone,          &!
+                                  gas_id_co2,            &!
                                   mair,                  &!
-                                  mh2o                    !
+                                  mh2o,                  &!
+                                  sensor_id_mw,          &!
+                                  sensor_id_po,          &!
+                                  sensor_id_ir,          &!
+                                  sensor_id_hi
 
   use rttov_types,          only: rttov_options,         &! Structure for RTTOV options
                                   rttov_coef,            &! Structure for RTTOV basic coefficients
@@ -84,7 +89,7 @@ MODULE mo_rtifc_12
                                   rttov_radiance2,       &! upwelling and downwelling radiances
                                   rttov_emissivity,      &!
                                   rttov_coef_pccomp2      ! Structure for RTTOV principal component coefficients
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
   use rttov_types,          only: ipr_deb,               &!
                                   pe_rt => pe
 #endif
@@ -99,7 +104,13 @@ MODULE mo_rtifc_12
 
 #if defined(_RTTOV_ATLAS)
   use rttov_math_mod,       only: planck
-  use mod_rttov_emis_atlas, only: rttov_emis_atlas_data ! Data type to hold atlas info
+  use mod_rttov_emis_atlas, only: rttov_emis_atlas_data,&! Data type to hold atlas info
+                                  atlas_type_ir,       &!
+                                  atlas_type_mw,       &!
+                                  uwiremis_atlas_id,   &!
+                                  camel_atlas_id,      &!
+                                  telsem2_atlas_id,    &!
+                                  cnrm_mw_atlas_id      !
   use mod_mwatlas_m2,       only: telsem2_atlas_data    ! Data type to hold TELSEM2 atlas info
   use mod_cnrm_mw_atlas,    only: cnrm_mw_atlas_data    ! Data type to hold CNRM atlas info
 #endif
@@ -115,11 +126,7 @@ MODULE mo_rtifc_12
 #endif
 
 #if defined(_RTTOV_USE_OPENMP)
-#if defined(_DACE_)
-  use mo_omp,               only: omp_get_max_threads     !
-#else
   use omp_lib,              only: omp_get_max_threads     !
-#endif
 #endif
 
   implicit none
@@ -133,26 +140,26 @@ MODULE mo_rtifc_12
   ! subroutines
   public :: rtifc_version          ! Version string
   public :: rtifc_set_opts_sub     ! Set RTTOV options
+  public :: rtifc_get_opts_sub     ! Set RTTOV options
   public :: rtifc_init             ! Initialise RTTOV modules, read coeffs
   public :: rtifc_coef_index       ! Returns index of coeffs for given satid/instr
   public :: rtifc_cleanup          ! frees memory allocated by rtifc_init
-  public :: rtifc_get_preslev      ! Get pressure levels
   public :: rtifc_fill_input       ! fills the profile-dependent part for RTTOV
   public :: rtifc_direct           ! calls RTTOV direct routine
   public :: rtifc_k                ! calls RTTOV K routine
-  public :: rtifc_dealloc_profiles ! deallocate the profiles
+  public :: rtifc_l2c_god          ! god-corrected l2c
   public :: rtifc_print_profiles   ! print rttov profile structure
+  public :: rtifc_coef_prop        ! get properties of coefs
 #if defined(_RTTOV_ATLAS)
-  public :: rtifc_init_mw_atlas
+  public :: rtifc_init_atlas
   public :: rtifc_init_brdf_atlas
   public :: rtifc_emis_atlas
   public :: rtifc_emis_retrieve
   public :: rtifc_brdf_atlas
-#endif  
+#endif
 
   ! RTTOV options
   public :: rttov_options
-  public :: rttov_opts_def
 
   ! parameters/variables
   public :: rtifc_vers
@@ -162,6 +169,8 @@ MODULE mo_rtifc_12
   public :: gas_unit_specconc
   public :: gas_unit_ppmv
   public :: gas_unit_ppmvdry
+  public :: gas_id_ozone
+  public :: gas_id_co2
 
   !-----------
   ! Interfaces
@@ -174,8 +183,6 @@ MODULE mo_rtifc_12
 #endif
 #include "rttov_alloc_rad.interface"
 #include "rttov_alloc_prof.interface"
-#include "rttov_errorhandling.interface"
-#include "rttov_errorreport.interface"
 #include "rttov_copy_prof.interface"
 #include "rttov_alloc_transmission.interface"
 #include "rttov_coeffname.interface"
@@ -280,8 +287,28 @@ MODULE mo_rtifc_12
   integer(jpim), parameter :: rttov_alloc   = 1   ! allocation switch
   integer(jpim), parameter :: rttov_dealloc = 0   ! deallocation switch
 
+  integer,       parameter :: m_atl = 2           ! max. number of atlases for each coef
+
   ! RTTOV options
-  type(rttov_options), target :: rttov_opts_def    ! RTTOV default options
+  ! Type for organization of options/coeffs
+  type t_rtopts
+    character(len=100)        :: name    = '' ! Name/description (useful for debugging/err. messages)
+    integer                   :: satid   = -1 ! WMO satellite ID
+    integer                   :: instr   = -1 ! RTTOV instrument ID
+    integer                   :: grid    = -1 ! RTTOV grid ID
+    integer                   :: icoeff  = 0  ! index of corresponding rttov_coefs (in "coefs" array)
+    type(rttov_options)       :: opts
+    integer                   :: iatl(m_atl) = -1 ! index of corresponding atlases in "atlas" array
+    integer                   :: natl        =  0 ! Number of associated atlases
+   end type t_rtopts
+  type(t_rtopts),            pointer            :: rt_opts(:) => null()
+  integer                                       :: n_opts = 0
+  integer,                   parameter          :: n_alloc_opts = 25
+  ! Templates for t_rtopts
+  ! (if new templated are added, a new set_opts_template call must be added)
+  integer,                   parameter          :: n_tmpl     = 2
+  type(t_rtopts),            target             :: rt_opts_tmpl(n_tmpl)
+  integer                                       :: idef0      = -1
 
   ! general dimension variables
   integer(jpim) :: nprof        ! no.of profiles processed in one rttov call
@@ -290,7 +317,7 @@ MODULE mo_rtifc_12
   integer(jpim) :: nlay         ! number of model levels of external grid
 
   ! RTTOV variables
-  type(rttov_coefs),  target, allocatable, save :: coefs(:)                ! container for coeffs
+  type(rttov_coefs),          pointer           :: coefs(:)    => NULL()   ! container for coeffs
   type(rttov_profile),        pointer           :: profiles(:) => NULL()   ! atm. data
   type(rttov_transmission),                save :: transmission            ! transmittances,layer optical depths
   type(rttov_radiance),                    save :: radiance                ! radiances, brightness temperatures
@@ -299,7 +326,8 @@ MODULE mo_rtifc_12
   type(rttov_transmission),                save :: transmission_k          ! transmittances,layer optical depths
   type(rttov_radiance),                    save :: radiance_k              ! radiances, brightness temperatures
 #if defined(_RTTOV_ATLAS)
-  type(rttov_emis_atlas_data),             save :: mw_atlas(5)             ! 1x TELSEM, 4x CNRM
+  type(rttov_emis_atlas_data), pointer          :: atlas(:)      => NULL()
+  integer                                       :: n_atlas       =  0
 #endif
 
 
@@ -308,10 +336,14 @@ MODULE mo_rtifc_12
   type(rttov_profile),pointer   :: profiles_aux(:) => NULL()     ! auxiliary profiles
 
 
-#if !defined(_DACE_)
+#if !defined(_DACE_) || defined (__ICON__)
   ! we are not sure, that we use a DWD version of RTTOV -> use dummy variables
   integer :: ipr_deb, pe_rt
 #endif
+
+  interface construct
+    module procedure construct_rttov_options
+  end interface construct
 
 
 contains
@@ -333,9 +365,18 @@ contains
   end function rtifc_version
 
 
-  subroutine rtifc_set_opts_sub(rttov_opts,         &!
+  subroutine rtifc_set_opts_sub(iopt,               &!
+                                new,                &!
                                 init,               &!
+                                tmpl,               &!
+                                iopt_tmpl,          &!
+                                name,               &!
+                                satid,              &!
+                                instr,              &!
+                                grid,               &!
+                                rttov_opts,         &!
                                 addinterp,          &!
+                                interp_mode,        &!
                                 addrefrac,          &!
                                 addclouds,          &!
                                 addaerosl,          &!
@@ -359,9 +400,19 @@ contains
                                 so2_data,           &!
                                 clw_data            &!
                                )
-    type(rttov_options), intent(inout), optional, target :: rttov_opts
-    logical,             intent(in),    optional         :: init
+    integer,             intent(inout), optional         :: iopt       ! ID of options, index in rt_opts
+    logical,             intent(in),    optional         :: new        ! Create new options, i.e. new entry
+                                                                       ! in rt_opts
+    logical,             intent(in),    optional         :: init       ! initialization
+    character(len=*),    intent(in),    optional         :: tmpl       ! name of template
+    integer,             intent(in),    optional         :: iopt_tmpl  ! index of "source" options
+    character(len=*),    intent(in),    optional         :: name       ! meta data: name of options
+    integer,             intent(in),    optional         :: satid      ! meta data: satellite ID
+    integer,             intent(in),    optional         :: instr      ! meta data: instrument
+    integer,             intent(in),    optional         :: grid       ! meta data: grid
+    type(rttov_options), intent(in),    optional         :: rttov_opts ! full rttov options
     logical,             intent(in),    optional         :: addinterp
+    integer,             intent(in),    optional         :: interp_mode
     logical,             intent(in),    optional         :: addrefrac
     logical,             intent(in),    optional         :: addclouds
     logical,             intent(in),    optional         :: addaerosl
@@ -394,48 +445,103 @@ contains
     !   *RTOVP* files, we prevent RTTOV12 from setting the results to zero, where
     !   the reg_limits were exceeded.
     !--------------------------------------------------------------------------
-    type(rttov_options), pointer :: ropts => null()
+    character(len=18),   parameter :: proc = 'rtifc_set_opts_sub'
+    type(rttov_options), pointer   :: ropts => null()
+    logical                        :: new_  =  .false.
+    type(t_rtopts),      pointer   :: rt_opts_(:) => null() ! auxiliary for reallocation of rt_opts
+    type(t_rtopts),      pointer   :: rto         => null()
+    integer                        :: mx_opts
+    integer                        :: i, itmpl
+    logical                        :: l_mod_tmpl  = .false.
 
-    if (present(rttov_opts)) then
-      ropts => rttov_opts
-    else
-      ropts => rttov_opts_def
+
+
+    rto => null()
+    l_mod_tmpl = .false.
+
+    ! Initialize templates if necessary
+    if (idef0 <= 0) then
+      idef0 = 1
+      call set_opts_template(rt_opts_tmpl(idef0), 'default0')
+      call set_opts_template(rt_opts_tmpl(    2), 'default' )
     end if
+
+    ! Find template
+    itmpl = -1
+    if (present(tmpl)) then
+      do i = 1, n_tmpl
+        if (trim(tmpl) == trim(rt_opts_tmpl(i)%name)) then
+          itmpl = i
+          exit
+        end if
+      end do
+      if (itmpl <= 0) call finish(proc, 'Did not find rt_opts-template "'//trim(tmpl)//'"')
+    end if
+
+    if (present(new)) then
+      new_ = new
+    else
+      new_ = .false.
+    end if
+    if (new_) then
+      if (.not.present(iopt)) call finish(proc, 'arguments: new without iopt not supported.')
+
+      if (associated(rt_opts)) then
+        mx_opts = size(rt_opts)
+      else
+        mx_opts = 0
+      end if
+      if (n_opts + 1 > mx_opts) then
+        ! Reallocate rt_opts
+        allocate(rt_opts_(mx_opts + n_alloc_opts))
+        if (associated(rt_opts)) then
+          rt_opts_(1:n_opts) = rt_opts(1:n_opts)
+          deallocate(rt_opts)
+        end if
+        rt_opts => rt_opts_
+      end if
+      ! Create and initialize new entry in rt_opts
+      n_opts = n_opts + 1
+      iopt = n_opts
+      rto => rt_opts(iopt)
+      if (present(tmpl)) then
+        rto = rt_opts_tmpl(itmpl)
+      elseif (present(iopt_tmpl)) then
+        if (iopt_tmpl < 0 .or. iopt_tmpl >= n_opts) call finish(proc, 'invalid iopt_tmpl')
+        rto = rt_opts(iopt_tmpl)
+      else
+        rto = rt_opts_tmpl(idef0)
+      end if
+    elseif (present(iopt)) then
+      if (iopt < 1 .or. iopt > n_opts) call finish(proc, 'invalid iopt')
+      rto => rt_opts(iopt)
+    elseif (present(tmpl)) then
+      ! Modify template
+      rto => rt_opts_tmpl(itmpl)
+      l_mod_tmpl = .true.
+    else
+      call finish(proc, 'Either iopt or tmpl must be present')
+    end if
+
+    if (.not.l_mod_tmpl) then
+      if (present(name )) rto%name  = trim(name)
+      if (present(satid)) rto%satid = satid
+      if (present(instr)) rto%instr = instr
+      if (present(grid )) rto%grid  = grid
+    end if
+
+    ropts => rto%opts
 
     if (present(init)) then
       if (init) then
-        ! Set NWPSAF default
-        call construct(ropts)
-        ! Overwrite some NWPSAF defaults with DWD defaults
-        ropts%interpolation%addinterp  = .false.
-        ropts%rt_all%addrefrac         = .true.
-        ropts%rt_ir%addclouds          = .false.
-        ropts%rt_ir%addaerosl          = .false.
-        ropts%rt_ir%addsolar           = .false.
-        ropts%rt_ir%pc%addpc           = .false.
-        ropts%config%apply_reg_limits  = .false.
-        ropts%config%verbose           = .false.
-        ropts%rt_all%switchrad         = .true.
-        ropts%rt_mw%fastem_version     = 5
-        ropts%rt_ir%ir_sea_emis_model  = 2
-        ropts%rt_all%use_q2m           = .false.
-        ropts%rt_all%do_lambertian     = .false.
-#if defined(_DACE_)
-        ropts%config%crop_k_reg_limits = .false.
-        ropts%config%conv_overc        = .false.
-        ropts%config%fix_hgpl          = 2
-#endif
-        ropts%rt_ir%ozone_data         = .false.
-        ropts%rt_ir%co2_data           = .false.
-        ropts%rt_ir%n2o_data           = .false.
-        ropts%rt_ir%co_data            = .false.
-        ropts%rt_ir%ch4_data           = .false.
-        ropts%rt_ir%so2_data           = .false.
-        ropts%rt_mw%clw_data           = .false.
+        call set_opts_template(rto)
       end if
     end if
 
+    if (present(rttov_opts)) ropts = rttov_opts
+
     if (present(addinterp        )) ropts%interpolation%addinterp  = addinterp
+    if (present(interp_mode      )) ropts%interpolation%interp_mode= interp_mode
     if (present(addrefrac        )) ropts%rt_all%addrefrac         = addrefrac
     if (present(addclouds        )) ropts%rt_ir%addclouds          = addclouds
     if (present(addaerosl        )) ropts%rt_ir%addaerosl          = addaerosl
@@ -448,7 +554,7 @@ contains
     if (present(ir_sea_emis_model)) ropts%rt_ir%ir_sea_emis_model  = ir_sea_emis_model
     if (present(use_q2m          )) ropts%rt_all%use_q2m           = use_q2m
     if (present(do_lambertian    )) ropts%rt_all%do_lambertian     = do_lambertian
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
     if (present(crop_k_reg_lims  )) ropts%config%crop_k_reg_limits = crop_k_reg_lims
     if (present(conv_overc       )) ropts%config%conv_overc        = conv_overc
     if (present(fix_hgpl         )) ropts%config%fix_hgpl          = fix_hgpl
@@ -461,20 +567,267 @@ contains
     if (present(so2_data         )) ropts%rt_ir%so2_data           = so2_data
     if (present(clw_data         )) ropts%rt_mw%clw_data           = clw_data
 
-    if (.not.ropts%config%apply_reg_limits) ropts%config%do_checkinput = .false.
-
-  contains
-
-    subroutine construct(ropts)
-      type(rttov_options), intent(out) :: ropts
-    end subroutine construct
+    if (.not.ropts%config%apply_reg_limits) then
+      ropts%config%do_checkinput = .false.
+    end if
 
   end subroutine rtifc_set_opts_sub
 
 
+  subroutine rtifc_get_opts_sub(iopt,               &!
+                                tmpl,               &!
+                                name,               &!
+                                satid,              &!
+                                instr,              &!
+                                grid,               &!
+                                rttov_opts,         &!
+                                addinterp,          &!
+                                interp_mode,        &!
+                                addrefrac,          &!
+                                addclouds,          &!
+                                addaerosl,          &!
+                                addsolar,           &!
+                                addpc,              &!
+                                apply_reg_lims,     &!
+                                verbose_reg_lims,   &!
+                                crop_k_reg_lims,    &!
+                                switchrad,          &!
+                                conv_overc,         &!
+                                fix_hgpl,           &!
+                                fastem_version,     &!
+                                ir_sea_emis_model,  &!
+                                use_q2m,            &!
+                                do_lambertian,      &!
+                                ozone_data,         &!
+                                co2_data,           &!
+                                n2o_data,           &!
+                                co_data,            &!
+                                ch4_data,           &!
+                                so2_data,           &!
+                                clw_data            &!
+                                )
+    integer,             intent(in),     optional :: iopt       ! ID of options, index in rt_opts
+    character(len=*),    intent(in),     optional :: tmpl       ! name of template
+    character(len=*),    intent(out),    optional :: name       ! meta data: name of options
+    integer,             intent(out),    optional :: satid      ! meta data: satellite ID
+    integer,             intent(out),    optional :: instr      ! meta data: instrument
+    integer,             intent(out),    optional :: grid       ! meta data: grid
+    type(rttov_options), intent(out),    optional :: rttov_opts ! full rttov options
+    logical,             intent(out),    optional :: addinterp
+    integer,             intent(out),    optional :: interp_mode
+    logical,             intent(out),    optional :: addrefrac
+    logical,             intent(out),    optional :: addclouds
+    logical,             intent(out),    optional :: addaerosl
+    logical,             intent(out),    optional :: addsolar
+    logical,             intent(out),    optional :: addpc
+    logical,             intent(out),    optional :: apply_reg_lims
+    logical,             intent(out),    optional :: verbose_reg_lims
+    logical,             intent(out),    optional :: crop_k_reg_lims
+    logical,             intent(out),    optional :: switchrad
+    logical,             intent(out),    optional :: conv_overc
+    integer,             intent(out),    optional :: fix_hgpl
+    integer,             intent(out),    optional :: fastem_version
+    integer,             intent(out),    optional :: ir_sea_emis_model
+    logical,             intent(out),    optional :: use_q2m
+    logical,             intent(out),    optional :: do_lambertian
+    logical,             intent(out),    optional :: ozone_data
+    logical,             intent(out),    optional :: co2_data
+    logical,             intent(out),    optional :: n2o_data
+    logical,             intent(out),    optional :: co_data
+    logical,             intent(out),    optional :: ch4_data
+    logical,             intent(out),    optional :: so2_data
+    logical,             intent(out),    optional :: clw_data
+    !--------------------------------------------------------------------------
+    ! Get options from the rt_opts or rt_opts_tmpl arrays
+    !--------------------------------------------------------------------------
+    character(len=18),   parameter :: proc = 'rtifc_get_opts_sub'
+    type(rttov_options), pointer   :: ropts => null()
+    type(t_rtopts),      pointer   :: rto         => null()
+    integer                        :: i, io
 
-  subroutine rtifc_init(instruments,channels,nchans_inst,ropts,my_proc_id,n_proc,  &
-                        io_proc_id,mpi_comm_type,status,path_coefs,idx)
+    if (present(iopt) .and. present(tmpl)) then
+      call finish(proc, 'Either iopt or tmpl option allowed, but not both.')
+    elseif (present(tmpl)) then
+      io = -1
+      do i = 1, n_tmpl
+        if (trim(tmpl) == trim(rt_opts_tmpl(i)%name)) then
+          io = i
+          exit
+        end if
+      end do
+      if (io <= 0) call finish(proc, 'Did not find rt_opts-template "'//trim(tmpl)//'"')
+      rto => rt_opts_tmpl(io)
+    elseif (present(iopt)) then
+      if (iopt > 0 .and. iopt <= n_opts) then
+        rto => rt_opts(iopt)
+      else
+        call finish(proc, 'Options index iopt out of range.')
+      end if
+    else
+      call finish(proc, 'Either iopt or tmpl option must be given.')
+    end if
+
+    if (present(name )) name  = trim(rto%name)
+    if (present(satid)) satid = rto%satid
+    if (present(instr)) instr = rto%instr
+    if (present(grid )) grid  = rto%grid
+
+    ropts => rto%opts
+
+    if (present(rttov_opts)) rttov_opts = ropts
+
+    if (present(addinterp        )) addinterp         = ropts%interpolation%addinterp
+    if (present(interp_mode      )) interp_mode       = ropts%interpolation%interp_mode
+    if (present(addrefrac        )) addrefrac         = ropts%rt_all%addrefrac
+    if (present(addclouds        )) addclouds         = ropts%rt_ir%addclouds
+    if (present(addaerosl        )) addaerosl         = ropts%rt_ir%addaerosl
+    if (present(addsolar         )) addsolar          = ropts%rt_ir%addsolar
+    if (present(addpc            )) addpc             = ropts%rt_ir%pc%addpc
+    if (present(apply_reg_lims   )) apply_reg_lims    = ropts%config%apply_reg_limits
+    if (present(verbose_reg_lims )) verbose_reg_lims  = ropts%config%verbose
+    if (present(switchrad        )) switchrad         = ropts%rt_all%switchrad
+    if (present(fastem_version   )) fastem_version    = ropts%rt_mw%fastem_version
+    if (present(ir_sea_emis_model)) ir_sea_emis_model = ropts%rt_ir%ir_sea_emis_model
+    if (present(use_q2m          )) use_q2m           = ropts%rt_all%use_q2m
+    if (present(do_lambertian    )) do_lambertian     = ropts%rt_all%do_lambertian
+#if defined(_DACE_) && !defined(__ICON__)
+    if (present(crop_k_reg_lims  )) crop_k_reg_lims   = ropts%config%crop_k_reg_limits
+    if (present(conv_overc       )) conv_overc        = ropts%config%conv_overc
+    if (present(fix_hgpl         )) fix_hgpl          = ropts%config%fix_hgpl
+#endif
+    if (present(ozone_data       )) ozone_data        = ropts%rt_ir%ozone_data
+    if (present(co2_data         )) co2_data          = ropts%rt_ir%co2_data
+    if (present(n2o_data         )) n2o_data          = ropts%rt_ir%n2o_data
+    if (present(co_data          )) co_data           = ropts%rt_ir%co_data
+    if (present(ch4_data         )) ch4_data          = ropts%rt_ir%ch4_data
+    if (present(so2_data         )) so2_data          = ropts%rt_ir%so2_data
+    if (present(clw_data         )) clw_data          = ropts%rt_mw%clw_data
+
+  end subroutine rtifc_get_opts_sub
+
+
+  subroutine construct_rttov_options(ropts)
+    type(rttov_options), intent(out) :: ropts
+  end subroutine construct_rttov_options
+
+
+  subroutine set_opts_template(rto, tmpl)
+    type(t_rtopts),   intent(out), target   :: rto
+    character(len=*), intent(in),  optional :: tmpl
+
+    character(len=17), parameter :: proc = 'set_opts_template'
+    type(rttov_options), pointer :: ropts
+
+    ropts => rto%opts
+
+    call construct(ropts)
+    ! Overwrite some NWPSAF defaults with DWD defaults
+    ropts%interpolation%addinterp  = .false.
+    ropts%rt_all%addrefrac         = .true.
+    ropts%rt_ir%addclouds          = .false.
+    ropts%rt_ir%addaerosl          = .false.
+    ropts%rt_ir%addsolar           = .false.
+    ropts%rt_ir%pc%addpc           = .false.
+    ropts%config%apply_reg_limits  = .false.
+    ropts%config%verbose           = .false.
+    ropts%rt_all%switchrad         = .true.
+    ropts%rt_mw%fastem_version     = 5
+    ropts%rt_ir%ir_sea_emis_model  = 2
+    ropts%rt_all%use_q2m           = .false.
+    ropts%rt_all%do_lambertian     = .false.
+#if defined(_DACE_)
+    ropts%config%crop_k_reg_limits = .false.
+    ropts%config%conv_overc        = .false.
+    ropts%config%fix_hgpl          = 2
+#endif
+    ropts%rt_ir%ozone_data         = .false.
+    ropts%rt_ir%co2_data           = .false.
+    ropts%rt_ir%n2o_data           = .false.
+    ropts%rt_ir%co_data            = .false.
+    ropts%rt_ir%ch4_data           = .false.
+    ropts%rt_ir%so2_data           = .false.
+    ropts%rt_mw%clw_data           = .false.
+
+    if (present(tmpl)) then
+      select case(trim(tmpl))
+      case('default0')
+        ! Old default for old (deprecated) namelists
+      case('default')
+        ! Do nothing
+      case default
+        ! TODO: do not crash here, but set a status, that is given back to the user?
+        call finish(proc, 'Options template "'//trim(tmpl)//'" not defined.')
+      end select
+      rto%name = trim(tmpl)
+    end if
+  end subroutine set_opts_template
+
+
+  subroutine match_opts_coefs(opts,chans,coefs,match)
+    type(rttov_options), intent(in)  :: opts
+    integer,             intent(in)  :: chans(:)
+    type(rttov_coefs),   intent(in)  :: coefs
+    logical,             intent(out) :: match
+    ! tells us whether coefs match with opts, i.e. whether the coefs were
+    ! read with different options.
+    ! rttov_read_coeffs.f90 was used as a template.
+    integer :: i
+
+    match = .true.
+
+    !RF: i think, that it is not possible to reconstruct the channel indices that were
+    !    used to load the coefficients. So we have to load the coeffs again, if not all
+    !    channels were loaded
+    match = match .and. (coefs%coef%fmv_ori_nchn == coefs%coef%fmv_chn)
+    do i = 1, size(chans)
+      if (all(chans(i) /= coefs%coef%ff_ori_chn(1:coefs%coef%fmv_ori_nchn))) then
+        match = .false.
+        return
+      end if
+    end do
+
+    if (opts%rt_ir%pc%addpc) then
+      ! pccomp file read?
+      match = match .and. (coefs%coef_pccomp%fmv_pc_comp_pc > 0)
+      if (opts%rt_ir%addclouds) then
+        match = match .and. (coefs%coef_pccomp%fmv_pc_cld > 0)
+      end if
+      if (opts%rt_ir%pc%addradrec) then
+        match = match .and. (coefs%coef_pccomp%fmv_pc_nchn > 0)
+      endif
+    endif
+  end subroutine match_opts_coefs
+
+
+  subroutine merge_opts(optsm,opts)
+    type(rttov_options), intent(inout) :: optsm
+    type(rttov_options), intent(in)    :: opts
+    ! Purpose: to obtain options, that are adequate for loading the coefficients or
+    ! allocating the profiles in a way that they can be used with multiple different
+    ! rttov_options
+
+    optsm%rt_ir%ozone_data        = optsm%rt_ir%ozone_data .OR. opts%rt_ir%ozone_data
+    optsm%rt_ir%co2_data          = optsm%rt_ir%co2_data   .OR. opts%rt_ir%co2_data
+    optsm%rt_ir%n2o_data          = optsm%rt_ir%n2o_data   .OR. opts%rt_ir%n2o_data
+    optsm%rt_ir%co_data           = optsm%rt_ir%co_data    .OR. opts%rt_ir%co_data
+    optsm%rt_ir%ch4_data          = optsm%rt_ir%ch4_data   .OR. opts%rt_ir%ch4_data
+    optsm%rt_ir%so2_data          = optsm%rt_ir%so2_data   .OR. opts%rt_ir%so2_data
+    optsm%rt_mw %clw_data          = optsm%rt_mw %clw_data   .OR. opts%rt_mw %clw_data
+
+    optsm%rt_ir%addaerosl          = optsm%rt_ir%addaerosl          .OR.  opts%rt_ir%addaerosl
+    optsm%rt_ir%user_aer_opt_param = optsm%rt_ir%user_aer_opt_param .AND. opts%rt_ir%user_aer_opt_param
+
+    optsm%rt_ir%addclouds          = optsm%rt_ir%addclouds          .OR.  opts%rt_ir%addclouds
+    optsm%rt_ir%user_cld_opt_param = optsm%rt_ir%user_cld_opt_param .AND. opts%rt_ir%user_cld_opt_param
+
+    optsm%rt_ir%pc%addpc     = optsm%rt_ir%pc%addpc     .OR. opts%rt_ir%pc%addpc
+    optsm%rt_ir%pc%addradrec = optsm%rt_ir%pc%addradrec .OR. opts%rt_ir%pc%addradrec
+
+  end subroutine merge_opts
+
+
+  subroutine rtifc_init(instruments,channels,nchans_inst,ch_id,iopts,my_proc_id,n_proc,  &
+                        io_proc_id,mpi_comm_type,status,path_coefs)
     integer,             intent(in)          :: instruments(:,:)  ! info on processed instruments:
                                                                   ! (1,1:nInstr): rttov platform IDs
                                                                   ! (2,1:nInstr): rttov satellite IDs
@@ -485,23 +838,30 @@ contains
                                                                   ! of the channels in the coeff. file
     integer,             intent(in)          :: nchans_inst(:)    ! number of channels for each instrument
                                                                   ! as defined in channels
-    type(rttov_options), intent(in)          :: ropts(:)          ! rttov_options for each instrument
+    integer,             intent(out)         :: ch_id(:,:)        ! channel indices (for RTTOV calls)
+    integer,             intent(in)          :: iopts(:)          ! rttov_options for each instrument
     integer,             intent(in)          :: my_proc_id        ! ID of local processors
     integer,             intent(in)          :: n_proc            ! no. of processors in mpi communication domain
     integer,             intent(in)          :: io_proc_id        ! ID of IO processor
     integer,             intent(in)          :: mpi_comm_type     ! mpi communicator type
     integer,             intent(out)         :: status            ! exit status
     character(*),        intent(in), optional:: path_coefs        ! path to coefficient files
-    integer,             intent(out),optional:: idx(:)            ! Coeff. indices
     !--------------------------------------------------------------------------
     ! initialization routine which initializes the rttov modules
     ! and reads the instrument specific coefficients which are needed (wanted).
     !--------------------------------------------------------------------------
-    character(len=120) :: msg = ''
-    integer            :: errstat(size(instruments,2))
-    integer            :: ninstr
-    integer            :: instr, stat_
-    logical            :: l_distrib
+    character(len=10), parameter :: proc = 'rtifc_init'
+    type(rttov_coefs), pointer   :: coefs_tmp(:) => null()
+    type(t_rtopts),    pointer   :: rto          => null()
+    type(rttov_options)          :: opts_
+    integer                      :: chans(mx_chan), ch_id_(mx_chan)
+    character(len=120)           :: msg = ''
+    integer                      :: errstat(size(instruments,2)), stat
+    integer                      :: ninstr, ncoefs, ncoefs_, nchans
+    integer                      :: instr, stat_
+    integer                      :: i, j, k, ic
+    integer                      :: id_platform, id_sat, id_inst
+    logical                      :: l_distrib, match
 
 FTRACE_BEGIN('rtifc_init')
 
@@ -512,48 +872,137 @@ FTRACE_BEGIN('rtifc_init')
     l_distrib = (n_proc > 1) .and. read1pe
 #endif
 
-    if (verbosity >= production .and. my_proc_id == io_proc_id) then
-      print*,'Initialize '//rtifc_version()
-      msg = 'Read RTTOV coefficient files'
-      if (l_distrib) msg = trim(msg)//' on one pe and distribute them'
-      print*,trim(msg)
-    end if
-
     ! initialize some module variables
     nprof      = 0
     nlevs      = 0
     nmax_chans = maxval(nchans_inst(:))
-    ninstr     = size(instruments, 2)
+
+    if (verbosity >= production .and. my_proc_id == io_proc_id) &
+         print*,'Initialize '//rtifc_version()
 
     pe_ifc = my_proc_id
     pe_rt  = pe_ifc
 
-    call rttov_errorhandling(-1)
+    ! Determine coefs to be loaded or link to existing coefs
+    ninstr     = size(instruments, 2)
+    if (size(iopts) < ninstr) call finish(proc,'iopts smaller than number of instruments.')
+    ncoefs = 0
+    if (associated(coefs)) ncoefs = size(coefs)
+    ncoefs_ = ncoefs
+    do i = 1, ninstr
+      rto => rt_opts(iopts(i))
+      if (rto%icoeff > 0) call finish(proc, 'rt_opts are associated with coeffs already')
+      id_platform = instruments(1,i)
+      id_sat      = instruments(2,i)
+      id_inst     = instruments(3,i)
+      do ic = 1, ncoefs
+        if ( id_platform == coefs(ic)%coef%id_platform .and. &
+             id_sat      == coefs(ic)%coef%id_sat      .and. &
+             id_inst     == coefs(ic)%coef%id_inst     ) then
+          ! Can we use these coeffs for the new options?
+          call match_opts_coefs(rto%opts, channels(1:nchans_inst(instr),instr), coefs(ic), match)
+          if (.not.match) cycle
+          call rttov_user_options_checkinput(stat, rto%opts, coefs(ic))
+          if (stat /= 0) call finish(proc, 'bad options or existing coeffs are incompatible')
+          rto%icoeff = ic
+          ch_id(1:nchans_inst(i),i) = channels(1:nchans_inst(i),i)
+        end if
+      end do
+      if (rto%icoeff <= 0) then
+        ! check whether this instrument occured already
+        do j = i-1, 1, -1
+          if ( id_platform == instruments(1,j) .and. &
+               id_sat      == instruments(2,j) .and. &
+               id_inst     == instruments(3,j) ) then
+            rto%icoeff = rt_opts(iopts(j))%icoeff
+            exit
+          end if
+        end do
+        if (rto%icoeff <= 0) then
+          ! we have to initialize new coefficients
+          ncoefs_ = ncoefs_ + 1
+          rto%icoeff = ncoefs_
+        end if
+      end if
+    end do
 
-    ! allocate, read and initialise coefficients
-    allocate(coefs(ninstr),stat=stat_)
-    if(stat_ /= 0) then
-       status = ERR_ALLOC
-       return
+    if (verbosity >= production .and. my_proc_id == io_proc_id) then
+      write(msg,'("Read ",I2," RTTOV coefficient files")') ncoefs_ - ncoefs
+      if (l_distrib) msg = trim(msg)//' on one pe and distribute them'
+      print*,trim(msg)
     end if
-    if (present(idx)) idx(1:ninstr) = (/ (instr, instr=1,ninstr) /)
 
+    ! allocate/reallocate coefficients
+    if (ncoefs_ > ncoefs) then
+      allocate(coefs_tmp(ncoefs_), stat=stat_)
+      if(stat_ /= 0) then
+        status = ERR_ALLOC
+        return
+      end if
+      if (ncoefs > 0) coefs_tmp(1:ncoefs) = coefs(1:ncoefs)
+      if (associated(coefs)) deallocate(coefs)
+      coefs => coefs_tmp
+    end if
+
+
+    errstat = 0
     do instr = 1, ninstr
       FTRACE_BEGIN('read_coeffs')
+      rto => rt_opts(iopts(instr))
+      ic = rto%icoeff
+      if (coefs(ic)%initialised) cycle
+
+      ! Merge options/channels with following options/channels for the same instrument
+      opts_ = rto%opts
+      nchans = nchans_inst(instr)
+      chans(1:nchans_inst(instr)) = channels(1:nchans_inst(instr),instr)
+      do i = instr+1, ninstr
+        if (rt_opts(iopts(i))%icoeff == ic) then
+          call merge_opts(opts_,rt_opts(iopts(i))%opts)
+          do j = 1, nchans_inst(i)
+            if (all(chans(1:nchans) /= channels(j,i))) then
+              nchans = nchans + 1
+              if (nchans > size(chans)) call finish(proc,'chans array too small. &
+                   &Recompile with increased mx_chan in mo_rtifc ')
+              chans(nchans) = channels(j,i)
+            end if
+          end do
+        end if
+      end do
+      ! sort channel
+      do i = nchans-1, 1, -1
+        do j = 1, i
+          if (chans(j) > chans(j+1)) then
+            k          = chans(j)
+            chans(j)   = chans(j+1)
+            chans(j+1) = k
+          end if
+        end do
+      end do
+      ! Determine channel indices
+      do i = 1, nchans
+        if (chans(i) <= 0 .or. chans(i) > mx_chan) call finish(proc, 'Either invalid &
+             &channel number of mx_chan too small.')
+        ch_id_(chans(i)) = i
+      end do
+      ch_id(1:nchans_inst(instr),instr) = ch_id_(channels(1:nchans_inst(instr),instr))
+      do i = instr+1, ninstr
+        if (rt_opts(iopts(i))%icoeff == ic) then
+          ch_id(1:nchans_inst(i),i) = ch_id_(channels(1:nchans_inst(i),i))
+        end if
+      end do
+
       ! Read or initialize coeffs
       if (io_proc_id == my_proc_id .or. .not.l_distrib) then
-        call rttov_read_coefs(                                  &
-             errstat(instr),                                    &! -> return code
-             coefs(instr),                                      &! -> coefficients
-             ropts(instr),                                      &! <- options
-             channels   = channels(1:nchans_inst(instr),instr), &! <- channels to load
-             instrument = instruments(:,instr),                 &!
+        call rttov_read_coefs(                  &
+             errstat(instr),                    &! -> return code
+             coefs(ic),                         &! -> coefficients
+             opts_,                             &! <- options
+             channels   = chans(1:nchans),      &! <- channels to load
+             instrument = instruments(:,instr), &!
              path       = path_coefs)
       else
-         call rttov_nullify_coef(coefs(instr)% coef)
-         call rttov_nullify_coef_pccomp(coefs(instr)% coef_pccomp)
-         call rttov_nullify_coef_scatt_ir(coefs(instr)% coef_scatt_ir)
-         call rttov_nullify_optpar_ir(coefs(instr)% optp)
+        call rttov_nullify_coefs(coefs(ic))
       endif
       FTRACE_END('read_coeffs')
 #if defined(_RTIFC_DISTRIBCOEF)
@@ -563,13 +1012,15 @@ FTRACE_BEGIN('rtifc_init')
       ! distribute loaded coefficients to all PEs
       if (l_distrib) then
         FTRACE_BEGIN('distrib_coeffs')
-        call p_bcast(coefs(instr),io_proc_id,mpi_comm_type)
+        call p_bcast(coefs(ic),io_proc_id,mpi_comm_type)
         FTRACE_END('distrib_coeffs')
       end if
 #else
       ! check errstat
       if (errstat(instr) /= errorstatus_success) cycle
 #endif
+      if (.not.coefs(ic)%initialised) call finish('proc', 'coefs not initialised after reading')
+
    enddo
 
     if(any(errstat(1:ninstr) /= errorstatus_success)) then
@@ -587,11 +1038,16 @@ FTRACE_BEGIN('rtifc_init')
       if (status /= NO_ERROR) return
     end if
 
-    if (ninstr > 0) then
+    if (ncoefs_ > ncoefs) then
+      ! Check loaded coeffs
+      do i = 1, ninstr
+        rto => rt_opts(iopts(i))
+        if (rto%icoeff > ncoefs) then
+          call rttov_user_options_checkinput(stat, rto%opts, coefs(rto%icoeff))
+          if (stat /= 0) call finish(proc, 'bad options or existing coeffs are incompatible')
+        end if
+      end do
       nlevs = coefs(1)%coef%nlevels
-      allocate(mask_lims_t(nlevs),mask_lims_q(nlevs))
-      mask_lims_t = .true.
-      mask_lims_q = .true.
     end if
 
 #if defined(_RTTOV_GOD)
@@ -633,6 +1089,7 @@ FTRACE_BEGIN('rtifc_init')
     character(len=10000)         :: line
     character(len=100)           :: tag
     integer                      :: version
+    integer                      :: nlevels   ! Number of rttov levels
     ! god parameters
     integer                      :: instr, chan, layer, mode
     real(kind=jprb)              :: opdep, par1
@@ -648,6 +1105,7 @@ FTRACE_BEGIN('rtifc_init')
       iu = get_unit_number()
       open(iu, file=trim(god_par_file))
       version = 1
+      nlevels = 54
       i_entry = 0
       n_used  = 0
       read_god_loop: do
@@ -679,6 +1137,10 @@ FTRACE_BEGIN('rtifc_init')
               version = i
               cycle read_god_loop
             end if
+            if (tag == 'nlevels') then
+              nlevels = i
+              cycle read_god_loop
+            end if
           end if
         end if
 
@@ -698,6 +1160,12 @@ FTRACE_BEGIN('rtifc_init')
             if (coef%id_inst == instr) then
               if (layer < 1 .or. layer > coef%nlayers) then
                 write(0,*) 'Invalid layer in god_par_file entry ',i_entry,': '//trim(line)
+                ERR
+              end if
+              if (coef%nlevels /= nlevels) then
+                write(0,*) 'level number of god_par_file does not match with RTTOV coeffs:'
+                write(0,*) 'nlevels (god_par): ', nlevels
+                write(0,*) 'nlevels (coeffs.): ', coef%nlevels
                 ERR
               end if
               if (.not.associated(coef%god)) then
@@ -785,6 +1253,7 @@ FTRACE_BEGIN('rtifc_init')
     !------------------------------------------------------------------
     ! Broadcast an rttov_coef container across all available processors
     !------------------------------------------------------------------
+    character(len=15), parameter :: proc = 'p_bcast_god_par'
     integer :: lcom, errorcode
 
 #if defined(_RTIFC_USE_MPI_DACE)
@@ -794,8 +1263,9 @@ FTRACE_BEGIN('rtifc_init')
 
     call MPI_Bcast(buffer,size(transfer(buffer,(/' '/))), MPI_BYTE, &
                    source, lcom, errorcode)
+
     if (errorcode /= MPI_SUCCESS) &
-         call finish('p_bcast_god_par@mo_rtifc_13', 'MPI ERROR in MPI_Bcast')
+         call finish(proc, 'MPI ERROR in MPI_Bcast')
 #endif
   end subroutine p_bcast_god_par
 
@@ -822,18 +1292,18 @@ FTRACE_BEGIN('rtifc_init')
       print*,trim(fname),god%ntr
       do i = 1, n
         x = -2*od + (i-1) * dx
-        write(iu, *) x, rttov_god2o(x, god)
+        write(iu, *) x, rttov_god2o(p=god, god=x)
       end do
       write(iu, *) '&'
       do i = 1, n
         x = -2*od + (i-1) * dx
-        write(iu, *) x, rttov_d_god2o(god, god=x)
+        write(iu, *) x, rttov_d_god2o(p=god, god=x)
       end do
 
       write(iu, *) '&'
       do i = 1, n
         x = -2*od + (i-1) * dx
-        write(iu, *) x, rttov_d_god2o(god, o=rttov_god2o(x, god))
+        write(iu, *) x, rttov_d_god2o(p=god, o=rttov_god2o(x, god))
       end do
 
       close(iu)
@@ -851,14 +1321,94 @@ FTRACE_BEGIN('rtifc_init')
 
 #endif /* _RTTOV_GOD */
 
+
+  subroutine rtifc_l2c_god(iopt, chans, valid, l2c, l2c_corr, transm, opdep, p_l2c, ideb)
+    integer,             intent(in)           :: iopt
+    integer,             intent(in)           :: chans(:)
+    logical,             intent(in)           :: valid(:,:)
+    real,                intent(in)           :: l2c(:,:)
+    real,                intent(out)          :: l2c_corr(:,:)
+    real(kind=jprb),     intent(in), optional :: transm(:,:,:)
+    real(kind=jprb),     intent(in), optional :: opdep(:,:,:)
+    real(kind=jprb),     intent(in), optional :: p_l2c(:,:)
+    integer,             intent(in), optional :: ideb
+
+    character(len=13),   parameter   :: proc   = 'rtifc_l2c_god'
+    type(t_rtopts),      pointer     :: rto    => null()
+    type(rttov_options), pointer     :: ropts  => null()
+    real(kind=jprb),     allocatable :: p_rt(:)
+    integer :: ic
+    integer :: nprof, nchan, nlev, nlev_
+    integer :: ipr, ich
+    integer :: idb, stat
+    logical :: l_opdep
+
+    if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+    l_opdep = present(opdep)
+    if (l_opdep) then
+      if (.not.present(p_l2c)) call finish(proc, 'argument opdep requires p_l2c')
+    elseif (.not.present(transm)) then
+      call finish(proc, 'Either opdep or transm required')
+    end if
+
+    rto   => rt_opts(iopt)
+    ropts => rto%opts
+    ic    =  rto%icoeff
+
+#if defined(_RTTOV_GOD)
+    if (associated(coefs(ic)%coef%god)) then
+      idb = -1
+      if (present(ideb)) idb = ideb
+      if (l_opdep) then
+        nprof = size(opdep, 3)
+        nchan = size(opdep, 2)
+        nlev  = size(opdep, 1) + 1
+        allocate(p_rt(nlev))
+        call rtifc_coef_prop(iopt, preslev=p_rt, nlevs=nlev_)
+        if (nlev /= nlev_) call finish(proc, 'inconsistent nlev')
+      else
+        nprof = size(transm, 3)
+        nchan = size(transm, 2)
+      end if
+
+      do ipr = 1, nprof
+        do ich = 1, nchan
+          if (idb == ipr) print*,'rtifc_l2c_god',ipr,ich,chans(ich), &
+               any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0)
+          if (any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0) .and. valid(ich,ipr)) then
+            if (l_opdep) then
+              call l2c_god_opd(opdep(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
+                               log(p_l2c(:,ipr)), log(p_rt(:)),                    &
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+            else
+              call l2c_god_tau(transm(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+            end if
+            if (idb == ipr) print*,'rtifc_l2c_god result',ipr,ich,chans(ich), &
+                 l2c(ich,ipr), l2c_corr(ich,ipr),l2c(ich,ipr)==l2c_corr(ich,ipr)
+          else
+            l2c_corr(ich,ipr) = l2c(ich,ipr)
+          end if
+        end do
+      end do
+    else
+      l2c_corr = l2c
+    end if
+#else
+    l2c_corr = l2c
+#endif
+
+  end subroutine rtifc_l2c_god
+
+
   function rtifc_coef_index(satid, platf, instr) result(idx)
     integer             :: idx
     integer, intent(in) :: satid
     integer, intent(in) :: platf
     integer, intent(in) :: instr
-    
+
     integer :: k, nmatch
-    
+
     idx = 0
     nmatch = 0
     do k = 1, size(coefs)
@@ -883,8 +1433,11 @@ FTRACE_BEGIN('rtifc_init')
   end function rtifc_coef_index
 
 
-  subroutine rtifc_cleanup(status)
-    integer, intent(out) :: status  ! exit status
+  subroutine rtifc_cleanup(status, lprof, lcoef, latlas)
+    integer, intent(out)          :: status  ! exit status
+    logical, intent(in), optional :: lprof
+    logical, intent(in), optional :: lcoef
+    logical, intent(in), optional :: latlas
     !------------------------------------------------------
     ! frees memory allocated by rtifc_init/rtifc_fill_input
     !------------------------------------------------------
@@ -892,89 +1445,61 @@ FTRACE_BEGIN('rtifc_init')
     integer       :: stat
     integer(jpim) :: nrttov_ids
     integer :: k
+    logical :: l
 
     status = NO_ERROR
 
     ! deallocation of rttov permanent arrays
-    if (associated(profiles)) then
-       call dealloc_rttov_arrays(status, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission)
-       if (status /= NO_ERROR) return
-    endif
-    if (associated(profiles_k)) then
-       call dealloc_rttov_arrays(status, profs=profiles_k,rads=radiance_k,transm=transmission_k)
-       if (status /= NO_ERROR) return
-    endif
+    if (present(lprof)) then ; l = lprof ; else ; l = .true. ; endif
+    if (l) then
+      if (associated(profiles)) then
+        call dealloc_rttov_arrays(status, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission)
+        if (status /= NO_ERROR) return
+      endif
+      if (associated(profiles_k)) then
+        call dealloc_rttov_arrays(status, profs=profiles_k,rads=radiance_k,transm=transmission_k  )
+        if (status /= NO_ERROR) return
+      endif
+    end if
 
     ! deallocate coefficients
-    if ((allocated(coefs))) then
-       nRttov_ids = size(coefs)
-       do i=1,nRttov_ids
+    if (present(lcoef)) then ; l = lcoef ; else ; l = .true. ; endif
+    if (l) then
+      if ((associated(coefs))) then
+        nRttov_ids = size(coefs)
+        do i=1,nRttov_ids
           call rttov_dealloc_coefs(stat, coefs(i))
           if (stat /= ERRORSTATUS_SUCCESS) then
-             status = ERR_ALLOC
-             return
+            status = ERR_ALLOC
+            return
           endif
-       enddo
-       deallocate(coefs)
-    endif
-
-    if (allocated(mask_lims_t)) deallocate(mask_lims_t)
-    if (allocated(mask_lims_q)) deallocate(mask_lims_q)
+        enddo
+        deallocate(coefs)
+      endif
+    end if
 
    ! Cleanup mw emis atlases
 #if defined(_RTTOV_ATLAS)
-    do k = 1, size(mw_atlas)
-      if (.not. mw_atlas(k)% init) cycle
-      call rttov_deallocate_emis_atlas(mw_atlas(k))
-    end do
+    if (present(latlas)) then ; l = latlas ; else ; l = .true. ; endif
+    if (l) then
+      if (associated(atlas)) then
+        do k = 1, size(atlas)
+          if (.not. atlas(k)% init) cycle
+          call rttov_deallocate_emis_atlas(atlas(k))
+        end do
+        deallocate(atlas)
+      end if
+    endif
 #endif
   end subroutine rtifc_cleanup
 
 
-
-
-  subroutine rtifc_get_preslev(instrIdx, status, preslev, nlevs)
-    integer,  intent(in)            :: instrIdx
-    integer,  intent(out)           :: status  ! exit status
-    real(wp), intent(out), optional :: preslev(:)
-    integer,  intent(out), optional :: nlevs
-    !------------------------------
-    ! Returns RTTOV pressure levels
-    !------------------------------
-    integer :: nlevs_user, nlevs_top, nl
-
-    status = NO_ERROR
-
-    if (.not.allocated(coefs)) then
-      status = ERR_RTTOV_SETUP
-      return
-    end if
-    if (size(coefs) < instrIdx .or. instrIdx <= 0) then
-      status = ERR_RTTOV_SETUP
-      return
-    end if
-
-    nl = coefs(instrIdx)%coef%nlevels
-    if (present(nlevs)) nlevs = nl
-    if (present(preslev)) then
-      nlevs_user = size(preslev)
-      if (nlevs_user > nl .or. nlevs_user < nl - 1) then
-        status = ERR_DIM
-        return
-      end if
-      nlevs_top = nl - nlevs_user
-      preslev(:) = coefs(instrIdx)%coef%ref_prfl_p(1+nlevs_top:)
-    end if
-
-  end subroutine rtifc_get_preslev
-
-
 #if defined(_DACE_)
-  subroutine rtifc_fill_input_rad (status,rad,ropts,ivect,istart,iend, pe, &
+  subroutine rtifc_fill_input_rad (status,rad,iopts,ivect,istart,iend, pe, &
                                    wr_profs, wr_profs_fmt)
     integer,             intent(out)          :: status
     type(t_radv),        intent(in)           :: rad             ! derived type to store all the above info
-    type(rttov_options), intent(in), target   :: ropts           ! RTTOV options
+    integer,             intent(in), target   :: iopts(:)        ! options index
     integer,             intent(in), optional :: ivect           ! Vectorization
                                                                  ! ivect =1 : vectorize profiles
                                                                  ! ivect/=1 : vectorize levels
@@ -986,11 +1511,15 @@ FTRACE_BEGIN('rtifc_init')
     !------------------------------------------------
     ! this routine fills the RTTOV profile structures
     !------------------------------------------------
-    integer(jpim)     :: stat
-    integer(jpim)     :: iprof, jprof, mpr
-    integer(jpim)     :: ivect_loc
-    integer(jpim)     :: i, j
-    integer           :: is, ie
+    character(len=20),   parameter :: proc   = 'rtifc_fill_input_rad'
+    type(t_rtopts),      pointer   :: rto    => null()
+    type(rttov_options), pointer   :: ropts  => null()
+    type(rttov_options), target    :: opts_
+    integer(jpim)                  :: stat
+    integer(jpim)                  :: iprof, jprof, mpr
+    integer(jpim)                  :: ivect_loc
+    integer(jpim)                  :: i, j, iopt
+    integer                        :: is, ie
     ! writing of profiles
     character(len=300):: fname             =  ""
 
@@ -1001,6 +1530,18 @@ FTRACE_BEGIN('rtifc_init')
       pe_rt  = pe_ifc
     end if
 
+    do i = 1, size(iopts)
+      iopt = iopts(i)
+      if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+      rto => rt_opts(iopt)
+      ropts => rto%opts
+      if (i == 1) then
+        opts_ = ropts
+      else
+        call merge_opts(opts_, ropts)
+      end if
+    end do
+    ropts => opts_
 
 #define DIM_ERROR(text) status = ERR_DIM ; write(0,*) '*** dim_err '//text ; return
 
@@ -1037,7 +1578,7 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
     nlevs = size(rad%t_fg, 1)
     call check_nlevs(nlevs, nlevs_top, status)
     if (status /= NO_ERROR) then
-      if (.not.ropts%interpolation%addinterp) then
+      if (.not.opts_%interpolation%addinterp) then
         return
       else
         ! Model levels as input
@@ -1134,6 +1675,7 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
 
       ! skin variables
       profiles(jprof)% skin% t         = rad% ts_fg(iprof)
+      profiles(jprof)% skin% snow_fraction = rad% snw_frc(iprof)
       profiles(jprof)% skin% surftype  = int(rad% stype(1,iprof), jpim)
       profiles(jprof)% skin% salinity  = default_salinity
       profiles(jprof)% skin% watertype = default_watertype
@@ -1180,10 +1722,6 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
       endif
     enddo
 
-    do iprof=1,nprof
-      profiles(iprof)%p = huge(1._wp)
-    end do
-
     mpr = ubound(rad% p, 2)
 
     ! vectorization
@@ -1191,7 +1729,7 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
     if (present(ivect)) ivect_loc = ivect
 
     if (ivect_loc == 1) then ! Vectorize profiles
-      if (.not.ropts%interpolation%addinterp .and. nlevs_top==1) then
+      if (nlevs_top==1) then
         do iprof = is, ie
           jprof = iprof - is + 1
           profiles(jprof)% p(1) = 0.005_jprb
@@ -1230,6 +1768,18 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
         enddo
       endif
 
+      if (associated(rad% clw)) then
+        do iprof = is, ie
+          profiles(iprof-is+1)% clw(1) = rad% clw(1,iprof)
+        enddo
+!NEC$ novector
+        do i=1,nlevs
+          do iprof = is, ie
+            profiles(iprof-is+1)% clw(i+nlevs_top) = rad% clw(i,iprof)
+          enddo
+        enddo
+      end if
+
       if (rad%i_o3 > 0) then
         do iprof = is, ie
           jprof = iprof - is + 1
@@ -1266,7 +1816,7 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
         if (associated(rad%obsnum)) then
           write(profiles(jprof)% id,*) rad%obsnum(iprof)
         end if
-        if (.not.ropts%interpolation%addinterp .and. nlevs_top==1) then
+        if (nlevs_top==1) then
           profiles(jprof)% p(1)            = 0.005_jprb
           profiles(jprof)% t(1)            = min(tmax_ifc,max(tmin_ifc,rad%t_fg(1,iprof)))
           profiles(jprof)% q(1)            = min(qmax_ifc,max(qmin_ifc,rad%q_fg(1,iprof)))
@@ -1281,6 +1831,10 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
           profiles(jprof)% cfrac(1:nlay) = rad% cld_frc(1:nlay,iprof)
         end if
 
+        if (associated(profiles(jprof)% clw)) then
+          if (nlevs_top==1) profiles(jprof)% clw  (1) = rad% clw  (1,iprof)
+          profiles(jprof)% clw(1+nlevs_top:) = rad% clw  (1:nlevs,iprof)
+        end if
         if (rad%i_o3 > 0) then
           profiles(jprof)% o3(1)               = rad%trg(rad%i_o3,1,iprof)
           profiles(jprof)% o3(1+nlevs_top:)    = rad%trg(rad%i_o3,1:nlevs,iprof)
@@ -1322,13 +1876,13 @@ FTRACE_END('rtifc_fill_input_rad')
 #endif
 
 
-  subroutine rtifc_fill_input_var (status,ropts,press,temp,humi,t2m,q2m,psurf,hsurf,&
+  subroutine rtifc_fill_input_var (status,iopts,press,temp,humi,t2m,q2m,psurf,hsurf,&
                                    u10m,v10m,stemp,stype,lat,lon,sat_zen,sun_zen,   &
                                    sat_azi,sun_azi,cloud,cfrac,ctp,cfraction,       &
-                                   ice_scheme, idg, watertype, id,                  &
+                                   ice_scheme, idg, watertype,snw_frc,id,           &
                                    ivect,istart,iend,pe,wr_profs, wr_profs_fmt)
     integer,             intent(out)          :: status
-    type(rttov_options), intent(in), target   :: ropts           ! RTTOV options
+    integer,             intent(in)           :: iopts       (:) ! options index
     real(wp),            intent(in)           :: press     (:,:) ! press. grid (nlevs,nprofs) [hPa]
     real(wp),            intent(in)           :: temp      (:,:) ! temperature profiles (nlevs,nprofs)[K]
     real(wp),            intent(in)           :: humi      (:,:) ! water vapour profile (nlevs,nprofs) [ppmv]
@@ -1358,6 +1912,7 @@ FTRACE_END('rtifc_fill_input_rad')
     integer,             intent(in), optional :: ice_scheme  (:) !
     integer,             intent(in), optional :: idg         (:) !
     integer,             intent(in), optional :: watertype   (:) !
+    real(wp),            intent(in), optional :: snw_frc     (:) ! snow fraction
     integer,             intent(in), optional :: id          (:) ! Profile id
     integer,             intent(in), optional :: ivect           ! Vectorization
                                                                  ! ivect =1 : vectorize profiles
@@ -1370,10 +1925,14 @@ FTRACE_END('rtifc_fill_input_rad')
     !------------------------------------------------
     ! this routine fills the RTTOV profile structures
     !------------------------------------------------
+    character(len=20),   parameter :: proc   = 'rtifc_fill_input_var'
+    type(t_rtopts),      pointer   :: rto    => null()
+    type(rttov_options), pointer   :: ropts  => null()
+    type(rttov_options), target    :: opts_
     integer(jpim)     :: stat
     integer(jpim)     :: iprof, jprof, mpr
     integer(jpim)     :: ivect_loc
-    integer(jpim)     :: i, j
+    integer(jpim)     :: i, j, iopt
     integer           :: is, ie
     ! writing of profiles
     character(len=300):: fname             =  ""
@@ -1385,8 +1944,20 @@ FTRACE_END('rtifc_fill_input_rad')
       pe_rt  = pe_ifc
     end if
 
+    do i = 1, size(iopts)
+      iopt = iopts(i)
+      if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+      rto => rt_opts(iopt)
+      ropts => rto%opts
+      if (i == 1) then
+        opts_ = ropts
+      else
+        call merge_opts(opts_, ropts)
+      end if
+    end do
+    ropts => opts_
 
-#define DIM_ERROR(text) status = ERR_DIM ; print*,text ; return
+#define DIM_ERROR(text) status = ERR_DIM ; write(0,*) 'dim_error: '//text ; return
 
 FTRACE_BEGIN('rtifc_fill_input_var')
 
@@ -1504,7 +2075,12 @@ FTRACE_BEGIN('rtifc_fill_input_var')
       profiles(jprof)% skin% surftype  = int(stype(iprof), jpim)
       profiles(jprof)% skin% salinity  = default_salinity
       profiles(jprof)% skin% fastem    = default_fastem
-      if (present(watertype)) then
+      if (present(snw_frc)) then
+        profiles(jprof)% skin% snow_fraction = snw_frc(iprof)
+      else
+        profiles(jprof)% skin% snow_fraction = 0._wp
+      end if
+       if (present(watertype)) then
         profiles(jprof)%skin%watertype = watertype(iprof)
       else
         profiles(jprof)%skin%watertype = default_watertype
@@ -1559,10 +2135,6 @@ FTRACE_BEGIN('rtifc_fill_input_var')
       endif
     enddo
 
-    do iprof=1,nprof
-      profiles(iprof)%p = huge(1._wp)
-    end do
-
     mpr = ubound(press, 2)
 
     ! vectorization
@@ -1570,7 +2142,7 @@ FTRACE_BEGIN('rtifc_fill_input_var')
     if (present(ivect)) ivect_loc = ivect
 
     if (ivect_loc == 1) then ! Vectorize profiles
-      if (.not.ropts%interpolation%addinterp .and. nlevs_top==1) then
+      if (nlevs_top==1) then
         do iprof = is, ie
           jprof = iprof - is + 1
           profiles(jprof)% p(1) = 0.005_jprb
@@ -1613,7 +2185,7 @@ FTRACE_BEGIN('rtifc_fill_input_var')
 
       do iprof = is, ie
         jprof = iprof - is + 1
-        if (.not.ropts%interpolation%addinterp .and. nlevs_top==1) then
+        if (nlevs_top==1) then
           profiles(jprof)% p(1)            = 0.005_jprb
           profiles(jprof)% t(1)            = min(tmax_ifc,max(tmin_ifc,temp(1,iprof)))
           profiles(jprof)% q(1)            = min(qmax_ifc,max(qmin_ifc,humi(1,iprof)))
@@ -1677,16 +2249,14 @@ FTRACE_END('rtifc_fill_input_var')
   end subroutine rttov_write_profile
 
 
-  subroutine rtifc_direct (instrIdx,lprofs,chans,ropts,emissiv,t_b,status,         &
+  subroutine rtifc_direct (iopt,lprofs,chans,emissiv,t_b,status,                   &
                            sat_zen, sat_azi, t_b_clear,rad,radclear,radupclear,    &
                            raddnclear,refdnclear,radovercast,radtotal,             &
                            transm,transmtotal,opdep,height, istore,reg_lim, rflag, &
-                           dealloc,iprint,rad_out_flg,pe, l_pio, l_opdep)
-    integer,             intent(in)            :: instrIdx           ! RTTOV instrument index,
-                                                                     ! as in the initialization routine
+                           dealloc,iprint,rad_out_flg,pe, l_pio)
+    integer,             intent(in)            :: iopt               ! options index
     integer,             intent(in)            :: lprofs         (:) ! list of profile indices (nchans*nprof)
     integer,             intent(in)            :: chans          (:) ! list of channel indices (nchans*nprof)
-    type(rttov_options), intent(in)            :: ropts              ! RTTOV options
     real(wp),            intent(inout)         :: emissiv      (:,:) ! emissivities (nchans,nprof),
                                                                      ! if < 0.01, they will be calculated,
                                                                      ! else they will be used
@@ -1724,7 +2294,6 @@ FTRACE_END('rtifc_fill_input_var')
     integer,             intent(in),  optional :: rad_out_flg        ! bit field (see OUT_* parameters)
     integer,             intent(in),  optional :: pe
     logical,             intent(in),  optional :: l_pio
-    logical,             intent(in),  optional :: l_opdep
 
     !-----------------------------------------------------------------------
     ! this subroutine renews the instrument dependent part
@@ -1733,9 +2302,14 @@ FTRACE_END('rtifc_fill_input_var')
     ! from the same satellite (or at least if their measurements
     ! are interpolated to the same ground point by e.g., aapp)
     !-----------------------------------------------------------------------
+    character(len=12), parameter :: proc   = 'rtifc_direct'
+    type(t_rtopts),     pointer  :: rto    => null()
+    type(rttov_options),pointer  :: ropts  => null()
+    integer                      :: ic
     integer                      :: ipr
     integer                      :: rad_out
     integer(jpim)                :: iprof
+    integer(jpim)                :: nlevs_coef
     integer(jpim)                :: nchans
     integer(jpim)                :: nchansprofs
     integer(jpim)                :: nprof_store
@@ -1759,7 +2333,8 @@ FTRACE_END('rtifc_fill_input_var')
     real(kind=jprb),     pointer :: height_aux(:) => NULL() ! height of weighting function
 
     logical                      :: lpio
-    logical                      :: lopdep, l_transm
+    logical                      :: l_opdep, l_transm, l_radoverc
+    logical                      :: l_chk_god
 
     type(rttov_options)          :: ropts_
     type(rttov_profile), pointer :: p => null()
@@ -1774,12 +2349,14 @@ FTRACE_BEGIN('rtifc_direct')
     lpio = .false.
     if (present(l_pio)) lpio=l_pio
 
-    lopdep = .false.
-    if (present(l_opdep) .and. present(opdep)) lopdep=l_opdep
-    l_transm = .false.
-    if (present(transm)) then
-      l_transm = all(shape(transm) > 0)
-    end if
+    if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+    rto   => rt_opts(iopt)
+    ropts => rto%opts
+    ic    =  rto%icoeff
+
+    l_transm   = .false. ; if (present(transm     )) l_transm   = (size(transm)      > 0)
+    l_opdep    = .false. ; if (present(opdep      )) l_opdep    = (size(opdep )      > 0)
+    l_radoverc = .false. ; if (present(radovercast)) l_radoverc = (size(radovercast) > 0)
 
     if (present(iprint)) then
        ipr = iprint
@@ -1802,10 +2379,10 @@ FTRACE_BEGIN('rtifc_direct')
       rad_out = rad_out_flg
     else
       rad_out = 0
-      rad_out = ibset(rad_out,OUT_ASB)
-      rad_out = ibset(rad_out,OUT_CSB)
-      rad_out = ibset(rad_out,OUT_ASR)
-      rad_out = ibset(rad_out,OUT_CSR)
+      if (present(t_b_clear)) rad_out = ibset(rad_out,OUT_CSB)
+      if (present(rad      )) rad_out = ibset(rad_out,OUT_ASR)
+      if (present(radclear ) .or. present(radupclear) .or. &
+          present(raddnclear) .or. present(refdnclear)) rad_out = ibset(rad_out,OUT_CSR)
     end if
 
     if (present(dealloc)) then
@@ -1823,6 +2400,8 @@ FTRACE_BEGIN('rtifc_direct')
        nchans      = nchansprofs/nprof
        nprof_store = nprof
     end if
+    nlay       = profiles(1)% nlayers
+    nlevs_coef = coefs(ic)%coef%nlevels
 
     ! Prepare profiles array
     ! RTTOV(10) crashes, if the number of profiles supplied to it is bigger than
@@ -1845,7 +2424,7 @@ FTRACE_BEGIN('rtifc_direct')
       write(0,*) 'nprof_calc',nprof_calc
       write(0,*) 'iprof_s, iprof_e', iprof_s, iprof_e
       write(0,*) 'lprofs', lprofs(:)
-      call finish('rtifc_direct@mo_rtifc_13', 'Less RTTOV-calculations than profiles! RTTOV will crash')
+      call finish(proc, 'Less RTTOV-calculations than profiles! RTTOV will crash')
     end if
     ! 2. Determine an array to translate lprofs into lprofs_aux
     allocate(index_prof(iprof_s:iprof_e))
@@ -1882,7 +2461,7 @@ FTRACE_BEGIN('rtifc_direct')
     end if
 
     ! Check dimensions
-#define DIM_ERROR(text) status = ERR_DIM ; print*,text ; return
+#define DIM_ERROR(text) status = ERR_DIM ; write(0,*) 'dim_error: '//text ; return
     if (.not.present(istore)) then
       ! check dimensions of input and output arrays:
       if (size(lprofs ) /= nchansprofs) then
@@ -1943,20 +2522,34 @@ FTRACE_BEGIN('rtifc_direct')
           endif
         endif
       end if
-      if (present(radovercast)) then
-        if ((size(radovercast,1) /= nlevs )  .or. &
-             (size(radovercast,2) /= nchans)  .or. &
-             (size(radovercast,3) /= nprof_store )) then
+      if (l_radoverc) then
+        if ( (size(radovercast,1) /= nlay       ) .or. &
+             (size(radovercast,2) <  nchans     ) .or. &
+             (size(radovercast,3) <  nprof_store)) then
           DIM_ERROR('radovercast')
         endif
       endif
+      if (l_opdep) then
+        if ( (size(opdep,1) /= nlevs_coef-1) .or. &
+             (size(opdep,2) <  nchans     ) .or. &
+             (size(opdep,3) <  nprof_store)) then
+          DIM_ERROR('opdep')
+        endif
+      endif
+      if (l_transm) then
+        if ( (size(transm,1) /= nlevs      ) .or. &
+             (size(transm,2) <  nchans     ) .or. &
+             (size(transm,3) <  nprof_store)) then
+          DIM_ERROR('transm')
+        endif
+      endif
       if (present(radtotal)) then
-        if ((size(radtotal,1) /= nchans)  .or. &
-             (size(radtotal,2) /= nprof_store )) then
+        if ( (size(radtotal,1) < nchans     ) .or. &
+             (size(radtotal,2) < nprof_store)) then
           DIM_ERROR('radtotal')
         endif
       endif
-      if (present(transmtotal)) then
+       if (present(transmtotal)) then
         if ((size(transmtotal,1) /= nchans)  .or. &
              (size(transmtotal,2) /= nprof_store )) then
           DIM_ERROR('transmtotal')
@@ -2021,9 +2614,19 @@ FTRACE_BEGIN('rtifc_direct')
           endif
         end if
       end if
-      if (present(radovercast)) then
-        if ((minchan < lbound(radovercast, 1)) .or. (maxchan > ubound(radovercast, 1))) then
+      if (l_radoverc) then
+        if ((minchan < lbound(radovercast, 2)) .or. (maxchan > ubound(radovercast, 2))) then
           DIM_ERROR('radovercast')
+        endif
+      end if
+      if (l_transm) then
+        if ((minchan < lbound(transm, 2)) .or. (maxchan > ubound(transm, 2))) then
+          DIM_ERROR('transm')
+        endif
+      end if
+      if (l_opdep) then
+        if ((minchan < lbound(opdep, 2)) .or. (maxchan > ubound(opdep, 2))) then
+          DIM_ERROR('opdep')
         endif
       end if
       if (present(radtotal)) then
@@ -2077,10 +2680,15 @@ FTRACE_BEGIN('rtifc_direct')
 
     ! Allocate/initialize arrays
 #if defined(_DACE_)
-    transmission%l_opdep = lopdep
+    l_chk_god = (chk_god /= 0 .and. nprof > 0 .and. &
+                 present(rflag) .and. associated(coefs(ic)%coef%god))
+    ! for l_chk_god the original opdep (on rt-levels) is only required if addinterp=T,
+    ! otherwise the transmission is used.
+    transmission%l_opdep = l_opdep .or. (l_chk_god .and. ropts%interpolation%addinterp)
 #endif
     call realloc_rttov_arrays(status, nprof, nlevs + nlevs_top, nchansprofs, &
-                              ropts, rads=radiance, rads2=radiance2, transm=transmission)
+                              ropts, rads=radiance, rads2=radiance2, transm=transmission,&
+                              n_levels_coef=nlevs_coef)
     if (status /= NO_ERROR) return
 
     ! clear variable output part of rttov structures
@@ -2114,7 +2722,7 @@ FTRACE_BEGIN('rtifc_direct')
            chanprof(1:nchansprofs),                         & ! <-- channels and profiles to calculate
            ropts,                                           & ! <-- options
            pack(profiles(iprof_s:iprof_e), mask=prof_used), & ! <--  profile array
-           coefs(instrIdx),                                 & ! <--  coefs array
+           coefs(ic),                                       & ! <--  coefs array
            transmission,                                    & ! --> array of transmittances
            radiance,                                        & ! <-> computed radiance array
            radiance2,                                       & ! <--> computed secondary radiance array
@@ -2127,7 +2735,7 @@ FTRACE_BEGIN('rtifc_direct')
            chanprof(1:nchansprofs),                         & ! <-- channels and profiles to calculate
            ropts,                                           & ! <-- options
            pack(profiles(iprof_s:iprof_e), mask=prof_used), & ! <--  profile array
-           coefs(instrIdx),                                 & ! <--  coefs array
+           coefs(ic),                                       & ! <--  coefs array
            transmission,                                    & ! --> array of transmittances
            radiance,                                        & ! <-> computed radiance array
            radiance2,                                       & ! <--> computed secondary radiance array
@@ -2186,14 +2794,14 @@ FTRACE_BEGIN('rtifc_direct')
           if (present(refdnclear )) refdnclear (1:nchans,iprof)=dble(radiance2%refldnclear   (sind:eind))
         end if
         if (present(radtotal))  radtotal (1:nchans,iprof)=dble(radiance%clear   (sind:eind)) !clear -> total ???
-        if (present(radovercast)) &
+        if (l_radoverc) &
              radovercast(:,1:nchans,iprof) = dble(radiance% overcast(:,sind:eind))
         if (present(height))    height   (1:nchans,iprof)=height_aux(sind:eind)
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
         if (present(transmtotal)) transmtotal(1:nchans,iprof) = dble(transmission%tau_total(sind:eind))
-#if defined(_DACE_)
-        if (lopdep) &
+#if defined(_DACE_) && !defined(__ICON__)
+        if (l_opdep) &
              opdep (:,1:nchans,iprof) = dble(transmission%opdep_ref (1+nlevs_top:,sind:eind))
 #endif
         sind = eind + 1
@@ -2219,12 +2827,12 @@ FTRACE_BEGIN('rtifc_direct')
           if (present(refdnclear   )) refdnclear   (istore(i,1),istore(i,2))   = dble(radiance2% refldnclear  (i))
         end if
         if (present(radtotal   )) radtotal    (istore(i,1),istore(i,2))   = dble(radiance% clear   (i))
-        if (present(radovercast)) radovercast (:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
+        if (l_radoverc          ) radovercast (:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
         if (present(height     )) height      (istore(i,1),istore(i,2))   = height_aux(i)
-        if (present(transm     )) transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
+        if (l_transm            ) transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
         if (present(transmtotal)) transmtotal(istore(i,1),istore(i,2)) = dble(transmission%tau_total(i))
-#if defined(_DACE_)
-        if (lopdep) &
+#if defined(_DACE_) && !defined(__ICON__)
+        if (l_opdep) &
              opdep(:,istore(i,1),istore(i,2)) = dble(transmission%opdep_ref(1+nlevs_top:,i))
 #endif
       end do
@@ -2237,7 +2845,7 @@ FTRACE_BEGIN('rtifc_direct')
       ropts_ = ropts
       do iprof = iprof_s, iprof_e
         if (prof_used(iprof)) then
-          call check_prof(iprof, coefs(instrIdx), lims_flag, ropts_, lpio)
+          call check_prof(iprof, coefs(ic), lims_flag, ropts_, lpio)
           if (chk_reg_lims > 1 .and. present(reg_lim)) then
             if (.not.present(istore)) then
               do i = 1, nprof
@@ -2263,26 +2871,28 @@ FTRACE_BEGIN('rtifc_direct')
 
     ! Check impact of god-smoothing
 #if defined(_RTTOV_GOD)
-    if (chk_god /= 0 .and. nprof > 0 .and. present(rflag)) then
+    if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (associated(coefs(instrIdx)%coef%god)) then
-          if (lprofs(i) == ipr) then
-            print*,'check_god_ifc prof',profiles(ipr)%id,chans(i),coefs(instrIdx)%coef%ff_ori_chn(chans(i))
-            print*,'check_god_ifc ntr',chans(i),any(coefs(instrIdx)%coef%god(:,chans(i))%ntr > 0)
+        if (lprofs(i) == ipr) then
+          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
+          print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
+        end if
+        if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
+          if (transmission%l_opdep) then
+            call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
+                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+          else
+            call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
+                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
           end if
-          if (any(coefs(instrIdx)%coef%god(:,chans(i))%ntr > 0)) then
-            call check_god_infl(transmission%tau_levels(:,i),         &
-                                coefs(instrIdx)%coef%god(:,chans(i)), &
-                                stat, msg_)
-            if (stat /= 0) then
-              if (btest(chk_god, 0)) then
-                p => profiles(lprofs(i))
-                write(msg,'(2x,A,I5.5," god-smoothing too large in ",A," (",f7.3,"N",f8.3,"E)")') &
-                     'profile '//trim(p%id)//' chan ',coefs(instrIdx)%coef%ff_ori_chn(chans(i)),&
-                     trim(msg_),p%latitude,p%longitude
-                WR
-              end if
+          if (stat /= 0) then
+            if (btest(chk_god, 0)) then
+              p => profiles(lprofs(i))
+              write(msg,'(2x,A,I5.5," god-smoothing too large in ",A," (",f7.3,"N",f8.3,"E)")') &
+                   'profile '//trim(p%id)//' chan ',coefs(ic)%coef%ff_ori_chn(chans(i)),&
+                   trim(msg_),p%latitude,p%longitude
+              WR
             end if
           end if
         end if
@@ -2297,6 +2907,8 @@ FTRACE_BEGIN('rtifc_direct')
           end if
         end if
       end do
+    elseif (present(rflag)) then
+      rflag(:,:) = 0
     end if
 #endif /* _RTTOV_GOD */
 
@@ -2311,17 +2923,15 @@ FTRACE_END('rtifc_direct')
   end subroutine rtifc_direct
 
 
-  subroutine rtifc_k (instrIdx,lprofs,chans,ropts,emissiv,emissiv_k,temp_k,humi_k,&
+  subroutine rtifc_k (iopt,lprofs,chans,emissiv,emissiv_k,temp_k,humi_k,          &
                       t2m_k,q2m_k,stemp_k,t_b,status,sat_zen,sat_azi,t_b_clear,   &
                       rad,radclear,radtotal,radovercast,transm,opdep,             &
                       psurf_k,u10m_k,v10m_k,o3_surf_k,wfetc_k,ctp_k,cfraction_k,  &
                       clw_k,o3_k,co2_k,n2o_k,co_k,ch4_k,istore,reg_lim,rflag,     &
-                      dealloc,iprint,rad_out_flg,pe,l_pio,l_opdep)
-    integer,             intent(in)          :: instrIdx           ! rttov instrument index
-                                                                   !   as for in the initialization routine
+                      dealloc,iprint,rad_out_flg,pe,l_pio)
+    integer,             intent(in)          :: iopt               ! options index
     integer,             intent(in)          :: lprofs         (:) ! list of profile indices(nchans*nprof)
     integer,             intent(in)          :: chans          (:) ! list of channel indices(nchans*nprof)
-    type(rttov_options), intent(in)          :: ropts              ! RTTOV options
     real(wp),            intent(inout)       :: emissiv      (:,:) ! emissivities - calculated if < 0.01,
                                                                    !   else they will be used (nchans*nprof)
     real(wp),            intent(inout)       :: emissiv_k    (:,:) ! k-matrix of surf. emiss. (nchans*nprof)
@@ -2369,7 +2979,6 @@ FTRACE_END('rtifc_direct')
     integer,             intent(in), optional:: iprint
     integer,             intent(in), optional:: pe
     logical,             intent(in), optional:: l_pio
-    logical,             intent(in), optional:: l_opdep
 
     !-----------------------------------------------------------------------
     ! this subroutine renews the instrument dependent part
@@ -2378,6 +2987,10 @@ FTRACE_END('rtifc_direct')
     ! from the same satellite (or at least if their measurements
     ! are interpolated to the same ground point by e.g., aapp)
     !----------------------------------------------------------------------
+    character(len=7),  parameter :: proc   = 'rtifc_k'
+    type(t_rtopts),     pointer  :: rto    => null()
+    type(rttov_options),pointer  :: ropts  => null()
+    integer                      :: ic
     integer                      :: rad_out
     integer                      :: pe_loc
     integer                      :: ipr
@@ -2385,6 +2998,7 @@ FTRACE_END('rtifc_direct')
     integer(jpim)                :: ichan
     integer(jpim)                :: i, k
     integer(jpim)                :: stat
+    integer(jpim)                :: nlevs_coef
     integer(jpim)                :: nchans
     integer(jpim)                :: nchansprofs
     integer(jpim)                :: nprof_store
@@ -2405,7 +3019,9 @@ FTRACE_END('rtifc_direct')
     integer(jpim)                :: errstat
     type(rttov_chanprof)         :: chanprof(size(chans))
     integer                      :: lims_flag(nlevs,2)
-    logical                      :: lpio, lopdep, l_transm
+    logical                      :: lpio
+    logical                      :: l_opdep, l_transm, l_radoverc
+    logical                      :: l_chk_god
     type(rttov_options)          :: ropts_
     type(rttov_profile), pointer :: p => null()
     character(len=1000)          :: msg  = ''
@@ -2420,12 +3036,14 @@ FTRACE_BEGIN('rtifc_k')
     lpio = .false.
     if (present(l_pio)) lpio=l_pio
 
-    lopdep = .false.
-    if (present(l_opdep) .and. present(opdep)) lopdep=l_opdep
-    l_transm = .false.
-    if (present(transm)) then
-      l_transm = all(shape(transm) > 0)
-    end if
+    if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+    rto   => rt_opts(iopt)
+    ropts => rto%opts
+    ic    =  rto%icoeff
+
+    l_transm   = .false. ; if (present(transm     )) l_transm   = (size(transm)      > 0)
+    l_opdep    = .false. ; if (present(opdep      )) l_opdep    = (size(opdep )      > 0)
+    l_radoverc = .false. ; if (present(radovercast)) l_radoverc = (size(radovercast) > 0)
 
     if (present(pe)) then
       pe_loc = pe
@@ -2437,9 +3055,10 @@ FTRACE_BEGIN('rtifc_k')
       rad_out = rad_out_flg
     else
       rad_out = ibset(0,OUT_ASB)
-    end if
-
-    nlay    = profiles(1)% nlayers
+      if (present(t_b_clear)) rad_out = ibset(rad_out,OUT_CSB)
+      if (present(rad      )) rad_out = ibset(rad_out,OUT_ASR)
+      if (present(radclear )) rad_out = ibset(rad_out,OUT_CSR)
+     end if
 
     if (present(iprint)) then
        ipr = iprint
@@ -2468,6 +3087,8 @@ FTRACE_BEGIN('rtifc_k')
       nchans      = nchansprofs / nprof
       nprof_store = nprof
     end if
+    nlay       = profiles(1)% nlayers
+    nlevs_coef = coefs(ic)%coef%nlevels
 
     ! Prepare lprofs array
     ! RTTOV(10) crashes, if the number of profiles supplied to it is bigger than
@@ -2490,7 +3111,7 @@ FTRACE_BEGIN('rtifc_k')
       write(0,*) 'nprof_calc',nprof_calc
       write(0,*) 'iprof_s, iprof_e', iprof_s, iprof_e
       write(0,*) 'lprofs', lprofs(:)
-      call finish('rtifc_direct@mo_rtifc_13', 'Less RTTOV-calculations than profiles! RTTOV will crash')
+      call finish('proc', 'Less RTTOV-calculations than profiles! RTTOV will crash')
     end if
     ! 2. Determine an array to translate lprofs into lprofs_aux
     allocate(index_prof(iprof_s:iprof_e))
@@ -2564,15 +3185,27 @@ FTRACE_BEGIN('rtifc_k')
          DIM_ERROR('radtotal')
        endif
     endif
-    if (present(radovercast)) then
-       if ((size(radovercast,1) /= nlay ) .or. &
-           (size(radovercast,2) <  nchans) .or. &
-           (size(radovercast,3) <  nprof_store )) then
-         write(0,*) 'dim_error:',size(radovercast,1),nlay,&
-              size(radovercast,2),nchans,&
-              size(radovercast,3),nprof_store
-         DIM_ERROR('radovercast')
-       endif
+    if (l_radoverc) then
+      if ( (size(radovercast,1) /= nlay       ) .or. &
+           (size(radovercast,2) <  nchans     ) .or. &
+           (size(radovercast,3) <  nprof_store)) then
+        DIM_ERROR('radovercast')
+      endif
+    endif
+    if (l_opdep) then
+      if ( (size(opdep,1) /= nlevs_coef-1) .or. &
+           (size(opdep,2) <  nchans     ) .or. &
+           (size(opdep,3) <  nprof_store)) then
+        write(0,*) shape(opdep), nlevs_coef, nchans, nprof_store
+        DIM_ERROR('opdep')
+      endif
+    endif
+    if (l_transm) then
+      if ( (size(transm,1) /= nlevs      ) .or. &
+           (size(transm,2) <  nchans     ) .or. &
+           (size(transm,3) <  nprof_store)) then
+        DIM_ERROR('transm')
+      endif
     endif
     if (present(psurf_k)) then
        if ((size(psurf_k,1) <  nchans) .or. &
@@ -2690,11 +3323,15 @@ FTRACE_BEGIN('rtifc_k')
 
 #undef DIM_ERROR
 
-#if defined(_DACE_)
-    transmission%l_opdep   = lopdep
+    ! Allocate/initialize arrays
+#if defined(_RTTOV_GOD)
+    l_chk_god = (chk_god /= 0 .and. nprof > 0 .and. &
+                 present(rflag) .and. associated(coefs(ic)%coef%god))
+    ! for l_chk_god the original opdep (on rt-levels) is only required if addinterp=T,
+    ! otherwise the transmission is used.
+    transmission%l_opdep = l_opdep .or. (l_chk_god .and. ropts%interpolation%addinterp)
     transmission_k%l_opdep = .false.
 #endif
-
     ! Allocate/initilize arrays
     ! ATTENTION: k - matrix has requires as much profiles per
     !            instrument as channels exist
@@ -2702,7 +3339,8 @@ FTRACE_BEGIN('rtifc_k')
                               profs=profiles_k, rads=radiance_k, transm=transmission_k)
     if (status /= NO_ERROR) return
     call realloc_rttov_arrays(status, nchansprofs, nlevs+nlevs_top, nchansprofs, ropts, &
-                              rads=radiance, transm=transmission)
+                              rads=radiance, transm=transmission,&
+                              n_levels_coef=nlevs_coef)
     if (status /= NO_ERROR) return
     call rttov_clear_rad_var(nchansprofs,radiance)
     call rttov_clear_prof   (profiles_k(1:nchansprofs))
@@ -2744,7 +3382,7 @@ FTRACE_BEGIN('rtifc_k')
            ropts,                                           & ! <-- options
            pack(profiles(iprof_s:iprof_e), mask=prof_used), & ! <--  profile array
            profiles_k(1:nchansprofs),                       & ! <--> profile increments;
-           coefs(instrIdx),                                 & ! <--  coefs array
+           coefs(ic),                                       & ! <--  coefs array
            transmission,                                    & ! <--> transmittances
            transmission_k,                                  & ! <--> K matrix of transmittances
            radiance,                                        & ! <--> direct model output radiances
@@ -2760,7 +3398,7 @@ FTRACE_BEGIN('rtifc_k')
            ropts,                                           & ! <-- options
            pack(profiles(iprof_s:iprof_e), mask=prof_used), & ! <--  profile array
            profiles_k(1:nchansprofs),                       & ! <--> profile increments;
-           coefs(instrIdx),                                 & ! <--  coefs array
+           coefs(ic),                                       & ! <--  coefs array
            transmission,                                    & ! <--> transmittances
            transmission_k,                                  & ! <--> K matrix of transmittances
            radiance,                                        & ! <--> direct model output radiances
@@ -2825,13 +3463,13 @@ FTRACE_BEGIN('rtifc_k')
           if (present(radclear )) radclear (1:nusedchans,iprof)=dble(radiance%clear   (sind:eind))
         end if
         if (present(   radtotal)) radtotal (  1:nchans,iprof)=dble(radiance%clear   (  sind:eind) )
-        if (present(radovercast)) then
+        if (l_radoverc) then
           radovercast (:,1:nusedchans,iprof)=dble(radiance%overcast(:,sind:eind) )
         endif
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
-#if defined(_DACE_)
-        if (lopdep) &
+#if defined(_DACE_) && !defined(__ICON__)
+        if (l_opdep) &
              opdep(:,1:nchans,iprof) = dble(transmission%opdep_ref(1+nlevs_top:,sind:eind))
 #endif
         if (present(    psurf_k))     psurf_k (  1:nusedchans,iprof)=dble(profiles_k(sind:eind)%s2m%p    )
@@ -2856,11 +3494,11 @@ FTRACE_BEGIN('rtifc_k')
           if (present(radclear   )) radclear   (istore(i,1),istore(i,2)) = dble(radiance% clear   (i))
         end if
         if (present(radtotal   )) radtotal   (istore(i,1),istore(i,2))   = dble(radiance% clear     (i))
-        if (present(radovercast)) radovercast(:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
+        if (l_radoverc) radovercast(:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
         if (l_transm) &
              transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
-#if defined(_DACE_)
-        if (lopdep) &
+#if defined(_DACE_) && !defined(__ICON__)
+        if (l_opdep) &
              opdep(:,istore(i,1),istore(i,2)) = dble(transmission%opdep_ref(1+nlevs_top:,i))
 #endif
         ! K (profile variables)
@@ -2909,7 +3547,7 @@ FTRACE_BEGIN('rtifc_k')
       ropts_ = ropts
       do iprof = iprof_s, iprof_e
         if (prof_used(iprof)) then
-          call check_prof(iprof, coefs(instrIdx), lims_flag, ropts_, lpio)
+          call check_prof(iprof, coefs(ic), lims_flag, ropts_, lpio)
           if (chk_reg_lims > 1 .and. present(reg_lim)) then
             if (.not.present(istore)) then
               do i = 1, nprof
@@ -2935,26 +3573,28 @@ FTRACE_BEGIN('rtifc_k')
 
     ! Check impact of RTTOV-smoothing
 #if defined(_RTTOV_GOD)
-    if (chk_god /= 0 .and. nprof > 0 .and. present(rflag)) then
+    if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (associated(coefs(instrIdx)%coef%god)) then
-          if (lprofs(i) == ipr) then
-            print*,'check_god_ifc prof',profiles(ipr)%id,chans(i),coefs(instrIdx)%coef%ff_ori_chn(chans(i))
-            print*,'check_god_ifc ntr',chans(i),any(coefs(instrIdx)%coef%god(:,chans(i))%ntr > 0)
+        if (lprofs(i) == ipr) then
+          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
+          print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
+        end if
+        if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
+          if (transmission%l_opdep) then
+            call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
+                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+          else
+            call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
+                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
           end if
-          if (any(coefs(instrIdx)%coef%god(:,chans(i))%ntr > 0)) then
-            call check_god_infl(transmission%tau_levels(:,i),         &
-                                coefs(instrIdx)%coef%god(:,chans(i)), &
-                                stat, msg_)
-            if (stat /= 0) then
-              if (btest(chk_god, 0)) then
-                p => profiles(lprofs(i))
-                write(msg,'(2x,A,I5.5," god-smoothing too large in ",A," (",f7.3,"N",f8.3,"E)")') &
-                     'profile '//trim(p%id)//' chan ',coefs(instrIdx)%coef%ff_ori_chn(chans(i)),&
-                     trim(msg_),p%latitude,p%longitude
-                WR
-              end if
+          if (stat /= 0) then
+            if (btest(chk_god, 0)) then
+              p => profiles(lprofs(i))
+              write(msg,'(2x,A,I5.5," god-smoothing too large in ",A," (",f7.3,"N",f8.3,"E)")') &
+                   'profile '//trim(p%id)//' chan ',coefs(ic)%coef%ff_ori_chn(chans(i)),&
+                   trim(msg_),p%latitude,p%longitude
+              WR
             end if
           end if
         end if
@@ -2969,6 +3609,8 @@ FTRACE_BEGIN('rtifc_k')
           end if
         end if
       end do
+    elseif (present(rflag)) then
+      rflag(:,:) = 0
     end if
 #endif /* _RTTOV_GOD */
 
@@ -2986,18 +3628,22 @@ FTRACE_END('rtifc_k')
 
 
 #if defined(_RTTOV_ATLAS)
- subroutine rtifc_emis_retrieve(insidx, lprofs, chans, obs, ropts, emis, stat, pe)
-   integer,             intent(in)  :: insidx    ! rttov instrument index
+ subroutine rtifc_emis_retrieve(iopt, lprofs, chans, obs, emis, stat, pe, ldeb)
+   integer,             intent(in)  :: iopt      ! options index
    integer,             intent(in)  :: lprofs(:) ! list of profile indices
    integer,             intent(in)  :: chans(:)  ! list of channel indices
    real(wp),            intent(in)  :: obs(:)    ! observed brightness temperature
-   type(rttov_options), intent(in)  :: ropts
    real(wp),            intent(out) :: emis(:)   ! computed emissivities
    integer,             intent(out) :: stat      ! error status
    integer,             intent(in), optional:: pe
-   !--------------------------------------------------
+   logical,             intent(in), optional:: ldeb
+    !--------------------------------------------------
    ! Dynamic retrieve of emissivity (following Karbou)
    !--------------------------------------------------
+   character(len=19),  parameter   :: proc   = 'rtifc_emis_retrieve'
+   type(t_rtopts),     pointer     :: rto    => null()
+   type(rttov_options),pointer     :: ropts  => null()
+   integer                         :: ic
    real(jprb), allocatable :: t_b(:,:)
    real(jprb), allocatable :: emis_in(:,:)
    real(jprb), allocatable :: radclear(:,:)
@@ -3009,8 +3655,13 @@ FTRACE_END('rtifc_k')
    real(jprb), allocatable :: rademi(:)
    integer                 :: k
 
+   if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+   rto   => rt_opts(iopt)
+   ropts => rto%opts
+   ic    =  rto%icoeff
+
    ! Check inputs consistency
-   if (coefs(insidx)% coef% id_sensor /= 2) then
+   if (coefs(ic)% coef% id_sensor /= 2) then
      stat = ERR_INVALID_INSTR
      return
    end if
@@ -3038,10 +3689,9 @@ FTRACE_END('rtifc_k')
 
    ! Call rtifc_direct for first guesses needed
    call rtifc_direct (                  &
-        insidx,                         & ! <--  rttov instrument index
+        iopt,                           & ! <--  rttov instrument index
         lprofs,                         & ! <--  list of profile indices
         chans,                          & ! <--  list of channel indices
-        ropts,                          & ! <-  RTTOV options
         emis_in,                        & ! <--> emissivities -
         t_b,                            & !  --> calculated brightness
         stat,                           & !  --> exit status
@@ -3056,10 +3706,10 @@ FTRACE_END('rtifc_k')
    ! Compute emissivity
    do k = 1, size(chans)
      ! Compute radiance associated to observed brightness temperatures
-     call planck(coefs(insidx)%coef% planck1(chans(k)),coefs(insidx)%coef% planck2(chans(k)), &
+     call planck(coefs(ic)%coef% planck1(chans(k)),coefs(ic)%coef% planck2(chans(k)), &
           obs(k),obsrad(k))
      ! Compute radiance associated to skin temperature
-     call planck(coefs(insidx)%coef% planck1(chans(k)),coefs(insidx)%coef% planck2(chans(k)), &
+     call planck(coefs(ic)%coef% planck1(chans(k)),coefs(ic)%coef% planck2(chans(k)), &
           profiles(1)% skin% t, rademi(k))
      ! Compute upwelling radiance without emission term
      radup(k) = radupclear(k,1)-rademi(K)*emis_in(k,1)*gamma(k,1)
@@ -3081,116 +3731,220 @@ FTRACE_END('rtifc_k')
  end subroutine rtifc_emis_retrieve
 
 
- subroutine rtifc_init_mw_atlas(telsem, cnrm, ropts, month, path, my_proc_id, n_proc, io_proc_id, mpi_comm_type, stat)
-   logical,            intent(in) :: telsem         ! load TELSEM
-   integer,            intent(in) :: cnrm(4)        ! instruments for CNRM (AMSU-A, ATMS, MHS, SSMIS)
-   type(rttov_options),intent(in) :: ropts          ! RTTOV options
+ subroutine rtifc_init_atlas(iopts, atlas_id, angcorr, month, path, &
+                             my_proc_id, n_proc, io_proc_id, mpi_comm_type)
+   integer,            intent(in) :: iopts(:)        ! option indices
+   integer,            intent(in) :: atlas_id(:)    ! atlas IDs
+   logical,            intent(in) :: angcorr(:)     ! atlas IDs
    integer,            intent(in) :: month          ! Month number
    character(len=128), intent(in) :: path           ! path to atlases
    integer,            intent(in) :: my_proc_id     ! ID of local processors
+
    integer,            intent(in) :: n_proc         ! no. of processors in mpi communication domain
    integer,            intent(in) :: io_proc_id     ! ID of IO processor
    integer,            intent(in) :: mpi_comm_type  ! mpi communicator type
-   integer,            intent(out):: stat           ! error status
    !--------------------------------------------
    ! Loads MW emissivity atlas
    !--------------------------------------------
-   logical   :: tel, cnr(4)
-   integer   :: k, j, n_atlas, ierr(4)
-
-   tel = .false.
-   cnr = .false.
-   n_atlas = 0
-   ierr = 0
+   character(len=16),       parameter   :: proc   = 'rtifc_init_atlas'
+   integer,                 parameter   :: mcnrm  = 8
+   type(t_rtopts),          pointer     :: rto
+   character(len=300)                   :: msg
+   integer,                 allocatable :: iatl_ir(:)
+   integer,                 allocatable :: iatl_mw(:)
+   type(rttov_emis_atlas_data), pointer :: atlas_(:)
+   integer                              :: instr_cnrm(mcnrm), iatl_cnrm(mcnrm)
+   integer                              :: ierr
+   integer                              :: n_opt
+   integer                              :: n_cnrm
+   logical                              :: l_distrib
+   integer                              :: ic, iopt
+   integer                              :: i, j
 
    pe_ifc = my_proc_id
    pe_rt  = pe_ifc
 
+   n_atlas = 0
+   ierr    = 0
+
+   l_distrib = .false.
 #if defined(_RTIFC_DISTRIBCOEF)
-   if (io_proc_id == pe_ifc) then
+   l_distrib = (n_proc > 1) .and. read1pe
 #endif
-     do k = 1, size(coefs)
-       if (coefs(k)% coef% id_sensor /= 2) cycle! then ! only microwave
-       ! TELSEM needs only be loaded once and can the be used by all MW instruments
-       if (telsem .and. .not. tel) then
-         n_atlas = n_atlas + 1
-         if (n_atlas > size(mw_atlas)) then
-           ! mw_atlas array too small
-           stat = ERR_DIM
-           return
-         end if
-         call rttov_setup_emis_atlas(ierr(1), ropts, month, 1, mw_atlas(n_atlas), atlas_id = 1, &
-              path = path, coefs = coefs(k))
-         tel = .true.
-         if ( ierr(1) == 0) then
-           write(stdout,*) 'TELSEM emissivity atlas initialized.'
-         else
-           write(0,*) 'Failed to initialize TELSEM emissivity atlas.'
-         end if
-       end if
-       ! CNRM needs to be loaded for each instument that requires it (AMSU-A/-B, ATMS, MHS and/or SSMIS)
-       do j = 1, size(cnrm)
-         if (cnrm(j) == coefs(k)% coef% id_inst .and. .not. cnr(j)) then
+
+   if (associated(atlas)) call finish(proc, 'Atlases initialized already.')
+
+   ! Remove double entries
+   n_opt = size(iopts)
+   if (n_opt == 0) return
+
+   ! do i = 1, n_opt
+   !   write(0,*) 'init_atlas',i,iopts(i),atlas_id(i),rt_opts(iopts(i))%satid,rt_opts(iopts(i))%instr
+   ! end do
+
+   i = maxval(atlas_id)
+   allocate(iatl_ir(i), iatl_mw(i))
+   iatl_ir = 0 ; iatl_mw = 0
+
+   if (io_proc_id == pe_ifc .or. .not.l_distrib) then
+     allocate(atlas(n_opt))
+     n_atlas = 0
+     n_cnrm  = 0
+     write(*,*)
+     write(*,'(1x,A)') 'Initialize RTTOV emissivity atlases:'
+     do i = 1, n_opt
+       iopt = iopts(i)
+       if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+       rto => rt_opts(iopt)
+       ic = rto%icoeff
+       ierr = 0
+       msg  = ''
+       select case(coefs(ic)%coef%id_sensor)
+       case(sensor_id_ir,sensor_id_hi) !IR
+         if (atlas_single_inst) then
            n_atlas = n_atlas + 1
-           if (n_atlas > size(mw_atlas)) then
-             !mw_atlas array too small
-             stat = ERR_DIM
-             return
+           call rttov_setup_emis_atlas(ierr, rto%opts, month, atlas_type_ir, atlas(n_atlas), &
+                atlas_id=atlas_id(i), path = path, coefs=coefs(ic), ir_atlas_ang_corr=angcorr(i))
+           call add_iatl(n_atlas)
+           msg = c_atlas(atlas_type_ir, atlas_id(i), coefs(ic)%coef%id_inst, rto%satid)
+         else
+           if (iatl_ir(atlas_id(i)) <= 0) then
+             n_atlas = n_atlas + 1
+             call rttov_setup_emis_atlas(ierr, rto%opts, month, atlas_type_ir, atlas(n_atlas), &
+                  atlas_id=atlas_id(i), path = path, ir_atlas_ang_corr=angcorr(i))
+             iatl_ir(atlas_id(i)) = n_atlas
+             msg = c_atlas(atlas_type_ir, atlas_id(i))
            end if
-           call rttov_setup_emis_atlas(ierr(j+1), ropts, month, 1, mw_atlas(n_atlas), atlas_id = 2, &
-                path = path, coefs = coefs(k))
-           cnr(j) = .true.
-           if ( ierr(j+1) == 0) then
-             write(stdout,'(1x,A,I3,A)') 'CNRM emissivity atlas for instrument ', &
-                coefs(k)% coef% id_inst, ' initialized.'
-             print*,n_atlas,mw_atlas(n_atlas)%init
-           else
-             write(0,'(A,I3)') 'Failed to initialize CNRM emissivity atlas for instrument ',coefs(k)% coef% id_inst
-           end if
+           call add_iatl(iatl_ir(atlas_id(i)))
          end if
-       end do
-       if ( tel .and. all(cnr)) exit
+       case(sensor_id_mw,sensor_id_po) !MW
+         if (atlas_id(i) == cnrm_mw_atlas_id) then
+           if (any(instr_cnrm(1:n_cnrm) == coefs(ic)%coef%id_inst)) then
+             do j = 1, n_cnrm
+               if (instr_cnrm(j) == coefs(ic)%coef%id_inst) then
+                 call add_iatl(iatl_cnrm(j))
+                 exit
+               endif
+             end do
+           else
+             n_atlas = n_atlas + 1
+             call rttov_setup_emis_atlas(ierr, rto%opts, month, atlas_type_mw, atlas(n_atlas), &
+                  atlas_id=atlas_id(i), path = path, coefs=coefs(ic))
+             n_cnrm = n_cnrm + 1
+             if (n_cnrm > mcnrm) call finish(proc,'mcnrm too small')
+             instr_cnrm(n_cnrm) = coefs(ic)%coef%id_inst
+             iatl_cnrm (n_cnrm) = n_atlas
+             call add_iatl(iatl_cnrm(n_cnrm))
+             msg = c_atlas(atlas_type_mw, atlas_id(i), coefs(ic)%coef%id_inst)
+           end if
+         else
+           if (iatl_mw(atlas_id(i)) <= 0) then
+             n_atlas = n_atlas + 1
+             call rttov_setup_emis_atlas(ierr, rto%opts, month, atlas_type_mw, atlas(n_atlas), &
+                  atlas_id=atlas_id(i), path = path)
+             iatl_mw(atlas_id(i)) = n_atlas
+             msg = c_atlas(atlas_type_mw, atlas_id(i))
+           end if
+           call add_iatl(iatl_mw(atlas_id(i)))
+         end if
+       case default
+         call finish(proc,'sensor_id currently not implemented')
+       end select
+       if (ierr == 0) then
+         if (io_proc_id == pe_ifc .and. msg /= '') &
+              write(stdout,'(3x,"atlas ",I2,": ",A)') n_atlas, trim(msg)
+       else
+         call finish(proc, trim(msg)//' emissivity atlas initialization FAILED!')
+       end if
      end do
-#if defined(_RTIFC_DISTRIBCOEF)
-   else
-     do j = 1, size(mw_atlas)
-       call rttov_deallocate_emis_atlas(mw_atlas(j))
-     end do
+     ! Reduce atlas to correct size
+     allocate(atlas_(n_atlas))
+     atlas_(1:n_atlas) = atlas(1:n_atlas)
+     deallocate(atlas)
+     atlas => atlas_
+
    endif
+
+#if defined(_RTIFC_DISTRIBCOEF)
    ! distribute atlases to all PEs
-   if (n_proc > 1 ) then
+   if (l_distrib) then
      call p_bcast(n_atlas,io_proc_id,mpi_comm_type)
-     if (io_proc_id == pe_ifc) write(stdout,'(1x,A,I2,A)') 'Distribute ',n_atlas,' emissivity atlases.'
-     do j = 1, n_atlas
-       call p_bcast(mw_atlas(j),io_proc_id,mpi_comm_type)
+     if (io_proc_id == pe_ifc) then
+       write(stdout,'(3x,A,I2,A)') 'Distribute ',n_atlas,' emissivity atlases.'
+     else
+       allocate(atlas(n_atlas))
+     end if
+     do i = 1, n_atlas
+       if (io_proc_id /= pe_ifc) call rttov_deallocate_emis_atlas(atlas(i))
+       call p_bcast(atlas(i),io_proc_id,mpi_comm_type)
+     end do
+     do i = 1, n_opt
+       call p_bcast(rt_opts(iopts(i))%natl,io_proc_id,mpi_comm_type)
+       call p_bcast(rt_opts(iopts(i))%iatl,io_proc_id,mpi_comm_type)
      end do
    end if
-   stat = sum(ierr)
 #endif
- end subroutine rtifc_init_mw_atlas
 
+ contains
 
- subroutine rtifc_emis_atlas(insidx, atlas_id, lprofs, chan, ropts, emis, stat)
-   integer,            intent(in)  :: insidx   !instrument index
-   integer,            intent(in)  :: atlas_id ! 1: TELSEM, 2: CNRM
-   integer,            intent(in)  :: lprofs(:)! list of profile indices
-   integer,            intent(in)  :: chan(:)  ! list of channels
-   type(rttov_options),intent(in)  :: ropts          ! RTTOV options
-   real(wp),           intent(out) :: emis(:)  ! emissivities
-   integer,            intent(out) :: stat     ! error status
+   subroutine add_iatl(iatl)
+     integer, intent(in) :: iatl
+     if (.not.any(rto%iatl(1:rto%natl) == iatl)) then
+       rto%natl = rto%natl + 1
+       if (rto%natl > m_atl) call finish('add_iatl@'//proc, 'rto%natl > m_atl')
+       rto%iatl(rto%natl) = iatl
+     end if
+   end subroutine add_iatl
+
+ end subroutine rtifc_init_atlas
+
+ subroutine rtifc_emis_atlas(iopt, atlas_id, lprofs, chan, emis, stat, ldebug)
+   integer,  intent(in)           :: iopt     ! options index
+   integer,  intent(in)           :: atlas_id ! 1: TELSEM, 2: CNRM, 3: CAMEL-Climatology
+   integer,  intent(in)           :: lprofs(:)! list of profile indices
+   integer,  intent(in)           :: chan(:)  ! list of channels
+   real(wp), intent(out)          :: emis(:)  ! emissivities
+   integer,  intent(out)          :: stat     ! error status
+   logical,  intent(in), optional :: ldebug
    !--------------------------
    ! Get emissivity from atlas
    !--------------------------
-   integer                           :: irun, nchansprofs
-   type(rttov_chanprof), allocatable :: chanprof(:)
-   type(rttov_emis_atlas_data)       :: atlas
+   character(len=16),  parameter :: proc   = 'rtifc_emis_atlas'
+   type(t_rtopts),     pointer   :: rto    => null()
+   type(rttov_options),pointer   :: ropts  => null()
+   type(rttov_chanprof)          :: chanprof(size(chan))
+   integer                       :: ic, iatl
+   integer                       :: i,j
+   logical                       :: ldeb
 
-
-   if (coefs(insidx)% coef% id_sensor /= 2) then
-     stat = ERR_INVALID_INSTR
-     return
+   ldeb = .false.
+   if (present(ldebug)) ldeb = ldebug
+   if (ldeb) then
+     ipr_deb = lprofs(1)
+   else
+     ipr_deb = -1
    end if
-   if (size(lprofs) /= size(chan) .or. size(lprofs) /= size(chan) .or. &
+
+   if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+   rto   => rt_opts(iopt)
+   ropts => rto%opts
+   ic    =  rto%icoeff
+   iatl = 0
+   do i = 1, rto%natl
+     j = rto%iatl(i)
+     if (j <= 0 .or. j > n_atlas) call finish(proc, 'invalid rto%iatl')
+     if (atlas(j)% atlas_id == atlas_id) then
+       iatl = j
+       exit
+     end if
+   end do
+   if (iatl <= 0) then
+     write(0,*) 'sat,instr',rto%satid,rto%instr
+     write(0,*) 'atlas',atlas_id
+     call finish(proc, 'atlas not intialized')
+   end if
+
+   if (size(lprofs) /= size(chan) .or. &
         size(lprofs) /= size(emis) ) then
      stat = ERR_DIM
      return
@@ -3200,33 +3954,67 @@ FTRACE_END('rtifc_k')
      stat = ERR_DIM
      return
    end if
-
-   nchansprofs   = size(chan)
-   allocate(chanprof(nchansprofs))
-   do irun=1,nchansprofs
-      chanprof(irun)% chan = chan(irun)
-      chanprof(irun)% prof = lprofs(irun)
+   do i = 1,size(chan)
+      chanprof(i)% chan = chan(i)
+      chanprof(i)% prof = lprofs(i)
    enddo
-
-   do irun = 1, size(mw_atlas)
-     if (.not. mw_atlas(irun)% init) cycle
-     if (.not. mw_atlas(irun)% is_mw) cycle
-     if (mw_atlas(irun)% atlas_id /= atlas_id) cycle
-     if (atlas_id == 2 .and. mw_atlas(irun)% cnrm_mw_atlas% inst_id /= coefs(insidx)% coef% id_inst) cycle
-     atlas = mw_atlas(irun)
-   end do
-   if ( .not. atlas% init ) then
-     stat = ERR_ATLAS_INIT
-     return
+   if (ldeb) call rttov_print_profile(profiles(lprofs(1)), stdout, trim(proc))
+   call rttov_get_emis(stat, ropts, chanprof, profiles, coefs(ic), atlas(iatl), emis)
+   if (ldeb) write(*,*) 'debug_spot rtifc_emis_atlas',stat,emis
+   if (stat /= 0) then
+     write(0,*) 'stat=',stat
+     call finish(proc, 'rttov_get_emis failed')
    end if
-   call rttov_get_emis(stat, ropts, chanprof, profiles, coefs(insidx), atlas, emis)
-   deallocate(chanprof)
 
  end subroutine rtifc_emis_atlas
 
 
- subroutine rtifc_init_brdf_atlas(ropts, month, path, my_proc_id, n_proc, io_proc_id, mpi_comm_type, stat)
-   type(rttov_options),intent(in) :: ropts          ! RTTOV options
+ function c_atlas(type, id, instr, satid) result(c)
+   character(len=30)             :: c
+   integer, intent(in)           :: type
+   integer, intent(in)           :: id
+   integer, intent(in), optional :: instr
+   integer, intent(in), optional :: satid
+   character(len=30) :: ci
+
+   select case(type)
+   case(atlas_type_ir)
+     select case(id)
+     case(uwiremis_atlas_id)
+       c = 'UWIR'
+     case(camel_atlas_id)
+       c = 'CAMEL07'
+     case default
+       c = '??????'
+     end select
+   case(atlas_type_mw)
+     select case(id)
+     case(telsem2_atlas_id)
+       c = 'TELSEM2'
+     case(cnrm_mw_atlas_id)
+       c = 'CNRM'
+     case default
+       c = '??????'
+     end select
+   case default
+     c = '??????'
+   end select
+   if (present(instr)) then
+     ci = ''
+     if (present(satid)) then
+       write(ci,'("(instr=",I3,",satid=",I3,")")') instr, satid
+     else
+       write(ci,'("(instr=",I3,")")') instr
+     end if
+   else
+     ci = '(all instrs.)'
+   end if
+   c = trim(c)//trim(ci)
+
+ end function c_atlas
+
+
+ subroutine rtifc_init_brdf_atlas(month, path, my_proc_id, n_proc, io_proc_id, mpi_comm_type, stat)
    integer,            intent(in) :: month          ! Month number
    character(len=128), intent(in) :: path           ! path to atlases
    integer,            intent(in) :: my_proc_id     ! ID of local processors
@@ -3235,36 +4023,100 @@ FTRACE_END('rtifc_k')
    integer,            intent(in) :: io_proc_id     ! ID of IO processor
    integer,            intent(in) :: mpi_comm_type  ! mpi communicator type
    integer,            intent(out):: stat           ! error status
-   
+
    stat = ERR_NO_ATLAS
    return
-   
+
  end subroutine rtifc_init_brdf_atlas
 
- subroutine rtifc_brdf_atlas(insidx, profs, chans, ropts, refl, stat,refl_flag)
-   integer,            intent(in)  :: insidx      ! instrument index
+ subroutine rtifc_brdf_atlas(iopt, profs, chans, refl, stat,refl_flag)
+   integer,            intent(in)  :: iopt        ! options index
    integer,            intent(in)  :: profs(:)    ! list of profile indices
    integer,            intent(in)  :: chans(:)    ! list of channels
-   type(rttov_options),intent(in)  :: ropts       ! RTTOV options
    real(wp),           intent(out) :: refl(:)     ! emissivities
-   integer, optional,  intent(out) :: refl_flag(:)! emissivities flags
    integer,            intent(out) :: stat        ! error status
+   integer, optional,  intent(out) :: refl_flag(:)! emissivities flags
 
    stat = ERR_NO_ATLAS
    return
-   
+
  end subroutine rtifc_brdf_atlas
 
 #endif /* _RTTOV_ATLAS */
 
 !------------------------------------------------------------------------------
 
-  subroutine rtifc_dealloc_profiles(status)
-    integer, intent(out) :: status
-    status = NO_ERROR
-    if (associated(profiles)) &
-      call dealloc_rttov_arrays(status, profs=profiles)
-  end subroutine rtifc_dealloc_profiles
+  subroutine rtifc_coef_prop(iopt, version, sign_opdep, preslev, nlevs, igas, gas_bkg, &
+                             satid, grid, instr)
+    integer,  intent(in)            :: iopt     ! options index
+    integer,  intent(out), optional :: version
+    integer,  intent(out), optional :: sign_opdep
+    real(wp), intent(out), optional :: preslev(:)
+    integer,  intent(out), optional :: nlevs
+    integer,  intent(in),  optional :: igas
+    real(wp), intent(out), optional :: gas_bkg(:)
+    integer,  intent(out), optional :: satid
+    integer,  intent(out), optional :: grid
+    integer,  intent(out), optional :: instr
+    !----------------------
+    ! Get coef properties
+    !----------------------
+    character(len=15),  parameter :: proc   = 'rtifc_coef_prop'
+    type(t_rtopts),     pointer   :: rto    => null()
+    type(rttov_options),pointer   :: ropts  => null()
+    integer                       :: ic
+    integer                       :: nl, nlevs_user
+    integer                       :: vers
+
+    if (present(version   )) version    = -1
+    if (present(sign_opdep)) sign_opdep =  0
+
+    if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
+    rto   => rt_opts(iopt)
+    ropts => rto%opts
+    ic    =  rto%icoeff
+
+    vers = coefs(ic)%coef%fmv_model_ver
+
+    if (present(version)) version = vers
+
+    if (present(sign_opdep)) then
+      select case(vers)
+      case(7,8)
+        sign_opdep = -1
+      case(13)
+        sign_opdep =  1
+      case default
+        call finish(proc, 'unknown version')
+      end select
+    end if
+
+    if (present(satid)) satid = rto%satid
+    if (present(instr)) instr = rto%instr
+    if (present(grid )) grid  = rto%grid
+
+    nl = coefs(ic)%coef%nlevels
+    if (present(nlevs)) nlevs = nl
+    if (present(preslev)) then
+      nlevs_user = min(size(preslev), nl)
+      if (nlevs_user < nl - 1) &
+           call finish(proc, 'invalid size of preslev array')
+      nlevs_top = nl - nlevs_user
+      preslev(1:nlevs_user) = coefs(ic)%coef%ref_prfl_p(1+nlevs_top:)
+    end if
+
+    if (present(gas_bkg)) then
+      if (.not.present(igas)) call finish(proc, 'gas_bkg requires option "igas"')
+      if (igas < 1 .or. igas > coefs(ic)%coef%fmv_gas) &
+           call finish(proc, 'invalid value for igas/gas not supported')
+      nlevs_user = min(size(gas_bkg), nl)
+      if (nlevs_user < nl - 1) &
+           call finish(proc, 'invalid size of preslev array')
+      nlevs_top = nl - nlevs_user
+      gas_bkg(1:nlevs_user) = coefs(ic)%coef%bkg_prfl_mr(1+nlevs_top:,coefs(ic)%coef%fmv_gas_pos(igas))
+    end if
+
+  end subroutine rtifc_coef_prop
 
 
 
@@ -3277,7 +4129,7 @@ FTRACE_END('rtifc_k')
 
     character(len=256)           :: msg = ''
     type(rttov_profile), pointer :: p1, p2
-    integer                      :: ilev, ierr
+    integer                      :: ilev
     logical                      :: apply_reg_lims_aux
 
     flg = 0
@@ -3294,7 +4146,7 @@ FTRACE_END('rtifc_k')
       ! T
       do ilev = 1+nlevs_top, p1%nlevels
         flg(ilev-nlevs_top,1) = 0
-        if (mask_lims_t(ilev)) then
+        if (p1%p(ilev) < chk_plim_t) then
           if (p1%t(ilev) < p2%t(ilev)) then
             if (btest(chk_reg_lims,0)) then
               write(msg,'(2x,A,I3," : ",f7.3,"<",f7.3," (",f7.3,"N",f8.3,"E)")') &
@@ -3315,7 +4167,7 @@ FTRACE_END('rtifc_k')
       ! q
       do ilev = 1+nlevs_top, p1%nlevels
         flg(ilev-nlevs_top,2) = 0
-        if (mask_lims_q(ilev)) then
+        if (p1%p(ilev) < chk_plim_q) then
           if (p1%q(ilev) < p2%q(ilev)) then
             if (btest(chk_reg_lims,0)) then
               write(msg,'(2x,A,I3," : ",e13.6,"<",e13.6," (",f7.3,"N",f8.3,"E)")') &
@@ -3464,7 +4316,7 @@ FTRACE_END('rtifc_k')
 
 
   subroutine alloc_rttov_arrays(status, n_profs,nlevs,n_channels,l_init,ropts,&
-                                profs,rads,rads2,transm,height)
+                                profs,rads,rads2,transm,n_levels_coef,height)
     integer,                  intent(out)            :: status
     integer(jpim),            intent(in)             :: n_profs        !Number of profiles to allocate
     integer(jpim),            intent(in)             :: nlevs
@@ -3476,6 +4328,7 @@ FTRACE_END('rtifc_k')
     type(rttov_radiance),     intent(inout),optional :: rads
     type(rttov_radiance2),    intent(inout),optional :: rads2
     type(rttov_transmission), intent(inout),optional :: transm
+    integer(jpim),            intent(in),   optional :: n_levels_coef
     real(kind=jprb),          pointer,      optional :: height(:)
     !-------------------------------------------------------------
     ! subroutine allocates the RTTOV profile and radiance structures
@@ -3505,7 +4358,11 @@ FTRACE_BEGIN('alloc_rttov_arrays')
 
     if (present(transm)) then
       ! allocate parts of transmission structure and error status
-      call rttov_alloc_transmission(stat, transm, nlevs, n_channels, rttov_alloc, .true.)
+      call rttov_alloc_transmission(stat, transm, nlevs, n_channels, rttov_alloc, init=.true. &
+#if defined(_DACE_) && !defined(__ICON__)
+                                    , nlevels_coef=n_levels_coef &
+#endif
+                                    )
       if(stat /= 0) then
         status = ERR_ALLOC
         return
@@ -3581,15 +4438,31 @@ FTRACE_END('alloc_rttov_arrays')
     ! subroutine deallocates the RTTOV profile and radiance structures
     !---------------------------------------------------------------
     integer                    :: status_rt
+    logical                    :: lr2
 
 FTRACE_BEGIN('dealloc_rttov_arrays')
 
     status = NO_ERROR
 
+    if (idef0 <= 0) then
+      status = ERR_NO_OPTS_TMPL
+      return
+    end if
+
     if (present(rads)) then
       if (associated(rads%clear)) then
-        call rttov_alloc_rad(status_rt,size(rads%clear),             &
-                             rads,size(rads% overcast, 1),rttov_dealloc)
+        if (present(rads2)) then
+          lr2 = associated(rads2%up)
+        else
+          lr2 = .false.
+        end if
+        if (lr2) then
+          call rttov_alloc_rad(status_rt,size(rads%clear),             &
+                               rads,size(rads% overcast, 1),rttov_dealloc, radiance2=rads2)
+        else
+          call rttov_alloc_rad(status_rt,size(rads%clear),             &
+                               rads,size(rads% overcast, 1),rttov_dealloc)
+        end if
         if(status_rt /= errorstatus_success) then
           status = ERR_ALLOC
           return
@@ -3599,7 +4472,7 @@ FTRACE_BEGIN('dealloc_rttov_arrays')
     if (present(profs)) then
       if (associated(profs)) then
         call rttov_alloc_prof(status_rt,size(profs),profs,         &
-             size(profs(1)%p),rttov_opts_def,rttov_dealloc,coefs(1))
+             size(profs(1)%p),rt_opts_tmpl(idef0)%opts,rttov_dealloc,coefs(1))
         if(status_rt /= errorstatus_success) then
           status = ERR_ALLOC
           return
@@ -3637,7 +4510,7 @@ FTRACE_END('dealloc_rttov_arrays')
 
 
   subroutine realloc_rttov_arrays(status, n_profiles, n_levels, n_channels, &
-       ropts, profs,rads,rads2,transm,height)
+       ropts, profs,rads,rads2,transm,n_levels_coef,height)
     integer,                  intent(out)             :: status
     integer(jpim),            intent(in)              :: n_profiles     ! requested number of profiles
     integer(jpim),            intent(in)              :: n_levels       ! requested levels
@@ -3647,6 +4520,7 @@ FTRACE_END('dealloc_rttov_arrays')
     type(rttov_radiance),     intent(inout), optional :: rads           ! radiance array to realloc
     type(rttov_radiance2),    intent(inout), optional :: rads2          ! radiance array to realloc
     type(rttov_transmission), intent(inout), optional :: transm         ! transmission array to realloc
+    integer(jpim),            intent(in),    optional :: n_levels_coef
     real(kind=jprb),          pointer,       optional :: height(:)
     !----------------------------------------------------------------------------------
     ! subroutine reallocates the profile, radiance and transmission structure if necessary
@@ -3685,22 +4559,35 @@ FTRACE_END('dealloc_rttov_arrays')
 
     if (present(transm)) then
       l_req = .not.associated(transm%tau_total)
-      if (.not.l_req) l_req = n_channels /= size(transm%tau_total)
+      if (.not.l_req) l_req = (n_channels /= size(transm%tau_total) .and. rtifc_alloc_mode == 0) .or. &
+                              (n_channels >  size(transm%tau_total) .and. rtifc_alloc_mode >= 1)
+      if (.not.l_req) l_req = n_levels   /= size(transm%tau_levels,1)
+      if (.not.l_req .and. transm%l_opdep) then
+        if (associated(transm%opdep_ref)) then
+          l_req = (size(transm%opdep_ref,1) < n_levels_coef-1)
+        else
+          l_req = .true.
+        end if
+      end if
       if (l_req) then
         call dealloc_rttov_arrays(status, transm=transm)
         if (status /= NO_ERROR) return
         call alloc_rttov_arrays (status, n_profiles, n_levels, n_channels,&
-                                 .true., ropts, transm =transm)
+                                 .true., ropts, transm =transm, n_levels_coef=n_levels_coef)
         if (status /= NO_ERROR) return
       end if
     end if
 
     if (present(rads)) then
+      l_req  = .not.associated(rads%clear)
+      if (.not.l_req)  l_req  = (n_channels /= size(rads%clear) .and. rtifc_alloc_mode == 0) .or. &
+                                (n_channels >  size(rads%clear) .and. rtifc_alloc_mode >= 1)
+      if (.not.l_req)  l_req  = n_levels   /= size(rads%overcast,1) + 1
       if (present(rads2)) then
-        l_req  = .not.associated(rads%clear)
         l_req2 = .not.associated(rads2%upclear)
-        if (.not.l_req)  l_req  = n_channels /= size(rads%clear)
-        if (.not.l_req2) l_req2 = n_channels /= size(rads2%upclear)
+        if (.not.l_req2) l_req2 = (n_channels /= size(rads2%upclear) .and. rtifc_alloc_mode == 0) .or. &
+                                  (n_channels >  size(rads2%upclear) .and. rtifc_alloc_mode >= 1)
+        if (.not.l_req2) l_req2 = n_levels   /= size(rads2%up,1)+1
         if (l_req .and. l_req2) then
           call dealloc_rttov_arrays(status, rads=rads, rads2=rads2)
           if (status /= NO_ERROR) return
@@ -3715,8 +4602,6 @@ FTRACE_END('dealloc_rttov_arrays')
           if (status /= NO_ERROR) return
         end if
       else
-        l_req = .not.associated(rads%clear)
-        if (.not.l_req) l_req = n_channels /= size(rads%clear)
         if (l_req) then
           call dealloc_rttov_arrays(status, rads=rads)
           if (status /= NO_ERROR) return
@@ -3728,7 +4613,8 @@ FTRACE_END('dealloc_rttov_arrays')
     end if
     if (present(height)) then
       l_req = .not.associated(height)
-      if (.not.l_req) l_req = n_channels /= size(height)
+      if (.not.l_req) l_req = (n_channels /= size(height) .and. rtifc_alloc_mode == 0) .or. &
+                              (n_channels >  size(height) .and. rtifc_alloc_mode >= 1)
       if (l_req) then
         call dealloc_rttov_arrays(status, height=height)
         if (status /= NO_ERROR) return
@@ -3753,6 +4639,7 @@ FTRACE_END('dealloc_rttov_arrays')
     !-------------------------------------------------------------------
     ! Broadcast an rttov_coefs structure across all available processors
     !-------------------------------------------------------------------
+    call p_bcast(coefs% initialised,     source, comm)
     call p_bcast(coefs% coef,          source, comm)
     call p_bcast(coefs% coef_scatt_ir, source, comm)
     call p_bcast(coefs% optp,          source, comm)
@@ -4632,15 +5519,18 @@ FTRACE_END('dealloc_rttov_arrays')
     !-----------------------------------------------------------------------------
     ! Broadcast an rttov_emis_atlas_data structure across all available processors
     !-----------------------------------------------------------------------------
+    character(len=19), parameter :: proc = 'p_bcast_rttov_atlas'
 
     call p_bcast_rttov_container(atlas, source, comm)
-    if (.not. atlas% is_mw) return
-    if (atlas% atlas_id == 1) then
-      call p_bcast(atlas% telsem2_atlas, source, comm)
+    if (atlas% is_mw) then
+      if (atlas% atlas_id == 1) then
+        call p_bcast(atlas% telsem2_atlas, source, comm)
+      else
+        call p_bcast(atlas% cnrm_mw_atlas, source, comm)
+      endif
     else
-      call p_bcast(atlas% cnrm_mw_atlas, source, comm)
-    endif
-
+      call finish(proc,'broadcasting of IR atlases not implemented so far.')
+    end if
   end subroutine p_bcast_rttov_atlas
 
 

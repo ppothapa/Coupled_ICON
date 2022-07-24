@@ -38,9 +38,12 @@ echo "experimentLogfile: |${experimentLogfile}|"
 if [ "x${BB_EXPERIMENT}" != "x" ]; then
 
   # first check if the given expriment file/template exists
-  if [ ! -f "${ICON_DIR}/run/${BB_EXPERIMENT}}" ]; then
-    echo "Cannot find experiment ${ICON_DIR}/run/${BB_EXPERIMENT}}"
+  fullExperimentPath="${ICON_DIR}/run/${BB_EXPERIMENT}"
+  if [ ! -f "${fullExperimentPath}" ]; then
+    echo "ERROR: Cannot find experiment ${fullExperimentPath}"
     exit 1;
+  else
+    echo "Found single tests: ${fullExperimentPath}"
   fi
 
   # create a temporary list with the given experiments

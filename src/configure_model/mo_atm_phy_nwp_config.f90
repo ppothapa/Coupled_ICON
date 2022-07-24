@@ -100,6 +100,7 @@ MODULE mo_atm_phy_nwp_config
     INTEGER ::  nclds              !! max number of clouds in stochastic cloud ensemble
     LOGICAL ::  lgrayzone_deepconv !! use grayzone tuning for deep convection
     LOGICAL ::  ldetrain_conv_prec !! detrain convective rain and snow
+    LOGICAL ::  lsgs_cond          !! subgrid-scale condensation related to cloud cover
     INTEGER ::  inwp_radiation   !! radiation
     INTEGER ::  inwp_sso         !! sso
     INTEGER ::  inwp_gwd         !! non-orographic gravity wave drag
@@ -415,13 +416,10 @@ CONTAINS
       !     of the advection/fast-physics timestep.
       !     If not, the slow physics timestep is rounded up to the 
       !     next integer multiple.
-      ! II) If convection is switched on, the timesteps for cloud-cover 
-      !     and convection must be the same as to ensure proper output 
-      !     of Qx_tot.
-      !     If convection is switched off, the time step for cloud-cover 
-      !     must only adhere to rule (I).
+      ! II) Special rules for cloud cover time step are set in combination
+      !     with EDMF turbulence and when using no convection scheme (see below)
       !III) The radiation timestep must be an integer multiple of the 
-      !     cloud-cover timestep. If not, the radiation timestep is 
+      !     cloud-cover timestep and the convection. If not, the radiation timestep is 
       !     rounded up to the next integer multiple.
 
 
@@ -472,30 +470,28 @@ CONTAINS
 
       ! RULE (II)
       !
-      ! Already fulfilled through copying the namelist variable dt_conv to both 
-      ! atm_phy_nwp_config(jg)%dt_conv
-      ! and
-      ! atm_phy_nwp_config(jg)%dt_ccov
-      ! in mo_nwp_phy_nml:read_nwp_phy_namelist.
-      !
-      ! Here, we merley perform a sanity check (Paranoia).
-      ! 
-      IF (atm_phy_nwp_config(jg)%lenabled(itconv)) THEN
-        IF (atm_phy_nwp_config(jg)%dt_ccov /= atm_phy_nwp_config(jg)%dt_conv) THEN
-          WRITE(message_text,'(a,f7.2,a,f7.2,a)') 'Timesteps for cloud-cover and convection differ. (', &
-            &   atm_phy_nwp_config(jg)%dt_ccov,'/', atm_phy_nwp_config(jg)%dt_conv,'). Resetting dt_ccov...'
-          CALL message(routine, message_text)
-          atm_phy_nwp_config(jg)%dt_ccov = atm_phy_nwp_config(jg)%dt_conv
-        ENDIF
-      ENDIF
-      !
       ! Special rule for EDMF DUALM:
       ! cloud cover is called every turbulence time step
       IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN
         WRITE(message_text,'(a)') 'EDMF DUALM selected => Resetting dt_ccov to dt_fastphy.'
         CALL message(routine, message_text)
-        atm_phy_nwp_config(jg)% dt_ccov = atm_phy_nwp_config(jg)% dt_fastphy
+        atm_phy_nwp_config(jg)%dt_ccov = atm_phy_nwp_config(jg)%dt_fastphy
       ENDIF
+      !
+      ! When using no convection scheme, users may not be aware that setting a convection or cloud cover time step
+      ! is relevant. We thus prevent the cloud cover time step from being unreasonably large by limiting
+      ! it to six times the fast physics time step
+      IF ( atm_phy_nwp_config(jg)%inwp_convection == 0 .AND. atm_phy_nwp_config(jg)%inwp_cldcover > 0 .AND. &
+           atm_phy_nwp_config(jg)%dt_ccov > 6._wp*atm_phy_nwp_config(jg)%dt_fastphy ) THEN
+        WRITE(message_text,'(a)') 'No convection scheme selected => Reduce dt_ccov to 6*dt_fastphy.'
+        CALL message(routine, message_text)
+        atm_phy_nwp_config(jg)%dt_ccov = 6._wp*atm_phy_nwp_config(jg)%dt_fastphy
+      ENDIF
+      !
+      ! In addition, dt_conv and dt_ccov are reset to the fast-physics time step when the respective parameterization
+      ! is turned off (to avoid side effects on the radiation time step)
+      IF ( atm_phy_nwp_config(jg)%inwp_convection == 0) atm_phy_nwp_config(jg)%dt_conv = atm_phy_nwp_config(jg)%dt_fastphy
+      IF ( atm_phy_nwp_config(jg)%inwp_cldcover == 0)   atm_phy_nwp_config(jg)%dt_ccov = atm_phy_nwp_config(jg)%dt_fastphy
 
 
       ! RULE (III)
@@ -507,6 +503,20 @@ CONTAINS
           &                                                 atm_phy_nwp_config(jg)%dt_ccov)
       ENDIF
 
+      IF (isModulo(atm_phy_nwp_config(jg)%dt_rad,atm_phy_nwp_config(jg)%dt_conv)) THEN
+        WRITE(message_text,'(a,i2,a)') 'DOM ',jg, &
+          &                            ': Radiation timestep is not a multiple of convection step => rounded up!'
+        CALL message(routine, message_text)
+        atm_phy_nwp_config(jg)%dt_rad = roundToNextMultiple(atm_phy_nwp_config(jg)%dt_rad,    &
+          &                                                 atm_phy_nwp_config(jg)%dt_conv)
+      ENDIF
+
+      ! Check if the radiation time step is still a multiple of dt_ccov. Otherwise finish
+      IF (isModulo(atm_phy_nwp_config(jg)%dt_rad,atm_phy_nwp_config(jg)%dt_ccov)) THEN
+        WRITE(message_text,'(a,i2,a)') 'DOM ',jg, &
+          & ': Time steps for cloud cover and convection need to be set such that the radiation step can be a multiple of both'
+        CALL finish(routine, message_text)
+      ENDIF
 
 
       ! Fill dt_phy with final timesteps
@@ -1213,12 +1223,12 @@ CONTAINS
     INTEGER, PARAMETER :: idx_arr(iphysproc_short) &
          = (/itfastphy,itconv,itccov,itrad,itsso,itgwd/)
     CHARACTER(LEN=7), PARAMETER :: proc_names(iphysproc_short) &
-      &                     = (/ "fastphy", &
-      &                          "conv   ", &
+      &                     = (/ "conv   ", &
       &                          "ccov   ", &
       &                          "rad    ", &
       &                          "sso    ", &
-      &                          "gwd    " /)
+      &                          "gwd    ", &
+      &                          "fastphy" /)
     !--------------------------------------------------------------------------
 
     ! will only be executed by stdio process

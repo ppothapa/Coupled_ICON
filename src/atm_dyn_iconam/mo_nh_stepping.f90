@@ -69,7 +69,7 @@ MODULE mo_nh_stepping
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
     &                                    ldeepatmo
-  USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output
+  USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, itype_comm, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
@@ -185,6 +185,7 @@ MODULE mo_nh_stepping
                                          sampl_freq_step, les_cloud_diag  
 #endif
   USE mo_restart,                  ONLY: t_RestartDescriptor, createRestartDescriptor, deleteRestartDescriptor
+  USE mo_restart_util,             ONLY: check_for_checkpoint
   USE mo_prepadv_types,            ONLY: t_prepare_adv
   USE mo_prepadv_state,            ONLY: prep_adv, jstep_adv
   USE mo_action,                   ONLY: reset_act
@@ -247,6 +248,7 @@ MODULE mo_nh_stepping
   USE mo_nudging,                  ONLY: nudging_interface  
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
   USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
+  USE mo_nwp_diagnosis,            ONLY: nwp_diag_global
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -263,6 +265,7 @@ MODULE mo_nh_stepping
   LOGICAL, ALLOCATABLE :: linit_dyn(:)  ! determines whether dynamics must be initialized
                                         ! on given patch
 
+  LOGICAL :: lready_for_checkpoint = .FALSE.
   ! event handling manager, wrong place, have to move later
 
   TYPE(eventGroup), POINTER :: checkpointEventGroup => NULL()
@@ -480,6 +483,8 @@ MODULE mo_nh_stepping
         IF (n_dom > 1 .OR. l_limited_area) THEN
            CALL devcpy_grf_state (p_grf_state, .TRUE.)
            CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
+        ELSEIF (ANY(lredgrid_phys)) THEN
+          CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
         ENDIF
         IF ( iforcing == inwp ) THEN
            DO jg=1, n_dom
@@ -497,6 +502,8 @@ MODULE mo_nh_stepping
         IF (n_dom > 1 .OR. l_limited_area) THEN
            CALL devcpy_grf_state (p_grf_state, .FALSE.)
            CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+        ELSEIF (ANY(lredgrid_phys)) THEN
+          CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
         ENDIF
         IF ( iforcing == inwp ) THEN
           DO jg=1, n_dom
@@ -535,7 +542,9 @@ MODULE mo_nh_stepping
                &                      p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), & !in
                &                      p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), & !inout
                &                      ext_data(jg),                           & !in
-               &                      prm_diag(jg)                            ) !inout
+               &                      prm_diag(jg),                           & !inout
+               &                      lacc=.FALSE.                             ) !in
+
 #ifndef __NO_ICON_LES__
         ELSE !is_les_phy
 
@@ -576,7 +585,7 @@ MODULE mo_nh_stepping
     ENDIF!is_restart
   CASE (iaes)
     IF (.NOT.isRestart()) THEN
-      CALL init_slowphysics (mtime_current, 1, dtime)
+      CALL init_slowphysics (mtime_current, 1, dtime, lacc=.FALSE.)
     END IF
 #ifdef __ICON_ART
     IF (lart) THEN
@@ -631,6 +640,14 @@ MODULE mo_nh_stepping
       &                                       l_dom_active   = p_patch(1:)%ldom_active, &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
+
+    ! global mean diagnostics
+    DO jg = 1, n_dom
+      IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
+        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
+        CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
+      ENDIF
+    ENDDO
 
     CALL update_statistics
     IF (p_nh_opt_diag(1)%acc%l_any_m) THEN
@@ -781,6 +798,7 @@ MODULE mo_nh_stepping
   REAL(wp)                             :: sim_time     !< elapsed simulation time
 
   LOGICAL :: l_isStartdate, l_isExpStopdate, l_isRestart, l_isCheckpoint, l_doWriteRestart
+  LOGICAL :: lstop_on_demand = .FALSE. , lchkp_allowed = .FALSE.
 
   REAL(wp), ALLOCATABLE :: elapsedTime(:)  ! time elapsed since last call of 
                                            ! NWP physics routines. For restart purposes.
@@ -939,6 +957,8 @@ MODULE mo_nh_stepping
   IF (n_dom > 1 .OR. l_limited_area) THEN
      CALL devcpy_grf_state (p_grf_state, .TRUE.)
      CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
+  ELSEIF (ANY(lredgrid_phys)) THEN
+     CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
   ENDIF
   IF ( iforcing == inwp ) THEN
      DO jg=1, n_dom
@@ -974,6 +994,21 @@ MODULE mo_nh_stepping
 
     ! update model date and time mtime based
     mtime_current = mtime_current + model_time_step
+
+    ! provisional implementation for checkpoint+stop on demand
+    IF (checkpoint_on_demand) CALL check_for_checkpoint(lready_for_checkpoint, lchkp_allowed, lstop_on_demand)
+
+    IF (lstop_on_demand) THEN
+      ! --- --- create restart event, ie. checkpoint + model stop
+      eventInterval  => model_time_step
+      restartEvent => newEvent('restart', restartRefDate, eventStartDate, mtime_current, eventInterval, errno=ierr)
+      IF (ierr /= no_Error) THEN
+        CALL mtime_strerror(ierr, errstring)
+        CALL finish('perform_nh_timeloop', "event 'restart': "//errstring)
+      ENDIF
+      CALL message('perform_nh_timeloop', "checkpoint+stop forced during runtime")
+      lret = addEventToEventGroup(restartEvent, checkpointEventGroup)
+    ENDIF
 
     ! store state of output files for restarting purposes
     IF (output_mode%l_nml .AND. jstep>=0 ) THEN
@@ -1156,13 +1191,13 @@ MODULE mo_nh_stepping
     ! Calculations for enhanced sound-wave and gravity-wave damping during the spinup phase
     ! if mixed second-order/fourth-order divergence damping (divdamp_order=24) is chosen.
     ! Includes increased vertical wind off-centering during the first 2 hours of integration.
-    IF (divdamp_order==24 .AND. .NOT. isRestart()) THEN
+    IF (divdamp_order==24) THEN
       elapsed_time_global = (REAL(jstep,wp)-0.5_wp)*dtime
       IF (elapsed_time_global <= 7200._wp+0.5_wp*dtime .AND. .NOT. ltestcase) THEN
         CALL update_spinup_damping(elapsed_time_global)
+      ELSE
+        divdamp_fac_o2 = 0._wp
       ENDIF
-    ELSE IF (divdamp_order==24) THEN
-      divdamp_fac_o2 = 0._wp
     ENDIF
 
 
@@ -1229,7 +1264,7 @@ MODULE mo_nh_stepping
                  &                      p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)), & !inout
                  &                      ext_data(jg),                           & !in
                  &                      prm_diag(jg),                           & !inout
-                 &                      use_acc=.TRUE.                          ) !in
+                 &                      lacc=.TRUE.                             ) !in
 
 #ifndef __NO_ICON_LES__
           ELSE !is_les_phy
@@ -1338,6 +1373,14 @@ MODULE mo_nh_stepping
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status)
+
+    ! global mean diagnostics
+    DO jg = 1, n_dom
+      IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
+        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
+        CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
+      ENDIF
+    ENDDO
 
 #ifdef MESSY
     DO jg = 1, n_dom
@@ -1566,7 +1609,7 @@ MODULE mo_nh_stepping
     !$ser verbatim   CALL serialize_all(nproma, jg, "time_loop_end", .FALSE., opt_lupdate_cpu=.FALSE., opt_id=iau_iter)
     !$ser verbatim ENDDO
 
-    IF (mtime_current >= time_config%tc_stopdate) THEN
+    IF (mtime_current >= time_config%tc_stopdate .OR. lstop_on_demand) THEN
        ! leave time loop
        EXIT TIME_LOOP
     END IF
@@ -1610,6 +1653,8 @@ MODULE mo_nh_stepping
     &            p_nh_state, prep_adv, advection_config, iforcing )
   IF (n_dom > 1 .OR. l_limited_area) THEN
      CALL devcpy_grf_state (p_grf_state, .FALSE.)
+     CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
+  ELSEIF (ANY(lredgrid_phys)) THEN
      CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
   ENDIF
   IF ( iforcing == inwp ) THEN
@@ -2363,10 +2408,7 @@ MODULE mo_nh_stepping
         CALL nudging_interface( p_patch          = p_patch(jg),            & !in
           &                     p_nh_state       = p_nh_state(jg),         & !inout
           &                     latbc            = latbc,                  & !in
-          &                     p_int_state      = p_int_state(jg),        & !in
           &                     mtime_datetime   = datetime_local(jg)%ptr, & !in
-          &                     sim_time         = sim_time,               & !in
-          &                     time_config      = time_config,            & !in
           &                     ndyn_substeps    = ndyn_substeps,          & !in
           &                     nnew             = nnew(jg),               & !in
           &                     nnew_rcf         = n_new_rcf,              & !in
@@ -2632,7 +2674,7 @@ MODULE mo_nh_stepping
               ENDIF
             ENDIF
 
-            CALL init_slowphysics (datetime_local(jgc)%ptr, jgc, dt_sub)
+            CALL init_slowphysics (datetime_local(jgc)%ptr, jgc, dt_sub, lacc=.FALSE.)
 
             WRITE(message_text,'(a,i2,a,f12.2)') 'domain ',jgc,' started at time ',sim_time
             CALL message('integrate_nh', message_text)
@@ -2826,6 +2868,12 @@ MODULE mo_nh_stepping
 
     END DO SUBSTEPS
 
+    IF ( ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode) ) THEN
+      IF (cur_time > dt_iau) lready_for_checkpoint = .TRUE.
+    ELSE
+      lready_for_checkpoint = .TRUE.
+    ENDIF
+
     ! airmass_new
     CALL compute_airmass(p_patch   = p_patch,                       & !in
       &                  p_metrics = p_nh_state%metrics,            & !in
@@ -2854,20 +2902,13 @@ MODULE mo_nh_stepping
     TYPE(datetime), POINTER :: mtime_current
     INTEGER , INTENT(IN)    :: jg           !< current grid level
     REAL(wp), INTENT(IN)    :: dt_loc       !< time step applicable to local grid level
-    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+    LOGICAL, INTENT(IN) :: lacc
 
     ! Local variables
     INTEGER                             :: n_now_rcf, nstep
     INTEGER                             :: jgp, jgc, jn
     REAL(wp)                            :: dt_sub       !< (advective) timestep for next finer grid level
 
-    LOGICAL :: lzacc
-
-    IF (PRESENT(lacc)) THEN
-      lzacc=lacc
-    ELSE
-      lzacc=.FALSE.
-    END IF
 
     ! Determine parent domain ID
     IF ( jg > 1) THEN
@@ -2955,7 +2996,7 @@ MODULE mo_nh_stepping
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
           &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
           &                  p_nh_state_lists(jg)%prog_list(n_now_rcf), & !in
-          &                  lacc=lzacc) !in
+          &                  lacc=lacc) !in
       !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .FALSE., opt_lupdate_cpu=.FALSE.)
 
 
@@ -3001,11 +3042,8 @@ MODULE mo_nh_stepping
         IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
 
         IF(p_patch(jgc)%domain_is_owned) THEN
-#if _OPENACC
-          CALL finish (routine, 'Online initialization of nesting is not supported on GPU')
-#endif
           IF(proc_split) CALL push_glob_comm(p_patch(jgc)%comm, p_patch(jgc)%proc0)
-          CALL init_slowphysics( mtime_current, jgc, dt_sub )
+          CALL init_slowphysics( mtime_current, jgc, dt_sub, lacc=lacc )
           IF(proc_split) CALL pop_glob_comm()
         ENDIF
 

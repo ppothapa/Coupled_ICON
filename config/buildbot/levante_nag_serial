@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -e
+
+MY_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+
+if [ ! -z "${BB_NAME}" ]; then
+  set -x
+fi
+
+# Make sure we disable all features that require MPI:
+${ICON_DIR}/config/dkrz/levante.nag --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-openmp
+
+if [ ! -z "${BB_NAME}" ] ; then
+  MAKE_PROCS=22
+  echo "MAKE_PROCS=${MAKE_PROCS}"
+else
+  MAKE_PROCS=8
+fi
+
+make -j ${MAKE_PROCS}
+
+# Check that the executable does not *directly* depend on MPI:
+executable='bin/icon'
+
+set -o pipefail
+
+needed=$(readelf -d "$executable" | grep '(NEEDED)')
+if test 0 -ne $? || test -z "$needed"; then
+  echo "ERROR: failed to get a list of direct library dependencies of '$executable'" >&2
+  exit 1
+fi
+
+if echo "$needed" | grep 'libmpi' >/dev/null; then
+  cat >&2 <<_EOF
+ERROR: detected a direct dependency of '$executable' on an MPI library:
+$needed
+_EOF
+  exit 1
+fi
+
+exit 0

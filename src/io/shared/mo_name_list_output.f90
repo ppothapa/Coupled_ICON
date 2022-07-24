@@ -1065,7 +1065,7 @@ CONTAINS
           END IF
           r_ptr_m = r_ptr
           r_ptr => r_ptr_m
-          CALL perform_post_op(info%post_op, r_ptr, lzacc)
+          CALL perform_post_op(info%post_op, r_ptr, lacc=lzacc)
         ELSE IF (idata_type == iREAL_sp) THEN
           alloc_shape = SHAPE(s_ptr)
           IF (ALLOCATED(s_ptr_m)) THEN
@@ -1079,7 +1079,7 @@ CONTAINS
           END IF
           s_ptr_m = s_ptr
           s_ptr => s_ptr_m
-          CALL perform_post_op(info%post_op, s_ptr, lzacc)
+          CALL perform_post_op(info%post_op, s_ptr, lacc=lzacc)
         ELSE IF (idata_type == iINTEGER) THEN
           alloc_shape = SHAPE(i_ptr)
           IF (ALLOCATED(i_ptr_m)) THEN
@@ -1093,7 +1093,7 @@ CONTAINS
           END IF
           i_ptr_m = i_ptr
           i_ptr => i_ptr_m
-          CALL perform_post_op(info%post_op, i_ptr, lzacc)
+          CALL perform_post_op(info%post_op, i_ptr, lacc=lzacc)
         ENDIF
       END IF
 

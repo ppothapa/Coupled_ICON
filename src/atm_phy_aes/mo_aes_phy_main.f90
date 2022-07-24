@@ -55,11 +55,9 @@ MODULE mo_aes_phy_main
   USE mo_interface_aes_rht   ,ONLY: interface_aes_rht
   USE mo_interface_aes_vdf   ,ONLY: interface_aes_vdf
   USE mo_interface_aes_car   ,ONLY: interface_aes_car
+  USE mo_interface_aes_art   ,ONLY: interface_aes_art
   !
-  ! experimental interfaces selected by aes_phy_config(:)%if_mig = 1,2!!$,3
-  USE mo_interface_cloud_mig_1 ,ONLY: interface_cloud_mig_1 ! use 2d interface, jcs:jce loop in cloud_mig
-  USE mo_interface_cloud_mig_2 ,ONLY: interface_cloud_mig_2 ! use 2d interface, jcs:jce loop in interface
-  USE mo_interface_cloud_mig_3 ,ONLY: interface_cloud_mig_3 ! use 1d interface, jcs:jce loop in omp_loop_cell_1d
+  USE mo_interface_cloud_mig ,ONLY: interface_cloud_mig
   !
   USE mo_interface_cloud_two ,ONLY: interface_cloud_two
 
@@ -127,6 +125,25 @@ CONTAINS
     !---------------------------------------------------------------------
     !
     CALL omp_loop_cell(patch,droplet_number)
+
+    !-------------------------------------------------------------------
+    ! Graupel (microphysics) processes
+    !-------------------------------------------------------------------
+    !
+    IF ( aes_phy_tc(jg)%dt_mig > dt_zero ) THEN
+       !
+       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_mig <= datetime_old) .AND. &
+            &                          (aes_phy_tc(jg)%ed_mig >  datetime_old)
+       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_mig,   datetime_old)
+       !
+       CALL message_forcing_action('graupel microphysics (mig)',    &
+            &                      is_in_sd_ed_interval, is_active)
+       !
+       CALL omp_loop_cell  (patch, interface_cloud_mig      ,&
+            &               is_in_sd_ed_interval, is_active ,&
+            &               datetime_old, pdtime            )
+       !
+    END IF
 
     !-------------------------------------------------------------------
     ! Radiation (one interface for LW+SW)
@@ -212,34 +229,39 @@ CONTAINS
     END IF
 
     !-------------------------------------------------------------------
-    ! Graupel (microphysics) processes
+    ! Atmospheric chemistry of ART
     !-------------------------------------------------------------------
     !
-    IF ( aes_phy_tc(jg)%dt_mig > dt_zero ) THEN
-       !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_mig <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_mig >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_mig,   datetime_old)
-       !
-       CALL message_forcing_action('graupel microphysics (mig)',    &
-            &                      is_in_sd_ed_interval, is_active)
-       !
-       SELECT CASE(aes_phy_config(jg)%if_mig)
-       CASE(1,11)
-          CALL omp_loop_cell  (patch, interface_cloud_mig_1    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       CASE(2,12)
-          CALL omp_loop_cell  (patch, interface_cloud_mig_2    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       CASE(3,4,13,14)
-          CALL omp_loop_cell_3(patch, interface_cloud_mig_3    ,&
-               &               is_in_sd_ed_interval, is_active ,&
-               &               datetime_old, pdtime            )
-       END SELECT
-       !
+    IF (aes_phy_tc(jg)%dt_art > dt_zero) THEN
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU host synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .false., jg)
+       CALL gpu_update_var_list('prm_tend_D', .false., jg)
+#endif
+      !
+      is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_art <= datetime_old) .AND. &
+           &                          (aes_phy_tc(jg)%ed_art >  datetime_old)
+      is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_art,   datetime_old)
+
+      CALL message_forcing_action('ART (rad)'                     ,&
+            &                     is_in_sd_ed_interval, is_active )
+      !
+      ! OMP loops are hidden inside the ART routines. Hence the full patch needs
+      ! to be passed to the ART routines and is it not possible to call the
+      ! ART reaction interface inside the standard omp block loop.
+      ! This should be reprogrammed.
+      !
+      CALL interface_aes_art(patch                           ,&
+           &                   is_in_sd_ed_interval, is_active ,&
+           &                   datetime_old, pdtime            )
+      !
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .true., jg)
+       CALL gpu_update_var_list('prm_tend_D', .true., jg)
+#endif
     END IF
+    !
 
     !--------------------------------------------------------------------
     ! two-moment bulk microphysics by Seifert and Beheng (2006) processes

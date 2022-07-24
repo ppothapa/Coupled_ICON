@@ -45,7 +45,6 @@ MODULE mo_nonhydro_state
     &                                MODE_ICONVREMAP,HINTP_TYPE_LONLAT_RBF,          &
     &                                HINTP_TYPE_LONLAT_BCTR,                         &
     &                                TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,         &
-    &                                TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,    &
     &                                MIN_RLCELL_INT, MIN_RLCELL
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
     &                                GRID_UNSTRUCTURED_VERT, GRID_CELL, GRID_EDGE,   &
@@ -1786,8 +1785,6 @@ MODULE mo_nonhydro_state
     &       p_diag%qv_avg, &
     &       p_diag%vor_u, &
     &       p_diag%vor_v, &
-    &       p_diag%bvf2, &
-    &       p_diag%parcelfreq2, &
     &       p_diag%nsteps_avg, &
     &       p_diag%extra_2d, &
     &       p_diag%extra_3d)
@@ -3759,56 +3756,6 @@ MODULE mo_nonhydro_state
                     & l_pp_scheduler_task=TASK_COMPUTE_VOR_V, lrestart=.FALSE.,      &
                     & lopenacc = .TRUE. )
       __acc_attach(p_diag%vor_v)
-    END IF
-
-    ! square of Brunt-Vaisala frequency  p_diag%bvf2(nproma,nlev,nblks_c)
-    ! (GRIB2: this diagnostic is neither required for operational use 
-    ! nor for some other "official" purpose, 
-    ! so we use the available local DWD definition for ecCodes shortname 'DUMMY_70' for the time being)
-    ! 
-    IF (var_in_output%bvf2) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for bvf2.")
-#endif
-      cf_desc    = t_cf_var('bvf2', 's-2', 'square of Brunt-Vaisala frequency', datatype_flt)
-      grib2_desc = grib2_var(0, 254, 70, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "bvf2", p_diag%bvf2,                                           &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_BVF2, lrestart=.FALSE.,       &
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%bvf2)
-    END IF
-
-    ! square of general air parcel oscillation frequency  p_diag%parcelfreq2(nproma,nlev,nblks_c)
-    ! (GRIB2: this diagnostic is neither required for operational use 
-    ! nor for some other "official" purpose, 
-    ! so we use the available local DWD definition for ecCodes shortname 'DUMMY_71' for the time being)
-    ! 
-    IF (var_in_output%parcelfreq2) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for parcelfreq2.")
-#endif
-      cf_desc    = t_cf_var('parcelfreq2', 's-2', 'square of air parcel oscillation frequency', datatype_flt)
-      grib2_desc = grib2_var(0, 254, 71, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "parcelfreq2", p_diag%parcelfreq2,                             &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_PARCELFREQ2, lrestart=.FALSE.,&
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%parcelfreq2)
     END IF
 
     !---------------------- End of optional diagnostics ----------------------

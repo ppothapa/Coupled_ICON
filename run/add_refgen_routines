@@ -1,0 +1,83 @@
+
+# path to probtest script
+PROBTEST=$basedir/externals/probtest/probtest.py
+
+# get current commit
+git_commit=$(git rev-parse HEAD)
+
+# get date string
+date_str=$(date '+%Y-%m-%d')
+
+# get repository
+origin=$(git config --get remote.origin.url)
+origin=${origin##*/} # cut off all except icon-xyz.git
+origin=${origin%%.*} # cut off .git
+
+# for check-scripts, the experiment name might be altered
+# this special name is only used to find output, data is 
+# always stored according to the real experiment name `exp`
+base_exp=${base_exp:-${exp}}
+
+# set global arguments for reference generation
+seeds=1,2,3,4,5,6,7,8,9
+builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+model_output_dir=$basedir/experiments/${base_exp}
+reference_dir=$icon_data_rootFolder/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/$builder
+stats_file_name=stats_${exp}_{seed}.csv
+default_reference_stats_file_name=stats_${exp}_ref.csv
+reference_file_name=$reference_dir/reference/${exp}.csv
+
+# make sure the resulting data and directories are global readable
+umask 0022
+
+store_model_output()
+{
+    # update test needs have the regular ICON output structure
+    # experiments carry over the "_base" extension if available
+    fake_output_dir=$reference_dir/${exp}/experiments/${base_exp}
+    mkdir -p $fake_output_dir
+
+    status=0
+    # copy data for update test (replace "," with " " in file_ids)
+    if [ -z "${file_ids}" ]; then
+        # without given files tags copy everything
+        rsync --safe-links ${model_output_dir}/*nc ${fake_output_dir}/ || status=1
+    else
+        for fid in ${file_ids//,/ }; do
+            cp ${model_output_dir}/*$fid*.nc $fake_output_dir || status=1
+        done
+    fi
+
+    # on some machines, the model output has only user rwx access
+    chmod 755 $fake_output_dir/* || status=1
+
+    echo "Stored model output at $fake_output_dir"
+
+    return $status
+}
+
+
+generate_probtest_tolerance()
+{
+    status=0
+
+    # create the reference directory if it doesn't exist
+    mkdir -p ${reference_dir}/reference
+
+    # set up probtest config file
+    export PROBTEST_CONFIG=${exp}-config.json
+    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir}
+
+    # create stats file for each seed (layer-wise max/min/mean)
+    $PROBTEST stats --ensemble --stats-file-name $stats_file_name || status=1
+
+    # store the reference stats file
+    echo "storing reference ${default_reference_stats_file_name} to ${reference_file_name}"
+    cp $default_reference_stats_file_name $reference_file_name
+    
+    # compute tolerance range from above stats files (maximum spread across all pairs of stats files and maximum across all layers)
+    $PROBTEST tolerance --stats-file-name $stats_file_name || status=1
+
+    return $status
+}

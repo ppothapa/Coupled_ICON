@@ -49,6 +49,9 @@ export MD='rnmo'
 # 
 # 3. Launch the checksuite from run/
 
+reference_dir=$(cat $basedir/run/tolerance_reference)
+export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
+
 rundir=`pwd`
 cd checksuite.icon-dev
 
@@ -56,8 +59,6 @@ cd checksuite.icon-dev
 case $HOST in
     *daint*)
         export MD='rnmot'
-        export PYTHONPATH=""
-        source /project/g110/icon/probtest/env/bin/activate
 esac
 
 ./icon-dev.checksuite

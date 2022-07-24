@@ -248,6 +248,7 @@ CONTAINS
 
 #ifdef _OPENACC
     i_am_accel_node = save_i_am_accel_node
+    !$ACC UPDATE DEVICE( temp_z_out, pres_z_out ) IF( i_am_accel_node)
 #endif
 
   END SUBROUTINE prepare_vert_interp_z
@@ -415,6 +416,7 @@ CONTAINS
 
 #ifdef _OPENACC
     i_am_accel_node = save_i_am_accel_node
+    !$ACC UPDATE DEVICE( gh_p_out, temp_p_out ) IF( i_am_accel_node )
 #endif
 
   END SUBROUTINE prepare_vert_interp_p

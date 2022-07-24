@@ -292,9 +292,10 @@ CONTAINS
             ext_data(jg)%atm%lai_mx(:,:)      = 3._wp       ! max Leaf area index
             ext_data(jg)%atm%rootdp(:,:)      = 1._wp       ! root depth
             ext_data(jg)%atm%skinc(:,:)       = 30._wp      ! skin conductivity
+!
+            ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area of the urban canopy
             IF (lterra_urb) THEN
               ext_data(jg)%atm%fr_paved(:,:)    = 0._wp       ! impervious surface area (ISA)
-              ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area of the urban canopy
               ext_data(jg)%atm%urb_ai(:,:)      = 2._wp       ! surface area index of the urban canopy
               ext_data(jg)%atm%urb_alb_red(:,:) = 0.9_wp      ! albedo reduction factor for the urban canopy
               ext_data(jg)%atm%urb_fr_bld(:,:)  = 0.667_wp    ! building area fraction with respect to urban tile
@@ -306,6 +307,7 @@ CONTAINS
               ext_data(jg)%atm%urb_hcon(:,:)    = 0.767_wp    ! thermal conductivity of urban material
               ext_data(jg)%atm%ahf(:,:)         = 0._wp       ! anthropogenic heat flux
             ENDIF
+!
             ext_data(jg)%atm%rsmin(:,:)       = 150._wp     ! minimal stomata resistence
             ext_data(jg)%atm%soiltyp(:,:)     = 8           ! soil type
             ext_data(jg)%atm%z0(:,:)          = 0.001_wp    ! roughness length
@@ -1141,17 +1143,15 @@ CONTAINS
         !$acc update device(ext_data(jg)%atm%i_lc_snow_ice)
 
         ! Urban canopy parameters
-        IF (lterra_urb) THEN
-          ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp
-          ext_data(jg)%atm%ahf_lcc(:)      = 0._wp
+        ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp
+        ext_data(jg)%atm%ahf_lcc(:)      = 0._wp
 
-          DO ilu = 1, num_lcc
-            IF (ilu == ext_data(jg)%atm%i_lc_urban) THEN
-              ext_data(jg)%atm%fr_paved_lcc(ilu) = 1._wp         ! Impervious surface area (ISA) for urban land use class
-              ext_data(jg)%atm%ahf_lcc(ilu)      = 3._wp         ! Anthropogenic heat flux for urban land use class
-            ENDIF
-          ENDDO
-        ENDIF
+        DO ilu = 1, num_lcc
+          IF (ilu == ext_data(jg)%atm%i_lc_urban) THEN
+            ext_data(jg)%atm%fr_paved_lcc(ilu)    = 1._wp        ! Impervious surface area (ISA) for urban land use class
+            ext_data(jg)%atm%ahf_lcc(ilu)         = 3._wp        ! Anthropogenic heat flux for urban land use class
+          ENDIF
+        ENDDO
 
         ! Derived parameter: minimum allowed land-cover related roughness length in the
         ! presence of low ndvi and/or snow cover
@@ -1749,12 +1749,12 @@ CONTAINS
                ENDIF
                ! skin conductivity
                ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
-
+!
+               ! impervious surface area of the urban canopy
+               ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                IF (lterra_urb) THEN
                  ! impervious surface area (ISA)
                  ext_data(jg)%atm%fr_paved_t(jc,jb,1) = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
-                 ! impervious surface area of the urban canopy
-                 ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_t(jc,jb,1)
                  ! albedo reduction factor for the urban canopy
                  ext_data(jg)%atm%urb_alb_red_t(jc,jb,1) = 0.9_wp
                  ! building area fraction with respect to urban tile
@@ -1778,7 +1778,7 @@ CONTAINS
                  ! anthropogenic heat flux
                  ext_data(jg)%atm%ahf_t(jc,jb,1)      = ext_data(jg)%atm%ahf_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                ENDIF
-
+!
                ! minimal stomata resistance
                ext_data(jg)%atm%rsmin2d_t(jc,jb,1)  = ext_data(jg)%atm%rsmin(jc,jb)
                ! soil type
@@ -1961,13 +1961,13 @@ CONTAINS
                  ELSE
                    ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = ext_data(jg)%atm%skinc_lcc(lu_subs)
                  ENDIF
+!
+                 ! impervious surface area of the urban canopy
+                 ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)  = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                  IF (lterra_urb) THEN
                    ! impervious surface area (ISA)
                    ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu) = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
-
-                   ! impervious surface area of the urban canopy
-                   ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)  = ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu)
 
                    ! albedo reduction factor for the urban canopy
                    ext_data(jg)%atm%urb_alb_red_t(jc,jb,i_lu) = 0.9_wp
@@ -2001,7 +2001,7 @@ CONTAINS
                    ! anthropogenic heat flux
                    ext_data(jg)%atm%ahf_t(jc,jb,i_lu)      = ext_data(jg)%atm%ahf_lcc(lu_subs)
                  ENDIF
-
+!
                  ! minimal stomata resistance
                  ext_data(jg)%atm%rsmin2d_t(jc,jb,i_lu)  = ext_data(jg)%atm%stomresmin_lcc(lu_subs)
 
@@ -2198,9 +2198,10 @@ CONTAINS
                ext_data(jg)%atm%sai_t(jc,jb,jt)         = ext_data(jg)%atm%sai_t(jc,jb,jt_in)
                ext_data(jg)%atm%eai_t(jc,jb,jt)         = ext_data(jg)%atm%eai_t(jc,jb,jt_in)
                ext_data(jg)%atm%skinc_t(jc,jb,jt)       = ext_data(jg)%atm%skinc_t(jc,jb,jt_in)
+!
+               ext_data(jg)%atm%urb_isa_t(jc,jb,jt)     = ext_data(jg)%atm%urb_isa_t(jc,jb,jt_in)
                IF (lterra_urb) THEN
                  ext_data(jg)%atm%fr_paved_t(jc,jb,jt)    = ext_data(jg)%atm%fr_paved_t(jc,jb,jt_in)
-                 ext_data(jg)%atm%urb_isa_t(jc,jb,jt)     = ext_data(jg)%atm%urb_isa_t(jc,jb,jt_in)
                  ext_data(jg)%atm%urb_ai_t(jc,jb,jt)      = ext_data(jg)%atm%urb_ai_t(jc,jb,jt_in)
                  ext_data(jg)%atm%urb_alb_red_t(jc,jb,jt) = ext_data(jg)%atm%urb_alb_red_t(jc,jb,jt_in)
                  ext_data(jg)%atm%urb_fr_bld_t(jc,jb,jt)  = ext_data(jg)%atm%urb_fr_bld_t(jc,jb,jt_in)
@@ -2212,6 +2213,7 @@ CONTAINS
                  ext_data(jg)%atm%urb_hcon_t(jc,jb,jt)    = ext_data(jg)%atm%urb_hcon_t(jc,jb,jt_in)
                  ext_data(jg)%atm%ahf_t(jc,jb,jt)         = ext_data(jg)%atm%ahf_t(jc,jb,jt_in)
                ENDIF
+!
                ext_data(jg)%atm%rsmin2d_t(jc,jb,jt)     = ext_data(jg)%atm%rsmin2d_t(jc,jb,jt_in)
                ext_data(jg)%atm%soiltyp_t(jc,jb,jt)     = ext_data(jg)%atm%soiltyp_t(jc,jb,jt_in)
                ext_data(jg)%atm%lc_class_t(jc,jb,jt)    = ext_data(jg)%atm%lc_class_t(jc,jb,jt_in)
@@ -2371,9 +2373,10 @@ CONTAINS
       ext_data%atm%rootdp     (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%lai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%skinc      (i_startidx:i_endidx,jb) = 0._wp
+!
+      ext_data%atm%urb_isa    (i_startidx:i_endidx,jb) = 0._wp
       IF (lterra_urb) THEN
         ext_data%atm%fr_paved   (i_startidx:i_endidx,jb) = 0._wp
-        ext_data%atm%urb_isa    (i_startidx:i_endidx,jb) = 0._wp
         ext_data%atm%urb_ai     (i_startidx:i_endidx,jb) = 0._wp
         ext_data%atm%urb_alb_red(i_startidx:i_endidx,jb) = 0._wp
         ext_data%atm%urb_fr_bld (i_startidx:i_endidx,jb) = 0._wp
@@ -2385,6 +2388,7 @@ CONTAINS
         ext_data%atm%urb_hcon   (i_startidx:i_endidx,jb) = 0._wp
         ext_data%atm%ahf        (i_startidx:i_endidx,jb) = 0._wp
       ENDIF
+!
       ext_data%atm%rsmin      (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%tai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%eai        (i_startidx:i_endidx,jb) = 0._wp
@@ -2428,15 +2432,15 @@ CONTAINS
           ! skin conductivity (aggregated)
           ext_data%atm%skinc(jc,jb) = ext_data%atm%skinc(jc,jb)       &
             &              + ext_data%atm%skinc_t(jc,jb,jt) * area_frac
+!
+          ! impervious surface area of the urban canopy (aggregated)
+          ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)   &
+            &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
 
           IF (lterra_urb) THEN
             ! impervious surface area (ISA) (aggregated)
             ext_data%atm%fr_paved(jc,jb) = ext_data%atm%fr_paved(jc,jb) &
               &              + ext_data%atm%fr_paved_t(jc,jb,jt) * area_frac
-
-            ! impervious surface area of the urban canopy (aggregated)
-            ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)   &
-              &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
 
             ! surface area index of the urban canopy (aggregated)
             ext_data%atm%urb_ai(jc,jb) = ext_data%atm%urb_ai(jc,jb)     &
@@ -2478,7 +2482,7 @@ CONTAINS
             ext_data%atm%ahf(jc,jb) = ext_data%atm%ahf(jc,jb)           &
               &              + ext_data%atm%ahf_t(jc,jb,jt) * area_frac
           ENDIF
-
+!
           ! minimal stomata resistance (aggregated)
           ext_data%atm%rsmin(jc,jb) = ext_data%atm%rsmin(jc,jb)       &
             &              + ext_data%atm%rsmin2d_t(jc,jb,jt) * area_frac

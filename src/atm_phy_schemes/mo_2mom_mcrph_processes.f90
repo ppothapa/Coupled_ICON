@@ -254,9 +254,9 @@ MODULE mo_2mom_mcrph_processes
        &    D_coll_c  = 40.00e-6_wp    ! upper bound for diameter in collision efficiency
 
   REAL(wp), PARAMETER ::           &
-       &    T_nuc     = 268.15_wp, & ! lower temperature threshold for ice nucleation, -5 C
-       &    T_freeze  = 273.15_wp    ! lower temperature threshold for raindrop freezing
-
+       &    T_nuc        = 268.15_wp, & ! lower temperature threshold for ice nucleation, -5 C
+       &    T_freeze     = 273.15_wp, & ! lower temperature threshold for raindrop freezing
+       &    Tmax_gr_rime = 270.16_wp    ! lower temperature threshold for graupel creation through riming
 
   ! Parameter for evaporation of rain, determines change of n_rain during evaporation
   REAL(wp) :: rain_gfak   ! this is set in init_twomoment
@@ -1155,11 +1155,18 @@ CONTAINS
 
     ! local variables
     INTEGER             :: i,k
-    REAL(wp)            :: T_a,p_a,e_sw,s_sw,g_d,eva_q,eva_n
+    REAL(wp)            :: T_a,p_a,e_sw,s_sw,g_d,eva_q,eva_n,eva_q_fak
     REAL(wp)            :: q_r,n_r,x_r,e_d,f_v
     REAL(wp)            :: mue,d_m,gamma_eva,lam,d_vtp,gfak
     REAL(wp)            :: aa,bb,cc,mm
     REAL(wp), PARAMETER :: D_br = 1.1e-3_wp
+
+    REAL(wp), PARAMETER :: eva_q_fak_low        = 0.3_wp  ! \  Parameters of the
+    REAL(wp), PARAMETER :: eva_q_fak_high       = 1.0_wp  !  Parameters of the
+    REAL(wp), PARAMETER :: eva_q_fak_Dbr_minfak = 0.75_wp ! |  ramp-function eva_q_fak(D_m) for reduction
+    REAL(wp), PARAMETER :: eva_q_fak_Dbr_maxfak = 0.9_wp  ! /  of evaporation of drizzle-like rain         
+
+    LOGICAL, PARAMETER   :: reduce_evaporation = .true.
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1232,6 +1239,16 @@ CONTAINS
 
              ! Eq (A5) with (A9) and Gamma(mue+2) from (A7)
              eva_q = g_d * n_r * (mue+1.0) / lam * f_v * s_sw * dt
+
+             ! UB: empirical correction factor to reduce evaporation of drizzle-like rain (D_m < D_br):
+             IF ( reduce_evaporation ) THEN
+               eva_q_fak = MIN( MAX( ( eva_q_fak_low + &
+                    (eva_q_fak_high - eva_q_fak_low) / &
+                    (eva_q_fak_Dbr_maxfak*D_br - eva_q_fak_Dbr_minfak*D_br) * &
+                    (D_m - eva_q_fak_Dbr_minfak*D_br) ), eva_q_fak_low), eva_q_fak_high)
+               eva_q = eva_q_fak * eva_q
+             END IF
+
              eva_n = gamma_eva * eva_q / x_r
 
              eva_q = MAX(-eva_q,0.0_wp)
@@ -1261,10 +1278,12 @@ CONTAINS
     CLASS(particle), INTENT(inout) :: prtcl
     CLASS(particle_coeffs), INTENT(in) :: coeffs
 
+    LOGICAL, PARAMETER  :: reduce_melting = .true.
+
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
-    REAL(wp)            :: T_a,e_sw,s_sw,g_d,eva
+    REAL(wp)            :: T_a,e_sw,s_sw,g_d,eva_q,eva_n
     REAL(wp)            :: q,n,x,d,v,f_v,e_d
 
     istart = ik_slice(1)
@@ -1282,10 +1301,10 @@ CONTAINS
 
             e_d  = atmo%qv(i,k) * R_d * T_a
             e_sw = e_ws(T_a)
-            s_sw = e_d / e_sw - 1.0
+            s_sw = e_d / e_sw - 1.0_wp
 
-            !..Eq. (37) of SB2006, note that 4*pi is correct because c is used below
-            g_d = 4.0*pi / ( L_wd**2 / (K_T * R_d * T_3**2) + R_d * T_3 / (D_v * e_sw) )
+            !.. Eq. (37) of SB2006, note that 4*pi is correct because c is used below
+            g_d = 4.0_wp*pi / ( L_wd**2 / (K_T * R_d * T_3**2) + R_d * T_3 / (D_v * e_sw) )
 
             n = prtcl%n(i,k)
             x = particle_meanmass(prtcl, q,n)
@@ -1294,13 +1313,22 @@ CONTAINS
 
             f_v  = coeffs%a_f + coeffs%b_f * sqrt(v*D)
 
-            eva = g_d * n * coeffs%c_i * d * f_v * s_sw * dt
+            eva_q = g_d * n * coeffs%c_i * d * f_v * s_sw * dt
 
-            eva = MAX(-eva,0.0_wp)
-            eva = MIN(eva,q)
+            eva_q = MAX(-eva_q,0.0_wp) 
 
-            atmo%qv(i,k) = atmo%qv(i,k) + eva
-            prtcl%q(i,k)  = prtcl%q(i,k)  - eva
+            !.. Complete evaporation of some of the melting frozen particles: parameterized in a way
+            !   to conserve the mean mass, similar to the case "gamma_eva = 1.0" in rain_evaporation() above:
+            IF (reduce_melting) THEN
+              eva_n = eva_q / x
+              eva_n = MIN(eva_n,n)
+              prtcl%n(i,k) = prtcl%n(i,k) - eva_n
+            END IF
+
+            eva_q = MIN(eva_q,q)
+
+            atmo%qv(i,k) = atmo%qv(i,k) + eva_q
+            prtcl%q(i,k) = prtcl%q(i,k) - eva_q
 
           END IF
        END DO
@@ -1894,7 +1922,12 @@ CONTAINS
     REAL(wp)            :: T_a
     REAL(wp)            :: e_si            !..saturation water pressure over ice
     REAL(wp)            :: e_d,p_a,dep_sum !,weight
+    REAL(wp)            :: dep_ice_n,dep_snow_n,dep_graupel_n,dep_hail_n,x_i,x_s,x_g,x_h
 
+    LOGICAL, PARAMETER  :: reduce_sublimation = .TRUE.
+    REAL(wp), PARAMETER :: dep_n_fac = 0.5_wp  ! UB: if this new parameterization of n-reduction during sublimation
+                                               !     really makes sense, move to a global constant or into the particle types
+    
     IF (isdebug) CALL message(routine, "vapor_deposition_growth")
 
     istart = ik_slice(1)
@@ -1987,6 +2020,13 @@ CONTAINS
                 !   dep_graupel(i,k) = weight * dep_graupel(i,k)
                 !   dep_hail(i,k)    = weight * dep_hail(i,k)
                 !END IF
+                
+                IF ( reduce_sublimation) THEN
+                  x_i = particle_meanmass(ice    , ice%    q(i,k), ice%    n(i,k))
+                  x_s = particle_meanmass(snow   , snow%   q(i,k), snow%   n(i,k))
+                  x_g = particle_meanmass(graupel, graupel%q(i,k), graupel%n(i,k))
+                  x_h = particle_meanmass(hail   , hail%   q(i,k), hail%   n(i,k))
+                END IF
 
                 ice%q(i,k)     = ice%q(i,k)     + dep_ice(i,k)
                 snow%q(i,k)    = snow%q(i,k)    + dep_snow(i,k)
@@ -1995,6 +2035,20 @@ CONTAINS
 
                 atmo%qv(i,k) = atmo%qv(i,k) - dep_sum
 
+                ! .. If deposition rate is negative, parameterize the complete evaporation of some of the particles in a way
+                !    that mean size is conserved times a tuning factor < 1:
+                IF ( reduce_sublimation) THEN
+                  dep_ice_n      = MIN(dep_ice(i,k),0.0_wp) / x_i
+                  dep_snow_n     = MIN(dep_snow(i,k),0.0_wp) / x_s
+                  dep_graupel_n  = MIN(dep_graupel(i,k),0.0_wp) / x_g
+                  dep_hail_n     = MIN(dep_hail(i,k),0.0_wp) / x_h
+
+                  ice%n(i,k)     = MAX(ice%n(i,k)     + dep_n_fac*dep_ice_n    , 0.0_wp)
+                  snow%n(i,k)    = MAX(snow%n(i,k)    + dep_n_fac*dep_snow_n   , 0.0_wp)
+                  graupel%n(i,k) = MAX(graupel%n(i,k) + dep_n_fac*dep_graupel_n, 0.0_wp)
+                  hail%n(i,k)    = MAX(hail%n(i,k)    + dep_n_fac*dep_hail_n   , 0.0_wp)
+                END IF
+                
                 dep_rate_ice(i,k)  = dep_rate_ice(i,k)  + dep_ice(i,k)
                 dep_rate_snow(i,k) = dep_rate_snow(i,k) + dep_snow(i,k)
 
@@ -2007,13 +2061,13 @@ CONTAINS
   END SUBROUTINE vapor_dep_relaxation
 
   PURE SUBROUTINE vapor_deposition_generic(ik_slice, prtcl, coeffs, g_i, s_si, &
-       dt, dep)
+       dt, dep_q)
     INTEGER, INTENT(in) :: ik_slice(4)
     CLASS(particle), INTENT(in) :: prtcl
     CLASS(particle_coeffs), INTENT(in) :: coeffs
     REAL(wp), INTENT(in) :: g_i(:, :), s_si(:, :)
     REAL(wp), INTENT(in) :: dt
-    REAL(wp), INTENT(out) :: dep(:, :)
+    REAL(wp), INTENT(out) :: dep_q(:, :)
     REAL(wp)            :: q,n,x,d,v,f_v
     INTEGER             :: i,k
     INTEGER :: istart, iend, kstart, kend
@@ -2026,7 +2080,7 @@ CONTAINS
     DO k = kstart,kend
       DO i = istart,iend
         IF (prtcl%q(i,k) == 0.0_wp) THEN
-          dep(i,k) = 0.0_wp
+          dep_q(i,k) = 0.0_wp
         ELSE
           n = prtcl%n(i,k)
           q = prtcl%q(i,k)
@@ -2038,7 +2092,7 @@ CONTAINS
           f_v  = coeffs%a_f + coeffs%b_f * SQRT(D*v)
           f_v  = MAX(f_v,coeffs%a_f/prtcl%a_ven)
 
-          dep(i,k) = g_i(i,k) * n * coeffs%c_i * d * f_v * s_si(i,k) * dt
+          dep_q(i,k) = g_i(i,k) * n * coeffs%c_i * d * f_v * s_si(i,k) * dt
         ENDIF
       ENDDO
     ENDDO
@@ -3673,7 +3727,7 @@ CONTAINS
               ENDIF
 
               ! conversion ice -> graupel (depends on alpha_spacefilling)
-              IF (D_i > D_conv_ig) THEN
+              IF (D_i > D_conv_ig .AND. T_a < Tmax_gr_rime) THEN
                  q_i = ice%q(i,k)
                  conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_i**3/x_i - 1.0) )
                  conv_q = MIN(q_i,conv_q)
@@ -3732,8 +3786,14 @@ CONTAINS
                  ice%n(i,k) = ice%n(i,k) + mult_n
                  ice%q(i,k) = ice%q(i,k) + mult_q
                  ! riming to graupel
-                 graupel%n(i,k) = graupel%n(i,k) + rime_n
-                 graupel%q(i,k) = graupel%q(i,k) + rime_qi + rime_qr - mult_q
+                 IF (T_a < Tmax_gr_rime) THEN
+                   graupel%n(i,k) = graupel%n(i,k) + rime_n
+                   graupel%q(i,k) = graupel%q(i,k) + rime_qi + rime_qr - mult_q
+                 ELSE
+                   ! Ice + frozen liquid stays ice:
+                   ice%n(i,k) = ice%n(i,k) + rime_n
+                   ice%q(i,k) = ice%q(i,k) + rime_qi + rime_qr - mult_q
+                 END IF
               END IF
             END IF
           END IF
@@ -3909,7 +3969,7 @@ CONTAINS
 
               !.. conversion of snow to graupel, depends on alpha_spacefilling
 
-              IF (D_s > D_conv_sg) THEN
+              IF (D_s > D_conv_sg .AND. T_a < Tmax_gr_rime) THEN
                  q_s = snow%q(i,k)  
                  conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_s**3/x_s - 1.0) )
                  conv_q = MIN(q_s,conv_q)
@@ -3973,8 +4033,14 @@ CONTAINS
                  ice%n(i,k)  = ice%n(i,k)  + mult_n
                  ice%q(i,k)  = ice%q(i,k)  + mult_q
                  ! riming to graupel
-                 graupel%n(i,k) = graupel%n(i,k) + rime_n
-                 graupel%q(i,k) = graupel%q(i,k) + rime_qr + rime_qs - mult_q
+                 IF (T_a < Tmax_gr_rime) THEN
+                   graupel%n(i,k) = graupel%n(i,k) + rime_n
+                   graupel%q(i,k) = graupel%q(i,k) + rime_qr + rime_qs - mult_q
+                 ELSE
+                   ! Snow + frozen liquid stays snow:
+                   snow%n(i,k) = snow%n(i,k) + rime_n
+                   snow%q(i,k) = snow%q(i,k) + rime_qr + rime_qs - mult_q
+                 END IF
               END IF
 
            END IF

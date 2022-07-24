@@ -155,6 +155,7 @@ MODULE mo_nwp_phy_types
       &  clcl(:,:),            & !! cloud cover of low-level clouds
       &  cldepth(:,:),         & !! modified cloud depth for media
       &  clct_mod(:,:),        & !! modified total cloud cover for media
+      &  fac_ccqc(:,:),        & !! tuning factor (for ensemble perturbations) for CLC-QC relationship in cloud cover scheme
       &  hbas_con(:,:),        & !! height of base of convection [m]
       &  htop_con(:,:),        & !! height of top of convection [m]
       &  htop_dc(:,:),         & !! height above msl of the top of dry convection [m]
@@ -194,17 +195,24 @@ MODULE mo_nwp_phy_types
       &  lwflx_up_sfc(:,:),    & !! longwave upward flux at surface [W/m2]
       &  lwflx_up_sfc_rs(:,:), & !! longwave upward flux at surface calculated at radiation time steps [W/m2]
       &  lwflxsfc_t(:,:,:),    & !! tile-based longwave net flux at surface [W/m2]
-      &  trsolall(:,:,:),      & !! shortwave net tranmissivity (i.e. net flux normalized by irradiance) []
-      &  trsolclr_sfc(:,:),    & !! clear-sky shortwave net tranmissivity at the surface
+      &  trsolall(:,:,:),      & !! shortwave net transmissivity (i.e. net flux normalized by irradiance) []
+      &  trsolclr_sfc(:,:),    & !! clear-sky shortwave net transmissivity at the surface
       &  swflxclr_sfc(:,:),    & !! clear-sky shortwave net flux at the surface
       &  lwflxclr_sfc(:,:),    & !! clear-sky longwave net flux at the surface
-      &  trsol_up_toa(:,:),    & !! normalized shortwave upward flux at the top of the atmosphere
-      &  trsol_up_sfc(:,:),    & !! normalized shortwave upward flux at the surface
-      &  trsol_par_sfc(:,:),   & !! normalized downward photosynthetically active flux at the surface
-      &  trsol_dn_sfc_diff(:,:),& !! normalized shortwave diffuse downward radiative flux at the surface
+      &  trsol_up_toa(:,:),    & !! shortwave upward transmissivity at the top of the atmosphere
+      &  trsol_up_sfc(:,:),    & !! shortwave upward transmissivity at the surface
+      &  trsol_nir_sfc(:,:),   & !! downward near-infrared transmissivity at the surface
+      &  trsol_vis_sfc(:,:),   & !! downward visible transmissivity at the surface
+      &  trsol_par_sfc(:,:),   & !! downward photosynthetically active transmissivity at the surface
+      &  trsol_dn_sfc_diff(:,:),& !! shortwave diffuse downward radiative transmissivity at the surface
       &  swflx_up_toa(:,:),    & !! shortwave upward flux at the top of the atmosphere [W/m2]
       &  swflx_up_sfc(:,:),    & !! shortwave upward flux at the surface [W/m2]
+      &  swflx_nir_sfc(:,:),   & !! shortwave downward near-infrared flux at the surface [W/m2]
+      &  swflx_vis_sfc(:,:),   & !! shortwave downward visible flux at the surface [W/m2]
       &  swflx_par_sfc(:,:),   & !! shortwave downward photosynthetically active flux at the surface [W/m2]
+      &  fr_nir_sfc_diff(:,:), & !! diffuse fraction of downward near-infrared flux at the surface
+      &  fr_vis_sfc_diff(:,:), & !! diffuse fraction of downward visible flux at the surface
+      &  fr_par_sfc_diff(:,:), & !! diffuse fraction of downward photosynthetically active flux at the surface
       &  aswflx_par_sfc(:,:),  & !! shortwave downward photosynthetically active flux at the surface [W/m2]
                                  !! accumulated or mean since model start
       &  swflx_dn_sfc_diff(:,:),& !! shortwave diffuse downward radiative flux at the surface [W/m2]
@@ -248,6 +256,14 @@ MODULE mo_nwp_phy_types
       &  mf_b(:,:),            & !! bulk cloud-base mass-flux  
       &  mf_p(:,:),            & !! perturbed cloud-base mass-flux 
       &  mf_num(:,:)             !! number of clouds per grid box
+
+
+    REAL(vp), POINTER          &
+#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
+      , CONTIGUOUS             &
+#endif
+      &  ::                    &
+      &  qc_sgs(:,:,:)           !! subgrid-scale cloud water from cloud cover diagnostic
 
     !> Precipitation fields
     REAL(wp), POINTER          &
@@ -482,6 +498,7 @@ MODULE mo_nwp_phy_types
       lfd_con(:,:),        & !> lightening flash density computed with convection scheme variables
       lfd_con_max(:,:),    & !> maximum of LFD
       ceiling_height(:,:), & !> ceiling height
+      vis(:,:),            & !> near surface visibility [meters]
       hbas_sc(:,:),        & !> height of base above MSL from shallow convection parameterization
       htop_sc(:,:),        & !> height of top  above MSL from shallow convection parameterization
       twater(:,:),         & !> Total column integrated water
@@ -521,6 +538,18 @@ MODULE mo_nwp_phy_types
     REAL(wp), ALLOCATABLE :: &
       turb_diag_1dvar(:,:), turb_diag_0dvar(:)  
 
+    ! vars for global diagnostics based on src/atm_phy_echam/mo_echam_phy_memory.f90
+    REAL(wp),POINTER ::       &
+      !
+      & tas_gmean    (:)=>NULL(),      &!< [K] global mean 2m-temperature
+      & rsdt_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa incident shortwave radiation
+      & rsut_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa outgoing shortwave radiation
+      & rlut_gmean   (:)=>NULL(),      &!< [W/m2] global mean toa outgoing longwave radiation
+      & prec_gmean   (:)=>NULL(),      &!< [kg/m2/s] global mean precipitation flux
+      & evap_gmean   (:)=>NULL(),      &!< [kg/m2/s] global mean evaporation flux
+      & pme_gmean    (:)=>NULL(),      &!< [kg/m2/s] global mean P-E
+      & radtop_gmean (:)=>NULL()        !< [W/m2] global mean toa total radiation, derived variable
+
   END TYPE t_nwp_phy_diag
   !
   ! !---tendencies of type global!
@@ -555,6 +584,7 @@ MODULE mo_nwp_phy_types
       ::                        &
       ddt_temp_drag   (:,:,:)  ,& !! Temp-tendency from sso + gravity-wave drag + Rayleigh friction
       ddt_temp_pconv  (:,:,:)  ,& !! Temp-tendency from convective prec
+      ddt_temp_clcov  (:,:,:)  ,& !! Temp-tendency from cloud cover scheme
       ddt_u_gwd       (:,:,:)  ,& !! ZonalW-tendency from gravity wave drag
       ddt_u_sso       (:,:,:)  ,& !! ZonalW-tendency from sso drag
       ddt_v_gwd       (:,:,:)  ,& !! MeridW-tendency from gravity wave drag

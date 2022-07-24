@@ -183,9 +183,8 @@ MODULE mo_index_list
     INTEGER,     INTENT(in), OPTIONAL :: dummy
     LOGICAL,     INTENT(IN), OPTIONAL :: lacc
 
-    INTEGER :: i, batch, batch_size, sh(2)
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    INTEGER :: i, batch, batch_size
+    batch_size = size(conditions, 2)
     nvalid = 0
 
     DO batch = 1, batch_size
@@ -206,9 +205,8 @@ MODULE mo_index_list
     INTEGER,     INTENT(in), OPTIONAL :: dummy
     LOGICAL,     INTENT(IN), OPTIONAL :: lacc
 
-    INTEGER :: i, batch, batch_size, sh(2)
-    sh = SHAPE(conditions)
-    batch_size = sh(2)
+    INTEGER :: i, batch, batch_size
+    batch_size = size(conditions, 2)
     nvalid = 0
 
     DO batch = 1, batch_size
@@ -321,7 +319,7 @@ MODULE mo_index_list
 
     INTEGER(acc_handle_kind) :: stream
     INTEGER :: i
-    INTEGER :: batch_size, sh(2)
+    INTEGER :: batch_size
     INTEGER :: cond_stride, idx_stride
     LOGICAL :: gen_list_on_gpu
 
@@ -331,6 +329,8 @@ MODULE mo_index_list
       gen_list_on_gpu = .TRUE.
     ENDIF
 
+    batch_size = size(conditions, 2)
+
     ! run on GPU
     IF (gen_list_on_gpu) THEN
 
@@ -339,9 +339,6 @@ MODULE mo_index_list
       ELSE
         stream = acc_get_cuda_stream(acc_async_sync)
       END IF
-
-      sh = SHAPE(conditions)
-      batch_size = sh(2)
 
       ! Hacky way to support non-contiguous slices
       IF ( batch_size > 1 ) THEN
@@ -377,7 +374,7 @@ MODULE mo_index_list
 
     INTEGER(acc_handle_kind) :: stream
     INTEGER :: i
-    INTEGER :: batch_size, sh(2)
+    INTEGER :: batch_size
     INTEGER :: cond_stride, idx_stride
     LOGICAL :: gen_list_on_gpu
 
@@ -387,6 +384,8 @@ MODULE mo_index_list
       gen_list_on_gpu = .TRUE.
     ENDIF
 
+    batch_size = size(conditions, 2)
+
     ! run on GPU
     IF (gen_list_on_gpu) THEN
 
@@ -395,9 +394,6 @@ MODULE mo_index_list
       ELSE
         stream = acc_get_cuda_stream(acc_async_sync)
       END IF
-
-      sh = SHAPE(conditions)
-      batch_size = sh(2)
 
       ! Hacky way to support non-contiguous slices
       IF ( batch_size > 1 ) THEN

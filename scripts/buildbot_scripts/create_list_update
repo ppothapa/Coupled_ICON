@@ -1,0 +1,11 @@
+#!/bin/bash
+
+cd $(dirname "${BASH_SOURCE[0]}")
+
+listname=update
+./rmlist $listname
+./create_all_builders $listname
+
+./list_part_update $listname
+
+./lslist $listname
