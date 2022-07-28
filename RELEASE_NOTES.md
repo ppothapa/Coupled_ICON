@@ -1,3 +1,67 @@
+# Release notes for icon-2.6.5
+
+It is time for yet another ICON release.
+
+After 10 month we managed to provide a new ICON release wuth new
+amchine configurations, a new buildbot, significantly extended,
+improved GPU capabilities, first steps into ICON seamless and a
+cleaned up version of the MPIM AES physics (now available as aes
+physics and not echam anymore.
+
+- CSCS: Introduction of more and optimized OpenACC code parts and
+        introducing work to allow later more modularization for
+        improving and consolidating of the ICON code.
+
+- DKRZ: Bugfixes and more bugfixes, cdi-2.0 incorporating cdi-pio, new
+        versions of all tools maintained by DKRZ, a new buildbot and
+        strong support for getting ICON running on levante.
+
+- DWD: Introduction of many improvements in the parameterizations, in
+       tuning and adding bugfixes. Setting up on the new ECMWF system
+       and supporting the data assimilation system. First steps for
+       ICON-seamless are done, especially the coupling to ICON ocean
+       is technically available and mot of the time varying external
+       data for climate simulations have been added. However, the code
+       variant has to tuned and extensively tested and some parts are
+       still missing. This activity is a joint effort of DWD and MPIM
+       colleagues.
+
+- MCH: Is actively providing more, and more model components of the
+       NWP physics for the use on GPUs. Furthermore they are
+       supporting all activities related to GPUs and testing of large
+       parts of the ICON code.
+
+- MPIM AES: To simplify and streamline further high resolution
+       modelling only, the echam physics has been renamed as aes
+       physics and some former components have been removed as are the
+       SSO gravity drag parameterization, as well the gravity drag
+       parameterization for the middle atmosphere, and most prominent
+       the convection parameterization. As cloud paramterizations the
+       DWD graupel and two-moment scheme are available. A few more,
+       minor, changes have been applied. Newly added is the former
+       large eddy model component the Smagorinsky 'vertical' diffusion
+       scheme.
+
+- MPIM OES: Added a new C-grid seaice model (C. Mehlmann) and extensive
+       improvements of OpenMP for hamocc. 
+
+- MPIM LES: JSBACH got more model components and has been adapted for
+       to all changes above its top-level.  - KIT: The aerosoly
+       microphysics and plume components have been added as well as a
+       large number of bugfixes.
+
+A special thanks is going to Sergey Kosukhin for his work on the
+configuration and build system of ICON making life of developers much
+easier.
+
+The work on the GPU code version, implemented based on OpenACC has
+been supported by NVIDIA. Thanks a lot, Dmitry Alexeev (and his
+colleagues).
+
+For detailed information, please, have a look at
+
+https://gitlab.dkrz.de/icon/wiki/-/wikis/Protocol-of-Release-Commits
+
 # Release notes for icon-2.6.4
 
 Another new  release of icon is available.
