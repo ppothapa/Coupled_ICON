@@ -12,9 +12,10 @@ physics and not echam anymore.
         introducing work to allow later more modularization for
         improving and consolidating of the ICON code.
 
-- DKRZ: Bugfixes and more bugfixes, cdi-2.0 incorporating cdi-pio, new
-        versions of all tools maintained by DKRZ, a new buildbot and
-        strong support for getting ICON running on levante.
+- DKRZ: Bugfixes and more bugfixes, cdi-1.8.4 incorporates nom (joint
+        effort of DKRZ and CIMD) cdi-pio, new versions of all tools
+        maintained by DKRZ, a new buildbot (Ralf Müller) and strong
+        support for getting ICON running on levante.
 
 - DWD: Introduction of many improvements in the parameterizations, in
        tuning and adding bugfixes. Setting up on the new ECMWF system
@@ -50,9 +51,17 @@ physics and not echam anymore.
        microphysics and plume components have been added as well as a
        large number of bugfixes.
 
-A special thanks is going to Sergey Kosukhin for his work on the
-configuration and build system of ICON making life of developers much
-easier.
+- MPIM CIMD: just a lot of things in the area of coupling, configuring
+       and building and model infrastrucuture, new machine setups
+       for lumi (CSC), juwels/booster (JSC) and levante (DKRZ) 
+
+- All developers: many of the work has been done in cross
+  institutional working groups.
+
+
+A special thanks is going to Sergey Kosukhin (MPIM-CIMD) for his work
+on the configuration and build system of ICON making life of
+developers much easier.
 
 The work on the GPU code version, implemented based on OpenACC has
 been supported by NVIDIA. Thanks a lot, Dmitry Alexeev (and his
