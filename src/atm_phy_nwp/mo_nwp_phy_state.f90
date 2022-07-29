@@ -375,8 +375,87 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     !------------------------------
     ! Ensure that all pointers have a defined association status
     !------------------------------
-    NULLIFY(diag%dursun_m, &
-      &     diag%dursun_r  )
+    NULLIFY( &
+      &     diag%aercl_bc, &
+      &     diag%aercl_du, &
+      &     diag%aercl_or, &
+      &     diag%aercl_ss, &
+      &     diag%aercl_su, &
+      &     diag%aerdes, &
+      &     diag%aerlan, &
+      &     diag%aerosol, &
+      &     diag%aersea, &
+      &     diag%aerurb, &
+      &     diag%albdif_t, &
+      &     diag%albnirdif_t, &
+      &     diag%albvisdif_t, &
+      &     diag%bruvais, &
+      &     diag%buffer_rrg, &
+      &     diag%buffer_rttov, &
+      &     diag%cape_mu, &
+      &     diag%ceiling_height, &
+      &     diag%cin_mu, &
+      &     diag%dbz3d_lin, &
+      &     diag%dbz_850, &
+      &     diag%dbz_cmax, &
+      &     diag%dbz_ctmax, &
+      &     diag%dursun, &
+      &     diag%dursun_m, &
+      &     diag%dursun_r, &
+      &     diag%echotop, &
+      &     diag%echotopinm, &
+      &     diag%graupel_gsp, &
+      &     diag%graupel_gsp_rate, &
+      &     diag%hail_gsp, &
+      &     diag%hail_gsp_rate, &
+      &     diag%hbas_sc, &
+      &     diag%heatcap_fac, &
+      &     diag%heatcond_fac, &
+      &     diag%htop_sc, &
+      &     diag%ice_gsp, &
+      &     diag%ice_gsp_rate, &
+      &     diag%lapse_rate, &
+      &     diag%lhn_diag, &
+      &     diag%liqfl_turb, &
+      &     diag%lpi, &
+      &     diag%lwflxsfc_t, &
+      &     diag%mech_prod, &
+      &     diag%p_cbase, &
+      &     diag%p_ctop, &
+      &     diag%pv, &
+      &     diag%q_sedim, &
+      &     diag%qrs_flux, &
+      &     diag%qvtend_lhn, &
+      &     diag%rain_edmf_rate_3d, &
+      &     diag%reff_qc, &
+      &     diag%reff_qg, &
+      &     diag%reff_qh, &
+      &     diag%reff_qi, &
+      &     diag%reff_qr, &
+      &     diag%reff_qs, &
+      &     diag%rh, &
+      &     diag%sdi2, &
+      &     diag%snow_edmf_rate_3d, &
+      &     diag%snowalb_fac, &
+      &     diag%srh, &
+      &     diag%swflxsfc_t, &
+      &     diag%synsat_arr, &
+      &     diag%t_cbase, &
+      &     diag%t_ctop, &
+      &     diag%tcond10_max, &
+      &     diag%tcond_max, &
+      &     diag%tetfl_turb, &
+      &     diag%tt_lheat, &
+      &     diag%ttend_lhn, &
+      &     diag%twater, &
+      &     diag%uh_max_3d, &
+      &     diag%vapfl_turb, &
+      &     diag%vorw_ctmax, &
+      &     diag%w_ctmax, &
+      &     diag%wshear_u, &
+      &     diag%wshear_v, &
+      &     diag%z0m, &
+      &     diag%z_pbl)
 
 
     ! Register a field list and apply default settings
@@ -462,6 +541,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,   &
                   & ldims=shape2d, isteptype=TSTEP_INSTANT, lopenacc=.TRUE.  )
       __acc_attach(diag%ice_gsp_rate)
+
     END SELECT
 
     !For two moment microphysics
@@ -1624,7 +1704,7 @@ __acc_attach(diag%clct)
       __acc_attach(diag%sfcfric_fac)
 
     ! These variables only make sense if the land-surface scheme is switched on.
-    IF ( atm_phy_nwp_config(k_jg)%inwp_surface == 1 ) THEN
+    IF ( atm_phy_nwp_config(k_jg)%inwp_surface > 0 ) THEN
 
       !        diag%albdif_t (nproma, nblks, ntiles_total+ntiles_water)
       cf_desc    = t_cf_var('albdif_t', '', &
@@ -1980,7 +2060,7 @@ __acc_attach(diag%clct)
     grib2_desc = grib2_var(0, 5, 4, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'thu_s', diag%lwflx_up_sfc,                    &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
-      & ldims=shape2d,  lrestart=.FALSE.,                                   &
+      & ldims=shape2d,  lrestart=.TRUE.,                                    &
       & in_group=groups("rad_vars"), lopenacc=.TRUE. )
     __acc_attach(diag%lwflx_up_sfc)
 
@@ -2664,7 +2744,6 @@ __acc_attach(diag%clct)
       & ldims=shape2d, lopenacc=.TRUE.)
     __acc_attach(diag%qifl_s)
 
-      
     ! Effective radius fields
     ! These are not additive fields and therefore nearest neig. interoplation is used for horizontal.
     ! Linear interpolation is used for vertical because nearest neig is not yet implemented
@@ -2779,8 +2858,6 @@ __acc_attach(diag%clct)
           & hor_interp=create_hor_interp_metadata(                                &
           &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB)) 
       END IF
-    ELSE
-      NULLIFY(diag%reff_qc, diag%reff_qi, diag%reff_qr, diag%reff_qs, diag%reff_qg, diag%reff_qh)
     END IF  ! IF effective radius
 
 
@@ -3070,7 +3147,7 @@ __acc_attach(diag%clct)
     grib2_desc = grib2_var(0, 2, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'sp_10m', diag%sp_10m,                       &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
-      & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. )
+      & ldims=shape2d, lrestart=.TRUE., lopenacc=.TRUE. )
     __acc_attach(diag%sp_10m)
 
     !tiled quantities
@@ -4659,7 +4736,6 @@ __acc_attach(diag%clct)
     ENDIF
 
     ! buffer field needed for the combination of vertical nesting with a reduced radiation grid
-    diag%buffer_rttov => NULL()
     IF (lsynsat(k_jg)) THEN
       IF  ((k_jg > n_dom_start) .AND. (p_patch(k_jg)%nshift > 0)) THEN
         cf_desc    = t_cf_var('buffer_rttov', '', 'buffer_rttov', datatype_flt)
@@ -5083,7 +5159,22 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     shape4d_conv = (/nproma, klev  , kblks, ntr_conv /)
     shape4d_gscp = (/nproma, klev  , kblks, 6 /)
 
-    NULLIFY(phy_tend%ddt_temp_gscp, phy_tend%ddt_tracer_gscp)
+    NULLIFY( &
+      & phy_tend%ddt_temp_drag, &
+      & phy_tend%ddt_temp_gscp, &
+      & phy_tend%ddt_temp_pconv, &
+      & phy_tend%ddt_tke, &
+      & phy_tend%ddt_tke_hsh, &
+      & phy_tend%ddt_tke_pconv, &
+      & phy_tend%ddt_tracer_gscp, &
+      & phy_tend%ddt_tracer_pconv, &
+      & phy_tend%ddt_u_gwd, &
+      & phy_tend%ddt_u_pconv, &
+      & phy_tend%ddt_u_sso, &
+      & phy_tend%ddt_v_gwd, &
+      & phy_tend%ddt_v_pconv, &
+      & phy_tend%ddt_v_sso, &
+      & phy_tend%ddt_w_turb )
 
     CALL vlr_add(phy_tend_list, TRIM(listname), patch_id=k_jg ,lrestart=.TRUE.)
     
@@ -5623,7 +5714,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & ldims=shape3d)
       ENDIF
 #endif
-
     END IF
 
 

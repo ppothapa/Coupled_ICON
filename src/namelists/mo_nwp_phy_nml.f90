@@ -24,7 +24,7 @@ MODULE mo_nwp_phy_nml
 
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: max_dom, iedmf
+  USE mo_impl_constants,      ONLY: max_dom, iedmf, ivdiff, LSS_JSBACH
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_io_units,            ONLY: nnml, nnml_output, filename_max
@@ -444,6 +444,13 @@ CONTAINS
       ENDIF
 #endif
 
+      IF (inwp_surface(jg) == LSS_JSBACH .AND. inwp_turb(jg) /= ivdiff) THEN
+        CALL finish( TRIM(routine), 'JSBACH land-surface scheme has to be used with VDIFF turbulence, set inwp_turb=6')
+      ENDIF
+
+      IF (inwp_surface(jg) /= LSS_JSBACH .AND. inwp_turb(jg) == ivdiff) THEN
+        CALL finish( TRIM(routine), 'VDIFF turbulence scheme has to be used with JSBACH land-surface scheme, set inwp_surface=2')
+      ENDIF
 
       ! For backward compatibility, do not throw an error message, if inwp_turb=10,11 or 12 
       ! is chosen. reset inwp_turb to 1, instead

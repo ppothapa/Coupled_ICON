@@ -95,6 +95,9 @@ MODULE mo_physical_constants
   REAL(wp), PARAMETER :: ppmv2gg=1.e-6_wp*amo3/amd
   REAL(wp), PARAMETER :: o3mr2gg=amo3/amd
 
+  !> Conversion factor from CO2 volume to mass mixing ratio [kg(CO2)/kg(Air)/(mol(CO2)/mol(Air))].
+  REAL(wp), PARAMETER :: vmr_to_mmr_co2 = amco2 / amd
+
   !> Earth and Earth orbit constants
   !! -------------------------------
   !!

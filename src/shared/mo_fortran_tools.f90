@@ -164,6 +164,7 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE copy_2d_i4
     MODULE PROCEDURE copy_3d_i4
     MODULE PROCEDURE copy_5d_i4
+    MODULE PROCEDURE copy_5d_l
   END INTERFACE copy
 
   !> `init` uses openMP orphaning (explanation see `copy`)
@@ -840,6 +841,47 @@ CONTAINS
 !$omp end do nowait
 #endif
   END SUBROUTINE copy_5d_i4
+
+  !> copy state, omp parallel, does not wait for other threads to complete
+  SUBROUTINE copy_5d_l(src, dest)
+    LOGICAL, INTENT(in) :: src(:, :, :, :, :)
+    LOGICAL, INTENT(out) :: dest(:, :, :, :, :)
+    INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
+    m1 = SIZE(dest, 1)
+    m2 = SIZE(dest, 2)
+    m3 = SIZE(dest, 3)
+    m4 = SIZE(dest, 4)
+    m5 = SIZE(dest, 5)
+
+#ifdef _OPENACC
+    !$ACC DATA PCOPYIN( src ) PCOPYOUT( dest ) IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
+    !$ACC LOOP COLLAPSE(5)
+#else
+#if (defined(__INTEL_COMPILER))
+    !$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+#else
+    !$OMP DO COLLAPSE(5)
+#endif
+#endif
+    DO i5 = 1, m5
+      DO i4 = 1, m4
+        DO i3 = 1, m3
+          DO i2 = 1, m2
+            DO i1 = 1, m1
+              dest(i1, i2, i3, i4, i5) = src(i1, i2, i3, i4, i5)
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+#ifdef _OPENACC
+    !$ACC END PARALLEL
+    !$ACC END DATA
+#else
+    !$omp END DO NOWAIT
+#endif
+  END SUBROUTINE copy_5d_l
 
   !> copy state, omp parallel, does not wait for other threads to complete
   SUBROUTINE copy_3d_i4(src, dest)

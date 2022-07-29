@@ -281,7 +281,7 @@ END SUBROUTINE sync_patch_array_s3
 !
 SUBROUTINE sync_patch_array_i3(typ, p_patch, arr)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+   TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
    INTEGER,       INTENT(INOUT) :: arr(:,:,:)
    CLASS(t_comm_pattern), POINTER :: p_pat
 
@@ -294,7 +294,7 @@ END SUBROUTINE sync_patch_array_i3
 
   SUBROUTINE sync_patch_array_l3(typ, p_patch, arr)
     INTEGER,       INTENT(IN)    :: typ
-    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+    TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
     LOGICAL,       INTENT(INOUT) :: arr(:,:,:)
     CLASS(t_comm_pattern), POINTER :: p_pat
 
@@ -336,7 +336,7 @@ END SUBROUTINE sync_patch_array_r2
 !
 SUBROUTINE sync_patch_array_i2(typ, p_patch, arr)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), INTENT(INOUT) :: p_patch
+   TYPE(t_patch), INTENT(IN)    :: p_patch
    INTEGER, TARGET, INTENT(INOUT) :: arr(:,:)
    ! local variable
    INTEGER, POINTER :: arr3(:,:,:)
@@ -347,7 +347,7 @@ END SUBROUTINE sync_patch_array_i2
 
   SUBROUTINE sync_patch_array_l2(typ, p_patch, arr)
     INTEGER,       INTENT(IN)    :: typ
-    TYPE(t_patch), INTENT(INOUT) :: p_patch
+    TYPE(t_patch), INTENT(IN)    :: p_patch
     LOGICAL, TARGET, INTENT(INOUT) :: arr(:,:)
     ! local variable
     LOGICAL, POINTER :: arr3(:,:,:)

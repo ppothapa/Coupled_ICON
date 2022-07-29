@@ -27,7 +27,8 @@ MODULE mo_nml_crosscheck
     &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
-    &                                    max_echotop, max_wshear, max_srh
+    &                                    max_echotop, max_wshear, max_srh,                 &
+    &                                    LSS_JSBACH, LSS_TERRA
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo                                             
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -227,7 +228,7 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface == 1 ) ) .AND.                       &
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
       &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
@@ -432,10 +433,19 @@ CONTAINS
           CALL finish(routine,'mu_snow requires: 0 < mu_snow < 5')
         END IF ! microphysics
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface == 0 .AND. ntiles_lnd > 1) THEN
-          ntiles_lnd = 1
-          CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
-        ENDIF
+        SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
+        CASE (0)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
+          ENDIF
+
+        CASE (LSS_JSBACH)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because JSBACH handles tiles internally')
+          ENDIF
+        END SELECT
 
       ENDDO
     END IF
@@ -1023,6 +1033,9 @@ CONTAINS
     IF (ANY(aes_phy_config(:)%ljsb)) THEN
       CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set ljsb=.FALSE.")
     ENDIF
+
+    IF (ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
+        & CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set inwp_surface to a different value.")
 #else
     DO jg=1,n_dom
       IF (.NOT.aes_phy_config(jg)%ljsb) THEN

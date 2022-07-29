@@ -1,7 +1,7 @@
 !OPTION! -cont
 !! this command should fix the problem of copying arrays in a subroutine call
 !>
-!! This module is the interface between nwp_nh_interface to the 
+!! This module is the interface between nwp_nh_interface to the
 !! convection parameterisation(s):
 !! inwp_conv == 1 == Tiedtke-Bechtold convection
 !!
@@ -29,7 +29,7 @@ MODULE mo_nwp_conv_interface
   USE mo_kind,                 ONLY: wp
   USE mo_parallel_config,      ONLY: nproma
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: min_rlcell_int, icosmo, igme, iedmf
+  USE mo_impl_constants,       ONLY: min_rlcell_int, iedmf
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag,&
@@ -52,9 +52,9 @@ MODULE mo_nwp_conv_interface
   USE mo_intp_data_strc,       ONLY: t_int_state
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime
-  USE mo_gribout_config,       ONLY: gribout_config 
+  USE mo_gribout_config,       ONLY: gribout_config
   USE mo_fortran_tools,        ONLY: init, t_ptr_tracer
-  
+
   IMPLICIT NONE
 
   PRIVATE
@@ -93,11 +93,11 @@ CONTAINS
     TYPE(t_nwp_phy_stochconv)   ,INTENT(inout):: prm_nwp_stochconv!< stoch conv vars
     TYPE(t_int_state)           ,INTENT(IN)   :: pt_int_state
 
-    REAL(wp)                    ,INTENT(in)   :: tcall_conv_jg    !< time interval for 
+    REAL(wp)                    ,INTENT(in)   :: tcall_conv_jg    !< time interval for
                                                                   !< convection
     LOGICAL                     ,INTENT(in)   :: linit            !< .TRUE. if initialization call
     LOGICAL, OPTIONAL           ,INTENT(in)   :: lacc             !< to run on GPUs
-    
+
     ! Local array bounds:
 
     INTEGER :: nlev, nlevp1            !< number of full and half levels
@@ -110,9 +110,9 @@ CONTAINS
     REAL(wp), TARGET :: z_qhfl (nproma,p_patch%nlevp1) !< 3D moisture flux( convection)
     REAL(wp), TARGET :: z_shfl (nproma,p_patch%nlevp1) !< 3D sensible heat flux "-"
     REAL(wp)         :: z_dtdqv  (nproma,p_patch%nlev) !< 3D moisture convergence
-                                                       !< on output, the convection scheme adds the convective 
-                                                       !< qv-tendency. It is, however no longer used. 
-                                                       !< Instead we make use of the \rho*qv-tendency 
+                                                       !< on output, the convection scheme adds the convective
+                                                       !< qv-tendency. It is, however no longer used.
+                                                       !< Instead we make use of the \rho*qv-tendency
                                                        !< ptenrhoq
     REAL(wp) :: z_dtdt   (nproma,p_patch%nlev)         !< temporal temperature tendency
     REAL(wp) :: z_dtdt_sv(nproma,p_patch%nlev)         !< save array for temperature tendency
@@ -126,7 +126,7 @@ CONTAINS
     ! pointers to point either at averaged profiles/sfc fluxes (stoch) or "normal" profiles (default)
     REAL(wp), POINTER   :: p_qv(:,:), p_temp(:,:), p_pres(:,:), p_u(:,:), p_v(:,:)
     REAL(wp), POINTER   :: p_shfl_avg(:,:),p_qhfl_avg(:,:)
-    
+
     INTEGER       :: iseed(nproma) ! seed for random number generator in stoch schemes
     ! logicals switching various stochastic convection options
     LOGICAL       :: lstoch_expl,lvvcouple,lvv_shallow_deep,lstoch_sde,lstoch_deep,lspinup
@@ -194,7 +194,7 @@ CONTAINS
     ! decide whether to use vertical velocity at 650hPa to couple shallow Cu to resolved deep convection
     !   default: false/off
     lvvcouple=atm_phy_nwp_config(jg)%lvvcouple
-    ! decide whether to use vertical velocity at 650hP to distinguish between shallow/deep convective 
+    ! decide whether to use vertical velocity at 650hP to distinguish between shallow/deep convective
     !   grid points within the convection code
     lvv_shallow_deep=atm_phy_nwp_config(jg)%lvv_shallow_deep
     ! spinup cloud ensemble only during inital slow physics call, and when spinup
@@ -221,7 +221,7 @@ CONTAINS
        CALL init(prm_diag%mf_num)
     ENDIF
 
-    IF (lstoch_expl .or. lstoch_sde) THEN       
+    IF (lstoch_expl .or. lstoch_sde) THEN
       CALL sync_patch_array_mult(SYNC_C,p_patch,5,p_diag%temp,p_prog_rcf%tracer(:,:,:,iqv),p_diag%pres,p_diag%u,p_diag%v)
       CALL sync_patch_array(SYNC_C,p_patch,prm_diag%shfl_s)
       CALL sync_patch_array(SYNC_C,p_patch,prm_diag%qhfl_s)
@@ -249,14 +249,14 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      
+
       IF( atm_phy_nwp_config(jg)%inwp_convection == 1 ) THEN
 
         !>
         !! define convective-related fields
-        !! NOTE: Heat fluxes are defined negative upwards in the convection scheme. 
+        !! NOTE: Heat fluxes are defined negative upwards in the convection scheme.
         !!       In the turbulences scheme (1,2,3) they defined either positive or
-        !!       negative upward. 
+        !!       negative upward.
         !! Thus pass fluxes to cumastrn that are negative when upwards!!!
 
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
@@ -270,8 +270,7 @@ CONTAINS
           ENDDO
           !$acc end parallel
 
-
-        CASE (icosmo,igme,iedmf,10,11,12)
+        CASE DEFAULT
 
           ! In turb1,turb2 and turb3, the flux is positive downwards / negative upwards
 
@@ -370,10 +369,10 @@ CONTAINS
         ENDIF
 
         ! Preparing fields for stochastic convection routines
-        IF (lstoch_expl .or. lstoch_sde .or. lstoch_deep) THEN 
+        IF (lstoch_expl .or. lstoch_sde .or. lstoch_deep) THEN
 
            DO jc = i_startidx, i_endidx
-              !  Generate seed for random number generator        
+              !  Generate seed for random number generator
               iseed(jc) = (INT(mtime_datetime%time%hour) * 60) + INT(mtime_datetime%time%minute)+ &
         &                  INT(mtime_datetime%date%day) +  NINT(p_patch%cells%center(jc,jb)%lon*108000000._wp + &
         &                  (p_patch%cells%center(jc,jb)%lat * rad2deg * 100._wp) )+ &
@@ -383,19 +382,19 @@ CONTAINS
               qhfl_avg(jc,nlevp1)=0.0_wp
            END DO
         ENDIF
-        
+
         ! Average input profiles and surface fluxes over halo for stochastic convection schemes.
         ! NOTE! Currently only applied to shallow convection schemes (explicit or SDE), not to
         ! deep stochastic scheme (averaging impacts overall global convective activity too much).
-        IF (lstoch_expl .or. lstoch_sde) THEN !don't average for deep 
+        IF (lstoch_expl .or. lstoch_sde) THEN !don't average for deep
 
            ! average surface fluxes
            DO l=1, pt_int_state%cell_environ%max_nmbr_nghbr_cells
-              DO jc = i_startidx, i_endidx                    
+              DO jc = i_startidx, i_endidx
                  jc2       = pt_int_state%cell_environ%idx      ( jc, jb, l)
                  jb2       = pt_int_state%cell_environ%blk      ( jc, jb, l)
                  area_norm = pt_int_state%cell_environ%area_norm( jc, jb, l)
-                
+
                  shfl_avg(jc,nlevp1) = shfl_avg(jc,nlevp1) + area_norm * prm_diag%shfl_s(jc2,jb2)
                  qhfl_avg(jc,nlevp1) = qhfl_avg(jc,nlevp1) + area_norm * prm_diag%qhfl_s(jc2,jb2)
               END DO! i_startidx
@@ -418,11 +417,11 @@ CONTAINS
                   qvmean( jc, jk) = 0.0_wp
                enddo
                DO l=1, pt_int_state%cell_environ%max_nmbr_nghbr_cells
-                  DO jc = i_startidx, i_endidx                    
+                  DO jc = i_startidx, i_endidx
                      jc2       = pt_int_state%cell_environ%idx      ( jc, jb, l)
                      jb2       = pt_int_state%cell_environ%blk      ( jc, jb, l)
                      area_norm = pt_int_state%cell_environ%area_norm( jc, jb, l)
-                    
+
                      presmean(jc,jk) = presmean(jc,jk) + area_norm * p_diag%pres(jc2,jk,jb2)
                      tempmean(jc,jk) = tempmean(jc,jk) + area_norm * p_diag%temp(jc2,jk,jb2)
                      qvmean(jc,jk)   = qvmean(jc,jk)   + area_norm * p_prog_rcf%tracer(jc2,jk,jb2,iqv)
@@ -593,7 +592,7 @@ CONTAINS
             zk850 = prm_diag%k850(jc,jb)
             zk950 = prm_diag%k950(jc,jb)
             ! We take the arithmetic mean of u(jc,zk850,jb) and u(jc,zk850-1,jb)
-            ! as well as v(jc,zk850,jb) and v(jc,zk850-1,jb), since the levels 
+            ! as well as v(jc,zk850,jb) and v(jc,zk850-1,jb), since the levels
             ! zk850 and zk950 are located just below the respective threshold heights.
             u850 = 0.5_wp * (p_diag%u(jc,zk850,jb) + p_diag%u(jc,zk850-1,jb))
             u950 = 0.5_wp * (p_diag%u(jc,zk950,jb) + p_diag%u(jc,zk950-1,jb))

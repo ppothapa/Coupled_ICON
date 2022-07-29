@@ -63,7 +63,7 @@ MODULE mo_nwp_ocean_interface
   USE mo_exception           ,ONLY: warning, message, finish
   USE mo_util_dbg_prnt       ,ONLY: dbg_print
   USE mo_dbg_nml             ,ONLY: idbg_mxmn, idbg_val
-  USE mo_physical_constants  ,ONLY: amd, amco2
+  USE mo_physical_constants  ,ONLY: vmr_to_mmr_co2
   USE mo_lnd_nwp_config      ,ONLY: hice_max                      ! maximum sea-ice thickness [m]
 
   IMPLICIT NONE
@@ -531,7 +531,7 @@ CONTAINS
         CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc in kg/kg
           DO jc = i_startidx, i_endidx
             ncount = ncount + 1
-!ECHAM      buffer(ncount,1)     =  amd/amco2 * 1.0e6_wp * prm_field(jg)%qtrc(n,nlev,i_blk,ico2)
+!ECHAM      buffer(ncount,1)     =  1.0e6_wp * prm_field(jg)%qtrc(n,nlev,i_blk,ico2) / vmr_to_mmr_co2
 !NWP:  prognostic CO2 not yet available in NWP physics
             buffer(ncount,1)    =  0.0_wp
           END DO
@@ -545,7 +545,7 @@ CONTAINS
           CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
             DO jc = i_startidx, i_endidx
               ncount = ncount + 1
-              buffer(ncount,1) = amd/amco2 * 1.0e6_wp * ghg_co2mmr
+              buffer(ncount,1) = 1.0e6_wp * ghg_co2mmr / vmr_to_mmr_co2
             END DO
           END SELECT
         END SELECT

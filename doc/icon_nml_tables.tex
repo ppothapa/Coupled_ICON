@@ -5371,7 +5371,8 @@ vertical diffusion and transfer\\
 1: COSMO diffusion and transfer\\
 2: GME turbulence scheme\\
 3: EDMF-DUALM (work in progress)\\
-5: Classical Smagorinsky diffusion
+5: Classical Smagorinsky diffusion\\
+6: VDIFF turbulence scheme (requires inwp\_surface = 2)
 &run\_nml:iforcing = inwp
 \tabularnewline
 %\hline
@@ -5406,7 +5407,8 @@ I (max\_ dom)&
 &
 surface scheme\\
 0: none\\
-1: TERRA
+1: TERRA\\
+2: JSBACH (requires inwp\_turb = 6)
 &run\_nml:iforcing = inwp
 \tabularnewline
 

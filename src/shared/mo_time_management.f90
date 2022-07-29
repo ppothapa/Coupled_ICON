@@ -485,6 +485,8 @@ CONTAINS
       END IF
     ELSE IF (tlen1 /= 0) THEN
       calendar = calendar1
+    ELSE
+      calendar = ''
     END IF
     SELECT CASE (toLower(calendar))
     CASE ('julian gregorian')
