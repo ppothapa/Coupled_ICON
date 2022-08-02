@@ -399,6 +399,7 @@ set_run_target_bull_milan()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 32
+    set_default use_rrtmgp_columns_chunk 32
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"

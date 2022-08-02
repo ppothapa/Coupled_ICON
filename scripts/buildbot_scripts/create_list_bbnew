@@ -57,12 +57,9 @@ machine=dwd_cray
 
 
 
-./addexp "checksuite.icon-dev/check.atm_amip*"      --list $list
 #./addexp "checksuite.icon-dev/check.atm_heldsuarez" --list $list
 #./addexp "checksuite.icon-dev/check.atm_ape"        --list $list
 #-----------------------------------------------------------
-# in case reference data are not available uncomment this line
-#./rmexp checksuite.icon-dev/check.atm_amip_update  --list $listname
 
 #-----------------------------------------------------------
 # OES

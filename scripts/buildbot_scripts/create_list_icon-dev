@@ -18,20 +18,14 @@ listname=${1:-icon-dev}
 # AES
 # add qubicc tests incl. GRIB output to Levante only
 $addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname
-#$addexp "checksuite.icon-dev/check.atm_qubicc_update"     --machines "levante" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname
-# add amip tests incl. update test to levante
-$addexp "checksuite.icon-dev/check.atm_amip"              --machines "levante" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_update"       --machines "levante" --list $listname
-# add amip tests incl. tolerance test to daint
-$addexp "checksuite.icon-dev/check.atm_amip"              --machines "daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_update"       --machines "daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noforcing"    --machines "daint" --list $listname
-$addexp "checksuite.icon-dev/check.atm_amip_noparams"     --machines "daint" --list $listname
-# add qubicc tests without tolerances on netcdf to daint
+# add qubicc update test on Levante (netcdf) only
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname
+# add qubicc test with tolerances on netcdf to daint
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --machines "daint" --list $listname
-#$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "daint" --list $listname
+# add qubicc tests without tolerances on netcdf to daint
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "daint" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_nofor"   --machines "daint" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_onlyfor" --machines "daint" --list $listname
 # other tests
@@ -39,14 +33,16 @@ $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante da
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante daint" --list $listname
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname
 
+# no update test for qubicc on levante_nag's
+$rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante_nag" --list $listname
+$rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante_nag_serial" --list $listname
+
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
 
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
 #-----------------------------------------------------------
-# in case reference data are not available uncomment this line
-#./rmexp checksuite.icon-dev/check.atm_amip_update  --list $listname
 
 #-----------------------------------------------------------
 # OES
@@ -79,9 +75,6 @@ $addexp checksuite.infrastructure/testbed/exp.icon-testbed_read-netcdf --builder
 #-----------------------------------------------------------
 # CSCS
 # Additional tests for GPU
-
-# But add the RTE-RRTMGP based tests
-$addexp checksuite.icon-dev/check.atm_amip_diagparams_constbc_nojsb_notransport_nodynamics --builders "DAINT_CPU_cce DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 
 # NVIDIA for GPU: failing currently because:
 #              mo_ice_interface:ice_fast_interface: This part has not been ported to GPU.
@@ -173,7 +166,6 @@ done
 # activate experiments for the Mac builder and breeze
 for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
   [[ 'MPIMAC_gcc' = "${builder}" ]] && ./set_builder_flags Active --builders ${builder}  --list $listname
-  $addexp exp.atm_amip_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp exp.atm_qubicc_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
