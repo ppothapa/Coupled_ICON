@@ -10,7 +10,7 @@ cd $(dirname "${BASH_SOURCE[0]}")
 list=$1
 
 # add amip binary-identical test on DAINT
-./addexp checksuite.icon-dev/check.atm_amip_update --machines "daint mistral" --list $list
+./addexp checksuite.icon-dev/check.atm_amip_update --machines "daint levante" --list $list
 # add dependencies for update test reference generation
-./addexp checksuite.icon-dev/pp.refgen_atm_amip_update_test --machines "daint mistral" --list $list
-./adddep --from-experiment checksuite.icon-dev/pp.refgen_atm_amip_update_test --to-experiment checksuite.icon-dev/check.atm_amip_update --machines "daint mistral" --list $list
+./addexp checksuite.icon-dev/pp.refgen_atm_amip_update_test --machines "daint levante" --list $list
+./adddep --from-experiment checksuite.icon-dev/pp.refgen_atm_amip_update_test --to-experiment checksuite.icon-dev/check.atm_amip_update --machines "daint levante" --list $list
