@@ -468,13 +468,13 @@ CONTAINS
 
           SELECT CASE(var_ref_pos)
           CASE (1)
-            CALL copy(in_var%i_ptr(in_var_idx:in_var_idx,:,:,1,1), tmp_int_var)
+            CALL copy(in_var%i_ptr(in_var_idx,:,:,1,1), tmp_int_var(:,1,:))
             tmp_int_ptr => tmp_int_var
           CASE (2)
             ! no need to copy in this particular case (the second dim has already length 1)
             tmp_int_ptr => in_var%i_ptr(:,in_var_idx:in_var_idx,:,1,1)
           CASE (3)
-            CALL copy(in_var%i_ptr(:,:,in_var_idx:in_var_idx,1,1), tmp_int_var)
+            CALL copy(in_var%i_ptr(:,:,in_var_idx,1,1), tmp_int_var(:,1,:))
             tmp_int_ptr => tmp_int_var
           CASE default
             CALL finish(routine, "internal error!")
