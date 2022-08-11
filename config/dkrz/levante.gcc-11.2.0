@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 set -eu
@@ -79,7 +80,8 @@ FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/incl
 common_extra_FCFLAGS='-fbacktrace -fbounds-check -fstack-protector-all -finit-real=nan -finit-integer=-2147483648 -finit-character=127 -O2'
 
 ICON_FCFLAGS="${common_extra_FCFLAGS} -std=f2008 -fallow-argument-mismatch -DDO_NOT_COMBINE_PUT_AND_NOCHECK"
-ICON_OCEAN_FCFLAGS='-O3 -std=f2008 -fallow-argument-mismatch'
+ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008 -fallow-argument-mismatch'
+
 ICON_BUNDLED_FCFLAGS="${common_extra_FCFLAGS} -std=f2008"
 ICON_ECRAD_FCFLAGS="${common_extra_FCFLAGS} -fallow-invalid-boz"
 
