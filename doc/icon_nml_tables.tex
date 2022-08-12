@@ -2246,6 +2246,16 @@ Needs to be set for each model domain separately; for the global domain, the fil
 reduced grid must be specified in the variable ``radiation\_grid\_filename" &
 \tabularnewline
 
+nexlevs\_rrg\_vnest &
+I & 8 & &
+Maximum number of extra (additional) model layers used for calculating radiation if vertical nesting
+is combined with a reduced radiation grid. For these layers, temperature and pressure are copied from
+the parent domain (thus, the difference in the number of model levels constitutes another upper limit).
+Higher values improve the consistency of radiative flux divergences near the top of a vertically nested domain. \\
+lredgrid\_phys = .TRUE., lvert\_nest = .TRUE., latm\_above\_top = .TRUE. &
+\tabularnewline
+
+
 %\hline
 \textbf{dynamics\_grid\_ filename} &
 C & & &

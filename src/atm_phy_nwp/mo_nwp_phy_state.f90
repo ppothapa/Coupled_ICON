@@ -70,7 +70,7 @@ USE mo_impl_constants,      ONLY: success, &
   &                               HINTP_TYPE_LONLAT_NNB,              &
   &                               HINTP_TYPE_LONLAT_BCTR,             &
   &                               HINTP_TYPE_LONLAT_RBF,              &
-  &                               nexlevs_rrg_vnest, RTTOV_BT_CL,     &
+  &                               RTTOV_BT_CL,                        &
   &                               RTTOV_RAD_CL, RTTOV_RAD_CS,         &
   &                               iss, iorg, ibc, iso4,               &
   &                               idu, nclass_aero, vname_len
@@ -80,7 +80,7 @@ USE mo_parallel_config,     ONLY: nproma
 USE mo_run_config,          ONLY: nqtendphy, iqv, iqc, iqi, iqr, iqs, iqg, iqh, lart, ldass_lhn
 USE mo_exception,           ONLY: message, finish !,message_text
 USE mo_model_domain,        ONLY: t_patch, p_patch, p_patch_local_parent
-USE mo_grid_config,         ONLY: n_dom, n_dom_start
+USE mo_grid_config,         ONLY: n_dom, n_dom_start, nexlevs_rrg_vnest
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
 USE turb_data,              ONLY: ltkecon
 USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc

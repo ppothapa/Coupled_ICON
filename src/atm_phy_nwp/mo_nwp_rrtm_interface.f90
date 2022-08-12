@@ -26,12 +26,12 @@ MODULE mo_nwp_rrtm_interface
   USE mo_exception,            ONLY: finish
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero, icpl_aero_conv
   USE mo_nwp_tuning_config,    ONLY: tune_dust_abs
-  USE mo_grid_config,          ONLY: l_limited_area
+  USE mo_grid_config,          ONLY: l_limited_area, nexlevs_rrg_vnest
   USE mo_exception,            ONLY: message, message_text
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_parallel_config,      ONLY: nproma, p_test_run
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi
-  USE mo_impl_constants,       ONLY: min_rlcell_int, nexlevs_rrg_vnest, &
+  USE mo_impl_constants,       ONLY: min_rlcell_int, &
                                      iss, iorg, ibc, iso4, idu
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
   USE mo_physical_constants,   ONLY: rd, grav, cpd

@@ -42,12 +42,12 @@ MODULE mo_nwp_ecrad_interface
   USE mo_exception,              ONLY: finish, message
   USE mo_math_constants,         ONLY: pi
   USE mo_model_domain,           ONLY: t_patch, p_patch_local_parent
-  USE mo_impl_constants,         ONLY: min_rlcell_int, nexlevs_rrg_vnest
+  USE mo_impl_constants,         ONLY: min_rlcell_int
   USE mo_impl_constants_grf,     ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
   USE mo_fortran_tools,          ONLY: init
   USE mo_parallel_config,        ONLY: nproma
   USE mo_loopindices,            ONLY: get_indices_c
-  USE mo_grid_config,            ONLY: l_limited_area
+  USE mo_grid_config,            ONLY: l_limited_area, nexlevs_rrg_vnest
   USE mo_ext_data_types,         ONLY: t_external_data
   USE mo_nwp_lnd_types,          ONLY: t_lnd_prog
   USE mo_nonhydro_types,         ONLY: t_nh_prog, t_nh_diag

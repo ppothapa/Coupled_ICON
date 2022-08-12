@@ -49,7 +49,7 @@ USE mo_netcdf_parallel, ONLY:                     &
   PUBLIC :: lrescale_timestep, lrescale_ang_vel
   PUBLIC :: namelist_grid_angular_velocity
   PUBLIC :: dynamics_grid_filename,  dynamics_parent_grid_id,     &
-    &       radiation_grid_filename
+    &       radiation_grid_filename, nexlevs_rrg_vnest
   PUBLIC :: vertical_grid_filename, vct_filename, create_vgrid
   PUBLIC :: set_patches_grid_filename
 
@@ -85,7 +85,9 @@ INCLUDE 'netcdf.inc'
   INTEGER  :: n_phys_dom=1             ! Number of physical domains, computed when reading the patches
 
   LOGICAL  :: lfeedback(max_dom)       ! specifies if feedback to parent grid is performed
-  LOGICAL  :: lredgrid_phys(max_dom)   ! If set to .true. is calculated on a reduced grid
+  LOGICAL  :: lredgrid_phys(max_dom)   ! If set to .true. radiation is calculated on a reduced grid
+  INTEGER  :: nexlevs_rrg_vnest        ! Maximum number of extra model layers used for calculating radiation if 
+                                       ! a reduced radiation grid is combined with vertical nesting
   LOGICAL  :: l_limited_area           ! limited area setup where forcing comes in from sides 
   LOGICAL  :: l_scm_mode               ! SCM mode is designed for tests where all columns are identical
   LOGICAL  :: use_duplicated_connectivity  = .true.  ! if true, the zero connectivity is replaced by the last non-zero value
