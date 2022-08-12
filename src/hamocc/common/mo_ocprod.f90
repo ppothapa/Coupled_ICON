@@ -283,7 +283,6 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
          opalrem = dremopal * 0.1_wp * (ptho(j,k) + 3.0_wp) * local_bgc_mem%bgctra(j,k,iopal)
        ENDIF
 
-       opalrem = dremopal * 0.1_wp * (ptho(j,k) + 3.0_wp) * local_bgc_mem%bgctra(j,k,iopal)
 
        local_bgc_mem%bgctra(j,k,isilica) = local_bgc_mem%bgctra(j,k,isilica) - delsil + opalrem
 
@@ -643,8 +642,6 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
           local_bgc_mem%bgctend(j,k,kh2ob) = local_bgc_mem%bgctend(j,k,kh2ob) + 0.5_wp * n2prod * remin * (pddpo(j,k) + surface_height) 
 
            local_bgc_mem%bgctend(j,k,kdenit) = remin * inv_dtbgc
-           local_bgc_mem%bgctend(j,k,kremin) = 0._wp 
-           local_bgc_mem%bgctend(j,k,kbacfra) = 0._wp 
            local_bgc_mem%bgctend(j,k,kbacfrac) = 0._wp 
 
        ENDIF ! oxygen < thresh_aerob
