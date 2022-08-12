@@ -34,7 +34,7 @@ MODULE mo_reader_abstract
       CLASS(t_abstract_reader), INTENT(inout) :: this
       INTEGER,                  INTENT(in   ) :: timelevel
       CHARACTER(len=*),         INTENT(in   ) :: varname
-      REAL(dp), ALLOCATABLE,    INTENT(  out) :: dat(:,:,:,:)
+      REAL(dp), ALLOCATABLE,    INTENT(inout) :: dat(:,:,:,:)
     END SUBROUTINE abstract_get_one_timelev
 
     SUBROUTINE abstract_get_times (this, times)
