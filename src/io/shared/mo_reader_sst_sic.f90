@@ -35,7 +35,7 @@ MODULE mo_reader_sst_sic
     CHARACTER(len=FILENAME_MAX) :: filename
     INTEGER                     :: fileid, dist_fileid
     LOGICAL                     :: lopened = .FALSE.
-    
+
   CONTAINS
 
     PROCEDURE :: init            => sst_sic_init_reader
@@ -64,7 +64,7 @@ CONTAINS
     this%varnames(2) = "SIC"
 
     this%p_patch => p_patch
-    
+
     IF (.NOT. this%lopened) THEN
       IF (my_process_is_mpi_workroot()) THEN
         CALL nf(nf_open(this%filename, nf_nowrite, this%fileid), routine)
@@ -111,12 +111,14 @@ CONTAINS
     CALL mtime_convert_netcdf_units(unit_att, startdatetime, timeAxisUnit)
 
     ALLOCATE(times(ntimes))
-    DO i = 1, ntimes
+
+    times(1)%ptr => newdatetime(startdatetime)
+    DO i = 2, ntimes
       times(i)%ptr => newdatetime("0000-01-01T00:00:00.000")
       IF (REAL(INT(times_read(i)),wp) /= times_read(i)) THEN
         CALL finish(routine, "Timestamp cannot be cast to INT safely. Check your input data.")
       ENDIF
-      times(i)%ptr =  startdatetime + INT(times_read(i)) * timeAxisUnit
+      times(i)%ptr =  times(i-1)%ptr + timeAxisUnit
     ENDDO
 
     CALL deallocateDatetime(startdatetime)
@@ -161,7 +163,7 @@ CONTAINS
 
     WHERE (dat < -1e10_wp)
       dat = new_missval
-    END WHERE 
+    END WHERE
   END SUBROUTINE sst_sic_replace_missval
 
   FUNCTION sst_sic_get_nblks (this) RESULT(nblks)

@@ -11,7 +11,7 @@ m4_defn([AC_AUTOCONF_VERSION])[ is used], [63])])],
 
 ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
 
-AC_INIT([icon], [2.6.3], [], [icon-2.6.3])
+AC_INIT([icon], [2.6.5], [], [icon-2.6.5])
 
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([utils])
