@@ -98,7 +98,7 @@ MODULE mo_assimilation_nml
 ! CHARACTER (LEN=12)               ::           &
 !    noobs_date (n_noobs)    ! array of missing observations
 
-!  NAMELIST/assimilation_nml/  llhn         ,llhnverif                  ,           &
+  ! NAMELIST/assimilation_nml/  llhn         ,llhnverif                  ,           &
   NAMELIST/assimilation_nml/  nlhn_start   ,nlhn_end                   ,           &
                               nlhnverif_start ,nlhnverif_end           ,           &
                               lhn_coef, fac_lhn_up  ,fac_lhn_down      ,           &
