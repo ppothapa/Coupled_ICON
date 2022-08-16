@@ -753,6 +753,15 @@ CONTAINS
 
         END SELECT ! iforcing
 
+#ifdef _OPENACC
+        IF ( advection_config(jg)%llsq_svd == .FALSE. ) THEN
+          ! The .FALSE. version is not supported by OpenACC. However, both versions to the same. The .TRUE. version 
+          ! is faster during runtime on most platforms but involves a more expensive calculation of coefficients. 
+          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
+          advection_config(jg)%llsq_svd = .TRUE.
+        END IF
+#endif
+
       END DO ! jg = 1,n_dom
     END IF ! ltransport
 
