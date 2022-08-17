@@ -23,11 +23,7 @@
 !!
 MODULE mo_radiation_nml
 
-    USE mo_radiation_config, ONLY: config_ldiur      => ldiur,       &
-                                 & config_nmonth     => nmonth,      &
-                                 & config_lyr_perp   => lyr_perp,    &
-                                 & config_yr_perp    => yr_perp,     &
-                                 & config_isolrad    => isolrad,     &
+    USE mo_radiation_config, ONLY: config_isolrad    => isolrad,     &
                                  & config_albedo_type=> albedo_type, &
                                  & config_albedo_fixed        => albedo_fixed,        &
                                  & config_direct_albedo       => direct_albedo,       &
@@ -92,25 +88,9 @@ MODULE mo_radiation_nml
   !-----------------------------------
   ! namelist variables and parameters
   !-----------------------------------
-  !
-  ! -- Switches for solar irradiation
-  !
-  LOGICAL :: ldiur     !< .TRUE. : with diurnal cycle
-  !                    !< .FALSE.: zonally averaged irradiation
-  !
-  ! -- Switches for Earth orbit
-  !
-  INTEGER :: nmonth    !< i=0    : Earth circles on orbit, i.e. with annual cycle
-  !                    !< i=1-12 : Earth orbit position fixed for month i
-  !
-  LOGICAL :: lyr_perp  !< .FALSE.: transient Earth orbit following vsop87
-  !                    !  .TRUE. : Earth orbit of year yr_perp of the vsop87 orbit
-  !                    !           is perpetuated
-  INTEGER :: yr_perp   !< year used for lyr_perp = .TRUE.
 
-  ! nmonth currently works for zonal mean ozone and the orbit (year 1987) only
   INTEGER :: isolrad   !< mode of solar constant calculation
-  !< default is rrtm solar constant
+                       !< default is rrtm solar constant
   !
   INTEGER :: albedo_type ! 1: albedo based on surface-type specific set of constants
                          !    (see )
@@ -193,9 +173,7 @@ MODULE mo_radiation_nml
   CHARACTER(len=MAX_CHAR_LENGTH) :: ecrad_data_path
   INTEGER  :: nproma_rad
   !
-  NAMELIST /radiation_nml/ ldiur, nmonth,         &
-    &                      lyr_perp, yr_perp,     &
-    &                      isolrad,               &
+  NAMELIST /radiation_nml/ isolrad,               &
     &                      albedo_type,           &
     &                      albedo_fixed,          &
     &                      direct_albedo,         &
@@ -250,10 +228,6 @@ CONTAINS
     !-----------------------
     ! 1. default settings   
     !-----------------------
-    ldiur          = .TRUE.
-    nmonth         =  0   
-    lyr_perp       = .FALSE.
-    yr_perp        = -99999
 
     isolrad        = 1
     albedo_type    = 1
@@ -328,10 +302,6 @@ CONTAINS
     ! 4. Fill the configuration state
     !----------------------------------------------------
 
-    config_ldiur      = ldiur
-    config_nmonth     = nmonth
-    config_lyr_perp   = lyr_perp
-    config_yr_perp    = yr_perp
     config_isolrad    = isolrad
     config_albedo_type= albedo_type
     config_albedo_fixed        = albedo_fixed

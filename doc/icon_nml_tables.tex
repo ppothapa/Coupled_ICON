@@ -6912,41 +6912,9 @@ Defined and used in: \verb+src/echam_phy_psrad/mo_psrad_radiation.f90+
 %------------------------------------------------------------------------------
 % radiation_nml:
 %------------------------------------------------------------------------------
-\subsection{radiation\_nml}
+\subsection{radiation\_nml (relevant if run\_nml:iforcing=3 (NWP))}
 
 \begin{longtab}
-
-%\hline
-ldiur &
-L&
-.TRUE.&
-&
-switch for solar irradiation: \\.TRUE.:diurnal cycle, \\.FALSE.:zonally averaged irradiation&
-\tabularnewline
-
-%\hline
-nmonth &
-I&
-0&
-&
-0: Earth circles on orbit\\1-12: Earth orbit position fixed for specified month&
-\tabularnewline
-
-%\hline
-lyr\_perp &
-L&
-.FALSE.&
-&
-.FALSE.: transient Earth orbit following VSOP87 \\ .TRUE.: Earth orbit of year yr\_perp of the VSOP87 orbit is perpertuated &
-\tabularnewline
-
-%\hline
-yr\_perp &
-L&
--99999&
-&
-year used for lyr\_perp = .TRUE.&
-\tabularnewline
 
 %\hline
 isolrad &
@@ -7145,29 +7113,6 @@ R&
 &
 &
 Volume mixing ratio of the radiative agents&
-\tabularnewline
-
-%\hline
-fh2o\par
-fco2\par
-fch4\par
-fn2o\par
-fo3\par
-fo2\par
-fcfc\par
-&
-R&
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-&
-&
-Scaling factors for concentrations used in radiation&
-run\_nml/iforcing=2 (ECHAM)
 \tabularnewline
 
 %\hline
