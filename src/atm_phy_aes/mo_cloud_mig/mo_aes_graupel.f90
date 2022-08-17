@@ -7,9 +7,10 @@
 !!
 !! @par Copyright and License
 !!
-!! Copyright 2022 Max Planck Institute for Meteorology
-!! This program is free software: you can restribute it and/or modify it under the terms of the
-!! BSD-3-clause license
+!! Copyright 2022 Max Planck Institute for Meteorology, B. Stevens
+!!
+!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
+!! BSD-3-C-license.pdf in the license-directory
 !!
 
 MODULE mo_aes_graupel
