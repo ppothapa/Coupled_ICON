@@ -56,6 +56,7 @@ USE mo_physical_constants, ONLY: rv     , & !> gas constant for water vapour
 
   PRIVATE
 
+  PUBLIC  :: internal_energy       ! calculates internal energy 
   PUBLIC  :: saturation_adjustment ! partitions water mass to maintain saturation
   PUBLIC  :: qsat_rho              ! sat. vapor pres. (over liquid) at constant density
   PUBLIC  :: qsat_ice_rho          ! sat. vapor pres. (over ice) at constant density
@@ -195,6 +196,42 @@ END SUBROUTINE saturation_adjustment
   !   compatible with an elemental function
   !
   !-------------------------------------------------------------------------------
+
+#ifndef _OPENACC
+ELEMENTAL &
+#endif
+FUNCTION internal_energy(TK,qv,qc,qr,qi,qs,qg,rho,dz)
+
+  REAL (KIND=wp)              :: internal_energy
+  REAL (KIND=wp), INTENT(IN)  :: TK  !! temperature (kelvin)
+  REAL (KIND=wp), INTENT(IN)  :: qv  !! water vapor specific humidity
+  REAL (KIND=wp), INTENT(IN)  :: qc  !! cloud specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qr  !! rain specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qi  !! ice specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qs  !! snow specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qg  !! graupel specific mass
+  REAL (KIND=wp), INTENT(IN)  :: rho !! density
+  REAL (KIND=wp), INTENT(IN)  :: dz  !! density
+
+  REAL (KIND=wp) :: qliq !! total liquid specific mass
+  REAL (KIND=wp) :: qice !! total ice specific mass
+  REAL (KIND=wp) :: qtot !! total water specific mass
+  REAL (KIND=wp) :: cv   !! moist isometric specific heat
+
+  !$ACC ROUTINE SEQ
+    
+  qliq = qc + qr
+  qice = qi + qs + qg
+  qtot = qliq + qice + qv
+  cv   = cvd*(1.0_wp - qtot) + cvv*qv + clw*qliq + ci*qice
+
+  internal_energy  = rho*dz*(cv*TK                         &
+                            - qliq*(alv - (cpv-clw)*Tmelt) &
+                            - qice*(als - (cpv-ci )*Tmelt))
+
+END FUNCTION internal_energy
+
+!!!=============================================================================================
 
 #ifndef _OPENACC
 ELEMENTAL &
