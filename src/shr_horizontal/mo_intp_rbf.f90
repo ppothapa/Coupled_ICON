@@ -158,10 +158,6 @@ PRIVATE
 PUBLIC :: rbf_vec_interpol_cell, rbf_interpol_c2grad,     &
         & rbf_vec_interpol_vertex, rbf_vec_interpol_edge
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
 INTERFACE rbf_vec_interpol_vertex
   MODULE PROCEDURE rbf_vec_interpol_vertex_wp
   MODULE PROCEDURE rbf_vec_interpol_vertex_vp
@@ -285,7 +281,7 @@ i_startblk = ptr_patch%cells%start_blk(rl_start,1)
 i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
 !$ACC DATA PCOPYIN( p_vn_in ), PCOPY( p_u_out, p_v_out ), &
-!$ACC      PRESENT( iidx, iblk, ptr_coeff ), IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( iidx, iblk, ptr_coeff ), IF( i_am_accel_node )
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc), ICON_OMP_RUNTIME_SCHEDULE
@@ -295,7 +291,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL IF( i_am_accel_node )
 !$ACC LOOP GANG VECTOR TILE(32,4)
 #ifdef __LOOP_EXCHANGE
   DO jc = i_startidx, i_endidx
@@ -428,7 +424,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
 IF (ptr_patch%id > 1) THEN
 #ifdef _OPENACC
-!$ACC KERNELS IF ( i_am_accel_node .AND. acc_on )
+!$ACC KERNELS IF ( i_am_accel_node )
   grad_x(:,:,1:i_startblk) = 0._wp
   grad_y(:,:,1:i_startblk) = 0._wp
 !$ACC END KERNELS
@@ -440,7 +436,7 @@ IF (ptr_patch%id > 1) THEN
 ENDIF
 
 !$ACC DATA PCOPYIN( p_cell_in ), PCOPY( grad_x, grad_y ), &
-!$ACC      PRESENT( iidx, iblk, ptr_coeff ), IF( i_am_accel_node .AND. acc_on )
+!$ACC      PRESENT( iidx, iblk, ptr_coeff ), IF( i_am_accel_node )
 
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc), ICON_OMP_RUNTIME_SCHEDULE
 
@@ -449,7 +445,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL IF( i_am_accel_node )
 
   !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
@@ -607,7 +603,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node )
 #ifdef __LOOP_EXCHANGE
   DO jv = i_startidx, i_endidx
     DO jk = slev, elev
@@ -741,7 +737,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
 
   !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
@@ -889,7 +885,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on ) 
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node ) 
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO je = i_startidx, i_endidx

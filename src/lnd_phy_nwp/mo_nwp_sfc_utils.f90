@@ -1240,13 +1240,13 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2018-02-23)
   !!
-  SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, use_acc)
+  SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, lacc )
 
     TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch       !< grid/patch info
     TYPE(t_external_data),       INTENT(in)   :: ext_data      !< external data
     TYPE(t_lnd_prog),            INTENT(inout):: lnd_prog      !< prog vars for sfc
     TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag      !< diag vars for sfc
-    LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+    LOGICAL,                     INTENT(IN)   :: lacc
 
     ! Local scalars:
     INTEGER :: rl_start, rl_end
@@ -1262,14 +1262,6 @@ CONTAINS
     INTEGER :: icount         ! index list length per block
     INTEGER :: ic
     INTEGER :: styp           ! soil type index
-
-    LOGICAL :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
 
     !$ACC DATA CREATE(lmask) PRESENT(ext_data, lnd_prog, lnd_diag, dzsoil) IF(lacc)
 

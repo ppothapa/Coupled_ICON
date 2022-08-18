@@ -206,9 +206,9 @@ CONTAINS
     ELSE
       IF (nproma<=0)  CALL finish(TRIM(method_name),'"nproma" must be positive')
     ENDIF
-#if !defined (__SX__) && !defined (__NEC_VH__)
+#if !defined (__SX__) && !defined (__NEC_VH__) && !defined(_OPENACC)
     ! migration helper: catch nproma's that were obviously intended
-    !                   for a vector machine.
+    !                   for a vector or GPU machine.
     IF (nproma>256) CALL warning(TRIM(method_name),'The value of "nproma" seems to be set for a vector machine!')
 #endif
 

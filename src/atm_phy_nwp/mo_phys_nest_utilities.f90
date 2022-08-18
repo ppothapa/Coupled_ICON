@@ -1030,16 +1030,17 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
         ENDDO
         !$ACC END PARALLEL
       ELSE ! get information from buffer field
-          DO jk = 1, nshift
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC LOOP SEQ
+        DO jk = 1, nshift
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             rg_pres_ifc(jc,jk,jb)   = buffer_rrg(jc,jk,jb)
             rg_pres    (jc,jk,jb)   = buffer_rrg(jc,nshift+jk,jb)
             rg_temp    (jc,jk,jb)   = buffer_rrg(jc,2*nshift+jk,jb)
           ENDDO
-          !$ACC END PARALLEL
         ENDDO
+        !$ACC END PARALLEL
       ENDIF
 
     ENDIF
