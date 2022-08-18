@@ -52,7 +52,7 @@ MODULE mo_nml_crosscheck
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    lhdiff_rcf, rayleigh_type,                        &
-    &                                    ivctype, ndyn_substeps
+    &                                    ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
@@ -1010,7 +1010,7 @@ CONTAINS
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
-      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport  )
+      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
       &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &

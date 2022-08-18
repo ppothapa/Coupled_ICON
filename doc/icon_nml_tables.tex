@@ -2865,7 +2865,9 @@ to one-way nesting and limited-area mode &
 %\hline
 nudge\_max\_coeff&
 R& 0.02& &
-Maximum relaxation coefficient for lateral boundary nudging. Recommended range of values for limited-area mode is 0.06 -- 0.075.&
+Maximum relaxation coefficient for lateral boundary nudging. Recommended range of values for limited-area mode is 0.06 -- 0.075. 
+The range of validity is [0 -- 0.2].\newline 
+\textbf{Please note} that the user value is internally multiplied by 5.&
 \tabularnewline
 
 %\hline
@@ -4936,7 +4938,7 @@ max\_nudge\_coeff\_vn&
 R &
 0.04 (0.016)\textsubscript{glbndg}&
 1  &
-Max. nudging coefficient for the horizontal wind (i.e. the edge-normal wind
+Max. nudging coefficient for the horizontal wind (i.e.\ the edge-normal wind
 component $v_n$). 
 Given the wind update due to the nudging term on the rhs:\\
 $v_n(t) = v_n^\star(t) + \text{nudge\_coeff\_vn}(z) *
@@ -4953,8 +4955,9 @@ for $\text{nudge\_start\_height} \leq z \leq \text{top\_height}$
 (see nudge\_start\_height below), 
 and is zero elsewhere. 
 The range of validity is 
-$\text{max\_nudge\_coeff\_vn} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. \\
+$\text{max\_nudge\_coeff\_vn} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory.\
+\textbf{Please note} that the user value is internally multiplied by 5.\\
 &
 nudge\_type > 0 \\
 (nudge\_var = "{all}" { or} "...,vn,...")\textsubscript{glbndg}
@@ -4969,11 +4972,28 @@ Max. nudging coefficient for the thermodynamic variables
 selected by limarea\_nml: nudge\_hydro\_pres in case of upper boundary 
 nudging and by thermdyn\_type in case of global nudging.
 The range of validity is 
-$\text{max\_nudge\_coeff\_thermdyn} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. \\
+$\text{max\_nudge\_coeff\_thermdyn} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory.\
+\textbf{Please note} that the user value is internally multiplied by 5.\\
 &
 nudge\_type > 0 \\
 (nudge\_var = "{all}" { or} "...,thermdyn,...")\textsubscript{glbndg}
+\tabularnewline
+
+%\hline
+max\_nudge\_coeff\_qv&
+R &
+0.008&
+1  &
+Max. nudging coefficient for water vapor.
+The range of validity is 
+$\text{max\_nudge\_coeff\_qv} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory. 
+(For global nudging only.) \newline
+\textbf{Please note} that the user value is internally multiplied by 5.\\
+&
+nudge\_type = 2 \\
+nudge\_var = "{all}" { or} "...,qv,..."
 \tabularnewline
 
 %\hline
@@ -4998,21 +5018,6 @@ Values outside $[0, \text{top\_height}]$ will be interpreted
 as nudge\_start\_height = 0. \\
 &
 nudge\_type > 0
-\tabularnewline
-
-%\hline
-max\_nudge\_coeff\_qv&
-R &
-0.008&
-1  &
-Max. nudging coefficient for water vapor.
-The range of validity is 
-$\text{max\_nudge\_coeff\_qv} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. 
-(For global nudging only.) \\
-&
-nudge\_type = 2 \\
-nudge\_var = "{all}" { or} "...,qv,..."
 \tabularnewline
 
 %\hline

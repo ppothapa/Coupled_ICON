@@ -1097,10 +1097,12 @@ CONTAINS
   !! This routine prepares boundary nudging for use with 1-way nesting.
   !!
   !! The following steps are executed:
-  !! 1. Mapping of coarse-grid prognostic variables to intermediate grid sharing
-  !!    the domain decomposition and vertical dimension with the child grid
-  !! 2. Computation of differences between parent-grid values and averaged child-grid
-  !!    variables
+  !! 1. Mapping of parent grid prognostic variables to intermediate grid having 
+  !!    the horizontal resolution of the parent grid, but sharing
+  !!    the domain decomposition and vertical dimension with the child grid.
+  !! 2. a) Interpolation/Averaging of child grid variables to intermediate grid. 
+  !!    b) Computation of differences between mapped parent-grid values and averaged child grid
+  !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
   !! @par Revision History
@@ -1421,10 +1423,12 @@ CONTAINS
   !! This routine prepares boundary nudging for density only (for use with 2-way nesting)
   !!
   !! The following steps are executed:
-  !! 1. Mapping of coarse-grid density to intermediate grid sharing
-  !!    the domain decomposition and vertical dimension with the child grid
-  !! 2. Computation of differences between parent-grid values and averaged child-grid
-  !!    values
+  !! 1. Mapping of parent grid prognostic variables to intermediate grid having 
+  !!    the horizontal resolution of the parent grid, but sharing
+  !!    the domain decomposition and vertical dimension with the child grid.
+  !! 2. a) Interpolation/Averaging of child grid variables to intermediate grid. 
+  !!    b) Computation of differences between mapped parent-grid values and averaged child grid
+  !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
   !! @par Revision History
@@ -1590,8 +1594,7 @@ CONTAINS
   !! Developed by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old,          &
-                                  p_latbc_new, lc1, lc2)
+                                  p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1599,8 +1602,6 @@ CONTAINS
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int
-
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
 
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
@@ -1679,15 +1680,15 @@ CONTAINS
             ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
             ! this section should be revisited once bug is resolved.
             ! BUG-FIX for nvfort 21.3.0 (Daint) fond and solved by Xavier Lapillonne
-            zrho     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            ztheta_v = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
             p_prog%rho(jc,jk,jb)     = zrho
             p_prog%theta_v(jc,jk,jb) = ztheta_v
             p_prog%exner(jc,jk,jb)   = zexner
 #else
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 #endif
 
@@ -1714,7 +1715,7 @@ CONTAINS
 #endif
           vn_tend = p_latbc_const%vn(je,jk,jb) - p_prog%vn(je,jk,jb)
 
-          p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + tsrat*p_int%nudgecoeff_e(je,jb)*vn_tend
+          p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + p_int%nudgecoeff_e(je,jb)*vn_tend
 
         ENDDO
       ENDDO
@@ -1783,15 +1784,15 @@ CONTAINS
 #ifdef _OPENACC
             ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
             ! this section should be revisited once bug is resolved.
-            zrho     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            ztheta_v = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
             p_prog%rho(jc,jk,jb)     = zrho
             p_prog%theta_v(jc,jk,jb) = ztheta_v
             p_prog%exner(jc,jk,jb)   = zexner
 #else
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 #endif
           ENDDO
@@ -1821,8 +1822,8 @@ CONTAINS
             thv_tend = wfac_old*p_latbc_old%theta_v(jc,jk,jb) + wfac_new*p_latbc_new%theta_v(jc,jk,jb) - p_prog%theta_v(jc,jk,jb)
             rho_tend = wfac_old*p_latbc_old%rho(jc,jk,jb) + wfac_new*p_latbc_new%rho(jc,jk,jb)- p_prog%rho(jc,jk,jb)
 
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 
           ENDDO
@@ -1856,7 +1857,7 @@ CONTAINS
 
             ! using a weaker nudging coefficient for QV than for thermodynamic variables turned out to have a slightly
             ! beneficial impact on forecast quality
-            ptr_tracer(jc,jk,jb,iqv) = ptr_tracer(jc,jk,jb,iqv) + 0.5_wp*tsrat*p_int%nudgecoeff_c(jc,jb)*qv_tend
+            ptr_tracer(jc,jk,jb,iqv) = ptr_tracer(jc,jk,jb,iqv) + 0.5_wp*p_int%nudgecoeff_c(jc,jb)*qv_tend
 
           ENDDO
         ENDDO
@@ -1885,7 +1886,7 @@ CONTAINS
 
             ! using a weaker nudging coefficient for vn than for thermodynamic variables turned out to have a
             ! beneficial impact on forecast quality
-            p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + 0.5_wp*tsrat*p_int%nudgecoeff_e(je,jb)*vn_tend
+            p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + 0.5_wp*p_int%nudgecoeff_e(je,jb)*vn_tend
           ENDDO
         ENDDO
         !$acc end parallel
@@ -1909,8 +1910,7 @@ CONTAINS
   !! Developed  by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old,         &
-                                  p_latbc_new, lc1, lc2)
+                                  p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1918,8 +1918,6 @@ CONTAINS
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int
-
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
 
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
@@ -2027,7 +2025,7 @@ CONTAINS
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
 
-              nudgecoeff = MERGE(0._wp, tsrat*MAX(MERGE(p_int%nudgecoeff_c(jc,jb),0._wp,jg==1), &
+              nudgecoeff = MERGE(0._wp, MAX(MERGE(p_int%nudgecoeff_c(jc,jb),0._wp,jg==1),  &
                 &          max_nudge_coeff_thermdyn*p_metrics%nudgecoeff_vert(jk)), bdymask(jc))
 
               pres = wfac_old*p_latbc_old%pres(jc,jk,jb) + wfac_new*p_latbc_new%pres(jc,jk,jb)
@@ -2057,7 +2055,7 @@ CONTAINS
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
 
-              nudgecoeff = MERGE(0._wp, tsrat*MAX(p_int%nudgecoeff_c(jc,jb), &
+              nudgecoeff = MERGE(0._wp, MAX(p_int%nudgecoeff_c(jc,jb),  &
                 &          max_nudge_coeff_thermdyn*p_metrics%nudgecoeff_vert(jk)), bdymask(jc))
 
               thv_tend = wfac_old*p_latbc_old%theta_v(jc,jk,jb) + wfac_new*p_latbc_new%theta_v(jc,jk,jb) - p_prog%theta_v(jc,jk,jb)
@@ -2097,7 +2095,7 @@ CONTAINS
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
 
-            nudgecoeff = MERGE(0._wp, tsrat*MAX(0.5_wp*p_int%nudgecoeff_e(je,jb), &
+            nudgecoeff = MERGE(0._wp, MAX(0.5_wp*p_int%nudgecoeff_e(je,jb),  &
               &          max_nudge_coeff_vn*p_metrics%nudgecoeff_vert(jk)), bdymask(je))
 
             vn_tend = wfac_old*p_latbc_old%vn(je,jk,jb) + wfac_new*p_latbc_new%vn(je,jk,jb) - p_prog%vn(je,jk,jb)
@@ -2236,12 +2234,10 @@ CONTAINS
   !!
   !! @par Revision History
   !! Developed  by Guenther Zaengl, DWD, 2010-06-18
-  SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf, rcffac)
+  SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf)
 
 
     INTEGER, INTENT(IN)  :: jg, nnew, nnew_rcf
-
-    REAL(wp), INTENT(IN) :: rcffac ! Ratio between advective and dynamical time step
 
     ! Pointers
     TYPE(t_nh_state),  POINTER ::  p_nh
@@ -2294,23 +2290,23 @@ CONTAINS
 #endif
         upper_lim = 1.0025_wp*p_nh%prog(nnew)%rho(jc,jk,jb)
         lower_lim = 0.9975_wp*p_nh%prog(nnew)%rho(jc,jk,jb)
-        p_nh%prog(nnew)%rho(jc,jk,jb) =                                      &
-          p_nh%prog(nnew)%rho(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)*  &
+        p_nh%prog(nnew)%rho(jc,jk,jb) =                               &
+          p_nh%prog(nnew)%rho(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*  &
           p_nh%diag%grf_tend_rho(jc,jk,jb)
         p_nh%prog(nnew)%rho(jc,jk,jb) = MAX(lower_lim,MIN(upper_lim,p_nh%prog(nnew)%rho(jc,jk,jb)))
 
         upper_lim = 1.0025_wp*p_nh%prog(nnew)%theta_v(jc,jk,jb)
         lower_lim = 0.9975_wp*p_nh%prog(nnew)%theta_v(jc,jk,jb)
-        p_nh%prog(nnew)%theta_v(jc,jk,jb) =                                     &
-          p_nh%prog(nnew)%theta_v(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)* &
+        p_nh%prog(nnew)%theta_v(jc,jk,jb) =                              &
+          p_nh%prog(nnew)%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)* &
           p_nh%diag%grf_tend_thv(jc,jk,jb)
         p_nh%prog(nnew)%theta_v(jc,jk,jb) = MAX(lower_lim,MIN(upper_lim,p_nh%prog(nnew)%theta_v(jc,jk,jb)))
 
         p_nh%prog(nnew)%exner(jc,jk,jb) =                                  &
           EXP(rd_o_cvd*LOG(rd_o_p0ref*p_nh%prog(nnew)%rho(jc,jk,jb)*p_nh%prog(nnew)%theta_v(jc,jk,jb)))
 
-        p_nh%prog(nnew)%w(jc,jk,jb) =                                      &
-          p_nh%prog(nnew)%w(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)*  &
+        p_nh%prog(nnew)%w(jc,jk,jb) =                               &
+          p_nh%prog(nnew)%w(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*  &
           p_nh%diag%grf_tend_w(jc,jk,jb)
 
       ENDDO
@@ -2335,7 +2331,7 @@ CONTAINS
         jb = p_nh%metrics%nudge_e_blk(ic)
 #endif
         p_nh%prog(nnew)%vn(je,jk,jb) = p_nh%prog(nnew)%vn(je,jk,jb)        &
-          + rcffac*p_int%nudgecoeff_e(je,jb)*p_nh%diag%grf_tend_vn(je,jk,jb)
+          + p_int%nudgecoeff_e(je,jb)*p_nh%diag%grf_tend_vn(je,jk,jb)
       ENDDO
     ENDDO
     !$ACC END PARALLEL
@@ -2364,7 +2360,7 @@ CONTAINS
             upper_lim = 1.01_wp*p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)
             lower_lim = 0.99_wp*p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)
             p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) = p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) + &
-              rcffac*p_int%nudgecoeff_c(jc,jb)*p_nh%diag%grf_tend_tracer(jc,jk,jb,jt)
+              p_int%nudgecoeff_c(jc,jb)*p_nh%diag%grf_tend_tracer(jc,jk,jb,jt)
             p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) =  MAX(lower_lim,MIN(upper_lim,&
               p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)))
 
@@ -2386,12 +2382,10 @@ CONTAINS
   !!
   !! @par Revision History
   !! Developed  by Guenther Zaengl, DWD, 2011-12-08
-  SUBROUTINE density_boundary_nudging(jg, nnew, rcffac)
+  SUBROUTINE density_boundary_nudging(jg, nnew)
 
 
     INTEGER, INTENT(IN)  :: jg, nnew
-
-    REAL(wp), INTENT(IN) :: rcffac ! Ratio between advective and dynamical time step
 
     ! Pointers
     TYPE(t_nh_state),  POINTER ::  p_nh
@@ -2435,7 +2429,7 @@ CONTAINS
         jb = p_nh%metrics%nudge_c_blk(ic)
 #endif
         p_nh%prog(nnew)%rho(jc,jk,jb) = p_nh%prog(nnew)%rho(jc,jk,jb) +  &
-          MIN(0.333_wp,3._wp*rcffac*p_int%nudgecoeff_c(jc,jb))*          &
+          MIN(0.333_wp,3._wp*p_int%nudgecoeff_c(jc,jb))*                 &
           p_nh%diag%grf_tend_rho(jc,jk,jb)
 
         p_nh%prog(nnew)%exner(jc,jk,jb) =                                  &

@@ -79,7 +79,6 @@ CONTAINS !..................................................................
     &                           p_nh_state,       & !inout
     &                           latbc,            & !in
     &                           mtime_datetime,   & !in
-    &                           ndyn_substeps,    & !in
     &                           nnew,             & !in
     &                           nnew_rcf,         & !in
     &                           upatmo_config,    & !in
@@ -90,14 +89,13 @@ CONTAINS !..................................................................
     TYPE(t_nh_state),         TARGET,  INTENT(INOUT) :: p_nh_state        !< Prognostic and diagnostic variables etc.
     TYPE(t_latbc_data),       TARGET,  INTENT(INOUT) :: latbc             !< Data structure for async latbc prefetching
     TYPE(datetime),           POINTER, INTENT(IN)    :: mtime_datetime    !< Date/time information
-    INTEGER,                           INTENT(IN)    :: ndyn_substeps     !< Number of dynamics' substeps
     INTEGER,                           INTENT(IN)    :: nnew, nnew_rcf    !< Time level indices
     TYPE(t_upatmo_config),             INTENT(IN)    :: upatmo_config     !< Upper-atmosphere switches
     TYPE(t_nudging_config),            INTENT(INOUT) :: nudging_config    !< Nudging switches
 
     ! Local variables
     TYPE(t_pi_atm), POINTER :: p_latbc_old, p_latbc_new
-    REAL(wp) :: tsrat, wfac_old, wfac_new
+    REAL(wp) :: wfac_old, wfac_new
     INTEGER  :: jg
     LOGICAL  :: l_thermdyn, l_hydrostatic, l_message
     CHARACTER(LEN=*), PARAMETER :: &
@@ -202,9 +200,6 @@ CONTAINS !..................................................................
       !                        Apply nudging
       !---------------------------------------------------------------
       
-      ! Dynamics-physics time step ratio
-      tsrat = REAL(ndyn_substeps, wp)
-
       CALL global_nudging( p_patch        = p_patch,                     & !in
         &                  p_prog         = p_nh_state%prog( nnew     ), & !inout
         &                  p_prog_rcf     = p_nh_state%prog( nnew_rcf ), & !inout
@@ -212,7 +207,6 @@ CONTAINS !..................................................................
         &                  p_diag         = p_nh_state%diag,             & !in
         &                  p_latbc_old    = p_latbc_old,                 & !in
         &                  p_latbc_new    = p_latbc_new,                 & !in
-        &                  tsrat          = tsrat,                       & !in
         &                  wfac_old       = wfac_old,                    & !in
         &                  wfac_new       = wfac_new,                    & !in
         &                  nudging_config = nudging_config               ) !in
@@ -249,7 +243,6 @@ CONTAINS !..................................................................
     &                        p_diag,        & !in
     &                        p_latbc_old,   & !in
     &                        p_latbc_new,   & !in
-    &                        tsrat,         & !in
     &                        wfac_old,      & !in
     &                        wfac_new,      & !in
     &                        nudging_config ) !in
@@ -260,7 +253,6 @@ CONTAINS !..................................................................
     TYPE(t_nh_metrics),     INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),        INTENT(IN)    :: p_diag
     TYPE(t_pi_atm),         INTENT(IN)    :: p_latbc_old, p_latbc_new  !< Past and future state of driving data
-    REAL(wp),               INTENT(IN)    :: tsrat                     !< Ratio between advective and dynamical time step
     REAL(wp),               INTENT(IN)    :: wfac_old, wfac_new        !< Weights for time interpolation of driving data
     TYPE(t_nudging_config), INTENT(IN)    :: nudging_config            !< Nudging switches
 
@@ -311,12 +303,11 @@ CONTAINS !..................................................................
     !   ----------------------------------------------------------
     !
     ! - The nudging formula reads:
-    !       X(t) = X'(t) + ndyn_substeps * nudge_coeff_X(z) * [ X0(t) - X'(t) ],     (0)
-    !                                                         |_______________|
-    !                                                                 |
-    !                                                                = dX
+    !       X(t) = X'(t) + nudge_coeff_X(z) * [ X0(t) - X'(t) ],     (0)
+    !                                         |_______________|
+    !                                                 |
+    !                                                = dX
     !   where X' denotes the value of the variable before the nudging step, 
-    !   ndyn_substeps is the number of dynamics time steps per fast physics time step, 
     !   nudge_coeff_X is the variable-specific, height-dependent nudging coefficient, 
     !   and X0 is the value of the variable from the nudging driving data. 
     !   Note: the nudging update X - X' does not depend on the time step, 
@@ -407,9 +398,12 @@ CONTAINS !..................................................................
       istart = nudging_config%ilev_start
       iend   = nudging_config%ilev_end
 
-      ! Precompute the nudging coefficient, to reduce the number of multiplications
-      ! (one reason, why we do not compute these profiles only once 
-      ! and store them for reuse is that 'tsrat = ndyn_substeps' may change during runtime)
+      ! Historically, the nudging coefficient was dependent on the number of substeps 
+      ! 'tsrat = ndyn_substeps' which may change during runtime. To this reason, 
+      ! it was necessary to re-compute the nudging coefficients each time step.
+      ! As the dependency on tsrat no longer exists, we might think about computing the 
+      ! nudging coefficients only once.
+      !
       IF (l_thermdyn) THEN 
         ALLOCATE(nudge_coeff_thermdyn(istart:iend), STAT=istat)
         IF (istat /= SUCCESS) CALL finish (routine, 'Allocation of nudge_coeff_thermdyn failed!')
@@ -423,7 +417,7 @@ CONTAINS !..................................................................
         IF (istat /= SUCCESS) CALL finish (routine, 'Allocation of nudge_coeff_qv failed!')
       ENDIF
       DO jk = istart, iend
-        nudge_coeff = tsrat * p_metrics%nudgecoeff_vert(jk)
+        nudge_coeff = p_metrics%nudgecoeff_vert(jk)
         IF (l_thermdyn) nudge_coeff_thermdyn(jk) = nudging_config%max_nudge_coeff_thermdyn * nudge_coeff
         IF (l_vn)       nudge_coeff_vn(jk)       = nudging_config%max_nudge_coeff_vn       * nudge_coeff
         IF (l_qv)       nudge_coeff_qv(jk)       = nudging_config%max_nudge_coeff_qv       * nudge_coeff
