@@ -50,6 +50,7 @@ MODULE mo_atm_phy_nwp_config
   USE mo_nudging_config,      ONLY: configure_nudging, nudging_config
   USE mo_name_list_output_config, ONLY: is_variable_in_output
   USE mo_io_config,           ONLY: dt_lpi, dt_celltracks, dt_radar_dbz
+  USE mo_2mom_mcrph_config,   ONLY: t_cfg_2mom
 
   IMPLICIT NONE
 
@@ -84,6 +85,7 @@ MODULE mo_atm_phy_nwp_config
     ! namelist variables
 
     INTEGER ::  inwp_gscp        !> microphysics
+    TYPE(t_cfg_2mom) :: cfg_2mom !> config parameters of 2-mom cloud microphysics (inwp_gscp = 4...7)
     INTEGER ::  inwp_satad       !! saturation adjustment
     INTEGER ::  inwp_convection  !! convection
     LOGICAL ::  lshallowconv_only !! use shallow convection only

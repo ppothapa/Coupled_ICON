@@ -869,7 +869,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   CASE (4,7) !two moment microphysics
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
-    IF (jg == 1) CALL two_moment_mcrph_init(igscp=atm_phy_nwp_config(jg)%inwp_gscp, msg_level=msg_level )
+    IF (jg == 1) CALL two_moment_mcrph_init(igscp=atm_phy_nwp_config(jg)%inwp_gscp, msg_level=msg_level, &
+         &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 
@@ -877,7 +878,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
     IF (jg == 1) CALL two_moment_mcrph_init(atm_phy_nwp_config(jg)%inwp_gscp,&
-         &                                  N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level)
+         &                                  N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level, &
+         &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 
@@ -913,7 +915,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
            ! and chemical composition taken from the ART extension
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: ART two-moment')
     
-    IF (jg == 1) CALL art_clouds_interface_2mom_init(msg_level)
+    IF (jg == 1) CALL art_clouds_interface_2mom_init(msg_level,cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 #endif
