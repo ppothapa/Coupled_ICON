@@ -596,6 +596,7 @@ MPI_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
 DACE_ENABLED_OR_NEEDED
+RTE_RRTMGP_ENABLED
 JSBACH_ENABLED
 DEFAULT_VERBOSITY
 MPI_LAUNCH
@@ -9418,6 +9419,14 @@ if test "x$enable_jsbach" = xyes; then :
 
 else
   JSBACH_ENABLED='#'
+
+fi
+
+if test "x$enable_rte_rrtmgp" = xyes; then :
+  RTE_RRTMGP_ENABLED=''
+
+else
+  RTE_RRTMGP_ENABLED='#'
 
 fi
 
