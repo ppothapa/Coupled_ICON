@@ -2089,6 +2089,8 @@ CONTAINS
                                  prm_nwp_tend%ddt_v_turb)
     ENDIF
 
+    ! DA: TODO: make kernels async in the interface and remove the wait
+    !$acc wait(1)
 
     IF (timers_level > 10) CALL timer_stop(timer_phys_sync_ddt_u)
     !------------------------------------------------------------
@@ -2306,6 +2308,8 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_sync_vn)
     IF (lcall_phy_jg(itturb)) THEN
       CALL sync_patch_array(SYNC_E, pt_patch, pt_prog%vn)
+      ! DA: TODO: make kernels async in the interface and remove the wait
+      !$acc wait(1)
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_sync_vn)
     IF (timers_level > 2) CALL timer_stop(timer_phys_acc)

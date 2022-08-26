@@ -204,10 +204,11 @@ MODULE mo_velocity_advection
 
     ! Compute w at vertices
     IF (.NOT. lvn_only) CALL cells2verts_scalar_ri(p_prog%w, p_patch, &
-      p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int-1)
+      p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int-1, opt_acc_async=.TRUE.)
 
     ! Compute vertical vorticity component at vertices
-    CALL rot_vertex_ri (p_prog%vn, p_patch, p_int, zeta, opt_rlend=min_rlvert_int-1)
+    CALL rot_vertex_ri (p_prog%vn, p_patch, p_int, zeta, &
+      opt_rlend=min_rlvert_int-1, opt_acc_async=.TRUE.)
 
 !$OMP PARALLEL PRIVATE(rl_start, rl_end, i_startblk, i_endblk, rl_start_2, rl_end_2, i_startblk_2, i_endblk_2)
 

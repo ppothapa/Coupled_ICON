@@ -421,8 +421,8 @@ CONTAINS
       i_startblk   = ptr_patch%cells%start_blk(1,1)
       i_endblk     = ptr_patch%cells%end_blk(grf_bdywidth_c-1,1)
 
-      CALL init(r_m(:,:,i_startblk:i_endblk))
-      CALL init(r_p(:,:,i_startblk:i_endblk))
+      CALL init(r_m(:,:,i_startblk:i_endblk), opt_acc_async=.TRUE.)
+      CALL init(r_p(:,:,i_startblk:i_endblk), opt_acc_async=.TRUE.)
 
 !$OMP BARRIER
 
@@ -497,7 +497,6 @@ CONTAINS
 
     ! Synchronize r_m and r_p and determine i_rlstart/i_rlend
     !
-    !$ACC WAIT
     CALL sync_patch_array_mult(SYNC_C1, ptr_patch, 2, r_m, r_p, opt_varname='r_m and r_p')
 
     !
@@ -586,7 +585,7 @@ CONTAINS
   !!
   SUBROUTINE hflx_limiter_pd( ptr_patch, ptr_int, p_dtime, p_cc,        &
     &                         p_rhodz_now, p_mflx_tracer_h, slev, elev, &
-    &                         opt_rlstart, opt_rlend )
+    &                         opt_rlstart, opt_rlend, opt_acc_async )
 
     TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
       &  ptr_patch
@@ -619,6 +618,9 @@ CONTAINS
 
     INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
      &  opt_rlend                      !< (to avoid calculation of halo points)
+
+    LOGICAL, INTENT(IN), OPTIONAL :: & !< optional async OpenACC
+     &  opt_acc_async 
 
 #if defined(__INTEL_COMPILER) || defined(__SX__) || defined(_OPENACC)
     REAL(wp) :: z_mflx1,  z_mflx2, z_mflx3
@@ -678,12 +680,13 @@ CONTAINS
     iidx => ptr_patch%cells%edge_idx
     iblk => ptr_patch%cells%edge_blk
 
-!$ACC DATA CREATE( r_m ), PCOPYIN( p_cc, p_rhodz_now ), PCOPY( p_mflx_tracer_h ),  &
-!$ACC      PRESENT( ptr_patch, ptr_int, iilc, iibc, iidx, iblk ),                          &
+!$ACC ENTER DATA CREATE( r_m ) ASYNC(1)
+!$ACC DATA PRESENT( p_cc, p_rhodz_now, p_mflx_tracer_h, r_m,       &
+!$ACC               ptr_patch, ptr_int, iilc, iibc, iidx, iblk ),  &
 !$ACC      IF( i_am_accel_node .AND. acc_on )
 
     IF (p_test_run) THEN
-!$ACC KERNELS PRESENT( r_m ) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       r_m = 0._wp
 !$ACC END KERNELS
     ENDIF
@@ -819,7 +822,6 @@ CONTAINS
 
     ! synchronize r_m
     !
-    !$ACC WAIT
     IF(SIZE(r_m)/=0) CALL sync_patch_array(SYNC_C1,ptr_patch,r_m,opt_varname='r_m')
 
     !
@@ -868,8 +870,16 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC WAIT
 !$ACC END DATA
+!$ACC EXIT DATA DELETE( r_m )
+
+    IF ( PRESENT(opt_acc_async) ) THEN
+      IF ( .NOT. opt_acc_async ) THEN
+        !$ACC WAIT
+      END IF
+    ELSE
+      !$ACC WAIT
+    END IF
 
   END SUBROUTINE hflx_limiter_pd
 

@@ -1106,7 +1106,7 @@ CONTAINS
       i_startblk = p_patch%edges%start_blk(i_rlend-1,i_nchdom)
       i_endblk   = p_patch%edges%end_blk(min_rledge_int-3,i_nchdom)
 
-      CALL init(p_out_e(:,:,i_startblk:i_endblk))
+      CALL init(p_out_e(:,:,i_startblk:i_endblk), opt_acc_async=.TRUE.)
 !$OMP BARRIER
     ENDIF
 
@@ -1465,11 +1465,13 @@ CONTAINS
         IF (advection_config(pid)%llsq_svd) THEN
           CALL recon_lsq_cell_l_svd( z_tracer(:,:,:,nnow), p_patch, lsq_lin,   &
                &                   z_lsq_coeff, opt_slev=slev, opt_elev=elev,  &
-               &                   opt_rlend=i_rlend_c, opt_lconsv=l_consv )
+               &                   opt_rlend=i_rlend_c, opt_lconsv=l_consv,    &
+               &                   opt_acc_async=.TRUE. )
         ELSE
           CALL recon_lsq_cell_l( z_tracer(:,:,:,nnow), p_patch, lsq_lin,           &
           &                    z_lsq_coeff, opt_slev=slev, opt_elev=elev,          &
-          &                    opt_rlend=i_rlend_c, opt_lconsv=l_consv )
+          &                    opt_rlend=i_rlend_c, opt_lconsv=l_consv ,           &
+          &                     opt_acc_async=.TRUE. )
         ENDIF
 
       ELSE IF (p_igrad_c_miura == 2) THEN
@@ -1571,12 +1573,12 @@ CONTAINS
       !
       IF ( p_itype_hlimit == ifluxl_sm .OR. p_itype_hlimit == ifluxl_m ) THEN
         !
-        !$ACC WAIT
         CALL hflx_limiter_pd( p_patch, p_int, z_dtsub          , & !in
           &                   z_tracer(:,:,:,nnow)             , & !in
           &                   z_rho(:,:,:,nnow)                , & !in
           &                   z_tracer_mflx(:,:,:,nsub)        , & !inout
-          &                   slev, elev, opt_rlend=i_rlend      ) !in
+          &                   slev, elev, opt_rlend=i_rlend    , & !in
+          &                   opt_acc_async=.TRUE.               ) !in
       ENDIF
 
 
@@ -1681,7 +1683,6 @@ CONTAINS
       nnow = nnew
       nnew = nsav
 
-      !$ACC WAIT
       CALL sync_patch_array(SYNC_C,p_patch,z_tracer(:,:,:,nnow),opt_varname='z_tracer')
 
 

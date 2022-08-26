@@ -198,7 +198,8 @@ CONTAINS
 !! - change to direct reconstruction of vector components
 !!
 SUBROUTINE rbf_vec_interpol_cell( p_vn_in, ptr_patch, ptr_int, p_u_out,  &
-  &                               p_v_out, opt_slev, opt_elev, opt_rlstart, opt_rlend )
+  &                               p_v_out, opt_slev, opt_elev, opt_rlstart, &
+  &                               opt_rlend, opt_acc_async )
 
 ! !INPUT PARAMETERS
 !
@@ -230,6 +231,9 @@ REAL(wp),INTENT(INOUT) ::  &
 ! reconstructed y-component (v) of velocity vector
 REAL(wp),INTENT(INOUT) ::  &
   &  p_v_out(:,:,:) ! dim: (nproma,nlev,nblks_c)
+
+! if set, run in an asynchrounous device stream
+LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
 
 ! !LOCAL VARIABLES
 INTEGER :: slev, elev                ! vertical start and end level
@@ -280,9 +284,6 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 i_startblk = ptr_patch%cells%start_blk(rl_start,1)
 i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
-!$ACC DATA PCOPYIN( p_vn_in ), PCOPY( p_u_out, p_v_out ), &
-!$ACC      PRESENT( iidx, iblk, ptr_coeff ), IF( i_am_accel_node )
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc), ICON_OMP_RUNTIME_SCHEDULE
 
@@ -291,7 +292,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
 !$ACC LOOP GANG VECTOR TILE(32,4)
 #ifdef __LOOP_EXCHANGE
   DO jc = i_startidx, i_endidx
@@ -326,10 +327,16 @@ DO jb = i_startblk, i_endblk
 
 ENDDO
 
-!$ACC END DATA
-
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+IF ( PRESENT(opt_acc_async) ) THEN
+  IF ( .NOT. opt_acc_async ) THEN
+    !$ACC WAIT
+  END IF
+ELSE
+  !$ACC WAIT
+END IF
 
 END SUBROUTINE rbf_vec_interpol_cell
 !====================================================================================
@@ -737,17 +744,14 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
-
-  !$ACC LOOP GANG
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO jv = i_startidx, i_endidx
-    !$ACC LOOP VECTOR
     DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
   DO jk = slev, elev
-    !$ACC LOOP VECTOR
     DO jv = i_startidx, i_endidx
 #endif
 

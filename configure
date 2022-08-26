@@ -758,6 +758,7 @@ enable_vectorized_lrtm
 enable_mixed_precision
 enable_intel_consistency
 enable_pgi_inlib
+enable_nccl
 with_external_ecrad
 with_external_rte_rrtmgp
 with_external_sct
@@ -1538,6 +1539,7 @@ Optimization Features:
                           consistency [default=auto]
   --enable-pgi-inlib      enable PGI/NVIDIA cross-file function inlining via
                           an inline library [default=no]
+  --enable-nccl           enable NCCL for communication [default=no]
   --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
                           can be any non-empty string consisting of capital
@@ -2828,6 +2830,16 @@ if test "${enable_pgi_inlib+set}" = set; then :
 fi
 else
   enable_pgi_inlib=no
+fi
+
+
+# Check whether --enable-nccl was given.
+if test "${enable_nccl+set}" = set; then :
+  enableval=$enable_nccl; if test x"$enableval" != xno; then :
+  enable_nccl=yes
+fi
+else
+  enable_nccl=no
 fi
 
 
@@ -4767,6 +4779,10 @@ fi
 
 if test "x$enable_intel_consistency" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}IFORT_CONSISTENCY_ENFORCE"
+fi
+
+if test "x$enable_nccl" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}USE_NCCL"
 fi
 
 ######################### C COMPILER COMMAND AND FLAGS #########################

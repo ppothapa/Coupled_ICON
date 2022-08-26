@@ -179,7 +179,7 @@ CONTAINS
     i_startblk = p_patch%edges%start_blk(i_rlstart,1)
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
-!$ACC DATA PCOPYIN( p_coords_dreg_v), PCOPYOUT( p_quad_vector_sum, p_dreg_area ), COPYIN( shape_func_l ) &
+!$ACC DATA PCOPYIN( p_coords_dreg_v), PCOPYOUT( p_quad_vector_sum, p_dreg_area ), PRESENT( shape_func_l ) &
 !$ACC      IF( i_am_accel_node .AND. acc_on )
 
 !$OMP PARALLEL
@@ -190,7 +190,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
 !$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, z_gauss_pts_1, z_gauss_pts_2 ) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
@@ -325,14 +325,14 @@ CONTAINS
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
 !$ACC DATA PCOPYIN( p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev), PCOPY( p_dreg_area ),   &
-!$ACC      COPYIN( shape_func_l ), PCOPYOUT( p_quad_vector_sum ),     &
+!$ACC      PRESENT( shape_func_l ), PCOPYOUT( p_quad_vector_sum ),     &
 !$ACC      IF( i_am_accel_node .AND. acc_on )
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,ie,z_gauss_pts_1,z_gauss_pts_2,wgt_t_detjac,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
 !$ACC LOOP GANG VECTOR PRIVATE( je, jk, z_gauss_pts_1, z_gauss_pts_2 ) 
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -496,7 +496,7 @@ CONTAINS
     z_eta(4,1:4) = 1._wp + zeta(1:4)
 
 !$ACC DATA PCOPYIN( p_coords_dreg_v ), PCOPYOUT( p_quad_vector_sum, p_dreg_area ), &
-!$ACC      COPYIN( z_wgt, z_eta, shape_func ),                                     &
+!$ACC      COPYIN( z_wgt, z_eta ), PRESENT( shape_func )                           &
 !$ACC      IF( i_am_accel_node .AND. acc_on )
 
 !$OMP PARALLEL
@@ -507,7 +507,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector ) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
@@ -681,8 +681,9 @@ CONTAINS
     z_eta(4,1:4) = 1._wp + zeta(1:4)
 
 !$ACC DATA PCOPYIN( p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev ), PCOPY( p_dreg_area ), &
-!$ACC      PCOPYOUT( p_quad_vector_sum ), COPYIN( z_wgt, z_eta, shape_func ), &
+!$ACC      PCOPYOUT( p_quad_vector_sum ), COPYIN( z_wgt, z_eta ), &
 !$ACC      CREATE( z_x, z_y, z_quad_vector, wgt_t_detjac, z_gauss_pts), &
+!$ACC      PRESENT( shape_func ), &
 !$ACC      IF( i_am_accel_node .AND. acc_on )
 
 !$OMP PARALLEL
@@ -690,7 +691,7 @@ CONTAINS
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -744,7 +745,7 @@ CONTAINS
 !$ACC END PARALLEL
 
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -910,7 +911,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_eta, shape_func, z_wgt ) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_eta, z_wgt ) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector ) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
@@ -1158,7 +1159,7 @@ CONTAINS
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_wgt, z_eta, shape_func ) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_wgt, z_eta ) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR PRIVATE( z_gauss_pts, wgt_t_detjac, z_quad_vector, z_x, z_y )
 !$NEC ivdep
       DO ie = 1, falist%len(jb)

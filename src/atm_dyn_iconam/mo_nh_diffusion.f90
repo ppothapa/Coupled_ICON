@@ -371,7 +371,6 @@ MODULE mo_nh_diffusion
       rl_end   = min_rledge_int - 2
 
       IF (itype_comm == 1 .OR. itype_comm == 3) THEN
-        !$ACC WAIT
 #ifdef __MIXED_PRECISION
         CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
                                       opt_varname="diffusion: u_vert and v_vert")
@@ -498,8 +497,6 @@ MODULE mo_nh_diffusion
       rl_start = start_bdydiff_e
       rl_end   = min_rledge_int - 2
 
-      ! This wait is mandatory because of later communication
-      !$ACC WAIT
       IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
         CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
@@ -870,7 +867,6 @@ MODULE mo_nh_diffusion
     IF (diffu_type == 5) THEN ! Add fourth-order background diffusion
 
       IF (discr_vn > 1) THEN
-        !$ACC WAIT
         CALL sync_patch_array(SYNC_E,p_patch,z_nabla2_e,      &
                               opt_varname="diffusion: nabla2_e")
       END IF
@@ -892,7 +888,6 @@ MODULE mo_nh_diffusion
       rl_end   = min_rledge_int
 
       IF (itype_comm == 1 .OR. itype_comm == 3) THEN
-        !$ACC WAIT
 #ifdef __MIXED_PRECISION
         CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
                                       opt_varname="diffusion: u_vert and v_vert 3")
@@ -1329,7 +1324,6 @@ MODULE mo_nh_diffusion
 !$OMP END PARALLEL
 
     IF (itype_comm == 1 .OR. itype_comm == 3) THEN
-      !$ACC WAIT
       CALL sync_patch_array(SYNC_E, p_patch, p_nh_prog%vn,opt_varname="diffusion: vn sync")
     ENDIF
 
@@ -1635,7 +1629,6 @@ MODULE mo_nh_diffusion
 
       ! This could be further optimized, but applications without physics are quite rare;
       IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
-        !$ACC WAIT
         CALL sync_patch_array_mult(SYNC_C,p_patch,2,p_nh_prog%theta_v,p_nh_prog%exner,  &
                                    opt_varname="diffusion: theta and exner")
       ENDIF
@@ -1644,7 +1637,6 @@ MODULE mo_nh_diffusion
 
     IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
       IF (diffusion_config(jg)%lhdiff_w) THEN
-        !$ACC WAIT
         CALL sync_patch_array(SYNC_C,p_patch,p_nh_prog%w,"diffusion: w")
       END IF
     ENDIF

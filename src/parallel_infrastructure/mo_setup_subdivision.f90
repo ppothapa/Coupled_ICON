@@ -83,7 +83,7 @@ MODULE mo_setup_subdivision
        init_divide_cells_by_location_mpi
 #endif
   USE mo_grid_config,         ONLY: use_dummy_cell_closure
-  USE mo_util_sort,           ONLY: quicksort, insertion_sort
+  USE mo_util_sort,           ONLY: quicksort
   USE mo_dist_dir,            ONLY: dist_dir_setup
   USE ppm_distributed_array,  ONLY: dist_mult_array, global_array_desc, &
     &                               dist_mult_array_new, &
@@ -2264,12 +2264,12 @@ CONTAINS
 
       ! remove duplicated inner edges
       IF (n_inner_edges .GT. 1) THEN
-        CALL insertion_sort(inner_edges(1:n_inner_edges))
+        CALL quicksort(inner_edges(1:n_inner_edges))
         CALL remove_duplicated_entries(inner_edges(1:n_inner_edges), n_inner_edges)
       ENDIF
       ! remove duplicated vertices
       IF (n_temp_vertices .GT. 1) THEN
-        CALL insertion_sort(temp_vertices(1:n_temp_vertices))
+        CALL quicksort(temp_vertices(1:n_temp_vertices))
         CALL remove_duplicated_entries(temp_vertices(1:n_temp_vertices), &
                                      n_temp_vertices)
       ENDIF
@@ -2336,7 +2336,7 @@ CONTAINS
       owned_edges(1:n_inner_edges) = inner_edges(1:n_inner_edges)
       owned_edges(n_inner_edges+1:) = PACK(temp_edges(1:n_temp_edges), &
                                              .NOT. pack_mask(1:n_temp_edges))
-      CALL insertion_sort(owned_edges(:))
+      CALL quicksort(owned_edges(:))
 
       ! generate flag2_e_list(0) and flag2_e_list(1)
   !    IF (n_boundary_rows > 0 .AND. order_type_of_halos /= 0) THEN
@@ -2453,7 +2453,7 @@ CONTAINS
 #endif
         !remove duplicated entries
         IF (n_temp_cells .GT. 1) THEN
-          CALL insertion_sort(temp_cells(1:n_temp_cells))
+          CALL quicksort(temp_cells(1:n_temp_cells))
           CALL remove_duplicated_entries(temp_cells(1:n_temp_cells), n_temp_cells)
         ENDIF
         ! store cells of level 2*ilev-1
@@ -2588,7 +2588,7 @@ CONTAINS
 #endif
 
         IF (n_temp_cells .GT. 1) THEN
-          CALL insertion_sort(temp_cells(1:n_temp_cells))
+          CALL quicksort(temp_cells(1:n_temp_cells))
           CALL remove_duplicated_entries(temp_cells(1:n_temp_cells), n_temp_cells)
           ! remove cells that are on level 2*ilev-2 and level 2*ilev-1
           DO k = -2, -1
@@ -2905,7 +2905,7 @@ CONTAINS
         END DO
 
         IF (n_temp_vertices .GT. 1) THEN
-          CALL insertion_sort(temp_vertices(1:n_temp_vertices))
+          CALL quicksort(temp_vertices(1:n_temp_vertices))
           CALL remove_duplicated_entries(temp_vertices(1:n_temp_vertices), &
                                        n_temp_vertices)
           ! remove vertices that are on level ilev and ilev - 1
@@ -3133,7 +3133,7 @@ CONTAINS
       call dist_mult_init_blk_comm(1, SIZE(vertices), maxval(temp_num_edges(1:SIZE(vertices))), dist_cell_owner)
 #endif
       DO i = 1, SIZE(vertices)
-        CALL insertion_sort(t_cells(i,1:temp_num_edges(i)))
+        CALL quicksort(t_cells(i,1:temp_num_edges(i)))
         DO j = 1, temp_num_edges(i)
 #ifndef __BLOCK_GET__
           CALL dist_mult_array_get(dist_cell_owner, 1, (/t_cells(i,j)/), &
@@ -3190,7 +3190,7 @@ CONTAINS
                (/jv, j/), t_cells(j))
         END DO
         IF (temp_num_edges .GT. 1) THEN
-          CALL insertion_sort(t_cells(1:temp_num_edges))
+          CALL quicksort(t_cells(1:temp_num_edges))
         ENDIF
         DO j = 1, temp_num_edges
           CALL dist_mult_array_get(dist_cell_owner, 1, (/t_cells(j)/), &
