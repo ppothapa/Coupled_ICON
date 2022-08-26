@@ -2179,6 +2179,7 @@ CONTAINS
             &                  * (ptsfc_t(jc,isub_water)-ptsfc(jc))
         ENDDO
         !$ACC END PARALLEL
+
       ELSE IF (PRESENT(pflxsfcsw_t) .AND. PRESENT(pflxsfclw_t)) THEN
 
         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
@@ -2208,11 +2209,14 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seawtr_count
           jc = list_seawtr_idx(ic)
           pflxsfcsw_t(jc,1) = zflxsw(jc,klevp1)
           pflxsfclw_t(jc,1) = zflxlw(jc,klevp1)
         ENDDO
+        !$ACC END PARALLEL
 
       ENDIF ! ntiles
 
