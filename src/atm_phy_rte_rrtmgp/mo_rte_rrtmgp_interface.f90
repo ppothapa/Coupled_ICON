@@ -240,7 +240,6 @@ CONTAINS
       ! iaero=13: only Kinne aerosols are used
       ! iaero=15: Kinne aerosols plus Stenchikov's volcanic aerosols are used
       ! iaero=18: Kinne background aerosols (of natural origin, 1850) are set
-        write (0,*) "Kinne"
         CALL set_bc_aeropt_kinne(this_datetime,                       &
               & jg,                                                    &
               & jcs, nproma,    nproma,                klev,           &
@@ -254,7 +253,6 @@ CONTAINS
       ! iaero=15: Stenchikov's volcanic aerosols are added to Kinne aerosols
       ! iaero=18: Stenchikov's volcanic aerosols are added to Kinne background
       !           aerosols (of natural origin, 1850)
-        write (0,*) "Stenchikov"
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Stenchikov aerosols ACC not implemented')
 #endif
@@ -284,7 +282,6 @@ CONTAINS
       IF (irad_aero==18) THEN
       ! iaero=18: Simple plumes are added to Stenchikov's volcanic aerosols
       !           and Kinne background aerosols (of natural origin, 1850)
-        write (0,*) "Plumes"
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
