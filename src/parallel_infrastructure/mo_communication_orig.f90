@@ -3395,11 +3395,12 @@ CONTAINS
 #if defined( __SX__ ) || defined( _OPENACC )
 
 !$ACC PARALLEL DEFAULT(PRESENT) IF (use_gpu)
-!$ACC LOOP GANG VECTOR COLLAPSE(2) 
-! ACC: We cannot collapse over k and i due to n and np dependency
+      !$ACC LOOP SEQ
       DO n = 1, nfields
+        !$ACC LOOP SEQ
         DO np = 1, npats
 !$NEC novector
+          !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_send(np)
               send_buf(k+noffset(n),i+ioffset_s(np)) =                &
@@ -3613,11 +3614,12 @@ CONTAINS
 
 #if defined( __SX__ ) || defined( _OPENACC )
 !$ACC PARALLEL DEFAULT(PRESENT) IF (use_gpu)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC LOOP SEQ
       DO n = 1, nfields
+        !$ACC LOOP SEQ
         DO np = 1, npats
-! ACC: We cannot collapse over k and i due to n and np dependency
 !$NEC novector
+          !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_pnts(np)
               recv(n)%p(p_recv_dst_idx(np)%p(i),k, &
