@@ -66,6 +66,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_difrad_3dcont => tune_difrad_3dcont, &  
     &                               config_tune_gust_factor => tune_gust_factor, &  
     &                               config_itune_gust_diag => itune_gust_diag, &  
+    &                               config_tune_gustsso_lim => tune_gustsso_lim, &  
     &                               config_itune_albedo   => itune_albedo,       &
     &                               config_lcalib_clcov   => lcalib_clcov,       &
     &                               config_max_calibfac_clcl => max_calibfac_clcl, &
@@ -191,6 +192,9 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< Tuning factor for gust parameterization
     &  tune_gust_factor            !
 
+  REAL(wp) :: &                    !< Basic gust speed (m/s) at which the SSO correction starts to be reduced
+    &  tune_gustsso_lim            !
+
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
 
@@ -220,7 +224,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_rdepths, tune_thicklayfac, tune_sgsclifac,      &
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,&
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,   &
-    &                      tune_blockred, itune_gust_diag, tune_rcapqadv
+    &                      tune_blockred, itune_gust_diag, tune_rcapqadv,       &
+    &                      tune_gustsso_lim
 
 
 CONTAINS
@@ -347,6 +352,7 @@ CONTAINS
 
     tune_gust_factor = 8.0_wp      ! tuning factor for gust parameterization
     itune_gust_diag  = 1           ! variant using level above SSO envelope
+    tune_gustsso_lim = 100._wp     ! Basic gust speed at which the SSO correction starts to be reduced
 
     tune_dust_abs   = 0._wp        ! no tuning of LW absorption of mineral dust
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
@@ -463,12 +469,13 @@ CONTAINS
     config_tune_difrad_3dcont    = tune_difrad_3dcont
     config_tune_gust_factor      = tune_gust_factor
     config_itune_gust_diag       = itune_gust_diag
+    config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
 
-    !$acc update device(config_tune_gust_factor,config_itune_gust_diag)
+    !$acc update device(config_tune_gust_factor,config_itune_gust_diag,config_tune_gustsso_lim)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

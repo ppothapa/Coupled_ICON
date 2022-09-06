@@ -64,6 +64,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_dust_abs
   PUBLIC :: tune_difrad_3dcont
   PUBLIC :: tune_gust_factor
+  PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
   PUBLIC :: lcalib_clcov
@@ -198,6 +199,10 @@ MODULE mo_nwp_tuning_config
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
                                    ! 2: use envelope top level, combined with adjusted tuning
   !$acc declare create(itune_gust_diag)
+
+  REAL(wp) :: &                    !< Basic gust speed (m/s) at which the SSO correction starts to be reduced
+    &  tune_gustsso_lim            !
+  !$acc declare create(tune_gustsso_lim)
 
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara
