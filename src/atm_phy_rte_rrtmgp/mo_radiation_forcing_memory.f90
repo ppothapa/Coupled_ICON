@@ -154,6 +154,8 @@ CONTAINS
     IF (ist/=SUCCESS) CALL finish(TRIM(thissubprog), &
       &'allocation of prm_radiation_forcing list array failed')
 
+    !$ACC ENTER DATA CREATE(prm_radiation_forcing, prm_radiation_forcing_list)
+
     ! Build a rte-rrtmgp forcing list for each grid level.
     ! This includes memory allocation. 
     
@@ -192,6 +194,8 @@ CONTAINS
     DO jg = 1,ndomain
       CALL vlr_del( prm_radiation_forcing_list(jg) )
     ENDDO
+
+    !$ACC EXIT DATA DELETE(prm_radiation_forcing, prm_radiation_forcing_list)
 
     DEALLOCATE( prm_radiation_forcing_list, STAT=ist )
     IF (ist/=SUCCESS) CALL finish(TRIM(thissubprog), &
