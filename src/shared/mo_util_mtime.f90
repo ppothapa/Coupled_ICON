@@ -193,7 +193,7 @@ CONTAINS
     ENDIF
 
     time_diff  =  getTimeDeltaFromDateTime(datetime_current, anchor)
-    sim_time   =  getTotalMillisecondsTimedelta(time_diff, datetime_current)*1.e-3_wp
+    sim_time   =  getTotalMillisecondsTimedelta(time_diff, anchor)*1.e-3_wp
 
   END FUNCTION getElapsedSimTimeInSeconds
 
