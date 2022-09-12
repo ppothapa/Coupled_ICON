@@ -888,8 +888,8 @@ CONTAINS
 !$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
 
 !$OMP MASTER
-      dpsdt_avg = SUM(dps_blk)
-      npoints   = SUM(npoints_blk)
+      dpsdt_avg = SUM(dps_blk(i_startblk:i_endblk))
+      npoints   = SUM(npoints_blk(i_startblk:i_endblk))
       dpsdt_avg = global_sum_array(dpsdt_avg, opt_iroot=process_mpi_stdio_id)
       npoints   = global_sum_array(npoints  , opt_iroot=process_mpi_stdio_id)
       IF (my_process_is_stdio()) THEN
