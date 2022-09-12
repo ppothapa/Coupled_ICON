@@ -158,14 +158,14 @@ SUBROUTINE art_coagulation_interface(pt_prog,pt_diag, dtime, p_patch, &
                     ! Calculate coagulation coefficients
                     !  - results will be stored in fields%coag_util%p_coag%coagcoeff0 and 
                     !    fields%coag_util%p_coag%coagcoeff3
-                    CALL art_calc_coag_coefficients(fields, tracer(:,:,jb,:),rho(:,:,jb),         &
+                    CALL art_calc_coag_coefficients(fields, tracer(:,:,:,:),rho(:,:,jb),         &
                       &                             pt_diag%temp(:,:,jb),                         &
                       &                             p_art_data(jg)%air_prop%art_dyn_visc(:,:,jb), &
                       &                             istart, iend,                                 &
                       &                             kstart, nlev, jb)
                   CASE (3)
                     ! Updating fields
-                    CALL fields%update_number(tracer(:,:,jb,fields%itr0), jb, dtime,              &
+                    CALL fields%update_number(tracer(:,:,:,:), dtime, jb,                         &
                       &                       istart, iend, kstart, nlev, opt_rho = rho(:,:,jb))
                     CALL fields%update_mass(tracer(:,:,:,:), jb, dtime,                           &
                       &                     istart, iend, kstart, nlev, opt_rho = rho(:,:,jb))
