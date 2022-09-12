@@ -204,7 +204,7 @@ SUBROUTINE art_washout_interface(pt_prog,pt_diag, dtime, p_patch, &
                   & istart, iend, kstart_wo, nlev )
               ENDDO
               ! Update mass-specific number
-              CALL fields%update_number(tracer(:,:,jb,fields%itr0), wash_rate_m0(:,:), dtime,  &
+              CALL fields%update_number(tracer(:,:,:,:), wash_rate_m0(:,:), dtime, jb,    &
                 &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
               ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
               CALL art_save_aerosol_wet_deposition(p_art_data(jg),                                &
@@ -253,7 +253,7 @@ SUBROUTINE art_washout_interface(pt_prog,pt_diag, dtime, p_patch, &
                     &  istart, iend, kstart_wo, nlev )
                 ENDDO
                 ! Update mass-specific number
-                CALL fields%update_number(tracer(:,:,jb,fields%itr0), wash_rate_m0(:,:), dtime,  &
+                CALL fields%update_number(tracer(:,:,:,:), wash_rate_m0(:,:), dtime, jb,  &
                   &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
                 ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
                 CALL art_save_aerosol_wet_deposition(p_art_data(jg),                              &
