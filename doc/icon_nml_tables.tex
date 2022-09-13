@@ -114,6 +114,17 @@ fac\_lhn\_down, fac\_lhn\_up, fac\_lhn\_artif
 \tabularnewline
 
 %\hline
+ {lhn\_updt\_rule}&
+I(max\_ dom)&
+0&
+&
+Rule for humidity update by LHN: \\
+0: LHN updates qv (standard). \\
+1: LHN updates qi if qi>0 and T<0; qv update otherwise. &  
+\tabularnewline
+
+
+%\hline
  {thres\_lhn}&
 R&
 0.1/3600.&
@@ -5526,7 +5537,7 @@ NetCDF file with RRTM Cloud Optical Properties for ECHAM6. &
 \tabularnewline
 
 %\hline
-ireff\_calc &
+icalc\_reff &
 I (max\_ dom) &
 0 &
 &

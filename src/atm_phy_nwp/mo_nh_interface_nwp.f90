@@ -81,7 +81,7 @@ MODULE mo_nh_interface_nwp
   USE mo_util_phys,               ONLY: tracer_add_phytend, iau_update_tracer
   USE mo_lnd_nwp_config,          ONLY: ntiles_total, ntiles_water
   USE mo_cover_koe,               ONLY: cover_koe, cover_koe_config
-  USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu
+  USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu, latent_heat_sublimation
   USE mo_aerosol_util,            ONLY: prog_aerosol_2D
   USE mo_radiation,               ONLY: radheat, pre_radiation_nwp
   USE mo_radiation_config,        ONLY: irad_aero
@@ -262,6 +262,9 @@ CONTAINS
 
     ! Variables for EDMF DUALM
     REAL(wp) :: qtvar(nproma,pt_patch%nlev)
+
+    ! Variables for LHN
+    REAL(wp) :: dhumi_lhn,dhumi_lhn_tot
 
     ! communication ids, these do not need to be different variables,
     ! since they are not treated individualy
@@ -834,22 +837,52 @@ CONTAINS
         i_endblk   = pt_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,dhumi_lhn,dhumi_lhn_tot) ICON_OMP_DEFAULT_SCHEDULE
         DO jb = i_startblk, i_endblk
   
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             & i_startidx, i_endidx, rl_start, rl_end )
   
-          ! update prognostic variables
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
-          !$ACC LOOP GANG VECTOR COLLAPSE(2)
-          DO jk = 1, nlev
-            DO jc = i_startidx, i_endidx
-              pt_diag%temp(jc,jk,jb) = pt_diag%temp(jc,jk,jb) + lhn_fields(jg)%ttend_lhn(jc,jk,jb) * dt_loc
-              pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + lhn_fields(jg)%qvtend_lhn(jc,jk,jb) * dt_loc
+          IF ( assimilation_config(jg)%lhn_updt_rule == 1 ) THEN  ! Humidity update of LHN goes to ice if qi>0 T<0
+#ifdef _OPENACC
+            CALL finish('mo_nh_interface_nwp:','lhn_updt_rule = 1  not available on GPU')
+#endif
+ 
+            ! Update in the two-moment scheme
+            DO jk = 1, nlev
+              DO jc = i_startidx, i_endidx 
+                ! Temperature update 
+                pt_diag%temp(jc,jk,jb) = pt_diag%temp(jc,jk,jb) + lhn_fields(jg)%ttend_lhn(jc,jk,jb) * dt_loc
+
+                ! The humididy update is made differntly because it afffects the ice nucleation
+
+                ! Update directly ice if it is there some already there and it needs to grow, so no more ice is nucleated
+                IF ( pt_prog_rcf%tracer(jc,jk,jb,iqi) > 1E-7 .AND. pt_diag%temp(jc,jk,jb) < 273.16 ) THEN 
+                  ! Calculate LH sublimation, add constant and cp/cv option 
+                  dhumi_lhn_tot = lhn_fields(jg)%qvtend_lhn(jc,jk,jb) * dt_loc
+                  dhumi_lhn = MAX(dhumi_lhn_tot,-pt_prog_rcf%tracer(jc,jk,jb,iqi))
+                  pt_prog_rcf%tracer(jc,jk,jb,iqi) = pt_prog_rcf%tracer(jc,jk,jb,iqi) + dhumi_lhn
+                  pt_diag%temp(jc,jk,jb) = pt_diag%temp(jc,jk,jb) + &
+                         & rcvd*latent_heat_sublimation(pt_diag%temp(jc,jk,jb))*dhumi_lhn
+                  pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + dhumi_lhn_tot - dhumi_lhn
+                ELSE
+                  pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + lhn_fields(jg)%qvtend_lhn(jc,jk,jb) * dt_loc
+                END IF
+              ENDDO
             ENDDO
-          ENDDO
-          !$ACC END PARALLEL
+
+          ELSE ! Standard Update one-moment
+            ! update prognostic variables
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
+            DO jk = 1, nlev
+              DO jc = i_startidx, i_endidx
+                pt_diag%temp(jc,jk,jb) = pt_diag%temp(jc,jk,jb) + lhn_fields(jg)%ttend_lhn(jc,jk,jb) * dt_loc
+                pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + lhn_fields(jg)%qvtend_lhn(jc,jk,jb) * dt_loc
+              ENDDO
+            ENDDO
+            !$ACC END PARALLEL
+          END IF
           !-------------------------------------------------------------------------
           !   call the saturation adjustment
           !-------------------------------------------------------------------------

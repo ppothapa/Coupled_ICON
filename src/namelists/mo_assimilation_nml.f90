@@ -65,7 +65,8 @@ MODULE mo_assimilation_nml
     nlhnverif_start  ,& ! start of latent heat nudging period in timesteps
     nlhnverif_end    ,& ! end of latent heat nudging period in timesteps
     nlhn_relax       ,& ! number of interations of horizontal filtering
-    nradar(max_dom)     ! max. number of radar stations within input data
+    nradar(max_dom)  ,& ! max. number of radar stations within input data
+    lhn_updt_rule(max_dom)  ! Rule for updates of temperature/humidity/hydrometeors
 
   REAL (KIND=wp)                   ::           &
     lhn_coef          ,& ! factor for reduction of lhn t-increments
@@ -104,7 +105,7 @@ MODULE mo_assimilation_nml
                               lhn_coef, fac_lhn_up  ,fac_lhn_down      ,           &
                               thres_lhn    ,                                       &  ! noobs_date
                               rqrsgmax     , rttend                    ,           &
-                              radar_in     ,                                       &
+                              radar_in     , lhn_updt_rule             ,           &
                               lhn_black    ,blacklist_file             ,           &
                               lhn_artif    ,fac_lhn_artif, fac_lhn_artif_tune ,    &
                               lhn_filt     ,lhn_hum_adj, lhn_no_ttend  ,           &
@@ -160,6 +161,7 @@ CONTAINS
     nlhnverif_start    = -9999
     nlhnverif_end      = -9999
     nradar(:)          = 200
+    lhn_updt_rule(:)   = 0
     nlhn_relax         = 2_i4
     lhn_dt_obs         = 300.0_wp
     lhn_coef           = 1.0_wp
@@ -259,6 +261,7 @@ CONTAINS
         assimilation_config(jg)%nlhnverif_start = nlhnverif_start
         assimilation_config(jg)%nlhnverif_end   = nlhnverif_end
         assimilation_config(jg)%nradar          = nradar(jg)
+        assimilation_config(jg)%lhn_updt_rule   = lhn_updt_rule(jg)
         assimilation_config(jg)%nlhn_relax      = nlhn_relax
         assimilation_config(jg)%lhn_dt_obs      = lhn_dt_obs/60.
         assimilation_config(jg)%lhn_coef        = lhn_coef
