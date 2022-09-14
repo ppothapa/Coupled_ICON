@@ -184,7 +184,7 @@ CONTAINS
     ! local insolation = constant = global mean insolation (ca. 340 W/m2)
     ! zenith angle = 0,
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -198,7 +198,7 @@ CONTAINS
     ! local time always 12:00
     ! --> sin(time of day)=1 ) and zenith angle depends on latitude only
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -213,7 +213,7 @@ CONTAINS
     ! local time always  07:14:15 or 16:45:45
     ! --> sin(time of day)=1/pi and zenith angle depends on latitude only
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -224,9 +224,6 @@ CONTAINS
     ! circular non-seasonal orbit,
     ! perpetual equinox,
     ! with diurnal cycle,
-#ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
-#endif
 
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
@@ -267,10 +264,14 @@ CONTAINS
 
       ENDDO!jmu0
 
+      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY( zsct ) IF( lacc )
+      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark ) IF( lacc )
+        !$ACC LOOP GANG VECTOR
 !DIR$ SIMD
         DO jc = 1,ie
           IF (n_cosmu0pos(jc,jb) > 0) THEN
@@ -279,10 +280,13 @@ CONTAINS
             zsmu0(jc,jb) = cosmu0_dark
           ENDIF
         ENDDO
+        !$ACC END PARALLEL
 
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
+      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN
     ! elliptical seasonal orbit,
@@ -360,13 +364,14 @@ CONTAINS
 
       ENDDO !jmu0
 
-      !$acc update device (zsmu0) if (lacc)
+      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY ( zsct ) IF( lacc )
+      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$acc parallel default (none) present (zsmu0) copyin (n_cosmu0pos, cosmu0_dark ) copy (zsct) if (lacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark, zsct ) IF( lacc )
+        !$ACC LOOP GANG VECTOR
         DO jc = 1,ie
           IF ( n_cosmu0pos(jc,jb) > 0 ) THEN
             ! The averaged cosine of zenith angle is limited to 0.05 in order to avoid
@@ -376,7 +381,7 @@ CONTAINS
             zsmu0(jc,jb) = cosmu0_dark
           ENDIF
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
       ENDDO !jb
 
@@ -387,7 +392,8 @@ CONTAINS
           zsct = zsct_save
         ENDIF
       ENDIF
-      !$acc update host (zsmu0) if (lacc)
+      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC END DATA
 
     ELSEIF (izenith == 5) THEN
      ! Radiative convective equilibrium
@@ -397,7 +403,7 @@ CONTAINS
      ! the product tsi*cos(zenith angle) should equal 340 W/m2
      ! see Popke et al. 2013 and Cronin 2013
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -408,7 +414,7 @@ CONTAINS
     ELSEIF (izenith == 6) THEN
      ! Prescribed cos(solar zenith angle), for single column model (SCM)
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)

@@ -385,7 +385,8 @@ CONTAINS
             ! Case 2: Constant aerosol
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
-            CALL nwp_ecrad_prep_aerosol(ecrad_conf, ecrad_aerosol)
+            CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, &
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(6)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,     &
@@ -1166,7 +1167,8 @@ CONTAINS
             ! Case 2: Constant aerosol
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
-            CALL nwp_ecrad_prep_aerosol(ecrad_conf, ecrad_aerosol)
+            CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad, &
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(6)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &

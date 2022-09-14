@@ -65,8 +65,12 @@ CONTAINS
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-15)
   !!
   !---------------------------------------------------------------------------------------
-  SUBROUTINE nwp_ecrad_prep_aerosol_constant ( ecrad_conf, ecrad_aerosol,                &
+  SUBROUTINE nwp_ecrad_prep_aerosol_constant ( slev, nlev, i_startidx, i_endidx,         &
+    &                                          ecrad_conf, ecrad_aerosol,                &
     &                                          od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
+    INTEGER, INTENT(in)      :: &
+      &  slev, nlev,            & !< Start and end index of vertical loop
+      &  i_startidx, i_endidx     !< Start and end index of horizontal loop
     TYPE(t_ecrad_conf),        INTENT(in)    :: &
       &  ecrad_conf                        !< ecRad configuration object
     TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
@@ -74,40 +78,61 @@ CONTAINS
     REAL(wp), INTENT(in), OPTIONAL :: &
       &  od_lw, ssa_lw, g_lw,   & !< Optical depth, single scattering albedo, assymetry factor long wave
       &  od_sw, ssa_sw, g_sw      !< Optical depth, single scattering albedo, assymetry factor short wave
+    INTEGER                  :: &
+      &  jc, jk, jband            !< Loop indices
 
-#ifdef _OPENACC
-    CALL finish('nwp_ecrad_prep_aerosol_constant',' not ported to gpu')
-#endif
+
+    !$ACC DATA PRESENT( ecrad_conf, ecrad_aerosol, ssa_lw, od_lw, g_lw, ssa_sw, od_sw, g_sw )
 
     IF (ecrad_conf%do_lw) THEN
-      ecrad_aerosol%od_lw(:,:,:)  = 0._wp
-      ecrad_aerosol%ssa_lw(:,:,:) = 0._wp
-      ecrad_aerosol%g_lw(:,:,:)   = 0._wp      
-      IF ( PRESENT(od_lw) ) THEN 
-        ecrad_aerosol%od_lw(:,:,:)  = od_lw
-      ENDIF
-      IF ( PRESENT(ssa_lw) ) THEN 
-        ecrad_aerosol%ssa_lw(:,:,:) = ssa_lw
-      ENDIF
-      IF ( PRESENT(g_lw) ) THEN  
-        ecrad_aerosol%g_lw(:,:,:)   = g_lw
-      ENDIF
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
+      DO jband = 1, ecrad_conf%n_bands_lw
+        DO jk = slev, nlev
+          DO jc = i_startidx, i_endidx
+            ecrad_aerosol%od_lw(jband,jk,jc)  = 0._wp
+            ecrad_aerosol%ssa_lw(jband,jk,jc) = 0._wp
+            ecrad_aerosol%g_lw(jband,jk,jc)   = 0._wp
+            IF ( PRESENT(od_lw) ) THEN
+              ecrad_aerosol%od_lw(jband,jk,jc)  = od_lw
+            ENDIF
+            IF ( PRESENT(ssa_lw) ) THEN
+              ecrad_aerosol%ssa_lw(jband,jk,jc) = ssa_lw
+            ENDIF
+            IF ( PRESENT(g_lw) ) THEN
+              ecrad_aerosol%g_lw(jband,jk,jc)   = g_lw
+            ENDIF
+          ENDDO ! jc
+        ENDDO ! jk
+      ENDDO ! jband
+      !$ACC END PARALLEL
     ENDIF
 
     IF (ecrad_conf%do_sw) THEN
-      ecrad_aerosol%od_sw(:,:,:)  = 0._wp
-      ecrad_aerosol%ssa_sw(:,:,:) = 0._wp
-      ecrad_aerosol%g_sw(:,:,:)   = 0._wp
-      IF ( PRESENT(od_sw) ) THEN 
-        ecrad_aerosol%od_sw(:,:,:)  = od_sw
-      ENDIF
-      IF ( PRESENT(ssa_sw) ) THEN 
-        ecrad_aerosol%ssa_sw(:,:,:) = ssa_sw
-      ENDIF
-      IF ( PRESENT(g_sw) ) THEN  
-        ecrad_aerosol%g_sw(:,:,:)   = g_sw
-      ENDIF
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
+      DO jband = 1, ecrad_conf%n_bands_sw
+        DO jk = slev, nlev
+          DO jc = i_startidx, i_endidx
+            ecrad_aerosol%od_sw(jband,jk,jc)  = 0._wp
+            ecrad_aerosol%ssa_sw(jband,jk,jc) = 0._wp
+            ecrad_aerosol%g_sw(jband,jk,jc)   = 0._wp
+            IF ( PRESENT(od_sw) ) THEN
+              ecrad_aerosol%od_sw(jband,jk,jc)  = od_sw
+            ENDIF
+            IF ( PRESENT(ssa_sw) ) THEN
+              ecrad_aerosol%ssa_sw(jband,jk,jc) = ssa_sw
+            ENDIF
+            IF ( PRESENT(g_sw) ) THEN
+              ecrad_aerosol%g_sw(jband,jk,jc)   = g_sw
+            ENDIF
+          ENDDO ! jc
+        ENDDO ! jk
+      ENDDO ! jband
+      !$ACC END PARALLEL
     ENDIF
+
+    !$ACC END DATA
 
   END SUBROUTINE nwp_ecrad_prep_aerosol_constant
   !---------------------------------------------------------------------------------------

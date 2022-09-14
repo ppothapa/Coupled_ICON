@@ -435,8 +435,8 @@ CONTAINS
         CALL finish(routine,'GPU version not available for edmf turbulence.')
       ENDIF
       
-      IF (inwp_cldcover(jg) /= 1) THEN
-        CALL finish(routine,'GPU version only available for cloud cover 1.')
+      IF ( ALL((/0,1,5/) /= inwp_cldcover(jg)) ) THEN
+        CALL finish(routine,'GPU version only available for cloud cover 0, 1 and 5')
       ENDIF
 
       IF (ALL((/0,1/) /= inwp_sso(jg))) THEN
