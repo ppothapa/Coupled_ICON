@@ -140,7 +140,6 @@ fi
     cat >> $output_script << EOF
 
 #=============================================================================
-
 # directories with absolute paths
 # -------------------------------
 thisdir=\$(pwd)
@@ -152,6 +151,8 @@ icon_data_rootFolder="${icon_data_rootFolder}"
 # ---------------------------
 export START="$start"
 export MODEL="\${basedir}/bin/icon"
+
+set | grep SLURM
 
 # how to submit the next job
 # --------------------------
@@ -398,6 +399,7 @@ set_run_target_bull_milan()
     # levante.dkrz.de
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
+    set_default use_ulimit no
     set_default use_nproma 32
     set_default use_nblocks_c 0
     set_default use_nodes 1
@@ -418,16 +420,16 @@ set_run_target_bull_milan()
     then
 	if [[ $use_openmp == "yes" ]]
 	then
-	    set_default use_openmp_threads '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / 4 / '"$smt_adjust"'))"'
-	    set_default use_mpi_procs_pernode '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '$smt_adjust' / OMP_NUM_THREADS))"'
+	    set_default use_openmp_threads '"\$(( 4 * '"$smt_adjust"'))"'
+	    set_default use_mpi_procs_pernode '"\$(( 128 * '"$smt_adjust"' / OMP_NUM_THREADS))"'
 	else
-	    set_default use_mpi_procs_pernode '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '"$smt_adjust"'))"'
+	    set_default use_mpi_procs_pernode '"\$(( 128 * '"$smt_adjust"'))"'
 	fi
     else
 	start="srun -n 1"
 	if [[ $use_openmp == "yes" ]]
 	then
-	    set_default use_openmp_threads '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '"$smt_adjust"'))"'
+	    set_default use_openmp_threads 64
 	    #      set_default use_mpi_procs_pernode 1
 	    start+=" --cpus-per-task=\$(($smt_adjust * OMP_NUM_THREADS))"
 	else
@@ -437,36 +439,29 @@ set_run_target_bull_milan()
 
     [[ "x$use_queue" != 'x' ]] && queue=$use_queue
     # FIXME: This probably still needs some improvement.
-    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --cpu_bind=v,cores --distribution=plane=8:cyclic --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\$((${smt_adjust} * OMP_NUM_THREADS))"
-    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --distribution=plane --hint=nomultithread --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\$((${smt_adjust} * OMP_NUM_THREADS))"
+    # The main observation is: ICON runs consistently faster without SMT. Hence the '--hint=nomultithread' is used
+    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --distribution=plane --hint=nomultithread --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\${OMP_NUM_THREADS}"
 
-    add_free_var SLURM_DIST_PLANESIZE 8
+    add_free_var SLURM_DIST_PLANESIZE 32
     case _$use_compiler in
 	"_intel" )
             add_free_var KMP_AFFINITY "granularity=fine,scatter"
             add_free_var KMP_LIBRARY "turnaround"
-            add_free_var KMP_KMP_SETTINGS "1"
-            add_free_var OMP_WAIT_POLICY "active"
-            add_free_var KMP_WARNINGS "0"
-            add_free_var MKL_ENABLE_INSTRUCTIONS AVX2
-            add_free_var MKL_DEBUG_CPU_TYPE 5
+            add_free_var MALLOC_TRIM_THRESHOLD_ "-1"
+            add_free_var MKL_DEBUG_CPU_TYPE "5"
+            add_free_var MKL_ENABLE_INSTRUCTIONS "AVX2"
 	    ;;
     esac
     case $use_mpi_root in
 	*openmpi*)
-            #add_free_var HDF5_USE_FILE_LOCKING FALSE
-
-            add_free_var KMP_LIBRARY "turnaround"
-            add_free_var OMPI_MCA_osc "pt2pt"
-            add_free_var UCX_IB_ADDR_TYPE ib_global
-            add_free_var OMPI_MCA_coll "^ml"
-            add_free_var OMPI_MCA_coll_hcoll_enable "1"
-            add_free_var HCOLL_MAIN_IB mlx5_0:1
-            add_free_var UCX_NET_DEVICES mlx5_0:1
-            add_free_var UCX_TLS mm,cma,dc_mlx5,dc_x,self
-            add_free_var UCX_UNIFIED_MODE y
-            add_free_var HDF5_USE_FILE_LOCKING FALSE
+            add_free_var OMPI_MCA_btl "self"
+            add_free_var OMPI_MCA_coll "^ml,hcoll"
             add_free_var OMPI_MCA_io "romio321"
+            add_free_var OMPI_MCA_osc "ucx"
+            add_free_var OMPI_MCA_pml "ucx"
+            add_free_var UCX_HANDLE_ERRORS "bt"
+            add_free_var UCX_TLS "shm,dc_mlx5,dc_x,self"
+            add_free_var UCX_UNIFIED_MODE "y"
 	    ;;
     esac
 
@@ -513,7 +508,6 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 #SBATCH --partition=$queue
 #SBATCH --chdir=$output_folder
 #SBATCH --nodes=$use_nodes
-#SBATCH --threads-per-core=2
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --exclusive
 #SBATCH --time=$s_cpu_time
