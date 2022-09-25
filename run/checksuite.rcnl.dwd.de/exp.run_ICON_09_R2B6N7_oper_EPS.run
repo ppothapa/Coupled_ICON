@@ -881,7 +881,6 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
               -vh     -node 0        -np 2      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
 
 
-
 # ----------------------------------------------------------------------
 # EPILOGUE: Compare the output to a given reference
 #     "... in every code we have some trouble
