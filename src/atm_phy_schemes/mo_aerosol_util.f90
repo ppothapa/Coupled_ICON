@@ -888,8 +888,7 @@ CONTAINS
       &  ts_orgsrc,             & !< Time scales for sources
       &  ts_bcsrc, ts_susrc,    & !< Time scales for sources
       &  washout, washout_scale,& !< Washout and washout scale for dust
-      &  dust_flux, ssa_flux,   & !< Flux of dust and sea spray aerosol
-      &  ssa_flux_t,            & !< Flux of sea spray aerosol with temperature weighting
+      &  dust_flux,             & !< Flux of dust
       &  aod_flux                 !< Source function for aerosol optical depth
     INTEGER ::              &
       &  jc, jt, jcl,       & !< Loop indices

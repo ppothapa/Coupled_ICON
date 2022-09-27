@@ -179,7 +179,7 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
-  SUBROUTINE ecrad_set_thermodynamics(ecrad_thermodynamics, temp, pres, pres_ifc, tsfc, &
+  SUBROUTINE ecrad_set_thermodynamics(ecrad_thermodynamics, temp, pres, pres_ifc, &
     &                                 nlev, nlevp1, i_startidx, i_endidx)
 
     TYPE(t_ecrad_thermodynamics_type), INTENT(inout) :: &
@@ -187,8 +187,7 @@ CONTAINS
     REAL(wp), INTENT(in)     :: &
       &  temp(:,:),             & !< Full level temperature field
       &  pres(:,:),             & !< Full level pressure field
-      &  pres_ifc(:,:),         & !< Half level pressure field
-      &  tsfc(:)                  !< Surface temperature
+      &  pres_ifc(:,:)            !< Half level pressure field
     INTEGER, INTENT(in)      :: &
       &  nlev, nlevp1,          & !< Number of vertical full and half levels
       &  i_startidx, i_endidx     !< Start and end index of nproma loop in current block

@@ -359,8 +359,7 @@ CONTAINS
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),    &
-          &                           pt_diag%pres_ifc(jcs:jce,:,jb), prm_diag%tsfctrad(jcs:jce,jb),                   &
-          &                           nlev, nlevp1, i_startidx_rad, i_endidx_rad)
+          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, ext_data%atm%o3(jcs:jce,:,jb), prm_diag%tot_cld(jcs:jce,:,jb,iqv), &
@@ -621,7 +620,7 @@ CONTAINS
     INTEGER                  :: &
       &  nblks_par_c,           & !< nblks for reduced grid (parent domain)
       &  nblks_lp_c,            & !< nblks for reduced grid (local parent)
-      &  jb, jc, jk, jf, jw,    & !< loop indices
+      &  jb, jc, jw,            & !< loop indices
       &  jg,                    & !< domain id
       &  nlev,                  & !< number of full levels
       &  nlev_rg, nlev_rgp1,    & !< number of full and half levels at reduced grid
@@ -1063,7 +1062,7 @@ CONTAINS
     !$ACC   zrg_aeq5)
 
 
-!$OMP DO PRIVATE(jb, jc, jf, i_startidx, i_endidx,              &
+!$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                  &
 !$OMP            jb_rad, jcs, jce, jnps, jnpe,                  &
 !$OMP            i_startidx_rad,i_endidx_rad,                   &
 !$OMP            ptr_acdnc, ptr_fr_land, ptr_fr_glac,           &
@@ -1141,8 +1140,7 @@ CONTAINS
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, zrg_temp(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb),     &
-          &                           zrg_pres_ifc(jcs:jce,:,jb), zrg_tsfc(jcs:jce,jb),                         &
-          &                           nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad)
+          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, zrg_o3(jcs:jce,:,jb), zrg_tot_cld(jcs:jce,:,jb,iqv), &

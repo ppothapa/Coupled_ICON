@@ -156,6 +156,12 @@ MODULE mo_radiation_config
     !
     REAL(wp) :: tsi
 
+    !
+    ! Radiative transfer routine skips all points with cosmu0<=0. 
+    ! That's why points to be skipped need to be marked with a value <=0
+    REAL(wp), PARAMETER :: &
+      &  cosmu0_dark = -1.e-9_wp       ! minimum cosmu0, for smaller values no shortwave calculations
+
     !$ACC DECLARE COPYIN(vpp_ch4, vpp_n2o)
   
   !END TYPE t_radiation_config

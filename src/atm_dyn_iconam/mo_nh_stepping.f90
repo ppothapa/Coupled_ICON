@@ -357,8 +357,7 @@ MODULE mo_nh_stepping
       ENDDO
     END IF
 
-    ! Does this really work for nested setups, or does it rather require domain specific 
-    ! objects like sst/sic_reader(jg), sst/sic_intp(jg)?
+
     IF (sstice_mode == SSTICE_INST) THEN
       ALLOCATE(sst_reader(n_dom))
       ALLOCATE(sic_reader(n_dom))
