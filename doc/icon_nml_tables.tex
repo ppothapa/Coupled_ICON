@@ -5969,7 +5969,9 @@ I&
 &
 Method of SSO blocking correction used in the gust diagnostics\\
 1: Use level above ``SSO envelope top'' for gust enhancement over mountains \\
-2: Use ``SSO envelope top'' level for gust enhancement over mountains, combined with an adjusted nonlinearity factor &
+2: Use ``SSO envelope top'' level for gust enhancement over mountains, combined with an adjusted nonlinearity factor
+(recommended for global configurations with MERIT/REMA orography) \\
+3: Variant of option 1, recommended for ICON-D2 with subgrid-scale condensation (do not use with ntiles=1) &
 run\_nml:iforcing = inwp
 \tabularnewline
 

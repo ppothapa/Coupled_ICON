@@ -308,8 +308,8 @@ CONTAINS
 
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN  ! Own calculation of reff inside ecrad_set_clouds()
           ptr_acdnc   => prm_diag%acdnc(jcs:jce,:,jb)
-          ptr_fr_land => ext_data%atm%fr_land_smt(jcs:jce,jb)
-          ptr_fr_glac => ext_data%atm%fr_glac_smt(jcs:jce,jb)
+          ptr_fr_land => ext_data%atm%fr_land(jcs:jce,jb)
+          ptr_fr_glac => ext_data%atm%fr_glac(jcs:jce,jb)
         ELSE
           ptr_reff_qc => prm_diag%reff_qc(jcs:jce,:,jb)
           ptr_reff_qi => prm_diag%reff_qi(jcs:jce,:,jb)
@@ -871,8 +871,8 @@ CONTAINS
     SELECT CASE (atm_phy_nwp_config(jg)%icpl_rad_reff)
     CASE (0)  ! Own calculation of reff inside ecrad_set_clouds()
       CALL input_extra_flds%assign(prm_diag%acdnc, irg_acdnc)
-      CALL input_extra_2D%assign(ext_data%atm%fr_land_smt , irg_fr_land)
-      CALL input_extra_2D%assign(ext_data%atm%fr_glac_smt , irg_fr_glac)
+      CALL input_extra_2D%assign(ext_data%atm%fr_land, irg_fr_land)
+      CALL input_extra_2D%assign(ext_data%atm%fr_glac, irg_fr_glac)
     CASE (2) ! Option to use all hydrometeors reff individually
       ! Set extra hydrometeors
       CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)

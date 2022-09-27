@@ -200,7 +200,8 @@ MODULE mo_nwp_tuning_nml
 
   INTEGER :: &                     !< Type of gust tuning / SSO coupling
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
-                                   ! 2: use envelope top level, combined with adjusted tuning
+                                   ! 2: use envelope top level, combined with adjusted tuning for MERIT/REMA orography
+                                   ! 3: tuning for ICON-D2 with subgrid-scale condensation
 
   LOGICAL :: &                     ! cloud cover calibration over land points
     &  lcalib_clcov

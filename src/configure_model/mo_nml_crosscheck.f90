@@ -80,6 +80,7 @@ MODULE mo_nml_crosscheck
   USE mo_interpol_config
   USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
+  USE mo_nwp_tuning_config,        ONLY: itune_gust_diag
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
@@ -992,6 +993,11 @@ CONTAINS
         ENDIF
       ENDIF
 
+    ENDIF
+
+    IF (itune_gust_diag == 3 .AND. ntiles_lnd == 1) THEN
+      WRITE (message_text,'(a)') "itune_gust_diag = 3 requires ntiles > 1"  
+      CALL finish(routine, message_text)
     ENDIF
 
     ! check meteogram configuration

@@ -87,7 +87,7 @@ CONTAINS
   !! @par Revision History
   !! Developed by Helmut Frank, DWD (2013-03-13)
   !!
-  ELEMENTAL FUNCTION nwp_dyn_gust( u_10m, v_10m, tcm, u1, v1, u_env, v_env, mtnmask) RESULT( vgust_dyn)
+  ELEMENTAL FUNCTION nwp_dyn_gust( u_10m, v_10m, tcm, u1, v1, u_env, v_env, fr_oce, mtnmask) RESULT( vgust_dyn)
 
     REAL(wp), INTENT(IN) :: u_10m, &    ! zonal wind component at 10 m above ground [m/s]
       &                     v_10m, &    ! meridional wind component at 10 m above ground [m/s]
@@ -96,19 +96,29 @@ CONTAINS
       &                     v1   , &    ! meridional wind at lowest model layer above ground [m/s]
       &                     u_env, &    ! zonal wind at top of SSO envelope layer [m/s]
       &                     v_env, &    ! meridional wind at top of SSO envelope layer [m/s]
+      &                     fr_oce,&    ! ocean fraction
       &                     mtnmask     ! mask field for weighting SSO enhancement
 
     REAL(wp) :: vgust_dyn               ! dynamic gust at 10 m above ground [m/s]
 
-    REAL(wp) :: ff10m, ustar, uadd_sso, gust_nonlin, offset, base_gust, mtn_lim
+    REAL(wp) :: ff10m, ustar, uadd_sso, gust_nonlin, offset, base_gust, mtn_lim, oce_shift
     !$acc routine seq
 
-    ff10m = SQRT( u_10m**2 + v_10m**2)
     uadd_sso = MAX(0._wp, SQRT(u_env**2 + v_env**2) - SQRT(u1**2 + v1**2))
-    offset = MERGE(10._wp, MAX(0._wp,6._wp-uadd_sso), itune_gust_diag == 1)
+    SELECT CASE (itune_gust_diag)
+    CASE (3)     ! ICON-D2 with subgrid-scale condensation
+      offset = 10._wp+6._wp*fr_oce
+    CASE (2)     ! ICON global with MERIT/REMA orography data
+      offset = MAX(0._wp,6._wp-uadd_sso)
+    CASE default ! actually (1), but code does not vectorize without default branch
+      offset = 10._wp
+    END SELECT
+    oce_shift = MERGE(fr_oce,0._wp,itune_gust_diag==3)
+
+    ff10m = SQRT( u_10m**2 + v_10m**2)
     ustar = calc_ustar(tcm, u1, v1)
     gust_nonlin = MAX(0._wp,MIN(2._wp,0.2_wp*(ff10m-offset)))
-    base_gust = ff10m + (tune_gust_factor+gust_nonlin)*ustar
+    base_gust = ff10m + (tune_gust_factor-oce_shift+gust_nonlin)*ustar
     mtn_lim = MAX(0._wp, MIN(1._wp, 2._wp - base_gust/tune_gustsso_lim) )
     vgust_dyn = base_gust + mtnmask*mtn_lim*(uadd_sso + (2._wp+gust_nonlin)*ustar )
 

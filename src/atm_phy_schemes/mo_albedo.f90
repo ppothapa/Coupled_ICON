@@ -1025,7 +1025,7 @@ CONTAINS
             ! Use prognostic diffuse sea-ice albedo (computed within the routines of the sea-ice scheme)
 !$NEC ivdep
             !$acc parallel default (present) if (lacc)
-            !$acc loop gang vector private (jc)
+            !$acc loop gang vector private (jc, t_fac)
             DO ic = 1, i_count_seaice
               jc = ext_data%atm%list_seaice%idx(ic,jb)
 
@@ -1042,6 +1042,11 @@ CONTAINS
                 prm_diag%albdif_t(jc,jb,isub_seaice) =                                                &
                   MAX(0.685_wp*csalb(ist_seaice), 0.9_wp*prm_diag%albdif_t(jc,jb,isub_seaice),        &
                   MIN(prm_diag%albdif_t(jc,jb,isub_seaice)*prm_diag%snowalb_fac(jc,jb),csalb_snow_max))
+                ! Moreover, we reset the sea ice albedo to the original value close to the melting point
+                ! in order to avoid potential unwanted impacts on sea ice melt during summer
+                t_fac = MIN(1._wp, MAX(0._wp, 0.5_wp*(tmelt - wtr_prog%t_ice(jc,jb)) ))
+                prm_diag%albdif_t(jc,jb,isub_seaice) = t_fac*prm_diag%albdif_t(jc,jb,isub_seaice) + &
+                  (1._wp-t_fac)*wtr_prog%alb_si(jc,jb)
               ENDIF
 
             ENDDO

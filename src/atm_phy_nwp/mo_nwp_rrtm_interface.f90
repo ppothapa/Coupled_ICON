@@ -561,8 +561,8 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN ! Internal parameterization of reff
         ptr_acdnc  =>  prm_diag%acdnc(:,:,jb)
-        ptr_fr_land=>  ext_data%atm%fr_land_smt(:,jb)  !< in     land fraction
-        ptr_fr_glac=>  ext_data%atm%fr_glac_smt(:,jb)   !< in     land glacier fraction
+        ptr_fr_land=>  ext_data%atm%fr_land(:,jb)  !< in     land fraction
+        ptr_fr_glac=>  ext_data%atm%fr_glac(:,jb)   !< in     land glacier fraction
       ELSE
         ptr_reff_qc => prm_diag%reff_qc(:,:,jb)
         ptr_reff_qi => prm_diag%reff_qi(:,:,jb)
@@ -918,8 +918,8 @@ CONTAINS
              zrg_reff_frz (nproma,nlev_rg,nblks_par_c))
       ELSE
         CALL input_extra_flds%assign(prm_diag%acdnc(:,:,:), irg_acdnc)
-        CALL input_extra_2D%assign(ext_data%atm%fr_land_smt , irg_fr_land)
-        CALL input_extra_2D%assign(ext_data%atm%fr_glac_smt , irg_fr_glac)
+        CALL input_extra_2D%assign(ext_data%atm%fr_land , irg_fr_land)
+        CALL input_extra_2D%assign(ext_data%atm%fr_glac , irg_fr_glac)
       ENDIF
 
       ! Allocate output extra arrays
