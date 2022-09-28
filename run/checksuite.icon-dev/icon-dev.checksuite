@@ -254,7 +254,9 @@ function diff_results
             echo "There are no dates to compare"
             exit 1
         fi
-    
+
+        make_sure_cdo_exists_and_runs
+
         echo "=================================================================="
         echo "Compare these experiments:"
         echo "- ${MODEL_DIR1}/experiments/${DEXP1}"
@@ -302,6 +304,15 @@ function diff_results
 
                     echo "Compare for TYPE=$TYPE"
                     cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
+
+                    cdo_exit_code=$? 
+
+                    # exit code=0: no differences exit_code=1: differences
+                    # both exit codes are fine, other exit codes indicate a crash of cdo
+                    if [[ $cdo_exit_code -ne 0 ]] && [[ $cdo_exit_code -ne 1 ]]; then
+                        echo " abort of cdo during file comparison with exit code $cdo_exit_code"
+                        exit 1
+                    fi
 
 		    # does FILE2 contain the same variables as FILE1?
 		    not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
@@ -485,6 +496,25 @@ function tolerance_check
     fi
 
     return $TOL_STATUS
+}
+
+make_sure_cdo_exists_and_runs() {
+
+    # is cdo in PATH?
+    if ! [ -x "$(command -v cdo)" ]; then
+        echo 'Error: cdo is not installed.' >&2
+        exit 1
+    fi
+
+    # does cdo find all linked-libraries?
+    cdo -sinfo -topo 1>/dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+      echo 'Error: cdo does not run' >&2
+      exit 1
+    fi
+
+
 }
 #################### main script ########################################
 
