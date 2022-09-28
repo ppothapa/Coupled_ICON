@@ -48,14 +48,12 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_exception           ,ONLY: finish, message
 
-  USE mo_yac_finterface      ,ONLY: yac_fget_version,                            &
-    &                               yac_finit, yac_fdef_comp,                    &
-    &                               yac_fdef_datetime,                           &
-    &                               yac_fdef_grid, yac_fdef_points,              &
-    &                               yac_fset_global_index, yac_fset_core_mask,   &
-    &                               yac_fdef_mask, yac_fdef_field_mask,          &
-    &                               yac_fsearch, yac_ffinalize,                  &
-    &                               YAC_LOCATION_CELL, COUPLING, OUT_OF_BOUND
+  USE mo_yac_finterface      ,ONLY: yac_fget_version, yac_fdef_comp,        &
+    &                               yac_fdef_datetime, yac_fdef_grid,       &
+    &                               yac_fdef_points, yac_fset_global_index, &
+    &                               yac_fset_core_mask, yac_fdef_mask,      &
+    &                               yac_fdef_field_mask, yac_fsearch,       &
+    &                               YAC_LOCATION_CELL
 
   USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN
 
@@ -98,8 +96,6 @@ CONTAINS
     ! too much in future.
     !---------------------------------------------------------------------
 
-    CHARACTER(LEN=max_char_length) :: xml_filename
-    CHARACTER(LEN=max_char_length) :: xsd_filename
     CHARACTER(LEN=max_char_length) :: grid_name
     CHARACTER(LEN=max_char_length) :: comp_name
 
@@ -141,11 +137,6 @@ CONTAINS
 
     jg = 1
     patch_horz => p_patch(jg)
-
-    ! Initialise the coupler
-    xml_filename = "coupling.xml"
-    xsd_filename = "coupling.xsd"
-    CALL yac_finit ( TRIM(xml_filename), TRIM(xsd_filename) )
 
     ! Inform the coupler about what we are
     CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
@@ -462,8 +453,6 @@ CONTAINS
   SUBROUTINE destruct_atmo_coupling
 
     IF ( .NOT. is_coupled_run() ) RETURN
-
-    CALL yac_ffinalize
 
   END SUBROUTINE destruct_atmo_coupling
   

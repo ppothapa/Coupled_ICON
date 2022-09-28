@@ -5,9 +5,9 @@
 !!  Rene Redler (MPI-M)
 !!
 !! The purpose of routines construct_io_coupler and destruct_io_coupler is
-!! to initialise YAC on asynchronous IO processes. The YAC initialisation,
+!! to initialise YAC on asynchronous IO processes. The YAC component definition
 !! and search are collective operations in the MPI sense. Thus all MPI processes
-!! must call yac_finit and yac_fsearch (and for symmetry yac_ffinialze)
+!! must call yac_fdef_comp(s) and yac_fsearch.
 !! Currently, the IO processes do not receive any fields via YAC for output.
 !! Therefore, yac_fsearch is called with an empty list of fields.
 !! 
@@ -24,8 +24,7 @@ MODULE mo_io_coupling
   USE mo_coupling_config,           ONLY: is_coupled_run
   USE mo_impl_constants,            ONLY: MAX_CHAR_LENGTH
   USE mo_exception,                 ONLY: message, message_text
-  USE mo_yac_finterface,            ONLY: yac_finit, yac_fdef_comp, &
-                                        & yac_fsearch, yac_ffinalize
+  USE mo_yac_finterface,            ONLY: yac_fdef_comp, yac_fsearch
 
   IMPLICIT NONE
 
@@ -41,9 +40,6 @@ CONTAINS
     CHARACTER(LEN=*), INTENT(IN) :: comp_name
     CHARACTER(*), PARAMETER :: routine = "mo_io_coupling:construct_io_coupler"
 
-    CHARACTER(LEN=MAX_CHAR_LENGTH) :: xml_filename
-    CHARACTER(LEN=MAX_CHAR_LENGTH) :: xsd_filename
-
     INTEGER :: comp_ids(1)
     INTEGER :: error_status
 
@@ -52,11 +48,6 @@ CONTAINS
       WRITE(message_text,*) "YAC initialisation for asynchronous I/O processes of type ", &
         &                   TRIM(comp_name)
       CALL message(routine, message_text)
-
-      ! Initialise YAC on the IO processes
-      xml_filename = "coupling.xml"
-      xsd_filename = "coupling.xsd"
-      CALL yac_finit ( TRIM(xml_filename), TRIM(xsd_filename) )
 
       ! Inform YAC about what we are
       CALL yac_fdef_comp ( TRIM(comp_name), comp_ids(1) )
@@ -78,9 +69,6 @@ CONTAINS
       WRITE(message_text,*) "YAC termination of I/O process of type ", &
         &                   TRIM(comp_name)
       CALL message(routine, message_text)
-
-      ! Finalise YAC
-      IF ( is_coupled_run() ) CALL yac_ffinalize
 
     ENDIF
 

@@ -40,7 +40,8 @@ MODULE mo_ocean_coupling
     &                               field_id
   USE mo_parallel_config,     ONLY: nproma
   USE mo_yac_finterface,      ONLY: yac_fput, yac_fget,                     &
-    &                               COUPLING, OUT_OF_BOUND
+    &                               YAC_ACTION_COUPLING,                    &
+    &                               YAC_ACTION_OUT_OF_BOUND
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_hamocc_nml,          ONLY: l_cpl_co2
 
@@ -146,9 +147,10 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
     CALL yac_fput ( field_id(6), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fput called after end of run - id=6, SST')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fput called after end of run - id=6, SST')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -175,9 +177,10 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
     CALL yac_fput ( field_id(7), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fput called after end of run - id=7, u velocity')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fput called after end of run - id=7, u velocity')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -204,9 +207,10 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
     CALL yac_fput ( field_id(8), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fput called after end of run - id=8, v velocity')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fput called after end of run - id=8, v velocity')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -235,9 +239,10 @@ CONTAINS
 
     no_arr = 3
     CALL yac_fput ( field_id(9), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fput called after end of run - id=8, sea ice bundle')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fput called after end of run - id=8, sea ice bundle')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -269,11 +274,13 @@ CONTAINS
       IF (ltimer) CALL timer_start(timer_coupling_put)
 
       CALL yac_fput ( field_id(13), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-      IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) THEN
-        CALL message('couple_ocean_toatmo_fluxes', 'YAC says it is put for restart - id=13, CO2 flux')
+      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
+        CALL message('couple_ocean_toatmo_fluxes', &
+                     'YAC says it is put for restart - id=13, CO2 flux')
       ENDIF
-      IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                     'YAC says fput called after end of run - id=13, CO2 flux')
+      IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fput called after end of run - id=13, CO2 flux')
 
       IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -296,11 +303,12 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fget ( field_id(1), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=1, u-stress')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=1, u-stress')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=1, u-stress')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                     'YAC says fget called after end of run - id=1, u-stress')
 
     IF ( .NOT. lyac_very_1st_get ) THEN
        IF (ltimer) CALL timer_stop(timer_coupling_1stget)
@@ -344,11 +352,12 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fget ( field_id(2), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                  'YAC says it is get for restart - id=2, v-stress')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=2, v-stress')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=2, v-stress')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=2, v-stress')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -390,11 +399,12 @@ CONTAINS
 
     no_arr = 3
     CALL yac_fget ( field_id(3), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                      'YAC says it is get for restart - id=3, surface fresh water flux')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=3, surface fresh water flux')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=3, surface fresh water flux')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=3, surface fresh water flux')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -444,11 +454,12 @@ CONTAINS
 
     no_arr = 4
     CALL yac_fget ( field_id(4), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=4, heat flux')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=4, heat flux')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=4, heat flux')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=4, heat flux')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -513,11 +524,12 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fget ( field_id(5), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                      'YAC says it is get for restart - id=5, sea ice')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=5, sea ice')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=5, sea ice')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=5, sea ice')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -556,11 +568,12 @@ CONTAINS
 
     no_arr = 1
     CALL yac_fget ( field_id(10), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=10, wind speed')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=10, wind speed')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=10, wind speed')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=10, wind speed')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -595,11 +608,12 @@ CONTAINS
 
     no_arr = 1
     CALL yac_fget ( field_id(14), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=14, sea level pressure')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=14, sea level pressure')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=14, sea level pressure')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=14, sea level pressure')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -636,11 +650,12 @@ CONTAINS
 
     no_arr = 1
     CALL yac_fget ( field_id(12), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=12, co2 mr')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=12, co2 mixing ratio')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=12, co2 mr')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=12, co2 mixing ratio')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
@@ -681,11 +696,12 @@ CONTAINS
     buffer(:,:) = 0.0_wp  ! mandatory as river ruoff comes with a different mask!
 
     CALL yac_fget ( field_id(11), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND )                       &
-         &                      CALL message('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says it is get for restart - id=11, runoff')
-    IF ( info == OUT_OF_BOUND ) CALL warning('couple_ocean_toatmo_fluxes', &
-         &                                   'YAC says fget called after end of run - id=11, runoff')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND )&
+         CALL message('couple_ocean_toatmo_fluxes', &
+                      'YAC says it is get for restart - id=11, runoff')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('couple_ocean_toatmo_fluxes', &
+                      'YAC says fget called after end of run - id=11, runoff')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !

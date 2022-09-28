@@ -57,7 +57,7 @@ MODULE mo_nwp_ocean_interface
   USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
     &                               mask_checksum, field_id
   USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget,                     &
-    &                               COUPLING, OUT_OF_BOUND
+    &                               YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
 #endif
 
   USE mo_exception           ,ONLY: warning, message, finish
@@ -271,9 +271,10 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fput ( field_id(1), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=1, u-stress')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('nwp_couple_ocean', &
+                      'YAC says fput called after end of run - id=1, u-stress')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -301,9 +302,10 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fput ( field_id(2), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=2, v-stress')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         & CALL warning('nwp_couple_ocean', &
+                        'YAC says fput called after end of run - id=2, v-stress')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -357,9 +359,10 @@ CONTAINS
 
     no_arr = 3
     CALL yac_fput ( field_id(3), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND )                  &
-      & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=3, fresh water flux')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+      CALL warning('nwp_couple_ocean', &
+                   'YAC says fput called after end of run - id=3, fresh water flux')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -389,9 +392,10 @@ CONTAINS
 
     no_arr = 4
     CALL yac_fput ( field_id(4), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=4, heat flux')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+         CALL warning('nwp_couple_ocean', &
+                      'YAC says fput called after end of run - id=4, heat flux')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -420,9 +424,10 @@ CONTAINS
 
     no_arr = 2
     CALL yac_fput ( field_id(5), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == OUT_OF_BOUND )  &
-      & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=5, atmos sea ice')
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
+    IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
+      CALL warning('nwp_couple_ocean', &
+                   'YAC says fput called after end of run - id=5, atmos sea ice')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -454,14 +459,15 @@ CONTAINS
 
     no_arr = 1
     CALL yac_fput ( field_id(10), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) THEN
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
       write_coupler_restart = .TRUE.
     ELSE
       write_coupler_restart = .FALSE.
     ENDIF
 
-    IF ( info == OUT_OF_BOUND )  &
-       & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=10, wind speed')
+    IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
+       CALL warning('nwp_couple_ocean', &
+                    'YAC says fput called after end of run - id=10, wind speed')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -495,13 +501,13 @@ CONTAINS
 
     no_arr = 1
     CALL yac_fput ( field_id(13), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) THEN
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
        write_coupler_restart = .TRUE.
     ELSE
        write_coupler_restart = .FALSE.
     ENDIF
 
-    IF ( info == OUT_OF_BOUND )   &
+    IF ( info == YAC_ACTION_OUT_OF_BOUND )   &
        & CALL warning('nwp_couple_ocean', &
        &              'YAC says fput called after end of run - id=13, sea level pressure')
 
@@ -557,13 +563,13 @@ CONTAINS
 
       no_arr = 1
       CALL yac_fput ( field_id(11), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-      IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) THEN
+      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
         write_coupler_restart = .TRUE.
       ELSE
         write_coupler_restart = .FALSE.
       ENDIF
 
-      IF ( info == OUT_OF_BOUND )  &
+      IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
          & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=11, co2 mr')
 
       IF (ltimer) CALL timer_stop(timer_coupling_put)
@@ -607,9 +613,9 @@ CONTAINS
     ENDIF
 
     CALL yac_fget ( field_id(6), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) &
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=6, SST')
-    IF ( info == OUT_OF_BOUND ) &
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=6, SST')
 
     IF ( .NOT. lyac_very_1st_get ) THEN
@@ -659,9 +665,9 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(timer_coupling_get)
     CALL yac_fget ( field_id(7), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) &
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=7, u velocity')
-    IF ( info == OUT_OF_BOUND ) &
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=7, u velocity')
     IF (ltimer) CALL timer_stop(timer_coupling_get)
 
@@ -696,9 +702,9 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(timer_coupling_get)
     CALL yac_fget ( field_id(8), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) &
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=8, v velocity')
-    IF ( info == OUT_OF_BOUND ) &
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=8, v velocity')
     IF (ltimer) CALL timer_stop(timer_coupling_get)
 
@@ -733,9 +739,9 @@ CONTAINS
 
     no_arr = 3
     CALL yac_fget ( field_id(9), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) &
+    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=9, sea ice')
-    IF ( info == OUT_OF_BOUND ) &
+    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=9, sea ice')
 
     IF (ltimer) CALL timer_stop(timer_coupling_get)
@@ -786,9 +792,9 @@ CONTAINS
       buffer(:,:) = 0.0_wp ! needs to be checked if this is necessary
 
       CALL yac_fget ( field_id(12), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-      IF ( info > COUPLING .AND. info < OUT_OF_BOUND ) &
+      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
            & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=12, CO2 flux')
-      IF ( info == OUT_OF_BOUND )                      &
+      IF ( info == YAC_ACTION_OUT_OF_BOUND )                      &
            & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=12, CO2 flux')
 
       IF (ltimer) CALL timer_stop(timer_coupling_get)

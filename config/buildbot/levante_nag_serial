@@ -10,7 +10,7 @@ if [ ! -z "${BB_NAME}" ]; then
 fi
 
 # Make sure we disable all features that require MPI:
-${ICON_DIR}/config/dkrz/levante.nag --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-openmp
+${ICON_DIR}/config/dkrz/levante.nag --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-openmp --disable-mpi-checks
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22
