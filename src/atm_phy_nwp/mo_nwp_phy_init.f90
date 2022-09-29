@@ -1050,7 +1050,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CASE(1)       ! 1: Use ssi values from Coddington et al (2016)
             ssi_radt(:) = ecrad_ssi_coddington(:)
           CASE(2)       ! 2: Use ssi values from external file
-            ssi_radt(:) = 0
+            ssi_radt(:) = 0._wp
         END SELECT
         tsi_radt    = SUM(ssi_radt(:))
 

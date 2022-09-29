@@ -65,7 +65,7 @@ MODULE mo_radiation
     &                                irad_o2,    mmr_o2,              &
     &                                irad_cfc11, vmr_cfc11,           &
     &                                irad_cfc12, vmr_cfc12,           &
-    &                                irad_aero,                       &
+    &                                irad_aero, isolrad,              &
     &                                izenith, cos_zenith_fixed, islope_rad
   USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake, isub_water
   USE mo_extpar_config,        ONLY: nhori
@@ -127,6 +127,7 @@ CONTAINS
     REAL(wp), INTENT(OUT), OPTIONAL   :: zsct                          ! solar constant (at time of year)
     REAL(wp), INTENT(OUT)             :: zsmu0(kbdim,pt_patch%nblks_c) ! cosine of zenith angle
     LOGICAL                           :: lacc ! accelerator flag
+    LOGICAL                           :: l_tsi_recalculated
 
     REAL(wp) ::                    &
       & p_sim_time_rad,            &
@@ -166,6 +167,13 @@ CONTAINS
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,z_cosmu0,n_cosmu0pos
 #endif
+
+    ! In case of CMIP irradiation (isolrad==2) is used, tsi_rad changes during the day
+    ! (ssi_time_interpolation), in which case it makes sense to redo the scaling
+    ! by orbit elements (recalculate zsct) at each radiation time step and not
+    ! just on the first radiation step of the day.
+    l_tsi_recalculated = .FALSE.
+    IF (isolrad==2) l_tsi_recalculated = .TRUE.
 
     ! SCM: read lat/lon for horizontally uniform zenith angle
     IF ( l_scm_mode ) THEN
@@ -316,7 +324,7 @@ CONTAINS
         CALL deallocateDatetime(current)
         CALL deallocateTimedelta(td)
 
-        IF ( itaja /= itaja_zsct_previous ) THEN
+        IF ( itaja /= itaja_zsct_previous .OR. l_tsi_recalculated ) THEN
           itaja_zsct_previous = itaja
 
           ztwo    = 0.681_wp + 0.2422_wp*REAL(jj-1949,wp)-REAL((jj-1949)/4,wp)
@@ -473,6 +481,7 @@ CONTAINS
 
     LOGICAL :: &
       & lshade, lslope_aspect, lzacc      !switches
+    LOGICAL :: l_tsi_recalculated
 
 !------------------------------------------------------------------------------
 
@@ -490,6 +499,13 @@ CONTAINS
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta
 #endif
+
+    ! In case of CMIP irradiation (isolrad==2) is used, tsi_rad changes during the day
+    ! (ssi_time_interpolation), in which case it makes sense to redo the scaling
+    ! by orbit elements (recalculate zsct) at each radiation time step and not
+    ! just on the first radiation step of the day.
+    l_tsi_recalculated = .FALSE.
+    IF (isolrad==2) l_tsi_recalculated = .TRUE.
 
     IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
       CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
@@ -620,7 +636,7 @@ CONTAINS
 
         IF ( PRESENT(zsct) ) THEN
           !decide whether new zsct calculation is necessary
-          IF ( itaja /= itaja_zsct_previous ) THEN
+          IF ( itaja /= itaja_zsct_previous .OR. l_tsi_recalculated ) THEN
             itaja_zsct_previous = itaja
             zsocof  = 1.000110_wp + 0.034221_wp*COS(   ztho) + 0.001280_wp*SIN(   ztho) &
               + 0.000719_wp*COS(2._wp*ztho) + 0.000077_wp*SIN(2._wp*ztho)
