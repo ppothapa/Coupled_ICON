@@ -70,7 +70,8 @@ MODULE mo_nwp_tuning_nml
     &                               config_itune_albedo   => itune_albedo,       &
     &                               config_lcalib_clcov   => lcalib_clcov,       &
     &                               config_max_calibfac_clcl => max_calibfac_clcl, &
-    &                               config_max_freshsnow_inc => max_freshsnow_inc 
+    &                               config_max_freshsnow_inc => max_freshsnow_inc, &
+    &                               config_tune_eiscrit      => tune_eiscrit
   
   IMPLICIT NONE
   PRIVATE
@@ -210,8 +211,11 @@ MODULE mo_nwp_tuning_nml
     &  max_calibfac_clcl
 
   REAL(wp) :: &                    !< maximum allowed positive freshsnow increment
-    &  max_freshsnow_inc
-
+       &  max_freshsnow_inc
+  
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
+  
   NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun,            &
     &                      tune_zceff_min, tune_v0snow, tune_zvz0i,             &
     &                      tune_entrorg, itune_albedo, max_freshsnow_inc,       &
@@ -226,7 +230,7 @@ MODULE mo_nwp_tuning_nml
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,&
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,   &
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,       &
-    &                      tune_gustsso_lim
+    &                      tune_gustsso_lim, tune_eiscrit
 
 
 CONTAINS
@@ -362,6 +366,12 @@ CONTAINS
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
 
+    !> critical stability threshold - if exceeded (stratocumulus regime)
+    !> conv param is switched off to allow grid scale microphysics to create cloud
+    !> If the default value of 1000 is kept, the atmosphere's EIS should never
+    !> exceed the critical value, and this option remains effectively switched off
+    tune_eiscrit     = 1000.0_wp
+    
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
       WRITE(iunit, nwp_tuning_nml)   ! write defaults to temporary text file
@@ -475,6 +485,7 @@ CONTAINS
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
+    config_tune_eiscrit          = tune_eiscrit
 
     !$acc update device(config_tune_gust_factor,config_itune_gust_diag,config_tune_gustsso_lim)
 

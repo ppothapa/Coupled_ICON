@@ -482,6 +482,7 @@ CONTAINS
 &          pqen   = p_qv(:,:)                                               ,& !! IN
 &          puen   = p_u(:,:)              , pven   = p_v(:,:)               ,& !! IN
 &          plitot = z_plitot              , pvervel= z_omega_p              ,& !! IN
+&          plen  =p_prog_rcf%tracer(:,:,jb,iqc), pien=p_prog_rcf%tracer(:,:,jb,iqi),& !!IN
 &          shfl_s = prm_diag%shfl_s(:,jb) , qhfl_s=prm_diag%qhfl_s(:,jb)    ,& !! IN
 &          pqhfl  = p_qhfl_avg            , pahfs  = p_shfl_avg             ,& !! IN
 &          pap    = p_pres(:,:)       , paph   = p_diag%pres_ifc(:,:,jb)    ,& !! IN
@@ -530,6 +531,7 @@ CONTAINS
 &          lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
 &          lspinup      = lspinup                                           ,& !! IN
 &          k650=         prm_diag%k650(:,jb)                                ,& !! IN
+&          k700=         prm_diag%k700(:,jb)                                ,& !! IN
 &          temp_s =      p_diag%temp(:,nlev,jb)                             ,& !! IN
 &          cell_area    = p_patch%cells%area(:,jb)                          ,& !! IN
 &          iseed        = iseed                                             ,& !! IN
@@ -543,8 +545,7 @@ CONTAINS
 &          pclmf_p      = prm_nwp_stochconv%clmf_p(:,jb)                    ,& !! INOUT
 &          pclnum_d     = prm_nwp_stochconv%clnum_d(:,jb)                   ,& !! INOUT
 &          pclmf_d      = prm_nwp_stochconv%clmf_d(:,jb)                    ,& !! INOUT
-&          lacc   = lzacc                                            )         !! IN
-!&          extra_3d=     p_diag%extra_3d(:,:,jb,:)                          )  !! INOUT
+&          lacc   = lzacc                                                   )  !! IN
 
 
         ! Postprocessing on some fields

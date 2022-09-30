@@ -35,7 +35,8 @@ MODULE mo_cuparameters
   USE mo_nwp_parameters,  ONLY: t_phy_params
   USE mo_nwp_tuning_config, ONLY: tune_entrorg, tune_rhebc_land, tune_rhebc_ocean, tune_rcucov, &
     tune_texc, tune_qexc, tune_rhebc_land_trop, tune_rhebc_ocean_trop, tune_rcucov_trop, tune_gkdrag, &
-    tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred
+    tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred, &
+    tune_eiscrit
 
   IMPLICIT NONE
 
@@ -316,6 +317,7 @@ MODULE mo_cuparameters
   !     RMFSOLTQ  REAL     SOLVER FOR MASSFLUX ADVECTION EQUATION FOR T AND Q
   !     RUVPER    REAL     UPDRAIGHT VELOCITY PERTURBATION AT KLEV FOR IMPLICIT
   !     NJKT1, NJKT2, NJKT3-5 INTEGER  LEVEL LIMITS FOR CUBASEN/CUDDR
+  !     EISCRIT   REAL     CRITICAL STABILITY THRESHOLD FOR STRATOCUMULUS
   !     ----------------------------------------------------------------
   
   ! REAL(KIND=jprb) :: entrorg
@@ -1317,6 +1319,10 @@ IF (rsltn < 10.e3_jprb .AND. (lshallow_only .OR. lgrayzone_deepconv)) THEN
 ELSE IF (rsltn < 10.e3_jprb) THEN
   phy_params%tau = phy_params%tau + MIN(0.25_jprb, LOG(10.e3_jprb/rsltn)**2)
 ENDIF
+
+! critical stability threshold. For conditions more stable
+! turn off conv param to allow grid scale microphysics to create clouds
+phy_params%eiscrit=tune_eiscrit
 
 ! ** CAPE correction to improve diurnal cycle of convection ** (set now in mo_nwp_phy_nml)
 ! icapdcycl = 0! 0= no CAPE diurnal cycle correction (IFS default prior to cy40r1, i.e. 2013-11-19)

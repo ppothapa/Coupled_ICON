@@ -70,6 +70,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
   PUBLIC :: max_freshsnow_inc
+  PUBLIC :: tune_eiscrit
 
 
   !!--------------------------------------------------------------------------
@@ -215,8 +216,10 @@ MODULE mo_nwp_tuning_config
     &  max_calibfac_clcl
 
   REAL(wp) :: &                    !< maximum allowed positive freshsnow increment
-    &  max_freshsnow_inc
-
+       &  max_freshsnow_inc
+  
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
 !  END TYPE t_nwp_tuning_config
 
 
