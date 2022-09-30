@@ -157,6 +157,9 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE copy_4d_dp
     MODULE PROCEDURE copy_5d_dp
     MODULE PROCEDURE copy_5d_sp
+    MODULE PROCEDURE copy_2d_spdp
+    MODULE PROCEDURE copy_3d_spdp
+    MODULE PROCEDURE copy_4d_spdp
     MODULE PROCEDURE copy_5d_spdp
     MODULE PROCEDURE copy_2d_i4
     MODULE PROCEDURE copy_3d_i4
@@ -631,6 +634,102 @@ CONTAINS
   END SUBROUTINE copy_5d_sp
 
   !> copy state, omp parallel, does not wait for other threads to complete
+  SUBROUTINE copy_2d_spdp(src, dest)
+    REAL(sp), INTENT(in) :: src(:, :)
+    REAL(dp), INTENT(out) :: dest(:, :)
+    INTEGER :: i1, i2, m1, m2
+    m1 = SIZE(dest, 1)
+    m2 = SIZE(dest, 2)
+#ifdef _OPENACC
+!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
+!$ACC LOOP GANG VECTOR COLLAPSE(2)
+#else
+#if (defined(__INTEL_COMPILER))
+!$OMP DO PRIVATE(i1,i2)
+#else
+!$omp do collapse(2)
+#endif
+#endif
+    DO i2 = 1, m2
+      DO i1 = 1, m1
+        dest(i1, i2) = REAL(src(i1, i2),KIND=dp)
+      END DO
+    END DO
+#ifdef _OPENACC
+!$ACC END PARALLEL
+#else
+!$omp end do nowait
+#endif
+  END SUBROUTINE copy_2d_spdp
+
+  !> copy state, omp parallel, does not wait for other threads to complete
+  SUBROUTINE copy_3d_spdp(src, dest)
+    REAL(sp), INTENT(in) :: src(:, :, :)
+    REAL(dp), INTENT(out) :: dest(:, :, :)
+    INTEGER :: i1, i2, i3, m1, m2, m3
+    m1 = SIZE(dest, 1)
+    m2 = SIZE(dest, 2)
+    m3 = SIZE(dest, 3)
+#ifdef _OPENACC
+!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
+!$ACC LOOP GANG VECTOR COLLAPSE(3)
+#else
+#if (defined(__INTEL_COMPILER))
+!$OMP DO PRIVATE(i1,i2,i3)
+#else
+!$omp do collapse(3)
+#endif
+#endif
+    DO i3 = 1, m3
+      DO i2 = 1, m2
+        DO i1 = 1, m1
+          dest(i1, i2, i3) = REAL(src(i1, i2, i3),KIND=dp)
+        END DO
+      END DO
+    END DO
+#ifdef _OPENACC
+!$ACC END PARALLEL
+#else
+!$omp end do nowait
+#endif
+  END SUBROUTINE copy_3d_spdp
+
+  !> copy state, omp parallel, does not wait for other threads to complete
+  SUBROUTINE copy_4d_spdp(src, dest)
+    REAL(sp), INTENT(in) :: src(:, :, :, :)
+    REAL(dp), INTENT(out) :: dest(:, :, :, :)
+    INTEGER :: i1, i2, i3, i4, m1, m2, m3, m4
+    m1 = SIZE(dest, 1)
+    m2 = SIZE(dest, 2)
+    m3 = SIZE(dest, 3)
+    m4 = SIZE(dest, 4)
+#ifdef _OPENACC
+!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
+!$ACC LOOP GANG VECTOR COLLAPSE(4)
+#else
+#if (defined(__INTEL_COMPILER))
+!$OMP DO PRIVATE(i1,i2,i3,i4)
+#else
+!$omp do collapse(4)
+#endif
+#endif
+    DO i4 = 1, m4
+      DO i3 = 1, m3
+        DO i2 = 1, m2
+          DO i1 = 1, m1
+            dest(i1, i2, i3, i4) = REAL(src(i1, i2, i3, i4),KIND=dp)
+          END DO
+        END DO
+      END DO
+    END DO
+#ifdef _OPENACC
+!$ACC END PARALLEL
+#else
+!$omp end do nowait
+#endif
+  END SUBROUTINE copy_4d_spdp
+
+  !> copy state, omp parallel, does not wait for other threads to complete
   SUBROUTINE copy_5d_spdp(src, dest)
     REAL(sp), INTENT(in) :: src(:, :, :, :, :)
     REAL(dp), INTENT(out) :: dest(:, :, :, :, :)
@@ -643,7 +742,7 @@ CONTAINS
 #ifdef _OPENACC
 !$ACC DATA PCOPYIN( src ) PCOPYOUT( dest ) IF( i_am_accel_node .AND. acc_on )
 !$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP COLLAPSE(5)
+!$ACC LOOP GANG VECTOR COLLAPSE(5)
 #else
 #if (defined(__INTEL_COMPILER))
 !$OMP DO PRIVATE(i1,i2,i3,i4,i5)

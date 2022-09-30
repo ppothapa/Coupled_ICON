@@ -1,20 +1,42 @@
 !>
 !! @brief Contains subroutines for initializing the AES physics package.
 !!
-!! @author Hui Wan, MPI-M
-!!
 !! @par Revision History
 !! First version by Hui Wan, 2010-07-20
 !!
 !! @par Copyright and License
 !!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!! Copyright 2022 Max Planck Institute for Meteorology
+!! 
+!! Redistribution and use in source and binary forms, with or
+!! without modification, are permitted provided that the following
+!! conditions are met:
+!! 
+!! 1. Redistributions of source code must retain the above copyright
+!!    notice, this list of conditions and the following disclaimer.
+!! 
+!! 2. Redistributions in binary form must reproduce the above
+!!    copyright notice, this list of conditions and the following
+!!    disclaimer in the documentation and/or other materials
+!!    provided with the distribution.
+!! 
+!! 3. Neither the name of the copyright holder nor the names of its
+!!    contributors may be used to endorse or promote products
+!!    derived from this software without specific prior written
+!!    permission.
+!! 
+!! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+!! "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+!! LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+!! A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+!! HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+!! SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+!! LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+!! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+!! THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+!! (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+!! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 !!
-
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -35,7 +57,7 @@ MODULE mo_aes_phy_init
   USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
   USE mo_parallel_config,      ONLY: nproma
   USE mo_master_config,        ONLY: isrestart
-  USE mo_run_config,           ONLY: ltestcase, lart, msg_level,                  &
+  USE mo_run_config,           ONLY: ltestcase, msg_level,                        &
     &                                iqv, iqc, iqi, iqs, iqr, iqg, iqm_max,       &
     &                                iqh, iqni,iqnr,iqns,iqng,iqnh, iqnc,ininact, &
     &                                iqt, io3, ico2, ich4, in2o, ntracer
@@ -907,7 +929,7 @@ CONTAINS
 
       SELECT CASE (nh_test_name)
 
-      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','CBL_flxconst','RCEMIP_analytical') 
+      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','aes_bubble','CBL_flxconst','RCEMIP_analytical') 
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

@@ -134,7 +134,7 @@ SB2PP="python2 ${SERIALBOX2_ROOT}/python/pp_ser/pp_ser.py"
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS=''
+EXTRA_CONFIG_ARGS='--enable-rte-rrtmgp --enable-grib2'
 
 ################################################################################
 

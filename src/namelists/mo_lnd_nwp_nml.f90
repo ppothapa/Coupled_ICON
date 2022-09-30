@@ -64,6 +64,7 @@ MODULE mo_lnd_nwp_nml
     &                               config_cskinc             => cskinc            , &
     &                               config_tau_skin           => tau_skin          , &
     &                               config_lterra_urb         => lterra_urb        , &
+    &                               config_itype_kbmo         => itype_kbmo        , &
     &                               config_itype_eisa         => itype_eisa        , &
     &                               config_lstomata           => lstomata          , &
     &                               config_l2tls              => l2tls             , &
@@ -143,6 +144,7 @@ CONTAINS
     REAL(wp)::  cskinc            !< skin conductivity (W/m**2/K)
     REAL(wp)::  tau_skin          !< relaxation time scale for the computation of the skin temperature
     LOGICAL ::  lterra_urb        !< activate urban model TERRA_URB
+    INTEGER ::  itype_kbmo        !< type of bluff-body thermal roughness length parameterisation
     INTEGER ::  itype_eisa        !< type of evaporation from impervious surface area
     INTEGER ::  itype_hydbound    !< type of hydraulic lower boundary condition
     INTEGER ::  idiag_snowfrac    !< method for diagnosis of snow-cover fraction
@@ -180,7 +182,7 @@ CONTAINS
          &               itype_interception                              , &
          &               itype_hydbound                                  , &
          &               itype_canopy, cskinc, tau_skin                  , &
-         &               lterra_urb, itype_eisa                          , &
+         &               lterra_urb, itype_kbmo, itype_eisa              , &
          &               lstomata                                        , &
          &               l2tls                                           , &
          &               lana_rho_snow, l2lay_rho_snow                   , &
@@ -259,10 +261,15 @@ CONTAINS
     tau_skin      = 3600._wp ! relaxation time scale for the computation of the skin temperature
     !
     lterra_urb     =.FALSE.  ! if .TRUE., activate urban model TERRA_URB by Wouters et al. (2016, 2017)
-    itype_eisa     = 2       ! type of evaporation from impervious surface area
-                             !  0: evaporation like bare soil
-                             !  1: no evaporation
-                             !  2: PDF-based puddle evaporation (Wouters et al. 2015)
+    itype_kbmo     = 2       ! type of bluff-body thermal roughness length parameterisation
+                             !  1: Raschendorfer (2001)
+                             !  2: Brutsaert Kanda parameterisation for bluff-body elements (kB-1)
+                             !     (Kanda et al. 2007)
+                             !  3: Zilitinkevich (1970)
+    itype_eisa     = 3       ! type of evaporation from impervious surface area
+                             !  1: evaporation like bare soil
+                             !  2: no evaporation
+                             !  3: PDF-based puddle evaporation (Wouters et al. 2015)
     !
     lstomata       =.TRUE.   ! map of minimum stomata resistance
     l2tls          =.TRUE.   ! forecast with 2-TL integration scheme
@@ -322,6 +329,16 @@ CONTAINS
 
     IF ( czbot_w_so <= 0._wp) THEN
       CALL finish(TRIM(routine), 'thickness of hydrological active soil layer czbot_w_wo must be > 0.')
+    ENDIF
+
+    ! For TERRA_URB: Range of allowed values for itype_kbmo
+    IF ((itype_kbmo < 1) .OR. (itype_kbmo > 3)) THEN
+      CALL finish(TRIM(routine), 'Value of itype_kbmo must be 1, 2 or 3.')
+    ENDIF
+
+    ! For TERRA_URB: Range of allowed values for itype_eisa
+    IF ((itype_eisa < 1) .OR. (itype_eisa > 3)) THEN
+      CALL finish(TRIM(routine), 'Value of itype_eisa must be 1, 2 or 3.')
     ENDIF
 
     ! For simplicity, in order to avoid further case discriminations
@@ -390,6 +407,7 @@ CONTAINS
     config_cskinc             = cskinc
     config_tau_skin           = tau_skin
     config_lterra_urb         = lterra_urb
+    config_itype_kbmo         = itype_kbmo
     config_itype_eisa         = itype_eisa
     config_lstomata           = lstomata
     config_l2tls              = l2tls

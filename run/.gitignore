@@ -1,5 +1,6 @@
+*.log
 *.run
 *.status
 *_status
-/set-up.info
 /collect.set-up.info
+/set-up.info

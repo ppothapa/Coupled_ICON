@@ -158,16 +158,6 @@ MODULE mo_vertical_grid
       nlev   = p_patch(jg)%nlev
       nlevp1 = p_patch(jg)%nlevp1
 
-      ! total shift of model top with respect to global domain
-      IF (jg > 1) THEN
-        nflatlev(jg)     = nflatlev(1) - p_patch(jg)%nshift_total
-      ENDIF
-
-      IF (jg > 1 .AND. p_patch(jg)%nshift_total > 0 .AND. nflatlev(jg) <= 1) THEN
-        CALL finish (routine, &
-                     'flat_height too close to the top of the innermost nested domain')
-      ENDIF
-
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb, nlen, jk) ICON_OMP_DEFAULT_SCHEDULE

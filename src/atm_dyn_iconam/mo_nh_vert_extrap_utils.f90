@@ -294,7 +294,7 @@ CONTAINS  !.....................................................................
     IF (.NOT. upatmo_config(jg)%l_status(iUpatmoStat%configured)) THEN
       ! Upper-atmosphere info should be available
       CALL finish(routine, "Check calling sequence: upatmo_config is not configured.")
-    ELSEIF (jg == n_dom_start) THEN  
+    ELSEIF (jg < 1) THEN  
       ! This subroutine is only meant for 'jg>=1'
       WRITE (message_text, '(a,i0,a)') "Dom ", jg, " is not supported."
       CALL finish(routine, message_text)

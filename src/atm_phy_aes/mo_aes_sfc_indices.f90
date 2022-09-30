@@ -2,29 +2,42 @@
 !! @brief Contains surface type (tile) indices used by the 
 !! turbulent mixing parameterization.
 !!
-!! @remarks
-!! In the turbulent mixing parameterization some of the prognostic
-!! variables (currently u, v, T, q, TKE) are subject to turbulent tranfer
-!! between the Earth's surface and the lowest model level.
-!! Boundary condition of this transfer is formulated separately
-!! for different surface types. This module contains parameters
-!! specifying how many different types are considered in a particular
-!! simulation (variable "nsfc_type"), and their corresponding indices
-!! (e.g., iwtr for water, ilnd for land, etc.). In addition, the
-!! aggregated grid-box mean value is given the index "igbm".
+!! @brief Contains subroutines for initializing the AES physics package
 !!
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! First version by Hui Wan, MPI-M (2010-09-21)
+!! First version by Hui Wan, 2010-09-21
 !!
 !! @par Copyright and License
 !!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!! Copyright 2022 Max Planck Institute for Meteorology
+!! 
+!! Redistribution and use in source and binary forms, with or
+!! without modification, are permitted provided that the following
+!! conditions are met:
+!! 
+!! 1. Redistributions of source code must retain the above copyright
+!!    notice, this list of conditions and the following disclaimer.
+!! 
+!! 2. Redistributions in binary form must reproduce the above
+!!    copyright notice, this list of conditions and the following
+!!    disclaimer in the documentation and/or other materials
+!!    provided with the distribution.
+!! 
+!! 3. Neither the name of the copyright holder nor the names of its
+!!    contributors may be used to endorse or promote products
+!!    derived from this software without specific prior written
+!!    permission.
+!! 
+!! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+!! "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+!! LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+!! A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+!! HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+!! SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+!! LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+!! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+!! THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+!! (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+!! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 !!
 MODULE mo_aes_sfc_indices
 
@@ -55,7 +68,7 @@ CONTAINS
     CHARACTER(len=*),INTENT(IN) :: ctest_name
 
     SELECT CASE(TRIM(ctest_name))
-    CASE('APE','APE_aes','RCE','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','RCEhydro','CBL_flxconst','RCEMIP_analytical')
+    CASE('APE','APE_aes','RCE','RCE_glb','RCE_Tconst','RCE_Tprescr','aes_bubble','RCEhydro','CBL_flxconst','RCEMIP_analytical')
       ! Aqua-planet simulation, no land, no ice;
       ! No needed to distinguish the aggregated grid-box mean
       ! and the value on different types of surface

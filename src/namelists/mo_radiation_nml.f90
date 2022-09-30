@@ -255,7 +255,7 @@ CONTAINS
     lyr_perp       = .FALSE.
     yr_perp        = -99999
 
-    isolrad        = 0
+    isolrad        = 1
     albedo_type    = 1
     albedo_fixed   = 0.5_wp ! value of fixed albedo for albedo_type=3
     direct_albedo  = 4      ! Parameterization after Briegleb and Ramanathan (1992)

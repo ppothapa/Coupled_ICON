@@ -34,9 +34,8 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
     & TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,                         &
-    & TASK_COMPUTE_SRH,                                               &
+    & TASK_COMPUTE_SRH, TASK_COMPUTE_VIS,                             &
     & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
-    & TASK_COMPUTE_BVF2, TASK_COMPUTE_PARCELFREQ2,                    &
     & TASK_COMPUTE_LAPSERATE,                                         &
     & TASK_INTP_VER_ZLEV,                                             &
     & TASK_INTP_VER_ILEV,                                             &
@@ -83,6 +82,7 @@ MODULE mo_pp_tasks
     &                                   compute_field_sdi,                       &
     &                                   compute_field_lpi,                       &
     &                                   compute_field_ceiling,                   &
+    &                                   compute_field_visibility,                &
     &                                   compute_field_hbas_sc, compute_field_htop_sc, &
     &                                   compute_field_twater, compute_field_q_sedim,  &
     &                                   compute_field_dbz850,                    &
@@ -92,15 +92,12 @@ MODULE mo_pp_tasks
     &                                   compute_field_srh,                       &
     &                                   compute_field_wshear
   USE mo_diag_atmo_air_flow,      ONLY: compute_field_vor => hor_comps_of_rel_vorticity
-  USE mo_diag_atmo_air_parcel,    ONLY: compute_field_bvf2 => sqr_of_Brunt_Vaisala_freq, &
-    &                                   compute_field_parcelfreq2 => sqr_of_parcel_freq
   USE mo_io_config,               ONLY: itype_pres_msl, itype_rh, var_in_output, &
-    &                                   bvf2_mode, parcelfreq2_mode, n_wshear, &
-    &                                   wshear_uv_heights, n_srh, srh_heights
+    &                                   n_wshear, wshear_uv_heights, n_srh, srh_heights
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
-  USE mo_nonhydrostatic_config,   ONLY: kstart_moist
-  USE mo_run_config,              ONLY: timers_level, msg_level, debug_check_level
+  USE mo_run_config,              ONLY: timers_level, msg_level
+  USE mo_fortran_tools,           ONLY: copy
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
   USE openacc,                    ONLY: acc_is_present
@@ -260,7 +257,7 @@ CONTAINS
     TYPE (t_var_metadata),     POINTER :: p_info
     TYPE (t_lon_lat_intp),     POINTER :: ptr_int_lonlat
     REAL(wp), ALLOCATABLE, TARGET      :: tmp_var(:,:,:)
-    INTEGER,  ALLOCATABLE              :: tmp_int_var(:,:,:)
+    INTEGER,  ALLOCATABLE, TARGET      :: tmp_int_var(:,:,:)
     REAL(wp), POINTER                  :: tmp_ptr(:,:,:)
     INTEGER,  POINTER                  :: tmp_int_ptr(:,:,:)
     TYPE(t_patch),             POINTER :: p_patch
@@ -303,6 +300,7 @@ CONTAINS
     IF (zaxisTypeList%is_2d(p_info%vgrid) .AND. (p_info%ndims /= 2)) THEN
       CALL finish(routine, "Inconsistent dimension info!")
     END IF
+
     SELECT CASE (p_info%hgrid)
     CASE (GRID_UNSTRUCTURED_CELL)
       IF (ASSOCIATED(in_var%r_ptr) .OR. ASSOCIATED(in_var%s_ptr)) THEN
@@ -312,53 +310,65 @@ CONTAINS
         ! --------------------------------------
 
         IF (zaxisTypeList%is_2d(p_info%vgrid)) THEN
-          ! For 2D variables (nproma, nblks) we first copy this to 1-level
-          ! 3D variable (nproma, nlevs, nblks). This requires a temporary
-          ! variable:
-          dim1 = p_info%used_dimensions(1)
-          dim2 = p_info%used_dimensions(2)
-          ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
+          ! A 2D variable (nproma, nblks) is copied a to 1-level 3D variable 
+          ! (nproma, nlevs=1, nblks). This requires a temporary variable:
 
           var_ref_pos = 3
           IF (in_var%info%lcontained)  var_ref_pos = in_var%info%var_ref_pos
 
+          IF (var_ref_pos /= 2 .OR. ASSOCIATED(in_var%s_ptr)) THEN
+            dim1 = p_info%used_dimensions(1)
+            dim2 = p_info%used_dimensions(2)
+            ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
+            IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
+            !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+          ENDIF
+
           IF (ASSOCIATED(in_var%r_ptr)) THEN
+
             SELECT CASE(var_ref_pos)
             CASE (1)
-              tmp_var(:,1,:) = in_var%r_ptr(in_var_idx,:,:,1,1)
+              !$OMP PARALLEL
+              CALL copy(in_var%r_ptr(in_var_idx,:,:,1,1), tmp_var(:,1,:))
+              !$OMP END PARALLEL
+              tmp_ptr => tmp_var(:,:,:)
             CASE (2)
-              tmp_var(:,1,:) = in_var%r_ptr(:,in_var_idx,:,1,1)
+              ! no need to copy in this particular case (the second dim has already length 1)
+              tmp_ptr => in_var%r_ptr(:,in_var_idx:in_var_idx,:,1,1)
             CASE (3)
-              tmp_var(:,1,:) = in_var%r_ptr(:,:,in_var_idx,1,1)
+              !$OMP PARALLEL
+              CALL copy(in_var%r_ptr(:,:,in_var_idx,1,1), tmp_var(:,1,:))
+              !$OMP END PARALLEL
+              tmp_ptr => tmp_var(:,:,:)
             CASE default
               CALL finish(routine, "internal error!")
             END SELECT
+
           ELSE IF (ASSOCIATED(in_var%s_ptr)) THEN
+
+            ! A SP variable has to be copied to a temporary DP array.
+
             SELECT CASE(var_ref_pos)
             CASE (1)
-              tmp_var(:,1,:) = REAL(in_var%s_ptr(in_var_idx,:,:,1,1),wp)
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(in_var_idx,:,:,1,1), tmp_var(:,1,:))
+              !$OMP END PARALLEL
             CASE (2)
-              tmp_var(:,1,:) = REAL(in_var%s_ptr(:,in_var_idx,:,1,1),wp)
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(:,in_var_idx,:,1,1), tmp_var(:,1,:))
+              !$OMP END PARALLEL
             CASE (3)
-              tmp_var(:,1,:) = REAL(in_var%s_ptr(:,:,in_var_idx,1,1),wp)
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(:,:,in_var_idx,1,1), tmp_var(:,1,:))
+              !$OMP END PARALLEL
             CASE default
               CALL finish(routine, "internal error!")
             END SELECT
+            tmp_ptr => tmp_var(:,:,:)
           ELSE
             CALL finish(routine, "internal error!")
           ENDIF
 
-          ! for cell-based variables: interpolate gradients (finite
-          ! differences) and reconstruct
-          CALL ptr_int_lonlat%interpolate(          &
-            &   TRIM(p_info%name),                  &
-            &   tmp_var(:,:,:), nproma,             &
-            &   out_var%r_ptr(:,:,:,out_var_idx,1), &
-            &   hintp_type)
-
-          ! clean up:
-          DEALLOCATE(tmp_var, STAT=ierrstat)
-          IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation failed')
         ELSE
 
           var_ref_pos = 4
@@ -378,6 +388,7 @@ CONTAINS
               CALL finish(routine, "internal error!")
             END SELECT
           ELSE  IF (ASSOCIATED(in_var%s_ptr)) THEN
+            ! A SP variable has to be copied to a temporary DP array.
             SELECT CASE(var_ref_pos)
             CASE (1)
               dim1 = SIZE(in_var%s_ptr,2)
@@ -385,36 +396,40 @@ CONTAINS
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-!$OMP PARALLEL WORKSHARE
-              tmp_var(:,:,:) = REAL(in_var%s_ptr(in_var_idx,:,:,:,1), wp)
-!$OMP END PARALLEL WORKSHARE
+              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(in_var_idx,:,:,:,1), tmp_var)
+              !$OMP END PARALLEL
             CASE (2)
               dim1 = SIZE(in_var%s_ptr,1)
               dim2 = SIZE(in_var%s_ptr,3)
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-!$OMP PARALLEL WORKSHARE
-              tmp_var(:,:,:) = REAL(in_var%s_ptr(:,in_var_idx,:,:,1), wp)
-!$OMP END PARALLEL WORKSHARE
+              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(:,in_var_idx,:,:,1), tmp_var)
+              !$OMP END PARALLEL
             CASE (3)
               dim1 = SIZE(in_var%s_ptr,1)
               dim2 = SIZE(in_var%s_ptr,2)
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-!$OMP PARALLEL WORKSHARE
-              tmp_var(:,:,:) = REAL(in_var%s_ptr(:,:,in_var_idx,:,1), wp)
-!$OMP END PARALLEL WORKSHARE
+              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(:,:,in_var_idx,:,1), tmp_var)
+              !$OMP END PARALLEL
             CASE (4)
               dim1 = SIZE(in_var%s_ptr,1)
               dim2 = SIZE(in_var%s_ptr,2)
               dim3 = SIZE(in_var%s_ptr,3)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-!$OMP PARALLEL WORKSHARE
-              tmp_var(:,:,:) = REAL(in_var%s_ptr(:,:,:,in_var_idx,1), wp)
-!$OMP END PARALLEL WORKSHARE
+              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$OMP PARALLEL
+              CALL copy(in_var%s_ptr(:,:,:,in_var_idx,1), tmp_var)
+              !$OMP END PARALLEL
             CASE default
               CALL finish(routine, "internal error!")
             END SELECT
@@ -422,60 +437,49 @@ CONTAINS
           ELSE
             CALL finish(routine, "internal error!")
           ENDIF
-
-          ! for cell-based variables: interpolate gradients (finite
-          ! differences) and reconstruct
-          CALL ptr_int_lonlat%interpolate(          &
-            &   TRIM(p_info%name), tmp_ptr, nproma, &
-            &   out_var%r_ptr(:,:,:,out_var_idx,1), &
-            &   hintp_type)
-
-          ! clean up
-          IF (ALLOCATED(tmp_var)) THEN
-            DEALLOCATE(tmp_var, STAT=ierrstat)
-            IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')
-          ENDIF
         END IF ! 2D
 
-    ELSE IF (ASSOCIATED(in_var%i_ptr)) THEN
+        ! for cell-based variables: interpolate gradients (finite
+        ! differences) and reconstruct
+        CALL ptr_int_lonlat%interpolate(          &
+          &   TRIM(p_info%name), tmp_ptr, nproma, &
+          &   out_var%r_ptr(:,:,:,out_var_idx,1), &
+          &   hintp_type)
+
+      ELSE IF (ASSOCIATED(in_var%i_ptr)) THEN
 
         ! --------------
         ! INTEGER fields
         ! --------------
 
         IF (zaxisTypeList%is_2d(p_info%vgrid)) THEN
-          ! For 2D variables (nproma, nblks) we first copy this to 1-level
-          ! 3D variable (nproma, nlevs, nblks). This requires a temporary
-          ! variable:
-          dim1 = p_info%used_dimensions(1)
-          dim2 = p_info%used_dimensions(2)
-          ALLOCATE(tmp_int_var(dim1, 1, dim2), STAT=ierrstat)
-
+          ! A 2D variable (nproma, nblks) is copied a to 1-level 3D variable 
+          ! (nproma, nlevs=1, nblks). This requires a temporary variable:
           var_ref_pos = 3
           IF (in_var%info%lcontained)  var_ref_pos = in_var%info%var_ref_pos
+
+          IF (var_ref_pos /= 2) THEN
+            dim1 = p_info%used_dimensions(1)
+            dim2 = p_info%used_dimensions(2)
+            ALLOCATE(tmp_int_var(dim1, 1, dim2), STAT=ierrstat)
+            IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_int_var failed')
+            !$ACC ENTER DATA CREATE( tmp_int_var ) IF( i_am_accel_node )
+          ENDIF
+
           SELECT CASE(var_ref_pos)
           CASE (1)
-            tmp_int_var(:,1,:) = in_var%i_ptr(in_var_idx,:,:,1,1)
+            CALL copy(in_var%i_ptr(in_var_idx:in_var_idx,:,:,1,1), tmp_int_var)
+            tmp_int_ptr => tmp_int_var
           CASE (2)
-            tmp_int_var(:,1,:) = in_var%i_ptr(:,in_var_idx,:,1,1)
+            ! no need to copy in this particular case (the second dim has already length 1)
+            tmp_int_ptr => in_var%i_ptr(:,in_var_idx:in_var_idx,:,1,1)
           CASE (3)
-            tmp_int_var(:,1,:) = in_var%i_ptr(:,:,in_var_idx,1,1)
+            CALL copy(in_var%i_ptr(:,:,in_var_idx:in_var_idx,1,1), tmp_int_var)
+            tmp_int_ptr => tmp_int_var
           CASE default
             CALL finish(routine, "internal error!")
           END SELECT
 
-         
-          ! for cell-based variables: interpolate gradients (finite
-          ! differences) and reconstruct
-          CALL ptr_int_lonlat%interpolate(          &
-            &   TRIM(p_info%name),                  &
-            &   tmp_int_var(:,:,:), nproma,         &
-            &   out_var%i_ptr(:,:,:,out_var_idx,1), &
-            &   hintp_type)
-
-          ! clean up:
-          DEALLOCATE(tmp_int_var, STAT=ierrstat)
-          IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation failed')
         ELSE
 
           var_ref_pos = 4
@@ -493,13 +497,22 @@ CONTAINS
             CALL finish(routine, "internal error!")
           END SELECT
 
-          ! for cell-based variables: interpolate gradients (finite
-          ! differences) and reconstruct
-          CALL ptr_int_lonlat%interpolate(               &
-            &   TRIM(p_info%name), tmp_int_ptr, nproma,  &
-            &   out_var%i_ptr(:,:,:,out_var_idx,1),      &
-            &   hintp_type)
         END IF ! 2D
+
+        ! for cell-based variables: interpolate gradients (finite
+        ! differences) and reconstruct
+        CALL ptr_int_lonlat%interpolate(               &
+          &   TRIM(p_info%name), tmp_int_ptr, nproma,  &
+          &   out_var%i_ptr(:,:,:,out_var_idx,1),      &
+          &   hintp_type)
+
+        IF (ALLOCATED(tmp_int_var)) THEN
+          ! clean up:
+          !$ACC WAIT IF( i_am_accel_node )
+          !$ACC EXIT DATA DELETE( tmp_int_var ) IF( i_am_accel_node )
+          DEALLOCATE(tmp_int_var, STAT=ierrstat)
+          IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation failed')
+        END IF
 
       END IF
 
@@ -512,37 +525,37 @@ CONTAINS
       END IF
 
       IF (zaxisTypeList%is_2d(p_info%vgrid)) THEN
-        ! For 2D variables (nproma, nblks) we first copy this to 1-level
-        ! 3D variable (nproma, nlevs, nblks). This requires a temporary
-        ! variable:
-        dim1 = p_info%used_dimensions(1)
-        dim2 = p_info%used_dimensions(2)
-        ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
+        ! For 2D variables (nproma, nblks) we use a 1-level 3D pointer (nproma, nlevs=1, nblks).
 
         var_ref_pos = 3
         IF (in_var%info%lcontained)  var_ref_pos = in_var%info%var_ref_pos
+
+        IF (var_ref_pos /= 2) THEN
+          dim1 = p_info%used_dimensions(1)
+          dim2 = p_info%used_dimensions(2)
+          ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
+          IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
+          !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+        ENDIF
+
         SELECT CASE(var_ref_pos)
         CASE (1)
-          tmp_var(:,1,:) = in_var%r_ptr(in_var_idx,:,:,1,1)
+          !$OMP PARALLEL
+          CALL copy(in_var%r_ptr(in_var_idx,:,:,1,1), tmp_var(:,1,:))
+          !$OMP END PARALLEL
+          tmp_ptr => tmp_var(:,:,:)
         CASE (2)
-          tmp_var(:,1,:) = in_var%r_ptr(:,in_var_idx,:,1,1)
+          ! no need to copy in this particular case (the second dim has already length 1)
+          tmp_ptr => in_var%r_ptr(:,in_var_idx:in_var_idx,:,1,1)
         CASE (3)
-          tmp_var(:,1,:) = in_var%r_ptr(:,:,in_var_idx,1,1)
+          !$OMP PARALLEL
+          CALL copy(in_var%r_ptr(:,:,in_var_idx,1,1), tmp_var(:,1,:))
+          !$OMP END PARALLEL
+          tmp_ptr => tmp_var(:,:,:)
         CASE default
           CALL finish(routine, "internal error!")
         END SELECT
 
-         
-        ! for edge-based variables: simple interpolation
-        CALL ptr_int_lonlat%interpolate(              &
-          &   tmp_var(:,:,:), nproma,                 &
-          &   out_var%r_ptr(:,:,:,out_var_idx,1),     &
-          &   out_var_2%r_ptr(:,:,:,out_var_idx_2,1), &
-          &   HINTP_TYPE_LONLAT_RBF)
-
-        ! clean up:
-        DEALLOCATE(tmp_var, STAT=ierrstat)
-        IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation failed')
       ELSE
 
         var_ref_pos = 4
@@ -559,19 +572,27 @@ CONTAINS
         CASE default
           CALL finish(routine, "internal error!")
         END SELECT
-
-        ! for edge-based variables: simple interpolation
-        CALL ptr_int_lonlat%interpolate( tmp_ptr, nproma,                            &
-          &                              out_var%r_ptr(:,:,:,out_var_idx,1),         &
-          &                              out_var_2%r_ptr(:,:,:,out_var_idx_2,1),     &
-          &                              HINTP_TYPE_LONLAT_RBF )
       END IF ! 2D
+
+      ! for edge-based variables: simple interpolation
+      CALL ptr_int_lonlat%interpolate( tmp_ptr, nproma,                            &
+        &                              out_var%r_ptr(:,:,:,out_var_idx,1),         &
+        &                              out_var_2%r_ptr(:,:,:,out_var_idx_2,1),     &
+        &                              HINTP_TYPE_LONLAT_RBF )
 
     CASE DEFAULT
       CALL finish(routine, 'Unknown grid type.')
     END SELECT
 
-!$ACC WAIT
+    !$ACC WAIT IF( i_am_accel_node )
+
+    ! clean up
+    IF (ALLOCATED(tmp_var)) THEN
+      !$ACC WAIT IF( i_am_accel_node )
+      !$ACC EXIT DATA DELETE( tmp_var ) IF( i_am_accel_node )
+      DEALLOCATE(tmp_var, STAT=ierrstat)
+      IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')
+    ENDIF
 
   END SUBROUTINE pp_task_lonlat
 
@@ -1171,7 +1192,7 @@ CONTAINS
 
 #if defined(_OPENACC)
       IF (i_am_accel_node) &
-        CALL warning (routine, 'PRES_MSL_METHOD_SAI: OpenACC version is currently not tested!')
+        CALL finish (routine, 'PRES_MSL_METHOD_SAI: OpenACC version is currently not fully implemented!')
 #endif
       IF (dbg_level >= 10)  CALL message(routine, "PRES_MSL_METHOD_SAI: stepwise analytical integration")
       ! allocate coefficient table:
@@ -1270,10 +1291,9 @@ CONTAINS
   !  @todo Change order of processing: First, interpolate input fields
   !        onto z-levels, then compute rel_hum.
   !
-  SUBROUTINE pp_task_compute_field(ptr_task, opt_simulation_status)
+  SUBROUTINE pp_task_compute_field(ptr_task)
 
     TYPE(t_job_queue), POINTER :: ptr_task
-    TYPE(t_simulation_status), OPTIONAL, INTENT(IN) :: opt_simulation_status
     ! local variables
     INTEGER                            :: jg, out_var_idx
     TYPE (t_var), POINTER :: out_var
@@ -1289,7 +1309,6 @@ CONTAINS
     ! output field for this task
     out_var   => ptr_task%data_output%var
     p_info    => out_var%info    
-    out_var   => out_var
     out_var_idx = 1
     IF (out_var%info%lcontained)  out_var_idx = out_var%info%ncontained
 
@@ -1357,22 +1376,6 @@ CONTAINS
         &   opt_timer = timers_level > 4,                          &
         &   opt_verbose = msg_level > 14)
 
-    CASE (TASK_COMPUTE_BVF2)
-      CALL compute_field_bvf2(p_patch, ptr_task%data_input%p_nh_state%metrics, &
-        &   p_prog, p_prog_rcf, p_diag, out_var%r_ptr(:,:,:,out_var_idx,1),    &
-        &   bvf2_mode, opt_kstart_moist = kstart_moist(jg),                    &
-        &   opt_timer = timers_level > 4,                                      &
-        &   opt_verbose = msg_level > 14)
-
-    CASE (TASK_COMPUTE_PARCELFREQ2)
-      CALL compute_field_parcelfreq2(p_patch, p_int_state(jg),      &
-        &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag, &  
-        &   out_var%r_ptr(:,:,:,out_var_idx,1), parcelfreq2_mode,   &
-        &   opt_lastcall = opt_simulation_status%status_flags(3),   &
-        &   opt_timer = timers_level > 4,                           &
-        &   opt_verbose = msg_level > 14,                           &
-        &   opt_minute = debug_check_level > 0)
-
     CASE (TASK_COMPUTE_SDI2)
       IF ( jg >= n_dom_start+1 ) THEN
         ! p_patch_local_parent(jg) seems to exist
@@ -1396,6 +1399,10 @@ CONTAINS
     CASE (TASK_COMPUTE_CEILING)
       CALL compute_field_ceiling( p_patch, jg,                                       &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
+          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+
+    CASE (TASK_COMPUTE_VIS)
+      CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_HBAS_SC)

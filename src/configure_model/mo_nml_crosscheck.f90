@@ -33,6 +33,7 @@ MODULE mo_nml_crosscheck
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
     &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
+    &                                    ignore_nproma_use_nblocks_c,                      &
     &                                    num_io_procs, itype_comm,                         &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
   USE mo_limarea_config,           ONLY: latbc_config, LATBC_TYPE_CONST, LATBC_TYPE_EXT
@@ -58,14 +59,15 @@ MODULE mo_nml_crosscheck
   USE mo_radiation_config,         ONLY: irad_o3, irad_aero, irad_h2o, irad_co2, irad_ch4, &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, llw_cloud_scat, iliquid_scat,       &
-    &                                    iice_scat
+    &                                    iice_scat, isolrad
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
   USE mo_nh_testcases_nml,         ONLY: nh_test_name, layer_thickness
   USE mo_meteogram_config,         ONLY: meteogram_output_config, check_meteogram_configuration
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
-    &                                    nroot, is_plane_torus, n_dom_start, l_scm_mode
+    &                                    nroot, is_plane_torus, n_dom_start, l_scm_mode,   &
+    &                                    vct_filename
   USE mo_art_config,               ONLY: art_config, ctracer_art
   USE mo_time_management,          ONLY: compute_timestep_settings,                        &
     &                                    compute_restart_settings,                         &
@@ -75,7 +77,7 @@ MODULE mo_nml_crosscheck
     &                                    newDatetime, deallocateDatetime
   USE mo_gridref_config,           ONLY: grf_intmethod_e
   USE mo_interpol_config
-  USE mo_sleve_config
+  USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
@@ -139,6 +141,12 @@ CONTAINS
     !--------------------------------------------------------------------
     CALL check_parallel_configuration()
 
+    !
+    ! nblock_c does not work with nesting
+    ! It crashes and would be a waste of memory, if the nest were significant smaller than the parent.
+    !
+    IF (ignore_nproma_use_nblocks_c .AND. (n_dom > 1)) CALL finish(routine, &
+      'Currently nblocks_c (>0) is not supported for nested domains.')
 
     !--------------------------------------------------------------------
     ! Limited Area Mode and LatBC read-in:
@@ -199,11 +207,15 @@ CONTAINS
     !--------------------------------------------------------------------
 
     ! Vertical grid
-    IF (ivctype == 12 .AND. (.NOT. ldeepatmo)) THEN
-      CALL finish(routine, "ivctype = 12 requires ldeepatmo = .true.")
-    ELSEIF (ivctype == 12 .AND. .NOT. (layer_thickness < 0.0_wp)) THEN
-      CALL finish(routine, "ivctype = 12 requires layer_thickness < 0.")
+    IF (ivctype==1) THEN 
+      IF (TRIM(vct_filename) == "") THEN
+        IF (itype_laydistr /= 3 .AND. layer_thickness < 0) THEN
+          CALL finish(routine, &
+            & "ivctype=1 requires layer_thickness>0 or itype_laydistr=3 or vct_filename/=''")
+        ENDIF
+      ENDIF
     ENDIF
+
 
 
     !--------------------------------------------------------------------
@@ -341,6 +353,11 @@ CONTAINS
             CALL finish(routine,'irad_aero = 12, 13, 14, 15, 18 or 19 requires inwp_radiation=4')
           ENDIF
 
+          ! Transient solar radiation only works with ecRad
+          IF ( ANY( isolrad == (/2/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
+            CALL finish(routine,'isolrad = 2 requires inwp_radiation = 4')
+          ENDIF
+
           ! ecRad specific checks
           IF ( (atm_phy_nwp_config(jg)%inwp_radiation == 4) )  THEN
             IF (.NOT. ANY( irad_h2o     == (/0,1/)         ) ) &
@@ -367,6 +384,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, iliquid_scat has to be 0 or 1')
             IF (.NOT. ANY( iice_scat    == (/0,1/)         ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, iice_scat has to be 0 or 1')
+            IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
           ELSE
             IF ( llw_cloud_scat ) &
               &  CALL message(routine,'Warning: llw_cloud_scat is set to .true., but ecRad is not used')
@@ -972,8 +991,7 @@ CONTAINS
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
-      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport, &
-      &                 nsteps, msg_level                                                )
+      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
       &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &

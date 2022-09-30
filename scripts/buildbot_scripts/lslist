@@ -1,24 +1,29 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 #==============================================================================
 # create an experiment list
 #==============================================================================
-from sys import exit as quit
-from buildbot_builders import *
-from model_paths import *
-import argparse
+from buildbot_config import BuildbotConfig
+from icon_paths import buildbot_list_path
 
-parser = argparse.ArgumentParser(description='List experiments an experiment list.')
-parser.add_argument('name', type=str, help='the name of the list')
-args = parser.parse_args()
+from pathlib import Path
+import pickle
+import click
+import sys
 
-#print(args.name)
-name=args.name
-paths = model_paths()
-if not paths.thisListExists(name):
-  print("This list does not exist: {0}".format(name))
-  quit(1)
-  
-thisList  = buildbot_experiments_list(name)
-thisList.print_list()
+@click.command()
+@click.argument("name", type=str)
+def lslist(name):
 
+    full_list_name = buildbot_list_path / name
+
+    if Path(full_list_name).exists():
+      thisList = BuildbotConfig.from_pickle(full_list_name)
+    else:
+      print("did not find experiment list {}".format(full_list_name))
+      sys.exit(1)
+
+    print(thisList.to_string())
+
+if __name__ == "__main__":
+    lslist()

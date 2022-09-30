@@ -473,7 +473,6 @@ CONTAINS
            NULLIFY(p_cloud_ensemble%used_cell)          
         ENDIF
 
-
         CALL cumastrn &
 &         (kidia  = i_startidx            , kfdia  = i_endidx               ,& !> IN
 &          klon   = nproma ,     ktdia  = kstart_moist(jg)  , klev = nlev   ,& !! IN
@@ -492,6 +491,8 @@ CONTAINS
 &          zdph   = p_diag%dpres_mc     (:,:,jb)                            ,& !! IN
 &          zdgeoh = p_metrics%dgeopot_mc(:,:,jb)                            ,& !! IN
 &          pcloudnum = prm_diag%cloud_num(:,jb)                             ,& !! IN
+&          ptenta = p_diag%ddt_temp_dyn(:,:,jb)                             ,& !! IN
+&          ptenqa = p_diag%ddt_tracer_adv(:,:,jb,iqv)                       ,& !! IN
 &          ptent  = z_dtdt                                                  ,& !! INOUT
 &          ptenu  = prm_nwp_tend%ddt_u_pconv     (:,:,jb)                   ,& !! OUT
 &          ptenv  = prm_nwp_tend%ddt_v_pconv     (:,:,jb)                   ,& !! OUT

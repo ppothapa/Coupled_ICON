@@ -50,6 +50,7 @@ MODULE mo_ensemble_pert_nml
     &                               config_range_box_liq   => range_box_liq,   &
     &                               config_range_box_liq_asy => range_box_liq_asy, &
     &                               config_range_thicklayfac => range_thicklayfac, &
+    &                               config_range_fac_ccqc  => range_fac_ccqc,  &
     &                               config_range_tkhmin    => range_tkhmin,    &  
     &                               config_range_tkmmin    => range_tkmmin,    &
     &                               config_range_turlen    => range_turlen,    &
@@ -150,6 +151,9 @@ MODULE mo_ensemble_pert_nml
   REAL(wp) :: &                    !< Asymmetry factor for sub-grid scale liquid cloud distribution
     &  range_box_liq_asy           ! (in case of inwp_cldcover = 1)
 
+  REAL(wp) :: &                    !< Factor for CLC-QC relationship in cloud cover scheme
+    &  range_fac_ccqc              ! (in case of inwp_cldcover = 1)
+
   REAL(wp) :: &                    !< Minimum vertical diffusion for heat/moisture 
     &  range_tkhmin
 
@@ -221,7 +225,7 @@ MODULE mo_ensemble_pert_nml
     &                         timedep_pert, range_a_stab, range_c_diff, range_q_crit, range_box_liq_asy,   &
     &                         range_rdepths, range_turlen, range_rain_n0fac, range_a_hshr, range_qexc,     &
     &                         range_rprcon, range_thicklayfac, range_lhn_coef, range_lhn_artif_fac,        &
-    &                         range_fac_lhn_down, range_fac_lhn_up
+    &                         range_fac_lhn_down, range_fac_lhn_up, range_fac_ccqc
 
 
 CONTAINS
@@ -288,6 +292,7 @@ CONTAINS
     range_box_liq     = 0.01_wp      ! box width scale of liquid clouds
     range_box_liq_asy = 0.25_wp      ! Asymmetry factor for sub-grid scale liquid cloud distribution
     range_thicklayfac = 0.0025_wp    ! factor [1/m] for increasing the box with for layer thicknesses exceeding 150 m
+    range_fac_ccqc    = 4.0_wp       ! Factor for CLC-QC relationship in cloud cover scheme
     !
     ! turbulence scheme
     range_tkhmin     = 0.2_wp       ! minimum vertical diffusion (m**2/s) for heat/moisture
@@ -398,6 +403,7 @@ CONTAINS
     config_range_box_liq      = range_box_liq
     config_range_thicklayfac  = range_thicklayfac
     config_range_box_liq_asy  = range_box_liq_asy
+    config_range_fac_ccqc     = range_fac_ccqc
     config_range_tkhmin       = range_tkhmin
     config_range_tkmmin       = range_tkmmin
     config_range_tkred_sfc    = range_tkred_sfc

@@ -28,7 +28,7 @@ MODULE mo_aes_rad_config
   USE mo_impl_constants       ,ONLY: max_dom
 
   USE mo_run_config           ,ONLY: iqt, ico2, io3, ntracer, lart
-  USE mo_parallel_config      ,ONLY: nproma, ignore_nproma_use_nblocks_c
+  USE mo_parallel_config      ,ONLY: nproma
 
   IMPLICIT NONE
 
@@ -592,12 +592,6 @@ CONTAINS
        !
        CALL message   ('','')
        !
-
-       ! in case nblocks is used, rrtmgp_columns_chunk needs to be updated with the "new nproma"
-       IF ( ignore_nproma_use_nblocks_c ) THEN
-         rrtmgp_columns_chunk = nproma
-       ENDIF
-       
        IF (rrtmgp_columns_chunk > 0 ) THEN
          IF (rrtmgp_columns_chunk > nproma) THEN
             CALL warning(routine, 'Column chunk size: rrtmgp_columns_chunk cannot be bigger than nproma, adjusted')
@@ -605,7 +599,7 @@ CONTAINS
          END IF
          CALL print_value('Column chunk size: rrtmgp_columns_chunk =', rrtmgp_columns_chunk)
        ELSE
-         CALL finish(routine,'ERROR: Non-positive or > nproma rrtmgp_columns_chunk is not allowed')
+         CALL finish(routine,'ERROR: rrtmgp_columns_chunk <= 0 is not allowed')
        END IF
        !
        CALL message('','')

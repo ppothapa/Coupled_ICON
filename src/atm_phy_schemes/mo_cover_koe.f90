@@ -29,13 +29,13 @@
 #include "consistent_fma.inc"
 MODULE mo_cover_koe
 
-  USE mo_kind,               ONLY: wp, i4
+  USE mo_kind,               ONLY: wp, vp, i4
 
   USE mo_physical_constants, ONLY: rdv    , & !! r_d / r_v
                                    rv     , & !! Rv
                                    tmelt  , & !! melting temperature of ice/snow
                                    grav   , & !! gravitational acceleration
-                                   alvdcp     !! lh_v / cp_d
+                                   alv,cvd    !! lh_v, cv_d
 
   USE mo_convect_tables,     ONLY: c1es   , & !! constants for computing the sat. vapour
                                    c3les  , & !! pressure over water (l) and ice (i)
@@ -69,7 +69,8 @@ MODULE mo_cover_koe
 !  Cloud cover derived type with physics configuration options
    
   TYPE t_cover_koe_config
-    INTEGER(KIND=i4)        ::     icldscheme    ! cloud cover option 
+    INTEGER(KIND=i4)        ::     icldscheme    ! cloud cover option
+    LOGICAL                 ::     lsgs_cond     ! subgrid-scale condensation 
     INTEGER(KIND=i4)        ::     inwp_turb     ! turbulence scheme number
     INTEGER(KIND=i4)        ::     inwp_cpl_re   ! coupling reff (for qs altering qi)
     INTEGER(KIND=i4)        ::     inwp_reff     ! reff option (for qs altering qi)
@@ -101,7 +102,7 @@ CONTAINS
 
 SUBROUTINE cover_koe( &
   & kidia, kfdia, klon, kstart, klev, & ! in:    dimensions (turn off physics above kstart)
-  & cover_koe_config                , & ! in:    configure state
+  & cover_koe_config, linit, dtime  , & ! in:    configure state, init flag, calling frequency
   & tt                              , & ! in:    temperature (main levels)
   & pp                              , & ! in:    pressure (")
   & ps                              , & ! in:    surface pressure
@@ -111,12 +112,14 @@ SUBROUTINE cover_koe( &
   & rcld                            , & ! inout: standard deviation of saturation deficit
   & ldland                          , & ! in:    land/sea mask
   & ldcum, kcbot, kctop, ktype      , & ! in:    convection: on/off, bottom, top, type
+  & fac_ccqc                        , & ! in:    EPS perturbation factor for CLC-QC relationship
   & pmfude_rate                     , & ! in:    convection: updraft detrainment rate
   & plu                             , & ! in:    convection: updraft condensate
   & pcore                           , & ! in:    convection: updraft core fraction
   & rhoc_tend                       , & ! in:    convective rhoc tendency
-  & qv, qc, qi, qs, qtvar           , & ! inout: prognostic cloud variables
+  & qv, qc, qi, qs, qtvar, qc_sgs   , & ! inout: prognostic cloud variables
   & lacc                            , & ! in:    parameter to prevent openacc during init
+  & ttend_clcov                     , & ! out:   temperature tendency due to sgs condensation
   & cc_tot, qv_tot, qc_tot, qi_tot    ) ! out:   cloud output diagnostic
 
 !! Subroutine arguments:
@@ -129,15 +132,18 @@ INTEGER(KIND=i4), INTENT(IN) ::  &
   & kstart           , & ! vertical start index (turn off physics above)
   & klev                 ! vertical dimension
 
+LOGICAL,  INTENT(IN) :: linit !  init flag
+REAL(wp), INTENT(IN) :: dtime !  calling frequency
+
 TYPE(t_cover_koe_config), INTENT(IN) :: cover_koe_config ! configure state
 
-REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
+REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & pp               , & ! full pressure                                 (  Pa )
   & pgeo             , & ! geopotential (above ground)                   (m2/s2)
   & deltaz           , & ! layer thickness                               (m)
   & rho                  ! density                                       (kg/m3)
 
-REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
+REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & tt               , & ! temperature                                   (  K  )
   & qv               , & ! specific water vapor content                  (kg/kg)
   & qc               , & ! specific cloud water content                  (kg/kg)
@@ -145,23 +151,26 @@ REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
   & qs               , & ! specific snow        content                  (kg/kg)
   & qtvar                ! total water variance (qt'2)                   (kg2/kg2)
 
-REAL(KIND=wp), DIMENSION(klon), INTENT(IN) ::  &
+REAL(KIND=wp), DIMENSION(:), INTENT(IN) ::  &
   & ps               , & ! surface pressure
-  & t_g                  ! surface temperature
+  & t_g              , & ! surface temperature
+  & fac_ccqc             ! EPS perturbation factor for CLC-QC relationship
 
-REAL(KIND=wp), DIMENSION(klon,klev+1), INTENT(INOUT) ::  &
+REAL(KIND=wp), DIMENSION(:,:), INTENT(INOUT) ::  &
   & rcld                 ! standard deviation of saturation deficit
 
-LOGICAL, DIMENSION(klon), INTENT(IN) ::  &
+REAL(KIND=vp), DIMENSION(:,:), INTENT(INOUT) ::  qc_sgs  ! turbulent sub-grid scale QC (kg/kg)
+
+LOGICAL, DIMENSION(:), INTENT(IN) ::  &
   & ldland           , & ! true for land points
   & ldcum                ! true for convection points
 
-INTEGER(KIND=i4), DIMENSION(klon), INTENT(IN) ::  &
+INTEGER(KIND=i4), DIMENSION(:), INTENT(IN) ::  &
   & ktype            , & ! convection type
   & kcbot            , & ! convective cloud base level (klev: bottom level, -1: no conv)
   & kctop                ! convective cloud top level
 
-REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
+REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & pmfude_rate      , & ! convective updraft detrainment rate           (kg/(m3*s))
   & plu              , & ! updraft condensate                            (kg/kg)
   & pcore            , & ! updraft core fraction                         (0-1)
@@ -169,7 +178,10 @@ REAL(KIND=wp), DIMENSION(klon,klev), INTENT(IN) ::  &
 
 LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! parameter to prevent openacc during init
 
-REAL(KIND=wp), DIMENSION(klon,klev), INTENT(INOUT) ::   &
+REAL(KIND=vp), DIMENSION(:,:), INTENT(INOUT) ::   &
+  & ttend_clcov          ! temperature tendency due to sgs condensation
+
+REAL(KIND=wp), DIMENSION(:,:), INTENT(INOUT) ::   &
   & cc_tot           , & ! cloud cover diagnostic
   & qv_tot           , & ! specific water vapor content diagnostic       (kg/kg)
   & qc_tot           , & ! specific cloud water content diagnostic       (kg/kg)
@@ -214,7 +226,8 @@ REAL(KIND=wp), PARAMETER  :: &
   & tm10     = tmelt - 10.0_wp, &
   & tm40     = tmelt - 40.0_wp
 
-  REAL(kind=wp), PARAMETER :: grav_i = 1._wp/grav
+  REAL(KIND=wp), PARAMETER :: grav_i = 1._wp/grav
+  REAL(KIND=wp), PARAMETER :: lvocv = alv/cvd
 
 !-----------------------------------------------------------------------
 
@@ -345,7 +358,7 @@ CASE( 1 )
      !
       thicklay_fac = MIN(tfmax,MAX(0._wp,tune_thicklayfac*(deltaz(jl,jk)-150._wp))) ! correction for thick model layers
       zdeltaq = MIN(tune_box_liq*(1._wp+0.5_wp*thicklay_fac), zagl_lim(jl,jk)) * zqlsat(jl,jk)
-      zrcld = 0.5_wp*(rcld(jl,jk)+rcld(jl,jk+1))
+      zrcld = MIN(0.1_wp*zqlsat(jl,jk), 0.5_wp*(rcld(jl,jk)+rcld(jl,jk+1)))
       IF (icpl_turb_clc == 1) THEN
         deltaq = MAX(dq1*zdeltaq,(4._wp*dq2+thicklay_fac)*zrcld)
       ELSE
@@ -367,12 +380,20 @@ CASE( 1 )
         zaux = qv(jl,jk) + qc(jl,jk) + box_liq_asy*deltaq - zqlsat(jl,jk)
         cc_turb_liq(jl,jk) = MIN(1._wp,SIGN((zaux/(par1*deltaq))**2,zaux)) !limit cloud cover to 1 is needed for allow_overcast<1
         ! compensating reduction of cloud water content if the thick-layer correction is active
-        fac_aux = 1._wp + (alvdcp*zdqlsat_dT(jl,jk)+thicklay_fac)*MIN(1._wp,2._wp*(1._wp-cc_turb_liq(jl,jk)))
+        fac_aux = 1._wp + fac_ccqc(jl)*(lvocv*zdqlsat_dT(jl,jk)+thicklay_fac)*MIN(1._wp,2.5_wp*(1._wp-cc_turb_liq(jl,jk)))
         IF ( cc_turb_liq(jl,jk) > 0.0_wp ) THEN
           qc_turb  (jl,jk) = deltaq*cc_turb_liq(jl,jk)**2/fac_aux
         ELSE
           qc_turb  (jl,jk) = 0.0_wp
         ENDIF
+      ENDIF
+
+      IF (linit .OR. .NOT. cover_koe_config%lsgs_cond) THEN
+        qc_sgs(jl,jk)      = MAX(0._wp, qc_turb(jl,jk)-qc(jl,jk))
+        ttend_clcov(jl,jk) = 0._wp
+      ELSE
+        ttend_clcov(jl,jk) = lvocv/dtime * (MAX(0._wp, qc_turb(jl,jk)-qc(jl,jk)) - qc_sgs(jl,jk))
+        qc_sgs(jl,jk)      = MAX(0._wp, qc_turb(jl,jk)-qc(jl,jk))
       ENDIF
 
 !  ice cloud

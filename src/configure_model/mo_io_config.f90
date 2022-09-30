@@ -102,9 +102,6 @@ MODULE mo_io_config
 
   TYPE(t_echotop_meta) :: echotop_meta(max_dom)
 
-  INTEGER :: bvf2_mode                  !< computation mode for square of Brunt-Vaisala frequency
-  INTEGER :: parcelfreq2_mode           !< computation mode for square of general air parcel oscillation frequency
-
   REAL(wp):: wshear_uv_heights(max_wshear) !< heights AGL for which wind shear components WSHEAR_U, WSHEAR_V are desired
   INTEGER :: n_wshear                   !< actual number of wshear heights given in namelist
   
@@ -128,6 +125,7 @@ MODULE mo_io_config
     LOGICAL :: lfd_con_max  = .FALSE. !< Flag. TRUE if computation of maximum lighting flash density  desired
     LOGICAL :: koi          = .FALSE. !< Flag. TRUE if computation of convection index
     LOGICAL :: ceiling      = .FALSE. !< Flag. TRUE if computation of ceiling height desired
+    LOGICAL :: vis          = .FALSE. !< Flag. TRUE if computation of visibility desired
     LOGICAL :: hbas_sc      = .FALSE. !< Flag. TRUE if computation of height of base from shallow convection desired
     LOGICAL :: htop_sc      = .FALSE. !< Flag. TRUE if computation of height of top  from shallow convection desired
     LOGICAL :: twater       = .FALSE. !< Flag. TRUE if computation of total column integrated water desired
@@ -148,8 +146,6 @@ MODULE mo_io_config
     LOGICAL :: w_ctmax      = .FALSE. !< Flag. TRUE if computation of maximum updraft track desired
     LOGICAL :: vor_u        = .FALSE. !< Flag. TRUE if computation of zonal component of relative vorticity desired
     LOGICAL :: vor_v        = .FALSE. !< Flag. TRUE if computation of meridional component of relative vorticity desired
-    LOGICAL :: bvf2         = .FALSE. !< Flag. TRUE if computation of square of Brunt-Vaisala frequency desired
-    LOGICAL :: parcelfreq2  = .FALSE. !< Flag. TRUE if computation of square of general parcel oscillation frequency desired
     LOGICAL :: dursun       = .FALSE. !< Flag. TRUE if computation of sunshine duration is required
     LOGICAL :: dursun_m     = .FALSE. !< Flag. TRUE if computation of maximum sunshine duration is required
     LOGICAL :: dursun_r     = .FALSE. !< Flag. TRUE if computation of relative sunshine duration is required
@@ -161,6 +157,15 @@ MODULE mo_io_config
     LOGICAL :: srh          = .FALSE. !< Flag. TRUE if computation of storm relative helicity (SRH) is desired
     LOGICAL :: cape_mu      = .FALSE. !< Flag. TRUE if computation of most unstable CAPE is desired
     LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition is desired
+    ! add vars for global mean claclulations
+    LOGICAL :: tas_gmean    = .FALSE. !< Flag. TRUE if computation of global mean T2m 
+    LOGICAL :: rsdt_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa downward short wave rad
+    LOGICAL :: rsut_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa upward short wave rad
+    LOGICAL :: rlut_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa upward long wave rad
+    LOGICAL :: prec_gmean   = .FALSE. !< Flag. TRUE if computation of global mean precipitation
+    LOGICAL :: evap_gmean   = .FALSE. !< Flag. TRUE if computation of global mean evapotranspiration
+    LOGICAL :: pme_gmean    = .FALSE. !< Flag. TRUE if computation of global mean P-E
+    LOGICAL :: radtop_gmean = .FALSE. !< Flag. TRUE if computation of global mean net radiation
     !
     ! diagnostics for the horizontal wind tendencies in the dynamical core
     LOGICAL :: ddt_vn_dyn  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_dyn is required
@@ -230,6 +235,9 @@ MODULE mo_io_config
   ! may then be read in parallel.
   INTEGER :: nrestart_streams
 
+  ! Allows checkpointing (followed by stopping) during runtime triggered by a file named 'stop_icon' in the workdir
+  LOGICAL :: checkpoint_on_demand
+
   ! constants to communicate which restart writing MODULE to USE
   ENUM, BIND(C)
     ENUMERATOR :: kSyncRestartModule = 1, kAsyncRestartModule, kMultifileRestartModule
@@ -269,8 +277,6 @@ CONTAINS
         &                          is_variable_in_output(var_name="wap_m")
       var_in_output(jg)%vor_u    = is_variable_in_output_dom(var_name="vor_u", jg=jg)
       var_in_output(jg)%vor_v    = is_variable_in_output_dom(var_name="vor_v", jg=jg)
-      var_in_output(jg)%bvf2     = is_variable_in_output_dom(var_name="bvf2", jg=jg)
-      var_in_output(jg)%parcelfreq2  = is_variable_in_output_dom(var_name="parcelfreq2", jg=jg)
       var_in_output(jg)%res_soilwatb = is_variable_in_output_dom(var_name="resid_wso", jg=jg)
     END DO
 
@@ -290,6 +296,7 @@ CONTAINS
         var_in_output(jg)%lfd_con_max = is_variable_in_output_dom(var_name="lfd_con_max", jg=jg)
         var_in_output(jg)%koi         = is_variable_in_output_dom(var_name="koi", jg=jg)
         var_in_output(jg)%ceiling     = is_variable_in_output_dom(var_name="ceiling", jg=jg)
+        var_in_output(jg)%vis         = is_variable_in_output_dom(var_name="vis", jg=jg)
         var_in_output(jg)%hbas_sc     = is_variable_in_output_dom(var_name="hbas_sc", jg=jg)
         var_in_output(jg)%htop_sc     = is_variable_in_output_dom(var_name="htop_sc", jg=jg)
         var_in_output(jg)%twater      = is_variable_in_output_dom(var_name="twater", jg=jg)
@@ -318,6 +325,15 @@ CONTAINS
         var_in_output(jg)%srh         = is_variable_in_output_dom(var_name="srh", jg=jg)
         var_in_output(jg)%cape_mu     = is_variable_in_output_dom(var_name="cape_mu", jg=jg)
         var_in_output(jg)%cin_mu      = is_variable_in_output_dom(var_name="cin_mu", jg=jg)
+        ! add vars for global mean claclulations
+        var_in_output(jg)%tas_gmean   = is_variable_in_output_dom(var_name="tas_gmean", jg=jg)
+        var_in_output(jg)%rsdt_gmean  = is_variable_in_output_dom(var_name="rsdt_gmean", jg=jg)
+        var_in_output(jg)%rsut_gmean  = is_variable_in_output_dom(var_name="rsut_gmean", jg=jg)
+        var_in_output(jg)%rlut_gmean  = is_variable_in_output_dom(var_name="rlut_gmean", jg=jg)
+        var_in_output(jg)%prec_gmean  = is_variable_in_output_dom(var_name="prec_gmean", jg=jg)
+        var_in_output(jg)%evap_gmean  = is_variable_in_output_dom(var_name="evap_gmean", jg=jg)
+        var_in_output(jg)%pme_gmean   = is_variable_in_output_dom(var_name="pme_gmean", jg=jg)
+        var_in_output(jg)%radtop_gmean= is_variable_in_output_dom(var_name="radtop_gmean", jg=jg)
 
         ! Check for special case: SMI is not in one of the output lists but it is part of a output group.
         ! In this case, the group can not be checked, as the connection between SMI and the group will be

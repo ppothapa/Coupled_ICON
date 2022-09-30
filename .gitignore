@@ -22,6 +22,7 @@
 /depgen.f90.config
 /deplist.config
 /icon.mk
+/inlib.mk
 
 # Build stage files:
 *.a
@@ -44,23 +45,47 @@
 *.dSYM
 .DS_Store
 
-# Other files:
-*#
+# VIM files:
+.*.swp
+Session.vim
+tags
+
+# GNU Global files:
+GPATH
+GRTAGS
+GTAGS
+
+# Core dump files:
+/core
+/core.[0-9]
+/core.[0-9][0-9]
+/core.[0-9][0-9][0-9]
+/core.[0-9][0-9][0-9][0-9]
+/core.[0-9][0-9][0-9][0-9][0-9]
+/core.[0-9][0-9][0-9][0-9][0-9][0-9]
+/core.[0-9][0-9][0-9][0-9][0-9][0-9][0-9]
+
+# Byte-compiled and optimized python files:
+*.pyc
+*.pyo
+__pychache__
+
+# IDE files:
 *.settings
-*~
 .cproject
 .history
+.idea
 .project
+
+# Common user-generated files:
+/build
+
+# Other files (possibly redundant legacy of the old .gitignore):
+*#
+*~
 .status.file
 /Rakefile
 /tempList
 cdo_diffn*.out
 experiments*
 src/lnd_phy_jsbach
-tags
-
-# cache files from ctags, gnu global and vim
-/GPATH
-/GRTAGS
-/GTAGS
-/Session.vim

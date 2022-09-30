@@ -755,7 +755,7 @@ CONTAINS
       IF (itype_gscp_fwo >= 200) THEN
         CALL init_2mom_types ()
       ELSE
-        CALL init_1mom_types (itype_gscp_fwo)
+        CALL init_1mom_types (itype_gscp_fwo, rho_w_model)
       END IF
       IF (ldebug_radsim .AND. my_radar_id == 0) THEN
         WRITE (*,'(a)') 'INFO EMVORADO '//TRIM(yzroutine)//':'
@@ -1001,17 +1001,18 @@ CONTAINS
 ! - but: a/b_vel in mass (x) space
 ! - unknown/irrelevant parameters set to fill value
 
-  SUBROUTINE init_1mom_types(itype_gscp_fwo)
+  SUBROUTINE init_1mom_types(itype_gscp_fwo, rho_w)
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: itype_gscp_fwo
-    DOUBLE PRECISION    :: rain_n0_factor
+    INTEGER, INTENT(in)        :: itype_gscp_fwo
+    REAL(kind=wp), INTENT(in)  :: rho_w
+    REAL(kind=dp)              :: rain_n0_factor
 
     cloud%name  = 'cloud1mom'            !.name...Bezeichnung der Partikelklasse
     cloud%mu    = 3.0000d0               !.mu.....Breiteparameter der Verteil.
     cloud%nu    = 3.0000d0               !.nu.....Exp.-parameter der Verteil.
-    cloud%n0_const = 1.0d0                !.n0.....Scaling parameter of distribution (only set if constant)
-    cloud%a_geo = rho_w_model*pi6       !.a_geo..Koeff. Geometrie
+    cloud%n0_const = 1.0d0               !.n0.....Scaling parameter of distribution (only set if constant)
+    cloud%a_geo = dble(rho_w)*pi6        !.a_geo..Koeff. Geometrie
     cloud%b_geo = 3.0000d0               !.b_geo..Koeff. Geometrie
     ! here: x_min == x_max == x(D_c=20um)
     ! medial mass of cloud droplets; monodisperse distribution
@@ -1049,7 +1050,7 @@ CONTAINS
     rain%nu    = 1.0000d0               !.nu.....Exp.-parameter der Verteil.
     rain%x_max = miss_value             !.x_max..maximale Teilchenmasse
     rain%x_min = miss_value             !.x_min..minimale Teilchenmasse
-    rain%a_geo = rho_w_model*pi6        !.a_geo..Koeff. Geometrie
+    rain%a_geo = dble(rho_w)*pi6        !.a_geo..Koeff. Geometrie
     rain%b_geo = 3.0000d0               !.b_geo..Koeff. Geometrie
     ! Parameters for terminal velocity: vt = a_velD * D^b_velD = a_velx * x^b_velx
     ! first, set them as D-space parameters (as were given in vthydroparams_1mom)

@@ -105,25 +105,24 @@ cat > ${atmo_namelist} << EOF
  profiling_output = 1           ! aggregated: 1; detailed: 2; in files: 3
 /
 &nh_testcase_nml
- nh_test_name     = 'RCE_bubble'
+ nh_test_name     = 'aes_bubble'
  ape_sst_case     = 'sst_const'
  ape_sst_val      = 30.
  zenithang        = 42.05       ! degrees
  sol_const        = 551.58
 /
-&torus_bubble_exp_nml
-bubble_config%psfc        =101325.
-bubble_config%t0          =303.15
-bubble_config%gamma0      =0.009
-bubble_config%gamma1      =0.00001
-bubble_config%z0          =3000.
-bubble_config%t_perturb   =10.
-bubble_config%relhum_bg   =0.7
-bubble_config%relhum_mx   =0.95
-bubble_config%hw_frac_x   =0.125
-bubble_config%hw_z        =500.
-bubble_config%x_center    =0.
-bubble_config%torus_domain_length = $(echo "$edge_length $num_columns" |awk '{printf("%.1f", $1 * $2)}')
+&aes_bubble_nml
+ aes_bubble_config%psfc        =101325.
+ aes_bubble_config%t0          =303.15
+ aes_bubble_config%gamma0      =0.009
+ aes_bubble_config%gamma1      =0.00001
+ aes_bubble_config%z0          =3000.
+ aes_bubble_config%t_perturb   =10.
+ aes_bubble_config%relhum_bg   =0.7
+ aes_bubble_config%relhum_mx   =0.95
+ aes_bubble_config%hw_x        =12500.
+ aes_bubble_config%hw_z        =500.
+ aes_bubble_config%x_center    =0.
 /
 &nonhydrostatic_nml
  ndyn_substeps    = 5           ! dtime/dt_dyn

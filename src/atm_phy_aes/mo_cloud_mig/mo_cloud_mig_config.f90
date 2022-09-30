@@ -55,10 +55,6 @@ CONTAINS
     ! Graupel microphyiscs configuration
     ! --------------------------------------
     !
-    ! general thresholds
-    cloud_mig_config(:)% qi0            = 0.0_wp
-    cloud_mig_config(:)% qc0            = 0.0_wp
-    !
     ! grid scale microphysics
     cloud_mig_config(:)% zceff_min      = 0.01_wp
     cloud_mig_config(:)% v0snow         = 25.0_wp
@@ -105,9 +101,6 @@ CONTAINS
        !
        CALL message    ('','For domain '//cg)
        CALL message    ('','------------')
-       CALL message    ('','')
-       CALL print_value('    cloud_mig_config('//TRIM(cg)//')% qi0            ',cloud_mig_config(jg)% qi0            )
-       CALL print_value('    cloud_mig_config('//TRIM(cg)//')% qc0            ',cloud_mig_config(jg)% qc0            )
        CALL message    ('','')
        CALL print_value('    cloud_mig_config('//TRIM(cg)//')% zceff_min      ',cloud_mig_config(jg)% zceff_min      )
        CALL print_value('    cloud_mig_config('//TRIM(cg)//')% v0snow         ',cloud_mig_config(jg)% v0snow         )

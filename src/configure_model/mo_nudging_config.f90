@@ -185,15 +185,6 @@ MODULE mo_nudging_config
     integer :: high
   END TYPE t_thr
 
-  ! Auxiliary type for nudging analysis
-  TYPE t_diag_kit
-    INTEGER           :: fileunit
-    CHARACTER(LEN=50) :: filename
-    LOGICAL           :: lfileopened = .FALSE.
-    LOGICAL           :: lfileclosed = .FALSE.
-    INTEGER           :: ncount
-  END TYPE t_diag_kit
-
   ! MAIN CONFIGURATION TYPE:..........................................................................................
   !
   TYPE t_nudging_config
@@ -231,7 +222,6 @@ MODULE mo_nudging_config
                                                      ! - 'all'      -> all variables (i.e., 'vn' & 'thermdyn' & 'qv')
                                                      ! - string with a comma-separated list of variables, e.g., 'vn,thermdyn'
     REAL(wp) :: max_nudge_coeff_qv                   ! Max. nudging coefficient for water vapour (for global nudging only)
-    INTEGER  :: idiagnose                            ! Multiple of 'run_nml: dtime' for analysis of nudging success
 
     ! Derived parameters
     LOGICAL  :: lnudging = .FALSE.                   ! Overall switch for nudging
@@ -239,7 +229,6 @@ MODULE mo_nudging_config
     INTEGER  :: ilev_start                           ! Index of grid layer corresponding to 'nudge_end_height'
     INTEGER  :: ilev_end                             ! Index of grid layer corresponding to 'nudge_start_height'
     LOGICAL  :: lvar(indg_var%nitem)                 ! .TRUE. -> variable is subject to nudging
-    LOGICAL  :: ldiagnose                            ! .TRUE. -> analyze the nudging success/impact during runtime
     
     ! Auxiliary variables
     TYPE(t_thr)      :: msg_thr                      ! Message thresholds for print
@@ -247,11 +236,7 @@ MODULE mo_nudging_config
     LOGICAL          :: ltimer = .FALSE.             ! .TRUE.  -> global nudging timer is switched on
     LOGICAL          :: lmessage = .FALSE.           ! .TRUE.  -> message output during integration is switched on
     LOGICAL          :: llatbc_type_const = .FALSE.  ! .TRUE.  -> constant-in-time lateral boundary condition data
-    LOGICAL          :: lasync = .FALSE.             ! .TRUE.  -> asynchronous read-in of time-dependent driving data
-                                                     ! .FALSE. -> synchronous read-in of time-dependent driving data
     LOGICAL          :: lqv_nudgable = .TRUE.        ! .TRUE.  -> model setup allows nudging of water vapour
-    REAL(wp)         :: dpsdt                        ! mean absolute surface pressure tendency
-    TYPE(t_diag_kit) :: diag_kit                     ! Auxiliary type for nudging analysis
 
     ! Parameters for type status
     LOGICAL  :: lchecked    = .FALSE.                ! .TRUE. -> crosschecks of namelist took place
@@ -284,9 +269,7 @@ CONTAINS !......................................................................
   !! - Upper boundary nudging
   !! - Global nudging
   !!
-  SUBROUTINE configure_nudging( nlev, nshift_total, n_dom, &
-    &                           msg_level,   &
-    &                           timers_level )
+  SUBROUTINE configure_nudging( nlev, nshift_total, n_dom, msg_level, timers_level )
 
     ! In/out variables
     INTEGER, INTENT(IN) :: nlev            ! Number of grid layers of primary domain
@@ -338,10 +321,6 @@ CONTAINS !......................................................................
       nudging_config(jg)%ilev_start        = -1
       nudging_config(jg)%ilev_end          = -1
       nudging_config(jg)%lvar(:)           = .FALSE.
-      nudging_config(jg)%ldiagnose         = .FALSE.
-      nudging_config(jg)%dpsdt             = -999._wp
-      nudging_config(jg)%diag_kit%fileunit = -1000
-      nudging_config(jg)%diag_kit%ncount   = 0
     ENDDO
 
     lremove_qv = .FALSE.
@@ -468,22 +447,6 @@ CONTAINS !......................................................................
           nudging_config(jg)%ltimer = timers_level > nudging_config(jg)%tmr_thr%med
           ! Message output during the integration stepping?
           nudging_config(jg)%lmessage = msg_level >= nudging_config(jg)%msg_thr%high
-          ! Runtime analysis of nudging requested?
-          IF (nudging_config(jg)%idiagnose > 0) THEN
-            nudging_config(jg)%ldiagnose = .TRUE.
-            ! Set name for ASCII file, to which diagnostics are written
-            nudging_config(jg)%diag_kit%filename = "nudging_diagnostics.txt"
-            ! Please note: if 'io_nml: inextra_2d = 3', 
-            ! 'src/atm_dyn_iconam/mo_nudging: diagnose_nudging' 
-            ! will store three extra 2d-fields with the names: 
-            ! * 'extra_2d1' -> mean sea-level pressure from ICON
-            ! * 'extra_2d2' -> mean sea-level pressure from driving model
-            ! * 'extra_2d3' -> 'extra_2d1' - 'extra_2d2'
-            ! However, this function is meant as some kind of debugging tool, 
-            ! so we neither mention it in "Namelist_overview.pdf
-            ! nor do we check here for the consistency between 'inextra_2d' 
-            ! and the entries in 'output_nml: ml_varlist'!
-          ENDIF
         ENDIF  !IF (nudging_config(jg)%nudge_type == indg_type%globn)
 
         !---------------------------------------------------
@@ -586,27 +549,6 @@ CONTAINS !......................................................................
               WRITE(message_text,'(a)') '... since the current model setup does not allow to nudge it.'
               CALL message(TRIM(routine), message_text)
             ENDIF  !IF (lremove_qv)
-            ! If analysis of nudging success/impact is switched on
-            IF (nudging_config(jg)%ldiagnose) THEN
-              WRITE(message_text,'(a)') 'Analysis of nudging success and impact is switched on.'
-              CALL message(TRIM(routine), message_text)
-              WRITE(message_text,'(a)') 'A time series of the diagnostics of the nudging analysis ...' 
-              CALL message(TRIM(routine), message_text)
-              WRITE(message_text,'(a)') '... should be written to the ASCII file: ' &
-                & //TRIM(nudging_config(jg)%diag_kit%filename)
-              CALL message(TRIM(routine), message_text)
-              WRITE(message_text,'(a)') 'The diagnostics are:' 
-              CALL message(TRIM(routine), message_text)
-              WRITE(message_text,'(a)') '- correlation of the mean sea-level pressure between ICON and driving data'
-              CALL message(' ', message_text, adjust_right=.TRUE.)
-              WRITE(message_text,'(a)') '- global mean of the absolute horizontal wind divergence'
-              CALL message(' ', message_text, adjust_right=.TRUE.)
-              WRITE(message_text,'(a)') '- global mean of the absolute surface pressure tendency'
-              CALL message(' ', message_text, adjust_right=.TRUE.)
-              WRITE(message_text,'(a)') 'The nudging analysis takes place every ' &
-                & //TRIM(int2string(nudging_config(jg)%idiagnose))//' run_nml/dtime.'
-              CALL message(TRIM(routine), message_text)
-            ENDIF
 
           ENDIF  !IF (nudging_config(jg)%nudge_type == indg_type%...)
 

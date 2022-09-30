@@ -1,0 +1,7 @@
+#!/bin/bash
+
+cd $(dirname "${BASH_SOURCE[0]}")
+
+listname=bb-test
+
+./tests/test_python_env.py

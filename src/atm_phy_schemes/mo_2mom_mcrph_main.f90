@@ -192,12 +192,12 @@ MODULE mo_2mom_mcrph_main
        &        4.19d-09, & !..x_min......minimum particle mean mass
        &        1.42d-01, & !..a_geo......particle geometry prefactor
        &        0.314000, & !..b_geo......particle geometry exponent = 1/3.10
-       &        86.89371, & !..a_vel......terminal fall velocity prefactor
-       &        0.268325, & !..b_vel......terminal fall velocity exponent
+       &        100.0,    & !..a_vel......terminal fall velocity prefactor
+       &        0.34,     & !..b_vel......terminal fall velocity exponent
        &        0.780000, & !..a_ven......1st ventilation coefficient (PK, S.541)
        &        0.308000, & !..b_ven......2nd ventilation coefficient (PK, S.541)
        &        2.00,     & !..cap........capacity coefficient
-       &        30.0,     & !..vsedi_max..maximum bulk sedimentation velocity
+       &        80.0,     & !..vsedi_max..maximum bulk sedimentation velocity
        &        0.10,     & !..vsedi_min..minimum bulk sedimentation velocity
        &        null(),   & !..n pointer..pointer to number density array
        &        null(),   & !..q pointer..pointer to mass density array
@@ -216,12 +216,12 @@ MODULE mo_2mom_mcrph_main
        &        4.19d-09, & !..x_min..minimale Teilchenmasse
        &        1.42d-01, & !..a_geo..Koeff. Geometrie
        &        0.314000, & !..b_geo..Koeff. Geometrie = 1/3.10
-       &        86.89371, & !..a_vel..Koeff. Fallgesetz
-       &        0.268325, & !..b_vel..Koeff. Fallgesetz
+       &        100.0,    & !..a_vel..Koeff. Fallgesetz
+       &        0.34,     & !..b_vel..Koeff. Fallgesetz
        &        0.780000, & !..a_ven..Koeff. Ventilation (PK, S.541)
        &        0.308000, & !..b_ven..Koeff. Ventilation (PK, S.541)
        &        2.00,     & !..cap....Koeff. Kapazitaet
-       &        30.0,     & !..vsedi_max
+       &        80.0,     & !..vsedi_max
        &        0.10,     & !..vsedi_min
        &        null(),   & !..n pointer
        &        null(),   & !..q pointer
@@ -343,7 +343,7 @@ MODULE mo_2mom_mcrph_main
        &        0.215790, & !..b_vel..Koeff. Fallgesetz = 0.41/1.9
        &        0.780000, & !..a_ven..Koeff. Ventilation (PK, S.541)
        &        0.308000, & !..b_ven..Koeff. Ventilation (PK, S.541)
-       &        2.0,      & !..cap....Koeff. Kapazitaet
+       &        3.0,      & !..cap....Koeff. Kapazitaet
        &        3.0,      & !..vsedi_max
        &        0.0,      & !..vsedi_min
        &        null(),   & !..n pointer
@@ -368,7 +368,7 @@ MODULE mo_2mom_mcrph_main
        &        0.150000, & !..b_vel..Koeff. Fallgesetz
        &        0.780000, & !..a_ven..Koeff. Ventilation (PK, S.541)
        &        0.308000, & !..b_ven..Koeff. Ventilation (PK, S.541)
-       &        2.00,     & !..cap....Koeff. Kapazitaet
+       &        3.00,     & !..cap....Koeff. Kapazitaet
        &        3.0,      & !..vsedi_max
        &        0.1,      & !..vsedi_min
        &        null(),   & !..n pointer
@@ -393,7 +393,7 @@ MODULE mo_2mom_mcrph_main
        &        0.125000, & !..b_vel..Koeff. Fallgesetz
        &        0.780000, & !..a_ven..Koeff. Ventilation (PK, S.541)
        &        0.308000, & !..b_ven..Koeff. Ventilation (PK, S.541)
-       &        2.00,     & !..cap....Koeff. Kapazitaet
+       &        3.00,     & !..cap....Koeff. Kapazitaet
        &        3.0,      & !..vsedi_max
        &        0.1,      & !..vsedi_min
        &        null(),   & !..n pointer
@@ -448,11 +448,11 @@ MODULE mo_2mom_mcrph_main
        &        9.292000,  & !..alfa
        &        9.623000,  & !..beta
        &        6.222d+2,  & !..gama
-       &        6.000000,  & !..cmu0
+       &        6.0000d0,  & !..cmu0
        &        3.000d+1,  & !..cmu1
        &        1.000d+3,  & !..cmu2
        &        1.100d-3,  & !..cmu3 = D_br
-       &        1.000000,  & !..cmu4
+       &        1.0000d0,  & !..cmu4
        &        2 )          !..cmu5
 
   REAL(wp), PARAMETER :: pi6 = pi/6.0_wp, pi8 = pi/8.0_wp ! more pieces of pi

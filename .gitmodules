@@ -21,7 +21,7 @@
 	url = https://github.com/NVlabs/cub.git
 [submodule "externals/omni-xmod-pool"]
 	path = externals/omni-xmod-pool
-	url = https://github.com/claw-project/omni-xmod-pool.git
+        url = https://github.com/claw-project/omni-xmod-pool.git
 [submodule "externals/cdi"]
 	path = externals/cdi
 	url = ../../mpim-sw/libcdi.git
@@ -37,9 +37,15 @@
 [submodule "externals/emvorado"]
 	path = externals/emvorado
 	url = ../../dwd-sw/emvorado-for-icon.git
+[submodule "externals/probtest"]
+	path = externals/probtest
+	url = ../../cscs-sw/probtest.git
 [submodule "utils/mkexp"]
 	path = utils/mkexp
 	url = https://git.mpimet.mpg.de/public/mkexp
 [submodule "externals/art"]
 	path = externals/art
 	url = ../../art/art.git
+[submodule "externals/ppm"]
+	path = externals/ppm
+	url = ../../jahns/ppm.git

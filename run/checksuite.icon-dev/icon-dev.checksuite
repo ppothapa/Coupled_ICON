@@ -254,7 +254,9 @@ function diff_results
             echo "There are no dates to compare"
             exit 1
         fi
-    
+
+        make_sure_cdo_exists_and_runs
+
         echo "=================================================================="
         echo "Compare these experiments:"
         echo "- ${MODEL_DIR1}/experiments/${DEXP1}"
@@ -268,48 +270,89 @@ function diff_results
             DIFFERENT_TYPES=''
     
             for TYPE in $TYPES; do
-    
-                FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc"
-                FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc"
-                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
-                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
 
-                echo "Compare for TYPE=$TYPE"
-                cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
+		rm -f 'does_not_exist'
+		FILE1='does_not_exist'
+		FILE2='does_not_exist'
 
-		# does FILE2 contain the same variables as FILE1?
-		not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
-                if [ $not_found -ge 1 ]; then
-                    echo " $not_found variable(s) of file 1 not found in file 2 -> files cannot be compared"
-                    echo " - file 1: ${FILE1}"
-                    echo " - file 2: ${FILE2}"
-                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+		if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc" ]
+		then
+                    FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc"
+		    #
+                    if  [ -f  "${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc" ]
+		    then
+			FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc"
+		    fi
+		else
+		    if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb" ]
+		    then
+			FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb"
+			#
+			if  [ -f  "${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb" ]
+			then
+			    FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb"
+			fi
+		    fi
+		fi
+
+		if  [ -f "${FILE1}" -a -f "${FILE2}" ]
+		then
+		    # FILE1 and FILE2 exist -> compare files
+
+                    TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
+                    DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+
+                    echo "Compare for TYPE=$TYPE"
+                    cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
+
+                    cdo_exit_code=$? 
+
+                    # exit code=0: no differences exit_code=1: differences
+                    # both exit codes are fine, other exit codes indicate a crash of cdo
+                    if [[ $cdo_exit_code -ne 0 ]] && [[ $cdo_exit_code -ne 1 ]]; then
+                        echo " abort of cdo during file comparison with exit code $cdo_exit_code"
+                        exit 1
+                    fi
+
+		    # does FILE2 contain the same variables as FILE1?
+		    not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
+                    if [ $not_found -ge 1 ]; then
+			echo " $not_found variable(s) of file 1 not found in file 2 -> files cannot be compared"
+			echo " - file 1: ${FILE1}"
+			echo " - file 2: ${FILE2}"
+			DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+                    fi
+
+		    # have differences been reported?
+		    Max_Absdiff=$(grep 'Max_Absdiff' ${DIFF_FILE}|wc -l)
+                    if [ $Max_Absdiff -ne 0 ]; then
+			echo " File 1 and file 2 differ"
+			echo " - file 1: ${FILE1}"
+			echo " - file 2: ${FILE2}"
+			if [ "$CAT_CDO_DIFFN" == 'yes' ]; then
+                            cat ${DIFF_FILE}
+			fi
+			rm  ${DIFF_FILE}
+			IS_DIFFERENT='yes'
+			DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+			if [ "$SUB_FILES" == 'yes' ]; then
+                            BFILE1=`basename $FILE1`
+                            BFILE2=`basename $FILE2`
+			    BFILE2=${BFILE2%.nc};BFILE2=${BFILE2%.grb}
+                            WDIR=`dirname $FILE2`
+                            cdo sub ${FILE2} ${FILE1} ${WDIR}/diff_${BFILE2}-${BFILE1}
+			fi
+                    else
+			# No differences are reported.
+			# Thus the diff file can be deleted.
+			rm ${DIFF_FILE}
+                    fi
+		else
+		    echo "FILE1 or FILE2 does not exist for TYPE=${TYPE} and DATE=${DATE} ->  comparison not possible"
+		    echo "FILE1: $FILE1"
+		    echo "FILE2: $FILE2"
                 fi
 
-		# have differences been reported?
-		Max_Absdiff=$(grep 'Max_Absdiff' ${DIFF_FILE}|wc -l)
-                if [ $Max_Absdiff -ne 0 ]; then
-                    echo " File 1 and file 2 differ"
-                    echo " - file 1: ${FILE1}"
-                    echo " - file 2: ${FILE2}"
-                    if [ "$CAT_CDO_DIFFN" == 'yes' ]; then
-                        cat ${DIFF_FILE}
-                    fi
-                    rm  ${DIFF_FILE}
-                    IS_DIFFERENT='yes'
-                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
-                    if [ "$SUB_FILES" == 'yes' ]; then
-                        BFILE1=`basename $FILE1`
-                        BFILE2=`basename $FILE2`
-                        WDIR=`dirname $FILE2`
-                        cdo sub ${FILE2} ${FILE1} ${WDIR}/diff_${BFILE2%.nc}-${BFILE1}
-                    fi
-                else
-                    # No differences are reported.
-                    # Thus the diff file can be deleted.
-                    rm ${DIFF_FILE}
-                fi
-    
             done
     
             if [ "x$DIFFERENT_TYPES" != 'x' -a $CAT_CDO_DIFFN == 'yes' ]; then
@@ -367,13 +410,16 @@ function tolerance_check
     MODEL_DIR1=$1
     EXP_BASE=$2
     EXPERIMENT=$3
+    PROBTEST=externals/probtest/probtest.py
 
     # status variable that is evaluated after the function call
     TOL_STATUS=0
     cd $MODEL_DIR
 
-    REF_BUILDER=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]' | sed 's/_gpu/_cpu/') # new buildbot
-    [[ -z $REF_BUILDER ]] && REF_BUILDER="${BB_SYSTEM/gpu/cpu}_${BB_SLAVE}" # old buildbot
+    # always use CPU reference
+    builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
+    [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+    CPU_REFERENCE=${REFERENCE}/${builder/_gpu_/_cpu_}
 
     # find relevant config
     case $EXPERIMENT in
@@ -384,13 +430,13 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *mch_*nest*)
-            FILE_IDS="atm_3d_DOM01,atm_3d_DOM02"
+            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
         *mch_*)
             FILE_IDS="atm_3d"
             ;;
         *dwd_run_ICON_*)
-            FILE_IDS="atm_3d"
+            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
         *)
             echo "no file ids specified for '${EXPERIMENT}'"
@@ -402,32 +448,73 @@ function tolerance_check
             ;;
     esac
 
-    echo "Running tolerance check with compiler-specific reference from builder (${REF_BUILDER})"
+    echo "Running tolerance check with compiler-specific reference at ${CPU_REFERENCE}"
+
+    export PROBTEST_CONFIG=${EXP_BASE}.json
+    # initialize configuration file
+    python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
+        --codebase-install "${MODEL_DIR1}" \
+        --reference "not-used" \
+        --experiment-name "${EXP_BASE}" \
+        --file-ids "${FILE_IDS}" \
+        --config "${PROBTEST_CONFIG}"
+    if [[ $? != 0 ]] ; then
+        echo "probtest did not initialized successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
 
     # generate the aggregated "single-column" stats file
-    python probtest/probtest.py --log-file stats-${EXPERIMENT}.log stats \
-        --time-dim "time" \
-        --model-output-dir experiments/${EXP_BASE} \
+    ${PROBTEST} --log-file stats-${EXPERIMENT}.log stats \
         --stats-file-name ${EXPERIMENT}.csv \
-        --file-ids $FILE_IDS \
         --no-ensemble
+    if [[ $? != 0 ]] ; then
+        echo "probtest did not generate stats successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
+
     # validate the generated stats against the reference
-    python probtest/probtest.py --log-file check-${EXPERIMENT}.log check \
+    ${PROBTEST} --log-file check-${EXPERIMENT}.log check \
         --input-file-cur ${EXPERIMENT}.csv \
-        --input-file-ref icon-test-references/${REF_BUILDER}/reference/${EXPERIMENT}.csv \
-        --tolerance-file-name icon-test-references/${REF_BUILDER}/tolerance/${EXPERIMENT}.csv \
+        --input-file-ref ${CPU_REFERENCE}/reference/${EXPERIMENT}.csv \
+        --tolerance-file-name ${CPU_REFERENCE}/tolerance/${EXPERIMENT}.csv \
         --factor 5
+    if [[ $? != 0 ]] ; then
+        echo "probtest tolerance test did not complete successfully"
+        TOL_STATUS=1
+        return TOL_STATUS
+    fi
 
     # get the relevant success check
     fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
     crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
     finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
     if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
-       echo "testsuite did not complete successfully"
-       TOL_STATUS=1
+        echo "testsuite did not complete successfully"
+        TOL_STATUS=1
     fi
 
     return $TOL_STATUS
+}
+
+make_sure_cdo_exists_and_runs() {
+
+    # is cdo in PATH?
+    if ! [ -x "$(command -v cdo)" ]; then
+        echo 'Error: cdo is not installed.' >&2
+        exit 1
+    fi
+
+    # does cdo find all linked-libraries?
+    cdo -sinfo -topo 1>/dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+      echo 'Error: cdo does not run' >&2
+      exit 1
+    fi
+
+
 }
 #################### main script ########################################
 
@@ -665,7 +752,8 @@ EXP_TEST=${EXPERIMENT}_${TEST}
 if [ "${OVERWRITE}" == 'yes' -o ! -d ${MODEL_DIR}/experiments/${EXP_BASE} ]; then
     cd ${SCRIPT_DIR}
     RUN_SCRIPT=exp.${EXP_BASE}.run
-    sed s/${SCRIPT}/${EXP_BASE}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+    sed    s/${SCRIPT}/${EXP_BASE}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT} # change experiment name
+    sed -i s/data.${EXP_BASE}/data.${SCRIPT}/g             ${RUN_SCRIPT} # except in the data package name
 
     echo "Perform $TEST run"
     chmod 755 ${RUN_SCRIPT}
@@ -721,7 +809,8 @@ if string_in_list $MD $CMODES; then
         fi
 
         RUN_SCRIPT=exp.${EXP_BASE}.run
-        sed s/${SCRIPT}/${EXP_BASE}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+        sed    s/${SCRIPT}/${EXP_BASE}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT} # change experiment name
+        sed -i s/data.${EXP_BASE}/data.${SCRIPT}/g             ${RUN_SCRIPT} # except in the data package name
 
         echo "Perform $TEST run"
         chmod 755 ${RUN_SCRIPT}
@@ -777,7 +866,8 @@ if string_in_list $MD $CMODES; then
 
         RUN_SCRIPT=exp.${EXP_TEST}.run
         cd ${SCRIPT_DIR}
-        sed s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+        sed    s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+        sed -i s/data.${EXP_TEST}/data.${SCRIPT}/g             ${RUN_SCRIPT}
 
         sed s/restart:=\".false.\"/restart:=\".true.\"/g < ${RUN_SCRIPT} > ${RUN_SCRIPT}.out
         mv ${RUN_SCRIPT}.out ${RUN_SCRIPT}
@@ -826,7 +916,8 @@ if string_in_list $MD $CMODES; then
 
         RUN_SCRIPT=exp.${EXP_TEST}.run
         cd ${SCRIPT_DIR}
-        sed s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+        sed    s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+        sed -i s/data.${EXP_TEST}/data.${SCRIPT}/g             ${RUN_SCRIPT}
 
         N_NPROMA=`grep "nproma=" ${RUN_SCRIPT}`
         N_NPROMA=${N_NPROMA#nproma=}
@@ -903,9 +994,8 @@ if string_in_list $MD $CMODES; then
 
                 RUN_SCRIPT=exp.${EXP_TEST}.run
                 cd ${SCRIPT_DIR}
-                sed "s/${SCRIPT}/${EXP_TEST}/g" exp.${SCRIPT}.run \
-                    > ${RUN_SCRIPT}
-
+                sed    s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+                sed -i s/data.${EXP_TEST}/data.${SCRIPT}/g             ${RUN_SCRIPT}
 
                 if [ $N_PPNODE -gt 1 ]; then
 
@@ -1016,8 +1106,8 @@ if string_in_list $MD $CMODES; then
 	        TEST_POSSIBLE='yes'
 
                 RUN_SCRIPT=exp.${EXP_TEST}.run
-                sed "s/${SCRIPT}/${EXP_TEST}/g" exp.${SCRIPT}.run \
-                    > ${RUN_SCRIPT}
+                sed    s/${SCRIPT}/${EXP_TEST}/g < exp.${SCRIPT}.run > ${RUN_SCRIPT}
+                sed -i s/data.${EXP_TEST}/data.${SCRIPT}/g             ${RUN_SCRIPT}
 
                 N_OMP_NUM_THREADS_NEW=$(( N_OMP_NUM_THREADS - 1 ))
 	        N_ICON_THREADS_NEW=$(( N_ICON_THREADS - 1 ))

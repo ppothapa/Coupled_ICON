@@ -133,7 +133,7 @@ CONTAINS
 
     IF (lradt) THEN
       IF (.NOT.PRESENT(ssi)) THEN
-        CALL finish ('ssi_time_interplation of mo_bc_solar_irradiance', &
+        CALL finish ('ssi_time_interpolation of mo_bc_solar_irradiance', &
                      'Interpolation to radiation time step needs ssi',exit_no=1)
       ELSE
         tsi    = tiw%weight1 * tsi_radt_m(tiw%month1_index) + tiw%weight2 * tsi_radt_m(tiw%month2_index)
@@ -146,7 +146,7 @@ CONTAINS
       END IF
     ELSE
       IF (PRESENT(ssi)) THEN
-        CALL message ('ssi_time_interplation of mo_bc_solar_irradiance', &
+        CALL message ('ssi_time_interpolation of mo_bc_solar_irradiance', &
                      'Interpolation of ssi not necessary')
       END IF
       tsi    = tiw%weight1 * tsi_m(tiw%month1_index) + tiw%weight2 * tsi_m(tiw%month2_index)
