@@ -50,11 +50,11 @@ CONTAINS
     ! associate pointers
     field => prm_field(jg)
 
-!!$    CALL WMO_tropopause( jg,                       &! in
-!!$                       & jcs, jce, nproma, nlev,   &! in
-!!$                       & field% ta(:,:,jb),        &! in
-!!$                       & field% pfull(:,:,jb),     &! in
-!!$                       & field% ptp(:,jb)          )! inout for diagnostics
+    CALL WMO_tropopause( jg,                       &! in
+                       & jcs, jce, nproma, nlev,   &! in
+                       & field% ta(:,:,jb),        &! in
+                       & field% pfull(:,:,jb),     &! in
+                       & field% ptp(:,jb)          )! inout for diagnostics
     !
 
     IF (ltimer) call timer_stop(timer_wmo)

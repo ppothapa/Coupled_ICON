@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# set basic names and paths for probtest
+file_ids=atm_2d_ml,atm_3d_ml,phy_3d_ml,lnd_ml
+exp=atm_amip_test
+
+. ./add_refgen_routines
+
+# execute probtest
+generate_probtest_tolerance
+
+status=$?
+echo $status > pp.${EXPNAME}.run.final_status
+exit $status

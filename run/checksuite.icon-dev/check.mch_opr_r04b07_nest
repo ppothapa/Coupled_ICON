@@ -19,7 +19,7 @@ export EXPERIMENT='mch_opr_r04b07_nest'
 # TYPES is a list of names identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
 # to be checked.
 #
-export TYPES='atm_3d_DOM01_ml atm_3d_DOM02_ml'
+export TYPES='atm_3d_DOM01_pl atm_3d_DOM02_pl atm_3d_DOM01_hl atm_3d_DOM02_hl'
 
 # DATES is a list of dates identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
 # to be checked.
@@ -41,10 +41,6 @@ then
 else
     poolFolder_prefix=""
 fi
-builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
-[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
-export REFERENCE=${poolFolder_prefix}/pool/data/ICON/buildbot_data/aes/reference.1456fd06_icon-cscs/${builder}/
-
 
 #--------------------------------------------------------------------------------
 # 
@@ -65,6 +61,9 @@ export MD='rt'
 # 
 # 3. Launch the checksuite from run/
 
+reference_dir=$(cat $basedir/run/tolerance_reference)
+export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
+
 rundir=`pwd`
 cd checksuite.icon-dev
 
@@ -72,8 +71,6 @@ cd checksuite.icon-dev
 case $HOST in
     *daint*)
         export MD='rt'
-        export PYTHONPATH=""
-        source /project/g110/icon/probtest/env/bin/activate
 esac
 
 ./icon-dev.checksuite

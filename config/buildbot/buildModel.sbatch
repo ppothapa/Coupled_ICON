@@ -42,6 +42,8 @@ if [ "x${BB_EXPERIMENT}" != "x" ]; then
   if [ ! -f "${fullExperimentPath}" ]; then
     echo "ERROR: Cannot find experiment ${fullExperimentPath}"
     exit 1;
+  else
+    echo "Found single tests: ${fullExperimentPath}"
   fi
 
   # create a temporary list with the given experiments

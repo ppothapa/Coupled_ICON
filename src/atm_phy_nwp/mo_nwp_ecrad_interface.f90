@@ -8,8 +8,8 @@
 !! - The decision which of the two interface routines is used, is done via the namelist
 !!   switch lredgrid_phys. Based on the value of lredgrid_phys, the correct interface
 !!   is called by mo_nwp_rad_interface:nwp_radiation.
-!! - The interfaces have to fill the different ecRad input types (ecrad_aerosol, 
-!!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from 
+!! - The interfaces have to fill the different ecRad input types (ecrad_aerosol,
+!!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from
 !!   ICON variables. Then, the ecRad radiation code is called. At the end, the fluxes
 !!   calculated by ecRad and stored in the ecrad_flux structure are copied to ICON variables.
 !! - The difference between nwp_ecrad_radiation and nwp_ecrad_radiation_reduced is mostly
@@ -55,11 +55,11 @@ MODULE mo_nwp_ecrad_interface
   USE mo_physical_constants,     ONLY: rhoh2o
   USE mo_run_config,             ONLY: msg_level, iqv, iqi, iqc, iqr, iqs, iqg
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
-  USE mo_radiation_config,       ONLY: irad_aero
+  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
-  USE mo_ecrad,                  ONLY: ecrad,                                    &
+  USE mo_ecrad,                  ONLY: ecrad, ecrad_ssi_default,                 &
                                    &   t_ecrad_conf, t_ecrad_aerosol_type,       &
                                    &   t_ecrad_single_level_type,                &
                                    &   t_ecrad_thermodynamics_type,              &
@@ -107,6 +107,8 @@ CONTAINS
   !!
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
+  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
+  !!     Wetterdienst, Offenbach (2021-09-15)
   !!
   SUBROUTINE nwp_ecrad_radiation ( current_datetime, pt_patch, ext_data,      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, od_lw, od_sw, ssa_sw,               &
@@ -159,7 +161,7 @@ CONTAINS
       &  jc, jb, jk, jw,        & !< Loop indices
       &  jg,                    & !< Domain index
       &  nlev, nlevp1,          & !< Number of vertical levels (full, half)
-      &  rl_start, rl_end,      & !< 
+      &  rl_start, rl_end,      & !<
       &  i_startblk, i_endblk,  & !< blocks
       &  i_startidx, i_endidx,  & !< slices
       &  nproma_rad,            & !< block size of subblocks for ecrad calls
@@ -189,7 +191,7 @@ CONTAINS
     REAL(wp), DIMENSION(:),    POINTER :: &
       &  ptr_fr_glac => NULL(), ptr_fr_land => NULL()
     LOGICAL :: lzacc
-      
+
     IF(PRESENT(lacc)) THEN
       lzacc = lacc
     ELSE
@@ -232,14 +234,13 @@ CONTAINS
     !$ACC CREATE( zswflx_up_clr, zswflx_dn_clr ) ASYNC(1) IF(lzacc)
 
     CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true., use_acc=lzacc) !< use_sw_albedo_direct, 2 bands
-    ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the 
+    ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1) IF(lzacc)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
-      ecrad_single_level%spectral_solar_scaling = (/  1.0_wp, 1.0_wp, 1.0_wp, 1.0478_wp, 1.0404_wp, 1.0317_wp, &
-         &   1.0231_wp, 1.0054_wp, 0.98413_wp, 0.99863_wp, 0.99907_wp, 0.90589_wp, 0.92213_wp, 1.0_wp /)
+      ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
       !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lzacc)
     ENDIF
 
@@ -247,7 +248,7 @@ CONTAINS
       &                                use_acc=lzacc)
 
     CALL ecrad_gas%allocate(nproma_rad, nlev, use_acc=lzacc)
-    
+
     CALL ecrad_cloud%allocate(nproma_rad, nlev, use_acc=lzacc)
     ! Currently hardcoded values for FSD
     !$ACC WAIT
@@ -320,7 +321,7 @@ CONTAINS
           ptr_reff_qs => prm_diag%reff_qs(jcs:jce,:,jb)
           IF (iqg > 0) ptr_reff_qg => prm_diag%reff_qg(jcs:jce,:,jb)
         END IF
-        
+
         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         do jc = i_startidx_sub, i_endidx_sub
@@ -352,7 +353,7 @@ CONTAINS
           &                         prm_diag%albvisdif(jcs:jce,jb), prm_diag%albnirdif(jcs:jce,jb),                    &
           &                         prm_diag%albvisdir(jcs:jce,jb), prm_diag%albnirdir(jcs:jce,jb),                    &
           &                         prm_diag%lw_emiss(jcs:jce,jb), i_startidx_rad, i_endidx_rad, use_acc=lzacc)
-      
+
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),    &
           &                           pt_diag%pres_ifc(jcs:jce,:,jb), prm_diag%tsfctrad(jcs:jce,jb),                   &
@@ -470,7 +471,10 @@ CONTAINS
 ! Update ICON variables with fluxes from ecRad
         CALL ecrad_store_fluxes(jg, ecrad_flux, prm_diag%cosmu0(jcs:jce,jb), prm_diag%trsolall       (jcs:jce,:,jb),  &
           &                     prm_diag%trsol_up_toa          (jcs:jce,jb), prm_diag%trsol_up_sfc     (jcs:jce,jb),  &
-          &                     prm_diag%trsol_par_sfc         (jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),  &
+          &                     prm_diag%trsol_nir_sfc         (jcs:jce,jb), prm_diag%trsol_vis_sfc    (jcs:jce,jb),  &
+          &                     prm_diag%trsol_par_sfc         (jcs:jce,jb), prm_diag%fr_nir_sfc_diff  (jcs:jce,jb),  &
+          &                     prm_diag%fr_vis_sfc_diff       (jcs:jce,jb), prm_diag%fr_par_sfc_diff  (jcs:jce,jb),  &
+          &                     prm_diag%trsol_dn_sfc_diff     (jcs:jce,jb),                                          &
           &                     prm_diag%trsolclr_sfc          (jcs:jce,jb), prm_diag%lwflxall       (jcs:jce,:,jb),  &
           &                     prm_diag%lwflx_up_sfc_rs       (jcs:jce,jb), prm_diag%lwflxclr_sfc     (jcs:jce,jb),  &
           &                     zlwflx_up    (:,:), zlwflx_dn       (:,:), zswflx_up    (:,:), zswflx_dn    (:,:),    &
@@ -498,10 +502,11 @@ CONTAINS
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
-        CALL add_3D_diffuse_rad(ecrad_flux, prm_diag%clc(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),         &
-          &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                    &
-          &                     prm_diag%trsol_dn_sfc_diff(jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev, &
-          &                     use_acc=lzacc)
+        CALL add_3D_diffuse_rad(ecrad_flux, prm_diag%clc(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),              &
+          &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                         &
+          &                     prm_diag%fr_nir_sfc_diff(jcs:jce,jb), prm_diag%fr_vis_sfc_diff(jcs:jce,jb),      &
+          &                     prm_diag%fr_par_sfc_diff(jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),    &
+          &                     i_startidx_rad, i_endidx_rad, nlev, use_acc=lacc)
 
       ENDDO ! jb_rad
     ENDDO ! jb
@@ -555,6 +560,8 @@ CONTAINS
   !!
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
+  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
+  !!     Wetterdienst, Offenbach (2021-09-15)
   !! Open TODOs: dust_tunefac not considered so far
   !!
   SUBROUTINE nwp_ecrad_radiation_reduced (current_datetime, pt_patch, pt_par_patch, ext_data,  &
@@ -582,10 +589,10 @@ CONTAINS
       & od_sw (:,:,:,:)                             ,     & !< SW aerosol optical thickness
       & g_sw  (:,:,:,:)                             ,     & !< SW aerosol asymmetry factor
       & ssa_sw(:,:,:,:)                                     !< SW aerosol single scattering albedo
- 
+
     TYPE(t_nh_diag), TARGET, INTENT(in)    :: pt_diag       !< ICON diagnostic variables
     TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag      !< ICON physics diagnostics
-    TYPE(t_nh_prog), TARGET, INTENT(in)    :: pt_prog        !< ICON dyn prog vars 
+    TYPE(t_nh_prog), TARGET, INTENT(in)    :: pt_prog        !< ICON dyn prog vars
     TYPE(t_lnd_prog),        INTENT(inout) :: lnd_prog      !< ICON prognostic land state
 
     TYPE(t_ecrad_conf),      INTENT(in)    :: ecrad_conf    !< ecRad configuration object
@@ -616,7 +623,7 @@ CONTAINS
       &  jg,                    & !< domain id
       &  nlev,                  & !< number of full levels
       &  nlev_rg, nlev_rgp1,    & !< number of full and half levels at reduced grid
-      &  rl_start, rl_end,      & !< 
+      &  rl_start, rl_end,      & !<
       &  i_startblk, i_endblk,  & !< blocks
       &  i_startidx, i_endidx,  & !< slices
       &  np, nl,                & !< dimension variables for allocation (3d fluxes)
@@ -659,12 +666,17 @@ CONTAINS
       &  zrg_trsol_dn_sfc_diff(:,:), & !< Downward diffuse solar transmissivity at surface on reduced grid
       &  zrg_trsol_clr_sfc(:,:),     & !< Clear-sky net transmissvity at surface on reduced grid
       &  zrg_aclcov(:,:),            & !< Cloud cover on reduced grid
+      &  zrg_trsol_nir_sfc(:,:),     & !< Near-infrared radiation
+      &  zrg_trsol_vis_sfc(:,:),     & !< Visible radiation
       &  zrg_trsol_par_sfc(:,:),     & !< Photosynthetically active radiation
+      &  zrg_fr_nir_sfc_diff(:,:),   & !< Diffuse fraction of near-infrared radiation
+      &  zrg_fr_vis_sfc_diff(:,:),   & !< Diffuse fraction of visible radiation
+      &  zrg_fr_par_sfc_diff(:,:),   & !< Diffuse fraction of photosynthetically active radiation
       &  zrg_lwflx_clr_sfc(:,:),     & !< clear-sky net LW flux at surface
-      &  zrg_lwflx_up    (:,:,:),    & !< longwave  3D upward   flux          
-      &  zrg_lwflx_dn    (:,:,:),    & !< longwave  3D downward flux           
-      &  zrg_swflx_up    (:,:,:),    & !< shortwave 3D upward   flux          
-      &  zrg_swflx_dn    (:,:,:),    & !< shortwave 3D downward flux          
+      &  zrg_lwflx_up    (:,:,:),    & !< longwave  3D upward   flux
+      &  zrg_lwflx_dn    (:,:,:),    & !< longwave  3D downward flux
+      &  zrg_swflx_up    (:,:,:),    & !< shortwave 3D upward   flux
+      &  zrg_swflx_dn    (:,:,:),    & !< shortwave 3D downward flux
       &  zrg_lwflx_up_clr(:,:,:),    & !< longwave  3D upward   flux clear-sky
       &  zrg_lwflx_dn_clr(:,:,:),    & !< longwave  3D downward flux clear-sky
       &  zrg_swflx_up_clr(:,:,:),    & !< shortwave 3D upward   flux clear-sky
@@ -674,10 +686,10 @@ CONTAINS
       &  zrg_extra_flds(:,:,:,:),    & !< Extra fields for the upscaling routine (indices by irg_)
       &  zrg_extra_2D(:,:,:),        & !< Extra 2D fields for the upscaling routine (indices by irg_)
       &  zrg_extra_reff(:,:,:,:)       !< Extra effective radius (indices by irg_)
-  
+
     ! Indices and pointers of extra (optional) fields that are needed by radiation
-    ! and therefore have be aggregated to the radiation grid 
-    INTEGER :: irg_acdnc, irg_fr_glac, irg_fr_land,  irg_qr, irg_qs, irg_qg,  & 
+    ! and therefore have be aggregated to the radiation grid
+    INTEGER :: irg_acdnc, irg_fr_glac, irg_fr_land,  irg_qr, irg_qs, irg_qg,  &
       &        irg_reff_qr, irg_reff_qs, irg_reff_qg
     INTEGER, DIMENSION (ecrad_conf%n_bands_lw) :: irg_od_lw
     INTEGER, DIMENSION (ecrad_conf%n_bands_sw) :: irg_od_sw, irg_ssa_sw, irg_g_sw
@@ -761,17 +773,24 @@ CONTAINS
       &      zrg_lwflx_up_sfc     (nproma,nblks_par_c),     &
       &      zrg_trsol_up_toa     (nproma,nblks_par_c),     &
       &      zrg_trsol_up_sfc     (nproma,nblks_par_c),     &
+      &      zrg_trsol_nir_sfc     (nproma,nblks_par_c),    &
+      &      zrg_trsol_vis_sfc     (nproma,nblks_par_c),    &
       &      zrg_trsol_par_sfc    (nproma,nblks_par_c),     &
-      &      zrg_trsol_dn_sfc_diff(nproma,nblks_par_c),     &
+      &      zrg_fr_nir_sfc_diff   (nproma,nblks_par_c),    &
+      &      zrg_fr_vis_sfc_diff   (nproma,nblks_par_c),    &
+      &      zrg_fr_par_sfc_diff   (nproma,nblks_par_c),    &
+      &      zrg_trsol_dn_sfc_diff (nproma,nblks_par_c),    &
       &      zrg_trsol_clr_sfc    (nproma,nblks_par_c),     &
       &      zrg_lwflx_clr_sfc    (nproma,nblks_par_c),     &
       &      aclcov               (nproma,pt_patch%nblks_c))
       !$ACC ENTER DATA CREATE(zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir, &
       !$ACC   zrg_albnirdir, zrg_albvisdif, zrg_albnirdif, zrg_aclcov, &
       !$ACC   zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, &
-      !$ACC   zrg_trsol_par_sfc, zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, &
+      !$ACC   zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc, &
+      !$ACC   zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, &
+      !$ACC   zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, &
       !$ACC   zrg_lwflx_clr_sfc, aclcov) ASYNC(1) IF(lacc)
-      
+
     ! Set dimensions for 3D radiative flux variables
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
        np = nproma
@@ -785,7 +804,7 @@ CONTAINS
       &      zrg_lwflxall    (nproma,nlev_rgp1,nblks_par_c),&
       &      zrg_trsolall    (nproma,nlev_rgp1,nblks_par_c),&
       &      zrg_lwflx_up    (np, nl, nblks_par_c),&
-      &      zrg_lwflx_dn    (np, nl, nblks_par_c),&   
+      &      zrg_lwflx_dn    (np, nl, nblks_par_c),&
       &      zrg_swflx_up    (np, nl, nblks_par_c),&
       &      zrg_swflx_dn    (np, nl, nblks_par_c),&
       &      zrg_lwflx_up_clr(np, nl, nblks_par_c),&
@@ -826,26 +845,26 @@ CONTAINS
     !$ACC ENTER DATA CREATE(zrg_albdif, zrg_rtype, zlp_pres_ifc, zlp_tot_cld) &
     !$ACC   ASYNC(1) IF(lacc)
 
-    
+
     ! Set indices for extra fields in the upscaling routine
     irg_acdnc     = 0
     irg_fr_land   = 0
-    irg_fr_glac   = 0 
-    irg_qr        = 0  
-    irg_qs        = 0 
-    irg_qg        = 0 
-    irg_reff_qr   = 0 
-    irg_reff_qs   = 0 
+    irg_fr_glac   = 0
+    irg_qr        = 0
+    irg_qs        = 0
+    irg_qg        = 0
+    irg_reff_qr   = 0
+    irg_reff_qs   = 0
     irg_reff_qg   = 0
     irg_od_lw     = 0
     irg_od_sw     = 0
     irg_ssa_sw    = 0
     irg_g_sw      = 0
-    
+
     CALL input_extra_flds%construct(nlev_rg)  ! Extra fields in upscaling routine: 3D fields with nlev_rg
     CALL input_extra_2D%construct(1)          ! Extra fields in upscaling routine: 2D fields
     CALL input_extra_reff%construct(nlev_rg)  ! Extra fields in upscaling routine: extra Reff
-    
+
     SELECT CASE (atm_phy_nwp_config(jg)%icpl_rad_reff)
     CASE (0)  ! Own calculation of reff inside ecrad_set_clouds()
       CALL input_extra_flds%assign(prm_diag%acdnc, irg_acdnc)
@@ -856,13 +875,13 @@ CONTAINS
       CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
       CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqs), irg_qs)
       IF (iqg >0) CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqg), irg_qg)
-      
+
       ! Set extra effective radius (in different array due to different interpolation)
       CALL input_extra_reff%assign(prm_diag%reff_qr(:,:,:), irg_reff_qr, assoc_hyd = irg_qr )
       CALL input_extra_reff%assign(prm_diag%reff_qs(:,:,:), irg_reff_qs, assoc_hyd = irg_qs )
-      IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )      
+      IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
     END SELECT
-    
+
     IF (ANY( irad_aero == (/12,13,14,15,18,19/) )) THEN
       ! Aerosol extra fields
       DO jw = 1, ecrad_conf%n_bands_lw
@@ -875,8 +894,12 @@ CONTAINS
       ENDDO
     END IF
 
-    !$ACC DATA COPYIN(input_extra_flds, input_extra_2D, input_extra_reff) &
-    !$ACC      COPYIN(input_extra_flds%field, input_extra_2D%field) IF(lacc)
+    !$ACC DATA COPYIN( input_extra_flds, input_extra_2D, input_extra_reff ) IF( lacc )
+    IF( lacc ) THEN
+      CALL input_extra_flds%acc_attach()
+      CALL input_extra_2D%acc_attach()
+      CALL input_extra_reff%acc_attach()
+    END IF
 
     ! Allocate output arrays
     IF ( input_extra_flds%ntot > 0 )  THEN
@@ -901,22 +924,27 @@ CONTAINS
 !$OMP PARALLEL
 
     ! Initialize output fields
-    CALL init(zrg_trsolall(:,:,:), 0._wp)
-    CALL init(zrg_lwflxall(:,:,:), 0._wp)
+    CALL init(zrg_trsolall(:,:,:), 0._wp )
+    CALL init(zrg_lwflxall(:,:,:), 0._wp )
     CALL init(zrg_trsol_up_toa(:,:)     )
     CALL init(zrg_trsol_up_sfc(:,:)     )
+    CALL init(zrg_trsol_nir_sfc(:,:)     )
+    CALL init(zrg_trsol_vis_sfc(:,:)     )
     CALL init(zrg_trsol_par_sfc(:,:)    )
-    CALL init(zrg_trsol_dn_sfc_diff(:,:))
+    CALL init(zrg_fr_nir_sfc_diff(:,:)  )
+    CALL init(zrg_fr_vis_sfc_diff(:,:)  )
+    CALL init(zrg_fr_par_sfc_diff(:,:)  )
+    CALL init(zrg_trsol_dn_sfc_diff(:,:) )
     CALL init(zrg_trsol_clr_sfc(:,:)    )
     CALL init(zrg_lwflx_up_sfc(:,:)     )
     CALL init(zrg_lwflx_clr_sfc(:,:)    )
     CALL init(zrg_aclcov(:,:)           )
- 
+
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-      CALL init(zrg_lwflx_up    (:,:,:), 0._wp)   
-      CALL init(zrg_lwflx_dn    (:,:,:), 0._wp)     
-      CALL init(zrg_swflx_up    (:,:,:), 0._wp)  
-      CALL init(zrg_swflx_dn    (:,:,:), 0._wp) 
+      CALL init(zrg_lwflx_up    (:,:,:), 0._wp)
+      CALL init(zrg_lwflx_dn    (:,:,:), 0._wp)
+      CALL init(zrg_swflx_up    (:,:,:), 0._wp)
+      CALL init(zrg_swflx_dn    (:,:,:), 0._wp)
       CALL init(zrg_lwflx_up_clr(:,:,:), 0._wp)
       CALL init(zrg_lwflx_dn_clr(:,:,:), 0._wp)
       CALL init(zrg_swflx_up_clr(:,:,:), 0._wp)
@@ -977,14 +1005,13 @@ CONTAINS
 !$OMP                  ecrad_gas, ecrad_cloud, ecrad_flux)
 
     CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true., use_acc=lacc) !< use_sw_albedo_direct, 2 bands
-    ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the 
+    ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1) IF(lacc)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
-      ecrad_single_level%spectral_solar_scaling = (/  1.0_wp, 1.0_wp, 1.0_wp, 1.0478_wp, 1.0404_wp, 1.0317_wp, &
-         &   1.0231_wp, 1.0054_wp, 0.98413_wp, 0.99863_wp, 0.99907_wp, 0.90589_wp, 0.92213_wp, 1.0_wp /)
+      ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
       !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lacc)
     ENDIF
 
@@ -992,7 +1019,7 @@ CONTAINS
       &                                use_acc=lacc)
 
     CALL ecrad_gas%allocate(nproma_rad, nlev_rg, use_acc=lacc)
-    
+
     CALL ecrad_cloud%allocate(nproma_rad, nlev_rg, use_acc=lacc)
     ! Currently hardcoded values for FSD
     !$ACC WAIT
@@ -1081,8 +1108,8 @@ CONTAINS
         IF ( irg_fr_land > 0 ) ptr_fr_land => zrg_extra_2D(jcs:jce,jb,irg_fr_land)
         IF ( irg_fr_glac > 0 ) ptr_fr_glac => zrg_extra_2D(jcs:jce,jb,irg_fr_glac)
         IF ( irg_reff_qr > 0 ) ptr_reff_qr => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qr)
-        IF ( irg_reff_qs > 0 ) ptr_reff_qs => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qs) 
-        IF ( irg_reff_qg > 0 ) ptr_reff_qg => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qg) 
+        IF ( irg_reff_qs > 0 ) ptr_reff_qs => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qs)
+        IF ( irg_reff_qg > 0 ) ptr_reff_qg => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qg)
         IF ( ALL(irg_od_lw(:)  > 0) ) THEN
           DO jw = 1, ecrad_conf%n_bands_lw
             opt_ptrs_lw(jw)%ptr_od  => zrg_extra_flds(jcs:jce,:,jb,irg_od_lw(jw))
@@ -1206,20 +1233,25 @@ CONTAINS
 ! Update ICON variables with fluxes from ecRad
         CALL ecrad_store_fluxes(jg, ecrad_flux, zrg_cosmu0(jcs:jce,jb), zrg_trsolall       (jcs:jce,:,jb),    &
           &                     zrg_trsol_up_toa          (jcs:jce,jb), zrg_trsol_up_sfc     (jcs:jce,jb),    &
-          &                     zrg_trsol_par_sfc         (jcs:jce,jb), zrg_trsol_dn_sfc_diff(jcs:jce,jb),    &
+          &                     zrg_trsol_nir_sfc         (jcs:jce,jb), zrg_trsol_vis_sfc    (jcs:jce,jb),    &
+          &                     zrg_trsol_par_sfc         (jcs:jce,jb), zrg_fr_nir_sfc_diff  (jcs:jce,jb),    &
+          &                     zrg_fr_vis_sfc_diff       (jcs:jce,jb), zrg_fr_par_sfc_diff  (jcs:jce,jb),    &
+          &                     zrg_trsol_dn_sfc_diff     (jcs:jce,jb),                                       &
           &                     zrg_trsol_clr_sfc         (jcs:jce,jb), zrg_lwflxall       (jcs:jce,:,jb),    &
           &                     zrg_lwflx_up_sfc          (jcs:jce,jb), zrg_lwflx_clr_sfc    (jcs:jce,jb),    &
           &                     zrg_lwflx_up          (jnps:jnpe,:,jb), zrg_lwflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_swflx_up          (jnps:jnpe,:,jb), zrg_swflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_lwflx_up_clr      (jnps:jnpe,:,jb), zrg_lwflx_dn_clr (jnps:jnpe,:,jb),    &
-          &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &  
+          &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &
           &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlev_rgp1, use_acc=lacc)
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
         CALL add_3D_diffuse_rad(ecrad_flux, zrg_clc(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb), zrg_temp(jcs:jce,:,jb),       &
-          &                     zrg_cosmu0(jcs:jce,jb), zrg_trsol_dn_sfc_diff(jcs:jce,jb),                               &
-          &                     i_startidx_rad, i_endidx_rad, nlev_rg, use_acc=lacc)
+          &                     zrg_cosmu0            (jcs:jce,jb), zrg_fr_nir_sfc_diff  (jcs:jce,jb),         &
+          &                     zrg_fr_vis_sfc_diff   (jcs:jce,jb), zrg_fr_par_sfc_diff  (jcs:jce,jb),         &
+          &                     zrg_trsol_dn_sfc_diff (jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev_rg,     &
+          &                     use_acc=lacc)
 
       ENDDO !jb_rad
     ENDDO !jb
@@ -1259,16 +1291,19 @@ CONTAINS
     !$ACC WAIT
     CALL downscale_rad_output(pt_patch%id, pt_par_patch%id,                                         &
       &  nlev_rg, zrg_aclcov, zrg_lwflxall, zrg_trsolall, zrg_trsol_clr_sfc, zrg_lwflx_clr_sfc,     &
-      &  zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, zrg_trsol_par_sfc,                   &
+      &  zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, zrg_trsol_nir_sfc, zrg_trsol_vis_sfc,&
+      &  zrg_trsol_par_sfc, zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff,          &
       &  zrg_trsol_dn_sfc_diff, zrg_tsfc, zrg_albdif, zrg_emis_rad, zrg_cosmu0, zrg_tot_cld,        &
       &  zlp_tot_cld, zrg_pres_ifc, zlp_pres_ifc, prm_diag%tsfctrad, prm_diag%albdif, aclcov,       &
       &  prm_diag%lwflxall, prm_diag%trsolall, prm_diag%lwflx_up_sfc_rs, prm_diag%trsol_up_toa,     &
-      &  prm_diag%trsol_up_sfc, prm_diag%trsol_par_sfc, prm_diag%trsol_dn_sfc_diff,                 &
-      &  prm_diag%trsolclr_sfc, prm_diag%lwflxclr_sfc,                                              & 
+      &  prm_diag%trsol_up_sfc, prm_diag%trsol_nir_sfc, prm_diag%trsol_vis_sfc,                     &
+      &  prm_diag%trsol_par_sfc, prm_diag%fr_nir_sfc_diff, prm_diag%fr_vis_sfc_diff,                &
+      &  prm_diag%fr_par_sfc_diff, prm_diag%trsol_dn_sfc_diff, prm_diag%trsolclr_sfc,               &
+      &  prm_diag%lwflxclr_sfc,                                                                     &
       &  zrg_lwflx_up         , zrg_lwflx_dn         , zrg_swflx_up         , zrg_swflx_dn,         &
       &  zrg_lwflx_up_clr     , zrg_lwflx_dn_clr     , zrg_swflx_up_clr     , zrg_swflx_dn_clr,     &
       &  prm_diag%lwflx_up    , prm_diag%lwflx_dn    , prm_diag%swflx_up    , prm_diag%swflx_dn,    &
-      &  prm_diag%lwflx_up_clr, prm_diag%lwflx_dn_clr, prm_diag%swflx_up_clr, prm_diag%swflx_dn_clr,& 
+      &  prm_diag%lwflx_up_clr, prm_diag%lwflx_dn_clr, prm_diag%swflx_up_clr, prm_diag%swflx_dn_clr,&
       &  use_acc=lacc )
 
     !$ACC WAIT
@@ -1279,7 +1314,9 @@ CONTAINS
     !$ACC   zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall, &
     !$ACC   zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, &
     !$ACC   zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, zrg_aclcov, &
-    !$ACC   zrg_trsol_par_sfc, aclcov, zrg_albdif, zrg_rtype, zlp_pres_ifc, &
+    !$ACC   zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc, &
+    !$ACC   zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, &
+    !$ACC   aclcov, zrg_albdif, zrg_rtype, zlp_pres_ifc, &
     !$ACC   zlp_tot_cld, zrg_lwflx_clr_sfc, zrg_lwflx_up, zrg_lwflx_dn , &
     !$ACC   zrg_swflx_up, zrg_swflx_dn, zrg_lwflx_up_clr, zrg_lwflx_dn_clr, &
     !$ACC   zrg_swflx_up_clr, zrg_swflx_dn_clr) IF(lacc)
@@ -1287,7 +1324,9 @@ CONTAINS
       &         zrg_albnirdif, zrg_pres_ifc, zrg_o3, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_clc,        &
       &         zrg_aeq4, zrg_aeq5, zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall,   &
       &         zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, zrg_trsol_dn_sfc_diff,       &
-      &         zrg_trsol_clr_sfc, zrg_aclcov, zrg_trsol_par_sfc, aclcov,                          &
+      &         zrg_trsol_clr_sfc, zrg_aclcov, zrg_trsol_nir_sfc, zrg_trsol_vis_sfc,               &
+      &         zrg_trsol_par_sfc, zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff,                       &
+      &         zrg_fr_par_sfc_diff, aclcov,                                                       &
       &         zrg_albdif, zrg_rtype, zlp_pres_ifc, zlp_tot_cld, zrg_lwflx_clr_sfc,               &
       &         zrg_lwflx_up    , zrg_lwflx_dn    , zrg_swflx_up    , zrg_swflx_dn,                &
       &         zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr, zrg_swflx_dn_clr             )
@@ -1302,7 +1341,7 @@ CONTAINS
     IF (input_extra_2D%ntot   > 0 ) DEALLOCATE(zrg_extra_2D)
     !$ACC EXIT DATA DELETE(zrg_extra_reff) IF(lacc .AND. (input_extra_reff%ntot>0) )
     IF (input_extra_reff%ntot > 0 ) DEALLOCATE(zrg_extra_reff)
-    
+
     CALL input_extra_flds%destruct()
     CALL input_extra_2D%destruct()
     CALL input_extra_reff%destruct()

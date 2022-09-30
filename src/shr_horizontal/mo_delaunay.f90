@@ -124,7 +124,7 @@ CONTAINS
     CALL tri%reserve(2*npts-4)
 
     ! set up the initial triangle: insert the first three points
-    IF (ccw_spherical(pxyz%a(0), pxyz%a(1), pxyz%a(2))) THEN
+    IF (ccw_spherical(pxyz%a(0), pxyz%a(1), pxyz%a(2))<0) THEN
       CALL tri%push_back(triangle(0, 1, 2)) ! clockwise starting triangle
     ELSE 
       CALL tri%push_back(triangle(0, 2, 1)) ! counter-clockwise starting triangle
@@ -198,7 +198,7 @@ CONTAINS
           IF (oedge /= -1) THEN
             ! boundary edge
             bedge  = jtri%edge(oedge)
-            inside = ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint)
+            inside = ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint)<0
           ELSE
             ! interior edge
             inside = circum_circle_spherical(ipoint, pxyz, jtri%p)
@@ -365,7 +365,7 @@ CONTAINS
     tri%nentries = 0
 
     ! set up the initial triangle: insert the first three points
-    IF (ccw_spherical(pxyz%a(0), pxyz%a(1), pxyz%a(2))) THEN
+    IF (ccw_spherical(pxyz%a(0), pxyz%a(1), pxyz%a(2))<0) THEN
       CALL tri%push_back(triangle(0, 1, 2)) ! clockwise starting triangle
     ELSE 
       CALL tri%push_back(triangle(0, 2, 1)) ! counter-clockwise starting triangle
@@ -499,7 +499,7 @@ CONTAINS
             jtri => tri%a(j)
             oedge = jtri%oedge
             bedge  = triangle_edge(jtri%p, oedge) !jtri%edge(oedge)
-            inside_arr(jc) = (ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint))
+            inside_arr(jc) = (ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint)<0)
           END DO !jo
         END IF
 
@@ -581,7 +581,7 @@ CONTAINS
           IF (oedge /= -1) THEN
             ! boundary edge
             bedge  = jtri%edge(oedge)
-            inside = (ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint))
+            inside = (ccw_spherical(pxyz%a(bedge%p1), pxyz%a(bedge%p2), ipoint)<0)
           ELSE
             ! interior edge
             inside = circum_circle_spherical(ipoint, pxyz, jtri%p)

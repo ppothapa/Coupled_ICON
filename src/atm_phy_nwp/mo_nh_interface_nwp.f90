@@ -127,7 +127,6 @@ MODULE mo_nh_interface_nwp
   USE mo_radar_data_state,        ONLY: radar_data, lhn_fields
   USE mo_latent_heat_nudging,     ONLY: organize_lhn
   USE mo_assimilation_config,     ONLY: assimilation_config
-  USE mo_nudging_config,          ONLY: nudging_config
   USE mo_nwp_reff_interface,      ONLY: set_reff , combine_phases_radiation_reff
   USE mo_upatmo_impl_const,       ONLY: iUpatmoPrcStat, iUpatmoStat
   USE mo_upatmo_config,           ONLY: upatmo_config
@@ -282,8 +281,6 @@ CONTAINS
     REAL(wp) :: p_sim_time      !< elapsed simulation time on this grid level
 
     LOGICAL :: lconstgrav  !< const. gravitational acceleration?
-
-    REAL(wp) :: dpsdt_avg  !< mean absolute surface pressure tendency
 
     ! SCM Nudging
     REAL(wp) :: nudgecoeff
@@ -1024,17 +1021,20 @@ CONTAINS
         CALL finish('mo_nh_interface_nwp:','prog_aerosol_2D not available on GPU')
 #endif
         CALL prog_aerosol_2D (i_startidx,i_endidx,jg,dt_loc,iprog_aero,                                  &
-                              prm_diag%aerosol(:,:,jb),prm_diag%aercl_ss(:,jb),prm_diag%aercl_or(:,jb),  &
-                              prm_diag%aercl_bc(:,jb),prm_diag%aercl_su(:,jb),prm_diag%aercl_du(:,jb),   &
-                              prm_diag%rain_gsp_rate(:,jb),prm_diag%snow_gsp_rate(:,jb),                 &
-                              prm_diag%rain_con_rate(:,jb),prm_diag%snow_con_rate(:,jb),                 &
-                              ext_data%atm%soiltyp(:,jb), ext_data%atm%plcov_t(:,jb,:),                  &
-                              ext_data%atm%frac_t(:,jb,:),                                               &
-                              lnd_prog_now%w_so_t(:,1,jb,:), lnd_prog_now%w_so_ice_t(:,1,jb,:),          &
-                              lnd_diag%h_snow_t(:,jb,:), ext_data%atm%lc_class_t(:,jb,:),                &
-                              pt_prog%rho(:,nlev,jb), prm_diag%tcm_t(:,jb,:),                            &
-                              pt_diag%u(:,nlev,jb), pt_diag%v(:,nlev,jb), ext_data%atm%idx_lst_t(:,jb,:),&
-                              ext_data%atm%gp_count_t(jb,:) )
+          &                   prm_diag%aerosol(:,:,jb),prm_diag%aercl_ss(:,jb),prm_diag%aercl_or(:,jb),  &
+          &                   prm_diag%aercl_bc(:,jb),prm_diag%aercl_su(:,jb),prm_diag%aercl_du(:,jb),   &
+          &                   prm_diag%rain_gsp_rate(:,jb),prm_diag%snow_gsp_rate(:,jb),                 &
+          &                   prm_diag%rain_con_rate(:,jb),prm_diag%snow_con_rate(:,jb),                 &
+          &                   ext_data%atm%soiltyp(:,jb), ext_data%atm%plcov_t(:,jb,:),                  &
+          &                   ext_data%atm%frac_t(:,jb,:),                                               &
+          &                   lnd_prog_now%w_so_t(:,1,jb,:), lnd_prog_now%w_so_ice_t(:,1,jb,:),          &
+          &                   lnd_diag%h_snow_t(:,jb,:), lnd_diag%t_seasfc(:,jb),                        &
+          &                   ext_data%atm%lc_class_t(:,jb,:),                                           &
+          &                   pt_prog%rho(:,nlev,jb), prm_diag%tcm_t(:,jb,:),                            &
+          &                   pt_diag%u(:,nlev,jb), pt_diag%v(:,nlev,jb), prm_diag%sp_10m(:,jb),         &
+          &                   ext_data%atm%idx_lst_t(:,jb,:),                                            &
+          &                   ext_data%atm%gp_count_t(jb,:), ext_data%atm%list_seawtr%ncount(jb),        &
+          &                   ext_data%atm%list_seawtr%idx(:,jb))
       ENDIF
 
     ENDDO
@@ -1194,6 +1194,8 @@ CONTAINS
 &             (kidia  = i_startidx ,   kfdia  = i_endidx  ,       & !! in:  horizonal begin, end indices
 &              klon = nproma,  kstart = kstart_moist(jg)  ,       & !! in:  horiz. and vert. vector length
 &              klev   = nlev                              ,       &
+&              linit  = linit                             ,       &
+&              dtime  = dt_phy_jg(itccov)                 ,       &
 &              cover_koe_config = cover_koe_config(jg)    ,       & !! in:  physics config state
 &              tt     = pt_diag%temp         (:,:,jb)     ,       & !! in:  temperature at full levels
 &              pp     = pt_diag%pres         (:,:,jb)     ,       & !! in:  pressure at full levels
@@ -1208,6 +1210,7 @@ CONTAINS
 &              kcbot  = prm_diag%mbas_con    (:,jb)       ,       & !! in:  convective cloud base
 &              kctop  = prm_diag%mtop_con    (:,jb)       ,       & !! in:  convective cloud top
 &              ktype  = prm_diag%ktype       (:,jb)       ,       & !! in:  convection type
+&              fac_ccqc = prm_diag%fac_ccqc  (:,jb)       ,       & !! in:  factor for CLC-QC relationship (for EPS perturbations) 
 &              pmfude_rate = prm_diag%con_udd(:,:,jb,3)   ,       & !! in:  convective updraft detrainment rate
 &              plu         = prm_diag%con_udd(:,:,jb,7)   ,       & !! in:  updraft condensate
 &              pcore       = prm_diag%con_udd(:,:,jb,8)   ,       & !! in:  updraft core fraction
@@ -1218,9 +1221,11 @@ CONTAINS
 &              qs     = pt_prog_rcf%tracer   (:,:,jb,iqs) ,       & !! in:  snow
 &              qtvar  = qtvar                             ,       & !! in:  qtvar
 &              lacc=lzacc                                 ,       & !! in: prevents openacc in init stage
+&              ttend_clcov = prm_nwp_tend%ddt_temp_clcov(:,:,jb) ,& !! out: temp tendency from sgs condensation
 &              cc_tot = prm_diag%clc         (:,:,jb)     ,       & !! out: cloud cover
 &              qv_tot = prm_diag%tot_cld     (:,:,jb,iqv) ,       & !! out: qv       -"-
 &              qc_tot = prm_diag%tot_cld     (:,:,jb,iqc) ,       & !! out: clw      -"-
+&              qc_sgs = prm_diag%qc_sgs      (:,:,jb) ,           & !! inout: sgs clw from RH scheme
 &              qi_tot = prm_diag%tot_cld     (:,:,jb,iqi)         ) !! out: ci       -"-
 
       ENDDO
@@ -1450,6 +1455,8 @@ CONTAINS
           & lwflx_up_sfc_rs=prm_diag%lwflx_up_sfc_rs(:,jb), &! in longwave upward flux at surface [W/m2]
           & trsol_up_toa=prm_diag%trsol_up_toa(:,jb),   & ! in shortwave upward transm. at the top of the atmosphere
           & trsol_up_sfc=prm_diag%trsol_up_sfc(:,jb),   & ! in shortwave upward transm. at the surface
+          & trsol_nir_sfc=prm_diag%trsol_nir_sfc(:,jb), & ! in near-infrared downward transm. at the surface
+          & trsol_vis_sfc=prm_diag%trsol_vis_sfc(:,jb), & ! in visible downward transm. at the surface
           & trsol_par_sfc=prm_diag%trsol_par_sfc(:,jb), & ! in photosynthetically active downward transm. at the surface
           & trsol_dn_sfc_diff=prm_diag%trsol_dn_sfc_diff(:,jb),&! in shortwave diffuse downward transm. at the surface
           & trsol_clr_sfc=prm_diag%trsolclr_sfc(:,jb),  & ! in clear-sky net transmissivity at surface
@@ -1469,7 +1476,9 @@ CONTAINS
           & lwflx_up_sfc=prm_diag%lwflx_up_sfc(:,jb)   ,&   ! out longwave upward flux at surface [W/m2]
           & swflx_up_toa=prm_diag%swflx_up_toa(:,jb)   ,&   ! out shortwave upward flux at the TOA [W/m2]
           & swflx_up_sfc=prm_diag%swflx_up_sfc(:,jb)   ,&   ! out shortwave upward flux at the surface [W/m2]
-          & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out shortwave upward flux at the surface [W/m2]
+          & swflx_nir_sfc=prm_diag%swflx_nir_sfc(:,jb) ,&   ! out near-infrared downward flux at the surface [W/m2]
+          & swflx_vis_sfc=prm_diag%swflx_vis_sfc(:,jb) ,&   ! out visible downward flux at the surface [W/m2]
+          & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out PAR downward flux at the surface [W/m2]
           & swflx_clr_sfc=prm_diag%swflxclr_sfc(:,jb)  ,&   ! out clear-sky shortwave flux at the surface [W/m2]
           & swflx_dn_sfc_diff=prm_diag%swflx_dn_sfc_diff(:,jb), & ! out shortwave diffuse downward flux at the surface [W/m2]
           & lacc=lzacc                                          )
@@ -1514,6 +1523,8 @@ CONTAINS
           & lwflx_up_sfc_rs=prm_diag%lwflx_up_sfc_rs(:,jb), &! in longwave upward flux at surface [W/m2]
           & trsol_up_toa=prm_diag%trsol_up_toa(:,jb),   & ! in shortwave upward transm. at the top of the atmosphere
           & trsol_up_sfc=prm_diag%trsol_up_sfc(:,jb),   & ! in shortwave upward transm. at the surface
+          & trsol_nir_sfc=prm_diag%trsol_nir_sfc(:,jb), & ! in near-infrared downward transm. at the surface
+          & trsol_vis_sfc=prm_diag%trsol_vis_sfc(:,jb), & ! in visible downward transm. at the surface
           & trsol_par_sfc=prm_diag%trsol_par_sfc(:,jb), & ! in photosynthetically active downward transm. at the surface
           & trsol_dn_sfc_diff=prm_diag%trsol_dn_sfc_diff(:,jb),&! in shortwave diffuse downward transm. at the surface
           !
@@ -1529,7 +1540,9 @@ CONTAINS
           & lwflx_up_sfc=prm_diag%lwflx_up_sfc(:,jb)   ,&   ! out longwave upward flux at surface [W/m2]
           & swflx_up_toa=prm_diag%swflx_up_toa(:,jb)   ,&   ! out shortwave upward flux at the TOA [W/m2]
           & swflx_up_sfc=prm_diag%swflx_up_sfc(:,jb)   ,&   ! out shortwave upward flux at the surface [W/m2]
-          & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out shortwave upward flux at the surface [W/m2]
+          & swflx_nir_sfc=prm_diag%swflx_nir_sfc(:,jb) ,&   ! out near-infrared downward flux at the surface [W/m2]
+          & swflx_vis_sfc=prm_diag%swflx_vis_sfc(:,jb) ,&   ! out visible downward flux at the surface [W/m2]
+          & swflx_par_sfc=prm_diag%swflx_par_sfc(:,jb) ,&   ! out PAR downward flux at the surface [W/m2]
           & swflx_dn_sfc_diff=prm_diag%swflx_dn_sfc_diff(:,jb), & ! out shortwave diffuse downward flux at the surface [W/m2]
           & lacc=lzacc                                          )
         ENDIF
@@ -1821,7 +1834,8 @@ CONTAINS
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
             z_ddt_temp(jc,jk) = prm_nwp_tend%ddt_temp_radsw(jc,jk,jb) + prm_nwp_tend%ddt_temp_radlw(jc,jk,jb) &
-              &              +  prm_nwp_tend%ddt_temp_drag (jc,jk,jb) + prm_nwp_tend%ddt_temp_pconv(jc,jk,jb)
+              &              +  prm_nwp_tend%ddt_temp_drag (jc,jk,jb) + prm_nwp_tend%ddt_temp_pconv(jc,jk,jb) &
+              &              +  prm_nwp_tend%ddt_temp_clcov(jc,jk,jb)
           ENDDO
         ENDDO
         !$acc end parallel
@@ -2292,9 +2306,7 @@ CONTAINS
       CALL compute_dpsdt (pt_patch      = pt_patch,  &
         &                 dt            = dt_loc,    &
         &                 pt_diag       = pt_diag,   &
-        &                 opt_dpsdt_avg = dpsdt_avg, &
-        &                 lacc          = lzacc      )  ! (only stdio-process has reasonable return value!)
-      nudging_config(jg)%dpsdt = dpsdt_avg
+        &                 lacc          = lzacc      )
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_dpsdt)
 

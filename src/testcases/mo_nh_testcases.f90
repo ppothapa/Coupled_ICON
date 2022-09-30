@@ -76,14 +76,14 @@ MODULE mo_nh_testcases
   USE mo_grid_geometry_info,   ONLY: planar_torus_geometry
   USE mo_nh_rce_exp,           ONLY: init_nh_state_rce_glb,                       &
                                    & init_nh_state_rce_tprescr_glb
-  USE mo_torus_bubble_exp,     ONLY: init_nh_state_rce_bubble_glb
+  USE mo_aes_bubble,           ONLY: init_aes_bubble
   USE mo_nh_torus_exp,         ONLY: init_nh_state_cbl, init_nh_state_rico,       &
                                    & init_torus_netcdf_sounding,                  &
                                    & init_torus_ascii_sounding, init_warm_bubble, &
                                    & init_torus_rcemip_analytical_sounding
   USE mo_nh_tpe_exp,           ONLY: init_nh_state_prog_TPE
 
-  USE mo_nonhydrostatic_config, ONLY: ndyn_substeps, vwind_offctr
+  USE mo_nonhydrostatic_config,ONLY: ndyn_substeps, vwind_offctr
   USE mo_sleve_config,         ONLY: top_height
   USE mo_nh_lahade,            ONLY: init_nh_lahade
   USE mo_upatmo_config,        ONLY: upatmo_config
@@ -490,9 +490,8 @@ MODULE mo_nh_testcases
    ! Running Radiative Convective Equilibrium with prescribed temperature profile
      CALL message(TRIM(routine),'running ICON in RCE with prescribed initial temperature profile')
 
-  CASE ('RCE_bubble')
-   ! Running Radiative Convective Equilibrium with bubble
-     CALL message(TRIM(routine),'running ICON in RCE with moisture and temperature bubble')
+  CASE ('aes_bubble')
+     CALL message(TRIM(routine),'running ICON torus with moisture and temperature bubble')
   CASE ('RICO')
 
     IF(p_patch(1)%geometry_info%geometry_type/=planar_torus_geometry)&
@@ -1296,20 +1295,19 @@ MODULE mo_nh_testcases
       CALL message(TRIM(routine),'End setup global RCE_Tprescr test')
     END DO !jg
 
-  CASE ('RCE_bubble')
+  CASE ('aes_bubble')
 
-     ! u,v,w are initialized to zero.  initialize with temperature profile, add random noise
-     ! to virtual potential temperature inside init_nh_state_rce_bubble_glb.
+     ! u,v,w are initialized to zero.  initialize with temperature profile, add bubble to T and q
     DO jg = 1, n_dom
        nlev   = p_patch(jg)%nlev
-       write(0,*) 'before init_nh_state_rce_bubble_glb'
-      CALL init_nh_state_rce_bubble_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
+       write(0,*) 'before init_aes_bubble'
+      CALL init_aes_bubble ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
       
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
-      CALL message(TRIM(routine),'End setup global RCE_bubble test')
+      CALL message(TRIM(routine),'End setup aes_bubble test')
     END DO !jg
     
 

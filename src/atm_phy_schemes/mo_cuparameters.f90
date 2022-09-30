@@ -1210,7 +1210,7 @@ ENDIF
 !     RDEPTHS:   MAXIMUM ALLOWED SHALLOW CLOUD DEPTH (Pa)
 !     -------
 phy_params%rdepths=tune_rdepths
-IF (lshallow_only .OR. lgrayzone_deepconv .AND. .NOT. lrestune_off) &
+IF ((lshallow_only .OR. lgrayzone_deepconv) .AND. .NOT. lrestune_off) &
    phy_params%rdepths = phy_params%rdepths/MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
 
 
@@ -1273,7 +1273,7 @@ ENDIF
 
 ! tuning parameter for organized entrainment of deep convection
 phy_params%entrorg = tune_entrorg
-IF (lshallow_only .OR. lgrayzone_deepconv .AND. .NOT. lrestune_off ) &
+IF (lshallow_only .AND. .NOT. lrestune_off .OR. lgrayzone_deepconv ) &
    phy_params%entrorg = phy_params%entrorg*MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
 
 ! resolution-dependent settings for 'excess values' of temperature and QV used for convection triggering (test parcel ascent)

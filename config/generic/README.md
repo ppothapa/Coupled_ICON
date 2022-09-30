@@ -92,12 +92,38 @@ platforms are provided in section [Tested platforms](#tested-platforms).
 other [MPI](https://www.mpi-forum.org) implementation that provides compiler
 wrappers `mpicc` and `mpif90` for C and Fortran, repsectively, as well as the
 job launcher `mpiexec`.
-    > **_NOTE:_** The compiler wrappers of [OpenMPI](https://www.open-mpi.org)
-fail to run (without additional arguments) more MPI jobs than the number of real
-processor cores available on the machine. That might lead to failures when
-configuring or running ICON. The solution to the problem is to use
-[MPICH](https://www.mpich.org) or run the configure wrapper with an additional
-argument `MPI_LAUNCH='mpiexec --oversubscribe'`.
+    > **_NOTE:_** The job launcher of [OpenMPI](https://www.open-mpi.org) fails
+to run more MPI processes than the number of real processor cores available on the machine by default.
+That might lead to failures when configuring or running ICON. The solution to the problem is to
+run the configure wrapper with an additional argument `MPI_LAUNCH='mpiexec --oversubscribe'`.
+    >
+    > [OpenMPI](https://www.open-mpi.org) is also known to have problems with
+running on macOS. Although the [list of known issues](https://www.open-mpi.org/faq/?category=osx)
+is very dated, some of them are still relevant. In particular,
+[this one](https://www.open-mpi.org/faq/?category=osx#startup-errors-with-open-mpi-2.0.x)
+(also see [here](https://github.com/open-mpi/ompi/issues/7393)). The solution
+here is to run the configure wrapper with one more argument
+`BUILD_ENV="export TMPDIR='/tmp';"` and make sure that the `TMPDIR` environment
+variable is set to `/tmp` before running ICON.
+    >
+    > [MPICH](https://www.mpich.org) is far from being flawles either. For
+example, the current latest release `4.0.2` of the library fails in some cases
+as well and it is unclear when the problem gets fixed (there is an ongoing
+[internal discussion](https://gitlab.dkrz.de/YAC/YAC-dev/-/issues/15) on how to
+handle it).
+    >
+    > In any case, a good way to make sure that the MPI library does not have
+significant defects is to switch to the root source directory of ICON and run
+the following commands (do not forget the aformentioned extra arguments for the
+configure wrapper if you are using [OpenMPI](https://www.open-mpi.org)):
+    > ```bash
+    > ./config/generic/gcc --enable-yaxt --enable-cdi-pio --enable-coupling
+    > make -j4 check-bundled TESTS= XFAIL_TESTS=  # this step speeds up the next one but can be skipped
+    > make check-bundled  # avoid running this step in parallel on a weak machine, i.e. omit the -j argument
+    > test $? -eq 0 && echo "Everything is fine" || echo "Something went wrong"
+    > ```
+    > After that, you can clean up the source directory and reconfigure ICON the
+way you need.
 - [HDF5](https://support.hdfgroup.org/HDF5) with high-level interface (for
 <a href="#netcdf-c">NetCDF-С</a>), thread-safety (for <a href="#cdo">CDO</a>),
 and szlib filtering support (only C interface required, not a direct dependency

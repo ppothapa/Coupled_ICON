@@ -1353,8 +1353,7 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'condhf_ice', p_diag_lnd%condhf_ice,&
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-           & ldims=shape2d, lrestart=.TRUE.,                                   &
-           & in_group=groups("land_vars"))
+           & ldims=shape2d, lrestart=.TRUE.)
 
 
     ! & p_diag_lnd%qv_s_t(nproma,nblks_c,ntiles_total+ntiles_water)

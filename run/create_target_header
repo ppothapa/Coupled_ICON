@@ -65,6 +65,7 @@ $(test x"${use_ulimit:-yes}" != xyes || printf 'ulimit -s unlimited')
 # memory_model=$use_memory_model
 # submit with $use_submit
 #
+builder=${use_target}_${use_compiler}
 #=============================================================================
 #
 # OpenMP environment variables
@@ -84,6 +85,7 @@ mpi_procs_pernode=$use_mpi_procs_pernode
 # blocking length
 # ---------------
 nproma=$use_nproma
+rrtmgp_columns_chunk=$use_rrtmgp_columns_chunk
 nblocks_c=$use_nblocks_c
 #
 #=============================================================================
@@ -138,7 +140,6 @@ fi
     cat >> $output_script << EOF
 
 #=============================================================================
-
 # directories with absolute paths
 # -------------------------------
 thisdir=\$(pwd)
@@ -150,6 +151,8 @@ icon_data_rootFolder="${icon_data_rootFolder}"
 # ---------------------------
 export START="$start"
 export MODEL="\${basedir}/bin/icon"
+
+set | grep SLURM
 
 # how to submit the next job
 # --------------------------
@@ -180,12 +183,13 @@ set_run_target_default()
 
     set_default use_ulimit no
     set_default use_nproma 48
+    set_default use_rrtmgp_columns_chunk 48
     set_default use_nblocks_c 0
     set_default use_nodes 1
 
     if [[ "$use_mpi" == "yes" ]]
     then
-	set_default use_mpi_procs_pernode 2
+	set_default use_mpi_procs_pernode 4
     fi
     if [[ "$use_openmp" == "yes" ]]
     then
@@ -213,6 +217,7 @@ set_run_target_bullx_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
@@ -391,10 +396,12 @@ EOF
 # setup for levante.dkrz.de
 set_run_target_bull_milan()
 {
-    # mistral.dkrz.de
+    # levante.dkrz.de
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
+    set_default use_ulimit no
     set_default use_nproma 32
+    set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
     if [[ "x$BB_SYSTEM" != "x" ]]
@@ -413,16 +420,16 @@ set_run_target_bull_milan()
     then
 	if [[ $use_openmp == "yes" ]]
 	then
-	    set_default use_openmp_threads '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / 4 / '"$smt_adjust"'))"'
-	    set_default use_mpi_procs_pernode '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '$smt_adjust' / OMP_NUM_THREADS))"'
+	    set_default use_openmp_threads '"\$(( 4 * '"$smt_adjust"'))"'
+	    set_default use_mpi_procs_pernode '"\$(( 128 * '"$smt_adjust"' / OMP_NUM_THREADS))"'
 	else
-	    set_default use_mpi_procs_pernode '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '"$smt_adjust"'))"'
+	    set_default use_mpi_procs_pernode '"\$(( 128 * '"$smt_adjust"'))"'
 	fi
     else
 	start="srun -n 1"
 	if [[ $use_openmp == "yes" ]]
 	then
-	    set_default use_openmp_threads '"\$((\${SLURM_JOB_CPUS_PER_NODE%%\(*} / '"$smt_adjust"'))"'
+	    set_default use_openmp_threads 64
 	    #      set_default use_mpi_procs_pernode 1
 	    start+=" --cpus-per-task=\$(($smt_adjust * OMP_NUM_THREADS))"
 	else
@@ -432,36 +439,29 @@ set_run_target_bull_milan()
 
     [[ "x$use_queue" != 'x' ]] && queue=$use_queue
     # FIXME: This probably still needs some improvement.
-    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --cpu_bind=v,cores --distribution=plane=8:cyclic --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\$((${smt_adjust} * OMP_NUM_THREADS))"
-    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --distribution=plane --hint=nomultithread --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\$((${smt_adjust} * OMP_NUM_THREADS))"
+    # The main observation is: ICON runs consistently faster without SMT. Hence the '--hint=nomultithread' is used
+    use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --distribution=plane --hint=nomultithread --ntasks=\$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=\${mpi_procs_pernode} --cpus-per-task=\${OMP_NUM_THREADS}"
 
-    add_free_var SLURM_DIST_PLANESIZE 8
+    add_free_var SLURM_DIST_PLANESIZE 32
     case _$use_compiler in
 	"_intel" )
             add_free_var KMP_AFFINITY "granularity=fine,scatter"
             add_free_var KMP_LIBRARY "turnaround"
-            add_free_var KMP_KMP_SETTINGS "1"
-            add_free_var OMP_WAIT_POLICY "active"
-            add_free_var KMP_WARNINGS "0"
-            add_free_var MKL_ENABLE_INSTRUCTIONS AVX2
-            add_free_var MKL_DEBUG_CPU_TYPE 5
+            add_free_var MALLOC_TRIM_THRESHOLD_ "-1"
+            add_free_var MKL_DEBUG_CPU_TYPE "5"
+            add_free_var MKL_ENABLE_INSTRUCTIONS "AVX2"
 	    ;;
     esac
     case $use_mpi_root in
 	*openmpi*)
-            #add_free_var HDF5_USE_FILE_LOCKING FALSE
-
-            add_free_var KMP_LIBRARY "turnaround"
-            add_free_var OMPI_MCA_osc "pt2pt"
-            add_free_var UCX_IB_ADDR_TYPE ib_global
-            add_free_var OMPI_MCA_coll "^ml"
-            add_free_var OMPI_MCA_coll_hcoll_enable "1"
-            add_free_var HCOLL_MAIN_IB mlx5_0:1
-            add_free_var UCX_NET_DEVICES mlx5_0:1
-            add_free_var UCX_TLS mm,cma,dc_mlx5,dc_x,self
-            add_free_var UCX_UNIFIED_MODE y
-            add_free_var HDF5_USE_FILE_LOCKING FALSE
+            add_free_var OMPI_MCA_btl "self"
+            add_free_var OMPI_MCA_coll "^ml,hcoll"
             add_free_var OMPI_MCA_io "romio321"
+            add_free_var OMPI_MCA_osc "ucx"
+            add_free_var OMPI_MCA_pml "ucx"
+            add_free_var UCX_HANDLE_ERRORS "bt"
+            add_free_var UCX_TLS "shm,dc_mlx5,dc_x,self"
+            add_free_var UCX_UNIFIED_MODE "y"
 	    ;;
     esac
 
@@ -508,7 +508,6 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 #SBATCH --partition=$queue
 #SBATCH --chdir=$output_folder
 #SBATCH --nodes=$use_nodes
-#SBATCH --threads-per-core=2
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --exclusive
 #SBATCH --time=$s_cpu_time
@@ -536,6 +535,7 @@ set_run_target_bullx_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
@@ -649,6 +649,7 @@ set_run_target_mpipc()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 64
+    set_default use_rrtmgp_columns_chunk 64
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -680,6 +681,7 @@ set_run_target_docker_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/icon-data-pool}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -698,6 +700,7 @@ set_run_target_docker_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/icon-data-pool}
 
     set_default use_nproma 20480
+    set_default use_rrtmgp_columns_chunk 800
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -716,6 +719,7 @@ set_run_target_oflws()
     icon_data_rootFolder=${icon_data_rootFolder:=""}
     
     set_default use_nproma 64
+    set_default use_rrtmgp_columns_chunk 64
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -738,6 +742,7 @@ set_run_target_hpc()
     icon_data_rootFolder=${icon_data_rootFolder:=""}
     
     set_default use_nproma 64
+    set_default use_rrtmgp_columns_chunk 64
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_mpi_procs_pernode 1
@@ -777,6 +782,7 @@ set_run_target_tsa_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     # use_OMP_SCHEDULE="static,1"
@@ -882,6 +888,7 @@ set_run_target_tsa_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 8000
+    set_default use_rrtmgp_columns_chunk 800
     set_default use_nblocks_c 0
     set_default use_prefetch_procs 0
     set_default use_account_no "$(id -gn)"
@@ -995,6 +1002,7 @@ set_run_target_daint_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     # use_OMP_SCHEDULE="static,1"
@@ -1102,6 +1110,7 @@ set_run_target_daint_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 8000
+    set_default use_rrtmgp_columns_chunk 800
     set_default use_nblocks_c 1
     set_default use_prefetch_procs 0
     set_default use_account_no "$(id -gn)"
@@ -1203,6 +1212,7 @@ set_run_target_dom_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 256
+    set_default use_rrtmgp_columns_chunk 256
     set_default use_nblocks_c 0
     set_default use_nodes 1
     use_OMP_SCHEDULE="static,1"
@@ -1284,6 +1294,7 @@ set_run_target_tave_knl()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
+    set_default use_rrtmgp_columns_chunk 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     use_OMP_SCHEDULE="static,2"
@@ -1377,6 +1388,7 @@ set_run_target_euler()
   icon_data_poolFolder=${icon_data_poolFolder:=${poolFolder_prefix}/icon_input}
 
   set_default use_nproma 64
+  set_default use_rrtmgp_columns_chunk 64
   set_default use_nodes 1
 
   #JENKINS_NO_OF_CORES can is unbound when not used with jenkins icon
@@ -1417,6 +1429,7 @@ EOF
 set_run_target_pacluster()
 {  
     set_default use_nproma 32
+    set_default use_rrtmgp_columns_chunk 32
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_cpu_time 04:00:00
@@ -1484,6 +1497,7 @@ set_run_target_fh2()
     icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
 
     set_default use_nproma 8
+    set_default use_rrtmgp_columns_chunk 8
     set_default use_nblocks_c 0
     use_nodes=1
   
@@ -1518,6 +1532,7 @@ set_run_target_hk()
     icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
 
     set_default use_nproma 8
+    set_default use_rrtmgp_columns_chunk 8
     set_default use_nblocks_c 0
     use_nodes=1
   
@@ -1565,15 +1580,15 @@ create_target_header()
     fi
 
     use_prefetch_procs=0
-    case $job_name in
-        *mch_opr_r04b07.run)
+ 	case $job_name in
+        *mch_opr_r04b07.run|*mch_opr_r04b07_seed_*.run)
             use_nodes=1
             use_mpi_procs_pernode=2
             use_nproma=4250
             ;;
-        *mch_opr_r04b07_nest.run)
-            use_nodes=4
-            use_mpi_procs_pernode=1
+        *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_seed_*.run)
+            use_nodes=1
+            use_mpi_procs_pernode=4
             use_nproma=1600
             ;;
         *mch_*)

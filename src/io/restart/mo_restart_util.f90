@@ -24,6 +24,7 @@ MODULE mo_restart_util
   USE mtime,                 ONLY: datetime, newDatetime, deallocateDatetime
   USE mo_var_metadata_types, ONLY: t_var_metadata
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_mpi,                ONLY: my_process_is_stdio, p_io, p_comm_work, p_bcast
 #ifndef NOMPI
   USE mo_mpi, ONLY: p_pe_work, my_process_is_restart
   USE mpi, ONLY: MPI_PROC_NULL, MPI_ROOT
@@ -36,7 +37,7 @@ MODULE mo_restart_util
 
   PUBLIC :: t_restart_args, t_rfids
   PUBLIC :: getRestartFilename, restartSymlinkName, create_restart_file_link
-  PUBLIC :: restartBcastRoot
+  PUBLIC :: restartBcastRoot, check_for_checkpoint
   ! patch independent restart arguments
   TYPE t_restart_args
     TYPE(datetime), POINTER :: restart_datetime => NULL()
@@ -261,5 +262,28 @@ CONTAINS
     la = LEN_TRIM(ci%cf%long_name)
     CALL nf(nf_put_att_text(rfids%ncid, ci%cdiVarId, "long_name", la, ci%cf%long_name(1:la)), routine)
   END SUBROUTINE rfids_def_ncdfvar
+
+  SUBROUTINE check_for_checkpoint(lready_for_checkpoint, lchkp_allowed, lstop_on_demand)
+
+    LOGICAL, INTENT(IN)    :: lready_for_checkpoint
+    LOGICAL, INTENT(INOUT) :: lchkp_allowed
+    LOGICAL, INTENT(OUT)   :: lstop_on_demand
+
+    IF (my_process_is_stdio()) THEN
+      ! The purpose of this file is to inform other processes that ICON is ready for checkpointing
+      IF (lready_for_checkpoint .AND. .NOT. lchkp_allowed) THEN
+        OPEN(123,file='ready_for_checkpoint')
+        lchkp_allowed = .TRUE.
+        CLOSE(123)
+      ENDIF
+      IF (lready_for_checkpoint) THEN
+        INQUIRE(file='stop_icon',exist=lstop_on_demand)
+      ELSE
+        lstop_on_demand = .FALSE.
+      ENDIF
+    ENDIF
+    CALL p_bcast(lstop_on_demand,p_io,p_comm_work)
+
+  END SUBROUTINE check_for_checkpoint
 
 END MODULE mo_restart_util

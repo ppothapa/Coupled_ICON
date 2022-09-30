@@ -40,22 +40,6 @@ MODULE mo_diffusion_nml
                           ! 3: Smagorinsky diffusion without background diffusion
                           ! 4: 4th order linear diffusion on all vertical levels 
                           ! 5: Smagorinsky diffusion with fourth-order background diffusion
-                          ! 24 or 42: 2nd order linear diffusion for upper levels,
-                          !           4th order for lower levels
-
-  REAL(wp) :: k2_pres_max ! (relevant only when hdiff_order = 24 or 42)
-                          ! pressure (in Pa) specified by the user
-                          ! to determine the lowest vertical level 
-                          ! to which 2nd order linear diffusion is applied.
-                          ! For the levels with pressure > k2_pres_max, 
-                          ! 4th order linear diffusion is applied. 
-
-  INTEGER  :: k2_klev_max ! (relevant only when hdiff_order = 24 or 42)
-                          ! vertical level index specified by the user
-                          ! to determine the lowest vertical level 
-                          ! to which 2nd order linear diffusion is applied.
-                          ! For the levels with k > k2_klev_max, 
-                          ! 4th order linear diffusion is applied. 
 
   REAL(wp) :: hdiff_efdt_ratio      ! ratio of e-folding time to (2*)time step
   REAL(wp) :: hdiff_w_efdt_ratio    ! ratio of e-folding time to time step for w diffusion (NH only)
@@ -79,7 +63,7 @@ MODULE mo_diffusion_nml
   LOGICAL :: lhdiff_w      ! if .TRUE., apply horizontal diffusion to vertical momentum.
   LOGICAL :: lsmag_3d      ! if .TRUE., compute 3D Smagorinsky diffusion coefficient.
 
-  NAMELIST/diffusion_nml/ hdiff_order, k2_klev_max, k2_pres_max,                             &
+  NAMELIST/diffusion_nml/ hdiff_order,                                                       &
                           hdiff_efdt_ratio, hdiff_min_efdt_ratio, hdiff_tv_ratio,            &
                           hdiff_smag_fac, hdiff_smag_fac2, hdiff_smag_fac3, hdiff_smag_fac4, &
                           hdiff_smag_z,   hdiff_smag_z2,   hdiff_smag_z3,   hdiff_smag_z4,   &
@@ -152,8 +136,6 @@ CONTAINS
     itype_vn_diffu       = 1
     itype_t_diffu        = 2
 
-    k2_pres_max          = -99.0_wp                                                    
-    k2_klev_max          = 0
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
@@ -249,8 +231,6 @@ CONTAINS
     diffusion_config(:)% lhdiff_w             =  lhdiff_w
     diffusion_config(:)% lsmag_3d             =  lsmag_3d
     diffusion_config(:)% hdiff_order          =  hdiff_order
-    diffusion_config(:)% k2_klev_max          =  k2_klev_max
-    diffusion_config(:)% k2_pres_max          =  k2_pres_max
     diffusion_config(:)% hdiff_efdt_ratio     =  hdiff_efdt_ratio
     diffusion_config(:)% hdiff_w_efdt_ratio   =  hdiff_w_efdt_ratio
     diffusion_config(:)% hdiff_min_efdt_ratio =  hdiff_min_efdt_ratio

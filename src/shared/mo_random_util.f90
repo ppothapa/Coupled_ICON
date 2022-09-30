@@ -154,17 +154,14 @@ CONTAINS
 
   END SUBROUTINE add_random_noise_global
 
-  SUBROUTINE add_random_noise( &
-    subset, nproma, nlev, nblk, &
-    amplitude, seed_in, &
-    field)
+  SUBROUTINE add_random_noise( subset, amplitude, seed_in, field)
 
     TYPE(t_subset_range), INTENT(IN) :: subset
     REAL(wp), INTENT(IN) :: amplitude
-    INTEGER, INTENT(IN) :: nproma, nlev, nblk, seed_in
+    INTEGER, INTENT(IN) :: seed_in
     REAL(wp), INTENT(INOUT) :: field(:,:,:)
 
-    REAL(wp) :: noise(nproma, nlev, nblk)
+    REAL(wp) :: noise(SIZE(field,1), SIZE(field,2), SIZE(field,3))
     INTEGER :: seed_size, start_idx, end_idx, i, jl, jk, jb
     INTEGER, ALLOCATABLE :: seed(:)
 
@@ -180,7 +177,7 @@ CONTAINS
 
     DO jb=subset%start_block,subset%end_block
       CALL get_index_range( subset, jb, start_idx, end_idx)
-      DO jk=1,nlev
+      DO jk=1,SIZE(field,2)
         DO jl=start_idx,end_idx
           field(jl,jk,jb) = field(jl,jk,jb) * ((noise(jl,jk,jb) * 2._wp - 1._wp) * amplitude + 1._wp)
         ENDDO !jk

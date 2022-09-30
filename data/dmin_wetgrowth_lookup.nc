@@ -1,1 +1,1 @@
-dmin_wetgrowth_graupelhail2test4.nc
+dmin_wetgrowth_graupelhail_cosmo5.nc

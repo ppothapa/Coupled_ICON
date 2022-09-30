@@ -11,6 +11,14 @@
 !!                         Parametrization of the increase of the aeolian erosion threshold wind
 !!                         friction velocity due to soil moisture for arid and semi-arid areas.
 !!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
+!! Grythe et al. (2014)  - Grythe, H., Ström, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
+!!                         A review of sea-spray aerosol source functions using a large global set
+!!                         of sea salt aerosol concentration measurements.
+!!                         Atmos. Chem. Phys., 14(3), 1277-1297.
+!! Jaegle et al. (2011)  - Jaeglé, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
+!!                         Global distribution of sea salt aerosols: new constraints from in situ
+!!                         and remote sensing observations
+!!                         Atmos. Chem. Phys., 11, 3137–3157.
 !! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
 !!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
 !! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
@@ -61,7 +69,7 @@ MODULE mo_aerosol_sources
 
   PRIVATE
 
-  PUBLIC :: aerosol_dust_aod_source
+  PUBLIC :: aerosol_dust_aod_source, aerosol_ssa_aod_source
 
 CONTAINS
 
@@ -360,4 +368,115 @@ CONTAINS
 
   END FUNCTION calc_hsnow_fac
   
+  !>
+  !! SUBROUTINE aerosol_ssa_aod_source
+  !!
+  !! Calculates the source term for sea salt aerosol optical depth
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2021-10-22)
+  !!
+  SUBROUTINE aerosol_ssa_aod_source (sst, sp_10m, aod_flux, ssa_flux, ssa_flux_t)
+    REAL(wp), INTENT(in)  :: &
+      &  sst,                & !< Sea surface temperature in K
+      &  sp_10m                !< Wind speed in 10m height (m s-1)
+    REAL(wp), INTENT(out) :: &
+      &  aod_flux              !< Sea salt optical depth tendency (s-1)
+    REAL(wp), OPTIONAL, INTENT(out) :: &
+      &  ssa_flux, ssa_flux_t  !< Sea salt emission flux (mug m-2 s-1)
+    ! Local variables
+    REAL(wp) ::              &
+      &  sst_degc              !< Sea surface temperature in degree celcius
+
+    sst_degc   = sst - 273.15_wp
+    ! ssa_flux and ssa_flux_t calculate the sea spray aerosol mass flux. 
+    ! For the 2D-aerosol implementation, only the change in AOD (aod_flux) is needed.
+    ! For future checking or debugging, we leave the calls commented here.
+    ! ssa_flux   = calc_ssa_mflux_grythe2014(sp_10m)
+    ! ssa_flux_t = calc_ssa_sst_weighting(sst_degc) * ssa_flux
+    aod_flux   = calc_ssa_sst_weighting(sst_degc) * calc_ssa_aod(sp_10m)
+
+  END SUBROUTINE aerosol_ssa_aod_source
+
+  !>
+  !! FUNCTION calc_ssa_mflux_grythe2014
+  !!
+  !! Calculates the sea salt aerosol flux according to Grythe et al. (2014). 
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2021-10-22)
+  !!
+  ELEMENTAL FUNCTION calc_ssa_mflux_grythe2014 (u10m) RESULT(ssa_flux)
+
+    REAL(wp), INTENT(in)  :: &
+      &  u10m                  !< Input: Wind speed in 10m (m s-1)
+    REAL(wp)              :: &
+      &  ssa_flux              !< Output: Sea salt emission flux (mug m-2 s-1)
+    ! Local Variables
+    REAL(wp)              :: &
+      &  fac1, fac2            !< Factors derived from integrating Grythe et al. 2014 source
+                               !< function without the wind speed dependency over all diameters.
+
+    ! Factors derived assuming sphericity and a density of 2200 kg m-3
+    fac1 = 0.00023865_wp
+    fac2 = 3.6086e-06_wp
+
+    ssa_flux = u10m**3.5_wp  * fac1 + u10m**3  * fac2
+
+  END FUNCTION calc_ssa_mflux_grythe2014
+
+  !>
+  !! FUNCTION calc_ssa_sst_weighting
+  !!
+  !! Calculates a sea surface temperature based weighting of
+  !! sea salt aerosol emissions based on Jaeglé et al. (2011).
+  !! This temperature dependency is important to explain for
+  !! the relatively high SSA concentrations found in the tropics
+  !! (Grythe et al., 2014).
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2021-10-22)
+  !!
+  ELEMENTAL FUNCTION calc_ssa_sst_weighting(sst) RESULT (temp_wgt)
+
+    REAL(wp), INTENT(in)  :: &
+      &  sst                   !< Sea surface temperature (deg C)
+    REAL(wp)              :: &
+      &  temp_wgt              !< Temperature weighting
+
+    temp_wgt = 0.3_wp              &
+      &      + 0.1_wp     * sst    &
+      &      - 0.0076_wp  * sst**2 &
+      &      + 0.00021_wp * sst**3
+
+  END FUNCTION calc_ssa_sst_weighting
+
+  !>
+  !! SUBROUTINE calc_ssa_aod
+  !!
+  !! Calculates the sea salt aerosol optical depth.
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2022-04-05)
+  !!
+  ELEMENTAL FUNCTION calc_ssa_aod (u10m) RESULT(aod_flux)
+
+    REAL(wp), INTENT(in)  :: &
+      &  u10m                  !< Input: Wind speed in 10m (m s-1)
+    REAL(wp)              :: &
+      &  aod_flux              !< Output: Sea salt optical depth tendency (s-1)
+    ! Local Variables
+    REAL(wp)              :: &
+      &  fac1, fac2            !< Factors derived from integrating Grythe et al. 2014 source
+                               !< function without the wind speed dependency times the mass
+                               !< extinction coefficient over all diameters
+
+    ! Values derived assuming sphericity, a density of 2200 kg m-3 and m=1.5+1e-09j
+    fac1 = 1.0438704354309787e-10_wp
+    fac2 = 6.225149737200363e-13_wp
+
+    aod_flux = u10m**3.5_wp  * fac1 + u10m**3  * fac2
+
+  END FUNCTION calc_ssa_aod
+
 END MODULE mo_aerosol_sources

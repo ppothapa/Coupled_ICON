@@ -1,30 +1,35 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 #==============================================================================
 # create an experiment list
 #==============================================================================
-from buildbot_builders import *
-#from model_paths import *
-import argparse
+from buildbot_config import BuildbotConfig
+from icon_paths import buildbot_list_path
 
-parser = argparse.ArgumentParser(description='Add a machine to list.')
-parser.add_argument('machine_name', type=str,  help='machine name')
-parser.add_argument('--list', dest="list_name", type=str, help='buildbot list', required=True)
-parser.add_argument('--queue', dest="queue",    type=str,  help='queue for the machine', required=False)
+from pathlib import Path
+import pickle
+import click
 
-args = parser.parse_args()
+@click.command()
+@click.argument("machine_name", type=str)
+@click.option("--queue", type=str, help="the batch system queue where jobs are submitted to")
+@click.option("--list", "list_name", type=str, help="the list")
+def addmachine(machine_name, queue, list_name):
 
+    full_list_name = buildbot_list_path / list_name
 
-if not args.queue:
-  queue = ""
-else:
-  queue = args.queue
-  
-thisList  = buildbot_experiments_list(args.list_name)
-thisList.add_machine(args.machine_name, queue)
-thisList.write()
-print("Machine "+ args.machine_name+" is added to the "+args.list_name+" list.")
+    print(full_list_name)
 
-quit()
+    if Path(full_list_name).exists():
+        thisList = BuildbotConfig.from_pickle(full_list_name)
+    else:
+        print("did not find experiment list {}".format(full_list_name))
+        print("creating new experiment list.")
+        thisList = BuildbotConfig()
 
+    thisList.add_machine(machine_name, queue=queue)
 
+    thisList.to_pickle(full_list_name)
+
+if __name__ == "__main__":
+    addmachine()

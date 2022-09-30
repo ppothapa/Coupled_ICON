@@ -218,6 +218,7 @@ CONTAINS
           experiment_stop_date => newDatetime(TRIM(experimentStartDate))
           experiment_stop_date = experiment_start_date + forecast_lead_time
           CALL datetimeToString(experiment_stop_date, experimentStopDate)
+          cfg_experimentStopDate = experimentStopDate
           CALL deallocateDatetime(experiment_stop_date)
           CALL deallocateDatetime(experiment_start_date)
           CALL deallocateTimedelta(forecast_lead_time)      

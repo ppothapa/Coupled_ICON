@@ -1,24 +1,21 @@
 #!/bin/bash
 
+set -e
+
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-MPI_LAUNCH=''
 if [ ! -z "${BB_NAME}" ]; then
   set -x
-  MPI_LAUNCH='srun -A mh0156 -p compute -N 1'
+  set MPI_LAUNCH='srun -A mh0156 -p compute -N 1'
+else
+  # Setting MPI_LAUNCH to an empty string is not the same as not setting it at
+  # all for the configure script of YAC. With the following, we make sure that
+  # we do not pass any additional arguments:
+  set dummy; shift
 fi
 
-${ICON_DIR}/config/dkrz/levante.intel --enable-yaxt --disable-openmp MPI_LAUNCH="${MPI_LAUNCH}"
-
-if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
-  echo " ***** Configuration logs from '$(pwd)' ***** "
-  for f in $(find . -name 'config.log' -print); do
-    echo " ||||| '$f' ||||| "
-    cat "$f"
-  done
-  echo " ***** End of configuration logs from '$(pwd)' ***** "
-fi
+${ICON_DIR}/config/dkrz/levante.intel --enable-yaxt --disable-openmp --disable-mpi-checks "$@"
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22
@@ -26,4 +23,5 @@ if [ ! -z "${BB_NAME}" ] ; then
 else
   MAKE_PROCS=8
 fi
+
 make -j ${MAKE_PROCS}

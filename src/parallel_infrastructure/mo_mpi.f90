@@ -237,6 +237,7 @@ MODULE mo_mpi
   USE mo_master_control, ONLY: get_my_process_type, hamocc_process, ocean_process, process_exists, &
        &                       my_process_is_hamocc, my_process_is_ocean
 
+  USE mo_coupling, ONLY: init_coupler, finalize_coupler
 #ifdef HAVE_YAXT
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
@@ -2357,6 +2358,8 @@ CONTAINS
 #endif       
     END IF
 
+    CALL init_coupler(global_mpi_communicator, global_name)
+
     process_mpi_all_comm = MPI_COMM_NULL
     IF (PRESENT(global_name)) THEN
       yname = global_name
@@ -2562,6 +2565,8 @@ CONTAINS
 
     INTEGER :: iexit = 0    
     ! finish MPI and clean up all PEs
+
+    CALL finalize_coupler()
 
 #ifndef NOMPI
     ! to prevent abort due to unfinished communication

@@ -380,6 +380,7 @@ cat > NAMELIST_NWP << EOF
  llw_cloud_scat              =                     .TRUE.         ! Longwave cloud scattering
  iliquid_scat                =                          0         ! Optical properties used for liquid cloud scattering (0 = SOCRATES)
  iice_scat                   =                          0         ! Optical properties used for ice cloud scattering (0 = Fu)
+ isolrad                     =                          1         ! Coddington et al. (2016) scaling
 /
 
 ! sleve_nml: vertical level specification -------------------------------------

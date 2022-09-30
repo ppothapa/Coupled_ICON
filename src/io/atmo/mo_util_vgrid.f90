@@ -29,22 +29,20 @@ MODULE mo_util_vgrid
   USE mo_kind,                              ONLY: wp, dp
   USE mo_exception,                         ONLY: finish, message, message_text, warning
   !
-  USE mo_dynamics_config,                   ONLY: iequations
-  USE mo_grid_config,                       ONLY: n_dom, vertical_grid_filename, create_vgrid
+  USE mo_grid_config,                       ONLY: n_dom, vertical_grid_filename, vct_filename, create_vgrid
   USE mo_sleve_config,                      ONLY: lread_smt
   USE mo_nonhydrostatic_config,             ONLY: ivctype
   USE mo_parallel_config,                   ONLY: nproma
   USE mo_gribout_config,                    ONLY: gribout_config
   USE mo_run_config,                        ONLY: number_of_grid_used, msg_level, check_uuid_gracefully
   !
-  USE mo_impl_constants,                    ONLY: inh_atmosphere, SUCCESS, MAX_CHAR_LENGTH
+  USE mo_impl_constants,                    ONLY: SUCCESS, MAX_CHAR_LENGTH
   USE mo_model_domain,                      ONLY: t_patch
   USE mo_ext_data_types,                    ONLY: t_external_data
   USE mo_intp_data_strc,                    ONLY: t_int_state
   USE mo_nh_testcases_nml,                  ONLY: layer_thickness, n_flat_level
   USE mo_init_vgrid,                        ONLY: init_hybrid_coord, init_sleve_coord,                  &
-    &                                             prepare_hybrid_coord, prepare_sleve_coord,            &
-    &                                             init_vert_coord
+    &                                             prepare_vcoord, init_vert_coord
   USE mo_nh_init_utils,                     ONLY: compute_smooth_topo
   USE mo_nh_init_nest_utils,                ONLY: topo_blending_and_fbk
   USE mo_communication,                     ONLY: exchange_data, idx_no, blk_no
@@ -97,39 +95,28 @@ CONTAINS
     REAL(C_DOUBLE), ALLOCATABLE       :: r_in(:,:)
     INTEGER, ALLOCATABLE              :: glbidx(:)
     CHARACTER(len=UUID_STRING_LENGTH) :: uuid_unparsed
+    LOGICAL                           :: lvct_from_file  ! TRUE: vct_a is read from file
 
     !--- Initialize vertical coordinate table vct_a, vct_b (grid stretching)
-    SELECT CASE (iequations)
 
-    CASE (inh_atmosphere)
 
-      nlevp1 = p_patch(1)%nlev+1
+    IF (TRIM(vertical_grid_filename(1)) == "") THEN
 
-      IF (TRIM(vertical_grid_filename(1)) == "") THEN
+      ! skip the following paragraph if we read the 3D vertical grid information from
+      ! file:
+      !
+      ! initialize 1D vertical coordinate tables
+      IF (ivctype == 1) THEN
+        CALL init_hybrid_coord(p_patch(1)%nlev, vct_filename, vct_a, vct_b, layer_thickness, n_flat_level)
+      ELSE IF (ivctype == 2) THEN
+        CALL init_sleve_coord(p_patch(1)%nlev, vct_filename, vct_a, vct_b)
+      ENDIF
 
-        ! skip the following paragraph if we read vertical grid from
-        ! file:
-        !
-        IF (ivctype == 1) THEN
-          CALL init_hybrid_coord(p_patch(1)%nlev, vct_a, vct_b, layer_thickness, n_flat_level)
-        ELSE IF (ivctype == 2) THEN
-          CALL init_sleve_coord(p_patch(1)%nlev, vct_a, vct_b)
-        ELSE IF (ivctype == 12) THEN
-          CALL init_hybrid_coord(p_patch(1)%nlev, vct_a, vct_b, layer_thickness, n_flat_level)
-        ENDIF
+      lvct_from_file = (TRIM(vct_filename) /= "")
+      CALL prepare_vcoord(lvct_from_file, ivctype, p_patch(1)%nlev, vct_a, vct_b, vct, nflatlev)
 
-        IF (ivctype == 1) THEN
-          CALL prepare_hybrid_coord(p_patch(1)%nlev, vct_a, vct_b, vct, nflatlev)
-        ELSE IF (ivctype == 2) THEN
-          CALL prepare_sleve_coord(p_patch(1)%nlev, vct_a, vct_b, vct, nflatlev)
-        ELSE IF (ivctype == 12) THEN
-          CALL prepare_sleve_coord(p_patch(1)%nlev, vct_a, vct_b, vct, nflatlev)
-        ENDIF
+    END IF
 
-      END IF
-    CASE DEFAULT
-      CALL finish (routine, 'Unknown type!')
-    END SELECT
 
     !--- Allocate 3D half level coordinate arrays
 
@@ -155,96 +142,94 @@ CONTAINS
 
     !--- initialize 3D half level coordinate
 
-    IF (iequations == inh_atmosphere) THEN
-      IF (vertical_grid_filename(1) == "") THEN
-        ! skip the following paragraph if we read vertical grid from
-        ! file:
-        !
+    IF (vertical_grid_filename(1) == "") THEN
+      ! skip the following paragraph if we read vertical grid from
+      ! file:
+      !
 
-        ! Perform topography smoothing and feedback
-        IF (n_dom > 1) CALL topo_blending_and_fbk(1)
+      ! Perform topography smoothing and feedback
+      IF (n_dom > 1) CALL topo_blending_and_fbk(1)
 
+      DO jg = 1,n_dom
+        nlevp1   = p_patch(jg)%nlev + 1
+        ALLOCATE(topography_smt(nproma,p_patch(jg)%nblks_c))
+
+        ! Compute smooth topography when SLEVE coordinate is used
+        IF ( ivctype == 2 .AND. .NOT. lread_smt ) THEN
+          CALL compute_smooth_topo(p_patch(jg), p_int_state(jg), ext_data(jg)%atm%topography_c, & ! in, in, in,
+            &                      topography_smt)                                                ! out
+        ENDIF
+
+        ! total shift of model top with respect to global domain
+        IF (jg > 1) THEN
+          nflatlev(jg) = nflatlev(1) - p_patch(jg)%nshift_total
+        ENDIF
+
+        IF (jg > 1 .AND. p_patch(jg)%nshift_total > 0 .AND. nflatlev(jg) <= 1) THEN
+          CALL finish(routine, 'flat_height too close to the top of the innermost nested domain')
+        ENDIF
+
+        ! Initialize vertical coordinate for cell points
+        CALL init_vert_coord(vct_a, vct_b, ext_data(jg)%atm%topography_c, topography_smt, &
+          &                  vgrid_buffer(jg)%z_ifc, p_patch(jg)%nlev,                    &
+          &                  p_patch(jg)%nblks_c, p_patch(jg)%npromz_c,                   &
+          &                  p_patch(jg)%nshift_total, nflatlev(jg) )
+        DEALLOCATE(topography_smt)
+      END DO
+
+      ! Parallel generation of UUID for distributed 3D field (to
+      ! this end, we create a local copy). No global array involved.
+      DO jg = 1,n_dom
+
+        nlevels = SIZE(vgrid_buffer(jg)%z_ifc,2)
+        ALLOCATE(r_in(nlevels, p_patch(jg)%n_patch_cells), &
+          &      glbidx(p_patch(jg)%n_patch_cells))
+        iidx = 0
+        DO j = 1, p_patch(jg)%n_patch_cells
+          jc_c = idx_no(j)
+          jb_c = blk_no(j)
+          IF (p_patch(jg)%cells%decomp_info%decomp_domain(jc_c,jb_c) /= 0)  CYCLE
+          iidx = iidx + 1
+          r_in(:,iidx) = vgrid_buffer(jg)%z_ifc(jc_c,1:nlevels,jb_c)
+          glbidx(iidx) = p_patch(jg)%cells%decomp_info%glb_index(j)
+        ENDDO
+        CALL uuid_generate(p_comm_work, r_in(:,1:iidx), glbidx(1:iidx), &
+          &                p_patch(jg)%n_patch_cells_g, vgrid_buffer(jg)%uuid)
+        IF (my_process_is_mpi_workroot()) THEN
+          CALL uuid_unparse(vgrid_buffer(jg)%uuid, uuid_unparsed)
+          WRITE (0,*) "parallel calculation of vgrid UUID. Generated UUID: ", uuid_unparsed
+        END IF
+        DEALLOCATE(r_in,glbidx)
+
+        ! broadcast the generated UUID st. it is available on all
+        ! workers:
+        CALL p_bcast(vgrid_buffer(jg)%uuid%data, SIZE(vgrid_buffer(jg)%uuid%data, 1), 0, p_comm_work)
+
+      ENDDO ! jg
+
+      !--- If the user did not provide an external vertical grid
+      !--- file, this file will be created:
+      IF (create_vgrid) THEN
         DO jg = 1,n_dom
-          nlevp1   = p_patch(jg)%nlev + 1
-          ALLOCATE(topography_smt(nproma,p_patch(jg)%nblks_c))
-
-          ! Compute smooth topography when SLEVE coordinate is used
-          IF ( (ivctype == 2 .OR. ivctype == 12) .AND. .NOT. lread_smt ) THEN
-            CALL compute_smooth_topo(p_patch(jg), p_int_state(jg), ext_data(jg)%atm%topography_c, & ! in, in, in,
-              &                      topography_smt)                                                ! out
-          ENDIF
-
-          ! total shift of model top with respect to global domain
-          IF (jg > 1) THEN
-            nflatlev(jg) = nflatlev(1) - p_patch(jg)%nshift_total
-          ENDIF
-
-          IF (jg > 1 .AND. p_patch(jg)%nshift_total > 0 .AND. nflatlev(jg) <= 1) THEN
-            CALL finish(routine, 'flat_height too close to the top of the innermost nested domain')
-          ENDIF
-
-          ! Initialize vertical coordinate for cell points
-          CALL init_vert_coord(vct_a, vct_b, ext_data(jg)%atm%topography_c, topography_smt, &
-            &                  vgrid_buffer(jg)%z_ifc, p_patch(jg)%nlev,                    &
-            &                  p_patch(jg)%nblks_c, p_patch(jg)%npromz_c,                   &
-            &                  p_patch(jg)%nshift_total, nflatlev(jg) )
-          DEALLOCATE(topography_smt)
+          CALL write_vgrid_file(p_patch(jg), vct_a, vct_b, nflatlev(jg), &
+            &                   "vgrid_DOM"//TRIM(int2string(jg, "(i2.2)"))//".nc")
         END DO
+      ENDIF  ! create_vgrid
 
-        ! Parallel generation of UUID for distributed 3D field (to
-        ! this end, we create a local copy). No global array involved.
-        DO jg = 1,n_dom
+    ELSE
 
-          nlevels = SIZE(vgrid_buffer(jg)%z_ifc,2)
-          ALLOCATE(r_in(nlevels, p_patch(jg)%n_patch_cells), &
-            &      glbidx(p_patch(jg)%n_patch_cells))
-          iidx = 0
-          DO j = 1, p_patch(jg)%n_patch_cells
-            jc_c = idx_no(j)
-            jb_c = blk_no(j)
-            IF (p_patch(jg)%cells%decomp_info%decomp_domain(jc_c,jb_c) /= 0)  CYCLE
-            iidx = iidx + 1
-            r_in(:,iidx) = vgrid_buffer(jg)%z_ifc(jc_c,1:nlevels,jb_c)
-            glbidx(iidx) = p_patch(jg)%cells%decomp_info%glb_index(j)
-          ENDDO
-          CALL uuid_generate(p_comm_work, r_in(:,1:iidx), glbidx(1:iidx), &
-            &                p_patch(jg)%n_patch_cells_g, vgrid_buffer(jg)%uuid)
-          IF (my_process_is_mpi_workroot()) THEN
-            CALL uuid_unparse(vgrid_buffer(jg)%uuid, uuid_unparsed)
-            WRITE (0,*) "parallel calculation of vgrid UUID. Generated UUID: ", uuid_unparsed
-          END IF
-          DEALLOCATE(r_in,glbidx)
-          
-          ! broadcast the generated UUID st. it is available on all
-          ! workers:
-          CALL p_bcast(vgrid_buffer(jg)%uuid%data, SIZE(vgrid_buffer(jg)%uuid%data, 1), 0, p_comm_work)
+      !--- The user has provided an external vertical grid file; we read its
+      !--- contents here:
+      DO jg = 1,n_dom
+        CALL read_vgrid_file(p_patch(jg), vct_a, vct_b, nflatlev(jg), TRIM(vertical_grid_filename(jg)))
 
-        ENDDO ! jg
+        ! Reset topography_c to z_ifc(nlevp1) in order to ensure identity
+        ! in case of nesting (topography blending/feedback)
+        nlevp1 = p_patch(jg)%nlev + 1
+        ext_data(jg)%atm%topography_c(:,:) = vgrid_buffer(jg)%z_ifc(:,nlevp1,:)
 
-        !--- If the user did not provide an external vertical grid
-        !--- file, this file will be created:
-        IF (create_vgrid) THEN
-          DO jg = 1,n_dom
-            CALL write_vgrid_file(p_patch(jg), vct_a, vct_b, nflatlev(jg), &
-              &                   "vgrid_DOM"//TRIM(int2string(jg, "(i2.2)"))//".nc")
-          END DO
-        ENDIF  ! create_vgrid
+      END DO
 
-      ELSE
-
-        !--- The user has provided an external vertical grid file; we read its
-        !--- contents here:
-        DO jg = 1,n_dom
-          CALL read_vgrid_file(p_patch(jg), vct_a, vct_b, nflatlev(jg), TRIM(vertical_grid_filename(jg)))
-
-          ! Reset topography_c to z_ifc(nlevp1) in order to ensure identity
-          ! in case of nesting (topography blending/feedback)
-          nlevp1 = p_patch(jg)%nlev + 1
-          ext_data(jg)%atm%topography_c(:,:) = vgrid_buffer(jg)%z_ifc(:,nlevp1,:)
-
-        END DO
-
-      END IF
     END IF
     !$ACC UPDATE DEVICE(vct_a)
 

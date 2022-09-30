@@ -39,7 +39,7 @@ MODULE mo_rtifc_base
   !-------------
   ! Modules used
   !-------------
-  
+
   use iso_fortran_env,    only: stdout => output_unit, &!
                                 stderr => error_unit,  &!
                                 iostat_end              !
@@ -68,7 +68,7 @@ MODULE mo_rtifc_base
   use rttov_god,          only: rttov_o2god
 #endif
 
-#if defined(_RTIFC_DISTRIBCOEF) && defined(HAVE_MPI_MOD) 
+#if defined(_RTIFC_DISTRIBCOEF) && defined(HAVE_MPI_MOD)
   ! prefer MPI module over mpif.h
   use mpi
 #endif
@@ -144,6 +144,9 @@ MODULE mo_rtifc_base
   ! Possible coefficient level numbers
   integer,         parameter :: levels_rttov(4) = (/ 44, 51, 54, 101 /)
 
+  ! Max numbers
+  integer,         parameter :: mx_chan         = 8700
+
   ! Define variables for no-rttov case, that are used from RTTOV modules otherwise
 #if (_RTTOV_VERSION <= 0)
 !  integer,         parameter :: jpim            = selected_int_kind(9)       ! standard integer type
@@ -163,7 +166,7 @@ MODULE mo_rtifc_base
 
 
   ! error codes and messages
-  integer,         parameter :: nerr            = 23                        ! number of different error messages
+  integer,         parameter :: nerr            = 24                        ! number of different error messages
   character(len=100)         :: err_msg(0:nerr)
 #define DEF_ERR(codename, code, msg) integer,parameter::codename=code;data err_msg(code)/msg/
   DEF_ERR(NO_ERROR            ,  0, 'No error. Everything okay.')
@@ -190,6 +193,7 @@ MODULE mo_rtifc_base
   DEF_ERR(ERR_PRECISION_INCONS, 21, 'Real data precisions inconsistent (wp /= jprb).')
   DEF_ERR(ERR_NO_COEFS        , 22, 'No matching coefs found.')
   DEF_ERR(ERR_MULTIPLE_COEFS  , 23, 'Multiple matching coefs found.')
+  DEF_ERR(ERR_NO_OPTS_TMPL    , 24, 'Option templates not initialized so far')
 ! DEF_ERR(ERR_                , XX, '')
 #undef DEF_ERR
 
@@ -220,9 +224,9 @@ MODULE mo_rtifc_base
   real(kind=wp)              :: default_ctp               =    500.0_wp ! cloud top pressure
   real(kind=wp)              :: default_cfraction         =      0.0_wp ! cloud fraction
 #if (_RTTOV_VERSION >= 13)
-  integer                    :: default_icede_param       =       4     ! Same as default_idg, but for RTTOVv13 !CSt
+  integer                    :: default_icede_param       =       4     ! Same as default_idg, but for RTTOVv13 !CStrtifc_set_opt_template
 #else
-  integer                    :: default_idg               =       4     ! Scheme for IWC to eff 
+  integer                    :: default_idg               =       4     ! Scheme for IWC to eff
                                                                         ! shape of the ice crystals RTTOVv12
 #endif
   integer                    :: default_ice_scheme        =       1     ! ice particle scheme
@@ -232,7 +236,7 @@ MODULE mo_rtifc_base
   integer                    :: verbosity                 = production
   logical                    :: read1pe                   = .false.      ! Read coeffs.only on I/O PE
                                                   ! (Only effective with -D_RTIFC_DISTRIBCOEF)
-
+  integer                    :: rtifc_alloc_mode          = 0
 
   ! T/q hard limits
   real(kind=wp)              :: qmin_ifc                  = qmin_rttov
@@ -240,15 +244,15 @@ MODULE mo_rtifc_base
   real(kind=wp)              :: tmin_ifc                  = tmin_rttov
   real(kind=wp)              :: tmax_ifc                  = tmax_rttov
 
-#if (_RTTOV_VERSION <= 0)  
+#if (_RTTOV_VERSION <= 0)
   real(kind=wp)              :: min_od                    = -1._wp
 #else
   ! Used from rttov_const
 #endif
 
   ! check on regularization limits
-  logical, save, allocatable :: mask_lims_t(:)                          ! mask for t exceeding limit
-  logical, save, allocatable :: mask_lims_q(:)                          ! mask for t exceeding limit
+  real(kind=wp)              :: chk_plim_t                = -1._wp      ! do not check t for p < chk_plim_t
+  real(kind=wp)              :: chk_plim_q                = -1._wp      ! do not check q for p < chk_plim_t
   integer                    :: chk_reg_lims              = 0           ! Check regularization limits in rtifc
                                                                         ! bit1 (1): print results (invalid profiles)
                                                                         ! bit2 (2): set flag for use in calling prog
@@ -262,6 +266,9 @@ MODULE mo_rtifc_base
   integer                    :: chk_god                   = 0           ! Check influence of god smoothing
                                                                         ! bit1 (1): print results (invalid profiles)
                                                                         ! bit2 (2): set flag for use in calling prog
+
+  ! Atlas
+  logical                    :: atlas_single_inst         = .false.
 
 contains
 
@@ -323,7 +330,7 @@ contains
 
   function rttov_version() result(vers)
     character(len=11) :: vers
-#if (_RTTOV_VERSION <= 0)    
+#if (_RTTOV_VERSION <= 0)
     vers = 'NO_RTTOV'
 #else
     write(vers,'("RTTOV",I2.2,".",I1,".",I1)') version, release, minor_version
@@ -419,7 +426,7 @@ contains
       end do
     case(2)
     end select
-    
+
     if (present(wf)) then
       wf(1:nlev) = wf_(1:nlev)
     end if
@@ -467,19 +474,28 @@ contains
 #endif
 
 #if defined(_RTTOV_GOD)
-  subroutine check_god_infl(tau, god, istat, msg, debug)
-    real(kind=jprb),     intent(in)           :: tau(:)
+  subroutine check_god_infl(god, istat, msg, debug, tau, od_ref)
     type(rttov_god_par), intent(in)           :: god(:)
     integer,             intent(out)          :: istat
     character(len=*),    intent(out)          :: msg
+    real(kind=jprb),     intent(in), optional :: tau(:)
+    real(kind=jprb),     intent(in), optional :: od_ref(:)
     logical,             intent(in), optional :: debug
     ! Calculate transmission and optical depth profile (without god smoothing) on the
     ! basis on god-smoothed profiles.
-    real(kind=jprb) :: tau0(size(tau))
-    real(kind=jprb) :: infl(size(tau)-1), infl0(size(tau)-1)
-    real(kind=jprb) :: s_infl, od, od0, od0_tot, rdiff
+    character(len=14), parameter   :: proc = 'check_god_infl'
+    real(kind=jprb),   allocatable :: tau0 (:)
+    real(kind=jprb),   allocatable :: tau_ (:)
+    real(kind=jprb),   allocatable :: infl (:)
+    real(kind=jprb),   allocatable :: infl0(:)
+    real(kind=jprb) :: s_infl, od, od0, od0_tot, od_tot, rdiff
     integer :: nl, i, l
+    logical :: l_tau
     logical :: l_debug = .false.
+
+    if (.not.present(tau) .and. .not.present(od_ref)) &
+         call finish(proc, 'Either tau or od_ref must be present')
+    l_tau = .not.present(od_ref)
 
     if (present(debug)) then
       l_debug = debug
@@ -490,34 +506,58 @@ contains
     istat = 0
     msg   = ''
 
-    nl = size(tau)-1
+    if (l_tau) then
+      nl = size(tau)-1
+    else
+      nl = size(od_ref)
+    end if
+    allocate(tau_(nl+1), tau0(nl+1), infl(nl), infl0(nl))
+
+    if (l_tau) then
+      tau_(:) = tau(:)
+      od0_tot = 0._jprb
+      do i = 1,nl
+        if (tau_(i) > tau_(i+1)) then
+          od  = log(tau_(i+1)/tau_(i))
+          od0 = min(rttov_o2god(od, p=god(i)), 0._jprb)
+        else
+          od  = 0._jprb
+          od0 = 0._jprb
+        end if
+        tau0(i) = exp(od0_tot)
+        od0_tot = od0_tot + od0
+        if (l_debug) print*,'check_god_infl tau -> tau0',i,od,od0, tau_(i), tau0(i)
+      end do
+      tau0(nl+1) = exp(od0_tot)
+    else
+      nl = size(od_ref)
+      tau_(1) = 1._jprb
+      tau0(1) = 1._jprb
+      od0_tot = 0._jprb
+      od_tot  = 0._jprb
+      do i = 1, nl
+        od  = -abs(od_ref(i))
+        od_tot = od_tot + od
+        tau_(i+1) = exp(od_tot)
+        od0 = min(rttov_o2god(od, p=god(i)), 0._jprb)
+        od0_tot = od0_tot + od0
+        tau0(i+1) = exp(od0_tot)
+        if (l_debug) print*,'check_god_infl od_ref -> tau*',i,od,od0, tau_(i), tau0(i)
+      end do
+    end if
 
     s_infl = 0._jprb
-    od0_tot = 0._jprb
     do i = 1,nl
-      if (tau(i) > tau(i+1)) then
-        od  = log(tau(i+1)/tau(i))
-        od0 = min(rttov_o2god(od, p=god(i)), 0._jprb)
-      else
-        od  = 0._jprb
-        od0 = 0._jprb
-      end if
-      tau0(i) = exp(od0_tot)
-      od0_tot = od0_tot + od0
-      if (l_debug) print*,i,od,od0,od0_tot, tau(i), tau0(i)
-    end do
-    tau0(nl+1) = exp(od0_tot)
-
-    do i = 1,nl
-      infl (i) = tau (i) * (tau (i) - tau (i+1))
+      infl (i) = tau_(i) * (tau_(i) - tau_(i+1))
       infl0(i) = tau0(i) * (tau0(i) - tau0(i+1))
       s_infl = s_infl + infl0(i)
     end do
 
-    if (l_debug) print*,i,s_infl
+    if (l_debug) write(0,*) i,s_infl
     if (s_infl > 0._jprb) then
       do i = 1, nl
         rdiff = (infl(i)-infl0(i))/s_infl
+        if (l_debug) print*,i,infl(i),infl0(i),infl(i)-infl0(i),(infl(i)-infl0(i))/s_infl
         if (rdiff > god_thresh) then
           istat = 1
           l = len_trim(msg) + 1
@@ -527,14 +567,224 @@ contains
           end if
           write(msg(l:),'("layer ",I3," d(infl)/infl=",f6.4)') i, rdiff
         end if
-        if (l_debug) print*,i,infl(i),infl0(i),infl(i)-infl0(i),(infl(i)-infl0(i))/s_infl
       end do
     else
       istat = 2
       write(msg,*) 'Unable to calculate influence, total influence==0 !!!'
     end if
 
-  end subroutine check_god_infl  
+  end subroutine check_god_infl
+
+  subroutine l2c_god_tau(tau, god, l2c, l2c_corr, debug)
+    real(kind=jprb),     intent(in)           :: tau(:)
+    type(rttov_god_par), intent(in)           :: god(:)
+    real,                intent(in)           :: l2c
+    real,                intent(out)          :: l2c_corr
+    logical,             intent(in), optional :: debug
+    ! Calculate transmission and optical depth profile (without god smoothing) on the
+    ! basis on god-smoothed profiles. Then determine the transmission (with god-smoothing)
+    ! at the level "l2c". Finally, calculate a "corrected l2c" as the level where the transmission
+    ! is obtained without god-smoothing.
+    character(len=11), parameter :: proc = 'l2c_god_tau'
+    real(kind=jprb),  parameter :: eps = 1.e-30
+    real(kind=jprb)             :: tau0(size(tau))
+    real(kind=jprb)             :: od, od0, od0_tot, tr_l2c
+    real                        :: w0
+    integer                     :: nl, i, l0, l1, igod
+    logical                     :: l_debug = .false.
+
+    if (present(debug)) then
+      l_debug = debug
+    else
+      l_debug = .false.
+    end if
+    nl = size(tau)
+
+    ! Calculate transmission profile without god-smoothing
+    od0_tot = log(tau(1))
+    do i = 1, nl-1
+      igod = i + nlevs_top
+      if (tau(i) > tau(i+1) .and. tau(i+1) > eps) then
+        od  = log(tau(i+1)/tau(i))
+        od0 = min(rttov_o2god(od, p=god(igod)), 0._jprb)
+      else
+        od  = 0._jprb
+        od0 = 0._jprb
+      end if
+      tau0(i) = exp(od0_tot)
+      od0_tot = od0_tot + od0
+      if (l_debug) print*,proc//' tau',i, tau(i), tau0(i),od,od0,god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od, p=god(igod))
+
+    end do
+    tau0(nl) = exp(od0_tot)
+
+    ! Determine transmission at l2c
+    l0 = int(l2c)
+    l1 = l0 + 1
+    if (l_debug) print*,proc//' l2c',l2c,l0,l1,nl
+    if (l1 <= nl) then
+      w0 = (l1 - l2c)
+      tr_l2c = w0 * tau(l0) + (1._jprb - w0) * tau(l1)
+    else
+      l2c_corr = l2c
+      if (l_debug) print*,proc//' l1 > nl',l2c_corr
+      return
+    end if
+    if (l_debug) print*,proc//' tr_l2c',l2c,tr_l2c
+
+    ! Calc. level where tau0 equals tr_l2c
+    l2c_corr = -1.
+    do i = 1, nl
+      if (tau0(i) <= tr_l2c) then
+        if (i >  1) then
+          w0 = (tau0(i) - tr_l2c)/(tau0(i) - tau0(i-1))
+          l2c_corr = (i-1) * w0 + (1.-w0) * i
+          exit
+        else
+          l2c_corr = 1.
+        end if
+        exit
+      end if
+    end do
+    if (l2c_corr <= 0.) l2c_corr = real(nl)
+
+    if (l_debug) print*,proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
+
+  end subroutine l2c_god_tau
+
+  subroutine l2c_god_opd(opd, god, lp_l2c, lp_rt, l2c, l2c_corr, debug)
+    real(kind=jprb),     intent(in)           :: opd(:)
+    type(rttov_god_par), intent(in)           :: god(:)
+    real(kind=jprb),     intent(in)           :: lp_l2c(:)
+    real(kind=jprb),     intent(in)           :: lp_rt(:)
+    real,                intent(in)           :: l2c
+    real,                intent(out)          :: l2c_corr
+    logical,             intent(in), optional :: debug
+    ! Here the optical depths are on RTTOV-levels - not on user levels as in l2c_god_tau.
+    ! Determine the log(p) value "lp" corresponding to l2c. Calculate (total) optical depth
+    ! profile od/od0 (with/without god smoothing) on the RTTOV levels. Find the od at lp,
+    ! and the value "lp_corr" where the od == od0. Finally determine the level corresponding to
+    ! lp_corr.
+    character(len=11), parameter :: proc = 'l2c_god_opd'
+    real(kind=jprb),   parameter :: eps = 1.e-10_jprb
+    real(kind=jprb)              :: od(size(opd)+1),od0(size(opd)+1)
+    real(kind=jprb)              :: lp, lp_corr, od_l2c
+    real(kind=jprb)              :: od_, od0_
+    real(kind=jprb)              :: w0
+    integer                      :: nl, nlr, i, l0, l1, igod
+    logical                      :: l_debug = .false.
+
+    l2c_corr = l2c
+
+    if (present(debug)) then
+      l_debug = debug
+    else
+      l_debug = .false.
+    end if
+    nlr = size(opd)+1
+    nl  = size(lp_l2c)
+
+    ! Calculate opdep (total( profile with/without god-smoothing
+    od (1) = 0._jprb
+    od0(1) = 0._jprb
+    do i = 2, nlr
+      igod = i-1 !+ nlevs_top
+      od_    = -abs(opd(i-1))
+      od(i)  = od(i-1) + od_
+      od0_   = min(rttov_o2god(od_, p=god(igod)), 0._jprb)
+      od0(i) = od0(i-1) + od0_
+      if (l_debug) print*,proc//' od',i, od_, od(i), od0_, od0(i), god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od_, p=god(igod))
+    end do
+    if (l_debug) print*,proc//' od_diff',abs(od(nlr) - od0(nlr)), eps
+    if (abs(od(nlr) - od0(nlr)) < eps) return
+
+    ! Determine ln(p) at l2c
+    l0 = int(l2c)
+    l1 = l0 + 1
+    if (l_debug) print*,proc//' l2c',l2c,l0,l1,nl
+    if (l1 <= nl) then
+      w0 = (l1 - l2c)
+      lp = w0 * lp_l2c(l0) + (1._jprb - w0) * lp_l2c(l1)
+    else
+      if (l_debug) print*,proc//' l1 > nl',l2c_corr
+      return
+    end if
+    if (l_debug) print*,proc//' lp',l2c,lp,exp(lp)
+
+    ! Find corresponding RT-level
+    l1 = -1
+    do i = 1, nlr
+      if (lp_rt(i) >= lp) then
+        l1 = i
+        exit
+      end if
+    end do
+    if (l1 <= 1) then
+      if (l_debug) print*,proc//' l1 <= 0',l2c_corr
+      return
+    end if
+    l0 = l1 - 1
+    if (l_debug) print*,proc//' l0,l1',l0,l1,abs(od(l1) - od0(l1)),eps
+    if (abs(od(l1) - od0(l1)) < eps) return
+
+    ! Calc. od at l2c
+    w0 = (lp_rt(l1) - lp)/(lp_rt(l1) - lp_rt(l0))
+    if (l_debug) print*,proc//' calc_od_l2c',lp_rt(l0),lp_rt(l1),w0,od(l0),od(l1)
+    od_l2c =  w0 * od(l0) + (1._jprb - w0) * od(l1)
+    if (l_debug) print*,proc//' od_l2c',od_l2c
+
+    ! Find RT level with od0 == od_l2c
+    l1 = nlr
+    do i = 1, nlr
+      if (od0(i) <= od_l2c) then
+        l1 = i
+        exit
+      end if
+    end do
+    ! In case of zero optical depths, i.e. constant od0 over several levels, we select
+    ! the most "conservative" solution, i.e. the lowest level:
+    i = l1
+    do while (l1 < nlr)
+      if (od0(i) == od0(l1+1)) then
+        l1 = l1 + 1
+      else
+        exit
+      end if
+    end do
+    l0 = l1 - 1
+    if (l_debug) print*,proc//' l0,l1',l0,l1
+
+    ! Calc. p at this level
+    lp_corr = lp_rt(l1)
+    if (l1 > 1 .and. od0(l1) <= od_l2c) then
+      if (od0(l1) < od0(l0)) then
+        w0 = (od0(l1) - od_l2c) / (od0(l1) - od0(l0))
+        if (l_debug) print*,proc//' calc lp_corr',od0(l0),od0(l1),w0,lp_rt(l0),lp_rt(l1)
+        lp_corr = w0 * lp_rt(l0) + (1._jprb - w0) * lp_rt(l1)
+      end if
+    end if
+    if (l_debug) print*,proc//' lp_corr',lp_corr,exp(lp_corr)
+    lp_corr = max(lp, lp_corr)
+
+    ! Corrected l2c value
+    l1 = nl
+    do i = 1, nl
+      if (l_debug) print*,proc//' lp_l2c',i,lp_l2c(i),exp(lp_l2c(i))
+      if (lp_l2c(i) >= lp_corr) then
+        l1 = i
+        exit
+      end if
+    end do
+    l0 = l1 - 1
+    if (l_debug) print*,proc//' l0,l1',l0,l1
+    l2c_corr = real(l1)
+    if (l1 > 1 .and. lp_l2c(l1) >= lp_corr) then
+      w0 = (lp_l2c(l1) - lp_corr) / (lp_l2c(l1) - lp_l2c(l0))
+      l2c_corr = w0 * l0 + (1._jprb - w0) * l1
+    end if
+    if (l_debug) print*,proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
+
+  end subroutine l2c_god_opd
 #endif
 
 !==============================
@@ -740,7 +990,7 @@ contains
     ! Broadcast an integer vector across all available processors
     !------------------------------------------------------------
     integer :: lcom, errorcode
-    
+
     lcom = MPI_COMM_WORLD ;if (present (comm)) lcom = comm
 
     call MPI_Bcast(buffer,size(buffer), MPI_CHARACTER, source, lcom, errorcode)
@@ -821,9 +1071,9 @@ contains
     ! Broadcast a complex vector across all available processors
     !-----------------------------------------------------------
     integer :: lcom, errorcode
-    
+
     lcom = MPI_COMM_WORLD ;if (present (comm)) lcom = comm
-    
+
     call MPI_Bcast(buffer,size(buffer), MPI_DOUBLE_COMPLEX, source, lcom, errorcode)
 
     if (errorcode /= MPI_SUCCESS) &

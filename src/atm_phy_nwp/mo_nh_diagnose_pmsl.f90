@@ -117,7 +117,7 @@ CONTAINS
     ! --------------------------
 
     ! initialize output field
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF ( i_am_accel_node )
     pres_out(:,nblks) = 0._wp
     !$ACC END KERNELS
     
@@ -130,7 +130,8 @@ CONTAINS
         nlen = npromz
       ENDIF
      
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) &
+      !$ACC PRIVATE( geop_sfc, temp_in, pres_in, pres_sfc, ztstar, ztmsl, zalph, zprt, zprtal ) IF( i_am_accel_node )
       DO jc = 1, nlen
 
         geop_sfc = z3d_in(jc,nlevp1,jb)*grav    ! surface geopotential

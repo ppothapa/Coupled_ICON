@@ -104,7 +104,7 @@ all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
 
 # DACE sources:
 @DACE_ENABLED_OR_NEEDED@DACE_subdir:= externals/dace_icon/src_for_icon
-@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf')
+@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf' '*.c')
 
 # EMVORADO sources:
 @EMVORADO_ENABLED@EMVORADO_subdir:= externals/emvorado
@@ -223,14 +223,26 @@ dir_files:= $(filter-out ./.dirstamp,$(addsuffix .dirstamp,$(sort $(dir $(dep_fi
 # Name of the inline library (a directory):
 @PGI_INLIB_ENABLED@pgi_inlib_name:= $(libdir)/icon.il
 
+# List of procedures to be inlined:
+@PGI_INLIB_ENABLED@pgi_inlib_procedures:=
+
+# List of original Fortran '.f90' files containing $(pgi_inlib_procedures):
+@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=
+
+# Two lengthy space-separated lists of procedures and files that control the
+# contents of the inline library - $(pgi_inlib_procedures) and
+# $(pgi_inlib_f90_files) - are set in a separate file for the sake of
+# readability:
+@PGI_INLIB_ENABLED@include inlib.mk
+
+# Auxiliary function. Turns a space-separated list into a comma-separated one.
+join_comma_symbol:= ,
+join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
+
 # Additional PGI/NVIDIA Fortran compiler flags enabling the inline library
 # generation and usage:
-@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name)
-@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name)
-
-# List of original Fortran '.f90' files containing functions that need to be
-# inlined:
-@PGI_INLIB_ENABLED@pgi_inlib_f90_files:=
+@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
+@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name),reshape
 
 ########################################
 
@@ -347,14 +359,14 @@ distclean: clean
 	rm -f run/collect.set-up.info run/set-up.info
 	rm -f $(dep_files)
 	rm -f $(dir_files)
-	@for dir in $(bindir) $(moddir); do \
+	@for dir in $(bindir) $(libdir) $(moddir); do \
           if test -d "$$dir"; then \
             echo "find '$$dir' -type d -empty -delete"; \
             find "$$dir" -type d -empty -delete; \
           fi; \
 	done
 	@if test '.' != '$(srcdir)'; then \
-	  for dir in $(subdirs) $(libdir) externals run; do \
+	  for dir in $(subdirs) externals run; do \
 	    if test -d "$$dir"; then \
 	      echo "find '$$dir' -type d -empty -delete"; \
 	      find "$$dir" -type d -empty -delete; \
@@ -414,14 +426,21 @@ $(lib_files): | $(dir_files)
 @PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): silent_FC= $(silent_FCIL)
 @PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): make_FCFLAGS += $(pgi_inlib_in_FCFLAGS)
 
-# All object that can be built with the inline library depend on it:
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): $(pgi_inlib_name)
+# All objects that can be built with the inline library depend on it:
+#   The compiler documentation suggests that we use $(pgi_inlib_name) as a
+#   target and as a prerequisite but $(pgi_inlib_name) is a directory and using
+#   directories as makefile targets is generally a bad idea. In particular, a
+#   target directory is not removed on error, which means that if 'make' is
+#   interrupted during the generation of the library, the subsequent 'make'
+#   command will consider the library successfully created and erroneously
+#   proceed with the next step. Therefore we use the table of contents of the
+#   library, which is a regular file, as a target and as a dependency:
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): $(pgi_inlib_name)/TOC
 
 # PGI/NVIDIA inline library generation rule (note that the source files are
-# provided to the compiler in the topological order and we also have to delete
-# the partially generated library if the compiler fails):
-@PGI_INLIB_ENABLED@$(pgi_inlib_name): $(pgi_inlib_prereq_mod_files) $(pgi_inlib_obj_files:.@OBJEXT@=.f90) | $(dir_files)
-@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $@ && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter-out $(pgi_inlib_prereq_mod_files),$^) || (ec=$$?; rm -rf $@; exit $$ec)
+# provided to the compiler in the topological order):
+@PGI_INLIB_ENABLED@$(pgi_inlib_name)/TOC: $(pgi_inlib_prereq_mod_files) $(pgi_inlib_obj_files:.@OBJEXT@=.f90) inlib.mk | $(dir_files)
+@PGI_INLIB_ENABLED@	$(silent_FCEX)rm -rf $(@D) && $(FC) $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(pgi_inlib_ex_FCFLAGS) @FCFLAGS_f90@ $(filter %.f90,$^)
 
 # Fortran compilation rule:
 %.@OBJEXT@: %.f90 | $(dir_files) $(bundled_subdirs)
@@ -494,6 +513,9 @@ $(bundled_subdirs):
 # Build the bundled mtime and yaxt before the bundled yac:
 externals/yac: $(filter externals/mtime externals/yaxt,$(bundled_subdirs))
 
+# Build the bundled yaxt and ppm before the bundled cdi:
+externals/cdi: $(filter externals/yaxt externals/ppm,$(bundled_subdirs))
+
 # Relink executables if any of the source files of the bundled libraries
 # is updated (the semicolon is required to support parallel rebuild):
 $(BUNDLED_LIBFILES): $(bundled_subdirs);
@@ -544,6 +566,7 @@ c_binding.d: icon.mk
 	} >$@
 @ART_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/art/shared/mo_art_util_vcs.f90):| version.@OBJEXT@' >>$@
 @GPU_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/shared/mo_index_list.f90):| src/shared_cuda/index_list_cuda.@OBJEXT@' >>$@
+@DACE_ENABLED_OR_NEEDED@	$(silent_none)echo '$(call get_obj_names,$(DACE_subdir)/mo_wigos.f90):| $(DACE_subdir)/dace_md5_ifc.@OBJEXT@ $(DACE_subdir)/md5.@OBJEXT@' >>$@
 
 # Dummy dependency file generation rule (called by config.status):
 dummy-depend: | $(dir_files)

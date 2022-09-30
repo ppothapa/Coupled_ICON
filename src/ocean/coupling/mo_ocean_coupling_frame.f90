@@ -33,13 +33,12 @@ MODULE mo_ocean_coupling_frame
   !
   USE mo_math_constants,      ONLY: pi
   USE mo_parallel_config,     ONLY: nproma
-  USE mo_yac_finterface,      ONLY: yac_finit, yac_fdef_comp, yac_fget_version,  &
-    &                               yac_fdef_datetime,                           &
-    &                               yac_fdef_grid, yac_fdef_points,              &
-    &                               yac_fset_global_index, yac_fset_core_mask,   &
-    &                               yac_fdef_mask, yac_fdef_field_mask,          &
-    &                               yac_fsearch, yac_ffinalize,                  &
-    &                               YAC_LOCATION_CELL, COUPLING, OUT_OF_BOUND
+  USE mo_yac_finterface,      ONLY: yac_fdef_comp, yac_fget_version,        &
+    &                               yac_fdef_datetime, yac_fdef_grid,       &
+    &                               yac_fdef_points, yac_fset_global_index, &
+    &                               yac_fset_core_mask, yac_fdef_mask,      &
+    &                               yac_fdef_field_mask, yac_fsearch,       &
+    &                               YAC_LOCATION_CELL
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_time_config,         ONLY: time_config 
 
@@ -78,8 +77,6 @@ CONTAINS
     INTEGER                :: patch_no
     TYPE(t_patch), POINTER :: patch_horz
 
-    CHARACTER(LEN=max_char_length) :: xml_filename
-    CHARACTER(LEN=max_char_length) :: xsd_filename
     CHARACTER(LEN=max_char_length) :: grid_name
     CHARACTER(LEN=max_char_length) :: comp_name
 
@@ -118,11 +115,6 @@ CONTAINS
 
     patch_no = 1
     patch_horz => patch_3d%p_patch_2d(patch_no)
-
-    ! Initialise the coupler
-    xml_filename = "coupling.xml"
-    xsd_filename = "coupling.xsd"
-    CALL yac_finit ( TRIM(xml_filename), TRIM(xsd_filename) )
 
     ! Inform the coupler about what we are
     CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
@@ -398,8 +390,6 @@ CONTAINS
   SUBROUTINE destruct_ocean_coupling()
 
     IF (.NOT. is_coupled_run()) RETURN
-
-    CALL yac_ffinalize
 
   END SUBROUTINE destruct_ocean_coupling
 

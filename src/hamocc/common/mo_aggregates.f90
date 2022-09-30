@@ -166,7 +166,7 @@ MODULE mo_aggregates
 !              aggdiag(j,k,kwsagg)    = ws_agg(j,k) * 86400._wp / dtbgc ! conversion  m/time_step   to  m/d for output
 !              aggdiag(j,k,kdynvis)   = dynvis(j,k)
 
-              local_bgc_mem%wpoc(j,k)  = local_bgc_mem%ws_agg(j,k)
+              local_bgc_mem%wpoc(j,k)  = aggr_mem%ws_agg(j,k)
 
               ! set max sinking speed to courant number=0.8, so 0.8*pddpo
               !wpoc(j,k)  = min(wpoc(j,k),0.8_wp*pddpo(j,k))
