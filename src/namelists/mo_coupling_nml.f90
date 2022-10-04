@@ -29,6 +29,7 @@ MODULE mo_coupling_nml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
   USE mo_exception,       ONLY: finish
   USE mo_coupling_config, ONLY: config_coupled_mode
+  USE mo_coupling,        ONLY: coupler_config_files_exist
 
   IMPLICIT NONE
 
@@ -95,6 +96,11 @@ CONTAINS
     ENDIF
 #endif
 
+  IF ( coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
+    CALL finish( &
+      routine, &
+      'run is configured to be coupled, but coupler configuration files are not available')
+  END IF
 
   END SUBROUTINE read_coupling_namelist
 
