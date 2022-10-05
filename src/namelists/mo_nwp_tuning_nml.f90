@@ -66,10 +66,12 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_difrad_3dcont => tune_difrad_3dcont, &  
     &                               config_tune_gust_factor => tune_gust_factor, &  
     &                               config_itune_gust_diag => itune_gust_diag, &  
+    &                               config_tune_gustsso_lim => tune_gustsso_lim, &  
     &                               config_itune_albedo   => itune_albedo,       &
     &                               config_lcalib_clcov   => lcalib_clcov,       &
     &                               config_max_calibfac_clcl => max_calibfac_clcl, &
-    &                               config_max_freshsnow_inc => max_freshsnow_inc 
+    &                               config_max_freshsnow_inc => max_freshsnow_inc, &
+    &                               config_tune_eiscrit      => tune_eiscrit
   
   IMPLICIT NONE
   PRIVATE
@@ -191,12 +193,16 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< Tuning factor for gust parameterization
     &  tune_gust_factor            !
 
+  REAL(wp) :: &                    !< Basic gust speed (m/s) at which the SSO correction starts to be reduced
+    &  tune_gustsso_lim            !
+
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
 
   INTEGER :: &                     !< Type of gust tuning / SSO coupling
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
-                                   ! 2: use envelope top level, combined with adjusted tuning
+                                   ! 2: use envelope top level, combined with adjusted tuning for MERIT/REMA orography
+                                   ! 3: tuning for ICON-D2 with subgrid-scale condensation
 
   LOGICAL :: &                     ! cloud cover calibration over land points
     &  lcalib_clcov
@@ -205,8 +211,11 @@ MODULE mo_nwp_tuning_nml
     &  max_calibfac_clcl
 
   REAL(wp) :: &                    !< maximum allowed positive freshsnow increment
-    &  max_freshsnow_inc
-
+       &  max_freshsnow_inc
+  
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
+  
   NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun,            &
     &                      tune_zceff_min, tune_v0snow, tune_zvz0i,             &
     &                      tune_entrorg, itune_albedo, max_freshsnow_inc,       &
@@ -220,7 +229,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_rdepths, tune_thicklayfac, tune_sgsclifac,      &
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,&
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,   &
-    &                      tune_blockred, itune_gust_diag, tune_rcapqadv
+    &                      tune_blockred, itune_gust_diag, tune_rcapqadv,       &
+    &                      tune_gustsso_lim, tune_eiscrit
 
 
 CONTAINS
@@ -347,6 +357,7 @@ CONTAINS
 
     tune_gust_factor = 8.0_wp      ! tuning factor for gust parameterization
     itune_gust_diag  = 1           ! variant using level above SSO envelope
+    tune_gustsso_lim = 100._wp     ! Basic gust speed at which the SSO correction starts to be reduced
 
     tune_dust_abs   = 0._wp        ! no tuning of LW absorption of mineral dust
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
@@ -355,6 +366,12 @@ CONTAINS
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
 
+    !> critical stability threshold - if exceeded (stratocumulus regime)
+    !> conv param is switched off to allow grid scale microphysics to create cloud
+    !> If the default value of 1000 is kept, the atmosphere's EIS should never
+    !> exceed the critical value, and this option remains effectively switched off
+    tune_eiscrit     = 1000.0_wp
+    
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
       WRITE(iunit, nwp_tuning_nml)   ! write defaults to temporary text file
@@ -463,12 +480,14 @@ CONTAINS
     config_tune_difrad_3dcont    = tune_difrad_3dcont
     config_tune_gust_factor      = tune_gust_factor
     config_itune_gust_diag       = itune_gust_diag
+    config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
+    config_tune_eiscrit          = tune_eiscrit
 
-    !$acc update device(config_tune_gust_factor,config_itune_gust_diag)
+    !$acc update device(config_tune_gust_factor,config_itune_gust_diag,config_tune_gustsso_lim)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

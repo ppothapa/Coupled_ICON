@@ -25,14 +25,17 @@
 !!
 MODULE mo_initicon_types
 
-  USE mo_kind,                 ONLY: wp
+  USE mo_kind,                 ONLY: dp, sp, wp
   USE mo_impl_constants,       ONLY: max_ntracer, vname_len
   USE mo_run_config,           ONLY: ntracer
   USE mo_var,                  ONLY: t_var
   USE mo_dictionary,           ONLY: t_dictionary
   USE mo_ifs_coord,            ONLY: t_vct
-  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE, DO_PTR_DEALLOCATE
+  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE, DO_PTR_DEALLOCATE, copy
   USE mtime,                   ONLY: datetime
+  USE mo_exception,            ONLY: finish
+  USE mo_hash_table,           ONLY: t_HashTable, hashTable_make
+  USE mo_util_texthash,        ONLY: text_hash, text_isEqual
 
   IMPLICIT NONE
   PRIVATE
@@ -49,6 +52,7 @@ MODULE mo_initicon_types
   PUBLIC :: t_pi_tracer
   PUBLIC :: t_pi_sfc
   PUBLIC :: t_sfc_inc
+  PUBLIC :: t_saved_field
   PUBLIC :: t_saveinit_state ! state for saving initial state for double IAU runs
   PUBLIC :: geop_ml_var, alb_snow_var
   PUBLIC :: ana_varnames_dict
@@ -109,12 +113,12 @@ MODULE mo_initicon_types
 
   ! vertical level height of input data
   TYPE :: t_init_state_const
-    
+
     ! Flag. True, if this data structure has been allocated
     LOGICAL :: linitialized
 
     ! (half) level heights of input data
-    REAL(wp), POINTER, DIMENSION(:,:,:) :: z_mc_in  => NULL() 
+    REAL(wp), POINTER, DIMENSION(:,:,:) :: z_mc_in  => NULL()
 
     ! (half) level heights of the model
     REAL(wp), POINTER :: z_ifc(:,:,:), z_mc(:,:,:)
@@ -234,6 +238,20 @@ MODULE mo_initicon_types
     PROCEDURE, PUBLIC :: finalize => t_initicon_state_finalize
   END TYPE t_initicon_state
 
+  TYPE :: t_saved_field
+    REAL(dp), ALLOCATABLE :: r(:,:,:,:,:)
+    REAL(sp), ALLOCATABLE :: s(:,:,:,:,:)
+    INTEGER, ALLOCATABLE :: i(:,:,:,:,:)
+    LOGICAL, ALLOCATABLE :: l(:,:,:,:,:)
+  CONTAINS
+    PROCEDURE, PRIVATE :: t_saved_field__put_r, t_saved_field__put_s, t_saved_field__put_i, t_saved_field__put_l
+    GENERIC :: put => t_saved_field__put_r, t_saved_field__put_s, t_saved_field__put_i, t_saved_field__put_l
+
+    PROCEDURE, PRIVATE :: t_saved_field__get_r, t_saved_field__get_s, t_saved_field__get_i, t_saved_field__get_l
+    GENERIC :: get => t_saved_field__get_r, t_saved_field__get_s, t_saved_field__get_i, t_saved_field__get_l
+
+    PROCEDURE :: is_allocated => t_saved_field__is_allocated
+  END TYPE t_saved_field
 
   ! state for saving initial state
   TYPE :: t_saveinit_state
@@ -253,7 +271,10 @@ MODULE mo_initicon_types
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:) :: snowtile_flag_t, idx_lst_t
     INTEGER, ALLOCATABLE, DIMENSION(:,:)   :: gp_count_t
 
+    TYPE(t_HashTable), POINTER :: fields => NULL()
+
   CONTAINS
+    PROCEDURE :: init => t_saveinit_state_init !< constructor
     PROCEDURE :: finalize => t_saveinit_state_finalize !< destructor
   END TYPE t_saveinit_state
 
@@ -441,6 +462,113 @@ CONTAINS
   END SUBROUTINE t_initicon_state_finalize
 
 
+  !> Check allocation status of a saved field.
+  LOGICAL FUNCTION t_saved_field__is_allocated (self) RESULT(res)
+    CLASS(t_saved_field), INTENT(IN) :: self
+
+    res = ANY([ ALLOCATED(self%r), ALLOCATED(self%s), ALLOCATED(self%i), ALLOCATED(self%l) ])
+  END FUNCTION t_saved_field__is_allocated
+
+
+  !> Put a double-precision field into the saved field.
+  SUBROUTINE t_saved_field__put_r (self, r)
+    CLASS(t_saved_field), INTENT(INOUT) :: self
+    REAL(dp), INTENT(IN) :: r(:,:,:,:,:)
+
+    IF (self%is_allocated()) CALL finish('t_saved_field%put_r', 'Field is in use.')
+
+    ! Allocating assignment.
+    self%r = r
+  END SUBROUTINE t_saved_field__put_r
+
+  !> Put a single-precision field into the saved field.
+  SUBROUTINE t_saved_field__put_s (self, s)
+    CLASS(t_saved_field), INTENT(INOUT) :: self
+    REAL(sp), INTENT(IN) :: s(:,:,:,:,:)
+
+    IF (self%is_allocated()) CALL finish('t_saved_field%put_s', 'Field is in use.')
+
+    ! Allocating assignment.
+    self%s = s
+  END SUBROUTINE t_saved_field__put_s
+
+  !> Put an integer field into the saved field.
+  SUBROUTINE t_saved_field__put_i (self, i)
+    CLASS(t_saved_field), INTENT(INOUT) :: self
+    INTEGER, INTENT(IN) :: i(:,:,:,:,:)
+
+    IF (self%is_allocated()) CALL finish('t_saved_field%put_i', 'Field is in use.')
+
+    ! Allocating assignment.
+    self%i = i
+  END SUBROUTINE t_saved_field__put_i
+
+  !> Put a logical field into the saved field.
+  SUBROUTINE t_saved_field__put_l (self, l)
+    CLASS(t_saved_field), INTENT(INOUT) :: self
+    LOGICAL, INTENT(IN) :: l(:,:,:,:,:)
+
+    IF (self%is_allocated()) CALL finish('t_saved_field%put_l', 'Field is in use.')
+
+    ! Allocating assignment.
+    self%l = l
+  END SUBROUTINE t_saved_field__put_l
+
+  !> Retrieve a double-precision field from the saved field.
+  SUBROUTINE t_saved_field__get_r (self, r)
+    CLASS(t_saved_field), INTENT(IN) :: self
+    REAL(dp), INTENT(OUT) :: r(:,:,:,:,:)
+
+    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_r'
+
+    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
+    IF (.NOT. ALLOCATED(self%r)) CALL finish(procedure_name, 'Wong data type.')
+
+    CALL copy(self%r, r)
+  END SUBROUTINE t_saved_field__get_r
+
+  !> Retrieve a double-precision field from the saved field.
+  SUBROUTINE t_saved_field__get_s (self, s)
+    CLASS(t_saved_field), INTENT(IN) :: self
+    REAL(sp), INTENT(OUT) :: s(:,:,:,:,:)
+
+    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_s'
+
+    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
+    IF (.NOT. ALLOCATED(self%s)) CALL finish(procedure_name, 'Wong data type.')
+
+    CALL copy(self%s, s)
+  END SUBROUTINE t_saved_field__get_s
+
+  !> Retrieve an integer field from the saved field.
+  SUBROUTINE t_saved_field__get_i (self, i)
+    CLASS(t_saved_field), INTENT(IN) :: self
+    INTEGER, INTENT(OUT) :: i(:,:,:,:,:)
+
+    CALL copy(self%i, i)
+  END SUBROUTINE t_saved_field__get_i
+
+  !> Retrieve a logical field from the saved field.
+  SUBROUTINE t_saved_field__get_l (self, l)
+    CLASS(t_saved_field), INTENT(IN) :: self
+    LOGICAL, INTENT(OUT) :: l(:,:,:,:,:)
+
+    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_l'
+
+    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
+    IF (.NOT. ALLOCATED(self%l)) CALL finish(procedure_name, 'Wong data type.')
+
+    CALL copy(self%l, l)
+  END SUBROUTINE t_saved_field__get_l
+
+
+  SUBROUTINE t_saveinit_state_init(saveinit_data)
+    CLASS(t_saveinit_state), INTENT(INOUT) :: saveinit_data
+
+    saveinit_data%fields => hashTable_make(text_hash, text_isEqual)
+
+  END SUBROUTINE t_saveinit_state_init
+
   SUBROUTINE t_saveinit_state_finalize(saveinit_data)
     CLASS(t_saveinit_state), INTENT(INOUT) :: saveinit_data
 
@@ -498,6 +626,11 @@ CONTAINS
     CALL DO_DEALLOCATE(saveinit_data%clmf_a)
     CALL DO_DEALLOCATE(saveinit_data%clnum_p)
     CALL DO_DEALLOCATE(saveinit_data%clmf_p)
+
+    IF (ASSOCIATED(saveinit_data%fields)) THEN
+      CALL saveinit_data%fields%destruct
+      DEALLOCATE(saveinit_data%fields)
+    END IF
   END SUBROUTINE t_saveinit_state_finalize
 
 END MODULE mo_initicon_types

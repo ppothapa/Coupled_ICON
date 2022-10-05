@@ -64,11 +64,11 @@ CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2"
 
 FC='ftn'
-FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc60 -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} -D__SWAPDIM"
+FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc60 -Minfo=accel,inline ${SERIALBOXI} -I${NETCDF_DIR}/include ${ECCODESI} -D__SWAPDIM"
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_60 -g -O3'
 
-LDFLAGS="-L${GCC_PATH}/snos/lib64 -L${SERIALBOX2_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
+LDFLAGS="-L${GCC_PATH}/snos/lib64 -L${SERIALBOX2_ROOT}/lib -L${NETCDF_DIR}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
 
 # ICON executable will be linked to /opt/cray/pe/lib64/libmpichf90_pgi.so.3,
 # which depends on libomptarget.so but doesn't have an RPATH to it. For this
@@ -76,7 +76,7 @@ LDFLAGS="-L${GCC_PATH}/snos/lib64 -L${SERIALBOX2_ROOT}/lib -L${ECCODES_ROOT}/lib
 # LD_LIBRARY_PATH in advance (e.g. by loading an environment module). To solve
 # this issue, we overlink to libomptarget.so so that it can be found through
 # RPATH entries of the executable, which are injected by the compiler.
-LIBS="-L/opt/pgi/20.1.1/linux86-64-llvm/20.1/lib/libomp -lomptarget -Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${SERIALBOX2_LIBS} ${ECCODES_LIBS} ${STDCPP_LIBS}"
+LIBS="-L/opt/pgi/20.1.1/linux86-64-llvm/20.1/lib/libomp -lomptarget -Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${SERIALBOX2_LIBS} ${NETCDF_LIBS} ${ECCODES_LIBS} ${STDCPP_LIBS}"
 
 #MPI_LAUNCH='/apps/daint/UES/xalt/production/bin/srun -p debug -C gpu'
 MPI_LAUNCH=false

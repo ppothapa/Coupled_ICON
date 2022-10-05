@@ -34,7 +34,7 @@ MODULE mo_interface_aes_vdf
     &                               timer_vdf_dn, timer_vdf_sf, timer_vdf_up
 
   USE mo_ccycle_config       ,ONLY: ccycle_config
-  USE mo_physical_constants  ,ONLY: amco2, amd
+  USE mo_physical_constants  ,ONLY: vmr_to_mmr_co2
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
 
   USE mo_run_config          ,ONLY: iqv, iqc, iqi, iqnc, iqni, iqt, ico2
@@ -323,7 +323,7 @@ CONTAINS
              !
              !$ACC LOOP GANG VECTOR
              DO jl = jcs,jce
-               zco2(jl,jb) = 348.0e-06_wp * amco2/amd
+               zco2(jl,jb) = 348.0e-06_wp * vmr_to_mmr_co2
              END DO
              !
           CASE (1) ! c-cycle with interactive atm. co2 concentration
@@ -351,7 +351,7 @@ CONTAINS
              ! co2 concentration in the lowermost layer
              SELECT CASE (ccycle_config(jg)%ico2conc)
              CASE (2)
-                mmr_co2 = ccycle_config(jg)%vmr_co2   * amco2/amd
+                mmr_co2 = ccycle_config(jg)%vmr_co2 * vmr_to_mmr_co2
                 !
                 !$ACC LOOP GANG VECTOR
                 DO jl = jcs,jce

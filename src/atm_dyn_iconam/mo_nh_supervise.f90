@@ -818,8 +818,8 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
 
-    REAL(wp) :: dps_blk(pt_patch%nblks_c)
-    INTEGER  :: npoints_blk(pt_patch%nblks_c)
+    REAL(wp) :: dps_blk(pt_patch%nblks_c), dps_blk_scal
+    INTEGER  :: npoints_blk(pt_patch%nblks_c), npoints_blk_scal
     REAL(wp) :: dpsdt_avg                     !< spatial average of ABS(dpsdt)
     INTEGER  :: npoints
     LOGICAL  :: lzacc
@@ -840,12 +840,6 @@ CONTAINS
     ! Initialize fields for runtime diagnostics
     ! In case that average ABS(dpsdt) is diagnosed
     !$acc data create (dps_blk, npoints_blk) if(lzacc)
-    !$acc kernels if(lzacc)
-    IF (msg_level >= 11) THEN
-      dps_blk(:)     = 0._wp
-      npoints_blk(:) = 0
-    ENDIF
-    !$acc end kernels
 
 
 
@@ -870,19 +864,23 @@ CONTAINS
       ! dpsdt diagnostic - omitted in the case of a parallelization test (p_test_run) because this
       ! is a purely diagnostic quantity, for which it does not make sense to implement an order-invariant
       ! summation
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,dps_blk_scal,npoints_blk_scal)
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$acc parallel default (present) if(lzacc)
-        !$acc loop seq
+        dps_blk_scal = 0._wp
+        npoints_blk_scal = 0
+        !$acc parallel default (present) reduction(+:dps_blk_scal,npoints_blk_scal) if(lzacc)
+        !$acc loop gang vector
         DO jc = i_startidx, i_endidx
-          dps_blk(jb) = dps_blk(jb) + ABS(pt_diag%ddt_pres_sfc(jc,jb))
-          npoints_blk(jb) = npoints_blk(jb) + 1
+          dps_blk_scal = dps_blk_scal + ABS(pt_diag%ddt_pres_sfc(jc,jb))
+          npoints_blk_scal = npoints_blk_scal + 1
         ENDDO
         !$acc end parallel
+        dps_blk(jb) = dps_blk_scal
+        npoints_blk(jb) = npoints_blk_scal
       ENDDO
 !$OMP END DO
 
@@ -890,8 +888,8 @@ CONTAINS
 !$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
 
 !$OMP MASTER
-      dpsdt_avg = SUM(dps_blk)
-      npoints   = SUM(npoints_blk)
+      dpsdt_avg = SUM(dps_blk(i_startblk:i_endblk))
+      npoints   = SUM(npoints_blk(i_startblk:i_endblk))
       dpsdt_avg = global_sum_array(dpsdt_avg, opt_iroot=process_mpi_stdio_id)
       npoints   = global_sum_array(npoints  , opt_iroot=process_mpi_stdio_id)
       IF (my_process_is_stdio()) THEN

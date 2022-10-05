@@ -240,6 +240,14 @@ CONTAINS
       ! Store the other namelist variables in the nudging config type
       !---------------------------------------------------------------
 
+      ! NOTE: historically, the nudging tendency was scaled by 
+      !       the physics-dynamics timestep ratio. 
+      !       Removing the scaling while keeping results the same, requires 
+      !       to redefine (scale) the default nudging coefficient and adapt 
+      !       all run scripts. In order to avoid changing the run scripts, 
+      !       we scale the user value by the default physics-dynamics timestep 
+      !       ratio (i.e. 5).
+
       jitem       = nudge_type(jg) + ishift
       lapplicable = .TRUE.
       ! Max. nudging coefficient for horizontal wind
@@ -247,11 +255,11 @@ CONTAINS
       iitem  = MERGE( inml,   & ! .TRUE.  -> take namelist entry
         &             jitem,  & ! .FALSE. -> take default value
         &             lentry  ) ! Is there a (valid) namelist entry?
-      nudging_config(jg)%max_nudge_coeff_vn = max_nudge_coeff_vn(iitem)
+      nudging_config(jg)%max_nudge_coeff_vn = 5._wp * max_nudge_coeff_vn(iitem)
       ! Max. nudging coefficient for thermodynamic variables
       lentry = lapplicable .AND. (ABS(max_nudge_coeff_thermdyn(inml) - max_nudge_coeff_thermdyn(iref)) > eps)
       iitem  = MERGE(inml, jitem, lentry)
-      nudging_config(jg)%max_nudge_coeff_thermdyn = max_nudge_coeff_thermdyn(iitem)
+      nudging_config(jg)%max_nudge_coeff_thermdyn = 5._wp * max_nudge_coeff_thermdyn(iitem)
       ! Nudging start height
       lentry = lapplicable .AND. (ABS(nudge_start_height(inml) - nudge_start_height(iref)) > eps)
       iitem  = MERGE(inml, jitem, lentry)
@@ -262,7 +270,7 @@ CONTAINS
       ! Max. nudging coefficient for water vapour
       lentry = lapplicable .AND. (ABS(max_nudge_coeff_qv(inml) - max_nudge_coeff_qv(iref)) > eps)
       iitem  = MERGE(inml, jitem, lentry)
-      nudging_config(jg)%max_nudge_coeff_qv = max_nudge_coeff_qv(iitem)
+      nudging_config(jg)%max_nudge_coeff_qv = 5._wp * max_nudge_coeff_qv(iitem)
       ! Nudging end height
       lentry = lapplicable .AND. (ABS(nudge_end_height(inml) - nudge_end_height(iref)) > eps)
       iitem  = MERGE(inml, jitem, lentry)    
@@ -396,7 +404,7 @@ CONTAINS
   SUBROUTINE check_nudging( n_dom, iforcing, ivctype, top_height,                           &
     &                       l_limited_area, num_prefetch_proc, lsparse_latbc, itype_latbc,  &
     &                       nudge_hydro_pres, latbc_varnames_map_file, LATBC_TYPE_CONST,    & 
-    &                       LATBC_TYPE_EXT, is_plane_torus, lart,ndyn_substeps, ltransport  )
+    &                       LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
     ! In/out variables
     ! (In order to avoid circular dependencies, 
@@ -417,7 +425,6 @@ CONTAINS
     INTEGER,          INTENT(IN) :: LATBC_TYPE_EXT          ! Identifier for itype_latbc = time-dependent nudging target data
     LOGICAL,          INTENT(IN) :: is_plane_torus          ! .TRUE.: torus mode
     LOGICAL,          INTENT(IN) :: lart                    ! .TRUE.: ART interface cut in
-    INTEGER,          INTENT(IN) :: ndyn_substeps           ! Number of dynamics substeps per fast-physics step
     LOGICAL,          INTENT(IN) :: ltransport              ! .TRUE.: tracer transport switched on 
 
     ! Local variables
@@ -506,25 +513,34 @@ CONTAINS
           WRITE(message_text,'(a)') 'WARNING, compatibility of ART and nudging has not been checked!'
           CALL message(TRIM(routine), message_text)        
         ENDIF
-        IF (nudging_config(jg)%max_nudge_coeff_vn > 1._wp / REAL(ndyn_substeps,wp)) THEN
+        !
+        ! NOTE: The discrepancy between the upper limit in the IF-condition and the message text is due to 
+        ! the internal scaling of the nudging coefficient by 5.
+        !
+        IF (nudging_config(jg)%max_nudge_coeff_vn > 1._wp) THEN
           ! The nudging coefficient should not be too large
           WRITE(message_text,'(2a)') 'WARNING, max_nudge_coeff_vn is quite large! ', &
-            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_vn << ' &
-            & //TRIM(real2string(1._wp / REAL(ndyn_substeps,wp)))
+            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_vn << 0.2'
           CALL message(TRIM(routine), message_text)                
         ENDIF
-        IF (nudging_config(jg)%max_nudge_coeff_thermdyn > 1._wp / REAL(ndyn_substeps,wp)) THEN
+        !
+        ! NOTE: The discrepancy between the upper limit in the IF-condition and the message text is due to 
+        ! the internal scaling of the nudging coefficient by 5.
+        !
+        IF (nudging_config(jg)%max_nudge_coeff_thermdyn > 1._wp) THEN
           WRITE(message_text,'(2a)') 'WARNING, max_nudge_coeff_thermdyn is quite large! ', &
-            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_thermdyn << ' &
-            & //TRIM(real2string(1._wp / REAL(ndyn_substeps,wp)))
+            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_thermdyn << 0.2'
           CALL message(TRIM(routine), message_text)                
         ENDIF
+        !
+        ! NOTE: The discrepancy between the upper limit in the IF-condition and the message text is due to 
+        ! the internal scaling of the nudging coefficient by 5.
+        !
         IF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND.                &
-          & (nudging_config(jg)%max_nudge_coeff_qv > 1._wp / REAL(ndyn_substeps,wp))) THEN
+          & (nudging_config(jg)%max_nudge_coeff_qv > 1._wp)) THEN
           ! (Applies to global nudging only)
           WRITE(message_text,'(2a)') 'WARNING, max_nudge_coeff_qv is quite large! ', &
-            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_qv << ' &
-            & //TRIM(real2string(1._wp / REAL(ndyn_substeps,wp)))
+            & 'It is recommended, to choose values according to: 0 <= max_nudge_coeff_qv << 0.2'
           CALL message(TRIM(routine), message_text)                
         ENDIF
         IF ((nudging_config(jg)%nudge_type == indg_type%globn) .AND. l_limited_area) THEN

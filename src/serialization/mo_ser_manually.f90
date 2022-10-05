@@ -17,7 +17,8 @@ MODULE mo_ser_manually
   ! Global variables with scalars that are going to be serialized
   USE mo_nonhydro_state,     ONLY: p_nh_state
   USE mo_nwp_phy_state,      ONLY: phy_params
-  
+  USE mo_ext_data_state,     ONLY: ext_data
+
     IMPLICIT NONE
 
   PUBLIC :: ser_manually
@@ -121,6 +122,27 @@ MODULE mo_ser_manually
 !        CALL ser_component(o, "q_ubc",       prep_adv(domain)%q_ubc)
 !      ENDIF
 !    ENDIF
+
+    CALL ser_component(o, "atm%gp_count_t", ext_data(domain)%atm%gp_count_t)
+    CALL ser_component(o, "atm%lp_count_t", ext_data(domain)%atm%lp_count_t)
+    CALL ser_component(o, "atm%list_seaice%ncount", ext_data(domain)%atm%list_seaice%ncount)
+    CALL ser_component(o, "atm%list_seaice%idx", ext_data(domain)%atm%list_seaice%idx)
+    CALL ser_component(o, "atm%list_lake%ncount", ext_data(domain)%atm%list_lake%ncount)
+    CALL ser_component(o, "atm%list_lake%idx", ext_data(domain)%atm%list_lake%idx)
+    CALL ser_component(o, "atm%list_land%ncount", ext_data(domain)%atm%list_land%ncount)
+    CALL ser_component(o, "atm%list_land%idx", ext_data(domain)%atm%list_land%idx)
+    CALL ser_component(o, "atm%list_seawtr%ncount", ext_data(domain)%atm%list_seawtr%ncount)
+    CALL ser_component(o, "atm%list_seawtr%idx", ext_data(domain)%atm%list_seawtr%idx)
+    CALL ser_component(o, "atm%emis_rad", ext_data(domain)%atm%emis_rad)
+    CALL ser_component(o, "atm%z0_lcc", ext_data(domain)%atm%z0_lcc)
+    CALL ser_component(o, "atm%z0_lcc_min", ext_data(domain)%atm%z0_lcc_min)
+    CALL ser_component(o, "atm%plcovmax_lcc", ext_data(domain)%atm%plcovmax_lcc)
+    CALL ser_component(o, "atm%laimax_lcc", ext_data(domain)%atm%laimax_lcc)
+    CALL ser_component(o, "atm%rootdmax_lcc", ext_data(domain)%atm%rootdmax_lcc)
+    CALL ser_component(o, "atm%stomresmin_lcc", ext_data(domain)%atm%stomresmin_lcc)
+    CALL ser_component(o, "atm%snowalb_lcc", ext_data(domain)%atm%snowalb_lcc)
+    CALL ser_component(o, "atm%snowtile_lcc", ext_data(domain)%atm%snowtile_lcc)
+    CALL ser_component(o, "atm%t_cl", ext_data(domain)%atm%t_cl)
 
   END SUBROUTINE ser_manually
 

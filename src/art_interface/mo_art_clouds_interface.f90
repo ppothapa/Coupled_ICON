@@ -28,6 +28,8 @@ MODULE mo_art_clouds_interface
   USE mo_run_config,                    ONLY: lart
   USE mo_timer,                         ONLY: timers_level, timer_start, timer_stop,   &
                                           &   timer_art, timer_art_cldInt
+  USE mo_2mom_mcrph_config,             ONLY: t_cfg_2mom
+  USE mo_2mom_mcrph_processes,          ONLY: cfg_2mom_default, cfg_params
   USE mo_art_config,                    ONLY: art_config
   USE mo_art_2mom_driver,               ONLY: art_2mom_mcrph,               &
                                           &   art_2mom_mcrph_init
@@ -109,13 +111,21 @@ END SUBROUTINE art_clouds_interface_2mom
 !!
 !!-------------------------------------------------------------------------
 !!
-SUBROUTINE art_clouds_interface_2mom_init(msg_level)
+SUBROUTINE art_clouds_interface_2mom_init(msg_level,cfg_2mom)
   !! Interface for ART: Aerosol-Cloud-Interactions Initialization
   !! @par Revision History
   !! Initial revision by Daniel Rieger, KIT (2014-11-10)
   INTEGER, INTENT(IN) :: &
     &  msg_level           !< message level
 
+  TYPE(t_cfg_2mom), OPTIONAL, INTENT(in) :: cfg_2mom
+
+  ! Transfer the configuration parameters to the 2mom internal type instance:
+  IF (PRESENT(cfg_2mom)) THEN
+    cfg_params = cfg_2mom
+  ELSE
+    cfg_params = cfg_2mom_default
+  END IF
   
   IF (lart) THEN
     CALL art_2mom_mcrph_init(msg_level)

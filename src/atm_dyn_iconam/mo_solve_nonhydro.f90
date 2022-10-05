@@ -524,18 +524,16 @@ MODULE mo_solve_nonhydro
       IF (istep == 1 .AND. (jg > 1 .OR. l_limited_area)) THEN
 
 #ifdef __SWAPDIM
-          !DA: make _sp version async as well
 #ifdef __MIXED_PRECISION
-          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,1), nproma*nlev*i_startblk)
-          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,2), nproma*nlev*i_startblk)
+          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,1), nproma*nlev*i_startblk, .TRUE.)
+          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,2), nproma*nlev*i_startblk, .TRUE.)
 #else
           CALL init_zero_contiguous_dp(z_rth_pr(1,1,1,1), nproma*nlev*i_startblk, .TRUE.)
           CALL init_zero_contiguous_dp(z_rth_pr(1,1,1,2), nproma*nlev*i_startblk, .TRUE.)
 #endif
 #else
-          !DA: make _sp version async as well
 #ifdef __MIXED_PRECISION
-          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,1), 2*nproma*nlev*i_startblk)
+          CALL init_zero_contiguous_sp(z_rth_pr(1,1,1,1), 2*nproma*nlev*i_startblk, .TRUE.)
 #else
           CALL init_zero_contiguous_dp(z_rth_pr(1,1,1,1), 2*nproma*nlev*i_startblk, .TRUE.)
 #endif
@@ -1000,7 +998,7 @@ MODULE mo_solve_nonhydro
 
         ELSE IF (iadv_rhotheta == 2) THEN ! Miura second-order upwind scheme
 
-#if !defined (__LOOP_EXCHANGE) && !defined (__SX__)
+#if !defined (__LOOP_EXCHANGE) && !defined (__SX__) && !defined (_OPENACC)
           ! Compute backward trajectory - code is inlined for cache-based machines (see below)
           CALL btraj_compute_o1( btraj      = btraj,                 & !inout
             &                   ptr_p       = p_patch,               & !in
@@ -1092,7 +1090,7 @@ MODULE mo_solve_nonhydro
               ! fields in one step
 
 !$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-#if defined (__LOOP_EXCHANGE) || defined (__SX__)
+#if defined (__LOOP_EXCHANGE) || defined (__SX__) || defined (_OPENACC)
               ! For cache-based machines, also the back-trajectory computation is inlined to improve efficiency
               !$ACC LOOP GANG(static:1) VECTOR TILE(32,4)   &
               !$ACC      PRIVATE(lvn_pos,ilc0,ibc0,z_ntdistv_bary_1,z_ntdistv_bary_2,distv_bary_1,distv_bary_2)
@@ -1841,9 +1839,6 @@ MODULE mo_solve_nonhydro
 !$OMP END PARALLEL
 
 
-! This wait is mandatory because of later communication
-!$ACC WAIT
-
       !-------------------------
       ! communication phase
       IF (timers_level > 5) THEN
@@ -1859,7 +1854,9 @@ MODULE mo_solve_nonhydro
         ENDIF
       ENDIF
 
-      IF (idiv_method == 2 .AND. istep == 1) CALL sync_patch_array(SYNC_E,p_patch,z_theta_v_e,opt_varname="z_theta_v_e")
+      IF (idiv_method == 2 .AND. istep == 1) THEN
+        CALL sync_patch_array(SYNC_E,p_patch,z_theta_v_e,opt_varname="z_theta_v_e")
+      END IF
 
       IF (timers_level > 5) THEN
         CALL timer_stop(timer_solve_nh_exch)
@@ -2997,9 +2994,6 @@ MODULE mo_solve_nonhydro
 
 !$OMP END PARALLEL
 
-! This wait is mandatory because of the later communications
-!$ACC WAIT
-
       !-------------------------
       ! communication phase
 
@@ -3202,9 +3196,9 @@ MODULE mo_solve_nonhydro
        REAL(vp), DIMENSION(:,:,:,:), POINTER  :: ddt_vn_cor_pc_tmp
        REAL(vp), DIMENSION(:,:,:,:), POINTER  :: ddt_w_adv_pc_tmp
 
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_dyn_tmp, ddt_vn_dmp_tmp, ddt_vn_adv_tmp, ddt_vn_cor_tmp ! p_diag  VP
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_pgr_tmp, ddt_vn_phd_tmp, ddt_vn_iau_tmp, ddt_vn_ray_tmp ! p_diag  VP
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_grf_tmp                                                 ! p_diag  VP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_dyn_tmp, ddt_vn_dmp_tmp, ddt_vn_adv_tmp, ddt_vn_cor_tmp ! p_diag  WP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_pgr_tmp, ddt_vn_phd_tmp, ddt_vn_iau_tmp, ddt_vn_ray_tmp ! p_diag  WP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_grf_tmp                                                 ! p_diag  WP
 
 ! p_patch:
 !            p_patch%cells:   edge_idx/blk
@@ -3332,9 +3326,9 @@ MODULE mo_solve_nonhydro
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: vn_traj_tmp, mass_flx_me_tmp, mass_flx_ic_tmp                  ! prep_adv WP
        REAL(vp), DIMENSION(:,:,:,:), POINTER  :: ddt_vn_apc_pc_tmp, ddt_vn_cor_pc_tmp, ddt_w_adv_pc_tmp
 
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_dyn_tmp, ddt_vn_dmp_tmp, ddt_vn_adv_tmp, ddt_vn_cor_tmp ! p_diag  VP
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_pgr_tmp, ddt_vn_phd_tmp, ddt_vn_iau_tmp, ddt_vn_ray_tmp ! p_diag  VP
-       REAL(vp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_grf_tmp                                                 ! p_diag  VP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_dyn_tmp, ddt_vn_dmp_tmp, ddt_vn_adv_tmp, ddt_vn_cor_tmp ! p_diag  WP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_pgr_tmp, ddt_vn_phd_tmp, ddt_vn_iau_tmp, ddt_vn_ray_tmp ! p_diag  WP
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: ddt_vn_grf_tmp                                                 ! p_diag  WP
 
 ! The following code is necessary if the Dycore is to be run in isolation on the GPU
 ! Update all device output on host: the prognostic variables have shifted from nnow to nnew; diagnostics pointers set above

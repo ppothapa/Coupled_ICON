@@ -988,6 +988,8 @@ CONTAINS
 
     IF ((.NOT. participate_in_async_io) .AND. config_lmask_boundary)  THEN
       last_bdry_index = get_last_bdry_index(i_log_dom)
+    ELSE
+      last_bdry_index = 0
     END IF
 
     ! ----------------------------------------------------

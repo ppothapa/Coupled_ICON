@@ -272,9 +272,6 @@ CONTAINS
     p_cell_blk   => btraj%cell_blk
     p_distv_bary => btraj%distv_bary
 
-!$ACC DATA PCOPYIN( p_vn, p_vt ), PCOPYOUT( p_distv_bary, p_cell_idx, p_cell_blk ), &
-!$ACC      PRESENT( ptr_p, ptr_int ), IF( i_am_accel_node .AND. acc_on )
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,je,i_startidx,i_endidx,z_ntdistv_bary_1,z_ntdistv_bary_2,lvn_pos) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
@@ -282,11 +279,10 @@ CONTAINS
       CALL get_indices_e(ptr_p, jb, i_startblk, i_endblk,        &
            i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) TILE(64,2) &
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) TILE(64,2) &
       !$ACC               ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
-
           !
           ! Calculate backward trajectories
           !
@@ -345,7 +341,6 @@ CONTAINS
 
     END DO    ! loop over blocks
 
-!$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -359,8 +354,8 @@ CONTAINS
     !$ACC WAIT
 
   END SUBROUTINE btraj_compute_o1
-
-
+ 
+ 
 
   !-------------------------------------------------------------------------
   !>

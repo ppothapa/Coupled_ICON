@@ -64,11 +64,13 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_dust_abs
   PUBLIC :: tune_difrad_3dcont
   PUBLIC :: tune_gust_factor
+  PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
   PUBLIC :: max_freshsnow_inc
+  PUBLIC :: tune_eiscrit
 
 
   !!--------------------------------------------------------------------------
@@ -199,6 +201,10 @@ MODULE mo_nwp_tuning_config
                                    ! 2: use envelope top level, combined with adjusted tuning
   !$acc declare create(itune_gust_diag)
 
+  REAL(wp) :: &                    !< Basic gust speed (m/s) at which the SSO correction starts to be reduced
+    &  tune_gustsso_lim            !
+  !$acc declare create(tune_gustsso_lim)
+
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara
                                    ! 2: dimmed Sahara and brighter Antarctica
@@ -210,8 +216,10 @@ MODULE mo_nwp_tuning_config
     &  max_calibfac_clcl
 
   REAL(wp) :: &                    !< maximum allowed positive freshsnow increment
-    &  max_freshsnow_inc
-
+       &  max_freshsnow_inc
+  
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
 !  END TYPE t_nwp_tuning_config
 
 

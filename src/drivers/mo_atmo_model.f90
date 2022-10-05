@@ -52,7 +52,7 @@ MODULE mo_atmo_model
   USE mo_util_sysinfo,            ONLY: util_get_maxrss
 #endif
 #endif
-  USE mo_impl_constants,          ONLY: SUCCESS, inh_atmosphere, inwp
+  USE mo_impl_constants,          ONLY: SUCCESS, inh_atmosphere, inwp, LSS_JSBACH, LSS_TERRA
   USE mo_zaxis_type,              ONLY: zaxisTypeList, t_zaxisTypeList
   USE mo_load_restart,            ONLY: read_restart_header
 
@@ -75,6 +75,7 @@ MODULE mo_atmo_model
   USE mo_gribout_config,          ONLY: configure_gribout
 #ifndef __NO_JSBACH__
   USE mo_aes_phy_config,          ONLY: aes_phy_config
+  USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config
   USE mo_master_control,          ONLY: master_namelist_filename
   USE mo_jsb_base,                ONLY: jsbach_setup => jsbach_setup_models, jsbach_setup_tiles
   USE mo_jsb_model_init,          ONLY: jsbach_setup_grid
@@ -383,7 +384,8 @@ CONTAINS
     ! This has to be after (!) the ICON zaxes have been created in the above line but
     ! before (!) the restart PEs are detached a few lines below since JSBACH
     ! adds its zaxes to zaxisTypeList
-    IF (ANY(aes_phy_config(:)%ljsb)) THEN
+    IF (ANY(aes_phy_config(:)%ljsb) &
+        & .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) THEN
       ! Do basic initialization of JSBACH
       CALL jsbach_setup(master_namelist_filename)
     END IF
@@ -629,7 +631,7 @@ CONTAINS
 #ifndef __NO_JSBACH__
     ! Setup horizontal grids and tiles for JSBACH
     DO jg=1,n_dom
-      IF (aes_phy_config(jg)%ljsb) THEN 
+      IF (aes_phy_config(jg)%ljsb .OR. atm_phy_nwp_config(jg)%inwp_surface == LSS_JSBACH) THEN
         CALL jsbach_setup_grid( jg, p_patch(jg), type='icon') !< in
         CALL jsbach_setup_tiles(jg)
       END IF

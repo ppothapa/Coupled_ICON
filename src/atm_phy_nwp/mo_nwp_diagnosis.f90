@@ -1844,7 +1844,7 @@ CONTAINS
       ! Has to be computed before pp_scheduler_process(simulation_status) and before statistical processing between timesteps below!
 
       IF (l_need_dbz3d) THEN
-        CALL compute_field_dbz3D_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
+        CALL compute_field_dbz3d_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
              &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin )
       END IF
 

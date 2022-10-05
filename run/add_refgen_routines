@@ -18,8 +18,8 @@ origin=${origin%%.*} # cut off .git
 # always stored according to the real experiment name `exp`
 base_exp=${base_exp:-${exp}}
 
-# set global arguments for reference generation
-seeds=1,2,3,4,5,6,7,8,9
+# set global arguments for reference generation (must be in sync with list_part_tolerance)
+seeds=1,2,3,4,5,6,7,8,9,941
 builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
 [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
 model_output_dir=$basedir/experiments/${base_exp}
@@ -67,7 +67,7 @@ generate_probtest_tolerance()
 
     # set up probtest config file
     export PROBTEST_CONFIG=${exp}-config.json
-    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir}
+    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir} --seeds ${seeds}
 
     # create stats file for each seed (layer-wise max/min/mean)
     $PROBTEST stats --ensemble --stats-file-name $stats_file_name || status=1

@@ -642,8 +642,6 @@ CONTAINS
     ! For efficiency, the synchronization is applied for all tracers at once.
 
     IF (iforcing /= inwp) THEN
-      ! This wait is mandatory because of the communication
-      !$ACC WAIT
       CALL sync_patch_array_mult(SYNC_C, p_patch, ntracer, f4din=p_tracer_new, opt_varname='ntracer and p_tracer_new')
     ENDIF
 
@@ -722,7 +720,6 @@ CONTAINS
 !$OMP END PARALLEL
 
       IF ( iforcing /= inwp ) THEN
-        !$ACC WAIT
         CALL sync_patch_array_mult(SYNC_C, p_patch, ntracer,  f4din=opt_ddt_tracer_adv, &
                &                   opt_varname='ntracer and opt_ddt_tracer_adv' )
       ENDIF

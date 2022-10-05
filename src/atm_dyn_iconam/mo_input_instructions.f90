@@ -163,17 +163,24 @@ CONTAINS
         CHARACTER(LEN = vname_len) :: tracerGroup(max_ntracer)
         INTEGER :: tracerGroupSize
 
+        CHARACTER(len=vname_len) :: jsbGroup(1000)
+        INTEGER :: jsbGroupSize
+
         SELECT CASE(init_mode)
             CASE(MODE_DWDANA, MODE_ICONVREMAP)
                 CALL vlr_group('mode_dwd_fg_in', outGroup, outGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
                 CALL vlr_group('tracer_fg_in', tracerGroup, tracerGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
+                CALL vlr_group('jsb_init_vars', jsbGroup, jsbGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
                 ! fgGroup += tracerGroup
                 CALL add_to_list(outGroup, outGroupSize, tracerGroup, tracerGroupSize)
+                CALL add_to_list(outGroup, outGroupSize, jsbGroup, jsbGroupSize)
             CASE(MODE_IAU)
                 CALL vlr_group('mode_iau_fg_in', outGroup, outGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
                 CALL vlr_group('tracer_fg_in', tracerGroup, tracerGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
+                CALL vlr_group('jsb_init_vars', jsbGroup, jsbGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
                 ! fgGroup += tracerGroup
                 CALL add_to_list(outGroup, outGroupSize, tracerGroup, tracerGroupSize)
+                CALL add_to_list(outGroup, outGroupSize, jsbGroup, jsbGroupSize)
             CASE(MODE_IAU_OLD)
                 CALL vlr_group('mode_iau_old_fg_in', outGroup, outGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
             CASE(MODE_COMBINED)
@@ -192,9 +199,19 @@ CONTAINS
     ! ToDo: 
     ! So far, this list has to be created manually. In the future this 
     ! should be done automatically via (add_var) metadata flags. 
+    !
+    ! The JSBACH fields are marked optional to allow for initialization from files
+    ! without JSBACH fields. In that case JSBACH uses its own initialization files
+    ! -- either from climatologies or from IFS, depending on JSBACH configuration.
+    ! (Actually, the optional fields overwrite JSBACH's initialization.) If JSBACH
+    ! fields are expected, one of them can be marked mandatory in the initicon_nml:
+    ! check_fg list.
     SUBROUTINE collectGroupFgOpt(outGroup, outGroupSize)
         CHARACTER(LEN = vname_len), INTENT(INOUT) :: outGroup(:)
         INTEGER, INTENT(OUT) :: outGroupSize
+
+        CHARACTER(len=vname_len) :: jsbGroup(1000)
+        INTEGER :: jsbGroupSize
 
         outGroup(1:31) = (/'alb_si       ','rho_snow_mult','aer_ss       ','aer_or       ', &
           &                'aer_bc       ','aer_su       ','aer_du       ','plantevap    ', &
@@ -205,6 +222,9 @@ CONTAINS
           &                'clmf_a       ','clmf_p       ','clmf_d       ','clnum_a      ', &
           &                'clnum_p      ','clnum_d      ','vabs_avginc  '/)
         outGroupSize  = 31
+
+        CALL vlr_group('jsb_init_vars', jsbGroup, jsbGroupSize, loutputvars_only=.FALSE., lremap_lonlat=.FALSE.)
+        CALL add_to_list(outGroup, outGroupSize, jsbGroup, jsbGroupSize)
 
     END SUBROUTINE collectGroupFgOpt
 
@@ -387,7 +407,7 @@ CONTAINS
         TYPE(t_readInstruction), pointer :: curInstruction
 
         ! lists of variable names
-        CHARACTER(LEN=vname_len), DIMENSION(200) :: grp_vars_fg, grp_vars_optfg, grp_vars_ana
+        CHARACTER(LEN=vname_len), DIMENSION(1000) :: grp_vars_fg, grp_vars_optfg, grp_vars_ana
 
         ! the corresponding sizes of the lists above
         INTEGER :: ngrp_vars_fg, ngrp_vars_optfg, ngrp_vars_ana

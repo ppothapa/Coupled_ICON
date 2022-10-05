@@ -21,13 +21,16 @@
 MODULE mo_async_latbc_types
 
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, C_F_POINTER
-  USE mo_kind,                     ONLY: sp
+  USE mo_kind,                     ONLY: wp, sp, i8
   USE mo_dictionary,               ONLY: DICT_MAX_STRLEN
-  USE mtime,                       ONLY: event, datetime, timedelta, &
-    &                                    deallocateTimedelta, deallocateEvent
+  USE mtime,                       ONLY: MAX_DATETIME_STR_LEN, MAX_TIMEDELTA_STR_LEN, &
+    &                                    event, datetime, timedelta, OPERATOR(-), &
+    &                                    getTotalSecondsTimedelta, deallocateTimedelta, &
+    &                                    deallocateEvent, datetimeToString, timedeltaToString
+  USE mo_util_mtime,               ONLY: mtime_timedelta_to_seconds
   USE mo_initicon_types,           ONLY: t_init_state, t_init_state_const, t_pi_atm, t_init_state_finalize
   USE mo_impl_constants,           ONLY: SUCCESS, max_ntracer, vname_len
-  USE mo_exception,                ONLY: finish, message
+  USE mo_exception,                ONLY: finish, message, message_text
   USE mo_run_config,               ONLY: msg_level
   USE mo_reorder_info,             ONLY: t_reorder_info, release_reorder_info
   USE mo_mpi,                      ONLY: p_comm_work_pref, p_barrier
@@ -223,9 +226,14 @@ MODULE mo_async_latbc_types
 
     ! for sparse latbc mode: index data for boundary rows:
     TYPE(t_glb_indices) :: global_index
+
+    ! linear interpolation weights for time interpolation between 
+    ! consecutive boundary data
+    REAL(wp):: lc1, lc2
   CONTAINS
-    PROCEDURE :: finalize => t_latbc_data_finalize
+    PROCEDURE :: finalize        => t_latbc_data_finalize
     PROCEDURE :: prev_latbc_tlev => prev_latbc_tlev
+    PROCEDURE :: update_intp_wgt => t_latbc_data_update_intp_wgt
 
   END TYPE t_latbc_data
 
@@ -373,6 +381,80 @@ CONTAINS
 
     prev_latbc_tlev = 3 - latbc%new_latbc_tlev
   END FUNCTION prev_latbc_tlev
+
+
+    !-------------------------------------------------------------------------
+    !>
+    !  Update linear interpolation weights (lc1, lc2) for the time interpolation 
+    !  between two consecutive boundary forcing time slices.
+    !
+    !
+    !      <------------------------------------->  dtime_latbc
+    !                               <------------>  delta_tstep
+    !                          datetime_current   
+    !   ---*------------------------X------------*----------------> time axis
+    !    vDate_prev                            vDate_cur
+    !
+    !
+    !! @par Revision History
+    !! Initial version by M. Pondkule, DWD (2014-08-15)
+    !!
+    SUBROUTINE t_latbc_data_update_intp_wgt( latbc, datetime_current )
+      CLASS(t_latbc_data), INTENT(INOUT)  :: latbc
+      TYPE(datetime),      INTENT(IN)     :: datetime_current ! datetime for which interpolation 
+                                                              ! weights shall be computed
+#ifndef NOMPI
+      TYPE(timedelta)         :: delta_tstep        ! time delta between current datetime and 
+                                                    ! validity time of current boundary forcing time slice.
+      INTEGER(i8)             :: delta_tstep_in_sec ! delta_tstep converted to seconds
+
+      REAL(wp)                :: dtime_latbc        ! time delta between two consecutive 
+                                                    ! boundary forcing time slices [s]
+      TYPE(timedelta)         :: td                 ! same in mtime format
+      LOGICAL                 :: failure
+      INTEGER                 :: prv_tlev, cur_tlev
+
+      CHARACTER(LEN=*), PARAMETER  :: routine = modname//"::t_latbc_data_update_intp_wgt"
+      CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: vDateTime_str_cur, vDateTime_str_prv
+      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN):: delta_tstep_str
+
+
+      ! compute boundary update timedelta
+      cur_tlev = latbc%new_latbc_tlev
+      prv_tlev = latbc%prev_latbc_tlev()
+      td = latbc%latbc_data(cur_tlev)%vDateTime - latbc%latbc_data(prv_tlev)%vDateTime
+      dtime_latbc =  REAL(getTotalSecondsTimedelta(td, latbc%latbc_data(cur_tlev)%vDateTime))
+
+      delta_tstep = latbc%latbc_data(cur_tlev)%vDateTime - datetime_current
+
+      failure = delta_tstep%month /= 0
+      IF (msg_level >= 15 .OR. failure) THEN
+        CALL message(routine, "", all_print=failure)
+        CALL datetimeToString(latbc%latbc_data(prv_tlev)%vDateTime, vDateTime_str_prv)
+        CALL datetimeToString(latbc%latbc_data(cur_tlev)%vDateTime, vDateTime_str_cur)
+        CALL timedeltaToString(delta_tstep, delta_tstep_str)
+        WRITE (message_text, '(a,a)')  "lbc vdate current : ", vDateTime_str_cur
+        CALL message("", message_text, all_print=failure)
+        WRITE (message_text, '(a,a)')  "lbc vdate previous: ", vDateTime_str_prv
+        CALL message("", message_text, all_print=failure)
+        WRITE (message_text, '(a,a)')  "delta_tstep_str: ", delta_tstep_str
+        CALL message("", message_text, all_print=failure)
+        IF (failure) &
+          CALL finish(routine, "time difference for reading boundary&
+          & data must not be more than a month.")
+      ENDIF
+
+      ! compute the number of "dtime_latbc" intervals fitting into the time difference "delta_tstep":
+
+      CALL mtime_timedelta_to_seconds(delta_tstep, delta_tstep_in_sec)
+      !
+      latbc%lc1 = REAL(delta_tstep_in_sec,wp) / dtime_latbc
+      latbc%lc2 = 1._wp - latbc%lc1
+
+#endif
+
+    END SUBROUTINE t_latbc_data_update_intp_wgt
+
 
 END MODULE mo_async_latbc_types
 

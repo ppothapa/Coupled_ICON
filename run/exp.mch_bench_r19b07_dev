@@ -454,7 +454,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  ml_varlist           = 'ALB_DIF', 'alhfl_s','athb_s','athd_s','athu_s','ashfl_s',
                         'asob_s','aswdifd_s','aswdifu_s','aswdir_s','aumfl_s','avmfl_s',
                         'CLC', 'CLCH', 'CLCL', 'CLCM', 'CLCT',
-                        'CAPE','CAPE_ML','CIN_ML','DBZ_CMAX','DBZ_CTMAX','DBZ_850',!'DURSUN_M','DURSUN',
+                        'CAPE','CAPE_ML','CIN_ML',!'DBZ_CMAX','DBZ_CTMAX','DBZ_850','DURSUN_M','DURSUN',
                         'C_T_LK', 'CEILING', 'FRESHSNW', 'GRAUPEL_GSP', 'gz0',
                         'H_ML_LK', 'H_SNOW', 'HTOP_SC', 'HBAS_SC', 'HZEROCL',
                         'LPI', 'LPI_MAX', 'PFULL', 'PMSL', 'PS', 'QV', 'QC', 'QI',

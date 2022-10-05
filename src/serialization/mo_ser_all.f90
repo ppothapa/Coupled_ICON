@@ -290,6 +290,7 @@ MODULE mo_ser_all
           savepoint_name = savepoint_base//"-in"
        ELSE
           savepoint_name = savepoint_base//"-out"
+          ser_setting(1) = ser_setting(1) - 1 ! Reduce # of times to serialize
 #ifdef SERIALIZE_CREATE_REFERENCE
           ser_mode = 0 ! write
 #elif SERIALIZE_READ_REFERENCE

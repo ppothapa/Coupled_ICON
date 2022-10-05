@@ -421,7 +421,7 @@ MODULE mo_nh_diagnose_pres_temp
     
     CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, slev, slev_moist, nlev)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(NONE) ATTACH( pt_prog_rcf%tracer ) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, nlev
 !DIR$ IVDEP

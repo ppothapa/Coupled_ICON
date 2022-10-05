@@ -33,7 +33,8 @@ MODULE mo_ensemble_pert_config
     &                        tune_box_liq_asy, tune_thicklayfac
   USE mo_turbdiff_config,    ONLY: turbdiff_config
   USE mo_gribout_config,     ONLY: gribout_config
-  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config  ! Also to prepare perturbations of 2mom parameters;
+                                                       ! these are in container atm_phy_nwp_config(jg) % cfg_2mom
   USE mo_assimilation_config,ONLY: assimilation_config
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_lnd, ntiles_water, c_soil, cwimax_ml
   USE mo_grid_config,        ONLY: n_dom

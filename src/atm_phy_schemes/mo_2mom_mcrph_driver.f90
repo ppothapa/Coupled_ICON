@@ -74,6 +74,8 @@ USE mo_timer,                ONLY:                                              
 
 USE mo_reff_types,           ONLY: t_reff_calc
 
+USE mo_2mom_mcrph_config,    ONLY: t_cfg_2mom
+
 USE mo_2mom_mcrph_main,      ONLY:                                &
      &                        clouds_twomoment,                   &
      &                        atmosphere, particle, particle_frozen, particle_lwf, &
@@ -86,7 +88,7 @@ USE mo_2mom_mcrph_processes,  ONLY:                                &
      &                         sedi_vel_rain, sedi_vel_sphere,     &
      &                         sedi_icon_rain, sedi_icon_sphere, sedi_icon_sphere_lwf, &
      &                         particle_meanmass, sedi_vel_lwf,&
-     &                         q_crit
+     &                         q_crit, cfg_2mom_default, cfg_params
 
 USE mo_2mom_mcrph_util, ONLY:                            &
      &                       gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
@@ -115,7 +117,8 @@ USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
 
 ! UB: These settings should be converted into namelist parameters in the future!
 
-  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
+!! Now in namelist phy_ctl!  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
+!!$  ! now this comes from cfg_params !  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
   
   INTEGER, PARAMETER :: cloud_type_default_gscp4 = 2603, ccn_type_gscp4 = 7 
   INTEGER, PARAMETER :: cloud_type_default_gscp5 = 2603, ccn_type_gscp5 = 8
@@ -300,7 +303,7 @@ CONTAINS
       kts = 1
     END IF
     kte = ke
-    
+
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost) 
 
     ! inverse of vertical layer thickness
@@ -379,7 +382,7 @@ CONTAINS
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine)," calling clouds_twomoment")
 
-    IF (i2mom_solver.eq.0) then
+    IF (cfg_params%i2mom_solver.eq.0) then
 
        ! ... save old variables for latent heat calculation
        q_vap_old(its:ite,kts:kte) = qv(its:ite,kts:kte)
@@ -1036,7 +1039,7 @@ CONTAINS
 
   !===========================================================================================
 
-  SUBROUTINE two_moment_mcrph_init(igscp,N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level)
+  SUBROUTINE two_moment_mcrph_init(igscp,N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level,cfg_2mom)
 
     INTEGER, INTENT(IN) :: igscp, msg_level
 
@@ -1048,21 +1051,46 @@ CONTAINS
     TYPE(particle_frozen) :: ice, snow, graupel, hail
     TYPE(particle_lwf)    :: graupel_lwf, hail_lwf
 
+    TYPE(t_cfg_2mom), OPTIONAL, INTENT(in) :: cfg_2mom
+
     INTEGER        :: unitnr
+
+    ! Transfer the configuration parameters to the 2mom internal type instance:
+    IF (PRESENT(cfg_2mom)) THEN
+      cfg_params = cfg_2mom
+    ELSE
+      cfg_params = cfg_2mom_default
+    END IF
 
     IF (msg_level>5) THEN
       CALL message (TRIM(routine), " Initialization of two-moment microphysics scheme") 
       WRITE(message_text,'(A,I5)')   "   inwp_gscp    = ",igscp ; CALL message(TRIM(routine),TRIM(message_text))
-      WRITE(message_text,'(A,I5)')   "   i2mom_solver = ",i2mom_solver ; CALL message(TRIM(routine),TRIM(message_text))
+      WRITE(message_text,'(A,I5)')   "   i2mom_solver = ",cfg_params%i2mom_solver ; CALL message(TRIM(routine),TRIM(message_text))
       WRITE(message_text,'(A,L5)'  ) "   lconstant_lh = ",lconstant_lh ; CALL message(TRIM(routine),TRIM(message_text))
     END IF
 
     IF (PRESENT(N_cn0)) THEN
-       ccn_type   = ccn_type_gscp5
-       cloud_type = cloud_type_default_gscp5 + 10 * ccn_type
+      IF (PRESENT(cfg_2mom)) THEN
+        IF (cfg_2mom%ccn_type > 0) THEN
+          ccn_type   = cfg_2mom%ccn_type
+        ELSE 
+          ccn_type   = ccn_type_gscp5
+        END IF
+      ELSE
+        ccn_type   = ccn_type_gscp5
+      END IF
+      cloud_type = cloud_type_default_gscp5 + 10 * ccn_type
     ELSE
-       ccn_type   = ccn_type_gscp4
-       cloud_type = cloud_type_default_gscp4 + 10 * ccn_type
+      IF (PRESENT(cfg_2mom)) THEN
+        IF (cfg_2mom%ccn_type > 0) THEN
+          ccn_type   = cfg_2mom%ccn_type
+        ELSE 
+          ccn_type   = ccn_type_gscp4
+        END IF
+      ELSE
+        ccn_type   = ccn_type_gscp4
+      END IF
+      cloud_type = cloud_type_default_gscp4 + 10 * ccn_type
     END IF
 
     ! .. set the particle types, and calculate some coefficients

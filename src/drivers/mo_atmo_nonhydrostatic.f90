@@ -17,7 +17,7 @@ USE mo_kind,                 ONLY: wp
 USE mo_exception,            ONLY: message, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
-USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes
+USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes, LSS_JSBACH
 USE mo_timer,                ONLY: timers_level, timer_start, timer_stop, timer_init_latbc, &
   &                                timer_model_init, timer_init_icon, timer_read_restart, timer_init_dace
 USE mo_master_config,        ONLY: isRestart, getModelBaseDir
@@ -405,7 +405,8 @@ CONTAINS
 #ifndef __NO_JSBACH__
       DO jg = 1,n_dom
         IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-        IF (aes_phy_config(jg)%ljsb) THEN
+        IF (aes_phy_config(jg)%ljsb &
+            & .OR. atm_phy_nwp_config(jg)%inwp_surface == LSS_JSBACH) THEN
           CALL jsbach_init_after_restart(jg)
         END IF
       END DO
