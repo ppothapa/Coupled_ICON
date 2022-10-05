@@ -84,7 +84,7 @@ USE mo_grid_config,         ONLY: n_dom, n_dom_start, nexlevs_rrg_vnest
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
 USE turb_data,              ONLY: ltkecon
 USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc
-USE mo_radiation_config,    ONLY: irad_aero
+USE mo_radiation_config,    ONLY: irad_aero, iRadAeroTegen, iRadAeroART
 USE mo_lnd_nwp_config,      ONLY: ntiles_total, ntiles_water, nlev_soil
 USE mo_var_list,            ONLY: add_var, add_ref, t_var_list_ptr
 USE mo_var_list_register,   ONLY: vlr_add, vlr_del
@@ -2375,8 +2375,8 @@ __acc_attach(diag%clct)
         & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. ) 
       __acc_attach(diag%aerdes)
 
-    ELSE IF (irad_aero == 6 .OR. irad_aero == 9) THEN ! Tegen aerosol climatology, time-interpolated values 
-                                  ! (needed as state fields for coupling with microphysics and convection)
+    ELSE IF (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN ! Tegen aerosol climatology, time-interpolated values 
+                                                         ! (needed as state fields for coupling with microphysics and convection)
       IF (atm_phy_nwp_config(k_jg)%icpl_aero_gscp > 1 .OR. icpl_aero_conv > 1 .OR. iprog_aero > 0) THEN
         lrestart = .TRUE.
       ELSE
@@ -2487,7 +2487,7 @@ __acc_attach(diag%clct)
 
     ENDIF
 
-    IF ( (irad_aero == 6 .OR. irad_aero == 9) .AND.  &
+    IF ( (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) .AND.  &
       &  (atm_phy_nwp_config(k_jg)%icpl_aero_gscp == 1 .OR. icpl_aero_conv == 1) ) THEN
       lrestart = .TRUE.
     ELSE

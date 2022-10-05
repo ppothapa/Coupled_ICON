@@ -39,7 +39,11 @@ MODULE mo_nwp_ecrad_init
   USE mtime,                   ONLY: datetime
   USE mo_model_domain,         ONLY: t_patch
   USE mo_radiation_config,     ONLY: icld_overlap, irad_aero, ecrad_data_path,           &
-                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad
+                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad,   &
+                                 &   iRadAeroConst, iRadAeroTegen, iRadAeroART,          &
+                                 &   iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,    &
+                                 &   iRadAeroKinneVolc,  iRadAeroKinneVolcSP,            &
+                                 &   iRadAeroKinneSP, iRadAeroNone
 #ifdef __ECRAD
   USE mo_ecrad,                ONLY: t_ecrad_conf, ecrad_setup,                          &
                                  &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
@@ -128,12 +132,10 @@ CONTAINS
 
     ! Aerosol climatology
     SELECT CASE (irad_aero)
-      CASE (0) ! No aerosol
+      CASE (iRadAeroNone) ! No aerosol
         ecrad_conf%use_aerosols = .false.
-      CASE (2,5,6,9,12,13,14,15,18,19) ! Constant, Tanre, Tegen, ART, constant Kinne aerosol, Kinne, 
-                                       ! CMIP6 volcanic aerosol, Kinne+CMIP6 volcanic aerosol,
-                                       ! Kinne+CMIP6 volcanic+anthropogenic aerosol,
-                                       ! Kinne+anthropogenic aerosol
+      CASE (iRadAeroConst, iRadAeroTegen, iRadAeroART, iRadAeroConstKinne, iRadAeroKinne, &
+        &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, iRadAeroKinneSP, 5)
         ecrad_conf%use_aerosols = .true.
       CASE DEFAULT
         CALL finish(routine, 'irad_aero not valid for ecRad')

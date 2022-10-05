@@ -60,7 +60,7 @@ MODULE mo_interface_les
   USE mo_cover_koe,             ONLY: cover_koe, cover_koe_config
   USE mo_satad,                 ONLY: satad_v_3D
   USE mo_radiation,             ONLY: radheat, pre_radiation_nwp
-  USE mo_radiation_config,      ONLY: irad_aero
+  USE mo_radiation_config,      ONLY: irad_aero, iRadAeroTegen, iRadAeroART
   USE mo_nwp_gscp_interface,    ONLY: nwp_microphysics
   USE mo_les_turb_interface,    ONLY: les_turbulence
   USE mo_nwp_sfc_interface,     ONLY: nwp_surface
@@ -691,8 +691,8 @@ CONTAINS
       lpres = .FALSE.
 
       ! Temperature at interface levels is needed if irad_aero = 5, 6 or 9
-      IF ( lcall_phy_jg(itrad) .AND. ( irad_aero == 5 .OR. irad_aero == 6 &
-           .OR. irad_aero == 9 ) ) THEN
+      IF ( lcall_phy_jg(itrad) .AND. ( irad_aero == 5 .OR. irad_aero == iRadAeroTegen &
+           .OR. irad_aero == iRadAeroART ) ) THEN
         ltemp_ifc = .TRUE.
       ELSE
         ltemp_ifc = .FALSE.
