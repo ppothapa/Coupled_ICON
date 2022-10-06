@@ -65,7 +65,7 @@ MODULE mo_radiation
     &                                irad_o2,    mmr_o2,              &
     &                                irad_cfc11, vmr_cfc11,           &
     &                                irad_cfc12, vmr_cfc12,           &
-    &                                irad_aero,                       &
+    &                                irad_aero, isolrad,              &
     &                                izenith, cos_zenith_fixed, islope_rad
   USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake, isub_water
   USE mo_extpar_config,        ONLY: nhori
@@ -127,6 +127,7 @@ CONTAINS
     REAL(wp), INTENT(OUT), OPTIONAL   :: zsct                          ! solar constant (at time of year)
     REAL(wp), INTENT(OUT)             :: zsmu0(kbdim,pt_patch%nblks_c) ! cosine of zenith angle
     LOGICAL                           :: lacc ! accelerator flag
+    LOGICAL                           :: l_tsi_recalculated
 
     REAL(wp) ::                    &
       & p_sim_time_rad,            &
@@ -167,6 +168,13 @@ CONTAINS
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,z_cosmu0,n_cosmu0pos
 #endif
 
+    ! In case of CMIP irradiation (isolrad==2) is used, tsi_rad changes during the day
+    ! (ssi_time_interpolation), in which case it makes sense to redo the scaling
+    ! by orbit elements (recalculate zsct) at each radiation time step and not
+    ! just on the first radiation step of the day.
+    l_tsi_recalculated = .FALSE.
+    IF (isolrad==2) l_tsi_recalculated = .TRUE.
+
     ! SCM: read lat/lon for horizontally uniform zenith angle
     IF ( l_scm_mode ) THEN
       ALLOCATE(scm_center(SIZE(pt_patch%cells%center,1),SIZE(pt_patch%cells%center,2)))
@@ -184,7 +192,7 @@ CONTAINS
     ! local insolation = constant = global mean insolation (ca. 340 W/m2)
     ! zenith angle = 0,
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -198,7 +206,7 @@ CONTAINS
     ! local time always 12:00
     ! --> sin(time of day)=1 ) and zenith angle depends on latitude only
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -213,7 +221,7 @@ CONTAINS
     ! local time always  07:14:15 or 16:45:45
     ! --> sin(time of day)=1/pi and zenith angle depends on latitude only
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -224,9 +232,6 @@ CONTAINS
     ! circular non-seasonal orbit,
     ! perpetual equinox,
     ! with diurnal cycle,
-#ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
-#endif
 
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
@@ -267,10 +272,14 @@ CONTAINS
 
       ENDDO!jmu0
 
+      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY( zsct ) IF( lacc )
+      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark ) IF( lacc )
+        !$ACC LOOP GANG VECTOR
 !DIR$ SIMD
         DO jc = 1,ie
           IF (n_cosmu0pos(jc,jb) > 0) THEN
@@ -279,10 +288,13 @@ CONTAINS
             zsmu0(jc,jb) = cosmu0_dark
           ENDIF
         ENDDO
+        !$ACC END PARALLEL
 
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
+      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN
     ! elliptical seasonal orbit,
@@ -312,7 +324,7 @@ CONTAINS
         CALL deallocateDatetime(current)
         CALL deallocateTimedelta(td)
 
-        IF ( itaja /= itaja_zsct_previous ) THEN
+        IF ( itaja /= itaja_zsct_previous .OR. l_tsi_recalculated ) THEN
           itaja_zsct_previous = itaja
 
           ztwo    = 0.681_wp + 0.2422_wp*REAL(jj-1949,wp)-REAL((jj-1949)/4,wp)
@@ -360,13 +372,14 @@ CONTAINS
 
       ENDDO !jmu0
 
-      !$acc update device (zsmu0) if (lacc)
+      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY ( zsct ) IF( lacc )
+      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$acc parallel default (none) present (zsmu0) copyin (n_cosmu0pos, cosmu0_dark ) copy (zsct) if (lacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark, zsct ) IF( lacc )
+        !$ACC LOOP GANG VECTOR
         DO jc = 1,ie
           IF ( n_cosmu0pos(jc,jb) > 0 ) THEN
             ! The averaged cosine of zenith angle is limited to 0.05 in order to avoid
@@ -376,7 +389,7 @@ CONTAINS
             zsmu0(jc,jb) = cosmu0_dark
           ENDIF
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
       ENDDO !jb
 
@@ -387,7 +400,8 @@ CONTAINS
           zsct = zsct_save
         ENDIF
       ENDIF
-      !$acc update host (zsmu0) if (lacc)
+      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC END DATA
 
     ELSEIF (izenith == 5) THEN
      ! Radiative convective equilibrium
@@ -397,7 +411,7 @@ CONTAINS
      ! the product tsi*cos(zenith angle) should equal 340 W/m2
      ! see Popke et al. 2013 and Cronin 2013
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -408,7 +422,7 @@ CONTAINS
     ELSEIF (izenith == 6) THEN
      ! Prescribed cos(solar zenith angle), for single column model (SCM)
 #ifdef _OPENACC
-      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 4')
+      IF (lacc) CALL finish('pre_radiation_nwp','Only ported on gpu for izenith == 3 and 4')
 #endif
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -467,6 +481,7 @@ CONTAINS
 
     LOGICAL :: &
       & lshade, lslope_aspect, lzacc      !switches
+    LOGICAL :: l_tsi_recalculated
 
 !------------------------------------------------------------------------------
 
@@ -484,6 +499,13 @@ CONTAINS
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta
 #endif
+
+    ! In case of CMIP irradiation (isolrad==2) is used, tsi_rad changes during the day
+    ! (ssi_time_interpolation), in which case it makes sense to redo the scaling
+    ! by orbit elements (recalculate zsct) at each radiation time step and not
+    ! just on the first radiation step of the day.
+    l_tsi_recalculated = .FALSE.
+    IF (isolrad==2) l_tsi_recalculated = .TRUE.
 
     IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
       CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
@@ -614,7 +636,7 @@ CONTAINS
 
         IF ( PRESENT(zsct) ) THEN
           !decide whether new zsct calculation is necessary
-          IF ( itaja /= itaja_zsct_previous ) THEN
+          IF ( itaja /= itaja_zsct_previous .OR. l_tsi_recalculated ) THEN
             itaja_zsct_previous = itaja
             zsocof  = 1.000110_wp + 0.034221_wp*COS(   ztho) + 0.001280_wp*SIN(   ztho) &
               + 0.000719_wp*COS(2._wp*ztho) + 0.000077_wp*SIN(2._wp*ztho)
@@ -2169,6 +2191,8 @@ CONTAINS
 
         ! (open) water points (needed for A-O coupling)
         !
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seawtr_count
           jc = list_seawtr_idx(ic)
           pflxsfcsw_t(jc,isub_water) = MAX(0.1_wp*zflxsw(jc,klevp1), zflxsw(jc,klevp1) &
@@ -2176,6 +2200,7 @@ CONTAINS
           pflxsfclw_t(jc,isub_water) = zflxlw(jc,klevp1) + dlwflxall_o_dtg(jc,klevp1) &
             &                  * (ptsfc_t(jc,isub_water)-ptsfc(jc))
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE IF (PRESENT(pflxsfcsw_t) .AND. PRESENT(pflxsfclw_t)) THEN
 
@@ -2206,11 +2231,14 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seawtr_count
           jc = list_seawtr_idx(ic)
           pflxsfcsw_t(jc,1) = zflxsw(jc,klevp1)
           pflxsfclw_t(jc,1) = zflxlw(jc,klevp1)
         ENDDO
+        !$ACC END PARALLEL
 
       ENDIF ! ntiles
 

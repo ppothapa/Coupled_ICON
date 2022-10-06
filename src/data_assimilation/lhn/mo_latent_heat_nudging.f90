@@ -443,7 +443,6 @@ SUBROUTINE organize_lhn ( &
        &                ltoyoung,ltoold,datetime_current)
 
 !$ACC END DATA
-!$ACC UPDATE HOST(lhn_fields%ttend_lhn, lhn_fields%qvtend_lhn, lhn_fields%brightband)
 
      lvalid_data = .NOT. ltoold
      IF (ltoold.OR.ltoyoung) RETURN
@@ -976,12 +975,11 @@ SUBROUTINE organize_lhn ( &
 !$OMP END PARALLEL
 
 !$ACC END DATA
-!$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, &
-!$ACC             lhn_fields%ttend_lhn, lhn_fields%qvtend_lhn)
 !$ACC EXIT DATA DELETE(kstart_moist(jg:jg), assimilation_config(jg:jg))
 
    IF (datetime_current%time%minute  == 0) THEN
       IF (ltlhnverif) THEN
+         !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
          CALL lhn_verification ('HR',pt_patch,radar_data,lhn_fields,p_sim_time/3600.,wobs_space,&
                                 lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum,lhn_fields%pr_obs_sum)
       ENDIF
@@ -993,7 +991,6 @@ SUBROUTINE organize_lhn ( &
           lhn_fields%pr_ref_sum(jc,jb)  = 0.0_wp
         END DO
       END DO
-!$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
    ENDIF
 
 !-------------------------------------------------------------------------------

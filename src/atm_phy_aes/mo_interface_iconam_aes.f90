@@ -267,7 +267,7 @@ CONTAINS
     !   However, at the cost of the considerable memory consumption of an additional 3d-array.
     IF (upatmo_config(jg)%aes_phy%l_shallowatmo) THEN
       ! no cell volume modification
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jk = 1, patch%nlev
         deepatmo_vol(jk) = 1._wp
@@ -275,7 +275,7 @@ CONTAINS
       !$ACC END PARALLEL
     ELSE
       ! cell volume modification factors from 'p_metrics'
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jk = 1, patch%nlev
         deepatmo_vol(jk) = p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)
@@ -304,7 +304,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1,ntracer
         DO jk = 1,nlev
@@ -351,6 +351,7 @@ CONTAINS
     ! - pt_diag%pres     = field%pfull  hydrostatic pressure at layer midpoint = SQRT(upper pres_ifc * lower pres_ifc)
     ! - pt_diag%dpres_mc                pressure thickness of layer
     !
+    !$ACC WAIT(1)
     CALL diagnose_pres_temp( p_metrics                ,&
       &                      pt_prog_new              ,&
       &                      pt_prog_new_rcf          ,&
@@ -371,13 +372,14 @@ CONTAINS
     !
     IF (ltimer) CALL timer_start(timer_d2p_prep)
 
-    CALL rbf_vec_interpol_cell( pt_prog_new%vn   ,&! in
-      &                         patch            ,&! in
-      &                         pt_int_state     ,&! in
-      &                         pt_diag%u        ,&! out
-      &                         pt_diag%v        ,&! out
-      &                         opt_rlstart=rls_c  ,&! in
-      &                         opt_rlend  =rle_c  ) ! in
+    CALL rbf_vec_interpol_cell( pt_prog_new%vn      ,&! in
+      &                         patch               ,&! in
+      &                         pt_int_state        ,&! in
+      &                         pt_diag%u           ,&! out
+      &                         pt_diag%v           ,&! out
+      &                         opt_rlstart=rls_c   ,&! in
+      &                         opt_rlend  =rle_c   ,&! in
+      &                         opt_acc_async=.TRUE.) ! in
 
     IF (ltimer) CALL timer_stop(timer_d2p_prep)
     
@@ -404,7 +406,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev
         DO jc = jcs, jce
@@ -455,7 +457,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev+1
         DO jc = jcs, jce
@@ -478,7 +480,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1,ntracer
         DO jk = 1,nlev
@@ -512,6 +514,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
+    !$ACC WAIT(1)
     IF (ltimer) CALL timer_stop(timer_d2p_couple)
 
     !
@@ -622,10 +625,10 @@ CONTAINS
     IF (return_status > 0) THEN
       CALL finish (module_name//method_name, 'ALLOCATE(zdudt,zdvdt)')
     END IF
-    !$ACC DATA CREATE( zdudt, zdvdt )
+    !$ACC DATA CREATE( zdudt, zdvdt ) ASYNC(1)
 
     DO jb = 1, patch%nblks_c
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = 1, nproma
@@ -643,7 +646,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = jcs, jce
@@ -653,7 +656,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev+1
         DO jc = jcs, jce
@@ -684,7 +687,7 @@ CONTAINS
       CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
       IF (jes>jee) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE( jcn, jbn, zvn1, zvn2 ) COLLAPSE(2)
       DO jk = 1,nlev
         DO je = jes,jee
@@ -737,7 +740,7 @@ CONTAINS
       CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
       IF (jes>jee) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO je = jes, jee
@@ -769,7 +772,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jt = 1,jt_end
         DO jc = jcs, jce
@@ -779,7 +782,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1,nlev
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -855,7 +858,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         ! initialize vertical integrals
@@ -867,7 +870,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1,nlev
         !$ACC LOOP GANG VECTOR
@@ -942,7 +945,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jt =1,jt_end
         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
@@ -1099,6 +1102,7 @@ CONTAINS
         &                         f4din=pt_prog_new_rcf%tracer )
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (ltimer) CALL timer_stop(timer_p2d_sync)

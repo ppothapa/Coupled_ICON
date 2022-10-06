@@ -134,7 +134,7 @@ MODULE mo_2mom_mcrph_main
        &  particle_cloud_riming, particle_rain_riming, graupel_melting,      &
        &  hail_melting_simple, graupel_hail_conv_wet_gamlook, ice_riming,    &
        &  snow_riming, ccn_activation_sk, ccn_activation_hdcp2,              &
-       &  ccn_activation_sk_4d, set_default_n
+       &  ccn_activation_sk_4d, set_default_n, cfg_params
   ! Some switches...
   USE mo_2mom_mcrph_processes, ONLY:                                         &
        &  ice_typ, nuc_i_typ, nuc_c_typ, auto_typ, isdebug, isprint
@@ -784,7 +784,7 @@ CONTAINS
     REAL(wp) :: nu, mu, x_s_i
 
     rhocorr = 1.0_wp
-
+    
     CALL init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
 
     ice_typ   = cloud_type/1000           ! (0) no ice, (1) no hail (2) with hail
@@ -800,12 +800,16 @@ CONTAINS
 !    rain_coeffs%alfa = rainSBBcoeffs%alfa
 !    rain_coeffs%beta = rainSBBcoeffs%beta
 !    rain_coeffs%gama = rainSBBcoeffs%gama 
-    rain_coeffs%cmu0 = rainSBBcoeffs%cmu0
-    rain_coeffs%cmu1 = rainSBBcoeffs%cmu1
+!!$    rain_coeffs%cmu0 = rainSBBcoeffs%cmu0 ! now this comes from cfg_params
+!!$    rain_coeffs%cmu1 = rainSBBcoeffs%cmu1 ! now this comes from cfg_params
     rain_coeffs%cmu2 = rainSBBcoeffs%cmu2
-    rain_coeffs%cmu3 = rainSBBcoeffs%cmu3
+!!$    rain_coeffs%cmu3 = rainSBBcoeffs%cmu3 ! now this comes from cfg_params
     rain_coeffs%cmu4 = rainSBBcoeffs%cmu4
     rain_coeffs%cmu5 = rainSBBcoeffs%cmu5
+
+    rain_coeffs%cmu0 = cfg_params%rain_cmu0
+    rain_coeffs%cmu1 = cfg_params%rain_cmu1
+    rain_coeffs%cmu3 = cfg_params%rain_cmu3
 
     CALL message(TRIM(routine), "calculate run-time coefficients")
     WRITE (txt,'(A,I10)') "  cloud_type = ",cloud_type ; CALL message(routine,TRIM(txt))

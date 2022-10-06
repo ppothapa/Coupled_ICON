@@ -1309,10 +1309,10 @@ INTEGER, INTENT(in), OPTIONAL :: opt_elev  ! optional vertical end level
 ! start and end values of refin_ctrl flag
 INTEGER, INTENT(in), OPTIONAL ::  opt_rlstart, opt_rlend
 
-LOGICAL, INTENT(in), OPTIONAL :: opt_acc_async
-
 ! vertex based scalar output field
 REAL(vp), INTENT(inout) :: p_vert_out(:,:,:) ! dim: (nlev,nproma,nblks_v) or (nproma,nlev,nblks_v)
+
+LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async   !< optional async OpenACC
 
 INTEGER :: slev, elev     ! vertical start and end level
 INTEGER :: jv, jk, jb
@@ -1357,8 +1357,6 @@ i_endblk   = ptr_patch%verts%end_blk(rl_end,i_nchdom)
 
 IF (timers_level > 10) CALL timer_start(timer_intp)
 
-!$ACC DATA NO_CREATE( p_cell_in, c_int, p_vert_out, iidx, iblk )
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jv,jk) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, i_endblk
@@ -1366,7 +1364,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jv = i_startidx, i_endidx
@@ -1403,10 +1401,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     !$ACC WAIT
   END IF
 
-!$ACC END DATA
-
-IF (timers_level > 10) CALL timer_stop(timer_intp)
-
+  IF (timers_level > 10) CALL timer_stop(timer_intp)
 
 END SUBROUTINE cells2verts_scalar_ri
 !------------------------------------------------------------------------

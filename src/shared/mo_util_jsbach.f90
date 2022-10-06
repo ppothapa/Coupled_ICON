@@ -344,7 +344,7 @@ CONTAINS
     USE mo_run_nml,               ONLY: read_run_namelist
     USE mo_io_nml,                ONLY: read_io_namelist
     USE mo_dbg_nml,               ONLY: read_dbg_namelist
-  
+
     USE mo_grid_nml,              ONLY: read_grid_namelist
     USE mo_grid_config,           ONLY: init_grid_configuration
     USE mo_interpol_nml,          ONLY: read_interpol_namelist
@@ -426,7 +426,9 @@ MODULE mo_jsb_time_iface
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,              &
     &                                  calculate_time_interpolation_weights
   USE mo_aes_phy_config,         ONLY: aes_phy_tc, dt_zero
-  USE mo_run_config,             ONLY: l_timer_host => ltimer
+  USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
+  USE mo_run_config,             ONLY: l_timer_host => ltimer, iforcing
+  USE mo_impl_constants,         ONLY: inwp
 
   IMPLICIT NONE
   PRIVATE
@@ -475,21 +477,23 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':get_time_dt'
 
-    ztime = -1._wp
+    IF (iforcing == inwp) THEN
+      ztime = atm_phy_nwp_config(model_id)%dt_fastphy
+    ELSE
+      reference_datetime => newDatetime("1979-01-01T00:00:00.000") ! 1980-06-01T00:00:00.000
 
-    reference_datetime => newDatetime("1979-01-01T00:00:00.000") ! 1980-06-01T00:00:00.000
+      ! First try to get time step from the vertical diffusion config in a coupled experiment
 
-    ! First try to get time step from the vertical diffusion config in a coupled experiment
+      ztime = REAL(getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
 
-    ztime = REAL(getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+      IF (ztime <= 0._wp) THEN
+        ! This should only happen for an ICON-Land standalone experiment;
+        ! Use "modeltimestep" from run_nml in this case (same for all model_id's!)
+        ztime = REAL(getTotalSecondsTimeDelta(time_config%tc_dt_model, reference_datetime), wp)
+      END IF
 
-    IF (ztime <= 0._wp) THEN
-      ! This should only happen for an ICON-Land standalone experiment;
-      ! Use "modeltimestep" from run_nml in this case (same for all model_id's!)
-      ztime = REAL(getTotalSecondsTimeDelta(time_config%tc_dt_model, reference_datetime), wp)
+      CALL deallocateDatetime(reference_datetime)
     END IF
-
-    CALL deallocateDatetime(reference_datetime)
 
     IF (ztime <= 0.0_wp) &
       CALL finish(routine, 'Couldn"t get model time step.')
@@ -615,25 +619,39 @@ CONTAINS
 
     datetime_next => get_time_next(current, dt)
 
-    IF (aes_phy_tc(model_id)%dt_rad > dt_zero) THEN
-      dt_rad = getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_rad, datetime_next)
-      ltrig_rad_m1 = MOD(getNoOfSecondsElapsedInDayDateTime(datetime_next), dt_rad) == 0
-      ! Why doesn't this work? It somehow messes up the radiation calculation time step.
-      ! ltrig_rad_m1 = isCurrentEventActive(aes_phy_tc(model_id)%ev_rad, datetime_next)
-      luse_rad  = (aes_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
-        &         (aes_phy_tc(model_id)%ed_rad >  datetime_next)
-      ltrig_rad_m1 = ltrig_rad_m1 .AND. luse_rad
-    ELSE
+    SELECT CASE (iforcing)
+    CASE(inwp)
+    ! TODO: Activate optimization for NWP physics.
       ltrig_rad_m1 = .TRUE.
-    END IF
+
+    CASE DEFAULT
+      IF (aes_phy_tc(model_id)%dt_rad > dt_zero) THEN
+        dt_rad = getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_rad, datetime_next)
+        ltrig_rad_m1 = MOD(getNoOfSecondsElapsedInDayDateTime(datetime_next), dt_rad) == 0
+        ! Why doesn't this work? It somehow messes up the radiation calculation time step.
+        ! ltrig_rad_m1 = isCurrentEventActive(aes_phy_tc(model_id)%ev_rad, datetime_next)
+        luse_rad  = (aes_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
+          &         (aes_phy_tc(model_id)%ed_rad >  datetime_next)
+        ltrig_rad_m1 = ltrig_rad_m1 .AND. luse_rad
+      ELSE
+        ltrig_rad_m1 = .TRUE.
+      END IF
+    END SELECT
 
   END FUNCTION is_time_ltrig_rad_m1
 
   LOGICAL FUNCTION is_time_experiment_start(current)
 
+    USE mo_initicon_config, ONLY: timeshift
+
     TYPE(t_datetime), POINTER, INTENT(in) :: current
 
-    is_time_experiment_start = current == time_config%tc_exp_startdate
+    ! take care of possibe IAU-Timeshift
+    IF (timeshift%dt_shift < 0._wp) THEN
+      is_time_experiment_start = current == time_config%tc_exp_startdate + timeshift%mtime_shift
+    ELSE
+      is_time_experiment_start = current == time_config%tc_exp_startdate
+    ENDIF
 
   END FUNCTION is_time_experiment_start
 

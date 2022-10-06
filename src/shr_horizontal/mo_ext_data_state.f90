@@ -255,8 +255,6 @@ CONTAINS
       &     p_ext_atm%llake_c,         &
       &     p_ext_atm%fr_land,         &
       &     p_ext_atm%fr_glac,         &
-      &     p_ext_atm%fr_land_smt,     &
-      &     p_ext_atm%fr_glac_smt,     &
       &     p_ext_atm%z0,              &
       &     p_ext_atm%fr_lake,         &
       &     p_ext_atm%depth_lk,        &
@@ -474,43 +472,17 @@ CONTAINS
       __acc_attach(p_ext_atm%fr_land)
 
 
-      ! glacier fraction
+      ! glacier area fraction
       !
-      ! fr_glac      p_ext_atm%fr_glac(nproma,nblks_c)
-      cf_desc    = t_cf_var('glacier_area_fraction', '-', 'Fraction glacier', datatype_flt)
-      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'fr_glac', p_ext_atm%fr_glac,   &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,    &
-        &           grib2_desc, ldims=shape2d_c, loutput=.TRUE. )
-
-
-      ! maybe the next one (fr_land_smt)
-      ! should be moved into corresponding if block
-
-      ! land fraction (smoothed)
-      !
-      ! fr_land_smt  p_ext_atm%fr_land_smt(nproma,nblks_c)
-      cf_desc    = t_cf_var('land_area_fraction_(smoothed)', '-', &
-        &                   'land area fraction (smoothed)', datatype_flt)
-      grib2_desc = grib2_var( 2, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'fr_land_smt', p_ext_atm%fr_land_smt, &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,          &
-        &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,         &
-        &           isteptype=TSTEP_CONSTANT, lopenacc=.TRUE. )
-      __acc_attach(p_ext_atm%fr_land_smt)
-
-
-      ! glacier area fraction (smoothed)
-      !
-      ! fr_glac_smt  p_ext_atm%fr_glac_smt(nproma,nblks_c)
-      cf_desc    = t_cf_var('glacier_area_fraction_(smoothed)', '-', &
-        &                   'glacier area fraction (smoothed)', datatype_flt)
+      ! fr_glac  p_ext_atm%fr_glac(nproma,nblks_c)
+      cf_desc    = t_cf_var('glacier_area_fraction', '-', &
+        &                   'glacier area fraction', datatype_flt)
       grib2_desc = grib2_var( 2, 0, 192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_ext_atm_list, 'fr_glac_smt', p_ext_atm%fr_glac_smt, &
+      CALL add_var( p_ext_atm_list, 'fr_glac', p_ext_atm%fr_glac, &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,          &
         &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,         &
         &           lopenacc=.TRUE. )
-      __acc_attach(p_ext_atm%fr_glac_smt)
+      __acc_attach(p_ext_atm%fr_glac)
 
       ! roughness length
       !

@@ -1122,7 +1122,14 @@ my_thrd_id = omp_get_thread_num()
          tvt => tketens
       ELSE
          tvt => tketens_tar
-         tvt=z0
+         !$ACC PARALLEL DEFAULT(NONE) PRESENT(tvt) ASYNC(1) IF( lzacc )
+         !$ACC LOOP GANG VECTOR COLLAPSE(2)
+         DO k=ke1, ke1
+            DO i=ivstart, ivend
+               tvt(i,k) = z0
+            END DO
+         END DO
+         !$ACC END PARALLEL
       END IF
 
       vel1_2d => zvari(:,ke ,u_m)
@@ -1964,13 +1971,13 @@ my_thrd_id = omp_get_thread_num()
                END DO
             END IF   
 
-
-            IF (.NOT.ltkeinp) THEN
-               nvor=ntur !benutze nun aktuelle TKE-Werte als Vorgaengerwerte
-            END IF
-
          END IF
          !$acc end parallel
+
+         ! This should happen outside the OpenACC paralle region
+         IF ( it_durch.LT.it_end .AND. .NOT.ltkeinp) THEN
+            nvor=ntur !benutze nun aktuelle TKE-Werte als Vorgaengerwerte
+         END IF
 
       END DO !Iteration
 

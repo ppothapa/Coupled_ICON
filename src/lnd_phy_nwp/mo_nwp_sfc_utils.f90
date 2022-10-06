@@ -889,8 +889,12 @@ CONTAINS
           albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)
         ENDDO  ! jc
 
-
-        CALL seaice_init_nwp ( icount_ice, frsi,                                    & ! in
+        ! The first argument of `seaice_init_nwp` is set .TRUE. 
+        ! to make sure that the ice thickness and ice surface temperature 
+        ! at "new" ice points are initialized for all run types 
+        ! (for non-coupled as well as coupled runs).
+        !
+        CALL seaice_init_nwp ( .TRUE., icount_ice, frsi,                            & ! in
           &                    tice_now, hice_now, tsnow_now, hsnow_now, albsi_now, & ! inout
           &                    tice_new, hice_new, tsnow_new, hsnow_new, albsi_new  ) ! inout
 
@@ -1240,13 +1244,13 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2018-02-23)
   !!
-  SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, use_acc)
+  SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, lacc )
 
     TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch       !< grid/patch info
     TYPE(t_external_data),       INTENT(in)   :: ext_data      !< external data
     TYPE(t_lnd_prog),            INTENT(inout):: lnd_prog      !< prog vars for sfc
     TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag      !< diag vars for sfc
-    LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+    LOGICAL,                     INTENT(IN)   :: lacc
 
     ! Local scalars:
     INTEGER :: rl_start, rl_end
@@ -1262,14 +1266,6 @@ CONTAINS
     INTEGER :: icount         ! index list length per block
     INTEGER :: ic
     INTEGER :: styp           ! soil type index
-
-    LOGICAL :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
 
     !$ACC DATA CREATE(lmask) PRESENT(ext_data, lnd_prog, lnd_diag, dzsoil) IF(lacc)
 
@@ -2856,13 +2852,15 @@ CONTAINS
           albsi_now(ic) = prog_wtr_now%alb_si(jc,jb)
         ENDDO  ! jc
 
-        ! If h_ice is provided from external sources, it is necessary to skip the 
-        ! initialization of h_ice for newly generated seaice points. 'Newly generated' 
-        ! as seen from the atmospheric model perspective does not necessarily mean that 
+        ! If h_ice is provided from external sources (lpresent_h_ice=.TRUE.), 
+        ! it is necessary to skip the initialization of h_ice for newly 
+        ! generated seaice points. 'Newly generated' as seen from an 
+        ! atmospheric model perspective does not necessarily mean that 
         ! the seaice was created due to freezing. It might have been transported into the 
         ! cell by advective processes.
         !
-        CALL seaice_init_nwp ( list_seaice_created%ncount(jb), frsi,                & ! in
+        CALL seaice_init_nwp ( (.NOT. lpresent_h_ice),                              & ! in 
+          &                    list_seaice_created%ncount(jb), frsi,                & ! in
           &                    tice_now, hice_now, tsnow_now, hsnow_now, albsi_now, & ! inout
           &                    tice_new, hice_new, tsnow_new, hsnow_new, albsi_new  ) ! inout
 

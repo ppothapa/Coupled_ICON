@@ -142,9 +142,20 @@ CONTAINS
     ! --------------------------------------------------------------------------------
     
     CALL position_nml('master_nml', STATUS=istat)
+
+    IF (my_process_is_stdio()) THEN
+      iunit = temp_defaults()
+      WRITE(iunit, master_nml)  ! write defaults to temporary text file
+    END IF
+
     IF (istat == POSITIONED) THEN
       READ (nnml, master_nml)
     ENDIF
+
+    IF (my_process_is_stdio()) THEN
+      iunit = temp_settings()
+      WRITE(iunit, master_nml)  ! write settings to temporary text file
+    END IF
 
     SELECT CASE (institute)
     CASE ('DWD')
@@ -182,10 +193,21 @@ CONTAINS
     restartTimeIntval       = ""
 
     CALL position_nml('master_time_control_nml', STATUS=istat)
+
+    IF (my_process_is_stdio()) THEN
+      iunit = temp_defaults()
+      WRITE(iunit, master_time_control_nml)  ! write defaults to temporary text file
+    END IF
+
     IF (istat == POSITIONED) THEN
       READ (nnml, master_time_control_nml)
     ENDIF
     
+    IF (my_process_is_stdio()) THEN
+      iunit = temp_settings()
+      WRITE(iunit, master_time_control_nml)  ! write settings to temporary text file
+    END IF
+
     cfg_experimentReferenceDate = experimentReferenceDate
     cfg_experimentStartDate     = experimentStartDate
     cfg_experimentStopDate      = experimentStopDate

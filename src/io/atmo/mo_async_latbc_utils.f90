@@ -60,9 +60,8 @@
          &                            newEvent, datetime, newDatetime,             &
          &                            isCurrentEventActive, deallocateDatetime,    &
          &                            MAX_DATETIME_STR_LEN,                        &
-         &                            MAX_TIMEDELTA_STR_LEN, getPTStringFromMS,    &
          &                            getTotalSecondsTimedelta,                    &
-         &                            datetimeToString, timedeltaToString,         &
+         &                            datetimeToString,                            &
          &                            OPERATOR(>=), OPERATOR(-), OPERATOR(>),      &
          &                            OPERATOR(/=), OPERATOR(+), OPERATOR(*),      &
          &                            OPERATOR(<), OPERATOR(==),                   &
@@ -106,7 +105,7 @@
     PUBLIC :: reopen_latbc_file
 #endif
     PUBLIC ::  async_init_latbc_data, prefetch_latbc_data,     &
-         &     update_lin_interpolation, recv_latbc_data
+         &     recv_latbc_data
 
 
     INTERFACE fetch_from_buffer
@@ -396,9 +395,7 @@
       TYPE(datetime) :: nextActive          ! next trigger date for prefetch event
       TYPE(datetime) :: latbc_read_datetime ! next input date to be read
       INTEGER :: ierr, nblks_c, nlev_in, jk, jb, jc
-      REAL(wp)       :: seconds
       INTEGER        :: prev_latbc_tlev
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN)  :: td_string
       CHARACTER(LEN=MAX_DATETIME_STR_LEN)   :: latbc_read_datetime_str
       CHARACTER(LEN=*), PARAMETER :: routine = modname//"::read_init_latbc_data"
       REAL(wp), ALLOCATABLE                 :: z_ifc_in(:,:,:)
@@ -441,14 +438,8 @@
       read_params(iedge)%imode_asy = 0
 
 
-      ! convert namelist parameter "limarea_nml/dtime_latbc" into
-      ! mtime object:
-      IF (latbc_config%dtime_latbc > 86400._wp) THEN
-        CALL finish(routine, "Namelist setting of limarea_nml/dtime_latbc too large for mtime conversion!")
-      END IF
-      seconds = latbc_config%dtime_latbc*1000._wp
-      CALL getPTStringFromMS(NINT(seconds,i8), td_string)
-      latbc%delta_dtime => newTimedelta(td_string)
+      ! get timedelta between consecutive boundary data
+      latbc%delta_dtime => latbc_config%dtime_latbc_mtime
 
       ! create prefetching event:
       latbc%prefetchEvent => newEvent("Prefetch input", time_config%tc_exp_startdate, &
@@ -1022,21 +1013,13 @@
       TYPE(datetime) :: nextActive             ! next trigger date for prefetch event
       INTEGER        :: ierr
       TYPE(datetime) :: latbc_read_datetime    ! next input date to be read
-      REAL(wp)       :: seconds
       CHARACTER(LEN=*), PARAMETER :: routine = modname//"::async_init_latbc_data"
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN)  :: td_string
 
 
       IF (.NOT. my_process_is_pref())  RETURN
 
-      ! convert namelist parameter "limarea_nml/dtime_latbc" into
-      ! mtime object:
-      IF (latbc_config%dtime_latbc > 86400._wp) THEN
-        CALL finish(routine, "Namelist setting of limarea_nml/dtime_latbc too large for mtime conversion!")
-      END IF
-      seconds = latbc_config%dtime_latbc*1000._wp
-      CALL getPTStringFromMS(NINT(seconds,i8), td_string)
-      latbc%delta_dtime => newTimedelta(td_string)
+      ! get timedelta between consecutive boundary data
+      latbc%delta_dtime => latbc_config%dtime_latbc_mtime
 
       ! create prefetching event:
       latbc%prefetchEvent => newEvent("Prefetch input", time_config%tc_exp_startdate, &
@@ -1730,66 +1713,6 @@
         END IF
       END DO LOOP
     END FUNCTION get_field_index
-
-    !-------------------------------------------------------------------------
-    !>
-    !  Update linear interpolation coefficients for a given time stamp
-    !
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2014-08-15)
-    !!
-    SUBROUTINE update_lin_interpolation( latbc, step_datetime )
-      TYPE(t_latbc_data), INTENT(IN)    :: latbc
-      TYPE(datetime), INTENT(in) :: step_datetime
-#ifndef NOMPI
-      TYPE(timedelta)           :: delta_tstep
-      REAL(wp)                  :: dtime_latbc      ! time delta between two consecutive 
-                                                    ! boundary forcing time slices
-      TYPE(timedelta)           :: td
-      LOGICAL :: failure
-
-      CHARACTER(LEN=*), PARAMETER  :: routine = modname//"::update_lin_interpolation"
-      CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: vDateTime_str_cur, vDateTime_str_prv
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN):: delta_tstep_str
-      INTEGER :: prv_tlev, cur_tlev
-      ! compute boundary update timedelta
-      cur_tlev = latbc%new_latbc_tlev
-      prv_tlev = latbc%prev_latbc_tlev()
-      td = latbc%latbc_data(cur_tlev)%vDateTime - latbc%latbc_data(prv_tlev)%vDateTime
-      dtime_latbc =  REAL(getTotalSecondsTimedelta(td, latbc%latbc_data(cur_tlev)%vDateTime))
-
-      delta_tstep = latbc%latbc_data(cur_tlev)%vDateTime - step_datetime
-
-      failure = delta_tstep%month /= 0
-      IF (msg_level >= 15 .OR. failure) THEN
-        CALL message(routine, "", all_print=failure)
-        CALL datetimeToString(latbc%latbc_data(prv_tlev)%vDateTime, vDateTime_str_prv)
-        CALL datetimeToString(latbc%latbc_data(cur_tlev)%vDateTime, vDateTime_str_cur)
-        CALL timedeltaToString(delta_tstep, delta_tstep_str)
-        WRITE (message_text, '(a,a)')  "lbc vdate current : ", vDateTime_str_cur
-        CALL message("", message_text, all_print=failure)
-        WRITE (message_text, '(a,a)')  "lbc vdate previous: ", vDateTime_str_prv
-        CALL message("", message_text, all_print=failure)
-        WRITE (message_text, '(a,a)')  "delta_tstep_str: ", delta_tstep_str
-        CALL message("", message_text, all_print=failure)
-        IF (delta_tstep%month /= 0) &
-          CALL finish(routine, "time difference for reading boundary&
-          & data must not be more than a month.")
-      ENDIF
-
-
-
-
-      ! compute the number of "dtime_latbc" intervals fitting into the time difference "delta_tstep":
-
-      latbc_config%lc1 = (delta_tstep%day * 86400._wp + delta_tstep%hour * 3600._wp +  &
-           delta_tstep%minute * 60._wp + delta_tstep%second) / dtime_latbc
-      latbc_config%lc2 = 1._wp - latbc_config%lc1
-
-      ! deallocating mtime and deltatime
-#endif
-
-    END SUBROUTINE update_lin_interpolation
 
 
     ! Wrapper routines for reading data either synchronously by PE0 via read_cdi or asynchronously

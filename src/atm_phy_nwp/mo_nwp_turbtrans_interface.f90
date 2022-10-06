@@ -57,7 +57,7 @@ MODULE mo_nwp_turbtrans_interface
   USE mo_util_phys,            ONLY: nwp_dyn_gust
   USE mo_run_config,           ONLY: ltestcase
   USE mo_lnd_nwp_config,       ONLY: ntiles_total, ntiles_lnd, ntiles_water, llake,  &
-    &                                isub_lake, lseaice
+    &                                isub_lake, lseaice, isub_water
 #ifndef __NO_ICON_EDMF__
   USE mo_vupdz0_tile,          ONLY: vupdz0_tile
   USE mo_vexcs,                ONLY: vexcs
@@ -336,7 +336,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF (prm_diag%ktop_envel(jc,jb) < nlev) THEN
-          jk_gust(jc) = MERGE(prm_diag%ktop_envel(jc,jb)-1, prm_diag%ktop_envel(jc,jb), itune_gust_diag == 1)
+          jk_gust(jc) = MERGE(prm_diag%ktop_envel(jc,jb), prm_diag%ktop_envel(jc,jb)-1, itune_gust_diag == 2)
         ELSE
           jk_gust(jc) = nlev
         ENDIF
@@ -842,6 +842,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           &                                       p_diag%v      (jc,nlev,jb), &
           &                                       p_diag%u(jc,jk_gust(jc),jb),&
           &                                       p_diag%v(jc,jk_gust(jc),jb),&
+          &                          ext_data%atm%lc_frac_t(jc,jb,isub_water),&
           &                                  p_metrics%mask_mtnpoints_g(jc,jb))
       ENDDO
 
@@ -910,7 +911,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       DO jc = i_startidx, i_endidx
         prm_diag%dyn_gust(jc,jb) = nwp_dyn_gust(prm_diag%u_10m(jc,jb), prm_diag%v_10m(jc,jb), &
           &  prm_diag%tcm(jc,jb), p_diag%u(jc,nlev,jb), p_diag%v(jc,nlev,jb),                 &
-          &  p_diag%u(jc,jk_gust(jc),jb), p_diag%v(jc,jk_gust(jc),jb),p_metrics%mask_mtnpoints_g(jc,jb) )
+          &  p_diag%u(jc,jk_gust(jc),jb), p_diag%v(jc,jk_gust(jc),jb),                        &
+          &  ext_data%atm%lc_frac_t(jc,jb,isub_water),p_metrics%mask_mtnpoints_g(jc,jb) )
       ENDDO
 
       ! instantaneous max/min 2m temperature over tiles (trivial operation for 1 tile)
@@ -1041,7 +1043,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       DO jc = i_startidx, i_endidx
         prm_diag%dyn_gust(jc,jb) = nwp_dyn_gust(prm_diag%u_10m(jc,jb), prm_diag%v_10m(jc,jb), &
           &  prm_diag%tcm(jc,jb), p_diag%u(jc,nlev,jb), p_diag%v(jc,nlev,jb),                 &
-          &  p_diag%u(jc,jk_gust(jc),jb), p_diag%v(jc,jk_gust(jc),jb),p_metrics%mask_mtnpoints_g(jc,jb) )
+          &  p_diag%u(jc,jk_gust(jc),jb), p_diag%v(jc,jk_gust(jc),jb),                        &
+          &  ext_data%atm%lc_frac_t(jc,jb,isub_water),p_metrics%mask_mtnpoints_g(jc,jb) )
       ENDDO
 
       ! instantaneous max/min 2m temperature over tiles (trivial operation for 1 tile)

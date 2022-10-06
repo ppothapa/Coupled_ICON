@@ -82,10 +82,12 @@ MODULE mo_nwp_ecrad_utilities
   PUBLIC :: get_indices_rad_subblock
 
   ! helper functions to be removed once acc is merged into libecrad
+#ifndef __ECRAD_ACC
   PUBLIC :: ecrad_acc_allocation
   PUBLIC :: ecrad_acc_deallocation
   PUBLIC :: update_host_pre_ecrad
   PUBLIC :: update_device_post_ecrad
+#endif
 
 CONTAINS
 
@@ -100,7 +102,7 @@ CONTAINS
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
   SUBROUTINE ecrad_set_single_level(ecrad_single_level, current_datetime, cell_center, cosmu0, tsfc, &
-    &                               albvisdif, albnirdif, albvisdir, albnirdir, emis_rad, i_startidx, i_endidx, use_acc)
+    &                               albvisdif, albnirdif, albvisdir, albnirdir, emis_rad, i_startidx, i_endidx)
 
     TYPE(t_ecrad_single_level_type), INTENT(inout) :: &
       &  ecrad_single_level       !< ecRad single level information
@@ -118,7 +120,6 @@ CONTAINS
       &  emis_rad(:)              !< Longwave surface emissivity
     INTEGER, INTENT(in)      :: &
       &  i_startidx, i_endidx     !< Start and end index of nproma loop in current block
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 ! Local variables
     INTEGER                  :: &
       &  jc,                    & !< loop index
@@ -127,19 +128,11 @@ CONTAINS
     TYPE(t_geographical_coordinates), TARGET, ALLOCATABLE :: scm_center(:)
     TYPE(t_geographical_coordinates), POINTER             :: ptr_center(:)
 
-    LOGICAL                  :: lacc
-
-
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
     ! SCM: read lat/lon for horizontally uniform zenith angle
     IF ( l_scm_mode ) THEN
 #ifdef _OPENACC
-      IF (lacc) CALL finish('ecrad_set_single_level','l_scm_mode not ported to gpu')
+      CALL finish('ecrad_set_single_level','l_scm_mode not ported to gpu')
 #endif
       ALLOCATE(scm_center(SIZE(cell_center)))
       DO jc = i_startidx, i_endidx
@@ -154,8 +147,7 @@ CONTAINS
     seed_in_time = create_rdm_seed_in_time(current_datetime)
 
     !$ACC PARALLEL DEFAULT(NONE) PRESENT( cosmu0, tsfc, albvisdif, albnirdif, albvisdir ) &
-    !$ACC                        PRESENT( albnirdir, emis_rad, ecrad_single_level, ptr_center ) &
-    !$ACC                        IF( lacc )
+    !$ACC                        PRESENT( albnirdir, emis_rad, ecrad_single_level, ptr_center )
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         ecrad_single_level%cos_sza(jc)            = cosmu0(jc)
@@ -187,34 +179,26 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
-  SUBROUTINE ecrad_set_thermodynamics(ecrad_thermodynamics, temp, pres, pres_ifc, tsfc, &
-    &                                 nlev, nlevp1, i_startidx, i_endidx, use_acc)
+  SUBROUTINE ecrad_set_thermodynamics(ecrad_thermodynamics, temp, pres, pres_ifc, &
+    &                                 nlev, nlevp1, i_startidx, i_endidx)
 
     TYPE(t_ecrad_thermodynamics_type), INTENT(inout) :: &
       &  ecrad_thermodynamics     !< ecRad thermodynamics information
     REAL(wp), INTENT(in)     :: &
       &  temp(:,:),             & !< Full level temperature field
       &  pres(:,:),             & !< Full level pressure field
-      &  pres_ifc(:,:),         & !< Half level pressure field
-      &  tsfc(:)                  !< Surface temperature
+      &  pres_ifc(:,:)            !< Half level pressure field
     INTEGER, INTENT(in)      :: &
       &  nlev, nlevp1,          & !< Number of vertical full and half levels
       &  i_startidx, i_endidx     !< Start and end index of nproma loop in current block
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 ! Local variables
     INTEGER                  :: &
       &  jc, jk                   !< loop indices
-    LOGICAL                  :: lacc
 
-      if (present(use_acc)) then
-        lacc = use_acc
-      else
-        lacc = .false.
-      end if
+      !$ACC DATA PRESENT(ecrad_thermodynamics, temp, pres, pres_ifc)
 
-      !$ACC DATA PRESENT(ecrad_thermodynamics, temp, pres, pres_ifc) IF(lacc)
-
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,nlevp1
         DO jc = i_startidx, i_endidx
           ecrad_thermodynamics%pressure_hl(jc,jk)    = pres_ifc(jc,jk)
@@ -223,7 +207,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Temperature at half levels is interpolated in the same way as in rrtm so far.
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk=2,nlev
         !$ACC LOOP GANG VECTOR
@@ -236,7 +220,8 @@ CONTAINS
       ENDDO !jk
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ecrad_thermodynamics%temperature_hl(jc,nlevp1) = temp(jc,nlev) + (pres_ifc(jc,nlevp1) - pres(jc,nlev)) * &
                                (temp(jc,nlev-1) - temp(jc,nlev))/(pres(jc,nlev-1) - pres(jc,nlev))
@@ -248,7 +233,8 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Directly provide full level temperature and pressure to rrtm gas_optics in ecrad (see rrtm_pass_temppres_fl).
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
           ecrad_thermodynamics%pressure_fl(jc,jk)    = pres(jc,jk)
@@ -259,12 +245,12 @@ CONTAINS
 
 #ifndef __ECRAD_ACC
       !$ACC WAIT
-      !$ACC UPDATE HOST( ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl ) IF( lacc )
+      !$ACC UPDATE HOST( ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl )
 #endif
-      CALL ecrad_thermodynamics%calc_saturation_wrt_liquid(istartcol=i_startidx, iendcol=i_endidx, use_acc=lacc)
+      CALL ecrad_thermodynamics%calc_saturation_wrt_liquid(istartcol=i_startidx, iendcol=i_endidx)
 #ifndef __ECRAD_ACC
-      !$ACC ENTER DATA CREATE(ecrad_thermodynamics%h2o_sat_liq) IF(lacc)
-      !$ACC UPDATE DEVICE(ecrad_thermodynamics%h2o_sat_liq) IF(lacc)
+      !$ACC ENTER DATA CREATE(ecrad_thermodynamics%h2o_sat_liq)
+      !$ACC UPDATE DEVICE(ecrad_thermodynamics%h2o_sat_liq)
 #endif
 
       !$ACC END DATA
@@ -283,7 +269,7 @@ CONTAINS
   !!
   SUBROUTINE ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, qc, qi, clc, temp, pres, acdnc, fr_glac, fr_land, &
     &                         qr,qs,qg,reff_liq, reff_frz, reff_rain, reff_snow, reff_graupel,                     & 
-    &                         icpl_reff, fact_reffc, clc_min, nlev, i_startidx, i_endidx, use_acc)
+    &                         icpl_reff, fact_reffc, clc_min, nlev, i_startidx, i_endidx)
 
     TYPE(t_ecrad_cloud_type), INTENT(inout) :: &
       &  ecrad_cloud              !< ecRad cloud information
@@ -315,36 +301,27 @@ CONTAINS
       &  nlev,                  & !< Number of vertical full levels
       &  i_startidx, i_endidx     !< Start and end index of nproma loop in current block
     
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 ! Local variables
     REAL(wp)                 :: &
       &  lwc, iwc,              & !< Cloud liquid and ice water content
       &  liwcfac                  !< Factor to calculate cloud liquid and ice water content
     INTEGER                  :: &
       &  jc, jk                   !< loop indices
-    LOGICAL                  :: lacc
-
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
     ! Currently hardcoded values decorrelation length need adaption
 #ifndef __ECRAD_ACC
     !$ACC WAIT
-    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl) IF(lacc)
+    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl)
 #endif
-    CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, 2000._wp, istartcol=i_startidx, iendcol=i_endidx, &
-      &                                use_acc=lacc)
+    CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, 2000._wp, istartcol=i_startidx, iendcol=i_endidx)
 #ifndef __ECRAD_ACC
-    !$ACC UPDATE DEVICE(ecrad_cloud%overlap_param) IF(lacc)
+    !$ACC UPDATE DEVICE(ecrad_cloud%overlap_param)
 #endif
 
     !$ACC DATA PRESENT(ecrad_cloud, qc, qi, clc, temp, pres, &
-    !$ACC              acdnc, fr_land, fr_glac, reff_frz, reff_liq) IF(lacc)
+    !$ACC              acdnc, fr_land, fr_glac, reff_frz, reff_liq)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(liwcfac, lwc, iwc)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
@@ -373,7 +350,7 @@ CONTAINS
       IF (.NOT. ASSOCIATED(reff_liq) .OR. .NOT. ASSOCIATED(reff_frz)) THEN
         CALL finish('ecrad_set_clouds','effective radius fields not associated')
       ENDIF
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -412,7 +389,7 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-13)
   !!
-  SUBROUTINE ecrad_set_gas(ecrad_gas, ecrad_conf, o3, qv, pres, i_startidx, i_endidx, nlev, use_acc)
+  SUBROUTINE ecrad_set_gas(ecrad_gas, ecrad_conf, o3, qv, pres, i_startidx, i_endidx, nlev)
 
     TYPE(t_ecrad_gas_type), INTENT(inout) :: &
       &  ecrad_gas                !< ecRad cloud information
@@ -425,7 +402,6 @@ CONTAINS
     INTEGER, INTENT(in)      :: &
       &  i_startidx, i_endidx,  & !< Start and end index of nproma loop in current block
       &  nlev                     !< Number of vertical full levels
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     ! Local variables
     REAL(wp), ALLOCATABLE    :: &
       &  ch4(:,:),              & !< Methane volume mixing ratio
@@ -435,26 +411,21 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//'::ecrad_set_gas'
 
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
     ncol = SIZE(pres, 1)
 
+    lacc = .TRUE.
 #ifndef __ECRAD_ACC
     !$ACC UPDATE HOST(o3, qv, pres) IF(lacc)
-    lacc = .false.
+    lacc = .FALSE.
 #endif
 
     ! Water Vapor
     SELECT CASE(irad_h2o)
       CASE(0) ! No water vapor
-        CALL ecrad_gas%put_well_mixed(ecRad_IH2O, IVolumeMixingRatio, 0._wp,  istartcol=i_startidx, iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IH2O, IVolumeMixingRatio, 0._wp,  istartcol=i_startidx, iendcol=i_endidx)
       CASE(1) ! Use values from diagnosed water vapor content
-        CALL ecrad_gas%put(ecRad_IH2O, IMassMixingRatio, qv(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IH2O, IMassMixingRatio, qv(i_startidx:i_endidx,:), istartcol=i_startidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_h2o = 0, 1')
     END SELECT
@@ -462,11 +433,10 @@ CONTAINS
     ! Ozone
     SELECT CASE(irad_o3)
       CASE(0) ! No Ozone
-        CALL ecrad_gas%put_well_mixed(ecRad_IO3,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IO3,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx)
       CASE(5,7,9,79,97) ! Use values from GEMS/MACC (different profiles)
                         ! or time dependent concentration from external file
-        CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(i_startidx:i_endidx,:), istartcol=i_startidx)
       CASE(11) ! Ozone is read from SCM input file
         CALL message('mo_nwp_ecrad_utilities: irad_o3=11', &
           &          'Ozone used for radiation is read from SCM input file')
@@ -477,14 +447,11 @@ CONTAINS
     !CO2
     SELECT CASE(irad_co2)
       CASE(0) ! No CO2
-        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived from namelist parameter vmr_co2
-        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IVolumeMixingRatio, vmr_co2,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IVolumeMixingRatio, vmr_co2,  istartcol=i_startidx,iendcol=i_endidx)
       CASE(4) ! time dependent concentration from external file
-        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IMassMixingRatio, ghg_co2mmr,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICO2,IMassMixingRatio, ghg_co2mmr,  istartcol=i_startidx,iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_co2 = 0, 2, 4')
     END SELECT
@@ -492,13 +459,11 @@ CONTAINS
     !O2
     SELECT CASE(irad_o2)
       CASE(0) ! No O2
-        CALL ecrad_gas%put_well_mixed(ecRad_IO2,IVolumeMixingRatio, 0._wp,   istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IO2,IVolumeMixingRatio, 0._wp,   istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived from namelist parameter vmr_o2
         ! O2 is hardcoded within rrtm gas solver of ecRad, option for ecRad_IO2 only in case of psrad gas solver
         ! We still put it in ecRad, because this bug should be fixed with the next ecRad release
-        CALL ecrad_gas%put_well_mixed(ecRad_IO2,IVolumeMixingRatio, vmr_o2,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IO2,IVolumeMixingRatio, vmr_o2,  istartcol=i_startidx,iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_o2 = 0, 2')
     END SELECT
@@ -506,14 +471,12 @@ CONTAINS
     !CFC11
     SELECT CASE(irad_cfc11)
       CASE(0) ! No CFC11
-        CALL ecrad_gas%put_well_mixed(ecRad_ICFC11,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx,&
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICFC11,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived from namelist parameter vmr_cfc11
-        CALL ecrad_gas%put_well_mixed(ecRad_ICFC11,IVolumeMixingRatio, vmr_cfc11,istartcol=i_startidx,iendcol=i_endidx,&
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICFC11,IVolumeMixingRatio, vmr_cfc11,istartcol=i_startidx,iendcol=i_endidx)
       CASE(4) ! time dependent concentration from external file
         CALL ecrad_gas%put_well_mixed(ecRad_ICFC11,IMassMixingRatio, ghg_cfcmmr(1),istartcol=i_startidx, &
-          &                           iendcol=i_endidx, use_acc=lacc)
+          &                           iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_cfc11 = 0, 2, 4')
     END SELECT
@@ -521,14 +484,12 @@ CONTAINS
     !CFC12
     SELECT CASE(irad_cfc12)
       CASE(0) ! No CFC12
-        CALL ecrad_gas%put_well_mixed(ecRad_ICFC12,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx,&
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICFC12,IVolumeMixingRatio, 0._wp,    istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived from namelist parameter vmr_cfc12
-        CALL ecrad_gas%put_well_mixed(ecRad_ICFC12,IVolumeMixingRatio, vmr_cfc12,istartcol=i_startidx,iendcol=i_endidx,&
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICFC12,IVolumeMixingRatio, vmr_cfc12,istartcol=i_startidx,iendcol=i_endidx)
       CASE(4) ! time dependent concentration from external file
         CALL ecrad_gas%put_well_mixed(ecRad_ICFC12,IMassMixingRatio, ghg_cfcmmr(2),istartcol=i_startidx, &
-          &                           iendcol=i_endidx, use_acc=lacc)
+          &                           iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_cfc12 = 0, 2, 4')
     END SELECT
@@ -536,22 +497,19 @@ CONTAINS
     !N2O
     SELECT CASE(irad_n2o)
       CASE(0) ! No N2O
-        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived fromecrad_set_gas namelist parameter vmr_n2o
-        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IVolumeMixingRatio, vmr_n2o,istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IVolumeMixingRatio, vmr_n2o,istartcol=i_startidx,iendcol=i_endidx)
       CASE(3) ! Tanh profile
         ALLOCATE(n2o(ncol,nlev))
         !$ACC ENTER DATA CREATE(n2o) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_n2o, pres, vpp_n2o, i_startidx, i_endidx, nlev, n2o(:,:), use_acc=lacc)
-        CALL ecrad_gas%put(ecRad_IN2O,  IVolumeMixingRatio, n2o(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_IN2O,  IVolumeMixingRatio, n2o(i_startidx:i_endidx,:), istartcol=i_startidx)
         !$ACC WAIT
         !$ACC EXIT DATA DELETE(n2o) IF(lacc)
         DEALLOCATE(n2o)
       CASE(4) ! time dependent concentration from external file
-        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IMassMixingRatio, ghg_n2ommr,istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_IN2O,IMassMixingRatio, ghg_n2ommr,istartcol=i_startidx,iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_n2o = 0, 2, 3, 4')
     END SELECT
@@ -559,38 +517,29 @@ CONTAINS
     !CH4
     SELECT CASE(irad_ch4)
       CASE(0) ! No CH4
-        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx)
       CASE(2) ! Constant value derived from namelist parameter vmr_ch4
-        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IVolumeMixingRatio, vmr_ch4,istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IVolumeMixingRatio, vmr_ch4,istartcol=i_startidx,iendcol=i_endidx)
       CASE(3) ! Tanh profile
         ALLOCATE(ch4(ncol,nlev))
         !$ACC ENTER DATA CREATE(ch4) ASYNC(1) IF(lacc)
         CALL gas_profile(vmr_ch4, pres, vpp_ch4, i_startidx, i_endidx, nlev, ch4(:,:), use_acc=lacc)
-        CALL ecrad_gas%put(ecRad_ICH4,  IVolumeMixingRatio, ch4(i_startidx:i_endidx,:), istartcol=i_startidx, use_acc=lacc)
+        CALL ecrad_gas%put(ecRad_ICH4,  IVolumeMixingRatio, ch4(i_startidx:i_endidx,:), istartcol=i_startidx)
         !$ACC WAIT
         !$ACC EXIT DATA DELETE(ch4) IF(lacc)
         DEALLOCATE(ch4)
       CASE(4) ! time dependent concentration from external file
-        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IMassMixingRatio, ghg_ch4mmr,istartcol=i_startidx,iendcol=i_endidx, &
-          &                           use_acc=lacc)
+        CALL ecrad_gas%put_well_mixed(ecRad_ICH4,IMassMixingRatio, ghg_ch4mmr,istartcol=i_startidx,iendcol=i_endidx)
       CASE DEFAULT
         CALL finish(routine, 'Current implementation only supports irad_ch4 = 0, 2, 3, 4')
     END SELECT
 
     ! The following gases are currently not filled from the ICON side. Although they are set to 0 inside ecrad, 
     ! they are set to 0 here for completeness. 
-    CALL ecrad_gas%put_well_mixed(ecRad_IHCFC22,IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx, &
-      &                           use_acc=lacc)
-    CALL ecrad_gas%put_well_mixed(ecRad_ICCl4,  IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx, &
-      &                           use_acc=lacc)
+    CALL ecrad_gas%put_well_mixed(ecRad_IHCFC22,IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx)
+    CALL ecrad_gas%put_well_mixed(ecRad_ICCl4,  IVolumeMixingRatio, 0._wp, istartcol=i_startidx, iendcol=i_endidx)
 
-    CALL ecrad_set_gas_units(ecrad_conf, ecrad_gas, use_acc=lacc)
-
-#ifndef __ECRAD_ACC
-    !$ACC UPDATE DEVICE(ecrad_gas%mixing_ratio) IF(lacc)
-#endif
+    CALL ecrad_set_gas_units(ecrad_conf, ecrad_gas)
 
   END SUBROUTINE ecrad_set_gas
   !---------------------------------------------------------------------------------------
@@ -611,7 +560,7 @@ CONTAINS
     &                           fr_par_sfc_diff,trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs,    &
     &                           lwflxclr_sfc, lwflx_up    , lwflx_dn    , swflx_up    , swflx_dn,              &
     &                           lwflx_up_clr, lwflx_dn_clr, swflx_up_clr, swflx_dn_clr,                   &
-    &                           cosmu0mask, i_startidx, i_endidx, nlevp1, use_acc)
+    &                           cosmu0mask, i_startidx, i_endidx, nlevp1)
 
     INTEGER, INTENT(in)   :: &
       &  jg                       !< domain index
@@ -648,28 +597,19 @@ CONTAINS
     INTEGER, INTENT(in)      :: &
       &  i_startidx, i_endidx,  & !< Start and end index of nproma loop in current block
       &  nlevp1                   !< Number of vertical half levels
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     ! Local Variables
     INTEGER                  :: &
       &  jband, jc, jk            !< Loop indices
 
-    LOGICAL                  :: lacc
-
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
-
       !$ACC DATA PRESENT(ecrad_flux , cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_nir_sfc,      &
       !$ACC             trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff,                 &
       !$ACC             fr_par_sfc_diff, trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs,    &
       !$ACC             lwflxclr_sfc, lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr,             &
-      !$ACC             lwflx_dn_clr, swflx_up_clr, swflx_dn_clr, cosmu0mask) IF(lacc)
+      !$ACC             lwflx_dn_clr, swflx_up_clr, swflx_dn_clr, cosmu0mask)
 
       ! Initialize output fields
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1, nlevp1
         !$ACC LOOP GANG(STATIC:1) VECTOR
@@ -693,7 +633,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Store output of 3-D Fluxes
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlevp1
         DO jc = i_startidx, i_endidx
@@ -708,7 +648,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN    
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevp1
           DO jc = i_startidx, i_endidx
@@ -728,7 +668,7 @@ CONTAINS
       END IF
 
       ! Store output of 2-D Fluxes
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lwflx_up_sfc_rs(jc) = ecrad_flux%lw_up(jc,nlevp1)
@@ -749,33 +689,27 @@ CONTAINS
       ! Total transmissivities in nir, vis, and par bands.
       CALL transmissivity_in_band(weight_nir_ecrad(:), iband_nir_ecrad(:), &
           & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), trsol_nir_sfc(i_startidx:i_endidx), nbands=nweight_nir_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), trsol_nir_sfc(i_startidx:i_endidx), nbands=nweight_nir_ecrad)
       CALL transmissivity_in_band(weight_vis_ecrad(:), iband_vis_ecrad(:), &
           & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), trsol_vis_sfc(i_startidx:i_endidx), nbands=nweight_vis_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), trsol_vis_sfc(i_startidx:i_endidx), nbands=nweight_vis_ecrad)
       CALL transmissivity_in_band(weight_par_ecrad(:), iband_par_ecrad(:), &
           & ecrad_flux%sw_dn_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), trsol_par_sfc(i_startidx:i_endidx), nbands=nweight_par_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), trsol_par_sfc(i_startidx:i_endidx), nbands=nweight_par_ecrad)
 
       ! Transmissivities for direct radiation. We want the diffuse fraction, so this gets subtracted from and
       ! divided by the total below.
       CALL transmissivity_in_band(weight_nir_ecrad(:), iband_nir_ecrad(:), &
           & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), fr_nir_sfc_diff(i_startidx:i_endidx), nbands=nweight_nir_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), fr_nir_sfc_diff(i_startidx:i_endidx), nbands=nweight_nir_ecrad)
       CALL transmissivity_in_band(weight_vis_ecrad(:), iband_vis_ecrad(:), &
           & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), fr_vis_sfc_diff(i_startidx:i_endidx), nbands=nweight_vis_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), fr_vis_sfc_diff(i_startidx:i_endidx), nbands=nweight_vis_ecrad)
       CALL transmissivity_in_band(weight_par_ecrad(:), iband_par_ecrad(:), &
           & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
-          & cosmu0mask(i_startidx:i_endidx), fr_par_sfc_diff(i_startidx:i_endidx), nbands=nweight_par_ecrad, &
-          & use_acc=lacc)
+          & cosmu0mask(i_startidx:i_endidx), fr_par_sfc_diff(i_startidx:i_endidx), nbands=nweight_par_ecrad)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         fr_nir_sfc_diff(jc) = 1._wp - MIN(1._wp, fr_nir_sfc_diff(jc) / MAX(trsol_nir_sfc(jc), EPSILON(1._wp)))
@@ -799,7 +733,7 @@ CONTAINS
   !! Initial release by Roland Wirth, Deutscher Wetterdienst, Offenbach (2021-09-15)
   !! OpenACC support by Roland Wirth, Deutscher Wetterdienst, Offenbach (2022-02-02)
   !!
-  SUBROUTINE transmissivity_in_band (weights, bands, tr_band, cosmu0, mask, tr_wgt, nbands, use_acc)
+  SUBROUTINE transmissivity_in_band (weights, bands, tr_band, cosmu0, mask, tr_wgt, nbands)
 
     REAL(wp), INTENT(IN) :: weights(:) !< Weight for each band index present in `band`.
     INTEGER, INTENT(IN) :: bands(:) !< List of band indices.
@@ -809,19 +743,11 @@ CONTAINS
     REAL(wp), INTENT(INOUT) :: tr_wgt(:) !< Total (band-weighted) transmissivity (ncells).
 
     INTEGER, INTENT(IN), OPTIONAL :: nbands !< Number of bands (default: SIZE(bands))
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc !< Use OpenACC.
 
     INTEGER :: jband
     INTEGER :: jc
     INTEGER :: nb
     INTEGER :: ncells
-    LOGICAL :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
 
     IF (PRESENT(nbands)) THEN
       nb = nbands
@@ -831,9 +757,9 @@ CONTAINS
 
     ncells = SIZE(tr_band, 2)
 
-    !$ACC DATA PRESENT(weights, bands, tr_band, cosmu0, mask, tr_wgt) IF(lacc)
+    !$ACC DATA PRESENT(weights, bands, tr_band, cosmu0, mask, tr_wgt)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
       DO jband = 1, nb
       !$ACC LOOP GANG VECTOR
@@ -860,7 +786,7 @@ CONTAINS
   !!
   SUBROUTINE add_3D_diffuse_rad( &
         & ecrad_flux, clc, pres, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff, &
-        & trsol_dn_sfc_diff, i_startidx, i_endidx, nlev, use_acc &
+        & trsol_dn_sfc_diff, i_startidx, i_endidx, nlev &
       )
 
     TYPE(t_ecrad_flux_type), INTENT(in) :: ecrad_flux !< ecRad cloud information
@@ -879,7 +805,6 @@ CONTAINS
     INTEGER, INTENT(in)      :: &
       &  i_startidx, i_endidx,  & !< Start and end index of nproma loop in current block
       &  nlev                     !< Number of vertical levels
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     ! Local Variables
     INTEGER                   ::  jc, jk  !< Loop indices
@@ -889,18 +814,11 @@ CONTAINS
 
     REAL(wp) :: zcloud(i_startidx:i_endidx), ccmax, ccran, deltaz, alpha
     REAL(wp) :: diff_frac_corr !< Correction to the diffuse fraction.
-    LOGICAL  :: lacc
-
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
     !$ACC DATA PRESENT(ecrad_flux, pres, clc, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff, &
-    !$ACC   trsol_dn_sfc_diff) CREATE(zcloud) IF(lacc)
+    !$ACC   trsol_dn_sfc_diff) CREATE(zcloud)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       zcloud(jc)     = 0.0_wp
@@ -908,7 +826,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! Calculate low-level cloud cover fraction
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk = 2, nlev
       !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran, deltaz, alpha)
@@ -929,7 +847,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(diff_frac_corr)
     DO jc = i_startidx, i_endidx
       IF (cosmu0(jc) > 0.05_wp) THEN
@@ -1269,7 +1187,7 @@ CONTAINS
   !!
   SUBROUTINE ecrad_acc_allocation(ecrad_conf, ecrad_single_level, &
       &  ecrad_thermodynamics, ecrad_gas, ecrad_cloud, ecrad_aerosol, &
-      &  ecrad_flux, use_acc)
+      &  ecrad_flux)
 
     USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type
 
@@ -1281,94 +1199,82 @@ CONTAINS
     TYPE(t_ecrad_aerosol_type),       INTENT(INOUT)   :: ecrad_aerosol
     TYPE(t_ecrad_flux_type),          INTENT(INOUT)   :: ecrad_flux
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-
-    LOGICAL                  :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
-
-    ! CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true., use_acc=lacc) !< use_sw_albedo_direct, 2 bands
+    ! CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     !$ACC ENTER DATA CREATE(ecrad_single_level%cos_sza, ecrad_single_level%lw_emissivity, &
-    !$ACC   ecrad_single_level%sw_albedo, ecrad_single_level%sw_albedo_direct, ecrad_single_level%iseed) IF(lacc)
+    !$ACC   ecrad_single_level%sw_albedo, ecrad_single_level%sw_albedo_direct, ecrad_single_level%iseed)
     !$ACC ENTER DATA CREATE(ecrad_single_level%skin_temperature) &
-    !$ACC   IF(lacc .AND.        ecrad_single_level%is_simple_surface)
+    !$ACC   IF( ecrad_single_level%is_simple_surface )
     !$ACC ENTER DATA CREATE(ecrad_single_level%lw_emission) &
-    !$ACC   IF(lacc .AND. (.NOT. ecrad_single_level%is_simple_surface))
+    !$ACC   IF( .NOT. ecrad_single_level%is_simple_surface )
 
-    ! CALL ecrad_thermodynamics%allocate(nproma_rad, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true., &
-    !                                    use_acc=lacc)
-    !$ACC ENTER DATA CREATE(ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl) IF(lacc)
+    ! CALL ecrad_thermodynamics%allocate(nproma_rad, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true.)
+    !$ACC ENTER DATA CREATE(ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl)
     !$ACC ENTER DATA CREATE(ecrad_thermodynamics%pressure_fl, ecrad_thermodynamics%temperature_fl) &
-    !$ACC   IF(lacc .AND. ecrad_thermodynamics%rrtm_pass_temppres_fl)
+    !$ACC   IF( ecrad_thermodynamics%rrtm_pass_temppres_fl )
 
-    ! CALL ecrad_gas%allocate(nproma_rad, nlev_rg, use_acc=lacc)
-    !$ACC ENTER DATA COPYIN(ecrad_gas%mixing_ratio) IF(lacc)
+    ! CALL ecrad_gas%allocate(nproma_rad, nlev_rg)
+    !$ACC ENTER DATA COPYIN(ecrad_gas%mixing_ratio)
 
-    ! CALL ecrad_cloud%allocate(nproma_rad, nlev_rg, use_acc=lacc)
+    ! CALL ecrad_cloud%allocate(nproma_rad, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_cloud%q_liq, ecrad_cloud%re_liq, ecrad_cloud%q_ice, ecrad_cloud%re_ice, &
     !$ACC   ecrad_cloud%fraction, ecrad_cloud%overlap_param, ecrad_cloud%fractional_std, &
-    !$ACC   ecrad_cloud%inv_cloud_effective_size) IF(lacc)
-    ! CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev_rg, 1._wp, use_acc=lacc)
-    !$ACC UPDATE DEVICE(ecrad_cloud%fractional_std) IF(lacc)
+    !$ACC   ecrad_cloud%inv_cloud_effective_size)
+    ! CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev_rg, 1._wp)
+    !$ACC UPDATE DEVICE(ecrad_cloud%fractional_std)
 
-    ! CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev_rg, use_acc=lacc)
+    ! CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_aerosol%od_sw, ecrad_aerosol%ssa_sw, ecrad_aerosol%g_sw) &
-    !$ACC   IF(lacc .AND. ecrad_conf%use_aerosols .AND. ecrad_conf%do_sw)
+    !$ACC   IF( ecrad_conf%use_aerosols .AND. ecrad_conf%do_sw )
     !$ACC ENTER DATA CREATE(ecrad_aerosol%od_lw, ecrad_aerosol%ssa_lw, ecrad_aerosol%g_lw) &
-    !$ACC   IF(lacc .AND. ecrad_conf%use_aerosols .AND. ecrad_conf%do_lw)
+    !$ACC   IF( ecrad_conf%use_aerosols .AND. ecrad_conf%do_lw )
     !$ACC UPDATE DEVICE(ecrad_aerosol%ssa_lw, ecrad_aerosol%g_lw) &
-    !$ACC   IF(lacc .AND. ecrad_conf%use_aerosols .AND. ecrad_conf%do_lw)
+    !$ACC   IF( ecrad_conf%use_aerosols .AND. ecrad_conf%do_lw )
 
-    ! CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev_rg, use_acc=lacc)
+    ! CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up, ecrad_flux%lw_dn) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw)
+    !$ACC   IF( ecrad_conf%do_lw )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up_clear, ecrad_flux%lw_dn_clear) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_clear )
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_clear )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up_band, ecrad_flux%lw_dn_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_save_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_save_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up_clear_band, ecrad_flux%lw_dn_clear_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_save_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_save_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_derivatives) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_lw_derivatives)
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_lw_derivatives )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_dn_surf_g) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw)
+    !$ACC   IF( ecrad_conf%do_lw )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_dn_surf_clear_g) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_clear)
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_clear )
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_dn_surf_canopy) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_lw .AND. ecrad_conf%do_canopy_fluxes_lw)
+    !$ACC   IF( ecrad_conf%do_lw .AND. ecrad_conf%do_canopy_fluxes_lw )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_up, ecrad_flux%sw_dn) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw)
+    !$ACC   IF( ecrad_conf%do_sw )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_direct) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_sw_direct)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_sw_direct )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_up_clear, ecrad_flux%sw_dn_clear) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_direct_clear) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_sw_direct)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_sw_direct )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_up_band, ecrad_flux%sw_dn_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_save_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_save_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_direct_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_sw_direct .AND. ecrad_conf%do_save_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_sw_direct .AND. ecrad_conf%do_save_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_up_clear_band, ecrad_flux%sw_dn_clear_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_save_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_save_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_direct_clear_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_sw_direct .AND. &
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear .AND. ecrad_conf%do_sw_direct .AND. &
     !$ACC      ecrad_conf%do_save_spectral_flux)
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_surf_band, ecrad_flux%sw_dn_direct_surf_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_surface_sw_spectral_flux)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_surface_sw_spectral_flux )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_surf_clear_band, ecrad_flux%sw_dn_direct_surf_clear_band) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_diffuse_surf_g,ecrad_flux%sw_dn_direct_surf_g) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw)
+    !$ACC   IF( ecrad_conf%do_sw )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_diffuse_surf_clear_g, ecrad_flux%sw_dn_direct_surf_clear_g) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_clear)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_clear )
     !$ACC ENTER DATA CREATE(ecrad_flux%sw_dn_diffuse_surf_canopy, ecrad_flux%sw_dn_direct_surf_canopy) &
-    !$ACC   IF(lacc .AND. ecrad_conf%do_sw .AND. ecrad_conf%do_canopy_fluxes_sw)
-    !$ACC ENTER DATA CREATE(ecrad_flux%cloud_cover_lw, ecrad_flux%cloud_cover_sw) &
-    !$ACC   IF(lacc)
+    !$ACC   IF( ecrad_conf%do_sw .AND. ecrad_conf%do_canopy_fluxes_sw )
+    !$ACC ENTER DATA CREATE(ecrad_flux%cloud_cover_lw, ecrad_flux%cloud_cover_sw)
 
   END SUBROUTINE
 
@@ -1390,7 +1296,7 @@ CONTAINS
   !!
   SUBROUTINE ecrad_acc_deallocation(ecrad_conf, ecrad_single_level, &
       &  ecrad_thermodynamics, ecrad_gas, ecrad_cloud, ecrad_aerosol, &
-      &  ecrad_flux, use_acc)
+      &  ecrad_flux)
 
     USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type
 
@@ -1402,130 +1308,120 @@ CONTAINS
     TYPE(t_ecrad_aerosol_type),       INTENT(INOUT)   :: ecrad_aerosol
     TYPE(t_ecrad_flux_type),          INTENT(INOUT)   :: ecrad_flux
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-
-    LOGICAL                  :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
-
-    ! CALL ecrad_single_level%deallocate(use_acc=lacc)
+    ! CALL ecrad_single_level%deallocate()
     !$ACC EXIT DATA DELETE(ecrad_single_level%cos_sza) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%cos_sza))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%cos_sza) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%skin_temperature) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%skin_temperature))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%skin_temperature) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%sw_albedo) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%sw_albedo))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%sw_albedo) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%sw_albedo_direct) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%sw_albedo_direct))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%sw_albedo_direct) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%lw_emissivity) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%lw_emissivity))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%lw_emissivity) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%lw_emission) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%lw_emission))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%lw_emission) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%spectral_solar_scaling) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%spectral_solar_scaling))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%spectral_solar_scaling) )
     !$ACC EXIT DATA DELETE(ecrad_single_level%iseed) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_single_level%iseed))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_single_level%iseed) )
 
-    ! CALL ecrad_thermodynamics%deallocate(use_acc=lacc)
+    ! CALL ecrad_thermodynamics%deallocate()
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%pressure_hl) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%pressure_hl))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_thermodynamics%pressure_hl) )
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%temperature_hl) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%temperature_hl))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_thermodynamics%temperature_hl) )
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%pressure_fl) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%pressure_fl))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_thermodynamics%pressure_fl) )
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%temperature_fl) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%temperature_fl))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_thermodynamics%temperature_fl) )
     !$ACC EXIT DATA DELETE(ecrad_thermodynamics%h2o_sat_liq) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%h2o_sat_liq))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_thermodynamics%h2o_sat_liq) )
 
 
-    ! CALL ecrad_gas%deallocate(use_acc=lacc)
-    !$ACC EXIT DATA DELETE(ecrad_gas%mixing_ratio) FINALIZE IF(lacc .AND. ALLOCATED(ecrad_gas%mixing_ratio))
+    ! CALL ecrad_gas%deallocate()
+    !$ACC EXIT DATA DELETE(ecrad_gas%mixing_ratio) FINALIZE IF( ALLOCATED(ecrad_gas%mixing_ratio) )
  
-    ! CALL ecrad_cloud%deallocate(use_acc=lacc)
-    !$ACC EXIT DATA DELETE(ecrad_cloud%q_liq)          FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%q_liq))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%re_liq)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%re_liq))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%q_ice)          FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%q_ice))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%re_ice)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%re_ice))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%fraction)       FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%fraction))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%overlap_param)  FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%overlap_param))
-    !$ACC EXIT DATA DELETE(ecrad_cloud%fractional_std) FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%fractional_std))
+    ! CALL ecrad_cloud%deallocate()
+    !$ACC EXIT DATA DELETE(ecrad_cloud%q_liq)          FINALIZE IF( ALLOCATED(ecrad_cloud%q_liq) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%re_liq)         FINALIZE IF( ALLOCATED(ecrad_cloud%re_liq) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%q_ice)          FINALIZE IF( ALLOCATED(ecrad_cloud%q_ice) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%re_ice)         FINALIZE IF( ALLOCATED(ecrad_cloud%re_ice) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%fraction)       FINALIZE IF( ALLOCATED(ecrad_cloud%fraction) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%overlap_param)  FINALIZE IF( ALLOCATED(ecrad_cloud%overlap_param) )
+    !$ACC EXIT DATA DELETE(ecrad_cloud%fractional_std) FINALIZE IF( ALLOCATED(ecrad_cloud%fractional_std) )
     !$ACC EXIT DATA DELETE(ecrad_cloud%inv_cloud_effective_size) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%inv_cloud_effective_size))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_cloud%inv_cloud_effective_size) )
     !$ACC EXIT DATA DELETE(ecrad_cloud%inv_inhom_effective_size) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_cloud%inv_inhom_effective_size))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_cloud%inv_inhom_effective_size) )
 
     IF ( ecrad_conf%use_aerosols ) THEN
-      ! CALL ecrad_aerosol%deallocate(use_acc=lacc)
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%mixing_ratio) FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%mixing_ratio))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%od_sw)        FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%od_sw))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%ssa_sw)       FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%ssa_sw))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%g_sw)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%g_sw))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%od_lw)        FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%od_lw))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%ssa_lw)       FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%ssa_lw))
-      !$ACC EXIT DATA DELETE(ecrad_aerosol%g_lw)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_aerosol%g_lw))
+      ! CALL ecrad_aerosol%deallocate()
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%mixing_ratio) FINALIZE IF( ALLOCATED(ecrad_aerosol%mixing_ratio) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%od_sw)        FINALIZE IF( ALLOCATED(ecrad_aerosol%od_sw) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%ssa_sw)       FINALIZE IF( ALLOCATED(ecrad_aerosol%ssa_sw) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%g_sw)         FINALIZE IF( ALLOCATED(ecrad_aerosol%g_sw) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%od_lw)        FINALIZE IF( ALLOCATED(ecrad_aerosol%od_lw) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%ssa_lw)       FINALIZE IF( ALLOCATED(ecrad_aerosol%ssa_lw) )
+      !$ACC EXIT DATA DELETE(ecrad_aerosol%g_lw)         FINALIZE IF( ALLOCATED(ecrad_aerosol%g_lw) )
     ENDIF
 
     ! CALL ecrad_flux%deallocate(use_acc=lacc)
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up_clear)   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_clear))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_clear)   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_clear))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn)         FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up_clear)   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_clear))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_clear)   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_clear))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct)  FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct))
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up)         FINALIZE IF( ALLOCATED(ecrad_flux%lw_up) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn)         FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up_clear)   FINALIZE IF( ALLOCATED(ecrad_flux%lw_up_clear) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_clear)   FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_clear) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up)         FINALIZE IF( ALLOCATED(ecrad_flux%sw_up) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn)         FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up_clear)   FINALIZE IF( ALLOCATED(ecrad_flux%sw_up_clear) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_clear)   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_clear) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct)  FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_clear) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_clear))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up_band)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_band))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_band)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_clear) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_up_band)    FINALIZE IF( ALLOCATED(ecrad_flux%lw_up_band) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_band)    FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%lw_up_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%lw_up_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_clear_band))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up_band)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_band))
-    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_band)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_clear_band) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_up_band)    FINALIZE IF( ALLOCATED(ecrad_flux%sw_up_band) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_band)    FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_up_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_up_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_surf_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_surf_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_surf_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_surf_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_surf_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_surf_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_surf_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_surf_clear_band) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_band))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_band) )
     !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_surf_canopy) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_canopy))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_surf_canopy) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_diffuse_surf_canopy) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_canopy))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_canopy) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_surf_canopy) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_canopy))
-    !$ACC EXIT DATA DELETE(ecrad_flux%cloud_cover_sw)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%cloud_cover_sw))
-    !$ACC EXIT DATA DELETE(ecrad_flux%cloud_cover_lw)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%cloud_cover_lw))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_derivatives)    FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_derivatives))
-    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_surf_g)      FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_canopy) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%cloud_cover_sw)    FINALIZE IF( ALLOCATED(ecrad_flux%cloud_cover_sw) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%cloud_cover_lw)    FINALIZE IF( ALLOCATED(ecrad_flux%cloud_cover_lw) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_derivatives)    FINALIZE IF( ALLOCATED(ecrad_flux%lw_derivatives) )
+    !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_surf_g)      FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_surf_g) )
     !$ACC EXIT DATA DELETE(ecrad_flux%lw_dn_surf_clear_g) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_clear_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%lw_dn_surf_clear_g) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_diffuse_surf_g) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_g) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_surf_g) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_g) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_diffuse_surf_clear_g) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_clear_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_clear_g) )
     !$ACC EXIT DATA DELETE(ecrad_flux%sw_dn_direct_surf_clear_g) &
-    !$ACC   FINALIZE IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_g))
+    !$ACC   FINALIZE IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_g) )
   END SUBROUTINE
 
   !---------------------------------------------------------------------------------------
@@ -1537,7 +1433,7 @@ CONTAINS
   !! 
   SUBROUTINE update_host_pre_ecrad(ecrad_conf, ecrad_single_level, &
       &  ecrad_thermodynamics, ecrad_gas, ecrad_cloud, ecrad_aerosol, &
-      &  ecrad_flux, use_acc)
+      &  ecrad_flux)
 
     USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type
 
@@ -1549,62 +1445,53 @@ CONTAINS
     TYPE(t_ecrad_aerosol_type),       INTENT(INOUT)   :: ecrad_aerosol
     TYPE(t_ecrad_flux_type),          INTENT(INOUT)   :: ecrad_flux
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
-    LOGICAL                  :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
-
-    !$ACC UPDATE HOST(ecrad_single_level%cos_sza)                IF(lacc .AND. ALLOCATED(ecrad_single_level%cos_sza))
+    !$ACC UPDATE HOST(ecrad_single_level%cos_sza)                IF( ALLOCATED(ecrad_single_level%cos_sza) )
     !$ACC UPDATE HOST(ecrad_single_level%skin_temperature) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_single_level%skin_temperature))
-    !$ACC UPDATE HOST(ecrad_single_level%sw_albedo)              IF(lacc .AND. ALLOCATED(ecrad_single_level%sw_albedo))
+    !$ACC   IF( ALLOCATED(ecrad_single_level%skin_temperature) )
+    !$ACC UPDATE HOST(ecrad_single_level%sw_albedo)              IF( ALLOCATED(ecrad_single_level%sw_albedo) )
     !$ACC UPDATE HOST(ecrad_single_level%sw_albedo_direct) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_single_level%sw_albedo_direct))
+    !$ACC   IF( ALLOCATED(ecrad_single_level%sw_albedo_direct) )
     !$ACC UPDATE HOST(ecrad_single_level%lw_emissivity) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_single_level%lw_emissivity))
+    !$ACC   IF( ALLOCATED(ecrad_single_level%lw_emissivity) )
     !$ACC UPDATE HOST(ecrad_single_level%lw_emission) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_single_level%lw_emission))
+    !$ACC   IF( ALLOCATED(ecrad_single_level%lw_emission) )
     !$ACC UPDATE HOST(ecrad_single_level%spectral_solar_scaling) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_single_level%spectral_solar_scaling))
-    !$ACC UPDATE HOST(ecrad_single_level%iseed)                  IF(lacc .AND. ALLOCATED(ecrad_single_level%iseed))
+    !$ACC   IF( ALLOCATED(ecrad_single_level%spectral_solar_scaling) )
+    !$ACC UPDATE HOST(ecrad_single_level%iseed)                  IF( ALLOCATED(ecrad_single_level%iseed) )
 
-    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_hl)    IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%pressure_hl))
+    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_hl)    IF( ALLOCATED(ecrad_thermodynamics%pressure_hl) )
     !$ACC UPDATE HOST(ecrad_thermodynamics%temperature_hl) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%temperature_hl))
-    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_fl)    IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%pressure_fl))
+    !$ACC   IF( ALLOCATED(ecrad_thermodynamics%temperature_hl) )
+    !$ACC UPDATE HOST(ecrad_thermodynamics%pressure_fl)    IF( ALLOCATED(ecrad_thermodynamics%pressure_fl) )
     !$ACC UPDATE HOST(ecrad_thermodynamics%temperature_fl) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%temperature_fl))
-    !$ACC UPDATE HOST(ecrad_thermodynamics%h2o_sat_liq)    IF(lacc .AND. ALLOCATED(ecrad_thermodynamics%h2o_sat_liq))
+    !$ACC   IF( ALLOCATED(ecrad_thermodynamics%temperature_fl) )
+    !$ACC UPDATE HOST(ecrad_thermodynamics%h2o_sat_liq)    IF( ALLOCATED(ecrad_thermodynamics%h2o_sat_liq) )
 
-    ! $ACC UPDATE HOST(ecrad_gas%mixing_ratio) IF(lacc .AND. ALLOCATED(ecrad_gas%mixing_ratio))
+    ! $ACC UPDATE HOST(ecrad_gas%mixing_ratio) IF( ALLOCATED(ecrad_gas%mixing_ratio) )
 
-    !$ACC UPDATE HOST(ecrad_cloud%q_liq)                    IF(lacc .AND. ALLOCATED(ecrad_cloud%q_liq))
-    !$ACC UPDATE HOST(ecrad_cloud%re_liq)                   IF(lacc .AND. ALLOCATED(ecrad_cloud%re_liq))
-    !$ACC UPDATE HOST(ecrad_cloud%q_ice)                    IF(lacc .AND. ALLOCATED(ecrad_cloud%q_ice))
-    !$ACC UPDATE HOST(ecrad_cloud%re_ice)                   IF(lacc .AND. ALLOCATED(ecrad_cloud%re_ice))
-    !$ACC UPDATE HOST(ecrad_cloud%fraction)                 IF(lacc .AND. ALLOCATED(ecrad_cloud%fraction))
-    !$ACC UPDATE HOST(ecrad_cloud%overlap_param)            IF(lacc .AND. ALLOCATED(ecrad_cloud%overlap_param))
-    !$ACC UPDATE HOST(ecrad_cloud%fractional_std)           IF(lacc .AND. ALLOCATED(ecrad_cloud%fractional_std))
+    !$ACC UPDATE HOST(ecrad_cloud%q_liq)                    IF( ALLOCATED(ecrad_cloud%q_liq) )
+    !$ACC UPDATE HOST(ecrad_cloud%re_liq)                   IF( ALLOCATED(ecrad_cloud%re_liq) )
+    !$ACC UPDATE HOST(ecrad_cloud%q_ice)                    IF( ALLOCATED(ecrad_cloud%q_ice) )
+    !$ACC UPDATE HOST(ecrad_cloud%re_ice)                   IF( ALLOCATED(ecrad_cloud%re_ice) )
+    !$ACC UPDATE HOST(ecrad_cloud%fraction)                 IF( ALLOCATED(ecrad_cloud%fraction) )
+    !$ACC UPDATE HOST(ecrad_cloud%overlap_param)            IF( ALLOCATED(ecrad_cloud%overlap_param) )
+    !$ACC UPDATE HOST(ecrad_cloud%fractional_std)           IF( ALLOCATED(ecrad_cloud%fractional_std) )
     !$ACC UPDATE HOST(ecrad_cloud%inv_cloud_effective_size) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_cloud%inv_cloud_effective_size))
+    !$ACC   IF( ALLOCATED(ecrad_cloud%inv_cloud_effective_size) )
     !$ACC UPDATE HOST(ecrad_cloud%inv_inhom_effective_size) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_cloud%inv_inhom_effective_size))
+    !$ACC   IF( ALLOCATED(ecrad_cloud%inv_inhom_effective_size) )
 
-    !$ACC UPDATE HOST(ecrad_aerosol%mixing_ratio) IF(lacc .AND. ALLOCATED(ecrad_aerosol%mixing_ratio))
-    !$ACC UPDATE HOST(ecrad_aerosol%od_sw)        IF(lacc .AND. ALLOCATED(ecrad_aerosol%od_sw))
-    !$ACC UPDATE HOST(ecrad_aerosol%ssa_sw)       IF(lacc .AND. ALLOCATED(ecrad_aerosol%ssa_sw))
-    !$ACC UPDATE HOST(ecrad_aerosol%g_sw)         IF(lacc .AND. ALLOCATED(ecrad_aerosol%g_sw))
-    !$ACC UPDATE HOST(ecrad_aerosol%od_lw)        IF(lacc .AND. ALLOCATED(ecrad_aerosol%od_lw))
-    !$ACC UPDATE HOST(ecrad_aerosol%ssa_lw)       IF(lacc .AND. ALLOCATED(ecrad_aerosol%ssa_lw))
-    !$ACC UPDATE HOST(ecrad_aerosol%g_lw)         IF(lacc .AND. ALLOCATED(ecrad_aerosol%g_lw))
+    !$ACC UPDATE HOST(ecrad_aerosol%mixing_ratio) IF( ALLOCATED(ecrad_aerosol%mixing_ratio) )
+    !$ACC UPDATE HOST(ecrad_aerosol%od_sw)        IF( ALLOCATED(ecrad_aerosol%od_sw) )
+    !$ACC UPDATE HOST(ecrad_aerosol%ssa_sw)       IF( ALLOCATED(ecrad_aerosol%ssa_sw) )
+    !$ACC UPDATE HOST(ecrad_aerosol%g_sw)         IF( ALLOCATED(ecrad_aerosol%g_sw) )
+    !$ACC UPDATE HOST(ecrad_aerosol%od_lw)        IF( ALLOCATED(ecrad_aerosol%od_lw) )
+    !$ACC UPDATE HOST(ecrad_aerosol%ssa_lw)       IF( ALLOCATED(ecrad_aerosol%ssa_lw) )
+    !$ACC UPDATE HOST(ecrad_aerosol%g_lw)         IF( ALLOCATED(ecrad_aerosol%g_lw) )
 
-    !$ACC UPDATE HOST(ecrad_flux%cloud_cover_sw) IF(lacc)
-    !$ACC UPDATE HOST(ecrad_flux%cloud_cover_lw) IF(lacc)
+    !$ACC UPDATE HOST(ecrad_flux%cloud_cover_sw)
+    !$ACC UPDATE HOST(ecrad_flux%cloud_cover_lw)
 
   END SUBROUTINE
 
@@ -1615,68 +1502,59 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Daniel Hupp, MeteoSwiss, Winterthur (2022-01-11)
   !! 
-  SUBROUTINE update_device_post_ecrad(ecrad_conf, ecrad_flux, use_acc)
+  SUBROUTINE update_device_post_ecrad(ecrad_conf, ecrad_flux)
 
     TYPE(t_ecrad_conf),               INTENT(IN)   :: ecrad_conf
     TYPE(t_ecrad_flux_type),          INTENT(INOUT)   :: ecrad_flux
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
-    LOGICAL                  :: lacc
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF 
-
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_up)                        IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn)                        IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_clear)                  IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_clear))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_clear)                  IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_clear))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_up)                        IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn)                        IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_clear)                  IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_clear))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_clear)                  IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_clear))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct)                 IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_clear)           IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_clear))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_band)                   IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_band)                   IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_clear_band)             IF(lacc .AND. ALLOCATED(ecrad_flux%lw_up_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_clear_band)             IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_band)                   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_band)                   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_clear_band)             IF(lacc .AND. ALLOCATED(ecrad_flux%sw_up_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_clear_band)             IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_band)            IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_band))
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_up)                        IF( ALLOCATED(ecrad_flux%lw_up) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn)                        IF( ALLOCATED(ecrad_flux%lw_dn) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_clear)                  IF( ALLOCATED(ecrad_flux%lw_up_clear) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_clear)                  IF( ALLOCATED(ecrad_flux%lw_dn_clear) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_up)                        IF( ALLOCATED(ecrad_flux%sw_up) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn)                        IF( ALLOCATED(ecrad_flux%sw_dn) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_clear)                  IF( ALLOCATED(ecrad_flux%sw_up_clear) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_clear)                  IF( ALLOCATED(ecrad_flux%sw_dn_clear) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct)                 IF( ALLOCATED(ecrad_flux%sw_dn_direct) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_clear)           IF( ALLOCATED(ecrad_flux%sw_dn_direct_clear) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_band)                   IF( ALLOCATED(ecrad_flux%lw_up_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_band)                   IF( ALLOCATED(ecrad_flux%lw_dn_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_up_clear_band)             IF( ALLOCATED(ecrad_flux%lw_up_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_clear_band)             IF( ALLOCATED(ecrad_flux%lw_dn_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_band)                   IF( ALLOCATED(ecrad_flux%sw_up_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_band)                   IF( ALLOCATED(ecrad_flux%sw_dn_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_up_clear_band)             IF( ALLOCATED(ecrad_flux%sw_up_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_clear_band)             IF( ALLOCATED(ecrad_flux%sw_dn_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_band)            IF( ALLOCATED(ecrad_flux%sw_dn_direct_band) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_clear_band) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_surf_band)              IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_surf_band))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_surf_band)              IF( ALLOCATED(ecrad_flux%sw_dn_surf_band) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_surf_band) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_band))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_band) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_surf_clear_band) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_surf_clear_band))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_surf_clear_band) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_surf_clear_band) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_band))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_surf_canopy)            IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_canopy))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_band) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_surf_canopy)            IF( ALLOCATED(ecrad_flux%lw_dn_surf_canopy) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_diffuse_surf_canopy) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_canopy))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_canopy) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_surf_canopy) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_canopy))
-    !$ACC UPDATE DEVICE(ecrad_flux%cloud_cover_sw)               IF(lacc .AND. ALLOCATED(ecrad_flux%cloud_cover_sw))
-    !$ACC UPDATE DEVICE(ecrad_flux%cloud_cover_lw)               IF(lacc .AND. ALLOCATED(ecrad_flux%cloud_cover_lw))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_derivatives)               IF(lacc .AND. ALLOCATED(ecrad_flux%lw_derivatives))
-    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_surf_g)                 IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_canopy) )
+    !$ACC UPDATE DEVICE(ecrad_flux%cloud_cover_sw)               IF( ALLOCATED(ecrad_flux%cloud_cover_sw) )
+    !$ACC UPDATE DEVICE(ecrad_flux%cloud_cover_lw)               IF( ALLOCATED(ecrad_flux%cloud_cover_lw) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_derivatives)               IF( ALLOCATED(ecrad_flux%lw_derivatives) )
+    !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_surf_g)                 IF( ALLOCATED(ecrad_flux%lw_dn_surf_g) )
     !$ACC UPDATE DEVICE(ecrad_flux%lw_dn_surf_clear_g) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%lw_dn_surf_clear_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%lw_dn_surf_clear_g) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_diffuse_surf_g) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_g) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_surf_g) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_g) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_diffuse_surf_clear_g) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_clear_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_diffuse_surf_clear_g) )
     !$ACC UPDATE DEVICE(ecrad_flux%sw_dn_direct_surf_clear_g) &
-    !$ACC   IF(lacc .AND. ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_g))
+    !$ACC   IF( ALLOCATED(ecrad_flux%sw_dn_direct_surf_clear_g) )
 
 
   END SUBROUTINE

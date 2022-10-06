@@ -269,9 +269,6 @@ MODULE mo_impl_constants
   ! Maximum allowed number of physical model domains
   INTEGER, PARAMETER :: max_phys_dom = 30
 
-  ! Maximum number of extra model levels added to the reduced radiation grid in case of vertical nesting
-  INTEGER, PARAMETER :: nexlevs_rrg_vnest = 8
-
   ! maximum allowed number of tracers (20 should be enough for the time being) ! DRIEG: For ART, more than 20 tracers are needed
   INTEGER, PARAMETER :: max_ntracer = 200
 
@@ -331,6 +328,7 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: iedmf   =  3
   INTEGER, PARAMETER :: iprog   =  4  
   INTEGER, PARAMETER :: ismag   =  5
+  INTEGER, PARAMETER :: ivdiff  =  6 !< VDIFF turbulent diffusion scheme
 
   ! identifiers for aerosol classes of Tegen climatology 
   INTEGER, PARAMETER :: iss   =  1
@@ -423,6 +421,10 @@ MODULE mo_impl_constants
   !---------------------!
   !        LAND         !
   !---------------------!
+
+  ! identifier for land-surface scheme
+  INTEGER, PARAMETER :: LSS_TERRA  = 1  !< TERRA land-surface scheme.
+  INTEGER, PARAMETER :: LSS_JSBACH = 2  !< JSBACH land-surface scheme, has to be used with VDIFF turbulence.
 
   ! identifier for MODIS albedo
   INTEGER, PARAMETER :: MODIS   = 2

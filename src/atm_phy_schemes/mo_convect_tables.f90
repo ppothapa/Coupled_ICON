@@ -52,6 +52,8 @@ MODULE mo_convect_tables
   PUBLIC :: lookupoverflow
   PUBLIC :: flookupoverflow
 
+  PUBLIC :: cthomi, csecfrl
+
   PUBLIC :: c1es, c2es, c3les, c3ies, c4les, c4ies, c5les, c5ies, &
     &       c5alvcp, c5alscp, alvdcp, alsdcp
 

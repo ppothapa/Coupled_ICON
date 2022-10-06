@@ -244,8 +244,6 @@ CONTAINS
           DO jg = 1, n_dom
             !set external parameters
             ext_data(jg)%atm%fr_land(:,:)     = fr_land_scm  ! land fraction
-            ext_data(jg)%atm%fr_land_smt(:,:) = fr_land_scm  ! land fraction (smoothed)
-            ext_data(jg)%atm%fr_glac_smt(:,:) = 0._wp        ! glacier fraction (smoothed)
             IF (fr_land_scm >= 0.5_wp ) THEN
               ext_data(jg)%atm%llsm_atm_c(:,:)= .TRUE.       ! land-sea mask
             ELSE
@@ -284,8 +282,6 @@ CONTAINS
         ELSE
           DO jg = 1, n_dom
             ext_data(jg)%atm%fr_land(:,:)     = 0._wp       ! land fraction
-            ext_data(jg)%atm%fr_land_smt(:,:) = 0._wp       ! land fraction (smoothed)
-            ext_data(jg)%atm%fr_glac_smt(:,:) = 0._wp       ! glacier fraction (smoothed)
             ext_data(jg)%atm%llsm_atm_c(:,:)  = .FALSE.     ! land-sea mask
             ext_data(jg)%atm%llake_c(:,:)     = .FALSE.     ! lake mask
             ext_data(jg)%atm%plcov_mx(:,:)    = 0.5_wp      ! plant cover
@@ -1427,20 +1423,6 @@ CONTAINS
           ENDDO
         ENDDO
 
-        ! As long as a routine for computing smoothed external
-        ! parameter fields is missing. Just copy.
-        !
-        DO jb = i_startblk, i_endblk
-          CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
-            &                i_startidx, i_endidx, rl_start, rl_end)
-          ! Loop starts with 1 instead of i_startidx
-          ! because the start index is missing in RRTM
-          DO jc = 1,i_endidx
-            ext_data(jg)%atm%fr_land_smt(jc,jb) = ext_data(jg)%atm%fr_land(jc,jb)
-            ext_data(jg)%atm%fr_glac_smt(jc,jb) = ext_data(jg)%atm%fr_glac(jc,jb)
-          ENDDO
-
-        ENDDO
 
       ENDDO  ! jg
 
@@ -1920,7 +1902,6 @@ CONTAINS
                      IF (t2mclim_hc > (tmelt + 10._wp)) THEN
                        ext_data(jg)%atm%lc_class_t(jc,jb,i_lu) = ext_data(jg)%atm%i_lc_bare_soil
                        ext_data(jg)%atm%fr_glac(jc,jb)     = 0._wp
-                       ext_data(jg)%atm%fr_glac_smt(jc,jb) = 0._wp
                        icount_falseglac(jb) = icount_falseglac(jb) + 1
                      ENDIF
                    ENDIF
@@ -2040,7 +2021,6 @@ CONTAINS
              ext_data(jg)%atm%fr_glac(jc,jb) = 0._wp  ! for frlnd_thrhld=0.5 (i.e. without tiles) this is
                                                       ! identical to what has previously been done within
                                                       ! EXTPAR crosschecks.
-             ext_data(jg)%atm%fr_glac_smt(jc,jb) = 0._wp  ! note that this one is used rather than fr_glac !!
            ENDIF
 
 
@@ -2082,6 +2062,9 @@ CONTAINS
              ! set also area fractions
              ext_data(jg)%atm%lc_frac_t(jc,jb,isub_water)  = 1._wp                        &
                &         -ext_data(jg)%atm%fr_land(jc,jb) - ext_data(jg)%atm%fr_lake(jc,jb)
+             ! fix potential truncation errors
+             IF (ext_data(jg)%atm%lc_frac_t(jc,jb,isub_water) < 1.e-10_wp) &
+               ext_data(jg)%atm%lc_frac_t(jc,jb,isub_water) = 0._wp
 
              ! set surface area index (needed by turbtran)
              ext_data(jg)%atm%sai_t    (jc,jb,isub_water)  = c_sea
@@ -2154,7 +2137,6 @@ CONTAINS
            ! Ensure consistency between fr_land and the adjusted sum of the tile fractions
            DO jc = i_startidx, i_endidx
              ext_data(jg)%atm%fr_land(jc,jb)     = SUM(ext_data(jg)%atm%lc_frac_t(jc,jb,1:ntiles_lnd))
-             ext_data(jg)%atm%fr_land_smt(jc,jb) = ext_data(jg)%atm%fr_land(jc,jb)
            ENDDO  ! jc
 
          ELSE ! overwrite fractional settings over water points if tile approach is turned off
@@ -2906,7 +2888,7 @@ CONTAINS
             ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0.0_wp
             ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1.0_wp  ! grass-land (read_ext_data_atm)
             ! land use variables will then automatically be set in init_index_lists
-            ! frac_t, lc_frac_t, fr_land_smt, fr_glac_smt, fr_glac_smt, lc_class_t, llsm_atm_c, llake_c,
+            ! frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
             ! plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
 
             ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean

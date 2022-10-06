@@ -45,6 +45,7 @@ MODULE mo_grid_nml
     & config_l_scm_mode                   => l_scm_mode,                    &
     & config_patch_weight                 => patch_weight,                  &
     & config_lredgrid_phys                => lredgrid_phys,                 &
+    & config_nexlevs_rrg_vnest            => nexlevs_rrg_vnest,             &
     & config_dynamics_grid_filename       => dynamics_grid_filename,        &
     & config_dynamics_parent_grid_id      => dynamics_parent_grid_id,       &
     & config_radiation_grid_filename      => radiation_grid_filename,       &
@@ -95,7 +96,9 @@ MODULE mo_grid_nml
     INTEGER    :: ifeedback_type           ! type of feedback (incremental or relaxation)
     REAL(wp)   :: start_time(max_dom)      ! time at which execution of a (nested) model domain starts
     REAL(wp)   :: end_time(max_dom)        ! time at which execution of a (nested) model domain terminates
-    LOGICAL    :: lredgrid_phys(max_dom)   ! If set to .true. is calculated on a reduced grid
+    LOGICAL    :: lredgrid_phys(max_dom)   ! If set to .true. radiation is calculated on a reduced grid
+    INTEGER    :: nexlevs_rrg_vnest        ! Maximum number of extra model layers used for calculating radiation if 
+                                           ! a reduced radiation grid is combined with vertical nesting
     LOGICAL    :: l_limited_area           ! limited area setup where forcing comes in from sides            
     LOGICAL    :: l_scm_mode               ! SCM mode is designed for tests where all columns are identical
     LOGICAL    :: lsep_grfinfo             ! If .true., read fields related to grid refinement from separate 
@@ -136,7 +139,7 @@ MODULE mo_grid_nml
       &  lrescale_timestep, lrescale_ang_vel,                      &
       &  patch_weight, lredgrid_phys, start_time, end_time,        &
       &  dynamics_grid_filename,  dynamics_parent_grid_id,         &
-      &  radiation_grid_filename,                                  &
+      &  radiation_grid_filename, nexlevs_rrg_vnest,               &
       &  grid_angular_velocity, use_duplicated_connectivity,       &
       &  use_dummy_cell_closure, create_vgrid,                     &
       &  vertical_grid_filename, vct_filename
@@ -181,6 +184,7 @@ MODULE mo_grid_nml
     corio_lat   = 0.0_wp
     patch_weight= 0.0_wp
     lredgrid_phys = .FALSE.
+    nexlevs_rrg_vnest = 8
     use_duplicated_connectivity = config_use_duplicated_connectivity
     use_dummy_cell_closure      = config_use_dummy_cell_closure
 
@@ -253,6 +257,7 @@ MODULE mo_grid_nml
     config_l_scm_mode        = l_scm_mode
     config_patch_weight      = patch_weight
     config_lredgrid_phys     = lredgrid_phys
+    config_nexlevs_rrg_vnest = nexlevs_rrg_vnest
     config_use_duplicated_connectivity = use_duplicated_connectivity
     config_use_dummy_cell_closure      = use_dummy_cell_closure
     config_dynamics_grid_filename  = dynamics_grid_filename

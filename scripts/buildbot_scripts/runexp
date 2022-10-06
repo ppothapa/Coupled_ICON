@@ -8,6 +8,7 @@ from pbs_job import PBSJob
 from pathlib import Path
 import sys
 import json
+import time
 
 def parse_line(line):
     return line.strip("\n").replace("'","").split("=")
@@ -70,6 +71,10 @@ def runexp():
     # wait for completion of all gathered processes
     for eobj in eobjs:
         eobj.batch_job.wait()
+
+    # wait a bit longer, because queing or file system might create logfiles
+    # with a certain delay
+    time.sleep(20)
 
     # parse returncode and write STATUS file
     loop_status_exp_file = Path(base_path) / "LOOP_STATUS_EXP_FILE"

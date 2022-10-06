@@ -181,7 +181,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  init_mode                    = 5
  dt_iau                       = 10800
  dt_shift                     = -5400
- iterate_iau                  = .true.
+ iterate_iau                  = .false.  !.true.
  zpbl1                        = 500.
  zpbl2                        = 1000.
  dwdfg_filename               = "<path>fg_R<nroot0>B<jlev>_DOM<idom>.grb"

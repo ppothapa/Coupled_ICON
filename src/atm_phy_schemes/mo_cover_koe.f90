@@ -326,6 +326,8 @@ SELECT CASE( cover_koe_config%icldscheme )
 ! no clouds
 CASE( 0 )
 
+  !$ACC PARALLEL IF( lzacc ) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk = kstart,klev
     DO jl = kidia,kfdia
       qc_tot(jl,jk) = 0.0_wp
@@ -333,6 +335,7 @@ CASE( 0 )
       cc_tot(jl,jk) = 0.0_wp
     ENDDO
   ENDDO
+  !$ACC END PARALLEL
 
 !-----------------------------------------------------------------------
 
@@ -577,6 +580,8 @@ CASE( 4 )
 ! grid-scale cloud cover [1 or 0]
 CASE( 5 )
 
+  !$ACC PARALLEL IF( lzacc ) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk = kstart,klev
     DO jl = kidia,kfdia
       IF ( qc(jl,jk) + qi(jl,jk) > zcldlim ) THEN
@@ -588,6 +593,7 @@ CASE( 5 )
       qi_tot(jl,jk) = qi(jl,jk)
     ENDDO
   ENDDO
+  !$ACC END PARALLEL
 
 !-----------------------------------------------------------------------
 

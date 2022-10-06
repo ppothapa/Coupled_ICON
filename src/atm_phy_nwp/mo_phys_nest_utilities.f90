@@ -38,10 +38,10 @@ USE mo_grf_nudgintp,        ONLY: interpol_scal_nudging
 USE mo_parallel_config,     ONLY: nproma, p_test_run
 USE mo_dynamics_config,     ONLY: nnow_rcf
 USE mo_run_config,          ONLY: msg_level, iqv, iqc, iqi
-USE mo_grid_config,         ONLY: l_limited_area
+USE mo_grid_config,         ONLY: l_limited_area, nexlevs_rrg_vnest
 USE mo_nwp_phy_state,       ONLY: prm_diag
 USE mo_nonhydro_state,      ONLY: p_nh_state
-USE mo_impl_constants,      ONLY: min_rlcell, min_rlcell_int, nexlevs_rrg_vnest
+USE mo_impl_constants,      ONLY: min_rlcell, min_rlcell_int
 USE mo_physical_constants,  ONLY: rd, grav, stbo, tmelt
 USE mo_loopindices,         ONLY: get_indices_c
 USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
@@ -1030,16 +1030,17 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
         ENDDO
         !$ACC END PARALLEL
       ELSE ! get information from buffer field
-          DO jk = 1, nshift
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC LOOP SEQ
+        DO jk = 1, nshift
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             rg_pres_ifc(jc,jk,jb)   = buffer_rrg(jc,jk,jb)
             rg_pres    (jc,jk,jb)   = buffer_rrg(jc,nshift+jk,jb)
             rg_temp    (jc,jk,jb)   = buffer_rrg(jc,2*nshift+jk,jb)
           ENDDO
-          !$ACC END PARALLEL
         ENDDO
+        !$ACC END PARALLEL
       ENDIF
 
     ENDIF
