@@ -89,7 +89,9 @@ LIBS="-Wl,--disable-new-dtags -Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${BLA
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-yaxt --enable-coupling --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
+EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-yaxt --enable-coupling --enable-ecrad --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
+# as long as all openmpi released have an error we need to disable mpi checking
+EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks"
 
 ################################################################################
 
