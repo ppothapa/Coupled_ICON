@@ -1,86 +1,43 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=2,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=2     # Number of VE per logical host
-#PBS -l cpunum_job=5
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_09_R2B6N7_oper_EPS.run.run.o
-# ----------------------------------------------------------------------
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -ex
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
-
 # ----------------------------------------------------------------------
 # path definitions
 # ----------------------------------------------------------------------
 
-export PATH=${PATH}:~routfor/routfox/bin
+make_and_change_to_experiment_dir # function in ../add_run_routines
 
-# for PBS change to directory where job was submitted
-# (without this job is started in HOME)
-if [[ -n ${PBS_O_WORKDIR} ]] ; then
-  cd ${PBS_O_WORKDIR}
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
 fi
 
-# base directory for ICON sources and binary:
-ICONDIR=${PBS_O_WORKDIR}/../
+export PATH=${PATH}:~routfor/routfox/bin
 
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
+
+# experiment identifier for output files
 EXP="NWP"    # experiment identifier
-EDIR="exp09"
-GRIDDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # grid directory
-EXTPDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # external parameter directory
-
-# absolute path to directory with plenty of space:
-EXPDIR=$TMPDIR/${EDIR}/
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
+
+GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
+if [[ ! -d "$GRIDDIR" ]]; then
+  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
+fi
+EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being
 INDIR=${DATAROOT}/EPS_R2B6N7
 
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
 # ----------------------------------------------------------------------
 # copy input data: grids, external parameters
 # ----------------------------------------------------------------------
-
-# the directory for the experiment will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd $EXPDIR
 
 ln -sf $GRIDDIR/icon_grid_0023_R02B05_R.nc iconR2B05_DOM00.nc
 ln -sf $GRIDDIR/icon_grid_0023_R02B05_R-grfinfo.nc iconR2B05_DOM00-grfinfo.nc
@@ -94,7 +51,9 @@ ln -sf $EXTPDIR/icon_extpar_0028_R02B07_N02_20180625_tiles.nc extpar_iconR2B07_D
 
 
 cymdg=2017041500
-cymdgm3=$(datconv -Cy -d -3 ${cymdg})
+# `datconv` is only available on the dwd machine. Thus we give cymdgm3 directly.
+# cymdgm3=$(datconv -Cy -d -3 ${cymdg})
+cymdgm3=2017041421
 
 echo dates $cymdg $cymdgm3
 
@@ -171,18 +130,25 @@ for gridfile in ${atmo_rad_grids}; do
 done
 
 
+num_io_procs=2
+num_restart_procs=0
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 cat > ${atmo_namelist} << EOF
 &parallel_nml
- nproma          =  504
- p_test_run      = .false.
- l_test_openmp   = .true.
- l_log_checks    = .true.
- num_io_procs    =  2
- num_restart_procs = 0
- itype_comm      =  1
- iorder_sendrecv =  3
- proc0_shift     = 1
- use_omp_input   = .true.
+ nproma                  =  ${nproma}
+ p_test_run              = .false.
+ l_test_openmp           = .true.
+ l_log_checks            = .true.
+ num_io_procs            =  ${num_io_procs}
+ num_restart_procs       = ${num_restart_procs}
+ num_prefetch_proc       = ${num_prefetch_proc}
+ num_io_procs_radar      = ${num_io_procs_radar}
+ itype_comm              =  1
+ iorder_sendrecv         =  3
+ proc0_shift             = 1
+ use_omp_input           = .true.
 /
 &grid_nml
  dynamics_grid_filename  = ${dynamics_grid_filename}
@@ -863,23 +829,13 @@ EOF3
 # run the model!
 # ----------------------------------------------------------------------
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
-export NMPI_COLLORDER=ON
+$START_MODEL
+EXIT_STATUS=$?
 
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-/opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-           -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
-              -vh     -node 0        -np 2      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
-
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "ICON EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 # ----------------------------------------------------------------------
 # EPILOGUE: Compare the output to a given reference
@@ -887,7 +843,7 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
 #          But when you worry you make it double ..."
 # ----------------------------------------------------------------------
 
-refdir="/hpc/rwork0/routfor/test/icon/Checksuite_data/ref_data_exp09/2a31eac8"
+refdir="${DATAROOT}/ref_data_exp09/2a31eac8"
 
 
 bash << EOFSCRIPT
@@ -900,14 +856,14 @@ module load eccodes
 ECCODES_DIR=/hpc/sw/eccodes/definitions/release/\$ECCODES_VERSION
 export ECCODES_DEFINITION_PATH="\$ECCODES_DIR/definitions.edzw:\$ECCODES_DIR/definitions"
 
-. "/hpc/rwork0/routfor/test/icon/Checksuite_data/checksuite_rcnl_miniconda3/etc/profile.d/conda.sh"
+. "${DATAROOT}/checksuite_rcnl_miniconda3/etc/profile.d/conda.sh"
 conda activate pyn_env
 
 for this_file in igfrf02000000ML.grb 
 do
 
 # run Python script for comparison of GRIB2 meta-data and values:
-$ICONDIR/run/checksuite.rcnl.dwd.de/exp.run_ICON_09_R2B6N7_oper_EPS.check.py \
+$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
 --datafile=\$this_file --reffile=$refdir/\$this_file -g
 
 done
@@ -916,9 +872,13 @@ for this_file in iefff02000000MLv01.grb
 do
 
 # run Python script for comparison of GRIB2 meta-data and values:
-$ICONDIR/run/checksuite.rcnl.dwd.de/exp.run_ICON_09_R2B6N7_oper_EPS.check.py \
+$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
 --datafile=\$this_file --reffile=$refdir/\$this_file
 
 done
 
 EOFSCRIPT
+EXIT_STATUS=$?
+
+echo 'python EXIT_STATUS: '$EXIT_STATUS
+exit $EXIT_STATUS

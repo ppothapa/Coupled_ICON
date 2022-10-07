@@ -67,7 +67,7 @@ class BuildbotConfig(object):
         builder_names = self.data.loc[(exp, (midx, bidx))].index.get_level_values(1)
         self.data.loc[(exp, (midx, bidx))] = [Experiment(exp, self.builder_meta[bname], run_flags) for bname in builder_names]
 
-        print("added experiment {} to configuration".format(exp, ", ".join(bidx)))
+        print("added experiment {} to {} configuration".format(exp, ", ".join(bidx)))
 
 
     def remove_experiments(self, exps, builders=None, machines=None, with_config=None, without_config=None):

@@ -144,4 +144,27 @@ get_2digits()
  eval $outname=$f2dig
 }
 
+make_and_change_to_experiment_dir()
+{
+  # change working directory to experiment directory
+  # create experiment directory if it does not exist
+  #
+  # environment variables used:
+  # input:
+  #   experiments_dir: the place where individual folders for each experiment will be created
+  #   EXPNAME: string identifier of this experiment
+  # output:
+  #   EXPDIR
+  #
+  # experiment directory, with plenty of space, create if new
+  EXPDIR="${experiments_dir}/${EXPNAME}"
+  if [ ! -d "${EXPDIR}" ] ;  then
+    mkdir -p "${EXPDIR}"
+  fi
+
+  ls -ld "${EXPDIR}"
+  check_error $? "${EXPDIR} does not exist?"
+
+  cd "${EXPDIR}"
+}
 #-----------------------------------------------------------------------------

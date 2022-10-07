@@ -1,48 +1,25 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=4,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=4     # Number of VE per logical host
-#PBS -l cpunum_job=5
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_05_R02B06N07_ifsinit_restarttest.run.run.o
-# ----------------------------------------------------------------------------
-# ============================================================================
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -ex
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
-
-# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # path definitions
-# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
+fi
+
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory with input grids:
 GRIDDIR=${DATAROOT}/GRF_R2B6N8_IFStest
@@ -53,30 +30,9 @@ IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
 # directory with external parameter data:
 EXTPARDIR=${DATAROOT}/Extpar_R2B6N8_IFStest
 
-# base directory for ICON sources and binary:
-ICONDIR=${PBS_O_WORKDIR}/../
-
-# absolute path to directory with plenty of space:
-EDIR="exp05"
-EXPDIR=$TMPDIR/${EDIR}/
-
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
-
 # ----------------------------------------------------------------------------
 # copy input data: grids, external parameters, model
 # ----------------------------------------------------------------------------
-
-# the directory for the experiment will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd ${EXPDIR}
 
 # delete existing restart files
 rm -rf *restart_*
@@ -85,10 +41,12 @@ rm -rf *restart_*
 ln -sf ${GRIDDIR}/iconR2B05_DOM00.nc iconR2B05_DOM00.nc
 ln -sf ${GRIDDIR}/iconR2B06_DOM01.nc iconR2B06_DOM01.nc
 ln -sf ${GRIDDIR}/iconR2B07_DOM02.nc iconR2B07_DOM02.nc
+ln -sf ${GRIDDIR}/iconR2B08_DOM03.nc iconR2B08_DOM03.nc
 
 # external parameter (from ExtPar tool)
 ln -sf ${EXTPARDIR}/extpar_R2B06_DOM01.nc extpar_iconR2B06_DOM01.nc
 ln -sf ${EXTPARDIR}/extpar_R2B07_DOM02.nc extpar_iconR2B07_DOM02.nc
+ln -sf ${EXTPARDIR}/extpar_R2B08_DOM03.nc extpar_iconR2B08_DOM03.nc
 
 # interpolated IFS data
 ln -sf $IFSDATADIR/prepiconR2B06_DOM01_2012062100.nc ifs2icon_R2B06_DOM01.nc
@@ -107,7 +65,7 @@ cp -p $MODEL icon
 # ----------------------------------------------------------------------------
 
 # the grid parameters
-atmo_dyn_grids="iconR2B06_DOM01.nc iconR2B07_DOM02.nc"
+atmo_dyn_grids="iconR2B06_DOM01.nc iconR2B07_DOM02.nc iconR2B08_DOM03.nc"
 atmo_rad_grids="iconR2B05_DOM00.nc"
 
 # reconstruct the grid parameters in namelist form
@@ -131,14 +89,14 @@ for iter in 1 2 ; do
 if [ $iter -eq 1 ] ; then
 
 restart="       .FALSE.  "
-nsteps="           140   "
-checkpoint="     43200.0 "
+nsteps="            80   "
+checkpoint="     21600.0 "
 nrest_procs="        1   "
 
 else
 
 restart="        .TRUE.  "
-nsteps="            80   "
+nsteps="           140   "
 checkpoint="    864000.0 "
 nrest_procs="        1   "
 
@@ -174,6 +132,12 @@ cat > icon_master.namelist << EOF
 EOF
 
 
+# Variables to configure the mpirun command on the RCL
+num_io_procs=1
+num_restart_procs=$nrest_procs
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 # ----------------------------------------------------------------------------
 # model namelists
 # ----------------------------------------------------------------------------
@@ -183,20 +147,21 @@ cat > NAMELIST_NWP << EOF
 
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
- nproma                      =                        752         ! loop chunk length
+ nproma                      =                  ${nproma}         ! loop chunk length
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
- num_io_procs                =                          1         ! number of I/O processors
+ num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =             ${nrest_procs}         ! number of restart processors
+ num_prefetch_proc           =       ${num_prefetch_proc}         ! number of processors for LBC prefetching
+ num_io_procs_radar          =      ${num_io_procs_radar}         ! number of EMVORADO I/O processors
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
  proc0_shift                 =                          1         ! VH offloading mode
  use_omp_input               =                     .true.         ! task-parallelized input
 /
 
-
 ! run_nml: general switches ---------------------------------------------------
 &run_nml
  ltestcase                   =                     .FALSE.        ! idealized testcase runs
- num_lev                     =                     90, 56         ! number of full levels (atm.) for each domain
+ num_lev                     =                 90, 56, 52         ! number of full levels (atm.) for each domain
  lvert_nest                  =                      .TRUE.        ! vertical nesting
  nsteps                      =                   ${nsteps}        ! number of time steps of this run
  dtime                       =                        360         ! timestep in seconds
@@ -247,10 +212,12 @@ cat > NAMELIST_NWP << EOF
 &grid_nml
  dynamics_grid_filename      =  ${dynamics_grid_filename}         ! array of the grid filenames for the dycore
  radiation_grid_filename     = ${radiation_grid_filename}         ! array of the grid filenames for the radiation model
- dynamics_parent_grid_id     =                       0, 1         ! array of the indexes of the parent grid filenames
+ dynamics_parent_grid_id     =                    0, 1, 2         ! array of the indexes of the parent grid filenames
  lredgrid_phys               =               .TRUE.,.TRUE.        ! .true.=radiation is calculated on a reduced grid
- lfeedback                   =                      .TRUE.        ! specifies if feedback to parent grid is performed
+ lfeedback                   =       .TRUE.,.TRUE.,.FALSE.        ! specifies if feedback to parent grid is performed
  ifeedback_type              =                          2         ! feedback type (incremental/relaxation-based)
+ start_time                  =                0.,0.,7200.         ! R2B8 nest starts after 2h
+ end_time                    =          0.,172800.,57600.         ! ... and ends after 18h
 /
 
 ! gridref_nml: grid refinement and nesting -----------------------------------
@@ -266,6 +233,10 @@ cat > NAMELIST_NWP << EOF
  dt_diag                     =                      21600.0       ! diagnostic integral output interval
  dt_checkpoint               =               ${checkpoint}        ! time interval for writing restart files.
  itype_pres_msl              =                          2         ! method for computation of mean sea level pressure
+/
+
+&interpol_nml
+support_baryctr_intp         =                      .false.        ! use barycentric interpolation
 /
 
 ! nonhydrostatic_nml: nonhydrostatic model -----------------------------------
@@ -323,6 +294,23 @@ cat > NAMELIST_NWP << EOF
                                 'group:land_vars', 'group:land_tile_vars',                
                                 'group:multisnow_vars'
 /
+! output_nml: specifies an output stream --------------------------------------
+&output_nml
+ filetype                    =                          2         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                         =                         -1         ! write all domains
+ output_bounds               =       0., 10000000., 10800.        ! output: start, end, increment
+ steps_per_file              =                          2         ! number of output steps in one output file
+ mode                        =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last                =                      .TRUE.        ! flag whether to include the last time step
+ output_filename             =                    'NWP_ll'        ! file name base
+ output_grid                 =                      .TRUE.        ! flag whether grid information is added to output.
+ !
+ ml_varlist                  =  'u', 'v', 'temp', 'pres','topography_c', 'pres_msl', 
+ remap                = 1
+ reg_lon_def          = 0.,0.5,359.501
+ reg_lat_def          = -90.,0.5,90.
+ output_grid          = .false.
+/
 
 ! meteogram_output_nml: meteogram output for specified locations --------------
 &meteogram_output_nml
@@ -365,9 +353,9 @@ cat > NAMELIST_NWP << EOF
  ivadv_tracer                =              3, 3, 3, 3, 3         ! tracer specific method to compute vertical advection
  itype_hlimit                =           3, 4, 4, 4, 4, 0         ! type of limiter for horizontal transport
  ihadv_tracer                =          52, 2, 2, 2, 2, 0         ! tracer specific method to compute horizontal advection
- llsq_svd                    =                      .false.        ! use SV decomposition for least squares design matrix
+ llsq_svd                    =                     .false.        ! use SV decomposition for least squares design matrix
  beta_fct                    =                          1.005     ! factor of allowed over-/undershooting in monotonous limiter
- nadv_substeps               =                       3, 2         ! number of integration steps per fast physics time step
+ nadv_substeps               =                    3, 2, 2         ! number of integration steps per fast physics time step
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------
@@ -400,23 +388,19 @@ EOF
 # run the model!
 # ----------------------------------------------------------------------------
 
+# run IO on second vector host
+VH_NODE=1
+$START_MODEL
+EXIT_STATUS=$?
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
-
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-/opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-           -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
-              -vh     -node 0        -np 2      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
+if ; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
 # ----------------------------------------------------------------------------
+
+echo "EXIT_STATUS: $EXIT_STATUS"
+exit $EXIT_STATUS

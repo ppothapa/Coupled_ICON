@@ -66,22 +66,22 @@ $addexp checksuite.xce.dwd.de/exp.run_ICON_16_R19B7-ID2_ass.run                 
 
 
 # activate rcnl checksuite
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_01_R3B9_lam.run                             --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_02_R2B13_lam.run                            --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_03_R19B7N8-ID2_ID1_lam.run                  --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_04_R02B06N08_ifsinit_restarttest.run        --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_05_R02B06N07_ifsinit_restarttest.run        --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest.run --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_07_R02B04N06M_restarttest.run               --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_08_R19B7-ID2_oper.run                       --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_09_R2B6N7_oper_EPS.run                      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_01_R3B9_lam                             --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                            --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_03_R19B7N8-ID2_ID1_lam                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_04_R02B06N08_ifsinit_restarttest        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_05_R02B06N07_ifsinit_restarttest        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_07_R02B04N06M_restarttest               --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
 # test 10 is inactive
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_11_R3B08_lam_initmode7_restarttest.run      --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_12_R3B08_lam_initmode4.run                  --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_13_R2B08-dkltest.run                        --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest.run      --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_15_R19B7-ID2_ass.run                        --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_16_R19B7-ID2_ass.run                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_12_R3B08_lam_initmode4                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_13_R2B08-dkltest                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 
 # DWD_nec_yac2
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON_17_R2B4_AO_coupled.run                      --builders DWD_nec_yac2 --list $listname
@@ -94,8 +94,8 @@ $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                     
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_03_LANFEX.run                           --builders DWD_nec --list $listname
 
 # DWD_nec_hybrid
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_11_R3B08_lam_initmode7_restarttest.run --builders DWD_nec_hybrid --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest.run --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders DWD_nec_hybrid --list $listname
 
 #lets see the list
 ./lslist $listname
