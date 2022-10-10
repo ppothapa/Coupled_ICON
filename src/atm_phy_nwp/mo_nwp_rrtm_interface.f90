@@ -43,7 +43,7 @@ MODULE mo_nwp_rrtm_interface
   USE mo_nonhydro_types,       ONLY: t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation,            ONLY: radiation_nwp
-  USE mo_radiation_config,     ONLY: irad_aero
+  USE mo_radiation_config,     ONLY: irad_aero, iRadAeroTegen, iRadAeroART
   USE mo_aerosol_util,         ONLY: tune_dust, aerdis
   USE mo_lrtm_par,             ONLY: nbndlw
   USE mo_sync,                 ONLY: global_max, global_min
@@ -112,7 +112,6 @@ CONTAINS
       & zvdael(nproma,pt_patch%nlevp1), &
       & zvdaeu(nproma,pt_patch%nlevp1), &
       & zvdaed(nproma,pt_patch%nlevp1), &
-      & zaetr_top(nproma), zaetr_bot, zaetr,       &
       & zaeqdo   (nproma), zaeqdn,                 &
       & zaequo   (nproma), zaequn,                 &
       & zaeqlo   (nproma), zaeqln,                 &
@@ -156,7 +155,7 @@ CONTAINS
 
     !$ACC DATA PRESENT( zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, ext_data, &
     !$ACC             & pt_patch ) &
-    !$ACC      CREATE( zsign, zvdaes, zvdael, zvdaeu, zvdaed, zaetr_top, &
+    !$ACC      CREATE( zsign, zvdaes, zvdael, zvdaeu, zvdaed, &
     !$ACC            & zaeqdo, zaequo, zaeqlo, zaeqsuo, zaeqso, zptrop, &
     !$ACC            & zdtdz, zlatfac ) IF (lacc)
 
@@ -164,7 +163,7 @@ CONTAINS
     !> Radiation setup
     !-------------------------------------------------------------------------
 
-    IF ( irad_aero == 6  .OR. irad_aero == 9) THEN
+    IF ( irad_aero == iRadAeroTegen  .OR. irad_aero == iRadAeroART) THEN
       current_time_hours => newDatetime(mtime_datetime)
       current_time_hours%time%minute = 0
       current_time_hours%time%second = 0
@@ -184,83 +183,16 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_endidx,zsign,zvdaes, zvdael, zvdaeu, zvdaed, &
-!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zaetr_bot,     &
-!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, zaetr_top,     & 
-!$OMP            zaetr,wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
+!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, &
+!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, & 
+!$OMP            wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                        i_startidx, i_endidx, rl_start, rl_end)
 
 
-      IF ( irad_aero == 5 ) THEN ! Tanre aerosols
-
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = 2, nlevp1
-          DO jc = 1,i_endidx
-            zsign(jc,jk) = pt_diag%pres_ifc(jc,jk,jb) / 101325._wp
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! The routine aerdis is called to receive some parameters for the vertical
-        ! distribution of background aerosol.
-        CALL aerdis ( &
-          & kbdim  = nproma,      & !in
-          & jcs    = 1,           & !in
-          & jce    = i_endidx,    & !in
-          & klevp1 = nlevp1,      & !in
-          & petah  = zsign(1,1),  & !in
-          & pvdaes = zvdaes(1,1), & !out
-          & pvdael = zvdael(1,1), & !out
-          & pvdaeu = zvdaeu(1,1), & !out
-          & pvdaed = zvdaed(1,1), & !out
-          & lacc = lacc)
-
-        ! top level
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR
-        DO jc = 1,i_endidx
-          zaeqso   (jc) = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,1)
-          zaeqlo   (jc) = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,1)
-          zaequo   (jc) = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,1)
-          zaeqdo   (jc) = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,1)
-          zaetr_top(jc) = 1.0_wp
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! loop over layers
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-        !$ACC LOOP SEQ
-        DO jk = 1,nlev
-          !$ACC LOOP GANG VECTOR PRIVATE( zaeqsn, zaeqln, zaequn, zaeqdn, zaetr_bot, zaetr )
-          DO jc = 1,i_endidx
-            zaeqsn         = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,jk+1)
-            zaeqln         = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,jk+1)
-            zaequn         = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,jk+1)
-            zaeqdn         = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,jk+1)
-            zaetr_bot      = zaetr_top(jc) &
-              & * ( MIN (1.0_wp, pt_diag%temp_ifc(jc,jk,jb)/pt_diag%temp_ifc(jc,jk+1,jb)) )**ztrpt
-
-            zaetr          = SQRT(zaetr_bot*zaetr_top(jc))
-            zaeq1(jc,jk,jb)= (1._wp-zaetr) &
-              & * (ztrbga* pt_diag%dpres_mc(jc,jk,jb)+zaeqln-zaeqlo(jc)+zaeqdn-zaeqdo(jc))
-            zaeq2(jc,jk,jb)   = (1._wp-zaetr) * ( zaeqsn-zaeqso(jc) )
-            zaeq3(jc,jk,jb)   = (1._wp-zaetr) * ( zaequn-zaequo(jc) )
-            zaeq4(jc,jk,jb)   =     zaetr  *   zvobga*pt_diag%dpres_mc(jc,jk,jb)
-            zaeq5(jc,jk,jb)   =     zaetr  *   zstbga*pt_diag%dpres_mc(jc,jk,jb)
-
-            zaetr_top(jc) = zaetr_bot
-            zaeqso(jc)    = zaeqsn
-            zaeqlo(jc)    = zaeqln
-            zaequo(jc)    = zaequn
-            zaeqdo(jc)    = zaeqdn
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-      ELSE IF ((irad_aero == 6) .OR. (irad_aero == 9)) THEN ! Tegen aerosol climatology
+      IF ((irad_aero == iRadAeroTegen) .OR. (irad_aero == iRadAeroART)) THEN ! Tegen aerosol climatology
 
         IF (iprog_aero == 0) THEN ! purely climatological aerosol
 !DIR$ IVDEP

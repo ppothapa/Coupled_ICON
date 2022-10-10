@@ -135,7 +135,7 @@ CONTAINS
       CASE (iRadAeroNone) ! No aerosol
         ecrad_conf%use_aerosols = .false.
       CASE (iRadAeroConst, iRadAeroTegen, iRadAeroART, iRadAeroConstKinne, iRadAeroKinne, &
-        &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, iRadAeroKinneSP, 5)
+        &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, iRadAeroKinneSP)
         ecrad_conf%use_aerosols = .true.
       CASE DEFAULT
         CALL finish(routine, 'irad_aero not valid for ecRad')

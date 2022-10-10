@@ -361,6 +361,10 @@ CONTAINS
             CALL finish(routine,'irad_aero = 12, 13, 14, 15, 18 or 19 requires inwp_radiation=4')
           ENDIF
 
+          IF ( irad_aero == 5 ) THEN
+            CALL finish(routine,'irad_aero=5 (Tanre climatology) has been removed')
+          ENDIF
+
           ! Transient solar radiation only works with ecRad
           IF ( ANY( isolrad == (/2/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
             CALL finish(routine,'isolrad = 2 requires inwp_radiation = 4')

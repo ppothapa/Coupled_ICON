@@ -59,9 +59,7 @@ MODULE mo_nwp_phy_init
     &                               ghg_filename, irad_co2, irad_cfc11, irad_cfc12,   &
     &                               irad_n2o, irad_ch4, isolrad
   USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip, ssi_coddington
-  USE mo_aerosol_util,        ONLY: init_aerosol_dstrb_tanre,                       &
-    &                               init_aerosol_props_tanre_rrtm,                  &
-    &                               init_aerosol_props_tegen_rrtm,                  &
+  USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_rrtm,                  &
     &                               zaea_rrtm, zaes_rrtm, zaeg_rrtm
   USE mo_o3_util,             ONLY: o3_pl2ml!, o3_zl2ml
 #ifdef __ECRAD
@@ -968,17 +966,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         CALL lrtm_setup(lrtm_filename)
         CALL setup_newcld_optics(cldopt_filename)
 
-        IF ( irad_aero == 5 ) THEN
-          CALL init_aerosol_props_tanre_rrtm
-          CALL init_aerosol_dstrb_tanre (        &
-            & kbdim    = nproma,                 & !in
-            & pt_patch = p_patch,                & !in
-            & aersea   = prm_diag%aersea,        & !out
-            & aerlan   = prm_diag%aerlan,        & !out
-            & aerurb   = prm_diag%aerurb,        & !out
-            & aerdes   = prm_diag%aerdes )         !out
-
-        ELSEIF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
+        IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
           CALL init_aerosol_props_tegen_rrtm
         ELSE
           zaea_rrtm(:,:) = 0.0_wp

@@ -55,7 +55,11 @@ MODULE mo_nwp_ecrad_interface
   USE mo_physical_constants,     ONLY: rhoh2o
   USE mo_run_config,             ONLY: msg_level, iqv, iqi, iqc, iqr, iqs, iqg
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
-  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt
+  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt,                                   &
+                                   &   iRadAeroNone, iRadAeroConst, iRadAeroTegen,            &
+                                   &   iRadAeroART, iRadAeroConstKinne, iRadAeroKinne,        &
+                                   &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, &
+                                   &   iRadAeroKinneSP
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
@@ -378,22 +382,21 @@ CONTAINS
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
-          CASE(0)
+          CASE(iRadAeroNone)
             ! No aerosol, nothing to do
-          CASE(2)
-            ! Case 2: Constant aerosol
+          CASE(iRadAeroConst)
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, &
               &                         ecrad_conf, ecrad_aerosol)
-          CASE(6)
+          CASE(iRadAeroTegen)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,     &
               &                         zaeq1(jcs:jce,:,jb), zaeq2(jcs:jce,:,jb),  &
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),  &
               &                         zaeq5(jcs:jce,:,jb),                       &
               &                         ecrad_conf, ecrad_aerosol)
-          CASE(9)
+          CASE(iRadAeroART)
 #ifdef _OPENACC
             CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
@@ -404,7 +407,7 @@ CONTAINS
               &                         zaeq5(jcs:jce,:,jb),                                    &
               &                         ecrad_conf, ecrad_aerosol)
 
-          CASE(12,13,14,15,18,19)
+          CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP)
 #ifdef _OPENACC
             CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
@@ -885,7 +888,8 @@ CONTAINS
       IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
     END SELECT
 
-    IF (ANY( irad_aero == (/12,13,14,15,18,19/) )) THEN
+    IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,  &
+      &                     iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
       ! Aerosol extra fields
       DO jw = 1, ecrad_conf%n_bands_lw
         CALL input_extra_flds%assign(od_lw(:,:,:,jw), irg_od_lw(jw))
@@ -1159,22 +1163,21 @@ CONTAINS
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
-          CASE(0)
+          CASE(iRadAeroNone)
             ! No aerosol, nothing to do
-          CASE(2)
-            ! Case 2: Constant aerosol
+          CASE(iRadAeroConst)
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad, &
               &                         ecrad_conf, ecrad_aerosol)
-          CASE(6)
+          CASE(iRadAeroTegen)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         zrg_aeq1(jcs:jce,:,jb), zrg_aeq2(jcs:jce,:,jb),   &
               &                         zrg_aeq3(jcs:jce,:,jb), zrg_aeq4(jcs:jce,:,jb),   &
               &                         zrg_aeq5(jcs:jce,:,jb),                           &
               &                         ecrad_conf, ecrad_aerosol)
-          CASE(12,13,14,15,18,19)
+          CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP)
 #ifdef _OPENACC
             CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif

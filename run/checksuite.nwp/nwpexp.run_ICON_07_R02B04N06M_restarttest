@@ -296,7 +296,7 @@ cat > NAMELIST_NWP << EOF
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
  irad_o3                     =                          6         ! ozone climatology
- irad_aero                   =                          5         ! aerosols
+ irad_aero                   =                          0         ! aerosols
 /
 
 ! transport_nml: tracer transport ---------------------------------------------

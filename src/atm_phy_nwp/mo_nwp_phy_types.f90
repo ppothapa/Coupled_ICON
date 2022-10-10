@@ -421,17 +421,6 @@ MODULE mo_nwp_phy_types
       p_ctop(:,:) !         & !>cloud top pressure
       !cld_opt_thck(
 
-    ! for old aerosol climatology from COSMO (to be used with now removed Ritter-Geleyn radiation)
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS          &
-#endif
-      & ::                  &
-      & aersea  (:,:),      &
-      & aerlan  (:,:),      &
-      & aerurb  (:,:),      &
-      & aerdes  (:,:)
-
     ! time-interpolated values for Tegen aerosol climatology (needed as state fields for coupling with microphysics and convection)
     REAL(wp), POINTER       &
 #ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS

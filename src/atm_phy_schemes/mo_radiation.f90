@@ -65,8 +65,13 @@ MODULE mo_radiation
     &                                irad_o2,    mmr_o2,              &
     &                                irad_cfc11, vmr_cfc11,           &
     &                                irad_cfc12, vmr_cfc12,           &
-    &                                irad_aero, isolrad,              &
-    &                                izenith, cos_zenith_fixed, islope_rad
+    &                                isolrad, izenith,                &
+    &                                cos_zenith_fixed, islope_rad,    &
+    &                                irad_aero, iRadAeroNone,         &
+    &                                iRadAeroConst, iRadAeroTegen,    &
+    &                                iRadAeroART, iRadAeroConstKinne, &
+    &                                iRadAeroKinne, iRadAeroVolc,     &
+    &                                iRadAeroKinneVolc
   USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake, isub_water
   USE mo_extpar_config,        ONLY: nhori
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
@@ -1536,12 +1541,12 @@ CONTAINS
     ! --------------------------------
 
     SELECT CASE (irad_aero)
-    CASE (0,2)
+    CASE (iRadAeroNone,iRadAeroConst)
       aer_tau_lw_vr(:,:,:) = 0.0_wp
       aer_tau_sw_vr(:,:,:) = 0.0_wp
       aer_piz_sw_vr(:,:,:) = 1.0_wp
       aer_cg_sw_vr(:,:,:)  = 0.0_wp
-    CASE (5,6)
+    CASE (iRadAeroTegen)
       IF (PRESENT(dust_tunefac)) THEN
         tune_dust(1:jce,1:jpband) = dust_tunefac(1:jce,1:jpband)
       ELSE
@@ -1594,7 +1599,7 @@ CONTAINS
         ENDDO
       ENDDO
 #ifdef __ICON_ART
-    CASE (9)
+    CASE (iRadAeroART)
       CALL art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5, &
         &                         zaea_rrtm,zaes_rrtm,zaeg_rrtm, &
         &                         jg,jb,1,klev,1,jce,jpband,jpsw,&
@@ -1603,7 +1608,7 @@ CONTAINS
         &                         aer_piz_sw_vr,                 &
         &                         aer_cg_sw_vr)
 #endif
-    CASE (12,13)
+    CASE (iRadAeroConstKinne,iRadAeroKinne)
        ! this is for rrtm radiation in the NWP part, we do not introduce
        ! the simple plumes here
        CALL set_bc_aeropt_kinne( current_date                        ,&
@@ -1614,7 +1619,7 @@ CONTAINS
         & p_nh_state(jg)% metrics% ddqz_z_full(:,:,jb)              ,&
         & aer_tau_sw_vr    ,aer_piz_sw_vr         , aer_cg_sw_vr    ,&
         & aer_tau_lw_vr                                              )
-    CASE (14)
+    CASE (iRadAeroVolc)
       ! this is for rrtm radiation in the NWP part, we do not introduce
       ! the simple plumes here
       ! set zero aerosol before adding CMIP6 volcanic aerosols
@@ -1630,7 +1635,7 @@ CONTAINS
         & aer_tau_sw_vr    ,aer_piz_sw_vr         ,aer_cg_sw_vr     ,&
         & aer_tau_lw_vr                                              )
       
-   CASE (15)
+   CASE (iRadAeroKinneVolc)
       CALL set_bc_aeropt_kinne( current_date                        ,&
         & jg                                                        ,&
         & 1,   jce         ,kbdim                 ,klev             ,&

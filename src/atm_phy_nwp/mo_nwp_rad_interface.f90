@@ -32,10 +32,12 @@ MODULE mo_nwp_rad_interface
   USE mo_model_domain,         ONLY: t_patch
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
-  USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,      &
-    &                                irad_co2, irad_n2o, irad_ch4,   &
-    &                                irad_cfc11, irad_cfc12,         &
-    &                                irad_aero, tsi_radt, ssi_radt, isolrad, cosmu0_dark
+  USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,                            &
+    &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, &
+    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark,             &
+    &                                irad_aero, iRadAeroConstKinne, iRadAeroKinne,         &
+    &                                iRadAeroVolc, iRadAeroKinneVolc,                      &
+    &                                iRadAeroKinneVolcSP, iRadAeroKinneSP
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -62,7 +64,6 @@ MODULE mo_nwp_rad_interface
   USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
   USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
     &                                 calculate_time_interpolation_weights
-  USE mo_loopindices,          ONLY: get_indices_c
   USE mo_o3_util,              ONLY: o3_interface 
 
   IMPLICIT NONE
@@ -172,7 +173,8 @@ MODULE mo_nwp_rad_interface
       &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lacc)
 
 #ifdef __ECRAD
-    IF (ANY( irad_aero == (/12,13,14,15,18,19/) )) THEN
+    IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc, &
+      &                     iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
 
       ALLOCATE(od_lw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_lw)                   , &
       &        od_sw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_sw)                   , &
@@ -199,21 +201,22 @@ MODULE mo_nwp_rad_interface
         ssa_sw_vr(:,:,:) = 1.0_wp
         g_sw_vr (:,:,:)  = 0.0_wp
 
-        IF (ANY( irad_aero == (/12,13,15,18,19/) )) THEN
+        IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroKinneVolc, &
+          &                     iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
           CALL set_bc_aeropt_kinne(mtime_datetime, jg, 1, i_endidx, &
             & nproma, pt_patch%nlev, jb, ecrad_conf%n_bands_sw,     &
             & ecrad_conf%n_bands_lw, zf(:,:,jb), dz(:,:,jb),        &
             & od_sw_vr(:,:,:), ssa_sw_vr(:,:,:),                    &
             & g_sw_vr (:,:,:), od_lw_vr(:,:,:)                      )
         END IF
-        IF (ANY( irad_aero == (/14,15,18/) )) THEN 
+        IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN 
           CALL add_bc_aeropt_cmip6_volc(mtime_datetime, jg, 1,      &
             & i_endidx, nproma, pt_patch%nlev, jb,                  &
             & ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw,         &
             & zf(:,:,jb), dz(:,:,jb), od_sw_vr(:,:,:),              &
             & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), od_lw_vr(:,:,:)    )
         END IF
-        IF (ANY( irad_aero == (/18,19/) )) THEN
+        IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
           CALL add_bc_aeropt_splumes(jg, 1, i_endidx, nproma, pt_patch%nlev,   &
             & jb, ecrad_conf%n_bands_sw, mtime_datetime, zf(:,:,jb),           &
             & dz(:,:,jb), zh(:,pt_patch%nlev+1,jb), ecrad_conf%wavenumber1_sw, &

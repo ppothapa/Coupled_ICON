@@ -381,11 +381,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%aercl_or, &
       &     diag%aercl_ss, &
       &     diag%aercl_su, &
-      &     diag%aerdes, &
-      &     diag%aerlan, &
       &     diag%aerosol, &
-      &     diag%aersea, &
-      &     diag%aerurb, &
       &     diag%albdif_t, &
       &     diag%albnirdif_t, &
       &     diag%albvisdif_t, &
@@ -2339,44 +2335,8 @@ __acc_attach(diag%clct)
     __acc_attach(diag%pref_aerdis)
 
 
-    IF (irad_aero == 5) THEN 
-      ! Old Tanre aerosol climatology taken over from the COSMO model 
-      ! (to be used with now removed Ritter-Geleyn radiation)
-      ! &      diag%aersea(nproma,nblks_c)
-      cf_desc    = t_cf_var('aersea', '', '', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'aersea', diag%aersea,                       &
-        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-        & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. )
-      __acc_attach(diag%aersea)
-
-      ! &      diag%aerlan(nproma,nblks_c)
-      cf_desc    = t_cf_var('aerlan', '', '', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'aerlan', diag%aerlan,                       &
-        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-        & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE.  )
-      __acc_attach(diag%aerlan)
-
-      ! &      diag%aerurb(nproma,nblks_c)
-      cf_desc    = t_cf_var('aerurb', '', '', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'aerurb', diag%aerurb,                       &
-        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-        & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. )
-      __acc_attach(diag%aerurb)
-
-    
-      ! &      diag%aerdes(nproma,nblks_c)
-      cf_desc    = t_cf_var('aerdes', '', '', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'aerdes', diag%aerdes,                       &
-        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-        & ldims=shape2d, lrestart=.FALSE., lopenacc=.TRUE. ) 
-      __acc_attach(diag%aerdes)
-
-    ELSE IF (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN ! Tegen aerosol climatology, time-interpolated values 
-                                                         ! (needed as state fields for coupling with microphysics and convection)
+    IF (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN ! Tegen aerosol climatology, time-interpolated values 
+                                                    ! (needed as state fields for coupling with microphysics and convection)
       IF (atm_phy_nwp_config(k_jg)%icpl_aero_gscp > 1 .OR. icpl_aero_conv > 1 .OR. iprog_aero > 0) THEN
         lrestart = .TRUE.
       ELSE
