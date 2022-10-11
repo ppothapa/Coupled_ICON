@@ -393,7 +393,7 @@ VH_NODE=1
 $START_MODEL
 EXIT_STATUS=$?
 
-if ; then
+if [ "$EXIT_STATUS" -ne "0" ]; then
   echo "EXIT_STATUS: $EXIT_STATUS"
   exit $EXIT_STATUS
 fi
