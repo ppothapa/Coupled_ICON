@@ -320,7 +320,7 @@ SUBROUTINE sso (                                                       &
 
 !     Initialize tendencies and compute geopotential above ground
 !     ===========================================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO j3=1,ke
         DO j1=istart,iend
           pdu_sso(j1,j3) = 0.0_vp
@@ -328,12 +328,11 @@ SUBROUTINE sso (                                                       &
           zfi    (j1,j3) = pfif(j1,j3)-pfis(j1)
         END DO
       END DO
-      !$ACC END PARALLEL
 
 !     Control operation of scheme by selection of points with standard
 !     deviation of sub-grid scale orography > 10 m only (default value of minsso)
 !     =================================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF (psso_stdh(j1).GT.minsso) THEN
@@ -383,7 +382,7 @@ SUBROUTINE sso (                                                       &
 
 !     Initialisation of tendencies for ALL grid points
 !     ------------------------------------------------
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         zvidis (j1)=0.0_wp
@@ -395,7 +394,7 @@ SUBROUTINE sso (                                                       &
 
 !     Compute and add low level drag tendencies to the GWD ones
 !     ---------------------------------------------------------
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=1,ke
         !$ACC LOOP GANG VECTOR
@@ -460,7 +459,7 @@ SUBROUTINE sso (                                                       &
 !     ---------------------------------
 
       IF(PRESENT(pvdis_sso))THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
@@ -475,7 +474,7 @@ SUBROUTINE sso (                                                       &
 
 !     Initialize flux at top
 !     ----------------------
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         zstrdu(j1,1)=0._wp
@@ -485,7 +484,7 @@ SUBROUTINE sso (                                                       &
 
 !     Increment flux based on tendency in each layer
 !     ----------------------------------------------
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=1,ke
         !$ACC LOOP GANG VECTOR
@@ -500,7 +499,7 @@ SUBROUTINE sso (                                                       &
       IF(PRESENT(pustr_sso))THEN
 !     Store flux at surface
 !     ---------------------
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO j1=istart,iend
           pustr_sso(j1)=zstrdu(j1,ke1)
@@ -739,7 +738,7 @@ SUBROUTINE sso_setup (                                      &
 !     security on anisotropy factor and presetting of critical levels
 
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         psso_gamma(j1) = MAX(psso_gamma(j1),Gtsec)
@@ -755,7 +754,7 @@ SUBROUTINE sso_setup (                                      &
 !     and other critical levels
 !     ============================================================
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1     ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -769,7 +768,7 @@ SUBROUTINE sso_setup (                                      &
       END DO                ! end of vertical loop
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -783,7 +782,7 @@ SUBROUTINE sso_setup (                                      &
       END DO                ! end of vertical loop
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -797,7 +796,7 @@ SUBROUTINE sso_setup (                                      &
       END DO                ! end of vertical loop
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -813,7 +812,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     Confine critical level indices to be less or equal to Nktopg
 !     ============================================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         kknu(j1) =MIN(kknu(j1),Nktopg)
@@ -829,7 +828,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     Initialize various arrays
 !     =========================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         prho (j1,ke1) = 0.0_wp
@@ -853,7 +852,7 @@ SUBROUTINE sso_setup (                                      &
 !     pressure thickness, density and Brunt-Vaisala frequency (squared)
 !     =================================================================
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,2,-1        ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -878,7 +877,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     Definition of blocked flow
 !     ==========================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1          ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -899,7 +898,7 @@ SUBROUTINE sso_setup (                                      &
 !     Division by pressure thickness of contributing layers and
 !     determination of wind speed of blocked flow
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -916,7 +915,7 @@ SUBROUTINE sso_setup (                                      &
 !     Axes of subgrid scale orography and plane of profiles
 !     =====================================================
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF (lo_sso(j1)) THEN
@@ -945,7 +944,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     projection of flow into plane of low level stress  (eq.4.7)
 !     ===========================================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO j3=1,ke                  ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
@@ -965,11 +964,11 @@ SUBROUTINE sso_setup (                                      &
           lo1(j1,j3)   =.FALSE.
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
-!C
+
+!
 !     linear interpolation of projected flow to half levels
 !     ========================================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=2,ke     ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -991,7 +990,7 @@ SUBROUTINE sso_setup (                                      &
 !     Brunt-Vaisala frequency and density for lowest level
 !     ====================================================
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=mi3h,ke   ! vertical loop
         !$ACC LOOP GANG VECTOR private(zst)
@@ -1014,7 +1013,7 @@ SUBROUTINE sso_setup (                                      &
 !     normalization
 !     -------------
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1029,7 +1028,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     mean flow Richardson number on half levels
 !     ==========================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=2,ke     ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -1046,7 +1045,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     define top of 'envelope' layer (cf. eq.4.8)
 !     ===========================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=mi3h,ke-1     ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -1072,7 +1071,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     dynamical mixing height for the breaking of gravity waves
 !     =========================================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         znup(j1)=0.0_wp
@@ -1080,7 +1079,7 @@ SUBROUTINE sso_setup (                                      &
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke-1,2,-1  ! vertical loop
         !$ACC LOOP GANG VECTOR
@@ -1105,7 +1104,7 @@ SUBROUTINE sso_setup (                                      &
       !$ACC END PARALLEL
 
 !     allow low level wave breaking only above height of 4*stdh
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         kkcrith(j1)=MIN(kkcrith(j1),kknu(j1))
@@ -1114,7 +1113,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     directional information for flow blocking
 !     =========================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO j3=mi3h,ke     ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
@@ -1130,11 +1129,10 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
 
 !     assumed vertical profile of sso for blocking calculations
 !     =========================================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO j3=mi3h,ke     ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
@@ -1148,7 +1146,6 @@ SUBROUTINE sso_setup (                                      &
           END IF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
 
       !$ACC WAIT IF(lzacc)
       !$ACC END DATA
@@ -1235,7 +1232,7 @@ SUBROUTINE gw_stress (                                  &
 
 !     gravity wave stress amplitude (eq.4.11)
 !     =======================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1358,7 +1355,7 @@ SUBROUTINE gw_profil(                                    &
       !$ACC             kkcrith,  kcrit, kkenvh, kknu, kknu2, lo_sso)                           &
       !$ACC CREATE(zdz2, ztau, znorm, zoro) IF(lzacc)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1370,7 +1367,7 @@ SUBROUTINE gw_profil(                                    &
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ     
       DO j3=ke,2,-1     ! vertical loop
         !$ACC LOOP GANG VECTOR  
@@ -1425,7 +1422,7 @@ SUBROUTINE gw_profil(                                    &
 
 !     reorganisation of stress profile, if breaking occurs at low levels
 !     ==================================================================
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1436,7 +1433,7 @@ SUBROUTINE gw_profil(                                    &
       !$ACC END PARALLEL
 
 !     linear decrease between kkenvh and kkcrith
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
       DO j3=1,ke      ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
@@ -1450,7 +1447,6 @@ SUBROUTINE gw_profil(                                    &
           ENDIF
         END DO
       END DO       ! end of vertical loop
-      !$ACC END PARALLEL
 
       !$ACC WAIT IF(lzacc)
       !$ACC END DATA

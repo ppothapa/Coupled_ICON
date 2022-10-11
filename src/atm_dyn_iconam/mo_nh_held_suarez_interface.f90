@@ -133,7 +133,7 @@ CONTAINS
     DO jb = jbs,nblks_c
        CALL get_indices_c( p_patch, jb,jbs,nblks_c, is,ie, grf_bdywidth_c+1 )
 
-!$ACC PARALLEL DEFAULT(NONE)
+!$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
@@ -143,7 +143,7 @@ CONTAINS
 !$ACC END PARALLEL
 
        IF (lhs_fric_heat) THEN
-!$ACC PARALLEL DEFAULT(NONE)
+!$ACC PARALLEL DEFAULT(PRESENT)
          !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO jk=1,nlev
             DO i=is,ie
@@ -152,7 +152,7 @@ CONTAINS
          ENDDO
 !$ACC END PARALLEL
        ELSE
-!$ACC KERNELS DEFAULT(NONE)
+!$ACC KERNELS DEFAULT(PRESENT)
           z_ekin(:,:) = 0._wp
 !$ACC END KERNELS
        ENDIF
@@ -175,7 +175,7 @@ CONTAINS
        ! the tendency in temp must be transfromed to a tendency in the exner function
        ! For this it is assumed that the density is constant
        
-!$ACC PARALLEL DEFAULT(NONE)
+!$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
@@ -209,7 +209,7 @@ CONTAINS
                                   & zsigma_me(:,:,jb),     &! in
                                   & nlev, nproma, is, ie,  &! in
                                   & zddt_vn )               ! inout
-!$ACC PARALLEL DEFAULT(NONE) 
+!$ACC PARALLEL DEFAULT(PRESENT) 
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie

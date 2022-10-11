@@ -260,18 +260,18 @@ REAL(KIND=jprb), PARAMETER :: LPIconst=86.15723_jprb
 
 INTEGER(KIND=jpim) :: jk, jl
 
-!$acc data                                                                                      &
-!$acc present( zten, zqen, pap, paph, lpi, mlpi, koi )                                          &
+!$ACC DATA                                                                                      &
+!$ACC PRESENT( zten, zqen, pap, paph, lpi, mlpi, koi )                                          &
 
-!$acc create( thetae600, thetae900, thetae, deltap600, deltap900, fa, fb )                      &
-!$acc if(lacc)
+!$ACC CREATE( thetae600, thetae900, thetae, deltap600, deltap900, fa, fb )                      &
+!$ACC IF(lacc)
 
-  !$acc parallel default(none) if (lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF (lacc)
 
   ! compute equivalent potential temperature
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1_jpim, klev
-    !$acc loop gang(static:1) vector private(te)
+    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(te)
     DO jl = 1_jpim, klon
        te = zten(JL,JK)+foeldcpm(zten(JL,JK)+1E-20)*zqen(JL,JK)
        thetae(JL,JK)=te*(100000.D0/(pap(JL,JK)+1E-10))**(rd/rcpd)
@@ -279,7 +279,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   ! Now compute KOI
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC:1) VECTOR
   DO jl = 1, klon
     thetae900(jl)=0.0_jprb
     deltap900(jl)=0.0_jprb
@@ -287,9 +287,9 @@ INTEGER(KIND=jpim) :: jk, jl
     deltap600(jl)=0.0_jprb
   ENDDO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1_jpim, klev
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jl = 1_jpim, klon
       IF (pap(JL,JK) > 80000.D0) THEN
         thetae900(JL) = thetae900(JL)                                   &
@@ -303,7 +303,7 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDDO
   ENDDO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC:1) VECTOR
   DO jl = 1, klon
     thetae900(jl) = thetae900(jl)/(deltap900(jl)+1E-20)
   ! Over mountains where the lowest pressure level is below 800hPa, 
@@ -321,7 +321,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   ! Compute the modified LPI
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC:1) VECTOR
   DO jl = 1, klon
     fa(jl) = fg*LPI(jl)**fh
     ! we require a >= b
@@ -335,9 +335,9 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDIF
   ENDDO
 
-  !$acc end parallel
+  !$ACC END PARALLEL
                      
-!$acc end data
+!$ACC END DATA
 
 END SUBROUTINE CUCALCMLPI
 

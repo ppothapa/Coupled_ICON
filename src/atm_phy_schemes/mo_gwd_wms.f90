@@ -158,7 +158,7 @@ CONTAINS
     !$ACC CREATE( zbvfl, zx, zvhm1, zact, zbvfhm1, zuhm1, zdfl, zpu, zflux, zfluxlaun, zci_min ) &
     !$ACC IF( lacc )
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( lacc )
 
     !*       INPUT PARAMETERS
     !*       ----------------
