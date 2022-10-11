@@ -27,7 +27,8 @@ MODULE mo_nml_crosscheck
     &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
-    &                                    max_echotop, max_wshear, max_srh
+    &                                    max_echotop, max_wshear, max_srh,                 &
+    &                                    LSS_JSBACH, LSS_TERRA
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo                                             
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -51,7 +52,7 @@ MODULE mo_nml_crosscheck
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    lhdiff_rcf, rayleigh_type,                        &
-    &                                    ivctype, ndyn_substeps
+    &                                    ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
@@ -79,6 +80,7 @@ MODULE mo_nml_crosscheck
   USE mo_interpol_config
   USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
+  USE mo_nwp_tuning_config,        ONLY: itune_gust_diag
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
@@ -227,7 +229,7 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface == 1 ) ) .AND.                       &
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
       &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
@@ -432,10 +434,19 @@ CONTAINS
           CALL finish(routine,'mu_snow requires: 0 < mu_snow < 5')
         END IF ! microphysics
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface == 0 .AND. ntiles_lnd > 1) THEN
-          ntiles_lnd = 1
-          CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
-        ENDIF
+        SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
+        CASE (0)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
+          ENDIF
+
+        CASE (LSS_JSBACH)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because JSBACH handles tiles internally')
+          ENDIF
+        END SELECT
 
       ENDDO
     END IF
@@ -743,6 +754,15 @@ CONTAINS
 
         END SELECT ! iforcing
 
+#ifdef _OPENACC
+        IF ( advection_config(jg)%llsq_svd == .FALSE. ) THEN
+          ! The .FALSE. version is not supported by OpenACC. However, both versions to the same. The .TRUE. version 
+          ! is faster during runtime on most platforms but involves a more expensive calculation of coefficients. 
+          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
+          advection_config(jg)%llsq_svd = .TRUE.
+        END IF
+#endif
+
       END DO ! jg = 1,n_dom
     END IF ! ltransport
 
@@ -975,6 +995,11 @@ CONTAINS
 
     ENDIF
 
+    IF (itune_gust_diag == 3 .AND. ntiles_lnd == 1) THEN
+      WRITE (message_text,'(a)') "itune_gust_diag = 3 requires ntiles > 1"  
+      CALL finish(routine, message_text)
+    ENDIF
+
     ! check meteogram configuration
     IF (ANY(meteogram_output_config(:)%lenabled) .AND. .NOT. output_mode%l_nml) THEN
       CALL finish(routine, "Meteograms work only for run_nml::output='nml'!")
@@ -991,7 +1016,7 @@ CONTAINS
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
-      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport  )
+      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
       &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &
@@ -1023,6 +1048,9 @@ CONTAINS
     IF (ANY(aes_phy_config(:)%ljsb)) THEN
       CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set ljsb=.FALSE.")
     ENDIF
+
+    IF (ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
+        & CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set inwp_surface to a different value.")
 #else
     DO jg=1,n_dom
       IF (.NOT.aes_phy_config(jg)%ljsb) THEN

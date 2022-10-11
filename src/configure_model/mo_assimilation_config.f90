@@ -79,6 +79,7 @@ MODULE mo_assimilation_config
       nlhnverif_end    ,& ! end of latent heat nudging period in timesteps
       nlhn_relax       ,& ! number of interations of horizontal filtering
       nradar           ,& ! max. number of radar stations within input data
+      lhn_updt_rule    ,& ! Rule for updates of temperature/humidity/hydrometeors
       nobs_times          ! number of observation times (i.e. records in radar data file)
 
     REAL (KIND=wp)                   ::           &

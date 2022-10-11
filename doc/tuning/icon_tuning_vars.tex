@@ -31,12 +31,15 @@ Please also keep in mind that the list is neither exhaustive, nor complete. Ther
      \toprule
       Parameter    & Description & Meaningful Range& Comment\\
      \midrule
+      \rowcolor[rgb]{1.,0.8,0.8}\multicolumn{4}{c}{Tuning of the SSO and GWD parameters is dependent on the employed external paramters}\\ \cmidrule{1-4}
       \multicolumn{2}{c}{\bf SSO tuning}\\ \cmidrule{1-2}
       gkwake     & low level wake drag constant $C_d$ for blocking& 1.5 $\pm$ 0.5 & Very strong dependency on raw data resolution: for ICON-D2 with ASTER data, we use 0.25\\
       gkdrag      & gravity wave drag constant $G$, a function of
                           mountain sharpness & 0.075 $\pm$ 0.04 & Should be zero (turned off) at convection-permitting resolutions\\
       gfrcrit        & critical Froude number determining depth of blocked layer $H_{n_{crit}}$  & 0.4 $\pm$ 0.1&\\
       grcrit         & critical Richardson number & 0.25 & \\
+      tune\_minsso & minimal value of SSO-STDH (m) where SSO-effects are being considered & default 10 & must also be adapted in extpar!\\
+      tune\_blockred & multiples of the SSO-STDH, above which the SSO-blocking tendency is being reduced proportionally to STDH/z\_AGL & 1.5 & default 100 = deactivated \\
       \addlinespace[10pt]
       \multicolumn{2}{c}{\bf GWD tuning}\\ \cmidrule{1-2}
       gfluxlaun&variability range for non-orographic gravity wave launch momentum flux &2.50$\cdot 10^{-3} \newline  \pm  0.75 \cdot 10^{-3}$ [Pa] &relevant for global applications only\\
@@ -52,7 +55,7 @@ Please also keep in mind that the list is neither exhaustive, nor complete. Ther
       Parameter    & Description & Meaningful Range& Comment\\
      \midrule
      \multicolumn{2}{c}{\bf grid scale microphysics}\\ \cmidrule{1-2}
-      \rowcolor[rgb]{0.8,0.8,1.}zvz0i   & terminal fall velocity of ice   & 0.85 - 1.45 [m/s] 
+      \rowcolor[rgb]{0.8,0.8,1.}zvz0i   & terminal fall velocity of ice & 0.85 $\pm$ 0.25 [m/s] 
          &allows temperature bias tuning in the upper tropical troposphere as well as TOA long-wave fluxes\\
       \rowcolor[rgb]{0.8,0.8,1.}zceff\_min  & minimum value for sticking efficiency& 0.01 - 0.075 &tropics\\
       \rowcolor[rgb]{0.8,1,0.8}v0snow    & factor in the terminal velocity for snow & 10.0 - 30.0 & recommended value 25.0\\
@@ -61,9 +64,10 @@ Please also keep in mind that the list is neither exhaustive, nor complete. Ther
      \addlinespace[10pt] 
      \multicolumn{2}{c}{\bf cloud cover}\\ \cmidrule{1-2}
       box\_liq   & Box width for liquid cloud diagnostic in cloud cover scheme & 0.05 $\pm$ 0.02 &\\
-      box\_liq\_asy & Asymmetry factor for liquid cloud cover diagnostic & 2.0 - 4.0 & sensitive to TOA solar fluxes and to a lesser degree long-wave fluxes\\
-      thicklayfac & factor for increasing the box width for layer thicknesses exceeding 150 m & 0.005 $\pm$ 0.005 [1/m] & accounting for vertical sub-grid overlap\\
+      box\_liq\_asy & Asymmetry factor for liquid cloud cover diagnostic & 2.0 - 4.0 (def.\ 3.25)& sensitive to TOA solar fluxes and to a lesser degree long-wave fluxes\\
+      thicklayfac & factor for increasing the box width for layer thicknesses exceeding 150\,m & 0.005 $\pm$ 0.005 [1/m] & accounting for vertical sub-grid overlap\\
       sgsclifac & Scaling factor for turbulence-induced subgrid-scale contribution to diagnosed cloud ice & 0.0 - 1.0 & 0.0 turns this contribution off\\
+      allow\_overcast & Tuning factor for steeper dependence CLC (RH) & $\leq$ 1.0 & setting allow\_overcast$<$1 together with reduction of tune\_box\_liq\_asy causes steeper CLC(RH) dependence. {\color{red}{recommendation: allow\_overcast$<$1 should not be used in combination with lsgs\_cond=.TRUE.}}\\
      \bottomrule
    \end{tabular}
    \end{center}
@@ -78,17 +82,17 @@ Please also keep in mind that the list is neither exhaustive, nor complete. Ther
       \multicolumn{2}{c}{\bf turbulence}\\ \cmidrule{1-2}
       \rowcolor[rgb]{0.8,1,0.8}q\_crit & critical value for normalised super-saturation & 1.6-4.0& \\
       \rowcolor[rgb]{0.8,1,0.8}rlam\_heat & scaling factor of the laminar boundary layer for heat (scalars), the change in rlam\_heat is
-         accompanied by an inverse change of rat\_sea in order to keep the evaporation over water (controlled by rlam\_heat $\cdot$ rat\_sea) the same. 
-         & 0.333 - 3.0 &multiplicative perturbation\\
-      \rowcolor[rgb]{0.8,1,0.8}rat\_sea & controls latent and heat fluxes over water
-         & 0.5 - 10.0 & lower values increase latent and sensible fluxes over water \\
+         accompanied by an inverse change of rat\_sea in order to keep the evaporation over water (controlled by rlam\_heat $\cdot$ rat\_sea) the same. {\color{red}{recommendation: the product of rlam\_heat and rat\_sea should not be significantly larger than 10. Otherwise, there will be too little evaporation over the oceans.}}
+         & 10.0$\pm$8.0 &additive perturbation\\
+      \rowcolor[rgb]{0.8,1,0.8}rat\_sea & controls latent and sensible heat fluxes over water
+         & 0.8 - 10.0 & lower values increase latent and sensible fluxes over water; different values in data\_turbulence.f90 and turb\_data.f90 ? \\
       a\_hshr & Length scale factor for the separated horizontal shear mode & 1.0 $\pm$ 1.0 & \\
       \rowcolor[rgb]{0.8,1,0.8}a\_stab & factor for stability correction of turbulent length scale & 0.0 & turned off by default because it degrades global skill scores\\
       c\_diff & length scale factor for vertical diffusion of TKE & 0.1-0.4 &   \\
       alpha0 & lower bound of velocity-dependent Charnock parameter & 0.0123-0.0335 & additive ensemble perturbation of Charnock-parameter \\
-      alpha1 & parameter scaling the molecular roughness of water waves & 0.1-1.0 & lower values increase latent and sensible fluxes over water, particularly at low wind speeds.\\
+      alpha1 & parameter scaling the molecular roughness of water waves & 0.1-1.0 & lower values increase latent and sensible fluxes over water, particularly at low wind speeds. alpha1=1.0 in data\_turbulence.f90 and alpha1=0.75 in turb\_data.f90, recommended value of 0.125\\
       \rowcolor[rgb]{0.8,1,0.8}tur\_len & asymptotic maximal turbulent distance &500. alpha$\pm$ 150. [m] & \\
-      \rowcolor[rgb]{0.8,1,0.8}tkhmin & scaling factor for minimum vertical diffusion coefficient for heat and moisture & 0.75 $\pm$ 0.2 & \\
+      \rowcolor[rgb]{0.8,1,0.8}tkhmin & scaling factor for minimum vertical diffusion coefficient for heat and moisture & 0.6 $\pm$ 0.2 & 0.75 default in code\\
       \rowcolor[rgb]{0.8,1,0.8}tkmmin & scaling factor for minimum vertical diffusion coefficient for momentum & 0.75 $\pm$ 0.2 & \\
       tkred\_sfc & multiplicative change of reduction of minimum diffusion coefficients near the surface & 0.25 - 4.0 & multiplicative perturbation \\
    \bottomrule
@@ -131,11 +135,11 @@ Please also keep in mind that the list is neither exhaustive, nor complete. Ther
       capdcfac\_tr & fraction of CAPE diurnal cycle correction applied in the tropics & 0.5 $\pm$ 0.75 & \\
       lowcapefac & Tuning parameter for diurnal-cycle correction in convection scheme: reduction factor for low-cape situations & 1.0 $\pm$ 0.5 & \\
       negpblcape & Tuning parameter for diurnal-cycle correction in convection scheme: maximum negative PBL CAPE allowed in the modified CAPE closure & -500.- 0.\\
-      rhebc\_land & RH threshold for onset of evaporation below cloud base over land & 0.75 $\pm 0.05$ & \\
+      rhebc\_land & RH threshold for onset of evaporation below cloud base over land & 0.825 $\pm 0.05$ & 0.75 as default in code\\
       rhebc\_ocean & RH threshold for onset of evaporation below cloud base over sea & 0.85 $\pm 0.05$ & \\
       \rowcolor[rgb]{0.8,0.8,1.}rhebc\_land\_trop & RH threshold \dots over tropical land & 0.70 $\pm 0.05$ & \color[rgb]{0,0,1}tropics\\
       \rowcolor[rgb]{0.8,0.8,1.}rhebc\_ocean\_trop & RH threshold \dots over tropical sea & 0.76 $\pm 0.05$ & \color[rgb]{0,0,1}tropics\\
-      rcucov & Convective area fraction used for computing evaporation below cloud base & 0.05 &\\
+      rcucov & Convective area fraction used for computing evaporation below cloud base & 0.075 & 0.05 coded as default\\
       \rowcolor[rgb]{0.8,0.8,1.}rcucov\_trop & Convective area fraction used for computing evaporation below cloud base, tropics & 0.03 &\color[rgb]{0,0,1}tropics\\
       texc & Excess value for temperature used in test parcel ascent & 0.125 $\pm$ 0.05 [K] & \\
       qexc & Excess fraction of grid-scale QV used in test parcel ascent &  0.0125 \newline $\pm$ 0.005 [kg/kg]& \\

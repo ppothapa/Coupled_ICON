@@ -48,6 +48,8 @@ MODULE mo_nwp_parameters
     REAL(wp) :: rprcon
     ! maximum allowed depth of shallow convection (hPa)
     REAL(wp) :: rdepths
+    ! critical stability threshold for stratocumulus (K)
+    REAL(wp) :: eiscrit    
     ! switches for activation of shallow, midlevel and deep convection
     LOGICAL :: lmfscv, lmfmid, lmfpen
     ! switch for detrainment of rain and snow to gridscale scheme

@@ -1408,6 +1408,18 @@ my_thrd_id = omp_get_thread_num()
   END DO
   !$acc end parallel
 
+  pvar(1)%bl => rcld       ; pvar(1)%ml => rcld  !NF-Werte wieder nach 'rcld'
+  pvar(2)%bl => zaux(:,:,1); pvar(2)%ml => epr   !NF-Werte nach 'zaux(:,:,1)', weil
+                                                     !'epr' auf HF noch benoetigt wird.
+  DO n=2,naux
+    pvar(1+n)%bl => zaux(:,:,n) ; pvar(1+n)%ml => zaux(:,:,n)
+  END DO
+
+  !$acc enter data create(pvar) async(1)
+  DO n=1,naux+1
+    !$acc enter data attach(pvar(n)%bl, pvar(n)%ml) async(1)
+  END DO
+
   !$acc wait
 
   ! Interpolation der thermodyn. Hilfsgroessen im Feld zaux(),
@@ -1424,19 +1436,13 @@ my_thrd_id = omp_get_thread_num()
        nvars=1, pvar=(/varprf(prhon,prhoh)/), depth=dp0, lacc=lzacc)
     !-----------------------------------------------------
 
-  pvar(1)%bl => rcld       ; pvar(1)%ml => rcld  !NF-Werte wieder nach 'rcld'
-  pvar(2)%bl => zaux(:,:,1); pvar(2)%ml => epr   !NF-Werte nach 'zaux(:,:,1)', weil
-                                                     !'epr' auf HF noch benoetigt wird.
-  DO n=2,naux
-    pvar(1+n)%bl => zaux(:,:,n) ; pvar(1+n)%ml => zaux(:,:,n)
-  END DO
-
   !Note: 
   !Internal order of level looping in 'bound_level_interp' allows to store the 
   !'bl'-values (output) at the same place as the 'ml'-values (input).
       
   CALL bound_level_interp( ivstart, ivend, 2, ke,               &
                            nvars=naux+1, pvar=pvar, depth=dp0, rpdep=hlp, lacc=lzacc)
+  !$acc exit data delete(pvar) async(1)
 
   !Spezifische effektive Dicke der Prandtlschicht:
 
@@ -1513,7 +1519,7 @@ my_thrd_id = omp_get_thread_num()
   !$acc loop seq
   DO k=ke1,1,-1
 !DIR$ IVDEP
-    !$acc loop gang vector private(lay)
+    !$acc loop gang vector
     DO i=ivstart, ivend
       lay(i)=l_scal(i)
       len_scale(i,k)=akt*MAX( len_min, &

@@ -65,8 +65,12 @@ CONTAINS
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-15)
   !!
   !---------------------------------------------------------------------------------------
-  SUBROUTINE nwp_ecrad_prep_aerosol_constant ( ecrad_conf, ecrad_aerosol,                &
-    &                                          od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw, use_acc)
+  SUBROUTINE nwp_ecrad_prep_aerosol_constant ( slev, nlev, i_startidx, i_endidx,         &
+    &                                          ecrad_conf, ecrad_aerosol,                &
+    &                                          od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
+    INTEGER, INTENT(in)      :: &
+      &  slev, nlev,            & !< Start and end index of vertical loop
+      &  i_startidx, i_endidx     !< Start and end index of horizontal loop
     TYPE(t_ecrad_conf),        INTENT(in)    :: &
       &  ecrad_conf                        !< ecRad configuration object
     TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
@@ -74,48 +78,61 @@ CONTAINS
     REAL(wp), INTENT(in), OPTIONAL :: &
       &  od_lw, ssa_lw, g_lw,   & !< Optical depth, single scattering albedo, assymetry factor long wave
       &  od_sw, ssa_sw, g_sw      !< Optical depth, single scattering albedo, assymetry factor short wave
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
-    LOGICAL                  :: lacc
+    INTEGER                  :: &
+      &  jc, jk, jband            !< Loop indices
 
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
-#ifdef _OPENACC
-    IF (lacc) CALL finish('nwp_ecrad_prep_aerosol_constant',' not ported to gpu')
-#endif
+    !$ACC DATA PRESENT( ecrad_conf, ecrad_aerosol, ssa_lw, od_lw, g_lw, ssa_sw, od_sw, g_sw )
 
     IF (ecrad_conf%do_lw) THEN
-      ecrad_aerosol%od_lw(:,:,:)  = 0._wp
-      ecrad_aerosol%ssa_lw(:,:,:) = 0._wp
-      ecrad_aerosol%g_lw(:,:,:)   = 0._wp      
-      IF ( PRESENT(od_lw) ) THEN 
-        ecrad_aerosol%od_lw(:,:,:)  = od_lw
-      ENDIF
-      IF ( PRESENT(ssa_lw) ) THEN 
-        ecrad_aerosol%ssa_lw(:,:,:) = ssa_lw
-      ENDIF
-      IF ( PRESENT(g_lw) ) THEN  
-        ecrad_aerosol%g_lw(:,:,:)   = g_lw
-      ENDIF
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
+      DO jband = 1, ecrad_conf%n_bands_lw
+        DO jk = slev, nlev
+          DO jc = i_startidx, i_endidx
+            ecrad_aerosol%od_lw(jband,jk,jc)  = 0._wp
+            ecrad_aerosol%ssa_lw(jband,jk,jc) = 0._wp
+            ecrad_aerosol%g_lw(jband,jk,jc)   = 0._wp
+            IF ( PRESENT(od_lw) ) THEN
+              ecrad_aerosol%od_lw(jband,jk,jc)  = od_lw
+            ENDIF
+            IF ( PRESENT(ssa_lw) ) THEN
+              ecrad_aerosol%ssa_lw(jband,jk,jc) = ssa_lw
+            ENDIF
+            IF ( PRESENT(g_lw) ) THEN
+              ecrad_aerosol%g_lw(jband,jk,jc)   = g_lw
+            ENDIF
+          ENDDO ! jc
+        ENDDO ! jk
+      ENDDO ! jband
+      !$ACC END PARALLEL
     ENDIF
 
     IF (ecrad_conf%do_sw) THEN
-      ecrad_aerosol%od_sw(:,:,:)  = 0._wp
-      ecrad_aerosol%ssa_sw(:,:,:) = 0._wp
-      ecrad_aerosol%g_sw(:,:,:)   = 0._wp
-      IF ( PRESENT(od_sw) ) THEN 
-        ecrad_aerosol%od_sw(:,:,:)  = od_sw
-      ENDIF
-      IF ( PRESENT(ssa_sw) ) THEN 
-        ecrad_aerosol%ssa_sw(:,:,:) = ssa_sw
-      ENDIF
-      IF ( PRESENT(g_sw) ) THEN  
-        ecrad_aerosol%g_sw(:,:,:)   = g_sw
-      ENDIF
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
+      DO jband = 1, ecrad_conf%n_bands_sw
+        DO jk = slev, nlev
+          DO jc = i_startidx, i_endidx
+            ecrad_aerosol%od_sw(jband,jk,jc)  = 0._wp
+            ecrad_aerosol%ssa_sw(jband,jk,jc) = 0._wp
+            ecrad_aerosol%g_sw(jband,jk,jc)   = 0._wp
+            IF ( PRESENT(od_sw) ) THEN
+              ecrad_aerosol%od_sw(jband,jk,jc)  = od_sw
+            ENDIF
+            IF ( PRESENT(ssa_sw) ) THEN
+              ecrad_aerosol%ssa_sw(jband,jk,jc) = ssa_sw
+            ENDIF
+            IF ( PRESENT(g_sw) ) THEN
+              ecrad_aerosol%g_sw(jband,jk,jc)   = g_sw
+            ENDIF
+          ENDDO ! jc
+        ENDDO ! jk
+      ENDDO ! jband
+      !$ACC END PARALLEL
     ENDIF
+
+    !$ACC END DATA
 
   END SUBROUTINE nwp_ecrad_prep_aerosol_constant
   !---------------------------------------------------------------------------------------
@@ -135,7 +152,7 @@ CONTAINS
   !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_ecrad_prep_aerosol_tegen ( slev, nlev, i_startidx, i_endidx,       &
     &                                       zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,      &
-    &                                       ecrad_conf, ecrad_aerosol, use_acc )
+    &                                       ecrad_conf, ecrad_aerosol )
     INTEGER, INTENT(in)      :: &
       &  slev, nlev,            & !< Start and end index of vertical loop
       &  i_startidx, i_endidx     !< Start and end index of horizontal loop
@@ -149,7 +166,6 @@ CONTAINS
       &  ecrad_conf               !< ecRad configuration object
     TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
       &  ecrad_aerosol            !< ecRad aerosol information (input)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 ! Local variables
     REAL(wp)                 :: &
       &  tau_abs, tau_sca         !< Absorption and scattering optical depth
@@ -162,24 +178,17 @@ CONTAINS
     INTEGER                  :: &
       &  jc, jk, jband,         & !< Loop indices
       &  jband_shift              !< Band index in container (for shortwave: shifted by n_bands_lw)
-    LOGICAL                  :: lacc
-
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
 
     scal_abs => tegen_scal_factors%absorption
     scal_sct => tegen_scal_factors%scattering
     scal_asy => tegen_scal_factors%asymmetry
 
-    !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, scal_abs, scal_sct, scal_asy) IF(lacc)
+    !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, scal_abs, scal_sct, scal_asy)
 
 ! LONGWAVE
     IF (ecrad_conf%do_lw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(3) 
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jk = slev, nlev
 !NEC$ nointerchange
 !NEC$ nounroll
@@ -202,7 +211,7 @@ CONTAINS
 
 ! SHORTWAVE
     IF (ecrad_conf%do_sw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3) PRIVATE(jband_shift, tau_abs, tau_sca)
       DO jk = slev, nlev
 !NEC$ nointerchange

@@ -62,8 +62,7 @@ MODULE mo_pp_tasks
   USE mo_nonhydro_types,          ONLY: t_nh_state, t_nh_prog, t_nh_diag,   &
     &                                   t_nh_metrics
   USE mo_opt_diagnostics,         ONLY: t_nh_diag_pz, t_nh_opt_diag, t_vcoeff, &
-    &                                   vcoeff_allocate, vcoeff_deallocate,    &
-    &                                   t_vcoeff_lin, t_vcoeff_cub
+    &                                   vcoeff_deallocate, t_vcoeff_lin, t_vcoeff_cub
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag
   USE mo_nh_pzlev_config,         ONLY: t_nh_pzlev_config
   USE mo_parallel_config,         ONLY: nproma
@@ -97,7 +96,7 @@ MODULE mo_pp_tasks
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
   USE mo_run_config,              ONLY: timers_level, msg_level
-  USE mo_fortran_tools,           ONLY: copy
+  USE mo_fortran_tools,           ONLY: init, copy
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
   USE openacc,                    ONLY: acc_is_present
@@ -468,13 +467,13 @@ CONTAINS
 
           SELECT CASE(var_ref_pos)
           CASE (1)
-            CALL copy(in_var%i_ptr(in_var_idx:in_var_idx,:,:,1,1), tmp_int_var)
+            CALL copy(in_var%i_ptr(in_var_idx,:,:,1,1), tmp_int_var(:,1,:))
             tmp_int_ptr => tmp_int_var
           CASE (2)
             ! no need to copy in this particular case (the second dim has already length 1)
             tmp_int_ptr => in_var%i_ptr(:,in_var_idx:in_var_idx,:,1,1)
           CASE (3)
-            CALL copy(in_var%i_ptr(:,:,in_var_idx:in_var_idx,1,1), tmp_int_var)
+            CALL copy(in_var%i_ptr(:,:,in_var_idx,1,1), tmp_int_var(:,1,:))
             tmp_int_ptr => tmp_int_var
           CASE default
             CALL finish(routine, "internal error!")
@@ -1152,7 +1151,6 @@ CONTAINS
 
     INTEGER                            :: nblks_c, npromz_c, nblks_e, jg,          &
       &                                   out_var_idx, nlev, i_endblk
-    TYPE(t_vcoeff)                     :: vcoeff
     TYPE (t_var), POINTER :: in_var, out_var
     TYPE(t_var_metadata),      POINTER :: p_info
     TYPE(t_patch),             POINTER :: p_patch
@@ -1161,6 +1159,11 @@ CONTAINS
 
     REAL(wp) :: pmsl_aux(nproma,1,ptr_task%data_input%p_patch%nblks_c), &
                 pmsl_avg(nproma,1,ptr_task%data_input%p_patch%nblks_c)
+
+    INTEGER,  DIMENSION(nproma, ptr_task%data_input%p_patch%nblks_c) :: &
+      &  kpbl1, kpbl2
+    REAL(wp), DIMENSION(nproma, ptr_task%data_input%p_patch%nblks_c) :: &
+      &  zextrap, wfacpbl1, wfacpbl2
 
     REAL(wp), POINTER :: r_ptr(:,:,:,:,:)
 
@@ -1195,25 +1198,25 @@ CONTAINS
         CALL finish (routine, 'PRES_MSL_METHOD_SAI: OpenACC version is currently not fully implemented!')
 #endif
       IF (dbg_level >= 10)  CALL message(routine, "PRES_MSL_METHOD_SAI: stepwise analytical integration")
-      ! allocate coefficient table:
-      CALL vcoeff_allocate(nblks_c, nblks_e, NZLEV, vcoeff)
+      
+      !$ACC DATA CREATE( kpbl1, wfacpbl1, kpbl2, wfacpbl2 ) IF (i_am_accel_node)
+      CALL init(kpbl1, opt_acc_async=.TRUE.)
+      CALL init(wfacpbl1, opt_acc_async=.TRUE.)
+      CALL init(kpbl2, opt_acc_async=.TRUE.)
+      CALL init(wfacpbl2, opt_acc_async=.TRUE.)
 
       ! compute extrapolation coefficients:
       CALL prepare_extrap(p_metrics%z_mc,                                     & !in
         &                 nblks_c, npromz_c, nlev,                            & !in
-        &                 vcoeff%lin_cell%kpbl1, vcoeff%lin_cell%wfacpbl1,    & !out
-        &                 vcoeff%lin_cell%kpbl2, vcoeff%lin_cell%wfacpbl2   )   !out
+        &                 kpbl1, wfacpbl1, kpbl2, wfacpbl2)                     !out
 
       ! Interpolate pressure on z-level "0": 
       CALL diagnose_pmsl(p_diag%pres, p_diag%tempv, p_metrics%z_mc,           &
         &                pmsl_aux(:,1,:),                                     &
-        &                nblks_c, npromz_c, p_patch%nlev,                       &
-        &                vcoeff%lin_cell%wfacpbl1, vcoeff%lin_cell%kpbl1,     &
-        &                vcoeff%lin_cell%wfacpbl2, vcoeff%lin_cell%kpbl2,     &
+        &                nblks_c, npromz_c, p_patch%nlev,                     &
+        &                wfacpbl1, kpbl1, wfacpbl2, kpbl2,                    &
         &                ZERO_HEIGHT, EXTRAPOL_DIST)
-
-      ! deallocate coefficient tables:
-      CALL vcoeff_deallocate(vcoeff)
+      !$ACC END DATA
 
     CASE (PRES_MSL_METHOD_GME) ! GME-type extrapolation
 
@@ -1239,22 +1242,21 @@ CONTAINS
           CALL message(routine, "PRES_MSL_METHOD_IFS")
         ENDIF
       ENDIF
-      CALL vcoeff_allocate(nblks_c, nblks_e, NZLEV, vcoeff)
-
+      !$ACC DATA CREATE( kpbl1, wfacpbl1, zextrap ) IF (i_am_accel_node)
+      CALL init(kpbl1, opt_acc_async=.TRUE.)
+      CALL init(wfacpbl1, opt_acc_async=.TRUE.)
+      CALL init(zextrap, opt_acc_async=.TRUE.)
       ! compute extrapolation coefficients:
       CALL prepare_extrap_ifspp(p_metrics%z_ifc, p_metrics%z_mc,              & !in
         &                 nblks_c, npromz_c, nlev,                            & !in
-        &                 vcoeff%lin_cell%kpbl1, vcoeff%lin_cell%zextrap,     & !out
-        &                 vcoeff%lin_cell%wfacpbl1)                             !out
+        &                 kpbl1, zextrap, wfacpbl1)                             !out
 
       ! Interpolate pressure on z-level "0":
       CALL diagnose_pmsl_ifs(p_diag%pres_sfc, p_diag%temp, p_metrics%z_ifc,   & ! in
         &                    pmsl_aux(:,1,:),                                 & ! out
         &                    nblks_c, npromz_c, p_patch%nlev,                 & ! in
-        &                    vcoeff%lin_cell%wfacpbl1, vcoeff%lin_cell%kpbl1, & ! in
-        &                    vcoeff%lin_cell%zextrap, itype_pres_msl          ) ! in
-
-      CALL vcoeff_deallocate(vcoeff)
+        &                    wfacpbl1, kpbl1, zextrap, itype_pres_msl         ) ! in
+      !$ACC END DATA
 
     CASE DEFAULT
       CALL finish(routine, 'Internal error!')

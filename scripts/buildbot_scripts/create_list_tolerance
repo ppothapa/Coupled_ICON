@@ -8,4 +8,7 @@ listname=tolerance
 
 ./list_part_tolerance $listname
 
+# Tolerance references are only needed on CPU - turn off GPU builder
+./set_builder_flags Inactive --builders 'DAINT_GPU_nvidia' --list $listname
+
 ./lslist $listname

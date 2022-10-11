@@ -81,7 +81,7 @@ MODULE mo_cumaster
     & rmflic  ,rmflia  ,rmflmax, rmfsoluv, rmfdef               ,&
     & ruvper    ,rmfsoltq,rmfsolct,rmfcmin  ,lmfsmooth,lmfwstar ,&
     & lmftrac   ,   LMFUVDIS                                    ,&
-    & rg       ,rd, rv      ,rcpd  ,retv , rlvtt                ,&
+    & rg       ,rd, rv      ,rcpd  ,retv , rlvtt, rlstt, rvtmp2 ,&
     & lhook,   dr_hook, icapdcycl
 
   USE mo_adjust,      ONLY: satur
@@ -116,7 +116,8 @@ SUBROUTINE cumastrn &
  & ldland, ldlake, ptsphy, phy_params, k950,     &
  & trop_mask, mtnmask,  paer_ss,                 &
  & pten,     pqen,     puen,     pven, plitot,   &
- & pvervel,  shfl_s, qhfl_s, pqhfl,    pahfs,    &
+ & pvervel,                                      &
+ & plen, pien, shfl_s, qhfl_s, pqhfl,    pahfs,  &
  & pap,      paph,     pgeo,     pgeoh,          &
  & zdph,               zdgeoh,   pcloudnum,      &
  & ptent,    ptenu,    ptenv,    ptenta, ptenqa, &
@@ -132,7 +133,7 @@ SUBROUTINE cumastrn &
  & pcen, ptenrhoc,                               &
  & l_lpi, l_lfd, lpi, mlpi, koi, lfd,            &
 ! stochastic, extra diagnostics and logical switches
- & lspinup, k650, temp_s,                        &
+ & lspinup, k650,k700, temp_s,                        &
  & cell_area,iseed,                              &
  & mf_bulk,mf_perturb,mf_num,p_cloud_ensemble,   &
  & pclnum_a, pclmf_a, pclnum_p, pclmf_p,         &                  
@@ -376,7 +377,9 @@ REAL(KIND=jprb)   ,INTENT(inout) :: pqen(klon,klev)
 REAL(KIND=jprb)   ,INTENT(in)    :: puen(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(in)    :: pven(klon,klev) 
 REAL(KIND=jprb)   ,INTENT(in)    :: plitot(klon,klev) 
-REAL(KIND=jprb)   ,INTENT(in)    :: pvervel(klon,klev) 
+REAL(KIND=jprb)   ,INTENT(in)    :: pvervel(klon,klev)
+REAL(KIND=jprb)   ,INTENT(in)    :: plen(klon,klev) 
+REAL(KIND=jprb)   ,INTENT(in)    :: pien(klon,klev) 
 !REAL(KIND=JPRB)   ,INTENT(INOUT) :: PQSEN(KLON,KLEV) 
 REAL(KIND=jprb)   ,INTENT(in)    :: pqhfl(klon,klev+1) 
 REAL(KIND=jprb)   ,INTENT(in)    :: pahfs(klon,klev+1) 
@@ -434,6 +437,7 @@ LOGICAL           ,INTENT(in)    :: lspinup
 ! Variables needed to run stochastic convection
 REAL(KIND=jprb)   ,INTENT(in)    :: temp_s(klon)
 INTEGER(KIND=jpim),INTENT(in)    :: k650(klon)
+INTEGER(KIND=jpim),INTENT(in)    :: k700(klon)
 REAL(KIND=jprb)   ,INTENT(in)    :: cell_area(klon)
 INTEGER(KIND=JPIM),INTENT(in)    :: iseed(klon)
 
@@ -447,9 +451,6 @@ REAL(KIND=jprb)   ,INTENT(inout)   :: pclnum_p(:)     ! prognostic passive cloud
 REAL(KIND=jprb)   ,INTENT(inout)   :: pclmf_p(:)      ! prognostic passive mass flux
 REAL(KIND=jprb)   ,INTENT(inout)   :: pclnum_d(:)     ! prognostic deep cloud number
 REAL(KIND=jprb)   ,INTENT(inout)   :: pclmf_d(:)      ! prognostic deep mass flux
-
-
-!REAL(KIND=jprb)   ,INTENT(INOUT), DIMENSION(:,:,:) :: extra_3d(:,:,:)
 
 LOGICAL           ,OPTIONAL, INTENT(in)      :: l_lpi
 LOGICAL           ,OPTIONAL, INTENT(in)      :: l_lfd
@@ -544,6 +545,8 @@ LOGICAL, PARAMETER :: lpassive = .FALSE. !run stoch schemes in piggy-backing mod
 
 INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 
+REAL(KIND=jprb) :: msee(klon,klev), eis(klon)
+
 !#include "cuascn.intfb.h"
 !#include "cubasen.intfb.h"
 !#include "cuddrafn.intfb.h"
@@ -563,7 +566,7 @@ INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 !$acc present( ptenrhos, ptenu, ptenv, ldcum, ktype, kcbot, kctop, ldshcv, ptu, pqu )  &
 !$acc present( plu, pmflxr, pmflxs, pdtke_con, prain, pmfu, pmfd, pmfude_rate )        &
 !$acc present( pmfdde_rate, pcape, pvddraf, phy_params, zdph, shfl_s, qhfl_s, pcore )  &
-!$acc present( ptenta, ptenqa)                                                         &
+!$acc present( ptenta, ptenqa, k700, plen, pien)                                       &
 
 !$acc create( pwmean, plude, penth, pqsen, psnde, ztenq_sv, ztenh, zqenh, zqsenh )     &
 !$acc create( ztd, zqd, zmfus, zmfds, zmfuq, zmfdq, zdmfup, zdmfdp, zmful, zrfl )      &
@@ -572,7 +575,7 @@ INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 !$acc create( ilab, idtop, ictop0, ilwmin, idpl, zcape, zheat, zcappbl, zcapdcycl )    &
 !$acc create( llddraf, llddraf3, lldcum, llo2, zsfl, ztau, ztaupbl, zmfs, zmfuus )     &
 !$acc create( zmfdus, zmfudr, zmfddr, ZTENU, ZTENV, zmfuub, zmfuvb, ZUV2, ZSUM12 )     &
-!$acc create( ZSUM22, zmf_shal, pvervel650, deprof, zdhout, zsatfr, zcape2 )           &
+!$acc create( ZSUM22, zmf_shal, pvervel650, deprof, zdhout, zsatfr, zcape2,msee,eis )  &
 !$acc if(lacc)
     
 !$acc data                                                                             &
@@ -791,7 +794,17 @@ DO jk=MAX(ktdia,phy_params%kcon2),klev
       zdhpbl(jl)=zdhpbl(jl)+(rlvtt*ptenq(jl,jk)+rcpd*ptent(jl,jk))*zdz
       zcappbl(jl)=zcappbl(jl)+(ptent(jl,jk)+retv*pten(jl,jk)*ptenq(jl,jk))*zdz
     ENDIF
+! calculate EIS diagnostic
+    msee(JL,JK) = pgeo(JL,JK)+pten(JL,JK)*rcpd*(1.0_JPRB+rvtmp2*pqen(JL,JK)) - rlvtt * plen(JL,JK) - rlstt * pien(JL,JK)+ &
+         &        rcpd*pten(JL,JK)*5.87_JPRB*(pqen(JL,JK)+plitot(JL,JK))
+!     S=cpd*(1+5.87*q_tot)*T-Lv*ql-Lx*qi+gz
   ENDDO
+ENDDO
+
+!$acc loop gang(static:1) vector
+DO jl=kidia,kfdia
+   eis(JL)=MAX(msee(JL,k700(jl))-msee(JL,k950(jl)),msee(JL,k950(jl))-msee(JL,KLEV))/rcpd
+   !MAX(S700-S950; S(950)-S(surf))
 ENDDO
 
 !*                 ESTIMATE CLOUD HEIGHT FOR ENTRAINMENT/DETRAINMENT
@@ -1674,10 +1687,17 @@ DO jl=kidia,kfdia
   ENDIF
 ENDDO
 
+!USE EIS to switch off convection in stable conditions
+!$acc loop gang(static:1) vector
+DO JL=KIDIA,KFDIA
+   IF (eis(JL)>phy_params%eiscrit .AND. ktype(jl)==2) THEN
+      llo2(jl)=.TRUE.
+      ldcum(jl)=.FALSE.
+   ENDIF
+ENDDO
 !                  turn off shallow convection if stratocumulus PBL type
 !$acc loop gang(static:1) vector
 DO JL=KIDIA,KFDIA
-  LLO2(JL)=.FALSE.
 !xmk IF((.NOT.LDSHCV(JL) .AND. KTYPE(JL)==2)) THEN
 !RN added condition: maintain shallow cumulus starting above lowest level (KLEV)
   IF((.NOT.LDSHCV(JL) .AND. KTYPE(JL)==2 .AND. IDPL(JL)==KLEV)) THEN
@@ -1691,7 +1711,6 @@ ENDDO
 IF (.NOT.phy_params%lmfscv .OR. .NOT.phy_params%lmfpen) THEN
   !$acc loop gang(static:1) vector
   DO jl=kidia,kfdia
-    llo2(jl)=.FALSE.
     IF((.NOT.phy_params%lmfscv .AND. ktype(jl)==2).OR.(.NOT.phy_params%lmfpen .AND. ktype(jl)==1))THEN
       llo2(jl)=.TRUE.
       ldcum(jl)=.FALSE.

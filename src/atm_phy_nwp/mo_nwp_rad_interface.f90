@@ -35,7 +35,7 @@ MODULE mo_nwp_rad_interface
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,      &
     &                                irad_co2, irad_n2o, irad_ch4,   &
     &                                irad_cfc11, irad_cfc12,         &
-    &                                irad_aero, tsi_radt, ssi_radt, isolrad
+    &                                irad_aero, tsi_radt, ssi_radt, isolrad, cosmu0_dark
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -131,8 +131,8 @@ MODULE mo_nwp_rad_interface
       & ssa_sw(:,:,:,:)     !< SW aerosol single scattering albedo
 
     CHARACTER(len=max_timedelta_str_len) :: dstring
-    INTEGER :: jg, irad
-    INTEGER :: jb, jc, jk              !< loop indices
+    INTEGER :: jg
+    INTEGER :: jb, jk                  !< loop indices
     INTEGER :: rl_start, rl_end
     INTEGER :: i_startblk, i_endblk    !> blocks
     INTEGER :: i_startidx, i_endidx    !< slices
@@ -141,10 +141,10 @@ MODULE mo_nwp_rad_interface
     LOGICAL :: lzacc
 
     REAL(wp):: zsct                    ! solar constant (at time of year)
-    REAL(wp):: cosmu0_dark             ! minimum cosmu0, for smaller values no shortwave calculations
     REAL(wp):: x_cdnc(nproma)          ! Scale factor for Cloud Droplet Number Concentration
     REAL(wp):: dsec                    ! [s] time increment of radiative transfer wrt. datetime
 
+    !-------------------------------------------------
 
     ! patch ID
     jg = pt_patch%id
@@ -249,17 +249,6 @@ MODULE mo_nwp_rad_interface
       CALL bc_greenhouse_gases_time_interpolation(mtime_datetime)
     END IF
 
-    SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation )
-    CASE (1)
-      ! RRTM
-      ! In radiative transfer routine RRTM skips all points with cosmu0<=0. That's why 
-      ! points to be skipped need to be marked with a value <=0
-      cosmu0_dark = -1.e-9_wp  ! minimum cosmu0, for smaller values no shortwave calculations
-    CASE (4)
-      ! ecRad
-      ! ecRad skips cosmu0<=0 as well.
-      cosmu0_dark = -1.e-9_wp
-    END SELECT
 
 #ifdef __ECRAD
     IF (isolrad == 2 .AND. atm_phy_nwp_config(jg)%inwp_radiation == 4) THEN

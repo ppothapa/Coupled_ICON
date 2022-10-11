@@ -26,12 +26,12 @@ MODULE mo_nwp_rrtm_interface
   USE mo_exception,            ONLY: finish
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero, icpl_aero_conv
   USE mo_nwp_tuning_config,    ONLY: tune_dust_abs
-  USE mo_grid_config,          ONLY: l_limited_area
+  USE mo_grid_config,          ONLY: l_limited_area, nexlevs_rrg_vnest
   USE mo_exception,            ONLY: message, message_text
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_parallel_config,      ONLY: nproma, p_test_run
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi
-  USE mo_impl_constants,       ONLY: min_rlcell_int, nexlevs_rrg_vnest, &
+  USE mo_impl_constants,       ONLY: min_rlcell_int, &
                                      iss, iorg, ibc, iso4, idu
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
   USE mo_physical_constants,   ONLY: rd, grav, cpd
@@ -112,12 +112,12 @@ CONTAINS
       & zvdael(nproma,pt_patch%nlevp1), &
       & zvdaeu(nproma,pt_patch%nlevp1), &
       & zvdaed(nproma,pt_patch%nlevp1), &
-      & zaetr_top(nproma,pt_patch%nblks_c), zaetr_bot, zaetr,       &
-      & zaeqdo   (nproma,pt_patch%nblks_c), zaeqdn,                 &
-      & zaequo   (nproma,pt_patch%nblks_c), zaequn,                 &
-      & zaeqlo   (nproma,pt_patch%nblks_c), zaeqln,                 &
-      & zaeqsuo  (nproma,pt_patch%nblks_c), zaeqsun,                &
-      & zaeqso   (nproma,pt_patch%nblks_c), zaeqsn, zw, &
+      & zaetr_top(nproma), zaetr_bot, zaetr,       &
+      & zaeqdo   (nproma), zaeqdn,                 &
+      & zaequo   (nproma), zaequn,                 &
+      & zaeqlo   (nproma), zaeqln,                 &
+      & zaeqsuo  (nproma), zaeqsun,                &
+      & zaeqso   (nproma), zaeqsn, zw, &
       & zptrop(nproma), zdtdz(nproma), zlatfac(nproma), zstrfac, zpblfac, zslatq
 
     ! Local scalars:
@@ -128,7 +128,6 @@ CONTAINS
     INTEGER:: rl_start, rl_end
     INTEGER:: i_startblk, i_endblk    !> blocks
     INTEGER:: i_startidx, i_endidx    !< slices
-    INTEGER:: i_nchdom                !< domain index
 
     INTEGER:: imo1,imo2 !for Tegen aerosol time interpolation
 
@@ -141,7 +140,6 @@ CONTAINS
     LOGICAL :: lacc
 
 
-    i_nchdom  = MAX(1,pt_patch%n_childdom)
     jg        = pt_patch%id
 
     ! number of vertical levels
@@ -181,12 +179,14 @@ CONTAINS
     rl_start = 1
     rl_end   = min_rlcell_int
 
-    i_startblk = pt_patch%cells%start_blk(rl_start,1)
-    i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = pt_patch%cells%start_block(rl_start)
+    i_endblk   = pt_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jk,i_endidx,zsign,zvdaes, zvdael, zvdaeu, zvdaed, zaeqsn, zaeqln, zaeqsun, &
-!$OMP zaequn,zaeqdn,zaetr_bot,zaetr,wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jk,i_endidx,zsign,zvdaes, zvdael, zvdaeu, zvdaed, &
+!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zaetr_bot,     &
+!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, zaetr_top,     & 
+!$OMP            zaetr,wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -222,11 +222,11 @@ CONTAINS
         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1,i_endidx
-          zaeqso   (jc,jb) = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,1)
-          zaeqlo   (jc,jb) = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,1)
-          zaequo   (jc,jb) = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,1)
-          zaeqdo   (jc,jb) = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,1)
-          zaetr_top(jc,jb) = 1.0_wp
+          zaeqso   (jc) = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,1)
+          zaeqlo   (jc) = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,1)
+          zaequo   (jc) = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,1)
+          zaeqdo   (jc) = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,1)
+          zaetr_top(jc) = 1.0_wp
         ENDDO
         !$ACC END PARALLEL
 
@@ -240,22 +240,22 @@ CONTAINS
             zaeqln         = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,jk+1)
             zaequn         = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,jk+1)
             zaeqdn         = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,jk+1)
-            zaetr_bot      = zaetr_top(jc,jb) &
+            zaetr_bot      = zaetr_top(jc) &
               & * ( MIN (1.0_wp, pt_diag%temp_ifc(jc,jk,jb)/pt_diag%temp_ifc(jc,jk+1,jb)) )**ztrpt
 
-            zaetr          = SQRT(zaetr_bot*zaetr_top(jc,jb))
+            zaetr          = SQRT(zaetr_bot*zaetr_top(jc))
             zaeq1(jc,jk,jb)= (1._wp-zaetr) &
-              & * (ztrbga* pt_diag%dpres_mc(jc,jk,jb)+zaeqln-zaeqlo(jc,jb)+zaeqdn-zaeqdo(jc,jb))
-            zaeq2(jc,jk,jb)   = (1._wp-zaetr) * ( zaeqsn-zaeqso(jc,jb) )
-            zaeq3(jc,jk,jb)   = (1._wp-zaetr) * ( zaequn-zaequo(jc,jb) )
+              & * (ztrbga* pt_diag%dpres_mc(jc,jk,jb)+zaeqln-zaeqlo(jc)+zaeqdn-zaeqdo(jc))
+            zaeq2(jc,jk,jb)   = (1._wp-zaetr) * ( zaeqsn-zaeqso(jc) )
+            zaeq3(jc,jk,jb)   = (1._wp-zaetr) * ( zaequn-zaequo(jc) )
             zaeq4(jc,jk,jb)   =     zaetr  *   zvobga*pt_diag%dpres_mc(jc,jk,jb)
             zaeq5(jc,jk,jb)   =     zaetr  *   zstbga*pt_diag%dpres_mc(jc,jk,jb)
 
-            zaetr_top(jc,jb) = zaetr_bot
-            zaeqso(jc,jb)    = zaeqsn
-            zaeqlo(jc,jb)    = zaeqln
-            zaequo(jc,jb)    = zaequn
-            zaeqdo(jc,jb)    = zaeqdn
+            zaetr_top(jc) = zaetr_bot
+            zaeqso(jc)    = zaeqsn
+            zaeqlo(jc)    = zaeqln
+            zaequo(jc)    = zaequn
+            zaeqdo(jc)    = zaeqdn
           ENDDO
         ENDDO
         !$ACC END PARALLEL
@@ -344,11 +344,11 @@ CONTAINS
         !$ACC LOOP GANG VECTOR PRIVATE( jk, zslatq )
         DO jc = 1,i_endidx
           ! top level
-          zaeqso(jc,jb) = zvdaes(jc,1) * prm_diag%aerosol(jc,iss,jb)
-          zaeqlo(jc,jb) = zvdael(jc,1) * prm_diag%aerosol(jc,iorg,jb)
-          zaeqsuo(jc,jb) = zvdael(jc,1)* prm_diag%aerosol(jc,iso4,jb)
-          zaequo(jc,jb) = zvdaeu(jc,1) * prm_diag%aerosol(jc,ibc,jb) 
-          zaeqdo(jc,jb) = zvdaed(jc,1) * prm_diag%aerosol(jc,idu,jb)
+          zaeqso(jc) = zvdaes(jc,1) * prm_diag%aerosol(jc,iss,jb)
+          zaeqlo(jc) = zvdael(jc,1) * prm_diag%aerosol(jc,iorg,jb)
+          zaeqsuo(jc) = zvdael(jc,1)* prm_diag%aerosol(jc,iso4,jb)
+          zaequo(jc) = zvdaeu(jc,1) * prm_diag%aerosol(jc,ibc,jb) 
+          zaeqdo(jc) = zvdaed(jc,1) * prm_diag%aerosol(jc,idu,jb)
 
           ! tropopause pressure and PBL stability
           jk          = prm_diag%k850(jc,jb)
@@ -379,18 +379,18 @@ CONTAINS
             ! PBL stability factor; enhance organic, sulfate and black carbon aerosol for stable stratification
             zpblfac = 1._wp + MIN(1.5_wp,1.e2_wp*MAX(0._wp, zdtdz(jc) + grav/cpd))
 
-            zaeq1(jc,jk,jb) = (1._wp-zstrfac)*MAX(zpblfac*(zaeqln-zaeqlo(jc,jb)), &
+            zaeq1(jc,jk,jb) = (1._wp-zstrfac)*MAX(zpblfac*(zaeqln-zaeqlo(jc)), &
                               ztrbga*zlatfac(jc)*pt_diag%dpres_mc(jc,jk,jb))
-            zaeq2(jc,jk,jb) = (1._wp-zstrfac)*(zaeqsn-zaeqso(jc,jb))
-            zaeq3(jc,jk,jb) = (1._wp-zstrfac)*(zaeqdn-zaeqdo(jc,jb))
-            zaeq4(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaequn-zaequo(jc,jb))
-            zaeq5(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaeqsun-zaeqsuo(jc,jb)) + zstrfac*zstbga*pt_diag%dpres_mc(jc,jk,jb)
+            zaeq2(jc,jk,jb) = (1._wp-zstrfac)*(zaeqsn-zaeqso(jc))
+            zaeq3(jc,jk,jb) = (1._wp-zstrfac)*(zaeqdn-zaeqdo(jc))
+            zaeq4(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaequn-zaequo(jc))
+            zaeq5(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaeqsun-zaeqsuo(jc)) + zstrfac*zstbga*pt_diag%dpres_mc(jc,jk,jb)
 
-            zaeqso(jc,jb)    = zaeqsn
-            zaeqlo(jc,jb)    = zaeqln
-            zaeqsuo(jc,jb)   = zaeqsun
-            zaequo(jc,jb)    = zaequn
-            zaeqdo(jc,jb)    = zaeqdn
+            zaeqso(jc)  = zaeqsn
+            zaeqlo(jc)  = zaeqln
+            zaeqsuo(jc) = zaeqsun
+            zaequo(jc)  = zaequn
+            zaeqdo(jc)  = zaeqdn
 
           ENDDO
         ENDDO
@@ -561,8 +561,8 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN ! Internal parameterization of reff
         ptr_acdnc  =>  prm_diag%acdnc(:,:,jb)
-        ptr_fr_land=>  ext_data%atm%fr_land_smt(:,jb)  !< in     land fraction
-        ptr_fr_glac=>  ext_data%atm%fr_glac_smt(:,jb)   !< in     land glacier fraction
+        ptr_fr_land=>  ext_data%atm%fr_land(:,jb)  !< in     land fraction
+        ptr_fr_glac=>  ext_data%atm%fr_glac(:,jb)   !< in     land glacier fraction
       ELSE
         ptr_reff_qc => prm_diag%reff_qc(:,:,jb)
         ptr_reff_qi => prm_diag%reff_qi(:,:,jb)
@@ -918,8 +918,8 @@ CONTAINS
              zrg_reff_frz (nproma,nlev_rg,nblks_par_c))
       ELSE
         CALL input_extra_flds%assign(prm_diag%acdnc(:,:,:), irg_acdnc)
-        CALL input_extra_2D%assign(ext_data%atm%fr_land_smt , irg_fr_land)
-        CALL input_extra_2D%assign(ext_data%atm%fr_glac_smt , irg_fr_glac)
+        CALL input_extra_2D%assign(ext_data%atm%fr_land , irg_fr_land)
+        CALL input_extra_2D%assign(ext_data%atm%fr_glac , irg_fr_glac)
       ENDIF
 
       ! Allocate output extra arrays

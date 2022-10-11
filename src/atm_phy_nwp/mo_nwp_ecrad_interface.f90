@@ -42,12 +42,12 @@ MODULE mo_nwp_ecrad_interface
   USE mo_exception,              ONLY: finish, message
   USE mo_math_constants,         ONLY: pi
   USE mo_model_domain,           ONLY: t_patch, p_patch_local_parent
-  USE mo_impl_constants,         ONLY: min_rlcell_int, nexlevs_rrg_vnest
+  USE mo_impl_constants,         ONLY: min_rlcell_int
   USE mo_impl_constants_grf,     ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
   USE mo_fortran_tools,          ONLY: init
   USE mo_parallel_config,        ONLY: nproma
   USE mo_loopindices,            ONLY: get_indices_c
-  USE mo_grid_config,            ONLY: l_limited_area
+  USE mo_grid_config,            ONLY: l_limited_area, nexlevs_rrg_vnest
   USE mo_ext_data_types,         ONLY: t_external_data
   USE mo_nwp_lnd_types,          ONLY: t_lnd_prog
   USE mo_nonhydro_types,         ONLY: t_nh_prog, t_nh_diag
@@ -198,8 +198,12 @@ CONTAINS
       lzacc = .FALSE.
     ENDIF
 
+#ifdef _OPENACC
+    IF( lzacc==.FALSE. ) CALL finish(routine, 'lacc==.FALSE. not valid for OpenACC ecrad')
+#endif
+
     !$ACC DATA CREATE( ecrad_aerosol, ecrad_cloud, ecrad_flux, ecrad_gas, ecrad_single_level, ecrad_thermodynamics ) &
-    !$ACC PRESENT( lnd_prog, prm_diag ) IF(lzacc)
+    !$ACC PRESENT( lnd_prog, prm_diag )
 
     call get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
 
@@ -231,35 +235,34 @@ CONTAINS
     ALLOCATE( zswflx_up_clr(nproma_rad,nlevp1), zswflx_dn_clr(nproma_rad,nlevp1) )
     ALLOCATE( opt_ptrs_lw(ecrad_conf%n_bands_lw), opt_ptrs_sw(ecrad_conf%n_bands_sw) )
     !$ACC ENTER DATA CREATE( cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr ) &
-    !$ACC CREATE( zswflx_up_clr, zswflx_dn_clr ) ASYNC(1) IF(lzacc)
+    !$ACC CREATE( zswflx_up_clr, zswflx_dn_clr ) ASYNC(1)
 
-    CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true., use_acc=lzacc) !< use_sw_albedo_direct, 2 bands
+    CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
-    !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1) IF(lzacc)
+    !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
       ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
-      !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lzacc)
+      !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1)
     ENDIF
 
-    CALL ecrad_thermodynamics%allocate(nproma_rad, nlev, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true., &
-      &                                use_acc=lzacc)
+    CALL ecrad_thermodynamics%allocate(nproma_rad, nlev, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true.)
 
-    CALL ecrad_gas%allocate(nproma_rad, nlev, use_acc=lzacc)
+    CALL ecrad_gas%allocate(nproma_rad, nlev)
 
-    CALL ecrad_cloud%allocate(nproma_rad, nlev, use_acc=lzacc)
+    CALL ecrad_cloud%allocate(nproma_rad, nlev)
     ! Currently hardcoded values for FSD
     !$ACC WAIT
-    CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev, 1._wp, use_acc=lzacc)
+    CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev, 1._wp)
 
     IF ( ecrad_conf%use_aerosols ) THEN
       ! Allocate aerosol container
-      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev, use_acc=lzacc)
+      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev)
     ENDIF
 
-    CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev, use_acc=lzacc)
+    CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev)
 
 #ifndef __ECRAD_ACC
     ! The current master of libecrad submodule doesnot support OpenACC.
@@ -276,7 +279,7 @@ CONTAINS
     !   - ecrad_aerosol%allocate_direct
     !   - ecrad_flux%allocate
     call ecrad_acc_allocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                       ecrad_aerosol, ecrad_flux, lzacc)
+      &                       ecrad_aerosol, ecrad_flux)
 #endif
 
 !$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                   &
@@ -305,8 +308,8 @@ CONTAINS
 
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN  ! Own calculation of reff inside ecrad_set_clouds()
           ptr_acdnc   => prm_diag%acdnc(jcs:jce,:,jb)
-          ptr_fr_land => ext_data%atm%fr_land_smt(jcs:jce,jb)
-          ptr_fr_glac => ext_data%atm%fr_glac_smt(jcs:jce,jb)
+          ptr_fr_land => ext_data%atm%fr_land(jcs:jce,jb)
+          ptr_fr_glac => ext_data%atm%fr_glac(jcs:jce,jb)
         ELSE
           ptr_reff_qc => prm_diag%reff_qc(jcs:jce,:,jb)
           ptr_reff_qi => prm_diag%reff_qi(jcs:jce,:,jb)
@@ -322,21 +325,21 @@ CONTAINS
           IF (iqg > 0) ptr_reff_qg => prm_diag%reff_qg(jcs:jce,:,jb)
         END IF
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         do jc = i_startidx_sub, i_endidx_sub
           prm_diag%tsfctrad(jc,jb) = lnd_prog%t_g(jc,jb)
         end do
         !$ACC END PARALLEL
 
-        !$ACC DATA PRESENT(cosmu0mask) IF(lzacc)
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC DATA PRESENT(cosmu0mask)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         do jc = 1, nproma_rad
           cosmu0mask(jc) = .FALSE.
         end do
         !$ACC END PARALLEL
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx_rad, i_endidx_rad
           IF ( prm_diag%cosmu0(jc+nproma_rad*(jb_rad-1),jb) > 0._wp ) THEN
@@ -352,16 +355,15 @@ CONTAINS
           &                         prm_diag%cosmu0(jcs:jce,jb), prm_diag%tsfctrad(jcs:jce,jb),                        &
           &                         prm_diag%albvisdif(jcs:jce,jb), prm_diag%albnirdif(jcs:jce,jb),                    &
           &                         prm_diag%albvisdir(jcs:jce,jb), prm_diag%albnirdir(jcs:jce,jb),                    &
-          &                         prm_diag%lw_emiss(jcs:jce,jb), i_startidx_rad, i_endidx_rad, use_acc=lzacc)
+          &                         prm_diag%lw_emiss(jcs:jce,jb), i_startidx_rad, i_endidx_rad)
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),    &
-          &                           pt_diag%pres_ifc(jcs:jce,:,jb), prm_diag%tsfctrad(jcs:jce,jb),                   &
-          &                           nlev, nlevp1, i_startidx_rad, i_endidx_rad, use_acc=lzacc)
+          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, ext_data%atm%o3(jcs:jce,:,jb), prm_diag%tot_cld(jcs:jce,:,jb,iqv), &
-          &                pt_diag%pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev, use_acc=lzacc)
+          &                pt_diag%pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev)
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, prm_diag%tot_cld(jcs:jce,:,jb,iqc),               &
@@ -371,8 +373,7 @@ CONTAINS
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                                    &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                                               &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                                                &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad, &
-          &                   use_acc=lzacc)
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad)
         ! $ACC WAIT
 
 ! Fill aerosol configuration type
@@ -383,17 +384,18 @@ CONTAINS
             ! Case 2: Constant aerosol
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
-            CALL nwp_ecrad_prep_aerosol(ecrad_conf, ecrad_aerosol, use_acc=lzacc)
+            CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, &
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(6)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,     &
               &                         zaeq1(jcs:jce,:,jb), zaeq2(jcs:jce,:,jb),  &
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),  &
               &                         zaeq5(jcs:jce,:,jb),                       &
-              &                         ecrad_conf, ecrad_aerosol, use_acc=lzacc)
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(9)
 #ifdef _OPENACC
-            if( lzacc ) CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
+            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
             ! Use ART aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, jb, jg, nproma,  &
@@ -404,7 +406,7 @@ CONTAINS
 
           CASE(12,13,14,15,18,19)
 #ifdef _OPENACC
-            if( lzacc ) CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
+            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
 
             DO jw = 1, ecrad_conf%n_bands_lw
@@ -422,7 +424,7 @@ CONTAINS
             CALL finish(routine, 'irad_aero not valid for ecRad')
         END SELECT
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma_rad
           ecrad_flux%cloud_cover_sw(jc) = 0._wp
@@ -442,7 +444,7 @@ CONTAINS
         ! In the subroutine update_host_pre_ecrad, all data is updated on the
         ! CPU that is needed for the ecrad computation.
         CALL update_host_pre_ecrad(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, &
-          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux, lzacc)
+          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux)
 #endif
         !$ACC WAIT
         CALL ecrad(nproma_rad, nlev,                        & !< Array and loop bounds (input)
@@ -453,8 +455,7 @@ CONTAINS
           &        ecrad_gas,                               & !< ecRad gas configuration object (input)
           &        ecrad_cloud,                             & !< ecRad cloud configuration object (input)
           &        ecrad_aerosol,                           & !< ecRad aerosol configuration object (input)
-          &        ecrad_flux,                              & !< ecRad fluxes in the longwave BUT flux/solar constant in the shortwave (output)
-          &        use_acc=lzacc                            ) !< use ACC flag (optional input)
+          &        ecrad_flux                               ) !< ecRad fluxes in the longwave BUT flux/solar constant in the shortwave (output)
 #ifndef __ECRAD_ACC
         ! The current master of libecrad submodule doesnot support OpenACC.
         ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
@@ -463,7 +464,7 @@ CONTAINS
         ! that is covered in this #ifndef __ECRAD_ACC can be removed.
         ! In the subroutine update_device_post_ecrad, all data is updated on the
         ! GPU that result from the ecrad computation.
-        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux, lzacc)
+        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux)
 #endif
 
 !---------------------------------------------------------------------------------------
@@ -479,11 +480,11 @@ CONTAINS
           &                     prm_diag%lwflx_up_sfc_rs       (jcs:jce,jb), prm_diag%lwflxclr_sfc     (jcs:jce,jb),  &
           &                     zlwflx_up    (:,:), zlwflx_dn       (:,:), zswflx_up    (:,:), zswflx_dn    (:,:),    &
           &                     zlwflx_up_clr(:,:), zlwflx_dn_clr   (:,:), zswflx_up_clr(:,:), zswflx_dn_clr(:,:),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlevp1, use_acc=lzacc)
+          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlevp1)
 
         IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT( zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr ) &
-          !$ACC PRESENT( zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr ) IF(lzacc)
+          !$ACC PRESENT( zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr )
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlevp1
             DO jc = i_startidx_rad, i_endidx_rad
@@ -506,7 +507,7 @@ CONTAINS
           &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                         &
           &                     prm_diag%fr_nir_sfc_diff(jcs:jce,jb), prm_diag%fr_vis_sfc_diff(jcs:jce,jb),      &
           &                     prm_diag%fr_par_sfc_diff(jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),    &
-          &                     i_startidx_rad, i_endidx_rad, nlev, use_acc=lacc)
+          &                     i_startidx_rad, i_endidx_rad, nlev)
 
       ENDDO ! jb_rad
     ENDDO ! jb
@@ -522,16 +523,16 @@ CONTAINS
     ! that is covered in this #ifndef __ECRAD_ACC can be removed.
     ! In the subroutine ecrad_acc_deallocation the derived ecrad types are dealocated on the GPU.
     CALL ecrad_acc_deallocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                         ecrad_aerosol, ecrad_flux, lzacc)
+      &                         ecrad_aerosol, ecrad_flux)
 #endif
-    CALL ecrad_single_level%deallocate(use_acc=lzacc)
-    CALL ecrad_thermodynamics%deallocate(use_acc=lzacc)
-    CALL ecrad_gas%deallocate(use_acc=lzacc)
-    CALL ecrad_cloud%deallocate(use_acc=lzacc)
-    IF ( ecrad_conf%use_aerosols ) CALL ecrad_aerosol%deallocate(use_acc=lzacc)
-    CALL ecrad_flux%deallocate(use_acc=lzacc)
+    CALL ecrad_single_level%deallocate()
+    CALL ecrad_thermodynamics%deallocate()
+    CALL ecrad_gas%deallocate()
+    CALL ecrad_cloud%deallocate()
+    IF ( ecrad_conf%use_aerosols ) CALL ecrad_aerosol%deallocate()
+    CALL ecrad_flux%deallocate()
     !$ACC EXIT DATA DELETE( cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr ) &
-    !$ACC DELETE( zswflx_up_clr, zswflx_dn_clr ) IF(lzacc)
+    !$ACC DELETE( zswflx_up_clr, zswflx_dn_clr )
     DEALLOCATE( cosmu0mask )
     DEALLOCATE( zlwflx_up,     zlwflx_dn,     zswflx_up,    zswflx_dn     )
     DEALLOCATE( zlwflx_up_clr, zlwflx_dn_clr, zswflx_up_clr,zswflx_dn_clr )
@@ -619,7 +620,7 @@ CONTAINS
     INTEGER                  :: &
       &  nblks_par_c,           & !< nblks for reduced grid (parent domain)
       &  nblks_lp_c,            & !< nblks for reduced grid (local parent)
-      &  jb, jc, jk, jf, jw,    & !< loop indices
+      &  jb, jc, jw,            & !< loop indices
       &  jg,                    & !< domain id
       &  nlev,                  & !< number of full levels
       &  nlev_rg, nlev_rgp1,    & !< number of full and half levels at reduced grid
@@ -734,10 +735,12 @@ CONTAINS
     IF (msg_level >= 7) &
       &       CALL message(routine, 'ecrad radiation on reduced grid')
 
+#ifdef _OPENACC
+    IF( lacc==.FALSE. ) CALL finish(routine, 'lacc==.FALSE. not valid for OpenACC ecrad')
+#endif
 
     !$ACC DATA CREATE(ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics, &
-    !$ACC   ecrad_gas, ecrad_cloud, ecrad_flux) PRESENT(prm_diag, lnd_prog) &
-    !$ACC   IF(lacc)
+    !$ACC   ecrad_gas, ecrad_cloud, ecrad_flux) PRESENT(prm_diag, lnd_prog)
 
     IF (jg == 1 .AND. .NOT. l_limited_area) THEN
       ptr_pp      => pt_par_patch
@@ -789,7 +792,7 @@ CONTAINS
       !$ACC   zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc, &
       !$ACC   zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, &
       !$ACC   zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, &
-      !$ACC   zrg_lwflx_clr_sfc, aclcov) ASYNC(1) IF(lacc)
+      !$ACC   zrg_lwflx_clr_sfc, aclcov) ASYNC(1)
 
     ! Set dimensions for 3D radiative flux variables
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
@@ -814,7 +817,7 @@ CONTAINS
     !$ACC ENTER DATA CREATE(zrg_pres_ifc, zrg_lwflxall, zrg_trsolall, &
     !$ACC   zrg_lwflx_up, zrg_lwflx_dn, zrg_swflx_up, zrg_swflx_dn, &
     !$ACC   zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr, &
-    !$ACC   zrg_swflx_dn_clr) ASYNC(1) IF(lacc)
+    !$ACC   zrg_swflx_dn_clr) ASYNC(1)
 
     ALLOCATE(zrg_pres     (nproma,nlev_rg  ,nblks_par_c),   &
       &      zrg_temp     (nproma,nlev_rg  ,nblks_par_c),   &
@@ -826,16 +829,16 @@ CONTAINS
       &      zrg_aeq5     (nproma,nlev_rg  ,nblks_par_c),   &
       &      zrg_clc      (nproma,nlev_rg  ,nblks_par_c))
     !$ACC ENTER DATA CREATE(zrg_pres, zrg_temp, zrg_o3, zrg_aeq1, zrg_aeq2, &
-    !$ACC   zrg_aeq3, zrg_aeq4, zrg_aeq5, zrg_clc) ASYNC(1) IF(lacc)
+    !$ACC   zrg_aeq3, zrg_aeq4, zrg_aeq5, zrg_clc) ASYNC(1)
 
     IF (atm_phy_nwp_config(jg)%icpl_rad_reff > 0) THEN
       ALLOCATE(zrg_reff_liq (nproma,nlev_rg,nblks_par_c),   &
         &      zrg_reff_frz (nproma,nlev_rg,nblks_par_c))
-      !$ACC ENTER DATA CREATE(zrg_reff_liq, zrg_reff_frz) ASYNC(1) IF(lacc)
+      !$ACC ENTER DATA CREATE(zrg_reff_liq, zrg_reff_frz) ASYNC(1)
     ENDIF
 
     ALLOCATE(zrg_tot_cld  (nproma,nlev_rg  ,nblks_par_c,3))
-    !$ACC ENTER DATA CREATE(zrg_tot_cld) ASYNC(1) IF(lacc)
+    !$ACC ENTER DATA CREATE(zrg_tot_cld) ASYNC(1)
 
     ! Unused variables, allocated to not change the upscale_rad_input interface
     ALLOCATE(zrg_albdif   (nproma,nblks_par_c),             &
@@ -843,7 +846,7 @@ CONTAINS
       &      zlp_pres_ifc (nproma,nlev_rgp1,nblks_lp_c ),   &
       &      zlp_tot_cld  (nproma,nlev_rg  ,nblks_lp_c,3))
     !$ACC ENTER DATA CREATE(zrg_albdif, zrg_rtype, zlp_pres_ifc, zlp_tot_cld) &
-    !$ACC   ASYNC(1) IF(lacc)
+    !$ACC   ASYNC(1)
 
 
     ! Set indices for extra fields in the upscaling routine
@@ -868,8 +871,8 @@ CONTAINS
     SELECT CASE (atm_phy_nwp_config(jg)%icpl_rad_reff)
     CASE (0)  ! Own calculation of reff inside ecrad_set_clouds()
       CALL input_extra_flds%assign(prm_diag%acdnc, irg_acdnc)
-      CALL input_extra_2D%assign(ext_data%atm%fr_land_smt , irg_fr_land)
-      CALL input_extra_2D%assign(ext_data%atm%fr_glac_smt , irg_fr_glac)
+      CALL input_extra_2D%assign(ext_data%atm%fr_land, irg_fr_land)
+      CALL input_extra_2D%assign(ext_data%atm%fr_glac, irg_fr_glac)
     CASE (2) ! Option to use all hydrometeors reff individually
       ! Set extra hydrometeors
       CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
@@ -894,25 +897,23 @@ CONTAINS
       ENDDO
     END IF
 
-    !$ACC DATA COPYIN( input_extra_flds, input_extra_2D, input_extra_reff ) IF( lacc )
-    IF( lacc ) THEN
-      CALL input_extra_flds%acc_attach()
-      CALL input_extra_2D%acc_attach()
-      CALL input_extra_reff%acc_attach()
-    END IF
+    !$ACC DATA COPYIN( input_extra_flds, input_extra_2D, input_extra_reff )
+    CALL input_extra_flds%acc_attach()
+    CALL input_extra_2D%acc_attach()
+    CALL input_extra_reff%acc_attach()
 
     ! Allocate output arrays
     IF ( input_extra_flds%ntot > 0 )  THEN
       ALLOCATE( zrg_extra_flds(nproma,input_extra_flds%nlev_rg,nblks_par_c,input_extra_flds%ntot) )
-      !$ACC ENTER DATA CREATE(zrg_extra_flds) ASYNC(1) IF(lacc)
+      !$ACC ENTER DATA CREATE(zrg_extra_flds) ASYNC(1)
     END IF
     IF ( input_extra_2D%ntot > 0 )  THEN
       ALLOCATE( zrg_extra_2D(nproma,nblks_par_c,input_extra_2D%ntot) )
-      !$ACC ENTER DATA CREATE(zrg_extra_2D) ASYNC(1) IF(lacc)
+      !$ACC ENTER DATA CREATE(zrg_extra_2D) ASYNC(1)
     END IF
     IF ( input_extra_reff%ntot  > 0 ) THEN
       ALLOCATE( zrg_extra_reff(nproma,input_extra_reff%nlev_rg,nblks_par_c,input_extra_reff%ntot) )
-      !$ACC ENTER DATA CREATE(zrg_extra_reff) ASYNC(1) IF(lacc)
+      !$ACC ENTER DATA CREATE(zrg_extra_reff) ASYNC(1)
     END IF
 
 
@@ -955,7 +956,7 @@ CONTAINS
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                       i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
       DO jc = i_startidx, i_endidx
         prm_diag%tsfctrad(jc,jb) = lnd_prog%t_g(jc,jb)
       ENDDO ! jc
@@ -988,7 +989,7 @@ CONTAINS
       &                    zrg_reff_liq, zrg_reff_frz,                                   &
       &                    input_extra_flds, zrg_extra_flds,                             &
       &                    input_extra_2D, zrg_extra_2D,                                 &
-      &                    input_extra_reff, zrg_extra_reff,use_acc=lacc)
+      &                    input_extra_reff, zrg_extra_reff, use_acc=.TRUE.)
 
 ! Set indices for reduced grid loop
     IF (jg == 1 .AND. l_limited_area) THEN
@@ -1004,33 +1005,32 @@ CONTAINS
 !$OMP                  ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics, &
 !$OMP                  ecrad_gas, ecrad_cloud, ecrad_flux)
 
-    CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true., use_acc=lacc) !< use_sw_albedo_direct, 2 bands
+    CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
-    !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1) IF(lacc)
+    !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
       ALLOCATE(ecrad_single_level%spectral_solar_scaling(ecrad_conf%n_bands_sw))
       ecrad_single_level%spectral_solar_scaling = ssi_radt / ecrad_ssi_default
-      !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1) IF(lacc)
+      !$ACC ENTER DATA COPYIN(ecrad_single_level%spectral_solar_scaling) ASYNC(1)
     ENDIF
 
-    CALL ecrad_thermodynamics%allocate(nproma_rad, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true., &
-      &                                use_acc=lacc)
+    CALL ecrad_thermodynamics%allocate(nproma_rad, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true.)
 
-    CALL ecrad_gas%allocate(nproma_rad, nlev_rg, use_acc=lacc)
+    CALL ecrad_gas%allocate(nproma_rad, nlev_rg)
 
-    CALL ecrad_cloud%allocate(nproma_rad, nlev_rg, use_acc=lacc)
+    CALL ecrad_cloud%allocate(nproma_rad, nlev_rg)
     ! Currently hardcoded values for FSD
     !$ACC WAIT
-    CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev_rg, 1._wp, use_acc=lacc)
+    CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev_rg, 1._wp)
 
     IF ( ecrad_conf%use_aerosols ) THEN
       ! Allocate aerosol container
-      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev_rg, use_acc=lacc)
+      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev_rg)
     ENDIF
 
-    CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev_rg, use_acc=lacc)
+    CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev_rg)
 
 #ifndef __ECRAD_ACC
     ! The current master of libecrad submodule doesnot support OpenACC.
@@ -1047,11 +1047,11 @@ CONTAINS
     !   - ecrad_aerosol%allocate_direct
     !   - ecrad_flux%allocate
     call ecrad_acc_allocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                       ecrad_aerosol, ecrad_flux, lacc)
+      &                       ecrad_aerosol, ecrad_flux)
 #endif
 
     ALLOCATE(cosmu0mask(nproma_rad))
-    !$ACC ENTER DATA CREATE(cosmu0mask) ASYNC(1) IF(lacc)
+    !$ACC ENTER DATA CREATE(cosmu0mask) ASYNC(1)
     ALLOCATE(opt_ptrs_lw(ecrad_conf%n_bands_lw))
     ALLOCATE(opt_ptrs_sw(ecrad_conf%n_bands_sw))
 
@@ -1059,10 +1059,10 @@ CONTAINS
     !$ACC   zrg_albvisdif, zrg_albnirdif, zrg_albvisdir, zrg_albnirdir, &
     !$ACC   zrg_emis_rad,  zrg_pres_ifc, zrg_temp, zrg_pres, zrg_o3, &
     !$ACC   zrg_tot_cld, zrg_clc, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_aeq4, &
-    !$ACC   zrg_aeq5) IF(lacc)
+    !$ACC   zrg_aeq5)
 
 
-!$OMP DO PRIVATE(jb, jc, jf, i_startidx, i_endidx,              &
+!$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                  &
 !$OMP            jb_rad, jcs, jce, jnps, jnpe,                  &
 !$OMP            i_startidx_rad,i_endidx_rad,                   &
 !$OMP            ptr_acdnc, ptr_fr_land, ptr_fr_glac,           &
@@ -1084,12 +1084,12 @@ CONTAINS
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
         DO jc = 1,nproma_rad
           cosmu0mask(jc) = .FALSE.
         ENDDO
         !$ACC END PARALLEL
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
         DO jc = i_startidx_rad, i_endidx_rad
           IF ( zrg_cosmu0(jc+nproma_rad*(jb_rad-1),jb) > 0._wp ) THEN
             cosmu0mask(jc) = .TRUE.
@@ -1136,16 +1136,15 @@ CONTAINS
         CALL ecrad_set_single_level(ecrad_single_level, current_datetime, ptr_pp%cells%center(jcs:jce,jb),            &
           &                         zrg_cosmu0(jcs:jce,jb), zrg_tsfc(jcs:jce,jb), zrg_albvisdif(jcs:jce,jb),          &
           &                         zrg_albnirdif(jcs:jce,jb), zrg_albvisdir(jcs:jce,jb), zrg_albnirdir(jcs:jce,jb),  &
-          &                         zrg_emis_rad(jcs:jce,jb), i_startidx_rad, i_endidx_rad, use_acc=lacc)
+          &                         zrg_emis_rad(jcs:jce,jb), i_startidx_rad, i_endidx_rad)
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, zrg_temp(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb),     &
-          &                           zrg_pres_ifc(jcs:jce,:,jb), zrg_tsfc(jcs:jce,jb),                         &
-          &                           nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad, use_acc=lacc)
+          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, zrg_o3(jcs:jce,:,jb), zrg_tot_cld(jcs:jce,:,jb,iqv), &
-          &                zrg_pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev_rg, use_acc=lacc)
+          &                zrg_pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev_rg)
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, zrg_tot_cld(jcs:jce,:,jb,iqc), &
@@ -1156,7 +1155,7 @@ CONTAINS
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                            &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
           &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev_rg,         &
-          &                   i_startidx_rad, i_endidx_rad, use_acc=lacc)
+          &                   i_startidx_rad, i_endidx_rad)
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
@@ -1166,17 +1165,18 @@ CONTAINS
             ! Case 2: Constant aerosol
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
-            CALL nwp_ecrad_prep_aerosol(ecrad_conf, ecrad_aerosol, use_acc=lacc)
+            CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad, &
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(6)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         zrg_aeq1(jcs:jce,:,jb), zrg_aeq2(jcs:jce,:,jb),   &
               &                         zrg_aeq3(jcs:jce,:,jb), zrg_aeq4(jcs:jce,:,jb),   &
               &                         zrg_aeq5(jcs:jce,:,jb),                           &
-              &                         ecrad_conf, ecrad_aerosol, use_acc=lacc)
+              &                         ecrad_conf, ecrad_aerosol)
           CASE(12,13,14,15,18,19)
 #ifdef _OPENACC
-            if( lacc ) CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
+            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         opt_ptrs_lw, opt_ptrs_sw,                         &
@@ -1186,7 +1186,7 @@ CONTAINS
         END SELECT
 
         ! Reset output values
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
         DO jc = 1, nproma_rad
           ecrad_flux%cloud_cover_sw(jc) = 0._wp
           ecrad_flux%cloud_cover_lw(jc) = 0._wp
@@ -1205,7 +1205,7 @@ CONTAINS
         ! In the subroutine update_host_pre_ecrad, all data is updated on the
         ! CPU that is needed for the ecrad computation.
         CALL update_host_pre_ecrad(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, &
-          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux, lacc)
+          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux)
 #endif
         !$ACC WAIT
         CALL ecrad(nproma_rad, nlev_rg,                     & !< Array and loop bounds (input)
@@ -1216,8 +1216,7 @@ CONTAINS
           &        ecrad_gas,                               & !< ecRad gas configuration object (input)
           &        ecrad_cloud,                             & !< ecRad cloud configuration object (input)
           &        ecrad_aerosol,                           & !< ecRad aerosol configuration object (input)
-          &        ecrad_flux,                              & !< ecRad fluxes (output)
-          &        lacc                                    ) !< use ACC flag (optional input)
+          &        ecrad_flux                               ) !< ecRad fluxes (output)
 #ifndef __ECRAD_ACC
         ! The current master of libecrad submodule doesnot support OpenACC.
         ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
@@ -1226,7 +1225,7 @@ CONTAINS
         ! that is covered in this #ifndef __ECRAD_ACC can be removed.
         ! In the subroutine update_device_post_ecrad, all data is updated on the
         ! GPU that result from the ecrad computation.
-        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux, lacc)
+        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux)
 #endif
 !---------------------------------------------------------------------------------------
 
@@ -1243,15 +1242,14 @@ CONTAINS
           &                     zrg_swflx_up          (jnps:jnpe,:,jb), zrg_swflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_lwflx_up_clr      (jnps:jnpe,:,jb), zrg_lwflx_dn_clr (jnps:jnpe,:,jb),    &
           &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlev_rgp1, use_acc=lacc)
+          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlev_rgp1)
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
         CALL add_3D_diffuse_rad(ecrad_flux, zrg_clc(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb), zrg_temp(jcs:jce,:,jb),       &
           &                     zrg_cosmu0            (jcs:jce,jb), zrg_fr_nir_sfc_diff  (jcs:jce,jb),         &
           &                     zrg_fr_vis_sfc_diff   (jcs:jce,jb), zrg_fr_par_sfc_diff  (jcs:jce,jb),         &
-          &                     zrg_trsol_dn_sfc_diff (jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev_rg,     &
-          &                     use_acc=lacc)
+          &                     zrg_trsol_dn_sfc_diff (jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev_rg)
 
       ENDDO !jb_rad
     ENDDO !jb
@@ -1268,15 +1266,15 @@ CONTAINS
     ! that is covered in this #ifndef __ECRAD_ACC can be removed.
     ! In the subroutine ecrad_acc_deallocation the derived ecrad types are dealocated on the GPU.
     CALL ecrad_acc_deallocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                         ecrad_aerosol, ecrad_flux, lacc)
+      &                         ecrad_aerosol, ecrad_flux)
 #endif
-    CALL ecrad_single_level%deallocate(use_acc=lacc)
-    CALL ecrad_thermodynamics%deallocate(use_acc=lacc)
-    CALL ecrad_gas%deallocate(use_acc=lacc)
-    CALL ecrad_cloud%deallocate(use_acc=lacc)
-    IF ( ecrad_conf%use_aerosols ) CALL ecrad_aerosol%deallocate(use_acc=lacc)
-    CALL ecrad_flux%deallocate(use_acc=lacc)
-    !$ACC EXIT DATA DELETE(cosmu0mask) IF(lacc)
+    CALL ecrad_single_level%deallocate()
+    CALL ecrad_thermodynamics%deallocate()
+    CALL ecrad_gas%deallocate()
+    CALL ecrad_cloud%deallocate()
+    IF ( ecrad_conf%use_aerosols ) CALL ecrad_aerosol%deallocate()
+    CALL ecrad_flux%deallocate()
+    !$ACC EXIT DATA DELETE(cosmu0mask)
     DEALLOCATE( cosmu0mask )
     DO jw = 1, ecrad_conf%n_bands_lw
       CALL opt_ptrs_lw(jw)%finalize()
@@ -1304,7 +1302,7 @@ CONTAINS
       &  zrg_lwflx_up_clr     , zrg_lwflx_dn_clr     , zrg_swflx_up_clr     , zrg_swflx_dn_clr,     &
       &  prm_diag%lwflx_up    , prm_diag%lwflx_dn    , prm_diag%swflx_up    , prm_diag%swflx_dn,    &
       &  prm_diag%lwflx_up_clr, prm_diag%lwflx_dn_clr, prm_diag%swflx_up_clr, prm_diag%swflx_dn_clr,&
-      &  use_acc=lacc )
+      &  use_acc=.TRUE. )
 
     !$ACC WAIT
     !$ACC END DATA
@@ -1319,7 +1317,7 @@ CONTAINS
     !$ACC   aclcov, zrg_albdif, zrg_rtype, zlp_pres_ifc, &
     !$ACC   zlp_tot_cld, zrg_lwflx_clr_sfc, zrg_lwflx_up, zrg_lwflx_dn , &
     !$ACC   zrg_swflx_up, zrg_swflx_dn, zrg_lwflx_up_clr, zrg_lwflx_dn_clr, &
-    !$ACC   zrg_swflx_up_clr, zrg_swflx_dn_clr) IF(lacc)
+    !$ACC   zrg_swflx_up_clr, zrg_swflx_dn_clr)
     DEALLOCATE (zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,   &
       &         zrg_albnirdif, zrg_pres_ifc, zrg_o3, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_clc,        &
       &         zrg_aeq4, zrg_aeq5, zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall,   &
@@ -1332,14 +1330,14 @@ CONTAINS
       &         zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr, zrg_swflx_dn_clr             )
 
     IF (atm_phy_nwp_config(jg)%icpl_rad_reff > 0) THEN
-      !$ACC EXIT DATA DELETE(zrg_reff_liq, zrg_reff_frz) IF(lacc)
+      !$ACC EXIT DATA DELETE(zrg_reff_liq, zrg_reff_frz)
       DEALLOCATE(zrg_reff_liq, zrg_reff_frz)
     ENDIF
-    !$ACC EXIT DATA DELETE(zrg_extra_flds) IF(lacc .AND. (input_extra_flds%ntot>0) )
+    !$ACC EXIT DATA DELETE(zrg_extra_flds) IF( input_extra_flds%ntot>0 )
     IF (input_extra_flds%ntot > 0 ) DEALLOCATE(zrg_extra_flds)
-    !$ACC EXIT DATA DELETE(zrg_extra_2D) IF(lacc .AND. (input_extra_2D%ntot>0) )
+    !$ACC EXIT DATA DELETE(zrg_extra_2D) IF( input_extra_2D%ntot>0 )
     IF (input_extra_2D%ntot   > 0 ) DEALLOCATE(zrg_extra_2D)
-    !$ACC EXIT DATA DELETE(zrg_extra_reff) IF(lacc .AND. (input_extra_reff%ntot>0) )
+    !$ACC EXIT DATA DELETE(zrg_extra_reff) IF( input_extra_reff%ntot>0 )
     IF (input_extra_reff%ntot > 0 ) DEALLOCATE(zrg_extra_reff)
 
     CALL input_extra_flds%destruct()

@@ -24,7 +24,7 @@ MODULE mo_var_groups
   CHARACTER(*), PARAMETER :: modname = 'mo_var_groups'
 
   ! maximum number of variable groups supported by a single info state
-  INTEGER, PARAMETER :: MAX_GROUPS = 120
+  INTEGER, PARAMETER :: MAX_GROUPS = 200
 
   ! ---------------------------------------------------------------
   ! STATICALLY DEFINED VARIABLE GROUPS

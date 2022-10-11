@@ -2737,7 +2737,7 @@ END SUBROUTINE rot_vertex_atmos
 !!
 !!
 SUBROUTINE rot_vertex_ri( vec_e, ptr_patch, ptr_int, rot_vec, &
-  &                       opt_slev, opt_elev, opt_rlend )
+  &                       opt_slev, opt_elev, opt_rlend, opt_acc_async )
 !
 !  patch on which computation is performed
 !
@@ -2759,6 +2759,9 @@ INTEGER, INTENT(in), OPTIONAL ::  &
 
 INTEGER, INTENT(in), OPTIONAL ::  &
   &  opt_rlend   ! end value of refin_ctrl flag
+
+LOGICAL, INTENT(IN), OPTIONAL ::  &   
+  &  opt_acc_async ! optional async OpenACC
 
 !
 !  vertex based variable in which rotation is stored
@@ -2808,9 +2811,6 @@ END IF
   i_startblk = ptr_patch%verts%start_block(rl_start)
   i_endblk   = ptr_patch%verts%end_block(rl_end)
 
-
-!$ACC DATA PCOPYIN( vec_e ), PCOPY( rot_vec ), &
-!$ACC      PRESENT( ptr_int%geofac_rot, iidx, iblk ), IF( i_am_accel_node .AND. acc_on )
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jv,jk), ICON_OMP_RUNTIME_SCHEDULE
   DO jb = i_startblk, i_endblk
@@ -2818,7 +2818,7 @@ END IF
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
 
     ! calculate rotation, i.e.
     ! add individual edge contributions to rotation
@@ -2848,7 +2848,14 @@ END IF
   ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-!$ACC END DATA
+
+  IF ( PRESENT(opt_acc_async) ) THEN
+    IF ( .NOT. opt_acc_async ) THEN
+      !$ACC WAIT
+    END IF
+  ELSE
+    !$ACC WAIT
+  END IF
 
 END SUBROUTINE rot_vertex_ri
 

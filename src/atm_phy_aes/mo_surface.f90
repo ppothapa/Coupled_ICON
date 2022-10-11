@@ -835,7 +835,7 @@ CONTAINS
       ! Set the evapotranspiration coefficients, to be used later in
       ! blending and in diagnosing surface fluxes.
       !
-      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR
+      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
       DO jl = jcs,kproma
         zca(jl,idx_lnd) = pcair(jl)
         zcs(jl,idx_lnd) = pcsat(jl)

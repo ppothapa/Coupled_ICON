@@ -17,11 +17,11 @@
 MODULE mo_cloud_mig_memory
 
   USE mo_exception               ,ONLY: message, finish
-  USE mtime                      ,ONLY: OPERATOR(>)
+  USE mtime                      ,ONLY: timedelta, OPERATOR(>)
 
   USE mo_model_domain            ,ONLY: t_patch
   USE mo_parallel_config         ,ONLY: nproma
-  USE mo_time_config             ,ONLY: time_config
+  USE mo_time_config             ,ONLY: get_dynamics_timestep
   USE mo_aes_phy_config          ,ONLY: aes_phy_tc, dt_zero
   USE mo_io_config               ,ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config ,ONLY: is_variable_in_output
@@ -73,6 +73,7 @@ CONTAINS
 
     INTEGER :: ng, jg, ist
     INTEGER :: nlev, nblks
+    TYPE(timedelta) :: dt_dyn
 
     !---
 
@@ -100,9 +101,11 @@ CONTAINS
           !
           nlev   = patch_array(jg)%nlev
           nblks  = patch_array(jg)%nblks_c
+          dt_dyn = get_dynamics_timestep(patch_array(jg))
           !
           CALL construct_cloud_mig_list( jg,                  &
                &                         nproma, nlev, nblks, &
+               &                         dt_dyn,              &
                &                         cloud_mig_list(jg),  &
                &                         cloud_mig_input(jg), &
                &                         cloud_mig_output(jg) )
@@ -160,12 +163,14 @@ CONTAINS
   !>
   SUBROUTINE construct_cloud_mig_list( jg,                  &
        &                               nproma, nlev, nblks, &
+       &                               dt_dyn,              &
        &                               cloud_mig_list,      &
        &                               cloud_mig_input,     &
        &                               cloud_mig_output )
 
     INTEGER                 , INTENT(in)    :: jg                  !< grid index
     INTEGER                 , INTENT(in)    :: nproma, nlev, nblks !< size of dimensions
+    TYPE(timedelta)         , INTENT(in)    :: dt_dyn              !< Dynamics timestep
 
     TYPE(t_var_list_ptr)    , INTENT(inout) :: cloud_mig_list      !< pointers for list of variables
     TYPE(t_cloud_mig_input) , INTENT(inout) :: cloud_mig_input     !< pointers for input variables
@@ -582,7 +587,7 @@ CONTAINS
     !
     ! tendencies in the atmosphere
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_ta_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_ta_mig'                                            ,&
@@ -606,7 +611,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_ta_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qhus_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qhus_mig'                                          ,&
@@ -631,7 +636,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qv_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qclw_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qclw_mig'                                          ,&
@@ -656,7 +661,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qc_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qcli_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qcli_mig'                                          ,&
@@ -681,7 +686,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qi_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qr_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qr_mig'                                            ,&
@@ -706,7 +711,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qr_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qs_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qs_mig'                                            ,&
@@ -731,7 +736,7 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qs_mig)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_mig > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qg_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
             &        varname     = 'tend_qg_mig'                                            ,&

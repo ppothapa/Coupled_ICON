@@ -881,14 +881,13 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
               -vh     -node 0        -np 2      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
 
 
-
 # ----------------------------------------------------------------------
 # EPILOGUE: Compare the output to a given reference
 #     "... in every code we have some trouble
 #          But when you worry you make it double ..."
 # ----------------------------------------------------------------------
 
-refdir="/hpc/rwork0/routfor/test/icon/Checksuite_data/ref_data_exp09/ebbd36f265"
+refdir="/hpc/rwork0/routfor/test/icon/Checksuite_data/ref_data_exp09/2a31eac8"
 
 
 bash << EOFSCRIPT
