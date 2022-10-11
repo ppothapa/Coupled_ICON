@@ -116,7 +116,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_ecrad_radiation ( current_datetime, pt_patch, ext_data,      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, od_lw, od_sw, ssa_sw,               &
-    &  g_sw, pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lacc )
+    &  g_sw, pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lacc )
 
     CHARACTER(len=*), PARAMETER:: routine = modname//'::nwp_ecrad_radiation'
 
@@ -141,6 +141,8 @@ CONTAINS
     TYPE(t_nwp_phy_diag), TARGET, INTENT(inout) :: prm_diag      !< ICON physics diagnostics
     TYPE(t_nh_prog), TARGET, INTENT(in)         :: pt_prog        !< ICON dyn prog vars
     TYPE(t_lnd_prog),        INTENT(inout)      :: lnd_prog      !< ICON prognostic land state
+    
+    REAL(wp),                INTENT(in)         ::   zsct        !< Time-dependent solar constant
 
     TYPE(t_ecrad_conf),      INTENT(in)         :: ecrad_conf    !< ecRad configuration object
     LOGICAL,                 INTENT(IN), OPTIONAL:: lacc
@@ -483,7 +485,7 @@ CONTAINS
           &                     prm_diag%lwflx_up_sfc_rs       (jcs:jce,jb), prm_diag%lwflxclr_sfc     (jcs:jce,jb),  &
           &                     zlwflx_up    (:,:), zlwflx_dn       (:,:), zswflx_up    (:,:), zswflx_dn    (:,:),    &
           &                     zlwflx_up_clr(:,:), zlwflx_dn_clr   (:,:), zswflx_up_clr(:,:), zswflx_dn_clr(:,:),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlevp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlevp1)
 
         IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT( zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr ) &
@@ -571,7 +573,7 @@ CONTAINS
   SUBROUTINE nwp_ecrad_radiation_reduced (current_datetime, pt_patch, pt_par_patch, ext_data,  &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,                       &
     &                                     od_lw, od_sw, ssa_sw, g_sw,                          &
-    &                                     pt_diag,prm_diag,pt_prog, lnd_prog, ecrad_conf, use_acc )
+    &                                     pt_diag,prm_diag,pt_prog, lnd_prog, zsct, ecrad_conf, use_acc )
 
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//'::nwp_ecrad_radiation_reduced'
@@ -598,6 +600,7 @@ CONTAINS
     TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag      !< ICON physics diagnostics
     TYPE(t_nh_prog), TARGET, INTENT(in)    :: pt_prog        !< ICON dyn prog vars
     TYPE(t_lnd_prog),        INTENT(inout) :: lnd_prog      !< ICON prognostic land state
+    REAL(wp),                INTENT(in)    :: zsct        !< Time-dependent solar constant
 
     TYPE(t_ecrad_conf),      INTENT(in)    :: ecrad_conf    !< ecRad configuration object
     LOGICAL, OPTIONAL,       INTENT(in)    :: use_acc
@@ -1245,7 +1248,7 @@ CONTAINS
           &                     zrg_swflx_up          (jnps:jnpe,:,jb), zrg_swflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_lwflx_up_clr      (jnps:jnpe,:,jb), zrg_lwflx_dn_clr (jnps:jnpe,:,jb),    &
           &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlev_rgp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlev_rgp1)
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT

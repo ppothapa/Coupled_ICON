@@ -35,7 +35,7 @@ MODULE mo_nwp_ecrad_utilities
                                    &   irad_h2o, irad_o3, irad_co2,              &
                                    &   irad_n2o, irad_ch4,                       &
                                    &   irad_o2, irad_cfc11, irad_cfc12,          &
-                                   &   vpp_ch4, vpp_n2o, tsi_radt,               &
+                                   &   vpp_ch4, vpp_n2o,                         &
                                    &   config_nproma_rad => nproma_rad
   USE mo_nwp_tuning_config,      ONLY: tune_difrad_3dcont
   USE mtime,                     ONLY: datetime
@@ -559,8 +559,8 @@ CONTAINS
     &                           trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff,                &
     &                           fr_par_sfc_diff,trsol_dn_sfc_diff, trsolclr_sfc, lwflxall, lwflx_up_sfc_rs,    &
     &                           lwflxclr_sfc, lwflx_up    , lwflx_dn    , swflx_up    , swflx_dn,              &
-    &                           lwflx_up_clr, lwflx_dn_clr, swflx_up_clr, swflx_dn_clr,                   &
-    &                           cosmu0mask, i_startidx, i_endidx, nlevp1)
+    &                           lwflx_up_clr, lwflx_dn_clr, swflx_up_clr, swflx_dn_clr,                        &
+    &                           cosmu0mask, zsct, i_startidx, i_endidx, nlevp1)
 
     INTEGER, INTENT(in)   :: &
       &  jg                       !< domain index
@@ -594,6 +594,8 @@ CONTAINS
 
     LOGICAL, INTENT(in)      :: &
       &  cosmu0mask(:)            !< Mask if cosmu0 > 0
+    REAL(wp),                INTENT(in)    :: zsct        !< Time-dependent solar constant
+
     INTEGER, INTENT(in)      :: &
       &  i_startidx, i_endidx,  & !< Start and end index of nproma loop in current block
       &  nlevp1                   !< Number of vertical half levels
@@ -656,12 +658,12 @@ CONTAINS
             lwflx_up    (jc,jk)   = ecrad_flux%lw_up(jc,jk)
             lwflx_dn    (jc,jk)   = ecrad_flux%lw_dn(jc,jk)
   
-            swflx_up    (jc,jk)   = ecrad_flux%sw_up(jc,jk)       * tsi_radt
-            swflx_dn    (jc,jk)   = ecrad_flux%sw_dn(jc,jk)       * tsi_radt
+            swflx_up    (jc,jk)   = ecrad_flux%sw_up(jc,jk)       *zsct
+            swflx_dn    (jc,jk)   = ecrad_flux%sw_dn(jc,jk)       *zsct
             lwflx_up_clr(jc,jk)   = ecrad_flux%lw_up_clear(jc,jk)
             lwflx_dn_clr(jc,jk)   = ecrad_flux%lw_dn_clear(jc,jk)
-            swflx_up_clr(jc,jk)   = ecrad_flux%sw_up_clear(jc,jk) * tsi_radt
-            swflx_dn_clr(jc,jk)   = ecrad_flux%sw_dn_clear(jc,jk) * tsi_radt   
+            swflx_up_clr(jc,jk)   = ecrad_flux%sw_up_clear(jc,jk) *zsct
+            swflx_dn_clr(jc,jk)   = ecrad_flux%sw_dn_clear(jc,jk) *zsct
           ENDDO
         ENDDO
         !$ACC END PARALLEL

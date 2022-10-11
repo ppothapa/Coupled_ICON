@@ -360,13 +360,13 @@ MODULE mo_nwp_rad_interface
         CALL nwp_ecRad_radiation ( mtime_datetime, pt_patch, ext_data,      &
           & zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                              &
           & od_lw, od_sw, ssa_sw, g_sw,                                     &
-          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lzacc )
+          & pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lzacc )
       ELSE
         !$ACC WAIT
         CALL nwp_ecRad_radiation_reduced ( mtime_datetime, pt_patch,pt_par_patch, &
           & ext_data, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                          &
           & od_lw, od_sw, ssa_sw, g_sw,                                           &
-          & pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lzacc )
+          & pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lzacc )
       ENDIF
 #else
       CALL finish(routine,  &
