@@ -369,7 +369,7 @@ CONTAINS
         CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
           &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -417,7 +417,7 @@ CONTAINS
 
         ! compute intermediate density which accounts for the density increment 
         ! due to vertical transport.
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(rhodz_ast) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(rhodz_ast) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -490,7 +490,7 @@ CONTAINS
 
         ! compute intermediate density which accounts for the density increment 
         ! due to horizontal transport.
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -571,7 +571,7 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(trNotAdvect) &
+!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trNotAdvect) &
 !$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP SEQ
         DO nt = 1, trNotAdvect%len ! Tracer loop
@@ -613,7 +613,7 @@ CONTAINS
         ! For mass conservation, a correction has to be applied in the
         ! feedback routine anyway
 
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(trAdvect) &
+!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect) &
 !$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
@@ -667,7 +667,7 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(trAdvect, advection_config ) &
+!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect, advection_config ) &
 !$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
@@ -1055,7 +1055,7 @@ CONTAINS
 
         IF ( advection_config(jg)%ihadv_tracer(jt) /= 0 ) THEN
 
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
           !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
@@ -1088,7 +1088,7 @@ CONTAINS
           ENDDO  !jk
           !$ACC END PARALLEL
 
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           ! set tracer(nnew) to tracer(nnow) at levels where advection is turned off
           DO jk = 1, iadv_slev_jt-1
@@ -1100,7 +1100,7 @@ CONTAINS
 
         ELSE  ! horizontal advection switched off
 
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           ! copy
           DO jk = 1, nlev

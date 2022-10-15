@@ -265,7 +265,7 @@ CONTAINS
       CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart_e, i_rlend_e)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -315,7 +315,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk,        &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
 !DIR$ IVDEP,PREFERVECTOR
@@ -392,7 +392,7 @@ CONTAINS
         ! in the boundary interpolation zone, the low-order advected tracer fields may be
         ! nonsense and therefore need artificial limitation
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG
         DO jc = i_startidx, i_endidx
           IF (ptr_patch%cells%refin_ctrl(jc,jb) == grf_bdywidth_c-1 .OR. &
@@ -442,7 +442,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -470,7 +470,7 @@ CONTAINS
       ENDDO
 !$ACC END PARALLEL
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -523,7 +523,7 @@ CONTAINS
       !
       ! compute final limited fluxes
       !
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -726,7 +726,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk,        &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -770,7 +770,7 @@ CONTAINS
       !
       ! 2. Compute total outward mass
       !
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
 !DIR$ IVDEP
@@ -838,7 +838,7 @@ CONTAINS
       CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk,    &
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO je = i_startidx, i_endidx

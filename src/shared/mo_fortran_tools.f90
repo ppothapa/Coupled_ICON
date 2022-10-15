@@ -224,10 +224,6 @@ MODULE mo_fortran_tools
 
   CHARACTER(LEN = *), PARAMETER :: modname = "mo_fortran_tools"
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
   INTERFACE insert_dimension
     MODULE PROCEDURE insert_dimension_r_dp_3_2, insert_dimension_r_dp_3_2_s
     MODULE PROCEDURE insert_dimension_r_sp_3_2, insert_dimension_r_sp_3_2_s
@@ -247,6 +243,7 @@ CONTAINS
     INTEGER, INTENT(IN) :: acc_async_queue
     LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
 
+#ifdef _OPENACC
     IF ( PRESENT(opt_acc_async) ) THEN
       IF ( .NOT. opt_acc_async ) THEN
         !$ACC WAIT(acc_async_queue)
@@ -254,6 +251,7 @@ CONTAINS
     ELSE
       !$ACC WAIT(acc_async_queue)
     END IF
+#endif
   END SUBROUTINE acc_wait_if_requested
 
   ! routines to assign values if actual parameters are present
@@ -476,9 +474,9 @@ CONTAINS
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
 #ifdef __INTEL_COMPILER
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
 #endif
@@ -488,7 +486,6 @@ CONTAINS
       END DO
     END DO
 !$omp end do nowait
-
     CALL acc_wait_if_requested(1, opt_acc_async)
 
   END SUBROUTINE copy_2d_dp
@@ -503,7 +500,7 @@ CONTAINS
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -532,7 +529,7 @@ CONTAINS
     m3 = SIZE(dest, 3)
     m4 = SIZE(dest, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -564,9 +561,9 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -598,9 +595,9 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -621,51 +618,44 @@ CONTAINS
   END SUBROUTINE copy_5d_sp
 
   !> copy state, omp parallel, does not wait for other threads to complete
-  SUBROUTINE copy_2d_spdp(src, dest)
+  SUBROUTINE copy_2d_spdp(src, dest, opt_acc_async)
     REAL(sp), INTENT(in) :: src(:, :)
     REAL(dp), INTENT(out) :: dest(:, :)
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
     INTEGER :: i1, i2, m1, m2
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
-#ifdef _OPENACC
-!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
-#else
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )                          
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
-#endif
 #endif
     DO i2 = 1, m2
       DO i1 = 1, m1
         dest(i1, i2) = REAL(src(i1, i2),KIND=dp)
       END DO
     END DO
-#ifdef _OPENACC
-!$ACC END PARALLEL
-#else
 !$omp end do nowait
-#endif
+    CALL acc_wait_if_requested(1, opt_acc_async)
+
   END SUBROUTINE copy_2d_spdp
 
   !> copy state, omp parallel, does not wait for other threads to complete
-  SUBROUTINE copy_3d_spdp(src, dest)
+  SUBROUTINE copy_3d_spdp(src, dest, opt_acc_async)
     REAL(sp), INTENT(in) :: src(:, :, :)
     REAL(dp), INTENT(out) :: dest(:, :, :)
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
     INTEGER :: i1, i2, i3, m1, m2, m3
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
-#ifdef _OPENACC
-!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(3)
-#else
+
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
-#endif
 #endif
     DO i3 = 1, m3
       DO i2 = 1, m2
@@ -674,31 +664,27 @@ CONTAINS
         END DO
       END DO
     END DO
-#ifdef _OPENACC
-!$ACC END PARALLEL
-#else
 !$omp end do nowait
-#endif
+    CALL acc_wait_if_requested(1, opt_acc_async)
+
   END SUBROUTINE copy_3d_spdp
 
   !> copy state, omp parallel, does not wait for other threads to complete
-  SUBROUTINE copy_4d_spdp(src, dest)
+  SUBROUTINE copy_4d_spdp(src, dest, opt_acc_async)
     REAL(sp), INTENT(in) :: src(:, :, :, :)
     REAL(dp), INTENT(out) :: dest(:, :, :, :)
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
     INTEGER :: i1, i2, i3, i4, m1, m2, m3, m4
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
     m4 = SIZE(dest, 4)
-#ifdef _OPENACC
-!$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(4)
-#else
+
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4)
+!$omp do private(i1,i2,i3,i4)
 #else
 !$omp do collapse(4)
-#endif
 #endif
     DO i4 = 1, m4
       DO i3 = 1, m3
@@ -709,11 +695,9 @@ CONTAINS
         END DO
       END DO
     END DO
-#ifdef _OPENACC
-!$ACC END PARALLEL
-#else
 !$omp end do nowait
-#endif
+    CALL acc_wait_if_requested(1, opt_acc_async)
+
   END SUBROUTINE copy_4d_spdp
 
   !> copy state, omp parallel, does not wait for other threads to complete
@@ -728,9 +712,9 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -759,9 +743,9 @@ CONTAINS
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
 #endif
@@ -787,10 +771,9 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -811,9 +794,10 @@ CONTAINS
   END SUBROUTINE copy_5d_i4
 
   !> copy state, omp parallel, does not wait for other threads to complete
-  SUBROUTINE copy_5d_l(src, dest)
+  SUBROUTINE copy_5d_l(src, dest, opt_acc_async)
     LOGICAL, INTENT(in) :: src(:, :, :, :, :)
     LOGICAL, INTENT(out) :: dest(:, :, :, :, :)
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
     INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
@@ -821,16 +805,11 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-#ifdef _OPENACC
-    !$ACC DATA PCOPYIN( src ) PCOPYOUT( dest ) IF( i_am_accel_node .AND. acc_on )
-    !$ACC PARALLEL PRESENT( src, dest ) IF( i_am_accel_node .AND. acc_on )
-    !$ACC LOOP COLLAPSE(5)
-#else
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-    !$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+    !$omp do private(i1,i2,i3,i4,i5)
 #else
-    !$OMP DO COLLAPSE(5)
-#endif
+    !$omp do collapse(5)
 #endif
     DO i5 = 1, m5
       DO i4 = 1, m4
@@ -843,12 +822,9 @@ CONTAINS
         END DO
       END DO
     END DO
-#ifdef _OPENACC
-    !$ACC END PARALLEL
-    !$ACC END DATA
-#else
-    !$omp END DO NOWAIT
-#endif
+    !$omp end do nowait
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE copy_5d_l
 
   !> copy state, omp parallel, does not wait for other threads to complete
@@ -861,9 +837,9 @@ CONTAINS
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -888,9 +864,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -916,9 +892,9 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
-!$OMP DO PRIVATE(i1,i2,i3,i4)
+!$omp do private(i1,i2,i3,i4)
 #else
 !$omp do collapse(4)
 #endif
@@ -946,9 +922,9 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
-!$OMP DO PRIVATE(i1,i2,i3,i4)
+!$omp do private(i1,i2,i3,i4)
 #else
 !$omp do collapse(4)
 #endif
@@ -975,9 +951,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1003,9 +979,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
 
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
 #endif
@@ -1028,9 +1004,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1056,9 +1032,9 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4)
+!$omp do private(i1,i2,i3,i4)
 #else
 !$omp do collapse(4)
 #endif
@@ -1082,7 +1058,7 @@ CONTAINS
     INTEGER :: i1, m1
 
     m1 = SIZE(init_var, 1)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
 !$omp do
     DO i1 = 1, m1
       init_var(i1) = 0.0_dp
@@ -1098,8 +1074,8 @@ CONTAINS
     INTEGER :: i1, m1
 
     m1 = SIZE(init_var, 1)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$omp do
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
+    !$omp do
     DO i1 = 1, m1
       init_var(i1) = 0.0_dp
     END DO
@@ -1116,9 +1092,9 @@ CONTAINS
     m1 = SIZE(init_var, 1)
     m2 = SIZE(init_var, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
 #endif
@@ -1142,9 +1118,9 @@ CONTAINS
     m1 = SIZE(init_var, 1)
     m2 = SIZE(init_var, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2)
+!$omp do private(i1,i2)
 #else
 !$omp do collapse(2)
 #endif
@@ -1169,9 +1145,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1198,9 +1174,9 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1229,9 +1205,9 @@ CONTAINS
     m4 = SIZE(init_var, 4)
     m5 = SIZE(init_var, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -1264,9 +1240,9 @@ CONTAINS
     m4 = SIZE(init_var, 4)
     m5 = SIZE(init_var, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4,i5)
+!$omp do private(i1,i2,i3,i4,i5)
 #else
 !$omp do collapse(5)
 #endif
@@ -1299,9 +1275,9 @@ CONTAINS
     m3 = SIZE(var, 3)
 
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1330,9 +1306,9 @@ CONTAINS
     m2 = SIZE(var, 2)
     m3 = SIZE(var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3)
+!$omp do private(i1,i2,i3)
 #else
 !$omp do collapse(3)
 #endif
@@ -1361,9 +1337,9 @@ CONTAINS
     m3 = SIZE(var, 3)
     m4 = SIZE(var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) COLLAPSE(4) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(v) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
 #if (defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i1,i2,i3,i4)
+!$omp do private(i1,i2,i3,i4)
 #else
 !$omp do collapse(4)
 #endif
@@ -1390,7 +1366,7 @@ CONTAINS
 
     INTEGER :: i
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node ) ASYNC(1)
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1416,14 +1392,14 @@ CONTAINS
 
     INTEGER :: i
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
 !$omp do
     DO i = 1, n
       var(i) = v
     END DO
 !$omp end do nowait
-
     CALL acc_wait_if_requested(1, opt_acc_async)
+
   END SUBROUTINE init_contiguous_sp
 
   SUBROUTINE init_zero_contiguous_sp(var, n, opt_acc_async)
@@ -1442,7 +1418,7 @@ CONTAINS
 
     INTEGER :: i
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1460,7 +1436,7 @@ CONTAINS
 
     INTEGER :: i
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
 !$omp do
     DO i = 1, n
       var(i) = v

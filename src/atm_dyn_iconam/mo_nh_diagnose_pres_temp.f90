@@ -421,7 +421,7 @@ MODULE mo_nh_diagnose_pres_temp
     
     CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, slev, slev_moist, nlev)
 
-    !$ACC PARALLEL DEFAULT(NONE) ATTACH( pt_prog_rcf%tracer ) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ATTACH( pt_prog_rcf%tracer ) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, nlev
 !DIR$ IVDEP
@@ -457,11 +457,11 @@ MODULE mo_nh_diagnose_pres_temp
 
     !$ACC DATA NO_CREATE(qsum, tracer, condensate_list)
     
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     IF (slev_moist > slev) qsum(:,slev:slev_moist-1) = 0._wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __SX__
     qsum(:,slev_moist:nlev) = 0._wp

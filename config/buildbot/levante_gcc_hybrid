@@ -15,7 +15,7 @@ else
   set dummy; shift
 fi
 
-${ICON_DIR}/config/dkrz/levante.gcc --enable-yaxt --enable-openmp --disable-mpi-checks "$@"
+${ICON_DIR}/config/dkrz/levante.gcc --enable-openmp "$@"
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22

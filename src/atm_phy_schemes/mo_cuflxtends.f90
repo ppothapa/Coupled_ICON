@@ -266,16 +266,16 @@ CONTAINS
 
     IF (lhook) CALL dr_hook('CUFLXN',0,zhook_handle)
 
-    !$acc data                                                          &    
-    !$acc present( trop_mask, pten, pqen, pqsen, ptenh, pqenh, paph )   &
-    !$acc present( pap, pgeoh, ldland, ldlake, ldcum, kcbot, kctop )    &
-    !$acc present( kdtop, ktype, lddraf, pmfu, pmfd, pmfus, pmfds )     &
-    !$acc present( pmfuq, pmfdq, pmful, plude, plrain, psnde, pdmfup )  &
-    !$acc present( pdmfdp, pdpmel, plglac, pmflxr, pmflxs, prain )      &
-    !$acc present( pmfude_rate, pmfdde_rate )                           &
+    !$ACC DATA                                                          &    
+    !$ACC PRESENT( trop_mask, pten, pqen, pqsen, ptenh, pqenh, paph )   &
+    !$ACC PRESENT( pap, pgeoh, ldland, ldlake, ldcum, kcbot, kctop )    &
+    !$ACC PRESENT( kdtop, ktype, lddraf, pmfu, pmfd, pmfus, pmfds )     &
+    !$ACC PRESENT( pmfuq, pmfdq, pmful, plude, plrain, psnde, pdmfup )  &
+    !$ACC PRESENT( pdmfdp, pdpmel, plglac, pmflxr, pmflxs, prain )      &
+    !$ACC PRESENT( pmfude_rate, pmfdde_rate )                           &
 
-    !$acc create( zrhebc, zrcucov, zshalfac, idbas )                    &
-    !$acc if(lacc)
+    !$ACC CREATE( zrhebc, zrcucov, zshalfac, idbas )                    &
+    !$ACC IF(lacc)
 
     ztmst=ptsphy
     zcons1a=rcpd/(rlmlt*rg*rtaumel)
@@ -298,9 +298,9 @@ CONTAINS
     !!TO GET IDENTICAL RESULTS FOR DIFFERENT NPROMA FORCE KTOPM2 TO 2
     ktopm2=2
 
-    !$acc parallel default (none) if (lacc)
+    !$ACC PARALLEL DEFAULT (PRESENT) IF (lacc)
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jl=kidia,kfdia
       prain(jl)=0.0_JPRB
       IF(.NOT.ldcum(jl).OR.kdtop(jl) < kctop(jl)) lddraf(jl)=.FALSE.
@@ -314,12 +314,12 @@ CONTAINS
       zrcucov(jl) = rcucov*(1._jprb - trop_mask(jl)) + rcucov_trop*trop_mask(jl)
     ENDDO
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
       !OCL NOVREC
       ikb=MIN(jk+1,klev)
       !DIR$ IVDEP
-      !$acc loop gang(static:1) vector private (llddraf)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (llddraf)
       DO jl=kidia,kfdia
         pmflxr(jl,jk)=0.0_JPRB
         pmflxs(jl,jk)=0.0_JPRB
@@ -360,7 +360,7 @@ CONTAINS
       ENDDO
     ENDDO
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jl=kidia,kfdia
       pmflxr(jl,klev+1)=0.0_JPRB
       pmflxs(jl,klev+1)=0.0_JPRB
@@ -374,7 +374,7 @@ CONTAINS
 
     !DIR$ IVDEP
     !OCL NOVREC
-    !$acc loop gang(static:1) vector private (ikb, ik, zzp, ztarg, zoealfa, zoelhm)
+    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (ikb, ik, zzp, ztarg, zoealfa, zoelhm)
     DO jl=kidia,kfdia
       IF(ldcum(jl)) THEN
         ikb=kcbot(jl)
@@ -395,11 +395,11 @@ CONTAINS
       ENDIF
     ENDDO
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
       !DIR$ IVDEP
       !OCL NOVREC
-      !$acc loop gang(static:1) vector private (ikb, ik, zzp, llddraf)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (ikb, ik, zzp, llddraf)
       DO jl=kidia,kfdia
         IF(ldcum(jl).AND.jk > kcbot(jl)+1) THEN
           ikb=kcbot(jl)+1
@@ -430,9 +430,9 @@ CONTAINS
     !*                  CALCULATE EVAPORATION OF PRECIP
     !!                  -------------------------------
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
-      !$acc loop gang(static:1) vector private (zten, zcons1, zfac, zsnmlt, ztarg, zoealfa, zoeewm, zalfaw)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (zten, zcons1, zfac, zsnmlt, ztarg, zoealfa, zoeewm, zalfaw)
       DO jl=kidia,kfdia
         IF(ldcum(jl).AND.jk >= kctop(jl)-1) THEN
           prain(jl)=prain(jl)+pdmfup(jl,jk)
@@ -496,7 +496,7 @@ CONTAINS
     !!Reminder for conservation:
     !!   pdmfup(jl,jk)+pdmfdp(jl,jk)=pmflxr(jl,jk+1)+pmflxs(jl,jk+1)-pmflxr(jl,jk)-pmflxs(jl,jk)
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jl=kidia,kfdia
       IF (ktype(jl)==2) THEN
         zshalfac(jl) = 0.5_jprb
@@ -505,11 +505,11 @@ CONTAINS
       ENDIF
     ENDDO
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
       !$NEC sparse
-      !$acc loop gang(static:1) vector private (zrfl, zdrfl1, zrnew, zrmin, zrfln, zdrfl, zalfaw) &
-      !$acc                             private (zpdr, zpds, zdenom)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (zrfl, zdrfl1, zrnew, zrmin, zrfln, zdrfl, zalfaw) &
+      !$ACC                             PRIVATE (zpdr, zpds, zdenom)
       DO jl=kidia,kfdia
         IF(ldcum(jl).AND.jk >= kcbot(jl)) THEN
           zrfl=pmflxr(jl,jk)+pmflxs(jl,jk)
@@ -559,9 +559,9 @@ CONTAINS
       ENDDO
     ENDDO
 
-    !$acc end parallel
+    !$ACC END PARALLEL
 
-    !$acc end data
+    !$ACC END DATA
 
      IF (lhook) CALL dr_hook('CUFLXN',1,zhook_handle)
   END SUBROUTINE cuflxn
@@ -732,15 +732,15 @@ CONTAINS
     !----------------------------------------------------------------------
     IF (lhook) CALL dr_hook('CUDTDQN',0,zhook_handle)
 
-    !$acc data                                                                    &
-    !$acc present( ktype, kctop, kdtop, ldcum, lddraf, paph, pgeo, pgeoh, zdph )  &
-    !$acc present( pten, pqen, ptenh, pqenh, pqsen, plglac, plude, psnde, pmfu )  &
-    !$acc present( pmfd, pmfus, pmfds, pmfuq, pmfdq, pmful, pdmfup, pdpmel )      &
-    !$acc present( ptent, ptenq, penth)                                           &
+    !$ACC DATA                                                                    &
+    !$ACC PRESENT( ktype, kctop, kdtop, ldcum, lddraf, paph, pgeo, pgeoh, zdph )  &
+    !$ACC PRESENT( pten, pqen, ptenh, pqenh, pqsen, plglac, plude, psnde, pmfu )  &
+    !$ACC PRESENT( pmfd, pmfus, pmfds, pmfuq, pmfdq, pmful, pdmfup, pdpmel )      &
+    !$ACC PRESENT( ptent, ptenq, penth)                                           &
 
-    !$acc create( zmfus, zmfuq, zmfds, zmfdq, zdtdt, zdqdt, zdp, zb, zr1, zr2 )   &
-    !$acc create( llcumbas )                                                      &
-    !$acc if(lacc)
+    !$ACC CREATE( zmfus, zmfuq, zmfds, zmfdq, zdtdt, zdqdt, zdp, zb, zr1, zr2 )   &
+    !$ACC CREATE( llcumbas )                                                      &
+    !$ACC IF(lacc)
 
     !*    1.0          SETUP AND INITIALIZATIONS
     !!                 -------------------------
@@ -752,9 +752,9 @@ CONTAINS
     !LLTEST = (.NOT.LEPCLD.AND..NOT.LENCLD2).OR.(LPHYLIN.AND..NOT.LENCLD2)
     lltest = .NOT.lepcld.OR.lphylin
 
-    !$acc parallel default (none) if (lacc)
+    !$ACC PARALLEL DEFAULT (PRESENT) IF (lacc)
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jk=ktdia,klev
       DO jl=kidia,kfdia
         penth(jl,jk)=0.0_JPRB
@@ -764,7 +764,7 @@ CONTAINS
     !!        MASS-FLUX APPROACH SWITCHED ON FOR DEEP CONVECTION ONLY
     !!        IN THE TANGENT-LINEAR AND ADJOINT VERSIONS
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC:1) VECTOR
     DO jl=kidia,kfdia
       IF (ktype(jl) /= 1.AND.lphylin) ldcum(jl)=.FALSE.
     ENDDO
@@ -777,16 +777,16 @@ CONTAINS
 
     IF (lltest) THEN
       DO jk=ktdia,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           plude(jl,jk)=0.0_JPRB
         ENDDO
       ENDDO
     ENDIF
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia,klev
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jl=kidia,kfdia
         IF(ldcum(jl)) THEN
 !           ZDP(JL,JK)=RG/(PAPH(JL,JK+1)-PAPH(JL,JK))
@@ -805,12 +805,12 @@ CONTAINS
 
       !*    2.0          RECOMPUTE CONVECTIVE FLUXES IF IMPLICIT
 
-    !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
         ik=jk-1
         !DIR$ IVDEP
         !OCL NOVREC
-        !$acc loop gang(static:1) vector private(zgq, zgh, zgs, zs, zq)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zgq, zgh, zgs, zs, zq)
         DO jl=kidia,kfdia
           IF(ldcum(jl).AND.jk>=kctop(jl)-1) THEN
             ! compute interpolating coefficients ZGS and ZGQ for half-level values
@@ -835,11 +835,11 @@ CONTAINS
     !*    3.0          COMPUTE TENDENCIES
     !                  ------------------
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
 
       IF(jk < klev) THEN
-        !$acc loop gang(static:1) vector private(ztarg, zoealfa, zalv)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(ztarg, zoealfa, zalv)
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             IF (lphylin) THEN
@@ -868,7 +868,7 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        !$acc loop gang(static:1) vector private(ztarg, zoealfa, zalv)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(ztarg, zoealfa, zalv)
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             IF (lphylin) THEN
@@ -899,9 +899,9 @@ CONTAINS
 
       !*    3.1          UPDATE TENDENCIES
       !!                 -----------------
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             ptent(jl,jk)=ptent(jl,jk)+zdtdt(jl,jk)
@@ -922,9 +922,9 @@ CONTAINS
       !!ZDTDT and ZDQDT correspond to the RHS ("constants") of the equation
       !!The solution is in ZR1 and ZR2
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=1,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           llcumbas(jl,jk) = .FALSE.
           zb      (jl,jk) = 1.0_JPRB
@@ -934,10 +934,10 @@ CONTAINS
 
       !!Fill vectors A, B and RHS
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
         ik=jk+1
-        !$acc loop gang(static:1) vector private(zzp)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zzp)
         DO jl=kidia,kfdia
           llcumbas(jl,jk)=ldcum(jl).AND.jk>=kctop(jl)-1
           IF(llcumbas(jl,jk)) THEN
@@ -971,9 +971,9 @@ CONTAINS
       ! Compute tendencies
 
       !PREVENT_INCONSISTENT_IFORT_FMA
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(llcumbas(jl,jk)) THEN
             ptent(jl,jk)=ptent(jl,jk)+(zr1(jl,jk)-pten(jl,jk))*ztsphy
@@ -988,9 +988,9 @@ CONTAINS
       !----------------------------------------------------------------------
     ENDIF
 
-    !$acc end parallel
+    !$ACC END PARALLEL
 
-    !$acc end data
+    !$ACC END DATA
 
     IF (lhook) CALL dr_hook('CUDTDQN',1,zhook_handle)
   END SUBROUTINE cudtdqn
@@ -1129,22 +1129,22 @@ CONTAINS
     IF (lhook) CALL dr_hook('CUDUDV',0,zhook_handle)
 #endif
 
-    !$acc data                                                                &
-    !$acc present( ktype, kcbot, kctop, ldcum, paph, zdph, puen, pven, pmfu ) &
-    !$acc present( pmfd, puu, pud, pvu, pvd, ptenu, ptenv )                   &
+    !$ACC DATA                                                                &
+    !$ACC PRESENT( ktype, kcbot, kctop, ldcum, paph, zdph, puen, pven, pmfu ) &
+    !$ACC PRESENT( pmfd, puu, pud, pvu, pvd, ptenu, ptenv )                   &
 
-    !$acc create( zuen, zven, zmfuu, zmfdu, zmfuv, zmfdv, zdudt, zdvdt, zdp ) &
-    !$acc create( zb,  zr1,  zr2, llcumbas )                                  &
-    !$acc if(lacc)
+    !$ACC CREATE( zuen, zven, zmfuu, zmfdu, zmfuv, zmfdv, zdudt, zdvdt, zdp ) &
+    !$ACC CREATE( zb,  zr1,  zr2, llcumbas )                                  &
+    !$ACC IF(lacc)
 
     zimp=1.0_JPRB-rmfsoluv
     ztsphy=1.0_JPRB/ptsphy
 
-    !$acc parallel default (none) if (lacc)
+    !$ACC PARALLEL DEFAULT (PRESENT) IF (lacc)
  
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=1,klev
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jl=kidia,kfdia
         zmfuu(jl,jk) = 0._jprb
         zmfdu(jl,jk) = 0._jprb
@@ -1153,9 +1153,9 @@ CONTAINS
       ENDDO
     ENDDO
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia,klev
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jl=kidia,kfdia
         IF(ldcum(jl)) THEN
           zuen(jl,jk)=puen(jl,jk)
@@ -1171,9 +1171,9 @@ CONTAINS
     !*    1.0          CALCULATE FLUXES AND UPDATE U AND V TENDENCIES
     !!                 ----------------------------------------------
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jl=kidia,kfdia
         IF(ldcum(jl)) THEN
           zmfuu(jl,jk)=pmfu(jl,jk)*(puu(jl,jk)-zimp*zuen(jl,jk-1))
@@ -1187,11 +1187,11 @@ CONTAINS
     ! linear fluxes below cloud
     IF(rmfsoluv==0.0_JPRB) THEN
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
 !DIR$ IVDEP
 !OCL NOVREC
-        !$acc loop gang(static:1) vector private(ikb, zzp)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(ikb, zzp)
         DO jl=kidia,kfdia
           IF(ldcum(jl).AND.jk > kcbot(jl)) THEN
             ikb=kcbot(jl)
@@ -1211,12 +1211,12 @@ CONTAINS
     !*    1.2          COMPUTE TENDENCIES
     !                  ------------------
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk=ktdia-1+ktopm2,klev
 
       IF(jk < klev) THEN
         ik=jk+1
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             !>KF
@@ -1230,7 +1230,7 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             !>KF
@@ -1249,9 +1249,9 @@ CONTAINS
       !*    1.3          UPDATE TENDENCIES
       !                  -----------------
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(ldcum(jl)) THEN
             ptenu(jl,jk)=ptenu(jl,jk)+zdudt(jl,jk)
@@ -1271,9 +1271,9 @@ CONTAINS
       !!ZDUDT and ZDVDT correspond to the RHS ("constants") of the equation
       !!The solution is in ZR1 and ZR2
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=1,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           llcumbas(jl,jk) = .FALSE.
           zb      (jl,jk) = 1.0_JPRB
@@ -1283,9 +1283,9 @@ CONTAINS
 
       ! Fill vectors A, B and RHS
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
-        !$acc loop gang(static:1) vector private(zzp)
+        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zzp)
         DO jl=kidia,kfdia
           llcumbas(jl,jk)=ldcum(jl).AND.jk>=kctop(jl)-1
           IF(llcumbas(jl,jk)) THEN
@@ -1318,9 +1318,9 @@ CONTAINS
 
       ! Compute tendencies
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO jk=ktdia-1+ktopm2,klev
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC:1) VECTOR
         DO jl=kidia,kfdia
           IF(llcumbas(jl,jk)) THEN
             ptenu(jl,jk)=ptenu(jl,jk)+(zr1(jl,jk)-zuen(jl,jk))*ztsphy
@@ -1334,9 +1334,9 @@ CONTAINS
     !----------------------------------------------------------------------
     ENDIF
 
-    !$acc end parallel
+    !$ACC END PARALLEL
 
-    !$acc end data
+    !$ACC END DATA
 
 #ifndef _OPENACC
     IF (lhook) CALL dr_hook('CUDUDV',1,zhook_handle)
@@ -1719,7 +1719,7 @@ CONTAINS
     & kctop, ld_lcumask,&
     & pa,    pb,   pr,   pu)
 
-!$acc routine gang
+!$ACC ROUTINE GANG
 
     !
     !!Description:
@@ -1809,16 +1809,16 @@ CONTAINS
     IF (lhook) CALL dr_hook('CUBIDIAG',0,zhook_handle)
 #endif
 
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk = 1, klev
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC:1) VECTOR
       DO jl = kidia,kfdia
         pu(jl,jk)=0.0_JPRB
       ENDDO
     ENDDO
 
     ! Forward Substitution
-    !$acc loop gang(static:1) vector private(jk, zbet)
+    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jk, zbet)
     DO jl = kidia,kfdia
       jk = kctop(jl)-1
       IF (jk >= ktdia+1 .AND. jk <= klev) THEN
@@ -1832,10 +1832,10 @@ CONTAINS
 #ifndef _OPENACC
     DO jk = MAX(ktdia+1, MINVAL(kctop)), klev
 #else
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO jk = ktdia+1, klev
 #endif
-      !$acc loop gang(static:1) vector private(zbet)
+      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zbet)
       DO jl = kidia,kfdia
         IF ( jk >= kctop(jl) .AND. ld_lcumask(jl,jk) ) THEN
           zbet      = 1.0_JPRB/(pb(jl,jk) + 1.e-35_JPRB)

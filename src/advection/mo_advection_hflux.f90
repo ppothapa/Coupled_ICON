@@ -1023,7 +1023,7 @@ CONTAINS
     i_nchdom = MAX(1,p_patch%n_childdom)
 
     IF (p_test_run) THEN
-!$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF (i_am_accel_node .AND. acc_on)
+!$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node .AND. acc_on)
 #ifdef __INTEL_COMPILER
 !$OMP PARALLEL DO SCHEDULE(STATIC)
       DO i = 1,SIZE(z_grad,4)
@@ -1128,7 +1128,7 @@ CONTAINS
       IF ( l_out_edgeval ) THEN   ! Calculate 'edge value' of advected quantity
 
 !$NEC outerloop_unroll(8)
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR PRIVATE(ilc0,ibc0) COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -1150,7 +1150,7 @@ CONTAINS
       ELSE IF (use_zlsq) THEN
 
 !$NEC outerloop_unroll(8)
-!$ACC PARALLEL DEFAULT(NONE) PRIVATE(ilc0,ibc0) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ilc0,ibc0) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -1173,7 +1173,7 @@ CONTAINS
       ELSE
 
 !$NEC outerloop_unroll(8)
-!$ACC PARALLEL DEFAULT(NONE) PRIVATE(ilc0,ibc0) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+!$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ilc0,ibc0) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -1522,7 +1522,7 @@ CONTAINS
         ! 3.2 Compute intermediate tracer mass flux
         !
         IF (use_zlsq) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF ( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF ( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR PRIVATE( ilc0, ibc0 ) COLLAPSE(2)
 !$NEC outerloop_unroll(8)
           DO jk = slev, elev
@@ -1542,7 +1542,7 @@ CONTAINS
           ENDDO   ! loop over vertical levels
         !$ACC END PARALLEL
         ELSE
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         !$ACC LOOP GANG VECTOR PRIVATE( ilc0, ibc0 ) COLLAPSE(2)
 !$NEC outerloop_unroll(8)
           DO jk = slev, elev
@@ -1613,7 +1613,7 @@ CONTAINS
         ! This computation needs to be done only once, since the mass flux
         ! p_mass_flx_e is assumed to be constant in time.
         !
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
         IF ( nsub == 1 ) THEN
         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
@@ -1712,7 +1712,7 @@ CONTAINS
         ! Calculate flux at cell edge (cc_bary*v_{n}* \Delta p)
         !
         IF (p_ncycl == 2) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = slev, elev
 !NEC$ ivdep
@@ -1722,7 +1722,7 @@ CONTAINS
           ENDDO   ! loop over vertical levels
           !$ACC END PARALLEL
         ELSE IF (p_ncycl == 3) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = slev, elev
 !NEC$ ivdep

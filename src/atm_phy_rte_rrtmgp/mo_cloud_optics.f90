@@ -148,9 +148,9 @@ contains
              this%lut_ssaice(nsize_ice, nbnd, nrghice), &
              this%lut_asyice(nsize_ice, nbnd, nrghice))
 
-    !$acc enter data create(this)                                               &
-    !$acc            create(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
-    !$acc            create(this%lut_extice, this%lut_ssaice, this%lut_asyice)
+    !$ACC ENTER DATA CREATE(this)                                               &
+    !$ACC            CREATE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
+    !$ACC            CREATE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
     ! Load LUT constants
     this%radliq_lwr = radliq_lwr
     this%radliq_upr = radliq_upr
@@ -158,14 +158,14 @@ contains
     this%radice_upr = radice_upr
 
     ! Load LUT coefficients
-    !$acc kernels
+    !$ACC KERNELS
     this%lut_extliq = lut_extliq
     this%lut_ssaliq = lut_ssaliq
     this%lut_asyliq = lut_asyliq
     this%lut_extice = lut_extice
     this%lut_ssaice = lut_ssaice
     this%lut_asyice = lut_asyice
-    !$acc end kernels
+    !$ACC END KERNELS
     !
     ! Set default ice roughness - min values
     !
@@ -272,15 +272,15 @@ contains
              this%pade_sizreg_extice(nbound), &
              this%pade_sizreg_ssaice(nbound), &
              this%pade_sizreg_asyice(nbound))
-    !$acc enter data create(this)                                                                       &
-    !$acc            create(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
-    !$acc            create(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
-    !$acc            create(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
-    !$acc            create(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)
+    !$ACC ENTER DATA CREATE(this)                                                                       &
+    !$ACC            CREATE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
+    !$ACC            CREATE(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
+    !$ACC            CREATE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
+    !$ACC            CREATE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)
     !
     ! Load data
     !
-    !$acc kernels
+    !$ACC KERNELS
     this%pade_extliq = pade_extliq
     this%pade_ssaliq = pade_ssaliq
     this%pade_asyliq = pade_asyliq
@@ -293,7 +293,7 @@ contains
     this%pade_sizreg_extice = pade_sizreg_extice
     this%pade_sizreg_ssaice = pade_sizreg_ssaice
     this%pade_sizreg_asyice = pade_sizreg_asyice
-    !$acc end kernels
+    !$ACC END KERNELS
     !
     ! Set default ice roughness - min values
     !
@@ -304,7 +304,7 @@ contains
   ! Finalize
   !
   !--------------------------------------------------------------------------------------------------------------------
-  subroutine finalize(this)
+  SUBROUTINE finalize(this)
     class(ty_cloud_optics), intent(inout) :: this
 
     this%radliq_lwr = 0._wp
@@ -315,9 +315,9 @@ contains
     ! Lookup table cloud optics coefficients
     if(allocated(this%lut_extliq)) then
 
-      !$acc exit data delete(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
-      !$acc           delete(this%lut_extice, this%lut_ssaice, this%lut_asyice)  &
-      !$acc           delete(this)
+      !$ACC EXIT DATA DELETE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
+      !$ACC           DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice)  &
+      !$ACC           DELETE(this)
 
 
       deallocate(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq, &
@@ -331,11 +331,11 @@ contains
     ! Pade cloud optics coefficients
     if(allocated(this%pade_extliq)) then
 
-      !$acc exit data delete(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
-      !$acc           delete(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
-      !$acc           delete(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
-      !$acc           delete(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)  &
-      !$acc           delete(this)
+      !$ACC EXIT DATA DELETE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
+      !$ACC           DELETE(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
+      !$ACC           DELETE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
+      !$ACC           DELETE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)  &
+      !$ACC           DELETE(this)
 
       deallocate(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq, &
                  this%pade_extice, this%pade_ssaice, this%pade_asyice, &
@@ -421,13 +421,13 @@ contains
       if(error_msg /= "") return
     end if
 
-    !$acc data copyin(clwp, ciwp, reliq, reice)                         &
-    !$acc      create(ltau, ltaussa, ltaussag, itau, itaussa, itaussag) &
-    !$acc      create(liqmsk,icemsk)
+    !$ACC DATA COPYIN(clwp, ciwp, reliq, reice)                         &
+    !$ACC      CREATE(ltau, ltaussa, ltaussag, itau, itaussa, itaussag) &
+    !$ACC      CREATE(liqmsk,icemsk)
     !
     ! Cloud masks; don't need value re values if there's no cloud
     !
-    !$acc parallel loop gang vector default(none) collapse(2)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) FIRSTPRIVATE(nlay,ncol) COLLAPSE(2)
     do ilay = 1, nlay
       do icol = 1, ncol
         liqmsk(icol,ilay) = clwp(icol,ilay) > 0._wp
@@ -503,8 +503,8 @@ contains
       !
       select type(optical_props)
       type is (ty_optical_props_1scl)
-        !$acc parallel loop gang vector default(none) collapse(3) &
-        !$acc               copyin(optical_props) copyout(optical_props%tau)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd,nlay,ncol) &
+        !$ACC               COPYIN(optical_props) COPYOUT(optical_props%tau)
 
         do ibnd = 1, nbnd
           do ilay = 1, nlay
@@ -516,8 +516,8 @@ contains
           end do
         end do
       type is (ty_optical_props_2str)
-        !$acc parallel loop gang vector default(none) collapse(3) &
-        !$acc               copyin(optical_props) copyout(optical_props%tau, optical_props%ssa, optical_props%g)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd,nlay,ncol) PRIVATE(tau,taussa) &
+        !$ACC               COPYIN(optical_props) COPYOUT(optical_props%tau, optical_props%ssa, optical_props%g)
         do ibnd = 1, nbnd
           do ilay = 1, nlay
             do icol = 1,ncol
@@ -535,7 +535,7 @@ contains
       end select
 
     end if ! error_msg == ""
-    !$acc end data
+    !$ACC END DATA
   end function cloud_optics
   !--------------------------------------------------------------------------------------------------------------------
   !
@@ -620,7 +620,7 @@ contains
     real(wp) :: fint
     real(wp) :: t, ts, tsg  ! tau, tau*ssa, tau*ssa*g
     ! ---------------------------
-    !$acc parallel loop gang vector default(present) collapse(3)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(3)
     do ibnd = 1, nbnd
       do ilay = 1,nlay
         do icol = 1, ncol
@@ -674,7 +674,7 @@ contains
     integer  :: icol, ilay, ibnd, irad, count
     real(wp) :: t, ts
 
-    !$acc parallel loop gang vector default(present) collapse(3)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(3)
     do ibnd = 1, nbnd
       do ilay = 1, nlay
         do icol = 1, ncol
@@ -746,7 +746,7 @@ contains
   ! Evaluate Pade approximant of order [m/n]
   !
   function pade_eval_1(iband, nbnd, nrads, m, n, irad, re, pade_coeffs)
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     !
     integer,                intent(in) :: iband, nbnd, nrads, m, n, irad
     real(wp), dimension(nbnd, nrads, 0:m+n), &

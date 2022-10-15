@@ -227,7 +227,7 @@ CONTAINS
     ! - scaling ratio for fluxes at current time: xsdt    = rsdt / rsdt_rt
     !
     ! top of atmophere
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs,jce,rsdt0) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs, jce
       rsdt  (jc)   = rsdt0*cosmu0(jc)*daylght_frc(jc)
@@ -243,7 +243,7 @@ CONTAINS
     !$ACC END PARALLEL
     !
     ! all half levels
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klevp1
       DO jc = jcs, jce
@@ -252,7 +252,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     !
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs,jce,klevp1) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs, jce
       ! surface
@@ -292,7 +292,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     ! all half levels
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klevp1
       DO jc = jcs, jce
@@ -301,7 +301,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     !
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE( drlus_dtsr, dtsr )
     DO jc = jcs, jce
       ! surface
@@ -321,7 +321,7 @@ CONTAINS
 
     ! Heating rates in atmosphere
     !----------------------------
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klev,jcs,jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jc = jcs, jce

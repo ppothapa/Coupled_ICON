@@ -1187,7 +1187,7 @@ CONTAINS
       CALL get_indices_c(p_pc, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev_c
         DO jc = i_startidx, i_endidx

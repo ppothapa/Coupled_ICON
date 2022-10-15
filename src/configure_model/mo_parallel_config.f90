@@ -372,7 +372,7 @@ CONTAINS
   ! Trying to invert the above and catching cases with blk_no < 1
   !-------------------------------------------------------------------------
   ELEMENTAL INTEGER FUNCTION blk_no(j)
-#if defined(__PGI)
+#if defined(_OPENACC)
 !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
@@ -380,7 +380,7 @@ CONTAINS
   END FUNCTION blk_no
 
   ELEMENTAL INTEGER FUNCTION idx_no(j)
-#if defined(__PGI)
+#if defined(_OPENACC)
 !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
@@ -392,7 +392,7 @@ CONTAINS
   END FUNCTION idx_no
 
   ELEMENTAL INTEGER FUNCTION idx_1d(jl,jb)
-#if defined(__PGI)
+#if defined(_OPENACC)
 !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: jl, jb
