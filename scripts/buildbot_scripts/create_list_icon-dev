@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# abort on error
+set -euo pipefail
+
 cd $(dirname "${BASH_SOURCE[0]}")
 
 addexp="./addexp"

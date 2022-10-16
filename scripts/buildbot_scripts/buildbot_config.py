@@ -93,6 +93,7 @@ class BuildbotConfig(object):
 
         if machine not in self.machine_meta.keys():
             print("Could not find machine {} when adding builders {}. Check for typos or add machine {} first.".format(machine, " ".join(builders), machine))
+            sys.exit(1)
 
         mcol = pd.MultiIndex.from_product([[machine], builders], names=("machine", "builder"))
         df = pd.DataFrame(None, columns=mcol)
