@@ -175,7 +175,7 @@ CONTAINS
       !
       IF (aes_phy_config(jg)%lamip) THEN
        field => prm_field(jg)
-       !$ACC DATA PRESENT( field )
+       !$ACC DATA PRESENT(field)
        IF (iwtr <= nsfc_type .OR. iice <= nsfc_type) THEN
         !
         IF (.NOT.  ANY(aes_phy_config(:)%lsstice)) THEN
@@ -185,7 +185,7 @@ CONTAINS
           ALLOCATE(mask_sftof(SIZE(field%sftof,1), SIZE(field%sftof,2)))
           jbs = 1; jbe = SIZE(field%sftof, 2)
           jcs = 1; jce = SIZE(field%sftof, 1)
-          !$ACC DATA CREATE( mask_sftof )
+          !$ACC DATA CREATE(mask_sftof)
           !$ACC PARALLEL DEFAULT(NONE)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
@@ -211,7 +211,7 @@ CONTAINS
           jbs = LBOUND(field%ts_tile, 2); jbe = UBOUND(field%ts_tile, 2)
           jcs = LBOUND(field%ts_tile, 1); jce = UBOUND(field%ts_tile, 1)
 
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT( sst_dat )
+          !$ACC PARALLEL DEFAULT(NONE) PRESENT(sst_dat)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -227,7 +227,7 @@ CONTAINS
 
           jbs = LBOUND(field%seaice, 2); jbe = UBOUND(field%seaice, 2)
           jcs = LBOUND(field%seaice, 1); jce = UBOUND(field%seaice, 1)
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT( sic_dat )
+          !$ACC PARALLEL DEFAULT(NONE) PRESENT(sic_dat)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -243,7 +243,7 @@ CONTAINS
           ! set ice thickness
           jbs = LBOUND(field%siced, 2); jbe = UBOUND(field%siced, 2)
           jcs = LBOUND(field%siced, 1); jce = UBOUND(field%siced, 1)
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT( p_patch ) 
+          !$ACC PARALLEL DEFAULT(NONE) PRESENT(p_patch)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -411,8 +411,8 @@ CONTAINS
              & mtime_old,                 ltrig_rad,                          &
              & prm_field(jg)%cosmu0,      prm_field(jg)%daylght_frc,          &
              & prm_field(jg)%cosmu0_rt,   prm_field(jg)%daylght_frc_rt        )
-!$ACC UPDATE DEVICE( prm_field(jg)%cosmu0, prm_field(jg)%cosmu0_rt,         &
-!$ACC                prm_field(jg)%daylght_frc, prm_field(jg)%daylght_frc_rt )
+        !$ACC UPDATE DEVICE(prm_field(jg)%cosmu0, prm_field(jg)%cosmu0_rt) &
+        !$ACC   DEVICE(prm_field(jg)%daylght_frc, prm_field(jg)%daylght_frc_rt)
       END IF
 #endif
 

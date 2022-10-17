@@ -135,7 +135,7 @@ PUBLIC           ! All constants and variables in this module are public
  
   REAL  (KIND=wp) , POINTER ::  csalb(:)
 
-  !$acc declare copyin(clgk0) create (csalb)
+  !$ACC DECLARE COPYIN(clgk0) CREATE(csalb)
 
   ! Initialization of soil type parameters except cdz1 
   ! (being calculated during execution)
@@ -164,8 +164,8 @@ PUBLIC           ! All constants and variables in this module are public
   DATA  csandf/ 0.0_wp   , 0.0_wp   , 90._wp    , 65._wp    , 40._wp    , 35._wp    , 15._wp    , 90._wp    , 0.00_wp  ,  0.00_wp /
   DATA  cclayf/ 0.0_wp   , 0.0_wp   , 5.0_wp    , 10._wp    , 20._wp    , 35._wp    , 70._wp    , 5.0_wp    , 0.00_wp  ,  0.00_wp /
  
-  !$acc declare copyin(cporv, cfcap, cpwp, cadp, cik2, ckw0, ckw1, cdw0, cdw1, crock, cala0, cala1)
-  !$acc declare copyin(csalb1, csalb2, csalbw, crhoc, ck0di, cbedi, csandf, cclayf)
+  !$ACC DECLARE COPYIN(cporv, cfcap, cpwp, cadp, cik2, ckw0, ckw1, cdw0, cdw1, crock, cala0, cala1)
+  !$ACC DECLARE COPYIN(csalb1, csalb2, csalbw, crhoc, ck0di, cbedi, csandf, cclayf)
 !==============================================================================
 ! Soiltype IDs
 !------------------------------------------------------------------------------

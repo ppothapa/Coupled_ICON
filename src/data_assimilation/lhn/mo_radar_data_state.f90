@@ -1004,17 +1004,17 @@ CONTAINS
 
   DO jg = 1, n_dom
     ALLOCATE (lhn_fields(jg)%ttend_lhn(nproma,p_patch(jg)%nlev,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%ttend_lhn )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%ttend_lhn)
     ALLOCATE (lhn_fields(jg)%qvtend_lhn(nproma,p_patch(jg)%nlev,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%qvtend_lhn )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%qvtend_lhn)
     ALLOCATE (lhn_fields(jg)%brightband(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%brightband )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%brightband)
     ALLOCATE (lhn_fields(jg)%pr_obs_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%pr_obs_sum )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_obs_sum)
     ALLOCATE (lhn_fields(jg)%pr_mod_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%pr_mod_sum )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_mod_sum)
     ALLOCATE (lhn_fields(jg)%pr_ref_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE( lhn_fields(jg)%pr_ref_sum )
+    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_ref_sum)
   
 !$OMP PARALLEL 
     CALL init(lhn_fields(jg)%ttend_lhn(:,:,:))
@@ -1036,17 +1036,17 @@ CONTAINS
   INTEGER :: jg
 
   DO jg = 1, n_dom
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%ttend_lhn )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%ttend_lhn)
     DEALLOCATE (lhn_fields(jg)%ttend_lhn)
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%qvtend_lhn )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%qvtend_lhn)
     DEALLOCATE (lhn_fields(jg)%qvtend_lhn)
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%brightband )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%brightband)
     DEALLOCATE (lhn_fields(jg)%brightband)
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%pr_obs_sum )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_obs_sum)
     DEALLOCATE (lhn_fields(jg)%pr_obs_sum)
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%pr_mod_sum )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_mod_sum)
     DEALLOCATE (lhn_fields(jg)%pr_mod_sum)
-    !$ACC EXIT DATA DELETE( lhn_fields(jg)%pr_ref_sum )
+    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_ref_sum)
     DEALLOCATE (lhn_fields(jg)%pr_ref_sum)
   
   ENDDO

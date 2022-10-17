@@ -1092,7 +1092,7 @@ CONTAINS
                          &  t_ice       !< temperature of ice upper surface [K] 
 
 #ifdef _OPENACC
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
 #endif
 
     !===============================================================================================

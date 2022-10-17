@@ -1207,7 +1207,7 @@ CONTAINS
       ! not sure if these dimensions are supported by add_var...
       ALLOCATE(p_ext_atm%gp_count_t(nblks_c,ntiles_total), &
                p_ext_atm%lp_count_t(nblks_c,ntiles_total)  )
-      !$ACC ENTER DATA CREATE( p_ext_atm%gp_count_t, p_ext_atm%lp_count_t )
+      !$ACC ENTER DATA CREATE(p_ext_atm%gp_count_t, p_ext_atm%lp_count_t)
 
       ! lc_class_t        p_ext_atm%lc_class_t(nproma,nblks_c,ntiles_total+ntiles_water)
       cf_desc    = t_cf_var('tile point land cover class', '-', &
@@ -1294,9 +1294,9 @@ CONTAINS
                 p_ext_atm%stomresmin_lcc(nclass_lu(jg)),& ! Minimum stomata resistance for each land-cover class
                 p_ext_atm%snowalb_lcc(nclass_lu(jg)),   & ! Albedo in case of snow cover for each land-cover class
                 p_ext_atm%snowtile_lcc(nclass_lu(jg))   ) ! Specification of snow tiles for land-cover class
-      !$ACC ENTER DATA CREATE( p_ext_atm%z0_lcc, p_ext_atm%z0_lcc_min, p_ext_atm%plcovmax_lcc, &
-      !$ACC                    p_ext_atm%laimax_lcc, p_ext_atm%rootdmax_lcc, p_ext_atm%stomresmin_lcc, &
-      !$ACC                    p_ext_atm%snowalb_lcc, p_ext_atm%snowtile_lcc )
+      !$ACC ENTER DATA CREATE(p_ext_atm%z0_lcc, p_ext_atm%z0_lcc_min, p_ext_atm%plcovmax_lcc) &
+      !$ACC   CREATE(p_ext_atm%laimax_lcc, p_ext_atm%rootdmax_lcc, p_ext_atm%stomresmin_lcc) &
+      !$ACC   CREATE(p_ext_atm%snowalb_lcc, p_ext_atm%snowtile_lcc)
 
 
       ! Index lists for land, lake and water points
@@ -1849,10 +1849,10 @@ CONTAINS
     END IF
 
     DO jg = 1,n_dom
-      !$ACC EXIT DATA DELETE( ext_data(jg)%atm%gp_count_t, ext_data(jg)%atm%lp_count_t )
-      !$ACC EXIT DATA DELETE( ext_data(jg)%atm%z0_lcc, ext_data(jg)%atm%z0_lcc_min, ext_data(jg)%atm%plcovmax_lcc, &
-      !$ACC                   ext_data(jg)%atm%laimax_lcc, ext_data(jg)%atm%rootdmax_lcc, ext_data(jg)%atm%stomresmin_lcc, &
-      !$ACC                   ext_data(jg)%atm%snowalb_lcc, ext_data(jg)%atm%snowtile_lcc )
+      !$ACC EXIT DATA DELETE(ext_data(jg)%atm%gp_count_t, ext_data(jg)%atm%lp_count_t)
+      !$ACC EXIT DATA DELETE(ext_data(jg)%atm%z0_lcc, ext_data(jg)%atm%z0_lcc_min, ext_data(jg)%atm%plcovmax_lcc) &
+      !$ACC   DELETE(ext_data(jg)%atm%laimax_lcc, ext_data(jg)%atm%rootdmax_lcc, ext_data(jg)%atm%stomresmin_lcc) &
+      !$ACC   DELETE(ext_data(jg)%atm%snowalb_lcc, ext_data(jg)%atm%snowtile_lcc)
     ENDDO
 
     DO jg = 1, n_dom

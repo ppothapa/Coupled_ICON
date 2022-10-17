@@ -53,7 +53,7 @@ MODULE mo_nwp_conv_interface
   USE mo_math_constants,       ONLY: rad2deg
   USE mtime,                   ONLY: datetime
   USE mo_gribout_config,       ONLY: gribout_config
-  USE mo_fortran_tools,        ONLY: init, t_ptr_tracer
+  USE mo_fortran_tools,        ONLY: init, t_ptr_tracer, set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -146,17 +146,13 @@ CONTAINS
     TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer_tend(:)
     TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer(:)
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-!$acc data                                                      &
-!$acc present( kstart_moist(jg) )                               &
-!$acc create( z_ddspeed, z_dtdqv  , z_dtdt   , z_dtdt_sv )      &
-!$acc create( z_omega_p, z_plitot , z_qhfl   , z_shfl    )      &
-!$acc if (lzacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(kstart_moist(jg)) &
+    !$ACC   CREATE(z_ddspeed, z_dtdqv, z_dtdt, z_dtdt_sv) &
+    !$ACC   CREATE(z_omega_p, z_plitot, z_qhfl, z_shfl) &
+    !$ACC   IF(lzacc)
 
     ! local variables related to the blocking
     jg        = p_patch%id
@@ -262,32 +258,32 @@ CONTAINS
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
         CASE (0)
 
-          !$acc parallel default(present) if (lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx,i_endidx
             z_qhfl(jc,nlevp1) = - 4.79846_wp*1.e-5_wp !> moisture flux kg/m2/s
             z_shfl(jc,nlevp1) = - 17._wp              !! sens. heat fl W/m**2
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
         CASE DEFAULT
 
           ! In turb1,turb2 and turb3, the flux is positive downwards / negative upwards
 
-          !$acc parallel default(present) if (lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx,i_endidx
             z_qhfl(jc,nlevp1) = prm_diag%qhfl_s(jc,jb)
             z_shfl(jc,nlevp1) = prm_diag%shfl_s(jc,jb)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
         END SELECT
 
-        !$acc parallel default(present) if (lzacc)
-        !$acc loop gang
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG
         DO jk = 1, kstart_moist(jg)-1
-          !$acc loop vector
+          !$ACC LOOP VECTOR
           DO jc = 1, nproma
             z_omega_p (jc,jk) = 0._wp
             z_dtdqv   (jc,jk) = 0._wp
@@ -295,13 +291,13 @@ CONTAINS
             z_plitot  (jc,jk) = 0._wp
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
 
-        !$acc parallel default(present) if (lzacc)
-        !$acc loop gang
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG
         DO jk = kstart_moist(jg),nlev
-          !$acc loop vector
+          !$ACC LOOP VECTOR
           DO jc = i_startidx,i_endidx
             ! vertical velocity in p-system
             z_omega_p(jc,jk)= -0.5_wp*(p_prog%w(jc,jk,jb)+p_prog%w(jc,jk+1,jb)) &
@@ -323,14 +319,14 @@ CONTAINS
                             + p_prog_rcf%tracer(jc,jk,jb,iqi)
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
         ! The following input fields must be reset to zero because the convective
         ! tendencies are added to them
-        !$acc parallel default(present) if (lzacc)
-        !$acc loop gang
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG
         DO jk = 1, nlev
-          !$acc loop vector
+          !$ACC LOOP VECTOR
           DO jc = 1, nproma
             prm_nwp_tend%ddt_u_pconv (jc,jk,jb) = 0._wp
             prm_nwp_tend%ddt_v_pconv (jc,jk,jb) = 0._wp
@@ -339,7 +335,7 @@ CONTAINS
             prm_diag%snow_con_rate_3d(jc,jk,jb) = 0._wp
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
         IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
 #ifdef _OPENACC
@@ -360,12 +356,12 @@ CONTAINS
         !-------------------------------------------------------------------------
 
         IF ( atm_phy_nwp_config(jg)%inwp_turb /= iedmf ) THEN ! DUALM is allowed to turn off shallow convection
-          !$acc parallel default(present) if (lzacc)
-          !$acc loop vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP VECTOR
           DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
             prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
 
         ! Preparing fields for stochastic convection routines
@@ -550,12 +546,12 @@ CONTAINS
 
         ! Postprocessing on some fields
 
-        !$acc parallel default(present) if (lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
 
         ! Conversion from temperature tendencies at constant pressure to constant volume is now done here
-        !$acc loop seq
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg),nlev
-          !$acc loop gang(static:1) vector
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx,i_endidx
             prm_nwp_tend%ddt_temp_pconv  (jc,jk,jb) =  &
               &  ( z_dtdt   (jc,jk) - z_dtdt_sv(jc,jk) ) * cpdocvd
@@ -565,9 +561,9 @@ CONTAINS
 
         ! Convert detrained cloud ice into cloud water if the temperature is only slightly below freezing
         ! and convective cloud top is not cold enough for substantial ice initiation
-        !$acc loop seq
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg),nlev
-          !$acc loop gang(static:1) vector private (wfac)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wfac)
           DO jc = i_startidx,i_endidx
             IF (prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqi) > 0._wp .AND. p_diag%temp(jc,jk,jb) > ticeini) THEN
               wfac = MAX(0._wp, MIN(1._wp,0.25_wp*(p_diag%temp(jc,jk,jb)-ticeini)) + &
@@ -587,7 +583,7 @@ CONTAINS
         ! convective contribution to wind gust
         ! (based on simple parameterization by Peter Bechthold)
         !
-        !$acc loop gang(static:1) vector private (zk850,zk950,u850,u950,v850,v950)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zk850, zk950, u850, u950, v850, v950)
         DO jc=i_startidx,i_endidx
           IF ( prm_diag%ktype(jc,jb) == 1 )  THEN   ! penetrative convection
             zk850 = prm_diag%k850(jc,jb)
@@ -609,7 +605,7 @@ CONTAINS
 
         IF (lcompute_lpi) THEN
           ! Store the maximum of lpi_con and mlpi_con
-          !$acc loop gang(static:1) vector
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx,i_endidx
             prm_diag%lpi_con_max(jc,jb)=MAX(prm_diag%lpi_con_max(jc,jb),      &
               &                             prm_diag%lpi_con    (jc,jb))
@@ -620,14 +616,14 @@ CONTAINS
 
         IF (lcompute_lfd) THEN
           ! Store the maximum of lfd_con
-          !$acc loop gang(static:1) vector
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx,i_endidx
             prm_diag%lfd_con_max(jc,jb)=MAX(prm_diag%lfd_con_max(jc,jb),      &
               &                             prm_diag%lfd_con    (jc,jb))
           ENDDO
         ENDIF
 
-        !$acc end parallel
+        !$ACC END PARALLEL
 
       ENDIF !inwp_conv
 
@@ -636,7 +632,7 @@ CONTAINS
 !$OMP END PARALLEL DO
 #endif
 
-    !$acc end data
+    !$ACC END DATA
 
   END SUBROUTINE nwp_convection
 

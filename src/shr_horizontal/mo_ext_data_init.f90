@@ -1137,7 +1137,7 @@ CONTAINS
           ENDDO
         ENDIF
 
-        !$acc update device(ext_data(jg)%atm%i_lc_snow_ice)
+        !$ACC UPDATE DEVICE(ext_data(jg)%atm%i_lc_snow_ice)
 
         ! Urban canopy parameters
         ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp

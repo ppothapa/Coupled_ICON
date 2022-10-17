@@ -112,7 +112,7 @@ INTEGER (KIND=jpim)   :: kland(klon)
 ! beta(1) for land, beta(2) for sea - Takahashi 2006 (mentioned
 ! in Lopez 2016)
 REAL(KIND=jprb), PARAMETER :: beta(2)= [0.7_jprb , 0.45_jprb ]  
-!$acc declare copyin (beta)
+  !$ACC DECLARE COPYIN(beta)
 REAL(KIND=jprb), PARAMETER :: Vgraup=3.0_jprb ! 3   m/s fall speed for graupel
 REAL(KIND=jprb), PARAMETER :: Vsnow=0.5_jprb  ! 0.5 m/s fall speed for snow
 
@@ -124,33 +124,33 @@ REAL(KIND=jprb) :: unitVolume(klon) ! the volume used for the integral - region
 
 INTEGER(KIND=jpim) :: jk, jl
 
-!$acc data                                                                                      &
-!$acc present( ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zkineu, ldland, lpi )                &
+  !$ACC DATA &
+  !$ACC   PRESENT(ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zkineu, ldland, lpi) &
 
-!$acc create( unitVolume, zrho, kland )                                                         &
-!$acc if(lacc)
+  !$ACC   CREATE(unitVolume, zrho, kland) &
+  !$ACC   IF(lacc)
 
-  !$acc parallel default(present) if (lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
   ! Make land sea mask for beta
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     kland(jl)      = MERGE (1_jpim, 2_jpim, ldland(jl))
     LPI(jl)        = 0.0_jprb
     unitVolume(jl) = 0.0_jprb
   ENDDO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1, klev
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl = 1, klon
       zrho(JL,JK)=pap(JL,JK)/(zten(JL,JK)*Rd+1E-10_jprb)
     ENDDO
   ENDDO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1, klev
-    !$acc loop gang(static:1) vector private(zqGraup, zqSnow, zqLiquid, zqIce, zQI, zeps, zdz) 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqGraup, zqSnow, zqLiquid, zqIce, zQI, zeps, zdz)
     DO jl = 1, klon
       ! only for deep convection LPI is computed
       IF (ktype(JL) == 1) THEN
@@ -176,7 +176,7 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDDO
   ENDDO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     lpi(JL)=lpi(JL)/(unitVolume(JL)+1E-20_jprb)
   ENDDO
@@ -191,9 +191,9 @@ INTEGER(KIND=jpim) :: jk, jl
 !!  ! only.
 !!  lpi=lpi/15000._jprb 
 
-  !$acc end parallel
+  !$ACC END PARALLEL
 
-!$acc end data
+  !$ACC END DATA
 
 END SUBROUTINE cucalclpi
  
@@ -260,18 +260,18 @@ REAL(KIND=jprb), PARAMETER :: LPIconst=86.15723_jprb
 
 INTEGER(KIND=jpim) :: jk, jl
 
-!$ACC DATA                                                                                      &
-!$ACC PRESENT( zten, zqen, pap, paph, lpi, mlpi, koi )                                          &
+  !$ACC DATA &
+  !$ACC   PRESENT(zten, zqen, pap, paph, lpi, mlpi, koi) &
 
-!$ACC CREATE( thetae600, thetae900, thetae, deltap600, deltap900, fa, fb )                      &
-!$ACC IF(lacc)
+  !$ACC   CREATE(thetae600, thetae900, thetae, deltap600, deltap900, fa, fb) &
+  !$ACC   IF(lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF (lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
   ! compute equivalent potential temperature
   !$ACC LOOP SEQ
   DO jk = 1_jpim, klev
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(te)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(te)
     DO jl = 1_jpim, klon
        te = zten(JL,JK)+foeldcpm(zten(JL,JK)+1E-20)*zqen(JL,JK)
        thetae(JL,JK)=te*(100000.D0/(pap(JL,JK)+1E-10))**(rd/rcpd)
@@ -279,7 +279,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   ! Now compute KOI
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     thetae900(jl)=0.0_jprb
     deltap900(jl)=0.0_jprb
@@ -289,7 +289,7 @@ INTEGER(KIND=jpim) :: jk, jl
 
   !$ACC LOOP SEQ
   DO jk = 1_jpim, klev
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl = 1_jpim, klon
       IF (pap(JL,JK) > 80000.D0) THEN
         thetae900(JL) = thetae900(JL)                                   &
@@ -303,7 +303,7 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDDO
   ENDDO
 
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     thetae900(jl) = thetae900(jl)/(deltap900(jl)+1E-20)
   ! Over mountains where the lowest pressure level is below 800hPa, 
@@ -321,7 +321,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   ! Compute the modified LPI
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     fa(jl) = fg*LPI(jl)**fh
     ! we require a >= b
@@ -337,7 +337,7 @@ INTEGER(KIND=jpim) :: jk, jl
 
   !$ACC END PARALLEL
                      
-!$ACC END DATA
+  !$ACC END DATA
 
 END SUBROUTINE CUCALCMLPI
 

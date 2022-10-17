@@ -64,7 +64,8 @@ MODULE mo_nwp_rad_interface
   USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
   USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
     &                                 calculate_time_interpolation_weights
-  USE mo_o3_util,              ONLY: o3_interface 
+  USE mo_o3_util,              ONLY: o3_interface
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -92,7 +93,7 @@ MODULE mo_nwp_rad_interface
       &  routine = 'mo_nwp_rad_interface:nwp_radiation'
 
     LOGICAL,                 INTENT(in)    :: lredgrid        !< use reduced grid for radiation
-    LOGICAL, OPTIONAL,       INTENT(in)    :: lacc
+    LOGICAL, OPTIONAL,       INTENT(in)    :: lacc ! If true, use openacc
 
     REAL(wp),                INTENT(in)    :: p_sim_time   !< simulation time
     REAL(wp),                INTENT(in)    :: zf(:,:,:)    !< model full layer height
@@ -157,12 +158,7 @@ MODULE mo_nwp_rad_interface
     i_startblk = pt_patch%cells%start_blk(rl_start,1)
     i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
 
-    ! openACC flag (initialization run is left on)
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 
     !-------------------------------------------------------------------------
@@ -170,7 +166,7 @@ MODULE mo_nwp_rad_interface
     !-------------------------------------------------------------------------
 
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
-      &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lacc)
+      &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lzacc)
 
 #ifdef __ECRAD
     IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc, &
@@ -319,24 +315,24 @@ MODULE mo_nwp_rad_interface
     IF(lzacc) THEN
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
-      CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data)
-      i_am_accel_node = .FALSE.
+      CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
+      i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif
       CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5 )
+        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=.FALSE. )
     
       IF ( .NOT. lredgrid ) THEN
           
         CALL nwp_rrtm_radiation ( mtime_datetime, pt_patch, ext_data, &
           & zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,        &
-          & pt_diag, prm_diag, lnd_prog )
+          & pt_diag, prm_diag, lnd_prog, lacc=.FALSE. )
        
       ELSE 
 
         CALL nwp_rrtm_radiation_reduced ( mtime_datetime, pt_patch,pt_par_patch, ext_data, &
           & zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                             &
-          & pt_diag, prm_diag, lnd_prog )
+          & pt_diag, prm_diag, lnd_prog, lacc=.FALSE. )
           
       ENDIF
 
@@ -344,7 +340,7 @@ MODULE mo_nwp_rad_interface
       IF(lzacc) THEN
         CALL message('mo_nh_interface_nwp', &
           &  'Host to device copy after nwp_rrtm_radiation. This needs to be removed once port is finished!')
-        CALL gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data)
+        CALL gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
         i_am_accel_node = my_process_is_work()
       ENDIF
 #endif
@@ -353,7 +349,7 @@ MODULE mo_nwp_rad_interface
 #ifdef __ECRAD
       !$ACC WAIT
       CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, use_acc=lzacc )
+        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
 
       IF (.NOT. lredgrid) THEN
         !$ACC WAIT
@@ -366,7 +362,7 @@ MODULE mo_nwp_rad_interface
         CALL nwp_ecRad_radiation_reduced ( mtime_datetime, pt_patch,pt_par_patch, &
           & ext_data, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                          &
           & od_lw, od_sw, ssa_sw, g_sw,                                           &
-          & pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lzacc )
+          & pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lacc=lzacc )
       ENDIF
 #else
       CALL finish(routine,  &

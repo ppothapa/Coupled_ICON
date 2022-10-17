@@ -146,7 +146,7 @@ MODULE mo_nh_vert_interp_les
     INTEGER :: jk, jc, jb
 
     !$ACC DATA &
-    !$ACC PRESENT(p_metrics,varin,varout)
+    !$ACC   PRESENT(p_metrics, varin, varout)
 
     nlev      = p_patch%nlev
     nlevp1    = p_patch%nlev+1
@@ -324,8 +324,8 @@ MODULE mo_nh_vert_interp_les
     INTEGER  :: jk, jc, jb
 
     !$ACC DATA &
-    !$ACC PRESENT(thetav,bru_vais,p_metrics,p_metrics%inv_ddqz_z_half) &
-    !$ACC CREATE(thetav_ic)
+    !$ACC   PRESENT(thetav, bru_vais, p_metrics, p_metrics%inv_ddqz_z_half) &
+    !$ACC   CREATE(thetav_ic)
 
     !To be calculated at all cells at interface levels, except top/bottom 
     !boundaries

@@ -80,10 +80,10 @@ CONTAINS
     IF (lradt) THEN
        IF (.NOT.(ASSOCIATED(tsi_radt_m))) ALLOCATE(tsi_radt_m(0:13))
        IF (.NOT.(ASSOCIATED(ssi_radt_m))) ALLOCATE(ssi_radt_m(ssi_numwl,0:13))
-       !$ACC ENTER DATA PCREATE( tsi_radt_m, ssi_radt_m )
+       !$ACC ENTER DATA PCREATE(tsi_radt_m, ssi_radt_m)
     ELSE
        IF (.NOT.(ASSOCIATED(tsi_m)))      ALLOCATE(tsi_m(0:13))
-       !$ACC ENTER DATA PCREATE( tsi_m )
+       !$ACC ENTER DATA PCREATE(tsi_m)
     END IF
 
     CALL nf_check(p_nf_inq_varid(ncid, 'year', nvarid))
@@ -110,12 +110,12 @@ CONTAINS
        CALL nf_check(p_nf_get_vara_double (ncid, nvarid, start, cnt, ssi_radt_m))
        lread_solar_radt=.FALSE.
        last_year_radt=year
-       !$ACC UPDATE DEVICE( tsi_radt_m, ssi_radt_m )
+       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m)
     ELSE
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_m))
        lread_solar=.FALSE.
        last_year=year
-       !$ACC UPDATE DEVICE( tsi_m )
+       !$ACC UPDATE DEVICE(tsi_m)
     END IF
 
     CALL nf_check(p_nf_close(ncid))
@@ -142,8 +142,8 @@ CONTAINS
         WRITE(ctsi,'(F14.8)') tsi
         IF (msg_level >= 11) CALL message('','Interpolated total solar irradiance and spectral ' &
           &          //'bands for radiation transfer, tsi= '//ctsi)
-        !$ACC ENTER DATA PCREATE( ssi )
-        !$ACC UPDATE DEVICE( ssi )
+        !$ACC ENTER DATA PCREATE(ssi)
+        !$ACC UPDATE DEVICE(ssi)
       END IF
     ELSE
       IF (PRESENT(ssi)) THEN

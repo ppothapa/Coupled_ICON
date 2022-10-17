@@ -265,7 +265,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
     nshift = (jb-1)*nproma_ubcintp
 
     !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
-    !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = nshift+1, nshift+nlen
       DO jn = 1, nfields
@@ -323,8 +323,8 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
       ENDDO
     ENDDO
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2) PRIVATE(min_expval, max_expval, &
-    !$ACC      limfac1, limfac2, relaxed_minval, relaxed_maxval, limfac1, limfac2, limfac)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(min_expval, max_expval) &
+    !$ACC   PRIVATE(limfac1, limfac2, relaxed_minval, relaxed_maxval, limfac1, limfac2, limfac)
 #ifdef __LOOP_EXCHANGE
     DO jc = nshift+1, nshift+nlen
       DO jn = 1, nfields
@@ -381,7 +381,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
     ENDDO
 
     IF (l_limit_nneg) THEN
-      !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = nshift+1, nshift+nlen
         DO jn = 1, nfields
@@ -407,7 +407,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
         ENDDO
       ENDDO
         ELSE
-      !$ACC LOOP GANG(STATIC:1) VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = nshift+1, nshift+nlen
         DO jn = 1, nfields

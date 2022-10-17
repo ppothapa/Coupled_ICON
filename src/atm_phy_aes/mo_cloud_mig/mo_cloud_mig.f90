@@ -119,10 +119,10 @@ CONTAINS
     !
     REAL(wp) :: zdtr ! reciprocal of timestep
 
-    !$ACC DATA PRESENT( dz, rho, pf, cpair, cvair, ta, qv, qc, qi, qr, qs, qg,         &
-    !$ACC               tend_ta, tend_qv, tend_qc, tend_qi, tend_qr, tend_qs, tend_qg, &
-    !$ACC               pr_ice, pr_rain, pr_snow, pr_grpl )                            &
-    !$ACC       CREATE( zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, total_ice, zqrsflux )
+    !$ACC DATA PRESENT(dz, rho, pf, cpair, cvair, ta, qv, qc, qi, qr, qs, qg) &
+    !$ACC   PRESENT(tend_ta, tend_qv, tend_qc, tend_qi, tend_qr, tend_qs, tend_qg) &
+    !$ACC   PRESENT(pr_ice, pr_rain, pr_snow, pr_grpl) &
+    !$ACC   CREATE(zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, total_ice, zqrsflux)
 
     nproma = SIZE(dz,1)
 

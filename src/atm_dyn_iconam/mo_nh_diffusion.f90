@@ -69,10 +69,6 @@ MODULE mo_nh_diffusion
 
   PUBLIC :: diffusion
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
   ! On the vectorizing DWD-NEC the diagnostics for the tendencies of the normal wind
   ! from terms xyz, ddt_vn_xyz, is disabled by default due to the fear that the
   ! conditional storage in conditionally allocated global fields is attempted even if
@@ -324,13 +320,13 @@ MODULE mo_nh_diffusion
       ltemp_diffu = .FALSE.
     ENDIF
 
-!$ACC DATA CREATE( div, kh_c, kh_smag_e, kh_smag_ec, u_vert, v_vert, u_cell, v_cell, z_w_v, z_temp,          &
-!$ACC              z_nabla4_e, z_nabla4_e2, z_nabla2_e, z_nabla2_c, enh_diffu_3d, icount,                    &
-!$ACC              z_vn_ie, z_vt_ie, dvndz, dvtdz, dwdz, dthvdz, dwdn, dwdt, kh_smag3d_e ),                  &
-!$ACC      COPYIN( nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, enh_smag_fac ), &
-!$ACC      PRESENT( p_patch, p_int, p_nh_prog, p_nh_diag, p_nh_metrics,                                      &
-!$ACC               ividx, ivblk, iecidx, iecblk, icidx, icblk, ieidx, ieblk )                               &
-!$ACC      IF ( i_am_accel_node .AND. acc_on )
+    !$ACC DATA CREATE(div, kh_c, kh_smag_e, kh_smag_ec, u_vert, v_vert, u_cell, v_cell, z_w_v, z_temp) &
+    !$ACC   CREATE(z_nabla4_e, z_nabla4_e2, z_nabla2_e, z_nabla2_c, enh_diffu_3d, icount) &
+    !$ACC   CREATE(z_vn_ie, z_vt_ie, dvndz, dvtdz, dwdz, dthvdz, dwdn, dwdt, kh_smag3d_e) &
+    !$ACC   COPYIN(nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, enh_smag_fac) &
+    !$ACC   PRESENT(p_patch, p_int, p_nh_prog, p_nh_diag, p_nh_metrics) &
+    !$ACC   PRESENT(ividx, ivblk, iecidx, iecblk, icidx, icblk, ieidx, ieblk) &
+    !$ACC   IF(i_am_accel_node)
 
 !!! Following variables may be present in certain situations, but we don't want it to fail in the general case.
 !!! Should actually be in a separate data region with correct IF condition.
@@ -356,10 +352,10 @@ MODULE mo_nh_diffusion
     ELSE IF ((diffu_type == 3 .OR. diffu_type == 5) .AND. discr_vn == 1 .AND. .NOT. diffusion_config(jg)%lsmag_3d) THEN
 
       IF (p_test_run) THEN
-!$ACC KERNELS PRESENT( u_vert, v_vert ), ASYNC(1) IF ( i_am_accel_node .AND. acc_on )
+        !$ACC KERNELS PRESENT(u_vert, v_vert) ASYNC(1) IF(i_am_accel_node)
         u_vert = 0._vp
         v_vert = 0._vp
-!$ACC END KERNELS
+        !$ACC END KERNELS
       ENDIF
 
       !  RBF reconstruction of velocity at vertices
@@ -394,7 +390,7 @@ MODULE mo_nh_diffusion
 
         ! Computation of wind field deformation
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -473,7 +469,7 @@ MODULE mo_nh_diffusion
             kh_smag_e(je,jk,jb) = MIN(kh_smag_e(je,jk,jb),smag_limit(jk))
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO ! block jb
 !$OMP END DO NOWAIT
@@ -482,11 +478,11 @@ MODULE mo_nh_diffusion
     ELSE IF ((diffu_type == 3 .OR. diffu_type == 5) .AND. discr_vn == 1) THEN ! 3D Smagorinsky diffusion
 
       IF (p_test_run) THEN
-!$ACC KERNELS PRESENT( u_vert, v_vert, z_w_v), ASYNC(1) IF ( i_am_accel_node .AND. acc_on )
+        !$ACC KERNELS PRESENT(u_vert, v_vert, z_w_v) ASYNC(1) IF(i_am_accel_node)
         u_vert = 0._vp
         v_vert = 0._vp
         z_w_v  = 0._wp
-!$ACC END KERNELS
+        !$ACC END KERNELS
       ENDIF
 
       !  RBF reconstruction of velocity at vertices
@@ -525,7 +521,7 @@ MODULE mo_nh_diffusion
                            i_startidx, i_endidx, rl_start, rl_end)
 
                            
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 2, nlev
           DO je = i_startidx, i_endidx
             z_vn_ie(je,jk) = p_nh_metrics%wgtfac_e(je,jk,jb)*p_nh_prog%vn(je,jk,jb) +   &
@@ -534,9 +530,9 @@ MODULE mo_nh_diffusion
              (1._wp - p_nh_metrics%wgtfac_e(je,jk,jb))*p_nh_diag%vt(je,jk-1,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(i_am_accel_node)
         DO je = i_startidx, i_endidx
           z_vn_ie(je,1) =                                            &
             p_nh_metrics%wgtfacq1_e(je,1,jb)*p_nh_prog%vn(je,1,jb) + &
@@ -555,11 +551,11 @@ MODULE mo_nh_diffusion
             p_nh_metrics%wgtfacq_e(je,2,jb)*p_nh_diag%vt(je,nlev-1,jb) + &
             p_nh_metrics%wgtfacq_e(je,3,jb)*p_nh_diag%vt(je,nlev-2,jb)
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
         ! Computation of wind field deformation
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -670,7 +666,7 @@ MODULE mo_nh_diffusion
             kh_smag_e(je,jk,jb) = MIN(kh_smag_e(je,jk,jb),smag_limit(jk))
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -695,9 +691,9 @@ MODULE mo_nh_diffusion
       ENDIF
 
       IF (p_test_run) THEN
-!$ACC KERNELS IF ( i_am_accel_node .AND. acc_on ) ASYNC(1)
+        !$ACC KERNELS IF(i_am_accel_node) ASYNC(1)
         z_nabla2_e = 0._wp
-!$ACC END KERNELS        
+        !$ACC END KERNELS
       ENDIF
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk,rl_start,rl_end)
@@ -717,7 +713,7 @@ MODULE mo_nh_diffusion
 
         ! Computation of wind field deformation
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -798,7 +794,7 @@ MODULE mo_nh_diffusion
             kh_smag_e(je,jk,jb) = MIN(kh_smag_e(je,jk,jb),smag_limit(jk))
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -823,7 +819,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = 1, nlev
@@ -842,9 +838,9 @@ MODULE mo_nh_diffusion
                          p_nh_prog%vn(ieidx(jc,jb,3),jk,ieblk(jc,jb,3))*p_int%geofac_div(jc,3,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 2, nlev ! levels 1 and nlevp1 are unused
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -856,7 +852,7 @@ MODULE mo_nh_diffusion
               (1._wp-p_nh_metrics%wgtfac_c(jc,jk,jb))*kh_c(jc,jk-1))**2
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO
 !$OMP END DO
@@ -874,10 +870,10 @@ MODULE mo_nh_diffusion
       ! Interpolate nabla2(v) to vertices in order to compute nabla2(nabla2(v))
 
       IF (p_test_run) THEN
-!$ACC KERNELS IF ( i_am_accel_node .AND. acc_on )
+        !$ACC KERNELS IF(i_am_accel_node)
         u_vert = 0._wp
         v_vert = 0._wp
-!$ACC END KERNELS
+        !$ACC END KERNELS
       ENDIF
 
       CALL rbf_vec_interpol_vertex( z_nabla2_e, p_patch, p_int, u_vert, v_vert, &
@@ -909,7 +905,7 @@ MODULE mo_nh_diffusion
                            i_startidx, i_endidx, rl_start, rl_end)
 
          ! Compute nabla4(v)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
           DO jk = 1, nlev
@@ -946,14 +942,14 @@ MODULE mo_nh_diffusion
 
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
         ! Apply diffusion for the case of diffu_type = 5
         IF ( jg == 1 .AND. l_limited_area .OR. jg > 1 .AND. .NOT. lfeedback(jg)) THEN
           !
           ! Domains with lateral boundary and nests without feedback
           !
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -978,13 +974,13 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
 
         ELSE IF (jg > 1) THEN
           !
           ! Nests with feedback
           !
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1008,13 +1004,13 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
 
         ELSE
           !
           ! Global domains
           !
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1038,7 +1034,7 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDIF
 
       ENDDO
@@ -1066,7 +1062,7 @@ MODULE mo_nh_diffusion
           CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1089,7 +1085,7 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1101,7 +1097,7 @@ MODULE mo_nh_diffusion
           CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1122,7 +1118,7 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1136,7 +1132,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
@@ -1158,7 +1154,7 @@ MODULE mo_nh_diffusion
             !
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
       ENDDO
 !$OMP END DO
 
@@ -1176,7 +1172,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, start_bdydiff_e, grf_bdywidth_e)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
@@ -1197,7 +1193,7 @@ MODULE mo_nh_diffusion
             !
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
       ENDDO
 !$OMP END DO
 
@@ -1222,7 +1218,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -1241,10 +1237,10 @@ MODULE mo_nh_diffusion
               p_nh_prog%w(icidx(jc,jb,3),jk,icblk(jc,jb,3))*p_int%geofac_n2s(jc,4,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
         IF (turbdiff_config(jg)%itype_sher == 2) THEN ! compute horizontal gradients of w
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -1265,7 +1261,7 @@ MODULE mo_nh_diffusion
 
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDIF
 
       ENDDO
@@ -1287,7 +1283,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -1303,10 +1299,10 @@ MODULE mo_nh_diffusion
               z_nabla2_c(icidx(jc,jb,3),jk,icblk(jc,jb,3))*p_int%geofac_n2s(jc,4,jb))
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
         ! Add nabla2 diffusion in upper damping layer (if present)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 2, nrdmax(jg)
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -1314,7 +1310,7 @@ MODULE mo_nh_diffusion
               diff_multfac_n2w(jk) * p_patch%cells%area(jc,jb) * z_nabla2_c(jc,jk,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO
 !$OMP END DO
@@ -1368,7 +1364,7 @@ MODULE mo_nh_diffusion
 
         ic = 0
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = nlev-1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -1401,7 +1397,7 @@ MODULE mo_nh_diffusion
             ENDIF
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
         icount(jb) = ic
 
       ENDDO
@@ -1442,14 +1438,14 @@ MODULE mo_nh_diffusion
 
        CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+       !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
        DO jk = nlev-1, nlev
          DO je = i_startidx, i_endidx
             kh_smag_e(je,jk,jb) = MAX(kh_smag_e(je,jk,jb), enh_diffu_3d(iecidx(je,jb,1),jk,iecblk(je,jb,1)), &
                  enh_diffu_3d(iecidx(je,jb,2),jk,iecblk(je,jb,2)) )
          ENDDO
        ENDDO
-!$ACC END PARALLEL LOOP
+       !$ACC END PARALLEL LOOP
      ENDDO
 #endif
 
@@ -1468,7 +1464,7 @@ MODULE mo_nh_diffusion
                              i_startidx, i_endidx, rl_start, rl_end)
 
           ! interpolated diffusion coefficient times nabla2(theta)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -1490,7 +1486,7 @@ MODULE mo_nh_diffusion
                 p_nh_prog%theta_v(icidx(jc,jb,3),jk,icblk(jc,jb,3))*p_int%geofac_n2s(jc,4,jb))
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1509,7 +1505,7 @@ MODULE mo_nh_diffusion
                              i_startidx, i_endidx, rl_start, rl_end)
 
           ! compute kh_smag_e * grad(theta) (stored in z_nabla2_e for memory efficiency)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
           DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -1527,7 +1523,7 @@ MODULE mo_nh_diffusion
                 p_nh_prog%theta_v(iecidx(je,jb,1),jk,iecblk(je,jb,1)))
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1544,7 +1540,7 @@ MODULE mo_nh_diffusion
                              i_startidx, i_endidx, rl_start, rl_end)
 
           ! now compute the divergence of the quantity above
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
             DO jk = 1, nlev
@@ -1558,7 +1554,7 @@ MODULE mo_nh_diffusion
                 z_nabla2_e(ieidx(jc,jb,3),jk,ieblk(jc,jb,3))*p_int%geofac_div(jc,3,jb)
             ENDDO
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1575,8 +1571,8 @@ MODULE mo_nh_diffusion
             nlen_zdiffu = nproma_zdiffu
           ENDIF
           ishift = (jb-1)*nproma_zdiffu
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRESENT( icell, ilev, iblk, vcoef, geofac_n2s ) &
-!$ACC     GANG VECTOR ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRESENT(icell, ilev, iblk, vcoef, geofac_n2s) &
+          !$ACC   GANG VECTOR ASYNC(1) IF(i_am_accel_node)
 !$NEC ivdep
 !DIR$ IVDEP
           DO jc = 1, nlen_zdiffu
@@ -1595,7 +1591,7 @@ MODULE mo_nh_diffusion
               geofac_n2s(4,ic)*(vcoef(3,ic)*p_nh_prog%theta_v(icell(4,ic),ilev(4,ic),iblk(4,ic))+&
               (1._wp-vcoef(3,ic))* p_nh_prog%theta_v(icell(4,ic),ilev(4,ic)+1,iblk(4,ic)))  )
           ENDDO
-!$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
         ENDDO
 !$OMP END DO
 
@@ -1607,7 +1603,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -1621,7 +1617,7 @@ MODULE mo_nh_diffusion
 
           ENDDO
         ENDDO
-!$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -1643,9 +1639,9 @@ MODULE mo_nh_diffusion
 
     IF (ltimer) CALL timer_stop(timer_nh_hdiffusion)
 
-!$ACC END DATA
+    !$ACC END DATA
 
-!$ACC WAIT
+    !$ACC WAIT
 
 #ifdef _OPENACC
     vn_tmp         => p_nh_prog%vn

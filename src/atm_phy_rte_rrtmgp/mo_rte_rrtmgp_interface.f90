@@ -227,14 +227,14 @@ CONTAINS
                 aer_ssa_sw(nproma,klev,nbndsw), &
                 aer_asy_sw(nproma,klev,nbndsw)  )
          
-      !$ACC enter data create(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw) 
+      !$ACC ENTER DATA CREATE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw)
 
-      !$ACC kernels default(present) async(1)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
       aer_tau_lw(:,:,:) = 0.0_wp
       aer_tau_sw(:,:,:) = 0.0_wp
       aer_ssa_sw(:,:,:) = 1.0_wp
       aer_asy_sw(:,:,:) = 0.0_wp
-      !$ACC end kernels
+      !$ACC END KERNELS
 
       IF (irad_aero==13 .OR. irad_aero==15 .OR. irad_aero==18) THEN
       ! iaero=13: only Kinne aerosols are used
@@ -258,14 +258,14 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Stenchikov aerosols ACC not implemented')
 #endif
-        !$acc update host(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl)
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl)
         CALL add_bc_aeropt_stenchikov(this_datetime,    jg,               &
               & jcs, nproma,      nproma,                 klev,       &
               & jb,               nbndsw,                nbndlw,           &
               & dz,               pp_fl,                                   &
               & aer_tau_sw,    aer_ssa_sw,         aer_asy_sw,     &
               & aer_tau_lw                                              )
-        !$acc update device(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw)
       END IF
       !!$    IF (irad_aero==16) THEN
       !!$      CALL add_aop_volc_ham( &
@@ -288,14 +288,14 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
-        !$acc update host(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
         CALL add_bc_aeropt_splumes(                                      &
               & jg,          jcs,         nproma,        nproma,         & 
               & klev,        jb,          nbndsw,        this_datetime,  &
               & zf,          dz,          zh(:,klev+1),  wavenum1,       &
               & wavenum2,    aer_tau_sw,  aer_ssa_sw,    aer_asy_sw,     &
               & x_cdnc                                                   )
-        !$acc update device(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
       END IF
 
       ! this should be decativated in the concurrent version and make the aer_* global variables for output
@@ -419,8 +419,8 @@ CONTAINS
        !
     END IF
 
-  !$ACC wait
-  !$ACC exit data delete(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw) if( lneed_aerosols )
+  !$ACC WAIT
+  !$ACC EXIT DATA DELETE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw) IF(lneed_aerosols)
 
   END SUBROUTINE rte_rrtmgp_interface
  ! -------------------------------------------------------------------------------------
@@ -435,24 +435,24 @@ CONTAINS
     ! min and max are level-dependent
     REAL(wp), DIMENSION(SIZE(src,2)) :: tgt_min, tgt_max 
     
-    !$ACC data create(tgt_min, tgt_max) present(src,tgt)
+    !$ACC DATA CREATE(tgt_min, tgt_max) PRESENT(src, tgt)
     
     m = SIZE(src,1)
     n = SIZE(src,2)
-    !$ACC parallel loop default(none) gang vector async(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
     DO j = 1, n
       tgt_min(j)=low  + (j-1)*epsilon(tgt_min)
       tgt_max(j)=high - (n-j)*epsilon(tgt_max)
     END DO
 
-    !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO j = 1, n
       DO i = 1 , m
          tgt(i,j) = min(tgt_max(j), max(tgt_min(j), src(i,j)))
       ENDDO
     ENDDO
 
-    !$ACC end data
+    !$ACC END DATA
   END SUBROUTINE clamp_pressure
 
   SUBROUTINE clamp_temperature(src, tgt, low, high)
@@ -460,9 +460,9 @@ CONTAINS
     REAL(wp), INTENT(OUT) :: tgt(:,:)
     REAL(wp), INTENT(IN) :: low, high
 
-    !$ACC kernels default(none) present(tgt,src) async(1)
+    !$ACC KERNELS DEFAULT(NONE) PRESENT(tgt, src) ASYNC(1)
     tgt(:,:) = min(high, max(low, src(:,:)))
-    !$ACC end kernels
+    !$ACC END KERNELS
   END SUBROUTINE clamp_temperature
   !----------------------------------------------- !>
   !! @brief arranges input and calls rrtm sw and lw routines
@@ -643,12 +643,12 @@ CONTAINS
     !
     !DA TODO: rearrange the data section to reduce memory consumption
     !
-    !$ACC data present(cld_frc, xm_ice, xm_liq, dz, pcos_mu0, emissivity,            &
-    !$ACC              alb_vis_dir, alb_nir_dir, alb_vis_dif, alb_nir_dif,           &
-    !$ACC              daylght_frc, laland, laglac, dz, cdnc )                       &
-    !$ACC      create (ziwp, zlwp, mu0, zsemiss, albdif, re_cryst, re_drop,          &
-    !$ACC              albdir, rnseeds, tsi_norm_factor, toa_flux,                   &
-    !$ACC              plev, play, tlev, tlay)
+    !$ACC DATA PRESENT(cld_frc, xm_ice, xm_liq, dz, pcos_mu0, emissivity) &
+    !$ACC   PRESENT(alb_vis_dir, alb_nir_dir, alb_vis_dif, alb_nir_dif) &
+    !$ACC   PRESENT(daylght_frc, laland, laglac, dz, cdnc) &
+    !$ACC   CREATE(ziwp, zlwp, mu0, zsemiss, albdif, re_cryst, re_drop) &
+    !$ACC   CREATE(albdir, rnseeds, tsi_norm_factor, toa_flux) &
+    !$ACC   CREATE(plev, play, tlev, tlay)
 
     nbndlw = k_dist_lw%get_nband()
     nbndsw = k_dist_sw%get_nband()
@@ -661,8 +661,8 @@ CONTAINS
     ! Is there fractional cloudiness i.e. differences from 0 or 1? If not we can skip McICA sampling
     !
     do_frac_cloudiness = .false.
-    !$ACC parallel loop default(none) copy(do_frac_cloudiness) &
-    !$ACC               gang vector collapse(2) async(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) COPY(do_frac_cloudiness) &
+    !$ACC   GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1, klev
       DO jl = 1, ncol
          IF (min(abs(cld_frc(jl,jk) - 1._wp), abs(cld_frc(jl,jk))) > cld_frc_thresh) THEN
@@ -693,7 +693,7 @@ CONTAINS
                   'Droplet minimun size required is bigger than maximum')
     END IF
 
-    !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1, klev
       DO jl = 1, ncol
         !
@@ -747,7 +747,7 @@ CONTAINS
     ! The gas profile routine provides all gas concentrations in volume mixing ratios
     !
     ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-    !$ACC wait
+    !$ACC WAIT
     CALL stop_on_err(gas_concs%init(gas_names))
     CALL stop_on_err(gas_concs%set_vmr('h2o',   xvmr_vap))
     CALL stop_on_err(gas_concs%set_vmr('co2',   xvmr_co2))
@@ -790,15 +790,15 @@ CONTAINS
     !
     ! baustelle - shouldn't the min solar zenith cosine be parameterized?
 !!debug++
-    !$ACC kernels default(none) async(1)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
     mu0(:) = MAX(1.e-10_wp,MIN(1.0_wp,pcos_mu0(:)))
-    !$ACC end kernels
+    !$ACC END KERNELS
 !!debug--
 
 
     ! 2.0 Surface Properties
     ! --------------------------------
-   !$ACC parallel loop gang vector default(none) collapse(2) async(1)
+   !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1)
    DO j=1,ncol
       DO i=1,nbndlw
         zsemiss(i,j)=emissivity(j)
@@ -811,8 +811,8 @@ CONTAINS
     !DA TODO: the next function has to run on GPU
     band_lims = k_dist_sw%get_band_lims_wavenumber()
 
-    !$ACC parallel default(none) copyin(band_lims) async(1)
-    !$ACC loop collapse(2)
+    !$ACC PARALLEL DEFAULT(NONE) COPYIN(band_lims) ASYNC(1)
+    !$ACC LOOP COLLAPSE(2)
     DO j=1,ncol
       DO band=1,nbndsw
         delwave = band_lims(2,band) - band_lims(1,band)
@@ -825,7 +825,7 @@ CONTAINS
                          alb_nir_dir(j) * (1.0_wp - frc_vis)
       END DO
     END DO
-    !$ACC end parallel
+    !$ACC END PARALLEL
 
     !
     ! 3.0 Particulate Optical Properties
@@ -882,14 +882,15 @@ CONTAINS
     ! 4.1.2 Gas optics
     !
     ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-    !$ACC wait
+    !$ACC WAIT
     CALL stop_on_err(source_lw%alloc    (ncol, klev, k_dist_lw))
     CALL stop_on_err(atmos_lw%alloc_1scl(ncol, klev, k_dist_lw))
     ! baustelle - surface and lowest layer temperature are considered the same
-    !$ACC data create(source_lw, source_lw%lay_source,     source_lw%lev_source_inc, &
-    !$ACC                        source_lw%lev_source_dec, source_lw%sfc_source,     &
-    !$ACC                        source_lw%sfc_source_Jac,                           &
-    !$ACC             atmos_lw,  atmos_lw%tau)
+    !$ACC DATA CREATE(source_lw, atmos_lw)
+
+    !$ACC DATA CREATE(source_lw%lay_source, source_lw%lev_source_inc) &
+    !$ACC   CREATE(source_lw%lev_source_dec, source_lw%sfc_source) &
+    !$ACC   CREATE(source_lw%sfc_source_Jac, atmos_lw%tau)
 
     CALL stop_on_err( &
            k_dist_lw%gas_optics(play, plev, tlay, tk_sfc, &
@@ -903,10 +904,11 @@ CONTAINS
     IF ( lneed_aerosols ) THEN
       CALL stop_on_err(aerosol_lw%alloc_1scl(ncol, klev, &
                                              k_dist_lw%get_band_lims_wavenumber()))
-      !$ACC data present(aer_tau_lw) create(aerosol_lw, aerosol_lw%tau)
+      !$ACC DATA PRESENT(aer_tau_lw) CREATE(aerosol_lw)
+      !$ACC DATA CREATE(aerosol_lw%tau)
       !
       !DA TODO: this can be just a pointer assignment
-      !$ACC parallel loop default(none) gang vector collapse(3) async(1)
+      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(3) ASYNC(1)
       DO band = 1, nbndlw
         DO j = 1, klev
           DO i = 1, ncol
@@ -916,11 +918,12 @@ CONTAINS
       END DO
       !
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-      !$ACC wait
+      !$ACC WAIT
       CALL stop_on_err(aerosol_lw%increment(atmos_lw))
       ! aerosols
-      !$ACC end data
+      !$ACC END DATA
       DEALLOCATE(aerosol_lw%tau)
+      !$ACC END DATA
       CALL aerosol_lw%finalize()
     END IF
     !
@@ -933,7 +936,7 @@ CONTAINS
        fluxes_lwcs%flux_dn => flx_dnlw_clr
        !
        ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-       !$ACC wait
+       !$ACC WAIT
        CALL stop_on_err(rte_lw(atmos_lw, top_at_1, source_lw, zsemiss, fluxes_lwcs))
        !
     END IF
@@ -941,7 +944,8 @@ CONTAINS
     ! new cloud optics: allocate memory for cloud optical properties:
     CALL stop_on_err(clouds_bnd_lw%alloc_1scl(ncol, klev, &
                      k_dist_lw%get_band_lims_wavenumber()))
-    !$ACC data create (clouds_bnd_lw, clouds_bnd_lw%tau)    
+    !$ACC DATA CREATE(clouds_bnd_lw)
+    !$ACC DATA CREATE(clouds_bnd_lw%tau)
     ! then compute cloud optics
 
     ! !$ACC update host(zlwp,     ziwp,    re_drop,    re_cryst)
@@ -961,7 +965,7 @@ CONTAINS
       ! pressure field
       !
       !DA TODO: remove plev_vr alltogether
-      !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
       DO jk=1,seed_size
         DO jl=1,ncol
           rnseeds(jl,jk) = &
@@ -975,8 +979,9 @@ CONTAINS
       !
       ! Do not change the order of these data sections!!
       !
-      !$ACC data create(clouds_lw, clouds_lw%tau)
-      !$ACC data create(cloud_mask)
+      !$ACC DATA CREATE(clouds_lw)
+      !$ACC DATA CREATE(clouds_lw%tau)
+      !$ACC DATA CREATE(cloud_mask)
 
       CALL sample_cld_state(ncol, ncol, klev,     &
                             k_dist_lw%get_ngpt(), &
@@ -988,8 +993,8 @@ CONTAINS
         gpt_start = gpt_lims(1) ! avoid copying array gpt_lims
         gpt_end   = gpt_lims(2)
 
-        !$ACC parallel loop default(none) present(clouds_bnd_lw) &
-        !$ACC               gang vector collapse(3) async(1)
+        !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(clouds_bnd_lw) &
+        !$ACC   GANG VECTOR COLLAPSE(3) ASYNC(1)
         DO gpt = gpt_start, gpt_end
           DO j = 1, klev
             DO i = 1, ncol
@@ -1003,22 +1008,24 @@ CONTAINS
         ENDDO
 
       ENDDO
-      !$ACC end data
+      !$ACC END DATA
       DEALLOCATE(cloud_mask)
 
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-      !$ACC wait
+      !$ACC WAIT
       CALL stop_on_err(clouds_lw%increment(atmos_lw))
 
-      !$ACC end data
+      !$ACC END DATA
       DEALLOCATE(clouds_lw%tau)
+      !$ACC END DATA
       CALL clouds_lw%finalize()
     ELSE
       CALL stop_on_err(clouds_bnd_lw%increment(atmos_lw))
     END IF
 
-    !$ACC end data
+    !$ACC END DATA
     DEALLOCATE(clouds_bnd_lw%tau)
+    !$ACC END DATA
     CALL clouds_bnd_lw%finalize()
 
     !
@@ -1027,14 +1034,15 @@ CONTAINS
     fluxes_lw%flux_up => flx_uplw
     fluxes_lw%flux_dn => flx_dnlw
     ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-    !$ACC wait
+    !$ACC WAIT
     CALL stop_on_err(rte_lw(atmos_lw, top_at_1, source_lw, &
                             zsemiss, fluxes_lw))
     !
     ! 4.1.6 End of longwave calculations - free memory
     !
-    !$ACC end data
+    !$ACC END DATA
     DEALLOCATE(atmos_lw%tau)
+    !$ACC END DATA
     CALL source_lw%finalize()
     CALL atmos_lw%finalize()
 
@@ -1058,11 +1066,12 @@ CONTAINS
     ! Shortwave gas optical properties and source functions
     !
     CALL stop_on_err(atmos_sw%alloc_2str(ncol, klev, k_dist_sw))
-    !$ACC data create(atmos_sw, atmos_sw%tau, atmos_sw%ssa, atmos_sw%g, &
-    !$ACC             toa_flux)
+    !$ACC DATA CREATE(atmos_sw)
+    !$ACC DATA CREATE(atmos_sw%tau, atmos_sw%ssa, atmos_sw%g) &
+    !$ACC   CREATE(toa_flux)
 
     ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-    !$ACC wait
+    !$ACC WAIT
     CALL stop_on_err(&
        k_dist_sw%gas_optics(play, plev, tlay, &
                             gas_concs, atmos_sw, &
@@ -1071,21 +1080,21 @@ CONTAINS
     ! Normalize incident radiation
     !
 !    tsi_norm_factor(:) = 1._wp/SUM(toa_flux, dim=2)
-    !$ACC kernels default(none) async(1)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
     tsi_norm_factor(:) = 0._wp
-    !$ACC end kernels
+    !$ACC END KERNELS
 
-    !$ACC parallel default(none) async(1)
-    !$ACC loop seq
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC LOOP SEQ
     DO gpt = 1, ngptsw
-      !$ACC loop gang vector
+      !$ACC LOOP GANG VECTOR
       DO i = 1, ncol
         tsi_norm_factor(i) = tsi_norm_factor(i) + toa_flux(i,gpt)
       END DO
     END DO
-    !$ACC end parallel
+    !$ACC END PARALLEL
 
-    !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO gpt = 1, ngptsw 
       DO i = 1, ncol
         toa_flux(i,gpt) = toa_flux(i,gpt) * daylght_frc(i) * psctm / tsi_norm_factor(i)
@@ -1101,10 +1110,11 @@ CONTAINS
     IF ( lneed_aerosols ) THEN
       CALL stop_on_err(aerosol_sw%alloc_2str(ncol, klev, &
                                             k_dist_sw%get_band_lims_wavenumber()))
-      !$ACC data create (aerosol_sw, aerosol_sw%tau, aerosol_sw%ssa, aerosol_sw%g) &
-      !$ACC      present(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+      !$ACC DATA CREATE(aerosol_sw)
+      !$ACC DATA CREATE(aerosol_sw%tau, aerosol_sw%ssa, aerosol_sw%g) &
+      !$ACC   PRESENT(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
       !DA TODO: this could be just a pointer assignment
-      !$ACC parallel loop default(none) gang vector collapse(3) async(1)
+      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(3) ASYNC(1)
       DO band = 1, nbndsw
         DO j = 1, klev
           DO i = 1, ncol
@@ -1115,10 +1125,11 @@ CONTAINS
         END DO
       END DO
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-      !$ACC wait
+      !$ACC WAIT
       CALL stop_on_err(aerosol_sw%increment(atmos_sw))
       ! aerosol_sw
-      !$ACC end data
+      !$ACC END DATA
+      !$ACC END DATA
       CALL aerosol_sw%finalize()
     END IF
     !
@@ -1130,7 +1141,7 @@ CONTAINS
        fluxes_swcs%flux_dn => flx_dnsw_clr
        !
        ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-       !$ACC wait
+       !$ACC WAIT
        CALL stop_on_err(rte_sw(atmos_sw, top_at_1, mu0, toa_flux, albdir, albdif, fluxes_swcs))
        !
     END IF
@@ -1146,7 +1157,8 @@ CONTAINS
     ! new cloud optics: allocate memory for cloud optical properties:
     CALL stop_on_err(clouds_bnd_sw%alloc_2str(ncol, klev, &
                      k_dist_sw%get_band_lims_wavenumber()))
-    !$ACC data create (clouds_bnd_sw, clouds_bnd_sw%tau, clouds_bnd_sw%ssa, clouds_bnd_sw%g)    
+    !$ACC DATA CREATE(clouds_bnd_sw)
+    !$ACC DATA CREATE(clouds_bnd_sw%tau, clouds_bnd_sw%ssa, clouds_bnd_sw%g)
     ! then compute cloud optics
     CALL stop_on_err(cloud_optics_sw%cloud_optics( &
                      zlwp,     ziwp,    re_drop,    re_cryst,   clouds_bnd_sw ))
@@ -1155,7 +1167,7 @@ CONTAINS
     !
     IF (do_frac_cloudiness) THEN
 
-      !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
       DO jk=1,seed_size
         DO jl=1,ncol
           rnseeds(jl,jk) = &
@@ -1169,8 +1181,9 @@ CONTAINS
       !
       ! Do not change the order of these data sections!!
       !
-      !$ACC data create(clouds_sw, clouds_sw%tau, clouds_sw%ssa, clouds_sw%g)
-      !$ACC data create(cloud_mask)
+      !$ACC DATA CREATE(clouds_sw)
+      !$ACC DATA CREATE(clouds_sw%tau, clouds_sw%ssa, clouds_sw%g)
+      !$ACC DATA CREATE(cloud_mask)
 
       CALL sample_cld_state(ncol, ncol, klev, &
                             k_dist_sw%get_ngpt(), &
@@ -1184,8 +1197,8 @@ CONTAINS
         gpt_start = gpt_lims(1) ! avoid copying array gpt_lims
         gpt_end   = gpt_lims(2)
 
-        !$ACC parallel loop default(none) present(clouds_bnd_sw) &
-        !$ACC               gang vector collapse(3) async(1)
+        !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(clouds_bnd_sw) &
+        !$ACC   GANG VECTOR COLLAPSE(3) ASYNC(1)
         DO gpt = gpt_start, gpt_end
           DO j = 1, klev
             DO i = 1, ncol
@@ -1203,11 +1216,11 @@ CONTAINS
         ENDDO
 
       ENDDO
-      !$ACC end data
+      !$ACC END DATA
       DEALLOCATE(cloud_mask)
       
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-      !$ACC wait
+      !$ACC WAIT
 !!$      Delta scaling should be activated here when fractional clouds are used but is 
 !!$      not yet tested in this case
 !!$      CALL stop_on_err(clouds_bnd_sw%delta_scale()) ! necessary for cases w=g near 1
@@ -1217,14 +1230,16 @@ CONTAINS
       CALL stop_on_err(clouds_sw%increment(atmos_sw))
 
       ! clouds_sw
-      !$ACC end data
+      !$ACC END DATA
+      !$ACC END DATA
       CALL clouds_sw%finalize()
     ELSE
       CALL stop_on_err(clouds_bnd_sw%delta_scale()) ! necessary for cases w=g near 1
       CALL stop_on_err(clouds_bnd_sw%increment(atmos_sw))
     END IF
 
-    !$ACC end data
+    !$ACC END DATA
+    !$ACC END DATA
     CALL clouds_bnd_sw%finalize()
     !
     ! 4.2.5 Shortwave all-sky fluxes
@@ -1243,7 +1258,7 @@ CONTAINS
 
     CALL set_fractions(fluxes_sw, atmos_sw, psctm, ssi_factor)
     ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
-    !$ACC wait
+    !$ACC WAIT
     CALL stop_on_err(rte_sw(atmos_sw, top_at_1, &
                             mu0, toa_flux, albdir, albdif, &
                             fluxes_sw))
@@ -1251,7 +1266,8 @@ CONTAINS
     !
     ! 4.2.6 End of shortwave calculations - free memory
     !
-    !$ACC end data
+    !$ACC END DATA
+    !$ACC END DATA
     CALL atmos_sw%finalize()
         
     IF (ltimer) CALL timer_stop(timer_srtm)
@@ -1272,7 +1288,7 @@ CONTAINS
 !$OMP END CRITICAL (write_record)
 #endif
 
-  !$ACC end data
+  !$ACC END DATA
   END SUBROUTINE rte_rrtmgp_interface_onBlock
   ! ----------------------------------------------------------------------------
   SUBROUTINE shift_and_call_rte_rrtmgp_interface_onBlock(    &
@@ -1421,21 +1437,20 @@ CONTAINS
   !
   ncol = jce-jcs+1
 
-  !$ACC data create( &
-  !$ACC              s_zf,             s_zh,             s_dz,         &
-  !$ACC              s_pp_fl,          s_pp_hl,                        &
-  !$ACC              s_tk_fl,          s_tk_hl,                        &
-  !$ACC              s_xm_dry,         s_xvmr_vap,       s_xm_liq,     &
-  !$ACC              s_xm_ice,         s_cdnc,           s_xc_frc,     &
-  !$ACC              s_xvmr_co2,       s_xvmr_ch4,       s_xvmr_n2o,   &
-  !$ACC              s_xvmr_cfc,       s_xvmr_o3,        s_xvmr_o2,    &
-  !$ACC              s_lw_upw,         s_lw_upw_clr,                   &
-  !$ACC              s_lw_dnw,         s_lw_dnw_clr,                   &
-  !$ACC              s_sw_upw,         s_sw_upw_clr,                   &
-  !$ACC              s_sw_dnw,         s_sw_dnw_clr                    )
+  !$ACC DATA CREATE(s_zf, s_zh, s_dz) &
+  !$ACC   CREATE(s_pp_fl, s_pp_hl) &
+  !$ACC   CREATE(s_tk_fl, s_tk_hl) &
+  !$ACC   CREATE(s_xm_dry, s_xvmr_vap, s_xm_liq) &
+  !$ACC   CREATE(s_xm_ice, s_cdnc, s_xc_frc) &
+  !$ACC   CREATE(s_xvmr_co2, s_xvmr_ch4, s_xvmr_n2o) &
+  !$ACC   CREATE(s_xvmr_cfc, s_xvmr_o3, s_xvmr_o2) &
+  !$ACC   CREATE(s_lw_upw, s_lw_upw_clr) &
+  !$ACC   CREATE(s_lw_dnw, s_lw_dnw_clr) &
+  !$ACC   CREATE(s_sw_upw, s_sw_upw_clr) &
+  !$ACC   CREATE(s_sw_dnw, s_sw_dnw_clr)
 
   ! (ncol, klev)
-  !$ACC kernels default(present) async(1)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   s_zf          (1:ncol,:)   = zf          (jcs:jce,:)
   s_dz          (1:ncol,:)   = dz          (jcs:jce,:)
   s_pp_fl       (1:ncol,:)   = pp_fl       (jcs:jce,:)
@@ -1451,19 +1466,19 @@ CONTAINS
   s_xvmr_n2o    (1:ncol,:)   = xvmr_n2o    (jcs:jce,:)
   s_xvmr_o3     (1:ncol,:)   = xvmr_o3     (jcs:jce,:)
   s_xvmr_o2     (1:ncol,:)   = xvmr_o2     (jcs:jce,:)
-  !$ACC end kernels
+  !$ACC END KERNELS
 
   ! (ncol, klev+1)
-  !$ACC kernels default(present) async(1)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   s_zh          (1:ncol,:)   = zh          (jcs:jce,:)
   s_pp_hl       (1:ncol,:)   = pp_hl       (jcs:jce,:)
   s_tk_hl       (1:ncol,:)   = tk_hl       (jcs:jce,:)
-  !$ACC end kernels
+  !$ACC END KERNELS
 
   ! (ncol, klev, 2)
-  !$ACC kernels default(present) async(1)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   s_xvmr_cfc    (1:ncol,:,:) = xvmr_cfc    (jcs:jce,:,:)
-  !$ACC end kernels
+  !$ACC END KERNELS
 
   IF ( lneed_aerosols ) THEN
     ! Aerosols are present, irad_aero /= 0
@@ -1473,19 +1488,19 @@ CONTAINS
               s_aer_ssa_sw(jce-jcs+1,klev,k_dist_sw%get_nband()), &
               s_aer_asy_sw(jce-jcs+1,klev,k_dist_sw%get_nband())  )
     !
-    !$ACC enter data create(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw)
+    !$ACC ENTER DATA CREATE(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw)
     !
     ! (ncol, klev, nbndlw)
-    !$ACC kernels default(present) async(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     s_aer_tau_lw  (1:ncol,:,:) = aer_tau_lw(jcs:jce,:,:)
-    !$ACC end kernels
+    !$ACC END KERNELS
 
     ! (ncol, klev, nbndsw)
-    !$ACC kernels default(present) async(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     s_aer_tau_sw  (1:ncol,:,:) = aer_tau_sw(jcs:jce,:,:)
     s_aer_ssa_sw  (1:ncol,:,:) = aer_ssa_sw(jcs:jce,:,:)
     s_aer_asy_sw  (1:ncol,:,:) = aer_asy_sw(jcs:jce,:,:)
-    !$ACC end kernels
+    !$ACC END KERNELS
   ELSE
     ! allocate dummy zero-size arrays
     ALLOCATE( s_aer_tau_lw(1,1,0), &
@@ -1528,7 +1543,7 @@ CONTAINS
   ! Shift output arguments
   !
   ! (ncol, klev+1)
-  !$ACC kernels default(present) async(1)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   lw_upw         (jcs:jce,:) = s_lw_upw         (1:ncol,:)
   lw_upw_clr     (jcs:jce,:) = s_lw_upw_clr     (1:ncol,:)
   lw_dnw         (jcs:jce,:) = s_lw_dnw         (1:ncol,:)
@@ -1537,10 +1552,10 @@ CONTAINS
   sw_upw_clr     (jcs:jce,:) = s_sw_upw_clr     (1:ncol,:)
   sw_dnw         (jcs:jce,:) = s_sw_dnw         (1:ncol,:)
   sw_dnw_clr     (jcs:jce,:) = s_sw_dnw_clr     (1:ncol,:)
-  !$ACC end kernels
+  !$ACC END KERNELS
 
-  !$ACC exit data delete(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw) if (lneed_aerosols)
-  !$ACC end data
+  !$ACC EXIT DATA DELETE(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw) IF(lneed_aerosols)
+  !$ACC END DATA
 END SUBROUTINE shift_and_call_rte_rrtmgp_interface_onBlock
 
 SUBROUTINE reorient_3d_wrt2 (field)
@@ -1552,7 +1567,7 @@ SUBROUTINE reorient_3d_wrt2 (field)
   nl2=SIZE(field,2)
   nl3=SIZE(field,3)
 
-  !$ACC parallel loop present(field) gang vector collapse(3) async(1)
+  !$ACC PARALLEL LOOP PRESENT(field) GANG VECTOR COLLAPSE(3) ASYNC(1)
   DO il3 = 1, nl3
     DO il2 = 1, nl2/2
       DO il1 = 1, nl1
@@ -1576,13 +1591,13 @@ SUBROUTINE rearrange_bands2rrtmgp(nproma, klev, nbnd, field)
 #ifndef _OPENACC
   field(:,:,:) = field(:,:,[nbnd, (i, i = 1, nbnd-1)])
 #else
-  !$ACC parallel default(present) async(1)
-  !$ACC loop gang vector collapse(2)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk=1,klev
     DO jl=1,nproma
       last = field(jl,jk,nbnd)
 
-      !$ACC loop seq
+      !$ACC LOOP SEQ
       DO jband=nbnd, 2, -1
         field(jl,jk,jband) = field(jl,jk,jband-1)
       END DO
@@ -1590,7 +1605,7 @@ SUBROUTINE rearrange_bands2rrtmgp(nproma, klev, nbnd, field)
       field(jl,jk,1) = last
     END DO
   END DO
-  !$ACC end parallel
+  !$ACC END PARALLEL
 #endif
 END SUBROUTINE rearrange_bands2rrtmgp
 

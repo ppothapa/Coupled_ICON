@@ -77,7 +77,7 @@ MODULE mo_cuparameters
   REAL(KIND=jprb) :: rcvv
   REAL(KIND=jprb) :: rkappa
   REAL(KIND=jprb) :: retv
-  !$acc declare create( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
+  !$ACC DECLARE CREATE(r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv)
   ! A1.5,6 Thermodynamic liquid,solid phases
   REAL(KIND=jprb) :: rcw
   REAL(KIND=jprb) :: rcs
@@ -539,14 +539,14 @@ MODULE mo_cuparameters
   
   ! Module variables used in acc routine need to be in acc declare create()
   ! these variables are used in mo_cufunctions.f90
-  !$acc declare create( rtice, rtwat, rtwat_rtice_r )
-  !$acc declare create( rticecu, rtwat_rticecu_r )
-  !$acc declare create( r2es, r3les, rtt, r4les, r3ies, r4ies )
-  !$acc declare create( rlvtt, rlstt )
-  !$acc declare create( ralvdcp, ralsdcp )
-  !$acc declare create( r5alscp, r5alvcp )
+  !$ACC DECLARE CREATE(rtice, rtwat, rtwat_rtice_r)
+  !$ACC DECLARE CREATE(rticecu, rtwat_rticecu_r)
+  !$ACC DECLARE CREATE(r2es, r3les, rtt, r4les, r3ies, r4ies)
+  !$ACC DECLARE CREATE(rlvtt, rlstt)
+  !$ACC DECLARE CREATE(ralvdcp, ralsdcp)
+  !$ACC DECLARE CREATE(r5alscp, r5alvcp)
 
-  !$acc declare create( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+  !$ACC DECLARE CREATE(lphylin, lhook, rlptrc, rlpal1, rlpal2)
 
 CONTAINS
   
@@ -938,7 +938,7 @@ CONTAINS
     rkappa=rd/rcpd
     retv=rv/rd-1._jprb
     
-    !$acc update device( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
+    !$ACC UPDATE DEVICE(r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv)
 
     !     ------------------------------------------------------------------
     
@@ -1543,12 +1543,12 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     rtwat_rtice_r=1._jprb/(rtwat-rtice)
     rtwat_rticecu_r=1._jprb/(rtwat-rticecu)
 
-    !$acc update device( rtice, rtwat, rtwat_rtice_r )
-    !$acc update device( rticecu, rtwat_rticecu_r )
-    !$acc update device( r2es, r3les, rtt, r4les, r3ies, r4ies )
-    !$acc update device( rlvtt, rlstt )
-    !$acc update device( ralvdcp, ralsdcp )
-    !$acc update device( r5alscp, r5alvcp )
+    !$ACC UPDATE DEVICE(rtice, rtwat, rtwat_rtice_r)
+    !$ACC UPDATE DEVICE(rticecu, rtwat_rticecu_r)
+    !$ACC UPDATE DEVICE(r2es, r3les, rtt, r4les, r3ies, r4ies)
+    !$ACC UPDATE DEVICE(rlvtt, rlstt)
+    !$ACC UPDATE DEVICE(ralvdcp, ralsdcp)
+    !$ACC UPDATE DEVICE(r5alscp, r5alvcp)
 
   END SUBROUTINE su_yoethf
 
@@ -1780,7 +1780,7 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
 !    PRINT*, 'SUPHLI', rlptrc
     !RETURN
 
-    !$acc update device ( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+    !$ACC UPDATE DEVICE(lphylin, lhook, rlptrc, rlpal1, rlpal2)
 
   END SUBROUTINE suphli
 

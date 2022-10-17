@@ -153,7 +153,7 @@ CONTAINS
 #endif
     CALL sst_sic_replace_missval(this, temp, -1.0_wp)
     CALL MOVE_ALLOC(temp, dat)
-    !$ACC UPDATE DEVICE( dat )
+    !$ACC UPDATE DEVICE(dat)
   END SUBROUTINE sst_sic_get_one_timelevel
 
   SUBROUTINE sst_sic_replace_missval (this, dat, new_missval)

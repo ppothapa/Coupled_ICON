@@ -116,7 +116,7 @@ CONTAINS
     ENDIF
     IF (.NOT.ASSOCIATED(ext_sea(jg)%sst)) THEN
       ALLOCATE (ext_sea(jg)%sst(nproma, p_patch%nblks_c, imonth_beg:imonth_end))
-      !$ACC ENTER DATA PCREATE( ext_sea(jg)%sst)
+      !$ACC ENTER DATA PCREATE(ext_sea(jg)%sst)
     ENDIF
     CALL read_sst_sic_data(p_patch, ext_sea(jg)%sst, TRIM(fn), year)
 
@@ -131,13 +131,13 @@ CONTAINS
     ENDIF
     IF (.NOT.ASSOCIATED(ext_sea(jg)%sic)) THEN
       ALLOCATE (ext_sea(jg)%sic(nproma, p_patch%nblks_c, imonth_beg:imonth_end))
-      !$ACC ENTER DATA PCREATE( ext_sea(jg)%sic)
+      !$ACC ENTER DATA PCREATE(ext_sea(jg)%sic)
     ENDIF
     CALL read_sst_sic_data(p_patch, ext_sea(jg)%sic, TRIM(fn), year)
     
     IF (jg==n_dom) current_year = year
 
-    !$ACC UPDATE DEVICE( ext_sea(jg)%sst, ext_sea(jg)%sic )
+    !$ACC UPDATE DEVICE(ext_sea(jg)%sst, ext_sea(jg)%sic)
 
   END SUBROUTINE read_bc_sst_sic
   
@@ -265,10 +265,10 @@ CONTAINS
     jce  = SIZE(tsw,1)
     nblk = SIZE(tsw,2)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(tiw) CREATE( zts, zic, ztsw ) IF( lzopenacc )
+    !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(tiw) CREATE(zts, zic, ztsw) IF(lzopenacc)
 !$omp parallel private(jb,jc)
 !$omp do
-    !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO jb = 1, nblk
       DO jc = 1, jce
         zts(jc,jb) = tiw%weight1 * sst(jc,jb,tiw%month1_index) + tiw%weight2 * sst(jc,jb,tiw%month2_index)
@@ -280,7 +280,7 @@ CONTAINS
     !TODO: missing siced needs to be added
 
 !$omp do
-    !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO jb = 1, nblk
       DO jc = 1, jce
         ! assuming input data is in percent
@@ -290,7 +290,7 @@ CONTAINS
 !$omp end do nowait
 
 !$omp do
-    !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO jb = 1, nblk
       DO jc = 1, jce
         seaice(jc,jb) = MERGE(0.99_dp, seaice(jc,jb), seaice(jc,jb) > 0.99_dp)
@@ -303,7 +303,7 @@ CONTAINS
 
     IF (l_init) THEN
 !$omp do
-      !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jb = 1, nblk
         DO jc = 1, jce
           tsw(jc,jb) = ztsw(jc,jb)
@@ -312,7 +312,7 @@ CONTAINS
 !$omp end do nowait
     ELSE
 !$omp do
-      !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jb = 1, nblk
         DO jc = 1, jce
           IF (mask(jc,jb)) THEN
@@ -324,7 +324,7 @@ CONTAINS
     END IF
 
 !$omp do
-    !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO jb = 1, nblk
       DO jc = 1, jce
         IF (seaice(jc,jb) > 0.0_dp) THEN

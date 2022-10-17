@@ -267,20 +267,20 @@ CONTAINS
     CALL ecrad_conf%define_lw_emiss_intervals(1, wavelength_bound_lw, i_band_in_lw)
 
     !$ACC ENTER DATA COPYIN(ecrad_conf)
-    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics, &
-    !$ACC                   ecrad_conf%i_albedo_from_band_sw, &
-    !$ACC                   ecrad_conf%i_band_from_reordered_g_lw, &
-    !$ACC                   ecrad_conf%i_band_from_reordered_g_sw, &
-    !$ACC                   ecrad_conf%i_band_from_g_lw, &
-    !$ACC                   ecrad_conf%i_g_from_reordered_g_lw, &
-    !$ACC                   ecrad_conf%i_emiss_from_band_lw, &
-    !$ACC                   ecrad_conf%pdf_sampler, &
-    !$ACC                   ecrad_conf%sw_albedo_weights)
-    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics%liq_coeff_lw, &
-    !$ACC                   ecrad_conf%cloud_optics%liq_coeff_sw, &
-    !$ACC                   ecrad_conf%cloud_optics%ice_coeff_lw, &
-    !$ACC                   ecrad_conf%cloud_optics%ice_coeff_sw, &
-    !$ACC                   ecrad_conf%pdf_sampler%val)
+    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics) &
+    !$ACC   COPYIN(ecrad_conf%i_albedo_from_band_sw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_reordered_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_reordered_g_sw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_g_from_reordered_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_emiss_from_band_lw) &
+    !$ACC   COPYIN(ecrad_conf%pdf_sampler) &
+    !$ACC   COPYIN(ecrad_conf%sw_albedo_weights)
+    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics%liq_coeff_lw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%liq_coeff_sw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%ice_coeff_lw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%ice_coeff_sw) &
+    !$ACC   COPYIN(ecrad_conf%pdf_sampler%val)
 
 #ifdef _OPENACC
     CALL ecrad_openacc_crosscheck(ecrad_conf)

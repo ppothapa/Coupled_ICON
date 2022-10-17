@@ -12,6 +12,7 @@ MODULE mo_var_list_gpu
   USE mo_var_list,            ONLY: t_var_list_ptr
   USE mo_var,                 ONLY: t_var
   USE mo_var_list_register,   ONLY: vlr_get
+  USE mo_fortran_tools,       ONLY: assert_acc_device_only
 
   IMPLICIT NONE
   PRIVATE
@@ -24,17 +25,20 @@ CONTAINS
 
   !> Update data of variable list on device or host
   ! we expect "trimmed" character variables as input!
-  SUBROUTINE gpu_update_var_list(vlname, to_device, domain, substr, timelev)
+  SUBROUTINE gpu_update_var_list(vlname, to_device, domain, substr, timelev, lacc)
     CHARACTER(*), INTENT(IN) :: vlname    ! name of output var_list
     LOGICAL, INTENT(IN) :: to_device ! direction of update (true, if host->device)
     INTEGER, INTENT(IN), OPTIONAL :: domain, timelev  ! domain/timelev index to append
     CHARACTER(*), INTENT(IN), OPTIONAL :: substr  ! String after domain, before timelev
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     TYPE(t_var_list_ptr) :: list
     TYPE(t_var_metadata), POINTER :: info
     TYPE(t_var), POINTER :: element
     CHARACTER(LEN=vlname_len) :: listname
     INTEGER :: ii,vln_pos, subs_len
     CHARACTER(LEN=2) :: i2a
+
+    CALL assert_acc_device_only("gpu_update_var_list", lacc) ! it is device only as the routine only make sense in a device-aware call tree
 
     IF (PRESENT(domain)) THEN
       WRITE(listname, "(a,i2.2)") TRIM(vlname), domain

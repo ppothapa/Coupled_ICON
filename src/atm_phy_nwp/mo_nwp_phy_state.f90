@@ -1420,7 +1420,7 @@ __acc_attach(diag%clct)
       __acc_attach(diag%qvtend_lhn)
     ELSE
       ALLOCATE (diag%qrs_flux(1,1,kblks))
-      !$ACC ENTER DATA CREATE( diag%qrs_flux )
+      !$ACC ENTER DATA CREATE(diag%qrs_flux)
     ENDIF
 
 

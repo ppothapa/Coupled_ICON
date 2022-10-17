@@ -234,6 +234,9 @@ MODULE mo_pp_tasks
   !--- MODULE DATA -------------------------------------------------------------------
   TYPE(t_job_queue), POINTER   :: job_queue  =>  NULL() !< head of (ordered) job queue
 
+#ifndef _OPENACC
+  LOGICAL, PARAMETER :: i_am_accel_node=.FALSE.
+#endif
 
 CONTAINS
 
@@ -320,7 +323,7 @@ CONTAINS
             dim2 = p_info%used_dimensions(2)
             ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
             IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-            !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+            !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
           ENDIF
 
           IF (ASSOCIATED(in_var%r_ptr)) THEN
@@ -395,7 +398,7 @@ CONTAINS
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
               !$OMP PARALLEL
               CALL copy(in_var%s_ptr(in_var_idx,:,:,:,1), tmp_var)
               !$OMP END PARALLEL
@@ -405,7 +408,7 @@ CONTAINS
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
               !$OMP PARALLEL
               CALL copy(in_var%s_ptr(:,in_var_idx,:,:,1), tmp_var)
               !$OMP END PARALLEL
@@ -415,7 +418,7 @@ CONTAINS
               dim3 = SIZE(in_var%s_ptr,4)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
               !$OMP PARALLEL
               CALL copy(in_var%s_ptr(:,:,in_var_idx,:,1), tmp_var)
               !$OMP END PARALLEL
@@ -425,7 +428,7 @@ CONTAINS
               dim3 = SIZE(in_var%s_ptr,3)
               ALLOCATE(tmp_var(dim1, dim2, dim3), STAT=ierrstat)
               IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-              !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+              !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
               !$OMP PARALLEL
               CALL copy(in_var%s_ptr(:,:,:,in_var_idx,1), tmp_var)
               !$OMP END PARALLEL
@@ -462,7 +465,7 @@ CONTAINS
             dim2 = p_info%used_dimensions(2)
             ALLOCATE(tmp_int_var(dim1, 1, dim2), STAT=ierrstat)
             IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_int_var failed')
-            !$ACC ENTER DATA CREATE( tmp_int_var ) IF( i_am_accel_node )
+            !$ACC ENTER DATA CREATE(tmp_int_var) IF(i_am_accel_node)
           ENDIF
 
           SELECT CASE(var_ref_pos)
@@ -507,8 +510,8 @@ CONTAINS
 
         IF (ALLOCATED(tmp_int_var)) THEN
           ! clean up:
-          !$ACC WAIT IF( i_am_accel_node )
-          !$ACC EXIT DATA DELETE( tmp_int_var ) IF( i_am_accel_node )
+          !$ACC WAIT IF(i_am_accel_node)
+          !$ACC EXIT DATA DELETE(tmp_int_var) IF(i_am_accel_node)
           DEALLOCATE(tmp_int_var, STAT=ierrstat)
           IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation failed')
         END IF
@@ -534,7 +537,7 @@ CONTAINS
           dim2 = p_info%used_dimensions(2)
           ALLOCATE(tmp_var(dim1, 1, dim2), STAT=ierrstat)
           IF (ierrstat /= SUCCESS)  CALL finish (routine, 'allocation of tmp_var failed')
-          !$ACC ENTER DATA CREATE( tmp_var ) IF( i_am_accel_node )
+          !$ACC ENTER DATA CREATE(tmp_var) IF(i_am_accel_node)
         ENDIF
 
         SELECT CASE(var_ref_pos)
@@ -583,12 +586,12 @@ CONTAINS
       CALL finish(routine, 'Unknown grid type.')
     END SELECT
 
-    !$ACC WAIT IF( i_am_accel_node )
+    !$ACC WAIT IF(i_am_accel_node)
 
     ! clean up
     IF (ALLOCATED(tmp_var)) THEN
-      !$ACC WAIT IF( i_am_accel_node )
-      !$ACC EXIT DATA DELETE( tmp_var ) IF( i_am_accel_node )
+      !$ACC WAIT IF(i_am_accel_node)
+      !$ACC EXIT DATA DELETE(tmp_var) IF(i_am_accel_node)
       DEALLOCATE(tmp_var, STAT=ierrstat)
       IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')
     ENDIF
@@ -1047,7 +1050,7 @@ CONTAINS
     IF (.NOT. ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0)))) THEN
 
 ! Temporary workaround to build up functionality: ultimate the operation needs to be on GPU
-!$ACC UPDATE HOST ( in_ptr ) IF ( i_am_accel_node  .AND. acc_is_present( in_ptr ) )
+      !$ACC UPDATE HOST(in_ptr) IF(i_am_accel_node  .AND. acc_is_present( in_ptr ))
     
       SELECT CASE ( vert_intp_method )
       CASE ( VINTP_METHOD_VN )
@@ -1118,7 +1121,7 @@ CONTAINS
 
 ! Temporary workaround to build up functionality: ultimate the operation needs to be on GPU
 ! It is not clear why the IF_PRESENT guard is needed, or why HS RESTART test passes with this      
-!$ACC UPDATE DEVICE ( out_ptr ) IF_PRESENT IF ( i_am_accel_node )
+      !$ACC UPDATE DEVICE(out_ptr) IF_PRESENT IF(i_am_accel_node)
 
    END IF
 
@@ -1188,7 +1191,7 @@ CONTAINS
     out_var_idx = 1
     IF (out_var%info%lcontained) out_var_idx = out_var%info%ncontained
 
-!$ACC DATA CREATE( pmsl_aux, pmsl_avg ) IF (i_am_accel_node)
+    !$ACC DATA CREATE(pmsl_aux, pmsl_avg) IF(i_am_accel_node)
 
     SELECT CASE (itype_pres_msl)
     CASE (PRES_MSL_METHOD_SAI) ! stepwise analytical integration 
@@ -1199,7 +1202,7 @@ CONTAINS
 #endif
       IF (dbg_level >= 10)  CALL message(routine, "PRES_MSL_METHOD_SAI: stepwise analytical integration")
       
-      !$ACC DATA CREATE( kpbl1, wfacpbl1, kpbl2, wfacpbl2 ) IF (i_am_accel_node)
+      !$ACC DATA CREATE(kpbl1, wfacpbl1, kpbl2, wfacpbl2) IF(i_am_accel_node)
       CALL init(kpbl1, opt_acc_async=.TRUE.)
       CALL init(wfacpbl1, opt_acc_async=.TRUE.)
       CALL init(kpbl2, opt_acc_async=.TRUE.)
@@ -1215,7 +1218,8 @@ CONTAINS
         &                pmsl_aux(:,1,:),                                     &
         &                nblks_c, npromz_c, p_patch%nlev,                     &
         &                wfacpbl1, kpbl1, wfacpbl2, kpbl2,                    &
-        &                ZERO_HEIGHT, EXTRAPOL_DIST)
+        &                ZERO_HEIGHT, EXTRAPOL_DIST,                          &
+        &                lacc=i_am_accel_node)
       !$ACC END DATA
 
     CASE (PRES_MSL_METHOD_GME) ! GME-type extrapolation
@@ -1231,7 +1235,8 @@ CONTAINS
       CALL diagnose_pmsl_gme(p_diag%pres, p_diag%pres_sfc, p_diag%temp, &  ! in
         &                    p_metrics%z_ifc,                           &  ! in
         &                    pmsl_aux(:,1,:),                           &  ! out
-        &                    nblks_c, npromz_c, p_patch%nlev )             ! in
+        &                    nblks_c, npromz_c, p_patch%nlev,           &  ! in
+        &                    lacc=i_am_accel_node)                         ! in
 
     CASE (PRES_MSL_METHOD_IFS,PRES_MSL_METHOD_IFS_CORR,PRES_MSL_METHOD_DWD) ! IFS or new DWD extrapolation method
 
@@ -1242,7 +1247,7 @@ CONTAINS
           CALL message(routine, "PRES_MSL_METHOD_IFS")
         ENDIF
       ENDIF
-      !$ACC DATA CREATE( kpbl1, wfacpbl1, zextrap ) IF (i_am_accel_node)
+      !$ACC DATA CREATE(kpbl1, wfacpbl1, zextrap) IF(i_am_accel_node)
       CALL init(kpbl1, opt_acc_async=.TRUE.)
       CALL init(wfacpbl1, opt_acc_async=.TRUE.)
       CALL init(zextrap, opt_acc_async=.TRUE.)
@@ -1255,7 +1260,8 @@ CONTAINS
       CALL diagnose_pmsl_ifs(p_diag%pres_sfc, p_diag%temp, p_metrics%z_ifc,   & ! in
         &                    pmsl_aux(:,1,:),                                 & ! out
         &                    nblks_c, npromz_c, p_patch%nlev,                 & ! in
-        &                    wfacpbl1, kpbl1, zextrap, itype_pres_msl         ) ! in
+        &                    wfacpbl1, kpbl1, zextrap, itype_pres_msl,        & ! in
+        &                    lacc=i_am_accel_node)                              ! in
       !$ACC END DATA
 
     CASE DEFAULT
@@ -1264,19 +1270,19 @@ CONTAINS
 
     IF (l_limited_area .OR. jg > 1) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF (i_am_accel_node)
+      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
       pmsl_avg(:,1,1:i_endblk) = pmsl_aux(:,1,1:i_endblk)
       !$ACC END KERNELS
     ENDIF
 
     CALL cell_avg(pmsl_aux, p_patch, p_int_state(jg)%c_bln_avg, pmsl_avg)
     r_ptr => out_var%r_ptr
-    !$ACC KERNELS DEFAULT(NONE) PRESENT(r_ptr) ASYNC(1) IF (i_am_accel_node)
+    !$ACC KERNELS DEFAULT(NONE) PRESENT(r_ptr) ASYNC(1) IF(i_am_accel_node)
     r_ptr(:,:,out_var_idx,1,1) = pmsl_avg(:,1,:)
     !$ACC END KERNELS
 
-!$ACC END DATA
-!$ACC WAIT
+    !$ACC END DATA
+    !$ACC WAIT
 
   END SUBROUTINE pp_task_intp_msl
 
@@ -1338,7 +1344,7 @@ CONTAINS
       SELECT CASE (itype_rh)
       CASE (RH_METHOD_WMO)
         CALL compute_field_rel_hum_wmo(p_patch, p_prog, p_diag, &
-          &                        out_var%r_ptr(:,:,:,out_var_idx,1))
+          &                        out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
       CASE (RH_METHOD_IFS, RH_METHOD_IFS_CLIP)
         IF (itype_rh == RH_METHOD_IFS_CLIP) THEN
           lclip = .TRUE.
@@ -1355,12 +1361,12 @@ CONTAINS
 
     CASE (TASK_COMPUTE_OMEGA)
       CALL compute_field_omega(p_patch, p_prog, &
-        &                      out_var%r_ptr(:,:,:,out_var_idx,1))
+        &                      out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
     
     CASE (TASK_COMPUTE_PV)
       CALL compute_field_pv(p_patch, p_int_state(jg),                  &
         &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,    &  
-        &   out_var%r_ptr(:,:,:,out_var_idx,1))
+        &   out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_VOR_U)
       CALL compute_field_vor(p_patch, p_int_state(jg),             &
@@ -1393,7 +1399,7 @@ CONTAINS
         ! p_patch_local_parent(jg) seems to exist
         CALL compute_field_lpi( p_patch, jg, p_patch_local_parent(jg), p_int_state_local_parent(jg),     &
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_prog_rcf, p_diag,    &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
       ELSE
         CALL message( "pp_task_compute_field", "WARNING: LPI cannot be computed since no reduced grid is available" )
       END IF

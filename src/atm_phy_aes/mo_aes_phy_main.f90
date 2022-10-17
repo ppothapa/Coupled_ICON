@@ -206,8 +206,8 @@ CONTAINS
     IF ( aes_phy_tc(jg)%dt_car > dt_zero ) THEN
 #if defined( _OPENACC )
        CALL warning('GPU:aes_car_main','GPU host synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .false., jg)
-       CALL gpu_update_var_list('prm_tend_D', .false., jg)
+       CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
 #endif
        !
        is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_car <= datetime_old) .AND. &
@@ -223,8 +223,8 @@ CONTAINS
        !
 #if defined( _OPENACC )
        CALL warning('GPU:aes_car_main','GPU device synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .true., jg)
-       CALL gpu_update_var_list('prm_tend_D', .true., jg)
+       CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
 #endif
     END IF
 
@@ -235,8 +235,8 @@ CONTAINS
     IF (aes_phy_tc(jg)%dt_art > dt_zero) THEN
 #if defined( _OPENACC )
        CALL warning('GPU:aes_art_main','GPU host synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .false., jg)
-       CALL gpu_update_var_list('prm_tend_D', .false., jg)
+       CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
 #endif
       !
       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_art <= datetime_old) .AND. &
@@ -257,8 +257,8 @@ CONTAINS
       !
 #if defined( _OPENACC )
        CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .true., jg)
-       CALL gpu_update_var_list('prm_tend_D', .true., jg)
+       CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
 #endif
     END IF
     !

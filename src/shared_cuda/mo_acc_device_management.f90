@@ -630,12 +630,12 @@ SUBROUTINE runSmallAccKernel()
 ! Begin Subroutine runSmallAccKernel
 !------------------------------------------------------------------------------
   
-  !$acc parallel
-  !$acc loop
+  !$ACC PARALLEL
+  !$ACC LOOP
   DO idummy = 1,16
     dummy(idummy) = idummy
   ENDDO
-  !$acc end parallel
+  !$ACC END PARALLEL
   IF (myid == 0) THEN
 #ifdef _OPENACC
     WRITE(*,'(a)') 'INFO: Running with OpenAcc directives'

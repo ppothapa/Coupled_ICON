@@ -56,16 +56,14 @@ USE sfc_terra_data,         ONLY: cadp
 USE mo_mpi,                 ONLY: my_process_is_mpi_seq
 USE sfc_flake,              ONLY: flake_coldinit
 USE sfc_flake_data,         ONLY: tpl_T_r, C_T_min, rflk_depth_bs_ref
-USE mo_fortran_tools,       ONLY: init, copy
+USE mo_fortran_tools,       ONLY: init, copy, set_acc_host_or_device, assert_acc_host_only
 USE mo_io_config,           ONLY: var_in_output
-#ifdef _OPENACC
-USE mo_mpi,                 ONLY: i_am_accel_node
+
 ! ACC LOOP Comment "comment_collapse"
 ! ===================================
 ! Collapsed loops in ACC are tagged with "comment_collapse" do denote that the inner loops
 ! over all cells is actually is on the reduced grid, which has only 1/4 of the usual size.
 ! In this case, we collapse in order to have the most parallelism.
-#endif
 
 IMPLICIT NONE
 
@@ -141,8 +139,8 @@ SUBROUTINE t_upscale_fields_destruct(me)
   me%nlev_rg = 0
   me%ntot    = 0
   do i=1,nfieldp_max
-    !$ACC EXIT DATA DETACH( me%field(i)%p ) IF( ASSOCIATED(me%field(i)%p) .AND. me%lopenacc )
-    !$ACC EXIT DATA DETACH( me%field(i)%p2 ) IF( ASSOCIATED(me%field(i)%p2) .AND. me%lopenacc )
+    !$ACC EXIT DATA DETACH(me%field(i)%p) IF(ASSOCIATED(me%field(i)%p) .AND. me%lopenacc)
+    !$ACC EXIT DATA DETACH(me%field(i)%p2) IF(ASSOCIATED(me%field(i)%p2) .AND. me%lopenacc)
     CALL me%field(i)%destruct()
   end do
   me%lopenacc = .FALSE.
@@ -153,8 +151,8 @@ SUBROUTINE t_upscale_fields_acc_attach(me)
   INTEGER :: i
   ! For what ever reason, I was not able to attach within the assign routine. Perhaps a bug in nvfort 21.03.
   DO i = 1, me%ntot
-    !$ACC ENTER DATA ATTACH( me%field(i)%p ) IF( ASSOCIATED(me%field(i)%p) )
-    !$ACC ENTER DATA ATTACH( me%field(i)%p2 ) IF( ASSOCIATED(me%field(i)%p2) )
+    !$ACC ENTER DATA ATTACH(me%field(i)%p) IF(ASSOCIATED(me%field(i)%p))
+    !$ACC ENTER DATA ATTACH(me%field(i)%p2) IF(ASSOCIATED(me%field(i)%p2))
   ENDDO
   me%lopenacc = .TRUE.
 END SUBROUTINE t_upscale_fields_acc_attach
@@ -213,7 +211,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   z_pres_ifc, z_tot_cld, buffer_rrg,                                       &
   icpl_rad_reff, reff_liq, reff_frz, rg_reff_liq, rg_reff_frz,             &
   input_extra_flds, rg_extra_flds, input_extra_2D, rg_extra_2D,            &     
-  input_extra_reff, rg_extra_reff, use_acc)
+  input_extra_reff, rg_extra_reff, lacc)
 
   ! Input grid parameters
   INTEGER, INTENT(IN)  :: jg, jgp  ! domain IDs of main and reduced grids
@@ -237,7 +235,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 
   INTEGER, INTENT(IN) :: ktype(:,:)
 
-  LOGICAL, OPTIONAL, INTENT(IN) :: use_acc
+  LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
 
   ! Corresponding output fields (on reduced grid)
   REAL(wp), TARGET, INTENT(OUT) ::                                           &
@@ -301,31 +299,24 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   LOGICAL l_upsc_extra_flds  ! Check if extra fields in input_extra_flds need to be upscaled
   LOGICAL l_upsc_extra_2D    ! Check if extra2D  fields in input_extra_2D need to be upscaled
   LOGICAL l_upsc_extra_reff  ! Check if extra reff in input_extra_reff need to be upscaled
-  LOGICAL lacc
-  
+  LOGICAL lzacc ! non-optional version of lacc
+
   REAL(wp), DIMENSION(:,:,:), POINTER :: p_q, p_reff ! For improving code readability in reff calculation
 
   !-----------------------------------------------------------------------
 
-  IF(PRESENT(use_acc)) THEN
-      lacc = use_acc
-  ELSE
-      lacc = .FALSE.
-  ENDIF
-#ifdef _OPENACC
-  if (lacc /= i_am_accel_node) CALL finish('upscale_rad_input','lacc /= i_am_accel_node')
-#endif
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   ! arguments intent(in/out)
-  !$ACC DATA PRESENT( emis_rad, cosmu0, albvisdir, albnirdir, albvisdif, albnirdif ) &
-  !$ACC      PRESENT( albdif, tsfc, pres_ifc, pres, temp ) &
-  !$ACC      PRESENT( tot_cld, clc, q_o3, aeq1, aeq2, aeq3, aeq4, aeq5 ) &
-  !$ACC      PRESENT( ktype, buffer_rrg ) &
-  !$ACC      PRESENT( rg_emis_rad, rg_cosmu0, rg_albvisdir, rg_albnirdir, rg_albvisdif, rg_albnirdif ) &
-  !$ACC      PRESENT( rg_albdif, rg_tsfc, rg_pres_ifc, rg_pres, rg_temp ) &
-  !$ACC      PRESENT( rg_tot_cld, rg_clc, rg_q_o3, rg_aeq1, rg_aeq2, rg_aeq3, rg_aeq4, rg_aeq5, z_pres_ifc, z_tot_cld ) &
-  !$ACC      PRESENT( input_extra_flds, input_extra_2D, input_extra_reff ) &
-  !$ACC      PRESENT( rg_extra_flds, rg_extra_2D, rg_extra_reff ) IF( lacc )
+  !$ACC DATA PRESENT(emis_rad, cosmu0, albvisdir, albnirdir, albvisdif, albnirdif) &
+  !$ACC   PRESENT(albdif, tsfc, pres_ifc, pres, temp) &
+  !$ACC   PRESENT(tot_cld, clc, q_o3, aeq1, aeq2, aeq3, aeq4, aeq5) &
+  !$ACC   PRESENT(ktype, buffer_rrg) &
+  !$ACC   PRESENT(rg_emis_rad, rg_cosmu0, rg_albvisdir, rg_albnirdir, rg_albvisdif, rg_albnirdif) &
+  !$ACC   PRESENT(rg_albdif, rg_tsfc, rg_pres_ifc, rg_pres, rg_temp) &
+  !$ACC   PRESENT(rg_tot_cld, rg_clc, rg_q_o3, rg_aeq1, rg_aeq2, rg_aeq3, rg_aeq4, rg_aeq5, z_pres_ifc, z_tot_cld) &
+  !$ACC   PRESENT(input_extra_flds, input_extra_2D, input_extra_reff) &
+  !$ACC   PRESENT(rg_extra_flds, rg_extra_2D, rg_extra_reff) IF(lzacc)
 
   n2d_upsc = 9 ! Number of 2D fields to upscale (9 + extra_2D fields)
 
@@ -385,7 +376,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   p_fbkwgt => p_grf%fbk_wgt_bln
 
   !data present for pointer-fields from nesting-derived types
-  !$ACC DATA PRESENT( p_grf, p_gcp, p_pp, iidx, iblk, p_fbkwgt ) IF( lacc )
+  !$ACC DATA PRESENT(p_grf, p_gcp, p_pp, iidx, iblk, p_fbkwgt) IF(lzacc)
 
   ! Allocation of local storage fields at local parent level in MPI-case
   IF (jgp == 0 .AND. .NOT. l_limited_area) THEN
@@ -403,28 +394,28 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
              z_aux3d(nproma,n2d_upsc,nblks_c_lp), zrg_aux3d(nproma,n2d_upsc,p_patch(jgp)%nblks_c) )
 
     ! enter data for local arrays
-    !$ACC ENTER DATA CREATE( z_emis_rad, z_cosmu0, z_albvisdir, z_albnirdir, z_albvisdif ) &
-    !$ACC            CREATE( z_albnirdif, z_albdif, z_tsfc, z_rtype, z_pres, z_temp, z_clc ) &
-    !$ACC            CREATE( z_q_o3, z_aeq1, z_aeq2, z_aeq3, z_aeq4, z_aeq5, z_aux3d, zrg_aux3d ) if( lacc )
+    !$ACC ENTER DATA CREATE(z_emis_rad, z_cosmu0, z_albvisdir, z_albnirdir, z_albvisdif) &
+    !$ACC   CREATE(z_albnirdif, z_albdif, z_tsfc, z_rtype, z_pres, z_temp, z_clc) &
+    !$ACC   CREATE(z_q_o3, z_aeq1, z_aeq2, z_aeq3, z_aeq4, z_aeq5, z_aux3d, zrg_aux3d) IF(lzacc)
 
     IF ( l_upsc_reff ) THEN
       ALLOCATE ( z_reff_liq(nproma,nlev_rg,nblks_c_lp), z_reff_frz(nproma,nlev_rg,nblks_c_lp) )
-      !$ACC ENTER DATA CREATE( z_reff_liq, z_reff_frz ) IF( lacc )
+      !$ACC ENTER DATA CREATE(z_reff_liq, z_reff_frz) IF(lzacc)
     END IF
-    
+
     IF ( l_upsc_extra_flds ) THEN
       ALLOCATE ( z_extra_flds( nproma, input_extra_flds%nlev_rg, nblks_c_lp, input_extra_flds%ntot) )
-      !$ACC ENTER DATA CREATE( z_extra_flds ) IF( lacc )
+      !$ACC ENTER DATA CREATE(z_extra_flds) IF(lzacc)
     END IF
 
     IF ( l_upsc_extra_2D ) THEN
       ALLOCATE ( z_extra_2D( nproma, nblks_c_lp, input_extra_2D%ntot) )
-      !$ACC ENTER DATA CREATE( z_extra_2D ) IF( lacc )
+      !$ACC ENTER DATA CREATE(z_extra_2D) IF(lzacc)
     END IF
 
     IF ( l_upsc_extra_reff ) THEN
       ALLOCATE ( z_extra_reff( nproma, input_extra_reff%nlev_rg, nblks_c_lp, input_extra_reff%ntot) )
-      !$ACC ENTER DATA CREATE( z_extra_reff ) IF( lacc )
+      !$ACC ENTER DATA CREATE(z_extra_reff) IF(lzacc)
     END IF
 
     ! Set pointers to either the parent-level variables (non-MPI case) or to the
@@ -487,18 +478,18 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   ENDIF
 
   ! data present for pointers
-  !$ACC DATA PRESENT( p_patch, p_emis_rad, p_cosmu0, p_albvisdir, p_albnirdir, p_albvisdif, p_albnirdif ) &
-  !$ACC      PRESENT( p_albdif, p_tsfc,  p_rtype,  p_pres_ifc, p_pres, p_temp ) &
-  !$ACC      PRESENT( p_tot_cld, p_clc, p_q_o3, p_aeq1, p_aeq2, p_aeq3, p_aeq4, p_aeq5 ) IF( lacc )
+  !$ACC DATA PRESENT(p_patch, p_emis_rad, p_cosmu0, p_albvisdir, p_albnirdir, p_albvisdif, p_albnirdif) &
+  !$ACC   PRESENT(p_albdif, p_tsfc, p_rtype, p_pres_ifc, p_pres, p_temp) &
+  !$ACC   PRESENT(p_tot_cld, p_clc, p_q_o3, p_aeq1, p_aeq2, p_aeq3, p_aeq4, p_aeq5) IF(lzacc)
 
   ! data present for optional pointers
-  !$ACC DATA PRESENT( p_extra_flds ) IF( l_upsc_extra_flds .AND. lacc )
-  !$ACC DATA PRESENT( p_extra_2D ) IF( l_upsc_extra_2D .AND. lacc )
-  !$ACC DATA PRESENT( p_extra_reff ) IF( l_upsc_extra_reff .AND. lacc )
-  !$ACC DATA PRESENT( p_reff_liq, p_reff_frz ) IF( l_upsc_reff .AND. lacc )
+  !$ACC DATA PRESENT(p_extra_flds) IF(l_upsc_extra_flds .AND. lzacc)
+  !$ACC DATA PRESENT(p_extra_2D) IF(l_upsc_extra_2D .AND. lzacc)
+  !$ACC DATA PRESENT(p_extra_reff) IF(l_upsc_extra_reff .AND. lzacc)
+  !$ACC DATA PRESENT(p_reff_liq, p_reff_frz) IF(l_upsc_reff .AND. lzacc)
 
   IF (p_test_run) THEN
-    !$ACC KERNELS ASYNC(1) IF( lacc )
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     p_emis_rad   = 0._wp
     p_cosmu0     = 0._wp
     p_albvisdir  = 0._wp
@@ -548,7 +539,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,                           &
                        i_startidx, i_endidx, i_startrow, min_rlcell_int)
 !NEC$ IVDEP
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -622,7 +613,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 
 
     IF ( l_upsc_extra_2D ) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) ! see comment_collapse
       DO jf = 1, input_extra_2D%ntot
 !NEC$ IVDEP
@@ -638,7 +629,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
     END IF
 
     IF (jgp == 0 .AND. .NOT. l_limited_area) THEN ! combine 2D fields in a 3D field to speed up MPI communication
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT( z_aux3d ) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(z_aux3d) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         z_aux3d(jc, 1,jb) = p_cosmu0(jc,jb)
@@ -654,7 +645,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       !$ACC END PARALLEL
 
       IF ( l_upsc_extra_2D ) THEN
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT( z_aux3d ) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT(z_aux3d) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) ! see comment_collapse
         DO jf = 1,input_extra_2D%ntot
 !DIR$ IVDEP
@@ -677,8 +668,8 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       jk1 = jk + nshift
       DO jc = i_startidx, i_endidx
 #else
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( jk1 ) ! see comment_collapse
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jk1) ! see comment_collapse
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
         jk1 = jk + nshift
@@ -787,8 +778,8 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 !NEC$ ivdep
         DO jc = i_startidx, i_endidx
 #else
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT( reff_frz, reff_liq ) ASYNC(1) IF( lacc )
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( jk1 ) ! see comment_collapse
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(reff_frz, reff_liq) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jk1) ! see comment_collapse
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
         jk1 = jk + nshift
@@ -840,7 +831,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 
 ! Extra Fields upscaling 
     IF ( l_upsc_extra_flds ) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jf = 1, input_extra_flds%ntot
 #ifdef __LOOP_EXCHANGE
@@ -855,7 +846,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 !NEC$ ivdep
           DO jc = i_startidx, i_endidx
 #else
-        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( jk1 ) ! see comment_collapse
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jk1) ! see comment_collapse
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
           jk1 = jk + nshift
@@ -892,8 +883,8 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 !NEC$ ivdep
           DO jc = i_startidx, i_endidx
 #else
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT( p_reff, p_q ) IF( lacc )
-        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( jk1 ) ! see comment_collapse
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT(p_reff, p_q) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jk1) ! see comment_collapse
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
             jk1 = jk + nshift
@@ -934,8 +925,8 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 !NEC$ ivdep
       DO jc = i_startidx, i_endidx
 #else
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( jk1 ) ! see comment_collapse
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jk1) ! see comment_collapse
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
         jk1 = jk + nshift
@@ -960,7 +951,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       ! assume zero-gradient condition for aerosols, ozone and clouds (the latter are zero anyway in practice)
       jk1 = nshift + 1
       
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) ! see comment_collapse
       DO jk = 1, nshift
 !$NEC ivdep
@@ -978,7 +969,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       !$ACC END PARALLEL
 
       IF ( l_upsc_reff ) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) ! see comment_collapse
         DO jk = 1, nshift
 !$NEC ivdep
@@ -991,7 +982,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       END IF
       
       IF ( l_upsc_extra_flds ) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(3) ! see comment_collapse
         DO jf = 1,input_extra_flds%ntot
           DO jk = 1, nshift
@@ -1005,7 +996,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       END IF 
 
      IF ( l_upsc_extra_reff ) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(3) ! see comment_collapse
         DO jf = 1,input_extra_reff%ntot
           DO jk = 1, nshift
@@ -1020,7 +1011,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
  
       IF (jgp == 0 .OR. p_patch(jg)%nshift == 0) THEN ! settings for passive extra layer above 
                                                       ! model top for global grid (nshift=1 in this case)
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           ! Temperature is extrapolated linearly assuming a vertical temperature gradient of -5.0 K/km
@@ -1030,7 +1021,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
         ENDDO
         !$ACC END PARALLEL
       ELSE ! get information from buffer field
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = 1, nshift
           !$ACC LOOP GANG VECTOR
@@ -1045,7 +1036,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 
     ENDIF
 
-    !$ACC WAIT IF( lacc )
+    !$ACC WAIT IF(lzacc)
 
   ENDDO
 !$OMP END DO NOWAIT
@@ -1099,8 +1090,8 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, 1, min_rlcell)
 
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT( rg_rtype, zrg_aux3d ) ASYNC(1) IF( lacc )
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(rg_rtype, zrg_aux3d) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         rg_cosmu0(jc,jb)    = zrg_aux3d(jc,1,jb)
         rg_albvisdir(jc,jb) = zrg_aux3d(jc,2,jb)
@@ -1116,7 +1107,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
       IF ( l_upsc_extra_2D) THEN
         !$ACC LOOP SEQ
         DO jf = 1,input_extra_2D%ntot
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             rg_extra_2D(jc,jb,jf) = zrg_aux3d(jc,jf+9,jb)
           END DO
@@ -1129,7 +1120,7 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 !$OMP END PARALLEL
   ENDIF
 
-  !$ACC WAIT IF( lacc )
+  !$ACC WAIT IF(lzacc)
 
   ! end data present for optional pointers
   !$ACC END DATA ! p_reff_liq, p_reff_frz
@@ -1148,31 +1139,31 @@ SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
 
   IF (jgp == 0 .AND. .NOT. l_limited_area) THEN
     ! exit data for local arrays
-    !$ACC EXIT DATA DELETE( z_emis_rad, z_cosmu0, z_albvisdir, z_albnirdir, z_albvisdif ) &
-    !$ACC           DELETE( z_albnirdif, z_albdif, z_tsfc, z_rtype, z_pres, z_temp, z_clc ) &
-    !$ACC           DELETE( z_q_o3, z_aeq1, z_aeq2, z_aeq3, z_aeq4, z_aeq5, z_aux3d, zrg_aux3d ) if( lacc )
+    !$ACC EXIT DATA DELETE(z_emis_rad, z_cosmu0, z_albvisdir, z_albnirdir, z_albvisdif) &
+    !$ACC   DELETE(z_albnirdif, z_albdif, z_tsfc, z_rtype, z_pres, z_temp, z_clc) &
+    !$ACC   DELETE(z_q_o3, z_aeq1, z_aeq2, z_aeq3, z_aeq4, z_aeq5, z_aux3d, zrg_aux3d) IF(lzacc)
 
     DEALLOCATE(z_emis_rad, z_cosmu0, z_albvisdir, z_albnirdir,                       &
       & z_albvisdif, z_albnirdif, z_albdif, z_tsfc, z_rtype, z_pres, z_temp,         &
       & z_clc, z_q_o3, z_aeq1, z_aeq2, z_aeq3, z_aeq4, z_aeq5, z_aux3d, zrg_aux3d)
 
     IF ( l_upsc_reff ) THEN
-      !$ACC EXIT DATA DELETE( z_reff_liq, z_reff_frz ) if( lacc )
+      !$ACC EXIT DATA DELETE(z_reff_liq, z_reff_frz) IF(lzacc)
       DEALLOCATE(z_reff_liq, z_reff_frz )
     END IF
     
     IF ( l_upsc_extra_flds ) THEN
-      !$ACC EXIT DATA DELETE( z_extra_flds ) if( lacc )
+      !$ACC EXIT DATA DELETE(z_extra_flds) IF(lzacc)
       DEALLOCATE(z_extra_flds)
     ENDIF
 
     IF ( l_upsc_extra_2D   ) THEN
-      !$ACC EXIT DATA DELETE( z_extra_2D ) if( lacc )
+      !$ACC EXIT DATA DELETE(z_extra_2D) IF(lzacc)
       DEALLOCATE(z_extra_2D)
     ENDIF
 
     IF ( l_upsc_extra_reff ) THEN
-      !$ACC EXIT DATA DELETE( z_extra_reff ) if( lacc )
+      !$ACC EXIT DATA DELETE(z_extra_reff) IF(lzacc)
       DEALLOCATE(z_extra_reff)
     ENDIF
 
@@ -1200,7 +1191,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   rg_lwflx_up    , rg_lwflx_dn    , rg_swflx_up    , rg_swflx_dn,           &
   rg_lwflx_up_clr, rg_lwflx_dn_clr, rg_swflx_up_clr, rg_swflx_dn_clr,       &
   lwflx_up       , lwflx_dn       , swflx_up       , swflx_dn,              &
-  lwflx_up_clr   , lwflx_dn_clr   , swflx_up_clr   , swflx_dn_clr, use_acc  )
+  lwflx_up_clr   , lwflx_dn_clr   , swflx_up_clr   , swflx_dn_clr, lacc     )
 
 
   ! Input grid parameters
@@ -1232,7 +1223,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     lwflx_up(:,:,:)       , lwflx_dn(:,:,:)       , swflx_up(:,:,:)       , swflx_dn(:,:,:),              &
     lwflx_up_clr(:,:,:)   , lwflx_dn_clr(:,:,:)   , swflx_up_clr(:,:,:)   , swflx_dn_clr(:,:,:) 
 
-  LOGICAL, OPTIONAL, INTENT(IN) :: use_acc
+  LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
 
   ! Intermediate storage fields needed in the case of MPI parallelization
   REAL(wp), ALLOCATABLE, TARGET ::  z_lwflxall(:,:,:), z_trsolall(:,:,:),                      &
@@ -1293,17 +1284,10 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       & var_frvissfcdf = 15, var_frparsfcdf = 16, var_lwclrsfc = 17, var_numvars = 17
 
 
-  LOGICAL :: l_limit(3), lacc
+  LOGICAL :: l_limit(3), lzacc ! non-optional version of lacc
 !-----------------------------------------------------------------------
 
-  IF(PRESENT(use_acc)) THEN
-      lacc = use_acc
-  ELSE
-      lacc = .FALSE.
-  ENDIF
-#ifdef _OPENACC
-  IF (lacc /= i_am_accel_node) CALL finish('downscale_rad_output','lacc /= i_am_accel_node')
-#endif
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   IF (msg_level >= 10) THEN
     WRITE(message_text,'(a,i2,a,i2)') 'Downscaling of radiation output fields',&
@@ -1364,23 +1348,23 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       nl = 1
   END IF
 
-  !$ACC DATA PRESENT( rg_aclcov, rg_lwflxall, rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc,      &
-  !$ACC             & rg_lwflx_up_sfc, rg_trsol_up_toa, rg_trsol_up_sfc,                            &
-  !$ACC             & rg_trsol_nir_sfc, rg_trsol_vis_sfc, rg_trsol_par_sfc,                         &
-  !$ACC             & rg_fr_nir_sfc_diff, rg_fr_vis_sfc_diff, rg_fr_par_sfc_diff,                   &
-  !$ACC             & rg_trsol_dn_sfc_diff, tsfc_rg, albdif_rg, emis_rad_rg, cosmu0_rg, tot_cld_rg, &
-  !$ACC             & z_tot_cld, pres_ifc_rg, z_pres_ifc, tsfc, albdif, aclcov, lwflxall, trsolall, &
-  !$ACC             & lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_dn_sfc_diff,                  &
-  !$ACC             & trsol_nir_sfc, trsol_vis_sfc, trsol_par_sfc,                                  &
-  !$ACC             & fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff,                            &
-  !$ACC             & trsol_clr_sfc, lwflx_clr_sfc, rg_lwflx_up, rg_lwflx_dn, rg_swflx_up,          &
-  !$ACC             & rg_swflx_dn, rg_lwflx_up_clr, rg_lwflx_dn_clr, rg_swflx_up_clr,               &
-  !$ACC             & rg_swflx_dn_clr, lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr,        &
-  !$ACC             & lwflx_dn_clr, swflx_up_clr, swflx_dn_clr ) &
-  !$ACC       COPYIN( iidx, iblk ) &
-  !$ACC       CREATE( tsfc_backintp, alb_backintp, tqv, dlwem_o_dtg, swfac1, swfac2, lwfac1,        &
-  !$ACC             & lwfac2, logtqv, dtrans_o_dalb_clrsfc, intclw, intcli, dtrans_o_dalb_all,      &
-  !$ACC             & dlwflxall_o_dtg, pfacswa, l_limit ) IF( lacc )
+  !$ACC DATA PRESENT(rg_aclcov, rg_lwflxall, rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc) &
+  !$ACC   PRESENT(rg_lwflx_up_sfc, rg_trsol_up_toa, rg_trsol_up_sfc) &
+  !$ACC   PRESENT(rg_trsol_nir_sfc, rg_trsol_vis_sfc, rg_trsol_par_sfc) &
+  !$ACC   PRESENT(rg_fr_nir_sfc_diff, rg_fr_vis_sfc_diff, rg_fr_par_sfc_diff) &
+  !$ACC   PRESENT(rg_trsol_dn_sfc_diff, tsfc_rg, albdif_rg, emis_rad_rg, cosmu0_rg, tot_cld_rg) &
+  !$ACC   PRESENT(z_tot_cld, pres_ifc_rg, z_pres_ifc, tsfc, albdif, aclcov, lwflxall, trsolall) &
+  !$ACC   PRESENT(lwflx_up_sfc, trsol_up_toa, trsol_up_sfc, trsol_dn_sfc_diff) &
+  !$ACC   PRESENT(trsol_nir_sfc, trsol_vis_sfc, trsol_par_sfc) &
+  !$ACC   PRESENT(fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff) &
+  !$ACC   PRESENT(trsol_clr_sfc, lwflx_clr_sfc, rg_lwflx_up, rg_lwflx_dn, rg_swflx_up) &
+  !$ACC   PRESENT(rg_swflx_dn, rg_lwflx_up_clr, rg_lwflx_dn_clr, rg_swflx_up_clr) &
+  !$ACC   PRESENT(rg_swflx_dn_clr, lwflx_up, lwflx_dn, swflx_up, swflx_dn, lwflx_up_clr) &
+  !$ACC   PRESENT(lwflx_dn_clr, swflx_up_clr, swflx_dn_clr) &
+  !$ACC   COPYIN(iidx, iblk) &
+  !$ACC   CREATE(tsfc_backintp, alb_backintp, tqv, dlwem_o_dtg, swfac1, swfac2, lwfac1) &
+  !$ACC   CREATE(lwfac2, logtqv, dtrans_o_dalb_clrsfc, intclw, intcli, dtrans_o_dalb_all) &
+  !$ACC   CREATE(dlwflxall_o_dtg, pfacswa, l_limit) IF(lzacc)
 
   ! Allocation of local storage fields at local parent level in MPI-case
   IF (jgp == 0 .AND. .NOT. l_limited_area) THEN
@@ -1389,20 +1373,20 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
               zpg_aux3d(nproma,n2dvars_rg,p_patch(jgp)%nblks_c),                                                   &
               zrg_aux3d(nproma,n2dvars_rg,nblks_c_lp),           z_aux3d(nproma,n2dvars,p_patch(jg)%nblks_c),      &
               zrg_trdiffsolall(nproma,nlevp1_rg,nblks_c_lp),     z_trdiffsolall(nproma,nlevp1,p_patch(jg)%nblks_c) )
-    !$ACC ENTER DATA ASYNC(1) CREATE( z_lwflxall, z_trsolall, zpg_aux3d, zrg_aux3d, z_aux3d, zrg_trdiffsolall, &
-    !$ACC   z_trdiffsolall ) IF( lacc )
+    !$ACC ENTER DATA ASYNC(1) CREATE(z_lwflxall, z_trsolall, zpg_aux3d, zrg_aux3d, z_aux3d, zrg_trdiffsolall) &
+    !$ACC   CREATE(z_trdiffsolall) IF(lzacc)
 
     ALLOCATE( z_lwflx_up    (np,nl,nblks_c_lp),     z_lwflx_dn    (np,nl,nblks_c_lp),      &
               z_swflx_up    (np,nl,nblks_c_lp),     z_swflx_dn    (np,nl,nblks_c_lp),      &
               z_lwflx_up_clr(np,nl,nblks_c_lp),     z_lwflx_dn_clr(np,nl,nblks_c_lp),      &
               z_swflx_up_clr(np,nl,nblks_c_lp),     z_swflx_dn_clr(np,nl,nblks_c_lp)       )
 
-    !$ACC ENTER DATA ASYNC(1) CREATE( z_lwflx_up, z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr, &
-    !$ACC                  & z_lwflx_dn_clr, z_swflx_up_clr, z_swflx_dn_clr) IF( lacc )
+    !$ACC ENTER DATA ASYNC(1) CREATE(z_lwflx_up, z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr) &
+    !$ACC   CREATE(z_lwflx_dn_clr, z_swflx_up_clr, z_swflx_dn_clr) IF(lzacc)
 
-    !$ACC DATA PRESENT( z_lwflxall, z_trsolall, zpg_aux3d, zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall, &
-    !$ACC             & z_lwflx_up, z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr, &
-    !$ACC             & z_lwflx_dn_clr, z_swflx_up_clr, z_swflx_dn_clr) IF( lacc )
+    !$ACC DATA PRESENT(z_lwflxall, z_trsolall, zpg_aux3d, zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall) &
+    !$ACC   PRESENT(z_lwflx_up, z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr) &
+    !$ACC   PRESENT(z_lwflx_dn_clr, z_swflx_up_clr, z_swflx_dn_clr) IF(lzacc)
 
     ! Perform communication from parent to local parent grid in the MPI case,
     ! and set pointers such that further processing is the same for MPI / non-MPI cases
@@ -1468,8 +1452,8 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   ELSE
     ALLOCATE(zrg_aux3d(nproma,n2dvars_rg,nblks_c_lp),       z_aux3d(nproma,n2dvars,p_patch(jg)%nblks_c),     &
              zrg_trdiffsolall(nproma,nlevp1_rg,nblks_c_lp), z_trdiffsolall(nproma,nlevp1,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA ASYNC(1) CREATE( zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall ) IF( lacc )
-    !$ACC DATA PRESENT( zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall ) IF( lacc )
+    !$ACC ENTER DATA ASYNC(1) CREATE(zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall) IF(lzacc)
+    !$ACC DATA PRESENT(zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall) IF(lzacc)
 
     p_lwflxall   => rg_lwflxall
     p_trsolall   => rg_trsolall
@@ -1509,12 +1493,12 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     !$ACC END DATA
   ENDIF
 
-  !$ACC DATA PRESENT( p_lwflxall, p_trsolall, p_pres_ifc, p_tot_cld, p_lwflx_up, p_lwflx_dn,         &
-  !$ACC             & p_swflx_up, p_swflx_dn, p_lwflx_up_clr, p_lwflx_dn_clr, p_swflx_up_clr,        &
-  !$ACC             & p_swflx_dn_clr, z_lwflxall, z_trsolall, z_lwflx_up,                            &
-  !$ACC             & z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr, z_lwflx_dn_clr,            &
-  !$ACC             & z_swflx_up_clr, z_swflx_dn_clr, zrg_trdiffsolall, z_trdiffsolall,              &
-  !$ACC             & zpg_aux3d, zrg_aux3d, z_aux3d  ) IF( lacc )
+  !$ACC DATA PRESENT(p_lwflxall, p_trsolall, p_pres_ifc, p_tot_cld, p_lwflx_up, p_lwflx_dn) &
+  !$ACC   PRESENT(p_swflx_up, p_swflx_dn, p_lwflx_up_clr, p_lwflx_dn_clr, p_swflx_up_clr) &
+  !$ACC   PRESENT(p_swflx_dn_clr, z_lwflxall, z_trsolall, z_lwflx_up) &
+  !$ACC   PRESENT(z_lwflx_dn, z_swflx_up, z_swflx_dn, z_lwflx_up_clr, z_lwflx_dn_clr) &
+  !$ACC   PRESENT(z_swflx_up_clr, z_swflx_dn_clr, zrg_trdiffsolall, z_trdiffsolall) &
+  !$ACC   PRESENT(zpg_aux3d, zrg_aux3d, z_aux3d) IF(lzacc)
 
   ! Compute transmissivity differences before downscaling
   ! Note: transmissivities must monotonically decrease from top to bottom in order to obtain
@@ -1540,7 +1524,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,                           &
                        i_startidx, i_endidx, i_startrow, min_rlcell_int)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nshift+1
       DO jc = i_startidx, i_endidx
@@ -1549,7 +1533,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = nshift+2, nlevp1_rg
       DO jc = i_startidx, i_endidx
@@ -1573,7 +1557,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
                          grf_ovlparea_start_c, grf_ovlparea_start_c)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk =1 , nlevp1_rg
         DO jc = i_startidx, i_endidx
@@ -1583,7 +1567,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lacc )
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, n2dvars_rg
         DO jc = i_startidx, i_endidx
@@ -1593,7 +1577,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       !$ACC END PARALLEL
 
       IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-        !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF( lacc )
+        !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nl
           DO jc = i_startidx, i_endidx
@@ -1696,7 +1680,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
                          grf_fbk_start_c, grf_fbk_start_c)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = nshift+1, n2dvars_rg
 !$NEC ivdep
@@ -1710,7 +1694,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = nshift+1, nlevp1_rg
 !$NEC ivdep
@@ -1730,7 +1714,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       !$ACC END PARALLEL
 
       IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = nshift+1, nlevp1_rg
 !$NEC ivdep
@@ -1801,14 +1785,14 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell_int)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       trsolall(jc,1,jb) = z_trdiffsolall(jc,1,jb)
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = 2, nlevp1
       !$ACC LOOP GANG VECTOR
@@ -1837,7 +1821,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,                      &
                        i_startidx, i_endidx, grf_fbk_start_c, min_rlcell_int)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)  IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       tqv(jc)            = 0._wp
@@ -1847,7 +1831,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = nlev,1,-1
       jk1 = jk + nshift
@@ -1863,7 +1847,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       logtqv(jc) = LOG(MAX(1._wp,tqv(jc)))
@@ -1877,7 +1861,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = 1,nlevp1
       jk1 = jk + nshift
@@ -1895,7 +1879,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       dtrans_o_dalb_clrsfc(jc) = - zrg_aux3d(jc,itrclrsfc,jb)/((1._wp-zrg_aux3d(jc,ialb,jb))*swfac2(jc))
@@ -1903,7 +1887,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     !$ACC END PARALLEL
 
     ! Now apply the corrections
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
       jc1 = iidx(jc,jb,1)
@@ -1920,7 +1904,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     !$ACC LOOP SEQ
     DO jk = 1,nlevp1
 !$NEC ivdep
-      !$ACC LOOP GANG VECTOR PRIVATE( jc1, jc2, jc3, jc4, jb1, jb2, jb3, jb4)
+      !$ACC LOOP GANG VECTOR PRIVATE(jc1, jc2, jc3, jc4, jb1, jb2, jb3, jb4)
       DO jc = i_startidx, i_endidx
         jc1 = iidx(jc,jb,1)
         jc2 = iidx(jc,jb,2)
@@ -1956,8 +1940,8 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
 
 !DIR$ IVDEP
 !$NEC ivdep
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
-    !$ACC LOOP GANG VECTOR PRIVATE( jc1, jc2, jc3, jc4, jb1, jb2, jb3, jb4)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(jc1, jc2, jc3, jc4, jb1, jb2, jb3, jb4)
     DO jc = i_startidx, i_endidx
       jc1 = iidx(jc,jb,1)
       jc2 = iidx(jc,jb,2)
@@ -2073,7 +2057,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell_int)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = nlev, 1, -1
       !$ACC LOOP GANG VECTOR
@@ -2093,15 +2077,15 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   !$ACC END DATA
 
   IF (jgp == 0 .AND. .NOT. l_limited_area) THEN
-    !$ACC EXIT DATA DELETE( z_lwflxall, z_trsolall, zpg_aux3d, z_lwflx_up, z_lwflx_dn, &
-    !$ACC                 & z_swflx_up, z_swflx_dn, z_lwflx_up_clr, z_lwflx_dn_clr,    &
-    !$ACC                 & z_swflx_up_clr, z_swflx_dn_clr) IF( lacc )
+    !$ACC EXIT DATA DELETE(z_lwflxall, z_trsolall, zpg_aux3d, z_lwflx_up, z_lwflx_dn) &
+    !$ACC   DELETE(z_swflx_up, z_swflx_dn, z_lwflx_up_clr, z_lwflx_dn_clr) &
+    !$ACC   DELETE(z_swflx_up_clr, z_swflx_dn_clr) IF(lzacc)
     DEALLOCATE(z_lwflxall, z_trsolall, zpg_aux3d )
     DEALLOCATE( z_lwflx_up    , z_lwflx_dn    , z_swflx_up    , z_swflx_dn,    &
                 z_lwflx_up_clr, z_lwflx_dn_clr, z_swflx_up_clr, z_swflx_dn_clr )
   ENDIF
 
-  !$ACC EXIT DATA DELETE( zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall ) IF( lacc )
+  !$ACC EXIT DATA DELETE(zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall) IF(lzacc)
   DEALLOCATE(zrg_aux3d, z_aux3d, zrg_trdiffsolall, z_trdiffsolall)
 
 END SUBROUTINE downscale_rad_output
@@ -2112,7 +2096,7 @@ END SUBROUTINE downscale_rad_output
 !! @par Revision History
 !! Developed  by Guenther Zaengl, DWD, 2010-12-03
 !!
-SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
+SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
 
   USE mo_nwp_phy_state,      ONLY: prm_diag
   USE mo_nonhydro_state,     ONLY: p_nh_state
@@ -2120,7 +2104,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
   ! Input:
   TYPE(t_external_data), INTENT(in) :: ext_data(:)
   INTEGER              , INTENT(in) :: jg,jgc,jn
-  LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+  LOGICAL, OPTIONAL    , INTENT(IN) :: lacc ! If true, use openacc
 
   ! Pointers
   TYPE(t_patch),                POINTER :: ptr_pp
@@ -2142,7 +2126,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
   INTEGER :: styp                        ! soiltype at child level
 
   LOGICAL :: lsfc_interp
-  LOGICAL :: lacc
+  LOGICAL :: lzacc ! non-optional version of lacc
 
   ! Temporary storage to do boundary interpolation for all 2D fields in one step
   REAL(wp) :: z_aux3dp1_p(nproma,nfields_p1,p_patch(jg)%nblks_c),       &  ! 2D pos. def. physics diag fields
@@ -2156,15 +2140,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
     &         z_aux3dsn_p(nproma,5*nlev_snow,p_patch(jg)%nblks_c),      &  ! 3D land state fields for multi-layer snow
     &         z_aux3dsn_c(nproma,5*nlev_snow,p_patch(jgc)%nblks_c)         ! (used if lmulti_snow = true))
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  ENDIF
-#ifdef _OPENACC
-  IF( lacc /= i_am_accel_node ) &
-    CALL finish('mo_phys_nest_utilities:interpol_phys_grf', 'lacc /= i_am_accel_node')
-#endif
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   ! set pointers
   ptr_pp  => p_patch(jg)
@@ -2188,11 +2164,11 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
     ptr_wprogc => p_lnd_state(jgc)%prog_wtr(nnow_rcf(jgc))
   ENDIF
 
-  !$ACC DATA CREATE(z_aux3dp1_p, z_aux3dp1_c, z_aux3dp2_p, z_aux3dp2_c, &
-  !$ACC   z_aux3dl2_p, z_aux3dl2_c, z_aux3dso_p, z_aux3dso_c, z_aux3dsn_p, &
-  !$ACC   z_aux3dsn_c, indlist) PRESENT(ext_data, prm_diag, p_nh_state, &
-  !$ACC   atm_phy_nwp_config, ptr_ldiagp, ptr_ldiagc, ptr_lprogc, ptr_lprogp, &
-  !$ACC   ptr_wprogc, var_in_output) IF(lacc)
+  !$ACC DATA CREATE(z_aux3dp1_p, z_aux3dp1_c, z_aux3dp2_p, z_aux3dp2_c) &
+  !$ACC   CREATE(z_aux3dl2_p, z_aux3dl2_c, z_aux3dso_p, z_aux3dso_c, z_aux3dsn_p) &
+  !$ACC   CREATE(z_aux3dsn_c, indlist) PRESENT(ext_data, prm_diag, p_nh_state) &
+  !$ACC   PRESENT(atm_phy_nwp_config, ptr_ldiagp, ptr_ldiagc, ptr_lprogc, ptr_lprogp) &
+  !$ACC   PRESENT(ptr_wprogc, var_in_output) IF(lzacc)
 
   IF (p_test_run) THEN
     CALL init(z_aux3dp1_p(:,:,:))
@@ -2212,7 +2188,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
 
     CALL get_indices_c(ptr_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell_int)
 !$NEC ivdep
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       z_aux3dp1_p(jc,1,jb) = prm_diag(jg)%tot_prec(jc,jb)
@@ -2330,7 +2306,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
     !$ACC END PARALLEL
 
     IF (lsfc_interp) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         z_aux3dl2_p(jc,1,jb) = ptr_ldiagp%t_snow(jc,jb)
@@ -2363,7 +2339,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
           z_aux3dl2_p(jc,13,jb) = ptr_ldiagp%t_snow_mult(jc,nlev_snow+1,jb)
         ENDDO
       ELSE
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           z_aux3dl2_p(jc,13,jb) = 0._wp
@@ -2372,9 +2348,8 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       ENDIF
 
       IF (lseaice) THEN
-#ifdef _OPENACC
-        CALL finish ('interpol_phys_grf', 'lseaice: OpenACC version currently not implemented')
-#endif
+        CALL assert_acc_host_only('interpol_phys_grf lseaice', lacc)
+
         DO jc = i_startidx, i_endidx
           IF (ptr_wprogp%t_ice(jc,jb) > 10._wp) THEN
             z_aux3dl2_p(jc,14,jb) = ptr_wprogp%t_ice(jc,jb)
@@ -2387,7 +2362,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
           z_aux3dl2_p(jc,18,jb) = ptr_ldiagp%fr_seaice(jc,jb)
         ENDDO
       ELSE
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           z_aux3dl2_p(jc,14:18,jb) = 0._wp
         ENDDO
@@ -2395,26 +2370,25 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       ENDIF
 
       IF (llake) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           z_aux3dl2_p(jc,19,jb) = ptr_lprogp%t_g(jc,jb)
         ENDDO
         !$ACC END PARALLEL
         i_count = ext_data(jg)%atm%list_lake%ncount(jb)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) PRIVATE(jc) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) PRIVATE(jc) ASYNC(1) IF(lzacc)
         DO ic = 1, i_count
           jc = ext_data(jg)%atm%list_lake%idx(ic,jb)
           z_aux3dl2_p(jc,19,jb) = ptr_lprogp%t_g_t(jc,jb,isub_lake)
         ENDDO
         !$ACC END PARALLEL
       ELSE
-#ifdef _OPENACC
-        CALL finish ('interpol_phys_grf', 'no llake: OpenACC version currently not implemented')
-#endif
+        CALL assert_acc_host_only('interpol_phys_grf .not.llake', lacc)
+
         z_aux3dl2_p(:,19,jb) = 0._wp
       ENDIF
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev_soil
         DO jc = i_startidx, i_endidx
@@ -2426,9 +2400,8 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       !$ACC END PARALLEL
 
       IF (lmulti_snow) THEN
-#ifdef _OPENACC
-        CALL finish ('interpol_phys_grf', 'lmulti_snow: OpenACC version currently not implemented')
-#endif
+        CALL assert_acc_host_only('interpol_phys_grf lmulti_snow', lacc)
+
         DO jk = 1, nlev_snow
           DO jc = i_startidx, i_endidx
             z_aux3dsn_p(jc,5*(jk-1)+1,jb) = ptr_ldiagp%t_snow_mult(jc,jk,jb)
@@ -2484,7 +2457,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
 
     CALL get_indices_c(ptr_pc, jb, i_startblk, i_endblk,        &
                        i_startidx, i_endidx, 1, grf_bdywidth_c)
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
 !$NEC ivdep
     DO jc = i_startidx, i_endidx          ! to avoid undershoots when taking time differences:
@@ -2606,7 +2579,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
     !$ACC END PARALLEL
 
     IF (lsfc_interp) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ptr_ldiagc%t_snow(jc,jb)           = z_aux3dl2_c(jc,1,jb)
@@ -2659,7 +2632,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
       IF (llake) THEN
 
         ! preset lake variables on nest boundary points with default values
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           ptr_wprogc%t_snow_lk(jc,jb) = tmelt
@@ -2676,7 +2649,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
 
         ! ensure that only nest boundary points are processed
         i_count = 0
-        !$ACC SERIAL DEFAULT(NONE) REDUCTION(+:i_count) ASYNC(1) IF(lacc)
+        !$ACC SERIAL DEFAULT(NONE) REDUCTION(+: i_count) ASYNC(1) IF(lzacc)
         DO ic = 1, ext_data(jgc)%atm%list_lake%ncount(jb)
           jc = ext_data(jgc)%atm%list_lake%idx(ic,jb)
           IF (jc >= i_startidx .AND. jc <= i_endidx) THEN
@@ -2703,13 +2676,13 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
              t_b1_lk_p   = ptr_wprogc%t_b1_lk  (:,jb),          &
              h_b1_lk_p   = ptr_wprogc%h_b1_lk  (:,jb),          &
              t_g_lk_p    = ptr_lprogc%t_g_t    (:,jb,isub_lake),&
-             use_acc=lacc                                       )
+             lacc=lzacc                                         )
 
       ENDIF
 
 
 
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(dzsoil) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(dzsoil) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(styp)
       DO jk = 1, nlev_soil
         DO jc = i_startidx, i_endidx
@@ -2732,7 +2705,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, use_acc)
 
       ! Copy interpolated values to tile-based variables; this is actually needed in order
       ! to avoid loss of grib encoding accuracy for t_so_t
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1, ntiles_total
         DO jk = 1, nlev_soil
@@ -2782,10 +2755,10 @@ END SUBROUTINE interpol_phys_grf
 !! @par Revision History
 !! Developed  by Guenther Zaengl, DWD, 2011-09-19
 !!
-SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf)
+SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
 
-  ! Input grid parameters
-  INTEGER, INTENT(in) :: jg, jgc, jn, ntl_rcf
+  INTEGER, INTENT(in) :: jg, jgc, jn, ntl_rcf ! Input grid parameters
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
   ! Pointers
   TYPE(t_patch),                POINTER :: ptr_pp
@@ -2805,6 +2778,9 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf)
   ! Temporary storage to do boundary interpolation for all 2D fields in one step
   REAL(wp) :: z_aux3d_p(nproma,nfields,p_patch(jg)%nblks_c), &
               z_aux3d_c(nproma,nfields,p_patch(jgc)%nblks_c)
+  LOGICAL :: lzacc ! non-optional version of lacc
+
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   ! set pointers
   ptr_pp        => p_patch(jg)
@@ -2818,11 +2794,11 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf)
   ptr_lprogc_t1 => p_lnd_state(jgc)%prog_lnd(1)
   ptr_lprogc_t2 => p_lnd_state(jgc)%prog_lnd(2)
 
-  !$ACC DATA CREATE(z_aux3d_p, z_aux3d_c) PRESENT(ptr_lprogp, prm_diagp, &
-  !$ACC      ptr_lprogc_t1, ptr_lprogc_t2, prm_diagc) IF(i_am_accel_node)
+  !$ACC DATA CREATE(z_aux3d_p, z_aux3d_c) PRESENT(ptr_lprogp, prm_diagp) &
+  !$ACC   PRESENT(ptr_lprogc_t1, ptr_lprogc_t2, prm_diagc) IF(lzacc)
 
   IF (p_test_run) THEN
-    !$ACC SERIAL DEFAULT(NONE) IF(i_am_accel_node)
+    !$ACC SERIAL DEFAULT(NONE) IF(lzacc)
      z_aux3d_p(:,:,:) = 0._wp
     !$ACC END SERIAL
   ENDIF
@@ -2836,7 +2812,7 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf)
 
     CALL get_indices_c(ptr_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, 1)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -2874,7 +2850,7 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf)
     CALL get_indices_c(ptr_pc, jb, i_startblk, i_endblk,        &
                        i_startidx, i_endidx, 1, grf_bdywidth_c)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -2930,11 +2906,11 @@ END SUBROUTINE copy_rrg_ubc
 !! @par Revision History
 !! Developed  by Guenther Zaengl, DWD, 2010-12-03
 !!
-SUBROUTINE feedback_phys_diag(jg, jgp)
+SUBROUTINE feedback_phys_diag(jg, jgp, lacc)
 
   INTEGER, INTENT(IN) :: jg   ! child grid level
   INTEGER, INTENT(IN) :: jgp  ! parent grid level
-
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
   ! Pointers to types needed to minimize code duplication for MPI/no-MPI cases
   TYPE(t_grid_cells), POINTER     :: p_gcp
@@ -2950,10 +2926,7 @@ SUBROUTINE feedback_phys_diag(jg, jgp)
   REAL(wp), ALLOCATABLE, TARGET :: z_aux3d_lp(:,:,:), z_aux3d_par(:,:,:)
 
   !-----------------------------------------------------------------------
-#ifdef _OPENACC
-  if(i_am_accel_node) &
-    CALL finish('mo_phys_nest_utilities:feedback_phys_diag', 'openACC is not implemented')
-#endif
+  CALL assert_acc_host_only("feedback_phys_diag", lacc)
 
   IF (msg_level >= 10) THEN
     WRITE(message_text,'(a,i2,a,i2)') 'Feedback of diagnostic physics fields',&
