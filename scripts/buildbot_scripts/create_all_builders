@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# abort on error
+set -euo pipefail
+
 set -x
 # create all builders for a given list
 list=$1

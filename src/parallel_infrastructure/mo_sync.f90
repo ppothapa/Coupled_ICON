@@ -161,15 +161,6 @@ INTEGER :: ncumul_sync(4,max_dom) = 0
 !> List of cumulative sync fields:
 TYPE(t_cumulative_sync) :: cumul_sync(4,max_dom,MAX_CUMULATIVE_SYNC)
 
-#if defined( _OPENACC )
-#define ACC_DEBUG NOACC
-#if defined(__SYNC_NOACC)
-  LOGICAL, PARAMETER ::  acc_on = .FALSE.
-#else
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-#endif
-
   INTERFACE sync_patch_array_mult
     MODULE PROCEDURE sync_patch_array_mult_dp
     MODULE PROCEDURE sync_patch_array_mult_sp
@@ -281,7 +272,7 @@ END SUBROUTINE sync_patch_array_s3
 !
 SUBROUTINE sync_patch_array_i3(typ, p_patch, arr)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+   TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
    INTEGER,       INTENT(INOUT) :: arr(:,:,:)
    CLASS(t_comm_pattern), POINTER :: p_pat
 
@@ -294,7 +285,7 @@ END SUBROUTINE sync_patch_array_i3
 
   SUBROUTINE sync_patch_array_l3(typ, p_patch, arr)
     INTEGER,       INTENT(IN)    :: typ
-    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+    TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
     LOGICAL,       INTENT(INOUT) :: arr(:,:,:)
     CLASS(t_comm_pattern), POINTER :: p_pat
 
@@ -336,7 +327,7 @@ END SUBROUTINE sync_patch_array_r2
 !
 SUBROUTINE sync_patch_array_i2(typ, p_patch, arr)
    INTEGER,       INTENT(IN)    :: typ
-   TYPE(t_patch), INTENT(INOUT) :: p_patch
+   TYPE(t_patch), INTENT(IN)    :: p_patch
    INTEGER, TARGET, INTENT(INOUT) :: arr(:,:)
    ! local variable
    INTEGER, POINTER :: arr3(:,:,:)
@@ -347,7 +338,7 @@ END SUBROUTINE sync_patch_array_i2
 
   SUBROUTINE sync_patch_array_l2(typ, p_patch, arr)
     INTEGER,       INTENT(IN)    :: typ
-    TYPE(t_patch), INTENT(INOUT) :: p_patch
+    TYPE(t_patch), INTENT(IN)    :: p_patch
     LOGICAL, TARGET, INTENT(INOUT) :: arr(:,:)
     ! local variable
     LOGICAL, POINTER :: arr3(:,:,:)
@@ -677,12 +668,12 @@ SUBROUTINE check_patch_array_sp(typ, p_patch, arr, opt_varname)
    REAL(sp), INTENT(IN) :: arr(:,:,:)
    REAL(wp) :: arr_wp(SIZE(arr,1),SIZE(arr,2),SIZE(arr,3))
 
-!$ACC DATA CREATE(arr_wp) IF ( i_am_accel_node .AND. acc_on )
-!$ACC KERNELS IF ( i_am_accel_node .AND. acc_on )
+   !$ACC DATA CREATE(arr_wp) IF(i_am_accel_node)
+   !$ACC KERNELS IF(i_am_accel_node)
    arr_wp(:,:,:) = REAL(arr(:,:,:),wp)
-!$ACC END KERNELS
+   !$ACC END KERNELS
    CALL check_patch_array_3(typ, p_patch, arr_wp, opt_varname)
-!$ACC END DATA
+   !$ACC END DATA
 
 END SUBROUTINE check_patch_array_sp
 
@@ -748,8 +739,8 @@ SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
    ndim2 = UBOUND(arr,2)
    ndim3 = UBOUND(arr,3)
 
-!$ACC DATA PRESENT( arr ), IF ( i_am_accel_node .AND. acc_on )
-!$ACC UPDATE HOST( arr ), IF ( i_am_accel_node .AND. acc_on )
+   !$ACC DATA PRESENT(arr) IF(i_am_accel_node)
+   !$ACC UPDATE HOST(arr) IF(i_am_accel_node)
 
    IF(typ == SYNC_C .OR. typ == SYNC_C1) THEN
       ndim   = p_patch%n_patch_cells
@@ -964,7 +955,7 @@ SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
 #endif
    ENDIF
 
-!$ACC END DATA
+   !$ACC END DATA
 
 END SUBROUTINE check_patch_array_3
 !-------------------------------------------------------------------------
@@ -1101,10 +1092,10 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
 
   ! Set z_idx with the global 1D-index of all points
 
-!$ACC DATA COPYIN( z_idx ), IF ( i_am_accel_node .AND. acc_on )
+  !$ACC DATA COPYIN(z_idx) IF(i_am_accel_node)
 
-!$ACC PARALLEL IF ( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jb = 1, nblks
     DO jl = 1, nproma
 
@@ -1118,14 +1109,14 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
 
     END DO
   END DO
-!$ACC END PARALLEL
+  !$ACC END PARALLEL
 
   ! Sync z_idx
   CALL sync_patch_array(type_arr, p_patch, z_idx, opt_varname)
 
   ! Set all points with local index corresponding to z_idx
-!$ACC PARALLEL IF ( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jb = 1, nblks
     DO jl = 1, nproma
 
@@ -1170,9 +1161,9 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
 #endif
 
   END DO
-!$ACC END PARALLEL
+  !$ACC END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
 END SUBROUTINE sync_idx
 

@@ -342,8 +342,11 @@ check_error $? "${MODEL} does not exist?"
 rm -f finish.status
 #
 date
+set -x
 ${START} ${MODEL} # > out.txt 2>&1
+set +x
 date
+
 #
 if [ -r finish.status ] ; then
   check_final_status 0 "${START} ${MODEL}"

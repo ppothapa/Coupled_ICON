@@ -22,7 +22,6 @@ def rmlist(name):
         full_list_name.unlink()
     else:
         print("did not find experiment list {}. Doing nothing".format(full_list_name))
-        sys.exit(1)
 
 
 if __name__ == "__main__":

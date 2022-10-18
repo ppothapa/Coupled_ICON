@@ -41,9 +41,7 @@ MODULE mo_nh_supervise
   USE mo_sync,                ONLY: global_sum_array, global_max
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c, grf_bdywidth_e
-#ifdef _OPENACC
-  USE mo_mpi,                   ONLY: i_am_accel_node
-#endif
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_host_only
   USE mo_upatmo_impl_const,   ONLY: idamtr
 
   IMPLICIT NONE
@@ -69,9 +67,6 @@ MODULE mo_nh_supervise
   PUBLIC :: print_maxwinds
   PUBLIC :: compute_dpsdt
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
 
 CONTAINS
 
@@ -128,7 +123,7 @@ CONTAINS
   !! Modification by Daniel Reinert, DWD (2016-04-20):
   !! - computation of total dry mass
   !!
-  SUBROUTINE supervise_total_integrals_nh( k_step, patch, nh_state, int_state, ntimlev, ntimlev_rcf, l_last_step)
+  SUBROUTINE supervise_total_integrals_nh( k_step, patch, nh_state, int_state, ntimlev, ntimlev_rcf, l_last_step, lacc)
 
     INTEGER,                  INTENT(IN) :: k_step            ! actual time step
     TYPE(t_patch),            INTENT(IN) :: patch(n_dom)      ! Patch
@@ -137,6 +132,7 @@ CONTAINS
     INTEGER,                  INTENT(IN) :: ntimlev(n_dom)    ! time level
     INTEGER,                  INTENT(IN) :: ntimlev_rcf(n_dom)! rcf time level
     LOGICAL,                  INTENT(IN) :: l_last_step
+    LOGICAL, OPTIONAL,        INTENT(IN) :: lacc ! If true, use openacc
 
     REAL(wp), SAVE :: z_total_mass_0    !< total air mass including vapor and condensate at first time step [kg]
     REAL(wp), SAVE :: z_total_drymass_0 !< total dry air mass at first time step [kg]
@@ -191,6 +187,8 @@ CONTAINS
     ! (upper-atmosphere-/deep-atmosphere-related variables)
     REAL(wp), DIMENSION(:), POINTER :: deepatmo_vol
     !-----------------------------------------------------------------------------
+
+    CALL assert_acc_host_only('mo_nh_stepping:supervise_total_integrals_nh', lacc)
 
     ! Hack [ha]:
     IF (.NOT. ALLOCATED (z_total_tracer_old)) THEN
@@ -575,20 +573,23 @@ CONTAINS
   !! @par Revision History
   !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
-  SUBROUTINE print_maxwinds(patch, vn, w)
+  SUBROUTINE print_maxwinds(patch, vn, w, lacc)
 
     TYPE(t_patch), INTENT(IN) :: patch    ! Patch
     REAL(wp),      INTENT(IN) :: vn(:,:,:), w(:,:,:) ! horizontal and vertical wind speed
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! local variables
     REAL(wp) :: max_vn, max_w
     INTEGER  :: max_vn_level, max_vn_process, max_w_level, max_w_process
+    LOGICAL :: lzacc ! non-optional version of lacc
 
     !-----------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     CALL calculate_maxwinds(patch, vn, w,       &
         & max_vn, max_vn_level, max_vn_process, &
-        & max_w, max_w_level, max_w_process )
+        & max_w, max_w_level, max_w_process, lacc=lzacc )
 
 
     !--- Get max over all PEs
@@ -638,12 +639,13 @@ CONTAINS
   !!
   SUBROUTINE calculate_maxwinds(patch, vn, w,   &
         & max_vn, max_vn_level, max_vn_process, &
-        & max_w, max_w_level, max_w_process )
+        & max_w, max_w_level, max_w_process, lacc )
 
     TYPE(t_patch), INTENT(IN)  :: patch    ! Patch
     REAL(wp),      INTENT(IN)  :: vn(:,:,:), w(:,:,:) ! horizontal and vertical wind speed
     REAL(wp),      INTENT(OUT) :: max_vn, max_w
     INTEGER,       INTENT(OUT) :: max_vn_level, max_vn_process, max_w_level, max_w_process
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! local variables
     REAL(wp) :: vn_aux(patch%edges%end_blk(min_rledge_int,MAX(1,patch%n_childdom)),patch%nlev)
@@ -656,8 +658,11 @@ CONTAINS
     INTEGER  :: jec
 #endif
     INTEGER  :: proc_id(2), keyval(2)
+    LOGICAL :: lzacc ! non-optional version of lacc
 
     !-----------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     i_nchdom    = MAX(1,patch%n_childdom)
     istartblk_c = patch%cells%start_blk(grf_bdywidth_c+1,1)
     istartblk_e = patch%edges%start_blk(grf_bdywidth_e+1,1)
@@ -665,14 +670,13 @@ CONTAINS
     iendblk_e   = patch%edges%end_blk(min_rledge_int,i_nchdom)
     jg          = patch%id
 
-!$ACC DATA PRESENT( vn, w, patch ) COPYOUT( vn_aux, w_aux ) &
-!$ACC      IF ( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(vn, w, patch) COPYOUT(vn_aux, w_aux) IF(lzacc)
 
     IF (jg > 1 .OR. l_limited_area) THEN
-!$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF ( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(lzacc)
       vn_aux(1:MIN(istartblk_e,iendblk_e),:) = 0._wp
       w_aux (1:MIN(istartblk_c,iendblk_c),:) = 0._wp
-!$ACC END KERNELS
+      !$ACC END KERNELS
     ENDIF
 
 !$OMP PARALLEL
@@ -686,13 +690,13 @@ CONTAINS
       CALL get_indices_e(patch, jb, istartblk_e, iendblk_e, i_startidx, i_endidx, &
                          grf_bdywidth_e+1, min_rledge_int)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG PRIVATE( vn_aux_tmp )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG PRIVATE(vn_aux_tmp)
 !$NEC novector
       DO jk = 1, patch%nlev
 #if defined( __INTEL_COMPILER ) || defined( _OPENACC ) || defined (__SX__)
         vn_aux_tmp = 0._wp
-        !$ACC LOOP VECTOR REDUCTION(max:vn_aux_tmp)
+        !$ACC LOOP VECTOR REDUCTION(MAX: vn_aux_tmp)
         DO jec = i_startidx,i_endidx
           vn_aux_tmp = MAX(vn_aux_tmp, -vn(jec,jk,jb), vn(jec,jk,jb))
         ENDDO
@@ -701,7 +705,7 @@ CONTAINS
         vn_aux(jb,jk) = MAXVAL(ABS(vn(i_startidx:i_endidx,jk,jb)))
 #endif
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 
@@ -715,13 +719,13 @@ CONTAINS
       CALL get_indices_c(patch, jb, istartblk_c, iendblk_c, i_startidx, i_endidx, &
                          grf_bdywidth_c+1, min_rlcell_int)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG PRIVATE( w_aux_tmp )
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG PRIVATE(w_aux_tmp)
 !$NEC novector
       DO jk = 1, patch%nlevp1
 #if defined( __INTEL_COMPILER ) || defined( _OPENACC ) || defined (__SX__)
         w_aux_tmp = 0._wp
-        !$ACC LOOP VECTOR REDUCTION(max:w_aux_tmp)
+        !$ACC LOOP VECTOR REDUCTION(MAX: w_aux_tmp)
         DO jec = i_startidx,i_endidx
           w_aux_tmp = MAX(w_aux_tmp, -w(jec,jk,jb), w(jec,jk,jb))
         ENDDO
@@ -730,12 +734,12 @@ CONTAINS
         w_aux(jb,jk) = MAXVAL(ABS(w(i_startidx:i_endidx,jk,jb)))
 #endif
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 
-!$ACC WAIT
-!$ACC END DATA
+    !$ACC WAIT
+    !$ACC END DATA
 
 ! At this point vn_aux and w_aux reside on the host.  
 ! Avoid doing MAXVAL with OpenACC -- this is not well supported!
@@ -818,18 +822,14 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
 
-    REAL(wp) :: dps_blk(pt_patch%nblks_c)
-    INTEGER  :: npoints_blk(pt_patch%nblks_c)
+    REAL(wp) :: dps_blk(pt_patch%nblks_c), dps_blk_scal
+    INTEGER  :: npoints_blk(pt_patch%nblks_c), npoints_blk_scal
     REAL(wp) :: dpsdt_avg                     !< spatial average of ABS(dpsdt)
     INTEGER  :: npoints
     LOGICAL  :: lzacc
   !-------------------------------------------------------------------------
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-   ELSE
-      lzacc = .FALSE.
-   END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     rl_start = grf_bdywidth_c+1
     rl_end   = min_rlcell_int
@@ -839,13 +839,7 @@ CONTAINS
 
     ! Initialize fields for runtime diagnostics
     ! In case that average ABS(dpsdt) is diagnosed
-    !$acc data create (dps_blk, npoints_blk) if(lzacc)
-    !$acc kernels if(lzacc)
-    IF (msg_level >= 11) THEN
-      dps_blk(:)     = 0._wp
-      npoints_blk(:) = 0
-    ENDIF
-    !$acc end kernels
+    !$ACC DATA CREATE(dps_blk, npoints_blk) IF(lzacc)
 
 
 
@@ -856,13 +850,13 @@ CONTAINS
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$acc parallel default (present) if(lzacc)
-      !$acc loop private(jc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP PRIVATE(jc)
       DO jc = i_startidx, i_endidx
         pt_diag%ddt_pres_sfc(jc,jb) = (pt_diag%pres_sfc(jc,jb)-pt_diag%pres_sfc_old(jc,jb))/dt
         pt_diag%pres_sfc_old(jc,jb) = pt_diag%pres_sfc(jc,jb)
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
     ENDDO
 !$OMP END DO
 
@@ -870,28 +864,32 @@ CONTAINS
       ! dpsdt diagnostic - omitted in the case of a parallelization test (p_test_run) because this
       ! is a purely diagnostic quantity, for which it does not make sense to implement an order-invariant
       ! summation
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,dps_blk_scal,npoints_blk_scal)
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$acc parallel default (present) if(lzacc)
-        !$acc loop seq
+        dps_blk_scal = 0._wp
+        npoints_blk_scal = 0
+        !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: dps_blk_scal, npoints_blk_scal) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
-          dps_blk(jb) = dps_blk(jb) + ABS(pt_diag%ddt_pres_sfc(jc,jb))
-          npoints_blk(jb) = npoints_blk(jb) + 1
+          dps_blk_scal = dps_blk_scal + ABS(pt_diag%ddt_pres_sfc(jc,jb))
+          npoints_blk_scal = npoints_blk_scal + 1
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
+        dps_blk(jb) = dps_blk_scal
+        npoints_blk(jb) = npoints_blk_scal
       ENDDO
 !$OMP END DO
 
 
-!$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
+      !$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
 
 !$OMP MASTER
-      dpsdt_avg = SUM(dps_blk)
-      npoints   = SUM(npoints_blk)
+      dpsdt_avg = SUM(dps_blk(i_startblk:i_endblk))
+      npoints   = SUM(npoints_blk(i_startblk:i_endblk))
       dpsdt_avg = global_sum_array(dpsdt_avg, opt_iroot=process_mpi_stdio_id)
       npoints   = global_sum_array(npoints  , opt_iroot=process_mpi_stdio_id)
       IF (my_process_is_stdio()) THEN
@@ -905,7 +903,7 @@ CONTAINS
 !$OMP END MASTER
     ENDIF  ! msg_level
 !$OMP END PARALLEL
-!$acc end data
+    !$ACC END DATA
 
   END SUBROUTINE compute_dpsdt
 

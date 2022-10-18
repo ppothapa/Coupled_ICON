@@ -200,8 +200,7 @@ CONTAINS
     !! Initial version by Peter Korn, MPI-M (2014)
     !!
   !<Optimize:inUse>
-  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, &
-    & grad_coeff, press_grad )
+  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: rho          (nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< density
@@ -219,21 +218,21 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     INTEGER,  DIMENSION(:,:,:), POINTER :: iidx, iblk
-    REAL(wp), POINTER :: prism_thick_c(:,:,:)
+
     TYPE(t_subset_range), POINTER :: all_cells
     REAL(wp) :: prism_center_dist !distance between prism centers without surface elevation
- !   REAL(wp)  :: pressure_load (nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp) :: press_L, press_R 
+    REAL(wp) :: thick1, thick2
 
      !-----------------------------------------------------------------------
     z_grav_rho_inv = OceanReferenceDensity_inv * grav
     patch_2D        => patch_3d%p_patch_2d(1)
     edges_in_domain => patch_2D%edges%in_domain
     all_cells       => patch_2D%cells%ALL
-!    prism_thick_c   => patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c
-    prism_thick_c   => patch_3D%p_patch_1d(1)%prism_thick_c
 
     iidx => patch_3D%p_patch_2D(1)%edges%cell_idx
     iblk => patch_3D%p_patch_2D(1)%edges%cell_blk
+    pressure_hyd (1:nproma,1:n_zlev, 1:patch_3d%p_patch_2d(1)%alloc_cell_blocks)=0.0_wp
     !-------------------------------------------------------------------------
 
 !ICON_OMP_PARALLEL
@@ -241,7 +240,6 @@ CONTAINS
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
 
-!      pressure_hyd(:,:, jb) = 0.0_wp
       DO jc = start_index, end_index
 
        pressure_hyd(jc,1,jb) = rho(jc,1,jb)*z_grav_rho_inv*patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(jc,1,jb) &
@@ -270,19 +268,47 @@ CONTAINS
         ib2=patch_2D%edges%cell_blk(je,jb,2)
 
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,jb)
+          !! For each edge, we can determine for the bottom layer only
+          !! what the shallower cell is by comparing
+          !! patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(jc,jk,jb)
+          !! Then we correct the pressure_hyd to only add
+          !! the shallower height to the pressure.
+
+          thick1 = patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(ic1, jk, ib1)
+          thick2 = patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(ic2, jk, ib2)
+
+          IF ( (jk .EQ. patch_3d%p_patch_1d(1)%dolic_e(je,jb)) .AND. &
+            & ( abs(thick1 - thick2) > 1E-10) ) THEN
+            
+            press_L = pressure_hyd(ic2, jk, ib2)
+            press_R = pressure_hyd(ic1, jk, ib1)
+
+            IF (thick1 > thick2) THEN
+
+              press_R = pressure_hyd(ic1, jk-1, ib1) + &
+                & 0.5_wp*( rho(ic1, jk - 1, ib1) + rho(ic1, jk, ib1) )    &
+                & *z_grav_rho_inv * thick2
+            ELSE
+              press_L = pressure_hyd(ic2, jk-1, ib2) + &
+                & 0.5_wp*( rho(ic2, jk - 1, ib2) + rho(ic2, jk, ib2) )    &
+                & *z_grav_rho_inv * thick1
+            END IF
+         
+            press_grad(je,jk,jb)=(press_L - press_R)*grad_coeff(je,jk,jb)
+
+          ELSE  
           press_grad(je,jk,jb)=(pressure_hyd(ic2,jk,ib2)-pressure_hyd(ic1,jk,ib1))*grad_coeff(je,jk,jb)
+          END IF
         END DO
       END DO
     END DO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
+    END SUBROUTINE calc_internal_press_grad
+    !-------------------------------------------------------------------------
 
-    CALL dbg_print('pressure_hyd', pressure_hyd , "" ,3, patch_2D%cells%in_domain)
-    CALL dbg_print('bc_top_potential', bc_total_top_potential, "" ,3, patch_2D%cells%in_domain)
-    CALL dbg_print('pressure_grad', press_grad , "" ,3, patch_2D%edges%in_domain)
 
-  END SUBROUTINE calc_internal_press_grad
   !-------------------------------------------------------------------------
 
     
@@ -898,8 +924,11 @@ CONTAINS
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index) 
         DO jc = start_index, end_index
-          levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
-          z_p(1:levels) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) * OceanReferenceDensity * sitodbar
+          levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
+          z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
+          !! For bottom, use the uniform depth without partial cells
+          !! This allows well-balancedness for pressure gradients
+          z_p(levels) = patch_3d%p_patch_1d(1)%zlev_m(levels) * OceanReferenceDensity * sitodbar
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
             & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels), levels)
         END DO
@@ -912,8 +941,10 @@ CONTAINS
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
         DO jc = start_index, end_index
-          levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
-          z_p(1:levels) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) * OceanReferenceDensity * sitodbar
+          levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
+          z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
+          !! For bottom, use the uniform depth without partial cells
+          z_p(levels) = patch_3d%p_patch_1d(1)%zlev_m(levels) * OceanReferenceDensity * sitodbar
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
              & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels), levels)
         END DO

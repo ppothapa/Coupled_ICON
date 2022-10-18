@@ -58,10 +58,6 @@ MODULE mo_velocity_advection
 #define __CRAY_FTN_VERSION (_RELEASE_MAJOR * 100 + _RELEASE_MINOR)
 #endif
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
   CONTAINS
 
 
@@ -185,11 +181,11 @@ MODULE mo_velocity_advection
     iqidx => p_patch%edges%quad_idx
     iqblk => p_patch%edges%quad_blk
 
-!$ACC DATA COPYIN( z_w_concorr_me, z_kin_hor_e, z_vt_ie ), &
-!$ACC CREATE( z_w_concorr_mc, z_w_con_c, cfl_clipping, z_w_con_c_full, z_v_grad_w, z_w_v, zeta, z_ekinh, levmask, levelmask ), &
-!$ACC PRESENT( p_diag, p_prog, p_int, p_metrics, p_patch ), &
-!$ACC PRESENT( iqidx, iqblk, ividx, icblk, icidx, ieidx, ieblk, incblk, ivblk, incidx ) &
-!$ACC IF ( i_am_accel_node .AND. acc_on )
+    !$ACC DATA COPYIN(z_w_concorr_me, z_kin_hor_e, z_vt_ie) &
+    !$ACC   CREATE(z_w_concorr_mc, z_w_con_c, cfl_clipping, z_w_con_c_full, z_v_grad_w, z_w_v, zeta, z_ekinh, levmask, levelmask) &
+    !$ACC   PRESENT(p_diag, p_prog, p_int, p_metrics, p_patch) &
+    !$ACC   PRESENT(iqidx, iqblk, ividx, icblk, icidx, ieidx, ieblk, incblk, ivblk, incidx) &
+    !$ACC   IF(i_am_accel_node)
 
     ! Limit on vertical CFL number for applying extra diffusion
     IF (lextra_diffu) THEN
@@ -204,10 +200,11 @@ MODULE mo_velocity_advection
 
     ! Compute w at vertices
     IF (.NOT. lvn_only) CALL cells2verts_scalar_ri(p_prog%w, p_patch, &
-      p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int-1)
+      p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int-1, opt_acc_async=.TRUE.)
 
     ! Compute vertical vorticity component at vertices
-    CALL rot_vertex_ri (p_prog%vn, p_patch, p_int, zeta, opt_rlend=min_rlvert_int-1)
+    CALL rot_vertex_ri (p_prog%vn, p_patch, p_int, zeta, &
+      opt_rlend=min_rlvert_int-1, opt_acc_async=.TRUE.)
 
 !$OMP PARALLEL PRIVATE(rl_start, rl_end, i_startblk, i_endblk, rl_start_2, rl_end_2, i_startblk_2, i_endblk_2)
 
@@ -225,8 +222,8 @@ MODULE mo_velocity_advection
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(128,1)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(128, 1)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -263,15 +260,15 @@ MODULE mo_velocity_advection
 #endif
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
         IF (.NOT. lvn_only) THEN ! Interpolate also vt to interface levels
 
 !WS: this gang loop is independent of the previous one and could execute concurrently
 !    but overlapping is MUCH SLOWER with PGI
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+          !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 2, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -280,7 +277,7 @@ MODULE mo_velocity_advection
                (1._wp - p_metrics%wgtfac_e(je,jk,jb))*p_diag%vt(je,jk-1,jb)
             ENDDO
           ENDDO
-!$ACC END PARALLEL
+          !$ACC END PARALLEL
         ENDIF
 
         ! Compute contravariant correction for vertical velocity at interface levels
@@ -288,8 +285,8 @@ MODULE mo_velocity_advection
 
 !WS: this gang loop is independent of the previous one and could execute concurrently
 !    but overlapping is MUCH SLOWER with PGI
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = nflatlev_jg, nlev
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
@@ -298,13 +295,13 @@ MODULE mo_velocity_advection
               p_diag%vt(je,jk,jb)*p_metrics%ddxt_z_full(je,jk,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
         IF (.NOT. l_vert_nested) THEN
 
           ! Top and bottom levels
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR
+          !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
             ! Quadratic extrapolation at the top turned out to cause numerical instability in pathological cases,
@@ -319,12 +316,12 @@ MODULE mo_velocity_advection
               p_metrics%wgtfacq_e(je,2,jb)*p_prog%vn(je,nlev-1,jb) + &
               p_metrics%wgtfacq_e(je,3,jb)*p_prog%vn(je,nlev-2,jb)
           ENDDO
-!$ACC END PARALLEL
+          !$ACC END PARALLEL
 
         ELSE
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR
+          !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
             p_diag%vn_ie(je,1,jb) = p_diag%vn_ie(je,2,jb) + p_diag%dvn_ie_ubc(je,jb)
@@ -337,7 +334,7 @@ MODULE mo_velocity_advection
               p_metrics%wgtfacq_e(je,2,jb)*p_prog%vn(je,nlev-1,jb) + &
               p_metrics%wgtfacq_e(je,3,jb)*p_prog%vn(je,nlev-2,jb)
           ENDDO
-!$ACC END PARALLEL
+          !$ACC END PARALLEL
         ENDIF
 
       ENDDO
@@ -361,8 +358,8 @@ MODULE mo_velocity_advection
         ! Compute v*grad w on edges (level nlevp1 is not needed because w(nlevp1) is diagnostic)
         ! Note: this implicitly includes a minus sign for the gradients, which is needed later on
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(32,4)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -384,7 +381,7 @@ MODULE mo_velocity_advection
 #endif
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ENDDO
 !$OMP END DO
 
@@ -411,8 +408,8 @@ MODULE mo_velocity_advection
 
       ! Interpolate horizontal kinetic energy to cell centers
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(32,4)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -430,13 +427,13 @@ MODULE mo_velocity_advection
 
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       IF (istep == 1) THEN
 
         ! Interpolate contravariant correction to cell centers ...
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(32,4)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -454,14 +451,14 @@ MODULE mo_velocity_advection
 
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
         ! ... and to interface levels
         ! Remark: computation of w_concorr_c at nlevp1 is needed in solve_nh only
         ! because this serves solely for setting the lower boundary condition for w
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = nflatlev_jg+1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -470,39 +467,39 @@ MODULE mo_velocity_advection
              (1._vp - p_metrics%wgtfac_c(jc,jk,jb))*z_w_concorr_mc(jc,jk-1)
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
       ENDIF
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
 !DIR$ IVDEP
         DO jc = i_startidx, i_endidx
           z_w_con_c(jc,jk) =  p_prog%w(jc,jk,jb)
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         z_w_con_c(jc,nlevp1) = 0.0_wp
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       ! Contravariant vertical velocity on w points and interpolation to full levels
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = nlev, nflatlev_jg+1, -1
 !DIR$ IVDEP
         DO jc = i_startidx, i_endidx
           z_w_con_c(jc,jk) = z_w_con_c(jc,jk) - p_diag%w_concorr_c(jc,jk,jb)
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
       ! Search for grid points for which w_con is close to or above the CFL stability limit
       ! At these points, additional diffusion is applied in order to prevent numerical 
       ! instability if lextra_diffu = .TRUE.
@@ -511,15 +508,15 @@ MODULE mo_velocity_advection
       DO jk = MAX(3,nrdmax_jg-2), nlev-3
         levmask(jb,jk) = .FALSE.
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
         ! Initialize the max CFL variable to zero for the following computation
         ! TODO: in OpenACC this logic can be moved to GPU completely
         maxvcfl = 0
 
 ! DA this kernel is ASYNC(1), so need to wait to retrieve the value
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on ) PRIVATE(vcfl)  DEFAULT(NONE) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION( max:maxvcfl )
+      !$ACC PARALLEL IF(i_am_accel_node) PRIVATE(vcfl) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(MAX: maxvcfl)
       DO jk = MAX(3,nrdmax_jg-2), nlev-3
 #ifndef _OPENACC
         clip_count = 0
@@ -548,20 +545,20 @@ MODULE mo_velocity_advection
           ENDIF
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(8)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
           z_w_con_c_full(jc,jk,jb) = 0.5_vp*(z_w_con_c(jc,jk)+z_w_con_c(jc,jk+1))
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 ! Get back the reduced max CFL
-!$ACC WAIT
+      !$ACC WAIT
       vcflmax(jb) = maxvcfl
 
 
@@ -573,8 +570,8 @@ MODULE mo_velocity_advection
                          i_startidx_2, i_endidx_2, rl_start_2, rl_end_2)
 
       ! Compute vertical derivative terms of vertical wind advection
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG(static:1) VECTOR TILE(32,4)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4)
 !$NEC outerloop_unroll(8)
       DO jk = 2, nlev
 !DIR$ IVDEP
@@ -587,7 +584,7 @@ MODULE mo_velocity_advection
       ENDDO
 
       ! Interpolate horizontal advection of w from edges to cells and add to advective tendency
-!$ACC LOOP GANG(static:1) VECTOR TILE(32,4)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx_2, i_endidx_2
 !DIR$ IVDEP
@@ -607,13 +604,13 @@ MODULE mo_velocity_advection
 #endif
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       IF (lextra_diffu) THEN
 
         ! Apply extra diffusion at grid points where w_con is close to or above the CFL stability limit
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG
         DO jk = MAX(3,nrdmax_jg-2), nlev-3
           IF (levmask(jb,jk)) THEN
             !$ACC LOOP VECTOR PRIVATE(difcoef)
@@ -634,7 +631,7 @@ MODULE mo_velocity_advection
             ENDDO
           ENDIF
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
       ENDIF
 
@@ -642,14 +639,14 @@ MODULE mo_velocity_advection
 !$OMP END DO
 
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR
 !$OMP DO PRIVATE(jk)
     DO jk = MAX(3,nrdmax_jg-2), nlev-3
       levelmask(jk) = ANY(levmask(i_startblk:i_endblk,jk))
     ENDDO
 !$OMP END DO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
     rl_start = grf_bdywidth_e+1
     rl_end = min_rledge_int
@@ -664,8 +661,8 @@ MODULE mo_velocity_advection
                          i_startidx, i_endidx, rl_start, rl_end)
 
       ! Sum up terms of horizontal wind advection: grad(Ekin_h) + vt*(f+relvort_e) + wcon_e*dv/dz
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(32,4)
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
 !DIR$ IVDEP
@@ -700,18 +697,18 @@ MODULE mo_velocity_advection
         ENDDO
       ENDDO
 #endif
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       ! If needed, compute separately the Coriolis effect: vt*f
       IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
-!$ACC LOOP GANG VECTOR TILE(32,4)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
         DO jk = 1, nlev
           DO je = i_startidx, i_endidx
             p_diag%ddt_vn_cor_pc(je,jk,jb,ntnd) = - p_diag%vt(je,jk,jb) * p_patch%edges%f_e(je,jb)
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       END IF
 
       IF (lextra_diffu) THEN
@@ -719,7 +716,7 @@ MODULE mo_velocity_advection
         ! At these points, additional diffusion is applied in order to prevent numerical instability
 
         ie = 0
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )  DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG
         DO jk = MAX(3,nrdmax_jg-2), nlev-4
           IF (levelmask(jk) .OR. levelmask(jk+1)) THEN
@@ -748,7 +745,7 @@ MODULE mo_velocity_advection
             ENDDO
           ENDIF
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
       ENDIF
 
@@ -756,7 +753,7 @@ MODULE mo_velocity_advection
 !$OMP END DO 
 !$OMP END PARALLEL
 
-!$ACC WAIT
+    !$ACC WAIT
 
     ! Save maximum vertical CFL number for substep number adaptation
     i_startblk = p_patch%cells%start_block(grf_bdywidth_c)
@@ -768,7 +765,7 @@ MODULE mo_velocity_advection
     ! DA: This is also on the CPU, should just stay there
     p_diag%max_vcfl_dyn = max_vcfl_dyn
 
-!$ACC END DATA
+    !$ACC END DATA
 
     IF (timers_level > 5) CALL timer_stop(timer_solve_nh_veltend)
 
@@ -794,14 +791,14 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-!$ACC UPDATE DEVICE ( vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp, z_w_concorr_me, z_kin_hor_e, z_vt_ie )
+       !$ACC UPDATE DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp, z_w_concorr_me, z_kin_hor_e, z_vt_ie)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-!$ACC UPDATE DEVICE ( ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd) )
+       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-!$ACC UPDATE DEVICE ( ddt_vn_cor_pc_tmp(:,:,:,ntnd) )
+       !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
        END IF
 
      END SUBROUTINE h2d_velocity_tendencies
@@ -821,14 +818,14 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-!$ACC UPDATE HOST( z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp ), IF( istep==1 )
+       !$ACC UPDATE HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) IF(istep==1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-!$ACC UPDATE HOST( ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd) )
+       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-!$ACC UPDATE HOST( ddt_vn_cor_pc_tmp(:,:,:,ntnd) )
+       !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
        END IF
 
      END SUBROUTINE d2h_velocity_tendencies

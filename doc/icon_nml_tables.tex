@@ -114,6 +114,17 @@ fac\_lhn\_down, fac\_lhn\_up, fac\_lhn\_artif
 \tabularnewline
 
 %\hline
+ {lhn\_updt\_rule}&
+I(max\_ dom)&
+0&
+&
+Rule for humidity update by LHN: \\
+0: LHN updates qv (standard). \\
+1: LHN updates qi if qi>0 and T<0; qv update otherwise. &  
+\tabularnewline
+
+
+%\hline
  {thres\_lhn}&
 R&
 0.1/3600.&
@@ -2246,6 +2257,16 @@ Needs to be set for each model domain separately; for the global domain, the fil
 reduced grid must be specified in the variable ``radiation\_grid\_filename" &
 \tabularnewline
 
+nexlevs\_rrg\_vnest &
+I & 8 & &
+Maximum number of extra (additional) model layers used for calculating radiation if vertical nesting
+is combined with a reduced radiation grid. For these layers, temperature and pressure are copied from
+the parent domain (thus, the difference in the number of model levels constitutes another upper limit).
+Higher values improve the consistency of radiative flux divergences near the top of a vertically nested domain. \\
+lredgrid\_phys = .TRUE., lvert\_nest = .TRUE., latm\_above\_top = .TRUE. &
+\tabularnewline
+
+
 %\hline
 \textbf{dynamics\_grid\_ filename} &
 C & & &
@@ -2855,7 +2876,9 @@ to one-way nesting and limited-area mode &
 %\hline
 nudge\_max\_coeff&
 R& 0.02& &
-Maximum relaxation coefficient for lateral boundary nudging. Recommended range of values for limited-area mode is 0.06 -- 0.075.&
+Maximum relaxation coefficient for lateral boundary nudging. Recommended range of values for limited-area mode is 0.06 -- 0.075. 
+The range of validity is [0 -- 0.2].\newline 
+\textbf{Please note} that the user value is internally multiplied by 5.&
 \tabularnewline
 
 %\hline
@@ -3718,7 +3741,7 @@ source (IFS, COSMO or a coarser-resolution ICON run)
 %\hline
 \textbf{dtime\_latbc}&
 R &
-10800.0& s
+-1.0& s
 &
 Time difference between two consecutive boundary data. 
 (Upper bound for asynchronous read-in: 1 day = 86400 s.)
@@ -3784,6 +3807,7 @@ itype\_latbc = 1
 %\hline
 \textbf{latbc\_path}&
 C &
+'./'
 &
 &
 Absolute path to boundary data.
@@ -3794,7 +3818,7 @@ itype\_latbc = 1
 %\hline
 latbc\_boundary\_grid&
 C &
-'' ''
+' '
 &
 &
 Grid file defining the lateral boundary. Empty string means: whole
@@ -4925,7 +4949,7 @@ max\_nudge\_coeff\_vn&
 R &
 0.04 (0.016)\textsubscript{glbndg}&
 1  &
-Max. nudging coefficient for the horizontal wind (i.e. the edge-normal wind
+Max. nudging coefficient for the horizontal wind (i.e.\ the edge-normal wind
 component $v_n$). 
 Given the wind update due to the nudging term on the rhs:\\
 $v_n(t) = v_n^\star(t) + \text{nudge\_coeff\_vn}(z) *
@@ -4942,8 +4966,9 @@ for $\text{nudge\_start\_height} \leq z \leq \text{top\_height}$
 (see nudge\_start\_height below), 
 and is zero elsewhere. 
 The range of validity is 
-$\text{max\_nudge\_coeff\_vn} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. \\
+$\text{max\_nudge\_coeff\_vn} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory.\
+\textbf{Please note} that the user value is internally multiplied by 5.\\
 &
 nudge\_type > 0 \\
 (nudge\_var = "{all}" { or} "...,vn,...")\textsubscript{glbndg}
@@ -4958,11 +4983,28 @@ Max. nudging coefficient for the thermodynamic variables
 selected by limarea\_nml: nudge\_hydro\_pres in case of upper boundary 
 nudging and by thermdyn\_type in case of global nudging.
 The range of validity is 
-$\text{max\_nudge\_coeff\_thermdyn} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. \\
+$\text{max\_nudge\_coeff\_thermdyn} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory.\
+\textbf{Please note} that the user value is internally multiplied by 5.\\
 &
 nudge\_type > 0 \\
 (nudge\_var = "{all}" { or} "...,thermdyn,...")\textsubscript{glbndg}
+\tabularnewline
+
+%\hline
+max\_nudge\_coeff\_qv&
+R &
+0.008&
+1  &
+Max. nudging coefficient for water vapor.
+The range of validity is 
+$\text{max\_nudge\_coeff\_qv} \in [0, \sim 0.2]$, 
+where the lower boundary is mandatory. 
+(For global nudging only.) \newline
+\textbf{Please note} that the user value is internally multiplied by 5.\\
+&
+nudge\_type = 2 \\
+nudge\_var = "{all}" { or} "...,qv,..."
 \tabularnewline
 
 %\hline
@@ -4987,21 +5029,6 @@ Values outside $[0, \text{top\_height}]$ will be interpreted
 as nudge\_start\_height = 0. \\
 &
 nudge\_type > 0
-\tabularnewline
-
-%\hline
-max\_nudge\_coeff\_qv&
-R &
-0.008&
-1  &
-Max. nudging coefficient for water vapor.
-The range of validity is 
-$\text{max\_nudge\_coeff\_qv} \in [0, \sim 1/\text{ndyn\_substeps}]$, 
-where the lower boundary is mandatory. 
-(For global nudging only.) \\
-&
-nudge\_type = 2 \\
-nudge\_var = "{all}" { or} "...,qv,..."
 \tabularnewline
 
 %\hline
@@ -5115,7 +5142,7 @@ cloud microphysics and precipitation\\
 1: hydci (COSMO-EU microphysics, 2-cat ice: cloud ice, snow)\\
 2: hydci\_gr (COSMO-DE microphysics, 3-cat ice: cloud ice, snow, graupel)\\
 3: as 1, but with improved ice nucleation scheme by C. Koehler\\
-4: Two-moment microphysics by A. Seifert\\
+4: Two-moment microphysics by A. Seifert, further configuration possible in namelist \texttt{/twomom\_mcrph\_nml/}\\
 
 9: Kessler scheme &
 run\_nml:iforcing = inwp
@@ -5370,7 +5397,8 @@ vertical diffusion and transfer\\
 1: COSMO diffusion and transfer\\
 2: GME turbulence scheme\\
 3: EDMF-DUALM (work in progress)\\
-5: Classical Smagorinsky diffusion
+5: Classical Smagorinsky diffusion\\
+6: VDIFF turbulence scheme (requires inwp\_surface = 2)
 &run\_nml:iforcing = inwp
 \tabularnewline
 %\hline
@@ -5405,7 +5433,8 @@ I (max\_ dom)&
 &
 surface scheme\\
 0: none\\
-1: TERRA
+1: TERRA\\
+2: JSBACH (requires inwp\_turb = 6)
 &run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -5508,7 +5537,7 @@ NetCDF file with RRTM Cloud Optical Properties for ECHAM6. &
 \tabularnewline
 
 %\hline
-ireff\_calc &
+icalc\_reff &
 I (max\_ dom) &
 0 &
 &
@@ -5924,6 +5953,14 @@ Multiplicative factor for friction velocity in gust parameterization &
 run\_nml:iforcing = inwp
 \tabularnewline
 
+\hline
+tune\_gustsso\_lim&
+R&
+100.0&
+m s$^{-1}$&
+Basic gust speed at which the SSO correction starts to be reduced (recommendation to activate: 20 m s$^{-1}$ &
+run\_nml:iforcing = inwp
+\tabularnewline
 
 \hline
 itune\_gust\_diag&
@@ -5932,7 +5969,9 @@ I&
 &
 Method of SSO blocking correction used in the gust diagnostics\\
 1: Use level above ``SSO envelope top'' for gust enhancement over mountains \\
-2: Use ``SSO envelope top'' level for gust enhancement over mountains, combined with an adjusted nonlinearity factor &
+2: Use ``SSO envelope top'' level for gust enhancement over mountains, combined with an adjusted nonlinearity factor
+(recommended for global configurations with MERIT/REMA orography) \\
+3: Variant of option 1, recommended for ICON-D2 with subgrid-scale condensation (do not use with ntiles=1) &
 run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -5987,9 +6026,100 @@ init\_mode=5 (MODE\_IAU)
 
 Defined and used in: \verb+src/namelists/mo_nwp_tuning_nml.f90+
 
+%-----------------------------------------------------------------------------
+% twomom_mcrph_nml:
+%-----------------------------------------------------------------------------
+\subsection[twomom\_mcrph\_nml]{twomom\_mcrph\_nml}%
+
+This namelist offers the possibility to adapt some configuration parameters of the two-moment cloud microphysical parameterisation by A.~Seifert and K.D.~Beheng. It is only effective if this scheme is used, i.e., if \textbf{inwp\_gscp=4, 5, 6, or 7} in namelist \texttt{/nwp\_phy\_nml/}.\\[-0.5em]
+
+The below set of parameters is a first reasonable choice to start with something. There might be coming more parameters in the future.\\[-0.5em]
+
+\textbf{Please note:} at the moment we do not support the option to have different configuration parameters on different domains.
+We did not really test this up to now, but it cannot be ruled out for the future.
+There are for sure parameters which could be optimized for different resolutions. Therefore, at the moment this possibility is not provided explicitly to the user via the below namelist parameters (they are scalars), but it is prepared internally in the ICON code.
 
 
+\begin{longtab}
 
+%\hline
+i2mom\_solver &
+I& 1 & &
+Type of numerical time integration scheme for the two-moment scheme:\\
+0: explicit Euler-forward\\
+1: semi-implicit solver similar to that of the standard one-moment schemes &
+iforcing=3, inwp\_gscp=4
+\tabularnewline
+
+ccn\_type &
+I& Depends on \mbox{inwp\_gscp}:\\for 4,7: 7\\ for 5: 8 & &
+Choice of the aerosol scenario for cloud nucleation (CCN):\\
+6: ``low CCN'' (``maritime'')\\
+7: ``intermediate CCN'' \\
+8: ``high CCN'' (``continental'')\\
+9: ``very high CCN'' (``polluted'')\\
+If applied together with the ART aerosol physics \textbf{inwp\_gscp=6}, this parameter has no effect.
+&
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+alpha\_spacefilling &
+R& 0.01 & &
+Parameter in conversion of snow or cloud ice to graupel by riming: degree of void filling by frozen supercooled droples within the ice particle skeleton, above which the particle is converted to the graupel class. Smaller values lead to faster conversion. 0.01 means very fast conversion to graupel. A value of 0.68 is the theoretical limit for densest sphere packing and leads to rather slow conversion.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+D\_conv\_ii &
+R & 75.0e-6 & m &
+diameter threshold for the onset of conversion to snow by ice selfcollection  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+D\_rainfrz\_ig &
+R& 0.50e-3 & m &
+Spectral size threshold below which freezing rain drops are converted to cloud ice. Larger drops are converted to graupel or hail, depending on parameter D\_rainfrz\_gh.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+D\_rainfrz\_gh &
+R & 1.25e-3 & m &
+Spectral size threshold above which freezing rain drops are converted to hail. Smaller drops are converted to cloud ice or graupel, depending on parameter D\_rainfrz\_ig.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+rain\_cmu0 &
+R&  6.0 & &
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+asymptotic $\mu$-value for spectra with small mean diameter.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+rain\_cmu1 &
+R& 30.0 & &
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+asymptotic $\mu$-value for spectra with large mean diameter.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+rain\_cmu3 &
+R& 1.1e-3 & m &
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+equilibrium mean spectral diameter for breakup and selfcollection.  &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+
+\end{longtab}
+
+Defined and used in: \verb+src/namelists/mo_2mom_mcrph_nml.f90+\\[-0.5em]
+
+Internally these namelist parameters are stored in the container \texttt{atm\_phy\_nwp\_config(jg)\%cfg\_2mom} of type \texttt{t\_cfg\_2mom}.\\[-0.5em]
+
+The defaults are defined in the container \texttt{cfg\_2mom\_default} in \verb+src/atm_phy_schemes/mo_2mom_mcrph_config_default.f90+\\[-0.5em]
+
+Adding new parameters can easily be done along the lines of one of the above existing parameters.\\[-0.5em]
+
+       
 %------------------------------------------------------------------------------
 % output_nml:
 %------------------------------------------------------------------------------
@@ -6899,41 +7029,9 @@ Defined and used in: \verb+src/echam_phy_psrad/mo_psrad_radiation.f90+
 %------------------------------------------------------------------------------
 % radiation_nml:
 %------------------------------------------------------------------------------
-\subsection{radiation\_nml}
+\subsection{radiation\_nml (relevant if run\_nml:iforcing=3 (NWP))}
 
 \begin{longtab}
-
-%\hline
-ldiur &
-L&
-.TRUE.&
-&
-switch for solar irradiation: \\.TRUE.:diurnal cycle, \\.FALSE.:zonally averaged irradiation&
-\tabularnewline
-
-%\hline
-nmonth &
-I&
-0&
-&
-0: Earth circles on orbit\\1-12: Earth orbit position fixed for specified month&
-\tabularnewline
-
-%\hline
-lyr\_perp &
-L&
-.FALSE.&
-&
-.FALSE.: transient Earth orbit following VSOP87 \\ .TRUE.: Earth orbit of year yr\_perp of the VSOP87 orbit is perpertuated &
-\tabularnewline
-
-%\hline
-yr\_perp &
-L&
--99999&
-&
-year used for lyr\_perp = .TRUE.&
-\tabularnewline
 
 %\hline
 isolrad &
@@ -6957,8 +7055,8 @@ Choice of zenith angle formula for the radiative transfer computation.\par
 1: Zenith angle depends only on latitude\par
 2: Zenith angle depends only on latitude. Local time of day fixed at 07:14:15 for radiative transfer computation (sin(time of day) = 1/pi\par
 3: Zenith angle changing with latitude and time of day\par
-4: Zenith angle and irradiance changing with season, latitude, and time of day (iforcing=inwp only)
-5: Zenith angel for radiative convective equilibrium test: perpetual equinox with 340 W/m2
+4: Zenith angle and irradiance changing with season, latitude, and time of day (iforcing=inwp only) \par
+5: Zenith angel for radiative convective equilibrium test: perpetual equinox with 340 W/m2 \par
 6: Zenith angle with prescribed cosine of solar zenith angle (see parameter cos\_zenith\_fixed)
 &
 \tabularnewline
@@ -7135,38 +7233,15 @@ Volume mixing ratio of the radiative agents&
 \tabularnewline
 
 %\hline
-fh2o\par
-fco2\par
-fch4\par
-fn2o\par
-fo3\par
-fo2\par
-fcfc\par
-&
-R&
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-1.\par
-&
-&
-Scaling factors for concentrations used in radiation&
-run\_nml/iforcing=2 (ECHAM)
-\tabularnewline
-
-%\hline
 irad\_aero &
 I&
 2&
 &
 Aerosols\\
+0: none\\
 1: prognostic variable\\
 2: global constant\\
 3: externally specified\\
-5: Tanre aerosol climatology {\color{red}for run\_nml/iforcing = 3 (NWP) }\\
 6: Tegen aerosol climatology {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 }\\
 9: ART online aerosol radiation interaction, uses Tegen for aerosols not chosen to be represented in ART {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 .AND. lart=TRUE .AND. iart\_ari=1}\\
 12: tropospheric 'Kinne' aerosols, constant in time\\

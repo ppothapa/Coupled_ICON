@@ -179,16 +179,16 @@ CONTAINS
     !
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pcoriol,pghf,pghh,pxm1,ptvm1,pqm1,pum1,pvm1,ptm1,paclc) &
-    !$ACC PRESENT(papm1,paphm1,pthvvar,pustarm,ptottem1) &
+    !$ACC   PRESENT(pcoriol, pghf, pghh, pxm1, ptvm1, pqm1, pum1, pvm1, ptm1, paclc) &
+    !$ACC   PRESENT(papm1, paphm1, pthvvar, pustarm, ptottem1) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(phdtcbl,ptottevn,pcftotte,pcfthv,pcfm,pcfh,pcfv,pzthvvar,pcptgz) &
-    !$ACC PRESENT(pprfac,ptheta_b,pthetav_b,pthetal_b,pqsat_b,plh_b,pri,pmixlen) &
+    !$ACC   PRESENT(phdtcbl, ptottevn, pcftotte, pcfthv, pcfm, pcfh, pcfv, pzthvvar, pcptgz) &
+    !$ACC   PRESENT(pprfac, ptheta_b, pthetav_b, pthetal_b, pqsat_b, plh_b, pri, pmixlen) &
     !---- Argument arrays - Module Variables
-    !$ACC CREATE(zlh,ztheta,zthetav,zthetal,zqsat,km,kh,zlhmid,zdgmid) &
-    !$ACC CREATE(zccovermid,zqxmid,zqmid,zqsatmid,zthetamid,zthetavmid,ztmid,ztvmid) &
-    !$ACC CREATE(ihpbl,ihpblc,ihpbld,idx,za,zhdyn,zpapm1i,zua) &
-    !$ACC CREATE(idx_batch,za_batch,zua_batch)
+    !$ACC   CREATE(zlh, ztheta, zthetav, zthetal, zqsat, km, kh, zlhmid, zdgmid) &
+    !$ACC   CREATE(zccovermid, zqxmid, zqmid, zqsatmid, zthetamid, zthetavmid, ztmid, ztvmid) &
+    !$ACC   CREATE(ihpbl, ihpblc, ihpbld, idx, za, zhdyn, zpapm1i, zua) &
+    !$ACC   CREATE(idx_batch, za_batch, zua_batch)
 
     f_tau0   = aes_vdf_config(jg)% f_tau0
     f_theta0 = aes_vdf_config(jg)% f_theta0
@@ -703,21 +703,21 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pz0m,ptsfc,pfrc,phdtcbl,pocu,pocv,ppsfc,pghf_b,pum1_b) &
-    !$ACC PRESENT(pvm1_b,ptm1_b,pqm1_b,pqxm1_b,pqsat_b,plh_b,ptheta_b,pthetav_b) &
-    !$ACC PRESENT(pthetal_b,paclc_b,ptotte_b,pthvvar_b) &
+    !$ACC   PRESENT(pz0m, ptsfc, pfrc, phdtcbl, pocu, pocv, ppsfc, pghf_b, pum1_b) &
+    !$ACC   PRESENT(pvm1_b, ptm1_b, pqm1_b, pqxm1_b, pqsat_b, plh_b, ptheta_b, pthetav_b) &
+    !$ACC   PRESENT(pthetal_b, paclc_b, ptotte_b, pthvvar_b) &
     !---- Argument arrays - intent(optional in)
-    !$ACC PRESENT(paz0lh,pcsat,pcair) &
+    !$ACC   PRESENT(paz0lh, pcsat, pcair) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(pqsat_tile,pcpt_tile,pri_gbm,pri_tile,pcfm_gbm,pcfm_tile,pcfh_gbm) &
-    !$ACC PRESENT(pcfh_tile,pcfv_sfc,pcftotte_sfc,pcfthv_sfc,pprfac_sfc,ptottevn_sfc) &
-    !$ACC PRESENT(pthvvar_sfc,pustarm,pwstar,pbn_tile,pbhn_tile,pbm_tile,pbh_tile) &
-    !$ACC PRESENT(pch_tile, jtottevn_sfc) &
+    !$ACC   PRESENT(pqsat_tile, pcpt_tile, pri_gbm, pri_tile, pcfm_gbm, pcfm_tile, pcfh_gbm) &
+    !$ACC   PRESENT(pcfh_tile, pcfv_sfc, pcftotte_sfc, pcfthv_sfc, pprfac_sfc, ptottevn_sfc) &
+    !$ACC   PRESENT(pthvvar_sfc, pustarm, pwstar, pbn_tile, pbhn_tile, pbm_tile, pbh_tile) &
+    !$ACC   PRESENT(pch_tile, jtottevn_sfc) &
     !---- Argument arrays - intent(inout)                                         
-    !$ACC PRESENT(pwstar_tile,pthvsig_b) &
+    !$ACC   PRESENT(pwstar_tile, pthvsig_b) &
     !---- Argument arrays - Local Variables
-    !$ACC CREATE(pchn_tile,pcdn_tile,pcfnc_tile,pthvsig_tile,zdu2,zcfnch,zustar,zqts,zthetavmid) &
-    !$ACC CREATE(zdthetal,lmix,e_kin,e_pot,f_tau,f_theta,z0h,pfrc_test,loidx,is)
+    !$ACC   CREATE(pchn_tile, pcdn_tile, pcfnc_tile, pthvsig_tile, zdu2, zcfnch, zustar, zqts, zthetavmid) &
+    !$ACC   CREATE(zdthetal, lmix, e_kin, e_pot, f_tau, f_theta, z0h, pfrc_test, loidx, is)
     !-------------------
     ! Some constants
     !-------------------

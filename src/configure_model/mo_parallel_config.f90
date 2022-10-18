@@ -52,7 +52,7 @@ MODULE mo_parallel_config
   ! computing setup
   ! ---------------
   INTEGER  :: nproma = 1              ! inner loop length/vector length
-!$ACC DECLARE COPYIN(nproma)
+  !$ACC DECLARE COPYIN(nproma)
   INTEGER  :: nblocks_c = 0
   LOGICAL  :: ignore_nproma_use_nblocks_c = .FALSE.
 
@@ -206,9 +206,9 @@ CONTAINS
     ELSE
       IF (nproma<=0)  CALL finish(TRIM(method_name),'"nproma" must be positive')
     ENDIF
-#if !defined (__SX__) && !defined (__NEC_VH__)
+#if !defined (__SX__) && !defined (__NEC_VH__) && !defined(_OPENACC)
     ! migration helper: catch nproma's that were obviously intended
-    !                   for a vector machine.
+    !                   for a vector or GPU machine.
     IF (nproma>256) CALL warning(TRIM(method_name),'The value of "nproma" seems to be set for a vector machine!')
 #endif
 
@@ -304,7 +304,7 @@ CONTAINS
   SUBROUTINE update_nproma_on_device( i_am_worker )
   LOGICAL, INTENT(IN)   :: i_am_worker
 
-!$ACC UPDATE DEVICE(nproma) IF ( i_am_worker )
+    !$ACC UPDATE DEVICE(nproma) IF(i_am_worker)
 
   END SUBROUTINE update_nproma_on_device
   !-------------------------------------------------------------------------
@@ -372,16 +372,16 @@ CONTAINS
   ! Trying to invert the above and catching cases with blk_no < 1
   !-------------------------------------------------------------------------
   ELEMENTAL INTEGER FUNCTION blk_no(j)
-#if defined(__PGI)
-!$ACC ROUTINE SEQ
+#if defined(_OPENACC)
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
     blk_no = MAX((ABS(j)-1)/nproma + 1, 1) ! i.e. also 1 for j=0, nproma=1
   END FUNCTION blk_no
 
   ELEMENTAL INTEGER FUNCTION idx_no(j)
-#if defined(__PGI)
-!$ACC ROUTINE SEQ
+#if defined(_OPENACC)
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
     IF(j==0) THEN
@@ -392,8 +392,8 @@ CONTAINS
   END FUNCTION idx_no
 
   ELEMENTAL INTEGER FUNCTION idx_1d(jl,jb)
-#if defined(__PGI)
-!$ACC ROUTINE SEQ
+#if defined(_OPENACC)
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: jl, jb
     IF(jb<=0) THEN

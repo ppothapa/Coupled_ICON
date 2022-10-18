@@ -369,8 +369,9 @@ fi
 
 #--------------------------------------------------------------------------------------------------
 #split the number of procs in two for each of the dummy component
-max_rank=`expr ${mpi_total_procs} - 1`
-((ocean_max_rank = mpi_total_procs / 2 - 1))
+p
+max_rank=$((no_of_nodes * mpi_procs_pernode - 1))
+((ocean_max_rank = ${max_rank} / 2 - 1))
 
 ocean_min_rank=0
 ocean_inc_rank=1

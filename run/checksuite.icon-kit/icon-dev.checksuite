@@ -495,7 +495,7 @@ SCRIPT=${EXPERIMENT}
 cd ${MODEL_DIR}
 
 if [ ! -f ${SCRIPT_DIR}/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then
-    ./make_runscripts -s ${SCRIPT}
+    ./make_runscripts ${SCRIPT}
 fi
 
 if [ ! -d experiments ]; then
@@ -570,7 +570,7 @@ if string_in_list $MD $CMODES; then
     RUN_STATUS=-1
     if [ ! -d experiments/${EXP_BASE} ] ;then 
         if [ ! -f run/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then
-            ${MODEL_DIR}/make_runscripts -s ${SCRIPT}
+            ${MODEL_DIR}/make_runscripts ${SCRIPT}
         fi
         if [ ! -d experiments ]; then
             mkdir experiments

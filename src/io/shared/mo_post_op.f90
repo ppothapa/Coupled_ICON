@@ -31,6 +31,7 @@ MODULE mo_post_op
   USE mo_lnd_nwp_config,      ONLY: convert_luc_ICON2GRIB
 #endif
   USE mo_exception,           ONLY: finish
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 #ifdef _OPENACC
   USE openacc,                  ONLY: acc_is_present
 #endif
@@ -67,12 +68,7 @@ CONTAINS
     INTEGER  :: idim(2), l1,l2
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
-
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field2D)
 
@@ -92,7 +88,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -110,7 +106,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -143,12 +139,7 @@ CONTAINS
     INTEGER  :: idim(2), l1,l2
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
-
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field2D)
 
@@ -168,7 +159,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -186,7 +177,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -218,11 +209,7 @@ CONTAINS
     INTEGER  :: idim(2), l1,l2
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field2D)
 
@@ -242,7 +229,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field2D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -291,11 +278,7 @@ CONTAINS
     INTEGER  :: idim(3), l1,l2,l3
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field3D)
 
@@ -315,7 +298,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -335,7 +318,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -369,11 +352,7 @@ CONTAINS
     INTEGER  :: idim(3), l1,l2,l3
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field3D)
 
@@ -393,7 +372,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -413,7 +392,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -447,11 +426,7 @@ CONTAINS
     INTEGER  :: idim(3), l1,l2,l3
     LOGICAL  :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     idim = SHAPE(field3D)
 
@@ -471,7 +446,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN( idim ) IF( acc_is_present(field3D) .AND. lzacc )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)

@@ -748,9 +748,9 @@ CONTAINS
       &       vcoeff_lin%zextrap(nproma,nblks), STAT=ierrstat )
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
-!$ACC ENTER DATA CREATE( vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin, &
-!$ACC                    vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1, &
-!$ACC                    vcoeff_lin%kpbl2, vcoeff_lin%zextrap )
+    !$ACC ENTER DATA CREATE(vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin) &
+    !$ACC   CREATE(vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1) &
+    !$ACC   CREATE(vcoeff_lin%kpbl2, vcoeff_lin%zextrap)
 
     ! Initialization
     vcoeff_lin%wfac_lin    = 0._wp
@@ -786,8 +786,8 @@ CONTAINS
       &       STAT=ierrstat )
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
-!$ACC ENTER DATA CREATE( vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3, &
-!$ACC                    vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub )
+    !$ACC ENTER DATA CREATE(vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3) &
+    !$ACC   CREATE(vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub)
 
     ! Initialization
     vcoeff_cub%coef1       = 0._wp
@@ -810,7 +810,7 @@ CONTAINS
 
 !!$    CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_allocate"
 
-!$ACC ENTER DATA CREATE( vcoeff )
+    !$ACC ENTER DATA CREATE(vcoeff)
 
     IF (.NOT. vcoeff%l_allocated) THEN
       CALL vcoeff_lin_allocate(nblks_c, nlev, vcoeff%lin_cell)
@@ -839,9 +839,9 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_lin_deallocate"
     INTEGER :: ierrstat
 
-!$ACC EXIT DATA DELETE( vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin, &
-!$ACC                   vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1, &
-!$ACC                   vcoeff_lin%kpbl2, vcoeff_lin%zextrap )
+    !$ACC EXIT DATA DELETE(vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin) &
+    !$ACC   DELETE(vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1) &
+    !$ACC   DELETE(vcoeff_lin%kpbl2, vcoeff_lin%zextrap)
 
     ! real(wp)
     DEALLOCATE( vcoeff_lin%wfac_lin, STAT=ierrstat )
@@ -867,8 +867,8 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_cub_deallocate"
     INTEGER :: ierrstat
 
-!$ACC EXIT DATA DELETE( vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3, &
-!$ACC                   vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub )
+    !$ACC EXIT DATA DELETE(vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3) &
+    !$ACC   DELETE(vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub)
 
     ! CUBIC interpolation coefficients:
     ! real(wp)
@@ -903,7 +903,7 @@ CONTAINS
       vcoeff%l_allocated = .FALSE.
     END IF
 
-!$ACC EXIT DATA DELETE(vcoeff)
+    !$ACC EXIT DATA DELETE(vcoeff)
 
     vcoeff%l_initialized = .FALSE.
   END SUBROUTINE vcoeff_deallocate

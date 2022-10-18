@@ -45,9 +45,6 @@ MODULE mo_update_dyn_scm
 
   PUBLIC  :: add_slowphys_scm, rbf_coeff_scm
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
 
 CONTAINS
 
@@ -92,7 +89,7 @@ CONTAINS
     iqblk => p_patch%edges%quad_blk
     i_nchdom = MAX(1,p_patch%n_childdom)
 
-!$ACC DATA PRESENT( p_nh )  IF ( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_nh) IF(i_am_accel_node)
 
 !$OMP PARALLEL PRIVATE(rl_start,rl_end,i_startblk,i_endblk)
     rl_start = grf_bdywidth_c+1 
@@ -107,8 +104,8 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
 
@@ -122,7 +119,7 @@ CONTAINS
 
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP ENDDO NOWAIT
@@ -139,8 +136,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO je = i_startidx, i_endidx
 
@@ -165,7 +162,7 @@ CONTAINS
 
         ENDDO  ! je
       ENDDO  ! jk
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! jb
 !$OMP ENDDO
@@ -175,7 +172,7 @@ CONTAINS
     CALL sync_patch_array(SYNC_C,p_patch,p_nh%prog(nnew)%exner)
     CALL sync_patch_array(SYNC_E,p_patch,p_nh%prog(nnew)%vn)
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE add_slowphys_scm
 

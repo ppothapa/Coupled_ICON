@@ -63,8 +63,8 @@ CONTAINS
     jks    = aes_phy_config(jg)%jks_cloudy
     nlevp1 = nlev+1
 
-    !$ACC DATA PRESENT( field% rtype, field%frac_tile ) &
-    !$ACC       CREATE( itype, zfrw, zfri )
+    !$ACC DATA PRESENT(field% rtype, field%frac_tile) &
+    !$ACC   CREATE(itype, zfrw, zfri)
 
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR

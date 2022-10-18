@@ -216,14 +216,14 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pcfm,pcfh,pcfh_tile,pcfv,pcftotte,pcfthv,pprfac,prmairm) &
-    !$ACC PRESENT(prmairh,prmrefm) &
+    !$ACC   PRESENT(pcfm, pcfh, pcfh_tile, pcfv, pcftotte, pcfthv, pprfac, prmairm) &
+    !$ACC   PRESENT(prmairh, prmrefm) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(aa,aa_btm) &
+    !$ACC   PRESENT(aa, aa_btm) &
     !---- Local Variables
-    !$ACC CREATE(zkstar,zkh) &
+    !$ACC   CREATE(zkstar, zkh) &
     !---- module variable
-    !$ACC PRESENT(ibtm_mtrx)
+    !$ACC   PRESENT(ibtm_mtrx)
 
     !-----------------------------------------------------------------------
     ! For all prognostic variables: no turbulent flux at the upper boundary
@@ -604,15 +604,15 @@ CONTAINS
     REAL(wp) :: ztmp(kbdim,klev)
     INTEGER  :: jsfc, jt, irhs, im, jk, jc
 
-    !$ACC DATA PRESENT( pxtm1, pxt_emis ) IF( ktrac > 0 )
+    !$ACC DATA PRESENT(pxtm1, pxt_emis) IF(ktrac > 0)
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pum1,pvm1,pcptgz,pqm1,pxlm1,pxim1,pxvar) &
-    !$ACC PRESENT(ptottevn,pzthvvar,prmrefm,aa) &
+    !$ACC   PRESENT(pum1, pvm1, pcptgz, pqm1, pxlm1, pxim1, pxvar) &
+    !$ACC   PRESENT(ptottevn, pzthvvar, prmrefm, aa) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(bb,bb_btm) &
+    !$ACC   PRESENT(bb, bb_btm) &
     !---- Local Variables
-    !$ACC CREATE(ztmp)
+    !$ACC   CREATE(ztmp)
 
     !-------------------------------------------------------------------
     ! First handle variables that are defined on full levels
@@ -636,7 +636,7 @@ CONTAINS
 
     ! Other tracers
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( ktrac > 0 )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(ktrac > 0)
     !$ACC LOOP SEQ
     DO jt = 1,ktrac
       irhs = jt - 1 + itrc_start
@@ -782,7 +782,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( ktrac > 0 )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(ktrac > 0)
     !$ACC LOOP SEQ
     DO jt = 1,ktrac
       irhs = jt - 1 + itrc_start
@@ -849,11 +849,11 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(aa) &
+    !$ACC   PRESENT(aa) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(bb) &
+    !$ACC   PRESENT(bb) &
     !---- Global Variables
-    !$ACC COPYIN(matrix_idx,ibtm_var)
+    !$ACC   COPYIN(matrix_idx, ibtm_var)
 
     ! 1. Vertical levels [itop+1,klev-2] for TTE and variance of theta_v;
     !    [itop+1,klev-1] for all the other variables.
@@ -978,8 +978,8 @@ CONTAINS
 
     INTEGER  :: jk, jsfc, klevm1
 
-    !$ACC DATA PRESENT( aa, bb, delz, aa_btm, bb_btm, pen_h, pfn_h, pen_qv, pfn_qv )
-    !$ACC DATA PRESENT( pcair, pcsat ) IF( PRESENT(pcair) )
+    !$ACC DATA PRESENT(aa, bb, delz, aa_btm, bb_btm, pen_h, pfn_h, pen_qv, pfn_qv)
+    !$ACC DATA PRESENT(pcair, pcsat) IF(PRESENT(pcair))
 
     klevm1 = klev - 1
 
@@ -1139,11 +1139,11 @@ CONTAINS
     INTEGER  :: jvar, im, jk, jkp1, jl, jmax
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(aa) &
+    !$ACC   PRESENT(aa) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(bb) &
+    !$ACC   PRESENT(bb) &
     !---- Argument arrays - Module Variables
-    !$ACC COPYIN(matrix_idx,ibtm_var)
+    !$ACC   COPYIN(matrix_idx, ibtm_var)
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -1242,20 +1242,20 @@ CONTAINS
     !-------------------------------------------------------------------
     ! Start GPU data region
     !-------------------------------------------------------------------
-    !$ACC DATA PRESENT( pxtm1, pxtte_vdf ) IF( ktrac > 0 )
+    !$ACC DATA PRESENT(pxtm1, pxtte_vdf) IF(ktrac > 0)
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pum1,pvm1,ptm1,pmair,pqm1,pxlm1,pxim1) &
+    !$ACC   PRESENT(pum1, pvm1, ptm1, pmair, pqm1, pxlm1, pxim1) &
 !!$    !$ACC PRESENT(pum1,pvm1,ptm1,pmair,pmref,pqm1,pxlm1,pxim1) &
-    !$ACC PRESENT(pgeom1,pcptgz,pztottevn,pzthvvar,pcfm_tile,pfrc,bb) &
+    !$ACC   PRESENT(pgeom1, pcptgz, pztottevn, pzthvvar, pcfm_tile, pfrc, bb) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(pxvar,pz0m_tile) &
+    !$ACC   PRESENT(pxvar, pz0m_tile) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(pute_vdf,pvte_vdf,pq_vdf,pqte_vdf,pxlte_vdf,pxite_vdf) &
-    !$ACC PRESENT(pz0m,ptotte,pthvvar) &
+    !$ACC   PRESENT(pute_vdf, pvte_vdf, pq_vdf, pqte_vdf, pxlte_vdf, pxite_vdf) &
+    !$ACC   PRESENT(pz0m, ptotte, pthvvar) &
 !!$    !$ACC PRESENT(pz0m,ptotte,pthvvar,psh_vdiff,pqv_vdiff) &
-    !$ACC PRESENT(pkedisp) &
-    !$ACC CREATE(zdis)
+    !$ACC   PRESENT(pkedisp) &
+    !$ACC   CREATE(zdis)
 
     zrdt   = 1._wp/pdtime
 
@@ -1277,7 +1277,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( ktrac > 0 )
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(ktrac > 0)
     !$ACC LOOP GANG VECTOR COLLAPSE(3)
     DO jt = 1, ktrac
       DO jk = 1, klev
@@ -1298,7 +1298,7 @@ CONTAINS
     ! Compute TTE at the new time step.
     !-------------------------------------------------------------------
     ztest = 0._wp
-    !$ACC PARALLEL DEFAULT(NONE) REDUCTION(+:ztest) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) REDUCTION(+: ztest) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = itop,klevm1
       DO jl = jcs,kproma
@@ -1352,7 +1352,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk = itop,klev
-      !$ACC LOOP GANG VECTOR PRIVATE( zunew, zvnew ) 
+      !$ACC LOOP GANG VECTOR PRIVATE(zunew, zvnew)
       DO jl = jcs,kproma
         pute_vdf(jl,jk) = (bb(jl,jk,iu)-tpfac2*pum1(jl,jk))*zrdt
         pvte_vdf(jl,jk) = (bb(jl,jk,iv)-tpfac2*pvm1(jl,jk))*zrdt
@@ -1371,7 +1371,7 @@ CONTAINS
     !-------------------------------------------------------------
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( zqnew, zsnew, zhnew, zcp )
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zqnew, zsnew, zhnew, zcp)
     DO jk=itop,klev
       DO jl=jcs,kproma
 
@@ -1418,7 +1418,7 @@ CONTAINS
     !-------------------------------------------------------------
 !   IF (trlist% anyvdiff /= 0) THEN   ! ECHAM
 !     DO 577 jt=1,trlist% ntrac       ! ECHAM
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( ktrac > 0 )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(ktrac > 0)
         !$ACC LOOP GANG
         DO jt = 1,ktrac
           irhs = itrc_start + jt - 1

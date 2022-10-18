@@ -37,26 +37,10 @@ MODULE mo_radiation_config
 
   !TYPE t_radiation_config
     !
-    ! -- Switches for solar irradiation
-    !
-    LOGICAL :: ldiur        !< .TRUE. : with diurnal cycle
-    !                       !< .FALSE.: zonally averaged irradiation
-    !
-    ! -- Switches for Earth orbit
-    !
-    INTEGER :: nmonth       !< i=0    : Earth circles on orbit, i.e. with annual cycle
-    !                                !< i=1-12 : Earth orbit position fixed for month i
-    !
-    LOGICAL :: lyr_perp     !< .FALSE.: transient Earth orbit following vsop87
-    !                       !  .TRUE. : Earth orbit of year yr_perp of the vsop87 orbit
-    !                       !           is perpetuated
-    INTEGER :: yr_perp      !< year used for lyr_perp = .TRUE.
-    !
     !
     LOGICAL :: lradforcing(2) = (/.FALSE.,.FALSE./) !< diagnostic of instantaneous
     !                                               !< aerosol solar (lradforcing(1)) and
     !                                               !< thermal (lradforcing(2)) radiation forcing 
-    ! nmonth currently works for zonal mean ozone and the orbit (year 1987) only
     INTEGER :: isolrad     !< mode of solar constant calculation
     !
     INTEGER :: albedo_type ! 1: albedo based on surface-type specific set of constants
@@ -111,6 +95,11 @@ MODULE mo_radiation_config
     INTEGER  :: irad_cfc12  !< CFC 12
     INTEGER  :: irad_aero   !< aerosols
     LOGICAL  :: lrad_aero_diag  !< diagnose aerosols
+    ENUM, BIND(C)
+        ENUMERATOR :: iRadAeroNone=0,        iRadAeroConst=2,        iRadAeroTegen=6, iRadAeroART=9, &
+          &           iRadAeroConstKinne=12, iRadAeroKinne=13,       iRadAeroVolc=14,                &
+          &           iRadAeroKinneVolc=15,  iRadAeroKinneVolcSP=18, iRadAeroKinneSP=19
+    END ENUM
     !
     ! --- Name of the file that contains  dynamic greenhouse values
     !
@@ -128,6 +117,21 @@ MODULE mo_radiation_config
     ! --- Different specifications of the zenith angle
     INTEGER  :: izenith           ! circular orbit, no seasonal cycle but with diurnal cycle 
     REAL(wp) :: cos_zenith_fixed  ! fixed cosine of zenith angle for izenith=6
+
+    !
+    ! ecRad specific configuration
+    LOGICAL  :: llw_cloud_scat          !< Do long wave cloud scattering?
+    INTEGER  :: iliquid_scat            !< Optical properties for liquid cloud scattering
+                                        !< 0: SOCRATES
+                                        !< 1: Slingo (1989)
+    INTEGER  :: iice_scat               !< Optical properties for ice cloud scattering
+                                        !< 0: Fu et al. (1996)
+                                        !< 1: Baran et al. (2016)
+    CHARACTER(len=MAX_CHAR_LENGTH) :: &
+      &  ecrad_data_path                !< Folder containing optical properties
+    INTEGER  :: nproma_rad              !< subblock size used for the ecrad interface.
+                                        !< If set negativ, the absolute value is considered as the number of subblocks.
+
   
     ! 2.0 Non NAMELIST global variables and parameters
     ! --------------------------------
@@ -156,20 +160,12 @@ MODULE mo_radiation_config
     !     rates)
     !
     REAL(wp) :: tsi
+
     !
-    ! ecRad specific configuration
-    LOGICAL  :: llw_cloud_scat          !< Do long wave cloud scattering?
-    INTEGER  :: iliquid_scat            !< Optical properties for liquid cloud scattering
-                                        !< 0: SOCRATES
-                                        !< 1: Slingo (1989)
-    INTEGER  :: iice_scat               !< Optical properties for ice cloud scattering
-                                        !< 0: Fu et al. (1996)
-                                        !< 1: Baran et al. (2016)
-    CHARACTER(len=MAX_CHAR_LENGTH) :: &
-      &  ecrad_data_path                !< Folder containing optical properties
-    INTEGER  :: nproma_rad              !< subblock size used for the ecrad interface.
-                                        !< If set negativ, the absolute value is considered as the number of subblocks.
-    !
+    ! Radiative transfer routine skips all points with cosmu0<=0. 
+    ! That's why points to be skipped need to be marked with a value <=0
+    REAL(wp), PARAMETER :: &
+      &  cosmu0_dark = -1.e-9_wp       ! minimum cosmu0, for smaller values no shortwave calculations
 
     !$ACC DECLARE COPYIN(vpp_ch4, vpp_n2o)
   

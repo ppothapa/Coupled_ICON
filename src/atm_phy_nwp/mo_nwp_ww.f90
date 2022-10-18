@@ -60,6 +60,7 @@ MODULE mo_nwp_ww
   USE mtime,                    ONLY: datetime, newDatetime, timeDelta
 
   USE mo_satad,                 ONLY: sat_pres_water
+  USE mo_fortran_tools,         ONLY: set_acc_host_or_device
 
 #endif
 
@@ -305,7 +306,7 @@ CONTAINS
                              t_2m, td_2m, t_g, clct, clcm, u_10m, v_10m,      &
                              rain_gsp0, rain_gsp, rain_con0, rain_con,        &
                              snow_gsp0, snow_gsp, snow_con0, snow_con,        &
-                             bas_con, top_con, time_diff, iww, use_acc )
+                             bas_con, top_con, time_diff, iww, lacc )
 
 !
 ! Description:
@@ -348,7 +349,7 @@ CONTAINS
   INTEGER,  INTENT(IN) :: bas_con(ie),   & ! base index of main convective cloud
                           top_con(ie)      ! top index of main convective cloud
 
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
 #if ONLYWW
   REAL(wp)                        :: time_diff ! time since previous call in hours
@@ -383,26 +384,48 @@ CONTAINS
     LOGICAL  :: test_fog
     LOGICAL  :: lconvb, lsnb
 
+  REAL(wp) :: t_t  (ke,ie),  &  ! temperature (K)
+              ph_t (ke1,ie),  &  ! specific humidity (on model levels) (kg/kg)
+              qc_t (ke,ie)  ! specific cloud liquid water (on model levels) (kg/kg)
+
     REAL(wp), PARAMETER :: rkogrenz = 1._wp          ! limit for rko
     REAL(wp), PARAMETER :: ms_kn = 1._wp/0.51444_wp  ! factor to convert numbers in m/s to knots
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc ! non-optional version of lacc
 
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(t, qv, qc, u, v, clc, pf, ph, t_2m, &
-    !$ACC   td_2m, t_g, clct, clcm, u_10m, v_10m, rain_gsp0, rain_gsp, &
-    !$ACC   rain_con0, rain_con, snow_gsp0, snow_gsp, snow_con0, snow_con, &
-    !$ACC   bas_con, top_con, iww, ih_500hpa, ih_700hpa, ih_850hpa, ih_950hpa, &
-    !$ACC   ifog_temp, ifog_wind) IF(lacc)
-    !$ACC LOOP GANG VECTOR PRIVATE(test_fog, rgdiff, lsnb, irrb, igfb, iwolk, &
-    !$ACC   iwolkc, isprb, rgdiff, rkdiff, rldiff, rrdiff, rsdiff, dp, lconvb, &
-    !$ACC   vbetr, tblmax, tdblmax, rfblmax, vbl, qvmin, zfrac, tdbl, rfbl, &
-    !$ACC   neb_i, e, e_s)
+    !$ACC DATA CREATE(t_t, ph_t, qc_t) PRESENT(t, qc, ph) IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO i = 1, ie
+      DO k = 1, ke
+        t_t(k,i) = t(i,k)
+        qc_t(k,i) = qc(i,k)
+      end do
+    end do
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO i = 1, ie
+      DO k = 1, ke1
+        ph_t(k,i) = ph(i,k)
+      end do
+    end do
+    !$ACC END PARALLEL
+
+
+    !$ACC PARALLEL DEFAULT(NONE) PRESENT(qv, u, v, clc, pf, t_2m) &
+    !$ACC   PRESENT(td_2m, t_g, clct, clcm, u_10m, v_10m, rain_gsp0, rain_gsp) &
+    !$ACC   PRESENT(rain_con0, rain_con, snow_gsp0, snow_gsp, snow_con0, snow_con) &
+    !$ACC   PRESENT(bas_con, top_con, iww, ih_500hpa, ih_700hpa, ih_850hpa, ih_950hpa) &
+    !$ACC   PRESENT(ifog_temp, ifog_wind) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(test_fog, rgdiff, lsnb, irrb, igfb, iwolk) &
+    !$ACC   PRIVATE(iwolkc, isprb, rgdiff, rkdiff, rldiff, rrdiff, rsdiff, dp, lconvb) &
+    !$ACC   PRIVATE(vbetr, tblmax, tdblmax, rfblmax, vbl, qvmin, zfrac, tdbl, rfbl) &
+    !$ACC   PRIVATE(neb_i, e, e_s)
     DO i = i_startidx, i_endidx
       iww(i) = -9
       test_fog = .FALSE.
@@ -464,7 +487,7 @@ WW_PRECIP: IF (rgdiff < rgdiff_th1) THEN
           ENDDO
           IF (iwolkc == 1.AND. clcm(i) < 0.95_wp) iwolk = 1
 
-          CALL gefr( jg, ke, ke1, ph(i,:), qc(i,:), t(i,:), t_2m(i), t_g(i), &
+          CALL gefr( jg, ke, ke1, ph_t(:,i), qc_t(:,i), t_t(:,i), t_2m(i), t_g(i), &
                     igfb, irrb, isprb )
 
 !.... Convective precipitation
@@ -663,6 +686,7 @@ WW_PRECIP: IF (rgdiff < rgdiff_th1) THEN
    
     ENDDO
     !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE ww_diagnostics
 

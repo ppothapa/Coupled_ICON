@@ -30,14 +30,11 @@ MODULE mo_limarea_nml
                                   & open_and_restore_namelist, close_tmpfile
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
-  USE mtime,                  ONLY: MAX_TIMEDELTA_STR_LEN,                                  &
-    &                               newTimedelta, deallocateTimedelta, OPERATOR(==),        &
-    &                               getPTStringFromMS, timedelta,                           &
-    &                               getTotalMilliSecondsTimeDelta, datetime, newDatetime,   &
-    &                               deallocateDatetime
+  USE mtime,                  ONLY: MAX_TIMEDELTA_STR_LEN, newTimedelta, getPTStringFromMS
 
   IMPLICIT NONE
   PRIVATE
+
   PUBLIC read_limarea_namelist
 
   !> module name
@@ -54,9 +51,7 @@ CONTAINS
     INTEGER                              :: istat, funit
     INTEGER                              :: iunit, errno
     REAL(wp)                             :: dtime_latbc_in_ms
-    TYPE(timedelta), POINTER             :: td
-    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dt_latbc, dt_latbc_str
-    TYPE(datetime), POINTER              :: base_dt
+    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dtime_latbc_str
 
     !------------------------------------------------------------------------
     ! Namelist variables
@@ -107,7 +102,6 @@ CONTAINS
     itype_latbc         = 0
 
     dtime_latbc         = -1._wp
-    dt_latbc            = ''
     nlev_latbc          = -1
 
     latbc_filename      = "prepiconR<nroot>B<jlev>_<y><m><d><h>.nc"
@@ -165,6 +159,19 @@ CONTAINS
 
 
     !----------------------------------------------------
+    ! sanity checks
+    !----------------------------------------------------
+
+    IF (dtime_latbc > 86400._wp) THEN
+      CALL finish(routine, "Namelist setting of limarea_nml/dtime_latbc too large for mtime conversion!")
+    END IF
+
+    IF ( (itype_latbc > 0) .AND. (dtime_latbc <= 0._wp) ) THEN
+      CALL finish(routine, "Illegal setting of limarea_nml/dtime_latbc. Must be > 0!")
+    END IF
+
+
+    !----------------------------------------------------
     ! Fill the configuration state
     !----------------------------------------------------
 
@@ -182,39 +189,12 @@ CONTAINS
     latbc_config%nretries            = nretries
     latbc_config%retry_wait_sec      = retry_wait_sec
 
-    ! There exist to alternative ways to set the update interval for
-    ! lateral bc data. If both parameters are used, we test for
-    ! inconsistency. Otherwise we translate the value of one setting
-    ! to the other one.
+    ! convert dtime_latbc into mtime object
+    dtime_latbc_in_ms = 1000._wp * dtime_latbc
+    CALL getPTStringFromMS(NINT(dtime_latbc_in_ms,i8), dtime_latbc_str)
+    latbc_config%dtime_latbc_mtime => newTimedelta(dtime_latbc_str, errno)
+    IF (errno /= 0)  CALL finish(routine, "Error in initialization of dtime_latbc time delta.")
 
-    IF (LEN_TRIM(dt_latbc) == 0) THEN
-      dtime_latbc_in_ms = 1000._wp * dtime_latbc
-      CALL getPTStringFromMS(NINT(dtime_latbc_in_ms,i8), latbc_config%dt_latbc)
-      latbc_config%dtime_latbc_mtime => newTimedelta(latbc_config%dt_latbc, errno)
-      IF (errno /= 0)  CALL finish(routine, "Error in initialization of dtime_latbc time delta.")
-    ELSE
-      latbc_config%dtime_latbc_mtime => newTimedelta(latbc_config%dt_latbc, errno)
-      IF (errno /= 0)  CALL finish(routine, "Error in initialization of dtime_latbc time delta.")
-
-      IF (dtime_latbc > 0.) THEN
-        ! test for inconsistency
-        dtime_latbc_in_ms = 1000._wp * dtime_latbc
-        CALL getPTStringFromMS(NINT(dtime_latbc_in_ms,i8), dt_latbc_str)
-        td => newTimedelta(dt_latbc_str, errno)
-        IF (errno /= 0)  CALL finish(routine, "Error in initialization of dtime_latbc time delta.")
-        IF (.NOT. (td == latbc_config%dtime_latbc_mtime)) THEN
-          CALL finish(routine, "Inconsistent setting of dtime_latbc time delta.")
-        END IF
-        CALL deallocateTimedelta(td)        
-      ELSE
-        base_dt => newDatetime("2011-01-01T00:00:00Z", errno)
-        IF (errno /= 0)  CALL finish(routine, "Error in setup of reference datetime.")
-        dtime_latbc = getTotalMilliSecondsTimeDelta(latbc_config%dtime_latbc_mtime, base_dt)/1000._wp
-        CALL deallocateDatetime(base_dt)
-      END IF
-    END IF
-    latbc_config%dtime_latbc       = dtime_latbc
-    latbc_config%dt_latbc          = TRIM(dt_latbc)
 
     !-----------------------------------------------------
     ! Store the namelist for restart

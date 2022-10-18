@@ -306,7 +306,8 @@ CONTAINS
   !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
   !!
 
-  SUBROUTINE seaice_init_nwp (                                  & 
+  SUBROUTINE seaice_init_nwp (                                  &
+                          &  linit_hice,                        &
                           &  nsigb,                             &
                           &  frsi,                              &
                           &  tice_p, hice_p, tsnow_p, hsnow_p,  &
@@ -318,6 +319,12 @@ CONTAINS
     IMPLICIT NONE
 
     ! Procedure arguments 
+
+    LOGICAL, INTENT(IN) ::        &
+                        &  linit_hice     !< TRUE if initialization of hice is required 
+                                          !< for new seaice points.
+                                          !< FALSE if updated information on hice is provided 
+                                          !< (e.g. in coupled atmosphere-ocean runs) 
 
     INTEGER, INTENT(IN) ::        &
                         &  nsigb  !< Array (vector) dimension
@@ -372,19 +379,11 @@ CONTAINS
         EXIT GridBoxesWithSeaIce 
       END IF 
 
-      ! Create new ice as needed (hice_p close to zero)
-      IF( hice_p(isi) < (hice_min-csmall) ) THEN
-        hice_p(isi) = hice_ini_min + frsi(isi) * (hice_ini_max-hice_ini_min)
-        tice_p(isi) = tf_salt
-        ! Set sea-ice albedo to its equilibrium value
-        ! (only required if sea-ice albedo is treated prognostically)
-        IF ( lprog_albsi ) THEN
-          albsi_p(isi) = alb_seaice_equil( tice_p(isi) )
-        ENDIF
-      ELSE 
-        ! Educated guess for hice available (e.g. from coupled ocean model, 
-        ! data assimilation or from file), but not for tice.
-        IF (tice_p(isi) >= tf_fresh) THEN
+      IF ( linit_hice ) THEN
+        ! Here we assume that new seaice points are characterized by (fr_seaice>0, hice_p<hice_min)
+        ! Create new ice
+        IF( hice_p(isi) < (hice_min-csmall) ) THEN
+          hice_p(isi) = hice_ini_min + frsi(isi) * (hice_ini_max-hice_ini_min)
           tice_p(isi) = tf_salt
           ! Set sea-ice albedo to its equilibrium value
           ! (only required if sea-ice albedo is treated prognostically)
@@ -392,8 +391,34 @@ CONTAINS
             albsi_p(isi) = alb_seaice_equil( tice_p(isi) )
           ENDIF
         ENDIF
-        ! Third case of hice_p >> 0 and tice_p < 0'C should already been properly defined 
-      END IF
+
+      ELSE ! linit_hice=.FALSE.
+        !
+        ! Here we assume that an educated guess for ice thickness is provided, 
+        ! with hice>=hice_min (e.g. in coupled mode) in addition to the ice fraction. 
+        ! Hence, we skip the initialization of ice thickness but keep 
+        ! the initialization of ice temperature and albedo for new ice points.
+        !
+        ! In this case the identification of new ice points by the above condition 
+        ! (fr_seaice>0, hice_p<hice_min) fails and so does any identification via tice. 
+        ! Hence, new ice points must be identified before entering 
+        ! this routine by comparing the old and new seaice fraction fields and 
+        ! by creating a "NEW seaice points only" index list.
+        !
+        ! For this IF condition to work correctly, seaice_init_nwp must be called for 
+        ! NEW seaice points only rather than for ALL seaice points 
+        ! (see example in mo_nwp_sfc_utils:process_sst_and_seaice).
+        ! Otherwise ice temperature and albedo will erroneously be reset 
+        ! to default values for all seaice points.
+        !
+        tice_p(isi) = tf_salt
+        ! Set sea-ice albedo to its equilibrium value
+        ! (only required if sea-ice albedo is treated prognostically)
+        IF ( lprog_albsi ) THEN
+          albsi_p(isi) = alb_seaice_equil( tice_p(isi) )
+        ENDIF
+      ENDIF
+
 
       ! In general we assume that new seaice points are characterized by 
       ! ( fr_seaice>0, h_ice_p=0 ). However, it may happen that h_ice_p 
@@ -1067,7 +1092,7 @@ CONTAINS
                          &  t_ice       !< temperature of ice upper surface [K] 
 
 #ifdef _OPENACC
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
 #endif
 
     !===============================================================================================

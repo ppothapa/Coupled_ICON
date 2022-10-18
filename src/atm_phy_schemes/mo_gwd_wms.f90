@@ -153,12 +153,12 @@ CONTAINS
     
     !--------------------------------------------------------------------------
     
-    !$ACC DATA PRESENT( pum1, pvm1, ptm1, papm1, paphm1, pgeo1, pgelat, pprecip, ptenu, ptenv, pfluxu, pfluxv ) &
-    !$ACC CREATE( zfnorm, zfct, zacc, zui, zcngl, zrhohm1, zsinang, zthm1, zul, zgauss, zcosang, zdci, zci, zcrt ) &
-    !$ACC CREATE( zbvfl, zx, zvhm1, zact, zbvfhm1, zuhm1, zdfl, zpu, zflux, zfluxlaun, zci_min ) &
-    !$ACC IF( lacc )
+    !$ACC DATA PRESENT(pum1, pvm1, ptm1, papm1, paphm1, pgeo1, pgelat, pprecip, ptenu, ptenv, pfluxu, pfluxv) &
+    !$ACC   CREATE(zfnorm, zfct, zacc, zui, zcngl, zrhohm1, zsinang, zthm1, zul, zgauss, zcosang, zdci, zci, zcrt) &
+    !$ACC   CREATE(zbvfl, zx, zvhm1, zact, zbvfhm1, zuhm1, zdfl, zpu, zflux, zfluxlaun, zci_min) &
+    !$ACC   IF(lacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !*       INPUT PARAMETERS
     !*       ----------------
@@ -175,7 +175,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO jk=1,klev
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         ptenu(jl,jk)=0.0_JPRB
         ptenv(jl,jk)=0.0_JPRB
@@ -186,7 +186,7 @@ CONTAINS
     DO iazi=1,iazidim
       !$ACC LOOP SEQ
       DO jk=1,klev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           zpu(jl,jk,iazi)=0.0_JPRB
           zcrt(jl,jk,iazi)=0.0_JPRB
@@ -197,7 +197,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO jk=1,klev+1
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         pfluxu(jl,jk)=0.0_JPRB
         pfluxv(jl,jk)=0.0_JPRB
@@ -221,7 +221,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO iazi=1,iazidim
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zci_min(jl,iazi)=zcimin
       ENDDO
@@ -233,7 +233,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO jk=2,klev
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zthm1(jl,jk) =0.5_JPRB*(ptm1(jl,jk-1)+ptm1(jl,jk))
         zuhm1(jl,jk) =0.5_JPRB*(pum1(jl,jk-1)+pum1(jl,jk))
@@ -241,7 +241,7 @@ CONTAINS
       ENDDO
     ENDDO
     jk=1
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       zthm1(jl,jk)=ptm1(jl,jk)
       zuhm1(jl,jk)=pum1(jl,jk)
@@ -256,7 +256,7 @@ CONTAINS
     zcons2=rg**2/rcpd
     !$ACC LOOP SEQ
     DO jk=klev,2,-1
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zrhohm1(jl,jk)=paphm1(jl,jk)*zcons1/zthm1(jl,jk)
         zbvfhm1(jl,jk)=zcons2/zthm1(jl,jk)*(1.0_JPRB+rcpd           &
@@ -319,12 +319,12 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO iazi=1,iazidim
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zul(jl,iazi)=zcosang(iazi)*zuhm1(jl,klaunch)+zsinang(iazi)*zvhm1(jl,klaunch)
       ENDDO
     ENDDO
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       zbvfl(jl)=zbvfhm1(jl,klaunch)
     ENDDO
@@ -333,7 +333,7 @@ CONTAINS
     DO jk=2,klaunch
       !$ACC LOOP SEQ
       DO iazi=1,iazidim
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zu )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zu)
         DO jl=kidia,kfdia
           zu=zcosang(iazi)*zuhm1(jl,jk)+zsinang(iazi)*zvhm1(jl,jk)
           zui(jl,jk,iazi)=zu-zul(jl,iazi)
@@ -346,7 +346,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO jk=2,klaunch
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zfct(jl,jk)=zrhohm1(jl,jk)/zbvfhm1(jl,jk)
       ENDDO
@@ -364,7 +364,7 @@ CONTAINS
       DO inc=1,incdim
         zcin=zci(inc)
         zcin4=(zms*zcin)**4
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zbvfl4 )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbvfl4)
         DO jl=kidia,kfdia
           zbvfl4=zbvfl(jl)**4
           zflux(jl,inc,1)=zfct(jl,klaunch)*zbvfl4*zcin/(zbvfl4+zcin4)
@@ -377,7 +377,7 @@ CONTAINS
       DO inc=1,incdim
         zcin=zci(inc)
         zcin2=(zms*zcin)**2
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zbvfl2 )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbvfl2)
         DO jl=kidia,kfdia
           zbvfl2=zbvfl(jl)**2
           zflux(jl,inc,1)=zfct(jl,klaunch)*zbvfl2*zcin/(zbvfl2+zcin2)
@@ -390,7 +390,7 @@ CONTAINS
       DO inc=1,incdim
         zcin=zci(inc)
         zcin3=(zms*zcin)**3
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zbvfl3 )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbvfl3)
         DO jl=kidia,kfdia
           zbvfl3=zbvfl(jl)**3
           zflux(jl,inc,1)=zfct(jl,klaunch)*zbvfl3*zcin/(zbvfl3+zcin3)
@@ -409,7 +409,7 @@ CONTAINS
     !$ACC LOOP SEQ
     DO inc=1,incdim
       zcinc=zdci(inc)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zpu(jl,klaunch,1)=zpu(jl,klaunch,1)+zflux(jl,inc,1)*zcinc
       ENDDO
@@ -421,7 +421,7 @@ CONTAINS
     ! Also other options to alter tropical values
     
     ! A=ZFNORM in Scinocca 2003.  A is independent of height.
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       zfluxlaun(jl)=gfluxlaun
       zfnorm(jl)=zfluxlaun(jl)/zpu(jl,klaunch,1)
@@ -430,14 +430,14 @@ CONTAINS
     ! If LOZPR=TRUR then increase EPLAUNCH over tropics
     IF (lozpr) THEN
       IF (ngauss==1) THEN
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           zfluxlaun(jl)=gfluxlaun*(1.0_JPRB+MIN(0.5_JPRB,gcoeff*pprecip(jl)))     !precip
           !  ZFLUXLAUN(JL)=GFLUXLAUN*(1.0_JPRB+MIN(0.5_JPRB,1.0E-3_JPRB*PPRECIP(JL)))!cape
           zfnorm(jl)=zfluxlaun(jl)/zpu(jl,klaunch,1)
         ENDDO
       ELSEIF (ngauss==2) THEN
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zgelatdeg )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zgelatdeg)
         DO jl=kidia,kfdia
           zgelatdeg=pgelat(jl)*zradtodeg
           zgauss(jl)=ggaussb*EXP((-zgelatdeg*zgelatdeg)/(2._jprb*ggaussa*ggaussa))
@@ -447,7 +447,7 @@ CONTAINS
       ELSEIF (ngauss==4) THEN
         ! Set latitudinal dependence to optimize stratospheric winds for 36r1
         z50s=-50.0_JPRB
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zgelatdeg )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zgelatdeg)
         DO jl=kidia,kfdia
           zgelatdeg=pgelat(jl)*zradtodeg-z50s
           zgauss(jl)=ggaussb*EXP((-zgelatdeg*zgelatdeg)/(2._jprb*ggaussa*ggaussa))
@@ -459,7 +459,7 @@ CONTAINS
     
     !$ACC LOOP SEQ
     DO iazi=1,iazidim
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zpu(jl,klaunch,iazi)=zfluxlaun(jl)
       ENDDO
@@ -469,7 +469,7 @@ CONTAINS
     !*       --------------------
     !$ACC LOOP SEQ
     DO jk=2,klaunch
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zfct(jl,jk)=zfnorm(jl)*zfct(jl,jk)
       ENDDO
@@ -479,7 +479,7 @@ CONTAINS
     !*       --------------------------------------------------
     !$ACC LOOP SEQ
     DO inc=1,incdim
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zflux(jl,inc,1)=zfnorm(jl)*zflux(jl,inc,1)
       ENDDO
@@ -495,7 +495,7 @@ CONTAINS
     DO iazi=2,iazidim
       !$ACC LOOP SEQ
       DO inc=1,incdim
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           zflux(jl,inc,iazi)=zflux(jl,inc,1)
           zact(jl,inc,iazi)=1.0_JPRB
@@ -524,7 +524,7 @@ CONTAINS
         !* first do critical levels
         !* ------------------------
         
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           zci_min(jl,iazi)=MAX(zci_min(jl,iazi),zui(jl,jk,iazi))
         ENDDO
@@ -536,7 +536,7 @@ CONTAINS
         !$ACC LOOP SEQ
         DO inc=1,incdim
           zcin=zci(inc)
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zatmp )
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zatmp)
           DO jl=kidia,kfdia
             zatmp=z0p5+SIGN(z0p5,zcin-zci_min(jl,iazi))
             zacc(jl,inc,iazi)=zact(jl,inc,iazi)-zatmp
@@ -550,7 +550,7 @@ CONTAINS
         !$ACC LOOP SEQ
         DO inc=1,incdim
           zcinc=zdci(inc)
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jl=kidia,kfdia
             zdfl(jl,jk,iazi)=zdfl(jl,jk,iazi)+&
               & zacc(jl,inc,iazi)*zflux(jl,inc,iazi)*zcinc
@@ -560,7 +560,7 @@ CONTAINS
         !* get weighted average of phase speed in layer
         !* --------------------------------------------
         
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zatmp )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zatmp)
         DO jl=kidia,kfdia
           IF(zdfl(jl,jk,iazi)>0.0_JPRB) THEN
             zatmp=zcrt(jl,jk,iazi)
@@ -584,7 +584,7 @@ CONTAINS
           DO inc=1,incdim
             zcin=zci(inc)
             zcinc=1.0_JPRB/zcin
-            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( ze1, ze2, zfluxsq, zdep )
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ze1, ze2, zfluxsq, zdep)
             DO jl=kidia,kfdia
               ze1=zcin-zui(jl,jk,iazi)
               ze2=gcstar*zfct(jl,jk)*ze1
@@ -601,7 +601,7 @@ CONTAINS
           DO inc=1,incdim
             zcin=zci(inc)
             zcinc=1.0_JPRB/zcin
-            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zfluxs, zdep )
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfluxs, zdep)
             DO jl=kidia,kfdia
               zfluxs=gcstar*zfct(jl,jk)*&
                 & (zcin-zui(jl,jk,iazi))**2*zcinc
@@ -620,7 +620,7 @@ CONTAINS
         !$ACC LOOP SEQ
         DO inc=1,incdim
           zcinc=zdci(inc)
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jl=kidia,kfdia
             zpu(jl,jk,iazi)=zpu(jl,jk,iazi)+&
               & zact(jl,inc,iazi)*zflux(jl,inc,iazi)*zcinc
@@ -646,13 +646,13 @@ CONTAINS
     zrgpts=1.0_JPRB/(rg*ptstep)
     !$ACC LOOP SEQ
     DO iazi=1,iazidim
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zcngl(jl)=0.0_JPRB
       ENDDO
       !$ACC LOOP SEQ
       DO jk=2,klaunch
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zulm, zdft )
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zulm, zdft)
         DO jl=kidia,kfdia
           zulm=zcosang(iazi)*pum1(jl,jk)+zsinang(iazi)*pvm1(jl,jk)-zul(jl,iazi)
           zdfl(jl,jk-1,iazi)=zdfl(jl,jk-1,iazi)+zcngl(jl)
@@ -673,7 +673,7 @@ CONTAINS
     DO iazi=1,iazidim
       !$ACC LOOP SEQ
       DO jk=klaunch,2,-1
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           pfluxu(jl,jk)=pfluxu(jl,jk)+zpu(jl,jk,iazi)*zaz_fct*zcosang(iazi)
           pfluxv(jl,jk)=pfluxv(jl,jk)+zpu(jl,jk,iazi)*zaz_fct*zsinang(iazi)
@@ -688,7 +688,7 @@ CONTAINS
     zcons1=1.0_JPRB/rcpd
     !$ACC LOOP SEQ
     DO jk=1,klaunch
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zdelp, ze1, ze2 )
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdelp, ze1, ze2)
       DO jl=kidia,kfdia
         zdelp= rg/(paphm1(jl,jk+1)-paphm1(jl,jk))
         ze1=(pfluxu(jl,jk+1)-pfluxu(jl,jk))*zdelp

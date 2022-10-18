@@ -223,6 +223,13 @@ MODULE mo_mpi
   USE mo_cdi_pio_interface, ONLY: nml_io_cdi_pio_conf_handle
 #endif
 
+#ifdef USE_NCCL
+!$claw ignore
+  USE nccl
+!$claw end ignore
+  USE openacc
+#endif
+
 #ifdef __STANDALONE
   INTERFACE
     SUBROUTINE exit(iret) BIND(C,name='exit')
@@ -237,6 +244,7 @@ MODULE mo_mpi
   USE mo_master_control, ONLY: get_my_process_type, hamocc_process, ocean_process, process_exists, &
        &                       my_process_is_hamocc, my_process_is_ocean
 
+  USE mo_coupling, ONLY: init_coupler, finalize_coupler
 #ifdef HAVE_YAXT
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
@@ -396,6 +404,10 @@ MODULE mo_mpi
   INTEGER, PARAMETER :: mpi_lor = 1, mpi_land = 2, mpi_sum = 3, &
        mpi_min = 4, mpi_max = 5, mpi_minloc = 6, mpi_maxloc = 7
 #endif
+
+  ! NCCL-related routines. Typically no-op when NCCL is not active.
+  PUBLIC :: push_gpu_comm_queue, pop_gpu_comm_queue, get_comm_acc_queue, &
+            acc_wait_comms, comm_group_start, comm_group_end
 
   PUBLIC ::get_mpi_time,ellapsed_mpi_time
 
@@ -585,9 +597,20 @@ MODULE mo_mpi
   
   ! Flag if processor splitting is active
   LOGICAL, PUBLIC :: proc_split = .FALSE.
-#ifdef _OPENACC
   LOGICAL, PUBLIC :: i_am_accel_node = .FALSE.
+
+#ifdef USE_NCCL
+  INTEGER, PARAMETER :: gpu_comm_queue_depth = 32
+  INTEGER :: gpu_comm_queue(gpu_comm_queue_depth)
+  INTEGER :: gpu_comm_queue_id = 0
+  LOGICAL :: nccl_active = .FALSE. 
+  TYPE(ncclComm) :: nccl_comm
+  TYPE(ncclUniqueId) :: nccl_id
+  PUBLIC :: push_gpu_comm_queue, pop_gpu_comm_queue
+#else
+  LOGICAL, PARAMETER :: nccl_active = .FALSE.
 #endif
+
 
   ! communicator stack for global sums
   INTEGER, PARAMETER :: max_lev = 10 ! 2 is sufficient
@@ -897,14 +920,6 @@ MODULE mo_mpi
 
   CHARACTER(len=256) :: message_text = ''
   
-#if defined( _OPENACC )
-#define ACC_DEBUG NOACC
-#if defined(__MPI_NOACC)
-  LOGICAL, PARAMETER ::  acc_on = .FALSE.
-#else
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-#endif
 
 CONTAINS
 
@@ -922,6 +937,98 @@ CONTAINS
          ': ', msg(1:msg_len)
     CALL abort_mpi
   END SUBROUTINE handle_mpi_error
+#endif
+
+  !------------------------------------------------------------------------------
+  ! NCCL routines
+  !------------------------------------------------------------------------------
+
+#ifdef USE_NCCL
+
+  SUBROUTINE push_gpu_comm_queue(queue)
+    INTEGER, INTENT(IN) :: queue
+    CHARACTER(len=*), PARAMETER :: routine = modname//'::push_gpu_comm_queue'
+
+    gpu_comm_queue_id = gpu_comm_queue_id+1
+    IF (gpu_comm_queue_id > gpu_comm_queue_depth) THEN
+      CALL finish(routine, 'GPU stream queue for the communications is too deep')
+    END IF
+
+    gpu_comm_queue(gpu_comm_queue_id) = queue
+  END SUBROUTINE
+
+  SUBROUTINE pop_gpu_comm_queue()
+    CHARACTER(len=*), PARAMETER :: routine = modname//'::pop_gpu_comm_queue'
+
+    gpu_comm_queue_id = gpu_comm_queue_id-1
+    IF (gpu_comm_queue_id <= 0) THEN
+      CALL finish(routine, 'Trying to pop from the empty GPU stream queue')
+    END IF
+  END SUBROUTINE
+
+  SUBROUTINE NCCL_CHECK(result)
+    TYPE(ncclResult), INTENT(IN) :: result
+    CHARACTER(len=*), PARAMETER :: routine = modname//'::NCCL_CHECK'
+
+    IF (result /= ncclSuccess) THEN
+      CALL finish(routine, ncclGetErrorString(result))
+    END IF
+  END SUBROUTINE
+
+  FUNCTION get_comm_stream()
+    INTEGER(cuda_stream_kind) :: get_comm_stream
+    get_comm_stream = acc_get_cuda_stream(get_comm_acc_queue())
+  END FUNCTION
+
+  FUNCTION get_comm_acc_queue()
+    INTEGER :: get_comm_acc_queue
+    get_comm_acc_queue = gpu_comm_queue(gpu_comm_queue_id)
+  END FUNCTION
+
+  SUBROUTINE acc_wait_comms(queue)
+    INTEGER, INTENT(IN) :: queue
+    ! no-op
+  END SUBROUTINE
+
+  SUBROUTINE comm_group_start()
+    nccl_active = .TRUE.
+    CALL NCCL_CHECK(ncclGroupStart())
+  END SUBROUTINE
+
+  SUBROUTINE comm_group_end()
+    CALL NCCL_CHECK(ncclGroupEnd())
+    nccl_active = .FALSE.
+  END SUBROUTINE
+
+#else
+
+  SUBROUTINE push_gpu_comm_queue(queue)
+    INTEGER, INTENT(IN) :: queue
+    ! no-op
+  END SUBROUTINE
+
+  SUBROUTINE pop_gpu_comm_queue()
+    ! no-op
+  END SUBROUTINE
+
+  FUNCTION get_comm_acc_queue()
+    INTEGER :: get_comm_acc_queue
+    get_comm_acc_queue = 1
+  END FUNCTION
+
+  SUBROUTINE acc_wait_comms(queue)
+    INTEGER, INTENT(IN) :: queue
+    !$ACC WAIT(queue)
+  END SUBROUTINE
+
+  SUBROUTINE comm_group_start()
+    ! no-op
+  END SUBROUTINE
+
+  SUBROUTINE comm_group_end()
+    ! no-op
+  END SUBROUTINE
+
 #endif
 
   !------------------------------------------------------------------------------
@@ -1987,6 +2094,22 @@ CONTAINS
 !     process_mpi_local_comm  = process_mpi_all_comm
 !     process_mpi_local_size  = process_mpi_all_size
 !     my_process_mpi_local_id = my_process_mpi_all_id
+
+#ifdef USE_NCCL
+      IF (my_process_is_work()) THEN
+        IF (my_process_is_mpi_workroot()) THEN
+          CALL NCCL_CHECK(ncclGetUniqueId(nccl_id))
+        END IF
+
+        CALL MPI_BCAST(nccl_id, int(sizeof(ncclUniqueId), 4), MPI_BYTE, &
+          process_mpi_root_id, get_my_mpi_work_communicator(), p_error)
+
+        CALL NCCL_CHECK(ncclCommInitRank(nccl_comm, get_my_mpi_work_comm_size(), &
+          nccl_id, get_my_mpi_work_id()))
+
+        CALL push_gpu_comm_queue(1)
+      END IF
+#endif
    
 
 #ifdef DEBUG
@@ -2357,6 +2480,8 @@ CONTAINS
 #endif       
     END IF
 
+    CALL init_coupler(global_mpi_communicator, global_name)
+
     process_mpi_all_comm = MPI_COMM_NULL
     IF (PRESENT(global_name)) THEN
       yname = global_name
@@ -2562,6 +2687,8 @@ CONTAINS
 
     INTEGER :: iexit = 0    
     ! finish MPI and clean up all PEs
+
+    CALL finalize_coupler()
 
 #ifndef NOMPI
     ! to prevent abort due to unfinished communication
@@ -2839,7 +2966,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -2885,7 +3012,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
             p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3146,7 +3273,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3334,7 +3461,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3592,6 +3719,19 @@ CONTAINS
 
   END SUBROUTINE p_inc_request
 
+#ifdef USE_NCCL
+  SUBROUTINE p_isend_nccl_real (t_buffer, p_destination, p_count)
+    REAL (dp), INTENT(inout) :: t_buffer
+    INTEGER,   INTENT(in) :: p_destination
+    INTEGER,   INTENT(in) :: p_count
+
+    !print *, "Send from ", my_global_mpi_id, " to ", p_destination, " size ", p_count
+
+    CALL NCCL_CHECK(ncclSend( acc_deviceptr(t_buffer), int(p_count, cuda_count_kind), ncclFloat64, &
+                              p_destination, nccl_comm, int(get_comm_stream(), cuda_stream_kind) ))
+  END SUBROUTINE
+#endif
+
   SUBROUTINE p_isend_real (t_buffer, p_destination, p_tag, p_count, comm, request, use_g2g)
 
     REAL (dp), INTENT(inout) :: t_buffer
@@ -3619,16 +3759,22 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
-    CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
-         p_comm, out_request, p_error)
-    !$ACC END HOST_DATA
-
-    IF (PRESENT(request)) THEN
-      request               = out_request
+    IF (nccl_active .and. my_process_is_work() .and. comm == p_comm_work .and. loc_use_g2g) THEN
+#ifdef USE_NCCL
+      CALL p_isend_nccl_real(t_buffer, p_destination, p_count)
+#endif
     ELSE
-      CALL p_inc_request
-      p_request(p_irequest) = out_request
+      !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
+      CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+                
+      IF (PRESENT(request)) THEN
+        request               = out_request
+      ELSE
+        CALL p_inc_request
+        p_request(p_irequest) = out_request
+      END IF
     END IF
 
 #ifdef DEBUG
@@ -3671,7 +3817,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -4006,7 +4152,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -4216,7 +4362,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
          &         p_comm, p_request(p_irequest), p_error)
@@ -4452,7 +4598,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
          p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -4497,7 +4643,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
             p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -4797,7 +4943,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
       &           p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -4985,7 +5131,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
             p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -5307,6 +5453,20 @@ CONTAINS
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
   !
+#ifdef USE_NCCL
+  SUBROUTINE p_irecv_nccl_real (t_buffer, p_source, p_count)
+    REAL (dp), INTENT(inout) :: t_buffer
+    INTEGER,   INTENT(in) :: p_source
+    INTEGER,   INTENT(in) :: p_count
+
+    !print *, "Recv on ", my_global_mpi_id, " from ", p_source, " size ", p_count
+
+    CALL NCCL_CHECK(ncclRecv( acc_deviceptr(t_buffer), int(p_count, cuda_count_kind), ncclFloat64, &
+                              p_source, nccl_comm, int(get_comm_stream(), cuda_stream_kind) ))
+
+  END SUBROUTINE p_irecv_nccl_real
+#endif
+
   SUBROUTINE p_irecv_real (t_buffer, p_source, p_tag, p_count, comm, use_g2g)
 
     REAL(dp),  INTENT(inout) :: t_buffer
@@ -5333,11 +5493,17 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
-    CALL p_inc_request
-    CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
-         p_comm, p_request(p_irequest), p_error)
-    !$ACC END HOST_DATA
+    IF (nccl_active .and. my_process_is_work() .and. comm == p_comm_work .and. loc_use_g2g) THEN
+#ifdef USE_NCCL
+      CALL p_irecv_nccl_real(t_buffer, p_source, p_count)
+#endif
+    ELSE
+      CALL p_inc_request
+      !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
+      CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+           p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    END IF
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5378,7 +5544,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL MPI_IRECV(t_buffer, icount, p_real_sp, p_source, p_tag, &
          p_comm, p_request(p_irequest), p_error)
@@ -5395,7 +5561,6 @@ CONTAINS
 #endif
 
   END SUBROUTINE p_irecv_sreal
-
 
   SUBROUTINE p_irecv_real_1d (t_buffer, p_source, p_tag, p_count, comm)
 
@@ -5656,7 +5821,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
          p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -5867,7 +6032,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
          p_comm, p_request(p_irequest), p_error)
@@ -8156,7 +8321,7 @@ CONTAINS
   !------------------------------------------------------
   SUBROUTINE p_wait
 #ifndef NOMPI
-    CALL mpi_waitall(p_irequest, p_request, mpi_statuses_ignore, p_error)
+    IF (p_irequest > 0) CALL mpi_waitall(p_irequest, p_request, mpi_statuses_ignore, p_error)
     p_irequest = 0
 #endif
   END SUBROUTINE p_wait

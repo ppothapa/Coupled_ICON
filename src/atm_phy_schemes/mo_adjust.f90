@@ -76,7 +76,7 @@ MODULE mo_adjust
    SUBROUTINE satur ( kidia , kfdia , klon, ktdia  , klev,&
      & paprsf, pt, pqv, pqsat , kflag)
 
-!$acc routine gang
+     !$ACC ROUTINE GANG
 
      !>
      !! Description:
@@ -178,9 +178,9 @@ MODULE mo_adjust
 
      IF (lphylin) THEN     ! linear physics: set to .FALSE. in mo_cuparameters.f90
 
-       !$acc loop seq
+       !$ACC LOOP SEQ
        DO jk=ktdia,klev
-         !$acc loop gang(static:1) vector private(ztarg, zalfa, zfoeew, zqs, zcor)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ztarg, zalfa, zfoeew, zqs, zcor)
          DO jl=kidia, kfdia
            ztarg = pt(jl,jk)
            zalfa = foealfa(ztarg)
@@ -203,9 +203,9 @@ MODULE mo_adjust
 
      ELSE
 
-       !$acc loop seq
+       !$ACC LOOP SEQ
        DO jk=ktdia,klev
-         !$acc loop gang(static:1) vector private(zew, zqs, zcor)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zew, zqs, zcor)
          DO jl=kidia, kfdia
            IF(kflag == 1) THEN
              zew  = foeewmcu(pt(jl,jk))
@@ -239,7 +239,7 @@ MODULE mo_adjust
      & kk,&
      & psp,      pt,       pq,       ldflag,   kcall)
 
-!$acc routine gang
+     !$ACC ROUTINE GANG
 
      !!
      !! Description:
@@ -365,7 +365,7 @@ MODULE mo_adjust
 
 !DIR$ IVDEP
 !$NEC sparse
-         !$acc loop gang(static:1) vector private(zqp,zl,zi,zqsat,zcor,zf,zcond,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zl, zi, zqsat, zcor, zf, zcond, zcond1)
          DO jl=kidia,kfdia
            IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
@@ -414,7 +414,7 @@ MODULE mo_adjust
 
 !DIR$ IVDEP
 !OCL NOVREC
-         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond, zcond1)
          DO jl=kidia,kfdia
            IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
@@ -442,7 +442,7 @@ MODULE mo_adjust
 
 !DIR$ IVDEP
 !OCL NOVREC
-         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
            zqsat=foeewm(pt(jl,kk))*zqp
@@ -466,7 +466,7 @@ MODULE mo_adjust
         
 !DIR$ IVDEP
 !OCL NOVREC
-         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond, zcond1)
          DO jl=kidia,kfdia
            IF(ldflag(jl)) THEN
              zqp    =1.0_JPRB/psp(jl)
@@ -492,7 +492,7 @@ MODULE mo_adjust
         
 !OCL NOVREC
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond, zcond1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
            zqsat=foeewm(pt(jl,kk))*zqp
@@ -517,7 +517,7 @@ MODULE mo_adjust
 
 !OCL NOVREC
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(zqp,zqsat,zcor,zcond1)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
            zqsat=foeewmcu(pt(jl,kk))*zqp

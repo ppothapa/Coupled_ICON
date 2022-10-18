@@ -529,8 +529,8 @@ MODULE mo_nwp_reff_interface
              &                  rho = p_prog%rho(:,:,jb) ,                                  & 
              &                  ncn = ncn, clc =  prm_diag%clc(:,:,jb),                     &                               
              &                  k_start =kstart_moist(jg),k_end = nlev,jb=jb,               &
-             &                  fr_gl = ext_data%atm%fr_glac_smt(:,jb),                     &
-             &                  fr_land = ext_data%atm%fr_land_smt(:,jb),                   &
+             &                  fr_gl = ext_data%atm%fr_glac(:,jb),                         &
+             &                  fr_land = ext_data%atm%fr_land(:,jb),                       &
              &                  return_fct=return_fct(ireff) )
 
         IF ( .NOT. return_fct(ireff) )  THEN 

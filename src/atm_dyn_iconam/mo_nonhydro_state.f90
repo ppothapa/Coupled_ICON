@@ -171,7 +171,7 @@ MODULE mo_nonhydro_state
 !-----------------------------------------------------------------------
 
     CALL message (routine, 'Construction of NH state started')
-!$ACC ENTER DATA COPYIN(p_nh_state)
+    !$ACC ENTER DATA COPYIN(p_nh_state)
     DO jg = 1, n_dom
 
       IF(PRESENT(n_timelevels))THEN
@@ -204,7 +204,7 @@ MODULE mo_nonhydro_state
       ALLOCATE(p_nh_state(jg)%prog(1:ntl), STAT=ist)
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic state array failed')
-!$ACC ENTER DATA COPYIN(p_nh_state(jg)%prog, p_nh_state(jg)%diag, p_nh_state(jg)%metrics, p_nh_state(jg)%ref )
+      !$ACC ENTER DATA COPYIN(p_nh_state(jg)%prog, p_nh_state(jg)%diag, p_nh_state(jg)%metrics, p_nh_state(jg)%ref)
 
       ! create state list
       ALLOCATE(p_nh_state_lists(jg)%prog_list(1:ntl), STAT=ist)
@@ -233,7 +233,7 @@ MODULE mo_nonhydro_state
         ENDDO
       ENDDO
       p_nh_state(jg)%metrics%bdy_halo_c_dim = ic
-      !$acc update device(p_nh_state(jg)%metrics%bdy_halo_c_dim)
+      !$ACC UPDATE DEVICE(p_nh_state(jg)%metrics%bdy_halo_c_dim)
       ! Index list for halo points belonging to the lateral boundary interpolation zone
 
       IF ( ic == 0 ) THEN
@@ -386,7 +386,7 @@ MODULE mo_nonhydro_state
         CALL vlr_del(p_nh_state_lists(jg)%tracer_list(jt))
       ENDDO
 
-!$ACC EXIT DATA DELETE(p_nh_state(jg)%prog, p_nh_state(jg)%metrics, p_nh_state(jg)%ref, p_nh_state(jg)%diag )
+      !$ACC EXIT DATA DELETE(p_nh_state(jg)%prog, p_nh_state(jg)%metrics, p_nh_state(jg)%ref, p_nh_state(jg)%diag)
 
       ! destruct state lists and arrays
       DEALLOCATE(p_nh_state_lists(jg)%prog_list, STAT=ist )
@@ -403,7 +403,7 @@ MODULE mo_nonhydro_state
 
     ENDDO
 
-!$ACC EXIT DATA DELETE(p_nh_state)
+    !$ACC EXIT DATA DELETE(p_nh_state)
 
     CALL message(routine, 'NH state destruction completed')
 

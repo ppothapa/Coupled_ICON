@@ -18,11 +18,11 @@
 MODULE mo_cloud_two_memory
 
   USE mo_exception               ,ONLY: message, finish
-  USE mtime                      ,ONLY: OPERATOR(>)
+  USE mtime                      ,ONLY: timedelta, OPERATOR(>)
 
   USE mo_model_domain            ,ONLY: t_patch
   USE mo_parallel_config         ,ONLY: nproma
-  USE mo_time_config             ,ONLY: time_config
+  USE mo_time_config             ,ONLY: get_dynamics_timestep
   USE mo_aes_phy_config          ,ONLY: aes_phy_tc, dt_zero
   USE mo_io_config               ,ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config ,ONLY: is_variable_in_output
@@ -74,6 +74,7 @@ CONTAINS
 
     INTEGER :: ng, jg, ist
     INTEGER :: nlev, nblks
+    TYPE(timedelta) :: dt_dyn
 
     !---
 
@@ -101,9 +102,11 @@ CONTAINS
           !
           nlev   = patch_array(jg)%nlev
           nblks  = patch_array(jg)%nblks_c
+          dt_dyn = get_dynamics_timestep(patch_array(jg))
           !
           CALL construct_cloud_two_list( jg,                  &
                &                         nproma, nlev, nblks, &
+               &                         dt_dyn,              &
                &                         cloud_two_list(jg),  &
                &                         cloud_two_input(jg), &
                &                         cloud_two_output(jg) )
@@ -161,12 +164,14 @@ CONTAINS
   !>
   SUBROUTINE construct_cloud_two_list( jg,                  &
        &                               nproma, nlev, nblks, &
+       &                               dt_dyn,              &
        &                               cloud_two_list,      &
        &                               cloud_two_input,     &
        &                               cloud_two_output )
 
     INTEGER                 , INTENT(in)    :: jg                  !< grid index
     INTEGER                 , INTENT(in)    :: nproma, nlev, nblks !< size of dimensions
+    TYPE(timedelta)         , INTENT(in)    :: dt_dyn              !< Dynamics timestep
 
     TYPE(t_var_list_ptr)    , INTENT(inout) :: cloud_two_list      !< pointers for list of variables
     TYPE(t_cloud_two_input) , INTENT(inout) :: cloud_two_input     !< pointers for input variables
@@ -833,7 +838,7 @@ CONTAINS
     ! INTENT-OUT variables of the parameterization:
     ! tendencies in the atmosphere
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_ta_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_ta_two'                                            ,&
@@ -860,7 +865,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_ta_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qv_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qv_two'                                            ,&
@@ -887,7 +892,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qv_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qc_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qc_two'                                            ,&
@@ -916,7 +921,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qc_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qi_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qi_two'                                            ,&
@@ -945,7 +950,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qi_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qr_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qr_two'                                            ,&
@@ -974,7 +979,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qr_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qs_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qs_two'                                            ,&
@@ -1003,7 +1008,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qs_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qg_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qg_two'                                            ,&
@@ -1032,7 +1037,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qg_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qh_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qh_two'                                            ,&
@@ -1061,7 +1066,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qh_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qnc_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qnc_two'                                           ,&
@@ -1090,7 +1095,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qnc_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qni_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qni_two'                                           ,&
@@ -1119,7 +1124,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qni_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qnr_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qnr_two'                                           ,&
@@ -1148,7 +1153,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qnr_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qns_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qns_two'                                           ,&
@@ -1177,7 +1182,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qns_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qng_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qng_two'                                           ,&
@@ -1206,7 +1211,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qng_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_qnh_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_qnh_two'                                           ,&
@@ -1235,7 +1240,7 @@ CONTAINS
        __acc_attach(cloud_two_output%tend_qnh_two)
     END IF
     !
-    IF ( aes_phy_tc(jg)%dt_two > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF ( aes_phy_tc(jg)%dt_two > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name='tend_ninact_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'tend_ninact_two'                                        ,&

@@ -90,13 +90,6 @@ MODULE mo_ext_data_types
       &  fr_glac(:,:)          ! 1.0 indicates 100% glacier
                                ! index1=1,nproma, index2=1,nblks_c    
 
-    REAL(wp), POINTER ::   &   !< fraction land in a grid element         [ ]
-      &  fr_land_smt(:,:)      !  = smoothed fr_land
-
-    REAL(wp), POINTER ::   &   !< fraction land glacier in a grid element [ ]
-      &  fr_glac_smt(:,:)      ! = smoothed fr_glac
-
-
     !  
     ! *** roughness length ***
     REAL(wp), POINTER ::   &   !< surface roughness                       [m]

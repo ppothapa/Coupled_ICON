@@ -14,7 +14,8 @@ MODULE mo_var_list_register_utils
   USE mo_var_list,         ONLY: find_list_element, t_var_list_ptr
   USE mo_exception,        ONLY: finish
   USE mo_util_string,      ONLY: remove_duplicates, pretty_print_string_list, &
-    &                            lowcase, difference, find_trailing_number
+    &                            lowcase, difference, find_trailing_number, &
+    &                            add_to_list
   USE mo_impl_constants,   ONLY: vlname_len, vname_len, SUCCESS
   USE mo_cdi_constants,    ONLY: GRID_UNSTRUCTURED_CELL, GRID_REGULAR_LONLAT
   USE mo_util_sort,        ONLY: quicksort
@@ -98,11 +99,9 @@ CONTAINS
           IF (loutputvars_only .AND. (info%hgrid == GRID_REGULAR_LONLAT)) &
             & CYCLE
         END IF
-        nvars = nvars + 1
-        var_name(nvars) = get_var_name(info)
+        CALL add_to_list(var_name, nvars, get_var_name(info))
       ENDDO ! loop over vlist "i"
     ENDDO ! i = 1, SIZE(var_lists)
-    CALL remove_duplicates(var_name, nvars)
   END SUBROUTINE vlr_group
 
   ! Find named list element accross all known variable lists

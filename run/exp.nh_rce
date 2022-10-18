@@ -133,7 +133,6 @@ const_z0  = 0.0001
  hdiff_order  = 4
 /
 &radiation_nml
-! ldiur = .FALSE. ! is this necessary or is izenith=0 suff.?
  irad_o3 = 4 !should be the ozone clim for APE  
  izenith    = 5 ! zenith = 38 deg
  vmr_co2    = 278.e-06 ! values representative for pre ind rev 

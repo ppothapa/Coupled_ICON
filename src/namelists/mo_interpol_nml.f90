@@ -286,11 +286,18 @@ CONTAINS
     config_rbf_vec_scale_c(:)  = rbf_vec_scale_c(:)
     config_rbf_vec_scale_v(:)  = rbf_vec_scale_v(:)
     config_rbf_vec_scale_e(:)  = rbf_vec_scale_e(:)
-
     config_rbf_scale_mode_ll   = rbf_scale_mode_ll
-
     config_i_cori_method       = i_cori_method
-    config_nudge_max_coeff     = nudge_max_coeff
+
+    ! historically, the nudging tendency was scaled by 
+    ! the physics-dynamics timestep ratio. 
+    ! Removing the scaling while keeping results the same 
+    ! requires to redefine (scale) the default nudging 
+    ! coefficient and adapt all run scripts.
+    ! In order to avoid changing the run scripts, we scale 
+    ! the user value by the default physics-dynamics timestep ratio (i.e. 5).
+    config_nudge_max_coeff     = 5._wp * nudge_max_coeff
+
     config_nudge_efold_width   = nudge_efold_width
     config_nudge_zone_width    = nudge_zone_width
     config_l_corner_vort       = l_corner_vort

@@ -21,9 +21,7 @@ MODULE mo_nh_diagnose_pmsl
   USE mo_physical_constants,  ONLY: rd, grav, dtdz_standardatm
   USE mo_parallel_config,     ONLY: nproma
   USE mo_initicon_config,     ONLY: zpbl1, zpbl2
-#ifdef _OPENACC
-  USE mo_mpi,                 ONLY: i_am_accel_node
-#endif
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -36,7 +34,7 @@ MODULE mo_nh_diagnose_pmsl
   REAL(wp), PARAMETER :: t_low  = 255.0_wp
   REAL(wp), PARAMETER :: t_high = 290.5_wp
 
-  ! (note: for the 'diagnose_pmsl...' routines no deep-atmosphere copy exists, 
+  ! (note: for the 'diagnose_pmsl...' routines no deep-atmosphere copy exists,
   ! because the error from grav=const is assumed to be negligibly small for them)
   PUBLIC :: diagnose_pmsl
   PUBLIC :: diagnose_pmsl_gme
@@ -82,7 +80,7 @@ CONTAINS
   ! considerable noise in the mean sea level pressure."
   !
   SUBROUTINE diagnose_pmsl_gme(pres3d_in, pres_sfc_in, temp3d_in, z3d_in, pres_out, &
-    &                          nblks, npromz, nlevs_in)
+    &                          nblks, npromz, nlevs_in, lacc)
 
     ! Input fields
     REAL(wp), INTENT(IN)  :: pres3d_in   (:,:,:) ! pressure field of input data
@@ -97,6 +95,7 @@ CONTAINS
     INTEGER , INTENT(IN) :: nblks      ! Number of blocks
     INTEGER , INTENT(IN) :: npromz     ! Length of last block
     INTEGER , INTENT(IN) :: nlevs_in   ! Number of input levels
+    LOGICAL , INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! local variables
 !!$    CHARACTER(*), PARAMETER :: routine = TRIM("mo_nh_vert_interp:diagnose_pmsl_gme")
@@ -105,9 +104,12 @@ CONTAINS
     INTEGER             :: nlev, nlevp1, nlen, jb, jc
     REAL(wp)            :: zrg, ztstar, ztmsl, zalph, zprt, zprtal, &
       &                    geop_sfc, temp_in, pres_in, pres_sfc
+    LOGICAL :: lzacc
 
     !  INITIALISATION
     !  --------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     nlev   = nlevs_in
     nlevp1 = nlev + 1
@@ -117,7 +119,7 @@ CONTAINS
     ! --------------------------
 
     ! initialize output field
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF ( i_am_accel_node )
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     pres_out(:,nblks) = 0._wp
     !$ACC END KERNELS
     
@@ -130,8 +132,8 @@ CONTAINS
         nlen = npromz
       ENDIF
      
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) &
-      !$ACC PRIVATE( geop_sfc, temp_in, pres_in, pres_sfc, ztstar, ztmsl, zalph, zprt, zprtal ) IF( i_am_accel_node )
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc) &
+      !$ACC   PRIVATE(geop_sfc, temp_in, pres_in, pres_sfc, ztstar, ztmsl, zalph, zprt, zprtal)
       DO jc = 1, nlen
 
         geop_sfc = z3d_in(jc,nlevp1,jb)*grav    ! surface geopotential
@@ -212,7 +214,7 @@ CONTAINS
   !
   SUBROUTINE diagnose_pmsl_ifs(pres_sfc_in, temp3d_in, z3d_in, pmsl_out,      &
     &                          nblks, npromz, nlevs_in, wfac_extrap, kextrap, &
-    &                          zextrap, method )
+    &                          zextrap, method, lacc)
 
     ! Input fields
     REAL(wp), INTENT(IN)  :: pres_sfc_in (:,:)   ! surface pressure field (input data)
@@ -231,6 +233,7 @@ CONTAINS
     INTEGER , INTENT(IN) :: kextrap(:,:)     ! index of model level immediately above (by default) 150 m AGL
     REAL(wp), INTENT(IN) :: wfac_extrap(:,:) ! corresponding interpolation coefficient
     REAL(wp), INTENT(IN) :: zextrap(:,:)     ! AGL height from which downward extrapolation starts (in postprocesing mode)
+    LOGICAL , INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! Method (PRES_MSL_METHOD_IFS or PRES_MSL_METHOD_IFS_CORR)
     INTEGER , INTENT(IN) :: method           ! valid input: PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_IFS_CORR
@@ -242,8 +245,10 @@ CONTAINS
 
     REAL(wp) :: temp_extrap, vtgrad, dtdz_thresh
     REAL(wp) :: tsfc, tmsl, tsfc_mod, tmsl_mod
+    LOGICAL :: lzacc
 
 !-------------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     nlev   = nlevs_in
     nlevp1 = nlev + 1
@@ -268,12 +273,12 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         pmsl_out(nlen+1:nproma,jb)  = 0.0_wp
         !$ACC END KERNELS
       ENDIF
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = 1, nlen
 
         ! Auxiliary temperature at 150 m AGL from which the sfc temp is extrapolated
@@ -346,7 +351,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE diagnose_pmsl(pres_in, tempv_in, z3d_in, pmsl_out, nblks, npromz, nlevs_in, &
-                           wfacpbl1, kpbl1, wfacpbl2, kpbl2, z_target, extrapol_dist)
+                           wfacpbl1, kpbl1, wfacpbl2, kpbl2, z_target, extrapol_dist, lacc)
 
 
     ! Input fields
@@ -371,6 +376,7 @@ CONTAINS
     REAL(wp), INTENT(IN) :: z_target       ! target height of pressure diagnosis (usually 0 m = sea level)
     REAL(wp), INTENT(IN) :: extrapol_dist  ! maximum extrapolation distance up to which the local vertical
                                            ! temperature gradient is used
+    LOGICAL , INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
 
@@ -380,8 +386,10 @@ CONTAINS
                 sfc_inv, tempv_out_pbl1, vtgrad_up_out, tempv_out,     &
                 vtgrad_pbl_out, p_pbl1, p_pbl1_out
     REAL(wp) :: dtvdz_thresh
+    LOGICAL :: lzacc
 
 !-------------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! Threshold for switching between analytical formulas for constant temperature and
     ! constant vertical gradient of temperature, respectively
@@ -398,12 +406,12 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         pmsl_out(nlen+1:nproma,jb)  = 0.0_wp
         !$ACC END KERNELS
       ENDIF
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF (i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = 1, nlen
         ! Virtual temperature at height zpbl1
         tempv1 = wfacpbl1(jc,jb) *tempv_in(jc,kpbl1(jc,jb),jb  ) + &

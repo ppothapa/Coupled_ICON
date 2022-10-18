@@ -25,8 +25,7 @@ MODULE mo_limarea_config
                                    associate_keyword, with_keywords, &
                                    int2string
   USE mo_exception,          ONLY: message, message_text, finish
-  USE mtime,                 ONLY: MAX_TIMEDELTA_STR_LEN, datetime,  &
-    &                              timedelta, OPERATOR(-)
+  USE mtime,                 ONLY: datetime, timedelta, OPERATOR(-)
   USE mo_util_mtime,         ONLY: mtime_utils, FMT_DDDHH, FMT_DDHHMMSS, FMT_HHH
   USE mo_parallel_config,    ONLY: num_prefetch_proc
 
@@ -57,37 +56,39 @@ MODULE mo_limarea_config
   !!----------------------------------------------------------------------------
   !! Derived type containing control variables specific to the nonhydrostatic 
   !! atm model
-
   !------------------------------------------------------------------------
   TYPE t_latbc_config
 
     ! variables from namelist
     INTEGER                         :: itype_latbc         ! type of limited area boundary nudging
     REAL(wp)                        :: dtime_latbc         ! dt between two consequtive external latbc files
-    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dt_latbc
     CHARACTER(LEN=filename_max)     :: latbc_filename      ! prefix of latbc files
     CHARACTER(LEN=MAX_CHAR_LENGTH)  :: latbc_path          ! directory containing external latbc files
     LOGICAL                         :: latbc_contains_qcqi ! latbc data contain qc and qi (=T) or not (=F)
-    REAL(wp)                        :: lc1, lc2            ! linear interpolation coefficients
     CHARACTER(LEN=FILENAME_MAX)     :: latbc_boundary_grid ! grid file defining the lateral boundary
-    TYPE(timedelta), POINTER        :: dtime_latbc_mtime ! dt between two consequtive external latbc files
-    
     LOGICAL                         :: init_latbc_from_fg  ! take initial lateral boundary conditions from first guess
     LOGICAL                         :: nudge_hydro_pres    ! use hydrostatic pressure for lateral boundary nudging
-    REAL(wp)                        :: fac_latbc_presbiascor ! factor for pressure bias correction of latbc data
 
-    ! settings derived from the namelist parameters above:
-    LOGICAL                         :: lsparse_latbc       ! Flag: TRUE if only boundary rows are read.
+    ! factor for pressure bias correction of latbc data
+    REAL(wp)                        :: fac_latbc_presbiascor 
+
+    ! if LatBC data is unavailable: number of retries
+    INTEGER                         :: nretries
+
+    ! if LatBC data is unavailable: idle wait seconds between retries
+    INTEGER                         :: retry_wait_sec
 
     ! dictionary which maps internal variable names onto GRIB2
     ! shortnames or NetCDF var names used in lateral boundary nudging.
-    CHARACTER(LEN=filename_max) :: latbc_varnames_map_file  
+    CHARACTER(LEN=filename_max)     :: latbc_varnames_map_file  
 
-    !> if LatBC data is unavailable: number of retries
-    INTEGER                         :: nretries
+    !
+    ! settings derived from the namelist parameters above:
+    !
+    LOGICAL                         :: lsparse_latbc       ! Flag: TRUE if only boundary rows are read.
+    TYPE(timedelta), POINTER        :: dtime_latbc_mtime   ! dt between two consequtive external latbc files
 
-    !> if LatBC data is unavailable: idle wait seconds between retries
-    INTEGER                         :: retry_wait_sec
+
   END TYPE t_latbc_config
   !------------------------------------------------------------------------
 

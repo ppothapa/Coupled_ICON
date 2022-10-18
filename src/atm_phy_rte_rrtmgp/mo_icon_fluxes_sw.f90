@@ -1,13 +1,13 @@
 
-module mo_icon_fluxes_sw
+MODULE mo_icon_fluxes_sw
 
-  use mo_kind,          only: wp
-  use mo_optical_props, only: ty_optical_props
-  use mo_fluxes, only: ty_fluxes_broadband
-  implicit none
+  USE mo_kind,          ONLY: wp
+  USE mo_optical_props, ONLY: ty_optical_props
+  USE mo_fluxes,        ONLY: ty_fluxes_broadband
+  IMPLICIT NONE
 
-  type, extends(ty_fluxes_broadband), public :: ty_icon_fluxes_sw
-    real(wp), dimension(:), pointer :: &
+  TYPE, EXTENDS(ty_fluxes_broadband), PUBLIC :: ty_icon_fluxes_sw
+    REAL(wp), DIMENSION(:), POINTER :: &
       vis_dn_dir_sfc => NULL(), &
       par_dn_dir_sfc => NULL(), &
       nir_dn_dir_sfc => NULL(), &
@@ -22,17 +22,17 @@ module mo_icon_fluxes_sw
       frc_par(:), &
       frc_vis(:)
     
-  contains
-    procedure, public :: reduce      => reduce_icon
-    procedure, public :: are_desired => are_desired_icon
-    final             :: del
-  end type ty_icon_fluxes_sw
+  CONTAINS
+    PROCEDURE, PUBLIC :: reduce      => reduce_icon
+    PROCEDURE, PUBLIC :: are_desired => are_desired_icon
+    FINAL             :: del
+  END TYPE ty_icon_fluxes_sw
 
-  public :: set_fractions
+  PUBLIC :: set_fractions
 
-contains
+CONTAINS
 
-  subroutine set_fractions(this, optical_props, solar_constant, ssi_fraction)
+  SUBROUTINE set_fractions(this, optical_props, solar_constant, ssi_fraction)
     TYPE(ty_icon_fluxes_sw), INTENT(INOUT) :: this
     CLASS(ty_optical_props), INTENT(IN) :: optical_props
     REAL(wp), INTENT(IN) :: solar_constant, ssi_fraction(:)
@@ -64,7 +64,8 @@ contains
       ENDDO
 
       ! DA TODO: move to the GPU
-      !$ACC enter data copyin(this, this%frc_par, this%frc_vis, this%band_weight)
+      !$ACC ENTER DATA COPYIN(this)
+      !$ACC ENTER DATA COPYIN(this%frc_par, this%frc_vis, this%band_weight)
     ENDIF
 
     ! --- weight radiation within a band for the solar cycle ---
@@ -74,45 +75,46 @@ contains
     ! implicitly defined) solar flux in the 14 bands.
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC parallel loop default(none) present(this) copyin(ssi_fraction) gang vector
+    !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(this) FIRSTPRIVATE(nbndsw, solar_constant) &
+    !$ACC   COPYIN(ssi_fraction) GANG VECTOR
     DO i = 1, nbndsw
       this%band_weight(i) = solar_constant*ssi_fraction( MOD(i, nbndsw)+1 ) ! / ssi_default(:)
     END DO
   END SUBROUTINE set_fractions
 
-  function reduce_icon(this, gpt_flux_up, gpt_flux_dn, spectral_disc, top_at_1, gpt_flux_dn_dir) result(error_msg)
-    class(ty_icon_fluxes_sw),        intent(inout) :: this
-    real(kind=wp), dimension(:,:,:),   intent(in   ) :: gpt_flux_up ! Fluxes by gpoint [W/m2](ncol, nlay+1, ngpt)
-    real(kind=wp), dimension(:,:,:),   intent(in   ) :: gpt_flux_dn ! Fluxes by gpoint [W/m2](ncol, nlay+1, ngpt)
-    class(ty_optical_props),           intent(in   ) :: spectral_disc  !< derived type with spectral information
-    logical,                           intent(in   ) :: top_at_1
-    real(kind=wp), dimension(:,:,:), optional, &
-                                       intent(in   ) :: gpt_flux_dn_dir! Direct flux down
-    character(len=128)                               :: error_msg
+  FUNCTION reduce_icon(this, gpt_flux_up, gpt_flux_dn, spectral_disc, top_at_1, gpt_flux_dn_dir) result(error_msg)
+    CLASS(ty_icon_fluxes_sw),          INTENT(INOUT) :: this
+    REAL(kind=wp), DIMENSION(:,:,:),   INTENT(IN   ) :: gpt_flux_up ! Fluxes by gpoint [W/m2](ncol, nlay+1, ngpt)
+    REAL(kind=wp), DIMENSION(:,:,:),   INTENT(IN   ) :: gpt_flux_dn ! Fluxes by gpoint [W/m2](ncol, nlay+1, ngpt)
+    CLASS(ty_optical_props),           INTENT(IN   ) :: spectral_disc  !< derived type with spectral information
+    LOGICAL,                           INTENT(IN   ) :: top_at_1
+    REAL(kind=wp), DIMENSION(:,:,:), OPTIONAL, &
+                                       INTENT(IN   ) :: gpt_flux_dn_dir! Direct flux down
+    CHARACTER(len=128)                               :: error_msg
     ! ------
-    integer :: nlev, ncol, ngpt, nbndsw, isfc, band, gpt, limits(2), jl
-    integer :: band2gpt(2, spectral_disc%get_nband())
+    INTEGER :: nlev, ncol, ngpt, nbndsw, isfc, band, gpt, limits(2), jl
+    INTEGER :: band2gpt(2, spectral_disc%get_nband())
 
     error_msg = this%ty_fluxes_broadband%reduce(gpt_flux_up, gpt_flux_dn, &
       spectral_disc, top_at_1, gpt_flux_dn_dir)
-    if (TRIM(error_msg) /= '') return
+    IF (TRIM(error_msg) /= '') RETURN
 
-    ncol = size(gpt_flux_up,1)
-    nlev = size(gpt_flux_up,2)
-    ngpt = size(gpt_flux_up,3)
+    ncol = SIZE(gpt_flux_up,1)
+    nlev = SIZE(gpt_flux_up,2)
+    ngpt = SIZE(gpt_flux_up,3)
     nbndsw = spectral_disc%get_nband()
-    if (top_at_1) then
+    IF (top_at_1) THEN
       isfc = nlev
-    else
+    ELSE
       isfc = 1
-    endif
+    ENDIF
 
     !DA TODO: this has to run on GPU
     band2gpt(:,:) = spectral_disc%get_band_lims_gpoint()
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC parallel default(present) copyin(band2gpt) vector_length(64)
-    !$ACC loop gang vector private(limits)
+    !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(band2gpt) VECTOR_LENGTH(64)
+    !$ACC LOOP GANG VECTOR PRIVATE(limits)
     DO jl = 1, ncol
       this%vis_dn_dir_sfc(jl) = 0.0_wp
       this%par_dn_dir_sfc(jl) = 0.0_wp
@@ -124,10 +126,10 @@ contains
       this%par_up_sfc(jl) = 0.0_wp
       this%nir_up_sfc(jl) = 0.0_wp
 
-      !$ACC loop seq
+      !$ACC LOOP SEQ
       DO band = 1, nbndsw
         limits(:) = band2gpt(:, band)
-        !$ACC loop seq
+        !$ACC LOOP SEQ
         DO gpt = limits(1), limits(2)
           this%vis_dn_dir_sfc(jl) = this%vis_dn_dir_sfc(jl) + &
             this%frc_vis(band) * gpt_flux_dn_dir(jl,isfc,gpt)
@@ -155,20 +157,21 @@ contains
         ENDDO
       ENDDO
     ENDDO
-    !$ACC end parallel
+    !$ACC END PARALLEL
   
-  end function reduce_icon
+  END FUNCTION reduce_icon
 
-  function are_desired_icon(this)
-    class(ty_icon_fluxes_sw), intent(in) :: this
-    logical                              :: are_desired_icon
+  FUNCTION are_desired_icon(this)
+    CLASS(ty_icon_fluxes_sw), INTENT(IN) :: this
+    LOGICAL                              :: are_desired_icon
 
     are_desired_icon = this%ty_fluxes_broadband%are_desired()
-  end function are_desired_icon
+  END FUNCTION are_desired_icon
 
-  subroutine del(this)
-    type(ty_icon_fluxes_sw), intent(inout) :: this
-    !$ACC exit data delete(this%frc_par, this%frc_vis, this%band_weight, this)
-  end subroutine del
+  SUBROUTINE del(this)
+    TYPE(ty_icon_fluxes_sw), INTENT(INOUT) :: this
+    !$ACC EXIT DATA DELETE(this%frc_par, this%frc_vis, this%band_weight)
+    !$ACC EXIT DATA DELETE(this)
+  END SUBROUTINE del
   ! --------------------------------------------------------------------------------------
-end module mo_icon_fluxes_sw
+END MODULE mo_icon_fluxes_sw

@@ -354,6 +354,12 @@ AC_ARG_ENABLE([pgi-inlib],
      [enable_pgi_inlib=yes])],
   [enable_pgi_inlib=no])
 
+AC_ARG_ENABLE([nccl],
+  [AS_HELP_STRING([--enable-nccl],
+     [enable NCCL for communication @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_nccl=yes])],
+  [enable_nccl=no])
+
 m4_divert_once([HELP_ENABLE],
 [  --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
@@ -775,6 +781,9 @@ AS_VAR_IF([enable_mixed_precision], [yes],
 
 AS_VAR_IF([enable_intel_consistency], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}IFORT_CONSISTENCY_ENFORCE"])])
+
+AS_VAR_IF([enable_nccl], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}USE_NCCL"])])
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
 AC_LANG([C])
@@ -2310,6 +2319,10 @@ AS_VAR_IF([enable_silent_rules], [yes],
 AS_VAR_IF([enable_jsbach], [yes],
   [AC_SUBST([JSBACH_ENABLED], [''])],
   [AC_SUBST([JSBACH_ENABLED], ['#'])])
+
+AS_VAR_IF([enable_rte_rrtmgp], [yes],
+  [AC_SUBST([RTE_RRTMGP_ENABLED], [''])],
+  [AC_SUBST([RTE_RRTMGP_ENABLED], ['#'])])
 
 AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
   [AC_SUBST([DACE_ENABLED_OR_NEEDED], [''])],

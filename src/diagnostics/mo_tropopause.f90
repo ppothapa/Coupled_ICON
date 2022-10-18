@@ -123,12 +123,12 @@ CONTAINS
       iplimt = aes_wmo_config(jg)%jkswmo+2
     END IF
 
-    !$ACC DATA PRESENT( ptm1, papm1, ptropo ) &
-    !$ACC       CREATE( ztropo, zpmk, zpm, ztm, zdtdz, zplimb, zplimt, zpapm1 )
+    !$ACC DATA PRESENT(ptm1, papm1, ptropo) &
+    !$ACC   CREATE(ztropo, zpmk, zpm, ztm, zdtdz, zplimb, zplimt, zpapm1)
 
     ! Calculate the height of the tropopause
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       ztropo(jl) = -999.0_wp
@@ -139,7 +139,7 @@ CONTAINS
 
     ! compute dt/dz
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = iplimt-2, iplimb+1
       DO jl = jcs, kproma
@@ -148,8 +148,8 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(za, zb)
     DO jk = iplimt-1, iplimb+1
       DO jl = jcs, kproma
 
@@ -169,8 +169,8 @@ CONTAINS
     !$ACC END PARALLEL
 
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-    !$ACC LOOP GANG VECTOR PRIVATE( zag, zbg, zptph, zp2km, zasum, kcount, zamean )
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR PRIVATE(zag, zbg, zptph, zp2km, zasum, kcount, zamean, jk, jj)
     nproma_loop: DO jl = jcs, kproma
       !$ACC LOOP SEQ
       vertical_loop: DO jk = iplimb+1, iplimt-1, -1
@@ -217,7 +217,7 @@ CONTAINS
 
     ! if tropopause not found use previous value in time
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,kproma
       IF (ztropo(jl) > 0.0_wp) THEN

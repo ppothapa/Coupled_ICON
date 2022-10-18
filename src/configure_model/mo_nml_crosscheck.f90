@@ -27,7 +27,8 @@ MODULE mo_nml_crosscheck
     &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
     &                                    RAYLEIGH_CLASSIC,                                 &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
-    &                                    max_echotop, max_wshear, max_srh
+    &                                    max_echotop, max_wshear, max_srh,                 &
+    &                                    LSS_JSBACH, LSS_TERRA
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo                                             
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -51,12 +52,16 @@ MODULE mo_nml_crosscheck
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    lhdiff_rcf, rayleigh_type,                        &
-    &                                    ivctype, ndyn_substeps
+    &                                    ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
   USE mo_aes_phy_config,           ONLY: aes_phy_config
-  USE mo_radiation_config,         ONLY: irad_o3, irad_aero, irad_h2o, irad_co2, irad_ch4, &
+  USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
+    &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
+    &                                    iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc,   &
+    &                                    iRadAeroKinneVolcSP, iRadAeroKinneSP,             &
+    &                                    irad_o3, irad_h2o, irad_co2, irad_ch4,            &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, llw_cloud_scat, iliquid_scat,       &
     &                                    iice_scat, isolrad
@@ -79,6 +84,7 @@ MODULE mo_nml_crosscheck
   USE mo_interpol_config
   USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
+  USE mo_nwp_tuning_config,        ONLY: itune_gust_diag
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
@@ -227,7 +233,7 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface == 1 ) ) .AND.                       &
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
       &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
@@ -320,7 +326,7 @@ CONTAINS
           CALL finish( routine,'Real-data applications require using a surface scheme!')
         ENDIF
 
-        ! check radiation scheme in relation to chosen ozone and irad_aero=6 to itopo
+        ! check radiation scheme in relation to chosen ozone and irad_aero=iRadAeroTegen to itopo
 
         IF ( (atm_phy_nwp_config(jg)%inwp_radiation > 0) )  THEN
 
@@ -339,18 +345,24 @@ CONTAINS
           END SELECT
 
           ! Tegen aerosol and itopo (Tegen aerosol data have to be read from external data file)
-          IF ( ( irad_aero == 6 ) .AND. ( itopo /=1 ) ) THEN
-            CALL finish(routine,'irad_aero=6 requires itopo=1')
+          IF ( ( irad_aero == iRadAeroTegen ) .AND. ( itopo /=1 ) ) THEN
+            CALL finish(routine,'irad_aero=6 (Tegen) requires itopo=1')
           ENDIF
 
-          IF ( ( irad_aero /= 6 .AND. irad_aero /= 9 ) .AND.  &
+          IF ( ( irad_aero /= iRadAeroTegen .AND. irad_aero /= iRadAeroART ) .AND.  &
             &  ( atm_phy_nwp_config(jg)%icpl_aero_gscp > 0 .OR. icpl_aero_conv > 0 ) ) THEN
-            CALL finish(routine,'aerosol-precipitation coupling requires irad_aero=6 or =9')
+            CALL finish(routine,'aerosol-precipitation coupling requires irad_aero=6 (Tegen) or =9 (ART)')
           ENDIF
          
           ! Kinne, CMIP6 volcanic aerosol only work with ecRad
-          IF ( ANY( irad_aero == (/12,13,14,15,18,19/) ) .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
+          IF ( ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,            &
+            &                      iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) ) &
+            &  .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4 ) THEN
             CALL finish(routine,'irad_aero = 12, 13, 14, 15, 18 or 19 requires inwp_radiation=4')
+          ENDIF
+
+          IF ( irad_aero == 5 ) THEN
+            CALL finish(routine,'irad_aero=5 (Tanre climatology) has been removed')
           ENDIF
 
           ! Transient solar radiation only works with ecRad
@@ -376,8 +388,12 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc11 has to be 0, 2 or 4')
             IF (.NOT. ANY( irad_cfc12   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc12 has to be 0, 2 or 4')
-            IF (.NOT. ANY( irad_aero    == (/0,2,6,9,12,13,14,15,18,19/)   ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, irad_aero has to be 0, 2, 6, 9, 12, 13, 14, 15, 18 or 19')
+            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
+              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
+              &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
+              WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid fo inwp_radiation=4'
+              CALL finish(routine,message_text)
+            ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
             IF (.NOT. ANY( iliquid_scat == (/0,1/)         ) ) &
@@ -412,8 +428,8 @@ CONTAINS
           IF (atm_phy_nwp_config(jg)%is_les_phy) &
             & CALL finish(routine,'iprog_aero > 0 can not be combined with LES physics')
 #endif
-          IF (irad_aero /= 6) &
-            & CALL finish(routine,'iprog_aero > 0 currently only available for irad_aero=6')
+          IF (irad_aero /= iRadAeroTegen) &
+            & CALL finish(routine,'iprog_aero > 0 currently only available for irad_aero=6 (Tegen)')
         ENDIF
 
         !! check microphysics scheme
@@ -432,10 +448,19 @@ CONTAINS
           CALL finish(routine,'mu_snow requires: 0 < mu_snow < 5')
         END IF ! microphysics
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface == 0 .AND. ntiles_lnd > 1) THEN
-          ntiles_lnd = 1
-          CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
-        ENDIF
+        SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
+        CASE (0)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because the surface scheme is turned off')
+          ENDIF
+
+        CASE (LSS_JSBACH)
+          IF (ntiles_lnd > 1) THEN
+            ntiles_lnd = 1
+            CALL message(routine,'Warning: ntiles reset to 1 because JSBACH handles tiles internally')
+          ENDIF
+        END SELECT
 
       ENDDO
     END IF
@@ -743,6 +768,15 @@ CONTAINS
 
         END SELECT ! iforcing
 
+#ifdef _OPENACC
+        IF ( advection_config(jg)%llsq_svd == .FALSE. ) THEN
+          ! The .FALSE. version is not supported by OpenACC. However, both versions to the same. The .TRUE. version 
+          ! is faster during runtime on most platforms but involves a more expensive calculation of coefficients. 
+          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
+          advection_config(jg)%llsq_svd = .TRUE.
+        END IF
+#endif
+
       END DO ! jg = 1,n_dom
     END IF ! ltransport
 
@@ -975,6 +1009,11 @@ CONTAINS
 
     ENDIF
 
+    IF (itune_gust_diag == 3 .AND. ntiles_lnd == 1) THEN
+      WRITE (message_text,'(a)') "itune_gust_diag = 3 requires ntiles > 1"  
+      CALL finish(routine, message_text)
+    ENDIF
+
     ! check meteogram configuration
     IF (ANY(meteogram_output_config(:)%lenabled) .AND. .NOT. output_mode%l_nml) THEN
       CALL finish(routine, "Meteograms work only for run_nml::output='nml'!")
@@ -991,7 +1030,7 @@ CONTAINS
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
-      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ndyn_substeps, ltransport  )
+      &                 LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
       &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &
@@ -1023,6 +1062,9 @@ CONTAINS
     IF (ANY(aes_phy_config(:)%ljsb)) THEN
       CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set ljsb=.FALSE.")
     ENDIF
+
+    IF (ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
+        & CALL finish(routine, "This version was compiled without jsbach. Compile with __JSBACH__, or set inwp_surface to a different value.")
 #else
     DO jg=1,n_dom
       IF (.NOT.aes_phy_config(jg)%ljsb) THEN
@@ -1068,28 +1110,28 @@ CONTAINS
     ENDIF
 #endif
     
-    IF (.NOT. lart .AND. irad_aero == 9 ) THEN
-      CALL finish(routine,'irad_aero=9 needs lart = .TRUE.')
+    IF (.NOT. lart .AND. irad_aero == iRadAeroART ) THEN
+      CALL finish(routine,'irad_aero=9 (ART) needs lart = .TRUE.')
     END IF
 
-    IF ( ( irad_aero == 9 ) .AND. ( iprog_aero /= 0 ) ) THEN
-      CALL finish(routine,'irad_aero=9 requires iprog_aero=0')
+    IF ( ( irad_aero == iRadAeroART ) .AND. ( iprog_aero /= 0 ) ) THEN
+      CALL finish(routine,'irad_aero=9 (ART) requires iprog_aero=0')
     ENDIF
     
 #ifdef __ICON_ART
-    IF ( ( irad_aero == 9 ) .AND. ( itopo /=1 ) ) THEN
-      CALL finish(routine,'irad_aero=9 requires itopo=1')
+    IF ( ( irad_aero == iRadAeroART ) .AND. ( itopo /=1 ) ) THEN
+      CALL finish(routine,'irad_aero=9 (ART) requires itopo=1')
     ENDIF
     
     DO jg= 1,n_dom
-      IF(lredgrid_phys(jg) .AND. irad_aero == 9) THEN
-        CALL finish(routine,'irad_aero=9 does not work with a reduced radiation grid')
+      IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART) THEN
+        CALL finish(routine,'irad_aero=9 (ART) does not work with a reduced radiation grid')
       ENDIF
-      IF(art_config(jg)%iart_ari == 0 .AND. irad_aero == 9) THEN
-        CALL finish(routine,'irad_aero=9 needs iart_ari > 0')
+      IF(art_config(jg)%iart_ari == 0 .AND. irad_aero == iRadAeroART) THEN
+        CALL finish(routine,'irad_aero=9 (ART) needs iart_ari > 0')
       ENDIF
-      IF(art_config(jg)%iart_ari > 0  .AND. irad_aero /= 9) THEN
-        CALL finish(routine,'iart_ari > 0 requires irad_aero=9')
+      IF(art_config(jg)%iart_ari > 0  .AND. irad_aero /= iRadAeroART) THEN
+        CALL finish(routine,'iart_ari > 0 requires irad_aero=9 (ART)')
       ENDIF
     ENDDO
     

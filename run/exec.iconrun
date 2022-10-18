@@ -22,23 +22,7 @@ else
    HGRIDDIR=$grids_folder
 fi
 
-# experiment directory, with plenty of space, create if new
-EXPDIR=${basedir}/experiments/${EXPNAME}
-if [ ! -d ${EXPDIR} ] ;  then
-  mkdir -p ${EXPDIR}
-fi
-#
-ls -ld ${EXPDIR}
-if [ ! -d ${EXPDIR} ] ;  then
-    mkdir ${EXPDIR}
-#else
-#   rm -rf ${EXPDIR}
-#   mkdir  ${EXPDIR}
-fi
-ls -ld ${EXPDIR}
-check_error $? "${EXPDIR} does not exist?"
-
-cd ${EXPDIR}
+make_and_change_to_experiment_dir
 
 #-----------------------------------------------------------------------------
 final_status_file=${RUNSCRIPTDIR}/${job_name}.final_status
@@ -352,7 +336,9 @@ ldd ${MODEL}
 rm -f finish.status
 #
 date
+set -x
 ${START} ${MODEL} # > out.txt 2>&1
+set +x
 date
 #
 if [ -r finish.status ] ; then

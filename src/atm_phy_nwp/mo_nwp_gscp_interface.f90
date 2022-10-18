@@ -81,7 +81,8 @@ MODULE mo_nwp_gscp_interface
 
   USE mo_timer,                ONLY: timers_level, timer_start, timer_stop,    &
       &                              timer_phys_micro_specific,                &
-      &                              timer_phys_micro_satad                               
+      &                              timer_phys_micro_satad
+  USE mo_fortran_tools,       ONLY: assert_acc_device_only
 
   IMPLICIT NONE
 
@@ -104,7 +105,8 @@ CONTAINS
                             &   p_diag ,                      & !>inout
                             &   prm_diag,prm_nwp_tend,        & !>inout
                             &   ext_data,                     & !>in
-                            &   lcompute_tt_lheat             ) !>in 
+                            &   lcompute_tt_lheat,            & !>in
+                            &   lacc                          ) !>in
 
 
 
@@ -124,6 +126,7 @@ CONTAINS
 
     LOGICAL                , INTENT(in)   :: lcompute_tt_lheat !< TRUE: store temperature tendency
                                                                ! due to microphysics for latent heat nudging
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! Local array bounds:
 
@@ -144,7 +147,7 @@ CONTAINS
     LOGICAL  :: l_nest_other_micro
     LOGICAL  :: ldiag_ttend, ldiag_qtend
 
-
+    CALL assert_acc_device_only("nwp_microphysics", lacc)
 
     ! number of vertical levels
     nlev   = p_patch%nlev
@@ -176,8 +179,8 @@ CONTAINS
       l_nest_other_micro = .false. 
     END IF
 
-    !$acc data create(ddt_tend_t, ddt_tend_qv, ddt_tend_qc, ddt_tend_qi, ddt_tend_qr, ddt_tend_qs, &
-    !$acc             zncn, qnc, qnc_s)
+    !$ACC DATA CREATE(ddt_tend_t, ddt_tend_qv, ddt_tend_qc, ddt_tend_qi, ddt_tend_qr, ddt_tend_qs) &
+    !$ACC   CREATE(zncn, qnc, qnc_s)
 
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
     CASE(4,5,6,7)
@@ -262,12 +265,12 @@ CONTAINS
         ELSE IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 1) THEN
 
           IF (iprog_aero == 0) THEN
-            !$acc parallel default(present)
-            !$acc loop gang vector
+            !$ACC PARALLEL DEFAULT(PRESENT)
+            !$ACC LOOP GANG VECTOR
             DO jc=i_startidx,i_endidx
               qnc_s(jc) = prm_diag%cloud_num(jc,jb)
             END DO
-            !$acc end parallel
+            !$ACC END PARALLEL
           ELSE
 
             CALL ncn_from_tau_aerosol_speccnconst (nproma, nlev, i_startidx, i_endidx, nlev, nlev, &
@@ -290,26 +293,26 @@ CONTAINS
 
         ELSE
 
-          !$acc parallel default(present)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR
           DO jc=i_startidx,i_endidx
             qnc_s(jc) = cloud_num
           END DO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
         ENDIF
 
         ! tt_lheat to be in used LHN
         ! lateron the updated p_diag%temp is added again
         IF (lcompute_tt_lheat) THEN
-          !$acc parallel default(present)
-          !$acc loop gang vector collapse(2)
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk=1,nlev
             DO jc=i_startidx,i_endidx
               prm_diag%tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb) - p_diag%temp(jc,jk,jb)
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
 
         IF (timers_level > 10) CALL timer_start(timer_phys_micro_specific) 
@@ -629,18 +632,18 @@ CONTAINS
         IF (timers_level > 10) CALL timer_stop(timer_phys_micro_specific) 
 
         IF (ldiag_ttend) THEN
-          !$acc parallel default(present)
-          !$acc loop gang vector collapse(2)
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), nlev
             DO jc = i_startidx, i_endidx
               prm_nwp_tend%ddt_temp_gscp(jc,jk,jb) = ddt_tend_t(jc,jk)   ! tendency temperature
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
         IF (ldiag_qtend) THEN
-          !$acc parallel default(present)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR
           DO jk = kstart_moist(jg), nlev
             DO jc = i_startidx, i_endidx
               prm_nwp_tend%ddt_tracer_gscp(jc,jk,jb,iqv) = ddt_tend_qv(jc,jk)  ! tendency QV
@@ -650,7 +653,7 @@ CONTAINS
               prm_nwp_tend%ddt_tracer_gscp(jc,jk,jb,iqs) = ddt_tend_qs(jc,jk)  ! tendency QS
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
 
 
@@ -701,8 +704,8 @@ CONTAINS
           CASE(2)
 
 !DIR$ IVDEP
-           !$acc parallel default(present)
-           !$acc loop gang vector
+           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
 
              prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)           &
@@ -732,13 +735,13 @@ CONTAINS
                   &                   )
 
            ENDDO
-           !$acc end parallel
+           !$ACC END PARALLEL
 
           CASE DEFAULT
 
 !DIR$ IVDEP
-           !$acc parallel default(present)
-           !$acc loop gang vector
+           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
 
              prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)         & 
@@ -763,7 +766,7 @@ CONTAINS
                   &                   )
 
            ENDDO
-           !$acc end parallel
+           !$ACC END PARALLEL
 
           END SELECT
         ENDIF
@@ -822,14 +825,14 @@ CONTAINS
 
         ! Update tt_lheat to be used in LHN
         IF (lcompute_tt_lheat) THEN
-            !$acc parallel default(present)
-            !$acc loop gang vector collapse(2)
+            !$ACC PARALLEL DEFAULT(PRESENT)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk=1,nlev
               DO jc=i_startidx,i_endidx
                 prm_diag%tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb) + p_diag%temp(jc,jk,jb)
               ENDDO
             ENDDO
-            !$acc end parallel
+            !$ACC END PARALLEL
         ENDIF
 
       ENDDO
@@ -841,7 +844,7 @@ CONTAINS
        CALL nwp_diag_output_minmax_micro(p_patch, p_prog, p_diag, ptr_tracer)
     END IF
 
-    !$acc end data
+    !$ACC END DATA
      
   END SUBROUTINE nwp_microphysics
 

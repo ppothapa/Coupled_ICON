@@ -5,6 +5,9 @@
 # Note: This list must always be called as part of a full `create_list_<list>`,
 #       it does not initialize any machines and builders.
 
+# abort on error
+set -euo pipefail
+
 cd $(dirname "${BASH_SOURCE[0]}")
 
 # get the ICON root directory
@@ -21,11 +24,12 @@ add_tolerance_exp () {
     exp=$1
     builders=$2
 
-    # define seeds once
-    seeds=(1 2 3 4 5 6 7 8 9)
+    # define seeds once (must be in sync with add_refgen_routines)
+    seeds=(1 2 3 4 5 6 7 8 9 941)
+    seeds_string="$(IFS=, ; echo "${seeds[*]}")"
 
     # initialize probtest namelist (most of it is unused, but makes life easier)
-    $PROBTEST init --codebase-install $basedir --experiment-name ${exp} 
+    $PROBTEST init --codebase-install $basedir --experiment-name ${exp} --seeds ${seeds_string} 
 
     # create the runscripts for the ensemble (exp.<EXP>_seed_N)
     # needs to be overwritten from namelist because here we deal with the templates

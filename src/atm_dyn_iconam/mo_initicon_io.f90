@@ -1944,6 +1944,8 @@ MODULE mo_initicon_io
         END IF
     END DO
 
+    CALL fetch_dwdfg_jsb(requestList, inputInstructions)
+
   END SUBROUTINE fetch_dwdfg_sfc
 
 
@@ -2063,6 +2065,8 @@ MODULE mo_initicon_io
         END IF
 
     END DO
+
+    CALL process_input_dwdfg_jsb
   END SUBROUTINE process_input_dwdfg_sfc
 
 
@@ -2252,6 +2256,112 @@ MODULE mo_initicon_io
       END IF
     END DO ! loop over model domains
   END SUBROUTINE process_input_dwdana_sfc
+
+
+  SUBROUTINE fetch_dwdfg_jsb(requestList, inputInstructions)
+
+    USE mo_impl_constants, ONLY: REAL_T, LSS_JSBACH
+    USE mo_var_groups, ONLY: var_groups_dyn
+    USE mo_var_list_register, ONLY: t_vl_register_iter
+    USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+
+    CLASS(t_InputRequestList), POINTER, INTENT(INOUT) :: requestList
+    TYPE(t_readInstructionListPtr), INTENT(INOUT) :: inputInstructions(:)
+
+    CHARACTER(LEN = *), PARAMETER :: routine = modname//':fetch_dwdfg_jsb'
+
+    TYPE(t_fetchParams) :: params
+    TYPE(t_vl_register_iter) :: iter
+    INTEGER :: grp
+    INTEGER :: i
+    INTEGER :: jg
+
+    INTEGER :: nvars, nfound
+
+    LOGICAL :: found
+
+    IF (.NOT. ANY(atm_phy_nwp_config(:)%inwp_surface == LSS_JSBACH)) RETURN
+
+    grp = var_groups_dyn%group_id('jsb_init_vars')
+
+    ALLOCATE(params%inputInstructions(SIZE(inputInstructions, 1)))
+    params%inputInstructions = inputInstructions
+    params%requestList => requestList
+    params%routine = routine
+    params%isFg = .TRUE.
+
+    nvars = 0
+    nfound = 0
+
+    DO WHILE (iter%next())
+      jg = iter%cur%p%patch_id
+
+      IF (atm_phy_nwp_config(jg)%inwp_surface /= LSS_JSBACH) CYCLE
+
+      ASSOCIATE (vl => iter%cur%p%vl)
+        DO i = 1, iter%cur%p%nvars
+          IF (.NOT. vl(i)%p%info%in_group(grp)) CYCLE
+
+          found = .FALSE.
+          nvars = nvars + 1
+
+          IF (vl(i)%p%info%data_type /= REAL_T) THEN
+            WRITE(message_text,'(a,a,a,i2)') 'Variable "', TRIM(vl(i)%p%info%name), '" has unhandled type: ', vl(i)%p%info%data_type
+            CALL warning(routine, message_text)
+            CYCLE
+          END IF
+
+          SELECT CASE (vl(i)%p%info%ndims)
+          CASE (2)
+            CALL fetchSurface(params, TRIM(vl(i)%p%info%name), jg, vl(i)%p%r_ptr(:,:,1,1,1), found=found)
+          CASE (3)
+            CALL fetch3d(params, TRIM(vl(i)%p%info%name), jg, vl(i)%p%r_ptr(:,:,:,1,1), found=found)
+          CASE DEFAULT
+            WRITE(message_text,'(a,a,a,i2)') 'Variable "', TRIM(vl(i)%p%info%name), '" has unhandled number of dimensions: ', vl(i)%p%info%ndims
+            CALL warning(routine, message_text)
+          END SELECT
+
+          CALL params%inputInstructions(jg)%ptr%handleError(found, TRIM(vl(i)%p%info%name), params%routine, params%isFg)
+
+          IF (found) THEN
+            nfound = nfound + 1
+          END IF
+        END DO
+      END ASSOCIATE
+    END DO
+
+    WRITE(message_text,'(a,i4,a,i4,a)') 'Fetching JSBACH fields... Found ', nfound, ' of ', nvars, ' vars.'
+    CALL message(routine, message_text)
+
+  END SUBROUTINE fetch_dwdfg_jsb
+
+  SUBROUTINE process_input_dwdfg_jsb
+#ifndef __NO_JSBACH__
+    USE mo_impl_constants, ONLY: LSS_JSBACH
+    USE mo_jsb_model_init, ONLY: jsbach_init_after_restart
+    USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+
+    CHARACTER(LEN = *), PARAMETER :: routine = modname//':process_input_dwdfg_jsb'
+
+    INTEGER :: jg
+
+    IF (.NOT. ANY(atm_phy_nwp_config(:)%inwp_surface == LSS_JSBACH)) RETURN
+
+    CALL message(routine, 'Sanitizing JSBACH fields.')
+
+    DO jg = 1, n_dom
+      IF (atm_phy_nwp_config(jg)%inwp_surface /= LSS_JSBACH) CYCLE
+
+      ! From JSBACH's point of view, we are doing a restart because we replace its initial state
+      ! with the state read in from the FG file.
+      ! The main purpose of this routine here is processing some of the fields just read in. If the
+      ! FG file has less than double precision, rounding errors could lead to constraint violations
+      ! and model aborts. The routine checks the constraints and corrects the fields.
+      CALL jsbach_init_after_restart(jg)
+    END DO
+
+#endif
+  END SUBROUTINE process_input_dwdfg_jsb
 
 END MODULE mo_initicon_io
 

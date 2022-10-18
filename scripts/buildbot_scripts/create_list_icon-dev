@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# abort on error
+set -euo pipefail
+
 cd $(dirname "${BASH_SOURCE[0]}")
 
 addexp="./addexp"
@@ -34,10 +37,12 @@ $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante da
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname
 
 # no update test for qubicc on levante_nag's
-./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag" --list $listname
 ./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial" --list $listname
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
+
+# limitted area runs
+$addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybrid" --list $listname
 
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
@@ -47,19 +52,16 @@ $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" -
 # OES
 # add omip technical tests only with mpi parallelization
 $addexp "checksuite.ocean_internal/technical/exp.ocean_omip_ptest checksuite.ocean_internal/technical/exp.test_ocean_omip_technical" \
- --machines mistral --without-configureflags "--without-mpi --enable-mixed" --runflags "cpu_time=00:30:00 mpi_procs_pernode=5"  --list $listname
-# add omip binary-identical test on mistral
+	--machines levante --without-configureflags "--without-mpi --enable-mixed" \
+	--runflags "cpu_time=00:30:00 mpi_procs_pernode=5  openmp_threads=4"  --list $listname
+# add omip binary-identical test
 $addexp "checksuite.ocean_internal/omip/exp.test_ocean_omip_10days checksuite.ocean_internal/ShallowWater/exp.ocean_WilliamsonTestCase2_Hex" \
- --machines mistral --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=compute" --list $listname
-$addexp "checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days" --machines mistral --without-configureflags "--without-mpi --enable-mixed" \
- --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
- $addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
---machines mistral --without-configureflags "--without-mpi --with-openmp --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
+	--machines levante --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=compute" --list $listname
+$addexp "checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days" \
+	--machines levante --without-configureflags "--without-mpi --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
+$addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
+	--machines levante --without-configureflags "--without-mpi --with-openmp --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
 
-$addexp "checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days"  \
---machines levante --without-configureflags "--without-mpi --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
-$addexp "checksuite.ocean_internal/omip/exp.test_ocean_omip_10days"  \
- --machines levante --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=compute" --list $listname
 
 
 #-----------------------------------------------------------
@@ -108,12 +110,12 @@ $addexp exp.test_nwp_R02B04N06multi2 --machines mistral --without-configureflags
 #
 # builders at DWD
 for builder in DWD_nec DWD_nec_yac2; do
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON_02_R2B13_lam.run                       --builders ${builder} --list $listname
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON_07_R02B04N06M_restarttest.run          --builders ${builder} --list $listname
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON_08_R19B7-ID2_oper.run                  --builders ${builder} --list $listname
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON_11_R3B08_lam_initmode7_restarttest.run --builders ${builder} --list $listname
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest.run --builders ${builder} --list $listname
-  $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                        --builders ${builder} --list $listname
+  $addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                       --builders ${builder} --list $listname
+  $addexp checksuite.nwp/nwpexp.run_ICON_07_R02B04N06M_restarttest          --builders ${builder} --list $listname
+  $addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                  --builders ${builder} --list $listname
+  $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders ${builder} --list $listname
+  $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders ${builder} --list $listname
+  $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run            --builders ${builder} --list $listname
 done
 for builder in DWD_nec DWD_nec_yac2 DWD_nec_hybrid; do
   # remove non-dwd tests
@@ -122,13 +124,13 @@ for builder in DWD_nec DWD_nec_yac2 DWD_nec_hybrid; do
 #off#  ./rmexp checksuite.icon-dev/check.atm_2mom_bubble_rceTorus                     --builders ${builder} --list $listname
 done
 # only DWD_nec
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_09_R2B6N7_oper_EPS.run                      --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest.run --builders DWD_nec --list $listname
-## DWD_nec_hybrid
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_11_R3B08_lam_initmode7_restarttest.run      --builders DWD_nec_hybrid --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest.run      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest --builders DWD_nec --list $listname
+# DWD_nec_hybrid
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec_hybrid --list $listname
 # only DWD_nec_yac2
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_17_R2B4_AO_coupled.run                      --builders DWD_nec_yac2   --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2   --list $listname
 
 #-----------------------------------------------------------
 # Ruby0 coupled tests, only with mpi
@@ -182,6 +184,9 @@ $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.ru
 # add a test for the lrestart_cont parameter of add_var()
 $addexp checksuite.infrastructure/restart/exp.oce_lrestart_cont --builders MISTRAL_gcc            --list ${listname}
 $addexp checksuite.infrastructure/restart/exp.oce_lrestart_cont --builders MISTRAL_intel18_hybrid --list ${listname}
+
+# icon-clm tests
+$addexp checksuite.clm/exp.ICON_CLM.run --builders levante_intel_hybrid --list ${listname}
 
 # remove tests for NAG which are buggy or take too long
 for experiment in exp.esm_bb_ruby0 exp.test_nwp_R02B04N06multi exp.test_nwp_R02B04_R02B05_nest

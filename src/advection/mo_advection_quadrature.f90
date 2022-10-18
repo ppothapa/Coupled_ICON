@@ -72,11 +72,6 @@ MODULE mo_advection_quadrature
   PUBLIC :: prep_gauss_quadrature_c_list
 
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
-  
 CONTAINS
 
 
@@ -179,8 +174,8 @@ CONTAINS
     i_startblk = p_patch%edges%start_blk(i_rlstart,1)
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
-!$ACC DATA PCOPYIN( p_coords_dreg_v), PCOPYOUT( p_quad_vector_sum, p_dreg_area ), COPYIN( shape_func_l ) &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_coords_dreg_v,p_quad_vector_sum, p_dreg_area) PRESENT(shape_func_l) &
+    !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,i_startidx,i_endidx,z_gauss_pts_1,z_gauss_pts_2,wgt_t_detjac,z_x,z_y &
@@ -190,8 +185,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, z_gauss_pts_1, z_gauss_pts_2 ) COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, z_gauss_pts_1, z_gauss_pts_2) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
         DO je = i_startidx, i_endidx
@@ -226,14 +221,14 @@ CONTAINS
         ENDDO ! loop over edges
 
       ENDDO  ! loop over levels
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE prep_gauss_quadrature_l
 
@@ -324,16 +319,16 @@ CONTAINS
     i_startblk = p_patch%edges%start_blk(i_rlstart,1)
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
-!$ACC DATA PCOPYIN( p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev), PCOPY( p_dreg_area ),   &
-!$ACC      COPYIN( shape_func_l ), PCOPYOUT( p_quad_vector_sum ),     &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev,p_dreg_area) &
+    !$ACC   PRESENT(shape_func_l, p_quad_vector_sum) &
+    !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,ie,z_gauss_pts_1,z_gauss_pts_2,wgt_t_detjac,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE( je, jk, z_gauss_pts_1, z_gauss_pts_2 ) 
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(je, jk, z_gauss_pts_1, z_gauss_pts_2)
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
 
@@ -367,14 +362,14 @@ CONTAINS
         p_dreg_area(je,jk,jb) = p_dreg_area(je,jk,jb) + wgt_t_detjac
 
       ENDDO ! ie: loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE prep_gauss_quadrature_l_list
 
@@ -495,9 +490,9 @@ CONTAINS
     z_eta(3,1:4) = 1._wp - zeta(1:4)
     z_eta(4,1:4) = 1._wp + zeta(1:4)
 
-!$ACC DATA PCOPYIN( p_coords_dreg_v ), PCOPYOUT( p_quad_vector_sum, p_dreg_area ), &
-!$ACC      COPYIN( z_wgt, z_eta, shape_func ),                                     &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_coords_dreg_v, p_quad_vector_sum, p_dreg_area) &
+    !$ACC   COPYIN(z_wgt, z_eta) PRESENT(shape_func) &
+    !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,jg,i_startidx,i_endidx,z_gauss_pts,wgt_t_detjac, &
@@ -507,8 +502,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector ) COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
         DO je = i_startidx, i_endidx
@@ -565,14 +560,14 @@ CONTAINS
         ENDDO ! loop over edges
 
       ENDDO  ! loop over levels
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE prep_gauss_quadrature_q
 
@@ -680,17 +675,18 @@ CONTAINS
     z_eta(3,1:4) = 1._wp - zeta(1:4)
     z_eta(4,1:4) = 1._wp + zeta(1:4)
 
-!$ACC DATA PCOPYIN( p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev ), PCOPY( p_dreg_area ), &
-!$ACC      PCOPYOUT( p_quad_vector_sum ), COPYIN( z_wgt, z_eta, shape_func ), &
-!$ACC      CREATE( z_x, z_y, z_quad_vector, wgt_t_detjac, z_gauss_pts), &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev, p_dreg_area) &
+    !$ACC   PRESENT(p_quad_vector_sum) COPYIN(z_wgt, z_eta) &
+    !$ACC   CREATE(z_x, z_y, z_quad_vector, wgt_t_detjac, z_gauss_pts) &
+    !$ACC   PRESENT(shape_func) &
+    !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,ie,jg,z_gauss_pts,wgt_t_detjac, &
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -741,10 +737,10 @@ CONTAINS
         p_quad_vector_sum(ie,6,jb) = SUM(z_quad_vector(ie,:,6))
 
       ENDDO ! ie: loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -756,14 +752,14 @@ CONTAINS
         p_dreg_area(je,jk,jb) = p_dreg_area(je,jk,jb) + SUM(wgt_t_detjac(ie,1:4))
 
       ENDDO ! ie: loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE prep_gauss_quadrature_q_list
 
@@ -910,8 +906,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_eta, shape_func, z_wgt ) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector ) COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(z_eta, z_wgt) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
         DO je = i_startidx, i_endidx
@@ -1037,7 +1033,7 @@ CONTAINS
         ENDDO ! loop over edges
 
       ENDDO  ! loop over levels
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
@@ -1158,8 +1154,8 @@ CONTAINS
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-!$ACC PARALLEL DEFAULT(PRESENT) COPYIN( z_wgt, z_eta, shape_func ) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( z_gauss_pts, wgt_t_detjac, z_quad_vector, z_x, z_y )
+      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(z_wgt, z_eta) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(z_gauss_pts, wgt_t_detjac, z_quad_vector, z_x, z_y)
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
 
@@ -1223,7 +1219,7 @@ CONTAINS
         p_dreg_area(je,jk,jb) = p_dreg_area(je,jk,jb) + SUM(wgt_t_detjac(1:4))
 
       ENDDO ! ie: loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
 
@@ -1247,7 +1243,7 @@ CONTAINS
   !!
   !!
   FUNCTION jac(x, y, zeta, eta)  RESULT(det_jac)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
     IMPLICIT NONE
 
     REAL(wp), INTENT(IN) :: x(1:4), y(1:4)  !< coordinates of vertices in x-y-system

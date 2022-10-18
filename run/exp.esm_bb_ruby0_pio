@@ -237,6 +237,17 @@ oce_namelist=NAMELIST_${EXPNAME}_oce
 #--------------------------------------------------------------------------------------------------
 # I. coupling section
 #--------------------------------------------------------------------------------------------------
+((mpi_total_procs = no_of_nodes * mpi_procs_pernode))
+#mpi_oce_nodes=74   #  this is a suitable value for 120 nodes = 46 atm + 74 oce nodes
+((mpi_oce_procs = (no_of_nodes * mpi_procs_pernode)/2))
+
+
+if [ $mpi_total_procs -lt `expr $mpi_oce_procs + 1` ] ; then
+   echo "Too few mpi_total_procs for requested mpi_oce_procs."
+   echo "-> check mpi_total_procs and mpi_oce_procs. Exiting."
+   check_error 0
+   exit
+fi
 
 if [ $mpi_total_procs -lt 2 ] ; then
   check_error 0 "This setup requires at least 2 mpi processes. Exit"
@@ -244,12 +255,12 @@ fi
 
 # I.1 Split the number of total procs and assign to each component
 # ----------------------------------------------------------------
-oce_min_rank=`expr ${mpi_total_procs} - ${mpi_oce_procs}`
-oce_max_rank=`expr ${oce_min_rank} + ${mpi_oce_procs} - 1`
-oce_inc_rank=1
 atm_min_rank=0
-atm_max_rank=`expr ${oce_min_rank} - 1`
+((atm_max_rank = mpi_oce_procs - 1))
 atm_inc_rank=1
+oce_min_rank=${mpi_oce_procs}
+(( oce_max_rank = mpi_total_procs - 1))
+oce_inc_rank=1
 #
 # I.2 Fill model list
 # -------------------
@@ -1603,13 +1614,6 @@ fi
 add_link_file ${ocean_grid_folder}/${ocean_grid} $ocean_grid
 #
 #-----------------------------------------------------------------------------
-
-if [ $mpi_total_procs -lt `expr $mpi_oce_procs + 1` ] ; then
-   echo "Too few mpi_total_procs for requested mpi_oce_procs."
-   echo "-> check mpi_total_procs and mpi_oce_procs. Exiting."
-   check_error 0
-   exit
-fi
 
 #-----------------------------------------------------------------------------
 

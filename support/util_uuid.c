@@ -203,7 +203,6 @@ void multiply(const unsigned int* a_in,
   }
 }
 
-
 // Generate irreducible polynomial of degree k
 //
 // see [Chan&Lu], Section 2.2.2

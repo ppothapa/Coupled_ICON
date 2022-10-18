@@ -172,7 +172,7 @@ MODULE mo_aes_convect_tables
   REAL(wp) :: tlucubw(jptlucu1-1:jptlucu2+1)    ! table - inner dEs/dT*L/cp, water phase only
   REAL(wp) :: tlucuc(jptlucu1-1:jptlucu2+1)     ! table - L/cp, mixed phases
   REAL(wp) :: tlucucw(jptlucu1-1:jptlucu2+1)    ! table - L/cp, water phase only
-  !$acc declare create(tlucua)
+  !$ACC DECLARE CREATE(tlucua)
 
   ! fused tables for splines
   REAL(wp) :: tlucu(1:2,lucupmin-2:lucupmax+1)     ! fused table
@@ -315,8 +315,8 @@ CONTAINS
       tlucuw(2,it) = sdeltat*zdlinner*EXP(zlinner)*rd/rv
     END DO
 
-    !$ACC ENTER DATA COPYIN( tlucu, tlucuw )
-    !$acc update device( tlucua )
+    !$ACC ENTER DATA COPYIN(tlucu, tlucuw)
+    !$ACC UPDATE DEVICE(tlucua)
 
   END SUBROUTINE init_convect_tables
   !----------------------------------------------------------------------------
@@ -332,13 +332,13 @@ CONTAINS
     zalvdcp = alv/cpd
     zalsdcp = als/cpd
 
-    !$ACC DATA PRESENT( temp, ub )
+    !$ACC DATA PRESENT(temp, ub)
 
     IF (PRESENT(uc)) THEN
-      !$ACC DATA PRESENT( uc )
+      !$ACC DATA PRESENT(uc)
 !IBM* NOVECTOR
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( zavm1, zavm3, zavm4, zavm5, zldcp )
+      !$ACC LOOP GANG VECTOR PRIVATE(zavm1, zavm3, zavm4, zavm5, zldcp)
       DO jl = jcs, size
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
         zavm3 = FSEL(tmelt-temp(jl),cavi3,cavl3)
@@ -353,7 +353,7 @@ CONTAINS
     ELSE
 !IBM* NOVECTOR
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( zavm1, zavm3, zavm4, zavm5, zldcp )
+      !$ACC LOOP GANG VECTOR PRIVATE(zavm1, zavm3, zavm4, zavm5, zldcp)
       DO jl = jcs, size
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
         zavm3 = FSEL(tmelt-temp(jl),cavi3,cavl3)
@@ -382,14 +382,14 @@ CONTAINS
     zalvdcp = alv/cpd
     zalsdcp = als/cpd
 
-    !$ACC DATA PRESENT( list, temp, ub )
+    !$ACC DATA PRESENT(list, temp, ub)
 
     IF (PRESENT(uc)) THEN
-      !$ACC DATA PRESENT( uc )
+      !$ACC DATA PRESENT(uc)
 !IBM* NOVECTOR
 !IBM* ASSERT(NODEPS)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, zavm1, zavm3, zavm4, zavm5, zldcp )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, zavm1, zavm3, zavm4, zavm5, zldcp)
       DO nl = jcs, kidx
         jl = list(nl)
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
@@ -406,7 +406,7 @@ CONTAINS
 !IBM* NOVECTOR
 !IBM* ASSERT(NODEPS)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, zavm1, zavm3, zavm4, zavm5, zldcp )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, zavm1, zavm3, zavm4, zavm5, zldcp)
       DO nl = jcs, kidx
         jl = list(nl)
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
@@ -433,12 +433,12 @@ CONTAINS
     REAL(wp) :: a, b, c, d, dx, ddx, x, bxa
     INTEGER :: jl
 
-    !$ACC DATA PRESENT( idx, zalpha, table )
+    !$ACC DATA PRESENT(idx, zalpha, table)
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
-      !$ACC DATA PRESENT( ua )
+      !$ACC DATA PRESENT(ua)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
         x = zalpha(jl)
         ! derivative and second derivative approximations (2 flops)
@@ -456,9 +456,9 @@ CONTAINS
       !$ACC END PARALLEL
       !$ACC END DATA
     ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
-      !$ACC DATA PRESENT( ua, dua )
+      !$ACC DATA PRESENT(ua, dua)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
         x = zalpha(jl)
         ! derivate and second derivate approximations (2 flops)
@@ -507,9 +507,9 @@ CONTAINS
     INTEGER  :: jl, nl
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
-      !$ACC DATA PRESENT( store_idx, lookup_idx, zalpha, table, ua )
+      !$ACC DATA PRESENT(store_idx, lookup_idx, zalpha, table, ua)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, x, dx, ddx, a, b, c, d, bxa)
 !IBM* ASSERT(NODEPS)
       DO nl = kidx1, kidx2
         jl = store_idx(nl)
@@ -530,9 +530,9 @@ CONTAINS
       !$ACC END DATA
     ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
 
-      !$ACC DATA PRESENT( store_idx, lookup_idx, zalpha, table, ua, dua )
+      !$ACC DATA PRESENT(store_idx, lookup_idx, zalpha, table, ua, dua)
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, x, dx, ddx, a, b, c, d, bxa)
 !IBM* ASSERT(NODEPS)
       DO nl = kidx1, kidx2
         jl = store_idx(nl)
@@ -592,7 +592,7 @@ CONTAINS
 
     need_dua = PRESENT(dua)
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) NO_CREATE( dua ) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) NO_CREATE(dua) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO batch = 1,batch_size
       DO jl = jcs,jce
         CALL ua_spline(table, zalpha(jl,batch), idx(jl,batch), ua(jl,batch), mydua)
@@ -621,7 +621,7 @@ CONTAINS
 
     need_dua = PRESENT(dua)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) NO_CREATE( dua ) COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) NO_CREATE(dua) COLLAPSE(2) ASYNC(1)
     DO batch = 1, batch_size
       DO jl = jcs, jce
 
@@ -682,19 +682,19 @@ CONTAINS
       END IF
 
     ELSE
-      !$ACC DATA PRESENT( idx, iphase ) &
-      !$ACC       CREATE( tmpidx )
+      !$ACC DATA PRESENT(idx, iphase) &
+      !$ACC   CREATE(tmpidx)
       ! mixed case, must build store index
       iw = jcs    ! store indices with temp < tmelt at iw (iw = jcs:jcs+nphase-1)
       inw = size  ! store indices with temp >= tmelt at inw (inw = jcs+nphase : size)
-      !$ACC UPDATE HOST( iphase )
+      !$ACC UPDATE HOST(iphase)
       DO jl = jcs,size
         tmpidx(iw)  = jl  ! lower part of tmpidx() filled with cond = .true.
         tmpidx(inw) = jl  ! upper part of tmpidx() filled with cond = .false.
         iw = iw + iphase(jl)          ! iphase(jl)=1 if temp(jl) < tmelt, =0 if temp .ge. tmelt
         inw = inw - (1 - iphase(jl))
       END DO
-      !$ACC UPDATE DEVICE( tmpidx )
+      !$ACC UPDATE DEVICE(tmpidx)
       iw = iw - 1
 
       IF (PRESENT(dua)) THEN
@@ -838,8 +838,8 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     !
     REAL(wp) :: csecfrl, cthomi
     !
-    !$ACC DATA   PRESENT( temp, idx, zalpha ) &
-    !$ACC      NO_CREATE( xi, zphase, iphase )
+    !$ACC DATA PRESENT(temp, idx, zalpha) &
+    !$ACC   NO_CREATE(xi, zphase, iphase)
     !
     csecfrl = aes_cop_config(jg)%csecfrl
     cthomi  = aes_cop_config(jg)%cthomi
@@ -850,7 +850,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     IF (PRESENT(xi)) THEN
       znphase = 0.0_wp
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( ztshft, ztt, ztest ) REDUCTION( +:znphase ) PRIVATE( zinbounds )
+      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt, ztest) REDUCTION(+: znphase) PRIVATE(zinbounds)
       DO jl = jcs,size
         ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
         ztt = rsdeltat*temp(jl)
@@ -873,7 +873,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       nphase = INT(znphase)
     ELSE
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( ztshft, ztt ) PRIVATE( zinbounds )
+      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt) PRIVATE(zinbounds)
       DO jl = jcs, size
         ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
         ztt = rsdeltat*temp(jl)
@@ -889,7 +889,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! if one index was out of bounds -> print error and exit
     IF (zinbounds == 0.0_wp) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
-        !$ACC UPDATE HOST( temp )
+        !$ACC UPDATE HOST(temp)
         ! tied to patch(1), does not yet work for nested grids
         DO jl = 1, size
           ztt = rsdeltat*temp(jl)
@@ -944,7 +944,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     !
     REAL(wp) :: csecfrl, cthomi
     !
-    !$ACC DATA PRESENT( temp, idx, zalpha )
+    !$ACC DATA PRESENT(temp, idx, zalpha)
     !
     csecfrl = aes_cop_config(jg)%csecfrl
     cthomi  = aes_cop_config(jg)%cthomi
@@ -961,8 +961,8 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     END IF
 
     IF (PRESENT(xi)) THEN
-      !$ACC DATA PRESENT( xi, zphase, iphase, nphase ) &
-      !$ACC      CREATE ( znphase, zoutofbounds_vec )
+      !$ACC DATA PRESENT(xi, zphase, iphase, nphase) &
+      !$ACC   CREATE(znphase, zoutofbounds_vec)
 
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
       DO batch = 1,batch_size
@@ -977,7 +977,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 
           myznphase = 0.0_wp
           myzoutofbounds = 0
-          !$ACC LOOP VECTOR REDUCTION(+:myznphase,myzoutofbounds)
+          !$ACC LOOP VECTOR REDUCTION(+: myznphase, myzoutofbounds)
           DO jvec = 0,tile_size-1
             jl = jgang + jvec
             IF (jl > jce) CYCLE
@@ -1013,7 +1013,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       !$ACC END PARALLEL
 
       IF (sanitize_index) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION( +:zoutofbounds ) ASYNC(1)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(+: zoutofbounds) ASYNC(1)
         DO batch = 1,batch_size
           nphase = INT(znphase)
           zoutofbounds = zoutofbounds + zoutofbounds_vec(batch)
@@ -1032,7 +1032,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ELSE
 
       IF (sanitize_index) THEN
-        !$ACC PARALLEL LOOP DEFAULT(NONE) REDUCTION( +:zoutofbounds ) GANG VECTOR COLLAPSE(2) ASYNC(1)
+        !$ACC PARALLEL LOOP DEFAULT(NONE) REDUCTION(+: zoutofbounds) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO batch = 1,batch_size
           DO jl = jcs, jce
             ztshft = FSEL(tmelt-temp(jl,batch),1.0_wp,0.0_wp)
@@ -1059,7 +1059,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! if one index was out of bounds -> print error and exit
     IF (zoutofbounds > 0) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) ) THEN
-        !$ACC UPDATE HOST( temp )
+        !$ACC UPDATE HOST(temp)
         ! tied to patch(1), does not yet work for nested grids
         DO batch = 1,batch_size
           DO jl = jcs, jce
@@ -1157,9 +1157,9 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     REAL(wp) :: ztt, ztshft, zinbounds, ztmax, ztmin
     INTEGER :: nl, jl
 
-    !$ACC DATA   PRESENT( list, temp )  &
-    !$ACC      NO_CREATE( ua, dua )     &
-    !$ACC         CREATE( idx, zalpha )
+    !$ACC DATA PRESENT(list, temp) &
+    !$ACC   NO_CREATE(ua, dua) &
+    !$ACC   CREATE(idx, zalpha)
 
     zinbounds = 1.0_wp
     ztmin = flucupmin
@@ -1169,7 +1169,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 
 !IBM* ASSERT(NODEPS)
     !$ACC PARALLEL DEFAULT(NONE)
-    !$ACC LOOP GANG VECTOR PRIVATE( jl, ztshft, ztt ) PRIVATE( zinbounds )
+    !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) PRIVATE(zinbounds)
     DO nl = jcs, kidx
       jl = list(nl)
       ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
@@ -1186,7 +1186,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     IF (zinbounds == 0.0_wp) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
         ! tied to patch(1), does not yet work for nested grids
-        !$ACC UPDATE HOST( temp )
+        !$ACC UPDATE HOST(temp)
         DO jl = 1, size
           ztt = rsdeltat*temp(jl)
           IF ( ztt <= ztmin .OR. ztt >= ztmax ) THEN

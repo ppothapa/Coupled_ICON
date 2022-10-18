@@ -14,7 +14,7 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 mkdir -p vector
 cd vector
 
-${ICON_DIR}/config/dwd/rcl.VE.nfort-3.3.1_oper --enable-openmp --prefix=${PWD}/vector
+${ICON_DIR}/config/dwd/rcl.VE.nfort-3.3.1_oper --enable-openmp
 
 if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
@@ -27,7 +27,6 @@ fi
 
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
-make install
 
 cd ..
 
@@ -40,7 +39,7 @@ cp -v $OLDPWD/run/set-up.info run/
 mkdir -p host
 cd host
 
-${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_oper --prefix=${PWD}/host
+${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_oper
 
 if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
@@ -53,7 +52,6 @@ fi
 
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
-make install
 
 cd ..
 

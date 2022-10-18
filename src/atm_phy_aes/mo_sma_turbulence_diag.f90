@@ -280,20 +280,20 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(in)
-    !$ACC PRESENT(pghf,pxm1,ptvm1,pqm1,pwp1,ptm1,rho,papm1,paphm1) &
-    !$ACC PRESENT(pz0m,ptsfc,pfrc,ppsfc,pcsat,pcair) &
+    !$ACC   PRESENT(pghf, pxm1, ptvm1, pqm1, pwp1, ptm1, rho, papm1, paphm1) &
+    !$ACC   PRESENT(pz0m, ptsfc, pfrc, ppsfc, pcsat, pcair) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(pum1,pvm1,p_patch) &
+    !$ACC   PRESENT(pum1, pvm1, p_patch) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(ptottevn,pcftotte,pcfthv,pcfm,pcfh,pcfv,pzthvvar,pcptgz,pprfac,pmixlen,pthvsig) &
-    !$ACC PRESENT(pqsat_tile,pcpt_tile,pcfm_tile,pcfh_tile,pbn_tile,pbhn_tile,pbm_tile) &
-    !$ACC PRESENT(pbh_tile,pch_tile,pri_tile) &
-    !$ACC PRESENT(km_c,km_iv,km_ie,kh_ic,km_ic,vn) &
-    !$ACC PRESENT(u_vert,v_vert,w_vert,rho_ic,div_c,w_ie) &
+    !$ACC   PRESENT(ptottevn, pcftotte, pcfthv, pcfm, pcfh, pcfv, pzthvvar, pcptgz, pprfac, pmixlen, pthvsig) &
+    !$ACC   PRESENT(pqsat_tile, pcpt_tile, pcfm_tile, pcfh_tile, pbn_tile, pbhn_tile, pbm_tile) &
+    !$ACC   PRESENT(pbh_tile, pch_tile, pri_tile) &
+    !$ACC   PRESENT(km_c, km_iv, km_ie, kh_ic, km_ic, vn) &
+    !$ACC   PRESENT(u_vert, v_vert, w_vert, rho_ic, div_c, w_ie) &
     !---- Argument arrays - Module Variables
-    !$ACC PRESENT(p_nh_metrics,p_int) &
-    !$ACC CREATE(loidx,pfrc_test,ztheta,is) &
-    !$ACC CREATE(theta_v,bruvais)
+    !$ACC   PRESENT(p_nh_metrics, p_int) &
+    !$ACC   CREATE(loidx, pfrc_test, ztheta, is) &
+    !$ACC   CREATE(theta_v, bruvais)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
@@ -328,7 +328,7 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC WAIT
+   !$ACC WAIT
    CALL sync_patch_array(SYNC_C, p_patch, pum1)
    CALL sync_patch_array(SYNC_C, p_patch, pvm1)
 
@@ -366,7 +366,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$ACC WAIT
+   !$ACC WAIT
    CALL sync_patch_array(SYNC_E, p_patch, vn)
 
 !#########################################################################
@@ -629,7 +629,7 @@ CONTAINS
              ,mech_prod(nproma,nlevp1,p_patch%nblks_c)          &
             )
     !$ACC DATA &
-    !$ACC CREATE(vn_ie,vt_ie,shear,div_of_stress,mech_prod)
+    !$ACC   CREATE(vn_ie, vt_ie, shear, div_of_stress, mech_prod)
 
     IF(p_test_run)THEN
       !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
@@ -720,7 +720,7 @@ CONTAINS
     ieblk => p_patch%cells%edge_blk
 
     !$ACC DATA &
-    !$ACC PRESENT(ividx,ivblk,iecidx,iecblk,ieidx,ieblk)
+    !$ACC   PRESENT(ividx, ivblk, iecidx, iecblk, ieidx, ieblk)
 
 
     rl_start   = 4
@@ -737,7 +737,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-      !$ACC LOOP GANG VECTOR TILE(32,4)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1139,9 +1139,9 @@ CONTAINS
     iecblk => p_patch%edges%cell_blk
 
     !$ACC DATA &
-    !$ACC CREATE(inv_rhoe,tot_tend) &
-    !$ACC PRESENT(p_patch,km_c,u_vert,v_vert,vn,km_iv,div_c) &
-    !$ACC PRESENT(ividx,ivblk,iecidx,iecblk)
+    !$ACC   CREATE(inv_rhoe, tot_tend) &
+    !$ACC   PRESENT(p_patch, km_c, u_vert, v_vert, vn, km_iv, div_c) &
+    !$ACC   PRESENT(ividx, ivblk, iecidx, iecblk)
 
     !total tendency
     !$ACC KERNELS ASYNC(1)
@@ -1189,7 +1189,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-      !$ACC LOOP GANG VECTOR TILE(32,4)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1374,11 +1374,11 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(out)
-    !$ACC CREATE(inv_rho_ic,vt_e,hor_tend,tot_tend) &
-    !$ACC CREATE(a,b,c,rhs,var_new) &
-    !$ACC PRESENT(km_c,km_ic,km_iv,rho_ic,u_vert,v_vert,w_vert,w_ie) &
-    !$ACC PRESENT(p_int,div_c,pum1,pvm1,pwp1) &
-    !$ACC PRESENT(p_nh_metrics,p_patch,ividx,ivblk,iecidx,iecblk,ieblk,ieidx)
+    !$ACC   CREATE(inv_rho_ic, vt_e, hor_tend, tot_tend) &
+    !$ACC   CREATE(a, b, c, rhs, var_new) &
+    !$ACC   PRESENT(km_c, km_ic, km_iv, rho_ic, u_vert, v_vert, w_vert, w_ie) &
+    !$ACC   PRESENT(p_int, div_c, pum1, pvm1, pwp1) &
+    !$ACC   PRESENT(p_nh_metrics, p_patch, ividx, ivblk, iecidx, iecblk, ieblk, ieidx)
 
     !Some initializations
     !total tendency
@@ -1436,7 +1436,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-      !$ACC LOOP GANG VECTOR TILE(32,4)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -1758,9 +1758,9 @@ CONTAINS
 
     !$ACC DATA &
     !---- Argument arrays - intent(out)
-    !$ACC CREATE(nabla2_e,var) &
-    !$ACC PRESENT(p_patch,km_ie,rho,p_int,hori_tend) &
-    !$ACC PRESENT(iecidx,iecblk,ieidx,ieblk,var_temp)
+    !$ACC   CREATE(nabla2_e, var) &
+    !$ACC   PRESENT(p_patch, km_ie, rho, p_int, hori_tend) &
+    !$ACC   PRESENT(iecidx, iecblk, ieidx, ieblk, var_temp)
 
     !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
     hori_tend = 0._wp

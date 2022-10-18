@@ -41,6 +41,12 @@ MODULE mo_real_timer
                                 omp_in_parallel, omp_get_num_threads
 #endif
 
+#ifdef _USE_NVTX
+!$claw ignore
+  USE nvtx
+!$claw end ignore
+#endif
+
 #ifndef NOMPI
   USE mo_mpi,             ONLY: p_recv, p_send, p_barrier, p_real_dp, &
                                 p_pe, get_my_mpi_all_comm_size, p_io, &
@@ -343,6 +349,9 @@ CONTAINS
          CALL real_timer_abort(it,'timer_start: timer_stop call missing')
     rt(it)%stat = rt_on_stat
 
+#ifdef _USE_NVTX
+    call nvtxStartRange(srt(it)%text)
+#endif
 
     ! call-hierarchy bookkeeping: set <active_under>
     ! The actual superordinate timer is always active_timers(active_timers_top).
@@ -471,6 +480,9 @@ CONTAINS
     REAL(dp) :: dt
 
   !------------------------------------------------------------------------------------------------
+#ifdef _USE_NVTX
+    call nvtxEndRange()
+#endif
     ! do the time measurement first to minimize section c overhead
     CALL util_read_real_time(mark2)
     CALL util_diff_real_time(rt(it)%mark1,mark2,dt)

@@ -82,6 +82,7 @@ MODULE mo_nwp_diagnosis
   USE mo_nwp_tuning_config,  ONLY: lcalib_clcov, max_calibfac_clcl
   USE mo_upatmo_impl_const,  ONLY: idamtr
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
+  USE mo_fortran_tools,      ONLY: assert_acc_host_only, set_acc_host_or_device, assert_acc_device_only
 
   IMPLICIT NONE
 
@@ -166,11 +167,7 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     jg        = pt_patch%id
 
@@ -257,8 +254,8 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
           ! set to instantaneous values
@@ -266,7 +263,7 @@ CONTAINS
           prm_diag%tmax_2m(jc,jb) = prm_diag%t_2m(jc,jb)
           prm_diag%tmin_2m(jc,jb) = prm_diag%t_2m(jc,jb)
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
       ENDDO  ! jb
 !$OMP END DO
@@ -280,8 +277,8 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
           ! maximum 10m gust, including convective contribution
@@ -306,11 +303,11 @@ CONTAINS
             &                               * r_sim_time
 
         ENDDO  ! jc
-        !$acc end parallel
+        !$ACC END PARALLEL
 
         IF (lcall_phy_jg(itsfc)) THEN
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector collapse(2)
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jt=1,ntiles_total
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
@@ -318,18 +315,18 @@ CONTAINS
               lnd_diag%runoff_g_t(jc,jb,jt) = lnd_diag%runoff_g_t(jc,jb,jt) + lnd_diag%runoff_g_inst_t(jc,jb,jt)
             END DO
           END DO
-          !$acc end parallel
+          !$ACC END PARALLEL
           ! special treatment for variable resid_wso
           IF (var_in_output(jg)%res_soilwatb) THEN
-            !$acc parallel default(present) if(lzacc)
-            !$acc loop gang vector collapse(2)
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jt=1,ntiles_total
 !DIR$ IVDEP
               DO jc = i_startidx, i_endidx
                 lnd_diag%resid_wso_t(jc,jb,jt) = lnd_diag%resid_wso_t(jc,jb,jt) + lnd_diag%resid_wso_inst_t(jc,jb,jt)  
               ENDDO
             ENDDO
-            !$acc end parallel
+            !$ACC END PARALLEL
           ENDIF
         END IF
 
@@ -340,13 +337,13 @@ CONTAINS
         ! but the instantaneous max/min over all tiles. In case of no tiles both are equivalent.
         IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%tmax_2m(jc,jb) = MAX(prm_diag%t_tilemax_inst_2m(jc,jb), prm_diag%tmax_2m(jc,jb) )
             prm_diag%tmin_2m(jc,jb) = MIN(prm_diag%t_tilemin_inst_2m(jc,jb), prm_diag%tmin_2m(jc,jb) )
           END DO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
 
 
@@ -354,8 +351,8 @@ CONTAINS
 
           IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lzacc)
-            !$acc loop gang vector
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
               ! the sign, in the output all fluxes must be positive downwards
@@ -391,10 +388,10 @@ CONTAINS
                 &                                t_wgt )
 
             ENDDO  ! jc
-            !$acc end parallel
+            !$ACC END PARALLEL
 
-            !$acc parallel default(present) if(lzacc)
-            !$acc loop gang vector collapse(2)
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
               DO jc = i_startidx, i_endidx
@@ -403,12 +400,12 @@ CONTAINS
                 &                                    t_wgt)
               ENDDO  ! jc
             ENDDO  ! jk
-            !$acc end parallel
+            !$ACC END PARALLEL
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
-              !$acc parallel default(present) if(lzacc)
-              !$acc loop gang vector
+              !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+              !$ACC LOOP GANG VECTOR
               DO jc = i_startidx, i_endidx
                 ! time averaged surface u-momentum flux SSO
                 prm_diag%astr_u_sso(jc,jb) = time_avg(prm_diag%astr_u_sso(jc,jb), &
@@ -430,7 +427,7 @@ CONTAINS
                   &                                prm_diag%drag_v_grid (jc,jb), &
                   &                                t_wgt )
               ENDDO  ! jc
-              !$acc end parallel
+              !$ACC END PARALLEL
 
             ENDIF  ! lcalc_extra_avg
 
@@ -443,8 +440,8 @@ CONTAINS
             !e.g. dt_phy_jg(itradheat) may then be greater than p_sim_time
             !leading to wrong averaging.
 !DIR$ IVDEP
-            !$acc parallel default(present) if(lzacc)
-            !$acc loop gang vector
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
 
               ! time averaged shortwave net flux at surface
@@ -516,7 +513,7 @@ CONTAINS
                 &                                       prm_diag%swflx_par_sfc(jc,jb),  &
                 &                                       t_wgt)
             ENDDO
-            !$acc end parallel
+            !$ACC END PARALLEL
 
           ENDIF  ! lcall_phy_jg(itradheat)
 
@@ -739,7 +736,7 @@ CONTAINS
     REAL(wp):: clearsky(nproma)
     REAL(wp):: ccmax, ccran, alpha(nproma,pt_patch%nlev), clcl_mod, clcm_mod, clct_fac
     LOGICAL :: lland
-    LOGICAL :: lzacc
+    LOGICAL :: lzacc ! non-optional version of lacc
 
     REAL(wp), PARAMETER :: eps_clc = 1.e-7_wp
 
@@ -749,11 +746,7 @@ CONTAINS
 
   !-----------------------------------------------------------------
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     jg        = pt_patch%id
 
@@ -768,12 +761,12 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
     ! set height-dependent decorrelation length scale
-    !$acc data create (zdecorr, rhodz) if(lzacc)
-    !$acc kernels if(lzacc)
+    !$ACC DATA CREATE(zdecorr, rhodz) IF(lzacc)
+    !$ACC KERNELS IF(lzacc)
     zdecorr(:) = 2000._wp
-    !$acc end kernels
-    !$acc parallel default(present) if(lzacc)
-    !$acc loop private(jk1,z_help)
+    !$ACC END KERNELS
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC LOOP PRIVATE(jk1, z_help)
     DO jk = nlev, 1, -1
       jk1 = jk + pt_patch%nshift_total
       z_help = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
@@ -783,7 +776,7 @@ CONTAINS
         EXIT
       ENDIF
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
 !$OMP PARALLEL
     IF ( atm_phy_nwp_config(jg)%lenabled(itccov) ) THEN
@@ -798,15 +791,15 @@ CONTAINS
         ! if cloud cover is called, vertical integration of cloud content
         ! (for iqv, iqc, iqi)
 
-        !$acc kernels if(lzacc)
+        !$ACC KERNELS IF(lzacc)
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
-        !$acc end kernels
+        !$ACC END KERNELS
 
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop seq
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = kstart_moist, nlev
 !DIR$ IVDEP
-          !$acc loop gang vector private(z_help)
+          !$ACC LOOP GANG VECTOR PRIVATE(z_help)
           DO jc = i_startidx, i_endidx
 
            ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
@@ -822,7 +815,7 @@ CONTAINS
                                              z_help * prm_diag%tot_cld(jc,jk,jb,iqi)
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
 
         ! cloud cover calculation
@@ -832,108 +825,108 @@ CONTAINS
  
         CASE ( 1 )      ! maximum-random overlap
 
-          !$acc data create(clearsky)
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC DATA CREATE(clearsky)
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             clearsky(jc) = 1._wp - prm_diag%clc(jc,kstart_moist,jb)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop seq
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP SEQ
           DO jk = kstart_moist+1, ih_clch
-            !$acc loop gang vector
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               clearsky(jc) = clearsky(jc)*    &
               &  ( 1._wp - MAX( prm_diag%clc(jc,jk  ,jb), prm_diag%clc(jc,jk-1,jb))) &
               & /( 1._wp - MIN( prm_diag%clc(jc,jk-1,jb), 1._wp - eps_clc) )
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! store high-level clouds
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clch(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! continue downward for total cloud cover
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop seq
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP SEQ
           DO jk = ih_clch+1, nlev
-            !$acc loop gang vector
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               clearsky(jc) = clearsky(jc)*    &
               &  ( 1._wp - MAX( prm_diag%clc(jc,jk,jb), prm_diag%clc(jc,jk-1,jb))) &
               & /( 1._wp - MIN( prm_diag%clc(jc,jk-1,jb), 1._wp - eps_clc) )
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! store total cloud cover, start for mid-level clouds
 !DIR$ IVDEP
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clct(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
             clearsky(jc) = 1._wp - prm_diag%clc(jc,ih_clch+1,jb)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! mid-level clouds
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop seq
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP SEQ
           DO jk = ih_clch+2, ih_clcm
-            !$acc loop gang vector
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               clearsky(jc) = clearsky(jc)*    &
               &  ( 1._wp - MAX( prm_diag%clc(jc,jk,jb), prm_diag%clc(jc,jk-1,jb))) &
               & /( 1._wp - MIN( prm_diag%clc(jc,jk-1,jb), 1._wp - eps_clc) )
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! store mid-level cloud cover, start for low-level clouds
 !DIR$ IVDEP
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcm(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
           
             clearsky(jc) = 1._wp - prm_diag%clc(jc,ih_clcm+1,jb)
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! continue downward for mid-level clouds
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop seq
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP SEQ
           DO jk = ih_clcm+2, nlev
-            !$acc loop gang vector
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               clearsky(jc) = clearsky(jc)*    &
               &  ( 1._wp - MAX( prm_diag%clc(jc,jk,jb), prm_diag%clc(jc,jk-1,jb))) &
               & /( 1._wp - MIN( prm_diag%clc(jc,jk-1,jb), 1._wp - eps_clc) )
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
           
           ! store low-level clouds
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcl(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
           ENDDO
-          !$acc end parallel
-          !$acc end data
+          !$ACC END PARALLEL
+          !$ACC END DATA
 
         CASE ( 2 )      ! generalized overlap (Hogan, Illingworth, 2000)
 
-          !$acc data create(alpha)
-          !$acc parallel default(present) if(lzacc)
-          !$acc loop gang vector
+          !$ACC DATA CREATE(alpha)
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clct(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
             prm_diag%clch(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
@@ -942,10 +935,10 @@ CONTAINS
           ENDDO
 
 !PREVENT_INCONSISTENT_IFORT_FMA
-          !$acc loop seq
+          !$ACC LOOP SEQ
           DO jk = kstart_moist+1, nlev
 !DIR$ IVDEP
-            !$acc loop gang vector private(ccmax,ccran)
+            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx   ! total cloud cover
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
@@ -955,7 +948,7 @@ CONTAINS
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO
 
-            !$acc loop gang vector private(ccmax,ccran)
+            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx
               IF (jk <= prm_diag%k400(jc,jb)-1) THEN    ! high cloud cover
                 ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clch(jc,jb) )
@@ -978,12 +971,12 @@ CONTAINS
             ENDDO
 
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
 
           ! calibration of layer-wise cloud cover fields
           IF (lcalib_clcov) THEN
-            !$acc parallel default(present) if(lzacc)
-            !$acc loop gang vector private(lland,clcl_mod,clcm_mod,clct_fac)
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR PRIVATE(lland, clcl_mod, clcm_mod, clct_fac)
             DO jc = i_startidx, i_endidx
               lland = ext_data%atm%fr_land(jc,jb)+ext_data%atm%fr_lake(jc,jb) > 0._wp
               clcl_mod = MIN(MERGE(max_calibfac_clcl,1.5_wp,lland)*prm_diag%clcl(jc,jb), &
@@ -997,9 +990,9 @@ CONTAINS
               prm_diag%clcm(jc,jb) = clcm_mod
               prm_diag%clcl(jc,jb) = clcl_mod
             ENDDO
-            !$acc end parallel
+            !$ACC END PARALLEL
           ENDIF
-          !$acc end data
+          !$ACC END DATA
 
         END SELECT
 
@@ -1022,27 +1015,27 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
-      !$acc parallel default(present) if(lzacc)
-      !$acc loop collapse(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
           rhodz(jc,jk) = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 
             &          * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)  
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
       DO jt = 1, iqm_max
-        !$acc kernels default(present) if(lzacc)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
         pt_diag%tracer_vi(i_startidx:i_endidx,jb,jt) = 0.0_wp
-        !$acc end kernels
+        !$ACC END KERNELS
 
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop seq
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = advection_config(jg)%iadv_slev(jt), nlev
 
 !DIR$ IVDEP
-          !$acc loop gang vector
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx 
 
             pt_diag%tracer_vi(jc,jb,jt) = pt_diag%tracer_vi(jc,jb,jt)   &
@@ -1050,14 +1043,14 @@ CONTAINS
 
           ENDDO  ! jc
         ENDDO  ! jk
-        !$acc end parallel
+        !$ACC END PARALLEL
       ENDDO  ! jt
 
     ENDDO ! nblks   
 !$OMP END DO
 !$OMP END PARALLEL  
     
-    !$acc end data
+    !$ACC END DATA
 
   END SUBROUTINE calc_moist_integrals
 
@@ -1122,7 +1115,7 @@ CONTAINS
     TYPE(t_external_data),INTENT(IN)  :: ext_data       !< external data
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag
 
-    LOGICAL,             INTENT(IN)   :: lacc
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc ! If true, use openacc
 
     ! Local
     INTEGER :: jc,jk,jb,jg             !< loop index
@@ -1142,13 +1135,16 @@ CONTAINS
     REAL(wp), PARAMETER :: zundef = -999._wp   ! undefined value for 0 deg C level
 
     TYPE(timeDelta), POINTER :: time_diff
+    LOGICAL :: lzacc ! non-optional version of lacc
 
   !-----------------------------------------------------------------
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-    !$ACC DATA CREATE(ztp, zqp, mlab) PRESENT(p_metrics, pt_prog_rcf, pt_diag, &
-    !$ACC   lnd_diag, p_prog_wtr_now, ext_data, prm_diag) IF(lacc)
+    !$ACC DATA CREATE(ztp, zqp, mlab) PRESENT(p_metrics, pt_prog_rcf, pt_diag) &
+    !$ACC   PRESENT(lnd_diag, p_prog_wtr_now, ext_data, prm_diag) IF(lzacc)
 
     i_nchdom  = MAX(1,pt_patch%n_childdom)
     jg        = pt_patch%id
@@ -1174,7 +1170,7 @@ CONTAINS
                             & ext_data, kstart_moist,     & !in
                             & ih_clch, ih_clcm,           & !in
                             & pt_diag, prm_diag,          & !inout
-                            & lacc                        ) !in
+                            & lacc=lzacc                  ) !in
 
 
     ! time difference since last call of ww_diagnostics
@@ -1193,7 +1189,7 @@ CONTAINS
       !
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
       CASE(4,5,6,7)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                &                        + prm_diag%ice_gsp_rate(jc,jb)   &
@@ -1204,7 +1200,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
       CASE(2)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                ! not sure what to do with ice. To be consistent to prm_diag%prec_gsp, where ice is neglected
@@ -1216,7 +1212,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
       CASE (1)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                ! not sure what to do with ice. To be consistent to prm_diag%prec_gsp, where ice is neglected
@@ -1227,14 +1223,14 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
       CASE (9)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
         !$ACC END PARALLEL
       CASE default
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = 0.0_wp
           prm_diag%tot_prec_rate(jc,jb) = 0.0_wp
@@ -1245,7 +1241,7 @@ CONTAINS
       ! Add convective contributions to the total precipitation rate:
       !
       IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%tot_prec_rate(jc,jb) + prm_diag%rain_con_rate(jc,jb) + &
                &                          prm_diag%snow_con_rate(jc,jb)
@@ -1258,8 +1254,8 @@ CONTAINS
         !
         ! height of convection base and top, hbas_con, htop_con
         ! 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF ( prm_diag%locum(jc,jb) ) THEN
             prm_diag%hbas_con(jc,jb) = p_metrics%z_ifc( jc, prm_diag%mbas_con(jc,jb), jb)
@@ -1279,7 +1275,7 @@ CONTAINS
         !
         ! height of the top of dry convection
         !
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
           prm_diag%htop_dc(jc,jb) = zundef
           mlab(jc) = 1
@@ -1289,7 +1285,7 @@ CONTAINS
 
         !$ACC LOOP SEQ
         DO jk = nlev-1, mtop_min, -1
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zbuoy, zqsat, zcond)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbuoy, zqsat, zcond)
           DO jc = i_startidx, i_endidx 
             IF ( mlab(jc) == 1) THEN
               ztp(jc) = ztp(jc)  - grav_o_cpd*( p_metrics%z_mc(jc,jk,jb)    &
@@ -1307,7 +1303,7 @@ CONTAINS
           ENDDO
         ENDDO
 
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
           IF ( prm_diag%htop_dc(jc,jb) > zundef) THEN
             prm_diag%htop_dc(jc,jb) = MIN( prm_diag%htop_dc(jc,jb),        &
@@ -1329,15 +1325,15 @@ CONTAINS
       ! occurrences, use orography height if temperature is below freezing in all levels
       !
       ! Initialization with orography height
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx 
         prm_diag%hzerocl(jc,jb) = p_metrics%z_ifc(jc,nlevp1,jb)
       ENDDO
 
       !$ACC LOOP SEQ
       DO jk = kstart_moist+1, nlev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
           IF ( prm_diag%hzerocl(jc,jb) <= p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! freezing level found
             IF (pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt) THEN
@@ -1365,7 +1361,7 @@ CONTAINS
         &               istart  = i_startidx                    , & !in
         &               iend    = i_endidx                      , & !in
         &               wbl     = 1.3_wp                        , & !in
-        &               use_acc = lacc)                             !in
+        &               lacc = lzacc)                               !in
 
 
       ! Fill t_ice with t_so(1) for ice-free points (h_ice<=0)
@@ -1379,7 +1375,7 @@ CONTAINS
       ! the temperatures of sea-ice tiles and frozen lake tiles. Mixing this field 
       ! with aggeregated t_so values makes no sense from my point of view.
       IF ( (ntiles_total == 1) .AND. (atm_phy_nwp_config(jg)%inwp_surface > 0)) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx 
           p_prog_wtr_now%t_ice(jc,jb) = MERGE(                               &
             &                           lnd_diag%t_so(jc,1,jb),              &
@@ -1393,7 +1389,7 @@ CONTAINS
 
       ! Compute resolved surface drag: ps * del(orog)
  
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
       DO jc = i_startidx, i_endidx
          prm_diag%drag_u_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(1,jc,jb)
          prm_diag%drag_v_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(2,jc,jb)
@@ -1417,9 +1413,9 @@ CONTAINS
             &                prm_diag%snow_gsp0(:,jb), prm_diag%snow_gsp(:,jb),          &
             &                prm_diag%snow_con0(:,jb), prm_diag%snow_con(:,jb),          &
             &                prm_diag%mbas_con (:,jb), prm_diag%mtop_con(:,jb),          &
-            &                time_diff, prm_diag%iww(:,jb), use_acc=lacc )
+            &                time_diff, prm_diag%iww(:,jb), lacc=lzacc )
 !       Save precipitation and time until next call of ww_diagnostics
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           prm_diag%rain_gsp0(jc,jb) = prm_diag%rain_gsp(jc,jb)
           prm_diag%rain_con0(jc,jb) = prm_diag%rain_con(jc,jb)
@@ -1444,7 +1440,7 @@ CONTAINS
         &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
         &                cape_ml = prm_diag%cape_ml(:,jb)        , & !out
         &                cin_ml  = prm_diag%cin_ml(:,jb)         , & !out
-        &                use_acc = lacc                            ) !in
+        &                lacc = lzacc                              ) !in
 
       IF (var_in_output(jg)%cape_mu .OR. var_in_output(jg)%cin_mu ) THEN
         !$ACC WAIT
@@ -1457,7 +1453,7 @@ CONTAINS
              &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
              &                cape_mu = prm_diag%cape_mu(:,jb)        , & !out
              &                cin_mu  = prm_diag%cin_mu(:,jb)         , & !out
-             &                use_acc = lacc                            ) !in
+             &                lacc = lzacc                              ) !in
       END IF
       
     ENDDO  ! jb
@@ -1468,7 +1464,7 @@ CONTAINS
 
     ! compute modified cloud parameters for TV presentation
     !$ACC WAIT
-    CALL calcmod( pt_patch, pt_diag, prm_diag, use_acc=lacc )
+    CALL calcmod( pt_patch, pt_diag, prm_diag, lacc=lzacc )
 
     !$ACC WAIT
     !$ACC END DATA
@@ -1498,12 +1494,12 @@ CONTAINS
   !! - Adapted to and implemented into ICON
   !!
   !!
-  SUBROUTINE calcmod( pt_patch, pt_diag, prm_diag, use_acc )    
+  SUBROUTINE calcmod( pt_patch, pt_diag, prm_diag, lacc )
               
     TYPE(t_patch)       ,INTENT(IN)   :: pt_patch  !<grid/patch info.
     TYPE(t_nh_diag)     ,INTENT(IN)   :: pt_diag
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag
-    LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+    LOGICAL, OPTIONAL,   INTENT(IN)   :: lacc ! If true, use openacc
 
     ! Local
     INTEGER :: jc,jk,jb                !< loop index
@@ -1523,14 +1519,10 @@ CONTAINS
     REAL(wp), PARAMETER :: p_clbas_max = 600.0E2_wp ! upper bound for reduction factor
     REAL(wp), PARAMETER :: clct_min    = 0.5_wp     ! threshold for significant cloudiness
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc ! non-optional version of lacc
 
   !--------------------------------------------------------------------
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     i_nchdom  = MAX(1,pt_patch%n_childdom)
 
@@ -1561,16 +1553,16 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(NONE) CREATE(iclbas, p_clbas) PRESENT(pt_diag, &
-      !$ACC   prm_diag) IF(lacc)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC PARALLEL DEFAULT(NONE) CREATE(iclbas, p_clbas)  IF(lzacc) &
+      !$ACC   PRESENT(pt_diag, prm_diag)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%cldepth(jc,jb) = 0._wp
       ENDDO  ! jc
       !
       !$ACC LOOP SEQ
       DO jk=1, nlev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
            prm_diag%cldepth(jc,jb) = prm_diag%cldepth(jc,jb)   & 
              &                     + prm_diag%clc(jc,jk,jb) * pt_diag%dpres_mc(jc,jk,jb)
@@ -1578,7 +1570,7 @@ CONTAINS
       ENDDO  ! jk
       !
       ! Normalize:
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx 
         prm_diag%cldepth(jc,jb) = MIN(1._wp,prm_diag%cldepth(jc,jb)/700.E2_wp)
       ENDDO
@@ -1591,7 +1583,7 @@ CONTAINS
       ! at this grid point. The computation of the cloud cover uses maximum overlapping. 
       !
       ! initialize
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx 
         prm_diag%clct_mod(jc,jb) = 0._wp  ! modified cloud cover
         p_clbas(jc)              = 0._wp  ! pressure at base of significant cloudiness
@@ -1603,7 +1595,7 @@ CONTAINS
       ! If there is no significant cloudiness within a column: iclbas = 1
       !$ACC LOOP SEQ
       DO jk=1, nlev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
           IF ( prm_diag%clc(jc,jk,jb) >= clct_min ) THEN
             ! half-level index at base of significant cloudiness
@@ -1629,7 +1621,7 @@ CONTAINS
       ! |
       ! |--------------------------------------
       !
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jk_bot, jk_top)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk_bot, jk_top)
       DO jc = i_startidx, i_endidx
         IF (iclbas(jc) == 1) THEN     ! no cloud at this grid point
           p_clbas(jc) = 0._wp
@@ -1648,7 +1640,7 @@ CONTAINS
       ! compute cloud cover using maximum overlapping
       !$ACC LOOP SEQ
       DO jk = 1,nlev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag%clct_mod(jc,jb) = MAX (prm_diag%clct_mod(jc,jb), prm_diag%clc(jc,jk,jb))
         ENDDO
@@ -1672,7 +1664,7 @@ CONTAINS
       ! |      zred = 1
       ! |__________________________________>
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zred)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zred)
       DO jc = i_startidx, i_endidx
         zred = 1._wp
         IF (p_clbas(jc) < p_clbas_min) THEN
@@ -1706,7 +1698,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_opt_diagnostics(p_patch, p_patch_lp, p_int_lp, p_nh, p_int, prm_diag, &
      l_output, nnow, nnow_rcf, &
-     lpi_max_Event, celltracks_Event, dbz_Event, mtime_current,  plus_slack)
+     lpi_max_Event, celltracks_Event, dbz_Event, mtime_current,  plus_slack, lacc)
 
     TYPE(t_patch)       ,INTENT(IN)   :: p_patch(:), p_patch_lp(:)  ! patches and their local parents
     TYPE(t_int_state)   ,INTENT(IN)   :: p_int_lp(:)                ! interpolation state for local parents
@@ -1720,11 +1712,13 @@ CONTAINS
 
     LOGICAL, INTENT(IN) :: l_output(:)
     INTEGER, INTENT(IN) :: nnow(:), nnow_rcf(:)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     LOGICAL :: l_active(3), l_lpimax_event_active, l_celltracks_event_active, l_dbz_event_active, &
                l_need_dbz3d, l_need_temp, l_need_pres
     INTEGER :: jg, k
 
+    CALL assert_acc_device_only("nwp_opt_diagnostics", lacc)
     l_active(1) = is_event_active(lpi_max_Event,    mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(2) = is_event_active(celltracks_Event, mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(3) = is_event_active(dbz_Event,        mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
@@ -1775,7 +1769,7 @@ CONTAINS
           ! p_patch_local_parent(jg) seems to exist
           CALL maximize_field_lpi( p_patch(jg), jg, p_patch_lp(jg), p_int_lp(jg), p_nh(jg)%metrics,      &
                &                   p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag,  &
-               &                   prm_diag(jg)%lpi_max  )
+               &                   prm_diag(jg)%lpi_max, lacc=.TRUE. )
         ELSE
           CALL message( "perform_nh_timeloop", "WARNING: LPI_MAX cannot be computed since no reduced grid is available" )
         END IF
@@ -1844,7 +1838,7 @@ CONTAINS
       ! Has to be computed before pp_scheduler_process(simulation_status) and before statistical processing between timesteps below!
 
       IF (l_need_dbz3d) THEN
-        CALL compute_field_dbz3D_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
+        CALL compute_field_dbz3d_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
              &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin )
       END IF
 
@@ -2499,8 +2493,8 @@ CONTAINS
 
       field => prm_diag
 
-      !$ACC DATA PRESENT( field ) &
-      !$ACC       CREATE( scr )
+      !$ACC DATA PRESENT(field) &
+      !$ACC   CREATE(scr)
 
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP SEQ

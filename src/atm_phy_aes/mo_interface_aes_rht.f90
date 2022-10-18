@@ -85,8 +85,8 @@ CONTAINS
     fc_rht    = aes_phy_config(jg)%fc_rht
 
     IF ( is_in_sd_ed_interval ) THEN
-       !$ACC DATA PRESENT( field, tend )                      &
-       !$ACC       CREATE( q_rad, q_rsw, q_rlw, tend_ta_rad )
+       !$ACC DATA PRESENT(field, tend) &
+       !$ACC   CREATE(q_rad, q_rsw, q_rlw, tend_ta_rad)
        !
        IF (is_active) THEN
           !
@@ -166,7 +166,7 @@ CONTAINS
                & q_rlw      = q_rlw                    (:,:)  )! rad. heating by LW           [W/m2]
           !
           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-          !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jc = jcs, jce
               q_rad(jc,jk) = q_rsw(jc,jk)+q_rlw(jc,jk) ! rad. heating by SW+LW        [W/m2]
@@ -175,7 +175,7 @@ CONTAINS
           !
           ! for output: SW+LW heating
           IF (ASSOCIATED(field% q_rad)) THEN
-            !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = jcs, jce
                 field% q_rad(jc,jk,jb) = q_rad(jc,jk)
@@ -185,7 +185,7 @@ CONTAINS
           !
           ! for output: SW heating
           IF (ASSOCIATED(field% q_rsw)) THEN
-            !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = jcs, jce
                 field% q_rsw(jc,jk,jb) = q_rsw(jc,jk)
@@ -195,7 +195,7 @@ CONTAINS
           !
           ! for output: LW heating
           IF (ASSOCIATED(field% q_rlw)) THEN 
-            !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = jcs, jce
                 field% q_rlw(jc,jk,jb) = q_rlw(jc,jk)
@@ -241,7 +241,7 @@ CONTAINS
        !
        ! convert    heating
        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-       !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+       !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
        DO jk = 1, nlev
          DO jc = jcs, jce
            tend_ta_rad(jc,jk) = q_rad(jc,jk) * field% qconv(jc,jk,jb)
@@ -249,7 +249,7 @@ CONTAINS
        END DO
        !
        IF (ASSOCIATED(tend% ta_rad)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_rad(jc,jk,jb) = tend_ta_rad(jc,jk)
@@ -257,7 +257,7 @@ CONTAINS
          END DO
        END IF
        IF (ASSOCIATED(tend% ta_rsw)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_rsw(jc,jk,jb) = q_rsw(jc,jk) * field% qconv(jc,jk,jb)
@@ -265,7 +265,7 @@ CONTAINS
          END DO
        END IF
        IF (ASSOCIATED(tend% ta_rlw)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_rlw(jc,jk,jb) = q_rlw(jc,jk) * field% qconv(jc,jk,jb)
@@ -275,7 +275,7 @@ CONTAINS
        !
        ! accumulate heating
        IF (ASSOCIATED(field% q_phy   )) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              field% q_phy(jc,jk,jb) = field% q_phy(jc,jk,jb) + q_rad(jc,jk)
@@ -289,7 +289,7 @@ CONTAINS
           ! diagnostic, do not use tendency
        CASE(1)
           ! use tendency to update the model state
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_phy(jc,jk,jb) = tend% ta_phy(jc,jk,jb) + tend_ta_rad (jc,jk)
@@ -304,7 +304,7 @@ CONTAINS
        CASE(1)
           ! use tendency to update the physics state
           IF (lparamcpl) THEN
-            !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = jcs, jce
                 field% ta(jc,jk,jb) = field% ta(jc,jk,jb) + tend_ta_rad(jc,jk)*pdtime
@@ -327,11 +327,11 @@ CONTAINS
        !
     ELSE
        !
-       !$ACC DATA PRESENT( field, tend )
+       !$ACC DATA PRESENT(field, tend)
        !
        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
        IF (ASSOCIATED(field% q_rad)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              field% q_rad(jc,jk,jb) = 0.0_wp
@@ -340,7 +340,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(field% q_rsw)) THEN
-        !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = jcs, jce
             field% q_rsw(jc,jk,jb) = 0.0_wp
@@ -349,7 +349,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(field% q_rlw)) THEN
-        !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = jcs, jce
             field% q_rlw(jc,jk,jb) = 0.0_wp
@@ -358,7 +358,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(field% q_rlw)) THEN
-        !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = jcs, jce
             field% q_rlw(jc,jk,jb) = 0.0_wp
@@ -367,7 +367,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(tend% ta_rad)) THEN
-        !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = jcs, jce
             tend% ta_rad(jc,jk,jb) = 0.0_wp
@@ -376,7 +376,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(tend% ta_rsw)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_rsw(jc,jk,jb) = 0.0_wp
@@ -385,7 +385,7 @@ CONTAINS
        END IF
        !
        IF (ASSOCIATED(tend% ta_rlw)) THEN
-         !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
            DO jc = jcs, jce
              tend% ta_rlw(jc,jk,jb) = 0.0_wp

@@ -148,28 +148,28 @@ CONTAINS
 
 
   ELEMENTAL FUNCTION foedelta (ptare)
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foedelta
     REAL(KIND=jprb), INTENT(in) :: ptare
     foedelta = MAX (0.0_JPRB,SIGN(1.0_JPRB,ptare-rtt))
   END FUNCTION foedelta
 
   ELEMENTAL FUNCTION foeldcp ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeldcp
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeldcp = foedelta(ptare)*ralvdcp + (1.0_JPRB-foedelta(ptare))*ralsdcp
   END FUNCTION foeldcp
 
   ELEMENTAL FUNCTION foeewl (ptare)
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewl
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeewl=r2es*EXP(r3les*(ptare-rtt)/(ptare-r4les)) 
    END FUNCTION foeewl
 
   ELEMENTAL FUNCTION foeewi (ptare)
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewi
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeewi=r2es*EXP(r3ies*(ptare-rtt)/(ptare-r4ies))
@@ -206,7 +206,7 @@ CONTAINS
 
 
   ELEMENTAL FUNCTION foealfa (ptare)
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foealfa
     REAL(KIND=jprb), INTENT(in) :: ptare
     foealfa  = MIN(1.0_JPRB,((MAX(rtice,MIN(rtwat,ptare))-rtice)&
@@ -220,7 +220,7 @@ CONTAINS
 #endif
 
   ELEMENTAL FUNCTION foeewm ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewm
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeewm  = r2es                                * &
@@ -229,7 +229,7 @@ CONTAINS
   END FUNCTION foeewm
 
   ELEMENTAL FUNCTION foedem ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foedem
     REAL(KIND=jprb), INTENT(in) :: ptare
     foedem  = foealfa(ptare)*r5alvcp*(1.0_JPRB/(ptare-r4les)**2)+&
@@ -237,7 +237,7 @@ CONTAINS
   END FUNCTION foedem
 
   ELEMENTAL FUNCTION foeldcpm ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeldcpm
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeldcpm  = foealfa(ptare)*ralvdcp+&
@@ -274,7 +274,7 @@ CONTAINS
 #endif
 
   ELEMENTAL FUNCTION foealfcu ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foealfcu
     REAL(KIND=jprb), INTENT(in) :: ptare
     foealfcu = MIN(1.0_JPRB,((MAX(rticecu,MIN(rtwat,ptare))&
@@ -288,7 +288,7 @@ CONTAINS
 #endif
 
   ELEMENTAL FUNCTION foeewmcu ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewmcu
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeewmcu  = r2es *                                              &
@@ -301,7 +301,7 @@ CONTAINS
   !
 
   ELEMENTAL FUNCTION foedemcu ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foedemcu
     REAL(KIND=jprb), INTENT(in) :: ptare
     foedemcu =foealfcu(ptare)*r5alvcp*(1.0_JPRB/(ptare-r4les)**2)+&
@@ -309,7 +309,7 @@ CONTAINS
   END FUNCTION foedemcu
 
   ELEMENTAL FUNCTION foeldcpmcu ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeldcpmcu
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeldcpmcu  = foealfcu(ptare)*ralvdcp+&
@@ -317,7 +317,7 @@ CONTAINS
   END FUNCTION foeldcpmcu
 
   ELEMENTAL FUNCTION foelhmcu ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foelhmcu
     REAL(KIND=jprb), INTENT(in) :: ptare
     foelhmcu  =&
@@ -344,21 +344,21 @@ CONTAINS
   !FOEEICE( PTARE ) = R2ES*EXP(R3IES*(PTARE-RTT)/(PTARE-R4IES))
 
   ELEMENTAL FUNCTION foeles_v ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeles_v
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeles_v =r3les*(ptare-rtt)/(ptare-r4les)
   END FUNCTION foeles_v
 
   ELEMENTAL FUNCTION foeies_v ( ptare )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeies_v
     REAL(KIND=jprb), INTENT(in) :: ptare
     foeies_v =r3ies*(ptare-rtt)/(ptare-r4ies)
   END FUNCTION foeies_v
 
   ELEMENTAL FUNCTION foeewm_v ( ptare,exp1,exp2 )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewm_v
     REAL(KIND=jprb), INTENT(in) :: ptare,exp1,exp2
     foeewm_v =r2es*(foealfa(ptare)*exp1+ &
@@ -366,7 +366,7 @@ CONTAINS
   END FUNCTION foeewm_v
 
   ELEMENTAL FUNCTION foeewmcu_v ( ptare,exp1,exp2 )
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
     REAL(KIND=jprb)             :: foeewmcu_v
     REAL(KIND=jprb), INTENT(in) :: ptare,exp1,exp2
     foeewmcu_v  = r2es*(foealfcu(ptare)*exp1+&

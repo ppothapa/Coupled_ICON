@@ -133,10 +133,10 @@ CONTAINS
 
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
-!$ACC UPDATE HOST( p_diag%temp, p_diag%pres ) IF ( i_am_accel_node )
+    !$ACC UPDATE HOST(p_diag%temp, p_diag%pres) IF(i_am_accel_node)
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv(:,:,:)
-!$ACC UPDATE HOST( ptr_tempv ) IF ( i_am_accel_node )
+      !$ACC UPDATE HOST(ptr_tempv) IF(i_am_accel_node)
     ELSE
       ptr_tempv => p_diag%temp(:,:,:)
 ! temp already updated above
@@ -248,7 +248,7 @@ CONTAINS
 
 #ifdef _OPENACC
     i_am_accel_node = save_i_am_accel_node
-    !$ACC UPDATE DEVICE( temp_z_out, pres_z_out ) IF( i_am_accel_node)
+    !$ACC UPDATE DEVICE(temp_z_out, pres_z_out) IF(i_am_accel_node)
 #endif
 
   END SUBROUTINE prepare_vert_interp_z
@@ -304,10 +304,10 @@ CONTAINS
 
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
-!$ACC UPDATE HOST( p_diag%temp, p_diag%pres ) IF ( i_am_accel_node )    ! temp required farther down
+    !$ACC UPDATE HOST(p_diag%temp, p_diag%pres) IF(i_am_accel_node) ! temp required farther down
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv
-!$ACC UPDATE HOST( ptr_tempv ) IF ( i_am_accel_node )
+      !$ACC UPDATE HOST(ptr_tempv) IF(i_am_accel_node)
     ELSE
       ptr_tempv => p_diag%temp
     ENDIF
@@ -416,7 +416,7 @@ CONTAINS
 
 #ifdef _OPENACC
     i_am_accel_node = save_i_am_accel_node
-    !$ACC UPDATE DEVICE( gh_p_out, temp_p_out ) IF( i_am_accel_node )
+    !$ACC UPDATE DEVICE(gh_p_out, temp_p_out) IF(i_am_accel_node)
 #endif
 
   END SUBROUTINE prepare_vert_interp_p
@@ -464,7 +464,7 @@ CONTAINS
     nblks_e  = p_patch%nblks_e
     npromz_e = p_patch%npromz_e
 
-!$ACC UPDATE HOST( p_prog%theta_v, p_diag%temp ) IF ( i_am_accel_node ) ! required farther down
+    !$ACC UPDATE HOST(p_prog%theta_v, p_diag%temp) IF(i_am_accel_node) ! required farther down
 #ifdef _OPENACC
     save_i_am_accel_node = i_am_accel_node
     i_am_accel_node = .FALSE.
