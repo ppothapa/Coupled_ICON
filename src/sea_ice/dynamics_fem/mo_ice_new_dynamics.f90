@@ -39,7 +39,7 @@ MODULE mo_ice_new_dynamics
   USE mo_dynamics_config,     ONLY: nold
   USE mo_ocean_types,         ONLY: t_hydro_ocean_state
   USE mo_ocean_nml,           ONLY: atm_pressure_included_in_icedyn, ssh_in_icedyn_type, &
-!    &                              vert_cor_type,&
+    &                              vert_cor_type,&
     &                               ice_free_drift_only,ice_laplace_dynamics, &
     &                               ice_stabilization
   USE mo_ocean_surface_types, ONLY: t_atmos_for_ocean, t_ocean_surface
@@ -1193,11 +1193,11 @@ CONTAINS
          x3=x3_c(cell_index,1,cell_block)
 
          IF (ssh_in_icedyn_type == 1) THEN
-!           IF (vert_cor_type == 0) THEN
+           IF (vert_cor_type == 0) THEN
              ssh=p_os%p_prog(nold(1))%h(cell_index,cell_block)
-!           ELSEIF (vert_cor_type == 1) THEN
-!             ssh=p_os%p_prog(nold(1))%eta_c(cell_index,cell_block) + p_ice%draftave(cell_index,cell_block)
-!           ENDIF
+           ELSEIF (vert_cor_type == 1) THEN
+             ssh=p_os%p_prog(nold(1))%eta_c(cell_index,cell_block) + p_ice%draftave(cell_index,cell_block)
+           ENDIF
          ELSEIF (ssh_in_icedyn_type ==0) THEN
            ssh = 0.0_wp
          ENDIF

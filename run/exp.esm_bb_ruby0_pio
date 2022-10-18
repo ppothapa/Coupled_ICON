@@ -1531,7 +1531,6 @@ cat >> ${oce_namelist} << EOF
   jerlov_bluefrac                            = 0.36        ! jerlov water type IB
                                                            ! parameters for salt content conservation
   lfix_salt_content                          = .true.      ! fix global ocean+ice salt content to constant (def=F)
-  !surface_flux_type                          = 1           ! 1: apply_surface_fluxes_slo (def), 2: apply_surface_fluxes (Vladimir L.)
   !lcheck_salt_content                        = .false.     ! diagnostic output of salt content (def=F)
   !limit_seaice                               =  .true.     ! use seaice limiter
   !limit_seaice_type                          = 1           ! 1: ice_thickness_limiter (def), 2: ice_thickness_limiter_hh (H. Haak)
