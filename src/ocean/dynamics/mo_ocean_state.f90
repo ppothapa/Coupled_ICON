@@ -40,7 +40,7 @@ MODULE mo_ocean_state
     &                               GMREDI_COMBINED_DIAGNOSTIC,GM_INDIVIDUAL_DIAGNOSTIC,          &
     &                               REDI_INDIVIDUAL_DIAGNOSTIC, eddydiag,                         &
     &                               diagnose_for_tendencies, diagnose_for_heat_content, lhamocc,  &
-    &                               use_tides_SAL
+    &                               use_tides_SAL, vert_cor_type
   USE mo_run_config,          ONLY: test_mode
   USE mo_ocean_types,         ONLY: t_hydro_ocean_base ,t_hydro_ocean_state ,t_hydro_ocean_prog ,t_hydro_ocean_diag, &
     &                               t_hydro_ocean_aux , t_oce_config,   &
@@ -653,13 +653,43 @@ CONTAINS
     alloc_cell_blocks = patch_2d%alloc_cell_blocks
     nblks_e = patch_2d%nblks_e
 
-      ! height
-      CALL add_var(ocean_restart_list, 'zos'//var_suffix, ocean_state_prog%h , &
-        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
-        & t_cf_var('zos'//var_suffix, 'm', 'surface elevation at cell center', DATATYPE_FLT64,'zos'),&
-        & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
-        & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
-        & in_group=oce_tr_groups)
+      IF (vert_cor_type == 0) THEN
+        ! height
+        CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%h , &
+          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'surface elevation at cell center', DATATYPE_FLT64,'zos'),&
+          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
+          & in_group=groups("oce_default", "oce_essentials","oce_prog"))
+      END IF
+
+      IF (vert_cor_type == 1) THEN
+        ! zstar height
+        CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%eta_c , &
+          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'zstar sfc elevation at cell center', DATATYPE_FLT64,'zos'),&
+          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
+          & in_group=groups("oce_default", "oce_essentials","oce_prog"))
+  
+        ! zstar stretching 
+        CALL add_var(ocean_restart_list, 'stretch_c'//TRIM(var_suffix), ocean_state_prog%stretch_c , &
+          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+          & t_cf_var('stretch_c'//TRIM(var_suffix), 'm', 'zstar surface stretch at cell center', &
+          & DATATYPE_FLT64,'stretch_c'),&
+          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
+          & in_group=groups("oce_default", "oce_essentials","oce_prog"))
+        
+        ! height
+        CALL add_var(ocean_restart_list, 'z_ht'//TRIM(var_suffix), ocean_state_prog%h , &
+          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+          & t_cf_var('z_ht'//TRIM(var_suffix), 'm', 'dummy elevation at cell center', DATATYPE_FLT64,'z_ht'),&
+          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
+          & in_group=groups("oce_default", "oce_essentials","oce_prog"))
+
+      ENDIF
 
       !! normal velocity component
       CALL add_var(ocean_restart_list,'normal_velocity'//var_suffix,ocean_state_prog%vn,grid_unstructured_edge, &
@@ -1223,7 +1253,23 @@ CONTAINS
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/),in_group=groups_oce_diag,lrestart_cont=.TRUE.)
 
-    
+    IF ( eddydiag ) THEN
+      CALL add_var(ocean_restart_list, 'w_prismcenter ', ocean_state_diag%w_prismcenter, grid_unstructured_cell, &
+       & za_depth_below_sea, &
+       & t_cf_var('w prism center','m/s','vertical velocity at prism center', DATATYPE_FLT32),&
+       & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups("oce_diag"),lrestart_cont=.TRUE.)
+    ENDIF
+
+    IF ( ( vert_cor_type == 1 ) ) THEN
+      CALL add_var(ocean_restart_list, 'w_deriv', ocean_state_diag%w_deriv, grid_unstructured_cell, &
+       & za_depth_below_sea_half, &
+       & t_cf_var('w_der','m/s','physical vertical velocity at cells for zstar', datatype_flt),&
+       & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/),in_group=groups("oce_diag","oce_default"), &
+       & lrestart_cont=.TRUE.)
+    ENDIF
+
     
     ! somehow these are passed to the moc calculation
     ! tendency of snow
@@ -1699,6 +1745,15 @@ CONTAINS
       &         t_cf_var('heatabs', 'J m-2', 'heatabs', datatype_flt),&
       &         dflt_g2_decl_cell,&
       &         ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_default)
+
+   ! heating due to fw flux [W m-2]
+    CALL add_var(ocean_default_list, 'heatflux_rainevaprunoff', ocean_state_diag%heatflux_rainevaprunoff, &
+      &         grid_unstructured_cell, za_surface,&
+      &         t_cf_var('heatflux_rainevaprunof', 'W m-2', 'heatflux_rainevaprunof', datatype_flt),&
+      &         dflt_g2_decl_cell,&
+      &         ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_default)
+
+
  
    ! dummy2d
 !    CALL add_var(ocean_default_list, 'dummy2d', ocean_state_diag%dummy2d , &

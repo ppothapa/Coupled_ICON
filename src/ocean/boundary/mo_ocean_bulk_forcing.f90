@@ -10,6 +10,7 @@
 !!  Original version by Peter Korn, MPI-M (2009)
 !!  Restructured code by Stephan Lorenz, MPI-M: (2015-04)
 !!  Restructured code by Vladimir Lapin, MPI-M: (2017-01)
+!!  Adopted to zstar by V. Singh, MPI-M: (2020)
 !!
 !! @par Copyright and License
 !!
@@ -43,7 +44,7 @@ MODULE mo_ocean_bulk_forcing
   USE mo_util_dbg_prnt,       ONLY: dbg_print
   USE mo_dbg_nml,             ONLY: idbg_mxmn
 
-  USE mo_ocean_nml,           ONLY: iforc_oce, forcing_timescale,  forcing_frequency, &
+  USE mo_ocean_nml,           ONLY: vert_cor_type, iforc_oce, forcing_timescale,  forcing_frequency, &
     &  no_tracer, para_surfRelax_Temp, type_surfRelax_Temp,             &
     &  para_surfRelax_Salt, type_surfRelax_Salt,                                &
     &  i_sea_ice, l_relaxsal_ice, forcing_enable_freshwater,                    &
@@ -86,6 +87,7 @@ MODULE mo_ocean_bulk_forcing
   PUBLIC :: update_ocean_surface_stress
 
   PUBLIC :: balance_elevation
+  PUBLIC :: balance_elevation_zstar
 
 
   CHARACTER(len=12)           :: str_module    = 'OceanBulkForcing'  ! Output of module for 1 line debug
@@ -108,26 +110,31 @@ CONTAINS
   !!
   !! @par Revision History
   !! Initial release by Stephan Lorenz, MPI-M (2014)
+  !! Adapted for zstar by V.Singh, MPI-M (2020)
   !
-  SUBROUTINE update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, tracer_no)
+  SUBROUTINE update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, tracer_no, stretch_c)
 
     TYPE (t_patch_3D ),    TARGET, INTENT(IN) :: p_patch_3D
     TYPE (t_hydro_ocean_state), INTENT(INOUT) :: p_os
     TYPE (t_sea_ice),              INTENT(IN) :: p_ice
     TYPE (t_ocean_surface)                    :: p_oce_sfc
     INTEGER,                       INTENT(IN) :: tracer_no       !  no of tracer: 1=temperature, 2=salinity
+    REAL(wp), INTENT(IN), OPTIONAL :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
 
     !Local variables
     INTEGER                       :: jc, jb
     INTEGER                       :: i_startidx_c, i_endidx_c
     REAL(wp)                      :: relax_strength, thick
-    TYPE(t_patch), POINTER        :: patch_2D
+    TYPE(t_patch), POINTER        :: p_patch
     REAL(wp),      POINTER        :: t_top(:,:), s_top(:,:)
     TYPE(t_subset_range), POINTER :: all_cells
 
+    REAL(wp), PARAMETER         :: seconds_per_month = 2.592e6_wp  ! TODO: use real month length
+
+    CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'mo_ocean_testbed_zstar'
     !-----------------------------------------------------------------------
-    patch_2D   => p_patch_3D%p_patch_2D(1)
-    all_cells => patch_2D%cells%all
+    p_patch   => p_patch_3D%p_patch_2D(1)
+    all_cells => p_patch%cells%all
     !-------------------------------------------------------------------------
 
     t_top => p_os%p_prog(nold(1))%tracer(:,1,:,1)
@@ -149,9 +156,6 @@ CONTAINS
         DO jc = i_startidx_c, i_endidx_c
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
 
-            !relax_strength = (p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)) / &
-            !  &       (para_surfRelax_Temp*seconds_per_month)
-!           p_oce_sfc%TopBC_Temp_vdiff(jc,jb) = -relax_strength*(t_top(jc,jb)-p_oce_sfc%data_surfRelax_Temp(jc,jb))
             relax_strength = 1.0_wp / (para_surfRelax_Temp*seconds_per_month)
 
             ! calculate additional temperature restoring rate F_T due to relaxation [K/s]
@@ -163,7 +167,11 @@ CONTAINS
             ! this heat flux is negative if relaxation flux is negative, i.e. heat is released if temperature decreases
             ! this flux is for diagnosis only and not added to tracer forcing
 
-            thick = (p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb)+p_os%p_prog(nold(1))%h(jc,jb))
+            IF (vert_cor_type .EQ. 1) THEN
+              thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) * stretch_c(jc,jb)
+            ELSE
+	      thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
+            ENDIF
             p_oce_sfc%HeatFlux_Relax(jc,jb) = p_oce_sfc%TempFlux_Relax(jc,jb) * thick * OceanReferenceDensity*clw
 
           ENDIF
@@ -172,9 +180,9 @@ CONTAINS
       END DO
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
-      CALL dbg_print('UpdSfcRlx:HeatFlx_Rlx[W/m2]',p_oce_sfc%HeatFlux_Relax     ,str_module,2, in_subset=patch_2D%cells%owned)
-      CALL dbg_print('UpdSfcRlx: T* to relax to'  ,p_oce_sfc%data_surfRelax_Temp,str_module,4, in_subset=patch_2D%cells%owned)
-      CALL dbg_print('UpdSfcRlx: 1/tau*(T*-T)'    ,p_oce_sfc%TempFlux_Relax     ,str_module,3, in_subset=patch_2D%cells%owned)
+      CALL dbg_print('UpdSfcRlx:HeatFlx_Rlx[W/m2]',p_oce_sfc%HeatFlux_Relax     ,str_module,2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('UpdSfcRlx: T* to relax to'  ,p_oce_sfc%data_surfRelax_Temp,str_module,4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('UpdSfcRlx: 1/tau*(T*-T)'    ,p_oce_sfc%TempFlux_Relax     ,str_module,3, in_subset=p_patch%cells%owned)
       !---------------------------------------------------------------------
 
     ELSE IF (tracer_no == 2) THEN  ! surface salinity relaxation
@@ -204,10 +212,14 @@ CONTAINS
             ! calculate additional salt restoring rate F_S due to relaxation [psu/s]
             p_oce_sfc%SaltFlux_Relax(jc,jb) = -relax_strength*(s_top(jc,jb)-p_oce_sfc%data_surfRelax_Salt(jc,jb))
 
-            ! Diagnosed freshwater flux due to relaxation (equivalent to heat flux Q)
+            ! Diagnostic freshwater flux due to relaxation (equivalent to heat flux Q)
             !  Fw_S = F_S*dz/S = dz/tau * (S-S*)/S  [m/s]
-            ! this flux is applied as volume forcing in surface equation in fill_rhs4surface_eq_ab
-            thick = (p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb)+p_os%p_prog(nold(1))%h(jc,jb))
+            IF (vert_cor_type .EQ. 1) THEN
+              thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) * stretch_c(jc,jb)
+            ELSE
+	      thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
+            ENDIF
+
             p_oce_sfc%FrshFlux_Relax(jc,jb) = -p_oce_sfc%SaltFlux_Relax(jc,jb) * thick / s_top(jc,jb)
 
           ENDIF
@@ -215,9 +227,9 @@ CONTAINS
       END DO
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
-      CALL dbg_print('UpdSfcRlx:FrshFlxRelax[m/s]',p_oce_sfc%FrshFlux_Relax     ,str_module,2, in_subset=patch_2D%cells%owned)
-      CALL dbg_print('UpdSfcRlx: S* to relax to'  ,p_oce_sfc%data_surfRelax_Salt,str_module,4, in_subset=patch_2D%cells%owned)
-      CALL dbg_print('UpdSfcRlx: 1/tau*(S*-S)'    ,p_oce_sfc%SaltFlux_Relax     ,str_module,3, in_subset=patch_2D%cells%owned)
+      CALL dbg_print('UpdSfcRlx:FrshFlxRelax[m/s]',p_oce_sfc%FrshFlux_Relax     ,str_module,2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('UpdSfcRlx: S* to relax to'  ,p_oce_sfc%data_surfRelax_Salt,str_module,4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('UpdSfcRlx: 1/tau*(S*-S)'    ,p_oce_sfc%SaltFlux_Relax     ,str_module,3, in_subset=p_patch%cells%owned)
       !---------------------------------------------------------------------
 
     END IF  ! tracer_no
@@ -646,6 +658,7 @@ CONTAINS
     INTEGER :: i
     REAL(wp) :: aw,bw,cw,dw,ai,bi,ci,di,AAw,BBw,CCw,AAi,BBi,CCi,alpha,beta
     REAL(wp) :: fvisdir, fvisdif, fnirdir, fnirdif, local_rad2deg
+
     patch_2D         => p_patch_3D%p_patch_2D(1)
 
     tafoK(:,:)  = tafoC(:,:) + tmelt  ! Change units of tafo  to Kelvin
@@ -901,12 +914,14 @@ CONTAINS
     !-----------------------------------------------------------------------
 
     humi(:,:)    = 0.39_wp - 0.05_wp*SQRT(esta(:,:)/100._wp)
+
     ! This is needed for the f-plane planar torus setup
     IF ( patch_2d%geometry_info%geometry_type == planar_torus_geometry &
          & .AND. coriolis_type ==  f_plane_coriolis ) THEN
     fakts(:,:)   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
            &         *MIN(ABS(coriolis_fplane_latitude),60._wp) ) * p_as%fclou(:,:)**2
     ! Berliand & Berliand ('52) calculate only LWnetw
+
     ELSE
       fakts(:,:)   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
            &         *MIN(ABS(rad2deg*patch_2D%cells%center(:,:)%lat),60._wp) ) * p_as%fclou(:,:)**2
@@ -1283,6 +1298,64 @@ CONTAINS
     
     
   END SUBROUTINE balance_elevation
+
+  
+  !-------------------------------------------------------------------------
+  !>
+  !! Balance sea level to zero over global ocean
+  !!
+  !! Adapted for zstar
+  !!
+  SUBROUTINE balance_elevation_zstar (p_patch_3D, eta_c, p_oce_sfc, stretch_c)
+
+    TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
+    REAL(wp), INTENT(INOUT) :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
+    TYPE(t_ocean_surface) , INTENT(INOUT)   :: p_oce_sfc
+    REAL(wp), INTENT(IN) :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
+
+
+    TYPE(t_patch), POINTER                  :: p_patch
+    TYPE(t_subset_range), POINTER           :: all_cells
+
+    INTEGER  :: i_startidx_c, i_endidx_c
+    INTEGER  :: jc, jb, bt_lev
+    REAL(wp) :: ocean_are, glob_slev, corr_slev, temp_stretch, d_c
+    INTEGER  :: idt_src       
+
+    p_patch         => p_patch_3D%p_patch_2D(1)
+    all_cells       => p_patch%cells%all
+ 
+    ! parallelize correctly
+    ocean_are = p_patch_3D%p_patch_1D(1)%ocean_area(1)
+    glob_slev = global_sum_array(p_patch%cells%area(:,:)*eta_c(:,:)*p_patch_3D%wet_halo_zero_c(:,1,:))
+    corr_slev = glob_slev/ocean_are
+
+    idt_src=2
+    IF ((my_process_is_stdio()) .AND. (idbg_mxmn >= idt_src)) &
+      & write(0,*)' BALANCE_ELEVATION(Dom): ocean_are, glob_slev, corr_slev =',ocean_are, glob_slev, glob_slev/ocean_are
+
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      DO jc =  i_startidx_c, i_endidx_c
+        IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
+          ! subtract or scale?
+          eta_c(jc,jb) = eta_c(jc,jb) - corr_slev
+
+          bt_lev = p_patch_3d%p_patch_1d(1)%dolic_c(jc, jb)      
+          d_c    = p_patch_3d%p_patch_1d(1)%depth_CellInterface(jc, bt_lev + 1, jb)
+          temp_stretch = (eta_c(jc,jb) + d_c) / d_c
+
+          ! for hamocc tracers dilution dilution=stretch_old/stretch_new *dilution(old from surface fluxes)
+          p_oce_sfc%top_dilution_coeff(jc,jb) = stretch_c(jc,jb) / temp_stretch 
+
+
+        END IF
+      END DO
+    END DO
+
+  END SUBROUTINE balance_elevation_zstar
+
+
 
 
 END MODULE mo_ocean_bulk_forcing

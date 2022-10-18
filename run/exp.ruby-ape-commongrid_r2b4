@@ -1511,7 +1511,6 @@ cat >> ${oce_namelist} << EOF
                                                            ! salt-change due to internal fluxes only
   limit_seaice                               = .TRUE.      ! default: TRUE
 !  seaice_limit                               = 16.667     ! free with z*, limit to 200m
-!  surface_flux_type                          = 13
   seaice_limit                               = 0.8         ! hard limit set to 80% of upper layer for sea ice
   lfix_salt_content                          = .TRUE.
   limit_elevation                            = .FALSE.     ! true: adjust daily to zero, default=false: free surface
