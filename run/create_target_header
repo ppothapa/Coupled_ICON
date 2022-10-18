@@ -752,7 +752,6 @@ set_run_target_rcl()
     set_default use_nodes 1
     set_default use_mpi_procs_pernode 1
     set_default use_openmp_threads 1
-    set_default use_BB_SLAVE "false"
     set_default use_venum_lhost 2
     set_default use_cpunum_job 6
     # $use_memory can be used to set memsz_job. e.G. "24gb"
@@ -844,11 +843,7 @@ set_run_target_rcl()
 #PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
 #PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
 #PBS -v NMPI_DAEMON_PATH=\${NMPI_ROOT}/libexec/mpid
-EOF
-    if [[ "$use_BB_SLAVE" == "true" ]]; then
-        echo "#PBS -v BB_SLAVE" >> $output_script
-    fi
-    cat >> $output_script << EOF
+#PBS -v BB_NAME
 #PBS -l elapstim_req=00:40:00
 #PBS --venode=\${NE}
 #PBS --venum-lhost=${use_venum_lhost}     # Number of VE per logical host
@@ -1960,7 +1955,6 @@ create_target_header()
             esac
             ;;
         *run_ICON_11_R3B08_lam_initmode7_restarttest*)
-            use_BB_SLAVE=true
             case $use_target in
                 daint_cpu)
                     use_nodes=2
@@ -1972,6 +1966,7 @@ create_target_header()
                     use_nodes=2
                     use_venum_lhost=2
                     use_cpunum_job=6
+                    use_omp_stacksize=3G
                     ;;
             esac
             ;;
@@ -2006,7 +2001,6 @@ create_target_header()
             esac
             ;;
         *run_ICON_14_R2B6N7_oper_IAU_and_restarttest*)
-            use_BB_SLAVE=true
             case $use_target in
                 daint*)
                     use_nodes=10
@@ -2015,6 +2009,7 @@ create_target_header()
                     use_nodes=4
                     use_venum_lhost=2
                     use_cpunum_job=3
+                    use_omp_stacksize=3G
                     ;;
             esac
             ;;
