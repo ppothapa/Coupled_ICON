@@ -1,57 +1,31 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=2,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -v BB_SLAVE
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=2     # Number of VE per logical host
-#PBS -l cpunum_job=6
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_11_R3B08_lam_initmode7_restarttest.run.run.o
 # ----------------------------------------------------------------------
-# ============================================================================
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
+# path definitions
+# ----------------------------------------------------------------------
 
-set -ex
-. /etc/profile
+make_and_change_to_experiment_dir # function in ../add_run_routines
 
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_STACKSIZE=3G
-NUM_THREADS=1
-if [ ${BB_SLAVE} = 'nec_hybrid' ]; then
-  NUM_THREADS=2
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
 fi
 
-# Run information
-let PPN=${CPE}*${NE}/${NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
 
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
+# experiment identifier for output files
+EXP="NWP"    # experiment identifier
 
-
-
-# ----------------------------------------------------------------------
-# SETTINGS: Input/output directories
-# ----------------------------------------------------------------------
-
-# base directory for ICON sources and binary:
-ICONDIR=${PBS_O_WORKDIR}/../
+# root directory for input data
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # Base directory containing input data
-DATADIR=/hpc/rwork0/routfor/test/icon/Checksuite_data/ICON_LAM/
+DATADIR="${DATAROOT}/ICON_LAM/"
 
 # directory with input grids:
 GRIDDIR=${DATADIR}/input
@@ -64,30 +38,6 @@ LBCDIR=${DATADIR}/forcing_mode7
 
 # directory with external parameter data:
 EXTPARDIR=${DATADIR}/input
-
-# absolute path to directory with plenty of space:
-EDIR="exp11"
-EXPDIR=$TMPDIR/${EDIR}/
-
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
-
-
-# ----------------------------------------------------------------------
-# copy input data: grids, external parameters
-# ----------------------------------------------------------------------
-
-# the experiment directory will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd ${EXPDIR}
-
 
 # grid files
 #
@@ -128,8 +78,8 @@ ln -s ${GRIDDIR}/map_file.latbc .
 dynamics_grid_filename="lam_test_DOM01.nc"
 radiation_grid_filename="lam_test_DOM01.parent.nc"
 
-
-
+# save the machine dependent nproma set by create_target_header
+nproma_default=$nproma
 # ----------------------------------------------------------------------------
 # ============================================================================
 #                        LOOP: MODEL IS EXECUTED TWO TIMES
@@ -144,7 +94,7 @@ end_datetime="2017-01-13T00:00:00Z"
 checkpoint="    864000.0 "
 nrest_procs="        1   "
 restart_write_mode=""
-nproma=760
+let "nproma=$nproma_default+16" # was 760 for NEC
 
 elif [ $iter -eq 2 ] ; then
 
@@ -153,7 +103,7 @@ end_datetime="2017-01-12T12:00:00Z"
 checkpoint="     32400.0 "
 nrest_procs="        1   "
 restart_write_mode="dedicated procs multifile"
-nproma=752
+let "nproma=$nproma_default+8" # was 752 for NEC
 
 else
 
@@ -162,7 +112,7 @@ end_datetime="2017-01-13T00:00:00Z"
 checkpoint="    864000.0 "
 nrest_procs="        1   "
 restart_write_mode=""
-nproma=744
+nproma=$nproma_default # was 744 for NEC
 
 fi
 
@@ -197,19 +147,27 @@ cat > icon_master.namelist << EOF
 /
 EOF
 
-# ----------------------------------------------------------------------
-# model namelists
-# ----------------------------------------------------------------------
+# Variables to configure the mpirun command on the RCL
+num_io_procs=1
+num_restart_procs=$nrest_procs
+num_prefetch_proc=1
+num_io_procs_radar=0
 
+# ----------------------------------------------------------------------------
+# model namelists
+# ----------------------------------------------------------------------------
+# For a complete list see doc/Namelist_overview.pdf
 
 cat > NAMELIST_NWP << EOF
+
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                  ${nproma}         ! loop chunk length
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
- num_io_procs                =                          1         ! number of I/O processors
- num_restart_procs           =              ${nrest_procs}        ! number of restart processors
- num_prefetch_proc           =                          1         ! number of processors for LBC prefetching
+ num_io_procs                =            ${num_io_procs}         ! number of I/O processors
+ num_restart_procs           =             ${nrest_procs}         ! number of restart processors
+ num_prefetch_proc           =       ${num_prefetch_proc}         ! number of processors for LBC prefetching
+ num_io_procs_radar          =      ${num_io_procs_radar}         ! number of EMVORADO I/O processors
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
  proc0_shift                 =                          1         ! VH offloading mode
  use_omp_input               =                     .true.         ! task-parallelized input
@@ -486,21 +444,13 @@ EOF
 # run the model!
 # ----------------------------------------------------------------------
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
+$START_MODEL
+EXIT_STATUS=$?
 
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-/opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-           -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS ${NUM_THREADS} ${MODEL} : \
-              -vh     -node 0        -np 3      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "ICON EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
@@ -509,9 +459,6 @@ done # iterations for restart testing
 
 
 # now start with the tests
-
-# absolute path to cdo
-CDODIR="/hpc/sw/cdo/1.9.8/x86/gnu/bin"
 
 # EXP names
 EXP1="reference"
@@ -533,7 +480,7 @@ DIFF_FILE_DOM01="NWP_diff_DOM01.out"
  echo "Check restart and different patch weights"
  echo "=> Compare experiments: $EXP1 $EXP2"
 
- ${CDODIR}/cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} > ${DIFF_FILE_DOM01}
+ $cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} > ${DIFF_FILE_DOM01}
 
  if [ -s ${DIFF_FILE_DOM01} ]; then
    echo " DOM01: file 1 and file 2 differ"
@@ -558,7 +505,7 @@ DIFF_FILE_DOM01="NWP_diff_DOM01.out"
    echo " "
  fi
 
-echo 'EXIT_STATUS: '$EXIT_STATUS
+echo "EXIT_STATUS: $EXIT_STATUS"
 exit $EXIT_STATUS
 #
 #-----------------------------------------------------------------------------

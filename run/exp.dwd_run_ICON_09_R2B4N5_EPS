@@ -13,6 +13,7 @@
 # =========================================================================== 
 
 set -x
+make_and_change_to_experiment_dir
 
 #--------------------------------------------------------------------------------------------------
 
@@ -23,7 +24,7 @@ set -x
 # icon_data_poolFolder          = base directory, where grids/, input/ and setup/ exist
 # nproma                        = blocking length for array dimensioning and inner loop lengths
 
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/dwd"
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # =======================================================================
 # Setup - experiment
@@ -100,25 +101,25 @@ add_link_file ${INDIR}/fc_R02B05_N02.20220228223000_joined fg_R02B05_DOM02.grb
 # For a complete list see Namelist_overview and Namelist_overview.pdf
 
 # prevent exec.iconrun overwriting the master namelist (make_runscripts)
-#dont_create_icon_master_namelist=1
+dont_create_icon_master_namelist=1
 
-# cat > ${basedir}/run/icon_master.namelist << EOF
-# &master_nml
-#  lrestart               = .false.
-# /
-# &time_nml
-#  ini_datetime_string = "$start_date"
-#  dt_restart          = $dt_restart
-# /
-# &master_model_nml
-#   model_type=1
-#   model_name="ATMO"
-#   model_namelist_filename="$atmo_namelist"
-#   model_min_rank=1
-#   model_max_rank=65536
-#   model_inc_rank=1
-# /
-# EOF
+cat > icon_master.namelist << EOF
+&master_nml
+lrestart               = .false.
+/
+&time_nml
+ini_datetime_string = "$start_date"
+dt_restart          = $dt_restart
+/
+&master_model_nml
+ model_type=1
+ model_name="ATMO"
+ model_namelist_filename="$atmo_namelist"
+ model_min_rank=1
+ model_max_rank=65536
+ model_inc_rank=1
+/
+EOF
 
 
 # ----------------------------------------------------------------------
@@ -486,7 +487,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 !/
 EOF
 
-cat > ${basedir}/run/${EXPNAME}_map_file.ana << EOF2
+cat > map_file.ana << EOF2
 # internal name     GRIB2 shortName
 theta_v             THETA_V
 rho                 DEN
@@ -531,9 +532,8 @@ c_t_lk              C_T_LK
 t_b1_lk             T_B1_LK
 h_b1_lk             H_B1_LK
 EOF2
-add_required_file ${basedir}/run/${EXPNAME}_map_file.ana map_file.ana
 
-cat > ${basedir}/run/${EXPNAME}_map_file.fc << EOF3
+cat > map_file.fc << EOF3
 # GRIB2 shortName   internal name
   alb_rad           ALBDIF
   alb_seaice        ALB_SI
@@ -563,4 +563,3 @@ cat > ${basedir}/run/${EXPNAME}_map_file.fc << EOF3
   vmax_10m          GUST10
   z0                GZ0
 EOF3
-add_required_file ${basedir}/run/${EXPNAME}_map_file.fc map_file.fc

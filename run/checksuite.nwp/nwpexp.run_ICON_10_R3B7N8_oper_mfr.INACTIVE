@@ -1,86 +1,48 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=32,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=8     # Number of VE per logical host
-#PBS -l memsz_job=24gb
-#PBS -l cpunum_job=6
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_10_R3B7N8_oper_mfr.run.run.o
-# ----------------------------------------------------------------------
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -x
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
 # ----------------------------------------------------------------------
 # path definitions
 # ----------------------------------------------------------------------
 
-# for PBS change to directory where job was submitted
-# (without this job is started in HOME)
-if [[ -n ${PBS_O_WORKDIR} ]] ; then
-  cd ${PBS_O_WORKDIR}
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+EXIT_STATUS=$?
+
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "ICON EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
 fi
 
-# determine base directory
-ICONDIR=${PBS_O_WORKDIR}/../
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
+fi
 
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
+
+# experiment identifier for output files
 EXP="NWP"    # experiment identifier
-EDIR="exp10"  # working directory
-
-# absolute path to directory with plenty of space:
-EXPDIR=$TMPDIR/${EDIR}/
-
-# directory for grid and extpar files
- GRIDDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/
- EXTPDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
+
+# directory for grid and extpar files
+GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
+if [[ ! -d "$GRIDDIR" ]]; then
+  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
+fi
+EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory
 INDIR=${DATAROOT}/Inidata_Routine
 
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
 # ----------------------------------------------------------------------
 # copy input data: grids, external parameters
 # ----------------------------------------------------------------------
-
-# the directory for the experiment will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd $EXPDIR
 
 ln -sf $GRIDDIR/icon_grid_0025_R03B06_R.nc iconR3B06_DOM00.nc
 ln -sf $GRIDDIR/icon_grid_0025_R03B06_R-grfinfo.nc iconR3B06_DOM00-grfinfo.nc
@@ -103,8 +65,8 @@ cp $ICONDIR/data/ECHAM6_CldOptProps.nc rrtm_cldopt.nc
 cp $ICONDIR/data/rrtmg_lw.nc .
 
 
-ln -sf /e/uhome/gzaengl/constdir/rtcoef_msg_2_seviri.dat .
-ln -sf /e/uhome/gzaengl/constdir/sccldcoef_msg_2_seviri.dat .
+ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat .
+ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat .
 
 
 # ----------------------------------------------------------------------
@@ -194,18 +156,26 @@ done
 plevels="5000,10000,15000,20000,25000,30000,40000,50000,70000,85000"
 
 
+# Variables to configure the mpirun command on the RCL
+num_io_procs=12
+num_restart_procs=0 # 2
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 cat > ${atmo_namelist} << EOF
 &parallel_nml
- nproma          = 760
- p_test_run      = .false.
- l_test_openmp   = .true.
- l_log_checks    = .true.
- num_io_procs    = 12
- num_restart_procs = 0 ! 2
- itype_comm      = 1
- iorder_sendrecv = 3
- proc0_shift     = 1
- use_omp_input   = .true.
+ nproma                  =  ${nproma}
+ p_test_run              = .false.
+ l_test_openmp           = .true.
+ l_log_checks            = .true.
+ num_io_procs            =  ${num_io_procs}
+ num_restart_procs       = ${num_restart_procs}
+ num_prefetch_proc       = ${num_prefetch_proc}
+ num_io_procs_radar      = ${num_io_procs_radar}
+ itype_comm              = 1
+ iorder_sendrecv         = 3
+ proc0_shift             = 1
+ use_omp_input           = .true.
 /
 &grid_nml
  dynamics_grid_filename  = 'iconR3B07_DOM01.nc','iconR3B08_DOM02.nc'
@@ -375,7 +345,7 @@ cat > ${atmo_namelist} << EOF
  ivadv_tracer  = 3,3,3,3,3
  itype_hlimit  = 3,4,4,4,4
  ihadv_tracer  = 52,2,2,2,2
- nadv_substeps = 3,2 
+ nadv_substeps = 3,2
 /
 &diffusion_nml
  hdiff_order      = 5
@@ -1072,22 +1042,24 @@ EOF3
 # run the model!
 # ----------------------------------------------------------------------
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
+if [[ "$START_MODEL" == "START_MODEL_function" ]]; then
+  #TODO: add support for this call to START_MODEL_function
+  mpiexec -v    -node 0   -np 1       -vh          ${MODEL_SCAL} : \
+          -x -venode -node 0-${NE1} -np ${PPN}    ${MODEL}      : \
+          -v    -nn 4     -nnp 3      -vh          ${MODEL_SCAL}
+  EXIT_STATUS=$?
+else
+  $START $MODEL
+  EXIT_STATUS=$?
+fi
 
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-mpiexec -v    -node 0   -np 1       -vh          ${MODEL_SCAL} : \
-        -x -venode -node 0-${NE1} -np ${PPN}    ${MODEL}      : \
-        -v    -nn 4     -nnp 3      -vh          ${MODEL_SCAL}
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
 # ----------------------------------------------------------------------------
+echo "EXIT_STATUS: $EXIT_STATUS"
+exit $EXIT_STATUS

@@ -426,9 +426,9 @@ MODULE mo_rte_rrtmgp_radiation
     ! Shortcuts to components of aes_rad_config
     !
     !$ACC DATA PRESENT(xv_ozn) &
-    !$ACC      CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc,          &
-    !$ACC             xvmr_vap, xvmr_co2, xvmr_o3, xvmr_o2, xvmr_ch4, &
-    !$ACC             xvmr_n2o, xvmr_cfc)
+    !$ACC   CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc) &
+    !$ACC   CREATE(xvmr_vap, xvmr_co2, xvmr_o3, xvmr_o2, xvmr_ch4) &
+    !$ACC   CREATE(xvmr_n2o, xvmr_cfc)
     CALL calculate_temperature_pressure(jcs, jce, nproma, klev, &
       pp_hl(:,:), pp_fl(:,:), tk_fl(:,:), tk_sfc(:), pp_sfc, tk_hl)
 
@@ -474,7 +474,7 @@ MODULE mo_rte_rrtmgp_radiation
       aer_aod_2325    ,aer_ssa_2325    ,aer_asy_2325                     ,&
       aer_aod_9731                                                       ) 
     !$ACC WAIT
-    !$ACC END DATA 
+    !$ACC END DATA
     !-------------------------------------------------------------------
 
   END SUBROUTINE rte_rrtmgp_radiation

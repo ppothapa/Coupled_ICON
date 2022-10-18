@@ -194,16 +194,16 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< Tuning factor for gust parameterization
     &  tune_gust_factor            !
-  !$acc declare create(tune_gust_factor)
+  !$ACC DECLARE CREATE(tune_gust_factor)
 
   INTEGER :: &                     !< Type of gust tuning / SSO coupling
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
                                    ! 2: use envelope top level, combined with adjusted tuning
-  !$acc declare create(itune_gust_diag)
+  !$ACC DECLARE CREATE(itune_gust_diag)
 
   REAL(wp) :: &                    !< Basic gust speed (m/s) at which the SSO correction starts to be reduced
     &  tune_gustsso_lim            !
-  !$acc declare create(tune_gustsso_lim)
+  !$ACC DECLARE CREATE(tune_gustsso_lim)
 
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara

@@ -52,7 +52,7 @@ MODULE mo_parallel_config
   ! computing setup
   ! ---------------
   INTEGER  :: nproma = 1              ! inner loop length/vector length
-!$ACC DECLARE COPYIN(nproma)
+  !$ACC DECLARE COPYIN(nproma)
   INTEGER  :: nblocks_c = 0
   LOGICAL  :: ignore_nproma_use_nblocks_c = .FALSE.
 
@@ -304,7 +304,7 @@ CONTAINS
   SUBROUTINE update_nproma_on_device( i_am_worker )
   LOGICAL, INTENT(IN)   :: i_am_worker
 
-!$ACC UPDATE DEVICE(nproma) IF ( i_am_worker )
+    !$ACC UPDATE DEVICE(nproma) IF(i_am_worker)
 
   END SUBROUTINE update_nproma_on_device
   !-------------------------------------------------------------------------
@@ -373,7 +373,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   ELEMENTAL INTEGER FUNCTION blk_no(j)
 #if defined(_OPENACC)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
     blk_no = MAX((ABS(j)-1)/nproma + 1, 1) ! i.e. also 1 for j=0, nproma=1
@@ -381,7 +381,7 @@ CONTAINS
 
   ELEMENTAL INTEGER FUNCTION idx_no(j)
 #if defined(_OPENACC)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: j
     IF(j==0) THEN
@@ -393,7 +393,7 @@ CONTAINS
 
   ELEMENTAL INTEGER FUNCTION idx_1d(jl,jb)
 #if defined(_OPENACC)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 #endif
     INTEGER, INTENT(IN) :: jl, jb
     IF(jb<=0) THEN

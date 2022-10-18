@@ -1,90 +1,43 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=6,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=3     # Number of VE per logical host
-#PBS -l cpunum_job=5
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_16_R19B7-ID2_ass.run.run.o
-# ----------------------------------------------------------------------------
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -ex
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
-
 # ----------------------------------------------------------------------
 # path definitions
 # ----------------------------------------------------------------------
 
-# for PBS change to directory where job was submitted
-# (without this job is started in HOME)
-if [[ -n ${PBS_O_WORKDIR} ]] ; then
-  cd ${PBS_O_WORKDIR}
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
 fi
 
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
 
-# determine base directory
-ICONDIR=${PBS_O_WORKDIR}/../
-
+# experiment identifier for output files
 EXP="ICON-D2"    # experiment identifier
-EDIR="exp_16"  # working directory
-
-# absolute path to directory with plenty of space:
-EXPDIR=${TMPDIR}/${EDIR}/
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory for grid and extpar files
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw/
-EXTPDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw/
+GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw/ # grid directory
+if [[ ! -d "$GRIDDIR" ]]; then
+  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
+fi
+EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being
 DATADIR=$DATAROOT/ICON-D2-preopera-ass
 LBCDIR=$DATAROOT/ICON-D2-preopera-ass
 
-
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
 # ----------------------------------------------------------------------
 # copy input data: grids, external parameters
 # ----------------------------------------------------------------------
-
-# the directory for the experiment will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd $EXPDIR
-
 
 ln -sf $GRIDDIR/icon_grid_0043_R19B06_LR.nc    iconR19B6_DOM00.nc
 ln -sf $GRIDDIR/icon_grid_0044_R19B07_L.nc     iconR19B7_DOM01.nc
@@ -119,7 +72,6 @@ ln -sf $DATADIR/blacklist_dx.nc .
 # input data for DACE
 ln -sf $DATADIR/blklsttmp .
 ln -sf $DATADIR/cdfin* .
-ln -sf /hpc/uwork/gzaengl/Invar_files/namelist .  # I would need to edit the namelist in the data directory - but I'm not allowed to do it
 
 rm cdfin_vr_*volscan  # delete links to old test set of cdfin_vr_10* files
 ln -sf $DATADIR/radar-volscans/ras07**-10[5-9]??-hd5 .  # half of stations in new hdf5 format
@@ -129,7 +81,7 @@ ln -sf $DATADIR/radar-volscans/cdfin_*_id-010[1-4]??_*volscan . # other half of 
 ln -sf $DATADIR/map_file.* .
 
 # files for synsats
-cp /hpc/rwork0/routfor/test/icon/Checksuite_data/ICON-D2-preopera/*seviri.dat .
+cp ${DATAROOT}/ICON-D2-preopera/*seviri.dat .
 
 
 
@@ -208,23 +160,26 @@ for gridfile in ${atmo_rad_grids}; do
   radiation_grid_filename="${radiation_grid_filename} '${gridfile}',"
 done
 
-
-
+# Variables to configure the mpirun command on the RCL
+num_io_procs=2
+num_restart_procs=0
+num_prefetch_proc=1
+num_io_procs_radar=$NPIORADAR
 
 cat > ${atmo_namelist} << EOF
 &parallel_nml
- nproma          =  752
- p_test_run      = .false.
- l_test_openmp   = .true.
- l_log_checks    = .true.
- num_io_procs      = 2
- num_restart_procs = 0
- num_prefetch_proc = 1
- num_io_procs_radar = ${NPIORADAR}
- itype_comm      =  1
- iorder_sendrecv =  3
- proc0_shift    = 1
- use_omp_input  = .true.
+ nproma                       =  ${nproma}
+ p_test_run                   = .false.
+ l_test_openmp                = .true.
+ l_log_checks                 = .true.
+ num_io_procs                 = ${num_io_procs}
+ num_restart_procs            = ${num_restart_procs}
+ num_prefetch_proc            = ${num_prefetch_proc}
+ num_io_procs_radar           = ${num_io_procs_radar}
+ itype_comm                   = 1
+ iorder_sendrecv              = 3
+ proc0_shift                  = 1
+ use_omp_input                = .true.
 /
 &grid_nml
  dynamics_grid_filename  = ${dynamics_grid_filename}
@@ -1144,6 +1099,78 @@ end_input_radarsim
 
 
 
+#
+# Model Equivalent Calculator
+#
+data=/hpc/rhome/routfor/routfox/3dvar/const
+if [[ ! -d "$data" ]]; then
+  data = "${DATADIR}/const"
+fi
+cat > namelist  << end_input_MEC
+ !===================
+ ! general parameters
+ !===================
+ &run
+   method         = 'MEC'               ! Model Equivalent Calculator
+   model          = 'ICON'              ! forecast model
+   data           = '${data}'
+   input          = "../input"          ! input data path (lff files)
+   obsinput       = './'                ! observation input data (CDFIN-files, blacklist)
+   output         = "./."               ! output directory (ver,mof-files)
+!  aux            = "./output"          ! output directory (ver,mof-files)
+! !!! change to seconds later !!!
+   yyyymmddhh_ana = 2020031110           ! analysis/reference date
+   yyyymmddhh_ref = 2020031109             ! analysis/reference date
+   fc_hours       = 1
+!!!!!! later ???
+!! yyyymmddhhMMSS_ana = %cymdgMSpe%     ! analysis/reference date
+!! yyyymmddhhMMSS_ref = 20200311090000       ! analysis/reference date
+!! fc_seconds     = 3600
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   fg_file        = ''                  ! reference state (e.g det. first guess)
+!  oldanerr_file  = '/none/'
+ /
+ !===============================
+ ! observation related parameters
+ !===============================
+  &observations
+   !---------------------------------------------------
+   ! read from CDFIN files (if not set use mon/cof/ekf)
+   !---------------------------------------------------
+   read_cdfin   = T                       ! (F) read COSMO  CDFIN files
+ /
+
+  &report
+  time_e =    0                                       ! (hhmm, exclusive, reference + 1 minute)
+ !time_b = -100                                       ! (hhmm, inclusive, reference - etkfint)
+  time_b = -0100                            ! (hhmm, inclusive, reference - etkfint)
+ /
+
+  &rules
+  comment = 'set wind observations above 100m passive'
+   obstype = 1         ! for synop
+   zlim    = 100 10000 ! above 100m
+   uv%use  = 7         ! set status of wind observations to 'passive'
+!  uv%use  = 8         ! set status of wind observations to 'rejected'
+ /
+
+ &cosmo_obs
+   verification_start =   -59           ! (min, inclusive) forecast time (- 1 Min, COSMO Syntax)
+   altopsu(1)         =   100.          ! max height for single level wind observations
+   thairh             =     0.          ! multilevel observation collection
+   qcc(4)             =     0.          ! Qualitiy control threhsold relative humidity (same as COSMO nudging)
+   qcvf(4)            =     1.          ! Qualitiy control (same as COSMO nudging)
+ /
+
+ &mec_obs
+  obstypes      = "TEMP PILOT SYNOP DRIBU AIREP SATOB"
+  prefix_out    = "fof"
+  interpolation = -1
+  fg_check      = 1
+ /
+end_input_MEC
+
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
@@ -1156,25 +1183,20 @@ ls -l $MODEL
 
 # export GRIB_DEFINITION_PATH=${GRIBDIR}/definitions/definitions.edzw-1.23.1:${GRIBDIR}/VE/share/grib_api/definitions
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
-
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-# process 0 on VH 0 and 5 I/O processes on VH 0 and 1
-/opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-           -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
-              -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-              -vh     -node 1        -np 4      -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
-
+if [[ "$START_MODEL" == "START_MODEL_function" ]]; then
+  #TODO: add support for this call to START_MODEL_function
+  # process 0 on VH 0 and 5 I/O processes on VH 0 and 1
+  /opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
+             -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
+                -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
+                -vh     -node 1        -np 4      -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
+  EXIT_STATUS=$?
+else
+  $START $MODEL
+  EXIT_STATUS=$?
+fi
 
 date
 
-
+echo "EXIT_STATUS: $EXIT_STATUS"
+exit $EXIT_STATUS

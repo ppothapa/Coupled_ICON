@@ -257,8 +257,8 @@ CONTAINS
 
     INTEGER :: k, jk, jc ! loop indices
 
-    !$ACC DATA PRESENT( Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar,            &
-    !$ACC               dnonsolardT, Tfw )
+    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
+    !$ACC   PRESENT(dnonsolardT, Tfw)
     
     ! initialization of the output
     !$ACC PARALLEL
@@ -285,8 +285,8 @@ CONTAINS
     !$ACC PARALLEL
     !$ACC LOOP SEQ
     DO k=1,kice
-      !$ACC LOOP GANG VECTOR PRIVATE( k_effective, F_A, F_S, deltaT,           &
-      !$ACC                           deltaTdenominator )
+      !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
+      !$ACC   PRIVATE(deltaTdenominator)
       DO jc = i_startidx_c,i_endidx_c
         IF (hi(jc,k) > 0._wp) THEN
 
@@ -354,7 +354,7 @@ CONTAINS
     ! Loop indices
     INTEGER :: k, jk, jc
 
-    !$ACC DATA PRESENT( Tsurf, hi, hs, Qtop, Qbot, Tfw )
+    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, Tfw)
 
     ! initialization of output variables
     !$ACC PARALLEL
@@ -371,8 +371,8 @@ CONTAINS
     !$ACC PARALLEL
     !$ACC LOOP SEQ
     DO k=1,kice
-      !$ACC LOOP GANG VECTOR PRIVATE( k_effective, F_A, F_S, deltaT,           &
-      !$ACC                           deltaTdenominator )
+      !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
+      !$ACC   PRIVATE(deltaTdenominator)
       DO jc = i_startidx_c,i_endidx_c
         IF (hi(jc,k) > 0._wp) THEN
 

@@ -127,7 +127,7 @@ MODULE mo_nh_stepping
   USE mo_memory_log,               ONLY: memory_log_add
   USE mo_mpi,                      ONLY: proc_split, push_glob_comm, pop_glob_comm, &
        &                                 p_comm_work, my_process_is_mpi_workroot,   &
-       &                                 my_process_is_mpi_test, my_process_is_work_only
+       &                                 my_process_is_mpi_test, my_process_is_work_only, i_am_accel_node
 #ifdef HAVE_RADARFWO
   USE mo_emvorado_interface,       ONLY: emvorado_radarfwo
 #endif
@@ -227,7 +227,7 @@ MODULE mo_nh_stepping
 
 #if defined( _OPENACC )
   USE mo_nonhydro_gpu_types,       ONLY: h2d_icon, d2h_icon, devcpy_grf_state
-  USE mo_mpi,                      ONLY: i_am_accel_node, my_process_is_work
+  USE mo_mpi,                      ONLY: my_process_is_work
   USE mo_acc_device_management,    ONLY: printGPUMem
 #endif
   USE mo_loopindices,              ONLY: get_indices_c, get_indices_v
@@ -474,20 +474,22 @@ MODULE mo_nh_stepping
 #if defined( _OPENACC )
     ! initialize GPU for NWP and AES
     i_am_accel_node = my_process_is_work()    ! Activate GPUs
-    call h2d_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
-      &            p_nh_state, prep_adv, advection_config, iforcing )
-    IF (n_dom > 1 .OR. l_limited_area) THEN
-      CALL devcpy_grf_state (p_grf_state, .TRUE.)
-      CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
-    ELSEIF (ANY(lredgrid_phys)) THEN
-      CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE.)
-    ENDIF
-    IF ( iforcing == inwp ) THEN
-      DO jg=1, n_dom
-        CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), &
-          phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg))
-      ENDDO
-      CALL devcpy_nwp()
+    IF (i_am_accel_node) THEN
+      CALL h2d_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
+      &            p_nh_state, prep_adv, advection_config, iforcing, lacc=.TRUE. )
+      IF (n_dom > 1 .OR. l_limited_area) THEN
+        CALL devcpy_grf_state (p_grf_state, .TRUE., lacc=.TRUE.)
+        CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE., lacc=.TRUE.)
+      ELSEIF (ANY(lredgrid_phys)) THEN
+        CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE., lacc=.TRUE.)
+      ENDIF
+      IF ( iforcing == inwp ) THEN
+        DO jg=1, n_dom
+          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), &
+            phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
+        ENDDO
+        CALL devcpy_nwp(lacc=.TRUE.)
+      ENDIF
     ENDIF
 #endif
 
@@ -653,7 +655,7 @@ MODULE mo_nh_stepping
     END IF
 
     IF (output_mode%l_nml) THEN
-      CALL write_name_list_output(jstep=0)
+      CALL write_name_list_output(jstep=0, lacc=i_am_accel_node)
     END IF
 
     !-----------------------------------------------
@@ -734,19 +736,21 @@ MODULE mo_nh_stepping
   CALL perform_nh_timeloop (mtime_current, latbc)
 
 #if defined( _OPENACC )
-  CALL d2h_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
-    &            p_nh_state, prep_adv, advection_config, iforcing )
-  IF (n_dom > 1 .OR. l_limited_area) THEN
-     CALL devcpy_grf_state (p_grf_state, .FALSE.)
-     CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
-  ELSEIF (ANY(lredgrid_phys)) THEN
-     CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE.)
-  ENDIF
-  IF ( iforcing == inwp ) THEN
-    DO jg=1, n_dom
-       CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
-    ENDDO
-    CALL hostcpy_nwp()
+  IF (i_am_accel_node) THEN
+    CALL d2h_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
+      &            p_nh_state, prep_adv, advection_config, iforcing, lacc=.TRUE. )
+    IF (n_dom > 1 .OR. l_limited_area) THEN
+       CALL devcpy_grf_state (p_grf_state, .FALSE., lacc=.TRUE.)
+       CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE., lacc=.TRUE.)
+    ELSEIF (ANY(lredgrid_phys)) THEN
+       CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE., lacc=.TRUE.)
+    ENDIF
+    IF ( iforcing == inwp ) THEN
+      DO jg=1, n_dom
+         CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=.TRUE.)
+      ENDDO
+      CALL hostcpy_nwp(lacc=.TRUE.)
+    ENDIF
   ENDIF
   i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
@@ -1074,7 +1078,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Device to host copy before update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
         i_am_accel_node = .FALSE.
 #endif
@@ -1098,11 +1102,11 @@ MODULE mo_nh_stepping
         mtime_old = mtime_current
 
 #ifdef _OPENACC
+        i_am_accel_node = my_process_is_work()
         CALL message('mo_nh_stepping', 'Host to device copy after update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
-        i_am_accel_node = my_process_is_work()
 #endif
 
       END IF ! end update of surface parameter fields
@@ -1111,7 +1115,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
         i_am_accel_node = .FALSE.
 #endif
@@ -1145,11 +1149,11 @@ MODULE mo_nh_stepping
             &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )                 !inout
         ENDDO
 #ifdef _OPENACC
+        i_am_accel_node = my_process_is_work()
         CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
-        i_am_accel_node = my_process_is_work()
 #endif
       END IF
 
@@ -1301,9 +1305,9 @@ MODULE mo_nh_stepping
           DO jn = 1, p_patch(jg)%n_childdom
             jgc = p_patch(jg)%child_id(jn)
             IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
-            IF (lsynsat(jgc) .AND. p_patch(jgc)%nshift > 0) CALL copy_rttov_ubc (jg, jgc, use_acc=.TRUE.)
+            IF (lsynsat(jgc) .AND. p_patch(jgc)%nshift > 0) CALL copy_rttov_ubc (jg, jgc, lacc=.TRUE.)
           ENDDO
-          IF (lsynsat(jg)) CALL rttov_driver (jg, p_patch(jg)%parent_id, nnow_rcf(jg), use_acc=.TRUE.)
+          IF (lsynsat(jg)) CALL rttov_driver (jg, p_patch(jg)%parent_id, nnow_rcf(jg), lacc=.TRUE.)
 
         ENDDO!jg
         !$ser verbatim DO jg = 1, n_dom
@@ -1347,7 +1351,7 @@ MODULE mo_nh_stepping
       CALL nwp_opt_diagnostics(p_patch(1:), p_patch_local_parent, p_int_state_local_parent, &
                                p_nh_state, p_int_state(1:), prm_diag, &
                                l_nml_output_dom, nnow, nnow_rcf, lpi_max_Event, celltracks_Event,  &
-                               dbz_Event, mtime_current, time_config%tc_dt_model)
+                               dbz_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
     ENDIF
 
     ! Adapt number of dynamics substeps if necessary
@@ -1411,11 +1415,7 @@ MODULE mo_nh_stepping
     ! output of results
     ! note: nnew has been replaced by nnow here because the update
     IF (l_nml_output) THEN
-#ifdef _OPENACC
       CALL write_name_list_output(jstep, lacc=i_am_accel_node)
-#else
-      CALL write_name_list_output(jstep)
-#endif
     ENDIF
 
     ! sample meteogram output
@@ -1446,11 +1446,8 @@ MODULE mo_nh_stepping
 #ifdef NOMPI
       IF (my_process_is_mpi_all_seq()) &
 #endif
-#ifdef _OPENACC
-        CALL finish (routine, 'supervise_total_integrals_nh: OpenACC version currently not implemented')
-#endif
         CALL supervise_total_integrals_nh( kstep, p_patch(1:), p_nh_state, p_int_state(1:), &
-        &                                  nnow(1:n_dom), nnow_rcf(1:n_dom), jstep == (nsteps+jstep0))
+        &                                  nnow(1:n_dom), nnow_rcf(1:n_dom), jstep == (nsteps+jstep0), lacc=i_am_accel_node)
     ENDIF
 
 
@@ -1789,9 +1786,7 @@ MODULE mo_nh_stepping
         ! feedback increments (not needed in global domain)
         n_now = nnow(jg)
         n_save = nsav2(jg)
-#ifndef _OPENACC
 !$OMP PARALLEL
-#endif
         CALL copy(p_nh_state(jg)%prog(n_now)%vn, &
              p_nh_state(jg)%prog(n_save)%vn)
         CALL copy(p_nh_state(jg)%prog(n_now)%w, &
@@ -1800,9 +1795,7 @@ MODULE mo_nh_stepping
              p_nh_state(jg)%prog(n_save)%rho)
         CALL copy(p_nh_state(jg)%prog(n_now)%theta_v, &
              p_nh_state(jg)%prog(n_save)%theta_v)
-#ifndef _OPENACC
 !$OMP END PARALLEL
-#endif
       ENDIF
 
 
@@ -1882,7 +1875,7 @@ MODULE mo_nh_stepping
         ! msg_level E [ 8,  11]: print max/min output for global domain and every transport step
         IF (msg_level >= 12 .OR. msg_level >= 8 .AND. jg == 1) THEN
           CALL print_maxwinds(p_patch(jg), p_nh_state(jg)%prog(nnow(jg))%vn,   &
-            p_nh_state(jg)%prog(nnow(jg))%w)
+            p_nh_state(jg)%prog(nnow(jg))%w, lacc=.TRUE.)
         ENDIF
 
 #ifdef MESSY
@@ -2271,7 +2264,7 @@ MODULE mo_nh_stepping
             ENDIF
 
             IF (lcall_rrg) THEN
-              CALL interpol_rrg_grf(jg, jgc, jn, nnew_rcf(jg))
+              CALL interpol_rrg_grf(jg, jgc, jn, nnew_rcf(jg), lacc=.TRUE.)
             ENDIF
             IF (lcall_rrg .AND. atm_phy_nwp_config(jgc)%latm_above_top) THEN
               CALL copy_rrg_ubc(jg, jgc)
@@ -2592,7 +2585,7 @@ MODULE mo_nh_stepping
               & CALL message (routine, 'NESTING online init: Switching to CPU for initialization')
 
             ! The online initialization of the nest runs on CPU only.
-            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
             i_am_accel_node = .FALSE. ! disable the execution of ACC kernels
 #endif
             CALL initialize_nest(jg, jgc)
@@ -2656,17 +2649,17 @@ MODULE mo_nh_stepping
               &                  airmass   = p_nh_state(jgc)%diag%airmass_new     ) !inout
 
             IF ( lredgrid_phys(jgc) ) THEN
-              CALL interpol_rrg_grf(jg, jgc, jn, nnow_rcf(jg))
+              CALL interpol_rrg_grf(jg, jgc, jn, nnow_rcf(jg), lacc=.FALSE.)
               IF (atm_phy_nwp_config(jgc)%latm_above_top) THEN
                 CALL copy_rrg_ubc(jg, jgc)
               ENDIF
             ENDIF
 
 #ifdef _OPENACC
-            CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg)) ! necessary as Halo-Data can be modified
-            CALL gpu_h2d_nh_nwp(p_patch(jgc), prm_diag(jgc), ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
-                                atm_phy_nwp_config=atm_phy_nwp_config(jg))
             i_am_accel_node = my_process_is_work()
+            CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node) ! necessary as Halo-Data can be modified
+            CALL gpu_h2d_nh_nwp(p_patch(jgc), prm_diag(jgc), ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
+                                atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
             IF (msg_level >= 7) &
               & CALL message (routine, 'NESTING online init: Switching back to GPU')
 #endif
@@ -2777,7 +2770,7 @@ MODULE mo_nh_stepping
         & .OR. msg_level >= 8 .AND. jg == 1 &
         & .OR. msg_level >= 5 .AND. jg == 1 .AND. nstep == 1) THEN
         CALL print_maxwinds(p_patch, p_nh_state%prog(nnow(jg))%vn,   &
-          p_nh_state%prog(nnow(jg))%w)
+          p_nh_state%prog(nnow(jg))%w, lacc=i_am_accel_node)
       ENDIF
 
       ! total number of dynamics substeps since last boundary update
@@ -3016,7 +3009,7 @@ MODULE mo_nh_stepping
       IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
 
       IF ( lredgrid_phys(jgc) ) THEN
-        CALL interpol_rrg_grf(jg, jgc, jn, nnow_rcf(jg))
+        CALL interpol_rrg_grf(jg, jgc, jn, nnow_rcf(jg), lacc=lacc)
         IF (atm_phy_nwp_config(jgc)%latm_above_top) THEN
           CALL copy_rrg_ubc(jg, jgc)
         ENDIF
@@ -3208,7 +3201,7 @@ MODULE mo_nh_stepping
           
           CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL
+          !$ACC PARALLEL
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jc = i_startidx, i_endidx
@@ -3217,7 +3210,7 @@ MODULE mo_nh_stepping
                 &                               * p_nh_state(jg)%metrics%deepatmo_t1mc(jk,idamtr_t1mc_divh)
             END DO
           END DO
-!$ACC END PARALLEL
+          !$ACC END PARALLEL
         END DO  !jb
 #ifndef _OPENACC
 !$OMP END DO NOWAIT
@@ -3234,7 +3227,7 @@ MODULE mo_nh_stepping
           
           CALL get_indices_v(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL
+          !$ACC PARALLEL
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jv = i_startidx, i_endidx
@@ -3243,7 +3236,7 @@ MODULE mo_nh_stepping
                 &                                   * p_nh_state(jg)%metrics%deepatmo_t1mc(jk,idamtr_t1mc_gradh)
             END DO
           END DO
-!$ACC END PARALLEL
+          !$ACC END PARALLEL
         END DO  !jb
 #ifndef _OPENACC
 !$OMP END DO NOWAIT
@@ -3360,9 +3353,9 @@ MODULE mo_nh_stepping
         IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
 
         !$ACC WAIT
-        CALL interpol_phys_grf(ext_data, jg, jgc, jn, use_acc=lacc)
+        CALL interpol_phys_grf(ext_data, jg, jgc, jn, lacc=lacc)
 
-        IF (lfeedback(jgc) .AND. ifeedback_type==1) CALL feedback_phys_diag(jgc, jg)
+        IF (lfeedback(jgc) .AND. ifeedback_type==1) CALL feedback_phys_diag(jgc, jg, lacc=lacc)
 
         CALL interpol_scal_grf (p_patch(jg), p_patch(jgc), p_grf_state(jg)%p_dom(jn), 1, &
            p_nh_state(jg)%prog(nnow_rcf(jg))%tke, p_nh_state(jgc)%prog(nnow_rcf(jgc))%tke)
@@ -3423,7 +3416,7 @@ MODULE mo_nh_stepping
 #else
 !$OMP DO COLLAPSE(3) PRIVATE(i,j,k)
 #endif
-  !$ACC PARALLEL PRESENT( p_nh_state ) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL PRESENT(p_nh_state) ASYNC(1) IF(use_acc)
   !$ACC LOOP GANG VECTOR COLLAPSE(3)
   DO k = 1, ke
     DO j = 1, je
@@ -3487,7 +3480,7 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
       CALL message('reset_to_initial_state', "Copy data to CPU for init_nwp_phy")
-      CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg))
+      CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
       i_am_accel_node = .FALSE.
 #endif
       CALL init_nwp_phy(                            &
@@ -3509,9 +3502,9 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
       CALL message('reset_to_initial_state', "Copy reinitialized data back to GPU after init_nwp_phy")
-      CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), phy_params=phy_params(jg), &
-                          atm_phy_nwp_config=atm_phy_nwp_config(jg))
       i_am_accel_node = my_process_is_work()
+      CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), phy_params=phy_params(jg), &
+                          atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
 #endif
 
     ENDDO

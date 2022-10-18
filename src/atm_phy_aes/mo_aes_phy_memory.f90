@@ -750,7 +750,7 @@ CONTAINS
     shapesfc = (/kproma, kblks, ksfc_type/)
     shape3d_layer_interfaces = (/kproma,klev+1,kblks/)
 
-    !$ACC ENTER DATA COPYIN( field )
+    !$ACC ENTER DATA COPYIN(field)
     ! Register a field list and apply default settings
 
     CALL vlr_add(field_list, listname, patch_id=jg ,lrestart=.TRUE.)
@@ -4022,7 +4022,7 @@ CONTAINS
     shape3d   = (/kproma, klev, kblks/)
     shape_trc = (/kproma, klev, kblks, ktracer/)
 
-    !$ACC ENTER DATA COPYIN( tend )
+    !$ACC ENTER DATA COPYIN(tend)
 
     CALL vlr_add(tend_list, listname, patch_id=jg ,lrestart=.FALSE.)
 

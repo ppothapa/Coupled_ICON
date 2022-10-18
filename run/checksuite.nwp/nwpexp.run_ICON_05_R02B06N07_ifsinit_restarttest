@@ -1,48 +1,25 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -q sx_norm
-#PBS -v NE=4,CPE=8,NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
-#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
-#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=${NMPI_ROOT}/libexec/mpid
-#PBS -l elapstim_req=00:40:00
-#PBS --venode=${NE}
-#PBS --venum-lhost=4     # Number of VE per logical host
-#PBS -l cpunum_job=5
-#PBS -l coresz_prc=0
-#PBS -T necmpi
-#PBS --use-hca=2             # Number of HCA per logical host
-#PBS -j o
-#PBS -o LOG.exp.run_ICON_05_R02B06N07_ifsinit_restarttest.run.run.o
-# ----------------------------------------------------------------------------
-# ============================================================================
-date
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -ex
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=${NE}-1
-echo "PPN etc. $NN $NE $CPE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
-
-# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # path definitions
-# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
+fi
+
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
+DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory with input grids:
 GRIDDIR=${DATAROOT}/GRF_R2B6N8_IFStest
@@ -53,30 +30,9 @@ IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
 # directory with external parameter data:
 EXTPARDIR=${DATAROOT}/Extpar_R2B6N8_IFStest
 
-# base directory for ICON sources and binary:
-ICONDIR=${PBS_O_WORKDIR}/../
-
-# absolute path to directory with plenty of space:
-EDIR="exp05"
-EXPDIR=$TMPDIR/${EDIR}/
-
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
-
-MODEL=${ICONDIR}/vector/bin/icon
-MODEL_SCAL=${ICONDIR}/host/bin/icon
-
-
 # ----------------------------------------------------------------------------
 # copy input data: grids, external parameters, model
 # ----------------------------------------------------------------------------
-
-# the directory for the experiment will be created, if not already there
-if [ ! -d $EXPDIR ]; then
-    mkdir -p $EXPDIR
-fi
-cd ${EXPDIR}
 
 # delete existing restart files
 rm -rf *restart_*
@@ -174,6 +130,12 @@ cat > icon_master.namelist << EOF
 EOF
 
 
+# Variables to configure the mpirun command on the RCL
+num_io_procs=1
+num_restart_procs=$nrest_procs
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 # ----------------------------------------------------------------------------
 # model namelists
 # ----------------------------------------------------------------------------
@@ -183,15 +145,16 @@ cat > NAMELIST_NWP << EOF
 
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
- nproma                      =                        752         ! loop chunk length
+ nproma                      =                  ${nproma}         ! loop chunk length
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
- num_io_procs                =                          1         ! number of I/O processors
+ num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =             ${nrest_procs}         ! number of restart processors
+ num_prefetch_proc           =       ${num_prefetch_proc}         ! number of processors for LBC prefetching
+ num_io_procs_radar          =      ${num_io_procs_radar}         ! number of EMVORADO I/O processors
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
  proc0_shift                 =                          1         ! VH offloading mode
  use_omp_input               =                     .true.         ! task-parallelized input
 /
-
 
 ! run_nml: general switches ---------------------------------------------------
 &run_nml
@@ -400,23 +363,17 @@ EOF
 # run the model!
 # ----------------------------------------------------------------------------
 
+$START_MODEL
+EXIT_STATUS=$?
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
-
-
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
-
-/opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-           -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
-              -vh     -node 0        -np 2      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} 
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
 # ----------------------------------------------------------------------------
+
+echo "EXIT_STATUS: $EXIT_STATUS"
+exit $EXIT_STATUS

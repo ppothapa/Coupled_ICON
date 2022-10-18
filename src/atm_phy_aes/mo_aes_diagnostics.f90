@@ -111,8 +111,8 @@ CONTAINS
 
       field => prm_field(patch%id)
 
-      !$ACC DATA PRESENT( field%rsdt, field%rsut, field%rlut ) &
-      !$ACC       CREATE( scr )
+      !$ACC DATA PRESENT(field%rsdt, field%rsut, field%rlut) &
+      !$ACC   CREATE(scr)
 
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP SEQ
@@ -142,8 +142,8 @@ CONTAINS
 
       field => prm_field(patch%id)
 
-      !$ACC DATA PRESENT( field%pr, field%evap, field%sftof ) &
-      !$ACC       CREATE( scr )
+      !$ACC DATA PRESENT(field%pr, field%evap, field%sftof) &
+      !$ACC   CREATE(scr)
 
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP SEQ

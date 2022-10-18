@@ -597,9 +597,7 @@ MODULE mo_mpi
   
   ! Flag if processor splitting is active
   LOGICAL, PUBLIC :: proc_split = .FALSE.
-#ifdef _OPENACC
   LOGICAL, PUBLIC :: i_am_accel_node = .FALSE.
-#endif
 
 #ifdef USE_NCCL
   INTEGER, PARAMETER :: gpu_comm_queue_depth = 32
@@ -922,14 +920,6 @@ MODULE mo_mpi
 
   CHARACTER(len=256) :: message_text = ''
   
-#if defined( _OPENACC )
-#define ACC_DEBUG NOACC
-#if defined(__MPI_NOACC)
-  LOGICAL, PARAMETER ::  acc_on = .FALSE.
-#else
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-#endif
 
 CONTAINS
 
@@ -2976,7 +2966,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3022,7 +3012,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
             p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3283,7 +3273,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3471,7 +3461,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
@@ -3774,7 +3764,7 @@ CONTAINS
       CALL p_isend_nccl_real(t_buffer, p_destination, p_count)
 #endif
     ELSE
-      !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+      !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
            &         p_comm, out_request, p_error)
       !$ACC END HOST_DATA
@@ -3827,7 +3817,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -4162,7 +4152,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -4372,7 +4362,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
          &         p_comm, p_request(p_irequest), p_error)
@@ -4608,7 +4598,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
          p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -4653,7 +4643,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
             p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -4953,7 +4943,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
       &           p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -5141,7 +5131,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
             p_comm, p_status, p_error)
     !$ACC END HOST_DATA
@@ -5509,7 +5499,7 @@ CONTAINS
 #endif
     ELSE
       CALL p_inc_request
-      !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+      !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
            p_comm, p_request(p_irequest), p_error)
       !$ACC END HOST_DATA
@@ -5554,7 +5544,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL MPI_IRECV(t_buffer, icount, p_real_sp, p_source, p_tag, &
          p_comm, p_request(p_irequest), p_error)
@@ -5831,7 +5821,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
          p_comm, out_request, p_error)
     !$ACC END HOST_DATA
@@ -6042,7 +6032,7 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE( t_buffer ) IF ( loc_use_g2g )
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
          p_comm, p_request(p_irequest), p_error)

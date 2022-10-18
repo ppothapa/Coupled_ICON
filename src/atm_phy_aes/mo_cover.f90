@@ -154,10 +154,10 @@ CONTAINS
     cqx    = aes_cov_config(jg)% cqx
     clcon  = aes_cov_config(jg)% clcon
 
-    !$ACC DATA PRESENT( ktype, pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc, printop )  &
-    !$ACC       CREATE( itv1, itv2, zdtmin, za, zqsm1, ua, zknvb, zphase,                                 &
-    !$ACC               knvb, loidx, lomask, idx_batch, iphase_batch, za_batch, zphase_batch,             &
-    !$ACC               ua_batch, nphase_batch )
+    !$ACC DATA PRESENT(ktype, pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc, printop) &
+    !$ACC   CREATE(itv1, itv2, zdtmin, za, zqsm1, ua, zknvb, zphase) &
+    !$ACC   CREATE(knvb, loidx, lomask, idx_batch, iphase_batch, za_batch, zphase_batch) &
+    !$ACC   CREATE(ua_batch, nphase_batch)
 
     ! Initialize output arrays
     !
@@ -192,7 +192,7 @@ CONTAINS
 !IBM* novector
 
           !$ACC PARALLEL DEFAULT(PRESENT)
-          !$ACC LOOP GANG VECTOR PRIVATE( zcor )
+          !$ACC LOOP GANG VECTOR PRIVATE(zcor)
           DO jl = jcs,kproma
              zpapm1i      = SWDIV_NOCHK(1._wp,papm1(jl,jk))
              zqsm1(jl,jk) = MIN(ua(jl)*zpapm1i,0.5_wp)

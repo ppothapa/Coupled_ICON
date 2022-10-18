@@ -178,7 +178,7 @@ REAL (KIND=wp)     ::        &
   alpha1       =  0.7500_wp    ! parameter scaling the molecular roughness of water waves
 
 
-!$acc declare copyin(alpha0,alpha0_max,alpha0_pert)
+  !$ACC DECLARE COPYIN(alpha0, alpha0_max, alpha0_pert)
 
 ! 3. Parameters that should be external parameter fields being not yet 
 !    available:
@@ -751,15 +751,15 @@ SUBROUTINE turb_wkarr_alloc (ke, kcm, nproma, istat)
   ALLOCATE ( dz_sa_h      (nproma)                   , STAT=istat)
   ALLOCATE ( dz_s0_h      (nproma)                   , STAT=istat)
 
-  !$acc enter data create(eprs,len_scale,rhon,frh,frm,zaux,zvari,l_scal)
-  !$acc enter data create(fc_min,grad,hig,tmps,vaps,prss,liqs,diss_tar,hlp)
-  !$acc enter data create(dicke,can,ftm,shv)
-  !$acc enter data create(hor_scale,xri,lay,lays,src,dzsm,dzsh,lev,rclc)
-  !$acc enter data create(tketens_tar,lo_ice,k_2d,hk_2d,hk1_2d,h_top_2d)
-  !$acc enter data create(h_atm_2d,h_can_2d,edh,z0m_2d,z0d_2d,z2m_2d)
-  !$acc enter data create(z10m_2d,rat_m_2d,rat_h_2d,fac_h_2d,fac_m_2d,frc_2d)
-  !$acc enter data create(vel_2d,tl_s_2d,qt_s_2d,velmin,ratsea,dz_sg_m,dz_sg_h)
-  !$acc enter data create(dz_g0_m,dz_g0_h,dz_0a_m,dz_0a_h,dz_sa_h,dz_s0_h)
+  !$ACC ENTER DATA CREATE(eprs, len_scale, rhon, frh, frm, zaux, zvari, l_scal)
+  !$ACC ENTER DATA CREATE(fc_min, grad, hig, tmps, vaps, prss, liqs, diss_tar, hlp)
+  !$ACC ENTER DATA CREATE(dicke, can, ftm, shv)
+  !$ACC ENTER DATA CREATE(hor_scale, xri, lay, lays, src, dzsm, dzsh, lev, rclc)
+  !$ACC ENTER DATA CREATE(tketens_tar, lo_ice, k_2d, hk_2d, hk1_2d, h_top_2d)
+  !$ACC ENTER DATA CREATE(h_atm_2d, h_can_2d, edh, z0m_2d, z0d_2d, z2m_2d)
+  !$ACC ENTER DATA CREATE(z10m_2d, rat_m_2d, rat_h_2d, fac_h_2d, fac_m_2d, frc_2d)
+  !$ACC ENTER DATA CREATE(vel_2d, tl_s_2d, qt_s_2d, velmin, ratsea, dz_sg_m, dz_sg_h)
+  !$ACC ENTER DATA CREATE(dz_g0_m, dz_g0_h, dz_0a_m, dz_0a_h, dz_sa_h, dz_s0_h)
 
 END SUBROUTINE turb_wkarr_alloc
 
@@ -771,15 +771,15 @@ SUBROUTINE turb_wkarr_dealloc (istat)
   INTEGER, INTENT(OUT) :: istat
 
 ! For any application of the blocked default turbulence code:
-  !$acc exit data delete(eprs,len_scale,rhon,frh,frm,zaux,zvari,l_scal)
-  !$acc exit data delete(fc_min,grad,hig,tmps,vaps,prss,liqs,diss_tar,hlp)
-  !$acc exit data delete(dicke,can,ftm,shv)
-  !$acc exit data delete(hor_scale,xri,lay,lays,src,dzsm,dzsh,lev,rclc)
-  !$acc exit data delete(tketens_tar,lo_ice,k_2d,hk_2d,hk1_2d,h_top_2d)
-  !$acc exit data delete(h_atm_2d,h_can_2d,edh,z0m_2d,z0d_2d,z2m_2d)
-  !$acc exit data delete(z10m_2d,rat_m_2d,rat_h_2d,fac_h_2d,fac_m_2d,frc_2d)
-  !$acc exit data delete(vel_2d,tl_s_2d,qt_s_2d,velmin,ratsea,dz_sg_m,dz_sg_h)
-  !$acc exit data delete(dz_g0_m,dz_g0_h,dz_0a_m,dz_0a_h,dz_sa_h,dz_s0_h)
+  !$ACC EXIT DATA DELETE(eprs, len_scale, rhon, frh, frm, zaux, zvari, l_scal)
+  !$ACC EXIT DATA DELETE(fc_min, grad, hig, tmps, vaps, prss, liqs, diss_tar, hlp)
+  !$ACC EXIT DATA DELETE(dicke, can, ftm, shv)
+  !$ACC EXIT DATA DELETE(hor_scale, xri, lay, lays, src, dzsm, dzsh, lev, rclc)
+  !$ACC EXIT DATA DELETE(tketens_tar, lo_ice, k_2d, hk_2d, hk1_2d, h_top_2d)
+  !$ACC EXIT DATA DELETE(h_atm_2d, h_can_2d, edh, z0m_2d, z0d_2d, z2m_2d)
+  !$ACC EXIT DATA DELETE(z10m_2d, rat_m_2d, rat_h_2d, fac_h_2d, fac_m_2d, frc_2d)
+  !$ACC EXIT DATA DELETE(vel_2d, tl_s_2d, qt_s_2d, velmin, ratsea, dz_sg_m, dz_sg_h)
+  !$ACC EXIT DATA DELETE(dz_g0_m, dz_g0_h, dz_0a_m, dz_0a_h, dz_sa_h, dz_s0_h)
 
   DEALLOCATE ( eprs           , STAT=istat)
 

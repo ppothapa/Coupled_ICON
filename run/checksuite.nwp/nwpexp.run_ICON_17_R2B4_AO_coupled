@@ -15,34 +15,28 @@
 #
 # PBS options: NE=1-64, CPE=8
 #
-# ----------------------------------------------------------------------------
-#PBS -S /bin/bash
-#PBS -q sx_norm
-#PBS -v NE=4,CPE=8           # NE: number VE nodes, CPE: number cores on each VE (8!)
-#PBS --venode=${NE}          # number VEs requested
-#PBS --venum-lhost=2         # number VEs per logical host (partitioning, 2 OK)
-#PBS -l cpunum_job=3         # number x86 cores per logical host (1ini+#IO)
-#PBS -l coresz_prc=0         
-#PBS -T necmpi               # parallel job mit NEC-MPI
-#PBS --use-hca=2             # number of HCA per logical host (2)
-#PBS -l elapstim_req=01:00:00
-#PBS -o LOG.exp.run_ICON_17_R2B4_AO_coupled.run.run.o
-#PBS -j o
-# ----------------------------------------------------------------------------
 
-set -x
-module load mpi
-ulimit -s unlimited
 ulimit -s 2097152
 ulimit -c 0
 
 #=============================================================================
 
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
+fi
+
 # environment variables for the experiment and the target system
 # --------------------------------------------------------------
 export EXPNAME="coupleR2B4_017"
-#ICONDIR=$HOME/icon/icon-nwp-test5
-#ICONDIR=$HOME/icon/icon-nwp-test6
 
 # start and end date+time of experiment
 # -------------------------------------
@@ -90,7 +84,6 @@ export NMPI_PROGINF=DETAIL       # get performance details (Jens-Olaf Beismann)
 let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
 let NE1=${NE}-1
 echo "PPN etc. $NN $NE $CPE $PPN"
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
 
 #
 # MPI variables
@@ -110,8 +103,8 @@ mpi_oce_procs=8     # optimal: 8/16 for NE=4/8 dt=600/dt_rad=3600, 12 dt=450/dt_
 
 echo $mpi_total_procs ${mpi_atm_procs} ${mpi_oce_procs}
 
-nproma_atm=752
-nproma_oce=752
+nproma_atm=$nproma
+nproma_oce=$nproma
 
 # asynchronous diagnostic output processes
 # ----------------------------------------
@@ -123,84 +116,20 @@ mpi_oce_io_procs=0      # >0 for ocean is not working yet
 #=============================================================================
 
 
-# load local setting and profile, if existing
-# -------------------------------------------
-if [ -a ../setting ]
-then
-  echo "Load Setting"
-  . ../setting
-fi
-if [[ -a  /etc/profile ]]
-then
-	. /etc/profile
-fi
-
 #=============================================================================
 
 # root directory for input data
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/ICON-seamless
+DATAROOT="${icon_data_poolFolder}/Checksuite_data/ICON-seamless"
+
 
 # base directory for ICON sources and binary:
-ICONDIR=${PBS_O_WORKDIR}/../
+ICONDIR="$basedir" # basedir is provided by create_target_header
 
 # run script directory
-job_name="exp.run_ICON_16_R2B4_AO_coupled.run"                     # name of run script
-RUNSCRIPTDIR=${ICONDIR}/run/checksuite.rcnl.dwd.de                 # directory of run script
-
-# absolute path to directory with plenty of space:
-EDIR="exp16"
-EXPDIR=$TMPDIR/${EDIR}/
-
-# GRIDDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # grid directory
-# EXTPDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # external parameter directory
-
-# path to model binary, including the executable:
-MODEL_VE=${ICONDIR}vector/bin/icon
-MODEL_VH=${ICONDIR}host/bin/icon
-
-# directories with absolute paths
-# -------------------------------
-rundir=${ICONDIR}/run
-basedir=${ICONDIR}
-export basedir
-
-# experiment directory, with plenty of space, create if new
-if [ ! -d ${EXPDIR} ] ;  then
-  mkdir -p ${EXPDIR}
-fi
-if [ ! -d ${EXPDIR} ] ;  then
-    mkdir ${EXPDIR}
-fi
-ls -ld ${EXPDIR}
-check_error $? "${EXPDIR} does not exist?"
-
-cd ${EXPDIR}
+job_name="exp.run_ICON_16_R2B4_AO_coupled.run"             # name of run script
+RUNSCRIPTDIR=${ICONDIR}/run/checksuite.nwp                 # directory of run script
 
 rm -rf stdout.* stderr.*      # remove standard output from previous run
-
-# how to submit the next job
-# --------------------------
-#submit="sbatch"
-submit="qsub"
-
-# cdo for post-processing
-# -----------------------
-cdo="cdo"
-cdo_diff="cdo diffn"
-
-# constants for time calculations
-# -------------------------------
-second=1                                 # [s] 1 second
-minute=60                                # [s] 1 minute
-hour=3600                                # [s] 1 hour
-day=86400                                # [s] 1 day
-month=2592000                            # [s] 30 days
-year360=31104000                         # [s] 360 days
-year=31556900                            # [s] 1 earth year
-
-# define script functions used in the experiment run script
-# ---------------------------------------------------------
-. ${ICONDIR}/run/add_run_routines
 
 #=============================================================================
 #
@@ -665,6 +594,13 @@ dynamics_parent_grid_id="${dynamics_parent_grid_id},"
 # ------------------------
 # For a complete list see Namelist_overview and Namelist_overview.pdf
 #
+
+# Variables to configure the mpirun command on the RCL
+num_io_procs=${mpi_atm_io_procs}
+num_restart_procs=0
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
@@ -676,8 +612,10 @@ cat > ${atm_namelist} << EOF
  p_test_run              = .false.
  l_test_openmp           = .false.
  l_log_checks            = .true.
- num_io_procs            = ${mpi_atm_io_procs}
- num_restart_procs       = 0
+ num_io_procs            = ${num_io_procs}
+ num_restart_procs       = ${num_restart_procs}
+ num_prefetch_proc       = ${num_prefetch_proc}
+ num_io_procs_radar      = ${num_io_procs_radar}
  itype_comm              = 1
  iorder_sendrecv         = 3
  proc0_shift             = 1
@@ -967,7 +905,7 @@ EOF
 #
 #-----------------------------------------------------------------------------
 # add standard atmo_non-hydrostatic_files
-. ${rundir}/add_required_atmo_non-hydrostatic_files
+. ${ICONDIR}/run/add_required_atmo_non-hydrostatic_files
 
 
 #-----------------------------------------------------------------------------
@@ -1665,16 +1603,21 @@ done
 rm -f finish.status
 date
 
-export VE_ERRCTL_ALLOCATE=MSG
-export NMPI_PROGINF=YES
-export VE_TRACEBACK=VERBOSE
-export NMPI_SEPSELECT=3
 export LD_LIBRARY_PATH=/hpc/sw/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin:/hpc/sw/gcc-9.1.0/VH/lib64:/opt/nec/ve/mpi/2.6.0/lib/vh/gnu/9.1.0:/hpc/sw/grib_api-1.23.1/VH/lib:/hpc/sw/hdf5/1.10.5/VH/gnu/lib:/hpc/sw/netcdf4/4.7.3/VH/gnu/lib:$LD_LIBRARY_PATH
-export GMON_OUT_PREFIX=scal_prof
-export VE_FPE_ENABLE=DIV,FOF,INV
-export GFORTRAN_UNBUFFERED_PRECONNECTED=y
-export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
 
+# ----------------------------------------------------------------------
+# run the model!
+# ----------------------------------------------------------------------
+
+$START_MODEL
+EXIT_STATUS=$?
+
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "ICON EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
+
+# (MJ 2022-05-24: The following comment seems outdated, if mpi_oce_procs == 8)
 # NE=4, CPE=8, cpunum_job=3
 # geometry: ID of MPI processes (see ranks below, oce_min_rank, etc)
 # MPI process ID   node   VH/VE    info
@@ -1683,19 +1626,12 @@ export NMPI_EXPORT="GFORTRAN_UNBUFFERED_PRECONNECTED"
 # 17-18            0      VH       IO   atmosphere
 # 19-34            0-3    VE       ICON ocean
 
-# normal output
-
-mpirun -v -vh     -node 0        -np 1                    -env OMP_NUM_THREADS 1 ${MODEL_VH} : \
-          -venode -node 0-${NE1} -np ${mpi_atm_procs}     -env OMP_NUM_THREADS 1 ${MODEL_VE} : \
-          -vh     -node 0        -np ${mpi_atm_io_procs}  -env OMP_NUM_THREADS 1 ${MODEL_VH} : \
-          -venode -node 0-${NE1} -np ${mpi_oce_procs}     -env OMP_NUM_THREADS 1 ${MODEL_VE}
-
 # debug output: each processor with separate output in EXPDIR
 
-#mpirun -v -vh     -node 0        -np 1                    -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_VH} : \
-#          -venode -node 0-${NE1} -np ${mpi_atm_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_VE} : \
-#          -vh     -node 0        -np ${mpi_atm_io_procs}  -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_VH} : \
-#          -venode -node 0-${NE1} -np ${mpi_oce_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_VE}
+#mpirun -v -vh     -node 0        -np 1                    -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
+#          -venode -node 0-${NE1} -np ${mpi_atm_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL} : \
+#          -vh     -node 0        -np ${mpi_atm_io_procs}  -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
+#          -venode -node 0-${NE1} -np ${mpi_oce_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL}
 
 date
 
@@ -1764,7 +1700,7 @@ else
   EXIT_STATUS=1
 fi
 
-echo 'EXIT_STATUS: '$EXIT_STATUS
+echo "EXIT_STATUS: $EXIT_STATUS"
 exit $EXIT_STATUS
 #
 #-----------------------------------------------------------------------------

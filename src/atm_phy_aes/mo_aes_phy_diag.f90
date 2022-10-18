@@ -64,8 +64,8 @@ CONTAINS
     ! 3.3 Weighting factors for fractional surface coverage
     !     Accumulate ice portion for diagnostics
 
-    !$ACC PARALLEL DEFAULT(PRESENT) CREATE( zfrw, zfri, zfrl )
-    !$ACC LOOP GANG(static:1) VECTOR
+    !$ACC PARALLEL DEFAULT(PRESENT) CREATE(zfrw, zfri, zfrl)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc=jcs,jce
 
       ! fraction of solid land in the grid box, i.e. land without lakes if lakes are used
@@ -117,19 +117,19 @@ CONTAINS
 
     ! 3.4 Merge three pieces of information into one array for vdiff
     IF (ilnd.LE.nsfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc=jcs,jce
         field%frac_tile(jc,jb,ilnd) = zfrl(jc)
       END DO
     END IF
     IF (iwtr.LE.nsfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc=jcs,jce
         field%frac_tile(jc,jb,iwtr) = zfrw(jc)
       END DO
     END IF
     IF (iice.LE.nsfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc=jcs,jce
         field%frac_tile(jc,jb,iice) = zfri(jc)
       END DO
@@ -170,8 +170,8 @@ CONTAINS
 
     field => prm_field(jg)
 
-    !$ACC DATA PRESENT( field ) &
-    !$ACC       CREATE( lland, lglac )
+    !$ACC DATA PRESENT(field) &
+    !$ACC   CREATE(lland, lglac)
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP GANG VECTOR
@@ -182,7 +182,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( zprat, zn1, zn2, zcdnc )
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zprat, zn1, zn2, zcdnc)
     DO jk = 1,nlev
       DO jc = jcs,jce
         !
@@ -230,7 +230,7 @@ CONTAINS
 
     field => prm_field(jg)
     
-    !$ACC DATA PRESENT( field%cpair, field%qtrc, field%cvair, field%qconv, field%mair )
+    !$ACC DATA PRESENT(field%cpair, field%qtrc, field%cvair, field%qconv, field%mair)
 
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -310,7 +310,7 @@ CONTAINS
     field => prm_field(jg)
     tend  => prm_tend (jg)
 
-    !$ACC DATA PRESENT( field%pr, field%rsfl, field%ssfl, field%rsfc, field%ssfc, tend%ta_phy, field%cpair, field%cvair )
+    !$ACC DATA PRESENT(field%pr, field%rsfl, field%ssfl, field%rsfc, field%ssfc, tend%ta_phy, field%cpair, field%cvair)
     
     ! precipitation flux from all processes
     !

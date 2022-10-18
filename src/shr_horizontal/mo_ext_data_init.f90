@@ -55,7 +55,8 @@ MODULE mo_ext_data_init
     &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
     &                              itype_vegetation_cycle, read_nc_via_cdi, pp_sso
   USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
-  USE mo_radiation_config,   ONLY: irad_o3, irad_aero, albedo_type, islope_rad
+  USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad,    &
+    &                              irad_aero, iRadAeroTegen, iRadAeroART
   USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
@@ -1136,7 +1137,7 @@ CONTAINS
           ENDDO
         ENDIF
 
-        !$acc update device(ext_data(jg)%atm%i_lc_snow_ice)
+        !$ACC UPDATE DEVICE(ext_data(jg)%atm%i_lc_snow_ice)
 
         ! Urban canopy parameters
         ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp
@@ -1284,7 +1285,7 @@ CONTAINS
 
 
           ! Read time dependent data
-          IF ( irad_aero == 6 .OR. irad_aero == 9) THEN
+          IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             CALL read_extdata('AER_SS',   arr3d=ext_data(jg)%atm_td%aer_ss)
             CALL read_extdata('AER_DUST', arr3d=ext_data(jg)%atm_td%aer_dust)
             CALL read_extdata('AER_ORG',  arr3d=ext_data(jg)%atm_td%aer_org)

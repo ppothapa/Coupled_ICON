@@ -138,7 +138,7 @@ USE mo_lnd_nwp_config,     ONLY: lmulti_snow, l2lay_rho_snow,     &
 !
 USE mo_exception,          ONLY: message, message_text
 USE mo_run_config,         ONLY: msg_level
-
+USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
 !------------------------------------------------------------------------------
 ! Declarations
@@ -1005,11 +1005,7 @@ CONTAINS
 !- End of header
 !==============================================================================
 
-IF(PRESENT(lacc)) THEN
-    lzacc = lacc
-ELSE
-    lzacc = .FALSE.
-ENDIF
+CALL set_acc_host_or_device(lzacc, lacc)
 
 my_cart_id = get_my_global_mpi_id()
 #ifdef _OPENMP
@@ -1158,91 +1154,91 @@ ENDDO
   ctau_i   = MAX(ctau_i,zdt)
 
   ! Subroutine parameters IN
-  !$acc data                                                         &
-  !$acc present(zmls)                                                &
-  !$acc present(soiltyp_subs, plcov, rootdp, sai, eai, tai)    &
-  !$acc present(laifac)                                              &
-  !$acc present(skinc)                                               &
-  !$acc present(fr_paved, urb_isa, urb_ai, urb_h_bld)                &
-  !$acc present(urb_hcap, urb_hcon)                                  &
-  !$acc present(heatcond_fac, heatcap_fac)                           &
-  !$acc present(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m)    &
-  !$acc present(v_10m, prr_con, prs_con, conv_frac, prr_gsp,prs_gsp,pri_gsp) &
+  !$ACC DATA &
+  !$ACC   PRESENT(zmls) &
+  !$ACC   PRESENT(soiltyp_subs, plcov, rootdp, sai, eai, tai) &
+  !$ACC   PRESENT(laifac) &
+  !$ACC   PRESENT(skinc) &
+  !$ACC   PRESENT(fr_paved, urb_isa, urb_ai, urb_h_bld) &
+  !$ACC   PRESENT(urb_hcap, urb_hcon) &
+  !$ACC   PRESENT(heatcond_fac, heatcap_fac) &
+  !$ACC   PRESENT(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m) &
+  !$ACC   PRESENT(v_10m, prr_con, prs_con, conv_frac, prr_gsp, prs_gsp, pri_gsp) &
 #ifdef TWOMOM_SB
-  !$acc present(prh_gsp)                                             &
+  !$ACC   PRESENT(prh_gsp) &
 #endif
-  !$acc present(prg_gsp, sobs, thbs, pabs, zdzhs,tsnred)             &
+  !$ACC   PRESENT(prg_gsp, sobs, thbs, pabs, zdzhs, tsnred) &
 
   ! Subroutine parameters INOUT
-  !$acc present(t_snow_now, t_s_now, t_sk_now, t_g)                  &
-  !$acc present(qv_s, w_snow_now)                                    &
-  !$acc present(rho_snow_now, h_snow, w_i_now, w_p_now, w_s_now)     &
-  !$acc present(freshsnow, zf_snow, tch, tcm, tfv, runoff_s)         &
-  !$acc present(runoff_g, t_snow_mult_now, rho_snow_mult_now)        &
-  !$acc present(wliq_snow_now, wtot_snow_now, dzh_snow_now)          &
-  !$acc present(t_so_now, w_so_now, w_so_ice_now)                    &
+  !$ACC   PRESENT(t_snow_now, t_s_now, t_sk_now, t_g) &
+  !$ACC   PRESENT(qv_s, w_snow_now) &
+  !$ACC   PRESENT(rho_snow_now, h_snow, w_i_now, w_p_now, w_s_now) &
+  !$ACC   PRESENT(freshsnow, zf_snow, tch, tcm, tfv, runoff_s) &
+  !$ACC   PRESENT(runoff_g, t_snow_mult_now, rho_snow_mult_now) &
+  !$ACC   PRESENT(wliq_snow_now, wtot_snow_now, dzh_snow_now) &
+  !$ACC   PRESENT(t_so_now, w_so_now, w_so_ice_now) &
 
   ! Subroutine parameters OUT
-  !$acc present(t_snow_new, t_s_new, t_sk_new)                       &
-  !$acc present(w_snow_new, rho_snow_new)                            &
-  !$acc present(meltrate, w_i_new, w_p_new, w_s_new, zshfl_s)        &
-  !$acc present(zlhfl_s,          zshfl_snow, zlhfl_snow, rstom)     &
-  !$acc present(lhfl_bs, t_snow_mult_new, rho_snow_mult_new)         &
-  !$acc present(wliq_snow_new, wtot_snow_new, dzh_snow_new)          &
-  !$acc present(t_so_new, w_so_new, w_so_ice_new, lhfl_pl)           &
-  !$acc present(zshfl_sfc, zlhfl_sfc, zqhfl_sfc)                     &
+  !$ACC   PRESENT(t_snow_new, t_s_new, t_sk_new) &
+  !$ACC   PRESENT(w_snow_new, rho_snow_new) &
+  !$ACC   PRESENT(meltrate, w_i_new, w_p_new, w_s_new, zshfl_s) &
+  !$ACC   PRESENT(zlhfl_s, zshfl_snow, zlhfl_snow, rstom) &
+  !$ACC   PRESENT(lhfl_bs, t_snow_mult_new, rho_snow_mult_new) &
+  !$ACC   PRESENT(wliq_snow_new, wtot_snow_new, dzh_snow_new) &
+  !$ACC   PRESENT(t_so_new, w_so_new, w_so_ice_new, lhfl_pl) &
+  !$ACC   PRESENT(zshfl_sfc, zlhfl_sfc, zqhfl_sfc) &
 
   ! Local arrays
-  !$acc create(m_styp,ke_soil_hy_b)                                 &
-  !$acc create(h_snow_now, h_snow_new,       zzhls, zdzhs, zdzms)   &
-  !$acc create(zdz_snow_fl, zhh_snow, zhm_snow, zdzh_snow)          &
-  !$acc create(zdzm_snow, zdtsnowdt_mult, zbwt, zrock, zsandf)      &
-  !$acc create(zclayf, zsiltf, zb_por, zpsis, zw_m)                 &
-  !$acc create(zrr,zrs,zesoil,zsfc_frac_bs)                         &
-  !$acc create(zw_m_org, zw_m_soil, zw_m_up, zw_m_low, zaa)         &
-  !$acc create(zrhoch, zth_low, zf_wi, ztmch, zep_s, zep_snow)      &
-  !$acc create(zverbo, zversn, zthsoi, zthsnw, zfor_s, zgsb)        &
-  !$acc create(zrnet_s, zsprs, zdwidt, zdwsndt, zdtsdt)             &
-  !$acc create(zdtsnowdt, zdwgdt, zwinstr, zinfmx, zwimax, zvers)   &
-  !$acc create(zwisnstr, zwpnstr, zfd_wi, zf_pd, zwisn, zwpn)       &
-  !$acc create(zewi, zepd, zept, zesn, zdrr, zrrs, zg1, zlhfl)      &
-  !$acc create(zshfl, zthfl, zradfl, ze_melt, zch_snow, zeb1)       &
-  !$acc create(ztchv, ztchv_max, zrho_atm, zdt_atm, zdq_atm)        &
-  !$acc create(zroota, zwrootdz, zwrootdz_int, zrootdz_int)         &
-  !$acc create(zqhfl_s, zqhfl_snow, zroc, zfcap, zadp, zporv)       &
-  !$acc create(zdlam, zdw, zdw1, zkw0, zkw, zkwm, zkw1, zik2, zpwp, ztlpmwp)    &
-  !$acc create(zedb, ztrang, ztrangs, zwin, zwsnow, zwsnew, zdwsnm) &
-  !$acc create(zw_fr, zinfil, zlw_fr, ziw_fr, zwsnn, zflmg)         &
-  !$acc create(zrunoff_grav, zk0di, zbedi, zsnull, zs1, zf_rad)     &
-  !$acc create(ztraleav, zwroot, zropartw, zts, ztsk, ztsnow)       &
-  !$acc create(ztsnow_mult, zalamtmp, zalam, zrocg, zrocg_soil)     &
-  !$acc create(zrocs, ztsn, ztsnown, ztsnown_mult, znlgw1f)         &
-  !$acc create(zqbase, zrefr, zmelt, ze_out, zrho_dry_old)          &
-  !$acc create(zp, zcounter, ze_rad, zswitch, tmp_num, sum_weight)  &
-  !$acc create(t_new, rho_new, wl_new, dz_old, z_old)               &
-  !$acc create(t_so_free_new, t_so_snow_new, sn_frac)               &
-  !$acc create(zf_snow_lim, zdz_snow, zalas_mult, ztsnownew_mult)   &
-  !$acc create(zextinct, zfor_snow_mult, hzalam, zdqvtsnow)         &
-  !$acc create(zrho_snow, zts_pm, ztsk_pm, ztfunc, ztsnow_pm, zeisa)&
-  !$acc create(zagd, zage, limit_tch, zdz_snow)                     &
-  !$acc create(zaga, zagb, zagc)                                    &
+  !$ACC   CREATE(m_styp, ke_soil_hy_b) &
+  !$ACC   CREATE(h_snow_now, h_snow_new, zzhls, zdzhs, zdzms) &
+  !$ACC   CREATE(zdz_snow_fl, zhh_snow, zhm_snow, zdzh_snow) &
+  !$ACC   CREATE(zdzm_snow, zdtsnowdt_mult, zbwt, zrock, zsandf) &
+  !$ACC   CREATE(zclayf, zsiltf, zb_por, zpsis, zw_m) &
+  !$ACC   CREATE(zrr, zrs, zesoil, zsfc_frac_bs) &
+  !$ACC   CREATE(zw_m_org, zw_m_soil, zw_m_up, zw_m_low, zaa) &
+  !$ACC   CREATE(zrhoch, zth_low, zf_wi, ztmch, zep_s, zep_snow) &
+  !$ACC   CREATE(zverbo, zversn, zthsoi, zthsnw, zfor_s, zgsb) &
+  !$ACC   CREATE(zrnet_s, zsprs, zdwidt, zdwsndt, zdtsdt) &
+  !$ACC   CREATE(zdtsnowdt, zdwgdt, zwinstr, zinfmx, zwimax, zvers) &
+  !$ACC   CREATE(zwisnstr, zwpnstr, zfd_wi, zf_pd, zwisn, zwpn) &
+  !$ACC   CREATE(zewi, zepd, zept, zesn, zdrr, zrrs, zg1, zlhfl) &
+  !$ACC   CREATE(zshfl, zthfl, zradfl, ze_melt, zch_snow, zeb1) &
+  !$ACC   CREATE(ztchv, ztchv_max, zrho_atm, zdt_atm, zdq_atm) &
+  !$ACC   CREATE(zroota, zwrootdz, zwrootdz_int, zrootdz_int) &
+  !$ACC   CREATE(zqhfl_s, zqhfl_snow, zroc, zfcap, zadp, zporv) &
+  !$ACC   CREATE(zdlam, zdw, zdw1, zkw0, zkw, zkwm, zkw1, zik2, zpwp, ztlpmwp) &
+  !$ACC   CREATE(zedb, ztrang, ztrangs, zwin, zwsnow, zwsnew, zdwsnm) &
+  !$ACC   CREATE(zw_fr, zinfil, zlw_fr, ziw_fr, zwsnn, zflmg) &
+  !$ACC   CREATE(zrunoff_grav, zk0di, zbedi, zsnull, zs1, zf_rad) &
+  !$ACC   CREATE(ztraleav, zwroot, zropartw, zts, ztsk, ztsnow) &
+  !$ACC   CREATE(ztsnow_mult, zalamtmp, zalam, zrocg, zrocg_soil) &
+  !$ACC   CREATE(zrocs, ztsn, ztsnown, ztsnown_mult, znlgw1f) &
+  !$ACC   CREATE(zqbase, zrefr, zmelt, ze_out, zrho_dry_old) &
+  !$ACC   CREATE(zp, zcounter, ze_rad, zswitch, tmp_num, sum_weight) &
+  !$ACC   CREATE(t_new, rho_new, wl_new, dz_old, z_old) &
+  !$ACC   CREATE(t_so_free_new, t_so_snow_new, sn_frac) &
+  !$ACC   CREATE(zf_snow_lim, zdz_snow, zalas_mult, ztsnownew_mult) &
+  !$ACC   CREATE(zextinct, zfor_snow_mult, hzalam, zdqvtsnow) &
+  !$ACC   CREATE(zrho_snow, zts_pm, ztsk_pm, ztfunc, ztsnow_pm, zeisa) &
+  !$ACC   CREATE(zagd, zage, limit_tch, zdz_snow) &
+  !$ACC   CREATE(zaga, zagb, zagc) &
 
   ! Terra data module fields
-  !$acc present(cporv, cfcap, cpwp, cadp, cik2, ckw0, ckw1, cdw0)    &
-  !$acc present(cdw1, crock, crhoc, cala1, cala0, ck0di, cbedi)      &
-  !$acc present(clgk0, csandf, cclayf)
+  !$ACC   PRESENT(cporv, cfcap, cpwp, cadp, cik2, ckw0, ckw1, cdw0) &
+  !$ACC   PRESENT(cdw1, crock, crhoc, cala1, cala0, ck0di, cbedi) &
+  !$ACC   PRESENT(clgk0, csandf, cclayf)
 
 ! for the optional fields for itype_trvg
-  !$acc data present (plevap, z0) if (PRESENT(plevap))
+  !$ACC DATA PRESENT(plevap, z0) IF(PRESENT(plevap))
 
   ! for the soil water budget
-  !$acc data present(resid_wso) create(zhwso_budget) if (lres_soilwatb)
+  !$ACC DATA PRESENT(resid_wso) CREATE(zhwso_budget) IF(lres_soilwatb)
 
   IF (lres_soilwatb) THEN
     ! Calculation of soil water budget: store recent runoff fluxes
     ! the final runoff fluxes are subtracted at the end
-    !$acc parallel default(none) async(1)
-    !$acc loop gang vector
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zhwso_budget(i) = runoff_s(i) + runoff_g(i)
       ! in COSMO another procedure is used than in ICON to 
@@ -1250,15 +1246,15 @@ ENDDO
       !   actual values, ICON: zeros) -> for ICON the following init is possible
       !   zhwso_budget(i) = 0.0_wp
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
   ENDIF
 
   ln_10 = LOG(10.0_wp)
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop seq
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP SEQ
   DO kso = 0, UBOUND(zaga,2)
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       zaga(i,kso) = 1.0_wp
       zagb(i,kso) = 1.0_wp
@@ -1274,7 +1270,7 @@ ENDDO
 
 ! Prepare basic surface properties (for land-points only)
 
-  !$acc loop gang(static:1) vector private(mstyp)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(mstyp)
   DO i = ivstart, ivend
     mstyp     = soiltyp_subs(i)        ! soil type
     m_styp(i) = mstyp                  ! array for soil type
@@ -1345,7 +1341,7 @@ ENDDO
   zd2 = EXP(b_clay*zd)
   zd3 = EXP(b_silt*zd)
   zd4 = EXP(b_org*zd)
-  !$acc loop gang(static:1) vector private(mstyp)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(mstyp)
   DO i = ivstart, ivend
     mstyp       = soiltyp_subs(i)        ! soil type
     zsandf(i)   = csandf(mstyp)
@@ -1376,9 +1372,9 @@ ENDDO
 
   ! Set three-dimensional variables
 !$NEC outerloop_unroll(7)
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso = 1, ke_soil
-    !$acc loop gang(static:1) vector private(zzz)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzz)
     DO i = ivstart, ivend
       !fc=2 1/m Exponential Ksat-profile decay parameter,see Decharme et al. (2006)
       zkw   (i,kso) = zkw   (i,kso)*EXP(-2._wp*(zzhls(kso)-rootdp(i)))
@@ -1396,16 +1392,16 @@ ENDDO
       END IF
     ENDDO
   ENDDO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 
   ! Determine constants clgk0 for BATS-scheme
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop gang vector
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP GANG VECTOR
   DO jb       = 1, 10
     clgk0(jb) = LOG(MAX(eps_soil,ck0di(jb)/ckrdi))/ln_10
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 
   ! Determine the layer indices and total depth for water content averaging
@@ -1427,8 +1423,8 @@ ENDDO
 
   zpercmax = 2.E-3_wp
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop gang(static:1) vector
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ztrangs(i)            = 0.0_wp
     zsnull (i)            = 0.0_wp
@@ -1450,9 +1446,9 @@ ENDDO
 
   ! REORDER
 !$NEC outerloop_unroll(7)
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso   = 1, ke_soil
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       zw_fr   (i,kso)     = w_so_now(i,kso)/zdzhs(kso)
       ztrang  (i,kso)     = 0.0_wp
@@ -1463,9 +1459,9 @@ ENDDO
 
 
   ! Determine average soil water content over 10 and 100 cm, respectively.
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso   = 1, k100cm
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (kso.le.k10cm) zs1(i) = zs1(i) + w_so_now(i,kso)
       zsnull(i)   = zsnull(i) + w_so_now(i,kso)
@@ -1473,7 +1469,7 @@ ENDDO
   ENDDO
 
   IF ( itype_mire == 1 ) THEN
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) == 8) THEN
         ke_soil_hy_b(i) = 4 ! Set hydr. active layers for Mires 
@@ -1487,9 +1483,9 @@ ENDDO
 
   ! No soil moisture for Ice and Rock
 !$NEC outerloop_unroll(8)
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso   = 1, ke_soil+1
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) < 3) THEN
         w_so_now(i,kso)         = 0._wp
@@ -1499,9 +1495,9 @@ ENDDO
   END DO
 
 !$NEC outerloop_unroll(8)
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso   = 1, ke_soil+1
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       w_so_new(i,kso)         = w_so_now(i,kso)
       w_so_ice_new(i,kso)     = w_so_ice_now(i,kso)
@@ -1509,7 +1505,7 @@ ENDDO
   END DO
 
   ! Decide which snow density is used for computing the heat capacity
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (l2lay_rho_snow) THEN
       zrho_snow(i) = rho_snow_mult_now(i,1)
@@ -1552,11 +1548,11 @@ ENDDO
 
 
 !$NEC outerloop_unroll(8)
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil+1
-      !$acc loop gang(static:1) vector private(zthetas, zthliq, rsandf, zlams)           &
-      !$acc private(zlam0, zlamsat, zrhod, zlamdry_soil, zzz, zlamdry, zsri)   &
-      !$acc private(zKe, zxx)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zthetas, zthliq, rsandf, zlams) &
+      !$ACC   PRIVATE(zlam0, zlamsat, zrhod, zlamdry_soil, zzz, zlamdry, zsri) &
+      !$ACC   PRIVATE(zKe, zxx)
       DO i = ivstart, ivend
         zthetas = zporv(i,kso)                                 ! porosity
         zthliq  = zthetas - w_so_ice_now(i,kso)/zdzhs(kso) ! unfrozen volume fraction
@@ -1636,9 +1632,9 @@ ENDDO
 
 !$NEC nofuse
 !$NEC outerloop_unroll(7)
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         ! mean heat conductivity
         zalam(i,kso) = hzalam(i,kso)*hzalam(i,kso+1)*(zmls(kso+1)-zmls(kso))    &
@@ -1651,7 +1647,7 @@ ENDDO
 
 ! heat conductivity based on assumption of a soil water content which is equal to the
 ! average between wilting point and field capacity
-    !$acc loop gang(static:1) vector collapse(2) private(zwqg, z4wdpv)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(zwqg, z4wdpv)
 !$NEC outerloop_unroll(7)
     DO kso = 1, ke_soil
       DO i = ivstart, ivend
@@ -1667,7 +1663,7 @@ ENDDO
       ENDDO
     ENDDO
 
-    !$acc loop gang(static:1) vector collapse(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO kso = 1, ke_soil
       DO i = ivstart, ivend
         zalam(i,kso) = zalam(i,kso) + zalamtmp(i,kso)
@@ -1707,12 +1703,12 @@ ENDDO
   END IF
 
 ! Initialisations and conversion of tch to tmch
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     limit_tch(i) = .false.  !  preset problem indicator
   END DO
 
-  !$acc loop gang(static:1) vector private(zuv, ztvs, zplow, zxx, zdT_snow)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zuv, ztvs, zplow, zxx, zdT_snow)
   DO i = ivstart, ivend
     zuv        = SQRT ( u(i)**2 + v(i)**2 )
     ztvs       = t_g (i)*(1.0_wp + rvd_m_o*qv_s(i))
@@ -1839,7 +1835,7 @@ ENDDO
 
   ! Update indicator for age of snow in top of snow layer
   ! Note that cloud ice is deliberately disregarded here in order to avoid counting drifting snow as fresh snow
-  !$acc loop gang(static:1) vector private(zrain_rate, zsnow_rate, zdsn_new, zdsn_old, ztau_snow, zuv)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zrain_rate, zsnow_rate, zdsn_new, zdsn_old, ztau_snow, zuv)
   DO i = ivstart, ivend
     IF (w_snow_now(i) <=0.0_wp) THEN
       ! if no snow exists, reinitialize age indicator
@@ -1930,7 +1926,7 @@ ENDDO
 
   ELSE ! no multi-layer snow
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (w_snow_now(i) > 0.0_wp) THEN
         ! existence of snow
@@ -1995,7 +1991,7 @@ ENDDO
   ELSE  ! no lmulti_snow
 
     ! set ztsnow to t_snow
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ztsnow   (i) = t_snow_now(i)
       zwsnow   (i) = w_snow_now(i)
@@ -2003,7 +1999,7 @@ ENDDO
     ENDDO
   ENDIF  ! lmulti_snow
 
-  !$acc loop gang(static:1) vector private(z2iw, z4iw, z234iw, zqs, zdqs, zqsnow, zdqsnow, zplow, zqvlow)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z2iw, z4iw, z234iw, zqs, zdqs, zqsnow, zdqsnow, zplow, zqvlow)
   DO i = ivstart, ivend
     ! ztsnow is now set according to lmulti_snow (see above);
     ! therefore we need not take care of it in this loop
@@ -2067,7 +2063,7 @@ ENDDO
 !            volumetric heat content
 !------------------------------------------------------------------------------
 
-  !$acc loop gang(static:1) vector private(zzz, zrww)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzz, zrww)
   DO i = ivstart, ivend
      ! snow and water covered fraction
      !em        zrss = MAX( 0.01_wp, MIN(1.0_wp,zwsnow(i)/cf_snow) )
@@ -2115,7 +2111,7 @@ ENDDO
   ! positive quantities, since positive sign indicates a flux
   ! directed towards the earth's surface!
 
-  !$acc loop gang(static:1) vector private(zzz)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzz)
   DO i = ivstart, ivend
     ! Evaporation from interception store if it contains water (wi>0) and
     ! if zep_s<0 indicates potential evaporation for temperature Ts
@@ -2138,7 +2134,7 @@ ENDDO
 
   IF (itype_interception == 2) THEN
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       zwimax(i) = MAX(1.E-6_wp,4.E-4_wp * sai(i)) ! Security min. value 1E-6 m
       zfd_wi(i)=MIN(1._wp,MAX(0.0_wp, EXP((2._wp/3._wp)*LOG(zwin(i)/zwimax(i))) ))
@@ -2162,8 +2158,8 @@ ENDDO
 
     ! Calculation of bare soil evaporation after Dickinson (1984)
     ! Determination of mean water content relative to volume of voids
-    !$acc loop gang(static:1) vector private(zice, zevap, zbeta, zbf1, zbf2, zdmax, zd) &
-    !$acc private(zck, zfqmax, zevapor)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice, zevap, zbeta, zbf1, zbf2, zdmax, zd) &
+    !$ACC   PRIVATE(zck, zfqmax, zevapor)
     DO i = ivstart, ivend
       IF (zep_s(i) < 0.0_wp) THEN   ! upwards directed potential evaporation
         zsnull(i) = zsnull(i)/(znull*zporv(i,1))
@@ -2245,8 +2241,8 @@ ENDDO
   !----------------------------------------------------------------------------
 
   IF (itype_evsl.EQ.3) THEN
-    !$acc loop gang(static:1) vector private(zice, zevap, zbeta, zalpha, z2iw, z4iw) &
-    !$acc private(zqs, zevapor)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice, zevap, zbeta, zalpha, z2iw, z4iw) &
+    !$ACC   PRIVATE(zqs, zevapor)
     DO i = ivstart, ivend
       IF (zep_s(i) < 0.0_wp) THEN   ! upwards directed potential evaporation
         zsnull(i) = zsnull(i)/(znull*zporv(i,1))
@@ -2322,7 +2318,7 @@ ENDDO
   IF (itype_evsl == 4 .OR. itype_evsl == 5) THEN   ! Resistance version
     ! Calculation of bare soil evaporation using a resistance formulation.
     ! For a review see Schulz et al. (1998) 
-    !$acc loop gang(static:1) vector private(zice, zevap, zbeta, zalpha)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice, zevap, zbeta, zalpha)
     DO i = ivstart, ivend
       IF (zep_s(i) < 0.0_wp) THEN   ! upwards directed potential evaporation
         ! Treatment of ice (m_styp=1) and rocks (m_styp=2)
@@ -2397,16 +2393,16 @@ ENDDO
     ! Root distribution
 
     IF (itype_root == 2) THEN
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         zrootdz_int (i)= 0.0_wp   !initialize the root density profile integral
         zwrootdz_int(i)= 0.0_wp   !initialize the root water content integral
       END DO
 
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO kso   = 1,ke_soil
-        !$acc loop gang(static:1) vector private(zrootfr, zrootdz)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zrootfr, zrootdz)
         DO i = ivstart, ivend
           IF (soiltyp_subs(i) >= 3 .AND. zep_s(i) < 0.0_wp) THEN
             ! consider the effect of root depth & root density
@@ -2422,16 +2418,16 @@ ENDDO
       END DO
 
       ! Compute root zone integrated average of liquid water content
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         zwrootdz_int(i)=zwrootdz_int(i)/MAX(zrootdz_int(i),eps_div)
       END DO
 
     ELSE   ! itype_root
 
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO kso   = 1,ke_soil
-        !$acc loop gang(static:1) vector private(zropart)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zropart)
         DO i = ivstart, ivend
           IF (soiltyp_subs(i) >= 3 .AND. zep_s(i) < 0.0_wp) THEN 
              ! upwards directed potential evaporation
@@ -2447,9 +2443,9 @@ ENDDO
 
 
     ! Determination of the transfer functions CA, CF, and CV
-    !$acc loop gang(static:1) vector private(zuv, zcatm, zustar, zrla, zpar, zf_wat) &
-    !$acc private(zf_tem, z2iw, z4iw, zepsat, zepke, zf_sat, zedrstom)        &
-    !$acc private(zrstom, zrveg, zxx, zzz)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zuv, zcatm, zustar, zrla, zpar, zf_wat) &
+    !$ACC   PRIVATE(zf_tem, z2iw, z4iw, zepsat, zepke, zf_sat, zedrstom) &
+    !$ACC   PRIVATE(zrstom, zrveg, zxx, zzz)
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) >= 3 .AND. zep_s(i) < 0.0_wp) THEN
         ! upwards directed potential evaporation
@@ -2536,9 +2532,9 @@ ENDDO
     ! soil layers
 
     IF (itype_interception == 1) THEN
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO kso       = 1,ke_soil
-        !$acc loop gang(static:1) vector private(ztrabpf, ztrfr, zrootfc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ztrabpf, ztrfr, zrootfc)
         DO i = ivstart, ivend
           IF (soiltyp_subs(i) >= 3 .AND. zep_s(i) < 0.0_wp) THEN
             ! upwards potential evaporation
@@ -2570,9 +2566,9 @@ ENDDO
         END DO
       END DO          ! loop over soil layers
     ELSEIF (itype_interception == 2) THEN
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO kso = 1,ke_soil
-        !$acc loop gang(static:1) vector private(ztrabpf, ztrfr, zrootfc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ztrabpf, ztrfr, zrootfc)
         DO i = ivstart, ivend
           IF (soiltyp_subs(i) >= 3 .AND. zep_s(i) < 0.0_wp) THEN
             ! upwards potential evaporation
@@ -2615,7 +2611,7 @@ ENDDO
 #endif
 
   ! Ensure that the sum of the evaporation terms does not exceed the potential evaporation
-  !$acc loop gang(static:1) vector private(ze_sum, zxx, zzz)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ze_sum, zxx, zzz)
   DO i = ivstart, ivend
     ze_sum = zdwsndt(i) + zdwidt(i) + zesoil(i) + ztrangs(i)
     zxx    = zf_snow(i)*zep_snow(i) + (1._wp-zf_snow(i))*zep_s(i) ! snow-weighted potential evaporation
@@ -2674,7 +2670,7 @@ ENDDO
 #endif
 
   IF (itype_interception == 1) THEN
-    !$acc loop gang(static:1) vector private(ze_sum)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ze_sum)
     DO i = ivstart, ivend
 
       ze_sum = zdwsndt(i  )  & ! evaporation of snow
@@ -2693,7 +2689,7 @@ ENDDO
 !JH   qv_s(i,nnew) = qv_s(i,nx)
     END DO
   ELSE          IF (itype_interception == 2) THEN
-    !$acc loop gang(static:1) vector private(ze_sum)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ze_sum)
     DO i = ivstart, ivend
       ze_sum = zesn   (i) &
              + zepd   (i) &
@@ -2712,7 +2708,7 @@ ENDDO
 !JH   qv_s(i,nnew) = qv_s(i,nx)
     END DO
   END IF
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 
 !------------------------------------------------------------------------------
@@ -2747,8 +2743,8 @@ ENDDO
   ctau_i  = MAX( ctau_i, zdt )
 
   ! Utility variable to avoid IF-constructs
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop gang(static:1) vector
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO kso     = 1,ke_soil
     IF (kso == 1) THEN 
       znlgw1f(1)         = 1.0_wp
@@ -2766,7 +2762,7 @@ ENDDO
       END DO
     END DO
   ELSE
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       zdtsnowdt(i)  = 0.0_wp
       zdtsdt(i)     = 0.0_wp
@@ -2779,7 +2775,7 @@ ENDDO
 !               Initialise some fields
 !------------------------------------------------------------------------------
 
-  !$acc loop gang(static:1) vector private(mstyp)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(mstyp)
   DO i = ivstart, ivend
 !    mstyp      = soiltyp_subs(i)
 !    m_styp (i) = mstyp
@@ -2790,9 +2786,9 @@ ENDDO
   END DO
 
 
-  !$acc loop seq 
+  !$ACC LOOP SEQ
   DO   kso = 1,ke_soil+1
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ziw_fr(i,kso) = w_so_ice_now(i,kso)/zdzhs(kso)   ! ice frac.
       zlw_fr(i,kso) = zw_fr(i,kso) - ziw_fr(i,kso)  ! liquid water frac.
@@ -2831,9 +2827,9 @@ ENDDO
 !------------------------------------------------------------------------------
 
   IF (itype_interception == 1) THEN
-    !$acc loop gang(static:1) vector private(zrime, zfr_ice_free, zalf, zuv, zzz, zinf) &
-    !$acc private(zdwidtt, zdwieps, zro_wi, zro_inf, zdwsndtt, zwsnstr)       &
-    !$acc private(zdwseps)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zrime, zfr_ice_free, zalf, zuv, zzz, zinf) &
+    !$ACC   PRIVATE(zdwidtt, zdwieps, zro_wi, zro_inf, zdwsndtt, zwsnstr) &
+    !$ACC   PRIVATE(zdwseps)
     DO i = ivstart, ivend
       ! store forcing terms due to evapotranspiration, formation of dew
       ! and rime for later use
@@ -2989,8 +2985,8 @@ ENDDO
     END DO
 
   ELSEIF (itype_interception == 2) THEN
-    !$acc loop gang(static:1) vector private(zfr_ice_free, zfcorr_wi, zdwidtt, zro_wi) &
-    !$acc private(zuv, zdwisndtt, zro_inf, zdwpdtt, zdwsndtt, zwsnstr, zdwseps)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfr_ice_free, zfcorr_wi, zdwidtt, zro_wi) &
+    !$ACC   PRIVATE(zuv, zdwisndtt, zro_inf, zdwpdtt, zdwsndtt, zwsnstr, zdwseps)
     DO i = ivstart, ivend
       ! Compute forcing terms after (???) interception, infiltration calculation --> below
       ! store forcing terms due to evapotranspiration, formation of dew
@@ -3151,9 +3147,9 @@ ENDDO
 ! uppermost layer, kso = 1
 
 
-  !$acc loop gang(static:1) vector private(zice_fr_kso, zice_fr_ksop1, zlw_fr_kso) &
-  !$acc private(zlw_fr_ksop1, zfr_ice, zredp05, zlw_fr_ksop05) & 
-  !$acc private(zdlw_fr_ksop05, zklw_fr_ksop05, z1dgam1, zgam2p05)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice_fr_kso, zice_fr_ksop1, zlw_fr_kso) &
+  !$ACC   PRIVATE(zlw_fr_ksop1, zfr_ice, zredp05, zlw_fr_ksop05) &
+  !$ACC   PRIVATE(zdlw_fr_ksop05, zklw_fr_ksop05, z1dgam1, zgam2p05)
   DO i = ivstart, ivend
     IF (soiltyp_subs(i)  >= 3) THEN
       ! sedimentation and capillary transport in soil
@@ -3209,14 +3205,14 @@ ENDDO
 
 ! inner layers 2 <=kso<=ke_soil_hy-1
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
 !DIR$ ivdep, prefervector
   DO kso =2,ke_soil_hy-1
-    !$acc loop gang(static:1) vector private(zice_fr_ksom1, zice_fr_kso)             &
-    !$acc private(zice_fr_ksop1, zlw_fr_ksom1, zlw_fr_kso, zlw_fr_ksop1)   &
-    !$acc private(zlw_fr_ksom05, zlw_fr_ksop05, zfr_ice, zredm05, zredp05) &
-    !$acc private(zdlw_fr_ksom05, zdlw_fr_ksop05, zklw_fr_ksom05)          &
-    !$acc private(zklw_fr_ksop05, z1dgam1, zgam2m05, zgam2p05)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice_fr_ksom1, zice_fr_kso) &
+    !$ACC   PRIVATE(zice_fr_ksop1, zlw_fr_ksom1, zlw_fr_kso, zlw_fr_ksop1) &
+    !$ACC   PRIVATE(zlw_fr_ksom05, zlw_fr_ksop05, zfr_ice, zredm05, zredp05) &
+    !$ACC   PRIVATE(zdlw_fr_ksom05, zdlw_fr_ksop05, zklw_fr_ksom05) &
+    !$ACC   PRIVATE(zklw_fr_ksop05, z1dgam1, zgam2m05, zgam2p05)
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) >= 3) THEN
         ! sedimentation and capillary transport in soil
@@ -3298,9 +3294,9 @@ ENDDO
     END DO
   END DO
 
-  !$acc loop gang(static:1) vector private(zice_fr_ksom1, zice_fr_kso, zlw_fr_ksom1)&
-  !$acc private(zlw_fr_kso, zlw_fr_ksom05, zfr_ice, zredm05, zdlw_fr_ksom05) &
-  !$acc private( z1dgam1, zgam2m05, zklw_fr_ksom05)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice_fr_ksom1, zice_fr_kso, zlw_fr_ksom1) &
+  !$ACC   PRIVATE(zlw_fr_kso, zlw_fr_ksom05, zfr_ice, zredm05, zdlw_fr_ksom05) &
+  !$ACC   PRIVATE(z1dgam1, zgam2m05, zklw_fr_ksom05)
   DO i = ivstart, ivend
     IF (soiltyp_subs(i) >= 3) THEN
       IF (soiltyp_subs(i) == 8 .AND. itype_mire == 1) THEN
@@ -3377,7 +3373,7 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (soiltyp_subs(i) >= 3) THEN
       ! generalized upper boundary condition
@@ -3386,9 +3382,9 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso=2,ke_soil_hy-1
-    !$acc loop gang(static:1) vector private(zzz)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzz)
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) >= 3) THEN
         zzz = 1._wp/(zagb(i,kso) - zaga(i,kso)*zagc(i,kso-1))
@@ -3399,7 +3395,7 @@ ENDDO
   END DO                ! soil layers
 
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (soiltyp_subs(i) >= 3) THEN
       IF (soiltyp_subs(i) == 8 .AND. itype_mire == 1) THEN
@@ -3419,7 +3415,7 @@ ENDDO
   IF (itype_mire == 1) THEN
 !US index for k-loop depends on i! how to handle that???
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) >= 3) THEN
         DO kso = ke_soil_hy_b(i)-1,1,-1
@@ -3432,9 +3428,9 @@ ENDDO
       END IF
     END DO
   ELSE
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = ke_soil_hy-1,1,-1
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) >= 3) THEN
           zage(i,kso)     = zagd(i,kso) - zagc(i,kso)*zage(i,kso+1)
@@ -3448,7 +3444,7 @@ ENDDO
   END IF
 
 !lowest active hydrological level
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (soiltyp_subs(i) >= 3) THEN
       ! boundary values ensure that the calculation below leaves the climate
@@ -3475,9 +3471,9 @@ ENDDO
   ! ground water as lower boundary of soil column
 
   IF (itype_hydbound == 3) THEN
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = ke_soil_hy+1,ke_soil+1
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) >= 3) THEN
           w_so_new(i,kso) = zporv(i,kso)*zdzhs(kso)
@@ -3485,9 +3481,9 @@ ENDDO
       END DO
     END DO
   ELSE
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = ke_soil_hy+1,ke_soil+1
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) >= 3) THEN
           w_so_new(i,kso) = w_so_new(i,kso-1)*zdzhs(kso)/zdzhs(kso-1)
@@ -3497,9 +3493,9 @@ ENDDO
   ENDIF
 
   IF (itype_mire == 1) THEN
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = ke_soil_hy_m+1,ke_soil+1
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) == 8) THEN
           w_so_new(i,kso) = zporv(i,kso)*zdzhs(kso)
@@ -3510,14 +3506,14 @@ ENDDO
 
   ! combine implicit part of sedimentation and capillary flux with explicit part
   ! (for soil water flux investigations only)
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso = 2,ke_soil+1
-    !$acc loop gang(static:1) vector                                          &
-    !$acc private(zice_fr_ksom1, zice_fr_kso, zlw_fr_ksom1_new)               &
-    !$acc private(zlw_fr_kso_new, zlw_fr_ksom1, zlw_fr_kso, zfr_ice, zredm05) &
-    !$acc private(zlw_fr_ksom05, zdlw_fr_ksom05, zklw_fr_ksom05, zredm)       &
-    !$acc private(zklw_fr_kso_new, zdelta_sm, zdlw_fr_kso, zklw_fr_kso)       &
-    !$acc private(zklw_fr_ksom1, zdhydcond_dlwfr)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR &
+    !$ACC   PRIVATE(zice_fr_ksom1, zice_fr_kso, zlw_fr_ksom1_new) &
+    !$ACC   PRIVATE(zlw_fr_kso_new, zlw_fr_ksom1, zlw_fr_kso, zfr_ice, zredm05) &
+    !$ACC   PRIVATE(zlw_fr_ksom05, zdlw_fr_ksom05, zklw_fr_ksom05, zredm) &
+    !$ACC   PRIVATE(zklw_fr_kso_new, zdelta_sm, zdlw_fr_kso, zklw_fr_kso) &
+    !$ACC   PRIVATE(zklw_fr_ksom1, zdhydcond_dlwfr)
     DO i = ivstart, ivend
       IF (soiltyp_subs(i) >= 3) THEN
         zice_fr_ksom1 = ziw_fr(i,kso-1)
@@ -3630,13 +3626,13 @@ ENDDO
   END DO
 
   IF (itype_mire == 1) THEN
-    !$acc loop seq private(zro_sfak, zro_gfak)
+    !$ACC LOOP SEQ PRIVATE(zro_sfak, zro_gfak)
     DO  kso = 1,ke_soil
       ! utility variables used to avoid if-constructs in following loops
       zro_sfak = zsf_heav(0.5_wp + REAL(msr_off - kso,wp))      ! 1.0 for 'surface runoff'
       zro_gfak = 1._wp - zro_sfak                               ! 1.0 for 'ground runoff'
 
-      !$acc loop gang(static:1) vector private(zdwg, zredfu, zro, zwgn, zro2, zkorr,zfmb_fak)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdwg, zredfu, zro, zwgn, zro2, zkorr, zfmb_fak)
       DO i = ivstart, ivend
         ! sedimentation and capillary transport in soil
         IF (soiltyp_subs(i) >= 3) THEN
@@ -3688,7 +3684,7 @@ ENDDO
       END DO
     END DO         ! end loop over soil layers
   ELSE
-    !$acc loop seq private(zro_sfak, zro_gfak, zfmb_fak, zcou_roffg)
+    !$ACC LOOP SEQ PRIVATE(zro_sfak, zro_gfak, zfmb_fak, zcou_roffg)
 !$NEC novector
     DO  kso = 1,ke_soil
       ! utility variables used to avoid if-constructs in following loops
@@ -3704,7 +3700,7 @@ ENDDO
       zcou_roffg = MERGE(1.0_wp, 0.0_wp, kso<=ke_soil_hy)
 
       ! sedimentation and capillary transport in soil
-      !$acc loop gang(static:1) vector private(zdwg, zredfu, zro, zwgn, zro2, zkorr)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdwg, zredfu, zro, zwgn, zro2, zkorr)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) >= 3) THEN
           ! first runoff calculation without consideration of
@@ -3739,7 +3735,7 @@ ENDDO
       END DO
     END DO         ! end loop over soil layers
   ENDIF
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 !------------------------------------------------------------------------------
 ! Section II.5: Soil surface heat flux (thermal forcing)
@@ -4024,8 +4020,8 @@ ENDDO
 
   ELSE  ! single-layer snow model
 
-    !$acc parallel default(none) async(1) if(lzacc)
-    !$acc loop gang vector private(ztalb, zgstr, zro, zalas, zzz, zd, zfr_melt, zw_ovpv)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(ztalb, zgstr, zro, zalas, zzz, zd, zfr_melt, zw_ovpv)
     !$NEC sparse
     DO i = ivstart, ivend
       ! Estimate thermal surface fluxes:
@@ -4126,11 +4122,11 @@ ENDDO
                   + zf_snow(i) * (1._wp-ztsnow_pm(i)) * zgsb(i)
 
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
     IF (msg_level >= 20) THEN
-      !$acc update async(1) host(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
-      !$acc update async(1) host(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
+      !$ACC UPDATE ASYNC(1) HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
+      !$ACC UPDATE ASYNC(1) HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
           IF ( ABS( zshfl_s(i) )  >  500.0_wp  .OR. &
@@ -4160,8 +4156,8 @@ ENDDO
   ! for the whole column "soil + snow" for snow-covered surface is solved.
   ! Then, the two updates are merged together.
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop gang(static:1) vector
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     sn_frac(i) = zf_snow(i)
     IF (zwsnow(i) < eps_soil .AND. zwsnew(i) >= eps_soil) THEN
@@ -4171,7 +4167,7 @@ ENDDO
     ENDIF
   END DO
 
-  !$acc loop gang vector collapse(2)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO kso = 1, ke_soil+1
     DO i = ivstart, ivend
       t_so_free_new(i,kso) = t_so_now(i,kso)
@@ -4179,9 +4175,9 @@ ENDDO
     END DO
   END DO        ! soil layers
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso = 2, ke_soil
-    !$acc loop gang(static:1) vector private(zakb1, zakb2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zakb1, zakb2)
     DO i = ivstart, ivend
       IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
         ! for heat conductivity: zalam is now 3D
@@ -4199,7 +4195,7 @@ ENDDO
   END DO        ! soil layers
 
 
-  !$acc loop gang(static:1) vector private(zakb1, zakb2)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zakb1, zakb2)
   DO i = ivstart, ivend
 !    IF (.NOT. lmulti_snow .OR. (zf_snow(i) < 1._wp .AND. zwsnew(i).GT.eps_soil)) THEN
     IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
@@ -4227,7 +4223,7 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
       zagc(i,0) = zagc(i,0)/zagb(i,0)
@@ -4235,9 +4231,9 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso = 1, ke_soil
-    !$acc loop gang(static:1) vector private(zzz)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzz)
     DO i = ivstart, ivend
       IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
         zzz = 1._wp/(zagb(i,kso) - zaga(i,kso)*zagc(i,kso-1))
@@ -4247,7 +4243,7 @@ ENDDO
     END DO
   END DO                ! soil layers
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
       zage(i,ke_soil+1) = (zagd(i,ke_soil+1) - zaga(i,ke_soil+1)*       &
@@ -4258,9 +4254,9 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO kso = ke_soil,0,-1
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (.NOT. lmulti_snow .OR. sn_frac(i) < 1._wp) THEN
         zage(i,kso)     = zagd(i,kso) - zagc(i,kso)*zage(i,kso+1)
@@ -4492,9 +4488,9 @@ ENDDO
       END DO
     END DO
   ELSE
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil+1
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         t_so_new(i,kso) = t_so_free_new(i,kso)
       END DO
@@ -4502,10 +4498,10 @@ ENDDO
   END IF
 
 ! IF(lmelt) THEN ! + lmelt_var
-    !$acc loop seq
+    !$ACC LOOP SEQ
     DO kso = 1,ke_soil
-      !$acc loop gang(static:1) vector private(ztx, zxx, zliquid, znen, zfak, zdelwice) &
-      !$acc private(zwso_new, zargu)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ztx, zxx, zliquid, znen, zfak, zdelwice) &
+      !$ACC   PRIVATE(zwso_new, zargu)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) >= 3) THEN
           ztx      = t0_melt
@@ -4558,7 +4554,7 @@ ENDDO
 !------------------------------------------------------------------------------
 ! Section II.7: Energy budget and temperature prediction at snow-surface
 !------------------------------------------------------------------------------
-  !$acc loop gang(static:1) vector private(zrnet_snow, zfor_snow, zalas, ztsnow_im, zfak)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zrnet_snow, zfor_snow, zalas, ztsnow_im, zfak)
   DO i = ivstart, ivend
     ! next line has to be changed if a soil surface temperature is
     ! predicted by the heat conduction equation
@@ -4600,12 +4596,12 @@ ENDDO
       zdtsnowdt(i) = (ztsnown(i) - ztsnow(i))*z1d2dt
     ENDIF
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
   IF (msg_level >= 20) THEN
-    !$acc update async(1) host(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
-    !$acc update async(1) host(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
-    !$acc update async(1) host(zwsnow, zrr, zrs, zdwsndt)
+    !$ACC UPDATE ASYNC(1) HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
+    !$ACC UPDATE ASYNC(1) HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
+    !$ACC UPDATE ASYNC(1) HOST(zwsnow, zrr, zrs, zdwsndt)
     DO i = ivstart, ivend
 !     IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
       IF ( ABS( zshfl_s(i)    * (1.0_wp-zf_snow(i)) )  >  700.0_wp .OR. &
@@ -4652,9 +4648,9 @@ ENDDO
 
   IF (.NOT. lmulti_snow) THEN
 
-    !$acc parallel default(none) async(1) if(lzacc)
-    !$acc loop gang vector private(ztsnownew, ze_avail, ze_total, zfr_melt, &
-    !$acc      ztsnew, zdelt_s, zdwgme, zro, zredfu, zw_ovpv, zfr_ice_free)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(ztsnownew, ze_avail, ze_total, zfr_melt) &
+    !$ACC   PRIVATE(ztsnew, zdelt_s, zdwgme, zro, zredfu, zw_ovpv, zfr_ice_free)
     DO i = ivstart, ivend
 
       zwsnn  (i)  = zwsnow(i) + zdtdrhw*zdwsndt(i)
@@ -4742,7 +4738,7 @@ ENDDO
         END IF     ! snow and/or soil temperatures
       END IF       ! points with snow cover only
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
   ELSE       ! multi-layer snow scheme
 
@@ -5010,16 +5006,16 @@ ENDDO
     ENDDO
 
   ELSE
-    !$acc parallel default(none) async(1) if(lzacc)
-    !$acc loop gang vector
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       t_snow_new(i)  = t_snow_now(i) + zdt*zdtsnowdt(i)
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
   ENDIF
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop gang(static:1) vector
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ! t_snow is computed above
     ! t_snow(i,nnew)  = t_snow(i,nx) + zdt*zdtsnowdt(i)
@@ -5057,7 +5053,7 @@ ENDDO
 
   ! Reset t_snow_new to t_so(0) if no snow was present at the beginning of the time step
   ! The heat balance calculation is incomplete in this case and sometimes yields unreasonable results
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (w_snow_now(i) < eps_soil .AND. w_snow_new(i) >= eps_soil) THEN
       t_snow_new(i) = MIN(t0_melt,t_so_new(i,0))
@@ -5073,7 +5069,7 @@ ENDDO
   ENDIF
 
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ! Next line has to be changed, if the soil surface temperature
     ! t_so(i,0,nnew) predicted by the heat conduction equation is used
@@ -5092,7 +5088,7 @@ ENDDO
     END IF
   END DO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     IF (w_snow_new(i) <= eps_soil) THEN
       w_i_new(i)    = w_i_new(i) + w_snow_new(i)
@@ -5102,7 +5098,7 @@ ENDDO
 
     IF (w_i_new(i) <= 1.0E-4_wp*eps_soil) w_i_new(i) = 0.0_wp
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 !<JH
 
 
@@ -5124,9 +5120,9 @@ ENDDO
 
   IF(.NOT. lmulti_snow) THEN
 
-    !$acc parallel default(none) async(1) if(lzacc)
-    !$acc loop gang vector private(zzz, ztau_snow, zrhosmax, zrho_snowe) &
-    !$acc private(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(zzz, ztau_snow, zrhosmax, zrho_snowe) &
+    !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv)
     !$NEC sparse
     DO i = ivstart, ivend
 
@@ -5246,7 +5242,7 @@ ENDDO
       ENDIF
 
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
   ELSE   ! new snow scheme
 
@@ -5378,26 +5374,26 @@ ENDDO
  ENDIF ! lmulti_snow
 
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop seq
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP SEQ
   DO kso = 1,ke_soil
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       w_so_new(i,kso) = w_so_now(i,kso) + zdt*zdwgdt(i,kso)/rho_w
     END DO
   END DO        ! soil layers
 
   ! Update of two-time level interface variables
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     h_snow(i) = h_snow_new(i)
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
   ! computation of the weighted turbulent fluxes at the boundary surface-atmosphere
   IF(PRESENT(zshfl_sfc)) THEN
-    !$acc parallel default(none) async(1) if(lzacc)
-    !$acc loop gang vector
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zshfl_sfc(i) = zshfl_s(i)*(1._wp - zf_snow(i)) + zshfl_snow(i)*zf_snow(i)
       zlhfl_sfc(i) = zlhfl_s(i)*(1._wp - zf_snow(i)) + zlhfl_snow(i)*zf_snow(i)
@@ -5408,13 +5404,13 @@ ENDDO
       !        zlhfl_snow(i) = lh_s*zversn(i)
       !      zlhfl_sfc(i) = zverbo(i) + zversn(i)*zf_snow(i)
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
   END IF
 
   ! This block tests the residuum of water mass content in soil
   IF (lres_soilwatb) THEN
-    !$acc parallel default(none) async
-    !$acc loop gang vector
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC
+    !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       ! the rain rates 
       IF ( nclass_gscp >= 2000 ) THEN
@@ -5445,20 +5441,20 @@ ENDDO
       resid_wso(i) = resid_wso(i) + ( ( SUM(w_so_new(i,1:ke_soil_hy)) - & 
         SUM(w_so_now(i,1:ke_soil_hy)) )*1000.0_wp - zhwso_budget(i) )
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
   ENDIF
 
-!$acc wait
+  !$ACC WAIT
 
 ! for optional fields related to soil water budget
-!$acc end data
+  !$ACC END DATA
 
 ! for optional fields plevap, z0
-!$acc end data
+  !$ACC END DATA
 !!!if (PRESENT(plevap))
 
 ! for general fields
-!$acc end data
+  !$ACC END DATA
 
   IF (msg_level >= 19) THEN
     DO i = ivstart, ivend
@@ -5536,7 +5532,7 @@ END SUBROUTINE terra
 REAL (KIND=wp) FUNCTION zsf_heav (zstx)
   ! Heaviside function
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  :: zstx
   zsf_heav = 0.5_wp + SIGN (0.5_wp, zstx)
 
@@ -5547,7 +5543,7 @@ END FUNCTION zsf_heav
 REAL (KIND=wp) FUNCTION zsf_psat_iw  (zstx, z2iw, z4iw)
   ! Saturation water vapour pressure over ice or water depending on temperature "zstx"
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  :: zstx, z2iw, z4iw
   zsf_psat_iw   = b1*EXP(z2iw*(zstx - b3)/(zstx - z4iw))
 
@@ -5559,7 +5555,7 @@ REAL (KIND=wp) FUNCTION zsf_qsat  (zspsatx, zspx)
   ! Specific humidity at saturation pressure (depending on the saturation water
   !  vapour pressure zspsatx" and the air pressure "zspx")
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  :: zspsatx, zspx
   zsf_qsat      = rdv*zspsatx/(zspx-o_m_rdv*zspsatx)
 
@@ -5572,7 +5568,7 @@ REAL (KIND=wp) FUNCTION zsf_dqvdt_iw (zstx, zsqsatx, z4iw, z234iw)
   ! (depending on temperature "zstx" and saturation specific humidity pressure
   !  "zsqsatx")
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  :: zstx, zsqsatx, z4iw, z234iw
   zsf_dqvdt_iw  = z234iw*(1.0_wp+rvd_m_o*zsqsatx)*zsqsatx/(zstx-z4iw)**2
 
@@ -5583,7 +5579,7 @@ END FUNCTION zsf_dqvdt_iw
 
 REAL (KIND=wp) FUNCTION watrcon_RT(ks,lw,kw1,pv,adp)
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  :: ks,lw,kw1,pv,adp
   watrcon_RT=ks*EXP(kw1*MAX(0.0_wp,pv-lw)/(pv-adp))
 
@@ -5593,7 +5589,7 @@ END FUNCTION watrcon_RT
 
 REAL (KIND=wp) FUNCTION watrdiff_RT(ds,lw,dw1,pv,adp)
 
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN)  ::  ds,lw,dw1,pv,adp
   watrdiff_RT = ds*EXP(dw1*MAX(0.0_wp,pv-lw)/(pv-adp))
 

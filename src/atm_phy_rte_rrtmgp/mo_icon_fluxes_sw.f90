@@ -64,7 +64,8 @@ CONTAINS
       ENDDO
 
       ! DA TODO: move to the GPU
-      !$ACC ENTER DATA COPYIN(this, this%frc_par, this%frc_vis, this%band_weight)
+      !$ACC ENTER DATA COPYIN(this)
+      !$ACC ENTER DATA COPYIN(this%frc_par, this%frc_vis, this%band_weight)
     ENDIF
 
     ! --- weight radiation within a band for the solar cycle ---
@@ -74,8 +75,8 @@ CONTAINS
     ! implicitly defined) solar flux in the 14 bands.
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(this) FIRSTPRIVATE(nbndsw,solar_constant)  &
-    !$ACC               COPYIN(ssi_fraction) GANG VECTOR
+    !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(this) FIRSTPRIVATE(nbndsw, solar_constant) &
+    !$ACC   COPYIN(ssi_fraction) GANG VECTOR
     DO i = 1, nbndsw
       this%band_weight(i) = solar_constant*ssi_fraction( MOD(i, nbndsw)+1 ) ! / ssi_default(:)
     END DO
@@ -169,7 +170,8 @@ CONTAINS
 
   SUBROUTINE del(this)
     TYPE(ty_icon_fluxes_sw), INTENT(INOUT) :: this
-    !$ACC EXIT DATA DELETE(this%frc_par, this%frc_vis, this%band_weight, this)
+    !$ACC EXIT DATA DELETE(this%frc_par, this%frc_vis, this%band_weight)
+    !$ACC EXIT DATA DELETE(this)
   END SUBROUTINE del
   ! --------------------------------------------------------------------------------------
 END MODULE mo_icon_fluxes_sw

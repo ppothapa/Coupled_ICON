@@ -51,14 +51,6 @@ MODULE mo_advection_geometry
   PUBLIC :: divide_flux_area
   PUBLIC :: divide_flux_area_list
 
-#if defined( _OPENACC )
-#if defined(__ADVECTION_GEOMETRY_NOACC)
-  LOGICAL, PARAMETER ::  acc_on = .FALSE.
-#else
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-#endif
-
 CONTAINS
 
   !-------------------------------------------------------------------------
@@ -1017,19 +1009,19 @@ CONTAINS
     ptr_bfcc => p_int%pos_on_tplane_c_edge(:,:,:,4:5)
 
 
-!$ACC DATA PRESENT(falist, p_int, p_patch, ptr_bfcc,                        &
-!$ACC              p_patch%edges%butterfly_idx,p_patch%edges%butterfly_blk),&
-!$ACC PRESENT(dreg_patch1, dreg_patch2, patch1_cell_idx, patch1_cell_blk,   &
-!$ACC          patch2_cell_idx, patch2_cell_blk, ptr_v3, dreg_patch0)       &
-!$ACC CREATE(ielist_c1,ielist_c2p,ielist_c3p,ielist_c2m,                    &
-!$ACC             ielist_c3m,ielist_rem,ielist_vn0,ielist_err,              &
-!$ACC             idxlist_c1,levlist_c1,idxlist_c2p,levlist_c2p,            &
-!$ACC             idxlist_c3p,levlist_c3p,idxlist_c2m,levlist_c2m,          &
-!$ACC             idxlist_c3m,levlist_c3m,idxlist_rem,levlist_rem,          &
-!$ACC             idxlist_vn0,levlist_vn0,idxlist_err,levlist_err,          &
-!$ACC             arrival_pts, depart_pts, fl_line, fl_e1, fl_e2,           &
-!$ACC             tri_line1, tri_line2, nvalid, conditions, indices)        &
-!$ACC IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(falist, p_int, p_patch, ptr_bfcc) &
+    !$ACC   PRESENT(p_patch%edges%butterfly_idx, p_patch%edges%butterfly_blk) &
+    !$ACC   PRESENT(dreg_patch1, dreg_patch2, patch1_cell_idx, patch1_cell_blk) &
+    !$ACC   PRESENT(patch2_cell_idx, patch2_cell_blk, ptr_v3, dreg_patch0) &
+    !$ACC   CREATE(ielist_c1, ielist_c2p, ielist_c3p, ielist_c2m) &
+    !$ACC   CREATE(ielist_c3m, ielist_rem, ielist_vn0, ielist_err) &
+    !$ACC   CREATE(idxlist_c1, levlist_c1, idxlist_c2p, levlist_c2p) &
+    !$ACC   CREATE(idxlist_c3p, levlist_c3p, idxlist_c2m, levlist_c2m) &
+    !$ACC   CREATE(idxlist_c3m, levlist_c3m, idxlist_rem, levlist_rem) &
+    !$ACC   CREATE(idxlist_vn0, levlist_vn0, idxlist_err, levlist_err) &
+    !$ACC   CREATE(arrival_pts, depart_pts, fl_line, fl_e1, fl_e2) &
+    !$ACC   CREATE(tri_line1, tri_line2, nvalid, conditions, indices) &
+    !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,je,jl,ie,lvn_pos,fl_line,tri_line1,                  &
@@ -1051,7 +1043,7 @@ CONTAINS
       ! get arrival and departure points. Note that the indices of the departure
       ! points have to be switched so that departure point 1 belongs to arrival
       ! point one and departure point 2 to arrival point 2.
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !NEC$ ivdep
       DO ie = 1, falist%len(jb)
@@ -1063,7 +1055,7 @@ CONTAINS
         depart_pts (ie,1:2,1:2) = dreg_patch0(je,4:3:-1,1:2,jk,jb)
 
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       ! Reset counter
       icnt_c1  = 0
@@ -1075,13 +1067,13 @@ CONTAINS
       icnt_err = 0
       icnt_vn0 = 0
 
-!$ACC KERNELS ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       conditions(:,:) = 0
       indices(:,:) = 0
-!$ACC END KERNELS
+      !$ACC END KERNELS
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( je, jk, lvn_pos, lintersect_line1, lintersect_line2 )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(je, jk, lvn_pos, lintersect_line1, lintersect_line2)
       DO ie = 1, falist%len(jb)
 
         je = falist%eidx(ie,jb)
@@ -1152,21 +1144,21 @@ CONTAINS
         ENDIF
 
       ENDDO ! loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 #ifdef _OPENACC
-      CALL generate_index_list_batched(conditions, indices, 1, falist%len(jb), nvalid, 1, i_am_accel_node .AND. acc_on)
+      CALL generate_index_list_batched(conditions, indices, 1, falist%len(jb), nvalid, 1, i_am_accel_node)
 #else
       CALL generate_index_list_batched(conditions, indices, 1, falist%len(jb), nvalid, 1, .false.)
 #endif
-!$ACC WAIT
-!$ACC UPDATE HOST(nvalid) IF( i_am_accel_node .AND. acc_on )
+      !$ACC WAIT
+      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
       icnt_c1 = nvalid(1)
       icnt_c2p = nvalid(2)
       icnt_c2m = nvalid(3)
       icnt_rem = nvalid(4)
 
-!$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, icnt_c1
         ielist_c1(jl) = indices(jl, 1)
@@ -1191,18 +1183,18 @@ CONTAINS
         idxlist_rem(jl) = falist%eidx(indices(jl, 4), jb)
         levlist_rem(jl) = falist%elev(indices(jl, 4), jb)
       ENDDO
-!$ACC END KERNELS
+      !$ACC END KERNELS
 
-!$ACC KERNELS ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       conditions(:,:) = 0
       indices(:,:) = 0
-!$ACC END KERNELS
+      !$ACC END KERNELS
 
 
       ! Second step of index list computation
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( ie, je, jk, lintersect_e2_line1, lintersect_e1_line2 )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(ie, je, jk, lintersect_e2_line1, lintersect_e1_line2)
 !$NEC IVDEP
       DO jl = 1, icnt_rem
         ie = ielist_rem(jl)
@@ -1254,21 +1246,21 @@ CONTAINS
         ENDIF
 
       ENDDO  !jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 #ifdef _OPENACC
-      CALL generate_index_list_batched(conditions, indices, 1, icnt_rem, nvalid, 1, i_am_accel_node .AND. acc_on)
+      CALL generate_index_list_batched(conditions, indices, 1, icnt_rem, nvalid, 1, i_am_accel_node)
 #else
       CALL generate_index_list_batched(conditions, indices, 1, icnt_rem, nvalid, 1, .false.)
 #endif
-!$ACC WAIT
-!$ACC UPDATE HOST(nvalid) IF( i_am_accel_node .AND. acc_on )
+      !$ACC WAIT
+      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
       icnt_c3p = nvalid(1)
       icnt_c3m = nvalid(2)
       icnt_vn0 = nvalid(3)
       icnt_err = nvalid(4)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, icnt_c3p
         ielist_c3p(jl) = ielist_rem(indices(jl, 1))
@@ -1303,12 +1295,12 @@ CONTAINS
         idxlist_vn0(icnt_vn0+jl) = idxlist_rem(indices(jl, 4))
         levlist_vn0(icnt_vn0+jl) = levlist_rem(indices(jl, 4))
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
       icnt_vn0 = icnt_vn0 + icnt_err
 
       IF ( icnt_err>0 ) THEN
-!$ACC WAIT
-!$ACC UPDATE HOST( idxlist_err, levlist_err, p_vn, p_vt ), IF( i_am_accel_node .AND. acc_on )
+        !$ACC WAIT
+        !$ACC UPDATE HOST(idxlist_err, levlist_err, p_vn, p_vt) IF(i_am_accel_node)
         ! Check for unassigned grid points (i.e. collected in list_Err) because of CFL violation
         DO jl = 1, icnt_err
 
@@ -1333,8 +1325,8 @@ CONTAINS
       !
       ! CASE 1
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( ps1, ps2, ie, je, jk, lvn_sys_pos )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(ps1, ps2, ie, je, jk, lvn_sys_pos)
 !$NEC IVDEP
       DO jl = 1, icnt_c1
         ie = ielist_c1(jl)
@@ -1389,15 +1381,15 @@ CONTAINS
         dreg_patch2(ie,3,1,jb)   = MERGE(ps2(1),depart_pts(ie,2,1), lvn_sys_pos)
         dreg_patch2(ie,3,2,jb)   = MERGE(ps2(2),depart_pts(ie,2,2), lvn_sys_pos)
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
 
       !
       ! CASE 2a
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( ps1, ie, je, jk, lvn_sys_pos )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(ps1, ie, je, jk, lvn_sys_pos)
 !$NEC IVDEP
       DO jl = 1, icnt_c2p
         ie = ielist_c2p(jl)
@@ -1447,15 +1439,15 @@ CONTAINS
         dreg_patch2(ie,4,1:2,jb) = 0._wp
 
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
 
       !
       ! CASE 2b
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( ps2, ie, je, jk, lvn_sys_pos )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(ps2, ie, je, jk, lvn_sys_pos)
 !$NEC IVDEP
       DO jl = 1, icnt_c2m
         ie = ielist_c2m(jl)
@@ -1504,15 +1496,15 @@ CONTAINS
         dreg_patch2(ie,3,1,jb)   = MERGE(ps2(1),depart_pts(ie,2,1), lvn_sys_pos)
         dreg_patch2(ie,3,2,jb)   = MERGE(ps2(2),depart_pts(ie,2,2), lvn_sys_pos)
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
 
       !
       ! CASE 3a
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( pi1, ie, je, jk, lvn_sys_pos )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(pi1, ie, je, jk, lvn_sys_pos)
 !$NEC IVDEP
       DO jl = 1, icnt_c3p
         ie = ielist_c3p(jl)
@@ -1558,14 +1550,14 @@ CONTAINS
         dreg_patch2(ie,4,1:2,jb) = 0._wp
 
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
       !
       ! CASE 3b
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( pi2, ie, je, jk, lvn_sys_pos ) 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(pi2, ie, je, jk, lvn_sys_pos)
 !$NEC IVDEP
       DO jl = 1, icnt_c3m
         ie = ielist_c3m(jl)
@@ -1610,15 +1602,15 @@ CONTAINS
         dreg_patch2(ie,4,1,jb)   = MERGE(pi2(1),depart_pts(ie,2,1), lvn_sys_pos)
         dreg_patch2(ie,4,2,jb)   = MERGE(pi2(2),depart_pts(ie,2,2), lvn_sys_pos)
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
 
 
       !
       ! CASE 4  (very small normal velocity)
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE( ie )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(ie)
 !$NEC IVDEP
       DO jl = 1, icnt_vn0
         ie = ielist_vn0(jl)
@@ -1638,12 +1630,12 @@ CONTAINS
         dreg_patch2(ie,4,1:2,jb) = 0._wp
 
       ENDDO  ! jl
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
      ! end of index list stuff
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR PRIVATE(bf_cc, je, jk, lvn_pos )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR PRIVATE(bf_cc, je, jk, lvn_pos)
 !$NEC IVDEP
       DO ie = 1, falist%len(jb)
 
@@ -1698,12 +1690,12 @@ CONTAINS
 
 
       ENDDO ! loop over index list
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     END DO    ! loop over blocks
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
   END SUBROUTINE divide_flux_area_list
 

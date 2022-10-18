@@ -77,7 +77,7 @@ SUBROUTINE rad_aero_diag (                                  &
       LOGICAL :: use_acc   = .FALSE.  ! Default: no acceleration
       IF (PRESENT(opt_use_acc)) use_acc = opt_use_acc
 
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF (use_acc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
       aer_aod_9731(kcs:kce,1:klev) = &
            paer_tau_lw_vr(kcs:kce,klev:1:-1,7)
       aer_aod_533 (kcs:kce,1:klev) = &

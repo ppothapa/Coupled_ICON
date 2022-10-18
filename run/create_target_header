@@ -6,10 +6,15 @@
 # Original version by Marco Giorgetta and Hermann Asensio
 # Updated by Leonidas Linardakis, MPI-M, 2010-11-24
 #______________________________________________________________________________
-# Basic parameters in this script
+# Basic parameters (i.e. environment variables) in this script
 #
 # use_nodes  =  no of nodes to run
 # use_mpi_procs_pernode = number of mpi procs per node
+#
+# output_script = absolute path of the job script that is generated
+# output_folder = absolute path of the directory which will contain the job
+#                 script
+# ...
 #______________________________________________________________________________
 
 set -eu
@@ -18,6 +23,8 @@ BB_SYSTEM=${BB_SYSTEM:=""}
 
 add_free_var()
 {
+    # free variables are environment variables that will be added to the job 
+    # script
     varName=$1
     varValue=$2
 
@@ -28,9 +35,10 @@ add_free_var()
 
 set_default()
 {
+    # Set variable with name $1 to $2 if it is not set or empty.
     if [[ "x$(eval echo \$$1)" == "x" ]]
     then
-	eval "$1=$2"
+        eval "$1=$2"
     fi
 }
 
@@ -38,15 +46,15 @@ start_header()
 {
     if [[ "$use_mpi" == "no" ]]
     then
-	start=${start:=""}
+        start=${start:=""}
     else
-	start=${start:="$use_mpi_startrun"}
+        start=${start:="$use_mpi_startrun"}
     fi
 
     if [[ ! -e $output_script ]]
     then
-	echo "[ERROR] $output_script does not exist!"
- 	exit 1
+        echo "[ERROR] $output_script does not exist!"
+        exit 1
     fi
     cat >> $output_script << EOF
 #=============================================================================
@@ -107,14 +115,14 @@ EOF
     i=1
     while [ $i -le ${no_of_free_variables} ]
     do
-	echo "export ${free_variable[$i]}=\"${free_variable_value[$i]}\"" >> $output_script
-	i=$((i+1));
+        echo "export ${free_variable[$i]}=\"${free_variable_value[$i]}\"" >> $output_script
+        i=$((i+1));
     done
 
     if [[ "x$use_load_profile" != "x" ]]
     then
-	profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
-	cat >> $output_script << EOF
+        profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
+        cat >> $output_script << EOF
 # load profile
 # ------------
 if [[ -a  $profile_filename ]]
@@ -124,9 +132,9 @@ fi
 EOF
     fi
 
-if [[ "x$use_load_profile" != "x" && "x$use_load_modules" != "x" ]]; then
-    profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
-    cat >> $output_script << EOF
+    if [[ "x$use_load_profile" != "x" && "x$use_load_modules" != "x" ]]; then
+        profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
+        cat >> $output_script << EOF
 #=============================================================================
 # load modules
 loadmodule="$use_load_modules"
@@ -134,7 +142,7 @@ module load \$loadmodule
 module list
 #=============================================================================
 EOF
-fi
+    fi
 
 
     cat >> $output_script << EOF
@@ -143,14 +151,24 @@ fi
 # directories with absolute paths
 # -------------------------------
 thisdir=\$(pwd)
-basedir=\${thisdir%/*}
+basedir="${use_builddir}"
+# experiments_dir can be predefined in a machine specific run_target_* header
+experiments_dir="\${experiments_dir:=\${basedir}/experiments}"
 export basedir
 icon_data_rootFolder="${icon_data_rootFolder}"
+EOF
+
+    if [[ "${dont_add_simple_start_model:-"false"}" != "true" ]]; then
+        cat >> $output_script << EOF
 
 # how to start the icon model
 # ---------------------------
 export START="$start"
-export MODEL="\${basedir}/bin/icon"
+export MODEL="${use_builddir}/bin/icon"
+EOF
+    fi
+
+    cat >> $output_script << EOF
 
 set | grep SLURM
 
@@ -166,7 +184,7 @@ cdo_diff="${cdo} ${cdo_diff}"
 
 # define script functions used in the experiment run script
 # ---------------------------------------------------------
-. ./add_run_routines
+. ${base_folder}/run/add_run_routines
 
 #=============================================================================
 
@@ -710,6 +728,220 @@ set_run_target_docker_gpu()
     use_OMP_SCHEDULE="static,12"
 
     start_header
+}
+
+#=============================================================================
+set_run_target_rcl()
+{
+  # rcl.dwd.de
+    icon_data_rootFolder=${icon_data_rootFolder:="/hpc/rwork0/routfor/test/icon"}
+
+    if [[ "$use_mpi" == "yes" ]]
+    then
+        set_default use_mpi_procs_pernode 8
+    fi
+    #if [[ "$use_openmp" == "yes" ]]
+    #then
+    #    set_default use_openmp_threads 2
+    #fi
+
+    dont_add_simple_start_model="true" # we have to use a more complex mpirun
+    
+    set_default use_nproma 752
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+    set_default use_mpi_procs_pernode 1
+    set_default use_openmp_threads 1
+    set_default use_BB_SLAVE "false"
+    set_default use_venum_lhost 2
+    set_default use_cpunum_job 6
+    # $use_memory can be used to set memsz_job. e.G. "24gb"
+
+    
+    # absolute path to cdo
+    cdo="/hpc/sw/cdo/1.9.8/x86/gnu/bin/cdo"
+    cdo_diff="diffn"
+
+    add_free_var VE_ERRCTL_ALLOCATE "MSG"
+    add_free_var NMPI_PROGINF "YES"
+    add_free_var VE_TRACEBACK "VERBOSE"
+    add_free_var NMPI_SEPSELECT "3"
+    add_free_var GMON_OUT_PREFIX "scal_prof"
+    add_free_var VE_FPE_ENABLE "DIV,FOF,INV"
+
+    add_free_var GFORTRAN_UNBUFFERED_PRECONNECTED "y"
+
+    add_free_var NMPI_EXPORT "GFORTRAN_UNBUFFERED_PRECONNECTED"
+
+    # try to guess the location of the additional binary (VectorEngine or VectorHost)
+    #
+    # In the following $use_builddir from set-up.info is used because this is directory 
+    # were the target binary that was created during compilation.
+    if [[ "$use_compiler" == "nec" ]]; then
+        # "nec" is the VE compiler
+        MODEL="${use_builddir}/bin/icon"
+        if [[ -n "$secondary_build_dir" ]]; then
+            MODEL_SCAL="${secondary_build_dir}/bin/icon"
+        else
+            # Default fallback 
+            # if "VE" is used as build directory, look for "../VH", otherwise use "../host"
+            case "$use_builddir" in
+                */VE )
+                    MODEL_SCAL="${use_builddir}/../VH/bin/icon"
+                    ;;
+                */vector )
+                    MODEL_SCAL="${use_builddir}/../host/bin/icon"
+                    ;;
+                * )
+                    # fallback assumption: 
+                    # host build was configured with '--prefix=$PWD/host' as in buildbot
+                    MODEL_SCAL="${use_builddir}/host/bin/icon"
+                    ;;
+            esac
+            if [[ ! -x "${MODEL_SCAL}" ]]; then
+                echo "[ERROR] create_target_header: Automatic detection of vector host binary has failed."
+                echo "Could not find host executable '${MODEL_SCAL}'."
+                echo "Use a default build directory structure ('VE/' + ' VH/' or 'vector/' + 'host/') or set the option 'secondary_build_dir'."
+                exit 1
+            fi
+        fi
+    else
+        # Present build is the host (SCAL) binary.
+        MODEL_SCAL="${use_builddir}/bin/icon"
+        if [[ -n "$secondary_build_dir" ]]; then
+            MODEL="${secondary_build_dir}/bin/icon"
+        else
+            # Default fallback 
+            # if "VH" is used as build directory, look for "../VE", otherwise use "../vector"
+            case "$use_builddir" in
+                */VH )
+                    MODEL="${use_builddir}/../VE/bin/icon"
+                    ;;
+                */host )
+                    MODEL="${use_builddir}/../vector/bin/icon"
+                    ;;
+                * )
+                    # fallback assumption: 
+                    # vector build was configured with '--prefix=$PWD/vector' as in buildbot
+                    MODEL="${use_builddir}/vector/bin/icon"
+                    ;;
+            esac
+            if [[ ! -x "${MODEL}" ]]; then
+                echo "[ERROR] create_target_header: Automatic detection of vector engine binary has failed."
+                echo "Could not find vector engine executable '${MODEL}'."
+                echo "Use a default build directory structure ('VE/' + ' VH/' or 'vector/' + 'host/') or set the option 'secondary_build_dir'."
+                exit 1
+            fi
+        fi
+    fi
+
+
+    cat >> $output_script << EOF
+#-----------------------------------------------------------------------------
+#PBS -q sx_norm
+#PBS -v NE=${use_nodes},CPE=${use_mpi_procs_pernode},NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
+#PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
+#PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
+#PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
+#PBS -v NMPI_DAEMON_PATH=\${NMPI_ROOT}/libexec/mpid
+EOF
+    if [[ "$use_BB_SLAVE" == "true" ]]; then
+        echo "#PBS -v BB_SLAVE" >> $output_script
+    fi
+    cat >> $output_script << EOF
+#PBS -l elapstim_req=00:40:00
+#PBS --venode=\${NE}
+#PBS --venum-lhost=${use_venum_lhost}     # Number of VE per logical host
+EOF
+    if [[ -n "$use_memory" ]]; then
+        echo "#PBS -l memsz_job=${use_memory}" >> $output_script
+    fi
+    cat >> $output_script << EOF
+#PBS -l cpunum_job=${use_cpunum_job}
+#PBS -l coresz_prc=0
+#PBS -T necmpi
+#PBS --use-hca=2             # Number of HCA per logical host
+#PBS -j o
+#PBS -o LOG.${job_name}.o
+# ----------------------------------------------------------------------------
+date
+. \${NMPI_ROOT}/bin/necmpivars.sh
+
+EOF
+
+    start_header
+
+    cat >> $output_script << EOF
+set -x
+
+# Run information
+let PPN=\${CPE}*\${NE}/\${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
+let NE1=\${NE}-1
+echo "PPN etc. \$NN \$NE \$CPE \$PPN"
+
+ID=\$(echo \$PBS_JOBID | cut -d: -f2 | cut -d. -f1)
+
+# For PBS: change to directory where job was submitted
+# (otherwise job would run in HOME)
+if [[ -n "\${PBS_O_WORKDIR}" ]] ; then
+  cd "\${PBS_O_WORKDIR}"
+fi
+
+# set path variables used in add_run_routines (not used on RCL, thus set to null)
+current_status_file=/dev/null #\$PWD/${job_name}.status
+final_status_file=/dev/null #\$PWD/${job_name}.final_status
+
+# absolute path to directory with plenty of space:
+# overwrite usual output directory path
+experiments_dir="\$TMPDIR"
+
+# path to model binary, including the executable:
+#MODEL=\${PBS_O_WORKDIR}/../../build/VE/bin/icon
+#MODEL_SCAL=\${PBS_O_WORKDIR}/../../build/VH/bin/icon
+
+# how to start the icon model
+# ---------------------------
+MODEL="${MODEL}"
+MODEL_SCAL="${MODEL_SCAL}"
+
+START_MODEL_function()
+{ # START_MODEL is a function. This has the advantage that the variables within
+  # are just replaced at execution time, i.e. they can be modified by the code
+  # before.
+  #
+  # Environment variables
+  # ---------------------
+  # num_restart_procs: This number of processes will additionally be allocated on a VH
+  # num_io_procs: This number of processes will additionally be allocated on a VH
+  # num_prefetch_proc: This number of processes will additionally be allocated on a VH
+  # num_io_procs_radar: This number of processes will additionally be allocated on a VH
+  # mpi_oce_procs: This number of processes will be allocated on the VEs with high MPI ranks
+  # VH_NODE: set to specify the node number for the additional VH processes.
+  # VH_OFFLOADING (default: yes): can be set to 'no'. Then no VH are used.
+  #
+    if [ \${VH_OFFLOADING:-yes} = yes ]; then
+        start_options=""
+        start_options="\${start_options}  -v  -vh     -node 0         -np 1       -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
+        let "num_atm_procs=\${PPN}-\${mpi_oce_procs:-0}"
+        start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${num_atm_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
+        #calculate number of IO procs running on vector hosts
+        let "NH=\${num_restart_procs:-0}+\${num_io_procs:-0}+\${num_prefetch_proc:-0}+\${num_io_procs_radar:-0}"
+        if [ "\${NH}" -gt 0 ]; then
+            #TODO for experiment 10: program a logic that more IO nodes with at most 4 procs per node
+            start_options="\${start_options} : -vh    -node \${VH_NODE:-0}         -np \${NH}  -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
+        fi
+        if [ \${mpi_oce_procs:-0} -gt 0 ]; then
+            start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${mpi_oce_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
+        fi
+    else
+        start_options="-v -x -venode -node 0-\${NE1} -np \${PPN} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
+    fi
+    ${use_mpi_startrun} \$start_options
+    return \$?
+}
+START_MODEL=START_MODEL_function
+EOF
+
 }
 
 #=============================================================================
@@ -1599,7 +1831,246 @@ create_target_header()
             # Therefore we use use_prefetch_procs to force 2 procs on 2 nodes on GPU
             use_prefetch_procs=1
             ;;
-	esac
+        *run_ICON_01_R3B9_lam*)
+            case $use_target in
+                daint*)
+                    use_nodes=20
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=4
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_02_R2B13_lam*)
+            case $use_target in
+                daint*)
+                    use_nodes=8
+                    ;;
+                rcl)
+                    use_nodes=1
+                    use_venum_lhost=1
+                    use_cpunum_job=2
+                    ;;
+            esac
+            ;;
+        *run_ICON_03_R19B7N8-ID2_ID1_lam*)
+            use_memory="24gb"
+            case $use_target in
+                daint*)
+                    use_nodes=12
+                    ;;
+                rcl)
+                    use_nodes=8
+                    use_venum_lhost=8
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_04_R02B06N08_ifsinit_restarttest*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=6
+                    use_venum_lhost=3
+                    use_cpunum_job=3
+                    ;;
+            esac
+            ;;
+        *run_ICON_05_R02B06N07_ifsinit_restarttest*)
+            case $use_target in
+                daint*)
+                    use_nodes=20
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=4
+                    use_cpunum_job=5
+                    ;;
+            esac
+            ;;
+        *run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest*)
+            case $use_target in
+                daint*)
+                    use_nodes=8
+                    ;;
+                rcl)
+                    use_nodes=8
+                    use_venum_lhost=4
+                    use_cpunum_job=2
+                    add_free_var VE_FORT_NML_REPEAT_FORM NO
+                    ;;
+            esac
+            ;;
+        *run_ICON_07_R02B04N06M_restarttest*)
+            case $use_target in
+                daint_cpu)
+                    use_nodes=2
+                    ;;
+                daint_gpu)
+                    use_nodes=10 # requires a couple of MPI ranks
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+                    ;;
+            esac
+            ;;
+        *run_ICON_08_R19B7-ID2_oper*)
+            case $use_target in
+                daint*)
+                    use_nodes=16
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=4
+                    ;;
+            esac
+            ;;
+        *run_ICON_09_R2B6N7_oper_EPS*)
+            case $use_target in
+                daint*)
+                    use_nodes=5
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=5
+                    use_nproma=504 # fails with regular nproma=752 at a certain allocation
+                    add_free_var NMPI_COLLORDER ON
+                    ;;
+            esac
+            ;;
+        *run_ICON_10_R3B7N8_oper_mfr*)
+            use_memory="24gb"
+            case $use_target in
+                daint*)
+                    use_nodes=60
+                    ;;
+                rcl)
+                    use_nodes=32
+                    use_venum_lhost=8
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_11_R3B08_lam_initmode7_restarttest*)
+            use_BB_SLAVE=true
+            case $use_target in
+                daint_cpu)
+                    use_nodes=2
+                    ;;
+                daint_gpu)
+                    use_nodes=6
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_12_R3B08_lam_initmode4*)
+            case $use_target in
+                daint_cpu)
+                    use_nodes=2
+                    ;;
+                daint_gpu)
+                    use_nodes=8
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_13_R2B08-dkltest*)
+            case $use_target in
+                daint_cpu)
+                    use_nodes=3
+                    ;;
+                daint_gpu)
+                    use_nodes=20
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=6
+                    ;;
+            esac
+            ;;
+        *run_ICON_14_R2B6N7_oper_IAU_and_restarttest*)
+            use_BB_SLAVE=true
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+                    ;;
+            esac
+            ;;
+        *run_ICON_15_R19B7-ID2_ass*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=6
+                    use_venum_lhost=3
+                    use_cpunum_job=5
+                    ;;
+            esac
+            ;;
+        *run_ICON_16_R19B7-ID2_ass*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=6
+                    use_venum_lhost=3
+                    use_cpunum_job=5
+                    ;;
+            esac
+            ;;
+        *run_ICON_16_R2B6_mvstream*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=2
+                    use_venum_lhost=2
+                    use_cpunum_job=5
+                    use_nproma=504
+                    add_free_var NMPI_COLLORDER ON
+                    ;;
+            esac
+            ;;
+        *run_ICON_17_R2B4_AO_coupled*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+#                    elapstim_req=01:00:00 # this variable does not exist yet
+                    ;;
+            esac
+            ;;
+
+    esac
 
     # set more default values
     set_default use_shell "/bin/ksh"

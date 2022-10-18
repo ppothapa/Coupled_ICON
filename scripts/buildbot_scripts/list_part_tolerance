@@ -5,6 +5,9 @@
 # Note: This list must always be called as part of a full `create_list_<list>`,
 #       it does not initialize any machines and builders.
 
+# abort on error
+set -euo pipefail
+
 cd $(dirname "${BASH_SOURCE[0]}")
 
 # get the ICON root directory

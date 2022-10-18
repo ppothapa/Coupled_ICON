@@ -77,8 +77,8 @@ SUBROUTINE su_bc_aeropt_stenchikov
   ALLOCATE(ssa_v_t(nbndlw,lev_clim,0:lat_clim+1,nmonths))
   ALLOCATE(p_lim_clim(lev_clim+1))
   ALLOCATE(r_lat_clim(0:lat_clim+1))
-  !$ACC ENTER DATA CREATE( aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-  !$ACC                    p_lim_clim, r_lat_clim )
+  !$ACC ENTER DATA CREATE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+  !$ACC   CREATE(p_lim_clim, r_lat_clim)
 
 ! initialize with zero
   aod_v_s(:,:,:)   = 0._wp
@@ -89,8 +89,8 @@ SUBROUTINE su_bc_aeropt_stenchikov
   ext_v_t(:,:,:,:) = 0._wp
   ssa_v_t(:,:,:,:) = 0._wp
   p_lim_clim(lev_clim+1) = 0._wp
-  !$ACC UPDATE DEVICE( aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-  !$ACC                p_lim_clim )
+  !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+  !$ACC   DEVICE(p_lim_clim)
 END SUBROUTINE su_bc_aeropt_stenchikov
 
   !> SUBROUTINE shift_months_bc_aeropt_stenchikov -- shifts months in order to read a new one.
@@ -173,8 +173,8 @@ SUBROUTINE read_bc_aeropt_stenchikov(current_date, p_patch)
     END DO
 
   ENDIF
-  !$ACC UPDATE DEVICE( aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-  !$ACC                p_lim_clim, r_lat_clim )
+  !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+  !$ACC   DEVICE(p_lim_clim, r_lat_clim)
 
 END SUBROUTINE read_bc_aeropt_stenchikov
 !-------------------------------------------------------------------------

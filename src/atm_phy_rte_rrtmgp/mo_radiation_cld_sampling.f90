@@ -60,7 +60,7 @@ CONTAINS
     INTEGER  :: jk, js, jl
 
     !$ACC DATA PRESENT(rnseeds, cld_frc, is_cloudy) &
-    !$ACC      CREATE (rank, one_minus)
+    !$ACC   CREATE(rank, one_minus)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     one_minus(1:kproma,:) = 1.0_wp - cld_frc(1:kproma,:)
@@ -78,7 +78,7 @@ CONTAINS
         CALL get_random_rank3(kproma, kbdim, klev, ksamps, rnseeds, &
           is_cloudy(:,:,1), rank)
         ! There may be a better way to structure this calculation...
-        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(ksamps,kproma,klev) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(ksamps, kproma, klev) ASYNC(1)
         !$ACC LOOP SEQ
         DO jk = 2, klev
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -103,7 +103,7 @@ CONTAINS
 
           ! rank(1:kproma,2:klev,js) = SPREAD(rank(1:kproma,1,js), &
           !   DIM=2, NCOPIES=(klev-1))
-          !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(klev,kproma,js) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(klev, kproma, js) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO jk = 2, klev
             DO jl = 1, kproma
               rank(jl,jk,js) = rank(jl,1,js)
@@ -128,7 +128,7 @@ CONTAINS
         CALL finish('In sample_cld_state: unknown overlap assumption') 
     END SELECT
     ! Now is_cloudy indicates whether the sample (ks) is cloudy or not. 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(ksamps,klev,kproma) GANG VECTOR COLLAPSE(3) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(ksamps, klev, kproma) GANG VECTOR COLLAPSE(3) ASYNC(1)
     DO js = 1, ksamps
       DO jk = 1, klev
         DO jl = 1, kproma

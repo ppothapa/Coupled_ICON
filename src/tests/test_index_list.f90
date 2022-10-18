@@ -17,7 +17,7 @@ program test_index_list
   call random_number(harvest)
   conditions = int(harvest * 2)
 
-  !$acc data copyin(conditions) create(dev_indices, dev_nvalid)
+  !$ACC DATA COPYIN(conditions) CREATE(dev_indices, dev_nvalid)
 
   ! Test the non-batched version
 
@@ -31,8 +31,8 @@ program test_index_list
 
 
   call generate_index_list(conditions(:,1), dev_indices(:,1), 1, n, dev_nvalid(1), 1)
-  !$acc wait(1)
-  !$acc update host(dev_indices(:,1))
+  !$ACC WAIT(1)
+  !$ACC UPDATE HOST(dev_indices(:,1))
 
   print *, "CHECK NON-BATCHED: ", nvalid(1) == dev_nvalid(1), all(indices(:,1) == dev_indices(:,1))
 
@@ -49,12 +49,12 @@ program test_index_list
   end do
 
   call generate_index_list_batched(conditions, dev_indices, 1, n, dev_nvalid, 1)
-  !$acc wait(1)
-  !$acc update host(dev_indices, dev_nvalid)
+  !$ACC WAIT(1)
+  !$ACC UPDATE HOST(dev_indices, dev_nvalid)
 
   print *, "CHECK BATCHED: ", all(nvalid == dev_nvalid), all(indices == dev_indices)
 
-  !$acc end data
+  !$ACC END DATA
 
 !  print *, "n=", nvalid, " data: ", indices
 !

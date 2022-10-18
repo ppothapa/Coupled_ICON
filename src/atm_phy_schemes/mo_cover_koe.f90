@@ -56,7 +56,9 @@ MODULE mo_cover_koe
 
   USE mo_ensemble_pert_config, ONLY: box_liq_sv, thicklayfac_sv, box_liq_asy_sv
 
-  USE mo_impl_constants,      ONLY: max_dom  
+  USE mo_impl_constants,      ONLY: max_dom
+
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -247,15 +249,11 @@ REAL(KIND=wp), PARAMETER  :: &
   dqsdt(ztt,zqs) = c5les * (1._wp-zqs) * zqs / (ztt-c4les)**2
 !-----------------------------------------------------------------------
 
-  IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-!$ACC DATA CREATE( cc_turb, qc_turb, qi_turb, cc_conv, qc_conv, qi_conv, cc_turb_liq, cc_turb_ice) &
-!$ACC CREATE(p0, zqlsat , zqisat, zagl_lim, zdqlsat_dT) &
-!$ACC IF(lzacc)
+!$ACC DATA CREATE(cc_turb, qc_turb, qi_turb, cc_conv, qc_conv, qi_conv, cc_turb_liq, cc_turb_ice) &
+!$ACC   CREATE(p0, zqlsat, zqisat, zagl_lim, zdqlsat_dT) &
+!$ACC   IF(lzacc)
 
 ! saturation mixing ratio at -50 C and 200 hPa
 zqisat_m50 = fgqs ( fgee(223.15_wp), 0._wp, 20000._wp )
@@ -282,7 +280,7 @@ l_addsnow = (cover_koe_config%inwp_cpl_re == 0) .OR. (cover_koe_config%inwp_reff
             (cover_koe_config%inwp_reff == 101)
 
 ! Set cloud fields for stratospheric levels to zero
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
+!$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
 !$ACC LOOP GANG VECTOR COLLAPSE(2)
 DO jk = 1,kstart-1
   DO jl = kidia,kfdia
@@ -299,8 +297,8 @@ ENDDO
 ! and over ice (from mo_cover_cosmo.f90)
 !-----------------------------------------------------------------------
 
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)  PRIVATE(vap_pres)
+!$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
+!$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(vap_pres)
 DO jk = kstart,klev
   DO jl = kidia,kfdia
     vap_pres = qv(jl,jk) * rho(jl,jk) * rv * tt(jl,jk)
@@ -326,7 +324,7 @@ SELECT CASE( cover_koe_config%icldscheme )
 ! no clouds
 CASE( 0 )
 
-  !$ACC PARALLEL IF( lzacc ) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk = kstart,klev
     DO jl = kidia,kfdia
@@ -342,13 +340,13 @@ CASE( 0 )
 ! diagnostic cloud cover
 CASE( 1 )
 
-  !$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
+  !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG
   DO jk = kstart,klev
     jkp1 = MIN(jk+1,klev)
     !$ACC LOOP VECTOR PRIVATE(thicklay_fac, zdeltaq, zrcld, deltaq, fac_sfc) &
-    !$ACC             PRIVATE(box_liq_asy, par1, zaux, fac_aux, rhcrit_sgsice)  &
-    !$ACC             PRIVATE(qi_mod, qisat_grid, tfac, satdef_fac, qcc)
+    !$ACC   PRIVATE(box_liq_asy, par1, zaux, fac_aux, rhcrit_sgsice) &
+    !$ACC   PRIVATE(qi_mod, qisat_grid, tfac, satdef_fac, qcc)
     DO jl = kidia,kfdia
 
 ! stratiform cloud
@@ -469,7 +467,7 @@ CASE( 1 )
 
     ENDDO
   ENDDO
-!$ACC END PARALLEL
+  !$ACC END PARALLEL
 
 
   IF (cover_koe_config%inwp_turb == iedmf) THEN
@@ -490,8 +488,8 @@ CASE( 1 )
       ENDDO
     ENDDO
   ELSE ! use always combination of strat/conv cloud
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = kstart,klev
       DO jl = kidia,kfdia
         cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
@@ -499,7 +497,7 @@ CASE( 1 )
         qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
       ENDDO
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
   ENDIF
 
 
@@ -580,7 +578,7 @@ CASE( 4 )
 ! grid-scale cloud cover [1 or 0]
 CASE( 5 )
 
-  !$ACC PARALLEL IF( lzacc ) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk = kstart,klev
     DO jl = kidia,kfdia
@@ -603,7 +601,7 @@ END SELECT
 ! total water vapor by conservation of grid-scale total water
 
 !PREVENT_INCONSISTENT_IFORT_FMA
-!$ACC PARALLEL IF( lzacc )  DEFAULT(PRESENT) ASYNC(1)
+!$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
 !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf_ice)
 DO jk = kstart,klev
   DO jl = kidia,kfdia

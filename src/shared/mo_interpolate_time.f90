@@ -112,7 +112,7 @@ CONTAINS
     CALL message(TRIM(routine),message_text)
 
 
-    !$ACC ENTER DATA COPYIN( this )
+    !$ACC ENTER DATA COPYIN(this)
     CALL reader%get_one_timelev(this%tidx,   this%var_name, this%dataa)
     this%dataold => this%dataa
     CALL reader%get_one_timelev(this%tidx+1, this%var_name, this%datab)
@@ -182,17 +182,17 @@ CONTAINS
 
     IF (ALLOCATED(interpolated)) THEN
       IF (.NOT. ALL( SHAPE(interpolated) .EQ. SHAPE(this%dataa) )) THEN
-        !$ACC EXIT DATA DELETE( interpolated )
+        !$ACC EXIT DATA DELETE(interpolated)
         DEALLOCATE(interpolated)
       END IF
     END IF
     IF (.NOT. ALLOCATED(interpolated)) THEN
       ALLOCATE(interpolated(size(this%dataa,1), size(this%dataa,2), size(this%dataa,3), size(this%dataa,4)))
-      !$ACC ENTER DATA CREATE( interpolated )
+      !$ACC ENTER DATA CREATE(interpolated)
     END IF
 
-    !$ACC DATA PRESENT( interpolated )
-    !$ACC KERNELS DEFAULT(NONE) IF (i_am_accel_node)
+    !$ACC DATA PRESENT(interpolated)
+    !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
     interpolated(:,:,:,:) = 0.d0
     !$ACC END KERNELS
 
@@ -207,8 +207,8 @@ CONTAINS
       DO jb = 1,nblks
         nlen = MERGE(nproma, npromz, jb /= nblks)
         ! DA: Need to list this%dataxxx in the PRESENT section for attach
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) IF (i_am_accel_node) &
-        !$ACC          DEFAULT(NONE) PRESENT( this, this%dataold, this%datanew )
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) IF(i_am_accel_node) &
+        !$ACC   DEFAULT(NONE) PRESENT(this, this%dataold, this%datanew)
         DO jk = 1,nlev
           DO jc = 1,nlen
             interpolated(jc,jk,jb,jw) = (1-weight) * this%dataold(jc,jk,jb,jw) &

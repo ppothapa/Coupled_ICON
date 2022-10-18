@@ -39,7 +39,11 @@ MODULE mo_nwp_ecrad_init
   USE mtime,                   ONLY: datetime
   USE mo_model_domain,         ONLY: t_patch
   USE mo_radiation_config,     ONLY: icld_overlap, irad_aero, ecrad_data_path,           &
-                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad
+                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad,   &
+                                 &   iRadAeroConst, iRadAeroTegen, iRadAeroART,          &
+                                 &   iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,    &
+                                 &   iRadAeroKinneVolc,  iRadAeroKinneVolcSP,            &
+                                 &   iRadAeroKinneSP, iRadAeroNone
 #ifdef __ECRAD
   USE mo_ecrad,                ONLY: t_ecrad_conf, ecrad_setup,                          &
                                  &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
@@ -128,12 +132,10 @@ CONTAINS
 
     ! Aerosol climatology
     SELECT CASE (irad_aero)
-      CASE (0) ! No aerosol
+      CASE (iRadAeroNone) ! No aerosol
         ecrad_conf%use_aerosols = .false.
-      CASE (2,5,6,9,12,13,14,15,18,19) ! Constant, Tanre, Tegen, ART, constant Kinne aerosol, Kinne, 
-                                       ! CMIP6 volcanic aerosol, Kinne+CMIP6 volcanic aerosol,
-                                       ! Kinne+CMIP6 volcanic+anthropogenic aerosol,
-                                       ! Kinne+anthropogenic aerosol
+      CASE (iRadAeroConst, iRadAeroTegen, iRadAeroART, iRadAeroConstKinne, iRadAeroKinne, &
+        &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, iRadAeroKinneSP)
         ecrad_conf%use_aerosols = .true.
       CASE DEFAULT
         CALL finish(routine, 'irad_aero not valid for ecRad')
@@ -265,20 +267,20 @@ CONTAINS
     CALL ecrad_conf%define_lw_emiss_intervals(1, wavelength_bound_lw, i_band_in_lw)
 
     !$ACC ENTER DATA COPYIN(ecrad_conf)
-    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics, &
-    !$ACC                   ecrad_conf%i_albedo_from_band_sw, &
-    !$ACC                   ecrad_conf%i_band_from_reordered_g_lw, &
-    !$ACC                   ecrad_conf%i_band_from_reordered_g_sw, &
-    !$ACC                   ecrad_conf%i_band_from_g_lw, &
-    !$ACC                   ecrad_conf%i_g_from_reordered_g_lw, &
-    !$ACC                   ecrad_conf%i_emiss_from_band_lw, &
-    !$ACC                   ecrad_conf%pdf_sampler, &
-    !$ACC                   ecrad_conf%sw_albedo_weights)
-    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics%liq_coeff_lw, &
-    !$ACC                   ecrad_conf%cloud_optics%liq_coeff_sw, &
-    !$ACC                   ecrad_conf%cloud_optics%ice_coeff_lw, &
-    !$ACC                   ecrad_conf%cloud_optics%ice_coeff_sw, &
-    !$ACC                   ecrad_conf%pdf_sampler%val)
+    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics) &
+    !$ACC   COPYIN(ecrad_conf%i_albedo_from_band_sw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_reordered_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_reordered_g_sw) &
+    !$ACC   COPYIN(ecrad_conf%i_band_from_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_g_from_reordered_g_lw) &
+    !$ACC   COPYIN(ecrad_conf%i_emiss_from_band_lw) &
+    !$ACC   COPYIN(ecrad_conf%pdf_sampler) &
+    !$ACC   COPYIN(ecrad_conf%sw_albedo_weights)
+    !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics%liq_coeff_lw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%liq_coeff_sw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%ice_coeff_lw) &
+    !$ACC   COPYIN(ecrad_conf%cloud_optics%ice_coeff_sw) &
+    !$ACC   COPYIN(ecrad_conf%pdf_sampler%val)
 
 #ifdef _OPENACC
     CALL ecrad_openacc_crosscheck(ecrad_conf)

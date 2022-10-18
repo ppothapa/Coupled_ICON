@@ -332,6 +332,8 @@ MODULE sfc_flake
                     &  message     !< external procedure, sends a message (error, warning, etc.)
 #endif
 
+ USE mo_fortran_tools, ONLY: set_acc_host_or_device
+
 !===================================================================================================
 
 !_cdm>
@@ -812,7 +814,7 @@ CONTAINS
                      &  c_t_lk_p, h_ml_lk_p,                    & 
                      &  t_b1_lk_p, h_b1_lk_p,                   &
                      &  t_g_lk_p,                               &
-                     &  use_acc                                 )
+                     &  lacc                                    )
 
 
     IMPLICIT NONE
@@ -863,7 +865,7 @@ CONTAINS
                                                 !< at previous time step [m] 
                         &  t_g_lk_p             !< lake surface temperature at previous time [K]
 
-    LOGICAL, OPTIONAL,   INTENT(IN)   :: use_acc
+    LOGICAL, OPTIONAL,   INTENT(IN)   :: lacc ! If true, use openacc
 
 
 
@@ -871,24 +873,20 @@ CONTAINS
             &  ic , &  !< DO loop index
             &  jc      !< icon grid cell index
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 
     !===============================================================================================
     !  Start calculations
     !-----------------------------------------------------------------------------------------------
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! Loop over grid boxes with lakes
     !
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT( idx_lst_fp, depth_lk, tskin, &
-    !$ACC   t_snow_lk_p, h_snow_lk_p, t_ice_p, h_ice_p, t_mnw_lk_p, t_wml_lk_p, &
-    !$ACC   t_bot_lk_p, c_t_lk_p, h_ml_lk_p, t_b1_lk_p, h_b1_lk_p, t_g_lk_p) &
-    !$ACC   ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(NONE) PRESENT(idx_lst_fp, depth_lk, tskin) &
+    !$ACC   PRESENT(t_snow_lk_p, h_snow_lk_p, t_ice_p, h_ice_p, t_mnw_lk_p, t_wml_lk_p) &
+    !$ACC   PRESENT(t_bot_lk_p, c_t_lk_p, h_ml_lk_p, t_b1_lk_p, h_b1_lk_p, t_g_lk_p) &
+    !$ACC   ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(jc)
 !$NEC ivdep
     DO ic=1, nflkgb
@@ -1300,11 +1298,8 @@ CONTAINS
     !  Start calculations
     !-----------------------------------------------------------------------------------------------
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
+
 
 !_cdm>
 ! A debugging key "izdebug" is actually not required,
@@ -1378,21 +1373,21 @@ CONTAINS
     albedo_ice   = 0._wp
     albedo_snow  = albedo_ice     ! snow is not considered explicitly
 
-    !$acc data &
-    !$acc create (dctlkdt, dhb1lkdt, dhicedt, dhmllkdt, dhsnowdt, dtb1lkdt, dtbotlkdt) &
-    !$acc create (dticedt, dtmnwlkdt, dtsfclkdt, dtsnowdt, dtwmllkdt) &
-    !$acc copyin (albedo_ice, albedo_snow, albedo_water, del_time, opticpar_ice, opticpar_snow) &
-    !$acc copyin (opticpar_water, r_dtime) if (lzacc)
+    !$ACC DATA &
+    !$ACC   CREATE(dctlkdt, dhb1lkdt, dhicedt, dhmllkdt, dhsnowdt, dtb1lkdt, dtbotlkdt) &
+    !$ACC   CREATE(dticedt, dtmnwlkdt, dtsfclkdt, dtsnowdt, dtwmllkdt) &
+    !$ACC   COPYIN(albedo_ice, albedo_snow, albedo_water, del_time, opticpar_ice, opticpar_snow) &
+    !$ACC   COPYIN(opticpar_water, r_dtime) IF(lzacc)
 
-    !$acc parallel default (present) if (lzacc)
-    !$acc loop gang vector &
-    !$acc private (c_i_flk, c_tt_flk, c_q_flk, c_t_n_flk, c_t_p_flk, depth_w, fetch, h_b1_n_flk, h_b1_p_flk) &
-    !$acc private (h_ice_n_flk, h_ice_p_flk, h_ml_n_flk, h_ml_p_flk, h_snow_n_flk, h_snow_p_flk, i_atm_flk) &
-    !$acc private (i_bot_flk, i_h_flk, i_ice_flk,  i_intm_0_h_flk, i_intm_h_d_flk, i_snow_flk, i_w_flk) &
-    !$acc private (par_coriolis, phi_i_pr0_flk, phi_i_pr1_flk, phi_t_pr0_flk, q_bot_flk, q_ice_flk) &
-    !$acc private (q_snow_flk, q_star_flk, q_w_flk, t_b1_n_flk, t_b1_p_flk, t_bot_n_flk, t_bot_p_flk, t_bs) &
-    !$acc private (t_ice_n_flk, t_ice_p_flk, t_mnw_n_flk, t_mnw_p_flk, t_sfc_n, t_sfc_p, t_snow_n_flk) &
-    !$acc private (t_snow_p_flk, t_wml_n_flk, t_wml_p_flk, u_star_w_flk, w_star_sfc_flk, depth_bs, dmsnowdt_flk)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC LOOP GANG VECTOR &
+    !$ACC   PRIVATE(c_i_flk, c_tt_flk, c_q_flk, c_t_n_flk, c_t_p_flk, depth_w, fetch, h_b1_n_flk, h_b1_p_flk) &
+    !$ACC   PRIVATE(h_ice_n_flk, h_ice_p_flk, h_ml_n_flk, h_ml_p_flk, h_snow_n_flk, h_snow_p_flk, i_atm_flk) &
+    !$ACC   PRIVATE(i_bot_flk, i_h_flk, i_ice_flk, i_intm_0_h_flk, i_intm_h_d_flk, i_snow_flk, i_w_flk) &
+    !$ACC   PRIVATE(par_coriolis, phi_i_pr0_flk, phi_i_pr1_flk, phi_t_pr0_flk, q_bot_flk, q_ice_flk) &
+    !$ACC   PRIVATE(q_snow_flk, q_star_flk, q_w_flk, t_b1_n_flk, t_b1_p_flk, t_bot_n_flk, t_bot_p_flk, t_bs) &
+    !$ACC   PRIVATE(t_ice_n_flk, t_ice_p_flk, t_mnw_n_flk, t_mnw_p_flk, t_sfc_n, t_sfc_p, t_snow_n_flk) &
+    !$ACC   PRIVATE(t_snow_p_flk, t_wml_n_flk, t_wml_p_flk, u_star_w_flk, w_star_sfc_flk, depth_bs, dmsnowdt_flk)
     
     !-----------------------------------------------------------------------------------------------
     !  DO loop over grid boxes with lakes
@@ -1574,130 +1569,130 @@ CONTAINS
     !-----------------------------------------------------------------------------------------------
 
     END DO GridBoxesWithLakes
-    !$acc end parallel
+    !$ACC END PARALLEL
 
     !-----------------------------------------------------------------------------------------------
     !  Store time tendencies of FLake variables (optional)
     !-----------------------------------------------------------------------------------------------
 
     IF (PRESENT(opt_dtsnowdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtsnowdt(1:nflkgb) = dtsnowdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtsnowdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtsnowdt(nflkgb+1:)= 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhsnowdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dhsnowdt(1:nflkgb) = dhsnowdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhsnowdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dhsnowdt(nflkgb+1:)= 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dticedt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dticedt(1:nflkgb) = dticedt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dticedt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dticedt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhicedt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dhicedt(1:nflkgb) = dhicedt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhicedt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dhicedt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtmnwlkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtmnwlkdt(1:nflkgb) = dtmnwlkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtmnwlkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtmnwlkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtwmllkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtwmllkdt(1:nflkgb) = dtwmllkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtwmllkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtwmllkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtbotlkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtbotlkdt(1:nflkgb) = dtbotlkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtbotlkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtbotlkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dctlkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dctlkdt(1:nflkgb) = dctlkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dctlkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dctlkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhmllkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dhmllkdt(1:nflkgb) = dhmllkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhmllkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dhmllkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtb1lkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtb1lkdt(1:nflkgb) = dtb1lkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtb1lkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtb1lkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhb1lkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dhb1lkdt(1:nflkgb) = dhb1lkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhb1lkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dhb1lkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtsfclkdt)) THEN
-      !$acc kernels if (lzacc)
+      !$ACC KERNELS IF(lzacc)
       opt_dtsfclkdt(1:nflkgb) = dtsfclkdt(1:nflkgb)
-      !$acc end kernels
+      !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtsfclkdt)) THEN
-        !$acc kernels if (lzacc)
+        !$ACC KERNELS IF(lzacc)
         opt_dtsfclkdt(nflkgb+1:) = 0._wp
-        !$acc end kernels
+        !$ACC END KERNELS
       ENDIF
     ENDIF
 
@@ -1707,7 +1702,7 @@ CONTAINS
     !  End calculations
     !===============================================================================================
 
-    !$acc end data
+    !$ACC END DATA
 
 END SUBROUTINE flake_interface
 
@@ -1903,7 +1898,7 @@ REAL (KIND = wp),     INTENT(OUT)  :: &
 ! We rely on Cray inlining the subroutine, otherwise compilation fails with
 ! derived types (that contain only scalars)
 #ifndef CRAY_FIX_SEQ
-!$acc routine seq
+  !$ACC ROUTINE SEQ
 #endif
 
 !==============================================================================
@@ -2178,7 +2173,7 @@ REAL (KIND = wp)     :: &
 ! We rely on Cray inlining the subroutine, otherwise compilation fails with
 ! derived types (that contain only scalars)
 #ifndef CRAY_FIX_SEQ
-!$acc routine seq
+!$ACC ROUTINE SEQ
 #endif
 
 !==============================================================================
@@ -3051,7 +3046,7 @@ REAL (KIND = wp)    , INTENT(IN) :: &
 !------------------------------------------------------------------------------
 
 #ifndef CRAY_FIX_SEQ
-!$acc routine seq
+  !$ACC ROUTINE SEQ
 #endif
 
 ! Buoyancy parameter [m s^{-2} K^{-1}]
@@ -3088,7 +3083,7 @@ REAL (KIND = wp)    , INTENT(IN) :: &
 !------------------------------------------------------------------------------
 
 #ifndef CRAY_FIX_SEQ
-!$acc routine seq
+  !$ACC ROUTINE SEQ
 #endif
 
 ! Snow density [kg m^{-3}]
@@ -3129,7 +3124,7 @@ REAL (KIND = wp)    , INTENT(IN) :: &
 !------------------------------------------------------------------------------
 
 #ifndef CRAY_FIX_SEQ
-!$acc routine seq
+  !$ACC ROUTINE SEQ
 #endif
 
 ! Snow heat conductivity [J m^{-1} s^{-1} K^{-1} = kg m s^{-3} K^{-1}]

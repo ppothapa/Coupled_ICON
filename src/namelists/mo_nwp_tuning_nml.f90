@@ -487,7 +487,7 @@ CONTAINS
     config_max_freshsnow_inc     = max_freshsnow_inc
     config_tune_eiscrit          = tune_eiscrit
 
-    !$acc update device(config_tune_gust_factor,config_itune_gust_diag,config_tune_gustsso_lim)
+    !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

@@ -115,8 +115,8 @@ CONTAINS
     muS = mu*Sice
     
    !-------------------------------------------------------------------------------
-    !$ACC DATA PRESENT ( Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar,   &
-    !$ACC                dnonsolardT, Tfw )
+    !$ACC DATA PRESENT(Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
+    !$ACC   PRESENT(dnonsolardT, Tfw)
 
     ! initialization
     !$ACC PARALLEL
@@ -134,8 +134,8 @@ CONTAINS
     !$ACC PARALLEL
     !$ACC LOOP SEQ
     DO k=1,kice
-      !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1,   &
-      !$ACC                          B1a, B1, C1)
+      !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &
+      !$ACC   PRIVATE(B1a, B1, C1)
       DO jc = i_startidx_c,i_endidx_c
         IF ( hi(jc,k) > 0._wp ) THEN
 

@@ -1159,16 +1159,16 @@ CONTAINS
       diff_vn  = 0._wp
     ENDIF
 
-!$ACC DATA CREATE( feedback_rho, feedback_thv, feedback_vn, feedback_w,                                     &
-!$ACC              parent_rho, parent_thv, parent_w, diff_rho, diff_thv, diff_w, parent_rhoqx,              &
-!$ACC              parent_vn, diff_vn, rho_parent_sv, rot_diff_vn, div_diff_vn, theta_v_pr, z_fbk_rho )     &
-!$ACC     PRESENT( p_nh_state(jg), p_nh_state(jgp), p_int, p_grf, p_grfp, p_patch(jgp), p_child_prog)       &
-!$ACC      IF ( i_am_accel_node )
+    !$ACC DATA CREATE(feedback_rho, feedback_thv, feedback_vn, feedback_w) &
+    !$ACC   CREATE(parent_rho, parent_thv, parent_w, diff_rho, diff_thv, diff_w, parent_rhoqx) &
+    !$ACC   CREATE(parent_vn, diff_vn, rho_parent_sv, rot_diff_vn, div_diff_vn, theta_v_pr, z_fbk_rho) &
+    !$ACC   PRESENT(p_nh_state(jg), p_nh_state(jgp), p_int, p_grf, p_grfp, p_patch(jgp), p_child_prog) &
+    !$ACC   IF(i_am_accel_node)
 
-!$ACC DATA CREATE(feedback_rhoqx) IF ( i_am_accel_node .AND. ltransport )
+    !$ACC DATA CREATE(feedback_rhoqx) IF(i_am_accel_node .AND. ltransport)
 
-!$ACC DATA CREATE(feedback_aero, parent_aero) PRESENT(prm_diagc%aerosol, prm_diagp%aerosol) &
-!$ACC         IF ( i_am_accel_node .AND. ltransport .AND. lprog_aero )
+    !$ACC DATA CREATE(feedback_aero, parent_aero) PRESENT(prm_diagc%aerosol, prm_diagp%aerosol) &
+    !$ACC   IF(i_am_accel_node .AND. ltransport .AND. lprog_aero)
 
     ! 1. Feedback of child-domain variables to the parent grid
 #ifndef __PGI
@@ -1187,7 +1187,7 @@ CONTAINS
       CALL get_indices_c(p_pc, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev_c
         DO jc = i_startidx, i_endidx
@@ -1213,7 +1213,7 @@ CONTAINS
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_fbk_start_c, min_rlcell_int)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_rho_corr)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1272,7 +1272,7 @@ CONTAINS
         DO nt = 1, trFeedback%len
           jt = trFeedback%list(nt)
 
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF( i_am_accel_node )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF(i_am_accel_node)
           DO jk = 1, nlev_c
             DO jc = i_startidx, i_endidx
 #endif
@@ -1294,7 +1294,7 @@ CONTAINS
 
       IF ( ltransport .AND. lprog_aero ) THEN
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
@@ -1330,7 +1330,7 @@ CONTAINS
       CALL get_indices_e(p_pp, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_fbk_start_e, min_rledge_int)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1416,11 +1416,11 @@ CONTAINS
 
       CALL get_indices_e(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_e)
 
-      !$ACC KERNELS IF( i_am_accel_node )
+      !$ACC KERNELS IF(i_am_accel_node)
       diff_vn(:,:,jb) = 0._wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1477,7 +1477,7 @@ CONTAINS
 
       CALL get_indices_v(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, min_rlvert_int-1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jv = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_v(jv,jb,i_chidx)) THEN
@@ -1519,7 +1519,7 @@ CONTAINS
 
       CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, min_rlcell_int-1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_ch(jc,jb,i_chidx)) THEN
@@ -1558,7 +1558,7 @@ CONTAINS
 
       CALL get_indices_e(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_e)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1595,7 +1595,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! 2b. Execute relaxation
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1638,7 +1638,7 @@ CONTAINS
       CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_c)
 
       ! Compute differences between feedback fields and corresponding parent fields
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1673,7 +1673,7 @@ CONTAINS
 
 
       ! Relaxation of dynamical variables
-      !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1738,7 +1738,7 @@ CONTAINS
 #else
         DO nt = 1, trFeedback%len
           jt = trFeedback%list(nt)
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF( i_am_accel_node )
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF(i_am_accel_node)
           DO jk = nshift+nst_fbk, nlev_p
             DO jc = i_startidx,i_endidx
               IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1762,7 +1762,7 @@ CONTAINS
 
         IF ( lprog_aero ) THEN
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF( i_am_accel_node )
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jt = 1, nclass_aero
             DO jc = i_startidx,i_endidx
@@ -1812,9 +1812,9 @@ CONTAINS
         &                        f3din4=p_parent_prog%w)
     ENDIF
 
-!$ACC END DATA
-!$ACC END DATA
-!$ACC END DATA
+    !$ACC END DATA
+    !$ACC END DATA
+    !$ACC END DATA
 
     DEALLOCATE(feedback_thv,feedback_rho,feedback_w,feedback_vn)
     IF (ltransport) DEALLOCATE(feedback_rhoqx)

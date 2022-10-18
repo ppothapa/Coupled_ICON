@@ -217,19 +217,19 @@ CONTAINS
 
     IF (lhook) CALL dr_hook('CUDLFSN',0,zhook_handle)
 
-    !$ACC DATA                                                                         &
-    !$ACC PRESENT( kcbot, kctop, ptenh, pqenh, pten, pqsen, pgeo, pgeoh, paph, ptu )   &
-    !$ACC PRESENT( pqu, pmfub, prfl, ptd, pqd, pmfd, pmfds, pmfdq, pdmfdp, kdtop )     &
-    !$ACC PRESENT( ldland, ldlake, lddraf,ldcum )                                      & 
+    !$ACC DATA &
+    !$ACC   PRESENT(kcbot, kctop, ptenh, pqenh, pten, pqsen, pgeo, pgeoh, paph, ptu) &
+    !$ACC   PRESENT(pqu, pmfub, prfl, ptd, pqd, pmfd, pmfds, pmfdq, pdmfdp, kdtop) &
+    !$ACC   PRESENT(ldland, ldlake, lddraf, ldcum) &
 
-    !$ACC CREATE( ikhsmin, ztenwb, zqenwb, zcond, zph, zhsmin, llo2 )                  &
-    !$ACC IF(lacc)
+    !$ACC   CREATE(ikhsmin, ztenwb, zqenwb, zcond, zph, zhsmin, llo2) &
+    !$ACC   IF(lacc)
 
 !PREVENT_INCONSISTENT_IFORT_FMA
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF (lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       lddraf(jl)=.FALSE.
       kdtop(jl)=klev+1
@@ -241,7 +241,7 @@ CONTAINS
 
     !$ACC LOOP SEQ
     DO jk=ktdia,klev
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         ztenwb(jl,jk) = 0._jprb
         zqenwb(jl,jk) = 0._jprb
@@ -279,7 +279,7 @@ CONTAINS
 
         IF (lphylin) THEN
 
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(ztarg, zoealfa, zoelhm, zhsk)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ztarg, zoealfa, zoelhm, zhsk)
           DO jl=kidia,kfdia
             ztarg=pten(jl,jk)
             zoealfa=0.545_JPRB*(TANH(0.17_JPRB*(ztarg-rlptrc))+1.0_JPRB)
@@ -293,7 +293,7 @@ CONTAINS
 
         ELSE
 
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zhsk)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zhsk)
           DO jl=kidia,kfdia
             zhsk=rcpd*pten(jl,jk)+pgeo(jl,jk)+foelhmcu(pten(jl,jk))*pqsen(jl,jk)
             IF(zhsk < zhsmin(jl)) THEN
@@ -318,7 +318,7 @@ CONTAINS
 #ifndef _OPENACC
         is=0
 #endif
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           ztenwb(jl,jk)=ptenh(jl,jk)
           zqenwb(jl,jk)=pqenh(jl,jk)
@@ -353,7 +353,7 @@ CONTAINS
 
 !DIR$ IVDEP
 !OCL NOVREC
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zttest, zqtest, zbuo, zmftop) 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zttest, zqtest, zbuo, zmftop)
         DO jl=kidia,kfdia
           IF(llo2(jl)) THEN
             zttest=0.5_JPRB*(ptu(jl,jk)+ztenwb(jl,jk))
@@ -540,13 +540,13 @@ CONTAINS
 
     IF (lhook) CALL dr_hook('CUDDRAFN',0,zhook_handle)
 
-    !$ACC DATA                                                                          &
-    !$ACC PRESENT( k950, lddraf, ptenh, pqenh, pgeo, pgeoh, zdgeoh, paph, zdph, prfl )  &
-    !$ACC PRESENT( ptd, pqd, pmfu, pmfd, pmfds, pmfdq, pdmfdp, pdmfde, pmfdde_rate )    &
-    !$ACC PRESENT( pkined, pvbuo )                                                      &
+    !$ACC DATA &
+    !$ACC   PRESENT(k950, lddraf, ptenh, pqenh, pgeo, pgeoh, zdgeoh, paph, zdph, prfl) &
+    !$ACC   PRESENT(ptd, pqd, pmfu, pmfd, pmfds, pmfdq, pdmfdp, pdmfde, pmfdde_rate) &
+    !$ACC   PRESENT(pkined, pvbuo) &
 
-    !$ACC CREATE( zdmfen, zdmfde, zcond, zoentr, zbuoy, zph, llo2 )                     &
-    !$ACC IF(lacc)
+    !$ACC   CREATE(zdmfen, zdmfde, zcond, zoentr, zbuoy, zph, llo2) &
+    !$ACC   IF(lacc)
 
     zrg=1.0_JPRB/rg
     zfacbuo=0.5_JPRB/(1.0_JPRB+0.5_JPRB)
@@ -564,9 +564,9 @@ CONTAINS
     !!                         SPECIFYING FINAL T,Q,U,V AND DOWNWARD FLUXES
     !!                    -------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT (PRESENT) IF (lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       zoentr     (jl)  =0.0_JPRB
       zbuoy      (jl)  =0.0_JPRB
@@ -578,7 +578,7 @@ CONTAINS
 
     !$ACC LOOP SEQ
     DO jk=1,klev
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         pmfdde_rate(jl,jk)=0.0_JPRB
         pkined     (jl,jk)=0.0_JPRB
@@ -591,7 +591,7 @@ CONTAINS
 #ifndef _OPENACC
       is=0
 #endif
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zph(jl)=paph(jl,jk)
         llo2(jl)=lddraf(jl).AND.pmfd(jl,jk-1) < 0.0_JPRB
@@ -606,7 +606,7 @@ CONTAINS
       IF(is == 0) CYCLE
 #endif
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zentr)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zentr)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           !>KF
@@ -618,7 +618,7 @@ CONTAINS
         ENDIF
       ENDDO
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF (jk > k950(jl)) THEN
           IF(llo2(jl)) THEN
@@ -631,7 +631,7 @@ CONTAINS
         ENDIF
       ENDDO
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zdz, zzentr)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdz, zzentr)
       DO jl=kidia,kfdia
         IF (jk <= k950(jl)) THEN
           IF(llo2(jl)) THEN
@@ -651,7 +651,7 @@ CONTAINS
         ENDIF
       ENDDO
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zseen, zqeen, zsdde, zqdde, zmfdsk, zmfdqk)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zseen, zqeen, zsdde, zqdde, zmfdsk, zmfdqk)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           pmfd(jl,jk)=pmfd(jl,jk-1)+zdmfen(jl)-zdmfde(jl)
@@ -676,7 +676,7 @@ CONTAINS
         & ik,&
         & zph,      ptd,      pqd,      llo2,     icall)
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zbuo, zrain, zdmfdp, zbuoyz, zbuoyv, zdz, zdkbuo, zdken, zqprec)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbuo, zrain, zdmfdp, zbuoyz, zbuoyv, zdz, zdkbuo, zdken, zqprec)
       DO jl=kidia,kfdia
         IF(llo2(jl)) THEN
           zcond(jl)=zcond(jl)-pqd(jl,jk)

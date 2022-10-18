@@ -488,7 +488,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
 !!!=============================================================================================
 
   !$ACC PARALLEL DEFAULT(PRESENT)
-  !$ACC LOOP GANG VECTOR TILE(128,1)
+  !$ACC LOOP GANG VECTOR TILE(128, 1)
   DO k = klo, kup
     DO i = ilo , iup
       ! total content of the species which are changed by the adjustment:
@@ -580,7 +580,7 @@ ELEMENTAL FUNCTION sat_pres_water(temp)
   REAL (KIND=ireals)              :: sat_pres_water
   REAL (KIND=ireals), INTENT(IN)  :: temp
 
-!$ACC ROUTINE SEQ
+  !$ACC ROUTINE SEQ
 
   IF (ipsat <= 1) THEN
     sat_pres_water = b1*EXP( b2w*(temp-b3)/(temp-b4w) )
@@ -717,7 +717,7 @@ ELEMENTAL  FUNCTION dqsatdT_ice (zqsat, temp)
   ! input variables: specific saturation humidity [-], temperature [K]:
   REAL (KIND=ireals)            :: dqsatdT_ice
   REAL (KIND=ireals), INTENT(IN):: zqsat, temp
-!$ACC ROUTINE SEQ
+  !$ACC ROUTINE SEQ
 
   dqsatdT_ice = b234i * ( 1.0_ireals + rvd_m_o*zqsat ) * zqsat &
                              / (temp-b4i)**2

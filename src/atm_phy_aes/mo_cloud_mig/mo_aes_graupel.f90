@@ -425,14 +425,14 @@ SUBROUTINE graupel                 ( &
 !  Section 1: Initial setting of local and global variables
 !------------------------------------------------------------------------------
   ! Input data
-  !$ACC DATA                                                     &
-  !$ACC PRESENT( dz, t, p, rho, qv, qc, qi, qr, qs, qg, qnc )    &
-  !$ACC PRESENT( prr_gsp, pri_gsp, prs_gsp, prg_gsp, qrsflux )   &
+  !$ACC DATA &
+  !$ACC   PRESENT(dz, t, p, rho, qv, qc, qi, qr, qs, qg, qnc) &
+  !$ACC   PRESENT(prr_gsp, pri_gsp, prs_gsp, prg_gsp, qrsflux) &
   ! automatic arrays
-  !$ACC CREATE( zvzr, zvzs, zvzg, zvzi )                         &
-  !$ACC CREATE( zpkr, zpks, zpkg, zpki )                         &
-  !$ACC CREATE( zprvr, zprvs, zprvi, zqvsw_up, zprvg )           &
-  !$ACC CREATE( dist_cldtop, zlhv, zlhs )
+  !$ACC   CREATE(zvzr, zvzs, zvzg, zvzi) &
+  !$ACC   CREATE(zpkr, zpks, zpkg, zpki) &
+  !$ACC   CREATE(zprvr, zprvs, zprvi, zqvsw_up, zprvg) &
+  !$ACC   CREATE(dist_cldtop, zlhv, zlhs)
 
   znimax = znimax_Thom
   znimix = fxna_cooper(ztmix) ! number of ice crystals at temp threshold for mixed-phase clouds
@@ -484,28 +484,28 @@ SUBROUTINE graupel                 ( &
   !$ACC LOOP SEQ
   DO  k = kstart, ke  ! loop over levels
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( alf, bet, fnuc, hlp, llqc, llqg, llqi, llqr, &
-    !$ACC                           llqs, m2s, m3s, maxevap, nnr, ppg, qcg,      &
-    !$ACC                           qcgk_1, qgg, qig, qrg, qsg, qvg, reduce_dep, &
-    !$ACC                           rhog, sagg, sagg2, scac, scau, scfrz, sconr, &
-    !$ACC                           sconsg, sdau, sev, sgdep, sgmelt, siau,      &
-    !$ACC                           sicri, sidep, simelt, snuc, srcri, srfrz,    &
-    !$ACC                           srim, srim2, ssdep, sshed, ssmelt, temp_c,   &
-    !$ACC                           tg, z1orhog, zbsdep, zcagg, zcidep, zcorr,   &
-    !$ACC                           zcrim, zcsdep, zcslam, zdtdh, zdvtp, zeff,   &
-    !$ACC                           zeln13o8qrk, zeln27o16qrk, zeln3o4qsk,       &
-    !$ACC                           zeln6qgk, zeln7o4qrk, zeln7o8qrk, zeln8qsk,  &
-    !$ACC                           zelnrimexp_g, zhi, zimg, zimi, zimr, zims,   &
-    !$ACC                           zlnlogmi, zlnqgk, zlnqik, zlnqrk, zlnqsk,    &
-    !$ACC                           zmi, zn0s, znid, znin, zphi, zqct, zqgk,     &
-    !$ACC                           zqgt, zqik, zqit, zqrk, zqrt, zqsk, zqst,    &
-    !$ACC                           zqvsi, zqvsidiff, zqvsw, zqvsw0, zqvsw0diff, &
-    !$ACC                           zqvt, zrho1o2, zrhofac_qi, zscmax, zscsum,   &
-    !$ACC                           zsgmax, zsimax, zsisum, zsrmax, zsrsum,      &
-    !$ACC                           zssmax, zsssum, zsvidep, zsvisub, zsvmax,    &
-    !$ACC                           ztau, ztc, ztfrzdiff, ztt, zvz0s, zx1,       &
-    !$ACC                           qliq, qice, qtot, cv,                        &
-    !$ACC                           zxfac, zzag, zzai, zzar, zzas, zztau )
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(alf, bet, fnuc, hlp, llqc, llqg, llqi, llqr) &
+    !$ACC   PRIVATE(llqs, m2s, m3s, maxevap, nnr, ppg, qcg) &
+    !$ACC   PRIVATE(qcgk_1, qgg, qig, qrg, qsg, qvg, reduce_dep) &
+    !$ACC   PRIVATE(rhog, sagg, sagg2, scac, scau, scfrz, sconr) &
+    !$ACC   PRIVATE(sconsg, sdau, sev, sgdep, sgmelt, siau) &
+    !$ACC   PRIVATE(sicri, sidep, simelt, snuc, srcri, srfrz) &
+    !$ACC   PRIVATE(srim, srim2, ssdep, sshed, ssmelt, temp_c) &
+    !$ACC   PRIVATE(tg, z1orhog, zbsdep, zcagg, zcidep, zcorr) &
+    !$ACC   PRIVATE(zcrim, zcsdep, zcslam, zdtdh, zdvtp, zeff) &
+    !$ACC   PRIVATE(zeln13o8qrk, zeln27o16qrk, zeln3o4qsk) &
+    !$ACC   PRIVATE(zeln6qgk, zeln7o4qrk, zeln7o8qrk, zeln8qsk) &
+    !$ACC   PRIVATE(zelnrimexp_g, zhi, zimg, zimi, zimr, zims) &
+    !$ACC   PRIVATE(zlnlogmi, zlnqgk, zlnqik, zlnqrk, zlnqsk) &
+    !$ACC   PRIVATE(zmi, zn0s, znid, znin, zphi, zqct, zqgk) &
+    !$ACC   PRIVATE(zqgt, zqik, zqit, zqrk, zqrt, zqsk, zqst) &
+    !$ACC   PRIVATE(zqvsi, zqvsidiff, zqvsw, zqvsw0, zqvsw0diff) &
+    !$ACC   PRIVATE(zqvt, zrho1o2, zrhofac_qi, zscmax, zscsum) &
+    !$ACC   PRIVATE(zsgmax, zsimax, zsisum, zsrmax, zsrsum) &
+    !$ACC   PRIVATE(zssmax, zsssum, zsvidep, zsvisub, zsvmax) &
+    !$ACC   PRIVATE(ztau, ztc, ztfrzdiff, ztt, zvz0s, zx1) &
+    !$ACC   PRIVATE(qliq, qice, qtot, cv) &
+    !$ACC   PRIVATE(zxfac, zzag, zzai, zzar, zzas, zztau)
     DO iv = ivstart, ivend  !loop over horizontal domain
     
 

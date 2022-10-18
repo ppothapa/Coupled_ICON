@@ -202,9 +202,9 @@ CONTAINS
 ! general settings (do not depend on time, but on the domain)
     dom_gas => gas(:,jg)
         
-    !$ACC DATA PRESENT(xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, xvmr_cfc, &
-    !$ACC              xm_dry, xm_trc, dom_gas)                                            &
-    !$ACC      CREATE (gas_profile)
+    !$ACC DATA PRESENT(xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, xvmr_cfc) &
+    !$ACC   PRESENT(xm_dry, xm_trc, dom_gas) &
+    !$ACC   CREATE(gas_profile)
 
 ! settings depending on time
 
@@ -354,7 +354,7 @@ CONTAINS
 
     frad = aes_rad_config(jg)% frad_h2o
 
-    !$ACC DATA PRESENT (xm_liq, xm_ice, xm_trc, xc_frc, cld_frc, cld_cvr)
+    !$ACC DATA PRESENT(xm_liq, xm_ice, xm_trc, xc_frc, cld_frc, cld_cvr)
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
       !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
@@ -379,14 +379,14 @@ CONTAINS
     END DO
     !
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl = jcs, jce
       cld_cvr(jl) = 1.0_wp - xc_frc(jl,1)
     END DO
 
     !$ACC LOOP SEQ
     DO jk = 2, klev
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl = jcs, jce
         cld_cvr(jl) = cld_cvr(jl)                                  &
             &    *(1.0_wp-MAX(xc_frc(jl,jk),xc_frc(jl,jk-1)))      &
@@ -394,7 +394,7 @@ CONTAINS
       END DO
     END DO
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl = jcs, jce
       cld_cvr(jl) = 1.0_wp-cld_cvr(jl)
     END DO

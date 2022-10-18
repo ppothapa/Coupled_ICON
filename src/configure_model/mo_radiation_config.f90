@@ -95,6 +95,11 @@ MODULE mo_radiation_config
     INTEGER  :: irad_cfc12  !< CFC 12
     INTEGER  :: irad_aero   !< aerosols
     LOGICAL  :: lrad_aero_diag  !< diagnose aerosols
+    ENUM, BIND(C)
+        ENUMERATOR :: iRadAeroNone=0,        iRadAeroConst=2,        iRadAeroTegen=6, iRadAeroART=9, &
+          &           iRadAeroConstKinne=12, iRadAeroKinne=13,       iRadAeroVolc=14,                &
+          &           iRadAeroKinneVolc=15,  iRadAeroKinneVolcSP=18, iRadAeroKinneSP=19
+    END ENUM
     !
     ! --- Name of the file that contains  dynamic greenhouse values
     !

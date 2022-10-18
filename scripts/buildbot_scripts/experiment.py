@@ -1,4 +1,4 @@
-from util import config_dict_to_string
+from util import config_dict_to_string, config_dict_to_list
 from icon_paths import run_path, base_path
 
 from pathlib import Path
@@ -82,7 +82,7 @@ class Experiment(object):
         return processes
 
     def make_runscript(self):
-        # full path to experiment name
+        # full path including experiment name
         exp_path = run_path / Path(self.name)
 
         # check if path exists. Note: this is already checked when the experiment is added
@@ -108,11 +108,14 @@ class Experiment(object):
             # get filename -> get last element of filename (i.e. check.atm_amip -> atm_amip)
             exp_name = Path(self.name).name.split(".")[-1]
             # check if this script will run icon
+            cmd = ["./run/make_target_runscript"]
+            cmd.append("in_script={}".format(self.name))
             if Path(self.name).name.split(".")[0] in ["check", "exp"]:
-                cmd = "./run/make_target_runscript in_script={} in_script=exec.iconrun out_script={} EXPNAME={} {}".format(self.name, self.run_name, exp_name, config_dict_to_string(self.run_flags))
-            else:
-                cmd = "./run/make_target_runscript in_script={} out_script={} EXPNAME={} {}".format(self.name, self.run_name, exp_name, config_dict_to_string(self.run_flags))
-            sp = subprocess.run(cmd.split(), shell=False, cwd=base_path, stderr=subprocess.STDOUT, text=True)
+                cmd.append("in_script=exec.iconrun")
+            cmd.append("out_script={}".format(self.run_name))
+            cmd.append("EXPNAME={}".format(exp_name))
+            cmd += config_dict_to_list(self.run_flags) # append the list of run flags
+            sp = subprocess.run(cmd, shell=False, cwd=base_path, stderr=subprocess.STDOUT, encoding="UTF-8")
             status = sp.returncode
         
         return status
