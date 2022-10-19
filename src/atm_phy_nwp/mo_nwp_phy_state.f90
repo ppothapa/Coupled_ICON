@@ -1862,7 +1862,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%swflxsfc)
 
     ! &      diag%lwflxclr_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('thbclr_s', 'W m-2', 'net longwave clear-sky flux at suface', datatype_flt)
+    cf_desc    = t_cf_var('thbclr_s', 'W m-2', 'net longwave clear-sky flux at surface', datatype_flt)
     grib2_desc = grib2_var(0, 5, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'thbclr_s', diag%lwflxclr_sfc,             &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,        &
@@ -1870,7 +1870,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%lwflxclr_sfc)
 
     ! &      diag%swflxclr_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('sobclr_s', 'W m-2', 'net shortwave clear-sky flux at suface', datatype_flt)
+    cf_desc    = t_cf_var('sobclr_s', 'W m-2', 'net shortwave clear-sky flux at surface', datatype_flt)
     grib2_desc = grib2_var(0, 4, 11, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'sobclr_s', diag%swflxclr_sfc,             &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,        &
@@ -1896,7 +1896,7 @@ __acc_attach(diag%clct)
     __acc_attach(diag%lwflxtoa)
 
     ! &      diag%trsolclr_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('trsolclr_sfc', '', 'shortwave clear-sky transmissivity at suface', datatype_flt)
+    cf_desc    = t_cf_var('trsolclr_sfc', '', 'shortwave clear-sky transmissivity at surface', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'trsolclr_sfc', diag%trsolclr_sfc,             &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &

@@ -270,7 +270,7 @@ LOGICAL :: &
 ! lscadif                   :calculation of complete gradient diffusion of scalar properties
 ! lturatm                   :running turbulence model between atmosph. layers (updating diffusion coefficients)
 ! ltursrf                   :running turbulence model at the surface layer (updating transfer coefficients
-! lsfluse                   :use explicit heat flux densities at the suface
+! lsfluse                   :use explicit heat flux densities at the surface
 ! ltkeinp                   :TKE present as input (at level k=ke1 for current time level 'ntur')
 ! lgz0inp                   :gz0 present as input
 

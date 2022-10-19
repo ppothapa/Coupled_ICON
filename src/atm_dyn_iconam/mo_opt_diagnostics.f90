@@ -473,7 +473,7 @@ CONTAINS
                   &  list, 'tracer_m', 'hus_m', p_acc%tracer_ptr(jt)%p,             &
                   &  GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                             &
                   &  t_cf_var('specific_humidity', 'kg kg-1',                       &
-                  &           'specific_humidity (time mean)', datatype_flt),       &
+                  &           'specific humidity (time mean)', datatype_flt),       &
                   &  grib2_var( 0, 1, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL),         &
                   &  ref_idx=jt,                                                    &
                   &  ldims=shape3d_c,                                               &
@@ -493,7 +493,7 @@ CONTAINS
                   &  list, 'tracer_m', 'clw_m', p_acc%tracer_ptr(jt)%p,             &
                   &  GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                             &
                   &  t_cf_var('specific_cloud_water_content', 'kg kg-1',            &
-                  &           'specific_cloud_water_content (time mean)',datatype_flt), &
+                  &           'specific cloud water content (time mean)',datatype_flt), &
                   &  grib2_var(0, 1, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL),         &
                   &  ref_idx=jt,                                                    &
                   &  ldims=shape3d_c,                                               &
@@ -514,7 +514,7 @@ CONTAINS
                   &  list, 'tracer_m', 'cli_m', p_acc%tracer_ptr(jt)%p,             &
                   &  GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                             &
                   &  t_cf_var('specific_cloud_ice_content', 'kg kg-1',              &
-                  &           'specific_cloud_ice_content (time mean)', datatype_flt),  &
+                  &           'specific cloud ice content (time mean)', datatype_flt),  &
                   &  grib2_var(0, 1, 82, ibits, GRID_UNSTRUCTURED, GRID_CELL),         &
                   &  ref_idx=jt,                                                    &
                   &  ldims=shape3d_c,                                               &
