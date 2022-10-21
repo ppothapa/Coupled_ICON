@@ -75,7 +75,8 @@ MODULE mo_ocean_cvmix_tke
     &  l_lc,                        & !by_Oliver
     &  clc,                         & !by_Oliver 
     &  use_ubound_dirichlet,        &
-    &  use_lbound_dirichlet
+    &  use_lbound_dirichlet,        &
+    &  vert_cor_type
 
   USE mo_ocean_physics_types, ONLY: t_ho_params, v_params, WindMixingDecay, WindMixingLevel
    !, l_convection, l_pp_scheme
@@ -226,7 +227,7 @@ CONTAINS
     REAL(wp), POINTER :: wlc(:,:,:)
     REAL(wp), POINTER :: hlc(:,:)
     REAL(wp), POINTER :: u_stokes(:,:)
-    REAL(wp), POINTER :: depth(:)
+    REAL(wp), POINTER :: depth(:,:,:)
 
 
     INTEGER, POINTER :: kbot(:,:)
@@ -242,6 +243,11 @@ CONTAINS
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
     REAL(wp) :: Nsqr(n_zlev+1), Ssqr(n_zlev+1), tmp
     !REAL(wp), POINTER :: vert_density_grad(:,:,:)
+
+    ! Parameters for zstar
+    REAL(wp) :: s_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)    ! stretching factor
+    REAL(wp) :: e_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)    ! surface height
+
 
     INTEGER :: tstep_count
 
@@ -302,7 +308,8 @@ CONTAINS
       hlc      => params_oce%cvmix_params%hlc(:,:)
       wlc      => params_oce%cvmix_params%wlc(:,:,:)
       u_stokes => params_oce%cvmix_params%u_stokes(:,:)
-      depth    => patch_3d%p_patch_1d(1)%zlev_i(:) !interface depths
+      depth    => patch_3d%p_patch_1d(1)%depth_CellInterface(:,:,:)  !interface depths(jc,1:levels,blockNo)
+
     ENDIF
 
     dz  => patch_3d%p_patch_1d(1)%prism_center_dist_c
@@ -331,6 +338,15 @@ CONTAINS
       tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%cvmix_params%iwe_Tdis(:,:,:)
     endif
 
+    ! set zstar related parameters
+    if (vert_cor_type == 1) then
+      s_c(:,:) = ocean_state%p_prog(nold(1))%stretch_c(:,:)
+      e_c(:,:) = ocean_state%p_prog(nold(1))%eta_c(:,:)
+    else
+      s_c(:,:) = 1.0_wp
+      e_c(:,:) = 0.0_wp
+    endif
+
     !write(*,*) "TKE before:"
     !write(*,*) tke(8,:,10)
 !ICON_OMP_PARALLEL PRIVATE(rho_up, rho_down)
@@ -350,7 +366,8 @@ CONTAINS
         forc_tke_surf_2D(jc,blockNo) = tau_abs / OceanReferenceDensity
 
         ! calculate N2
-        pressure(1:levels) = patch_3d%p_patch_1d(1)%depth_CellInterface(jc, 1:levels, blockNo) * ReferencePressureIndbars
+        pressure(1:levels) = (patch_3d%p_patch_1d(1)%depth_CellInterface(jc, 1:levels, blockNo) * s_c(jc,blockNo) &
+            &                  - e_c(jc,blockNo)) * ReferencePressureIndbars
         !rho_up(1:levels-1)  = calculate_density_onColumn(ocean_state%p_prog(nold(1))%tracer(jc,1:levels-1,blockNo,1), &
         !  & salinity(1:levels-1), pressure(2:levels), levels-1)
         !rho_down(2:levels)  = calculate_density_onColumn(ocean_state%p_prog(nold(1))%tracer(jc,2:levels,blockNo,1), &
@@ -365,7 +382,7 @@ CONTAINS
             & pressure(2:levels), levels-1)
         Nsqr = 0.
         DO jk = 2, n_zlev 
-          Nsqr(jk) = grav/OceanReferenceDensity * (rho_down(jk) - rho_up(jk-1)) *  dzi(jc,jk,blockNo)
+          Nsqr(jk) = grav/OceanReferenceDensity * (rho_down(jk) - rho_up(jk-1)) *  dzi(jc,jk,blockNo) / s_c(jc,blockNo)
         ENDDO
 
         ! calculate shear
@@ -373,7 +390,7 @@ CONTAINS
         DO jk = 2, n_zlev 
           Ssqr(jk) = SUM(((  ocean_state%p_diag%p_vn(jc,jk-1,blockNo)%x   &
             &              - ocean_state%p_diag%p_vn(jc,jk,  blockNo)%x ) &
-            &            * dzi(jc,jk,blockNo) )**2)
+            &            * dzi(jc,jk,blockNo)/s_c(jc,blockNo) )**2)
         ENDDO
 
       !if (jc==8 .and. blockNo==10) then
@@ -414,11 +431,11 @@ CONTAINS
         hlc(jc,blockNo) = 0.0_wp
         DO jk = 2, n_zlev
           k_hlc = jk
-          tmp = SUM( Nsqr(2:jk+1)*depth(2:jk+1) )
+          tmp = SUM( Nsqr(2:jk+1)*(depth(jc,2:jk+1,blockNo)*s_c(jc,blockNo) - e_c(jc,blockNo)) )
      
           IF(tmp > 0.5_wp*u_stokes(jc,blockNo)**2.0_wp) THEN
             k_hlc = jk
-            hlc(jc,blockNo) = depth(jk)
+            hlc(jc,blockNo) = depth(jc,jk,blockNo)*s_c(jc,blockNo) - e_c(jc,blockNo)
             EXIT
           ENDIF
         ENDDO
@@ -427,8 +444,9 @@ CONTAINS
         ! Note: Couvelard et al (2020) set clc=0.3 instead of default 0.15 from
         ! Axell (2002); results in deeper MLDs and better spatial MLD pattern.
         DO jk = 2, n_zlev        
-          IF(depth(jk) <= hlc(jc,blockNo)) THEN
-            wlc(jc,jk,blockNo) = clc * u_stokes(jc,blockNo)*SIN(pi*depth(jk)/hlc(jc,blockNo))
+          IF ( ( depth(jc,jk,blockNo)*s_c(jc,blockNo) - e_c(jc,blockNo) <= hlc(jc,blockNo) )  &
+               .AND. ( patch_3D%wet_c(jc,jk,blockNo) .EQ. 1 ) ) then
+             wlc(jc,jk,blockNo) = clc * u_stokes(jc,blockNo)*SIN(pi*depth(jc,jk,blockNo)/hlc(jc,blockNo))
           ELSE
             wlc(jc,jk,blockNo) = 0.0_wp
           ENDIF
@@ -461,8 +479,8 @@ CONTAINS
                              cvmix_int_1  = params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo),   & !
                              cvmix_int_2  = params_oce%cvmix_params%cvmix_dummy_2(jc,:,blockNo),   & !
                              cvmix_int_3  = params_oce%cvmix_params%cvmix_dummy_3(jc,:,blockNo),   & !
-                             dzw          = dzw(jc,:,blockNo),             &
-                             dzt          = dz(jc,:,blockNo),              &
+                             dzw          = dzw(jc,:,blockNo)*s_c(jc,blockNo),             &
+                             dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),              &
                              nlev         = kbot(jc,blockNo),                   &
                              max_nlev     = n_zlev,               &
                              Ssqr         = Ssqr(:),            & ! in
@@ -517,8 +535,8 @@ CONTAINS
                              cvmix_int_1  = params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo),   & !
                              cvmix_int_2  = params_oce%cvmix_params%cvmix_dummy_2(jc,:,blockNo),   & !
                              cvmix_int_3  = params_oce%cvmix_params%cvmix_dummy_3(jc,:,blockNo),   & !
-                             dzw          = dzw(jc,:,blockNo),             &
-                             dzt          = dz(jc,:,blockNo),              &
+                             dzw          = dzw(jc,:,blockNo)*s_c(jc,blockNo),             &
+                             dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),              &
                              nlev         = kbot(jc,blockNo),                   &
                              max_nlev     = n_zlev,               &
                              Ssqr         = Ssqr(:),            & ! in

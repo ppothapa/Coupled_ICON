@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# set experiment specific variables
+exp=test_ocean_zstar_omip_10days
+
+. ./add_refgen_routines
+
+# execute probtest
+store_model_output
+
+status=$?
+echo $status > pp.${EXPNAME}.run.final_status
+exit $status

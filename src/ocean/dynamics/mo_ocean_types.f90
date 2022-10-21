@@ -170,6 +170,9 @@ MODULE mo_ocean_types
   TYPE t_hydro_ocean_prog
 
     onCells_2D :: h
+    onCells_2D :: eta_c !! For z* computations 
+    onCells_2D :: stretch_c !! For z* computations 
+    
     onEdges :: vn
     onCells_tracers :: tracer
      ! Ordering of tracers:
@@ -260,6 +263,7 @@ MODULE mo_ocean_types
       & fwR, &  !< product of fw flux and density
       & tauxU, &  !< product of x-windstress and u-velocity
       & tauyV, &  !< product of y-windstress and v-velocity
+      & heatflux_rainevaprunoff, & !< heatflux implied by fw flux (fw enters with SST)
       & heat_content_snow ,&
       & heat_content_seaice ,&
       & delta_ice, & 
@@ -310,7 +314,8 @@ MODULE mo_ocean_types
       & w_old          ,& ! vertical velocity from previous timestep. Unit [m/s].
 !       & w_prev         ,& ! vertical velocity at cells, from previous timestep. Unit [m/s]
 !       & w_time_weighted,& ! predicted normal velocity vector at cells
-      & cfl_vert          ! vertical cfl values
+      & cfl_vert       ,&   ! vertical cfl values
+      & w_deriv
 
     onEdges_tracers :: &
       & GMRedi_flux_horz 

@@ -12,6 +12,7 @@
 !! @par Revision History
 !! Initial version  by Peter Korn (MPI-M)  (2006).
 !! Modified by Stephan Lorenz     (MPI-M)  (2010-06).
+!! Adopted for zstar by V.Singh (MPI-M) (2020)
 !!
 !! @par Copyright and License
 !!
@@ -46,7 +47,8 @@ MODULE mo_ocean_initial_conditions
     & smooth_initial_salinity_iterations, &
     & smooth_initial_height_iterations, smooth_initial_temperature_iterations,  &
     & OceanReferenceDensity, LinearThermoExpansionCoefficient,                  &
-    & smooth_initial_velocity_iterations, smooth_initial_velocity_weights
+    & smooth_initial_velocity_iterations, smooth_initial_velocity_weights,      &
+    & vert_cor_type
     
   USE mo_sea_ice_nml,        ONLY: use_IceInitialization_fromTemperature
 
@@ -132,7 +134,11 @@ CONTAINS
     CALL init_ocean_velocity(patch_3d=patch_3d, normal_velocity=ocean_state%p_prog(nold(1))%vn)
 
 
-    CALL init_ocean_surface_height(patch_3d=patch_3d, ocean_height=ocean_state%p_prog(nold(1))%h(:,:))
+    IF (vert_cor_type .EQ. 0) THEN
+      CALL init_ocean_surface_height(patch_3d=patch_3d, ocean_height=ocean_state%p_prog(nold(1))%h(:,:))
+    ELSE
+      CALL init_ocean_surface_height(patch_3d=patch_3d, ocean_height=ocean_state%p_prog(nold(1))%eta_c(:,:))
+    END IF
 
     IF (no_tracer > 0) &
       & CALL init_ocean_temperature(patch_3d=patch_3d, ocean_temperature=ocean_state%p_prog(nold(1))%tracer(:,:,:,1),&
@@ -319,6 +325,8 @@ CONTAINS
     CASE (201)
       CALL depth_mountain_orography_Williamson_test5(patch_3d, cells_bathymetry)
 
+    CASE (202)
+      CALL depth_overflow(patch_3d, cells_bathymetry)
 
     CASE default
       CALL finish(method_name, "unknown topography_type")
@@ -407,6 +415,10 @@ CONTAINS
     CASE (230)  ! 2d salinity blubb
       CALL salinity_GM_idealized3(patch_3d,ocean_salinity)  
 
+    CASE(232) ! horizontal constant 
+      CALL salinity_Willebrand_test(patch_3d,ocean_salinity)
+      ocean_salinity=34.0_wp+0.50_wp*ocean_salinity
+ 
     CASE (235)  ! const 35
       ocean_salinity(:,:,:) = 35.0_wp 
 
@@ -683,8 +695,27 @@ CONTAINS
     CASE(231) ! horizontal constant 
       CALL temperature_GM_idealized4(patch_3d,ocean_temperature)
 
+    CASE(232) ! horizontal constant 
+      CALL temperature_Willebrand_test(patch_3d,ocean_temperature)
+      ocean_temperature=20.0_wp-10.0_wp*ocean_temperature
+    
     CASE (235)
       ocean_temperature(:,:,:) = 10.0_wp
+
+    !------------------------------
+    !! Test cases for zstar
+    !------------------------------
+    CASE(240)
+      CALL tracer_advec_test(patch_3d, ocean_temperature)
+
+    CASE(241)
+      CALL lock_exchange(patch_3d, ocean_temperature)
+    
+    CASE(242)
+      CALL overflow(patch_3d, ocean_temperature)
+    !------------------------------
+    !------------------------------
+
 
     CASE(300)
      CALL message(method_name, 'Temperature Kelvin-Helmholtz Test ')
@@ -941,6 +972,10 @@ CONTAINS
       CALL message(method_name, 'Galewsky Test ')
       CALL velocity_GalewskyTest(patch_3d, normal_velocity)
  
+    CASE (220)
+      CALL message(TRIM(method_name), 'Uniform horz velocity')
+      CALL velocity_uniHorz(patch_3d, normal_velocity)
+ 
 
      CASE (300)
       CALL message(method_name, 'Velocity Kelvin-Helmholtz Test ')
@@ -1019,6 +1054,9 @@ CONTAINS
 
     CASE (221)
       CALL height_quads_checkerboard(patch_3d=patch_3d, ocean_height=ocean_height, base_value=1.0_wp, variation=1.0_wp)
+
+    CASE (235)
+      ocean_height(:,:) = 10.0_wp
 
     CASE default
       CALL finish(method_name, "unknown sea_surface_height_type")
@@ -1567,6 +1605,52 @@ write(0,*)'Williamson-Test6:vn', maxval(vn),minval(vn)
  !write(0,*)'Galewsky-Test6:vn', maxval(vn),minval(vn)
   END SUBROUTINE  velocity_GalewskyTest
   !-----------------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------------
+  !> Uniform velocity
+  !-------------------------------------------------------------------------
+  SUBROUTINE velocity_uniHorz(patch_3d, vn)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: vn(:,:,:)
+
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_subset_range), POINTER :: all_edges
+
+    INTEGER :: edge_block, edge_index, level
+    INTEGER :: start_edges_index, end_edges_index
+    REAL(wp) :: point_lon, point_lat     ! latitude of point
+    REAL(wp) :: t       ! point of time
+    REAL(wp) :: uu, vv      ! zonal,  meridional velocity
+    REAL(wp) :: angle1, angle2, edge_vn, COS_angle1, SIN_angle1
+
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':velocity_usbr_u'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' ')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_edges => patch_2d%edges%ALL
+
+    DO edge_block = all_edges%start_block, all_edges%end_block
+      CALL get_index_range(all_edges, edge_block, start_edges_index, end_edges_index)
+      DO edge_index = start_edges_index, end_edges_index
+        uu = 10.0_wp
+
+        vv =  0._wp
+
+        edge_vn = uu * patch_2d%edges%primal_normal(edge_index,edge_block)%v1 &
+              & + vv * patch_2d%edges%primal_normal(edge_index,edge_block)%v2
+
+        DO level = 1, patch_3d%p_patch_1d(1)%dolic_e(edge_index,edge_block)
+          vn(edge_index, level, edge_block) = edge_vn
+        ENDDO
+
+      ENDDO
+    ENDDO
+
+  END SUBROUTINE  velocity_uniHorz
+  !-----------------------------------------------------------------------------------
+
 
   !-----------------------------------------------------------------------------------
   SUBROUTINE velocity_KelvinHelmholtzTest(patch_3d, vn, velocity_amplitude)
@@ -2421,6 +2505,187 @@ write(0,*)'Williamson-Test6:vn', maxval(vn),minval(vn)
 
   END SUBROUTINE temperature_dirac_signal
   !-------------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------------
+  !-Square blob for testing advection
+  SUBROUTINE tracer_advec_test(patch_3d, ocean_temperature)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: ocean_temperature(:,:,:)
+
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_geographical_coordinates), POINTER :: cell_center(:,:)
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    INTEGER :: block, idx, level
+    INTEGER :: start_cell_index, end_cell_index
+    REAL(wp):: lat_deg, lon_deg
+    REAL(wp):: z_lat1, z_lat2, z_lon1, z_lon2
+    LOGICAL :: set_single_triangle
+
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':temperature_Uniform_SpecialArea'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' ')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+    cell_center => patch_2d%cells%center
+
+    z_lat1  =  - 5._wp
+    z_lat2  =    5._wp
+    z_lon1  =  - 5._wp
+    z_lon2  =    5._wp
+    
+    set_single_triangle=.false.
+    
+    ocean_temperature = 5.0_wp !-5.0_wp
+    
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+
+        lat_deg = cell_center(idx, block)%lat * rad2deg
+        lon_deg = cell_center(idx, block)%lon * rad2deg
+
+        DO level = 1, patch_3d%p_patch_1d(1)%dolic_c(idx,block)
+
+!            write(*,*) level, lat_deg, lon_deg            
+       
+          IF ( (lat_deg >= z_lat1 .AND. lat_deg <= z_lat2) .AND. &
+            & (lon_deg >= z_lon1 .AND. lon_deg <= z_lon2) ) THEN 
+
+            IF(.NOT.set_single_triangle)THEN
+              ocean_temperature(idx, level, block) =  7.5_wp!-4.0_wp
+              !set_single_triangle=.true.
+!write(1020,*)'indices',idx,block              
+            ELSE
+            
+            ENDIF
+
+
+          END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE tracer_advec_test 
+  !-------------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------------
+  !-Lock Exchange test case
+  !! Approximating the following reference
+  !! https://doi.org/10.1016/j.ocemod.2014.12.004
+  SUBROUTINE lock_exchange(patch_3d, ocean_temperature)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: ocean_temperature(:,:,:)
+
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_geographical_coordinates), POINTER :: cell_center(:,:)
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    INTEGER :: block, idx, level
+    INTEGER :: start_cell_index, end_cell_index
+    REAL(wp):: lat_deg, lon_deg
+    REAL(wp):: z_lat1, z_lat2, z_lon1, z_lon2
+    LOGICAL :: set_single_triangle
+
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':temperature_Uniform_SpecialArea'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' ')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+    cell_center => patch_2d%cells%center
+
+    z_lon1  =    0._wp
+    z_lat1  =    0._wp
+    
+    set_single_triangle=.false.
+    
+    ocean_temperature = 5.0_wp 
+    
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+
+        lat_deg = cell_center(idx, block)%lat * rad2deg
+        lon_deg = cell_center(idx, block)%lon * rad2deg
+
+        DO level = 1, patch_3d%p_patch_1d(1)%dolic_c(idx,block)
+
+!          IF (lon_deg >= z_lon1 )  THEN 
+         IF (lat_deg >= z_lat1 )  THEN 
+
+            IF(.NOT.set_single_triangle)THEN
+              ocean_temperature(idx, level, block) =  30._wp
+            ENDIF
+
+
+          END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE lock_exchange 
+  !-------------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------------
+  !-overflow test case
+  !! Approximating the following reference
+  !! https://doi.org/10.1016/j.ocemod.2014.12.004
+  SUBROUTINE overflow(patch_3d, ocean_temperature)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: ocean_temperature(:,:,:)
+
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_geographical_coordinates), POINTER :: cell_center(:,:)
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    INTEGER :: block, idx, level
+    INTEGER :: start_cell_index, end_cell_index
+    REAL(wp):: y_loc, y_loc0 
+    LOGICAL :: set_single_triangle
+
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':temperature_Uniform_SpecialArea'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' ')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+    cell_center => patch_2d%cells%center
+
+    set_single_triangle=.false.
+
+    y_loc0 = 20000._wp
+    
+    ocean_temperature = 10.0_wp 
+    
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+
+        y_loc = patch_2D%cells%cartesian_center(idx, block)%x(2)
+
+        DO level = 1, patch_3d%p_patch_1d(1)%dolic_c(idx,block)
+
+         IF (y_loc >= y_loc0 )  THEN 
+
+            IF(.NOT.set_single_triangle)THEN
+              ocean_temperature(idx, level, block) =  20._wp
+            ENDIF
+
+
+          END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE overflow 
+  !-------------------------------------------------------------------------------
+
+
 
 
   !-------------------------------------------------------------------------------
@@ -3331,6 +3596,86 @@ END DO
   END SUBROUTINE tracer_Redi_test_withdensity0
   !-------------------------------------------------------------------------------
 
+
+  !-------------------------------------------------------------------------------
+  SUBROUTINE temperature_Willebrand_test(patch_3d, ocean_tracer)
+  !
+  !This test is for testsuite use: it reuqires the density field to be stationary!
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: ocean_tracer(:,:,:)
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_geographical_coordinates), POINTER :: cell_center(:,:)
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    INTEGER :: block, idx, level
+    INTEGER :: start_cell_index, end_cell_index
+    REAL(wp):: lat_deg, lon_deg, z_tmp
+    REAL(wp),POINTER :: density(:,:,:)
+    REAL(wp):: slope_parameter =0_wp
+    real(wp):: centerline
+    REAL(wp) :: x_coord, z_coord,z_coord_prime,x_coord_prime,width
+    REAL(wp) :: left_basin_boundary_lon, right_basin_boundary_lon
+    !REAL(wp) :: upper_level, middle_level, lower_level
+    REAL(wp) :: temperature_difference,basin_northBoundary,basin_southBoundary,lat_diff,bottom_value
+    REAL(wp) :: lat(nproma,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp) :: inv_cell_characteristic_length,cell_characteristic_length, cell_aspect_ratio
+    REAL(wp), POINTER :: tracer(:,:,:) 
+    REAL(wp) :: center_point
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':tracer_Redi_test'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' temperature_Willebrand_test')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+    cell_center => patch_2d%cells%center
+    lat(:,:) = patch_2d%cells%center(:,:)%lat    
+    
+    tracer =>ocean_tracer(:,:,:)
+    ocean_tracer(:,:,:)=0.0_wp
+    
+    basin_northBoundary    = (basin_center_lat + 0.5_wp*basin_height_deg) * deg2rad
+    basin_southBoundary    = (basin_center_lat - 0.5_wp*basin_height_deg) * deg2rad
+    lat_diff               = basin_northBoundary - basin_southBoundary  !  basin_height_deg*deg2rad
+ 
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+      
+        inv_cell_characteristic_length = 1.0_wp / SQRT(patch_2D%cells%area(idx,block))
+        cell_characteristic_length     = SQRT(patch_2D%cells%area(idx,block))
+      
+        lat = patch_2d%cells%center(idx,block)%lat 
+        
+        x_coord=(lat(idx,block)-basin_southBoundary)/lat_diff
+        
+        x_coord_prime=1.0_wp-x_coord!1.0_wp-x_coord
+        
+        DO level = 1,n_zlev!-1
+
+           z_coord =1.0_wp+&
+           &((patch_3d%p_patch_1d(1)%zlev_m(1)- patch_3d%p_patch_1d(1)%zlev_m(level))&
+           &/patch_3d%p_patch_1d(1)%zlev_m(n_zlev))
+           
+           z_coord_prime=1.0_wp-z_coord
+           !width=0.099_wp !0.15_wp
+           width=0.15_wp
+           centerline=0.5_wp+  0.25_wp*tanh((x_coord-0.5_wp)/1.5_wp) !For Redi test =0.6, for GMR shallower=1.5  0.4_wp 0.13 0.2: steep slope; 0.5 small slope !!x_o=0.5
+           center_point=centerline!0.5
+           ocean_tracer(idx,level,block)=exp(-( (z_coord-center_point)**2 )*40_wp) !For Redi test=70, for GMR=40
+
+        END DO
+      END DO
+    END DO
+
+DO level = 1, n_zlev
+    CALL dbg_print('temperature_init', ocean_tracer(:,level,:), method_name, 3, in_subset=all_cells)
+END DO
+!stop
+
+
+  END SUBROUTINE temperature_Willebrand_test
+  !-------------------------------------------------------------------------------
 
 
 
@@ -4594,6 +4939,88 @@ END DO
    END SUBROUTINE salinity_GM_idealized3
   !-------------------------------------------------------------------------------
 
+  
+  !-------------------------------------------------------------------------------
+  SUBROUTINE salinity_Willebrand_test(patch_3d, ocean_tracer)
+  !
+  !This test is for testsuite use: it reuqires the density field to be stationary!
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET :: ocean_tracer(:,:,:)
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_geographical_coordinates), POINTER :: cell_center(:,:)
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    INTEGER :: block, idx, level
+    INTEGER :: start_cell_index, end_cell_index
+    REAL(wp):: lat_deg, lon_deg, z_tmp
+    REAL(wp),POINTER :: density(:,:,:)
+    REAL(wp):: slope_parameter =0_wp
+    real(wp):: centerline
+    REAL(wp) :: x_coord, z_coord,z_coord_prime,x_coord_prime,width
+    REAL(wp) :: left_basin_boundary_lon, right_basin_boundary_lon
+    !REAL(wp) :: upper_level, middle_level, lower_level
+    REAL(wp) :: temperature_difference,basin_northBoundary,basin_southBoundary,lat_diff,bottom_value
+    REAL(wp) :: lat(nproma,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp) :: inv_cell_characteristic_length,cell_characteristic_length, cell_aspect_ratio
+    REAL(wp), POINTER :: tracer(:,:,:) 
+    REAL(wp) :: center_point
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':tracer_Redi_test'
+    !-------------------------------------------------------------------------
+
+    CALL message(TRIM(method_name), ' temperature_Willebrand_test')
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+    cell_center => patch_2d%cells%center
+    lat(:,:) = patch_2d%cells%center(:,:)%lat    
+    
+    tracer =>ocean_tracer(:,:,:)
+    ocean_tracer(:,:,:)=0.0_wp
+    
+    basin_northBoundary    = (basin_center_lat + 0.5_wp*basin_height_deg) * deg2rad
+    basin_southBoundary    = (basin_center_lat - 0.5_wp*basin_height_deg) * deg2rad
+    lat_diff               = basin_northBoundary - basin_southBoundary  !  basin_height_deg*deg2rad
+ 
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+      
+        inv_cell_characteristic_length = 1.0_wp / SQRT(patch_2D%cells%area(idx,block))
+        cell_characteristic_length     = SQRT(patch_2D%cells%area(idx,block))
+      
+        lat = patch_2d%cells%center(idx,block)%lat 
+        
+        x_coord=(lat(idx,block)-basin_southBoundary)/lat_diff
+        
+        x_coord_prime=1.0_wp-x_coord!1.0_wp-x_coord
+        
+        DO level = 1,n_zlev!-1
+
+           z_coord =1.0_wp+&
+           &((patch_3d%p_patch_1d(1)%zlev_m(1)- patch_3d%p_patch_1d(1)%zlev_m(level))&
+           &/patch_3d%p_patch_1d(1)%zlev_m(n_zlev))
+           
+           z_coord_prime=1.0_wp-z_coord
+           !width=0.099_wp !0.15_wp
+           width=0.15_wp
+           centerline=0.5_wp+  0.25_wp*tanh((x_coord-0.5_wp)/1.5_wp) !For Redi test =0.6, for GMR shallower=1.5  0.4_wp 0.13 0.2: steep slope; 0.5 small slope !!x_o=0.5
+           center_point=centerline!0.5
+           ocean_tracer(idx,level,block)=exp(-( (z_coord-center_point)**2 )*40_wp) !For Redi test=70, for GMR=40
+
+        END DO
+      END DO
+    END DO
+
+DO level = 1, n_zlev
+    CALL dbg_print('temperature_init', ocean_tracer(:,level,:), method_name, 3, in_subset=all_cells)
+END DO
+!stop
+
+
+  END SUBROUTINE salinity_Willebrand_test
+  !-------------------------------------------------------------------------------
+
+
   SUBROUTINE temperature_GM_idealized3(patch_3d, ocean_temperature)
 
 
@@ -4965,6 +5392,58 @@ END DO
 
   END SUBROUTINE depth_mountain_orography_Williamson_test5
   !-----------------------------------------------------------------------------------
+
+  
+  !-----------------------------------------------------------------------------------
+  !
+  ! Initial datum for overflow test case 
+  !
+  SUBROUTINE depth_overflow(patch_3d, cells_bathymetry)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
+    REAL(wp), TARGET, INTENT(inout)  :: cells_bathymetry(:,:)
+
+    REAL(wp)             :: point_height      ! orography
+
+    REAL(wp)             :: d1, d2, d, sigma, x0, x 
+
+    TYPE(t_patch),POINTER   :: patch_2d
+    TYPE(t_subset_range), POINTER :: all_cells
+
+    ! Local Variables
+    INTEGER :: block, idx
+    INTEGER :: start_cell_index, end_cell_index
+
+    CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':depth_mountain_orography_Williamson_test5'
+    !-------------------------------------------------------------------------
+
+    patch_2d => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%ALL
+
+    d1 =  500._wp 
+    d2 = 2000._wp 
+    
+    sigma =  7000._wp
+    x0    = 40000._wp
+
+    DO block = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, block, start_cell_index, end_cell_index)
+      DO idx = start_cell_index, end_cell_index
+
+        x = patch_2D%cells%cartesian_center(idx, block)%x(2)
+
+        d = d1 + 0.5_wp*(d2 - d1)*(1.0_wp + tanh( (x - x0)/sigma) )
+        
+        IF ( cells_bathymetry(idx, block) < 0.0_wp ) THEN ! Only touch it if its not land
+          cells_bathymetry(idx, block) = -d
+        ENDIF
+
+
+      ENDDO
+    ENDDO
+
+  END SUBROUTINE depth_overflow
+  !-----------------------------------------------------------------------------------
+
 
   !-----------------------------------------------------------------------------------
   SUBROUTINE depth_uniform(patch_3d, cells_bathymetry)
