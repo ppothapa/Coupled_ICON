@@ -433,10 +433,10 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
   'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','rh'
   ! 'plantevap','dwdx','dwdy'
 
- pl_varlist           = 'temp', 'w', 'omega'
+ pl_varlist           = 'temp', 'w', 
  p_levels             = 100, 200, 92500, 100000
  
- hl_varlist           = 'temp', 'w', 'omega'
+ hl_varlist           = 'temp', 'w', 
  h_levels             = 5000, 3000, 1500
 /
 
