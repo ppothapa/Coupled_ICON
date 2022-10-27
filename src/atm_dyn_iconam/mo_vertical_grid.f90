@@ -372,6 +372,8 @@ MODULE mo_vertical_grid
 
         CALL get_indices_c(p_patch(jg), jb, i_startblk, nblks_c, i_startidx, i_endidx, 2)
 
+! TEMPORARY WORKAROUND: Without novector, NEC 3.3.1 and 3.5.1 do not compile the following code correctly
+!$NEC novector
         DO jc = i_startidx, i_endidx
           p_nh(jg)%metrics%slope_angle(jc,jb)   = ATAN(SQRT(z_aux_c(jc,1,jb)**2+z_aux_c2(jc,1,jb)**2))
           IF (z_aux_c(jc,1,jb) /= 0._wp .OR. z_aux_c2(jc,1,jb) /= 0._wp) THEN

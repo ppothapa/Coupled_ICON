@@ -5,7 +5,7 @@
 #PBS -j o           
 #PBS -m n
 #PBS -r n
-#PBS -T necmpi
+#PBS -T necmpi_hydra
 #PBS --use-hca=2
 #PBS -v LH=1,ELH=5,CVE=8
 #PBS -b ${LH}
@@ -17,9 +17,6 @@
 # ----------------------------------------------------------------------------
 
 date
-
-module load mpi
-source ${NMPI_ROOT}/bin/necmpivars.sh
 
 set -ex
 . /etc/profile
@@ -603,12 +600,11 @@ ls -l ${MODEL}
  export VE_TRACEBACK="VERBOSE"
  export GFORTRAN_UNBUFFERED_PRECONNECTED="Y"
  export MPI_IB_VBUF_TOTAL_SIZE="131072"
- export NMPI_DAEMON_PATH="${NMPI_ROOT}/libexec/mpid"
 
  export NMPI_EXPORT=" NMPI_FPE_ENABLE NMPI_MALLOC_HEAP_EXPANSION_SIZE NMPI_MALLOC_MMAP_THRESHOLD NMPI_PROGINF NMPI_TRACEBACK VE_FORT_SETBUF6 VE_FPE_ENABLE VE_INIT_HEAP VE_TRACEBACK GFORTRAN_UNBUFFERED_PRECONNECTED MPI_IB_VBUF_TOTAL_SIZE NMPI_DAEMON_PATH"
 ###  END: special environment  ###
 
-/opt/nec/ve/bin/mpirun -v -node 0 -np 1 -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
+/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun -v -node 0 -np 1 -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
           -v -np ${PPN}                     -env OMP_NUM_THREADS 1 ${MODEL} : \
           -v -nn 1 -nnp 2               -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
           -v -nn 1 -nnp 1               -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL}

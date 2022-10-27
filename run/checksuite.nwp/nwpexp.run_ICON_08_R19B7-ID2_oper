@@ -951,8 +951,10 @@ files2report=${files2check%.*}.diff
 # ---------------------------------------
 # path to reference files
 # ---------------------------------------
-###refdir=${DATADIR}/ref_325c228
-refdir=${DATADIR}/ref_f754aa6
+refdir=${DATADIR}/ref_967bee30
+if [ ${BB_NAME} = 'DWD_nec_yac2' ]; then
+  refdir=${DATADIR}/ref_f754aa6
+fi
 
 # check if the reference folder actually contains the required GRIB files
 if [ ${work_mode} -eq ${mode_def} ] || [ ${work_mode} -eq ${mode_frc} ]; then

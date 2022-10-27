@@ -834,15 +834,13 @@ set_run_target_rcl()
         fi
     fi
 
-
     cat >> $output_script << EOF
 #-----------------------------------------------------------------------------
 #PBS -q sx_norm
-#PBS -v NE=${use_nodes},CPE=${use_mpi_procs_pernode},NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
+#PBS -v NE=${use_nodes},CPE=${use_mpi_procs_pernode}
 #PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
 #PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
 #PBS -v MPI_IB_VBUF_TOTAL_SIZE=131072
-#PBS -v NMPI_DAEMON_PATH=\${NMPI_ROOT}/libexec/mpid
 #PBS -v BB_NAME
 #PBS -l elapstim_req=00:40:00
 #PBS --venode=\${NE}
@@ -854,15 +852,32 @@ EOF
     cat >> $output_script << EOF
 #PBS -l cpunum_job=${use_cpunum_job}
 #PBS -l coresz_prc=0
-#PBS -T necmpi
 #PBS --use-hca=2             # Number of HCA per logical host
 #PBS -j o
 #PBS -o LOG.${job_name}.o
+EOF
+
+    case "$use_compiler_version" in
+      3.2*) # use old MPI version
+        cat >> $output_script << EOF
+#PBS -v NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
+#PBS -v NMPI_DAEMON_PATH=\${NMPI_ROOT}/libexec/mpid
+#PBS -T necmpi
 # ----------------------------------------------------------------------------
 date
 . \${NMPI_ROOT}/bin/necmpivars.sh
 
 EOF
+      ;;
+      * )
+        cat >> $output_script << EOF
+#PBS -T necmpi_hydra
+# ----------------------------------------------------------------------------
+date
+
+EOF
+    ;;
+    esac
 
     start_header
 
