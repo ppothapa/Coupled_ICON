@@ -3,6 +3,7 @@
 #
 # Creates the ICON run scripts
 # Original version by Leonidas Linardakis, MPI-M, 2011-25-1
+# Update for DWD jobs by Marek Jacob, DWD, 2022-08-09
 #______________________________________________________________________________
 #______________________________________________________________________________
 #
@@ -45,30 +46,124 @@
 
 set -eu
 
-while getopts "hr:s:" opt
+#define defaults
+secondary_build_dir=""
+in_folder="run"
+name="all"
+this_folder="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+echo_usage()
+{
+    echo "usage: ./make_runscripts [<experiment name> | --all] \\"
+    echo "                         [-r <run directory to process>] \\"
+    echo "                         [-s <secondary build dir>] \\"
+    echo
+    echo "  --all  Use '-all' as experiment name to process all experiments."
+    echo "  -r     Specify run directory _relative_ to the location of make_runscripts."
+    echo "         (i.e. -r is relative to '${this_folder}/')"
+    echo "  -s     Specify a secondary build dir. Its path can be relative to the current"
+    echo "         working directory or absolute.  The secondary build dir is used for"
+    echo "         setups that require two ICON binaries like a hybrid NEC host/vector"
+    echo "         system."
+}
+
+function error_trap()
+{
+    # Print some helpful information in case this script crashes.
+    echo
+    if [[ -n "$name" ]]
+    then
+        echo "make_runscripts: Error while processing experiment '$name'."
+    fi
+    echo_usage
+}
+trap error_trap ERR
+
+if [[ "$#" = 0 ]]; then
+    echo "No arguments specified"
+    echo
+    echo_usage
+    exit 1
+fi
+
+name="$1"
+shift 1
+
+if [[ "$name" != "--all" ]] && [[ "${name:0:1}" = "-" ]]; then
+    echo "Please specify an experiment name or '--all' before any other option."
+    echo
+    echo_usage
+    exit 1
+fi
+
+# Parse options using getops
+while getopts ":hr:s:" opt
 do
     case $opt in
-        h) echo "usage: ./make_runscripts [-r <run directory to process>]"
-           echo "                         [-s <experiment name>]"
-	   exit 0
-	   ;;
-        r) my_run_folder="${OPTARG}"
-	   ;;
-        s) my_experiment_name="${OPTARG}"
-	   ;;
+        h) echo_usage
+           exit 0
+           ;;
+        r) in_folder="${OPTARG}"
+           ;;
+        s) secondary_build_dir="${OPTARG}"
+           ;;
+        :)
+            echo "Please supply an argument to -$OPTARG."
+            echo
+            echo_usage
+            exit 1
+           ;;
+        \?)
+            echo "Invalid option: -${OPTARG}."
+            echo
+            echo_usage
+            exit 1
+           ;;
     esac
 done
+
+# Test for invalid arguments
+#
+# (Each time `getopts` is invoked, the getopts utility places the index of the 
+#  next argument to be processed into OPTIND. $# is the total number of
+#  arguments passed to this program.)
+if [[ "$#" -ge "$OPTIND" ]]
+then
+    shift $(($OPTIND - 1))
+    echo "Invalid arguments: $*"
+    echo
+    echo_usage
+    exit 1
+fi
 
 #______________________________________________________________________________
 #==============================================================================
 
-source ./run/set-up.info
+if [[ ! -r "${this_folder}/run/set-up.info" ]]; then
+    echo "The set-up.info could not be found."
+    echo "No such file: ${this_folder}/run/set-up.info"
+    echo
+    echo "set-up.info will be generated through one of wrappers of './configure'."
+    echo
+    echo "Please configure your build directory before using './make_runscripts'."
+    echo
+    echo "For out-of-source builds:"
+    echo "    Please execute the 'make_runscripts' executable"
+    echo "    that was copied into your build directory."
+    exit 2
+fi
+
+source "${this_folder}/run/set-up.info"
 use_shell=${use_shell:="/bin/bash"}
 
 # default for options
 
-in_folder=${my_run_folder:="run"}
-name=${my_experiment_name:="all"}
+
+secondary_build_dir_option=""
+if [[ -n "${secondary_build_dir}" ]]
+then
+    secondary_build_dir_option="secondary_build_dir=${secondary_build_dir}"
+fi
 
 #______________________________________________________________________________
 # define the runscripts to be created
@@ -76,7 +171,7 @@ name_found="no"
 
 # experiment runscript
 
-if [[ -r "${in_folder}/exp.${name}" ]]
+if [[ -r "${this_folder}/${in_folder}/exp.${name}" ]]
 then
     name_found="yes"
 
@@ -90,17 +185,48 @@ then
     #       EXPNAME=<name> variable
     #__________________________________________________________________________
 
-    ./run/make_target_runscript \
-	in_folder=${in_folder} \
-	in_script=exp.${name} \
-	in_script=exec.iconrun EXPNAME=${name} \
-	memory_model="large" \
-	omp_stacksize=200M
+
+    ${this_folder}/run/make_target_runscript \
+        in_folder=${in_folder} \
+        in_script=exp.${name}\
+        in_script=exec.iconrun \
+        out_script=exp.${name}.run \
+        EXPNAME=${name} \
+        memory_model="large" \
+        $secondary_build_dir_option \
+        omp_stacksize="200M"
+fi
+
+# NWP experiment runscript
+
+if [[ -r "${this_folder}/${in_folder}/nwpexp.${name}" ]]
+then
+    name_found="yes"
+
+    #__________________________________________________________________________
+    # Create the experiment run script
+    #
+    # This consist of a target specific header and the experiment description in
+    # nwpexp.<name>.
+    #
+    # Note: The ICON experiments require the definition of the
+    #       EXPNAME=<name> variable
+    #__________________________________________________________________________
+
+
+    ${this_folder}/run/make_target_runscript \
+        in_folder=${in_folder} \
+        in_script=nwpexp.${name}\
+        out_script=nwpexp.${name}.run \
+        EXPNAME=${name} \
+        memory_model="large" \
+        $secondary_build_dir_option \
+        omp_stacksize="200M"
 fi
 
 # post-processing runscript
 
-if [[ -r "${in_folder}/post.${name}" ]]
+if [[ -r "${this_folder}/${in_folder}/post.${name}" ]]
 then
     name_found="yes"
 
@@ -114,42 +240,50 @@ then
     #    with_mpi="no" with_openmp="no"
     #__________________________________________________________________________
 
-    ./run/make_target_runscript \
-	in_folder=${in_folder} \
-	in_script=post.${name} \
-	out_script=post.${name}.run \
-	EXPNAME=${name} \
-	with_mpi="no" \
-	with_openmp="no" \
-	queue="express"
+    ${this_folder}/run/make_target_runscript \
+        in_folder=${in_folder} \
+        in_script=post.${name} \
+        out_script=post.${name}.run \
+        $secondary_build_dir_option \
+        EXPNAME=${name} \
+        with_mpi="no" \
+        with_openmp="no" \
+        queue="express"
 fi
+
 
 # do not remove the all case as this is heavily used in infrastructure testing
 
-if [[ "${name}" == "all" ]]
+if [[ "${name}" == "--all" ]]
 then
-    all_experiments=$( (cd ${in_folder} && ls -1 exp.* | egrep -v ".run$") )
+    all_experiments=$( (cd "${this_folder}/${in_folder}" && ls -1 exp.* | egrep -v ".run$" | egrep -v ".status$") || true )
     for experiment in $all_experiments
     do
-	expname=${experiment##*.}
-	./run/make_target_runscript \
-	    in_folder=${in_folder} \
-	    in_script=${experiment} \
-	    in_script=exec.iconrun \
-	    EXPNAME=${expname} \
-	    memory_model="large" \
-	    omp_stacksize=200M
+        name=${experiment##exp.}
+        ${this_folder}/make_runscripts "$name" -r "$in_folder" -s "$secondary_build_dir"
+    done
+
+    nwp_experiments=$( cd "${this_folder}"; find "./${in_folder}" -type f -name "nwpexp.*" -not -name "*.run" -not -name "*.status" | sort )
+    for experiment in $nwp_experiments
+    do
+        echo "$experiment"
+        name="$(basename "$experiment")"
+        name=${name##nwpexp.}
+        rundir="$(dirname "$experiment")"
+        ${this_folder}/make_runscripts "$name" -r "$rundir" -s "$secondary_build_dir"
     done
 else
     # error message if nothing found
     if [[ "$name_found" = "no" ]]
     then
-	echo
-	echo "ERROR: Found neither exp.${name} nor post.${name} in ./${in_folder} !"
-	echo "usage: ./make_runscripts [-r <run directory to process>]"
-	echo "                         [-s <experiment name>]"
-	echo
-	exit 1
+        echo
+        echo "ERROR: Cannot find "
+        echo "    'exp.${name}' or "
+        echo "    'nwpexp.${name}' or "
+        echo "    'post.${name}'"
+        echo "in '${this_folder}/${in_folder}' !"
+        echo_usage
+        exit 1
     fi
 fi
 

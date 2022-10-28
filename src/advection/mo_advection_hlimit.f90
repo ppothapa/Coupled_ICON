@@ -62,10 +62,6 @@ MODULE mo_advection_hlimit
   PUBLIC :: hflx_limiter_pd
 
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
 CONTAINS
 
 
@@ -233,17 +229,17 @@ CONTAINS
     iilnc => ptr_patch%cells%neighbor_idx
     iibnc => ptr_patch%cells%neighbor_blk
 
-!$ACC DATA CREATE( z_mflx_low, z_anti, z_mflx_anti_in, z_mflx_anti_out, r_m, r_p,            &
-!$ACC              z_tracer_new_low, z_tracer_max, z_tracer_min, z_min, z_max, z_fluxdiv_c ),&
-!$ACC      PCOPYIN( p_cc, p_mass_flx_e, p_rhodz_now, p_rhodz_new ), PCOPY( p_mflx_tracer_h ),&
-!$ACC      PRESENT( ptr_patch, ptr_int, iilc, iibc, iilnc, iibnc, iidx, iblk ),              &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA CREATE(z_mflx_low, z_anti, z_mflx_anti_in, z_mflx_anti_out, r_m, r_p) &
+    !$ACC   CREATE(z_tracer_new_low, z_tracer_max, z_tracer_min, z_min, z_max, z_fluxdiv_c) &
+    !$ACC   PRESENT(p_cc, p_mass_flx_e, p_rhodz_now, p_rhodz_new) PRESENT(p_mflx_tracer_h) &
+    !$ACC   PRESENT(ptr_patch, ptr_int, iilc, iibc, iilnc, iibnc, iidx, iblk) &
+    !$ACC   IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-!$ACC KERNELS PRESENT( r_p, r_m) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS PRESENT(r_p, r_m) ASYNC(1) IF(i_am_accel_node)
       r_p = 0._wp
       r_m = 0._wp
-!$ACC END KERNELS
+      !$ACC END KERNELS
     ENDIF
 
     !
@@ -265,7 +261,7 @@ CONTAINS
       CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart_e, i_rlend_e)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -295,7 +291,7 @@ CONTAINS
 
         END DO  ! end loop over edges
       END DO  ! end loop over levels
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     END DO  ! end loop over blocks
 
@@ -315,7 +311,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk,        &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
 !DIR$ IVDEP,PREFERVECTOR
@@ -384,7 +380,7 @@ CONTAINS
 
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       IF (ptr_patch%id > 1 .OR. l_limited_area) THEN
 
@@ -392,8 +388,8 @@ CONTAINS
         ! in the boundary interpolation zone, the low-order advected tracer fields may be
         ! nonsense and therefore need artificial limitation
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG
         DO jc = i_startidx, i_endidx
           IF (ptr_patch%cells%refin_ctrl(jc,jb) == grf_bdywidth_c-1 .OR. &
               ptr_patch%cells%refin_ctrl(jc,jb) == grf_bdywidth_c) THEN
@@ -406,7 +402,7 @@ CONTAINS
             ENDDO
           ENDIF
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
       ENDIF
 
@@ -442,7 +438,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -468,9 +464,9 @@ CONTAINS
             &                 z_tracer_min(iilnc(jc,jb,3),jk,iibnc(jc,jb,3)) )
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -489,7 +485,7 @@ CONTAINS
 
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     ENDDO
 
 !$OMP END DO NOWAIT
@@ -523,7 +519,7 @@ CONTAINS
       !
       ! compute final limited fluxes
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -550,14 +546,14 @@ CONTAINS
 
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC WAIT
-!$ACC END DATA
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE hflx_limiter_mo
 
@@ -680,15 +676,15 @@ CONTAINS
     iidx => ptr_patch%cells%edge_idx
     iblk => ptr_patch%cells%edge_blk
 
-!$ACC ENTER DATA CREATE( r_m ) ASYNC(1)
-!$ACC DATA PRESENT( p_cc, p_rhodz_now, p_mflx_tracer_h, r_m,       &
-!$ACC               ptr_patch, ptr_int, iilc, iibc, iidx, iblk ),  &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC ENTER DATA CREATE(r_m) ASYNC(1)
+    !$ACC DATA PRESENT(p_cc, p_rhodz_now, p_mflx_tracer_h, r_m) &
+    !$ACC   PRESENT(ptr_patch, ptr_int, iilc, iibc, iidx, iblk) &
+    !$ACC   IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-!$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
       r_m = 0._wp
-!$ACC END KERNELS
+      !$ACC END KERNELS
     ENDIF
 
 !$OMP PARALLEL PRIVATE(i_rlstart_c,i_rlend_c,i_startblk,i_endblk)
@@ -726,7 +722,7 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk,        &
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -765,12 +761,12 @@ CONTAINS
   
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       !
       ! 2. Compute total outward mass
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
 !DIR$ IVDEP
@@ -814,7 +810,7 @@ CONTAINS
 #endif
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     ENDDO
 
 !$OMP END DO NOWAIT
@@ -838,13 +834,13 @@ CONTAINS
       CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk,    &
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO je = i_startidx, i_endidx
         ! this is potentially needed for calls from miura_cycl
         IF (ptr_patch%edges%refin_ctrl(je,jb) == grf_bdywidth_e-2) CYCLE
-        !$ACC LOOP VECTOR PRIVATE( z_signum )
+        !$ACC LOOP VECTOR PRIVATE(z_signum)
         DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
@@ -864,14 +860,14 @@ CONTAINS
   
         ENDDO
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     ENDDO
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
-!$ACC EXIT DATA DELETE( r_m )
+    !$ACC END DATA
+    !$ACC EXIT DATA DELETE(r_m)
 
     IF ( PRESENT(opt_acc_async) ) THEN
       IF ( .NOT. opt_acc_async ) THEN

@@ -191,7 +191,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   SUBROUTINE ocean_to_hamocc_interface(ocean_state, transport_state, p_oce_sfc, p_as, &
-      & sea_ice, p_phys_param, operators_coefficients, current_time)
+      & sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
     TYPE(t_hydro_ocean_state), TARGET, INTENT(in)    :: ocean_state
     TYPE(t_ocean_transport_state), TARGET            :: transport_state
     TYPE(t_atmos_for_ocean),  INTENT(inout)          :: p_as
@@ -200,6 +200,8 @@ CONTAINS
     TYPE(t_ho_params)                                :: p_phys_param
     TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     TYPE(datetime), POINTER, INTENT(in)              :: current_time
+    REAL(wp), INTENT(IN), OPTIONAL                   :: stretch_e(nproma, transport_state%patch_3d%p_patch_2d(1)%nblks_e)
+
    
     IF(.not. lhamocc) return
     
@@ -226,7 +228,11 @@ CONTAINS
      
     ELSE
       ! sequential
-      CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time)
+      IF (PRESENT(stretch_e)) THEN
+        CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time, stretch_e)
+      ELSE
+        CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time)
+      ENDIF
     ENDIF
     
   END SUBROUTINE ocean_to_hamocc_interface
@@ -283,6 +289,12 @@ CONTAINS
    
     hamocc_to_ocean_state%co2_flux           => p_as%co2flx
     hamocc_to_ocean_state%swr_fraction       => ocean_state%p_diag%swr_frac
+
+    ! Variables for zstar calculations
+    ocean_to_hamocc_state%eta_c              => ocean_state%p_prog(nold(1))%eta_c
+    ocean_to_hamocc_state%stretch_c          => ocean_state%p_prog(nold(1))%stretch_c
+    ocean_to_hamocc_state%stretch_c_new      => ocean_state%p_prog(nnew(1))%stretch_c
+    ocean_to_hamocc_state%draftave           => sea_ice%draftave    
     
   END SUBROUTINE fill_ocean_to_hamocc_interface
   !------------------------------------------------------------------------

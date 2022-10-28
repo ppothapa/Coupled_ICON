@@ -225,15 +225,15 @@ CONTAINS
         &     this%blk(    stencilsize, nproma, nblks), &
         &     STAT=ierr )
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
-!$ACC ENTER DATA CREATE( this%stencil, this%idx, this%blk )
+    !$ACC ENTER DATA CREATE(this%stencil, this%idx, this%blk)
 
     this%stencil(:,:) = stencilsize
     this%idx(:,:,:)   = -1
     this%blk(:,:,:)   = -1
 
-!$ACC UPDATE DEVICE( this%stencil )
-!$ACC UPDATE DEVICE( this%idx )
-!$ACC UPDATE DEVICE( this%blk )
+    !$ACC UPDATE DEVICE(this%stencil)
+    !$ACC UPDATE DEVICE(this%idx)
+    !$ACC UPDATE DEVICE(this%blk)
 
   END SUBROUTINE t_intp_coeff_init
 
@@ -250,17 +250,17 @@ CONTAINS
     IF (ALLOCATED(this%idx)) THEN
       DEALLOCATE (this%idx, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
-!$ACC EXIT DATA DELETE( this%idx )
+      !$ACC EXIT DATA DELETE(this%idx)
     END IF
     IF (ALLOCATED(this%blk)) THEN
       DEALLOCATE (this%blk, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
-!$ACC EXIT DATA DELETE( this%blk )
+      !$ACC EXIT DATA DELETE(this%blk)
     END IF
     IF (ALLOCATED(this%stencil)) THEN
       DEALLOCATE (this%stencil, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
-!$ACC EXIT DATA DELETE( this%stencil )      
+      !$ACC EXIT DATA DELETE(this%stencil)
     END IF
   END SUBROUTINE t_intp_coeff_finalize
 
@@ -294,18 +294,18 @@ CONTAINS
 
     ALLOCATE (this%coeff(stencilsize, nproma, nblks), STAT=ierr )
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
-!$ACC ENTER DATA CREATE( this%coeff )
+    !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:) = 0._wp
-!$ACC UPDATE DEVICE( this%coeff )
+    !$ACC UPDATE DEVICE(this%coeff)
 
     this%l_cutoff = l_cutoff
 
     IF (dbg_level > 5) THEN
       ALLOCATE (this%v(3,stencilsize, nproma, nblks), STAT=ierr )
       IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
-!$ACC ENTER DATA CREATE( this%v )
+      !$ACC ENTER DATA CREATE(this%v)
       this%v(:,:,:,:) = 0._wp
-!$ACC UPDATE DEVICE( this%v )
+      !$ACC UPDATE DEVICE(this%v)
     END IF
   END SUBROUTINE t_intp_scalar_coeff_init
 
@@ -323,12 +323,12 @@ CONTAINS
     IF (ALLOCATED(this%coeff)) THEN
       DEALLOCATE (this%coeff, STAT=ist)
       IF (ist /= SUCCESS) CALL finish (routine, 'deallocation for barycentric lon-lat coefficients failed')
-!$ACC EXIT DATA DELETE( this%coeff )
+      !$ACC EXIT DATA DELETE(this%coeff)
     END IF
     IF (ALLOCATED(this%v)) THEN
       DEALLOCATE (this%v, STAT=ist)
       IF (ist /= SUCCESS) CALL finish (routine, 'deallocation for barycentric lon-lat coefficients failed')
-!$ACC EXIT DATA DELETE( this%v )
+      !$ACC EXIT DATA DELETE(this%v)
     END IF
   END SUBROUTINE t_intp_scalar_coeff_finalize
 
@@ -347,9 +347,9 @@ CONTAINS
 
     ALLOCATE (this%coeff(stencilsize, 2, nproma, nblks), STAT=ierr )
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
-!$ACC ENTER DATA CREATE( this%coeff )
+    !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:,:) = 0._wp
-!$ACC UPDATE DEVICE( this%coeff )
+    !$ACC UPDATE DEVICE(this%coeff)
   END SUBROUTINE t_intp_vec_coeff_init
 
 
@@ -366,7 +366,7 @@ CONTAINS
     IF (ALLOCATED(this%coeff)) THEN
       DEALLOCATE (this%coeff, STAT=ist)
       IF (ist /= SUCCESS) CALL finish (routine, 'deallocation for barycentric lon-lat coefficients failed')
-!$ACC EXIT DATA DELETE( this%coeff )
+      !$ACC EXIT DATA DELETE(this%coeff)
     END IF
   END SUBROUTINE t_intp_vec_coeff_finalize
 
@@ -410,7 +410,7 @@ CONTAINS
 
     DEALLOCATE (this%global_idx, STAT=ist )
     IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for lon-lat coefficients failed')
-!$ACC EXIT DATA DELETE( this%global_idx )
+    !$ACC EXIT DATA DELETE(this%global_idx)
     ! -- deallocate rbf_vec data structure
     CALL this%rbf_vec%finalize()
     
@@ -426,7 +426,7 @@ CONTAINS
     ! -- array with lon-lat coordinates
     DEALLOCATE(this%ll_coord, stat=ist)
     IF (ist /= SUCCESS)  CALL finish (routine, 'Deallocation of array with lon-lat coordinates!')
-!$ACC EXIT DATA DELETE( this%ll_coord )
+    !$ACC EXIT DATA DELETE(this%ll_coord)
 
     this%l_initialized = .FALSE.
   END SUBROUTINE t_lon_lat_intp_finalize
@@ -471,11 +471,11 @@ CONTAINS
     ! first allocate temporary storage and copy fields:
     ALLOCATE(tmp_global_idx(nlocal_pts), STAT=errstat )
     IF (errstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed')
-!$ACC ENTER DATA CREATE( tmp_global_idx )
+    !$ACC ENTER DATA CREATE(tmp_global_idx)
     tmp_global_idx(1:nlocal_pts) = this%global_idx(1:nlocal_pts)
-!$ACC UPDATE DEVICE( tmp_global_idx ) 
+    !$ACC UPDATE DEVICE(tmp_global_idx)
 ! Note: IF_PRESENT not allowed in EXIT DATA, but global_idx should be on DEVICE
-!$ACC EXIT DATA DELETE( this%global_idx )
+    !$ACC EXIT DATA DELETE(this%global_idx)
     CALL MOVE_ALLOC(tmp_global_idx, this%global_idx)
   END SUBROUTINE t_lon_lat_intp_contract
 
@@ -641,7 +641,7 @@ CONTAINS
       CALL finish(routine, "Not implemented!")
     END IF
 
-!$ACC DATA PRESENT( p_cell_in, ptr_coeff, p_out, iidx, iblk ) IF (i_am_accel_node)
+    !$ACC DATA PRESENT(p_cell_in, ptr_coeff, p_out, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc), SCHEDULE(runtime)
@@ -649,7 +649,7 @@ CONTAINS
       i_startidx = 1
       i_endidx   = nproma
       IF (jb == nblks_lonlat) i_endidx = npromz_lonlat
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -665,7 +665,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE t_intp_scalar_interpolate_i
    
@@ -730,7 +730,7 @@ CONTAINS
       CALL finish(routine, "Not implemented!")
     END IF
 
-!$ACC DATA PRESENT( p_cell_in, ptr_coeff, p_out, iidx, iblk ) IF (i_am_accel_node)
+    !$ACC DATA PRESENT(p_cell_in, ptr_coeff, p_out, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc,vmin,vmax), SCHEDULE(runtime)
@@ -747,7 +747,7 @@ CONTAINS
 
       CASE(1)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -764,7 +764,7 @@ CONTAINS
 
       CASE(3)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -786,7 +786,7 @@ CONTAINS
 
       CASE(4)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -829,7 +829,7 @@ CONTAINS
 
       CASE(10)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -890,7 +890,7 @@ CONTAINS
 
       CASE(13)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -969,7 +969,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE t_intp_scalar_interpolate_r
 
@@ -1141,7 +1141,7 @@ CONTAINS
     iblk      => this%blk
     ptr_coeff => this%coeff
 
-!$ACC DATA PRESENT( p_vn_in, ptr_coeff, grad_x, grad_y, iidx, iblk ) IF (i_am_accel_node)
+    !$ACC DATA PRESENT(p_vn_in, ptr_coeff, grad_x, grad_y, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc), SCHEDULE(runtime)
@@ -1151,7 +1151,7 @@ CONTAINS
       i_endidx   = nproma
       IF (jb == nblks_lonlat) i_endidx = npromz_lonlat
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF (i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -1189,7 +1189,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE t_intp_vec_interpolate_r
 

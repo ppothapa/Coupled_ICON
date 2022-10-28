@@ -187,7 +187,7 @@ MODULE mo_name_list_output
   USE mo_meteogram_config,          ONLY: meteogram_output_config
   USE mo_intp_lonlat_types,         ONLY: lonlat_grids
 #endif
-  USE mo_fortran_tools, ONLY: insert_dimension, init
+  USE mo_fortran_tools, ONLY: insert_dimension, init, set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -551,11 +551,7 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(timer_write_output)
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     is_io = my_process_is_io()
     is_test = my_process_is_mpi_test()
@@ -924,11 +920,7 @@ CONTAINS
 #endif
     LOGICAL :: lzacc
 
-    IF (PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
     ! Offset in memory window for async I/O
     ioff = 0
 
@@ -1381,11 +1373,11 @@ CONTAINS
     
 
     IF      (ASSOCIATED(r_ptr_5d)) THEN
-!$ACC UPDATE HOST(r_ptr) IF ( i_am_accel_node .AND. acc_is_present(r_ptr) )
+      !$ACC UPDATE HOST(r_ptr) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
     ELSE IF (ASSOCIATED(s_ptr_5d)) THEN
-!$ACC UPDATE HOST(s_ptr) IF ( i_am_accel_node .AND. acc_is_present(s_ptr) )
+      !$ACC UPDATE HOST(s_ptr) IF(i_am_accel_node .AND. acc_is_present(s_ptr))
     ELSE IF (ASSOCIATED(i_ptr_5d)) THEN
-!$ACC UPDATE HOST(i_ptr) IF ( i_am_accel_node .AND. acc_is_present(i_ptr) )
+      !$ACC UPDATE HOST(i_ptr) IF(i_am_accel_node .AND. acc_is_present(i_ptr))
     ENDIF
 
     RETURN

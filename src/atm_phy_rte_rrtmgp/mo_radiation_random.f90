@@ -42,7 +42,7 @@ CONTAINS
     INTEGER(i8) :: kiss
     INTEGER :: jk 
     
-    !$ACC parallel loop default(present) gang vector async(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jk = 1, kproma
       seed(jk,1) = low_byte(69069_i8 * seed(jk,1) + 1327217885)
       seed(jk,2) = m (seed(jk,2), 13)
@@ -63,12 +63,12 @@ CONTAINS
     INTEGER(i8) :: kiss
     INTEGER :: i,j,k
     
-    !$ACC parallel default(present) async(1)
-    !$ACC loop seq
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO k = 1, ksamps
-    !$ACC loop seq
+    !$ACC LOOP SEQ
     DO j = klev, 1, -1
-    !$ACC loop gang vector
+    !$ACC LOOP GANG VECTOR
     DO i = 1, kproma
       seed(i,1) = low_byte(69069_i8 * seed(i,1) + 1327217885)
       seed(i,2) = m (seed(i,2), 13)
@@ -81,7 +81,7 @@ CONTAINS
     END DO
     END DO
     END DO
-    !$ACC end parallel
+    !$ACC END PARALLEL
   END SUBROUTINE kissvec_all_rank3
 
   SUBROUTINE kissvec_mask_rank3(kproma, kbdim, klev, ksamps, seed, &
@@ -94,12 +94,12 @@ CONTAINS
     INTEGER(i8) :: kiss
     INTEGER :: i,j,k
     
-    !$ACC parallel default(present) async(1)
-    !$ACC loop seq
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO k = 1, ksamps
-    !$ACC loop seq
+    !$ACC LOOP SEQ
     DO j = klev, 1, -1
-    !$ACC loop gang vector
+    !$ACC LOOP GANG VECTOR
     DO i = 1, kproma
       IF (mask(i,j)) THEN
         seed(i,1) = low_byte(69069_i8 * seed(i,1) + 1327217885)
@@ -116,7 +116,7 @@ CONTAINS
     END DO
     END DO
     END DO
-    !$ACC end parallel
+    !$ACC END PARALLEL
   END SUBROUTINE kissvec_mask_rank3
 
 
@@ -130,7 +130,7 @@ CONTAINS
     INTEGER(i8) :: kiss 
     INTEGER     :: jk 
     
-    !$ACC parallel loop default(present) gang vector async(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jk = 1, kproma
       IF(mask(jk)) THEN  
         seed(jk,1) = low_byte(69069_i8 * seed(jk,1) + 1327217885)

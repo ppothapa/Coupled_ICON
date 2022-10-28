@@ -781,9 +781,9 @@ CONTAINS
       & sum_weight(allocated_levels, 0:no_of_threads-1), &
       & total_weight(allocated_levels) )
 
-    !$ACC DATA PRESENT( values, weights, total_sum, mean ) &
-    !$ACC       CREATE( total_weight ) IF( lzopenacc )
-    !$ACC DATA CREATE( sum_value, sum_weight ) IF( lzopenacc )
+    !$ACC DATA PRESENT(values, weights, total_sum, mean) &
+    !$ACC   CREATE(total_weight) IF(lzopenacc)
+    !$ACC DATA CREATE(sum_value, sum_weight) IF(lzopenacc)
 
     IF (PRESENT(start_level)) THEN
       start_vertical = start_level
@@ -807,7 +807,7 @@ CONTAINS
 !$  no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP GANG VECTOR
     DO level = 1, allocated_levels
       sum_value(level,  myThreadNo) = 0.0_wp
@@ -818,7 +818,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx, level)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP SEQ
         DO idx = start_index, end_index
           !$ACC LOOP SEQ
@@ -837,7 +837,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx, level)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP SEQ
         DO idx = start_index, end_index
           ! since we have the same numbder of vertical layers, the weight is the same
@@ -854,7 +854,7 @@ CONTAINS
 !ICON_OMP_END_DO
 
       ! copy the weights to all levels
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = start_vertical+1, end_vertical
          sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo)
@@ -865,14 +865,14 @@ CONTAINS
 !ICON_OMP_END_PARALLEL
 
     ! gather the total level sum of this process in total_sum(level)
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP GANG VECTOR
     DO level = 1, allocated_levels
       total_sum(level)     = 0.0_wp
       total_weight(level) = 0.0_wp
     END DO
     !$ACC END PARALLEL
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP SEQ
     DO myThreadNo=0, no_of_threads-1
       !$ACC LOOP GANG VECTOR
@@ -890,13 +890,13 @@ CONTAINS
     CALL gather_sums(total_sum, total_weight, lopenacc=lzopenacc)
 
     IF (PRESENT(mean)) THEN
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = 1, allocated_levels
         mean(level) = 0.0_wp
       END DO
       !$ACC END PARALLEL
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = start_vertical, end_vertical
         ! write(0,*) level, ":", total_sum(level), total_weight(level), accumulated_mean(level)
@@ -932,7 +932,7 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC DATA CREATE( total_sum ) IF( lzopenacc )
+    !$ACC DATA CREATE(total_sum) IF(lzopenacc)
 
     CALL LevelHorizontalSum_3D_InRange_2Dweights(values=values, weights=weights, in_subset=in_subset, &
       & total_sum=total_sum, start_level=start_level, end_level=end_level, mean=mean)
@@ -1024,9 +1024,9 @@ CONTAINS
       & sum_weight(allocated_levels, 0:no_of_threads-1), &
       & total_weight(allocated_levels) )
 
-    !$ACC DATA PRESENT( values, weights, total_sum, mean, sumLevelWeights ) &
-    !$ACC       CREATE( total_weight ) IF( lzopenacc )
-    !$ACC DATA CREATE( sum_value, sum_weight ) IF( lzopenacc )
+    !$ACC DATA PRESENT(values, weights, total_sum, mean, sumLevelWeights) &
+    !$ACC   CREATE(total_weight) IF(lzopenacc)
+    !$ACC DATA CREATE(sum_value, sum_weight) IF(lzopenacc)
 
     IF (PRESENT(start_level)) THEN
       start_vertical = start_level
@@ -1052,7 +1052,7 @@ CONTAINS
 !$  no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP GANG VECTOR
     DO level = 1, allocated_levels
       sum_value(level,  myThreadNo) = 0.0_wp
@@ -1063,7 +1063,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx, level)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP SEQ
         DO idx = start_index, end_index
           !$ACC LOOP SEQ
@@ -1082,7 +1082,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, level)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP SEQ
         DO idx = start_index, end_index
           ! since we have the same numbder of vertical layers, the weight is the same
@@ -1102,14 +1102,14 @@ CONTAINS
 !ICON_OMP_END_PARALLEL
 
     ! gather the total level sum of this process in total_sum(level)
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP GANG VECTOR
     DO level = 1, allocated_levels
       total_sum(level)     = 0.0_wp
       total_weight(level) = 0.0_wp
     END DO
     !$ACC END PARALLEL
-    !$ACC PARALLEL IF( lzopenacc )
+    !$ACC PARALLEL IF(lzopenacc)
     !$ACC LOOP SEQ
     DO myThreadNo=0, no_of_threads-1
       !$ACC LOOP GANG VECTOR
@@ -1127,13 +1127,13 @@ CONTAINS
     CALL gather_sums(total_sum, total_weight, lopenacc=lzopenacc)
 
     IF (PRESENT(mean)) THEN
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = 1, allocated_levels
         mean(level) = 0.0_wp
       END DO
       !$ACC END PARALLEL
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = start_vertical, end_vertical
         mean(level) = total_sum(level)/total_weight(level)
@@ -1142,7 +1142,7 @@ CONTAINS
     ENDIF
 
     IF (PRESENT(sumLevelWeights)) THEN
-      !$ACC PARALLEL IF( lzopenacc )
+      !$ACC PARALLEL IF(lzopenacc)
       !$ACC LOOP GANG VECTOR
       DO level = 1, allocated_levels
         sumLevelWeights(level) = total_weight(level)
@@ -1178,7 +1178,7 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC DATA CREATE( sumLevels ) IF( lzopenacc )
+    !$ACC DATA CREATE(sumLevels) IF(lzopenacc)
     
     CALL LevelHorizontalSum_3D_InRange_3Dweights(values=values, weights=weights, in_subset=in_subset, &
       & total_sum=sumLevels, start_level=start_level, end_level=end_level, mean=mean, sumLevelWeights=sumLevelWeights, &
@@ -1302,8 +1302,8 @@ CONTAINS
     ALLOCATE( sum_value(0:no_of_threads-1), &
       & sum_weight(0:no_of_threads-1) )
 
-    !$ACC DATA PRESENT( values, weights ) IF( lzopenacc )
-    !$ACC DATA CREATE( sum_value, sum_weight ) IF( lzopenacc )
+    !$ACC DATA PRESENT(values, weights) IF(lzopenacc)
+    !$ACC DATA CREATE(sum_value, sum_weight) IF(lzopenacc)
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
@@ -1314,7 +1314,7 @@ CONTAINS
 !$  no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
-    !$ACC KERNELS IF( lzopenacc )
+    !$ACC KERNELS IF(lzopenacc)
     sum_value(myThreadNo) = 0.0_wp
     sum_weight(myThreadNo) = 0.0_wp
     !$ACC END KERNELS
@@ -1322,7 +1322,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx, level)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP SEQ
         DO idx = start_index, end_index
           !$ACC LOOP SEQ
@@ -1341,7 +1341,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
-        !$ACC PARALLEL IF( lzopenacc )
+        !$ACC PARALLEL IF(lzopenacc)
         !$ACC LOOP GANG VECTOR
         DO idx = start_index, end_index
           ! since we have the same numbder of vertical layers, the weight is the same
@@ -1360,8 +1360,8 @@ CONTAINS
     ! gather the total level sum of this process in total_sum(level)
     total_sum     = 0.0_wp
     total_weight = 0.0_wp
-    !$ACC PARALLEL IF( lzopenacc )
-    !$ACC LOOP GANG VECTOR REDUCTION( +:total_sum ) REDUCTION( +:total_weight )
+    !$ACC PARALLEL IF(lzopenacc)
+    !$ACC LOOP GANG VECTOR REDUCTION(+: total_sum) REDUCTION(+: total_weight)
     DO myThreadNo=0, no_of_threads-1
       ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
       total_sum    = total_sum    + sum_value( myThreadNo)
@@ -1485,7 +1485,7 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC UPDATE HOST( sum_1, sum_2 ) IF( lzopenacc )
+    !$ACC UPDATE HOST(sum_1, sum_2) IF(lzopenacc)
 
     size_of_sum_1 = SIZE(sum_1(:))
     size_of_sum_2 = SIZE(sum_2(:))
@@ -1508,7 +1508,7 @@ CONTAINS
 
     DEALLOCATE(concat_input_sum, concat_output_sum)
 
-    !$ACC UPDATE DEVICE( sum_1, sum_2 ) IF( lzopenacc )
+    !$ACC UPDATE DEVICE(sum_1, sum_2) IF(lzopenacc)
 
   END SUBROUTINE gather_sums_1D
   !-----------------------------------------------------------------------
@@ -1527,14 +1527,14 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC DATA CREATE( array_sum_1, array_sum_2 ) IF( lzopenacc )
+    !$ACC DATA CREATE(array_sum_1, array_sum_2) IF(lzopenacc)
 
-    !$ACC KERNELS IF( lzopenacc )
+    !$ACC KERNELS IF(lzopenacc)
     array_sum_1(1) = sum_1
     array_sum_2(1) = sum_2
     !$ACC END KERNELS
     CALL gather_sums(array_sum_1, array_sum_2, lopenacc=lzopenacc)
-    !$ACC KERNELS IF( lzopenacc )
+    !$ACC KERNELS IF(lzopenacc)
     sum_1 = array_sum_1(1)
     sum_2 = array_sum_2(1)
     !$ACC END KERNELS
@@ -2032,7 +2032,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, start_index, end_index)
-      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node )
+      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
       DO level = 1, mylevels
         DO idx = start_index, end_index
           sum_field(idx,level,block) = MERGE(my_miss, &
@@ -2064,7 +2064,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc) SCHEDULE(dynamic)
     DO jb = subset%start_block, subset%end_block
       CALL get_index_range(subset, jb, start_index, end_index)
-      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR ASYNC(1) IF( i_am_accel_node )
+      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR ASYNC(1) IF(i_am_accel_node)
       DO jc = start_index, end_index
         sum_field(jc,jb) = MERGE(my_miss, sum_field(jc,jb) + field(jc,jb), my_has_missvals .AND. (field(jc,jb) == my_miss))
       END DO
@@ -2097,7 +2097,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
       DO block = subset%start_block, subset%end_block
         CALL get_index_range(subset, block, start_index, end_index)
-        !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( i_am_accel_node )
+        !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO level = 1, mylevels
           DO idx = start_index, end_index
             sum_field(idx,level,block) = MERGE(my_miss, &
@@ -2129,7 +2129,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc) SCHEDULE(dynamic)
     DO jb = subset%start_block, subset%end_block
       CALL get_index_range(subset, jb, start_index, end_index)
-      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR ASYNC(1) IF( i_am_accel_node )
+      !$ACC PARALLEL LOOP PRESENT(sum_field, field) GANG VECTOR ASYNC(1) IF(i_am_accel_node)
       DO jc = start_index, end_index
         sum_field(jc,jb) = MERGE(my_miss, &
                                & sum_field(jc,jb) + REAL(field(jc,jb),wp), &
@@ -2341,7 +2341,7 @@ CONTAINS
     REAL(wp) :: psi_avg_new                   !< updated time average
 
 #ifdef _OPENACC
-    !$acc routine seq
+    !$ACC ROUTINE SEQ
 #endif
 
     !--------------------------------------------------------------------

@@ -694,7 +694,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
 
-!$ACC ENTER DATA COPYIN( p_nh(jg)%metrics%nudge_c_idx, p_nh(jg)%metrics%nudge_c_blk )
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%nudge_c_idx, p_nh(jg)%metrics%nudge_c_blk)
 
       ic = 0
       DO jb = 1, nblks_e
@@ -734,7 +734,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
 
-!$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%nudge_e_idx, p_nh(jg)%metrics%nudge_e_blk)
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%nudge_e_idx, p_nh(jg)%metrics%nudge_e_blk)
 
       ! Index lists needed to minimize the number of halo communications in solve_nh and feedback
 
@@ -761,7 +761,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
 
-!$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%bdy_halo_c_idx, p_nh(jg)%metrics%bdy_halo_c_blk)
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%bdy_halo_c_idx, p_nh(jg)%metrics%bdy_halo_c_blk)
 
       ! Index list for which interpolated mass fluxes along the lateral nest boundary need to be updated
       ! part 1: count nest boundary points of row 9
@@ -807,7 +807,7 @@ MODULE mo_vertical_grid
       ENDIF
       p_nh(jg)%diag%grf_bdy_mflx(:,:,:) = 0._wp
 
-      !$ACC ENTER DATA COPYIN( p_nh(jg)%diag%grf_bdy_mflx )
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%diag%grf_bdy_mflx)
 
       ! part 3: fill index list with nest boundary points of row 9
       i_startblk = p_patch(jg)%edges%start_block(grf_bdywidth_e)
@@ -844,7 +844,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
 
-      !$ACC ENTER DATA COPYIN( p_nh(jg)%metrics%bdy_mflx_e_idx,p_nh(jg)%metrics%bdy_mflx_e_blk)
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%bdy_mflx_e_idx, p_nh(jg)%metrics%bdy_mflx_e_blk)
 
       ! Index list for halo points belonging to the nest overlap zone
       i_startblk = p_patch(jg)%cells%start_block(min_rlcell_int-1)
@@ -905,8 +905,8 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
 
-!$ACC ENTER DATA COPYIN( p_nh(jg)%metrics%ovlp_halo_c_dim, p_nh(jg)%metrics%ovlp_halo_c_idx,   &
-!$ACC                    p_nh(jg)%metrics%ovlp_halo_c_blk )
+      !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%ovlp_halo_c_dim, p_nh(jg)%metrics%ovlp_halo_c_idx) &
+      !$ACC   COPYIN(p_nh(jg)%metrics%ovlp_halo_c_blk)
 
       IF (l_zdiffu_t) THEN
         CALL prepare_zdiffu(p_patch(jg), p_nh(jg), p_nh_lists(jg)%metrics_list, p_int(jg), z_maxslp, z_maxhgtd)
@@ -1686,8 +1686,8 @@ MODULE mo_vertical_grid
           ENDDO
         ENDDO
 
-!$ACC ENTER DATA COPYIN( p_nh(jg)%metrics%pg_edgeidx, p_nh(jg)%metrics%pg_edgeblk,   &
-!$ACC                    p_nh(jg)%metrics%pg_vertidx, p_nh(jg)%metrics%pg_exdist )
+        !$ACC ENTER DATA COPYIN(p_nh(jg)%metrics%pg_edgeidx, p_nh(jg)%metrics%pg_edgeblk) &
+        !$ACC   COPYIN(p_nh(jg)%metrics%pg_vertidx, p_nh(jg)%metrics%pg_exdist)
 
         DEALLOCATE(imask,icount,z_shift)
 

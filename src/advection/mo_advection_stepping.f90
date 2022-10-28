@@ -91,13 +91,6 @@ MODULE mo_advection_stepping
 
   PUBLIC :: step_advection
 
-#if defined( _OPENACC )
-#if defined(__ADVECTION_STEPPING_NOACC)
-  LOGICAL, PARAMETER ::  acc_on = .FALSE.
-#else
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-#endif
 
 CONTAINS
 
@@ -317,20 +310,23 @@ CONTAINS
     ENDIF
 
 
-!$ACC DATA  PCOPYIN( p_tracer_now, p_mflx_contra_h, p_mflx_contra_v,    &
-!$ACC                p_vn_contra_traj,                                  &
-!$ACC                p_cellhgt_mc_now, p_rhodz_now, p_rhodz_new,        &
-!$ACC                deepatmo_vol, deepatmo_divh, deepatmo_divzu,       &
-!$ACC                deepatmo_divzl),    &
-!$ACC       PCOPYOUT( p_tracer_new, p_mflx_tracer_h, p_mflx_tracer_v ), &
-!$ACC       CREATE( rhodz_aux, rhodz_ast2 ),                            &
-!$ACC       PRESENT( p_int_state, p_grf_tend_tracer, q_ubc),            &
-!$ACC       IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_tracer_now, p_mflx_contra_h, p_mflx_contra_v) &
+    !$ACC   PRESENT(p_vn_contra_traj) &
+    !$ACC   PRESENT(p_cellhgt_mc_now, p_rhodz_now, p_rhodz_new) &
+    !$ACC   COPYIN(deepatmo_vol, deepatmo_divh, deepatmo_divzu) &
+    !$ACC   COPYIN(deepatmo_divzl) &
+    !$ACC   PRESENT(p_tracer_new, p_mflx_tracer_h, p_mflx_tracer_v) &
+    !$ACC   CREATE(rhodz_aux, rhodz_ast2) &
+    !$ACC   PRESENT(p_int_state, p_grf_tend_tracer, q_ubc) &
+    !$ACC   IF(i_am_accel_node)
 
-!$ACC DATA  PCOPYIN( rho_incr ),                                        &
-!$ACC       IF( i_am_accel_node .AND. acc_on .AND. is_present_rho_incr )
-!$ACC DATA  PRESENT( opt_ddt_tracer_adv ),                              &
-!$ACC       IF( i_am_accel_node .AND. acc_on .AND. PRESENT(opt_ddt_tracer_adv) )
+    !XL: rho_incr is passed even when not allocated
+    !    it is not clear how to implement this with only PRESENT statement
+    !    The COPYING below is a workaround - when it is not allocated
+    !$ACC DATA COPYIN(rho_incr) &
+    !$ACC   IF(i_am_accel_node .AND. is_present_rho_incr)
+    !$ACC DATA PRESENT(opt_ddt_tracer_adv) &
+    !$ACC   IF(i_am_accel_node .AND. PRESENT(opt_ddt_tracer_adv))
 
 
     ! This vertical mass flux synchronization is necessary, as vertical transport 
@@ -369,7 +365,7 @@ CONTAINS
         CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
           &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -378,7 +374,7 @@ CONTAINS
               &                 * rho_incr(jc,jk,jb) * deepatmo_vol(jk)
           ENDDO  !jc
         ENDDO  !jk
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
 
       ENDDO ! jb
 !$OMP END DO NOWAIT
@@ -417,8 +413,8 @@ CONTAINS
 
         ! compute intermediate density which accounts for the density increment 
         ! due to vertical transport.
-!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(rhodz_ast) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-       !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(rhodz_ast) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
             rhodz_ast2(jc,jk,jb) = rhodz_ast(jc,jk,jb) + p_dtime                      &
@@ -426,7 +422,7 @@ CONTAINS
                                  -   p_mflx_contra_v(jc,jk,jb)   * deepatmo_divzu(jk) )
           ENDDO  !jc
         ENDDO !jk
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -490,7 +486,7 @@ CONTAINS
 
         ! compute intermediate density which accounts for the density increment 
         ! due to horizontal transport.
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -502,7 +498,7 @@ CONTAINS
                                  -   p_mflx_contra_v(jc,jk,jb)   * deepatmo_divzu(jk) ) )
           ENDDO  !jc
         ENDDO !jk
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -571,8 +567,8 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trNotAdvect) &
-!$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trNotAdvect) &
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trNotAdvect%len ! Tracer loop
 
@@ -585,7 +581,7 @@ CONTAINS
           ENDDO  !jk
 
         ENDDO  !nt
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
        
       ENDDO  ! jb
 !$OMP END DO NOWAIT
@@ -613,8 +609,8 @@ CONTAINS
         ! For mass conservation, a correction has to be applied in the
         ! feedback routine anyway
 
-!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect) &
-!$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect) &
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -629,7 +625,7 @@ CONTAINS
             ENDDO
           ENDDO  !jk
         ENDDO  !Tracer loop
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -667,8 +663,8 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect, advection_config ) &
-!$ACC          ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect, advection_config) &
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -714,7 +710,7 @@ CONTAINS
           ENDIF ! iforcing == inwp
 
         END DO  ! Tracer loop
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       END DO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -738,11 +734,11 @@ CONTAINS
     END IF
 
 
-!$ACC WAIT
+    !$ACC WAIT
 
-!$ACC END DATA
-!$ACC END DATA
-!$ACC END DATA
+    !$ACC END DATA
+    !$ACC END DATA
+    !$ACC END DATA
 
     IF (ltimer) CALL timer_stop(timer_transport)
 
@@ -869,7 +865,7 @@ CONTAINS
 
       ! compute vertical flux divergences and update tracer mass fractions
       !
-!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP SEQ
       TRACERLOOP: DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -912,7 +908,7 @@ CONTAINS
         ENDIF
 
       END DO  TRACERLOOP
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     END DO  !jb
 !$OMP END DO NOWAIT
@@ -1030,10 +1026,10 @@ CONTAINS
     trAdvect => advection_config(jg)%trAdvect       ! 2018-06-05: cray bug do not add to PRESENT list
 
 
-!$ACC DATA  PRESENT(p_int_state, p_mflx_tracer_h, tracer_now, tracer_new,    &
-!$ACC               rhodz_now, rhodz_new, deepatmo_divh, iidx, iblk ),       &
-!$ACC       CREATE( z_fluxdiv_c ),                                           &
-!$ACC       IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_int_state, p_mflx_tracer_h, tracer_now, tracer_new) &
+    !$ACC   PRESENT(rhodz_now, rhodz_new, deepatmo_divh, iidx, iblk) &
+    !$ACC   CREATE(z_fluxdiv_c) &
+    !$ACC   IF(i_am_accel_node)
 
 
     i_startblk = p_patch%cells%start_block(i_rlstart)
@@ -1055,8 +1051,8 @@ CONTAINS
 
         IF ( advection_config(jg)%ihadv_tracer(jt) /= 0 ) THEN
 
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-          !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
             DO jk = iadv_slev_jt, nlev
@@ -1074,7 +1070,7 @@ CONTAINS
 
             ENDDO
           ENDDO
-          !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 !NEC$ nofuse
           DO jk = iadv_slev_jt, nlev
 !DIR$ IVDEP
@@ -1088,7 +1084,7 @@ CONTAINS
           ENDDO  !jk
           !$ACC END PARALLEL
 
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           ! set tracer(nnew) to tracer(nnow) at levels where advection is turned off
           DO jk = 1, iadv_slev_jt-1
@@ -1100,7 +1096,7 @@ CONTAINS
 
         ELSE  ! horizontal advection switched off
 
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           ! copy
           DO jk = 1, nlev
@@ -1118,7 +1114,7 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
     IF (timers_level > 2) CALL timer_stop(timer_adv_horz)
 

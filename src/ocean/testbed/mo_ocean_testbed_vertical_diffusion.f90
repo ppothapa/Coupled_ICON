@@ -606,6 +606,240 @@ CONTAINS
   END SUBROUTINE tracer_diffusion_vertical_implicit_r0
   !------------------------------------------------------------------------
 
+  
+  !-------------------------------------------------------------------------
+  !!Subroutine tests for vertical diffusion accuracy 
+  !>
+  !!
+  !! The result ocean_tracer%concetration is calculated on domain_cells
+  !-------------------------------------------------------------------------
+  SUBROUTINE tracer_diffusion_vertical_implicit_r3( patch_3D,               &
+                                           & ocean_tracer, A_v)!,   &
+                                          ! & diff_column)
+
+    TYPE(t_patch_3D ),TARGET, INTENT(IN) :: patch_3D
+    TYPE(t_ocean_tracer), TARGET         :: ocean_tracer
+    REAL(wp), INTENT(inout)              :: A_v(:,:,:)
+    !
+    !
+    REAL(wp) :: inv_prism_thickness(1:n_zlev), inv_prisms_center_distance(1:n_zlev)
+    REAL(wp) :: a(1:n_zlev), b(1:n_zlev), c(1:n_zlev)! , nb(1:n_zlev)
+    REAL(wp) :: fact(1:n_zlev)
+    REAL(wp) :: column_tracer(1:n_zlev)
+    REAL(wp) :: dt_inv, diagonal_product
+    REAL(wp) :: dt_mod, mu ! Testing dt and viscosity
+    REAL(wp) :: H, eta                                                   ! Stretching parameters 
+    REAL(wp) :: inv_stretch_z_i(1:n_zlev), inv_stretch_z_m(1:n_zlev)     ! Stretching parameters 
+    REAL(wp) :: inv_cart_thick(1:n_zlev), inv_cart_center_dist(1:n_zlev) ! Stretching parameters 
+    REAL(wp), POINTER   :: field_column(:,:,:)
+    INTEGER  :: bottom_level
+    INTEGER :: jc, jk, jb
+    INTEGER :: start_index, end_index
+    INTEGER :: test_diff 
+    TYPE(t_subset_range), POINTER :: cells_in_domain
+    TYPE(t_patch), POINTER         :: patch_2D
+    !-----------------------------------------------------------------------
+    patch_2D        => patch_3D%p_patch_2D(1)
+    cells_in_domain => patch_2D%cells%in_domain
+    field_column    => ocean_tracer%concentration
+    !-----------------------------------------------------------------------
+    dt_inv = 1.0_wp/dtime
+
+    test_diff =  4 
+
+    field_column(:, :, :) = 0.; 
+    field_column(:,11, :) = 1.; 
+    DO jb = cells_in_domain%start_block, cells_in_domain%end_block
+      CALL get_index_range(cells_in_domain, jb, start_index, end_index)
+      DO jc = start_index, end_index
+!    DO jb = 1, 1 
+!      DO jc = 1, 1 
+        bottom_level = patch_3D%p_patch_1D(1)%dolic_c(jc,jb)
+
+        ! FIXME: Are the following assumptions true
+        H   = patch_3D%column_thick_e(jc, jb)
+        eta = patch_3D%p_patch_1D(1)%depth_CellInterface(jc, bottom_level + 1, jb) - H
+
+        IF (bottom_level < 1 ) CYCLE
+
+        DO jk=1,bottom_level
+            inv_stretch_z_i(jk) = H/( H + eta ) 
+            inv_stretch_z_m(jk) = H/( H + eta )   ! Identical for z* co-ords
+         
+            ! FIXME: Are the following assumptions true
+            inv_cart_thick(jk)       = 1.0_wp/patch_3d%p_patch_1d(1)%del_zlev_m(jk)
+            inv_cart_center_dist(jk) = 1.0_wp/patch_3d%p_patch_1d(1)%del_zlev_i(jk)
+
+        END DO
+
+        DO jk=1,bottom_level
+          inv_prism_thickness(jk)        = patch_3D%p_patch_1D(1)%inv_prism_thick_c(jc,jk,jb)
+          inv_prisms_center_distance(jk) = patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(jc,jk,jb)
+        ENDDO
+
+        SELECT CASE (test_diff)  !  
+
+        CASE (1)
+        !------------------------------------
+        ! Test d2q/dz2 = f
+        ! If we just remove the dt_inv terms the resulting matrix is singular
+        ! because of the boundary terms
+        ! Therefore the boundary terms are modified to retain coercivity 
+        !------------------------------------
+            !------------------------------------
+            ! Fill triangular matrix
+            ! b is diagonal, a is the lower diagonal, c is the upper
+            !   top level
+            a(1) = 0.0_wp
+            c(1) = -A_v(jc,2,jb) * inv_prism_thickness(1) * inv_prisms_center_distance(2)
+            b(1) = - 2.*c(1)
+            DO jk = 2, bottom_level-1
+              a(jk) = - A_v(jc,jk,jb)   * inv_prism_thickness(jk) * inv_prisms_center_distance(jk)
+              c(jk) = - A_v(jc,jk+1,jb) * inv_prism_thickness(jk) * inv_prisms_center_distance(jk+1)
+              b(jk) = - a(jk) - c(jk)
+            END DO
+            ! bottom
+            a(bottom_level) = -A_v(jc,bottom_level,jb) * &
+                & inv_prism_thickness(bottom_level) * inv_prisms_center_distance(bottom_level)
+            b(bottom_level) = - 2.*a(bottom_level)
+            c(bottom_level) = 0.0_wp
+    
+            DO jk = 1, bottom_level
+               column_tracer(jk) = field_column(jc,jk,jb)* A_v(jc,bottom_level,jb) 
+            ENDDO
+
+        CASE (2)
+        !------------------------------------
+        ! Test d2q/dz2 = f/dt
+        !------------------------------------
+            dt_mod = 1.0_wp*dt_inv 
+            mu     = 0.01
+
+            !------------------------------------
+            ! Fill triangular matrix
+            ! b is diagonal, a is the lower diagonal, c is the upper
+            !   top level
+            a(1) = 0.0_wp
+            c(1) = -A_v(jc,2,jb) * inv_prism_thickness(1) * inv_prisms_center_distance(2)
+            b(1) = dt_mod - c(1)
+            DO jk = 2, bottom_level-1
+              a(jk) = - A_v(jc,jk,jb)   * inv_prism_thickness(jk) * inv_prisms_center_distance(jk)
+              c(jk) = - A_v(jc,jk+1,jb) * inv_prism_thickness(jk) * inv_prisms_center_distance(jk+1) 
+
+              b(jk) = dt_mod - a(jk) - c(jk)
+            END DO
+            ! bottom
+            a(bottom_level) = -A_v(jc,bottom_level,jb) * &
+                & inv_prism_thickness(bottom_level) * inv_prisms_center_distance(bottom_level)
+            b(bottom_level) = dt_mod - a(bottom_level)
+            c(bottom_level) = 0.0_wp
+    
+            DO jk = 1, bottom_level
+               column_tracer(jk) = field_column(jc,jk,jb) * dt_mod 
+            ENDDO
+
+        CASE (3)
+        !------------------------------------
+        ! Test d2q/dz2 = f
+        ! With stretched grid 
+        !------------------------------------
+            !------------------------------------
+            ! Fill triangular matrix
+            ! b is diagonal, a is the lower diagonal, c is the upper
+            !   top level
+            a(1) = 0.0_wp
+            c(1) = -A_v(jc,2,jb) * inv_stretch_z_i(1) * inv_cart_thick(1) &
+                & * inv_stretch_z_m(2) * inv_cart_center_dist(2)
+            b(1) = - 2.*c(1)
+            DO jk = 2, bottom_level-1
+              a(jk) = - A_v(jc,jk,jb)    * inv_stretch_z_i(jk) * inv_cart_thick(jk) &
+                 & * inv_stretch_z_m(jk) * inv_cart_center_dist(jk)
+              c(jk) = - A_v(jc,jk+1,jb)  * inv_stretch_z_i(jk) * inv_cart_thick(jk) &
+                 & * inv_stretch_z_m(jk+ 1) * inv_cart_center_dist(jk+1)
+              b(jk) = - a(jk) - c(jk)
+            END DO
+            ! bottom
+            a(bottom_level) = -A_v(jc,bottom_level,jb) *inv_stretch_z_i(bottom_level) &
+                & * inv_cart_thick(bottom_level) * inv_stretch_z_m(bottom_level ) &
+                & * inv_cart_center_dist(bottom_level)
+            b(bottom_level) = - 2.*a(bottom_level)
+            c(bottom_level) = 0.0_wp
+    
+            DO jk = 1, bottom_level
+               column_tracer(jk) = field_column(jc,jk,jb)* A_v(jc,bottom_level,jb)  
+            ENDDO
+
+        CASE (4)
+        !------------------------------------
+        ! Test d2q/dz2 = f/dt
+        ! With stretched grid 
+        !------------------------------------
+            dt_mod = 1.0_wp*dt_inv 
+            mu     = 0.001
+
+            !------------------------------------
+            ! Fill triangular matrix
+            ! b is diagonal, a is the lower diagonal, c is the upper
+            !   top level
+            a(1) = 0.0_wp
+            c(1) = -A_v(jc,2,jb) * inv_stretch_z_i(1) * inv_cart_thick(1) &
+                & * inv_stretch_z_m(2) * inv_cart_center_dist(2)
+            b(1) = dt_mod - c(1)
+            DO jk = 2, bottom_level-1
+              a(jk) = - A_v(jc,jk,jb)    * inv_stretch_z_i(jk) * inv_cart_thick(jk) &
+                 & * inv_stretch_z_m(jk) * inv_cart_center_dist(jk)
+              c(jk) = - A_v(jc,jk+1,jb)  * inv_stretch_z_i(jk) * inv_cart_thick(jk) &
+                 & * inv_stretch_z_m(jk+ 1) * inv_cart_center_dist(jk+1)
+
+              b(jk) = dt_mod - a(jk) - c(jk)
+            END DO
+            ! bottom
+
+            a(bottom_level) = -A_v(jc,bottom_level,jb) *inv_stretch_z_i(bottom_level) &
+                & * inv_cart_thick(bottom_level) * inv_stretch_z_m(bottom_level ) &
+                & * inv_cart_center_dist(bottom_level)
+
+            b(bottom_level) = dt_mod - a(bottom_level)
+            c(bottom_level) = 0.0_wp
+    
+            DO jk = 1, bottom_level
+               column_tracer(jk) = field_column(jc,jk,jb) * dt_mod 
+            ENDDO
+
+
+
+        END SELECT 
+
+        !------------------------------------
+        ! The below algorithm is generic and not format specific
+        ! 
+
+        !------------------------------------
+        ! solver from lapack
+        !
+        ! eliminate upper diagonal
+        DO jk=bottom_level-1, 1, -1
+          fact(jk+1)  = c( jk ) / b( jk+1 )
+          b( jk ) = b( jk ) - fact(jk+1) * a( jk +1 )
+          column_tracer( jk ) = column_tracer( jk ) - fact(jk+1) * column_tracer( jk+1 )
+        ENDDO
+
+        !     Back solve with the matrix U from the factorization.
+        column_tracer( 1 ) = column_tracer( 1 ) / b( 1 )
+        DO jk =  2, bottom_level
+          column_tracer( jk ) = ( column_tracer( jk ) - a( jk ) * column_tracer( jk-1 ) ) / b( jk )
+        ENDDO
+
+        DO jk = 1, bottom_level
+          ocean_tracer%concentration(jc,jk,jb) = column_tracer(jk)
+        ENDDO
+
+      END DO ! jc = start_index, end_index
+    END DO ! jb = cells_in_domain%start_block, cells_in_domain%end_block
+
+  END SUBROUTINE tracer_diffusion_vertical_implicit_r3
+  !------------------------------------------------------------------------
+
   !------------------------------------------------------------------------
   SUBROUTINE velocity_diffusion_vertical_implicit_r1( patch_3D,               &
                                            & velocity, A_v,   &

@@ -71,6 +71,7 @@ USE mo_physical_constants , ONLY :   &
 
 USE mo_nwp_parameters,  ONLY: t_phy_params
 USE mo_exception,       ONLY: message
+USE mo_fortran_tools,   ONLY: set_acc_host_or_device
 ! end of mo_physical_constants
 
 
@@ -128,7 +129,7 @@ SUBROUTINE sso (                                                       &
            psso_stdh, psso_gamma, psso_theta, psso_sigma, sfcfric_fac, &
            pdt    , mkenvh, params,                                    &
            ldebug ,                                                    &
-           pdu_sso, pdv_sso, pustr_sso, pvstr_sso, pvdis_sso, use_acc  )
+           pdu_sso, pdv_sso, pustr_sso, pvstr_sso, pvdis_sso, lacc )
 
 !------------------------------------------------------------------------------
 !
@@ -176,7 +177,7 @@ SUBROUTINE sso (                                                       &
       iend             ! end index for first (zonal) direction
 
 
-      LOGICAL, OPTIONAL, INTENT(in)    :: use_acc !< initialization flag
+      LOGICAL, OPTIONAL, INTENT(in)    :: lacc ! If true, use openacc
 
       ! Tuning parameters
       TYPE(t_phy_params),INTENT(in)    :: params
@@ -240,7 +241,7 @@ SUBROUTINE sso (                                                       &
 
       LOGICAL  lo_sso (ie)
 
-      LOGICAL :: lzacc             ! OpenACC flag
+      LOGICAL :: lzacc ! non-optional version of lacc
 
       REAL(KIND=wp) :: zfi    (ie,ke)
       ! geopotential minus surface geopotential (m**2/s**2)
@@ -296,19 +297,14 @@ SUBROUTINE sso (                                                       &
       minsso  = params%minsso
       blockred= params%blockred
 
-      ! openACC flag (initialization run is left on)
-      IF(PRESENT(use_acc)) THEN
-        lzacc = use_acc
-      ELSE
-        lzacc = .FALSE.
-      ENDIF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays  
-      !$ACC DATA PRESENT(pt, pu, pv, pfif, pfis, pph, ppf, psso_stdh, psso_gamma, sfcfric_fac,     &
-      !$ACC             psso_theta, psso_sigma, pdv_sso, pdu_sso, pustr_sso, pvstr_sso, pvdis_sso) &
-      !$ACC CREATE(mcrit, mkcrith, mknu, mknu2, lo_sso,                                       &
-      !$ACC       zfi, ztau, zstrdu, zstrdv, zstab, zvph, zrho, zri, zpsi, zzdep,                    &
-      !$ACC       zdudt, zdvdt, zdtdt, zulow, zvlow, zvidis, zd1, zd2, zdmod, mkenvh) IF(lzacc)        
+      !$ACC DATA PRESENT(pt, pu, pv, pfif, pfis, pph, ppf, psso_stdh, psso_gamma, sfcfric_fac) &
+      !$ACC   PRESENT(psso_theta, psso_sigma, pdv_sso, pdu_sso, pustr_sso, pvstr_sso, pvdis_sso) &
+      !$ACC   CREATE(mcrit, mkcrith, mknu, mknu2, lo_sso) &
+      !$ACC   CREATE(zfi, ztau, zstrdu, zstrdv, zstab, zvph, zrho, zri, zpsi, zzdep) &
+      !$ACC   CREATE(zdudt, zdvdt, zdtdt, zulow, zvlow, zvidis, zd1, zd2, zdmod, mkenvh) IF(lzacc)
 
 !     Timestep is already set for 2TL or 3TL scheme, respectively,
 !     in calling routine organize_sso.
@@ -354,7 +350,7 @@ SUBROUTINE sso (                                                       &
          psso_stdh, psso_theta, psso_gamma, lo_sso,       &
          zrho  , zri   , zstab, ztau, zvph, zpsi, zzdep, &
          zulow , zvlow , zd1  , zd2 ,zdmod, mkcrith ,    &
-         mcrit, mkenvh,mknu,mknu2, use_acc=lzacc )
+         mcrit, mkenvh,mknu,mknu2, lacc=lzacc )
 
 ! ========================================================
 !     Surface gravity wave stress amplitude
@@ -363,7 +359,7 @@ SUBROUTINE sso (                                                       &
       CALL gw_stress (                                   &
          ie     , ke1 , istart , iend   ,                &
          zrho,zstab,zvph,psso_stdh,psso_sigma,zdmod,     &
-         lo_sso, zfi, mkenvh, ztau, use_acc=lzacc )
+         lo_sso, zfi, mkenvh, ztau, lacc=lzacc )
 
 ! ========================================================
 !     Gravity wave stress profile
@@ -374,7 +370,7 @@ SUBROUTINE sso (                                                       &
          pph   , zrho  , zstab , zvph    , zri  ,        &
          ztau  , zdmod , psso_sigma, psso_stdh  ,        &
          mkcrith, mcrit, mkenvh, mknu    , mknu2,        &
-         lo_sso , use_acc=lzacc )
+         lo_sso , lacc=lzacc )
 
 ! ========================================================
 !     Computation of SSO effects' tendencies
@@ -512,8 +508,8 @@ SUBROUTINE sso (                                                       &
 !     ----------------
 
       IF (ldebug) THEN
-      !$ACC UPDATE HOST (pfis, psso_stdh, psso_gamma, psso_theta, psso_sigma) ASYNC(1) IF(lzacc)
-      !$ACC UPDATE HOST (pph, ppf, pu, pv, pt, pfif, pdu_sso, pdv_sso) ASYNC(1) IF(lzacc)
+      !$ACC UPDATE HOST(pfis, psso_stdh, psso_gamma, psso_theta, psso_sigma) ASYNC(1) IF(lzacc)
+      !$ACC UPDATE HOST(pph, ppf, pu, pv, pt, pfif, pdu_sso, pdv_sso) ASYNC(1) IF(lzacc)
       !$ACC WAIT IF(lzacc)
         DO j1=istart,iend
           IF (j1.EQ.55) THEN
@@ -561,7 +557,7 @@ SUBROUTINE sso_setup (                                      &
            psso_stdh, psso_theta, psso_gamma , lo_sso,      &
            prho  , pri   , pstab, ptau, pvph , ppsi, pzdep, &
            pulow , pvlow , pd1  , pd2 , pdmod,              &
-           kkcrith, kcrit, kkenvh,kknu,kknu2, use_acc)
+           kkcrith, kcrit, kkenvh,kknu,kknu2, lacc)
 
 
 !------------------------------------------------------------------------------
@@ -599,7 +595,7 @@ SUBROUTINE sso_setup (                                      &
       istart    ,    & ! start index for first (zonal) direction
       iend             ! end index for first (zonal) direction
 
-      LOGICAL, OPTIONAL, INTENT(IN)  :: use_acc
+      LOGICAL, OPTIONAL, INTENT(IN)  :: lacc ! If true, use openacc
 
       REAL(KIND=wp) :: pph (:,:) ! (ie,ke1)
       REAL(KIND=wp) :: ppf (:,:) ! (ie,ke)
@@ -706,18 +702,13 @@ SUBROUTINE sso_setup (                                      &
 
 ! Begin subroutine
 
-
-      IF(PRESENT(use_acc)) THEN
-        lzacc = use_acc
-      ELSE
-        lzacc = .FALSE.
-      ENDIF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays
-      !$ACC DATA PRESENT(pph, ppf, pu, pv, pt, pfi, psso_stdh, psso_theta, psso_gamma, lo_sso,   &
-      !$ACC              prho, pri, pstab, ptau, pvph, ppsi, pzdep, pulow, pvlow, pd1,           &
-      !$ACC              pd2, pdmod, kkcrith, kcrit, kkenvh, kknu, kknu2)                        & 
-      !$ACC CREATE(lo1, mknul, mknub, znu, znum, znup, znorm, zsqst, zdp, zvpf) IF(lzacc)          
+      !$ACC DATA PRESENT(pph, ppf, pu, pv, pt, pfi, psso_stdh, psso_theta, psso_gamma, lo_sso) &
+      !$ACC   PRESENT(prho, pri, pstab, ptau, pvph, ppsi, pzdep, pulow, pvlow, pd1) &
+      !$ACC   PRESENT(pd2, pdmod, kkcrith, kcrit, kkenvh, kknu, kknu2) &
+      !$ACC   CREATE(lo1, mknul, mknub, znu, znum, znup, znorm, zsqst, zdp, zvpf) IF(lzacc)
 
   
       Nktopg = ke               ! number of topmost layer used to defined low level
@@ -993,7 +984,7 @@ SUBROUTINE sso_setup (                                      &
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=mi3h,ke   ! vertical loop
-        !$ACC LOOP GANG VECTOR private(zst)
+        !$ACC LOOP GANG VECTOR PRIVATE(zst)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
             IF(j3.GE.(mknub(j1)+1).AND.j3.LE.mknul(j1)) THEN
@@ -1162,7 +1153,7 @@ END SUBROUTINE sso_setup
 SUBROUTINE gw_stress (                                  &
            ie     , ke1 , istart , iend   ,             &
            prho,pstab,pvph,psso_stdh,psso_sigma,pdmod,  &
-           lo_sso, pfi,mkenvh,ptau ,use_acc )
+           lo_sso, pfi,mkenvh,ptau ,lacc )
 
 !------------------------------------------------------------------------------
 !
@@ -1182,7 +1173,7 @@ SUBROUTINE gw_stress (                                  &
       ie        ,    & ! number of grid points in first (zonal) direction
       ke1              ! ke + 1
 
-      LOGICAL, OPTIONAL, INTENT(IN)  :: use_acc
+      LOGICAL, OPTIONAL, INTENT(IN)  :: lacc ! If true, use openacc
 
       INTEGER, INTENT(IN) ::  &
       istart    ,    & ! start index for first (zonal) direction
@@ -1204,7 +1195,7 @@ SUBROUTINE gw_stress (                                  &
       INTEGER mkenvh (:) ! (ie) index of top of envelope layer
 
       LOGICAL lo_sso(:) ! (ie)
-      LOGICAL :: lzacc
+      LOGICAL :: lzacc ! non-optional version of lacc
       !
 
 !     Output
@@ -1221,11 +1212,7 @@ SUBROUTINE gw_stress (                                  &
                               ! calculation
       INTEGER j1  ! loop variable
 
-      IF(PRESENT(use_acc)) THEN
-        lzacc = use_acc
-      ELSE
-        lzacc = .FALSE.
-      ENDIF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays
       !$ACC DATA PRESENT(ptau, lo_sso, prho, pstab, pvph, psso_stdh, psso_sigma, pdmod, pfi, mkenvh) IF(lzacc)
@@ -1265,7 +1252,7 @@ SUBROUTINE gw_profil(                                    &
            pph    , prho   , pstab  , pvph     , pri ,   &
            ptau   , pdmod  , psso_sigma, psso_stdh   ,   &
            kkcrith, kcrit, kkenvh, kknu, kknu2 ,         &
-           lo_sso , use_acc)
+           lo_sso , lacc)
 
 !------------------------------------------------------------------------------
 !
@@ -1296,7 +1283,7 @@ SUBROUTINE gw_profil(                                    &
       ke        ,    & ! number of grid points in vertical direction
       ke1              ! ke + 1
 
-      LOGICAL, OPTIONAL, INTENT(IN)  :: use_acc
+      LOGICAL, OPTIONAL, INTENT(IN)  :: lacc ! If true, use openacc
 
       INTEGER, INTENT(IN) ::  &
       istart    ,    & ! start index for first (zonal) direction
@@ -1342,20 +1329,16 @@ SUBROUTINE gw_profil(                                    &
       REAL(KIND=wp) :: zsqri,zdz2n                               ! utitility variables
 
       INTEGER j1,j3                 ! loop indices
-      LOGICAL :: lzacc
+      LOGICAL :: lzacc ! non-optional version of lacc
 
-      IF(PRESENT(use_acc)) THEN
-        lzacc = use_acc
-      ELSE
-        lzacc = .FALSE.
-      ENDIF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays
-      !$ACC DATA PRESENT(pph, prho, pstab, pri, pvph, ptau, pdmod, psso_stdh, psso_sigma,       &
-      !$ACC             kkcrith,  kcrit, kkenvh, kknu, kknu2, lo_sso)                           &
-      !$ACC CREATE(zdz2, ztau, znorm, zoro) IF(lzacc)
+      !$ACC DATA PRESENT(pph, prho, pstab, pri, pvph, ptau, pdmod, psso_stdh, psso_sigma) &
+      !$ACC   PRESENT(kkcrith, kcrit, kkenvh, kknu, kknu2, lo_sso) &
+      !$ACC   CREATE(zdz2, ztau, znorm, zoro) IF(lzacc)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1368,9 +1351,9 @@ SUBROUTINE gw_profil(                                    &
       !$ACC END PARALLEL
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP SEQ     
+      !$ACC LOOP SEQ
       DO j3=ke,2,-1     ! vertical loop
-        !$ACC LOOP GANG VECTOR  
+        !$ACC LOOP GANG VECTOR
         DO j1=istart,iend
 !     constant stress up to top of blocking layer
 !     ===========================================  
@@ -1418,11 +1401,11 @@ SUBROUTINE gw_profil(                                    &
         END DO
 
       END DO       ! end of vertical loop
-      !$ACC END PARALLEL  
+      !$ACC END PARALLEL
 
 !     reorganisation of stress profile, if breaking occurs at low levels
 !     ==================================================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
@@ -1433,7 +1416,7 @@ SUBROUTINE gw_profil(                                    &
       !$ACC END PARALLEL
 
 !     linear decrease between kkenvh and kkcrith
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)     
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO j3=1,ke      ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN

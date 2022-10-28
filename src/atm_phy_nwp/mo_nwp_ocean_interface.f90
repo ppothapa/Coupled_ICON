@@ -27,7 +27,8 @@ MODULE mo_nwp_ocean_interface
   USE mo_nwp_lnd_types       ,ONLY: t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types      ,ONLY: t_external_data
   USE mo_ccycle_config       ,ONLY: ccycle_config
-                                
+
+  USE mo_fortran_tools       ,ONLY: assert_acc_host_only
   USE mo_parallel_config     ,ONLY: nproma
   USE mo_impl_constants_grf  ,ONLY: grf_bdywidth_c
   USE mo_impl_constants      ,ONLY: min_rlcell, min_rlcell_int
@@ -84,7 +85,7 @@ CONTAINS
   !! This subroutine is called from nwp_nh_interface.
 
   SUBROUTINE nwp_couple_ocean( p_patch, pt_diag, lnd_diag, &
-    &                          wtr_prog_now, wtr_prog_new, prm_diag, ext_data )
+    &                          wtr_prog_now, wtr_prog_new, prm_diag, ext_data, lacc )
 
     ! Arguments
 
@@ -94,6 +95,7 @@ CONTAINS
     TYPE(t_lnd_diag),        INTENT(INOUT)  :: lnd_diag
     TYPE(t_nwp_phy_diag),    INTENT(INOUT)  :: prm_diag
     TYPE(t_external_data),   INTENT(INOUT)  :: ext_data
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! Local variables
 
@@ -119,6 +121,8 @@ CONTAINS
     REAL(wp), ALLOCATABLE :: buffer(:,:)           ! buffer transferred to YAC coupler
 
     IF ( .NOT. is_coupled_run() ) RETURN
+
+    CALL assert_acc_host_only('nwp_couple_ocean', lacc)
 
 #ifndef YAC_coupling
     CALL finish('nwp_couple_ocean: unintentionally called. Check your source code and configure.')

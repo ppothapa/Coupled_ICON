@@ -82,12 +82,12 @@ CONTAINS
     INTEGER  :: jsfc, jk, jl
     REAL(wp) :: zconst, zdqv, zdcptv
 
-    !$ACC DATA PRESENT( pfrc, lsmask, alake, pcfh_tile, pfac_sfc, pcpt_tile,  &
-    !$ACC               pqsat_tile, pca, pcs, bb_btm, plhflx_gbm, plhflx_lice, &
-    !$ACC               plhflx_tile, pshflx_gbm, pshflx_lnd, pshflx_lwtr,      &
-    !$ACC               pshflx_lice, pevap_gbm, pevap_lnd, pevap_lwtr,         &
-    !$ACC               pevap_lice, pevap_tile, plhflx_lnd, plhflx_lwtr,       &
-    !$ACC               pshflx_tile )
+    !$ACC DATA PRESENT(pfrc, lsmask, alake, pcfh_tile, pfac_sfc, pcpt_tile) &
+    !$ACC   PRESENT(pqsat_tile, pca, pcs, bb_btm, plhflx_gbm, plhflx_lice) &
+    !$ACC   PRESENT(plhflx_tile, pshflx_gbm, pshflx_lnd, pshflx_lwtr) &
+    !$ACC   PRESENT(pshflx_lice, pevap_gbm, pevap_lnd, pevap_lwtr) &
+    !$ACC   PRESENT(pevap_lice, pevap_tile, plhflx_lnd, plhflx_lwtr) &
+    !$ACC   PRESENT(pshflx_tile)
 
     !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jsfc = 1,ksfc_type
@@ -111,7 +111,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
-      !$ACC LOOP GANG(static:1) VECTOR PRIVATE( zdqv )
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdqv)
       DO jl = jcs, kproma
         ! Vertical gradient of specific humidity scaled by factor (1/tpfac1).
         ! Formula: ( qv_{tavg,klev} - qs_tile )/tpfac1
@@ -168,7 +168,7 @@ CONTAINS
     ! Instantaneous values
 
     IF (idx_lnd <= ksfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl = jcs, kproma
         IF (lsmask(jl) > 0._wp) THEN
           plhflx_tile(jl,idx_lnd) = plhflx_lnd(jl)
@@ -176,7 +176,7 @@ CONTAINS
       END DO
     END IF
     IF (idx_wtr <= ksfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl = jcs, kproma
         IF (alake(jl) > 0._wp) THEN
           plhflx_tile(jl,idx_wtr) = plhflx_lwtr(jl)
@@ -186,7 +186,7 @@ CONTAINS
       END DO
     END IF
     IF (idx_ice <= ksfc_type) THEN
-      !$ACC LOOP GANG(static:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl = jcs, kproma
         IF (alake(jl) > 0._wp) THEN
           plhflx_tile(jl,idx_ice) = plhflx_lice(jl)
@@ -203,7 +203,7 @@ CONTAINS
 
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
-      !$ACC LOOP GANG(static:1) VECTOR PRIVATE( zdcptv )
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdcptv)
       DO jl = jcs, kproma
 
         ! Vertical gradient of dry static energy.
@@ -249,7 +249,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
-      !$ACC LOOP GANG VECTOR 
+      !$ACC LOOP GANG VECTOR
       DO jl = jcs, kproma
         pevap_gbm (jl) = pevap_gbm (jl) + pfrc(jl,jsfc) * pevap_tile (jl,jsfc)
         plhflx_gbm(jl) = plhflx_gbm(jl) + pfrc(jl,jsfc) * plhflx_tile(jl,jsfc)
@@ -308,11 +308,11 @@ CONTAINS
     !  *(surface turbulent exchange coeff)
     !  *[(u-/v-wind at lowest model level)/tpfac1]
 
-    !$ACC DATA PRESENT( pu_stress_tile, pv_stress_tile, pfac_sfc, pfrc,        &
-    !$ACC               pocu, pocv,                                            &
-    !$ACC               pu_stress_gbm, pv_stress_gbm, pcfm_tile, pu_rtpfac1,   &
-    !$ACC               pv_rtpfac1 )  &
-    !$ACC      PRESENT( is, loidx )
+    !$ACC DATA PRESENT(pu_stress_tile, pv_stress_tile, pfac_sfc, pfrc) &
+    !$ACC   PRESENT(pocu, pocv) &
+    !$ACC   PRESENT(pu_stress_gbm, pv_stress_gbm, pcfm_tile, pu_rtpfac1) &
+    !$ACC   PRESENT(pv_rtpfac1) &
+    !$ACC   PRESENT(is, loidx)
 
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
@@ -335,7 +335,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
-       !$ACC LOOP GANG VECTOR PRIVATE( js )
+       !$ACC LOOP GANG VECTOR PRIVATE(js)
        DO jls = 1,is(jsfc)
           ! set index
           js=loidx(jls,jsfc)
@@ -440,14 +440,14 @@ CONTAINS
     REAL(wp)     :: ua(kbdim)
     REAL(wp), POINTER :: pbtile(:,:)
 
-    !$ACC DATA PRESENT( pfrc, pqm1, pzf, pzs, pcptgz, pcpt_tile, pbn_tile,     &
-    !$ACC               pbhn_tile, pbh_tile, pbm_tile, pri_tile, ptm1, papm1,  &
-    !$ACC               pxm1, pum1, pvm1, paphm1, pocu, pocv, ptasmax,         &
-    !$ACC               ptasmin )                                              &
-    !$ACC      PRESENT( psfcWind_gbm, psfcWind_tile, ptas_gbm, ptas_tile,      &
-    !$ACC               pdew2_gbm, pdew2_tile, puas_gbm, puas_tile, pvas_gbm,  &
-    !$ACC               pvas_tile )                                            &
-    !$ACC      PCREATE( zrh2m, zaph2m, zfrac, ua, is, loidx, icond )
+    !$ACC DATA PRESENT(pfrc, pqm1, pzf, pzs, pcptgz, pcpt_tile, pbn_tile) &
+    !$ACC   PRESENT(pbhn_tile, pbh_tile, pbm_tile, pri_tile, ptm1, papm1) &
+    !$ACC   PRESENT(pxm1, pum1, pvm1, paphm1, pocu, pocv, ptasmax) &
+    !$ACC   PRESENT(ptasmin) &
+    !$ACC   PRESENT(psfcWind_gbm, psfcWind_tile, ptas_gbm, ptas_tile) &
+    !$ACC   PRESENT(pdew2_gbm, pdew2_tile, puas_gbm, puas_tile, pvas_gbm) &
+    !$ACC   PRESENT(pvas_tile) &
+    !$ACC   PCREATE(zrh2m, zaph2m, zfrac, ua, is, loidx, icond)
 
     !CONSTANTS
     zhuv          =  10._wp ! 10m
@@ -501,8 +501,8 @@ CONTAINS
         pbtile => pbn_tile
       END IF
 
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT( pbtile ) ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, zrat, zcbn, zcbs, zcbu, zmerge, zred, zh2m, zqs1 )
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(pbtile) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, zrat, zcbn, zcbs, zcbu, zmerge, zred, zh2m, zqs1)
       DO jls=jcs,is(jsfc)
         jl = loidx(jls,jsfc)
         zrat   = zhtq / (pzf(jl)-pzs(jl))
@@ -527,7 +527,7 @@ CONTAINS
       CALL lookup_ua_list_spline('nsurf_diag(2)', jcs, kbdim, is(jsfc), loidx(:,jsfc), ptas_tile(:,jsfc), ua)
 
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, zqs2, zq2m, zcvm3, zcvm4 )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, zqs2, zq2m, zcvm3, zcvm4)
       DO jls=jcs,is(jsfc)
         jl = loidx(jls,jsfc)
         IF(ptas_tile(jl,jsfc) .GT. tmelt) THEN
@@ -553,7 +553,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
-      !$ACC LOOP GANG VECTOR PRIVATE( jl, zrat, zcbn, zcbs, zcbu, zmerge, zred )
+      !$ACC LOOP GANG VECTOR PRIVATE(jl, zrat, zcbn, zcbs, zcbu, zmerge, zred)
       DO jls=jcs,is(jsfc)
         jl = loidx(jls,jsfc)
         zrat   = zhuv / (pzf(jl)-pzs(jl))

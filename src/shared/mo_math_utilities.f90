@@ -2282,7 +2282,7 @@ CONTAINS
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 350
   !!
   ELEMENTAL FUNCTION ccw( p0, p1, p2 )
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
     !
 
     IMPLICIT NONE
@@ -2339,7 +2339,7 @@ CONTAINS
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 351
   !!
   ELEMENTAL FUNCTION lintersect( line1, line2 )
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     TYPE(t_line), INTENT(in) :: line1
     TYPE(t_line), INTENT(in) :: line2
@@ -2381,7 +2381,7 @@ CONTAINS
   !! Initial revision by Daniel Reinert  (2012-04-03)
   !!
   FUNCTION line_intersect( line1, line2 ) result(intersect)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     TYPE(t_line), INTENT(in) :: line1
     TYPE(t_line), INTENT(in) :: line2
@@ -2471,48 +2471,48 @@ CONTAINS
     INTEGER :: i
     INTEGER :: jc
 
-!$ACC DATA CREATE( cp, dp), PCOPYIN(a, b, c, d), &
-!$ACC PCOPYOUT( varout ), IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA CREATE(cp, dp) PRESENT(a, b, c, d) &
+    !$ACC   PRESENT(varout) IF(i_am_accel_node .AND. acc_on)
 
     ! initialize c-prime and d-prime
-!$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev,elev,startidx,endidx) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev, elev, startidx, endidx) ASYNC(1) IF(i_am_accel_node .AND. acc_on)
+    !$ACC LOOP GANG VECTOR
     DO jc=startidx, endidx
       cp(jc,slev) = c(jc,slev)/b(jc,slev)
       dp(jc,slev) = d(jc,slev)/b(jc,slev)
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
     ! solve for vectors c-prime and d-prime
-!$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev,elev,startidx,endidx) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP SEQ
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev, elev, startidx, endidx) ASYNC(1) IF(i_am_accel_node .AND. acc_on)
+    !$ACC LOOP SEQ
 !NEC$ outerloop_unroll(4)
     DO i = slev+1,elev
-!$ACC LOOP GANG VECTOR PRIVATE( m )
+      !$ACC LOOP GANG VECTOR PRIVATE(m)
       DO jc=startidx, endidx
         m = 1._wp/(b(jc,i)-cp(jc,i-1)*a(jc,i))
         cp(jc,i) = c(jc,i) * m
         dp(jc,i) = (d(jc,i)-dp(jc,i-1)*a(jc,i)) * m
       ENDDO
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
     ! initialize varout
-!$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node .AND. acc_on)
     varout(startidx:endidx,elev) = dp(startidx:endidx,elev)
-!$ACC END KERNELS
+    !$ACC END KERNELS
     ! solve for varout from the vectors c-prime and d-prime
-!$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev,elev,startidx,endidx) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP SEQ
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(slev, elev, startidx, endidx) ASYNC(1) IF(i_am_accel_node .AND. acc_on)
+    !$ACC LOOP SEQ
 !NEC$ outerloop_unroll(4)
     DO i = elev-1, slev, -1
-!$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR
       DO jc=startidx, endidx
         varout(jc,i) = dp(jc,i)-cp(jc,i)*varout(jc,i+1)
       ENDDO
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC WAIT
-!$ACC END DATA
+    !$ACC WAIT
+    !$ACC END DATA
   END SUBROUTINE tdma_solver_vec
   !-------------------------------------------------------------------------
 

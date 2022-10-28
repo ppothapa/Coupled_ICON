@@ -65,8 +65,13 @@ MODULE mo_radiation
     &                                irad_o2,    mmr_o2,              &
     &                                irad_cfc11, vmr_cfc11,           &
     &                                irad_cfc12, vmr_cfc12,           &
-    &                                irad_aero, isolrad,              &
-    &                                izenith, cos_zenith_fixed, islope_rad
+    &                                isolrad, izenith,                &
+    &                                cos_zenith_fixed, islope_rad,    &
+    &                                irad_aero, iRadAeroNone,         &
+    &                                iRadAeroConst, iRadAeroTegen,    &
+    &                                iRadAeroART, iRadAeroConstKinne, &
+    &                                iRadAeroKinne, iRadAeroVolc,     &
+    &                                iRadAeroKinneVolc
   USE mo_lnd_nwp_config,       ONLY: isub_seaice, isub_lake, isub_water
   USE mo_extpar_config,        ONLY: nhori
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
@@ -93,6 +98,7 @@ MODULE mo_radiation
   
   USE mo_grid_config,          ONLY: l_scm_mode
   USE mo_scm_nml,              ONLY: lon_scm, lat_scm 
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -272,13 +278,13 @@ CONTAINS
 
       ENDDO!jmu0
 
-      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY( zsct ) IF( lacc )
-      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
+      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
+      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark ) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT(zsmu0, n_cosmu0pos, cosmu0_dark) IF(lacc)
         !$ACC LOOP GANG VECTOR
 !DIR$ SIMD
         DO jc = 1,ie
@@ -293,7 +299,7 @@ CONTAINS
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
-      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN
@@ -372,13 +378,13 @@ CONTAINS
 
       ENDDO !jmu0
 
-      !$ACC DATA CREATE (n_cosmu0pos) COPYIN ( cosmu0_dark ) COPY ( zsct ) IF( lacc )
-      !$ACC UPDATE DEVICE( zsmu0, n_cosmu0pos ) IF( lacc )
+      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
+      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT( zsmu0, n_cosmu0pos, cosmu0_dark, zsct ) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) PRESENT(zsmu0, n_cosmu0pos, cosmu0_dark, zsct) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1,ie
           IF ( n_cosmu0pos(jc,jb) > 0 ) THEN
@@ -400,7 +406,7 @@ CONTAINS
           zsct = zsct_save
         ENDIF
       ENDIF
-      !$ACC UPDATE HOST( zsmu0 ) IF( lacc )
+      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 5) THEN
@@ -524,13 +530,9 @@ CONTAINS
       ptr_center => pt_patch%cells%center
     ENDIF
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta) IF(lzacc)
+    !$ACC DATA CREATE(zsinphi, zcosphi, zeitrad, czra, szra, csang, ssang, csazi, ssazi, zha_sun, zphi_sun, ztheta_sun, ztheta) IF(lzacc)
 
     !First case: izenith==0 to izenith==2 and izenith=6 (no date and time needed)
     IF (izenith == 0) THEN
@@ -1536,12 +1538,12 @@ CONTAINS
     ! --------------------------------
 
     SELECT CASE (irad_aero)
-    CASE (0,2)
+    CASE (iRadAeroNone,iRadAeroConst)
       aer_tau_lw_vr(:,:,:) = 0.0_wp
       aer_tau_sw_vr(:,:,:) = 0.0_wp
       aer_piz_sw_vr(:,:,:) = 1.0_wp
       aer_cg_sw_vr(:,:,:)  = 0.0_wp
-    CASE (5,6)
+    CASE (iRadAeroTegen)
       IF (PRESENT(dust_tunefac)) THEN
         tune_dust(1:jce,1:jpband) = dust_tunefac(1:jce,1:jpband)
       ELSE
@@ -1594,7 +1596,7 @@ CONTAINS
         ENDDO
       ENDDO
 #ifdef __ICON_ART
-    CASE (9)
+    CASE (iRadAeroART)
       CALL art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5, &
         &                         zaea_rrtm,zaes_rrtm,zaeg_rrtm, &
         &                         jg,jb,1,klev,1,jce,jpband,jpsw,&
@@ -1603,7 +1605,7 @@ CONTAINS
         &                         aer_piz_sw_vr,                 &
         &                         aer_cg_sw_vr)
 #endif
-    CASE (12,13)
+    CASE (iRadAeroConstKinne,iRadAeroKinne)
        ! this is for rrtm radiation in the NWP part, we do not introduce
        ! the simple plumes here
        CALL set_bc_aeropt_kinne( current_date                        ,&
@@ -1614,7 +1616,7 @@ CONTAINS
         & p_nh_state(jg)% metrics% ddqz_z_full(:,:,jb)              ,&
         & aer_tau_sw_vr    ,aer_piz_sw_vr         , aer_cg_sw_vr    ,&
         & aer_tau_lw_vr                                              )
-    CASE (14)
+    CASE (iRadAeroVolc)
       ! this is for rrtm radiation in the NWP part, we do not introduce
       ! the simple plumes here
       ! set zero aerosol before adding CMIP6 volcanic aerosols
@@ -1630,7 +1632,7 @@ CONTAINS
         & aer_tau_sw_vr    ,aer_piz_sw_vr         ,aer_cg_sw_vr     ,&
         & aer_tau_lw_vr                                              )
       
-   CASE (15)
+   CASE (iRadAeroKinneVolc)
       CALL set_bc_aeropt_kinne( current_date                        ,&
         & jg                                                        ,&
         & 1,   jce         ,kbdim                 ,klev             ,&
@@ -1959,16 +1961,12 @@ CONTAINS
       CALL finish('radheat', 'I/O field skyview is missing')
     ENDIF
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE( zflxsw, zflxlw, zconv, tqv, dlwem_o_dtg,            &
-    !$ACC              lwfac1, lwfac2, intclw, intcli, dlwflxall_o_dtg,    &
-    !$ACC              dflxsw_o_dalb, trsolclr, logtqv,                    &
-    !$ACC              slope_corr ) IF(lzacc)
+    !$ACC DATA CREATE(zflxsw, zflxlw, zconv, tqv, dlwem_o_dtg) &
+    !$ACC   CREATE(lwfac1, lwfac2, intclw, intcli, dlwflxall_o_dtg) &
+    !$ACC   CREATE(dflxsw_o_dalb, trsolclr, logtqv) &
+    !$ACC   CREATE(slope_corr) IF(lzacc)
 
     lcalc_trsolclr = .TRUE.
     IF (PRESENT(use_trsolclr_sfc) .AND. PRESENT(trsol_clr_sfc)) THEN

@@ -112,16 +112,16 @@ CONTAINS
             IF (this%p%vl(i)%p%info%allocated) THEN
               SELECT CASE(this%p%vl(i)%p%info%data_type)
               CASE(REAL_T)
-!$ACC EXIT DATA DELETE(this%p%vl(i)%p%r_ptr) IF(this%p%vl(i)%p%info%lopenacc)
+                !$ACC EXIT DATA DELETE(this%p%vl(i)%p%r_ptr) IF(this%p%vl(i)%p%info%lopenacc)
                 DEALLOCATE(this%p%vl(i)%p%r_ptr)
               CASE(SINGLE_T)
-!$ACC EXIT DATA DELETE(this%p%vl(i)%p%s_ptr) IF(this%p%vl(i)%p%info%lopenacc)
+                !$ACC EXIT DATA DELETE(this%p%vl(i)%p%s_ptr) IF(this%p%vl(i)%p%info%lopenacc)
                 DEALLOCATE(this%p%vl(i)%p%s_ptr)
               CASE(INT_T)
-!$ACC EXIT DATA DELETE(this%p%vl(i)%p%i_ptr) IF(this%p%vl(i)%p%info%lopenacc)
+                !$ACC EXIT DATA DELETE(this%p%vl(i)%p%i_ptr) IF(this%p%vl(i)%p%info%lopenacc)
                 DEALLOCATE(this%p%vl(i)%p%i_ptr)
               CASE(BOOL_T)
-!$ACC EXIT DATA DELETE(this%p%vl(i)%p%l_ptr) IF(this%p%vl(i)%p%info%lopenacc)
+                !$ACC EXIT DATA DELETE(this%p%vl(i)%p%l_ptr) IF(this%p%vl(i)%p%info%lopenacc)
                 DEALLOCATE(this%p%vl(i)%p%l_ptr)
               END SELECT
             END IF

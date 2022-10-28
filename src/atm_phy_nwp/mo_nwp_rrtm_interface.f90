@@ -43,7 +43,7 @@ MODULE mo_nwp_rrtm_interface
   USE mo_nonhydro_types,       ONLY: t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation,            ONLY: radiation_nwp
-  USE mo_radiation_config,     ONLY: irad_aero
+  USE mo_radiation_config,     ONLY: irad_aero, iRadAeroTegen, iRadAeroART
   USE mo_aerosol_util,         ONLY: tune_dust, aerdis
   USE mo_lrtm_par,             ONLY: nbndlw
   USE mo_sync,                 ONLY: global_max, global_min
@@ -52,7 +52,7 @@ MODULE mo_nwp_rrtm_interface
   USE mtime,                     ONLY: datetime, newDatetime, deallocateDatetime
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
-
+  USE mo_fortran_tools,          ONLY: set_acc_host_or_device, assert_acc_host_only
   IMPLICIT NONE
 
   PRIVATE
@@ -85,7 +85,7 @@ CONTAINS
   !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-    & pt_diag,prm_diag,zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,use_acc )
+    & pt_diag,prm_diag,zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,lacc )
 
 !    CHARACTER(len=*), PARAMETER::  &
 !      &  routine = 'mo_nwp_rad_interface:'
@@ -103,7 +103,7 @@ CONTAINS
       & zaeq4(nproma,pt_patch%nlev,pt_patch%nblks_c), &
       & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c)
 
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc ! If true, use openacc
 
     ! for aerosols:
     REAL(wp):: &
@@ -112,7 +112,6 @@ CONTAINS
       & zvdael(nproma,pt_patch%nlevp1), &
       & zvdaeu(nproma,pt_patch%nlevp1), &
       & zvdaed(nproma,pt_patch%nlevp1), &
-      & zaetr_top(nproma), zaetr_bot, zaetr,       &
       & zaeqdo   (nproma), zaeqdn,                 &
       & zaequo   (nproma), zaequn,                 &
       & zaeqlo   (nproma), zaeqln,                 &
@@ -137,7 +136,7 @@ CONTAINS
     TYPE(t_time_interpolation_weights) :: current_time_interpolation_weights
     
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 
     jg        = pt_patch%id
@@ -148,23 +147,19 @@ CONTAINS
 
     IF (timers_level > 6) CALL timer_start(timer_preradiaton)
 
-    if (present(use_acc)) then
-      lacc = use_acc
-    else
-      lacc = .false.
-    end if
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA PRESENT( zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, ext_data, &
-    !$ACC             & pt_patch ) &
-    !$ACC      CREATE( zsign, zvdaes, zvdael, zvdaeu, zvdaed, zaetr_top, &
-    !$ACC            & zaeqdo, zaequo, zaeqlo, zaeqsuo, zaeqso, zptrop, &
-    !$ACC            & zdtdz, zlatfac ) IF (lacc)
+    !$ACC DATA PRESENT(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, ext_data) &
+    !$ACC   PRESENT(pt_patch) &
+    !$ACC   CREATE(zsign, zvdaes, zvdael, zvdaeu, zvdaed) &
+    !$ACC   CREATE(zaeqdo, zaequo, zaeqlo, zaeqsuo, zaeqso, zptrop) &
+    !$ACC   CREATE(zdtdz, zlatfac) IF(lzacc)
 
     !-------------------------------------------------------------------------
     !> Radiation setup
     !-------------------------------------------------------------------------
 
-    IF ( irad_aero == 6  .OR. irad_aero == 9) THEN
+    IF ( irad_aero == iRadAeroTegen  .OR. irad_aero == iRadAeroART) THEN
       current_time_hours => newDatetime(mtime_datetime)
       current_time_hours%time%minute = 0
       current_time_hours%time%second = 0
@@ -184,87 +179,20 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_endidx,zsign,zvdaes, zvdael, zvdaeu, zvdaed, &
-!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zaetr_bot,     &
-!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, zaetr_top,     & 
-!$OMP            zaetr,wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
+!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, &
+!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, & 
+!$OMP            wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                        i_startidx, i_endidx, rl_start, rl_end)
 
 
-      IF ( irad_aero == 5 ) THEN ! Tanre aerosols
-
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = 2, nlevp1
-          DO jc = 1,i_endidx
-            zsign(jc,jk) = pt_diag%pres_ifc(jc,jk,jb) / 101325._wp
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! The routine aerdis is called to receive some parameters for the vertical
-        ! distribution of background aerosol.
-        CALL aerdis ( &
-          & kbdim  = nproma,      & !in
-          & jcs    = 1,           & !in
-          & jce    = i_endidx,    & !in
-          & klevp1 = nlevp1,      & !in
-          & petah  = zsign(1,1),  & !in
-          & pvdaes = zvdaes(1,1), & !out
-          & pvdael = zvdael(1,1), & !out
-          & pvdaeu = zvdaeu(1,1), & !out
-          & pvdaed = zvdaed(1,1), & !out
-          & lacc = lacc)
-
-        ! top level
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR
-        DO jc = 1,i_endidx
-          zaeqso   (jc) = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,1)
-          zaeqlo   (jc) = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,1)
-          zaequo   (jc) = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,1)
-          zaeqdo   (jc) = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,1)
-          zaetr_top(jc) = 1.0_wp
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! loop over layers
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-        !$ACC LOOP SEQ
-        DO jk = 1,nlev
-          !$ACC LOOP GANG VECTOR PRIVATE( zaeqsn, zaeqln, zaequn, zaeqdn, zaetr_bot, zaetr )
-          DO jc = 1,i_endidx
-            zaeqsn         = zaeops*prm_diag%aersea(jc,jb)*zvdaes(jc,jk+1)
-            zaeqln         = zaeopl*prm_diag%aerlan(jc,jb)*zvdael(jc,jk+1)
-            zaequn         = zaeopu*prm_diag%aerurb(jc,jb)*zvdaeu(jc,jk+1)
-            zaeqdn         = zaeopd*prm_diag%aerdes(jc,jb)*zvdaed(jc,jk+1)
-            zaetr_bot      = zaetr_top(jc) &
-              & * ( MIN (1.0_wp, pt_diag%temp_ifc(jc,jk,jb)/pt_diag%temp_ifc(jc,jk+1,jb)) )**ztrpt
-
-            zaetr          = SQRT(zaetr_bot*zaetr_top(jc))
-            zaeq1(jc,jk,jb)= (1._wp-zaetr) &
-              & * (ztrbga* pt_diag%dpres_mc(jc,jk,jb)+zaeqln-zaeqlo(jc)+zaeqdn-zaeqdo(jc))
-            zaeq2(jc,jk,jb)   = (1._wp-zaetr) * ( zaeqsn-zaeqso(jc) )
-            zaeq3(jc,jk,jb)   = (1._wp-zaetr) * ( zaequn-zaequo(jc) )
-            zaeq4(jc,jk,jb)   =     zaetr  *   zvobga*pt_diag%dpres_mc(jc,jk,jb)
-            zaeq5(jc,jk,jb)   =     zaetr  *   zstbga*pt_diag%dpres_mc(jc,jk,jb)
-
-            zaetr_top(jc) = zaetr_bot
-            zaeqso(jc)    = zaeqsn
-            zaeqlo(jc)    = zaeqln
-            zaequo(jc)    = zaequn
-            zaeqdo(jc)    = zaeqdn
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-      ELSE IF ((irad_aero == 6) .OR. (irad_aero == 9)) THEN ! Tegen aerosol climatology
+      IF ((irad_aero == iRadAeroTegen) .OR. (irad_aero == iRadAeroART)) THEN ! Tegen aerosol climatology
 
         IF (iprog_aero == 0) THEN ! purely climatological aerosol
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -281,7 +209,7 @@ CONTAINS
           !$ACC END PARALLEL
         ELSE IF (iprog_aero == 1) THEN ! simple prognostic scheme for dust, climatology for other aerosol types
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -299,7 +227,7 @@ CONTAINS
           !$ACC END PARALLEL
         ELSE ! simple prognostic scheme for all aerosol types; fill extra variables for climatology needed for relaxation equation
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aercl_ss(jc,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -316,7 +244,7 @@ CONTAINS
           !$ACC END PARALLEL
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 2, nlevp1
           DO jc = 1,i_endidx
@@ -338,10 +266,10 @@ CONTAINS
           & pvdael = zvdael(1,1), & !out
           & pvdaeu = zvdaeu(1,1), & !out
           & pvdaed = zvdaed(1,1), & !out
-          & lacc = lacc)
+          & lacc = lzacc)
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
-        !$ACC LOOP GANG VECTOR PRIVATE( jk, zslatq )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(jk, zslatq)
         DO jc = 1,i_endidx
           ! top level
           zaeqso(jc) = zvdaes(jc,1) * prm_diag%aerosol(jc,iss,jb)
@@ -363,10 +291,10 @@ CONTAINS
         !$ACC END PARALLEL
 
         ! loop over layers
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = 1,nlev
-          !$ACC LOOP GANG VECTOR PRIVATE( zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zstrfac, zpblfac )
+          !$ACC LOOP GANG VECTOR PRIVATE(zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zstrfac, zpblfac)
           DO jc = 1,i_endidx
             zaeqsn  = zvdaes(jc,jk+1) * prm_diag%aerosol(jc,iss,jb)
             zaeqln  = zvdael(jc,jk+1) * prm_diag%aerosol(jc,iorg,jb)
@@ -398,7 +326,7 @@ CONTAINS
 
       ELSE !no aerosols
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (lacc)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO jc = 1,i_endidx
@@ -417,8 +345,8 @@ CONTAINS
       ! aerosol-microphysics or aerosol-convection coupling is turned on
       IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 1 .OR. icpl_aero_conv == 1) THEN
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( wfac, ncn_bg )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, ncn_bg)
         DO jk = 1,nlev
 !DIR$ IVDEP
           DO jc = 1, i_endidx
@@ -449,7 +377,7 @@ CONTAINS
   !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_rrtm_radiation ( current_date, pt_patch, ext_data,                      &
-    &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, lnd_prog )
+    &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, lnd_prog, lacc )
 
     CHARACTER(len=*), PARAMETER::  &
       &  routine = modname//'::nwp_rrtm_radiation'
@@ -458,6 +386,8 @@ CONTAINS
     
     TYPE(t_patch),        TARGET,INTENT(in) :: pt_patch     !<grid/patch info.
     TYPE(t_external_data),TARGET,INTENT(in) :: ext_data
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     REAL(wp), INTENT(in) :: &
       & zaeq1(nproma,pt_patch%nlev,pt_patch%nblks_c), &
@@ -490,6 +420,9 @@ CONTAINS
     INTEGER:: i_startblk, i_endblk    !> blocks
     INTEGER:: i_startidx, i_endidx    !< slices
     INTEGER:: i_nchdom                !< domain index
+
+
+    CALL assert_acc_host_only(routine, lacc)
 
     i_nchdom  = MAX(1,pt_patch%n_childdom)
     jg        = pt_patch%id
@@ -662,7 +595,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_rrtm_radiation_reduced ( current_date, pt_patch, pt_par_patch, ext_data, &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,    &
-    &                                     pt_diag,prm_diag,lnd_prog )
+    &                                     pt_diag,prm_diag,lnd_prog, lacc )
 
     CHARACTER(len=*), PARAMETER::  &
       &  routine = modname//'::nwp_rrtm_radiation_reduced'
@@ -682,6 +615,8 @@ CONTAINS
     TYPE(t_nh_diag), TARGET,    INTENT(inout):: pt_diag     !<the diagnostic variables
     TYPE(t_nwp_phy_diag),       INTENT(inout):: prm_diag
     TYPE(t_lnd_prog),           INTENT(inout):: lnd_prog
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     REAL(wp):: aclcov(nproma,pt_patch%nblks_c), dust_tunefac(nproma,nbndlw)
     ! For radiation on reduced grid
@@ -801,6 +736,8 @@ CONTAINS
     INTEGER:: i_nchdom                !< domain index
     INTEGER:: i_chidx
     LOGICAL:: l_coupled_reff          ! Use the effective radius from microphysics
+
+    CALL assert_acc_host_only(routine, lacc)
 
     i_nchdom  = MAX(1,pt_patch%n_childdom)
     jg        = pt_patch%id

@@ -208,25 +208,25 @@ CONTAINS
 
     IF (lhook) CALL dr_hook('CUININ',0,zhook_handle)
 
-    !$ACC DATA                                                                  &
-    !$ACC PRESENT( pten, pqen, pqsen, puen, pven, pvervel, pgeo, paph, klwmin ) &
-    !$ACC PRESENT( klab, ptenh, pqenh, pqsenh, pgeoh, ptu, pqu, ptd, pqd, puu ) &
-    !$ACC PRESENT( pvu, pud, pvd, plu )                                         &
+    !$ACC DATA &
+    !$ACC   PRESENT(pten, pqen, pqsen, puen, pven, pvervel, pgeo, paph, klwmin) &
+    !$ACC   PRESENT(klab, ptenh, pqenh, pqsenh, pgeoh, ptu, pqu, ptd, pqd, puu) &
+    !$ACC   PRESENT(pvu, pud, pvd, plu) &
 
-    !$ACC CREATE( zwmax, zph, llflag )                                          &
-    !$ACC IF(lacc)
+    !$ACC   CREATE(zwmax, zph, llflag) &
+    !$ACC   IF(lacc)
 
     !is set below:  zph  (:) = 0.0_JPRB
    
 !   zalfa=LOG(2.0_JPRB)
     zorcpd=1._jprb/rcpd
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF (lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
     !$ACC LOOP SEQ
     DO jk=ktdia+1,klev
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         ptenh(jl,jk)=(MAX(rcpd*pten(jl,jk-1)+pgeo(jl,jk-1),&
           & rcpd*pten(jl,jk)+pgeo(jl,jk))-pgeoh(jl,jk))*zorcpd
@@ -256,7 +256,7 @@ CONTAINS
           & zph,      ptenh,    pqsenh,   llflag,   icall)
       ENDIF
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         pqenh(jl,jk)=MIN(pqen(jl,jk-1),pqsen(jl,jk-1))&
           & +(pqsenh(jl,jk)-pqsen(jl,jk-1))
@@ -266,7 +266,7 @@ CONTAINS
       !orig  130   continue
     ENDDO
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       !KF next two statements are commented in cosmo-tiedtke to avoid drizzling 2010-03-10
       ptenh(jl,klev)=(rcpd*pten(jl,klev)+pgeo(jl,klev)-pgeoh(jl,klev))*zorcpd
@@ -279,7 +279,7 @@ CONTAINS
 
     !$ACC LOOP SEQ
     DO jk=klev-1,ktdia+1,-1
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zzs)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzs)
       DO jl=kidia,kfdia
         zzs=MAX(rcpd*ptenh(jl,jk)+pgeoh(jl,jk),&
           & rcpd*ptenh(jl,jk+1)+pgeoh(jl,jk+1))
@@ -291,7 +291,7 @@ CONTAINS
     DO jk=klev,ktdia+2,-1
 !DIR$ IVDEP
 !OCL NOVREC
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(pvervel(jl,jk) < zwmax(jl)) THEN
           zwmax(jl)=pvervel(jl,jk)
@@ -309,7 +309,7 @@ CONTAINS
     DO jk=ktdia,klev
       ik=jk-1
       IF(jk == ktdia) ik=ktdia
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         ptu(jl,jk)=ptenh(jl,jk)
         ptd(jl,jk)=ptenh(jl,jk)
@@ -593,16 +593,16 @@ REAL(KIND=jprb) :: uzqp,uzl,uzi,uzqsat,uzcor,uzf,uzcond,uzcond1
 
 IF (lhook) CALL dr_hook('CUBASEN',0,zhook_handle)
 
-!$ACC DATA                                                                          &
-!$ACC PRESENT( mtnmask, ldland, ldlake, ptenh, pqenh, pgeoh, paph, pqhfl, pahfs )   &
-!$ACC PRESENT( pten, pqen, pqsen, pgeo, puen, pven, ptu, pqu, plu, puu, pvu )       &
-!$ACC PRESENT( pwubase, klab, ldcum, kcbot, kctop, kdpl, pcape, pvervel650 )        &
+!$ACC DATA &
+!$ACC   PRESENT(mtnmask, ldland, ldlake, ptenh, pqenh, pgeoh, paph, pqhfl, pahfs) &
+!$ACC   PRESENT(pten, pqen, pqsen, pgeo, puen, pven, ptu, pqu, plu, puu, pvu) &
+!$ACC   PRESENT(pwubase, klab, ldcum, kcbot, kctop, kdpl, pcape, pvervel650) &
 
-!$ACC CREATE( ldsc, kbotsc, ictop, icbot, ibotsc, ilab, idpl, ll_ldbase, llgo_on )  &
-!$ACC CREATE( lldeep, lldcum, lldsc, llfirst, llresetjl, ldocean, zsenh, zqenh )    &
-!$ACC CREATE( zsuh , zwu2h, zbuoh, zqold, zph, zmix, zdz, zlu, zqu, ztu )           &
-!$ACC CREATE( zuu, zvu, zcape, ztex, zqex, ztven1, ztven2, ztvu1, ztvu2, zdtvtrig ) &
-!$ACC IF(lacc)
+!$ACC   CREATE(ldsc, kbotsc, ictop, icbot, ibotsc, ilab, idpl, ll_ldbase, llgo_on) &
+!$ACC   CREATE(lldeep, lldcum, lldsc, llfirst, llresetjl, ldocean, zsenh, zqenh) &
+!$ACC   CREATE(zsuh, zwu2h, zbuoh, zqold, zph, zmix, zdz, zlu, zqu, ztu) &
+!$ACC   CREATE(zuu, zvu, zcape, ztex, zqex, ztven1, ztven2, ztvu1, ztvu2, zdtvtrig) &
+!$ACC   IF(lacc)
 
 zaw    = 1.0_JPRB
 zbw    = 1.0_JPRB
@@ -611,11 +611,11 @@ jkt2=njkt2
 zrg=1.0_JPRB/rg
 zrcpd=1.0_JPRB/rcpd
 
-!$ACC PARALLEL DEFAULT (PRESENT) IF (lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     ztven1(jl,jk)  = 0._jprb
     ztven2(jl,jk)  = 0._jprb
@@ -629,7 +629,7 @@ DO jk=1,klev
   ENDDO
 ENDDO
 
-!$ACC LOOP GANG(STATIC:1) VECTOR
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   zqold  (jl)         = 0._jprb
   zph    (jl)         = 0._jprb
@@ -646,7 +646,7 @@ ENDDO
 
 !$ACC LOOP SEQ
 DO jk=ktdia,klev
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     ztu(jl,jk) = ptu(jl,jk)
     zqu(jl,jk) = pqu(jl,jk)
@@ -666,7 +666,7 @@ ENDDO
 
 !$ACC LOOP SEQ
 DO jk=ktdia,klev
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     ZWU2H(JL,JK)=0.0_JPRB
     zqenh(jl,jk) = pqenh(jl,jk)
@@ -688,7 +688,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
   is=0
 #endif
 
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     IF (llgo_on(jl)) THEN
 #ifndef _OPENACC
@@ -714,7 +714,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     IF(jkk == klev) THEN
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zrho, zkhvfl, zws, zredfac, ztvenh, ztvuh)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zrho, zkhvfl, zws, zredfac, ztvenh, ztvuh)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
           zrho  = paph(jl,jkk+1)/(rd*(pten(jl,jkk)*(1.0_JPRB+retv*pqen(jl,jkk))))
@@ -750,7 +750,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     ELSE
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zredfac, ztexc, zqexc, zwork1, jk, zwork2, ztvenh, ztvuh)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zredfac, ztexc, zqexc, zwork1, jk, zwork2, ztvenh, ztvuh)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
           ilab(jl,jkk)= 1
@@ -844,7 +844,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     IF(jkk==klev) THEN ! 1/z mixing for shallow
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zeps, zqf, zsf, ztmp) 
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zeps, zqf, zsf, ztmp)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
 #ifndef _OPENACC
@@ -869,7 +869,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
 
     ELSE
 
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zqf, zsf)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqf, zsf)
       DO jl=kidia,kfdia
         IF (llgo_on(jl)) THEN
 #ifndef _OPENACC
@@ -902,10 +902,10 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
     icall=1
      
 #ifdef _OPENACC
-!$ACC LOOP GANG(STATIC:1) VECTOR
-do jl=kidia,kfdia
-if (jl==-1292) print *, 'working on:  ', ik, jk, jkk
-enddo
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    do jl=kidia,kfdia
+    if (jl==-1292) print *, 'working on:  ', ik, jk, jkk
+    enddo
 #endif
 
     CALL cuadjtq &
@@ -915,9 +915,9 @@ enddo
     !DIR$ IVDEP
     !OCL NOVREC
    
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zdq, zlglac, ztvuh, ztvenh, zbuof, ztmp, ik) &
-    !$ACC PRIVATE (zqsu, zcor, zalfaw, zfacw, zfaci, zfac, zesdp, zdqsdt, zdtdp)&
-    !$ACC PRIVATE (zdp, zpdifftop, zpdiffbot, zcbase, jkb)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdq, zlglac, ztvuh, ztvenh, zbuof, ztmp, ik) &
+    !$ACC   PRIVATE(zqsu, zcor, zalfaw, zfacw, zfaci, zfac, zesdp, zdqsdt, zdtdp) &
+    !$ACC   PRIVATE(zdp, zpdifftop, zpdiffbot, zcbase, jkb)
     DO jl=kidia,kfdia
       IF(llgo_on(jl)) THEN
    
@@ -1043,7 +1043,7 @@ enddo
     ENDDO
    
     IF(lmfdudv.AND.jkk==klev) THEN
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(.NOT.ll_ldbase(jl).AND.llgo_on(jl)) THEN
           zuu(jl,jkk)=zuu(jl,jkk)+puen(jl,jk)*(paph(jl,jk+1)-paph(jl,jk))
@@ -1058,7 +1058,7 @@ enddo
   IF( jkk==klev) THEN
     ! set values for departure level for PBL clouds = first model level
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jkt, jkb)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkt, jkb)
     DO jl=kidia,kfdia
       ldsc(jl)  = lldsc(jl)
       IF(ldsc(jl)) THEN
@@ -1100,7 +1100,7 @@ enddo
 
     !$ACC LOOP SEQ
     DO jk=klev,ktdia,-1
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jkt)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkt)
       DO jl=kidia,kfdia
         jkt=ictop(jl)
         IF ( jk>=jkt ) THEN
@@ -1117,7 +1117,7 @@ enddo
   IF( jkk < klev ) THEN
     !llreset=.FALSE.
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       IF ( .NOT.lldeep(jl) ) THEN
       !  jkt=ictop(jl)
@@ -1144,7 +1144,7 @@ enddo
 #endif
       !$ACC LOOP SEQ
       DO jk=klev,ktdia,-1
-        !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jkt, jkb)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkt, jkb)
         DO jl=kidia,kfdia
          ! keep first departure level that produces deep cloud
 !          IF ( LLDEEP(JL) .AND. LLFIRST(JL) ) THEN 
@@ -1170,7 +1170,7 @@ enddo
     ENDIF
 #endif
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(jkb)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkb)
     DO jl=kidia,kfdia
       IF ( lldeep(jl) .AND. llfirst(jl) ) THEN
         kdpl(jl)  = idpl(jl)
@@ -1192,14 +1192,14 @@ enddo
 ENDDO ! end of big loop for search of departure level     
 
 ! compute maximum CAPE value
-!$ACC LOOP GANG(STATIC:1) VECTOR
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   pcape(jl) = 0._jprb
 ENDDO
 
 !$ACC LOOP SEQ
 DO jk=ktdia,klev
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     pcape(jl) = MAX(pcape(jl),zcape(jl,jk))
   ENDDO

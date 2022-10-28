@@ -209,7 +209,7 @@ MODULE mo_ser_all
     do_serialization = .TRUE.
 
     ! make sure CPU and GPU are synchronous
-    !$acc wait
+    !$ACC WAIT
 
     SELECT CASE(savepoint_base)
       CASE("initialization")

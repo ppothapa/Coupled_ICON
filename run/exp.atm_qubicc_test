@@ -190,7 +190,9 @@ cat > ${atmo_namelist} << EOF
 /
 &initicon_nml
  init_mode          = 2           ! 2: initialize from IFS analysis
- ifs2icon_filename= 'ic_atmosphere.nc'
+ ifs2icon_filename  = 'ic_atmosphere.nc'
+ pinit_seed         = -1          ! seed for perturbation of initial model state. no perturbation by default
+ pinit_amplitude    = 0.          ! amplitude of perturbation
 /
 EOF
 
@@ -499,7 +501,7 @@ cat >> ${atmo_namelist} << EOF
  itype_pres_msl       = 4
  restart_file_type    = 5
  restart_write_mode   = 'joint procs multifile'
- lnetcdf_flt64_output = .FALSE.
+ lnetcdf_flt64_output = .TRUE.
 /
 EOF
 
@@ -573,7 +575,7 @@ done
 #
 # - cloudy levels 101...nlev (level 101 is at 22500m height, as set in htop_cloudy)
 #
-varlist="'clw' 'cli'"
+varlist="'clw' 'cli' 'qr' 'qs' 'qg'"
 #
 for var in ${varlist}
 do
@@ -632,7 +634,7 @@ done
 #
 # - cloudy levels 101...nlev
 #
-varlist="'clw' 'cli'"
+varlist="'clw' 'cli' 'qr' 'qs' 'qg'"
 #
 for var in ${varlist}
 do

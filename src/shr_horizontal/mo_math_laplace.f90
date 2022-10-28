@@ -128,9 +128,6 @@ INTERFACE nabla2_vec
 
 END INTERFACE
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
 
 CONTAINS
 
@@ -263,8 +260,8 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 i_startblk = ptr_patch%edges%start_blk(rl_start,1)
 i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
-!$ACC DATA CREATE( z_div_c, z_rot_v, z_rot_e ), PCOPYIN( vec_e ), PCOPY( nabla2_vec_e ), &
-!$ACC      PRESENT( ptr_patch, ptr_int ), IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA CREATE(z_div_c, z_rot_v, z_rot_e) PRESENT(vec_e) PRESENT(nabla2_vec_e) &
+!$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 ! Initialization of unused elements of nabla2_vec_e
 ! DO jb = 1, i_startblk
@@ -299,9 +296,9 @@ CASE (3) ! (cell_type == 3)
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
-   !$ACC LOOP GANG
+    !$ACC LOOP GANG
     DO je = i_startidx, i_endidx
      !$ACC LOOP VECTOR
       DO jk = slev, elev
@@ -324,7 +321,7 @@ CASE (3) ! (cell_type == 3)
 
       END DO
     END DO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
   END DO
 
@@ -360,8 +357,8 @@ CASE (6) ! (cell_type == 6)
       nlen = npromz_e
     ENDIF
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
-   !$ACC LOOP GANG
+    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO je = 1, nlen
       !$ACC LOOP VECTOR
@@ -384,7 +381,7 @@ CASE (6) ! (cell_type == 6)
       END DO
 
     END DO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
   END DO
 
@@ -513,8 +510,8 @@ ELSE
   p_nabla2 => z_nabla2_vec_e
 ENDIF
 
-!$ACC DATA CREATE( z_nabla2_vec_e), PCOPYIN( vec_e ), PCOPY( nabla4_vec_e ), &
-!$ACC      PRESENT( ptr_patch, ptr_int ), IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA CREATE(z_nabla2_vec_e) PRESENT(vec_e) PRESENT(nabla4_vec_e) &
+!$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 !
 ! apply second order Laplacian twice
@@ -587,8 +584,8 @@ iblk => ptr_patch%cells%neighbor_blk
 i_startblk = ptr_patch%cells%start_block(rl_start)
 i_endblk   = ptr_patch%cells%end_block(rl_end)
 
-!$ACC DATA CREATE( z_grad_fd_norm_e ), PCOPYIN( psi_c ), PCOPY( nabla2_psi_c ),  &
-!$ACC      PRESENT( ptr_patch, ptr_int ), IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA CREATE(z_grad_fd_norm_e) PRESENT(psi_c) PRESENT(nabla2_psi_c) &
+!$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 SELECT CASE (ptr_patch%geometry_info%cell_type)
 
@@ -601,9 +598,9 @@ CASE (3) ! (cell_type == 3)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
 
-    !$ACC LOOP GANG 
+    !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
       !$ACC LOOP VECTOR
@@ -627,7 +624,7 @@ CASE (3) ! (cell_type == 3)
       END DO !cell loop
 
     END DO !vertical levels loop
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
   END DO
 
@@ -728,8 +725,8 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 
 ! The special treatment of 2D fields is essential for efficiency on the NEC
 
-!$ACC DATA CREATE( aux_c ), PCOPYIN( avg_coeff, psi_c ), PCOPY( nabla2_psi_c ), &
-!$ACC      PRESENT( ptr_patch, ptr_int), IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA CREATE(aux_c) PRESENT(avg_coeff, psi_c) PRESENT(nabla2_psi_c) &
+!$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 SELECT CASE (ptr_patch%geometry_info%cell_type)
 
@@ -759,7 +756,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       i_endidx   = nproma
     ENDIF
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -773,7 +770,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
         &  + psi_c(iidx(jc,jb,3),jk,iblk(jc,jb,3)) * ptr_int%geofac_n2s(jc,4,jb)
 
     END DO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
   END DO
 
 !$OMP END DO
@@ -811,7 +808,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       i_endidx   = nproma
     ENDIF
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
     !$ACC LOOP VECTOR
     DO jc = i_startidx, i_endidx
       !
@@ -824,7 +821,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
         &  + aux_c(iidx(jc,jb,3),jk,iblk(jc,jb,3)) * avg_coeff(jc,4,jb)
 
     END DO !cell loop
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
   END DO !block loop
 !$OMP END DO NOWAIT
@@ -844,7 +841,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
     !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -869,7 +866,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       END DO !cell loop
 
     END DO !vertical levels loop
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
   END DO
 !$OMP END DO
 
@@ -897,7 +894,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start_l2, rl_end)
 
-!$ACC PARALLEL IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL IF(i_am_accel_node)
     !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -923,7 +920,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       END DO !cell loop
 
     END DO !vertical levels loop
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
   END DO !block loop
 !$OMP END DO NOWAIT
@@ -991,8 +988,8 @@ ENDIF
 
 rl_end_s1 = MAX(min_rlcell,rl_end_s1)
 
-!$ACC DATA PCOPYIN( psi_c ), PCOPY( nabla4_psi_c ),  &
-!$ACC      PRESENT( ptr_patch, ptr_int ), IF( i_am_accel_node .AND. acc_on )
+!$ACC DATA PRESENT(psi_c) PRESENT(nabla4_psi_c) &
+!$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 ! apply second order Laplacian twice
 IF (p_test_run) p_nabla2(:,:,:) = 0.0_wp

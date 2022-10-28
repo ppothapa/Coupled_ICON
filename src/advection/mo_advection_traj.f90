@@ -71,11 +71,6 @@ MODULE mo_advection_traj
   PUBLIC :: t_back_traj
   PUBLIC :: btraj_compute_o1
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
-
-
   TYPE t_back_traj
     ! line indices of cell centers in which the calculated barycenters are located
     ! dim: (nproma,nlev,p_patch%nblks_e)
@@ -127,8 +122,8 @@ CONTAINS
       &      obj%distv_bary(nproma,nlev,nblks,ncoord), STAT=ist)
     IF (ist /= SUCCESS) CALL finish(routine, 'allocation failed')
 
-!$ACC ENTER DATA CREATE( obj ), IF ( i_am_accel_node .AND. acc_on )
-!$ACC ENTER DATA CREATE( obj%cell_idx, obj%cell_blk, obj%distv_bary ), IF ( i_am_accel_node .AND. acc_on )
+    !$ACC ENTER DATA CREATE(obj) IF(i_am_accel_node)
+    !$ACC ENTER DATA CREATE(obj%cell_idx, obj%cell_blk, obj%distv_bary) IF(i_am_accel_node)
 
   END SUBROUTINE construct
 
@@ -153,8 +148,8 @@ CONTAINS
 
     IF (ASSOCIATED(obj%cell_idx)) THEN
 
-!$ACC EXIT DATA DELETE( obj%cell_idx, obj%cell_blk, obj%distv_bary ), IF ( i_am_accel_node .AND. acc_on )
-!$ACC EXIT DATA DELETE( obj ), IF ( i_am_accel_node .AND. acc_on )
+      !$ACC EXIT DATA DELETE(obj%cell_idx, obj%cell_blk, obj%distv_bary) IF(i_am_accel_node)
+      !$ACC EXIT DATA DELETE(obj) IF(i_am_accel_node)
 
       DEALLOCATE(obj%cell_idx, obj%cell_blk, obj%distv_bary, STAT=ist)
       IF (ist /= SUCCESS) CALL finish(routine, 'deallocation failed')
@@ -279,8 +274,8 @@ CONTAINS
       CALL get_indices_e(ptr_p, jb, i_startblk, i_endblk,        &
            i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) TILE(64,2) &
-      !$ACC               ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) TILE(64, 2) &
+      !$ACC   ASYNC(1) IF(i_am_accel_node)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
           !
@@ -529,14 +524,14 @@ CONTAINS
     i_endblk   = ptr_p%edges%end_block(i_rlend)
 
 
-!$ACC DATA PRESENT( ptr_p, ptr_int, p_vn, p_vt, p_coords_dreg_v, p_cell_idx, p_cell_blk )  &
-!$ACC      NO_CREATE( opt_falist ) CREATE( edge_verts,lvn_sys_pos )                        &
-!$ACC IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(ptr_p, ptr_int, p_vn, p_vt, p_coords_dreg_v, p_cell_idx, p_cell_blk) &
+    !$ACC   NO_CREATE(opt_falist) CREATE(edge_verts, lvn_sys_pos) &
+    !$ACC   IF(i_am_accel_node)
 
     IF (llist_gen) THEN
-!$ACC KERNELS IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS IF(i_am_accel_node)
       opt_falist%len(:) = 0
-!$ACC END KERNELS
+      !$ACC END KERNELS
     ENDIF
 
 !$OMP PARALLEL
@@ -550,34 +545,34 @@ CONTAINS
 
 
       ! get local copy of edge vertices
-!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !NEC$ ivdep
       DO je = i_startidx, i_endidx
         edge_verts(je,1:2,1:2) = ptr_int%pos_on_tplane_e(je,jb,7:8,1:2)
       ENDDO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
       ! logical switch for merge options regarding the counterclockwise numbering
       IF (lcounterclock) THEN
 
-!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
             lvn_sys_pos(je,jk) = p_vn(je,jk,jb)*ptr_p%edges%tangent_orientation(je,jb) >= 0._wp
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ELSE
-!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
             lvn_sys_pos(je,jk) = .FALSE.
           ENDDO
         ENDDO
-!$ACC END PARALLEL
+        !$ACC END PARALLEL
       ENDIF
 
       ! generate list of points that require special treatment
@@ -588,12 +583,12 @@ CONTAINS
         ! There is then a global counter that is only updated by a single thread from each gang
 
         num_gangs = ( (elev-slev+1)*(i_endidx-i_startidx+1) + gang_size-1) / gang_size
-        !$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on ) &
-        !$ACC          PRIVATE( gang_ie, gang_captured_ie, gang_elev, gang_eidx ) &
-        !$ACC          NUM_GANGS(num_gangs) VECTOR_LENGTH(gang_size)
+        !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node) &
+        !$ACC   PRIVATE(gang_ie, gang_captured_ie, gang_elev, gang_eidx) &
+        !$ACC   NUM_GANGS(num_gangs) VECTOR_LENGTH(gang_size)
         gang_ie(1) = 0
 
-        !$ACC LOOP GANG VECTOR PRIVATE( lvn_pos, traj_length, e2c_length, ie_capture ) COLLAPSE(2)
+        !$ACC LOOP GANG VECTOR PRIVATE(lvn_pos, traj_length, e2c_length, ie_capture) COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
             ! logical switch for MERGE operations: .TRUE. for p_vn >= 0
@@ -655,9 +650,9 @@ CONTAINS
         !$ACC END PARALLEL
       ENDIF
 
-!$ACC PARALLEL ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE( depart_pts, pos_dreg_vert_c, pos_on_tplane_e,         &
-      !$ACC                                       lvn_pos, pn_cell_1, pn_cell_2, dn_cell_1, dn_cell_2 )
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(depart_pts, pos_dreg_vert_c, pos_on_tplane_e) &
+      !$ACC   PRIVATE(lvn_pos, pn_cell_1, pn_cell_2, dn_cell_1, dn_cell_2)
       DO jk = slev, elev
 !DIR$ IVDEP, PREFERVECTOR
 !$NEC ivdep
@@ -783,12 +778,12 @@ CONTAINS
 
         ENDDO ! loop over edges
       ENDDO   ! loop over vertical levels
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     END DO    ! loop over blocks
 
-!$ACC WAIT
-!$ACC UPDATE HOST(opt_falist%len) IF( i_am_accel_node .AND. acc_on .AND. llist_gen )
-!$ACC END DATA
+    !$ACC WAIT
+    !$ACC UPDATE HOST(opt_falist%len) IF(i_am_accel_node .AND. llist_gen)
+    !$ACC END DATA
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

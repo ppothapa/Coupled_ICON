@@ -203,7 +203,7 @@ CONTAINS
     INTEGER  :: i, jk
     !---
 
-    !$ACC DATA PRESENT( pvn, psigma, fvn_hs )
+    !$ACC DATA PRESENT(pvn, psigma, fvn_hs)
     !$ACC PARALLEL
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,nlev
@@ -261,8 +261,8 @@ CONTAINS
 
     ! latitude related parameters
 
-    !$ACC DATA CREATE( zsinlat2, zcoslat2, zcoslat4 ) PRESENT( ptemp_mc, ppres_mc, psigma, plat, fT_hs )
-    !$ACC DATA PRESENT( opt_ekinh ) IF( PRESENT( opt_ekinh ) )
+    !$ACC DATA CREATE(zsinlat2, zcoslat2, zcoslat4) PRESENT(ptemp_mc, ppres_mc, psigma, plat, fT_hs)
+    !$ACC DATA PRESENT(opt_ekinh) IF(PRESENT( opt_ekinh ))
     !$ACC PARALLEL
     !$ACC LOOP GANG VECTOR
     DO i=is, ie

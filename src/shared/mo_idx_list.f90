@@ -127,7 +127,7 @@ CONTAINS
     obj%idx(:) = -1
     obj%ncount = 0
 
-    !$ACC ENTER DATA COPYIN(obj%idx, obj%ncount) IF (obj%lopenacc)
+    !$ACC ENTER DATA COPYIN(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list1D__construct
 
@@ -153,7 +153,7 @@ CONTAINS
     CALL DO_DEALLOCATE(obj%idx)
     obj%ncount = 0
 
-    !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF (obj%lopenacc)
+    !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list1D__finalize
 
@@ -226,7 +226,7 @@ CONTAINS
     obj%idx(:,:)  = -1
     obj%ncount(:) = 0
 
-    !$ACC ENTER DATA COPYIN(obj%idx, obj%ncount) IF (obj%lopenacc)
+    !$ACC ENTER DATA COPYIN(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list_blocked__construct
 
@@ -253,7 +253,7 @@ CONTAINS
     CALL DO_DEALLOCATE(obj%idx)
     CALL DO_DEALLOCATE(obj%ncount)
 
-    !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF (obj%lopenacc)
+    !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list_blocked__finalize
 

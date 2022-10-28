@@ -897,8 +897,6 @@ CONTAINS
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
       &  routine = 'mo_advection_config: destruct_trList'
 
-    !!$ACC EXIT DATA DELETE( obj%list ), IF (i_am_accel_node .AND. acc_on)
-
     IF (ALLOCATED(obj%list)) THEN
       DEALLOCATE(obj%list, STAT=ist)
       IF (ist /= SUCCESS) THEN

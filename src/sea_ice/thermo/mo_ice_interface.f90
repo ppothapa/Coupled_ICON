@@ -442,7 +442,7 @@ CONTAINS
             &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy)
 
     CASE (4)
-      !$ACC DATA PRESENT( Tsurf, hi, SWnet, nonsolar, dnonsolardT )
+      !$ACC DATA PRESENT(Tsurf, hi, SWnet, nonsolar, dnonsolardT)
       !$ACC PARALLEL
       !$ACC LOOP SEQ
       DO ji = 1, kice

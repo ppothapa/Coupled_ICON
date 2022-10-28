@@ -56,7 +56,8 @@ MODULE mo_o3_util
        &                             deallocateTimedelta, deallocateDatetime
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
-  
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
   PRIVATE
@@ -101,11 +102,7 @@ CONTAINS
 
     IF (timers_level > 6) CALL timer_start(timer_preradiaton)
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! patch ID
     jg         = pt_patch%id
@@ -114,7 +111,7 @@ CONTAINS
     i_startblk = pt_patch%cells%start_blk(rl_start,1)
     i_endblk   = pt_patch%cells%end_blk(rl_end,MAX(1,pt_patch%n_childdom))
 
-    !$ACC DATA PRESENT( pt_diag, prm_diag, o3, pt_patch ) IF(lzacc)
+    !$ACC DATA PRESENT(pt_diag, prm_diag, o3, pt_patch) IF(lzacc)
 
     SELECT CASE (irad_o3)
       CASE(io3_ape)
@@ -243,7 +240,7 @@ CONTAINS
     
     tiw = calculate_time_interpolation_weights(current_date)
 
-    !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF (use_acc)
+    !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF(use_acc)
     ! (SR) Attention: ext_o3 originally has shape (:,:,:,0:13), but
     !  in this routine it is passed as deferred-shape, so (:,:,:,1:14)
     !  Therefore need to +1 month indices
@@ -311,9 +308,9 @@ CONTAINS
     LOGICAL :: use_acc   = .FALSE.  ! Default: no acceleration                                                                                         
     IF (PRESENT(opt_use_acc)) use_acc = opt_use_acc
 
-    !$ACC DATA PRESENT(pfoz, phoz, ppf, pph, o3_time_int, o3_clim)          &
-    !$ACC      CREATE (zozonem, zozintc, zozintm, jk1, jkn, kwork, kk_flag),&
-    !$ACC      IF (use_acc)
+    !$ACC DATA PRESENT(pfoz, phoz, ppf, pph, o3_time_int, o3_clim) &
+    !$ACC   CREATE(zozonem, zozintc, zozintm, jk1, jkn, kwork, kk_flag) &
+    !$ACC   IF(use_acc)
     
     ! ----------
 
@@ -322,7 +319,7 @@ CONTAINS
     ! one might prefer to initialize the entire field with some value
     IF (PRESENT(opt_o3_initval)) THEN
       o3_initval = opt_o3_initval
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF (use_acc)
+      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
       o3_clim(:,:) = o3_initval
       !$ACC END KERNELS
     ENDIF
@@ -333,12 +330,12 @@ CONTAINS
     ! the ozone climatology to the value in the uppermost level of 
     ! the ozone climatology
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF (use_acc)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
     jk1(:)     = 1
     kk_flag(:) = .TRUE.
     !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (use_acc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk = 1,klev
        !$ACC LOOP GANG VECTOR
@@ -355,12 +352,12 @@ CONTAINS
     ! set ozone concentration at levels below the lowermost level of
     ! the ozone climatology to the value in the lowermost level of 
     ! the ozone climatology
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF (use_acc)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
     jkn(:)=klev
     kk_flag(:) = .TRUE.
     !$ACC END KERNELS
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (use_acc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk = klev,1,-1
        !$ACC LOOP GANG VECTOR
@@ -375,10 +372,10 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) VECTOR_LENGTH(64) IF (use_acc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) VECTOR_LENGTH(64) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk=1,klev
-       !$ACC LOOP GANG(STATIC:1) VECTOR
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
        DO jl=jcs,jce
           kk_flag(jl) = .TRUE.
           kwork(jl)   = 1
@@ -386,7 +383,7 @@ CONTAINS
 
       !$ACC LOOP SEQ
        DO jkk = 1,nlev_pres
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jl=jcs,jce
              IF(jk >= jk1(jl) .AND. jk <= jkn(jl))  THEN
                 IF (ppf(jl,jk) <= pfoz(jkk) .AND. jkk >= kwork(jl) &
@@ -398,7 +395,7 @@ CONTAINS
           END DO
        END DO
 
-       !$ACC LOOP GANG(STATIC:1) VECTOR
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
        DO jl=jcs,jce
           IF(jk >= jk1(jl) .AND. jk <= jkn(jl))  THEN
                 jkk = kwork(jl)
@@ -417,8 +414,8 @@ CONTAINS
        ! integrate ozone profile on grid of climatology
        ! from top to surface
        ! ----------------------------------------------
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (use_acc)
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=jcs,jce
       zozintc(jl)=0._wp
       kk_flag(jl) = .TRUE.
@@ -428,7 +425,7 @@ CONTAINS
     !$ACC LOOP SEQ
     DO jk=2,nlev_pres+1
           ! integrate layers of climatology above surface
-       !$ACC LOOP GANG(STATIC:1) VECTOR
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
        DO jl=jcs,jce
           IF (phoz(jk)<=pph(jl,klev) .AND. kk_flag(jl) ) THEN
               zozintc(jl)=zozintc(jl)+ &
@@ -441,7 +438,7 @@ CONTAINS
     END DO
        ! integrate layer of climatology that is intersected
        ! by the surface from upper boundary to surface
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=jcs,jce
        zozintc(jl)=zozintc(jl)+ &
             &  o3_time_int(jl,min(jk1(jl)-1,nlev_pres) )*(pph(jl,klev)-phoz(jk1(jl)-1))
@@ -450,13 +447,13 @@ CONTAINS
        ! integrate ozone profile on grid of model
        ! from top to surface
     ! ----------------------------------------
-    !$ACC LOOP GANG(STATIC:1) VECTOR
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=jcs,jce
        zozintm(jl)=0._wp
     END DO
     !$ACC LOOP SEQ
     DO jk=2,klev+1
-       !$ACC LOOP GANG(STATIC:1) VECTOR
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
        DO jl=jcs,jce
          zozintm(jl)=zozintm(jl) + zozonem(jl,jk-1)*(pph(jl,jk)-pph(jl,jk-1))
        END DO
@@ -467,7 +464,7 @@ CONTAINS
        ! ozone integral computed on the model grid is equal
        ! to that integrated on the grid of the climatology
        ! --------------------------------------------------
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF (use_acc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,klev
        DO jl=jcs,jce
@@ -1177,9 +1174,9 @@ CONTAINS
       lacc = .false.
     end if
 
-    !$ACC DATA CREATE(idx0, zlat, zozn, zpresh, rclpr, zo3, zviozo, zozovi, &
-    !$ACC   deltaz, dtdz, l_found, tuneo3_1, tuneo3_2, wfac_lat, wfac_p, &
-    !$ACC   wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst) &
+    !$ACC DATA CREATE(idx0, zlat, zozn, zpresh, rclpr, zo3, zviozo, zozovi) &
+    !$ACC   CREATE(deltaz, dtdz, l_found, tuneo3_1, tuneo3_2, wfac_lat, wfac_p) &
+    !$ACC   CREATE(wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst) &
     !$ACC   PRESENT(atm_phy_nwp_config, o3, p_diag, prm_diag, pt_patch, RGHG7, RGHG7_MACC) &
     !$ACC   IF(lacc)
 
@@ -1327,7 +1324,7 @@ CONTAINS
 
       ! Pressure mask field for tropics (used for ozone enhancement from January to May)
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jk = 1, nlev_gems
         IF (zrefp(jk) >= 5000._wp .AND. zrefp(jk) <= 10000._wp) THEN
           wfac_p_tr(jk) = 1._wp
@@ -1341,7 +1338,7 @@ CONTAINS
       ENDDO
 
       ! Pressure mask field for tropics (used for ozone reduction around 70 hPa)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jk = 1, nlev_gems
         IF (zrefp(jk) <= 4500._wp .OR. zrefp(jk) >= 9000._wp) THEN
           wfac_p_tr2(jk) = 0._wp
@@ -1354,7 +1351,7 @@ CONTAINS
 
       ! Pressure mask field for ozone enhancement in the middle stratosphere around 10 hPa
       IF (atm_phy_nwp_config(pt_patch%id)%inwp_radiation == 4) THEN
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jk = 1, nlev_gems
           IF (zrefp(jk) >= 700._wp .AND. zrefp(jk) <= 1000._wp) THEN
             wfac_p_mst(jk) = (zrefp(jk)-700._wp)/300._wp
@@ -1365,7 +1362,7 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jk = 1, nlev_gems
           wfac_p_mst(jk) = 0._wp
         ENDDO
@@ -1373,7 +1370,7 @@ CONTAINS
 
       ! Profile functions for accelerated ozone hole filling in November
       ! (Accomplished by taking a weighted average between November and December climatologies)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jk = 1, nlev_gems
         IF (zrefp(jk) >= 2000._wp .AND. zrefp(jk) <= 10000._wp) THEN
           tuneo3_1(jk) = 1._wp
@@ -1385,7 +1382,7 @@ CONTAINS
           tuneo3_1(jk) = 0._wp
         ENDIF
       ENDDO
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jk = 1, nlev_gems
         IF (zrefp(jk) <= 2500._wp) THEN
           tuneo3_2(jk) = 1._wp
@@ -1398,8 +1395,8 @@ CONTAINS
       !$ACC END PARALLEL
 
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, o3_macc1, o3_macc2, &
-      !$ACC   o3_gems1, o3_gems2, trfac)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, o3_macc1, o3_macc2) &
+      !$ACC   PRIVATE(o3_gems1, o3_gems2, trfac)
       DO jk=1,nlev_gems
         DO jl=1,ilat
           wfac = MAX(wfac_lat(jl),wfac_p(jk))
@@ -1488,13 +1485,13 @@ CONTAINS
       ! From radghg.F90 of ECMWF's IFS.
 
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc=i_startidx,i_endidx
         zozovi(jc,0) = 0._wp
       ENDDO
       !$ACC LOOP SEQ
       DO jkk=1,nlev_gems
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc=i_startidx,i_endidx
           zozovi(jc,jkk) = zozovi(jc,jkk-1) &
             &                                 + zo3(jc,jkk)
@@ -1517,14 +1514,14 @@ CONTAINS
       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRIVATE(lfound_all) IF(lacc)
       !$ACC LOOP SEQ
       DO jk = 0,pt_patch%nlev
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx,i_endidx
           l_found(jc) = .FALSE.
         ENDDO
         lfound_all = .FALSE.
         !$ACC LOOP SEQ
         DO jkk = jk_start,nlev_gems-1
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE(zint, z1, z2, zgrad)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zint, z1, z2, zgrad)
           DO jc = i_startidx,i_endidx
             IF( p_diag%pres_ifc(jc,jk+1,jb) >= RCLPR(jkk)  &
               & .AND. p_diag%pres_ifc(jc,jk+1,jb) < RCLPR(jkk+1)) THEN
@@ -1606,8 +1603,8 @@ CONTAINS
         lk100_less_than_0 = .FALSE.
 
         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
-        !$ACC LOOP GANG VECTOR PRIVATE(k375, dzsum, dtdzavg, ktp, tpshp, wfac, &
-        !$ACC   k100, wfac2, jkk, o3_clim) REDUCTION(.OR.:lk100_less_than_0)
+        !$ACC LOOP GANG VECTOR PRIVATE(k375, dzsum, dtdzavg, ktp, tpshp, wfac) &
+        !$ACC   PRIVATE(k100, wfac2, jkk, o3_clim) REDUCTION(.OR.: lk100_less_than_0)
         DO jc = i_startidx,i_endidx
           l_found(jc) = .FALSE.
           IF (ABS(pt_patch%cells%center(jc,jb)%lat)*rad2deg > 25._wp) THEN

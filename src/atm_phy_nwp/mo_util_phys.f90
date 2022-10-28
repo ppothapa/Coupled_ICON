@@ -27,7 +27,7 @@ MODULE mo_util_phys
     &                                 vtmpc1, t3, grav
   USE mo_exception,             ONLY: finish, message
   USE mo_satad,                 ONLY: sat_pres_water, sat_pres_ice
-  USE mo_fortran_tools,         ONLY: assign_if_present
+  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, assert_acc_device_only
   USE mo_impl_constants,        ONLY: min_rlcell_int
   USE mo_model_domain,          ONLY: t_patch
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
@@ -49,10 +49,6 @@ MODULE mo_util_phys
   USE mo_nonhydrostatic_config, ONLY: kstart_moist
   USE mo_satad,                 ONLY: qsat_rho
   USE mo_upatmo_config,         ONLY: upatmo_config
-#ifdef _OPENACC
-  USE mo_mpi,                   ONLY: i_am_accel_node
-  USE openacc,                  ONLY: acc_is_present
-#endif
   USE mo_2mom_mcrph_util,       ONLY: set_qnc, set_qnr, set_qni, set_qns
 
   IMPLICIT NONE
@@ -88,6 +84,7 @@ CONTAINS
   !! Developed by Helmut Frank, DWD (2013-03-13)
   !!
   ELEMENTAL FUNCTION nwp_dyn_gust( u_10m, v_10m, tcm, u1, v1, u_env, v_env, fr_oce, mtnmask) RESULT( vgust_dyn)
+    !$ACC ROUTINE SEQ
 
     REAL(wp), INTENT(IN) :: u_10m, &    ! zonal wind component at 10 m above ground [m/s]
       &                     v_10m, &    ! meridional wind component at 10 m above ground [m/s]
@@ -102,7 +99,6 @@ CONTAINS
     REAL(wp) :: vgust_dyn               ! dynamic gust at 10 m above ground [m/s]
 
     REAL(wp) :: ff10m, ustar, uadd_sso, gust_nonlin, offset, base_gust, mtn_lim, oce_shift
-    !$acc routine seq
 
     uadd_sso = MAX(0._wp, SQRT(u_env**2 + v_env**2) - SQRT(u1**2 + v1**2))
     SELECT CASE (itune_gust_diag)
@@ -134,13 +130,13 @@ CONTAINS
   !! Initial revision by Daniel Rieger, DWD (2019-08-05)
   !!
   ELEMENTAL FUNCTION calc_ustar(tcm, u1, v1) RESULT (ustar)
+    !$ACC ROUTINE SEQ
 
     REAL(wp), INTENT(in)  :: &
       &  tcm,                & !< Transfer coefficient for momentum at surface
       &  u1, v1                !< Horizontal wind components at lowest model layer (m/s)
     REAL(wp)              :: &
       &  ustar                 !< Friction velocity
-    !$acc routine seq
 
     ustar = SQRT( MAX( tcm, 5.e-4_wp) * ( u1**2 + v1**2) )
 
@@ -161,7 +157,7 @@ CONTAINS
   !! Initial revision by Daniel Reinert, DWD (2014-03-25)
   !!
   ELEMENTAL FUNCTION nwp_con_gust( u_850, u_950, v_850, v_950) RESULT(vgust_con)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     REAL(wp), INTENT(IN) :: u_850, &    ! zonal wind component at 850 hPa [m/s]
       &                     u_950, &    ! zonal wind component at 950 hPa [m/s]
@@ -291,7 +287,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by D. Reinert, DWD (2014-09-18) 
   ELEMENTAL FUNCTION swdir_s(albedo, swdifd_s, sobs)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
     REAL(wp)             :: swdir_s
     REAL(wp), INTENT(IN) :: albedo      ! shortwave broadband albedo
     REAL(wp), INTENT(IN) :: swdifd_s    ! shortwave diffuse downward flux (sfc)
@@ -310,7 +306,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision  :  F. Prill, DWD (2012-07-03) 
   ELEMENTAL FUNCTION rel_hum(temp, qv, p_ex)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     REAL(wp) :: rel_hum
     REAL(wp), INTENT(IN) :: temp, &  ! temperature
@@ -342,7 +338,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision  by Daniel Reinert, DWD (2013-07-15) 
   ELEMENTAL FUNCTION rel_hum_ifs(temp, qv, p_ex)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     REAL(wp) :: rel_hum_ifs
     REAL(wp), INTENT(IN) :: temp, &  ! temperature
@@ -380,7 +376,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision  :  F. Prill, DWD (2012-07-04) 
   SUBROUTINE compute_field_rel_hum_wmo(ptr_patch, p_prog, p_diag, out_var, &
-    &                              opt_slev, opt_elev, opt_rlstart, opt_rlend)
+    &                              opt_slev, opt_elev, opt_rlstart, opt_rlend, lacc)
 
     ! patch on which computation is performed:
     TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
@@ -393,12 +389,16 @@ CONTAINS
     INTEGER, INTENT(in), OPTIONAL     :: opt_slev, opt_elev
     ! start and end values of refin_ctrl flag:
     INTEGER, INTENT(in), OPTIONAL     :: opt_rlstart, opt_rlend
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc ! If true, use openacc
 
     ! local variables
     REAL(wp) :: temp, qv, p_ex
     INTEGER  :: slev, elev, rl_start, rl_end, i_nchdom,     &
       &         i_startblk, i_endblk, i_startidx, i_endidx, &
       &         jc, jk, jb
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! default values
     slev     = 1
@@ -421,9 +421,9 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, rl_start, rl_end)
 
-! MJ: it might be that out_var is not present on GPU, so we use COPY
-!$ACC PARALLEL DEFAULT(PRESENT) COPY(out_var) IF ( i_am_accel_node )
-!$ACC LOOP GANG VECTOR COLLAPSE(2)
+      ! MJ: it might be that out_var is not present on GPU, so we use COPY
+      !$ACC PARALLEL DEFAULT(PRESENT) COPY(out_var) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -442,7 +442,7 @@ CONTAINS
 
         END DO
       END DO
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
@@ -571,7 +571,7 @@ CONTAINS
   ! Previously, this code snippet was part of nh_update_tracer_phy
   ! 
   SUBROUTINE iau_update_tracer( pt_prog, p_metrics, pt_diag, pt_prog_rcf, &
-    &                     jg, jb, i_startidx, i_endidx, kend )
+    &                     jg, jb, i_startidx, i_endidx, kend, lacc )
 
     TYPE(t_nh_prog)    ,INTENT(IN)   :: pt_prog      !< NH prog state at dynamic time step
     TYPE(t_nh_metrics) ,INTENT(IN)   :: p_metrics    !< NH metrics variables
@@ -583,15 +583,15 @@ CONTAINS
     INTEGER            ,INTENT(IN)   :: i_startidx   !< hor. start idx
     INTEGER            ,INTENT(IN)   :: i_endidx     !< hor. end idx
     INTEGER            ,INTENT(IN)   :: kend         !< vert. end idx
+    LOGICAL, OPTIONAL  ,INTENT(IN)   :: lacc         ! If true, use openacc
 
     ! Local variables
     INTEGER  :: jk,jc
     REAL(wp) :: zqin
     REAL(wp) :: zrhw(nproma, kend) ! relative humidity w.r.t. water
 
-#ifdef _OPENACC
-    IF (.not. i_am_accel_node) CALL finish('mo_nh_interface_nwp:','This part should always run on GPU.')
-#endif
+
+    CALL assert_acc_device_only("iau_update_tracer", lacc)
 
     ! add analysis increments from data assimilation to qv
     !
@@ -601,13 +601,13 @@ CONTAINS
     CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend, &
       &             opt_lconstgrav=upatmo_config(jg)%nwp_phy%l_constgrav)
 
-    !$ACC DATA CREATE( zrhw ) PRESENT( pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config )
+    !$ACC DATA CREATE(zrhw) PRESENT(pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config)
 
     ! Compute relative humidity w.r.t. water
     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk = 1, kend
-      !$ACC LOOP GANG(STATIC:1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         zrhw(jc,jk) = pt_prog_rcf%tracer(jc,jk,jb,iqv)/qsat_rho(pt_diag%temp(jc,jk,jb),pt_prog%rho(jc,jk,jb))
       ENDDO
@@ -619,7 +619,7 @@ CONTAINS
     !$ACC LOOP SEQ
     DO jk = 1, kend
       IF (qcana_mode >= 1) THEN
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqin)
           DO jc = i_startidx, i_endidx
           IF (qcana_mode == 2 .AND. pt_prog_rcf%tracer(jc,jk,jb,iqc) > 0._wp) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + &
@@ -635,7 +635,7 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-          !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( zqin )
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqin)
           DO jc = i_startidx, i_endidx
           zqin = pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
           ! DA increments of humidity are limited to positive values if p > 150 hPa and RH < 2% or QV < 5.e-7
@@ -646,7 +646,7 @@ CONTAINS
       ENDIF
 
       IF (qiana_mode > 0) THEN
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqi) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqi) + &
             iau_wgt_adv*pt_diag%rhoi_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -654,7 +654,7 @@ CONTAINS
       ENDIF
 
       IF (qrsgana_mode > 0) THEN
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqr) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqr) + &
             iau_wgt_adv * pt_diag%rhor_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -664,7 +664,7 @@ CONTAINS
       ENDIF
 
       IF (qrsgana_mode > 0 .AND. iqg <= iqm_max) THEN
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,iqg) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqg) + &
             iau_wgt_adv * pt_diag%rhog_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -672,7 +672,7 @@ CONTAINS
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%l2moment) THEN
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
           IF (qcana_mode > 0) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqnc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnc) + &
@@ -700,7 +700,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC WAIT 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE iau_update_tracer
@@ -723,7 +723,7 @@ CONTAINS
   ! - applies large-scale-forcing tendencies, if ICON is run in single-column-mode.
   ! 
   SUBROUTINE tracer_add_phytend( p_rho_now, prm_nwp_tend, pdtime, prm_diag, &
-    &                            pt_prog_rcf, p_metrics, dt_loc, jg, jb, i_startidx, i_endidx, kend)
+    &                            pt_prog_rcf, p_metrics, dt_loc, jg, jb, i_startidx, i_endidx, kend, lacc)
 
     REAL(wp)             &
 #ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
@@ -741,6 +741,7 @@ CONTAINS
     INTEGER             ,INTENT(IN)   :: jb              !< block index
     INTEGER             ,INTENT(IN)   :: i_startidx, i_endidx
     INTEGER             ,INTENT(IN)   :: kend            !< vertical end index                             
+    LOGICAL, OPTIONAL   ,INTENT(IN)   :: lacc            ! If true, use openacc
 
     ! Local variables
     INTEGER  :: jt          ! tracer loop index
@@ -756,17 +757,16 @@ CONTAINS
 #endif
     !
     INTEGER, DIMENSION(5) :: conv_list
+    LOGICAL :: lzacc ! non-optional version of lacc
 
-    !$acc data present(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv, &
-    !$acc              prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d, &
-    !$acc              prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
-    !$acc      if(i_am_accel_node)
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$acc data create(zrhox, zrhox_clip) &
-    !$acc      if(i_am_accel_node)
-
-    !$acc data copyin(kstart_moist) &
-    !$acc      if(i_am_accel_node)
+    !$ACC DATA PRESENT(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv) &
+    !$ACC   PRESENT(prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d) &
+    !$ACC   PRESENT(prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
+    !$ACC   CREATE(zrhox, zrhox_clip) &
+    !$ACC   COPYIN(kstart_moist) &
+    !$ACC   IF(lzacc)
 
 
     ! get list of water tracers which are affected by convection
@@ -776,18 +776,18 @@ CONTAINS
       conv_list = (/iqv,iqc,iqi,-1,-1/)
     ENDIF
 
-    !$acc kernels default(none) async(1) if(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(lzacc)
     zrhox_clip(:,:) = 0._wp
-    !$acc end kernels
+    !$ACC END KERNELS
 
     ! add tendency due to convection
-    !$acc parallel copyin(conv_list) private(pos_qv) default(none) async(1) if(i_am_accel_node)
-    !$acc loop seq
+    !$ACC PARALLEL COPYIN(conv_list) PRIVATE(pos_qv) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP SEQ
     DO jt=1,SIZE(conv_list)
       idx = conv_list(jt)
       IF (idx <= 0) CYCLE
 
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           zrhox(jc,jk,jt) = p_rho_now(jc,jk)*pt_prog_rcf%tracer(jc,jk,jb,idx)  &
@@ -807,7 +807,7 @@ CONTAINS
         CYCLE         ! special treatment see below
       ENDIF
       !
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
           pt_prog_rcf%tracer(jc,jk,jb,idx) = zrhox(jc,jk,jt)/p_rho_now(jc,jk)
@@ -817,7 +817,7 @@ CONTAINS
     !
     ! Special treatment for qv. 
     ! Rediagnose tracer mass fraction and substract mass created by artificial clipping.
-    !$acc loop gang(static:1) vector collapse(2)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO jk = kstart_moist(jg), kend
       DO jc = i_startidx, i_endidx
         pt_prog_rcf%tracer(jc,jk,jb,iqv) = MAX(0._wp, &
@@ -826,10 +826,11 @@ CONTAINS
           &                                   )
       ENDDO
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
 !!  Update of two-moment number densities using the updates from the convective parameterization
     IF (atm_phy_nwp_config(jg)%l2moment) THEN
+      CALL assert_acc_host_only("tracer_add_phytend l2moment", lacc)
       DO jt=1,SIZE(conv_list)
         idx = conv_list(jt)
         IF (idx <= 0) CYCLE
@@ -876,6 +877,7 @@ CONTAINS
     END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
+      CALL assert_acc_host_only("tracer_add_phytend lart_conv", lacc)
       ! add convective tendency and fix to positive values
       DO jt=1,art_config(jg)%nconv_tracer  ! ASH
         DO jk = 1, kend
@@ -892,8 +894,8 @@ CONTAINS
     ! (very small negative values may occur during the transport process (order 10E-15))
     iq_start = MAXVAL(conv_list(:)) + 1  ! all others have already been clipped above
     !
-    !$acc parallel default(none) async(1) if(i_am_accel_node)
-    !$acc loop gang vector collapse(3)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(3)
     DO jt=iq_start, iqm_max  ! qr,qs,etc. 
       DO jk = kstart_moist(jg), kend
         DO jc = i_startidx, i_endidx
@@ -901,12 +903,12 @@ CONTAINS
         ENDDO
       ENDDO
     ENDDO
-    !$acc end parallel
+    !$ACC END PARALLEL
     
     ! clipping for number concentrations
     IF(atm_phy_nwp_config(jg)%l2moment)THEN
-      !$acc parallel default(none) async(1) if(i_am_accel_node)
-      !$acc loop gang vector collapse(3)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt=iqni, ininact  ! qni,qnr,qns,qng,qnh,qnc and ninact (but not yet ninpot)
         DO jk = kstart_moist(jg), kend
           DO jc = i_startidx, i_endidx
@@ -914,7 +916,7 @@ CONTAINS
           ENDDO          
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
     END IF
 
 
@@ -922,8 +924,8 @@ CONTAINS
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN
 !DIR$ IVDEP
-      !$acc parallel default(none) async(1) if(i_am_accel_node)
-      !$acc loop gang vector
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
 
         prm_diag%rain_con(jc,jb) = prm_diag%rain_con(jc,jb)    &
@@ -939,12 +941,13 @@ CONTAINS
           &                          prm_diag%rain_con_rate(jc,jb) + prm_diag%snow_con_rate(jc,jb) )
 
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
     ENDIF
 
 #ifndef __NO_ICON_LES__
     ! Add LS forcing to moisture variable including nudging
     IF(is_ls_forcing)THEN
+      CALL assert_acc_host_only("tracer_add_phytend is_ls_forcing", lacc)
       DO jt=1, nqtendphy  ! qv,qc,qi
         DO jk = kstart_moist(jg), kend
 !DIR$ IVDEP
@@ -979,10 +982,8 @@ CONTAINS
     ENDIF  ! is_ls_forcing
 #endif
 
-    !$acc wait
-    !$acc end data !copyin
-    !$acc end data !create
-    !$acc end data !present
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE tracer_add_phytend
 

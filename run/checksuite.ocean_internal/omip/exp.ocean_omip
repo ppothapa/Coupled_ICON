@@ -12,6 +12,8 @@ start_date="2000-01-01T00:00:00Z"
 
 GRID=RXBY
 LEV=ZZZ
+VERT_COR=NNN
+
 
 if [ ${GRID} = R2B4 ] ; then 
 
@@ -101,6 +103,7 @@ if [ ${LEV} == L40 ] ; then
     levidx_200m=12
     levidx_2000m=30
 
+    minVerticalLevels=2
 
 elif [ ${LEV} == L64 ] ; then
 
@@ -113,6 +116,8 @@ elif [ ${LEV} == L64 ] ; then
     levidx_100m=10
     levidx_200m=17
     levidx_2000m=46
+
+    minVerticalLevels=2
 
 elif [ ${LEV} == L128 ] ; then
 
@@ -135,6 +140,7 @@ elif [ ${LEV} == L128 ] ; then
     levidx_200m=24
     levidx_2000m=92
 
+    minVerticalLevels=2
 
 elif [ ${LEV} == L128SMT ] ; then
 
@@ -157,6 +163,8 @@ elif [ ${LEV} == L128SMT ] ; then
     levidx_200m=37
     levidx_2000m=96
 
+    minVerticalLevels=12
+    
 fi
 
 #
@@ -175,6 +183,22 @@ fx_date=$start_date
 vert_mix="TKE"                                        #PP, TKE, KPP, TKEIDEMIX 
 
 #
+#-----------------------------------------------------------------------------
+#set the vertical coordinate  : 0=zlev, 1=zstar
+
+
+if [ ${VERT_COR} = 0 ] ; then
+vert_cor_type=0
+select_lhs=2
+l_lhs_direct=.true.
+STRETCH_C=''
+else
+vert_cor_type=1
+select_lhs=1
+l_lhs_direct=.false.
+STRETCH_C=',stretch_c'  
+fi
+
 #-----------------------------------------------------------------------------
 autoPostProcessing="false"                         # submit postprocessing job
 #-----------------------------------------------------------------------------
@@ -205,7 +229,7 @@ cat > ${ocean_namelist} << EOF
       include_last = false
       output_grid = true
       m_levels = 1
-      ml_varlist = to
+      ml_varlist = to ${STRETCH_C}
 /
 &output_nml
       filetype = 5
@@ -220,7 +244,7 @@ cat > ${ocean_namelist} << EOF
       include_last = false
       output_grid = true
       m_levels = 1
-      ml_varlist = zos, to, so, u, v, mlotst, hi, hs, conc, ice_u, ice_v
+      ml_varlist = zos, to, so, u, v, mlotst, hi, hs, conc, ice_u, ice_v ${STRETCH_C}
 /
 &output_nml
       filetype = 5
@@ -320,7 +344,7 @@ cat >> ${ocean_namelist} << EOF
       include_last = false
       output_grid = true
       m_levels = 1
-      ml_varlist = to, so, zos, hi, hs, conc, ice_u, ice_v, heat_content_seaice, heat_content_snow, heat_content_total, atmos_fluxes_stress_xw,atmos_fluxes_stress_yw,atmos_fluxes_stress_x,atmos_fluxes_stress_y,sea_level_pressure,Wind_Speed_10m,Qtop, Qbot,Qbot_slow,ice_vn,mld,condep,draftave,mlotst, zHeatOceI,heatOceI,heatOceW,zUnderIce,HeatFlux_Total,HeatFlux_ShortWave,HeatFlux_LongWave,HeatFlux_Sensible,HeatFlux_Latent,FrshFlux_Runoff,FrshFlux_Precipitation,FrshFlux_Evaporation,FrshFlux_TotalOcean,FrshFlux_VolumeIce,totalsnowfall,FrshFlux_VolumeTotal, swsum,heatabs !, stretch_c
+      ml_varlist = to, so, zos, hi, hs, conc, ice_u, ice_v, heat_content_seaice, heat_content_snow, heat_content_total, atmos_fluxes_stress_xw,atmos_fluxes_stress_yw,atmos_fluxes_stress_x,atmos_fluxes_stress_y,sea_level_pressure,Wind_Speed_10m,Qtop, Qbot,Qbot_slow,ice_vn,mld,condep,draftave,mlotst, zHeatOceI,heatOceI,heatOceW,zUnderIce,HeatFlux_Total,HeatFlux_ShortWave,HeatFlux_LongWave,HeatFlux_Sensible,HeatFlux_Latent,FrshFlux_Runoff,FrshFlux_Precipitation,FrshFlux_Evaporation,FrshFlux_TotalOcean,FrshFlux_VolumeIce,totalsnowfall,FrshFlux_VolumeTotal, swsum,heatabs ${STRETCH_C}
 /
 
 &output_nml
@@ -526,8 +550,8 @@ cat >> ${ocean_namelist} << EOF
   str_mod_tst='all'               ! define modules to print out in debug mode
 /
 &ocean_dynamics_nml
-! vert_cor_type = 0
-  minVerticalLevels = 2
+  vert_cor_type = ${vert_cor_type}
+  minVerticalLevels = ${minVerticalLevels}
 
   n_zlev             =  $n_zlev
   dzlev_m(1:${n_zlev})  =  $dzlev_m
@@ -541,8 +565,8 @@ cat >> ${ocean_namelist} << EOF
                                             ! 4=CG (default) 5=CGJ 6=BiCG 7=GMRES restart (legacy) 8=MINRES
   use_absolute_solver_tolerance   = .true.
   solver_tolerance                = 1.0E-10 ! this may further be reduced
-  select_lhs                      = 2       ! 1=operator based (default) 2=matrix based
-  l_lhs_direct                    = .true. ! .true.= use lhs implementation directly  .false.= matrix scanner (default) 
+  select_lhs                      = ${select_lhs}       ! 1=operator based (default) 2=matrix based
+  l_lhs_direct                    = ${l_lhs_direct} ! .true.= use lhs implementation directly  .false.= matrix scanner (default) 
   solver_FirstGuess               = 2       ! 0=start from zeros 1=last timestep smoothed 2=last timestep (default) 
 
   solver_max_iter_per_restart     =  14   
@@ -623,8 +647,7 @@ cat >> ${ocean_namelist} << EOF
   cd         = 3.75
   tke_min    = 1.d-6
   tke_mxl_choice = 2                                                              
-  tke_surf_min = 1.d-4
-  only_tke = .true.   
+  tke_surf_min = 1.d-4 
   l_lc         = .false.                     ! Use Langmuir parameterisation (Axell, 2002)
   clc          = 0.15                       ! Factor in the vertical velocity profile of the Langmuir circulation (default clc=0.1 in Axell (2002))                                                           
   use_ubound_dirichlet = .false.                                                  

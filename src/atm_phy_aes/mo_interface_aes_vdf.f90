@@ -220,26 +220,26 @@ CONTAINS
     nice   = prm_field(jg)%kice
     turb => aes_vdf_config(jg)%turb
 
-    !$ACC DATA CREATE(  zxt_emis ) IF( ntrac > 0 )
-    !$ACC DATA CREATE(  ta_hori_tend,qv_hori_tend,ql_hori_tend,qi_hori_tend) IF( turb == 2 )
-    !$ACC DATA PRESENT( field, tend, ccycle_config ),                           &
-    !$ACC      CREATE(  zcpt_sfc_tile, ri_tile, zqx, zbn_tile,                  &
-    !$ACC               zbhn_tile, zbm_tile, zbh_tile, dummy, dummyx,           &
-    !$ACC               wstar, qs_sfc_tile, hdtcbl, ri_atm, mixlen, cfm,        &
-    !$ACC               cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa,      &
-    !$ACC               zaa_btm, zbb, zbb_btm, zfactor_sfc, ddt_u, ddt_v,       &
-    !$ACC               zthvvar, ztottevn, zch_tile, kedisp, tend_ua_vdf,       &
-    !$ACC               tend_va_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2,   &
-    !$ACC               tend_qtrc_vdf_dummy,                                    &
-    !$ACC               tend_ta_sfc, q_rlw_impl, tend_ta_rlw_impl, tend_ta_vdf, &
-    !$ACC               ts_tile, z0m_tile, ustar, wstar_tile, thvsig, rlus,     &
-    !$ACC               albvisdir_ice, albnirdir_ice, albvisdif_ice,            &
-    !$ACC               albnirdif_ice, ts, ts_rad, evap, cair, csat, z0h_lnd,   &
-    !$ACC               albvisdir, albnirdir, albvisdif, albnirdif,             &
-    !$ACC               albvisdir_tile, albnirdir_tile, albvisdif_tile,         &
-    !$ACC               albnirdif_tile, albedo, albedo_tile,                    &
-    !$ACC               qi_hori_tend, ql_hori_tend, qv_hori_tend, ta_hori_tend, &
-    !$ACC               qnc_hori_tend, qni_hori_tend )
+    !$ACC DATA CREATE(zxt_emis) IF(ntrac > 0)
+    !$ACC DATA CREATE(ta_hori_tend, qv_hori_tend, ql_hori_tend, qi_hori_tend) IF(turb == 2)
+    !$ACC DATA PRESENT(field, tend, ccycle_config) &
+    !$ACC   CREATE(zcpt_sfc_tile, ri_tile, zqx, zbn_tile) &
+    !$ACC   CREATE(zbhn_tile, zbm_tile, zbh_tile, dummy, dummyx) &
+    !$ACC   CREATE(wstar, qs_sfc_tile, hdtcbl, ri_atm, mixlen, cfm) &
+    !$ACC   CREATE(cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa) &
+    !$ACC   CREATE(zaa_btm, zbb, zbb_btm, zfactor_sfc, ddt_u, ddt_v) &
+    !$ACC   CREATE(zthvvar, ztottevn, zch_tile, kedisp, tend_ua_vdf) &
+    !$ACC   CREATE(tend_va_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2) &
+    !$ACC   CREATE(tend_qtrc_vdf_dummy) &
+    !$ACC   CREATE(tend_ta_sfc, q_rlw_impl, tend_ta_rlw_impl, tend_ta_vdf) &
+    !$ACC   CREATE(ts_tile, z0m_tile, ustar, wstar_tile, thvsig, rlus) &
+    !$ACC   CREATE(albvisdir_ice, albnirdir_ice, albvisdif_ice) &
+    !$ACC   CREATE(albnirdif_ice, ts, ts_rad, evap, cair, csat, z0h_lnd) &
+    !$ACC   CREATE(albvisdir, albnirdir, albvisdif, albnirdif) &
+    !$ACC   CREATE(albvisdir_tile, albnirdir_tile, albvisdif_tile) &
+    !$ACC   CREATE(albnirdif_tile, albedo, albedo_tile) &
+    !$ACC   CREATE(qi_hori_tend, ql_hori_tend, qv_hori_tend, ta_hori_tend) &
+    !$ACC   CREATE(qnc_hori_tend, qni_hori_tend)
 
     IF ( is_dry_cbl ) THEN
       !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
@@ -292,7 +292,7 @@ CONTAINS
           !
           ! - default is no emission
           IF (ntrac > 0) THEN
-            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1) IF( ntrac > 0 )
+            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(ntrac > 0)
             DO jt = 1,ntrac
               DO jl = jcs,jce
                 zxt_emis(jl,jt,jb) = 0._wp

@@ -154,6 +154,8 @@ MODULE mo_aes_phy_memory
       & qgvi      (:,:)=>NULL(),    &!< [kg/m2] graupel     content, vertically integrated through the atmospheric column
       & qhvi      (:,:)=>NULL(),    &!< [kg/m2] hail        content, vertically integrated through the atmospheric column
       & cptgzvi   (:,:)=>NULL(),    &!< [kg/m2] dry static energy  , vertically integrated through the atmospheric column
+      & udynvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after dynamics
+      & uphyvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after physics
       & rho       (:,:,:)=>NULL(),  &!< [kg/m3] air density
       & mh2o      (:,:,:)=>NULL(),  &!< [kg/m2] h2o content (vap+liq+ice)
       & mair      (:,:,:)=>NULL(),  &!< [kg/m2] air content
@@ -170,6 +172,13 @@ MODULE mo_aes_phy_memory
       & geom      (:,:,:)=>NULL(),  &!< [m2/s2] geopotential above ground at full levels (layer ave. or mid-point value)
       & pfull     (:,:,:)=>NULL(),  &!< [Pa]    air pressure at model levels
       & phalf     (:,:,:)=>NULL()    !< [Pa]    air pressure at model half levels
+
+    ! surface flux weigthing for energy integrals
+    REAL(wp),POINTER ::             &
+      & rsfl_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & ssfl_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & evap_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & shfl_qsa  (:,  :)=>NULL()    !< [K kg/m2/s ] 
 
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: mtrc_ptr(:)
@@ -750,7 +759,7 @@ CONTAINS
     shapesfc = (/kproma, kblks, ksfc_type/)
     shape3d_layer_interfaces = (/kproma,klev+1,kblks/)
 
-    !$ACC ENTER DATA COPYIN( field )
+    !$ACC ENTER DATA COPYIN(field)
     ! Register a field list and apply default settings
 
     CALL vlr_add(field_list, listname, patch_id=jg ,lrestart=.TRUE.)
@@ -2378,6 +2387,54 @@ CONTAINS
     !--------------
     ! Precipitation
     !--------------
+    cf_desc    = t_cf_var('shfl_qsa', 'K kg m-2 s-1',    &
+               & 'near surface humidity weighted sensible temperature flux', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'shfl_qsa', field%shfl_qsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%shfl_qsa)
+    
+    cf_desc    = t_cf_var('evap_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted evaporation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'evap_tsa', field%evap_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%evap_tsa)
+    
+    cf_desc    = t_cf_var('ssfl_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted solid precipitation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'ssfl_tsa', field%ssfl_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%ssfl_tsa)
+    
+    cf_desc    = t_cf_var('rsfl_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted liquid precipitation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'rsfl_tsa', field%rsfl_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%rsfl_tsa)
+    
     cf_desc    = t_cf_var('prlr', 'kg m-2 s-1',    &
                & 'large-scale precipitation flux (water)', datatype_flt)
     grib2_desc = grib2_var(0,1,77, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2871,6 +2928,32 @@ CONTAINS
            &        isteptype=TSTEP_INSTANT,                                     &
            &        lopenacc=.TRUE.)
       __acc_attach(field%cptgzvi)
+
+      ! &       field% udynvi     (nproma,nblks),          &
+      cf_desc    = t_cf_var('u_dyn_vi','J m-2','vertically integrated moist internal energy after dynamics', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( field_list, prefix//'udynvi', field%udynvi,                      &
+           &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+           &        cf_desc, grib2_desc,                                         &
+           &        ldims=shape2d,                                               &
+           &        lrestart = .FALSE.,                                          &
+           &        isteptype=TSTEP_INSTANT,                                     &
+           &        lopenacc=.TRUE.)
+      __acc_attach(field%udynvi)
+
+      ! &       field% uphyvi     (nproma,nblks),          &
+      cf_desc    = t_cf_var('u_phy_vi','J m-2','vertically integrated moist internal energy after physics', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( field_list, prefix//'uphyvi', field%uphyvi,                      &
+           &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+           &        cf_desc, grib2_desc,                                         &
+           &        ldims=shape2d,                                               &
+           &        lrestart = .FALSE.,                                          &
+           &        isteptype=TSTEP_INSTANT,                                     &
+           &        lopenacc=.TRUE.)
+      __acc_attach(field%uphyvi)
 
       ! REMARK: required for art emmision handling
       !IF (is_variable_in_output(var_name=prefix//'cfm')) THEN
@@ -4022,7 +4105,7 @@ CONTAINS
     shape3d   = (/kproma, klev, kblks/)
     shape_trc = (/kproma, klev, kblks, ktracer/)
 
-    !$ACC ENTER DATA COPYIN( tend )
+    !$ACC ENTER DATA COPYIN(tend)
 
     CALL vlr_add(tend_list, listname, patch_id=jg ,lrestart=.FALSE.)
 

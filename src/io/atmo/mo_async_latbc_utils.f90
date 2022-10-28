@@ -169,7 +169,7 @@
       INTEGER :: tlev, nlev, nlevp1, nblks_c, nblks_e, ierrstat, idx
       INTEGER :: jg
 
-      !$acc enter data create(latbc%latbc_data)
+      !$ACC ENTER DATA CREATE(latbc%latbc_data)
 
       ! Allocate memory for variables (3D and 2D) on work processors
       nlev    = p_patch(1)%nlev
@@ -267,13 +267,13 @@
               latbc%latbc_data(tlev)%atm%qs       (nproma,nlev,nblks_c), STAT=ierrstat)
          IF (ierrstat /= SUCCESS) CALL finish(routine, "ALLOCATE failed!")
 
-        !$acc enter data create(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp)   &
-        !$acc create(latbc%latbc_data(tlev)%atm%vn)                                                 &
-        !$acc create(latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho)             &
-        !$acc create(latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v)                     &
-        !$acc create(latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv)                    &
-        !$acc create(latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi)                   &
-        !$acc create(latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+        !$ACC ENTER DATA CREATE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%vn) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
 !$OMP PARALLEL 
          CALL init(latbc%latbc_data(tlev)%atm%vn(:,:,:))
@@ -292,13 +292,13 @@
          CALL init(latbc%latbc_data(tlev)%atm%qs(:,:,:))
 !$OMP END PARALLEL
 
-        !$acc update device(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp,   &
-        !$acc               latbc%latbc_data(tlev)%atm%vn,                                      &
-        !$acc               latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho,  &
-        !$acc               latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v,          &
-        !$acc               latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv,         &
-        !$acc               latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi,        &
-        !$acc               latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+        !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
          ! ... for additional tracer variables
          DO idx=1, ntracer
@@ -518,13 +518,13 @@
         CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
       ENDIF
 
-      !$acc update device(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp,   &
-      !$acc               latbc%latbc_data(timelev)%atm%vn,                                         &
-      !$acc               latbc%latbc_data(timelev)%atm%theta_v,latbc%latbc_data(timelev)%atm%rho,  &
-      !$acc               latbc%latbc_data(timelev)%atm%u,latbc%latbc_data(timelev)%atm%v,          &
-      !$acc               latbc%latbc_data(timelev)%atm%w,latbc%latbc_data(timelev)%atm%qv,         &
-      !$acc               latbc%latbc_data(timelev)%atm%qc,latbc%latbc_data(timelev)%atm%qi,        &
-      !$acc               latbc%latbc_data(timelev)%atm%qr,latbc%latbc_data(timelev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -604,13 +604,13 @@
 
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
 
-      !$acc update device(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp,   &
-      !$acc               latbc%latbc_data(timelev)%atm%vn,                                         &
-      !$acc               latbc%latbc_data(timelev)%atm%theta_v,latbc%latbc_data(timelev)%atm%rho,  &
-      !$acc               latbc%latbc_data(timelev)%atm%u,latbc%latbc_data(timelev)%atm%v,          &
-      !$acc               latbc%latbc_data(timelev)%atm%w,latbc%latbc_data(timelev)%atm%qv,         &
-      !$acc               latbc%latbc_data(timelev)%atm%qc,latbc%latbc_data(timelev)%atm%qi,        &
-      !$acc               latbc%latbc_data(timelev)%atm%qr,latbc%latbc_data(timelev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -1297,11 +1297,11 @@
       ! copy values needed from the GPU to the CPU
 #ifdef _OPENACC
       CALL message('mo_asyc_latbc_utils', 'Device to host copy of values needed in recv_latbc_data. This needs to be removed once port is finished!')
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_tracer)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_vn)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_rho)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_thv)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_w)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_tracer)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_vn)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_rho)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_thv)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_w)
       i_am_accel_node = .FALSE.
 #endif
 
@@ -1335,13 +1335,13 @@
       read_params(iedge)%imode_asy = iedge
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int, tlev, read_params)
 
-      !$acc update device(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp,   &
-      !$acc               latbc%latbc_data(tlev)%atm%vn,                                      &
-      !$acc               latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho,  &
-      !$acc               latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v,          &
-      !$acc               latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv,         &
-      !$acc               latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi,        &
-      !$acc               latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
       ! Compute tendencies for nest boundary update
       CALL compute_boundary_tendencies(latbc%latbc_data(:), p_patch(1), p_nh_state, tlev,  &
@@ -1368,11 +1368,11 @@
       ! copy changed values form CPU to GPU
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Host to device copy of values changed in recv_latbc_data. This needs to be removed once port is finished!')
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_vn)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_rho)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_thv)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_w)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_tracer)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_vn)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_rho)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_thv)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_w)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_tracer)
         i_am_accel_node = my_process_is_work()
 #endif
 #endif

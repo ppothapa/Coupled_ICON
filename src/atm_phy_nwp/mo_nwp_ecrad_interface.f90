@@ -44,7 +44,7 @@ MODULE mo_nwp_ecrad_interface
   USE mo_model_domain,           ONLY: t_patch, p_patch_local_parent
   USE mo_impl_constants,         ONLY: min_rlcell_int
   USE mo_impl_constants_grf,     ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
-  USE mo_fortran_tools,          ONLY: init
+  USE mo_fortran_tools,          ONLY: init, assert_acc_device_only
   USE mo_parallel_config,        ONLY: nproma
   USE mo_loopindices,            ONLY: get_indices_c
   USE mo_grid_config,            ONLY: l_limited_area, nexlevs_rrg_vnest
@@ -55,7 +55,11 @@ MODULE mo_nwp_ecrad_interface
   USE mo_physical_constants,     ONLY: rhoh2o
   USE mo_run_config,             ONLY: msg_level, iqv, iqi, iqc, iqr, iqs, iqg
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
-  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt
+  USE mo_radiation_config,       ONLY: irad_aero, ssi_radt,                                   &
+                                   &   iRadAeroNone, iRadAeroConst, iRadAeroTegen,            &
+                                   &   iRadAeroART, iRadAeroConstKinne, iRadAeroKinne,        &
+                                   &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, &
+                                   &   iRadAeroKinneSP
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
@@ -112,7 +116,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_ecrad_radiation ( current_datetime, pt_patch, ext_data,      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, od_lw, od_sw, ssa_sw,               &
-    &  g_sw, pt_diag, prm_diag, pt_prog, lnd_prog, ecrad_conf, lacc )
+    &  g_sw, pt_diag, prm_diag, pt_prog, lnd_prog, zsct, ecrad_conf, lacc )
 
     CHARACTER(len=*), PARAMETER:: routine = modname//'::nwp_ecrad_radiation'
 
@@ -137,6 +141,8 @@ CONTAINS
     TYPE(t_nwp_phy_diag), TARGET, INTENT(inout) :: prm_diag      !< ICON physics diagnostics
     TYPE(t_nh_prog), TARGET, INTENT(in)         :: pt_prog        !< ICON dyn prog vars
     TYPE(t_lnd_prog),        INTENT(inout)      :: lnd_prog      !< ICON prognostic land state
+    
+    REAL(wp),                INTENT(in)         ::   zsct        !< Time-dependent solar constant
 
     TYPE(t_ecrad_conf),      INTENT(in)         :: ecrad_conf    !< ecRad configuration object
     LOGICAL,                 INTENT(IN), OPTIONAL:: lacc
@@ -190,20 +196,11 @@ CONTAINS
       &  ptr_reff_qs => NULL(), ptr_reff_qg => NULL()
     REAL(wp), DIMENSION(:),    POINTER :: &
       &  ptr_fr_glac => NULL(), ptr_fr_land => NULL()
-    LOGICAL :: lzacc
 
-    IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-    ELSE
-      lzacc = .FALSE.
-    ENDIF
+    CALL assert_acc_device_only(routine, lacc)
 
-#ifdef _OPENACC
-    IF( lzacc==.FALSE. ) CALL finish(routine, 'lacc==.FALSE. not valid for OpenACC ecrad')
-#endif
-
-    !$ACC DATA CREATE( ecrad_aerosol, ecrad_cloud, ecrad_flux, ecrad_gas, ecrad_single_level, ecrad_thermodynamics ) &
-    !$ACC PRESENT( lnd_prog, prm_diag )
+    !$ACC DATA CREATE(ecrad_aerosol, ecrad_cloud, ecrad_flux, ecrad_gas, ecrad_single_level, ecrad_thermodynamics) &
+    !$ACC   PRESENT(lnd_prog, prm_diag)
 
     call get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
 
@@ -234,8 +231,8 @@ CONTAINS
     ALLOCATE( zlwflx_up_clr(nproma_rad,nlevp1), zlwflx_dn_clr(nproma_rad,nlevp1) )
     ALLOCATE( zswflx_up_clr(nproma_rad,nlevp1), zswflx_dn_clr(nproma_rad,nlevp1) )
     ALLOCATE( opt_ptrs_lw(ecrad_conf%n_bands_lw), opt_ptrs_sw(ecrad_conf%n_bands_sw) )
-    !$ACC ENTER DATA CREATE( cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr ) &
-    !$ACC CREATE( zswflx_up_clr, zswflx_dn_clr ) ASYNC(1)
+    !$ACC ENTER DATA CREATE(cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr) &
+    !$ACC   CREATE(zswflx_up_clr, zswflx_dn_clr) ASYNC(1)
 
     CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
@@ -359,7 +356,7 @@ CONTAINS
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),    &
-          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad)
+          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, ext_data%atm%o3(jcs:jce,:,jb), prm_diag%tot_cld(jcs:jce,:,jb,iqv), &
@@ -378,37 +375,29 @@ CONTAINS
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
-          CASE(0)
+          CASE(iRadAeroNone)
             ! No aerosol, nothing to do
-          CASE(2)
-            ! Case 2: Constant aerosol
+          CASE(iRadAeroConst)
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, &
-              &                         ecrad_conf, ecrad_aerosol)
-          CASE(6)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroTegen)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,     &
               &                         zaeq1(jcs:jce,:,jb), zaeq2(jcs:jce,:,jb),  &
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),  &
               &                         zaeq5(jcs:jce,:,jb),                       &
-              &                         ecrad_conf, ecrad_aerosol)
-          CASE(9)
-#ifdef _OPENACC
-            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
-#endif
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroART)
             ! Use ART aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad, jb, jg, nproma,  &
               &                         zaeq1(jcs:jce,:,jb), zaeq2(jcs:jce,:,jb),               &
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),               &
               &                         zaeq5(jcs:jce,:,jb),                                    &
-              &                         ecrad_conf, ecrad_aerosol)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
 
-          CASE(12,13,14,15,18,19)
-#ifdef _OPENACC
-            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
-#endif
-
+          CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP)
             DO jw = 1, ecrad_conf%n_bands_lw
               opt_ptrs_lw(jw)%ptr_od  => od_lw(jcs:jce,:,jb,jw)
             ENDDO
@@ -419,7 +408,7 @@ CONTAINS
             ENDDO
             CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,   &
               &                         opt_ptrs_lw, opt_ptrs_sw,                &
-              &                         ecrad_conf, ecrad_aerosol)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
           CASE DEFAULT
             CALL finish(routine, 'irad_aero not valid for ecRad')
         END SELECT
@@ -480,11 +469,11 @@ CONTAINS
           &                     prm_diag%lwflx_up_sfc_rs       (jcs:jce,jb), prm_diag%lwflxclr_sfc     (jcs:jce,jb),  &
           &                     zlwflx_up    (:,:), zlwflx_dn       (:,:), zswflx_up    (:,:), zswflx_dn    (:,:),    &
           &                     zlwflx_up_clr(:,:), zlwflx_dn_clr   (:,:), zswflx_up_clr(:,:), zswflx_dn_clr(:,:),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlevp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlevp1)
 
         IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT( zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr ) &
-          !$ACC PRESENT( zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr )
+          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT(zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr) &
+          !$ACC   PRESENT(zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlevp1
             DO jc = i_startidx_rad, i_endidx_rad
@@ -531,8 +520,8 @@ CONTAINS
     CALL ecrad_cloud%deallocate()
     IF ( ecrad_conf%use_aerosols ) CALL ecrad_aerosol%deallocate()
     CALL ecrad_flux%deallocate()
-    !$ACC EXIT DATA DELETE( cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr ) &
-    !$ACC DELETE( zswflx_up_clr, zswflx_dn_clr )
+    !$ACC EXIT DATA DELETE(cosmu0mask, zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr, zlwflx_dn_clr) &
+    !$ACC   DELETE(zswflx_up_clr, zswflx_dn_clr)
     DEALLOCATE( cosmu0mask )
     DEALLOCATE( zlwflx_up,     zlwflx_dn,     zswflx_up,    zswflx_dn     )
     DEALLOCATE( zlwflx_up_clr, zlwflx_dn_clr, zswflx_up_clr,zswflx_dn_clr )
@@ -568,7 +557,7 @@ CONTAINS
   SUBROUTINE nwp_ecrad_radiation_reduced (current_datetime, pt_patch, pt_par_patch, ext_data,  &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,                       &
     &                                     od_lw, od_sw, ssa_sw, g_sw,                          &
-    &                                     pt_diag,prm_diag,pt_prog, lnd_prog, ecrad_conf, use_acc )
+    &                                     pt_diag,prm_diag,pt_prog, lnd_prog, zsct, ecrad_conf, lacc )
 
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//'::nwp_ecrad_radiation_reduced'
@@ -595,9 +584,10 @@ CONTAINS
     TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag      !< ICON physics diagnostics
     TYPE(t_nh_prog), TARGET, INTENT(in)    :: pt_prog        !< ICON dyn prog vars
     TYPE(t_lnd_prog),        INTENT(inout) :: lnd_prog      !< ICON prognostic land state
+    REAL(wp),                INTENT(in)    :: zsct        !< Time-dependent solar constant
 
     TYPE(t_ecrad_conf),      INTENT(in)    :: ecrad_conf    !< ecRad configuration object
-    LOGICAL, OPTIONAL,       INTENT(in)    :: use_acc
+    LOGICAL, OPTIONAL,       INTENT(in)    :: lacc ! If true, use openacc
 ! Local variables
     TYPE(t_patch), POINTER            :: &
       &  ptr_pp                            !< Pointer to parent patch of current domain
@@ -715,32 +705,21 @@ CONTAINS
       &  zlp_tot_cld(:,:,:,:)
     LOGICAL, ALLOCATABLE          :: &
       &  cosmu0mask(:)                 !< Mask if cosmu0 > 0
-    LOGICAL                       :: &
-      & lacc
-
 
     call get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
 
     jg         = pt_patch%id
     nlev       = pt_patch%nlev
 
-    IF(PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    ENDIF
+    CALL assert_acc_device_only(routine, lacc)
 
     fact_reffc = (3.0e-9_wp/(4.0_wp*pi*rhoh2o))**(1.0_wp/3.0_wp)
 
     IF (msg_level >= 7) &
       &       CALL message(routine, 'ecrad radiation on reduced grid')
 
-#ifdef _OPENACC
-    IF( lacc==.FALSE. ) CALL finish(routine, 'lacc==.FALSE. not valid for OpenACC ecrad')
-#endif
-
-    !$ACC DATA CREATE(ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics, &
-    !$ACC   ecrad_gas, ecrad_cloud, ecrad_flux) PRESENT(prm_diag, lnd_prog)
+    !$ACC DATA CREATE(ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics) &
+    !$ACC   CREATE(ecrad_gas, ecrad_cloud, ecrad_flux) PRESENT(prm_diag, lnd_prog)
 
     IF (jg == 1 .AND. .NOT. l_limited_area) THEN
       ptr_pp      => pt_par_patch
@@ -786,13 +765,13 @@ CONTAINS
       &      zrg_trsol_clr_sfc    (nproma,nblks_par_c),     &
       &      zrg_lwflx_clr_sfc    (nproma,nblks_par_c),     &
       &      aclcov               (nproma,pt_patch%nblks_c))
-      !$ACC ENTER DATA CREATE(zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir, &
-      !$ACC   zrg_albnirdir, zrg_albvisdif, zrg_albnirdif, zrg_aclcov, &
-      !$ACC   zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, &
-      !$ACC   zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc, &
-      !$ACC   zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, &
-      !$ACC   zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, &
-      !$ACC   zrg_lwflx_clr_sfc, aclcov) ASYNC(1)
+      !$ACC ENTER DATA CREATE(zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir) &
+      !$ACC   CREATE(zrg_albnirdir, zrg_albvisdif, zrg_albnirdif, zrg_aclcov) &
+      !$ACC   CREATE(zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc) &
+      !$ACC   CREATE(zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc) &
+      !$ACC   CREATE(zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff) &
+      !$ACC   CREATE(zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc) &
+      !$ACC   CREATE(zrg_lwflx_clr_sfc, aclcov) ASYNC(1)
 
     ! Set dimensions for 3D radiative flux variables
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
@@ -814,10 +793,10 @@ CONTAINS
       &      zrg_lwflx_dn_clr(np, nl, nblks_par_c),&
       &      zrg_swflx_up_clr(np, nl, nblks_par_c),&
       &      zrg_swflx_dn_clr(np, nl, nblks_par_c) )
-    !$ACC ENTER DATA CREATE(zrg_pres_ifc, zrg_lwflxall, zrg_trsolall, &
-    !$ACC   zrg_lwflx_up, zrg_lwflx_dn, zrg_swflx_up, zrg_swflx_dn, &
-    !$ACC   zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr, &
-    !$ACC   zrg_swflx_dn_clr) ASYNC(1)
+    !$ACC ENTER DATA CREATE(zrg_pres_ifc, zrg_lwflxall, zrg_trsolall) &
+    !$ACC   CREATE(zrg_lwflx_up, zrg_lwflx_dn, zrg_swflx_up, zrg_swflx_dn) &
+    !$ACC   CREATE(zrg_lwflx_up_clr, zrg_lwflx_dn_clr, zrg_swflx_up_clr) &
+    !$ACC   CREATE(zrg_swflx_dn_clr) ASYNC(1)
 
     ALLOCATE(zrg_pres     (nproma,nlev_rg  ,nblks_par_c),   &
       &      zrg_temp     (nproma,nlev_rg  ,nblks_par_c),   &
@@ -828,8 +807,8 @@ CONTAINS
       &      zrg_aeq4     (nproma,nlev_rg  ,nblks_par_c),   &
       &      zrg_aeq5     (nproma,nlev_rg  ,nblks_par_c),   &
       &      zrg_clc      (nproma,nlev_rg  ,nblks_par_c))
-    !$ACC ENTER DATA CREATE(zrg_pres, zrg_temp, zrg_o3, zrg_aeq1, zrg_aeq2, &
-    !$ACC   zrg_aeq3, zrg_aeq4, zrg_aeq5, zrg_clc) ASYNC(1)
+    !$ACC ENTER DATA CREATE(zrg_pres, zrg_temp, zrg_o3, zrg_aeq1, zrg_aeq2) &
+    !$ACC   CREATE(zrg_aeq3, zrg_aeq4, zrg_aeq5, zrg_clc) ASYNC(1)
 
     IF (atm_phy_nwp_config(jg)%icpl_rad_reff > 0) THEN
       ALLOCATE(zrg_reff_liq (nproma,nlev_rg,nblks_par_c),   &
@@ -885,7 +864,8 @@ CONTAINS
       IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
     END SELECT
 
-    IF (ANY( irad_aero == (/12,13,14,15,18,19/) )) THEN
+    IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,  &
+      &                     iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
       ! Aerosol extra fields
       DO jw = 1, ecrad_conf%n_bands_lw
         CALL input_extra_flds%assign(od_lw(:,:,:,jw), irg_od_lw(jw))
@@ -897,7 +877,7 @@ CONTAINS
       ENDDO
     END IF
 
-    !$ACC DATA COPYIN( input_extra_flds, input_extra_2D, input_extra_reff )
+    !$ACC DATA COPYIN(input_extra_flds, input_extra_2D, input_extra_reff)
     CALL input_extra_flds%acc_attach()
     CALL input_extra_2D%acc_attach()
     CALL input_extra_reff%acc_attach()
@@ -989,7 +969,7 @@ CONTAINS
       &                    zrg_reff_liq, zrg_reff_frz,                                   &
       &                    input_extra_flds, zrg_extra_flds,                             &
       &                    input_extra_2D, zrg_extra_2D,                                 &
-      &                    input_extra_reff, zrg_extra_reff, use_acc=.TRUE.)
+      &                    input_extra_reff, zrg_extra_reff, lacc=.TRUE.)
 
 ! Set indices for reduced grid loop
     IF (jg == 1 .AND. l_limited_area) THEN
@@ -1055,11 +1035,11 @@ CONTAINS
     ALLOCATE(opt_ptrs_lw(ecrad_conf%n_bands_lw))
     ALLOCATE(opt_ptrs_sw(ecrad_conf%n_bands_sw))
 
-    !$ACC DATA PRESENT(cosmu0mask, zrg_cosmu0, zrg_tsfc, &
-    !$ACC   zrg_albvisdif, zrg_albnirdif, zrg_albvisdir, zrg_albnirdir, &
-    !$ACC   zrg_emis_rad,  zrg_pres_ifc, zrg_temp, zrg_pres, zrg_o3, &
-    !$ACC   zrg_tot_cld, zrg_clc, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_aeq4, &
-    !$ACC   zrg_aeq5)
+    !$ACC DATA PRESENT(cosmu0mask, zrg_cosmu0, zrg_tsfc) &
+    !$ACC   PRESENT(zrg_albvisdif, zrg_albnirdif, zrg_albvisdir, zrg_albnirdir) &
+    !$ACC   PRESENT(zrg_emis_rad, zrg_pres_ifc, zrg_temp, zrg_pres, zrg_o3) &
+    !$ACC   PRESENT(zrg_tot_cld, zrg_clc, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_aeq4) &
+    !$ACC   PRESENT(zrg_aeq5)
 
 
 !$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                  &
@@ -1140,7 +1120,7 @@ CONTAINS
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, zrg_temp(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb),     &
-          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad)
+          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, zrg_o3(jcs:jce,:,jb), zrg_tot_cld(jcs:jce,:,jb,iqv), &
@@ -1159,28 +1139,27 @@ CONTAINS
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
-          CASE(0)
+          CASE(iRadAeroNone)
             ! No aerosol, nothing to do
-          CASE(2)
-            ! Case 2: Constant aerosol
+          CASE(iRadAeroConst)
             !         Arguments can be added to fill ecrad_aerosol with actual values. For the time being,
             !         we stay consistent with RRTM where irad_aero=2 does not add any aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad, &
-              &                         ecrad_conf, ecrad_aerosol)
-          CASE(6)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroTegen)
             ! Fill aerosol configuration type with Tegen aerosol
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         zrg_aeq1(jcs:jce,:,jb), zrg_aeq2(jcs:jce,:,jb),   &
               &                         zrg_aeq3(jcs:jce,:,jb), zrg_aeq4(jcs:jce,:,jb),   &
               &                         zrg_aeq5(jcs:jce,:,jb),                           &
-              &                         ecrad_conf, ecrad_aerosol)
-          CASE(12,13,14,15,18,19)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP)
 #ifdef _OPENACC
             CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
 #endif
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         opt_ptrs_lw, opt_ptrs_sw,                         &
-              &                         ecrad_conf, ecrad_aerosol)
+              &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
           CASE DEFAULT
             CALL finish(routine, 'irad_aero not valid for ecRad')
         END SELECT
@@ -1242,7 +1221,7 @@ CONTAINS
           &                     zrg_swflx_up          (jnps:jnpe,:,jb), zrg_swflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_lwflx_up_clr      (jnps:jnpe,:,jb), zrg_lwflx_dn_clr (jnps:jnpe,:,jb),    &
           &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &
-          &                     cosmu0mask, i_startidx_rad, i_endidx_rad, nlev_rgp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlev_rgp1)
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
@@ -1302,22 +1281,22 @@ CONTAINS
       &  zrg_lwflx_up_clr     , zrg_lwflx_dn_clr     , zrg_swflx_up_clr     , zrg_swflx_dn_clr,     &
       &  prm_diag%lwflx_up    , prm_diag%lwflx_dn    , prm_diag%swflx_up    , prm_diag%swflx_dn,    &
       &  prm_diag%lwflx_up_clr, prm_diag%lwflx_dn_clr, prm_diag%swflx_up_clr, prm_diag%swflx_dn_clr,&
-      &  use_acc=.TRUE. )
+      &  lacc=.TRUE. )
 
     !$ACC WAIT
     !$ACC END DATA
-    !$ACC EXIT DATA DELETE(zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir, &
-    !$ACC   zrg_albnirdir, zrg_albvisdif, zrg_albnirdif, zrg_pres_ifc, zrg_o3, &
-    !$ACC   zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_clc, zrg_aeq4, zrg_aeq5, &
-    !$ACC   zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall, &
-    !$ACC   zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc, &
-    !$ACC   zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, zrg_aclcov, &
-    !$ACC   zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc, &
-    !$ACC   zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff, &
-    !$ACC   aclcov, zrg_albdif, zrg_rtype, zlp_pres_ifc, &
-    !$ACC   zlp_tot_cld, zrg_lwflx_clr_sfc, zrg_lwflx_up, zrg_lwflx_dn , &
-    !$ACC   zrg_swflx_up, zrg_swflx_dn, zrg_lwflx_up_clr, zrg_lwflx_dn_clr, &
-    !$ACC   zrg_swflx_up_clr, zrg_swflx_dn_clr)
+    !$ACC EXIT DATA DELETE(zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir) &
+    !$ACC   DELETE(zrg_albnirdir, zrg_albvisdif, zrg_albnirdif, zrg_pres_ifc, zrg_o3) &
+    !$ACC   DELETE(zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_clc, zrg_aeq4, zrg_aeq5) &
+    !$ACC   DELETE(zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall) &
+    !$ACC   DELETE(zrg_lwflx_up_sfc, zrg_trsol_up_toa, zrg_trsol_up_sfc) &
+    !$ACC   DELETE(zrg_trsol_dn_sfc_diff, zrg_trsol_clr_sfc, zrg_aclcov) &
+    !$ACC   DELETE(zrg_trsol_nir_sfc, zrg_trsol_vis_sfc, zrg_trsol_par_sfc) &
+    !$ACC   DELETE(zrg_fr_nir_sfc_diff, zrg_fr_vis_sfc_diff, zrg_fr_par_sfc_diff) &
+    !$ACC   DELETE(aclcov, zrg_albdif, zrg_rtype, zlp_pres_ifc) &
+    !$ACC   DELETE(zlp_tot_cld, zrg_lwflx_clr_sfc, zrg_lwflx_up, zrg_lwflx_dn) &
+    !$ACC   DELETE(zrg_swflx_up, zrg_swflx_dn, zrg_lwflx_up_clr, zrg_lwflx_dn_clr) &
+    !$ACC   DELETE(zrg_swflx_up_clr, zrg_swflx_dn_clr)
     DEALLOCATE (zrg_cosmu0, zrg_tsfc, zrg_emis_rad, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,   &
       &         zrg_albnirdif, zrg_pres_ifc, zrg_o3, zrg_aeq1, zrg_aeq2, zrg_aeq3, zrg_clc,        &
       &         zrg_aeq4, zrg_aeq5, zrg_tot_cld, zrg_pres, zrg_temp, zrg_trsolall, zrg_lwflxall,   &
@@ -1333,11 +1312,11 @@ CONTAINS
       !$ACC EXIT DATA DELETE(zrg_reff_liq, zrg_reff_frz)
       DEALLOCATE(zrg_reff_liq, zrg_reff_frz)
     ENDIF
-    !$ACC EXIT DATA DELETE(zrg_extra_flds) IF( input_extra_flds%ntot>0 )
+    !$ACC EXIT DATA DELETE(zrg_extra_flds) IF(input_extra_flds%ntot>0)
     IF (input_extra_flds%ntot > 0 ) DEALLOCATE(zrg_extra_flds)
-    !$ACC EXIT DATA DELETE(zrg_extra_2D) IF( input_extra_2D%ntot>0 )
+    !$ACC EXIT DATA DELETE(zrg_extra_2D) IF(input_extra_2D%ntot>0)
     IF (input_extra_2D%ntot   > 0 ) DEALLOCATE(zrg_extra_2D)
-    !$ACC EXIT DATA DELETE(zrg_extra_reff) IF( input_extra_reff%ntot>0 )
+    !$ACC EXIT DATA DELETE(zrg_extra_reff) IF(input_extra_reff%ntot>0)
     IF (input_extra_reff%ntot > 0 ) DEALLOCATE(zrg_extra_reff)
 
     CALL input_extra_flds%destruct()

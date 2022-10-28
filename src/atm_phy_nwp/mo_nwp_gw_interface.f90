@@ -44,6 +44,7 @@ MODULE mo_nwp_gw_interface
   USE mo_gwd_wms,              ONLY: gwdrag_wms
   USE mo_vertical_coord_table, ONLY: vct_a
   USE mo_exception,            ONLY : finish, message
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -67,7 +68,7 @@ CONTAINS
                          &   prm_diag,prm_nwp_tend,     & !>inout
                          &   lacc                    ) !>in 
 
-    LOGICAL, INTENT(IN) :: lacc !< initialization flag (openACC is turned off during initialization)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch         !<grid/patch info.
     TYPE(t_external_data),       INTENT(inout):: ext_data        !< external data, inout only for accomodating ext_data%atm%sso_gamma
@@ -80,6 +81,7 @@ CONTAINS
     LOGICAL ,  INTENT(in)   :: lcall_sso_jg    !< .TRUE.: sso scheme is actually called
     REAL(wp),  INTENT(in)   :: tcall_gwd_jg    !< time interval for gwd
     LOGICAL ,  INTENT(in)   :: lcall_gwd_jg    !< .TRUE.: gwd scheme is actually called
+    LOGICAL :: lzacc ! non-optional version of lacc
 
     ! Local array bounds:
 
@@ -101,8 +103,10 @@ CONTAINS
 
     INTEGER :: jk,jc,jb,jg,jks             !<block indeces
 
-    !$ACC DATA CREATE( ssolim, ztot_prec_rate, pgelat, z_fluxu, z_fluxv ) &
-    !$ACC PRESENT( p_patch, vct_a, prm_nwp_tend, prm_diag ) IF( lacc )
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA CREATE(ssolim, ztot_prec_rate, pgelat, z_fluxu, z_fluxv) &
+    !$ACC   PRESENT(p_patch, vct_a, prm_nwp_tend, prm_diag) IF(lzacc)
     i_nchdom  = MAX(1,p_patch%n_childdom)
 
     ! number of vertical levels
@@ -120,7 +124,7 @@ CONTAINS
     i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
 
     ! Set height-dependent limits for SSO momentum tendencies
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc ) 
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jk = 1, nlev
       jks = jk + p_patch%nshift_total
@@ -179,7 +183,7 @@ CONTAINS
           & pdv_sso   =prm_nwp_tend%ddt_v_sso   (:,:,jb),  & !< out: v-tendency due to SSO
           & pustr_sso =prm_diag%str_u_sso       (:,jb),    & !< out: u surface stress due to SSO
           & pvstr_sso =prm_diag%str_v_sso       (:,jb),    & !< out: v surface stress due to SSO
-          & use_acc   =lacc                               ) ! in, optional
+          & lacc      =lzacc                               ) ! in, optional
 
  ! GZ: The computation of the frictional heating rate is now done in interface_nwp for
  ! SSO, GWD and Rayleigh friction together
@@ -189,7 +193,7 @@ CONTAINS
         ! Reduce tendencies in uppermost layer by a factor of 8 because they tend to larger than the tendencies
         ! in the second layer by about this factor. This is also true at vertical nest interfaces
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_nwp_tend%ddt_u_sso(jc,1,jb) = 0.125_vp*prm_nwp_tend%ddt_u_sso(jc,1,jb)
@@ -201,7 +205,7 @@ CONTAINS
         ! Moreover, they tend to be much too strong in northern hemispheric winter, leading to a huge warm
         ! bias in the north polar middle stratosphere
         
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF( lacc )
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -272,8 +276,8 @@ CONTAINS
       IF (lcall_gwd_jg .AND. atm_phy_nwp_config(jg)%inwp_gwd == 1) THEN
 
         ! get total precipitation rate [kg/m2/s] ==> input for gwdrag_wms
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc ) 
-        !$ACC LOOP GANG VECTOR    
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc =  i_startidx, i_endidx
           ztot_prec_rate(jc) = prm_diag%rain_gsp_rate (jc,jb) &  ! rain_gsp
             &                + prm_diag%snow_gsp_rate (jc,jb) &  ! snow_gsp
@@ -305,13 +309,13 @@ CONTAINS
            & ptenv    = prm_nwp_tend%ddt_v_gwd  (:,:,jb),  & !< out: v-tendency
            & pfluxu   = z_fluxu (:,:)                   ,  & !< out: zonal  GWD vertical mom flux
            & pfluxv   = z_fluxv (:,:)                   ,  & !< out: merid. GWD vertical mom flux
-           & lacc     = lacc)                                !< use openACC
+           & lacc     = lzacc)                                !< use openACC
 
         ! Reduce tendencies in uppermost layer by a factor of 8 because they tend to larger than the tendencies
         ! in the second layer by about this factor. This is also true at vertical nest interfaces
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( lacc ) 
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           prm_nwp_tend%ddt_u_gwd(jc,1,jb) = 0.125_vp*prm_nwp_tend%ddt_u_gwd(jc,1,jb)
           prm_nwp_tend%ddt_v_gwd(jc,1,jb) = 0.125_vp*prm_nwp_tend%ddt_v_gwd(jc,1,jb)
@@ -321,7 +325,7 @@ CONTAINS
         !$ACC LOOP SEQ
         DO jk = 1, nlev
 !DIR$ IVDEP
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             prm_nwp_tend%ddt_u_gwd(jc,jk,jb) = &
               SIGN(MIN(0.05_vp,ABS(prm_nwp_tend%ddt_u_gwd(jc,jk,jb))),prm_nwp_tend%ddt_u_gwd(jc,jk,jb))
@@ -337,7 +341,7 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-  !$ACC WAIT IF( lacc )
+  !$ACC WAIT IF(lzacc)
   !$ACC END DATA
   END SUBROUTINE nwp_gwdrag
 

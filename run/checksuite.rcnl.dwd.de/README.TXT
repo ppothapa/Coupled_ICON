@@ -4,9 +4,12 @@ DWD Setup for BuildBot (on SX-AURORA)
 
 [2017-07-31] : F. Prill, DWD
 [2020-05-22] : D. Reinert, DWD: Adapted to SX-AURORA
+[2020-09-21] : M Jacob, DWD: Ported most experiments to make_runscripts + make_target_runscript mechanism
 
 ------------------------------------------------------
+DWD Setup for BuildBot
     Running the DWD Tests
+    Running the DWD Tests manually
     Creating New DWD Tests
         Nomenclature
         Queue Restrictions for User "buildbot"
@@ -27,7 +30,8 @@ h1. DWD Setup for BuildBot
 The "dwd" experiment list contains a set of medium-size test cases which
 
 * are executed on the DWD machine only (all other builders inactive),
-* consist of plain PBSpro run scripts and do not use the usual BuildBot macros.
+* Most run scripts can be generated with make_target_runscript (Either through BuildBot or the make_runscripts front end)
+* A few experiments are still plain PBSpro run scripts and do not use the usual BuildBot macros.
 
 
 h2. Running the DWD Tests
@@ -38,6 +42,11 @@ Select the following parameters on the Buildbot web site (https://buildbot.dkrz.
 | Properties: | Name: "list" ; value: "dwd"     |
 
 
+h2. Running the DWD Tests manually
+*.run scripts in this directory can be submitted directly witch qsub.
+For other tests see ../checksuite.nwp/ and the README.txt therein.
+
+
 h2. Creating New DWD Tests
 
 The DWD experiment list "dwd" uses the "plain run script mechanism" that has been implemented by Leonidas and Ralf.
@@ -46,7 +55,7 @@ When importing existing scripts, only a few adjustments are necessary.
 
 h3. Nomenclature
 
-Run scripts are located in <pre>run/checksuite.rcnl.dwd.de</pre>
+Plain run scripts are located in <pre>run/checksuite.rcnl.dwd.de</pre>.
 
 # It is necessary to rename the test scripts according to the following scheme: <pre>exp.<test name>.run</pre>
 # It is necessary to set the stdout log output in the PBS header according to the following scheme: 
@@ -58,6 +67,10 @@ Run scripts are located in <pre>run/checksuite.rcnl.dwd.de</pre>
 The scripts are started from the subdirectory @run@ with the help of a soft link to the @run/checksuite.rcnl.dwd.de@ subdirectory.
 Therefore the environment variable @${PBS_O_WORKDIR}@ points to the @run@ subdirectory. 
 This must be taken into account when using @${PBS_O_WORKDIR}@ together with relative paths.
+
+Other run scripts templates are located in <pre>run/checksuite.nwp</pre>.
+Those templates are converted into full run scripts using <pre>make_target_runscript</pre>.
+Also see <pre>../checksuite.nwp/README.txt</pre>
 
 
 h3. Queue Restrictions for User "buildbot"
@@ -74,7 +87,14 @@ h3. Registering Tests in the "dwd" Experiment List
 
 New tests can be registered by extending the script
 scripts/buildbot_scripts/create_list_dwd
-as follows
+as follows.
+For template job scripts:
+<pre>
+$addexp checksuite.nwp/<template name> --builders DWD_nec --list $listname
+</pre>
+Note that <template name> is the file name, including the prefix "nwpexp." but without the suffix ".run".
+
+For plain job scripts:
 <pre>
 $addexp checksuite.rcnl.dwd.de/<test name> --builders DWD_nec --list $listname
 </pre>
@@ -100,12 +120,6 @@ Ending the script with
 </pre>
 (or omitting the explicit @exit@ call) means that the script has run successfully.
 All other @exit@ values mean "FAILURE".
-
-Two important remarks:
-
-* The usual mechanism (on other BuildBot builders) requires that the scripts explicitly write the error status to a file @${PBS_O_WORKDIR}/${PBS_JOBNAME}.status@.
-* The described @exit@ mechanism works only at DWD; for this a special handling has been implemented in @scripts/buildbot_scripts/runexp@: 
-  Here, an alternative status file @${PBS_O_WORKDIR}/${PBS_JOBNAME}.status.2@ is automatically created.
 
 
 h2. Admin Information

@@ -1880,87 +1880,87 @@ CONTAINS
     END IF
 #endif
 
-!$acc data copyin(add_array_r_2d) &
-!$acc      if (present(add_array_r_2d) .AND. i_am_accel_node)
-!$acc data copyin(in_array_r_2d) &
-!$acc      if (present(in_array_r_2d) .AND. i_am_accel_node)
-!$acc data copy(out_array_r_2d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(add_array_r_2d) &
+      !$ACC   IF(present(add_array_r_2d) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_r_2d) &
+      !$ACC   IF(present(in_array_r_2d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_r_2d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_r_2d, &
         &                send=in_array_r_2d, add=add_array_r_2d, &
         &                l_recv_exists=.TRUE.)
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_r_2d /= ref_out_array_r_2d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result r_2d"
         CALL finish(method_name, message_text)
       END IF
 
-!$acc data copyin(add_array_r_3d) &
-!$acc      if (present(add_array_r_3d) .AND. i_am_accel_node)
-!$acc data copyin(in_array_r_3d) &
-!$acc      if (present(in_array_r_3d) .AND. i_am_accel_node)
-!$acc data copy(out_array_r_3d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(add_array_r_3d) &
+      !$ACC   IF(present(add_array_r_3d) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_r_3d) &
+      !$ACC   IF(present(in_array_r_3d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_r_3d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_r_3d, &
         &                send=in_array_r_3d, add=add_array_r_3d)
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_r_3d /= ref_out_array_r_3d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result r_3d"
         CALL finish(method_name, message_text)
       END IF
 
-!$acc data copyin(add_array_i_2d) &
-!$acc      if (present(add_array_i_2d) .AND. i_am_accel_node)
-!$acc data copyin(in_array_i_2d) &
-!$acc      if (present(in_array_i_2d) .AND. i_am_accel_node)
-!$acc data copy(out_array_i_2d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(add_array_i_2d) &
+      !$ACC   IF(present(add_array_i_2d) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_i_2d) &
+      !$ACC   IF(present(in_array_i_2d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_i_2d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_i_2d, &
         &                send=in_array_i_2d, add=add_array_i_2d, &
         &                l_recv_exists=.TRUE.)
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_i_2d /= ref_out_array_i_2d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result i_2d"
         CALL finish(method_name, message_text)
       END IF
 
-!$acc data copyin(add_array_i_3d) &
-!$acc      if (present(add_array_i_3d) .AND. i_am_accel_node)
-!$acc data copyin(in_array_i_3d) &
-!$acc      if (present(in_array_i_3d) .AND. i_am_accel_node)
-!$acc data copy(out_array_i_3d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(add_array_i_3d) &
+      !$ACC   IF(present(add_array_i_3d) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_i_3d) &
+      !$ACC   IF(present(in_array_i_3d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_i_3d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_i_3d, &
         &                send=in_array_i_3d, add=add_array_i_3d)
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_i_3d /= ref_out_array_i_3d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result i_3d"
         CALL finish(method_name, message_text)
       END IF
 
-!$acc data copyin(in_array_l_2d) &
-!$acc      if (present(in_array_l_2d) .AND. i_am_accel_node)
-!$acc data copy(out_array_l_2d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_l_2d) &
+      !$ACC   IF(present(in_array_l_2d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_l_2d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_l_2d, &
         &                send=in_array_l_2d, l_recv_exists=.TRUE.)
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_l_2d .NEQV. ref_out_array_l_2d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result l_2d"
         CALL finish(method_name, message_text)
       END IF
 
-!$acc data copyin(in_array_l_3d) &
-!$acc      if (present(in_array_l_3d) .AND. i_am_accel_node)
-!$acc data copy(out_array_l_3d) if (i_am_accel_node)
+      !$ACC DATA COPYIN(in_array_l_3d) &
+      !$ACC   IF(present(in_array_l_3d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array_l_3d) IF(i_am_accel_node)
       CALL exchange_data(p_pat=comm_pattern, recv=out_array_l_3d, &
         &                send=in_array_l_3d)
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
       IF (ANY(out_array_l_3d .NEQV. ref_out_array_l_3d)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result l_3d"
         CALL finish(method_name, message_text)
@@ -1993,10 +1993,10 @@ CONTAINS
     END IF
 #endif
 
-!$acc data copy(out_array) copyin(in_array) if (i_am_accel_node)
+      !$ACC DATA COPY(out_array) COPYIN(in_array) IF(i_am_accel_node)
       CALL exchange_data_4de1(comm_pattern, nfields, ndim2tot, out_array, &
         &                     in_array)
-!$acc end data
+      !$ACC END DATA
 
       IF (ANY(out_array /= ref_out_array)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result 4de1"
@@ -2296,22 +2296,22 @@ CONTAINS
     END IF
 #endif
 
-!$acc data copyin(in_array1) if (present(in_array1) .AND. i_am_accel_node)
-!$acc data copyin(in_array2) if (present(in_array2) .AND. i_am_accel_node)
-!$acc data copyin(in_array3) if (present(in_array3) .AND. i_am_accel_node)
-!$acc data copyin(in_array4) if (present(in_array4) .AND. i_am_accel_node)
-!$acc data copyin(in_array5) if (present(in_array5) .AND. i_am_accel_node)
-!$acc data copyin(in_array6) if (present(in_array6) .AND. i_am_accel_node)
-!$acc data copyin(in_array7) if (present(in_array7) .AND. i_am_accel_node)
-!$acc data copyin(in_array4d) if (present(in_array4d) .AND. i_am_accel_node)
-!$acc data copy(out_array1) if (present(out_array1) .AND. i_am_accel_node)
-!$acc data copy(out_array2) if (present(out_array2) .AND. i_am_accel_node)
-!$acc data copy(out_array3) if (present(out_array3) .AND. i_am_accel_node)
-!$acc data copy(out_array4) if (present(out_array4) .AND. i_am_accel_node)
-!$acc data copy(out_array5) if (present(out_array5) .AND. i_am_accel_node)
-!$acc data copy(out_array6) if (present(out_array6) .AND. i_am_accel_node)
-!$acc data copy(out_array7) if (present(out_array7) .AND. i_am_accel_node)
-!$acc data copy(out_array4d) if (present(out_array4d) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array1) IF(present(in_array1) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array2) IF(present(in_array2) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array3) IF(present(in_array3) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4) IF(present(in_array4) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array5) IF(present(in_array5) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array6) IF(present(in_array6) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array7) IF(present(in_array7) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4d) IF(present(in_array4d) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array1) IF(present(out_array1) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array2) IF(present(out_array2) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array3) IF(present(out_array3) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4) IF(present(out_array4) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array5) IF(present(out_array5) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array6) IF(present(out_array6) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array7) IF(present(out_array7) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4d) IF(present(out_array4d) .AND. i_am_accel_node)
       IF (nfields > 0) THEN
         CALL exchange_data_mult( &
           p_pat=comm_pattern, nfields=nfields, ndim2tot=ndim2tot, &
@@ -2325,22 +2325,22 @@ CONTAINS
           recv4d=out_array4d, send4d=in_array4d, &
           nshift=kshift)
       END IF
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
 
 #ifdef _OPENACC
     i_am_accel_node = .FALSE.
@@ -2989,30 +2989,30 @@ CONTAINS
     END IF
 #endif
 
-!$acc data copyin(in_array1_dp) if (present(in_array1_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array2_dp) if (present(in_array2_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array3_dp) if (present(in_array3_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array4_dp) if (present(in_array4_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array5_dp) if (present(in_array5_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array4d_dp) if (present(in_array4d_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array1_dp) if (present(out_array1_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array2_dp) if (present(out_array2_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array3_dp) if (present(out_array3_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array4_dp) if (present(out_array4_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array5_dp) if (present(out_array5_dp) .AND. i_am_accel_node)
-!$acc data copy(out_array4d_dp) if (present(out_array4d_dp) .AND. i_am_accel_node)
-!$acc data copyin(in_array1_sp) if (present(in_array1_sp) .AND. i_am_accel_node)
-!$acc data copyin(in_array2_sp) if (present(in_array2_sp) .AND. i_am_accel_node)
-!$acc data copyin(in_array3_sp) if (present(in_array3_sp) .AND. i_am_accel_node)
-!$acc data copyin(in_array4_sp) if (present(in_array4_sp) .AND. i_am_accel_node)
-!$acc data copyin(in_array5_sp) if (present(in_array5_sp) .AND. i_am_accel_node)
-!$acc data copyin(in_array4d_sp) if (present(in_array4d_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array1_sp) if (present(out_array1_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array2_sp) if (present(out_array2_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array3_sp) if (present(out_array3_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array4_sp) if (present(out_array4_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array5_sp) if (present(out_array5_sp) .AND. i_am_accel_node)
-!$acc data copy(out_array4d_sp) if (present(out_array4d_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array1_dp) IF(present(in_array1_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array2_dp) IF(present(in_array2_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array3_dp) IF(present(in_array3_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4_dp) IF(present(in_array4_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array5_dp) IF(present(in_array5_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4d_dp) IF(present(in_array4d_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array1_dp) IF(present(out_array1_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array2_dp) IF(present(out_array2_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array3_dp) IF(present(out_array3_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4_dp) IF(present(out_array4_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array5_dp) IF(present(out_array5_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4d_dp) IF(present(out_array4d_dp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array1_sp) IF(present(in_array1_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array2_sp) IF(present(in_array2_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array3_sp) IF(present(in_array3_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4_sp) IF(present(in_array4_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array5_sp) IF(present(in_array5_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPYIN(in_array4d_sp) IF(present(in_array4d_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array1_sp) IF(present(out_array1_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array2_sp) IF(present(out_array2_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array3_sp) IF(present(out_array3_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4_sp) IF(present(out_array4_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array5_sp) IF(present(out_array5_sp) .AND. i_am_accel_node)
+      !$ACC DATA COPY(out_array4d_sp) IF(present(out_array4d_sp) .AND. i_am_accel_node)
       IF ((nfields_dp > 0) .OR. (nfields_sp > 0)) THEN
         CALL exchange_data_mult_mixprec( &
           p_pat=comm_pattern, nfields_dp=nfields_dp, ndim2tot_dp=ndim2tot_dp, &
@@ -3031,30 +3031,30 @@ CONTAINS
           recv4d_sp=out_array4d_sp, send4d_sp=in_array4d_sp, &
           nshift=kshift)
       END IF
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
-!$acc end data
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
+      !$ACC END DATA
 
 #ifdef _OPENACC
     i_am_accel_node = .FALSE.
@@ -3410,10 +3410,10 @@ CONTAINS
       nfields = 1
       ndim2tot = SIZE(recv1, 2)
       recv1 = tmp_recv1
-!$acc data copy(recv1) copyin(send1) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1) COPYIN(send1) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
         CALL finish(method_name, message_text)
@@ -3424,11 +3424,11 @@ CONTAINS
       ndim2tot = SIZE(recv1, 2) + SIZE(recv2, 2)
       recv1 = tmp_recv1
       recv2 = tmp_recv2
-!$acc data copy(recv1, recv2) copyin(send1, send2) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1, recv2) COPYIN(send1, send2) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1, &
         &                    recv2=recv2, send2=send2)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1) .OR. ANY(recv2 /= ref_recv2)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
         CALL finish(method_name, message_text)
@@ -3440,13 +3440,13 @@ CONTAINS
       recv1 = tmp_recv1
       recv2 = tmp_recv2
       recv3 = tmp_recv3
-!$acc data copy(recv1, recv2, recv3) &
-!$acc      copyin(send1, send2, send3) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1, recv2, recv3) &
+      !$ACC   COPYIN(send1, send2, send3) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1, &
         &                    recv2=recv2, send2=send2, recv3=recv3, &
         &                    send3=send3)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1) .OR. ANY(recv2 /= ref_recv2) .OR. &
         & ANY(recv3 /= ref_recv3)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
@@ -3461,13 +3461,13 @@ CONTAINS
       recv2 = tmp_recv2
       recv3 = tmp_recv3
       recv4 = tmp_recv4
-!$acc data copy(recv1, recv2, recv3, recv4) &
-!$acc      copyin(send1, send2, send3, send4) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1, recv2, recv3, recv4) &
+      !$ACC   COPYIN(send1, send2, send3, send4) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1, &
         &                    recv2=recv2, send2=send2, recv3=recv3, &
         &                    send3=send3, recv4=recv4, send4=send4)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1) .OR. ANY(recv2 /= ref_recv2) .OR. &
         & ANY(recv3 /= ref_recv3) .OR. ANY(recv4 /= ref_recv4)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
@@ -3483,14 +3483,14 @@ CONTAINS
       recv3 = tmp_recv3
       recv4 = tmp_recv4
       recv5 = tmp_recv5
-!$acc data copy(recv1, recv2, recv3, recv4, recv5) &
-!$acc      copyin(send1, send2, send3, send4, send5) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1, recv2, recv3, recv4, recv5) &
+      !$ACC   COPYIN(send1, send2, send3, send4, send5) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1, &
         &                    recv2=recv2, send2=send2, recv3=recv3, &
         &                    send3=send3, recv4=recv4, send4=send4, &
         &                    recv5=recv5, send5=send5)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1) .OR. ANY(recv2 /= ref_recv2) .OR. &
         & ANY(recv3 /= ref_recv3) .OR. ANY(recv4 /= ref_recv4) .OR. &
         & ANY(recv5 /= ref_recv5)) THEN
@@ -3508,15 +3508,15 @@ CONTAINS
       recv4 = tmp_recv4
       recv5 = tmp_recv5
       recv6 = tmp_recv6
-!$acc data copy(recv1, recv2, recv3, recv4, recv5, recv6) &
-!$acc      copyin(send1, send2, send3, send4, send5, send6) if (i_am_accel_node)
+      !$ACC DATA COPY(recv1, recv2, recv3, recv4, recv5, recv6) &
+      !$ACC   COPYIN(send1, send2, send3, send4, send5, send6) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv1=recv1, send1=send1, &
         &                    recv2=recv2, send2=send2, recv3=recv3, &
         &                    send3=send3, recv4=recv4, send4=send4, &
         &                    recv5=recv5, send5=send5, recv6=recv6, &
         &                    send6=send6)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv1 /= ref_recv1) .OR. ANY(recv2 /= ref_recv2) .OR. &
         & ANY(recv3 /= ref_recv3) .OR. ANY(recv4 /= ref_recv4) .OR. &
         & ANY(recv5 /= ref_recv5) .OR. ANY(recv6 /= ref_recv6)) THEN
@@ -3528,11 +3528,11 @@ CONTAINS
       nfields = SIZE(recv4d1, 4)
       ndim2tot = SIZE(recv4d1, 4) * SIZE(recv4d1, 2)
       recv4d1 = tmp_recv4d1
-!$acc data copy(recv4d1) copyin(send4d1) if (i_am_accel_node)
+      !$ACC DATA COPY(recv4d1) COPYIN(send4d1) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv4d1=recv4d1, &
         &                    send4d1=send4d1)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv4d1 /= ref_recv4d1)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
         CALL finish(method_name, message_text)
@@ -3544,11 +3544,11 @@ CONTAINS
         &        SIZE(recv4d2, 4) * SIZE(recv4d2, 2)
       recv4d1 = tmp_recv4d1
       recv4d2 = tmp_recv4d2
-!$acc data copy(recv4d1, recv4d2) copyin(send4d1, send4d2) if (i_am_accel_node)
+      !$ACC DATA COPY(recv4d1, recv4d2) COPYIN(send4d1, send4d2) IF(i_am_accel_node)
       CALL exchange_data_grf(p_pat_coll=p_pat_coll, nfields=nfields, &
         &                    ndim2tot=ndim2tot, recv4d1=recv4d1, &
         &                    send4d1=send4d1, recv4d2=recv4d2, send4d2=send4d2)
-!$acc end data
+      !$ACC END DATA
       IF (ANY(recv4d1 /= ref_recv4d1) .OR. ANY(recv4d2 /= ref_recv4d2)) THEN
         WRITE(message_text,'(a,i0)') "Wrong exchange result grf", i
         CALL finish(method_name, message_text)

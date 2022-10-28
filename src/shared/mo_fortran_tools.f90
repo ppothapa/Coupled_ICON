@@ -51,6 +51,9 @@ MODULE mo_fortran_tools
   PUBLIC :: DO_DEALLOCATE
   PUBLIC :: DO_PTR_DEALLOCATE
   PUBLIC :: insert_dimension
+  PUBLIC :: assert_acc_host_only
+  PUBLIC :: assert_acc_device_only
+  PUBLIC :: set_acc_host_or_device
 
   PRIVATE
 
@@ -474,7 +477,7 @@ CONTAINS
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #ifdef __INTEL_COMPILER
 !$omp do private(i1,i2)
 #else
@@ -500,7 +503,7 @@ CONTAINS
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -529,7 +532,7 @@ CONTAINS
     m3 = SIZE(dest, 3)
     m4 = SIZE(dest, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -561,7 +564,7 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -595,7 +598,7 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -625,7 +628,7 @@ CONTAINS
     INTEGER :: i1, i2, m1, m2
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )                          
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2)
 #else
@@ -651,7 +654,7 @@ CONTAINS
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -680,7 +683,7 @@ CONTAINS
     m3 = SIZE(dest, 3)
     m4 = SIZE(dest, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -712,7 +715,7 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -743,7 +746,7 @@ CONTAINS
     m1 = SIZE(dest, 1)
     m2 = SIZE(dest, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2)
 #else
@@ -771,7 +774,7 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -805,7 +808,7 @@ CONTAINS
     m4 = SIZE(dest, 4)
     m5 = SIZE(dest, 5)
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
     !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -837,7 +840,7 @@ CONTAINS
     m2 = SIZE(dest, 2)
     m3 = SIZE(dest, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -864,7 +867,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
 !$omp do private(i1,i2,i3)
 #else
@@ -892,7 +895,7 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -922,7 +925,7 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER) || defined(_CRAYFTN))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -951,7 +954,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -979,7 +982,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
 
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2)
 #else
@@ -1004,7 +1007,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -1032,7 +1035,7 @@ CONTAINS
     m3 = SIZE(init_var, 3)
     m4 = SIZE(init_var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -1058,7 +1061,7 @@ CONTAINS
     INTEGER :: i1, m1
 
     m1 = SIZE(init_var, 1)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 !$omp do
     DO i1 = 1, m1
       init_var(i1) = 0.0_dp
@@ -1074,7 +1077,7 @@ CONTAINS
     INTEGER :: i1, m1
 
     m1 = SIZE(init_var, 1)
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$omp do
     DO i1 = 1, m1
       init_var(i1) = 0.0_dp
@@ -1092,7 +1095,7 @@ CONTAINS
     m1 = SIZE(init_var, 1)
     m2 = SIZE(init_var, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2)
 #else
@@ -1118,7 +1121,7 @@ CONTAINS
     m1 = SIZE(init_var, 1)
     m2 = SIZE(init_var, 2)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(2) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2)
 #else
@@ -1145,7 +1148,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -1174,7 +1177,7 @@ CONTAINS
     m2 = SIZE(init_var, 2)
     m3 = SIZE(init_var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -1205,7 +1208,7 @@ CONTAINS
     m4 = SIZE(init_var, 4)
     m5 = SIZE(init_var, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -1240,7 +1243,7 @@ CONTAINS
     m4 = SIZE(init_var, 4)
     m5 = SIZE(init_var, 5)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4,i5)
 #else
@@ -1275,7 +1278,7 @@ CONTAINS
     m3 = SIZE(var, 3)
 
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -1306,7 +1309,7 @@ CONTAINS
     m2 = SIZE(var, 2)
     m3 = SIZE(var, 3)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(3) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3)
 #else
@@ -1337,7 +1340,7 @@ CONTAINS
     m3 = SIZE(var, 3)
     m4 = SIZE(var, 4)
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(v) ASYNC(1) COLLAPSE(4) IF( i_am_accel_node )
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(v) ASYNC(1) COLLAPSE(4) IF(i_am_accel_node)
 #if (defined(__INTEL_COMPILER))
 !$omp do private(i1,i2,i3,i4)
 #else
@@ -1358,15 +1361,19 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE negative2zero_4d_dp
 
-  SUBROUTINE init_contiguous_dp(var, n, v, opt_acc_async)
+  SUBROUTINE init_contiguous_dp(var, n, v, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     REAL(dp), INTENT(out) :: var(n)
     REAL(dp), INTENT(in) :: v
     LOGICAL, INTENT(in), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     INTEGER :: i
+    LOGICAL :: lzacc
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node ) ASYNC(1)
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1376,23 +1383,28 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_contiguous_dp
 
-  SUBROUTINE init_zero_contiguous_dp(var, n, opt_acc_async)
+  SUBROUTINE init_zero_contiguous_dp(var, n, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     REAL(dp), INTENT(out) :: var(n)
     LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
-    CALL init_contiguous_dp(var, n, 0.0_dp, opt_acc_async)
+    CALL init_contiguous_dp(var, n, 0.0_dp, opt_acc_async, lacc)
   END SUBROUTINE init_zero_contiguous_dp
 
-  SUBROUTINE init_contiguous_sp(var, n, v, opt_acc_async)
+  SUBROUTINE init_contiguous_sp(var, n, v, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     REAL(sp), INTENT(out) :: var(n)
     REAL(sp), INTENT(in) :: v
     LOGICAL, INTENT(in), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     INTEGER :: i
+    LOGICAL :: lzacc
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1402,23 +1414,28 @@ CONTAINS
 
   END SUBROUTINE init_contiguous_sp
 
-  SUBROUTINE init_zero_contiguous_sp(var, n, opt_acc_async)
+  SUBROUTINE init_zero_contiguous_sp(var, n, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     REAL(sp), INTENT(out) :: var(n)
     LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
-    CALL init_contiguous_sp(var, n, 0.0_sp, opt_acc_async)
+    CALL init_contiguous_sp(var, n, 0.0_sp, opt_acc_async, lacc=lacc)
   END SUBROUTINE init_zero_contiguous_sp
 
-  SUBROUTINE init_contiguous_i4(var, n, v, opt_acc_async)
+  SUBROUTINE init_contiguous_i4(var, n, v, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     INTEGER(ik4), INTENT(out) :: var(n)
     INTEGER(ik4), INTENT(in) :: v
-    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(in), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     INTEGER :: i
+    LOGICAL :: lzacc
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1428,15 +1445,19 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_contiguous_i4
 
-  SUBROUTINE init_contiguous_l(var, n, v, opt_acc_async)
+  SUBROUTINE init_contiguous_l(var, n, v, opt_acc_async, lacc)
     INTEGER, INTENT(in) :: n
     LOGICAL, INTENT(out) :: var(n)
     LOGICAL, INTENT(in) :: v
     LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     INTEGER :: i
+    LOGICAL :: lzacc
 
-!$ACC PARALLEL LOOP DEFAULT(PRESENT) IF( i_am_accel_node )
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 !$omp do
     DO i = 1, n
       var(i) = v
@@ -1943,5 +1964,39 @@ CONTAINS
     END IF
     NULLIFY(object)
   END SUBROUTINE DO_PTR_DEALLOCATE_int1D
+
+  SUBROUTINE assert_acc_host_only(routine_name, lacc)
+    CHARACTER(len=*), INTENT(in) :: routine_name
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+#ifdef _OPENACC
+    IF ( PRESENT(lacc) .AND. lacc ) THEN
+      CALL finish (routine_name, ' not supported on ACC device.')
+    ENDIF
+#endif
+  END SUBROUTINE assert_acc_host_only
+
+  SUBROUTINE assert_acc_device_only(routine_name, lacc)
+    CHARACTER(len=*), INTENT(in) :: routine_name
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+#ifdef _OPENACC
+    IF ( (.NOT. PRESENT(lacc)) .OR. (.NOT. lacc) ) THEN
+      CALL finish (routine_name, ' not supported on ACC host.')
+    ENDIF
+#endif
+  END SUBROUTINE assert_acc_device_only
+
+  SUBROUTINE set_acc_host_or_device(lzacc, lacc)
+    LOGICAL, INTENT(out) :: lzacc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+    lzacc = .FALSE.
+#ifdef _OPENACC
+    IF ( PRESENT(lacc) ) THEN
+      lzacc = lacc
+    ENDIF
+#endif
+  END SUBROUTINE set_acc_host_or_device
 
 END MODULE mo_fortran_tools

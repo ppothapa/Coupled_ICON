@@ -85,7 +85,7 @@ CONTAINS
           !
           !DA TODO: remove derived % after merging with mc8
           !$ACC DATA PRESENT(field, field%ts_rad_rt, field%ts_rad, field%rtype, field%sftlf, field%sftgif) &
-          !$ACC      CREATE (itype, loland, loglac, mtrc)
+          !$ACC   CREATE(itype, loland, loglac, mtrc)
           !
           ! For some reason ACC kernels result in SEQ loop here
           !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)

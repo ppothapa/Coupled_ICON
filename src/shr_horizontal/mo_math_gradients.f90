@@ -236,8 +236,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
 IF (timers_level > 10) CALL timer_start(timer_grad)
 
-!$ACC DATA PCOPYIN( psi_c ) PCOPYOUT( grad_norm_psi_e )                    &
-!$ACC      PRESENT( ptr_patch%edges%inv_dual_edge_length, iidx, iblk ) IF( i_am_accel_node )
+  !$ACC DATA PRESENT(psi_c, grad_norm_psi_e, ptr_patch%edges%inv_dual_edge_length, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL
 
@@ -247,7 +246,7 @@ IF (timers_level > 10) CALL timer_start(timer_grad)
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node )
+    !$ACC PARALLEL IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO je = i_startidx, i_endidx
@@ -278,9 +277,9 @@ IF (timers_level > 10) CALL timer_start(timer_grad)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
-IF (timers_level > 10) CALL timer_stop(timer_grad)
+  IF (timers_level > 10) CALL timer_stop(timer_grad)
 
 
 END SUBROUTINE grad_fd_norm
@@ -378,7 +377,7 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 i_startblk = ptr_patch%edges%start_blk(rl_start,1)
 i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
-!$ACC DATA PRESENT( psi_v, grad_tang_psi_e, ptr_patch) CREATE( ilv1, ibv1, ilv2, ibv2 ) IF( i_am_accel_node )
+!$ACC DATA PRESENT(psi_v, grad_tang_psi_e, ptr_patch) CREATE(ilv1, ibv1, ilv2, ibv2) IF(i_am_accel_node)
 
 !
 ! TODO: OpenMP
@@ -392,8 +391,8 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL DEFAULT(NONE) IF( i_am_accel_node )
-  !$ACC LOOP GANG(STATIC:1) VECTOR
+  !$ACC PARALLEL DEFAULT(NONE) IF(i_am_accel_node)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO je = i_startidx, i_endidx
     !
     !  get the line and block indices of the vertices of edge je
@@ -406,7 +405,7 @@ DO jb = i_startblk, i_endblk
 
   DO jk = slev, elev
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( iorient )
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(iorient)
     DO je = i_startidx, i_endidx
       !
       ! compute the tangential derivative
@@ -521,8 +520,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 ! 2. reconstruction of cell based geographical gradient
 !
 
-!$ACC DATA PCOPYIN( p_cc ) PCOPYOUT( p_grad )                                      &
-!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node )
+  !$ACC DATA PRESENT(p_cc, p_grad, ptr_int%gradc_bmat, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -533,9 +531,9 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 
 #ifdef _OPENACC
-!$ACC KERNELS PRESENT( p_grad ), IF( i_am_accel_node )
+    !$ACC KERNELS PRESENT(p_grad) IF(i_am_accel_node)
     p_grad(:,:,:,1:i_startblk) = 0._wp
-!$ACC END KERNELS
+    !$ACC END KERNELS
 #else
     CALL init(p_grad(:,:,:,1:i_startblk))
 !$OMP BARRIER
@@ -548,7 +546,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node )
+    !$ACC PARALLEL IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -588,7 +586,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
 
 END SUBROUTINE grad_fe_cell_adv
@@ -809,8 +807,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 ! 2. reconstruction of cell based geographical gradient
 !
 
-!$ACC DATA PCOPYIN( p_ccpr ) PCOPYOUT( p_grad )                                      &
-!$ACC      PRESENT( ptr_int%gradc_bmat, iidx, iblk ) IF( i_am_accel_node )
+  !$ACC DATA PRESENT(p_ccpr, p_grad, ptr_int%gradc_bmat, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -824,7 +821,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node )
+    !$ACC PARALLEL IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -876,7 +873,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
 END SUBROUTINE grad_fe_cell_dycore
 
@@ -984,8 +981,7 @@ ENDIF
 !
 ! 2. reconstruction of cell based geographical gradient
 !
-!$ACC DATA PCOPYIN( p_cc ) PCOPYOUT( p_grad )                                  &
-!$ACC      PRESENT( ptr_int%geofac_grg, iidx, iblk ) IF( i_am_accel_node )
+  !$ACC DATA PRESENT(p_cc, p_grad, ptr_int%geofac_grg, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -995,9 +991,9 @@ ENDIF
   IF (ptr_patch%id > 1) THEN
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 #ifdef _OPENACC
-!$ACC KERNELS IF( i_am_accel_node )
+    !$ACC KERNELS IF(i_am_accel_node)
     p_grad(:,:,:,1:i_startblk) = 0._wp
-!$ACC END KERNELS
+    !$ACC END KERNELS
 #else
     CALL init(p_grad(:,:,:,1:i_startblk))
 !$OMP BARRIER
@@ -1010,7 +1006,7 @@ ENDIF
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF( i_am_accel_node )
+    !$ACC PARALLEL IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -1046,9 +1042,9 @@ ENDIF
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA
+  !$ACC END DATA
 
-  END SUBROUTINE grad_green_gauss_cell_adv
+END SUBROUTINE grad_green_gauss_cell_adv
 
 SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,         &
     &                                   opt_slev, opt_elev, opt_rlstart, opt_rlend, &
@@ -1122,8 +1118,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
   ! 2. reconstruction of cell based geographical gradient
   !
 
-!$ACC DATA PCOPYIN( p_ccpr ) PCOPYOUT( p_grad )                                     &
-!$ACC      PRESENT( ptr_int, iidx, iblk ) IF( i_am_accel_node )
+  !$ACC DATA PRESENT(p_ccpr, p_grad, ptr_int, iidx, iblk) IF(i_am_accel_node)
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -1136,7 +1131,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node ) 
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx
@@ -1217,7 +1212,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
       !$ACC WAIT
     END IF
     
-!$ACC END DATA
+    !$ACC END DATA
   END SUBROUTINE grad_green_gauss_cell_dycore
 
 END MODULE mo_math_gradients

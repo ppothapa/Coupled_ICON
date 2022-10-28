@@ -207,13 +207,13 @@ CONTAINS
     REAL(wp) :: drlus_dtsr, dtsr
     INTEGER  :: jc, jk
 
-    !$ACC DATA PRESENT( cosmu0, daylght_frc, emiss, tsr, tsr_rt, rsd_rt, rsu_rt, rsdcs_rt, rsucs_rt, &
-    !$ACC               rld_rt, rlu_rt, rldcs_rt, rlucs_rt, rvds_dir_rt, rpds_dir_rt, rnds_dir_rt,   &
-    !$ACC               rvds_dif_rt, rpds_dif_rt, rnds_dif_rt, rvus_rt, rpus_rt, rnus_rt, rsdt, rsut,&
-    !$ACC               rsds, rsus, rsutcs, rsdscs, rsuscs, rvds_dir, rpds_dir, rnds_dir, rvds_dif,  &
-    !$ACC               rpds_dif, rnds_dif, rvus, rpus, rnus, rlut, rlds, rlus, rlutcs, rldscs,      &
-    !$ACC               q_rsw, q_rlw )                                                               &
-    !$ACC       CREATE( xsdt, rsn, rln )
+    !$ACC DATA PRESENT(cosmu0, daylght_frc, emiss, tsr, tsr_rt, rsd_rt, rsu_rt, rsdcs_rt, rsucs_rt) &
+    !$ACC   PRESENT(rld_rt, rlu_rt, rldcs_rt, rlucs_rt, rvds_dir_rt, rpds_dir_rt, rnds_dir_rt) &
+    !$ACC   PRESENT(rvds_dif_rt, rpds_dif_rt, rnds_dif_rt, rvus_rt, rpus_rt, rnus_rt, rsdt, rsut) &
+    !$ACC   PRESENT(rsds, rsus, rsutcs, rsdscs, rsuscs, rvds_dir, rpds_dir, rnds_dir, rvds_dif) &
+    !$ACC   PRESENT(rpds_dif, rnds_dif, rvus, rpus, rnus, rlut, rlds, rlus, rlutcs, rldscs) &
+    !$ACC   PRESENT(q_rsw, q_rlw) &
+    !$ACC   CREATE(xsdt, rsn, rln)
 
     ! Shortwave fluxes
     ! ----------------
@@ -227,7 +227,7 @@ CONTAINS
     ! - scaling ratio for fluxes at current time: xsdt    = rsdt / rsdt_rt
     !
     ! top of atmophere
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs,jce,rsdt0) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs, jce, rsdt0) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs, jce
       rsdt  (jc)   = rsdt0*cosmu0(jc)*daylght_frc(jc)
@@ -243,7 +243,7 @@ CONTAINS
     !$ACC END PARALLEL
     !
     ! all half levels
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1, jcs, jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klevp1
       DO jc = jcs, jce
@@ -252,7 +252,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     !
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs,jce,klevp1) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(jcs, jce, klevp1) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs, jce
       ! surface
@@ -292,7 +292,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     ! all half levels
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1, jcs, jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klevp1
       DO jc = jcs, jce
@@ -301,8 +301,8 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     !
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1,jcs,jce) ASYNC(1)
-    !$ACC LOOP GANG VECTOR PRIVATE( drlus_dtsr, dtsr )
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klevp1, jcs, jce) ASYNC(1)
+    !$ACC LOOP GANG VECTOR PRIVATE(drlus_dtsr, dtsr)
     DO jc = jcs, jce
       ! surface
       rlds  (jc)  = rld_rt  (jc,klevp1)
@@ -321,7 +321,7 @@ CONTAINS
 
     ! Heating rates in atmosphere
     !----------------------------
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klev,jcs,jce) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(klev, jcs, jce) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jc = jcs, jce

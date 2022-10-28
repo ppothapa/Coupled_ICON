@@ -148,9 +148,10 @@ contains
              this%lut_ssaice(nsize_ice, nbnd, nrghice), &
              this%lut_asyice(nsize_ice, nbnd, nrghice))
 
-    !$ACC ENTER DATA CREATE(this)                                               &
-    !$ACC            CREATE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
-    !$ACC            CREATE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
+    !$ACC ENTER DATA CREATE(this)
+    
+    !$ACC ENTER DATA CREATE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq) &
+    !$ACC   CREATE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
     ! Load LUT constants
     this%radliq_lwr = radliq_lwr
     this%radliq_upr = radliq_upr
@@ -272,11 +273,12 @@ contains
              this%pade_sizreg_extice(nbound), &
              this%pade_sizreg_ssaice(nbound), &
              this%pade_sizreg_asyice(nbound))
-    !$ACC ENTER DATA CREATE(this)                                                                       &
-    !$ACC            CREATE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
-    !$ACC            CREATE(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
-    !$ACC            CREATE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
-    !$ACC            CREATE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)
+    !$ACC ENTER DATA CREATE(this)
+
+    !$ACC ENTER DATA CREATE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq) &
+    !$ACC   CREATE(this%pade_extice, this%pade_ssaice, this%pade_asyice) &
+    !$ACC   CREATE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq) &
+    !$ACC   CREATE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)
     !
     ! Load data
     !
@@ -315,9 +317,9 @@ contains
     ! Lookup table cloud optics coefficients
     if(allocated(this%lut_extliq)) then
 
-      !$ACC EXIT DATA DELETE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq)  &
-      !$ACC           DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice)  &
-      !$ACC           DELETE(this)
+      !$ACC EXIT DATA DELETE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq) &
+      !$ACC   DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice) 
+      !$ACC EXIT DATA DELETE(this)
 
 
       deallocate(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq, &
@@ -331,11 +333,11 @@ contains
     ! Pade cloud optics coefficients
     if(allocated(this%pade_extliq)) then
 
-      !$ACC EXIT DATA DELETE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq)                       &
-      !$ACC           DELETE(this%pade_extice, this%pade_ssaice, this%pade_asyice)                       &
-      !$ACC           DELETE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq)  &
-      !$ACC           DELETE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)  &
-      !$ACC           DELETE(this)
+      !$ACC EXIT DATA DELETE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq) &
+      !$ACC   DELETE(this%pade_extice, this%pade_ssaice, this%pade_asyice) &
+      !$ACC   DELETE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq) &
+      !$ACC   DELETE(this%pade_sizreg_extice, this%pade_sizreg_ssaice, this%pade_sizreg_asyice)
+      !$ACC EXIT DATA DELETE(this)
 
       deallocate(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq, &
                  this%pade_extice, this%pade_ssaice, this%pade_asyice, &
@@ -421,13 +423,13 @@ contains
       if(error_msg /= "") return
     end if
 
-    !$ACC DATA COPYIN(clwp, ciwp, reliq, reice)                         &
-    !$ACC      CREATE(ltau, ltaussa, ltaussag, itau, itaussa, itaussag) &
-    !$ACC      CREATE(liqmsk,icemsk)
+    !$ACC DATA COPYIN(clwp, ciwp, reliq, reice) &
+    !$ACC   CREATE(ltau, ltaussa, ltaussag, itau, itaussa, itaussag) &
+    !$ACC   CREATE(liqmsk, icemsk)
     !
     ! Cloud masks; don't need value re values if there's no cloud
     !
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) FIRSTPRIVATE(nlay,ncol) COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) FIRSTPRIVATE(nlay, ncol) COLLAPSE(2)
     do ilay = 1, nlay
       do icol = 1, ncol
         liqmsk(icol,ilay) = clwp(icol,ilay) > 0._wp
@@ -503,8 +505,8 @@ contains
       !
       select type(optical_props)
       type is (ty_optical_props_1scl)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd,nlay,ncol) &
-        !$ACC               COPYIN(optical_props) COPYOUT(optical_props%tau)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) &
+        !$ACC   COPYIN(optical_props) COPYOUT(optical_props%tau)
 
         do ibnd = 1, nbnd
           do ilay = 1, nlay
@@ -516,8 +518,8 @@ contains
           end do
         end do
       type is (ty_optical_props_2str)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd,nlay,ncol) PRIVATE(tau,taussa) &
-        !$ACC               COPYIN(optical_props) COPYOUT(optical_props%tau, optical_props%ssa, optical_props%g)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) PRIVATE(tau, taussa) &
+        !$ACC   COPYIN(optical_props) COPYOUT(optical_props%tau, optical_props%ssa, optical_props%g)
         do ibnd = 1, nbnd
           do ilay = 1, nlay
             do icol = 1,ncol

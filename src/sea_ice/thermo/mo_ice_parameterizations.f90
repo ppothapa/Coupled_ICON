@@ -80,7 +80,7 @@ CONTAINS
     INTEGER             :: jc,k
     !-------------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT( Tsurf, hi, hs, albvisdir, albvisdif, albnirdir, albnirdif )
+    !$ACC DATA PRESENT(Tsurf, hi, hs, albvisdir, albvisdif, albnirdir, albnirdif)
 
     SELECT CASE (i_ice_albedo)
     CASE (1)
@@ -88,7 +88,7 @@ CONTAINS
       !$ACC PARALLEL
       !$ACC LOOP SEQ
       DO k=1,kice
-        !$ACC LOOP GANG VECTOR PRIVATE( albflag )
+        !$ACC LOOP GANG VECTOR PRIVATE(albflag)
         DO jc = i_startidx_c,i_endidx_c
 
           albflag =  1.0_wp/ ( 1.0_wp+albtrans * (Tsurf(jc,k))**2 )
@@ -126,7 +126,7 @@ CONTAINS
       !$ACC LOOP SEQ
 !PREVENT_INCONSISTENT_IFORT_FMA
       DO k=1,kice
-        !$ACC LOOP GANG VECTOR PRIVATE( frac_snow )
+        !$ACC LOOP GANG VECTOR PRIVATE(frac_snow)
         DO jc = i_startidx_c,i_endidx_c
           frac_snow = hs(jc,k)/( hs(jc,k)+0.02_wp )
           IF ( Tsurf(jc,k) > -1._wp ) THEN

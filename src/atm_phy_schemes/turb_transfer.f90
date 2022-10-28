@@ -421,6 +421,7 @@ USE data_1d_global, ONLY : &
 #endif
 !SCLM---------------------------------------------------------------------------
 
+USE mo_fortran_tools, ONLY: set_acc_host_or_device
 !===============================================================================
 
 IMPLICIT NONE
@@ -822,8 +823,8 @@ CHARACTER (LEN=*), INTENT(OUT) :: yroutine
 CHARACTER (LEN=*), INTENT(OUT) :: yerrormsg
 
 #endif
-LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-LOGICAL :: lzacc
+LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
+LOGICAL :: lzacc ! non-optional version of lacc
 
 #ifdef __ICON__
 INTEGER            :: my_cart_id, my_thrd_id
@@ -995,11 +996,7 @@ LOGICAL        ::   ldebug = .FALSE.
 
 !---- End of header -----------------------------------------------------------
 
-IF(PRESENT(lacc)) THEN
-    lzacc = lacc
-ELSE
-    lzacc = .FALSE.
-ENDIF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
 !==============================================================================
 ! Begin subroutine turbtran
@@ -1008,16 +1005,16 @@ ENDIF
 ! 1)  Vorbereitungen:
 
   !GPU data region of all variables except pointers which are set later on
-  !$acc data create(diss_tar,tketens_tar,len_scale,l_scal)       &
-  !$acc      create(fc_min,rclc,rhon,frh,frm,zaux,zvari,prss)    &
-  !$acc      create(eprs,tmps,vaps,liqs,tl_s_2d,qt_s_2d,vel_2d)  &
-  !$acc      create(velmin,ratsea,hk_2d,hk1_2d,h_top_2d)         &
-  !$acc      create(h_atm_2d,h_can_2d,edh,z0m_2d,z0d_2d,z2m_2d)  &
-  !$acc      create(z10m_2d,rat_m_2d,rat_h_2d,fac_h_2d,fac_m_2d) &
-  !$acc      create(frc_2d,dz_sg_m,dz_sg_h,dz_g0_h)              &
-  !$acc      create(dz_0a_m,dz_0a_h,dz_sa_h,dz_s0_h,grad)        &
-  !$acc      create(k_2d,lo_ice)                                 &
-  !$acc      if(lzacc)
+  !$ACC DATA CREATE(diss_tar, tketens_tar, len_scale, l_scal) &
+  !$ACC   CREATE(fc_min, rclc, rhon, frh, frm, zaux, zvari, prss) &
+  !$ACC   CREATE(eprs, tmps, vaps, liqs, tl_s_2d, qt_s_2d, vel_2d) &
+  !$ACC   CREATE(velmin, ratsea, hk_2d, hk1_2d, h_top_2d) &
+  !$ACC   CREATE(h_atm_2d, h_can_2d, edh, z0m_2d, z0d_2d, z2m_2d) &
+  !$ACC   CREATE(z10m_2d, rat_m_2d, rat_h_2d, fac_h_2d, fac_m_2d) &
+  !$ACC   CREATE(frc_2d, dz_sg_m, dz_sg_h, dz_g0_h) &
+  !$ACC   CREATE(dz_0a_m, dz_0a_h, dz_sa_h, dz_s0_h, grad) &
+  !$ACC   CREATE(k_2d, lo_ice) &
+  !$ACC   IF(lzacc)
 !-------------------------------------------------------------------------------
   CALL turb_setup (ivstart=ivstart, ivend=ivend, ke1=ke1, &
                    iini=iini, dt_tke=dt_tke, nprv=nprv, l_hori=l_hori, qc_a=qc(:,ke), &
@@ -1122,7 +1119,7 @@ my_thrd_id = omp_get_thread_num()
          tvt => tketens
       ELSE
          tvt => tketens_tar
-         !$ACC PARALLEL DEFAULT(NONE) PRESENT(tvt) ASYNC(1) IF( lzacc )
+         !$ACC PARALLEL DEFAULT(NONE) PRESENT(tvt) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO k=ke1, ke1
             DO i=ivstart, ivend
@@ -1152,18 +1149,18 @@ my_thrd_id = omp_get_thread_num()
       ! Set the logical mask lo_ice to distinguish between ice covered
       ! and open water sea or lake grid points.
       
-      !$acc data no_create(fr_land,t_g,h_ice,depth_lk,&
-      !$acc                hhl,epr_2d,u,v,t,&
-      !$acc                epr,tke,tkvm,tkvh,gz0,tkr,&
-      !$acc                l_tur_z0,ps,sai,urb_isa,rlamh_fac,&
-      !$acc                tfm,tfh,tfv,qv_s,qv,qc,&
-      !$acc                dwdx,dwdy,hdef2,g_tet,&
-      !$acc                g_vap,tcm,tch,z0d_2d,shfl_s,&
-      !$acc                rcld,qsat_dT,qvfl_s,umfl_s,vmfl_s,&
-      !$acc                edr,tvh,tvm,qsat_dt,t_2m,&
-      !$acc                qv_2m,rcl_2d,prs,qda_2d,ta_2d,&
-      !$acc                v_10m,u_10m,vel1_2d,rh_2m,td_2m &
-      !$acc                )
+      !$ACC DATA NO_CREATE(fr_land, t_g, h_ice, depth_lk) &
+      !$ACC   NO_CREATE(hhl, epr_2d, u, v, t) &
+      !$ACC   NO_CREATE(epr, tke, tkvm, tkvh, gz0, tkr) &
+      !$ACC   NO_CREATE(l_tur_z0, ps, sai, urb_isa, rlamh_fac) &
+      !$ACC   NO_CREATE(tfm, tfh, tfv, qv_s, qv, qc) &
+      !$ACC   NO_CREATE(dwdx, dwdy, hdef2, g_tet) &
+      !$ACC   NO_CREATE(g_vap, tcm, tch, z0d_2d, shfl_s) &
+      !$ACC   NO_CREATE(rcld, qsat_dT, qvfl_s, umfl_s, vmfl_s) &
+      !$ACC   NO_CREATE(edr, tvh, tvm, qsat_dt, t_2m) &
+      !$ACC   NO_CREATE(qv_2m, rcl_2d, prs, qda_2d, ta_2d) &
+      !$ACC   NO_CREATE(v_10m, u_10m, vel1_2d, rh_2m, td_2m) &
+      !$ACC   
       
 ! Berechnung einiger Hilfsgroessen und Initialisierung der Diffusionskoeff.:
 
@@ -1179,8 +1176,8 @@ my_thrd_id = omp_get_thread_num()
       END IF
 
 !DIR$ IVDEP
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang(static:1) vector
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
 
          IF (fr_land(i) < z1d2) THEN
@@ -1205,7 +1202,7 @@ my_thrd_id = omp_get_thread_num()
       END DO
 
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
          ! Dicke der Modell-Prandtl-Schicht
          h_top_2d(i) = hhl(i,ke)-hhl(i,ke1)
@@ -1219,7 +1216,7 @@ my_thrd_id = omp_get_thread_num()
       END DO
 
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
          ratsea(i) = rat_sea
       END DO
@@ -1227,7 +1224,7 @@ my_thrd_id = omp_get_thread_num()
       IF (imode_rat_sea.EQ.2) THEN
 !<Tuning
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             IF (t_g(i) - t(i,ke) > 8._wp) THEN
                ! Increase rat_sea for very large temperature differences between water and adjacent air
@@ -1242,7 +1239,7 @@ my_thrd_id = omp_get_thread_num()
       IF (imode_vel_min.EQ.2) THEN
 !<Tuning    
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             ! stability-dependent minimum velocity serving as lower limit on surface TKE
             ! (parameterizes small-scale circulations developing over a strongly heated surface;
@@ -1257,7 +1254,7 @@ my_thrd_id = omp_get_thread_num()
       END IF
 
       IF (lini) THEN !only for initialization
-         !$acc loop gang(static:1) vector private(lgz0ini,l_turb,dh,vel1,vel2,fm2,fh2,fakt,lm,lh,wert,val1,val2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(lgz0ini, l_turb, dh, vel1, vel2, fm2, fh2, fakt, lm, lh, wert, val1, val2)
          DO i=ivstart, ivend
 
             lgz0ini=(.NOT.lgz0inp .AND. fr_land(i) < z1d2)
@@ -1368,7 +1365,7 @@ my_thrd_id = omp_get_thread_num()
       END IF !only for initialization
 
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
          z0m_2d(i)  = gz0(i)/grav   !mean roughness length
          l_tur_z0(i)= akt*z0m_2d(i) !turbulent length scale
@@ -1378,13 +1375,13 @@ my_thrd_id = omp_get_thread_num()
       IF (lini) THEN
 
          IF (imode_trancnf.GE.2) THEN !new version of init. using estimated Ustar
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                tkvm(i,ke1)=tkvm(i,ke)*frc_2d(i)*(frc_2d(i)+(z1-frc_2d(i))*rat_m_2d(i))
                tkvh(i,ke1)=tkvh(i,ke)*frc_2d(i)*(frc_2d(i)+(z1-frc_2d(i))*rat_h_2d(i))
             END DO
          ELSE    
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                tkvm(i,ke) =con_m; tkvh(i,ke) =con_h
                tkvm(i,ke1)=con_m; tkvh(i,ke1)=con_h
@@ -1395,7 +1392,7 @@ my_thrd_id = omp_get_thread_num()
          !Not for initialization, but for calculation the profile-factors
          !without an upper node based on previous values of transfer-velocity
          !and diffusion-coefficients (at the top of the roughness layer):
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             rat_m_2d(i)= tkr(i)/tkvm(i,ke1)              !Ustar/(q*Sm)_0
             rat_h_2d(i)=(tkr(i)*sh_0)/(tkvh(i,ke1)*sm_0) !Ustar/(q*Sh)_0*(Sh(0)/Sm(0))
@@ -1408,14 +1405,14 @@ my_thrd_id = omp_get_thread_num()
          !Profile-factors by using the previous diffusion coefficients
          !without a laminar correction, but still based on the upper node:
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             rat_m_2d(i)=frc_2d(i)*tkvm(i,ke)/tkvm(i,ke1) !(q*Sm)_p/(q*Sm)_0
             rat_h_2d(i)=frc_2d(i)*tkvh(i,ke)/tkvh(i,ke1) !(q*Sh)_p/(q*Sh)_0
          END DO 
       END IF   
 
-      !$acc end parallel
+      !$ACC END PARALLEL
 
 ! 4)  Berechnung der Transferkoeffizienten:
 
@@ -1423,8 +1420,8 @@ my_thrd_id = omp_get_thread_num()
 !print *,"it_durch=",it_durch
 
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang(static:1) vector private(z_surf,fakt,rin_m,rin_h,zkbmo_dia,zkbmo_urb,zustar)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z_surf, fakt, rin_m, rin_h, zkbmo_dia, zkbmo_urb, zustar)
          DO i=ivstart, ivend
 
             z_surf= z0m_2d(i)/sai(i) !effektive Rauhigkeitslaenge
@@ -1477,7 +1474,7 @@ my_thrd_id = omp_get_thread_num()
 
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
 !           Effektiven Bestandeshoehe:
             IF (dz_sg_h(i).EQ.z0) THEN
@@ -1488,7 +1485,7 @@ my_thrd_id = omp_get_thread_num()
          END DO
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(wert,dz_s0_m,fakt)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert, dz_s0_m, fakt)
          DO i=ivstart, ivend
 
           ! inclusive lam. Grenzschicht fuer Impuls:
@@ -1539,7 +1536,7 @@ my_thrd_id = omp_get_thread_num()
          END DO
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(a_atm)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(a_atm)
          DO i=ivstart, ivend
 
             a_atm = h_atm_2d(i)+z0m_2d(i) !turbulente Distanz auf der untersten Hauptflaeche
@@ -1581,7 +1578,7 @@ my_thrd_id = omp_get_thread_num()
 
          END DO    
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(dz_sa_m,wert,dz_s0_m)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(dz_sa_m, wert, dz_s0_m)
          DO i=ivstart, ivend
 
 !           Effektive Widerstandslaengen von den Oberflaechen bis zum Oberrand der Prandtl-Schicht
@@ -1611,13 +1608,13 @@ my_thrd_id = omp_get_thread_num()
          IF (icldm_tran.EQ.-1 .OR. ilow_def_cond.EQ.2) THEN
             !conserved values at the rigid surface are temperature and humidity
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                tl_s_2d(i)=t_g(i); qt_s_2d(i)=qv_s(i)
             END DO
          ELSE !conserved variables at the rigid surface depend on liquid water
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
 !Achtung: Fehler
              ! tl_s_2d(i)=(t_g(i) - lhocp*liqs(i,ke1))
@@ -1625,9 +1622,9 @@ my_thrd_id = omp_get_thread_num()
                qt_s_2d(i)=qv_s(i) +       liqs(i,ke1)
             END DO
          END IF
-         !$acc loop seq
+         !$ACC LOOP SEQ
          DO k=ks, ke
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                zvari(i,k,u_m)=u(i,k)
                zvari(i,k,v_m)=v(i,k)
@@ -1636,20 +1633,20 @@ my_thrd_id = omp_get_thread_num()
 !> Korrektur
 
          IF (icldm_tran.EQ.-1) THEN !no water phase change possible
-            !$acc loop seq
+            !$ACC LOOP SEQ
             DO k=ks, ke
 !DIR$ IVDEP
-               !$acc loop gang(static:1) vector
+               !$ACC LOOP GANG(STATIC: 1) VECTOR
                DO i=ivstart, ivend
                   zvari(i,k,tet_l)=t(i,k)/epr(i,k)
                   zvari(i,k,h2o_g)=qv(i,k)
                END DO
             END DO
          ELSE !water phase changes are possible
-            !$acc loop seq
+            !$ACC LOOP SEQ
             DO k=ks, ke
 !DIR$ IVDEP
-               !$acc loop gang(static:1) vector
+               !$ACC LOOP GANG(STATIC: 1) VECTOR
                DO i=ivstart, ivend
                   zvari(i,k,tet_l)=(t(i,k) - lhocp*qc(i,k))/epr(i,k)
                   zvari(i,k,h2o_g)=qv(i,k) +       qc(i,k)
@@ -1659,7 +1656,7 @@ my_thrd_id = omp_get_thread_num()
 
          IF (lprfcor) THEN
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector private(len1,len2,lm,lh)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(len1, len2, lm, lh)
             DO i=ivstart, ivend
                len1=z2*h_top_2d(i)
                len2=(h_top_2d(i)-h_atm_2d(i))**2 &
@@ -1681,15 +1678,15 @@ my_thrd_id = omp_get_thread_num()
 !        Thermodynamische Hilfsvariablen auf dem Unterrand der Prandtl-Schicht:
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             prss(i,ke1)=ps(i)
             tmps(i,ke1)=t_g(i)
             vaps(i,ke1)=qv_s(i)
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
          
-         !$acc wait
+         !$ACC WAIT
 
          CALL adjust_satur_equil ( khi=ke1, ktp=ke, &
 !
@@ -1735,16 +1732,16 @@ my_thrd_id = omp_get_thread_num()
 
          !Vertikalgradienten des Horizontalwindes:
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang(static:1) vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             edh(i)=tfm(i)/dz_0a_m(i)
          END DO
   !LST_LOOP
-         !$acc loop seq
+         !$ACC LOOP SEQ
          DO n=1, nvel
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                zvari(i,ke1,n)=zvari(i,ke,n)*edh(i)
             END DO
@@ -1755,7 +1752,7 @@ my_thrd_id = omp_get_thread_num()
          IF (itype_sher.EQ.2 .AND. PRESENT(dwdx) .AND. PRESENT(dwdy)) THEN
             !Einschliesslich der 3D-Korrektur durch den Vertikalwind bzgl. der mittleren Hangneigung:
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                frm(i,ke1)=MAX( (zvari(i,ke1,u_m)+dwdx(i,ke1)*edh(i))**2 &
                               +(zvari(i,ke1,v_m)+dwdy(i,ke1)*edh(i))**2 &
@@ -1764,7 +1761,7 @@ my_thrd_id = omp_get_thread_num()
             !Beachte: dwdx(ke1), dwdy(ke1) und hdef2(ke1) beziehen sich auf die vorlaeufige Schichtdicke 1m.
          ELSE
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                frm(i,ke1)=MAX( zvari(i,ke1,u_m)**2+zvari(i,ke1,v_m)**2, fc_min(i) )
             END DO
@@ -1772,7 +1769,7 @@ my_thrd_id = omp_get_thread_num()
 
          !Vertikalgradienten der dynamisch wirksamen Skalare:
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             edh(i)=z1/dz_0a_h(i)
          END DO
@@ -1784,7 +1781,7 @@ my_thrd_id = omp_get_thread_num()
             !calculated T_l-Gradient by the adiabatic laps rate:
 
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                wert=zvari(i,ke1,liq)                                      !liquid water at zero-level
                val1=zvari(i,ke1,h2o_g)-zvari(i,ke1,liq)                   !spec. humid. at zero-level
@@ -1798,11 +1795,11 @@ my_thrd_id = omp_get_thread_num()
          END IF
 
   !LST_LOOP
-         !$acc loop seq
+         !$ACC LOOP SEQ
          DO n=nvar+1,nred
 !MR:06.07.2018:Correction of representing the former tet_l-gradient.>
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO i=ivstart, ivend
                zvari(i,ke1,n)=(zvari(i,ke,n)-zvari(i,ke1,n))*edh(i)
             END DO
@@ -1811,7 +1808,7 @@ my_thrd_id = omp_get_thread_num()
      
          !Auftriebs-Antrieb der TKE:
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             frh(i,ke1)=g_tet(i)*zvari(i,ke1,tet_l)+g_vap(i)*zvari(i,ke1,h2o_g)
          END DO
@@ -1819,7 +1816,7 @@ my_thrd_id = omp_get_thread_num()
 !        Berechnung der Stabilitaetslaengen:
 
          IF (it_durch.EQ.it_start .AND. lini) THEN !Startinitialisierung
-            !$acc loop gang(static:1) vector private(fakt,val1,val2,wert)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(fakt, val1, val2, wert)
             DO i=ivstart, ivend
                IF (frh(i,ke1).GE.(z1-rim)*frm(i,ke1)) THEN
                   ! Die krit. Ri-Zahl wird ueberschritten und lm, sowie lh
@@ -1851,16 +1848,16 @@ my_thrd_id = omp_get_thread_num()
          ELSE ! mit Hilfe der vorhergehenden TKE-Werte
 
 !DIR$ IVDEP
-            !$acc loop gang(static:1) vector private(wert)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
             DO i=ivstart, ivend
                wert=z1/tke(i,ke1,nvor)
                tkvm(i,ke1)=tkvm(i,ke1)*wert
                tkvh(i,ke1)=tkvh(i,ke1)*wert
             END DO
          END IF
-         !$acc end parallel
+         !$ACC END PARALLEL
 
-         !$acc wait
+         !$ACC WAIT
 
 
 ! 4f)    Bestimmung des neuen SQRT(2*TKE)-Wertes:
@@ -1881,8 +1878,8 @@ my_thrd_id = omp_get_thread_num()
                                   velmin=velmin(:), lacc=lzacc                                  )
 
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang(static:1) vector private(val1,val2)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(val1, val2)
          DO i=ivstart, ivend
 ! 4h)       Bestimmung der durch Wirkung der L-Schicht
 !           korrigierten Diffusionskoeffizienten
@@ -1912,7 +1909,7 @@ my_thrd_id = omp_get_thread_num()
             tvh(i)=tkvh(i,ke1)*tfh(i)/dz_0a_h(i)
          END DO
 
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
 !tcm(i)=tvm(i); tvm(i)=tcm(i)*vel_2d(i)
 !tch(i)=tvh(i); tvh(i)=tch(i)*vel_2d(i)
@@ -1922,7 +1919,7 @@ my_thrd_id = omp_get_thread_num()
          END DO
 
          IF (imode_trancnf.GE.4 .OR. (imode_trancnf.GE.2 .AND. it_durch.LT.it_end)) THEN
-         !$acc loop gang(static:1) vector private(wert)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
             DO i=ivstart, ivend
                wert=l_tur_z0(i)*SQRT(tkvm(i,ke1)*SQRT(frm(i,ke1))) !updated l_0*Ustar
                IF (ditsmot.GT.z0) THEN
@@ -1934,7 +1931,7 @@ my_thrd_id = omp_get_thread_num()
          END IF
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
 ! 4i)       Einschraenkung von z0m_dia ueber Land:
 
@@ -1954,7 +1951,7 @@ my_thrd_id = omp_get_thread_num()
                !new version of initializing the profile-factors using Ustar,
                !but still epressing this factor in terms of "(q*Sx)_p/(q*Sx)_0":
 !DIR$ IVDEP
-               !$acc loop gang(static:1) vector private(fakt)
+               !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(fakt)
                DO i=ivstart, ivend
                   fakt=h_top_2d(i)/z0m_2d(i) !(l_p-l_0)/l_0; l_0=akt*z0m
                   rat_m_2d(i)=z1+fakt*(z1-(tkr(i)      / tkvm(i,ke1)     )) !(q*Sm)_p/(q*Sm)_0
@@ -1964,7 +1961,7 @@ my_thrd_id = omp_get_thread_num()
             ELSEIF (imode_trancnf.GE.4) THEN
                !new version of initializing the profile-factors and already expressing
                !them in terms of "Ustar/(q*Sh)_0*(Sh(0)/Sm(0))":
-               !$acc loop gang(static:1) vector
+               !$ACC LOOP GANG(STATIC: 1) VECTOR
                DO i=ivstart, ivend
                   rat_m_2d(i)= tkr(i)/tkvm(i,ke1)              !Ustar/(q*Sm)_0
                   rat_h_2d(i)=(tkr(i)*sh_0)/(tkvh(i,ke1)*sm_0) !Ustar/(q*Sh)_0*(sh(0)/sm(0))
@@ -1972,7 +1969,7 @@ my_thrd_id = omp_get_thread_num()
             END IF   
 
          END IF
-         !$acc end parallel
+         !$ACC END PARALLEL
 
          ! This should happen outside the OpenACC paralle region
          IF ( it_durch.LT.it_end .AND. .NOT.ltkeinp) THEN
@@ -1984,11 +1981,11 @@ my_thrd_id = omp_get_thread_num()
 
 ! 4j) Berechnung der Standardabweichnung des Saettigungsdefizites:
 
-      !$acc parallel async(1) default(none) if(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
 
 !k->ke1
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
          rcld(i,ke1)=SQRT(l_tur_z0(i)*tkvh(i,ke1)*d_h)* &
 !modif: previously zvari' contained NOT gradient values
@@ -1999,7 +1996,7 @@ my_thrd_id = omp_get_thread_num()
 
       IF ((lsrflux .AND. PRESENT(shfl_s)) .OR. lrunscm) THEN
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             shfl_s(i)=cp_d*rhon(i,ke1)*tkvh(i,ke1)*zvari(i,ke1,tet_l)*epr_2d(i)
             !Note: shfl_s is positive downward and belogns to the T-equation!
@@ -2021,7 +2018,7 @@ my_thrd_id = omp_get_thread_num()
 
       IF ((lsrflux .AND. PRESENT(qvfl_s)) .OR. lrunscm) THEN
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             qvfl_s(i)=rhon(i,ke1)*tkvh(i,ke1)*zvari(i,ke1,h2o_g)
             !Note: qvfl_s is positive downward!
@@ -2050,14 +2047,14 @@ my_thrd_id = omp_get_thread_num()
 
       IF (lsrflux .AND. PRESENT(umfl_s)) THEN
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             umfl_s(i)=rhon(i,ke1)*tkvm(i,ke1)*zvari(i,ke1,u_m)
          END DO
       END IF
       IF (lsrflux .AND. PRESENT(vmfl_s)) THEN
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             vmfl_s(i)=rhon(i,ke1)*tkvm(i,ke1)*zvari(i,ke1,v_m)
          END DO
@@ -2065,12 +2062,12 @@ my_thrd_id = omp_get_thread_num()
 
       IF (PRESENT(edr)) THEN
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             edr(i,ke1)=tke(i,ke1,ntur)**3/(d_m*l_tur_z0(i))
          END DO
       END IF
-      !$acc end parallel !!
+      !$ACC END PARALLEL !!
 
 !----------------------------------------
 
@@ -2079,8 +2076,8 @@ my_thrd_id = omp_get_thread_num()
       IF (lnsfdia) THEN !diagnostics at near surface level required at this place
 
 !DIR$ IVDEP
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang vector
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO i=ivstart, ivend
          IF (itype_diag_t2m.EQ.2) THEN !using an exponetial rougness layer profile
            z2m_2d (i) = h_2m -h_can_2d(i) !2m ueber dem Bodenniveau des Bestandes
@@ -2096,23 +2093,23 @@ my_thrd_id = omp_get_thread_num()
          hk1_2d(i)=z0
          k_2d(i)=ke
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
 !     Diagnose der 2m-Groessen:
 
-      !$acc wait
+      !$ACC WAIT
 #ifdef _OPENACC
       CALL diag_level_gpu(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, lacc=lzacc)
 #else
       CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d)
 #endif
 
-      !$acc parallel async(1) default(none) if(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
       IF (itype_diag_t2m.EQ.2) THEN !using an exponential rougness layer profile
 
          val2=z1/epsi
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(val1,fakt,wert)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(val1, fakt, wert)
          DO i=ivstart, ivend
             IF (k_2d(i).EQ.ke) THEN
 !              2m-Niveau unterhalb der untersten Modell-Hauptflaeche
@@ -2165,7 +2162,7 @@ my_thrd_id = omp_get_thread_num()
       ELSE !using only a logarithmic profile above a SYNOP lawn
 
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector private(z0d,a_atm,a_2m,fr_sd_h,val1,val2,fakt)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z0d, a_atm, a_2m, fr_sd_h, val1, val2, fakt)
          DO i=ivstart, ivend
             IF (k_2d(i).EQ.ke) THEN
 !              2m-Niveau unterhalb der untersten Modell-Hauptflaeche
@@ -2222,7 +2219,7 @@ my_thrd_id = omp_get_thread_num()
       END IF
       
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector private(k2,k1,fakt,wert,val1,val2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(k2, k1, fakt, wert, val1, val2)
       DO i=ivstart, ivend
          IF (k_2d(i).LT.ke) THEN
 !           2m-Niveau liegt oberhalb der untersten Hauptflaeche und wir nutzen
@@ -2272,26 +2269,26 @@ my_thrd_id = omp_get_thread_num()
 
       !Druck im 2m-Niveau:
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector private(wert)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
       DO i=ivstart, ivend
          wert=tmps(i,ke1)*(z1+rvd_m_o*vaps(i,ke1)) !angenaeherte virt. Temp.
          prss(i,ke1)=prss(i,ke1)                &  !Druck
                     *EXP(-(z2m_2d(i)-hk1_2d(i)) &
                     *grav/(r_d*wert))
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
       IF (imode_syndiag.EQ.1) THEN
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang(static:1) vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
              t_2m(i)=tmps(i,ke1)
             qv_2m(i)=vaps(i,ke1)
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
       ELSE
 
-        !$acc wait
+        !$ACC WAIT
 
 !        Berechnung der zugehoerigen Modell- und Feuchtevariablen im 2m-Niveau
 !        aus den Erhalturngsvariablen.
@@ -2322,19 +2319,19 @@ my_thrd_id = omp_get_thread_num()
                                            q_liq=zvari(:,ke:ke1,liq),          &
               lacc=lzacc )
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
              t_2m(i)=zvari(i,ke1,tet_l)
             qv_2m(i)=zvari(i,ke1,h2o_g)
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
       END IF
 
       IF (lfreeslip) THEN ! only for idealized dry runs with free-slip condition
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang vector
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
             qv_2m(i)=z0
             rh_2m(i)=z0
@@ -2342,14 +2339,14 @@ my_thrd_id = omp_get_thread_num()
             u_10m(i)=z0
             v_10m(i)=z0
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
       ELSE
 
 !        Finale 2m-Diagnose:
 
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) if(lzacc)
-         !$acc loop gang vector private(patm,fakt,wert)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC LOOP GANG VECTOR PRIVATE(patm, fakt, wert)
          DO i=ivstart, ivend
 !Achtung: Macht minimale Unterschiede
             patm=prss(i,ke1)*qv_2m(i) &
@@ -2372,11 +2369,11 @@ my_thrd_id = omp_get_thread_num()
             td_2m(i)=MIN( (b2w*b3-b4w*wert) &
                       /(b2w-wert), t_2m(i) )      !Taupunktstemperatur
          END DO
-         !$acc end parallel 
+         !$ACC END PARALLEL
 
 !        Diagnose der 10m-Groessen:
 
-         !$acc wait
+         !$ACC WAIT
 #ifdef _OPENACC
          CALL diag_level_gpu(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, lacc=lzacc)
 #else
@@ -2384,8 +2381,8 @@ my_thrd_id = omp_get_thread_num()
 #endif
 
 !DIR$ IVDEP
-         !$acc parallel async(1) default(none) present(vel2_2d(ivstart: ivend)) if(lzacc)
-         !$acc loop gang vector private(z0d,a_atm,a_10m,val1,val2,fakt,k1,k2,wert)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) PRESENT(vel2_2d(ivstart: ivend)) IF(lzacc)
+         !$ACC LOOP GANG VECTOR PRIVATE(z0d, a_atm, a_10m, val1, val2, fakt, k1, k2, wert)
          DO i=ivstart, ivend
 
             IF (k_2d(i).EQ.ke) THEN
@@ -2448,7 +2445,7 @@ my_thrd_id = omp_get_thread_num()
             END IF
 
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
 
       END IF
       !Note: '(u, v)_10m' always belong to mass points!
@@ -2456,8 +2453,8 @@ my_thrd_id = omp_get_thread_num()
       END IF !in case of ".NOT.lnsfdia" this kind of diagnostics is done at another place
       
 !DIR$ IVDEP
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang vector private(velo,wert,fakt)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(velo, wert, fakt)
       DO i=ivstart, ivend
 
 !        Diagnose von gz0 (fuer den naechsten Zeitschritt)
@@ -2501,12 +2498,12 @@ my_thrd_id = omp_get_thread_num()
             END IF
          END IF
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
-      !$acc wait
-      !$acc end data ! from acc data no_create 
+      !$ACC WAIT
+      !$ACC END DATA ! from acc data no_create
 
-      !$acc end data ! from acc data create
+      !$ACC END DATA ! from acc data create
 ! Just do some checkout prints:
   IF (ldebug) THEN
     DO i = ivstart, ivend
@@ -2574,18 +2571,14 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
      hk_2d(:), & !mid level height above ground belonging to 'k_2d'
      hk1_2d(:)    !mid level height above ground of the previous layer (below)
 
-   LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-   LOGICAL :: lzacc
+   LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
+   LOGICAL :: lzacc ! non-optional version of lacc
 
    INTEGER :: i
 
    LOGICAL :: lcheck
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
+   CALL set_acc_host_or_device(lzacc, lacc)
 
    lcheck=.TRUE. !check whether a diagnostic level is above the current layer
 
@@ -2595,21 +2588,21 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
       lcheck=.FALSE. !check next layer ony, if diagnostic level is at least once
                      !above the current layer
 
-      !$acc parallel async(1) present(hhl,zdia_2d,k_2d,hk_2d,hk1_2d) if(lzacc)
-      !$acc loop gang vector
+      !$ACC PARALLEL ASYNC(1) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO i=i_st,i_en
          IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
            !            lcheck=lcheck .OR. .TRUE. !for this point or any previous one the
-           !$acc atomic write
+           !$ACC ATOMIC WRITE
             lcheck=.TRUE.             !for this point or any previous one the
                                       !diagnostic level is above the current layer
-            !$acc end atomic
+            !$ACC END ATOMIC
             k_2d(i)=k_2d(i)-1
             hk1_2d(i)=hk_2d(i)
             hk_2d(i)=(hhl(i,k_2d(i))+hhl(i,k_2d(i)+1))*z1d2-hhl(i,ke1)
           END IF
        END DO
-       !$acc end parallel
+       !$ACC END PARALLEL
    END DO
    
 
@@ -2641,23 +2634,19 @@ SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
      hk_2d(:), & !mid level height above ground belonging to 'k_2d'
      hk1_2d(:)    !mid level height above ground of the previous layer (below)
 
-   LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-   LOGICAL :: lzacc
+   LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
+   LOGICAL :: lzacc ! non-optional version of lacc
 
    INTEGER :: i, k
 
    LOGICAL :: lcheck
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
+   CALL set_acc_host_or_device(lzacc, lacc)
 
-   !$acc parallel async(1) present(hhl,zdia_2d,k_2d,hk_2d,hk1_2d) if(lzacc)
-   !$acc loop gang vector
+   !$ACC PARALLEL ASYNC(1) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
+   !$ACC LOOP GANG VECTOR
    DO i=i_st,i_en
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_2d(i)-1, 0, -1   
          IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
             k_2d(i)=k 
@@ -2668,7 +2657,7 @@ SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
          END IF
       END DO
    END DO
-   !$acc end parallel
+   !$ACC END PARALLEL
    
 END SUBROUTINE diag_level_gpu
 

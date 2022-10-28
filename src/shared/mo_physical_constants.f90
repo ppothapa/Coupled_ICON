@@ -122,7 +122,7 @@ MODULE mo_physical_constants
   !
   !> Dry air
   REAL(wp), PARAMETER :: rd    = 287.04_wp        !> [J/K/kg] gas constant
-  !$acc declare copyin(rd)
+  !$ACC DECLARE COPYIN(rd)
   REAL(wp), PARAMETER :: cpd   = 1004.64_wp       !! [J/K/kg] specific heat at constant pressure
   REAL(wp), PARAMETER :: cvd   = cpd-rd           !! [J/K/kg] specific heat at constant volume
   REAL(wp), PARAMETER :: con_m = 1.50E-5_wp       !! [m^2/s]  kinematic viscosity of dry air
@@ -133,7 +133,7 @@ MODULE mo_physical_constants
   !> H2O
   !! - gas
   REAL(wp), PARAMETER :: rv    = 461.51_wp        !> [J/K/kg] gas constant for water vapor
-  !$acc declare copyin(rv)
+  !$ACC DECLARE COPYIN(rv)
   REAL(wp), PARAMETER :: cpv   = 1869.46_wp       !! [J/K/kg] specific heat at constant pressure
   REAL(wp), PARAMETER :: cvv   = cpv-rv           !! [J/K/kg] specific heat at constant volume
   REAL(wp), PARAMETER :: dv0   = 2.22e-5_wp       !! [m^2/s]  diff coeff of H2O vapor in dry air at tmelt
@@ -154,9 +154,9 @@ MODULE mo_physical_constants
   !
   !> Auxiliary constants
   REAL(wp), PARAMETER :: rdv   = rd/rv            !> [ ]
-  !$acc declare copyin(rdv)
+  !$ACC DECLARE COPYIN(rdv)
   REAL(wp), PARAMETER :: vtmpc1= rv/rd-1._wp      !! [ ]
-  !$acc declare copyin(vtmpc1)
+  !$ACC DECLARE COPYIN(vtmpc1)
   REAL(wp), PARAMETER :: vtmpc2= cpv/cpd-1._wp    !! [ ]
   REAL(wp), PARAMETER :: rcpv  = cpd/cpv-1._wp    !! [ ]
   REAL(wp), PARAMETER :: alvdcp= alv/cpd          !! [K]
@@ -169,9 +169,9 @@ MODULE mo_physical_constants
   REAL(wp), PARAMETER :: cv_v  = (rcpv + 1.0_wp) * cpd - rv
   !
   REAL(wp), PARAMETER :: o_m_rdv  = 1._wp-rd/rv   !> [ ]
-  !$acc declare copyin(o_m_rdv)
+  !$ACC DECLARE COPYIN(o_m_rdv)
   REAL(wp), PARAMETER :: rd_o_cpd = rd/cpd        !! [ ]
-  !$acc declare copyin(rd_o_cpd)
+  !$ACC DECLARE COPYIN(rd_o_cpd)
   REAL(wp), PARAMETER :: cvd_o_rd = cvd/rd        !! [ ]
   !
   REAL(wp), PARAMETER :: p0ref     = 100000.0_wp   !> [Pa]  reference pressure for Exner function

@@ -60,7 +60,8 @@ MODULE mo_radiation_nml
                                  & config_iliquid_scat => iliquid_scat, &
                                  & config_iice_scat => iice_scat,    &
                                  & config_ecrad_data_path => ecrad_data_path, &
-                                 & config_nproma_rad => nproma_rad
+                                 & config_nproma_rad => nproma_rad,  &
+                                 & iRadAeroConst
 
   USE mo_kind,               ONLY: wp
   USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
@@ -246,7 +247,7 @@ CONTAINS
     irad_o2     = 2
     irad_cfc11  = 2
     irad_cfc12  = 2
-    irad_aero   = 2
+    irad_aero   = iRadAeroConst
     lrad_aero_diag = .FALSE.
 
     ghg_filename= 'bc_greenhouse_gases.nc'

@@ -112,7 +112,7 @@ REAL(KIND=jprb)   :: zqr(klon)
 ! beta(1) for land, beta(2) for sea - Takahashi 2006 (mentioned
 ! in Lopez 2016)
 REAL(KIND=jprb), PARAMETER :: beta(2)= [0.7_jprb , 0.45_jprb ]
-!$acc declare copyin (beta)
+  !$ACC DECLARE COPYIN(beta)
 ! some constants from Lopez 2016
 REAL(KIND=jprb), PARAMETER :: Vgraup=3.0_jprb ! 3   m/s fall speed for graupel
 REAL(KIND=jprb), PARAMETER :: Vsnow=0.5_jprb  ! 0.5 m/s fall speed for snow
@@ -123,26 +123,26 @@ REAL(KIND=jprb) :: zqIce, zqLiquid, zqGraup, zqSnow, zEps, zQi, zdz
 
 INTEGER(KIND=jpim) :: jk, jl
 
-!$acc data                                                                                      &
-!$acc present( ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zgeoh, zcape, kcbot, ldland, lfd )   &
+  !$ACC DATA &
+  !$ACC   PRESENT(ktype, ztu, zlu, zmflxs, zten, pap, zdgeoh, zgeoh, zcape, kcbot, ldland, lfd) &
 
-!$acc create( zrho, zqr, kland )                                                                &
-!$acc if(lacc)
+  !$ACC   CREATE(zrho, zqr, kland) &
+  !$ACC   IF(lacc)
 
   !US we could use default (none) here, but PGI complains about beta then!?
-  !$acc parallel default(present) if (lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
   ! Make land sea-mask for beta
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
     kland(jl) = MERGE (1_jpim, 2_jpim, ldland(jl))
     zQR  (jl) = 0.0_jprb
     lfd  (jl) = 0.0_jprb
   ENDDO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1, klev
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO JL = 1, klon
       zrho(JL,JK)=pap(JL,JK)/(zten(JL,JK)*Rd+1E-10_jprb)
     ENDDO
@@ -151,9 +151,9 @@ INTEGER(KIND=jpim) :: jk, jl
   ! Compute the LFD (Lopez 2016)
   !-----------------------------
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO jk = 1, klev
-    !$acc loop gang(static:1) vector private( zqGraup, zqSnow, zdz)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqGraup, zqSnow, zdz)
     DO JL = 1, klon
       ! only for deep convection LPI is computed
       IF (ktype(JL) == 1) THEN
@@ -172,7 +172,7 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDDO
   ENDDO
 
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl = 1, klon
       ! Eq. 5 in Lopez (2016)
       ! Cloud base height is zgeoh(JL, kcbot(JL))/rg
@@ -182,9 +182,9 @@ INTEGER(KIND=jpim) :: jk, jl
     ENDIF
   ENDDO
 
-  !$acc end parallel
+  !$ACC END PARALLEL
 
-!$acc end data
+  !$ACC END DATA
 
 END SUBROUTINE cucalclfd
  
