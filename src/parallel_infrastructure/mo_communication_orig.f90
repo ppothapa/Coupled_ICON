@@ -1068,7 +1068,7 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_ptr) ASYNC(get_comm_acc_queue()) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(p_pat%send_src_idx(i),1,p_pat%send_src_blk(i))
@@ -1077,7 +1077,7 @@ CONTAINS
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_ptr) ASYNC(get_comm_acc_queue()) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -1329,7 +1329,7 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_ptr) ASYNC(get_comm_acc_queue()) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(p_pat%send_src_idx(i),1,p_pat%send_src_blk(i))
@@ -1338,7 +1338,7 @@ CONTAINS
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_ptr) ASYNC(get_comm_acc_queue()) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -2356,7 +2356,7 @@ CONTAINS
         ndim2_n   = ndim2(n)
         noffset_n = noffset(n)
         kshift_n  = kshift(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_ptr) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2374,7 +2374,7 @@ CONTAINS
         ndim2_n   = ndim2(n)
         noffset_n = noffset(n)
         kshift_n  = kshift(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_ptr) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2476,7 +2476,7 @@ CONTAINS
       ndim2_n   = ndim2(n)
       noffset_n = noffset(n)
       kshift_n  = kshift(n)
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_ptr) IF(lzacc) ASYNC(get_comm_acc_queue())
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2_n
@@ -2678,7 +2678,7 @@ CONTAINS
         ndim2_n   = ndim2_dp(n)
         noffset_n = noffset_dp(n)
         kshift_n  = kshift_dp(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_fld_dp) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2694,7 +2694,7 @@ CONTAINS
         ndim2_n   = ndim2_sp(n)
         noffset_n = noffset_sp(n)
         kshift_n  = kshift_sp(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(send_fld_sp) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2712,7 +2712,7 @@ CONTAINS
         ndim2_n   = ndim2_dp(n)
         noffset_n = noffset_dp(n)
         kshift_n  = kshift_dp(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_fld_dp) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2728,7 +2728,7 @@ CONTAINS
         ndim2_n   = ndim2_sp(n)
         noffset_n = noffset_sp(n)
         kshift_n  = kshift_sp(n)
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_fld_sp) IF(lzacc) ASYNC(get_comm_acc_queue())
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2_n
@@ -2848,7 +2848,7 @@ CONTAINS
       ndim2_n   = ndim2_dp(n)
       noffset_n = noffset_dp(n)
       kshift_n  = kshift_dp(n)
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_fld_dp) IF(lzacc) ASYNC(get_comm_acc_queue())
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2_n
@@ -2864,7 +2864,7 @@ CONTAINS
       ndim2_n   = ndim2_sp(n)
       noffset_n = noffset_sp(n)
       kshift_n  = kshift_sp(n)
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(recv_fld_sp) IF(lzacc) ASYNC(get_comm_acc_queue())
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2_n
