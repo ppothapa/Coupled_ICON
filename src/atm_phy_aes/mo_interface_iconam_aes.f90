@@ -395,12 +395,16 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = jcs, jce
         field% uphyvi(jc,jb) = 0.0_wp
         field% udynvi(jc,jb) = 0.0_wp
       END DO
 
+      !$ACC LOOP SEQ
       DO jk = 1,nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = jcs, jce
           field% udynvi(jc,jb) = field% udynvi(jc,jb) + &
                   internal_energy(                         &
@@ -416,6 +420,7 @@ CONTAINS
                   )
         END DO
       END DO
+      !$ACC END PARALLEL
       !
     END DO ! jb
     !=====================================================================================
@@ -1095,13 +1100,15 @@ CONTAINS
                   )
         END DO
       END DO
+      !$ACC END PARALLEL
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
       DO jc = jcs, jce
         field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,1) * field% shflx(jc,jb)/cpd
         field% evap_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%lhflx(jc,jb)/alv
         field% rsfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%rsfl(jc,jb)
         field% ssfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%ssfl(jc,jb)
       END DO
-      !$ACC END PARALLEL
       !
     END DO !jb
 !$OMP END DO
