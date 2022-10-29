@@ -280,7 +280,7 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
 
 #ifdef __LOOP_EXCHANGE
     !$ACC DATA CREATE(z_d)
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jc = i_startidx, i_endidx
       DO jk = slev, elev
@@ -297,7 +297,7 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     END DO ! end loop over vertical levels
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) PRIVATE(z_qt_times_d) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(z_qt_times_d) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
@@ -332,7 +332,7 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !$ACC END DATA
 
 #else
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_d, z_qt_times_d)
 !$NEC outerloop_unroll(4)
     DO jk = slev, elev
@@ -376,7 +376,7 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
 
 
     IF (l_consv) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -2226,7 +2226,7 @@ IF (l2fields) THEN
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end_l1)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -2263,7 +2263,7 @@ ELSE
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end_l1)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jc = i_startidx, i_endidx
@@ -2299,7 +2299,7 @@ IF (l_limited_area .OR. ptr_patch%id > 1) THEN
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_start_l2)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
@@ -2317,7 +2317,7 @@ IF (l_limited_area .OR. ptr_patch%id > 1) THEN
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_start_l2)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -2348,8 +2348,7 @@ IF (l2fields) THEN
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start_l2, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
-
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jc = i_startidx, i_endidx
@@ -2389,7 +2388,7 @@ ELSE
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start_l2, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jc = i_startidx, i_endidx

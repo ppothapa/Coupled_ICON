@@ -649,7 +649,7 @@ CONTAINS
       i_startidx = 1
       i_endidx   = nproma
       IF (jb == nblks_lonlat) i_endidx = npromz_lonlat
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -747,7 +747,7 @@ CONTAINS
 
       CASE(1)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -764,7 +764,7 @@ CONTAINS
 
       CASE(3)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -786,7 +786,7 @@ CONTAINS
 
       CASE(4)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -829,7 +829,7 @@ CONTAINS
 
       CASE(10)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -890,7 +890,7 @@ CONTAINS
 
       CASE(13)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = slev, elev
@@ -1151,7 +1151,7 @@ CONTAINS
       i_endidx   = nproma
       IF (jb == nblks_lonlat) i_endidx = npromz_lonlat
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev

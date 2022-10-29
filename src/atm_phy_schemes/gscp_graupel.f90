@@ -620,12 +620,12 @@ SUBROUTINE graupel     (             &
 
   ! save input arrays for final tendency calculation
   IF (lldiag_ttend) THEN
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     t_in  = t
     !$ACC END KERNELS
   ENDIF
   IF (lldiag_qtend) THEN
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     qv_in = qv
     qc_in = qc
     qi_in = qi
@@ -674,7 +674,7 @@ SUBROUTINE graupel     (             &
   ENDIF
 
   ! Delete precipitation fluxes from previous timestep
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR
   DO iv = iv_start, iv_end
     prr_gsp (iv) = 0.0_wp
@@ -704,7 +704,7 @@ SUBROUTINE graupel     (             &
 
   ! Initialize latent heats to constant values
 #ifdef __LOOP_EXCHANGE
-  !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   zlhv(:) = lh_v
   zlhs(:) = lh_s
   !$ACC END KERNELS
@@ -715,7 +715,7 @@ SUBROUTINE graupel     (             &
 ! transfer rates  and sedimentation terms
 ! *********************************************************************
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
 #ifdef __LOOP_EXCHANGE
   DO iv = iv_start, iv_end  !loop over horizontal domain

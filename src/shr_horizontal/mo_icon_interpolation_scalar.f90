@@ -446,7 +446,7 @@ IF ( (l_limited_area .OR. ptr_patch%id > 1) .AND. lfill_latbc) THEN ! Fill outer
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, 1, 1)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR TILE(32, 4)
     DO jk = slev, elev
       DO je = i_startidx, i_endidx
@@ -475,7 +475,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO je = i_startidx, i_endidx
@@ -975,7 +975,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jv = i_startidx, i_endidx
@@ -1105,7 +1105,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jv = i_startidx, i_endidx
@@ -1720,7 +1720,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
