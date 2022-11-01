@@ -15,7 +15,7 @@ MODULE mo_restart_descriptor
   USE mo_cf_convention, ONLY: cf_global_info
   USE mo_grid_config,               ONLY: n_dom
   USE mo_impl_constants,            ONLY: SUCCESS
-  USE mo_kind,                      ONLY: wp
+  USE mo_kind,                      ONLY: dp, wp
   USE mo_model_domain,              ONLY: t_patch
   USE mo_mpi, ONLY: my_process_is_work, p_bcast, p_comm_work_2_restart, &
     & p_pe_work, my_process_is_mpi_test, process_mpi_restart_size
@@ -276,14 +276,15 @@ CONTAINS
 
     SUBROUTINE restartfile_open()
       CHARACTER(len=MAX_DATETIME_STR_LEN) :: datetimeString
-      INTEGER :: i, ncid, tvid, date_int
+      INTEGER :: i, ncid, tvid
+      REAL(dp) :: date_dayas
       TYPE(t_var_metadata), POINTER :: ci
 #ifdef DEBUG
       WRITE (nerr,'(a,i6)') routine//' p_pe=',p_pe
 #endif
       ! assume all restart variables uses the same file format
       CALL datetimeToString(rArgs%restart_datetime, datetimeString)
-      CALL getRestartFilename(desc%base_filename, desc%id, rArgs, fname, date_int)
+      CALL getRestartFilename(desc%base_filename, desc%id, rArgs, fname, date_dayas)
       SELECT CASE(pData%restartType)
       CASE(FILETYPE_NC2)
         WRITE(0,*) "Write netCDF2 restart for: "//TRIM(datetimeString)
@@ -309,7 +310,7 @@ CONTAINS
       ENDDO
       CALL nf(nf_set_fill(ncid, NF_NOFILL, i), routine)
       CALL nf(nf_enddef(ncid), routine)
-      CALL nf(nf_put_var1_real(ncid, tvid, [1], REAL(date_int)), routine)
+      CALL nf(nf_put_var1_real(ncid, tvid, [1], REAL(date_dayas)), routine)
     END SUBROUTINE restartfile_open
   END SUBROUTINE restartDescriptor_writeFiles
 
