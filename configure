@@ -9755,6 +9755,34 @@ ac_link='$FC -o conftest$ac_exeext $FCFLAGS $ICON_FCFLAGS $LDFLAGS $ac_fcflags_s
 ac_compiler_gnu=$ac_cv_fc_compiler_gnu
 
    case " $subdirs_extra " in #(
+  *' externals/yac '*) :
+         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled YAC library" >&5
+$as_echo_n "checking for extra linker flags needed to link the bundled YAC library... " >&6; }
+      if ${icon_cv_YAC_extra_libs+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  icon_cv_YAC_extra_libs=
+         acx_exec_result=`$as_echo @LONG_DOUBLE_CLIBS@ | "externals/yac/config.status" -q --file=- 2>/dev/null`
+   if test $? -eq 0; then :
+  icon_cv_YAC_extra_libs=$acx_exec_result
+else
+  as_fn_error $? "unable to run 'externals/yac/config.status'" "$LINENO" 5
+fi
+         icon_cv_YAC_extra_libs=`$as_echo "$icon_cv_YAC_extra_libs" | sed 's/^ *//;s/ *$//'`
+fi
+
+      if ${icon_cv_YAC_extra_libs:+false} :; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
+$as_echo "none needed" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_YAC_extra_libs" >&5
+$as_echo "$icon_cv_YAC_extra_libs" >&6; }
+         LIBS="$icon_cv_YAC_extra_libs $LIBS"
+fi ;; #(
+  *) :
+     ;;
+esac
+   case " $subdirs_extra " in #(
   *' externals/sct '*) :
          { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled SCT library" >&5
 $as_echo_n "checking for extra linker flags needed to link the bundled SCT library... " >&6; }
