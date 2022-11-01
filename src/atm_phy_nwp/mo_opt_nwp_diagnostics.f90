@@ -4697,11 +4697,12 @@ CONTAINS
 
 	CASE(1)	
           !  tobias goecke (DWD) 20211118 ?
-          !qrh =   MAX(0.0_8,    MIN( 1.0_8  , ( rhmax-15.0_8 )/80.0_8  )  )
-          !visrh = 60.0_8 * EXP(-2.5_8*qrh)
-	  visrh = MAX(visrh,visrh_clip) ! clip below X km 
+          qrh =   MAX(0.0_wp,    MIN( 1.0_wp  , ( rhmax-15.0_wp )/80.0_wp  )  )
+          visrh = 60.0_wp * EXP(-2.5_wp*qrh)
 
 	END SELECT
+
+	visrh = MAX(visrh,visrh_clip) ! clip below X km 
 
 	!  -- add term to increase RH vis term for
         !     low-level wind shear increasing from 4 to 6 ms-1
