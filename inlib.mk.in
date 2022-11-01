@@ -9,7 +9,6 @@ pgi_inlib_procedures+= \
   clct2ww \
   create_rdm_seed \
   create_rdm_seed_in_time \
-  cuadjtq \
   cubidiag \
   dewpoint_water \
   dqsatdt_ice \
@@ -36,7 +35,6 @@ pgi_inlib_procedures+= \
   foeldcpm \
   foeldcpmcu \
   foeles_v \
-  foelhmcu \
   fqvs \
   fthetae \
   gefr \
@@ -66,7 +64,6 @@ pgi_inlib_procedures+= \
   rel_hum_ifs \
   sat_pres_ice \
   sat_pres_water \
-  satur \
   sfc_albedo_dir_briegleb \
   sfc_albedo_dir_rg \
   sfc_albedo_dir_taylor \

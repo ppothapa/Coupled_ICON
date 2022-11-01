@@ -1448,6 +1448,157 @@ EOF
 }
 
 #=============================================================================
+set_run_target_balfrin_gpu()
+{
+    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
+
+    set_default use_nproma 8000
+    set_default use_nblocks_c 1
+    set_default use_prefetch_procs 0
+    set_default use_account_no "$(id -gn)"
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this buildbot, do not use job id
+        use_account_no="d56"
+    fi
+    use_OMP_SCHEDULE="static,1"
+
+    is_serial_run="no"
+
+    # hardcode number of nodes
+    use_nodes=1
+    set_default use_mpi_procs_pernode $((4+use_prefetch_procs))
+
+    job_type=parallel
+    tasks_per_node=$use_mpi_procs_pernode
+    SBATCH_nodes="SBATCH --nodes=$use_nodes"
+    SBATCH_ntasks_per_node="SBATCH --ntasks-per-node=${tasks_per_node}"
+
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
+
+    # ------------------------------------
+    s_cpu_time=""
+    if [[ "x$use_cpu_time" != "x" ]]
+    then
+      s_cpu_time="SBATCH --time=$use_cpu_time"
+    fi
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this is buldbot, do not run more than 45 minutes
+        s_cpu_time="SBATCH --time=00:45:00"
+    fi
+
+    # ------------------------------------
+
+    use_nodes=${use_nodes}
+    use_mpi_procs_pernode=${use_mpi_procs_pernode}
+
+    cat >> $output_script << EOF
+#=============================================================================
+
+# balfrin gpu batch job parameters
+# ------------------------------
+#SBATCH --job-name=$job_name
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#$SBATCH_nodes
+#$SBATCH_ntasks_per_node
+#$s_cpu_time
+EOF
+
+    start_header
+    cat >>$output_script <<EOF
+export CRAY_CUDA_MPS=1
+export MPICH_GPU_SUPPORT_ENABLED=1
+export MPICH_RDMA_ENABLED_CUDA=1
+export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
+EOF
+}
+
+#=============================================================================
+set_run_target_balfrin_cpu()
+{
+    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
+
+    set_default use_nproma 16
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+    # use_OMP_SCHEDULE="static,1"
+    set_default use_account_no "$(id -gn)"
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this is buildbot, do not use job id
+        use_account_no="d56"
+    fi
+    use_OMP_SCHEDULE="static,12"
+
+    is_serial_run="no"
+    if [[ $use_openmp == "yes" ]]
+    then
+        set_default use_mpi_procs_pernode 4
+        set_default use_openmp_threads 32
+    else
+        set_default use_mpi_procs_pernode 64
+    fi
+
+    job_type=parallel
+    tasks_per_node=$use_mpi_procs_pernode
+    SBATCH_nodes="SBATCH --nodes=${use_nodes}"
+    SBATCH_ntasks_per_node="SBATCH --ntasks-per-node=${tasks_per_node}"
+
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
+    # ------------------------------------
+    s_cpu_time=""
+    if [[ "x$use_cpu_time" != "x" ]]
+    then
+        s_cpu_time="SBATCH --time=$use_cpu_time"
+    fi
+    if [[ "x$BB_SYSTEM" != "x" ]]
+    then
+        # this is buldbot, do not run more than 15 minutes on Daint (SLURM delays)
+        s_cpu_time="SBATCH --time=00:15:00"
+    fi
+    # ------------------------------------
+
+    use_nodes=${use_nodes}
+    use_mpi_procs_pernode=${use_mpi_procs_pernode}
+
+    cat >> $output_script << EOF
+#=============================================================================
+
+# balfrin cpu batch job parameters
+# ------------------------------
+#SBATCH --account=$use_account_no
+#SBATCH --job-name=$job_name
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#$SBATCH_nodes
+#$SBATCH_ntasks_per_node
+#$s_cpu_time
+EOF
+
+  start_header
+
+  cat >> $output_script << EOF
+export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
+EOF
+}
+
+#=============================================================================
 set_run_target_dom_gpu()
 {
     rootFolder_prefix=/users/icontest
@@ -1834,7 +1985,11 @@ create_target_header()
             use_nproma=1600
             ;;
         *mch_*)
-            use_nodes=4
+            case $use_target in
+                daint*)
+              use_nodes=4
+              ;;
+            esac
             ;;
         *dwd_run_ICON_09_R2B4N5_EPS*)
             # This experiment needs at least 3 procs to pass probtest 
