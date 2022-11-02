@@ -89,6 +89,7 @@ MODULE mo_name_list_output
       &                                   streamSync, taxisDefVdate, taxisDefVtime, GRID_LONLAT, &
       &                                   streamDefCompType, CDI_COMPRESS_SZIP, &
       &                                   streamOpenAppend, streamInqVlist, vlistInqTaxis, vlistNtsteps, &
+      &                                   vlistDuplicate, taxisDuplicate, &
       &                                   cdi_datatype_flt32, cdi_datatype_flt64
   USE mo_util_cdi,                  ONLY: cdiGetStringError
   ! utility functions
@@ -304,10 +305,10 @@ CONTAINS
         of%cdiFileID       = streamOpenAppend(filename(1:name_len))
 
         ! inquire the opened file for its associated vlist
-        of%cdiVlistID      = streamInqVlist(of%cdiFileID)
+        of%cdiVlistID      = vlistDuplicate(streamInqVlist(of%cdiFileID))
 
         ! and time axis, the only components different to the previous model prepared vlist
-        of%cdiTaxisID      = vlistInqTaxis(of%cdiVlistID)
+        of%cdiTaxisID      = taxisDuplicate(vlistInqTaxis(of%cdiVlistID))
 
         ! get the already stored number of time steps
         of%cdiTimeIndex    = vlistNtsteps(of%cdiVlistID)
