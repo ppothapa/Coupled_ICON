@@ -35,6 +35,7 @@ MODULE mo_ecrad
                                     &   ISolverSpartacus, ISolverTripleclouds,            &
                                     &   ISolverCloudless,                                 &
                                     &   IGasModelMonochromatic, IGasModelIFSRRTMG,        &
+                                    &   IGasModelECCKD,                                   &
                                     &   ILiquidModelMonochromatic, ILiquidModelSlingo,    &
                                     &   ILiquidModelSOCRATES,                             &
                                     &   IOverlapMaximumRandom, IOverlapExponentialRandom, &
@@ -55,10 +56,11 @@ MODULE mo_ecrad
   USE radiation_flux,             ONLY: t_ecrad_flux_type=>flux_type
   USE radiation_cloud,            ONLY: t_ecrad_cloud_type=>cloud_type
   USE radiation_aerosol,          ONLY: t_ecrad_aerosol_type=>aerosol_type
-  
   USE radiation_interface,        ONLY: ecrad_setup=>setup_radiation,                     &
                                     &   ecrad_set_gas_units=>set_gas_units,               &
                                     &   ecrad=>radiation
+  USE radiation_spectral_definition, ONLY: ecrad_solar_ref_temp=>SolarReferenceTemperature, &
+                                       &   ecrad_terrestrial_ref_temp=>TerrestrialReferenceTemperature
 #endif
 
   IMPLICIT NONE
@@ -79,15 +81,16 @@ MODULE mo_ecrad
   PUBLIC :: t_ecrad_aerosol_type
 ! ecRad configuration state
   PUBLIC :: ecrad_conf
+  PUBLIC :: ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
 
 ! Aerosol optical properties
   PUBLIC :: t_opt_ptrs
 
 ! ecRad enumerators
   ! Solver
-  PUBLIC :: ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, ISolverTripleclouds
+  PUBLIC :: ISolverCloudless, ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, ISolverTripleclouds
   ! Gas model
-  PUBLIC :: IGasModelMonochromatic, IGasModelIFSRRTMG
+  PUBLIC :: IGasModelMonochromatic, IGasModelIFSRRTMG, IGasModelECCKD
   ! Liquid hydrometeor scattering
   PUBLIC :: ILiquidModelMonochromatic, ILiquidModelSlingo, ILiquidModelSOCRATES
   ! Ice scattering

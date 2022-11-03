@@ -406,7 +406,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
  ml_varlist       =
   'u','v','vt','qc','qi','qr','qs','qv','rho','theta_v','tke','vn','w',
   'ddt_vn_phy','ddt_exner_phy','ddt_temp_dyn','exner_pr','exner_dyn_incr',
-  'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
+  'ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
   'omega','div','div_ic','hdef_ic','vor','mass_fl_e',
   'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
   'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
@@ -425,7 +425,7 @@ if [[ "$mpi_procs_pernode" -ge 10 ]]; then
   # mpi_procs_pernode is abused here as proxy to differentiate between GPU and CPU
   # TODO (from 2022-05-10): Try to output these variable again with the GPU code when other numeric are changed.
   cat >> ${basedir}/run/${atmo_namelist} << EOF
-    'exner',
+    'exner', 'pres_sfc',
 EOF
 fi
 
@@ -433,7 +433,8 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
   'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','rh'
   ! 'plantevap','dwdx','dwdy'
 
- pl_varlist           = 'temp', 'w', 'omega'
+ pl_varlist           = 'temp', 'w'
+ !, 'omega' ! omega is temporarily removed as it probably gives a false alarm
  p_levels             = 100, 200, 92500, 100000
  
  hl_varlist           = 'temp', 'w', 'omega'

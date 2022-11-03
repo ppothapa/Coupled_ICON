@@ -7279,7 +7279,29 @@ Path to the folder containing ecRad optical properties files.
 \tabularnewline
 
 %\hline
-llw\_cloud\_scat &
+ecrad\_isolver &
+I&
+0&
+&
+Radiation solver\\
+0: McICA (Pincus et al. 2003)\\
+1: Tripleclouds (Shonk and Hogan 2008)
+& inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+ecrad\_igas\_model &
+I&
+0&
+&
+Gas model and spectral bands\\
+0: RRTMG (Iacono et al. 2008)\\
+1: ecckd (Hogan and Matricardi 2020)
+& inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+ecrad\_llw\_cloud\_scat &
 L&
 .FALSE.&
 &
@@ -7288,7 +7310,7 @@ Long-wave cloud scattering.
 \tabularnewline
 
 %\hline
-iliquid\_scat &
+ecrad\_iliquid\_scat &
 I&
 0&
 &
@@ -7299,7 +7321,7 @@ Optical properties for liquid cloud scattering. \\
 \tabularnewline
 
 %\hline
-iice\_scat &
+ecrad\_iice\_scat &
 I&
 0&
 &
