@@ -279,9 +279,11 @@ CONTAINS
       !!$           & aer_tau_lw,    aer_tau_sw,         aer_ssa_sw,    &
       !!$           & aer_asy_sw                                               )
       !!$    END IF
-      IF (irad_aero==18) THEN
-      ! iaero=18: Simple plumes are added to Stenchikov's volcanic aerosols
-      !           and Kinne background aerosols (of natural origin, 1850)
+      IF (irad_aero==18 .OR. irad_aero==19) THEN
+      ! Simple plumes are added to ...
+      ! iaero=18: ... Stennchikov's volcanic aerosols and
+      !               Kinne background aerosols (of natural origin, 1850)
+      ! iaero=19: ... Kinne background aerosols (of natural origin, 1850)
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
