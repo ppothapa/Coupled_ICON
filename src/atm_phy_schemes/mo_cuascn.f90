@@ -357,7 +357,7 @@ ENDIF
 !     2.           SET DEFAULT VALUES
 !                  ------------------
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev

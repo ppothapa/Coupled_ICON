@@ -604,7 +604,7 @@ CONTAINS
     !$ACC DATA CREATE(zrhw) PRESENT(pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config)
 
     ! Compute relative humidity w.r.t. water
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk = 1, kend
       !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -776,12 +776,12 @@ CONTAINS
       conv_list = (/iqv,iqc,iqi,-1,-1/)
     ENDIF
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     zrhox_clip(:,:) = 0._wp
     !$ACC END KERNELS
 
     ! add tendency due to convection
-    !$ACC PARALLEL COPYIN(conv_list) PRIVATE(pos_qv) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL COPYIN(conv_list) PRIVATE(pos_qv) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jt=1,SIZE(conv_list)
       idx = conv_list(jt)
@@ -894,7 +894,7 @@ CONTAINS
     ! (very small negative values may occur during the transport process (order 10E-15))
     iq_start = MAXVAL(conv_list(:)) + 1  ! all others have already been clipped above
     !
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3)
     DO jt=iq_start, iqm_max  ! qr,qs,etc. 
       DO jk = kstart_moist(jg), kend
@@ -907,7 +907,7 @@ CONTAINS
     
     ! clipping for number concentrations
     IF(atm_phy_nwp_config(jg)%l2moment)THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt=iqni, ininact  ! qni,qnr,qns,qng,qnh,qnc and ninact (but not yet ninpot)
         DO jk = kstart_moist(jg), kend
@@ -924,7 +924,7 @@ CONTAINS
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN
 !DIR$ IVDEP
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
 

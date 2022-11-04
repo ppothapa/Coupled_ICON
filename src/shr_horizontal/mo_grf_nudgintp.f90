@@ -351,7 +351,7 @@ SUBROUTINE interpol_scal_nudging_core(ptr_pp, jb, i_startblk, i_endblk, all_enab
 
   CALL get_indices_c(ptr_pp, jb, i_startblk, i_endblk, &
        i_startidx, i_endidx, grf_nudgintp_start_c, min_rlcell_int)
-  !$ACC PARALLEL DEFAULT(NONE) CREATE(grad_x, grad_y, maxval_neighb) &
+  !$ACC PARALLEL DEFAULT(PRESENT) CREATE(grad_x, grad_y, maxval_neighb) &
   !$ACC   CREATE(minval_neighb) PRESENT(h_aux, ptr_dist, l_enabled, ptr_coeff) &
   !$ACC   PRESENT(p_in_fld, iblk, iidx) IF(i_am_accel_node)
   IF (all_enabled) THEN ! Use vectorizable form with loop reordering
@@ -752,7 +752,7 @@ DO jn = 1, nfields
 
     IF (l_limit_nneg(jn)) THEN
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jc = i_startidx, i_endidx
@@ -781,7 +781,7 @@ DO jn = 1, nfields
 
     ELSE
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jc = i_startidx, i_endidx

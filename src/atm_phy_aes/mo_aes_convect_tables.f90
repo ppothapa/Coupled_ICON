@@ -964,13 +964,13 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       !$ACC DATA PRESENT(xi, zphase, iphase, nphase) &
       !$ACC   CREATE(znphase, zoutofbounds_vec)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
       DO batch = 1,batch_size
         znphase(batch) = 0.0_wp
         zoutofbounds_vec(batch) = 0.0_wp
       END DO
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG COLLAPSE(2)
       DO batch = 1,batch_size
         DO jgang = jcs, jce, tile_size
@@ -1013,7 +1013,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       !$ACC END PARALLEL
 
       IF (sanitize_index) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(+: zoutofbounds) ASYNC(1)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(+: zoutofbounds) ASYNC(1)
         DO batch = 1,batch_size
           nphase = INT(znphase)
           zoutofbounds = zoutofbounds + zoutofbounds_vec(batch)
@@ -1032,7 +1032,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ELSE
 
       IF (sanitize_index) THEN
-        !$ACC PARALLEL LOOP DEFAULT(NONE) REDUCTION(+: zoutofbounds) GANG VECTOR COLLAPSE(2) ASYNC(1)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) REDUCTION(+: zoutofbounds) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO batch = 1,batch_size
           DO jl = jcs, jce
             ztshft = FSEL(tmelt-temp(jl,batch),1.0_wp,0.0_wp)
@@ -1043,7 +1043,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
           END DO
         END DO
       ELSE
-        !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO batch = 1,batch_size
           DO jl = jcs, jce
             ztshft = FSEL(tmelt-temp(jl,batch),1.0_wp,0.0_wp)
@@ -1168,7 +1168,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! first compute all lookup indices and check if they are all within allowed bounds
 
 !IBM* ASSERT(NODEPS)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) PRIVATE(zinbounds)
     DO nl = jcs, kidx
       jl = list(nl)

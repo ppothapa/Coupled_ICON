@@ -76,7 +76,7 @@ MODULE mo_interface_iconam_aes
   USE mo_nonhydro_types        ,ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nh_diagnose_pres_temp ,ONLY: diagnose_pres_temp
   USE mo_math_constants        ,ONLY: rad2deg
-  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, grav
+  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, grav, cpd, alv
   USE mtime                    ,ONLY: datetime , newDatetime , deallocateDatetime     ,&
     &                                 timedelta, newTimedelta, deallocateTimedelta    ,&
     &                                 max_timedelta_str_len  , getPTStringFromSeconds ,&
@@ -107,6 +107,8 @@ MODULE mo_interface_iconam_aes
 
   USE mo_upatmo_config         ,ONLY: upatmo_config
   USE mo_upatmo_impl_const,     ONLY: idamtr
+
+  USE mo_aes_thermo,            ONLY: internal_energy
 
   IMPLICIT NONE
 
@@ -385,11 +387,42 @@ CONTAINS
     
     !
     ! Now the new prognostic and diagnostic state variables of the dynamical core
-    ! are ready to be used in the phyiscs.
+    ! are ready to be used in the physics.
     !
     !=====================================================================================
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = jcs, jce
+        field% uphyvi(jc,jb) = 0.0_wp
+        field% udynvi(jc,jb) = 0.0_wp
+      END DO
 
-
+      !$ACC LOOP SEQ
+      DO jk = 1,nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = jcs, jce
+          field% udynvi(jc,jb) = field% udynvi(jc,jb) + &
+                  internal_energy(                         &
+                  pt_diag% temp(jc,jk,jb),                 &!temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
+                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
+                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
+                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
+                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
+                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
+                  pt_prog_new% rho(jc,jk,jb)         ,     &!density
+                  field%        dz(jc,jk,jb)               &!delta z
+                  )
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      !
+    END DO ! jb
     !=====================================================================================
     !
     ! (3) Copy the new prognostic state and the related diagnostics from the
@@ -1053,9 +1086,29 @@ CONTAINS
           ! (It is accumulated over one advective time step in solve_nh)
           pt_diag% exner_dyn_incr(jc,jk,jb) = 0._wp
           !
+          field% uphyvi(jc,jb) = field% uphyvi(jc,jb) + &
+                  internal_energy(                         &
+                  pt_diag% temp(jc,jk,jb),                 &!temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
+                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
+                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
+                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
+                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
+                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
+                  pt_prog_new% rho(jc,jk,jb)         ,     &!density 
+                  field%        dz(jc,jk,jb)               &!delta z
+                  )
         END DO
       END DO
       !$ACC END PARALLEL
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+      DO jc = jcs, jce
+        field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,1) * field% shflx(jc,jb)/cpd
+        field% evap_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%lhflx(jc,jb)/alv
+        field% rsfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%rsfl(jc,jb)
+        field% ssfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%ssfl(jc,jb)
+      END DO
       !
     END DO !jb
 !$OMP END DO

@@ -70,6 +70,8 @@ MODULE mo_ocean_initialization
   
   USE mo_ocean_check_tools, ONLY: ocean_check_level_sea_land_mask, check_ocean_subsets
   
+  USE mo_mpi,                ONLY: my_process_is_stdio, get_my_mpi_work_id
+  
   IMPLICIT NONE
   PRIVATE
   
@@ -303,7 +305,7 @@ CONTAINS
       !    then grid point is wet; dolic is in that level (l_max_bottom=.false.)
       !  - values for BOUNDARY set below
       
-      IF (l_partial_cells) l_max_bottom = .FALSE.
+!      IF (l_partial_cells) l_max_bottom = .FALSE.
       IF (l_max_bottom) THEN
         
         DO jb = all_cells%start_block, all_cells%end_block
@@ -1395,6 +1397,7 @@ CONTAINS
     REAL(wp), PARAMETER :: z_fac_limitthick = 0.8_wp  !  limits additional thickness of bottom cell
     REAL(wp) :: global_ocean_volume
     REAL(wp) :: z_prism_center_dist_e
+    REAL(wp) :: temp_thick 
     INTEGER, POINTER :: dolic_c(:,:), dolic_e(:,:)
     INTEGER :: max_edge_level
     INTEGER :: cell1_idx, cell1_blk, cell2_idx, cell2_blk    
@@ -1508,16 +1511,27 @@ CONTAINS
             ! Partial cell ends at real bathymetry below upper boundary zlev_i(dolic)
             ! at most one dry cell as neighbor is allowed, therefore bathymetry can be much deeper than corrected dolic
             ! maximum thickness limited to an additional part of the thickness of the underlying cell
+
+            !! This assumes that bathymetry cannot be exactly the same as zlev_i
+            !! So we put in a condition ensuring the cell thickness does not
+            !! become too small
             IF (jk < n_zlev) THEN
-              patch_3d%p_patch_1d(1)%prism_thick_c(jc,jk,jb) =             &
+              temp_thick =             &
                 & MIN(-p_ext_data%oce%bathymetry_c(jc,jb)-v_base%zlev_i(jk), &
                 & v_base%del_zlev_m(jk)+z_fac_limitthick*v_base%del_zlev_m(jk+1))
             ELSE
               ! maximum thickness limited to a similar factor of the thickness of the current cell
-              patch_3d%p_patch_1d(1)%prism_thick_c(jc,jk,jb) =             &
+              temp_thick =             &
                 & MIN(-p_ext_data%oce%bathymetry_c(jc,jb)-v_base%zlev_i(jk), &
                 & (1.0_wp+z_fac_limitthick)*v_base%del_zlev_m(jk))
             ENDIF
+            
+            !! Only if the new thickness is above a threshold so we allow it to
+            !! change 
+            IF (temp_thick .GT. 2.0_wp) THEN
+              patch_3d%p_patch_1d(1)%prism_thick_c(jc,jk,jb) = temp_thick
+            END IF
+
             
             !  this is necessary update for flat surface array but leads to abort in height equation
             patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c(jc,jk,jb) =      &
@@ -1528,10 +1542,20 @@ CONTAINS
               & 1.0_wp/patch_3d%p_patch_1d(1)%prism_thick_c(jc,jk,jb)
             patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(jc,jk,jb)=      &
               & 1.0_wp/patch_3d%p_patch_1d(1)%prism_center_dist_c(jc,jk,jb)
+
+            patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance(jc, jk, jb) = &
+              & patch_3d%p_patch_1d(1)%prism_center_dist_c(jc, jk, jb)
+            patch_3d%p_patch_1d(1)%constantPrismCenters_invZdistance(jc, jk, jb)= &
+              & patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(jc, jk, jb) 
             
             !  write(0,*)'XXXX flat_sfc_c',jk,jc,jb,&
             !    &patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,jk,jb),patch_3D%p_patch_1D(1)%del_zlev_m(jk)
             
+            patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance(jc, jk, jb) = &
+              & patch_3d%p_patch_1d(1)%prism_center_dist_c(jc, jk, jb)
+            patch_3d%p_patch_1d(1)%constantPrismCenters_invZdistance(jc, jk, jb)= &
+              & patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(jc, jk, jb) 
+
             ! bottom and column thickness for solver and output
             ! bottom cell thickness at jk=dolic
             patch_3d%bottom_thick_c(jc,jb) = patch_3d%p_patch_1d(1)%prism_thick_c(jc,jk,jb)
@@ -1540,6 +1564,7 @@ CONTAINS
             
           ENDIF ! l_partial_cells
         ENDIF ! MIN_DOLIC
+        
       END DO
     END DO
    
@@ -1580,26 +1605,34 @@ CONTAINS
           
           ! Preliminary partial cells conform with l_max_bottom=false only
           IF (l_partial_cells) THEN
-            
-            ! Partial cell ends at real bathymetry below upper boundary
-            ! zlev_i(dolic) at most one dry cell as neighbor is allowed,
-            ! therefore bathymetry can be much deeper than corrected dolic
-            ! maximum thickness limited to an additional part of the thickness
-            ! of the underlying cell
-            IF (jk < n_zlev) THEN
-              patch_3d%p_patch_1d(1)%prism_thick_e(je,jk,jb) =             &
-                & MIN(-p_ext_data%oce%bathymetry_e(je,jb)-v_base%zlev_i(jk), &
-                & v_base%del_zlev_m(jk)+z_fac_limitthick*v_base%del_zlev_m(jk+1))
-            ELSEIF(jk >= n_zlev) THEN
-!              ! maximum thickness limited to a similar factor of the thickness of the current cell
+
+            !! FIXME: edge bathymetry seems to have bugs
+            !! This is a simpler approximation
+            patch_3D%p_patch_1D(1)%prism_thick_e(je, jk, jb) = &
+              MIN(patch_3D%p_patch_1D(1)%prism_thick_c(cell1_idx, jk, cell1_blk), &
+                & patch_3D%p_patch_1D(1)%prism_thick_c(cell2_idx, jk, cell2_blk))
+
+!            ! Partial cell ends at real bathymetry below upper boundary
+!            ! zlev_i(dolic) at most one dry cell as neighbor is allowed,
+!            ! therefore bathymetry can be much deeper than corrected dolic
+!            ! maximum thickness limited to an additional part of the thickness
+!            ! of the underlying cell
+!            IF (jk < n_zlev) THEN
 !              patch_3d%p_patch_1d(1)%prism_thick_e(je,jk,jb) =             &
 !                & MIN(-p_ext_data%oce%bathymetry_e(je,jb)-v_base%zlev_i(jk), &
-!                & (1.0_wp+z_fac_limitthick)*v_base%del_zlev_m(jk))
-              patch_3D%p_patch_1D(1)%prism_thick_e(je, jk, jb) = &
-              MIN(patch_3D%p_patch_1D(1)%prism_thick_c(cell1_idx, jk, cell1_blk), &
-                patch_3D%p_patch_1D(1)%prism_thick_c(cell2_idx, jk, cell2_blk))            
-            ENDIF
-            !  this is necessary update for flat surface array but leads to abort in height equation
+!                & v_base%del_zlev_m(jk)+z_fac_limitthick*v_base%del_zlev_m(jk+1))
+!            ELSEIF(jk >= n_zlev) THEN
+!!              ! maximum thickness limited to a similar factor of the thickness of the current cell
+!!              patch_3d%p_patch_1d(1)%prism_thick_e(je,jk,jb) =             &
+!!                & MIN(-p_ext_data%oce%bathymetry_e(je,jb)-v_base%zlev_i(jk), &
+!!                & (1.0_wp+z_fac_limitthick)*v_base%del_zlev_m(jk))
+!              patch_3D%p_patch_1D(1)%prism_thick_e(je, jk, jb) = &
+!              MIN(patch_3D%p_patch_1D(1)%prism_thick_c(cell1_idx, jk, cell1_blk), &
+!                patch_3D%p_patch_1D(1)%prism_thick_c(cell2_idx, jk, cell2_blk))            
+!            ENDIF
+
+!            !  this is necessary update for flat surface array but leads to abort in height equation
+
             patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e(je,jk,jb) =      &
               & patch_3d%p_patch_1d(1)%prism_thick_e(je,jk,jb)
             patch_3d%p_patch_1d(1)%inv_prism_thick_e(je,jk,jb)      = &

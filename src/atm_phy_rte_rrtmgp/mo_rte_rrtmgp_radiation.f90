@@ -52,7 +52,7 @@ MODULE mo_rte_rrtmgp_radiation
   USE mo_radiation_solar_data,       ONLY : ssi_default, ssi_amip,             &
                                      ssi_cmip5_picontrol, ssi_cmip6_picontrol, &
                                      ssi_RCEdiurnOn, ssi_RCEdiurnOff,          &
-                                     ssi_radt, tsi_radt
+                                     ssi_radt, tsi_radt, ssi_RCEmip_analytical
   USE mo_radiation_solar_parameters, ONLY:                         &
                                      psctm,                        &
                                      ssi_factor,                   &
@@ -247,6 +247,9 @@ MODULE mo_rte_rrtmgp_radiation
       CASE (6)
         tsi = SUM(ssi_cmip6_picontrol)
         ssi_factor = ssi_cmip6_picontrol
+      CASE (7)
+        tsi = SUM(ssi_RCEmip_analytical)
+        ssi_factor = ssi_RCEmip_analytical
       CASE default
         WRITE (message_text, '(a,i2,a)') &
              'isolrad = ', isolrad, ' in radctl namelist is not supported'

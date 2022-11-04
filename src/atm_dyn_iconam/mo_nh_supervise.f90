@@ -673,7 +673,7 @@ CONTAINS
     !$ACC DATA PRESENT(vn, w, patch) COPYOUT(vn_aux, w_aux) IF(lzacc)
 
     IF (jg > 1 .OR. l_limited_area) THEN
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       vn_aux(1:MIN(istartblk_e,iendblk_e),:) = 0._wp
       w_aux (1:MIN(istartblk_c,iendblk_c),:) = 0._wp
       !$ACC END KERNELS
@@ -690,7 +690,7 @@ CONTAINS
       CALL get_indices_e(patch, jb, istartblk_e, iendblk_e, i_startidx, i_endidx, &
                          grf_bdywidth_e+1, min_rledge_int)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG PRIVATE(vn_aux_tmp)
 !$NEC novector
       DO jk = 1, patch%nlev
@@ -719,7 +719,7 @@ CONTAINS
       CALL get_indices_c(patch, jb, istartblk_c, iendblk_c, i_startidx, i_endidx, &
                          grf_bdywidth_c+1, min_rlcell_int)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG PRIVATE(w_aux_tmp)
 !$NEC novector
       DO jk = 1, patch%nlevp1

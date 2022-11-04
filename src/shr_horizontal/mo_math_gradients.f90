@@ -391,7 +391,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(i_am_accel_node)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO je = i_startidx, i_endidx
     !
@@ -1131,7 +1131,7 @@ SUBROUTINE grad_green_gauss_cell_dycore(p_ccpr, ptr_patch, ptr_int, p_grad,     
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx

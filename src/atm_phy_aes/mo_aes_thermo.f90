@@ -5,36 +5,10 @@
 !!
 !! @par Copyright and License
 !!
-!! Copyright 2022 Max Planck Institute for Meteorology
+!! Copyright 2022 Max Planck Institute for Meteorology, B. Stevens
 !! 
-!! Redistribution and use in source and binary forms, with or
-!! without modification, are permitted provided that the following
-!! conditions are met:
-!! 
-!! 1. Redistributions of source code must retain the above copyright
-!!    notice, this list of conditions and the following disclaimer.
-!! 
-!! 2. Redistributions in binary form must reproduce the above
-!!    copyright notice, this list of conditions and the following
-!!    disclaimer in the documentation and/or other materials
-!!    provided with the distribution.
-!! 
-!! 3. Neither the name of the copyright holder nor the names of its
-!!    contributors may be used to endorse or promote products
-!!    derived from this software without specific prior written
-!!    permission.
-!! 
-!! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-!! "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-!! LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-!! A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-!! HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-!! SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-!! LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-!! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-!! THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-!! (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-!! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file 
+!! BSD-3-C-license.pdf in the license-directory
 !!
 MODULE mo_aes_thermo
 
@@ -56,6 +30,7 @@ USE mo_physical_constants, ONLY: rv     , & !> gas constant for water vapour
 
   PRIVATE
 
+  PUBLIC  :: internal_energy       ! calculates internal energy 
   PUBLIC  :: saturation_adjustment ! partitions water mass to maintain saturation
   PUBLIC  :: qsat_rho              ! sat. vapor pres. (over liquid) at constant density
   PUBLIC  :: qsat_ice_rho          ! sat. vapor pres. (over ice) at constant density
@@ -195,6 +170,42 @@ END SUBROUTINE saturation_adjustment
   !   compatible with an elemental function
   !
   !-------------------------------------------------------------------------------
+
+#ifndef _OPENACC
+ELEMENTAL &
+#endif
+FUNCTION internal_energy(TK,qv,qc,qr,qi,qs,qg,rho,dz)
+
+  REAL (KIND=wp)              :: internal_energy
+  REAL (KIND=wp), INTENT(IN)  :: TK  !! temperature (kelvin)
+  REAL (KIND=wp), INTENT(IN)  :: qv  !! water vapor specific humidity
+  REAL (KIND=wp), INTENT(IN)  :: qc  !! cloud specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qr  !! rain specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qi  !! ice specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qs  !! snow specific mass
+  REAL (KIND=wp), INTENT(IN)  :: qg  !! graupel specific mass
+  REAL (KIND=wp), INTENT(IN)  :: rho !! density
+  REAL (KIND=wp), INTENT(IN)  :: dz  !! density
+
+  REAL (KIND=wp) :: qliq !! total liquid specific mass
+  REAL (KIND=wp) :: qice !! total ice specific mass
+  REAL (KIND=wp) :: qtot !! total water specific mass
+  REAL (KIND=wp) :: cv   !! moist isometric specific heat
+
+  !$ACC ROUTINE SEQ
+    
+  qliq = qc + qr
+  qice = qi + qs + qg
+  qtot = qliq + qice + qv
+  cv   = cvd*(1.0_wp - qtot) + cvv*qv + clw*qliq + ci*qice
+
+  internal_energy  = rho*dz*(cv*TK                         &
+                            - qliq*(alv - (cpv-clw)*Tmelt) &
+                            - qice*(als - (cpv-ci )*Tmelt))
+
+END FUNCTION internal_energy
+
+!!!=============================================================================================
 
 #ifndef _OPENACC
 ELEMENTAL &

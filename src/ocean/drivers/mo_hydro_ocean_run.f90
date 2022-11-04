@@ -8,6 +8,7 @@
 !!   - renaming and adjustment of hydrostatic ocean model V1.0.3 to ocean domain and patch_oce
 !!  Modification by Stephan Lorenz, MPI-M, 2010-10
 !!   - new module mo_hydro_ocean_run including updated reconstructions
+!!  Adopted for zstar by V.Singh (MPI-M), (2020)
 !
 !
 !! @par Copyright and License
@@ -25,6 +26,7 @@
 MODULE mo_hydro_ocean_run
   !-------------------------------------------------------------------------
   USE mo_kind,                   ONLY: wp
+  USE mo_parallel_config,        ONLY: nproma
   USE mo_impl_constants,         ONLY: max_char_length, success
   USE mo_model_domain,           ONLY: t_patch, t_patch_3d
   USE mo_grid_config,            ONLY: n_dom
@@ -37,7 +39,8 @@ MODULE mo_hydro_ocean_run
     &  Cartesian_Mixing, GMRedi_configuration, OceanReferenceDensity_inv, &
     &  atm_pressure_included_in_ocedyn, &
     &  vert_mix_type,vmix_kpp, lcheck_salt_content, &
-    &  use_draftave_for_transport_h, check_total_volume
+    &  use_draftave_for_transport_h, &
+    & vert_cor_type, use_tides, check_total_volume
   USE mo_ocean_nml,              ONLY: iforc_oce, Coupled_FluxFromAtmo
   USE mo_dynamics_config,        ONLY: nold, nnew
   USE mo_io_config,              ONLY: n_checkpoints, write_last_restart
@@ -71,14 +74,16 @@ MODULE mo_hydro_ocean_run
   USE mo_ice_fem_interface,      ONLY: ice_fem_init_vel_restart, ice_fem_update_vel_restart
   USE mo_sea_ice_types,          ONLY: t_atmos_fluxes, t_sea_ice
   USE mo_sea_ice_nml,            ONLY: i_ice_dyn
-  USE mo_ocean_physics,          ONLY: update_ho_params
+  USE mo_ocean_physics,          ONLY: update_ho_params, update_ho_params_zstar
   USE mo_ocean_physics_types,    ONLY: t_ho_params  
-  USE mo_ocean_thermodyn,        ONLY: calc_potential_density, calculate_density
+  USE mo_ocean_thermodyn,        ONLY: calc_potential_density, calculate_density, &
+    & calculate_density_zstar
   USE mo_name_list_output,       ONLY: write_name_list_output
   USE mo_name_list_output_init,  ONLY: output_file
   USE mo_name_list_output_types, ONLY: t_output_file
   USE mo_ocean_diagnostics,      ONLY: calc_fast_oce_diagnostics, calc_psi
-  USE mo_ocean_check_total_content, ONLY: check_total_salt_content, check_accumulated_volume_difference
+  USE mo_ocean_check_total_content, ONLY: check_total_salt_content, &
+    & check_total_salt_content_zstar, check_accumulated_volume_difference
   USE mo_master_config,          ONLY: isRestart
   USE mo_master_control,         ONLY: get_my_process_name
   USE mo_time_config,            ONLY: time_config, t_time_config
@@ -96,7 +101,14 @@ MODULE mo_hydro_ocean_run
   USE mo_hamocc_nml,             ONLY: l_cpl_co2
   USE mo_ocean_time_events,      ONLY: ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime
   USE mo_ocean_ab_timestepping_mimetic, ONLY: clear_ocean_ab_timestepping_mimetic
-  USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
+  USE mo_ocean_ab_timestepping_zstar,  ONLY: calc_vert_velocity_bottomup_zstar, calc_normal_velocity_ab_zstar, &
+    & solve_free_surface_eq_zstar, update_zstar_variables
+  USE mo_ocean_tracer_zstar,     ONLY:advect_individual_tracers_zstar, advect_ocean_tracers_zstar
+  USE mo_swr_absorption,         ONLY: subsurface_swr_absorption_zstar
+  USE mo_ocean_tracer_dev,       ONLY: advect_ocean_tracers_GMRedi_zstar
+ 
+  USE mo_grid_subset,            ONLY: t_subset_range, get_index_range
+  USE mo_physical_constants,     ONLY: rho_ref, grav 
   USE mo_ocean_pressure_bc_conditions,  ONLY: create_pressure_bc_conditions
   
   
@@ -131,6 +143,8 @@ CONTAINS
 ! !   TYPE (t_ho_params)                :: p_phys_param
     LOGICAL, INTENT(in)               :: is_restart
     TYPE(t_solvercoeff_singleprecision), INTENT(inout) :: solvercoeff_sp
+    
+    REAL(wp) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)           !! 
 
     IF (is_restart .AND. is_coupled_run() ) THEN
         ! Initialize 10m Wind Speed from restart file when run in coupled mode
@@ -165,6 +179,12 @@ CONTAINS
 !     !      & operators_coefficients%matrix_vert_diff_c)
 ! 
     CALL update_height_depdendent_variables( patch_3d, ocean_state, ext_data, operators_coefficients, solvercoeff_sp)
+    
+    !! Initialize stretch variable for zstar
+    IF ( ( .NOT. isRestart()  ) .AND. ( vert_cor_type == 1 ) ) THEN
+        ocean_state%p_prog(nold(1))%stretch_c = 1.0_wp
+    ENDIF
+
  
     ! this is needed as initial condition or restart 
 !     CALL calc_scalar_product_veloc_3d( patch_3d,  &
@@ -229,6 +249,11 @@ CONTAINS
     REAL(wp) :: verticalMeanFlux(n_zlev+1)
     INTEGER :: level,ifiles,i,j
     REAL(wp) :: r
+    
+    REAL(wp) :: eta_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! Surface height after time step 
+    REAL(wp) :: stretch_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! stretch factor 
+    REAL(wp) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)           !! 
+
     !CHARACTER(LEN=filename_max)  :: outputfile, gridfile
     TYPE(t_key_value_store), POINTER :: restartAttributes
     CLASS(t_RestartDescriptor), POINTER :: restartDescriptor
@@ -277,6 +302,15 @@ CONTAINS
     !------------------------------------------------------------------
     CALL timer_start(timer_total)
 
+    !------------------------------------------------------------------
+    !! Update stretch variable for zstar
+    IF ( ( vert_cor_type == 1 ) ) THEN
+      CALL update_zstar_variables( patch_3d, ocean_state(jg), operators_coefficients, &
+        & ocean_state(jg)%p_prog(nold(1))%eta_c, &
+        & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e)
+    ENDIF
+    !------------------------------------------------------------------
+
     SELECT CASE (run_mode)
     CASE (RUN_FORWARD)
 
@@ -286,7 +320,11 @@ CONTAINS
          IF(lsediment_only) THEN
              CALL sed_only_time_step()
          ELSE
+           IF ( vert_cor_type == 0 ) THEN
              CALL ocean_time_step()
+            ELSEIF ( vert_cor_type == 1 ) THEN
+             CALL ocean_time_step_zstar()
+            ENDIF
          END IF
 
          IF (isEndOfThisRun()) THEN
@@ -397,7 +435,6 @@ CONTAINS
         !--------------------------------------------------------------------------
         CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, current_time)
         !------------------------------------------------------------------------
-       
 
   !       IF (timers_level > 2) CALL timer_start(timer_scalar_prod_veloc)
   !       CALL calc_scalar_product_veloc_3d( patch_3d,  &
@@ -665,7 +702,294 @@ CONTAINS
 
     END SUBROUTINE ocean_time_step
 
+    !-------------------------------------------------------------------------
+    SUBROUTINE ocean_time_step_zstar()
+        ! fill transport state
+        ocean_state(jg)%transport_state%patch_3d    => patch_3d
 
+        ! optional memory loggin
+        CALL memory_log_add
+        
+        jstep = jstep + 1
+        ! update model date and time mtime based
+        current_time = ocean_time_nextStep()
+
+        CALL datetimeToString(current_time, datestring)
+        WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
+        CALL message (TRIM(routine), message_text)
+         
+!        IF (lcheck_salt_content) CALL check_total_salt_content_zstar(110, &
+!          & ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,2), patch_2d, &
+!          & ocean_state(jg)%p_prog(nold(1))%stretch_c(:,:), &
+!          & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:), sea_ice, p_oce_sfc)
+
+     
+        start_timer(timer_scalar_prod_veloc,2)
+        CALL calc_scalar_product_veloc_3d( patch_3d,  &
+          & ocean_state(jg)%p_prog(nold(1))%vn,         &
+          & ocean_state(jg)%p_diag,                     &
+          & operators_coefficients)
+        stop_timer(timer_scalar_prod_veloc,2)
+        
+        !In case of a time-varying forcing:
+        ! update_surface_flux or update_ocean_surface has changed p_prog(nold(1))%h, SST and SSS
+        start_timer(timer_upd_flx,3)
+
+        !! Updates velocity, tracer boundary condition
+        !! Changes height based on ice etc
+        !! Ice eqn sends back heat fluxes and volume fluxes
+        !! Tracer relaxation and surface flux boundary conditions
+        CALL update_ocean_surface_refactor( patch_3d, ocean_state(jg), p_as, sea_ice, p_atm_f, p_oce_sfc, &
+            & current_time, operators_coefficients, ocean_state(jg)%p_prog(nold(1))%eta_c, &
+            & ocean_state(jg)%p_prog(nold(1))%stretch_c)
+
+        stop_timer(timer_upd_flx,3)
+        
+        !------------------------------------------------------------------------
+        !! Update stretch variables 
+        CALL update_zstar_variables( patch_3d, ocean_state(jg), operators_coefficients, &
+          & ocean_state(jg)%p_prog(nold(1))%eta_c, &
+          & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e)
+
+        !------------------------------------------------------------------------
+        ! calculate in situ density here, as it may be used fotr the tides load
+        CALL calculate_density_zstar( patch_3d,                         &
+          & ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,:),      &
+          & ocean_state(jg)%p_prog(nold(1))%eta_c, &
+          & ocean_state(jg)%p_prog(nold(1))%stretch_c, &
+          & ocean_state(jg)%p_diag%rho(:,:,:) )
+
+        !--------------------------------------------------------------------------
+        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, current_time)
+        !------------------------------------------------------------------------
+
+        IF ( vert_cor_type .EQ. 1) THEN
+          ocean_state(jg)%p_aux%bc_total_top_potential = &
+            & ocean_state(jg)%p_aux%bc_tides_potential  + &
+            & rho_ref * OceanReferenceDensity_inv * grav * sea_ice%draftave
+        END IF
+
+        !---------DEBUG DIAGNOSTICS-------------------------------------------
+        idt_src=3  ! output print level (1-5, fix)
+        CALL dbg_print('on entry: h-old'           ,ocean_state(jg)%p_prog(nold(1))%h ,str_module,idt_src, &
+          & patch_2d%cells%owned )
+        CALL dbg_print('on entry: h-new'           ,ocean_state(jg)%p_prog(nnew(1))%h ,str_module,idt_src, &
+          & patch_2d%cells%owned )
+        CALL dbg_print('HydOce: ScaProdVel kin'    ,ocean_state(jg)%p_diag%kin        ,str_module,idt_src, &
+          & patch_2d%cells%owned )
+        CALL dbg_print('HydOce: ScaProdVel ptp_vn' ,ocean_state(jg)%p_diag%ptp_vn     ,str_module,idt_src, &
+          & patch_2d%edges%owned )
+        CALL dbg_print('HydOce: fu10'              ,p_as%fu10                         ,str_module,idt_src, &
+          & in_subset=patch_2d%cells%owned)
+        CALL dbg_print('HydOce: concsum'           ,sea_ice%concsum                   ,str_module,idt_src, &
+          & in_subset=patch_2d%cells%owned)
+
+        !---------------------------------------------------------------------
+        !by_ogut: added p_oce_sfc
+        CALL update_ho_params_zstar(patch_3d, ocean_state(jg), p_as%fu10, sea_ice%concsum, p_phys_param, operators_coefficients, &
+                            & p_atm_f, p_oce_sfc, ocean_state(jg)%p_prog(nold(1))%eta_c, &
+                            & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e)
+
+        !------------------------------------------------------------------------
+        ! solve for new free surface
+        start_timer(timer_solve_ab,1)
+        CALL solve_free_surface_eq_zstar( patch_3d, ocean_state, p_ext_data,  &
+          & p_oce_sfc , p_as, p_phys_param, operators_coefficients, solvercoeff_sp, &
+          & jstep, ocean_state(jg)%p_prog(nold(1))%eta_c, ocean_state(jg)%p_prog(nold(1))%stretch_c, &
+          & stretch_e, ocean_state(jg)%p_prog(nnew(1))%eta_c, ocean_state(jg)%p_prog(nnew(1))%stretch_c)
+
+        stop_timer(timer_solve_ab,1)
+          
+        !------------------------------------------------------------------------
+        ! Step 4: calculate final normal velocity from predicted horizontal
+        ! velocity vn_pred and updated surface height
+        start_timer(timer_normal_veloc,4)
+        CALL calc_normal_velocity_ab_zstar(patch_3d, ocean_state(jg), operators_coefficients, &
+          & ocean_state(jg)%p_prog(nnew(1))%eta_c)
+        stop_timer(timer_normal_veloc,4)
+
+        !------------------------------------------------------------------------
+        ! Step 5: calculate vertical velocity and mass_flx_e from continuity equation under
+        ! incompressiblity condition in the non-shallow-water case
+        start_timer(timer_vert_veloc,4)
+        CALL calc_vert_velocity_bottomup_zstar( patch_3d, ocean_state(jg),operators_coefficients, & 
+          & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e)
+        stop_timer(timer_vert_veloc,4)
+        
+        IF (idbg_mxmn >= 2 .OR. debug_check_level > 5) THEN
+          CALL horizontal_mean(values=ocean_state(jg)%p_prog(nnew(1))%eta_c(:,:), &
+            & weights=patch_2d%cells%area(:,:), &
+            & in_subset=patch_2d%cells%owned, mean=mean_height)
+          CALL debug_printValue(description="Mean Height", val=mean_height, detail_level=2)
+        ENDIF
+        IF (debug_check_level > 5 .AND. idbg_mxmn >= 2) THEN
+          ! check difference from old_mean_height
+          CALL debug_printValue(description="Old/New Mean Height", &
+            & val=old_mean_height, value1=mean_height, detail_level=2)
+          ! check if vertical and horizontal fluxes add to 0
+          CALL horizontal_mean(values=ocean_state(jg)%p_diag%w, weights=patch_2d%cells%area(:,:), &
+            & in_subset=patch_2d%cells%owned, mean=verticalMeanFlux, start_level=2, end_level=n_zlev)
+          
+          DO level=2, n_zlev-1
+            CALL debug_printValue(description="Mean vertical flux at", val=REAL(level,wp),  &
+              & value1=verticalMeanFlux(level), detail_level=2)
+          ENDDO         
+        END IF
+
+        !------------------------------------------------------------------------
+        
+        CALL tracer_transport_zstar(patch_3d, ocean_state(jg), p_as, sea_ice, &
+          & p_oce_sfc, p_phys_param, operators_coefficients, current_time, &
+          & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, ocean_state(jg)%p_prog(nnew(1))%stretch_c)
+
+        !------------------------------------------------------------------------
+        
+!        IF (lcheck_salt_content) CALL check_total_salt_content_zstar(130, &
+!          & ocean_state(jg)%p_prog(nnew(1))%tracer(:,:,:,2), patch_2d, &
+!          & ocean_state(jg)%p_prog(nnew(1))%stretch_c(:,:), &
+!          & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:), sea_ice, p_oce_sfc)
+
+
+        !! Store in temporary variables to assign to nold
+        eta_c_new     = ocean_state(jg)%p_prog(nnew(1))%eta_c
+        stretch_c_new = ocean_state(jg)%p_prog(nnew(1))%stretch_c
+        !------------------------------------------------------------------------
+
+        !------------------------------------------------------------------------
+        ! Optional : nudge temperature and salinity
+        !! FIXME zstar: Not adapted to zstar
+        IF (no_tracer>=1) THEN
+          CALL nudge_ocean_tracers( patch_3d, ocean_state(jg))
+        ENDIF
+  
+        !------------------------------------------------------------------------
+        ! perform accumulation for special variables
+        ! FIXME zstar: Not adapted to zstar
+        start_detail_timer(timer_extra20,5)     
+        IF (no_tracer>=1) THEN
+          CALL calc_potential_density( patch_3d,                            &
+            & ocean_state(jg)%p_prog(nold(1))%tracer,                       &
+            & ocean_state(jg)%p_diag%rhopot )
+            
+          ! calculate diagnostic barotropic stream function
+          CALL calc_psi (patch_3d, ocean_state(jg)%p_diag%u(:,:,:),         &
+            & patch_3D%p_patch_1d(1)%prism_thick_c(:,:,:),                  &
+            & ocean_state(jg)%p_diag%u_vint, current_time)
+          CALL dbg_print('calc_psi: u_vint' ,ocean_state(jg)%p_diag%u_vint, str_module, 3, in_subset=patch_2d%cells%owned)
+            
+        ENDIF
+
+        CALL calc_fast_oce_diagnostics( patch_2d, &
+            & patch_3d, &
+            & ocean_state(1), &
+            & patch_3d%p_patch_1d(1)%dolic_c, &
+            & patch_3d%p_patch_1d(1)%prism_thick_c, &
+            & patch_3d%p_patch_1d(1)%zlev_m, &
+            & ocean_state(jg)%p_diag, &
+            & ocean_state(jg)%p_prog(nnew(1))%eta_c, &
+            & ocean_state(jg)%p_prog(nnew(1))%vn, &
+            & ocean_state(jg)%p_prog(nnew(1))%tracer, &
+            & p_atm_f, &
+            & p_oce_sfc, &
+            & sea_ice) 
+
+        stop_detail_timer(timer_extra20,5)
+
+
+        CALL update_statistics
+
+        CALL output_ocean( patch_3d, ocean_state, &
+          &                current_time,              &
+          &                p_oce_sfc,             &
+          &                sea_ice,                 &
+          &                jstep, jstep0)
+        
+        ! send and receive coupling fluxes for ocean at the end of time stepping loop
+        ! FIXME zstar: Does this make sense for zstar 
+        IF (iforc_oce == Coupled_FluxFromAtmo) THEN  !  14
+#ifdef YAC_coupling
+          CALL couple_ocean_toatmo_fluxes(patch_3D, ocean_state(jg), sea_ice, p_atm_f, p_as)
+#endif
+          ! copy fluxes updated in coupling from p_atm_f into p_oce_sfc
+          p_oce_sfc%FrshFlux_Precipitation = p_atm_f%FrshFlux_Precipitation
+          p_oce_sfc%FrshFlux_Evaporation   = p_atm_f%FrshFlux_Evaporation
+          p_oce_sfc%FrshFlux_SnowFall      = p_atm_f%FrshFlux_SnowFall
+          p_oce_sfc%HeatFlux_Total         = p_atm_f%HeatFlux_Total
+          p_oce_sfc%HeatFlux_ShortWave     = p_atm_f%HeatFlux_ShortWave
+          p_oce_sfc%HeatFlux_Longwave      = p_atm_f%HeatFlux_Longwave
+          p_oce_sfc%HeatFlux_Sensible      = p_atm_f%HeatFlux_Sensible
+          p_oce_sfc%HeatFlux_Latent        = p_atm_f%HeatFlux_Latent
+          p_oce_sfc%FrshFlux_Runoff        = p_atm_f%FrshFlux_Runoff
+
+        ENDIF
+
+        ! copy atmospheric wind speed of coupling from p_as%fu10 into forcing to be written by restart
+        p_oce_sfc%Wind_Speed_10m(:,:) = p_as%fu10(:,:)
+        p_oce_sfc%sea_level_pressure(:,:) = p_as%pao(:,:)
+
+        start_detail_timer(timer_extra21,5)
+        
+        ! Shift time indices for the next loop
+        ! this HAS to ge into the restart files, because the start with the following loop
+        CALL update_time_indices(jg)
+
+        ! update intermediate timestepping variables for the tracers
+        CALL update_time_g_n(ocean_state(jg))
+
+        ! check whether time has come for writing restart file
+        IF (isCheckpoint()) THEN
+          IF (.NOT. output_mode%l_none ) THEN
+            !
+            ! For multifile restart (restart_write_mode = "joint procs multifile")
+            ! the domain flag must be set to .TRUE. in order to activate the domain,
+            ! even though we have one currently in the ocean. Without this the
+            ! processes won't write out their data into a the patch restart files.
+            !
+            patch_2d%ldom_active = .TRUE.
+            !
+
+            IF (i_ice_dyn == 1) CALL ice_fem_update_vel_restart(patch_2d, sea_ice) ! write FEM vel to restart or checkpoint file
+            CALL restartDescriptor%updatePatch(patch_2d, &
+                                              &opt_nice_class=1, &
+                                              &opt_ocean_zlevels=n_zlev, &
+                                              &opt_ocean_zheight_cellmiddle = patch_3d%p_patch_1d(1)%zlev_m(:), &
+                                              &opt_ocean_zheight_cellinterfaces = patch_3d%p_patch_1d(1)%zlev_i(:))
+            CALL restartDescriptor%writeRestart(current_time, jstep)
+          END IF
+        END IF
+
+        stop_detail_timer(timer_extra21,5)
+        
+        IF (isEndOfThisRun()) THEN
+          ! leave time loop
+          RETURN
+        END IF
+        
+        ! check cfl criterion
+        IF (cfl_check) THEN
+          CALL check_cfl_horizontal(ocean_state(jg)%p_prog(nnew(1))%vn, &
+            & patch_2d%edges%inv_dual_edge_length, &
+            & dtime, &
+            & patch_2d%edges%ALL, &
+            & cfl_threshold, &
+            & ocean_state(jg)%p_diag%cfl_horz, &
+            & cfl_stop_on_violation,&
+            & cfl_write)
+          CALL check_cfl_vertical(ocean_state(jg)%p_diag%w, &
+            & patch_3d%p_patch_1d(1)%prism_center_dist_c, &
+            & dtime, &
+            & patch_2d%cells%ALL,&
+            & cfl_threshold, &
+            & ocean_state(jg)%p_diag%cfl_vert, &
+            & cfl_stop_on_violation,&
+            & cfl_write)
+        END IF
+
+
+    END SUBROUTINE ocean_time_step_zstar
+
+    
+    
     SUBROUTINE sed_only_time_step()
         ! fill transport state
         ocean_state(jg)%transport_state%patch_3d    => patch_3d
@@ -680,12 +1004,11 @@ CONTAINS
         CALL datetimeToString(current_time, datestring)
         WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
         CALL message (TRIM(routine), message_text)
-
-
+ 
         ! Add here the calls for Hamocc
         CALL ocean_to_hamocc_interface(ocean_state(jg), ocean_state(jg)%transport_state, &
           & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time)
-
+        
         CALL update_statistics
 
         CALL output_ocean( patch_3d, ocean_state, &
@@ -718,8 +1041,9 @@ CONTAINS
           ! leave time loop
           RETURN
         END IF
-
+        
     END SUBROUTINE sed_only_time_step
+
 
   END SUBROUTINE perform_ho_stepping
   !-------------------------------------------------------------------------
@@ -820,6 +1144,86 @@ CONTAINS
     
   END SUBROUTINE tracer_transport
   !-------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------
+  SUBROUTINE tracer_transport_zstar(patch_3d, ocean_state, p_as, sea_ice, &
+      & p_oce_sfc, p_phys_param, operators_coefficients, current_time, &
+      & stretch_c, stretch_e, stretch_c_new)
+    TYPE(t_patch_3d ),TARGET, INTENT(inout)          :: patch_3d
+    TYPE(t_hydro_ocean_state), TARGET, INTENT(inout) :: ocean_state
+    TYPE(t_atmos_for_ocean),  INTENT(inout)          :: p_as
+    TYPE(t_sea_ice),          INTENT(inout)          :: sea_ice
+    TYPE(t_ocean_surface)                            :: p_oce_sfc
+    TYPE(t_ho_params)                                :: p_phys_param
+    TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
+    TYPE(datetime), POINTER, INTENT(in)              :: current_time
+    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp), INTENT(IN) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor 
+    REAL(wp), INTENT(IN) :: stretch_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+ 
+    TYPE(t_ocean_transport_state) , POINTER                   :: transport_state
+    TYPE(t_tracer_collection) , POINTER              :: old_tracer_collection, new_tracer_collection
+
+    INTEGER :: i
+
+    !------------------------------------------------------------------------
+    !Tracer transport
+ 
+    old_tracer_collection => ocean_state%p_prog(nold(1))%tracer_collection
+    new_tracer_collection => ocean_state%p_prog(nnew(1))%tracer_collection
+    transport_state => ocean_state%transport_state
+
+ 
+    !------------------------------------------------------------------------
+    IF (no_tracer>=1) THEN
+  
+      ! fill transport_state
+      transport_state%patch_3d    => patch_3d
+      transport_state%h_old       => ocean_state%p_prog(nold(1))%h
+      transport_state%h_new       => ocean_state%p_prog(nnew(1))%h
+      transport_state%w           => ocean_state%p_diag%w  ! w_time_weighted
+      transport_state%mass_flux_e => ocean_state%p_diag%mass_flx_e
+      transport_state%vn          => ocean_state%p_diag%vn_time_weighted
+      ! fill boundary conditions
+      old_tracer_collection%tracer(1)%top_bc => p_oce_sfc%TopBC_Temp_vdiff
+      IF (no_tracer > 1) &
+        old_tracer_collection%tracer(2)%top_bc => p_oce_sfc%TopBC_Salt_vdiff
+  
+      ! fill diffusion coefficients
+      DO i = 1, old_tracer_collection%no_of_tracers
+          old_tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
+          old_tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
+      ENDDO
+      
+    ENDIF
+    !------------------------------------------------------------------------
+  
+    !------------------------------------------------------------------------
+    ! FIXME zstar: cartesian diffusion not implemented
+    ! transport tracers and diffuse them
+    IF (no_tracer>=1) THEN
+
+      IF (GMRedi_configuration==Cartesian_Mixing) THEN
+        !! Note that zstar has no horizontal diffusion
+        CALL advect_ocean_tracers_zstar(old_tracer_collection, new_tracer_collection, &
+          & transport_state, operators_coefficients, stretch_e, stretch_c, stretch_c_new)
+      ELSE
+        CALL  advect_ocean_tracers_GMRedi_zstar(old_tracer_collection, new_tracer_collection, &
+          &  ocean_state, transport_state, p_phys_param, operators_coefficients, &
+          &  stretch_c, stretch_e, stretch_c_new)
+      ENDIF
+ 
+    ENDIF
+    !------------------------------------------------------------------------
+
+    !! FIXME zstar: hamocc interface not adapted for zstar 
+    CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
+      & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
+
+  END SUBROUTINE tracer_transport_zstar
+  !-------------------------------------------------------------------------
+
+
 
   !-------------------------------------------------------------------------
 !<Optimize:inUse>

@@ -93,6 +93,8 @@ CONTAINS
     ALLOCATE( cloud_two_output(ng), STAT=ist)
     IF (ist/=success) CALL finish(thismodule, 'allocation of cloud_two_output(ng) failed')
 
+    !$ACC ENTER DATA CREATE(cloud_two_input, cloud_two_output)
+
     ! build lists and allocate memory for all grids where the 2 moment cloud microphysics is used
 
     DO jg = 1,ng
@@ -140,6 +142,8 @@ CONTAINS
           !
        END IF
     END DO
+
+    !$ACC EXIT DATA DELETE(cloud_two_input, cloud_two_output)
 
     DEALLOCATE( cloud_two_list, STAT=ist )
     IF (ist/=success) CALL finish(thismodule, 'deallocation of cloud_two_list failed')

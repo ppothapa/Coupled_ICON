@@ -1237,7 +1237,7 @@ ENDDO
   IF (lres_soilwatb) THEN
     ! Calculation of soil water budget: store recent runoff fluxes
     ! the final runoff fluxes are subtracted at the end
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zhwso_budget(i) = runoff_s(i) + runoff_g(i)
@@ -1251,7 +1251,7 @@ ENDDO
 
   ln_10 = LOG(10.0_wp)
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO kso = 0, UBOUND(zaga,2)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -1396,7 +1396,7 @@ ENDDO
 
 
   ! Determine constants clgk0 for BATS-scheme
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jb       = 1, 10
     clgk0(jb) = LOG(MAX(eps_soil,ck0di(jb)/ckrdi))/ln_10
@@ -1423,7 +1423,7 @@ ENDDO
 
   zpercmax = 2.E-3_wp
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ztrangs(i)            = 0.0_wp
@@ -2743,7 +2743,7 @@ ENDDO
   ctau_i  = MAX( ctau_i, zdt )
 
   ! Utility variable to avoid IF-constructs
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO kso     = 1,ke_soil
     IF (kso == 1) THEN 
@@ -4020,7 +4020,7 @@ ENDDO
 
   ELSE  ! single-layer snow model
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(ztalb, zgstr, zro, zalas, zzz, zd, zfr_melt, zw_ovpv)
     !$NEC sparse
     DO i = ivstart, ivend
@@ -4156,7 +4156,7 @@ ENDDO
   ! for the whole column "soil + snow" for snow-covered surface is solved.
   ! Then, the two updates are merged together.
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     sn_frac(i) = zf_snow(i)
@@ -4648,7 +4648,7 @@ ENDDO
 
   IF (.NOT. lmulti_snow) THEN
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(ztsnownew, ze_avail, ze_total, zfr_melt) &
     !$ACC   PRIVATE(ztsnew, zdelt_s, zdwgme, zro, zredfu, zw_ovpv, zfr_ice_free)
     DO i = ivstart, ivend
@@ -5006,7 +5006,7 @@ ENDDO
     ENDDO
 
   ELSE
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       t_snow_new(i)  = t_snow_now(i) + zdt*zdtsnowdt(i)
@@ -5014,7 +5014,7 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ! t_snow is computed above
@@ -5120,7 +5120,7 @@ ENDDO
 
   IF(.NOT. lmulti_snow) THEN
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zzz, ztau_snow, zrhosmax, zrho_snowe) &
     !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv)
     !$NEC sparse
@@ -5374,7 +5374,7 @@ ENDDO
  ENDIF ! lmulti_snow
 
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO kso = 1,ke_soil
   !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -5392,7 +5392,7 @@ ENDDO
 
   ! computation of the weighted turbulent fluxes at the boundary surface-atmosphere
   IF(PRESENT(zshfl_sfc)) THEN
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zshfl_sfc(i) = zshfl_s(i)*(1._wp - zf_snow(i)) + zshfl_snow(i)*zf_snow(i)
@@ -5409,7 +5409,7 @@ ENDDO
 
   ! This block tests the residuum of water mass content in soil
   IF (lres_soilwatb) THEN
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       ! the rain rates 

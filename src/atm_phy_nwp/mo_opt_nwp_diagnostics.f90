@@ -210,25 +210,22 @@ CONTAINS
     ! Set the uppermost model level for the occurence of a wet bulb temperature (wbl)
     ! to about 8000m above surface
     ktopmin = nlev+2
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(MIN: ktopmin) IF(lzacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: ktopmin) IF(lzacc)
     DO k = nlev+1, 1, -1
       IF ( hhlr(k) < 8000.0_wp ) THEN
         ktopmin = k
       ENDIF
     ENDDO
-    !$ACC END PARALLEL
     if( ktopmin>nlev+1 ) ktopmin = 2
 
     ! Initialize the definition mask and the output array snowlmt
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO i = 1, SIZE(temp,1)
       lfound (i) = .FALSE.
       snowlmt(i) = -999.0_wp
     ENDDO
-    !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = ktopmin, nlev
       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zp, ep, CONST, td, tl, tp, ppp) &
@@ -503,8 +500,8 @@ CONTAINS
     
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
-
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -559,7 +556,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) PRIVATE(ivd1, ivd2, vdfac) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ivd1, ivd2, vdfac) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
@@ -633,7 +630,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -1169,7 +1166,7 @@ CONTAINS
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
     ! nullify every grid point (lateral boundary, too)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jb=1,ptr_patch%nblks_c
       DO jc=1,nproma
@@ -1187,7 +1184,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         vol     (jc)     = 0.0_wp
@@ -1196,7 +1193,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = kstart_moist(jg), ptr_patch%nlev
         !$ACC LOOP GANG VECTOR PRIVATE(delta_z, w_c, q_liqu, q_i, q_s, q_g, epsw, q_solid, lpi_incr)
@@ -1276,7 +1273,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! normalization
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( vol(jc) > 1.0e-30_wp ) THEN
@@ -1338,7 +1335,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w( jc, jb) = 0.0_wp
@@ -1402,7 +1399,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w_sum  (jc)  = 0
@@ -1428,7 +1425,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_frac_w(jc) = DBLE( p_nmbr_w_sum(jc) ) / DBLE( p_nmbr_all_sum(jc) )
@@ -1468,7 +1465,7 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ! finally, this is the 'updraft in environment criterion':
@@ -1542,7 +1539,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lpi_max(jc,jb) = MAX( lpi_max(jc,jb), lpi(jc,jb) )
@@ -2366,7 +2363,7 @@ CONTAINS
 
     nlev = SIZE( te,2)
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     do i = 1, SIZE( te,1)
       k_ml  (i)  = nlev  ! index used to step through the well mixed layer
@@ -2382,7 +2379,7 @@ CONTAINS
 
     ! now calculate the mixed layer average potential temperature and 
     ! specific humidity
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = nlev, kmoist, -1
 #ifndef _OPENACC
@@ -2490,7 +2487,7 @@ CONTAINS
     nk = SIZE(te,2)
     
     ! Compute equivalent potential temperature T_equiv approximation after Bolton (1980), Eq. 28:
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = kmoist, nk
       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
@@ -2704,7 +2701,7 @@ CONTAINS
 
     ! Initialization
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = i_startidx, i_endidx
       tp_start(i) = te_start(i) * (p0/prs(i,kstart(i)))**rd_o_cpd

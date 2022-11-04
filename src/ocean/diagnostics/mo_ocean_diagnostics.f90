@@ -5,6 +5,7 @@
 !! @par Revision History
 !!  Developed  by Peter Korn,       MPI-M (2011/02)
 !!  Extended   by Stephan Lorenz,   MPI-M (2012)
+!!  Adopted to zstar by V. Singh,   MPI-M (2020)
 !!
 !! @par Copyright and License
 !!
@@ -59,7 +60,8 @@ MODULE mo_ocean_diagnostics
     & ab_const, ab_beta, ab_gam, iswm_oce, discretization_scheme, &
     & iforc_oce, No_Forcing, i_sea_ice, diagnostics_level, &
     & diagnose_for_horizontalVelocity, OceanReferenceDensity, &
-    & eddydiag, check_total_volume
+    & eddydiag, &
+    & vert_cor_type, check_total_volume
   USE mo_sea_ice_nml,        ONLY: kice, sice
   USE mo_dynamics_config,    ONLY: nold,nnew
   USE mo_parallel_config,    ONLY: nproma, p_test_run
@@ -92,7 +94,8 @@ MODULE mo_ocean_diagnostics
   USE mo_name_list_output_init, ONLY: isRegistered
 
   USE mtime,                 ONLY: datetime, MAX_DATETIME_STR_LEN, datetimeToPosixString
-  USE mo_ocean_check_total_content , ONLY : calc_total_salt_content
+  USE mo_ocean_check_total_content , ONLY : calc_total_salt_content, &
+    & calc_total_salt_content_zstar
 
   IMPLICIT NONE
   PRIVATE
@@ -501,6 +504,8 @@ CONTAINS
     TYPE(t_ocean_surface), INTENT(IN)           :: p_oce_sfc
     TYPE(t_sea_ice),          INTENT(inout)     :: ice
 
+    REAL(wp) :: w(nproma, n_zlev + 1, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+
     !Local variables
     INTEGER :: start_cell_index, end_cell_index,i
     INTEGER :: jk,jc,blockNo!,je
@@ -533,11 +538,19 @@ CONTAINS
       total_saltinliquidwater = 0.0_wp
 
       IF (isRegistered('total_salt')) THEN
-        call calc_total_salt_content(tracers(:,:,:,2), patch_2d, &
-        sea_surface_height(:,:),&     
-        patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
-             ice, 0 , total_salt, total_saltinseaice, &
-                                total_saltinliquidwater )
+        IF (vert_cor_type .EQ. 0) THEN
+          call calc_total_salt_content(tracers(:,:,:,2), patch_2d, &
+          sea_surface_height(:,:),&     
+          patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
+               ice, 0 , total_salt, total_saltinseaice, &
+                                  total_saltinliquidwater )
+        ELSE IF (vert_cor_type .EQ. 1) THEN
+          call calc_total_salt_content_zstar(tracers(:,:,:,2), patch_2d, &
+            & ocean_state%p_prog(nnew(1))%stretch_c(:, :), &
+            & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
+            & ice, total_salt, total_saltinseaice, &
+            & total_saltinliquidwater )
+        END IF
 
       monitor%total_salt = total_salt
       monitor%total_saltinseaice = total_saltinseaice
@@ -712,17 +725,34 @@ CONTAINS
       END IF
       monitor%ice_extent_sh = ice_extent_sh/1.0e6_wp !scaling to km^2
 
+      w = p_diag%w
+      IF ( ( vert_cor_type == 1 ) ) THEN
+        w = p_diag%w_deriv
+      ENDIF
+
       ! energy/enstrophy
       global_mean_potEnergy = 0.0_wp
       IF (isRegistered('pot_energy_global')) THEN
-        global_mean_potEnergy = potential_energy(& 
-            & p_diag%w, &
-!TODO       & p_prog(nold(1))%h,&
-            & sea_surface_height , & ! this is h_new, the old implementation used h_old
-            & p_diag%rho, &
-            & patch_3D%p_patch_1d(1)%del_zlev_i, &
-            & patch_3D%p_patch_1d(1)%prism_volume, &
-            & owned_cells)
+        IF (vert_cor_type .EQ. 0) THEN
+          global_mean_potEnergy = potential_energy(& 
+              & w, &
+  !TODO       & p_prog(nold(1))%h,&
+              & sea_surface_height , & ! this is h_new, the old implementation used h_old
+              & p_diag%rho, &
+              & patch_3D%p_patch_1d(1)%del_zlev_i, &
+              & patch_3D%p_patch_1d(1)%prism_volume, &
+              & owned_cells)
+        ELSEIF (vert_cor_type .EQ. 1) THEN
+          global_mean_potEnergy = potential_energy_zstar(& 
+              & w, &
+              & sea_surface_height , & ! this is h_new, the old implementation used h_old
+              & p_diag%rho, &
+              & patch_3D%p_patch_1d(1)%del_zlev_i, &
+              & ocean_state%p_prog(nnew(1))%stretch_c(:, :), &
+              & patch_3D%p_patch_1d(1)%prism_volume, &
+              & owned_cells)
+         END IF
+
       END IF
       monitor%pot_energy = global_mean_potEnergy
 
@@ -757,11 +787,24 @@ CONTAINS
            isRegistered('global_hfbasin') .OR. isRegistered('atlant_hfbasin') .OR. &
            isRegistered('pacind_hfbasin') ) THEN
 
-        CALL diag_heat_salt_tendency(patch_3d, 2, ice, tracers(:,:,:,1), tracers(:,:,:,2), &
+      	IF (vert_cor_type .EQ. 0) THEN
+
+          CALL diag_heat_salt_tendency(patch_3d, 2, ice, tracers(:,:,:,1), tracers(:,:,:,2), &
              p_diag%delta_ice,                                      &
              p_diag%delta_snow,                                     &
              p_diag%delta_thetao,                                   &
              p_diag%delta_so)
+
+        ELSEIF (vert_cor_type .EQ. 1) THEN
+
+          CALL diag_heat_salt_tendency(patch_3d, 2, ice, tracers(:,:,:,1), tracers(:,:,:,2), &
+             p_diag%delta_ice,                                      &
+             p_diag%delta_snow,                                     &
+             p_diag%delta_thetao,                                   &
+             p_diag%delta_so, ocean_state%p_prog(nnew(1))%stretch_c(:, :))
+
+        ENDIF
+
       ENDIF
 
       ! calc moc each timestep from non-accumulated vertical veloc
@@ -773,7 +816,7 @@ CONTAINS
            isRegistered('global_hfbasin') .OR. isRegistered('atlant_hfbasin') .OR. isRegistered('pacind_hfbasin') ) THEN
         CALL timer_start(timer_calc_moc)
         CALL calc_moc(patch_2d, patch_3d, &
-             & p_diag%w, &
+             & w, &
              & p_oce_sfc%heatflux_total, &
              & p_oce_sfc%frshflux_volumetotal, &
              & p_diag%delta_thetao, &
@@ -805,11 +848,24 @@ CONTAINS
            .OR. isRegistered('heat_content_snow')   .OR. isRegistered('heat_content_total') &
            .OR. isRegistered('global_heat_content') .OR. isRegistered('global_heat_content_solid') ) THEN
 
-        CALL calc_heat_content(patch_3d, prism_thickness, ice, tracers, &
+      	IF (vert_cor_type .EQ. 0) THEN
+
+          CALL calc_heat_content(patch_3d, prism_thickness, ice, tracers, &
              p_diag%heat_content_liquid_water, &
              p_diag%heat_content_seaice, &
              p_diag%heat_content_snow,&
-             p_diag%heat_content_total )
+             p_diag%heat_content_total)
+
+        ELSEIF (vert_cor_type .EQ. 1) THEN
+ 
+          CALL calc_heat_content(patch_3d, prism_thickness, ice, tracers, &
+             p_diag%heat_content_liquid_water, &
+             p_diag%heat_content_seaice, &
+             p_diag%heat_content_snow,&
+             p_diag%heat_content_total, &
+             ocean_state%p_prog(nnew(1))%stretch_c(:, :) )
+
+        ENDIF
 
         ! global_heat_content for monitoring
         IF (isRegistered('global_heat_content')) THEN
@@ -1089,6 +1145,129 @@ CONTAINS
 
     potential_energy = totalSum / totalWeight
   END FUNCTION potential_energy
+
+  
+  FUNCTION potential_energy_zstar(w,h,rho,del_zlev_i, stretch, weights,in_subset)
+    REAL(wp), INTENT(IN) :: w(:,:,:)
+    REAL(wp), INTENT(IN) :: h(:,:)
+    REAL(wp), INTENT(IN) :: rho(:,:,:)
+    REAL(wp), INTENT(IN) :: del_zlev_i(:)
+    REAL(wp), INTENT(IN) :: stretch(:, :)
+    REAL(wp), INTENT(IN) :: weights(:,:,:)
+    TYPE(t_subset_range), INTENT(IN) :: in_subset
+
+    REAL(wp) :: potential_energy_zstar
+
+#define VerticalDim_Position 2
+
+    REAL(wp), ALLOCATABLE :: sum_value(:,:), sum_weight(:,:), total_weight(:), total_sum(:)
+    INTEGER :: block, level, start_index, end_index, idx, start_vertical, end_vertical
+    INTEGER :: allocated_levels, no_of_threads, myThreadNo
+    REAL(wp) :: z_w, totalSum, totalWeight
+
+    CHARACTER(LEN=*), PARAMETER :: method_name=module_name//':potential_energy'
+
+
+    IF (in_subset%no_of_holes > 0) CALL warning(method_name, "there are holes in the subset")
+
+    no_of_threads = 1
+    myThreadNo = 0
+#ifdef _OPENMP
+    no_of_threads = omp_get_max_threads()
+#endif
+
+    allocated_levels = SIZE(w,VerticalDim_Position)
+    ALLOCATE( sum_value(allocated_levels, 0:no_of_threads-1), &
+      & sum_weight(allocated_levels, 0:no_of_threads-1), &
+      & total_weight(allocated_levels), total_sum(allocated_levels) )
+
+    start_vertical = 1
+    end_vertical = SIZE(w, VerticalDim_Position)
+
+    IF (start_vertical > end_vertical) &
+      & CALL finish(method_name, "start_vertical > end_vertical")
+    IF ( allocated_levels < end_vertical) &
+      & CALL finish(method_name, "allocated_levels < end_vertical")
+
+    !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
+    !$  myThreadNo = omp_get_thread_num()
+    !ICON_OMP_SINGLE
+    !$  no_of_threads = OMP_GET_NUM_THREADS()
+    !ICON_OMP_END_SINGLE NOWAIT
+      sum_value(:,  myThreadNo) = 0.0_wp
+      sum_weight(:,  myThreadNo) = 0.0_wp
+      IF (ASSOCIATED(in_subset%vertical_levels)) THEN
+    !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx)
+        DO block = in_subset%start_block, in_subset%end_block
+          CALL get_index_range(in_subset, block, start_index, end_index)
+          DO idx = start_index, end_index
+            DO level = start_vertical, MIN(end_vertical, in_subset%vertical_levels(idx,block)) - 1
+              z_w = (w(idx,level,block)*del_zlev_i(level) &
+                &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
+                & /(del_zlev_i(level)+del_zlev_i(level+1)) 
+  
+              sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
+                & grav*z_w*rho(idx, level, block) * weights(idx, level, block)*stretch(idx, block)
+  
+              sum_weight(level, myThreadNo)  = sum_weight(level, myThreadNo) + weights(idx, level, block)
+  
+            ENDDO
+          ENDDO
+        ENDDO
+  !ICON_OMP_END_DO
+  
+      ELSE ! no in_subset%vertical_levels
+  
+  !ICON_OMP_DO PRIVATE(block, start_index, end_index)
+        DO block = in_subset%start_block, in_subset%end_block
+          CALL get_index_range(in_subset, block, start_index, end_index)
+          DO idx = start_index, end_index
+            ! since we have the same numbder of vertical layers, the weight is the same
+            ! for all levels. Compute it only for the first level, and then copy it
+            DO level = start_vertical, end_vertical - 1
+              z_w = (w(idx,level,block)*del_zlev_i(level) &
+                &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
+                & /(del_zlev_i(level)+del_zlev_i(level+1)) 
+  
+              sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
+                & grav*z_w*rho(idx, level, block) * weights(idx,level,block)*stretch(idx, block)
+              sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo) + weights(idx, level, block)
+            ENDDO
+          ENDDO
+        ENDDO
+  !ICON_OMP_END_DO
+
+      ENDIF
+  !ICON_OMP_END_PARALLEL
+
+    ! gather the total level sum of this process in total_sum(level)
+    total_sum(:)     = 0.0_wp
+    total_weight(:) = 0.0_wp
+    DO myThreadNo=0, no_of_threads-1
+      DO level = start_vertical, end_vertical - 1
+        ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
+        total_sum(level)    = total_sum(level)    + sum_value(level, myThreadNo)
+        total_weight(level) = total_weight(level) + sum_weight(level, myThreadNo)
+      ENDDO
+    ENDDO
+    DEALLOCATE(sum_value, sum_weight)
+
+    ! Collect the value and weight sums (at all procs)
+    CALL gather_sums(total_sum, total_weight)
+
+
+    totalSum = 0.0_wp
+    totalWeight = 0.0_wp
+    DO level = start_vertical, end_vertical
+      totalSum    = totalSum    + total_sum(level)
+      totalWeight = totalWeight + total_weight(level)
+    ENDDO
+    DEALLOCATE(total_weight)
+    DEALLOCATE(total_sum)
+
+    potential_energy_zstar = totalSum / totalWeight
+  END FUNCTION potential_energy_zstar
+
 
   !-------------------------------------------------------------------------
   REAL(wp) FUNCTION section_flux(in_oce_section, velocity_values)
@@ -2061,12 +2240,13 @@ CONTAINS
 
 
   SUBROUTINE diag_heat_salt_tendency(patch_3d, n, ice, thetao, so, delta_ice, delta_snow, &
-       delta_thetao, delta_so)
+       delta_thetao, delta_so, stretch_c)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)     :: patch_3D
 
     REAL(wp), INTENT(in)                     :: thetao(:,:,:)   ! temperature
     REAL(wp), INTENT(in)                     :: so(:,:,:)   ! salinity
+    REAL(wp), INTENT(in),OPTIONAL            :: stretch_c(:, :)
     TYPE(t_sea_ice), INTENT(IN)              :: ice
     TYPE(t_subset_range), POINTER            :: subset
 
@@ -2137,7 +2317,14 @@ CONTAINS
 
           DO level = 1,subset%vertical_levels(cell,blk)
 
-            dz = MERGE(ice%zunderice(cell,blk),patch_3D%p_patch_1d(1)%prism_thick_c(cell,level,blk),level.EQ.1)
+            IF (vert_cor_type .EQ. 1) THEN
+              dz=MERGE(ice%zunderice(cell,blk)                     &
+                   ,patch_3D%p_patch_1d(1)%prism_thick_c(cell,level,blk)*stretch_c(cell,blk),level.EQ.1)
+            ELSE
+              dz=MERGE(ice%zunderice(cell,blk), &
+                   patch_3D%p_patch_1d(1)%prism_thick_c(cell,level,blk),level.EQ.1)
+            ENDIF
+
             delta_thetao(cell,level,blk) = ( thetao(cell,level,blk) - delta_thetao(cell,level,blk) ) &
                  * clw * OceanReferenceDensity * dz * dti
             delta_so(cell,level,blk) = ( so(cell,level,blk) - delta_so(cell,level,blk) ) &
@@ -2154,7 +2341,7 @@ END SUBROUTINE diag_heat_salt_tendency
 
   SUBROUTINE calc_heat_content(patch_3d, thickness, ice, tracers, &
        heat_content_liquid_water, heat_content_seaice,            &
-       heat_content_snow, heat_content_total)
+       heat_content_snow, heat_content_total, stretch_c)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)  :: patch_3d
 
@@ -2164,13 +2351,14 @@ END SUBROUTINE diag_heat_salt_tendency
     REAL(wp), INTENT(INOUT)  :: heat_content_seaice(:,:)
     REAL(wp), INTENT(INOUT)  :: heat_content_snow(:,:)
     REAL(wp), INTENT(INOUT)  :: heat_content_total(:,:)
+    REAL(wp), INTENT(IN), OPTIONAL  :: stretch_c(:,:)
 
     TYPE(t_sea_ice), INTENT(IN)              :: ice
     TYPE(t_subset_range), POINTER            :: subset
 
     INTEGER  :: blk, cell, cellStart,cellEnd, level
     REAL(wp) :: rhoicwa, rhosnic, rhosnwa, tfreeze, tmelt, &
-                  tref, entmel, rocp, sithk, snthk
+         tref, entmel, rocp, sithk, snthk, dz
 
 
     rhoicwa = rhoi / rho_ref
@@ -2210,10 +2398,15 @@ END SUBROUTINE diag_heat_salt_tendency
              + tracers(cell,1,blk,1) ) * rocp                 &
              * ice%zUnderIce(cell,blk)
 
+
         DO level=2,subset%vertical_levels(cell,blk)
+
+          dz=MERGE(thickness(cell,level,blk)*stretch_c(cell,blk) &
+            ,thickness(cell,level,blk),vert_cor_type .EQ. 1)  !check for vert_cor_type
+
           heat_content_liquid_water(cell,level,blk) = (tmelt - tref &
                + tracers(cell,level,blk,1) ) * rocp                 &
-               * thickness(cell,level,blk)
+               * dz
         END DO
 
         ! total heat per column
