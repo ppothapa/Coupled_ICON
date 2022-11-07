@@ -2591,7 +2591,9 @@ FTRACE_END('rtifc_fill_input_var')
     type(rttov_chanprof)         :: chanprof(size(chans))
     integer                      :: lims_flag(nlevs,2)
 
+#if defined(_DACE_)
     real(kind=jprb),     pointer :: height_aux(:) => NULL() ! height of weighting function
+#endif
 
     logical                      :: lpio
     logical                      :: l_opdep, l_transm, l_radoverc
@@ -3144,7 +3146,9 @@ FTRACE_BEGIN('rtifc_direct')
         if (present(quality )) quality (1:nchans,iprof)=radiance%quality   (sind:eind)
         if (l_radoverc) &
              radovercast(:,1:nchans,iprof) = dble(radiance% overcast(:,sind:eind))
+#if defined(_DACE_)
         if (present(height))    height   (1:nchans,iprof)=height_aux(sind:eind)
+#endif
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
         if (present(transmtotal)) transmtotal(1:nchans,iprof) = dble(transmission%tau_total(sind:eind))
@@ -3177,7 +3181,9 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if (present(radtotal   )) radtotal    (istore(i,1),istore(i,2))   = dble(radiance% clear   (i))
         if (l_radoverc) radovercast (:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
+#if defined(_DACE_)
         if (present(height     )) height      (istore(i,1),istore(i,2))   = height_aux(i)
+#endif
         if (l_transm) transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
         if (present(transmtotal)) transmtotal(istore(i,1),istore(i,2)) = dble(transmission%tau_total(i))
         if (btest(rad_out,OUT_VIS)) then
