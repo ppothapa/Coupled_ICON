@@ -499,6 +499,7 @@ MODULE mo_nwp_phy_types
       w_ctmax(:,:),        & !< Maximum updraft track
       dbz3d_lin(:,:,:),    & !< Radar reflectivity 3D in linear units mm^6/m^3
       dbz_850(:,:),        & !< Radar reflectivity in approx. 850 hPa
+      dbzlmx_low(:,:),     & !< Radar reflectivity layer maximum [500,2500] m AGL
       dbz_cmax(:,:),       & !< Column maximum radar reflectivity
       dbz_ctmax(:,:),      & !< Column and time maximum radar reflectivity
       echotop(:,:,:),      & !< Echotop pressure in p

@@ -61,6 +61,7 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_TWATER,                &
   &                               TASK_COMPUTE_Q_SEDIM,               &
   &                               TASK_COMPUTE_DBZ850,                &
+  &                               TASK_COMPUTE_DBZLMX_LOW,            &
   &                               TASK_COMPUTE_DBZCMAX,               &
   &                               TASK_COMPUTE_WSHEAR_U,              &
   &                               TASK_COMPUTE_WSHEAR_V,              &
@@ -393,6 +394,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%cin_mu, &
       &     diag%dbz3d_lin, &
       &     diag%dbz_850, &
+      &     diag%dbzlmx_low, &
       &     diag%dbz_cmax, &
       &     diag%dbz_ctmax, &
       &     diag%dursun, &
@@ -4496,7 +4498,7 @@ __acc_attach(diag%clct)
     END IF
     
     IF (var_in_output%dbz .OR. var_in_output%dbz850 .OR. var_in_output%dbzcmax .OR. var_in_output%dbzctmax .OR. &
-        var_in_output%echotop .OR. var_in_output%echotopinm) THEN
+         var_in_output%dbzlmx_low .OR. var_in_output%echotop .OR. var_in_output%echotopinm) THEN
       cf_desc    = t_cf_var('dbz', 'dBZ',&
         &                   'radar reflectivity in dBZ', datatype_flt)
       grib2_desc = grib2_var( 0, 15, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -4539,6 +4541,33 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZ850,                 &
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+    END IF
+
+    IF (var_in_output%dbzlmx_low) THEN
+      ! NOTE: In eccodes the shortName DBZLMX_LOW is associated with the fixed bounds
+      !       500 m and 2500 m. But in practice the bounds 1000 m and 2000 m were
+      !       found to be more appropriate to approximate typical radar composites.
+      !       However, there might be further adaptions in the near future, and
+      !       to avoid several consecutive adaptions of eccodes until consolidation
+      !       of the layer bounds, we for now set the "real" bounds to 1000 m and 2000 m
+      !       in mo_pp_tasks.f90, but we do not change them here in order not to
+      !       break the connection to the eccodes shortName.
+      cf_desc    = t_cf_var('dbzlmx_low', 'dBZ',                             &
+        &                   'Reflectivity layer maximum 500 - 2500 m AGL', datatype_flt)
+      grib2_desc = grib2_var( 0, 15, 4, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
+        &           + t_grib2_int_key("typeOfFirstFixedSurface",          103)  &
+        &           + t_grib2_int_key("typeOfSecondFixedSurface",         103)  &
+        &           + t_grib2_int_key("scaleFactorOfFirstFixedSurface",     0)  &
+        &           + t_grib2_int_key("scaledValueOfFirstFixedSurface",  2500)  &
+        &           + t_grib2_int_key("scaleFactorOfSecondFixedSurface",    0)  &
+        &           + t_grib2_int_key("scaledValueOfSecondFixedSurface", 500)
+      CALL add_var( diag_list, 'dbzlmx_low', diag%dbzlmx_low,                &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                      &
+                  & cf_desc, grib2_desc,                                     &
+                  & ldims=shape2d,                                           &
+                  & lrestart=.FALSE., loutput=.TRUE.,                        &
+                  & l_pp_scheduler_task=TASK_COMPUTE_DBZLMX_LOW,             &
                   & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
     END IF
 

@@ -110,6 +110,7 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_dbz3d_lin
   PUBLIC :: compute_field_dbzcmax
   PUBLIC :: compute_field_dbz850
+  PUBLIC :: compute_field_dbzlmx
   PUBLIC :: maximize_field_dbzctmax
   PUBLIC :: compute_field_echotop
   PUBLIC :: compute_field_echotopinm
@@ -3692,7 +3693,7 @@ CONTAINS
   END SUBROUTINE maximize_field_dbzctmax
 
   !>
-  !! Compute radar reflectivity in approx. 850 hPa from dbz3d_lin
+  !! Compute radar reflectivity around approx 850 hPa from dbz3d_lin.
   !!
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
@@ -3733,7 +3734,7 @@ CONTAINS
 
         jk = k850(jc,jb)
 
-        ! Just overtake the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
+        ! Just take over the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
         ! will be done by a post_op ("post operation") right before output to file. See the
         ! corresponding add_var(..., post_op=(...) ) in mo_nwp_phy_state.f90!
         dbz_850(jc,jb) = dbz3d_lin(jc,jk,jb)
@@ -3745,6 +3746,78 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE compute_field_dbz850
+
+
+  !>
+  !! Compute layer maximum of radar reflectivity. This is for example to mimick the
+  !! typical radar composites from observations. For this purpose, the maximum reflectivity
+  !! in a layer from 500 to 2500 m AGL would be appropriate, to mimick the typical max composite method, where in spatially
+  !! overlapping radar measuring circles the largest value measured by any station at a
+  !! specific geographic location is taken. In today's radar networks in Europe, usually
+  !! each location is sampled by at least 2 radar stations, and measuring heights vary between about
+  !! 500 m AGL and 2500 m AGL, depending on the station height, the elevation angle used for
+  !! the composite, and the local orography.
+  !!
+  !! @par Revision History
+  !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
+  !!
+  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx )
+
+    IMPLICIT NONE
+
+    TYPE(t_patch),        INTENT(IN)  :: ptr_patch        !< patch on which computation is performed
+    REAL(wp),             INTENT(in)  :: z_agl_low        !< lower height bound AGL for maximisation of reflectivity
+    REAL(wp),             INTENT(in)  :: z_agl_up         !< upper height bound AGL for maximisation of reflectivity
+    INTEGER,              INTENT(IN)  :: jg
+    TYPE(t_nh_metrics),   INTENT(IN)  :: p_metrics
+    REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
+
+    REAL(wp),             INTENT(OUT) :: dbzlmx(:,:)  !< output variable, dim: (nproma,nblks_c)
+
+    INTEGER  :: i_rlstart,  i_rlend
+    INTEGER  :: i_startblk, i_endblk
+    INTEGER  :: i_startidx, i_endidx
+    INTEGER  :: jb, jk, jc, nlevp1
+    REAL(wp) :: zml
+
+    nlevp1 = ptr_patch%nlev+1
+    
+    ! without halo or boundary  points:
+    i_rlstart = grf_bdywidth_c + 1
+    i_rlend   = min_rlcell_int
+
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zml), ICON_OMP_RUNTIME_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+
+      dbzlmx( :,jb) = 0.0_wp
+
+      DO jk = ptr_patch%nlev, kstart_moist(jg), -1
+        DO jc = i_startidx, i_endidx
+
+          zml = p_metrics%z_mc(jc,jk,jb) - p_metrics%z_ifc(jc,nlevp1,jb)
+          IF (z_agl_low <= zml .AND. zml <= z_agl_up) THEN
+            ! Just take over the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
+            ! will be done by a post_op ("post operation") right before output to file. See the
+            ! corresponding add_var(..., post_op=(...) ) in mo_nwp_phy_state.f90!
+            dbzlmx(jc,jb) = MAX(dbz3d_lin(jc,jk,jb), dbzlmx(jc,jb))
+          END IF
+
+        END DO
+      END DO
+      
+    END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+  END SUBROUTINE compute_field_dbzlmx
 
   !>
   !! Compute ECHOTOPs in Pa from linear dbz3d_lin
