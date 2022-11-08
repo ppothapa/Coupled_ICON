@@ -743,6 +743,34 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
  ml_varlist           = 'LPI_CON_MAX', 'LFD_CON'
  output_grid          = .false.
 /
+&output_nml
+ ! ----------------------------------------------------------------- !
+ ! ---      !!! NON-OPERATIONAL - JUST FOR BUILDBOT !!!          --- !
+ ! ---  Test barycentric lat-lon interpolation at a cell center  --- !
+ ! ----------------------------------------------------------------- !
+ filetype             = 2         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                  = 2                         ! write global domains
+ remap                = 1                         ! lat lon grid
+ output_time_unit     = 1                         ! 1: seconds
+ output_bounds        = 0.,0.,9999.               ! vv=0
+ steps_per_file       = 1
+ taxis_tunit          = 2
+ mode                 = 1  ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last         = .false.
+ output_filename      = 'll_test'                      ! file name base
+ filename_format      = '<output_filename><ddhhmmss><levtype>v00'
+ stream_partitions_ml = 1
+ pe_placement_ml      = 0
+ ml_varlist           = 'T_2M' ! This is a barycentrically interpolated variable.
+ output_grid          = .true.
+ ! The following coordinates are chosen such that one of the output interpolations
+ ! takes place almost exactly at an arbitrarily chosen cell center coordinate
+ ! of the icon_grid_0028_R02B07_N02 grid. Cell 5051 (one-based index) was chosen.
+ ! The radian clon, clat coords in the grid are: (1.0928915263488155, 0.778060398691079)
+ ! The ranges are selected such that the lower bound is the points coordinate minus 0.2.
+ reg_lon_def = 62.41807192539773,0.1,62.8
+ reg_lat_def = 44.37957705126498,0.1,44.8
+/
 EOF
 
 cat > map_file.ana << EOF2
@@ -874,6 +902,16 @@ do
 # run Python script for comparison of GRIB2 meta-data and values:
 $ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
 --datafile=\$this_file --reffile=$refdir/\$this_file
+
+done
+
+# Test one time step for unphysical 0 K entries
+for this_file in *00000000*.grb
+do
+
+# run Python script for to check for unphysical 0 K temperatures.:
+$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
+--datafile=\$this_file --check_0K
 
 done
 
