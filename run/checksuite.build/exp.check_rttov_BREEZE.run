@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -eux
+
+thisdir=$(pwd)
+basedir=${thisdir%/*}
+script_name=$(basename "${0}")
+builddir_name=${script_name#*.}
+builddir_name=${builddir_name%.*}
+builddir="${basedir}/experiments/${builddir_name}"
+
+# We want to check whether we can build ICON with RTTOV and without DACE and
+# EMVORADO:
+exitcode=0
+mkdir -p "${builddir}" && \
+  cd "${builddir}" && \
+  "${basedir}/config/mpim/stretch.nag" --enable-rttov --disable-dace --disable-emvorado && \
+  make -j8 || \
+  exitcode=$?
+
+# Generate the status file for the buildbot and exit:
+echo ${exitcode} > "${script_name}.final_status"
+exit ${exitcode}

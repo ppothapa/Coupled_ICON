@@ -316,7 +316,8 @@ CONTAINS
     CLASS(t_MultifileRestartDescriptor), INTENT(INOUT), TARGET :: me
     TYPE(t_restart_args), INTENT(IN) :: restartArgs
     CHARACTER(*), PARAMETER               :: routine = ":writeRestartInternal"
-    INTEGER                               :: jg, n_rstreams, findex, date_int
+    INTEGER                               :: jg, n_rstreams, findex
+    REAL(dp)                              :: date_dayas
     INTEGER(i8)                           :: totBWritten, bWritten
     REAL(dp)                              :: gbWritten, dpTime
     CHARACTER(:), ALLOCATABLE             :: filename
@@ -342,7 +343,7 @@ CONTAINS
       END IF
     END DO
     IF(iAmRestartMaster()) THEN
-      CALL getRestartFilename('multifile', 0, restartArgs, filename, date_int)
+      CALL getRestartFilename('multifile', 0, restartArgs, filename, date_dayas)
       IF (createEmptyMultifileDir(filename) /= SUCCESS) &
         & CALL finish(routine, "error creating multifile-dir")
       CALL p_barrier(p_comm_work)
@@ -356,11 +357,11 @@ CONTAINS
           & //TRIM(real2string(dpTime))//"s")
     END IF
     IF (iAmRestartWriter()) THEN
-      CALL getRestartFilename('multifile', 0, restartArgs, filename, date_int)
+      CALL getRestartFilename('multifile', 0, restartArgs, filename, date_dayas)
       DO jg = 1, SIZE(me%mPatchData)
         IF (me%mPatchData(jg)%description%l_dom_active .AND. SIZE(me%mPatchData(jg)%varData) > 0) THEN
           findex = n_rstreams*rGroup() + (jg-1)/n_dom
-          CALL me%mPatchData(jg)%fileStuff(filename, findex, bWritten, date_int)
+          CALL me%mPatchData(jg)%fileStuff(filename, findex, bWritten, date_dayas)
         END IF
       END DO
     END IF

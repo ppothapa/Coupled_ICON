@@ -89,7 +89,8 @@ make_CLAWFLAGS+= @CLAW_MOD_IN@$(xmoddir) @CLAW_MOD_OUT@$(xmoddir)
 # with the preprocessed source files into temporary directories:
 make_CLAWFLAGS+= $(addprefix -I$(srcdir)/,$(CLAW_inc_subdirs))
 # Enable location of the pre-generated '.xmod' files from omni-xmod-pool:
-make_CLAWFLAGS+= $(addprefix @CLAW_MOD_IN@$(srcdir)/externals/omni-xmod-pool/,mpi/3.0 yaxt/0.7.0 mtime/1.0.8 cdi/1.8.4 yac/2.6.1)
+@MPI_ENABLED@make_CLAWFLAGS+= $(addprefix @CLAW_MOD_IN@$(srcdir)/externals/omni-xmod-pool/,mpi/3.0 sct/1.0-39390f0-mpi)
+make_CLAWFLAGS+= $(addprefix @CLAW_MOD_IN@$(srcdir)/externals/omni-xmod-pool/,sct/1.0-39390f0 yaxt/0.9.3.1 cdi/1.8.4 mtime/1.0.11-rc2 yac/2.6.1)
 @CLAW_OLD_DRIVER_ENABLED@make_CLAWFLAGS+= --Wf-no-module-cache
 @CLAW_NEW_DRIVER_ENABLED@make_CLAWFLAGS+= --disable-mp --no-module-cache
 @JSBACH_ENABLED@make_CLAWFLAGS+= --model-config=$(srcdir)/externals/jsbach/config/icon_jsbach.toml
