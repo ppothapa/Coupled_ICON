@@ -168,7 +168,7 @@ function print_usage
     echo '-c : colour output'
     echo '-d : string containing the dates of the output files of the respective '
     echo '     experiment, default depends on experiment' 
-    echo '-e : name of the experiment to be checked, default = atm_amip_test'
+    echo '-e : name of the experiment to be checked, default = atm_qubicc_test'
     echo '-f : '"'yes'"': force make_runscripts even if base runscript exists (default)'
     echo '     '"'no'"': perform make_runscripts only if no runscripts are available'
     echo '-h : display help'
@@ -254,7 +254,9 @@ function diff_results
             echo "There are no dates to compare"
             exit 1
         fi
-    
+
+        make_sure_cdo_exists_and_runs
+
         echo "=================================================================="
         echo "Compare these experiments:"
         echo "- ${MODEL_DIR1}/experiments/${DEXP1}"
@@ -302,6 +304,15 @@ function diff_results
 
                     echo "Compare for TYPE=$TYPE"
                     cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
+
+                    cdo_exit_code=$? 
+
+                    # exit code=0: no differences exit_code=1: differences
+                    # both exit codes are fine, other exit codes indicate a crash of cdo
+                    if [[ $cdo_exit_code -ne 0 ]] && [[ $cdo_exit_code -ne 1 ]]; then
+                        echo " abort of cdo during file comparison with exit code $cdo_exit_code"
+                        exit 1
+                    fi
 
 		    # does FILE2 contain the same variables as FILE1?
 		    not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
@@ -412,8 +423,8 @@ function tolerance_check
 
     # find relevant config
     case $EXPERIMENT in
-        *atm*amip*)
-            FILE_IDS="atm_3d"
+        *atm*qubicc*)
+            FILE_IDS="atm2d_ml,cli_ml,clw_ml,ddt_ua_adv_ml,ddt_ua_cor_ml,ddt_ua_dmp_ml,ddt_ua_dyn_ml,ddt_ua_hdf_ml,ddt_ua_pgr_ml,ddt_va_adv_ml,ddt_va_cor_ml,ddt_va_dmp_ml,ddt_va_dyn_ml,ddt_va_hdf_ml,ddt_va_pgr_ml,flx2d_ml,hus_ml,pfull_ml,qg_ml,qr_ml,qs_ml,rho_ml,ta_ml,tend_qcli_mig_ml,tend_qcli_vdf_ml,tend_qclw_mig_ml,tend_qclw_vdf_ml,tend_qhus_mig_ml,tend_qhus_vdf_ml,tend_ta_mig_ml,tend_ta_rlw_ml,tend_ta_rsw_ml,tend_ta_vdf_ml,tend_ua_vdf_ml,tend_va_vdf_ml,ua_ml,va_ml,wa_ml"
             ;;
         *atm*ape*)
             FILE_IDS="atm_3d"
@@ -485,6 +496,25 @@ function tolerance_check
     fi
 
     return $TOL_STATUS
+}
+
+make_sure_cdo_exists_and_runs() {
+
+    # is cdo in PATH?
+    if ! [ -x "$(command -v cdo)" ]; then
+        echo 'Error: cdo is not installed.' >&2
+        exit 1
+    fi
+
+    # does cdo find all linked-libraries?
+    cdo -sinfo -topo 1>/dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+      echo 'Error: cdo does not run' >&2
+      exit 1
+    fi
+
+
 }
 #################### main script ########################################
 
@@ -582,7 +612,7 @@ done
 # Ouput in colour
 COLOUR=${COLOUR='no'}
 # Experiment
-EXPERIMENT=${EXPERIMENT='atm_amip_test'}
+EXPERIMENT=${EXPERIMENT='atm_qubicc_test'}
 # Force to run "make_runscripts" for the specified experiment even
 # if the respective runscript is present 
 FORCE_MRS=${FORCE_MRS='yes'}
@@ -597,11 +627,10 @@ SUB_FILES=${SUB_FILES='no'}
 
 # Set defaults for file types, dates, and the restart date for the 
 # checks depending on the experiment.
-if [ "${EXPERIMENT}" == 'atm_amip_test' ]; then
-    TYPES=${TYPES='atm_2d_ml atm_3d_ml phy_3d_ml trc_3d_ml lnd_ml'}
-#    TYPES=${TYPES='atm_2d_ml atm_3d_ml phy_3d_ml lnd_ml'}
-    DATES=${DATES='19790101T000000Z 19790101T000400Z 19790101T000800Z 19790101T001200Z 19790101T001600Z'}
-    RESTART_DATE=${RESTART_DATE='19790101T000800Z'}
+if [ "${EXPERIMENT}" == 'atm_qubicc_test' ]; then
+    TYPES=${TYPES='pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml atm2d_ml flx2d_ml ddt_ua_dyn_ml ddt_va_dyn_ml tend_ta_rlw_ml tend_ta_rsw_ml tend_ua_vdf_ml tend_va_vdf_ml tend_ta_vdf_ml tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml tend_ta_mig_ml tend_qhus_mig_ml tend_qclw_mig_ml tend_qcli_mig_ml'}
+    DATES=${DATES='19790101T000000Z 19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
+    RESTART_DATE=${RESTART_DATE='19790101T000200Z'}
 fi
 if [ "${EXPERIMENT}" == 'atm_amip_les_test' ]; then
     TYPES=${TYPES='atm_2d_ml atm_3d_ml lnd_basic_ml'}
@@ -683,7 +712,7 @@ SCRIPT=${EXPERIMENT}
 cd ${MODEL_DIR}
 
 if [ ! -f ${SCRIPT_DIR}/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then
-    ./make_runscripts -s ${SCRIPT}
+    ./make_runscripts ${SCRIPT}
 fi
 
 if [ ! -d experiments ]; then
@@ -759,7 +788,7 @@ if string_in_list $MD $CMODES; then
     RUN_STATUS=-1
     if [ ! -d experiments/${EXP_BASE} ] ;then 
         if [ ! -f run/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then
-            ${MODEL_DIR}/make_runscripts -s ${SCRIPT}
+            ${MODEL_DIR}/make_runscripts ${SCRIPT}
         fi
         if [ ! -d experiments ]; then
             mkdir experiments

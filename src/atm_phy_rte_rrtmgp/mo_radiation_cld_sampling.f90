@@ -59,17 +59,17 @@ CONTAINS
     REAL(wp) :: rank(kbdim,klev,ksamps), one_minus(KBDIM,klev)
     INTEGER  :: jk, js, jl
 
-    !$ACC data present(rnseeds, cld_frc, is_cloudy) &
-    !$ACC      create (rank, one_minus)
+    !$ACC DATA PRESENT(rnseeds, cld_frc, is_cloudy) &
+    !$ACC   CREATE(rank, one_minus)
 
-    !$ACC kernels default(none) async(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     one_minus(1:kproma,:) = 1.0_wp - cld_frc(1:kproma,:)
-    !$ACC end kernels
+    !$ACC END KERNELS
 
     ! Here is_cloudy(:,:,1) indicates whether any cloud is present 
-    !$ACC kernels default(none) async(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     is_cloudy(1:kproma,1:klev,1) = cld_frc(1:kproma,1:klev) > 0._wp
-    !$ACC end kernels
+    !$ACC END KERNELS
 
     SELECT CASE(mode) 
       ! Maximum-random overlap
@@ -78,10 +78,10 @@ CONTAINS
         CALL get_random_rank3(kproma, kbdim, klev, ksamps, rnseeds, &
           is_cloudy(:,:,1), rank)
         ! There may be a better way to structure this calculation...
-        !$ACC parallel default(none) async(1)
-        !$ACC loop seq
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(ksamps, kproma, klev) ASYNC(1)
+        !$ACC LOOP SEQ
         DO jk = 2, klev
-          !$ACC loop gang vector collapse(2)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO js = 1, ksamps
             DO jl = 1, kproma
               rank(jl,jk,js) = MERGE( &
@@ -94,7 +94,7 @@ CONTAINS
             END DO
           END DO
         END DO
-        !$ACC end parallel
+        !$ACC END PARALLEL
 
       ! Max overlap means every cell in a column is identical 
       CASE(2) 
@@ -103,7 +103,7 @@ CONTAINS
 
           ! rank(1:kproma,2:klev,js) = SPREAD(rank(1:kproma,1,js), &
           !   DIM=2, NCOPIES=(klev-1))
-          !$ACC parallel loop default(none) gang vector collapse(2) async(1)
+          !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(klev, kproma, js) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO jk = 2, klev
             DO jl = 1, kproma
               rank(jl,jk,js) = rank(jl,1,js)
@@ -128,7 +128,7 @@ CONTAINS
         CALL finish('In sample_cld_state: unknown overlap assumption') 
     END SELECT
     ! Now is_cloudy indicates whether the sample (ks) is cloudy or not. 
-    !$ACC parallel loop default(none) gang vector collapse(3) async(1)   
+    !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(ksamps, klev, kproma) GANG VECTOR COLLAPSE(3) ASYNC(1)
     DO js = 1, ksamps
       DO jk = 1, klev
         DO jl = 1, kproma
@@ -138,7 +138,7 @@ CONTAINS
       END DO
     END DO
 
-    !$ACC end data
+    !$ACC END DATA
   END SUBROUTINE sample_cld_state
 
 END MODULE mo_radiation_cld_sampling

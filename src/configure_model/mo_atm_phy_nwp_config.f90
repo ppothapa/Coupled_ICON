@@ -50,6 +50,7 @@ MODULE mo_atm_phy_nwp_config
   USE mo_nudging_config,      ONLY: configure_nudging, nudging_config
   USE mo_name_list_output_config, ONLY: is_variable_in_output
   USE mo_io_config,           ONLY: dt_lpi, dt_celltracks, dt_radar_dbz
+  USE mo_2mom_mcrph_config,   ONLY: t_cfg_2mom
 
   IMPLICIT NONE
 
@@ -84,6 +85,7 @@ MODULE mo_atm_phy_nwp_config
     ! namelist variables
 
     INTEGER ::  inwp_gscp        !> microphysics
+    TYPE(t_cfg_2mom) :: cfg_2mom !> config parameters of 2-mom cloud microphysics (inwp_gscp = 4...7)
     INTEGER ::  inwp_satad       !! saturation adjustment
     INTEGER ::  inwp_convection  !! convection
     LOGICAL ::  lshallowconv_only !! use shallow convection only
@@ -364,7 +366,7 @@ CONTAINS
         CALL message(TRIM(routine), TRIM(message_text))
       ENDIF
 
-      !$acc enter data copyin(atm_phy_nwp_config(jg)%lhydrom_read_from_fg, atm_phy_nwp_config(jg)%lhydrom_read_from_ana)
+      !$ACC ENTER DATA COPYIN(atm_phy_nwp_config(jg)%lhydrom_read_from_fg, atm_phy_nwp_config(jg)%lhydrom_read_from_ana)
 
       ! check for contradicting convection settings
       IF (atm_phy_nwp_config(jg)%lshallowconv_only .AND. atm_phy_nwp_config(jg)%lgrayzone_deepconv) THEN
@@ -407,7 +409,7 @@ CONTAINS
       ENDIF ! is_les_phy
 #endif
 
-      !$acc enter data copyin(atm_phy_nwp_config(jg)%lenabled)
+      !$ACC ENTER DATA COPYIN(atm_phy_nwp_config(jg)%lenabled)
 
       ! Check, whether the user-defined slow-physics timesteps adhere 
       ! to ICON-internal rules. If not, adapt the timesteps accordingly.
@@ -653,7 +655,7 @@ CONTAINS
       !$ACC ENTER DATA COPYIN(atm_phy_nwp_config(jg)%shapefunc_ozone)
     ENDDO
 
-    !$acc enter data copyin(atm_phy_nwp_config(jg)%fac_ozone, atm_phy_nwp_config(jg)%shapefunc_ozone)
+    !$ACC ENTER DATA COPYIN(atm_phy_nwp_config(jg)%fac_ozone, atm_phy_nwp_config(jg)%shapefunc_ozone)
 
 
 
@@ -748,7 +750,7 @@ CONTAINS
       ! initialize lcall_phy (will be updated by mo_phy_events:mtime_ctrl_physics)
       atm_phy_nwp_config(jg)%lcall_phy(:) = .FALSE.
 
-      !$acc enter data copyin(atm_phy_nwp_config(jg)%lcall_phy)
+      !$ACC ENTER DATA COPYIN(atm_phy_nwp_config(jg)%lcall_phy)
 
 
       ! 3d radiative flux output: only allocate and write variable if at least one is requested as output
@@ -1286,9 +1288,9 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routine = modname//":t_atm_phy_nwp_config_finalize"
   !-----------------------------------------------------------------
 
-    !$acc exit data delete(me%lcall_phy) if(ALLOCATED(me%lcall_phy))
-    !$acc exit data delete(me%fac_ozone) if(ALLOCATED(me%fac_ozone))
-    !$acc exit data delete(me%shapefunc_ozone) if(ALLOCATED(me%shapefunc_ozone))
+    !$ACC EXIT DATA DELETE(me%lcall_phy) IF(ALLOCATED(me%lcall_phy))
+    !$ACC EXIT DATA DELETE(me%fac_ozone) IF(ALLOCATED(me%fac_ozone))
+    !$ACC EXIT DATA DELETE(me%shapefunc_ozone) IF(ALLOCATED(me%shapefunc_ozone))
     IF (ALLOCATED(me%lcall_phy))          DEALLOCATE(me%lcall_phy) 
     IF (ALLOCATED(me%fac_ozone)) THEN
       !$ACC EXIT DATA DELETE(me%fac_ozone)

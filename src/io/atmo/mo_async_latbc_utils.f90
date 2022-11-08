@@ -60,9 +60,8 @@
          &                            newEvent, datetime, newDatetime,             &
          &                            isCurrentEventActive, deallocateDatetime,    &
          &                            MAX_DATETIME_STR_LEN,                        &
-         &                            MAX_TIMEDELTA_STR_LEN, getPTStringFromMS,    &
          &                            getTotalSecondsTimedelta,                    &
-         &                            datetimeToString, timedeltaToString,         &
+         &                            datetimeToString,                            &
          &                            OPERATOR(>=), OPERATOR(-), OPERATOR(>),      &
          &                            OPERATOR(/=), OPERATOR(+), OPERATOR(*),      &
          &                            OPERATOR(<), OPERATOR(==),                   &
@@ -106,7 +105,7 @@
     PUBLIC :: reopen_latbc_file
 #endif
     PUBLIC ::  async_init_latbc_data, prefetch_latbc_data,     &
-         &     update_lin_interpolation, recv_latbc_data
+         &     recv_latbc_data
 
 
     INTERFACE fetch_from_buffer
@@ -170,7 +169,7 @@
       INTEGER :: tlev, nlev, nlevp1, nblks_c, nblks_e, ierrstat, idx
       INTEGER :: jg
 
-      !$acc enter data create(latbc%latbc_data)
+      !$ACC ENTER DATA CREATE(latbc%latbc_data)
 
       ! Allocate memory for variables (3D and 2D) on work processors
       nlev    = p_patch(1)%nlev
@@ -268,13 +267,13 @@
               latbc%latbc_data(tlev)%atm%qs       (nproma,nlev,nblks_c), STAT=ierrstat)
          IF (ierrstat /= SUCCESS) CALL finish(routine, "ALLOCATE failed!")
 
-        !$acc enter data create(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp)   &
-        !$acc create(latbc%latbc_data(tlev)%atm%vn)                                                 &
-        !$acc create(latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho)             &
-        !$acc create(latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v)                     &
-        !$acc create(latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv)                    &
-        !$acc create(latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi)                   &
-        !$acc create(latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+        !$ACC ENTER DATA CREATE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%vn) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+        !$ACC   CREATE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
 !$OMP PARALLEL 
          CALL init(latbc%latbc_data(tlev)%atm%vn(:,:,:))
@@ -293,13 +292,13 @@
          CALL init(latbc%latbc_data(tlev)%atm%qs(:,:,:))
 !$OMP END PARALLEL
 
-        !$acc update device(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp,   &
-        !$acc               latbc%latbc_data(tlev)%atm%vn,                                      &
-        !$acc               latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho,  &
-        !$acc               latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v,          &
-        !$acc               latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv,         &
-        !$acc               latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi,        &
-        !$acc               latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+        !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
          ! ... for additional tracer variables
          DO idx=1, ntracer
@@ -396,9 +395,7 @@
       TYPE(datetime) :: nextActive          ! next trigger date for prefetch event
       TYPE(datetime) :: latbc_read_datetime ! next input date to be read
       INTEGER :: ierr, nblks_c, nlev_in, jk, jb, jc
-      REAL(wp)       :: seconds
       INTEGER        :: prev_latbc_tlev
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN)  :: td_string
       CHARACTER(LEN=MAX_DATETIME_STR_LEN)   :: latbc_read_datetime_str
       CHARACTER(LEN=*), PARAMETER :: routine = modname//"::read_init_latbc_data"
       REAL(wp), ALLOCATABLE                 :: z_ifc_in(:,:,:)
@@ -441,14 +438,8 @@
       read_params(iedge)%imode_asy = 0
 
 
-      ! convert namelist parameter "limarea_nml/dtime_latbc" into
-      ! mtime object:
-      IF (latbc_config%dtime_latbc > 86400._wp) THEN
-        CALL finish(routine, "Namelist setting of limarea_nml/dtime_latbc too large for mtime conversion!")
-      END IF
-      seconds = latbc_config%dtime_latbc*1000._wp
-      CALL getPTStringFromMS(NINT(seconds,i8), td_string)
-      latbc%delta_dtime => newTimedelta(td_string)
+      ! get timedelta between consecutive boundary data
+      latbc%delta_dtime => latbc_config%dtime_latbc_mtime
 
       ! create prefetching event:
       latbc%prefetchEvent => newEvent("Prefetch input", time_config%tc_exp_startdate, &
@@ -527,13 +518,13 @@
         CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
       ENDIF
 
-      !$acc update device(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp,   &
-      !$acc               latbc%latbc_data(timelev)%atm%vn,                                         &
-      !$acc               latbc%latbc_data(timelev)%atm%theta_v,latbc%latbc_data(timelev)%atm%rho,  &
-      !$acc               latbc%latbc_data(timelev)%atm%u,latbc%latbc_data(timelev)%atm%v,          &
-      !$acc               latbc%latbc_data(timelev)%atm%w,latbc%latbc_data(timelev)%atm%qv,         &
-      !$acc               latbc%latbc_data(timelev)%atm%qc,latbc%latbc_data(timelev)%atm%qi,        &
-      !$acc               latbc%latbc_data(timelev)%atm%qr,latbc%latbc_data(timelev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -613,13 +604,13 @@
 
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
 
-      !$acc update device(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp,   &
-      !$acc               latbc%latbc_data(timelev)%atm%vn,                                         &
-      !$acc               latbc%latbc_data(timelev)%atm%theta_v,latbc%latbc_data(timelev)%atm%rho,  &
-      !$acc               latbc%latbc_data(timelev)%atm%u,latbc%latbc_data(timelev)%atm%v,          &
-      !$acc               latbc%latbc_data(timelev)%atm%w,latbc%latbc_data(timelev)%atm%qv,         &
-      !$acc               latbc%latbc_data(timelev)%atm%qc,latbc%latbc_data(timelev)%atm%qi,        &
-      !$acc               latbc%latbc_data(timelev)%atm%qr,latbc%latbc_data(timelev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -1022,21 +1013,13 @@
       TYPE(datetime) :: nextActive             ! next trigger date for prefetch event
       INTEGER        :: ierr
       TYPE(datetime) :: latbc_read_datetime    ! next input date to be read
-      REAL(wp)       :: seconds
       CHARACTER(LEN=*), PARAMETER :: routine = modname//"::async_init_latbc_data"
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN)  :: td_string
 
 
       IF (.NOT. my_process_is_pref())  RETURN
 
-      ! convert namelist parameter "limarea_nml/dtime_latbc" into
-      ! mtime object:
-      IF (latbc_config%dtime_latbc > 86400._wp) THEN
-        CALL finish(routine, "Namelist setting of limarea_nml/dtime_latbc too large for mtime conversion!")
-      END IF
-      seconds = latbc_config%dtime_latbc*1000._wp
-      CALL getPTStringFromMS(NINT(seconds,i8), td_string)
-      latbc%delta_dtime => newTimedelta(td_string)
+      ! get timedelta between consecutive boundary data
+      latbc%delta_dtime => latbc_config%dtime_latbc_mtime
 
       ! create prefetching event:
       latbc%prefetchEvent => newEvent("Prefetch input", time_config%tc_exp_startdate, &
@@ -1314,11 +1297,11 @@
       ! copy values needed from the GPU to the CPU
 #ifdef _OPENACC
       CALL message('mo_asyc_latbc_utils', 'Device to host copy of values needed in recv_latbc_data. This needs to be removed once port is finished!')
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_tracer)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_vn)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_rho)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_thv)
-      !$ACC UPDATE HOST (p_nh_state%diag%grf_tend_w)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_tracer)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_vn)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_rho)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_thv)
+      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_w)
       i_am_accel_node = .FALSE.
 #endif
 
@@ -1352,13 +1335,13 @@
       read_params(iedge)%imode_asy = iedge
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int, tlev, read_params)
 
-      !$acc update device(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp,   &
-      !$acc               latbc%latbc_data(tlev)%atm%vn,                                      &
-      !$acc               latbc%latbc_data(tlev)%atm%theta_v,latbc%latbc_data(tlev)%atm%rho,  &
-      !$acc               latbc%latbc_data(tlev)%atm%u,latbc%latbc_data(tlev)%atm%v,          &
-      !$acc               latbc%latbc_data(tlev)%atm%w,latbc%latbc_data(tlev)%atm%qv,         &
-      !$acc               latbc%latbc_data(tlev)%atm%qc,latbc%latbc_data(tlev)%atm%qi,        &
-      !$acc               latbc%latbc_data(tlev)%atm%qr,latbc%latbc_data(tlev)%atm%qs)
+      !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
 
       ! Compute tendencies for nest boundary update
       CALL compute_boundary_tendencies(latbc%latbc_data(:), p_patch(1), p_nh_state, tlev,  &
@@ -1385,11 +1368,11 @@
       ! copy changed values form CPU to GPU
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Host to device copy of values changed in recv_latbc_data. This needs to be removed once port is finished!')
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_vn)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_rho)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_thv)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_w)
-        !$ACC UPDATE DEVICE (p_nh_state%diag%grf_tend_tracer)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_vn)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_rho)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_thv)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_w)
+        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_tracer)
         i_am_accel_node = my_process_is_work()
 #endif
 #endif
@@ -1730,66 +1713,6 @@
         END IF
       END DO LOOP
     END FUNCTION get_field_index
-
-    !-------------------------------------------------------------------------
-    !>
-    !  Update linear interpolation coefficients for a given time stamp
-    !
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2014-08-15)
-    !!
-    SUBROUTINE update_lin_interpolation( latbc, step_datetime )
-      TYPE(t_latbc_data), INTENT(IN)    :: latbc
-      TYPE(datetime), INTENT(in) :: step_datetime
-#ifndef NOMPI
-      TYPE(timedelta)           :: delta_tstep
-      REAL(wp)                  :: dtime_latbc      ! time delta between two consecutive 
-                                                    ! boundary forcing time slices
-      TYPE(timedelta)           :: td
-      LOGICAL :: failure
-
-      CHARACTER(LEN=*), PARAMETER  :: routine = modname//"::update_lin_interpolation"
-      CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: vDateTime_str_cur, vDateTime_str_prv
-      CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN):: delta_tstep_str
-      INTEGER :: prv_tlev, cur_tlev
-      ! compute boundary update timedelta
-      cur_tlev = latbc%new_latbc_tlev
-      prv_tlev = latbc%prev_latbc_tlev()
-      td = latbc%latbc_data(cur_tlev)%vDateTime - latbc%latbc_data(prv_tlev)%vDateTime
-      dtime_latbc =  REAL(getTotalSecondsTimedelta(td, latbc%latbc_data(cur_tlev)%vDateTime))
-
-      delta_tstep = latbc%latbc_data(cur_tlev)%vDateTime - step_datetime
-
-      failure = delta_tstep%month /= 0
-      IF (msg_level >= 15 .OR. failure) THEN
-        CALL message(routine, "", all_print=failure)
-        CALL datetimeToString(latbc%latbc_data(prv_tlev)%vDateTime, vDateTime_str_prv)
-        CALL datetimeToString(latbc%latbc_data(cur_tlev)%vDateTime, vDateTime_str_cur)
-        CALL timedeltaToString(delta_tstep, delta_tstep_str)
-        WRITE (message_text, '(a,a)')  "lbc vdate current : ", vDateTime_str_cur
-        CALL message("", message_text, all_print=failure)
-        WRITE (message_text, '(a,a)')  "lbc vdate previous: ", vDateTime_str_prv
-        CALL message("", message_text, all_print=failure)
-        WRITE (message_text, '(a,a)')  "delta_tstep_str: ", delta_tstep_str
-        CALL message("", message_text, all_print=failure)
-        IF (delta_tstep%month /= 0) &
-          CALL finish(routine, "time difference for reading boundary&
-          & data must not be more than a month.")
-      ENDIF
-
-
-
-
-      ! compute the number of "dtime_latbc" intervals fitting into the time difference "delta_tstep":
-
-      latbc_config%lc1 = (delta_tstep%day * 86400._wp + delta_tstep%hour * 3600._wp +  &
-           delta_tstep%minute * 60._wp + delta_tstep%second) / dtime_latbc
-      latbc_config%lc2 = 1._wp - latbc_config%lc1
-
-      ! deallocating mtime and deltatime
-#endif
-
-    END SUBROUTINE update_lin_interpolation
 
 
     ! Wrapper routines for reading data either synchronously by PE0 via read_cdi or asynchronously

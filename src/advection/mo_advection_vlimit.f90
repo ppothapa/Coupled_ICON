@@ -60,9 +60,6 @@ MODULE mo_advection_vlimit
   PUBLIC :: v_limit_face_mc_mo
   PUBLIC :: v_limit_face_mc_sm
 
-#if defined( _OPENACC )
-  LOGICAL, PARAMETER ::  acc_on = .TRUE.
-#endif
 
 CONTAINS
 
@@ -134,20 +131,20 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 
-!$ACC DATA CREATE( r_m ), PCOPYIN( p_cc, p_rhodz_now ), PCOPY( p_mflx_tracer_v ), &
-!$ACC IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA CREATE(r_m) PRESENT(p_cc, p_rhodz_now, p_mflx_tracer_v) &
+    !$ACC   IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-!$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       r_m = 0._wp
-!$ACC END KERNELS
+      !$ACC END KERNELS
     ENDIF
 
     !
     ! 1. Compute total outward mass (loop over full levels)
     !
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-    !$ACC LOOP GANG COLLAPSE(2) PRIVATE(jkp1,p_m)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG COLLAPSE(2) PRIVATE(jkp1, p_m)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
         jkp1 = jk+1
@@ -165,14 +162,14 @@ CONTAINS
 
       ENDDO
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
     !
     ! 2. Limit outward fluxes (loop over half levels)
     !    Choose r_m depending on the sign of p_mflx_tracer_v
     !
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-    !$ACC LOOP GANG VECTOR PRIVATE(jkm1,z_signum) COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR PRIVATE(jkm1, z_signum) COLLAPSE(2)
     DO jk = slev+1, elev
       DO jc = i_startidx, i_endidx
         jkm1 = jk-1
@@ -189,10 +186,10 @@ CONTAINS
   
       ENDDO
     ENDDO
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC WAIT
-!$ACC END DATA
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE vflx_limiter_pd
 
@@ -257,16 +254,16 @@ CONTAINS
     INTEGER  :: elev_slim          !< end level for spurious extremum dectector
     !-----------------------------------------------------------------------
 
-!$ACC DATA PCOPYIN( p_cc, p_face ), PCOPY( p_face_up, p_face_low ), &
-!$ACC      CREATE(z_delta, z_a6i, l_limit), &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc, p_face, p_face_up, p_face_low) &
+    !$ACC   CREATE(z_delta, z_a6i, l_limit) &
+    !$ACC   IF(i_am_accel_node)
 
     ! selective limitation yes or no
     IF (p_ivlimit_selective == 1) THEN
       ! 
       elev_slim = MIN(elev+1,UBOUND(p_face,2))
       !
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(z_delta,z_a6i,l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(z_delta, z_a6i, l_limit) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jkp1, jkp2, jkp3, jkm1, jkm2, is_main_crit) COLLAPSE(2)
       DETECT_SEL:DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -293,9 +290,9 @@ CONTAINS
             &                                 p_face(jc,jkp1), p_face(jc,jkp2), p_face(jc,jkp3) )
         ENDDO
       ENDDO DETECT_SEL
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     ELSE
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(z_delta,z_a6i,l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(z_delta, z_a6i, l_limit) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jkp1) COLLAPSE(2)
       DETECT:DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -312,12 +309,12 @@ CONTAINS
           l_limit(jc,jk) = ABS(z_delta(jc,jk)) < ABS(z_a6i(jc,jk))
         ENDDO
       ENDDO DETECT
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
       !
     ENDIF  ! p_ivlimit_selective
 
 
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(z_delta,z_a6i,l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(z_delta, z_a6i, l_limit) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(jkp1, q_face_up, q_face_low) COLLAPSE(2)
     LIMIT:DO jk = slev, elev
       DO jc = i_startidx, i_endidx
@@ -367,9 +364,9 @@ CONTAINS
 
       END DO  ! jc
     END DO LIMIT
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE v_limit_parabola_mo 
 
@@ -431,16 +428,16 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 
-!$ACC DATA PCOPYIN( p_cc, p_face ), PCOPYOUT( p_face_up, p_face_low ), &
-!$ACC      CREATE(l_limit), &
-!$ACC      IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc, p_face,p_face_up, p_face_low) &
+    !$ACC   CREATE(l_limit) &
+    !$ACC   IF(i_am_accel_node)
 
     ! selective limitation yes or no
     IF (p_ivlimit_selective == 1) THEN
       ! 
       elev_slim = MIN(elev+1,UBOUND(p_face,2))
       !
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(l_limit) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jkp1, jkp2, jkp3, jkm1, jkm2, z_delta, z_a6i, is_main_crit) COLLAPSE(2)
       DETECT_SEL:DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -467,9 +464,9 @@ CONTAINS
             &                                 p_face(jc,jkp1), p_face(jc,jkp2), p_face(jc,jkp3) )
         ENDDO
       ENDDO DETECT_SEL
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
     ELSE
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+      !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(l_limit) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jkp1, z_delta, z_a6i) COLLAPSE(2)
       DETECT:DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -486,12 +483,12 @@ CONTAINS
           l_limit(jc,jk) = ABS(z_delta) < -1._wp*z_a6i
         ENDDO
       ENDDO DETECT
-!$ACC END PARALLEL
+      !$ACC END PARALLEL
       !
     ENDIF  ! p_ivlimit_selective
 
 
-!$ACC PARALLEL DEFAULT(NONE) PRESENT(l_limit) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
+    !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(l_limit) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(jkp1, q_face_up, q_face_low) COLLAPSE(2)
     LIMIT:DO jk = slev, elev
       DO jc = i_startidx, i_endidx
@@ -536,9 +533,9 @@ CONTAINS
 
       END DO
     END DO LIMIT
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE v_limit_parabola_sm
 
@@ -565,7 +562,7 @@ CONTAINS
   LOGICAL FUNCTION isExtremumSpurious(is_main_crit, z_delta, z_a6i, p_cc, q_face_jkm2,  &
     &                                 q_face_jkm1, q_face_jk, q_face_jkp1, q_face_jkp2, &
     &                                 q_face_jkp3)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     LOGICAL,  INTENT(IN) :: is_main_crit     !< is main criterion for limiter activation TRUE
     REAL(wp), INTENT(IN) :: z_delta          !< undivided cell gradient
@@ -646,10 +643,10 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-!$ACC DATA PCOPYIN( p_cc ), PCOPYOUT( slope ), IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc,slope) IF(i_am_accel_node)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min, p_cc_max) COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min, p_cc_max) COLLAPSE(2)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -669,9 +666,9 @@ CONTAINS
       END DO  ! jc
 
     END DO  ! jk 
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
   END SUBROUTINE v_limit_slope_mo
 
 
@@ -713,10 +710,10 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-!$ACC DATA PCOPYIN( p_cc ), PCOPYOUT( slope ), IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc,slope) IF(i_am_accel_node)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min) COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min) COLLAPSE(2)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -734,9 +731,9 @@ CONTAINS
       END DO  ! jc
 
     END DO  ! jk 
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
   END SUBROUTINE v_limit_slope_sm
 
 
@@ -793,11 +790,11 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-!$ACC DATA PCOPYIN( p_cc, p_cellhgt_mc_now ), PCOPYOUT( p_face ), IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now,p_face) IF(i_am_accel_node)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l), &
-!$ACC COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l) &
+    !$ACC   COLLAPSE(2)
     DO jk= slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -847,9 +844,9 @@ CONTAINS
 
       END DO  ! jc
     END DO  ! jk
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
   END SUBROUTINE v_limit_face_mc_mo
 
 
@@ -912,11 +909,11 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-!$ACC DATA PCOPYIN( p_cc, p_cellhgt_mc_now ), PCOPYOUT( p_face ), IF( i_am_accel_node .AND. acc_on )
+    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now,p_face) IF(i_am_accel_node)
 
-!$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF( i_am_accel_node .AND. acc_on )
-!$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l), &
-!$ACC COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l) &
+    !$ACC   COLLAPSE(2)
     DO jk= slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -968,9 +965,9 @@ CONTAINS
 
       END DO  ! jc
     END DO  ! jk
-!$ACC END PARALLEL
+    !$ACC END PARALLEL
 
-!$ACC END DATA
+    !$ACC END DATA
   END SUBROUTINE v_limit_face_mc_sm
 
 
@@ -989,7 +986,7 @@ CONTAINS
   !!
   FUNCTION mc_limiter (p_cc_u, p_cc_c, p_cc_l, cellhgt_mc_u, cellhgt_mc_c, cellhgt_mc_l) &
     &                  RESULT(mc_slope)
-!$ACC ROUTINE SEQ
+    !$ACC ROUTINE SEQ
 
     REAL(wp), INTENT(IN)  :: p_cc_u, p_cc_c, p_cc_l  ! advected variable for 
                                                      ! upper (u) center (c) and lower (l) cell

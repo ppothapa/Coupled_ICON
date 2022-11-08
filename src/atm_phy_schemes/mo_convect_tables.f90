@@ -52,6 +52,8 @@ MODULE mo_convect_tables
   PUBLIC :: lookupoverflow
   PUBLIC :: flookupoverflow
 
+  PUBLIC :: cthomi, csecfrl
+
   PUBLIC :: c1es, c2es, c3les, c3ies, c4les, c4ies, c5les, c5ies, &
     &       c5alvcp, c5alscp, alvdcp, alsdcp
 
@@ -100,8 +102,8 @@ MODULE mo_convect_tables
   REAL (wp), PARAMETER :: c5alscp = c5ies*als/cpd        !
   REAL (wp), PARAMETER :: alvdcp  = alv/cpd              !
   REAL (wp), PARAMETER :: alsdcp  = als/cpd              !
-  !$acc declare copyin(c1es, c2es, c3les, c3ies, c4les, c4ies, c5les, c5ies, &
-  !$acc                c5alvcp, c5alscp, alvdcp, alsdcp)
+  !$ACC DECLARE COPYIN(c1es, c2es, c3les, c3ies, c4les, c4ies, c5les, c5ies) &
+  !$ACC   COPYIN(c5alvcp, c5alscp, alvdcp, alsdcp)
 
   INTEGER, PARAMETER :: jptlucu1 =  50000  ! lookup table lower bound
   INTEGER, PARAMETER :: jptlucu2 = 400000  ! lookup table upper bound
@@ -385,7 +387,7 @@ CONTAINS
     STOP 'lookup tables printed'
 #endif
 
-    !$ACC ENTER DATA COPYIN( tlucu, tlucuw )
+    !$ACC ENTER DATA COPYIN(tlucu, tlucuw)
 
   END SUBROUTINE init_convect_tables
 
@@ -483,13 +485,13 @@ CONTAINS
     REAL(wp) :: a,b,c,d,dx,ddx,x,bxa
     INTEGER  ::  jl
 
-    !$ACC DATA PRESENT( idx, zalpha, table )
-    !$ACC DATA PRESENT( ua ) IF( PRESENT(ua) )
-    !$ACC DATA PRESENT( dua ) IF( PRESENT(dua) )
+    !$ACC DATA PRESENT(idx, zalpha, table)
+    !$ACC DATA PRESENT(ua) IF(PRESENT(ua))
+    !$ACC DATA PRESENT(dua) IF(PRESENT(dua))
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
       !$ACC PARALLEL
-      !$ACC LOOP GANG VECTOR PRIVATE( x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
 
         x = zalpha(jl)
@@ -514,7 +516,7 @@ CONTAINS
       !$ACC END PARALLEL
     ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
       !$ACC PARALLEL
-      !$ACC LOOP GANG VECTOR PRIVATE( x, dx, ddx, a, b, c, d, bxa )
+      !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
 
         x = zalpha(jl)
@@ -827,12 +829,12 @@ CONTAINS
     INTEGER  ::  jl
 
     !---- Argument arrays - intent(in)
-    !$ACC DATA PRESENT( temp )
-    !$ACC DATA PRESENT( xi ) IF( PRESENT(xi) )
+    !$ACC DATA PRESENT(temp)
+    !$ACC DATA PRESENT(xi) IF(PRESENT(xi))
     !---- Argument arrays - intent(out)
-    !$ACC DATA PRESENT(idx,zalpha)
-    !$ACC DATA PRESENT(zphase) IF( PRESENT(zphase) )
-    !$ACC DATA PRESENT(iphase) IF( PRESENT(iphase) )
+    !$ACC DATA PRESENT(idx, zalpha)
+    !$ACC DATA PRESENT(zphase) IF(PRESENT(zphase))
+    !$ACC DATA PRESENT(iphase) IF(PRESENT(iphase))
 
     zinbounds = 1._wp
     ztmin = flucupmin
@@ -843,7 +845,7 @@ CONTAINS
       znphase = 0.0_wp
 
       !$ACC PARALLEL
-      !$ACC LOOP GANG VECTOR PRIVATE( ztshft, ztt, ztest ) REDUCTION(+:znphase) REDUCTION(*:zinbounds)
+      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt, ztest) REDUCTION(+: znphase) REDUCTION(*: zinbounds)
       DO jl = jcs,size
 
         ztshft = FSEL(temp(jl)-tmelt,0._wp,1._wp)
@@ -874,7 +876,7 @@ CONTAINS
 
     ELSE
       !$ACC PARALLEL
-      !$ACC LOOP GANG VECTOR PRIVATE( ztshft, ztt ) REDUCTION(*:zinbounds)
+      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt) REDUCTION(*: zinbounds)
       DO jl = jcs,size
 
         ztshft = FSEL(temp(jl)-tmelt,0._wp,1._wp)
@@ -892,7 +894,7 @@ CONTAINS
 
     IF (zinbounds == 0._wp) THEN
 
-      !$ACC UPDATE HOST( temp )
+      !$ACC UPDATE HOST(temp)
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
 
         ! tied to patch(1), does not yet work for nested grids
@@ -1058,10 +1060,10 @@ CONTAINS
     REAL(wp) :: ztt, ztshft, zinbounds, ztmax, ztmin
     INTEGER :: nl, jl
 
-    !$ACC DATA PRESENT( list, temp )                         &
-    !$ACC       CREATE( idx, zalpha )
-    !$ACC DATA PRESENT( ua )  IF( PRESENT(ua) )
-    !$ACC DATA PRESENT( dua ) IF( PRESENT(dua) )
+    !$ACC DATA PRESENT(list, temp) &
+    !$ACC   CREATE(idx, zalpha)
+    !$ACC DATA PRESENT(ua) IF(PRESENT(ua))
+    !$ACC DATA PRESENT(dua) IF(PRESENT(dua))
 
     zinbounds = 1.0_wp
     ztmin = flucupmin
@@ -1071,7 +1073,7 @@ CONTAINS
 
 !IBM* ASSERT(NODEPS)
     !$ACC PARALLEL
-    !$ACC LOOP GANG VECTOR PRIVATE( jl, ztshft, ztt ) REDUCTION( *:zinbounds )
+    !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) REDUCTION(*: zinbounds)
     DO nl = 1, kidx
       jl = list(nl)
       ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
@@ -1257,13 +1259,13 @@ CONTAINS
     !-----
     lookupoverflow = .FALSE.
 
-    !$ACC DATA PRESENT( loidx, ppsfc, ptsfc, pqs ) &
-    !$ACC      CREATE( ua )
+    !$ACC DATA PRESENT(loidx, ppsfc, ptsfc, pqs) &
+    !$ACC   CREATE(ua)
 
     CALL lookup_ua_list_spline_2('compute_qsat',kbdim,is,loidx(:), ptsfc(:), ua(:))
 !
     !$ACC PARALLEL
-    !$ACC LOOP GANG VECTOR PRIVATE( jl, zpap, zes, zcor )
+    !$ACC LOOP GANG VECTOR PRIVATE(jl, zpap, zes, zcor)
     DO jc = 1,is
       jl = loidx(jc)
       zpap    = 1._wp/ppsfc(jl)

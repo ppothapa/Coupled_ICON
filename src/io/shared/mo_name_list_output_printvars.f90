@@ -29,7 +29,10 @@ MODULE mo_name_list_output_printvars
   USE mo_name_list_output_zaxes,            ONLY: setup_ml_axes_atmo, setup_zaxes_oce
   USE mo_master_control,                    ONLY: my_process_is_jsbach
 #ifndef __NO_JSBACH__
+  USE mo_atm_phy_nwp_config,                ONLY: atm_phy_nwp_config
   USE mo_echam_phy_config,                  ONLY: echam_phy_config
+  USE mo_grid_config,                       ONLY: n_dom
+  USE mo_impl_constants,                    ONLY: LSS_JSBACH
   USE mo_jsb_vertical_axes,                 ONLY: setup_zaxes_jsbach
 #endif
   USE mo_util_cdi,                          ONLY: create_cdi_variable
@@ -220,7 +223,8 @@ CONTAINS
         CALL setup_ml_axes_atmo(tmp_verticalAxisList, tmp_level_selection, print_patch_id)
       END IF
 #ifndef __NO_JSBACH__
-      IF (ANY(echam_phy_config(:)%ljsb)) CALL setup_zaxes_jsbach(tmp_verticalAxisList)
+      IF (ANY(echam_phy_config(:)%ljsb) .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
+          & CALL setup_zaxes_jsbach(tmp_verticalAxisList)
 #endif
     ELSE
       CALL setup_zaxes_oce(tmp_verticalAxisList, tmp_level_selection)

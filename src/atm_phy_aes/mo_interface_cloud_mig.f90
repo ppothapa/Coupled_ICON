@@ -98,11 +98,11 @@ CONTAINS
     input  => cloud_mig_input (jg)
     output => cloud_mig_output(jg)
 
-    !$ACC DATA PRESENT(field,tend,input,output)             &
-    !$ACC      CREATE (tend_ta_mig,                         &
-    !$ACC              tend_qv_mig,tend_qc_mig,tend_qi_mig, &
-    !$ACC              tend_qr_mig,tend_qs_mig,tend_qg_mig, &
-    !$ACC              pr_rain,pr_ice,pr_snow,pr_grpl)
+    !$ACC DATA PRESENT(field, tend, input, output) &
+    !$ACC   CREATE(tend_ta_mig) &
+    !$ACC   CREATE(tend_qv_mig, tend_qc_mig, tend_qi_mig) &
+    !$ACC   CREATE(tend_qr_mig, tend_qs_mig, tend_qg_mig) &
+    !$ACC   CREATE(pr_rain, pr_ice, pr_snow, pr_grpl)
 
     lparamcpl = aes_phy_config(jg)% lparamcpl
     fc_mig    = aes_phy_config(jg)% fc_mig

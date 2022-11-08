@@ -149,7 +149,9 @@ LIBS=$(echo "${LIBS}" | sed 's/\([ ]\|^\)-l/\1-Wl,-l/g')
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-fcgroup-WORKAROUND1'
+EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-yaxt --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-fcgroup-WORKAROUND1'
+# as long as all openmpi released have an error we need to disable mpi checking
+EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks --disable-openmp"
 
 ################################################################################
 
@@ -195,7 +197,7 @@ if test $(pwd) != $(cd "${icon_dir}"; pwd); then
   rsync -uavz ${icon_dir}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
   ln -sf -t run/ ${icon_dir}/run/standard_*
   ln -sf set-up.info run/SETUP.config
-  rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='rrtmgp*.nc' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${icon_dir}/make_runscripts .
   ln -sf ${icon_dir}/data
   ln -sf ${icon_dir}/vertical_coord_tables

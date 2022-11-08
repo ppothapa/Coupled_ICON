@@ -96,7 +96,6 @@ pgi_inlib_f90_files+= \
   src/atm_phy_nwp/mo_nwp_ww.f90 \
   src/atm_phy_nwp/mo_opt_nwp_diagnostics.f90 \
   src/atm_phy_nwp/mo_util_phys.f90 \
-  src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90 \
   src/atm_phy_schemes/gscp_cloudice.f90 \
   src/atm_phy_schemes/gscp_graupel.f90 \
   src/atm_phy_schemes/gscp_hydci_pp_ice.f90 \
@@ -113,6 +112,10 @@ pgi_inlib_f90_files+= \
   src/shared/mo_loopindices.f90 \
   src/shared/mo_math_utilities.f90 \
   src/shared/mo_statistics.f90
+
+@RTE_RRTMGP_ENABLED@pgi_inlib_f90_files+= \
+@RTE_RRTMGP_ENABLED@src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90
+
 
 # acc routines that are not inlined:
 # functions and subroutines in submodules dace and rte-rrtmgp

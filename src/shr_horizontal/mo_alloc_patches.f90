@@ -49,7 +49,7 @@ MODULE mo_alloc_patches
     &                                   dist_mult_array_new,                         &
     &                                   dist_mult_array_delete,                      &
     &                                   ppm_int, ppm_real_dp
-#ifdef HAVE_SLOW_PASSIVE_TARGET_ONESIDED
+#ifdef HAVE_SLOW_PASSIVE_TARGET_ONESIDED 
   USE ppm_distributed_array,      ONLY: sync_mode_active_target
 #endif
   USE ppm_extents,                ONLY: extent, extent_start, extent_size
@@ -801,7 +801,7 @@ CONTAINS
 #ifdef HAVE_SLOW_PASSIVE_TARGET_ONESIDED
          sync_mode=sync_mode_active_target &
 #else
-         cache_size=MIN(10, CEILING(SQRT(REAL(p_n_work)))) &
+         cache_size=MIN(10, p_n_work) &
 #endif
          )
     ALLOCATE( p_patch_pre%cells%start(min_rlcell:max_rlcell) )
@@ -822,7 +822,7 @@ CONTAINS
 #ifdef HAVE_SLOW_PASSIVE_TARGET_ONESIDED
          sync_mode=sync_mode_active_target &
 #else
-         cache_size=MIN(10, CEILING(SQRT(REAL(p_n_work)))) &
+         cache_size=MIN(10, p_n_work) &
 #endif
          )
     ALLOCATE( p_patch_pre%edges%start(min_rledge:max_rledge) )
@@ -843,7 +843,7 @@ CONTAINS
 #ifdef HAVE_SLOW_PASSIVE_TARGET_ONESIDED
          sync_mode=sync_mode_active_target &
 #else
-         cache_size=MIN(10, CEILING(SQRT(REAL(p_n_work)))) &
+         cache_size=MIN(10, p_n_work) &
 #endif
          )
     ALLOCATE( p_patch_pre%verts%start(min_rlvert:max_rlvert) )

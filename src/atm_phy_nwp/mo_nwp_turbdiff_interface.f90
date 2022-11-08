@@ -68,7 +68,7 @@ MODULE mo_nwp_turbdiff_interface
   USE mo_nh_torus_exp,           ONLY: set_scm_bnd
   USE mo_timer
   USE mo_run_config,           ONLY: timers_level
-
+  USE mo_fortran_tools,         ONLY: assert_acc_device_only
   IMPLICIT NONE
 
   PRIVATE
@@ -92,7 +92,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
                           & prm_diag, prm_nwp_tend,           & !>inout
                           & wtr_prog_now,                     & !>in 
                           & lnd_prog_now,                     & !>in 
-                          & lnd_diag                          ) !>in
+                          & lnd_diag,                         & !>in
+                          & lacc                              ) !>in
 
 
   TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch        !!<grid/patch info.
@@ -109,6 +110,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
   TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag        !< diag vars for sfc
   REAL(wp),                    INTENT(in)   :: tcall_turb_jg   !< time interval for 
                                                                !< turbulence
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+
 
   ! Local array bounds
 
@@ -183,8 +186,9 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
 
 !--------------------------------------------------------------
 
-
   IF (msg_level >= 15) CALL message('mo_nwp_turbdiff:', 'turbulence')
+
+  CALL assert_acc_device_only("mo_nwp_turbdiff", lacc)
 
   jg = p_patch%id
 
@@ -215,10 +219,10 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
   ! logical for SB two-moment scheme
   ltwomoment = atm_phy_nwp_config(jg)%l2moment
 
-!$acc data create(khpbln, kvartop, kpbltype, pdifts, pdiftq, pdiftl, pdifti, pstrtu, pstrtv, pkh, pkm, z_omega_p, &
-!$acc             zchar, zucurr, zvcurr, zsoteu, zsotev, zsobeta, zz0m, zz0h, zae, ztskrad, zsigflt, shfl_s_t, &
-!$acc             evap_s_t, tskin_t, ustr_s_t, vstr_s_t, ddt_turb_qnc, ddt_turb_qni, ddt_turb_qs, ddt_turb_qns, &
-!$acc             tke_inc_ic, l_hori, zvari, zrhon, z_tvs, tempv_sfc, rho_sfc, ut_sso, vt_sso)
+  !$ACC DATA CREATE(khpbln, kvartop, kpbltype, pdifts, pdiftq, pdiftl, pdifti, pstrtu, pstrtv, pkh, pkm, z_omega_p) &
+  !$ACC   CREATE(zchar, zucurr, zvcurr, zsoteu, zsotev, zsobeta, zz0m, zz0h, zae, ztskrad, zsigflt, shfl_s_t) &
+  !$ACC   CREATE(evap_s_t, tskin_t, ustr_s_t, vstr_s_t, ddt_turb_qnc, ddt_turb_qni, ddt_turb_qs, ddt_turb_qns) &
+  !$ACC   CREATE(tke_inc_ic, l_hori, zvari, zrhon, z_tvs, tempv_sfc, rho_sfc, ut_sso, vt_sso)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,tke_inc_ic,z_tvs, &
@@ -371,7 +375,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         ENDIF ! ltwomoment
       ENDIF ! turbdiff_config(jg)%ldiff_qs
 
-      !$acc wait
+      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'setup_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
@@ -575,14 +579,14 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
 
       IF (atm_phy_nwp_config(jg)%l_3d_turb_fluxes) THEN
         !$ACC PARALLEL DEFAULT(PRESENT)
-	!$ACC LOOP GANG VECTOR COLLAPSE(2)
-	DO jk = 1, nlevp1
-	  DO jc = i_startidx, i_endidx 
-              prm_diag%tetfl_turb(jc,jk,jb) = tet_flux(jc,jk)
-              prm_diag%vapfl_turb(jc,jk,jb) = vap_flux(jc,jk)
-              prm_diag%liqfl_turb(jc,jk,jb) = liq_flux(jc,jk)
-	  END DO
-	END DO
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jk = 1, nlevp1
+          DO jc = i_startidx, i_endidx
+                    prm_diag%tetfl_turb(jc,jk,jb) = tet_flux(jc,jk)
+                    prm_diag%vapfl_turb(jc,jk,jb) = vap_flux(jc,jk)
+                    prm_diag%liqfl_turb(jc,jk,jb) = liq_flux(jc,jk)
+          END DO
+        END DO
         !$ACC END PARALLEL
       ENDIF
 !DR If accumulated deposition fluxes are required ...
@@ -602,7 +606,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC END KERNELS
       END IF
 
-      !$acc wait
+      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'update_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
@@ -1002,7 +1006,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
     ENDIF
 
   ENDDO ! jb
-  !$acc wait
+  !$ACC WAIT
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1010,7 +1014,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
 
   IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) nstep_turb = nstep_turb + 1
 
-  !$acc end data
+  !$ACC END DATA
 
 END SUBROUTINE nwp_turbdiff
 

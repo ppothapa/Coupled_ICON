@@ -320,18 +320,18 @@ EOF
 
 #--------------------------------------------------------------------------------------------------
 #split the number of procs in two for each of the dummy component
-max_rank=`expr ${mpi_total_procs} - 1`
+((max_rank = no_of_nodes*mpi_procs_pernode - 1))
 
-((ocean_max_rank = max_rank  - 2))
 ocean_min_rank=0
+((ocean_max_rank = max_rank  - 2))
 ocean_inc_rank=1
 
-((output_1_min_rank = ocean_max_rank + 1))
-output_1_max_rank=$output_1_min_rank
+((output_1_min_rank = max_rank - 1))
+((output_1_max_rank = max_rank - 1))
 output_1_inc_rank=1
 
-output_2_min_rank=$max_rank
-output_2_max_rank=$output_2_min_rank
+output_2_min_rank=${max_rank}
+output_2_max_rank=${max_rank}
 output_2_inc_rank=1
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------

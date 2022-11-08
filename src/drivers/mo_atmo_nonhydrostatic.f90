@@ -17,7 +17,7 @@ USE mo_kind,                 ONLY: wp
 USE mo_exception,            ONLY: message, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
-USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes
+USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes, LSS_JSBACH
 USE mo_timer,                ONLY: timers_level, timer_start, timer_stop, timer_init_latbc, &
   &                                timer_model_init, timer_init_icon, timer_read_restart, timer_init_dace
 USE mo_master_config,        ONLY: isRestart, getModelBaseDir
@@ -335,7 +335,7 @@ CONTAINS
      ALLOCATE (radar_data(n_dom), lhn_fields(n_dom), STAT=ist)
      IF (ist /= SUCCESS) &
        CALL finish(routine,'allocation for radar_data and lhn_fields failed')
-     !$ACC ENTER DATA CREATE( radar_data(n_dom), lhn_fields(n_dom) )
+     !$ACC ENTER DATA CREATE(radar_data(n_dom), lhn_fields(n_dom))
 
      CALL message(routine,'configure_lhn')
      DO jg =1,n_dom
@@ -405,7 +405,8 @@ CONTAINS
 #ifndef __NO_JSBACH__
       DO jg = 1,n_dom
         IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-        IF (aes_phy_config(jg)%ljsb) THEN
+        IF (aes_phy_config(jg)%ljsb &
+            & .OR. atm_phy_nwp_config(jg)%inwp_surface == LSS_JSBACH) THEN
           CALL jsbach_init_after_restart(jg)
         END IF
       END DO
@@ -844,7 +845,7 @@ CONTAINS
 
     IF (ldass_lhn) THEN 
       ! deallocate ext_data array
-      !$ACC EXIT DATA DELETE( radar_data )
+      !$ACC EXIT DATA DELETE(radar_data)
       DEALLOCATE(radar_data, STAT=ist)
       IF (ist /= SUCCESS) THEN
         CALL finish(routine, 'deallocation of radar_data for LHN')

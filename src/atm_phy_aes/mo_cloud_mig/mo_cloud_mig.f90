@@ -119,24 +119,24 @@ CONTAINS
     !
     REAL(wp) :: zdtr ! reciprocal of timestep
 
-    !$ACC DATA PRESENT( dz, rho, pf, cpair, cvair, ta, qv, qc, qi, qr, qs, qg,         &
-    !$ACC               tend_ta, tend_qv, tend_qc, tend_qi, tend_qr, tend_qs, tend_qg, &
-    !$ACC               pr_ice, pr_rain, pr_snow, pr_grpl )                            &
-    !$ACC       CREATE( zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, total_ice, zqrsflux )
+    !$ACC DATA PRESENT(dz, rho, pf, cpair, cvair, ta, qv, qc, qi, qr, qs, qg) &
+    !$ACC   PRESENT(tend_ta, tend_qv, tend_qc, tend_qi, tend_qr, tend_qs, tend_qg) &
+    !$ACC   PRESENT(pr_ice, pr_rain, pr_snow, pr_grpl) &
+    !$ACC   CREATE(zqnc, zta, zqv, zqc, zqi, zqr, zqs, zqg, total_ice, zqrsflux)
 
     nproma = SIZE(dz,1)
 
     jks = 1
     jke = (SIZE(dz,2))
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs,jce
        zqnc(jc) = cloud_num
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = jks,jke
        DO jc = jcs,jce
@@ -229,7 +229,7 @@ CONTAINS
     ! Calculate tendencies and convert temperature tendency, as computed
     ! in satad/graupel for constant volume to constant pressure
     !
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = jks,jke
        DO jc = jcs,jce

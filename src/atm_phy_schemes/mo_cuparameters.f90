@@ -35,7 +35,8 @@ MODULE mo_cuparameters
   USE mo_nwp_parameters,  ONLY: t_phy_params
   USE mo_nwp_tuning_config, ONLY: tune_entrorg, tune_rhebc_land, tune_rhebc_ocean, tune_rcucov, &
     tune_texc, tune_qexc, tune_rhebc_land_trop, tune_rhebc_ocean_trop, tune_rcucov_trop, tune_gkdrag, &
-    tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred
+    tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred, &
+    tune_eiscrit
 
   IMPLICIT NONE
 
@@ -76,7 +77,7 @@ MODULE mo_cuparameters
   REAL(KIND=jprb) :: rcvv
   REAL(KIND=jprb) :: rkappa
   REAL(KIND=jprb) :: retv
-  !$acc declare create( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
+  !$ACC DECLARE CREATE(r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv)
   ! A1.5,6 Thermodynamic liquid,solid phases
   REAL(KIND=jprb) :: rcw
   REAL(KIND=jprb) :: rcs
@@ -316,6 +317,7 @@ MODULE mo_cuparameters
   !     RMFSOLTQ  REAL     SOLVER FOR MASSFLUX ADVECTION EQUATION FOR T AND Q
   !     RUVPER    REAL     UPDRAIGHT VELOCITY PERTURBATION AT KLEV FOR IMPLICIT
   !     NJKT1, NJKT2, NJKT3-5 INTEGER  LEVEL LIMITS FOR CUBASEN/CUDDR
+  !     EISCRIT   REAL     CRITICAL STABILITY THRESHOLD FOR STRATOCUMULUS
   !     ----------------------------------------------------------------
   
   ! REAL(KIND=jprb) :: entrorg
@@ -537,14 +539,14 @@ MODULE mo_cuparameters
   
   ! Module variables used in acc routine need to be in acc declare create()
   ! these variables are used in mo_cufunctions.f90
-  !$acc declare create( rtice, rtwat, rtwat_rtice_r )
-  !$acc declare create( rticecu, rtwat_rticecu_r )
-  !$acc declare create( r2es, r3les, rtt, r4les, r3ies, r4ies )
-  !$acc declare create( rlvtt, rlstt )
-  !$acc declare create( ralvdcp, ralsdcp )
-  !$acc declare create( r5alscp, r5alvcp )
+  !$ACC DECLARE CREATE(rtice, rtwat, rtwat_rtice_r)
+  !$ACC DECLARE CREATE(rticecu, rtwat_rticecu_r)
+  !$ACC DECLARE CREATE(r2es, r3les, rtt, r4les, r3ies, r4ies)
+  !$ACC DECLARE CREATE(rlvtt, rlstt)
+  !$ACC DECLARE CREATE(ralvdcp, ralsdcp)
+  !$ACC DECLARE CREATE(r5alscp, r5alvcp)
 
-  !$acc declare create( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+  !$ACC DECLARE CREATE(lphylin, lhook, rlptrc, rlpal1, rlpal2)
 
 CONTAINS
   
@@ -936,7 +938,7 @@ CONTAINS
     rkappa=rd/rcpd
     retv=rv/rd-1._jprb
     
-    !$acc update device( r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv )
+    !$ACC UPDATE DEVICE(r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv)
 
     !     ------------------------------------------------------------------
     
@@ -1318,6 +1320,10 @@ ELSE IF (rsltn < 10.e3_jprb) THEN
   phy_params%tau = phy_params%tau + MIN(0.25_jprb, LOG(10.e3_jprb/rsltn)**2)
 ENDIF
 
+! critical stability threshold. For conditions more stable
+! turn off conv param to allow grid scale microphysics to create clouds
+phy_params%eiscrit=tune_eiscrit
+
 ! ** CAPE correction to improve diurnal cycle of convection ** (set now in mo_nwp_phy_nml)
 ! icapdcycl = 0! 0= no CAPE diurnal cycle correction (IFS default prior to cy40r1, i.e. 2013-11-19)
                ! 1=    CAPE - surface buoyancy flux (intermediate testing option)
@@ -1537,12 +1543,12 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     rtwat_rtice_r=1._jprb/(rtwat-rtice)
     rtwat_rticecu_r=1._jprb/(rtwat-rticecu)
 
-    !$acc update device( rtice, rtwat, rtwat_rtice_r )
-    !$acc update device( rticecu, rtwat_rticecu_r )
-    !$acc update device( r2es, r3les, rtt, r4les, r3ies, r4ies )
-    !$acc update device( rlvtt, rlstt )
-    !$acc update device( ralvdcp, ralsdcp )
-    !$acc update device( r5alscp, r5alvcp )
+    !$ACC UPDATE DEVICE(rtice, rtwat, rtwat_rtice_r)
+    !$ACC UPDATE DEVICE(rticecu, rtwat_rticecu_r)
+    !$ACC UPDATE DEVICE(r2es, r3les, rtt, r4les, r3ies, r4ies)
+    !$ACC UPDATE DEVICE(rlvtt, rlstt)
+    !$ACC UPDATE DEVICE(ralvdcp, ralsdcp)
+    !$ACC UPDATE DEVICE(r5alscp, r5alvcp)
 
   END SUBROUTINE su_yoethf
 
@@ -1774,7 +1780,7 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
 !    PRINT*, 'SUPHLI', rlptrc
     !RETURN
 
-    !$acc update device ( lphylin, lhook, rlptrc, rlpal1, rlpal2 )
+    !$ACC UPDATE DEVICE(lphylin, lhook, rlptrc, rlpal1, rlpal2)
 
   END SUBROUTINE suphli
 

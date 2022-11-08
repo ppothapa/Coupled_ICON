@@ -130,16 +130,18 @@ CONTAINS
     CLASS(t_sst_sic_reader),   INTENT(inout) :: this
     INTEGER,               INTENT(in   ) :: timelevel
     CHARACTER(len=*),      INTENT(in   ) :: varname
-    REAL(dp), ALLOCATABLE, INTENT(  out) :: dat(:,:,:,:)
+    REAL(dp), ALLOCATABLE, INTENT(inout) :: dat(:,:,:,:)
     REAL(dp), ALLOCATABLE, TARGET        :: temp(:,:,:,:)
+    ! We need to turn off OpenACC to do host-based MPI
     LOGICAL                              :: init_i_am_accel_node
     TYPE(t_ptr_3d)                       :: tmp(1)
 
 
     ALLOCATE(temp(get_nproma(), 1, this%p_patch%nblks_c, 1))
     temp(:,:,:,:) = -1.0_dp
-    IF (.NOT. this%lopened) &
+    IF (.NOT. this%lopened) THEN
       CALL finish(modname, '6 hourly SST/Seaice file not open!')
+    END IF
     tmp(1)%p => temp(:,:,:,1)
 #ifdef _OPENACC
     init_i_am_accel_node = i_am_accel_node
@@ -151,9 +153,21 @@ CONTAINS
 #ifdef _OPENACC
     i_am_accel_node = init_i_am_accel_node
 #endif
-    CALL sst_sic_replace_missval(this, temp, -1.0_wp)
-    CALL MOVE_ALLOC(temp, dat)
-    !$ACC UPDATE DEVICE( dat )
+    IF (ALLOCATED(dat)) THEN
+      IF (.NOT. ALL( SHAPE(dat) .EQ. (/get_nproma(), 1, this%p_patch%nblks_c, 1/) )) THEN
+        !$ACC EXIT DATA DELETE(dat)
+        DEALLOCATE(dat)
+      END IF
+    END IF
+    IF (.NOT. ALLOCATED(dat)) THEN
+      CALL MOVE_ALLOC(temp, dat)
+      !$ACC ENTER DATA CREATE(dat)
+    ELSE
+      dat(:,:,:,:) = temp(:,:,:,:)
+    END IF
+
+    CALL sst_sic_replace_missval(this, dat, -1.0_wp)
+    !$ACC UPDATE DEVICE(dat)
   END SUBROUTINE sst_sic_get_one_timelevel
 
   SUBROUTINE sst_sic_replace_missval (this, dat, new_missval)

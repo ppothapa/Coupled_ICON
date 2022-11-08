@@ -70,7 +70,7 @@ CONTAINS
     INTEGER :: j1
 
     !$ACC DATA PRESENT(i1d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e, i0d_in)
     !$ACC LOOP GANG VECTOR
     DO j1 = j1s,j1e
        i1d_out(j1) = i0d_in
@@ -99,7 +99,7 @@ CONTAINS
     INTEGER :: j1, j2
 
     !$ACC DATA PRESENT(i2d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e, j2s, j2e, i0d_in)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO j2 = j2s,j2e
        DO j1 = j1s,j1e
@@ -142,7 +142,7 @@ CONTAINS
     INTEGER :: j1
 
     !$ACC DATA PRESENT(r1d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e, r0d_in)
     !$ACC LOOP GANG VECTOR
     DO j1 = j1s,j1e
        r1d_out(j1) = r0d_in
@@ -171,7 +171,7 @@ CONTAINS
     INTEGER :: j1,j2
 
     !$ACC DATA PRESENT(r2d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e, j2s, j2e, r0d_in)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO j2 = j2s,j2e
        DO j1 = j1s,j1e
@@ -200,8 +200,8 @@ CONTAINS
     !
     INTEGER :: j1
 
-    !$ACC DATA PRESENT(r1d_in,r1d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC DATA PRESENT(r1d_in, r1d_out)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e)
     !$ACC LOOP GANG VECTOR
     DO j1 = j1s,j1e
        r1d_out(j1) = r1d_in(j1)
@@ -229,8 +229,8 @@ CONTAINS
     !
     INTEGER :: j1,j2
 
-    !$ACC DATA PRESENT(r2d_in,r2d_out)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC DATA PRESENT(r2d_in, r2d_out)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(j1s, j1e, j2s, j2e)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO j2 = j2s,j2e
        DO j1 = j1s,j1e

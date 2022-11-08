@@ -604,6 +604,7 @@ CONTAINS
       shape_func_l(2) = 0.25_wp * (1._wp+zeta_l)*(1._wp-eta_l)
       shape_func_l(3) = 0.25_wp * (1._wp+zeta_l)*(1._wp+eta_l)
       shape_func_l(4) = 0.25_wp * (1._wp-zeta_l)*(1._wp+eta_l)
+      !$ACC ENTER DATA COPYIN(shape_func_l)
 
 
       ! Gauss quadrature weights
@@ -636,6 +637,7 @@ CONTAINS
         shape_func(3,jm) = 0.25_wp * (1._wp+zeta(jm))*(1._wp+eta(jm))
         shape_func(4,jm) = 0.25_wp * (1._wp-zeta(jm))*(1._wp+eta(jm))
       END DO
+      !$ACC ENTER DATA COPYIN(shape_func)
 
       ! Gauss quadrature weights
       !
@@ -894,8 +896,6 @@ CONTAINS
     INTEGER :: ist
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
       &  routine = 'mo_advection_config: destruct_trList'
-
-    !!$ACC EXIT DATA DELETE( obj%list ), IF (i_am_accel_node .AND. acc_on)
 
     IF (ALLOCATED(obj%list)) THEN
       DEALLOCATE(obj%list, STAT=ist)

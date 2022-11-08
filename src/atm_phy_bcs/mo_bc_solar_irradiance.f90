@@ -24,6 +24,7 @@ MODULE mo_bc_solar_irradiance
        &                        p_nf_inq_varid, p_nf_get_vara_double, p_nf_close, &
        &                        nf_read, nf_noerr, p_nf_get_var_int
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights
+  USE mo_run_config,             ONLY: msg_level
 
   IMPLICIT NONE
   PRIVATE
@@ -62,7 +63,7 @@ CONTAINS
     ENDIF
 
     IF (.NOT.lread_solar_radt .AND. .NOT.lread_solar) THEN
-      CALL message('','Solar irradiance data already read ...')
+      IF (msg_level >= 11) CALL message('','Solar irradiance data already read ...')
       RETURN
     ENDIF
 
@@ -79,10 +80,10 @@ CONTAINS
     IF (lradt) THEN
        IF (.NOT.(ASSOCIATED(tsi_radt_m))) ALLOCATE(tsi_radt_m(0:13))
        IF (.NOT.(ASSOCIATED(ssi_radt_m))) ALLOCATE(ssi_radt_m(ssi_numwl,0:13))
-       !$ACC ENTER DATA PCREATE( tsi_radt_m, ssi_radt_m )
+       !$ACC ENTER DATA PCREATE(tsi_radt_m, ssi_radt_m)
     ELSE
        IF (.NOT.(ASSOCIATED(tsi_m)))      ALLOCATE(tsi_m(0:13))
-       !$ACC ENTER DATA PCREATE( tsi_m )
+       !$ACC ENTER DATA PCREATE(tsi_m)
     END IF
 
     CALL nf_check(p_nf_inq_varid(ncid, 'year', nvarid))
@@ -109,12 +110,12 @@ CONTAINS
        CALL nf_check(p_nf_get_vara_double (ncid, nvarid, start, cnt, ssi_radt_m))
        lread_solar_radt=.FALSE.
        last_year_radt=year
-       !$ACC UPDATE DEVICE( tsi_radt_m, ssi_radt_m )
+       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m)
     ELSE
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_m))
        lread_solar=.FALSE.
        last_year=year
-       !$ACC UPDATE DEVICE( tsi_m )
+       !$ACC UPDATE DEVICE(tsi_m)
     END IF
 
     CALL nf_check(p_nf_close(ncid))
@@ -139,14 +140,14 @@ CONTAINS
         tsi    = tiw%weight1 * tsi_radt_m(tiw%month1_index) + tiw%weight2 * tsi_radt_m(tiw%month2_index)
         ssi(:) = tiw%weight1*ssi_radt_m(:,tiw%month1_index) + tiw%weight2*ssi_radt_m(:,tiw%month2_index)
         WRITE(ctsi,'(F14.8)') tsi
-        CALL message('','Interpolated total solar irradiance and spectral ' &
+        IF (msg_level >= 11) CALL message('','Interpolated total solar irradiance and spectral ' &
           &          //'bands for radiation transfer, tsi= '//ctsi)
-        !$ACC ENTER DATA PCREATE( ssi )
-        !$ACC UPDATE DEVICE( ssi )
+        !$ACC ENTER DATA PCREATE(ssi)
+        !$ACC UPDATE DEVICE(ssi)
       END IF
     ELSE
       IF (PRESENT(ssi)) THEN
-        CALL message ('ssi_time_interpolation of mo_bc_solar_irradiance', &
+        IF (msg_level >= 11) CALL message ('ssi_time_interpolation of mo_bc_solar_irradiance', &
                      'Interpolation of ssi not necessary')
       END IF
       tsi    = tiw%weight1 * tsi_m(tiw%month1_index) + tiw%weight2 * tsi_m(tiw%month2_index)

@@ -324,16 +324,16 @@ LOGICAL, PARAMETER :: lstochdetr=.FALSE.
 
 IF (lhook) CALL dr_hook('CUASCN',0,zhook_handle)
 
-!$acc data                                                                                      &
-!$acc present( ptenh, pqenh, pten, pqen, pqsen, plitot, pgeo, pgeoh, zdgeoh, pap, paph )        &
-!$acc present( zdph, ptenq, pvervel, pwubase, pcloudnum, pcore, ldland, ldlake, ldcum, ktype )  &
-!$acc present( klab, ptu, pqu, plu, plrain, pmfu, pmfub, plglac, pmfus, pmfuq, pmful, plude )   &
-!$acc present( pdmfup, pdmfen, pcape, kcbot, kctop, kctop0, kdpl, pmfude_rate, pkineu, pwmean ) &
+!$ACC DATA &
+!$ACC   PRESENT(ptenh, pqenh, pten, pqen, pqsen, plitot, pgeo, pgeoh, zdgeoh, pap, paph) &
+!$ACC   PRESENT(zdph, ptenq, pvervel, pwubase, pcloudnum, pcore, ldland, ldlake, ldcum, ktype) &
+!$ACC   PRESENT(klab, ptu, pqu, plu, plrain, pmfu, pmfub, plglac, pmfus, pmfuq, pmful, plude) &
+!$ACC   PRESENT(pdmfup, pdmfen, pcape, kcbot, kctop, kctop0, kdpl, pmfude_rate, pkineu, pwmean) &
 
-!$acc create( zdmfen, zdmfde, zqold, zbuo, zluold, zprecip, zdpmean, zoentr, zph, zpbase )      &
-!$acc create( zptop0, zttop0, zcrit, zdrain, zdnoprc, zentrorg, llflag, llflaguv, llo1 )        &
-!$acc create( llklab, zbc)                                                                      &
-!$acc if(lacc)
+!$ACC   CREATE(zdmfen, zdmfde, zqold, zbuo, zluold, zprecip, zdpmean, zoentr, zph, zpbase) &
+!$ACC   CREATE(zptop0, zttop0, zcrit, zdrain, zdnoprc, zentrorg, llflag, llflaguv, llo1) &
+!$ACC   CREATE(llklab, zbc) &
+!$ACC   IF(lacc)
 
 
 zcons2=rmfcfl/(rg*ptsphy)
@@ -357,11 +357,11 @@ ENDIF
 !     2.           SET DEFAULT VALUES
 !                  ------------------
 
-!$acc parallel default (none) if (lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
-!$acc loop seq
+!$ACC LOOP SEQ
 DO jk=1,klev
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     !dimension: (klon,klev)
     plglac     (jl,jk) = 0.0_JPRB
@@ -379,7 +379,7 @@ DO jk=1,klev
   ENDDO
 ENDDO
 
-!$acc loop gang(static:1) vector
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   !dimension: (klon)
   pwmean       (jl) = 0.0_JPRB
@@ -390,7 +390,7 @@ ENDDO
 llo3=.FALSE.
 #endif
 
-!$acc loop gang(static:1) vector
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   zluold(jl)=0.0_JPRB
   IF(.NOT.ldcum(jl)) THEN
@@ -408,15 +408,15 @@ ENDDO
 ! note that liquid water and kinetic energy at cloud base is 
 ! preserved from cubase
 
-!$acc loop gang(static:1) vector
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   llklab(jl)=.FALSE.
   IF(.NOT.ldcum(jl).OR.ktype(jl) == 3) llklab(jl)=.TRUE.
 ENDDO
 
-!$acc loop seq
+!$ACC LOOP SEQ
 DO jk=ktdia,klev
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     IF (jk /= kcbot(jl)) THEN 
       plu(jl,jk)=0.0_JPRB
@@ -429,7 +429,7 @@ ENDDO
 
 !DIR$ IVDEP
 !OCL NOVREC
-!$acc loop gang(static:1) vector
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   IF(ktype(jl) == 3) ldcum(jl)=.FALSE.
   ! Reduce entrainment in case of extreme CAPE in order to prevent numerical instabilities
@@ -468,7 +468,7 @@ ENDDO
 !ELSEIF (.NOT. PRESENT (paer_ss)) THEN
 
     IF (icpl_aero_conv == 1) THEN
-      !$acc loop gang(static:1) vector private(zd, zc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zd, zc)
       DO jl=kidia,kfdia
         zttop0(jl) = 0.5_jprb*(pten(jl,kctop0(jl))+pten(jl,kctop0(jl)-1)) ! cloud top temperature
         zdrain(jl)  = 0.25E4_JPRB + 3.75E-5_JPRB * pcloudnum(jl)  ! minimum cloud depth for generating precip: 30-150 hPa ...
@@ -483,7 +483,7 @@ ENDDO
         zdnoprc(jl) = zdnoprc(jl) + zc*zd*1.25e-4_jprb  ! enhancement by at most 0.25 g/kg
       ENDDO
 
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(.NOT. ldland(jl) .AND. .NOT. ldlake(jl) .AND. .NOT. lgrz_deepconv) THEN
           zdrain(jl)  = MIN(0.6E4_JPRB, zdrain(jl) ) ! ... but over ocean at most 60 hPa
@@ -491,7 +491,7 @@ ENDDO
         ENDIF
       ENDDO
     ELSE IF (ltuning_kessler) THEN
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(ldland(jl) .OR. ldlake(jl)) THEN
           zdrain(jl)  = 1.0E4_JPRB  ! minimum cloud depth for generating precip: 100 hPa over land
@@ -502,7 +502,7 @@ ENDDO
         ENDIF
       ENDDO
     ELSE
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(ldland(jl) .OR. ldlake(jl)) THEN
           zdnoprc(jl) = 5.e-4_JPRB ! 0.5 g/kg over land
@@ -521,7 +521,7 @@ ENDDO
 !     3.0          INITIALIZE VALUES AT cloud base LEVEL
 !                  -------------------------------------
 
-!$acc loop gang(static:1) vector private(ikb)
+!$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ikb)
 DO jl=kidia,kfdia
   kctop(jl)=kcbot(jl)
   IF(ldcum(jl)) THEN
@@ -542,7 +542,7 @@ ENDDO
 !                  THEN CHECK FOR BUOYANCY AND SET FLAGS ACCORDINGLY
 !                  -------------------------------------------------
 
-!$acc loop seq
+!$ACC LOOP SEQ
 DO jk=klev-1,ktdia+2,-1
 
 !                  SPECIFY CLOUD BASE VALUES FOR MIDLEVEL CONVECTION
@@ -561,7 +561,7 @@ DO jk=klev-1,ktdia+2,-1
 
 ! cubasmcn is inlined for better efficiency
   kk=jk
-  !$acc loop gang(static:1) vector private(zzzmb)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zzzmb)
   DO jl=kidia,kfdia
 
     IF(.NOT.ldcum(jl).AND.klab(jl,kk+1) == 0 ) THEN
@@ -590,7 +590,7 @@ DO jk=klev-1,ktdia+2,-1
 #ifndef _OPENACC
   is=0
 #endif
-  !$acc loop gang(static:1) vector private(zmfmax, zfac)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zmfmax, zfac)
   DO jl=kidia,kfdia
     llflag(jl)=.FALSE.
     zprecip(jl)=0.0_JPRB
@@ -650,7 +650,7 @@ DO jk=klev-1,ktdia+2,-1
 #ifndef _OPENACC
   IF(llo3) THEN
 #endif
-    !$acc loop gang(static:1) vector private(ik)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ik)
     DO jl=kidia,kfdia
       zdmfen(jl)=0.0_JPRB
       zdmfde(jl)=0.0_JPRB
@@ -665,7 +665,7 @@ DO jk=klev-1,ktdia+2,-1
     !*    1.1          SPECIFY ENTRAINMENT RATES
     !                  -------------------------
 
-    !$acc loop gang(static:1) vector private(zdz, zmf)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdz, zmf)
     DO jl=kidia,kfdia
       IF(ldcum(jl)) THEN
         ZDZ=(PGEOH(JL,KK)-PGEOH(JL,KK+1))*ZRG
@@ -689,14 +689,14 @@ DO jk=klev-1,ktdia+2,-1
   IF(llo3) THEN
 #endif
 
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       zqold(jl)=0.0_JPRB
     ENDDO
 
     !$NEC ivdep
-    !$acc loop gang(static:1) vector private(zmfmax, zxs, zmftest, zchange, zxe, zqeen, zseen)   &
-    !$acc                             private(zleen, zscde, zqude, zmfusk, zmfuqk, zmfulk, zc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zmfmax, zxs, zmftest, zchange, zxe, zqeen, zseen) &
+    !$ACC   PRIVATE(zleen, zscde, zqude, zmfusk, zmfuqk, zmfulk, zc)
     DO jl=kidia,kfdia
       IF (llflag(jl)) THEN
         zdmfde(jl)=MIN(zdmfde(jl),0.75_JPRB*pmfu(jl,jk+1))
@@ -762,7 +762,7 @@ DO jk=klev-1,ktdia+2,-1
     ENDDO
 
     ! reset to environmental values if below departure level
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       IF ( jk > kdpl(jl) ) THEN
         ptu(jl,jk)=ptenh(jl,jk)      
@@ -805,7 +805,7 @@ DO jk=klev-1,ktdia+2,-1
 
       !DIR$ IVDEP
       !$NEC ivdep
-      !$acc loop gang(static:1) vector private(zfac)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfac)
       DO jl=kidia,kfdia
         IF (llflag(jl)) THEN
           IF(pqu(jl,jk) /= zqold(jl)) THEN
@@ -824,7 +824,7 @@ DO jk=klev-1,ktdia+2,-1
 
     !DIR$ IVDEP
     !$NEC sparse
-    !$acc loop gang(static:1) vector private(zbe, zbuoc, zdkbuo, zdken, zkedke, zmfun, zentr_prof, ikb)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zbe, zbuoc, zdkbuo, zdken, zkedke, zmfun, zentr_prof, ikb)
     DO jl=kidia,kfdia
       IF (llflag(jl)) THEN
         IF(pqu(jl,jk) /= zqold(jl)) THEN
@@ -960,7 +960,7 @@ DO jk=klev-1,ktdia+2,-1
     ENDDO
 
     !$NEC ivdep
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       IF (llflag(jl)) THEN
 !       ELSEIF(LLFLAG(JL).AND.KTYPE(JL)==2.AND.PQU(JL,JK) == ZQOLD(JL)) THEN
@@ -979,7 +979,7 @@ DO jk=klev-1,ktdia+2,-1
 !              CALCULATE PRECIPITATION RATE BY
 !              ANALYTIC INTEGRATION OF EQUATION FOR L
 
-    !$acc loop gang(static:1) vector private(zwu, zprcon, zdt, zcbf, zzco, zlcrit, zdfi, zc, zd, zint, zlnew)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zwu, zprcon, zdt, zcbf, zzco, zlcrit, zdfi, zc, zd, zint, zlnew)
     DO jl=kidia,kfdia
       IF(llo1(jl)) THEN
 
@@ -1033,7 +1033,7 @@ DO jk=klev-1,ktdia+2,-1
 
     ELSE
 
-      !$acc loop gang(static:1) vector private(zvw, zvi, zalfaw, zvv, zrold, zc, zwu, zd, zint, zrnew)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zvw, zvi, zalfaw, zvv, zrold, zc, zwu, zd, zint, zrnew)
       DO jl=kidia,kfdia
         IF(llo1(jl)) THEN
           IF(plrain(jl,jk) > 0.0_JPRB) THEN
@@ -1056,7 +1056,7 @@ DO jk=klev-1,ktdia+2,-1
     ENDIF
 
     !$NEC ivdep
-    !$acc loop gang(static:1) vector
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
       IF (llflag(jl)) THEN
         pmful(jl,jk)=plu(jl,jk)*pmfu(jl,jk)
@@ -1075,7 +1075,7 @@ ENDDO    ! jk=klev-1,ktdia+2,-1
 !     5.           FINAL CALCULATIONS 
 !                  ------------------
 !$NEC sparse
-!$acc loop gang(static:1) vector
+!$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   IF(kctop(jl) == -1) ldcum(jl)=.FALSE.
   kcbot(jl)=MAX(kcbot(jl),kctop(jl))
@@ -1085,9 +1085,9 @@ DO jl=kidia,kfdia
   ENDIF
 ENDDO
 
-!$acc end parallel
+!$ACC END PARALLEL
 
-!$acc end data
+!$ACC END DATA
 
 IF (lhook) CALL dr_hook('CUASCN',1,zhook_handle)
 END SUBROUTINE cuascn

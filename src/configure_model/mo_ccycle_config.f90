@@ -26,14 +26,36 @@ MODULE mo_ccycle_config
   PUBLIC ::                  name       !< name for this unit
 
   ! configuration
+  PUBLIC ::       t_ccycle_config
   PUBLIC ::         ccycle_config
   PUBLIC ::    init_ccycle_config       !< initialize ccycle_config
   PUBLIC ::   print_ccycle_config       !< print out
+
+  ! Named constants
+  PUBLIC :: CCYCLE_MODE_NONE
+  PUBLIC :: CCYCLE_MODE_INTERACTIVE
+  PUBLIC :: CCYCLE_MODE_PRESCRIBED
+
+  PUBLIC :: CCYCLE_CO2CONC_CONST
+  PUBLIC :: CCYCLE_CO2CONC_FROMFILE
 
   !>
   !! Name of this unit
   !!
   CHARACTER(LEN=*), PARAMETER :: name = 'ccycle'
+
+  !> No carbon cycle.
+  INTEGER, PARAMETER :: CCYCLE_MODE_NONE = 0
+  !> Atmospheric CO2 concentration fully interacts with land-surface scheme.
+  INTEGER, PARAMETER :: CCYCLE_MODE_INTERACTIVE = 1
+  !> Atmospheric CO2 concentration is prescribed.
+  INTEGER, PARAMETER :: CCYCLE_MODE_PRESCRIBED = 2
+
+  !> Constant atmospheric CO2 concentration (for CCYCLE_MODE_PRESCRIBED).
+  INTEGER, PARAMETER :: CCYCLE_CO2CONC_CONST = 2
+  !> CO2 volume mixing ratio is read from scenario file `bc_greenhouse_gases.nc` (for
+  !! CCYCLE_MODE_PRESCRIBED).
+  INTEGER, PARAMETER :: CCYCLE_CO2CONC_FROMFILE = 4
 
   !>
   !! Configuration type containing switches for the configuration of the carbon cycle
@@ -54,7 +76,7 @@ MODULE mo_ccycle_config
   !! Configuration state vectors, for multiple domains/grids.
   !!
   TYPE(t_ccycle_config) :: ccycle_config(max_dom)
-  
+
 CONTAINS
 
   !----
@@ -66,12 +88,14 @@ CONTAINS
     ! Carbon cycle configuration
     ! --------------------------
     !
-    ccycle_config(:)% iccycle  = 0            ! 0: no c-cycle
+    ccycle_config(:)% iccycle  = CCYCLE_MODE_NONE
+    !                                         ! 0: no c-cycle
     !                                           1: c-cycle with interactive atm. co2 concentration
     !                                           2: c-cycle with prescribed  atm. co2 concentration
     !
     ! For iccycle = 2:
-    ccycle_config(:)% ico2conc = 2            ! 2: constant  co2 concentration vmr_co2
+    ccycle_config(:)% ico2conc = CCYCLE_CO2CONC_CONST
+    !                                         ! 2: constant  co2 concentration vmr_co2
     !                                           4: transient co2 concentration scenario from file
     !
     ! For ico2conc = 2:
@@ -109,17 +133,17 @@ CONTAINS
        CALL message    ('','')
        !
        SELECT CASE(ccycle_config(jg)% iccycle)
-       CASE (0)
+       CASE (CCYCLE_MODE_NONE)
           CALL message ('','C-cycle is switched off')
-       CASE(1)
+       CASE (CCYCLE_MODE_INTERACTIVE)
           CALL message ('','C-cycle is used with interactive atmospheric CO2 concentration')
-       CASE (2)
+       CASE (CCYCLE_MODE_PRESCRIBED)
           CALL message ('','C-cycle is used with prescribed atmospheric CO2 concentration')
           !
           SELECT CASE(ccycle_config(jg)% ico2conc)
-          CASE (2)
+          CASE (CCYCLE_CO2CONC_CONST)
              CALL print_value('    CO2 volume mixing ratio is constant (ppv)',ccycle_config(jg)% vmr_co2)
-          CASE (4)
+          CASE (CCYCLE_CO2CONC_FROMFILE)
              CALL message('','CO2 volume mixing ratio is read from scenario file bc_greenhouse_gases.nc')
           CASE default
              CALL finish('print_ccycle_config','ccycle_config(jg)% ico2conc invalid, must be 2 or 4')

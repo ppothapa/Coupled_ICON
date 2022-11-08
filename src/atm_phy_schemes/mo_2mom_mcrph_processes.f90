@@ -129,6 +129,8 @@ MODULE mo_2mom_mcrph_processes
        & particle_ice_coeffs, particle_snow_coeffs, particle_graupel_coeffs, &
        & particle_coeffs, collection_coeffs, rain_riming_coeffs, dep_imm_coeffs, &
        & lookupt_4D
+  USE mo_2mom_mcrph_config,         ONLY: t_cfg_2mom
+  USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
   USE mo_2mom_mcrph_util, ONLY: &
        & gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
        & rat2do3,                    &  ! rational function for lwf-melting scheme
@@ -225,27 +227,30 @@ MODULE mo_2mom_mcrph_processes
   ! Raindrops smaller than D_rainfrz_ig freeze into cloud ice,
   ! drops between D_rainfrz_ig and D_rainfrz_gh freeze to graupel, and the
   ! largest raindrop freeze directly to hail.
-  REAL(wp), PARAMETER ::               &
-       &    D_rainfrz_ig = 0.50e-3_wp, & ! rain --> ice oder graupel
-       &    D_rainfrz_gh = 1.25e-3_wp    ! rain --> graupel oder hail
+!!$ now this comes from cfg_params:
+!!$  REAL(wp), PARAMETER ::               &
+!!$       &    D_rainfrz_ig = 0.50e-3_wp, & ! rain --> ice oder graupel
+!!$       &    D_rainfrz_gh = 1.25e-3_wp    ! rain --> graupel oder hail
 
   ! Various parameters for collision and conversion rates
   REAL(wp), PARAMETER ::                  &
        &    ecoll_min    = 0.01_wp,       &  !..min. eff. for graupel_cloud, ice_cloud and snow_cloud
        &    ecoll_gg     = 0.10_wp,       &  !..collision efficiency for graupel selfcollection
-       &    ecoll_gg_wet = 0.40_wp,       &  !    in case of wet graupel
-       &    alpha_spacefilling = 0.01_wp     !..Raumerfuellungskoeff (max. 0.68)
+       &    ecoll_gg_wet = 0.40_wp           !    in case of wet graupel
+!!$ now this comes from cfg_params:
+!!$    &    alpha_spacefilling = 0.01_wp     !..Raumerfuellungskoeff (max. 0.68)
 
   ! Even more parameters for collision and conversion rates
   REAL(wp), PARAMETER :: &
        &    q_crit_ii = 1.000e-6_wp, & ! q-threshold for ice_selfcollection
        &    D_crit_ii = 5.0e-6_wp,   & ! D-threshold for ice_selfcollection  
-       &    D_conv_ii = 75.00e-6_wp, & ! D-threshold for conversion in ice_selfcollection
+!!$ now this comes from cfg_params:
+!!$       &    D_conv_ii = 75.00e-6_wp, & ! D-threshold for conversion in ice_selfcollection
        &    q_crit_r  = 1.000e-5_wp, & ! q-threshold for ice_rain_riming and snow_rain_riming
        &    D_crit_r  = 100.0e-6_wp, & ! D-threshold for ice_rain_riming and snow_rain_riming
        &    q_crit_fr = 1.000e-6_wp, & ! q-threshold for rain_freeze
        &    q_crit_c  = 1.000e-6_wp, & ! q-threshold for cloud water
-!!!       &    q_crit    = 1.000e-7_wp, & ! q-threshold elsewhere 1e-7 kg/m3 = 1e-4 g/m3 = 0.1 mg/m3
+!!$       &    q_crit    = 1.000e-7_wp, & ! q-threshold elsewhere 1e-7 kg/m3 = 1e-4 g/m3 = 0.1 mg/m3
        &    q_crit    = 1.000e-9_wp, & ! q-threshold elsewhere 1e-7 kg/m3 = 1e-4 g/m3 = 0.1 mg/m3
        &    D_conv_sg = 200.0e-6_wp, & ! D-threshold for conversion of snow to graupel
        &    D_conv_ig = 200.0e-6_wp, & ! D-threshold for conversion of ice to graupel 
@@ -272,8 +277,11 @@ MODULE mo_2mom_mcrph_processes
 
   REAL(wp), PARAMETER    :: pi6 = pi/6.0_wp, pi8 = pi/8.0_wp ! more pieces of pi
 
+  TYPE(t_cfg_2mom) :: cfg_params !.. Container to hold some config params for the actual 2-mom call
+  
   ! Parameters
   PUBLIC :: q_crit
+  PUBLIC :: cfg_2mom_default, cfg_params
   ! Switches
   PUBLIC :: ice_typ, nuc_i_typ, nuc_c_typ, auto_typ
   PUBLIC :: isdebug, isprint
@@ -2134,8 +2142,8 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_freeze_gamlook")
 
-    xmax_ice = ( (D_rainfrz_ig/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
-    xmax_gr  = ( (D_rainfrz_gh/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
+    xmax_ice = ( (cfg_params%D_rainfrz_ig/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
+    xmax_gr  = ( (cfg_params%D_rainfrz_gh/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2404,7 +2412,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    x_conv_ii = (D_conv_ii/snow%a_geo)**(1./snow%b_geo)
+    x_conv_ii = (cfg_params%D_conv_ii/snow%a_geo)**(1./snow%b_geo)
 
     DO k = kstart,kend
        DO i = istart,iend
@@ -3612,11 +3620,10 @@ CONTAINS
     REAL(wp)            :: T_a,x_r
     REAL(wp)            :: rime_n,rime_q,rime_qr,rime_qi
     REAL(wp)            :: conv_n,conv_q
-    REAL(wp)            :: mult_n,mult_q,mult_1,mult_2
+    REAL(wp)            :: mult_n,mult_q,mult_1,mult_2,const5
     REAL(wp), PARAMETER :: &
          const3 = 1.0_wp/(T_mult_opt - T_mult_min), &
-         const4 = 1.0_wp/(T_mult_opt - T_mult_max), &
-         const5 = alpha_spacefilling * rho_w/rho_ice
+         const4 = 1.0_wp/(T_mult_opt - T_mult_max)
 
     IF (isdebug) CALL message(routine, "ice riming")
 
@@ -3633,6 +3640,8 @@ CONTAINS
     !
     ! Complete ice-cloud and ice-rain riming
 
+!!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
+    const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -3836,11 +3845,10 @@ CONTAINS
     REAL(wp)            :: q_s,n_s,x_s,d_s, x_r
     REAL(wp)            :: rime_n,rime_q,rime_qr,rime_qs
     REAL(wp)            :: conv_n,conv_q
-    REAL(wp)            :: mult_n,mult_q,mult_1,mult_2
+    REAL(wp)            :: mult_n,mult_q,mult_1,mult_2,const5
     REAL(wp), PARAMETER :: &
          const3 = 1.0/(T_mult_opt - T_mult_min), &
-         const4 = 1.0/(T_mult_opt - T_mult_max), &
-         const5 = alpha_spacefilling * rho_w/rho_ice
+         const4 = 1.0/(T_mult_opt - T_mult_max) 
 
     IF (isdebug) CALL message(routine, "snow_riming")
 
@@ -3854,6 +3862,8 @@ CONTAINS
     CALL riming_rain_core(ik_slice, snow, rain, srr_coeffs, dt, &
          &                rime_rate_qs, rime_rate_qr, rime_rate_nr)
 
+!!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
+    const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice 
     DO k = kstart,kend
        DO i = istart,iend
 

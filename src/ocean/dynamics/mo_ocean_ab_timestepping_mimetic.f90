@@ -87,7 +87,10 @@ MODULE mo_ocean_ab_timestepping_mimetic
   PUBLIC :: solve_free_sfc_ab_mimetic
   PUBLIC :: calc_normal_velocity_ab_mimetic
   PUBLIC :: calc_vert_velocity_mim_bottomup
-  PUBLIC :: invert_mass_matrix, clear_ocean_ab_timestepping_mimetic
+  PUBLIC :: invert_mass_matrix
+  PUBLIC :: clear_ocean_ab_timestepping_mimetic
+  PUBLIC :: calculate_explicit_term_ab
+  PUBLIC :: fill_rhs4surface_eq_ab 
   !
 ! solver object (free ocean surface)
   TYPE(t_ocean_solve) :: free_sfc_solver

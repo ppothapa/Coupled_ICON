@@ -314,8 +314,8 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC DATA PRESENT( x, y )
-    !$ACC PARALLEL LOOP GANG VECTOR ASYNC(1) IF( lzopenacc )
+    !$ACC DATA PRESENT(x, y)
+    !$ACC PARALLEL LOOP GANG VECTOR ASYNC(1) IF(lzopenacc)
     DO i = 1, vec_size
       y(i) = x(i)**onethird
     END DO

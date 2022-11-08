@@ -11,7 +11,7 @@
 --fc-inc-flag=@FC_INC_FLAG@
 --fc-inc-order=@FC_INC_ORDER@
 --fc-mod-dir-flag=@FC_MOD_OUT@
---fc-intrinsic-mods=iso_c_binding,iso_fortran_env,ieee_exceptions,ieee_arithmetic,ieee_features,omp_lib,omp_lib_kinds,openacc,ifcore,f90_unix,f90_unix_proc,f90_unix_env
+--fc-intrinsic-mods=iso_c_binding,iso_fortran_env,ieee_exceptions,ieee_arithmetic,ieee_features,omp_lib,omp_lib_kinds,openacc,ifcore,f90_unix,f90_unix_proc,f90_unix_env,nccl,nvtx
 #
 # ICON external modules (i.e. Fortran modules that are used in ICON but are not
 # declared in its source code):

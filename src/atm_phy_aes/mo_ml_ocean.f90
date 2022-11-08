@@ -45,7 +45,7 @@ CONTAINS
     INTEGER  :: jl
     REAL(wp) :: dmixsea,cpsea,zmixcap,zfluxw
 
-    !$ACC DATA PRESENT( pahflw, pahfsw, ptrflw, psoflw, ptsw )
+    !$ACC DATA PRESENT(pahflw, pahfsw, ptrflw, psoflw, ptsw)
 
     !
     ! Parameters/constants set in ml_flux(ECHAM) originally:
@@ -61,7 +61,7 @@ CONTAINS
     zmixcap   = rho_ref*cpsea*dmixsea ! mixed layer heat capacity? 
 
     !$ACC PARALLEL DEFAULT(PRESENT)
-    !$ACC LOOP GANG VECTOR PRIVATE( zfluxw )
+    !$ACC LOOP GANG VECTOR PRIVATE(zfluxw)
     DO jl = start_column,  end_column
 
       zfluxw             = pahflw(jl) + pahfsw(jl) + ptrflw(jl) + psoflw(jl)

@@ -105,8 +105,8 @@ CONTAINS
     ! number of vertical levels
     nlev = p_patch%nlev
 
-    !$ACC DATA CREATE( zsigma_mc, zsigma_me, ddt_temp, z_ekin, zddt_vn, zlat )  &
-    !$ACC      PRESENT( p_nh_diag, p_int_state, p_metrics, p_nh_prog, p_patch%cells%center )
+    !$ACC DATA CREATE(zsigma_mc, zsigma_me, ddt_temp, z_ekin, zddt_vn, zlat) &
+    !$ACC   PRESENT(p_nh_diag, p_int_state, p_metrics, p_nh_prog, p_patch%cells%center)
     
     !-------------------------------------------------------------------------
     ! First the surface pressure, pressure and temperature must be diagnosed
@@ -133,37 +133,37 @@ CONTAINS
     DO jb = jbs,nblks_c
        CALL get_indices_c( p_patch, jb,jbs,nblks_c, is,ie, grf_bdywidth_c+1 )
 
-!$ACC PARALLEL DEFAULT(NONE)
+       !$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
              zsigma_mc(i,jk,jb) = p_nh_diag%pres(i,jk,jb)/p_nh_diag%pres_sfc(i,jb)
           ENDDO
        ENDDO
-!$ACC END PARALLEL
+       !$ACC END PARALLEL
 
        IF (lhs_fric_heat) THEN
-!$ACC PARALLEL DEFAULT(NONE)
+         !$ACC PARALLEL DEFAULT(PRESENT)
          !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO jk=1,nlev
             DO i=is,ie
                z_ekin(i,jk) = 0.5_wp*(p_nh_diag%u(i,jk,jb)**2+p_nh_diag%v(i,jk,jb)**2)
             ENDDO
          ENDDO
-!$ACC END PARALLEL
+         !$ACC END PARALLEL
        ELSE
-!$ACC KERNELS DEFAULT(NONE)
-          z_ekin(:,:) = 0._wp
-!$ACC END KERNELS
+         !$ACC KERNELS DEFAULT(PRESENT)
+         z_ekin(:,:) = 0._wp
+         !$ACC END KERNELS
        ENDIF
 
 ! WS: DEFAULT(NONE): Data clause required with default(none): p_patch   Why?
-!$ACC PARALLEL
+       !$ACC PARALLEL
        !$ACC LOOP GANG VECTOR
        DO i=is,ie
           zlat(i) = p_patch%cells%center(i,jb)%lat
        ENDDO
-!$ACC END PARALLEL
+       !$ACC END PARALLEL
        ! last 2 inputs in case of additional computation of frictional heating
        CALL held_suarez_forcing_temp( p_nh_diag%temp(:,:,jb),     &! in
                                     & p_nh_diag%pres(:,:,jb),     &! in
@@ -175,14 +175,14 @@ CONTAINS
        ! the tendency in temp must be transfromed to a tendency in the exner function
        ! For this it is assumed that the density is constant
        
-!$ACC PARALLEL DEFAULT(NONE)
+       !$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
              p_nh_diag%ddt_exner_phy(i,jk,jb)=rd_o_cpd/p_nh_prog%theta_v(i,jk,jb)*ddt_temp(i,jk,jb)
           ENDDO
        ENDDO
-!$ACC END PARALLEL
+       !$ACC END PARALLEL
        
     ENDDO
 !$OMP END DO NOWAIT
@@ -209,19 +209,19 @@ CONTAINS
                                   & zsigma_me(:,:,jb),     &! in
                                   & nlev, nproma, is, ie,  &! in
                                   & zddt_vn )               ! inout
-!$ACC PARALLEL DEFAULT(NONE) 
+       !$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
              p_nh_diag%ddt_vn_phy(i,jk,jb) = zddt_vn(i,jk)
           ENDDO
        ENDDO
-!$ACC END PARALLEL
+       !$ACC END PARALLEL
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!$ACC END DATA    
+    !$ACC END DATA
 
     !--------------------------------------------------------------------------
     IF (ltimer) CALL timer_stop(timer_held_suarez_intr)

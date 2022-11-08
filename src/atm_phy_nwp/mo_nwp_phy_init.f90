@@ -51,13 +51,15 @@ MODULE mo_nwp_phy_init
   !radiation
   USE mo_newcld_optics,       ONLY: setup_newcld_optics
   USE mo_lrtm_setup,          ONLY: lrtm_setup
-  USE mo_radiation_config,    ONLY: ssi_radt, tsi_radt,irad_o3, irad_aero, rad_csalbw,&
+  USE mo_radiation_config,    ONLY: irad_aero, iRadAeroTegen, iRadAeroART,            &
+    &                               iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,  &
+    &                               iRadAeroKinneVolc,  iRadAeroKinneVolcSP,          &
+    &                               iRadAeroKinneSP,                                  &
+    &                               ssi_radt, tsi_radt,irad_o3, rad_csalbw,           &
     &                               ghg_filename, irad_co2, irad_cfc11, irad_cfc12,   &
     &                               irad_n2o, irad_ch4, isolrad
   USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip, ssi_coddington
-  USE mo_aerosol_util,        ONLY: init_aerosol_dstrb_tanre,                       &
-    &                               init_aerosol_props_tanre_rrtm,                  &
-    &                               init_aerosol_props_tegen_rrtm,                  &
+  USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_rrtm,                  &
     &                               zaea_rrtm, zaes_rrtm, zaeg_rrtm
   USE mo_o3_util,             ONLY: o3_pl2ml!, o3_zl2ml
 #ifdef __ECRAD
@@ -869,7 +871,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   CASE (4,7) !two moment microphysics
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
-    IF (jg == 1) CALL two_moment_mcrph_init(igscp=atm_phy_nwp_config(jg)%inwp_gscp, msg_level=msg_level )
+    IF (jg == 1) CALL two_moment_mcrph_init(igscp=atm_phy_nwp_config(jg)%inwp_gscp, msg_level=msg_level, &
+         &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 
@@ -877,7 +880,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
     IF (jg == 1) CALL two_moment_mcrph_init(atm_phy_nwp_config(jg)%inwp_gscp,&
-         &                                  N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level)
+         &                                  N_cn0,z0_nccn,z1e_nccn,N_in0,z0_nin,z1e_nin,msg_level, &
+         &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 
@@ -913,7 +917,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
            ! and chemical composition taken from the ART extension
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: ART two-moment')
     
-    IF (jg == 1) CALL art_clouds_interface_2mom_init(msg_level)
+    IF (jg == 1) CALL art_clouds_interface_2mom_init(msg_level,cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 #endif
@@ -962,17 +966,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         CALL lrtm_setup(lrtm_filename)
         CALL setup_newcld_optics(cldopt_filename)
 
-        IF ( irad_aero == 5 ) THEN
-          CALL init_aerosol_props_tanre_rrtm
-          CALL init_aerosol_dstrb_tanre (        &
-            & kbdim    = nproma,                 & !in
-            & pt_patch = p_patch,                & !in
-            & aersea   = prm_diag%aersea,        & !out
-            & aerlan   = prm_diag%aerlan,        & !out
-            & aerurb   = prm_diag%aerurb,        & !out
-            & aerdes   = prm_diag%aerdes )         !out
-
-        ELSEIF ( irad_aero == 6 .OR. irad_aero == 9) THEN
+        IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
           CALL init_aerosol_props_tegen_rrtm
         ELSE
           zaea_rrtm(:,:) = 0.0_wp
@@ -1013,26 +1007,29 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CALL setup_ecrad(p_patch,ecrad_conf,ini_date)
           !
           ! Setup Tegen aerosol needs to be done only once for all domains
-          IF (irad_aero == 6 .OR. irad_aero == 9) THEN
+          IF (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             IF (ecrad_conf%i_gas_model == IGasModelIFSRRTMG) THEN
               CALL init_aerosol_props_tegen_ecrad(ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw, .TRUE.)
             ELSE
               CALL init_aerosol_props_tegen_ecrad(ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw, .FALSE.)
             ENDIF !ecrad_conf%i_gas_model
-          ENDIF !irad_aero==6
+          ENDIF !irad_aero==iRadAeroTegen .OR. iRadAeroART
         ENDIF ! .NOT.lreset_mode .AND. jg==1
         !
         ! Domain-specific aerosol setups
-        IF (irad_aero == 12) THEN                 ! Use constant Kinne aerosol
+        IF (irad_aero == iRadAeroConstKinne) THEN
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .FALSE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/13,15,18,19/) )) THEN   ! Use Kinne climatology
+        IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
+          ! Kinne climatology
           CALL read_bc_aeropt_kinne(ini_date, p_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/14,15,18/) )) THEN      ! Use volcanic aerosol from CMIP6
+        IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN
+          ! Volcanic aerosol from CMIP6
           CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/18,19/) )) THEN   ! Use anthropogenic aerosol
+        IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
+          ! Simple plume anthropogenic aerosol
           CALL setup_bc_aeropt_splumes
         ENDIF
         !
@@ -1048,7 +1045,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CASE(1)       ! 1: Use ssi values from Coddington et al (2016)
             ssi_radt(:) = ecrad_ssi_coddington(:)
           CASE(2)       ! 2: Use ssi values from external file
-            ssi_radt(:) = 0
+            ssi_radt(:) = 0._wp
         END SELECT
         tsi_radt    = SUM(ssi_radt(:))
 
@@ -1881,7 +1878,7 @@ END SUBROUTINE init_nwp_phy
     jg = p_patch%id
     nlev = p_patch%nlev
 
-    IF (irad_aero /= 6 .AND. irad_aero /= 9) RETURN
+    IF (irad_aero /= iRadAeroTegen .AND. irad_aero /= iRadAeroART) RETURN
     IF (atm_phy_nwp_config(jg)%icpl_aero_gscp /= 1 .AND. icpl_aero_conv /= 1) RETURN
 
     

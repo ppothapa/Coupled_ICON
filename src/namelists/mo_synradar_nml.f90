@@ -24,7 +24,7 @@ MODULE mo_synradar_nml
   USE mo_kind,               ONLY: wp
   USE mo_io_units,           ONLY: nnml, nnml_output, filename_max
   USE mo_namelist,           ONLY: position_nml, positioned, open_nml, close_nml
-  USE mo_mpi,                ONLY: my_process_is_stdio, p_n_work
+  USE mo_mpi,                ONLY: my_process_is_stdio
   USE mo_master_control,     ONLY: use_restart_namelists
   USE mo_restart_nml_and_att,ONLY: open_tmpfile, store_and_close_namelist,   &
                                  & open_and_restore_namelist, close_tmpfile
@@ -136,7 +136,7 @@ CONTAINS
     ! 5. Fill the configuration state
     !----------------------------------------------------
 
-    config_synradar_meta                = synradar_meta
+    config_synradar_meta           = synradar_meta
     config_ydir_mielookup_read     = ydir_mielookup_read
     config_ydir_mielookup_write    = ydir_mielookup_write
     

@@ -244,25 +244,25 @@ CONTAINS
     ! OMP variables
     INTEGER                             :: jb,jbs,jbe,jcs,jce,ncd,rls,rle
 
-    !$ACC DATA PRESENT( pxtm1, pxt_emis ) IF( ktrac > 0 )
-    !$ACC DATA PRESENT( ta_hori_tend,qv_hori_tend,ql_hori_tend,qi_hori_tend,qnc_hori_tend,qni_hori_tend ) IF( turb == 2 )
+    !$ACC DATA PRESENT(pxtm1, pxt_emis) IF(ktrac > 0)
+    !$ACC DATA PRESENT(ta_hori_tend, qv_hori_tend, ql_hori_tend, qi_hori_tend, qnc_hori_tend, qni_hori_tend) IF(turb == 2)
     !$ACC DATA &
-    !$ACC PRESENT(pcoriol,pzf,pzh,pfrc,ptsfc_tile,pocu,pocv,ppsfc) &
-    !$ACC PRESENT(pum1,pvm1,pwp1,ptm1,pqm1,pxlm1,pxim1,pxm1) &
-    !$ACC PRESENT(pmair,pmref,paphm1,papm1,ptvm1,paclc)   &
-    !$ACC PRESENT(pthvvar,pxvar,pz0m_tile,ptottem1)   &
+    !$ACC   PRESENT(pcoriol, pzf, pzh, pfrc, ptsfc_tile, pocu, pocv, ppsfc) &
+    !$ACC   PRESENT(pum1, pvm1, pwp1, ptm1, pqm1, pxlm1, pxim1, pxm1) &
+    !$ACC   PRESENT(pmair, pmref, paphm1, papm1, ptvm1, paclc) &
+    !$ACC   PRESENT(pthvvar, pxvar, pz0m_tile, ptottem1) &
     !---- Argument arrays - intent(inout)
-    !$ACC PRESENT(pustar,pwstar,pwstar_tile,pqsat_tile,phdtcbl)    &
-    !$ACC PRESENT(pri,pri_tile,pmixlen,pcfm,pcfm_tile,pcfh,pcfh_tile,pcfv,pcftotte)    &
-    !$ACC PRESENT(pcfthv,aa,aa_btm,bb,bb_btm,pfactor_sfc,pcpt_tile)    &
-    !$ACC PRESENT(pcptgz,pzthvvar,pthvsig,pztottevn)    &
+    !$ACC   PRESENT(pustar, pwstar, pwstar_tile, pqsat_tile, phdtcbl) &
+    !$ACC   PRESENT(pri, pri_tile, pmixlen, pcfm, pcfm_tile, pcfh, pcfh_tile, pcfv, pcftotte) &
+    !$ACC   PRESENT(pcfthv, aa, aa_btm, bb, bb_btm, pfactor_sfc, pcpt_tile) &
+    !$ACC   PRESENT(pcptgz, pzthvvar, pthvsig, pztottevn) &
     !---- Argument arrays - intent(out)
-    !$ACC PRESENT(pch_tile,pbn_tile,pbhn_tile,pbm_tile,pbh_tile, ddt_u, ddt_v) &
+    !$ACC   PRESENT(pch_tile, pbn_tile, pbhn_tile, pbm_tile, pbh_tile, ddt_u, ddt_v) &
     !---- Optional Argument arrays - intent(in)
-    !$ACC PRESENT(pcsat,pcair,paz0lh) &
+    !$ACC   PRESENT(pcsat, pcair, paz0lh) &
     !---- Local variables
-    !$ACC CREATE(zghf,zghh,zfactor,zrmairm,zrmairh,zrmrefm,jztottevn) &
-    !$ACC CREATE(ztheta_b,zthetav_b,zthetal_b,zqsat_b,zlh_b)
+    !$ACC   CREATE(zghf, zghh, zfactor, zrmairm, zrmairh, zrmrefm, jztottevn) &
+    !$ACC   CREATE(ztheta_b, zthetav_b, zthetal_b, zqsat_b, zlh_b)
 
 
     rls = grf_bdywidth_c+1
@@ -440,7 +440,7 @@ CASE ( itte ) ! TTE scheme
 CASE ( isma ) ! 3D Smagorinksy scheme
 
     !$ACC DATA &
-    !$ACC CREATE(kh_ic,km_ic,km_c,km_iv,km_ie,vn,u_vert,v_vert,w_vert,rho_ic,div_c,w_ie)
+    !$ACC   CREATE(kh_ic, km_ic, km_c, km_iv, km_ie, vn, u_vert, v_vert, w_vert, rho_ic, div_c, w_ie)
 
     CALL atm_exchange_coeff3d ( jg, kbdim, nblks_c, nblks_v, nblks_e,                &! in
                            & klev, klevm1, klevp1,                                   &! in

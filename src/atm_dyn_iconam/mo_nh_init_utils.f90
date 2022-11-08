@@ -35,7 +35,8 @@ MODULE mo_nh_init_utils
   USE mo_dynamics_config,       ONLY: nnow, nnow_rcf
   USE mo_physical_constants,    ONLY: grav, cpd, rd, cvd_o_rd, p0ref
   USE mo_vertical_coord_table,  ONLY: vct_b
-  USE mo_impl_constants,        ONLY: nclass_aero, min_rlcell
+  USE mo_impl_constants,        ONLY: nclass_aero, min_rlcell, REAL_T, SINGLE_T, INT_T, BOOL_T, &
+    &                                 TLEV_NNOW, TLEV_NNOW_RCF, vname_len, LSS_JSBACH
   USE mo_math_constants,        ONLY: pi
   USE mo_exception,             ONLY: finish
   USE mo_sync,                  ONLY: sync_patch_array, SYNC_C
@@ -45,7 +46,7 @@ MODULE mo_nh_init_utils
   USE mo_math_gradients,        ONLY: grad_fd_norm
   USE mo_loopindices,           ONLY: get_indices_c, get_indices_e
   USE mo_io_config,             ONLY: var_in_output
-  USE mo_initicon_types,        ONLY: t_saveinit_state, t_init_state
+  USE mo_initicon_types,        ONLY: t_saveinit_state, t_init_state, t_saved_field
   USE mo_initicon_config,       ONLY: type_iau_wgt, is_iau_active, &
     &                                 iau_wgt_dyn, iau_wgt_adv, ltile_coldstart
   USE mo_util_phys,             ONLY: virtual_temp
@@ -56,6 +57,16 @@ MODULE mo_nh_init_utils
   USE mo_fortran_tools,         ONLY: init, copy
   USE mo_ifs_coord,             ONLY: geopot
   USE mo_radar_data_types,      ONLY : t_lhn_diag
+  USE mo_var,                   ONLY: t_var
+  USE mo_var_groups,            ONLY: var_groups_dyn
+  USE mo_var_list_register,     ONLY: t_vl_register_iter
+  USE mo_var_metadata,          ONLY: get_var_timelevel, get_var_name
+  USE mo_hash_table,            ONLY: t_HashTable
+
+#ifdef __PGI
+  USE mo_util_texthash,         ONLY: t_char_workaround
+#endif
+
 #ifdef _OPENACC
   USE mo_mpi,                   ONLY: i_am_accel_node
 #endif
@@ -756,6 +767,8 @@ CONTAINS
 
       IF(.NOT. p_patch(jg)%ldom_active) CYCLE
 
+      CALL saveinit(jg)%init
+
       nlev    = p_patch(jg)%nlev
       nlevp1  = p_patch(jg)%nlevp1
       nblks_c = p_patch(jg)%nblks_c
@@ -905,6 +918,10 @@ CONTAINS
 
     ENDDO
 
+    IF (ANY(atm_phy_nwp_config(:)%inwp_surface == LSS_JSBACH)) THEN
+      CALL save_var_group_state('jsb_init_vars', p_patch(:))
+    END IF
+
   END SUBROUTINE save_initial_state
 
   !----------------------------------------------------------------------------
@@ -935,6 +952,10 @@ CONTAINS
     if (.not. i_am_accel_node) CALL finish('restore_initial_state', 'This should be called in GPU mode only.')
 #endif
 
+    IF (ANY(atm_phy_nwp_config(:)%inwp_surface == LSS_JSBACH)) THEN
+      CALL restore_var_group_state('jsb_init_vars', p_patch(:))
+    END IF
+
     DO jg = 1, n_dom
 
       IF(.NOT. p_patch(jg)%ldom_active) CYCLE
@@ -943,15 +964,15 @@ CONTAINS
       lnd_diag => p_lnd(jg)%diag_lnd
       wtr_prog => p_lnd(jg)%prog_wtr(nnow_rcf(jg))
 
-      !$ACC DATA COPYIN( saveinit(jg)%fr_seaice, saveinit(jg)%t_ice, saveinit(jg)%h_ice, saveinit(jg)%gz0 ) & 
-      !$ACC COPYIN( saveinit(jg)%t_mnw_lk, saveinit(jg)%t_wml_lk, saveinit(jg)%h_ml_lk, saveinit(jg)%t_bot_lk ) & 
-      !$ACC COPYIN( saveinit(jg)%c_t_lk, saveinit(jg)%t_b1_lk, saveinit(jg)%h_b1_lk, saveinit(jg)%theta_v ) & 
-      !$ACC COPYIN( saveinit(jg)%rho, saveinit(jg)%exner, saveinit(jg)%w, saveinit(jg)%tke, saveinit(jg)%vn ) & 
-      !$ACC COPYIN( saveinit(jg)%tracer, saveinit(jg)%gz0_t, saveinit(jg)%t_g_t, saveinit(jg)%t_sk_t ) & 
-      !$ACC COPYIN( saveinit(jg)%qv_s_t, saveinit(jg)%freshsnow_t, saveinit(jg)%snowfrac_t ) & 
-      !$ACC COPYIN( saveinit(jg)%snowfrac_lc_t, saveinit(jg)%w_snow_t, saveinit(jg)%w_i_t, saveinit(jg)%h_snow_t ) & 
-      !$ACC COPYIN( saveinit(jg)%t_snow_t, saveinit(jg)%rho_snow_t, saveinit(jg)%w_so_t, saveinit(jg)%w_so_ice_t ) & 
-      !$ACC COPYIN( saveinit(jg)%t_so_t )
+      !$ACC DATA COPYIN(saveinit(jg)%fr_seaice, saveinit(jg)%t_ice, saveinit(jg)%h_ice, saveinit(jg)%gz0) &
+      !$ACC   COPYIN(saveinit(jg)%t_mnw_lk, saveinit(jg)%t_wml_lk, saveinit(jg)%h_ml_lk, saveinit(jg)%t_bot_lk) &
+      !$ACC   COPYIN(saveinit(jg)%c_t_lk, saveinit(jg)%t_b1_lk, saveinit(jg)%h_b1_lk, saveinit(jg)%theta_v) &
+      !$ACC   COPYIN(saveinit(jg)%rho, saveinit(jg)%exner, saveinit(jg)%w, saveinit(jg)%tke, saveinit(jg)%vn) &
+      !$ACC   COPYIN(saveinit(jg)%tracer, saveinit(jg)%gz0_t, saveinit(jg)%t_g_t, saveinit(jg)%t_sk_t) &
+      !$ACC   COPYIN(saveinit(jg)%qv_s_t, saveinit(jg)%freshsnow_t, saveinit(jg)%snowfrac_t) &
+      !$ACC   COPYIN(saveinit(jg)%snowfrac_lc_t, saveinit(jg)%w_snow_t, saveinit(jg)%w_i_t, saveinit(jg)%h_snow_t) &
+      !$ACC   COPYIN(saveinit(jg)%t_snow_t, saveinit(jg)%rho_snow_t, saveinit(jg)%w_so_t, saveinit(jg)%w_so_ice_t) &
+      !$ACC   COPYIN(saveinit(jg)%t_so_t)
 
 !$OMP PARALLEL
       CALL copy(saveinit(jg)%fr_seaice, lnd_diag%fr_seaice)
@@ -994,8 +1015,8 @@ CONTAINS
       !$ACC END DATA
 
       IF (ntiles_total > 1 .AND. lsnowtile .AND. .NOT. ltile_coldstart) THEN
-        !$ACC DATA COPYIN( saveinit(jg)%snowtile_flag_t, saveinit(jg)%idx_lst_t, saveinit(jg)%frac_t) & 
-        !$ACC COPYIN( saveinit(jg)%gp_count_t)
+        !$ACC DATA COPYIN(saveinit(jg)%snowtile_flag_t, saveinit(jg)%idx_lst_t, saveinit(jg)%frac_t) &
+        !$ACC   COPYIN(saveinit(jg)%gp_count_t)
         CALL copy(saveinit(jg)%snowtile_flag_t, ext_data(jg)%atm%snowtile_flag_t)
         CALL copy(saveinit(jg)%idx_lst_t, ext_data(jg)%atm%idx_lst_t)
         CALL copy(saveinit(jg)%frac_t, ext_data(jg)%atm%frac_t)
@@ -1041,19 +1062,19 @@ CONTAINS
         CALL copy(saveinit(jg)%aerosol, prm_diag(jg)%aerosol)
       ENDIF
       IF (lprog_albsi) THEN
-        !$ACC DATA COPYIN( saveinit(jg)%alb_si )
+        !$ACC DATA COPYIN(saveinit(jg)%alb_si)
         CALL copy(saveinit(jg)%alb_si, wtr_prog%alb_si)
         !$ACC WAIT
         !$ACC END DATA
       ENDIF
       IF (itype_trvg == 3) THEN
-        !$ACC DATA COPYIN( saveinit(jg)%plantevap_t )
+        !$ACC DATA COPYIN(saveinit(jg)%plantevap_t)
         CALL copy(saveinit(jg)%plantevap_t, lnd_diag%plantevap_t)
         !$ACC WAIT
         !$ACC END DATA
       ENDIF
       IF (itype_snowevap == 3) THEN
-        !$ACC DATA COPYIN( saveinit(jg)%hsnow_max, saveinit(jg)%h_snow, saveinit(jg)%snow_age )
+        !$ACC DATA COPYIN(saveinit(jg)%hsnow_max, saveinit(jg)%h_snow, saveinit(jg)%snow_age)
         CALL copy(saveinit(jg)%hsnow_max, lnd_diag%hsnow_max)
         CALL copy(saveinit(jg)%h_snow, lnd_diag%h_snow)
         CALL copy(saveinit(jg)%snow_age, lnd_diag%snow_age)
@@ -1105,8 +1126,8 @@ CONTAINS
 
       ! For the limited-area mode and one-way nesting, we also need to reset grf_tend_vn on the nudging points
       !
-      !$ACC PARALLEL PRESENT( p_nh ) ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE( je, jb )
+      !$ACC PARALLEL PRESENT(p_nh) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(je, jb)
       DO ic = 1, p_nh(jg)%metrics%nudge_e_dim
         je = p_nh(jg)%metrics%nudge_e_idx(ic)
         jb = p_nh(jg)%metrics%nudge_e_blk(ic)
@@ -1122,6 +1143,174 @@ CONTAINS
     DEALLOCATE(saveinit)
 
   END SUBROUTINE restore_initial_state
+
+  !>
+  !! Helper function to extract a value from the hash table.
+  FUNCTION get_val (tbl, key) RESULT(val)
+    TYPE(t_HashTable), INTENT(IN) :: tbl !< Hash table.
+    CHARACTER(*), TARGET, INTENT(IN) :: key !< Key string.
+    CLASS(*), POINTER :: val !< Value associated with `key` or NULL
+
+    CLASS(*), POINTER :: ptr
+
+    ptr => key
+    val => tbl%getEntry(ptr)
+  END FUNCTION
+
+  !>
+  !! Save state of a variable group for iterative IAU.
+  SUBROUTINE save_var_group_state (group_name, p_patch)
+    CHARACTER(len=*), INTENT(IN) :: group_name !< Name of the group to save.
+    TYPE(t_patch), INTENT(IN) :: p_patch(:) !< Domain patches.
+
+    CHARACTER(*), PARAMETER :: routine = 'save_var_group_state'
+
+    TYPE(t_vl_register_iter) :: iter
+    CLASS(*), POINTER :: key
+    CLASS(*), POINTER :: val
+    TYPE(t_saved_field), POINTER :: field
+    INTEGER :: group_id
+
+#ifdef __PGI
+    TYPE(t_char_workaround), POINTER :: key_p
+#endif
+
+    INTEGER :: i, jg, tl
+
+#ifdef _OPENACC
+    CALL finish('save_var_group_state', 'not tested with OpenACC')
+#endif
+
+    group_id = var_groups_dyn%group_id(TRIM(group_name))
+
+    DO WHILE (iter%next())
+      jg = iter%cur%p%patch_id
+      ASSOCIATE (vars => iter%cur%p%vl, nvars => iter%cur%p%nvars, fields => saveinit(jg)%fields)
+
+        IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+        DO i = 1, nvars
+          IF (.NOT. vars(i)%p%info%in_group(group_id)) CYCLE
+
+          tl = get_var_timelevel(vars(i)%p%info%name)
+
+          IF (tl > 0) THEN
+            IF (vars(i)%p%info%tlev_source == TLEV_NNOW .AND. tl /= nnow(jg)) CYCLE
+            IF (vars(i)%p%info%tlev_source == TLEV_NNOW_RCF .AND. tl /= nnow_rcf(jg)) CYCLE
+          END IF
+
+          IF (ASSOCIATED(get_val(fields, TRIM(get_var_name(vars(i)%p%info))))) THEN
+            CALL finish(routine, 'Variable ' // TRIM(vars(i)%p%info%name) // ' already saved!')
+          END IF
+
+#ifdef __PGI
+          ALLOCATE(key_p)
+          key_p%c = TRIM(get_var_name(vars(i)%p%info))
+          key => key_p
+#else
+          ALLOCATE(key, SOURCE=TRIM(get_var_name(vars(i)%p%info)))
+#endif
+          ALLOCATE(field)
+
+          SELECT CASE (vars(i)%p%info%data_type)
+          CASE (REAL_T)
+            CALL field%put(vars(i)%p%r_ptr)
+          CASE (SINGLE_T)
+            CALL field%put(vars(i)%p%s_ptr)
+          CASE (INT_T)
+            CALL field%put(vars(i)%p%i_ptr)
+          CASE (BOOL_T)
+            CALL field%put(vars(i)%p%l_ptr)
+          END SELECT
+
+          val => field
+          CALL fields%setEntry(key, val)
+        END DO
+      END ASSOCIATE
+    END DO
+
+  END SUBROUTINE save_var_group_state
+
+  !>
+  !! Restore state of a variable group for iterative IAU.
+  SUBROUTINE restore_var_group_state (group_name, p_patch)
+    CHARACTER(len=*), INTENT(IN) :: group_name !< Name of the group to save.
+    TYPE(t_patch), INTENT(IN) :: p_patch(:) !< Domain patches.
+
+    CHARACTER(*), PARAMETER :: routine = 'restore_var_group_state'
+
+    TYPE(t_vl_register_iter) :: iter
+    INTEGER :: group_id
+
+    INTEGER :: i, jg
+
+#ifdef _OPENACC
+    CALL finish('restore_var_group_state', 'not tested with OpenACC')
+#endif
+
+    group_id = var_groups_dyn%group_id(TRIM(group_name))
+
+    DO WHILE (iter%next())
+      jg = iter%cur%p%patch_id
+      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+      ! The selection of variables is carried out by all threads redundantly. The actual work-
+      ! sharing takes place inside `field%get`, which calls `copy`. The call to the nested
+      ! subroutine is a workaround to some compilers (NEC) refusing CLASS(*) pointers in private
+      ! clauses.
+      !$OMP PARALLEL PRIVATE(i)
+      DO i = 1, iter%cur%p%nvars
+        CALL restore(saveinit(jg)%fields, iter%cur%p%vl(i)%p)
+      END DO
+      !$OMP END PARALLEL
+    END DO
+
+  CONTAINS
+
+    SUBROUTINE restore(fields, var)
+      TYPE(t_HashTable), INTENT(IN) :: fields
+      TYPE(t_var), INTENT(INOUT) :: var
+
+      CLASS(*), POINTER :: val
+      TYPE(t_saved_field), POINTER :: field
+      INTEGER :: tl
+
+      IF (.NOT. var%info%in_group(group_id)) RETURN
+
+      tl = get_var_timelevel(var%info%name)
+
+      IF (tl > 0) THEN
+        IF (var%info%tlev_source == TLEV_NNOW .AND. tl /= nnow(jg)) RETURN
+        IF (var%info%tlev_source == TLEV_NNOW_RCF .AND. tl /= nnow_rcf(jg)) RETURN
+      END IF
+
+      field => NULL()
+      val => get_val(fields, TRIM(get_var_name(var%info)))
+
+      IF (.NOT. ASSOCIATED(val)) THEN
+        CALL finish(routine, 'Variable ' // TRIM(var%info%name) // ' has not been saved!')
+      END IF
+
+      SELECT TYPE (val)
+      TYPE IS (t_saved_field)
+        field => val
+      END SELECT
+
+      SELECT CASE (var%info%data_type)
+      CASE (REAL_T)
+        CALL field%get(var%r_ptr)
+      CASE (SINGLE_T)
+        CALL field%get(var%s_ptr)
+      CASE (INT_T)
+        CALL field%get(var%i_ptr)
+      CASE (BOOL_T)
+        CALL field%get(var%l_ptr)
+      END SELECT
+
+    END SUBROUTINE restore
+
+  END SUBROUTINE restore_var_group_state
+
 
   !>
   !! Compute weights for incremental analysis update

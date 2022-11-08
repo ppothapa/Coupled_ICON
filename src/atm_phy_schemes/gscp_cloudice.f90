@@ -507,14 +507,14 @@ SUBROUTINE cloudice (                &
 !  Section 1: Initial setting of local and global variables
 !------------------------------------------------------------------------------
   ! Input data
-  !$ACC DATA                                              &
-  !$ACC PRESENT( dz, t, p, rho, qv, qc, qi, qr, qs, qnc ) &
-  !$ACC PRESENT( prr_gsp, prs_gsp, qrsflux, pri_gsp )     &
+  !$ACC DATA &
+  !$ACC   PRESENT(dz, t, p, rho, qv, qc, qi, qr, qs, qnc) &
+  !$ACC   PRESENT(prr_gsp, prs_gsp, qrsflux, pri_gsp) &
   ! automatic arrays
-  !$ACC CREATE( zvzr, zvzs, zvzi )                        &
-  !$ACC CREATE( zpkr, zpks, zpki )                        &
-  !$ACC CREATE( zprvr, zprvs, zprvi, zqvsw_up )           &
-  !$ACC CREATE( dist_cldtop, zlhv, zlhs )
+  !$ACC   CREATE(zvzr, zvzs, zvzi) &
+  !$ACC   CREATE(zpkr, zpks, zpki) &
+  !$ACC   CREATE(zprvr, zprvs, zprvi, zqvsw_up) &
+  !$ACC   CREATE(dist_cldtop, zlhv, zlhs)
 
 ! Some constant coefficients
   IF( lsuper_coolw) THEN
@@ -569,17 +569,17 @@ SUBROUTINE cloudice (                &
     lldiag_qtend = .FALSE.
   ENDIF
 
-  !$ACC DATA CREATE( t_in ) if( lldiag_ttend )
-  !$ACC DATA CREATE( qv_in, qc_in, qi_in, qr_in, qs_in ) if( lldiag_qtend )
+  !$ACC DATA CREATE(t_in) IF(lldiag_ttend)
+  !$ACC DATA CREATE(qv_in, qc_in, qi_in, qr_in, qs_in) IF(lldiag_qtend)
 
   ! save input arrays for final tendency calculation
   IF (lldiag_ttend) THEN
-    !$ACC KERNELS DEFAULT(NONE)
+    !$ACC KERNELS DEFAULT(PRESENT)
     t_in  = t
     !$ACC END KERNELS
   ENDIF
   IF (lldiag_qtend) THEN
-    !$ACC KERNELS DEFAULT(NONE)
+    !$ACC KERNELS DEFAULT(PRESENT)
     qv_in = qv
     qc_in = qc
     qi_in = qi
@@ -607,7 +607,7 @@ SUBROUTINE cloudice (                &
 #if defined( _OPENACC )
     CALL message('gscp_cloudice','GPU-info : update host before cloudice')
 #endif
-    !$ACC UPDATE HOST( dz, t, p, rho, qv, qc, qi, qr, qs )
+    !$ACC UPDATE HOST(dz, t, p, rho, qv, qc, qi, qr, qs)
     WRITE (message_text,'(A,2E10.3)') '      MAX/MIN dz  = ',MAXVAL(dz),MINVAL(dz)
     CALL message('',message_text)
     WRITE (message_text,'(A,2E10.3)') '      MAX/MIN T   = ',MAXVAL(t),MINVAL(t)
@@ -629,7 +629,7 @@ SUBROUTINE cloudice (                &
   ENDIF
 
   ! Delete precipitation fluxes from previous timestep
-  !$ACC PARALLEL DEFAULT(NONE)
+  !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP GANG VECTOR
   DO iv = iv_start, iv_end
     prr_gsp (iv) = 0.0_wp
@@ -664,7 +664,7 @@ SUBROUTINE cloudice (                &
 ! transfer rates  and sedimentation terms
 ! *********************************************************************
 
-  !$ACC PARALLEL DEFAULT(NONE)
+  !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP SEQ
 #ifdef __LOOP_EXCHANGE
   DO iv = iv_start, iv_end  !loop over horizontal domain
@@ -684,7 +684,7 @@ SUBROUTINE cloudice (                &
 
     ! Calculate latent heats if necessary
     IF ( lvariable_lh ) THEN
-      !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE (tg)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(tg)
       DO  iv = iv_start, iv_end  !loop over horizontal domain
         tg      = make_normalized(t(iv,k))
         zlhv(iv) = latent_heat_vaporization(tg)
@@ -692,26 +692,26 @@ SUBROUTINE cloudice (                &
       END DO
     END IF
 
-    !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( alf, bet, fnuc, llqc, llqi, llqr, &
-    !$ACC                           llqs, m2s, m3s, maxevap, nnr, ppg, qcg,     &
-    !$ACC                           rhog, qig, qrg, qsg, qvg, reduce_dep,       &
-    !$ACC                           sagg, scac, scau, scfrz, sdau, sev, siau,   &
-    !$ACC                           sicri, sidep, simelt, snuc, srcri, srfrz,   &
-    !$ACC                           srim, ssdep, sshed, ssmelt, temp_c,         &
-    !$ACC                           tg, z1orhog, zbsdep, zcagg, zcidep, zcorr,  &
-    !$ACC                           zcrim, zcsdep, zcslam, zdtdh, zdvtp, zeff,  &
-    !$ACC                           zeln13o8qrk, zeln27o16qrk, zeln5o24qsk,     &
-    !$ACC                           zeln2o3qsk, zeln7o4qrk, zeln7o8qrk,         &
-    !$ACC                           zhi, zimi, zimr, zims, hlp,                 &
-    !$ACC                           zlnlogmi, zlnqik, zlnqrk, zlnqsk,           &
-    !$ACC                           zmi, zn0s, znid, znin, zphi, zqct,          &
-    !$ACC                           zqik, zqit, zqrk, zqrt, zqsk, zqst,         &
-    !$ACC                           zqvsi, zqvsidiff, zqvsw, zqvsw0,            &
-    !$ACC                           zqvt, zrho1o2, zrhofac_qi, zscmax, zscsum,  &
-    !$ACC                           zsimax, zsisum, zsrmax, zsrsum,             &
-    !$ACC                           zssmax, zsssum, zsvidep, zsvisub, zsvmax,   &
-    !$ACC                           ztau, ztc, ztfrzdiff, ztt, zvz0s, zx1, zx2, &
-    !$ACC                           zxfac, zzai, zzar, zzas, zztau )
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(alf, bet, fnuc, llqc, llqi, llqr) &
+    !$ACC   PRIVATE(llqs, m2s, m3s, maxevap, nnr, ppg, qcg) &
+    !$ACC   PRIVATE(rhog, qig, qrg, qsg, qvg, reduce_dep) &
+    !$ACC   PRIVATE(sagg, scac, scau, scfrz, sdau, sev, siau) &
+    !$ACC   PRIVATE(sicri, sidep, simelt, snuc, srcri, srfrz) &
+    !$ACC   PRIVATE(srim, ssdep, sshed, ssmelt, temp_c) &
+    !$ACC   PRIVATE(tg, z1orhog, zbsdep, zcagg, zcidep, zcorr) &
+    !$ACC   PRIVATE(zcrim, zcsdep, zcslam, zdtdh, zdvtp, zeff) &
+    !$ACC   PRIVATE(zeln13o8qrk, zeln27o16qrk, zeln5o24qsk) &
+    !$ACC   PRIVATE(zeln2o3qsk, zeln7o4qrk, zeln7o8qrk) &
+    !$ACC   PRIVATE(zhi, zimi, zimr, zims, hlp) &
+    !$ACC   PRIVATE(zlnlogmi, zlnqik, zlnqrk, zlnqsk) &
+    !$ACC   PRIVATE(zmi, zn0s, znid, znin, zphi, zqct) &
+    !$ACC   PRIVATE(zqik, zqit, zqrk, zqrt, zqsk, zqst) &
+    !$ACC   PRIVATE(zqvsi, zqvsidiff, zqvsw, zqvsw0) &
+    !$ACC   PRIVATE(zqvt, zrho1o2, zrhofac_qi, zscmax, zscsum) &
+    !$ACC   PRIVATE(zsimax, zsisum, zsrmax, zsrsum) &
+    !$ACC   PRIVATE(zssmax, zsssum, zsvidep, zsvisub, zsvmax) &
+    !$ACC   PRIVATE(ztau, ztc, ztfrzdiff, ztt, zvz0s, zx1, zx2) &
+    !$ACC   PRIVATE(zxfac, zzai, zzar, zzas, zztau)
     DO iv = iv_start, iv_end  !loop over horizontal domain
 #endif
 
@@ -1407,10 +1407,10 @@ llqi =  zqik > zqmin
 ! calculated pseudo-tendencies
 
   IF ( lldiag_ttend ) THEN
-    !$ACC DATA                          &
-    !$ACC PRESENT( ddt_tend_t, t, t_in )
+    !$ACC DATA &
+    !$ACC   PRESENT(ddt_tend_t, t, t_in)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end
@@ -1423,11 +1423,11 @@ llqi =  zqik > zqmin
   ENDIF
 
   IF ( lldiag_qtend ) THEN
-    !$ACC DATA                                          &
-    !$ACC PRESENT(ddt_tend_qv,ddt_tend_qc,ddt_tend_qr,ddt_tend_qs) &
-    !$ACC PRESENT(ddt_tend_qi,qv_in,qc_in,qr_in,qs_in,qi_in)
+    !$ACC DATA &
+    !$ACC   PRESENT(ddt_tend_qv, ddt_tend_qc, ddt_tend_qr, ddt_tend_qs) &
+    !$ACC   PRESENT(ddt_tend_qi, qv_in, qc_in, qr_in, qs_in, qi_in)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end
@@ -1448,7 +1448,7 @@ llqi =  zqik > zqmin
 #ifdef _OPENACC
    CALL message('gscp_cloudice', 'GPU-info : update host after cloudice')
 #endif
-   !$ACC UPDATE HOST( t, qv, qc, qi, qr, qs)
+   !$ACC UPDATE HOST(t, qv, qc, qi, qr, qs)
    CALL message('gscp_cloudice', 'UPDATED VARIABLES')
    WRITE(message_text,'(A,2E20.9)') 'cloudice  T= ',&
     MAXVAL( t(:,:)), MINVAL(t(:,:) )

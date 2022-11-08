@@ -33,7 +33,8 @@ MODULE mo_ensemble_pert_config
     &                        tune_box_liq_asy, tune_thicklayfac
   USE mo_turbdiff_config,    ONLY: turbdiff_config
   USE mo_gribout_config,     ONLY: gribout_config
-  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config  ! Also to prepare perturbations of 2mom parameters;
+                                                       ! these are in container atm_phy_nwp_config(jg) % cfg_2mom
   USE mo_assimilation_config,ONLY: assimilation_config
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_lnd, ntiles_water, c_soil, cwimax_ml
   USE mo_grid_config,        ONLY: n_dom
@@ -655,14 +656,14 @@ MODULE mo_ensemble_pert_config
         "Internal error. `cwimax_ml` is supposed to be on CPU only.")
 
     DO jg = 1, max_dom
-      !$ACC UPDATE DEVICE( atm_phy_nwp_config(jg)%rain_n0_factor, turbdiff_config(jg)%tkhmin ) &
-      !$ACC DEVICE( turbdiff_config(jg)%tkhmin_strat, turbdiff_config(jg)%tkmmin, turbdiff_config(jg)%tkmmin_strat ) &
-      !$ACC DEVICE( turbdiff_config(jg)%rlam_heat, turbdiff_config(jg)%rat_sea, turbdiff_config(jg)%tur_len ) &
-      !$ACC DEVICE( turbdiff_config(jg)%a_hshr, turbdiff_config(jg)%a_stab, turbdiff_config(jg)%c_diff ) &
-      !$ACC DEVICE( turbdiff_config(jg)%q_crit, turbdiff_config(jg)%alpha0, turbdiff_config(jg)%alpha0_max ) &
-      !$ACC DEVICE( turbdiff_config(jg)%alpha0_pert, assimilation_config(jg)%lhn_coef ) &
-      !$ACC DEVICE( assimilation_config(jg)%fac_lhn_artif_tune, assimilation_config(jg)%fac_lhn_down ) &
-      !$ACC DEVICE( assimilation_config(jg)%fac_lhn_up )
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor, turbdiff_config(jg)%tkhmin) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tkhmin_strat, turbdiff_config(jg)%tkmmin, turbdiff_config(jg)%tkmmin_strat) &
+      !$ACC   DEVICE(turbdiff_config(jg)%rlam_heat, turbdiff_config(jg)%rat_sea, turbdiff_config(jg)%tur_len) &
+      !$ACC   DEVICE(turbdiff_config(jg)%a_hshr, turbdiff_config(jg)%a_stab, turbdiff_config(jg)%c_diff) &
+      !$ACC   DEVICE(turbdiff_config(jg)%q_crit, turbdiff_config(jg)%alpha0, turbdiff_config(jg)%alpha0_max) &
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert, assimilation_config(jg)%lhn_coef) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune, assimilation_config(jg)%fac_lhn_down) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up)
     ENDDO
 #endif
 
@@ -760,12 +761,12 @@ MODULE mo_ensemble_pert_config
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC DATA CREATE( rnd_tkred_sfc, rnd_fac_ccqc, wrnd_num, wrnd_num2 ) &
-        !$ACC PRESENT( ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc )
-        !$ACC UPDATE DEVICE( rnd_tkred_sfc, rnd_fac_ccqc )
+        !$ACC DATA CREATE(rnd_tkred_sfc, rnd_fac_ccqc, wrnd_num, wrnd_num2) &
+        !$ACC   PRESENT(ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc)
+        !$ACC UPDATE DEVICE(rnd_tkred_sfc, rnd_fac_ccqc)
 
-        !$ACC PARALLEL DEFAULT(NONE)  ASYNC(1)
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           wrnd_num(jc) = 0._wp
           wrnd_num2(jc) = 0._wp
@@ -773,7 +774,7 @@ MODULE mo_ensemble_pert_config
         !$ACC LOOP SEQ
         DO jt = 1, ntiles_total+ntiles_water
           IF (jt <= ntiles_lnd .OR. jt >= ntiles_total+1) THEN
-            !$ACC LOOP GANG(STATIC:1) VECTOR PRIVATE( ilu )
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ilu)
             DO jc = i_startidx, i_endidx
               ilu = MAX(1,ext_data(jg)%atm%lc_class_t(jc,jb,jt))
               wrnd_num(jc) = wrnd_num(jc) + rnd_tkred_sfc(ilu)*ext_data(jg)%atm%lc_frac_t(jc,jb,jt)
@@ -781,7 +782,7 @@ MODULE mo_ensemble_pert_config
             ENDDO
           ENDIF
         ENDDO
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF (lrecomp) THEN
             prm_diag(jg)%tkred_sfc(jc,jb) = EXP(log_range_tkred*SIN(pi2*(wrnd_num(jc)+phaseshift)))
@@ -818,7 +819,7 @@ MODULE mo_ensemble_pert_config
           phy_params(jg)%gkdrag  = tune_gkdrag(jg)
           phy_params(jg)%gkwake  = tune_gkwake(jg)
           phy_params(jg)%gfrcrit = tune_gfrcrit(jg)
-          !$ACC UPDATE DEVICE( phy_params(jg) ) ! phy_params contains only statically allocated (scalar) components
+          !$ACC UPDATE DEVICE(phy_params(jg)) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
         gfluxlaun = tune_gfluxlaun

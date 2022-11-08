@@ -154,20 +154,20 @@ CONTAINS
     cqx    = aes_cov_config(jg)% cqx
     clcon  = aes_cov_config(jg)% clcon
 
-    !$ACC DATA PRESENT( ktype, pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc, printop )  &
-    !$ACC       CREATE( itv1, itv2, zdtmin, za, zqsm1, ua, zknvb, zphase,                                 &
-    !$ACC               knvb, loidx, lomask, idx_batch, iphase_batch, za_batch, zphase_batch,             &
-    !$ACC               ua_batch, nphase_batch )
+    !$ACC DATA PRESENT(ktype, pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc, printop) &
+    !$ACC   CREATE(itv1, itv2, zdtmin, za, zqsm1, ua, zknvb, zphase) &
+    !$ACC   CREATE(knvb, loidx, lomask, idx_batch, iphase_batch, za_batch, zphase_batch) &
+    !$ACC   CREATE(ua_batch, nphase_batch)
 
     ! Initialize output arrays
     !
     !   Initialize variables
     !
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     paclc(1:kbdim,1:klev) = 0.0_wp
     !$ACC END KERNELS
     !
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     printop(1:kbdim) = 0.0_wp
     !$ACC END KERNELS
 
@@ -192,7 +192,7 @@ CONTAINS
 !IBM* novector
 
           !$ACC PARALLEL DEFAULT(PRESENT)
-          !$ACC LOOP GANG VECTOR PRIVATE( zcor )
+          !$ACC LOOP GANG VECTOR PRIVATE(zcor)
           DO jl = jcs,kproma
              zpapm1i      = SWDIV_NOCHK(1._wp,papm1(jl,jk))
              zqsm1(jl,jk) = MIN(ua(jl)*zpapm1i,0.5_wp)
@@ -213,7 +213,7 @@ CONTAINS
                                            za_batch(:,jks:),  ua_batch(:,jks:) )
 
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = jks,klev
         DO jl = jcs,kproma
@@ -236,7 +236,7 @@ CONTAINS
     CASE(0) ! constant cloud cover scheme
        !      Cloud cover is set to the constant value clcon.
        !
-       !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
        paclc(jcs:kproma,jks:klev) = clcon
        !$ACC END KERNELS
        !
@@ -256,7 +256,7 @@ CONTAINS
        !
        !   Initialize variables
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jl = jcs,kproma
           zdtmin(jl) = -cinv * grav/cpd   ! fraction of dry adiabatic lapse rate
@@ -271,7 +271,7 @@ CONTAINS
        ! which are not convective.
        ! Indixes of these columns are stored in the index list loidx, with list indices jcs:locnt.
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jl = jcs,kproma
           lomask(jl) = MERGE( 1, 0, (pfrw(jl).GT.0.5_wp.AND.pfri(jl).LT.1.e-12_wp.AND.ktype(jl).EQ.0) )
@@ -285,7 +285,7 @@ CONTAINS
        ! Find the level index with the least negative lapse rate towards
        ! the adjacent upper layer, supposed to be the layer below the inversion.
        IF (locnt.GT.jcs-1) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP SEQ
           DO jk = klev,jksinv,-1
              zjk = REAL(jk,wp)
@@ -309,14 +309,14 @@ CONTAINS
           !$ACC END PARALLEL
        END IF
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jl = jcs,kproma
           knvb(jl) = INT(zknvb(jl))
        END DO
        !$ACC END PARALLEL
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk = jks,klev
           DO jl = jcs,kproma
@@ -367,7 +367,7 @@ CONTAINS
     CASE(2) ! 0/1 cloud cover scheme based on relative humidity.
        !      Cloud cover is 1 if the relative humidity is >= csat, and 0 otherwise
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk = jks,klev
           DO jl = jcs,kproma
@@ -385,7 +385,7 @@ CONTAINS
     CASE(3) ! 0/1 cloud cover scheme based on cloud condensate.
        !      Cloud cover is 1 if the cloud condensate mixing ration is >= cqx, and 0 otherwise
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk = jks,klev
           DO jl = jcs,kproma

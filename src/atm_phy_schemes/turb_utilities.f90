@@ -281,7 +281,7 @@ USE data_1d_global, ONLY : &
     TKE_SCLM=>TKE, BOYPR, SHRPR, DISSI, TRANP
 #endif
 !SCLM---------------------------------------------------------------------------
-
+USE mo_fortran_tools, ONLY: set_acc_host_or_device
 !==============================================================================
 
 IMPLICIT NONE
@@ -420,14 +420,9 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
 ! Begin Subroutine init_canopy
 !-------------------------------------------------------------------------------
 
-  ! if lacc is not provided we assume that it's FALSE (no acceleration)
-  IF (PRESENT(lacc)) THEN
-    lzacc=lacc
-  ELSE
-    lzacc=.FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$acc data present(l_pat, fr_land, d_pat, l_hori, sai, tai, lai, eai, plcov) if (lzacc)
+  !$ACC DATA PRESENT(l_pat, fr_land, d_pat, l_hori, sai, tai, lai, eai, plcov) IF(lzacc)
 
   kcp=kcm !save current value of 'kcm', that might have been used for allocation before
 
@@ -435,7 +430,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     ! h_can is a primary external parameter. The initial values of h_can are 0.
     ! If we don't change this, no canopy will be resolved in the vertical direction.
 
-    !$acc update host (hhl, h_can)
+    !$ACC UPDATE HOST(hhl, h_can)
 
     kcm=ke
     DO k = ke, 1, -1
@@ -470,8 +465,8 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
 
   ! Provisional values for pattern length array:
   IF (PRESENT(l_pat)) THEN
-    !$acc parallel if (lzacc)
-    !$acc loop gang vector
+    !$ACC PARALLEL IF(lzacc)
+    !$ACC LOOP GANG VECTOR
     DO i=ivstart, ivend
         IF (fr_land(i) < 0.5_wp) THEN
           l_pat(i)=0.0_wp
@@ -485,14 +480,14 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
           l_pat(i)=l_hori(i)*l_pat(i)/(l_hori(i)+l_pat(i))
         END IF    
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
   END IF
 
 ! Effective values of the surface area indices:
   IF (PRESENT(sai) .AND. PRESENT(eai)   .AND. PRESENT(tai) .AND. &
       PRESENT(lai) .AND. PRESENT(plcov) .AND. PRESENT(icant) ) THEN
-    !$acc parallel if (lzacc)
-    !$acc loop gang vector
+    !$ACC PARALLEL IF(lzacc)
+    !$ACC LOOP GANG VECTOR
     DO i=ivstart, ivend
         IF (fr_land(i) < 0.5_wp) THEN
           sai(i)=c_sea
@@ -500,11 +495,11 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
           tai(i)=MAX( 1.0E-6_wp, lai(i) )
         END IF
     END DO
-    !$acc end parallel
+    !$ACC END PARALLEL
 
     IF (icant.EQ.1) THEN
-        !$acc parallel if (lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
             sai(i)=tai(i)
@@ -512,10 +507,10 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
             tai(i)=plcov(i)*tai(i)
           END IF
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
     ELSE
-        !$acc parallel if (lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
             tai(i)=plcov(i)*tai(i)  ! transpiration area index
@@ -523,11 +518,11 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
             sai(i)=c_lnd+tai(i)     ! surface area index
           END IF    
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
         IF (e_surf /= 1.0_wp) THEN
-          !$acc parallel if (lzacc)
-          !$acc loop gang vector
+          !$ACC PARALLEL IF(lzacc)
+          !$ACC LOOP GANG VECTOR
           DO i=ivstart, ivend
               fakt=EXP( e_surf*LOG( sai(i)) )/sai(i)
             ! Effective area indices by multiplication with the reduction factor fakt:
@@ -535,12 +530,12 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
               eai(i)=fakt*eai(i)
               tai(i)=fakt*tai(i)
           END DO
-          !$acc end parallel
+          !$ACC END PARALLEL
         END IF
     END IF
 
   END IF
-  !$acc end data
+  !$ACC END DATA
 
 END SUBROUTINE init_canopy
 
@@ -548,7 +543,7 @@ END SUBROUTINE init_canopy
 !==============================================================================
 
 ELEMENTAL FUNCTION alpha0_char(u10)
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
 
   ! Wind-speed dependent specification of the Charnock parameter based on suggestions by
   ! Jean Bidlot and Peter Janssen, ECMWF
@@ -615,18 +610,14 @@ LOGICAL :: lzacc
 INTEGER :: i,k
 
 !-------------------------------------------------------------------------------
-  IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   fr_tke=z1/dt_tke
 
 
 !DIR$ IVDEP
-  !$acc parallel default(present) if(lzacc)
-  !$acc loop gang vector
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+  !$ACC LOOP GANG VECTOR
   DO i=ivstart, ivend
  !Achtung: Korrektur durch Faktor 1/2 (wirkt bei sehr kleinen horiz. Gitterzellen)
      l_scal(i)=MIN( z1d2*l_hori(i), tur_len )
@@ -636,26 +627,26 @@ INTEGER :: i,k
  !   fc_min(i)=z0
  !__________________________________________________________________________
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
  !Achtung: Korrektur: Konsistente Behandlung der Null-Fluss-Randbedingung
  !als moeglicher 'default' (etwa fuer qc)
   IF (ilow_def_cond.EQ.2) THEN !zero surface value of liquid water
  !DIR$ IVDEP
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=ivstart, ivend
         liqs(i)=z0
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   ELSE !constant liquid water within the transfer-layer
  !DIR$ IVDEP
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=ivstart, ivend
         liqs(i)=qc_a(i)
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   END IF
 
   IF (iini.GT.0) THEN !an initialization run
@@ -672,23 +663,23 @@ INTEGER :: i,k
  !   koeffizienten und die Standardabw. des Saettigungsdef.:
  !   Initializing some special variables:
 
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=1, ke1
  !DIR$ IVDEP
-       !$acc loop gang vector
+       !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
            rcld(i,k)=z0 !no standard-deviat. of local over-saturation
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
  !DIR$ IVDEP
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=ivstart, ivend
         tfh(i)=z1 !no roughness- and laminar-layer-resistance for scalars
         tfm(i)=z1 !no roughness- and laminar-layer-resistance for momentum
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
      !Notice that the above initalizations will stay, if another turbulence-
      !or transfer-scheme is used!
      
@@ -890,25 +881,22 @@ INTEGER :: &
    ! lways "k_st=ke1=k_en".
    !In this version, atmospheric ice is not included to the adjustment process.
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
-   !$acc data no_create(prs,t,qv,exner,rcld, &
-   !$acc                tet_l,q_h2o,q_liq, &
-   !$acc                qc,dens,r_cpd, &
-   !$acc                qst_t,g_tet,g_h2o,fip)
+   CALL set_acc_host_or_device(lzacc, lacc)
+
+   !$ACC DATA NO_CREATE(prs, t, qv, exner, rcld) &
+   !$ACC   NO_CREATE(tet_l, q_h2o, q_liq) &
+   !$ACC   NO_CREATE(qc, dens, r_cpd) &
+   !$ACC   NO_CREATE(qst_t, g_tet, g_h2o, fip)
 
 
    !local variables                           !
-   !$acc data create(rprs) if(lzacc)
+   !$ACC DATA CREATE(rprs) IF(lzacc)
 
-   !$acc parallel async(1) default(none) if(lzacc)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
 
    !Calculation of Exner-pressure:
    IF (lcalepr) THEN
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -919,7 +907,7 @@ INTEGER :: &
 
    !Conserved variables (with respect to phase change):
    IF (icldmod.EQ.-1 .OR. .NOT.PRESENT(qc)) THEN
-     !$acc loop gang(static:1) vector collapse(2)
+     !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
      DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -928,7 +916,7 @@ INTEGER :: &
          END DO
       END DO
    ELSE !water phase changes are possible and 'qc' is present
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -940,7 +928,7 @@ INTEGER :: &
 
    !Transformation in real liquid water temperature:
    IF (lpotinp) THEN
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -948,21 +936,21 @@ INTEGER :: &
          END DO
       END DO
    END IF
-   !$acc end parallel
+   !$ACC END PARALLEL
 
    !Interpolation of conserved variables (with respect to phase change)
    !onto the zero-level of interest at the top of the roughness layer:
    IF (PRESENT(fip)) THEN
       k=k_en !only for the lowest level
 !DIR$ IVDEP
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang vector
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO i=i_st,i_en
          q_h2o(i,k)=           q_h2o(i,k-1)*(1.0_wp-fip(i))+q_h2o(i,k)*fip(i)
          tet_l(i,k)=exner(i,k)*tet_l(i,k-1)*(1.0_wp-fip(i))+tet_l(i,k)*fip(i)
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
       !Note:
       !'tet_l' at level "k-1" needs to be present and it is assumed to be already 
       ! a potential (liquid water) temperature there, where it is still a pure
@@ -980,8 +968,8 @@ INTEGER :: &
 
    IF (icldmod.EQ.0 .OR. (icldmod.EQ.-1 .AND. .NOT.PRESENT(qc))) THEN
       !Alles Wolkenwasser verdunstet oder wird ignoriert:
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang vector collapse(2)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -989,12 +977,12 @@ INTEGER :: &
            q_liq(i,k)=0.0_wp
          END DO
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
    ELSEIF (icldmod.EQ.-1) THEN
     !Wolken sind vorhanden, sind aber an turbulenter Phasenumwandlungen unbeteiligt:
-       !$acc parallel async(1) default(none) if(lzacc)
-       !$acc loop gang vector collapse(2)
+       !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO k=k_st, k_en
 !DIR$ IVDEP
           DO i=i_st,i_en
@@ -1002,11 +990,11 @@ INTEGER :: &
             q_liq(i,k)=qc(i,k)
           END DO
        END DO
-       !$acc end parallel
+       !$ACC END PARALLEL
    ELSEIF (icldmod.EQ.1 .AND. PRESENT(qc)) THEN
       !Verwendung des vorhandenen skaligen Wolkenwassers:
-      !$acc parallel async(1) default(none) if(lzacc)
-      !$acc loop gang vector collapse(2)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -1018,7 +1006,7 @@ INTEGER :: &
             q_liq(i,k)=qc(i,k)
          END DO
       END DO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
    ELSE !a special cloud diagnostics needs to be employed
 
@@ -1027,7 +1015,7 @@ INTEGER :: &
       ELSE !sub grid scale clouds possible
          icldtyp=itype_wcld !use specified type of cloud diagnostics
       END IF
-      !$acc wait
+      !$ACC WAIT
 
       CALL turb_cloud( khi=khi,                            &
            istart=i_st, iend=i_en, kstart=k_st, kend=k_en, &
@@ -1050,12 +1038,12 @@ INTEGER :: &
 
    virt => g_h2o
    
-   !$acc data no_create(qvap,temp,virt)
+   !$ACC DATA NO_CREATE(qvap, temp, virt)
 
-   !$acc parallel async(1) default(none) if(lzacc)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
    IF (ladjout .OR. lcaltdv .OR. lcalrho .OR. PRESENT(r_cpd)) THEN
       IF (.NOT.ladjout .AND. icldmod.LE.0) THEN !'temp' and 'vap' equal conserv. vars.
-        !$acc loop gang(static:1) vector collapse(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1064,7 +1052,7 @@ INTEGER :: &
             END DO
          END DO
       ELSEIF (icldmod.GT.0) THEN !'temp' and 'qvap' my be different form conserv. vars.
-         !$acc loop gang(static:1) vector collapse(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1075,7 +1063,7 @@ INTEGER :: &
       END IF   
       !Note: In the remaining case "ladjout .AND. icldmod.LE.0" 'temp' and 'qvap'
       !      already point to the conserved variables.
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
 !$NEC ivdep
@@ -1087,7 +1075,7 @@ INTEGER :: &
    END IF
 
    IF (lcalrho .AND. PRESENT(dens)) THEN
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -1097,7 +1085,7 @@ INTEGER :: &
    END IF
 
    IF (PRESENT(r_cpd)) THEN
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -1107,7 +1095,7 @@ INTEGER :: &
    END IF
 
    IF (.NOT.ladjout) THEN !the potential (liquid water) temperature values are requested
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
          DO i=i_st,i_en
@@ -1118,7 +1106,7 @@ INTEGER :: &
 
    IF (lcaltdv) THEN
       IF (imode_qvsatur.EQ.1) THEN
-      !$acc loop gang(static:1) vector collapse(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1128,7 +1116,7 @@ INTEGER :: &
          END DO
 
       ELSE ! imode_qvsatur .NEQ. 1
-         !$acc loop gang(static:1) vector collapse(2) private(pdry)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(pdry)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1141,7 +1129,7 @@ INTEGER :: &
       ENDIF ! imode_qvsatur .EQ. 1
 
       IF (icldmod.EQ.-1) THEN !no consideration of water phase changes
-         !$acc loop gang(static:1) vector collapse(2)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1150,7 +1138,7 @@ INTEGER :: &
             END DO
          END DO
       ELSE !water phase changes are possible
-         !$acc loop gang(static:1) vector collapse(2) private(ccov,mcor)
+         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(ccov, mcor)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st,i_en
@@ -1169,11 +1157,11 @@ INTEGER :: &
       END IF
 
    END IF
-   !$acc end parallel
-   !$acc end data
-   !$acc end data
-   !$acc end data
-   !$acc wait
+   !$ACC END PARALLEL
+   !$ACC END DATA
+   !$ACC END DATA
+   !$ACC END DATA
+   !$ACC WAIT
 
    !Die thermodynamischen Hilfsgroessen wurden hier unter Beruecksichtigung der diagnostizierten
    !Kondensationskorrektur gebildet, indem die entspr. korrigierten Werte fuer t, qv und ql benutzt wurden.
@@ -1359,20 +1347,20 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
   END IF
 
   !Local array
-  !$acc data create(l_dis,l_frc,frc,tvsm,tvs,dd) if(lacc)
+  !$ACC DATA CREATE(l_dis, l_frc, frc, tvsm, tvs, dd) IF(lacc)
 
-  !$acc data no_create(tke,ediss,fm2,fh2,ft2,tls,lsm,lsh,tvt, &
-  !$acc                fcd,tvs0,fm2_e,avt,velmin, tvs, tvsm, dd, &
-  !$acc                frc, l_frc, l_dis)
+  !$ACC DATA NO_CREATE(tke, ediss, fm2, fh2, ft2, tls, lsm, lsh, tvt) &
+  !$ACC   NO_CREATE(fcd, tvs0, fm2_e, avt, velmin, tvs, tvsm, dd) &
+  !$ACC   NO_CREATE(frc, l_frc, l_dis)
 
 ! Stabilitaetskorrektur der turbulenten Laengenskala bei stabilier Schichtung:
 
-  !$acc parallel async(1) default(none) if(lacc)
+  !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lacc)
   IF (a_stab.GT.0.0_wp .AND. it_s==it_start) THEN
-     !$acc loop seq
+     !$ACC LOOP SEQ
      DO k=k_st,k_en !von oben nach unten
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector private(wert)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
         DO i=i_st, i_en
            wert=a_stab*SQRT(MAX( 0.0_wp, fh2(i,k)) )
            tls(i,k)=tke(i,k,nvor)*tls(i,k)/(tke(i,k,nvor)+wert*tls(i,k))
@@ -1383,7 +1371,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 ! Vorbelegung der Felder fuer Turbulenzparameter mit den Werten fuer die freie Atm.:
 !DIR$ IVDEP
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i=i_st, i_en
      dd(i,0)=d_m
      dd(i,1)=d_1; dd(i,2)=d_2; dd(i,3)=d_3
@@ -1392,24 +1380,24 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
   END DO
 
   IF (PRESENT(velmin) .AND. imode_vel_min.EQ.2) THEN !nutze variirendes 'tvsm'
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         tvsm(i)=tkesecu*velmin(i) !effektiver variiernder Minimalwert fuer 'tvs'
      END DO
 
   ELSE
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         tvsm(i)=tkesecu*vel_min !effektiver konstanter Minimalwert fuer 'tvs'
      END DO
   END IF
 
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 !----------------------------------------------------------------------
   !XL_GPU_OPT : need to make k and i purely nested
-  !$acc parallel async(1) default(none) if(lacc)
-  !$acc loop seq private(rogh_lay, w1, w2)
+  !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lacc)
+  !$ACC LOOP SEQ PRIVATE(rogh_lay, w1, w2)
   DO k=k_st, k_en !ueber alle Schichten beginnend mit der freien Atm.
 !----------------------------------------------------------------------
 
@@ -1422,7 +1410,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 !       (ausser Volumenterme, die zur Diffusion gehoeren):
 
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector private(wert)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
         DO i=i_st, i_en
 !          Berechnung der modifizierten Modellparameter:
 
@@ -1444,7 +1432,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
      !Gesamter TKE-Antrieb in [m/s2]:
 
 !DIR$ IVDEP
-     !$acc loop gang(static:1) vector private(val1,val2)
+     !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(val1, val2)
      DO i=i_st, i_en
         l_dis(i)=tls(i,k)*dd(i,0)          !length scale of dissipation
         l_frc(i)=tls(i,k)*dd(i,4)*r_b_m    !length scale of forcing
@@ -1469,7 +1457,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 !Achtung: Korrektur: Ermoeglicht obere 'frc'-Schranke im Transferschema (wie in COSMO-Version)
 !    IF (frcsecu.GT.0) THEN
      IF (frcsecu.GT.0 .AND. lupfrclim) THEN
-       !$acc loop gang(static:1) vector
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            frc(i)=MIN( frc(i), frcsecu*tke(i,k,nvor)**2/l_frc(i)+(1.0_wp-frcsecu)*frc(i) )
         END DO
@@ -1483,7 +1471,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
      IF (lssintact) THEN !shear forcing by scale interaction needs to be added
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            frc(i)=frc(i)+lsm(i,k)*(fm2(i,k)-ft2(i,k)) !complete forcing
         END DO
@@ -1499,7 +1487,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
         IF (add_adv_inc) THEN !explizite Addition der Advektions-Inkremente
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             tvs0(i,k_tvs)=MAX( tvsm(i), tke(i,k,nvor)+avt(i,k)*dt_tke )
          END DO
@@ -1518,7 +1506,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
         !Integration von SQRT(2TKE):
         IF (imode_stke.EQ.1) THEN !1-st (former) type of prognostic solution
 !DIR$ IVDEP
-           !$acc loop gang(static:1) vector private(q1,q2)
+           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(q1, q2)
            DO i=i_st, i_en
               q1=l_dis(i)*fr_tke
               q2=MAX( 0.0_wp, tvs0(i,k_tvs)+tvt(i,k)*dt_tke )+frc(i)*dt_tke
@@ -1526,7 +1514,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
            END DO
         ELSEIF (imode_stke.GE.2) THEN !2-nd (new) type of prognostic solution
 !DIR$ IVDEP
-           !$acc loop gang(static:1) vector private(q1,fakt)
+           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(q1, fakt)
            DO i=i_st, i_en
               fakt=1.0_wp/(1.0_wp+2.0_wp*dt_tke*tvs0(i,k_tvs)/l_dis(i))
               q1=fakt*(tvt(i,k)+frc(i))*dt_tke
@@ -1534,7 +1522,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
            END DO
         ELSEIF (imode_stke.EQ.-1) THEN !diagn. solution of station. TKE-equation
 !DIR$ IVDEP
-           !$acc loop gang(static:1) vector private(q2,q3)
+           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(q2, q3)
            DO i=i_st, i_en
               q2=l_dis(i)*(tvt(i,k)+frc(i))
               q3=l_dis(i)*con_m*fm2(i,k)
@@ -1549,7 +1537,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
            END DO
         ELSE !standard diagnostic solution
 !DIR$ IVDEP
-           !$acc loop gang(static:1) vector
+           !$ACC LOOP GANG(STATIC: 1) VECTOR
            DO i=i_st, i_en
               tvs(i,1)=SQRT( l_dis(i)*MAX( frc(i), 0.0_wp ) )
            END DO
@@ -1558,7 +1546,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 !DIR$ IVDEP
 !$NEC ivdep
-       !$acc loop gang(static:1) vector private(q2)
+       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(q2)
        DO i=i_st, i_en
           q2=SQRT( l_frc(i)*MAX( frc(i), 0.0_wp ) )
 !________________________________________________________________
@@ -1581,11 +1569,11 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
         w1=stbsmot; w2=1.0_wp-stbsmot
 
-        !$acc loop gang(static:1) vector                       &
-        !$acc private(d0,d1,d2,d3,d4,d5,d6,d1_rec,d2_rec)      &
-        !$acc private(gam0,gama,corr,sm,sh,det,tim2,gh,gm)     &
-        !$acc private(be1,be2,a11,a12,a21,a22,wert)            &
-        !$acc private(a3,a5,a6,val1,val2,fakt)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR &
+        !$ACC   PRIVATE(d0, d1, d2, d3, d4, d5, d6, d1_rec, d2_rec) &
+        !$ACC   PRIVATE(gam0, gama, corr, sm, sh, det, tim2, gh, gm) &
+        !$ACC   PRIVATE(be1, be2, a11, a12, a21, a22, wert) &
+        !$ACC   PRIVATE(a3, a5, a6, val1, val2, fakt)
 !DIR$ IVDEP
 !$NEC ivdep
         DO i=i_st, i_en
@@ -1729,7 +1717,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
      IF (lpresedr .OR. ltmpcor) THEN
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            ediss(i,k)=tke(i,k,ntur)**3/(dd(i,0)*tls(i,k))
         END DO
@@ -1739,13 +1727,13 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 !----------------------------------------------------------------------
   END DO !k
-  !$acc end parallel
+  !$ACC END PARALLEL
 
-  !$acc wait
+  !$ACC WAIT
 !----------------------------------------------------------------------
 
-  !$acc end data
-  !$acc end data
+  !$ACC END DATA
+  !$ACC END DATA
 
 END SUBROUTINE solve_turb_budgets
 
@@ -1983,11 +1971,7 @@ LOGICAL ::  &
 ! Begin Subroutine turb_cloud
 ! ---------------------------
 
-  IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   lsurpres = (PRESENT(psf))
 
@@ -2006,14 +1990,14 @@ LOGICAL ::  &
 
   ! Local array
   !XL_ACCTMP : replace with allocatables wk array
-  !$acc data create(qt_tar,tl_tar,sig)               &
-  !$acc if(lzacc)
+  !$ACC DATA CREATE(qt_tar, tl_tar, sig) &
+  !$ACC   IF(lzacc)
 
   IF (PRESENT(qc)) THEN
      qt => qt_tar
      tl => tl_tar
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector collapse(2)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR COLLAPSE(2)
      DO k = kstart, kend
 !DIR$ IVDEP
         DO i = istart, iend
@@ -2021,7 +2005,7 @@ LOGICAL ::  &
            tl(i,k) =  t(i,k) - lhocp*qc(i,k) ! liquid water temperature
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 
   ELSE !'qv' and 't' already contain conserved variablesi
      qt => qv   
@@ -2033,12 +2017,12 @@ LOGICAL ::  &
   !$claw acc data present(psf) if(lzacc)
   !$claw acc parallel if(lzacc)
   !$claw acc loop seq
-  !$acc parallel default(present) if (lzacc)
-  !$acc loop seq
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+  !$ACC LOOP SEQ
   DO k = kstart, kend
     !Calculation of saturation properties with respect to "t=tl" and "qv=qt":
 !DIR$ IVDEP
-    !$acc loop gang vector private(pdry,zsigma,q,qs,dq,gam)
+    !$ACC LOOP GANG VECTOR PRIVATE(pdry, zsigma, q, qs, dq, gam)
     DO i = istart, iend
 
 !mod_2011/09/28: zpres=patm -> zpres=pdry {
@@ -2130,9 +2114,9 @@ LOGICAL ::  &
   END DO
   !$claw acc end parallel
   !$claw acc end data
-  !$acc end parallel
+  !$ACC END PARALLEL
 
-  !$acc end data
+  !$ACC END DATA
 
 
 END SUBROUTINE turb_cloud
@@ -2312,11 +2296,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
 
 !-------------------------------------------------------------------------
 
-  IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   k_lw=k_sf-1; k_hi=k_tp+1
 
@@ -2335,15 +2315,15 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
   IF (linisetup .OR. lnewvtype) THEN
 
      IF (linisetup .OR. .NOT.PRESENT(rho_n)) THEN
-        !$acc parallel default(present) if(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         DO k=k_hi,k_lw
 !DIR$ IVDEP
-           !$acc loop gang vector
+           !$ACC LOOP GANG VECTOR
            DO i=i_st,i_en
               expl_mom(i,k)=hhl(i,k)-hhl(i,k+1)
            END DO
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
      END IF
 
      IF (PRESENT(rho_n)) THEN
@@ -2357,40 +2337,40 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
                                  nvars=1, pvar=(/varprf(rhon,rhoh)/), depth=expl_mom)
 
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lzacc) 
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            rhon(i,k_sf)=rho_s(i)
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
      END IF
 
      IF (linisetup) THEN
 !DIR$ IVDEP
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            disc_mom(i,k_hi)=rho(i,k_hi)*expl_mom(i,k_hi)*fr_var
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
-        !$acc parallel default(present) if(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         DO k=k_hi+1,k_lw
 !DIR$ IVDEP
-           !$acc loop gang vector
+           !$ACC LOOP GANG VECTOR
            DO i=i_st,i_en
               disc_mom(i,k)=rho(i,k)*expl_mom(i,k)*fr_var
               diff_dep(i,k)=0.5_wp*(expl_mom(i,k-1)+expl_mom(i,k))
            END DO
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
       END IF
 
 
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_hi+1,k_lw
 !DIR$ IVDEP
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
 !Achtung: Eventuell tkmin-Beschraenkung nur bei VDiff
          ! expl_mom(i,k)=MAX( tkmin, tkv(i,k) ) &
@@ -2398,10 +2378,10 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
                         *rhon(i,k)/diff_dep(i,k)
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 !DIR$ IVDEP
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
 !Achtung: Einfuehrung von 'tsv': macht Unterschiede
         expl_mom(i,k_sf)=rhon(i,k_sf)*tsv(i)
@@ -2409,29 +2389,29 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
      !  expl_mom(i,k_sf)=rhon(i,k_sf)*tkv(i,k_sf)/diff_dep(i,k_sf)
      !  diff_dep(i,k_sf)=dzs(i)
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
      !Attention: 'tkmin' should be excluded for the surface level 'k_sf'!
 
      IF (itndcon.EQ.3) THEN
-        !$acc parallel default(present) if(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         DO k=k_hi+1,k_sf
 !DIR$ IVDEP
-           !$acc loop gang vector
+           !$ACC LOOP GANG VECTOR
            DO i=i_st,i_en
               diff_mom(i,k)=expl_mom(i,k)
            END DO
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
      END IF
 
 !    This manipulation enforces always a complete decoupling from the surface:
      IF (lfreeslip) THEN
-        !$acc parallel default(present) if(lzacc)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            expl_mom(i,k_sf)=0.0_wp
         END DO
-        !$acc end parallel
+        !$ACC END PARALLEL
      END IF   
 
      CALL prep_impl_vert_diff( lsflucond, ldynimpwt, lprecondi, &
@@ -2446,122 +2426,122 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
   IF (lsfgrduse .AND. igrdcon.NE.2) THEN !effective surface value from effective surface gradient
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         cur_prof(i,k_sf)=cur_prof(i,k_sf-1)-diff_dep(i,k_sf)*eff_flux(i,k_sf)
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
      !Note that this would be done twice in case of "igrdcon.EQ.2"!
   END IF
 
   IF (igrdcon.EQ.1) THEN !only correction profiles
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_sf,kgc,-1
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            cur_prof(i,k)=cur_prof(i,k-1)-cur_prof(i,k)
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         cur_prof(i,kgc-1)=0.0_wp
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=kgc,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
             cur_prof(i,k)=cur_prof(i,k-1)+(cur_prof(i,k)-diff_dep(i,k)*eff_flux(i,k))
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   ELSEIF (igrdcon.EQ.2) THEN !effektive total profile
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=kgc,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            cur_prof(i,k)=cur_prof(i,k-1)-diff_dep(i,k)*eff_flux(i,k)
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   END IF
 
   IF (itndcon.EQ.3) THEN !add diffusion correction from tendency to current profile
      !Related downward flux densities:
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         eff_flux(i,2)=-dif_tend(i,1)*disc_mom(i,1)*dt_var
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_hi+1,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            eff_flux(i,k+1)=eff_flux(i,k)-dif_tend(i,k)*disc_mom(i,k)*dt_var
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
      !Virtual total vertical increment:
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_hi+1,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            eff_flux(i,k)=eff_flux(i,k)/diff_mom(i,k)+(cur_prof(i,k-1)-cur_prof(i,k))
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
      !Related corrected profile:
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_hi+1,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            cur_prof(i,k)=cur_prof(i,k-1)-eff_flux(i,k)
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   END IF
 
   IF (itndcon.GE.1) THEN !calculate updated profile by adding tendency increment to current profile
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=k_hi,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
             dif_tend(i,k)=cur_prof(i,k)+dif_tend(i,k)*dt_var
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc parallel default(present) if(lzacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         dif_tend(i,k_sf)=cur_prof(i,k_sf)
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   END IF
 
   IF (kcm.LE.k_lw) THEN
@@ -2586,42 +2566,42 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
   !'dif_tend' now contains the final updated profile including vertical diffusion.
 
   !Calculation of time tendencies for pure vertical diffusion:
-  !$acc parallel default(present) if(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
   DO k=k_hi,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc loop gang vector
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         dif_tend(i,k)=(dif_tend(i,k)-cur_prof(i,k))*fr_var
      END DO
   END DO
-  !$acc end parallel
+  !$ACC END PARALLEL
 
 ! Volume correction within the roughness layer:
 
   IF (PRESENT(r_air)) THEN
-     !$acc parallel default(present) if(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=kcm,k_lw  !r_air-gradient within the roughness layer
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            cur_prof(i,k)=(r_air(i,k)-r_air(i,k+1))/(dt_var*disc_mom(i,k))
         END DO
      END DO
-     !$acc end parallel
-     !$acc parallel default(present) if(lzacc)
+     !$ACC END PARALLEL
+     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
      DO k=kcm,k_lw  !within the roughness layer
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang vector
+        !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            dif_tend(i,k)=dif_tend(i,k)                        &
                         +0.5_wp*(eff_flux(i,k+1)+eff_flux(i,k)) & !flux on full level
                              *cur_prof(i,k)                     !r_air-gradient
         END DO
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
   END IF
 
 ! Optional conservative vertical smoothing of tendencies:
@@ -2690,11 +2670,7 @@ INTEGER :: &
 
 !-------------------------------------------------------------------------
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
+   CALL set_acc_host_or_device(lzacc, lacc)
 
    IF (lsflucond) THEN !a surface-flux condition
       m=2
@@ -2704,12 +2680,12 @@ INTEGER :: &
 
 !  Implicit and explicit weights:
 
-   !$acc parallel default(present) if(lzacc)
+   !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
    IF (ldynimpwt) THEN !dynamical determination of implicit weights
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf+1-m
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             impl_mom(i,k)=expl_mom(i,k) &
                             ! *MAX(MIN(expl_mom(i,k)/impl_mom(i,k), impl_s), impl_t)
@@ -2718,10 +2694,10 @@ INTEGER :: &
       END DO
 
    ELSE !use precalculated implicit weights
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf+1-m
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
 !Achtung:
             impl_mom(i,k)=expl_mom(i,k)*impl_weight(k)
@@ -2733,10 +2709,10 @@ INTEGER :: &
 !Achtung: Korrektur: Um Konzentrations-Randbedingung richtig abzubilden, muss
 !'expl_mom' bei "k=k_sf" das gesamte Diffusions-Moment enthalten:
 !  DO k=k_tp+2, k_sf
-   !$acc loop seq
+   !$ACC LOOP SEQ
    DO k=k_tp+2, k_sf-1
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=i_st, i_en
          expl_mom(i,k)=expl_mom(i,k)-impl_mom(i,k) 
       END DO
@@ -2747,31 +2723,31 @@ INTEGER :: &
 
    IF (lprecondi) THEN !apply symmetric preconditioning of tridiagonal matrix
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=i_st, i_en
          scal_fac(i,k_tp+1)=1.0_wp/SQRT(disc_mom(i,k_tp+1)+impl_mom(i,k_tp+2))
          invs_mom(i,k_tp+1)=1.0_wp
       END DO
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf-m
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             scal_fac(i,k)=1.0_wp/SQRT(disc_mom(i,k)+impl_mom(i,k)+impl_mom(i,k+1))
          END DO
       END DO
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_sf+1-m, k_sf-1 !only for a surface-flux condition and at level k_sf-1
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             scal_fac(i,k)=1.0_wp/SQRT(disc_mom(i,k)+impl_mom(i,k))
          END DO
       END DO
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf-1
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             impl_mom(i,k)=scal_fac(i,k-1)*scal_fac(i,k)*impl_mom(i,k)
             invs_fac(i,k)=invs_mom(i,k-1)*impl_mom(i,k)
@@ -2780,24 +2756,24 @@ INTEGER :: &
       END DO
    ELSE !without preconditioning
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=i_st, i_en
          invs_mom(i,k_tp+1)=1.0_wp/(disc_mom(i,k_tp+1)+impl_mom(i,k_tp+2))
       END DO
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf-m
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             invs_fac(i,k)=invs_mom(i,k-1)*impl_mom(i,k)
             invs_mom(i,k)=1.0_wp/( disc_mom(i,k)+impl_mom(i,k+1) &
                               +impl_mom(i,k)*(1.0_wp-invs_fac(i,k)) )
          END DO
       END DO
-      !$acc loop seq
+      !$ACC LOOP SEQ
       DO k=k_sf+1-m, k_sf-1 !only for a surface-flux condition and at level k_sf-1
 !DIR$ IVDEP
-         !$acc loop gang(static:1) vector
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=i_st, i_en
             invs_fac(i,k)=invs_mom(i,k-1)*impl_mom(i,k)
             invs_mom(i,k)=1.0_wp/( disc_mom(i,k) &
@@ -2805,7 +2781,7 @@ INTEGER :: &
          END DO
       END DO
    END IF   
-   !$acc end parallel
+   !$ACC END PARALLEL
 
 END SUBROUTINE prep_impl_vert_diff
 
@@ -2890,11 +2866,7 @@ REAL (KIND=wp), POINTER :: &
 
 !  Preparation:
 
-   IF(PRESENT(lacc)) THEN
-      lzacc = lacc
-  ELSE
-      lzacc = .FALSE.
-  ENDIF
+   CALL set_acc_host_or_device(lzacc, lacc)
 
   SELECT CASE ( ABS(itndcon) ) !discriminate modes of current tendency consideration
   CASE (0) ! no consideration of current tendency
@@ -2911,16 +2883,16 @@ REAL (KIND=wp), POINTER :: &
     rhs_prof => cur_prof
   END SELECT
 
-  !$acc data no_create(expl_mom,impl_mom,disc_mom,invs_mom,invs_fac,scal_fac, &
-  !$acc                cur_prof,upd_prof,eff_flux)
+  !$ACC DATA NO_CREATE(expl_mom, impl_mom, disc_mom, invs_mom, invs_fac, scal_fac) &
+  !$ACC   NO_CREATE(cur_prof, upd_prof, eff_flux)
 
-  !$acc data no_create(old_prof,rhs_prof) !data region for pointers old_prof,rhs_prof
+  !$ACC DATA NO_CREATE(old_prof, rhs_prof) !data region for pointers old_prof,rhs_prof
 
-  !$acc parallel default(none) async(1) if(lzacc)
-  !$acc loop seq
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC LOOP SEQ
   DO k=k_tp+2, k_sf
 !DIR$ IVDEP
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         eff_flux(i,k) = expl_mom(i,k) * ( rhs_prof(i,k  ) - rhs_prof(i,k-1) )
      END DO
@@ -2931,7 +2903,7 @@ REAL (KIND=wp), POINTER :: &
   IF (.NOT.lsflucond) THEN !only for a surface-concentration condition and
                            !level "k_sf-1" is treated (semi-)implicitly in all
 !DIR$ IVDEP
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         eff_flux(i,k_sf) = eff_flux(i,k_sf) + impl_mom(i,k_sf) * rhs_prof(i,k_sf-1)
      END DO
@@ -2943,18 +2915,18 @@ REAL (KIND=wp), POINTER :: &
 
 !DIR$ IVDEP
 !$NEC ivdep
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i=i_st, i_en
      eff_flux(i,k_tp+1) = disc_mom(i,k_tp+1) * old_prof(i,k_tp+1) + eff_flux(i,k_tp+2)
   END DO
 !  Note: Zero flux condition just below top level.
 
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO k=k_tp+2, k_sf-1
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         eff_flux(i,k  ) = disc_mom(i,k  ) * old_prof(i,k  ) + eff_flux(i,k+1) - eff_flux(i,k  )
      END DO
@@ -2962,10 +2934,10 @@ REAL (KIND=wp), POINTER :: &
 
 
   IF (lprecondi) THEN !preconditioning is active
-     !$acc loop seq
+     !$ACC LOOP SEQ
      DO k=k_tp+1, k_sf-1
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            eff_flux(i,k  ) = scal_fac(i,k  ) * eff_flux(i,k  )
         END DO
@@ -2975,10 +2947,10 @@ REAL (KIND=wp), POINTER :: &
 !  Save updated profiles (including explicit increments of current tendencies):
         
   IF (itndcon.GT.0) THEN !consideration of explicit tendencies
-     !$acc loop seq
+     !$ACC LOOP SEQ
      DO k=k_tp+1, k_sf-1
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            cur_prof(i,k) = upd_prof(i,k) 
         END DO
@@ -2989,37 +2961,37 @@ REAL (KIND=wp), POINTER :: &
 
    k=k_tp+1
 !DIR$ IVDEP
-  !$acc loop gang(static:1) vector
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i=i_st, i_en
      upd_prof(i,k  ) = eff_flux(i,k  ) * invs_mom(i,k  )
   END DO
 
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO k=k_tp+2, k_sf-1
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         upd_prof(i,k  ) = ( eff_flux(i,k  ) + impl_mom(i,k  ) * upd_prof(i,k-1) ) * invs_mom(i,k  )
      END DO
   END DO
 
 !  Backward substitution:
-  !$acc loop seq
+  !$ACC LOOP SEQ
   DO k=k_sf-2, k_tp+1, -1
 !DIR$ IVDEP
 !$NEC ivdep
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
         upd_prof(i,k) = upd_prof(i,k  ) + invs_fac(i,k+1) * upd_prof(i,k+1)
      END DO
   END DO
 
   IF (lprecondi) THEN !preconditioning is active
-     !$acc loop seq
+     !$ACC LOOP SEQ
      DO k=k_tp+1, k_sf-1
 !DIR$ IVDEP
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            upd_prof(i,k  ) = scal_fac(i,k  ) * upd_prof(i,k  )
         END DO
@@ -3033,16 +3005,16 @@ REAL (KIND=wp), POINTER :: &
 !  Effective flux density by vertical integration of diffusion tendencies:
 
   IF (leff_flux) THEN
-     !$acc loop gang(static:1) vector
+     !$ACC LOOP GANG(STATIC: 1) VECTOR
      DO i=i_st, i_en
        eff_flux(i,k_tp+1) = 0.0_wp !upper zero-flux condition
      END DO
 
-     !$acc loop seq
+     !$ACC LOOP SEQ
      DO k=k_tp+2, k_sf
 !DIR$ IVDEP
 !$NEC ivdep
-        !$acc loop gang(static:1) vector
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=i_st, i_en
            eff_flux(i,k  ) = eff_flux(i,k-1) + (cur_prof(i,k-1) - upd_prof(i,k-1)) * disc_mom(i,k-1)
         END DO
@@ -3050,11 +3022,11 @@ REAL (KIND=wp), POINTER :: &
      !Note:
      !'eff_flux' is the vertical flux density of pure diffusion now (positive downward)
   END IF
-  !$acc end parallel
+  !$ACC END PARALLEL
 
-   !$acc wait
-   !$acc end data !data region for pointers old_prof,rhs_prof
-   !$acc end data
+   !$ACC WAIT
+   !$ACC END DATA !data region for pointers old_prof,rhs_prof
+   !$ACC END DATA
 
 END SUBROUTINE calc_impl_vert_diff
 
@@ -3103,28 +3075,28 @@ REAL (KIND=wp) :: &
 !----------------------------------------------------------------------------
 
 !locals XL_GPUOPT: make this variables allocatables
-   !$acc data create(sav_tend, versmot, remfact) present( cur_tend, disc_mom ) if(lacc)
+   !$ACC DATA CREATE(sav_tend, versmot, remfact) PRESENT(cur_tend, disc_mom) IF(lacc)
    ! This conditional-create + no_create combo is to omit the ACC present checks.
-   !$acc data no_create( sav_tend, versmot, remfact, cur_tend, disc_mom, smotfac ) 
+   !$ACC DATA NO_CREATE(sav_tend, versmot, remfact, cur_tend, disc_mom, smotfac)
 
    IF (imode_frcsmot.EQ.2 .AND. PRESENT(smotfac)) THEN
-     !$acc parallel default(present) async(1) if(lacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         versmot(i) = vertsmot*smotfac(i)
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
    ELSE
-     !$acc parallel default(present) async(1) if(lacc)
-     !$acc loop gang vector
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+     !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         versmot(i) = vertsmot
      END DO
-     !$acc end parallel
+     !$ACC END PARALLEL
    ENDIF
    
-   !$acc parallel default(present) private(j0, j1, j2, k) async(1) if(lacc)
-   !$acc loop gang(static:1) vector
+   !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(j0, j1, j2, k) ASYNC(1) IF(lacc)
+   !$ACC LOOP GANG(STATIC: 1) VECTOR
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
    END DO
@@ -3132,7 +3104,7 @@ REAL (KIND=wp) :: &
    k=k_tp+1
    j1=1; j2=2
 !DIR$ IVDEP
-   !$acc loop gang(static:1) vector
+   !$ACC LOOP GANG(STATIC: 1) VECTOR
    DO i=i_st,i_en
       sav_tend(i,j1)=cur_tend(i,k)
       cur_tend(i,k) =remfact(i)* cur_tend(i,k)                   &
@@ -3140,16 +3112,16 @@ REAL (KIND=wp) :: &
                                                 /disc_mom(i,k)
    END DO
 
-   !$acc loop gang(static:1) vector
+   !$ACC LOOP GANG(STATIC: 1) VECTOR
    DO i=i_st,i_en
       remfact(i)=1.0_wp-2.0_wp*versmot(i)
    END DO
 
-   !$acc loop seq
+   !$ACC LOOP SEQ
    DO k=k_tp+2, k_sf-2
       j0=j1; j1=j2; j2=j0
 !DIR$ IVDEP
-      !$acc loop gang(static:1) vector
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=i_st,i_en
          sav_tend(i,j1)=cur_tend(i,k)
          cur_tend(i,k) =remfact(i)* cur_tend(i,k)                    &
@@ -3159,7 +3131,7 @@ REAL (KIND=wp) :: &
       END DO
    END DO
 
-   !$acc loop gang(static:1) vector
+   !$ACC LOOP GANG(STATIC: 1) VECTOR
    DO i=i_st,i_en
       remfact(i)=1.0_wp-versmot(i)
    END DO
@@ -3167,17 +3139,17 @@ REAL (KIND=wp) :: &
    k=k_sf-1
    j2=j1
 !DIR$ IVDEP
-   !$acc loop gang(static:1) vector
+   !$ACC LOOP GANG(STATIC: 1) VECTOR
    DO i=i_st,i_en
       cur_tend(i,k) =remfact(i)* cur_tend(i,k)                   &
                     +versmot(i)* sav_tend(i,j2) *disc_mom(i,k-1) &
                                                 /disc_mom(i,k)
    END DO
-   !$acc end parallel
+   !$ACC END PARALLEL
 
-   !$acc wait if(lacc)
-   !$acc end data
-   !$acc end data
+   !$ACC WAIT IF(lacc)
+   !$ACC END DATA
+   !$ACC END DATA
 
 END SUBROUTINE vert_smooth
 
@@ -3229,98 +3201,94 @@ LOGICAL :: ldepth, lrpdep, lauxil
 
 !-------------------------------------------------------------------------
 
-   IF(PRESENT(lacc)) THEN
-       lzacc = lacc
-   ELSE
-       lzacc = .FALSE.
-   ENDIF
+   CALL set_acc_host_or_device(lzacc, lacc)
 
    IF (ldepth) THEN !depth weighted interpolation
       IF (lauxil) THEN !layer depth needs to be calculated
          usdep => auxil
          
-         !$acc parallel default(present) async(1) if(lzacc)
-         !$acc loop seq
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP SEQ
          DO k=k_en, k_st-1, -1
 !DIR$ IVDEP
-           !$acc loop gang vector
+           !$ACC LOOP GANG VECTOR
             DO i=i_st, i_en
                usdep(i,k)=depth(i,k)-depth(i,k+1)
             END DO
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
       ELSE
          usdep => depth
       END IF
       IF (lrpdep) THEN !precalculation of the reciprocal layer depth
-         !$acc parallel default(present) async(1) if(lzacc) 
-         !$acc loop seq
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP SEQ
          DO k=k_en, k_st, -1
 !DIR$ IVDEP
-            !$acc loop gang vector
+            !$ACC LOOP GANG VECTOR
             DO i=i_st, i_en
                rpdep(i,k)=1.0_wp/(usdep(i,k-1)+usdep(i,k))
             END DO
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
 
          DO n=1, nvars
             ptr_bl=>pvar(n)%bl
             ptr_ml=>pvar(n)%ml
-            !$acc parallel default(present) async(1) if(lzacc)
-            !$acc loop seq
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP SEQ
             DO k=k_en, k_st, -1
 !DIR$ IVDEP
-               !$acc loop gang vector
+               !$ACC LOOP GANG VECTOR
                DO i=i_st, i_en
                   ptr_bl(i,k)=(ptr_ml(i,k  )*usdep(i,k-1)  &
                                     +ptr_ml(i,k-1)*usdep(i,k))   &
                                     *rpdep(i,k)
                END DO
             END DO
-            !$acc end parallel
+            !$ACC END PARALLEL
          END DO
       ELSE !no precalculation
          DO n=1, nvars
             ptr_bl=>pvar(n)%bl
             ptr_ml=>pvar(n)%ml
-            !$acc parallel default(present) async(1) if(lzacc)
-            !$acc loop seq
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP SEQ
             DO k=k_en, k_st, -1
 !DIR$ IVDEP
-               !$acc loop gang vector
+               !$ACC LOOP GANG VECTOR
                DO i=i_st, i_en
                    ptr_bl(i,k)=(ptr_ml(i,k  )*usdep(i,k-1)       &
                                      +ptr_ml(i,k-1)*usdep(i,k))   &
                                      /(usdep(i,k-1)+usdep(i,k))
                END DO
             END DO
-            !$acc end parallel
+            !$ACC END PARALLEL
          END DO
       END IF
    ELSE !inverse of main level interpolation
       DO n=1, nvars
          ptr_bl=>pvar(n)%bl
          ptr_ml=>pvar(n)%ml
-         !$acc parallel default(present) async(1) if(lzacc)
-         !$acc loop gang vector collapse(2)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO k=k_st, k_en
 !DIR$ IVDEP
             DO i=i_st, i_en
               ptr_bl(i,k)=2.0_wp*ptr_ml(i,k)-ptr_ml(i,k+1)
             END DO
          END DO
-         !$acc end parallel
+         !$ACC END PARALLEL
       END DO
    END IF
-   !$acc wait
+   !$ACC WAIT
 
 END SUBROUTINE bound_level_interp
 
 !==============================================================================
 !==============================================================================
 PURE FUNCTION zexner (zpres) !Exner-factor
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
 
   REAL (KIND=wp), INTENT(IN) :: zpres
   REAL (KIND=wp) :: zexner
@@ -3330,7 +3298,7 @@ PURE FUNCTION zexner (zpres) !Exner-factor
 END FUNCTION zexner
 
 PURE FUNCTION zpsat_w (ztemp) !satur. vapor pressure over water
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN) :: ztemp
   REAL (KIND=wp) :: zpsat_w
 
@@ -3339,7 +3307,7 @@ PURE FUNCTION zpsat_w (ztemp) !satur. vapor pressure over water
 END FUNCTION zpsat_w
 
 PURE FUNCTION zqvap_old (zpvap, zpres) !satur. specif. humid. (old version)
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN) :: zpvap, &
                                     zpres !pressure
   REAL (KIND=wp) :: zqvap_old
@@ -3349,7 +3317,7 @@ PURE FUNCTION zqvap_old (zpvap, zpres) !satur. specif. humid. (old version)
 END FUNCTION zqvap_old
 
 PURE FUNCTION zqvap (zpvap, zpdry) !satur. specif. humid. (new version)
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN) :: zpvap, &
                                     zpdry !part. pressure of dry air
   REAL (KIND=wp) :: zqvap
@@ -3362,7 +3330,7 @@ PURE FUNCTION zqvap (zpvap, zpdry) !satur. specif. humid. (new version)
 END FUNCTION zqvap
 
 PURE FUNCTION zdqsdt_old (ztemp, zqsat) !d_qsat/d_temp (old version)
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN) :: ztemp, zqsat
   REAL (KIND=wp) :: zdqsdt_old
 
@@ -3372,7 +3340,7 @@ PURE FUNCTION zdqsdt_old (ztemp, zqsat) !d_qsat/d_temp (old version)
 END FUNCTION zdqsdt_old
 
 PURE FUNCTION zdqsdt (ztemp, zqsat) !d_qsat/d_tem (new version)
-  !$acc routine seq
+  !$ACC ROUTINE SEQ
   REAL (KIND=wp), INTENT(IN) :: ztemp, zqsat
   REAL (KIND=wp) :: zdqsdt
 

@@ -51,6 +51,12 @@ MODULE mo_ocean_nml
   !      - contains all default values to minimize ocean namelist (SLO, 2012/03)
   ! ------------------------------------------------------------------------
 
+  INTEGER  :: vert_cor_type   = 0  ! Vertical co-ordinate type 0: z  1: z* 
+  
+  INTEGER  :: press_grad_type = 0  ! Only affects zstar. If we use 1, we will get
+                                   ! chain rule correction for pressure gradient
+                                   ! that removes uniform height gradient errors
+
   INTEGER  :: n_zlev        ! number of ocean levels
   INTEGER, PARAMETER :: max_allocated_levels = 1024
   REAL(wp) :: dzlev_m(max_allocated_levels)  ! namelist input of layer thickness
@@ -290,6 +296,7 @@ MODULE mo_ocean_nml
   INTEGER  :: i_sea_ice             = 1          ! 0 = no sea ice; 1=apply sea ice model using sea_ice_nml
   LOGICAL  :: l_relaxsal_ice        = .TRUE.     ! TRUE: relax salinity below sea ice
                                                  ! false = salinity is relaxed under sea ice completely
+  INTEGER  :: ice_flux_type        = 0          ! 0 = adjust heights in apply_surface_relax
 
   LOGICAL  :: use_tracer_x_height          = .FALSE. ! use the tracer_x_height to calculate advection, in order to minimize round-off errors
   LOGICAL  :: l_with_horz_tracer_diffusion = .TRUE.  ! FALSE: no horizontal tracer diffusion
@@ -348,6 +355,8 @@ MODULE mo_ocean_nml
     &                 l_max_bottom                 , &
     &                 l_partial_cells              , &
     &                 lviscous                     , &
+    &                 vert_cor_type                , &
+    &                 press_grad_type              , &
     &                 n_zlev                       , &
     &                 select_solver                , &
     &                 use_absolute_solver_tolerance, &
@@ -787,6 +796,7 @@ MODULE mo_ocean_nml
   NAMELIST/ocean_physics_nml/&
     &  EOS_TYPE                    , &
     &  i_sea_ice                   , &
+    &  ice_flux_type               , &
     &  LinearThermoExpansionCoefficient,  &
     &  LinearHalineContractionCoefficient,&
     &  OceanReferenceDensity,       &
@@ -812,7 +822,8 @@ MODULE mo_ocean_nml
   LOGICAL  :: forcing_set_runoff_to_zero           = .FALSE.   ! .TRUE.: set river runoff to zero for comparion to MPIOM
   LOGICAL  :: zero_freshwater_flux                 = .FALSE.   ! .TRUE.: zero freshwater fluxes but salt-change possible
   LOGICAL  :: use_new_forcing                      = .FALSE.
-  INTEGER  :: surface_flux_type                    = 1
+  LOGICAL  :: heatflux_forcing_on_sst              = .TRUE.
+  LOGICAL  :: lfwflux_enters_with_sst              = .TRUE.
   LOGICAL  :: lcheck_salt_content                  = .FALSE.
   LOGICAL  :: check_total_volume                   = .FALSE.
   LOGICAL  :: lfix_salt_content                    = .FALSE.
@@ -908,7 +919,8 @@ MODULE mo_ocean_nml
     &                 forcing_center                      , &
     &                 forcing_enable_freshwater           , &
     &                 zero_freshwater_flux                , &
-    &                 surface_flux_type                   , &
+    &                 heatflux_forcing_on_sst             , &
+    &                 lfwflux_enters_with_sst             , &
     &                 lcheck_salt_content                 , &
     &                 lfix_salt_content                   , &
     &                 forcing_fluxes_type                 , &
@@ -1344,6 +1356,15 @@ MODULE mo_ocean_nml
       CALL message(method_name,'WARNING, shallow water model (ocean): n_zlev set to 1')
       n_zlev = 1
     ENDIF
+
+    IF( vert_cor_type == 0 ) THEN
+      CALL message(method_name,'You have chosen the z co-ordinate')
+    ELSEIF( vert_cor_type == 1 ) THEN
+      CALL message(method_name,'You have chosen the z* co-ordinate')
+    ELSE
+      CALL finish(method_name, 'wrong parameter for vertical co-ordinate; use vert_cor_type 0-1')
+    ENDIF
+
 
     IF(discretization_scheme == 1)THEN
       CALL message(method_name,'You have choosen the mimetic dicretization')

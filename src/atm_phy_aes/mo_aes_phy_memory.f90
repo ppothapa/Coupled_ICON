@@ -43,8 +43,8 @@ MODULE mo_aes_phy_memory
   USE mo_parallel_config,     ONLY: nproma
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config,   ONLY: is_variable_in_output
-  USE mtime,                  ONLY: OPERATOR(>)
-  USE mo_time_config,         ONLY: time_config
+  USE mtime,                  ONLY: timedelta, OPERATOR(>)
+  USE mo_time_config,         ONLY: get_dynamics_timestep
   USE mo_aes_phy_config,      ONLY: aes_phy_tc, dt_zero
   USE mo_aes_sfc_indices,     ONLY: nsfc_type, csfc
   USE mo_model_domain,        ONLY: t_patch
@@ -154,6 +154,8 @@ MODULE mo_aes_phy_memory
       & qgvi      (:,:)=>NULL(),    &!< [kg/m2] graupel     content, vertically integrated through the atmospheric column
       & qhvi      (:,:)=>NULL(),    &!< [kg/m2] hail        content, vertically integrated through the atmospheric column
       & cptgzvi   (:,:)=>NULL(),    &!< [kg/m2] dry static energy  , vertically integrated through the atmospheric column
+      & udynvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after dynamics
+      & uphyvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after physics
       & rho       (:,:,:)=>NULL(),  &!< [kg/m3] air density
       & mh2o      (:,:,:)=>NULL(),  &!< [kg/m2] h2o content (vap+liq+ice)
       & mair      (:,:,:)=>NULL(),  &!< [kg/m2] air content
@@ -170,6 +172,13 @@ MODULE mo_aes_phy_memory
       & geom      (:,:,:)=>NULL(),  &!< [m2/s2] geopotential above ground at full levels (layer ave. or mid-point value)
       & pfull     (:,:,:)=>NULL(),  &!< [Pa]    air pressure at model levels
       & phalf     (:,:,:)=>NULL()    !< [Pa]    air pressure at model half levels
+
+    ! surface flux weigthing for energy integrals
+    REAL(wp),POINTER ::             &
+      & rsfl_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & ssfl_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & evap_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
+      & shfl_qsa  (:,  :)=>NULL()    !< [K kg/m2/s ] 
 
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: mtrc_ptr(:)
@@ -621,6 +630,7 @@ CONTAINS
     CHARACTER(len=13) :: listname_f
     CHARACTER(len=12) :: listname_t
     INTEGER :: ndomain, jg, ist, nblks, nlev
+    TYPE(timedelta) :: dt_dyn
 
     !---
 
@@ -648,10 +658,11 @@ CONTAINS
 
       nblks = patch_array(jg)%nblks_c
       nlev  = patch_array(jg)%nlev
+      dt_dyn = get_dynamics_timestep(patch_array(jg))
 
       WRITE(listname_f,'(a,i2.2)') 'prm_field_D',jg
       CALL new_aes_phy_field_list( jg, nproma, nlev, nblks, ntracer, nsfc_type,   &
-                                   & listname_f, '',                              &
+                                   & dt_dyn, listname_f, '',                      &
                                    & p_nh_state_lists(jg)%diag_list,              &
                                    & p_nh_state_lists(jg)%metrics_list,           &
                                    & ext_data(jg)%atm_list,                       &
@@ -659,7 +670,7 @@ CONTAINS
 
       WRITE(listname_t,'(a,i2.2)') 'prm_tend_D',jg
       CALL new_aes_phy_tend_list( jg, nproma, nlev, nblks, ntracer,   &
-                                  & listname_t, 'tend_',              &
+                                  & dt_dyn, listname_t, 'tend_',      &
                                   & prm_tend_list(jg), prm_tend(jg)   )
     ENDDO
 
@@ -706,13 +717,15 @@ CONTAINS
   !--------------------------------------------------------------------
   !>
   SUBROUTINE new_aes_phy_field_list  ( jg, kproma, klev, kblks, ktracer, ksfc_type, &
-                                     & listname, prefix,                            &
+                                     & dt_dyn, listname, prefix,                    &
                                      & diag_list,                                   &
                                      & metrics_list,                                &
                                      & ext_atm_list,                                &
                                      & field_list, field                            )
     INTEGER,INTENT(IN) :: jg !> patch ID
     INTEGER,INTENT(IN) :: kproma, klev, kblks, ktracer, ksfc_type  !< dimension sizes
+
+    TYPE(timedelta),         INTENT(IN)    :: dt_dyn !< Dynamics timestep.
 
     CHARACTER(*),            INTENT(IN)    :: listname, prefix
 
@@ -746,7 +759,7 @@ CONTAINS
     shapesfc = (/kproma, kblks, ksfc_type/)
     shape3d_layer_interfaces = (/kproma,klev+1,kblks/)
 
-    !$ACC ENTER DATA COPYIN( field )
+    !$ACC ENTER DATA COPYIN(field)
     ! Register a field list and apply default settings
 
     CALL vlr_add(field_list, listname, patch_id=jg ,lrestart=.TRUE.)
@@ -2114,7 +2127,7 @@ CONTAINS
                 & lopenacc=.TRUE. )
     __acc_attach(field%ts_rad_rt)
 
-    IF (aes_phy_tc(jg)%dt_vdf > time_config%tc_dt_dyn(jg) .OR.                            &
+    IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                &
       & is_variable_in_output(var_name=prefix//'q_snocpymlt')) THEN
        cf_desc    = t_cf_var('q_snocpymlt', 'W/m2', 'heating for snow melt on canopy', datatype_flt)
        grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2374,6 +2387,54 @@ CONTAINS
     !--------------
     ! Precipitation
     !--------------
+    cf_desc    = t_cf_var('shfl_qsa', 'K kg m-2 s-1',    &
+               & 'near surface humidity weighted sensible temperature flux', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'shfl_qsa', field%shfl_qsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%shfl_qsa)
+    
+    cf_desc    = t_cf_var('evap_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted evaporation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'evap_tsa', field%evap_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%evap_tsa)
+    
+    cf_desc    = t_cf_var('ssfl_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted solid precipitation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'ssfl_tsa', field%ssfl_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%ssfl_tsa)
+    
+    cf_desc    = t_cf_var('rsfl_tsa', 'K kg m-2 s-1',    &
+               & 'near surface temperature weighted liquid precipitation', datatype_flt)
+    grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( field_list, prefix//'rsfl_tsa', field%rsfl_tsa,  &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
+         &        cf_desc, grib2_desc,                           &
+         &        ldims=shape2d,                                 &
+         &        lrestart = .TRUE.,                             &
+         &        isteptype=TSTEP_INSTANT,                       &
+         &        lopenacc=.TRUE.)
+    __acc_attach(field%rsfl_tsa)
+    
     cf_desc    = t_cf_var('prlr', 'kg m-2 s-1',    &
                & 'large-scale precipitation flux (water)', datatype_flt)
     grib2_desc = grib2_var(0,1,77, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2750,7 +2811,7 @@ CONTAINS
 
     IF ( aes_phy_tc(jg)%dt_vdf > dt_zero ) THEN
        !
-       IF (aes_phy_tc(jg)%dt_vdf > time_config%tc_dt_dyn(jg) .OR.                       &
+       IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                          &
          & is_variable_in_output(var_name=prefix//'q_vdf')) THEN
           CALL add_var( field_list, prefix//'q_vdf', field%q_vdf,                       &
                       & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                           &
@@ -2867,6 +2928,32 @@ CONTAINS
            &        isteptype=TSTEP_INSTANT,                                     &
            &        lopenacc=.TRUE.)
       __acc_attach(field%cptgzvi)
+
+      ! &       field% udynvi     (nproma,nblks),          &
+      cf_desc    = t_cf_var('u_dyn_vi','J m-2','vertically integrated moist internal energy after dynamics', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( field_list, prefix//'udynvi', field%udynvi,                      &
+           &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+           &        cf_desc, grib2_desc,                                         &
+           &        ldims=shape2d,                                               &
+           &        lrestart = .FALSE.,                                          &
+           &        isteptype=TSTEP_INSTANT,                                     &
+           &        lopenacc=.TRUE.)
+      __acc_attach(field%udynvi)
+
+      ! &       field% uphyvi     (nproma,nblks),          &
+      cf_desc    = t_cf_var('u_phy_vi','J m-2','vertically integrated moist internal energy after physics', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( field_list, prefix//'uphyvi', field%uphyvi,                      &
+           &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+           &        cf_desc, grib2_desc,                                         &
+           &        ldims=shape2d,                                               &
+           &        lrestart = .FALSE.,                                          &
+           &        isteptype=TSTEP_INSTANT,                                     &
+           &        lopenacc=.TRUE.)
+      __acc_attach(field%uphyvi)
 
       ! REMARK: required for art emmision handling
       !IF (is_variable_in_output(var_name=prefix//'cfm')) THEN
@@ -3995,10 +4082,11 @@ CONTAINS
   !!
   !!
   SUBROUTINE new_aes_phy_tend_list  ( jg, kproma, klev, kblks, ktracer, &
-                                    & listname, prefix,                 &
+                                    & dt_dyn, listname, prefix,         &
                                     & tend_list, tend )
     INTEGER,INTENT(IN) :: jg !> patch ID
     INTEGER,INTENT(IN) :: kproma, klev, kblks, ktracer  !< dimension sizes
+    TYPE(timedelta), INTENT(IN) :: dt_dyn !< Dynamics timestep.
     CHARACTER(*), INTENT(IN) :: listname, prefix
     TYPE(t_var_list_ptr), INTENT(INOUT) :: tend_list
     TYPE(t_aes_phy_tend), INTENT(INOUT) :: tend
@@ -4017,7 +4105,7 @@ CONTAINS
     shape3d   = (/kproma, klev, kblks/)
     shape_trc = (/kproma, klev, kblks, ktracer/)
 
-    !$ACC ENTER DATA COPYIN( tend )
+    !$ACC ENTER DATA COPYIN(tend)
 
     CALL vlr_add(tend_list, listname, patch_id=jg ,lrestart=.FALSE.)
 
@@ -4152,7 +4240,7 @@ CONTAINS
 
     IF ( aes_phy_tc(jg)%dt_vdf > dt_zero ) THEN
        !
-       IF (aes_phy_tc(jg)%dt_vdf > time_config%tc_dt_dyn(jg) .OR.                              &
+       IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name=prefix//'ua_vdf')) THEN
           cf_desc    = t_cf_var('u_wind_tendency_turbulent', 'm s-2',                          &
                       &         'u-wind tendency due to vertical diffusion',                   &
@@ -4189,7 +4277,7 @@ CONTAINS
 
     IF ( aes_phy_tc(jg)%dt_vdf > dt_zero ) THEN
        !
-       IF (aes_phy_tc(jg)%dt_vdf > time_config%tc_dt_dyn(jg) .OR.                              &
+       IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                                 &
          & is_variable_in_output(var_name=prefix//'va_vdf')) THEN
           cf_desc    = t_cf_var('v_wind_tendency_turbulent', 'm s-2',                          &
                       &         'v-wind tendency due to vertical diffusion',                   &
@@ -4264,7 +4352,7 @@ CONTAINS
           END IF
        END DO
        !
-       IF (aes_phy_tc(jg)%dt_vdf > time_config%tc_dt_dyn(jg) .OR.                    &
+       IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                       &
          & contvar_is_in_output) THEN
           CALL add_var( tend_list, prefix//'qtrc_vdf', tend%qtrc_vdf,                &
                       & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
@@ -4327,7 +4415,7 @@ CONTAINS
           END IF
        END DO
        !
-       IF (aes_phy_tc(jg)%dt_car > time_config%tc_dt_dyn(jg) .OR.                    &
+       IF (aes_phy_tc(jg)%dt_car > dt_dyn .OR.                                       &
          & contvar_is_in_output) THEN
           CALL add_var( tend_list, prefix//'qtrc_car', tend%qtrc_car,                &
                       & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &

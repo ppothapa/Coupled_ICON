@@ -59,10 +59,9 @@ MODULE mo_acc_device_management
 !------------------------------------------------------------------------------
 
 USE, INTRINSIC :: iso_c_binding
-
+USE mpi
 USE mo_kind,      ONLY: wp
-USE mo_mpi,       ONLY: p_comm_work, p_comm_rank, num_work_procs, p_max, &
-     &                  mpi_comm_size, mpi_allgather, mpi_integer
+USE mo_mpi,       ONLY: p_comm_work, p_comm_rank, num_work_procs, p_max
 USE mo_exception, ONLY: message, message_text
 !------------------------------------------------------------------------------
 
@@ -631,12 +630,12 @@ SUBROUTINE runSmallAccKernel()
 ! Begin Subroutine runSmallAccKernel
 !------------------------------------------------------------------------------
   
-  !$acc parallel
-  !$acc loop
+  !$ACC PARALLEL
+  !$ACC LOOP
   DO idummy = 1,16
     dummy(idummy) = idummy
   ENDDO
-  !$acc end parallel
+  !$ACC END PARALLEL
   IF (myid == 0) THEN
 #ifdef _OPENACC
     WRITE(*,'(a)') 'INFO: Running with OpenAcc directives'

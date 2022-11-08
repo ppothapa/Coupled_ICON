@@ -80,7 +80,7 @@ MODULE mo_nh_nest_utilities
   PUBLIC :: nest_boundary_nudging
   PUBLIC :: prep_rho_bdy_nudging
   PUBLIC :: density_boundary_nudging
-  PUBLIC :: limarea_nudging_bdy, limarea_nudging_latbdy, limarea_nudging_upbdy
+  PUBLIC :: limarea_nudging_latbdy, limarea_nudging_upbdy
   PUBLIC :: intp_nestubc_nudging
 
   CHARACTER(len=*), PARAMETER :: modname = 'mo_nh_nest_utilities'
@@ -221,7 +221,7 @@ CONTAINS
 !
 ! rho_ref_corr is one of several variables which is not defined with ADD_VAR, and needs to be explicitly copied to DEVICE
 !
-!$ACC ENTER DATA COPYIN( p_nh_state(jgc)%metrics%rho_ref_corr )
+        !$ACC ENTER DATA COPYIN(p_nh_state(jgc)%metrics%rho_ref_corr)
 
         DEALLOCATE(z_rho_ref)
 
@@ -288,7 +288,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF( i_am_accel_node ) 
+      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
@@ -313,7 +313,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -345,7 +345,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF( i_am_accel_node )
+      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO ie = jshift+1, jshift+nlen
         je = p_grf%idxlist_bdyintp_src_e(ie)
@@ -480,8 +480,8 @@ CONTAINS
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell_int)
 
-        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF( i_am_accel_node )
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF(i_am_accel_node)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           p_nh%diag%w_int          (jc,jb,nsubs+1) = 0._wp
           p_nh%diag%theta_v_ic_int (jc,jb,nsubs+1) = 0._wp
@@ -493,7 +493,7 @@ CONTAINS
         !$ACC LOOP SEQ
         DO js = 1, nsubs
 !DIR$ IVDEP
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             p_nh%diag%w_int(jc,jb,nsubs+1)          = p_nh%diag%w_int(jc,jb,nsubs+1) +           &
               p_nh%diag%w_int(jc,jb,js)
@@ -509,7 +509,7 @@ CONTAINS
           ENDDO
         ENDDO
 
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           p_nh%diag%w_int(jc,jb,nsubs+1)             = p_nh%diag%w_int(jc,jb,nsubs+1)          * rnsubs
           p_nh%diag%theta_v_ic_int(jc,jb,nsubs+1)    = p_nh%diag%theta_v_ic_int(jc,jb,nsubs+1) * rnsubs
@@ -519,7 +519,7 @@ CONTAINS
 
         ! Compute time tendencies to obtain second order in time accuracy for child nest UBC, 
         ! and store them at index nsubs+2.
-        !$ACC LOOP GANG(STATIC:1) VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           p_nh%diag%w_int(jc,jb,nsubs+2)         = rdt_ubc                               &
             &   * (p_nh%diag%w_int(jc,jb,nsubs) - p_nh%diag%w_int(jc,jb,1))
@@ -533,7 +533,7 @@ CONTAINS
           p_nh%diag%mflx_ic_int(jc,jb,nsubs+2)   = rdt_ubc                               &
             &   * (p_nh%diag%mflx_ic_int(jc,jb,nsubs) - p_nh%diag%mflx_ic_int(jc,jb,1))
         ENDDO
-        !$ACC END PARALLEL      
+        !$ACC END PARALLEL
       ENDDO
 !$OMP END DO
 
@@ -549,13 +549,13 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_e+1, min_rledge_int-2)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF( i_am_accel_node )
+        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
           p_nh%diag%dvn_ie_int(je,jb) = 0.5_wp*(p_nh%diag%dvn_ie_int(je,jb) + &
             p_nh%diag%vn_ie(je,nshift,jb) - p_nh%diag%vn_ie(je,nshift+1,jb))
         ENDDO
-        !$ACC END PARALLEL      
+        !$ACC END PARALLEL
 
       ENDDO
 !$OMP END DO
@@ -586,8 +586,8 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new)&
-      !$ACC   IF( i_am_accel_node ) DEFAULT(NONE)
+      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
+      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
 #ifdef __LOOP_EXCHANGE
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -623,8 +623,8 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new)&
-      !$ACC   IF( i_am_accel_node ) DEFAULT(NONE)
+      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
+      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -636,8 +636,8 @@ CONTAINS
 
       IF (ltransport) THEN
 
-        !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_new_rcf, p_prog_now_rcf)&
-        !$ACC   IF( i_am_accel_node ) DEFAULT(NONE)
+        !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_new_rcf, p_prog_now_rcf) &
+        !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
 #ifdef __LOOP_EXCHANGE
         DO ic = jshift+1, jshift+nlen
           jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -688,8 +688,8 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new)&
-      !$ACC   IF( i_am_accel_node ) DEFAULT(NONE)
+      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
+      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
 #ifdef __LOOP_EXCHANGE
       DO ie = jshift+1, jshift+nlen
         je = p_grf%idxlist_bdyintp_src_e(ie)
@@ -786,7 +786,7 @@ CONTAINS
     !$ INTEGER :: num_threads_omp, omp_get_max_threads
     !-----------------------------------------------------------------------
 
-    !$ACC DATA CREATE(aux3dp, aux3dc, theta_prc, rho_prc) IF( i_am_accel_node )
+    !$ACC DATA CREATE(aux3dp, aux3dc, theta_prc, rho_prc) IF(i_am_accel_node)
     IF (msg_level >= 10) THEN
       WRITE(message_text,'(a,i2,a,i2)') '========= Interpolate:',jg,' =>',jgc
       CALL message(routine, message_text)
@@ -833,7 +833,7 @@ CONTAINS
     IF (l_child_vertnest) THEN
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF( i_am_accel_node )
+        !$ACC KERNELS IF(i_am_accel_node)
         aux3dp = 0._wp
         aux3dc = 0._wp
         !$ACC END KERNELS
@@ -861,7 +861,7 @@ CONTAINS
             0, min_rlcell_int)
         
           !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
 !$NEC ivdep
           DO jc = i_startidx, i_endidx
             aux3dp(jc,1:2,jb) = p_diagp%w_int         (jc,jb,nsubs+1:nsubs+2)
@@ -869,14 +869,14 @@ CONTAINS
             aux3dp(jc,5:6,jb) = p_diagp%rho_ic_int    (jc,jb,nsubs+1:nsubs+2)
             aux3dp(jc,7:8,jb) = p_diagp%mflx_ic_int   (jc,jb,nsubs+1:nsubs+2)
           ENDDO
-          !$ACC LOOP SEQ 
+          !$ACC LOOP SEQ
           DO jt = 1, ntracer
-            !$ACC LOOP GANG(STATIC:1) VECTOR
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
               aux3dp(jc,8+jt,jb) = prep_advp%q_int(jc,jt,jb)
             ENDDO
           ENDDO
-          !$ACC END PARALLEL 
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END PARALLEL DO
 
@@ -893,7 +893,7 @@ CONTAINS
 
 !$NEC ivdep
           !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
-          !$ACC LOOP GANG(STATIC:1) VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             p_diagc%w_ubc(jc,jb,1:2)          = aux3dc(jc,1:2,jb)
             p_diagc%theta_v_ic_ubc(jc,jb,1:2) = aux3dc(jc,3:4,jb)
@@ -901,14 +901,14 @@ CONTAINS
             p_diagc%mflx_ic_ubc(jc,jb,1:2)    = aux3dc(jc,7:8,jb)
           ENDDO
 
-          !$ACC LOOP SEQ 
+          !$ACC LOOP SEQ
           DO jt = 1, ntracer
-            !$ACC LOOP GANG(STATIC:1) VECTOR
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
               prep_advc%q_ubc(jc,jt,jb) = aux3dc(jc,jt+8,jb)
             ENDDO
           ENDDO
-          !$ACC END PARALLEL 
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END PARALLEL DO
 
@@ -928,7 +928,7 @@ CONTAINS
             aux3dp(jc,5:6,jb) = p_diagp%rho_ic_int    (jc,jb,nsubs+1:nsubs+2)
             aux3dp(jc,7:8,jb) = p_diagp%mflx_ic_int   (jc,jb,nsubs+1:nsubs+2)
           ENDDO
-          !$ACC END PARALLEL 
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END PARALLEL DO
 
@@ -951,7 +951,7 @@ CONTAINS
             p_diagc%rho_ic_ubc(jc,jb,1:2)     = aux3dc(jc,5:6,jb)
             p_diagc%mflx_ic_ubc(jc,jb,1:2)    = aux3dc(jc,7:8,jb)
           ENDDO
-          !$ACC END PARALLEL 
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END PARALLEL DO
 
@@ -1097,10 +1097,12 @@ CONTAINS
   !! This routine prepares boundary nudging for use with 1-way nesting.
   !!
   !! The following steps are executed:
-  !! 1. Mapping of coarse-grid prognostic variables to intermediate grid sharing
-  !!    the domain decomposition and vertical dimension with the child grid
-  !! 2. Computation of differences between parent-grid values and averaged child-grid
-  !!    variables
+  !! 1. Mapping of parent grid prognostic variables to intermediate grid having 
+  !!    the horizontal resolution of the parent grid, but sharing
+  !!    the domain decomposition and vertical dimension with the child grid.
+  !! 2. a) Interpolation/Averaging of child grid variables to intermediate grid. 
+  !!    b) Computation of differences between mapped parent-grid values and averaged child grid
+  !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
   !! @par Revision History
@@ -1214,8 +1216,8 @@ CONTAINS
     ALLOCATE(parent_vn  (nproma, nlev_p, p_patch_local_parent(jg)%nblks_e), &
       &      diff_vn    (nproma, nlev_c, p_patch_local_parent(jg)%nblks_e)  )
 
-    !$ACC DATA CREATE(parent_thv, diff_thv, parent_rho, diff_rho, parent_w, diff_w, &
-    !$ACC      parent_vn, diff_vn) IF(i_am_accel_node)
+    !$ACC DATA CREATE(parent_thv, diff_thv, parent_rho, diff_rho, parent_w, diff_w) &
+    !$ACC   CREATE(parent_vn, diff_vn) IF(i_am_accel_node)
     !$ACC DATA CREATE(parent_tr, diff_tr) IF(i_am_accel_node .AND. ltransport)
     
     ! Set pointers to index and coefficient fields for cell-based variables
@@ -1421,10 +1423,12 @@ CONTAINS
   !! This routine prepares boundary nudging for density only (for use with 2-way nesting)
   !!
   !! The following steps are executed:
-  !! 1. Mapping of coarse-grid density to intermediate grid sharing
-  !!    the domain decomposition and vertical dimension with the child grid
-  !! 2. Computation of differences between parent-grid values and averaged child-grid
-  !!    values
+  !! 1. Mapping of parent grid prognostic variables to intermediate grid having 
+  !!    the horizontal resolution of the parent grid, but sharing
+  !!    the domain decomposition and vertical dimension with the child grid.
+  !! 2. a) Interpolation/Averaging of child grid variables to intermediate grid. 
+  !!    b) Computation of differences between mapped parent-grid values and averaged child grid
+  !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
   !! @par Revision History
@@ -1582,45 +1586,6 @@ CONTAINS
   END SUBROUTINE prep_rho_bdy_nudging
 
 
-  !>
-  !! Wrapper routine which executes LATERAL and UPPER boundary nudging 
-  !! for the limited-area mode.
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2013-21-10
-  !!
-  SUBROUTINE limarea_nudging_bdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-
-    TYPE(t_patch),      INTENT(IN)    :: p_patch
-    TYPE(t_nh_prog),    INTENT(INOUT)    :: p_prog
-    REAL(wp), CONTIGUOUS_ARGUMENT(inout) :: ptr_tracer(:,:,:,:)
-    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
-    TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
-    TYPE(t_int_state),  INTENT(IN)    :: p_int
-
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
-
-    ! alternative input data, either for constant or time-dependent lateral boundary conditions
-    TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
-    TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
-
-
-    ! lateral boundary nudging
-    !
-    CALL limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-
-    IF (nudging_config(p_patch%id)%ltype(indg_type%ubn)) THEN
-      ! upper boundary nudging
-      !
-      CALL limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                   p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
-    ENDIF
-
-  END SUBROUTINE limarea_nudging_bdy
-
-
 
   !>
   !! This routine executes LATERAL boundary nudging for the limited-area mode.
@@ -1629,7 +1594,7 @@ CONTAINS
   !! Developed by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
+                                  p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1638,12 +1603,12 @@ CONTAINS
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int
 
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
-
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
     TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
-
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc1     ! time interpolation weight
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc2     ! time interpolation weight
+    
     ! local variables
     INTEGER  :: jb, jc, jk, je, ic, nlev
     INTEGER  :: jg, nshift
@@ -1667,6 +1632,13 @@ CONTAINS
     ! R / p0ref
     rd_o_p0ref = rd / p0ref
 
+    IF (PRESENT(lc1) .AND. PRESENT(lc2)) THEN
+      wfac_old = lc1
+      wfac_new = lc2  
+    ELSE
+      wfac_old = -999._wp
+      wfac_new = -999._wp
+    ENDIF
 
     IF (nudging_config(jg)%ltype(indg_type%ubn)) THEN
       ! Upper boundary nudging is switched on
@@ -1680,7 +1652,7 @@ CONTAINS
       CALL finish(TRIM(routine),'conflicting arguments')
 
     ELSE IF (PRESENT(p_latbc_const)) THEN ! Mode for constant lateral boundary data
-      !$acc data present(p_metrics, p_prog, p_latbc_const, p_int)
+      !$ACC DATA PRESENT(p_metrics, p_prog, p_latbc_const, p_int)
 
       ! compute differences between lateral boundary data and prognostic variables
 
@@ -1693,8 +1665,8 @@ CONTAINS
 !DIR$ IVDEP
         DO jk = 1, nlev
 #else
-      !$acc parallel default(none) async(1)
-      !$acc loop gang vector collapse(2) private(jc, jb, thv_tend, rho_tend, zrho, ztheta_v, zexner)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, thv_tend, rho_tend, zrho, ztheta_v, zexner)
       DO jk = 1, nlev
 !$NEC ivdep
         DO ic = 1, p_metrics%nudge_c_dim
@@ -1708,21 +1680,21 @@ CONTAINS
             ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
             ! this section should be revisited once bug is resolved.
             ! BUG-FIX for nvfort 21.3.0 (Daint) fond and solved by Xavier Lapillonne
-            zrho     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            ztheta_v = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
             p_prog%rho(jc,jk,jb)     = zrho
             p_prog%theta_v(jc,jk,jb) = ztheta_v
             p_prog%exner(jc,jk,jb)   = zexner
 #else
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 #endif
 
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
 !$OMP END DO
 
 !$OMP DO PRIVATE(jk,je,jb,ic,vn_tend) ICON_OMP_DEFAULT_SCHEDULE
@@ -1733,8 +1705,8 @@ CONTAINS
 !DIR$ IVDEP
         DO jk = 1, nlev
 #else
-      !$acc parallel default(none) async(1)
-      !$acc loop gang vector collapse(2) private(jc, jb, vn_tend)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, vn_tend)
       DO jk = 1, nlev
 !$NEC ivdep
         DO ic = 1, p_metrics%nudge_e_dim
@@ -1743,36 +1715,40 @@ CONTAINS
 #endif
           vn_tend = p_latbc_const%vn(je,jk,jb) - p_prog%vn(je,jk,jb)
 
-          p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + tsrat*p_int%nudgecoeff_e(je,jb)*vn_tend
+          p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + p_int%nudgecoeff_e(je,jb)*vn_tend
 
         ENDDO
       ENDDO
-      !$acc end parallel
+      !$ACC END PARALLEL
 
-      !$acc wait
-      !$acc end data
+      !$ACC WAIT
+      !$ACC END DATA
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     ELSE IF (PRESENT(p_latbc_old) .AND. PRESENT(p_latbc_new)) THEN ! Mode for time-dependent lateral boundary data
 
-      !$acc data present(p_metrics%nudge_c_idx,p_metrics%nudge_c_blk)                        &
-      !$acc present(ptr_tracer,p_prog%theta_v,p_prog%rho,p_prog%exner,p_prog%vn)             &
-      !$acc present(p_diag%temp,p_diag%pres,p_diag%tempv)                                    &
-      !$acc present(p_latbc_old,p_latbc_new)                                                 &
-      !$acc present(p_latbc_old%pres,p_latbc_old%temp,p_latbc_old%qv)                        &
-      !$acc present(p_latbc_old%theta_v,p_latbc_old%rho,p_latbc_old%vn)                      &
-      !$acc present(p_latbc_new%pres,p_latbc_new%temp,p_latbc_new%qv)                        &
-      !$acc present(p_latbc_new%theta_v,p_latbc_new%rho,p_latbc_new%vn)                      &      
-      !$acc present(p_metrics%nudge_c_dim, p_int%nudgecoeff_c)                               &
-      !$acc present(p_int, p_prog, p_diag, p_metrics)                                        &
-      !$acc present(p_metrics%nudge_e_idx, p_metrics%nudge_e_blk)
+      !$ACC DATA PRESENT(p_metrics%nudge_c_idx, p_metrics%nudge_c_blk) &
+      !$ACC   PRESENT(ptr_tracer, p_prog%theta_v, p_prog%rho, p_prog%exner, p_prog%vn) &
+      !$ACC   PRESENT(p_diag%temp, p_diag%pres, p_diag%tempv) &
+      !$ACC   PRESENT(p_latbc_old, p_latbc_new) &
+      !$ACC   PRESENT(p_latbc_old%pres, p_latbc_old%temp, p_latbc_old%qv) &
+      !$ACC   PRESENT(p_latbc_old%theta_v, p_latbc_old%rho, p_latbc_old%vn) &
+      !$ACC   PRESENT(p_latbc_new%pres, p_latbc_new%temp, p_latbc_new%qv) &
+      !$ACC   PRESENT(p_latbc_new%theta_v, p_latbc_new%rho, p_latbc_new%vn) &
+      !$ACC   PRESENT(p_metrics%nudge_c_dim, p_int%nudgecoeff_c) &
+      !$ACC   PRESENT(p_int, p_prog, p_diag, p_metrics) &
+      !$ACC   PRESENT(p_metrics%nudge_e_idx, p_metrics%nudge_e_blk)
+
+
+      ! check if interpolation weights are provided
+      IF (.NOT. PRESENT(lc1) .OR. .NOT. PRESENT(lc2)) THEN
+        CALL finish(routine,'missing interpolation weights wfac_old, wfac_new')
+      ENDIF
 
       ! compute differences between lateral boundary data and prognostic variables
 
-      wfac_old = latbc_config%lc1
-      wfac_new = latbc_config%lc2
 
 !$OMP PARALLEL
       IF (latbc_config%nudge_hydro_pres .AND. ltransport) THEN
@@ -1784,9 +1760,9 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$acc parallel default(none)
-        !$acc loop gang vector collapse(2) &
-        !$acc private(jc,jb,pres,temp,qv,tempv_inc,pres_inc,thv_tend,rho_tend,zrho,ztheta_v,zexner)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+        !$ACC   PRIVATE(jc, jb, pres, temp, qv, tempv_inc, pres_inc, thv_tend, rho_tend, zrho, ztheta_v, zexner)
         DO jk = nshift+1, nlev
 !$NEC ivdep
           DO ic = 1, p_metrics%nudge_c_dim
@@ -1808,20 +1784,20 @@ CONTAINS
 #ifdef _OPENACC
             ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
             ! this section should be revisited once bug is resolved.
-            zrho     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            ztheta_v = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
             p_prog%rho(jc,jk,jb)     = zrho
             p_prog%theta_v(jc,jk,jb) = ztheta_v
             p_prog%exner(jc,jk,jb)   = zexner
 #else
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 #endif
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
 !$OMP END DO
 
@@ -1835,8 +1811,8 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$acc parallel default(none)
-        !$acc loop gang vector collapse(2) private(jc,jb,thv_tend,rho_tend)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, thv_tend, rho_tend)
         DO jk = nshift+1, nlev
 !$NEC ivdep
           DO ic = 1, p_metrics%nudge_c_dim
@@ -1846,13 +1822,13 @@ CONTAINS
             thv_tend = wfac_old*p_latbc_old%theta_v(jc,jk,jb) + wfac_new*p_latbc_new%theta_v(jc,jk,jb) - p_prog%theta_v(jc,jk,jb)
             rho_tend = wfac_old*p_latbc_old%rho(jc,jk,jb) + wfac_new*p_latbc_new%rho(jc,jk,jb)- p_prog%rho(jc,jk,jb)
 
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + tsrat*p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + tsrat*p_int%nudgecoeff_c(jc,jb)*thv_tend
+            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 !$OMP END DO
 
       ENDIF
@@ -1866,8 +1842,8 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = 1, nlev
 #else
-        !$acc parallel default(none)
-        !$acc loop gang vector collapse(2) private(jc,jb,qv_tend)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, qv_tend)
         DO jk = 1, nlev
 !$NEC ivdep
           DO ic = 1, p_metrics%nudge_c_dim
@@ -1881,11 +1857,11 @@ CONTAINS
 
             ! using a weaker nudging coefficient for QV than for thermodynamic variables turned out to have a slightly
             ! beneficial impact on forecast quality
-            ptr_tracer(jc,jk,jb,iqv) = ptr_tracer(jc,jk,jb,iqv) + 0.5_wp*tsrat*p_int%nudgecoeff_c(jc,jb)*qv_tend
+            ptr_tracer(jc,jk,jb,iqv) = ptr_tracer(jc,jk,jb,iqv) + 0.5_wp*p_int%nudgecoeff_c(jc,jb)*qv_tend
 
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
 !$OMP END DO
       ENDIF
@@ -1898,8 +1874,8 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$acc parallel default(none)
-        !$acc loop gang vector collapse(2) private(je,jb,vn_tend)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(je, jb, vn_tend)
         DO jk = nshift+1, nlev
 !$NEC ivdep
           DO ic = 1, p_metrics%nudge_e_dim
@@ -1910,13 +1886,13 @@ CONTAINS
 
             ! using a weaker nudging coefficient for vn than for thermodynamic variables turned out to have a
             ! beneficial impact on forecast quality
-            p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + 0.5_wp*tsrat*p_int%nudgecoeff_e(je,jb)*vn_tend
+            p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + 0.5_wp*p_int%nudgecoeff_e(je,jb)*vn_tend
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
-      !$acc end data
+      !$ACC END DATA
 
     ELSE
       CALL finish(TRIM(routine), 'missing arguments')
@@ -1934,7 +1910,7 @@ CONTAINS
   !! Developed  by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
-                                  p_int, tsrat, p_latbc_const, p_latbc_old, p_latbc_new)
+                                  p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
@@ -1943,11 +1919,11 @@ CONTAINS
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int
 
-    REAL(wp),           INTENT(IN)    :: tsrat ! Ratio between advective and dynamical time step
-
     ! alternative input data, either for constant or time-dependent lateral boundary conditions
     TYPE(t_nh_prog),    INTENT(IN), OPTIONAL :: p_latbc_const
     TYPE(t_pi_atm),     INTENT(IN), OPTIONAL :: p_latbc_old, p_latbc_new
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc1     ! time interpolation weight
+    REAL(wp),           INTENT(IN), OPTIONAL :: lc2     ! time interpolation weight
 
     ! local variables
     INTEGER  :: jg
@@ -1972,6 +1948,14 @@ CONTAINS
 
     ke_nudge = nudging_config(jg)%ilev_end
 
+    IF (PRESENT(lc1) .AND. PRESENT(lc2)) THEN
+      wfac_old = lc1
+      wfac_new = lc2  
+    ELSE
+      wfac_old = -999._wp
+      wfac_new = -999._wp
+   ENDIF
+   
     !
     ! Check if hydrostatic or nonhydrostatic thermodynamic variables shall be used for computing nudging increments 
     lnudge_hydro_pres_ubn = nudging_config(jg)%thermdyn_type == ithermdyn_type%hydrostatic .AND. ltransport
@@ -1996,22 +1980,24 @@ CONTAINS
 
     ELSE IF (PRESENT(p_latbc_old) .AND. PRESENT(p_latbc_new)) THEN ! Mode for time-dependent lateral boundary data
 
-      wfac_old = latbc_config%lc1
-      wfac_new = latbc_config%lc2
 
-      !$acc data present(p_diag%temp,p_diag%pres,p_diag%tempv,p_prog%rho)                    &
-      !$acc present(ptr_tracer,p_prog%theta_v,p_prog%exner,p_prog%vn)                        &
-      !$acc present(p_patch%cells%refin_ctrl,p_patch%edges%refin_ctrl)                       &
-      !$acc create(bdymask)                                                                  &
-      !$acc present(p_latbc_old,p_latbc_new)                                                 &
-      !$acc present(p_metrics%nudgecoeff_vert)                                               &
-      !$acc present(p_int,p_int%nudgecoeff_c)                                                &
-      !$acc present(p_latbc_old%pres,p_latbc_old%temp,p_latbc_old%qv)                        &
-      !$acc present(p_latbc_new%pres,p_latbc_new%temp,p_latbc_new%qv)                        &
-      !$acc present(p_latbc_old%theta_v,p_latbc_old%rho,p_latbc_old%vn)                      &
-      !$acc present(p_latbc_new%theta_v,p_latbc_new%rho,p_latbc_new%vn)                      &
-      !$acc present(p_prog, p_diag, p_metrics, p_patch)
- 
+      !$ACC DATA PRESENT(p_diag%temp, p_diag%pres, p_diag%tempv, p_prog%rho) &
+      !$ACC   PRESENT(ptr_tracer, p_prog%theta_v, p_prog%exner, p_prog%vn) &
+      !$ACC   PRESENT(p_patch%cells%refin_ctrl, p_patch%edges%refin_ctrl) &
+      !$ACC   CREATE(bdymask) &
+      !$ACC   PRESENT(p_latbc_old, p_latbc_new) &
+      !$ACC   PRESENT(p_metrics%nudgecoeff_vert) &
+      !$ACC   PRESENT(p_int, p_int%nudgecoeff_c) &
+      !$ACC   PRESENT(p_latbc_old%pres, p_latbc_old%temp, p_latbc_old%qv) &
+      !$ACC   PRESENT(p_latbc_new%pres, p_latbc_new%temp, p_latbc_new%qv) &
+      !$ACC   PRESENT(p_latbc_old%theta_v, p_latbc_old%rho, p_latbc_old%vn) &
+      !$ACC   PRESENT(p_latbc_new%theta_v, p_latbc_new%rho, p_latbc_new%vn) &
+      !$ACC   PRESENT(p_prog, p_diag, p_metrics, p_patch)
+
+      IF (.NOT. PRESENT(lc1) .OR. .NOT. PRESENT(lc2)) THEN
+        CALL finish(routine,'missing interpolation weights wfac_old, wfac_new')
+      ENDIF
+
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
       i_startblk = p_patch%cells%start_block(grf_bdywidth_c+1)
@@ -2025,21 +2011,21 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
 
         ! Exclude halo points of boundary interpolation zone (causes sync error otherwise)
-        !$acc parallel default(none)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           bdymask(jc) = p_patch%cells%refin_ctrl(jc,jb)>=1 .AND. p_patch%cells%refin_ctrl(jc,jb)<=grf_bdywidth_c
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
         IF (lnudge_hydro_pres_ubn) THEN
-          !$acc parallel default(none)
-          !$acc loop gang vector collapse(2) private(nudgecoeff,pres,temp,qv,tempv_inc,pres_inc,thv_tend,rho_tend)
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, pres, temp, qv, tempv_inc, pres_inc, thv_tend, rho_tend)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
 
-              nudgecoeff = MERGE(0._wp, tsrat*MAX(MERGE(p_int%nudgecoeff_c(jc,jb),0._wp,jg==1), &
+              nudgecoeff = MERGE(0._wp, MAX(MERGE(p_int%nudgecoeff_c(jc,jb),0._wp,jg==1),  &
                 &          max_nudge_coeff_thermdyn*p_metrics%nudgecoeff_vert(jk)), bdymask(jc))
 
               pres = wfac_old*p_latbc_old%pres(jc,jk,jb) + wfac_new*p_latbc_new%pres(jc,jk,jb)
@@ -2061,15 +2047,15 @@ CONTAINS
 
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ELSE
-          !$acc parallel default(none)
-          !$acc loop gang vector collapse(2) private(nudgecoeff,thv_tend,rho_tend)
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, thv_tend, rho_tend)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
 
-              nudgecoeff = MERGE(0._wp, tsrat*MAX(p_int%nudgecoeff_c(jc,jb), &
+              nudgecoeff = MERGE(0._wp, MAX(p_int%nudgecoeff_c(jc,jb),  &
                 &          max_nudge_coeff_thermdyn*p_metrics%nudgecoeff_vert(jk)), bdymask(jc))
 
               thv_tend = wfac_old*p_latbc_old%theta_v(jc,jk,jb) + wfac_new*p_latbc_new%theta_v(jc,jk,jb) - p_prog%theta_v(jc,jk,jb)
@@ -2081,7 +2067,7 @@ CONTAINS
                 EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb))),bdymask(jc))
             ENDDO
           ENDDO
-          !$acc end parallel
+          !$ACC END PARALLEL
         ENDIF
       ENDDO
 !$OMP END DO
@@ -2096,20 +2082,20 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_e+1, min_rledge)
 
         ! Exclude halo points of boundary interpolation zone (causes sync error otherwise)
-        !$acc parallel default(none)
-        !$acc loop gang vector
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
           bdymask(je) = p_patch%edges%refin_ctrl(je,jb)>=1 .AND. p_patch%edges%refin_ctrl(je,jb)<=grf_bdywidth_e
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
 
-        !$acc parallel default(none)
-        !$acc loop gang vector collapse(2) private(nudgecoeff,vn_tend)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, vn_tend)
         DO jk = 1, ke_nudge
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
 
-            nudgecoeff = MERGE(0._wp, tsrat*MAX(0.5_wp*p_int%nudgecoeff_e(je,jb), &
+            nudgecoeff = MERGE(0._wp, MAX(0.5_wp*p_int%nudgecoeff_e(je,jb),  &
               &          max_nudge_coeff_vn*p_metrics%nudgecoeff_vert(jk)), bdymask(je))
 
             vn_tend = wfac_old*p_latbc_old%vn(je,jk,jb) + wfac_new*p_latbc_new%vn(je,jk,jb) - p_prog%vn(je,jk,jb)
@@ -2117,10 +2103,10 @@ CONTAINS
             p_prog%vn(je,jk,jb) = p_prog%vn(je,jk,jb) + nudgecoeff*vn_tend
           ENDDO
         ENDDO
-        !$acc end parallel
+        !$ACC END PARALLEL
       ENDDO
 
-      !$acc end data
+      !$ACC END DATA
 !$OMP END DO NOWAIT
 
 !$OMP END PARALLEL
@@ -2248,12 +2234,10 @@ CONTAINS
   !!
   !! @par Revision History
   !! Developed  by Guenther Zaengl, DWD, 2010-06-18
-  SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf, rcffac)
+  SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf)
 
 
     INTEGER, INTENT(IN)  :: jg, nnew, nnew_rcf
-
-    REAL(wp), INTENT(IN) :: rcffac ! Ratio between advective and dynamical time step
 
     ! Pointers
     TYPE(t_nh_state),  POINTER ::  p_nh
@@ -2289,7 +2273,7 @@ CONTAINS
 !$OMP PARALLEL
 
 !$OMP DO PRIVATE(jk,jc,jb,ic,upper_lim,lower_lim) ICON_OMP_DEFAULT_SCHEDULE
-    !$ACC PARALLEL DEFAULT(PRESENT) IF (i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     DO ic = 1, p_nh%metrics%nudge_c_dim
       jc = p_nh%metrics%nudge_c_idx(ic)
@@ -2306,23 +2290,23 @@ CONTAINS
 #endif
         upper_lim = 1.0025_wp*p_nh%prog(nnew)%rho(jc,jk,jb)
         lower_lim = 0.9975_wp*p_nh%prog(nnew)%rho(jc,jk,jb)
-        p_nh%prog(nnew)%rho(jc,jk,jb) =                                      &
-          p_nh%prog(nnew)%rho(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)*  &
+        p_nh%prog(nnew)%rho(jc,jk,jb) =                               &
+          p_nh%prog(nnew)%rho(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*  &
           p_nh%diag%grf_tend_rho(jc,jk,jb)
         p_nh%prog(nnew)%rho(jc,jk,jb) = MAX(lower_lim,MIN(upper_lim,p_nh%prog(nnew)%rho(jc,jk,jb)))
 
         upper_lim = 1.0025_wp*p_nh%prog(nnew)%theta_v(jc,jk,jb)
         lower_lim = 0.9975_wp*p_nh%prog(nnew)%theta_v(jc,jk,jb)
-        p_nh%prog(nnew)%theta_v(jc,jk,jb) =                                     &
-          p_nh%prog(nnew)%theta_v(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)* &
+        p_nh%prog(nnew)%theta_v(jc,jk,jb) =                              &
+          p_nh%prog(nnew)%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)* &
           p_nh%diag%grf_tend_thv(jc,jk,jb)
         p_nh%prog(nnew)%theta_v(jc,jk,jb) = MAX(lower_lim,MIN(upper_lim,p_nh%prog(nnew)%theta_v(jc,jk,jb)))
 
         p_nh%prog(nnew)%exner(jc,jk,jb) =                                  &
           EXP(rd_o_cvd*LOG(rd_o_p0ref*p_nh%prog(nnew)%rho(jc,jk,jb)*p_nh%prog(nnew)%theta_v(jc,jk,jb)))
 
-        p_nh%prog(nnew)%w(jc,jk,jb) =                                      &
-          p_nh%prog(nnew)%w(jc,jk,jb) + rcffac*p_int%nudgecoeff_c(jc,jb)*  &
+        p_nh%prog(nnew)%w(jc,jk,jb) =                               &
+          p_nh%prog(nnew)%w(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*  &
           p_nh%diag%grf_tend_w(jc,jk,jb)
 
       ENDDO
@@ -2331,7 +2315,7 @@ CONTAINS
 !$OMP END DO
 
 !$OMP DO PRIVATE(jb,jk,je,ic) ICON_OMP_DEFAULT_SCHEDULE
-    !$ACC PARALLEL DEFAULT(PRESENT) IF (i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     DO ic = 1, p_nh%metrics%nudge_e_dim
       je = p_nh%metrics%nudge_e_idx(ic)
@@ -2347,7 +2331,7 @@ CONTAINS
         jb = p_nh%metrics%nudge_e_blk(ic)
 #endif
         p_nh%prog(nnew)%vn(je,jk,jb) = p_nh%prog(nnew)%vn(je,jk,jb)        &
-          + rcffac*p_int%nudgecoeff_e(je,jb)*p_nh%diag%grf_tend_vn(je,jk,jb)
+          + p_int%nudgecoeff_e(je,jb)*p_nh%diag%grf_tend_vn(je,jk,jb)
       ENDDO
     ENDDO
     !$ACC END PARALLEL
@@ -2355,7 +2339,7 @@ CONTAINS
 
     IF (ltransport) THEN
 !$OMP DO PRIVATE(jk,jc,jb,jt,ic,upper_lim,lower_lim) ICON_OMP_DEFAULT_SCHEDULE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF (i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO ic = 1, p_nh%metrics%nudge_c_dim
         jc = p_nh%metrics%nudge_c_idx(ic)
@@ -2376,7 +2360,7 @@ CONTAINS
             upper_lim = 1.01_wp*p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)
             lower_lim = 0.99_wp*p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)
             p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) = p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) + &
-              rcffac*p_int%nudgecoeff_c(jc,jb)*p_nh%diag%grf_tend_tracer(jc,jk,jb,jt)
+              p_int%nudgecoeff_c(jc,jb)*p_nh%diag%grf_tend_tracer(jc,jk,jb,jt)
             p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt) =  MAX(lower_lim,MIN(upper_lim,&
               p_nh%prog(nnew_rcf)%tracer(jc,jk,jb,jt)))
 
@@ -2398,12 +2382,10 @@ CONTAINS
   !!
   !! @par Revision History
   !! Developed  by Guenther Zaengl, DWD, 2011-12-08
-  SUBROUTINE density_boundary_nudging(jg, nnew, rcffac)
+  SUBROUTINE density_boundary_nudging(jg, nnew)
 
 
     INTEGER, INTENT(IN)  :: jg, nnew
-
-    REAL(wp), INTENT(IN) :: rcffac ! Ratio between advective and dynamical time step
 
     ! Pointers
     TYPE(t_nh_state),  POINTER ::  p_nh
@@ -2447,7 +2429,7 @@ CONTAINS
         jb = p_nh%metrics%nudge_c_blk(ic)
 #endif
         p_nh%prog(nnew)%rho(jc,jk,jb) = p_nh%prog(nnew)%rho(jc,jk,jb) +  &
-          MIN(0.333_wp,3._wp*rcffac*p_int%nudgecoeff_c(jc,jb))*          &
+          MIN(0.333_wp,3._wp*p_int%nudgecoeff_c(jc,jb))*                 &
           p_nh%diag%grf_tend_rho(jc,jk,jb)
 
         p_nh%prog(nnew)%exner(jc,jk,jb) =                                  &

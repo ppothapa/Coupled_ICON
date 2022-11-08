@@ -76,7 +76,7 @@ MODULE mo_interface_iconam_aes
   USE mo_nonhydro_types        ,ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nh_diagnose_pres_temp ,ONLY: diagnose_pres_temp
   USE mo_math_constants        ,ONLY: rad2deg
-  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, grav
+  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, grav, cpd, alv
   USE mtime                    ,ONLY: datetime , newDatetime , deallocateDatetime     ,&
     &                                 timedelta, newTimedelta, deallocateTimedelta    ,&
     &                                 max_timedelta_str_len  , getPTStringFromSeconds ,&
@@ -107,6 +107,8 @@ MODULE mo_interface_iconam_aes
 
   USE mo_upatmo_config         ,ONLY: upatmo_config
   USE mo_upatmo_impl_const,     ONLY: idamtr
+
+  USE mo_aes_thermo,            ONLY: internal_energy
 
   IMPLICIT NONE
 
@@ -234,24 +236,24 @@ CONTAINS
     datetime_old      =  datetime_new + neg_dt_loc_mtime
     CALL deallocateTimedelta(neg_dt_loc_mtime)
 
-    !$ACC DATA PRESENT( pt_prog_new%vn, pt_prog_new%w, pt_prog_new%rho,                         &
-    !$ACC               pt_prog_new%exner, pt_prog_new%theta_v,                                 &
-    !$ACC               pt_prog_new_rcf%tracer,                                                 &
-    !$ACC               pt_diag%u, pt_diag%v, pt_diag%temp, pt_diag%tempv,                      &
-    !$ACC               pt_diag%ddt_tracer_adv,                                                 &
-    !$ACC               pt_diag%ddt_vn_phy, pt_diag%exner_pr, pt_diag%ddt_exner_phy,            &
-    !$ACC               pt_diag%exner_dyn_incr,                                                 &
-    !$ACC               pt_int_state%c_lin_e,  advection_config(jg)%trHydroMass%list,           &
-    !$ACC               patch%edges%cell_idx, patch%edges%primal_normal_cell,                   &
-    !$ACC               field%pfull,                                                            &
-    !$ACC               field%rho, field%mair, field%dz, field%mh2o,                            &
-    !$ACC               field%mdry, field%mref, field%xref, field%wa, field%omega,              &
-    !$ACC               field%clon, field%clat, field%mtrc, field%qtrc,                         &
-    !$ACC               field%mtrcvi, field%mh2ovi, field%mairvi, field%mdryvi, field%mrefvi,   &
-    !$ACC               tend%ua_phy, tend%va_phy, tend%ta_phy, tend%qtrc, tend%qtrc_dyn,        &
-    !$ACC               tend%qtrc_phy, tend%mtrc_phy, tend%mtrcvi_phy, p_metrics%deepatmo_t1mc )&
-    !$ACC       CREATE( deepatmo_vol )                                                          &
-    !$ACC       COPYIN( aes_phy_config(jg:jg) )
+    !$ACC DATA PRESENT(pt_prog_new%vn, pt_prog_new%w, pt_prog_new%rho) &
+    !$ACC   PRESENT(pt_prog_new%exner, pt_prog_new%theta_v) &
+    !$ACC   PRESENT(pt_prog_new_rcf%tracer) &
+    !$ACC   PRESENT(pt_diag%u, pt_diag%v, pt_diag%temp, pt_diag%tempv) &
+    !$ACC   PRESENT(pt_diag%ddt_tracer_adv) &
+    !$ACC   PRESENT(pt_diag%ddt_vn_phy, pt_diag%exner_pr, pt_diag%ddt_exner_phy) &
+    !$ACC   PRESENT(pt_diag%exner_dyn_incr) &
+    !$ACC   PRESENT(pt_int_state%c_lin_e, advection_config(jg)%trHydroMass%list) &
+    !$ACC   PRESENT(patch%edges%cell_idx, patch%edges%primal_normal_cell) &
+    !$ACC   PRESENT(field%pfull) &
+    !$ACC   PRESENT(field%rho, field%mair, field%dz, field%mh2o) &
+    !$ACC   PRESENT(field%mdry, field%mref, field%xref, field%wa, field%omega) &
+    !$ACC   PRESENT(field%clon, field%clat, field%mtrc, field%qtrc) &
+    !$ACC   PRESENT(field%mtrcvi, field%mh2ovi, field%mairvi, field%mdryvi, field%mrefvi) &
+    !$ACC   PRESENT(tend%ua_phy, tend%va_phy, tend%ta_phy, tend%qtrc, tend%qtrc_dyn) &
+    !$ACC   PRESENT(tend%qtrc_phy, tend%mtrc_phy, tend%mtrcvi_phy, p_metrics%deepatmo_t1mc) &
+    !$ACC   CREATE(deepatmo_vol) &
+    !$ACC   COPYIN(aes_phy_config(jg:jg))
 
     jt_end = ntracer
 
@@ -267,7 +269,7 @@ CONTAINS
     !   However, at the cost of the considerable memory consumption of an additional 3d-array.
     IF (upatmo_config(jg)%aes_phy%l_shallowatmo) THEN
       ! no cell volume modification
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jk = 1, patch%nlev
         deepatmo_vol(jk) = 1._wp
@@ -275,7 +277,7 @@ CONTAINS
       !$ACC END PARALLEL
     ELSE
       ! cell volume modification factors from 'p_metrics'
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jk = 1, patch%nlev
         deepatmo_vol(jk) = p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)
@@ -304,7 +306,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1,ntracer
         DO jk = 1,nlev
@@ -351,6 +353,7 @@ CONTAINS
     ! - pt_diag%pres     = field%pfull  hydrostatic pressure at layer midpoint = SQRT(upper pres_ifc * lower pres_ifc)
     ! - pt_diag%dpres_mc                pressure thickness of layer
     !
+    !$ACC WAIT(1)
     CALL diagnose_pres_temp( p_metrics                ,&
       &                      pt_prog_new              ,&
       &                      pt_prog_new_rcf          ,&
@@ -371,23 +374,55 @@ CONTAINS
     !
     IF (ltimer) CALL timer_start(timer_d2p_prep)
 
-    CALL rbf_vec_interpol_cell( pt_prog_new%vn   ,&! in
-      &                         patch            ,&! in
-      &                         pt_int_state     ,&! in
-      &                         pt_diag%u        ,&! out
-      &                         pt_diag%v        ,&! out
-      &                         opt_rlstart=rls_c  ,&! in
-      &                         opt_rlend  =rle_c  ) ! in
+    CALL rbf_vec_interpol_cell( pt_prog_new%vn      ,&! in
+      &                         patch               ,&! in
+      &                         pt_int_state        ,&! in
+      &                         pt_diag%u           ,&! out
+      &                         pt_diag%v           ,&! out
+      &                         opt_rlstart=rls_c   ,&! in
+      &                         opt_rlend  =rle_c   ,&! in
+      &                         opt_acc_async=.TRUE.) ! in
 
     IF (ltimer) CALL timer_stop(timer_d2p_prep)
     
     !
     ! Now the new prognostic and diagnostic state variables of the dynamical core
-    ! are ready to be used in the phyiscs.
+    ! are ready to be used in the physics.
     !
     !=====================================================================================
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = jcs, jce
+        field% uphyvi(jc,jb) = 0.0_wp
+        field% udynvi(jc,jb) = 0.0_wp
+      END DO
 
-
+      !$ACC LOOP SEQ
+      DO jk = 1,nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = jcs, jce
+          field% udynvi(jc,jb) = field% udynvi(jc,jb) + &
+                  internal_energy(                         &
+                  pt_diag% temp(jc,jk,jb),                 &!temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
+                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
+                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
+                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
+                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
+                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
+                  pt_prog_new% rho(jc,jk,jb)         ,     &!density
+                  field%        dz(jc,jk,jb)               &!delta z
+                  )
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      !
+    END DO ! jb
     !=====================================================================================
     !
     ! (3) Copy the new prognostic state and the related diagnostics from the
@@ -404,7 +439,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev
         DO jc = jcs, jce
@@ -455,7 +490,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev+1
         DO jc = jcs, jce
@@ -478,7 +513,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jt = 1,ntracer
         DO jk = 1,nlev
@@ -512,6 +547,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
+    !$ACC WAIT(1)
     IF (ltimer) CALL timer_stop(timer_d2p_couple)
 
     !
@@ -572,8 +608,8 @@ CONTAINS
     IF ( is_coupled_run() ) THEN
 #if defined( _OPENACC )
       CALL warning('GPU:interface_aes_ocean','GPU host synchronization should be removed when port is done!')
-      CALL gpu_update_var_list('prm_field_D', .false., jg)
-      CALL gpu_update_var_list('prm_tend_D', .false., jg)
+      CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
 #endif
 
       IF (ltimer) CALL timer_start(timer_coupling)
@@ -584,8 +620,8 @@ CONTAINS
 
 #if defined( _OPENACC )
       CALL warning('GPU:interface_aes_ocean','GPU device synchronization should be removed when port is done!')
-      CALL gpu_update_var_list('prm_field_D', .true., jg)
-      CALL gpu_update_var_list('prm_tend_D', .true., jg)
+      CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
 #endif
     END IF
 #endif
@@ -622,10 +658,10 @@ CONTAINS
     IF (return_status > 0) THEN
       CALL finish (module_name//method_name, 'ALLOCATE(zdudt,zdvdt)')
     END IF
-    !$ACC DATA CREATE( zdudt, zdvdt )
+    !$ACC DATA CREATE(zdudt, zdvdt) ASYNC(1)
 
     DO jb = 1, patch%nblks_c
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = 1, nproma
@@ -643,7 +679,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = jcs, jce
@@ -653,7 +689,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1,nlev+1
         DO jc = jcs, jce
@@ -684,8 +720,8 @@ CONTAINS
       CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
       IF (jes>jee) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR PRIVATE( jcn, jbn, zvn1, zvn2 ) COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(jcn, jbn, zvn1, zvn2) COLLAPSE(2)
       DO jk = 1,nlev
         DO je = jes,jee
           !
@@ -737,7 +773,7 @@ CONTAINS
       CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
       IF (jes>jee) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO je = jes, jee
@@ -769,7 +805,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jt = 1,jt_end
         DO jc = jcs, jce
@@ -779,7 +815,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1,nlev
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -855,7 +891,7 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         ! initialize vertical integrals
@@ -867,7 +903,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1,nlev
         !$ACC LOOP GANG VECTOR
@@ -942,10 +978,10 @@ CONTAINS
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
       IF (jcs>jce) CYCLE
       !
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jt =1,jt_end
-        !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO jc = jcs, jce
             !
@@ -983,7 +1019,7 @@ CONTAINS
       IF (lart) THEN
         !$ACC LOOP SEQ
         DO jt = jt_end+1,ntracer
-          !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = 1,nlev
             DO jc = jcs, jce
               pt_prog_new_rcf% tracer(jc,jk,jb,jt) = prm_field(jg)%qtrc(jc,jk,jb,jt)  +prm_tend(jg)%qtrc_phy(jc,jk,jb,jt)*dt_loc
@@ -993,7 +1029,7 @@ CONTAINS
         ENDDO       
       ENDIF
 
-      !$ACC LOOP GANG(static:1) VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = 1,nlev
         DO jc = jcs, jce
           !
@@ -1050,9 +1086,29 @@ CONTAINS
           ! (It is accumulated over one advective time step in solve_nh)
           pt_diag% exner_dyn_incr(jc,jk,jb) = 0._wp
           !
+          field% uphyvi(jc,jb) = field% uphyvi(jc,jb) + &
+                  internal_energy(                         &
+                  pt_diag% temp(jc,jk,jb),                 &!temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
+                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
+                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
+                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
+                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
+                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
+                  pt_prog_new% rho(jc,jk,jb)         ,     &!density 
+                  field%        dz(jc,jk,jb)               &!delta z
+                  )
         END DO
       END DO
       !$ACC END PARALLEL
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+      DO jc = jcs, jce
+        field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,1) * field% shflx(jc,jb)/cpd
+        field% evap_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%lhflx(jc,jb)/alv
+        field% rsfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%rsfl(jc,jb)
+        field% ssfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%ssfl(jc,jb)
+      END DO
       !
     END DO !jb
 !$OMP END DO
@@ -1099,6 +1155,7 @@ CONTAINS
         &                         f4din=pt_prog_new_rcf%tracer )
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (ltimer) CALL timer_stop(timer_p2d_sync)

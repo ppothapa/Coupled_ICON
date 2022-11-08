@@ -134,7 +134,12 @@ CONTAINS
     INTEGER,          INTENT(in), OPTIONAL :: exit_no
 
     INTEGER           :: iexit
-
+#if defined(_OPENACC) && defined(__NVCOMPILER)
+    type type_for_traceback
+      integer, pointer :: component(:)
+    end type type_for_traceback
+    type(type_for_traceback), pointer :: unassigned_p
+#endif
     WRITE (nerr,'(/,80("="),/)')
     IF (l_log) WRITE (nlog,'(/,80("="),/)')
 
@@ -167,6 +172,11 @@ CONTAINS
 
     WRITE (nerr,'(/,80("-"),/,/)')
     IF (l_log) WRITE (nlog,'(/,80("-"),/,/)')
+
+#if defined(_OPENACC) && defined(__NVCOMPILER)
+    ! This directive triggers a taceback in Nvfortan as `unassigned_p` is unassigned.
+    !$ACC UPDATE DEVICE(unassigned_p%component) IF_PRESENT
+#endif
 
 #ifndef __STANDALONE
 #ifdef __INTEL_COMPILER

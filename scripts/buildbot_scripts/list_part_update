@@ -5,12 +5,15 @@
 # Note: This list must always be called as part of a full `create_list_<list>`,
 #       it does not initialize any machines and builders.
 
+# abort on error
+set -euo pipefail
+
 cd $(dirname "${BASH_SOURCE[0]}")
 # get list name from argument
 list=$1
 
-# add amip binary-identical test on DAINT
-./addexp checksuite.icon-dev/check.atm_amip_update --machines "daint levante" --list $list
+# add qubicc_nc binary-identical test on DAINT and levante
+./addexp checksuite.icon-dev/check.atm_qubicc_nc_update --machines "daint levante" --list $list
 # add dependencies for update test reference generation
-./addexp checksuite.icon-dev/pp.refgen_atm_amip_update_test --machines "daint levante" --list $list
-./adddep --from-experiment checksuite.icon-dev/pp.refgen_atm_amip_update_test --to-experiment checksuite.icon-dev/check.atm_amip_update --machines "daint levante" --list $list
+./addexp checksuite.icon-dev/pp.refgen_atm_qubicc_nc_test_update --machines "daint levante" --list $list
+./adddep --from-experiment checksuite.icon-dev/pp.refgen_atm_qubicc_nc_test_update --to-experiment checksuite.icon-dev/check.atm_qubicc_nc_update --machines "daint levante" --list $list

@@ -43,6 +43,7 @@ MODULE mo_util_mtime
   PUBLIC :: mtime_convert_netcdf_units
   PUBLIC :: mtime_divide_timedelta
   PUBLIC :: mtime_timedelta_from_fseconds
+  PUBLIC :: mtime_timedelta_to_seconds
 
   TYPE t_datetime_ptr
     TYPE(datetime), POINTER :: ptr => NULL()
@@ -192,7 +193,7 @@ CONTAINS
     ENDIF
 
     time_diff  =  getTimeDeltaFromDateTime(datetime_current, anchor)
-    sim_time   =  getTotalMillisecondsTimedelta(time_diff, datetime_current)*1.e-3_wp
+    sim_time   =  getTotalMillisecondsTimedelta(time_diff, anchor)*1.e-3_wp
 
   END FUNCTION getElapsedSimTimeInSeconds
 
