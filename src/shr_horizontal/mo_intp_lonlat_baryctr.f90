@@ -154,10 +154,10 @@
 
 
     !-------------------------------------------------------------------------
-    !> Simple test if a point is inside a triangle on the unit sphere.
+    !> Simple test if a point on the unit sphere is inside a triangle.
     !
     FUNCTION inside_triangle(v, v1,v2,v3)
-      LOGICAL :: inside_triangle
+      INTEGER :: inside_triangle
       REAL(wp),       INTENT(IN)     :: v(3)          !< query point
       TYPE(t_point),  INTENT(IN)     :: v1,v2,v3      !< vertex longitudes/latitudes
       ! local variables
@@ -171,15 +171,21 @@
       c1  = ccw_spherical(v1,v2,p)
       c2  = ccw_spherical(v2,v3,p)
       c3  = ccw_spherical(v3,v1,p)
-      inside_triangle = (c1 + c2 + c3) == 3 .OR. (c1 + c2 + c3) == -3
+      IF ((c1 + c2 + c3) == 3 .OR. (c1 + c2 + c3) == -3) THEN
+        inside_triangle = 1 ! numerically clearly inside
+      ELSEIF (c1 == 0 .OR. c2 == 0 .OR. c3 == 0) THEN
+        inside_triangle = 0 ! numerically indefinite
+      ELSE
+        inside_triangle = -1 ! numerically clearly outside
+      ENDIF
     END FUNCTION inside_triangle
 
     FUNCTION inside_scaled_triangle(v, v1, v2, v3, rscale)
-      ! Test if point v is inside a triange around (v1, v2, v3), that is scaled in size by given rscale.
+      ! Test if point v is inside a triangle around (v1, v2, v3), that is scaled in size by given rscale.
       ! The area of (v1, v2, v3) is approximately increased to (1+rscale)**2
-      LOGICAL :: inside_scaled_triangle
+      INTEGER :: inside_scaled_triangle
       REAL(wp),       INTENT(IN)     :: v(3)          !< query point
-      REAL(wp),       INTENT(IN)     :: rscale         !< factor by which to increase the triangle size (>0 for growth)
+      REAL(wp),       INTENT(IN)     :: rscale        !< factor by which to increase the triangle size (>0 for growth)
       TYPE(t_point),  INTENT(IN)     :: v1,v2,v3      !< vertex longitudes/latitudes
       ! local variables
       TYPE(t_point) :: center, g1, g2, g3
@@ -789,9 +795,9 @@
       ! test"; this is the threshold for this test
       REAL(wp),     PARAMETER :: INSIDETEST_TOL = 1.e-4_wp
       ! the factor by which the interpolation triangles are scaled-up, if no enclosing triangle was found initially
-      REAL(wp),     PARAMETER :: UP_SCALE_FACTOR = 1.e5_wp * EPSILON(1._wp) ! eps is 2.2e-16 for dp
+      REAL(wp),     PARAMETER :: UP_SCALE_FACTOR = 1.e6_wp * EPSILON(1._wp) ! eps is 2.2e-16 for dp
       ! max. iterations of UP_SCALE_FACTOR doubling for triangle up-scaling
-      INTEGER,      PARAMETER :: NMAX_UP_SCALE = 10
+      INTEGER,      PARAMETER :: NMAX_UP_SCALE = 13
       ! max. no. of triangles (bounding boxes) containing a single lat-lon point.
       INTEGER,      PARAMETER :: NMAX_HITS = 99
       ! local variables
@@ -858,6 +864,7 @@
           LOOP_SCALING: DO i_scale=0,NMAX_UP_SCALE
             LOOP: DO i=1,nobjects
               j = obj_list(i)
+              inside_test = .FALSE.
 
               IF (i_scale == 0) THEN
                 DO k=0,2
@@ -877,24 +884,45 @@
                 ! if the test by dot-product succeeds:
                 inside_test = ( ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) >= -1._wp*INSIDETEST_TOL)  .AND. &
                   &             ALL(ptr_int_lonlat%baryctr%coeff(1:3,jc,jb) <=  1._wp+INSIDETEST_TOL))
-                IF (.NOT. inside_test)  THEN
+                IF (.NOT. inside_test) THEN
                   obj_list(i) = -1 ! this candidate must not be considered in the second round of LOOP_SCALING
                   CYCLE LOOP
                 END IF
 
-                inside_test = inside_triangle(ll_point_c%x, &
+                SELECT CASE (inside_triangle(ll_point_c%x, &
                   &                           p_global%a(tri_global%a(j)%p(0)), &
                   &                           p_global%a(tri_global%a(j)%p(1)), &
-                  &                           p_global%a(tri_global%a(j)%p(2)))
+                  &                           p_global%a(tri_global%a(j)%p(2))) )
+                CASE (1) ! clearly inside
+                  inside_test = .TRUE.
+                CASE (0) ! unsure. Do nothing and retry with scaling if no other candidate can be found.
+                  CYCLE LOOP
+                CASE (-1) ! clearly outside
+                  obj_list(i) = -1 ! this candidate must not be considered in the second round of LOOP_SCALING
+                  CYCLE LOOP
+                END SELECT
 
               ELSE ! i_scale > 0
                 IF (j == -1) CYCLE LOOP
 
-                inside_test = inside_scaled_triangle(ll_point_c%x, &
+                SELECT CASE (inside_scaled_triangle(ll_point_c%x, &
                   &                           p_global%a(tri_global%a(j)%p(0)), &
                   &                           p_global%a(tri_global%a(j)%p(1)), &
                   &                           p_global%a(tri_global%a(j)%p(2)), &
-                  &                           2**i_scale * UP_SCALE_FACTOR) 
+                  &                           2**i_scale * UP_SCALE_FACTOR) )
+                CASE (1) ! clearly inside
+                  inside_test = .TRUE.
+                CASE (0) ! unsure.
+                  IF (i_scale == NMAX_UP_SCALE) THEN
+                    inside_test = .TRUE. ! accept the numerical undecidable case in the last scaling iteration.
+                  ELSE
+                    CYCLE LOOP ! Do nothing and retry with more scaling if no other candidate can be found.
+                  ENDIF
+                CASE (-1) ! clearly outside
+                  obj_list(i) = -1 ! this candidate must not be considered in the second round of LOOP_SCALING
+                  CYCLE LOOP
+                END SELECT
+
                 IF (inside_test) THEN
                   ! If the inside test passed after scaling up the triangle, we have to retrieve the coefficients.
                   DO k=0,2
@@ -902,7 +930,6 @@
                     v(2,k) = p_global%a(tri_global%a(j)%p(k))%y
                     v(3,k) = p_global%a(tri_global%a(j)%p(k))%z
                   END DO
-
                   ! --- compute the barycentric interpolation weights for
                   ! --- this enclosing triangle
 
@@ -941,13 +968,13 @@
                 END IF
 
                 EXIT LOOP
-                
               END IF
+
             END DO LOOP
             ! a matching triangle was found?
             IF (last_idx1(1) /= -1) EXIT LOOP_SCALING
           END DO LOOP_SCALING
-          
+
           ! no triangle was matching?
           IF (last_idx1(1) == -1) THEN
 
@@ -1294,8 +1321,8 @@
             ! if the test by dot-product succeeds:
             inside_test1 = ( ALL(baryctr_coeff >= -1._wp*INSIDETEST_TOL)  .AND. &
               &              ALL(baryctr_coeff <=  1._wp+INSIDETEST_TOL))
-            inside_test2 = inside_triangle(ll_point_c%x, p_global%a(tri%a(j)%p(0)), p_global%a(tri%a(j)%p(1)), &
-              &                            p_global%a(tri%a(j)%p(2)))
+            inside_test2 = (1 == inside_triangle(ll_point_c%x, p_global%a(tri%a(j)%p(0)), p_global%a(tri%a(j)%p(1)), &
+              &                            p_global%a(tri%a(j)%p(2))) )
 
             IF (inside_test1 .OR. inside_test2) THEN
               idx0 = j

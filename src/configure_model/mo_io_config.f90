@@ -134,6 +134,7 @@ MODULE mo_io_config
     LOGICAL :: dbz850       = .FALSE. !< Flag. TRUE if computation of radar reflectivity in approx. 850 hPa is desired
     LOGICAL :: dbzcmax      = .FALSE. !< Flag. TRUE if computation of radar reflectivity column maximum is desired
     LOGICAL :: dbzctmax     = .FALSE. !< Flag. TRUE if computation of radar reflectivity column and time maximum is desired
+    LOGICAL :: dbzlmx_low   = .FALSE. !< Flag. TRUE if computation of radar reflectivity layer maximum [500,2500] m AGL is desired
     LOGICAL :: echotop      = .FALSE. !< Flag. TRUE if computation of echo tops in hPa of radar reflectivity is desired
     LOGICAL :: echotopinm   = .FALSE. !< Flag. TRUE if computation of echo tops in m MSL of radar reflectivity is desired
     LOGICAL :: smi          = .FALSE. !< Flag. TRUE if computation of soil moisture index desired
@@ -312,6 +313,7 @@ CONTAINS
         var_in_output(jg)%dbz850      = is_variable_in_output_dom(var_name="dbz_850", jg=jg)
         var_in_output(jg)%dbzcmax     = is_variable_in_output_dom(var_name="dbz_cmax", jg=jg)
         var_in_output(jg)%dbzctmax    = is_variable_in_output_dom(var_name="dbz_ctmax", jg=jg)
+        var_in_output(jg)%dbzlmx_low  = is_variable_in_output_dom(var_name="dbzlmx_low", jg=jg)
         var_in_output(jg)%echotop     = is_variable_in_output_dom(var_name="echotop", jg=jg)
         var_in_output(jg)%echotopinm  = is_variable_in_output_dom(var_name="echotopinm", jg=jg)
         var_in_output(jg)%smi         = is_variable_in_output_dom(var_name="smi", jg=jg)

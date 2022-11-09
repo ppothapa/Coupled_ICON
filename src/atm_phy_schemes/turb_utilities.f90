@@ -8,7 +8,7 @@ MODULE  turb_utilities
 ! Description:
 ! 
 !   Routines (module procedures) currently contained:
-!     - init_canopy          : initialization of secondary suface parameters
+!     - init_canopy          : initialization of secondary surface parameters
 !     - turb_setup           :
 !     - adjust_satur_equil   : sub grid scale moist physics in terms of a 
 !                              statistical saturation adjustment

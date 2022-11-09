@@ -96,6 +96,24 @@ case "$use_site" in
         if test xyes = x"${use_gpu}"; then use_target='daint_gpu'; else use_target='daint_cpu'; fi
       ;;
 
+      # balfrin
+      *nid*)
+        if test -f "/etc/xthostname"; then
+          host_name=$(cat /etc/xthostname)
+
+          use_load_profile='. /etc/profile.d/modules.sh'
+          use_submit='sbatch'
+          use_sync_submit='sbatch --wait'
+          if test xyes = x"${use_gpu}"; then
+            use_target=${host_name}'_gpu'
+            use_mpi_startrun='srun -n $mpi_total_procs --ntasks-per-node $mpi_procs_pernode --threads-per-core=1 --distribution=cyclic ${basedir}/run/run_wrapper/'${host_name}'_gpu.sh'
+          else
+            use_target=${host_name}'_cpu'
+            use_mpi_startrun='srun -n $mpi_total_procs --ntasks-per-node $mpi_procs_pernode --threads-per-core=1 --distribution=cyclic ${basedir}/run/run_wrapper/'${host_name}'_cpu.sh'
+          fi
+        fi
+      ;;
+
       *tave*)
         use_load_profile='. /opt/modules/default/etc/modules.sh'
         use_submit='sbatch'
@@ -141,7 +159,12 @@ case "$use_site" in
         use_sync_submit='qsub'
         use_target='rcl'
         use_shell='/bin/bash'
-        use_mpi_startrun='/opt/nec/ve/bin/mpirun'
+        use_mpi_startrun='/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun'
+        case "$use_compiler_version" in
+          3.2*)
+            use_mpi_startrun='/opt/nec/ve/bin/mpirun'
+          ;;
+        esac
       ;;
       xc*)
         use_submit='qsub'

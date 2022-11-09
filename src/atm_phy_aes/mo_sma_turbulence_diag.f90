@@ -483,7 +483,7 @@ CONTAINS
         qv_s    = spec_humi(sat_pres_water(ptsfc(js,jb,jsfc)),ppsfc(js,jb))
 
 
-        !rho at surface: no qc at suface
+        !rho at surface: no qc at surface
         rhos   =  ppsfc(js,jb)/( rd * &
                   ptsfc(js,jb,jsfc)*(1._wp+vtmpc1*qv_s) )
 

@@ -1904,6 +1904,8 @@ CONTAINS
           tm(jk)  = EXP(intp_lin(klev, xm(jk), x(:,jl), logt(:)))
           o3m(jk) = EXP(intp_lin(klev, xm(jk), x(:,jl), logo3(:)))
         ENDDO
+! TEMPORARY WORKAROUND: Without novector, NEC 3.3.1 and 3.5.1 do not compile the following code correctly
+!$NEC novector
         DO jk = 1, klma
           tma(jk) = EXP(intp_lin(klev, xma(jk), x(:,jl), logt(:)))
         ENDDO

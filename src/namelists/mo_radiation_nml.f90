@@ -23,44 +23,46 @@
 !!
 MODULE mo_radiation_nml
 
-    USE mo_radiation_config, ONLY: config_isolrad    => isolrad,     &
-                                 & config_albedo_type=> albedo_type, &
-                                 & config_albedo_fixed        => albedo_fixed,        &
-                                 & config_direct_albedo       => direct_albedo,       &
-                                 & config_direct_albedo_water => direct_albedo_water, &
-                                 & config_albedo_whitecap     => albedo_whitecap,     &
-                                 & config_icld_overlap        => icld_overlap,        &
-                                 & config_islope_rad => islope_rad,  &
-                                 & config_irad_h2o   => irad_h2o,    &
-                                 & config_irad_co2   => irad_co2,    &
-                                 & config_irad_ch4   => irad_ch4,    &
-                                 & config_irad_n2o   => irad_n2o,    &
-                                 & config_irad_o3    => irad_o3,     &
-                                 & config_irad_o2    => irad_o2,     &
-                                 & config_irad_cfc11 => irad_cfc11,  &
-                                 & config_irad_cfc12 => irad_cfc12,  &
-                                 & config_irad_aero  => irad_aero,   &
-                                 & config_lrad_aero_diag => lrad_aero_diag,  &
-                                 & config_ghg_filename   => ghg_filename,    &
-                                 & config_vmr_co2    => vmr_co2,     &
-                                 & config_vmr_ch4    => vmr_ch4,     &
-                                 & config_vmr_n2o    => vmr_n2o,     &
-                                 & config_vmr_o2     => vmr_o2,      &
-                                 & config_vmr_cfc11  => vmr_cfc11,   &
-                                 & config_vmr_cfc12  => vmr_cfc12,   &
-                                 & config_izenith    => izenith,     &
-                                 & config_cos_zenith_fixed => cos_zenith_fixed, &
-                                 & config_mmr_co2    => mmr_co2,     &
-                                 & config_mmr_ch4    => mmr_ch4,     &
-                                 & config_mmr_n2o    => mmr_n2o,     &
-                                 & config_mmr_o2     => mmr_o2,      &
-                                 & config_mmr_cfc11  => mmr_cfc11,   &
-                                 & config_mmr_cfc12  => mmr_cfc12,   &
-                                 & config_llw_cloud_scat => llw_cloud_scat, &
-                                 & config_iliquid_scat => iliquid_scat, &
-                                 & config_iice_scat => iice_scat,    &
-                                 & config_ecrad_data_path => ecrad_data_path, &
-                                 & config_nproma_rad => nproma_rad,  &
+    USE mo_radiation_config, ONLY: config_isolrad    => isolrad,                        &
+                                 & config_albedo_type=> albedo_type,                    &
+                                 & config_albedo_fixed        => albedo_fixed,          &
+                                 & config_direct_albedo       => direct_albedo,         &
+                                 & config_direct_albedo_water => direct_albedo_water,   &
+                                 & config_albedo_whitecap     => albedo_whitecap,       &
+                                 & config_icld_overlap        => icld_overlap,          &
+                                 & config_islope_rad => islope_rad,                     &
+                                 & config_irad_h2o   => irad_h2o,                       &
+                                 & config_irad_co2   => irad_co2,                       &
+                                 & config_irad_ch4   => irad_ch4,                       &
+                                 & config_irad_n2o   => irad_n2o,                       &
+                                 & config_irad_o3    => irad_o3,                        &
+                                 & config_irad_o2    => irad_o2,                        &
+                                 & config_irad_cfc11 => irad_cfc11,                     &
+                                 & config_irad_cfc12 => irad_cfc12,                     &
+                                 & config_irad_aero  => irad_aero,                      &
+                                 & config_lrad_aero_diag => lrad_aero_diag,             &
+                                 & config_ghg_filename   => ghg_filename,               &
+                                 & config_vmr_co2    => vmr_co2,                        &
+                                 & config_vmr_ch4    => vmr_ch4,                        &
+                                 & config_vmr_n2o    => vmr_n2o,                        &
+                                 & config_vmr_o2     => vmr_o2,                         &
+                                 & config_vmr_cfc11  => vmr_cfc11,                      &
+                                 & config_vmr_cfc12  => vmr_cfc12,                      &
+                                 & config_izenith    => izenith,                        &
+                                 & config_cos_zenith_fixed => cos_zenith_fixed,         &
+                                 & config_mmr_co2    => mmr_co2,                        &
+                                 & config_mmr_ch4    => mmr_ch4,                        &
+                                 & config_mmr_n2o    => mmr_n2o,                        &
+                                 & config_mmr_o2     => mmr_o2,                         &
+                                 & config_mmr_cfc11  => mmr_cfc11,                      &
+                                 & config_mmr_cfc12  => mmr_cfc12,                      &
+                                 & config_ecrad_llw_cloud_scat => ecrad_llw_cloud_scat, &
+                                 & config_ecrad_iliquid_scat => ecrad_iliquid_scat,     &
+                                 & config_ecrad_iice_scat => ecrad_iice_scat,           &
+                                 & config_ecrad_isolver => ecrad_isolver,               &
+                                 & config_ecrad_igas_model => ecrad_igas_model,         &
+                                 & config_ecrad_data_path => ecrad_data_path,           &
+                                 & config_nproma_rad => nproma_rad,                     &
                                  & iRadAeroConst
 
   USE mo_kind,               ONLY: wp
@@ -168,9 +170,11 @@ MODULE mo_radiation_nml
   REAL(wp) :: cos_zenith_fixed
   !
   ! ecRad specific configuration
-  LOGICAL  :: llw_cloud_scat
-  INTEGER  :: iliquid_scat
-  INTEGER  :: iice_scat
+  LOGICAL  :: ecrad_llw_cloud_scat
+  INTEGER  :: ecrad_iliquid_scat
+  INTEGER  :: ecrad_iice_scat
+  INTEGER  :: ecrad_isolver
+  INTEGER  :: ecrad_igas_model
   CHARACTER(len=MAX_CHAR_LENGTH) :: ecrad_data_path
   INTEGER  :: nproma_rad
   !
@@ -194,9 +198,11 @@ MODULE mo_radiation_nml
     &                      izenith, icld_overlap, &
     &                      cos_zenith_fixed,      &
     &                      islope_rad,            &
-    &                      llw_cloud_scat,        &
-    &                      iliquid_scat,          &
-    &                      iice_scat,             &
+    &                      ecrad_llw_cloud_scat,  &
+    &                      ecrad_iliquid_scat,    &
+    &                      ecrad_iice_scat,       &
+    &                      ecrad_isolver,         &
+    &                      ecrad_igas_model,      &
     &                      ecrad_data_path,       &
     &                      nproma_rad
 
@@ -262,11 +268,13 @@ CONTAINS
     izenith          = 4       ! Default: seasonal orbit and diurnal cycle
     cos_zenith_fixed = 0.5_wp  ! fixed cosine of zenith angle for izenith=6
 
-    llw_cloud_scat  = .FALSE.
-    iliquid_scat    = 0
-    iice_scat       = 0
-    ecrad_data_path = '.'
-    nproma_rad      = -1
+    ecrad_llw_cloud_scat = .FALSE.
+    ecrad_iliquid_scat   = 0
+    ecrad_iice_scat      = 0
+    ecrad_isolver        = 0
+    ecrad_igas_model     = 0
+    ecrad_data_path      = '.'
+    nproma_rad           = -1
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
@@ -338,11 +346,13 @@ CONTAINS
     config_izenith    = izenith
     config_cos_zenith_fixed = cos_zenith_fixed
 
-    config_llw_cloud_scat  = llw_cloud_scat
-    config_iliquid_scat    = iliquid_scat
-    config_iice_scat       = iice_scat
-    config_ecrad_data_path = TRIM(ecrad_data_path)
-    config_nproma_rad      = nproma_rad
+    config_ecrad_llw_cloud_scat = ecrad_llw_cloud_scat
+    config_ecrad_iliquid_scat   = ecrad_iliquid_scat
+    config_ecrad_iice_scat      = ecrad_iice_scat
+    config_ecrad_isolver        = ecrad_isolver
+    config_ecrad_igas_model     = ecrad_igas_model
+    config_ecrad_data_path      = TRIM(ecrad_data_path)
+    config_nproma_rad           = nproma_rad
 
     IF ( direct_albedo_water == 3 ) THEN
       csalb => csalb2

@@ -389,7 +389,7 @@ EOF
 # ----------------------------------------------------------------------------
 
 # run IO on second vector host
-VH_NODE=1
+VH_DISTRIBUTION=0,:
 $START_MODEL
 EXIT_STATUS=$?
 

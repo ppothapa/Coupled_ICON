@@ -39,7 +39,9 @@ MODULE mo_nwp_ecrad_init
   USE mtime,                   ONLY: datetime
   USE mo_model_domain,         ONLY: t_patch
   USE mo_radiation_config,     ONLY: icld_overlap, irad_aero, ecrad_data_path,           &
-                                 &   llw_cloud_scat, iliquid_scat, iice_scat, isolrad,   &
+                                 &   ecrad_isolver, ecrad_igas_model, isolrad,           &
+                                 &   ecrad_llw_cloud_scat, ecrad_iliquid_scat,           &
+                                 &   ecrad_iice_scat,                                    &
                                  &   iRadAeroConst, iRadAeroTegen, iRadAeroART,          &
                                  &   iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,    &
                                  &   iRadAeroKinneVolc,  iRadAeroKinneVolcSP,            &
@@ -47,11 +49,12 @@ MODULE mo_nwp_ecrad_init
 #ifdef __ECRAD
   USE mo_ecrad,                ONLY: t_ecrad_conf, ecrad_setup,                          &
                                  &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
-                                 &   ISolverTripleclouds,                                &
+                                 &   ISolverTripleclouds, ISolverCloudless,              &
                                  &   IGasModelMonochromatic, IGasModelIFSRRTMG,          &
+                                 &   IGasModelECCKD,                                     &
                                  &   ILiquidModelMonochromatic, ILiquidModelSOCRATES,    &
                                  &   ILiquidModelSlingo, IIceModelMonochromatic,         &
-                                &    IIceModelFu, IIceModelBaran,                        &
+                                 &   IIceModelFu, IIceModelBaran,                        &
                                  &   IIceModelBaran2016, IIceModelBaran2017, IIceModelYi,&
                                  &   IOverlapMaximumRandom, IOverlapExponentialRandom,   &
                                  &   IOverlapExponential,                                &
@@ -142,27 +145,62 @@ CONTAINS
     END SELECT
 
     ! LW scattering due to clouds
-    ecrad_conf%do_lw_cloud_scattering = llw_cloud_scat
+    ecrad_conf%do_lw_cloud_scattering = ecrad_llw_cloud_scat
     
+    ! For the time being do not use generalised cloud hydrometeors, but the old ice/water method
+    ecrad_conf%use_general_cloud_optics = .false. ! Default is .true., which behaves differently to previous
+                                                  ! default settings (e.g. different default liquid/ice optics)
+
     ! Liquid cloud particle scattering properties
-    SELECT CASE (iliquid_scat)
+    SELECT CASE (ecrad_iliquid_scat)
       CASE(0)
         ecrad_conf%i_liq_model = ILiquidModelSOCRATES
       CASE(1)
         ecrad_conf%i_liq_model = ILiquidModelSlingo
       CASE DEFAULT
-        CALL finish(routine, 'i_liquid_scat not valid for ecRad')
+        CALL finish(routine, 'ecrad_iliquid_scat not valid for ecRad')
     END SELECT
     
     ! Ice cloud particle scattering properties
-    SELECT CASE (iice_scat)
+    SELECT CASE (ecrad_iice_scat)
       CASE(0)
         ecrad_conf%i_ice_model = IIceModelFu
       CASE(1)
         ecrad_conf%i_ice_model = IIceModelBaran2016
+      CASE(2)
+        ecrad_conf%i_ice_model = IIceModelYi
       CASE DEFAULT
-        CALL finish(routine, 'i_ice_scat not valid for ecRad')
+        CALL finish(routine, 'ecrad_iice_scat not valid for ecRad')
     END SELECT
+
+    ! Radiation solver
+    SELECT CASE (ecrad_isolver)
+      CASE(0)
+        ecrad_conf%i_solver_sw  = ISolverMcICA !< Short-wave solver
+        ecrad_conf%i_solver_lw  = ISolverMcICA !< Long-wave solver
+      CASE(1)
+        ecrad_conf%i_solver_sw  = ISolverTripleclouds !< Short-wave solver
+        ecrad_conf%i_solver_lw  = ISolverTripleclouds !< Long-wave solver
+      CASE DEFAULT
+        CALL finish(routine, 'ecrad_isolver not valid for ecRad')
+    END SELECT
+
+    ! Gas model and spectral bands: RRTMG or ecckd
+    SELECT CASE (ecrad_igas_model)
+      CASE(0)
+        ecrad_conf%i_gas_model = IGasModelIFSRRTMG  !< Use RRTM gas model
+      CASE(1)
+        ecrad_conf%i_gas_model = IGasModelECCKD  !< Use ecckd gas model
+        CALL finish(routine, 'ecrad_igas_model = 1 not yet ready for usage')
+      CASE DEFAULT
+        CALL finish(routine, 'ecrad_igas_model not valid for ecRad')
+    END SELECT
+
+    IF (ecrad_conf%i_gas_model == IGasModelIFSRRTMG) THEN
+      ecrad_conf%do_setup_ifsrrtm = .true.
+    ELSE
+      ecrad_conf%do_setup_ifsrrtm = .false.
+    ENDIF
 
     IF (isolrad == 0) THEN
       ecrad_conf%use_spectral_solar_scaling  = .false.
@@ -190,12 +228,10 @@ CONTAINS
     ecrad_conf%use_beta_overlap            = .false.      !< Use Shonk et al. (2010) "beta" overlap parameter
                                                           !< instead of "alpha" (Hogan and Illingworth, 2000)
     !
-    ecrad_conf%i_solver_sw                 = ISolverMcICA !< Short-wave solver
-    !
-    ecrad_conf%i_solver_lw                 = ISolverMcICA !< Long-wave solver
-    !
     ecrad_conf%iverbosesetup               = 0            !< Verbosity (0: none,     1: warning,  2: info,
     ecrad_conf%iverbose                    = 0            !<            3: progress, 4: detailed, 5: debug)
+    !
+    ecrad_conf%do_weighted_surface_mapping = .false.      !<Use spectral weighting method that was default before ecrad-1.5
     !
     ecrad_conf%do_surface_sw_spectral_flux = .true.       !< Save the surface downwelling shortwave fluxes in each band
                                                           !< Needed for photosynthetic active radiation
@@ -206,13 +242,6 @@ CONTAINS
     ecrad_conf%do_sw_delta_scaling_with_gases = .false.   !< Do SW delta-Eddington scaling on cloud-aerosol-gas mixture (.true.)
                                                           !< More correct approach of separately scaling the cloud and aerosol 
                                                           !< scattering properties before merging with gases (.false.)
-    !
-    ecrad_conf%i_gas_model           = IGasModelIFSRRTMG  !< Use RRTM gas model (only available option)
-    IF (ecrad_conf%i_gas_model == IGasModelIFSRRTMG) THEN
-      ecrad_conf%do_setup_ifsrrtm = .true.
-    ELSE
-      ecrad_conf%do_setup_ifsrrtm = .false.
-    ENDIF
     !
     ecrad_conf%cloud_fraction_threshold    = 1.0e-6_wp    !< Cloud is present in a layer if cloud fraction exceeds this value
     ecrad_conf%cloud_mixing_ratio_threshold= 1.0e-9_wp    !< ..and total cloud water mixing ratio exceeds this value
@@ -259,12 +288,12 @@ CONTAINS
     wavelength_bound_sw(1) = 0.7_wp * 1.e-6_wp !< 700 nm
     i_band_in_sw(1)        = 1
     i_band_in_sw(2)        = 2
-    CALL ecrad_conf%define_sw_albedo_intervals(2, wavelength_bound_sw, i_band_in_sw)
+    CALL ecrad_conf%define_sw_albedo_intervals(2, wavelength_bound_sw, i_band_in_sw, do_nearest=.false.)
 
     ! Similar to the short wave albedo bands, ecRad needs to know the number of longwave emissivity bands provided from ICON
     ! external data.
     i_band_in_lw           = 1
-    CALL ecrad_conf%define_lw_emiss_intervals(1, wavelength_bound_lw, i_band_in_lw)
+    CALL ecrad_conf%define_lw_emiss_intervals(1, wavelength_bound_lw, i_band_in_lw, do_nearest=.true.)
 
     !$ACC ENTER DATA COPYIN(ecrad_conf)
     !$ACC ENTER DATA COPYIN(ecrad_conf%cloud_optics) &
@@ -408,8 +437,8 @@ CONTAINS
       CALL finish(routine,'ecrad_conf%use_canopy_full_spectrum_sw not ported to GPU.')
     ENDIF
 
-    IF (ecrad_conf%i_gas_model == IGasModelMonochromatic) THEN
-      CALL finish(routine,'config%i_gas_model == IGasModelMonochromatic not ported to GPU.')
+    IF (ecrad_conf%i_gas_model == IGasModelMonochromatic .OR. ecrad_conf%i_gas_model == IGasModelECCKD) THEN
+      CALL finish(routine,'config%i_gas_model == IGasModelMonochromatic/IGasModelECCKD not ported to GPU.')
     ENDIF
 
     IF (ecrad_conf%do_save_radiative_properties) THEN

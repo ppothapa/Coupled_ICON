@@ -97,7 +97,7 @@ MODULE mo_model_domain
   USE mo_util_uuid_types,         ONLY: t_uuid
   USE mo_grid_geometry_info,      ONLY: t_grid_geometry_info
   USE mo_decomposition_tools,     ONLY: t_grid_domain_decomp_info
-  USE mo_read_netcdf_distributed, ONLY: t_distrib_read_data
+  USE mo_read_netcdf_types,       ONLY: t_distrib_read_data
   USE ppm_distributed_array,      ONLY: dist_mult_array
   USE ppm_extents,                ONLY: extent
 
