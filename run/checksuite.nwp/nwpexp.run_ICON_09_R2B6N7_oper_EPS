@@ -617,7 +617,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
  ! ---           + temp, synop, .. (all but i2l)                    --- !
  ! -------------------------------------------------------------------- !
  filetype             = 2         ! output format: 2=GRIB2, 4=NETCDFv2
- dom                  = 2                         ! write global domains
+ dom                  = 2                         ! write EU nest
  remap                = 0                         ! icon grid
  output_time_unit     = 1                         ! 1: seconds
  output_bounds        = 0.,0.,9999.               ! vv=0
