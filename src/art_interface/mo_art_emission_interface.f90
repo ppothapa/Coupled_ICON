@@ -98,6 +98,7 @@ MODULE mo_art_emission_interface
 
   ! OEM
   USE mo_art_oem_emission,              ONLY: art_oem_compute_emissions
+  USE mo_art_oem_vprm,                  ONLY: art_oem_compute_biosphere_fluxes
   USE mo_art_oem_types,                 ONLY: p_art_oem_data,  &
                                           &   t_art_oem_config
 
@@ -208,6 +209,12 @@ CONTAINS
         CALL art_oem_compute_emissions(tracer,p_patch,dtime,current_date,ierror,yerrmsg)
         IF (ierror /= 0) THEN
           CALL finish ('art_emission_interface', yerrmsg)
+        ENDIF
+      ENDIF
+      IF (oem_config%vprm_tracer>0) THEN
+        CALL art_oem_compute_biosphere_fluxes(tracer,p_patch,dtime,current_date,ierror,yerrmsg)
+        IF (ierror /= 0) THEN
+          CALL finish ('art_vprm_interface', yerrmsg)
         ENDIF
       ENDIF
 

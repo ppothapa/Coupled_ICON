@@ -61,6 +61,7 @@ MODULE mo_art_init_interface
                                           &   art_open_xml_file,              &
                                           &   art_close_xml_file,             &
                                           &   t_xml_file
+
   
   IMPLICIT NONE
 
@@ -442,6 +443,7 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
   INTEGER, INTENT(in) :: &
     &  nest_level           !< beginning with zero in global domain
 
+
   IF (lart) THEN
     CALL art_collect_atmo_state_nwp(jg, mtime_current, p_nh_state,  &
                    &                ext_data, prm_diag, p_prog)
@@ -450,7 +452,6 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
     IF ((start_time(jg) <= 0.0_wp) .AND. (.NOT. isRestart())) THEN
       CALL art_init_tracer_values_nwp(jg, tracer, mtime_current, p_prog_list)
     END IF
-
   END IF
 
 END SUBROUTINE art_init_atmo_tracers_nwp
@@ -521,3 +522,4 @@ SUBROUTINE art_init_radiation_properties(iforcing, jg)
 END SUBROUTINE art_init_radiation_properties
 
 END MODULE mo_art_init_interface
+
