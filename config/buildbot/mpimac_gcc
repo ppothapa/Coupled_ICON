@@ -4,8 +4,9 @@ MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 if mpirun --version 2>/dev/null | grep 'Open MPI' >/dev/null; then
-  # Set the MPI launcher command with an additional argument and set a short
-  # temporary directory name if OpenMPI is used
+  # Set the MPI launcher command with an additional argument (although the new
+  # build server has enough cores) and set a short temporary directory name if
+  # OpenMPI is used
   # (see https://gitlab.dkrz.de/icon/icon/-/tree/icon-2.6.5-rc/config/generic#software-libraries):
   set MPI_LAUNCH='mpirun --oversubscribe' BUILD_ENV="export TMPDIR='/tmp';"
 else
@@ -22,7 +23,7 @@ fi
 # Here, we override the check for the domain name run by the configure script
 # with a value that matches one of the patterns above.
 
-${ICON_DIR}/config/generic/gcc acx_cv_host_fqdn='w149-95.mpimet.mpg.de' "$@"
+${ICON_DIR}/config/generic/gcc acx_cv_host_fqdn='w149-95.mpimet.mpg.de' --disable-mpi-checks "$@"
 
-MAKE_PROCS=4
+MAKE_PROCS=20
 make -j ${MAKE_PROCS}
