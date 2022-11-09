@@ -450,32 +450,13 @@ REAL (KIND=wp), PARAMETER :: &
     z2d3=z2/z3     ,&
     z3d2=z3/z2
 
-#ifndef __ICON__
-INTEGER :: &
-    istat=0, ilocstat=0
 
-LOGICAL :: &
-    lerror=.FALSE.
-#endif
 !===============================================================================
 
 CONTAINS
 
 !===============================================================================
 
-#ifdef _CRAYFTN
-#  ifndef __ICON__
-#    define err_args    ierrstat, yerrormsg, yroutine, & ! cosmo error handling args
-#  else
-#    define err_args    & ! not present
-#  endif
-#else
-#  ifndef __ICON__
-#    define err_args    ierrstat, yerrormsg, yroutine, &
-#  else
-#     define err_args
-#  endif
-#endif
 SUBROUTINE turbtran (                                                         &
 !
           iini, ltkeinp, lgz0inp, lstfnct, lsrflux, lnsfdia, lrunscm,         &
@@ -498,9 +479,7 @@ SUBROUTINE turbtran (                                                         &
           t_2m, qv_2m, td_2m, rh_2m, u_10m, v_10m,                            &
           shfl_s, qvfl_s, umfl_s, vmfl_s,                                     &
 !
-          err_args
           lacc)
-#undef err_args
 !-------------------------------------------------------------------------------
 !
 ! Note:
@@ -817,18 +796,10 @@ REAL (KIND=wp), DIMENSION(:), OPTIONAL, TARGET, INTENT(INOUT) :: &
      umfl_s,       & ! u-momentum flux at the surface                (N/m2)    (positive downward)
      vmfl_s          ! v-momentum flux at the surface                (N/m2)    (positive downward)
 
-#ifndef __ICON__
-INTEGER, INTENT(INOUT) :: ierrstat
-CHARACTER (LEN=*), INTENT(OUT) :: yroutine
-CHARACTER (LEN=*), INTENT(OUT) :: yerrormsg
-
-#endif
 LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
 LOGICAL :: lzacc ! non-optional version of lacc
 
-#ifdef __ICON__
 INTEGER            :: my_cart_id, my_thrd_id
-#endif
 
 !-------------------------------------------------------------------------------
 !Local Parameters:
@@ -1023,11 +994,9 @@ LOGICAL        ::   ldebug = .FALSE.
                    lacc=lzacc)
 !-------------------------------------------------------------------------------
 
-#ifdef __ICON__
 my_cart_id = get_my_global_mpi_id()
 #ifdef _OPENMP
 my_thrd_id = omp_get_thread_num()
-#endif
 #endif
 
 ! Just do some check printouts:
@@ -1084,11 +1053,6 @@ my_thrd_id = omp_get_thread_num()
   ENDIF
 
 
-#ifndef __ICON__
-  istat=0; ilocstat=0; ierrstat=0
-  yerrormsg = ''; yroutine='turbtran'; lerror=.FALSE.
-#endif
-
   ! take care that all pointers have a target
   IF (PRESENT(edr)) THEN
      ediss => edr
@@ -1101,19 +1065,6 @@ my_thrd_id = omp_get_thread_num()
 
       xf=z2
       xf=z1/xf
-
-!XL_COMMENTS: there is not allocation anymore above remove ? 
-!             the return is an issue for the data region on GPU
-#ifndef __ICON__
-      IF (istat /= 0) THEN
-         ierrstat = 1004
-         yerrormsg= &
-         'ERROR *** Allocation of space for meteofields failed ***'
-         lerror=.TRUE.
-         RETURN
-      ENDIF
-#endif
-
 
       IF (PRESENT(tketens)) THEN
          tvt => tketens

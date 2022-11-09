@@ -156,19 +156,11 @@ basedir="${use_builddir}"
 experiments_dir="\${experiments_dir:=\${basedir}/experiments}"
 export basedir
 icon_data_rootFolder="${icon_data_rootFolder}"
-EOF
-
-    if [[ "${dont_add_simple_start_model:-"false"}" != "true" ]]; then
-        cat >> $output_script << EOF
 
 # how to start the icon model
 # ---------------------------
 export START="$start"
 export MODEL="${use_builddir}/bin/icon"
-EOF
-    fi
-
-    cat >> $output_script << EOF
 
 set | grep SLURM
 
@@ -745,8 +737,6 @@ set_run_target_rcl()
     #then
     #    set_default use_openmp_threads 2
     #fi
-
-    dont_add_simple_start_model="true" # we have to use a more complex mpirun
     
     set_default use_nproma 752
     set_default use_nblocks_c 0
@@ -773,7 +763,10 @@ set_run_target_rcl()
 
     add_free_var NMPI_EXPORT "GFORTRAN_UNBUFFERED_PRECONNECTED"
 
-    # try to guess the location of the additional binary (VectorEngine or VectorHost)
+    # try to guess the location of the Vector Host binary
+    #
+    # make_runscripts and create_target_header must be run from the VectorEngine build directory.
+    # Only then, it is possible to choose the correct MPI version depending on the nfort version.
     #
     # In the following $use_builddir from set-up.info is used because this is directory 
     # were the target binary that was created during compilation.
@@ -806,33 +799,10 @@ set_run_target_rcl()
             fi
         fi
     else
-        # Present build is the host (SCAL) binary.
-        MODEL_SCAL="${use_builddir}/bin/icon"
-        if [[ -n "$secondary_build_dir" ]]; then
-            MODEL="${secondary_build_dir}/bin/icon"
-        else
-            # Default fallback 
-            # if "VH" is used as build directory, look for "../VE", otherwise use "../vector"
-            case "$use_builddir" in
-                */VH )
-                    MODEL="${use_builddir}/../VE/bin/icon"
-                    ;;
-                */host )
-                    MODEL="${use_builddir}/../vector/bin/icon"
-                    ;;
-                * )
-                    # fallback assumption: 
-                    # vector build was configured with '--prefix=$PWD/vector' as in buildbot
-                    MODEL="${use_builddir}/vector/bin/icon"
-                    ;;
-            esac
-            if [[ ! -x "${MODEL}" ]]; then
-                echo "[ERROR] create_target_header: Automatic detection of vector engine binary has failed."
-                echo "Could not find vector engine executable '${MODEL}'."
-                echo "Use a default build directory structure ('VE/' + ' VH/' or 'vector/' + 'host/') or set the option 'secondary_build_dir'."
-                exit 1
-            fi
-        fi
+        echo "[ERROR] create_target_header:"
+        echo "make_runscripts and create_target_header must be run from the VectorEngine build directory."
+        echo "Only then, it is possible to choose the correct MPI version depending on the nfort version."
+        exit 1
     fi
 
     cat >> $output_script << EOF
@@ -910,9 +880,8 @@ experiments_dir="\$TMPDIR"
 #MODEL=\${PBS_O_WORKDIR}/../../build/VE/bin/icon
 #MODEL_SCAL=\${PBS_O_WORKDIR}/../../build/VH/bin/icon
 
-# how to start the icon model
-# ---------------------------
-MODEL="${MODEL}"
+# how to start the icon model on the NEC
+# --------------------------------------
 MODEL_SCAL="${MODEL_SCAL}"
 
 START_MODEL_function()
@@ -922,32 +891,59 @@ START_MODEL_function()
   #
   # Environment variables
   # ---------------------
+  # PPN: total number of MPI procs. (on vector engines) per job
+  # NE1: one less than number of vector engines
   # num_restart_procs: This number of processes will additionally be allocated on a VH
   # num_io_procs: This number of processes will additionally be allocated on a VH
   # num_prefetch_proc: This number of processes will additionally be allocated on a VH
   # num_io_procs_radar: This number of processes will additionally be allocated on a VH
+  # VH_DISTRIBUTION: Specify how the VH processes are distributed along the VH Nodes.
+  #    E.g.: VH_DISTRIBUTION="1,:" # run one VH process on node 0, rest on node 1
+  #          VH_DISTRIBUTION="0,0,:" # run all VH processes on node 2
+  #          Note: Wildcard ":" is only allowed at last position.
+  #          VH_DISTRIBUTION="2,3" # run two VH process on node 0, three on node 1 or
+  #                                  raise error, if 5 != num_restart_procs + num_io_procs +
+  #                                  num_prefetch_proc + num_io_procs_radar.
   # mpi_oce_procs: This number of processes will be allocated on the VEs with high MPI ranks
-  # VH_NODE: set to specify the node number for the additional VH processes.
   # VH_OFFLOADING (default: yes): can be set to 'no'. Then no VH are used.
   #
     if [ \${VH_OFFLOADING:-yes} = yes ]; then
         start_options=""
         start_options="\${start_options}  -v  -vh     -node 0         -np 1       -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
         let "num_atm_procs=\${PPN}-\${mpi_oce_procs:-0}"
+        echo "Append \${num_atm_procs} VE procs (atmosphere) on hosts 0 to \${NE1}"
         start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${num_atm_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
         #calculate number of IO procs running on vector hosts
         let "NH=\${num_restart_procs:-0}+\${num_io_procs:-0}+\${num_prefetch_proc:-0}+\${num_io_procs_radar:-0}"
-        if [ "\${NH}" -gt 0 ]; then
-            #TODO for experiment 10: program a logic that more IO nodes with at most 4 procs per node
-            start_options="\${start_options} : -vh    -node \${VH_NODE:-0}         -np \${NH}  -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
+        # if VH_DISTRIBUTION is not set, use NH processes on node 0
+        VH_DISTRIBUTION=\${VH_DISTRIBUTION:-\$NH}
+        nh_sum=0
+        nh_node=0
+        for nh_per_node in \${VH_DISTRIBUTION//,/ }; do
+            if [ "\${nh_per_node}" = ":" ]; then
+                # replace wildcard with remaining number of nodes
+                let "nh_per_node=\${NH}-\${nh_sum}"
+            fi
+            if [ "\${nh_per_node}" -gt 0 ]; then
+                echo "Append \${nh_per_node} VH procs on host \${nh_node}"
+                start_options="\${start_options} : -vh -node \${nh_node} -np \${nh_per_node} -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
+                let "nh_sum=\${nh_sum}+\${nh_per_node}"
+            fi
+            let "nh_node=\${nh_node}+1"
+        done
+        if [ "\${nh_sum}" -ne "\$NH" ]; then
+            echo "Error while parsing VH_DISTRIBUTION."
+            echo "Number of VH processes \${NH} does not match with VH_DISTRIBUTION=\\"\${VH_DISTRIBUTION}\\"."
+            exit 2
         fi
         if [ \${mpi_oce_procs:-0} -gt 0 ]; then
+            echo "Append \${mpi_oce_procs} VE procs (ocean) on hosts 0 to \${NE1}"
             start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${mpi_oce_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
         fi
     else
         start_options="-v -x -venode -node 0-\${NE1} -np \${PPN} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
     fi
-    ${use_mpi_startrun} \$start_options
+    \$START \$start_options
     return \$?
 }
 START_MODEL=START_MODEL_function
@@ -2232,6 +2228,20 @@ create_target_header()
                     use_venum_lhost=2
                     use_cpunum_job=3
 #                    elapstim_req=01:00:00 # this variable does not exist yet
+                    ;;
+            esac
+            ;;
+        *run_ICON-ART_01_R3B08_lam_initmode7_pollen*)
+            use_memory="18gb"
+            case $use_target in
+                daint*)
+                    use_nodes=14
+                    ;;
+                rcl)
+                    use_nodes=5
+                    use_venum_lhost=5
+                    use_cpunum_job=6
+#                    elapstim_req=43300 # this variable does not exist yet
                     ;;
             esac
             ;;
