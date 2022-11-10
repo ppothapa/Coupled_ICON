@@ -29,7 +29,7 @@
 MODULE mo_o3_util
 
   USE mo_kind,                 ONLY: wp, i8
-  USE mo_exception,            ONLY: finish
+  USE mo_exception,            ONLY: finish, message_text
   USE mo_parallel_config,      ONLY: nproma
   USE mo_impl_constants,       ONLY: min_rlcell_int, max_dom, SUCCESS, io3_ape
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
@@ -174,6 +174,12 @@ CONTAINS
        !$ACC WAIT
         CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,o3,use_acc=lzacc)
       CASE(5)
+        IF (mtime_datetime%date%year /= ext_ozone(jg)%year) THEN
+          WRITE(message_text,'(a,i0,a,i0,a)') 'Stale data: Ozone data is valid for year ', &
+            & ext_ozone(jg)%year, ' but current year is ', mtime_datetime%date%year, '.'
+          CALL finish(routine, message_text)
+        END IF
+
         ALLOCATE(zo3_timint(nproma,ext_ozone(jg)%nplev_o3), STAT=istat)
           IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of zo3_timint failed')
 !$OMP PARALLEL

@@ -49,6 +49,7 @@ MODULE mo_bc_ozone
     REAL(wp), ALLOCATABLE           :: plev_full_o3(:)      ! Full pressure levels
     REAL(wp), ALLOCATABLE           :: plev_half_o3(:)      ! Half pressure levels, derived from plev_full_o3
     INTEGER                         :: nplev_o3             ! Number of full pressure levels
+    INTEGER(i8)                     :: year                 ! Reference year.
   END TYPE t_ext_ozone
 
   TYPE(t_ext_ozone), ALLOCATABLE, TARGET :: ext_ozone(:)
@@ -171,6 +172,7 @@ CONTAINS
             ext_ozone(jg)% o3_plev(:,:,:,imonth_end) = vmr2mmr_o3*zo3_plev(:,:,:,1)
           ENDIF
 
+          ext_ozone(jg)%year = year
         END IF
         !
       ELSE
@@ -397,7 +399,9 @@ CONTAINS
             ext_ozone(jg)% o3_plev(:,:,:,13) = vmr2mmr_o3*zo3_plev(:,:,:,1)
             !
           ENDIF
-          !
+
+          ext_ozone(jg)%year = year
+
         END SELECT
 
         ! Read pressure level grid on which the external ozone data are valid

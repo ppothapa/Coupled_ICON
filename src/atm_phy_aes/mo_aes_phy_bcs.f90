@@ -360,7 +360,7 @@ CONTAINS
         IF (aes_rad_config(jg)% irad_aero == 15) THEN
           l_filename_year = .TRUE.
           CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw)
-          CALL read_bc_aeropt_cmip6_volc(mtime_old, patch%id, nbndlw, nbndsw)
+          CALL read_bc_aeropt_cmip6_volc(mtime_old, nbndlw, nbndsw)
           CALL read_bc_aeropt_stenchikov(mtime_old, patch)
         END IF
         !

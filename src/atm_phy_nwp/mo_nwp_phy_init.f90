@@ -135,13 +135,14 @@ MODULE mo_nwp_phy_init
   USE mo_grid_config,         ONLY: l_scm_mode
   USE mo_scm_nml,             ONLY: i_scm_netcdf, lscm_read_tke, lscm_read_z0, &
                                     scm_sfc_temp, scm_sfc_qv
-  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc,read_soil_profile_nc_uf
+  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc
 
   USE mo_cover_koe,           ONLY: cover_koe_config
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,   ONLY: setup_bc_aeropt_splumes
   USE mo_bc_ozone,            ONLY: read_bc_ozone
+  USE mo_bc_solar_irradiance, ONLY: read_bc_solar_irradiance
 
   IMPLICIT NONE
 
@@ -216,7 +217,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   LOGICAL :: lstoch_expl, lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
-  LOGICAL :: lupatmo_phy, l_filename_year
+  LOGICAL :: lupatmo_phy
 
   INTEGER :: jb,ic,jc,jt,jg,ist,nzprv
   INTEGER :: nlev, nlevp1, nlevcm    !< number of full, half and canopy levels
@@ -1026,7 +1027,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN
           ! Volcanic aerosol from CMIP6
-          CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+          CALL read_bc_aeropt_cmip6_volc(ini_date, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
           ! Simple plume anthropogenic aerosol
@@ -1045,6 +1046,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CASE(1)       ! 1: Use ssi values from Coddington et al (2016)
             ssi_radt(:) = ecrad_ssi_coddington(:)
           CASE(2)       ! 2: Use ssi values from external file
+            CALL read_bc_solar_irradiance(ini_date%date%year,.TRUE.)
             ssi_radt(:) = 0._wp
         END SELECT
         tsi_radt    = SUM(ssi_radt(:))

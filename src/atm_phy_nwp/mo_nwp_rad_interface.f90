@@ -32,12 +32,11 @@ MODULE mo_nwp_rad_interface
   USE mo_model_domain,         ONLY: t_patch
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
-  USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,                            &
-    &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, &
-    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark,             &
-    &                                irad_aero, iRadAeroConstKinne, iRadAeroKinne,         &
-    &                                iRadAeroVolc, iRadAeroKinneVolc,                      &
-    &                                iRadAeroKinneVolcSP, iRadAeroKinneSP
+  USE mo_radiation_config,     ONLY: &
+    & albedo_type, albedo_fixed, irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, irad_aero, &
+    & irad_o3, isolrad, tsi_radt, ssi_radt, cosmu0_dark, iRadAeroConstKinne, iRadAeroKinne, &
+    & iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP
+
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -48,9 +47,9 @@ MODULE mo_nwp_rad_interface
   USE mo_ecrad,                ONLY: ecrad_conf
 #endif
   USE mo_albedo,               ONLY: sfc_albedo, sfc_albedo_modis, sfc_albedo_scm
-  USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,           &          
-    &                                operator(+), newTimedelta, deallocateDatetime,        &
-    &                                getPTStringFromSeconds, newDatetime
+  USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,                  &
+    &                                operator(+), operator(-), newTimedelta, deallocateTimedelta, &
+    &                                getPTStringFromSeconds, newDatetime, deallocateDatetime
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nwp_gpu_util,         ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
@@ -58,14 +57,15 @@ MODULE mo_nwp_rad_interface
 #if defined( _OPENACC )
   USE mo_mpi,                  ONLY: i_am_accel_node, my_process_is_work
 #endif
-  USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
-  USE mo_bc_aeropt_cmip6_volc, ONLY: add_bc_aeropt_cmip6_volc
+  USE mo_bc_aeropt_kinne,      ONLY: read_bc_aeropt_kinne, set_bc_aeropt_kinne
+  USE mo_bc_aeropt_cmip6_volc, ONLY: read_bc_aeropt_cmip6_volc, add_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,    ONLY: add_bc_aeropt_splumes
   USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
   USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
     &                                 calculate_time_interpolation_weights
   USE mo_o3_util,              ONLY: o3_interface
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+  USE mo_bc_ozone,             ONLY: read_bc_ozone
 
   IMPLICIT NONE
 
@@ -115,6 +115,9 @@ MODULE mo_nwp_rad_interface
     TYPE(timedelta), POINTER :: td_radiation_offset      !< Offset to center of radiation time step
     TYPE(t_time_interpolation_weights) :: radiation_time_interpolation_weights
 
+    TYPE(datetime), POINTER :: prev_radtime
+    TYPE(timedelta), POINTER :: td_dt_rad
+
     REAL(wp) :: &
       & zaeq1(nproma,pt_patch%nlev,pt_patch%nblks_c), &
       & zaeq2(nproma,pt_patch%nlev,pt_patch%nblks_c), &
@@ -138,7 +141,6 @@ MODULE mo_nwp_rad_interface
     INTEGER :: rl_start, rl_end
     INTEGER :: i_startblk, i_endblk    !> blocks
     INTEGER :: i_startidx, i_endidx    !< slices
-    INTEGER :: i_nchdom                !< domain index
     INTEGER :: istat
     LOGICAL :: lzacc
 
@@ -150,16 +152,38 @@ MODULE mo_nwp_rad_interface
 
     ! patch ID
     jg = pt_patch%id
-    i_nchdom  = MAX(1,pt_patch%n_childdom)
 
     rl_start = grf_bdywidth_c+1
     rl_end   = min_rlcell_int
 
-    i_startblk = pt_patch%cells%start_blk(rl_start,1)
-    i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = pt_patch%cells%start_block(rl_start)
+    i_endblk   = pt_patch%cells%end_block(rl_end)
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
+    !-------------------------------------------------------------------------
+    !  Update aerosols, irradiance, and ozone
+    !-------------------------------------------------------------------------
+    ! Only run on first radiation time of the day.
+
+    td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(atm_phy_nwp_config(jg)%dt_rad), ms=0)
+    prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
+
+    IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
+#ifdef __ECRAD
+      IF (atm_phy_nwp_config(jg)%inwp_radiation == 4) THEN
+        IF (ANY(irad_aero == [iRadAeroKinne, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP])) &
+            & CALL read_bc_aeropt_kinne(mtime_datetime, pt_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        IF (ANY(irad_aero == [iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP])) &
+            & CALL read_bc_aeropt_cmip6_volc(mtime_datetime, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+      END IF
+#endif
+      IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3)
+      IF (isolrad == 2) CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
+    END IF
+
+    CALL deallocateTimedelta(td_dt_rad)
+    CALL deallocateDatetime(prev_radtime)
 
     !-------------------------------------------------------------------------
     !> Radiation setup
@@ -183,9 +207,9 @@ MODULE mo_nwp_rad_interface
       &        STAT=istat                                                                )
 
       IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of od_lw_vr,od_sw_vr, g_sw_vr, &
-                                       ssa_sw_vr, od_lw, od_sw, ssa_sw, g_sw failed'       )
+                                      &ssa_sw_vr, od_lw, od_sw, ssa_sw, g_sw failed'       )
 
-!$OMP PARALLEL 
+!$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx, od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr, x_cdnc) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk,i_endblk
         CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
@@ -234,7 +258,7 @@ MODULE mo_nwp_rad_interface
 
       DEALLOCATE(od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr, STAT=istat)
       IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of od_lw_vr, &
-                                       od_sw_vr, ssa_sw_vr, g_sw_vr failed')
+                                       &od_sw_vr, ssa_sw_vr, g_sw_vr failed')
 
     END IF
 #endif
@@ -260,13 +284,15 @@ MODULE mo_nwp_rad_interface
       CALL getPTStringFromSeconds(dsec, dstring)
       td_radiation_offset => newTimedelta(dstring)
       radiation_time => newDatetime(mtime_datetime + td_radiation_offset)
+      CALL deallocateTimedelta(td_radiation_offset)
       !
       ! interpolation weights for linear interpolation
       ! of monthly means onto the radiation time step
       radiation_time_interpolation_weights = calculate_time_interpolation_weights(radiation_time)
+      CALL deallocateDatetime(radiation_time)
+
       !
       ! total and spectral solar irradiation at the mean sun earth distance
-      CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
       CALL ssi_time_interpolation(radiation_time_interpolation_weights,.TRUE.,tsi_radt,ssi_radt)
     ENDIF
 #endif
@@ -388,13 +414,11 @@ MODULE mo_nwp_rad_interface
     IF( ALLOCATED(ssa_sw) ) THEN
       DEALLOCATE(ssa_sw, STAT=istat)
       IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of ssa_sw failed.')
-    ENDIF    
+    ENDIF
     IF( ALLOCATED(g_sw) ) THEN
       DEALLOCATE(g_sw, STAT=istat)
       IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of g_sw failed.')
     ENDIF
-
-    IF (ASSOCIATED(radiation_time)) CALL deallocateDatetime(radiation_time)
 
   END SUBROUTINE nwp_radiation
 
