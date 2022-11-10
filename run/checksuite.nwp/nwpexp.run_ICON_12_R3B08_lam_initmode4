@@ -346,9 +346,9 @@ cat > NAMELIST_NWP << EOF
  vmr_cfc12                   =                    532.e-12
  icld_overlap                =                          2         ! Generalized Random
  ecrad_data_path             =              './ecrad_data'        ! Optical property files path ecRad (link files as path is truncated inside ecrad)
- llw_cloud_scat              =                     .TRUE.         ! Longwave cloud scattering
- iliquid_scat                =                          0         ! Optical properties used for liquid cloud scattering (0 = SOCRATES)
- iice_scat                   =                          0         ! Optical properties used for ice cloud scattering (0 = Fu)
+ ecrad_llw_cloud_scat        =                     .TRUE.         ! Longwave cloud scattering
+ ecrad_iliquid_scat          =                          0         ! Optical properties used for liquid cloud scattering (0 = SOCRATES)
+ ecrad_iice_scat             =                          0         ! Optical properties used for ice cloud scattering (0 = Fu)
  isolrad                     =                          1         ! Coddington et al. (2016) scaling
 /
 

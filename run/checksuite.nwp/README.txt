@@ -26,7 +26,7 @@ For the SX-AURORA system it is recommended to build the vector host and vector e
     some_directory/vector
 After building both, run the following to generate all run scripts.
     some_directory/vector/make_runscripts --all -r run/checksuite.nwp
-
+(make_runscripts must be run in the build directory for the Vector Engine.)
 
 Alternative directory names are `VH` and `VE`.
 If you use another structure for your build directories, use the `-s` as explained when executing `./make_runscripts -h`.

@@ -33,6 +33,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_minsso
   PUBLIC :: tune_blockred
   PUBLIC :: tune_gfluxlaun
+  PUBLIC :: tune_gcstar
   PUBLIC :: tune_zceff_min
   PUBLIC :: tune_v0snow
   PUBLIC :: tune_zvz0i
@@ -100,6 +101,9 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< total launch momentum flux in each azimuth (rho_o x F_o)
     &  tune_gfluxlaun
+
+  REAL(wp) :: &                    !< constant in saturation wave spectrum (non-orographic GWD)
+    &  tune_gcstar
 
   REAL(wp) :: &                    !< Minimum value for sticking efficiency
     &  tune_zceff_min

@@ -84,10 +84,10 @@ $addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        -
 $addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 
 # DWD_nec_yac2
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON_17_R2B4_AO_coupled.run                      --builders DWD_nec_yac2 --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname
 
 # ART experiments
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON-ART_01_R3B08_lam_initmode7_pollen.run       --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen       --builders DWD_nec --list $listname
 # SCM experiments
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_01_BOMEX.run                            --builders DWD_nec --list $listname
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                             --builders DWD_nec --list $listname

@@ -117,13 +117,15 @@ nproma_default=$nproma
 #                        LOOP: MODEL IS EXECUTED THREE TIMES
 # ============================================================================
 
+echo "Running on BB_NAME: " ${BB_NAME}
+
 # EXP names
 EXP1="reference"
 EXP2="iterative_IAU"
 EXP3="restart"
 EXP4="nproma"
 # Perform additional iteration with different number of threads
-if [[ ${BB_SLAVE} == 'nec_hybrid' ]]; then
+if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
   tot_iter=5
   EXP5="omp"
 else
@@ -140,8 +142,8 @@ echo "##############################################################"
 echo "###            Reference run with iterative IAU            ###"
 echo "##############################################################"
 
-NUM_THREADS=1
-let PPN=${CPE}*${NE}/${NUM_THREADS}
+OMP_NUM_THREADS=1
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
 let NE1=${NE}-1
 
 # reference run with iterative IAU
@@ -161,8 +163,8 @@ echo "#############################################################"
 echo "###     Run without iterative IAU, write restart file     ###"
 echo "#############################################################"
 
-NUM_THREADS=1
-let PPN=${CPE}*${NE}/${NUM_THREADS}
+OMP_NUM_THREADS=1
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
 let NE1=${NE}-1
 
 # run without iterative IAU, which writes restart file after 7H
@@ -182,8 +184,8 @@ echo "#############################################################"
 echo "###                      Restart run                      ###"
 echo "#############################################################"
 
-NUM_THREADS=1
-let PPN=${CPE}*${NE}/${NUM_THREADS}
+OMP_NUM_THREADS=1
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
 let NE1=${NE}-1
 
 # restart run
@@ -203,8 +205,8 @@ echo "#############################################################"
 echo "###                       nproma run                      ###"
 echo "#############################################################"
 
-NUM_THREADS=1
-let PPN=${CPE}*${NE}/${NUM_THREADS}
+OMP_NUM_THREADS=1
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
 let NE1=${NE}-1
 
 # This setup peforms a short (+2h) run without iterative IAU
@@ -225,8 +227,8 @@ echo "#############################################################"
 echo "###                        OMP run                        ###"
 echo "#############################################################"
 
-NUM_THREADS=2
-let PPN=${CPE}*${NE}/${NUM_THREADS}
+OMP_NUM_THREADS=2
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
 let NE1=${NE}-1
 
 # This setup peforms a short (+2h) run without iterative IAU
@@ -812,7 +814,7 @@ OMP_NPR_DIFF_FILE_DOM02="NWP_omp_npr_diff_DOM02.out"
    echo "DOM02: EXP $EXP1 and EXP $EXP4 are identical"
  fi
 
-if [[ ${BB_SLAVE} == 'nec_hybrid' ]]; then
+if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
  echo "=================================================================="
  echo "Check OMP"
  echo "=> Compare experiments:" $EXP1 $EXP5
@@ -892,7 +894,7 @@ if [[ ${BB_SLAVE} == 'nec_hybrid' ]]; then
    echo "nproma test FAILED"
    echo " "
  fi
- if [[ ${BB_SLAVE} == 'nec_hybrid' ]]; then
+ if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
  if [ $DIFF_STATUS_OMP == 0 ]; then
    echo " "
    echo "OMP test SUCESSFUL"
