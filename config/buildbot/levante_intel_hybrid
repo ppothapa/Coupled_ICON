@@ -15,7 +15,7 @@ else
   set dummy; shift
 fi
 
-${ICON_DIR}/config/dkrz/levante.intel --enable-yaxt --enable-openmp "$@"
+${ICON_DIR}/config/dkrz/levante.intel --enable-yaxt --enable-waves --enable-openmp "$@"
 
 if [ ! -z "${BB_NAME}" ] ; then
   MAKE_PROCS=22

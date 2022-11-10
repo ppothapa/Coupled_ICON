@@ -126,6 +126,12 @@ AC_ARG_ENABLE([jsbach],
   [AS_IF([test x"$enableval" != xno], [enable_jsbach=yes])],
   [enable_jsbach=yes])
 
+AC_ARG_ENABLE([waves],
+  [AS_HELP_STRING([--enable-waves],
+     [enable the surface wave component of ICON @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_waves=yes])],
+    [enable_waves=no])
+
 AC_ARG_ENABLE([coupling],
   [AS_HELP_STRING([--enable-coupling],
      [enable the coupling @<:@default=yes@:>@])],
@@ -706,6 +712,9 @@ AS_VAR_IF([enable_ocean], [no],
 
 AS_VAR_IF([enable_jsbach], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH__"])])
+
+AS_VAR_IF([enable_waves], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_WAVES__"])])
 
 AS_VAR_IF([enable_coupling], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}YAC_coupling"])])

@@ -728,6 +728,7 @@ enable_edmf
 enable_les
 enable_upatmo
 enable_ocean
+enable_waves
 enable_jsbach
 enable_coupling
 enable_aes
@@ -1474,6 +1475,8 @@ Model Features:
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
+  --enable-waves          enable the ocean surface wave component of ICON
+                          [default=no]
   --enable-coupling       enable the coupling [default=yes]
   --enable-aes            enable the AES physics package [default=yes]
   --enable-ecrad          enable usage of the ECMWF radiation scheme (ECRAD)
@@ -2513,6 +2516,14 @@ else
   enable_jsbach=yes
 fi
 
+# Check whether --enable-waves was given.
+if test "${enable_waves+set}" = set; then :
+  enableval=$enable_waves; if test x"$enableval" != xno; then :
+  enable_waves=yes
+fi
+else
+  enable_waves=no
+fi
 
 # Check whether --enable-coupling was given.
 if test "${enable_coupling+set}" = set; then :
@@ -4681,6 +4692,10 @@ fi
 
 if test "x$enable_ocean" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_OCEAN__"
+fi
+
+if test "x$enable_waves" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_WAVES__"
 fi
 
 if test "x$enable_jsbach" = xno; then :
