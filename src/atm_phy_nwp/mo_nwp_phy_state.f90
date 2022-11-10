@@ -2818,7 +2818,9 @@ __acc_attach(diag%clct)
           &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,                   &
           &             lower_limit=0._wp ),                                      &
           & hor_interp=create_hor_interp_metadata(                                &
-          &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB)) 
+          &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
+          & lopenacc=.TRUE.                                                       )
+        __acc_attach(diag%reff_qh)
       END IF
     END IF  ! IF effective radius
 

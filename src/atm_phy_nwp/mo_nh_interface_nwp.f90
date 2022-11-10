@@ -1269,22 +1269,22 @@ CONTAINS
     !! Call effective radius diagnostic calculation (only for radiation time steps)
 
     IF ( lcall_phy_jg(itrad)  .AND. atm_phy_nwp_config(jg)%icalc_reff > 0 ) THEN
-#ifdef _OPENACC
-        CALL finish('mo_nh_interface_nwp:','set_reff not available on GPU')
-#endif
-
+      !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "set_reff", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
       IF (msg_level >= 15) &
            &           CALL message('mo_nh_interface', 'effective radius')
 
       IF (timers_level > 10) CALL timer_start(timer_phys_reff)
-      CALL  set_reff (prm_diag,pt_patch, pt_prog, pt_diag,ext_data) 
 
-      ! Combine all hydrometoers in one liquid and one frozen phase 
+      CALL set_reff( prm_diag, pt_patch, pt_prog, pt_diag, ext_data )
+
+      ! Combine all hydrometeors in one liquid and one frozen phase
       ! Not available for RRTM reff parameterization with single liquid and ice phase
       IF (  atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
-        CALL combine_phases_radiation_reff (prm_diag, pt_patch, pt_prog)
+        CALL combine_phases_radiation_reff( prm_diag, pt_patch, pt_prog )
       END IF
-      IF (timers_level > 10) CALL timer_stop(timer_phys_reff)      
+
+      IF (timers_level > 10) CALL timer_stop(timer_phys_reff)
+      !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "set_reff", .FALSE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
     END IF
 
 

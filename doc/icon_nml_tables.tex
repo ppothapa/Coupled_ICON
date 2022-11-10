@@ -5375,8 +5375,8 @@ I (max\_ dom) &
 &
 Parameterization set for diagnostic calculations of effective radius: \\
 0 \,\,\,  = No calculation \\
-1,2,4,5,6,7 = Consistent with microphysics given by ireff\_calc (naming same convention as inwp\_gscp) \\
-100 = Consistent with current microphysics (it sets ireff\_calc = inwp\_gscp) \\
+1,2,4,5,6,7 = Consistent with microphysics given by icalc\_reff (naming same convention as inwp\_gscp) \\
+100 = Consistent with current microphysics (it sets icalc\_reff = inwp\_gscp) \\
 101 = Reff given by RRTM parameterization
 &run\_nml:iforcing = inwp
 \tabularnewline
@@ -5388,10 +5388,10 @@ I (max\_ dom) &
 &
 Coupling of the effective radius with radiation: \\
 0 \,\,\,  = No coupling. The calculation of the effective radius happens at the radiation interface. \\
-1 \,\,\, = Radiation uses the effective radius defined by ireff\_calc. All hydrometeors are combined in a frozen and a liquid phase. 
+1 \,\,\, = Radiation uses the effective radius defined by icalc\_reff. All hydrometeors are combined in a frozen and a liquid phase.
 &run\_nml:iforcing = inwp \\
 inwp\_radiation = 1 or 4  \\
-ireff\_calc > 0
+icalc\_reff > 0
 \tabularnewline
 
 %\hline

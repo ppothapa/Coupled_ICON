@@ -761,9 +761,7 @@ CONTAINS
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA PRESENT(p_rho_now, prm_nwp_tend, prm_nwp_tend%ddt_tracer_pconv) &
-    !$ACC   PRESENT(prm_diag, prm_diag%rain_con, prm_diag%snow_con, prm_diag%prec_con, prm_diag%prec_con_d) &
-    !$ACC   PRESENT(prm_diag%rain_con_rate, pt_prog_rcf, pt_prog_rcf%tracer) &
+    !$ACC DATA PRESENT(p_rho_now, prm_nwp_tend, prm_diag, pt_prog_rcf) &
     !$ACC   CREATE(zrhox, zrhox_clip) &
     !$ACC   COPYIN(kstart_moist) &
     !$ACC   IF(lzacc)
@@ -775,13 +773,14 @@ CONTAINS
     ELSE
       conv_list = (/iqv,iqc,iqi,-1,-1/)
     ENDIF
+    !$ACC DATA COPYIN(conv_list) IF(lzacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     zrhox_clip(:,:) = 0._wp
     !$ACC END KERNELS
 
     ! add tendency due to convection
-    !$ACC PARALLEL COPYIN(conv_list) PRIVATE(pos_qv) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL PRIVATE(pos_qv) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jt=1,SIZE(conv_list)
       idx = conv_list(jt)
@@ -830,12 +829,21 @@ CONTAINS
 
 !!  Update of two-moment number densities using the updates from the convective parameterization
     IF (atm_phy_nwp_config(jg)%l2moment) THEN
-      CALL assert_acc_host_only("tracer_add_phytend l2moment", lacc)
+      DO jt=1,SIZE(conv_list)
+        idx = conv_list(jt)
+        IF ( idx > 0 .AND. idx /= iqv .AND. idx /= iqc .AND. idx /= iqi .AND. idx /= iqr .AND. idx /= iqs ) THEN
+          CALL finish("mo_util_phys", "Not valid update from convective parameterization for two-moment scheme.")
+        ENDIF
+      ENDDO
+
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jt=1,SIZE(conv_list)
         idx = conv_list(jt)
         IF (idx <= 0) CYCLE
 
         IF ( idx == iqv ) THEN ! No number concentration for iqv
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
               pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
@@ -843,6 +851,7 @@ CONTAINS
             END DO
           END DO
         ELSEIF ( idx == iqc ) THEN
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
               pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
@@ -850,6 +859,7 @@ CONTAINS
             END DO
           END DO
         ELSEIF ( idx == iqi ) THEN
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
               pt_prog_rcf%tracer(jc,jk,jb,iqni) =  pt_prog_rcf%tracer(jc,jk,jb,iqni)    &
@@ -857,6 +867,7 @@ CONTAINS
             END DO
           END DO
         ELSEIF ( idx == iqr ) THEN
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
               pt_prog_rcf%tracer(jc,jk,jb,iqnr) =  pt_prog_rcf%tracer(jc,jk,jb,iqnr)    &
@@ -864,16 +875,16 @@ CONTAINS
             END DO
           END DO
         ELSEIF ( idx == iqs ) THEN
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              
               pt_prog_rcf%tracer(jc,jk,jb,iqns) =  pt_prog_rcf%tracer(jc,jk,jb,iqns)    &
                  + set_qns( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqs) )/p_rho_now(jc,jk)   
             END DO
           END DO
-        ELSE
-          CALL finish("mo_util_phys", "Not valid update from convective parameterization for two-moment scheme.")          
         END IF
       END DO
+      !$ACC END PARALLEL
     END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
@@ -983,7 +994,8 @@ CONTAINS
 #endif
 
     !$ACC WAIT
-    !$ACC END DATA
+    !$ACC END DATA ! COPYIN(conv_list)
+    !$ACC END DATA ! DATA PRESENT
 
   END SUBROUTINE tracer_add_phytend
 

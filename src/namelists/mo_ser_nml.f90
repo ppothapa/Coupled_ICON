@@ -33,6 +33,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_turbtrans(3)
   INTEGER, TARGET ::  ser_convection(3)
   INTEGER, TARGET ::  ser_cover(3)
+  INTEGER, TARGET ::  ser_set_reff(3)
   INTEGER, TARGET ::  ser_radiation(3)
   INTEGER, TARGET ::  ser_radheat(3)
   INTEGER, TARGET ::  ser_gwdrag(3)
@@ -48,7 +49,7 @@ MODULE mo_ser_nml
   &                  ser_debug, ser_diffusion, ser_nesting_compute_tendencies, ser_nesting_boundary_interpolation, &
   &                  ser_nesting_relax_feedback, ser_physics_init, &
   &                  ser_step_advection, ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
-  &                  ser_microphysics, ser_convection, ser_cover, ser_radiation, ser_radheat, &
+  &                  ser_microphysics, ser_convection, ser_cover, ser_set_reff, ser_radiation, ser_radheat, &
   &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_reset_to_initial_state, &
   &                  ser_nfail, ser_nreport
 
@@ -86,6 +87,7 @@ MODULE mo_ser_nml
    ser_turbdiff = param_def
    ser_convection = param_def
    ser_cover = param_def
+   ser_set_reff = param_def
    ser_radiation = param_def
    ser_radheat = param_def
    ser_gwdrag = param_def

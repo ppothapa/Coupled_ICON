@@ -152,6 +152,7 @@ MODULE mo_2mom_mcrph_processes
        & set_qns,                    &
        & set_qng,                    &
        & set_qnh                    
+  USE mo_fortran_tools
 
   IMPLICIT NONE
 
@@ -206,6 +207,7 @@ MODULE mo_2mom_mcrph_processes
        &    afrac_dust, &  ! look-up table of activated fraction of dust particles acting as ice nuclei
        &    afrac_soot, &  ! ... of soot particles
        &    afrac_orga     ! ... of organic material
+  !$ACC DECLARE COPYIN(afrac_dust, afrac_soot, afrac_orga)
 
   INCLUDE 'phillips_nucleation_2010.incf'
 
@@ -400,8 +402,11 @@ CONTAINS
 
   ! mean mass with limiters, Eq. (94) of SB2006
   ELEMENTAL FUNCTION particle_meanmass(this,q,n) RESULT(xmean)
+
+    !$ACC ROUTINE SEQ
+
     CLASS(particle), INTENT(in) :: this
-    REAL(wp),        INTENT(in) :: q,n
+    REAL(wp),        INTENT(in) :: q, n
     REAL(wp)                    :: xmean
     REAL(wp), PARAMETER         :: eps = 1e-20_wp
 
@@ -410,6 +415,9 @@ CONTAINS
 
   ! mass-diameter relation, power law, Eq. (32) of SB2006
   ELEMENTAL FUNCTION particle_diameter(this,x) RESULT(D)
+
+    !$ACC ROUTINE SEQ
+
     CLASS(particle), INTENT(in) :: this
     REAL(wp),        INTENT(in) :: x
     REAL(wp)                    :: D
@@ -441,6 +449,9 @@ CONTAINS
 
   ! terminal fall velocity of particles, cf. Eq. (33) of SB2006
   ELEMENTAL FUNCTION particle_velocity(this,x) RESULT(v)
+
+    !$ACC ROUTINE SEQ
+
     CLASS(particle), INTENT(in) :: this
     REAL(wp),        INTENT(in) :: x
     REAL(wp)                    :: v
@@ -450,6 +461,9 @@ CONTAINS
 
   ! mue-Dm relation of raindrops
   PURE FUNCTION rain_mue_dm_relation(this,D_m) result(mue)
+
+    !$ACC ROUTINE SEQ
+
     CLASS(particle_rain_coeffs), intent(in) :: this
     real(wp), intent(in) :: D_m
     real(wp)             :: mue, delta
@@ -616,17 +630,24 @@ CONTAINS
   END FUNCTION coll_theta_12
 
   ! bulk sedimentation velocities
-  subroutine sedi_vel_rain(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc)
+  subroutine sedi_vel_rain(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc,lacc)
     CLASS(particle), intent(in)            :: this
     TYPE(particle_rain_coeffs), intent(in) :: thisCoeffs
     integer,  intent(in)  :: its,ite
     real(wp), intent(in)  :: q(:),x(:), rhocorr(:)
     real(wp), intent(in), optional  :: qc(:)
     real(wp), intent(inout) :: vn(:), vq(:)
+    logical, optional, intent(in)  :: lacc
 
     integer  :: i
     real(wp) :: D_m,mue,D_p
+    logical :: lzacc
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq, qc) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(D_m, mue, D_p)
     do i=its,ite
        if (q(i).gt.q_crit) then
           D_m = particle_diameter(this, x(i))
@@ -649,6 +670,9 @@ CONTAINS
           vq(i) = 0.0_wp
        end if
     end do
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   end subroutine sedi_vel_rain
 
   ! bulk sedimentation velocities
@@ -662,6 +686,9 @@ CONTAINS
     integer  :: i
     real(wp) :: lam,v_n,v_q
 
+    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR PRIVATE(lam, v_n, v_q)
     do i=its,ite
        if (q(i).gt.q_crit) then
           lam = exp(this%b_vel* log(thisCoeffs%coeff_lambda*x(i)))
@@ -678,6 +705,9 @@ CONTAINS
           vq(i) = 0.0_wp
        end if
     end do
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   end subroutine sedi_vel_sphere
 
   ! bulk sedimentation velocities
@@ -777,6 +807,9 @@ CONTAINS
 
   ! Molecular diffusivity of water vapor
   ELEMENTAL FUNCTION diffusivity(T,p) result(D_v)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(IN) :: T,p
     REAL(wp) :: D_v
     ! This is D_v = 8.7602e-5 * T_a**(1.81) / p_a
@@ -840,6 +873,9 @@ CONTAINS
 
     x_s_i = 1.0_wp / cloud%x_max
 
+    !$ACC DATA PRESENT(cloud, rain, cloud_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_c, n_c, q_r, x_c, au, tau, phi, sc)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -868,6 +904,8 @@ CONTAINS
           ENDIF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE autoconversionSB
 
@@ -897,6 +935,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(cloud, rain)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_c, q_c, q_r, tau, phi, ac, x_c)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -920,6 +961,8 @@ CONTAINS
           ENDIF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE accretionSB
 
@@ -950,6 +993,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(rain)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_r, q_r, x_r, D_r, sc, br)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -972,6 +1018,8 @@ CONTAINS
          ENDIF
       END DO
    END DO
+   !$ACC END PARALLEL
+   !$ACC END DATA
 
   END SUBROUTINE rain_selfcollectionSB
 
@@ -1187,6 +1235,11 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_evaporation")
 
+    !$ACC DATA PRESENT(atmo, cloud, rain, rain_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+    !$ACC   PRIVATE(T_a, p_a, e_sw, s_sw, g_d, eva_q, eva_n, eva_q_fak, q_r, n_r, x_r, e_d, f_v) &
+    !$ACC   PRIVATE(mue, d_m, gamma_eva, lam, d_vtp, gfak, mm)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -1271,6 +1324,8 @@ CONTAINS
           END IF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE rain_evaporation
 
@@ -1299,6 +1354,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(prtcl, atmo, coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q, T_a, e_d, e_sw, s_sw, g_d, n, x, D, v, f_v) &
+    !$ACC   PRIVATE(eva_q, eva_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -1341,6 +1400,8 @@ CONTAINS
           END IF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE evaporation
 
@@ -1361,7 +1422,7 @@ CONTAINS
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER            :: i, k
-    REAL(wp)           :: fr_q,fr_n,T_a,q_c,x_c,n_c,j_hom,T_c
+    REAL(wp)           :: fr_q, fr_n, T_a, q_c, x_c, n_c, j_hom, T_c
 
     REAL(wp), PARAMETER :: log_10 = LOG(10.0_wp)
 
@@ -1370,57 +1431,62 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(cloud, ice, atmo, cloud_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, T_c, q_c, n_c, fr_q, fr_n, x_c, j_hom)
     DO k = kstart,kend
-       DO i = istart,iend
+      DO i = istart,iend
 
-          T_a = atmo%T(i,k)
-          IF (T_a < T_3) THEN
+        T_a = atmo%T(i,k)
+        IF (T_a < T_3) THEN
 
-             T_c = T_a - T_3
-             q_c = cloud%q(i,k)
-             n_c = cloud%n(i,k)
-             IF (q_c > 0.0_wp .and. T_c < -30.0_wp) THEN
-                IF (T_c < -50.0_wp) THEN
-                   fr_q = q_c             !..instantaneous freezing
-                   fr_n = n_c             !..below -50 C
-                ELSE
-                   x_c = particle_meanmass(cloud, q_c,n_c)
+          T_c = T_a - T_3
+          q_c = cloud%q(i,k)
+          n_c = cloud%n(i,k)
+          IF (q_c > 0.0_wp .and. T_c < -30.0_wp) THEN
+            IF (T_c < -50.0_wp) THEN
+              fr_q = q_c             !..instantaneous freezing
+              fr_n = n_c             !..below -50 C
+            ELSE
+              x_c = particle_meanmass(cloud, q_c, n_c)
 
-                   !..Hom. freezing based on Jeffrey und Austin (1997), see also Cotton und Field (2001)
-                   !  (note that log in Cotton and Field is log10, not ln)
-                   IF (T_c > -30.0_wp) THEN
-!                      j_hom = 1.0e6_wp/rho_w * 10**(-7.63-2.996*(T_c+30.0))           !..J in 1/(kg s)
-                      j_hom = 1.0e6_wp/rho_w * EXP((-7.63_wp-2.996_wp*(T_c+30.0_wp))*log_10)
-                   ELSE
-!                      j_hom = 1.0e6_wp/rho_w &
-!                           &  * 10**(-243.4-14.75*T_c-0.307*T_c**2-0.00287*T_c**3-0.0000102*T_c**4)
-                      j_hom = 1.0e6_wp/rho_w &
-                           &  * EXP((-243.4_wp-14.75_wp*T_c-0.307_wp*T_c**2-0.00287_wp*T_c**3-0.0000102_wp*T_c**4)*log_10)
-                   ENDIF
+              !..Hom. freezing based on Jeffrey und Austin (1997), see also Cotton und Field (2001)
+              !  (note that log in Cotton and Field is log10, not ln)
+              IF (T_c > -30.0_wp) THEN
+!                 j_hom = 1.0e6_wp/rho_w * 10**(-7.63-2.996*(T_c+30.0))           !..J in 1/(kg s)
+                 j_hom = 1.0e6_wp/rho_w * EXP((-7.63_wp-2.996_wp*(T_c+30.0_wp))*log_10)
+              ELSE
+!                 j_hom = 1.0e6_wp/rho_w &
+!                      &  * 10**(-243.4-14.75*T_c-0.307*T_c**2-0.00287*T_c**3-0.0000102*T_c**4)
+                 j_hom = 1.0e6_wp/rho_w &
+                      &  * EXP((-243.4_wp-14.75_wp*T_c-0.307_wp*T_c**2-0.00287_wp*T_c**3-0.0000102_wp*T_c**4)*log_10)
+              ENDIF
 
-                   fr_n  = j_hom * q_c *  dt
-                   fr_q  = j_hom * q_c * x_c * dt * cloud_coeffs%c_z
-                   fr_q  = MIN(fr_q,q_c)
-                   fr_n  = MIN(fr_n,n_c)
-                END IF
+              fr_n  = j_hom * q_c *  dt
+              fr_q  = j_hom * q_c * x_c * dt *  cloud_coeffs%c_z
+              fr_q  = MIN(fr_q,q_c)
+              fr_n  = MIN(fr_n,n_c)
+            END IF
 
-                cloud%q(i,k) = cloud%q(i,k) - fr_q
-                cloud%n(i,k) = cloud%n(i,k) - fr_n
+            cloud%q(i,k) = cloud%q(i,k) - fr_q
+            cloud%n(i,k) = cloud%n(i,k) - fr_n
 
-                fr_n  = MAX(fr_n,fr_q/cloud%x_max)
+            fr_n  = MAX(fr_n, fr_q/cloud%x_max)
 
-                !..special treatment for constant drop number
-                IF (nuc_c_typ .EQ. 0) THEN
-                   ! ... force upper bound in cloud_freeze'
-                   fr_n = MAX(MIN(fr_n,qnc_const-ice%n(i,k)),0.0_wp)
-                ENDIF
+            !..special treatment for constant drop number
+            IF (nuc_c_typ .EQ. 0) THEN
+              ! ... force upper bound in cloud_freeze'
+              fr_n = MAX(MIN(fr_n, qnc_const-ice%n(i,k)), 0.0_wp)
+            ENDIF
 
-                ice%q(i,k)   = ice%q(i,k) + fr_q
-                ice%n(i,k)   = ice%n(i,k) + fr_n
-             ENDIF
-          END IF
-       END DO
+            ice%q(i,k)   = ice%q(i,k) + fr_q
+            ice%n(i,k)   = ice%n(i,k) + fr_n
+          ENDIF
+        END IF
+      END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
   END SUBROUTINE cloud_freeze
 
   SUBROUTINE ice_nucleation_homhet(ik_slice, use_prog_in, &
@@ -1525,6 +1591,9 @@ CONTAINS
     LOGICAL  :: ndiag_mask(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
     REAL(wp) :: nuc_n_a(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
 
+    !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff) &
+    !$ACC   PRESENT(n_inpot, atmo, ice)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -1555,6 +1624,9 @@ CONTAINS
 
     ! Heterogeneous nucleation using Hande et al. scheme
     IF (use_hdcp2_het) THEN
+#ifdef _OPENACC
+      CALL finish('mo_2mom_mcrph_processes:','ice_nucleation_het_hdcp2 not available on GPU')
+#endif
       IF (nuc_typ < 1 .OR. nuc_typ > 5) THEN
         CALL finish(TRIM(routine), &
              & 'Error in two_moment_mcrph: Invalid value nuc_typ in case of &
@@ -1588,6 +1660,8 @@ CONTAINS
     END IF
 
     IF (use_prog_in) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kstart, kend
         DO i = istart, iend
           n_inpot(i,k) = MERGE(MAX(n_inpot(i,k) - nuc_n_a(i, k), 0.0_wp), &
@@ -1595,10 +1669,16 @@ CONTAINS
                &               ndiag_mask(i, k))
         END DO
       END DO
+      !$ACC END PARALLEL
     END IF
 
     ! Homogeneous nucleation using KHL06 approach
     IF (use_homnuc) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+      !$ACC   PRIVATE(acoeff, bcoeff, p_a, T_a, e_si, ssi, scr, n_i, q_i, x_i, r_i) &
+      !$ACC   PRIVATE(v_th, flux, n_sat, ri_dot, R_ik, w_pre, cool, ctau, tau, delta, phi) &
+      !$ACC   PRIVATE(kappa, sqrtkap, ren, R_imfc, R_im, ni_hom, ri_0, ri_hom, mi_hom, nuc_n, nuc_q)
       DO k = kstart,kend
         DO i = istart,iend
           p_a  = atmo%p(i,k)
@@ -1671,7 +1751,10 @@ CONTAINS
           END IF
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
     END IF
+
+    !$ACC END DATA ! nuc_n_a, ndiag_mask, acoeff, bcoeff, n_inpot, atmo, ice
 
   END SUBROUTINE ice_nucleation_homhet
 
@@ -1710,6 +1793,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, ice, cloud, n_inact, n_inpot, nuc_n_a, ndiag_mask)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+    !$ACC   PRIVATE(T_a, e_si, ssi, xt, tt, infrac, xs, ss, ssr) &
+    !$ACC   PRIVATE(ndiag, ndiag_dust, ndiag_all, nuc_n, nuc_q, lwrite_n_inpot)
     DO k = kstart,kend
 !NEC$ ivdep
       DO i = istart,iend
@@ -1805,7 +1893,8 @@ CONTAINS
 
       END DO
     END DO
-
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE ice_nucleation_het_philips
 
@@ -1943,6 +2032,13 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA CREATE(s_si, g_i) &
+    !$ACC   COPYIN(dep_ice, dep_snow, dep_graupel, dep_hail) &
+    !$ACC   PRESENT(atmo, ice, snow, graupel, hail) &
+    !$ACC   PRESENT(dep_rate_ice, dep_rate_snow)
+
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(p_a, T_a, e_d, e_si, D_vtp)
     DO k = kstart,kend
        DO i = istart,iend
           p_a  = atmo%p(i,k)
@@ -1959,13 +2055,19 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k = kstart,kend
-       dep_ice(:,k)     = 0.0
-       dep_snow(:,k)    = 0.0
-       dep_graupel(:,k) = 0.0
-       dep_hail(:,k)    = 0.0
+      DO i = 1,size(dep_rate_ice,1)
+        dep_ice(i,k)     = 0.0
+        dep_snow(i,k)    = 0.0
+        dep_graupel(i,k) = 0.0
+        dep_hail(i,k)    = 0.0
+      END DO
     END DO
+    !$ACC END PARALLEL
 
     CALL vapor_deposition_generic(ik_slice, ice, ice_coeffs, g_i, s_si,dt_local, dep_ice)
     CALL vapor_deposition_generic(ik_slice, snow, snow_coeffs, g_i, s_si, dt_local, dep_snow)
@@ -1974,6 +2076,9 @@ CONTAINS
 
     zdt = 1.0/dt_local
 
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(qvsidiff, tau_i_i, tau_s_i, tau_g_i, tau_h_i, Xi_i, Xfac) &
+    !$ACC   PRIVATE(dep_ice_n, dep_snow_n, dep_graupel_n, dep_hail_n, dep_sum, x_i, x_s, x_g, x_h, T_a)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -2065,6 +2170,9 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+    !$ACC END PARALLEL
+   
+    !$ACC END DATA ! CREATE COPYIN PRESENT
 
   END SUBROUTINE vapor_dep_relaxation
 
@@ -2085,6 +2193,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(prtcl, coeffs, dep_q, g_i, s_si)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n, q, x, D, v, f_v)
     DO k = kstart,kend
       DO i = istart,iend
         IF (prtcl%q(i,k) == 0.0_wp) THEN
@@ -2104,6 +2215,9 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE vapor_deposition_generic
 
   SUBROUTINE rain_freeze_gamlook(ik_slice, dt, rain_ltable1, rain_ltable2, rain_ltable3, &
@@ -2150,6 +2264,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, rain, graupel, hail, ice, rain_ltable1, rain_ltable2, rain_ltable3)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, n_r, fr_q, fr_n, fr_n_i, fr_q_i, fr_n_g) &
+    !$ACC   PRIVATE(fr_q_g, fr_n_h, fr_q_h, fr_n_tmp, fr_q_tmp) &
+    !$ACC   PRIVATE(x_r, lam, lam_rnm1, lam_rnm2, lam_rnm3, n_0, j_het)
     DO k = kstart,kend
 !NEC$ ivdep
        DO i = istart,iend
@@ -2165,8 +2284,12 @@ CONTAINS
                    fr_n = n_r
                    fr_n_i= n_r
                    fr_q_i= q_r
-                   fr_n_g= 0.0 ; fr_q_g= 0.0 ; fr_n_h= 0.0 ; fr_q_h= 0.0
-                   fr_n_tmp = 1.0 ; fr_q_tmp = 1.0
+                   fr_n_g= 0.0
+                   fr_q_g= 0.0
+                   fr_n_h= 0.0
+                   fr_q_h= 0.0
+                   fr_n_tmp = 1.0
+                   fr_q_tmp = 1.0
                 ELSE
                    fr_q = 0.0   ; fr_n = 0.0
                    fr_n_i = 0.0 ; fr_q_i = 0.0
@@ -2287,6 +2410,9 @@ CONTAINS
           END IF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE rain_freeze_gamlook
 
   SUBROUTINE setup_particle_coeffs(ptype,pcoeffs)
@@ -2296,7 +2422,7 @@ CONTAINS
     pcoeffs%c_i = 1.0 / ptype%cap
     pcoeffs%a_f = vent_coeff_a(ptype,1)
     pcoeffs%b_f = vent_coeff_b(ptype,1) * N_sc**n_f / sqrt(nu_l)
-    pcoeffs%c_z = moment_gamma(ptype,2)  
+    pcoeffs%c_z = moment_gamma(ptype,2)
 
   END SUBROUTINE setup_particle_coeffs
 
@@ -2414,6 +2540,9 @@ CONTAINS
 
     x_conv_ii = (cfg_params%D_conv_ii/snow%a_geo)**(1./snow%b_geo)
 
+    !$ACC DATA PRESENT(atmo, ice, ice_coeffs, snow)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_i, n_i, x_i, d_i, v_i, e_coll, self_n, self_q)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -2451,6 +2580,8 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE ice_selfcollection
 
@@ -2515,8 +2646,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, snow, snow_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, v_s, e_coll, self_n)
     DO k = kstart,kend
-       DO i = istart,iend
+      DO i = istart,iend
 
           q_s = snow%q(i,k)
           T_a = atmo%T(i,k)
@@ -2539,9 +2673,11 @@ CONTAINS
 
              snow%n(i,k) = snow%n(i,k) - self_n
 
-         ENDIF
+          ENDIF
       ENDDO
-   ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE snow_selfcollection
 
@@ -2561,7 +2697,7 @@ CONTAINS
     INTEGER             :: i,k
     REAL(wp)            :: q_s,n_s,x_s,d_s,v_s,T_a,e_a
     REAL(wp)            :: melt,melt_v,melt_h,melt_n,melt_q
-    REAL(wp)            :: fh_q,fv_q
+    REAL(wp)            :: fh_q, fv_q
 
     IF (isdebug) CALL message(routine, "snow_melting")
 
@@ -2570,6 +2706,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, snow, rain)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, e_a, n_s, x_s, D_s, v_s) &
+    !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -2618,6 +2758,8 @@ CONTAINS
          ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE snow_melting
 
@@ -2657,6 +2799,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, ctype, ptype, coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+    !$ACC   PRIVATE(T_a, q_p, n_p, x_p, d_p, v_p, q_i, n_i, x_i, d_i, v_i, coll_n, coll_q, e_coll)
     DO k = kstart,kend
       DO i = istart,iend
         
@@ -2708,6 +2854,8 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE particle_particle_collection
 
@@ -2810,6 +2958,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, graupel, graupel_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_g, n_g, x_g, d_g, v_g, self_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -2832,6 +2983,8 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE graupel_selfcollection
 
@@ -2857,6 +3010,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(ice, atmo, rain, cloud)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -2885,6 +3041,9 @@ CONTAINS
           END IF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE ice_melting
 
   SUBROUTINE particle_cloud_riming(ik_slice, dt, atmo, ptype, coeffs, cloud, rain, ice)
@@ -2928,6 +3087,11 @@ CONTAINS
 
     const1 = const0 * ptype%ecoll_c
 
+    !$ACC DATA PRESENT(atmo, rain, cloud, ptype, ice, coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_c, q_p, n_c, n_p, x_p, D_p, x_c, D_c) &
+    !$ACC   PRIVATE(v_p, v_c, e_coll_n, e_coll_q, rime_n, rime_q) &
+    !$ACC   PRIVATE(mult_1, mult_2, mult_n, mult_q, melt_n, melt_q)
     DO k = kstart,kend
       DO i = istart,iend
 
@@ -2999,6 +3163,9 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE particle_cloud_riming
 
   SUBROUTINE particle_rain_riming(ik_slice, dt, atmo, ptype, &
@@ -3033,6 +3200,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, rain, ptype, ice, coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, q_p, n_r, n_p, x_p, d_p, v_p, x_r, D_r) &
+    !$ACC   PRIVATE(v_r, rime_n, rime_q, mult_1, mult_2, mult_n, mult_q) &
+    !$ACC   PRIVATE(melt_q, melt_n)
     DO k = kstart,kend
       DO i = istart,iend
 
@@ -3100,6 +3272,8 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE particle_rain_riming
 
@@ -3128,6 +3302,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, graupel, rain, graupel_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_g, e_a, n_g, x_g, D_g, v_g) &
+    !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -3169,6 +3347,9 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE graupel_melting
 
 !!$  INTERFACE hail_melting
@@ -3216,6 +3397,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, hail, rain, hail_coeffs)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_h, e_a, n_h, x_h, D_h, v_h) &
+    !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -3257,6 +3442,8 @@ CONTAINS
          ENDIF
       ENDDO
    ENDDO
+   !$ACC END PARALLEL
+   !$ACC END DATA
 
   END SUBROUTINE hail_melting_simple
 
@@ -3515,11 +3702,11 @@ CONTAINS
     INTEGER :: istart, iend, kstart, kend
 
     ! local variables
-    INTEGER             :: i,k
-    REAL(wp)            :: T_a, p_a, d_trenn, qw_a, qi_a, N_0, lam, xmin
-    REAL(wp)            :: q_g,n_g,x_g,d_g
-    REAL(wp)            :: q_c,q_r
-    REAL(wp)            :: conv_n,conv_q
+    INTEGER             :: i, k
+    REAL(wp)            :: T_a, p_a, d_trenn, qw_a, qi_a, n_0, lam, xmin
+    REAL(wp)            :: q_g, n_g, x_g, d_g
+    REAL(wp)            :: q_c, q_r
+    REAL(wp)            :: conv_n, conv_q
 
     IF (isdebug) CALL message(routine, "graupel_hail_conv_wet_gamlook")
 
@@ -3528,6 +3715,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, snow, hail, graupel_ltable1, graupel_ltable2)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, p_a, d_trenn, qw_a, qi_a, n_0, lam, xmin) &
+    !$ACC   PRIVATE(q_g, n_g, x_g, d_g, q_c, q_r, conv_n, conv_q)
     DO k = kstart,kend
 !NEC$ ivdep
        DO i = istart,iend
@@ -3538,7 +3729,7 @@ CONTAINS
           n_g = graupel%n(i,k)
 
           x_g = particle_meanmass(graupel, q_g,n_g)
-          D_g = particle_diameter(graupel, x_g)
+          d_g = particle_diameter(graupel, x_g)
           n_g = q_g / x_g  ! for consistency for limiters, n_g is used explicitly below
 
           T_a = atmo%T(i,k)
@@ -3583,6 +3774,8 @@ CONTAINS
           ENDIF
        ENDDO
     ENDDO
+   !$ACC END PARALLEL
+   !$ACC END DATA
 
   END SUBROUTINE graupel_hail_conv_wet_gamlook
 
@@ -3632,6 +3825,8 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, dep_rate_ice) &
+    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qi, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, ice, cloud, icr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, ice, rain, irr_coeffs, dt, &
@@ -3642,6 +3837,10 @@ CONTAINS
 
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice
+
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, d_i, T_a, x_r, rime_n, rime_q) &
+    !$ACC   PRIVATE(rime_qr, rime_qi, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -3712,7 +3911,7 @@ CONTAINS
               n_i = ice%n(i,k)
               q_i = ice%q(i,k)
               x_i = particle_meanmass(ice, q_i,n_i)
-              D_i = particle_diameter(ice, x_i)
+              d_i = particle_diameter(ice, x_i)
 
               rime_q = rime_rate_qc(i,k)
               rime_n = rime_rate_nc(i,k)
@@ -3736,7 +3935,7 @@ CONTAINS
               ENDIF
 
               ! conversion ice -> graupel (depends on alpha_spacefilling)
-              IF (D_i > D_conv_ig .AND. T_a < Tmax_gr_rime) THEN
+              IF (d_i > D_conv_ig .AND. T_a < Tmax_gr_rime) THEN
                  q_i = ice%q(i,k)
                  conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_i**3/x_i - 1.0) )
                  conv_q = MIN(q_i,conv_q)
@@ -3808,6 +4007,8 @@ CONTAINS
           END IF
        END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE ice_riming
 
@@ -3857,6 +4058,8 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(atmo, cloud, rain, snow, ice, graupel, dep_rate_snow) &
+    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qs, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, snow, cloud, scr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, snow, rain, srr_coeffs, dt, &
@@ -3864,6 +4067,10 @@ CONTAINS
 
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice 
+
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, x_r, rime_n, rime_q) &
+    !$ACC   PRIVATE(rime_qr, rime_qs, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -3949,7 +4156,7 @@ CONTAINS
               n_s = snow%n(i,k)
               q_s = snow%q(i,k)
               x_s = particle_meanmass(snow, q_s,n_s)
-              D_s = particle_diameter(snow, x_s)
+              d_s = particle_diameter(snow, x_s)
 
               rime_q = rime_rate_qc(i,k)
               rime_n = rime_rate_nc(i,k)
@@ -3979,7 +4186,7 @@ CONTAINS
 
               !.. conversion of snow to graupel, depends on alpha_spacefilling
 
-              IF (D_s > D_conv_sg .AND. T_a < Tmax_gr_rime) THEN
+              IF (d_s > D_conv_sg .AND. T_a < Tmax_gr_rime) THEN
                  q_s = snow%q(i,k)  
                  conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_s**3/x_s - 1.0) )
                  conv_q = MIN(q_s,conv_q)
@@ -4058,6 +4265,8 @@ CONTAINS
 
       END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
  END SUBROUTINE snow_riming
 
@@ -4094,7 +4303,11 @@ CONTAINS
    kend   = ik_slice(4)
 
    const1 = const0 * ptype%ecoll_c
-   
+
+   !$ACC DATA PRESENT(ptype, cloud, rime_rate_qb, rime_rate_nb)
+   !$ACC PARALLEL DEFAULT(NONE)
+   !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_p, n_p, x_p, d_p, v_p) &
+   !$ACC   PRIVATE(q_c, n_c, x_c, d_c, v_c, e_coll, rime_n, rime_q)
    DO k = kstart,kend
      DO i = istart,iend
        
@@ -4104,31 +4317,31 @@ CONTAINS
        q_c = cloud%q(i,k)
        
        x_p = particle_meanmass(ptype, q_p, n_p)
-       D_p = particle_diameter(ptype, x_p)
+       d_p = particle_diameter(ptype, x_p)
        x_c = particle_meanmass(cloud, q_c, n_c)
-       D_c = particle_diameter(cloud, x_c)
+       d_c = particle_diameter(cloud, x_c)
        
        IF (q_c > q_crit_c .AND. q_p > ptype%q_crit_c &
-            &             .AND. D_p > ptype%D_crit_c .AND. D_c > D_crit_c) THEN
+            &             .AND. d_p > ptype%D_crit_c .AND. D_c > D_crit_c) THEN
           
          v_c = particle_velocity(cloud,x_c) * cloud%rho_v(i,k)
          v_p = particle_velocity(ptype,x_p) * ptype%rho_v(i,k)
          
-         e_coll = MIN(ptype%ecoll_c, MAX(const1*(D_c - D_crit_c), ecoll_min))
+         e_coll = MIN(ptype%ecoll_c, MAX(const1*(d_c - D_crit_c), ecoll_min))
          
          rime_n = pi4 * e_coll * n_p * n_c * dt &
-              & *     (  coeffs%delta_n_aa * D_p**2 &
-              &        + coeffs%delta_n_ab * D_p*D_c &
-              &        + coeffs%delta_n_bb * D_c**2) &
+              & *     (  coeffs%delta_n_aa * d_p**2 &
+              &        + coeffs%delta_n_ab * d_p*d_c &
+              &        + coeffs%delta_n_bb * d_c**2) &
               & * SQRT(  coeffs%theta_n_aa * v_p**2 &
               &        - coeffs%theta_n_ab * v_p*v_c &
               &        + coeffs%theta_n_bb * v_c**2 &
               &        + ptype%s_vel**2)
          
          rime_q = pi4 * e_coll * n_p * q_c * dt &
-              & *     (  coeffs%delta_q_aa * D_p**2 &
-              &        + coeffs%delta_q_ab * D_p*D_c &
-              &        + coeffs%delta_q_bb * D_c**2) &
+              & *     (  coeffs%delta_q_aa * d_p**2 &
+              &        + coeffs%delta_q_ab * d_p*D_c &
+              &        + coeffs%delta_q_bb * d_c**2) &
               & * SQRT(  coeffs%theta_q_aa * v_p**2 &
               &        - coeffs%theta_q_ab * v_p*v_c &
               &        + coeffs%theta_q_bb * v_c**2 &
@@ -4142,6 +4355,8 @@ CONTAINS
        ENDIF
      ENDDO
    ENDDO
+   !$ACC END PARALLEL
+   !$ACC END DATA
     
  END SUBROUTINE riming_cloud_core
 
@@ -4181,6 +4396,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_a, n_a, x_a, d_a, v_a) &
+    !$ACC   PRIVATE(q_r, n_r, x_r, d_r, v_r, rime_n, rime_qi, rime_qr)
     DO k = kstart,kend
       DO i = istart,iend
 
@@ -4190,37 +4409,37 @@ CONTAINS
         n_a = ptype%n(i,k)
 
         x_a = particle_meanmass(ptype, q_a,n_a)
-        D_a = particle_diameter(ptype, x_a)
+        d_a = particle_diameter(ptype, x_a)
 
-        IF (q_r > q_crit .AND. q_a > q_crit_r .AND. D_a > D_crit_r) THEN
+        IF (q_r > q_crit .AND. q_a > q_crit_r .AND. d_a > D_crit_r) THEN
 
           x_r = particle_meanmass(rain,q_r,n_r)
-          D_r = particle_diameter(rain,x_r)
+          d_r = particle_diameter(rain,x_r)
           v_r = particle_velocity(rain,x_r) * rain%rho_v(i,k)
           v_a = particle_velocity(ptype,x_a) * ptype%rho_v(i,k)
 
           rime_n  = pi4 * n_a * n_r * dt &
-               &  *     (  coeffs%delta_n_aa * D_a * D_a &
-               &         + coeffs%delta_n_ab * D_a * D_r &
-               &         + coeffs%delta_n_bb * D_r * D_r) &
+               &  *     (  coeffs%delta_n_aa * d_a * d_a &
+               &         + coeffs%delta_n_ab * d_a * d_r &
+               &         + coeffs%delta_n_bb * d_r * d_r) &
                &  * SQRT(coeffs%theta_n_aa * v_a * v_a &
                &         - coeffs%theta_n_ab * v_a * v_r &
                &         + coeffs%theta_n_bb * v_r * v_r &
                &         + ptype%s_vel**2)
 
           rime_qr = pi4 * n_a * q_r * dt &
-               &  *     (  coeffs%delta_n_aa * D_a * D_a &
-               &         + coeffs%delta_q_ab * D_a * D_r &
-               &         + coeffs%delta_q_bb * D_r * D_r) &
+               &  *     (  coeffs%delta_n_aa * d_a * d_a &
+               &         + coeffs%delta_q_ab * d_a * d_r &
+               &         + coeffs%delta_q_bb * d_r * d_r) &
                &  * SQRT(  coeffs%theta_n_aa * v_a * v_a &
                &         - coeffs%theta_q_ab * v_a * v_r &
                &         + coeffs%theta_q_bb * v_r * v_r &
                &         + ptype%s_vel**2)
 
           rime_qi = pi4 * n_r * q_a * dt &
-               &  *     (  coeffs%delta_q_aa * D_a * D_a &
-               &         + coeffs%delta_q_ba * D_a * D_r &
-               &         + coeffs%delta_n_bb * D_r * D_r) &
+               &  *     (  coeffs%delta_q_aa * d_a * d_a &
+               &         + coeffs%delta_q_ba * d_a * d_r &
+               &         + coeffs%delta_n_bb * d_r * d_r) &
                &  * SQRT(  coeffs%theta_q_aa * v_a * v_a &
                &         - coeffs%theta_q_ba * v_a * v_r &
                &         + coeffs%theta_n_bb * v_r * v_r &
@@ -4236,6 +4455,9 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE riming_rain_core
 
  SUBROUTINE ccn_activation_sk(ik_slice, ccn_coeffs, atmo, cloud, n_cn)
@@ -4648,6 +4870,10 @@ CONTAINS
          d_ccn(4) = (/ 287736034.13_wp, 0.6258809883_wp, &
          &             0.8907491812_wp, 360848977.55_wp /)
 
+#ifdef _OPENACC
+    CALL finish(routine, 'ccn_activation_hdcp2 not available on GPU')
+#endif
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -4709,10 +4935,10 @@ CONTAINS
     ! start and end indices for 2D slices
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in), OPTIONAL :: ik_slice(4)
-    
+
     ! parameters
     TYPE(aerosol_ccn),INTENT(in), OPTIONAL    :: ccn_coeffs
-    
+
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout), OPTIONAL :: atmo
     CLASS(particle),  INTENT(inout), OPTIONAL :: cloud
@@ -4735,10 +4961,11 @@ CONTAINS
     REAL(wp)             :: nuc_n, nuc_q
     REAL(wp)             :: ncn, n_cn0, lsigs, nccn, r2, wcb
     REAL(wp)             :: r2_loc, lsigs_loc, ncn_loc, wcb_loc
-    REAL(wp)             :: z0_nccn, z1e_nccn, zf
+    REAL(wp)             :: z0_nccn, z1e_nccn, zf, etas
     INTEGER              :: i, k, kp1_fl
     INTEGER              :: iu, ju, ku, lu
     REAL(wp)             :: hilf1(2,2,2,2), hilf2(2,2,2), hilf3(2,2), hilf4(2)
+    INTEGER              :: h1, h2, h3, h4
 
     LOGICAL, PARAMETER   :: lincloud_nuc = .TRUE.
 
@@ -4746,6 +4973,7 @@ CONTAINS
     IF (.NOT.PRESENT(ik_slice)) THEN
       CALL get_otab(n_r2,n_lsigs,n_ncn,n_wcb)     ! original look-up-table from Segal and Khain      
       CALL equi_table(nr2,nlsigs,nncn,nwcb)   ! construct the new equidistant table tab:
+      !$ACC ENTER DATA COPYIN(tab, tab%ltable, tab%x1, tab%x2, tab%x3, tab%x4)
       RETURN
     END IF
 
@@ -4760,26 +4988,35 @@ CONTAINS
 
     z0_nccn  = ccn_coeffs%z0
     z1e_nccn = ccn_coeffs%z1e
+    n_cn0    = ccn_coeffs%Ncn0
+    etas     = ccn_coeffs%etas
 
     !..values for aerosol properties
     r2    = ccn_coeffs%R2
     lsigs = ccn_coeffs%lsigs
-    
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(tab, cloud, atmo) CREATE(hilf1, hilf2, hilf3, hilf4)
+    !$ACC DATA PRESENT(n_cn) IF(PRESENT(n_cn))
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP SEQ
     DO k = kstart,kend
       kp1_fl = MIN(k+1,SIZE(atmo%rho,dim=2))
 !NEC$ ivdep
+      !$ACC LOOP GANG VECTOR PRIVATE(n_c, q_c, nuc_n, nuc_q, ncn, nccn, wcb) &
+      !$ACC   PRIVATE(r2_loc, lsigs_loc, ncn_loc, wcb_loc, zf, iu, ju, ku, lu) &
+      !$ACC   PRIVATE(hilf1, hilf2, hilf3, hilf4)
       DO i = istart,iend
 
         ! hard upper limit for number conc that
         ! eliminates also unrealistic high value
         ! that would come from the dynamical core
-        
-        cloud%n(i,k) = MIN(cloud%n(i,k),ccn_coeffs%Ncn0)
+
+        cloud%n(i,k) = MIN(cloud%n(i,k),n_cn0)
 
 !!$ UB: determine wcb as in old COSMO version:
         ! determine vertical velocity for Segal&Khain nucleation parameterization:
@@ -4811,7 +5048,7 @@ CONTAINS
 !        IF (cloud%q(i,k) > eps .and. atmo%w(i,k) > 0.0_wp) THEN
 ! new formulation:
         IF ( wcb > 0.0_wp ) THEN
-          
+
           nuc_q = 0.0_wp
           nuc_n = 0.0_wp
           n_c   = cloud%n(i,k)
@@ -4821,11 +5058,11 @@ CONTAINS
           IF (PRESENT(n_cn)) THEN
             Ncn = n_cn(i,k) ! number of CN from prognostic variable
           ELSE
-            zf = 0.5_wp*(atmo%zh(i,k)+atmo%zh(i,k+1))             
-            IF(zf > ccn_coeffs%z0) THEN
-              Ncn = ccn_coeffs%Ncn0 * MIN(EXP((ccn_coeffs%z0 - zf)/ccn_coeffs%z1e),1.0_wp)
+            zf = 0.5_wp*(atmo%zh(i,k)+atmo%zh(i,k+1))
+            IF(zf > z0_nccn) THEN
+              Ncn = n_cn0 * MIN(EXP((z0_nccn - zf)/z1e_nccn),1.0_wp)
             ELSE
-              Ncn = ccn_coeffs%Ncn0
+              Ncn = n_cn0
             END IF
           END IF
 
@@ -4840,18 +5077,30 @@ CONTAINS
           wcb_loc   = MIN(MAX(wcb,    tab%x4(1)), tab%x4(tab%n4))
           lu = MIN(FLOOR((wcb_loc -   tab%x4(1)) * tab%odx4 ) + 1, tab%n4-1)
 
-          hilf1 = tab%ltable( iu:iu+1, ju:ju+1, ku:ku+1, lu:lu+1)
-          hilf2 = hilf1(1,:,:,:) + (hilf1(2,:,:,:) - hilf1(1,:,:,:)) * tab%odx1 * ( r2_loc    - tab%x1(iu) )
-          hilf3 = hilf2(1,:,:)   + (hilf2(2,:,:)   - hilf2(1,:,:)  ) * tab%odx2 * ( lsigs_loc - tab%x2(ju) )
-          hilf4 = hilf3(1,:)     + (hilf3(2,:)     - hilf3(1,:)    ) * tab%odx3 * ( ncn_loc   - tab%x3(ku) )
-          nccn  = hilf4(1)       + (hilf4(2)       - hilf4(1)      ) * tab%odx4 * ( wcb_loc   - tab%x4(lu) )
+          !$ACC LOOP SEQ
+          DO h4=1,2
+            !$ACC LOOP SEQ
+            DO h3=1,2
+              !$ACC LOOP SEQ
+              DO h2=1,2
+                !$ACC LOOP SEQ
+                DO h1=1,2
+                  hilf1(h1,h2,h3,h4) = tab%ltable(iu+h1-1,ju+h2-1,ku+h3-1,lu+h4-1)
+                ENDDO
+                hilf2(h2,h3,h4) = hilf1(1,h2,h3,h4) + (hilf1(2,h2,h3,h4)-hilf1(1,h2,h3,h4)) * tab%odx1 * (r2_loc-tab%x1(iu))
+              ENDDO
+              hilf3(h3,h4) = hilf2(1,h3,h4) + (hilf2(2,h3,h4)-hilf2(1,h3,h4)) * tab%odx2 * (lsigs_loc-tab%x2(ju))
+            ENDDO
+            hilf4(h4) = hilf3(1,h4) + (hilf3(2,h4)-hilf3(1,h4)) * tab%odx3 * (ncn_loc-tab%x3(ku))
+          ENDDO
+          nccn = hilf4(1) + (hilf4(2)-hilf4(1)) * tab%odx4 * (wcb_loc-tab%x4(lu))
 
           ! If n_cn is outside the range of the lookup table values, resulting 
           ! NCCN are clipped to the margin values. For the case of these margin values
           ! beeing larger than n_cn (which happens sometimes, unfortunately), limit NCCN by n_cn:
-          nccn = MIN(nccn, ccn_coeffs%Ncn0)
+          nccn = MIN(nccn, n_cn0)
 
-          nuc_n = ccn_coeffs%etas * nccn - n_c
+          nuc_n = etas * nccn - n_c
 
           nuc_n = MAX(nuc_n,0.0d0)
 
@@ -4869,6 +5118,9 @@ CONTAINS
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA ! n_cn
+    !$ACC END DATA ! tab, cloud, atmo, hilf1, hilf2, hilf3, hilf4
 
   END SUBROUTINE ccn_activation_sk_4d
 
@@ -5377,7 +5629,10 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    !$ACC DATA PRESENT(cloud, ice, rain, snow, graupel)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     IF ( .NOT. PRESENT(n_cn)) THEN
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO k = kstart,kend
         DO i = istart,iend
           IF ( cloud%q(i,k) > 0.0_wp .AND. cloud%n(i,k) < eps) THEN
@@ -5387,6 +5642,7 @@ CONTAINS
       END DO
     END IF
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO k = kstart,kend
       DO i = istart,iend
         IF ( ice%q(i,k) > 0.0_wp .AND. ice%n(i,k) < eps) THEN
@@ -5395,6 +5651,7 @@ CONTAINS
       END DO
     END DO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO k = kstart,kend
       DO i = istart,iend
         IF ( rain%q(i,k) > 0.0_wp .AND. rain%n(i,k) < eps) THEN
@@ -5403,6 +5660,7 @@ CONTAINS
       END DO
     END DO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO k = kstart,kend
       DO i = istart,iend
         IF ( snow%q(i,k) > 0.0_wp .AND. snow%n(i,k) < eps) THEN
@@ -5411,6 +5669,7 @@ CONTAINS
       END DO
     END DO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
     DO k = kstart,kend
       DO i = istart,iend
         IF ( graupel%q(i,k) > 0.0_wp .AND. graupel%n(i,k) < eps) THEN
@@ -5418,7 +5677,9 @@ CONTAINS
         END IF
       END DO
     END DO
-    
+    !$ACC END PARALLEL
+    !$ACC END DATA
+
   END SUBROUTINE set_default_n
 
 

@@ -60,7 +60,7 @@ MODULE mo_reff_types
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC::  t_reff_calc, t_reff_calc_dom,nreff_max_calc 
+  PUBLIC::  t_reff_calc, t_reff_calc_dom, nreff_max_calc
 
   INTEGER,PARAMETER   ::  nreff_max_calc = 10   ! Maximum number of reff parameterizations
   
@@ -153,9 +153,12 @@ CONTAINS
   SUBROUTINE t_reff_calc_construct (me)
     CLASS(t_reff_calc), INTENT(INOUT)     :: me
 
+    !$ACC ENTER DATA CREATE(me)
     ! Allocate memory for parameterizations
     IF( .NOT. ALLOCATED(me%reff_coeff) ) ALLOCATE( me%reff_coeff (4))   ! Coeeficients of the reff parameterization
     IF( .NOT. ALLOCATED(me%ncn_coeff)  ) ALLOCATE( me%ncn_coeff  (3))   ! Coeeficients of the ncn parameterization
+
+    !$ACC ENTER DATA CREATE(me%reff_coeff)
 
     ! Nullify pointers
     NULLIFY(me%p_q)
@@ -172,6 +175,7 @@ CONTAINS
   SUBROUTINE t_reff_calc_destruct (me)
     CLASS(t_reff_calc), INTENT(INOUT)     :: me
 
+    !$ACC EXIT DATA DELETE(me%reff_coeff)
     IF (ALLOCATED(  me%reff_coeff ))  DEALLOCATE ( me%reff_coeff )         
     IF (ALLOCATED(  me%ncn_coeff  ))  DEALLOCATE ( me%ncn_coeff )
      
@@ -182,6 +186,8 @@ CONTAINS
     NULLIFY(me%p_ncn3D)
     NULLIFY(me%p_ncn2D)    
 
+    !$ACC EXIT DATA DELETE(me)
+
 
   END SUBROUTINE  t_reff_calc_destruct
   
@@ -189,10 +195,13 @@ CONTAINS
     CLASS(t_reff_calc_dom), INTENT(INOUT) :: me
     
     INTEGER  i
+
     ! Destruct individual calculations
     DO i = 1,nreff_max_calc
       CALL me%reff_calc_arr(i)%destruct()
     END DO
+
+    !$ACC EXIT DATA DELETE(me)
 
   END SUBROUTINE t_reff_calc_dom_destruct
    

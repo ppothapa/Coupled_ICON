@@ -185,9 +185,6 @@ CONTAINS
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
     CASE(4,5,6,7)
 
-#ifdef _OPENACC
-        CALL finish('mo_nwp_gscp_interface:','only graupel microphysics (inwp_gscp=2) is supported on GPU!')
-#endif
        ! Update lateral boundaries of nested domains
        IF ( (l_limited_area.AND.jg==1) .OR. l_nest_other_micro) THEN
 
@@ -205,7 +202,8 @@ CONTAINS
 
              CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                   i_startidx, i_endidx, i_rlstart, i_rlend)
-             
+             !$ACC PARALLEL DEFAULT(PRESENT)
+             !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(rholoc, rhoinv)
              DO jk = 1, nlev
                 DO jc = i_startidx, i_endidx
                    rholoc = p_prog%rho(jc,jk,jb)
@@ -218,6 +216,7 @@ CONTAINS
                    ptr_tracer(jc,jk,jb,iqnh) = set_qnh(ptr_tracer(jc,jk,jb,iqh)*rholoc)*rhoinv
                 ENDDO
              ENDDO
+             !$ACC END PARALLEL
           ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -477,7 +476,7 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level,                   &
                        & l_cv=.TRUE.,                           &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water ) !< in: latent heat choice
 
         CASE(5)  ! two-moment scheme with prognostic cloud droplet number
                  ! and budget equations for CCN and IN
@@ -519,7 +518,8 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level                ,    &
                        & l_cv=.TRUE.                        ,    &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water ) !< in: latent heat choice
+
 #ifdef __ICON_ART
         CASE(6)  ! two-moment scheme with prognostic cloud droplet number
                  ! and chemical composition taken from the ART extension
@@ -588,7 +588,7 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux  (:,:,jb)     ,    & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level                ,    &
                        & l_cv=.TRUE.                        ,    &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water )!< in: latent heat choice
 
         CASE(9)  ! Kessler scheme (warm rain scheme)
 
@@ -667,11 +667,10 @@ CONTAINS
           SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
           CASE(4,5,6,7)
 
-#ifdef _OPENACC
-           CALL finish('mo_nwp_gscp_interface:','only graupel microphysics (inwp_gscp=2) is supported on GPU!')
-#endif
 
 !DIR$ IVDEP
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
              prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)                         &
                   &                   + tcall_gscp_jg * prm_diag%rain_gsp_rate (jc,jb)
@@ -700,6 +699,7 @@ CONTAINS
                   &                   )
 
            ENDDO
+           !$ACC END PARALLEL
 
           CASE(2)
 

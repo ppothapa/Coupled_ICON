@@ -571,27 +571,27 @@ END SUBROUTINE gscp_set_coefficients
   ! This function provides the number concentration of hydrometoers consistent with the
   ! one moment scheme. 
   ! It contains copied code from the 1 moment scheme, because many functions are hard-coded.
-  SUBROUTINE one_mom_calculate_ncn( ncn, return_fct, reff_calc ,k_start, &
-        &                           k_end, indices, n_ind, q , t, rho,surf_cloud_num) 
-    REAL(wp)          ,INTENT(INOUT)     ::  ncn(:,:)           ! Number concentration
+  SUBROUTINE one_mom_calculate_ncn( ncn, return_fct, reff_calc, k_start, &
+        &                           k_end, indices, n_ind, q, t, rho, surf_cloud_num )
+    REAL(wp)         , INTENT(INOUT)     ::  ncn(:,:)           ! Number concentration
     LOGICAL          , INTENT(INOUT)     ::  return_fct         ! Return code of the subroutine
     TYPE(t_reff_calc), INTENT(IN)        ::  reff_calc          ! Structure with options and coefficiencts
     INTEGER          , INTENT(IN)        ::  k_start, k_end     ! Start, end total indices    
     INTEGER (KIND=i4), INTENT(IN)        ::  indices(:,:)       ! Mapping for going through array
     INTEGER (KIND=i4), INTENT(IN)        ::  n_ind(:)
 
-    REAL(wp), OPTIONAL ,INTENT(IN)       ::  t(:,:)             ! Temperature
-    REAL(wp), OPTIONAL ,INTENT(IN)       ::  q(:,:)             ! Mixing ratio of hydrometeor
-    REAL(wp), OPTIONAL ,INTENT(IN)       ::  rho(:,:)           ! Mass density of air
+    REAL(wp), OPTIONAL, INTENT(IN)       ::  t(:,:)             ! Temperature
+    REAL(wp), OPTIONAL, INTENT(IN)       ::  q(:,:)             ! Mixing ratio of hydrometeor
+    REAL(wp), OPTIONAL, INTENT(IN)       ::  rho(:,:)           ! Mass density of air
 
-    REAL(wp) ,INTENT(IN), OPTIONAL       ::  surf_cloud_num(:)  ! Number concentrarion at surface 
+    REAL(wp), INTENT(IN), OPTIONAL       ::  surf_cloud_num(:)  ! Number concentration at surface
                                                                 !CALL WITH prm_diag%cloud_num(is:ie,:) 
     ! --- End of input/output variables.
 
-    INTEGER                              ::  jc, k,ic           ! Running indices
+    INTEGER                              ::  jc, k, ic          ! Running indices
     ! Indices array vectorization 
     LOGICAL                              ::  well_posed         ! Logical that indicates if enough data for calculations
- 
+
     ! Variables for Ice parameterization 
     REAL(wp)                             ::  fxna_cooper        ! statement function for ice crystal number, Cooper(1986)
     REAL(wp)                             ::  ztx                ! dummy arguments for statement functions
@@ -601,7 +601,7 @@ END SUBROUTINE gscp_set_coefficients
     LOGICAL                              ::  lsuper_coolw = .true.   
 
     ! Variables for snow parameterization
-    REAL(wp)                             ::  ztc, zn0s,nnr,hlp,alf,bet,m2s,m3s,zlog_10
+    REAL(wp)                             ::  ztc, zn0s, nnr, hlp, alf, bet, m2s, m3s, zlog_10
  
     ! Number of activate ice crystals;  ztx is temperature. Statement functions
     fxna_cooper(ztx) = 5.0E+0_wp * EXP(0.304_wp * (t0 - ztx))   ! FR: Cooper (1986) used by Greg Thompson(2008)
@@ -618,7 +618,11 @@ END SUBROUTINE gscp_set_coefficients
       
     SELECT CASE ( reff_calc%hydrometeor )   ! Select Hydrometeor
     CASE (0)   ! Cloud water from surface field cloud_num field or fixed
-      
+
+#ifdef _OPENACC
+      CALL finish('one_moment_calculate_ncn:','CASE hydrometeor=0 not available on GPU')
+#endif
+
       IF (PRESENT(surf_cloud_num)) THEN
         
         DO k = k_start,k_end          
@@ -656,14 +660,24 @@ END SUBROUTINE gscp_set_coefficients
         znimax = 150.E+3_wp     ! from previous ICON code 
       END IF
 
+      !$ACC DATA PRESENT(indices, ncn, t, n_ind)
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP SEQ
       DO k = k_start,k_end
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic  = 1,n_ind(k)
           jc =  indices(ic,k)
           ncn(jc,k) = MIN(fxna_cooper(t(jc,k)),znimax) 
         END DO
       END DO
+      !$ACC END PARALLEL
+      !$ACC END DATA
 
     CASE (2,4) ! Rain, Graupel done with 1 mom param. w. fixed N0
+
+#ifdef _OPENACC
+      CALL finish('one_moment_calculate_ncn:','CASE hydrometeor=2,4 not available on GPU')
+#endif
 
       well_posed = PRESENT(rho) .AND. PRESENT(q)
       IF (.NOT. well_posed) THEN
@@ -680,62 +694,66 @@ END SUBROUTINE gscp_set_coefficients
         END DO
       END DO
 
-      CASE (3) ! Snow, complex parameterization of N0 (copy paste and adapt from graupel)
+    CASE (3) ! Snow, complex parameterization of N0 (copy paste and adapt from graupel)
 
-        well_posed = PRESENT(rho) .AND. PRESENT(q) .AND. PRESENT(t)
-        IF (.NOT. well_posed) THEN
-          WRITE (message_text,*) 'Reff: Rho ans q  needs to be provided to one_mom_calculate_ncn->snow'
-          CALL message('',message_text)
-          return_fct = .false.
-          RETURN
-        END IF
-        
-        DO k = k_start,k_end
-          DO ic  = 1,n_ind(k)
-            jc = indices(ic,k)
+#ifdef _OPENACC
+      CALL finish('one_moment_calculate_ncn:','CASE hydrometeor=3 not available on GPU')
+#endif
 
-            IF (isnow_n0temp == 1) THEN
-              ! Calculate n0s using the temperature-dependent
-              ! formula of Field et al. (2005)
-              ztc = t(jc,k) - t0
-              ztc = MAX(MIN(ztc,0.0_wp),-40.0_wp)
-              zn0s = zn0s1*EXP(zn0s2*ztc)
-              zn0s = MIN(zn0s,1e9_wp)
-              zn0s = MAX(zn0s,1e6_wp)
-            ELSEIF (isnow_n0temp == 2) THEN
-              ! Calculate n0s using the temperature-dependent moment
-              ! relations of Field et al. (2005)
-              ztc = t(jc,k) - t0
-              ztc = MAX(MIN(ztc,0.0_wp),-40.0_wp)
+      well_posed = PRESENT(rho) .AND. PRESENT(q) .AND. PRESENT(t)
+      IF (.NOT. well_posed) THEN
+        WRITE (message_text,*) 'Reff: Rho ans q  needs to be provided to one_mom_calculate_ncn->snow'
+        CALL message('',message_text)
+        return_fct = .false.
+        RETURN
+      END IF
 
-              nnr  = 3._wp
-              hlp = mma(1) + mma(2)*ztc + mma(3)*nnr + mma(4)*ztc*nnr &
-                   & + mma(5)*ztc**2 + mma(6)*nnr**2 + mma(7)*ztc**2*nnr &
-                   & + mma(8)*ztc*nnr**2 + mma(9)*ztc**3 + mma(10)*nnr**3
-              alf = EXP(hlp*zlog_10) ! 10.0_wp**hlp
-              bet = mmb(1) + mmb(2)*ztc + mmb(3)*nnr + mmb(4)*ztc*nnr &
-                   & + mmb(5)*ztc**2 + mmb(6)*nnr**2 + mmb(7)*ztc**2*nnr &
-                   & + mmb(8)*ztc*nnr**2 + mmb(9)*ztc**3 + mmb(10)*nnr**3
+      DO k = k_start,k_end
+        DO ic  = 1,n_ind(k)
+          jc = indices(ic,k)
 
-              ! assumes bms=2.0 
-              m2s = q(jc,k) * rho(jc,k) / ageo_snow
-              m3s = alf*EXP(bet*LOG(m2s))
+          IF (isnow_n0temp == 1) THEN
+            ! Calculate n0s using the temperature-dependent
+            ! formula of Field et al. (2005)
+            ztc = t(jc,k) - t0
+            ztc = MAX(MIN(ztc,0.0_wp),-40.0_wp)
+            zn0s = zn0s1*EXP(zn0s2*ztc)
+            zn0s = MIN(zn0s,1e9_wp)
+            zn0s = MAX(zn0s,1e6_wp)
+          ELSEIF (isnow_n0temp == 2) THEN
+            ! Calculate n0s using the temperature-dependent moment
+            ! relations of Field et al. (2005)
+            ztc = t(jc,k) - t0
+            ztc = MAX(MIN(ztc,0.0_wp),-40.0_wp)
 
-              hlp  = zn0s1*EXP(zn0s2*ztc)
-              zn0s = 13.50_wp * m2s * (m2s / m3s) **3
-              zn0s = MAX(zn0s,0.5_wp*hlp)
-              zn0s = MIN(zn0s,1e2_wp*hlp)
-              zn0s = MIN(zn0s,1e9_wp)
-              zn0s = MAX(zn0s,1e6_wp)
-            ELSE
-              ! Old constant n0s
-              zn0s = 8.0e5_wp
-            ENDIF
+            nnr  = 3._wp
+            hlp = mma(1) + mma(2)*ztc + mma(3)*nnr + mma(4)*ztc*nnr &
+                 & + mma(5)*ztc**2 + mma(6)*nnr**2 + mma(7)*ztc**2*nnr &
+                 & + mma(8)*ztc*nnr**2 + mma(9)*ztc**3 + mma(10)*nnr**3
+            alf = EXP(hlp*zlog_10) ! 10.0_wp**hlp
+            bet = mmb(1) + mmb(2)*ztc + mmb(3)*nnr + mmb(4)*ztc*nnr &
+                 & + mmb(5)*ztc**2 + mmb(6)*nnr**2 + mmb(7)*ztc**2*nnr &
+                 & + mmb(8)*ztc*nnr**2 + mmb(9)*ztc**3 + mmb(10)*nnr**3
 
-            ncn(jc,k) =  reff_calc%ncn_coeff(1) * EXP( reff_calc%ncn_coeff(3)*LOG(zn0s)) & 
-                 & * EXP (  reff_calc%ncn_coeff(2) * LOG( rho(jc,k)*q(jc,k)  ) )
-          END DO
+            ! assumes bms=2.0
+            m2s = q(jc,k) * rho(jc,k) / ageo_snow
+            m3s = alf*EXP(bet*LOG(m2s))
+
+            hlp  = zn0s1*EXP(zn0s2*ztc)
+            zn0s = 13.50_wp * m2s * (m2s / m3s) **3
+            zn0s = MAX(zn0s,0.5_wp*hlp)
+            zn0s = MIN(zn0s,1e2_wp*hlp)
+            zn0s = MIN(zn0s,1e9_wp)
+            zn0s = MAX(zn0s,1e6_wp)
+          ELSE
+            ! Old constant n0s
+            zn0s = 8.0e5_wp
+          ENDIF
+
+          ncn(jc,k) =  reff_calc%ncn_coeff(1) * EXP( reff_calc%ncn_coeff(3)*LOG(zn0s)) &
+               & * EXP (  reff_calc%ncn_coeff(2) * LOG( rho(jc,k)*q(jc,k)  ) )
         END DO
+      END DO
 
     END SELECT
 

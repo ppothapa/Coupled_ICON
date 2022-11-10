@@ -171,7 +171,7 @@ CONTAINS
                        dtemp,             & ! inout: opt. temp increment
                        msg_level,         & ! in: msg_level
                        l_cv,              & ! in: switch for cv/cp
-                       ithermo_water)       ! in: thermodyanmic option
+                       ithermo_water      ) ! in: thermodynamic option
 
     ! Declare variables in argument list
     
@@ -211,7 +211,6 @@ CONTAINS
     ! ... Variables which are global in module_2mom_mcrph_main
 
     REAL(wp), TARGET, DIMENSION(isize,ke) ::        &
-         &  qnc_dummy,     & ! cloud droplet number
          &  rhocorr,       & ! density dependency of particle fall speed
          &  rhocld           ! density dependency of particle fall speed for cloud droplets
 
@@ -257,9 +256,14 @@ CONTAINS
 
     INTEGER :: ik_slice(4)
 
+    !$ACC DATA CREATE(q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld) &
+    !$ACC   PRESENT(dz, qr, qi, qs, qg, qh, qc, qnr, qni, qns, qng, qnh, qnc, rho, nccn, hhl, ninact, ninpot)
+
     lprogccn  = PRESENT(nccn)
     lprogin   = PRESENT(ninpot)
     lprogmelt = PRESENT(qgl)
+    
+    IF (msg_level>5) CALL message (TRIM(routine), "called two_moment_mcrph")
 
     IF (PRESENT(ithermo_water)) THEN
        lconstant_lh = (ithermo_water == 0)
@@ -277,6 +281,12 @@ CONTAINS
     rain  => rain_hyd
     ice   => ice_frz
     snow  => snow_frz
+
+    IF (lprogmelt) THEN
+#ifdef _OPENACC
+      CALL finish('clouds_twomoment_implicit', 'routine with progmelt not available on GPU')
+#endif
+    END IF
 
     IF (lprogmelt) THEN
        graupel => graupel_lwf   ! with prognostic melting 
@@ -307,7 +317,14 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost) 
 
     ! inverse of vertical layer thickness
-    rdz(its:ite,kts:kte) = 1._wp / dz(its:ite,kts:kte)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO kk = kts,kte
+      DO ii = its,ite
+        rdz(ii,kk) = 1._wp / dz(ii,kk)
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
 
     ! Initialize qrsflux for LHN:
     IF (ldass_lhn) THEN
@@ -315,11 +332,18 @@ CONTAINS
     END IF
     
     IF (clipping) THEN
-       WHERE(qr(its:ite,kts:kte) < 0.0_wp) qr(its:ite,kts:kte) = 0.0_wp
-       WHERE(qi(its:ite,kts:kte) < 0.0_wp) qi(its:ite,kts:kte) = 0.0_wp
-       WHERE(qs(its:ite,kts:kte) < 0.0_wp) qs(its:ite,kts:kte) = 0.0_wp
-       WHERE(qg(its:ite,kts:kte) < 0.0_wp) qg(its:ite,kts:kte) = 0.0_wp
-       WHERE(qh(its:ite,kts:kte) < 0.0_wp) qh(its:ite,kts:kte) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO kk = kts,kte
+        DO ii = its,ite
+          IF(qr(ii,kk) < 0.0_wp) qr(ii,kk) = 0.0_wp
+          IF(qi(ii,kk) < 0.0_wp) qi(ii,kk) = 0.0_wp
+          IF(qs(ii,kk) < 0.0_wp) qs(ii,kk) = 0.0_wp
+          IF(qg(ii,kk) < 0.0_wp) qg(ii,kk) = 0.0_wp
+          IF(qh(ii,kk) < 0.0_wp) qh(ii,kk) = 0.0_wp
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
        IF (lprogmelt) THEN
           WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
           WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
@@ -352,6 +376,8 @@ CONTAINS
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine), "prepare variables for 2mom")
 
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR PRIVATE(hlp) COLLAPSE(2)
     DO kk = kts, kte
        DO ii = its, ite
 
@@ -365,9 +391,11 @@ CONTAINS
 
        END DO
     END DO
+    !$ACC END PARALLEL
 
     ! .. set the particle types, but no calculations
     CALL init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
+    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo)
 
     ! .. convert to densities and set pointerns to two-moment module
     !    (pointers are used to avoid passing everything explicitly by argument and
@@ -378,11 +406,15 @@ CONTAINS
          nccn, ninpot, ninact, &
          qv, qc, qnc, qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh, qgl, qhl, &
          lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
-    IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_prepost)    
+    IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_prepost)
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine)," calling clouds_twomoment")
 
-    IF (cfg_params%i2mom_solver.eq.0) then
+    IF (cfg_params%i2mom_solver.eq.0) THEN
+
+#ifdef _OPENACC
+      CALL finish('clouds_twomoment:','explicit solver not available on GPU')
+#endif
 
        ! ... save old variables for latent heat calculation
        q_vap_old(its:ite,kts:kte) = qv(its:ite,kts:kte)
@@ -448,14 +480,7 @@ CONTAINS
        IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_sedi) 
 
     ELSE
-
-       ! .. semi-implicit solver includes microphysics and sedimentation
-       if (lprogin) THEN
-          CALL message(TRIM(routine)," ERROR: gscp=5 not implemented for implicit solver")
-          CALL finish(TRIM(routine),'Error in two_moment_mcrph')
-       ELSE
-          CALL clouds_twomoment_implicit ()
-       END IF
+       CALL clouds_twomoment_implicit ()
     END IF
 
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost)    
@@ -470,16 +495,24 @@ CONTAINS
          lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
 
     IF (clipping) THEN
-       WHERE(qr(its:ite,kts:kte) < 0.0_wp) qr(its:ite,kts:kte) = 0.0_wp
-       WHERE(qi(its:ite,kts:kte) < 0.0_wp) qi(its:ite,kts:kte) = 0.0_wp
-       WHERE(qs(its:ite,kts:kte) < 0.0_wp) qs(its:ite,kts:kte) = 0.0_wp
-       WHERE(qg(its:ite,kts:kte) < 0.0_wp) qg(its:ite,kts:kte) = 0.0_wp
-       WHERE(qh(its:ite,kts:kte) < 0.0_wp) qh(its:ite,kts:kte) = 0.0_wp
-       WHERE(qnr(its:ite,kts:kte) < 0.0_wp) qnr(its:ite,kts:kte) = 0.0_wp
-       WHERE(qni(its:ite,kts:kte) < 0.0_wp) qni(its:ite,kts:kte) = 0.0_wp
-       WHERE(qns(its:ite,kts:kte) < 0.0_wp) qns(its:ite,kts:kte) = 0.0_wp
-       WHERE(qng(its:ite,kts:kte) < 0.0_wp) qng(its:ite,kts:kte) = 0.0_wp
-       WHERE(qnh(its:ite,kts:kte) < 0.0_wp) qnh(its:ite,kts:kte) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO kk = kts,kte
+        DO ii = its,ite
+          IF ( qr(ii,kk) < 0.0_wp)  qr(ii,kk) = 0.0_wp
+          IF ( qi(ii,kk) < 0.0_wp)  qi(ii,kk) = 0.0_wp
+          IF ( qs(ii,kk) < 0.0_wp)  qs(ii,kk) = 0.0_wp
+          IF ( qg(ii,kk) < 0.0_wp)  qg(ii,kk) = 0.0_wp
+          IF ( qh(ii,kk) < 0.0_wp)  qh(ii,kk) = 0.0_wp
+          IF (qnr(ii,kk) < 0.0_wp) qnr(ii,kk) = 0.0_wp
+          IF (qni(ii,kk) < 0.0_wp) qni(ii,kk) = 0.0_wp
+          IF (qns(ii,kk) < 0.0_wp) qns(ii,kk) = 0.0_wp
+          IF (qng(ii,kk) < 0.0_wp) qng(ii,kk) = 0.0_wp
+          IF (qnh(ii,kk) < 0.0_wp) qnh(ii,kk) = 0.0_wp
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+
        IF (lprogmelt) THEN
           WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
           WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
@@ -487,9 +520,11 @@ CONTAINS
     END IF
 
     IF (lprogccn) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf)
       DO kk=kts,kte
-        zf = 0.5_wp*(hhl(ii,kk)+hhl(ii,kk+1))
         DO ii=its,ite
+          zf = 0.5_wp*(hhl(ii,kk)+hhl(ii,kk+1))
           !..reset nccn for cloud-free grid points to background profile
           IF (qc(ii,kk) .LE. q_crit) THEN
             IF(zf > ccn_coeffs%z0) THEN
@@ -501,8 +536,11 @@ CONTAINS
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL
     END IF
 
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk=kts,kte
       DO ii=its,ite
         !..relaxation of activated IN number density to zero
@@ -511,8 +549,11 @@ CONTAINS
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lprogin) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf, in_bgrd)
       DO kk=kts,kte
         DO ii=its,ite
           zf = 0.5_wp*(hhl(ii,kk)+hhl(ii,kk+1))
@@ -525,12 +566,31 @@ CONTAINS
           ninpot(ii,kk) = ninpot(ii,kk) - (ninpot(ii,kk)-in_bgrd)*(1._wp/tau_inpot)*dt
         END DO
       END DO
+      !$ACC END PARALLEL
     END IF
 
-    IF (lprogccn) &
-      WHERE(nccn(its:ite,kts:kte) < 35e6_wp) nccn(its:ite,kts:kte) = 35e6_wp
-   
-    WHERE(qc(its:ite,kts:kte) < 1.0e-12_wp) qnc(its:ite,kts:kte) = 0.0_wp
+    IF (lprogccn) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO kk = kts,kte
+        DO ii = its,ite
+          IF ( nccn(ii,kk) < 35e6_wp ) nccn(ii,kk) = 35e6_wp
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+    END IF
+  
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO kk = kts,kte
+      DO ii = its,ite
+        IF(qc(ii,kk) < 1.0e-12_wp) qnc(ii,kk) = 0.0_wp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo)
+    !$ACC END DATA ! DATA CREATE PRESENT
 
 !   AS: Clip large values?? Why is that necessary? Who put that in?  
 !    WHERE(qr(its:ite,kts:kte) > 0.02_wp) qr(its:ite,kts:kte) = 0.02_wp
@@ -577,10 +637,35 @@ CONTAINS
       REAL(wp), DIMENSION(isize,ke) :: rdzdt
       INTEGER :: i, ii, k, kk
 
+#ifdef _OPENACC
+      ! The following mysterious variables cannot be removed, otherwise the tolerance test fails on GPU
+      ! Check gitlab.dkrz.de/icon/wiki/-/wikis/GPU-development/Get-rid-of-mysterious-variables for more information
+      REAL(wp), DIMENSION(isize,ke) :: mysterious_var1, mysterious_var2 ! Don't remove
+#endif
+
       logical, parameter :: lmicro_impl = .true.  ! microphysics within semi-implicit sedimentation loop?
 
+      !$ACC DATA &
+      !$ACC   CREATE(qr_flux_now, qr_flux_new, qr_sum, vr_sedq_new, vr_sedq_now, qr_impl, xr_now) &
+      !$ACC   CREATE(nr_flux_now, nr_flux_new, nr_sum, vr_sedn_new, vr_sedn_now, nr_impl) &
+      !$ACC   CREATE(qs_flux_now, qs_flux_new, qs_sum, vs_sedq_new, vs_sedq_now, qs_impl, xs_now) &
+      !$ACC   CREATE(ns_flux_now, ns_flux_new, ns_sum, vs_sedn_new, vs_sedn_now, ns_impl) &
+      !$ACC   CREATE(qg_flux_now, qg_flux_new, qg_sum, vg_sedq_new, vg_sedq_now, qg_impl, xg_now) &
+      !$ACC   CREATE(ng_flux_now, ng_flux_new, ng_sum, vg_sedn_new, vg_sedn_now, ng_impl) &
+      !$ACC   CREATE(qh_flux_now, qh_flux_new, qh_sum, vh_sedq_new, vh_sedq_now, qh_impl, xh_now) &
+      !$ACC   CREATE(nh_flux_now, nh_flux_new, nh_sum, vh_sedn_new, vh_sedn_now, nh_impl) &
+      !$ACC   CREATE(qi_flux_now, qi_flux_new, qi_sum, vi_sedq_new, vi_sedq_now, qi_impl, xi_now) &
+      !$ACC   CREATE(ni_flux_now, ni_flux_new, ni_sum, vi_sedn_new, vi_sedn_now, ni_impl) &
+      !$ACC   CREATE(lh_flux_now, lh_flux_new, lh_sum, vh_sedl_new, vh_sedl_now, lh_impl) &
+      !$ACC   CREATE(lg_flux_now, lg_flux_new, lg_sum, vg_sedl_new, vg_sedl_now, lg_impl, rdzdt) &
+      !$ACC   PRESENT(qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh, qv, qc, rdz, q_vap_old, q_liq_old, tk, rho_r) &
+      !$ACC   PRESENT(rain, ice, snow, graupel, hail) &
+      !$ACC   PRESENT(prec_r, prec_i, prec_s, prec_g, prec_h)
 
       if (.not.lmicro_impl) then
+#ifdef _OPENACC
+        CALL finish('clouds_twomoment_implicit', 'routine without lmicro_impl not available on GPU')
+#endif        
 
         ! ... save old variables for latent heat calculation
         if (lprogmelt) then
@@ -612,7 +697,7 @@ CONTAINS
             
             q_vap_new = qv(ii,kk)
             if (lprogmelt) then
-              q_liq_new = qr(ii,kk) + qc(ii,kk) + qgl(ii,kk) + qhl(ii,kk) 
+              q_liq_new = qr(ii,kk) + qc(ii,kk) + qgl(ii,kk) + qhl(ii,kk)
             else
               q_liq_new = qr(ii,kk) + qc(ii,kk)
             end if
@@ -624,47 +709,67 @@ CONTAINS
       end if
 
       ! clipping maybe not necessary
-      WHERE(qr(its:ite,kts:kte) < 0.0_wp) qr(its:ite,kts:kte) = 0.0_wp
-      WHERE(qi(its:ite,kts:kte) < 0.0_wp) qi(its:ite,kts:kte) = 0.0_wp
-      WHERE(qs(its:ite,kts:kte) < 0.0_wp) qs(its:ite,kts:kte) = 0.0_wp
-      WHERE(qg(its:ite,kts:kte) < 0.0_wp) qg(its:ite,kts:kte) = 0.0_wp
-      WHERE(qh(its:ite,kts:kte) < 0.0_wp) qh(its:ite,kts:kte) = 0.0_wp
-      WHERE(qnr(its:ite,kts:kte) < 0.0_wp) qnr(its:ite,kts:kte) = 0.0_wp
-      WHERE(qni(its:ite,kts:kte) < 0.0_wp) qni(its:ite,kts:kte) = 0.0_wp
-      WHERE(qns(its:ite,kts:kte) < 0.0_wp) qns(its:ite,kts:kte) = 0.0_wp
-      WHERE(qng(its:ite,kts:kte) < 0.0_wp) qng(its:ite,kts:kte) = 0.0_wp
-      WHERE(qnh(its:ite,kts:kte) < 0.0_wp) qnh(its:ite,kts:kte) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO k = kts,kte
+        DO i = its,ite
+          IF(qr(i,k) < 0.0_wp) qr(i,k) = 0.0_wp
+          IF(qi(i,k) < 0.0_wp) qi(i,k) = 0.0_wp
+          IF(qs(i,k) < 0.0_wp) qs(i,k) = 0.0_wp
+          IF(qg(i,k) < 0.0_wp) qg(i,k) = 0.0_wp
+          IF(qh(i,k) < 0.0_wp) qh(i,k) = 0.0_wp
+          IF(qnr(i,k) < 0.0_wp) qnr(i,k) = 0.0_wp
+          IF(qni(i,k) < 0.0_wp) qni(i,k) = 0.0_wp
+          IF(qns(i,k) < 0.0_wp) qns(i,k) = 0.0_wp
+          IF(qng(i,k) < 0.0_wp) qng(i,k) = 0.0_wp
+          IF(qnh(i,k) < 0.0_wp) qnh(i,k) = 0.0_wp
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+
       if (lprogmelt) then
         WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
         WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
       end if
 
-      rdzdt(its:ite,kts:kte) = 0.5_wp * rdz(its:ite,kts:kte) * dt
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO k = kts,kte
+        DO i = its,ite
+            rdzdt(i,k) = 0.5_wp * rdz(i,k) * dt
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
 
-      qr_flux_now(:) = 0.0_wp
-      nr_flux_now(:) = 0.0_wp
-      qr_flux_new(:) = 0.0_wp
-      nr_flux_new(:) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
+      DO i = 1,isize
+        qr_flux_now(i) = 0.0_wp
+        nr_flux_now(i) = 0.0_wp
+        qr_flux_new(i) = 0.0_wp
+        nr_flux_new(i) = 0.0_wp
 
-      qi_flux_now(:) = 0.0_wp
-      ni_flux_now(:) = 0.0_wp
-      qi_flux_new(:) = 0.0_wp
-      ni_flux_new(:) = 0.0_wp
+        qi_flux_now(i) = 0.0_wp
+        ni_flux_now(i) = 0.0_wp
+        qi_flux_new(i) = 0.0_wp
+        ni_flux_new(i) = 0.0_wp
 
-      qs_flux_now(:) = 0.0_wp
-      ns_flux_now(:) = 0.0_wp
-      qs_flux_new(:) = 0.0_wp
-      ns_flux_new(:) = 0.0_wp
+        qs_flux_now(i) = 0.0_wp
+        ns_flux_now(i) = 0.0_wp
+        qs_flux_new(i) = 0.0_wp
+        ns_flux_new(i) = 0.0_wp
 
-      qg_flux_now(:) = 0.0_wp
-      ng_flux_now(:) = 0.0_wp
-      qg_flux_new(:) = 0.0_wp
-      ng_flux_new(:) = 0.0_wp
+        qg_flux_now(i) = 0.0_wp
+        ng_flux_now(i) = 0.0_wp
+        qg_flux_new(i) = 0.0_wp
+        ng_flux_new(i) = 0.0_wp
 
-      qh_flux_now(:) = 0.0_wp
-      nh_flux_now(:) = 0.0_wp
-      qh_flux_new(:) = 0.0_wp
-      nh_flux_new(:) = 0.0_wp
+        qh_flux_now(i) = 0.0_wp
+        nh_flux_now(i) = 0.0_wp
+        qh_flux_new(i) = 0.0_wp
+        nh_flux_new(i) = 0.0_wp
+      ENDDO
+      !$ACC END PARALLEL
 
       if (lprogmelt) then
         lg_flux_now(:) = 0.0_wp
@@ -672,7 +777,9 @@ CONTAINS
         lh_flux_now(:) = 0.0_wp
         lh_flux_new(:) = 0.0_wp        
       end if
-      
+
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
       do i=its,ite
         vr_sedn_new(i) = rain%vsedi_min
         vi_sedn_new(i) = ice%vsedi_min
@@ -685,7 +792,9 @@ CONTAINS
         vg_sedq_new(i) = graupel%vsedi_min
         vh_sedq_new(i) = hail%vsedi_min
       end do
-      if (lprogmelt) then
+      !$ACC END PARALLEL
+
+      if (lprogmelt) then 
         do i=its,ite
           vg_sedl_new(i) = graupel%vsedi_min
           vh_sedl_new(i) = hail%vsedi_min
@@ -696,8 +805,13 @@ CONTAINS
       ! i.e. we start from kts+1 going down in physical space
 
 !DIR$ IVDEP
+      ! The variables have to be created outside or within this loop otherwise the tolerance test fail
+      ! Check gitlab.dkrz.de/icon/wiki/-/wikis/GPU-development/Get-rid-of-mysterious-variables for more information
+      !$ACC DATA CREATE(mysterious_var1, mysterious_var2) ! Don't remove
       DO k=kts+1,kte
 
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR
         do i=its,ite
           xr_now(i) = particle_meanmass(rain, qr(i,k),qnr(i,k))
           xi_now(i) = particle_meanmass(ice, qi(i,k),qni(i,k))
@@ -705,8 +819,9 @@ CONTAINS
           xg_now(i) = particle_meanmass(graupel, qg(i,k),qng(i,k))
           xh_now(i) = particle_meanmass(hail, qh(i,k),qnh(i,k))
         end do
+        !$ACC END PARALLEL
 
-        call sedi_vel_rain(rain,rain_coeffs,qr(:,k),xr_now,rhocorr(:,k),vr_sedn_now,vr_sedq_now,its,ite,qc(:,k))
+        call sedi_vel_rain(rain,rain_coeffs,qr(:,k),xr_now,rhocorr(:,k),vr_sedn_now,vr_sedq_now,its,ite,qc(:,k),lacc=.TRUE.)
         call sedi_vel_sphere(ice,ice_coeffs,qi(:,k),xi_now,rhocorr(:,k),vi_sedn_now,vi_sedq_now,its,ite)
         call sedi_vel_sphere(snow,snow_coeffs,qs(:,k),xs_now,rhocorr(:,k),vs_sedn_now,vs_sedq_now,its,ite)
         if (lprogmelt) then
@@ -734,19 +849,25 @@ CONTAINS
           call implicit_core(qgl(:,k),lg_sum,lg_impl,vg_sedl_new,vg_sedl_now,lg_flux_new,lg_flux_now,rdzdt(:,k),its,ite)
           call implicit_core(qhl(:,k),lh_sum,lh_impl,vh_sedl_new,vh_sedl_now,lh_flux_new,lh_flux_now,rdzdt(:,k),its,ite)
         end if
-        
+
         ! do microphysics on this k-level only (using the star-values)
         IF (lmicro_impl) THEN
 
           ! .. save old variables for latent heat calculation
+
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP GANG VECTOR
           DO ii = its, ite
             q_vap_old(ii,k) = qv(ii,k)
             if (lprogmelt) then
-              q_liq_old(ii,k) = qr(ii,k) + qc(ii,k) + qgl(ii,k) + qhl(ii,k) 
+#ifndef _OPENACC
+              q_liq_old(ii,k) = qr(ii,k) + qc(ii,k) + qgl(ii,k) + qhl(ii,k)
+#endif
             else
               q_liq_old(ii,k) = qc(ii,k) + qr(ii,k)
             end if
           END DO
+          !$ACC END PARALLEL
 
           ik_slice(3) = k
           ik_slice(4) = k
@@ -755,6 +876,8 @@ CONTAINS
                ninact, nccn, ninpot)
 
           ! .. latent heat term for temperature equation
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP GANG VECTOR PRIVATE(led, lwe, convice, convliq, q_liq_new, q_vap_new)
           DO ii = its, ite
 
             IF (lconstant_lh) THEN
@@ -764,36 +887,39 @@ CONTAINS
               led = latent_heat_sublimation(tk(ii,k))
               lwe = latent_heat_melting(tk(ii,k))
             END IF
-            
+
             convice = z_heat_cap_r * led
             convliq = z_heat_cap_r * lwe
-            
+
             q_vap_new  = qv(ii,k)
             if (lprogmelt) then
-              q_liq_new = qr(ii,k) + qc(ii,k) + qgl(ii,k) + qhl(ii,k) 
+#ifndef _OPENACC
+              q_liq_new = qr(ii,k) + qc(ii,k) + qgl(ii,k) + qhl(ii,k)
+#endif
             else
               q_liq_new = qr(ii,k) + qc(ii,k)
             end if
             tk(ii,k)   = tk(ii,k) - convice * rho_r(ii,k) * (q_vap_new - q_vap_old(ii,k))  &
                  &                + convliq * rho_r(ii,k) * (q_liq_new - q_liq_old(ii,k))
           END DO
+          !$ACC END PARALLEL
 
         END IF
 
-        call implicit_time(qr(:,k), qr_sum,qr_impl,vr_sedq_new,vr_sedq_now,qr_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qnr(:,k),nr_sum,nr_impl,vr_sedn_new,vr_sedn_now,nr_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qi(:,k), qi_sum,qi_impl,vi_sedq_new,vi_sedq_now,qi_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qni(:,k),ni_sum,ni_impl,vi_sedn_new,vi_sedn_now,ni_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qs(:,k), qs_sum,qs_impl,vs_sedq_new,vs_sedq_now,qs_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qns(:,k),ns_sum,ns_impl,vs_sedn_new,vs_sedn_now,ns_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qg(:,k), qg_sum,qg_impl,vg_sedq_new,vg_sedq_now,qg_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qng(:,k),ng_sum,ng_impl,vg_sedn_new,vg_sedn_now,ng_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qh(:,k), qh_sum,qh_impl,vh_sedq_new,vh_sedq_now,qh_flux_new,rdzdt(:,k),its,ite)
-        call implicit_time(qnh(:,k),nh_sum,nh_impl,vh_sedn_new,vh_sedn_now,nh_flux_new,rdzdt(:,k),its,ite)
+        call implicit_time(qr(:,k), qr_sum,qr_impl,vr_sedq_new,vr_sedq_now,qr_flux_new,its,ite)
+        call implicit_time(qnr(:,k),nr_sum,nr_impl,vr_sedn_new,vr_sedn_now,nr_flux_new,its,ite)
+        call implicit_time(qi(:,k), qi_sum,qi_impl,vi_sedq_new,vi_sedq_now,qi_flux_new,its,ite)
+        call implicit_time(qni(:,k),ni_sum,ni_impl,vi_sedn_new,vi_sedn_now,ni_flux_new,its,ite)
+        call implicit_time(qs(:,k), qs_sum,qs_impl,vs_sedq_new,vs_sedq_now,qs_flux_new,its,ite)
+        call implicit_time(qns(:,k),ns_sum,ns_impl,vs_sedn_new,vs_sedn_now,ns_flux_new,its,ite)
+        call implicit_time(qg(:,k), qg_sum,qg_impl,vg_sedq_new,vg_sedq_now,qg_flux_new,its,ite)
+        call implicit_time(qng(:,k),ng_sum,ng_impl,vg_sedn_new,vg_sedn_now,ng_flux_new,its,ite)
+        call implicit_time(qh(:,k), qh_sum,qh_impl,vh_sedq_new,vh_sedq_now,qh_flux_new,its,ite)
+        call implicit_time(qnh(:,k),nh_sum,nh_impl,vh_sedn_new,vh_sedn_now,nh_flux_new,its,ite)
         
         if (lprogmelt) then
-          call implicit_time(qgl(:,k),lg_sum,lg_impl,vg_sedl_new,vg_sedl_now,lg_flux_new,rdzdt(:,k),its,ite)
-          call implicit_time(qhl(:,k),lh_sum,lh_impl,vh_sedl_new,vh_sedl_now,lh_flux_new,rdzdt(:,k),its,ite)
+          call implicit_time(qgl(:,k),lg_sum,lg_impl,vg_sedl_new,vg_sedl_now,lg_flux_new,its,ite)
+          call implicit_time(qhl(:,k),lh_sum,lh_impl,vh_sedl_new,vh_sedl_now,lh_flux_new,its,ite)
         end if
 
         IF (ldass_lhn) THEN
@@ -804,24 +930,36 @@ CONTAINS
             qrsflux(:,k) = qr_flux_new + qi_flux_new + qs_flux_new + qg_flux_new + qh_flux_new
           END IF
         END IF
-        
+
       END DO
-      
-      prec_r(:) = qr_flux_new
-      prec_i(:) = qi_flux_new
-      prec_s(:) = qs_flux_new
+      !$ACC END DATA ! mysterious_var1, mysterious_var2
+
       IF (lprogmelt) THEN
         ! implicit solver for LWF-scheme still has some issues
         prec_g(:) = MAX( qg_flux_new + lg_flux_new, 0.0_wp )
         prec_h(:) = MAX( qh_flux_new + lh_flux_new, 0.0_wp )
+        prec_r(:) = qr_flux_new
+        prec_i(:) = qi_flux_new
+        prec_s(:) = qs_flux_new
       ELSE
-        prec_g(:) = qg_flux_new
-        prec_h(:) = qh_flux_new
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR
+        DO i = 1,isize
+          prec_r(i) = qr_flux_new(i)
+          prec_i(i) = qi_flux_new(i)
+          prec_s(i) = qs_flux_new(i)
+          prec_g(i) = qg_flux_new(i)
+          prec_h(i) = qh_flux_new(i)
+        ENDDO
+        !$ACC END PARALLEL
+
       END IF
 
       IF (ldass_lhn) THEN
         qrsflux(:,kte) = qr_flux_new + qi_flux_new + qs_flux_new + qg_flux_new + qh_flux_new
       END IF
+
+      !$ACC END DATA ! DATA CREATE PRESENT
       
     END SUBROUTINE clouds_twomoment_implicit
    
@@ -987,7 +1125,10 @@ CONTAINS
 
     REAL(wp) :: q_star, flux_sum
     INTEGER  :: i
-    
+
+    !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new, flux_now, rdzdt)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR PRIVATE(q_star, flux_sum)
     do i=its,ite
 
       ! new on r.h.s. is new value from level above
@@ -1013,17 +1154,22 @@ CONTAINS
       q_val(i)  = q_star                     ! source/sinks work on star-values
       q_sum(i)  = q_sum(i) - q_star           
     end do
+    !$ACC END PARALLEL
+    !$ACC END DATA
     
   end SUBROUTINE implicit_core
   
-  SUBROUTINE implicit_time(q_val,q_sum,q_impl,vsed_new,vsed_now,flux_new,rdzdt,its,ite)
+  SUBROUTINE implicit_time(q_val,q_sum,q_impl,vsed_new,vsed_now,flux_new,its,ite)
 
     INTEGER  :: its,ite
     REAL(wp), DIMENSION(:), INTENT(INOUT) :: &
-         &    q_val,q_sum,q_impl,vsed_new,vsed_now,flux_new,rdzdt
+         &    q_val,q_sum,q_impl,vsed_new,vsed_now,flux_new
 
     INTEGER  :: i
     
+    !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR
     do i=its,ite
 
       ! time integration
@@ -1034,6 +1180,8 @@ CONTAINS
       vsed_new(i) = vsed_now(i)
 
     end do
+    !$ACC END PARALLEL
+    !$ACC END DATA
     
   end SUBROUTINE implicit_time
 
@@ -1323,5 +1471,5 @@ CONTAINS
     END SELECT
 
   END SUBROUTINE two_mom_reff_coefficients
-                 
+
 END MODULE mo_2mom_mcrph_driver

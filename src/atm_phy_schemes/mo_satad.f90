@@ -777,10 +777,12 @@ ELEMENTAL FUNCTION latent_heat_melting(temp)
     !!   Kirchoff's relations
     !-------------------------------------------------------------------------------
 
+  !$ACC ROUTINE SEQ
+
   IMPLICIT NONE
   REAL(KIND=ireals)             :: latent_heat_melting
   REAL(KIND=ireals), INTENT(IN) :: temp
-  
+
   latent_heat_melting = lwd - led + (ci - cl)*(temp-tmelt)
   
 END FUNCTION latent_heat_melting
