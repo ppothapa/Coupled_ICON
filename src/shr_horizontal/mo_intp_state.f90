@@ -178,6 +178,10 @@ USE mo_update_dyn_scm ,     ONLY: rbf_coeff_scm
 USE mo_grid_config,         ONLY: l_scm_mode
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
+#ifdef SERIALIZE
+USE mo_ser_rbf_coefficients, ONLY: ser_rbf_coefficients
+USE mo_ser_nml,             ONLY: ser_rbf
+#endif
 
 IMPLICIT NONE
 
@@ -1627,6 +1631,12 @@ DO jg = n_dom_start, n_dom
   ENDIF
 
 ENDDO
+
+#ifdef SERIALIZE
+IF (ser_rbf) THEN
+  CALL ser_rbf_coefficients(ptr_int_state)
+ENDIF
+#endif
 
 CALL message('mo_intp_state:construct_2d_interpol_state', &
   & 'construction of interpolation state finished')
