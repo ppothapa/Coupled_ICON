@@ -612,9 +612,11 @@ MODULE mo_nh_stepping
 
       IF (.NOT. p_patch(jg)%ldom_active) CYCLE
 
-      IF (var_in_output(jg)%dbz .OR. var_in_output(jg)%dbz850 .OR. var_in_output(jg)%dbzcmax) THEN 
+      IF ( var_in_output(jg)%dbz .OR. var_in_output(jg)%dbz850 .OR. &
+           var_in_output(jg)%dbzlmx_low .OR. var_in_output(jg)%dbzcmax ) THEN 
+
 #ifdef _OPENACC
-          CALL finish(routine, 'compute_field_dbz3d_lin is not supported by OpenACC.')
+        CALL finish(routine, 'compute_field_dbz3d_lin is not supported by OpenACC.')
 #endif
         CALL compute_field_dbz3d_lin (jg, p_patch(jg),                                                  &
              &                        p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%prog(nnow_rcf(jg)), &

@@ -186,6 +186,7 @@ CONTAINS
     inwp_surface(:)    = param_def
 
     dt_conv (:) = dt_conv_def
+    dt_ccov (:) = dt_conv_def 
     dt_rad  (:) = dt_rad_def
     dt_sso  (:) = dt_sso_def
     dt_gwd  (:) = dt_gwd_def

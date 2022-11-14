@@ -14,7 +14,7 @@
 MODULE mo_name_list_output_printvars
 
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_char
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
   USE mo_cdi,                               ONLY: streamOpenWrite, FILETYPE_GRB2, gridCreate,                &
     &                                             GRID_UNSTRUCTURED, TAXIS_ABSOLUTE,                         &
     &                                             vlistDestroy, streamClose, streamDefVlist,                 &
@@ -30,7 +30,6 @@ MODULE mo_name_list_output_printvars
   USE mo_master_control,                    ONLY: my_process_is_jsbach
 #ifndef __NO_JSBACH__
   USE mo_atm_phy_nwp_config,                ONLY: atm_phy_nwp_config
-  USE mo_echam_phy_config,                  ONLY: echam_phy_config
   USE mo_grid_config,                       ONLY: n_dom
   USE mo_impl_constants,                    ONLY: LSS_JSBACH
   USE mo_jsb_vertical_axes,                 ONLY: setup_zaxes_jsbach
@@ -117,7 +116,7 @@ CONTAINS
     END FUNCTION is_number
   END FUNCTION get_var_basename
 
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
   !------------------------------------------------------------------------------------------------
   !> @return GRIB2 short name of a given variable.
   !
@@ -201,8 +200,9 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//"::print_var_list"
     INTEGER,      PARAMETER :: max_str_len = cdi_max_name + 1 + 128 + vname_len + 99
     CHARACTER(*), PARAMETER :: varprefix = "\varname{", CR = " \\[0.5em]"
+    CHARACTER(*), PARAMETER :: descrprefix = "\vardescr{"
     INTEGER,      PARAMETER :: PREF = LEN_TRIM(varprefix) + 1
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
     TYPE(t_level_selection),  POINTER              :: tmp_level_selection => NULL()
     TYPE(t_verticalAxisList), TARGET               :: tmp_verticalAxisList
     TYPE(t_verticalAxisList), POINTER              :: it
@@ -216,14 +216,14 @@ CONTAINS
     CHARACTER(len=128)                             :: descr_string
     TYPE(t_vl_register_iter) :: vl_iter
     ! ---------------------------------------------------------------------------
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
     ! generate the CDI IDs for vertical axes:
     IF (iequations/=ihs_ocean) THEN ! atm
       IF (.NOT. my_process_is_jsbach()) THEN
         CALL setup_ml_axes_atmo(tmp_verticalAxisList, tmp_level_selection, print_patch_id)
       END IF
 #ifndef __NO_JSBACH__
-      IF (ANY(echam_phy_config(:)%ljsb) .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
+      IF (ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
           & CALL setup_zaxes_jsbach(tmp_verticalAxisList)
 #endif
     ELSE
@@ -273,7 +273,7 @@ CONTAINS
             IF (elem%ref_to%info%ncontained > 0) this_cf => elem%ref_to%info%cf
           END IF
         END IF
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
         CALL identify_grb2_shortname(info, vname, tmp_verticalAxisList,     &
           &                          gribout_config, i_lctype,       &
           &                          out_varnames_dict)
@@ -292,12 +292,12 @@ CONTAINS
         descr_string(1:1) = toupper(descr_string(1:1))
 
         iout_var = iout_var + 1
-        WRITE (out_vars(iout_var),'(a)') varprefix // &
-          & tolower(get_var_basename(info))//"} & " // &
-          & TRIM(vname) // ' & ' // TRIM(descr_string)
+        WRITE (out_vars(iout_var),'(8a)') varprefix, &
+          & tolower(get_var_basename(info)), "} & ", &
+          & TRIM(vname), ' & ', descrprefix, TRIM(descr_string), "}"
       ENDDO
     ENDDO
-#ifdef HAVE_LIBGRIB_API
+#ifdef GRIBAPI
     CALL tmp_verticalAxisList%finalize()
 #endif
     ! sort and remove duplicates
@@ -312,7 +312,7 @@ CONTAINS
     DO i = 1, nout_vars-1
       ! check for the initial character of the variable name:
       WRITE(0,*) TRIM(out_vars(i)) // CR(1:MERGE(3,LEN(CR), &
-        &  out_vars(i)(PREF:PREF) /= out_vars(i+1)(PREF:PREF)))
+        &  out_vars(i)(PREF:PREF) == out_vars(i+1)(PREF:PREF)))
     END DO
     WRITE (0,*) TRIM(out_vars(nout_vars)) // CR(1:3)
     WRITE (0,*) " "

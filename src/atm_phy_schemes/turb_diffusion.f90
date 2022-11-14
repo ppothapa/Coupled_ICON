@@ -649,7 +649,7 @@ LOGICAL, INTENT(IN) :: &
   lruncnv,      & !convection scheme is active
   lrunsso,      & !SSO-Scheme is active
   lrunscm,      & !a Single Column run (default: FALSE)
-  lsfluse         !use explicit heat flux densities at the suface
+  lsfluse         !use explicit heat flux densities at the surface
 
 REAL (KIND=wp), INTENT(IN) :: &
   dt_var,       & !time step for ordinary prognostic variables

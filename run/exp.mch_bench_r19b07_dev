@@ -515,7 +515,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  direct_albedo_water         =                           3
  albedo_whitecap             =                           1
  ecrad_data_path             =              './ecrad_data'        ! Optical property files path ecRad (link files as path is truncated inside ecrad)
- llw_cloud_scat              =                      .FALSE.       ! Longwave cloud scattering
+ ecrad_llw_cloud_scat        =                      .FALSE.       ! Longwave cloud scattering
 /
 
 ! sleve_nml: vertical level specification -------------------------------------

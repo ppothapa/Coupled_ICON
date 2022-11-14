@@ -36,6 +36,7 @@ MODULE mo_read_netcdf_distributed
     & t_ptr_3d, t_ptr_3d_int, t_ptr_3d_sp, t_ptr_4d, t_ptr_4d_int, &
     & t_ptr_4d_sp
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_read_netcdf_types, ONLY: t_distrib_read_data
 #if defined (HAVE_PARALLEL_NETCDF) && !defined (NOMPI)
   USE mpi, ONLY: MPI_INFO_NULL, MPI_UNDEFINED, MPI_Comm_split, MPI_COMM_NULL
 #endif
@@ -69,11 +70,6 @@ MODULE mo_read_netcdf_distributed
     TYPE(t_glb2loc_index_lookup), POINTER :: glb2loc_index => NULL()
     INTEGER :: n_ref = 0 ! number of times this data is referenced
   END TYPE t_basic_distrib_read_data
-
-  TYPE t_distrib_read_data
-    INTEGER :: basic_data_index = -1
-    CLASS(t_comm_pattern), POINTER :: pat => NULL()
-  END TYPE t_distrib_read_data
 
   TYPE(t_basic_distrib_read_data), TARGET, ALLOCATABLE :: basic_data(:)
 

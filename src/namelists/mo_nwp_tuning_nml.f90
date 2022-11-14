@@ -36,6 +36,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_minsso    => tune_minsso,    &
     &                               config_tune_blockred  => tune_blockred,  &
     &                               config_tune_gfluxlaun => tune_gfluxlaun, &
+    &                               config_tune_gcstar    => tune_gcstar,    &    
     &                               config_tune_zceff_min => tune_zceff_min, &
     &                               config_tune_v0snow    => tune_v0snow,    &
     &                               config_tune_zvz0i     => tune_zvz0i,     &
@@ -104,6 +105,9 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< total launch momentum flux in each azimuth (rho_o x F_o)
     &  tune_gfluxlaun
 
+  REAL(wp) :: &                    !< constant in saturation wave spectrum (non-orographic GWD)
+    &  tune_gcstar
+  
   REAL(wp) :: &                    !< Minimum value for sticking efficiency
     &  tune_zceff_min
 
@@ -216,20 +220,20 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
        &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
   
-  NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun,            &
-    &                      tune_zceff_min, tune_v0snow, tune_zvz0i,             &
-    &                      tune_entrorg, itune_albedo, max_freshsnow_inc,       &
-    &                      tune_capdcfac_et, tune_box_liq, tune_rhebc_land,     &
-    &                      tune_rhebc_ocean, tune_rcucov, tune_texc,            &
-    &                      tune_qexc, tune_minsnowfrac,tune_rhebc_land_trop,    &
-    &                      tune_rhebc_ocean_trop, tune_rcucov_trop,             &
-    &                      tune_dust_abs, tune_gfrcrit, tune_grcrit,            &
-    &                      lcalib_clcov, tune_box_liq_asy, tune_capdcfac_tr,    &
-    &                      tune_icesedi_exp, tune_rprcon, tune_gust_factor,     &
-    &                      tune_rdepths, tune_thicklayfac, tune_sgsclifac,      &
-    &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,&
-    &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,   &
-    &                      tune_blockred, itune_gust_diag, tune_rcapqadv,       &
+  NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun, tune_gcstar, &
+    &                      tune_zceff_min, tune_v0snow, tune_zvz0i,               &
+    &                      tune_entrorg, itune_albedo, max_freshsnow_inc,         &
+    &                      tune_capdcfac_et, tune_box_liq, tune_rhebc_land,       &
+    &                      tune_rhebc_ocean, tune_rcucov, tune_texc,              &
+    &                      tune_qexc, tune_minsnowfrac,tune_rhebc_land_trop,      &
+    &                      tune_rhebc_ocean_trop, tune_rcucov_trop,               &
+    &                      tune_dust_abs, tune_gfrcrit, tune_grcrit,              &
+    &                      lcalib_clcov, tune_box_liq_asy, tune_capdcfac_tr,      &
+    &                      tune_icesedi_exp, tune_rprcon, tune_gust_factor,       &
+    &                      tune_rdepths, tune_thicklayfac, tune_sgsclifac,        &
+    &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,  &
+    &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,     &
+    &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit
 
 
@@ -290,6 +294,7 @@ CONTAINS
     !
     ! GWD tuning
     tune_gfluxlaun  = 2.50e-3_wp   ! original IFS value 3.75e-3
+    tune_gcstar     = 1.0_wp
     !
     ! grid scale microphysics
     tune_zceff_min   = 0.01_wp
@@ -450,6 +455,7 @@ CONTAINS
     config_tune_minsso           = tune_minsso
     config_tune_blockred         = tune_blockred
     config_tune_gfluxlaun        = tune_gfluxlaun
+    config_tune_gcstar           = tune_gcstar
     config_tune_zceff_min        = tune_zceff_min 
     config_tune_v0snow           = tune_v0snow
     config_tune_zvz0i            = tune_zvz0i

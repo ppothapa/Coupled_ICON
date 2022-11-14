@@ -262,7 +262,7 @@ LOGICAL, INTENT(IN) :: &
   lvm_dif,      & !running vertical gradient diffusion of horizontal v-momenum
   lscadif,      & !running vertical gradient diffusion of scalar properties
 
-  lsfluse,      & !use explicit heat flux densities at the suface
+  lsfluse,      & !use explicit heat flux densities at the surface
   lqvcrst,      & !qv-flux-divergence reset requested (only if 'qv_conv' is present)
 
   lrunscm         !a Single Column run (default: FALSE)

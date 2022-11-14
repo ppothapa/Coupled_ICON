@@ -1183,18 +1183,10 @@ ls -l $MODEL
 
 # export GRIB_DEFINITION_PATH=${GRIBDIR}/definitions/definitions.edzw-1.23.1:${GRIBDIR}/VE/share/grib_api/definitions
 
-if [[ "$START_MODEL" == "START_MODEL_function" ]]; then
-  #TODO: add support for this call to START_MODEL_function
-  # process 0 on VH 0 and 5 I/O processes on VH 0 and 1
-  /opt/nec/ve/bin/mpirun -v    -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-             -x -venode -node 0-${NE1} -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} : \
-                -vh     -node 0        -np 1      -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-                -vh     -node 1        -np 4      -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
-  EXIT_STATUS=$?
-else
-  $START $MODEL
-  EXIT_STATUS=$?
-fi
+# 1 I/O process on VH 0 and the rest (4) I/O processes on VH 1
+VH_DISTRIBUTION="1,:"
+$START_MODEL
+EXIT_STATUS=$?
 
 date
 

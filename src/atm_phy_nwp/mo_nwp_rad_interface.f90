@@ -215,8 +215,8 @@ MODULE mo_nwp_rad_interface
         IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
           CALL add_bc_aeropt_splumes(jg, 1, i_endidx, nproma, pt_patch%nlev,   &
             & jb, ecrad_conf%n_bands_sw, mtime_datetime, zf(:,:,jb),           &
-            & dz(:,:,jb), zh(:,pt_patch%nlev+1,jb), ecrad_conf%wavenumber1_sw, &
-            & ecrad_conf%wavenumber2_sw, od_sw_vr(:,:,:),                      &
+            & dz(:,:,jb), zh(:,pt_patch%nlev+1,jb), ecrad_conf%gas_optics_sw%spectral_def%wavenumber1, &
+            & ecrad_conf%gas_optics_sw%spectral_def%wavenumber2, od_sw_vr(:,:,:),                      &
             & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), x_cdnc                        )
         END IF
         !

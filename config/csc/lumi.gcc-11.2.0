@@ -6,7 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-modules='CrayEnv PrgEnv-gnu gcc/11.2.0'
+modules='CrayEnv PrgEnv-gnu gcc/11.2.0 cray-mpich/8.1.18 cray-libsci/22.08.1.1'
 
 # There are several groups working on LUMI who do not have access to the same
 # software stack and have to install it to their project directories. We try to
@@ -23,19 +23,19 @@ echo "Using software stack from $sw_root"
 
 ZLIB_LIBS='-lz'
 
-HDF5_ROOT="${sw_root}/hdf5-1.10.7-cray-mpich-8.1.12"
+HDF5_ROOT="${sw_root}/hdf5-1.10.7-cray-mpich-8.1.18"
 HDF5_LIBS='-lhdf5_hl_fortran -lhdf5_fortran -lhdf5'
 
-NETCDF_ROOT="${sw_root}/netcdf-c-4.8.0-cray-mpich-8.1.12"
+NETCDF_ROOT="${sw_root}/netcdf-c-4.8.1-cray-mpich-8.1.18"
 NETCDF_LIBS='-lnetcdf'
 
-NETCDFF_ROOT="${sw_root}/netcdf-fortran-4.5.3-cray-mpich-8.1.12"
+NETCDFF_ROOT="${sw_root}/netcdf-fortran-4.5.3-cray-mpich-8.1.18"
 NETCDFF_LIBS='-lnetcdff'
 
 ECCODES_ROOT="${sw_root}/eccodes-2.24.2"
 ECCODES_LIBS='-leccodes_f90 -leccodes'
 
-XML2_ROOT="${sw_root}/libxml2-2.9.10"
+XML2_ROOT="${sw_root}/libxml2-2.9.12"
 XML2_LIBS='-lxml2'
 
 ################################################################################
@@ -71,7 +71,7 @@ ICON_SCT_FCFLAGS=
 LDFLAGS="${LIBFABRIC_LDFLAGS} -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
 LIBS="${LIBFABRIC_LIBS} -Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
 
-EXTRA_CONFIG_ARGS='--disable-mpi-checks'
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-grib2'
 
 ################################################################################
 

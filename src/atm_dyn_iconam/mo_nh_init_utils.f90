@@ -63,7 +63,7 @@ MODULE mo_nh_init_utils
   USE mo_var_metadata,          ONLY: get_var_timelevel, get_var_name
   USE mo_hash_table,            ONLY: t_HashTable
 
-#ifdef __PGI
+#if defined(__PGI) || defined(__FLANG)
   USE mo_util_texthash,         ONLY: t_char_workaround
 #endif
 
@@ -1171,7 +1171,7 @@ CONTAINS
     TYPE(t_saved_field), POINTER :: field
     INTEGER :: group_id
 
-#ifdef __PGI
+#if defined(__PGI) || defined(__FLANG)
     TYPE(t_char_workaround), POINTER :: key_p
 #endif
 
@@ -1203,7 +1203,7 @@ CONTAINS
             CALL finish(routine, 'Variable ' // TRIM(vars(i)%p%info%name) // ' already saved!')
           END IF
 
-#ifdef __PGI
+#if defined(__PGI) || defined(__FLANG)
           ALLOCATE(key_p)
           key_p%c = TRIM(get_var_name(vars(i)%p%info))
           key => key_p

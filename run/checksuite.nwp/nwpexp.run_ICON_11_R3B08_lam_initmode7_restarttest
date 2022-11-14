@@ -4,6 +4,14 @@
 
 make_and_change_to_experiment_dir # function in ../add_run_routines
 
+OMP_NUM_THREADS=1
+if [ ${BB_NAME} = 'DWD_nec_hybrid' ]; then
+  OMP_NUM_THREADS=2
+  let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
+  let NE1=${NE}-1
+  echo "PPN etc. $NN $NE $CPE $PPN"
+fi
+
 # Combine START and MODEL if START_MODEL is not already set.
 # START_MODEL is used to ease the execution of a machine that uses a complex 
 # mpirun command with multiple binaries
