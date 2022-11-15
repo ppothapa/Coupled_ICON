@@ -43,8 +43,8 @@ MODULE mo_albedo
   USE mo_parallel_config,      ONLY: nproma
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_radiation_config,     ONLY: rad_csalbw, direct_albedo, direct_albedo_water, albedo_whitecap
-  USE mo_lnd_nwp_config,       ONLY: ntiles_total, ntiles_water, ntiles_lnd,             &
-    &                                lseaice, lprog_albsi, llake, isub_water, isub_lake, &
+  USE mo_lnd_nwp_config,       ONLY: ntiles_total, ntiles_water, ntiles_lnd, lterra_urb, lurbalb,  &
+    &                                lseaice, lprog_albsi, llake, isub_water, isub_lake,           &
     &                                isub_seaice
   USE mo_extpar_config,        ONLY: itype_vegetation_cycle
   USE sfc_terra_data,          ONLY: csalb, csalb_snow_fe, csalb_snow_fd,     &
@@ -639,6 +639,10 @@ CONTAINS
     REAL(wp):: zmaxsnow_alb            !< maximum snow albedo depending on landuse class
     REAL(wp):: zlimsnow_alb            !< upper limit snow albedo depending on snow depth and roughness length
     REAL(wp):: zsnowalb_lu             !< maximum snow albedo specified in landuse table
+    REAL(wp):: zurb_isa                !< impervious surface area of the urban canopy
+    REAL(wp):: zsnowfree_albdif        !< shortwave broadband surface albedo (white sky)
+    REAL(wp):: zsnowfree_albvisdif     !< UV visible broadband surface albedo (white sky)
+    REAL(wp):: zsnowfree_albnirdif     !< near IR broadband surface albedo (white sky)
     REAL(wp):: t_fac                   !< factor for temperature dependency of zminsnow_alb over glaciers
     REAL(wp):: zsnowfrac(nproma)       !< aggregated snow-cover fraction
     REAL(wp):: wc_fraction             !< whitecap fraction
@@ -684,6 +688,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jt,jc,ic,i_startidx,i_endidx,ist,snow_frac,t_fac,               &
+!$OMP            zurb_isa,zsnowfree_albdif,zsnowfree_albvisdif,zsnowfree_albnirdif, &
 !$OMP            zsnow_alb,ilu,i_count_lnd,i_count_sea,i_count_flk,                 &
 !$OMP            i_count_seaice,zminsnow_alb,zmaxsnow_alb,zlimsnow_alb,zsnowalb_lu, &
 !$OMP            zalbvisdir_t,zalbnirdir_t,zsnowfrac, wc_fraction, wc_albedo,       &
@@ -732,8 +737,9 @@ CONTAINS
 
 !$NEC ivdep 
           !$ACC LOOP GANG VECTOR &
-          !$ACC   PRIVATE(jc, snow_frac, t_fac, ilu) &
-          !$ACC   PRIVATE(zminsnow_alb, zmaxsnow_alb, zlimsnow_alb, zsnowalb_lu)
+          !$ACC   PRIVATE(jc, snow_frac, t_fac, ilu)                                            &
+          !$ACC   PRIVATE(zminsnow_alb, zmaxsnow_alb, zlimsnow_alb, zsnowalb_lu)                &
+          !$ACC   PRIVATE(zurb_isa, zsnowfree_albdif, zsnowfree_albvisdif, zsnowfree_albnirdif)
           DO ic = 1, i_count_lnd
 
             jc = ext_data%atm%idx_lst_t(ic,jb,jt)
@@ -800,17 +806,44 @@ CONTAINS
             ! snow cover fraction
             snow_frac = lnd_diag%snowfrac_t(jc,jb,jt)
 
+            !
+            ! TERRA_URB: Set urban albedo by modifying background albedo (of snow-free fraction)
+            !
+            IF (lterra_urb .AND. lurbalb) THEN
+              ! impervious surface area of the urban canopy
+              zurb_isa = ext_data%atm%urb_isa_t(jc,jb,jt)
+
+              zsnowfree_albdif    = zurb_isa * ext_data%atm%urb_alb_so_t(jc,jb,jt)      &
+                                  ! * ext_data%atm%urb_alb_red_t(jc,jb,jt)  & Multiplication already made in mo_ext_data_init.f90
+                &                 + (1._wp - zurb_isa) * ext_data%atm%alb_dif(jc,jb)
+
+              zsnowfree_albvisdif = zurb_isa * ext_data%atm%urb_alb_so_t(jc,jb,jt)      &
+                                  ! * ext_data%atm%urb_alb_red_t(jc,jb,jt)  & Multiplication already made in mo_ext_data_init.f90
+                &                 + (1._wp - zurb_isa) * ext_data%atm%albuv_dif(jc,jb)
+
+              zsnowfree_albnirdif = zurb_isa * ext_data%atm%urb_alb_so_t(jc,jb,jt)      &
+                                  ! * ext_data%atm%urb_alb_red_t(jc,jb,jt)  & Multiplication already made in mo_ext_data_init.f90
+                &                 + (1._wp - zurb_isa) * ext_data%atm%albni_dif(jc,jb)
+            ELSE
+              zsnowfree_albdif    = ext_data%atm%alb_dif(jc,jb)
+              zsnowfree_albvisdif = ext_data%atm%albuv_dif(jc,jb)
+              zsnowfree_albnirdif = ext_data%atm%albni_dif(jc,jb)
+            END IF
+
+            !
+            ! Set albedo (background albedo plus modification due to snow)
+            !
             ! shortwave broadband surface albedo (white sky)
-            prm_diag%albdif_t(jc,jb,jt) = snow_frac * zsnow_alb(jc,jt)  &
-              &                  + (1._wp - snow_frac)* ext_data%atm%alb_dif(jc,jb)
+            prm_diag%albdif_t(jc,jb,jt)    = snow_frac * zsnow_alb(jc,jt)               &
+              &                            + (1._wp - snow_frac) * zsnowfree_albdif
 
             ! UV visible broadband surface albedo (white sky)
-            prm_diag%albvisdif_t(jc,jb,jt) = snow_frac * zsnow_alb(jc,jt)  &
-              &                  + (1._wp - snow_frac)* ext_data%atm%albuv_dif(jc,jb)
+            prm_diag%albvisdif_t(jc,jb,jt) = snow_frac * zsnow_alb(jc,jt)               &
+              &                            + (1._wp - snow_frac) * zsnowfree_albvisdif
 
             ! near IR broadband surface albedo (white sky)
-            prm_diag%albnirdif_t(jc,jb,jt) = snow_frac * zsnow_alb(jc,jt)  &
-              &                  + (1._wp - snow_frac)* ext_data%atm%albni_dif(jc,jb)
+            prm_diag%albnirdif_t(jc,jb,jt) = snow_frac * zsnow_alb(jc,jt)               &
+              &                            + (1._wp - snow_frac) * zsnowfree_albnirdif
 
           ENDDO  ! ic
 
