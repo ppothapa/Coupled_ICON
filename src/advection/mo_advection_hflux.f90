@@ -959,7 +959,7 @@ CONTAINS
 
    !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(p_cc, p_mass_flx_e, btraj,p_out_e) CREATE(z_grad, z_lsq_coeff) &
+    !$ACC DATA PRESENT(p_cc, p_mass_flx_e, btraj, p_out_e) CREATE(z_grad, z_lsq_coeff) &
     !$ACC   PRESENT(btraj) IF(i_am_accel_node)
     !$ACC DATA PRESENT(opt_rhodz_now) IF(PRESENT(opt_rhodz_now) .AND. i_am_accel_node)
     !$ACC DATA PRESENT(opt_rhodz_new) IF(PRESENT(opt_rhodz_new) .AND. i_am_accel_node)
@@ -1413,7 +1413,7 @@ CONTAINS
     ! number of child domains
     i_nchdom = MAX(1,p_patch%n_childdom)
 
-    !$ACC DATA PRESENT(p_cc, p_rhodz_now, p_mass_flx_e,p_out_e) &
+    !$ACC DATA PRESENT(p_cc, p_rhodz_now, p_mass_flx_e, p_out_e) &
     !$ACC   CREATE(z_grad, z_lsq_coeff, z_tracer_mflx, z_rhofluxdiv_c, z_fluxdiv_c, z_tracer, z_rho) &
     !$ACC   PRESENT(iidx, iblk, btraj, p_int) &
     !$ACC   IF(i_am_accel_node)

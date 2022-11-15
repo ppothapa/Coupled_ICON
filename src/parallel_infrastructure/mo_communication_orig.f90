@@ -761,7 +761,7 @@ CONTAINS
     !$ACC   DELETE(p_pat%recv_dst_idx, p_pat%recv_dst_blk) &
     !$ACC   DELETE(p_pat%recv_src)
 
-    !$ACC EXIT DATA DELETE(p_pat)    
+    !$ACC EXIT DATA DELETE(p_pat)
 
     ! deallocate arrays
 
