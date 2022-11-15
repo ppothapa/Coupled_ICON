@@ -164,8 +164,8 @@ CONTAINS
     ALLOCATE(r_alt_clim(k_alt_clim))
     ALLOCATE(r_lat_clim(0:lat_clim+1))
 
-    !$ACC ENTER DATA CREATE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-    !$ACC     & r_alt_clim, r_lat_clim)
+    !$ACC ENTER DATA CREATE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+    !$ACC   CREATE(r_alt_clim, r_lat_clim)
 
     aod_v_s(:,:,:) = 0._wp
     ext_v_s(:,:,:,:) = 0._wp
@@ -186,8 +186,8 @@ CONTAINS
 
     DEALLOCATE(zalt, zlat)
 
-    !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-    !$ACC     & r_alt_clim, r_lat_clim)
+    !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+    !$ACC   DEVICE(r_alt_clim, r_lat_clim)
 
   END SUBROUTINE su_bc_aeropt_cmip6_volc
 
@@ -294,8 +294,8 @@ CONTAINS
 
       pre_year = mtime_current%date%year
 
-      !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t, &
-      !$ACC     & r_alt_clim, r_lat_clim)
+      !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+      !$ACC   DEVICE(r_alt_clim, r_lat_clim)
 
     END IF ! iyear > pre_year
   END SUBROUTINE read_bc_aeropt_cmip6_volc

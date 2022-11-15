@@ -737,8 +737,8 @@ CONTAINS
 
 !$NEC ivdep 
           !$ACC LOOP GANG VECTOR &
-          !$ACC   PRIVATE(jc, snow_frac, t_fac, ilu)                                            &
-          !$ACC   PRIVATE(zminsnow_alb, zmaxsnow_alb, zlimsnow_alb, zsnowalb_lu)                &
+          !$ACC   PRIVATE(jc, snow_frac, t_fac, ilu) &
+          !$ACC   PRIVATE(zminsnow_alb, zmaxsnow_alb, zlimsnow_alb, zsnowalb_lu) &
           !$ACC   PRIVATE(zurb_isa, zsnowfree_albdif, zsnowfree_albvisdif, zsnowfree_albnirdif)
           DO ic = 1, i_count_lnd
 

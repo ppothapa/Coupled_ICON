@@ -939,7 +939,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         END DO
       END DO
 
-      !$ACC LOOP GANG (STATIC: 1) VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         lhn_diag(jc,nlev-9,jb) = MERGE(0._wp, 1._wp, ttmin(jc) == 0._wp .AND. ttmax(jc) == 0._wp)
       END DO
