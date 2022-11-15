@@ -428,7 +428,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 
-    !$ACC DATA PRESENT(p_cc, p_face,p_face_up, p_face_low) &
+    !$ACC DATA PRESENT(p_cc, p_face, p_face_up, p_face_low) &
     !$ACC   CREATE(l_limit) &
     !$ACC   IF(i_am_accel_node)
 
@@ -643,7 +643,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(p_cc,slope) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(p_cc, slope) IF(i_am_accel_node)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min, p_cc_max) COLLAPSE(2)
@@ -710,7 +710,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(p_cc,slope) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(p_cc, slope) IF(i_am_accel_node)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(ikm1, ikp1, p_cc_min) COLLAPSE(2)
@@ -790,7 +790,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now,p_face) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now, p_face) IF(i_am_accel_node)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l) &
@@ -909,7 +909,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now,p_face) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(p_cc, p_cellhgt_mc_now, p_face) IF(i_am_accel_node)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR PRIVATE(ikm2, ikm1, ikp1, l_limit, mc_slope_u, mc_slope_l, faceval_u, faceval_l) &
