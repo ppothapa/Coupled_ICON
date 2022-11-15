@@ -25,7 +25,7 @@ MODULE data_gwd
     & jpim =>i4
   
   USE mo_cuparameters,       ONLY: lhook,   dr_hook
-  USE mo_nwp_tuning_config,  ONLY: tune_gfluxlaun
+  USE mo_nwp_tuning_config,  ONLY: tune_gfluxlaun, tune_gcstar
   !==============================================================================
   
   IMPLICIT NONE
@@ -122,7 +122,7 @@ CONTAINS
     !end of the launch spectrum
     gptwo=2.0_JPRB          !2*p (3 or 2 are valid values) p is the exponent of omega
     !in the expression of the launch spectrum
-    gcstar=1.0_JPRB         !C* (see McLandress and Scinocca 2005)
+    gcstar=tune_gcstar         !C* (see McLandress and Scinocca 2005)
     
     !* Extra parameters to introduce some latitudinal/seasonal variation of the launch spectrum.
     !* If LOZPR=TRUE and GGAUSS=1 then launch momentum flux is proportional to total precipitation

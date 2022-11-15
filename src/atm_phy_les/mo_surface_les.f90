@@ -214,7 +214,7 @@ MODULE mo_surface_les
             p_diag_lnd%qv_s(jc,jb) = qv(jc,jk,jb) + les_config(jg)%lhflx / ustar * &
                                      businger_heat(zrough,z_mc,obukhov_length) 
 
-            !rho at surface: no qc at suface
+            !rho at surface: no qc at surface
             rhos   =  pres_sfc(jc,jb)/( rd * &
                      p_prog_lnd_new%t_g(jc,jb)*(1._wp+vtmpc1*p_diag_lnd%qv_s(jc,jb)) )  
 
@@ -319,7 +319,7 @@ MODULE mo_surface_les
             !Get surface qv 
             p_diag_lnd%qv_s(jc,jb) = spec_humi(sat_pres_water(p_prog_lnd_new%t_g(jc,jb)),pres_sfc(jc,jb))
 
-            !rho at surface: no qc at suface
+            !rho at surface: no qc at surface
             rhos   =  pres_sfc(jc,jb)/( rd * &
                      p_prog_lnd_new%t_g(jc,jb)*(1._wp+vtmpc1*p_diag_lnd%qv_s(jc,jb)) )  
 
@@ -408,7 +408,7 @@ MODULE mo_surface_les
 
            p_diag_lnd%qv_s(jc,jb) = spec_humi(sat_pres_water(les_config(jg)%sst),pres_sfc(jc,jb))
 
-           !rho at surface: no qc at suface
+           !rho at surface: no qc at surface
            rhos   =  pres_sfc(jc,jb)/( rd * &
                      p_prog_lnd_new%t_g(jc,jb)*(1._wp+vtmpc1*p_diag_lnd%qv_s(jc,jb)) )  
 
@@ -525,7 +525,7 @@ MODULE mo_surface_les
 
            theta_sfc = p_prog_lnd_new%t_g(jc,jb) / EXP( rd_o_cpd*LOG(pres_sfc(jc,jb)/p0ref) )
 
-           !rho at surface: no qc at suface
+           !rho at surface: no qc at surface
            rhos   =  pres_sfc(jc,jb)/( rd * &
                      p_prog_lnd_new%t_g(jc,jb)*(1._wp+vtmpc1*p_diag_lnd%qv_s(jc,jb)) )  
 
@@ -593,7 +593,7 @@ MODULE mo_surface_les
 
            p_diag_lnd%qv_s(jc,jb) = spec_humi(sat_pres_water(les_config(jg)%sst),pres_sfc(jc,jb))
 
-           !rho at surface: no qc at suface
+           !rho at surface: no qc at surface
            rhos   =  pres_sfc(jc,jb)/( rd * &
                      p_prog_lnd_new%t_g(jc,jb)*(1._wp+vtmpc1*p_diag_lnd%qv_s(jc,jb)) )
 

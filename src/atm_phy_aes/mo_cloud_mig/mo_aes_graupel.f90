@@ -310,7 +310,7 @@ SUBROUTINE graupel                 ( &
   zdtr  = 1.0_wp / zdt
 
   ! Delete precipitation fluxes from previous timestep
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR
   DO iv = ivstart, ivend
     prr_gsp (iv) = 0.0_wp
@@ -339,7 +339,7 @@ SUBROUTINE graupel                 ( &
 ! transfer rates  and sedimentation terms
 ! *********************************************************************
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
   DO  k = kstart, ke  ! loop over levels
 

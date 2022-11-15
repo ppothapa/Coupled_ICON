@@ -2067,6 +2067,23 @@ dnl Collect extra dependencies of the bundled libraries:
 AC_CONFIG_COMMANDS_PRE([dnl
 dnl We use $ac_link below, make sure it is set for the Fortran compiler:
    AC_LANG([Fortran])
+   ACX_CONFIG_SUBDIR_IFELSE([externals/yac],
+dnl The bundled version of YAC, which we link statically, might require
+dnl additional linker flags enabling linking to the software implementation of
+dnl the long double arithmetic:
+     [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
+[YAC library])
+      AC_CACHE_VAL([icon_cv_YAC_extra_libs],
+        [icon_cv_YAC_extra_libs=
+         ACX_CONFIG_SUBDIR_VAR([icon_cv_YAC_extra_libs],
+           [externals/yac], [@LONG_DOUBLE_CLIBS@])
+         icon_cv_YAC_extra_libs=dnl
+`AS_ECHO(["$icon_cv_YAC_extra_libs"]) | sed 's/^ *//;s/ *$//'`])
+      AS_VAR_IF([icon_cv_YAC_extra_libs], [],
+        [AC_MSG_RESULT([none needed])],
+        [AC_MSG_RESULT([$icon_cv_YAC_extra_libs])
+         LIBS="$icon_cv_YAC_extra_libs $LIBS"])])
+dnl
    ACX_CONFIG_SUBDIR_IFELSE([externals/sct],
 dnl The bundled version of SCT, which we link statically, might require
 dnl additional linker flags:

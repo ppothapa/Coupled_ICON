@@ -33,15 +33,19 @@ MODULE mo_aerosol_util
   USE mo_kind,                   ONLY: wp
   USE mo_exception,              ONLY: finish
   USE mo_loopindices,            ONLY: get_indices_c
-  USE mo_lrtm_par,               ONLY: jpband => nbndlw
+  USE mo_lrtm_par,               ONLY: jpband => nbndlw, wavenum1_lw => wavenum1, wavenum2_lw => wavenum2
   USE mo_model_domain,           ONLY: t_patch
   USE mo_intp_data_strc,         ONLY: t_int_state
-  USE mo_srtm_config,            ONLY: jpsw
+  USE mo_srtm_config,            ONLY: jpsw, wavenum1_sw => wavenum1, wavenum2_sw => wavenum2
   USE mo_lnd_nwp_config,         ONLY: ntiles_lnd, dzsoil, isub_water
   USE mo_nwp_tuning_config,      ONLY: tune_dust_abs
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
   USE mo_aerosol_sources,        ONLY: aerosol_dust_aod_source, aerosol_ssa_aod_source
   USE mo_math_laplace,           ONLY: nabla2_scalar
+#ifdef __ECRAD
+  USE mo_ecrad,                  ONLY: t_ecrad_conf,         &
+                                   &   ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
+#endif
   USE mo_fortran_tools,          ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
@@ -73,13 +77,19 @@ MODULE mo_aerosol_util
       PROCEDURE :: finalize => finalize_tegen_scal_factors
   END TYPE t_tegen_scal_factors
 
-  TYPE(t_tegen_scal_factors), TARGET :: tegen_scal_factors
+  TYPE(t_tegen_scal_factors), TARGET :: &
+    &  tegen_scal_factors_rrtm,         & !< Scaling factors original rrtm bands
+    &  tegen_scal_factors_mod,          & !< Modified scaling factors
+    &  tegen_scal_factors                 !< Used scaling factors
 
   PUBLIC :: zaea_rrtm, zaes_rrtm, zaeg_rrtm
   PUBLIC :: aerdis
   PUBLIC :: init_aerosol_props_tegen_rrtm, tune_dust
   PUBLIC :: prog_aerosol_2D, aerosol_2D_diffusion
-  PUBLIC :: tegen_scal_factors, init_aerosol_props_tegen_ecrad
+  PUBLIC :: tegen_scal_factors
+#ifdef __ECRAD
+  PUBLIC :: init_aerosol_props_tegen_ecrad
+#endif
 
   !$ACC DECLARE CREATE(zaea_rrtm, zaes_rrtm, zaeg_rrtm)
 
@@ -283,6 +293,7 @@ CONTAINS
 
   END SUBROUTINE init_aerosol_props_tegen_rrtm
 
+#ifdef __ECRAD
   !---------------------------------------------------------------------------------------
   !>
   !! SUBROUTINE init_aerosol_props_tegen_ecrad
@@ -295,36 +306,127 @@ CONTAINS
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2021-10-20)
   !!
   !---------------------------------------------------------------------------------------
-  SUBROUTINE init_aerosol_props_tegen_ecrad(n_bands_sw,n_bands_lw, l_rrtm_gas_model)
-    INTEGER, INTENT(in) ::      &
-      &  n_bands_sw, n_bands_lw   !< Number of SW/LW bands
+  SUBROUTINE init_aerosol_props_tegen_ecrad(ecrad_conf, l_rrtm_gas_model)
+    TYPE(t_ecrad_conf),  INTENT(inout) :: &
+      &  ecrad_conf               !< ecRad configuration state
     LOGICAL, INTENT(in) ::      &
       &  l_rrtm_gas_model         !< Use RRTM gas model (mimic legacy behavior)
     ! Local variables
+    REAL(wp), ALLOCATABLE :: &
+      &  mapping(:,:),       & !< Mapping matrix between wavenumbers at RRTM gas model bands and at ecckd bands
+      &  mapping_transp(:,:)   !< Transposed of mapping
+    INTEGER :: &
+      &  n_bands_sw,         & !< Number of ecrad shortwave bands
+      &  n_bands_lw,         & !< Number of ecrad longwave bands
+      &  jsp                   !< Aerosol species loop counter
     CHARACTER(len=*), PARAMETER :: routine = modname//'::init_aerosol_props_tegen_ecrad'
 
-    CALL tegen_scal_factors%init(n_bands_sw+n_bands_lw)
+    ! Get the scaling factors for the original 30 (jpsw+jpband) bands
+    CALL tegen_scal_factors_rrtm%init(jpband+jpsw)
+    CALL init_aerosol_props_tegen_rrtm()
+    tegen_scal_factors_rrtm%absorption(:,:) = zaea_rrtm(:,:)
+    tegen_scal_factors_rrtm%scattering(:,:) = zaes_rrtm(:,:)
+    tegen_scal_factors_rrtm%asymmetry (:,:) = zaeg_rrtm(:,:)
 
-    IF (l_rrtm_gas_model) THEN ! Use look up tables from legacy routine
-      ! Sanity check
-      IF ((tegen_scal_factors%n_bands) /= 30) &
+    IF (l_rrtm_gas_model) THEN ! RRTM gas model, uses same bands as original implementation
+
+      IF ( (ecrad_conf%n_bands_sw /= jpsw) .OR. (ecrad_conf%n_bands_lw /= jpband) ) &
         &  CALL finish(routine,'ecRad wavelength bands / gas model mismatch.')
-      CALL init_aerosol_props_tegen_rrtm()
-      tegen_scal_factors%absorption(:,:) = zaea_rrtm(:,:)
-      tegen_scal_factors%scattering(:,:) = zaes_rrtm(:,:)
-      tegen_scal_factors%asymmetry (:,:) = zaeg_rrtm(:,:)
+
+      ! The following is a workaround for openacc. Original code:
+      ! tegen_scal_factors = tegen_scal_factors_rrtm
+      CALL tegen_scal_factors%init(tegen_scal_factors_rrtm%n_bands)
+      tegen_scal_factors%absorption(:,:) = tegen_scal_factors_rrtm%absorption(:,:)
+      tegen_scal_factors%scattering(:,:) = tegen_scal_factors_rrtm%scattering(:,:)
+      tegen_scal_factors%asymmetry (:,:) = tegen_scal_factors_rrtm%asymmetry (:,:)
       !$ACC UPDATE DEVICE(tegen_scal_factors%absorption) &
       !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry)
-    ELSE
-      ! This part will be used for ecckd in the future.
-      ! Here, the number of bands is flexible and the
-      ! scaling coefficients must be read from a file
-      ! (or new lookup tables for heavily-used configurations)
-      CALL finish(routine,'Currently only RRTM Gas Optics implemented.')
+
+    ELSE ! ECCKD gas optics, variable number of bands/g-points
+
+      ! Determine number of ecrad bands
+      IF (ecrad_conf%do_sw) THEN
+        IF (ecrad_conf%do_cloud_aerosol_per_sw_g_point) THEN
+          n_bands_sw = ecrad_conf%n_g_sw
+        ELSE
+          n_bands_sw = ecrad_conf%n_bands_sw
+        ENDIF
+      ELSE
+        n_bands_sw = 0
+      ENDIF
+      IF (ecrad_conf%do_lw) THEN
+        IF (ecrad_conf%do_cloud_aerosol_per_lw_g_point) THEN
+          n_bands_lw = ecrad_conf%n_g_lw
+        ELSE
+          n_bands_lw = ecrad_conf%n_bands_lw
+        ENDIF
+      ELSE
+        n_bands_lw = 0
+      ENDIF
+
+      CALL tegen_scal_factors_mod%init(n_bands_lw+n_bands_sw)
+
+      IF (ecrad_conf%do_sw) THEN
+        ALLOCATE(mapping(n_bands_sw,jpsw))
+
+        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(       &
+          &    ecrad_solar_ref_temp, wavenum1_sw(16:29), wavenum2_sw(16:29), mapping_transp, &
+          &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_sw_g_point) )
+
+        mapping = transpose(mapping_transp)
+
+        DO jsp = 1, 5 ! Loop over species
+          tegen_scal_factors_mod%absorption((n_bands_lw+1):(n_bands_lw+n_bands_sw),jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%absorption((jpband+1):(jpband+jpsw),jsp))
+          tegen_scal_factors_mod%scattering((n_bands_lw+1):(n_bands_lw+n_bands_sw),jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%scattering((jpband+1):(jpband+jpsw),jsp))
+          tegen_scal_factors_mod%asymmetry ((n_bands_lw+1):(n_bands_lw+n_bands_sw),jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%asymmetry((jpband+1):(jpband+jpsw),jsp))
+        ENDDO
+
+        IF ( ALLOCATED(mapping        ) ) DEALLOCATE (mapping)
+        IF ( ALLOCATED(mapping_transp ) ) DEALLOCATE (mapping_transp)
+      ENDIF
+
+      IF (ecrad_conf%do_lw) THEN
+        ALLOCATE(mapping(n_bands_lw,jpband))
+
+        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(     &
+          &    ecrad_terrestrial_ref_temp, wavenum1_lw, wavenum2_lw, mapping_transp,       &
+          &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_lw_g_point) )
+
+        mapping = transpose(mapping_transp)
+
+        DO jsp = 1, 5 ! Loop over species
+          tegen_scal_factors_mod%absorption(1:n_bands_lw,jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%absorption(1:jpband,jsp))
+          tegen_scal_factors_mod%scattering(1:n_bands_lw,jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%scattering(1:jpband,jsp))
+          tegen_scal_factors_mod%asymmetry (1:n_bands_lw,jsp) = &
+            &  matmul(mapping, tegen_scal_factors_rrtm%asymmetry(1:jpband,jsp))
+        ENDDO
+
+        IF ( ALLOCATED(mapping        ) ) DEALLOCATE (mapping)
+        IF ( ALLOCATED(mapping_transp ) ) DEALLOCATE (mapping_transp)
+      ENDIF
+
+      ! The following is a workaround for openacc. Original code:
+      ! tegen_scal_factors = tegen_scal_factors_mod
+      CALL tegen_scal_factors%init(tegen_scal_factors_mod%n_bands)
+      tegen_scal_factors%absorption(:,:) = tegen_scal_factors_mod%absorption(:,:)
+      tegen_scal_factors%scattering(:,:) = tegen_scal_factors_mod%scattering(:,:)
+      tegen_scal_factors%asymmetry (:,:) = tegen_scal_factors_mod%asymmetry (:,:)
+      !$ACC UPDATE DEVICE(tegen_scal_factors%absorption) &
+      !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry)
+      CALL tegen_scal_factors_mod%finalize()
+
     ENDIF
+
+    CALL tegen_scal_factors_rrtm%finalize()
     
   END SUBROUTINE init_aerosol_props_tegen_ecrad
   !---------------------------------------------------------------------------------------
+#endif
 
   !---------------------------------------------------------------------------------------
   !>

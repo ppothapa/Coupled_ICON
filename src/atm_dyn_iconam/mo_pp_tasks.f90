@@ -33,7 +33,7 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_HBAS_SC, TASK_COMPUTE_HTOP_SC,                     &
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
-    & TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,                         &
+    & TASK_COMPUTE_DBZLMX_LOW, TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,&
     & TASK_COMPUTE_SRH, TASK_COMPUTE_VIS,                             &
     & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
     & TASK_COMPUTE_LAPSERATE,                                         &
@@ -85,6 +85,7 @@ MODULE mo_pp_tasks
     &                                   compute_field_hbas_sc, compute_field_htop_sc, &
     &                                   compute_field_twater, compute_field_q_sedim,  &
     &                                   compute_field_dbz850,                    &
+    &                                   compute_field_dbzlmx,                    &
     &                                   compute_field_dbzcmax,                   &
     &                                   compute_field_smi,                       &
     &                                   compute_field_lapserate,                 &
@@ -1434,6 +1435,16 @@ CONTAINS
 
     CASE (TASK_COMPUTE_DBZ850)
       CALL compute_field_dbz850( p_patch, prm_diag%k850(:,:), prm_diag%dbz3d_lin(:,:,:), &
+          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+
+    CASE (TASK_COMPUTE_DBZLMX_LOW)
+      ! NOTE: The layer bounds 1000 m and 2000 m were found more appropriate than the fixed bounds
+      !       500 m and 2500 m in the eccodes definition of DBZLMX_LOW. Because of possible
+      !       further adaptions in the near future and to avoid several consecutive adaptions of eccodes
+      !       until consolidation of the layer bounds, we for now set the bounds to 1000 and 2000 here without
+      !       changing the fixed bounds in the eccodes definitions.
+      CALL compute_field_dbzlmx( p_patch, jg, 1000.0_wp, 2000.0_wp, &
+          &   ptr_task%data_input%p_nh_state%metrics, prm_diag%dbz3d_lin(:,:,:), &
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZCMAX)

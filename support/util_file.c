@@ -9,9 +9,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define PID_LEN 8
-
-int util_islink(char *path)
+int
+util_islink(char *path)
 {
   char *buf;
   ssize_t len;
@@ -22,9 +21,9 @@ int util_islink(char *path)
 
   max_buf_len = pathconf("/", _PC_NAME_MAX);
 
-  buf = (char *) malloc(max_buf_len*sizeof(char));
+  buf = (char *) malloc(max_buf_len * sizeof(char));
 
-  if ((len = readlink(path, buf, max_buf_len-1)) != -1)
+  if ((len = readlink(path, buf, max_buf_len - 1)) != -1)
     {
       buf[len] = '\0';
       /* file is a link ..., return C true */
@@ -45,29 +44,55 @@ int util_islink(char *path)
   return iret;
 }
 
-int util_tmpnam_len(void)
+static int
+direxists(const char *path)
 {
-  return (L_tmpnam + 1 + PID_LEN);
+  struct stat statbuf;
+  return stat(path, &statbuf) == 0 && S_ISDIR(statbuf.st_mode);
 }
 
-int util_tmpnam(char *filename)
+static const char *
+find_tmpdir(void)
 {
-  char *ptr;
-  char pid_string[PID_LEN + 1];
-  pid_t pid;
-
-  pid = getpid();
-
-  sprintf(pid_string, "%8.8ld", (long) pid);
-
-  ptr = tmpnam(filename);
-
-  strcat(filename, pid_string);
-
-  return strlen(filename);
+  if (direxists(P_tmpdir))
+    return P_tmpdir;
+  else if (strcmp(P_tmpdir, "/tmp") != 0 && direxists("/tmp"))
+    return "/tmp";
+  else
+    return NULL;
 }
 
-long int util_filesize(char *filename)
+int
+util_create_tmpfile(char *filename, const int max_len)
+{
+  const char *dir = find_tmpdir();
+  if (dir == NULL) return -1;
+
+  const char *basename_prefix = "icon";
+  const int pid_infix_len = 8;
+  const char *templ_suffix = "XXXXXX";
+
+  int filename_len = strlen(dir) + 1 + strlen(basename_prefix) + pid_infix_len + strlen(templ_suffix) + 1;
+
+  if (max_len < filename_len) return -1;
+
+  const pid_t pid = getpid();
+  char pid_infix[16];
+  sprintf(pid_infix, "%0*ld", pid_infix_len, pid);
+  pid_infix[pid_infix_len] = 0;
+
+  sprintf(filename, "%s/%s%s%s", dir, basename_prefix, pid_infix, templ_suffix);
+
+  int fd = mkstemp(filename);
+  if (fd < 0) return -1;
+
+  close(fd);
+
+  return filename_len;
+}
+
+long int
+util_filesize(char *filename)
 {
   struct stat statbuf;
 
@@ -79,44 +104,45 @@ long int util_filesize(char *filename)
   return ((long int) statbuf.st_size);
 }
 
-int util_file_is_writable(char *filename)
+int
+util_file_is_writable(char *filename)
 {
   int result = 0;
-  int rval = access (filename, W_OK);
+  int rval = access(filename, W_OK);
   if (rval == 0)
     return 1;
-  else if ((errno == EACCES) ||  (errno == EROFS))
+  else if ((errno == EACCES) || (errno == EROFS))
     return 0;
   return 0;
 }
 
-//This wrapper to symlink() does not fail if there is already a symlink at linkName; it will simply overwrite the existing symlink.
-//However, if something exists at linkName which is not a symlink, the error EEXIST is returned.
+// This wrapper to symlink() does not fail if there is already a symlink at linkName; it will simply overwrite the existing symlink.
+// However, if something exists at linkName which is not a symlink, the error EEXIST is returned.
 //
-//May return EEXIST or any error returned by lstat(), unlink(), or symlink(), returns zero on success.
-int createSymlink(const char* targetPath, const char* linkName)
+// May return EEXIST or any error returned by lstat(), unlink(), or symlink(), returns zero on success.
+int
+createSymlink(const char *targetPath, const char *linkName)
 {
   errno = 0;
   struct stat fileInfo;
-  if(!lstat(linkName, &fileInfo))
+  if (!lstat(linkName, &fileInfo))
     {
-      if((fileInfo.st_mode & S_IFMT) == S_IFLNK)
+      if ((fileInfo.st_mode & S_IFMT) == S_IFLNK)
         {
-          if(unlink(linkName)) return errno;
+          if (unlink(linkName)) return errno;
         }
       else
         {
-          return EEXIST;	//Something exists at linkName, and it's not a symlink. Bail out.
+          return EEXIST;  // Something exists at linkName, and it's not a symlink. Bail out.
         }
     }
-  else if(errno != ENOENT)	//ENOENT is the only non-fatal error, it just means that there is no such link there yet
+  else if (errno != ENOENT)  // ENOENT is the only non-fatal error, it just means that there is no such link there yet
     {
       return errno;
     }
 
-  //At this point we know that there is no file at linkName.
+  // At this point we know that there is no file at linkName.
   errno = 0;
   symlink(targetPath, linkName);
   return errno;
 }
-

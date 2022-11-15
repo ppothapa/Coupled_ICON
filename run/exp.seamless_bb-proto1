@@ -859,7 +859,7 @@ rbf_scale_mode_ll        = 2
  direct_albedo           = 4
  direct_albedo_water     = 3
  albedo_whitecap         = 1
- llw_cloud_scat          = .true.
+ ecrad_llw_cloud_scat    = .true.
  ecRad_data_path         = '${ecRad_data_path}' 
 /
 &meteogram_output_nml

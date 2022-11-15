@@ -85,18 +85,7 @@ MODULE mo_util_file
   END INTERFACE
 
   INTERFACE
-    FUNCTION private_tmpnam_len() RESULT(maxlen) BIND(C,NAME='util_tmpnam_len')
-#if defined (__SUNPRO_F95)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT
-#else
-      IMPORT :: C_INT
-#endif
-      INTEGER(C_INT) :: maxlen
-    END FUNCTION private_tmpnam_len
-  END INTERFACE
-
-  INTERFACE
-    FUNCTION private_tmpnam(filename) RESULT(flen) BIND(C,NAME='util_tmpnam')
+    FUNCTION private_create_tmpfile(filename, max_len) RESULT(flen) BIND(C,NAME='util_create_tmpfile')
 #if defined (__SUNPRO_F95)
       USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_CHAR, C_INT
 #else
@@ -104,7 +93,8 @@ MODULE mo_util_file
 #endif
       INTEGER(C_INT) :: flen
       CHARACTER(C_CHAR), DIMENSION(*), INTENT(inout) :: filename
-    END FUNCTION private_tmpnam
+      INTEGER(C_INT), VALUE, INTENT(in) :: max_len
+    END FUNCTION private_create_tmpfile
   END INTERFACE
 
   INTERFACE
@@ -182,59 +172,33 @@ CONTAINS
     CHARACTER(len=*), INTENT(in) :: new_filename
     iret = private_rename(TRIM(old_filename)//C_NULL_CHAR, TRIM(new_filename)//C_NULL_CHAR)
   END FUNCTION util_rename
-    
-  FUNCTION generate_tmpnam(filename, klen) RESULT(flen)
+
+  FUNCTION create_tmpfile(filename, max_len) RESULT(flen)
     INTEGER :: flen
     CHARACTER(len=*), INTENT(out) :: filename
-    INTEGER,          INTENT(in)  :: klen
+    INTEGER,          INTENT(in)  :: max_len
     ! local variables
     INTEGER :: i
     !
-    CHARACTER(C_CHAR), ALLOCATABLE :: tf(:)    
-    INTEGER :: maxlen
+    CHARACTER(C_CHAR), ALLOCATABLE :: c_filename(:)
     !
-    maxlen = private_tmpnam_len()
-    ALLOCATE(tf(maxlen))
-    flen = private_tmpnam(tf)
-    IF (flen > klen) THEN
-      flen = -1
-    ELSE
-      DO i = 1, flen
-        filename(i:i) = tf(i)
-      ENDDO
-    ENDIF
-    DEALLOCATE(tf)
-  END FUNCTION generate_tmpnam
-
+    ALLOCATE(c_filename(max_len + 1))
+    flen = private_create_tmpfile(c_filename, max_len + 1) - 1
+    DO i = 1, flen
+      filename(i:i) = c_filename(i)
+    ENDDO
+    DEALLOCATE(c_filename)
+  END FUNCTION create_tmpfile
 
   FUNCTION util_tmpnam(filename, klen) RESULT(flen)
     INTEGER :: flen
     CHARACTER(len=*), INTENT(out) :: filename
     INTEGER,          INTENT(in)  :: klen
-    ! local variables
-    INTEGER, PARAMETER :: N_RETRIES = 50
-    INTEGER              :: i
-    LOGICAL              :: lexists
-    CHARACTER (LEN=klen) :: new_filename
 
-    ! Note: (At least) on the SX-9 it is not sufficient to generate a
-    ! filename - the TMPDIR of the local file system is seldom tidied
-    ! up. Therefore, we test N_RETRIES times, if the generated
-    ! filename already exists.
-    !
-    ! try to find a file name for our temporary file that does not
-    ! exist yet:
-    TEST_LOOP : DO i=1,N_RETRIES
-      flen   = generate_tmpnam(new_filename, klen)
-      INQUIRE(file=new_filename(1:flen), exist=lexists)
-      IF (.NOT. lexists) THEN
-        filename(1:flen) = new_filename(1:flen)
-        EXIT TEST_LOOP
-      END IF
-      IF (i == N_RETRIES) THEN
-        CALL finish('mo_util_file::util_tmpnam', 'Failed to find a tmp filename!')
-      END IF
-    END DO TEST_LOOP
+    flen = create_tmpfile(filename, klen)
+    IF (flen < 0) THEN
+      CALL finish('mo_util_file::util_tmpnam', 'Failed to find a tmp filename!')
+    END IF
   END FUNCTION util_tmpnam
 
   FUNCTION util_filesize(filename) RESULT(flen)

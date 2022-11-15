@@ -15,7 +15,7 @@ MODULE mo_restart_util
   USE mo_fortran_tools,      ONLY: assign_if_present_allocatable
   USE mo_impl_constants,     ONLY: SUCCESS, SINGLE_T, REAL_T, INT_T, MAX_CHAR_LENGTH
   USE mo_io_config,          ONLY: restartWritingParameters, kMultifileRestartModule
-  USE mo_kind,               ONLY: i8
+  USE mo_kind,               ONLY: i8, dp
   USE mo_packed_message,     ONLY: t_PackedMessage, kPackOp
   USE mo_run_config,         ONLY: restart_filename
   USE mo_std_c_lib,          ONLY: strerror
@@ -75,23 +75,27 @@ CONTAINS
 #endif
   END FUNCTION restartBcastRoot
 
-  SUBROUTINE getRestartFilename(baseName, jg, restartArgs, resultVar, date_int)
+  SUBROUTINE getRestartFilename(baseName, jg, restartArgs, resultVar, date_dayas)
     CHARACTER(*), INTENT(IN) :: baseName
     INTEGER, INTENT(IN) :: jg
     TYPE(t_restart_args), INTENT(IN) :: restartArgs
     CHARACTER(:), ALLOCATABLE, INTENT(INOUT) :: resultVar
-    INTEGER, INTENT(OUT) :: date_int
+    REAL(dp), INTENT(OUT) :: date_dayas
     CHARACTER(LEN=32) :: datetimeString
     INTEGER :: restartModule
     TYPE(t_keyword_list), POINTER :: keywords
     TYPE(datetime), POINTER :: dt
+    INTEGER :: date_int
+    REAL(dp) :: date_frac
     CHARACTER(LEN=MAX_CHAR_LENGTH) :: restart_fname 
 
     dt => restartArgs%restart_datetime
     WRITE (datetimeString,'(i4.4,2(i2.2),a,3(i2.2),a)')    &
        & dt%date%year, dt%date%month, dt%date%day , 'T', &
        & dt%time%hour, dt%time%minute, dt%time%second, 'Z'
-    date_int = INT(dt%date%year)*10000 + INT(dt%date%month)*100 + INT(dt%date%day)
+    date_int = dt%date%year*10000 + dt%date%month*100 + dt%date%day
+    date_frac = (dt%time%hour*3600.0 + dt%time%minute*60.0 + dt%time%second)/86400.0
+    date_dayas = date_int+date_frac
     NULLIFY(keywords)
     ! build the keyword list
     CALL associate_keyword("<gridfile>", TRIM(get_filename_noext(baseName)), keywords)
@@ -192,7 +196,7 @@ CONTAINS
     rfids%nlayids = 0
     ALLOCATE(rfids%layids(32), rfids%nlays(32))
     CALL nf(nf_def_dim(rfids%ncid, "time", 1, rfids%ftid), routine)
-    CALL nf(nf_def_var(rfids%ncid, "time", NF_REAL, 1, [rfids%ftid], tvid), routine)
+    CALL nf(nf_def_var(rfids%ncid, "time", NF_DOUBLE, 1, [rfids%ftid], tvid), routine)
     CALL nf(nf_put_att_text(rfids%ncid, tvid, "axis", 1, "T"), routine)
     CALL nf(nf_put_att_text(rfids%ncid, tvid, "units", 16, "day as %Y%m%d.%f"), routine)
     CALL nf(nf_def_dim(rfids%ncid, "cells", nelem(1), rfids%gids(1)), routine)

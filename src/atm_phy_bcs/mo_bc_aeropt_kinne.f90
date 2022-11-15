@@ -389,7 +389,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
 
 ! (i) calculate altitude above NN and layer thickness in 
 !     echam for altitude profiles
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
   DO jk=1,klev
      DO jl=jcs,kproma
         zdeltag_vr(jl,jk)=dz(jl,klev-jk+1)
@@ -398,12 +398,12 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
 
 ! (ii) calculate height profiles on echam grid for coarse and fine mode
-  !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
   zq_aod_f(jcs:kproma,1:klev)=0._wp
   zq_aod_c(jcs:kproma,1:klev)=0._wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
   DO jk=1,klev
      DO jl=jcs,kproma
         kindex = MAX(INT(zh_vr(jl,jk)*rdz_clim+0.5_wp),1)
@@ -419,11 +419,11 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
   
 ! normalize height profile for coarse mode
-  !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
   zq_int(jcs:kproma)=0._wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
   !$ACC LOOP SEQ
   DO jk=1,klev
      !$ACC LOOP GANG VECTOR
@@ -434,12 +434,12 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
   !$ACC END PARALLEL
 
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(use_acc)
   DO jl=jcs,kproma
      IF (zq_int(jl) <= 0._wp) zq_int(jl)=1._wp
   END DO
 
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
   DO jk=1,klev
      DO jl=jcs,kproma
         zq_aod_c(jl,jk)=zdeltag_vr(jl,jk)*zq_aod_c(jl,jk) / zq_int(jl)
@@ -447,11 +447,11 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
 
 ! normalize height profile for fine mode
-  !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
   zq_int(jcs:kproma)=0._wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
   !$ACC LOOP SEQ
   DO jk=1,klev
     !$ACC LOOP GANG VECTOR
@@ -461,12 +461,12 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
   !$ACC END PARALLEL
 
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(use_acc)
   DO jl=jcs,kproma
     IF (zq_int(jl) <= 0._wp) zq_int(jl)=1._wp
   END DO
 
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
   DO jk=1,klev
     DO jl=jcs,kproma
       zq_aod_f(jl,jk)=zdeltag_vr(jl,jk)*zq_aod_f(jl,jk)/zq_int(jl)
@@ -474,11 +474,11 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   END DO
 
 ! (iii) far infrared
-  !$ACC KERNELS DEFAULT(NONE) COPYIN(tiw) ASYNC(1) IF(use_acc)
+  !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF(use_acc)
   zs_i(jcs:kproma,1:nb_lw)=1._wp-(tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month1_index)+ &
                                   tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month2_index))
   !$ACC END KERNELS
-  !$ACC PARALLEL LOOP DEFAULT(NONE) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(3) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(3) ASYNC(1) IF(use_acc)
   DO jk=1,klev
      DO jwl=1,nb_lw
         DO jl=jcs,kproma
@@ -495,7 +495,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   
 ! (iv) solar radiation
 ! time interpolated single scattering albedo (omega_f, omega_c)
-  !$ACC KERNELS DEFAULT(NONE) COPYIN(tiw) ASYNC(1) IF(use_acc)
+  !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF(use_acc)
   zs_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
                              tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
   zs_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
@@ -514,7 +514,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   
 ! height interpolation
 ! calculate optical properties
-  !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(3) ASYNC(1) IF(use_acc)
+  !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(3) ASYNC(1) IF(use_acc)
   DO jk=1,klev
      DO jwl=1,nb_sw
         DO jl=jcs,kproma

@@ -828,7 +828,7 @@ SUBROUTINE calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, 
 !          cellHeight_KPP(jc,jk,blockNo)  = -depth_CellMiddle(jc,jk,blockNo)        ! depth at tracer point (cell middle)
 !          iFaceHeight_KPP(jc,jk,blockNo) = -depth_CellInterface(jc,jk,blockNo)   ! depth at interface point (cell interface)
 
-          !Option B): displacement of sea suface height not considered 
+          !Option B): displacement of sea surface height not considered 
           cellHeight_KPP(jc,jk,blockNo)  = -1.0_wp * patch_3d%p_patch_1d(1)%zlev_m(jk)
           iFaceHeight_KPP(jc,jk,blockNo) = -1.0_wp * patch_3d%p_patch_1d(1)%zlev_i(jk)
 

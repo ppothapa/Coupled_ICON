@@ -66,6 +66,7 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_ecrad_init,      ONLY: setup_ecrad
   USE mo_ecrad,               ONLY: ecrad_conf, IGasModelIFSRRTMG,                  &
     &                               ecrad_ssi_default, ecrad_ssi_coddington
+  USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_ecrad
 #endif
 
   ! microphysics
@@ -140,7 +141,6 @@ MODULE mo_nwp_phy_init
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,   ONLY: setup_bc_aeropt_splumes
-  USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_ecrad
   USE mo_bc_ozone,            ONLY: read_bc_ozone
 
   IMPLICIT NONE
@@ -1009,9 +1009,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           ! Setup Tegen aerosol needs to be done only once for all domains
           IF (irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             IF (ecrad_conf%i_gas_model == IGasModelIFSRRTMG) THEN
-              CALL init_aerosol_props_tegen_ecrad(ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw, .TRUE.)
+              CALL init_aerosol_props_tegen_ecrad(ecrad_conf, .TRUE.)
             ELSE
-              CALL init_aerosol_props_tegen_ecrad(ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw, .FALSE.)
+              CALL init_aerosol_props_tegen_ecrad(ecrad_conf, .FALSE.)
             ENDIF !ecrad_conf%i_gas_model
           ENDIF !irad_aero==iRadAeroTegen .OR. iRadAeroART
         ENDIF ! .NOT.lreset_mode .AND. jg==1

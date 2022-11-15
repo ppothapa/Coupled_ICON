@@ -129,10 +129,11 @@ CONTAINS
     IF (timers_level >= 7) CALL timer_stop(timer_write_restart_setup)
   END SUBROUTINE multifilePatchData_createCollectors
 
-  SUBROUTINE multifilePatchData_fileStuff(me, fname, ifile, bWritten, date_int)
+  SUBROUTINE multifilePatchData_fileStuff(me, fname, ifile, bWritten, date_dayas)
     CLASS(t_MultifilePatchData), TARGET, INTENT(INOUT) :: me
     CHARACTER(*),                        INTENT(IN)    :: fname
-    INTEGER,                             INTENT(IN)    :: ifile, date_int
+    INTEGER,                             INTENT(IN)    :: ifile
+    REAL(dp),                            INTENT(IN)    :: date_dayas
     INTEGER(i8),                         INTENT(INOUT) :: bWritten
     CHARACTER(:), ALLOCATABLE                          :: effectiveFilename
     CLASS(t_restart_patch_description), POINTER        :: desc
@@ -147,7 +148,7 @@ CONTAINS
     CALL nf(nf_set_fill(ncid, NF_NOFILL, dum), routine)
     CALL nf(nf_enddef(ncid), routine)
     CALL write_glbids(iVarId)
-    CALL nf(nf_put_var1_real(ncid, tvid, [1], REAL(date_int)), routine)
+    CALL nf(nf_put_var1_double(ncid, tvid, [1], date_dayas), routine)
     IF (timers_level >= 7) CALL timer_stop(timer_write_restart_io)
     CALL collect_write()
     CALL nf(nf_close(ncid), routine)

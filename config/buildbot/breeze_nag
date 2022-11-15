@@ -5,9 +5,20 @@ set -e
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
+MAKE_PROCS=8
+
+# Check whether we can build with RTTOV and without DACE and EMVORADO:
+#  TODO: this is a temporary quick and dirty solution. We should run
+#  './run/checksuite.build/exp.check_rttov_BREEZE.run' as an experiment
+#  instead.
+if [ ! -z "${BB_NAME}" ]; then
+  ( mkdir -p build && cd build
+    ${ICON_DIR}/config/mpim/stretch.nag --enable-rttov --disable-dace --disable-emvorado
+    make -j ${MAKE_PROCS} )
+fi
+
 ${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
 
-MAKE_PROCS=8
 make -j ${MAKE_PROCS}
 
 # Check whether the building generated any untracked files in the main repository:

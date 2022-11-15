@@ -1,92 +1,50 @@
-#!/bin/bash
-# ----------------------------------------------------------------------------
-#PBS -S /bin/ksh
-#PBS -q sx_norm     
-#PBS -j o           
-#PBS -m n
-#PBS -r n
-#PBS -T necmpi
-#PBS --use-hca=2
-#PBS -v LH=1,ELH=5,CVE=8
-#PBS -b ${LH}
-#PBS --venum-lhost=${ELH}
-#PBS --cpunum-lhost=6
-#PBS -l memsz_job=18gb
-#PBS -l elapstim_req=43300
-#PBS -o LOG.exp.run_ICON-ART_01_R3B08_lam_initmode7_pollen.run.run.o
-# ----------------------------------------------------------------------------
-
-date
-
-module load mpi
-source ${NMPI_ROOT}/bin/necmpivars.sh
-
-set -ex
-. /etc/profile
-
-# OpenMP settings
-export OMP_SCHEDULE="static"
-export OMP_DYNAMIC="false"
-export OMP_NUM_THREADS=1
-
-# Run information
-let PPN=${CVE}*${ELH}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-echo "PPN etc. $ELH $CVE $PPN"
-
-ID=`echo $PBS_JOBID | cut -d: -f2 | cut -d. -f1`
-ulimit -s unlimited
-
-
 # ----------------------------------------------------------------------
 # path definitions
 # ----------------------------------------------------------------------
 
-# for PBS change to directory where job was submitted
-# (without this job is started in HOME)
-if [[ -n ${PBS_O_WORKDIR} ]] ; then
-  cd ${PBS_O_WORKDIR}
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex 
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
+# set icon_data_poolFolder
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
+if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
+  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
 fi
 
-# determine base directory
-ICONDIR=${PBS_O_WORKDIR}/..
-ARTXML_DIR=${PBS_O_WORKDIR}/checksuite.rcnl.dwd.de/ART_XML
+# base directory for ICON sources, binary and auxilary data:
+ICONDIR="${basedir}" # basedir can be set with create_target_header
+
+ARTXML_DIR=${ICONDIR}/run/checksuite.nwp/ART_XML
 
 EXP="ICON-ART_Pollen" # experiment identifier
-EDIR="exp_01"         # working directory   ???
-
-# absolute path to directory with plenty of space:
- EXPDIR=${TMPDIR}/${EXP}/${EDIR}
-#EXPDIR=${WORK}/${EXP}/${EDIR}
 
 # root directory for input data
-#DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/
-DATAROOT=/hpc/rwork0/routfor/test/icon/Checksuite_data/ICON-ART_1_R3B08_LAM_Pollen/ilam.pollen
+DATAROOT=${icon_data_poolFolder}/Checksuite_data/ICON-ART_1_R3B08_LAM_Pollen/ilam.pollen
+
 
 # directory for grid and extpar files
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw
-EXTPDIR=${GRIDDIR}
+GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
+if [[ ! -d "$GRIDDIR" ]]; then
+  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
+fi
+EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being
 DATADIR=${DATAROOT}/ilam.pol/h/2021032200
 LBCDIR=${DATAROOT}/ilam_lbc.pol/h/2021032200
 
-ECCRADDATA=/hpc/rhome/routfor/routfox/ecrad/const/ecrad-1.3.0
+ECCRADDATA="$ICONDIR/externals/ecrad/data"
 
-# path to model binary, including the executable:
-#MODEL=${ICONDIR}/build/VE/bin/icon
-#MODEL_SCAL=${ICONDIR}/build/VH/bin/icon
- MODEL=${ICONDIR}/vector/bin/icon
- MODEL_SCAL=${ICONDIR}/host/bin/icon
 
 # ----------------------------------------------------------------------
 # copy input data: grids, external parameters
 # ----------------------------------------------------------------------
 
-# the directory for the experiment will be created, if not already there
-if [[ ! -d ${EXPDIR} ]] ; then
-    mkdir -p ${EXPDIR}
-fi
-cd ${EXPDIR}
+
 
 ln -sf ${GRIDDIR}/icon_grid_0048_R03B07_LR.nc    iconR3B7_DOM00.nc
 ln -sf ${GRIDDIR}/icon_grid_0049_R03B08_L.nc     iconR3B8_DOM01.nc
@@ -191,15 +149,21 @@ for gridfile in ${atmo_rad_grids}; do
   radiation_grid_filename="${radiation_grid_filename} '${gridfile}',"
 done
 
+
+# Variables to configure the mpirun command on the RCL
+num_io_procs=2
+num_restart_procs=0
+num_prefetch_proc=1
+
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma            = 752
  p_test_run        = .false.
  l_test_openmp     = .true.
  l_log_checks      = .true.
- num_io_procs      = 2
- num_restart_procs = 0
- num_prefetch_proc = 1
+ num_io_procs      = $num_io_procs
+ num_restart_procs = $num_restart_procs
+ num_prefetch_proc = $num_prefetch_proc
  itype_comm        = 1
  iorder_sendrecv   = 3
  num_dist_array_replicas = 4
@@ -593,25 +557,21 @@ ls -l ${MODEL}
 ###  BEGIN: special environment  ###
  set -x
  export NMPI_FPE_ENABLE="(DIV,FOF,INV)"
- export NMPI_MALLOC_HEAP_EXPANSION_SIZE="512"
- export NMPI_MALLOC_MMAP_THRESHOLD="512"
  export NMPI_PROGINF="ALL_DETAIL"
  export NMPI_TRACEBACK="FULL"
  export VE_FORT_SETBUF6="0"
- export VE_FPE_ENABLE="DIV,FOF,INV"
  export VE_INIT_HEAP="ZERO"
- export VE_TRACEBACK="VERBOSE"
- export GFORTRAN_UNBUFFERED_PRECONNECTED="Y"
- export MPI_IB_VBUF_TOTAL_SIZE="131072"
- export NMPI_DAEMON_PATH="${NMPI_ROOT}/libexec/mpid"
 
- export NMPI_EXPORT=" NMPI_FPE_ENABLE NMPI_MALLOC_HEAP_EXPANSION_SIZE NMPI_MALLOC_MMAP_THRESHOLD NMPI_PROGINF NMPI_TRACEBACK VE_FORT_SETBUF6 VE_FPE_ENABLE VE_INIT_HEAP VE_TRACEBACK GFORTRAN_UNBUFFERED_PRECONNECTED MPI_IB_VBUF_TOTAL_SIZE NMPI_DAEMON_PATH"
+ export NMPI_EXPORT=" NMPI_FPE_ENABLE NMPI_MALLOC_HEAP_EXPANSION_SIZE NMPI_MALLOC_MMAP_THRESHOLD NMPI_PROGINF NMPI_TRACEBACK VE_FORT_SETBUF6 VE_FPE_ENABLE VE_INIT_HEAP VE_TRACEBACK GFORTRAN_UNBUFFERED_PRECONNECTED MPI_IB_VBUF_TOTAL_SIZE"
 ###  END: special environment  ###
 
-/opt/nec/ve/bin/mpirun -v -node 0 -np 1 -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-          -v -np ${PPN}                     -env OMP_NUM_THREADS 1 ${MODEL} : \
-          -v -nn 1 -nnp 2               -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL} : \
-          -v -nn 1 -nnp 1               -vh -env OMP_NUM_THREADS 1 ${MODEL_SCAL}
+$START_MODEL
+EXIT_STATUS=$?
+
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi
 
 date
 

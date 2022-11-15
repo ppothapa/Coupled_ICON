@@ -110,6 +110,7 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_dbz3d_lin
   PUBLIC :: compute_field_dbzcmax
   PUBLIC :: compute_field_dbz850
+  PUBLIC :: compute_field_dbzlmx
   PUBLIC :: maximize_field_dbzctmax
   PUBLIC :: compute_field_echotop
   PUBLIC :: compute_field_echotopinm
@@ -210,25 +211,22 @@ CONTAINS
     ! Set the uppermost model level for the occurence of a wet bulb temperature (wbl)
     ! to about 8000m above surface
     ktopmin = nlev+2
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(MIN: ktopmin) IF(lzacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: ktopmin) IF(lzacc)
     DO k = nlev+1, 1, -1
       IF ( hhlr(k) < 8000.0_wp ) THEN
         ktopmin = k
       ENDIF
     ENDDO
-    !$ACC END PARALLEL
     if( ktopmin>nlev+1 ) ktopmin = 2
 
     ! Initialize the definition mask and the output array snowlmt
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO i = 1, SIZE(temp,1)
       lfound (i) = .FALSE.
       snowlmt(i) = -999.0_wp
     ENDDO
-    !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = ktopmin, nlev
       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zp, ep, CONST, td, tl, tp, ppp) &
@@ -503,8 +501,8 @@ CONTAINS
     
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
-
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -559,7 +557,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) PRIVATE(ivd1, ivd2, vdfac) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ivd1, ivd2, vdfac) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
@@ -633,7 +631,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -1169,7 +1167,7 @@ CONTAINS
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
     ! nullify every grid point (lateral boundary, too)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jb=1,ptr_patch%nblks_c
       DO jc=1,nproma
@@ -1187,7 +1185,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         vol     (jc)     = 0.0_wp
@@ -1196,7 +1194,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = kstart_moist(jg), ptr_patch%nlev
         !$ACC LOOP GANG VECTOR PRIVATE(delta_z, w_c, q_liqu, q_i, q_s, q_g, epsw, q_solid, lpi_incr)
@@ -1276,7 +1274,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! normalization
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( vol(jc) > 1.0e-30_wp ) THEN
@@ -1338,7 +1336,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w( jc, jb) = 0.0_wp
@@ -1402,7 +1400,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w_sum  (jc)  = 0
@@ -1428,7 +1426,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_frac_w(jc) = DBLE( p_nmbr_w_sum(jc) ) / DBLE( p_nmbr_all_sum(jc) )
@@ -1468,7 +1466,7 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ! finally, this is the 'updraft in environment criterion':
@@ -1542,7 +1540,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lpi_max(jc,jb) = MAX( lpi_max(jc,jb), lpi(jc,jb) )
@@ -2366,7 +2364,7 @@ CONTAINS
 
     nlev = SIZE( te,2)
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     do i = 1, SIZE( te,1)
       k_ml  (i)  = nlev  ! index used to step through the well mixed layer
@@ -2382,7 +2380,7 @@ CONTAINS
 
     ! now calculate the mixed layer average potential temperature and 
     ! specific humidity
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = nlev, kmoist, -1
 #ifndef _OPENACC
@@ -2490,7 +2488,7 @@ CONTAINS
     nk = SIZE(te,2)
     
     ! Compute equivalent potential temperature T_equiv approximation after Bolton (1980), Eq. 28:
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO jk = kmoist, nk
       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
@@ -2704,7 +2702,7 @@ CONTAINS
 
     ! Initialization
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = i_startidx, i_endidx
       tp_start(i) = te_start(i) * (p0/prs(i,kstart(i)))**rd_o_cpd
@@ -3695,7 +3693,7 @@ CONTAINS
   END SUBROUTINE maximize_field_dbzctmax
 
   !>
-  !! Compute radar reflectivity in approx. 850 hPa from dbz3d_lin
+  !! Compute radar reflectivity around approx 850 hPa from dbz3d_lin.
   !!
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
@@ -3736,7 +3734,7 @@ CONTAINS
 
         jk = k850(jc,jb)
 
-        ! Just overtake the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
+        ! Just take over the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
         ! will be done by a post_op ("post operation") right before output to file. See the
         ! corresponding add_var(..., post_op=(...) ) in mo_nwp_phy_state.f90!
         dbz_850(jc,jb) = dbz3d_lin(jc,jk,jb)
@@ -3748,6 +3746,78 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE compute_field_dbz850
+
+
+  !>
+  !! Compute layer maximum of radar reflectivity. This is for example to mimick the
+  !! typical radar composites from observations. For this purpose, the maximum reflectivity
+  !! in a layer from 500 to 2500 m AGL would be appropriate, to mimick the typical max composite method, where in spatially
+  !! overlapping radar measuring circles the largest value measured by any station at a
+  !! specific geographic location is taken. In today's radar networks in Europe, usually
+  !! each location is sampled by at least 2 radar stations, and measuring heights vary between about
+  !! 500 m AGL and 2500 m AGL, depending on the station height, the elevation angle used for
+  !! the composite, and the local orography.
+  !!
+  !! @par Revision History
+  !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
+  !!
+  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx )
+
+    IMPLICIT NONE
+
+    TYPE(t_patch),        INTENT(IN)  :: ptr_patch        !< patch on which computation is performed
+    REAL(wp),             INTENT(in)  :: z_agl_low        !< lower height bound AGL for maximisation of reflectivity
+    REAL(wp),             INTENT(in)  :: z_agl_up         !< upper height bound AGL for maximisation of reflectivity
+    INTEGER,              INTENT(IN)  :: jg
+    TYPE(t_nh_metrics),   INTENT(IN)  :: p_metrics
+    REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
+
+    REAL(wp),             INTENT(OUT) :: dbzlmx(:,:)  !< output variable, dim: (nproma,nblks_c)
+
+    INTEGER  :: i_rlstart,  i_rlend
+    INTEGER  :: i_startblk, i_endblk
+    INTEGER  :: i_startidx, i_endidx
+    INTEGER  :: jb, jk, jc, nlevp1
+    REAL(wp) :: zml
+
+    nlevp1 = ptr_patch%nlev+1
+    
+    ! without halo or boundary  points:
+    i_rlstart = grf_bdywidth_c + 1
+    i_rlend   = min_rlcell_int
+
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zml), ICON_OMP_RUNTIME_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+
+      dbzlmx( :,jb) = 0.0_wp
+
+      DO jk = ptr_patch%nlev, kstart_moist(jg), -1
+        DO jc = i_startidx, i_endidx
+
+          zml = p_metrics%z_mc(jc,jk,jb) - p_metrics%z_ifc(jc,nlevp1,jb)
+          IF (z_agl_low <= zml .AND. zml <= z_agl_up) THEN
+            ! Just take over the values from dbz3d_lin(:,:,:) in linear space. The conversion to dBZ
+            ! will be done by a post_op ("post operation") right before output to file. See the
+            ! corresponding add_var(..., post_op=(...) ) in mo_nwp_phy_state.f90!
+            dbzlmx(jc,jb) = MAX(dbz3d_lin(jc,jk,jb), dbzlmx(jc,jb))
+          END IF
+
+        END DO
+      END DO
+      
+    END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+  END SUBROUTINE compute_field_dbzlmx
 
   !>
   !! Compute ECHOTOPs in Pa from linear dbz3d_lin
@@ -4697,11 +4767,12 @@ CONTAINS
 
 	CASE(1)	
           !  tobias goecke (DWD) 20211118 ?
-          !qrh =   MAX(0.0_8,    MIN( 1.0_8  , ( rhmax-15.0_8 )/80.0_8  )  )
-          !visrh = 60.0_8 * EXP(-2.5_8*qrh)
-	  visrh = MAX(visrh,visrh_clip) ! clip below X km 
+          qrh =   MAX(0.0_wp,    MIN( 1.0_wp  , ( rhmax-15.0_wp )/80.0_wp  )  )
+          visrh = 60.0_wp * EXP(-2.5_wp*qrh)
 
 	END SELECT
+
+	visrh = MAX(visrh,visrh_clip) ! clip below X km 
 
 	!  -- add term to increase RH vis term for
         !     low-level wind shear increasing from 4 to 6 ms-1

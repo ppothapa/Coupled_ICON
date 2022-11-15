@@ -1742,6 +1742,7 @@ CONTAINS
            &         var_in_output(jg)%dbz850    .OR. &
            &         var_in_output(jg)%dbzcmax   .OR. &
            &         var_in_output(jg)%dbzctmax  .OR. &
+           &         var_in_output(jg)%dbzlmx_low.OR. &
            &         var_in_output(jg)%echotop   .OR. &
            &         var_in_output(jg)%echotopinm     )
       

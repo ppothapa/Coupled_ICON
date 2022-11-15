@@ -40,7 +40,7 @@ MODULE mo_nonhydro_gpu_types
 #if defined( _OPENACC )
 
   USE mo_kind,                 ONLY: wp, vp
-  USE mo_impl_constants,       ONLY: max_var_list_name_len, inwp, iaes
+  USE mo_impl_constants,       ONLY: iaes
   USE mo_fortran_tools,        ONLY: t_ptr_2d3d, assert_acc_device_only
   USE mo_math_types,           ONLY: t_geographical_coordinates
   USE mo_model_domain,         ONLY: t_patch, t_tangent_vectors

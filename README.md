@@ -1133,11 +1133,12 @@ experiments the user can use the `-r` option
 ```console
 ./make_runscripts --all -r run/checksuite.nwp
 ```
-In case of the NEC aurora the second binary will be found automatically if
-the two build directories are either `something/vector` and `something/host` or 
-`something_else/VH` and `something_else/VE`. In this case, `./make_runscripts` 
-must be called in either of the build directories. Alternatively, the second 
-binary can be specified by the `-s` option. E.g.
+In case of the NEC-Aurora the second binary is the host (or x86 scalar) binary.
+It can be found automatically if the two build directories are either 
+`something/vector` and `something/host` or  `something_else/VH` and
+`something_else/VE`. In either case, `./make_runscripts` must be called in the
+`vector` (or `VE`) build directory. Alternatively, the x86-host binary can be
+specified by the `-s` option. E.g.
 ```console
 ./make_runscripts run_ICON_01_R3B9_lam -r run/checksuite.nwp -s ../host_gcc-9.1.0/
 ```

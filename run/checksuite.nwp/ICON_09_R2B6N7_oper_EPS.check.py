@@ -85,6 +85,12 @@ async def run_checks_loc(test_data, reference):
         check_grb_metadata(test_data, reference, True),                                                  \
     )
 
+async def run_checks_0K(test_data, reference):
+    await asyncio.gather(
+        check_gt_0(test_data, grb_metadata(test_data.grb, "shortName") == "T"),
+        check_gt_0(test_data, grb_metadata(test_data.grb, "shortName") == "T_2M"),
+        check_gt_0(test_data, grb_metadata(test_data.grb, "shortName") == "T_G"),
+    )
 
 # --------------------------------------------------------------------------------
 # > TEST: check relative average (AVG(TEST) - AVG(REF)) / AVG(REF)
@@ -147,7 +153,17 @@ async def check_grb_metadata(test_data, reference, condition):
         if differ:
             raise Exception("GRB metadata differs for '{}'!".format(grb_metadata(test_data.grb,"shortName")))
 
-
+# --------------------------------------------------------------------------------
+# > TEST: check that variable is greater than 0
+async def check_gt_0(test_data, condition):
+    if (condition):
+        min_test = numpy.array(grb_values(test_data.grb)).min()
+        if (min_test <= 0.):
+            raise Exception(">>> '{}' : min <= 0".
+                            format(grb_metadata(test_data.grb,"shortName")))
+        else:
+            print(">>> check_rel_avg '{}' : passed. min <= 0".
+                  format(grb_metadata(test_data.grb,"shortName")))
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # --------------------------------------------------------------------------------
@@ -219,8 +235,9 @@ async def read_reference_record(grb_tst, reference):
 def main():
     # parse command-line options
     parser = argparse.ArgumentParser()
-    parser.add_argument("--datafile",                               help="GRIB2 file containing test data.")
+    parser.add_argument("--datafile",          required=True,       help="GRIB2 file containing test data.")
     parser.add_argument("--reffile",                                help="GRIB2 file containing reference data.")
+    parser.add_argument("--check_0K",          action="store_true", help="Check that T, T_2M and T_G are > 0 K.")
     parser.add_argument("--global_data", "-g", action="store_true", help="indicates if dataset is global.")
 
     args = parser.parse_args()
@@ -230,17 +247,34 @@ def main():
     class Object(object):
         pass
 
-    reference = Object()
-    reference.pfile  = open(args.reffile)
-    reference.record = 0
-    reference.grb    = None
-    reference.processed_records = []
-
     test_data = Object()
     test_data.pfile  = open(args.datafile)
     test_data.record = 0
     test_data.grb    = None
     test_data.processed_records = []
+
+    if args.check_0K:
+        try:
+            print("Check that T, T_2M and T_G are > 0 K.")
+            asyncio.run(read_grib_record(test_data, None, run_checks_0K))
+        except Exception as e:
+            print("\nERROR!\n")
+            print("checked data records so far: {}".format(list(dict.fromkeys(test_data.processed_records))))
+            print("\n\n{}\n\n".format(e))
+            sys.exit(1)
+
+        print("Done.")
+        print("visited data records: {}".format(list(dict.fromkeys(test_data.processed_records))))
+        sys.exit(0)
+
+    if args.reffile is None:
+        parser.error("the following arguments are required if check_0K is not set: --reffile")
+
+    reference = Object()
+    reference.pfile  = open(args.reffile)
+    reference.record = 0
+    reference.grb    = None
+    reference.processed_records = []
 
     try:
         if (args.global_data):

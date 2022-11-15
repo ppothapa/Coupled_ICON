@@ -63,8 +63,8 @@ echo_usage()
     echo "         (i.e. -r is relative to '${this_folder}/')"
     echo "  -s     Specify a secondary build dir. Its path can be relative to the current"
     echo "         working directory or absolute.  The secondary build dir is used for"
-    echo "         setups that require two ICON binaries like a hybrid NEC host/vector"
-    echo "         system."
+    echo "         setups like the hybrid NEC host/vector. For the NEC, the path to the"
+    echo "         ICON host binaries can be set here."
 }
 
 function error_trap()

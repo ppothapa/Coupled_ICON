@@ -63,8 +63,9 @@ MODULE mo_nml_crosscheck
     &                                    iRadAeroKinneVolcSP, iRadAeroKinneSP,             &
     &                                    irad_o3, irad_h2o, irad_co2, irad_ch4,            &
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
-    &                                    icld_overlap, llw_cloud_scat, iliquid_scat,       &
-    &                                    iice_scat, isolrad
+    &                                    icld_overlap, ecrad_llw_cloud_scat, isolrad,      &
+    &                                    ecrad_iliquid_scat, ecrad_iice_scat,              &
+    &                                    ecrad_isolver, ecrad_igas_model
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
@@ -396,19 +397,27 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
-            IF (.NOT. ANY( iliquid_scat == (/0,1/)         ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, iliquid_scat has to be 0 or 1')
-            IF (.NOT. ANY( iice_scat    == (/0,1/)         ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, iice_scat has to be 0 or 1')
+            IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
+            IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
+            IF (.NOT. ANY( ecrad_isolver  == (/0,1/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0 or 1')
+            IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
           ELSE
-            IF ( llw_cloud_scat ) &
-              &  CALL message(routine,'Warning: llw_cloud_scat is set to .true., but ecRad is not used')
-            IF ( iliquid_scat /= 0 ) &
-              &  CALL message(routine,'Warning: iliquid_scat is explicitly set, but ecRad is not used')
-            IF ( iice_scat /= 0 ) &
-              &  CALL message(routine,'Warning: iice_scat is explicitly set, but ecRad is not used')
+            IF ( ecrad_llw_cloud_scat ) &
+              &  CALL message(routine,'Warning: ecrad_llw_cloud_scat is set to .true., but ecRad is not used')
+            IF ( ecrad_iliquid_scat /= 0 ) &
+              &  CALL message(routine,'Warning: ecrad_iliquid_scat is explicitly set, but ecRad is not used')
+            IF ( ecrad_iice_scat /= 0 ) &
+              &  CALL message(routine,'Warning: ecrad_iice_scat is explicitly set, but ecRad is not used')
+            IF ( ecrad_isolver /= 0 ) &
+              &  CALL message(routine,'Warning: ecrad_isolver is explicitly set, but ecRad is not used')
+            IF ( ecrad_igas_model /= 0 ) &
+              &  CALL message(routine,'Warning: ecrad_igas_model is explicitly set, but ecRad is not used')
           ENDIF
 
         ELSE

@@ -183,12 +183,33 @@ CONTAINS
       &  routine = modname//'::nwp_ecrad_prep_aerosol_tegen' 
     INTEGER                  :: &
       &  jc, jk, jband,         & !< Loop indices
+      &  n_bands_sw,            & !< Number of ecrad shortwave bands
+      &  n_bands_lw,            & !< Number of ecrad longwave bands
       &  jband_shift              !< Band index in container (for shortwave: shifted by n_bands_lw)
 
     scal_abs => tegen_scal_factors%absorption
     scal_sct => tegen_scal_factors%scattering
     scal_asy => tegen_scal_factors%asymmetry
 
+    ! Determine number of ecrad bands
+    IF (ecrad_conf%do_sw) THEN
+      IF (ecrad_conf%do_cloud_aerosol_per_sw_g_point) THEN
+        n_bands_sw = ecrad_conf%n_g_sw
+      ELSE
+        n_bands_sw = ecrad_conf%n_bands_sw
+      ENDIF
+    ELSE
+      n_bands_sw = 0
+    ENDIF
+    IF (ecrad_conf%do_lw) THEN
+      IF (ecrad_conf%do_cloud_aerosol_per_lw_g_point) THEN
+        n_bands_lw = ecrad_conf%n_g_lw
+      ELSE
+        n_bands_lw = ecrad_conf%n_bands_lw
+      ENDIF
+    ELSE
+      n_bands_lw = 0
+    ENDIF
     CALL assert_acc_device_only("nwp_ecrad_prep_aerosol_tegen", lacc)
 
     !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, scal_abs, scal_sct, scal_asy)
@@ -200,7 +221,7 @@ CONTAINS
       DO jk = slev, nlev
 !NEC$ nointerchange
 !NEC$ nounroll
-        DO jband = 1, ecrad_conf%n_bands_lw
+        DO jband = 1, n_bands_lw
           DO jc = i_startidx, i_endidx
             ! LW optical thickness
             ecrad_aerosol%od_lw (jband,jk,jc) =  zaeq1(jc,jk) * scal_abs(jband,1) &
@@ -223,10 +244,10 @@ CONTAINS
       !$ACC LOOP GANG VECTOR COLLAPSE(3) PRIVATE(jband_shift, tau_abs, tau_sca)
       DO jk = slev, nlev
 !NEC$ nointerchange
-        DO jband = 1, ecrad_conf%n_bands_sw
+        DO jband = 1, n_bands_sw
           DO jc = i_startidx, i_endidx
 
-            jband_shift = ecrad_conf%n_bands_lw + jband
+            jband_shift = n_bands_lw + jband
 
             ! SW absorption optical depth
             tau_abs =  zaeq1(jc,jk) * scal_abs(jband_shift,1) &
