@@ -171,7 +171,7 @@ CONTAINS
         !$ACC   COPYIN(p_int(j)%rbf_vec_blk_v, p_int(j)%rbf_vec_idx_v, p_int(j)%rbf_vec_coeff_v) &
         !$ACC   COPYIN(p_int(j)%verts_aw_cells, p_int(j)%cell_environ%idx) &
         !$ACC   COPYIN(p_int(j)%cell_environ%blk, p_int(j)%cell_environ%area_norm) &
-        !$ACC   COPYIN(p_int(j)%pos_on_tplane_c_edge) 
+        !$ACC   COPYIN(p_int(j)%pos_on_tplane_c_edge)
 
       ELSE
 
@@ -284,7 +284,7 @@ CONTAINS
         !$ACC   DELETE(p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk) &
         !$ACC   DELETE(p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk) &
         !$ACC   DELETE(p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx) &
-        !$ACC   DELETE(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl) 
+        !$ACC   DELETE(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl)
 
         !$ACC EXIT DATA &
         !$ACC   DELETE(p_patch(j)%cells%decomp_info)

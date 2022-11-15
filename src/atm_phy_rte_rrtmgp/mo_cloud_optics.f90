@@ -318,7 +318,7 @@ contains
     if(allocated(this%lut_extliq)) then
 
       !$ACC EXIT DATA DELETE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq) &
-      !$ACC   DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice) 
+      !$ACC   DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
       !$ACC EXIT DATA DELETE(this)
 
 
