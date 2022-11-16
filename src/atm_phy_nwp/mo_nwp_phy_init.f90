@@ -929,6 +929,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   ! This should be moved to init routine in an interface module
   cover_koe_config(jg)%icldscheme  = atm_phy_nwp_config(jg)%inwp_cldcover
   cover_koe_config(jg)%inwp_turb   = atm_phy_nwp_config(jg)%inwp_turb
+  cover_koe_config(jg)%inwp_gscp   = atm_phy_nwp_config(jg)%inwp_gscp
   cover_koe_config(jg)%inwp_cpl_re = atm_phy_nwp_config(jg)%icpl_rad_reff
   cover_koe_config(jg)%inwp_reff   = atm_phy_nwp_config(jg)%icalc_reff
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond

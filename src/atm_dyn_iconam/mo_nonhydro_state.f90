@@ -62,7 +62,7 @@ MODULE mo_nonhydro_state
   USE mo_run_config,           ONLY: iforcing, ntracer, iqm_max, iqt,           &
     &                                iqv, iqc, iqi, iqr, iqs, iqtvar,           &
     &                                ico2, ich4, in2o, io3,                     &
-    &                                iqni, iqni_nuc, iqg, iqh, iqnr, iqns,      & 
+    &                                iqni, iqg, iqh, iqnr, iqns,                & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
     &                                iqtke, ltestcase, lart
@@ -1097,38 +1097,6 @@ MODULE mo_nonhydro_state
             &                           "LATBC_PREFETCH_VARS")  )
           __acc_attach(p_prog%tracer_ptr(iqni)%p_3d)
         END IF
-
-
-        !QNI_NUC activated ice nuclei tracking var # per kg, local
-        IF ( iqni_nuc /= 0 ) THEN
-          tlen = LEN_TRIM(advconf%tracer_names(iqni_nuc))
-          tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqni_nuc)(1:tlen)//suffix
-
-          CALL add_ref( p_prog_list, 'tracer',                                         &
-            &           tracer_name, p_prog%tracer_ptr(iqni_nuc)%p_3d,                 &
-            &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-            &           t_cf_var(tracer_name(1:vntl+tlen),                             &
-            &           ' kg-1','number concentration of activated_IN', datatype_flt), &
-            &           grib2_var(0, 1, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),     &
-            &           ref_idx=iqni_nuc,                                              &
-            &           ldims=shape3d_c,                                               &
-            &           tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
-            &           tracer_info=create_tracer_metadata(lis_tracer=.TRUE.,          &
-            &                       name        = tracer_name,                         &
-            &                       ihadv_tracer=advconf%ihadv_tracer(iqni_nuc),       &
-            &                       ivadv_tracer=advconf%ivadv_tracer(iqni_nuc)),      &
-            &           vert_interp=create_vert_interp_metadata(                       &
-            &                       vert_intp_type=vintp_types("P","Z","I"),           &
-            &                       vert_intp_method=VINTP_METHOD_LIN,                 &
-            &                       l_loglin=.FALSE.,                                  &
-            &                       l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
-            &                       lower_limit=0._wp  ),                              &
-            &           in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
-            &                           "LATBC_PREFETCH_VARS")  )
-          __acc_attach(p_prog%tracer_ptr(iqni_nuc)%p_3d)
-        END IF
-        !CK<
-
 
         !rain droplet concentration
         IF ( iqnr /= 0 ) THEN

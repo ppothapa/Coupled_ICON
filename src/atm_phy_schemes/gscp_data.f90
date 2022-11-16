@@ -161,6 +161,7 @@ REAL    (KIND=wp   ), PARAMETER ::  &
   zkcau  = 9.44e+09_wp,  & ! kernel coeff for SB2001 autoconversion
   zkcac  = 5.25e+00_wp,  & ! kernel coeff for SB2001 accretion
   zcnue  = 2.00e+00_wp,  & ! gamma exponent for cloud distribution
+  zxcmin = 5.24e-13_wp,  & ! minimum mass of cloud droplets (10 micron diameter)
   zxstar = 2.60e-10_wp,  & ! separating mass between cloud and rain
   zkphi1 = 6.00e+02_wp,  & ! constant in phi-function for autoconversion
   zkphi2 = 0.68e+00_wp,  & ! exponent in phi-function for autoconversion
@@ -382,16 +383,6 @@ SUBROUTINE gscp_set_coefficients (igscp, idbg, tune_zceff_min, tune_v0snow, tune
   zvzxp  = 0.5_wp/(mu_rain+4.0_wp)
   zvz0r  = 130.0_wp*gamma_fct(mu_rain+4.5_wp)/gamma_fct(mu_rain+4.0_wp)*zar**(-zvzxp)
 
-#ifdef __ICON__  
-  !CK> for cloud ice sedimentation based on KC05
-  IF (igscp == 3) THEN
-    vtxexp = kc_beta + 2.0_wp - kc_sigma
-    kc_c1  = 4.0_wp / ( do_i**2 * SQRT(co_i) )
-    kc_c2  = do_i **2 / 4.0_wp
-  ENDIF
-  !CK<
-#endif    
-
   IF (PRESENT(idbg)) THEN
     IF (idbg > 10) THEN
       CALL message('gscp_set_coefficients',': Initialized coefficients for microphysics')
@@ -414,13 +405,6 @@ SUBROUTINE gscp_set_coefficients (igscp, idbg, tune_zceff_min, tune_v0snow, tune
       WRITE (message_text,'(A,E10.3)') '   zceff_min = ',zceff_min ; CALL message('',message_text)
       WRITE (message_text,'(A,E10.3)') '      v0snow = ',v0snow ; CALL message('',message_text)
       WRITE (message_text,'(A,E10.3)') '       zvz0i = ',zvz0i  ; CALL message('',message_text)
-#ifdef __ICON__
-      IF (igscp == 3) THEN
-        WRITE (message_text,'(A,E10.3)') '      vtxexp = ',vtxexp ; CALL message('',message_text)
-        WRITE (message_text,'(A,E10.3)') '       kc_c1 = ',kc_c1  ; CALL message('',message_text)
-        WRITE (message_text,'(A,E10.3)') '       kc_c2 = ',kc_c2  ; CALL message('',message_text)
-      ENDIF
-#endif
     ENDIF
   ENDIF
 

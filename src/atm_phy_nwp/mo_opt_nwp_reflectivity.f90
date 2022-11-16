@@ -202,7 +202,7 @@ CONTAINS
       z_r = nor*gfct(7.0_wp+mue_rain_c) * (pi*rho_w*nor*gfct(4.0_wp+mue_rain_c)/6.0_wp)**(-p_r)
       
       ! Parameters for snow and graupel:
-      IF (igscp == 1) THEN
+      IF (igscp == 1 .or. igscp == 3) THEN
         
         ams = zams_ci
         bms = zbms

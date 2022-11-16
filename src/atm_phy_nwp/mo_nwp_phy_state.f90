@@ -528,7 +528,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,4,5,6,7)
+    CASE (1,2,3,4,5,6,7)
 
        ! &      diag%ice_gsp_rate(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp_rate', 'kg m-2 s-1', 'gridscale ice rate', &
@@ -702,7 +702,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,4,5,6,7)
+    CASE (1,2,3,4,5,6,7)
 
        ! &      diag%ice_gsp(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp', 'kg m-2', 'gridscale ice', datatype_flt)

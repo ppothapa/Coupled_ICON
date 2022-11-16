@@ -3100,7 +3100,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, i_endblk, i_startblk, i_endblk, i_startidx, i_endidx_2, i_rlstart, i_rlend)
 
       SELECT CASE ( atm_phy_nwp_config(jg)%inwp_gscp )
-      CASE ( 1 )
+      CASE ( 1,3 )
 
         IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 2) THEN
           ! Not yet implemented in microphysics! We give a dummy value here.
@@ -3281,7 +3281,7 @@ CONTAINS
       ldebug_dbz = (msg_level > 15)
 
       SELECT CASE ( atm_phy_nwp_config(jg)%inwp_gscp )
-      CASE ( 1, 2 )
+      CASE ( 1, 2, 3 )
 
         t   => p_diag%temp(:,:,:)
         rho_tot => p_prog%rho(:,:,:)

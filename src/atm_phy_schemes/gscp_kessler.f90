@@ -174,12 +174,6 @@ USE gscp_data, ONLY: &          ! all variables are used here
     zkcac,   zkphi1,    zkphi2,    zkphi3,    &
     x1o8,      x3o16,   iautocon
 
-#ifdef __ICON__
-! this is (at the moment) an ICON part
-USE gscp_data, ONLY: &          ! all variables are used here
-    kc_c2
-#endif
-
 !==============================================================================
 
 IMPLICIT NONE

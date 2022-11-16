@@ -50,6 +50,7 @@ MODULE mo_util_phys
   USE mo_satad,                 ONLY: qsat_rho
   USE mo_upatmo_config,         ONLY: upatmo_config
   USE mo_2mom_mcrph_util,       ONLY: set_qnc, set_qnr, set_qni, set_qns
+  USE gscp_ice,                 ONLY: zxiconv
 
   IMPLICIT NONE
 
@@ -885,6 +886,19 @@ CONTAINS
         END IF
       END DO
       !$ACC END PARALLEL
+    ELSEIF (atm_phy_nwp_config(jg)%inwp_gscp == 3) THEN
+      !CALL assert_acc_host_only("tracer_add_phytend l2moment", lacc)  ! some GPU stuff?
+      DO jt=1,SIZE(conv_list)
+        idx = conv_list(jt)
+        IF ( idx == iqi ) THEN
+          DO jk = kstart_moist(jg), kend
+            DO jc = i_startidx, i_endidx
+              pt_prog_rcf%tracer(jc,jk,jb,iqni) = pt_prog_rcf%tracer(jc,jk,jb,iqni)    &
+                 + pdtime * prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqi)/(zxiconv*p_rho_now(jc,jk))
+            END DO
+          END DO
+        END IF
+      END DO
     END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN

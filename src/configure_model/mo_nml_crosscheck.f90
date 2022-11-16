@@ -43,7 +43,7 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ntracer, ltestcase,                   &
     &                                    nqtendphy, iqtke, iqv, iqc, iqi,                  &
     &                                    iqs, iqr, iqt, iqtvar, ltimer,                    &
-    &                                    iqni, iqni_nuc, iqg, iqm_max,                     &
+    &                                    iqni, iqg, iqm_max,                               &
     &                                    iqh, iqnr, iqns, iqng, iqnh, iqnc, iqgl, iqhl,    & 
     &                                    inccn, ininact, ininpot,                          &
     &                                    activate_sync_timers, timers_level, lart,         &
@@ -553,7 +553,7 @@ CONTAINS
       CASE(3)  ! improved ice nucleation scheme C. Koehler (note: iqm_max does not change!)
 
         iqni     = 6 ; advection_config(:)%tracer_names(iqni)     = 'qni'     !! cloud ice number
-        iqni_nuc = 7 ; advection_config(:)%tracer_names(iqni_nuc) = 'qni_nuc' !! activated ice nuclei  
+        ininact  = 7 ; advection_config(:)%tracer_names(ininact)  = 'ninact'  !! activated ice nuclei  
         iqt      = iqt + 2
 
         ntracer = ntracer + 2  !! increase total number of tracers by 2
