@@ -1713,7 +1713,7 @@ MODULE mo_physical_constants_iface
     rvd1  => vtmpc1, & !< = rv/rd-1                              []
     cpvd1 => vtmpc2    !< = cpv/cpd-1                            []
 
-  USE mo_impl_constants, ONLY: cvdifts
+  USE mo_turb_vdiff_params, ONLY: cvdifts
 
   IMPLICIT NONE
   PUBLIC

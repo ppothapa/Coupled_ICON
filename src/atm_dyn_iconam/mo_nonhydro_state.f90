@@ -106,6 +106,7 @@ MODULE mo_nonhydro_state
   USE mo_upatmo_config,        ONLY: upatmo_dyn_config
   USE mo_upatmo_impl_const,    ONLY: idamtr
   USE mo_aes_vdf_config,       ONLY: aes_vdf_config
+  USE mo_turb_vdiff_params,    ONLY: VDIFF_TURB_3DSMAGORINSKY
   USE mo_loopindices,          ONLY: get_indices_c
 
 #include "add_var_acc_macro.inc"
@@ -4148,9 +4149,10 @@ MODULE mo_nonhydro_state
     __acc_attach(p_metrics%ddxt_z_full)
 
 #ifndef __NO_ICON_LES__
-    IF (atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2) THEN
+    IF (atm_phy_nwp_config(jg)%is_les_phy &
+       & .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
 #else
-    IF (aes_vdf_config(jg)%turb==2) THEN
+    IF (aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
 #endif
       ! slope of the terrain in normal direction (half level)
       ! ddxn_z_half_e  p_metrics%ddxn_z_full(nproma,nlevp1,nblks_e)
@@ -4914,9 +4916,10 @@ MODULE mo_nonhydro_state
 
     !Add LES related variables : Anurag Dipankar MPIM (2013-04)
 #ifndef __NO_ICON_LES__
-    IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2)THEN
+    IF(atm_phy_nwp_config(jg)%is_les_phy &
+      & .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY)THEN
 #else
-    IF(aes_vdf_config(jg)%turb==2)THEN
+    IF(aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY)THEN
 #endif
       ! inv_ddqz_z_half_e  p_metrics%inv_ddqz_z_half_e(nproma,nlevp1,nblks_e)
       !

@@ -19,17 +19,17 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-MODULE mo_turbulence_diag
+MODULE mo_turb_vdiff_diag
 
   USE mo_kind,              ONLY: wp, i1
   USE mo_convect_tables,    ONLY: prepare_ua_index_spline, lookup_ua_spline, &
-    &                             compute_qsat
+    &                             compute_qsat, cthomi, csecfrl
 
   ! DA: is it fine??
   USE mo_aes_convect_tables,ONLY: prepare_ua_index_spline_batch, lookup_ua_spline_batch
 
-  USE mo_aes_vdf_config,    ONLY: aes_vdf_config
-  USE mo_aes_vdiff_params,  ONLY: ckap, cb,cc, chneu, da1,                  &
+  USE mo_turb_vdiff_config, ONLY: t_vdiff_config
+  USE mo_turb_vdiff_params, ONLY: ckap, cb,cc, chneu, da1,                  &
     &                             eps_shear, eps_corio, totte_min, cons5
   USE mo_physical_constants,ONLY: grav, rd, cpd, cpv, rd_o_cpd, rv,         &
     &                             vtmpc1, tmelt, alv, als, p0ref
@@ -63,8 +63,7 @@ CONTAINS
   !! Separated from vdiff.f90 of ECHAM6 and re-organized by Hui Wan (2010-09).
   !!  updated to echam-6.3.01 by Monika Esch (2014-11)
   !!
-  SUBROUTINE atm_exchange_coeff( jg,                                      &! in
-                               & jb,                                      &! in, for debugging only
+  SUBROUTINE atm_exchange_coeff( jb,                                      &! in, for debugging only
                                & jcs, kproma, kbdim,                      &! in
                                & klev, klevm1, klevp1,                    &! in
                                & pdtime, pcoriol,                         &! in
@@ -74,6 +73,7 @@ CONTAINS
                                & papm1, paphm1, paclc,                    &! in
                                & pustarm, pthvvar,                        &! in
                                & ptottem1,                                &! in
+                               & vdiff_config,                        &! in
                                & pcptgz, phdtcbl,                         &! out
                                & pzthvvar, ptottevn,                      &! out
                                & pcfm, pcfh, pcfv, pcftotte, pcfthv,      &! out
@@ -82,7 +82,6 @@ CONTAINS
                                & pri, pmixlen                             )! out
     ! Arguments
 
-    INTEGER, INTENT(IN) :: jg
     INTEGER, INTENT(IN) :: jb
     INTEGER, INTENT(IN) :: jcs, kproma, kbdim
     INTEGER, INTENT(IN) :: klev, klevm1, klevp1
@@ -101,6 +100,7 @@ CONTAINS
     REAL(wp),INTENT(IN) :: pustarm(:)   !< (kbdim)
 
     REAL(wp),INTENT(IN) :: ptottem1 (:,:) ! (kbdim,klev)
+    TYPE(t_vdiff_config), INTENT(IN) :: vdiff_config ! tuning parameters for current domain.
 
     REAL(wp),INTENT(OUT) :: phdtcbl (:)   !< (kbdim) top height of dry convective boundary layer
     REAL(wp),INTENT(OUT) :: ptottevn(:,:) !< (kbdim,klevm1) TTE at intermediate time step
@@ -173,31 +173,36 @@ CONTAINS
     REAL(wp) :: zpapm1i_s
 #endif
 
-    ! Shortcuts to components of aes_vdf_config
+    ! Shortcuts to components of vdiff_config
     !
     REAL(wp) :: f_tau0, f_theta0, c_f, c_n, c_e, pr0, fbl, lmix_max
+    REAL(wp) :: f_tau_limit_fraction, f_tau_decay
+    REAL(wp) :: f_theta_limit_fraction, f_theta_decay
+    REAL(wp) :: ek_ep_ratio_stable, ek_ep_ratio_unstable
     !
     !$ACC DATA &
-    !---- Argument arrays - intent(in)
-    !$ACC   PRESENT(pcoriol, pghf, pghh, pxm1, ptvm1, pqm1, pum1, pvm1, ptm1, paclc) &
-    !$ACC   PRESENT(papm1, paphm1, pthvvar, pustarm, ptottem1) &
-    !---- Argument arrays - intent(out)
-    !$ACC   PRESENT(phdtcbl, ptottevn, pcftotte, pcfthv, pcfm, pcfh, pcfv, pzthvvar, pcptgz) &
-    !$ACC   PRESENT(pprfac, ptheta_b, pthetav_b, pthetal_b, pqsat_b, plh_b, pri, pmixlen) &
-    !---- Argument arrays - Module Variables
     !$ACC   CREATE(zlh, ztheta, zthetav, zthetal, zqsat, km, kh, zlhmid, zdgmid) &
     !$ACC   CREATE(zccovermid, zqxmid, zqmid, zqsatmid, zthetamid, zthetavmid, ztmid, ztvmid) &
     !$ACC   CREATE(ihpbl, ihpblc, ihpbld, idx, za, zhdyn, zpapm1i, zua) &
     !$ACC   CREATE(idx_batch, za_batch, zua_batch)
 
-    f_tau0   = aes_vdf_config(jg)% f_tau0
-    f_theta0 = aes_vdf_config(jg)% f_theta0
-    c_f      = aes_vdf_config(jg)% c_f
-    c_n      = aes_vdf_config(jg)% c_n
-    c_e      = aes_vdf_config(jg)% c_e
-    pr0      = aes_vdf_config(jg)% pr0
-    fbl      = aes_vdf_config(jg)% fbl
-    lmix_max = aes_vdf_config(jg)% lmix_max
+    f_tau0   = vdiff_config%f_tau0
+    f_theta0 = vdiff_config%f_theta0
+    c_f      = vdiff_config%c_f
+    c_n      = vdiff_config%c_n
+    c_e      = vdiff_config%c_e
+    pr0      = vdiff_config%pr0
+    fbl      = vdiff_config%fbl
+    lmix_max = vdiff_config%lmix_max
+
+    f_tau_limit_fraction = vdiff_config%f_tau_limit_fraction
+    f_tau_decay = vdiff_config%f_tau_decay
+
+    f_theta_limit_fraction = vdiff_config%f_theta_limit_fraction
+    f_theta_decay = vdiff_config%f_theta_decay
+
+    ek_ep_ratio_stable = vdiff_config%ek_ep_ratio_stable
+    ek_ep_ratio_unstable = vdiff_config%ek_ep_ratio_unstable
 
     !-------------------------------------
     ! 1. Some constants
@@ -250,12 +255,13 @@ CONTAINS
 
 #else
     ! DA: warning: those are from AES convect tables!!
-    CALL prepare_ua_index_spline_batch(jg, 'vdiff (1)', jcs, kproma, klev, &
+    CALL prepare_ua_index_spline_batch('vdiff (1)', jcs, kproma, klev, &
       &                                ptm1, idx_batch, za_batch,          &
-      &                                kblock=jb,kblock_size=kbdim)
+      &                                kblock=jb,kblock_size=kbdim, &
+                                       csecfrl=csecfrl, cthomi=cthomi)
     CALL lookup_ua_spline_batch(jcs, kproma, klev, idx_batch, za_batch, zua_batch)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,klev
       DO jl=jcs,kproma
@@ -285,7 +291,7 @@ CONTAINS
 
     ! Copy bottom-level values to dummy arguments
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl=jcs,kproma
       ptheta_b (jl) = ztheta (jl,klev)
@@ -302,7 +308,7 @@ CONTAINS
     ! Vertical interpolation from full levels to mid-levels
     ! using linear interpolation in pressure coordinate
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO 214 jk=1,klevm1
       DO 213 jl=jcs,kproma
@@ -337,7 +343,7 @@ CONTAINS
     ! 4. Compute convective dry boundary layer height
     !------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,kproma
       zcor=MAX(ABS(pcoriol(jl)),eps_corio)
@@ -348,7 +354,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     IF ( isrfc_type == 1 ) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = jcs,kproma
         zhdyn(jl)=MIN(pghf(jl,1),chneu*ufric/zcor)
@@ -356,7 +362,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk=klevm1,1,-1
       !$ACC LOOP GANG VECTOR
@@ -369,7 +375,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl=jcs,kproma
       ihpbl (jl) = MIN(ihpblc(jl),ihpbld(jl))
@@ -387,7 +393,7 @@ CONTAINS
     ! 5. Compute exchange coefficients
     !--------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO 372 jk=1,klevm1
       DO 361 jl=jcs,kproma
@@ -422,21 +428,23 @@ CONTAINS
         ! stability functions for heat and momentum (Mauritsen et al. 2007)
 
         IF(zri.GT.0._wp) THEN
-           f_tau   = f_tau0*(0.25_wp+0.75_wp/(1._wp+4._wp*zri))
-           f_theta = f_theta0/(1._wp+4._wp*zri)
+          f_tau   = f_tau0 * (f_tau_limit_fraction + &
+              & (1._wp - f_tau_limit_fraction)/(1._wp+f_tau_decay*zri))
+          f_theta = f_theta0 * (f_theta_limit_fraction + &
+              & (1._wp - f_theta_limit_fraction)/(1._wp+f_theta_decay*zri))
         ELSE
-           f_tau   = f_tau0
-           f_theta = f_theta0
+          f_tau   = f_tau0
+          f_theta = f_theta0
         END IF
 
         ! turbulent kinetic and turbulent potential energy
 
         IF(zri.GT.0._wp) THEN
-           e_kin=ptottem1(jl,jk)/(1._wp+zri/(f_tau0**2/(2._wp*f_theta0**2)+3._wp*zri))
-           e_pot=e_kin*zri/(f_tau0**2/(2._wp*f_theta0**2)+3._wp*zri)
+           e_kin=ptottem1(jl,jk)/(1._wp+zri/(pr0 + ek_ep_ratio_stable * zri))
+           e_pot=e_kin*zri/(pr0 + ek_ep_ratio_stable * zri)
         ELSE
-           e_kin=ptottem1(jl,jk)/(1._wp+zri/(2._wp*zri-f_tau0**2/(2._wp*f_theta0**2)))
-           e_pot=e_kin*zri/(2._wp*zri-f_tau0**2/(2._wp*f_theta0**2))
+           e_kin=ptottem1(jl,jk)/(1._wp+zri/(ek_ep_ratio_unstable * zri - pr0))
+           e_pot=e_kin*zri/(ek_ep_ratio_unstable * zri - pr0)
         END IF
 
         ! mixing length for neutral and stably stratified conditions
@@ -495,7 +503,7 @@ CONTAINS
            zzb=km(jl,jk)*zshear-2._wp*kh(jl,jk)*zbuoy
         END IF
         zdisl=ldis/(c_e*pdtime)
-        zktest=1._wp+(zzb*pdtime+SQRT(ptottem1(jl,jk))*2._wp)/zdisl
+        zktest=1._wp+(zzb*pdtime/SQRT(ptottem1(jl,jk))+SQRT(ptottem1(jl,jk))*2._wp)/zdisl
         IF (zktest.LE.1._wp) THEN
            ptottevn(jl,jk)=totte_min
         ELSE
@@ -540,8 +548,7 @@ CONTAINS
   !-------------
   !>
   !!
-  SUBROUTINE sfc_exchange_coeff( jg,                                     &! in
-                               & jcs, kproma, kbdim, ksfc_type,          &! in
+  SUBROUTINE sfc_exchange_coeff( jcs, kproma, kbdim, ksfc_type,          &! in
                                & idx_wtr, idx_ice, idx_lnd,              &! in
                                & pz0m, ptsfc,                            &! in
                                & pfrc, phdtcbl,                          &! in
@@ -554,6 +561,7 @@ CONTAINS
                                & ptheta_b, pthetav_b,                    &! in
                                & pthetal_b, paclc_b,                     &! in
                                & ptotte_b, pthvvar_b,                    &! in
+                               & vdiff_config,                       &! in
                                & pthvsig_b,                              &! out
                                & pwstar, pwstar_tile,                    &! out, inout
                                & pqsat_tile, pcpt_tile,                  &! out
@@ -572,7 +580,6 @@ CONTAINS
                                & pcsat, pcair                            &! in, optional
                                & )
 
-    INTEGER, INTENT(IN) :: jg
     INTEGER, INTENT(IN) :: jcs, kproma, kbdim
     INTEGER, INTENT(IN) :: ksfc_type, idx_wtr, idx_ice, idx_lnd
 
@@ -606,6 +613,8 @@ CONTAINS
     ! above surface, i.e., the interface between full levels klev-1 and klev.
 
     REAL(wp),INTENT(IN) :: pthvvar_b (:)  !< (kbdim) variance of theta_v
+
+    TYPE(t_vdiff_config), INTENT(IN) :: vdiff_config
 
     ! "_tile" denotes value at surface
 
@@ -684,38 +693,36 @@ CONTAINS
     REAL(wp) :: w1, ws
     INTEGER  :: jsfc, jl, jls, js, isCap
 
-    ! Shortcuts to components of aes_vdf_config
+    ! Shortcuts to components of vdiff_config
     !
     LOGICAL  :: lsfc_mom_flux, lsfc_heat_flux
     REAL(wp) :: f_tau0, f_theta0, c_f, c_n, pr0, wmc, fsl, fbl
+    REAL(wp) :: f_tau_limit_fraction, f_tau_decay
+    REAL(wp) :: f_theta_limit_fraction, f_theta_decay
+    REAL(wp) :: ek_ep_ratio_stable, ek_ep_ratio_unstable
     !
-    lsfc_mom_flux  = aes_vdf_config(jg)% lsfc_mom_flux
-    lsfc_heat_flux = aes_vdf_config(jg)% lsfc_heat_flux
+    lsfc_mom_flux  = vdiff_config%lsfc_mom_flux
+    lsfc_heat_flux = vdiff_config%lsfc_heat_flux
     !
-    f_tau0   = aes_vdf_config(jg)% f_tau0
-    f_theta0 = aes_vdf_config(jg)% f_theta0
-    c_f      = aes_vdf_config(jg)% c_f
-    c_n      = aes_vdf_config(jg)% c_n
-    pr0      = aes_vdf_config(jg)% pr0
-    wmc      = aes_vdf_config(jg)% wmc
-    fsl      = aes_vdf_config(jg)% fsl
-    fbl      = aes_vdf_config(jg)% fbl
+    f_tau0   = vdiff_config%f_tau0
+    f_theta0 = vdiff_config%f_theta0
+    c_n      = vdiff_config%c_n
+    c_f      = vdiff_config%c_f
+    pr0      = vdiff_config%pr0
+    wmc      = vdiff_config%wmc
+    fsl      = vdiff_config%fsl
+    fbl      = vdiff_config%fbl
+
+    f_tau_limit_fraction = vdiff_config%f_tau_limit_fraction
+    f_tau_decay = vdiff_config%f_tau_decay
+
+    f_theta_limit_fraction = vdiff_config%f_theta_limit_fraction
+    f_theta_decay = vdiff_config%f_theta_decay
+
+    ek_ep_ratio_stable = vdiff_config%ek_ep_ratio_stable
+    ek_ep_ratio_unstable = vdiff_config%ek_ep_ratio_unstable
 
     !$ACC DATA &
-    !---- Argument arrays - intent(in)
-    !$ACC   PRESENT(pz0m, ptsfc, pfrc, phdtcbl, pocu, pocv, ppsfc, pghf_b, pum1_b) &
-    !$ACC   PRESENT(pvm1_b, ptm1_b, pqm1_b, pqxm1_b, pqsat_b, plh_b, ptheta_b, pthetav_b) &
-    !$ACC   PRESENT(pthetal_b, paclc_b, ptotte_b, pthvvar_b) &
-    !---- Argument arrays - intent(optional in)
-    !$ACC   PRESENT(paz0lh, pcsat, pcair) &
-    !---- Argument arrays - intent(out)
-    !$ACC   PRESENT(pqsat_tile, pcpt_tile, pri_gbm, pri_tile, pcfm_gbm, pcfm_tile, pcfh_gbm) &
-    !$ACC   PRESENT(pcfh_tile, pcfv_sfc, pcftotte_sfc, pcfthv_sfc, pprfac_sfc, ptottevn_sfc) &
-    !$ACC   PRESENT(pthvvar_sfc, pustarm, pwstar, pbn_tile, pbhn_tile, pbm_tile, pbh_tile) &
-    !$ACC   PRESENT(pch_tile, jtottevn_sfc) &
-    !---- Argument arrays - intent(inout)                                         
-    !$ACC   PRESENT(pwstar_tile, pthvsig_b) &
-    !---- Argument arrays - Local Variables
     !$ACC   CREATE(pchn_tile, pcdn_tile, pcfnc_tile, pthvsig_tile, zdu2, zcfnch, zustar, zqts, zthetavmid) &
     !$ACC   CREATE(zdthetal, lmix, e_kin, e_pot, f_tau, f_theta, z0h, pfrc_test, loidx, is)
     !-------------------
@@ -745,7 +752,7 @@ CONTAINS
     ! computed using air temperature of the lowest model level at time step n-1.
     !------------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       pprfac_sfc(jl) =  ppsfc(jl)                                     &
@@ -762,7 +769,7 @@ CONTAINS
     !-------------------------------------------------------------
     !    preset values to zero
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
      DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -774,7 +781,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! DA: compute the index lists on the GPU
-    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = jcs,kproma
         pfrc_test(jl, jsfc) = MERGE(1, 0, pfrc(jl, jsfc) > 0.0_wp)
@@ -789,8 +796,9 @@ CONTAINS
       CALL compute_qsat( kproma, is(jsfc), loidx(:,jsfc), ppsfc, ptsfc(:,jsfc), pqsat_tile(:,jsfc) )
      ! loop over mask only
      !
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
+      !NEC$ ivdep
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
         ! dry static energy pcpt_tile
@@ -843,21 +851,23 @@ CONTAINS
  !  Stability functions for heat and momentum (Mauritsen et al. 2007)
 
         IF(pri_tile(js,jsfc).GT.0._wp) THEN
-           f_tau(js,jsfc)   = f_tau0*(0.25_wp+0.75_wp/(1._wp+4._wp*pri_tile(js,jsfc)))
-           f_theta(js,jsfc) = f_theta0               /(1._wp+4._wp*pri_tile(js,jsfc))
+          f_tau(js,jsfc)   = f_tau0 * (f_tau_limit_fraction + &
+              & (1._wp - f_tau_limit_fraction)/(1._wp+f_tau_decay*pri_tile(js,jsfc)))
+          f_theta(js,jsfc) = f_theta0 * (f_theta_limit_fraction + &
+              & (1._wp - f_theta_limit_fraction)/(1._wp+f_theta_decay*pri_tile(js,jsfc)))
         ELSE
-           f_tau(js,jsfc)   = f_tau0
-           f_theta(js,jsfc) = f_theta0
+          f_tau(js,jsfc)   = f_tau0
+          f_theta(js,jsfc) = f_theta0
         END IF
 
  !  Diagnose turbulent kinetic and turbulent potential energy from total turbulent energy:
 
         IF(pri_tile(js,jsfc).GT.0._wp) THEN
-           e_kin(js,jsfc) = ptotte_b(js)/(1._wp+pri_tile(js,jsfc)/(pr0+3._wp*pri_tile(js,jsfc)))
-           e_pot(js,jsfc) = e_kin(js,jsfc)     *pri_tile(js,jsfc)/(pr0+3._wp*pri_tile(js,jsfc))
+           e_kin(js,jsfc) = ptotte_b(js)/(1._wp+pri_tile(js,jsfc)/(pr0+ek_ep_ratio_stable * pri_tile(js,jsfc)))
+           e_pot(js,jsfc) = e_kin(js,jsfc)     *pri_tile(js,jsfc)/(pr0+ek_ep_ratio_stable * pri_tile(js,jsfc))
         ELSE
-           e_kin(js,jsfc) = ptotte_b(js)/(1._wp+pri_tile(js,jsfc)/(2._wp*pri_tile(js,jsfc)-pr0))
-           e_pot(js,jsfc) = e_kin(js,jsfc)     *pri_tile(js,jsfc)/(2._wp*pri_tile(js,jsfc)-pr0)
+           e_kin(js,jsfc) = ptotte_b(js)/(1._wp+pri_tile(js,jsfc)/(ek_ep_ratio_unstable * pri_tile(js,jsfc)-pr0))
+           e_pot(js,jsfc) = e_kin(js,jsfc)     *pri_tile(js,jsfc)/(ek_ep_ratio_unstable * pri_tile(js,jsfc)-pr0)
         END IF
 
 !   Near-surface virtual potential temperature variance used by convection scheme:
@@ -928,7 +938,7 @@ CONTAINS
     IF (lsfc_mom_flux.OR.lsfc_heat_flux) THEN  ! Surface flux is considered
 
 !  Preset values to zero
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -940,19 +950,18 @@ CONTAINS
 
 !  Multiply neutral coefficients by stability functions
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jsfc = 1,ksfc_type
         !$ACC LOOP GANG VECTOR
+        !NEC$ ivdep
         DO jls = 1,is(jsfc)
           js=loidx(jls,jsfc)
           IF ( pri_tile(js,jsfc) > 0._wp ) THEN
             pcfm_tile(js,jsfc) = pcfnc_tile(js,jsfc)*f_tau  (js,jsfc)/f_tau0
             pcfh_tile(js,jsfc) = zcfnch    (js,jsfc)*f_theta(js,jsfc)/f_theta0*SQRT(f_tau(js,jsfc)/f_tau0)
             pch_tile (js,jsfc) = pcfh_tile(js,jsfc)/zcfnch(js,jsfc)*pchn_tile(js,jsfc)
-          ENDIF
-
-          IF ( pri_tile(js,jsfc) <= 0._wp ) THEN        ! retain Louis stability functions
+          ELSE                                          ! retain Louis stability functions
                                                         ! functions for the unstable case
             zucf =  SQRT( -pri_tile(js,jsfc)*(1._wp+ pghf_b(js)/pz0m(js,jsfc)) )
                                                         ! sqrt in (5.4)
@@ -976,7 +985,7 @@ CONTAINS
 
     IF (.NOT.lsfc_mom_flux ) THEN  ! Surface momentum flux is switched off
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = jcs, kproma
@@ -988,7 +997,7 @@ CONTAINS
 
     IF (.NOT.lsfc_heat_flux) THEN  ! Surface heat flux is switched off
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = jcs, kproma
@@ -1003,9 +1012,10 @@ CONTAINS
     ! Store values
     ! to be used in subroutine "nsurf_diag" to compute
     ! new t2m, 2m dew point, 10m wind components
+    ! See Geleyn, Tellus A 40, 347-351 (1988), doi: 10.3402/tellusa.v40i4.11805
     !------------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -1018,8 +1028,9 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
+      !NEC$ ivdep
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
         pbn_tile(js,jsfc)  = ckap / MAX(zepsec, SQRT(pcdn_tile(js,jsfc)))
@@ -1051,7 +1062,7 @@ CONTAINS
     ! Add aggregated Richardson number for the surface
     !-------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       pcfm_gbm(jl) = 0._wp
@@ -1061,8 +1072,9 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
+      !NEC$ ivdep
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
         pcfm_gbm(js) = pcfm_gbm(js) + pfrc(js,jsfc)*pcfm_tile(js,jsfc)
@@ -1081,7 +1093,7 @@ CONTAINS
     ! to zero.
     !-------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       pcfv_sfc(jl) = 0._wp
@@ -1097,8 +1109,9 @@ CONTAINS
     IF (lsfc_mom_flux) THEN  ! Surface momentum flux is switched on
 
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
+        !NEC$ ivdep
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
           zust   = pcfm_tile(js,jsfc)*SQRT(zdu2(js,jsfc)-(wmc*pwstar_tile(js,jsfc))**2)
@@ -1119,7 +1132,7 @@ CONTAINS
  !  this factor is included as "prefactor for the exchange coefficients" in
  !  subroutine matrix_setup_elim
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, kbdim
         pustarm(jl) = 0._wp
@@ -1129,8 +1142,9 @@ CONTAINS
       !$ACC END PARALLEL
 
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
+        !NEC$ ivdep
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
           pustarm(js) = pustarm(js) + pfrc(js,jsfc)*zustar(js,jsfc)
@@ -1142,7 +1156,7 @@ CONTAINS
 
     ELSE ! Surface momentum flux is off. Friction velocity is by definition zero.
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = 1, kproma
@@ -1152,7 +1166,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, kproma
         pustarm(jl) = 0._wp
@@ -1168,7 +1182,7 @@ CONTAINS
     !---------------------------------------------------
     ! The exchange coefficient of TTE is set to the same value as for momentum
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       pcftotte_sfc(jl) = pcfm_gbm(jl)
@@ -1177,7 +1191,7 @@ CONTAINS
 
     ! TTE at the surface
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       ptottevn_sfc(jl) = 0._wp
@@ -1185,8 +1199,9 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
+      !NEC$ ivdep
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
 
@@ -1203,7 +1218,7 @@ CONTAINS
       !$ACC END PARALLEL
     END DO
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       ptottevn_sfc(jl) = MAX( totte_min,ptottevn_sfc(jl) )
@@ -1220,7 +1235,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       jtottevn_sfc(jl) = 0._wp
@@ -1229,8 +1244,9 @@ CONTAINS
 
     IF ( isrfc_type == 1 ) THEN
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
+        !NEC$ ivdep
         DO jls = 1,is(jsfc)
           js=loidx(jls,jsfc)
 
@@ -1253,4 +1269,4 @@ CONTAINS
   END SUBROUTINE sfc_exchange_coeff
   !-------------
 
-END MODULE mo_turbulence_diag
+END MODULE mo_turb_vdiff_diag

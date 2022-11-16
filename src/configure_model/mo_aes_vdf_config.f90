@@ -6,11 +6,12 @@
 !!
 !! @par Revision History
 !! First version by Marco Giorgetta, MPI-M (2017-04)
+!! Exracted VDIFF into separate module by Roland Wirth, DWD (2021-07)
 !!
 !! Based on earlier codes of:
 !!     ...
 !!
-!! References: 
+!! References:
 !!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
 !!           Performance of an eddy diffusivity- mass flux scheme for shallow cumulus boundary layers.
 !!           Monthly Weather Review, 138(7), 2895–2912. https://doi.org/10.1175/2010MWR3142.1
@@ -28,9 +29,11 @@
 !!
 MODULE mo_aes_vdf_config
 
-  USE mo_exception            ,ONLY: finish, message, print_value
-  USE mo_kind                 ,ONLY: wp
+  USE mo_turb_vdiff_config    ,ONLY: t_vdiff_config, vdiff_config_init, &
+    vdiff_config_update, vdiff_config_check
   USE mo_impl_constants       ,ONLY: max_dom
+  USE mo_grid_config          ,ONLY: n_dom
+  USE mo_exception,            ONLY: message, print_value
 
   IMPLICIT NONE
 
@@ -48,103 +51,29 @@ MODULE mo_aes_vdf_config
   !! Name of this unit
   !!
   CHARACTER(LEN=*), PARAMETER :: name = 'aes_vdf'
-  
-  !>
-  !! Configuration type containing parameters and switches for the configuration of the AES physics package
-  !!
-  TYPE t_aes_vdf_config
-     !
-     ! configuration parameters
-     ! ------------------------
-     !
-     LOGICAL  :: lsfc_mom_flux   !< switch on/off surface momentum flux
-     LOGICAL  :: lsfc_heat_flux  !< switch on/off surface heat flux (sensible AND latent)
-     !
-     REAL(wp) :: pr0             !< neutral limit Prandtl number, can be varied from about 0.6 to 1.0
-     REAL(wp) :: f_tau0          !< neutral non-dimensional stress factor
-     REAL(wp) :: f_theta0        !< neutral non-dimensional heat flux factor 
-     REAL(wp) :: c_f             !< mixing length: coriolis term tuning parameter
-     REAL(wp) :: c_n             !< mixing length: stability term tuning parameter
-     REAL(wp) :: c_e             !< dissipation coefficient (=f_tau0^(3/2))
-     REAL(wp) :: wmc             !< ratio of typical horizontal velocity to wstar at free convection
-     REAL(wp) :: fsl             !< fraction of first-level height at which surface fluxes
-     !                              are nominally evaluated, tuning param for sfc stress
-     REAL(wp) :: fbl             !< 1/fbl: fraction of BL height at which lmix hat its max
-     REAL(wp) :: lmix_max        !< maximum mixing length in neutral and stable conditions
-     REAL(wp) :: z0m_min         !< 
-     REAL(wp) :: z0m_ice         !< 
-     REAL(wp) :: z0m_oce         !< 
-     !
-     INTEGER :: turb             !< 1: TTE scheme, 2: 3D Smagorinsky
-     REAL(wp) :: smag_constant
-     REAL(wp) :: turb_prandtl
-     REAL(wp) :: rturb_prandtl     !inverse turbulent prandtl number
-     REAL(wp) :: km_min        !min mass weighted turbulent viscosity
-     REAL(wp) :: max_turb_scale !max turbulence length scale
-     REAL(wp) :: min_sfc_wind  !min sfc wind in free convection limit
-     !
-  END TYPE t_aes_vdf_config
 
   !>
   !! Configuration state vectors, for multiple domains/grids.
   !!
-  TYPE(t_aes_vdf_config), TARGET :: aes_vdf_config(max_dom)
-  
+  TYPE(t_vdiff_config), TARGET :: aes_vdf_config(max_dom)
+
 CONTAINS
 
   !----
 
   !>
-  !! Initialize the configuration state vector
+  !! Initialize the global configuration state vector
   !!
   SUBROUTINE init_aes_vdf_config
-    !
-    ! AES VDF configuration
-    ! -----------------------
-    !
-    aes_vdf_config(:)% lsfc_mom_flux  = .TRUE.
-    aes_vdf_config(:)% lsfc_heat_flux = .TRUE.
-    !
-    aes_vdf_config(:)% pr0      =  1.0_wp
-    aes_vdf_config(:)% f_tau0   =  0.17_wp
-    aes_vdf_config(:)% f_theta0 = -SQRT(aes_vdf_config(:)%f_tau0**2/2.0_wp/aes_vdf_config(:)%pr0)
-    aes_vdf_config(:)% c_f      =  0.185_wp
-    aes_vdf_config(:)% c_n      =  2.0_wp
-    aes_vdf_config(:)% c_e      =  SQRT(aes_vdf_config(:)%f_tau0**3)
-    aes_vdf_config(:)% wmc      =  0.5_wp
-    aes_vdf_config(:)% fsl      =  0.4_wp
-    aes_vdf_config(:)% fbl      =  3._wp
-    aes_vdf_config(:)% lmix_max =  150.0_wp
-    aes_vdf_config(:)% z0m_min  =  1.5e-5_wp
-    aes_vdf_config(:)% z0m_ice  =  1.e-3_wp
-    aes_vdf_config(:)% z0m_oce  =  1.e-3_wp
-    aes_vdf_config(:)%turb      =  1
-    aes_vdf_config(:)%smag_constant = 0.23_wp
-    aes_vdf_config(:)%max_turb_scale= 300._wp
-    aes_vdf_config(:)%turb_prandtl  = 0.33333333333_wp
-    aes_vdf_config(:)%rturb_prandtl = 1/aes_vdf_config(:)%turb_prandtl
-    aes_vdf_config(:)%km_min        =  0.001_wp
-    aes_vdf_config(:)%min_sfc_wind  =  1._wp
-    !
+    CALL vdiff_config_init(aes_vdf_config(:))
   END SUBROUTINE init_aes_vdf_config
-
-  !----
 
   !>
   !! Evaluate additional derived parameters
   !!
   SUBROUTINE eval_aes_vdf_config
-    !
-    CHARACTER(LEN=*), PARAMETER :: routine = 'eval_aes_vdf_config'
-    !
-    ! check range of pr0
-    IF ( ANY(aes_vdf_config(:)% pr0 <0.6_wp ) ) CALL message(routine//' WARNING:',' aes_vdf_config(:)% pr0 < 0.6 ')
-    IF ( ANY(aes_vdf_config(:)% pr0 >1.0_wp ) ) CALL message(routine//' WARNING:',' aes_vdf_config(:)% pr0 > 1.0 ')
-    !
-    ! re-compute dependent parameters 
-    aes_vdf_config(:)% f_theta0 = -SQRT(aes_vdf_config(:)%f_tau0**2/2.0_wp/aes_vdf_config(:)%pr0)
-    aes_vdf_config(:)% c_e      =  SQRT(aes_vdf_config(:)%f_tau0**3)
-    !
+    CALL vdiff_config_update(aes_vdf_config(:))
+    CALL vdiff_config_check(aes_vdf_config(:))
   END SUBROUTINE eval_aes_vdf_config
 
   !----

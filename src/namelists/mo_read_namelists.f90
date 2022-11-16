@@ -59,8 +59,11 @@ MODULE mo_read_namelists
   USE mo_turbdiff_nml        ,ONLY: read_turbdiff_namelist
   USE mo_lnd_nwp_nml         ,ONLY: read_nwp_lnd_namelist
   USE mo_art_nml             ,ONLY: read_art_namelist
+
+  USE mo_turb_vdiff_nml      ,ONLY: vdiff_read_namelist
+
   USE mo_2mom_mcrph_nml      ,ONLY: read_2mom_mcrph_namelist
-  
+
   USE mo_initicon_nml        ,ONLY: read_initicon_namelist
   USE mo_nh_testcases_nml    ,ONLY: read_nh_testcase_namelist, nh_test_name
   USE mo_aes_bubble_nml      ,ONLY: process_aes_bubble_nml
@@ -193,6 +196,10 @@ CONTAINS
        CALL read_radiation_namelist      (atm_namelist_filename(1:tlen))
        CALL read_turbdiff_namelist       (atm_namelist_filename(1:tlen))
        CALL read_nwp_lnd_namelist        (atm_namelist_filename(1:tlen))
+
+       CALL vdiff_read_namelist          (atm_namelist_filename(1:tlen))
+       CALL process_ccycle_nml           (atm_namelist_filename(1:tlen))
+
        CALL read_art_namelist            (atm_namelist_filename(1:tlen))
        CALL read_2mom_mcrph_namelist     (atm_namelist_filename(1:tlen))
 #ifndef __NO_ICON_LES__

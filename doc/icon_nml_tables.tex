@@ -7807,6 +7807,135 @@ L& .FALSE.& & Clipping of negative values&
 
 Defined and used in: \verb+src/namelists/mo_advection_nml.f90+
 
+%------------------------------------------------------------------------------
+% turb_vdiff_nml
+%------------------------------------------------------------------------------
+\subsection{turb\_vdiff\_nml}
+
+The parameterization of vertical diffusion (VDIFF) module is configured by a a set of parameters, each of which is a 1-dimensional array extending over all  domains.
+The parameters provide control over some of the parametrized effects (only active when nwp\_phy\_nml\%inwp\_turb = 6):
+
+\begin{longtab}
+\hline
+\hline
+\multicolumn{6}{|l|}{\textbf{General}}
+\tabularnewline
+\hline
+%
+lsfc\_mom\_flux & L & .TRUE. & &
+switch on/off surface momentum flux &
+\tabularnewline
+%
+lsfc\_heat\_flux & L & .TRUE. & &
+switch on/off surface heat flux &
+\tabularnewline
+%
+turb & S & 'tte' & &
+'tte': TTE scheme \\
+'3dsmag': 3D Smagorinsky scheme &
+\tabularnewline
+%
+z0m\_min & R & $1.5\times 10^{-5}$ & m &
+Minimum roughness length for momentum &
+\tabularnewline
+%
+z0m\_ice & R & 0.001 & m &
+Roughness length for momentum over ice &
+\tabularnewline
+%
+z0m\_oce & R & 0.001 & m &
+Roughness length for momentum over ocean &
+\tabularnewline
+%
+fsl & R & 0.4 & &
+fraction of first-level height at which surface fluxes are nominally evaluated, tuning param for sfc stress &
+\tabularnewline
+%
+%
+\hline
+\hline
+\multicolumn{6}{|l|}{\textbf{TTE Scheme}}
+\tabularnewline
+\hline
+%
+pr0 & R & 1.0 & &
+neutral limit Prandtl number, can be varied from about 0.6 to 1.0, fixes f\_theta0 &
+\tabularnewline
+%
+f\_tau0 & R & 0.17 & &
+neutral non-dimensional stress factor (0.1 - 0.22) &
+\tabularnewline
+%
+f\_tau\_limit\_fraction & R & 0.25 & &
+Fraction of f\_tau0 for large Ri numbers (0 - 0.6) &
+\tabularnewline
+%
+f\_theta\_limit\_fraction & R & 0. & &
+Fraction of f\_theta0 for large Ri numbers (0 - 0.3) &
+\tabularnewline
+%
+f\_tau\_decay & R & 4. & &
+Decay constant of f\_tau0 for large Ri numbers (0.5 - 5) &
+\tabularnewline
+%
+f\_theta\_decay & R & 4. & &
+Decay constant of f\_theta0 for large Ri numbers (1 - 10) &
+\tabularnewline
+%
+ek\_ep\_ratio\_stable & R & 3. & &
+Ratio of TKE to TPE for large positive Ri (Mauritsen: $1/(0.3\pm1) - 1$) &
+\tabularnewline
+%
+ek\_ep\_ratio\_unstable & R & 2. & &
+Ratio of TKE to TPE for large negative Ri (Mauritsen: 1) &
+\tabularnewline
+%
+c\_f & R & 0.185 & &
+mixing length: coriolis term tuning parameter &
+\tabularnewline
+%
+c\_n & R & 2.0 & &
+mixing length: stability term tuning parameter &
+\tabularnewline
+%
+wmc & R & 0.5 & &
+ratio of typical horizontal velocity to wstar at free convection &
+\tabularnewline
+%
+fbl & R & 3.0 & &
+1/fbl: fraction of BL height at which lmix hat its max &
+\tabularnewline
+%
+lmix\_max & R & 150 & m &
+maximum mixing length &
+\tabularnewline
+%
+%
+\hline
+\hline
+\multicolumn{6}{|l|}{\textbf{3D Smagorinsky Scheme}}
+\tabularnewline
+\hline
+%
+km\_min & R & 0.001 & Pa s &
+minimum mass weighted turbulent viscosity &
+\tabularnewline
+%
+turb\_prandtl & R & 1/3 & &
+Turbulent Prandtl number &
+\tabularnewline
+%
+min\_sfc\_wind & R & 1. & m/s &
+minimum surface wind speed in free-convection limit &
+\tabularnewline
+\end{longtab}
+
+The limit fractions $L$ and decay constants $D$ for $f_\tau$ and $f_\theta$ are defined with respect to the ansatz
+\begin{equation*}
+  f_\tau(\mathrm{Ri}) = f_\tau(0) \left( L + \frac{1-L}{1 + D \,\mathrm{Ri}}  \right).
+\end{equation*}
+
+Defined and used in: \verb+src/namelists/mo_turb_vdiff_nml.f90+
 
 %------------------------------------------------------------------------------
 % turbdiff_nml:

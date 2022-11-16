@@ -38,10 +38,10 @@ MODULE mo_interface_aes_vdf
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
 
   USE mo_run_config          ,ONLY: iqv, iqc, iqi, iqnc, iqni, iqt, ico2
-  USE mo_vdiff_downward_sweep,ONLY: vdiff_down
-  USE mo_vdiff_upward_sweep  ,ONLY: vdiff_up
-  USE mo_vdiff_solver        ,ONLY: nvar_vdiff, nmatrix, imh, imqv, ih_vdiff=>ih, iqv_vdiff=>iqv
-  
+  USE mo_turb_vdiff          ,ONLY: vdiff_down, vdiff_up, nvar_vdiff, nmatrix, imh, &
+    &                               imqv, ih_vdiff=>ih, iqv_vdiff=>iqv
+  USE mo_turb_vdiff_params   ,ONLY: VDIFF_TURB_3DSMAGORINSKY
+
   USE mo_aes_sfc_indices     ,ONLY: nsfc_type, iwtr, iice, ilnd
   USE mo_surface             ,ONLY: update_surface
   USE mo_surface_diag        ,ONLY: nsurf_diag
@@ -52,7 +52,7 @@ MODULE mo_interface_aes_vdf
   USE mo_impl_constants      ,ONLY: min_rlcell_int, min_rlcell
   USE mo_loopindices         ,ONLY: get_indices_c
   USE mo_nh_testcases_nml    ,ONLY: is_dry_cbl, isrfc_type
-  
+
 
   IMPLICIT NONE
   PRIVATE
@@ -92,7 +92,7 @@ CONTAINS
     REAL(wp) :: zxt_emis(nproma,ntracer-iqt+1,patch%nblks_c)   !< tracer tendency due to surface emission
 
     REAL(wp) :: zcpt_sfc_tile(nproma,patch%nblks_c,nsfc_type)  !< dry static energy at surface
-   
+
     ! Coefficient matrices and right-hand-side vectors for the turbulence solver
     ! _btm refers to the lowest model level (i.e., full level "klev", not the surface)
     REAL(wp) :: ri_tile(nproma,patch%nblks_c,nsfc_type)           !< Richardson number
@@ -198,7 +198,8 @@ CONTAINS
     REAL(wp) :: qni_hori_tend(nproma,patch%nlev,patch%nblks_c)
 
     REAL(wp) :: ufric
-    INTEGER,POINTER :: turb
+
+    INTEGER, POINTER :: turb
 
     IF (ltimer) CALL timer_start(timer_vdf)
 
@@ -216,7 +217,7 @@ CONTAINS
     nlevm1 = nlev-1
     nlevp1 = nlev+1
     ntrac  = ntracer-iqt+1  ! number of tracers excluding water vapour and hydrometeors
- 
+
     nice   = prm_field(jg)%kice
     turb => aes_vdf_config(jg)%turb
 
@@ -284,7 +285,7 @@ CONTAINS
           DO jk = 1,nlev
             DO jl = jcs,jce
               dummy (jl,jk,jb) = 0._wp
-              dummyx(jl,jk,jb) = 0._wp 
+              dummyx(jl,jk,jb) = 0._wp
             END DO
           END DO
           !
@@ -417,16 +418,14 @@ CONTAINS
         !
         !----------------------------------------------------------------------------------------
 
-        CALL vdiff_down(jg,                                &! in
-              &          nproma, patch%nblks_c,             &! in
+        CALL vdiff_down( nproma, patch%nblks_c,             &! in
               &          patch%nblks_v, patch%nblks_e,      &! in
               &          nlev, nlevm1, nlevp1,              &! in
               &          ntrac, nsfc_type,                  &! in
               &          iwtr, iice, ilnd,                  &! in, indices of different surface types
               &          pdtime,                            &! in, time step
               &          field%coriol(:,:),                 &! in, Coriolis parameter
-              ! Smagorinsky 
-              &          turb,                              &! in, 1: TTE, 2: 3D Smagorinsky
+              ! Smagorinsky
               &          patch,                             &! in
               &          l2moment,                          &! in, l2moment switch for horizontal tendencies
               !
@@ -458,6 +457,7 @@ CONTAINS
               &          dummyx(:,:,:),                     &! in
               &                 z0m_tile(:,:,:),            &! in
               &          field% tottem1(:,:,:),             &! in, TTE at step t-dt
+              &          aes_vdf_config(jg),                &! in
               &                 ustar  (:,:),               &! inout
               &                 wstar  (:,:),               &! out, convective velocity scale
               &                 wstar_tile(:,:,:),          &! inout, convective velocity scale (each sfc type)
@@ -768,7 +768,7 @@ CONTAINS
           ENDIF
           !$ACC WAIT
           !
-          CALL vdiff_up(jg, jcs, jce, nproma, nlev, nlevm1,  &! in
+          CALL vdiff_up(jcs, jce, nproma, nlev, nlevm1,  &! in
                &        ntrac, nsfc_type,                &! in
                &        iwtr,                            &! in, indices of different sfc types
                &        pdtime,                          &! in, time steps
@@ -787,6 +787,7 @@ CONTAINS
                &        field% qtrc(:,:,jb,iqt:),        &! in, xtm1
                &        field% geom(:,:,jb),             &! in, pgeom1 = geopotential above ground
                &             ztottevn(:,:,jb),           &! in, TTE at intermediate time step
+               &        aes_vdf_config(jg),              &! in
                &        zbb(:,:,:,jb),                   &! inout
                &        zthvvar(:,:,jb),                 &! in
                &        dummyx(:,:,jb),                  &! inout
@@ -801,7 +802,7 @@ CONTAINS
 !               &        tend_qtrc_vdf(:,:,jb,iqt:),     &! out
                &        tend_qtrc_vdf_iqt(:,:,jb,:),     & ! out
                &        field%   z0m   (:,  jb),         &! out, for the next step
-               &        dummy(:,:,jb),                   &! 
+               &        dummy(:,:,jb),                   &!
                &        field%      totte(:,:,jb)        )! out
 !!$               &        field%      totte(:,:,jb),       &! out
 !!$               &        field%   sh_vdiff(:,  jb),       &! out, for energy diagnostic
@@ -811,10 +812,10 @@ CONTAINS
           ! DA: vdiff_up has its own ACC WAIT due to automatic arrays in ACC data sections in vdiff_tendencies
           !----------------------------------------------------------------------------------------
 
-          IF ( turb == 2 ) THEN ! Smagorinksy
+          IF ( turb == VDIFF_TURB_3DSMAGORINSKY ) THEN ! Smagorinksy
             !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
             DO jk = 1,nlev
-              DO jl = jcs, jce 
+              DO jl = jcs, jce
                 tend_ua_vdf(jl,jk,jb) = tend_ua_vdf(jl,jk,jb) + ddt_u(jl,jk,jb)
                 tend_va_vdf(jl,jk,jb) = tend_va_vdf(jl,jk,jb) + ddt_v(jl,jk,jb)
               END DO
@@ -907,7 +908,7 @@ CONTAINS
                   !$ACC LOOP SEQ
                   DO jt = iqt,ntracer
                     !iqt is the index of the first non-water tracer
-                    tend% qtrc_vdf(jl,jk,jb,jt) = tend_qtrc_vdf(jl,jk,jb,jt) 
+                    tend% qtrc_vdf(jl,jk,jb,jt) = tend_qtrc_vdf(jl,jk,jb,jt)
                   END DO
                 END DO
               END DO
@@ -1093,7 +1094,7 @@ CONTAINS
         END DO
         !
         ! for Smagorinsky
-        IF ( turb == 2 ) THEN
+        IF ( turb == VDIFF_TURB_3DSMAGORINSKY ) THEN
           !$ACC PARALLEL LOOP DEFAULT(NONE) PRESENT(tend_qtrc_vdf) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO jk = 1,nlev
             DO jl = jcs, jce
@@ -1133,7 +1134,7 @@ CONTAINS
             END DO
           END DO
         END IF
-        IF (ASSOCIATED(field% q_phy_vi)) THEN 
+        IF (ASSOCIATED(field% q_phy_vi)) THEN
           !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
           DO jl = jcs, jce
             field% q_phy_vi(jl, jb) = field% q_phy_vi(jl, jb) + SUM(q_vdf(jl,:,jb))
@@ -1239,7 +1240,7 @@ CONTAINS
                   tend% qtrc_phy(jl,jk,jb,iqi)  = 0._wp
                 END DO
               END DO
-            END IF 
+            END IF
             !
             ! diagnostic
             ! 2-tl-scheme
@@ -1264,7 +1265,7 @@ CONTAINS
               !
               field% albvisdir (jl,jb)   = albvisdir (jl,jb)
               field% albnirdir (jl,jb)   = albnirdir (jl,jb)
-              field% albvisdif (jl,jb)   = albvisdif (jl,jb) 
+              field% albvisdif (jl,jb)   = albvisdif (jl,jb)
               field% albnirdif (jl,jb)   = albnirdif (jl,jb)
               field% albedo    (jl,jb)   = albedo    (jl,jb)
             END DO
@@ -1406,7 +1407,7 @@ CONTAINS
             &          zbhn_tile(:,jb,:),               &! in for diagnostic
             &          zbh_tile(:,jb,:),                &! in for diagnostic
             &          zbm_tile(:,jb,:),                &! in for diagnostic
-            &          ri_tile(:,jb,:),                 &! in 
+            &          ri_tile(:,jb,:),                 &! in
             &          field%sfcWind(:,  jb),           &! out 10m windspeed
             &          field%    tas(:,  jb),           &! out temperature in 2m
             &          field%   dew2(:,  jb),           &! out dew point temperature in 2m
@@ -1452,7 +1453,7 @@ CONTAINS
           DO jl = jcs,jce
             field% wstar(jl,jb) = 0.0_wp
           END DO
-        END IF        
+        END IF
         IF (ASSOCIATED(field% hdtcbl  )) THEN
           !$ACC LOOP GANG VECTOR
           DO jl = jcs,jce
@@ -1619,7 +1620,7 @@ CONTAINS
             field% albedo_tile    (jl,jb,jsfc) = 0.0_wp
             field% co2_flux_tile  (jl,jb,jsfc) = 0.0_wp
           END DO
-        END DO        
+        END DO
         !
         !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO jice=1,nice
@@ -1722,7 +1723,7 @@ CONTAINS
       !
       ENDDO !## jb loop5 END
 !$OMP END PARALLEL DO
-    !  
+    !
     END IF ! if ( is_in_sd_ed_interval )
 
     !$ACC WAIT

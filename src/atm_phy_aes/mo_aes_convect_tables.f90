@@ -912,12 +912,11 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 
   END SUBROUTINE prepare_ua_index_spline
   !----------------------------------------------------------------------------
-  SUBROUTINE prepare_ua_index_spline_batch(jg, name, jcs, jce, batch_size,            &
+  SUBROUTINE prepare_ua_index_spline_batch(name, jcs, jce, batch_size,                &
     &                                      temp, idx, zalpha,                         &
     &                                      xi, nphase, zphase, iphase,                &
     &                                      kblock, kblock_size, opt_need_host_nphase, &
-    &                                      opt_sanitize_index)
-    INTEGER,            INTENT(in)    :: jg
+    &                                      opt_sanitize_index, csecfrl, cthomi)
     CHARACTER(len=*),   INTENT(in)    :: name
     INTEGER,            INTENT(in)    :: jcs, jce, batch_size ! start and end index of block
     REAL(wp),           INTENT(in)    :: temp(:,:)
@@ -933,6 +932,9 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     INTEGER,  OPTIONAL, INTENT(inout) :: iphase(:,:)
 
     LOGICAL,  OPTIONAL, INTENT(in)  :: opt_need_host_nphase, opt_sanitize_index
+    REAL(wp), INTENT(IN) :: csecfrl ! [kg/kg]  minimum in-cloud water mass mixing ratio in mixed phase clouds
+    REAL(wp), INTENT(IN) :: cthomi ! [K]      maximum temperature for homogeneous freezing
+
     LOGICAL :: sanitize_index
 
     REAL(wp) :: ztt, ztshft, ztmin,ztmax,znphase(batch_size),ztest,myznphase
@@ -940,14 +942,9 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     INTEGER :: zoutofbounds_vec(batch_size)
     INTEGER, PARAMETER :: tile_size = 1024
 
-    ! Shortcuts to components of aes_cop_config
-    !
-    REAL(wp) :: csecfrl, cthomi
     !
     !$ACC DATA PRESENT(temp, idx, zalpha)
     !
-    csecfrl = aes_cop_config(jg)%csecfrl
-    cthomi  = aes_cop_config(jg)%cthomi
 
     zoutofbounds = 0
     ztmin = flucupmin
@@ -1028,7 +1025,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 
       !$ACC WAIT
       !$ACC END DATA
-      
+
     ELSE
 
       IF (sanitize_index) THEN
