@@ -1885,7 +1885,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE nwp_opt_diagnostics_2(p_patch, p_metrics, p_prog, p_prog_rcf, p_diag, &
-             &                     prm_diag, cosmu0, p_sim_time, dt_phy)
+             &                     prm_diag, cosmu0, p_sim_time, dt_phy, lacc)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch         !< current patch
     TYPE(t_nh_metrics),    INTENT(IN)    :: p_metrics       !< in
@@ -1897,12 +1897,17 @@ CONTAINS
     REAL(wp),              INTENT(IN)    :: cosmu0(:,:)     !< Cosine of solar zenith angle
     REAL(wp),              INTENT(IN)    :: p_sim_time      !< elapsed simulation time on this grid level
     REAL(wp),              INTENT(IN)    :: dt_phy          !< time interval for fast physics
-
+    LOGICAL,    OPTIONAL,  INTENT(IN)    :: lacc            !< initialization flag
     ! Local variables
     INTEGER                                     :: jg
     LOGICAL                                     :: l_present_dursun_m, l_present_dursun_r
     REAL(wp), DIMENSION(nproma,p_patch%nblks_c) :: twater
+    LOGICAL :: lzacc             ! OpenACC flag 
+    CALL set_acc_host_or_device(lzacc, lacc)
 
+    !$ACC DATA &
+    !$ACC   CREATE(twater) &
+    !$ACC   IF(lzacc)
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
     
     l_present_dursun_m = .FALSE.
@@ -1914,7 +1919,7 @@ CONTAINS
 
     IF (var_in_output(jg)%dursun .AND. (p_sim_time > 0._wp) ) THEN
       IF (l_present_dursun_m .OR. l_present_dursun_r) THEN
-        CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater)
+        CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater, lacc=lzacc)
       ENDIF
       IF (itype_dursun == 0) THEN
         ! WMO sunshine duration is an accumulative value like precipitation or runoff
@@ -1924,7 +1929,7 @@ CONTAINS
              &                    120.0_wp, 0.01_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
              &                    prm_diag%flxdwswtoa(:,:),                 &
-             &                    p_diag%pres(:,p_patch%nlev,:), twater     )
+             &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSEIF (itype_dursun == 1) THEN
         ! MeteoSwiss sunshine duration with a 200 W/m² threshold
         CALL compute_field_dursun(p_patch, dt_phy, prm_diag%dursun,         &
@@ -1933,14 +1938,14 @@ CONTAINS
              &                    200.0_wp, 60.0_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
              &                    prm_diag%flxdwswtoa(:,:),                 &
-             &                    p_diag%pres(:,p_patch%nlev,:), twater     )
+             &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSE
         CALL finish('nwp_opt_diagnostics_2', 'itype_dursun can only have the value 0 or 1.')
       ENDIF
     ENDIF
 
     IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
-
+    !$ACC END DATA
   END SUBROUTINE nwp_opt_diagnostics_2
 
   !-------------------------------------------------------------------------

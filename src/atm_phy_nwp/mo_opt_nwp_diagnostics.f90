@@ -40,7 +40,8 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE mo_exception,             ONLY: finish, message
-  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only
+  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
+    &                                 init
   USE mo_impl_constants,        ONLY: min_rlcell_int, min_rledge_int, &
     &                                 min_rlcell, grf_bdywidth_c
   USE mo_impl_constants_grf,    ONLY: grf_bdyintp_start_c,  &
@@ -83,7 +84,7 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_mpi,                     ONLY: get_my_mpi_work_comm_size
   USE gscp_data,                  ONLY: isnow_n0temp
 #endif
-  
+
   IMPLICIT NONE
 
   PRIVATE
@@ -1743,7 +1744,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_twater( ptr_patch, jg,      &
                                    p_metrics, p_prog, p_prog_rcf,  &
-                                   twater )
+                                   twater, lacc )
 
     IMPLICIT NONE
 
@@ -1753,14 +1754,26 @@ CONTAINS
     TYPE(t_nh_prog),      INTENT(IN)  :: p_prog, p_prog_rcf
 
     REAL(wp),             INTENT(OUT) :: twater(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc           !< initialization flag
+    
+    ! Local arrays
+    !-------------
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
 
     REAL(wp) :: q_water( nproma, ptr_patch%nlev )
+    LOGICAL :: lzacc             ! OpenACC flag 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(atm_phy_nwp_config(jg:jg), kstart_moist(jg:jg), ptr_patch) &
+    !$ACC   PRESENT(p_prog_rcf%tracer, p_prog_rcf%tracer_ptr) &
+    !$ACC   PRESENT(p_prog%rho, p_metrics%ddqz_z_full, twater) &
+    !$ACC   CREATE(q_water) &
+    !$ACC   IF(lzacc)
 
+    
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -1768,76 +1781,95 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
-    twater( :, 1:i_startblk-1 ) = 0.0_wp
 
 !$OMP PARALLEL
+    CALL init(twater)
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,q_water), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, ptr_patch%nlev
         DO jc = i_startidx, i_endidx
           q_water(jc,jk) = p_prog_rcf%tracer(jc,jk,jb,iqv)   &
             &            + p_prog_rcf%tracer(jc,jk,jb,iqc)
         END DO
       END DO
+      !$ACC END PARALLEL
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqi)%p_3d ) ) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqi)
           END DO
         END DO
+        !$ACC END PARALLEL
       END IF
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqr)%p_3d ) ) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqr)
           END DO
         END DO
+        !$ACC END PARALLEL
       END IF
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqs)%p_3d ) ) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqs)
           END DO
         END DO
+        !$ACC END PARALLEL
       END IF
 
       IF ( atm_phy_nwp_config(jg)%lhave_graupel ) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqg)
           END DO
         END DO
+        !$ACC END PARALLEL
       END IF
 
       IF ( atm_phy_nwp_config(jg)%l2moment ) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqh)
           END DO
         END DO
+        !$ACC END PARALLEL
       END IF
 
       ! calculate vertically integrated mass
-
-      twater(:, jb) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           twater(jc,jb) = twater(jc,jb)       &
             &            + p_prog%rho(jc,jk,jb) * q_water(jc,jk) * p_metrics%ddqz_z_full(jc,jk,jb)
         END DO
       END DO
-
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_twater
 
 
@@ -4027,7 +4059,7 @@ CONTAINS
   SUBROUTINE compute_field_dursun( pt_patch, dt_phy, dursun,                    &
     &                              swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff,   &
     &                              cosmu0, dursun_thresh, dursun_thresh_width,  &
-    &                              dursun_m, dursun_r, pi0, pres, twater)
+    &                              dursun_m, dursun_r, pi0, pres, twater, lacc)
 
     TYPE(t_patch),      INTENT(IN)    :: pt_patch              !< patch on which computation is performed
     REAL(wp),           INTENT(IN)    :: dt_phy                !< time interval for fast physics
@@ -4043,6 +4075,7 @@ CONTAINS
     REAL(wp), INTENT(IN), OPTIONAL    :: pi0(:,:)              !< local solar incoming flux at TOA [W/m2]
     REAL(wp), INTENT(IN), OPTIONAL    :: pres(:,:)             !< pressure
     REAL(wp), INTENT(IN), OPTIONAL    :: twater(:,:)           !< total column water
+    LOGICAL,  INTENT(IN), OPTIONAL    :: lacc                  !< initialization flag
 
     ! Use a minimum value to avoid div0: The exact value does not make a difference
     ! as the dursun_thresh [W/m2] will not be hit for such small values anyway.
@@ -4056,6 +4089,12 @@ CONTAINS
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
     INTEGER  :: jb, jc
+    LOGICAL  :: lzacc             ! OpenACC flag 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(cosmu0, dursun, dursun_m, dursun_r, pi0, pres, pt_patch) &
+    !$ACC   PRESENT(swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff, twater) &
+    !$ACC   IF(lzacc)
 
     l_present_dursun_m = .FALSE.
     l_present_dursun_r = .FALSE.
@@ -4075,7 +4114,8 @@ CONTAINS
 
       CALL get_indices_c( pt_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(sun_el, swrad_dir, theta_sun, xval, zsct)
       DO jc = i_startidx, i_endidx
         IF(cosmu0(jc,jb)>cosmu0_dark) THEN
 
@@ -4129,11 +4169,12 @@ CONTAINS
           dursun_r(jc,jb) = MIN(100.0_wp, MAX(0.0_wp, dursun_r(jc,jb)))
         ENDIF
 
-      END DO
-    END DO
+      END DO ! jc loop
+      !$ACC END PARALLEL
+    END DO ! jb loop
+    !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
   END SUBROUTINE compute_field_dursun
 
   !>

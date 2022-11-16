@@ -351,7 +351,7 @@ CONTAINS
 
 
     !$ACC DATA CREATE(zddt_v_raylfric, zddt_u_raylfric, sqrt_ri, z_ddt_temp, z_ddt_alpha, z_ddt_v_tot) &
-    !$ACC   CREATE(z_ddt_u_tot, z_exner_sv, z_qsum) IF(lzacc)
+    !$ACC   CREATE(zcosmu0, z_ddt_u_tot, z_exner_sv, z_qsum) IF(lzacc)
     !$ACC DATA COPYIN(dt_phy_jg)
 
     IF ( lcall_phy_jg(itturb) .OR. lcall_phy_jg(itconv) .OR.           &
@@ -1321,7 +1321,7 @@ CONTAINS
 
 
     IF ( lcall_phy_jg(itradheat) ) THEN
-      !$ACC DATA CREATE(zcosmu0, cosmu0_slope) IF(lzacc)
+      !$ACC DATA CREATE(cosmu0_slope) IF(lzacc)
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radheat", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
 
       IF (msg_level >= 15) &
@@ -1546,7 +1546,7 @@ CONTAINS
 
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radheat", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 
-    !$ACC END DATA ! CREATE(zcosmu0, cosmu0_slope)
+    !$ACC END DATA ! CREATE(cosmu0_slope)
 
       IF (timers_level > 2) CALL timer_stop(timer_radheat)
 
@@ -2320,8 +2320,7 @@ CONTAINS
 #endif
       CALL nwp_diag_output_2(pt_patch, pt_prog_rcf, prm_nwp_tend)
     ENDIF
-
-
+    
     CALL nwp_opt_diagnostics_2(pt_patch,             & !in
       &                        p_metrics,            & !in
       &                        pt_prog, pt_prog_rcf, & !in
@@ -2329,8 +2328,8 @@ CONTAINS
       &                        prm_diag,             & !inout
       &                        zcosmu0,              & !in
       &                        p_sim_time,           & !in
-      &                        dt_phy_jg(itfastphy))   !in
-
+      &                        dt_phy_jg(itfastphy), & !in
+      &                        lacc=lzacc             )
 
     ! time averages, accumulations and vertical integrals
     CALL nwp_statistics(lcall_phy_jg,                    & !in

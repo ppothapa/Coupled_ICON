@@ -4277,7 +4277,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_TWATER, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_TWATER, lrestart=.FALSE.,     &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%twater)
     END IF
 
     IF (var_in_output%q_sedim) THEN
@@ -4649,7 +4651,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE. )
+        __acc_attach(diag%dursun_m)
       ! &      diag%dursun_r(nproma,nblks_c)
       cf_desc    = t_cf_var('relative_duration_of_sunshine', '%', 'relative duration of sunshine', datatype_flt)
       grib2_desc = grib2_var(0, 6, 206, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -4658,7 +4662,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE.)
+        __acc_attach(diag%dursun_r)
     END IF
     IF (var_in_output%dursun) THEN
       ! &      diag%dursun(nproma,nblks_c)
@@ -4669,7 +4675,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE.)
+        __acc_attach(diag%dursun)
     END IF
 
 

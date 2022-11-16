@@ -1427,7 +1427,7 @@ CONTAINS
     CASE (TASK_COMPUTE_TWATER)
       CALL compute_field_twater( p_patch, jg,                                        &
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_prog_rcf,            &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_Q_SEDIM)
       CALL compute_field_q_sedim( p_patch, jg, p_prog,                               &
