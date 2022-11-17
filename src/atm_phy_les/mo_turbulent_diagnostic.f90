@@ -892,7 +892,7 @@ CONTAINS
      !Calculate time mean
      ub = MERGE(nlev, nlev+1, is_at_full_level(n))
      prm_diag%turb_diag_1dvar(1:ub,n) = prm_diag%turb_diag_1dvar(1:ub,n) &
-                                        + outvar(1:ub)
+                     + outvar(1:ub)*(les_config(jg)%sampl_freq_sec/les_config(jg)%avg_interval_sec)
 
     END DO !nvar
 
@@ -990,20 +990,15 @@ CONTAINS
   !!
   !! @par Revision History
   !!
-  SUBROUTINE write_vertical_profiles(outvar, this_datetime, ncount)
+  SUBROUTINE write_vertical_profiles(outvar, this_datetime)
     REAL(wp),                INTENT(IN)  :: outvar(:,:)
     TYPE(datetime), POINTER, INTENT(IN)  :: this_datetime
-    INTEGER,                 INTENT(IN)  :: ncount
 
     INTEGER                  :: nvar, n
-    REAL(wp)                 :: inv_ncount
     REAL(wp)                 :: sim_time     !< elapsed simulation time on this grid level
 
     ! calculate elapsed simulation time in seconds
     sim_time = getElapsedSimTimeInSeconds(this_datetime, anchor_datetime=time_config%tc_exp_startdate)
-
-    !Write profiles
-    inv_ncount = 1._wp / REAL(ncount,wp)
 
     nvar = SIZE(turb_profile_list,1)
 
@@ -1015,7 +1010,7 @@ CONTAINS
 
       DO n = 1 , nvar       
        CALL writevar_nc(fileid_profile, TRIM(turb_profile_list(n)),  &
-                        outvar(:,n)*inv_ncount, nrec_profile) 
+                        outvar(:,n), nrec_profile) 
       END DO
 
     END IF

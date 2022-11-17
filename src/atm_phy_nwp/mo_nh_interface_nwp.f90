@@ -51,7 +51,7 @@ MODULE mo_nh_interface_nwp
   USE mo_impl_constants,          ONLY: itconv, itccov, itrad, itgscp,                        &
     &                                   itsatad, itturb, itsfc, itradheat,                    &
     &                                   itsso, itgwd, itfastphy, icosmo, igme, iedmf,         &
-    &                                   min_rlcell_int, min_rledge_int, min_rlcell
+    &                                   min_rlcell_int, min_rledge_int, min_rlcell, ismag, iprog
   USE mo_impl_constants_grf,      ONLY: grf_bdywidth_c, grf_bdywidth_e
   USE mo_loopindices,             ONLY: get_indices_c, get_indices_e
   USE mo_intp_rbf,                ONLY: rbf_vec_interpol_cell
@@ -108,6 +108,8 @@ MODULE mo_nh_interface_nwp
   USE mo_ls_forcing_nml,          ONLY: is_ls_forcing, is_nudging_uv, is_nudging_tq, is_sim_rad, &
     &                                   nudge_start_height, nudge_full_height, dt_relax
   USE mo_ls_forcing,              ONLY: apply_ls_forcing
+  USE mo_les_turb_interface,      ONLY: les_turbulence
+  USE mo_les_config,              ONLY: les_config
 #endif
   USE mo_sim_rad,                 ONLY: sim_rad
   USE mo_advection_config,        ONLY: advection_config
@@ -644,7 +646,6 @@ CONTAINS
       IF (timers_level > 1) CALL timer_stop(timer_nwp_turbulence)
     ENDIF !lcall(itturb)
 
-
     !For turbulence schemes NOT including the call to the surface scheme.
     !nwp_surface must even be called in inwp_surface = 0 because the
     !the lower boundary conditions for the turbulence scheme
@@ -654,9 +655,10 @@ CONTAINS
     IF ( l_any_fastphys .AND. ( ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) &
                   & .OR. ( edmf_conf==2  .AND. iedmf==atm_phy_nwp_config(jg)%inwp_turb ) ) ) THEN
 #else
-    IF ( l_any_fastphys .AND. ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN 
+    IF ( l_any_fastphys .AND. ANY( (/icosmo,igme,ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN 
 #endif
       IF (timers_level > 2) CALL timer_start(timer_nwp_surface)
+
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
 
        !> as pressure is needed only for an approximate adiabatic extrapolation
@@ -703,6 +705,36 @@ CONTAINS
                             & lacc=lzacc                        ) !>in
 
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "turbdiff", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
+
+#ifndef __NO_ICON_LES__
+      CASE(ismag,iprog)
+
+#ifdef _OPENACC
+          CALL finish ('mo_nh_interface_nwp:', 'les_turbulence: OpenACC version currently not implemented')
+#endif
+      !----------------------------------------------------------------------------------
+      !>  Additional syns required for 3D turbulence.
+      !----------------------------------------------------------------------------------
+      IF(diffusion_config(jg)%lhdiff_w .AND. lhdiff_rcf) CALL sync_patch_array(SYNC_C, pt_patch, pt_prog%w)
+
+      ntracer_sync = iqc
+      CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+5, pt_diag%temp, pt_diag%tempv, &
+                                 pt_prog%exner, pt_diag%u, pt_diag%v, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync)) 
+
+      CALL les_turbulence (  dt_phy_jg(itfastphy),              & !>in
+                            & p_sim_time,                       & !>in 
+                            & pt_patch, p_metrics,              & !>in
+                            & pt_int_state,                     & !>in
+                            & pt_prog,                          & !>in
+                            & pt_prog_now_rcf,                  & !>inout                            
+                            & pt_prog_rcf,                      & !>inout
+                            & pt_diag ,                         & !>inout
+                            & prm_diag,prm_nwp_tend,            & !>inout
+                            & lnd_prog_now,                     & !>in
+                            & lnd_prog_new,                     & !>inout ONLY for idealized LES
+                            & lnd_diag                          ) !>in
+
+#endif
       CASE DEFAULT
 
         CALL finish('mo_nh_interface_nwp:','unknown choice of turbulence scheme')
@@ -1065,7 +1097,8 @@ CONTAINS
 !$OMP END PARALLEL
 
     IF (timers_level > 1) CALL timer_stop(timer_fast_phys)
-    IF ( (lcall_phy_jg(itturb) .OR. linit) .AND. ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN
+    IF ( (lcall_phy_jg(itturb) .OR. linit) .AND. ( ANY((/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb) .OR. &
+         (ANY((/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb) .AND. (les_config(jg)%isrfc_type==1)) ) ) THEN
 
       IF (timers_level > 1) CALL timer_start(timer_nwp_turbulence)
 
@@ -1088,6 +1121,7 @@ CONTAINS
 
 
       IF (timers_level > 1) CALL timer_stop(timer_nwp_turbulence)
+ 
     ENDIF !lcall(itturb)
 
 
@@ -1212,6 +1246,7 @@ CONTAINS
           qtvar(:,:) = pt_prog_rcf%tracer(:,:,jb,iqtvar)        ! EDMF DUALM
         ENDIF ! since qtvar is never used in other turb schemes, we can leave it uninitialized
 
+
         CALL cover_koe &
 &             (kidia  = i_startidx ,   kfdia  = i_endidx  ,       & !! in:  horizonal begin, end indices
 &              klon = nproma,  kstart = kstart_moist(jg)  ,       & !! in:  horiz. and vert. vector length
@@ -1259,7 +1294,6 @@ CONTAINS
       IF (timers_level > 2) CALL timer_stop(timer_cover_koe)
 
     ENDIF! cloud cover
-
 
 
     !-------------------------------------------------------------------------
@@ -1737,6 +1771,9 @@ CONTAINS
 
       IF (timers_level > 10) CALL timer_start(timer_phys_acc_1)
 
+      IF (msg_level >= 15) &
+        &  CALL message('mo_nh_interface:', 'accumulate slow phys')
+
       ! Coefficients for extra Rayleigh friction
       ustart    = atm_phy_nwp_config(jg)%ustart_raylfric
       uoffset_q = ustart + 40._wp
@@ -1979,8 +2016,6 @@ CONTAINS
 
         ENDIF ! END of LS forcing tendency accumulation
 #endif
-
-
 
         ! combine convective and EDMF rain and snow
         IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN

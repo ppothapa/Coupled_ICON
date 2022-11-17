@@ -5230,9 +5230,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE. )
     __acc_attach(phy_tend%ddt_temp_clcov)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     cf_desc    = t_cf_var('ddt_temp_drag', 'K s-1', &
            &                'sso + gwdrag temperature tendency', datatype_flt)
     grib2_desc = grib2_var(192, 162, 125, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -5257,9 +5254,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & ldims=shape3d, in_group=groups("phys_tendencies"),            &
                   & lopenacc=.TRUE. )
                   __acc_attach(phy_tend%ddt_temp_pconv)
-#ifndef __NO_ICON_LES__
-    ENDIF
-#endif
 
 #ifndef __NO_ICON_LES__
     IF (atm_phy_nwp_config(k_jg)%is_les_phy .OR. &
@@ -5298,9 +5292,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE.)
     __acc_attach(phy_tend%ddt_u_turb)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     ! &      phy_tend%ddt_u_sso(nproma,nlev,nblks)
     cf_desc    = t_cf_var('ddt_u_sso', 'm s-2', &
             &                            'sso tendency of zonal wind', datatype_flt)
@@ -5340,9 +5331,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                    & lopenacc=.TRUE. )
        __acc_attach(phy_tend%ddt_u_pconv)
 
-#ifndef __NO_ICON_LES__
-    END IF
-#endif
 
     !------------------------------
     ! Meridional Wind tendencies
@@ -5361,9 +5349,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE.)
     __acc_attach(phy_tend%ddt_v_turb)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     ! &      phy_tend%ddt_v_sso(nproma,nlev,nblks)
     cf_desc    = t_cf_var('ddt_v_sso', 'm s-2', &
            &                            'sso tendency of meridional wind', datatype_flt)
@@ -5404,8 +5389,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_v_pconv)
 
 #ifndef __NO_ICON_LES__
-    END IF
-
     !------------------------------
     ! Vertical Wind tendencies
     !------------------------------
@@ -5497,9 +5480,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
 
     ! --- Convection moist tracer tendencies
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     cf_desc    = t_cf_var('ddt_tracer_pconv', 'kg m-3 s-1', &
            &                            'convective tendency of tracers', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -5585,10 +5565,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & advconf=advection_config(k_jg), phy_tend=phy_tend, &
                   & ldims=shape3d)
     ENDIF
-#endif
-
-#ifndef __NO_ICON_LES__
-    END IF !.not.is_les_phy
 #endif
 
     ! --- Microphysics moist tracer tendencies
@@ -5720,9 +5696,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     ! TKE tendency
     !------------------------------
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     !      phy_tend%ddt_tke(nproma,nlevp1,nblks)
     cf_desc    = t_cf_var('ddt_tke', 'm s-2'          , &
            &                'tendency of turbulent velocity scale', datatype_flt)
@@ -5770,7 +5743,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_tke_hsh)
 
 #ifndef __NO_ICON_LES__
-    END IF
  
    !Anurag Dipankar, MPIM (2013-May-31)
    !Large-scale tendencies for idealized testcases: add_var doesn't work

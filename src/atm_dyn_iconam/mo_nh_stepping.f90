@@ -115,7 +115,7 @@ MODULE mo_nh_stepping
     &                                    MODE_IAU, MODE_IAU_OLD, SSTICE_CLIM,                  &
     &                                    MODE_IFSANA,MODE_COMBINED,MODE_COSMO,MODE_ICONVREMAP, &
     &                                    SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, SSTICE_INST,    &
-    &                                    max_dom, min_rlcell, min_rlvert
+    &                                    max_dom, min_rlcell, min_rlvert, ismag, iprog
   USE mo_math_divrot,              ONLY: rot_vertex, div_avg !, div
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
@@ -179,10 +179,10 @@ MODULE mo_nh_stepping
   USE mo_synsat_config,            ONLY: lsynsat
   USE mo_rttov_interface,          ONLY: rttov_driver, copy_rttov_ubc
 #ifndef __NO_ICON_LES__
-  USE mo_interface_les,            ONLY: les_phy_interface
+  USE mo_les_config,               ONLY: les_config
   USE mo_turbulent_diagnostic,     ONLY: calculate_turbulent_diagnostics, &
                                          write_vertical_profiles, write_time_series, &
-                                         sampl_freq_step, les_cloud_diag  
+                                         les_cloud_diag  
 #endif
   USE mo_restart,                  ONLY: t_RestartDescriptor, createRestartDescriptor, deleteRestartDescriptor
   USE mo_restart_util,             ONLY: check_for_checkpoint
@@ -513,9 +513,7 @@ MODULE mo_nh_stepping
       DO jg = 1, n_dom
 
         IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-#ifndef __NO_ICON_LES__
-        IF(.NOT.atm_phy_nwp_config(jg)%is_les_phy) THEN
-#endif
+
           ! diagnostics which are only required for output
         CALL nwp_diag_for_output(mtime_current, kstart_moist(jg),             & !in
                &                      ih_clch(jg), ih_clcm(jg),               & !in
@@ -532,9 +530,9 @@ MODULE mo_nh_stepping
                &                      prm_diag(jg),                           & !inout
                &                      lacc=.TRUE.                             ) !in
 
-#ifndef __NO_ICON_LES__
-        ELSE !is_les_phy
 
+#ifndef __NO_ICON_LES__
+        IF( ANY( (/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb) ) THEN
            !LES specific diagnostics only for output
            CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
              &                      ih_clch(jg), ih_clcm(jg),               & !in
@@ -546,7 +544,7 @@ MODULE mo_nh_stepping
              &                      p_nh_state(jg)%diag,                    & !in
              &                      prm_diag(jg)                            ) !inout
 
-         END IF!is_les_phy
+         END IF
 #endif
       ENDDO!jg
 
@@ -705,27 +703,6 @@ MODULE mo_nh_stepping
         CALL meteogram_sample_vars(jg, 0, time_config%tc_startdate)
       END IF
     END DO
-#ifndef __NO_ICON_LES__
-    !AD: Also output special diagnostics for LES on torus
-    IF (atm_phy_nwp_config(1)%is_les_phy &
-      .AND. sampl_freq_step>0)THEN
-      CALL calculate_turbulent_diagnostics(                      &
-                             & p_patch(1),                       & !in
-                             & p_nh_state(1)%prog(nnow(1)),      &
-                             & p_nh_state(1)%prog(nnow_rcf(1)),  & !in
-                             & p_nh_state(1)%diag,                   & !in
-                             & p_lnd_state(1)%prog_lnd(nnow_rcf(1)), &
-                             & p_lnd_state(1)%diag_lnd,              &
-                             & prm_nwp_tend(1),                      &
-                             & prm_diag(1)                )     !inout
-
-      !write out time series
-      CALL write_time_series(prm_diag(1)%turb_diag_0dvar, mtime_current)
-      CALL write_vertical_profiles(prm_diag(1)%turb_diag_1dvar, mtime_current, 1)
-      prm_diag(1)%turb_diag_1dvar = 0._wp
-    END IF
-#endif
-
 #ifdef MESSY
     ! MESSy initial output
 !    CALL messy_write_output
@@ -1251,11 +1228,8 @@ MODULE mo_nh_stepping
         CALL aggr_landvars(lacc=.TRUE.)
 
         DO jg = 1, n_dom
-          IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+            IF (.NOT. p_patch(jg)%ldom_active) CYCLE
 
-#ifndef __NO_ICON_LES__
-          IF(.NOT.atm_phy_nwp_config(jg)%is_les_phy) THEN
-#endif
             ! diagnostics which are only required for output
             !$ACC WAIT
             CALL nwp_diag_for_output(mtime_current, kstart_moist(jg),           & !in
@@ -1273,27 +1247,47 @@ MODULE mo_nh_stepping
                  &                      prm_diag(jg),                           & !inout
                  &                      lacc=.TRUE.                             ) !in
 
+
 #ifndef __NO_ICON_LES__
-          ELSE !is_les_phy
-
+            IF(ANY( (/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb).AND.les_config(jg)%ldiag_les_out)THEN
 #ifdef _OPENACC
-            IF (i_am_accel_node) THEN
-              CALL finish ('perform_nh_timeloop', &
-                &  'atm_phy_nwp_config(jg)%is_les_phy: OpenACC version currently not implemented')
-            ENDIF
+              IF (i_am_accel_node) THEN
+                CALL finish ('perform_nh_timeloop', &
+                  &  'LES cloud diagnostics: OpenACC version currently not implemented')
+              ENDIF
 #endif
-            !LES specific diagnostics only for output
-            CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
-              &                      ih_clch(jg), ih_clcm(jg),               & !in
-              &                      phy_params(jg),                         & !in
-              &                      p_patch(jg),                            & !in
-              &                      p_nh_state(jg)%metrics,                 & !in
-              &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  !nnow or nnew?
-              &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  !nnow or nnew?
-              &                      p_nh_state(jg)%diag,                    & !in
-              &                      prm_diag(jg)                            ) !inout
+              !LES specific diagnostics only for output
+              CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
+                &                      ih_clch(jg), ih_clcm(jg),               & !in
+                &                      phy_params(jg),                         & !in
+                &                      p_patch(jg),                            & !in
+                &                      p_nh_state(jg)%metrics,                 & !in
+                &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  
+                &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  
+                &                      p_nh_state(jg)%diag,                    & !in
+                &                      prm_diag(jg)                            ) !inout
 
-          END IF!is_les_phy
+              sim_time = getElapsedSimTimeInSeconds(mtime_current)
+              IF(MOD(sim_time,les_config(jg)%sampl_freq_sec)==0)THEN
+                 CALL calculate_turbulent_diagnostics(                        &
+                                    & p_patch(jg),                            & !in
+                                    & p_nh_state(jg)%prog(nnow(jg)),          & !in
+                                    & p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in
+                                    & p_nh_state(jg)%diag,                    & !in
+                                    & p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), & !in
+                                    & p_lnd_state(jg)%diag_lnd,               & !in
+                                    & prm_nwp_tend(jg),                       & !in
+                                    & prm_diag(jg)               )              !inout
+  
+                 CALL write_time_series(prm_diag(jg)%turb_diag_0dvar, mtime_current)
+              END IF
+
+              IF(MOD(sim_time,les_config(jg)%avg_interval_sec)==0)THEN
+                 CALL write_vertical_profiles(prm_diag(jg)%turb_diag_1dvar, mtime_current)
+                prm_diag(jg)%turb_diag_1dvar = 0._wp
+              END IF
+
+            END IF
 #endif
         ENDDO!jg
 
@@ -2140,40 +2134,6 @@ MODULE mo_nh_stepping
               &                     lcall_phy     = atm_phy_nwp_config(jg)%lcall_phy(:) ) !inout
           END IF
 
-#ifndef __NO_ICON_LES__
-          IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
-
-#ifdef _OPENACC
-            CALL finish (routine, 'les_phy_interface: OpenACC version currently not implemented')
-#endif
-            ! les physics
-            CALL les_phy_interface(atm_phy_nwp_config(jg)%lcall_phy(:), & !in
-              &                  .FALSE.,                            & !in
-              &                  lredgrid_phys(jg),                  & !in
-              &                  dt_loc,                             & !in
-              &                  dt_phy(jg,:),                       & !in
-              &                  nstep_global,                       & !in
-              &                  datetime_local(jg)%ptr,              & !in
-              &                  p_patch(jg)  ,                      & !in
-              &                  p_int_state(jg),                    & !in
-              &                  p_nh_state(jg)%metrics ,            & !in
-              &                  p_patch(jgp),                       & !in
-              &                  ext_data(jg)           ,            & !in
-              &                  p_nh_state(jg)%prog(nnew(jg)) ,     & !inout
-              &                  p_nh_state(jg)%prog(n_now_rcf),     & !inout              
-              &                  p_nh_state(jg)%prog(n_new_rcf) ,    & !inout
-              &                  p_nh_state(jg)%diag ,               & !inout
-              &                  prm_diag  (jg),                     & !inout
-              &                  prm_nwp_tend(jg),                   &
-              &                  p_lnd_state(jg)%diag_lnd,           &
-              &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-              &                  p_lnd_state(jg)%prog_lnd(n_new_rcf),& !inout
-              &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
-              &                  p_lnd_state(jg)%prog_wtr(n_new_rcf) ) !inout
-
-          ELSE ! is_les_phy
-#endif
-             
           SELECT CASE (iforcing)
 
           CASE (inwp) ! iforcing
@@ -2230,9 +2190,6 @@ MODULE mo_nh_stepping
 #endif
           END SELECT ! iforcing
 
-#ifndef __NO_ICON_LES__
-          END IF ! is_les_phy
-#endif
           ! Boundary interpolation of land state variables entering into radiation computation
           ! if a reduced grid is used in the child domain(s)
           IF (ltimer)            CALL timer_start(timer_nesting)
@@ -2919,37 +2876,6 @@ MODULE mo_nh_stepping
       CALL message(routine, message_text)
     ENDIF
    
-#ifndef __NO_ICON_LES__
-    IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
-
-      nstep = 0
-      CALL les_phy_interface(atm_phy_nwp_config(jg)%lcall_phy(:), & !in
-        &                  .TRUE.,                             & !in
-        &                  lredgrid_phys(jg),                  & !in
-        &                  dt_loc,                             & !in
-        &                  dt_phy(jg,:),                       & !in
-        &                  nstep,                              & !in
-        &                  mtime_current,                      & !in
-        &                  p_patch(jg)  ,                      & !in
-        &                  p_int_state(jg),                    & !in
-        &                  p_nh_state(jg)%metrics ,            & !in
-        &                  p_patch(jgp),                       & !in
-        &                  ext_data(jg)           ,            & !in
-        &                  p_nh_state(jg)%prog(nnow(jg)) ,     & !inout
-        &                  p_nh_state(jg)%prog(n_now_rcf),     & !inout         
-        &                  p_nh_state(jg)%prog(n_now_rcf) ,    & !inout
-        &                  p_nh_state(jg)%diag,                & !inout
-        &                  prm_diag  (jg),                     & !inout
-        &                  prm_nwp_tend(jg)                ,   &
-        &                  p_lnd_state(jg)%diag_lnd,           &
-        &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-        &                  p_lnd_state(jg)%prog_lnd(n_now_rcf),& !inout
-        &                  p_lnd_state(jg)%prog_wtr(n_now_rcf),& !inout
-        &                  p_lnd_state(jg)%prog_wtr(n_now_rcf) ) !inout
-
-    ELSE ! is_les_phy
-#endif
-
     SELECT CASE (iforcing)
 
     CASE (inwp) ! iforcing
@@ -2998,10 +2924,6 @@ MODULE mo_nh_stepping
       !$OMP END PARALLEL
 #endif
     END SELECT ! iforcing
-
-#ifndef __NO_ICON_LES__
-    END IF ! is_les_phy
-#endif
 
     ! Boundary interpolation of land state variables entering into radiation computation
     ! if a reduced grid is used in the child domain(s)

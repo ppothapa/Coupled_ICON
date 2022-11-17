@@ -47,7 +47,7 @@ USE mo_nh_testcases_nml,     ONLY: nh_test_name
 USE mo_ls_forcing_nml,       ONLY: is_ls_forcing, is_nudging
 USE mo_ls_forcing,           ONLY: init_ls_forcing
 USE mo_turbulent_diagnostic, ONLY: init_les_turbulent_output, close_les_turbulent_output
-USE mo_interface_les,        ONLY: init_les_phy_interface
+USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
 USE mo_dynamics_config,      ONLY: nnow, nnow_rcf, nnew, idiv_method
 ! Horizontal grid
@@ -371,15 +371,10 @@ CONTAINS
 #ifndef __NO_ICON_LES__
     ! init LES
     DO jg = 1 , n_dom
-      IF(atm_phy_nwp_config(jg)%is_les_phy) THEN
-        CALL init_les_phy_interface(jg, p_patch(jg)       ,&
-           &                        p_int_state(jg)       ,&
-           &                        p_nh_state(jg)%metrics)
-      END IF
-      IF(aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
-        CALL init_les_phy_interface(jg, p_patch(jg)       ,&
-           &                        p_int_state(jg)       ,&
-           &                        p_nh_state(jg)%metrics)
+      IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
+        CALL init_vertical_grid_for_les(jg, p_patch(jg)       ,&
+           &                            p_int_state(jg)       ,&
+           &                            p_nh_state(jg)%metrics)
       END IF
     END DO
 #endif
