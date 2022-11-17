@@ -56,12 +56,12 @@ MODULE mo_bc_aeropt_cmip6_volc
       & MAX(LEN(dim_name_lat), LEN(dim_name_alt), LEN(dim_name_month), LEN(dim_name_sband), &
       &   LEN(dim_name_tband))
   !> Dimension layout for solar data.
-  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_sol(*) = [ &
+  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_sol(4) = [ &
       & CHARACTER(len=max_dim_name_len) :: &
       & dim_name_month, dim_name_alt, dim_name_lat, dim_name_sband &
     ]
   !> Dimension layout for terrestrial data.
-  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_terr(*) = [ &
+  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_terr(4) = [ &
       & CHARACTER(len=max_dim_name_len) :: &
       & dim_name_month, dim_name_alt, dim_name_lat, dim_name_tband &
     ]
