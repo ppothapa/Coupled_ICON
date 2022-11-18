@@ -4,14 +4,15 @@
 #SBATCH --qos=%{JOB.qos}
 #%  endif
 #SBATCH --job-name=%{EXP_ID}.%{JOB.id}
-#SBATCH --partition=prepost,compute,compute2
+#SBATCH --partition=%{JOB.partition}
 # #SBATCH --ntasks=%{JOB.tasks}
 #%  if JOB.hardware_threads|default('') is not set:
 # #SBATCH --ntasks-per-core=1
 #SBATCH --exclusive
 #%  endif
-#SBATCH --output=%{SCRIPT_DIR}/%x.%j.log
+#SBATCH --output=%{SCRIPT_DIR}/%x.%8j.log
 #SBATCH --time=%{JOB.time_limit}
+#%include 'standard_environments/'+ENVIRONMENT+'.tmpl' ignore missing
 
 '''\
 Post-process ICON experiment data for a given period
@@ -56,6 +57,10 @@ args = command_line.parse_args()
 
 # Do time computations using mtime
 
+#%  set atmo_time_step = JOB.atmo_time_step|d(ATMO_TIME_STEP)
+#%  set ocean_time_step = JOB.ocean_time_step|d(OCEAN_TIME_STEP)
+#%  set interval = JOB.interval|d(INTERVAL)
+
 initial_date = mtime.DateTime('%{INITIAL_DATE}')
 start_date = args.start_date
 
@@ -63,12 +68,18 @@ if start_date < initial_date:
     logging.error("start_date is before initial_date")
     sys.exit(1)
     
-interval = mtime.TimeDelta('%{INTERVAL}')
+interval = mtime.TimeDelta('%{interval}')
+final_date = mtime.DateTime('%{FINAL_DATE}')
 next_date = start_date + interval
-end_date = next_date + mtime.TimeDelta('-%{ATMO_TIME_STEP}')
 
-atmo_time_step = mtime.TimeDelta('%{ATMO_TIME_STEP}')
-ocean_time_step = mtime.TimeDelta('%{OCEAN_TIME_STEP}')
+if next_date > final_date:
+    logging.warn('next date after final date; setting next date to final date')
+    next_date = final_date
+
+end_date = next_date + mtime.TimeDelta('-%{atmo_time_step}')
+
+atmo_time_step = mtime.TimeDelta('%{atmo_time_step}')
+ocean_time_step = mtime.TimeDelta('%{ocean_time_step}')
 
 # Format cdo shifttime commands for Makefile generation
 
@@ -247,7 +258,7 @@ $(DATA_DIR)/$(EXP_ID)_hamoc%_{start_date}.nc: $(RUN_DIR)/$(EXP_ID)_hamoc%_{start
 #%    for target in output.pressure_level.sections|d([]):
 #%        set info = output.pressure_level[target]
 $(DATA_DIR)/$(EXP_ID)_%{target}_{start_date}.nc: $(DATA_DIR)/$(EXP_ID)_%{info.input_tag}_{start_date}.nc
-	$(CDO) $(CDOFLAGS) selvar,%{info.variable_names|join(',')} -ap2pl,%{info.pressure_levels|join(',')} $< $@~
+	$(CDO) $(CDOFLAGS) -ap2pl,%{info.pressure_levels|join(',')} -selvar,pfull,ps,%{info.variable_names|join(',')}  $< $@~
 	mv $@~ $@
 #%    endfor
 #%  endif
@@ -293,6 +304,4 @@ if os.path.isdir(run_dir):
 logging.info('post processing finished '
              'for {start_stamp}-{end_stamp}'.format(**template_dict))
 
-#% for job in JOB['.trigger']|list:
-subprocess.check_call(['%{JOB.batch_command}', '%{EXP_ID}.%{job}', str(start_date)])
-#% endfor
+#% include 'standard_experiments/trigger.tmpl'

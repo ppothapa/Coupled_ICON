@@ -1,13 +1,9 @@
 # Initialize date/time computation
 
 #%# Take mtime from installation prefix if defined, else from build location
-#%- if PREFIX:
-from distutils.sysconfig import get_python_lib
-lib_dir = sysconfig.get_python_lib(prefix='%{PREFIX}')
-#%  else:
-os.chdir('%{BUILD_DIR}/externals/mtime/src')
-lib_dir = ''
-#%  endif
+from distutils import sysconfig
+lib_dir = sysconfig.get_python_lib(prefix='%{PREFIX or BUILD_DIR}')
+import sys
 sys.path.insert(1, lib_dir)
 import mtime
 
