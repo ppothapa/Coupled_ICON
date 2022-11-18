@@ -47,7 +47,7 @@ make -C "${basedir}" -j ${MAKE_PROCS} check-bundled TESTS= XFAIL_TESTS=
 
 # Run 'make check' and save its exit code:
 exitcode=0
-make -C "${basedir}" check || exitcode=$?
+make -C "${basedir}" check-bundled || exitcode=$?
 
 # Generate the status file for the buildbot
 echo "${exitcode}" > exp.check_externals_LEVANTE.run.final_status
