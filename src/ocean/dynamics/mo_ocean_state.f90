@@ -371,8 +371,10 @@ CONTAINS
     TYPE(t_patch),TARGET, INTENT(in)  :: patch_2d
     TYPE(t_ocean_adjoint) :: adjoints
     TYPE(t_grib2_var) :: dflt_g2_decl_cell, dflt_g2_decl_edge
-
+    INTEGER :: datatype_flt
     INTEGER :: i
+
+    datatype_flt = MERGE(DATATYPE_FLT64, DATATYPE_FLT32, lnetcdf_flt64_output)
 
     dflt_g2_decl_cell = grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell)
     dflt_g2_decl_edge = grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_edge)
@@ -381,26 +383,26 @@ CONTAINS
 
     CALL add_var(ocean_restart_list, 'h_adjoint', adjoints%h , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('h_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('h_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,i/))
     
     !! normal velocity component
     CALL add_var(ocean_restart_list,'vn_adjoint',adjoints%vn,grid_unstructured_edge, &
       & za_depth_below_sea, &
-      & t_cf_var('vn_adjoint', 'm/s', 'adjoint normal velocity on edge', DATATYPE_FLT64),&
+      & t_cf_var('vn_adjoint', 'm/s', 'adjoint normal velocity on edge', DATATYPE_FLT),&
       & dflt_g2_decl_edge,&
       & ldims=(/nproma,n_zlev,patch_2d%nblks_e/))
     
     !! Tracers
     CALL add_var(ocean_restart_list, 't_adjoint', adjoints%t , &
       & grid_unstructured_cell, za_depth_below_sea, &
-      & t_cf_var('t_adjoint', '', 'adjoint temperature', DATATYPE_FLT64),&
+      & t_cf_var('t_adjoint', '', 'adjoint temperature', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,n_zlev,patch_2d%alloc_cell_blocks/))
     CALL add_var(ocean_restart_list, 's_adjoint', adjoints%s , &
       & grid_unstructured_cell, za_depth_below_sea, &
-      & t_cf_var('s_adjoint', '', 'adjoint salinity', DATATYPE_FLT64),&
+      & t_cf_var('s_adjoint', '', 'adjoint salinity', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,n_zlev,patch_2d%alloc_cell_blocks/))
 
@@ -409,32 +411,32 @@ CONTAINS
 #ifndef  __NO_SEAICE_ADJOINTS__
     CALL add_var(ocean_restart_list, 'hi_adjoint', adjoints%hi , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('hs_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('hs_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,1,i/))
     CALL add_var(ocean_restart_list, 'hs_adjoint', adjoints%hs , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('hs_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('hs_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,1,i/))
     CALL add_var(ocean_restart_list, 'zUnderIce_adjoint', adjoints%zUnderIce , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('zUnderIce_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('zUnderIce_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,i/))
     CALL add_var(ocean_restart_list, 'Tsurf_adjoint', adjoints%Tsurf , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('Tsurf_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('Tsurf_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,1,i/))
     CALL add_var(ocean_restart_list, 'T1_adjoint', adjoints%T1 , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('T1_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('T1_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,1,i/))
     CALL add_var(ocean_restart_list, 'T2_adjoint', adjoints%T2 , &
       & grid_unstructured_cell, za_surface,    &
-      & t_cf_var('T2_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT64),&
+      & t_cf_var('T2_adjoint', 'm', 'adjoint surface elevation at cell center', DATATYPE_FLT),&
       & dflt_g2_decl_cell,&
       & ldims=(/nproma,1,i/))
 #endif /* __NO_SEAICE_ADJOINTS__ */
@@ -643,6 +645,7 @@ CONTAINS
 
     INTEGER :: alloc_cell_blocks, nblks_e !, nblks_v
     INTEGER :: jtrc
+    INTEGER :: datatype_flt
     TYPE(t_ocean_tracer), POINTER :: tracer
     TYPE(t_patch), POINTER         :: patch_2d
     LOGICAL :: oce_tr_groups(MAX_GROUPS)
@@ -653,11 +656,13 @@ CONTAINS
     alloc_cell_blocks = patch_2d%alloc_cell_blocks
     nblks_e = patch_2d%nblks_e
 
+    datatype_flt = MERGE(DATATYPE_FLT64, DATATYPE_FLT32, lnetcdf_flt64_output)
+
       IF (vert_cor_type == 0) THEN
         ! height
         CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%h , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
-          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'surface elevation at cell center', DATATYPE_FLT64,'zos'),&
+          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'surface elevation at cell center', DATATYPE_FLT,'zos'),&
           & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
@@ -667,7 +672,7 @@ CONTAINS
         ! zstar height
         CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%eta_c , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
-          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'zstar sfc elevation at cell center', DATATYPE_FLT64,'zos'),&
+          & t_cf_var('zos'//TRIM(var_suffix), 'm', 'zstar sfc elevation at cell center', DATATYPE_FLT,'zos'),&
           & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
@@ -676,7 +681,7 @@ CONTAINS
         CALL add_var(ocean_restart_list, 'stretch_c'//TRIM(var_suffix), ocean_state_prog%stretch_c , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
           & t_cf_var('stretch_c'//TRIM(var_suffix), 'm', 'zstar surface stretch at cell center', &
-          & DATATYPE_FLT64,'stretch_c'),&
+          & DATATYPE_FLT,'stretch_c'),&
           & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
@@ -684,7 +689,7 @@ CONTAINS
         ! height
         CALL add_var(ocean_restart_list, 'z_ht'//TRIM(var_suffix), ocean_state_prog%h , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
-          & t_cf_var('z_ht'//TRIM(var_suffix), 'm', 'dummy elevation at cell center', DATATYPE_FLT64,'z_ht'),&
+          & t_cf_var('z_ht'//TRIM(var_suffix), 'm', 'dummy elevation at cell center', DATATYPE_FLT,'z_ht'),&
           & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
@@ -694,7 +699,7 @@ CONTAINS
       !! normal velocity component
       CALL add_var(ocean_restart_list,'normal_velocity'//var_suffix,ocean_state_prog%vn,grid_unstructured_edge, &
         & za_depth_below_sea, &
-        & t_cf_var('vn'//var_suffix, 'm/s', 'normal velocity on edge', DATATYPE_FLT64),&
+        & t_cf_var('vn'//var_suffix, 'm/s', 'normal velocity on edge', DATATYPE_FLT),&
         & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_edge),&
         & ldims=(/nproma,n_zlev,nblks_e/), tlev_source=TLEV_NNEW)
 
@@ -703,7 +708,7 @@ CONTAINS
         CALL add_var(ocean_restart_list, 'tracers'//var_suffix, ocean_state_prog%tracer , &
           & grid_unstructured_cell, za_depth_below_sea, &
           & t_cf_var('tracers'//var_suffix, '', '1:temperature 2:salinity', &
-          & DATATYPE_FLT64),&
+          & DATATYPE_FLT),&
           & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,n_zlev,alloc_cell_blocks,no_tracer/), &
           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.)
@@ -719,7 +724,7 @@ CONTAINS
             & t_cf_var(TRIM(oce_config%tracer_stdnames(jtrc)), &
             & TRIM(oce_config%tracer_units(jtrc)), &
             & TRIM(oce_config%tracer_longnames(jtrc)), &
-            & DATATYPE_FLT64, &
+            & DATATYPE_FLT, &
             & TRIM(oce_config%tracer_shortnames(jtrc))), &
             & grib2_var(255, 255, oce_config%tracer_codes(jtrc), DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
             & ref_idx=jtrc, &
@@ -2189,7 +2194,7 @@ CONTAINS
       CALL add_var(ocean_restart_list, 'GMRedi_flux_horz',ocean_state_diag%GMRedi_flux_horz, &
         & grid_unstructured_edge, za_depth_below_sea, &
         & t_cf_var('GMRedi_flux_horz', '', '1:temperature 2:salinity', &
-        & DATATYPE_FLT64),&
+        & DATATYPE_FLT),&
         & dflt_g2_decl_edge,&
         & ldims=(/nproma,n_zlev,nblks_e,no_tracer/), &
         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.)
@@ -2197,7 +2202,7 @@ CONTAINS
       CALL add_var(ocean_restart_list, 'GMRedi_flux_vert',ocean_state_diag%GMRedi_flux_vert, &
         & grid_unstructured_cell, za_depth_below_sea, &
         & t_cf_var('GMRedi_flux_vert', '', '1:temperature 2:salinity', &
-        & DATATYPE_FLT64),&
+        & DATATYPE_FLT),&
         & dflt_g2_decl_cell,&
         & ldims=(/nproma,n_zlev+1,alloc_cell_blocks,no_tracer/), &
         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.)
