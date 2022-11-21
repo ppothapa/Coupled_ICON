@@ -40,6 +40,8 @@ listname=dwd
 ./set_builder_flags Inactive --builders DAINT_GPU_pgi                --list $listname
 ./set_builder_flags Inactive --builders DAINT_CPU_nvidia             --list $listname
 ./set_builder_flags Inactive --builders DAINT_GPU_nvidia             --list $listname
+./set_builder_flags Inactive --builders DAINT_CPU_nvidia_mixed       --list $listname
+./set_builder_flags Inactive --builders DAINT_GPU_nvidia_mixed       --list $listname
 ./set_builder_flags Inactive --builders MPIMAC_gcc                   --list $listname
 ./set_builder_flags Active   --builders DWD_nec                      --list $listname
 ./set_builder_flags Active   --builders DWD_nec_hybrid               --list $listname

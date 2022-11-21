@@ -20,7 +20,7 @@
 !!
 MODULE mo_random_util
 
-  USE mo_kind,                ONLY: wp
+  USE mo_kind,                ONLY: wp, i4, i8
   USE mo_impl_constants,      ONLY: SUCCESS, ON_CELLS, ON_EDGES, ON_VERTICES
   USE mo_exception,           ONLY: message, finish, message_text
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
@@ -154,25 +154,30 @@ CONTAINS
 
   END SUBROUTINE add_random_noise_global
 
-  SUBROUTINE add_random_noise( subset, amplitude, seed_in, field)
+  SUBROUTINE add_random_noise( subset, amplitude, field, seed_in)
 
     TYPE(t_subset_range), INTENT(IN) :: subset
     REAL(wp), INTENT(IN) :: amplitude
-    INTEGER, INTENT(IN) :: seed_in
+    INTEGER(i8), INTENT(IN), OPTIONAL :: seed_in
     REAL(wp), INTENT(INOUT) :: field(:,:,:)
 
     REAL(wp) :: noise(SIZE(field,1), SIZE(field,2), SIZE(field,3))
     INTEGER :: seed_size, start_idx, end_idx, i, jl, jk, jb
     INTEGER, ALLOCATABLE :: seed(:)
 
-    CALL RANDOM_SEED(SIZE = seed_size)
-    ALLOCATE(seed(seed_size))
+    IF ( PRESENT(seed_in) ) THEN
+      CALL RANDOM_SEED(SIZE = seed_size)
+      ALLOCATE(seed(seed_size))
 
-    DO i=1,seed_size
-        seed(i) = seed_in + i
-    ENDDO
+      seed(1) = INT(seed_in, i4)
+      IF (seed_size>1) seed(2) = INT(seed_in/2_i8**32_i8, i4)
 
-    CALL RANDOM_SEED(PUT = seed)
+      DO i=3,seed_size
+          seed(i) = ISHFTC(seed(i-2), 1)
+      ENDDO
+      CALL RANDOM_SEED(PUT = seed)
+    ENDIF
+
     CALL RANDOM_NUMBER(noise)
 
     DO jb=subset%start_block,subset%end_block

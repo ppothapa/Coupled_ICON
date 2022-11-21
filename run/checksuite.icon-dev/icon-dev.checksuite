@@ -457,7 +457,8 @@ function tolerance_check
         --reference "not-used" \
         --experiment-name "${EXP_BASE}" \
         --file-ids "${FILE_IDS}" \
-        --config "${PROBTEST_CONFIG}"
+        --config "${PROBTEST_CONFIG}" \
+        --time_dim time
     if [[ $? != 0 ]] ; then
         echo "probtest did not initialized successfully"
         TOL_STATUS=1

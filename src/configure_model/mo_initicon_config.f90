@@ -15,7 +15,7 @@
 !!
 MODULE mo_initicon_config
 
-  USE mo_kind,               ONLY: wp
+  USE mo_kind,               ONLY: wp, i8
   USE mo_exception,          ONLY: finish
   USE mo_util_string,        ONLY: t_keyword_list, associate_keyword, with_keywords, &
     &                              int2string
@@ -249,8 +249,8 @@ MODULE mo_initicon_config
 
   TYPE(t_initicon_config), TARGET :: initicon_config(0:max_dom)
 
-  ! perturb initial conditions. perturbation is only applied for pinit_seed > 0
-  INTEGER :: pinit_seed = 0
+  ! perturb initial conditions. perturbation is only applied for pinit_seed /= 0
+  INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
 CONTAINS

@@ -36,6 +36,8 @@ listname=debug2
 ./set_builder_flags Inactive --builders daint_gpu_pgi                --list $listname
 ./set_builder_flags Inactive --builders daint_cpu_nvidia             --list $listname
 ./set_builder_flags Inactive --builders daint_gpu_nvidia             --list $listname
+./set_builder_flags Inactive --builders daint_cpu_nvidia_mixed       --list $listname
+./set_builder_flags Inactive --builders daint_gpu_nvidia_mixed       --list $listname
 ./set_builder_flags Inactive --builders mpimac_gcc                   --list $listname
 ./set_builder_flags Inactive --builders dwd_nec                      --list $listname
 ./set_builder_flags Inactive --builders dwd_nec_hybrid               --list $listname

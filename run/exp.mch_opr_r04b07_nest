@@ -68,7 +68,7 @@ atmo_rad_grids="'${radiation_grid_filename}',"
 
 # start and end date+time
 start_date=${start_date:="2020-12-10T06:00:00Z"}
-  end_date=${end_date:="2020-12-10T06:02:00Z"}
+  end_date=${end_date:="2020-12-10T06:01:00Z"}
 
 # restart intervals
 checkpoint_interval="PT1M"
@@ -208,7 +208,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ana_varnames_map_file        = "map_file.ana"        ! Dictionary for initial data file
  ltile_coldstart              = .TRUE.  ! coldstart for surface tiles
  ltile_init                   = .FALSE.  ! gdm origin .F. set it to .TRUE. if FG data originate from run without tiles
- pinit_seed                  =                         -1         ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed                  =                          0         ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude             =                          0.        ! amplitude of perturbation
 /
 

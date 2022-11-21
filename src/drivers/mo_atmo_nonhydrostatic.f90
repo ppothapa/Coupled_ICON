@@ -13,7 +13,7 @@
 !!
 MODULE mo_atmo_nonhydrostatic
 
-USE mo_kind,                 ONLY: wp
+USE mo_kind,                 ONLY: wp, i4, i8
 USE mo_exception,            ONLY: message, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
@@ -201,6 +201,8 @@ CONTAINS
     TYPE(t_key_value_store), POINTER :: restartAttributes
     LOGICAL :: lrestart
     CHARACTER(LEN=filename_max) :: model_base_dir
+    INTEGER :: seed_size, i
+    INTEGER, ALLOCATABLE :: seed(:)
 
 
     IF (timers_level > 1) CALL timer_start(timer_model_init)
@@ -475,27 +477,40 @@ CONTAINS
         !
       END IF ! ltestcase
 
-      IF(pinit_seed > 0) THEN
+      IF(pinit_seed /= 0_i8) THEN
+        write(*,*) 'pinit_seed', pinit_seed
+        CALL RANDOM_SEED(SIZE = seed_size)
+        ALLOCATE(seed(seed_size))
+
+        seed(1) = INT(pinit_seed, i4)
+        IF (seed_size>1_i8) seed(2) = INT(pinit_seed/2_i8**32_i8, i4)
+
+        DO i=3,seed_size
+            seed(i) = ISHFTC(seed(i-2), 1)
+        ENDDO
+
+        CALL RANDOM_SEED(PUT = seed)
+
         DO jg=1,n_dom
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%w)
-          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%vn)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%theta_v)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%exner)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%rho)
 
           IF (.NOT. ltestcase .OR. nh_test_name == 'dcmip_pa_12') THEN
-             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                    p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,1))
           ENDIF
 
           IF (iforcing == inwp ) THEN
             DO jt = 1, SIZE(p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t,4)
-              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t(:,:,:,jt) )
             ENDDO
           ENDIF

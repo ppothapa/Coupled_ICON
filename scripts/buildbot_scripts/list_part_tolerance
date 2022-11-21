@@ -24,39 +24,54 @@ add_tolerance_exp () {
     exp=$1
     builders=$2
 
-    # define seeds once (must be in sync with add_refgen_routines)
-    seeds=(1 2 3 4 5 6 7 8 9 941)
-    seeds_string="$(IFS=, ; echo "${seeds[*]}")"
+    # generating iteratble array of builders
+    IFS=' ' read -ra builders_array <<< "$builders"
 
-    # initialize probtest namelist (most of it is unused, but makes life easier)
-    $PROBTEST init --codebase-install $basedir --experiment-name ${exp} --seeds ${seeds_string} 
+    for builder in "${builders_array[@]}"
+    do
+      echo $builder
+      # define member_ids (must be in sync with add_refgen_routines)
+      if [[ $builder == *"mixed"* ]];
+      then
+        member_ids=(mixed_1 mixed_2 mixed_3 mixed_4 mixed_5 mixed_6 mixed_7 mixed_8 mixed_9 mixed_10)
+        member_ids_string="$(IFS=, ; echo "${member_ids[*]}")"
+        perturb_amplitude=1e-7
+      else
+        member_ids=(double_1 double_2 double_3 double_4 double_5 double_6 double_7 double_8 double_9 double_10)
+        member_ids_string="$(IFS=, ; echo "${member_ids[*]}")"
+        perturb_amplitude=1e-14
+      fi
 
-    # create the runscripts for the ensemble (exp.<EXP>_seed_N)
-    # needs to be overwritten from namelist because here we deal with the templates
-    $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_seed_{seed}
+      # initialize probtest namelist (most of it is unused, but makes life easier)
+      $PROBTEST init --codebase-install $basedir --experiment-name ${exp} --member_ids ${member_ids_string} --perturb-amplitude ${perturb_amplitude}
 
-    # add base experiment and tolerance generation script
-    ./addexp exp.${exp} --builders "${builders}" --list $listname
-    ./addexp checksuite.icon-dev/pp.refgen_${exp} --builders "${builders}" --list $listname
+      # create the runscripts for the ensemble (exp.<EXP>_seed_N)
+      # needs to be overwritten from namelist because here we deal with the templates
+      $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_member_id_{member_id}
 
-    # create the list of perturbed experiments
-    perturbed_experiments=$(printf "exp.${exp}_seed_%s " "${seeds[@]}")
-    
-    # add all the ensemble experiments and make refgen depend on all of them
-    ./addexp "${perturbed_experiments}" --builders "${builders}" --list $listname
-    ./adddep --from-experiment checksuite.icon-dev/pp.refgen_${exp} --to-experiment "${perturbed_experiments}" --builders "${builders}" --list $listname
+      # add base experiment and tolerance generation script
+      ./addexp exp.${exp} --builders "${builder}" --list $listname
+      ./addexp checksuite.icon-dev/pp.refgen_${exp} --builders "${builder}" --list $listname
+
+      # create the list of perturbed experiments
+      perturbed_experiments=$(printf "exp.${exp}_member_id_%s " "${member_ids[@]}")
+      
+      # add all the ensemble experiments and make refgen depend on all of them
+      ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname
+      ./adddep --from-experiment checksuite.icon-dev/pp.refgen_${exp} --to-experiment "${perturbed_experiments}" --builders "${builder}" --list $listname
+    done
 }
 
 add_tolerance_exp mch_ch_lowres "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r04b07 "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r04b07_lhn_00 "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r04b07_lhn_12 "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_lhn_00 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_lhn_12 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r04b07_nest "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_lpi "DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_lpi "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r19b07_2m "DAINT_CPU_nvidia"
 add_tolerance_exp mch_opr_r19b07_2m_gscp5 "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_midnight "DAINT_CPU_nvidia"
-add_tolerance_exp mch_bench_r19b07_dev "DAINT_CPU_nvidia"
-add_tolerance_exp atm_qubicc_nc_test "DAINT_CPU_nvidia DAINT_CPU_cce"
-add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce"
+add_tolerance_exp mch_opr_r19b07_midnight "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_bench_r19b07_dev "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp atm_qubicc_nc_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
+add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
 add_tolerance_exp dwd_run_ICON_09_R2B4N5_EPS "DAINT_CPU_nvidia"

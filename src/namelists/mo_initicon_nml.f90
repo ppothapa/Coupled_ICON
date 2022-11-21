@@ -20,7 +20,7 @@ MODULE mo_initicon_nml
 !-------------------------------------------------------------------------
 !
 !
-  USE mo_kind,               ONLY: wp
+  USE mo_kind,               ONLY: wp, i8
   USE mo_exception,          ONLY: finish, message, message_text
   USE mo_impl_constants,     ONLY: max_char_length, max_dom, vname_len,      &
     &                              max_var_ml, MODE_IFSANA, MODE_DWDANA,     &
@@ -221,8 +221,8 @@ CONTAINS
   ! GRIB2 shortnames or NetCDF var names.
   CHARACTER(LEN=filename_max) :: ana_varnames_map_file
 
-  ! perturb initial conditions. perturbation is only applied for pinit_seed > 0
-  INTEGER :: pinit_seed = 0
+  ! perturb initial conditions. perturbation is only applied for pinit_seed /= 0
+  INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
   NAMELIST /initicon_nml/ init_mode, zpbl1, zpbl2, l_coarse2fine_mode,      &
@@ -322,7 +322,7 @@ CONTAINS
   end_time_avg_fg   = 0._wp
   interval_avg_fg   = 0._wp
 
-  pinit_seed        = 0           ! <0: do not perturb initial data. >0: perturb initial data with this as seed
+  pinit_seed        = 0_i8           ! <0: do not perturb initial data. >0: perturb initial data with this as seed
   pinit_amplitude   = 0._wp       ! amplitude of the initial perturbation for numerical tolerance test
 
   !------------------------------------------------------------
