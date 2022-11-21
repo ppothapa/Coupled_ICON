@@ -38,7 +38,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 #
 # Uses the non-orographic gravity wave drag parametrization for the outer domain.
 # Uses the subgrid scale orographic drag parametrization for the inner domain.
-# Uses subblocks (nproma_rad>0) for the ecRad call.
+# Uses subblocks for the ecRad call.
 # ==========================================================================
 
 # ----------------------------------------------------------------------
@@ -131,6 +131,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
+ nproma_sub                  =                        499         ! radiation loop chunk length
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =                          1         ! number of I/O processors
  num_restart_procs           =                          0         ! number of restart processors
@@ -415,7 +416,6 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 /
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
- nproma_rad                  =                          499
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
  albedo_type                 =                          2         ! type of surface albedo

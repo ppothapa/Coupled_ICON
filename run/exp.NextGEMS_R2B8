@@ -22,7 +22,7 @@ author_list='Monika Esch, MPIM'
 # nblocks_c              = number of looping chunks used for cells
 #                          which is set in run/create_target_header for the used machine
 #
-# rrtmgp_columns_chunk   = radiation blocking length
+# nproma_sub             = radiation blocking length
 #                          which is set in run/create_target_header for the used machine
 #
 icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/public/mpim"

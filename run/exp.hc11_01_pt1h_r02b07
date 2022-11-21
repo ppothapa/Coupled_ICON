@@ -82,6 +82,7 @@ cat > ${atmo_namelist} << EOF
 !
 &parallel_nml
  nproma             = ${nproma}
+ nproma_sub         = 100
  num_io_procs       = 1
  io_proc_chunk_size = 16
 /
@@ -193,7 +194,6 @@ cat > ${atmo_namelist} << EOF
  aes_rad_config(1)%irad_cfc11 =  3
  aes_rad_config(1)%irad_cfc12 =  3
  aes_rad_config(1)%irad_aero  =  0
- aes_rad_config(1)%rrtmgp_columns_chunk = 100
 /
 &aes_vdf_nml
  aes_vdf_config(1)%pr0        =  0.7

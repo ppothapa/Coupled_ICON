@@ -93,7 +93,7 @@ mpi_procs_pernode=$use_mpi_procs_pernode
 # blocking length
 # ---------------
 nproma=$use_nproma
-rrtmgp_columns_chunk=$use_rrtmgp_columns_chunk
+nproma_sub=$use_nproma_sub
 nblocks_c=$use_nblocks_c
 #
 #=============================================================================
@@ -193,7 +193,7 @@ set_run_target_default()
 
     set_default use_ulimit no
     set_default use_nproma 48
-    set_default use_rrtmgp_columns_chunk 48
+    set_default use_nproma_sub 48
     set_default use_nblocks_c 0
     set_default use_nodes 1
 
@@ -227,7 +227,7 @@ set_run_target_bullx_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
@@ -411,8 +411,8 @@ set_run_target_bull_milan()
 
     set_default use_ulimit no
     set_default use_nproma 32
-    set_default use_rrtmgp_columns_chunk 32
     set_default use_nblocks_c 0
+    set_default use_nproma_sub 32
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
     if [[ "x$BB_SYSTEM" != "x" ]]
@@ -546,7 +546,7 @@ set_run_target_bullx_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_account_no "$(id -gn)"
@@ -660,7 +660,7 @@ set_run_target_mpipc()
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
     set_default use_nproma 64
-    set_default use_rrtmgp_columns_chunk 64
+    set_default use_nproma_sub 64
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -692,7 +692,7 @@ set_run_target_docker_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/icon-data-pool}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -711,7 +711,7 @@ set_run_target_docker_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=/icon-data-pool}
 
     set_default use_nproma 20480
-    set_default use_rrtmgp_columns_chunk 800
+    set_default use_nproma_sub 800
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -958,7 +958,7 @@ set_run_target_oflws()
     icon_data_rootFolder=${icon_data_rootFolder:=""}
     
     set_default use_nproma 64
-    set_default use_rrtmgp_columns_chunk 64
+    set_default use_nproma_sub 64
     set_default use_nblocks_c 0
     use_nodes=1
 
@@ -981,7 +981,7 @@ set_run_target_hpc()
     icon_data_rootFolder=${icon_data_rootFolder:=""}
     
     set_default use_nproma 64
-    set_default use_rrtmgp_columns_chunk 64
+    set_default use_nproma_sub 64
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_mpi_procs_pernode 1
@@ -1021,7 +1021,7 @@ set_run_target_tsa_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     # use_OMP_SCHEDULE="static,1"
@@ -1127,7 +1127,7 @@ set_run_target_tsa_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 8000
-    set_default use_rrtmgp_columns_chunk 800
+    set_default use_nproma_sub 800
     set_default use_nblocks_c 0
     set_default use_prefetch_procs 0
     set_default use_account_no "$(id -gn)"
@@ -1241,7 +1241,7 @@ set_run_target_daint_cpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     # use_OMP_SCHEDULE="static,1"
@@ -1349,7 +1349,7 @@ set_run_target_daint_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 8000
-    set_default use_rrtmgp_columns_chunk 800
+    set_default use_nproma_sub 800
     set_default use_nblocks_c 1
     set_default use_prefetch_procs 0
     set_default use_account_no "$(id -gn)"
@@ -1602,7 +1602,7 @@ set_run_target_dom_gpu()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 256
-    set_default use_rrtmgp_columns_chunk 256
+    set_default use_nproma_sub 256
     set_default use_nblocks_c 0
     set_default use_nodes 1
     use_OMP_SCHEDULE="static,1"
@@ -1684,7 +1684,7 @@ set_run_target_tave_knl()
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
-    set_default use_rrtmgp_columns_chunk 16
+    set_default use_nproma_sub 16
     set_default use_nblocks_c 0
     set_default use_nodes 1
     use_OMP_SCHEDULE="static,2"
@@ -1778,7 +1778,7 @@ set_run_target_euler()
   icon_data_poolFolder=${icon_data_poolFolder:=${poolFolder_prefix}/icon_input}
 
   set_default use_nproma 64
-  set_default use_rrtmgp_columns_chunk 64
+  set_default use_nproma_sub 64
   set_default use_nodes 1
 
   #JENKINS_NO_OF_CORES can is unbound when not used with jenkins icon
@@ -1819,7 +1819,7 @@ EOF
 set_run_target_pacluster()
 {  
     set_default use_nproma 32
-    set_default use_rrtmgp_columns_chunk 32
+    set_default use_nproma_sub 32
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_cpu_time 04:00:00
@@ -1887,7 +1887,7 @@ set_run_target_fh2()
     icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
 
     set_default use_nproma 8
-    set_default use_rrtmgp_columns_chunk 8
+    set_default use_nproma_sub 8
     set_default use_nblocks_c 0
     use_nodes=1
   
@@ -1922,7 +1922,7 @@ set_run_target_hk()
     icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
 
     set_default use_nproma 8
-    set_default use_rrtmgp_columns_chunk 8
+    set_default use_nproma_sub 8
     set_default use_nblocks_c 0
     use_nodes=1
   

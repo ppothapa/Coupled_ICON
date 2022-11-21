@@ -46,7 +46,7 @@ MODULE mo_setup_subdivision
     & min_rledge, max_rledge, min_rlvert, max_rlvert, max_phys_dom,  &
     & min_rlcell_int, min_rledge_int, min_rlvert_int, max_hw
   USE mo_math_constants,     ONLY: pi
-  USE mo_exception,          ONLY: finish, message, get_filename_noext
+  USE mo_exception,          ONLY: finish, message, get_filename_noext, warning
 
   USE mo_run_config,         ONLY: msg_level
   USE mo_io_units,           ONLY: filename_max
@@ -68,7 +68,8 @@ MODULE mo_setup_subdivision
 
   USE mo_parallel_config,       ONLY:  nproma, ldiv_phys_dom, set_nproma, &
     & division_method, division_file_name, n_ghost_rows, ignore_nproma_use_nblocks_c, nblocks_c, &
-    & div_geometric, ext_div_from_file, write_div_to_file, use_div_from_file, proc0_shift
+    & div_geometric, ext_div_from_file, write_div_to_file, use_div_from_file, proc0_shift, &
+    & nproma_sub, nblocks_sub, ignore_nproma_sub_use_nblocks_sub
 
   USE mo_communication,      ONLY: blk_no, idx_no, idx_1d
   USE mo_grid_config,         ONLY: n_dom, n_dom_start, patch_weight, l_limited_area
@@ -1756,6 +1757,20 @@ CONTAINS
         ENDIF
 
       ENDIF
+
+      !! Also set the secondary nproma_sub and the number of subblocks nblocks_sub
+      IF( ignore_nproma_sub_use_nblocks_sub ) THEN
+        nproma_sub = (nproma-1)/nblocks_sub+1
+      ELSE
+        IF (nproma_sub > nproma) THEN
+          CALL warning(routine, 'secondary nproma: nproma_sub cannot be bigger than nproma, adjusted')
+          nproma_sub = nproma
+        END IF
+        nblocks_sub = (nproma-1)/nproma_sub+1
+      END IF
+      write(message_text,'(i7)') nproma_sub
+      CALL message('Secondary nproma (nproma_sub): ', message_text)
+      !$ACC UPDATE DEVICE(nproma_sub)
 
       wrk_p_patch%n_patch_edges = n_patch_edges
       wrk_p_patch%n_patch_verts = n_patch_verts

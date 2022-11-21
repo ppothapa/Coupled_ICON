@@ -617,10 +617,6 @@ aes\_rad\_config(jg)\% lclearsky & L & .TRUE. & &
 .TRUE.: Clear sky fluxes are computed &
 aes\_phy\_config(jg)\% dt\_rad > 0.000s \tabularnewline
 %
-aes\_rad\_config(jg)\% rrtmgp\_columns\_chunk & I & nproma & &
-Column chunk size; cannot be bigger than nproma &
-aes\_phy\_config(jg)\% dt\_rad > 0.000s \tabularnewline
-%
 aes\_rad\_config(jg)\% irad\_aero & I & 2 & &
 Selects source of aerosol types\\
 0: No aerosol in radiation \\
@@ -6539,6 +6535,19 @@ Number of looping chunks used for cells. For values <= 0 this is ignored. For bi
 \tabularnewline
 
 %\hline
+nproma\_sub &
+I & nproma & &
+Chunk size of subblocks used for example by ecRad or rrtmgp, which is needed for the GPU
+port to reduce the memory footprint. \\ &
+\tabularnewline
+
+%\hline
+nblocks\_sub &
+I & 1 & &
+Number of looping chunks used for subblocking. For values <= 0 this is ignored. For bigger values, this overwrites \emph{nproma\_sub}. &
+\tabularnewline
+
+%\hline
 n\_ghost\_rows &
 I & 1& &
 number of halo cell rows&
@@ -7085,17 +7094,6 @@ I&
 Optical properties for ice cloud scattering. \\
 0: Fu et al. (1996) \\
 1: Baran et al. (2016)
-& inwp\_radiation=4 (ecRad)
-\tabularnewline
-
-%\hline
-nproma\_rad &
-I&
--1&
-&
-Chunk size of subblocks used for the ecRad calls, which is needed by the GPU
-port to reduce the memory footprint of ecrad. \\
-If nproma\_rad $\le0$ the number of subblocks is set to -nproma\_rad instead. 
 & inwp\_radiation=4 (ecRad)
 \tabularnewline
 

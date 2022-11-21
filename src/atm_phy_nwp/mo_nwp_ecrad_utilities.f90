@@ -36,8 +36,7 @@ MODULE mo_nwp_ecrad_utilities
                                    &   irad_h2o, irad_o3, irad_co2,              &
                                    &   irad_n2o, irad_ch4,                       &
                                    &   irad_o2, irad_cfc11, irad_cfc12,          &
-                                   &   vpp_ch4, vpp_n2o,                         &
-                                   &   config_nproma_rad => nproma_rad
+                                   &   vpp_ch4, vpp_n2o
   USE mo_nwp_tuning_config,      ONLY: tune_difrad_3dcont
   USE mtime,                     ONLY: datetime
   USE mo_bc_greenhouse_gases,    ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
@@ -79,7 +78,6 @@ MODULE mo_nwp_ecrad_utilities
   PUBLIC :: ecrad_set_gas
   PUBLIC :: ecrad_store_fluxes
   PUBLIC :: add_3D_diffuse_rad
-  PUBLIC :: get_nproma_rad_nblk_rad
   PUBLIC :: get_indices_rad_subblock
 
   ! helper functions to be removed once acc is merged into libecrad
@@ -1047,40 +1045,13 @@ CONTAINS
     !$ACC END PARALLEL
 
   END SUBROUTINE
-  !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
   !>
-  !! SUBROUTINE get_nproma_rad_nblk_rad:
-  !! This subroutine gets the radiation subblocking block size nproma_rad and
-  !! the number of radiation subblocks nblck_rad.
-  !! To set the number of subblocks nblk_rad instead of the subblocksize nproma_rad, one can also 
-  !! set the global nproma_rad to a negative number which is considered then the number of subblocks.
-  !! Otherwise the number of blocks will be calculated accordingly.
-  !!
-  SUBROUTINE get_nproma_rad_nblk_rad(nproma_rad, nblk_rad)
-
-
-    INTEGER, INTENT(OUT) :: nproma_rad
-    INTEGER, INTENT(OUT) :: nblk_rad
-
-    IF( config_nproma_rad < 0) THEN
-      nblk_rad = -config_nproma_rad
-      nproma_rad = (nproma-1)/nblk_rad+1
-    ELSE
-      nproma_rad = config_nproma_rad
-      nblk_rad = (nproma-1)/nproma_rad+1
-    END IF
-
-  END SUBROUTINE get_nproma_rad_nblk_rad
-  !----------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------
-  !>
-  !! SUBROUTINE get_nproma_rad_nblk_rad:
+  !! SUBROUTINE get_indices_rad_subblock:
   !! This subroutine gets the index used for subblocking the ecRad radiation.
   !! There are the indices that point to an original array: jcs:jce,      and i_startidx_sub:i_endidx_sub.
-  !! There are the indices that point to a  subblock array: 1:nproma_rad, and i_startidx_rad:i_endidx_rad.
+  !! There are the indices that point to a  subblock array: 1:nproma_sub, and i_startidx_rad:i_endidx_rad.
   !! In each step of the subblocking, values are copied from an original array to a subblock array and vice versa.
   !! Here, is an illustration for three subblocks and how the index are set.
   !!
@@ -1095,7 +1066,7 @@ CONTAINS
   !!    |  i_startidx_sub     i_endidx_sub|
   !!
   !! subblock array:
-  !!    |1                      nproma_rad|
+  !!    |1                      nproma_sub|
   !!    |---------------------------------|
   !!    |       ^                        ^|
   !!    |  i_startidx_rad     i_endidx_rad|
@@ -1111,7 +1082,7 @@ CONTAINS
   !!                                      |i_startidx_sub       i_endidx_sub|
   !!
   !! subblock array:
-  !!                                      |1                      nproma_rad|
+  !!                                      |1                      nproma_sub|
   !!                                      |---------------------------------|
   !!                                      |^                               ^|
   !!                                      |i_startidx_rad       i_endidx_rad|
@@ -1127,16 +1098,16 @@ CONTAINS
   !!                                                                        |i_startidx_sub  i_endidx_sub     |
   !!
   !! subblock array:
-  !!                                                                        |1                      nproma_rad|
+  !!                                                                        |1                      nproma_sub|
   !!                                                                        |---------------------------------|
   !!                                                                        |^               ^                |
   !!                                                                        |i_startidx_rad  i_endidx_rad     |
   !!
-  SUBROUTINE get_indices_rad_subblock(i_startidx, i_endidx, nproma_rad, jb_rad, jcs, jce, &
+  SUBROUTINE get_indices_rad_subblock(i_startidx, i_endidx, nproma_sub, jb_rad, jcs, jce, &
       &  i_startidx_rad, i_endidx_rad, l_3d_rad_fluxes, jnps, jnpe, i_startidx_sub, i_endidx_sub)
 
     INTEGER, INTENT(IN)  :: i_startidx, i_endidx
-    INTEGER, INTENT(IN)  :: nproma_rad
+    INTEGER, INTENT(IN)  :: nproma_sub
     INTEGER, INTENT(IN)  :: jb_rad
     
     INTEGER, INTENT(OUT) :: jcs, jce
@@ -1147,11 +1118,11 @@ CONTAINS
     INTEGER, INTENT(OUT), OPTIONAL :: jnps, jnpe
     INTEGER, INTENT(OUT), OPTIONAL :: i_startidx_sub, i_endidx_sub
 
-    jcs = nproma_rad*(jb_rad-1) + 1 
-    jce = MIN(nproma_rad*jb_rad, nproma)
+    jcs = nproma_sub*(jb_rad-1) + 1 
+    jce = MIN(nproma_sub*jb_rad, nproma)
 
     i_startidx_rad = MAX(i_startidx-jcs+1, 1)
-    i_endidx_rad   = MIN(i_endidx  -jcs+1, nproma_rad)
+    i_endidx_rad   = MIN(i_endidx  -jcs+1, nproma_sub)
 
     IF (PRESENT(l_3d_rad_fluxes) .AND. PRESENT(jnps) .AND. PRESENT(jnpe)) THEN
       IF (l_3d_rad_fluxes) THEN
@@ -1202,7 +1173,7 @@ CONTAINS
     TYPE(t_ecrad_aerosol_type),       INTENT(INOUT)   :: ecrad_aerosol
     TYPE(t_ecrad_flux_type),          INTENT(INOUT)   :: ecrad_flux
 
-    ! CALL ecrad_single_level%allocate(nproma_rad, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
+    ! CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     !$ACC ENTER DATA CREATE(ecrad_single_level%cos_sza, ecrad_single_level%lw_emissivity) &
     !$ACC   CREATE(ecrad_single_level%sw_albedo, ecrad_single_level%sw_albedo_direct, ecrad_single_level%iseed)
     !$ACC ENTER DATA CREATE(ecrad_single_level%skin_temperature) &
@@ -1210,22 +1181,22 @@ CONTAINS
     !$ACC ENTER DATA CREATE(ecrad_single_level%lw_emission) &
     !$ACC   IF(.NOT. ecrad_single_level%is_simple_surface)
 
-    ! CALL ecrad_thermodynamics%allocate(nproma_rad, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true.)
+    ! CALL ecrad_thermodynamics%allocate(nproma_sub, nlev_rg, use_h2o_sat=.false., rrtm_pass_temppres_fl=.true.)
     !$ACC ENTER DATA CREATE(ecrad_thermodynamics%pressure_hl, ecrad_thermodynamics%temperature_hl)
     !$ACC ENTER DATA CREATE(ecrad_thermodynamics%pressure_fl, ecrad_thermodynamics%temperature_fl) &
     !$ACC   IF(ecrad_thermodynamics%rrtm_pass_temppres_fl)
 
-    ! CALL ecrad_gas%allocate(nproma_rad, nlev_rg)
+    ! CALL ecrad_gas%allocate(nproma_sub, nlev_rg)
     !$ACC ENTER DATA COPYIN(ecrad_gas%mixing_ratio)
 
-    ! CALL ecrad_cloud%allocate(nproma_rad, nlev_rg)
+    ! CALL ecrad_cloud%allocate(nproma_sub, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_cloud%q_liq, ecrad_cloud%re_liq, ecrad_cloud%q_ice, ecrad_cloud%re_ice) &
     !$ACC   CREATE(ecrad_cloud%fraction, ecrad_cloud%overlap_param, ecrad_cloud%fractional_std) &
     !$ACC   CREATE(ecrad_cloud%inv_cloud_effective_size)
-    ! CALL ecrad_cloud%create_fractional_std(nproma_rad, nlev_rg, 1._wp)
+    ! CALL ecrad_cloud%create_fractional_std(nproma_sub, nlev_rg, 1._wp)
     !$ACC UPDATE DEVICE(ecrad_cloud%fractional_std)
 
-    ! CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_rad, 1, nlev_rg)
+    ! CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_sub, 1, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_aerosol%od_sw, ecrad_aerosol%ssa_sw, ecrad_aerosol%g_sw) &
     !$ACC   IF(ecrad_conf%use_aerosols .AND. ecrad_conf%do_sw)
     !$ACC ENTER DATA CREATE(ecrad_aerosol%od_lw, ecrad_aerosol%ssa_lw, ecrad_aerosol%g_lw) &
@@ -1233,7 +1204,7 @@ CONTAINS
     !$ACC UPDATE DEVICE(ecrad_aerosol%ssa_lw, ecrad_aerosol%g_lw) &
     !$ACC   IF(ecrad_conf%use_aerosols .AND. ecrad_conf%do_lw)
 
-    ! CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_rad, nlev_rg)
+    ! CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_sub, nlev_rg)
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up, ecrad_flux%lw_dn) &
     !$ACC   IF(ecrad_conf%do_lw)
     !$ACC ENTER DATA CREATE(ecrad_flux%lw_up_clear, ecrad_flux%lw_dn_clear) &

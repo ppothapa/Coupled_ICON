@@ -93,6 +93,7 @@ cat > ${atmo_namelist} << EOF
 !
 &parallel_nml
  nproma           = ${nproma}
+ nproma_sub       = 8000
 /
 &grid_nml
  dynamics_grid_filename = ${atmo_dyn_grids}
@@ -178,7 +179,6 @@ cat > ${atmo_namelist} << EOF
  aes_rad_config(1)%irad_cfc11 =  3
  aes_rad_config(1)%irad_cfc12 =  3
  aes_rad_config(1)%irad_aero  =  0
- aes_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
 &aes_vdf_nml
 /

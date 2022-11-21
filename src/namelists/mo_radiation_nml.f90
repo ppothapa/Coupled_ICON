@@ -62,7 +62,6 @@ MODULE mo_radiation_nml
                                  & config_ecrad_isolver => ecrad_isolver,               &
                                  & config_ecrad_igas_model => ecrad_igas_model,         &
                                  & config_ecrad_data_path => ecrad_data_path,           &
-                                 & config_nproma_rad => nproma_rad,                     &
                                  & iRadAeroConst
 
   USE mo_kind,               ONLY: wp
@@ -176,7 +175,6 @@ MODULE mo_radiation_nml
   INTEGER  :: ecrad_isolver
   INTEGER  :: ecrad_igas_model
   CHARACTER(len=MAX_CHAR_LENGTH) :: ecrad_data_path
-  INTEGER  :: nproma_rad
   !
   NAMELIST /radiation_nml/ isolrad,               &
     &                      albedo_type,           &
@@ -203,8 +201,7 @@ MODULE mo_radiation_nml
     &                      ecrad_iice_scat,       &
     &                      ecrad_isolver,         &
     &                      ecrad_igas_model,      &
-    &                      ecrad_data_path,       &
-    &                      nproma_rad
+    &                      ecrad_data_path
 
 CONTAINS
 
@@ -274,7 +271,6 @@ CONTAINS
     ecrad_isolver        = 0
     ecrad_igas_model     = 0
     ecrad_data_path      = '.'
-    nproma_rad           = -1
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
@@ -352,7 +348,6 @@ CONTAINS
     config_ecrad_isolver        = ecrad_isolver
     config_ecrad_igas_model     = ecrad_igas_model
     config_ecrad_data_path      = TRIM(ecrad_data_path)
-    config_nproma_rad           = nproma_rad
 
     IF ( direct_albedo_water == 3 ) THEN
       csalb => csalb2

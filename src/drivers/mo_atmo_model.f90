@@ -21,9 +21,6 @@ MODULE mo_atmo_model
     &                                   my_process_is_pref, process_mpi_pref_size,   &
     &                                   my_process_is_work,      &
     &                                   my_process_is_mpi_test
-#ifdef _OPENACC
-  USE mo_parallel_config,         ONLY: update_nproma_on_device
-#endif
   USE mo_timer,                   ONLY: init_timer, timer_start, timer_stop,                  &
     &                                   timers_level, timer_model_init,                       &
     &                                   timer_domain_decomp, timer_compute_coeffs,            &
@@ -361,10 +358,6 @@ CONTAINS
         CALL finish ('init_emvorado_mpi', TRIM(message_text))
       END IF
     ENDIF
-#endif
-
-#ifdef _OPENACC
-    CALL update_nproma_on_device( my_process_is_work() )
 #endif
 
     !-------------------------------------------------------------------

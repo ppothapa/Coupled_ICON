@@ -134,6 +134,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
  nblocks_c                   =                ${nblocks_c}        ! number of blocks
+ nblocks_sub                 =                          6         ! number of radiation blocks
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =                          1         ! number of I/O processors
  num_restart_procs           =                          0         ! number of restart processors
@@ -504,7 +505,6 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
- nproma_rad                  =                          -6
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
  albedo_type                 =                          2         ! type of surface albedo

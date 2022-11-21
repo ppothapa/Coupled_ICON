@@ -142,6 +142,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  nproma          =  ${nproma}
  !nblocks_c       =  ${nblocks_c:-0} ! does not work with nesting. TODO make this work (maybe)
  nblocks_c       =  0
+ nproma_sub      = 2000 ! radiation nproma
  p_test_run      = .false.
  l_test_openmp   = .true.
  l_log_checks    = .true.
@@ -277,7 +278,6 @@ a_hshr       = 2.0
   lprog_albsi    = .true.
 /
 &radiation_nml
- nproma_rad  = 2000
  irad_o3     = 79
  irad_aero   = 6
  albedo_type = 2 ! Modis albedo
