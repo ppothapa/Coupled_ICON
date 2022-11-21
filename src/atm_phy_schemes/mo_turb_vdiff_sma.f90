@@ -1728,7 +1728,11 @@ CONTAINS
     ieidx => p_patch%cells%edge_idx
     ieblk => p_patch%cells%edge_blk
 
-    !$ACC DATA CREATE(nabla2_e, var)
+    !$ACC DATA &
+    !---- Argument arrays - intent(out)
+    !$ACC   CREATE(nabla2_e, var) &
+    !$ACC   PRESENT(p_patch, km_ie, rho, p_int, hori_tend) &
+    !$ACC   PRESENT(iecidx, iecblk, ieidx, ieblk, var_temp)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     hori_tend = 0._wp
