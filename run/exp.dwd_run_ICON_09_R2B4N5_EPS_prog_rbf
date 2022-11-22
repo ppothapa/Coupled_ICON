@@ -217,7 +217,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  use_lakeiceana               = .true.
  lp2cintp_incr                = .TRUE.
  lp2cintp_sfcana              = .TRUE.
- pinit_seed                   =  -1        ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed                   = 0          ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude              = 1e-14      ! amplitude of perturbation 
 /
 &io_nml

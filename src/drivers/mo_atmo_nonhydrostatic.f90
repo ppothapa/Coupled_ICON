@@ -478,7 +478,6 @@ CONTAINS
       END IF ! ltestcase
 
       IF(pinit_seed /= 0_i8) THEN
-        write(*,*) 'pinit_seed', pinit_seed
         CALL RANDOM_SEED(SIZE = seed_size)
         ALLOCATE(seed(seed_size))
 
