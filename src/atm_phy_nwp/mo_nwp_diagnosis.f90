@@ -1919,7 +1919,9 @@ CONTAINS
 
     IF (var_in_output(jg)%dursun .AND. (p_sim_time > 0._wp) ) THEN
       IF (l_present_dursun_m .OR. l_present_dursun_r) THEN
-        CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater, lacc=lzacc)
+      CALL compute_field_twater( p_patch, p_metrics%ddqz_z_full, p_prog%rho,               &
+          &                      p_prog_rcf%tracer, advection_config(jg)%trHydroMass%list, &
+          &                      twater, lacc=lzacc )
       ENDIF
       IF (itype_dursun == 0) THEN
         ! WMO sunshine duration is an accumulative value like precipitation or runoff
@@ -1931,7 +1933,7 @@ CONTAINS
              &                    prm_diag%flxdwswtoa(:,:),                 &
              &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSEIF (itype_dursun == 1) THEN
-        ! MeteoSwiss sunshine duration with a 200 W/m² threshold
+        ! MeteoSwiss sunshine duration with a 200 W/m2 threshold
         CALL compute_field_dursun(p_patch, dt_phy, prm_diag%dursun,         &
              &                    prm_diag%swflxsfc, prm_diag%swflx_up_sfc, &
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &

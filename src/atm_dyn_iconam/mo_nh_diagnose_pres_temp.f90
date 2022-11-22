@@ -441,30 +441,23 @@ MODULE mo_nh_diagnose_pres_temp
 
   !!
   !! Calculates the sum of condensate mixing ratios
-  !! Extracted from diag_temp (see above) in order to encapsulate the code duplication needed for vectorization 
+  !! Extracted from diag_temp (see above) in order to encapsulate the code duplication needed for vectorization
   !!
   SUBROUTINE calc_qsum (tracer, qsum, condensate_list, jb, i_startidx, i_endidx, slev, slev_moist, nlev)
 
     REAL(wp), INTENT(IN)    :: tracer(:,:,:,:)       !! tracer array
-    REAL(wp), INTENT(INOUT) :: qsum(:,:)             !! output: sum of condensates
+    REAL(wp), INTENT(INOUT) :: qsum(:,:)             !! output: sum of condensates [kg kg-1]
     INTEGER,  INTENT(IN)    :: condensate_list(:)    !! IDs of all tracers containing prognostic condensate.
-    INTEGER, INTENT(IN)     :: jb, i_startidx, i_endidx, slev, slev_moist, nlev 
+    INTEGER,  INTENT(IN)    :: jb, i_startidx, i_endidx, slev, slev_moist, nlev
 
     INTEGER  :: jk,jc
 #ifdef __SX__
     INTEGER  :: jl, jt
 #endif
 
-    !$ACC DATA NO_CREATE(qsum, tracer, condensate_list)
-    
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-    IF (slev_moist > slev) qsum(:,slev:slev_moist-1) = 0._wp
-    !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __SX__
-    qsum(:,slev_moist:nlev) = 0._wp
+    qsum(:,MIN(slev,slev_moist):nlev) = 0._wp
     DO jl = 1, SIZE(condensate_list)
       jt = condensate_list(jl)
       DO jk = slev_moist, nlev
@@ -474,18 +467,33 @@ MODULE mo_nh_diagnose_pres_temp
       ENDDO
     ENDDO
 #else
+    !$ACC DATA NO_CREATE(qsum, tracer, condensate_list)
+
+    IF (slev < slev_moist) THEN
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      DO jk = slev, slev_moist-1
+        DO jc = i_startidx, i_endidx
+          qsum(jc,jk) = 0._wp
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev_moist, nlev
       DO jc = i_startidx, i_endidx
         qsum(jc,jk) = SUM(tracer(jc,jk,jb,condensate_list))
       ENDDO
     ENDDO
-#endif
     !$ACC END PARALLEL
 
     !DA: wait here is due to mo_nh_interface_nwp
     !$ACC WAIT
     !$ACC END DATA
-      
+#endif
+
+
   END SUBROUTINE calc_qsum
 
 END MODULE  mo_nh_diagnose_pres_temp

@@ -97,6 +97,7 @@ MODULE mo_pp_tasks
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
   USE mo_run_config,              ONLY: timers_level, msg_level
+  USE mo_advection_config,        ONLY: advection_config
   USE mo_fortran_tools,           ONLY: init, copy
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
@@ -808,7 +809,7 @@ CONTAINS
     ! local variables
     CHARACTER(*), PARAMETER :: routine = modname//"::pp_task_ipzlev"
     INTEGER                            :: &
-      &  vert_intp_method, jg,                    &
+      &  vert_intp_method,                        &
       &  in_var_idx, out_var_idx, nlev, nlevp1,   &
       &  n_ipzlev, npromz, nblks, ierrstat,       &
       &  in_var_ref_pos, out_var_ref_pos,         &
@@ -866,7 +867,6 @@ CONTAINS
     vert_intp_method = p_info%vert_interp%vert_intp_method
 
     ! patch, state, and metrics
-    jg                =  ptr_task%data_input%jg
     p_patch           => ptr_task%data_input%p_patch
     p_metrics         => ptr_task%data_input%p_nh_state%metrics
     p_diag            => ptr_task%data_input%p_nh_state%diag
@@ -1153,7 +1153,7 @@ CONTAINS
     REAL(wp), PARAMETER :: ZERO_HEIGHT   =    0._wp, &
       &                    EXTRAPOL_DIST = -500._wp
 
-    INTEGER                            :: nblks_c, npromz_c, nblks_e, jg,          &
+    INTEGER                            :: nblks_c, npromz_c, jg,          &
       &                                   out_var_idx, nlev, i_endblk
     TYPE (t_var), POINTER :: in_var, out_var
     TYPE(t_var_metadata),      POINTER :: p_info
@@ -1187,8 +1187,7 @@ CONTAINS
     nlev     = p_patch%nlev
     nblks_c  = p_patch%nblks_c
     npromz_c = p_patch%npromz_c
-    nblks_e  = p_patch%nblks_e
-    
+
     out_var_idx = 1
     IF (out_var%info%lcontained) out_var_idx = out_var%info%ncontained
 
@@ -1425,9 +1424,10 @@ CONTAINS
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_TWATER)
-      CALL compute_field_twater( p_patch, jg,                                        &
-          &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_prog_rcf,            &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
+      CALL compute_field_twater( p_patch, ptr_task%data_input%p_nh_state%metrics%ddqz_z_full, &
+          &                      p_prog%rho, p_prog_rcf%tracer,                               &
+          &                      advection_config(jg)%trHydroMass%list,                       &
+          &                      out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node )
 
     CASE (TASK_COMPUTE_Q_SEDIM)
       CALL compute_field_q_sedim( p_patch, jg, p_prog,                               &

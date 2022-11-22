@@ -33,11 +33,7 @@ MODULE mo_opt_nwp_diagnostics
     &                                 rhoh2o, rhoice, K_w_0, K_i_0
   USE mo_convect_tables,        ONLY: c1es, c3les, c4les
   USE gscp_data,                ONLY: cloud_num
-  USE mo_2mom_mcrph_main,       ONLY: init_2mom_scheme,      &
-    &                                 rain_coeffs  ! contains the parameters for the mue-Dm-relation
-  USE mo_2mom_mcrph_types,      ONLY: particle, particle_frozen
-  USE mo_2mom_mcrph_util,       ONLY: gfct
-  USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
+  USE mo_nh_diagnose_pres_temp, ONLY: calc_qsum
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE mo_exception,             ONLY: finish, message
   USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
@@ -1108,10 +1104,8 @@ CONTAINS
 
     REAL(wp) :: frac_w( nproma, ptr_patch%nblks_c )
 
-    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk, idx, blk
-    INTEGER :: size1,size2,size3
+    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk
     INTEGER :: nblks_c_lp
-    REAL(wp),DIMENSION(:,:,:), POINTER :: area_norm
     LOGICAL :: lzacc ! non-optional version of lacc
 
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -1737,139 +1731,115 @@ CONTAINS
 
 
   !>
-  !! Calculate total column integrated water (twater)
+  !! Calculate total column integrated water in kg m-2 (twater)
   !!
   !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
+  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
+  !! Rewrite which uses a water tracer index list by Daniel Reinert, DWD (2022-11-16)
   !!
-  SUBROUTINE compute_field_twater( ptr_patch, jg,      &
-                                   p_metrics, p_prog, p_prog_rcf,  &
-                                   twater, lacc )
+  SUBROUTINE compute_field_twater( p_patch, ddqz_z_full, rho, tracer,  &
+                                   idx_list_condensate, twater, opt_slev, lacc )
 
-    IMPLICIT NONE
+    TYPE(t_patch),     INTENT(IN)  :: p_patch                !< patch on which computation is performed
+    REAL(wp),          INTENT(IN)  :: ddqz_z_full(:,:,:)     !< cell height [m]
+    REAL(wp),          INTENT(IN)  :: rho(:,:,:)             !< total air density [kg m-3]
+    REAL(wp),          INTENT(IN)  :: tracer(:,:,:,:)        !< tracer mass fractions [kg kg-1]
+    INTEGER,           INTENT(IN)  :: idx_list_condensate(:) !< IDs of all water tracers
+                                                             !< excluding qv
+    REAL(wp),          INTENT(OUT) :: twater(:,:)            !< total column integrated water [kg m-2]
+                                                             !< dim: (nproma,nblks_c)
+    INTEGER, OPTIONAL, INTENT(IN)  :: opt_slev               !< vertical start level
+    LOGICAL, OPTIONAL, INTENT(IN)  :: lacc                   !< if true, use OpenACC
 
-    TYPE(t_patch),        INTENT(IN)  :: ptr_patch     !< patch on which computation is performed
-    INTEGER,              INTENT(IN)  :: jg            ! domain ID of main grid
-    TYPE(t_nh_metrics),   INTENT(IN)  :: p_metrics
-    TYPE(t_nh_prog),      INTENT(IN)  :: p_prog, p_prog_rcf
-
-    REAL(wp),             INTENT(OUT) :: twater(:,:)    !< output variable, dim: (nproma,nblks_c)
-    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc           !< initialization flag
-    
-    ! Local arrays
-    !-------------
+    ! Local variables
+    !----------------
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+    INTEGER :: jg
+    INTEGER :: slev              ! start level
+    INTEGER :: slev_moist        ! start level for moisture variables other than qv
 
-    REAL(wp) :: q_water( nproma, ptr_patch%nlev )
-    LOGICAL :: lzacc             ! OpenACC flag 
+    REAL(wp):: q_water( nproma, p_patch%nlev )
+    LOGICAL :: lzacc             ! OpenACC flag
+
+    CHARACTER(len=*), PARAMETER :: routine = modname//':compute_field_twater'
+
+
     CALL set_acc_host_or_device(lzacc, lacc)
+
     !$ACC DATA &
-    !$ACC   PRESENT(atm_phy_nwp_config(jg:jg), kstart_moist(jg:jg), ptr_patch) &
-    !$ACC   PRESENT(p_prog_rcf%tracer, p_prog_rcf%tracer_ptr) &
-    !$ACC   PRESENT(p_prog%rho, p_metrics%ddqz_z_full, twater) &
     !$ACC   CREATE(q_water) &
     !$ACC   IF(lzacc)
 
-    
-    ! without halo or boundary  points:
+    jg = p_patch%id
+
+    ! sanity check
+    !
+    IF (ANY(idx_list_condensate > SIZE(tracer,4))) THEN
+      CALL finish( routine, "tracer ID exceeds size of tracer container" )
+    END IF
+
+    IF ( PRESENT(opt_slev) ) THEN
+      slev = opt_slev
+    ELSE
+      slev = 1
+    ENDIF
+    ! start index for moisture variables other than qv
+    slev_moist = MAX(kstart_moist(jg),slev)
+
+    ! without halo or boundary points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
 
-    i_startblk = ptr_patch%cells%start_block( i_rlstart )
-    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+    i_startblk = p_patch%cells%start_block( i_rlstart )
+    i_endblk   = p_patch%cells%end_block  ( i_rlend   )
 
 
 !$OMP PARALLEL
-    CALL init(twater)
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,q_water), ICON_OMP_RUNTIME_SCHEDULE
+    CALL init(twater(:,:))
+
+!$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx,q_water), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      
+
+      ! get total mass fraction of condensates (excluding qv)
+      ! calc_sum ensures that q_water is initialized with zero for slev<=jk<=slev_moist
+      !
+      CALL calc_qsum (tracer(:,:,:,:), q_water(:,:), idx_list_condensate, &
+        &             jb, i_startidx, i_endidx, slev, slev_moist, p_patch%nlev)
+
+      ! add contribution by qv
+      !
       !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1, ptr_patch%nlev
+      DO jk = slev, p_patch%nlev
         DO jc = i_startidx, i_endidx
-          q_water(jc,jk) = p_prog_rcf%tracer(jc,jk,jb,iqv)   &
-            &            + p_prog_rcf%tracer(jc,jk,jb,iqc)
+          q_water(jc,jk) = q_water(jc,jk) + tracer(jc,jk,jb,iqv)
         END DO
       END DO
       !$ACC END PARALLEL
 
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqi)%p_3d ) ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqi)
-          END DO
-        END DO
-        !$ACC END PARALLEL
-      END IF
-
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqr)%p_3d ) ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqr)
-          END DO
-        END DO
-        !$ACC END PARALLEL
-      END IF
-
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqs)%p_3d ) ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqs)
-          END DO
-        END DO
-        !$ACC END PARALLEL
-      END IF
-
-      IF ( atm_phy_nwp_config(jg)%lhave_graupel ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqg)
-          END DO
-        END DO
-        !$ACC END PARALLEL
-      END IF
-
-      IF ( atm_phy_nwp_config(jg)%l2moment ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqh)
-          END DO
-        END DO
-        !$ACC END PARALLEL
-      END IF
-
-      ! calculate vertically integrated mass
+      ! integrate over column
+      !
       !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP SEQ
-      DO jk = 1, ptr_patch%nlev
+      DO jk = slev, p_patch%nlev
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           twater(jc,jb) = twater(jc,jb)       &
-            &            + p_prog%rho(jc,jk,jb) * q_water(jc,jk) * p_metrics%ddqz_z_full(jc,jk,jb)
+            &            + rho(jc,jk,jb) * q_water(jc,jk) * ddqz_z_full(jc,jk,jb)
         END DO
       END DO
       !$ACC END PARALLEL
-    END DO
+    ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-  !$ACC END DATA
+
+    !$ACC END DATA
   END SUBROUTINE compute_field_twater
 
 
@@ -4720,7 +4690,7 @@ CONTAINS
     REAL(wp),POINTER ::   rho(:,:,:)  ! total density (inkluding hydrometeors)
 
     ! specific tracer concentrations
-    REAL(wp) :: Cvmax, Ccmax, Cimax, Crmax, Csmax, Cgmax
+    REAL(wp) :: Ccmax, Cimax, Crmax, Csmax, Cgmax
 
     ! parameters for vis parametrization
     REAL(wp), parameter :: a_c = 144.7_wp, b_c = 0.88_wp  
@@ -4733,7 +4703,7 @@ CONTAINS
     INTEGER, PARAMETER :: top_lev = 3  ! number of levels from ground used for vis diagnostic
 
     REAL(wp) :: vis, vis_night, visrh, qrh
-    REAL(wp) :: pvsat, pv, rhmax, vishyd, visrh_clip, &
+    REAL(wp) :: pvsat, pv, rhmax, visrh_clip, &
 	     &  shear, shear_fac, czen, zen_fac
     real(wp),allocatable :: rh(:)
 
