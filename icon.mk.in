@@ -349,8 +349,29 @@ mostlyclean: $(bundled_subdirs)
 @PGI_INLIB_ENABLED@	rm -rf $(pgi_inlib_name)
 
 # Delete files generated at the building stage:
+clean_files= srclist version.c $(filter-out $(CLAW_mk_targets),$(pp_files))
+
+# With all components and all preprocessing steps enabled, the list above
+# contains ~3k filenames, which might result into the following error if we
+# provide it on the command line as is:
+#   make[1]: /bin/bash: Argument list too long
+# To circumvent the issue, we have to split $(clean_files) into two lists.
+
+# Auxiliary function. Receives a name of a variable containing a space-separated
+# list. Splits the list into two ones that are twice as short (in terms of the
+# number of elements). Each element of the input list can be found in one of the
+# two output lists. In other words, if the input list L is a set, the result is
+# two disjoint sets L1 and L2 such that |L1| - |L2| <= 1 and L = L1 U L2.
+# Variables that contain the results have names <NAME>_1 and <NAME>_2, where
+# <NAME> is the input name.
+split_list= $(foreach e,$($(1)), \
+                $(if $(filter $(words $($(1)_1)),$(words $($(1)_2))), \
+                    $(eval $(1)_1+=$(e)),$(eval $(1)_2+=$(e))))
+
+$(call split_list,clean_files)
 clean: mostlyclean
-	rm -f srclist $(filter-out $(CLAW_mk_targets),$(pp_files)) version.c
+	$(if $(clean_files_1),rm -f $(clean_files_1))
+	$(if $(clean_files_2),rm -f $(clean_files_2))
 
 # Delete everything generated at the configure stage (and clean the created
 # directories if they are empty):

@@ -189,6 +189,7 @@ CONTAINS
     ! Calculate vertical integrals of moisture quantities and cloud cover
     ! Anurag Dipankar, MPIM (2015-08-01): always call this routine
     ! for LES simulation
+#ifndef __NO_ICON_LES__
     IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
       ! This call is required in LES to have prm_diag%clct up-to-date in
       ! calculate_turbulent_diagnostics.
@@ -199,6 +200,7 @@ CONTAINS
                               & pt_diag, prm_diag,          & !inout
                               & lzacc                        ) !in
     ENDIF
+#endif
 
     ! Calculation of average/accumulated values since model start
     !
