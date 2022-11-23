@@ -345,75 +345,88 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 /
 
 &output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ ! The probability that one cpu run is not within the tolerance spread produced
+ ! by 10 other cpu runs is less than 0.3% per variable.
  output_filename  = "${EXPNAME}_atm_3d"
  filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 1                         ! parent domain
  filetype         = 5
  remap            = 0
  output_grid      = .TRUE.
- output_bounds    = ${output_bounds}        ! start, end, increment
- steps_per_file   = ${steps_per_file}
- include_last     = .FALSE.
+  output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
+ steps_per_file   = 4
+ include_last     = .TRUE.
  ml_varlist       =
-  'u','v','vt','qc','qi','qr','qs','qv','rho','theta_v','tke','vn','w','geopot',
-  'ddt_vn_phy','ddt_exner_phy','ddt_temp_dyn','exner_pr','exner_dyn_incr',
-  'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
-  'omega','div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
-  'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
-  'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
-  'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_bs','lhfl_pl','qcfl_s',
-  't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
-  'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_turb','ddt_temp_drag',
-EOF
-
-if [[ "$mpi_procs_pernode" -ge 10 ]]; then
-  # This is a hackish workaround to temporarily avoid marginal errors being shown by probtest
-  # The following output variables should only be used when on CPU, not no GPU.
-  # mpi_procs_pernode is abused here as proxy to differentiate between GPU and CPU
-  # TODO (from 2022-06-24): Try to output these variable again with the GPU code when other numeric are changed.
-  cat >> ${basedir}/run/${atmo_namelist} << EOF
-    'ddt_temp_pconv',
-EOF
-fi
-
-cat >> ${basedir}/run/${atmo_namelist} << EOF  
-  'ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso',
-  'ddt_qv_turb','ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
-  'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','exner','rh',
-  'clct', 'clc', 'clcl','clcm','clch', 'plcov', 'pv', 'albdif', 'gz0',
-  'group:land_vars', 'group:land_tile_vars', 'group:dwd_fg_sfc_vars', 
-  
-  ! Hackish workaround to temporarily avoid marginal errors being shown by probtest.
-  ! The following output variables should only be used when on CPU, not no GPU.
-  ! mpi_procs_pernode is abused here as proxy to differentiate between GPU and CPU
-  ! TODO (from 2022-05-16): Try to output these variable again with the GPU code when other numeric are changed.
-  $(test "$mpi_procs_pernode" -ge 10 || echo "'-w_so_ice', '-w_so_ice_t_4', '-w_so_ice_t_5', '-w_so_ice_t_6'" )
-
- pl_varlist           = 
-  'u','v','qc','qi','qr','qs','qv','rho','tke','w','omega', 'temp', 'clc','geopot',
-  'ddt_exner_phy','ddt_temp_dyn','tempv','temp_ifc','dpres_mc', 'div','vor',
- p_levels             =    100, 200, 500,100000
- 
- hl_varlist           = 
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','ddt_temp_radlw','ddt_temp_turb','ddt_temp_drag',
-  'ddt_temp_pconv','ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso','rh', 'pv' 
+  'cape', 'clct_mod', 'cldepth', 'dpres_mc', 'drag_u_grid', 'exner',
+  'exner_dyn_incr', 'exner_pr', 'h_snow', 'hdef_ic', 'lhfl_bs', 'lhfl_s',
+  'lwflx_up', 'pres_sfc', 'qhfl_s', 'qi', 'qr', 'qs', 'rain_gsp', 'rho',
+  'rho_ic', 'rho_snow', 'runoff_g', 'sp_10m', 'str_u_sso', 'str_v_sso', 't_2m',
+  't_sk', 't_so', 'temp_ifc', 'thb_t', 'thbclr_s', 'thu_s', 'tke', 'tot_qi_dia',
+  'tqc', 'tqc_dia', 'tqi', 'tqi_dia', 'tqr', 'tqs', 'tqv', 'tqv_dia', 'u_10m',
+  'u', 'v_10m', 'v', 'vn', 'vn_ie', 'vt', 'w_concorr_c'
+ pl_varlist           = 'temp', 'w'
+ p_levels             = 100, 200, 92500, 100000
+ hl_varlist           = 'temp'
  h_levels             = 5000, 3000, 1500
 /
 
 &output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ output_filename  = "${EXPNAME}_atm_3d"
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 2                         ! nested domain
+ filetype         = 5
+ remap            = 0
+ output_grid      = .TRUE.
+  output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
+ steps_per_file   = 4
+ include_last     = .TRUE.
+ ml_varlist       =
+  'clct_mod', 'cldepth', 'ddt_qc_conv', 'ddt_temp_turb', 'exner_pr',
+  'freshsnow', 'h_snow', 'lwflx_dn_clr', 'lwflx_up', 'lwflxall', 'qc', 'qv',
+  'rain_gsp', 'rh', 'rho', 'runoff_g', 'runoff_s', 'theta_v', 'theta_v_ic',
+  'thu_s', 'tot_prec', 'tot_qv_dia', 'tqc', 'tqc_dia', 'tqi', 'tqi_dia', 'tqr',
+  'tsfctrad', 'u'
+ pl_varlist           = 'temp'
+ p_levels             = 100, 200, 92500, 100000
+/
+
+&output_nml
+ ! This namelist is designed for Probtest tolerance testing
  output_filename  = "${EXPNAME}_atm_3d_ll"
- filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>" 
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 1                         ! parent domain
  filetype         = 5
  remap            = 1
  output_grid      = .TRUE.
- output_bounds    = ${output_bounds}        ! start, end, increment
- steps_per_file   = ${steps_per_file}
+  output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
+ steps_per_file   = 20
  include_last     = .FALSE.
- reg_lon_def          = 0.,0.1,17.0
- reg_lat_def          = 42.7,0.1,50.
- ml_varlist       = 'u','qc','rho'
+ reg_lon_def      = 0.,0.1,17.0
+ reg_lat_def      = 42.7,0.1,50.
+ output_grid      = .false.
+ ml_varlist       = 'u'
 /
+
+&output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ output_filename  = "${EXPNAME}_atm_3d_ll"
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 2                         ! nested domain
+ filetype         = 5
+ remap            = 1
+ output_grid      = .TRUE.
+  output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
+ steps_per_file   = 20
+ include_last     = .FALSE.
+ reg_lon_def      = 0.,0.1,17.0
+ reg_lat_def      = 42.7,0.1,50.
+ output_grid      = .false.
+ ml_varlist       = 'qc','rho'
+/
+
+
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology

@@ -1311,8 +1311,8 @@ set_run_target_daint_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 15 minutes on Daint (SLURM delays)
-	s_cpu_time="SBATCH --time=00:15:00"
+	# this is buldbot, do not run more than 20 minutes on Daint (SLURM delays)
+	s_cpu_time="SBATCH --time=00:20:00"
     fi
     # ------------------------------------
 
