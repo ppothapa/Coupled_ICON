@@ -4029,7 +4029,7 @@ CONTAINS
   SUBROUTINE compute_field_dursun( pt_patch, dt_phy, dursun,                    &
     &                              swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff,   &
     &                              cosmu0, dursun_thresh, dursun_thresh_width,  &
-    &                              dursun_m, dursun_r, pi0, pres, twater, lacc)
+    &                              dursun_m, dursun_r, zsct, pres, twater, lacc)
 
     TYPE(t_patch),      INTENT(IN)    :: pt_patch              !< patch on which computation is performed
     REAL(wp),           INTENT(IN)    :: dt_phy                !< time interval for fast physics
@@ -4042,7 +4042,7 @@ CONTAINS
     REAL(wp),           INTENT(IN)    :: dursun_thresh_width   !< smoothness / width of the threshold
     REAL(wp), INTENT(INOUT), POINTER  :: dursun_m(:,:)         !< maximum sunshine duration (s)
     REAL(wp), INTENT(INOUT), POINTER  :: dursun_r(:,:)         !< relative sunshine duration (s)
-    REAL(wp), INTENT(IN), OPTIONAL    :: pi0(:,:)              !< local solar incoming flux at TOA [W/m2]
+    REAL(wp), INTENT(IN)              :: zsct                  !< solar constant (at time of year) [W/m2]
     REAL(wp), INTENT(IN), OPTIONAL    :: pres(:,:)             !< pressure
     REAL(wp), INTENT(IN), OPTIONAL    :: twater(:,:)           !< total column water
     LOGICAL,  INTENT(IN), OPTIONAL    :: lacc                  !< initialization flag
@@ -4053,8 +4053,7 @@ CONTAINS
 
     ! local variables
     LOGICAL  :: l_present_dursun_m, l_present_dursun_r
-    REAL(wp) :: sun_el, swrad_dir, theta_sun, xval, &
-                zsct ! solar constant (at time of year)
+    REAL(wp) :: sun_el, swrad_dir, theta_sun, xval
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
@@ -4062,7 +4061,7 @@ CONTAINS
     LOGICAL  :: lzacc             ! OpenACC flag 
     CALL set_acc_host_or_device(lzacc, lacc)
     !$ACC DATA &
-    !$ACC   PRESENT(cosmu0, dursun, dursun_m, dursun_r, pi0, pres, pt_patch) &
+    !$ACC   PRESENT(cosmu0, dursun, dursun_m, dursun_r, pres, pt_patch) &
     !$ACC   PRESENT(swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff, twater) &
     !$ACC   IF(lzacc)
 
@@ -4079,13 +4078,13 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block  ( i_rlend   )
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,sun_el,swrad_dir,theta_sun,xval,zsct), ICON_OMP_RUNTIME_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,sun_el,swrad_dir,theta_sun,xval), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( pt_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
       !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-      !$ACC LOOP GANG VECTOR PRIVATE(sun_el, swrad_dir, theta_sun, xval, zsct)
+      !$ACC LOOP GANG VECTOR PRIVATE(sun_el, swrad_dir, theta_sun, xval)
       DO jc = i_startidx, i_endidx
         IF(cosmu0(jc,jb)>cosmu0_dark) THEN
 
@@ -4111,9 +4110,7 @@ CONTAINS
           sun_el = ASIN(cosmu0(jc,jb))
           ! sun elevation angle in radians
           theta_sun = MAX(0.0_wp, sun_el)
-          ! from "calculate solar incoming flux at TOA" in mo_nh_interface_nwp.f90 line 1308
-          ! get solar constant 
-          zsct = pi0(jc,jb)/cosmu0(jc,jb)
+
           IF ( swflxsfc(jc,jb) > 0.0001_wp .AND. SIN(theta_sun) > 0.0001_wp ) THEN
             swrad_dir = zsct * 0.94_wp * EXP(                                    &
                  - 0.00146_wp * pres(jc,jb) / 1.0E3_wp / 0.8_wp / SIN(theta_sun) &

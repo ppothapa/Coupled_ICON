@@ -1887,7 +1887,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE nwp_opt_diagnostics_2(p_patch, p_metrics, p_prog, p_prog_rcf, p_diag, &
-             &                     prm_diag, cosmu0, p_sim_time, dt_phy, lacc)
+             &                     prm_diag, cosmu0, zsct, p_sim_time, dt_phy, lacc)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch         !< current patch
     TYPE(t_nh_metrics),    INTENT(IN)    :: p_metrics       !< in
@@ -1897,6 +1897,7 @@ CONTAINS
     TYPE(t_nh_diag),       INTENT(IN)    :: p_diag          !< NH diagnostic state
     TYPE(t_nwp_phy_diag),  INTENT(INOUT) :: prm_diag        !< physics diagnostics
     REAL(wp),              INTENT(IN)    :: cosmu0(:,:)     !< Cosine of solar zenith angle
+    REAL(wp),              INTENT(IN)    :: zsct            !< solar constant (at time of year) [W/m2]
     REAL(wp),              INTENT(IN)    :: p_sim_time      !< elapsed simulation time on this grid level
     REAL(wp),              INTENT(IN)    :: dt_phy          !< time interval for fast physics
     LOGICAL,    OPTIONAL,  INTENT(IN)    :: lacc            !< initialization flag
@@ -1911,7 +1912,7 @@ CONTAINS
     !$ACC   CREATE(twater) &
     !$ACC   IF(lzacc)
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
-    
+
     l_present_dursun_m = .FALSE.
     l_present_dursun_r = .FALSE.
     IF (ASSOCIATED(prm_diag%dursun_m)) l_present_dursun_m=.TRUE.
@@ -1932,7 +1933,7 @@ CONTAINS
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &
              &                    120.0_wp, 0.01_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
-             &                    prm_diag%flxdwswtoa(:,:),                 &
+             &                    zsct,                                     &
              &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSEIF (itype_dursun == 1) THEN
         ! MeteoSwiss sunshine duration with a 200 W/m2 threshold
@@ -1941,7 +1942,7 @@ CONTAINS
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &
              &                    200.0_wp, 60.0_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
-             &                    prm_diag%flxdwswtoa(:,:),                 &
+             &                    zsct,                                     &
              &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSE
         CALL finish('nwp_opt_diagnostics_2', 'itype_dursun can only have the value 0 or 1.')

@@ -2362,6 +2362,7 @@ CONTAINS
       &                        pt_diag,              & !in
       &                        prm_diag,             & !inout
       &                        zcosmu0,              & !in
+      &                        zsct,                 & !in
       &                        p_sim_time,           & !in
       &                        dt_phy_jg(itfastphy), & !in
       &                        lacc=lzacc             )
