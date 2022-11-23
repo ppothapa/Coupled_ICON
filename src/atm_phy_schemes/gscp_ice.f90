@@ -122,7 +122,7 @@ USE mo_satad,              ONLY: sat_pres_water, &  !! saturation vapor pressure
                                  sat_pres_ice,   &  !! saturation vapor pressure w.r.t. ice
                                  latent_heat_vaporization, &
                                  latent_heat_sublimation
-USE mo_exception,          ONLY: message, message_text
+USE mo_exception,          ONLY: message, message_text, finish
 USE mo_run_config,         ONLY: ldass_lhn
 
 !------------------------------------------------------------------------------
@@ -236,7 +236,6 @@ END FUNCTION
 !!  grid scale precipitation including cloud water, cloud ice, rain and snow
 !------------------------------------------------------------------------------
 
-#ifndef _OPENACC
 SUBROUTINE cloudice2mom (            &
   nvec,ke,                           & !> array dimensions
   ivstart,ivend, kstart,             & !! optional start/end indicies
@@ -533,6 +532,10 @@ SUBROUTINE cloudice2mom (            &
   fxna(ztx)   = 1.0E2_wp * EXP(0.2_wp * (t0 - ztx))
   fxna_cooper(ztx) = 5.0E+0_wp * EXP(0.304_wp * (t0 - ztx))   ! FR: Cooper (1986) used by Greg Thompson(2008)
 
+#ifdef _OPENACC
+  CALL finish('mo_nwp_gscp_interface: ', 'subroutine cloudice2mom (gscp=3) not available on GPU') ! not tested
+#endif
+
 ! Define reciprocal of heat capacity of dry air (at constant pressure vs at constant volume)
 
   IF (PRESENT(l_cv)) THEN
@@ -564,11 +567,12 @@ SUBROUTINE cloudice2mom (            &
   !$ACC DATA &
   !$ACC   PRESENT(dz, t, p, rho, qv, qc, qi, qr, qs, qnc) &
   !$ACC   PRESENT(prr_gsp, prs_gsp, qrsflux, pri_gsp) &
+  !$ACC   PRESENT(w, qni, ninact) &
   ! automatic arrays
   !$ACC   CREATE(zvzr, zvzs, zvzi, zvzin) &
   !$ACC   CREATE(zpkr, zpks, zpki, zpkin) &
   !$ACC   CREATE(zprvr, zprvs, zprvi, zprvin, zqvsw_up) &
-  !$ACC   CREATE(dist_cldtop, zlhv, zlhs)
+  !$ACC   CREATE(dist_cldtop, zlhv, zlhs, acoeff, bcoeff)
 
 ! Some constant coefficients
   IF( lsuper_coolw) THEN
@@ -1757,7 +1761,6 @@ SUBROUTINE cloudice2mom (            &
 !------------------------------------------------------------------------------
 
 END SUBROUTINE cloudice2mom
-#endif
 
 !==============================================================================
 

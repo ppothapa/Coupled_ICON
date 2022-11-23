@@ -402,7 +402,6 @@ CONTAINS
 
         CASE(3)  ! extended version of cloudice scheme with progn. cloud ice number
 
-#ifndef _OPENACC
           CALL cloudice2mom (                               &
             & nvec   =nproma                           ,    & !> in:  actual array size
             & ke     =nlev                             ,    & !< in:  actual array size
@@ -440,9 +439,7 @@ CONTAINS
             & idbg=msg_level/2                         ,    &
             & l_cv=.TRUE.                              ,    &
             & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
-#else
-          CALL finish('mo_nwp_gscp_interface: ', 'subroutine cloudice2mom (gscp=3) not available on GPU')
-#endif
+
         CASE(4)  ! two-moment scheme 
 
           CALL two_moment_mcrph(                       &

@@ -2302,6 +2302,7 @@ CONTAINS
           CALL exchange_data_r3d_seq(p_pat, recv(n)%p(:,:,:))
         ENDIF
       ENDDO
+      stop_sync_timer(timer_exch_data)
       RETURN
     END IF
 
