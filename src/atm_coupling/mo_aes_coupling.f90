@@ -39,10 +39,6 @@ MODULE mo_aes_coupling
 
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
 
-#if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
-  USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
-#endif
-
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run

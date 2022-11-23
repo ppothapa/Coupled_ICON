@@ -125,7 +125,7 @@ MODULE mo_atmo_model
   ! coupling
 #ifdef YAC_coupling
   USE mo_coupling_config,         ONLY: is_coupled_run
-  USE mo_atmo_coupling_frame,     ONLY: construct_atmo_coupling, destruct_atmo_coupling
+  USE mo_atmo_coupling_frame,     ONLY: construct_atmo_coupling
 #endif
 
   ! I/O
@@ -229,15 +229,6 @@ CONTAINS
     ! 13. Integration finished. Carry out the shared clean-up processes
     !---------------------------------------------------------------------
     CALL destruct_atmo_model ()
-
-    !---------------------------------------------------------------------
-    ! destruct the coupler
-    !
-#ifdef YAC_coupling
-    IF ( is_coupled_run() ) THEN
-      CALL destruct_atmo_coupling ()
-    ENDIF
-#endif
 
     !---------------------------------------------------------------------
     ! (optional:) write resident set size from OS
