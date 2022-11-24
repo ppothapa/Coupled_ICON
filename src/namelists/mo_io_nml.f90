@@ -42,6 +42,7 @@ MODULE mo_io_nml
                                  & config_totprec_d_interval      => totprec_d_interval     , &
                                  & config_runoff_interval         => runoff_interval        , &
                                  & config_itype_dursun            => itype_dursun           , &
+                                 & config_itype_convindices       => itype_convindices      , &
                                  & config_sunshine_interval       => sunshine_interval      , &
                                  & config_melt_interval           => melt_interval          , &
                                  & config_maxt_interval           => maxt_interval          , &
@@ -130,6 +131,8 @@ CONTAINS
     INTEGER :: itype_dursun               ! if 0 the sunshine duration is counted if >120W/m^2
                                           ! if 1 the sunshine duration is counted only
                                           !    if direct radiation > 200 W/m^2 and relative sunshine duration in % is computed
+    INTEGER :: itype_convindices          ! if 1 CAPE_MU/CIN_MU are approximated via the CAPE/CIN of the parcel with maximum equivalent temperature
+                                          ! if 2 the full computation is done
     LOGICAL :: lflux_avg                  ! if .FALSE. the output fluxes are accumulated
                                           !  from the beginning of the run
                                           ! if .TRUE. the output fluxex are average values
@@ -194,7 +197,8 @@ CONTAINS
       &              maxt_interval, checkpoint_on_demand,                 &
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
       &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
-      &              melt_interval, wshear_uv_heights, srh_heights
+      &              itype_convindices, melt_interval, wshear_uv_heights, &
+      &              srh_heights
 
     !-----------------------
     ! 1. default settings
@@ -227,6 +231,7 @@ CONTAINS
     inextra_2d              = 0     ! no extra output 2D fields
     inextra_3d              = 0     ! no extra output 3D fields
     itype_dursun            = 0
+    itype_convindices       = 1
     lflux_avg               = .TRUE.
     itype_pres_msl          = PRES_MSL_METHOD_GME
     itype_rh                = RH_METHOD_WMO       ! WMO: water only
@@ -308,6 +313,7 @@ CONTAINS
     config_totprec_d_interval(:)   = totprec_d_interval(:)
     config_runoff_interval(:)      = runoff_interval(:)
     config_itype_dursun            = itype_dursun
+    config_itype_convindices       = itype_convindices
     config_sunshine_interval(:)    = sunshine_interval(:)
     config_melt_interval(:)        = melt_interval(:)
     config_maxt_interval(:)        = maxt_interval(:)
@@ -342,6 +348,9 @@ CONTAINS
     IF ((nrestart_streams < 0) .OR. (nrestart_streams > p_n_work)) THEN
       CALL finish(routine, "Invalid choice of parameter value: nrestart_streams!")
     END IF
+    IF((itype_convindices < 0) .OR. (itype_convindices > 2)) THEN
+          CALL finish(routine, 'itype_convindices can only have the value 0 (no MU computation), or 1 or 2 when requesting computation.')
+    ENDIF
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

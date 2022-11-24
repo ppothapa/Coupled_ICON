@@ -350,8 +350,7 @@ CONTAINS
     CALL add_var( p_ext_atm_list, 'topography_c', p_ext_atm%topography_c,  &
       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
       &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,             &
-      &           isteptype=TSTEP_CONSTANT )
-
+      &           isteptype=TSTEP_CONSTANT)
 
     ! gradient of topography height at cell center
     !

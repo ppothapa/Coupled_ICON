@@ -76,6 +76,10 @@ MODULE mo_io_config
                                         ! if 1 the sunshine duration is counted only
                                         ! if direct radiation > 200 W/m^2 and relative sunshine duration in % is computed
 
+  INTEGER :: itype_convindices          ! if 1 CAPE_MU/CIN_MU are approximated via the CAPE/CIN of the parcel with maximum equivalent temperature
+                                        ! if 2 the full computation is done
+
+
   INTEGER :: itype_pres_msl             ! Specifies method for computation of mean sea level pressure
   INTEGER :: itype_rh                   ! Specifies method for computation of relative humidity
 
@@ -156,8 +160,16 @@ MODULE mo_io_config
     LOGICAL :: wshear_v     = .FALSE. !< Flag. TRUE if computation of vertical V wind shear components is desired
     LOGICAL :: lapserate    = .FALSE. !< Flag. TRUE if computation of T(500hPa) - T(850hPa) is desired
     LOGICAL :: srh          = .FALSE. !< Flag. TRUE if computation of storm relative helicity (SRH) is desired
+    LOGICAL :: cloudtop     = .FALSE. !< Flag. TRUE if computation of CLOUDTOP is desired
+    LOGICAL :: si           = .FALSE. !< Flag. TRUE if computation of SI is desired
+    LOGICAL :: sli          = .FALSE. !< Flag. TRUE if computation of SLI is desired
+    LOGICAL :: swiss12      = .FALSE. !< Flag. TRUE if computation of SWISS12 is desired
+    LOGICAL :: swiss00      = .FALSE. !< Flag. TRUE if computation of SWISS00 is desired
     LOGICAL :: cape_mu      = .FALSE. !< Flag. TRUE if computation of most unstable CAPE is desired
-    LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition is desired
+    LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition MU is desired
+    LOGICAL :: cape_3km     = .FALSE. !< Flag. TRUE if computation of CAPE 3KM is desired
+    LOGICAL :: lfc_ml       = .FALSE. !< Flag. TRUE if computation of the Level of Free Convection is desired
+    LOGICAL :: lcl_ml       = .FALSE. !< Flag. TRUE if computation of the Lifted Condensation Level is desired
     ! add vars for global mean claclulations
     LOGICAL :: tas_gmean    = .FALSE. !< Flag. TRUE if computation of global mean T2m 
     LOGICAL :: rsdt_gmean   = .FALSE. !< Flag. TRUE if computation of global mean toa downward short wave rad
@@ -327,6 +339,14 @@ CONTAINS
         var_in_output(jg)%srh         = is_variable_in_output_dom(var_name="srh", jg=jg)
         var_in_output(jg)%cape_mu     = is_variable_in_output_dom(var_name="cape_mu", jg=jg)
         var_in_output(jg)%cin_mu      = is_variable_in_output_dom(var_name="cin_mu", jg=jg)
+        var_in_output(jg)%cape_3km    = is_variable_in_output_dom(var_name="cape_3km", jg=jg)
+        var_in_output(jg)%lfc_ml      = is_variable_in_output_dom(var_name="lfc_ml", jg=jg)
+        var_in_output(jg)%lcl_ml      = is_variable_in_output_dom(var_name="lcl_ml", jg=jg)
+        var_in_output(jg)%si          = is_variable_in_output_dom(var_name="si", jg=jg)
+        var_in_output(jg)%sli         = is_variable_in_output_dom(var_name="sli", jg=jg)
+        var_in_output(jg)%swiss12     = is_variable_in_output_dom(var_name="swiss12", jg=jg)
+        var_in_output(jg)%swiss00     = is_variable_in_output_dom(var_name="swiss00", jg=jg)
+        var_in_output(jg)%cloudtop    = is_variable_in_output_dom(var_name="cloudtop", jg=jg)
         ! add vars for global mean claclulations
         var_in_output(jg)%tas_gmean   = is_variable_in_output_dom(var_name="tas_gmean", jg=jg)
         var_in_output(jg)%rsdt_gmean  = is_variable_in_output_dom(var_name="rsdt_gmean", jg=jg)

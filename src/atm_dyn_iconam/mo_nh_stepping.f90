@@ -1256,16 +1256,16 @@ MODULE mo_nh_stepping
                   &  'LES cloud diagnostics: OpenACC version currently not implemented')
               ENDIF
 #endif
-              !LES specific diagnostics only for output
-              CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
-                &                      ih_clch(jg), ih_clcm(jg),               & !in
-                &                      phy_params(jg),                         & !in
-                &                      p_patch(jg),                            & !in
-                &                      p_nh_state(jg)%metrics,                 & !in
-                &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  
-                &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  
-                &                      p_nh_state(jg)%diag,                    & !in
-                &                      prm_diag(jg)                            ) !inout
+            !LES specific diagnostics only for output
+            CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
+              &                      ih_clch(jg), ih_clcm(jg),               & !in
+              &                      phy_params(jg),                         & !in
+              &                      p_patch(jg),                            & !in
+              &                      p_nh_state(jg)%metrics,                 & !in
+              &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  !nnow or nnew?
+              &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  !nnow or nnew?
+              &                      p_nh_state(jg)%diag,                    & !in
+              &                      prm_diag(jg)                            ) !inout
 
               sim_time = getElapsedSimTimeInSeconds(mtime_current)
               IF(MOD(sim_time,les_config(jg)%sampl_freq_sec)==0)THEN

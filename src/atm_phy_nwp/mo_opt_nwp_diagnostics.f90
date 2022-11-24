@@ -102,8 +102,11 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_vorw_ctmax
   PUBLIC :: compute_field_w_ctmax
   PUBLIC :: compute_field_smi
+  PUBLIC :: cal_cloudtop
   PUBLIC :: cal_cape_cin
   PUBLIC :: cal_cape_cin_mu
+  PUBLIC :: cal_cape_cin_mu_COSMO
+  PUBLIC :: cal_si_sli_swiss
   PUBLIC :: compute_field_dbz3d_lin
   PUBLIC :: compute_field_dbzcmax
   PUBLIC :: compute_field_dbz850
@@ -1557,7 +1560,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_ceiling( ptr_patch, jg,    &
                                 p_metrics, prm_diag,  &
-                                ceiling_height )
+                                ceiling_height, lacc )
 
     IMPLICIT NONE
 
@@ -1567,6 +1570,9 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: ceiling_height(:,:)    !< output variable, dim: (nproma,nblks_c)
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc ! If true, use openacc
+    ! Local scalar and arrays
+    ! -----------------------
 
     LOGICAL ::  cld_base_found( nproma ) 
 
@@ -1574,7 +1580,14 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+    LOGICAL :: lzacc
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(ceiling_height, ptr_patch) &
+    !$ACC   PRESENT(p_metrics%z_mc, prm_diag%clc, kstart_moist(jg)) &
+    !$ACC   CREATE(cld_base_found) &
+    !$ACC   IF(lzacc)
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -1588,24 +1601,26 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
         ceiling_height(jc,jb) = p_metrics%z_mc(jc,1,jb)  ! arbitrary default value
       END DO
-
+      !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
-
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
-
           IF ( .NOT.(cld_base_found(jc)) .AND. (prm_diag%clc(jc,jk,jb) > 0.5_wp) ) THEN
             ceiling_height(jc,jb) = p_metrics%z_mc(jc,jk,jb)
             cld_base_found(jc) = .TRUE.
           ENDIF
-
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
     ENDDO
+  !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -2293,11 +2308,18 @@ CONTAINS
   !! Output: 
   !!         - cape_ml/cin_ml: CAPE/CIN based on a parcel with thermodynamical 
   !!                           properties of the lowest mean layer in the PBL (50hPa)
+  !!         - cape_3km/cin_3km: CAPE/CIN based on a parcel with thermodynamical 
+  !!                           properties of the lowest mean layer in the PBL (50hPa)
+  !!                           with end of ascent at 3 km HAG.
+  !!         - lcl_ml/lfc_ml: Lifting Condensation Level/Level of Free Convection
+  !!                           based on a parcel with thermodynamical properties of the lowest
+  !!                           mean layer in the PBL (50hPa)(ABOVE GROUND level) 
   !!
   !!----------------------------------------------------------------------------
   
-  SUBROUTINE cal_cape_cin ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                            cape_ml, cin_ml, lacc )
+  SUBROUTINE cal_cape_cin ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl, & ! in
+                            cape_ml, cin_ml, cape_3km, lcl_ml, lfc_ml,       & ! out 
+                            lacc )                                             ! in (optional)
 
     ! Input data
     !----------- 
@@ -2306,16 +2328,21 @@ CONTAINS
          kmoist                    ! start index for moist processes
 
     REAL    (wp),    INTENT (IN) ::  &
-         te  (:,:),   & ! environment temperature
-         qve (:,:),   & ! environment specific humidity
-         prs (:,:),   & ! full level pressure
-         hhl (:,:)      ! height of half levels
+         te  (:,:),         & ! environment temperature
+         qve (:,:),         & ! environment specific humidity
+         prs (:,:),         & ! full level pressure
+         hhl (:,:)            ! height of half levels
 
     ! Output data
     !------------ 
     REAL (wp), INTENT (OUT) :: &
-         cape_ml  (:),   & ! mixed layer CAPE_ML
-         cin_ml   (:)      ! mixed layer CIN_ML
+         cape_ml   (:),  & ! mixed layer CAPE_ML
+         cin_ml    (:)     ! mixed layer CIN_ML
+
+    REAL (wp), INTENT (OUT), OPTIONAL :: &
+         cape_3km  (:),  & ! mixed layer CAPE_ML, with endpoint 3km
+         lcl_ml    (:),  & ! mixed layer Lifting Condensation Level ABOVE GROUND level
+         lfc_ml    (:)     ! mixed layer Level of Free Convection ABOVE GROUND level
 
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
@@ -2325,23 +2352,32 @@ CONTAINS
     REAL(wp) :: &
          qvp_start(SIZE(te,1)), & ! parcel initial specific humidity in mixed layer
          tp_start (SIZE(te,1)), & ! parcel initial potential temperature in mixed layer
-         te_start (SIZE(te,1))    ! parcel initial temperature at center height of mixed layer
+         te_start (SIZE(te,1)), & ! parcel initial temperature at center height of mixed layer
+         hl_l,hl_u                ! height of full levels in order to find the closest model level
 
     INTEGER :: &
-         i, k, nlev,             &
+         jc, k, nlev,             &
          kstart(SIZE(te,1)),     & ! Model level corresponding to start height of parcel
-         k_ml(SIZE(te,1))          ! Index for calculation of mixed layer averages 
+         klcl  (SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
+         klfc  (SIZE(te,1)),     & ! Level of Free Convection LFC and
+         kel   (SIZE(te,1)),     & ! Equilibrium level EL
+         k_ml  (SIZE(te,1))        ! Index for calculation of mixed layer averages 
                                    ! (potential temperature, moisture)
+
 #ifndef _OPENACC
     LOGICAL :: lexit(SIZE(te,1))
 #endif
 
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: &
+         lzacc,         & ! non-optional version of lacc
+         l3km,          & ! true if cape_3km is requested
+         llev             ! true if either lfc_ml or lcl_ml is requested
 
     ! Local parameters:
     !------------------
     
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
 
     ! Depth of mixed surface layer: 50hPa following Huntrieser, 1997.
     ! Other frequently used value is 100hPa.
@@ -2360,80 +2396,123 @@ CONTAINS
     !------------------------------------------------------------------------------
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(k_ml, kstart, qvp_start, tp_start, te_start) &
-    !$ACC   PRESENT(te, qve, prs, hhl, cape_ml, cin_ml) &
-    !$ACC   IF(lzacc)
+    IF (PRESENT(cape_3km)) THEN
+      l3km = .TRUE.
+    ELSE
+      l3km = .FALSE.
+    ENDIF
+
+    IF (PRESENT(lfc_ml) .OR. PRESENT(lcl_ml)) THEN
+      llev = .TRUE.
+    ELSE
+      llev = .FALSE.
+    ENDIF
 
     nlev = SIZE( te,2)
-    
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
-    do i = 1, SIZE( te,1)
-      k_ml  (i)  = nlev  ! index used to step through the well mixed layer
-      kstart(i)  = nlev  ! index of model level corresponding to average 
+
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl) &
+    !$ACC   PRESENT(cape_ml, cin_ml, cape_3km, lcl_ml, lfc_ml) &
+    !$ACC   CREATE(qvp_start, tp_start, te_start) &
+    !$ACC   CREATE(kstart, klcl, klfc, k_ml) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx
+      k_ml  (jc)  = nlev  ! index used to step through the well mixed layer
+      kstart(jc)  = nlev  ! index of model level corresponding to average 
+      klfc  (jc)  = nlev  !
+      klcl  (jc)  = nlev  !
       ! mixed layer pressure
-      qvp_start(i) = 0.0_wp ! specific humidities in well mixed layer
-      tp_start (i) = 0.0_wp ! potential temperatures in well mixed layer
+      qvp_start(jc) = 0.0_wp ! specific humidities in well mixed layer
+      tp_start (jc) = 0.0_wp ! potential temperatures in well mixed layer
+      ! outputs
+      cape_ml  (jc) = 0.0_wp 
+      cin_ml   (jc) = missing_value
 #ifndef _OPENACC
-      lexit(i)     = .FALSE.
+      lexit(jc)     = .FALSE.
 #endif
     ENDDO
-    !$ACC END PARALLEL
 
+    
     ! now calculate the mixed layer average potential temperature and 
     ! specific humidity
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = nlev, kmoist, -1
 #ifndef _OPENACC
       IF (ALL(lexit(i_startidx:i_endidx))) EXIT
 #endif
       !$ACC LOOP GANG(STATIC: 1) VECTOR
-      DO i = i_startidx, i_endidx
-
-        IF ( prs(i,k) > (prs(i,nlev) - ml_depth)) THEN
-          qvp_start(i) = qvp_start(i) + qve(i,k)
-          tp_start (i) = tp_start (i) + te (i,k)*(p0/prs(i,k))**rd_o_cpd
+      DO jc = i_startidx, i_endidx
+        IF ( prs(jc,k) > (prs(jc,nlev) - ml_depth)) THEN
+          qvp_start(jc) = qvp_start(jc) + qve(jc,k)
+          tp_start (jc) = tp_start (jc) + te (jc,k)*(p0/prs(jc,k))**rd_o_cpd
 
           ! Find the level, where pressure approximately corresponds to the 
           ! average pressure of the well mixed layer. Simply assume a threshold
           ! of ml_depth/2 as average pressure in the layer, if this threshold 
           ! is surpassed the level with approximate mean pressure is found
-          IF (prs(i,k) > prs(i,nlev) - ml_depth*0.5_wp) THEN
-            kstart(i) = k
+          IF (prs(jc,k) > prs(jc,nlev) - ml_depth*0.5_wp) THEN
+            kstart(jc) = k
           ENDIF
 
-          k_ml(i) = k - 1
+          k_ml(jc) = k - 1
 #ifndef _OPENACC
         ELSE
-          lexit(i) = .TRUE.
+          lexit(jc) = .TRUE.
 #endif
         ENDIF
 
       ENDDO
     ENDDO
-
     ! Calculate the start values for the parcel ascent, 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO i = i_startidx, i_endidx
-      IF (k_ml(i) < nlev) THEN
-        qvp_start(i) =  qvp_start(i) / (nlev-k_ml(i))
-        tp_start (i) =  tp_start (i) / (nlev-k_ml(i))
-        te_start (i) =  tp_start (i)*(prs(i,kstart(i))/p0)**rd_o_cpd
+    DO jc = i_startidx, i_endidx
+      IF (k_ml(jc) < nlev) THEN
+        qvp_start(jc) =  qvp_start(jc) / (nlev-k_ml(jc))
+        tp_start (jc) =  tp_start (jc) / (nlev-k_ml(jc))
+        te_start (jc) =  tp_start (jc)*(prs(jc,kstart(jc))/p0)**rd_o_cpd
       ELSE
-        qvp_start(i) =  qve(i,nlev)
-        te_start (i) =  te (i,nlev)
+        qvp_start(jc) =  qve(jc,nlev)
+        te_start (jc) =  te (jc,nlev)
       END IF
     ENDDO
     !$ACC END PARALLEL
-
     ! The pseudoadiabatic ascent of the test parcel:
-    CALL ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                  kstart, qvp_start, te_start, cape_ml, cin_ml, lacc=lzacc )
-    
-    !$ACC WAIT
+    IF (l3km) THEN
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,  &
+                    kstart=kstart, qvp_start=qvp_start, te_start=te_start,                                      &
+                    acape=cape_ml, acape3km=cape_3km, acin=cin_ml, alcl=klcl, alfc=klfc,                        &
+                    lacc= lacc )
+    ELSE
+      ! cape_3km is not computed
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,  &
+                    kstart=kstart, qvp_start=qvp_start, te_start=te_start,                                      &
+                    acape=cape_ml, acin=cin_ml, alcl=klcl, alfc=klfc,                        &
+                    lacc= lacc )
+    ENDIF
+    IF (llev) THEN
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF ((klcl(jc) .LE. 0) .OR. (klcl(jc) .GT. nlev)) THEN ! if index not defined
+          lcl_ml(jc) = missing_value                       ! lcl=missing_val
+        ELSE
+          ! Lifting condensation level computations ABOVE GROUND level
+          lcl_ml (jc) = 0.5_wp * ( hhl(jc,klcl(jc)) + hhl(jc,klcl(jc)+1) )-hhl(jc,nlev+1)
+          ! Level of free condensation ABOVE GROUND level
+        ENDIF
+        IF ((klfc(jc) .LE. 0) .OR. (klfc(jc) .GT. nlev)) THEN ! if index not defined
+          lfc_ml(jc) = missing_value                       ! lfc=missing_val
+        ELSE
+          lfc_ml (jc) = 0.5_wp * ( hhl(jc,klfc(jc)) + hhl(jc,klfc(jc)+1) )-hhl(jc,nlev+1)
+          ! Equilibrium level ABOVE GROUND level
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
     !$ACC END DATA
-
   END SUBROUTINE cal_cape_cin
 
 
@@ -2477,23 +2556,33 @@ CONTAINS
     REAL(wp), DIMENSION(SIZE(te,1))            :: qvp_start, te_start
     REAL(wp), DIMENSION(SIZE(te,1),SIZE(te,2)) :: tequiv
 
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: lzacc
 
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
-    
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(tequiv, kstart, qvp_start, te_start) &
+    !$ACC DATA &
+    !$ACC   CREATE(tequiv, kstart, qvp_start, te_start) &
     !$ACC   PRESENT(te, qve, prs, hhl, cape_mu, cin_mu) &
     !$ACC   IF(lzacc)
 
     nk = SIZE(te,2)
     
+    ! initialize outputs (good practice)
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cape_mu  (jc) = 0.0_wp 
+      cin_mu   (jc) = missing_value
+    ENDDO
+    
     ! Compute equivalent potential temperature T_equiv approximation after Bolton (1980), Eq. 28:
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    
     !$ACC LOOP SEQ
     DO jk = kmoist, nk
-      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
+      !$ACC LOOP GANG VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
       DO jc = i_startidx, i_endidx
         zml = 0.5_wp * (hhl(jc,jk)+hhl(jc,jk+1)) - hhl(jc,nk+1)  ! m AGL
         IF (zml <= z_limit) THEN
@@ -2514,20 +2603,20 @@ CONTAINS
 
     ! The layer with the maximum T_equiv defines the starting values of the test parcel for the pseudo-adiabatic ascent
     !  to compute an approximation of cape_mu and cin_mu:
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       kstart(jc) = kmoist
     END DO
     !$ACC LOOP SEQ
     DO jk = kmoist+1, nk
-      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF (tequiv(jc,jk) > tequiv(jc,jk-1)) THEN
           kstart(jc) = jk
         END IF
       END DO
     END DO
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       qvp_start(jc) = qve(jc,kstart(jc))
       te_start (jc) = te (jc,kstart(jc))
@@ -2535,16 +2624,504 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! The pseudoadiabatic ascent of the test parcel:
-    CALL ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                  kstart, qvp_start, te_start, cape_mu, cin_mu, lacc=lzacc )
-  
-    !$ACC WAIT
+    CALL ascent ( i_startidx = i_startidx,  &
+                  i_endidx   = i_endidx,    &
+                  kmoist     = kmoist,      &
+                  te         = te,          &
+                  qve        = qve,         &
+                  prs        = prs,         &
+                  hhl        = hhl,         &
+                  kstart     = kstart,      &
+                  qvp_start  = qvp_start,   &
+                  te_start   = te_start,    &
+                  acape      = cape_mu,     &
+                  acin       = cin_mu,      &
+                  lacc       = lzacc )
     !$ACC END DATA
 
   END SUBROUTINE cal_cape_cin_mu
 
-  SUBROUTINE ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                      kstart, qvp_start, te_start, cape, cin, lacc )
+  SUBROUTINE cal_cape_cin_mu_COSMO(i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
+    cape_mu_COSMO, cin_mu_COSMO, lacc )
+
+      ! Input data
+      !----------- 
+      INTEGER, INTENT (IN) ::  &
+          i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+          kmoist                    ! start index for moist processes
+
+      REAL    (wp),    INTENT (IN) ::  &
+          te  (:,:),   & ! environment temperature
+          qve (:,:),   & ! environment specific humidity
+          prs (:,:),   & ! full level pressure
+          hhl (:,:)      ! height of half levels
+
+    ! Output data
+      !------------ 
+      REAL (wp), INTENT (OUT) :: &
+        cape_mu_COSMO  (:),   & ! CAPE 
+        cin_mu_COSMO   (:)      ! CIN  with respect to the starting values qvp_start, tp_start at level kstart
+
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+      !-----------------------------------
+        REAL (wp)             :: &
+          acape       (SIZE(te,1)),   & ! CAPE Helper variable for the output from the routine ASCENT
+          acin        (SIZE(te,1)),   & ! CIN Helper variable for the output from the routine ASCENT
+          mup_lay_thck         ! thickness of layer in which most unstable parcel 
+        
+        INTEGER       :: &
+        jc, k, nlev,           & !
+        kstart(SIZE(te,1))       ! Model level corresponding to start height of parcel
+
+        REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
+        LOGICAL,  DIMENSION(SIZE(te,1))            :: lcomp
+
+        LOGICAL :: lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    nlev = SIZE(te,2)
+    ! Thickness of the layer within which the most unstable parcel 
+    ! is searched for -> smaller values of this parameter result in
+    ! less computational cost, adapt if the code is running very slowly!
+    mup_lay_thck = 30000._wp
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl) &
+    !$ACC   CREATE(cape_mu_COSMO, cin_mu_COSMO, acape, acin, lcomp, kstart) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cape_mu_COSMO(jc)  = 0.0_wp
+      cin_mu_COSMO (jc)  = missing_value
+      acape        (jc)  = 0.0_wp
+      acin         (jc)  = missing_value
+      lcomp        (jc)  = .FALSE.
+      kstart       (jc)  = nlev
+    ENDDO
+    !$ACC END PARALLEL
+  
+
+      
+
+    !------------------------------------------------------------------------------
+    ! Start computation. Overview:
+    ! 
+    ! parcelloop varies the start level
+    ! of the parcel in most unstable calculation method.
+    ! One single ascent of a parcel is calculated within the 
+    ! SUBROUTINE ascent further below. 
+    ! Here we make sure that "ascent" is being called with the 
+    ! correct initial temperature, moisture, model level and 
+    ! gridpoint indices. 
+    !
+    ! The initial model level, from where the parcel starts ascending is varied 
+    ! until the pressure at this level is lower than the threshold mup_lay_thck, 
+    ! defined above.
+    !------------------------------------------------------------------------------
+    parcelloop:  DO k = kmoist, nlev
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        kstart(jc) = k
+        lcomp (jc) = (prs(jc,k) > (prs(jc,nlev)-mup_lay_thck))
+        acape (jc) = 0.0_wp
+        acin  (jc) = missing_value
+      ENDDO
+      !$ACC END PARALLEL
+      ! ! Take temperature and moisture of environment profile at current 
+      ! ! level as initial values for the ascending parcel, call "ascent"
+      ! ! to perform the dry/moist adiabatic parcel ascent and get back
+      ! ! the calculated CAPE/CIN
+      ! 
+      ! 
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist,   & ! in (indeces)
+                     te=te, qve=qve, prs=prs, hhl=hhl,                         & ! in (environment)
+                     kstart=kstart, qvp_start=qve(:,k), te_start=te(:,k),      & ! in (initial conditions)
+                     acape=acape, acin=acin, lcomp = lcomp,                    & ! out (cape, cin) in (logical array for computation)
+                     lacc= lacc )
+      
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF ( acape(jc) > cape_mu_COSMO(jc) ) THEN
+          cape_mu_COSMO(jc)  = acape(jc)
+          cin_mu_COSMO (jc)  = acin (jc)
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDDO parcelloop
+    !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE cal_si_sli_swiss ( i_startidx, i_endidx, kmoist,                    & ! in
+                                  te, qve, prs, hhl, u, v,                         & ! in
+                                  si, sli, swiss12, swiss00,                       & ! out 
+                                  lacc )                                          ! in (optional)
+
+
+    ! Input data
+    !----------- 
+    INTEGER, INTENT (IN) ::  &
+         i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+         kmoist                    ! start index for moist processes
+
+    REAL    (wp),    INTENT (IN) ::  &
+         te  (:,:),   & ! environment temperature
+         qve (:,:),   & ! environment specific humidity
+         prs (:,:),   & ! full level pressure
+         u   (:,:),   & ! environment zonal wind speed
+         v   (:,:),   & ! environment meridional wind speed
+         hhl (:,:)      ! height of half levels
+
+    ! Output data
+    !------------ 
+    REAL (wp), INTENT (OUT) :: &
+         si       (:),    & ! Showalter Index SI
+         sli      (:),    & ! Surface Lifted Index SLI
+         swiss12  (:),    & ! SWISS12 index
+         swiss00  (:)       ! SWISS00 index
+
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+    !-----------------------------------
+
+    REAL(wp) :: &
+         qvp_start(SIZE(te,1)), & ! parcel initial specific humidity
+         te_start (SIZE(te,1)), & ! parcel initial temperature
+         hl_l, hl_u,            & ! height of full levels in order to find the closest model level
+         e,                     & ! water vapor pressure
+         td,                    & ! dew point temperature
+         vh3000,                & ! norm of the horiz. wind vectors at approx. 3000m
+         vh6000,                & ! norm of the horiz. wind vectors at approx. 3000m
+         vhfirstlev               ! norm of the horiz. wind vectors at the first model level
+
+    INTEGER :: &
+         jc, k, nlev,             &
+         kstart(SIZE(te,1)),     & ! Model level corresponding to start height of parcel
+         k3000m(SIZE(te,1)),     & ! Model level corresponding to 3 km a.s.l.
+         k6000m(SIZE(te,1)),     & ! Model level corresponding to 6 km a.s.l.
+         k600  (SIZE(te,1)),     & ! Model level corresponding to 600 hPa
+         k650  (SIZE(te,1))        ! Model level corresponding to 650 hPa
+
+    REAL (wp), PARAMETER :: sistartprs = 85000.0_wp ! lower limit pressure for SI calculation, per definition 850hPa
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
+    LOGICAL :: lzacc
+
+  CALL set_acc_host_or_device(lzacc, lacc)
+  !$ACC DATA &
+  !$ACC   PRESENT(te, qve, prs, u, v, hhl) &
+  !$ACC   PRESENT(si, sli, swiss12, swiss00) &
+  !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
+  !$ACC   CREATE(qvp_start, te_start) &
+  !$ACC   IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  ! initialization
+  nlev = SIZE( te,2)
+  !$ACC LOOP GANG VECTOR
+  DO jc = i_startidx, i_endidx
+    kstart(jc) = nlev  
+    si    (jc) = missing_value         
+  ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 1: Showalter Index SI calculation
+  !
+  ! Definition: Tp - Te at 500hPa, where Tp is temperature of parcel, ascending 
+  ! from start level 850hPa and Te is environment temperature.
+  ! Implementation here is done straightforward based on this definition.
+  !------------------------------------------------------------------------------
+    ! Loop through the levels, from highest pressure to lowest (ground -> up)
+    ! in order to find the first level >= 850 hPa to initialize the parcel ascent
+    !$ACC LOOP SEQ
+    siloop: DO k = nlev, kmoist, -1
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF (prs(jc,k) >=  sistartprs) THEN
+          kstart(jc) = k           
+        ENDIF
+      ENDDO
+    ENDDO siloop
+    ! set the initial conditions for the parcel ascent
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+        te_start(jc) = te  (jc,kstart(jc))
+        qvp_start(jc) = qve (jc,kstart(jc))
+    ENDDO
+  !$ACC END PARALLEL
+    CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                & ! in (grid)
+                  kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
+                  kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
+                  asi=si,                                                  & ! out (Showalter Index)
+                  lacc= lacc )                                            ! in (GPU flag)
+    
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+        IF (prs(jc,nlev) < sistartprs) THEN
+          si(jc) = missing_value
+        ENDIF
+    ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 2: surface lifed index SLI calculation
+  !
+  ! Definition: Tp - Te at 500hPa, where Tp is temperature of parcel, ascending 
+  ! from lowest level and Te is environment temperature.
+  ! Implementation here is done straightforward based on this definition.
+  !------------------------------------------------------------------------------
+  
+  ! initialization
+  !$ACC LOOP GANG VECTOR
+  DO jc = i_startidx, i_endidx
+    kstart   (jc) = nlev  
+    sli      (jc) = missing_value     
+    te_start (jc) = te  (jc,kstart(jc))
+    qvp_start(jc) = qve (jc,kstart(jc))    
+  ENDDO
+  !$ACC END PARALLEL
+  CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                  & ! in (grid)
+                  kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
+                  kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
+                  asi=sli,                                                 & ! out (Surface Lifted Index)
+                  lacc= lacc )                                            ! in (GPU flag)
+
+  !------------------------------------------------------------------------------
+  ! Section 3: SWISS indices
+  !
+  ! Definition: SWISS00 and SWISS12 are two statistically based indices developped
+  !             using data originating from the meteorological station of
+  !             Payerne in Switzerland. SWISS00 has been developed with observations at
+  !             00:00UTC whereas SWISS12 has been develped with observations at 12:00UTC.
+  !------------------------------------------------------------------------------
+  ! For these indeces, we need to obtain the levels corresponding to 600 hPa, 650 hPa,
+  ! 3000m and 6000m (NOTE that this is not Height Above Ground (HAG) but Above mean Sea Level (a.s.l.))
+  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  ! inizialisation
+  !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
+  DO jc = i_startidx, i_endidx
+    k600  (jc) = -1
+    k650  (jc) = -1
+    k3000m(jc) = -1
+    k6000m(jc) = -1  
+  ENDDO       
+  
+  ! Find these indeces
+  !$ACC LOOP SEQ
+  kloop: DO k = nlev-1, kmoist+1, -1
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      !Find the k index coressponding to the model level closest to 600 hPa
+      IF ((prs (jc,k) >= 60000._wp).AND.(prs (jc,k-1) <= 60000._wp))THEN
+          IF (abs(prs (jc,k)- 60000._wp) <= abs(prs(jc,k-1)- 60000._wp))THEN
+            k600(jc) = k
+          ELSE
+            k600(jc) = k-1
+          ENDIF
+      ENDIF
+
+      !Find the k index coressponding to the model level closest to 650 hPa
+      IF ((prs (jc,k) >= 65000._wp).AND.(prs (jc,k-1) <= 65000._wp))THEN
+          IF (abs(prs (jc,k)- 65000._wp) <= abs(prs(jc,k-1)- 65000._wp))THEN
+            k650(jc) = k
+          ELSE
+            k650(jc) = k-1
+          ENDIF
+      ENDIF
+
+      hl_l = 0.5_wp * (hhl(jc,k) + hhl(jc,k+1)) ! height a.s.l.
+      hl_u = 0.5_wp * (hhl(jc,k-1) + hhl(jc,k)) ! height a.s.l.
+      !Find the k index corresponding to the model level closest to 3000 m
+      IF ((hl_l  <=  3000._wp) .AND. (hl_u  >=  3000._wp)) THEN
+          IF (abs(hl_l - 3000._wp) <= abs(hl_u - 3000._wp)) THEN
+            k3000m(jc) = k
+          ELSE
+            k3000m(jc) = k-1
+          ENDIF
+      ENDIF
+
+      !Find the k index corresponding to the model level closest to 6000 m
+      IF ((hl_l  <=  6000._wp) .AND. (hl_u  >=  6000._wp)) THEN
+          IF (abs(hl_l - 6000._wp) <= abs(hl_u - 6000._wp)) THEN
+            k6000m(jc) = k
+          ELSE
+            k6000m(jc) = k-1
+          ENDIF
+      ENDIF
+    ENDDO
+  ENDDO kloop
+  !------------------------------------------------------------------------------
+  ! Section 3a: SWISS00 index
+  !
+  !             Its components are:
+  !               - the showalter index (see above)
+  !               - the wind shear between 3000m and 6000m
+  !               - the dew point depression at 600hPa
+  !
+  !             A SWISS00 value less than 5.1 means "likely thunderstorms".
+  !------------------------------------------------------------------------------
+  !$ACC LOOP GANG VECTOR PRIVATE(e, td, vh6000, vh3000)
+  DO jc = i_startidx, i_endidx
+    IF ( (k600(jc)  <  0) .OR. (k3000m(jc)  <  0  .OR.  k6000m(jc) < 0 .OR. si(jc) < -900.0_wp) ) THEN
+      swiss00(jc) = missing_value
+    ELSE
+      !Compute vapor pressure at approximately 600 hPa using index k600
+      e = prs(jc,k600(jc))*qve(jc,k600(jc))/(qve(jc,k600(jc))+rdv*(1 - qve(jc,k600(jc))))
+      !Compute dew point temperature at approximately 650 hPa
+      !Obtained using this identity: e = fesatw(td) at approximately 650 hPa
+      !It means that the vapor pressure is equal to the saturation vapor
+      !pressure at the dew point temperature
+
+      IF (e <= 0.0_wp) THEN
+          swiss00(jc) = missing_value
+      ELSE
+        td = ( 273.16_wp * 17.2693882_wp -log(e/610.78_wp)* 35.86_wp ) / ( 17.2693882_wp -log(e/ 610.78_wp) )
+        !Compute norm of horizontal wind vectors at approximately 6000 m
+        !using k6000 index
+        vh6000 = sqrt ( u (jc,k6000m(jc)) **2 + v (jc,k6000m(jc)) **2)
+        !Compute norm of horizontal wind vectors at approximately 3000 m
+        !using k3000 index
+        vh3000 = sqrt ( u (jc,k3000m(jc)) **2 + v (jc,k3000m(jc)) **2)
+        swiss00(jc) = si(jc) + 0.4_wp*(vh6000-vh3000) + 0.1_wp*MAX(0.0_wp,(te(jc,k600(jc))-td))
+      ENDIF
+    ENDIF
+  ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 3b: SWISS12 index
+  !
+  !             Its components are:
+  !               - the surface lifted index (see above)
+  !               - the wind shear between the ground and 3000m
+  !               - the dew point depression at 650hPa
+  !
+  !             The concept of "wind at the ground" is ambiguous: the wind at the
+  !             surface is equal to zero but we could also consider the wind at
+  !             10m for example as "ground value". We use the wind at the first
+  !             model level as an approximation for the surface wind.
+  !
+  !             A SWISS12 value less than 0.6 means "likely thunderstorms".
+  !------------------------------------------------------------------------------
+  !$ACC LOOP GANG VECTOR PRIVATE(e, td, vh3000, vhfirstlev)
+  DO jc = i_startidx, i_endidx
+    IF ( (k650(jc)  <  0) .OR. (k3000m(jc)  <  0) ) THEN
+      swiss12(jc) = missing_value
+    ELSE
+      !Compute vapor pressure at approximately 650 hPa using index k650
+      e = prs(jc,k650(jc))*qve(jc,k650(jc))/(qve(jc,k650(jc))+rdv*(1 - qve(jc,k650(jc))))
+
+      !Compute dew point temperature at approximately 650 hPa
+      !Obtained using this identity: e = fesatw(td) at approximately 650 hPa
+      !It means that the vapor pressure is equal to the saturation vapor
+      !pressure at the dew point temperature
+
+      IF (e <= 0.0_wp) THEN
+          swiss12(jc) = missing_value
+      ELSE
+        ! dewpoint: e = vapor pressure
+        ! td = dewpoint_water(qve(i, k650(i)), prs(i, k650(i)))
+        ! td = ftd (e)
+        ! td = ( b3*b2w -log(e/b1)*b4w ) / ( b2w -log(e/b1) )
+        td = ( 273.16_wp * 17.2693882_wp -log(e/610.78_wp)* 35.86_wp ) / ( 17.2693882_wp -log(e/ 610.78_wp) )
+        !Compute norm of horizontal wind vectors  at approximately 3000 m
+        vh3000 = sqrt ( u(jc,k3000m(jc)) **2 + v(jc,k3000m(jc)) **2)
+        !Compute norm of horizontal wind vectors  at the first model level
+        ! WARNING: Currently the first model level is at 10m a.s.l. but this
+        !          height could change!!!
+        vhfirstlev = sqrt ( u(jc,nlev) **2 + v(jc,nlev) **2)
+        !Compute SWISS12 Index with the above calculated parameters and the
+        !surface lifted index
+        swiss12(jc) = sli(jc) - 0.3_wp*(vh3000-vhfirstlev) + 0.3_wp*(MAX(0.0_wp,(te(jc,k650(jc))-td)))
+      ENDIF
+    ENDIF
+  ENDDO
+  !$ACC END PARALLEL
+  !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE cal_cloudtop(i_startidx, i_endidx, kmoist,          & ! in
+                          clc, h,                                & ! in
+                          cloudtop,                              & ! out
+                          lacc)                                 ! in (optional)
+  
+    ! Input data
+    !----------- 
+    INTEGER, INTENT (IN) ::  &
+         i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+         kmoist                    ! start index for moist processes
+
+    REAL    (wp),    INTENT (IN) ::  &
+         clc          (:,:),             & ! cloud coverage
+         h            (:,:)                ! Geometric height at full level center
+
+    ! Output data
+    !------------ 
+    REAL (wp), INTENT (OUT) :: &
+         cloudtop    (:)           ! CLOUDTOP: 
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+    !-----------------------------------
+    INTEGER :: &
+         jc, k, nlev             
+
+#ifndef _OPENACC
+    LOGICAL :: lexit(SIZE(clc,1))
+#endif
+
+    LOGICAL :: lzacc
+
+    ! Local parameters:
+    !------------------
+    LOGICAL :: &
+    lcloudtop(SIZE(clc,1))         ! logical array to stop computation after findind cloudtop
+
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value
+
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    END IF
+    ! Initialize
+    nlev = SIZE( clc,2)
+    !$ACC DATA &
+    !$ACC   PRESENT(clc, h, cloudtop) &
+    !$ACC   CREATE(lcloudtop) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cloudtop     (jc) = missing_value
+      lcloudtop    (jc) = .FALSE.
+    ENDDO
+    !$ACC LOOP SEQ
+    DO k = kmoist, nlev ! the only difference with CEILING computation, looping from top to surface (nlev is surface)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF((clc(jc,k) > 0.5) .AND. (.NOT. lcloudtop(jc))) THEN
+          cloudtop  (jc) = h(jc,k)
+          lcloudtop (jc) = .TRUE.
+        ENDIF
+      ENDDO
+    ENDDO
+  !$ACC END PARALLEL
+  !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  & ! in
+                      kstart, qvp_start, te_start,                      & ! in
+                      acape, acape3km, acin,                            & ! out (optional)
+                      alcl, alfc,                                       & ! out (optional)
+                      asi,                                              & ! out (optional)
+                      lcomp, lacc )                                    ! in (optional)
 
     !------------------------------------------------------------------------------
     !
@@ -2623,32 +3200,41 @@ CONTAINS
          prs (:,:),   & ! full level pressure
          hhl (:,:)      ! height of half levels
 
-    REAL(wp), INTENT(in) :: &
+    REAL(wp), INTENT(IN) :: &
          qvp_start(:), & ! parcel initial specific humidity
          te_start (:)    ! parcel initial temperature
 
-    INTEGER, INTENT(in) :: &
+    INTEGER, INTENT(IN) :: &
          kstart(:)  ! Model level corresponding to start height of parcel
 
     ! Output data
     !------------ 
-    REAL (wp), INTENT (OUT) :: &
-         cape  (:),   & ! CAPE with respect to the starting values qvp_start, tp_start at level kstart
-         cin   (:)      ! CIN  with respect to the starting values qvp_start, tp_start at level kstart
+    REAL (wp), INTENT (OUT), OPTIONAL :: &
+         acape   (:),   & ! CAPE 
+         acape3km(:),   & ! CAPE_3KM
+         acin    (:),   & ! CIN
+         asi     (:)      ! SI
 
-    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+    INTEGER, INTENT (OUT), OPTIONAL :: & ! these are also in the local scalars so that they can be optional outputs
+         alcl(:),     & ! Indices for Lifting Condensation Level LCL,
+         alfc(:)        ! Level of Free Convection LFC
+
+    LOGICAL, INTENT(IN), OPTIONAL :: &
+      lacc   ,      & ! If true, use openacc
+      lcomp  (:)      ! Most Unstable Computation
 
     ! Local scalars and automatic arrays
     !-----------------------------------
-    INTEGER :: nlev
+    INTEGER :: &
+      nlev, jc, k,             & ! Indices of input/output fields
+      k3000m(SIZE(te,1)),     & ! Indices for endpoint of 3KM ascent
+      lcllev(SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
+      lfclev(SIZE(te,1)),     & ! Level of Free Convection LFC
+      ellev (SIZE(te,1))        ! Equilibrium Level EL
 
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
     REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
-
-    INTEGER              :: &     
-         i, k,                   & ! Indices of input/output fields
-         lcllev(SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
-         lfclev(SIZE(te,1))        ! Level of Free Convection LFC
+   
 
     ! The following parameters are help values for the iterative calculation 
     ! of the parcel temperature during the moist adiabatic ascent
@@ -2660,6 +3246,8 @@ CONTAINS
     ! REAL    (wp)             :: rp, r1,r2
     REAL    (wp)             :: q1, q2
     REAL    (wp), PARAMETER  :: eps=0.03
+    REAL    (wp), PARAMETER  :: sistopprs = 50000.0_wp ! upper limit pressure for SI calculation, per definition 500hPa
+
 
     ! this parameter helps to find the LFC above a capping inversion in cases, 
     ! where a LFC already was found in an unstable layer in the convective 
@@ -2669,6 +3257,10 @@ CONTAINS
     INTEGER ::    icount              ! counter for the iterative process
 
     REAL (wp) ::             &
+         cape    (SIZE(te,1)),  & ! CAPE computed in this parcel ascent
+         cape3km (SIZE(te,1)),  & ! CAPE_3KM computed in this parcel ascent
+         cin     (SIZE(te,1)),  & ! CIN computed in this parcel ascent
+         si      (SIZE(te,1)),  & ! SI computed in this parcel ascent
          cin_help(SIZE(te,1)),  & ! help variable, the CIN above the LFC
          buo     (SIZE(te,1)),  & ! parcel buoyancy at level k
          tp      (SIZE(te,1)),  & ! temperature profile of ascending parcel
@@ -2679,19 +3271,85 @@ CONTAINS
          tve,                   & ! virtual temperature of environment at level k
          buo_belo,              & ! parcel buoyancy of level k+1 below
          esatp,                 & ! saturation vapour pressure at level k
-         qvsp                     ! saturation specific humidity at level k
+         qvsp,                  & ! saturation specific humidity at level k
+         hl_l,hl_u                ! height of full levels in order to find the closest model level
     ! calculation of moist adiabatic ascent
 
     INTEGER :: lfcfound(SIZE(te,1))   ! flag indicating if a LFC has already been found
     ! below, in cases where several EL and LFC's occur
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: &
+    lzacc,     & ! GPU flag
+    lacape,    & ! check if ACAPE is present
+    lacape3km, & ! check if ACAPE3KM is present
+    lacin,     & ! check if ACIN is present
+    lalcl,     & ! check if ALCL is present
+    lalfc,     & ! check if ALFC is present
+    lasi,      & ! check if ASI is present
+    lmu(SIZE(te,1)) ! local non-optional version of lcomp for
+                    ! COSMO-like Most Unstable computation
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(lcllev, lfclev, cin_help, buo, tp, tp_start, qvp, thp, lfcfound) &
-    !$ACC   PRESENT(te, qve, prs, hhl, kstart, qvp_start, te_start, cape, cin) IF(lzacc)
 
+
+    IF (PRESENT(acape)) THEN
+      lacape = .TRUE.
+    ELSE
+      lacape = .FALSE.
+    END IF
+
+    IF (PRESENT(acape3km)) THEN
+      lacape3km = .TRUE.
+    ELSE
+      lacape3km = .FALSE.
+    END IF
+
+    IF (PRESENT(acin)) THEN
+      lacin = .TRUE.
+    ELSE
+      lacin = .FALSE.
+    END IF
+
+    IF (PRESENT(alcl)) THEN
+      lalcl = .TRUE.
+    ELSE
+      lalcl = .FALSE.
+    END IF
+
+    IF (PRESENT(alfc)) THEN
+      lalfc = .TRUE.
+    ELSE
+      lalfc = .FALSE.
+    END IF
+
+    IF (PRESENT(asi)) THEN
+      lasi = .TRUE.
+    ELSE
+      lasi = .FALSE.
+    END IF
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl, qvp_start, te_start, kstart) &
+    !$ACC   PRESENT(acape, acape3km, acin) &
+    !$ACC   PRESENT(alfc, alcl, asi, lcomp) &
+    !$ACC   CREATE(k3000m, lcllev, lfclev, ellev) &
+    !$ACC   CREATE(cape, cape3km, cin, si, cin_help, buo, tp, tp_start) &
+    !$ACC   CREATE(qvp, thp, lfcfound, lmu) &
+    !$ACC   IF(lzacc)
     nlev = SIZE( te,2)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    
+    IF (PRESENT(lcomp)) THEN
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx  
+        lmu(jc) = lcomp(jc)
+      ENDDO
+    ELSE
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx  
+        lmu(jc) = .TRUE.
+      ENDDO
+    END IF
 
     !------------------------------------------------------------------------------
     !
@@ -2703,124 +3361,137 @@ CONTAINS
     !------------------------------------------------------------------------------
 
     ! Initialization
-
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
-    DO i = i_startidx, i_endidx
-      tp_start(i) = te_start(i) * (p0/prs(i,kstart(i)))**rd_o_cpd
-    END DO
-
-    !$ACC LOOP GANG VECTOR
-    DO i = 1, SIZE( te,1)      
-      cape(i)  = 0.0_wp
-      cin(i)   = 0.0_wp
-
-      lcllev  (i) = 0
-      lfclev  (i) = 0
-      lfcfound(i) = 0
-      cin_help(i) = 0.0_wp
-      tp (i)      = 0.0_wp
-      qvp(i)      = 0.0_wp               
-      buo(i)      = 0.0_wp
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx  
+      tp_start(jc) = te_start(jc) * (p0/prs(jc,kstart(jc)))**rd_o_cpd
+      cape    (jc) = 0.0_wp
+      cape3km (jc) = 0.0_wp
+      cin     (jc) = 0.0_wp ! not missing value because we add to this 0_wp
+      si      (jc) = missing_value
+      lcllev  (jc) = 0
+      lfclev  (jc) = 0
+      ellev   (jc) = 0
+      lfcfound(jc) = 0
+      cin_help(jc) = 0.0_wp
+      tp      (jc) = 0.0_wp
+      qvp     (jc) = 0.0_wp               
+      buo     (jc) = 0.0_wp
+      k3000m  (jc) = -1 ! this is done also in the COSMO subroutine so it is reproduced here
     ENDDO
     !$ACC END PARALLEL
+    IF(lacape3km) THEN
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO k = nlev-1, kmoist+1, -1
+        !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
+        DO jc = i_startidx, i_endidx
+          hl_l = 0.5_wp * (hhl(jc,k) + hhl(jc,k+1)) - hhl(jc,nlev+1)
+          hl_u = 0.5_wp * (hhl(jc,k-1) + hhl(jc,k)) - hhl(jc,nlev+1)
+          IF ((hl_l  <=  3000._wp) .AND. (hl_u  >=  3000._wp)) THEN
+            IF (abs(hl_l - 3000._wp) <= abs(hl_u - 3000._wp)) THEN
+              k3000m(jc) = k
+            ELSE
+              k3000m(jc) = k-1
+            ENDIF
+          ENDIF
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
 
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
     ! Loop over all model levels above kstart
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
-
-      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(buo_belo, esat, esatp, tguess1, tguess2) &
-      !$ACC   PRIVATE(thetae1, thetae2, tvp, tve, icount, q1, q2, qvsp)
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-
+      !$ACC LOOP GANG VECTOR PRIVATE(esatp, qvsp)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
         ! Dry ascent if below cloud base, assume first level is not saturated 
         ! (first approximation)
-        IF (k > lcllev(i)) THEN
-          tp (i)   = tp_start(i)*( prs(i,k)/p0)**rd_o_cpd   ! dry adiabatic process
-          qvp(i)   = qvp_start(i)                           ! spec humidity conserved
+        IF (k > lcllev(jc)) THEN
+          tp (jc)   = tp_start(jc)*( prs(jc,k)/p0)**rd_o_cpd   ! dry adiabatic process
+          qvp(jc)   = qvp_start(jc)                           ! spec humidity conserved
 
           ! Calculate parcel saturation vapour pressure and saturation 
           ! specific humidity
-          esatp = esat_water( tp(i))
-          qvsp  = fqvs( esatp, prs(i,k))
+          esatp = esat_water( tp(jc))
+          qvsp  = fqvs( esatp, prs(jc,k))
 
           ! Check whether parcel is saturated or not and 
           ! no LCL was already found below
-          IF ( (qvp(i) >= qvsp) .AND. (lcllev(i) == 0) ) THEN  
-            lcllev(i) = k                                    ! LCL is reached
+          IF ( (qvp(jc) >= qvsp) .AND. (lcllev(jc) == 0) ) THEN  
+            lcllev(jc) = k                                    ! LCL is reached
 
             ! Moist ascent above LCL, first calculate an approximate thetae to hold 
             ! constant during the remaining ascent
-            !         rp      = qvp(i)/( 1._wp - qvp(i) )
-            !         thp(i)  = fthetae( tp(i),prs(i,k),rp )
-            thp(i)  = fthetae( tp(i),prs(i,k), qvp(i) )
-
+            !         rp      = qvp(jc)/( 1._wp - qvp(jc) )
+            !         thp(jc)  = fthetae( tp(jc),prs(jc,k),rp )
+            thp(jc)  = fthetae( tp(jc),prs(jc,k), qvp(jc) )
           ENDIF
         ENDIF
 
 #ifdef __SX__
       ENDDO ! i = i_startidx, i_endidx
-
+      !$ACC LOOP GANG VECTOR
       ! Vectorized version
-      DO i = i_startidx, i_endidx
-        lcalc(i) = .FALSE.
-        IF ( k > kstart(i) ) CYCLE
-        IF ( k <= lcllev(i) ) THEN
+      DO jc = i_startidx, i_endidx
+        lcalc(jc) = .FALSE.
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
+        IF ( k <= lcllev(jc) ) THEN ! If we are above the LCL
           ! The scheme uses a first guess temperature, which is the parcel
           ! temperature at the level below. If it happens that the initial
           ! parcel is already saturated, the environmental temperature
           ! is taken as first guess instead
-          IF (  k == kstart(i) ) THEN
-            tguess1v(i) = te(i,kstart(i))
+          IF (  k == kstart(jc) ) THEN
+            tguess1v(jc) = te(jc,kstart(jc))
           ELSE
-            tguess1v(i) = tp(i)
+            tguess1v(jc) = tp(jc)
           END IF
-          lcalc(i) = .TRUE.
+          lcalc(jc) = .TRUE.
         ENDIF
-      ENDDO ! i = i_startidx, i_endidx
+      ENDDO ! jc = i_startidx, i_endidx
 
-
+      !$ACC LOOP SEQ
       ! Calculate iteratively parcel temperature from thp, prs and 1st guess tguess1
       DO icount = 1, 21
         IF (COUNT(lcalc(i_startidx:i_endidx)) > 0) THEN
-          DO i = i_startidx, i_endidx
-            IF ( lcalc(i) ) THEN
-              esat     = esat_water( tguess1v(i))
-              q1       = fqvs( esat, prs(i,k) )
-              thetae1  = fthetae( tguess1v(i),prs(i,k),q1)
+          !$ACC LOOP GANG VECTOR PRIVATE(esat, q1, thetae1, tguess2, esat, q2, thetae2)
+          DO jc = i_startidx, i_endidx
+            IF ( lcalc(jc) ) THEN
+              esat     = esat_water( tguess1v(jc))
+              q1       = fqvs( esat, prs(jc,k) )
+              thetae1  = fthetae( tguess1v(jc),prs(jc,k),q1)
 
-              tguess2  = tguess1v(i) - 1.0_wp
+              tguess2  = tguess1v(jc) - 1.0_wp
               esat     = esat_water( tguess2)
-              q2       = fqvs( esat, prs(i,k) )
-              thetae2  = fthetae( tguess2,prs(i,k),q2)
+              q2       = fqvs( esat, prs(jc,k) )
+              thetae2  = fthetae( tguess2,prs(jc,k),q2)
 
-              tguess1v(i)  = tguess1v(i)+(thetae1-thp(i))/(thetae2-thetae1)
+              tguess1v(jc)  = tguess1v(jc)+(thetae1-thp(jc))/(thetae2-thetae1)
 
-              IF ( ABS( thetae1-thp(i)) < eps .OR. icount > 20) THEN
-                tp(i) = tguess1v(i)
-                lcalc(i) = .false.
+              IF ( ABS( thetae1-thp(jc)) < eps .OR. icount > 20) THEN
+                tp(jc) = tguess1v(jc)
+                lcalc(jc) = .false.
               END IF
             END IF
-          ENDDO ! i = i_startidx, i_endidx
+          ENDDO ! jc = i_startidx, i_endidx
         ELSE
           EXIT
         ENDIF
       END DO
 
       ! update specific humidity of the saturated parcel for new temperature
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-        IF ( k <= lcllev(i) ) THEN
-          esatp  = esat_water( tp(i))
-          qvp(i) = fqvs( esatp,prs(i,k))
+      !$ACC LOOP GANG VECTOR PRIVATE(esatp)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
+        IF ( k <= lcllev(jc) ) THEN
+          esatp  = esat_water( tp(jc))
+          qvp(jc) = fqvs( esatp,prs(jc,k))
         END IF
-      ENDDO ! i = i_startidx, i_endidx
-
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-
+      ENDDO ! jc = i_startidx, i_endidx
+      !$ACC LOOP GANG VECTOR PRIVATE(tguess1, icount, esat, q1, thetae1, tguess2, q2, thetae2, esatp, tvp, tve, buo_belo)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
 #else
 
         ! Moist adiabatic process: the parcel temperature during this part of 
@@ -2830,15 +3501,15 @@ CONTAINS
         ! few (less than 10) iterations, its accuracy can be tuned with the 
         ! parameter "eps", a value of 0.03 is tested and recommended. 
 
-        IF ( k <= lcllev(i) ) THEN                                
+        IF ( k <= lcllev(jc) ) THEN                                
           ! The scheme uses a first guess temperature, which is the parcel 
           ! temperature at the level below. If it happens that the initial 
           ! parcel is already saturated, the environmental temperature 
           ! is taken as first guess instead
-          IF (  k == kstart(i) ) THEN
-            tguess1 = te(i,kstart(i))            
+          IF (  k == kstart(jc) ) THEN
+            tguess1 = te(jc,kstart(jc))            
           ELSE
-            tguess1 = tp(i)
+            tguess1 = tp(jc)
           END IF
           icount = 0       ! iterations counter
 
@@ -2846,41 +3517,41 @@ CONTAINS
           ! thp, prs and 1st guess tguess1
           DO
             esat     = esat_water( tguess1)
-            !         r1       = rdv*esat/(prs(i,k)-esat)
-            !         thetae1  = fthetae( tguess1,prs(i,k),r1)
-            q1       = fqvs( esat, prs(i,k))
-            thetae1  = fthetae( tguess1,prs(i,k),q1)
+            !         r1       = rdv*esat/(prs(jc,k)-esat)
+            !         thetae1  = fthetae( tguess1,prs(jc,k),r1)
+            q1       = fqvs( esat, prs(jc,k))
+            thetae1  = fthetae( tguess1,prs(jc,k),q1)
 
             tguess2  = tguess1 - 1.0_wp
             esat     = esat_water( tguess2)
-            !         r2       = rdv*esat/(prs(i,k)-esat)
-            !         thetae2  = fthetae( tguess2,prs(i,k),r2)
-            q2       = fqvs( esat, prs(i,k))
-            thetae2  = fthetae( tguess2,prs(i,k),q2)
+            !         r2       = rdv*esat/(prs(jc,k)-esat)
+            !         thetae2  = fthetae( tguess2,prs(jc,k),r2)
+            q2       = fqvs( esat, prs(jc,k))
+            thetae2  = fthetae( tguess2,prs(jc,k),q2)
 
-            tguess1  = tguess1+(thetae1-thp(i))/(thetae2-thetae1)
+            tguess1  = tguess1+(thetae1-thp(jc))/(thetae2-thetae1)
             icount   = icount    + 1   
 
-            IF ( ABS( thetae1-thp(i)) < eps .OR. icount > 20 ) THEN
-              tp(i) = tguess1
+            IF ( ABS( thetae1-thp(jc)) < eps .OR. icount > 20 ) THEN
+              tp(jc) = tguess1
               EXIT
             END IF
           END DO
 
           ! update specific humidity of the saturated parcel for new temperature
-          esatp  = esat_water( tp(i))
-          qvp(i) = fqvs( esatp,prs(i,k))
+          esatp  = esat_water( tp(jc))
+          qvp(jc) = fqvs( esatp,prs(jc,k))
         END IF
 #endif       
 
         ! Calculate virtual temperatures of parcel and environment
-        tvp    = tp(i  ) * (1.0_wp + vtmpc1*qvp(i  )/(1.0_wp - qvp(i  )) )  
-        tve    = te(i,k) * (1.0_wp + vtmpc1*qve(i,k)/(1.0_wp - qve(i,k)) ) 
+        tvp    = tp(jc  ) * (1.0_wp + vtmpc1*qvp(jc  )/(1.0_wp - qvp(jc  )) )  
+        tve    = te(jc,k) * (1.0_wp + vtmpc1*qve(jc,k)/(1.0_wp - qve(jc,k)) ) 
 
         ! Calculate the buoyancy of the parcel at current level k, 
         ! save buoyancy from level k+1 below (buo_belo) to check if LFC or EL have been passed
-        buo_belo = buo(i)
-        buo(i)   = tvp - tve
+        buo_belo = buo(jc)
+        buo(jc)   = tvp - tve
 
         ! Check for level of free convection (LFC) and set flag accordingly. 
         ! Basic LFC condition is that parcel buoyancy changes from negative to 
@@ -2901,23 +3572,24 @@ CONTAINS
         ! from bottom to top in a stepwise manner.)
 
         ! Find the first LFC
-        IF ( (buo(i) > 0.0_wp) .AND. (buo_belo <= 0.0_wp)            &
-             .AND. ( lfcfound(i)==0) ) THEN
+        IF ( (buo(jc) > 0.0_wp) .AND. (buo_belo <= 0.0_wp)            &
+             .AND. ( lfcfound(jc)==0) ) THEN
 
           ! Check whether it is an LFC at one of the lowest model levels 
           ! (indicated by CAPE=0)
-          IF ( (cape(i) > 0.0_wp) .AND. ( lfcfound(i) == 0 ) ) THEN
+          IF ( (cape(jc) > 0.0_wp) .AND. ( lfcfound(jc) == 0 ) ) THEN
             ! Check if there is a major capping inversion below, defined as 
             ! having CIN with an absolute value larger than the CAPE accumulated
             ! below times some arbitrary factor cc_comp - if this is the case the
             ! LFC index "lfclev" is updated to the current level k and 
             ! "lfcfound"-flag is now set to 1 assuming that we have found the 
             ! level of free convection finally. 
-            IF ( cc_comp * ABS(cin_help(i)) > cape(i) ) THEN
-              lfclev(i)   = k
-              cape (i) = 0.0_wp
-              cin_help(i) = 0.0_wp
-              lfcfound(i) = 1
+            IF ( cc_comp * ABS(cin_help(jc)) > cape(jc) ) THEN
+              lfclev   (jc) = k
+              cape     (jc) = 0.0_wp
+              cape3km  (jc) = 0.0_wp
+              cin_help (jc) = 0.0_wp
+              lfcfound (jc) = 1
             ENDIF
           ELSE
             ! the LFC found is near the surface, set the LFC index to the current
@@ -2925,39 +3597,68 @@ CONTAINS
             ! indicate that a further LFC may be present above the boundary layer
             ! and an eventual capping inversion. Reset the CIN_HELP to zero to 
             ! store the contribution of CIN above this LFC.
-            lfclev(i)   = k
-            cin_help(i) = 0.0_wp
+            lfclev(jc)   = k
+            cin_help(jc) = 0.0_wp
           ENDIF
         ENDIF
-
+        
+        IF ( (buo(jc) < 0_wp) .AND. (buo_belo >= 0_wp) .AND. (lfclev(jc) /= 0) ) THEN
+          ellev(jc) = k
+        ENDIF
         ! Accumulation of CAPE and CIN according to definition given in Doswell 
         ! and Rasmussen (1994), 
-        IF ( (buo(i) >= 0.0_wp) .AND. (k <= lfclev(i)) ) THEN   
-          cape(i)  = cape(i)  + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
-        ELSEIF ( (buo(i) < 0.0) .AND. (k < kstart(i)) ) THEN  
-          cin(i)      = cin(i)      + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
-          cin_help(i) = cin_help(i) + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
+        IF ( (buo(jc) >= 0.0_wp) .AND. (k <= lfclev(jc)) ) THEN   
+          cape(jc)  = cape(jc)  + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+          IF (lacape3km) THEN
+             IF ( k3000m(jc) > 0 .AND. k >= k3000m(jc) ) THEN
+                cape3km(jc) = cape3km(jc) + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+             ENDIF
+          ENDIF
+        ELSEIF ( (buo(jc) < 0.0) .AND. (k < kstart(jc)) ) THEN  
+          ! buo is negative, hhl(jc,k) > hhl(jc,k+1) so we add a negative contribution
+          cin(jc)      = cin(jc)      + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+          cin_help(jc) = cin_help(jc) + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
         ENDIF
-
-      ENDDO ! i = i_startidx, i_endidx
+        
+        ! If 500hPa level approximately reached, save parcel temperature for 
+        ! calculation of Showalter Index. Do not check at lowest level of parcel
+        ! ascent since pressure at level below is not defined if kstart=kdim 
+        ! (parcel starting at lowest model level.)
+        IF (lasi .AND. (k < nlev)) THEN
+          ! Assume 500hPa level is approximately reached if model level pressure
+          ! changes from >500hPa to <=500hPa
+          IF ( (prs(jc,k) <= sistopprs) .AND. (prs(jc,k+1) > sistopprs) ) THEN
+            asi(jc) = te(jc,k)-tp(jc)
+          ENDIF
+        ENDIF
+      ENDDO ! jc = i_startidx, i_endidx
     ENDDO  kloop       ! End k-loop over levels
+    !$ACC END PARALLEL
+
 
     ! Subtract the CIN above the LFC from the total accumulated CIN to 
     ! get only contriubtions from below the LFC as the definition demands.
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO i = i_startidx, i_endidx
-
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
       ! make CIN positive
-      cin(i) = ABS (cin(i) - cin_help(i))
-
+      cin(jc) = ABS (cin(jc) - cin_help(jc))
       ! set the CIN to missing value if no LFC was found or no CAPE exists
-      IF ( (lfclev(i) == 0) .OR. (cape(i) == 0.0_wp)  ) cin(i) = missing_value 
+      IF ( (lfclev(jc) == 0) .OR. (ABS(cape(jc)) < 1.0E-8_wp)) cin(jc) = missing_value 
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC WAIT
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      IF (lacape)    acape(jc)    = cape      (jc)
+      IF (lacape3km) acape3km(jc) = cape3km   (jc)
+      IF (lacin)     acin (jc)    = cin       (jc)
+      IF (lalcl)     alcl (jc)    = lcllev    (jc)
+      IF (lalfc)     alfc (jc)    = lfclev    (jc) 
+    ENDDO
+    !$ACC END PARALLEL
     !$ACC END DATA
-
   END SUBROUTINE ascent
 
   !!>

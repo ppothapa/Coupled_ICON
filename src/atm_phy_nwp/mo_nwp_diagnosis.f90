@@ -58,12 +58,13 @@ MODULE mo_nwp_diagnosis
   USE mo_advection_config,   ONLY: advection_config
   USE mo_io_config,          ONLY: lflux_avg, uh_max_zmin, uh_max_zmax, &
     &                              luh_max_out, uh_max_nlayer, var_in_output, &
-    &                              itype_dursun, t_var_in_output
+    &                              itype_dursun, itype_convindices, t_var_in_output
   USE mo_sync,               ONLY: global_max, global_min
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
-  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, &
+  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, cal_cape_cin_mu_COSMO, &    
+                                   cal_si_sli_swiss, cal_cloudtop, &
                                    maximize_field_lpi, compute_field_tcond_max, &
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
@@ -1400,7 +1401,7 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
-        CALL ww_diagnostics( nproma, nlev, nlevp1, i_startidx, i_endidx, jg,             &
+        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,             &
             &                pt_diag%temp(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv),       &
             &                pt_prog_rcf%tracer(:,:,jb,iqc),                             &
             &                pt_diag%u   (:,:,jb), pt_diag%v         (:,:,jb),           &
@@ -1434,30 +1435,82 @@ CONTAINS
       !  in order to avoid unphysically low test parcel temperature.
       !  Otherwise computation crashes in sat_pres_water  
       !$ACC WAIT
-      CALL cal_cape_cin( i_startidx, i_endidx,                     &
-        &                kmoist  = MAX(kstart_moist,phy_params%k060), & !in
-        &                te      = pt_diag%temp(:,:,jb)          , & !in
-        &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
-        &                prs     = pt_diag%pres(:,:,jb)          , & !in
-        &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
-        &                cape_ml = prm_diag%cape_ml(:,jb)        , & !out
-        &                cin_ml  = prm_diag%cin_ml(:,jb)         , & !out
-        &                lacc = lzacc                              ) !in
+      IF (var_in_output(jg)%cape_3km .OR. var_in_output(jg)%lcl_ml .OR. var_in_output(jg)%lfc_ml) THEN
+        CALL cal_cape_cin( i_startidx, i_endidx,                     &
+        &                kmoist   = MAX(kstart_moist,phy_params%k060), & !in
+        &                te       = pt_diag%temp(:,:,jb)          , & !in
+        &                qve      = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+        &                prs      = pt_diag%pres(:,:,jb)          , & !in
+        &                hhl      = p_metrics%z_ifc(:,:,jb)       , & !in
+        &                cape_ml  = prm_diag%cape_ml(:,jb)        , & !out
+        &                cin_ml   = prm_diag%cin_ml(:,jb)         , & !out
+        &                cape_3km = prm_diag%cape_3km(:,jb)       , & !out
+        &                lcl_ml   = prm_diag%lcl_ml(:,jb)         , & !out
+        &                lfc_ml   = prm_diag%lfc_ml(:,jb)         , & !out
+        &                lacc     = lacc                            ) !in
+      ELSE
+        CALL cal_cape_cin( i_startidx, i_endidx,                     &
+        &                kmoist   = MAX(kstart_moist,phy_params%k060), & !in
+        &                te       = pt_diag%temp(:,:,jb)          , & !in
+        &                qve      = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+        &                prs      = pt_diag%pres(:,:,jb)          , & !in
+        &                hhl      = p_metrics%z_ifc(:,:,jb)       , & !in
+        &                cape_ml  = prm_diag%cape_ml(:,jb)        , & !out
+        &                cin_ml   = prm_diag%cin_ml(:,jb)         , & !out
+        &                lacc     = lacc                            ) !in
+      ENDIF
 
       IF (var_in_output(jg)%cape_mu .OR. var_in_output(jg)%cin_mu ) THEN
         !$ACC WAIT
-        CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
-             &                kmoist  = kstart_moist,                   & !in
-             &                z_limit = 3000.0_wp,                      & !in
-             &                te      = pt_diag%temp(:,:,jb)          , & !in
-             &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
-             &                prs     = pt_diag%pres(:,:,jb)          , & !in
-             &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
-             &                cape_mu = prm_diag%cape_mu(:,jb)        , & !out
-             &                cin_mu  = prm_diag%cin_mu(:,jb)         , & !out
-             &                lacc = lzacc                              ) !in
-      END IF
-      
+        IF (itype_convindices .EQ. 1) THEN
+          CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
+          &                kmoist  = kstart_moist,                       & !in
+          &                z_limit = 3000.0_wp,                          & !in
+          &                te      = pt_diag%temp(:,:,jb)              , & !in
+          &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+          &                prs     = pt_diag%pres(:,:,jb)              , & !in
+          &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+          &                cape_mu = prm_diag%cape_mu(:,jb)            , & !out
+          &                cin_mu  = prm_diag%cin_mu(:,jb)             , & !out
+          &                lacc    = lacc                                ) !in
+        ELSEIF (itype_convindices .EQ. 2) THEN
+          CALL cal_cape_cin_mu_COSMO( i_startidx, i_endidx,               &
+          &                kmoist  = MAX(kstart_moist,phy_params%k060) , & !in
+          &                te      = pt_diag%temp(:,:,jb)              , & !in
+          &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+          &                prs     = pt_diag%pres(:,:,jb)              , & !in
+          &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+          &                cape_mu_COSMO = prm_diag%cape_mu(:,jb)      , & !out
+          &                cin_mu_COSMO  = prm_diag%cin_mu(:,jb)       , & !out
+          &                lacc    = lacc                                ) !in
+        ENDIF
+      ENDIF
+      IF (var_in_output(jg)%si .OR. var_in_output(jg)%sli .OR. var_in_output(jg)%swiss12 .OR. var_in_output(jg)%swiss00) THEN
+        !$ACC WAIT
+        CALL cal_si_sli_swiss( i_startidx, i_endidx,                 &
+        &                kmoist  = MAX(kstart_moist,phy_params%k060) , & !in
+        &                te      = pt_diag%temp(:,:,jb)              , & !in
+        &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+        &                prs     = pt_diag%pres(:,:,jb)              , & !in
+        &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+        &                u       = pt_diag%u(:,:,jb)                 , & !in
+        &                v       = pt_diag%v(:,:,jb)                 , & !in
+        &                si      = prm_diag%si(:,jb)                 , & !out
+        &                sli     = prm_diag%sli(:,jb)                , & !out
+        &                swiss12 = prm_diag%swiss12(:,jb)            , & !out
+        &                swiss00 = prm_diag%swiss00(:,jb)            , & !out
+        &                lacc    = lacc                                ) !in
+      ENDIF
+
+      IF (var_in_output(jg)%cloudtop) THEN
+        !$ACC WAIT
+        CALL cal_cloudtop( i_startidx, i_endidx,                            &
+        &                kmoist       = MAX(kstart_moist,phy_params%k060) , & !in
+        &                clc          = prm_diag%clc(:,:,jb)              , & !in
+        &                h            = p_metrics%z_mc(:,:,jb)            , & !in
+        &                cloudtop     = prm_diag%cloudtop(:,jb)           , & !out
+        &                lacc         = lacc                                ) !in
+      ENDIF
     ENDDO  ! jb
 !$OMP END DO
 

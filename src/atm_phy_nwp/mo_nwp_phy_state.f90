@@ -389,6 +389,14 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%bruvais, &
       &     diag%buffer_rrg, &
       &     diag%buffer_rttov, &
+      &     diag%cloudtop, &
+      &     diag%si, &
+      &     diag%sli, &
+      &     diag%swiss12, &
+      &     diag%swiss00, &
+      &     diag%cape_3km, &
+      &     diag%lfc_ml, &
+      &     diag%lcl_ml, &
       &     diag%cape_mu, &
       &     diag%ceiling_height, &
       &     diag%cin_mu, &
@@ -955,11 +963,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE.                                             )
     __acc_attach(diag%tot_prec_rate_avg)
 
-
-
     ! &      diag%cape(nproma,nblks_c)
     cf_desc    = t_cf_var('cape', 'J kg-1 ', 'conv avail pot energy', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)      &
+    &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
     CALL add_var( diag_list, 'cape', diag%cape,                               &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
                 & ldims=shape2d, lrestart=.FALSE.,                            &
@@ -970,33 +977,32 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%cape)
 
-    ! &      diag%cape_ml(nproma,nblks_c)
-    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-    cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-    &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-    CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE.,                            &
-                & hor_interp=create_hor_interp_metadata(                      &
-                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                & lopenacc=.TRUE. )
-    __acc_attach(diag%cape_ml)
+      ! &      diag%cape_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+      CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cape_ml)
 
-    ! &      diag%cin_ml(nproma,nblks_c)
-    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-    cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-    &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-    CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE.,                            &
-!!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
-                & hor_interp=create_hor_interp_metadata(                      &
-                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                & lopenacc=.TRUE. )
-    __acc_attach(diag%cin_ml)
-
+      ! &      diag%cin_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+      CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cin_ml)
 
     ! &      diag%gust10(nproma,nblks_c)
     CALL getPTStringFromMS(NINT(1000*gust_interval(k_jg), i8), gust_int)
@@ -4227,7 +4233,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_CEILING, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_CEILING, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+    __acc_attach(diag%ceiling_height)
     END IF
 
     IF (var_in_output%vis) THEN
@@ -4471,6 +4479,129 @@ __acc_attach(diag%clct)
                     & l_pp_scheduler_task=TASK_COMPUTE_SRH, lrestart=.FALSE.)
     END IF
 
+    IF (var_in_output%cloudtop) THEN
+      ! &      diag%cloudtop(nproma,nblks_c)
+      cf_desc    = t_cf_var('cloudtop', 'm', 'Cloud top height', datatype_flt)
+      grib2_desc = grib2_var(0, 6, 12, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'cloudtop', diag%cloudtop,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cloudtop)
+    ENDIF
+
+    IF (var_in_output%si .OR. var_in_output%sli .OR. var_in_output%swiss12 .OR. var_in_output%swiss00) THEN
+      ! &      diag%si(nproma,nblks_c)
+      cf_desc    = t_cf_var('si', 'K', 'Showalter Index', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 13, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'si', diag%si,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%si)
+
+      ! &      diag%sli(nproma,nblks_c)
+      cf_desc    = t_cf_var('sli', 'K', 'Surface Lifted Index', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 10)
+      CALL add_var( diag_list, 'sli', diag%sli,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%sli)
+
+      ! &      diag%swiss12(nproma,nblks_c)
+      cf_desc    = t_cf_var('swiss12', 'K', 'SWISS12 Index', datatype_flt)
+      grib2_desc = grib2_var(215, 7, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
+      CALL add_var( diag_list, 'swiss12', diag%swiss12,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%swiss12)
+
+      ! &      diag%swiss00(nproma,nblks_c)
+      cf_desc    = t_cf_var('swiss00', 'K', 'SWISS00 Index', datatype_flt)
+      grib2_desc = grib2_var(215, 7, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
+      CALL add_var( diag_list, 'swiss00', diag%swiss00,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%swiss00)
+    ENDIF
+
+
+
+    IF (var_in_output%cape_3km .OR. var_in_output%lcl_ml .OR. var_in_output%lfc_ml) THEN
+      ! &      diag%lcl_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('lcl_ml', 'm ', 'Lifted Condensation Level of Mean Layer parcel (HAG)', datatype_flt)
+      grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 5)                  &
+      &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)
+      CALL add_var( diag_list, 'lcl_ml', diag%lcl_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%lcl_ml)
+
+          ! &      diag%lfc_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('lfc_ml', 'm ', 'Level of Free Convection of Mean Layer parcel (HAG)', datatype_flt)
+      grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 194)                &
+      &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)
+      CALL add_var( diag_list, 'lfc_ml', diag%lfc_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%lfc_ml)
+      
+      cf_desc    = t_cf_var('cape_3km', 'J kg-1 ',                                 &
+            'Mean Layer CAPE, with endpoint at 3000 m', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)        &
+            &           + t_grib2_int_key("typeOfFirstFixedSurface", 103)         &
+            &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)        &
+            &           + t_grib2_int_key("scaledValueOfFirstFixedSurface", 3000) &
+            &           + t_grib2_int_key("scaleFactorOfFirstFixedSurface", 0)
+      CALL add_var( diag_list, 'cape_3km', diag%cape_3km,                         &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                         &
+                    & cf_desc, grib2_desc,                                        &
+                    & ldims=shape2d,                                              &
+                    & isteptype=TSTEP_INSTANT,                                    &
+                    & hor_interp=create_hor_interp_metadata(                      &
+                    &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                    & lrestart=.FALSE., lopenacc=.TRUE.)
+      __acc_attach(diag%cape_3km)
+    ENDIF
+
     IF (var_in_output%cape_mu .OR. var_in_output%cin_mu) THEN
       cf_desc    = t_cf_var('cape_mu', 'J kg-1 ',                                 &
            'Most unstable CAPE, approximated by parcel with largest Theta_e in 3000 m layer', datatype_flt)
@@ -4500,7 +4631,8 @@ __acc_attach(diag%clct)
                     & lrestart=.FALSE., lopenacc=.TRUE.)
       __acc_attach(diag%cin_mu)
     END IF
-    
+
+
     IF (var_in_output%dbz .OR. var_in_output%dbz850 .OR. var_in_output%dbzcmax .OR. var_in_output%dbzctmax .OR. &
          var_in_output%dbzlmx_low .OR. var_in_output%echotop .OR. var_in_output%echotopinm) THEN
       cf_desc    = t_cf_var('dbz', 'dBZ',&

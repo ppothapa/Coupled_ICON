@@ -56,7 +56,7 @@ MODULE mo_turbulent_diagnostic
   USE mo_opt_nwp_diagnostics,ONLY: cal_cape_cin
   USE mo_nwp_parameters,     ONLY: t_phy_params
   USE mo_ls_forcing_nml,     ONLY: is_ls_forcing  
- 
+
   IMPLICIT NONE
 
   LOGICAL, ALLOCATABLE :: is_at_full_level(:)
@@ -308,13 +308,12 @@ CONTAINS
       !  Otherwise computation crashes in sat_pres_water
       CALL cal_cape_cin( i_startidx, i_endidx,                     &
         &                kmoist  = MAX(kstart_moist,phy_params%k060), & !in
-        &                te      = p_diag%temp(:,:,jb)          , & !in
-        &                qve     = p_prog_rcf%tracer(:,:,jb,iqv), & !in
-        &                prs     = p_diag%pres(:,:,jb)          , & !in
-        &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
-        &                cape_ml = prm_diag%cape_ml(:,jb)        , & !in
-        &                cin_ml  = prm_diag%cin_ml(:,jb) )
-
+        &                te      = p_diag%temp(:,:,jb)          , &   !in
+        &                qve     = p_prog_rcf%tracer(:,:,jb,iqv), &   !in
+        &                prs     = p_diag%pres(:,:,jb)          , &   !in
+        &                hhl     = p_metrics%z_ifc(:,:,jb)       , &  !in
+        &                cape_ml = prm_diag%cape_ml(:,jb)        , &  !out
+        &                cin_ml  = prm_diag%cin_ml(:,jb)         )  !out
 
     ENDDO  ! jb
 !$OMP END DO

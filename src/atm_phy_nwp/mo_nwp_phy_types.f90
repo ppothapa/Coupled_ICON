@@ -111,10 +111,8 @@ MODULE mo_nwp_phy_types
 #endif
       &  ::                    &
       &   acdnc(:,:,:),        & !! cloud droplet number concentration                   [1/m**3]
-      &   cloud_num(:,:),      & !! 2D cloud droplet number concentration for simple aerosol-cloud coupling [1/m**3]
       &   cape    (:,:),       & !! convective available energy
-      &   cape_ml (:,:),       & !! convective available energy of mean surface layer parcel
-      &   cin_ml  (:,:),       & !! convective inhibition of mean surface layer parcel
+      &   cloud_num(:,:),      & !! 2D cloud droplet number concentration for simple aerosol-cloud coupling [1/m**3]
       &   con_gust(:,:),       & !! convective gusts near surface
       &   con_udd(:,:,:,:),    & !!(nproma,nlev,nblks,8) convective up/downdraft fields
                                  !! 1= convective updraft mass flux (pmfu)
@@ -509,6 +507,17 @@ MODULE mo_nwp_phy_types
       lapse_rate(:,:),     & !< T(500hPa) - T(850hPa) with a correction if 850 hPa is below the surface
       cape_mu (:,:),       & !< Most unstable convective available energy
       cin_mu(:,:),         & !< Most unstable convective inhibition
+      cape_ml (:,:),       & !! convective available energy of mean surface layer parcel
+      si      (:,:),       & !! Showalter Index SI
+      sli     (:,:),       & !! Surface Lifted Index SLI
+      swiss12 (:,:),       & !! SWISS12 Index
+      swiss00 (:,:),       & !! SWISS00 Index
+      cin_ml  (:,:),       & !! convective inhibition of mean surface layer parcel
+      lcl_ml  (:,:),       & !! Lifted Condensation Level of mean surface layer parcel
+      lfc_ml  (:,:),       & !! Level of Free Convection of mean surface layer parcel
+      cape_3km (:,:),      & !! convective available energy of mean surface layer parcel with endpoint 3km.
+      cin_3km(:,:),        & !! convective inhibition of mean surface layer parcel with endpoint 3km.
+      cloudtop(:,:),       & !! Cloud Top
       srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
