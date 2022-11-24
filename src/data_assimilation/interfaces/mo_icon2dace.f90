@@ -1363,7 +1363,7 @@ contains
              write(0,*) "min/max(ngp) =", minval (ngp(1:n_verts)), maxval (ngp(1:n_verts))
              write(0,*) "min/max(w)   =", minval (w(:,1:n_verts)), maxval (w(:,1:n_verts))
              write(0,*) "Time for search [s]:", real (t2-t1)
-             write(0,*) "Time for search [µs/point]:", real ((t2-t1)/n_verts*1.e6_wp)
+             write(0,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_verts*1.e6_wp)
              write(0,*)
           end if
           !---------------------------------------
@@ -1410,7 +1410,7 @@ contains
              write(0,*) "min/max(ngp) =", minval (ngp(1:n_cells)), maxval (ngp(1:n_cells))
              write(0,*) "min/max(w)   =", minval (w(:,1:n_cells)), maxval (w(:,1:n_cells))
              write(0,*) "Time for search [s]:", real (t2-t1)
-             write(0,*) "Time for search [µs/point]:", real ((t2-t1)/n_cells*1.e6_wp)
+             write(0,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_cells*1.e6_wp)
              write(0,*)
           end if
           !---------------------------------------
@@ -1720,7 +1720,7 @@ contains
 !   integer             :: nz
     real(wp)            :: z, zs
     real(wp), parameter :: P_00 = 101325._wp
-    real(wp), parameter :: T_00 =    213.15_wp ! -60°C
+    real(wp), parameter :: T_00 =    213.15_wp ! -60 degree Celsius
     real(wp), parameter :: DT   =     75._wp
     real(wp), parameter :: H_0  =  10000._wp   ! 10 km
 

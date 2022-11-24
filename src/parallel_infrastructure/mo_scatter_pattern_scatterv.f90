@@ -1,11 +1,11 @@
 !>
 !! An implementation of t_scatterPattern that uses MPI_Scatterv to distribute the data.
 !!
-!! @author N. Hübbe, DWD
+!! @author N. Huebbe, DWD
 !!
 !!
 !! @par Revision History
-!! Initial hack: 2014-08-18 : N. Hübbe, DWD
+!! Initial hack: 2014-08-18 : N. Huebbe, DWD
 !!
 !! @par Copyright and License
 !!
