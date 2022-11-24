@@ -146,24 +146,19 @@ MODULE mo_nonhydro_state
   !! @par Revision History
   !! Initial release by Almut Gassmann (2009-03-06)
   !!
-  SUBROUTINE construct_nh_state(p_patch, p_nh_state, p_nh_state_lists, n_timelevels, var_in_output)
-    TYPE(t_patch),     INTENT(IN)   ::        & ! patch
+  SUBROUTINE construct_nh_state(p_patch,  n_timelevels, var_in_output)
+    TYPE(t_patch),         INTENT(IN) ::      & ! patch
       &  p_patch(n_dom)
-    TYPE(t_nh_state),  INTENT(INOUT)::        & ! nh state at different grid levels
-      &  p_nh_state(n_dom)
-    TYPE(t_nh_state_lists),  INTENT(INOUT)::  & ! nh state at different grid levels
-      &  p_nh_state_lists(n_dom)
-    INTEGER, OPTIONAL, INTENT(IN)   ::  & ! number of timelevels
-      &  n_timelevels    
+    INTEGER,               INTENT(IN) ::      & ! number of timelevels
+      &  n_timelevels
     TYPE(t_var_in_output), INTENT(IN) ::      & !< switches for optional diagnostics
       &  var_in_output(:)
-    INTEGER  :: ntl,      &! local number of timelevels
-                ntl_pure, &! local number of timelevels (without any extra timelevs)
+
+    INTEGER  :: ntl,      &! local number of timelevels (with extra timelevels)
                 ist,      &! status
                 jg,       &! grid level counter
                 jt         ! time level counter
     LOGICAL  :: l_extra_timelev
-    INTEGER :: ic, jb, jc, i_startblk, i_endblk, i_startidx, i_endidx
 
     CHARACTER(len=vlname_len) :: listname
     CHARACTER(LEN=vname_len) :: varname_prefix
@@ -172,16 +167,17 @@ MODULE mo_nonhydro_state
 !-----------------------------------------------------------------------
 
     CALL message (routine, 'Construction of NH state started')
+
+
+    ALLOCATE(p_nh_state(n_dom), p_nh_state_lists(n_dom), stat=ist)
+    IF (ist /= success) CALL finish(routine, &
+      &  'allocation of nonhydrostatic state  array and list failed')
+
     !$ACC ENTER DATA COPYIN(p_nh_state)
+
     DO jg = 1, n_dom
 
-      IF(PRESENT(n_timelevels))THEN
-        ntl      = n_timelevels
-        ntl_pure = n_timelevels
-      ELSE
-        ntl      = 1
-        ntl_pure = 1
-      ENDIF
+      ntl = n_timelevels
 
       ! As grid nesting is not called at every dynamics time step, an extra time
       ! level is needed for full-field interpolation and boundary-tendency calculation
@@ -198,7 +194,7 @@ MODULE mo_nonhydro_state
       nsav2(jg) = ntl
 
       !
-      ! Allocate pointer array p_nh_state(jg)%prog, as well as the 
+      ! Allocate pointer array p_nh_state(jg)%prog, as well as the
       ! corresponding list array for each grid level.
       !
       ! create state arrays
@@ -213,40 +209,14 @@ MODULE mo_nonhydro_state
         'allocation of prognostic state list array failed')
 
       ! create tracer list (no extra timelevels)
-      ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:ntl_pure), STAT=ist)
+      ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:n_timelevels), STAT=ist)
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic tracer list array failed')
-
-      ! Moved here from set_nh_metrics because we need bdy_halo_c_dim/blk/idx for add_var
-      i_startblk = p_patch(jg)%cells%start_block(min_rlcell_int-1)
-      i_endblk   = p_patch(jg)%cells%end_block(min_rlcell)
-      ic = 0
-      DO jb = i_startblk, i_endblk
-
-        CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
-                           i_startidx, i_endidx, min_rlcell_int-1, min_rlcell)
-
-        DO jc = i_startidx, i_endidx
-          IF (p_patch(jg)%cells%refin_ctrl(jc,jb)>=1 .AND. &
-              p_patch(jg)%cells%refin_ctrl(jc,jb)<=4) THEN
-            ic = ic+1
-          ENDIF
-        ENDDO
-      ENDDO
-      p_nh_state(jg)%metrics%bdy_halo_c_dim = ic
-      !$ACC UPDATE DEVICE(p_nh_state(jg)%metrics%bdy_halo_c_dim)
-      ! Index list for halo points belonging to the lateral boundary interpolation zone
-
-      IF ( ic == 0 ) THEN
-         ALLOCATE(p_nh_state(jg)%metrics%bdy_halo_c_idx(0:0),p_nh_state(jg)%metrics%bdy_halo_c_blk(0:0))
-      ELSE
-         ALLOCATE(p_nh_state(jg)%metrics%bdy_halo_c_idx(ic),p_nh_state(jg)%metrics%bdy_halo_c_blk(ic))
-      ENDIF
 
 
       !
       ! Build lists for every timelevel
-      ! 
+      !
       DO jt = 1, ntl
 
         ! Tracer fields do not need extra time levels because feedback is not incremental
@@ -335,12 +305,12 @@ MODULE mo_nonhydro_state
   !!
   SUBROUTINE destruct_nh_state(p_nh_state, p_nh_state_lists)
 !
-    TYPE(t_nh_state), INTENT(INOUT) ::       & ! nh state at different grid levels
-      &  p_nh_state(n_dom)
-                                             
-    TYPE(t_nh_state_lists), INTENT(INOUT) :: & ! lists of nh state at different grid levels
-      &  p_nh_state_lists(n_dom)
-                                             
+    TYPE(t_nh_state),       ALLOCATABLE, INTENT(INOUT) :: & ! nh state at different grid levels
+      &  p_nh_state(:)
+
+    TYPE(t_nh_state_lists), ALLOCATABLE, INTENT(INOUT) :: & ! lists of nh state at different grid levels
+      &  p_nh_state_lists(:)
+
     INTEGER  :: ntl_prog, & ! number of timelevels prog state
                 ntl_tra,  & ! number of timelevels 
                 ist, &      ! status
@@ -405,6 +375,9 @@ MODULE mo_nonhydro_state
     ENDDO
 
     !$ACC EXIT DATA DELETE(p_nh_state)
+
+    DEALLOCATE (p_nh_state, p_nh_state_lists, STAT=ist)
+    IF (ist /= SUCCESS) CALL finish(routine,'deallocation of nonhydrostatic state vector failed')
 
     CALL message(routine, 'NH state destruction completed')
 
@@ -3931,6 +3904,7 @@ MODULE mo_nonhydro_state
     INTEGER :: DATATYPE_PACK_VAR  !< variable "entropy" for selected fields
     INTEGER :: datatype_flt       !< floating point accuracy in NetCDF output
     LOGICAL :: group(MAX_GROUPS)
+    INTEGER :: ic, jb, jc, i_startblk, i_endblk, i_startidx, i_endidx
 
     !--------------------------------------------------------------
 
@@ -3959,6 +3933,27 @@ MODULE mo_nonhydro_state
     ELSE
       datatype_flt = DATATYPE_FLT32
     ENDIF
+
+
+    ! Moved here from set_nh_metrics because we need bdy_halo_c_dim/blk/idx for add_var
+    i_startblk = p_patch%cells%start_block(min_rlcell_int-1)
+    i_endblk   = p_patch%cells%end_block(min_rlcell)
+    ic = 0
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+                         i_startidx, i_endidx, min_rlcell_int-1, min_rlcell)
+
+      DO jc = i_startidx, i_endidx
+        IF (p_patch%cells%refin_ctrl(jc,jb)>=1 .AND. &
+          & p_patch%cells%refin_ctrl(jc,jb)<=4) THEN
+          ic = ic+1
+        ENDIF
+      ENDDO
+    ENDDO
+    p_metrics%bdy_halo_c_dim = ic
+    !$ACC UPDATE DEVICE(p_metrics%bdy_halo_c_dim)
+
 
     ! predefined array shapes
     shape1d_c        = (/nlev                        /)

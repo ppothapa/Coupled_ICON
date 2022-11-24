@@ -264,16 +264,14 @@ CONTAINS
     ! Note(GZ): Land state now needs to be allocated even if physics is turned
     ! off because ground temperature is included in feedback since r8133
     ! However, setting inwp_surface = 0 effects that only a few 2D fields are allocated
-    ALLOCATE(p_nh_state(n_dom), p_nh_state_lists(n_dom), p_lnd_state(n_dom), &
-         stat=ist)
+    ALLOCATE(p_lnd_state(n_dom), stat=ist)
     IF (ist /= success) CALL finish(routine, &
-      &                             'allocation for state failed')
+      &                             'allocation for (NWP) land state failed')
 
     IF(iforcing /= inwp) atm_phy_nwp_config(:)%inwp_surface = 0
 
-    ! Now allocate memory for the states
-    CALL construct_nh_state(p_patch(1:), p_nh_state, p_nh_state_lists, n_timelevels=2, &
-      &                     var_in_output=var_in_output(:))
+    ! Now allocate memory for the nonhydrostatic state
+    CALL construct_nh_state(p_patch(1:), n_timelevels=2, var_in_output=var_in_output(:))
 
     ! Add optional diagnostic variable lists (might remain empty)
     CALL construct_opt_diag(p_patch(1:), .TRUE.)
@@ -765,12 +763,9 @@ CONTAINS
     CALL destruct_opt_diag()
 
     ! Delete state variables
-
     CALL destruct_nh_state( p_nh_state, p_nh_state_lists )
-    DEALLOCATE (p_nh_state, p_nh_state_lists, STAT=ist)
-    IF (ist /= SUCCESS) CALL finish(routine,'deallocation for state failed')
 
-
+    ! Delete state variables for transport
     CALL destruct_prepadv_state()
 
 #ifndef __NO_ICON_LES__

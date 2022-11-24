@@ -266,31 +266,31 @@ SUBROUTINE destruct_nwp_phy_state()
     
   END DO
 
+  !$ACC EXIT DATA DELETE(prm_diag, prm_nwp_tend)
+
   DEALLOCATE(prm_diag, prm_nwp_diag_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
+    CALL finish (routine, &
        &  'deallocation of NWP physics diagnostic array and list failed')
   ENDIF
  
   DEALLOCATE(prm_nwp_tend, prm_nwp_tend_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
-         &' deallocation of NWP physics tendencies array and list failed') 
+    CALL finish (routine, &
+       &  'deallocation of NWP physics tendencies array and list failed')
   ENDIF
 
   DEALLOCATE(prm_nwp_stochconv, prm_nwp_stochconv_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
+    CALL finish (routine, &
        &  'deallocation of NWP stochastic convection array and list failed')
   ENDIF 
 
   !$ACC EXIT DATA DELETE(phy_params)
   DEALLOCATE(phy_params, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish (routine, ' deallocation of phy_params array failed')
+    CALL finish (routine, 'deallocation of phy_params array failed')
   ENDIF
-
-  !$ACC EXIT DATA DELETE(prm_diag, prm_nwp_tend)
 
   CALL message(routine, 'destruction of 3D state vector finished')
 

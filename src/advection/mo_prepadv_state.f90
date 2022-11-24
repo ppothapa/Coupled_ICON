@@ -117,13 +117,13 @@ CONTAINS
       CALL vlr_del(prep_adv_list(jg))
     ENDDO
 
+    !$ACC EXIT DATA DELETE(prep_adv)
+
     DEALLOCATE(prep_adv, prep_adv_list, STAT=ist)
     IF(ist/=SUCCESS)THEN
       CALL finish (TRIM(routine), 'deallocation of prep_adv array and list failed')
     ENDIF
 
-    !$ACC EXIT DATA DELETE(prep_adv)
- 
     CALL message(routine, 'destruction of prep_adv state finished')
 
   END SUBROUTINE destruct_prepadv_state

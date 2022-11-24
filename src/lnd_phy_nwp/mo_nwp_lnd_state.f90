@@ -283,12 +283,10 @@ MODULE mo_nwp_lnd_state
         CALL vlr_del(p_lnd_state(jg)%lnd_prog_nwp_list(jt))
       ENDDO
 
-      IF (lseaice .OR. llake) THEN
-        DO jt = 1, ntl
-          ! delete prognostic state list elements
-          CALL vlr_del(p_lnd_state(jg)%wtr_prog_nwp_list(jt))
-        ENDDO
-      ENDIF
+      DO jt = 1, ntl
+        ! delete prognostic state list elements
+        CALL vlr_del(p_lnd_state(jg)%wtr_prog_nwp_list(jt))
+      ENDDO
 
       ! delete diagnostic state list elements
       CALL vlr_del(p_lnd_state(jg)%lnd_diag_nwp_list)
