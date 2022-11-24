@@ -12,11 +12,11 @@
 !!
 !!      Note, however, that you must call startTimer() either with all processes or with none due to the way mo_real_timer builds the timer output table.
 !!
-!! @author N. Hübbe, DWD
+!! @author N. Huebbe, DWD
 !!
 !!
 !! @par Revision History
-!! Initial revision: 2014-08-05 : N. Hübbe, DWD
+!! Initial revision: 2014-08-05 : N. Huebbe, DWD
 !!
 !! @par Copyright and License
 !!

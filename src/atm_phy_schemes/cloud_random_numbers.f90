@@ -29,7 +29,7 @@
 ! Reference for MINSTD: Park, Stephen K.; Miller, Keith
 ! W. (1988). "Random Number Generators: Good Ones Are Hard To Find"
 ! (PDF). Communications of the ACM. 31 (10):
-! 1192–1201. doi:10.1145/63039.63042
+! 1192-1201. doi:10.1145/63039.63042
 
 module cloud_random_numbers
   USE mo_kind,  ONLY: jprb=>wp ,jpim=>i4,jpib=>i8

@@ -1,9 +1,30 @@
 #!/bin/bash
 
+set -eu
+
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+LINUX_CODENAME=$(lsb_release -sc)
 
-${ICON_DIR}/config/mpim/stretch.gcc --disable-mpi --enable-openmp
+if test ! -z "${BB_NAME-}"; then
+  set -x
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_autoreconf_BREEZE.sh"
+fi
+
+# Make sure we disable all features that require MPI:
+${ICON_DIR}/config/mpim/${LINUX_CODENAME}.gcc --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-yaxt --enable-openmp
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}
+
+if test ! -z "${BB_NAME-}"; then
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_nompi.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+  # Build the tests in parallel:
+  make -j ${MAKE_PROCS} check TESTS= XFAIL_TESTS=
+  # Run the tests serially:
+  make check
+fi

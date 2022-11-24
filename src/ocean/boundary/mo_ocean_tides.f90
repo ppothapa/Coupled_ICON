@@ -320,24 +320,24 @@ if(ma.lt.0.0_dp) ma = ma + 360.0_dp   ! Sun's mean anomaly
 lama = 360.0_dp/365.242191_dp*d + 360.0_dp/pi*e*dsin((360.0_dp/365.242191_dp*d + epsg - omg)*rad) + epsg
 
 lama = mod(lama,360.0_dp)
-if(lama.lt.0.0_dp) lama = lama + 360.0_dp   ! Sun’s ecliptic longitude
+if(lama.lt.0.0_dp) lama = lama + 360.0_dp   ! Sun's ecliptic longitude
 
 
 ! ----------------------------------------------------------------------------------
 
-l0 = 91.929336_dp  ! Moon’s mean longitude at the epoch
+l0 = 91.929336_dp  ! Moon's mean longitude at the epoch
 p0 = 130.143076_dp ! mean longitude of the perigee at the epoch
 n0 = 291.682547_dp ! mean longitude of the node at the epoch
 
-l = 13.1763966_dp*d + l0  ! Moon’s mean longitude
+l = 13.1763966_dp*d + l0  ! Moon's mean longitude
 l = mod(l,360.0_dp)
 if(l.lt.0.0_dp) l = l + 360.0_dp
 
-mm = l - 0.1114041_dp*d - p0  ! Moon’s mean anomaly
+mm = l - 0.1114041_dp*d - p0  ! Moon's mean anomaly
 mm = mod(mm,360.0_dp)
 if(mm.lt.0.0_dp) mm = mm + 360.0_dp
 
-n = n0 - 0.0529539_dp*d  ! ascending node’s mean longitude
+n = n0 - 0.0529539_dp*d  ! ascending node's mean longitude
 n = mod(n,360.0_dp)
 if(n.lt.0.0_dp) n = n + 360.0_dp
 
@@ -355,23 +355,23 @@ A3 = 0.37_dp*dsin(rad*Ma)  ! third correction
 
 ! -----------------------------------------------------------
 
-Mms = Mm + Ev - Ae -A3   ! Moon’s corrected anomaly
+Mms = Mm + Ev - Ae -A3   ! Moon's corrected anomaly
 
 Ec = 6.2886_dp*dsin(rad*Mms)  ! equation of the centre
 
 A4 = 0.214_dp*dsin(rad*2*Mms) ! another correction term
 
-ls = l + Ev + Ec - Ae + A4 ! Moon’s corrected longitude
+ls = l + Ev + Ec - Ae + A4 ! Moon's corrected longitude
 
 V = 0.6583_dp*dsin(rad*2*(ls-lama)) ! variation
 
-lss = ls + v  ! Moon’s true orbital longitude
+lss = ls + v  ! Moon's true orbital longitude
 
 
 ! ---------------------------------------------------------
 
 Ns = N - 0.16_dp*dsin(rad*Ma) ! corrected longitude of the node
-i = 5.145396_dp    ! inclination of Moon’s orbit
+i = 5.145396_dp    ! inclination of Moon's orbit
 
 y = dsin(rad*(lss-Ns))*dcos(rad*i)
 x = dcos(rad*(lss-Ns)) + 1.e-8_dp
@@ -719,13 +719,13 @@ e = 0.054900_dp ! eccentricity
 n = 360.0_dp/365.242191_dp*DD
 call adj(n)
 
-ms = ms*180.0_dp/pi  ! Sun’s mean anomaly (deg)
+ms = ms*180.0_dp/pi  ! Sun's mean anomaly (deg)
 call adj(ms)
 
-lams = ny + omg   ! Sun’s ecliptic longitude (deg)
+lams = ny + omg   ! Sun's ecliptic longitude (deg)
 call adj(lams)
 
-l0 = 91.929336_dp   ! Moon’s mean longitude at the epoch (deg)
+l0 = 91.929336_dp   ! Moon's mean longitude at the epoch (deg)
 p0 = 130.143076_dp  ! mean longitude of the perigee at the epoch (deg)
 
 l = 13.1763966_dp*DD + l0  ! Moon's mean longitude (deg)
@@ -736,12 +736,12 @@ call adj(cc)
 
 A3 = 0.37_dp*dsin(ms*rad)
 Ae = 0.1858_dp*dsin(ms*rad)
-Mm = l - 0.111404_dp*DD-p0  ! Moon’s mean anomaly (deg)
+Mm = l - 0.111404_dp*DD-p0  ! Moon's mean anomaly (deg)
 call adj(Mm)
 
 Ev = 1.2739_dp*dsin((2.0_dp*cc - mm)*rad) ! evection
 
-Mms = Mm + Ev - Ae - A3  ! Moon’s corrected anomaly (deg)
+Mms = Mm + Ev - Ae - A3  ! Moon's corrected anomaly (deg)
 
 Ec = 6.2886_dp*dsin(Mms*rad) 
 
@@ -974,7 +974,7 @@ END SUBROUTINE tide_mpi
   
   SUBROUTINE negangle2(pi2,x)
 ! transformation of negative angles
-! to angles in interval [0°;360°)
+! to angles in interval [0 degree; 360 degree)
 !
   Logical endvar
   REAL(dp) :: pi2,x
@@ -993,8 +993,8 @@ END SUBROUTINE tide_mpi
 ! ===========================================================
 
   SUBROUTINE langle2(pi2,x)
-!  transformation of large angles
-!  to angles in interval [0°;360°)
+! transformation of large angles
+! to angles in interval [0 degree; 360 degree)
 !
   Logical endvar
   REAL(dp) :: pi2,x

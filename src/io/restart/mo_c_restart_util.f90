@@ -1,6 +1,6 @@
 !> Interfaces to the functions defined IN support/util_multifile_restart.c
 !!
-!! Initial implementation: Nathanael Hübbe
+!! Initial implementation: Nathanael Huebbe
 !!
 !! @par Copyright and License
 !!
