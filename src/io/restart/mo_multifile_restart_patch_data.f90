@@ -1,6 +1,6 @@
 !> The multifile version of t_RestartPatchData.
 !!
-!! Initial implementation: Nathanael Hübbe
+!! Initial implementation: Nathanael Huebbe
 !! 2018-08: Major revision / revamp / refactoring : Harald Braun (Atos SE)
 !!
 !! @par Copyright and License

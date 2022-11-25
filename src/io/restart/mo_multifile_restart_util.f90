@@ -1,7 +1,7 @@
 !> Utilities for multifile restart writing.
 !! These are mostly convenience functions for accessing the restart configuration.
 !!
-!! Initial implementation: Nathanael Hübbe
+!! Initial implementation: Nathanael Huebbe
 !! 2018-08: Major revision / revamp / refactoring : Harald Braun (Atos SE)
 !!
 !! @par Copyright and License

@@ -4,11 +4,11 @@
 !!
 !! All calls within this class are collective.
 !!
-!! @author N. Hübbe, DWD
+!! @author N. Huebbe, DWD
 !!
 !!
 !! @par Revision History
-!! Initial hack: 2014-08-05 : N. Hübbe, DWD
+!! Initial hack: 2014-08-05 : N. Huebbe, DWD
 !!
 !! @par Copyright and License
 !!

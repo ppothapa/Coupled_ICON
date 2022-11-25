@@ -189,6 +189,7 @@ CONTAINS
     ! Calculate vertical integrals of moisture quantities and cloud cover
     ! Anurag Dipankar, MPIM (2015-08-01): always call this routine
     ! for LES simulation
+#ifndef __NO_ICON_LES__
     IF (atm_phy_nwp_config(jg)%is_les_phy) THEN
       ! This call is required in LES to have prm_diag%clct up-to-date in
       ! calculate_turbulent_diagnostics.
@@ -199,6 +200,7 @@ CONTAINS
                               & pt_diag, prm_diag,          & !inout
                               & lzacc                        ) !in
     ENDIF
+#endif
 
     ! Calculation of average/accumulated values since model start
     !
@@ -1553,7 +1555,7 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(NONE) CREATE(iclbas, p_clbas)  IF(lzacc) &
+      !$ACC PARALLEL DEFAULT(NONE) CREATE(iclbas, p_clbas) IF(lzacc) &
       !$ACC   PRESENT(pt_diag, prm_diag)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
@@ -1926,7 +1928,7 @@ CONTAINS
              &                    prm_diag%flxdwswtoa(:,:),                 &
              &                    p_diag%pres(:,p_patch%nlev,:), twater     )
       ELSEIF (itype_dursun == 1) THEN
-        ! MeteoSwiss sunshine duration with a 200 W/m² threshold
+        ! MeteoSwiss sunshine duration with a 200 W/m^2 threshold
         CALL compute_field_dursun(p_patch, dt_phy, prm_diag%dursun,         &
              &                    prm_diag%swflxsfc, prm_diag%swflx_up_sfc, &
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &

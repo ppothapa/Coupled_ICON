@@ -386,7 +386,7 @@ CONTAINS
     !-------------------------------------------------------------------------
 
 
-    !$ACC DATA CREATE(zq_ubc) PRESENT(p_cc, p_mflx_contra_v,p_upflux) &
+    !$ACC DATA CREATE(zq_ubc) PRESENT(p_cc, p_mflx_contra_v, p_upflux) &
     !$ACC   IF(i_am_accel_node)
 
     ! check optional arguments

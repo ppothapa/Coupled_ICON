@@ -16,7 +16,7 @@ cd vector
 
 ${ICON_DIR}/config/dwd/rcl.VE.nfort-3.5.1_mpi-2.20_art_oper --enable-openmp
 
-if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
+if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
   for f in $(find . -name 'config.log' -print); do
     echo " ||||| '$f' ||||| "
@@ -41,7 +41,7 @@ cd host
 
 ${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_mpi-2.20_art_oper
 
-if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
+if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
   for f in $(find . -name 'config.log' -print); do
     echo " ||||| '$f' ||||| "

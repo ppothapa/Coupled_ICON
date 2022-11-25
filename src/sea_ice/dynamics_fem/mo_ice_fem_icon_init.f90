@@ -67,7 +67,7 @@ MODULE mo_ice_fem_icon_init
   ! These values put the north pole on the Indonesian/Malasian island Kalimantan and the south pole
   ! in north-west Brazil, near the border to Venezuela and Colombia.
   REAL(wp), PARAMETER, PUBLIC :: pollon = 114._wp*deg2rad, pollat = 0._wp
-  !  the North pole is centered on Greenland (40◦W, 75◦N) and the South pole on Antarctica
+  !  the North pole is centered on Greenland (40W, 75N) and the South pole on Antarctica
   !  was used to test consistency of the results with respect to the change in the rotated grid
   !  REAL(wp), PARAMETER, PRIVATE :: pollon = -40._wp*deg2rad, pollat = 75._wp*deg2rad
 

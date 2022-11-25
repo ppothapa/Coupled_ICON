@@ -174,7 +174,7 @@ CONTAINS
     i_startblk = p_patch%edges%start_blk(i_rlstart,1)
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
-    !$ACC DATA PRESENT(p_coords_dreg_v,p_quad_vector_sum, p_dreg_area) PRESENT(shape_func_l) &
+    !$ACC DATA PRESENT(p_coords_dreg_v, p_quad_vector_sum, p_dreg_area) PRESENT(shape_func_l) &
     !$ACC   IF(i_am_accel_node)
 
 !$OMP PARALLEL
@@ -319,7 +319,7 @@ CONTAINS
     i_startblk = p_patch%edges%start_blk(i_rlstart,1)
     i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
 
-    !$ACC DATA PRESENT(p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev,p_dreg_area) &
+    !$ACC DATA PRESENT(p_coords_dreg_v, falist, falist%len, falist%eidx, falist%elev, p_dreg_area) &
     !$ACC   PRESENT(shape_func_l, p_quad_vector_sum) &
     !$ACC   IF(i_am_accel_node)
 

@@ -3401,7 +3401,7 @@ CONTAINS
     ! General setup of the spatial modulation function in the testpattern:
     minmaxrange = .TRUE.
     
-    ! Temperature limits [°C]:
+    ! Temperature limits [degree Celsius]:
     tc_min = -38.0_wp
     ! rain at -40C seems unrealistic, but is predicted by COSMO in warm bubble
     ! test case, so we want to test that...

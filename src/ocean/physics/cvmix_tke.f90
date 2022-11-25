@@ -3,11 +3,11 @@ module cvmix_tke
 !! This module contains the main computations of diffusivities based on 
 !! TKE (following Gaspar'90)  with the calculation of the mixing length following (Blanke, B., P. Delecluse)
 !!
-!! @see  Gaspar, P., Y. Grégoris, and J.-M. Lefevre
-!!       J. Geophys. Res., 95(C9), 16179–16193, doi:10.1029/JC095iC09p16179.
+!! @see  Gaspar, P., Y. Gregoris, and J.-M. Lefevre
+!!       J. Geophys. Res., 95(C9), 16179-16193, doi:10.1029/JC095iC09p16179.
 !!
 !! @see  Blanke, B., P. Delecluse
-!!       J. Phys. Oceanogr., 23, 1363–1388. doi: http://dx.doi.org/10.1175/1520-0485(1993)023<1363:VOTTAO>2.0.CO;2
+!!       J. Phys. Oceanogr., 23, 1363-1388. doi: http://dx.doi.org/10.1175/1520-0485(1993)023<1363:VOTTAO>2.0.CO;2
 !!
 !! @author Nils Brueggemann, University of Hamburg / MPIMET
 !! @author Hannah Kleppin, MPIMET/University of Hamburg

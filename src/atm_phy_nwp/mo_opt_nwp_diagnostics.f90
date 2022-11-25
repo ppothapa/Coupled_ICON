@@ -3998,7 +3998,7 @@ CONTAINS
   !! Calculate sunshine duration
   !!
   !!  According to WMO (2003),2 sunshine duration during a given period is defined as
-  !!  the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m–2
+  !!  the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m-2
   !!  WMO-No. 8 Guide to Meteorological Instruments and Methods of Observation
   !!
   !! The direct solar irradiance at the surface is calculated from the shortwave net flux at surface, 

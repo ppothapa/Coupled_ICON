@@ -51,7 +51,7 @@ MODULE mo_aggregates
 ! Values given in:
 ! https://academic.oup.com/plankt/article/27/10/1003/1490556
 ! following:
-! Matthäus, V. W. (1972) Die Viskosität des Meerwassers. Beiträge zur Meereskunde, 29, 93–107.
+! Matthaeus, V. W. (1972) Die Viskositaet des Meerwassers. Beitraege zur Meereskunde, 29, 93-107.
 ! https://www.io-warnemuende.de/tl_files/forschung/beitraege-zur-meereskunde/1972_29_Beitraege_zur_Meereskunde.pdf
 !     REAL(wp),PARAMETER, DIMENSION(14) :: cdynv=(/1.79e-2_wp, -6.1299e-4_wp,1.4467e-5_wp, &
 !                           &      -1.6826e-7_wp, -1.7913e-6_wp, 9.5182e-10_wp, 2.4727e-5_wp,&
