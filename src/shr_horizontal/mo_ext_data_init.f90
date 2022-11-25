@@ -1137,7 +1137,29 @@ CONTAINS
           ENDDO
         ENDIF
 
-        !$ACC UPDATE DEVICE(ext_data(jg)%atm%i_lc_snow_ice)
+        !$ACC UPDATE &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_snow_ice) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_water) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_urban) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_bare_soil) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_sparse) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_irrig) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_rain) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_veg_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_b_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_b_d) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_woodland) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_n_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_n_d) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_bn) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_rf) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_pf) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf)
 
         ! Urban canopy parameters
         ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp

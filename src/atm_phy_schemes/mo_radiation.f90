@@ -540,7 +540,7 @@ CONTAINS
      ! The global mean insolation is TSI/4 (ca. 340 W/m2)
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc= 1, ie
           zsmu0(jc,jb) = 1._wp ! sun in zenith everywhere
@@ -553,7 +553,7 @@ CONTAINS
       ! no diurnal cycle (always at 12:00 local time --> sin(time of day)=1 )
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc= 1, ie
           zsmu0(jc,jb) = COS( ptr_center(jc,jb) %lat )
@@ -567,7 +567,7 @@ CONTAINS
       ! at 07:14:15 or 16:45:45 local time (--> sin(time of day)=1/pi )
       DO jb = 1, pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc= 1, ie
           zsmu0(jc,jb) = COS( ptr_center(jc,jb)%lat ) * rpi
@@ -611,7 +611,7 @@ CONTAINS
 
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc= 1, ie
             zsmu0(jc,jb) = -COS( ptr_center(jc,jb)%lat ) &
@@ -661,7 +661,7 @@ CONTAINS
         ENDIF
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1, ie
             zsinphi(jc)      = SIN (ptr_center(jc,jb)%lat)
@@ -673,7 +673,7 @@ CONTAINS
           !$ACC END PARALLEL
 
           IF (islope_rad == 1) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = 1, ie
               szra(jc)  = SIN(zeitrad(jc))
@@ -692,8 +692,8 @@ CONTAINS
 
           IF (islope_rad == 2) THEN
             zihor = REAL(INT(360.0_wp/nhori),wp)
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-            !$ACC LOOP GANG VECTOR
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP GANG VECTOR PRIVATE(x1, x2, ii, k, shadow)
             DO jc = 1, ie
               szra(jc)  = SIN(zeitrad(jc))
 
@@ -787,7 +787,7 @@ CONTAINS
       ! see Popke et al. 2013 and Cronin 2013
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1, ie
             zsmu0(jc,jb) = COS(zenithang*pi/180._wp)
@@ -803,6 +803,7 @@ CONTAINS
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
     ENDIF
+    !$ACC WAIT
     !$ACC END DATA ! CREATE(zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta)
 
   END SUBROUTINE pre_radiation_nwp
@@ -1929,7 +1930,7 @@ CONTAINS
       &     intcli (kbdim,klevp1), &
       &     dlwflxall_o_dtg(kbdim,klevp1)
 
-    REAL(wp) :: dflxsw_o_dalb(kbdim), trsolclr(kbdim), logtqv(kbdim), slope_corr(kbdim)
+    REAL(wp) :: dflxsw_o_dalb(kbdim), trsolclr(kbdim), logtqv, slope_corr(kbdim)
 
     ! local scalars
     REAL(wp) :: dpresg, pfaclw, intqctot, dlwflxclr_o_dtg, solrad, angle_ratio, &
@@ -1945,7 +1946,7 @@ CONTAINS
 !DIR$ ATTRIBUTES ALIGN : 64 :: zflxsw,zflxlw,zconv,tqv
 !DIR$ ATTRIBUTES ALIGN : 64 :: dlwem_o_dtg,lwfac1,lwfac2,intclw,intcli
 !DIR$ ATTRIBUTES ALIGN : 64 :: dlwflxall_o_dtg,dflxsw_o_dalb
-!DIR$ ATTRIBUTES ALIGN : 64 :: trsolclr,logtqv,slope_corr
+!DIR$ ATTRIBUTES ALIGN : 64 :: trsolclr,slope_corr
 #endif
     IF ( PRESENT(opt_nh_corr) ) THEN
       l_nh_corr = opt_nh_corr
@@ -1965,7 +1966,7 @@ CONTAINS
 
     !$ACC DATA CREATE(zflxsw, zflxlw, zconv, tqv, dlwem_o_dtg) &
     !$ACC   CREATE(lwfac1, lwfac2, intclw, intcli, dlwflxall_o_dtg) &
-    !$ACC   CREATE(dflxsw_o_dalb, trsolclr, logtqv) &
+    !$ACC   CREATE(dflxsw_o_dalb, trsolclr) &
     !$ACC   CREATE(slope_corr) IF(lzacc)
 
     lcalc_trsolclr = .TRUE.
@@ -1980,7 +1981,7 @@ CONTAINS
 
  
     ! Conversion factor for heating rates
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jc = jcs, jce
@@ -1990,7 +1991,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! preset of slope correction factor for solar radiation
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs, jce
       slope_corr(jc) = 1._wp
@@ -2000,7 +2001,7 @@ CONTAINS
     ! lev == 1        => TOA
     ! lev in [2,klev] => Atmosphere
     ! lev == klevp1   => Surface
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klevp1
       DO jc = jcs, jce 
@@ -2018,7 +2019,7 @@ CONTAINS
     IF (l_nh_corr) THEN !
 
       IF (islope_rad == 1) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
           solrad = MAX(0.1_wp,ptrmsw(jc,klevp1)/(1._wp-albedo(jc)),trsol_dn_sfc_diff(jc))
@@ -2027,7 +2028,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
       ELSEIF (islope_rad == 2) THEN ! with correction of horizon and skyview
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
           solrad = MAX(0.1_wp,ptrmsw(jc,klevp1)/(1._wp-albedo(jc)),trsol_dn_sfc_diff(jc))
@@ -2040,7 +2041,7 @@ CONTAINS
       ENDIF
 
       ! Additional shortwave fluxes for NWP requirements
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         swflx_up_toa(jc)      = pi0(jc)*trsol_up_toa(jc)
@@ -2053,7 +2054,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       IF (lcalc_clrflx) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = jcs, jce
           swflx_clr_sfc(jc) = pi0(jc)*trsol_clr_sfc(jc)
@@ -2062,7 +2063,7 @@ CONTAINS
       ENDIF
 
       ! Correction of longwave fluxes for changes in ground temperature
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = 1, kbdim
         tqv(jc)            = 0._wp
@@ -2070,10 +2071,10 @@ CONTAINS
         intcli(jc,klevp1)  = 0._wp
       ENDDO
       !$ACC END PARALLEL
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = klev,1,-1
-        !$ACC LOOP GANG VECTOR PRIVATE(dpresg)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(dpresg)
         DO jc = jcs, jce
           dpresg        = (ppres_ifc(jc,jk+1) - ppres_ifc(jc,jk))/grav
           tqv(jc)       = tqv(jc)+pqv(jc,jk)*dpresg
@@ -2082,23 +2083,19 @@ CONTAINS
         ENDDO
       ENDDO
 
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(logtqv)
       DO jc = jcs, jce
-        logtqv(jc) = LOG(MAX(1._wp,tqv(jc)))
+        logtqv = LOG(MAX(1._wp,tqv(jc)))
         dlwem_o_dtg(jc) = pemiss(jc)*4._wp*stbo*ptsfc(jc)**3
         lwflx_up_sfc(jc) = lwflx_up_sfc_rs(jc) + dlwem_o_dtg(jc)*(ptsfc(jc) - ptsfctrad(jc))
-        lwfac2(jc) = 0.92_wp*EXP(-0.07_wp*logtqv(jc))
-      ENDDO
-      !$ACC LOOP GANG VECTOR
-      DO jc = jcs, jce
+        lwfac2(jc) = 0.92_wp*EXP(-0.07_wp*logtqv)
         lwfac1(jc) = MERGE(1.677_wp, 0.4388_wp, tqv(jc) > 15._wp) &
-             * EXP(MERGE(-0.72_wp, -0.225_wp, tqv(jc) > 15._wp) *logtqv(jc))
+             * EXP(MERGE(-0.72_wp, -0.225_wp, tqv(jc) > 15._wp) *logtqv)
       ENDDO
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(pfaclw, intqctot, dlwflxclr_o_dtg)
+      !$ACC LOOP SEQ
       DO jk = 1,klevp1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(pfaclw, intqctot, dlwflxclr_o_dtg)
         DO jc = jcs, jce
           pfaclw = lwfac1(jc)+(lwfac2(jc)-lwfac1(jc))*EXP(-SQRT((ppres_ifc(jc,klevp1)- &
             ppres_ifc(jc,jk))*pscal))
@@ -2119,7 +2116,7 @@ CONTAINS
         IF (lcalc_trsolclr) THEN
           ! parameterization of clear-air solar transmissivity in order to use the same
           ! formulation as in mo_phys_nest_utilities:downscale_rad_output
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = jcs, jce
             trsolclr(jc) = MAX(0.02_wp,0.8_wp*cosmu0(jc)/(0.25_wp*tqv(jc))**0.15)**0.333_wp*&
@@ -2128,7 +2125,7 @@ CONTAINS
           !$ACC END PARALLEL
         ELSE
           ! use clear-air solar transmissivity passed as argument
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = jcs, jce
             trsolclr(jc) = trsol_clr_sfc(jc)
@@ -2136,7 +2133,7 @@ CONTAINS
           !$ACC END PARALLEL
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(swfac1, swfac2)
         DO jc = jcs, jce
           swfac1 = EXP(0.36_wp*LOG( MAX(1.e-3_wp,ptrmsw(jc,klevp1))/MAX(1.e-3_wp,trsolclr(jc)) ))
@@ -2147,7 +2144,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
  
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jt = 1,ntiles
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
@@ -2163,7 +2160,7 @@ CONTAINS
 
         ! seaice points
         !
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seaice_count
           jc = list_seaice_idx(ic)
@@ -2176,7 +2173,7 @@ CONTAINS
 
         ! lake points
         !
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_lake_count
           jc = list_lake_idx(ic)
@@ -2189,7 +2186,7 @@ CONTAINS
 
         ! (open) water points (needed for A-O coupling)
         !
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seawtr_count
           jc = list_seawtr_idx(ic)
@@ -2202,7 +2199,7 @@ CONTAINS
 
       ELSE IF (PRESENT(pflxsfcsw_t) .AND. PRESENT(pflxsfclw_t)) THEN
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_land_count
           jc = list_land_idx(ic)
@@ -2211,7 +2208,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        ! seaice points
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seaice_count
           jc = list_seaice_idx(ic)
@@ -2220,7 +2218,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        ! lake points
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_lake_count
           jc = list_lake_idx(ic)
@@ -2229,7 +2228,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, list_seawtr_count
           jc = list_seawtr_idx(ic)
@@ -2247,7 +2246,7 @@ CONTAINS
     !
     !     4.2  Fluxes and heating rates except for lowest layer
     !
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jc = jcs, jce
@@ -2263,7 +2262,7 @@ CONTAINS
     !     4.3 net fluxes at surface
     !
     IF ( PRESENT(pflxsfcsw) ) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         pflxsfcsw(jc) = slope_corr(jc) * zflxsw(jc,klevp1)
@@ -2271,7 +2270,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
     IF ( PRESENT(pflxsfclw) ) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         pflxsfclw(jc) = zflxlw(jc,klevp1)
@@ -2283,7 +2282,7 @@ CONTAINS
     !     4.4 net sw flux at toa
     !
     IF ( PRESENT(pflxtoasw) ) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         pflxtoasw(jc) = zflxsw(jc,1)
@@ -2291,7 +2290,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
     IF ( PRESENT(pflxtoalw) ) THEN 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = jcs, jce
         pflxtoalw(jc) = zflxlw(jc,1)
@@ -2299,6 +2298,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE radheat

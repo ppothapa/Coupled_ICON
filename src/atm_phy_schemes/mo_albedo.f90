@@ -720,14 +720,9 @@ CONTAINS
         !   of active tiles (1<=ntiles<=ntiles_total). Therefore each tile has a 
         !   separate index list.
         ! 
+        !$ACC DATA COPYIN(zalbvisdir_t, zalbnirdir_t) CREATE(zsnowfrac, zsnow_alb) IF(lacc)
 
-        !$ACC DATA COPYIN(ntiles_total, ntiles_water, isub_water, isub_seaice) &
-        !$ACC   COPYIN(isub_lake, llake, jb, i_startidx, i_endidx, zsnow_alb) &
-        !$ACC   COPYIN(zsnowfrac, direct_albedo_water, zalbvisdir_t, zalbnirdir_t) &
-        !$ACC   COPYIN(ext_data%atm%list_seaice%idx) IF(lacc)
-
-        
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP SEQ
         DO jt = 1, ntiles_total
 
@@ -854,44 +849,46 @@ CONTAINS
         ! Albedo correction for artificially reduced snow-cover fractions (melting-rate parameterization):
         ! The albedo of the snow-free tile is adjusted such that the tile-averaged albedo equals that obtained
         ! without the artificial snow-cover reduction
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
-        !$ACC LOOP SEQ
-        DO jt = ntiles_lnd+1, ntiles_total
+        IF (ntiles_lnd+1 <= ntiles_total) THEN ! this IF is necessary to circumvent an ACC not-present bug with ntiles=1 (NVfortran 21.3)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC LOOP SEQ
+          DO jt = ntiles_lnd+1, ntiles_total
 
-          i_count_lnd = ext_data%atm%gp_count_t(jb,jt)
+            i_count_lnd = ext_data%atm%gp_count_t(jb,jt)
 
-          IF (i_count_lnd == 0) CYCLE ! skip loop if the index list for the given tile is empty
+            IF (i_count_lnd == 0) CYCLE ! skip loop if the index list for the given tile is empty
 
 !$NEC ivdep
-          !$ACC LOOP GANG VECTOR PRIVATE(jc)
-          DO ic = 1, i_count_lnd
+            !$ACC LOOP GANG VECTOR PRIVATE(jc)
+            DO ic = 1, i_count_lnd
 
-            jc = ext_data%atm%idx_lst_t(ic,jb,jt)
+              jc = ext_data%atm%idx_lst_t(ic,jb,jt)
 
-            IF (lnd_diag%snowfrac_lcu_t(jc,jb,jt) > lnd_diag%snowfrac_lc_t(jc,jb,jt) .AND. &
-                lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0._wp) THEN
+              IF (lnd_diag%snowfrac_lcu_t(jc,jb,jt) > lnd_diag%snowfrac_lc_t(jc,jb,jt) .AND. &
+                  lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0._wp) THEN
 
-              prm_diag%albdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
-                prm_diag%albdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
-                prm_diag%albdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
+                prm_diag%albdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
+                  prm_diag%albdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
+                  prm_diag%albdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
 
-              prm_diag%albnirdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
-                prm_diag%albnirdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
-                prm_diag%albnirdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
+                prm_diag%albnirdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
+                  prm_diag%albnirdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
+                  prm_diag%albnirdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
 
-              prm_diag%albvisdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
-                prm_diag%albvisdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
-                prm_diag%albvisdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
+                prm_diag%albvisdif_t(jc,jb,jt-ntiles_lnd) = 1._wp / (1._wp-lnd_diag%snowfrac_lc_t(jc,jb,jt)) *     (    &
+                  prm_diag%albvisdif_t(jc,jb,jt)*(lnd_diag%snowfrac_lcu_t(jc,jb,jt)-lnd_diag%snowfrac_lc_t(jc,jb,jt)) + &
+                  prm_diag%albvisdif_t(jc,jb,jt-ntiles_lnd)*(1._wp-lnd_diag%snowfrac_lcu_t(jc,jb,jt))              )
 
-            ENDIF
+              ENDIF
 
-          ENDDO  ! ic
+            ENDDO  ! ic
 
-        ENDDO  !ntiles
-        !$ACC END PARALLEL
+          ENDDO  !ntiles
+          !$ACC END PARALLEL
+        ENDIF
 
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP SEQ
         DO jt = 1, ntiles_total
 
@@ -988,7 +985,7 @@ CONTAINS
           !
           i_count_sea = ext_data%atm%list_seawtr%ncount(jb)
 !$NEC ivdep
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count_sea
             jc = ext_data%atm%list_seawtr%idx(ic,jb)
@@ -1024,7 +1021,7 @@ CONTAINS
 
           IF (albedo_whitecap == 1) THEN
 !$NEC ivdep
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
             !$ACC LOOP GANG VECTOR PRIVATE(jc, wc_fraction, wc_albedo)
             DO ic = 1, i_count_sea
               jc = ext_data%atm%list_seawtr%idx(ic,jb)
@@ -1057,7 +1054,7 @@ CONTAINS
           PrognosticSeaIceAlbedo_modis: IF ( lprog_albsi ) THEN 
             ! Use prognostic diffuse sea-ice albedo (computed within the routines of the sea-ice scheme)
 !$NEC ivdep
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
             !$ACC LOOP GANG VECTOR PRIVATE(jc, t_fac)
             DO ic = 1, i_count_seaice
               jc = ext_data%atm%list_seaice%idx(ic,jb)
@@ -1087,7 +1084,7 @@ CONTAINS
           ELSE 
             ! Use diagnostic diffuse sea-ice albedo (computed here)
 !$NEC ivdep
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
             !$ACC LOOP GANG VECTOR PRIVATE(jc)
             DO ic = 1, i_count_seaice
               jc = ext_data%atm%list_seaice%idx(ic,jb)
@@ -1096,7 +1093,7 @@ CONTAINS
             !$ACC END PARALLEL
           ENDIF PrognosticSeaIceAlbedo_modis
 !$NEC ivdep
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count_seaice
             jc = ext_data%atm%list_seaice%idx(ic,jb)
@@ -1122,7 +1119,7 @@ CONTAINS
           !
           i_count_sea = ext_data%atm%list_seawtr%ncount(jb)
 !$NEC ivdep
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc, ist, lfrozenwater, wc_fraction, wc_albedo)
           DO ic = 1, i_count_sea
             jc = ext_data%atm%list_seawtr%idx(ic,jb)
@@ -1199,7 +1196,7 @@ CONTAINS
           i_count_flk = ext_data%atm%list_lake%ncount(jb)
 
 !$NEC ivdep
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc, lfrozenwater)
           DO ic = 1, i_count_flk
             jc = ext_data%atm%list_lake%idx(ic,jb)
@@ -1263,7 +1260,7 @@ CONTAINS
           !
           i_count_flk = ext_data%atm%list_lake%ncount(jb)
 !$NEC ivdep
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc, ist, lfrozenwater)
           DO ic = 1, i_count_flk
             jc = ext_data%atm%list_lake%idx(ic,jb)
@@ -1330,7 +1327,7 @@ CONTAINS
         !
         IF (ntiles_total == 1) THEN
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%albdif(jc,jb) = prm_diag%albdif_t(jc,jb,1)
@@ -1348,18 +1345,19 @@ CONTAINS
 
         ELSE ! aggregate fields over tiles
 
-          !$ACC KERNELS IF(lacc)
-          prm_diag%albdif   (i_startidx:i_endidx,jb) = 0._wp
-          prm_diag%albvisdif(i_startidx:i_endidx,jb) = 0._wp
-          prm_diag%albnirdif(i_startidx:i_endidx,jb) = 0._wp
-          prm_diag%albvisdir(i_startidx:i_endidx,jb) = 0._wp
-          prm_diag%albnirdir(i_startidx:i_endidx,jb) = 0._wp
-          !$ACC END KERNELS
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
+            prm_diag%albdif   (jc,jb) = 0._wp
+            prm_diag%albvisdif(jc,jb) = 0._wp
+            prm_diag%albnirdif(jc,jb) = 0._wp
+            prm_diag%albvisdir(jc,jb) = 0._wp
+            prm_diag%albnirdir(jc,jb) = 0._wp
+          ENDDO
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
           !$ACC LOOP SEQ
           DO jt = 1, ntiles_total+ntiles_water
-            !$ACC LOOP GANG VECTOR
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
 
               prm_diag%albdif(jc,jb) = prm_diag%albdif(jc,jb)         &
@@ -1384,16 +1382,16 @@ CONTAINS
 
             ENDDO
           ENDDO
-          !$ACC END PARALLEL
 
           ! aggregated snow-cover fraction for LW emissivity
-          !$ACC KERNELS IF(lacc)
-          zsnowfrac(:) = 0._wp
-          !$ACC END KERNELS
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
+            zsnowfrac(jc) = 0._wp
+          ENDDO
+
           !$ACC LOOP SEQ
           DO jt = 1, ntiles_total
-            !$ACC LOOP GANG VECTOR
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
               IF (ext_data%atm%fr_land(jc,jb) > 0._wp) THEN
               zsnowfrac(jc) = zsnowfrac(jc) + ext_data%atm%frac_t(jc,jb,jt) * &
@@ -1406,7 +1404,7 @@ CONTAINS
         ENDIF  ! ntiles_total = 1
 
         ! Account for snow effect on LW emissivity, using values consistent with the CAMEL climatology
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag%lw_emiss(jc,jb) = (1._wp-zsnowfrac(jc))*ext_data%atm%emis_rad(jc,jb) + 0.978_wp*zsnowfrac(jc)
@@ -1415,6 +1413,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
+        !$ACC WAIT
         !$ACC END DATA
 
       ELSE IF (atm_phy_nwp_config(jg)%inwp_surface == LSS_JSBACH) THEN
@@ -1422,8 +1421,9 @@ CONTAINS
         ! Albedo is already up-to-date.
 
       ELSE  ! surface model switched OFF
-
-
+#ifdef _OPENACC
+        if (lacc) CALL finish('sfc_albedo_modis', 'Switched OFF surface model is not supported by openACC')
+#endif
         DO jc = i_startidx, i_endidx
           
           ist = ist_seaice
