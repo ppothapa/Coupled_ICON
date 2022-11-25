@@ -1201,7 +1201,7 @@ CONTAINS
                &                        + prm_diag%graupel_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE(2)
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
@@ -1213,7 +1213,7 @@ CONTAINS
                &                        + prm_diag%graupel_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE (1)
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
@@ -1224,21 +1224,21 @@ CONTAINS
                &                        + prm_diag%snow_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE (9)
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE default
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = 0.0_wp
           prm_diag%tot_prec_rate(jc,jb) = 0.0_wp
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       END SELECT
       !
       ! Add convective contributions to the total precipitation rate:
@@ -1249,7 +1249,7 @@ CONTAINS
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%tot_prec_rate(jc,jb) + prm_diag%rain_con_rate(jc,jb) + &
                &                          prm_diag%snow_con_rate(jc,jb)
         ENDDO  ! jc
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       END IF
 
    
@@ -1385,7 +1385,7 @@ CONTAINS
             &                           p_prog_wtr_now%t_ice(jc,jb),         &
             &                           p_prog_wtr_now%h_ice(jc,jb) <= 0._wp )
         ENDDO  !jc
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ENDIF
 
 
@@ -1397,7 +1397,7 @@ CONTAINS
          prm_diag%drag_u_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(1,jc,jb)
          prm_diag%drag_v_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(2,jc,jb)
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
@@ -1425,7 +1425,7 @@ CONTAINS
           prm_diag%snow_gsp0(jc,jb) = prm_diag%snow_gsp(jc,jb)
           prm_diag%snow_con0(jc,jb) = prm_diag%snow_con(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       !
