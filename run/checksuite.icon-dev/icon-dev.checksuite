@@ -1,4 +1,4 @@
-atm_3d_DOM01_ml#!/bin/ksh
+#!/bin/ksh
 set +x
 #################### functions ##########################################
 function one_or_more_are_files
