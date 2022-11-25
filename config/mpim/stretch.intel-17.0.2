@@ -37,6 +37,12 @@ CC='mpicc'
 CFLAGS='-g -O2 -march=native -pc64'
 CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${GRIBAPI_ROOT}/include -I${XML2_ROOT}/include/libxml2"
 
+# YAC tests 'test_instance_parallel1.sh',
+# 'test_interp_method_hcsbb_parallel.sh' and
+# 'test_interp_method_nnn_parallel.sh' fail if the library is compiled with
+# '-O2' and without '-fp-model precise'.
+ICON_YAC_CFLAGS='-fp-model precise'
+
 FC='mpif90'
 FCFLAGS="-I${NETCDFF_ROOT}/include -g -pc64 -assume realloc_lhs -O2 -msse2 -fltconsistency -traceback"
 
@@ -60,6 +66,7 @@ CLAW="${CLAW}" \
 CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
+ICON_YAC_CFLAGS="${ICON_YAC_CFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

@@ -189,7 +189,7 @@ MODULE mo_physical_constants
   !> salinity factor for reduced saturation vapor pressure over oceans
   REAL(wp), PARAMETER :: salinity_fac = 0.981_wp
 
-  !> dielectric constants at reference temperature 0°C for radar reflectivity calculation:
+  !> dielectric constants at reference temperature 0 degree Celsius for radar reflectivity calculation:
   REAL(wp), PARAMETER :: K_w_0 = 0.93_wp
   REAL(wp), PARAMETER :: K_i_0 = 0.176_wp
 

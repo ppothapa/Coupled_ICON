@@ -174,9 +174,9 @@ for builder in levante_intel_pio; do
 done
 
 # activate experiments for the Mac builder and breeze
-for builder in MPIMAC_gcc BREEZE_gcc BREEZE_nag BREEZE_intel; do
+for builder in MPIMAC_gcc breeze_gcc breeze_nag breeze_intel BREEZE_gcc BREEZE_nag BREEZE_intel; do
   [[ 'MPIMAC_gcc' = "${builder}" ]] && ./set_builder_flags Active --builders ${builder}  --list $listname
-  $addexp exp.atm_qubicc_test --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
+  $addexp exp.atm_qubicc_test_short --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
   $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
 

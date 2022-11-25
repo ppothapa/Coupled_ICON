@@ -250,7 +250,7 @@ CONTAINS
        !      The vertical dependence of the critical relative humidity is fitted to results
        !      obtained by Xu and Krueger (1991). The vertical dependence on pressure is given
        !      by Roeckner et al. (1996), Eq.57.
-       !      - Lohmann and Roeckner, Clim. Dyn., 12, 557–572, 1996.
+       !      - Lohmann and Roeckner, Clim. Dyn., 12, 557-572, 1996.
        !      - Mauritsen et al, JAMES, 11, 998-1038, 2019
        !      - Roeckner et al., MPI-Rport 218, 90pp., 1996.
        !      - Sundqvist et al., Mon. Wea. Rev., 117, 1641-1657, 1989.

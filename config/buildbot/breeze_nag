@@ -1,9 +1,16 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+LINUX_CODENAME=$(lsb_release -sc)
+
+if test ! -z "${BB_NAME-}"; then
+  set -x
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_autoreconf_BREEZE.sh"
+fi
 
 MAKE_PROCS=8
 
@@ -11,46 +18,24 @@ MAKE_PROCS=8
 #  TODO: this is a temporary quick and dirty solution. We should run
 #  './run/checksuite.build/exp.check_rttov_BREEZE.run' as an experiment
 #  instead.
-if [ ! -z "${BB_NAME}" ]; then
-  ( mkdir -p build && cd build
-    ${ICON_DIR}/config/mpim/stretch.nag --enable-rttov --disable-dace --disable-emvorado
-    make -j ${MAKE_PROCS} )
+if [ ! -z "${BB_NAME-}" ]; then
+  (
+    mkdir -p build && cd build
+    ${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-rttov --disable-dace --disable-emvorado
+    make -j ${MAKE_PROCS}
+  )
 fi
 
-${ICON_DIR}/config/mpim/stretch.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
+${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
 
 make -j ${MAKE_PROCS}
 
-# Check whether the building generated any untracked files in the main repository:
-untracked_files=`git -C "${ICON_DIR}" ls-files --other --exclude-standard` || {
-  echo "ERROR: failed to get a list of untracked files in the main repository" >&2
-  exit 1
-}
-if test -n "${untracked_files}"; then
-  cat >&2 <<_EOF
-ERROR: the building process generated untracked files in the main repository:
-(the paths are relative to the source root directory '${ICON_DIR}')
-
-${untracked_files}
-
-Update '.gitignore' to ignore them.
-_EOF
-  exit 1
-fi
-
-# Check whether the building generated any untracked files in the submodules:
-untracked_files=`git -C "${ICON_DIR}" submodule --quiet foreach --recursive 'git ls-files --other --exclude-standard | sed "s|^|$path/|"'` || {
-  echo "ERROR: failed to get a list of untracked files in the git submodules" >&2
-  exit 1
-}
-if test -n "${untracked_files}"; then
-  cat >&2 <<_EOF
-ERROR: the building process generated untracked files in the git submodules:
-(the paths are relative to the source root directory '${ICON_DIR}')
-
-${untracked_files}
-
-Update the respective '.gitignore' files to ignore them.
-_EOF
-  exit 1
+if test ! -z "${BB_NAME-}"; then
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+  # Build the tests in parallel:
+  make -j ${MAKE_PROCS} check TESTS= XFAIL_TESTS=
+  # Run the tests serially:
+  make check
 fi
