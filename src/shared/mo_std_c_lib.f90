@@ -1,6 +1,6 @@
 !> Interfaces to standart C library functions
 !!
-!! Initial implementation: Nathanael Hübbe
+!! Initial implementation: Nathanael Huebbe
 !!
 !! @par Copyright and License
 !!

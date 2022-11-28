@@ -157,8 +157,8 @@ CONTAINS
   !!
   !! @remarks
   !!   This routine computes orbital parameters depending on the Julian Day.
-  !!   The model is based on the Variations Séculaires des Orbites Plan
-  !!   Planétaires (VSOP) method, as implemented in the VSOP87 model. The VSOP
+  !!   The model is based on the Variations Seculaires des Orbites Plan
+  !!   Planetaires (VSOP) method, as implemented in the VSOP87 model. The VSOP
   !!   model provides the sun-earth distance, right ascention and declination
   !!   of the sun and the hour angle as output.  This the standard orbital model
   !!   used by ECHAM/ICON
@@ -166,10 +166,10 @@ CONTAINS
   !! @see
   !!   Bretagnon, P. and G. Francou, "Planetary theories in rectangular and
   !!    spherical variables. VSOP87 solutions" (PDF 840KB), Astron. and
-  !!     Astrophys. 202 (1988) 309–315.
+  !!     Astrophys. 202 (1988) 309-315.
   !!   Simon, J.L., P. Bretagnon, et al., "Numerical expressions for precession
   !!    formulae and mean elements for the Moon and the planets", Astron. and
-  !!    Astrophys. 282 (1994) 663–683.
+  !!    Astrophys. 282 (1994) 663-683.
   !
   SUBROUTINE orbit_vsop87 (julian_day, rasc_sun, decl_sun, dist_sun)
 

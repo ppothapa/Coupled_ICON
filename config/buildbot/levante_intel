@@ -1,12 +1,15 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-if [ ! -z "${BB_NAME}" ]; then
+if [ ! -z "${BB_NAME-}" ]; then
   set -x
+
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
+
   set MPI_LAUNCH='srun -A mh0156 -p compute -N 1'
 else
   # Setting MPI_LAUNCH to an empty string is not the same as not setting it at
@@ -17,11 +20,16 @@ fi
 
 ${ICON_DIR}/config/dkrz/levante.intel --disable-openmp  "$@"
 
-if [ ! -z "${BB_NAME}" ] ; then
+if [ ! -z "${BB_NAME-}" ] ; then
   MAKE_PROCS=22
-  echo "MAKE_PROCS=${MAKE_PROCS}"
 else
   MAKE_PROCS=8
 fi
 
 make -j ${MAKE_PROCS}
+
+if [ ! -z "${BB_NAME-}" ] ; then
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+fi

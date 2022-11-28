@@ -12,7 +12,7 @@
 !! Initial revision by Max Bangert, KIT (2013-02-15)
 !! Modifications by Daniel Rieger, KIT (2014-05-22)
 !! - Adaption to changes in ART data structure
-!! Modifications by Roland Ruhnke, Jennifer Schröter, KIT (2015-08-06)
+!! Modifications by Roland Ruhnke, Jennifer Schroeter, KIT (2015-08-06)
 !! - Splitting between simple chemtracer and full gas phase chemistry
 !!   called by iart_chem_mechanism == 0 or 1
 !!

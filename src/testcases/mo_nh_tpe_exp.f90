@@ -166,7 +166,7 @@ CONTAINS
 
       DO jk = 1, nlev
 
-        ! Introduce a linear decreasing RH with pressure like in Hui�s test cases
+        ! Introduce a linear decreasing RH with pressure like in Hui's test cases
               DO jjt = 1, ntracer
 
                   IF(jjt == iqv ) THEN

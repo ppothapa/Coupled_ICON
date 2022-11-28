@@ -1928,7 +1928,7 @@ CONTAINS
              &                    prm_diag%flxdwswtoa(:,:),                 &
              &                    p_diag%pres(:,p_patch%nlev,:), twater     )
       ELSEIF (itype_dursun == 1) THEN
-        ! MeteoSwiss sunshine duration with a 200 W/m² threshold
+        ! MeteoSwiss sunshine duration with a 200 W/m^2 threshold
         CALL compute_field_dursun(p_patch, dt_phy, prm_diag%dursun,         &
              &                    prm_diag%swflxsfc, prm_diag%swflx_up_sfc, &
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &

@@ -241,7 +241,15 @@ join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
 
 # Additional PGI/NVIDIA Fortran compiler flags enabling the inline library
 # generation and usage:
-@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -Mextract=lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
+#   We are not interested in the object files that are generated during the
+#   extraction of the inline information because we re-generate them later again
+#   using the inline library. Therefore, we can speed up the extraction by
+#   telling the compiler to omit any optimizations with the '-O0' flag. This
+#   also circumvents the problem with the compiler not being able to process
+#   certain files with the default optimization level set in $(ICON_FCFLAGS),
+#   which we use at the extraction step, regardless of the Fortran compile group
+#   a file belongs to.
+@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -O0 -Mextract=lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
 @PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name),reshape
 
 ########################################

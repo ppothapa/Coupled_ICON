@@ -1113,7 +1113,7 @@ CONTAINS
     
 !    p_ice%hi(cell_index,1,cell_block)  = uxx!nix_1*sc_pn+tix_1*l_sn
 !    p_ice%conc(cell_index,1,cell_block)= uxy!uyx_l * tiy_1 - uyy_l * niy_1 
-    !Rückgabe 3d Laplace
+    !return value 3d Laplace
     
     !     uxx=Ux!uxx_l
     !     uxy=Vx!uxy_l
@@ -1122,7 +1122,7 @@ CONTAINS
     !     uzx=Uz!uzx_l
     !     uzy=Vz!uzy_l
     !________________________________________________visu
-    !Rückgabe 2d Laplace
+    !return value 2d Laplace
     uxx=uxx_l
     uxy=uxy_l
     uyx=uyx_l

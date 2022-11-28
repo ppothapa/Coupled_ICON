@@ -115,10 +115,11 @@ if ( -d $srcdir."/.svn" ) {
         $art_revision =~ s/commit *//;
         $art_revision =~ s/ *\n//;
     }
-    $git_tag = `git describe --tags --abbrev=0 --exact-match 2>&1`; 
-    $git_tag =~ s/ *\n//;
-    if ($git_tag =~ m/^fatal:/) {
+    $git_tag = `git describe --tags --abbrev=0 --exact-match 2>/dev/null`;
+    if ($?) {
         $git_tag = '';
+    } else {
+        $git_tag =~ s/ *\n//;
     }
 } else {
     print "Unknown repository type or no working copy/repository: no support will be given.\n";

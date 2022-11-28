@@ -429,7 +429,7 @@ FUNCTION solve_at_general(p_alktot, p_dictot, p_bortot,                       &
                           K1, K2, Kb, Kw, Ks, Kf, K1p, K2p, K3p, Ksi,         &
                           p_hini,   p_val)
 
-! Purpose: Compute [H°] ion concentration from sea-water ion concentrations,
+! Purpose: Compute [H degree] ion concentration from sea-water ion concentrations,
 !          alkalinity, DIC, and equilibrium constants
 ! Universal pH solver that converges from any given initial value,
 ! determines upper an lower bounds for the solution if required
