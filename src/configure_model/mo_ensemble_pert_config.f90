@@ -451,6 +451,9 @@ MODULE mo_ensemble_pert_config
 
     REAL(wp) :: rnd_fac, rnd_num, tkfac
     INTEGER :: jg
+#ifdef _OPENACC
+    INTEGER :: nbytes
+#endif
 
     ! SSO tuning
     CALL random_gen(rnd_gkwake, rnd_num)
@@ -610,49 +613,71 @@ MODULE mo_ensemble_pert_config
         "Internal error. `tune_gfrcrit` is supposed to be on CPU only.")
     IF(acc_is_present(tune_gfluxlaun, 1)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_gfluxlaun` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_zvz0i, C_SIZEOF(tune_zvz0i))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_zvz0i)
+    IF(acc_is_present(tune_zvz0i, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_zvz0i` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rprcon, C_SIZEOF(tune_rprcon))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rprcon)
+    IF(acc_is_present(tune_rprcon, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rprcon` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_entrorg, C_SIZEOF(tune_entrorg))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_entrorg)
+    IF(acc_is_present(tune_entrorg, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_entrorg` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_capdcfac_et, C_SIZEOF(tune_capdcfac_et))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_capdcfac_et)
+    IF(acc_is_present(tune_capdcfac_et, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_capdcfac_et` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rdepths, C_SIZEOF(tune_rdepths))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rdepths)
+    IF(acc_is_present(tune_rdepths, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rdepths` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_capdcfac_tr, C_SIZEOF(tune_capdcfac_tr))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_capdcfac_tr)
+    IF(acc_is_present(tune_capdcfac_tr, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_capdcfac_tr` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_lowcapefac, C_SIZEOF(tune_lowcapefac))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_lowcapefac)
+    IF(acc_is_present(tune_lowcapefac, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_lowcapefac` is supposed to be on CPU only.")
-    IF(acc_is_present(limit_negpblcape, C_SIZEOF(limit_negpblcape))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(limit_negpblcape)
+    IF(acc_is_present(limit_negpblcape, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `limit_negpblcape` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rhebc_land, C_SIZEOF(tune_rhebc_land))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rhebc_land)
+    IF(acc_is_present(tune_rhebc_land, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rhebc_land` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rhebc_ocean, C_SIZEOF(tune_rhebc_ocean))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rhebc_ocean)
+    IF(acc_is_present(tune_rhebc_ocean, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rhebc_ocean` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rhebc_land_trop, C_SIZEOF(tune_rhebc_land_trop))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rhebc_land_trop)
+    IF(acc_is_present(tune_rhebc_land_trop, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rhebc_land_trop` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rhebc_ocean_trop, C_SIZEOF(tune_rhebc_ocean_trop))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rhebc_ocean_trop)
+    IF(acc_is_present(tune_rhebc_ocean_trop, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rhebc_ocean_trop` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rcucov, C_SIZEOF(tune_rcucov))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rcucov)
+    IF(acc_is_present(tune_rcucov, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rcucov` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_rcucov_trop, C_SIZEOF(tune_rcucov_trop))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_rcucov_trop)
+    IF(acc_is_present(tune_rcucov_trop, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_rcucov_trop` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_texc, C_SIZEOF(tune_texc))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_texc)
+    IF(acc_is_present(tune_texc, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_texc` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_qexc, C_SIZEOF(tune_qexc))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_qexc)
+    IF(acc_is_present(tune_qexc, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_qexc` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_box_liq, C_SIZEOF(tune_box_liq))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_box_liq)
+    IF(acc_is_present(tune_box_liq, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_box_liq` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_thicklayfac, C_SIZEOF(tune_thicklayfac))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_thicklayfac)
+    IF(acc_is_present(tune_thicklayfac, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_thicklayfac` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_box_liq_asy, C_SIZEOF(tune_box_liq_asy))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_box_liq_asy)
+    IF(acc_is_present(tune_box_liq_asy, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_box_liq_asy` is supposed to be on CPU only.")
-    IF(acc_is_present(tune_minsnowfrac, C_SIZEOF(tune_minsnowfrac))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(tune_minsnowfrac)
+    IF(acc_is_present(tune_minsnowfrac, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_minsnowfrac` is supposed to be on CPU only.")
-    IF(acc_is_present(c_soil, C_SIZEOF(c_soil))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(c_soil)
+    IF(acc_is_present(c_soil, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `c_soil` is supposed to be on CPU only.")
-    IF(acc_is_present(cwimax_ml, C_SIZEOF(cwimax_ml))) CALL finish("set_scalar_ens_pert", & 
+    nbytes = C_SIZEOF(cwimax_ml)
+    IF(acc_is_present(cwimax_ml, nbytes)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `cwimax_ml` is supposed to be on CPU only.")
 
     DO jg = 1, max_dom
