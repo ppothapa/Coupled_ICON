@@ -3201,7 +3201,7 @@ MODULE mo_nh_stepping
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
 #ifdef _OPENACC
-    IF( lacc /= i_am_accel_node ) CALL finish ( 'fill_nestlatbc_phys', 'lacc /= i_am_accel_node' )
+    IF( lacc .neqv. i_am_accel_node ) CALL finish ( 'fill_nestlatbc_phys', 'lacc /= i_am_accel_node' )
 #endif
 
     ! Fill boundaries of nested domains
