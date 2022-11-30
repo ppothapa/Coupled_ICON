@@ -187,7 +187,9 @@ $addexp checksuite.art/exp.art_mistral_test.run --builders MISTRAL_intel17_hybri
 $addexp checksuite.art/exp.art_mistral_test_short.run --builders MISTRAL_gcc --list $listname
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
-$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
+# Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1
+# Until there is a fix, these tests are deactivated
+#$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 
 # add a test for the lrestart_cont parameter of add_var()

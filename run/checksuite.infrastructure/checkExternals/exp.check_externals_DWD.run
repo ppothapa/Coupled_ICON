@@ -5,7 +5,7 @@
 #PBS --venode=3          # Run up to 3 * 8 = 24 MPI jobs
 #PBS --venum-lhost=8     # Number of VE per logical host
 #PBS --use-hca=2         # Number of HCA per logical host
-#PBS -T necmpi
+#PBS -T necmpi_hydra
 #PBS -j o
 #PBS -o LOG.exp.check_externals_DWD.run.run.o
 # ----------------------------------------------------------------------

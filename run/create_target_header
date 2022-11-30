@@ -826,29 +826,11 @@ EOF
 #PBS --use-hca=2             # Number of HCA per logical host
 #PBS -j o
 #PBS -o LOG.${job_name}.o
-EOF
-
-    case "$use_compiler_version" in
-      3.2*) # use old MPI version
-        cat >> $output_script << EOF
-#PBS -v NMPI_ROOT=/opt/nec/ve/mpi/2.3.1
-#PBS -v NMPI_DAEMON_PATH=\${NMPI_ROOT}/libexec/mpid
-#PBS -T necmpi
-# ----------------------------------------------------------------------------
-date
-. \${NMPI_ROOT}/bin/necmpivars.sh
-
-EOF
-      ;;
-      * )
-        cat >> $output_script << EOF
 #PBS -T necmpi_hydra
 # ----------------------------------------------------------------------------
 date
 
 EOF
-    ;;
-    esac
 
     start_header
 
