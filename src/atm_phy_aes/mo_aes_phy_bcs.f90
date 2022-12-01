@@ -61,9 +61,7 @@ MODULE mo_aes_phy_bcs
 
   ! for 6hourly sst and ice data
   USE mo_time_config,          ONLY: time_config
-  USE mo_reader_sst_sic,       ONLY: t_sst_sic_reader
-  USE mo_interpolate_time,     ONLY: t_time_intp
-  USE mo_aes_phy_init,       ONLY: sst_intp, sic_intp, sst_sic_reader
+  USE mo_aes_phy_init,         ONLY: sst_intp, sic_intp, sst_sic_reader
 
   IMPLICIT NONE
   PRIVATE

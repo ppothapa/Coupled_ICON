@@ -2,41 +2,46 @@
 #include "omp_definitions.inc"
 !----------------------------
 MODULE mo_interpolate_time
-  USE mo_parallel_config,   ONLY: nproma
-  USE mo_util_mtime,        ONLY: t_datetime_ptr, mtime_divide_timedelta
+
   USE mo_kind,              ONLY: wp
   USE mo_exception,         ONLY: message, message_text, finish
-  USE mo_reader_abstract,   ONLY: t_abstract_reader
+  USE mo_parallel_config,   ONLY: nproma
   USE mo_impl_constants,    ONLY: MAX_CHAR_LENGTH
-  USE mtime,             ONLY: datetime, timedelta, &
-    & OPERATOR(*), OPERATOR(+), OPERATOR(<), OPERATOR(>), &
-    & datetimetostring, max_datetime_str_len, OPERATOR(-)
+  USE mtime,                ONLY: datetime, max_datetime_str_len,             &
+       &                          julianday, getJulianDayFromDatetime,        &
+       &                          datetimetostring, getDatetimeFromJulianDay, &
+       &                          juliandelta, OPERATOR(<), OPERATOR(>),      &
+       &                          OPERATOR(>=), OPERATOR(-), ASSIGNMENT(=),   &
+       &                          no_of_ms_in_a_day
+
   USE mo_time_config,    ONLY: time_config
   USE mo_mpi,            ONLY: my_process_is_mpi_workroot, &
-    & process_mpi_root_id, p_comm_work, p_bcast, p_pe_work
-  
+       &                       process_mpi_root_id,        &
+       &                       p_comm_work, p_bcast, p_pe_work
+  USE mo_reader_abstract,   ONLY: t_abstract_reader
 #ifdef _OPENACC
   USE mo_mpi,            ONLY: i_am_accel_node
 #endif
 
-
   IMPLICIT NONE
+
+  PRIVATE
 
   PUBLIC :: t_time_intp
 
   TYPE t_time_intp
-    TYPE(t_datetime_ptr), ALLOCATABLE :: times(:)
+    TYPE(julianday), ALLOCATABLE :: times(:)
     ! tidx and tidx+1 are held by dataold and datanew
-    INTEGER                     :: tidx
+    INTEGER                      :: tidx
     ! these two give access to the data
-    REAL(wp),           POINTER :: dataold(:,:,:,:)
-    REAL(wp),           POINTER :: datanew(:,:,:,:)
+    REAL(wp),            POINTER :: dataold(:,:,:,:)
+    REAL(wp),            POINTER :: datanew(:,:,:,:)
     ! these two hold the data and should not be accessed directly
-    REAL(wp),       ALLOCATABLE :: dataa(:,:,:,:)
-    REAL(wp),       ALLOCATABLE :: datab(:,:,:,:)
+    REAL(wp),        ALLOCATABLE :: dataa(:,:,:,:)
+    REAL(wp),        ALLOCATABLE :: datab(:,:,:,:)
 
     ! Who am I? Passed to netcdf while reading.
-    CHARACTER(len=MAX_CHAR_LENGTH)    :: var_name
+    CHARACTER(len=MAX_CHAR_LENGTH) :: var_name
 
     ! Options are constant, linear, and weird linear. Default is linear.
     INTEGER :: interpolation_mode
@@ -52,6 +57,7 @@ MODULE mo_interpolate_time
   INTEGER, PARAMETER :: intModeLinearWeird = 11
 
   CHARACTER(len=*), PARAMETER :: modname = 'mo_interpolate_time'
+
 CONTAINS
 
   SUBROUTINE time_intp_init(this, reader, local_time, var_name, int_mode)
@@ -66,11 +72,10 @@ CONTAINS
 
     CHARACTER(len=max_datetime_str_len)      :: date_str1, date_str2
 
-    TYPE(timedelta) :: timeSinceDataStart
+    TYPE(julianday) :: current_jd
+    TYPE(datetime)  :: current_dt
 
-
-    CHARACTER(*), PARAMETER :: routine = &
-      & modname//"::time_intp_init"
+    CHARACTER(len=*), PARAMETER :: routine = modname//"::time_intp_init"
 
     this%reader   => reader
     this%var_name =  var_name
@@ -83,34 +88,59 @@ CONTAINS
 
     CALL this%reader%get_times(this%times)
 
-    ntimes    = size(this%times)
-    this%tidx = 1
+    CALL getJulianDayFromDatetime(local_time, current_jd)
+    CALL datetimetostring(local_time, date_str2)
+
+    ntimes = SIZE(this%times)
+    this%tidx = -1
     DO i = 1,ntimes
-      IF (local_time > this%times(i)%ptr) THEN
+      CALL getDatetimeFromJulianDay(this%times(i), current_dt)
+      CALL datetimetostring(current_dt, date_str1)
+      IF (current_jd >= this%times(i)) THEN
         this%tidx = i
       ENDIF
     ENDDO
 
-    timeSinceDataStart =  local_time - this%times(1)%ptr
-
-    IF (time_config%tc_startdate < this%times(1)%ptr) THEN
-      CALL datetimetostring(time_config%tc_startdate, date_str1)
-      CALL datetimetostring(this%times(1)%ptr, date_str2)
-      CALL finish(routine, "Start of this run ("//TRIM(date_str1)//") before start of data ("//TRIM(date_str2)//")")
-    ENDIF
-    IF (time_config%tc_stopdate > this%times(ntimes)%ptr) THEN
-      CALL datetimetostring(time_config%tc_stopdate, date_str1)
-      CALL datetimetostring(this%times(ntimes)%ptr, date_str2)
-      CALL finish(routine, "End of this run ("//TRIM(date_str1)//") after end of data ("//TRIM(date_str2)//")")
+    IF (this%tidx ==  -1) THEN
+      CALL datetimetostring(local_time, date_str1)
+      CALL finish(routine,"Time to interpolate for "//trim(date_str1)//" not covered by boundary condition data file")
     ENDIF
 
-    ! log message
-    CALL datetimetostring(this%times(this%tidx)%ptr, date_str1)
-    CALL datetimetostring(this%times(this%tidx+1)%ptr, date_str2)
-    WRITE(message_text,'(a,i3,a,i3,a)') " loading data, tidx", this%tidx,   " ("//TRIM(date_str1)//") and", &
-      &                                                        this%tidx+1, " ("//TRIM(date_str2)//")"
-    CALL message(TRIM(routine),message_text)
+    CALL getDatetimeFromJulianDay(this%times(this%tidx), current_dt)
+    CALL datetimetostring(current_dt, date_str1)
 
+    check_for_time_coverage: BLOCK
+      TYPE(datetime) :: first_time_in_file, last_time_in_file
+
+      CALL getDatetimeFromJulianDay(this%times(1), first_time_in_file)
+      CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
+
+      IF (time_config%tc_startdate < first_time_in_file) THEN
+        CALL datetimetostring(time_config%tc_startdate, date_str1)
+        CALL datetimetostring(first_time_in_file, date_str2)
+        CALL finish(routine, "Start of run ("//TRIM(date_str1)//") before start of data ("//TRIM(date_str2)//") to be read")
+      ENDIF
+      CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
+      IF (time_config%tc_stopdate > last_time_in_file) THEN
+        CALL datetimetostring(time_config%tc_stopdate, date_str1)
+        CALL datetimetostring(last_time_in_file, date_str2)
+        CALL finish(routine, "End of run ("//TRIM(date_str1)//") after end of data ("//TRIM(date_str2)//") to be read")
+      ENDIF
+
+    END BLOCK check_for_time_coverage
+
+    log_output: BLOCK
+      TYPE(datetime) :: load_time_in_file, load_next_time_in_file
+
+      CALL getDatetimeFromJulianDay(this%times(this%tidx), load_time_in_file)
+      CALL datetimetostring(load_time_in_file, date_str1)
+      CALL getDatetimeFromJulianDay(this%times(this%tidx+1), load_next_time_in_file)
+      CALL datetimetostring(load_next_time_in_file, date_str2)
+      WRITE(message_text,'(a,i0,a,i0,a)') &
+           &         " loading data for "//TRIM(date_str1)//" (", this%tidx, &
+           &                     ") and "//TRIM(date_str2)//" (", this%tidx+1, ")"
+      CALL message(TRIM(routine),message_text)
+    END BLOCK log_output
 
     !$ACC ENTER DATA COPYIN(this)
     CALL reader%get_one_timelev(this%tidx,   this%var_name, this%dataa)
@@ -125,22 +155,28 @@ CONTAINS
     TYPE(datetime),    POINTER, INTENT(in   ) :: local_time
     REAL(wp),      ALLOCATABLE, INTENT(inout) :: interpolated(:,:,:,:)
 
-    TYPE(timedelta) :: curr_delta, dt
-    REAL(wp)                 :: weight
-    INTEGER                  :: jc,jk,jb,jw
-    INTEGER                  :: nlen, nblks, npromz, nlev
+    TYPE(julianday)                     :: current_jd
+    TYPE(juliandelta)                   :: delta_1, delta_2
+    REAL(wp)                            :: ds1, ds2, weight
+    INTEGER                             :: jc,jk,jb,jw
+    INTEGER                             :: nlen, nblks, npromz, nlev
     CHARACTER(len=max_datetime_str_len) :: date_str
 
-    CHARACTER(*), PARAMETER :: routine = &
-      & modname//"::time_intp_intp"
+    CHARACTER(*), PARAMETER :: routine = modname//"::time_intp_intp"
 
-    IF (local_time > this%times(this%tidx+1)%ptr) THEN
+    CALL getJulianDayFromDatetime(local_time, current_jd)
+
+    IF (current_jd > this%times(this%tidx+1)) THEN
       this%tidx    = this%tidx + 1
 
-      ! log message
-      CALL datetimetostring(this%times(this%tidx+1)%ptr, date_str)
-      WRITE(message_text,'(a,i3,a)') "loading new data, with tidx:", this%tidx+1, " ("//TRIM(date_str)//")"
-      CALL message(TRIM(routine),message_text)
+      log_output: BLOCK
+        TYPE(datetime) :: time_in_file
+
+        CALL getDatetimeFromJulianDay(this%times(this%tidx+1), time_in_file)
+        CALL datetimetostring(time_in_file, date_str)
+        WRITE(message_text,'(a,i0,a)') " loading new data, with tidx :", this%tidx+1, " ("//TRIM(date_str)//")"
+        CALL message(TRIM(routine),message_text)
+      END BLOCK log_output
 
       ! FORTRAN!?!1! this should look like:
       ! DEALLOCATE(this%dataold)
@@ -162,11 +198,13 @@ CONTAINS
 
     IF (this%interpolation_mode == intModeConstant) THEN
       ! A weight of 0 makes the interpolation return dataold.
-      weight = 0.d0
+      weight = 0.0_wp
     ELSE IF (this%interpolation_mode == intModeLinear) THEN
-      curr_delta = local_time - this%times(this%tidx)%ptr
-      dt         = this%times(this%tidx+1)%ptr - this%times(this%tidx)%ptr
-      CALL mtime_divide_timedelta(curr_delta, dt, weight)
+      delta_1 = current_jd - this%times(this%tidx)
+      delta_2 = this%times(this%tidx+1) - this%times(this%tidx)
+      ds1 = 1.0e-3_wp * (no_of_ms_in_a_day * delta_1%day + delta_1%ms)
+      ds2 = 1.0e-3_wp * (no_of_ms_in_a_day * delta_2%day + delta_2%ms)
+      weight = ds1/ds2
     ELSE IF (this%interpolation_mode == intModeLinearWeird) THEN
       ! This should
       ! a) be renamed. (But what is this?)
@@ -193,7 +231,7 @@ CONTAINS
 
     !$ACC DATA PRESENT(interpolated)
     !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
-    interpolated(:,:,:,:) = 0.d0
+    interpolated(:,:,:,:) = 0.0_wp
     !$ACC END KERNELS
 
     nblks  = this%reader%get_nblks()
@@ -211,8 +249,8 @@ CONTAINS
         !$ACC   DEFAULT(NONE) PRESENT(this, this%dataold, this%datanew)
         DO jk = 1,nlev
           DO jc = 1,nlen
-            interpolated(jc,jk,jb,jw) = (1-weight) * this%dataold(jc,jk,jb,jw) &
-              &                          + weight  * this%datanew(jc,jk,jb,jw)
+            interpolated(jc,jk,jb,jw) = (1.0_wp-weight) * this%dataold(jc,jk,jb,jw) &
+              &                                +weight  * this%datanew(jc,jk,jb,jw)
           ENDDO
         ENDDO
       ENDDO
