@@ -388,7 +388,7 @@ MODULE mo_nh_stepping
           ENDIF
 
         ENDIF
-
+               
         CALL sst_reader(jg)%init(p_patch(jg), sst_td_file)
         CALL sst_intp(jg)%init(sst_reader(jg), mtime_current, "SST")
         CALL sst_intp(jg)%intp(mtime_current, sst_dat)

@@ -1,16 +1,17 @@
 MODULE mo_reader_sst_sic
 
-  USE mo_kind,                    ONLY: dp, wp
+  USE mo_kind,                    ONLY: dp, wp, i8
   USE mo_parallel_config,         ONLY: get_nproma
   USE mo_exception,               ONLY: finish
   USE mo_reader_abstract,         ONLY: t_abstract_reader
-  USE mo_util_mtime,              ONLY: t_datetime_ptr, mtime_convert_netcdf_units
   USE mo_io_units,                ONLY: FILENAME_MAX
   USE mo_model_domain,            ONLY: t_patch
   USE mo_netcdf_errhandler,       ONLY: nf
-  USE mtime,                      ONLY: newdatetime, datetime, deallocateDatetime, &
-       &                                OPERATOR(*), OPERATOR(+), &
-       &                                timedelta, deallocateTimedelta
+  USE mtime,                      ONLY: julianday, juliandelta, getjuliandayfromdatetime, &
+       &                                datetime, newdatetime, deallocatedatetime,        &
+       &                                OPERATOR(+), ASSIGNMENT(=),                       &
+       &                                no_of_ms_in_a_day, no_of_ms_in_a_hour,            &
+       &                                no_of_ms_in_a_minute, no_of_ms_in_a_second 
   USE mo_mpi,                     ONLY: my_process_is_stdio, my_process_is_mpi_workroot, &
        &                                process_mpi_root_id, p_comm_work, p_bcast
   USE mo_read_netcdf_distributed, ONLY: distrib_nf_open, distrib_read, distrib_nf_close, &
@@ -31,7 +32,6 @@ MODULE mo_reader_sst_sic
   TYPE, EXTENDS(t_abstract_reader) :: t_sst_sic_reader
 
     TYPE(t_patch), POINTER      :: p_patch => NULL()
-    CHARACTER(len=NF_MAX_NAME)  :: varnames(2)
     CHARACTER(len=FILENAME_MAX) :: filename
     INTEGER                     :: fileid, dist_fileid
     LOGICAL                     :: lopened = .FALSE.
@@ -60,8 +60,6 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine = 'sst_sic_init_reader'
 
     this%filename = TRIM(filename)
-    this%varnames(1) = "SST"
-    this%varnames(2) = "SIC"
 
     this%p_patch => p_patch
 
@@ -72,20 +70,26 @@ CONTAINS
       this%dist_fileid = distrib_nf_open(TRIM(this%filename))
       this%lopened = .TRUE.
     ENDIF
+
   END SUBROUTINE sst_sic_init_reader
 
   SUBROUTINE sst_sic_get_times (this, times)
 
-    CLASS(t_sst_sic_reader),           INTENT(inout) :: this
-    TYPE(t_datetime_ptr), ALLOCATABLE, INTENT(  out) :: times(:)
+    CLASS(t_sst_sic_reader),      INTENT(inout) :: this
+    TYPE(julianday), ALLOCATABLE, INTENT(  out) :: times(:)
 
-    INTEGER                    :: tvid, tdid
-    CHARACTER(len=NF_MAX_NAME) :: unit_att
-    REAL(wp), ALLOCATABLE      :: times_read(:)
-    INTEGER                    :: ntimes
-    TYPE(datetime),  POINTER   :: startdatetime
-    TYPE(timedelta), POINTER   :: timeAxisUnit
-    INTEGER                    :: i
+    INTEGER                       :: tvid, tdid
+    CHARACTER(len=NF_MAX_NAME)    :: cf_timeaxis_string
+    CHARACTER(len=:), ALLOCATABLE :: epoch
+    CHARACTER(len=:), ALLOCATABLE :: base_timeaxis_unit
+    TYPE(datetime), POINTER       :: epoch_datetime
+    TYPE(julianday)               :: epoch_jd
+    TYPE(juliandelta)             :: offset
+    INTEGER(i8)                   :: time_multiplicator
+    REAL(wp), ALLOCATABLE         :: times_read(:)
+    INTEGER                       :: ntimes
+    INTEGER                       :: i
+
     CHARACTER(len=*), PARAMETER :: routine = 'sst_sic_get_times'
 
     IF (my_process_is_mpi_workroot()) THEN
@@ -97,7 +101,7 @@ CONTAINS
       ALLOCATE(times_read(ntimes))
 
       CALL nf(nf_get_var_double(this%fileid, tvid, times_read), routine)
-      CALL nf(nf_get_att_text(this%fileid,   tvid, "units", unit_att), routine)
+      CALL nf(nf_get_att_text(this%fileid,   tvid, "units",cf_timeaxis_string), routine)
 
     ENDIF
 
@@ -106,23 +110,33 @@ CONTAINS
       ALLOCATE(times_read(ntimes))
     ENDIF
     CALL p_bcast(times_read, process_mpi_root_id, p_comm_work)
-    CALL p_bcast(unit_att,   process_mpi_root_id, p_comm_work)
+    CALL p_bcast(cf_timeaxis_string, process_mpi_root_id, p_comm_work)
 
-    CALL mtime_convert_netcdf_units(unit_att, startdatetime, timeAxisUnit)
+    CALL get_cf_timeaxis_desc(TRIM(cf_timeaxis_string), epoch, base_timeaxis_unit)
 
+    epoch_datetime => newdatetime(epoch)
+    CALL getJulianDayFromDatetime(epoch_datetime, epoch_jd)
+    CALL deallocateDatetime(epoch_datetime)
+    
+    SELECT CASE (base_timeaxis_unit)
+    CASE('days')
+      time_multiplicator = no_of_ms_in_a_day
+    CASE('hours')
+      time_multiplicator = no_of_ms_in_a_hour
+    CASE('minutes')
+      time_multiplicator = no_of_ms_in_a_minute
+    CASE('seconds')
+      time_multiplicator = no_of_ms_in_a_second
+    END SELECT
+    
     ALLOCATE(times(ntimes))
 
-    times(1)%ptr => newdatetime(startdatetime)
-    DO i = 2, ntimes
-      times(i)%ptr => newdatetime("0000-01-01T00:00:00.000")
-      IF (REAL(INT(times_read(i)),wp) /= times_read(i)) THEN
-        CALL finish(routine, "Timestamp cannot be cast to INT safely. Check your input data.")
-      ENDIF
-      times(i)%ptr =  times(i-1)%ptr + timeAxisUnit
+    DO i = 1, ntimes
+      offset%sign = '+'
+      offset%day  = INT((time_multiplicator * times_read(i))/86400000.0_wp,i8)
+      offset%ms   = NINT(MOD(time_multiplicator * times_read(i), 86400000.0_wp),i8)
+      times(i) = epoch_jd + offset
     ENDDO
-
-    CALL deallocateDatetime(startdatetime)
-    CALL deallocateTimedelta(timeAxisUnit)
 
   END SUBROUTINE sst_sic_get_times
 
@@ -132,10 +146,12 @@ CONTAINS
     CHARACTER(len=*),      INTENT(in   ) :: varname
     REAL(dp), ALLOCATABLE, INTENT(inout) :: dat(:,:,:,:)
     REAL(dp), ALLOCATABLE, TARGET        :: temp(:,:,:,:)
+    TYPE(t_ptr_3d)                       :: tmp(1)
     ! We need to turn off OpenACC to do host-based MPI
     LOGICAL                              :: init_i_am_accel_node
-    TYPE(t_ptr_3d)                       :: tmp(1)
 
+    CHARACTER(len=*), PARAMETER :: routine = 'sst_sic_get_one_timelevel'
+    
 
     ALLOCATE(temp(get_nproma(), 1, this%p_patch%nblks_c, 1))
     temp(:,:,:,:) = -1.0_dp
@@ -168,6 +184,7 @@ CONTAINS
 
     CALL sst_sic_replace_missval(this, dat, -1.0_wp)
     !$ACC UPDATE DEVICE(dat)
+
   END SUBROUTINE sst_sic_get_one_timelevel
 
   SUBROUTINE sst_sic_replace_missval (this, dat, new_missval)
@@ -178,6 +195,7 @@ CONTAINS
     WHERE (dat < -1e10_wp)
       dat = new_missval
     END WHERE
+
   END SUBROUTINE sst_sic_replace_missval
 
   FUNCTION sst_sic_get_nblks (this) RESULT(nblks)
@@ -204,4 +222,52 @@ CONTAINS
     END IF
   END SUBROUTINE sst_sic_deinit_reader
 
+  SUBROUTINE get_cf_timeaxis_desc(cf_timeaxis_string, epoch, base_timeaxis_unit)
+    CHARACTER(len=*), INTENT(in) :: cf_timeaxis_string
+    CHARACTER(len=:), ALLOCATABLE, INTENT(out) :: epoch, base_timeaxis_unit
+    
+    ! The CF convention allows for a timezone to be included. We will
+    ! ignore that one for all , but gets stored to word(5), if
+    ! provided, to keep the algorithm simple.
+
+    CHARACTER(len=16) :: word(5)
+    INTEGER :: pos1, pos2, n
+
+    pos1 = 1; pos2 = 0; n = 0;
+    word(:) = ""
+
+    DO
+      pos2 = INDEX(cf_timeaxis_string(pos1:), " ")
+      IF (pos2 == 0) THEN
+        n = n + 1
+        word(n) = cf_timeaxis_string(pos1:)
+        EXIT
+      ENDIF
+      n = n + 1
+      word(n) = cf_timeaxis_string(pos1:pos1+pos2-2)
+      pos1 = pos2+pos1
+    ENDDO
+
+ ! correct the date part
+    normalize_date: BLOCK
+      INTEGER :: idx1, idx2
+      INTEGER :: year, month, day
+      idx1 = INDEX(word(3), '-')    
+      idx2 = INDEX(word(3)(idx1+1:), '-')+idx1
+      READ(word(3)(      :idx1-1),*) year
+      READ(word(3)(idx1+1:idx2-1),*) month
+      READ(word(3)(idx2+1:      ),*) day
+      WRITE(word(3),'(i0,a,i2.2,a,i2.2)') year, '-', month, '-', day
+    END BLOCK normalize_date
+    
+    IF (word(4) /= "") THEN
+      epoch = TRIM(word(3))//'T'//TRIM(word(4))
+    ELSE
+      epoch = TRIM(word(3))
+    ENDIF
+
+    base_timeaxis_unit = TRIM(word(1))
+
+  END SUBROUTINE get_cf_timeaxis_desc
+  
 END MODULE mo_reader_sst_sic
