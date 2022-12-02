@@ -429,13 +429,14 @@ contains
     !
     ! Cloud masks; don't need value re values if there's no cloud
     !
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) FIRSTPRIVATE(nlay, ncol) COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) FIRSTPRIVATE(nlay, ncol) COLLAPSE(2)
     do ilay = 1, nlay
       do icol = 1, ncol
         liqmsk(icol,ilay) = clwp(icol,ilay) > 0._wp
         icemsk(icol,ilay) = ciwp(icol,ilay) > 0._wp
       end do
     end do
+    !$ACC END PARALLEL LOOP
 
     !
     ! Particle size, liquid/ice water paths
@@ -505,7 +506,7 @@ contains
       !
       select type(optical_props)
       type is (ty_optical_props_1scl)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) &
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) &
         !$ACC   COPYIN(optical_props) COPYOUT(optical_props%tau)
 
         do ibnd = 1, nbnd
@@ -517,8 +518,9 @@ contains
             end do
           end do
         end do
+        !$ACC END PARALLEL LOOP
       type is (ty_optical_props_2str)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) PRIVATE(tau, taussa) &
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(3) FIRSTPRIVATE(nbnd, nlay, ncol) PRIVATE(tau, taussa) &
         !$ACC   COPYIN(optical_props) COPYOUT(optical_props%tau, optical_props%ssa, optical_props%g)
         do ibnd = 1, nbnd
           do ilay = 1, nlay
@@ -532,6 +534,7 @@ contains
             end do
           end do
         end do
+        !$ACC END PARALLEL LOOP
       type is (ty_optical_props_nstr)
         error_msg = "cloud optics: n-stream calculations not yet supported"
       end select
@@ -646,6 +649,7 @@ contains
         end do
       end do
     end do
+    !$ACC END PARALLEL LOOP
   end subroutine compute_all_from_table
   !
   ! Pade functions
@@ -710,6 +714,7 @@ contains
         end do
       end do
     end do
+    !$ACC END PARALLEL LOOP
 
   end subroutine compute_all_from_pade
   !---------------------------------------------------------------------------

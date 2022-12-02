@@ -301,7 +301,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ptottevn(jc,:,jb) = 10._wp  ! for vdiff_up
@@ -343,7 +343,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO je = i_startidx, i_endidx
@@ -389,7 +389,7 @@ CONTAINS
                           i_startidx, i_endidx, rl_start, rl_end)
 
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jl = i_startidx, i_endidx
       DO jk = 1, klev
@@ -435,17 +435,18 @@ CONTAINS
     !$ACC END PARALLEL
 
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     pcfm(:,klev,jb) = 0._wp
     pcfh(:,klev,jb) = 0._wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = i_startidx, i_endidx
         pfrc_test(jl,jsfc) = MERGE(1, 0, pfrc(jl,jb,jsfc) > 0.0_wp)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test, loidx, i_startidx, i_endidx, is, 1)
     !$ACC UPDATE WAIT(1) SELF(is)
@@ -456,7 +457,7 @@ CONTAINS
      ! loop over mask only
      !
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jls = 1, is(jsfc)
         js=loidx(jls,jsfc)
@@ -581,7 +582,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         theta_v(jc,1:nlev,jb) = ptvm1(jc,1:nlev,jb)*(p0ref/papm1(jc,1:nlev,jb))**rd_o_cpd
@@ -632,7 +633,7 @@ CONTAINS
     !$ACC   CREATE(vn_ie, vt_ie, shear, div_of_stress, mech_prod)
 
     IF(p_test_run)THEN
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
       kh_ic(:,:,:) = 0._wp
       km_ic(:,:,:) = 0._wp
       !$ACC END KERNELS
@@ -674,7 +675,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -688,7 +689,7 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO je = i_startidx, i_endidx
         vn_ie(je,1,jb)      = p_nh_metrics%wgtfacq1_e(je,1,jb) * vn(je,1,jb) +          &
@@ -736,7 +737,7 @@ CONTAINS
 
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -860,7 +861,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,      &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -893,7 +894,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,      &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -939,7 +940,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -956,7 +957,7 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         kh_ic(jc,1,jb)      = kh_ic(jc,2,jb)
@@ -990,7 +991,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1013,7 +1014,7 @@ CONTAINS
     CALL cells2verts_scalar(kh_ic, p_patch, p_int%cells_aw_verts, km_iv, &
                             opt_rlstart=5, opt_rlend=min_rlvert_int-1,   &
                             opt_acc_async=.TRUE.)
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     km_iv = MAX( km_min, km_iv * turb_prandtl )
     !$ACC END KERNELS
 
@@ -1021,7 +1022,7 @@ CONTAINS
     CALL cells2edges_scalar(kh_ic, p_patch, p_int%c_lin_e, km_ie,                   &
                             opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1, &
                             opt_acc_async=.TRUE.)
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     km_ie = MAX( km_min, km_ie * turb_prandtl )
     !$ACC END KERNELS
 
@@ -1038,7 +1039,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1165,7 +1166,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1188,7 +1189,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1382,7 +1383,7 @@ CONTAINS
 
     !Some initializations
     !total tendency
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     a = 0._wp; c = 0._wp
     tot_tend(:,:,:) = 0._wp
 
@@ -1405,7 +1406,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1435,7 +1436,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1536,7 +1537,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1566,7 +1567,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,      &
                           i_startidx, i_endidx, rl_start, rl_end)
-     !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
      DO jc = i_startidx, i_endidx
@@ -1596,7 +1597,7 @@ CONTAINS
         !--------------------------------------------------------
         ! jk = 2 (w == 0)
         !--------------------------------------------------------
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           c(jc,2)   = - 2._wp * km_c(jc,2,jb) * p_nh_metrics%inv_ddqz_z_full(jc,2,jb) *         &
@@ -1615,7 +1616,7 @@ CONTAINS
         !--------------------------------------------------------
         ! jk = nlev (w == 0)
         !--------------------------------------------------------
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           a(jc,nlev)   = - km_c(jc,nlev-1,jb) * p_nh_metrics%inv_ddqz_z_full(jc,nlev-1,jb) *    &
@@ -1636,7 +1637,7 @@ CONTAINS
         !$ACC WAIT
         CALL tdma_solver_vec(a,b,c,rhs,2,nlev,i_startidx,i_endidx,var_new)
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
@@ -1661,7 +1662,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1762,7 +1763,7 @@ CONTAINS
     !$ACC   PRESENT(p_patch, km_ie, rho, p_int, hori_tend) &
     !$ACC   PRESENT(iecidx, iecblk, ieidx, ieblk, var_temp)
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     hori_tend = 0._wp
     var = var_temp
     !$ACC END KERNELS
@@ -1790,7 +1791,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1822,7 +1823,7 @@ CONTAINS
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx

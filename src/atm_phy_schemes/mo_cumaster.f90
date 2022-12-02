@@ -622,7 +622,7 @@ ENDIF
 !                  ------------------------------------
 
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev
@@ -774,7 +774,7 @@ CALL cubasen &
 ! CALCULATE COLUMN AND SUB CLOUD LAYER MOISTURE CONVERGENCE
 ! AND SUB CLOUD LAYER MOIST STATIC ENERGY CONVERGENCE
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -958,7 +958,7 @@ CALL cuascn &
 !              CALCULATE PRECIPITATION RATE (FOR DOWNDRAFT CALCULATION)
 !              -----------------------------------------------------
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !DIR$ IVDEP
 !OCL NOVREC
@@ -1072,7 +1072,7 @@ ENDIF
 
 !   DEEP CONVECTION
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -1526,7 +1526,7 @@ ENDIF !lstoch_deep
 
 ! rescale DD fluxes if deep and shallow convection
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 !$ACC LOOP SEQ
 DO jk=ktdia,klev
   !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfac)
@@ -1547,7 +1547,7 @@ ENDDO
 ! Updraft iteration is .FALSE. by default
 IF(lmfit) THEN
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
   !$ACC LOOP SEQ
   DO jk=ktdia+1,klev-1
     !$ACC LOOP GANG VECTOR
@@ -1590,7 +1590,7 @@ IF(lmfit) THEN
     & zdmfen,   pcape,    zcapethresh, &
     & kcbot,    kctop,    ictop0,   idpl,     pmfude_rate,    zkineu,   pwmean, lacc )
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
   !$ACC LOOP GANG VECTOR PRIVATE(ikb, itopm2, zpbmpt)
   DO jl=kidia,kfdia
     IF (ldcum(jl)) THEN
@@ -1612,7 +1612,7 @@ IF(lmfit) THEN
 
 ELSE
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     IF(ldcum(jl)) THEN
@@ -1678,7 +1678,7 @@ ENDIF
 
 !                 exclude pathological KTYPE=2 KCBOT=KCTOP=KLEV-1
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   IF(ktype(jl)==2.AND.kcbot(jl)==kctop(jl).AND.kcbot(jl)>=klev-1) THEN
@@ -1786,7 +1786,7 @@ CALL cuflxn &
 !- correct UD detrainment rates if entrainment becomes negative
 !- conservation correction for precip
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -2016,7 +2016,7 @@ CALL cudtdqn &
 
 IF(lmfdudv) THEN
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
   !$ACC LOOP SEQ
   DO jk=klev-1,ktdia+1,-1
@@ -2179,7 +2179,7 @@ IF(lmfdudv) THEN
   IF(LMFUVDIS) THEN
 ! add KE dissipation
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO JL=KIDIA,KFDIA
@@ -2229,7 +2229,7 @@ ENDIF
 !                  ---------------------------------------------------
 
 IF (.NOT.phy_params%lmfscv .OR. .NOT.phy_params%lmfpen) THEN
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
   !$ACC LOOP SEQ
   DO jk=ktdia+1,klev
@@ -2358,7 +2358,7 @@ ENDIF
 !                  FOR ERA40
 !                  ---------------------------------------------------
 
-!$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 !$ACC LOOP GANG VECTOR PRIVATE(zro) COLLAPSE(2)
 DO jk=ktdia+1,klev
   DO jl=kidia,kfdia
@@ -2448,7 +2448,7 @@ ENDIF
 !                  --------------------------------------------------
 
 
-  !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk=ktdia,klev
      DO jl=kidia,kfdia
@@ -2462,7 +2462,7 @@ ENDIF
   !$ACC END PARALLEL
 
   IF (phy_params%lmfdsnow) THEN
-    !$ACC PARALLEL DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zdz) COLLAPSE(2)
     DO jk=ktdia,klev
       DO jl=kidia,kfdia

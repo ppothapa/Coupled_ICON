@@ -255,7 +255,7 @@ CONTAINS
       &                                kblock=jb,kblock_size=kbdim)
     CALL lookup_ua_spline_batch(jcs, kproma, klev, idx_batch, za_batch, zua_batch)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,klev
       DO jl=jcs,kproma
@@ -285,7 +285,7 @@ CONTAINS
 
     ! Copy bottom-level values to dummy arguments
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl=jcs,kproma
       ptheta_b (jl) = ztheta (jl,klev)
@@ -302,7 +302,7 @@ CONTAINS
     ! Vertical interpolation from full levels to mid-levels
     ! using linear interpolation in pressure coordinate
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO 214 jk=1,klevm1
       DO 213 jl=jcs,kproma
@@ -337,7 +337,7 @@ CONTAINS
     ! 4. Compute convective dry boundary layer height
     !------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,kproma
       zcor=MAX(ABS(pcoriol(jl)),eps_corio)
@@ -348,7 +348,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     IF ( isrfc_type == 1 ) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = jcs,kproma
         zhdyn(jl)=MIN(pghf(jl,1),chneu*ufric/zcor)
@@ -356,7 +356,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk=klevm1,1,-1
       !$ACC LOOP GANG VECTOR
@@ -369,7 +369,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl=jcs,kproma
       ihpbl (jl) = MIN(ihpblc(jl),ihpbld(jl))
@@ -387,7 +387,7 @@ CONTAINS
     ! 5. Compute exchange coefficients
     !--------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO 372 jk=1,klevm1
       DO 361 jl=jcs,kproma
@@ -745,7 +745,7 @@ CONTAINS
     ! computed using air temperature of the lowest model level at time step n-1.
     !------------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       pprfac_sfc(jl) =  ppsfc(jl)                                     &
@@ -762,7 +762,7 @@ CONTAINS
     !-------------------------------------------------------------
     !    preset values to zero
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
      DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -774,12 +774,13 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! DA: compute the index lists on the GPU
-    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = jcs,kproma
         pfrc_test(jl, jsfc) = MERGE(1, 0, pfrc(jl, jsfc) > 0.0_wp)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
     !$ACC UPDATE WAIT(1) SELF(is)
@@ -789,7 +790,7 @@ CONTAINS
       CALL compute_qsat( kproma, is(jsfc), loidx(:,jsfc), ppsfc, ptsfc(:,jsfc), pqsat_tile(:,jsfc) )
      ! loop over mask only
      !
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -928,7 +929,7 @@ CONTAINS
     IF (lsfc_mom_flux.OR.lsfc_heat_flux) THEN  ! Surface flux is considered
 
 !  Preset values to zero
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -940,7 +941,7 @@ CONTAINS
 
 !  Multiply neutral coefficients by stability functions
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jsfc = 1,ksfc_type
         !$ACC LOOP GANG VECTOR
@@ -976,7 +977,7 @@ CONTAINS
 
     IF (.NOT.lsfc_mom_flux ) THEN  ! Surface momentum flux is switched off
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = jcs, kproma
@@ -988,7 +989,7 @@ CONTAINS
 
     IF (.NOT.lsfc_heat_flux) THEN  ! Surface heat flux is switched off
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = jcs, kproma
@@ -1005,7 +1006,7 @@ CONTAINS
     ! new t2m, 2m dew point, 10m wind components
     !------------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jsfc = 1,ksfc_type
       DO jl = 1, kbdim
@@ -1018,7 +1019,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1051,7 +1052,7 @@ CONTAINS
     ! Add aggregated Richardson number for the surface
     !-------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       pcfm_gbm(jl) = 0._wp
@@ -1061,7 +1062,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
@@ -1081,7 +1082,7 @@ CONTAINS
     ! to zero.
     !-------------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       pcfv_sfc(jl) = 0._wp
@@ -1097,7 +1098,7 @@ CONTAINS
     IF (lsfc_mom_flux) THEN  ! Surface momentum flux is switched on
 
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1119,7 +1120,7 @@ CONTAINS
  !  this factor is included as "prefactor for the exchange coefficients" in
  !  subroutine matrix_setup_elim
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, kbdim
         pustarm(jl) = 0._wp
@@ -1129,7 +1130,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1142,7 +1143,7 @@ CONTAINS
 
     ELSE ! Surface momentum flux is off. Friction velocity is by definition zero.
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jl = 1, kproma
@@ -1152,7 +1153,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, kproma
         pustarm(jl) = 0._wp
@@ -1168,7 +1169,7 @@ CONTAINS
     !---------------------------------------------------
     ! The exchange coefficient of TTE is set to the same value as for momentum
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       pcftotte_sfc(jl) = pcfm_gbm(jl)
@@ -1177,7 +1178,7 @@ CONTAINS
 
     ! TTE at the surface
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = 1, kbdim
       ptottevn_sfc(jl) = 0._wp
@@ -1185,7 +1186,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
@@ -1203,7 +1204,7 @@ CONTAINS
       !$ACC END PARALLEL
     END DO
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       ptottevn_sfc(jl) = MAX( totte_min,ptottevn_sfc(jl) )
@@ -1220,7 +1221,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       jtottevn_sfc(jl) = 0._wp
@@ -1229,7 +1230,7 @@ CONTAINS
 
     IF ( isrfc_type == 1 ) THEN
       DO jsfc = 1,ksfc_type
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jls = 1,is(jsfc)
           js=loidx(jls,jsfc)

@@ -192,7 +192,7 @@ CONTAINS
 
         IF (iprog_aero == 0) THEN ! purely climatological aerosol
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -209,7 +209,7 @@ CONTAINS
           !$ACC END PARALLEL
         ELSE IF (iprog_aero == 1) THEN ! simple prognostic scheme for dust, climatology for other aerosol types
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -227,7 +227,7 @@ CONTAINS
           !$ACC END PARALLEL
         ELSE ! simple prognostic scheme for all aerosol types; fill extra variables for climatology needed for relaxation equation
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = 1,i_endidx
             prm_diag%aercl_ss(jc,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
@@ -244,7 +244,7 @@ CONTAINS
           !$ACC END PARALLEL
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 2, nlevp1
           DO jc = 1,i_endidx
@@ -268,7 +268,7 @@ CONTAINS
           & pvdaed = zvdaed(1,1), & !out
           & lacc = lzacc)
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jk, zslatq)
         DO jc = 1,i_endidx
           ! top level
@@ -291,7 +291,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         ! loop over layers
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = 1,nlev
           !$ACC LOOP GANG VECTOR PRIVATE(zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zstrfac, zpblfac)
@@ -326,7 +326,7 @@ CONTAINS
 
       ELSE !no aerosols
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO jc = 1,i_endidx
@@ -345,7 +345,7 @@ CONTAINS
       ! aerosol-microphysics or aerosol-convection coupling is turned on
       IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 1 .OR. icpl_aero_conv == 1) THEN
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, ncn_bg)
         DO jk = 1,nlev
 !DIR$ IVDEP

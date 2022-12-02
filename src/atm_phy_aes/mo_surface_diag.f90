@@ -89,7 +89,7 @@ CONTAINS
     !$ACC   PRESENT(pevap_lice, pevap_tile, plhflx_lnd, plhflx_lwtr) &
     !$ACC   PRESENT(pshflx_tile)
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jk = 1, kbdim
         plhflx_tile(jk,jsfc) = 0._wp
@@ -97,6 +97,7 @@ CONTAINS
         pevap_tile (jk,jsfc) = 0._wp
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
     !===================================================================
     ! Otherwise compute diagnostics
@@ -108,7 +109,7 @@ CONTAINS
     !-------------------------------------------------------------------
     ! Instantaneous moisture flux on each tile
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdqv)
@@ -239,14 +240,15 @@ CONTAINS
     ! The instantaneous grid box mean moisture flux will be passed on
     ! to the cumulus convection scheme.
     
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jk = 1, kbdim
       pevap_gbm(jk)  = 0._wp
       plhflx_gbm(jk) = 0._wp
       pshflx_gbm(jk) = 0._wp
     END DO
+    !$ACC END PARALLEL LOOP
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
       !$ACC LOOP GANG VECTOR
@@ -314,7 +316,7 @@ CONTAINS
     !$ACC   PRESENT(pv_rtpfac1) &
     !$ACC   PRESENT(is, loidx)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
       !$ACC LOOP GANG VECTOR
@@ -332,7 +334,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! DA: can't collapse due to the jls bounds depending on jsfc
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
        !$ACC LOOP GANG VECTOR PRIVATE(js)
@@ -348,13 +350,14 @@ CONTAINS
 
     !DA: can't move this loop into OpenACC w/o atomics
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR PRIVATE(js) ASYNC(1)
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR PRIVATE(js) ASYNC(1)
       DO jls = 1,is(jsfc)
         ! set index
         js=loidx(jls,jsfc)
         pu_stress_gbm(js) = pu_stress_gbm(js) + pu_stress_tile(js,jsfc)*pfrc(js,jsfc)
         pv_stress_gbm(js) = pv_stress_gbm(js) + pv_stress_tile(js,jsfc)*pfrc(js,jsfc)
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
     !$ACC END DATA
@@ -462,7 +465,7 @@ CONTAINS
 
     ! set total- and tile-fields to zero in order to avoid uninitialised values
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = 1,kbdim
         psfcWind_tile(jl,jsfc) = cdimissval
@@ -472,13 +475,15 @@ CONTAINS
         pdew2_tile   (jl,jsfc) = cdimissval
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = jcs,kproma
         icond(jl,jsfc) = MERGE(1, 0, pfrc(jl,jsfc).GT.0.0_wp)
       ENDDO
     ENDDO
+    !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(icond(:,:), loidx(jcs:,:), jcs, kproma, is, 1)
     !$ACC UPDATE WAIT SELF(is)
@@ -501,7 +506,7 @@ CONTAINS
         pbtile => pbn_tile
       END IF
 
-      !$ACC PARALLEL DEFAULT(NONE) PRESENT(pbtile) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, zrat, zcbn, zcbs, zcbu, zmerge, zred, zh2m, zqs1)
       DO jls=jcs,is(jsfc)
         jl = loidx(jls,jsfc)
@@ -526,7 +531,7 @@ CONTAINS
       !$ACC WAIT
       CALL lookup_ua_list_spline('nsurf_diag(2)', jcs, kbdim, is(jsfc), loidx(:,jsfc), ptas_tile(:,jsfc), ua)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, zqs2, zq2m, zcvm3, zcvm4)
       DO jls=jcs,is(jsfc)
         jl = loidx(jls,jsfc)
@@ -550,7 +555,7 @@ CONTAINS
     !*          5.97   10M WIND COMPONENTS
     !
     ! DA: can't collapse due to the jls bounds depending on jsfc
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jsfc = 1,ksfc_type
       !$ACC LOOP GANG VECTOR PRIVATE(jl, zrat, zcbn, zcbs, zcbu, zmerge, zred)
@@ -573,7 +578,7 @@ CONTAINS
 
     ! Aggregate all diagnostics
     !
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jl = 1,kbdim
       psfcWind_gbm (jl)   = 0._wp
       puas_gbm     (jl)   = 0._wp
@@ -581,10 +586,11 @@ CONTAINS
       ptas_gbm     (jl)   = 0._wp
       pdew2_gbm    (jl)   = 0._wp
     END DO
+    !$ACC END PARALLEL LOOP
 
     !DA: can't move this loop into OpenACC w/o atomics
     DO jsfc = 1,ksfc_type
-      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR PRIVATE(js) ASYNC(1)
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR PRIVATE(js) ASYNC(1)
       DO jls = 1,is(jsfc)
         ! set index
         js=loidx(jls,jsfc)
@@ -594,16 +600,18 @@ CONTAINS
         ptas_gbm    (js) = ptas_gbm    (js) + pfrc(js,jsfc)*ptas_tile    (js,jsfc)
         pdew2_gbm   (js) = pdew2_gbm   (js) + pfrc(js,jsfc)*pdew2_tile   (js,jsfc)
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
     !
     ! find max and min values for 2m temperature
     !
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jl=jcs,kproma
         ptasmax  (jl) = MAX(ptasmax(jl),ptas_gbm(jl))
         ptasmin  (jl) = MIN(ptasmin(jl),ptas_gbm(jl))
     ENDDO
+    !$ACC END PARALLEL LOOP
 
   !$ACC WAIT
   !$ACC END DATA

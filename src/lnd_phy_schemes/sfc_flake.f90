@@ -883,10 +883,7 @@ CONTAINS
 
     ! Loop over grid boxes with lakes
     !
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(idx_lst_fp, depth_lk, tskin) &
-    !$ACC   PRESENT(t_snow_lk_p, h_snow_lk_p, t_ice_p, h_ice_p, t_mnw_lk_p, t_wml_lk_p) &
-    !$ACC   PRESENT(t_bot_lk_p, c_t_lk_p, h_ml_lk_p, t_b1_lk_p, h_b1_lk_p, t_g_lk_p) &
-    !$ACC   ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(jc)
 !$NEC ivdep
     DO ic=1, nflkgb
