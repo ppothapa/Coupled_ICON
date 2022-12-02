@@ -90,12 +90,6 @@ CONTAINS
 
     config_coupled_mode = coupled_mode
 
-#ifdef _OPENACC
-    IF ( coupled_mode ) THEN
-      CALL finish(routine,'GPU version not available for coupled ICON-0/A configurations.')
-    ENDIF
-#endif
-
   IF ( coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
     CALL finish( &
       routine, &

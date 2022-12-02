@@ -14,12 +14,13 @@
 !!
 MODULE mo_util_vcs
 
-  USE, INTRINSIC :: iso_c_binding, ONLY: c_int, c_char, c_null_char
-  USE mo_util_sysinfo,             ONLY: util_user_name, util_os_system, util_node_name
-  USE mo_cdi,                      ONLY: gribapiLibraryVersion
-  USE mo_cf_convention,            ONLY: set_cf_global, cf_global_info
-  USE mo_exception,                ONLY: message_text, message
-  USE mo_mpi,                      ONLY: my_process_is_global_root
+  USE, INTRINSIC :: iso_c_binding,   ONLY: c_int, c_char, c_null_char
+  USE, INTRINSIC :: iso_fortran_env, ONLY: compiler_version
+  USE mo_util_sysinfo,               ONLY: util_user_name, util_os_system, util_node_name
+  USE mo_cdi,                        ONLY: gribapiLibraryVersion
+  USE mo_cf_convention,              ONLY: set_cf_global, cf_global_info
+  USE mo_exception,                  ONLY: message_text, message
+  USE mo_mpi,                        ONLY: my_process_is_global_root
 
   IMPLICIT NONE
 
@@ -202,6 +203,8 @@ CONTAINS
 #ifdef _CRAYFTN
       WRITE(message_text,'(a,a)') 'Compiler  : ', _RELEASE_STRING
       CALL message('',message_text)
+#else
+      CALL message('', compiler_version())
 #endif
       
       CALL message('','')
