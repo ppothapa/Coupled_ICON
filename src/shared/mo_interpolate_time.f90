@@ -233,7 +233,7 @@ CONTAINS
     !$ACC DATA PRESENT(interpolated,this)
     !$ACC DATA PRESENT(this%dataold, this%datanew)
     !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
-    interpolated(:,:,:,:) = 0.d0
+    interpolated(:,:,:,:) = 0.d0_wp
     !$ACC END KERNELS
 
     nblks  = this%reader%get_nblks()
