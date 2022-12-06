@@ -341,6 +341,9 @@ MODULE mo_nwp_phy_types
       tvh(:,:)        ,    & !! factor of laminar transfer of scalars           --
       tkr(:,:)        ,    & !! turbulent reference surface diffusion coeff.  (m2/s) (Ustar*kap*z0)
       tkred_sfc(:,:)  ,    & !! reduction factor for minimum diffusion coefficients near the surface
+                             !! (affects heat and momentum; used for EPS perturbations)
+      tkred_sfc_h(:,:),    & !! reduction factor for minimum diffusion coefficient for heat near the surface
+                             !! (used for model-DA coupling)
       pat_len(:,:)    ,    & !! length scale of sub-grid scale roughness elements (m)
       rlamh_fac_t(:,:,:),  & !! tuning factor for laminar transfer resistance (rlam_heat)
       gz0(:,:),            & !! roughness length * g of the vertically not

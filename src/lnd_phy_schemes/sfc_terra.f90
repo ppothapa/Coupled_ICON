@@ -287,6 +287,7 @@ CONTAINS
                   tch              , & ! turbulent transfer coefficient for heat       ( -- )
                   tcm              , & ! turbulent transfer coefficient for momentum   ( -- )
                   tfv              , & ! laminar reduction factor for evaporation      ( -- )
+                  tfvsn            , & ! reduction factor for snow evaporation from model-DA coupling     ( -- )
 !
                   sobs             , & ! solar radiation at the ground                 ( W/m2)
                   thbs             , & ! thermal radiation at the ground               ( W/m2)
@@ -386,7 +387,8 @@ CONTAINS
                   z0                   ! vegetation roughness length                    ( m )
 
   REAL    (KIND = wp), DIMENSION(nvec),           INTENT(IN) :: &
-                  tfv                  ! laminar reduction factor for evaporation      ( -- )
+                  tfv              , & ! laminar reduction factor for evaporation      ( -- )
+                  tfvsn                ! reduction factor for snow evaporation from model-DA coupling     ( -- )
 
   REAL    (KIND = wp), DIMENSION(nvec), OPTIONAL, INTENT(INOUT) :: &
                   plevap               ! function of accumulated plant evaporation     (kg/m2)
@@ -1173,7 +1175,7 @@ ENDDO
   !$ACC   PRESENT(t_snow_now, t_s_now, t_sk_now, t_g) &
   !$ACC   PRESENT(qv_s, w_snow_now) &
   !$ACC   PRESENT(rho_snow_now, h_snow, w_i_now, w_p_now, w_s_now) &
-  !$ACC   PRESENT(freshsnow, zf_snow, tch, tcm, tfv, runoff_s) &
+  !$ACC   PRESENT(freshsnow, zf_snow, tch, tcm, tfv, tfvsn, runoff_s) &
   !$ACC   PRESENT(runoff_g, t_snow_mult_now, rho_snow_mult_now) &
   !$ACC   PRESENT(wliq_snow_now, wtot_snow_now, dzh_snow_now) &
   !$ACC   PRESENT(t_so_now, w_so_now, w_so_ice_now) &
@@ -2053,8 +2055,8 @@ ENDDO
     IF (ABS(zdqsnow).LT.0.01_wp*eps_soil) zdqsnow = 0.0_wp
 
     ! potential evaporation at T_snow and Ts
-    zep_snow(i) = (1._wp-ztsnow_pm(i))* tfv(i)*zrhoch(i)*zdqsnow
-    zep_s   (i) =                       tfv(i)*zrhoch(i)*zdqs
+    zep_snow(i) = (1._wp-ztsnow_pm(i))*tfv(i)*zrhoch(i)*zdqsnow*MERGE(tfvsn(i), 1._wp, zdqsnow<0._wp)
+    zep_s   (i) =                      tfv(i)*zrhoch(i)*zdqs
   ENDDO
 
 !------------------------------------------------------------------------------

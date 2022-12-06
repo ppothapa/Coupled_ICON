@@ -350,6 +350,8 @@ INTEGER :: &
   imode_charpar =2    ! mode of estimating the Charnock-Parameter
                       ! 1: use a constant value 
                       ! 2: use a wind-dependent value with a constant lower bound
+                      ! 3: as 2, but with reduction at wind speeds above 25 m/s for more realistic TC wind speeds
+  !$ACC DECLARE COPYIN(imode_charpar)
 
 INTEGER :: &
 
@@ -623,6 +625,7 @@ SUBROUTINE get_turbdiff_param (jg)
    tkhmin_strat = turbdiff_config(jg)%tkhmin_strat
    tkmmin_strat = turbdiff_config(jg)%tkmmin_strat
 
+   imode_charpar = turbdiff_config(jg)%imode_charpar
    alpha0       = turbdiff_config(jg)%alpha0
    alpha0_max   = turbdiff_config(jg)%alpha0_max
    alpha0_pert  = turbdiff_config(jg)%alpha0_pert

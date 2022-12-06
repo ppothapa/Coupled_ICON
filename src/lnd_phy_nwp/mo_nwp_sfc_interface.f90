@@ -176,6 +176,7 @@ CONTAINS
     REAL(wp) :: tch_t      (nproma)
     REAL(wp) :: tcm_t      (nproma)
     REAL(wp) :: tfv_t      (nproma)
+    REAL(wp) :: tfvsn_t    (nproma)
 
     REAL(wp) :: sobs_t     (nproma)
     REAL(wp) :: thbs_t     (nproma)
@@ -333,7 +334,7 @@ CONTAINS
     !$ACC   CREATE(prs_gsp_t, pri_gsp_t, prg_gsp_t, sobs_t, thbs_t, pabs_t, tsnred) &
     !$ACC   CREATE(t_snow_now_t, t_s_now_t, t_sk_now_t, t_g_t, qv_s_t, w_snow_now_t) &
     !$ACC   CREATE(rho_snow_now_t, h_snow_t, w_i_now_t, w_p_now_t, w_s_now_t) &
-    !$ACC   CREATE(freshsnow_t, snowfrac_t, tch_t, tcm_t, tfv_t, runoff_s_inst_t) &
+    !$ACC   CREATE(freshsnow_t, snowfrac_t, tch_t, tcm_t, tfv_t, tfvsn_t, runoff_s_inst_t) &
     !$ACC   CREATE(runoff_g_inst_t, resid_wso_inst_t, t_snow_mult_now_t) &
     !$ACC   CREATE(rho_snow_mult_now_t) &
     !$ACC   CREATE(wliq_snow_now_t, wtot_snow_now_t, dzh_snow_now_t, t_so_now_t) &
@@ -352,7 +353,7 @@ CONTAINS
 !$OMP   prr_gsp_t,prs_gsp_t,pri_gsp_t,u_t,v_t,t_t,qv_t,p0_t,sso_sigma_t,lc_class_t,t_snow_now_t,t_s_now_t,  &
 !$OMP   t_g_t,qv_s_t,w_snow_now_t,rho_snow_now_t,w_i_now_t,w_p_now_t,w_s_now_t,freshsnow_t,                 &
 !$OMP   snowfrac_t,runoff_s_inst_t,runoff_g_inst_t,resid_wso_inst_t,u_10m_t,v_10m_t,tch_t,tcm_t,tfv_t,      &
-!$OMP   sobs_t,thbs_t,pabs_t,r_bsmin,                                                                       &
+!$OMP   tfvsn_t,sobs_t,thbs_t,pabs_t,r_bsmin,                                                               &
 !$OMP   soiltyp_t,plcov_t,rootdp_t,sai_t,tai_t,eai_t,rsmin2d_t,t_snow_mult_now_t,wliq_snow_now_t,           &
 !$OMP   rho_snow_mult_now_t,wtot_snow_now_t,dzh_snow_now_t,t_so_now_t,w_so_now_t,w_so_ice_now_t,            &
 !$OMP   t_s_new_t,w_snow_new_t,rho_snow_new_t,h_snow_t,w_i_new_t,w_p_new_t,w_s_new_t,t_so_new_t,            &
@@ -464,7 +465,7 @@ CONTAINS
          DO isubs = ntiles_lnd+1, ntiles_total
            i_count = ext_data%atm%gp_count_t(jb,isubs) 
 !$NEC ivdep
-           !$ACC LOOP VECTOR PRIVATE(jc, tmp1)
+           !$ACC LOOP VECTOR PRIVATE(jc, tmp1, tmp2)
            DO ic = 1, i_count
              jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
              ! Another tuning factor in order to treat partial snow cover different for fresh snow and 'old' snow
@@ -483,7 +484,12 @@ CONTAINS
              ! glacier snow density (which depends on the climatological 2m-temperature) and the freshsnow factor
              !
              IF (ext_data%atm%lc_class_t(jc,jb,isubs) == ext_data%atm%i_lc_snow_ice) THEN
-               tmp1 = tcall_sfc_jg * 7.5e-9_wp * (600._wp-lnd_prog_now%rho_snow_t(jc,jb,isubs))*       &
+               IF (icpl_da_sfcevap>=2) THEN
+                 tmp2 = 7.5e-9_wp*MAX(0._wp,1._wp+100._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+               ELSE
+                 tmp2 = 7.5e-9_wp
+               ENDIF
+               tmp1 = tcall_sfc_jg * tmp2 * (600._wp-lnd_prog_now%rho_snow_t(jc,jb,isubs))*       &
                  MAX(0._wp,SQRT(SQRT(lnd_diag%freshsnow_t(jc,jb,isubs)))*prm_diag%dyn_gust(jc,jb)-7.5_wp)
 
                p_prog_rcf%tracer(jc,nlev,jb,iqi) = p_prog_rcf%tracer(jc,nlev,jb,iqi) + tmp1 * &
@@ -671,6 +677,7 @@ CONTAINS
           tch_t(ic)                 =  prm_diag%tch_t(jc,jb,isubs)
           tcm_t(ic)                 =  prm_diag%tcm_t(jc,jb,isubs)
           tfv_t(ic)                 =  prm_diag%tfv_t(jc,jb,isubs)
+          tfvsn_t(ic)               =  1._wp
           sobs_t(ic)                =  prm_diag%swflxsfc_t(jc,jb,isubs) 
           thbs_t(ic)                =  prm_diag%lwflxsfc_t(jc,jb,isubs) 
           pabs_t(ic)                =  prm_diag%swflx_par_sfc(jc,jb) 
@@ -738,9 +745,11 @@ CONTAINS
               (1._wp - prm_diag%albdif_t(jc,jb,isubs)) )) * sntunefac2(jc,isubs)
             IF (icpl_da_sfcevap >= 2) THEN  ! adjust tuning to RH bias inferred from assimilation increments
               IF (p_diag%rh_avginc(jc,jb) <= 0._wp) THEN
-                tmp1 = tmp1*MAX(0._wp,1._wp-125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+                tmp1 = tmp1*(1._wp-125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+                tfvsn_t(ic) = 1._wp/(1._wp-250._wp*MIN(0.2_wp,z0_t(ic))*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
               ELSE
-                tmp1 = tmp1*MAX(0._wp,1._wp/(1._wp+125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb)))
+                tmp1 = tmp1*(1._wp/(1._wp+125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb)))
+                tfvsn_t(ic) = 1._wp
               ENDIF
             ENDIF
             qsat1 = spec_humi(sat_pres_ice(t_snow_now_t(ic)),ps_t(ic) )
@@ -926,7 +935,8 @@ CONTAINS
 !
         &  tch           = tch_t                             , & !INOUT turbulent transfer coefficient for heat     ( -- )
         &  tcm           = tcm_t                             , & !INOUT turbulent transfer coefficient for momentum ( -- )
-        &  tfv           = tfv_t                             , & !INOUT laminar reduction factor for evaporation    ( -- )
+        &  tfv           = tfv_t                             , & !IN laminar reduction factor for evaporation       ( -- )
+        &  tfvsn         = tfvsn_t                           , & !IN reduction factor for snow evaporation from model-DA coupling   ( -- )
 !
         &  sobs          = sobs_t                            , & !IN solar radiation at the ground               (W/m2)
         &  thbs          = thbs_t                            , & !IN thermal radiation at the ground             (W/m2)

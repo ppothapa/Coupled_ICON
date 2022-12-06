@@ -1177,6 +1177,8 @@ CONTAINS
         DO ilu = 1, num_lcc
           IF (ilu == ext_data(jg)%atm%i_lc_urban .OR. ilu == ext_data(jg)%atm%i_lc_water) THEN
             ext_data(jg)%atm%z0_lcc_min(ilu) = ext_data(jg)%atm%z0_lcc(ilu) ! no reduction in urban regions and over water
+          ELSE IF (pp_sso == 2 .AND. ext_data(jg)%atm%z0_lcc(ilu) >= 0.5_wp) THEN   ! if MERIT/REMA orography is used:
+            ext_data(jg)%atm%z0_lcc_min(ilu) = 0.75_wp*ext_data(jg)%atm%z0_lcc(ilu) ! 75% for nominal roughness lengths >= 50 cm
           ELSE IF (ext_data(jg)%atm%z0_lcc(ilu) > 0.1_wp) THEN
             ext_data(jg)%atm%z0_lcc_min(ilu) = 0.3_wp*ext_data(jg)%atm%z0_lcc(ilu) ! 30% for nominal roughness lengths > 10 cm
           ELSE

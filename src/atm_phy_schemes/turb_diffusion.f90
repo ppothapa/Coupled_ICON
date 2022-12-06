@@ -498,7 +498,7 @@ SUBROUTINE turbdiff ( &
 !
           impl_weight,                                               &
 !
-          tvm, tvh, tfm, tfh,      tkred_sfc,                        &
+          tvm, tvh, tfm, tfh, tkred_sfc, tkred_sfc_h,                &
           tke, tkvm, tkvh, rcld, tkhm, tkhh,                         &
           hdef2, hdiv, dwdx, dwdy,                                   &
 !
@@ -766,7 +766,7 @@ REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(INOUT) :: &
   tfh              ! of scalars                                      --
 
 REAL (KIND=wp), DIMENSION(:), TARGET, OPTIONAL, INTENT(IN) :: &
-  tkred_sfc        ! reduction factor for minimum diffusion coefficients near the surface
+  tkred_sfc, tkred_sfc_h   ! reduction factors for minimum diffusion coefficients near the surface
 
 
 ! Atmospheric variables of the turbulence model:
@@ -893,7 +893,7 @@ REAL (KIND=wp) ::   &
 
 ! Hilfsvariablen:
   wert, val1, val2, & ! Platzhalter fuer beliebige Zwischenergebnisse
-  fakt,             & !  ,,         ,,     ,,     Faktoren
+  fakt, fakt2,      & !  ,,         ,,     ,,     Faktoren
 
 ! Platzh. fuer thermodynamische Hilfsgreossen
   flw_h2o_g,        & !                 rc/(1+(lh_v/cp_d)*d_qsat/d_T)
@@ -2409,7 +2409,7 @@ my_thrd_id = omp_get_thread_num()
     ! Beschraenkung der Diffusionskoeffizienten:
 
     !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(fakt, val1, val2, x4, x4i)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(fakt, fakt2, val1, val2, x4, x4i)
     DO k=2, ke
 !DIR$ IVDEP
       DO i=ivstart, ivend
@@ -2421,13 +2421,16 @@ my_thrd_id = omp_get_thread_num()
           ! Factor for variable minimum diffusion coefficient proportional to 1/SQRT(Ri);
           ! the namelist parameters tkhmin/tkmmin specify the value for Ri=1:
           IF (gz0(i) < 0.01_wp .AND. l_pat(i) > 0._wp) THEN ! glaciers
-            fakt=MIN( z1, tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
+            fakt =MIN( z1, tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
+            fakt2=MIN( z1, tkred_sfc_h(i)*tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
           ELSE
-            fakt=MIN( z1, tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
+            fakt =MIN( z1, tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
+            fakt2=MIN( z1, tkred_sfc_h(i)*tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
           ENDIF
-          fakt=MIN( 2.5_wp, MAX( 0.01_wp, fakt*xri(i,k) ) )
+          fakt =MIN( 2.5_wp, MAX( 0.01_wp, fakt*xri(i,k) ) )
+          fakt2=MIN( 2.5_wp, MAX( 0.01_wp, fakt2*xri(i,k) ) )
 
-          val1=tkmmin*fakt; val2=tkhmin*fakt
+          val1=tkmmin*fakt; val2=tkhmin*fakt2
 
           IF (tkhmin_strat.GT.z0 .OR. tkmmin_strat.GT.z0) THEN
             IF (PRESENT(innertrop_mask)) THEN

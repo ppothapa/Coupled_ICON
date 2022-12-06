@@ -420,7 +420,7 @@ CONTAINS
     INTEGER  :: jb, jc
     INTEGER  :: i_startblk, i_endblk, nblks_c, i_startidx, i_endidx
     REAL(wp), DIMENSION(nproma,1,p_patch%nblks_c) :: z_topo_c, slope_x, slope_y, slope
-    REAL(wp) :: slc_fac, slope_ratio, slred_fac, offset_fac
+    REAL(wp) :: slc_fac, slope_ratio, slred_fac, offset_fac, stdh_sv
 
 
     nblks_c    = p_patch%nblks_c
@@ -465,8 +465,9 @@ CONTAINS
           IF (p_patch%cells%center(jc,jb)%lat*rad2deg > 66.5_wp) slc_fac = 1._wp
           offset_fac = slc_fac
           slred_fac = MAX(0.05_wp,1._wp - slc_fac*slope_ratio)
+          stdh_sv   = MAX(1.e-4_wp,sso_stdh(jc,jb))
           sso_stdh(jc,jb)  = MAX(0._wp, MIN(slred_fac*sso_stdh(jc,jb),sso_stdh(jc,jb)-offset_fac*10._wp) )
-          sso_sigma(jc,jb) = slred_fac*sso_sigma(jc,jb)
+          sso_sigma(jc,jb) = (sso_stdh(jc,jb)/stdh_sv)**1.5_wp*sso_sigma(jc,jb)
         ENDIF
 
       ENDDO

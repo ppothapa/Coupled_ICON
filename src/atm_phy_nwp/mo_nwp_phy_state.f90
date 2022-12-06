@@ -451,6 +451,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%tcond10_max, &
       &     diag%tcond_max, &
       &     diag%tetfl_turb, &
+      &     diag%tkred_sfc, &
+      &     diag%tkred_sfc_h, &
       &     diag%tt_lheat, &
       &     diag%ttend_lhn, &
       &     diag%twater, &
@@ -2907,13 +2909,22 @@ __acc_attach(diag%clct)
     __acc_attach(diag%tkr)
 
     ! &      diag%tkred_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('tkred_sfc', ' ','reduction factor for minimum diffusion coefficients', &
+    cf_desc    = t_cf_var('tkred_sfc', ' ','reduction factor for minimum diffusion coefficients for EPS perturbations', &
          &                DATATYPE_FLT32)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'tkred_sfc', diag%tkred_sfc,                 &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
       & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
     __acc_attach(diag%tkred_sfc)
+
+    ! &      diag%tkred_sfc_h(nproma,nblks_c)
+    cf_desc    = t_cf_var('tkred_sfc_h', ' ','reduction factor for minimum diffusion coefficient for heat for model-DA coupling', &
+         &                DATATYPE_FLT32)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'tkred_sfc_h', diag%tkred_sfc_h,             &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=.TRUE., initval=1._wp, lopenacc=.TRUE. )
+    __acc_attach(diag%tkred_sfc_h)
 
     ! &      diag%pat_len(nproma,nblks_c)
     cf_desc    = t_cf_var('pat_len', 'm','length scale of sub-grid scale roughness elements', &

@@ -2485,9 +2485,20 @@ I & 0 & &
 Coupling between data assimilation and model parameters controlling surface friction (roughness length and SSO blocking tendency at lowest level). \\
 0: off \\
 1: on; requires assimilation of 10m-winds and cycling a time-filtered assimilation increment of absolute wind speed at the lowest model level;
-moreover, it is strongly recommended to use extpar data with full SSO information (generated in Feb. 2022 or later). &
+moreover, it is strongly recommended to use extpar data with full SSO information (generated in Feb. 2022 or later). Coupling is masked in large
+parts of Russia where the assimilation of 10m winds is blacklisted in the operational settings of 2022 \\
+2: on without masking over Russia, to be combined with 10m wind assimilation without blacklisting &
 init\_mode=5
 \tabularnewline
+
+icpl\_da\_tkhmin&
+I & 0 & &
+Coupling between data assimilation and near-surface reduction profile for minimum vertical diffusion of heat \\
+0: off \\
+1: on &
+init\_mode=5, icpl\_da\_sfcevap $>$ 2 and icpl\_da\_skinc $>$ 0
+\tabularnewline
+
 
 
 adjust\_tso\_tsnow&
@@ -8098,6 +8109,16 @@ alpha1 &
 R                &     0.75      & 1 &
 Scaling parameter for molecular roughness of ocean waves  & 
 \tabularnewline
+
+%\hline
+imode\_charpar &
+I                &     2      & 1 &
+Options for specifying the Charnock parameter: \\
+1: constant at alpha0 \\
+2: wind-speed dependent with maximum at alpha0\_max \\
+3: as 2, but decreasing again at speeds above about 25 m/s in order to improve pressure-speed relationship in tropical cyclones  & 
+\tabularnewline
+
 
 %\hline
 tkhmin &
