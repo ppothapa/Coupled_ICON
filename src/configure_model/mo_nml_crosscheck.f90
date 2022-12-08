@@ -315,6 +315,11 @@ CONTAINS
         CALL message(routine,' WARNING! NWP forcing set but '//&
                     'only turbulence selected!')
 
+        IF( atm_phy_nwp_config(jg)%inwp_surface == 1 .AND. &
+        &   atm_phy_nwp_config(jg)%inwp_gscp == 0 ) &
+        ! Perhaps it would be easy to implement this combination if needed.
+        &  CALL finish( routine,'Surface model TERRA requires a gscp scheme at the moment.')
+
 
         IF (( atm_phy_nwp_config(jg)%inwp_turb == icosmo ) .AND. &
           & (turbdiff_config(jg)%lconst_z0) ) THEN

@@ -266,7 +266,7 @@ a_hshr       = 2.0
   itype_snowevap = 2
   itype_canopy   = 2
   lsnowtile      = .true.
-  lseaice        = .FALSE. ! TODO: turn on after porting seaice
+  lseaice        = .TRUE.
   llake          = .true.
   itype_lndtbl   = 4
   itype_evsl     = 4
@@ -276,6 +276,7 @@ a_hshr       = 2.0
   c_soil_urb     = 0.5
   sstice_mode    = 2 ! TODO: test it mode 2 and probably port it
   lprog_albsi    = .true.
+  hice_min       = 0.5 ! For Buildbot Testing. Let even thick ice be taken out of the list_seaice_idx
 /
 &radiation_nml
  irad_o3     = 79
@@ -412,7 +413,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
  ml_varlist       =
   'cape', 'clct_mod', 'ddt_qc_conv', 'ddt_temp_radlw', 'ddt_v_sso',
   'ddt_vn_pgr', 'div', 'div_ic', 'hdef_ic', 'lwflxall', 'rho_snow', 'runoff_g',
-  'temp', 'temp_ifc', 'thbclr_s', 'tke', 'tot_prec', 'tot_qi_dia', 'tsfctrad',
+  'temp', 'temp_ifc', 'thbclr_s', 'tke', 'tot_prec', 'tot_qi_dia',
   'u', 'v', 'v_10m', 'vt'
 /
 

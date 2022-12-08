@@ -739,7 +739,6 @@ CONTAINS
   INTEGER          :: ke_soil_hy_m   ! number of active soil moisture layers for Mire
   CHARACTER(LEN=7) :: yhc            ! heating or cooling indicator
 
-#ifndef ALLOC_WKARR
 ! Local (automatic) arrays:
 ! -------------------------
 
@@ -977,8 +976,6 @@ CONTAINS
 
   LOGICAL     :: &
     limit_tch (nvec)         ! indicator for flux limitation problem
-#endif
-
 
 #ifdef __SX__
   REAL(wp) :: zfac(nvec),lhfl_pl_int(nvec)

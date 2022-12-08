@@ -97,16 +97,7 @@ MODULE sfc_flake_data
 
 !===================================================================================================
 
-! The following '#ifdef' statements make it possible to use 
-! "sfc_flake_data" within both ICON and COSMO.
-
-#ifdef __COSMO__
-  USE kind_parameters, ONLY : wp      ! KIND-type parameter for real variables
-#endif
-
-#ifdef __ICON__
   USE mo_kind        , ONLY : wp      ! KIND-type parameter for real variables
-#endif
 
 !===================================================================================================
 
@@ -372,82 +363,6 @@ MODULE sfc_flake_data
     opticpar_snow_opaque = opticpar_medium(1,                    & 
       (/1.0_wp    , (0.0_wp   ,i=2,nband_optic_max)/),           &
       (/1.0E+07_wp, (1.E+10_wp,i=2,nband_optic_max)/)) 
-
-
-#ifdef __COSMO__
-!US needed because of ICON
-  REAL (KIND=wp) :: frlake_thrhld = 0.5_wp
-#endif
-
-!---------------------------------------------------------------------------------------------------
-
-#ifdef ALLOC_WKARR
-! Local arrays defined as allocatables here:
-! ------------------------------------------
-
-! All arrays are time tendencies
-
-  REAL(KIND = wp), ALLOCATABLE    :: &
-
-    dtsnowdt  (:)     , & ! snow surface temperature                                  [K s^{-1}]
-    dhsnowdt  (:)     , & ! snow thickness                                            [m s^{-1}]
-    dticedt   (:)     , & ! ice surface temperature                                   [K s^{-1}]
-    dhicedt   (:)     , & ! ice thickness                                             [m s^{-1}]
-    dtmnwlkdt (:)     , & ! mean temperature of the water column                      [K s^{-1}]
-    dtwmllkdt (:)     , & ! mixed-layer temperature                                   [K s^{-1}]
-    dtbotlkdt (:)     , & ! temperature at the water-bottom sediment interface        [K s^{-1}]
-    dctlkdt   (:)     , & ! shape factor with respect to the temperature profile 
-                          !     in lake thermocline                                     [s^{-1}]
-    dhmllkdt  (:)     , & ! the mixed-layer thickness                                 [m s^{-1}]
-    dtb1lkdt  (:)     , & ! temperature at the bottom of the upper layer of sediments [K s^{-1}]
-    dhb1lkdt  (:)     , & ! thickness of the upper layer of sediments                 [m s^{-1}]
-    dtsfclkdt (:)         ! lake surface temperature                                  [K s^{-1}]
-
-!==============================================================================
-
-CONTAINS
-
-!==============================================================================
-
-SUBROUTINE flake_wkarr_alloc (nproma, istat)
-
-  INTEGER, INTENT(IN)  :: nproma
-  INTEGER, INTENT(OUT) :: istat
-
-  istat = 0
-
-  ALLOCATE (                 &
-    dtsnowdt  (nproma)     , &
-    dhsnowdt  (nproma)     , &
-    dticedt   (nproma)     , &
-    dhicedt   (nproma)     , &
-    dtmnwlkdt (nproma)     , &
-    dtwmllkdt (nproma)     , &
-    dtbotlkdt (nproma)     , &
-    dctlkdt   (nproma)     , &
-    dhmllkdt  (nproma)     , &
-    dtb1lkdt  (nproma)     , &
-    dhb1lkdt  (nproma)     , &
-    dtsfclkdt (nproma)     ,          STAT=istat)
-
-END SUBROUTINE flake_wkarr_alloc
-
-!==============================================================================
-
-SUBROUTINE flake_wkarr_dealloc (istat)
-
-  INTEGER, INTENT(OUT) :: istat
-
-  istat = 0
-
-  DEALLOCATE (               &
-    dtsnowdt  , dhsnowdt  , dticedt   , dhicedt   , dtmnwlkdt , dtwmllkdt ,            &
-    dtbotlkdt , dctlkdt   , dhmllkdt  , dtb1lkdt  , dhb1lkdt  , dtsfclkdt ,   STAT=istat)
-
-END SUBROUTINE flake_wkarr_dealloc
-#endif
-
-!===================================================================================================
 
 END MODULE sfc_flake_data
 

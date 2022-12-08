@@ -374,50 +374,6 @@ USE turb_data, ONLY : &
     vap     ,     & ! index for water vapor
     liq             ! index for liquid water
 
-#ifdef ALLOC_WKARR
-USE turb_data, ONLY : &
-    ! targets of used pointers
-    diss_tar   ,  & ! target for eddy dissipation rate (m2/s3)
-
-    ! internal atmospheric variables
-
-    len_scale,    & ! turbulent length-scale (m)
-    hor_scale,    & ! effective hoprizontal length-scale used for sep. horiz. shear calc. (m)
-    xri,          & ! a function of Ri-number used for tuning corrections (hyper-parameterizations)
-
-    l_scal  ,     & ! reduced maximal turbulent length scale due to horizontal grid spacing (m)
-
-    fc_min  ,     & ! minimal value for TKE-forcing (1/s2)
-
-    shv     ,     & ! velocity scale of the separated horiz. shear mode (m/s)
-    frh     ,     & ! thermal forcing (1/s2) or thermal acceleration (m/s2)
-    frm     ,     & ! mechan. forcing (1/s2) or mechan. accelaration (m/s2)
-    ftm     ,     & ! mechan. forcing (1/s2) by pure turbulent shear 
-    grad    ,     & ! any vertical gradient
-    hig     ,     & ! obere und untere Referenzhoehe bei der Bildung nicht-lokaler Gradienten
-
-    prss    ,     & ! surface pressure (Pa)
-    tmps    ,     & ! surface temperature (K)
-    vaps    ,     & ! surface specific humidity
-    liqs    ,     & ! liquid water content at the surface
-
-    dicke   ,     & ! any (effective) depth of model layers (m) or other auxilary variables
-    hlp     ,     & ! any 'help' variable
-
-    zaux    ,     & ! auxilary array containing thermodynamical properties
-                    ! (dQs/dT,ex_fakt,cp_fakt,g_tet,g_vap) or various
-                    ! auxilary variables for calculation of implicit vertical diffusion
-
-    can    ,      & ! auxilary array valid for the vertically resolved canopy
-    lay    ,      & ! any variable at a specific layer
-    lays   ,      & ! any (2-D) vector of variables at a specific layer
-
-    src    ,      & ! effective depth of Prandtl-layer applied to scalars  (m)
-
-    dzsm   ,      & ! effective depth of Prandtl-layer applied to momentum (m)
-    dzsh   ,      & ! effective depth of Prandtl-layer applied to scalars  (m)
-    lev             ! eingrenzende Hoehenvieaus
-#endif
 
 !-------------------------------------------------------------------------------
 ! Control parameters for the run
@@ -960,7 +916,6 @@ LOGICAL ::          &
 
 TYPE (varprf) :: pvar(naux+1) !vertical variable profiles
 
-#ifndef ALLOC_WKARR
 ! these fields are still taken as local arrays, because the CRAY compiler cannot do the
 ! same optimizations with OMP threadprivate variables
 
@@ -1014,7 +969,6 @@ REAL (KIND=wp)         ::  &
 ! gemittelten Profile bei nicht-lokaler Gradient-Berechnung:
 INTEGER                ::  &
   lev(nvec,2)
-#endif
 
 LOGICAL, PARAMETER :: ldebug=.FALSE.
 
@@ -1154,18 +1108,11 @@ LOGICAL :: lzacc
   !$ACC DATA &
   !Working arrays                                                        !
   !$ACC   CREATE(ivtp, tinc, hig, ltend, lsfli) &
-#ifdef ALLOC_WKARR
-  !$ACC   PRESENT(diss_tar, c_big, c_sml, r_air) &
-  !$ACC   PRESENT(len_scale, hor_scale, xri, l_scal, fc_min, ediss) &
-  !$ACC   PRESENT(shv, frh, frm, ftm, prss, tmps, vaps, liqs, dicke) &
-  !$ACC   PRESENT(hlp, zaux, can, lay, lays, src, dzsm, dzsh, grad, hig, lev) &
-#else
   !$ACC   CREATE(diss_tar) PRESENT(c_big, c_sml, r_air) &
   !$ACC   CREATE(len_scale, hor_scale, xri, l_scal, fc_min, ediss) &
   !$ACC   CREATE(shv, frh, frm, ftm, prss, tmps, vaps, liqs, dicke) &
   !$ACC   CREATE(hlp, zaux, can, lay, lays, src, dzsm, dzsh, grad, hig, lev) &
   !$ACC   IF(lzacc)
-#endif
 
   !Note ACC : optional hdef2,hdiv,dwdx,dwdy,tketens,tketadv,trop_mask,ut_sso,vt_sso,edr,
   ! tket_sso,tket_hshr,tkhm,tkhh,tket_conv,shfl_s,qvfl_s have separate data region 

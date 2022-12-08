@@ -71,16 +71,6 @@ MODULE sfc_terra_init
       cporv, cadp, csandf, cclayf, T_ref_ice, T_star_ice, b_clay, &
       b_silt, b_sand, b_org
 
-#ifdef ALLOC_WKARR  
-  USE sfc_terra_data,        ONLY:                                &
-      zicount1, zicount2,                                         &
-      m_styp, zroota, zbwt, zsandf, zclayf, zsiltf, zb_por,       &
-      zpsis, zw_m, zadp, zporv, zedb, zw_snow_old, zrho_snow_old, &
-      h_snow_fg, h_snow_incr, sum_weight, zhh_snow, zhm_snow,     &
-      t_new, rho_new, wl_new, z_old, dz_old,                      &
-      zadp, zpsis, zb_por, zedb , zb_por, zadp, l_redist
-#endif
-
 !==============================================================================
 
   IMPLICIT NONE
@@ -219,10 +209,8 @@ SUBROUTINE terra_init (            &
     zw_m_low, zw_m_soil, zw_m_up, zzz,         &
     weight, wso_ice_tolerance, wso_ice_equil, rwso_ice_tolerance
 
-#ifndef ALLOC_WKARR
   REAL    (KIND=wp) ::  &
     zroota   (nvec)      , & ! root density profile parameter (1/m)
-
 ! External parameters
     zbwt     (nvec)      , & ! root depth (with artificial minimum value)
     zsandf   (nvec)      , & ! mean fraction of sand (weight percent)
@@ -258,7 +246,6 @@ SUBROUTINE terra_init (            &
     dz_old        (nvec,ke_snow)
 
   LOGICAL :: l_redist(nvec)
-#endif
 
 !- End of header
 !==============================================================================

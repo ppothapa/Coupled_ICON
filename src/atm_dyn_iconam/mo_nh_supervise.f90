@@ -879,7 +879,6 @@ CONTAINS
       ENDDO
 !$OMP END DO
 
-
 !$OMP MASTER
       dpsdt_avg = SUM(dps_blk(i_startblk:i_endblk))
       npoints   = SUM(npoints_blk(i_startblk:i_endblk))

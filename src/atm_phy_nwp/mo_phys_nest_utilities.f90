@@ -2348,8 +2348,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
       ENDIF
 
       IF (lseaice) THEN
-        CALL assert_acc_host_only('interpol_phys_grf lseaice', lacc)
-
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           IF (ptr_wprogp%t_ice(jc,jb) > 10._wp) THEN
             z_aux3dl2_p(jc,14,jb) = ptr_wprogp%t_ice(jc,jb)
@@ -2361,6 +2360,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
           z_aux3dl2_p(jc,17,jb) = ptr_wprogp%h_snow_si(jc,jb)
           z_aux3dl2_p(jc,18,jb) = ptr_ldiagp%fr_seaice(jc,jb)
         ENDDO
+        !$ACC END PARALLEL
       ELSE
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
@@ -2604,15 +2604,17 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
       !$ACC END PARALLEL
 
       IF (lmulti_snow) THEN
+#ifdef _OPENACC
+        CALL finish ('interpol_phys_grf', 'lmulti_snow: OpenACC version currently not implemented')
+#endif
         DO jc = i_startidx, i_endidx
           ptr_ldiagc%t_snow_mult(jc,nlev_snow+1,jb) = z_aux3dl2_c(jc,13,jb)
         ENDDO
       ENDIF
 
       IF (lseaice) THEN
-#ifdef _OPENACC
-        CALL finish ('interpol_phys_grf', 'lseaice: OpenACC version currently not implemented')
-#endif
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           ptr_wprogc%t_ice(jc,jb)     = MIN(tmelt,z_aux3dl2_c(jc,14,jb))
           ptr_wprogc%h_ice(jc,jb)     = MAX(0._wp,z_aux3dl2_c(jc,15,jb))
@@ -2627,6 +2629,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
             ptr_ldiagc%fr_seaice(jc,jb) = 0._wp
           ENDIF
         ENDDO
+        !$ACC END PARALLEL
       ENDIF
 
       IF (llake) THEN

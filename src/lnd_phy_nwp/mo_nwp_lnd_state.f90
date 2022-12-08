@@ -64,6 +64,7 @@ MODULE mo_nwp_lnd_state
     &                                lmulti_snow, ntiles_water, lseaice, llake, &
     &                                itype_interception, l2lay_rho_snow, itype_trvg, &
     &                                itype_snowevap, groups_smi, zml_soil
+  USE mo_coupling_config,      ONLY: is_coupled_run
   USE mo_io_config,            ONLY: lnetcdf_flt64_output, runoff_interval, &
     &                                melt_interval                                                
   USE mo_gribout_config,       ONLY: gribout_config
@@ -1083,7 +1084,8 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'t_snow_si'//suffix, p_prog_wtr%t_snow_si,  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d,     &
-         & tlev_source=TLEV_NNOW_RCF)
+         & tlev_source=TLEV_NNOW_RCF, lopenacc=.TRUE.)
+    __acc_attach(p_prog_wtr%t_snow_si)
 
 
     ! & p_prog_wtr%h_snow_si(nproma,nblks_c)
@@ -1091,7 +1093,8 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'h_snow_si'//suffix, p_prog_wtr%h_snow_si,  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d,     &
-         & tlev_source=TLEV_NNOW_RCF)
+         & tlev_source=TLEV_NNOW_RCF, lopenacc=.TRUE.)
+    __acc_attach(p_prog_wtr%h_snow_si)
 
     ! & p_prog_wtr%alb_si(nproma,nblks_c)
     cf_desc     = t_cf_var('sea_ice_albedo', '-', 'sea ice albedo (diffuse)', datatype_flt)
@@ -1106,7 +1109,7 @@ MODULE mo_nwp_lnd_state
          &  "mode_iau_old_fg_in","mode_cosmo_in","mode_iniana","mode_combined_in"), &
          & post_op=post_op(POST_OP_SCALE, arg1=100._wp, new_cf=new_cf_desc),     &
          & lopenacc=.TRUE. )   
-         __acc_attach(p_prog_wtr%alb_si)   
+    __acc_attach(p_prog_wtr%alb_si)
 
 
     !
@@ -1345,14 +1348,13 @@ MODULE mo_nwp_lnd_state
            &                 "mode_iniana"), lopenacc=.TRUE. )      
     __acc_attach(p_diag_lnd%fr_seaice)
 
-
     ! & p_diag_lnd%condhf_ice(nproma,nblks_c)
     cf_desc    = t_cf_var('condhf_ice', 'W m-2', 'conductive heat flux at sea-ice bottom', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'condhf_ice', p_diag_lnd%condhf_ice,&
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-           & ldims=shape2d, lrestart=.TRUE.)
-
+           & ldims=shape2d, lrestart=.TRUE., lopenacc=.TRUE.)
+    __acc_attach(p_diag_lnd%condhf_ice)
 
     ! & p_diag_lnd%qv_s_t(nproma,nblks_c,ntiles_total+ntiles_water)
     cf_desc    = t_cf_var('qv_s_t', 'kg kg-1', 'specific humidity at the surface', datatype_flt)
@@ -1412,7 +1414,9 @@ MODULE mo_nwp_lnd_state
          & lmiss=.TRUE., missval=0.0_wp,                                         &
          & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_NNB ), & 
          & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in",                  &
-         &                 "mode_iau_ana_in","mode_iau_old_ana_in") )
+         &                 "mode_iau_ana_in","mode_iau_old_ana_in"),             &
+         & lopenacc=.TRUE. )
+    __acc_attach(p_diag_lnd%t_seasfc)
 
 
     ! & p_diag_lnd%w_i(nproma,nblks_c)

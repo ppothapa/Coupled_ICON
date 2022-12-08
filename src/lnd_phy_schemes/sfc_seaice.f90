@@ -109,25 +109,6 @@
 
 MODULE sfc_seaice
 
-#ifdef __COSMO__
-  USE kind_parameters, ONLY:      &
-                   &  wp  !< KIND-type parameter for real variables
-
-  USE data_constants,  ONLY:      &
-     tf_fresh => t0_melt,         & !
-     tf_salt,                     & !
-     alf      => lh_f,            & !
-     rhoi     => rho_ice,         & !
-     ci,                          & !
-     ki
-
-  USE data_parallel   , ONLY :   &
-    my_cart_id       ! rank of this sub-domain in the Cartesian communicator
-
-  USE environment,      ONLY: model_abort
-#endif
-
-#ifdef __ICON__
   USE mo_kind, ONLY:      &
                    &  wp  !< KIND-type parameter for real variables
 
@@ -154,7 +135,6 @@ MODULE sfc_seaice
                                  & frsi_min           , &  !< minimum sea-ice fraction  [-]
                                  & hice_min           , &  !< minimum sea-ice thickness [m]
                                  & hice_max                !< maximum sea-ice thickness [m]
-#endif
 
   USE sfc_terra_data,        ONLY:                      &
                                  & csalb              , &  !< solar albedo for different soil types
@@ -165,10 +145,6 @@ MODULE sfc_seaice
   IMPLICIT NONE
 
   PRIVATE
-
-#ifdef __COSMO__
-  LOGICAL :: lprog_albsi = .FALSE.
-#endif
 
   REAL (wp), PARAMETER ::                             &
                        &  hice_ini_min = 0.1_wp     , &  !< minimum thickness of the newly formed sea ice [m]
@@ -238,10 +214,6 @@ MODULE sfc_seaice
   ! Minimum values of the sea-ice fraction and of the sea-ice thickness are used outside 
   ! "sfc_seaice" to compose an index list of grid boxes where sea ice is present. 
   PUBLIC ::                       &
-#ifdef ALLOC_WKARR
-         &  seaice_wkarr_alloc       , & ! subroutine for allocation
-         &  seaice_wkarr_dealloc     , & ! subroutine for deallocation
-#endif
          &  hice_ini_min             , & ! parameter
          &  hice_ini_max             , & ! parameter
          &  seaice_init_nwp          , & ! procedure     
@@ -249,15 +221,6 @@ MODULE sfc_seaice
          &  seaice_coldinit_albsi_nwp, & ! procedure
          &  seaice_timestep_nwp      , & ! procedure
          &  alb_seaice_equil
-
-#ifdef ALLOC_WKARR
-    ! Local variables as automatic arrays
-    REAL(wp), ALLOCATABLE, DIMENSION(:) :: &
-                                &  dticedt , &  !< time tendency of ice surface temperature [K/s] 
-                                &  dhicedt , &  !< time tendency of ice thickness [m/s] 
-                                &  dtsnowdt, &  !< time tendency of snow surface temperature [K/s] 
-                                &  dhsnowdt     !< time tendency of snow thickness [m/s] 
-#endif
 
 
 !234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
@@ -451,7 +414,6 @@ CONTAINS
 
     ! Call model abort if errors are encountered
     IF( lcallabort ) THEN 
-#ifdef __ICON__
       ! Send an error message 
       WRITE(nameerr,*) "MODULE sfc_seaice, SUBROUTINE seaice_init_nwp" 
       WRITE(texterr,*) "Sea-ice fraction ", frsi(isi),                        & 
@@ -463,11 +425,6 @@ CONTAINS
       WRITE(nameerr,*) "sfc_seaice:seaice_init_nwp" 
       WRITE(texterr,*) "error in sea-ice fraction"
       CALL finish(TRIM(nameerr), TRIM(texterr))
-#elif __COSMO__
-      PRINT *, 'Sea-ice fraction ', frsi(isi),                        & 
-                    &  ' is less than a minimum threshold value ', frsi_min
-      CALL model_abort(my_cart_id, 10565, 'Problems with sea ice fraction:', 'sfc_seaice:seaice_init')
-#endif
     END IF 
 
     !-----------------------------------------------------------------------------------------------
@@ -603,14 +560,12 @@ CONTAINS
                          &  ki_o_rhoialf = ki*r_rhoialf     , & 
                          &  ci_o_alf     = ci/alf        
 
-#ifndef ALLOC_WKARR
     ! Local variables 
     REAL(wp), DIMENSION(nsigb) ::            &
                                 &  dticedt , &  !< time tendency of ice surface temperature [K/s] 
                                 &  dhicedt , &  !< time tendency of ice thickness [m/s] 
                                 &  dtsnowdt, &  !< time tendency of snow surface temperature [K/s] 
                                 &  dhsnowdt     !< time tendency of snow thickness [m/s] 
-#endif
 
     INTEGER ::      &
             &  isi  !< DO loop index
@@ -650,7 +605,14 @@ CONTAINS
 
     ! for vectorisation
     lis_coupled_run = is_coupled_run()
+    !$ACC DATA CREATE(dticedt, dhicedt, dtsnowdt, dhsnowdt) &
+    !$ACC   PRESENT(qsen, qlat, qlwrnet, qsolnet, snow_rate, rain_rate, tice_p, hice_p, tsnow_p, hsnow_p) &
+    !$ACC   PRESENT(albsi_p, tice_n, hice_n, tsnow_n, hsnow_n, condhf, albsi_n)
 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR &
+    !$ACC   PRIVATE(qsoliw, qatm, qwat, csice, phiipr0, hice_thrshld, rti, strg_1, strg_2) &
+    !$ACC   PRIVATE(albsi_e, albsi_snow_e, taualbsi, rtaualbsisn, albsi_e_wghtd)
     ! Loop over grid boxes where sea ice is present
     GridBoxesWithSeaIce: DO isi=1, nsigb
 
@@ -807,6 +769,7 @@ CONTAINS
     PrognosticSeaIceAlbedo: IF ( lprog_albsi ) THEN
 
       ! Loop over grid boxes where sea ice is present
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(albsi_e, albsi_snow_e, taualbsi, rtaualbsisn, albsi_e_wghtd)
       DO isi=1, nsigb
 
         ! Equilibrium sea-ice albedo (function of sea-ice surface temperature)
@@ -846,33 +809,48 @@ CONTAINS
       END DO
 
     ENDIF PrognosticSeaIceAlbedo
+    !$ACC END PARALLEL
 
     ! Store time tendencies (optional)
     IF (PRESENT(opt_dticedt)) THEN
+#ifdef _OPENACC
+        CALL finish ('seaice_timestep_nwp', 'OpenACC version currently does not support the optional argument opt_dticedt')
+#endif
       opt_dticedt(1:nsigb)  = dticedt(1:nsigb)
       IF (nsigb < SIZE(opt_dticedt)) THEN
         opt_dticedt(nsigb+1:) = 0._wp 
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhicedt)) THEN
+#ifdef _OPENACC
+        CALL finish ('seaice_timestep_nwp', 'OpenACC version currently does not support the optional argument opt_dhicedt')
+#endif
       opt_dhicedt(1:nsigb)  = dhicedt(1:nsigb)
       IF (nsigb < SIZE(opt_dhicedt)) THEN
         opt_dhicedt(nsigb+1:) = 0._wp
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtsnowdt)) THEN
+#ifdef _OPENACC
+        CALL finish ('seaice_timestep_nwp', 'OpenACC version currently does not support the optional argument opt_dtsnowdt')
+#endif
       opt_dtsnowdt(1:nsigb) = dtsnowdt(1:nsigb)
       IF (nsigb < SIZE(opt_dtsnowdt)) THEN
         opt_dtsnowdt(nsigb+1:)= 0._wp
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhsnowdt)) THEN
+#ifdef _OPENACC
+        CALL finish ('seaice_timestep_nwp', 'OpenACC version currently does not support the optional argument opt_dhsnowdt')
+#endif
       opt_dhsnowdt(1:nsigb) = dhsnowdt(1:nsigb)
       IF (nsigb < SIZE(opt_dhsnowdt)) THEN
         opt_dhsnowdt(nsigb+1:)= 0._wp
       ENDIF
     ENDIF
  
+    !$ACC WAIT
+    !$ACC END DATA
     !-----------------------------------------------------------------------------------------------
     !  End calculations
     !===============================================================================================
@@ -1083,17 +1061,14 @@ CONTAINS
   !!
 
   REAL (wp) FUNCTION alb_seaice_equil ( t_ice )
+    !$ACC ROUTINE SEQ
 
     IMPLICIT NONE
 
     ! Procedure arguments 
 
-    REAL(wp), INTENT(IN) ::           &
-                         &  t_ice       !< temperature of ice upper surface [K] 
+    REAL(wp), INTENT(IN) :: t_ice       !< temperature of ice upper surface [K]
 
-#ifdef _OPENACC
-    !$ACC ROUTINE SEQ
-#endif
 
     !===============================================================================================
     !  Start calculations
@@ -1111,43 +1086,5 @@ CONTAINS
     !===============================================================================================
 
   END FUNCTION alb_seaice_equil
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
-
-#ifdef ALLOC_WKARR
-!===================================================================================================
-
-SUBROUTINE seaice_wkarr_alloc (nproma, istat)
-
-  INTEGER, INTENT(IN)  :: nproma
-  INTEGER, INTENT(OUT) :: istat
-
-  istat = 0
-
-  ALLOCATE (                 &
-    dticedt  (nproma), &  !< time tendency of ice surface temperature [K/s] 
-    dhicedt  (nproma), &  !< time tendency of ice thickness [m/s] 
-    dtsnowdt (nproma), &  !< time tendency of snow surface temperature [K/s] 
-    dhsnowdt (nproma), &  !< time tendency of snow thickness [m/s] 
-    STAT=istat)
-
-END SUBROUTINE seaice_wkarr_alloc
-
-!===================================================================================================
-
-SUBROUTINE seaice_wkarr_dealloc (istat)
-
-  INTEGER, INTENT(OUT) :: istat
-
-  istat = 0
-
-  DEALLOCATE (                                  &
-    dticedt  , dhicedt  , dtsnowdt , dhsnowdt , &
-    STAT=istat)
-
-END SUBROUTINE seaice_wkarr_dealloc
-
-!===================================================================================================
-#endif
 
 END MODULE sfc_seaice
