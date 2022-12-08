@@ -1555,7 +1555,7 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) CREATE(iclbas, p_clbas)  IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) CREATE(iclbas, p_clbas) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%cldepth(jc,jb) = 0._wp

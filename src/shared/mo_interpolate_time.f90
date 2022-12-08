@@ -230,7 +230,7 @@ CONTAINS
     END IF
 
     ! DA: Need to list this%dataxxx in the PRESENT section for attach
-    !$ACC DATA PRESENT(interpolated,this)
+    !$ACC DATA PRESENT(interpolated, this)
     !$ACC DATA PRESENT(this%dataold, this%datanew)
     !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
     interpolated(:,:,:,:) = 0.0_wp
