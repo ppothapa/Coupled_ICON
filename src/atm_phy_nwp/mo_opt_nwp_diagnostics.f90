@@ -1585,7 +1585,7 @@ CONTAINS
     CALL set_acc_host_or_device(lzacc, lacc)
     !$ACC DATA &
     !$ACC   PRESENT(ceiling_height, ptr_patch) &
-    !$ACC   PRESENT(p_metrics%z_mc, prm_diag%clc, kstart_moist(jg)) &
+    !$ACC   PRESENT(p_metrics, prm_diag, kstart_moist(jg)) &
     !$ACC   CREATE(cld_base_found) &
     !$ACC   IF(lzacc)
     ! without halo or boundary  points:

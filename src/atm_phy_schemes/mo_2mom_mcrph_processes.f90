@@ -2264,7 +2264,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, rain, graupel, hail, ice, rain_ltable1, rain_ltable2, rain_ltable3)
+    !$ACC DATA PRESENT(atmo, rain, graupel, hail, ice, rain_ltable1, rain_ltable2, rain_ltable3, rain_coeffs)
     !$ACC PARALLEL DEFAULT(NONE)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, n_r, fr_q, fr_n, fr_n_i, fr_q_i, fr_n_g) &
     !$ACC   PRIVATE(fr_q_g, fr_n_h, fr_q_h, fr_n_tmp, fr_q_tmp) &
@@ -2706,7 +2706,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, snow, rain)
+    !$ACC DATA PRESENT(atmo, snow, rain, snow_coeffs)
     !$ACC PARALLEL DEFAULT(NONE)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, e_a, n_s, x_s, D_s, v_s) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
@@ -3715,7 +3715,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, snow, hail, graupel_ltable1, graupel_ltable2)
+    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, snow, hail, graupel_ltable1, graupel_ltable2, ltabdminwgg)
     !$ACC PARALLEL DEFAULT(NONE)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, p_a, d_trenn, qw_a, qi_a, n_0, lam, xmin) &
     !$ACC   PRIVATE(q_g, n_g, x_g, d_g, q_c, q_r, conv_n, conv_q)
@@ -3747,6 +3747,9 @@ CONTAINS
             if (luse_dmin_wetgrowth_table) then
               d_trenn = dmin_wg_gr_ltab_equi(p_a,T_a,qw_a,qi_a,ltabdminwgg)
             else
+#ifdef _OPENACC
+              CALL finish(routine, 'dmin_wetgrowth_fun not available on GPU')
+#endif
               d_trenn = dmin_wetgrowth_fun(p_a,T_a,qw_a,qi_a)
             end if
 
@@ -4304,7 +4307,7 @@ CONTAINS
 
    const1 = const0 * ptype%ecoll_c
 
-   !$ACC DATA PRESENT(ptype, cloud, rime_rate_qb, rime_rate_nb)
+   !$ACC DATA PRESENT(ptype, cloud, rime_rate_qb, rime_rate_nb, coeffs)
    !$ACC PARALLEL DEFAULT(NONE)
    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_p, n_p, x_p, d_p, v_p) &
    !$ACC   PRIVATE(q_c, n_c, x_c, d_c, v_c, e_coll, rime_n, rime_q)
@@ -4396,7 +4399,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb)
+    !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb, coeffs)
     !$ACC PARALLEL DEFAULT(NONE)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_a, n_a, x_a, d_a, v_a) &
     !$ACC   PRIVATE(q_r, n_r, x_r, d_r, v_r, rime_n, rime_qi, rime_qr)

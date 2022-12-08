@@ -395,7 +395,7 @@ CONTAINS
 
     ! .. set the particle types, but no calculations
     CALL init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
-    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo)
+    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo, ccn_coeffs, in_coeffs)
 
     ! .. convert to densities and set pointerns to two-moment module
     !    (pointers are used to avoid passing everything explicitly by argument and
@@ -589,7 +589,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo)
+    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo, ccn_coeffs, in_coeffs)
     !$ACC END DATA ! DATA CREATE PRESENT
 
 !   AS: Clip large values?? Why is that necessary? Who put that in?  

@@ -55,7 +55,7 @@ CONTAINS
 
     ! ... Transformation of microphysics variables to densities
     !$ACC DATA PRESENT(qv, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh) &
-    !$ACC   PRESENT(ninact, ninpot, nccn, rho) &
+    !$ACC   PRESENT(ninact, ninpot, nccn, rho, cloud) &
     !$ACC   PRESENT(rain, ice, snow, graupel, hail)
 
     !$ACC PARALLEL DEFAULT(NONE)
