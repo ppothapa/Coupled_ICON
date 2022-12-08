@@ -5727,9 +5727,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
       __acc_attach(phy_tend%ddt_tracer_gscp)
 
       IF (lart) THEN
-       ktracer=5 + nart_tendphy 
+       ktracer=6 + nart_tendphy 
       ELSE
-       ktracer=5
+       ktracer=6
       ENDIF
       ALLOCATE( phy_tend%tracer_gscp_ptr(ktracer) )
 
