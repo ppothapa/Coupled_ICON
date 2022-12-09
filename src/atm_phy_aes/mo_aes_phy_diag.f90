@@ -173,7 +173,7 @@ CONTAINS
     !$ACC DATA PRESENT(field) &
     !$ACC   CREATE(lland, lglac)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc=jcs,jce
       lland(jc) = field%sftlf (jc,jb) > 0._wp
@@ -181,7 +181,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zprat, zn1, zn2, zcdnc)
     DO jk = 1,nlev
       DO jc = jcs,jce

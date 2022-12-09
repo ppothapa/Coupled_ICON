@@ -90,7 +90,7 @@ CONTAINS
     !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, ssa_lw, od_lw, g_lw, ssa_sw, od_sw, g_sw)
 
     IF (ecrad_conf%do_lw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jband = 1, ecrad_conf%n_bands_lw
         DO jk = slev, nlev
@@ -114,7 +114,7 @@ CONTAINS
     ENDIF
 
     IF (ecrad_conf%do_sw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jband = 1, ecrad_conf%n_bands_sw
         DO jk = slev, nlev
@@ -216,7 +216,7 @@ CONTAINS
 
 ! LONGWAVE
     IF (ecrad_conf%do_lw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO jk = slev, nlev
 !NEC$ nointerchange
@@ -240,7 +240,7 @@ CONTAINS
 
 ! SHORTWAVE
     IF (ecrad_conf%do_sw) THEN
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3) PRIVATE(jband_shift, tau_abs, tau_sca)
       DO jk = slev, nlev
 !NEC$ nointerchange

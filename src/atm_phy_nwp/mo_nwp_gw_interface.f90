@@ -124,7 +124,7 @@ CONTAINS
     i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
 
     ! Set height-dependent limits for SSO momentum tendencies
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jk = 1, nlev
       jks = jk + p_patch%nshift_total
@@ -193,7 +193,7 @@ CONTAINS
         ! Reduce tendencies in uppermost layer by a factor of 8 because they tend to larger than the tendencies
         ! in the second layer by about this factor. This is also true at vertical nest interfaces
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_nwp_tend%ddt_u_sso(jc,1,jb) = 0.125_vp*prm_nwp_tend%ddt_u_sso(jc,1,jb)
@@ -205,7 +205,7 @@ CONTAINS
         ! Moreover, they tend to be much too strong in northern hemispheric winter, leading to a huge warm
         ! bias in the north polar middle stratosphere
         
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -215,7 +215,7 @@ CONTAINS
               SIGN(MIN(ssolim(jk),ABS(prm_nwp_tend%ddt_v_sso(jc,jk,jb))),prm_nwp_tend%ddt_v_sso(jc,jk,jb))
           ENDDO
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
 
       ELSE IF (lcall_sso_jg .AND. atm_phy_nwp_config(jg)%inwp_sso == 2) THEN
         ! SSO from IFS code 41r2
@@ -276,7 +276,7 @@ CONTAINS
       IF (lcall_gwd_jg .AND. atm_phy_nwp_config(jg)%inwp_gwd == 1) THEN
 
         ! get total precipitation rate [kg/m2/s] ==> input for gwdrag_wms
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc =  i_startidx, i_endidx
           ztot_prec_rate(jc) = prm_diag%rain_gsp_rate (jc,jb) &  ! rain_gsp
@@ -314,7 +314,7 @@ CONTAINS
         ! Reduce tendencies in uppermost layer by a factor of 8 because they tend to larger than the tendencies
         ! in the second layer by about this factor. This is also true at vertical nest interfaces
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           prm_nwp_tend%ddt_u_gwd(jc,1,jb) = 0.125_vp*prm_nwp_tend%ddt_u_gwd(jc,1,jb)

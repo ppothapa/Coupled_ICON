@@ -682,7 +682,7 @@ CONTAINS
     !$ACC   IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       r_m = 0._wp
       !$ACC END KERNELS
     ENDIF

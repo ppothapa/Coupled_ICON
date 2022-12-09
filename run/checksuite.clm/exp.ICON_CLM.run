@@ -458,10 +458,7 @@ itype_sher = 1
 	  a_hshr        = 2.0
 	/
 	&lnd_nml
-	  sstice_mode    = 2   ! 4: SST and sea ice fraction are updated daily,
-	                       !    based on actual monthly means
-	                       !    has to be set to 6 again as soon as bugfix for 
-	                       !    mo_reader_sst_sic.f90 is available
+	  sstice_mode    = 6
       ci_td_filename = '${INPUTDIR}/exp001/latbc/LOWBC_1979_01.nc'
       sst_td_filename= '${INPUTDIR}/exp001/latbc/LOWBC_1979_01.nc'
 	  ntiles         = 3

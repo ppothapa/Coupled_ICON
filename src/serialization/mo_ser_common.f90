@@ -280,7 +280,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
@@ -325,7 +325,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       call is_close(ref(i), cur(i), abs_threshold, rel_threshold, rel_diff(i), abs_diff(i), out)
@@ -380,7 +380,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -438,7 +438,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -499,7 +499,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -561,7 +561,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
@@ -606,7 +606,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       call is_close(ref(i), cur(i), abs_threshold, rel_threshold, rel_diff(i), abs_diff(i), out)
@@ -661,7 +661,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -719,7 +719,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -780,7 +780,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -843,7 +843,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
@@ -890,7 +890,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       call is_close(ref(i), cur(i), abs_threshold, rel_threshold, rel_diff(i), abs_diff(i), out)
@@ -947,7 +947,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -1007,7 +1007,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -1070,7 +1070,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
       DO j=1,size(cur, 2)
@@ -1130,7 +1130,7 @@ MODULE mo_ser_common
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lopenacc)
     IF (ref .NEQV. cur) THEN
       n_fail = 1
     ENDIF

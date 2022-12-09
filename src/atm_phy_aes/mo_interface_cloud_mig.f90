@@ -171,7 +171,7 @@ CONTAINS
           !
           IF (ltimer) CALL timer_stop(timer_cld_mig)
 
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR
           DO jc = jcs,jce
              field% rsfl(jc,jb) = pr_rain(jc)
@@ -213,7 +213,7 @@ CONTAINS
        CASE(0)
           ! diagnostic, do not use tendency
        CASE(1)
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = jks,jke
             DO jc = jcs,jce
@@ -239,7 +239,7 @@ CONTAINS
          CASE(0)
             ! diagnostic, do not use tendency
          CASE(1)
-             !$ACC PARALLEL DEFAULT(NONE)
+             !$ACC PARALLEL DEFAULT(PRESENT)
              !$ACC LOOP GANG VECTOR COLLAPSE(2)
              DO jk = jks,jke
                DO jc = jcs,jce

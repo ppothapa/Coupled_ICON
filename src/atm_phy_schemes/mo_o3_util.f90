@@ -319,7 +319,7 @@ CONTAINS
     ! one might prefer to initialize the entire field with some value
     IF (PRESENT(opt_o3_initval)) THEN
       o3_initval = opt_o3_initval
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
       o3_clim(:,:) = o3_initval
       !$ACC END KERNELS
     ENDIF
@@ -330,12 +330,12 @@ CONTAINS
     ! the ozone climatology to the value in the uppermost level of 
     ! the ozone climatology
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     jk1(:)     = 1
     kk_flag(:) = .TRUE.
     !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk = 1,klev
        !$ACC LOOP GANG VECTOR
@@ -352,12 +352,12 @@ CONTAINS
     ! set ozone concentration at levels below the lowermost level of
     ! the ozone climatology to the value in the lowermost level of 
     ! the ozone climatology
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     jkn(:)=klev
     kk_flag(:) = .TRUE.
     !$ACC END KERNELS
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk = klev,1,-1
        !$ACC LOOP GANG VECTOR
@@ -372,7 +372,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
     
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) VECTOR_LENGTH(64) IF(use_acc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) VECTOR_LENGTH(64) IF(use_acc)
     !$ACC LOOP SEQ
     DO jk=1,klev
        !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -414,7 +414,7 @@ CONTAINS
        ! integrate ozone profile on grid of climatology
        ! from top to surface
        ! ----------------------------------------------
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=jcs,jce
       zozintc(jl)=0._wp
@@ -464,7 +464,7 @@ CONTAINS
        ! ozone integral computed on the model grid is equal
        ! to that integrated on the grid of the climatology
        ! --------------------------------------------------
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(use_acc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,klev
        DO jl=jcs,jce
@@ -1234,24 +1234,24 @@ CONTAINS
         RCLPR(JK) =ZPRESH(JK)
       ENDIF
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     ! Preparations for latitude interpolations
 
     zlatint=180._wp/REAL(ilat,wp)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO jl=0,ilat+1
       zlat(jl)=(-90._wp+0.5_wp*zlatint+(jl-1)*zlatint)*deg2rad
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     ! volume mixing ratio to ozone pressure thickness
 
     SELECT CASE (irad_o3)
     CASE (7)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,nlev_gems
         DO jl=1,ilat
@@ -1275,7 +1275,7 @@ CONTAINS
     CASE (79,97) ! blending between GEMS and MACC
 
       ! Latitude-dependent weight for using MACC in the Antarctic region
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jl = 1, ilat
         IF (zlat(jl)*rad2deg > -45._wp) THEN
           wfac_lat(jl) = 0._wp
@@ -1285,7 +1285,7 @@ CONTAINS
           wfac_lat(jl) = 1._wp
         ENDIF
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
       IF (irad_o3 == 97) THEN
 #ifdef _OPENACC
@@ -1302,15 +1302,15 @@ CONTAINS
           ENDIF
         ENDDO
       ELSE
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO jk = 1, nlev_gems
           wfac_p(jk) = 0._wp
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       ! Latitude mask field for tropics (used for ozone enhancement from January to May)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jl = 1, ilat
         IF (ABS(zlat(jl))*rad2deg > 30._wp) THEN
           wfac_tr(jl) = 0._wp
@@ -1320,7 +1320,7 @@ CONTAINS
           wfac_tr(jl) = 1._wp
         ENDIF
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
       ! Pressure mask field for tropics (used for ozone enhancement from January to May)
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
@@ -1394,7 +1394,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, o3_macc1, o3_macc2) &
       !$ACC   PRIVATE(o3_gems1, o3_gems2, trfac)
       DO jk=1,nlev_gems
@@ -1432,12 +1432,12 @@ CONTAINS
       ENDDO
     END SELECT 
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO jk=1,nlev_gems
       zozn(0,JK)      = zozn(1,jk)
       zozn(ilat+1,jk) = zozn(ilat,jk)
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     
     ! nest boudaries have to be included for reduced-grid option
     rl_start = 1
@@ -1458,7 +1458,7 @@ CONTAINS
 
       ! Latitude interpolation
       
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zjl)
       DO jkk=1,nlev_gems
 
@@ -1484,7 +1484,7 @@ CONTAINS
       ! ACCUMULATE FROM TOP TO BOTTOM THE LATITUDE INTERPOLATED FIELDS
       ! From radghg.F90 of ECMWF's IFS.
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc=i_startidx,i_endidx
         zozovi(jc,0) = 0._wp
@@ -1503,15 +1503,15 @@ CONTAINS
       ! Adapted from radghg.F90 of ECMWF's IFS.
 
       jk = 0
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc=i_startidx,i_endidx
         zviozo(jc,0) = 0._wp
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
       jk_start = 0
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRIVATE(lfound_all) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(lfound_all) IF(lacc)
       !$ACC LOOP SEQ
       DO jk = 0,pt_patch%nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -1561,7 +1561,7 @@ CONTAINS
 
       ! COMPUTE THE MASS MIXING RATIO
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zadd_o3)
       DO jk = 1,pt_patch%nlev
 !DIR$ IVDEP
@@ -1589,7 +1589,7 @@ CONTAINS
       ! in order to get a sharp jump at the tropopause, using the climatological values at 100 hPa (375 hPa) as
       ! proxies for the lower stratospheric (tropospheric) ozone values
       IF (icpl_o3_tp == 1) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,pt_patch%nlev-1
           DO jc = i_startidx,i_endidx
@@ -1602,7 +1602,7 @@ CONTAINS
 
         lk100_less_than_0 = .FALSE.
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR PRIVATE(k375, dzsum, dtdzavg, ktp, tpshp, wfac) &
         !$ACC   PRIVATE(k100, wfac2, jkk, o3_clim) REDUCTION(.OR.: lk100_less_than_0)
         DO jc = i_startidx,i_endidx

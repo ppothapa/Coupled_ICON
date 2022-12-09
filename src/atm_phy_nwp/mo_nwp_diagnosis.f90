@@ -1191,7 +1191,7 @@ CONTAINS
       !
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
       CASE(4,5,6,7)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                &                        + prm_diag%ice_gsp_rate(jc,jb)   &
@@ -1200,9 +1200,9 @@ CONTAINS
                &                        + prm_diag%graupel_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE(2)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                ! not sure what to do with ice. To be consistent to prm_diag%prec_gsp, where ice is neglected
@@ -1212,9 +1212,9 @@ CONTAINS
                &                        + prm_diag%graupel_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE (1)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
                ! not sure what to do with ice. To be consistent to prm_diag%prec_gsp, where ice is neglected
@@ -1223,32 +1223,32 @@ CONTAINS
                &                        + prm_diag%snow_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE (9)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%prec_gsp_rate(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       CASE default
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = 0.0_wp
           prm_diag%tot_prec_rate(jc,jb) = 0.0_wp
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       END SELECT
       !
       ! Add convective contributions to the total precipitation rate:
       !
       IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           prm_diag%tot_prec_rate(jc,jb) = prm_diag%tot_prec_rate(jc,jb) + prm_diag%rain_con_rate(jc,jb) + &
                &                          prm_diag%snow_con_rate(jc,jb)
         ENDDO  ! jc
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       END IF
 
    
@@ -1256,7 +1256,7 @@ CONTAINS
         !
         ! height of convection base and top, hbas_con, htop_con
         ! 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF ( prm_diag%locum(jc,jb) ) THEN
@@ -1327,7 +1327,7 @@ CONTAINS
       ! occurrences, use orography height if temperature is below freezing in all levels
       !
       ! Initialization with orography height
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx 
         prm_diag%hzerocl(jc,jb) = p_metrics%z_ifc(jc,nlevp1,jb)
@@ -1377,26 +1377,26 @@ CONTAINS
       ! the temperatures of sea-ice tiles and frozen lake tiles. Mixing this field 
       ! with aggeregated t_so values makes no sense from my point of view.
       IF ( (ntiles_total == 1) .AND. (atm_phy_nwp_config(jg)%inwp_surface > 0)) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx 
           p_prog_wtr_now%t_ice(jc,jb) = MERGE(                               &
             &                           lnd_diag%t_so(jc,1,jb),              &
             &                           p_prog_wtr_now%t_ice(jc,jb),         &
             &                           p_prog_wtr_now%h_ice(jc,jb) <= 0._wp )
         ENDDO  !jc
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ENDIF
 
 
 
       ! Compute resolved surface drag: ps * del(orog)
  
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = i_startidx, i_endidx
          prm_diag%drag_u_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(1,jc,jb)
          prm_diag%drag_v_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(2,jc,jb)
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
@@ -1417,14 +1417,14 @@ CONTAINS
             &                prm_diag%mbas_con (:,jb), prm_diag%mtop_con(:,jb),          &
             &                time_diff, prm_diag%iww(:,jb), lacc=lzacc )
 !       Save precipitation and time until next call of ww_diagnostics
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx
           prm_diag%rain_gsp0(jc,jb) = prm_diag%rain_gsp(jc,jb)
           prm_diag%rain_con0(jc,jb) = prm_diag%rain_con(jc,jb)
           prm_diag%snow_gsp0(jc,jb) = prm_diag%snow_gsp(jc,jb)
           prm_diag%snow_con0(jc,jb) = prm_diag%snow_con(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       !
@@ -1555,8 +1555,7 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(NONE) CREATE(iclbas, p_clbas) IF(lzacc) &
-      !$ACC   PRESENT(pt_diag, prm_diag)
+      !$ACC PARALLEL DEFAULT(PRESENT) CREATE(iclbas, p_clbas) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%cldepth(jc,jb) = 0._wp
