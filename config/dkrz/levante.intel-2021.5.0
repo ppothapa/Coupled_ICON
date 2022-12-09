@@ -112,13 +112,13 @@ ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?
 flag_set=default
 case $flag_set in
   default)
-    CFLAGS="${CFLAGS} ${ARCH} -fma -ip -pc64 -std=gnu99"
+    CFLAGS="${CFLAGS} -fma -ip -pc64 -std=gnu99"
     ICON_CFLAGS='-O3 -ftz'
     ICON_FCFLAGS="${ICON_FCFLAGS} -O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip -D__SWAPDIM -DOCE_SOLVE_OMP"
     ;;
   experimental) # THIS IS NOT RECOMMENDED: (a) no bit-identity (b) no numerical stability guarantied (c) building takes very long
     FAST="-ipo -O3 -no-prec-div  -fp-model fast=2 -fast-transcendentals -no-prec-sqrt"
-    CFLAGS="${CFLAGS} ${ARCH} -fma -ip -pc64 -std=gnu99"
+    CFLAGS="${CFLAGS} -fma -ip -pc64 -std=gnu99"
     ICON_CFLAGS='-O3 -ftz'
     ICON_BUNDLED_CFLAGS=${ICON_CFLAGS}
     ICON_FCFLAGS="${ICON_FCFLAGS} -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip -D__SWAPDIM -DOCE_SOLVE_OMP ${FAST}"
