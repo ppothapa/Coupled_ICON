@@ -1333,7 +1333,10 @@ CONTAINS
 #ifdef _OPENACC
     IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
         ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_RH) THEN
+        ptr_task%job_type /= TASK_COMPUTE_RH .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZCMAX .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZLMX_LOW .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZ850) THEN
       CALL warning('pp_task_compute_field','untested postproc job-type on GPU for variable '//TRIM(p_info%name) )
     ENDIF
 #endif
@@ -1435,7 +1438,7 @@ CONTAINS
 
     CASE (TASK_COMPUTE_DBZ850)
       CALL compute_field_dbz850( p_patch, prm_diag%k850(:,:), prm_diag%dbz3d_lin(:,:,:), &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZLMX_LOW)
       ! NOTE: The layer bounds 1000 m and 2000 m were found more appropriate than the fixed bounds
@@ -1445,11 +1448,11 @@ CONTAINS
       !       changing the fixed bounds in the eccodes definitions.
       CALL compute_field_dbzlmx( p_patch, jg, 1000.0_wp, 2000.0_wp, &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag%dbz3d_lin(:,:,:), &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZCMAX)
       CALL compute_field_dbzcmax( p_patch, jg, prm_diag%dbz3d_lin(:,:,:),            &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_SMI)
       CALL compute_field_smi(p_patch, p_lnd_state(jg)%diag_lnd, &

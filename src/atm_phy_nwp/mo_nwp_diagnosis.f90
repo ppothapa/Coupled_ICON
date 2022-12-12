@@ -1895,34 +1895,25 @@ CONTAINS
 
       IF (l_need_dbz3d) THEN
         CALL compute_field_dbz3d_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
-             &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin )
+             &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin, lacc=.TRUE. )
       END IF
 
       ! output of dbz_ctmax (column maximum reflectivity during a time interval (namelist param. celltracks_interval) is required
       IF ( var_in_output(jg)%dbzctmax .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('dbzctmax')
-#endif
-        CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax )
+        CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax, lacc=.TRUE.)
       END IF
 
       ! output of echotop (minimum pressure where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotop .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('echotop')
-#endif
-        CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop )
+        CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop, lacc=.TRUE. )
       END IF
 
       ! output of echotopinm (maximum height where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('echotopinm')
-#endif
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
-                                        prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm )
+                                        prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm, lacc=.TRUE. )
       END IF
     END DO
 

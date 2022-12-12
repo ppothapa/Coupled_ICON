@@ -4659,7 +4659,9 @@ __acc_attach(diag%clct)
                   &             vert_intp_method=VINTP_METHOD_LIN,             &
                   &             l_loglin=.FALSE., l_pd_limit=.FALSE.,          &
                   &             l_extrapol=.FALSE., lower_limit=0._wp),        &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),           &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz3d_lin)
     END IF
     
     IF (var_in_output%dbzcmax) THEN
@@ -4674,7 +4676,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZCMAX,                &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_cmax)
     END IF
 
     IF (var_in_output%dbz850) THEN
@@ -4688,7 +4692,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZ850,                 &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_850)
     END IF
 
     IF (var_in_output%dbzlmx_low) THEN
@@ -4715,7 +4721,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZLMX_LOW,             &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbzlmx_low)
     END IF
 
     IF (var_in_output%dbzctmax) THEN
@@ -4734,7 +4742,9 @@ __acc_attach(diag%clct)
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
                   & resetval=0.0_wp, initval=0.0_wp,                            &
                   & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), & 
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp)             )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),            &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_ctmax)
     END IF
 
     IF (var_in_output%echotop) THEN
@@ -4757,7 +4767,9 @@ __acc_attach(diag%clct)
                   & hor_interp=create_hor_interp_metadata(                      &
                   &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
 !!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
-                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
+                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%echotop)
     END IF
 
     IF (var_in_output%echotopinm) THEN
@@ -4780,7 +4792,9 @@ __acc_attach(diag%clct)
                   & hor_interp=create_hor_interp_metadata(                      &
                   &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
 !!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
-                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
+                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%echotopinm)
     END IF
 
 

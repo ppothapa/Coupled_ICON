@@ -3759,7 +3759,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision  :  U. Blahak, DWD (2020-01-20)
   
-  SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin)
+  SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin, lacc)
 
     INTEGER, INTENT(in)  :: jg
     ! patch on which computation is performed:
@@ -3770,6 +3770,7 @@ CONTAINS
     TYPE(t_nh_diag), INTENT(IN)       :: p_diag
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
     REAL(wp),        INTENT(OUT)      :: dbz3d_lin(:,:,:)  !< reflectivity in mm^6/m^3
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc              !< initialization flag
 
     ! local variables
     CHARACTER(len=*), PARAMETER :: routine = modname//': compute_field_dbz3d_lin'
@@ -3781,7 +3782,9 @@ CONTAINS
     REAL(wp), ALLOCATABLE, DIMENSION(:,:,:), TARGET :: dummy0
     REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
 
-    
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
 #ifdef HAVE_RADARFWO
     IF ( synradar_meta%itype_refl == 4 ) THEN
 #endif
@@ -3839,7 +3842,8 @@ CONTAINS
              q_rain    = p_prog_rcf%tracer(:,:,:,iqr),     &
              q_snow    = p_prog_rcf%tracer(:,:,:,iqs),     &
              n_cloud_s = qnc_s(:,:),                       &  ! 1/kg
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
       CASE ( 2 )
 
@@ -3878,10 +3882,13 @@ CONTAINS
              q_snow    = p_prog_rcf%tracer(:,:,:,iqs),     &
              q_graupel = p_prog_rcf%tracer(:,:,:,iqg),     &
              n_cloud_s = qnc_s(:,:),                       &  ! 1/kg
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
       CASE ( 4, 5, 6 )
-
+#ifdef _OPENACC
+        CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
+#endif
         CALL compute_field_dbz_2mom( npr       = nproma,                           &
              nlev      = ptr_patch%nlev,                   &
              nblks     = ptr_patch%nblks_c,                &
@@ -3913,11 +3920,14 @@ CONTAINS
              n_snow    = p_prog_rcf%tracer(:,:,:,iqns),    &
              n_graupel = p_prog_rcf%tracer(:,:,:,iqng),    &
              n_hail    = p_prog_rcf%tracer(:,:,:,iqnh),    &
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
 
       CASE ( 7 )
-
+#ifdef _OPENACC
+        CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
+#endif
         CALL compute_field_dbz_2mom( npr       = nproma,                           &
              nlev      = ptr_patch%nlev,                   &
              nblks     = ptr_patch%nblks_c,                &
@@ -3951,7 +3961,8 @@ CONTAINS
              n_hail    = p_prog_rcf%tracer(:,:,:,iqnh),    &
              ql_graupel= p_prog_rcf%tracer(:,:,:,iqgl),    &
              ql_hail   = p_prog_rcf%tracer(:,:,:,iqhl),    &
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
 
       CASE DEFAULT
@@ -4018,7 +4029,9 @@ CONTAINS
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
           ! Mie- or T-matrix scattering from EMVORADO:
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_mie_1mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_mie_1mom_vec( &
                myproc         = get_my_mpi_work_id(), &
                lambda_radar   = synradar_meta%lambda_radar, &
@@ -4073,7 +4086,9 @@ CONTAINS
                )
 
         CASE ( 3 )
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_rayleigh_oguchi_1mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_rayleigh_oguchi_1mom_vec( &
                myproc         = get_my_mpi_work_id(), &
                lambda_radar   = synradar_meta%lambda_radar, &
@@ -4159,7 +4174,9 @@ CONTAINS
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
           ! Mie-scattering from EMVORADO:
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_mie_2mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_mie_2mom_vec( &
                myproc           = get_my_mpi_work_id(), &
                lambda_radar     = synradar_meta%lambda_radar, &
@@ -4230,7 +4247,9 @@ CONTAINS
                )
 
         CASE ( 3 )
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_rayleigh_oguchi_2mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_rayleigh_oguchi_2mom_vec( &
                myproc         = get_my_mpi_work_id(), &
                lambda_radar   = synradar_meta%lambda_radar, &
@@ -4300,7 +4319,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax )
+  SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax, lacc )
 
     IMPLICIT NONE
 
@@ -4309,11 +4328,20 @@ CONTAINS
     REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
 
     REAL(wp),             INTENT(OUT) :: dbz_cmax(:,:)  !< output variable, dim: (nproma,nblks_c)
+    
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc           !< initialization flag
+
+    REAL(wp) :: most_negative_value
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_cmax, kstart_moist(jg:jg), ptr_patch) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -4322,27 +4350,32 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
+    most_negative_value = -HUGE(1.0_wp)
 
 !$OMP PARALLEL
+    CALL init(dbz_cmax(:,i_startblk:i_endblk), most_negative_value)
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        dbz_cmax(:,jb) = -HUGE(1.0_wp)
-
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
 
             dbz_cmax(jc,jb) = MAX (dbz_cmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
           END DO
         END DO
-      
+        !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbzcmax
 
@@ -4352,7 +4385,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax )
+  SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax, lacc )
 
     IMPLICIT NONE
 
@@ -4362,10 +4395,17 @@ CONTAINS
 
     REAL(wp),             INTENT(INOUT) :: dbz_ctmax(:,:)  !< input/output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_ctmax, kstart_moist(jg:jg), ptr_patch) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -4381,17 +4421,23 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
 
             dbz_ctmax(jc,jb) = MAX (dbz_ctmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
           END DO
         END DO
-      
+        !$ACC END PARALLEL
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE maximize_field_dbzctmax
 
@@ -4401,7 +4447,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850 )
+  SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850, lacc )
 
     IMPLICIT NONE
 
@@ -4411,10 +4457,17 @@ CONTAINS
 
     REAL(wp),             INTENT(OUT) :: dbz_850(:,:)  !< output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_850, k850) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -4423,16 +4476,16 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
-
 !$OMP PARALLEL
+    CALL init(dbz_850(:,i_startblk:i_endblk))
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      dbz_850( :,jb) = 0.0_wp
-
+      
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(jk)
       DO jc = i_startidx, i_endidx
 
         jk = k850(jc,jb)
@@ -4443,10 +4496,13 @@ CONTAINS
         dbz_850(jc,jb) = dbz3d_lin(jc,jk,jb)
 
       END DO
+      !$ACC END PARALLEL
       
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbz850
 
@@ -4464,7 +4520,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
   !!
-  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx )
+  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx, lacc )
 
     IMPLICIT NONE
 
@@ -4477,11 +4533,19 @@ CONTAINS
 
     REAL(wp),             INTENT(OUT) :: dbzlmx(:,:)  !< output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
     INTEGER  :: jb, jk, jc, nlevp1
     REAL(wp) :: zml
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbzlmx, dbz3d_lin, kstart_moist(jg:jg), ptr_patch, p_metrics, p_metrics%z_mc, p_metrics%z_ifc) &
+    !$ACC   IF(lzacc)
 
     nlevp1 = ptr_patch%nlev+1
     
@@ -4492,17 +4556,18 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
-
 !$OMP PARALLEL
+    CALL init(dbzlmx(:,i_startblk:i_endblk))
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zml), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      dbzlmx( :,jb) = 0.0_wp
-
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
+        !$ACC LOOP GANG VECTOR PRIVATE(zml)
         DO jc = i_startidx, i_endidx
 
           zml = p_metrics%z_mc(jc,jk,jb) - p_metrics%z_ifc(jc,nlevp1,jb)
@@ -4515,10 +4580,13 @@ CONTAINS
 
         END DO
       END DO
-      
+      !$ACC END PARALLEL
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbzlmx
 
@@ -4528,7 +4596,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p )
+  SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p, lacc )
 
     IMPLICIT NONE
 
@@ -4539,6 +4607,8 @@ CONTAINS
 
     REAL(wp),             INTENT(INOUT) :: echotop_p(:,:,:)  !< input/output variable, dim: (nproma,nechotop,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER               :: i_rlstart,  i_rlend
     INTEGER               :: i_startblk, i_endblk
     INTEGER               :: i_startidx, i_endidx
@@ -4548,6 +4618,12 @@ CONTAINS
     REAL(wp)              :: zthresh, zzthresh, zpA, zpB, zzdbzA,  zzdbzB
 
     REAL(wp), PARAMETER   :: repsilon = 1.0E8_wp*TINY(1.0_wp)  ! To prevent numerical division by 0 below
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA CREATE(jk_echotop) PRESENT(dbz3d_lin, echotop_p, kstart_moist(jg:jg), ptr_patch, p_diag, p_diag%pres) &
+    !$ACC   IF(lzacc)
     
     ! NOTE: pressure does not have to be recomputed/diagnosed here because this was already done when computing
     !       dbz3d_lin in the call to compute_field_dbz3d_lin() in mo_nh_stepping().
@@ -4572,9 +4648,17 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        
         ! Find the model level just below the echotop:
-        jk_echotop(:)  = -999
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          jk_echotop(jc)  = -999
+        END DO
+
+        !$ACC LOOP SEQ
         DO jk = MAX(kstart_moist(jg),2), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF ( jk_echotop(jc) < -900 .AND. dbz3d_lin(jc,jk,jb) >= zthresh ) THEN
               jk_echotop(jc) = jk
@@ -4583,6 +4667,7 @@ CONTAINS
         END DO
 
         ! Interpolate the exact echotop pressure log-linearily and take the min to the pre-existing "old" value:
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk, pechotop, zpA, zpB, zzdbzA, zzdbzB)
         DO jc = i_startidx, i_endidx
           IF (jk_echotop(jc) >= -900) THEN
             jk = jk_echotop(jc)
@@ -4603,12 +4688,16 @@ CONTAINS
             END IF
           END IF
         END DO
-        
+
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_echotop
 
@@ -4618,7 +4707,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z )
+  SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z, lacc )
 
     IMPLICIT NONE
 
@@ -4628,6 +4717,8 @@ CONTAINS
     REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
 
     REAL(wp),             INTENT(INOUT) :: echotop_z(:,:,:)  !< input/output variable, dim: (nproma,nechotop,nblks_c)
+
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
 
     INTEGER               :: i_rlstart,  i_rlend
     INTEGER               :: i_startblk, i_endblk
@@ -4639,8 +4730,13 @@ CONTAINS
 
     REAL(wp), PARAMETER   :: repsilon = 1.0E8_wp*TINY(1.0_wp)  ! To prevent numerical division by 0 below
 
-    
-    
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA CREATE(jk_echotop) &
+    !$ACC   PRESENT(dbz3d_lin, echotop_z, kstart_moist(jg:jg), ptr_patch, p_metrics, p_metrics%z_mc) &
+    !$ACC   IF(lzacc)
+
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -4661,9 +4757,17 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+
         ! Find the model level just below the echotop:
-        jk_echotop(:)  = -999
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          jk_echotop(jc)  = -999
+        END DO
+
+        !$ACC LOOP SEQ
         DO jk = MAX(kstart_moist(jg),2), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF ( jk_echotop(jc) < -900 .AND. dbz3d_lin(jc,jk,jb) >= zthresh ) THEN
               jk_echotop(jc) = jk
@@ -4672,6 +4776,7 @@ CONTAINS
         END DO
 
         ! Interpolate the exact echotop height linearily and take the max to the pre-existing "old" value:
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk, zA, zB, zechotop, zzdbzA, zzdbzB)
         DO jc = i_startidx, i_endidx
           IF (jk_echotop(jc) >= -900) THEN
             jk = jk_echotop(jc)
@@ -4688,12 +4793,16 @@ CONTAINS
             echotop_z (jc,lev_etop,jb) = MAX(echotop_z(jc,lev_etop,jb), zechotop)
           END IF
         END DO
-        
+
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_echotopinm
 

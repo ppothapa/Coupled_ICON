@@ -31,6 +31,7 @@ MODULE mo_opt_nwp_reflectivity
   USE mo_2mom_mcrph_util,       ONLY: gfct
   USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
   USE mo_exception,             ONLY: finish, message
+  USE mo_fortran_tools,         ONLY: set_acc_host_or_device
   
   IMPLICIT NONE
 
@@ -56,7 +57,7 @@ CONTAINS
                                      rho_w, rho_ice,                                     &
                                      K_w, K_ice, T_melt, igscp, q_crit_radar,            &
                                      T, rho, q_cloud, q_rain, q_ice, q_snow, z_radar,    &
-                                     q_graupel, n_cloud_s )
+                                     q_graupel, n_cloud_s, lacc )
  
    !------------------------------------------------------------------------------
     !
@@ -112,6 +113,7 @@ CONTAINS
                                   q_snow(:,:,:)
     REAL(wp), INTENT(IN), OPTIONAL :: q_graupel(:,:,:), n_cloud_s(:,:)
     REAL(wp), INTENT(OUT)      :: z_radar(:,:,:)
+    LOGICAL, OPTIONAL, INTENT(IN)  :: lacc              !< initialization flag
 
     ! Local Variables
     !----------------
@@ -153,7 +155,9 @@ CONTAINS
     REAL(wp) :: zdebug
 
     CHARACTER(len=250) :: message_text
-    
+
+    LOGICAL :: lzacc             ! OpenACC flag
+
 !------------------------------------------------------------------------------
 
     ! Number of activate ice crystals;  ztx is temperature. Statement functions
@@ -161,6 +165,8 @@ CONTAINS
     fxna_cooper(ztx,ztmelt) = 5.0E+0_wp * EXP(0.304_wp * (ztmelt - ztx))  ! 1/m^3
 
 !------------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (lmessage_light .OR. lmessage_full) THEN
       message_text(:) = ' '
@@ -260,6 +266,7 @@ CONTAINS
       
     ENDIF
 
+    !$ACC DATA COPYIN(n_cloud_s) PRESENT(q_cloud, q_graupel, q_ice, q_rain, q_snow, rho, T, z_radar) IF(lzacc)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,ztc,zn0s,nn,hlp,alf,bet,m2s,m3s, &
@@ -278,6 +285,10 @@ CONTAINS
         i_endidx = npr
       ENDIF
 
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) &
+      !$ACC   PRIVATE(alf, bet, hlp, m2s, m3s, nn, n_i, rho_c, rho_i, rho_r, rho_s, x_c, x_i_mono, zn0s, ztc) &
+      !$ACC   PRIVATE(z_cloud, z_ice, z_rain, z_snow)
       DO jk = jk_start, nlev
         DO jc = i_startidx, i_endidx
 
@@ -366,7 +377,7 @@ CONTAINS
       ENDDO
 
       IF (igscp == 2) THEN
-
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(rho_g, z_grau)
         DO jk = jk_start, nlev
           DO jc = i_startidx, i_endidx
             rho_g = q_graupel(jc,jk,jb) * rho(jc,jk,jb)
@@ -379,17 +390,22 @@ CONTAINS
 
       END IF
 
+      !$ACC END PARALLEL
+
     ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF ( lmessage_light .OR. lmessage_full ) THEN
+      !$ACC UPDATE HOST(z_radar) IF(lzacc)
       zdebug = MAXVAL(z10olog10 * LOG(z_radar + eps))
       message_text(:) = ' '
       WRITE (message_text, '(a,i4,a,1x,f6.1)') 'reflectivity statistics on proc ',my_id_for_message, &
            ': MAX dBZ tot : ', zdebug
       CALL message (TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     ENDIF
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbz_1mom
 
@@ -407,7 +423,7 @@ CONTAINS
                                      K_w, K_ice, T_melt, q_crit_radar, T, rho,              &
                                      q_cloud, q_rain, q_ice, q_snow, q_graupel, q_hail,     &
                                      n_cloud, n_rain, n_ice, n_snow, n_graupel, n_hail,     &
-                                     ql_graupel, ql_hail, z_radar )
+                                     ql_graupel, ql_hail, z_radar, lacc )
 
     !------------------------------------------------------------------------------
     !
@@ -483,6 +499,8 @@ CONTAINS
     
     REAL(wp), INTENT(OUT) :: z_radar(:,:,:)
 
+    LOGICAL, OPTIONAL, INTENT(IN)  :: lacc              !< initialization flag
+
     ! Local Variables
     !----------------
 
@@ -512,6 +530,10 @@ CONTAINS
 
     TYPE(particle)        :: cloud, rain
     TYPE(particle_frozen) :: ice, snow, graupel, hail
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
 !!$ LWF scheme not yet implemented:    CLASS(particle_lwf)    :: graupel_lwf, hail_lwf
 
     IF (lmessage_light .OR. lmessage_full) THEN
@@ -553,6 +575,10 @@ CONTAINS
       firstcall = .FALSE.
     ENDIF
 
+    !$ACC DATA COPYIN(cloud, graupel, hail, ice, rain, snow) &
+    !$ACC   PRESENT(n_cloud, n_graupel, n_hail, n_ice, n_rain, n_snow, ql_graupel, ql_hail) &
+    !$ACC   PRESENT(q_cloud, q_graupel, q_hail, q_ice, q_rain, q_snow, rho, T, z_radar) &
+    !$ACC   IF(lzacc)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,T_a,q_c,n_c,q_r,n_r,q_i,n_i,q_s,n_s,q_g,n_g,q_h,n_h, &
@@ -571,6 +597,10 @@ CONTAINS
         i_endidx = npr
       ENDIF
 
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+      !$ACC   PRIVATE(d_r, muD, n_c, n_g, n_h, n_i, n_r, n_s, q_c, q_g, q_h, q_i, q_r, q_s, T_a) &
+      !$ACC   PRIVATE(x_c, x_g, x_h, x_i, x_r, x_s, z_fac_r_muD)
       DO jk = jk_start, nlev
         DO jc = i_startidx, i_endidx
 
@@ -651,11 +681,13 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF (lmessage_light .OR. lmessage_full ) THEN
+      !$ACC UPDATE HOST(z_radar) IF(lzacc)
       message_text(:) = ' '
       WRITE (message_text, '(A,i4,2(A,F10.1))') 'on proc ',my_id_for_message,': '// &
            'MAX dBZ = ', &
@@ -664,6 +696,8 @@ CONTAINS
            MINVAL(10.0_wp / LOG(10.0_wp) * LOG(z_radar + eps))
       CALL message(TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     END IF
+
+    !$ACC END DATA
   
   END SUBROUTINE compute_field_dbz_2mom
 
