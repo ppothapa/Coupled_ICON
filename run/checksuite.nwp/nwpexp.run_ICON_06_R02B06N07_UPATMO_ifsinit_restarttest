@@ -411,7 +411,7 @@ cat > NAMELIST_NWP << EOF
  tkmmin                      =                          0.75      ! scaling factor for minimum vertical diffusion coefficient
  pat_len                     =                        300.0       ! effective length scale of thermal surface patterns
  c_diff                      =                          0.2       ! length scale factor for vertical diffusion of TKE
- rat_sea                     =                          8.0       ! controls laminar resistance for sea surface
+ rat_sea                     =                          0.8       ! controls laminar resistance for sea surface
  frcsmot                     =                          0.2       ! vertical smoothing factor for TKE forcing terms
  imode_frcsmot               =                          2         ! restrict vertical smoothing to the tropics
  itype_sher                  =                          3         ! vertical and horizontal shear forcing

@@ -21,6 +21,7 @@
 MODULE mo_turbdiff_nml
 
   USE mo_kind,                ONLY: wp
+  USE mo_exception,           ONLY: finish
   USE mo_io_units,            ONLY: nnml, nnml_output
   USE mo_master_control,      ONLY: use_restart_namelists
   USE mo_impl_constants,      ONLY: max_dom
@@ -154,6 +155,13 @@ CONTAINS
     !----------------------------------------------------
 
     IF (.NOT. ltkesso) imode_tkesso = 0
+
+    ! The product rlam_heat*rat_sea should be on the order of 10; otherwise, the surface fluxes over oceans
+    ! will be unrealistic. Comment the following lines if you want to do it anyway.
+    !
+    IF (rlam_heat*rat_sea < 5._wp .OR. rlam_heat*rat_sea > 15._wp) THEN
+      CALL finish( TRIM(routine), 'The product of rlam_heat and rat_sea should be between 5 and 15')
+    ENDIF
 
 
     !----------------------------------------------------

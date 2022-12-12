@@ -323,7 +323,7 @@ cat > ${atmo_namelist} << EOF
  ltkesso       = .true.
  pat_len       = 750.
  q_crit        = 2.0
- rat_sea       = 7.0
+ rat_sea       = 0.8
  tkhmin        = 0.5
  tkmmin        = 0.75
  tur_len       = 300.
