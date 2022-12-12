@@ -142,14 +142,6 @@ MODULE mo_nonhydro_types
     &  vabs_avginc(:,:),     & !! time-averaged/filtered wind speed increments from DA at lowest model level
 
     !
-    ! d) storage variables for time-averaged first-guess output
-    &  u_avg    (:,:,:),    & ! normal velocity average          [m/s]
-    &  v_avg    (:,:,:),    & ! normal velocity average          [m/s]
-    &  pres_avg (:,:,:),    & ! exner average                    [-]
-    &  temp_avg (:,:,:),    & ! moist density average            [kg/m^3]
-    &  qv_avg   (:,:,:),    & ! specific humidity average        [kg/kg]
-
-    !
     ! e) optional diagnostics
     &  pres_msl(:,:),       & ! diagnosed mean sea level pressure (nproma,nblks_c)  [Pa]
     &  omega(:,:,:),        & ! vertical velocity ( omega=dp/dt )           [Pa/s]
@@ -287,10 +279,6 @@ MODULE mo_nonhydro_types
 #endif
     &  ::                   &
     &  ddt_temp_dyn(:,:,:)  & ! rediagnosed temperature tendency from dynamics [K/s]
-    &  => NULL()
-
-    INTEGER, POINTER ::     &
-    &  nsteps_avg(:)        &  ! number of time steps summed up for averaging
     &  => NULL()
 
     REAL(wp), POINTER ::    & !

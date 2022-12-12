@@ -173,9 +173,7 @@ MODULE mo_nh_stepping
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
   USE mo_td_ext_data,              ONLY: update_nwp_phy_bcs, set_sst_and_seaice
   USE mo_initicon_types,           ONLY: t_pi_atm
-  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, is_avgFG_time, &
-                                         iterate_iau, dt_iau
-  USE mo_initicon_utils,           ONLY: average_first_guess, reinit_average_first_guess
+  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, iterate_iau, dt_iau
   USE mo_synsat_config,            ONLY: lsynsat
   USE mo_rttov_interface,          ONLY: rttov_driver, copy_rttov_ubc
 #ifndef __NO_ICON_LES__
@@ -1449,16 +1447,6 @@ MODULE mo_nh_stepping
 
     CALL reset_act%execute(slack=dtime, mtime_date=mtime_current)
 
-    ! re-initialization for FG-averaging. Ensures that average is centered in time.
-    IF (is_avgFG_time(mtime_current)) THEN
-      IF (p_nh_state(1)%diag%nsteps_avg(1) == 0) THEN
-#ifdef _OPENACC
-        CALL finish (routine, 'reinit_average_first_guess: OpenACC version currently not implemented')
-#endif
-        CALL reinit_average_first_guess(p_patch(1), p_nh_state(1)%diag, p_nh_state(1)%prog(nnow_rcf(1)))
-      END IF
-    ENDIF
-
 
     !--------------------------------------------------------------------------
     ! Write restart file
@@ -2490,16 +2478,6 @@ MODULE mo_nh_stepping
       ENDIF
 
 
-      ! Average atmospheric variables needed as first guess for data assimilation
-      !
-      IF ( jg == 1 .AND. is_avgFG_time(datetime_local(jg)%ptr))  THEN
-#ifdef _OPENACC
-        CALL finish (routine, 'average_first_guess: OpenACC version currently not implemented')
-#endif
-        CALL average_first_guess(p_patch(jg), p_int_state(jg), p_nh_state(jg)%diag, &
-          p_nh_state(jg)%prog(nnew(jg)), p_nh_state(jg)%prog(nnew_rcf(jg)))
-      ENDIF
-
 
       IF (test_mode <= 0) THEN ! ... normal execution of time stepping
         ! Finally, switch between time levels now and new for next time step
@@ -2843,7 +2821,7 @@ MODULE mo_nh_stepping
     LOGICAL, INTENT(IN) :: lacc
 
     ! Local variables
-    INTEGER                             :: n_now_rcf, nstep
+    INTEGER                             :: n_now_rcf
     INTEGER                             :: jgp, jgc, jn
     REAL(wp)                            :: dt_sub       !< (advective) timestep for next finer grid level
 

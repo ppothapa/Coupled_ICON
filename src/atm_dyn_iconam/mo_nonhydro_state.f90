@@ -71,12 +71,10 @@ MODULE mo_nonhydro_state
   USE mo_limarea_config,       ONLY: latbc_config
   USE mo_advection_config,     ONLY: t_advection_config, advection_config
   USE mo_turbdiff_config,      ONLY: turbdiff_config
-  USE mo_initicon_config,      ONLY: init_mode, lcalc_avg_fg, iso8601_start_timedelta_avg_fg, &
-    &                                iso8601_end_timedelta_avg_fg, iso8601_interval_avg_fg, &
-    &                                qcana_mode, qiana_mode, qrsgana_mode, icpl_da_sfcevap, icpl_da_skinc, &
-    &                                icpl_da_sfcfric
+  USE mo_initicon_config,      ONLY: init_mode, qcana_mode, qiana_mode, qrsgana_mode, &
+    &                                icpl_da_sfcevap, icpl_da_skinc, icpl_da_sfcfric
   USE mo_nudging_config,       ONLY: nudging_config, indg_type
-  USE mo_var_list, ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
+  USE mo_var_list,             ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
   USE mo_var_list_register, ONLY: vlr_add, vlr_del
   USE mo_var_list_register_utils, ONLY: vlr_add_vref
   USE mo_var,                  ONLY: t_var
@@ -100,9 +98,7 @@ MODULE mo_nonhydro_state
     &                                ZA_REFERENCE_HALF_HHL, ZA_SURFACE, ZA_MEANSEA
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64,                 &
     &                                DATATYPE_PACK16, DATATYPE_PACK24,               &
-    &                                DATATYPE_INT, TSTEP_CONSTANT, TSTEP_AVG,        &
-    &                                GRID_UNSTRUCTURED
-  USE mo_action,               ONLY: ACTION_RESET, new_action, actions
+    &                                DATATYPE_INT, TSTEP_CONSTANT, GRID_UNSTRUCTURED
   USE mo_upatmo_config,        ONLY: upatmo_dyn_config
   USE mo_upatmo_impl_const,    ONLY: idamtr
   USE mo_aes_vdf_config,       ONLY: aes_vdf_config
@@ -1720,14 +1716,8 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%u_avg, &
-    &       p_diag%v_avg, &
-    &       p_diag%pres_avg, &
-    &       p_diag%temp_avg, &
-    &       p_diag%qv_avg, &
     &       p_diag%vor_u, &
     &       p_diag%vor_v, &
-    &       p_diag%nsteps_avg, &
     &       p_diag%extra_2d, &
     &       p_diag%extra_3d)
 
@@ -3486,129 +3476,6 @@ MODULE mo_nonhydro_state
         &           in_group=groups("mode_iau_fg_in") )
     ENDIF
 
-
-    IF (p_patch%id == 1 .AND. lcalc_avg_fg) THEN
-      ! NOTE: the following time-averaged fields are not written into the restart file, 
-      !       meaning that they will contain wrong values in case that a restart is 
-      !       performed during the avaraging phase. Since this averaging procedure 
-      !       will likely be active only during our (short) assimilation runs, we 
-      !       refrain from writing them into the restart file. Normally, we do not 
-      !       write restart files during assimilation runs, anyway.  
-
-      ! u_avg   p_diag%u_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('u_avg', ' ',                   &
-        &                   'u time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'u_avg', p_diag%u_avg,                          &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=iso8601_start_timedelta_avg_fg,  &
-                  &             opt_end  =iso8601_end_timedelta_avg_fg,    &
-                  &             opt_ref  =iso8601_start_timedelta_avg_fg)),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%u_avg)
-
-      ! v_avg   p_diag%v_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('v_avg', ' ',                   &
-        &                   'v time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'v_avg', p_diag%v_avg,                          &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=iso8601_start_timedelta_avg_fg,  &
-                  &             opt_end  =iso8601_end_timedelta_avg_fg,    &
-                  &             opt_ref  =iso8601_start_timedelta_avg_fg)),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%v_avg)
-
-
-
-      ! pres_avg   p_diag%pres_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('pres_avg', ' ',                   &
-        &                   'pressure time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 3, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'pres_avg', p_diag%pres_avg,                    &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%pres_avg)
-
-
-      ! temp_avg   p_diag%temp_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('temp_avg', ' ',                   &
-        &                   'temperature time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'temp_avg', p_diag%temp_avg,                    &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%temp_avg)
-
-
-      ! qv_avg   p_diag%qv_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('qv_avg', ' ',                   &
-        &                   'specific humidity time average for DA', datatype_flt)
-      grib2_desc = grib2_var(  0, 1, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'qv_avg', p_diag%qv_avg,                        &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%qv_avg)
-
-
-      ! nsteps_avg  p_diag%nsteps_avg(1)
-      !
-      cf_desc    = t_cf_var('nsteps_avg', ' ',                   &
-        &                   'number of time steps summed up for FG averaging', DATATYPE_INT)
-      grib2_desc = grib2_var(192,192,192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'nsteps_avg', p_diag%nsteps_avg,                &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,     &
-                  & ldims=(/1/),                                                 &
-                  & lrestart=.FALSE., loutput=.FALSE.,                           &
-                  & initval=0, resetval=0,                                       & 
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%nsteps_avg)
-
-    ENDIF
 
     !----------------------
     ! optional diagnostics
