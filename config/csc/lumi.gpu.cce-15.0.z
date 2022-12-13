@@ -6,9 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-modules='PrgEnv-cray/8.3.3 cce/15.0.z.release cray-mpich craype-accel-amd-gfx90a rocm'
-
-export NVCC=hipcc
+modules='cce/15.0.z.release craype-accel-amd-gfx90a rocm'
 
 # There are several groups working on LUMI who do not have access to the same
 # software stack and have to install it to their project directories. We try to
@@ -67,8 +65,12 @@ ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
 
 FC='ftn'
-FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -hadd_paren -Ktrap=divz,ovf,inv -hflex_mp=intolerant -hfp1 -D__HIP__"
+FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -hadd_paren -Ktrap=divz,ovf,inv -hflex_mp=intolerant -hfp1  -D__HIP__ -g"
 ICON_FCFLAGS='-O1,cache0'
+
+NVCC=hipcc
+NVCFLAGS='--std=c++11 --offload-arch=gfx90a -g -O3'
+ROCM_LDFLAGS="-Wl,-rpath=/opt/rocm/lib64 -Wl,-rpath=/opt/rocm/lib"
 
 PYTHON='/usr/bin/python3'
 
@@ -78,10 +80,13 @@ PYTHON='/usr/bin/python3'
 ICON_O0_PATH='externals/jsbach/src/base/mo_jsb_process_factory.f90'
 ICON_O0_FCFLAGS='-O0'
 
-LDFLAGS="${LIBFABRIC_LDFLAGS} -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
-LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS} -lamdhip64"
 
-EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-fcgroup-O0 --enable-gpu --disable-jsbach'
+LDFLAGS="${LIBFABRIC_LDFLAGS} ${ROCM_LDFLAGS} -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS} -lamdhip64 -fopenmp"
+
+#EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-fcgroup-O0 --enable-gpu --disable-jsbach'
+# EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-fcgroup-O0 --enable-gpu --disable-loop-exchange --disable-jsbach --disable-rte-rrtmgp'
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-fcgroup-O0 --enable-gpu --disable-loop-exchange'
 
 ################################################################################
 
@@ -99,6 +104,8 @@ ICON_O0_FCFLAGS="${ICON_O0_FCFLAGS}" \
 ICON_O0_PATH="${ICON_O0_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
+NVCC="$NVCC" \
+NVCFLAGS="$NVCFLAGS" \
 ${EXTRA_CONFIG_ARGS} \
 "$@"
 
