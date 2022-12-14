@@ -270,7 +270,10 @@ CONTAINS
           ELSE
               imonthe = tiw_end%month2
               ! no reading of month 2 if end is already before 15 Jan.
-              IF ( imonthb == 2 .AND. imonthe < imonthb ) RETURN
+              IF ( imonthb == 2 .AND. imonthe < imonthb ) THEN
+                pre_year = mtime_current%date%year
+                RETURN
+              ENDIF
           ENDIF
 
         ENDIF

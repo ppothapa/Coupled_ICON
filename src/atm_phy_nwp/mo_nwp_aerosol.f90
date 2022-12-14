@@ -129,7 +129,7 @@ CONTAINS
           IF (i_startidx>i_endidx) CYCLE
 
           CALL nwp_aerosol_kinne(mtime_datetime, zf(:,:,jb), zh(:,:,jb), dz(:,:,jb),   &
-            &                    pt_patch%id, i_startidx, i_endidx, pt_patch%nlev, jb, &
+            &                    pt_patch%id, jb, i_startidx, i_endidx, pt_patch%nlev, &
             &                    nbands_lw, nbands_sw, wavenum1_sw(:), wavenum2_sw(:), &
             &                    od_lw(:,:,jb,:), od_sw(:,:,jb,:),                     &
             &                    ssa_sw(:,:,jb,:), g_sw(:,:,jb,:)                      )

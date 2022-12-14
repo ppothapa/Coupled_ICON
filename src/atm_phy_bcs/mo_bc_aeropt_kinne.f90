@@ -259,7 +259,10 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
          ELSE
             imonthe = tiw_end%month2
             ! no reading of month 2 if end is already before 15 Jan.
-            IF ( imonthb == 2 .AND. imonthe < imonthb ) RETURN
+            IF ( imonthb == 2 .AND. imonthe < imonthb ) THEN
+              pre_year(jg) = mtime_current%date%year
+              RETURN
+            ENDIF
          ENDIF
 
       ENDIF
