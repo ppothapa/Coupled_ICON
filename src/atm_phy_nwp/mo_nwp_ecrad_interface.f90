@@ -76,12 +76,6 @@ MODULE mo_nwp_ecrad_interface
                                    &   ecrad_set_gas,                            &
                                    &   ecrad_store_fluxes, add_3D_diffuse_rad,   &
                                    &   get_indices_rad_subblock
-#ifndef __ECRAD_ACC
-  USE mo_nwp_ecrad_utilities,    ONLY: ecrad_acc_allocation,                   &
-                                   &   ecrad_acc_deallocation,                 &
-                                   &   update_host_pre_ecrad,                  &
-                                   &   update_device_post_ecrad
-#endif
 #endif
 
 
@@ -256,24 +250,6 @@ CONTAINS
 
     CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_sub, nlev)
 
-#ifndef __ECRAD_ACC
-    ! The current master of libecrad submodule doesnot support OpenACC.
-    ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-    ! has to be defined to disable this functionality.
-    ! Once the libecrad submodule master includes the OpenACC port, everything
-    ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-    ! In the subroutine ecrad_acc_allocation, the arrays are allocated on the GPU that are allocated on the CPU in:
-    !   - ecrad_single_level%allocate
-    !   - ecrad_thermodynamics%allocate
-    !   - ecrad_gas%allocate
-    !   - ecrad_cloud%allocate
-    !   - ecrad_cloud%create_fractional_std
-    !   - ecrad_aerosol%allocate_direct
-    !   - ecrad_flux%allocate
-    call ecrad_acc_allocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                       ecrad_aerosol, ecrad_flux)
-#endif
-
 !$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                   &
 !$OMP            jb_rad, jcs, jce, i_startidx_sub, i_endidx_sub, &
 !$OMP            i_startidx_rad, i_endidx_rad,                   &
@@ -290,8 +266,8 @@ CONTAINS
       IF (i_startidx > i_endidx) CYCLE
 
       DO jb_rad = 1, nblocks_sub
-        CALL get_indices_rad_subblock(i_startidx, i_endidx, nproma_sub, jb_rad, jcs, jce, &
-          &  i_startidx_rad, i_endidx_rad, i_startidx_sub=i_startidx_sub, i_endidx_sub=i_endidx_sub)
+        CALL get_indices_rad_subblock(i_startidx, i_endidx, jb_rad, jcs, jce, i_startidx_rad, i_endidx_rad, &
+          &  i_startidx_sub=i_startidx_sub, i_endidx_sub=i_endidx_sub)
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
@@ -347,15 +323,16 @@ CONTAINS
           &                         prm_diag%cosmu0(jcs:jce,jb), prm_diag%tsfctrad(jcs:jce,jb),                        &
           &                         prm_diag%albvisdif(jcs:jce,jb), prm_diag%albnirdif(jcs:jce,jb),                    &
           &                         prm_diag%albvisdir(jcs:jce,jb), prm_diag%albnirdir(jcs:jce,jb),                    &
-          &                         prm_diag%lw_emiss(jcs:jce,jb), i_startidx_rad, i_endidx_rad)
+          &                         prm_diag%lw_emiss(jcs:jce,jb), i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 ! Fill thermodynamics configuration type
         CALL ecrad_set_thermodynamics(ecrad_thermodynamics, pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),    &
-          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
+          &                           pt_diag%pres_ifc(jcs:jce,:,jb), nlev, nlevp1, i_startidx_rad, i_endidx_rad,      &
+          &                           lacc=.TRUE.)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, ext_data%atm%o3(jcs:jce,:,jb), prm_diag%tot_cld(jcs:jce,:,jb,iqv), &
-          &                pt_diag%pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev)
+          &                pt_diag%pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev, lacc=.TRUE.)
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, prm_diag%tot_cld(jcs:jce,:,jb,iqc),               &
@@ -365,7 +342,8 @@ CONTAINS
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                                    &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                                               &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                                                &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad)
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad, &
+          &                   lacc=.TRUE.)
         ! $ACC WAIT
 
 ! Fill aerosol configuration type
@@ -419,17 +397,6 @@ CONTAINS
 !---------------------------------------------------------------------------------------
 ! Call the radiation scheme ecRad
 !---------------------------------------------------------------------------------------
-#ifndef __ECRAD_ACC
-        ! The current master of libecrad submodule doesnot support OpenACC.
-        ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-        ! has to be defined to disable this functionality.
-        ! Once the libecrad submodule master includes the OpenACC port, everything
-        ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-        ! In the subroutine update_host_pre_ecrad, all data is updated on the
-        ! CPU that is needed for the ecrad computation.
-        CALL update_host_pre_ecrad(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, &
-          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux)
-#endif
         !$ACC WAIT
         CALL ecrad(nproma_sub, nlev,                        & !< Array and loop bounds (input)
           &        i_startidx_rad, i_endidx_rad,            & !< Array and loop bounds (input)
@@ -440,16 +407,6 @@ CONTAINS
           &        ecrad_cloud,                             & !< ecRad cloud configuration object (input)
           &        ecrad_aerosol,                           & !< ecRad aerosol configuration object (input)
           &        ecrad_flux                               ) !< ecRad fluxes in the longwave BUT flux/solar constant in the shortwave (output)
-#ifndef __ECRAD_ACC
-        ! The current master of libecrad submodule doesnot support OpenACC.
-        ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-        ! has to be defined to disable this functionality.
-        ! Once the libecrad submodule master includes the OpenACC port, everything
-        ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-        ! In the subroutine update_device_post_ecrad, all data is updated on the
-        ! GPU that result from the ecrad computation.
-        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux)
-#endif
 
 !---------------------------------------------------------------------------------------
 
@@ -464,7 +421,7 @@ CONTAINS
           &                     prm_diag%lwflx_up_sfc_rs       (jcs:jce,jb), prm_diag%lwflxclr_sfc     (jcs:jce,jb),  &
           &                     zlwflx_up    (:,:), zlwflx_dn       (:,:), zswflx_up    (:,:), zswflx_dn    (:,:),    &
           &                     zlwflx_up_clr(:,:), zlwflx_dn_clr   (:,:), zswflx_up_clr(:,:), zswflx_dn_clr(:,:),    &
-          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlevp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlevp1, lacc=.TRUE.)
 
         IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT(zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr) &
@@ -491,7 +448,7 @@ CONTAINS
           &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                         &
           &                     prm_diag%fr_nir_sfc_diff(jcs:jce,jb), prm_diag%fr_vis_sfc_diff(jcs:jce,jb),      &
           &                     prm_diag%fr_par_sfc_diff(jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),    &
-          &                     i_startidx_rad, i_endidx_rad, nlev)
+          &                     i_startidx_rad, i_endidx_rad, nlev, lacc=.TRUE.)
 
       ENDDO ! jb_rad
     ENDDO ! jb
@@ -499,16 +456,6 @@ CONTAINS
 
 ! CLEANUP
     !$ACC WAIT
-#ifndef __ECRAD_ACC
-    ! The current master of libecrad submodule doesnot support OpenACC.
-    ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-    ! has to be defined to disable this functionality.
-    ! Once the libecrad submodule master includes the OpenACC port, everything
-    ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-    ! In the subroutine ecrad_acc_deallocation the derived ecrad types are dealocated on the GPU.
-    CALL ecrad_acc_deallocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                         ecrad_aerosol, ecrad_flux)
-#endif
     CALL ecrad_single_level%deallocate()
     CALL ecrad_thermodynamics%deallocate()
     CALL ecrad_gas%deallocate()
@@ -896,38 +843,39 @@ CONTAINS
 !$OMP PARALLEL
 
     ! Initialize output fields
-    CALL init(zrg_trsolall(:,:,:), 0._wp )
-    CALL init(zrg_lwflxall(:,:,:), 0._wp )
-    CALL init(zrg_trsol_up_toa(:,:)     )
-    CALL init(zrg_trsol_up_sfc(:,:)     )
-    CALL init(zrg_trsol_nir_sfc(:,:)     )
-    CALL init(zrg_trsol_vis_sfc(:,:)     )
-    CALL init(zrg_trsol_par_sfc(:,:)    )
-    CALL init(zrg_fr_nir_sfc_diff(:,:)  )
-    CALL init(zrg_fr_vis_sfc_diff(:,:)  )
-    CALL init(zrg_fr_par_sfc_diff(:,:)  )
-    CALL init(zrg_trsol_dn_sfc_diff(:,:) )
-    CALL init(zrg_trsol_clr_sfc(:,:)    )
-    CALL init(zrg_lwflx_up_sfc(:,:)     )
-    CALL init(zrg_lwflx_clr_sfc(:,:)    )
-    CALL init(zrg_aclcov(:,:)           )
+    CALL init(zrg_trsolall(:,:,:), 0._wp, opt_acc_async=.TRUE.)
+    CALL init(zrg_lwflxall(:,:,:), 0._wp, opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_up_toa(:,:)     , opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_up_sfc(:,:)     , opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_nir_sfc(:,:)    , opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_vis_sfc(:,:)    , opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_par_sfc(:,:)    , opt_acc_async=.TRUE.)
+    CALL init(zrg_fr_nir_sfc_diff(:,:)  , opt_acc_async=.TRUE.)
+    CALL init(zrg_fr_vis_sfc_diff(:,:)  , opt_acc_async=.TRUE.)
+    CALL init(zrg_fr_par_sfc_diff(:,:)  , opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_dn_sfc_diff(:,:), opt_acc_async=.TRUE.)
+    CALL init(zrg_trsol_clr_sfc(:,:)    , opt_acc_async=.TRUE.)
+    CALL init(zrg_lwflx_up_sfc(:,:)     , opt_acc_async=.TRUE.)
+    CALL init(zrg_lwflx_clr_sfc(:,:)    , opt_acc_async=.TRUE.)
+    CALL init(zrg_aclcov(:,:)           , opt_acc_async=.TRUE.)
 
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-      CALL init(zrg_lwflx_up    (:,:,:), 0._wp)
-      CALL init(zrg_lwflx_dn    (:,:,:), 0._wp)
-      CALL init(zrg_swflx_up    (:,:,:), 0._wp)
-      CALL init(zrg_swflx_dn    (:,:,:), 0._wp)
-      CALL init(zrg_lwflx_up_clr(:,:,:), 0._wp)
-      CALL init(zrg_lwflx_dn_clr(:,:,:), 0._wp)
-      CALL init(zrg_swflx_up_clr(:,:,:), 0._wp)
-      CALL init(zrg_swflx_dn_clr(:,:,:), 0._wp)
+      CALL init(zrg_lwflx_up    (:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_lwflx_dn    (:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_swflx_up    (:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_swflx_dn    (:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_lwflx_up_clr(:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_lwflx_dn_clr(:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_swflx_up_clr(:,:,:), 0._wp, opt_acc_async=.TRUE.)
+      CALL init(zrg_swflx_dn_clr(:,:,:), 0._wp, opt_acc_async=.TRUE.)
     END IF
 
 !$OMP DO PRIVATE(jb, i_startidx, i_endidx), ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                       i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%tsfctrad(jc,jb) = lnd_prog%t_g(jc,jb)
       ENDDO ! jc
@@ -939,7 +887,6 @@ CONTAINS
 
 ! Upscale ICON input fields from full grid to reduced radiation grid
 
-    !$ACC WAIT
     CALL upscale_rad_input(pt_patch%id, pt_par_patch%id,                                 &
       &                    nlev_rg,                                                      &
       &                    prm_diag%lw_emiss, prm_diag%cosmu0,                           &
@@ -1003,24 +950,6 @@ CONTAINS
 
     CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_sub, nlev_rg)
 
-#ifndef __ECRAD_ACC
-    ! The current master of libecrad submodule doesnot support OpenACC.
-    ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-    ! has to be defined to disable this functionality.
-    ! Once the libecrad submodule master includes the OpenACC port, everything
-    ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-    ! In the subroutine ecrad_acc_allocation, the arrays are allocated on the GPU that are allocated on the CPU in:
-    !   - ecrad_single_level%allocate
-    !   - ecrad_thermodynamics%allocate
-    !   - ecrad_gas%allocate
-    !   - ecrad_cloud%allocate
-    !   - ecrad_cloud%create_fractional_std
-    !   - ecrad_aerosol%allocate_direct
-    !   - ecrad_flux%allocate
-    call ecrad_acc_allocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                       ecrad_aerosol, ecrad_flux)
-#endif
-
     ALLOCATE(cosmu0mask(nproma_sub))
     !$ACC ENTER DATA CREATE(cosmu0mask) ASYNC(1)
     ALLOCATE(opt_ptrs_lw(ecrad_conf%n_bands_lw))
@@ -1049,18 +978,19 @@ CONTAINS
       IF (i_startidx > i_endidx) CYCLE
 
       DO jb_rad = 1, nblocks_sub
-        CALL get_indices_rad_subblock(i_startidx, i_endidx, nproma_sub, jb_rad, jcs, jce, &
-          &  i_startidx_rad, i_endidx_rad, l_3d_rad_fluxes=atm_phy_nwp_config(jg)%l_3d_rad_fluxes, &
-          &  jnps=jnps, jnpe=jnpe)
+        CALL get_indices_rad_subblock(i_startidx, i_endidx, jb_rad, jcs, jce, i_startidx_rad, i_endidx_rad, &
+          &  l_3d_rad_fluxes=atm_phy_nwp_config(jg)%l_3d_rad_fluxes, jnps=jnps, jnpe=jnpe)
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = 1,nproma_sub
           cosmu0mask(jc) = .FALSE.
         ENDDO
         !$ACC END PARALLEL
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx_rad, i_endidx_rad
           IF ( zrg_cosmu0(jc+nproma_sub*(jb_rad-1),jb) > 0._wp ) THEN
             cosmu0mask(jc) = .TRUE.
@@ -1103,19 +1033,19 @@ CONTAINS
         ENDIF
 
 ! Fill single level configuration type
-        !$ACC WAIT
         CALL ecrad_set_single_level(ecrad_single_level, current_datetime, ptr_pp%cells%center(jcs:jce,jb),            &
           &                         zrg_cosmu0(jcs:jce,jb), zrg_tsfc(jcs:jce,jb), zrg_albvisdif(jcs:jce,jb),          &
           &                         zrg_albnirdif(jcs:jce,jb), zrg_albvisdir(jcs:jce,jb), zrg_albnirdir(jcs:jce,jb),  &
-          &                         zrg_emis_rad(jcs:jce,jb), i_startidx_rad, i_endidx_rad)
+          &                         zrg_emis_rad(jcs:jce,jb), i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 ! Fill thermodynamics configuration type
-        CALL ecrad_set_thermodynamics(ecrad_thermodynamics, zrg_temp(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb),     &
-          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
+        CALL ecrad_set_thermodynamics(ecrad_thermodynamics, zrg_temp(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb),           &
+          &                           zrg_pres_ifc(jcs:jce,:,jb), nlev_rg, nlev_rgp1, i_startidx_rad, i_endidx_rad,   &
+          &                           lacc=.TRUE.)
 
 ! Fill gas configuration type
         CALL ecrad_set_gas(ecrad_gas, ecrad_conf, zrg_o3(jcs:jce,:,jb), zrg_tot_cld(jcs:jce,:,jb,iqv), &
-          &                zrg_pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev_rg)
+          &                zrg_pres(jcs:jce,:,jb), i_startidx_rad, i_endidx_rad, nlev_rg, lacc=.TRUE.)
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, zrg_tot_cld(jcs:jce,:,jb,iqc), &
@@ -1126,7 +1056,7 @@ CONTAINS
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                            &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
           &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev_rg,         &
-          &                   i_startidx_rad, i_endidx_rad)
+          &                   i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
@@ -1145,9 +1075,6 @@ CONTAINS
               &                         zrg_aeq5(jcs:jce,:,jb),                           &
               &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
           CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP)
-#ifdef _OPENACC
-            CALL finish(routine, 'irad_aero not valid for OpenACC ecrad')
-#endif
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
               &                         opt_ptrs_lw, opt_ptrs_sw,                         &
               &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
@@ -1156,7 +1083,8 @@ CONTAINS
         END SELECT
 
         ! Reset output values
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma_sub
           ecrad_flux%cloud_cover_sw(jc) = 0._wp
           ecrad_flux%cloud_cover_lw(jc) = 0._wp
@@ -1166,17 +1094,6 @@ CONTAINS
 !---------------------------------------------------------------------------------------
 ! Call the radiation scheme ecRad
 !---------------------------------------------------------------------------------------
-#ifndef __ECRAD_ACC
-        ! The current master of libecrad submodule doesnot support OpenACC.
-        ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-        ! has to be defined to disable this functionality.
-        ! Once the libecrad submodule master includes the OpenACC port, everything
-        ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-        ! In the subroutine update_host_pre_ecrad, all data is updated on the
-        ! CPU that is needed for the ecrad computation.
-        CALL update_host_pre_ecrad(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, &
-          &                        ecrad_cloud, ecrad_aerosol, ecrad_flux)
-#endif
         !$ACC WAIT
         CALL ecrad(nproma_sub, nlev_rg,                     & !< Array and loop bounds (input)
           &        i_startidx_rad, i_endidx_rad,            & !< Array and loop bounds (input)
@@ -1187,16 +1104,6 @@ CONTAINS
           &        ecrad_cloud,                             & !< ecRad cloud configuration object (input)
           &        ecrad_aerosol,                           & !< ecRad aerosol configuration object (input)
           &        ecrad_flux                               ) !< ecRad fluxes (output)
-#ifndef __ECRAD_ACC
-        ! The current master of libecrad submodule doesnot support OpenACC.
-        ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-        ! has to be defined to disable this functionality.
-        ! Once the libecrad submodule master includes the OpenACC port, everything
-        ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-        ! In the subroutine update_device_post_ecrad, all data is updated on the
-        ! GPU that result from the ecrad computation.
-        CALL update_device_post_ecrad(ecrad_conf, ecrad_flux)
-#endif
 !---------------------------------------------------------------------------------------
 
 ! Update ICON variables with fluxes from ecRad
@@ -1212,14 +1119,14 @@ CONTAINS
           &                     zrg_swflx_up          (jnps:jnpe,:,jb), zrg_swflx_dn     (jnps:jnpe,:,jb),    &
           &                     zrg_lwflx_up_clr      (jnps:jnpe,:,jb), zrg_lwflx_dn_clr (jnps:jnpe,:,jb),    &
           &                     zrg_swflx_up_clr      (jnps:jnpe,:,jb), zrg_swflx_dn_clr (jnps:jnpe,:,jb),    &
-          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlev_rgp1)
+          &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlev_rgp1, lacc=.TRUE.)
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
-        CALL add_3D_diffuse_rad(ecrad_flux, zrg_clc(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb), zrg_temp(jcs:jce,:,jb),       &
-          &                     zrg_cosmu0            (jcs:jce,jb), zrg_fr_nir_sfc_diff  (jcs:jce,jb),         &
-          &                     zrg_fr_vis_sfc_diff   (jcs:jce,jb), zrg_fr_par_sfc_diff  (jcs:jce,jb),         &
-          &                     zrg_trsol_dn_sfc_diff (jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev_rg)
+        CALL add_3D_diffuse_rad(ecrad_flux, zrg_clc(jcs:jce,:,jb), zrg_pres(jcs:jce,:,jb), zrg_temp(jcs:jce,:,jb),    &
+          &                     zrg_cosmu0            (jcs:jce,jb), zrg_fr_nir_sfc_diff  (jcs:jce,jb),                &
+          &                     zrg_fr_vis_sfc_diff   (jcs:jce,jb), zrg_fr_par_sfc_diff  (jcs:jce,jb),                &
+          &                     zrg_trsol_dn_sfc_diff (jcs:jce,jb), i_startidx_rad, i_endidx_rad, nlev_rg, lacc=.TRUE.)
 
       ENDDO !jb_rad
     ENDDO !jb
@@ -1228,16 +1135,6 @@ CONTAINS
 ! CLEANUP
     !$ACC WAIT
     !$ACC END DATA
-#ifndef __ECRAD_ACC
-    ! The current master of libecrad submodule doesnot support OpenACC.
-    ! If a libecrad submodule is used that is ported with OpenACC __ECRAD_ACC
-    ! has to be defined to disable this functionality.
-    ! Once the libecrad submodule master includes the OpenACC port, everything
-    ! that is covered in this #ifndef __ECRAD_ACC can be removed.
-    ! In the subroutine ecrad_acc_deallocation the derived ecrad types are dealocated on the GPU.
-    CALL ecrad_acc_deallocation(ecrad_conf, ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud, &
-      &                         ecrad_aerosol, ecrad_flux)
-#endif
     CALL ecrad_single_level%deallocate()
     CALL ecrad_thermodynamics%deallocate()
     CALL ecrad_gas%deallocate()

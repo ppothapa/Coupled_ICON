@@ -406,8 +406,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
             IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
-            IF (.NOT. ANY( ecrad_isolver  == (/0,1/)       ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0 or 1')
+            IF (.NOT. ANY( ecrad_isolver  == (/0,1,2/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, or 2')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &

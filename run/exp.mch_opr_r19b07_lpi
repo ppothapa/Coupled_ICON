@@ -358,6 +358,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
+ ecrad_isolver               =    2
  islope_rad                  =    1 ! as reference for 2 where the topography shading is corrected
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
