@@ -88,18 +88,19 @@ CONTAINS
           !$ACC   CREATE(itype, loland, loglac, mtrc)
           !
           ! For some reason ACC kernels result in SEQ loop here
-          !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO i2=1,SIZE(field%ts_rad_rt,2)
             DO i1=1,SIZE(field%ts_rad_rt,1)
               field%ts_rad_rt(i1,i2) = field%ts_rad(i1,i2)
             END DO
           END DO
+          !$ACC END PARALLEL LOOP
           !
-          !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
           mtrc(:,:,:) = field%mtrc(:,:,jb,:)
           !$ACC END KERNELS
           !
-          !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
           itype (:) = NINT(field%rtype(:,jb))
           loland(:) = field% sftlf (:,jb) > 0._wp
           loglac(:) = field% sftgif(:,jb) > 0._wp
@@ -168,7 +169,7 @@ CONTAINS
        ELSE
           !
           ! LW
-          !$ACC KERNELS DEFAULT(NONE) PRESENT(field)
+          !$ACC KERNELS DEFAULT(PRESENT)
           field%rldcs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rlucs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rld_rt  (:,:,:)  = 0.0_wp !< out  All-sky net longwave  at all levels

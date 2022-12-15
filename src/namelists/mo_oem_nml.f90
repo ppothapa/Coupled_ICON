@@ -2,7 +2,7 @@
 !! This module provides parameters controlling online emission module.
 !!
 !! Authors:
-!! Michael Jähn, C2SM, michael.jaehn@c2sm.ethz.ch
+!! Michael Jaehn, EMPA, michael.jaehn@empa.ch
 !! Michael Steiner, EMPA, michael.steiner@empa.ch
 !!
 !!

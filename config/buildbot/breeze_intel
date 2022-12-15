@@ -1,18 +1,28 @@
 #!/bin/bash
 
+set -eu
+
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+LINUX_CODENAME=$(lsb_release -sc)
 
-${ICON_DIR}/config/mpim/stretch.intel --disable-yaxt --disable-openmp --enable-claw
-
-if test 0 -ne "$?" && test ! -z "${BB_SLAVE}"; then
-  echo " ***** Configuration logs from '$(pwd)' ***** "
-  for f in $(find . -name 'config.log' -print); do
-    echo " ||||| '$f' ||||| "
-    cat "$f"
-  done
-  echo " ***** End of configuration logs from '$(pwd)' ***** "
+if test ! -z "${BB_NAME-}"; then
+  set -x
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_autoreconf_BREEZE.sh"
 fi
+
+${ICON_DIR}/config/mpim/${LINUX_CODENAME}.intel --disable-yaxt --disable-openmp --enable-claw
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}
+
+if test ! -z "${BB_NAME-}"; then
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+  # Build the tests in parallel:
+  make -j ${MAKE_PROCS} check TESTS= XFAIL_TESTS=
+  # Run the tests serially:
+  make check
+fi

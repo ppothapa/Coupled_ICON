@@ -7,18 +7,18 @@
 !!   converted to an AOD source term for the 2D-aerosol scheme of ICON
 !!
 !! Literature references:
-!! Fecan et al. (1998)   - Fécan, F., Marticorena, B., & Bergametti, G. (1998, December).
+!! Fecan et al. (1998)   - Fecan, F., Marticorena, B., & Bergametti, G. (1998, December).
 !!                         Parametrization of the increase of the aeolian erosion threshold wind
 !!                         friction velocity due to soil moisture for arid and semi-arid areas.
 !!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
-!! Grythe et al. (2014)  - Grythe, H., Ström, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
+!! Grythe et al. (2014)  - Grythe, H., Stroem, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
 !!                         A review of sea-spray aerosol source functions using a large global set
 !!                         of sea salt aerosol concentration measurements.
 !!                         Atmos. Chem. Phys., 14(3), 1277-1297.
-!! Jaegle et al. (2011)  - Jaeglé, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
+!! Jaegle et al. (2011)  - Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
 !!                         Global distribution of sea salt aerosols: new constraints from in situ
 !!                         and remote sensing observations
-!!                         Atmos. Chem. Phys., 11, 3137–3157.
+!!                         Atmos. Chem. Phys., 11, 3137-3157.
 !! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
 !!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
 !! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
@@ -429,7 +429,7 @@ CONTAINS
   !! FUNCTION calc_ssa_sst_weighting
   !!
   !! Calculates a sea surface temperature based weighting of
-  !! sea salt aerosol emissions based on Jaeglé et al. (2011).
+  !! sea salt aerosol emissions based on Jaegle et al. (2011).
   !! This temperature dependency is important to explain for
   !! the relatively high SSA concentrations found in the tropics
   !! (Grythe et al., 2014).

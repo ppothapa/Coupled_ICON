@@ -1,6 +1,6 @@
 !>
 !! Contains the implementation of the semi-implicit Adams-Bashforth timestepping
-!! for the ICON ocean model based on the mimetic spatiaöl discretization approach.
+!! for the ICON ocean model based on the mimetic spatial discretization approach.
 !!
 !!
 !! @par Revision History

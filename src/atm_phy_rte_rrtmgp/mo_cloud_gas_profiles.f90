@@ -211,7 +211,7 @@ CONTAINS
     ! Pass ghg_cfcmmr as kernel parameters, without explicit copying
     ghg_cfcmmr1 = ghg_cfcmmr(1)
     ghg_cfcmmr2 = ghg_cfcmmr(2)
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
 !   CO2
     dom_gas(2)%vmr_scenario = ghg_co2mmr
 !   CH4
@@ -227,20 +227,20 @@ CONTAINS
     DO igas=1,ngases
       SELECT CASE (dom_gas(igas)%irad)
       CASE (0) ! gas concentration is 0
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
         gas_profile(jcs:jce,:,igas) = 0.0_wp
         !$ACC END KERNELS
       CASE (1) ! gas is taken from interactive (so transported) tracer
         !note that trasported species are in MMR ...
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
         gas_profile(jcs:jce,:,igas) = (xm_trc(jcs:jce,:,igas)/xm_dry(jcs:jce,:)) * dom_gas(igas)%mmr2vmr
         !$ACC END KERNELS
       CASE (2,12) ! gas concentration is set from namelist value
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
         gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr
         !$ACC END KERNELS
       CASE (3,13) ! gas concentration is taken from greenhouse dom_gas scenario
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
         gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr_scenario
         !$ACC END KERNELS
       
@@ -299,7 +299,7 @@ CONTAINS
     ! For all gases, multiply by the frad scaling factor.
     ! This is meant for experiments asking for "4xCO2" e.g.
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(3) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(3) ASYNC(1)
     DO igas=1,ngases
       DO jk=1,klev
         DO jl=jcs,jce
@@ -307,9 +307,10 @@ CONTAINS
         END DO
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
 ! Set output fields as asked by icon
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk=1,klev
       DO jl=jcs,jce
 !       H2O
@@ -330,6 +331,7 @@ CONTAINS
         xvmr_cfc(jl,jk,2) = gas_profile(jl,jk,8)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
     
     !$ACC END DATA
   END SUBROUTINE gas_profiles
@@ -357,12 +359,12 @@ CONTAINS
     !$ACC DATA PRESENT(xm_liq, xm_ice, xm_trc, xc_frc, cld_frc, cld_cvr)
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
       xm_liq(jcs:jce,:)=0._wp
       xm_ice(jcs:jce,:)=0._wp
       !$ACC END KERNELS
     CASE (1)
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
       xm_liq(jcs:jce,:) = MAX(xm_trc(jcs:jce,:,iqc)*frad,0._wp)
       xm_ice(jcs:jce,:) = MAX(xm_trc(jcs:jce,:,iqi)*frad,0._wp)
       !$ACC END KERNELS
@@ -370,15 +372,16 @@ CONTAINS
     !
     ! --- cloud cover
     ! 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk=1,klev
       DO jl = jcs,jce
         xc_frc(jl,jk) = MERGE(cld_frc(jl,jk), 0._wp, &
             xm_liq(jl,jk) > 0.0_wp .OR. xm_ice(jl,jk) > 0.0_wp)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
     !
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl = jcs, jce
       cld_cvr(jl) = 1.0_wp - xc_frc(jl,1)

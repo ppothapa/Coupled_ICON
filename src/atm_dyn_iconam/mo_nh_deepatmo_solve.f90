@@ -86,7 +86,7 @@ MODULE mo_nh_deepatmo_solve
   ! conditional storage in conditionally allocated global fields is attempted even if
   ! the condition is not given and therefore the global field not allocated. If this
   ! happens, this would results in a corrupted memory.
-  ! (Requested by G. Zängl based on earlier problems with similar constructs.)
+  ! (Requested by G. Zaengl based on earlier problems with similar constructs.)
 #ifndef __SX__
 #define __ENABLE_DDT_VN_XYZ__
 #endif

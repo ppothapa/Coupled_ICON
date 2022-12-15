@@ -443,12 +443,13 @@ MODULE mo_rte_rrtmgp_radiation
                       & xvmr_o2,      xvmr_ch4,              xvmr_n2o,        &
                       & xvmr_cfc                                              )
     !
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk=1,klev
       DO jl=jcs,jce
         xv_ozn(jl,jk) = xvmr_o3(jl,jk)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
     CALL cloud_profiles ( jg,           jcs,            jce,              &
          &                klev,         xm_trc,         cld_frc,          &
@@ -524,13 +525,13 @@ MODULE mo_rte_rrtmgp_radiation
     ! 
     ! --- Pressure (surface and distance between half levels)
     !
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     pp_sfc(jcs:jce)   = pp_hl(jcs:jce,klev+1)
     !$ACC END KERNELS
     !
     ! --- temperature at half levels
     !
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk=2,klev
       DO jl = jcs, jce
         tk_hl(jl,jk) = (tk_fl(jl,jk-1)*pp_fl(jl,jk-1)*( pp_fl(jl,jk)          &
@@ -538,16 +539,18 @@ MODULE mo_rte_rrtmgp_radiation
              & - pp_fl(jl,jk-1))) /(pp_hl(jl,jk)*(pp_fl(jl,jk) -pp_fl(jl,jk-1)))
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     tk_hl(jcs:jce,klev+1) = tk_sfc(jcs:jce)
     !$ACC END KERNELS
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jl = jcs, jce
       tk_hl(jl,1)      = tk_fl(jl,1)-pp_fl(jl,1)*(tk_fl(jl,1) - tk_hl(jl,2))  &
             &             / (pp_fl(jl,1)-pp_hl(jl,2))
     END DO
+    !$ACC END PARALLEL LOOP
 
     !$ACC END DATA
   END SUBROUTINE calculate_temperature_pressure 

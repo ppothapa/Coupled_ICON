@@ -11,7 +11,7 @@
 !! </ol>
 !! This module uses derived data types in order to allow for local refinement.
 !!
-!! @author Hui≤ Wan (MPI-M)
+!! @author Huis Wan (MPI-M)
 !! @author Marco Giorgetta (MPI-M)
 !! @author Kristina Froehlich (DWD, MPI-M)
 !! @author Luis Kornblueh (MPI-M)
