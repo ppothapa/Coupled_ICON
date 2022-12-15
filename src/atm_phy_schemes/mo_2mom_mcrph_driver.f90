@@ -257,7 +257,8 @@ CONTAINS
     INTEGER :: ik_slice(4)
 
     !$ACC DATA CREATE(q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld) &
-    !$ACC   PRESENT(dz, qr, qi, qs, qg, qh, qc, qnr, qni, qns, qng, qnh, qnc, rho, nccn, hhl, ninact, ninpot)
+    !$ACC   PRESENT(dz, qr, qi, qs, qg, qh, qc, qnr, qni, qns, qng, qnh, qnc, rho, nccn, hhl, ninact, ninpot) &
+    !$ACC   COPYIN(ccn_coeffs, in_coeffs)
 
     lprogccn  = PRESENT(nccn)
     lprogin   = PRESENT(ninpot)
@@ -395,7 +396,7 @@ CONTAINS
 
     ! .. set the particle types, but no calculations
     CALL init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
-    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo, ccn_coeffs, in_coeffs)
+    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo)
 
     ! .. convert to densities and set pointerns to two-moment module
     !    (pointers are used to avoid passing everything explicitly by argument and
@@ -589,8 +590,8 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo, ccn_coeffs, in_coeffs)
-    !$ACC END DATA ! DATA CREATE PRESENT
+    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo)
+    !$ACC END DATA ! DATA CREATE PRESENT COPY
 
 !   AS: Clip large values?? Why is that necessary? Who put that in?  
 !    WHERE(qr(its:ite,kts:kte) > 0.02_wp) qr(its:ite,kts:kte) = 0.02_wp
