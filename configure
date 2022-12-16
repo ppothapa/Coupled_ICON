@@ -11063,7 +11063,8 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
   case $ac_file$ac_mode in
     "run/collect.set-up.info":F) chmod +x "$ac_file" ;;
     "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    as_fn_error $? "failed to create $ac_file" "$LINENO" 5 ;;
-    "run/SETUP.config":C) ac_rel_source='set-up.info'
+    "run/SETUP.config":C) rm -f "$ac_file"
+   ac_rel_source='set-up.info'
    ac_source="run/${ac_rel_source}"
    ln -s "$ac_rel_source" "$ac_file" 2>/dev/null ||
      ln "$ac_source" "$ac_file" 2>/dev/null ||

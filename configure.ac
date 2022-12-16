@@ -2418,7 +2418,8 @@ dnl to create a symlink (i.e. run/SETUP.config) to a non-existent file (i.e.
 dnl run/set-up.info). Therefore, we copy the standard logic of the symlink
 dnl generation here:
 AC_CONFIG_COMMANDS([run/SETUP.config],
-  [ac_rel_source='set-up.info'
+  [rm -f "$ac_file"
+   ac_rel_source='set-up.info'
    ac_source="run/${ac_rel_source}"
    ln -s "$ac_rel_source" "$ac_file" 2>/dev/null ||
      ln "$ac_source" "$ac_file" 2>/dev/null ||
