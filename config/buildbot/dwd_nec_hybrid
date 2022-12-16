@@ -14,7 +14,7 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 mkdir -p vector
 cd vector
 
-${ICON_DIR}/config/dwd/rcl.VE.nfort-3.5.1_mpi-2.20_art_oper --enable-waves --enable-openmp
+${ICON_DIR}/config/dwd/rcl.VE.nfort-3.5.1_mpi-2.20_art_oper --disable-les --enable-waves --enable-openmp
 
 if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "
@@ -39,7 +39,7 @@ cp -v $OLDPWD/run/set-up.info run/
 mkdir -p host
 cd host
 
-${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_mpi-2.20_art_oper --enable-waves
+${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_mpi-2.20_art_oper --disable-les --enable-waves
 
 if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "

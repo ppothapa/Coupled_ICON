@@ -1097,8 +1097,12 @@ CONTAINS
 !$OMP END PARALLEL
 
     IF (timers_level > 1) CALL timer_stop(timer_fast_phys)
+#ifndef __NO_ICON_LES__
     IF ( (lcall_phy_jg(itturb) .OR. linit) .AND. ( ANY((/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb) .OR. &
          (ANY((/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb) .AND. (les_config(jg)%isrfc_type==1)) ) ) THEN
+#else
+    IF ( (lcall_phy_jg(itturb) .OR. linit) .AND. ( ANY((/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb)) ) THEN
+#endif
 
       IF (timers_level > 1) CALL timer_start(timer_nwp_turbulence)
 
