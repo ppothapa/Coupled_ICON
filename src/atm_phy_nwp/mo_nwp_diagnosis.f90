@@ -2464,13 +2464,7 @@ CONTAINS
 
     REAL(wp) :: tas_gmean, rsdt_gmean, rsut_gmean, rlut_gmean, prec_gmean, evap_gmean, radtop_gmean
     TYPE(t_nwp_phy_diag), POINTER    :: field
-    INTEGER  :: jc, jcs, jce, jk, jks, jke, rls, rle
-
-    ! Compute row and block bounds for derived variables
-    rls = grf_bdywidth_c + 1
-    rle = min_rlcell_int
-    jks = pt_patch%cells%start_blk(rls, 1)
-    jke = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+    INTEGER  :: jb, jbs, jbe, jc, jcs, jce, rls, rle
 
     ! global mean t2m, tas_gmean, if requested for output
     tas_gmean = 0.0_wp
@@ -2548,26 +2542,32 @@ CONTAINS
 
       field => prm_diag
 
+      ! Compute row and block bounds for derived variables
+      rls = grf_bdywidth_c + 1
+      rle = min_rlcell_int
+      jbs = pt_patch%cells%start_blk(rls, 1)
+      jbe = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+
       !$ACC DATA PRESENT(field) &
       !$ACC   CREATE(scr)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP SEQ
-      DO jk = jks, jke
-        CALL get_indices_c(pt_patch, jk, jks, jke, jcs, jce, rls, rle)
+      DO jb = jbs, jbe
+        CALL get_indices_c(pt_patch, jb, jbs, jbe, jcs, jce, rls, rle)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = jcs, jce
-          scr(jc,jk) = 0.0_wp
+          scr(jc,jb) = 0.0_wp
           !scr(jc,jk) = field%sod_t(jc,jk) - field%sou_t(jc,jk) + field%thb_t(jc,jk)
-          scr(jc,jk) = field%flxdwswtoa(jc,jk) - field%swflx_up_toa(jc,jk) + field%lwflxtoa(jc,jk)
+          scr(jc,jb) = field%flxdwswtoa(jc,jb) - field%swflx_up_toa(jc,jb) + field%lwflxtoa(jc,jb)
         END DO
+        !$ACC END PARALLEL
       END DO
-      !$ACC END PARALLEL
       CALL levels_horizontal_mean( scr(:,:), &
           & pt_patch%cells%area(:,:), &
           & pt_patch%cells%owned, &
           & radtop_gmean, lopenacc=.TRUE.)
 
+      !$ACC WAIT
       !$ACC END DATA
 
       NULLIFY(field)

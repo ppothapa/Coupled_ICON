@@ -38,9 +38,6 @@ pgi_inlib_procedures+= \
   fqvs \
   fthetae \
   gefr \
-  get_indices_c \
-  get_indices_e \
-  get_indices_v \
   is_close_i \
   is_close_r \
   is_close_s \
@@ -106,7 +103,6 @@ pgi_inlib_f90_files+= \
   src/lnd_phy_schemes/sfc_seaice.f90 \
   src/lnd_phy_schemes/sfc_terra.f90 \
   src/serialization/mo_ser_common.f90 \
-  src/shared/mo_loopindices.f90 \
   src/shared/mo_math_utilities.f90 \
   src/shared/mo_statistics.f90
 
