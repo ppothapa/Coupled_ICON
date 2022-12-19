@@ -3157,7 +3157,7 @@ CONTAINS
     !
     ! loop through all patch cells
     !
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc,ile1,ibe1) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,je,i_startidx,i_endidx,ile1,ibe1) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
