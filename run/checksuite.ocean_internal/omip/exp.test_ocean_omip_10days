@@ -292,7 +292,7 @@ cat > ${ocean_namelist} << EOF
   k_tracer_GM_kappa_parameter     = 1000.0     !
   k_tracer_isoneutral_parameter   = 1000.0     ! value for cell-based cartesian diffusion - mpiom: 1000/400km = 400/160km
   k_tracer_dianeutral_parameter   = 0.0       !1.0E-5  !
-  lvertical_GM =.TRUE.                       ! true: use Danabasoglu & Marshall (2007) param. for vertical variable kappa
+  lvertical_GM                    =.FALSE.                       ! true: use Danabasoglu & Marshall (2007) param. for vertical variable kappa
   Nmin                            = 0.1      ! minimum values for the ratio of N2/N2_ref in D&M2007 param.
   SWITCH_OFF_DIAGONAL_VERT_EXPL          =.TRUE.
   GMREDI_COMBINED_DIAGNOSTIC             =.FALSE.
@@ -344,7 +344,7 @@ cat > ${ocean_namelist} << EOF
   limit_elevation                 = .TRUE.
   atm_pressure_included_in_ocedyn = .TRUE.   ! use atm. pressure in the ocean dynamics
   atm_pressure_included_in_icedyn = .TRUE.   ! use atm. pressure in the ice dynamics
-  use_tides                       = .FALSE.
+  use_tides                       = .TRUE.
   tides_mod                       =  1        ! 1 Default 2 MPIOM 
   lswr_jerlov                     = .TRUE.    ! use jerlov water types for sw absorption
   jerlov_atten                    = 0.08      ! jerlov water type IB
@@ -391,8 +391,10 @@ echo "BB_SYSTEM = ${BB_SYSTEM}"
 echo "BB_SLAVE = ${BB_SLAVE}"
 set -x
 # no referce data on levante, yet
-[[ x"${BB_SYSTEM}" = 'xlevante' ]] && exit 0
+[[ x"${BB_SYSTEM}" != 'xlevante' ]] && exit 0
 
+#-----------------------------------------------------------------------------
+#  compare with reference
 builder=''
 [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
 [[ ! -z $BB_SLAVE ]] && builder="${BB_SYSTEM}_${BB_SLAVE}"  # old buildbot

@@ -59,7 +59,7 @@ def runexp():
 
     # set up the experiments for job submission
     # builder info and batch system information need to be added
-    eobjs = thisList.get_experiments_by_builder(builder)
+    eobjs = thisList.get_experiments_by_builder(builder).flatten()
     for eobj in eobjs:
         # BatchJob keeps track of dependencies and is responsible for submitting to the queue
         eobj.batch_job = BatchJob(bobj.submit, run_path) 
