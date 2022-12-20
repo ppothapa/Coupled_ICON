@@ -78,7 +78,7 @@ MODULE mo_setup_subdivision
   USE mo_decomposition_tools, ONLY: divide_cells_by_location, t_cell_info, &
     & sort_cell_info_by_cell_number, partidx_of_elem_uniform_deco
   USE mo_math_utilities,      ONLY: fxp_lat, fxp_lon
-  USE mo_master_control,      ONLY: my_process_is_oceanic
+  USE mo_master_control,      ONLY: my_process_is_oceanic, my_process_is_waves
 #ifndef NOMPI
   USE mo_divide_cells_by_location_mpi, ONLY: divide_cells_by_location_mpi, &
        init_divide_cells_by_location_mpi
@@ -4048,7 +4048,7 @@ CONTAINS
       ENDIF
     ENDIF
 
-    locean = my_process_is_oceanic()
+    locean = my_process_is_oceanic().or.my_process_is_waves()
 
     lsplit_merged_domains = .FALSE.
 

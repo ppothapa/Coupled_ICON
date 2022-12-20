@@ -9,7 +9,7 @@
 #=============================================================================
 
 
-nd_change_to_experiment_dir # function in ../add_run_routines
+make_and_change_to_experiment_dir # function in ../add_run_routines
 
 # Combine START and MODEL if START_MODEL is not already set.
 # START_MODEL is used to ease the execution of a machine that uses a complex
@@ -29,7 +29,7 @@ ICONDIR="${basedir}" # basedir can be set with create_target_header
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory with input grids:
-#GRIDDIR=${DATAROOT}/GRF_R2B6N8_IFStest
+GRIDDIR=${DATAROOT}/ICON-waves/exp18
 
 # directory with input data from IFS:
 #IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
@@ -45,7 +45,7 @@ DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 #rm -rf *restart_*
 
 # grid files
-#ln -sf ${GRIDDIR}/iconR2B05_DOM00.nc iconR2B05_DOM00.nc
+ln -sf ${GRIDDIR}/ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
 #ln -sf ${GRIDDIR}/iconR2B06_DOM01.nc iconR2B06_DOM01.nc
 #ln -sf ${GRIDDIR}/iconR2B07_DOM02.nc iconR2B07_DOM02.nc
 
@@ -68,7 +68,18 @@ cp -p $MODEL icon
 # ----------------------------------------------------------------------------
 # grid namelist settings
 # ----------------------------------------------------------------------------
-wave_grid="iconR2B06_DOM01.nc"
+wave_grid=ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
+
+dynamics_grid_filename=""
+for gridfile in ${wave_grid}; do
+  dynamics_grid_filename="${dynamics_grid_filename} '${gridfile}',"
+done
+
+num_io_procs=0
+num_restart_procs=0
+num_prefetch_proc=0
+num_io_procs_radar=0
+
 
 wave_namelist=NAMELIST_${EXPNAME}
 
@@ -96,6 +107,53 @@ cat > icon_master.namelist << EOF
  model_min_rank              = 1
  model_max_rank              = 65536
  model_inc_rank              = 1
+/
+EOF
+
+cat > ${wave_namelist} << EOF
+&coupling_mode_nml
+ coupled_mode         = .false.
+/
+&run_nml
+ num_lev              = 3
+ dtime                = ${dtime}     ! [s] timestep in seconds
+ ltimer               = .true.
+ timers_level         = 10
+ msg_level            = 15
+ output               = "nml"
+/
+&parallel_nml
+ nproma                  = ${nproma}             ! loop chunk length
+ p_test_run              = .false.               ! .TRUE. means verification run for MPI parallelization
+ l_test_openmp           = .false.
+ l_log_checks            = .false.
+ num_io_procs            = ${num_io_procs}       ! number of I/O processors
+ num_restart_procs       = ${num_restart_procs}  ! number of restart processors
+ num_prefetch_proc       = ${num_prefetch_proc}  ! number of processors for LBC prefetching
+ num_io_procs_radar      = ${num_io_procs_radar} ! number of EMVORADO I/O processors
+ proc0_shift             = 0
+ num_dist_array_replicas = 4
+ itype_comm              = 1
+ iorder_sendrecv         = 1
+/
+&grid_nml
+ dynamics_grid_filename  = ${dynamics_grid_filename}
+/
+&wave_nml
+ ndirs       = 36           !! NUMBER OF DIRECTIONS
+ nfreqs      = 25           !! NUMBER OF FREQUENCIES
+/
+&output_nml
+ filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                     =                         -1         ! write all domains
+ output_bounds           =        0., 10000000., 3600         ! output: start, end, increment
+ steps_per_file          =                       1000         ! number of output steps in one output file
+ mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last            =                      .TRUE.        ! flag whether to include the last time step
+ output_filename         =                      'WAVE'        ! file name base
+ output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ ml_varlist              =  'process_id'
+ m_levels                = '1'
 /
 EOF
 
