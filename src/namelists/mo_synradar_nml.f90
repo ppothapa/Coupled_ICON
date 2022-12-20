@@ -34,7 +34,7 @@ MODULE mo_synradar_nml
                                  & config_ydir_mielookup_write    => ydir_mielookup_write
   
   USE mo_exception,        ONLY: finish
-  USE radar_dbzcalc_params_type, ONLY: dbzcalc_params, dbz_namlst_d
+  USE radar_dbzcalc_params_type, ONLY: t_dbzcalc_params, dbz_namlst_d
 
 #endif
 
@@ -77,7 +77,7 @@ CONTAINS
 
     ! Meta data for reflectivity computations (DBZ, DBZ850, DBZ_CMAX, etc.) on the model grid by using advanced methods
     !  from EMVORADO (Mie-scattering, T-matrix):
-    TYPE(dbzcalc_params)        :: synradar_meta
+    TYPE(t_dbzcalc_params)        :: synradar_meta
     CHARACTER(LEN=filename_max) :: ydir_mielookup_read
     CHARACTER(LEN=filename_max) :: ydir_mielookup_write
     
