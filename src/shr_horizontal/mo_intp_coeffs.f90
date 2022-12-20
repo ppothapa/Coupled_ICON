@@ -3874,7 +3874,9 @@ CONTAINS
   !! - added projection of cell centers
   !!
   SUBROUTINE init_tplane_c_sphere (ptr_patch, ptr_int)
-
+#ifdef __INTEL_COMPILER
+!DIR$ OPTIMIZE:2
+#endif
     TYPE(t_patch),     INTENT(inout) :: ptr_patch  !< patch
 
     TYPE(t_int_state), INTENT(inout) :: ptr_int    !< interpolation state
