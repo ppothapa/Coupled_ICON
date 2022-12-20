@@ -738,6 +738,27 @@ CONTAINS
            ENDDO
            !$ACC END PARALLEL
 
+          CASE(9)  ! Kessler scheme (warm rain scheme)
+
+!DIR$ IVDEP
+           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC LOOP GANG VECTOR
+           DO jc =  i_startidx, i_endidx
+
+             prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)         &
+               &                      + tcall_gscp_jg                    &
+               &                      * prm_diag%rain_gsp_rate (jc,jb)
+
+             prm_diag%prec_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)
+
+             ! to compute tot_prec_d lateron:
+             prm_diag%prec_gsp_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb)     &
+               &                      + tcall_gscp_jg                    &
+               &                      * prm_diag%rain_gsp_rate (jc,jb)
+
+           ENDDO
+           !$ACC END PARALLEL
+
           CASE DEFAULT
 
 !DIR$ IVDEP
