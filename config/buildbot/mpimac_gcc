@@ -1,7 +1,13 @@
 #!/bin/bash
 
+set -eu
+
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
+
+if test -n "${BB_NAME-}"; then
+  set -x
+fi
 
 if mpirun --version 2>/dev/null | grep 'Open MPI' >/dev/null; then
   # Set the MPI launcher command with an additional argument (although the new
@@ -17,3 +23,13 @@ ${icon_dir}/config/generic/gcc --disable-mpi-checks "$@"
 
 make_job_count=10
 make -j ${make_job_count}
+
+if test -n "${BB_NAME-}"; then
+  "${icon_dir}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
+  "${icon_dir}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+  # Build the tests in parallel:
+  make -j ${make_job_count} check TESTS= XFAIL_TESTS=
+  # Run the tests serially:
+  make check
+  "${icon_dir}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
+fi

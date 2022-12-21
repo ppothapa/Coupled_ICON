@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import sys
+import os
 
 class BuildbotConfig(object):
     def __init__(self):
@@ -19,6 +20,7 @@ class BuildbotConfig(object):
         return pickle.load(picklefile)
 
     def to_pickle(self, filename):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         picklefile = open(str(filename), "wb")
         pickle.dump(self, picklefile)
     
