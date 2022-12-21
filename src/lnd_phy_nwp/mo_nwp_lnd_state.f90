@@ -1551,7 +1551,9 @@ MODULE mo_nwp_lnd_state
            & lrestart=.FALSE., loutput=.TRUE.,                                     &
            & in_group=groups(groups_smi),                                      &
            & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_NNB ), &
-           & l_pp_scheduler_task=TASK_COMPUTE_SMI )
+           & l_pp_scheduler_task=TASK_COMPUTE_SMI,                                 &
+           & lopenacc=.TRUE. )
+    __acc_attach(p_diag_lnd%smi)
     ENDIF  ! l_smi
 
 

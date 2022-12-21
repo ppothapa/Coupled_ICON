@@ -1331,8 +1331,14 @@ CONTAINS
 
 
 #ifdef _OPENACC
-    IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
+    IF (ptr_task%job_type /= TASK_COMPUTE_SDI2 .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_HBAS_SC .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_HTOP_SC .AND. &
         ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_CEILING .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_TWATER .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_SMI .AND. &
         ptr_task%job_type /= TASK_COMPUTE_RH .AND. &
         ptr_task%job_type /= TASK_COMPUTE_DBZCMAX .AND. &
         ptr_task%job_type /= TASK_COMPUTE_DBZLMX_LOW .AND. &
@@ -1392,7 +1398,7 @@ CONTAINS
         ! p_patch_local_parent(jg) seems to exist
         CALL compute_field_sdi( p_patch, jg, p_patch_local_parent(jg), p_int_state_local_parent(jg),     &
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,    &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
       ELSE
         CALL message( "pp_task_compute_field", "WARNING: SDI2 cannot be computed since no reduced grid is available" )
       END IF
@@ -1419,12 +1425,12 @@ CONTAINS
     CASE (TASK_COMPUTE_HBAS_SC)
       CALL compute_field_hbas_sc( p_patch,                                           &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_HTOP_SC)
       CALL compute_field_htop_sc( p_patch,                                           &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_TWATER)
       CALL compute_field_twater( p_patch, ptr_task%data_input%p_nh_state%metrics%ddqz_z_full, &
@@ -1456,7 +1462,7 @@ CONTAINS
 
     CASE (TASK_COMPUTE_SMI)
       CALL compute_field_smi(p_patch, p_lnd_state(jg)%diag_lnd, &
-           &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1))
+           &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_WSHEAR_U)
       CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &

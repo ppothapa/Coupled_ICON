@@ -3986,7 +3986,8 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_SDI2, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_SDI2, lrestart=.FALSE., lopenacc=.TRUE.)
+       __acc_attach(diag%sdi2)
     END IF
 
     IF (var_in_output%lpi) THEN
@@ -4271,7 +4272,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_HBAS_SC, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_HBAS_SC, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%hbas_sc)
     END IF
 
     IF (var_in_output%htop_sc) THEN
@@ -4284,7 +4287,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_HTOP_SC, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_HTOP_SC, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%htop_sc)
     END IF
 
     IF (var_in_output%twater) THEN

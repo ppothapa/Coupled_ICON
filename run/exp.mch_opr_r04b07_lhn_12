@@ -386,7 +386,8 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'dursun', 'dursun_m', 'dursun_r', 'twater', 'dbz', 'dbz_cmax', 'dbz_ctmax', 'dbz_850', 'dbzlmx_low',
   'echotop', 'echotopinm',
   'group:land_vars','group:land_tile_vars','group:dwd_fg_sfc_vars',
-  'albdif','clc','clch','clcl','clcm','clct','geopot','gz0','plcov','pv','rh'
+  'albdif','clc','clch','clcl','clcm','clct','geopot','gz0','plcov','pv','rh',
+  'sdi2', 'ceiling', 'htop_sc', 'hbas_sc', 'smi'
 
  pl_varlist       =
   'u','v','qc','qi','qr','qs','qv','rho','tke','omega','clc','geopot','dpres_mc','div','vor'

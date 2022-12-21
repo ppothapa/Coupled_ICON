@@ -365,14 +365,14 @@ CONTAINS
   !! Initial revision by Daniel Reinert, DWD (2017-05-03) 
   !!
   SUBROUTINE compute_field_smi(ptr_patch, diag_lnd, ext_data, out_var, &
-    &                            opt_rlstart, opt_rlend)
+    &                            opt_rlstart, opt_rlend, lacc)
 
     TYPE(t_patch)        , INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
     TYPE(t_lnd_diag)     , INTENT(IN)    :: diag_lnd               !< nwp diag land state
     TYPE(t_external_data), INTENT(IN)    :: ext_data               !< ext_data state
     REAL(wp)             , INTENT(INOUT) :: out_var(:,:,:)         !< output variable, dim: (nproma,nlev,nblks_c)
     INTEGER, INTENT(IN), OPTIONAL        :: opt_rlstart, opt_rlend !< start and end values of refin_ctrl flag
-
+    LOGICAL              , INTENT(IN), OPTIONAL :: lacc            !< If true, use openacc
 
     ! local
     INTEGER :: rl_start, rl_end
@@ -380,7 +380,13 @@ CONTAINS
     INTEGER :: jc, jk, jb, ic  
     INTEGER :: i_count
     INTEGER :: ierr, ierr_wsoil2smi
+    LOGICAL :: lzacc ! non-optional version of lacc
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+   !$ACC DATA &
+   !$ACC   PRESENT(ptr_patch, diag_lnd%w_so, dzsoil, ext_data%atm%list_land%ncount) &
+   !$ACC   PRESENT(ext_data%atm%soiltyp, out_var) IF(lzacc)
     ! default values
     rl_start = 2
     rl_end   = min_rlcell_int-1
@@ -400,10 +406,11 @@ CONTAINS
 
       ! loop over target (ICON) land points only
       i_count = ext_data%atm%list_land%ncount(jb)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG PRIVATE(jc)
       DO ic = 1, i_count
         jc = ext_data%atm%list_land%idx(ic,jb)
-
+        !$ACC LOOP VECTOR PRIVATE(ierr_wsoil2smi) REDUCTION(MIN: ierr)
         DO jk = 1, nlev_soil-1
 
           CALL wsoil2smi(wsoil   = diag_lnd%w_so(jc,jk,jb),     & !in
@@ -417,7 +424,7 @@ CONTAINS
         ! assume no-gradient condition for soil moisture reservoir layer
         out_var(jc,nlev_soil,jb) = out_var(jc,nlev_soil-1,jb)
       ENDDO
-
+      !$ACC END PARALLEL
       IF (ierr < 0) THEN
         CALL finish("compute_field_smi", "Landpoint has invalid soiltype (sea water or sea ice)")
       ENDIF
@@ -425,7 +432,7 @@ CONTAINS
     ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_smi
 
 
@@ -665,7 +672,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_sdi( ptr_patch, jg, ptr_patch_local_parent, p_int,    &
                                 p_metrics, p_prog, p_diag,                 &
-                                sdi_2 )
+                                sdi_2, lacc)
 
     IMPLICIT NONE
 
@@ -679,6 +686,7 @@ CONTAINS
     TYPE(t_nh_diag),    INTENT(IN)    :: p_diag
  
     REAL(wp),           INTENT(OUT)   :: sdi_2(:,:)    !< output variable, dim: (nproma,nblks_c)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
@@ -736,6 +744,19 @@ CONTAINS
     INTEGER :: nblks_c_lp
 
     REAL(wp) :: EPS = 1.0E-20_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_diag%vor, p_int%cell_environ%idx) &
+    !$ACC   PRESENT(p_int%cell_environ%blk, p_int%cell_environ%area_norm) &
+    !$ACC   PRESENT(p_metrics%z_ifc, p_prog%w, sdi_2) &
+    !$ACC   CREATE(hsurf, vol) &
+    !$ACC   CREATE(w_vmean, zeta_vmean, w_w_vmean, zeta_zeta_vmean, w_zeta_vmean) &
+    !$ACC   CREATE(w_mean, zeta_mean, w_w_mean, zeta_zeta_mean, w_zeta_mean) &
+    !$ACC   CREATE(p_mean) IF(lzacc)
+
 
     ! definition of the vertical integration limits:
     z_min = 1500.0  ! in m
@@ -755,7 +776,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         !sdi_1   ( jc, jb ) = 0.0_wp
         sdi_2 ( jc, jb ) = 0.0_wp
@@ -767,6 +789,7 @@ CONTAINS
         w_zeta_vmean   (jc,jb) = 0.0_wp
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -787,6 +810,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
 
         w_vmean        (jc,jb) = 0.0_wp
@@ -798,8 +823,9 @@ CONTAINS
         vol  (jc) = 0.0_wp
         hsurf(jc) = p_metrics%z_ifc(jc,ptr_patch%nlev+1,jb)
       END DO
-
+      !$ACC LOOP SEQ
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(delta_z, w_c)
         DO jc = i_startidx, i_endidx
 
           IF ( ( p_metrics%z_ifc(jc,jk+1,jb) >= hsurf(jc) + z_min ) .AND.      &
@@ -822,7 +848,7 @@ CONTAINS
 
         END DO
       END DO
-
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(vol_inv)
       DO jc = i_startidx, i_endidx
         vol_inv = 1.0_wp / vol(jc)
         w_vmean        (jc,jb) = w_vmean        (jc,jb) * vol_inv
@@ -831,7 +857,7 @@ CONTAINS
         zeta_zeta_vmean(jc,jb) = zeta_zeta_vmean(jc,jb) * vol_inv
         w_zeta_vmean   (jc,jb) = w_zeta_vmean   (jc,jb) * vol_inv
       END DO
-
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -850,13 +876,14 @@ CONTAINS
     iidx => p_pp%cells%child_idx
     iblk => p_pp%cells%child_blk
 
+
     nblks_c_lp = p_pp%cells%end_block( min_rlcell )
 
     ALLOCATE( p_vmean ( nproma, 5, nblks_c_lp), STAT=ist )
     IF ( ist /= 0 ) THEN
       CALL finish( modname//':compute_field_sdi', "allocate failed" )
     END IF
-
+    !$ACC DATA CREATE(p_vmean) IF(lzacc)
     ! first nullify all lateral grid points
 
     ! Start/End block in the parent domain
@@ -876,12 +903,14 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO idx=1, 5
         DO jc = i_startidx, i_endidx
           p_vmean ( jc, idx, jb ) = 0.0_wp
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -904,7 +933,8 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
 
         p_vmean(jc, idx_w, jb) =                                                 &
@@ -938,10 +968,11 @@ CONTAINS
           + w_zeta_vmean   ( iidx(jc,jb,4), iblk(jc,jb,4) ) * p_fbkwgt(jc,jb,4)
 
        END DO
+       !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  
     ! --- Exchange of these fields on the parent grid
 
     CALL exchange_data( p_pp%comm_pat_c, recv=p_vmean )
@@ -960,12 +991,17 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,             &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      DO jc = i_startidx, i_endidx
-        p_mean( jc, 1:5 ) = 0.0_wp
-      END DO
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO idx=1, 5
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          p_mean( jc, idx ) = 0.0_wp
+        END DO
+      ENDDO
+      !$ACC LOOP SEQ
       DO l=1, p_int%cell_environ%max_nmbr_nghbr_cells
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jc2, jb2, area_norm)
         DO jc = i_startidx, i_endidx
 
           jc2       = p_int%cell_environ%idx      ( jc, jb, l)
@@ -982,7 +1018,9 @@ CONTAINS
       END DO
 
       ! write back to the 4 child grid cells:
+      !$ACC LOOP SEQ
       DO i = 1, 4
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           w_mean        ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_w )
           zeta_mean     ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_zeta )
@@ -991,10 +1029,10 @@ CONTAINS
           w_zeta_mean   ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_w_zeta )
         END DO
       END DO
-
+      !$ACC END PARALLEL
     END DO
 !$OMP END PARALLEL
-
+    !$ACC END DATA ! p_vmean
     DEALLOCATE( p_vmean, STAT=ist ) 
     IF ( ist /= 0 ) THEN
       CALL finish( modname//':compute_field_sdi', "deallocate failed" )
@@ -1015,6 +1053,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,      &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(helic_mean, zeta2_mean, w2_mean, helic_w_corr)
       DO jc = i_startidx, i_endidx
 
         helic_mean  = w_zeta_mean(jc,jb)    - w_mean(jc,jb) * zeta_mean(jc,jb)
@@ -1039,10 +1079,11 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_sdi
 
 
@@ -1637,7 +1678,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_hbas_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
-                                hbas_sc )
+                                hbas_sc, lacc)
 
     IMPLICIT NONE
 
@@ -1646,13 +1687,21 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: hbas_sc(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    LOGICAL,              INTENT(IN), OPTIONAL :: lacc   !< If true, use openacc
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jc, idx
+    
 
     REAL(wp), PARAMETER :: undefValue = 0.0_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_metrics%z_mc, prm_diag%ktype) &
+    !$ACC   PRESENT(prm_diag%mbas_con, hbas_sc) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -1667,7 +1716,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(idx)
       DO jc = i_startidx, i_endidx
 
         IF ( prm_diag%ktype(jc,jb) == 2 ) THEN
@@ -1679,10 +1729,11 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_hbas_sc
 
 
@@ -1696,7 +1747,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_htop_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
-                                htop_sc )
+                                htop_sc, lacc)
 
     IMPLICIT NONE
 
@@ -1705,13 +1756,20 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: htop_sc(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    LOGICAL,              INTENT(IN), OPTIONAL :: lacc   !< If true, use openacc
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jc, idx
 
     REAL(wp), PARAMETER :: undefValue = 0.0_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_metrics%z_mc, prm_diag%ktype) &
+    !$ACC   PRESENT(prm_diag%mbas_con, htop_sc) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -1726,7 +1784,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(idx)
       DO jc = i_startidx, i_endidx
 
         IF ( prm_diag%ktype(jc,jb) == 2 ) THEN
@@ -1738,10 +1797,11 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_htop_sc
 
 
