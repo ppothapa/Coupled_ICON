@@ -14,50 +14,7 @@ fi
 
 ./create_all_builders $listname
 
-./set_builder_flags build_only --builders MISTRAL_nag_serial --list $listname
 ./set_builder_flags Inactive --builders "DAINT_CPU_cce DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 ./set_builder_flags Inactive --builders "DWD_nec DWD_nec_hybrid DWD_nec_yac2" --list $listname
-./set_builder_flags Inactive --builders "MISTRAL_intel18_pio MISTRAL_intel17_hybrid_mixed MISTRAL_intel18_hybrid_mixed MISTRAL_intel18_pio" --list $listname
 ./set_builder_flags Inactive --builders "BREEZE_gcc BREEZE_gcc_openmp BREEZE_intel BREEZE_intel_openmp BREEZE_nag" --list $listname
-
-machine=mistral
-./addbuilder MISTRAL_intel17          --machine $machine     --build_script="./config/buildbot/mistral_intel17"              --configureflags="--with-mpi --without-openmp"             --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel17_hybrid   --machine $machine     --build_script="./config/buildbot/mistral_intel17_hybrid"       --configureflags="--with-mpi --with-openmp"                --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel17_openmp   --machine $machine     --build_script="./config/buildbot/mistral_intel17_openmp"       --configureflags="--without-mpi --with-openmp"             --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel17_hybrid_mixed --machine $machine --build_script="./config/buildbot/mistral_intel17_hybrid_mixed" --configureflags="--with-mpi --with-openmp --enable-mixed" --builderflags="Inactive"  --list $listname
-
-./addbuilder MISTRAL_intel18        --machine $machine       --build_script="./config/buildbot/mistral_intel18"              --configureflags="--with-mpi --withoutout-openmp"          --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel18_hybrid --machine $machine       --build_script="./config/buildbot/mistral_intel18_hybrid"       --configureflags="--with-mpi --with-openmp"                --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel18_openmp --machine $machine       --build_script="./config/buildbot/mistral_intel18_openmp"       --configureflags="--without-mpi --with-openmp"             --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_intel18_hybrid_mixed --machine $machine --build_script="./config/buildbot/mistral_intel18_hybrid_mixed" --configureflags="--with-mpi --with-openmp --enable-mixed" --builderflags="Inactive"  --list $listname
-
-./addbuilder MISTRAL_nag            --machine $machine       --build_script="./config/buildbot/mistral_nag"        --configureflags="--with-mpi    --without-openmp"          --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_nag_serial     --machine $machine       --build_script="./config/buildbot/mistral_nag_serial" --configureflags="--without-mpi --without-openmp"          --builderflags="build_only"  --list $listname
-
-./addbuilder MISTRAL_ocean_intel17  --machine $machine       --build_script="./config/buildbot/mistral_intel17_ocean"        --configureflags="--with-openmp --with-mpi --disable-atmo --disable-jsbach --disable-psrad  --with-yac=no" --builderflags="Active"  --list $listname
-./addbuilder MISTRAL_ocean_intel18  --machine $machine       --build_script="./config/buildbot/mistral_intel18_ocean"        --configureflags="--with-openmp --with-mpi --disable-atmo --disable-jsbach --disable-psrad  --with-yac=no" --builderflags="Active"  --list $listname
-#---------------------------------------------------------------
-./addbuilder MISTRAL_intel18_pio    --machine $machine       --build_script="./config/buildbot/mistral_intel18_pio"          --configureflags="--with-mpi --withoutout-openmp"          --builderflags="Inactive"  --list $listname
-
-# breeze builders
-machine=breeze
-./addmachine $machine --list $listname
-./addbuilder BREEZE_gcc           --machine $machine --configureflags=""  --builderflags="Inactive"  --list $listname
-./addbuilder BREEZE_gcc_openmp    --machine $machine --configureflags=""  --builderflags="Inactive"  --list $listname
-./addbuilder BREEZE_intel         --machine $machine --configureflags=""  --builderflags="Inactive"  --list $listname
-./addbuilder BREEZE_intel_openmp  --machine $machine --configureflags=""  --builderflags="Inactive"  --list $listname
-./addbuilder BREEZE_nag           --machine $machine --configureflags=""  --builderflags="Inactive"  --list $listname
-
-
-#CSCS builders
-machine=daint
-./addmachine $machine --list $listname
-./addbuilder DAINT_CPU_cce        --machine $machine --build_script="./config/buildbot/daint_cpu_cray"  --configureflags="" --builderflags="Inactive"      --list $listname
-./addbuilder DAINT_CPU_nvidia        --machine $machine --build_script="./config/buildbot/daint_cpu_nvidia" --configureflags="" --builderflags="Inactive"      --list $listname
-./addbuilder DAINT_GPU_nvidia        --machine $machine --build_script="./config/buildbot/daint_gpu_nvidia"  --configureflags="--enable-gpu --enable-claw=std" --builderflags="Inactive"  --list $listname
-
-#DWD machines
-machine=dwd_cray
-./addmachine $machine --list $listname
-./addbuilder DWD_cray            --machine $machine  --build_script="./config/buildbot/dwd_cray"   --configureflags="--with-fortran=cray"   --builderflags="Inactive"  --list $listname
-
+./set_builder_flags Inactive --builders "levante_intel_hybrid_mixed levante_nag_serial levante_intel_pio" --list $listname

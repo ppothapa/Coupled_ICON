@@ -1,0 +1,53 @@
+#! %{JOB.ksh|default('/bin/ksh')} #%# -*- mode: sh -*- vi: set ft=sh :
+#
+# %{EXP_ID}.%{JOB.id}
+#
+# %{mkexp_input}
+#
+#SBATCH --account=%{ACCOUNT}
+#%  if JOB.qos is defined:
+#SBATCH --qos=%{JOB.qos}
+#%  endif
+#SBATCH --job-name=%{EXP_ID}.%{JOB.id}
+#SBATCH --partition=%{JOB.partition}
+#SBATCH --ntasks=%{JOB.tasks}
+#SBATCH --output=%{SCRIPT_DIR}/%x.%8j.log
+#SBATCH --time=%{JOB.time_limit}
+#%include 'standard_environments/'+ENVIRONMENT+'.tmpl' ignore missing
+
+set -e
+#%  if JOB.debug_level|d(0)|int > 1:
+set -x
+#%  endif
+
+# Support log style output
+pipe=%{EXP_ID}_%{JOB.id}_$$.pipe
+mkfifo $pipe
+trap "cd $PWD && rm -f $pipe" EXIT
+awk '{print strftime("%FT%T:"), $0; fflush()}' $pipe &
+exec > $pipe 2>&1
+
+echo 'clean job started'
+
+mkdir -vp %{LOG_DIR}
+
+make -j %{JOB.tasks} -k -f - SOURCES="$(ls %{EXP_ID}.{run,post,mon}.*.log* 2> /dev/null)" << 'EOF'
+
+LOG_DIR = %{LOG_DIR}
+SOURCES_CLEAN = $(SOURCES:.xz=)
+TARGETS = $(SOURCES_CLEAN:%=$(LOG_DIR)/%.xz)
+
+all: $(TARGETS)
+
+$(LOG_DIR)/%.xz: %
+	xz -vc $< > $(LOG_DIR)/$*.xz~
+	touch -r $< $@~
+	mv $@~ $@
+	rm -f $<
+
+$(LOG_DIR)/%.xz: %.xz
+	mv $< $@
+
+EOF
+
+echo 'clean job finished'

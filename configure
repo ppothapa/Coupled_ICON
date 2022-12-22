@@ -9544,6 +9544,9 @@ ac_config_files="$ac_config_files run/collect.set-up.info"
 ac_config_commands="$ac_config_commands run/set-up.info"
 
 
+ac_config_commands="$ac_config_commands run/SETUP.config"
+
+
 ac_config_commands="$ac_config_commands depfiles"
 
 
@@ -10495,6 +10498,7 @@ do
     "icon.mk") CONFIG_FILES="$CONFIG_FILES icon.mk" ;;
     "run/collect.set-up.info") CONFIG_FILES="$CONFIG_FILES run/collect.set-up.info" ;;
     "run/set-up.info") CONFIG_COMMANDS="$CONFIG_COMMANDS run/set-up.info" ;;
+    "run/SETUP.config") CONFIG_COMMANDS="$CONFIG_COMMANDS run/SETUP.config" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -11058,8 +11062,14 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
   case $ac_file$ac_mode in
     "run/collect.set-up.info":F) chmod +x "$ac_file" ;;
-    "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: failed to create \"$ac_file\"" >&5
-$as_echo "$as_me: WARNING: failed to create \"$ac_file\"" >&2;} ;;
+    "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    as_fn_error $? "failed to create $ac_file" "$LINENO" 5 ;;
+    "run/SETUP.config":C) rm -f "$ac_file"
+   ac_rel_source='set-up.info'
+   ac_source="run/${ac_rel_source}"
+   ln -s "$ac_rel_source" "$ac_file" 2>/dev/null ||
+     ln "$ac_source" "$ac_file" 2>/dev/null ||
+     cp -p "$ac_source" "$ac_file" ||
+     as_fn_error $? "cannot link or copy $ac_source to $ac_file" "$LINENO" 5 ;;
     "depfiles":C) ${MAKE-make} -f icon.mk dummy-depend >/dev/null 2>&5
    sleep 1
    touch icon.mk ;;

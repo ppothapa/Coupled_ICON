@@ -272,19 +272,19 @@ cat > ${ocean_namelist} << EOF
 !  fixedOBLdepth           = .FALSE.            ! True => fixed OBL depth at fixedOBLdepth_value (only for testing)                
 !  fixedOBLdepth_value     = 30.0               ! value for the fixed OBL depth when fixedOBLdepth=.True.                          
   ! cvmix/tke parameters
-  c_k                                        = 0.3
-  c_eps                                      = 0.7
-  alpha_tke                                  = 30.0
-  mxl_min                                    = 1.d-8
-  kappaM_min                                 = 0.0
-  kappaM_max                                 = 100.0
-  cd                                         = 3.75
-  tke_min                                    = 1.d-6
-  tke_mxl_choice                             = 2
-  tke_surf_min                               = 1.d-4
-  only_tke                                   = .true.
-  use_ubound_dirichlet                       = .FALSE.
-  use_lbound_dirichlet                       = .FALSE.
+  c_k        = 0.1
+  c_eps      = 0.7
+  alpha_tke  = 30.0
+  mxl_min    = 1.d-8
+  kappaM_min = 0.0
+  kappaM_max = 100.0
+  cd         = 3.75
+  tke_min    = 1.d-6
+  tke_mxl_choice = 2
+  tke_surf_min = 1.d-4
+  only_tke = .true.
+  use_ubound_dirichlet = .false.
+  use_lbound_dirichlet = .false.
 /
 &ocean_GentMcWilliamsRedi_nml
   GMRedi_configuration           =   1       ! 0=cartesian diffusion 1=GM-Redi: bolus advection + isopycnal diffusion
@@ -295,6 +295,8 @@ cat > ${ocean_namelist} << EOF
   k_tracer_GM_kappa_parameter     = 1000.0     !
   k_tracer_isoneutral_parameter   = 1000.0     ! value for cell-based cartesian diffusion - mpiom: 1000/400km = 400/160km
   k_tracer_dianeutral_parameter   = 0.0       !1.0E-5  !
+  lvertical_GM                    =.FALSE.                       ! true: use Danabasoglu & Marshall (2007) param. for vertical variable kappa
+  Nmin                            = 0.1      ! minimum values for the ratio of N2/N2_ref in D&M2007 param.
   SWITCH_OFF_DIAGONAL_VERT_EXPL          =.TRUE.
   GMREDI_COMBINED_DIAGNOSTIC             =.FALSE.
   SWITCH_ON_REDI_BALANCE_DIAGONSTIC      =.FALSE.
@@ -308,7 +310,7 @@ cat > ${ocean_namelist} << EOF
 /                                           
 &sea_ice_nml
   i_ice_therm                     =   1       ! 1=zero-layer (default), 2=Winton, 0/2: not allowed
-  i_ice_dyn                       =   1       ! 1/0=switch on/off AWI ice dynamics
+  i_ice_dyn                       =   1       ! 1/0=switch on/off AWI ice dynamics , 2=C-grid ice dynamics 
 ! i_Qio_type                      =   3       ! 3 (default): energy of whole grid-area used for melting (MPIOM-type)
 ! use_constant_tfreez             = .TRUE.    ! default: true
 ! use_no_flux_gradients           = .FALSE.   ! default: true
@@ -345,7 +347,7 @@ cat > ${ocean_namelist} << EOF
   limit_elevation                 = .TRUE.
   atm_pressure_included_in_ocedyn = .TRUE.   ! use atm. pressure in the ocean dynamics
   atm_pressure_included_in_icedyn = .TRUE.   ! use atm. pressure in the ice dynamics
-  use_tides                       = .FALSE.
+  use_tides                       = .TRUE.
   tides_mod                       =  1        ! 1 Default 2 MPIOM 
   lswr_jerlov                     = .TRUE.    ! use jerlov water types for sw absorption
   jerlov_atten                    = 0.08      ! jerlov water type IB
@@ -386,14 +388,25 @@ EOF
 #-----------------------------------------------------------------------------
 . ${thisdir}/exec.iconrun
 #-----------------------------------------------------------------------------
+# use lower case builder name (temp solution for the using old and new bb for the same code)
+echo "BB_NAME = ${BB_NAME}"
+echo "BB_SYSTEM = ${BB_SYSTEM}"
+echo "BB_SLAVE = ${BB_SLAVE}"
+set -x
+# no referce data on levante, yet
+[[ x"${BB_SYSTEM}" != 'xlevante' ]] && exit 0
+
+#-----------------------------------------------------------------------------
 #  compare with reference
-if [[ x$BB_SYSTEM != x ]]; then
+builder=''
+[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+[[ ! -z $BB_SLAVE ]] && builder="${BB_SYSTEM}_${BB_SLAVE}"  # old buildbot
+if [[ "x${builder}" != "x" ]]; then
   rm -f ${final_status_file}
 . ${thisdir}/postFunx.sh
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
-  slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-  refDir=${builbot_ocean_reference_path}/${slave}/${EXPNAME}
+  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_final_status $? "DIFFCHECK for exp: ${EXPNAME}"

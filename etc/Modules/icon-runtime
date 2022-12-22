@@ -15,10 +15,3 @@ if [info exists env(ICON_BUILD_DIR)] {
 prepend-path-if-exists MKEXP_PATH $ICON_DIR/run
 prepend-path-if-exists MKEXP_PATH $ICON_DIR/$build_dir/run
 prepend-path MKEXP_PATH .
-
-set_dependencies {
-    python/2.7.12
-    cdo/1.9.10-magicsxx-gcc64
-    ncl/6.5.0-gccsys
-    imagemagick/6.9.1-7-gcc48
-}

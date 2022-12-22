@@ -292,6 +292,8 @@ cat > ${ocean_namelist} << EOF
   k_tracer_GM_kappa_parameter     = 1000.0     !
   k_tracer_isoneutral_parameter   = 1000.0     ! value for cell-based cartesian diffusion - mpiom: 1000/400km = 400/160km
   k_tracer_dianeutral_parameter   = 0.0       !1.0E-5  !
+  lvertical_GM                    =.FALSE.                       ! true: use Danabasoglu & Marshall (2007) param. for vertical variable kappa
+  Nmin                            = 0.1      ! minimum values for the ratio of N2/N2_ref in D&M2007 param.
   SWITCH_OFF_DIAGONAL_VERT_EXPL          =.TRUE.
   GMREDI_COMBINED_DIAGNOSTIC             =.FALSE.
   SWITCH_ON_REDI_BALANCE_DIAGONSTIC      =.FALSE.
@@ -342,7 +344,7 @@ cat > ${ocean_namelist} << EOF
   limit_elevation                 = .TRUE.
   atm_pressure_included_in_ocedyn = .TRUE.   ! use atm. pressure in the ocean dynamics
   atm_pressure_included_in_icedyn = .TRUE.   ! use atm. pressure in the ice dynamics
-  use_tides                       = .FALSE.
+  use_tides                       = .TRUE.
   tides_mod                       =  1        ! 1 Default 2 MPIOM 
   lswr_jerlov                     = .TRUE.    ! use jerlov water types for sw absorption
   jerlov_atten                    = 0.08      ! jerlov water type IB
@@ -383,20 +385,29 @@ EOF
 #-----------------------------------------------------------------------------
 . ${thisdir}/exec.iconrun
 #-----------------------------------------------------------------------------
-exit
-
+# use lower case builder name (temp solution for the using old and new bb for the same code)
+echo "BB_NAME = ${BB_NAME}"
+echo "BB_SYSTEM = ${BB_SYSTEM}"
+echo "BB_SLAVE = ${BB_SLAVE}"
+set -x
+# no referce data on levante, yet
+#[[ x"${BB_SYSTEM}" != 'xlevante' ]] && exit 0
+#
+##-----------------------------------------------------------------------------
 #  compare with reference
-if [[ x$BB_SYSTEM != x ]]; then
-  rm -f ${final_status_file}
-. ${thisdir}/postFunx.sh
-  dataPath="${basedir}/experiments/${EXPNAME}/"
-  cd ${dataPath}
-  slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-  refDir=${builbot_ocean_reference_path}/${slave}/${EXPNAME}
-
-  directoryDiff ${refDir} .
-  check_final_status $? "DIFFCHECK for exp: ${EXPNAME}"
-  cd -
-fi
+#builder=''
+#[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
+#[[ ! -z $BB_SLAVE ]] && builder="${BB_SYSTEM}_${BB_SLAVE}"  # old buildbot
+#if [[ "x${builder}" != "x" ]]; then
+#  rm -f ${final_status_file}
+#. ${thisdir}/postFunx.sh
+#  dataPath="${basedir}/experiments/${EXPNAME}/"
+#  cd ${dataPath}
+#  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}
+#
+#  directoryDiff ${refDir} .
+#  check_final_status $? "DIFFCHECK for exp: ${EXPNAME}"
+#  cd -
+#fi
 
 exit

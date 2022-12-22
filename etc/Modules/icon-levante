@@ -1,0 +1,11 @@
+#%Module1.0
+
+source [file join [file dirname $ModulesCurrentModulefile] icon-runtime]
+
+set_dependencies {
+    python3
+    cdo
+    ncl
+    ghostscript
+    imagemagick
+}
