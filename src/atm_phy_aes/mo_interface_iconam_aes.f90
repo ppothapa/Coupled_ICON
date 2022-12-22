@@ -606,23 +606,9 @@ CONTAINS
     !
 #ifdef YAC_coupling
     IF ( is_coupled_run() ) THEN
-#if defined( _OPENACC )
-      CALL warning('GPU:interface_aes_ocean','GPU host synchronization should be removed when port is done!')
-      CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
-      CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
-#endif
-
       IF (ltimer) CALL timer_start(timer_coupling)
-
       CALL interface_aes_ocean( patch , pt_diag )
-
       IF (ltimer) CALL timer_stop(timer_coupling)
-
-#if defined( _OPENACC )
-      CALL warning('GPU:interface_aes_ocean','GPU device synchronization should be removed when port is done!')
-      CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
-      CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
-#endif
     END IF
 #endif
     !

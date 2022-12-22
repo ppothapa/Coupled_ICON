@@ -61,9 +61,7 @@ MODULE mo_aes_phy_bcs
 
   ! for 6hourly sst and ice data
   USE mo_time_config,          ONLY: time_config
-  USE mo_reader_sst_sic,       ONLY: t_sst_sic_reader
-  USE mo_interpolate_time,     ONLY: t_time_intp
-  USE mo_aes_phy_init,       ONLY: sst_intp, sic_intp, sst_sic_reader
+  USE mo_aes_phy_init,         ONLY: sst_intp, sic_intp, sst_sic_reader
 
   IMPLICIT NONE
   PRIVATE
@@ -186,7 +184,7 @@ CONTAINS
           jbs = 1; jbe = SIZE(field%sftof, 2)
           jcs = 1; jce = SIZE(field%sftof, 1)
           !$ACC DATA CREATE(mask_sftof)
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -211,7 +209,7 @@ CONTAINS
           jbs = LBOUND(field%ts_tile, 2); jbe = UBOUND(field%ts_tile, 2)
           jcs = LBOUND(field%ts_tile, 1); jce = UBOUND(field%ts_tile, 1)
 
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT(sst_dat)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -227,7 +225,7 @@ CONTAINS
 
           jbs = LBOUND(field%seaice, 2); jbe = UBOUND(field%seaice, 2)
           jcs = LBOUND(field%seaice, 1); jce = UBOUND(field%seaice, 1)
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT(sic_dat)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -243,7 +241,7 @@ CONTAINS
           ! set ice thickness
           jbs = LBOUND(field%siced, 2); jbe = UBOUND(field%siced, 2)
           jcs = LBOUND(field%siced, 1); jce = UBOUND(field%siced, 1)
-          !$ACC PARALLEL DEFAULT(NONE) PRESENT(p_patch)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -263,7 +261,7 @@ CONTAINS
         IF (iice <= nsfc_type) THEN
           jbs = LBOUND(field%conc, 3); jbe = UBOUND(field%conc, 3)
           jcs = LBOUND(field%conc, 1); jce = UBOUND(field%conc, 1)
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce

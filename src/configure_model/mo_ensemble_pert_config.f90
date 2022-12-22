@@ -765,7 +765,7 @@ MODULE mo_ensemble_pert_config
         !$ACC   PRESENT(ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc)
         !$ACC UPDATE DEVICE(rnd_tkred_sfc, rnd_fac_ccqc)
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           wrnd_num(jc) = 0._wp

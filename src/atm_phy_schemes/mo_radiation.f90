@@ -284,7 +284,7 @@ CONTAINS
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(zsmu0, n_cosmu0pos, cosmu0_dark) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
         !$ACC LOOP GANG VECTOR
 !DIR$ SIMD
         DO jc = 1,ie
@@ -384,7 +384,7 @@ CONTAINS
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(NONE) PRESENT(zsmu0, n_cosmu0pos, cosmu0_dark, zsct) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1,ie
           IF ( n_cosmu0pos(jc,jb) > 0 ) THEN

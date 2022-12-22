@@ -322,7 +322,7 @@ CONTAINS
           IF (iqg > 0) ptr_reff_qg => prm_diag%reff_qg(jcs:jce,:,jb)
         END IF
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         do jc = i_startidx_sub, i_endidx_sub
           prm_diag%tsfctrad(jc,jb) = lnd_prog%t_g(jc,jb)
@@ -330,13 +330,13 @@ CONTAINS
         !$ACC END PARALLEL
 
         !$ACC DATA PRESENT(cosmu0mask)
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         do jc = 1, nproma_rad
           cosmu0mask(jc) = .FALSE.
         end do
         !$ACC END PARALLEL
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx_rad, i_endidx_rad
           IF ( prm_diag%cosmu0(jc+nproma_rad*(jb_rad-1),jb) > 0._wp ) THEN
@@ -413,7 +413,7 @@ CONTAINS
             CALL finish(routine, 'irad_aero not valid for ecRad')
         END SELECT
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma_rad
           ecrad_flux%cloud_cover_sw(jc) = 0._wp
@@ -472,8 +472,7 @@ CONTAINS
           &                     cosmu0mask, zsct, i_startidx_rad, i_endidx_rad, nlevp1)
 
         IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT(zlwflx_up, zlwflx_dn, zswflx_up, zswflx_dn, zlwflx_up_clr) &
-          !$ACC   PRESENT(zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlevp1
             DO jc = i_startidx_rad, i_endidx_rad
@@ -936,11 +935,11 @@ CONTAINS
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                       i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
       DO jc = i_startidx, i_endidx
         prm_diag%tsfctrad(jc,jb) = lnd_prog%t_g(jc,jb)
       ENDDO ! jc
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
     ENDDO ! jb
 !$OMP END DO NOWAIT
 
@@ -1064,18 +1063,18 @@ CONTAINS
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = 1,nproma_rad
           cosmu0mask(jc) = .FALSE.
         ENDDO
-        !$ACC END PARALLEL
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC END PARALLEL LOOP
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = i_startidx_rad, i_endidx_rad
           IF ( zrg_cosmu0(jc+nproma_rad*(jb_rad-1),jb) > 0._wp ) THEN
             cosmu0mask(jc) = .TRUE.
           ENDIF
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
 
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff > 0) THEN
           ptr_reff_qc => zrg_reff_liq(jcs:jce,:,jb)
@@ -1165,12 +1164,12 @@ CONTAINS
         END SELECT
 
         ! Reset output values
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = 1, nproma_rad
           ecrad_flux%cloud_cover_sw(jc) = 0._wp
           ecrad_flux%cloud_cover_lw(jc) = 0._wp
         END DO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
 
 !---------------------------------------------------------------------------------------
 ! Call the radiation scheme ecRad

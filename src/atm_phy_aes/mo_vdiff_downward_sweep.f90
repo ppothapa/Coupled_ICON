@@ -285,7 +285,7 @@ CONTAINS
 
     ! geopotential height above ground
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1,klev
          DO jl = jcs,jce
             zghf(jl,jk,jb) = pzf(jl,jk,jb) - pzh(jl,klevp1,jb)
@@ -293,7 +293,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1,klevp1
          DO jl = jcs,jce
             zghh (jl,jk,jb) = pzh(jl,jk,jb) - pzh(jl,klevp1,jb)
@@ -302,7 +302,7 @@ CONTAINS
     !$ACC END PARALLEL LOOP
     
     ! reciprocal layer mass
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1,klev
          DO jl = jcs,jce
             zrmairm(jl,jk,jb) = 1._wp / pmair(jl,jk,jb)
@@ -311,7 +311,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
     
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1,klevm1
       DO jl = jcs,jce
         zrmairh(jl,jk,jb) = 2._wp / (pmair(jl,jk,jb) + pmair(jl,jk+1,jb))
@@ -319,7 +319,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jk = 1,klev
        DO jl = jcs,jce
          ddt_u(jl,jk,jb) = 0._wp
@@ -377,7 +377,7 @@ CASE ( itte ) ! TTE scheme
                            & zqsat_b(:,jb),  zlh_b(:,jb),                                &! out, for "sfc_exchange_coeff"
                            & pri(:,1:klevm1,jb), pmixlen(:,1:klevm1,jb)                  )! out, for output
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jl = jcs,jce
       pmixlen(jl,klev,jb) = -999._wp
     END DO
@@ -424,7 +424,7 @@ CASE ( itte ) ! TTE scheme
                            & pcair(:,jb))                                    ! in, optional
 
     IF ( isrfc_type == 1 ) THEN
-      !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR ASYNC(1)
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
       DO jl = jcs,jce
         pztottevn(jl,klev,jb) = jztottevn(jl,jb)
       END DO
@@ -572,7 +572,7 @@ END SELECT    !select turbulent scheme
 
     zconst = tpfac1*pdtime
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,klevm1
       DO jl = jcs,jce
@@ -581,7 +581,7 @@ END SELECT    !select turbulent scheme
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,jce
       zfactor(jl,klev,jb) = zfactor(jl, klev,jb)*zconst
@@ -597,7 +597,7 @@ END SELECT    !select turbulent scheme
                           & aa(:,:,:,:,jb), aa_btm(:,:,:,:,jb)                  )! out
 
     ! Save for output, to be used in "update_surface"
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,jce
       pfactor_sfc(jl,jb) = zfactor(jl,klev,jb)

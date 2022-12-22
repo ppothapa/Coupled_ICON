@@ -288,7 +288,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
@@ -313,7 +313,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -345,7 +345,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_nh_prog, p_nh_save, p_grf) DEFAULT(NONE) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO ie = jshift+1, jshift+nlen
         je = p_grf%idxlist_bdyintp_src_e(ie)
@@ -480,7 +480,7 @@ CONTAINS
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell_int)
 
-        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           p_nh%diag%w_int          (jc,jb,nsubs+1) = 0._wp
@@ -549,7 +549,7 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_e+1, min_rledge_int-2)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL PRESENT(p_nh) DEFAULT(NONE) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
           p_nh%diag%dvn_ie_int(je,jb) = 0.5_wp*(p_nh%diag%dvn_ie_int(je,jb) + &
@@ -586,8 +586,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
-      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -623,8 +622,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
-      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(jc, jb)
       DO ic = jshift+1, jshift+nlen
         jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -636,8 +634,7 @@ CONTAINS
 
       IF (ltransport) THEN
 
-        !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_new_rcf, p_prog_now_rcf) &
-        !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
         DO ic = jshift+1, jshift+nlen
           jc = p_grf%idxlist_bdyintp_src_c(ic)
@@ -688,8 +685,7 @@ CONTAINS
       ENDIF
       jshift = (ib-1)*nproma_bdyintp
 
-      !$ACC PARALLEL PRESENT(p_grf, p_nh, p_prog_now, p_prog_new) &
-      !$ACC   IF(i_am_accel_node) DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO ie = jshift+1, jshift+nlen
         je = p_grf%idxlist_bdyintp_src_e(ie)
@@ -1001,7 +997,7 @@ CONTAINS
         CALL get_indices_c(p_pc, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
           1, grf_bdywidth_c)
 
-        !$ACC PARALLEL PRESENT(p_nhc_dyn, rho_prc, p_nh_state, theta_prc) DEFAULT(NONE) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev_c
 !DIR$ IVDEP
@@ -1665,7 +1661,7 @@ CONTAINS
 !DIR$ IVDEP
         DO jk = 1, nlev
 #else
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, thv_tend, rho_tend, zrho, ztheta_v, zexner)
       DO jk = 1, nlev
 !$NEC ivdep
@@ -1705,7 +1701,7 @@ CONTAINS
 !DIR$ IVDEP
         DO jk = 1, nlev
 #else
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, vn_tend)
       DO jk = 1, nlev
 !$NEC ivdep
@@ -1760,7 +1756,7 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) &
         !$ACC   PRIVATE(jc, jb, pres, temp, qv, tempv_inc, pres_inc, thv_tend, rho_tend, zrho, ztheta_v, zexner)
         DO jk = nshift+1, nlev
@@ -1811,7 +1807,7 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, thv_tend, rho_tend)
         DO jk = nshift+1, nlev
 !$NEC ivdep
@@ -1842,7 +1838,7 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = 1, nlev
 #else
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jc, jb, qv_tend)
         DO jk = 1, nlev
 !$NEC ivdep
@@ -1874,7 +1870,7 @@ CONTAINS
 !DIR$ IVDEP
           DO jk = nshift+1, nlev
 #else
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(je, jb, vn_tend)
         DO jk = nshift+1, nlev
 !$NEC ivdep
@@ -2011,7 +2007,7 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
 
         ! Exclude halo points of boundary interpolation zone (causes sync error otherwise)
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           bdymask(jc) = p_patch%cells%refin_ctrl(jc,jb)>=1 .AND. p_patch%cells%refin_ctrl(jc,jb)<=grf_bdywidth_c
@@ -2019,7 +2015,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (lnudge_hydro_pres_ubn) THEN
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, pres, temp, qv, tempv_inc, pres_inc, thv_tend, rho_tend)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
@@ -2049,7 +2045,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ELSE
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, thv_tend, rho_tend)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
@@ -2082,14 +2078,14 @@ CONTAINS
           i_startidx, i_endidx, grf_bdywidth_e+1, min_rledge)
 
         ! Exclude halo points of boundary interpolation zone (causes sync error otherwise)
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
           bdymask(je) = p_patch%edges%refin_ctrl(je,jb)>=1 .AND. p_patch%edges%refin_ctrl(je,jb)<=grf_bdywidth_e
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, vn_tend)
         DO jk = 1, ke_nudge
 !DIR$ IVDEP
@@ -2437,6 +2433,7 @@ CONTAINS
 
       ENDDO
     ENDDO
+    !$ACC END PARALLEL LOOP
 !$OMP END DO NOWAIT
 
 !$OMP END PARALLEL

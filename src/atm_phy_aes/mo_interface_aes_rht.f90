@@ -165,7 +165,7 @@ CONTAINS
                & q_rsw      = q_rsw                    (:,:) ,&! rad. heating by SW           [W/m2]
                & q_rlw      = q_rlw                    (:,:)  )! rad. heating by LW           [W/m2]
           !
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jc = jcs, jce
@@ -205,7 +205,7 @@ CONTAINS
           !$ACC END PARALLEL
           !
           !
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           IF (ASSOCIATED(field% q_rad_vi)) THEN
             !$ACC LOOP GANG VECTOR
             DO jc = jcs, jce
@@ -240,7 +240,7 @@ CONTAINS
        END IF
        !
        ! convert    heating
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
        DO jk = 1, nlev
          DO jc = jcs, jce
@@ -315,7 +315,7 @@ CONTAINS
        !$ACC END PARALLEL
 
        IF (ASSOCIATED(field% q_phy_vi)) THEN
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = jcs, jce
           field% q_phy_vi(jc,jb) = field% q_phy_vi(jc,jb) + SUM(q_rad(jc,:))
@@ -329,7 +329,7 @@ CONTAINS
        !
        !$ACC DATA PRESENT(field, tend)
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        IF (ASSOCIATED(field% q_rad)) THEN
          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
          DO jk = 1, nlev
@@ -395,7 +395,7 @@ CONTAINS
        !$ACC END PARALLEL
        !
        !
-       !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        IF (ASSOCIATED(field% q_rad_vi)) THEN
          !$ACC LOOP GANG VECTOR
          DO jc = jcs, jce
