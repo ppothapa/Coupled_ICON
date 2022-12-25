@@ -142,8 +142,7 @@ CONTAINS
 
     seed_in_time = create_rdm_seed_in_time(current_datetime)
 
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(cosmu0, tsfc, albvisdif, albnirdif, albvisdir) &
-    !$ACC   PRESENT(albnirdir, emis_rad, ecrad_single_level, ptr_center) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         ecrad_single_level%cos_sza(jc)            = cosmu0(jc)
@@ -197,7 +196,7 @@ CONTAINS
 
       !$ACC DATA PRESENT(ecrad_thermodynamics, temp, pres, pres_ifc)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,nlevp1
         DO jc = i_startidx, i_endidx
@@ -207,7 +206,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Temperature at half levels is interpolated in the same way as in rrtm so far.
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk=2,nlev
         !$ACC LOOP GANG VECTOR
@@ -220,7 +219,7 @@ CONTAINS
       ENDDO !jk
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ecrad_thermodynamics%temperature_hl(jc,nlevp1) = temp(jc,nlev) + (pres_ifc(jc,nlevp1) - pres(jc,nlev)) * &
@@ -233,7 +232,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Directly provide full level temperature and pressure to rrtm gas_optics in ecrad (see rrtm_pass_temppres_fl).
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -310,7 +309,7 @@ CONTAINS
     !$ACC DATA PRESENT(ecrad_cloud, qc, qi, clc, temp, pres, acdnc, fr_land, fr_glac, reff_frz, reff_liq)
     !$ACC DATA PRESENT(ecrad_cloud%q_liq, ecrad_cloud%q_ice, ecrad_cloud%re_liq, ecrad_cloud%re_ice)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(liwcfac, lwc, iwc)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
@@ -339,7 +338,7 @@ CONTAINS
       IF (.NOT. ASSOCIATED(reff_liq) .OR. .NOT. ASSOCIATED(reff_frz)) THEN
         CALL finish('ecrad_set_clouds','effective radius fields not associated')
       ENDIF
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -602,7 +601,7 @@ CONTAINS
       !$ACC   PRESENT(lwflx_dn_clr, swflx_up_clr, swflx_dn_clr, cosmu0mask)
 
       ! Initialize output fields
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1, nlevp1
         !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -626,7 +625,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! Store output of 3-D Fluxes
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlevp1
         DO jc = i_startidx, i_endidx
@@ -641,7 +640,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN    
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevp1
           DO jc = i_startidx, i_endidx
@@ -661,7 +660,7 @@ CONTAINS
       END IF
 
       ! Store output of 2-D Fluxes
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lwflx_up_sfc_rs(jc) = ecrad_flux%lw_up(jc,nlevp1)
@@ -702,7 +701,7 @@ CONTAINS
           & ecrad_flux%sw_dn_direct_surf_band(:,i_startidx:i_endidx), cosmu0(i_startidx:i_endidx), &
           & cosmu0mask(i_startidx:i_endidx), fr_par_sfc_diff(i_startidx:i_endidx), nbands=nweight_par_ecrad)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         fr_nir_sfc_diff(jc) = 1._wp - MIN(1._wp, fr_nir_sfc_diff(jc) / MAX(trsol_nir_sfc(jc), EPSILON(1._wp)))
@@ -752,7 +751,7 @@ CONTAINS
 
     !$ACC DATA PRESENT(weights, bands, tr_band, cosmu0, mask, tr_wgt)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
       DO jband = 1, nb
       !$ACC LOOP GANG VECTOR
@@ -815,7 +814,7 @@ CONTAINS
     !$ACC DATA PRESENT(ecrad_flux, pres, clc, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff) &
     !$ACC   PRESENT(trsol_dn_sfc_diff) CREATE(zcloud)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       zcloud(jc)     = 0.0_wp
@@ -823,7 +822,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! Calculate low-level cloud cover fraction
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk = 2, nlev
       !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran, deltaz, alpha)
@@ -844,7 +843,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(diff_frac_corr)
     DO jc = i_startidx, i_endidx
       IF (cosmu0(jc) > 0.05_wp) THEN
@@ -1027,7 +1026,7 @@ CONTAINS
     zx_m = (vmr_gas+xp(1)*vmr_gas)*0.5_wp
     zx_d = (vmr_gas-xp(1)*vmr_gas)*0.5_wp
 
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(profile, pres, xp) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,nlev
       DO jc = i_startidx, i_endidx

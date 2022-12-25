@@ -5,6 +5,7 @@
 #SBATCH --time=01:00:00
 
 #set -x
+set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
 

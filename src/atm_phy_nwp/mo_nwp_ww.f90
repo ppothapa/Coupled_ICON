@@ -397,7 +397,7 @@ CONTAINS
 
     !$ACC DATA CREATE(t_t, ph_t, qc_t) PRESENT(t, qc, ph) IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO i = 1, ie
       DO k = 1, ke
@@ -407,7 +407,7 @@ CONTAINS
     end do
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO i = 1, ie
       DO k = 1, ke1
@@ -417,11 +417,7 @@ CONTAINS
     !$ACC END PARALLEL
 
 
-    !$ACC PARALLEL DEFAULT(NONE) PRESENT(qv, u, v, clc, pf, t_2m) &
-    !$ACC   PRESENT(td_2m, t_g, clct, clcm, u_10m, v_10m, rain_gsp0, rain_gsp) &
-    !$ACC   PRESENT(rain_con0, rain_con, snow_gsp0, snow_gsp, snow_con0, snow_con) &
-    !$ACC   PRESENT(bas_con, top_con, iww, ih_500hpa, ih_700hpa, ih_850hpa, ih_950hpa) &
-    !$ACC   PRESENT(ifog_temp, ifog_wind) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(test_fog, rgdiff, lsnb, irrb, igfb, iwolk) &
     !$ACC   PRIVATE(iwolkc, isprb, rgdiff, rkdiff, rldiff, rrdiff, rsdiff, dp, lconvb) &
     !$ACC   PRIVATE(vbetr, tblmax, tdblmax, rfblmax, vbl, qvmin, zfrac, tdbl, rfbl) &

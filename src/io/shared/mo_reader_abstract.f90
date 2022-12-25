@@ -1,8 +1,8 @@
 MODULE mo_reader_abstract
 
   USE mo_kind,         ONLY: dp
-  USE mo_util_mtime,   ONLY: t_datetime_ptr
   USE mo_model_domain, ONLY: t_patch
+  USE mtime,           ONLY: julianday
   
   IMPLICIT NONE
   
@@ -38,9 +38,9 @@ MODULE mo_reader_abstract
     END SUBROUTINE abstract_get_one_timelev
 
     SUBROUTINE abstract_get_times (this, times)
-      IMPORT :: t_abstract_reader, t_datetime_ptr
-      CLASS(t_abstract_reader),          INTENT(inout) :: this
-      TYPE(t_datetime_ptr), ALLOCATABLE, INTENT(  out) :: times(:)
+      IMPORT :: t_abstract_reader, julianday
+      CLASS(t_abstract_reader),     INTENT(inout) :: this
+      TYPE(julianday), ALLOCATABLE, INTENT(  out) :: times(:)
     END SUBROUTINE abstract_get_times
 
     SUBROUTINE abstract_deinit (this)

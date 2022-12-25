@@ -8,12 +8,15 @@ Create intake directory entries for a given period
 #%#-# Generate list of all active file definitions
 #%#-
 #%- set extension_map = {1: 'grb', 2: 'grb', 3: 'nc', 4: 'nc', 5: 'nc', 6: 'nc'}
+#%- set format_map = {'grb': 'grib', 'nc': 'netcdf'}
 #%- set file_infos = []
 #%  for namelist in namelists:
 #%    set namelist_data = namelists[namelist]
-#%    for group in namelist_data.sections if group|match('output_nml'):
+#%    set realm = namelist|split('_')|last
+#%    set remove_list = namelist_data['.remove']|d([])|list
+#%    for group in namelist_data.sections if group|match('^output_nml'):
 #%      set group_data = namelist_data[group]
-#%      set hidden = group_data['.hide'] is set
+#%      set hidden = (group_data['.hide'] is set) or (group in remove_list)
 #%      if not hidden:
 #%        set level_types = []
 #%        for name in group_data.scalars if name|match('^(.+)_varlist$')
@@ -35,15 +38,22 @@ Create intake directory entries for a given period
 #%          set file_interval = file_interval[0:-3]
 #%        endif
 #%        set info = {}
-#%        do info.update(filename_tmpl = filename_format|replace('<output_filename>', output_filename)|replace('<levtype_l>', levtype_l)+'.'+extension)
-#%        do info.update(experiment = EXP_ID)
-#%        do info.update(frequency = group_data.output_interval)
+#%        do info.update(project = PROJECT|d('private'))
+#%        do info.update(institution_id = INSTITUTION_ID|d('MPI-M'))
+#%        do info.update(source_id = SOURCE_ID|d('ICON-ESM'))
+#%        do info.update(experiment_id = EXP_KIND)
+#%        do info.update(simulation_id = EXP_ID)
+#%        do info.update(realm = realm)
+#%        do info.update(output_interval = group_data.output_interval)
+#%        do info.update(time_reduction = group_data.operation or 'inst')
+#%        do info.update(grid_label = 'gn')
 #%        do info.update(level_type = levtype_l)
-#%        do info.update(variable = group_data[levtype_l+'_varlist']|list)
+#%        do info.update(grid_id = 'not implemented')
+#%        do info.update(format = format_map[extension])
 #%        do info.update(output_start = output_start)
 #%        do info.update(output_end = output_end)
 #%        do info.update(file_interval = file_interval)
-#%        do info.update(operation = group_data.operation or 'inst')
+#%        do info.update(filename_tmpl = filename_format|replace('<output_filename>', output_filename)|replace('<levtype_l>', levtype_l)+'.'+extension)
 #%        do file_infos.append(info)
 #%      endif
 #%    endfor
@@ -51,6 +61,7 @@ Create intake directory entries for a given period
 
 import argparse
 import errno
+import glob
 import json
 import os
 import re
@@ -80,6 +91,8 @@ command_line.add_argument('-W', '--work-dir', action='store_true', help=
     'take files from work directory instead of data directory')
 command_line.add_argument('-I', '--input-dir', help=
     'take files from a non-standard directory')
+command_line.add_argument('-f', '--force', action='store_true', help=
+    'only warn about duplicated data instead of exiting with an error')
 command_line.add_argument('-V', '--version', action='version', version="""
 $Id: DEFAULT.intake.tmpl 0 2021-08-31 12:37:44Z m221078 $
 %{VERSIONS_|join('\n')}
@@ -99,7 +112,7 @@ next_date = args.next_date
 #     sys.exit(1)
 
 if not next_date:
-    interval = mtime.TimeDelta('%{INTERVAL}')
+    interval = mtime.TimeDelta('%{JOB.interval|d(INTERVAL)}')
     next_date = start_date + interval
 
 offset = mtime.TimeDelta('-%{namelists.NAMELIST_atm.run_nml.modeltimestep}')
@@ -110,20 +123,23 @@ end_date = next_date + offset
 weed = re.compile(r'[-:]|\.\d+$') # for re-formatting of date/time stamps
 def data_stamp(date):
     return re.sub(weed, '', str(date.date))
+def run_stamp(date):
+    return re.sub(weed, '', str(date))
 def work_stamp(date):
-    return re.sub(weed, '', str(date)) + 'Z'
+    return run_stamp(date) + 'Z'
 
 start_stamp = data_stamp(start_date)
 end_stamp = data_stamp(end_date)
 
 stamp = work_stamp if args.work_stamp else data_stamp
+stamp_glob = re.sub(r'\d', '?', stamp(start_date))
 
 # Determine directory to read files from
 
 input_dir = '%{DATA_DIR}'
 if args.work_dir:
     input_dir = os.path.join('%{WORK_DIR}', '%{jobs.run.subdir}').format(
-        start_stamp=start_stamp, end_stamp=end_stamp)
+        start_stamp=run_stamp(start_date), end_stamp=run_stamp(end_date))
 
 if args.input_dir:
     input_dir = args.input_dir
@@ -134,15 +150,42 @@ logging.info('%{JOB.id} process started for %s-%s', start_stamp, end_stamp)
 
 # Define file metadata
 
-file_infos = %{file_infos}
+file_infos = [
+#%  for info in file_infos:
+    %{info},
+#%  endfor
+]
 
 # Read intake-esm catalog
 
 intake_name = '%{JOB.url|d((DATA_ROOT, MODEL_SUBDIR, JOB.id, "index.json")|join("/"))}'
 
-attributes = ("variable", "experiment", "frequency", "level_type", "operation", "time_range")
-assets = "filename"
-columns = attributes + (assets,)
+groupby_attributes = (
+    "project",
+    "institution_id",
+    "source_id",
+    "experiment_id",
+    "simulation_id",
+    "realm",
+    "frequency",
+    "time_reduction",
+    "grid_label",
+    "level_type",
+)
+additional_attributes = (
+    "time_max",
+    "grid_id"
+)
+
+assets = "uri"
+format_column_name = "format"
+variable_column_name = "variable_id"
+time_column_name = "time_min"
+
+non_variable_attributes = (groupby_attributes + (time_column_name,) +
+    additional_attributes)
+attributes = (variable_column_name,) + non_variable_attributes
+columns = attributes + (format_column_name, assets)
 
 try:
 
@@ -152,8 +195,8 @@ try:
         intake_attributes = tuple(att['column_name'] for att in intake_data['attributes'])
         intake_assets = intake_data['assets']['column_name']
 
-        if intake_attributes != attributes or intake_assets != assets:
-            logging.error("incompatible catalog '{0}'".format(intake_file))
+        if sorted(intake_attributes) != sorted(attributes) or intake_assets != assets:
+            logging.error("incompatible catalog '{0}'".format(intake_name))
             sys.exit(1)
 
 except (IOError, ValueError) as e:
@@ -168,20 +211,19 @@ except (IOError, ValueError) as e:
         "attributes": [{"column_name": att} for att in attributes],
         "assets": {
             "column_name": assets,
-            "format": "netcdf"
+            "format_column_name": "format"
         },
         "aggregation_control": {
-            "variable_column_name": "variable",
-            "groupby_attrs": [att for att in attributes
-                if att not in ["time_range", "variable"]],
+            "variable_column_name": variable_column_name,
+            "groupby_attrs": groupby_attributes,
             "aggregations": [
                 {
                     "type": "union",
-                    "attribute_name": "variable"
+                    "attribute_name": variable_column_name
                 },
                 {
                     "type": "join_existing",
-                    "attribute_name": "time_range",
+                    "attribute_name": time_column_name,
                     "options": {
                          "dim": "time",
                          "coords": "minimal",
@@ -195,60 +237,102 @@ except (IOError, ValueError) as e:
 
 # Create catalog data for this year
 
+def generate_keys(entry):
+    for var in entry[variable_column_name]:
+        yield ( (var,) +
+            tuple(str(entry[att]) for att in non_variable_attributes) )
+
+def get_coord(ds, axis):
+    for coord in ds.coords:
+        if ds[coord].attrs.get('axis', '') == axis:
+            return ds[coord]
+    return None
+
 catalog_dict = {}
+catalog_index = {} # Contains an entry for each var name in var list
+
 for entry in intake_data['catalog_dict']:
     # Skip files that no longer exist
     if os.path.isfile(entry[assets]):
         key = tuple(str(entry[att]) for att in attributes)
         catalog_dict[key] = entry
+        for key in generate_keys(entry):
+            catalog_index[key] = entry
     else:
         logging.warning("unsubscribing non-existing file '%s'", entry[assets])
 
 for info in file_infos:
-
     output_start = mtime.DateTime(info['output_start'])
     output_end = mtime.DateTime(info['output_end'])
     file_interval = mtime.TimeDelta(info['file_interval'])
+    output_interval = mtime.TimeDelta(info['output_interval'])
+    neg_output_interval = mtime.TimeDelta('-'+info['output_interval'])
 
-    # Check if current interval is overlapping with file life-time
-    if output_start < next_date and output_end > start_date:
+    if output_start == output_end:
+        info['frequency'] = 'fx'
+    else:
+        info['frequency'] = ' '.join('{0}{1}'.format(value, name)
+            for (name, value) in output_interval.items() if name != 'sign' and value)
 
-        # Set lower and upper limits for file life-time wrtt current interval
-        file_start_date = max(start_date, output_start)
-        file_next_date = min(next_date, output_end)
+    # Use wildcards to expand timestamps in file names
+    file_glob = os.path.join(input_dir,
+        info['filename_tmpl'].replace('<datetime2>', stamp_glob))
+    for file_name in sorted(glob.glob(file_glob)):
 
-        # Generate output per file date
-        date = file_start_date
-        while date < file_next_date:
-            # Set current file name
-            info[assets] = os.path.join(input_dir,
-                info['filename_tmpl'].replace('<datetime2>', stamp(date)))
-            logging.info("current file '%s'", info[assets])
+        # Set current file name
+        info[assets] = file_name
+        logging.info("current file '%s'", info[assets])
 
-            # Determine time range
-            info['time_range'] = str(date) + '-' + str(date+file_interval+offset)
+        with xarray.open_dataset(info[assets], use_cftime=True,
+            chunks={}) as ds:
 
-            # Get variables from file
-            try:
-                with xarray.open_dataset(info[assets], use_cftime=True) as ds:
-                    # Try to remove spurious entries (eg bounds)
-                    info['variable'] = [var for var in ds.data_vars
-                        if not var.endswith('_bnds')]
+            # Get min and max from time axis, format properly
+            info[time_column_name] = str(output_start)
+            info['time_max'] = str(output_end)
+            t_coord = get_coord(ds, 'T')
+            if t_coord is not None:
+                time_min = t_coord[0].data[()]
+                info[time_column_name] = (time_min.isoformat() +
+                    '.%03.0f'%(time_min.microsecond/1000))
+                time_max = t_coord[-1].data[()]
+                info['time_max'] = (time_max.isoformat() +
+                    '.%03.0f'%(time_max.microsecond/1000))
 
-                key = tuple(str(info[att]) for att in attributes)
-                if (key in catalog_dict and
-                    info[assets] != catalog_dict[key][assets]):
-                    logging.warning("key '%s' is already taken by assets '%s'", 
-                        str(key), catalog_dict[key][assets])
-                else:
-                    catalog_dict[key] = {col: info[col] for col in columns}
+            # Try to remove spurious entries (eg bounds)
+            info[variable_column_name] = [var for var in ds.data_vars
+                if not var.endswith('_bnds')]
 
-            except IOError as x:
-                if x.errno != errno.ENOENT: raise
-                logging.warning("skipped: "+x.strerror)
-                
+            # Get uuid of horizontal grid as grid_id
+            if 'uuidOfHGrid' in ds.attrs:
+                info['grid_id'] = ds.uuidOfHGrid
 
-            date += file_interval
+        # Get info on vertical axis
+        z_coord = get_coord(ds, 'Z')
+        if z_coord is not None:
+            if 'pressure' in z_coord.attrs.get('standard_name', ''):
+                info['level_type'] = 'pl'
+            if len(z_coord.data) == 1:
+                info['level_type'] = '2d'
+
+        duplicates = tuple(key for key in generate_keys(info)
+            if key in catalog_index
+            and info[assets] != catalog_index[key][assets])
+        if duplicates:
+            if args.force:
+                for key in duplicates:
+                    logging.warning("key '%s' is already taken by assets"
+                    " '%s'", str(key), catalog_index[key][assets])
+            else:
+                for key in duplicates:
+                    logging.error("key '%s' is already taken by assets"
+                    " '%s'", str(key), catalog_index[key][assets])
+                sys.exit(1)
+        else:
+            entry = {col: info[col] for col in columns}
+            key = tuple(str(entry[att]) for att in attributes)
+            catalog_dict[key] = entry
+            for key in generate_keys(entry):
+                catalog_index[key] = entry
 
 intake_data["catalog_dict"] = list(catalog_dict.values())
 
@@ -263,3 +347,4 @@ with open(intake_name, 'w') as intake_file:
 
 logging.info('%{JOB.id} process finished for %s-%s', start_stamp, end_stamp)
 
+#% include 'standard_experiments/trigger.tmpl'

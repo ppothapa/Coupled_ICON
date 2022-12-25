@@ -385,7 +385,7 @@ clean: mostlyclean
 # directories if they are empty):
 distclean: clean
 	rm -f config.h config.log config.status depgen.c.config depgen.f90.config deplist.config
-	rm -f run/collect.set-up.info run/set-up.info
+	rm -f run/collect.set-up.info run/set-up.info run/SETUP.config
 	rm -f $(dep_files)
 	rm -f $(dir_files)
 	@for dir in $(bindir) $(libdir) $(moddir); do \

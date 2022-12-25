@@ -173,7 +173,7 @@ MODULE mo_ser_manually
 
 #ifdef SERIALIZE_READ_REFERENCE
     ! manipulate GPU
-    !$ACC SERIAL DEFAULT(NONE) PRESENT(p_test)
+    !$ACC SERIAL DEFAULT(PRESENT)
     p_test%int = 42
     p_test%float = 2.71
     p_test%double = 2.71828

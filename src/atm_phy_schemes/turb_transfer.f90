@@ -992,7 +992,7 @@ my_thrd_id = omp_get_thread_num()
          tvt => tketens
       ELSE
          tvt => tketens_tar
-         !$ACC PARALLEL DEFAULT(NONE) PRESENT(tvt) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO k=ke1, ke1
             DO i=ivstart, ivend
@@ -1048,7 +1048,7 @@ my_thrd_id = omp_get_thread_num()
       END IF
 
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
 
@@ -1292,7 +1292,7 @@ my_thrd_id = omp_get_thread_num()
 !print *,"it_durch=",it_durch
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z_surf, fakt, rin_m, rin_h, zkbmo_dia, zkbmo_urb, zustar)
          DO i=ivstart, ivend
 
@@ -1604,7 +1604,7 @@ my_thrd_id = omp_get_thread_num()
 
          !Vertikalgradienten des Horizontalwindes:
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             edh(i)=tfm(i)/dz_0a_m(i)
@@ -1750,7 +1750,7 @@ my_thrd_id = omp_get_thread_num()
                                   velmin=velmin(:), lacc=lzacc                                  )
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(val1, val2)
          DO i=ivstart, ivend
 ! 4h)       Bestimmung der durch Wirkung der L-Schicht
@@ -1853,7 +1853,7 @@ my_thrd_id = omp_get_thread_num()
 
 ! 4j) Berechnung der Standardabweichnung des Saettigungsdefizites:
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
 
 !k->ke1
 !DIR$ IVDEP
@@ -1948,7 +1948,7 @@ my_thrd_id = omp_get_thread_num()
       IF (lnsfdia) THEN !diagnostics at near surface level required at this place
 
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=ivstart, ivend
          IF (itype_diag_t2m.EQ.2) THEN !using an exponetial rougness layer profile
@@ -1976,7 +1976,7 @@ my_thrd_id = omp_get_thread_num()
       CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d)
 #endif
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       IF (itype_diag_t2m.EQ.2) THEN !using an exponential rougness layer profile
 
          val2=z1/epsi
@@ -2151,7 +2151,7 @@ my_thrd_id = omp_get_thread_num()
       !$ACC END PARALLEL
       IF (imode_syndiag.EQ.1) THEN
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
              t_2m(i)=tmps(i,ke1)
@@ -2191,7 +2191,7 @@ my_thrd_id = omp_get_thread_num()
                                            q_liq=zvari(:,ke:ke1,liq),          &
               lacc=lzacc )
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
              t_2m(i)=zvari(i,ke1,tet_l)
@@ -2202,7 +2202,7 @@ my_thrd_id = omp_get_thread_num()
 
       IF (lfreeslip) THEN ! only for idealized dry runs with free-slip condition
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
             qv_2m(i)=z0
@@ -2217,7 +2217,7 @@ my_thrd_id = omp_get_thread_num()
 !        Finale 2m-Diagnose:
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG VECTOR PRIVATE(patm, fakt, wert)
          DO i=ivstart, ivend
 !Achtung: Macht minimale Unterschiede
@@ -2253,7 +2253,7 @@ my_thrd_id = omp_get_thread_num()
 #endif
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) PRESENT(vel2_2d(ivstart: ivend)) IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG VECTOR PRIVATE(z0d, a_atm, a_10m, val1, val2, fakt, k1, k2, wert)
          DO i=ivstart, ivend
 
@@ -2325,7 +2325,7 @@ my_thrd_id = omp_get_thread_num()
       END IF !in case of ".NOT.lnsfdia" this kind of diagnostics is done at another place
       
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(velo, wert, fakt)
       DO i=ivstart, ivend
 

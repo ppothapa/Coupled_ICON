@@ -787,6 +787,7 @@ CONTAINS
         pfrc_test(jl, jsfc) = MERGE(1, 0, pfrc(jl, jsfc) > 0.0_wp)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
     !$ACC UPDATE WAIT(1) SELF(is)

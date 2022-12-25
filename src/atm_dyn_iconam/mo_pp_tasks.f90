@@ -1270,14 +1270,14 @@ CONTAINS
 
     IF (l_limited_area .OR. jg > 1) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       pmsl_avg(:,1,1:i_endblk) = pmsl_aux(:,1,1:i_endblk)
       !$ACC END KERNELS
     ENDIF
 
     CALL cell_avg(pmsl_aux, p_patch, p_int_state(jg)%c_bln_avg, pmsl_avg)
     r_ptr => out_var%r_ptr
-    !$ACC KERNELS DEFAULT(NONE) PRESENT(r_ptr) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     r_ptr(:,:,out_var_idx,1,1) = pmsl_avg(:,1,:)
     !$ACC END KERNELS
 

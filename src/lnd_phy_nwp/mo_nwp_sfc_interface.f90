@@ -378,7 +378,7 @@ CONTAINS
           ! 
           !> adjust humidity at water surface because of changed surface pressure
           !
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             lnd_diag%qv_s (jc,jb) = &
@@ -392,7 +392,7 @@ CONTAINS
          !> adjust humidity at water surface because of changing surface pressure
          !
 !$NEC ivdep
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR PRIVATE(jc)
          DO ic=1,ext_data%atm%list_seawtr%ncount(jb)
            jc = ext_data%atm%list_seawtr%idx(ic,jb)
@@ -440,7 +440,7 @@ CONTAINS
 
 
        IF (lsnowtile .AND. itype_snowevap == 3) THEN
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
            IF (lnd_diag%h_snow(jc,jb) > 5.e-4_wp) THEN ! traces of snow are ignored
@@ -461,7 +461,7 @@ CONTAINS
          ENDDO
          !$ACC END PARALLEL
 
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG PRIVATE(i_count)
          DO isubs = ntiles_lnd+1, ntiles_total
            i_count = ext_data%atm%gp_count_t(jb,isubs) 
@@ -504,13 +504,13 @@ CONTAINS
          ENDDO
          !$ACC END PARALLEL
        ELSE IF (lsnowtile) THEN
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
            sntunefac(jc) = 1._wp
          ENDDO
          !$ACC END PARALLEL
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP SEQ
          DO isubs = ntiles_lnd+1, ntiles_total
            i_count = ext_data%atm%gp_count_t(jb,isubs) 
@@ -525,7 +525,7 @@ CONTAINS
 
 !---------- Preparations for TERRA in the case if snow tiles are considered
        IF(lsnowtile) THEN      ! snow is considered as separate tiles
-         !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG PRIVATE(isubs_snow, i_count_snow)
          DO isubs = 1, ntiles_lnd
 
@@ -586,7 +586,7 @@ CONTAINS
 
 
 !$NEC ivdep
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, i_count
           jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -726,7 +726,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (itype_snowevap == 1 .OR. .NOT. lsnowtile) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO ic = 1, i_count
             tsnred(ic) = 0._wp
@@ -737,7 +737,7 @@ CONTAINS
           ! parameterizing the temperature difference between the snow and the snow-vegetation-mixture
           ! represented by the variable t_snow and the related snow albedo
 
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc, tmp1, qsat1, dqsdt1, tmp2, qsat2, dqsdt2, tmp2)
           DO ic = 1, i_count
             jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -767,7 +767,7 @@ CONTAINS
           ! in TERRA is turned off on the corresponding snow-free tile.
           ! This is controlled by negative values of tsnred
 
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count
             jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -797,7 +797,7 @@ CONTAINS
         ENDDO
        END IF MSNOWI
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 #ifdef __LOOP_EXCHANGE
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, i_count   
@@ -964,7 +964,7 @@ CONTAINS
         ! Multiply w_snow with old snow fraction in order to obtain the area-average SWE needed for
         ! diagnosing the new snow fraction
         IF (lsnowtile .AND. isubs > ntiles_lnd) THEN
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count
             jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -973,7 +973,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ELSE
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO ic = 1, i_count
             w_snow_now_t(ic) = w_snow_new_t(ic)
@@ -1001,7 +1001,7 @@ CONTAINS
 
 
 !$NEC ivdep
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(jc, tmp1, tmp2)
         DO ic = 1, i_count
           jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -1077,7 +1077,7 @@ CONTAINS
 
         IF (lsnowtile .AND. isubs > ntiles_lnd) THEN ! copy snowfrac_t to snow-free tile
 !$NEC ivdep                                          ! (needed for index list computation)
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count
             jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -1109,7 +1109,7 @@ CONTAINS
         ENDDO
         END IF MSNOWO
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 #ifdef __LOOP_EXCHANGE
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, i_count
@@ -1143,7 +1143,7 @@ CONTAINS
            isubs_snow = isubs + ntiles_lnd
 
            ! save previous area fractions for subsequent redistribution computations
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR
            DO jc = 1, nproma
              frac_sv(jc)      = ext_data%atm%frac_t(jc,jb,isubs)
@@ -1173,7 +1173,7 @@ CONTAINS
            icount_init = 0
            icount_init_tmp = 0
 
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR PRIVATE(jc)
            DO ic = 1, i_count
              jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
@@ -1187,7 +1187,7 @@ CONTAINS
 
            CALL generate_index_list(cond, init_list, 1, i_count, icount_init, 1,lacc=lzacc)
 
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR
            DO ic = 1, icount_init
              init_list(ic) = ext_data%atm%idx_lst_t(init_list(ic),jb,isubs)
@@ -1196,7 +1196,7 @@ CONTAINS
            ENDDO
            !$ACC END PARALLEL
 
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR PRIVATE(jc)
            DO ic = 1, i_count_snow
              jc = ext_data%atm%idx_lst_t(ic,jb,isubs_snow)
@@ -1210,7 +1210,7 @@ CONTAINS
 
            CALL generate_index_list(cond, init_list_tmp, 1, i_count_snow, icount_init_tmp, 1,lacc=lzacc)
 
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR PRIVATE(ic_tot)
            DO ic = 1, icount_init_tmp
              ic_tot = ic + icount_init
@@ -1222,7 +1222,7 @@ CONTAINS
 
            icount_init = icount_init + icount_init_tmp
 !$NEC ivdep
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG VECTOR PRIVATE(jc, is1, is2)
            DO ic = 1, icount_init
              jc = init_list(ic)
@@ -1297,7 +1297,7 @@ CONTAINS
            ENDDO
            !$ACC END PARALLEL
 !$NEC ivdep
-           !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jc)
            DO ic = 1, i_count_snow
              jc = ext_data%atm%idx_lst_t(ic,jb,isubs_snow)
@@ -1496,7 +1496,7 @@ CONTAINS
 
        IF (ntiles_total == 1) THEN 
 
-         !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
            prm_diag%shfl_s (jc,jb)  = prm_diag%shfl_s_t (jc,jb,1) 
@@ -1543,7 +1543,7 @@ CONTAINS
   
        ELSE ! aggregate fields over tiles
 
-         !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO jc = i_startidx, i_endidx
            t_g_s(jc)      = 0._wp

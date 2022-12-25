@@ -14,7 +14,7 @@
 #%     if files['.sub_dir']:
 #%       set base_dir = base_dir+'/'+files['.sub_dir']
 #%     endif
-#%     set method = files['.method']|default(method)|default('ln -sfv', true)
+#%     set method = files['.method']|default(method)|default('ln -snvf', true)
 #%     set offsets = files['.offsets']
 #%     if path:
 %{' '*indent}# [%{path}]

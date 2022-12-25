@@ -632,7 +632,8 @@ CONTAINS
       !
       ! parameterized simple plumes of tropospheric aerosols
       !
-      IF (ANY(aes_rad_config(:)%irad_aero == 18)) THEN
+      IF (ANY(aes_rad_config(:)%irad_aero == 18) .OR. &
+        & ANY(aes_rad_config(:)%irad_aero == 19)) THEN
         CALL setup_bc_aeropt_splumes
       END IF
 

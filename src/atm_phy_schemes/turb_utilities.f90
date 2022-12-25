@@ -894,7 +894,7 @@ INTEGER :: &
    !local variables                           !
    !$ACC DATA CREATE(rprs) IF(lzacc)
 
-   !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
 
    !Calculation of Exner-pressure:
    IF (lcalepr) THEN
@@ -945,7 +945,7 @@ INTEGER :: &
    IF (PRESENT(fip)) THEN
       k=k_en !only for the lowest level
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO i=i_st,i_en
@@ -970,7 +970,7 @@ INTEGER :: &
 
    IF (icldmod.EQ.0 .OR. (icldmod.EQ.-1 .AND. .NOT.PRESENT(qc))) THEN
       !Alles Wolkenwasser verdunstet oder wird ignoriert:
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
@@ -983,7 +983,7 @@ INTEGER :: &
 
    ELSEIF (icldmod.EQ.-1) THEN
     !Wolken sind vorhanden, sind aber an turbulenter Phasenumwandlungen unbeteiligt:
-       !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+       !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO k=k_st, k_en
 !DIR$ IVDEP
@@ -995,7 +995,7 @@ INTEGER :: &
        !$ACC END PARALLEL
    ELSEIF (icldmod.EQ.1 .AND. PRESENT(qc)) THEN
       !Verwendung des vorhandenen skaligen Wolkenwassers:
-      !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=k_st, k_en
 !DIR$ IVDEP
@@ -1042,7 +1042,7 @@ INTEGER :: &
    
    !$ACC DATA NO_CREATE(qvap, temp, virt)
 
-   !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lzacc)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
    IF (ladjout .OR. lcaltdv .OR. lcalrho .OR. PRESENT(r_cpd)) THEN
       IF (.NOT.ladjout .AND. icldmod.LE.0) THEN !'temp' and 'vap' equal conserv. vars.
         !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
@@ -1357,7 +1357,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 ! Stabilitaetskorrektur der turbulenten Laengenskala bei stabilier Schichtung:
 
-  !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lacc)
   IF (a_stab.GT.0.0_wp .AND. it_s==it_start) THEN
      !$ACC LOOP SEQ
      DO k=k_st,k_en !von oben nach unten
@@ -1398,7 +1398,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 
 !----------------------------------------------------------------------
   !XL_GPU_OPT : need to make k and i purely nested
-  !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) IF(lacc)
+  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lacc)
   !$ACC LOOP SEQ PRIVATE(rogh_lay, w1, w2)
   DO k=k_st, k_en !ueber alle Schichten beginnend mit der freien Atm.
 !----------------------------------------------------------------------
@@ -2890,7 +2890,7 @@ REAL (KIND=wp), POINTER :: &
 
   !$ACC DATA NO_CREATE(old_prof, rhs_prof) !data region for pointers old_prof,rhs_prof
 
-  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO k=k_tp+2, k_sf
 !DIR$ IVDEP

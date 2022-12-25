@@ -433,7 +433,7 @@ CONTAINS
           & ocean_state(jg)%p_diag%rho(:,:,:) )
 
         !--------------------------------------------------------------------------
-        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, current_time)
+        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time)
         !------------------------------------------------------------------------
 
   !       IF (timers_level > 2) CALL timer_start(timer_scalar_prod_veloc)
@@ -760,14 +760,8 @@ CONTAINS
           & ocean_state(jg)%p_diag%rho(:,:,:) )
 
         !--------------------------------------------------------------------------
-        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, current_time)
+        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time)
         !------------------------------------------------------------------------
-
-        IF ( vert_cor_type .EQ. 1) THEN
-          ocean_state(jg)%p_aux%bc_total_top_potential = &
-            & ocean_state(jg)%p_aux%bc_tides_potential  + &
-            & rho_ref * OceanReferenceDensity_inv * grav * sea_ice%draftave
-        END IF
 
         !---------DEBUG DIAGNOSTICS-------------------------------------------
         idt_src=3  ! output print level (1-5, fix)

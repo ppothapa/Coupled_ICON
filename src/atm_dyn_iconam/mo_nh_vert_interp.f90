@@ -889,7 +889,7 @@ CONTAINS
 
     DO jb = 1, nblks
 
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       kpbl1(1:nproma,jb) = -1
       kpbl2(1:nproma,jb) = -1
       !$ACC END KERNELS
@@ -898,7 +898,7 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         kpbl1(nlen+1:nproma,jb) = nlevs_in
         kpbl2(nlen+1:nproma,jb) = nlevs_in
 
@@ -919,7 +919,7 @@ CONTAINS
       ENDDO
 #else
       !$ACC WAIT
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(MIN: jk_start) COLLAPSE(2) &
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: jk_start) COLLAPSE(2) &
       !$ACC   IF(i_am_accel_node)
       DO jk = 1, nlevs_in
         DO jc = 1, nlen
@@ -928,13 +928,14 @@ CONTAINS
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
 
       ! OpenACC does its own initialization of reductions variables, make sure
       !  that the value is correct
       IF ( jk_start > nlevs_in-1 ) jk_start = nlevs_in-1
 #endif
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
       DO jk = jk_start, nlevs_in-1
         DO jc = 1, nlen
 
@@ -954,16 +955,17 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL LOOP
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     ! If the input data is corrupted, no kpbl1 or kpbl2 is found, i.e. still equal -1
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     kpbl1_min = MINVAL(kpbl1(:,1:nblks))
     !$ACC END KERNELS
-    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     kpbl2_min = MINVAL(kpbl2(:,1:nblks))
     !$ACC END KERNELS
 
@@ -1034,21 +1036,21 @@ CONTAINS
     !$ACC DATA PRESENT(z3d_h_in, z3d_in, kextrap, zextrap, wfac_extrap) IF(i_am_accel_node)
 
     DO jb = 1, nblks
-      !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       kextrap(:,jb) = -1
       !$ACC END KERNELS
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         kextrap(nlen+1:nproma,jb) = nlevs_in
         wfac_extrap(nlen+1:nproma,jb) = 0.5_wp
         !$ACC END KERNELS
       ENDIF
 
       ! Compute start height above ground for downward extrapolation, depending on topography height
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       DO jc = 1, nlen
         IF (z3d_h_in(jc,nlevs_in+1,jb) <= topo_extrap_1) THEN
           zextrap(jc,jb) = zagl_extrap
@@ -1059,6 +1061,7 @@ CONTAINS
                            (z3d_h_in(jc,nlevs_in+1,jb) - topo_extrap_1) / trans_depth
         ENDIF
       ENDDO
+      !$ACC END PARALLEL LOOP
 
       jk_start = nlevs_in-1
       ! OpenACC requires a different approach, as MINVAL within device code
@@ -1072,7 +1075,7 @@ CONTAINS
       ENDDO
 #else
       !$ACC WAIT
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) REDUCTION(MIN: jk_start) COLLAPSE(2) &
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: jk_start) COLLAPSE(2) &
       !$ACC   IF(i_am_accel_node)
       DO jk = 1, nlevs_in
         DO jc = 1, nlen
@@ -1081,6 +1084,7 @@ CONTAINS
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
 
       ! OpenACC does its own initialization of reductions variables, make sure
       !  that the value is correct
@@ -1089,7 +1093,7 @@ CONTAINS
 
 ! These two loops cannot be collapsed because it would not be thread safe
       DO jk = jk_start, nlevs_in-1
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         DO jc = 1, nlen
 
           IF (z3d_in(jc,jk,jb)  >= z3d_h_in(jc,nlevs_in+1,jb)+zextrap(jc,jb) .AND. &
@@ -1101,6 +1105,7 @@ CONTAINS
           ENDIF
 
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 
     ENDDO

@@ -180,7 +180,7 @@ CONTAINS
     !$ACC DATA PRESENT(petah, pvdaes, pvdael, pvdaeu, pvdaed) IF(lzacc)
 
     ! default data present
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc=jcs,jce
       pvdaes(jc,1) = 0.0_wp
@@ -197,7 +197,7 @@ CONTAINS
 !!$     pvdaed(1) = petah(1)**zhsd
 !!$  END IF
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(log_eta)
     DO jk=2,klevp1
       DO jc=jcs,jce

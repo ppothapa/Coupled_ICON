@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import sys
+import os
 
 class BuildbotConfig(object):
     def __init__(self):
@@ -19,6 +20,7 @@ class BuildbotConfig(object):
         return pickle.load(picklefile)
 
     def to_pickle(self, filename):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         picklefile = open(str(filename), "wb")
         pickle.dump(self, picklefile)
     
@@ -134,7 +136,7 @@ class BuildbotConfig(object):
     def make_builder_runscripts(self, builder):
         exps = self.get_experiments_by_builder(builder)
         exp_list = []
-        for exp in exps:
+        for exp in exps.flatten():
             status = exp.make_runscript()
             if status == 0: exp_list.append(exp.run_name)
             else:
@@ -158,7 +160,7 @@ class BuildbotConfig(object):
     def list_experiments_by_builder(self, builder):
         exps = self.get_experiments_by_builder(builder)
 
-        return [exp.name for exp in exps]
+        return [exp.name for exp in exps.flatten()]
 
     def add_dependency_manager(self, source_experiment, target_experiment, source_builder=None, target_builder=None, builders=None, machines=None, with_config=None, without_config=None):
         # explicit mode for cross-builder support (not yet implemented)

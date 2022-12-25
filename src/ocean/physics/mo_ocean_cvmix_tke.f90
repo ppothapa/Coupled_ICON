@@ -233,7 +233,7 @@ CONTAINS
     INTEGER, POINTER :: kbot(:,:)
 
     ! loop variables
-    INTEGER :: jc, blockNo, je,jk, tracer_index, k_hlc
+    INTEGER :: jc, blockNo, je,jk, tracer_index
     INTEGER :: start_index, end_index
     INTEGER :: levels
 
@@ -355,7 +355,7 @@ CONTAINS
     rho_down(:)=0.0_wp
 
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk, pressure, &
-!ICON_OMP  tau_abs, Nsqr, Ssqr, tstep_count) 
+!ICON_OMP  tau_abs, Nsqr, Ssqr, tstep_count, tmp)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
       DO jc = start_index, end_index
@@ -430,11 +430,9 @@ CONTAINS
         ! converting its kinetic energy to potential energy.
         hlc(jc,blockNo) = 0.0_wp
         DO jk = 2, n_zlev
-          k_hlc = jk
           tmp = SUM( Nsqr(2:jk+1)*(depth(jc,2:jk+1,blockNo)*s_c(jc,blockNo) - e_c(jc,blockNo)) )
      
           IF(tmp > 0.5_wp*u_stokes(jc,blockNo)**2.0_wp) THEN
-            k_hlc = jk
             hlc(jc,blockNo) = depth(jc,jk,blockNo)*s_c(jc,blockNo) - e_c(jc,blockNo)
             EXIT
           ENDIF

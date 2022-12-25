@@ -1291,7 +1291,7 @@ CONTAINS
       IF (ntiles_total == 1) THEN  ! just copy prognostic variables from tile 1
                                    ! to diagnostic aggregated variable
 
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           lnd_diag%t_snow   (jc,jb) = lnd_prog%t_snow_t   (jc,jb,1)
@@ -1363,7 +1363,7 @@ CONTAINS
 
         ! First initialize fields to zero in order to prepare
         ! subsequent summation over the tiles
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           lnd_diag%t_snow   (jc,jb)  = 0._wp
@@ -1441,7 +1441,7 @@ CONTAINS
 
         ! Aggregate fields without water tiles
         !
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP SEQ
         DO isubs = 1,ntiles_total
           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(tilefrac)
@@ -1568,7 +1568,7 @@ CONTAINS
 
 
         ! Aggregate fields with water tiles
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP SEQ
         DO isubs = 1,ntiles_total + ntiles_water
           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(tilefrac)
@@ -1594,7 +1594,7 @@ CONTAINS
 
       ENDIF  ! ntiles_total == 1
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ! copy aggregated snowfrac field to snowfrac_lc
@@ -1616,18 +1616,18 @@ CONTAINS
       !$ACC END PARALLEL
       !
       icount = ext_data%atm%list_land%ncount(jb)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) PRIVATE(jc) ASYNC(1) &
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(jc) ASYNC(1) &
       !$ACC   IF(lacc)
       DO ic = 1, icount
         jc = ext_data%atm%list_land%idx(ic,jb)
         lmask(jc) = .TRUE.
       ENDDO  ! ic
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       !
       ! fill non-land points with SST
       ! It is assured that all mixed land/water points only contain pure land temperatures
       ! Note that the climatological layer is explicitly omitted.
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO jk = 2, nlev_soil
         !$ACC LOOP GANG VECTOR
@@ -2017,7 +2017,7 @@ CONTAINS
    !$ACC DATA NO_CREATE(lc_class, t_snow, t_soiltop, w_snow, rho_snow, freshsnow) &
    !$ACC   NO_CREATE(sso_sigma, z0, meltrate, snowfrac, t_g, snowfrac_u)
 
-    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     SELECT CASE (idiag_snowfrac)
     CASE (1) ! old parameterization depending on SWE only
       !$ACC LOOP GANG(STATIC: 1) VECTOR

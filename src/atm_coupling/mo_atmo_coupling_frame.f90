@@ -63,7 +63,7 @@ MODULE mo_atmo_coupling_frame
 
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_atmo_coupling_frame' ! Output of module for debug
 
-  PUBLIC :: construct_atmo_coupling, destruct_atmo_coupling
+  PUBLIC :: construct_atmo_coupling
   PUBLIC :: lyac_very_1st_get, nbr_inner_cells, mask_checksum, field_id
 
   INTEGER, PARAMETER    :: no_of_fields = 13
@@ -102,7 +102,7 @@ CONTAINS
     INTEGER :: comp_id
     INTEGER :: comp_ids(1)
     INTEGER :: cell_point_ids(1)
-    INTEGER :: cell_mask_ids(2)
+    INTEGER :: cell_mask_ids(1)
     INTEGER :: grid_id
 
     INTEGER :: jg
@@ -384,50 +384,11 @@ CONTAINS
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
     !
-    ! ! Define cell_mask_ids(2) for runoff:
-    ! !slo old!   Ocean coastal points with respect to HDmodel mask only are valid.
-    ! !slo old!   The integer mask for the HDmodel is ext_data(1)%atm%lsm_hd_c(:,:).
-    ! !slo old!   Caution: jg=1 is only valid for coupling to ocean
-    ! !
-    IF ( mask_checksum > 0 ) THEN
-
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-        DO jb = 1, patch_horz%nblks_c
-          DO jc = 1, nproma
-
-             IF ( lsmnolake(jc, jb) .LT. 1.0_wp ) THEN
-               ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
-               is_valid((jb-1)*nproma+jc) = .TRUE.
-             ELSE
-               ! land point (fraction of land is one, lsmnolake=1.) is undef
-               is_valid((jb-1)*nproma+jc) = .FALSE.
-             ENDIF
-
-          ENDDO
-        ENDDO
-!ICON_OMP_END_PARALLEL_DO
-    ELSE
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-       DO jc = 1,patch_horz%nblks_c * nproma
-          is_valid(jc) = .TRUE.
-       ENDDO
-!ICON_OMP_END_PARALLEL_DO
-
-    ENDIF
-
-    CALL yac_fdef_mask (          &
-      & grid_id,                  &
-      & patch_horz%n_patch_cells, &
-      & YAC_LOCATION_CELL,        &
-      & is_valid,                 &
-      & cell_mask_ids(2) )
-
+    ! Get the mask on which the discharge is provided
+    ! Transfer the mask to YAC
     ! Define additional coupling field(s) for JSBACH/HD
-    ! Utilize mask field for runoff
-    ! cell_mask_ids(2) shall contain ocean coast points only for source point mapping (source_to_target_map)
-    ! Currently it is the same mask as for the rest. 
 
-    CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids(2:2) )
+    CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, grid_id, patch_horz%n_patch_cells)
 
 #endif
 
@@ -443,18 +404,5 @@ CONTAINS
 
   END SUBROUTINE construct_atmo_coupling
 
-
-  !>
-  !! SUBROUTINE destruct_atmo_coupling -- terminates the coupling
-  !! between AES physics and the ocean.
-  !!
-  !! This subroutine is called at the end of the time loop of the ICONAM model.
-
-  SUBROUTINE destruct_atmo_coupling
-
-    IF ( .NOT. is_coupled_run() ) RETURN
-
-  END SUBROUTINE destruct_atmo_coupling
-  
 END MODULE mo_atmo_coupling_frame
 
