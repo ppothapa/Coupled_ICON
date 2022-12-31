@@ -713,6 +713,7 @@ CONTAINS
     ! Snow density
     ztau_snow      , & ! 'ageing constant' for snow density          (-)
     zrhosmax       , & ! temperature-dependent target density for snow ageing
+    zrhosmin       , & ! wind-speed-dependent minimum density for new snow
     zgrfrac        , & ! fraction of graupel / convective snow
     zrho_snowe     , & ! updated density of existing snow ('ageing') kg/m**3
     zrho_snowf     , & ! density of fresh snow                       kg/m**3
@@ -976,6 +977,7 @@ CONTAINS
 
   LOGICAL     :: &
     limit_tch (nvec)         ! indicator for flux limitation problem
+
 
 #ifdef __SX__
   REAL(wp) :: zfac(nvec),lhfl_pl_int(nvec)
@@ -5121,7 +5123,7 @@ ENDDO
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zzz, ztau_snow, zrhosmax, zrho_snowe) &
-    !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv)
+    !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv, zrhosmin)
     !$NEC sparse
     DO i = ivstart, ivend
 
@@ -5136,9 +5138,11 @@ ENDDO
       zrho_snowe= MAX(rho_snow_now(i),zrhosmax+(rho_snow_now(i)-zrhosmax)* &
                   EXP(-ztau_snow*zdt/86400._wp) )
 
-      ! b) density of fresh snow
-      zrho_snowf= crhosminf+(crhosmaxf-crhosminf)* ((zth_low(i)-csnow_tmin) / (t0_melt   -csnow_tmin))**2
-      zrho_snowf= MAX(crhosminf,MIN(crhosmaxf,zrho_snowf))
+      ! b) density of fresh snow; the minimum density depends on wind speed to account for wind compression of powder snow
+      zuv = SQRT ( u_10m(i)**2 + v_10m(i)**2 )
+      zrhosmin = crhosminf*MIN(2._wp, 1._wp + 0.125_wp*MAX(0._wp, zuv-4._wp))
+      zrho_snowf= zrhosmin+(crhosmaxf-zrhosmin)* ((zth_low(i)-csnow_tmin) / (t0_melt-csnow_tmin))**2
+      zrho_snowf= MAX(zrhosmin,MIN(crhosmaxf,zrho_snowf))
 
       zrho_grauf= crhogminf+(crhogmaxf-crhogminf)* ((zth_low(i)-csnow_tmin)/(t0_melt-csnow_tmin))**2
       zrho_grauf= MAX(crhogminf,MIN(crhogmaxf,zrho_grauf))
