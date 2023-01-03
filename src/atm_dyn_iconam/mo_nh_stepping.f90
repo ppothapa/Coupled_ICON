@@ -474,7 +474,7 @@ MODULE mo_nh_stepping
     i_am_accel_node = my_process_is_work()    ! Activate GPUs
     IF (i_am_accel_node) THEN
       CALL h2d_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
-      &            p_nh_state, prep_adv, advection_config, iforcing, lacc=.TRUE. )
+      &            p_nh_state, prep_adv, advection_config, les_config, iforcing, lacc=.TRUE. )
       IF (n_dom > 1 .OR. l_limited_area) THEN
         CALL devcpy_grf_state (p_grf_state, .TRUE., lacc=.TRUE.)
         CALL devcpy_grf_state (p_grf_state_local_parent, .TRUE., lacc=.TRUE.)
@@ -712,7 +712,7 @@ MODULE mo_nh_stepping
 #if defined( _OPENACC )
   IF (i_am_accel_node) THEN
     CALL d2h_icon( p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent, &
-      &            p_nh_state, prep_adv, advection_config, iforcing, lacc=.TRUE. )
+      &            p_nh_state, prep_adv, advection_config, les_config, iforcing, lacc=.TRUE. )
     IF (n_dom > 1 .OR. l_limited_area) THEN
        CALL devcpy_grf_state (p_grf_state, .FALSE., lacc=.TRUE.)
        CALL devcpy_grf_state (p_grf_state_local_parent, .FALSE., lacc=.TRUE.)

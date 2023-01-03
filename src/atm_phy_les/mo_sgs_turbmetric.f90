@@ -29,7 +29,7 @@
 MODULE mo_sgs_turbmetric
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: message
+  USE mo_exception,           ONLY: message, finish
   USE mo_nonhydro_types,      ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_model_domain,        ONLY: t_patch
   USE mo_intp_data_strc,      ONLY: t_int_state
@@ -39,9 +39,9 @@ MODULE mo_sgs_turbmetric
   USE mo_parallel_config,     ONLY: nproma, p_test_run
   USE mo_run_config,          ONLY: iqv, iqc, iqtke, msg_level
   USE mo_loopindices,         ONLY: get_indices_e, get_indices_c
-  USE mo_impl_constants    ,  ONLY: min_rlcell, min_rledge_int, min_rlcell_int, min_rlvert_int,   &
+  USE mo_impl_constants,      ONLY: min_rlcell, min_rledge_int, min_rlcell_int, min_rlvert_int,   &
                                     iprog
-  USE mo_math_utilities,      ONLY: tdma_solver
+  USE mo_math_utilities,      ONLY: tdma_solver, tdma_solver_vec
   USE mo_sync,                ONLY: SYNC_E, SYNC_C, SYNC_V, sync_patch_array, &
                                     sync_patch_array_mult
   USE mo_physical_constants,  ONLY: cpd, rcvd, rcpd, alv, grav
@@ -55,8 +55,9 @@ MODULE mo_sgs_turbmetric
                                     idx_sgs_u_flx, idx_sgs_v_flx
   USE mo_statistics,          ONLY: levels_horizontal_mean
   USE mo_nh_vert_interp_les,  ONLY: brunt_vaisala_freq, vert_intp_full2half_cell_3d
-  USE mo_fortran_tools,       ONLY: copy, init
+  USE mo_fortran_tools,       ONLY: copy, init, assert_acc_device_only
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config 
+
 
   IMPLICIT NONE
 
@@ -99,7 +100,7 @@ MODULE mo_sgs_turbmetric
   !!   - include turbulent metric terms
   SUBROUTINE drive_subgrid_diffusion_m(p_sim_time, p_nh_prog, p_nh_prog_now_rcf, p_nh_prog_rcf,   &
                                        p_nh_diag, p_nh_metrics, p_patch, p_int, p_prog_lnd_now,   &
-                                       p_prog_lnd_new, p_diag_lnd, prm_diag, prm_nwp_tend, dt)
+                                       p_prog_lnd_new, p_diag_lnd, prm_diag, prm_nwp_tend, dt, lacc)
 
     TYPE(t_nh_prog),   INTENT(inout)     :: p_nh_prog     !< single nh prognostic state
     TYPE(t_nh_prog),   INTENT(inout)     :: p_nh_prog_now_rcf !< old state for tke
@@ -123,10 +124,12 @@ MODULE mo_sgs_turbmetric
     INTEGER :: nlev, nlevp1
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER :: rl_start, rl_end
-    INTEGER :: jb, jc, jg
+    INTEGER :: jb, jc, jk, jg
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
 
-    !CALL debug_messages_on
+    CALL assert_acc_device_only("drive_subgrid_diffusion_m", lacc)
 
     IF (msg_level >= 15) &
          CALL message(inmodule, 'drive_subgrid_diffusion_m')
@@ -152,6 +155,10 @@ MODULE mo_sgs_turbmetric
               div_c(nproma,nlev,p_patch%nblks_c),    &
               rho_ic(nproma,nlevp1,p_patch%nblks_c)  &
             )
+
+    !$ACC DATA CREATE(u_vert, v_vert, w_vert, u_iv, v_iv, vn_ie, vt_ie, w_ie) &
+    !$ACC   CREATE(km_iv, km_c, km_ie, theta_v, div_c, rho_ic) &
+    !$ACC   CREATE(theta, D_11_ie, D_12_ie, D_13_ie)
 
     !Initialize
 
@@ -184,36 +191,45 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        theta(jc,1:nlev,jb)   = p_nh_diag%temp(jc,1:nlev,jb)  / p_nh_prog%exner(jc,1:nlev,jb)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1,nlev
+        DO jc = i_startidx, i_endidx
+          theta(jc,jk,jb)   = p_nh_diag%temp(jc,jk,jb)  / p_nh_prog%exner(jc,jk,jb)
 
-        theta_v(jc,1:nlev,jb) = p_nh_diag%tempv(jc,1:nlev,jb) / p_nh_prog%exner(jc,1:nlev,jb)
+          theta_v(jc,jk,jb) = p_nh_diag%tempv(jc,jk,jb) / p_nh_prog%exner(jc,jk,jb)
+        END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     !Get rho at interfaces to be used later
     CALL vert_intp_full2half_cell_3d(p_patch, p_nh_metrics, p_nh_prog%rho, rho_ic,    &
-                                     2, min_rlcell_int-2)
+                                     2, min_rlcell_int-2, lacc=.TRUE.)
 
     CALL surface_conditions(p_nh_metrics, p_patch, p_nh_diag, p_prog_lnd_now,         &
                             p_prog_lnd_new, p_diag_lnd, prm_diag, theta,              &
-                            p_nh_prog%tracer(:,:,:,iqv), p_sim_time)
+                            p_nh_prog%tracer(:,:,:,iqv), p_sim_time, lacc=.TRUE.)
 
     IF ( atm_phy_nwp_config(jg)%inwp_turb == iprog) THEN 
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'inwp_turb=iprog: OpenACC version currently not implemented')
+#endif
       CALL prognostic_tke(p_nh_prog, p_nh_prog_now_rcf, p_nh_prog_rcf, p_nh_diag,                 &
                           p_nh_metrics, p_patch, p_int, prm_diag, dt, D_11_ie, D_12_ie, D_13_ie)
     ELSE
-      CALL brunt_vaisala_freq(p_patch, p_nh_metrics, theta_v, prm_diag%bruvais)
+      CALL brunt_vaisala_freq(p_patch, p_nh_metrics, theta_v, prm_diag%bruvais, lacc=.TRUE.)
+
       CALL smagorinsky_model(p_nh_prog, p_nh_metrics, p_patch, p_int, prm_diag%tkvh,              &
                              prm_diag%mech_prod, prm_diag%tkvm, prm_diag%bruvais,                 &
-                             d_11_ie, d_12_ie, d_13_ie)
+                             D_11_ie, D_12_ie, D_13_ie)
     END IF
 
     CALL diffuse_hori_velocity(p_nh_prog, p_nh_diag, p_nh_metrics, p_patch, p_int, prm_diag,      &
                                prm_nwp_tend%ddt_u_turb, prm_nwp_tend%ddt_v_turb,                  &
-                               d_11_ie, d_12_ie, d_13_ie, dt)
+                               D_11_ie, D_12_ie, D_13_ie, dt)
 
     !Vertical velocity is updated here
     CALL diffuse_vert_velocity(p_nh_prog, p_nh_diag, p_nh_metrics, p_patch, p_int,                &
@@ -233,12 +249,18 @@ MODULE mo_sgs_turbmetric
                           prm_nwp_tend%ddt_tracer_turb(:,:,:,iqc), p_nh_prog%exner,   &
                           prm_diag, p_nh_prog%rho, dt, tracer_qc)
     ELSE
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'only moist cbl is suppported on GPU')
+#endif
+
 !$OMP PARALLEL
       CALL init(prm_nwp_tend%ddt_tracer_turb(:,:,:,iqv))
       CALL init(prm_nwp_tend%ddt_tracer_turb(:,:,:,iqc))
 !$OMP END PARALLEL
     END IF
 
+    !$ACC WAIT
+    !$ACC END DATA ! CREATE module & subroutine
     DEALLOCATE(u_vert, v_vert, w_vert, vn_ie, vt_ie, w_ie, km_iv, km_ie,  &
                theta, theta_v, km_c, rho_ic, div_c, u_iv, v_iv)
 
@@ -299,6 +321,8 @@ MODULE mo_sgs_turbmetric
 
     !--------------------------------------------------------------------------
 
+    !$ACC DATA CREATE(shear, div_of_stress)
+
     IF (msg_level >= 18) &
          CALL message(inmodule, 'smagorinsky_model')
 
@@ -324,14 +348,16 @@ MODULE mo_sgs_turbmetric
     !<It assumes that prog values are all synced at this stage while diag values might not>
     !--------------------------------------------------------------------------
 
-    CALL cells2verts_scalar(p_nh_prog%w, p_patch, p_int%cells_aw_verts, w_vert,                   &
-                            opt_rlend=min_rlvert_int)
-    CALL cells2edges_scalar(p_nh_prog%w, p_patch, p_int%c_lin_e, w_ie, opt_rlend=min_rledge_int-2)
+    CALL cells2verts_scalar(p_nh_prog%w, p_patch, p_int%cells_aw_verts, w_vert,   &
+                            opt_rlend=min_rlvert_int, opt_acc_async=.TRUE.)
+    CALL cells2edges_scalar(p_nh_prog%w, p_patch, p_int%c_lin_e, w_ie,            &
+                            opt_rlend=min_rledge_int-2, opt_acc_async=.TRUE.)
 
     ! RBF reconstruction of velocity at vertices: include halos
-    CALL rbf_vec_interpol_vertex( p_nh_prog%vn, p_patch, p_int, &
-                                  u_vert, v_vert, opt_rlend=min_rlvert_int )
+    CALL rbf_vec_interpol_vertex(p_nh_prog%vn, p_patch, p_int, u_vert, v_vert,    &
+                            opt_rlend=min_rlvert_int, opt_acc_async=.TRUE.)
 
+    !$ACC WAIT
     !sync them
     CALL sync_patch_array_mult(SYNC_V, p_patch, 3, u_vert, v_vert, w_vert)
 
@@ -349,6 +375,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -360,6 +388,10 @@ MODULE mo_sgs_turbmetric
                             ( 1._wp - p_nh_metrics%wgtfac_e(je,jk,jb) ) * p_nh_prog%vn(je,jk-1,jb)
         END DO
       END DO
+      !$ACC END PARALLEL
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO je = i_startidx, i_endidx
           vn_ie(je,1,jb)      = p_nh_metrics%wgtfacq1_e(je,1,jb) * p_nh_prog%vn(je,1,jb) +        &
                                 p_nh_metrics%wgtfacq1_e(je,2,jb) * p_nh_prog%vn(je,2,jb) +        &
@@ -369,19 +401,19 @@ MODULE mo_sgs_turbmetric
                                 p_nh_metrics%wgtfacq_e(je,2,jb) * p_nh_prog%vn(je,nlev-1,jb) +    &
                                 p_nh_metrics%wgtfacq_e(je,3,jb) * p_nh_prog%vn(je,nlev-2,jb)
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 !$OMP END PARALLEL
 
-    !CALL sync_patch_array(SYNC_E, p_patch, vn_ie)
-
     CALL rbf_vec_interpol_edge(vn_ie, p_patch, p_int, vt_ie, opt_rlstart=3, &
-                               opt_rlend=min_rledge_int-2)
+                               opt_rlend=min_rledge_int-2, opt_acc_async=.TRUE.)
 
     ! RBF reconstruction of velocity on half levels at vertices: include halos
     CALL rbf_vec_interpol_vertex( vn_ie, p_patch, p_int, &
-                                  u_iv, v_iv, opt_rlend=min_rlvert_int )
+                                  u_iv, v_iv, opt_rlend=min_rlvert_int, opt_acc_async=.TRUE.)
 
+    !$ACC WAIT
     CALL sync_patch_array_mult(SYNC_V, p_patch, 2, u_iv, v_iv)
 
     !--------------------------------------------------------------------------
@@ -407,10 +439,10 @@ MODULE mo_sgs_turbmetric
 !$OMP            vt_vert1,vt_vert2,vt_vert3,vt_vert4,w_full_c1,w_full_c2,w_full_v1,  &
 !$OMP            w_full_v2,D_11, D_12, D_13, D_22, D_23, D_33)
     DO jb = i_startblk,i_endblk
-
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO je = i_startidx, i_endidx
         D_11_ie(je,1,jb)       = 0.0_wp
         D_11_ie(je,nlev+1,jb)  = 0.0_wp
@@ -419,12 +451,19 @@ MODULE mo_sgs_turbmetric
         D_13_ie(je,1,jb)       = 0.0_wp
         D_13_ie(je,nlev+1,jb)  = 0.0_wp
       END DO
+      !$ACC END PARALLEL
+
       ! top layer approximation
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
 #ifdef __LOOP_EXCHANGE
+      !$ACC LOOP GANG
       DO je = i_startidx, i_endidx
+        !$ACC LOOP SEQ
         DO jk = 1, 3
 #else
+      !$ACC LOOP SEQ
       DO jk = 1, 3
+        !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
 #endif
 #         include "smagorinsky_strain_rate.inc"
@@ -444,12 +483,18 @@ MODULE mo_sgs_turbmetric
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
 #ifdef __LOOP_EXCHANGE
+      !$ACC LOOP GANG
       DO je = i_startidx, i_endidx
+        !$ACC LOOP SEQ
         DO jk = 4, nlev-3
 #else
+      !$ACC LOOP SEQ
       DO jk = 4, nlev-3
+        !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
 #endif
 #         include "smagorinsky_strain_rate.inc"
@@ -464,11 +509,18 @@ MODULE mo_sgs_turbmetric
                                 ( 1._wp - p_nh_metrics%wgtfac_e(je,jk,jb) ) * D_13
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
 #ifdef __LOOP_EXCHANGE
+      !$ACC LOOP GANG
       DO je = i_startidx, i_endidx
+        !$ACC LOOP SEQ
         DO jk = nlev-2, nlev
 #else
+      !$ACC LOOP SEQ
       DO jk = nlev-2, nlev
+        !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
 #endif
 #         include "smagorinsky_strain_rate.inc"
@@ -491,6 +543,7 @@ MODULE mo_sgs_turbmetric
                                   p_nh_metrics%wgtfacq_e(je,nlev-jk+1,jb) * D_13
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
     ENDDO
 !$OMP END DO
 
@@ -505,6 +558,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -520,8 +575,9 @@ MODULE mo_sgs_turbmetric
                           shear(ieidx(jc,jb,1),jk-1,ieblk(jc,jb,1)) * p_int%e_bln_c_s(jc,1,jb) +  &
                           shear(ieidx(jc,jb,2),jk-1,ieblk(jc,jb,2)) * p_int%e_bln_c_s(jc,2,jb) +  &
                           shear(ieidx(jc,jb,3),jk-1,ieblk(jc,jb,3)) * p_int%e_bln_c_s(jc,3,jb) )
-         END DO
-       END DO
+        END DO
+      END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 
@@ -535,6 +591,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                         i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -546,8 +604,9 @@ MODULE mo_sgs_turbmetric
               ( div_of_stress(ieidx(jc,jb,1),jk,ieblk(jc,jb,1)) * p_int%e_bln_c_s(jc,1,jb) +      &
                 div_of_stress(ieidx(jc,jb,2),jk,ieblk(jc,jb,2)) * p_int%e_bln_c_s(jc,2,jb) +      &
                 div_of_stress(ieidx(jc,jb,3),jk,ieblk(jc,jb,3)) * p_int%e_bln_c_s(jc,3,jb) )
-         END DO
-       END DO
+        END DO
+      END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 
@@ -572,6 +631,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,       &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -586,14 +647,20 @@ MODULE mo_sgs_turbmetric
 
         END DO
       END DO
+      !$ACC END PARALLEL
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         kh_ic(jc,1,jb)      = kh_ic(jc,2,jb)
         kh_ic(jc,nlevp1,jb) = kh_ic(jc,nlev,jb)
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT
     CALL sync_patch_array(SYNC_C, p_patch, kh_ic)
 
 !$OMP PARALLEL PRIVATE (rl_start,rl_end,i_startblk,i_endblk)
@@ -612,6 +679,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -624,20 +693,34 @@ MODULE mo_sgs_turbmetric
                                 0.5_wp * les_config(jg)%turb_prandtl )
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     ! 4b) visc at vertices
     CALL cells2verts_scalar(kh_ic, p_patch, p_int%cells_aw_verts, km_iv, &
-                            opt_rlstart=5, opt_rlend=min_rlvert_int-1)
-    km_iv = MAX( les_config(jg)%km_min, km_iv * les_config(jg)%turb_prandtl )
+                            opt_rlstart=5, opt_rlend=min_rlvert_int-1, opt_acc_async=.TRUE.)
+
+    DO jb = 1, p_patch%nblks_v
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1, nlevp1
+        DO jc = 1, nproma
+          km_iv(jc,jk,jb) = MAX( les_config(jg)%km_min, km_iv(jc,jk,jb) * les_config(jg)%turb_prandtl )
+        END DO
+      END DO
+      !$ACC END PARALLEL
+    END DO
+
     ! 4c) Now calculate km at half levels at edge
     CALL cells2edges_scalar(kh_ic, p_patch, p_int%c_lin_e, km_ie, &
-                            opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1)
+                            opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1, opt_acc_async=.TRUE.)
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
     DO jb = 1, p_patch%nblks_e
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = 1, nproma
         DO jk = 1, nlev+1
@@ -647,14 +730,27 @@ MODULE mo_sgs_turbmetric
 #endif
           km_ie(jc,jk,jb) = MAX( les_config(jg)%km_min,                        &
                                  km_ie(jc,jk,jb) * les_config(jg)%turb_prandtl )
-         END DO
-       END DO
+        END DO
+      END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     ! 4d) Get km_ic
-    km_ic = MAX( les_config(jg)%km_min, kh_ic * les_config(jg)%turb_prandtl )
+    DO jb = 1, p_patch%nblks_c
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1, nlevp1
+        DO jc = 1, nproma
+          km_ic(jc,jk,jb) = MAX( les_config(jg)%km_min, kh_ic(jc,jk,jb) * les_config(jg)%turb_prandtl )
+        END DO
+      END DO
+      !$ACC END PARALLEL
+    END DO
+
+    !$ACC WAIT
+    !$ACC END DATA ! shear, div_of_stress
 
   END SUBROUTINE smagorinsky_model
   !-------------------------------------------------------------------------------------
@@ -1120,8 +1216,8 @@ MODULE mo_sgs_turbmetric
     REAL(wp) :: vnew(nproma,p_patch%nlev,p_patch%nblks_c)
     REAL(wp) :: tot_tend(nproma,p_patch%nlev,p_patch%nblks_e)
 
-    REAL(wp), DIMENSION(nproma,p_patch%nlev) :: a, b, c, rhs
-    REAL(wp), DIMENSION(p_patch%nlev) :: var_new, outvar
+    REAL(wp), DIMENSION(nproma,p_patch%nlev) :: a, b, c, rhs, var_new
+    REAL(wp), DIMENSION(p_patch%nlev) :: outvar
 
     INTEGER,  DIMENSION(:,:,:), POINTER :: ividx, ivblk, iecidx, iecblk
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
@@ -1147,6 +1243,8 @@ MODULE mo_sgs_turbmetric
     iecidx => p_patch%edges%cell_idx
     iecblk => p_patch%edges%cell_blk
 
+    !$ACC DATA CREATE(inv_rhoe, vn_new, unew, vnew, tot_tend, a, b, c, rhs, var_new, outvar)
+
 !$OMP PARALLEL
     CALL init(a); CALL init(c)
     CALL init(tot_tend)
@@ -1163,7 +1261,7 @@ MODULE mo_sgs_turbmetric
 
     !density at edge
     CALL cells2edges_scalar(p_nh_prog%rho, p_patch, p_int%c_lin_e, inv_rhoe, &
-                            opt_rlstart=rl_start, opt_rlend=rl_end)
+                            opt_rlstart=rl_start, opt_rlend=rl_end, opt_acc_async=.TRUE.)
 
     ! compute inv_rho
     ! compute D_11, D_12 on interface edges
@@ -1172,6 +1270,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE   
       DO je = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1182,6 +1282,7 @@ MODULE mo_sgs_turbmetric
           inv_rhoe(je,jk,jb) = 1._wp / inv_rhoe(je,jk,jb)
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1198,6 +1299,14 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR TILE(32, 4) &
+      !$ACC   PRIVATE(vn_vert1, vn_vert1i, vn_vert1i_p1, vn_vert2, vn_vert2i, vn_vert2i_p1) &
+      !$ACC   PRIVATE(vn_vert3, vn_vert3i, vn_vert3i_p1, vn_vert4, vn_vert4i, vn_vert4i_p1) &
+      !$ACC   PRIVATE(vt_vert1i, vt_vert1i_p1, vt_vert2i, vt_vert2i_p1) &
+      !$ACC   PRIVATE(vt_vert3i, vt_vert3i_p1, vt_vert4i, vt_vert4i_p1) &
+      !$ACC   PRIVATE(dvt, jcn, jbn, jvn, flux_up_c, flux_dn_c, flux_up_v, flux_dn_v) &
+      !$ACC   PRIVATE(div_of_stress, div_of_stress_p1, norm_metr, tang_metr)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1405,6 +1514,7 @@ MODULE mo_sgs_turbmetric
                                 norm_metr - tang_metr ) * inv_rhoe(je,jk,jb)
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1415,6 +1525,9 @@ MODULE mo_sgs_turbmetric
     SELECT CASE(les_config(jg)%vert_scheme_type)
 
     CASE(iexplicit)
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'vert_scheme_type=iexplicit: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,je,i_startidx,i_endidx,flux_up_e,flux_dn_e,stress_c1n,stress_c2n,&
@@ -1462,19 +1575,6 @@ MODULE mo_sgs_turbmetric
                         p_nh_metrics%inv_ddqz_z_half_e(je,jk+1,jb) *             &
                         km_ie(je,jk+1,jb) * p_nh_metrics%ddxn_z_half_e(je,jk+1,jb) * &
                         ( vt_ie(je,jk,jb) - vt_ie(je,MIN(nlev+1,jk+2),jb) ) )
-
-         !IF((norm_metr /= 0._wp) .OR. (tang_metr /= 0._wp) .OR. (vert_metr /= 0._wp)) THEN
-         !  PRINT *, 'e-early norm_metr, tang_metr, vert_metr = ', &
-         !   norm_metr, tang_metr, vert_metr
-         !  PRINT *, 'inv_ddqz_z_half_e ', p_nh_metrics%inv_ddqz_z_half_e(je,jk,jb)
-         !  PRINT *, 'km_ie ', km_ie(je,jk,jb)
-         !  PRINT *, 'ddxn_z_half_e ', ddxn_z_half_e(je,jk,jb)
-         !  PRINT *, 'inv_ddqz_z_half_e ', p_nh_metrics%inv_ddqz_z_half_e(je,jk+1,jb)
-         !  PRINT *, 'vt_ie ',jk,  vt_ie(je,jk,jb)
-         !  PRINT *, 'vt_ie ',jk-1,  vt_ie(je,jk-1,jb)
-         !  PRINT *, 'vt_ie ',jk+1,  vt_ie(je,jk+1,jb)
-         !  CALL finish('','')
-         !END IF
 
           tot_tend(je,jk,jb) = tot_tend(je,jk,jb) + p_nh_metrics%inv_ddqz_z_full_e(je,jk,jb) *    &
                                ( flux_up_e - flux_dn_e + vflux_up - vflux_dn +                    &
@@ -1597,6 +1697,8 @@ MODULE mo_sgs_turbmetric
       DO jb = i_startblk,i_endblk
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(dwdn)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
           DO jk = 2 , nlev-1
@@ -1631,10 +1733,13 @@ MODULE mo_sgs_turbmetric
 
           END DO
         END DO
+        !$ACC END PARALLEL
 
-         !TOP Boundary treatment
-         ! jk = 1
-         !
+        !TOP Boundary treatment
+        ! jk = 1
+        !
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR PRIVATE(dwdn)
         DO je = i_startidx, i_endidx
           c(je,1)   = -km_ie(je,2,jb) * ( z_4by3 *                                                &
                    p_nh_metrics%ddxn_z_half_e(je,2,jb) * p_nh_metrics%ddxn_z_full(je,1,jb) +      &
@@ -1652,10 +1757,13 @@ MODULE mo_sgs_turbmetric
 
           rhs(je,1) =  p_nh_prog%vn(je,1,jb) * inv_dt + dwdn
         END DO
+        !$ACC END PARALLEL
 
-         !SFC Boundary treatment
-         !jk = nlev
-         !
+        !SFC Boundary treatment
+        !jk = nlev
+        !
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR PRIVATE(dwdn, stress_c1n, stress_c2n, flux_dn_e)
         DO je = i_startidx, i_endidx
           a(je,nlev) = -km_ie(je,nlev,jb) * ( z_4by3 *                                            &
                   p_nh_metrics%ddxn_z_half_e(je,nlev,jb) * p_nh_metrics%ddxn_z_full(je,nlev,jb) + &
@@ -1692,12 +1800,25 @@ MODULE mo_sgs_turbmetric
           rhs(je,nlev) = p_nh_prog%vn(je,nlev,jb) * inv_dt + dwdn - flux_dn_e *                   &
                          p_nh_metrics%inv_ddqz_z_full_e(je,nlev,jb) * inv_rhoe(je,nlev,jb)
         END DO
+        !$ACC END PARALLEL
 
-        !CALL TDMA
+        !$ACC WAIT
+        CALL tdma_solver_vec(a,b,c,rhs,1,nlev,i_startidx,i_endidx,var_new)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
-          CALL tdma_solver(a(je,:),b(je,:),c(je,:),rhs(je,:),nlev,var_new(:))
-          tot_tend(je,:,jb) = tot_tend(je,:,jb) + (var_new(:) - p_nh_prog%vn(je,:,jb)) * inv_dt
+          DO jk = 1, nlev
+#else
+        DO jk = 1, nlev
+          DO je = i_startidx, i_endidx
+#endif
+            tot_tend(je,jk,jb) = tot_tend(je,jk,jb) +                                  &
+                                     ( var_new(je,jk) - p_nh_prog%vn(je,jk,jb) ) * inv_dt
+          END DO
         END DO
+        !$ACC END PARALLEL
 
       END DO!block loop
 !$OMP END DO NOWAIT
@@ -1715,6 +1836,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1725,14 +1848,16 @@ MODULE mo_sgs_turbmetric
         vn_new(je,jk,jb) = p_nh_prog%vn(je,jk,jb) + dt * tot_tend(je,jk,jb)
        END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
 
     !5) Get turbulent tendency at cell center
+    !$ACC WAIT
     CALL sync_patch_array(SYNC_E, p_patch, vn_new)
-    CALL rbf_vec_interpol_cell(vn_new, p_patch, p_int, unew, vnew, opt_rlend=min_rlcell_int)
+    CALL rbf_vec_interpol_cell(vn_new, p_patch, p_int, unew, vnew, opt_rlend=min_rlcell_int, opt_acc_async=.TRUE.)
 
     rl_start   = grf_bdywidth_c+1
     rl_end     = min_rlcell_int
@@ -1744,6 +1869,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 1, nlev
@@ -1755,16 +1882,18 @@ MODULE mo_sgs_turbmetric
           ddt_v(jc,jk,jb) = ( vnew(jc,jk,jb) - p_nh_diag%v(jc,jk,jb) ) * inv_dt
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-!    CALL sync_patch_array(SYNC_E, p_patch, tot_tend)
-!    CALL rbf_vec_interpol_cell(tot_tend, p_patch, p_int, ddt_u, ddt_v, opt_rlend=min_rlcell_int-1)
 
     !subgrid fluxes: using vn_new, unew, vnew to store sgs_fluxes
 
     IF(is_sampling_time)THEN
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'is_sampling_time: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL PRIVATE(rl_start, rl_end, i_startblk, i_endblk)
       CALL init(unew(:,:,:))
@@ -1845,7 +1974,10 @@ MODULE mo_sgs_turbmetric
               prm_diag%turb_diag_1dvar(jk,idx_sgs_v_flx)+outvar(jk-1)
       END DO
 
-    END IF!is_sampling_time
+    END IF !is_sampling_time
+
+    !$ACC WAIT
+    !$ACC END DATA ! local CREATE
 
   END SUBROUTINE diffuse_hori_velocity
   !-------------------------------------------------------------------------------------
@@ -1879,7 +2011,7 @@ MODULE mo_sgs_turbmetric
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER :: rl_start, rl_end, jg
     INTEGER :: jk, jb, je, jc, jcn, jbn, jvn, jcb
-    INTEGER  :: nlev
+    INTEGER :: nlev
 
     INTEGER,  DIMENSION(:,:,:), POINTER :: ividx, ivblk, iecidx, iecblk, ieidx, ieblk
 
@@ -1887,8 +2019,7 @@ MODULE mo_sgs_turbmetric
     REAL(wp) :: norm_metr, tang_metr, w2mw1, w2mw1_p1
 
     REAL(wp) :: vt_e(nproma,p_patch%nlev,p_patch%nblks_e), inv_dt
-    REAL(wp), DIMENSION(nproma,p_patch%nlev) :: a, b, c, rhs
-    REAL(wp)                                 :: var_new(p_patch%nlev)
+    REAL(wp), DIMENSION(nproma,p_patch%nlev) :: a, b, c, rhs, var_new
     !interface level variables but only nlev quantities are needed
     REAL(wp) :: hor_tend(nproma,p_patch%nlev,p_patch%nblks_e)
     REAL(wp), POINTER :: tot_tend(:,:,:)
@@ -1916,6 +2047,8 @@ MODULE mo_sgs_turbmetric
 
     tot_tend => ddt_w
 
+    !$ACC DATA CREATE(vt_e, a, b, c, rhs, var_new, hor_tend, inv_rho_ic)
+
     !Some initializations
 !$OMP PARALLEL
     CALL init(a(:,:)); CALL init(c(:,:))
@@ -1926,7 +2059,8 @@ MODULE mo_sgs_turbmetric
 !$OMP END PARALLEL
 
 
-    CALL rbf_vec_interpol_edge(p_nh_prog%vn, p_patch, p_int, vt_e, opt_rlend=min_rledge_int-1)
+    CALL rbf_vec_interpol_edge(p_nh_prog%vn, p_patch, p_int, vt_e, opt_rlend=min_rledge_int-1, &
+                               opt_acc_async=.TRUE.)
 
     !Calculate rho at interface for vertical diffusion
     rl_start   = grf_bdywidth_c+1
@@ -1939,16 +2073,19 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-       DO jc = i_startidx, i_endidx
-         DO jk = 2, nlev
+      DO jc = i_startidx, i_endidx
+        DO jk = 2, nlev
 #else
-       DO jk = 2, nlev
-         DO jc = i_startidx, i_endidx
+      DO jk = 2, nlev
+        DO jc = i_startidx, i_endidx
 #endif
-           inv_rho_ic(jc,jk,jb) = 1._wp / rho_ic(jc,jk,jb)
-         END DO
-       END DO
+          inv_rho_ic(jc,jk,jb) = 1._wp / rho_ic(jc,jk,jb)
+        END DO
+      END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1968,6 +2105,9 @@ MODULE mo_sgs_turbmetric
 
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR TILE(32, 4) PRIVATE(jcn, jcb, jvn, jbn, dvn1, dvn2, dvt1, dvt2) &
+      !$ACC   PRIVATE(flux_up_c, flux_dn_c, flux_up_v, flux_dn_v, w2mw1, w2mw1_p1, norm_metr, tang_metr)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -2076,11 +2216,6 @@ MODULE mo_sgs_turbmetric
                       p_nh_metrics%inv_ddqz_z_half_v(jvn,jk,jbn) *                      &
                       p_nh_metrics%ddxt_z_half_v(jvn,jk,jbn) )
 
-         !w2mw1 = 0.5_wp*(w_vert(ividx(je,jb,2),jk-1,ivblk(je,jb,2)) - w_vert(ividx(je,jb,1),jk-1,ivblk(je,jb,1)) +&
-         !w_vert(ividx(je,jb,2),jk,ivblk(je,jb,2)) - w_vert(ividx(je,jb,1),jk,ivblk(je,jb,1)))
-         !w2mw1_p1 = 0.5_wp*(w_vert(ividx(je,jb,2),jk,ivblk(je,jb,2)) - w_vert(ividx(je,jb,1),jk,ivblk(je,jb,1)) +&
-         !w_vert(ividx(je,jb,2),jk+1,ivblk(je,jb,2)) - w_vert(ividx(je,jb,1),jk+1,ivblk(je,jb,1)))
-
           ! km_c should be replaced with km_iv
           jvn = ividx(je,jb,2)
           jbn = ivblk(je,jb,2)
@@ -2113,12 +2248,12 @@ MODULE mo_sgs_turbmetric
                                norm_metr - tang_metr
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-    !CALL sync_patch_array(SYNC_E, p_patch, p_nh_metrics%inv_ddqz_z_half_e, 'inv_ddqz_z_half_e')
-    !CALL sync_patch_array(SYNC_E, p_patch, p_nh_metrics%inv_ddqz_z_full_e, 'inv_ddqz_z_full_e')
+    !$ACC WAIT
     CALL sync_patch_array(SYNC_E, p_patch, hor_tend)
 
     !Interpolate horizontal tendencies to w point: except top and bottom boundaries
@@ -2134,6 +2269,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -2148,6 +2285,7 @@ MODULE mo_sgs_turbmetric
 
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -2158,39 +2296,42 @@ MODULE mo_sgs_turbmetric
     SELECT CASE(les_config(jg)%vert_scheme_type)
 
     CASE(iexplicit)
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'vert_scheme_type=iexplicit: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,flux_up_c,flux_dn_c)
-    DO jb = i_startblk,i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                         i_startidx, i_endidx, rl_start, rl_end)
+      DO jb = i_startblk,i_endblk
+        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+                           i_startidx, i_endidx, rl_start, rl_end)
 #ifdef __LOOP_EXCHANGE
-      DO jc = i_startidx, i_endidx
-        DO jk = 2, nlev
-#else
-      DO jk = 2, nlev
         DO jc = i_startidx, i_endidx
+          DO jk = 2, nlev
+#else
+        DO jk = 2, nlev
+          DO jc = i_startidx, i_endidx
 #endif
-          flux_up_c = km_c(jc,jk-1,jb) * ( ( p_nh_prog%w(jc,jk-1,jb) - p_nh_prog%w(jc,jk,jb) ) *  &
-                      p_nh_metrics%inv_ddqz_z_full(jc,jk-1,jb) - z_1by3 * div_c(jc,jk-1,jb) )
+            flux_up_c = km_c(jc,jk-1,jb) * ( ( p_nh_prog%w(jc,jk-1,jb) - p_nh_prog%w(jc,jk,jb) ) * &
+                        p_nh_metrics%inv_ddqz_z_full(jc,jk-1,jb) - z_1by3 * div_c(jc,jk-1,jb) )
 
-         flux_dn_c = km_c(jc,jk,jb) * ( ( p_nh_prog%w(jc,jk,jb) - p_nh_prog%w(jc,jk+1,jb) ) *     &
-                     p_nh_metrics%inv_ddqz_z_full(jc,jk,jb) - z_1by3 * div_c(jc,jk,jb) )
+            flux_dn_c = km_c(jc,jk,jb) * ( ( p_nh_prog%w(jc,jk,jb) - p_nh_prog%w(jc,jk+1,jb) ) *   &
+                        p_nh_metrics%inv_ddqz_z_full(jc,jk,jb) - z_1by3 * div_c(jc,jk,jb) )
 
-         tot_tend(jc,jk,jb) = tot_tend(jc,jk,jb) + 2._wp *                                        &
-                              ( flux_up_c - flux_dn_c + ( flux_up_c *                             &
-                                p_nh_metrics%ddxn_z_full_c(jc,jk-1,jb) - flux_dn_c *              &
-                                p_nh_metrics%ddxn_z_full_c(jc,jk,jb) ) *                          &
-                              p_nh_metrics%ddxn_z_half_c(jc,jk,jb) +                              &
-                              ( flux_up_c * p_nh_metrics%ddxt_z_full_c(jc,jk-1,jb) - flux_dn_c *  &
-                                p_nh_metrics%ddxt_z_full_c(jc,jk,jb) ) *                          &
-                              p_nh_metrics%ddxt_z_half_c(jc,jk,jb) +                              &
-                              km_c(jc,jk-1,jb) * z_1by3 * div_c(jc,jk-1,jb) -                     &
-                              km_c(jc,jk,jb) * z_1by3 * div_c(jc,jk,jb) ) *                       &
-                              p_nh_metrics%inv_ddqz_z_half(jc,jk,jb) * inv_rho_ic(jc,jk,jb)
+            tot_tend(jc,jk,jb) = tot_tend(jc,jk,jb) + 2._wp *                                        &
+                                  ( flux_up_c - flux_dn_c + ( flux_up_c *                            &
+                                    p_nh_metrics%ddxn_z_full_c(jc,jk-1,jb) - flux_dn_c *             &
+                                    p_nh_metrics%ddxn_z_full_c(jc,jk,jb) ) *                         &
+                                    p_nh_metrics%ddxn_z_half_c(jc,jk,jb) +                           &
+                                  ( flux_up_c * p_nh_metrics%ddxt_z_full_c(jc,jk-1,jb) - flux_dn_c * &
+                                    p_nh_metrics%ddxt_z_full_c(jc,jk,jb) ) *                         &
+                                    p_nh_metrics%ddxt_z_half_c(jc,jk,jb) +                           &
+                                    km_c(jc,jk-1,jb) * z_1by3 * div_c(jc,jk-1,jb) -                  &
+                                    km_c(jc,jk,jb) * z_1by3 * div_c(jc,jk,jb) ) *                    &
+                                    p_nh_metrics%inv_ddqz_z_half(jc,jk,jb) * inv_rho_ic(jc,jk,jb)
+          END DO
         END DO
       END DO
-    END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -2203,6 +2344,8 @@ MODULE mo_sgs_turbmetric
       DO jb = i_startblk,i_endblk
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                             i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = 3, nlev-1
@@ -2231,10 +2374,13 @@ MODULE mo_sgs_turbmetric
                            p_nh_metrics%inv_ddqz_z_half(jc,jk,jb) * inv_rho_ic(jc,jk,jb)
           END DO
         END DO
+        !$ACC END PARALLEL
 
         !TOP Boundary treatment:w==0
         !jk = 2
         !
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           c(jc,2)   = - km_c(jc,2,jb) *                                                           & 
                     ( p_nh_metrics%ddxn_z_full_c(jc,2,jb) * p_nh_metrics%ddxn_z_half_c(jc,2,jb) + &
@@ -2251,10 +2397,12 @@ MODULE mo_sgs_turbmetric
                                  km_c(jc,1,jb) * z_1by3 * div_c(jc,1,jb) ) *                      &
                                p_nh_metrics%inv_ddqz_z_half(jc,2,jb) * inv_rho_ic(jc,2,jb)
         END DO
+        !$ACC END PARALLEL
 
          !SFC Boundary treatment:w==0
          !jk = nlev
-         !
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           a(jc,nlev)   = - km_c(jc,nlev-1,jb) * &
             ( p_nh_metrics%ddxn_z_full_c(jc,nlev-1,jb) * p_nh_metrics%ddxn_z_half_c(jc,nlev,jb) + &
@@ -2271,14 +2419,25 @@ MODULE mo_sgs_turbmetric
                                   km_c(jc,nlev-1,jb) * z_1by3 * div_c(jc,nlev-1,jb) ) *           &
                                 p_nh_metrics%inv_ddqz_z_half(jc,nlev,jb) * inv_rho_ic(jc,nlev,jb)
         END DO
+        !$ACC END PARALLEL
 
-        !CALL TDMA
+        !$ACC WAIT
+        CALL tdma_solver_vec(a,b,c,rhs,2,nlev,i_startidx,i_endidx,var_new)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
-          CALL tdma_solver(a(jc,2:nlev),b(jc,2:nlev),c(jc,2:nlev),rhs(jc,2:nlev),nlev-1,          &
-                           var_new(2:nlev))
-          tot_tend(jc,2:nlev,jb) = tot_tend(jc,2:nlev,jb) +                                       &
-                                   ( var_new(2:nlev) - p_nh_prog%w(jc,2:nlev,jb) ) * inv_dt
+          DO jk = 2, nlev
+#else
+        DO jk = 2, nlev
+          DO jc = i_startidx, i_endidx
+#endif
+            tot_tend(jc,jk,jb) = tot_tend(jc,jk,jb) +                                  &
+                                     ( var_new(jc,jk) - p_nh_prog%w(jc,jk,jb) ) * inv_dt
+          END DO
         END DO
+        !$ACC END PARALLEL
       END DO !block
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -2289,25 +2448,31 @@ MODULE mo_sgs_turbmetric
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
-      DO jb = i_startblk,i_endblk
-        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                           i_startidx, i_endidx, rl_start, rl_end)
+    DO jb = i_startblk,i_endblk
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+                         i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-        DO jc = i_startidx, i_endidx
-          DO jk = 2, nlev
-#else
+      DO jc = i_startidx, i_endidx
         DO jk = 2, nlev
-          DO jc = i_startidx, i_endidx
+#else
+      DO jk = 2, nlev
+        DO jc = i_startidx, i_endidx
 #endif
-            p_nh_prog%w(jc,jk,jb) = p_nh_prog%w(jc,jk,jb) + dt * tot_tend(jc,jk,jb)
-          END DO
+          p_nh_prog%w(jc,jk,jb) = p_nh_prog%w(jc,jk,jb) + dt * tot_tend(jc,jk,jb)
         END DO
       END DO
+      !$ACC END PARALLEL
+    END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-
+    !$ACC WAIT
     CALL sync_patch_array(SYNC_C, p_patch, p_nh_prog%w)
+
+    !$ACC WAIT
+    !$ACC END DATA ! local CREATE
 
   END SUBROUTINE diffuse_vert_velocity
   !-------------------------------------------------------------------------------------
@@ -2388,6 +2553,9 @@ MODULE mo_sgs_turbmetric
     ieblk => p_patch%cells%edge_blk
     kh_ic => prm_diag%tkvh
 
+    !$ACC DATA CREATE(nabla2_e, fac, exner_ic, sgs_flux, exner_me, exner_ie, sflux, a, b, c, rhs) &
+    !$ACC   CREATE(var_new, var_ic, var_ie, var_iv, metric_tend_e)
+
     !multiply by exner to convert from theta tend to temp tend
     !assuming that exner perturbation are small compared to temp
 
@@ -2405,7 +2573,7 @@ MODULE mo_sgs_turbmetric
     !2) Calculate exner at edge for horizontal diffusion
 
     IF (scalar_name == tracer_theta) &
-      CALL cells2edges_scalar(exner, p_patch, p_int%c_lin_e, exner_me, opt_rlend=min_rledge_int-2)
+      CALL cells2edges_scalar(exner, p_patch, p_int%c_lin_e, exner_me, opt_rlend=min_rledge_int-2, opt_acc_async=.TRUE.)
 
     !3) Calculate exner at interface for vertical diffusion
 
@@ -2421,6 +2589,8 @@ MODULE mo_sgs_turbmetric
       DO jb = i_startblk,i_endblk
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
           DO jk = 2, nlev
@@ -2433,7 +2603,10 @@ MODULE mo_sgs_turbmetric
                                  exner_me(je,jk-1,jb) )
           END DO
         END DO
+        !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
           exner_ie(je,nlev+1,jb) = p_nh_metrics%wgtfacq_e(je,1,jb) * exner_me(je,nlev,jb)   +     &
                                    p_nh_metrics%wgtfacq_e(je,2,jb) * exner_me(je,nlev-1,jb) +     &
@@ -2443,6 +2616,7 @@ MODULE mo_sgs_turbmetric
                                    p_nh_metrics%wgtfacq1_e(je,2,jb) * exner_me(je,2,jb) +         &
                                    p_nh_metrics%wgtfacq1_e(je,3,jb) * exner_me(je,3,jb)
         END DO
+        !$ACC END PARALLEL
       END DO
 !$OMP END DO NOWAIT
 
@@ -2456,6 +2630,8 @@ MODULE mo_sgs_turbmetric
       DO jb = i_startblk,i_endblk
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                             i_startidx, i_endidx, rl_start, rl_end)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
           DO jk = 2, nlev
@@ -2467,11 +2643,16 @@ MODULE mo_sgs_turbmetric
                                  ( 1._wp - p_nh_metrics%wgtfac_c(jc,jk,jb)) * exner(jc,jk-1,jb) )
           END DO
         END DO
+        !$ACC END PARALLEL
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
             exner_ic(jc,nlev+1,jb) = p_nh_metrics%wgtfacq_c(jc,1,jb) * exner(jc,nlev,jb)   +      &
                                      p_nh_metrics%wgtfacq_c(jc,2,jb) * exner(jc,nlev-1,jb) +      &
                                      p_nh_metrics%wgtfacq_c(jc,3,jb) * exner(jc,nlev-2,jb)
         ENDDO
+        !$ACC END PARALLEL
       END DO
 !$OMP END DO
 
@@ -2488,6 +2669,8 @@ MODULE mo_sgs_turbmetric
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                           i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = 2, nlev
@@ -2499,7 +2682,10 @@ MODULE mo_sgs_turbmetric
                              ( 1._wp - p_nh_metrics%wgtfac_c(jc,jk,jb) ) * var(jc,jk-1,jb) )
         END DO
       END DO
+      !$ACC END PARALLEL
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         var_ic(jc,nlev+1,jb) = p_nh_metrics%wgtfacq_c(jc,1,jb) * var(jc,nlev,jb)   +              &
                                p_nh_metrics%wgtfacq_c(jc,2,jb) * var(jc,nlev-1,jb) +              &
@@ -2508,14 +2694,16 @@ MODULE mo_sgs_turbmetric
                                p_nh_metrics%wgtfacq1_c(jc,2,jb) * var(jc,2,jb) +                  &
                                p_nh_metrics%wgtfacq1_c(jc,3,jb) * var(jc,3,jb)
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO
 !$OMP END PARALLEL
 
+    !$ACC WAIT
     CALL sync_patch_array(SYNC_C, p_patch, var_ic)
 
-    CALL cells2edges_scalar(var_ic, p_patch, p_int%c_lin_e, var_ie)
-    CALL cells2verts_scalar(var_ic, p_patch, p_int%cells_aw_verts, var_iv)
+    CALL cells2edges_scalar(var_ic, p_patch, p_int%c_lin_e, var_ie, opt_acc_async=.TRUE.)
+    CALL cells2verts_scalar(var_ic, p_patch, p_int%cells_aw_verts, var_iv, opt_acc_async=.TRUE.)
 
 
 !$OMP PARALLEL PRIVATE(rl_start, rl_end, i_startblk, i_endblk)
@@ -2528,63 +2716,84 @@ MODULE mo_sgs_turbmetric
 
     IF (scalar_name ==tracer_theta) THEN
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx)
-        DO jb = i_startblk,i_endblk
+      DO jb = i_startblk,i_endblk
           CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-       DO jc = i_startidx, i_endidx
-         DO jk = 1, nlev
-#else
+        DO jc = i_startidx, i_endidx
           DO jk = 1, nlev
-            DO jc = i_startidx, i_endidx
-#endif
-              fac(jc,jk,jb) = cpd * rcvd / rho(jc,jk,jb)
-            END DO
-          END DO
+#else
+        DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
-            sflux(jc,jb) = prm_diag%shfl_s(jc,jb) * rcpd
+#endif
+            fac(jc,jk,jb) = cpd * rcvd / rho(jc,jk,jb)
           END DO
         END DO
+        !$ACC END PARALLEL
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
+          sflux(jc,jb) = prm_diag%shfl_s(jc,jb) * rcpd
+        END DO
+        !$ACC END PARALLEL
+      END DO
 !$OMP END DO
     ELSEIF (scalar_name == tracer_qv) THEN
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx)
-        DO jb = i_startblk,i_endblk
-          CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+      DO jb = i_startblk,i_endblk
+        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-          DO jc = i_startidx, i_endidx
-            DO jk = 1, nlev
-#else
+        DO jc = i_startidx, i_endidx
           DO jk = 1, nlev
-            DO jc = i_startidx, i_endidx
-#endif
-              fac(jc,jk,jb) = 1._wp / rho(jc,jk,jb)
-            END DO
-          END DO
+#else
+        DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
-            sflux(jc,jb) = prm_diag%lhfl_s(jc,jb) / alv
+#endif
+            fac(jc,jk,jb) = 1._wp / rho(jc,jk,jb)
           END DO
         END DO
+        !$ACC END PARALLEL
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
+          sflux(jc,jb) = prm_diag%lhfl_s(jc,jb) / alv
+        END DO
+        !$ACC END PARALLEL
+      END DO
 !$OMP END DO
     ELSEIF (scalar_name == tracer_qc) THEN
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx)
-        DO jb = i_startblk,i_endblk
+      DO jb = i_startblk,i_endblk
           CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-          DO jc = i_startidx, i_endidx
-            DO jk = 1, nlev
-#else
+        DO jc = i_startidx, i_endidx
           DO jk = 1, nlev
-            DO jc = i_startidx, i_endidx
-#endif
-              fac(jc,jk,jb) = 1._wp / rho(jc,jk,jb)
-            END DO
-          END DO
+#else
+        DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
-            sflux(jc,jb) = 0._wp
+#endif
+            fac(jc,jk,jb) = 1._wp / rho(jc,jk,jb)
           END DO
         END DO
+        !$ACC END PARALLEL
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
+            sflux(jc,jb) = 0._wp
+        END DO
+        !$ACC END PARALLEL
+      END DO
 !$OMP END DO
     END IF
 !$OMP END PARALLEL
@@ -2602,6 +2811,8 @@ MODULE mo_sgs_turbmetric
         DO jb = i_startblk,i_endblk
           CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jcn, jbn, jvn, norm_metr, tang_metr)
 #ifdef __LOOP_EXCHANGE
           DO je = i_startidx, i_endidx
             DO jk = 1, nlev
@@ -2636,10 +2847,14 @@ MODULE mo_sgs_turbmetric
 
             ENDDO
           ENDDO
+          !$ACC END PARALLEL
 
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR
           DO je = i_startidx, i_endidx
             metric_tend_e(je,nlev,jb) = 0._wp
           END DO
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END DO
 
@@ -2654,6 +2869,9 @@ MODULE mo_sgs_turbmetric
     i_endblk   = p_patch%edges%end_block(rl_end)
 
     IF ( atm_phy_nwp_config(jg)%inwp_turb == iprog) THEN 
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'inwp_turb=iprog: OpenACC version currently not implemented')
+#endif
 !$OMP DO PRIVATE(jk,je,jb,i_startidx,i_endidx)
         DO jb = i_startblk,i_endblk
           CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
@@ -2686,6 +2904,8 @@ MODULE mo_sgs_turbmetric
                              i_startidx, i_endidx, rl_start, rl_end)
 
           ! compute kh_smag_e * grad(var)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
           DO je = i_startidx, i_endidx
             DO jk = 1, nlev
@@ -2703,6 +2923,7 @@ MODULE mo_sgs_turbmetric
                                      p_nh_metrics%ddxn_z_full(je,jk,jb)  )
             ENDDO
           ENDDO
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END DO
     ENDIF
@@ -2718,6 +2939,8 @@ MODULE mo_sgs_turbmetric
         DO jb = i_startblk,i_endblk
           CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
           DO jc = i_startidx, i_endidx
             DO jk = 1, nlev
@@ -2735,6 +2958,7 @@ MODULE mo_sgs_turbmetric
                     metric_tend_e(ieidx(jc,jb,3),jk,ieblk(jc,jb,3)) * p_int%e_bln_c_s(jc,3,jb) )
             ENDDO
           ENDDO
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -2752,6 +2976,9 @@ MODULE mo_sgs_turbmetric
        SELECT CASE(les_config(jg)%vert_scheme_type)
 
        CASE(iexplicit)
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'vert_scheme_type=iexplicit: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx,flux_up,flux_dn)
@@ -2831,6 +3058,8 @@ MODULE mo_sgs_turbmetric
           DO jb = i_startblk,i_endblk
             CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                                i_startidx, i_endidx, rl_start, rl_end)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
             DO jc = i_startidx, i_endidx
               DO jk = 2, nlev-1
@@ -2858,10 +3087,13 @@ MODULE mo_sgs_turbmetric
 
               END DO
             END DO
+            !$ACC END PARALLEL
 
             !TOP Boundary treatment
             ! jk = 1
             !
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               c(jc,1)   = - kh_ic(jc,2,jb) * p_nh_metrics%inv_ddqz_z_half(jc,2,jb) *              &
                p_nh_metrics%inv_ddqz_z_full(jc,1,jb) *                                            &
@@ -2873,10 +3105,12 @@ MODULE mo_sgs_turbmetric
 
               rhs(jc,1) = var(jc,1,jb) * inv_dt
             END DO
+            !$ACC END PARALLEL
 
             !SFC Boundary treatment
             !jk = nlev
-            !
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               a(jc,nlev)   = - kh_ic(jc,nlev,jb) * p_nh_metrics%inv_ddqz_z_half(jc,nlev,jb) *     &
                               p_nh_metrics%inv_ddqz_z_full(jc,nlev,jb) *                          &
@@ -2891,12 +3125,20 @@ MODULE mo_sgs_turbmetric
               rhs(jc,nlev) = var(jc,nlev,jb) * inv_dt + sflux(jc,jb) * exner_ic(jc,nlevp1,jb) *   &
                              p_nh_metrics%inv_ddqz_z_full(jc,nlev,jb) * fac(jc,nlev,jb)
             END DO
+            !$ACC END PARALLEL
 
+            ! Note: replacing the tdma solver by its vectorizing counterpart tdma_solver_vec,
+            !       led to problems during the ACC port. Hence, at this place we keep the
+            !       non-vectorizing variant for the time being.
+            !$ACC WAIT
             !CALL TDMA
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+            !$ACC LOOP SEQ
             DO jc = i_startidx, i_endidx
               CALL tdma_solver(a(jc,:),b(jc,:),c(jc,:),rhs(jc,:),nlev,var_new)
               tot_tend(jc,:,jb) = tot_tend(jc,:,jb) + ( var_new(:) - var(jc,:,jb) ) * inv_dt
             END DO
+            !$ACC END PARALLEL
           END DO!block
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -2907,6 +3149,10 @@ MODULE mo_sgs_turbmetric
     !subgrid fluxes for different scalars
 
     IF(is_sampling_time)THEN
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'is_sampling_time: OpenACC version currently not implemented')
+#endif
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx)
       DO jb = i_startblk,i_endblk
@@ -2957,6 +3203,9 @@ MODULE mo_sgs_turbmetric
                prm_diag%turb_diag_1dvar(1:nlevp1,idx_sgs_qc_flx)+outvar(1:nlevp1)
       END IF
     END IF !is_sampling_time
+
+    !$ACC WAIT
+    !$ACC END DATA ! CREATE local
 
   END SUBROUTINE diffuse_scalar
 
@@ -3182,6 +3431,9 @@ MODULE mo_sgs_turbmetric
 
     ! Vertical tendency - explicit solver
     CASE(iexplicit)
+#ifdef _OPENACC
+      CALL finish ('mo_sgs_turbmetric:', 'vert_scheme_type=iexplicit: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jb,jk,i_startidx,i_endidx,flux_up,flux_dn)

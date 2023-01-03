@@ -41,7 +41,7 @@ MODULE mo_surface_les
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE turb_data,              ONLY: akt, alpha0
   USE mo_turbdiff_config,     ONLY: turbdiff_config
-  USE mo_fortran_tools,       ONLY: insert_dimension
+  USE mo_fortran_tools,       ONLY: insert_dimension, set_acc_host_or_device
   USE mo_io_units,            ONLY: find_next_free_unit
 
   IMPLICIT NONE
@@ -84,7 +84,7 @@ MODULE mo_surface_les
   !! @par Revision History
   !! Initial release by Anurag Dipankar, MPI-M (2013-02-06)
   SUBROUTINE  surface_conditions(p_nh_metrics, p_patch, p_nh_diag, p_prog_lnd_now, &
-                                 p_prog_lnd_new, p_diag_lnd, prm_diag, theta, qv, p_sim_time)
+                                 p_prog_lnd_new, p_diag_lnd, prm_diag, theta, qv, p_sim_time, lacc)
                                   
 
     TYPE(t_nh_metrics),INTENT(in),TARGET :: p_nh_metrics !< single nh metric state
@@ -112,18 +112,26 @@ MODULE mo_surface_les
      
     CHARACTER(len=*), PARAMETER :: routine = 'mo_surface_les:surface_conditions'
 
+    LOGICAL, OPTIONAL, INTENT(in)   :: lacc  !< GPU flag
+    LOGICAL                         :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     IF (msg_level >= 15) &
          CALL message(TRIM(routine), '')
 
     jg = p_patch%id
 
+! pres_sfc not ported to GPU
+#ifndef _OPENACC
     IF(les_config(jg)%psfc < 0._wp)THEN
       !use pressure from dynamics
       pres_sfc = p_nh_diag%pres_sfc
     ELSE
       !use imposed pressure 
       pres_sfc = les_config(jg)%psfc
-    END IF 
+    END IF
+#endif
 
     ! number of vertical levels
     nlev = p_patch%nlev
@@ -145,23 +153,33 @@ MODULE mo_surface_les
 
     CASE(1)
 
-     !For now the LES scheme uses the surface fluxes from land directly. Exchange coefficients
-     !are calculated by calling turbtrans using GME approach. See comment on mo_interface_les
-     !where it is called. Status as on 11.09.2013 (AD)
+      !For now the LES scheme uses the surface fluxes from land directly. Exchange coefficients
+      !are calculated by calling turbtrans using GME approach. See comment on mo_interface_les
+      !where it is called. Status as on 11.09.2013 (AD)
 
-     !change sign of surface fluxes
-     prm_diag%shfl_s  = - prm_diag%shfl_s
-     prm_diag%lhfl_s  = - prm_diag%lhfl_s
-     prm_diag%umfl_s  = - prm_diag%umfl_s
-     prm_diag%vmfl_s  = - prm_diag%vmfl_s
- 
-    !Prescribed latent/sensible heat fluxes: get ustar and surface temperature / moisture
-    !Ideally, one should do an iteration to get ustar corresponding to given fluxes
+      !change sign of surface fluxes
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jb = 1, p_patch%nblks_c
+        DO jc = 1, nproma
+          prm_diag%shfl_s(jc,jb)  = - prm_diag%shfl_s(jc,jb)
+          prm_diag%lhfl_s(jc,jb)  = - prm_diag%lhfl_s(jc,jb)
+          prm_diag%umfl_s(jc,jb)  = - prm_diag%umfl_s(jc,jb)
+          prm_diag%vmfl_s(jc,jb)  = - prm_diag%vmfl_s(jc,jb)
+        END DO
+      END DO
+      !$ACC END PARALLEL
+
+      !Prescribed latent/sensible heat fluxes: get ustar and surface temperature / moisture
+      !Ideally, one should do an iteration to get ustar corresponding to given fluxes
 
     !Fixed surface pressure to be comparable to incompressible LES models. Pseudo density
     !(constant in time) that is used here is fixed to the initial value so that the flux 
     !is fixed in density units. 
     CASE(2)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=2: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jb,i_startidx,i_endidx,exner,zrough,mwind,z_mc,RIB,rhos, &
@@ -235,6 +253,9 @@ MODULE mo_surface_les
     !(constant in time) that is used here is fixed to the initial value so that the flux 
     !is fixed in density units. 
     CASE(3)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=3: OpenACC version currently not implemented')
+#endif
 
       !Get mean theta and qv at first model level and surface pressure
 
@@ -337,6 +358,9 @@ MODULE mo_surface_les
 
    !Rico case
     CASE(4)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=4: OpenACC version currently not implemented')
+#endif
 
       !RICO case - bulk aerodynamic formulation with fixed exchange coef.
       DO jb = i_startblk,i_endblk
@@ -371,6 +395,9 @@ MODULE mo_surface_les
  
     !Fix SST case
     CASE(5)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=5: OpenACC version currently not implemented')
+#endif
 
 !   Get roughness length * grav           
     IF(turbdiff_config(jg)%lconst_z0 .AND. turbdiff_config(jg)%const_z0 <= 0._wp)THEN
@@ -455,7 +482,9 @@ MODULE mo_surface_les
     ! Added by Christopher Moseley:
     ! Time varying SST and qv_s case with prescribed roughness length: semi-idealized setups
     CASE(6)
-
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=6: OpenACC version currently not implemented')
+#endif
 
     IF(dt_interval==0._wp)THEN
 
@@ -574,6 +603,9 @@ MODULE mo_surface_les
 
     !Fix SST case
     CASE(7,8,9)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=7,8,9: OpenACC version currently not implemented')
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jb,i_startidx,i_endidx,zrough,theta_sfc,mwind,z_mc, &
@@ -670,6 +702,9 @@ MODULE mo_surface_les
 
     !prescribed fluxes aka SCM
     CASE(10)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=10: OpenACC version currently not implemented')
+#endif
     !Fluxes are already setup in mo_sgs_turbulence.f90
      !change sign of surface fluxes
      prm_diag%shfl_s  = - prm_diag%shfl_s
@@ -679,6 +714,9 @@ MODULE mo_surface_les
 
     !No fluxes
     CASE(0)
+#ifdef _OPENACC
+      CALL finish ('mo_surface_les:', 'isrfc_type=0: OpenACC version currently not implemented')
+#endif
 
       prm_diag%shfl_s  = 0._wp
       prm_diag%lhfl_s  = 0._wp 

@@ -583,9 +583,9 @@ CONTAINS
 
     !Get rho at interfaces to be used later
     CALL vert_intp_full2half_cell_3d(p_patch, p_nh_metrics, rho, rho_ic, &
-                                     2, min_rlcell_int-2)
+                                     2, min_rlcell_int-2, lacc=.TRUE.)
 
-    CALL brunt_vaisala_freq(p_patch, p_nh_metrics, theta_v, bruvais)
+    CALL brunt_vaisala_freq(p_patch, p_nh_metrics, theta_v, bruvais, lacc=.TRUE.)
 
 
 

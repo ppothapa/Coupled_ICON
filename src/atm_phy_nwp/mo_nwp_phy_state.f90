@@ -3771,16 +3771,20 @@ __acc_attach(diag%clct)
            &                datatype_flt)
       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'bruvais', diag%bruvais,                     &
-        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,      &
-        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE. )
+        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,   &
+        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE.,               &
+        & lopenacc=.TRUE.                                                   )
+      __acc_attach(diag%bruvais)
 
       ! &      diag%mech_prod(nproma,nlev+1,nblks_c)
       cf_desc    = t_cf_var('mech_prod', 'm**2/s**3', 'mechanical production term in TKE Eq', &
            &                datatype_flt)
       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'mech_prod', diag%mech_prod,                     &
-        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,          &
-        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE. )
+        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,       &
+        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE.,                   &
+        & lopenacc=.TRUE.                                                       )
+      __acc_attach(diag%mech_prod)
 
       !1D and 0D diagnostic variables that can not be part of add_var
       ALLOCATE( diag%turb_diag_1dvar(klevp1,SIZE(turb_profile_list,1)),  &
@@ -5566,7 +5570,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & vert_intp_type=vintp_types("P","Z","I"),                      &
                   & vert_intp_method=VINTP_METHOD_LIN),                           &
                   & ldims=shape3d, lrestart=.FALSE.,                              &
-                  & initval=0._wp, in_group=groups("phys_tendencies") )
+                  & initval=0._wp, in_group=groups("phys_tendencies"),            &
+                  & lopenacc=.TRUE. )
+      __acc_attach(phy_tend%ddt_w_turb)
     END IF
 #endif
 

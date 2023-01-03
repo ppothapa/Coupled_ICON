@@ -128,9 +128,6 @@ MODULE mo_nh_interface_nwp
 #ifndef __NO_ICON_UPATMO__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
 #endif
-#ifdef _OPENACC
-  USE mo_nwp_gpu_util,            ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
-#endif
   USE mo_fortran_tools,           ONLY: set_acc_host_or_device
 
 #ifdef HAVE_RADARFWO
@@ -709,30 +706,30 @@ CONTAINS
 #ifndef __NO_ICON_LES__
       CASE(ismag,iprog)
 
-#ifdef _OPENACC
-          CALL finish ('mo_nh_interface_nwp:', 'les_turbulence: OpenACC version currently not implemented')
-#endif
-      !----------------------------------------------------------------------------------
-      !>  Additional syns required for 3D turbulence.
-      !----------------------------------------------------------------------------------
-      IF(diffusion_config(jg)%lhdiff_w .AND. lhdiff_rcf) CALL sync_patch_array(SYNC_C, pt_patch, pt_prog%w)
+        !----------------------------------------------------------------------------------
+        !>  Additional syns required for 3D turbulence.
+        !----------------------------------------------------------------------------------
+        IF(diffusion_config(jg)%lhdiff_w .AND. lhdiff_rcf) THEN
+          CALL sync_patch_array(SYNC_C, pt_patch, pt_prog%w)
+        ENDIF
 
-      ntracer_sync = iqc
-      CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+5, pt_diag%temp, pt_diag%tempv, &
-                                 pt_prog%exner, pt_diag%u, pt_diag%v, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync)) 
+        ntracer_sync = iqc
+        CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+5, pt_diag%temp, pt_diag%tempv, &
+                                   pt_prog%exner, pt_diag%u, pt_diag%v, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
 
-      CALL les_turbulence (  dt_phy_jg(itfastphy),              & !>in
-                            & p_sim_time,                       & !>in 
-                            & pt_patch, p_metrics,              & !>in
-                            & pt_int_state,                     & !>in
-                            & pt_prog,                          & !>in
-                            & pt_prog_now_rcf,                  & !>inout                            
-                            & pt_prog_rcf,                      & !>inout
-                            & pt_diag ,                         & !>inout
-                            & prm_diag,prm_nwp_tend,            & !>inout
-                            & lnd_prog_now,                     & !>in
-                            & lnd_prog_new,                     & !>inout ONLY for idealized LES
-                            & lnd_diag                          ) !>in
+        CALL les_turbulence (  dt_phy_jg(itfastphy),              & !>in
+                              & p_sim_time,                       & !>in
+                              & pt_patch, p_metrics,              & !>in
+                              & pt_int_state,                     & !>in
+                              & pt_prog,                          & !>in
+                              & pt_prog_now_rcf,                  & !>inout
+                              & pt_prog_rcf,                      & !>inout
+                              & pt_diag ,                         & !>inout
+                              & prm_diag,prm_nwp_tend,            & !>inout
+                              & lnd_prog_now,                     & !>in
+                              & lnd_prog_new,                     & !>inout ONLY for idealized LES
+                              & lnd_diag,                         & !>in
+                              & lacc=lzacc                        ) !>in
 
 #endif
       CASE DEFAULT

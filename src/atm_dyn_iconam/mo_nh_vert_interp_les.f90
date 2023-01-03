@@ -39,7 +39,8 @@ MODULE mo_nh_vert_interp_les
   USE mo_physical_constants,  ONLY: grav
   USE mo_les_config,          ONLY: les_config
   USE mo_exception,           ONLY: finish
-  USE mo_fortran_tools,       ONLY: init
+  USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device
+
   IMPLICIT NONE
 
   PRIVATE
@@ -133,7 +134,7 @@ MODULE mo_nh_vert_interp_les
   !!------------------------------------------------------------------------
   !! @par Revision History
   !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
-  SUBROUTINE vert_intp_full2half_cell_3d(p_patch, p_metrics, varin, varout, rl_start, rl_end)
+  SUBROUTINE vert_intp_full2half_cell_3d(p_patch, p_metrics, varin, varout, rl_start, rl_end, lacc)
 
     TYPE(t_nh_metrics),INTENT(in) :: p_metrics
     TYPE(t_patch),     INTENT(in) :: p_patch
@@ -145,8 +146,13 @@ MODULE mo_nh_vert_interp_les
     INTEGER :: i_endidx, i_startidx, nlevp1, nlev
     INTEGER :: jk, jc, jb
 
+    LOGICAL, OPTIONAL, INTENT(in)   :: lacc  !< GPU flag
+    LOGICAL                         :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     !$ACC DATA &
-    !$ACC   PRESENT(p_metrics, varin, varout)
+    !$ACC   PRESENT(p_metrics, varin, varout) IF(lzacc)
 
     nlev      = p_patch%nlev
     nlevp1    = p_patch%nlev+1
@@ -160,7 +166,7 @@ MODULE mo_nh_vert_interp_les
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx , i_endidx
@@ -174,7 +180,8 @@ MODULE mo_nh_vert_interp_les
          END DO
         END DO
         !$ACC END PARALLEL
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
            varout(jc,1,jb) =                                &
@@ -311,7 +318,7 @@ MODULE mo_nh_vert_interp_les
   !!------------------------------------------------------------------------
   !! @par Revision History
   !! Initial release by Anurag Dipankar, MPI-M (2014-July-07)
-  SUBROUTINE brunt_vaisala_freq(p_patch, p_metrics, thetav, bru_vais)
+  SUBROUTINE brunt_vaisala_freq(p_patch, p_metrics, thetav, bru_vais, lacc)
 
     TYPE(t_patch), INTENT(in) :: p_patch
     TYPE(t_nh_metrics), INTENT(in) :: p_metrics
@@ -323,9 +330,14 @@ MODULE mo_nh_vert_interp_les
     INTEGER  :: i_endidx, i_startidx, nlev
     INTEGER  :: jk, jc, jb
 
+    LOGICAL, OPTIONAL, INTENT(in)   :: lacc  !< GPU flag
+    LOGICAL                         :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     !$ACC DATA &
     !$ACC   PRESENT(thetav, bru_vais, p_metrics, p_metrics%inv_ddqz_z_half) &
-    !$ACC   CREATE(thetav_ic)
+    !$ACC   CREATE(thetav_ic) IF(lzacc)
 
     !To be calculated at all cells at interface levels, except top/bottom 
     !boundaries
@@ -337,14 +349,14 @@ MODULE mo_nh_vert_interp_les
     i_startblk = p_patch%cells%start_block(rl_start)
     i_endblk   = p_patch%cells%end_block(rl_end)
 
-    CALL vert_intp_full2half_cell_3d(p_patch, p_metrics, thetav, thetav_ic, rl_start, rl_end)
+    CALL vert_intp_full2half_cell_3d(p_patch, p_metrics, thetav, thetav_ic, rl_start, rl_end, lacc=lzacc)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx , i_endidx
