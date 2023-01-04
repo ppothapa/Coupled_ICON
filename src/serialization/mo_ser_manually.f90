@@ -123,8 +123,6 @@ MODULE mo_ser_manually
 !      ENDIF
 !    ENDIF
 
-    CALL ser_component(o, "atm%gp_count_t", ext_data(domain)%atm%gp_count_t)
-    CALL ser_component(o, "atm%lp_count_t", ext_data(domain)%atm%lp_count_t)
     CALL ser_component(o, "atm%list_seaice%ncount", ext_data(domain)%atm%list_seaice%ncount)
     CALL ser_component(o, "atm%list_seaice%idx", ext_data(domain)%atm%list_seaice%idx)
     CALL ser_component(o, "atm%list_lake%ncount", ext_data(domain)%atm%list_lake%ncount)

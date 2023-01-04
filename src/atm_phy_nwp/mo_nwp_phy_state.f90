@@ -124,8 +124,7 @@ USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interva
   &                                maxt_interval, precip_interval, t_var_in_output, &
   &                                totprec_d_interval, &
   &                                uh_max_zmin, uh_max_zmax, luh_max_out, uh_max_nlayer, &
-  &                                sunshine_interval, n_wshear, wshear_uv_heights, &
-  &                                n_srh, srh_heights
+  &                                sunshine_interval, n_wshear, n_srh
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string

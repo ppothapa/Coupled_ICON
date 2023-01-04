@@ -40,7 +40,7 @@ MODULE mo_nwp_gpu_util
 
     !$ACC UPDATE HOST(prm_diag%qrs_flux)
 
-    !$ACC UPDATE HOST(ext_data%atm%gp_count_t, ext_data%atm%lp_count_t, ext_data%atm%list_seaice%ncount) &
+    !$ACC UPDATE HOST(ext_data%atm%list_seaice%ncount) &
     !$ACC   HOST(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
     !$ACC   HOST(ext_data%atm%list_land%ncount, ext_data%atm%list_land%idx) &
     !$ACC   HOST(ext_data%atm%list_seawtr%ncount, ext_data%atm%list_seawtr%idx, ext_data%atm%emis_rad) &
@@ -146,7 +146,7 @@ MODULE mo_nwp_gpu_util
 
     !$ACC UPDATE DEVICE(prm_diag%qrs_flux)
 
-    !$ACC UPDATE DEVICE(ext_data%atm%gp_count_t, ext_data%atm%lp_count_t, ext_data%atm%list_seaice%ncount) &
+    !$ACC UPDATE DEVICE(ext_data%atm%list_seaice%ncount) &
     !$ACC   DEVICE(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
     !$ACC   DEVICE(ext_data%atm%list_land%ncount, ext_data%atm%list_land%idx) &
     !$ACC   DEVICE(ext_data%atm%list_seawtr%ncount, ext_data%atm%list_seawtr%idx, ext_data%atm%emis_rad) &

@@ -316,7 +316,9 @@ CONTAINS
       &     p_ext_atm%ndvi_max,        &
       &     p_ext_atm%ndviratio,       &
       &     p_ext_atm%idx_lst_lp_t,    &
+      &     p_ext_atm%lp_count_t,      &
       &     p_ext_atm%idx_lst_t,       &
+      &     p_ext_atm%gp_count_t,      &
       &     p_ext_atm%snowtile_flag_t, &
       &     p_ext_atm%lc_class_t,      &
       &     p_ext_atm%lc_frac_t,       &
@@ -1178,6 +1180,19 @@ CONTAINS
         &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%idx_lst_lp_t)
 
+      ! grid point counts for index list idx_lst_lp_t
+      ! lp_count_t        p_ext_atm%lp_count_t(nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('lp_count_t', '-', &
+        &                   'grid point count per block and tile index', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'lp_count_t', p_ext_atm%lp_count_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
+        &           grib2_desc, ldims=(/nblks_c,ntiles_total/),         &
+        &           loutput=.FALSE.,                                    &
+        &           lopenacc=.TRUE. )
+      __acc_attach(p_ext_atm%lp_count_t)
+
+
       ! idx_lst_t        p_ext_atm%idx_lst_t(nproma,nblks_c,ntiles_total)
       cf_desc    = t_cf_var('dynamic land tile point index list', '-', &
         &                   'dynamic land tile point index list', datatype_flt)
@@ -1187,6 +1202,19 @@ CONTAINS
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,    &
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%idx_lst_t)
+
+
+      ! grid point counts for index list idx_lst_t
+      ! gp_count_t        p_ext_atm%gp_count_t(nblks_c,ntiles_total)
+      cf_desc    = t_cf_var('gp_count_t', '-', &
+        &                   'grid point count per block and tile index', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'gp_count_t', p_ext_atm%gp_count_t, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
+        &           grib2_desc, ldims=(/nblks_c,ntiles_total/),         &
+        &           loutput=.FALSE.,                                    &
+        &           lopenacc=.TRUE. )
+      __acc_attach(p_ext_atm%gp_count_t)
 
 
       ! snowtile_flag_t   p_ext_atm%snowtile_flag_t(nproma,nblks_c,ntiles_total)
@@ -1203,10 +1231,6 @@ CONTAINS
         &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%snowtile_flag_t)
 
-      ! not sure if these dimensions are supported by add_var...
-      ALLOCATE(p_ext_atm%gp_count_t(nblks_c,ntiles_total), &
-               p_ext_atm%lp_count_t(nblks_c,ntiles_total)  )
-      !$ACC ENTER DATA CREATE(p_ext_atm%gp_count_t, p_ext_atm%lp_count_t)
 
       ! lc_class_t        p_ext_atm%lc_class_t(nproma,nblks_c,ntiles_total+ntiles_water)
       cf_desc    = t_cf_var('tile point land cover class', '-', &
@@ -1848,7 +1872,6 @@ CONTAINS
     END IF
 
     DO jg = 1,n_dom
-      !$ACC EXIT DATA DELETE(ext_data(jg)%atm%gp_count_t, ext_data(jg)%atm%lp_count_t)
       !$ACC EXIT DATA DELETE(ext_data(jg)%atm%z0_lcc, ext_data(jg)%atm%z0_lcc_min, ext_data(jg)%atm%plcovmax_lcc) &
       !$ACC   DELETE(ext_data(jg)%atm%laimax_lcc, ext_data(jg)%atm%rootdmax_lcc, ext_data(jg)%atm%stomresmin_lcc) &
       !$ACC   DELETE(ext_data(jg)%atm%snowalb_lcc, ext_data(jg)%atm%snowtile_lcc)
