@@ -66,6 +66,7 @@ MODULE mo_nonhydro_state
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
     &                                iqtke, ltestcase, lart
+  USE mo_coupling_config,      ONLY: is_coupled_run
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
   USE mo_limarea_config,       ONLY: latbc_config
@@ -3486,7 +3487,7 @@ MODULE mo_nonhydro_state
     ! Note: This task is registered for the post-processing scheduler
     !        which takes care of the regular update.
     !
-    IF (var_in_output%pres_msl) THEN
+    IF (var_in_output%pres_msl .OR. is_coupled_run()) THEN
       cf_desc    = t_cf_var('mean sea level pressure', 'Pa', &
         &                   'mean sea level pressure', datatype_flt)
       grib2_desc = grib2_var(0, 3, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
