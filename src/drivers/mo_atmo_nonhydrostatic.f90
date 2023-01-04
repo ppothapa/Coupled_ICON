@@ -147,6 +147,8 @@ USE mo_random_util,         ONLY: add_random_noise
 
 USE mo_icon2dace,           ONLY: init_dace, finish_dace
 
+USE mo_sppt_state,          ONLY: construct_sppt_state, destruct_sppt_state
+USE mo_sppt_config,         ONLY: sppt_config, configure_sppt
 !-------------------------------------------------------------------------
 #ifdef HAVE_CDI_PIO
   USE mo_impl_constants,      ONLY: pio_type_cdipio
@@ -241,6 +243,11 @@ CONTAINS
         CALL configure_art(jg)
       ENDDO
 
+      ! configure SPPT
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL configure_sppt(n_dom, p_patch(1:), time_config%tc_current_date)
+      ENDIF
+
     ENDIF
 
     ! Check if optional diagnostics are requested for output
@@ -282,6 +289,12 @@ CONTAINS
     IF (iforcing == inwp) THEN
       CALL construct_nwp_phy_state( p_patch(1:), var_in_output)
       CALL construct_nwp_lnd_state( p_patch(1:), p_lnd_state, var_in_output(:)%smi, n_timelevels=2 )
+
+      ! Construct SPPT state
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL construct_sppt_state(p_patch(1:))
+      ENDIF
+
     END IF
 
     IF (iforcing == iaes) THEN
@@ -778,6 +791,12 @@ CONTAINS
     ! cleanup NWP physics
     IF (iforcing == inwp) THEN
       CALL cleanup_nwp_phy()
+    
+      ! Destruct SPPT state
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL destruct_sppt_state()
+      ENDIF
+
     ENDIF
 
     IF (iforcing == iaes) THEN

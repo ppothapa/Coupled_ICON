@@ -7440,6 +7440,53 @@ read smoothed topography from file (TRUE) or compute internally (FALSE)&
 Defined and used in: \verb+src/namelists/mo_sleve_nml.f90+
 
 
+%------------------------------------------------------------------------------
+% aes_cop_nml:
+%------------------------------------------------------------------------------
+\subsection{sppt\_nml}
+
+The Stochastic Perturbation of Physical Tendencies (SPPT) method is controlled by the following 
+set of Namelist parameters. Note that SPPT is only available for the NWP physics package (\texttt{iforcing=3)}). 
+In addition, SPPT is not supported on a global domain (hard exit) and is untested in limited area mode 
+where the domain extends across the poles. Running the latter is currently not recommended.
+
+\begin{longtab}
+%\hline
+lsppt &
+L & .FALSE. &  &
+TRUE: forecast with SPPT &
+\tabularnewline
+
+hinc\_rn &
+R & 6 & hour &
+time increment for drawing a new field of random numbers &
+\tabularnewline
+
+dlat\_rn &
+R & 0.1 & deg &
+random number coarse grid point distance in meridional direction &
+\tabularnewline
+
+dlon\_rn &
+R & 0.1 & deg &
+random number coarse grid point distance in zonal direction &
+\tabularnewline
+
+range\_rn &
+R & 0.8 &  &
+max magnitude of random numbers &
+\tabularnewline
+
+stdv\_rn &
+R & 1.0 &  &
+standard deviation of the gaussian distribution of random numbers &
+\tabularnewline
+
+%\hline
+\end{longtab}
+
+Defined and used in: \verb+src/namelists/mo_sppt_nml.f90+
+
 %-----------------------------------------------------------------------------
 % synsat_nml:
 %-----------------------------------------------------------------------------

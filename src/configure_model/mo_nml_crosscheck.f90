@@ -105,6 +105,9 @@ MODULE mo_nml_crosscheck
   USE radar_data,            ONLY: ndoms_max_radar => ndoms_max
 #endif
 
+  USE mo_sppt_config,              ONLY: sppt_config, crosscheck_sppt
+
+
   IMPLICIT NONE
 
   PRIVATE
@@ -1062,6 +1065,18 @@ CONTAINS
     ! ********************************************************************************
 
     CALL emvorado_crosscheck()
+
+
+
+    ! ********************************************************************************
+    !
+    !  Cross checks for SPPT (Stochastic Perturbation of Physics Tendencies)
+    !
+    ! ********************************************************************************
+
+    IF( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+      CALL crosscheck_sppt()
+    ENDIF
 
   END  SUBROUTINE atm_crosscheck
   !---------------------------------------------------------------------------------------

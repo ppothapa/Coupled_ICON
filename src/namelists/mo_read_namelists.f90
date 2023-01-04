@@ -89,6 +89,8 @@ MODULE mo_read_namelists
   USE mo_upatmo_nml          ,ONLY: read_upatmo_namelist
   USE mo_ser_nml             ,ONLY: read_ser_namelist
 
+  USE mo_sppt_nml            ,ONLY: read_sppt_namelist
+
   !OEM
   USE mo_oem_nml             ,ONLY: read_oemctrl_namelist
 
@@ -206,6 +208,7 @@ CONTAINS
        CALL read_les_namelist            (atm_namelist_filename(1:tlen))
        CALL read_ls_forcing_namelist     (atm_namelist_filename(1:tlen))
 #endif
+       CALL read_sppt_namelist           (atm_namelist_filename(1:tlen))
        !
     END SELECT
 

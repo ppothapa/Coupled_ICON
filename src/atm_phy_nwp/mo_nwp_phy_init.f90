@@ -144,6 +144,12 @@ MODULE mo_nwp_phy_init
   USE mo_bc_ozone,            ONLY: read_bc_ozone
   USE mo_bc_solar_irradiance, ONLY: read_bc_solar_irradiance
 
+  USE mo_sppt_state,          ONLY: sppt
+  USE mo_sppt_config,         ONLY: sppt_config
+  USE mo_sppt_util,           ONLY: init_rn
+
+
+
   IMPLICIT NONE
 
   PRIVATE
@@ -1866,6 +1872,27 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (upatmo_config(jg)%l_status( iUpatmoStat%timer )) CALL timer_stop(timer_upatmo)
   ENDIF
 #endif
+
+  ! SPPT
+  IF (linit_mode) THEN
+
+    IF (sppt_config(jg)%lsppt) THEN
+
+        ! GPU currently not supported
+#ifdef _OPENACC
+        CALL finish(modname,'GPU version not available for SPPT.')
+#endif
+
+      ! Initate, i.e. generate random patterns during initiation
+      CALL init_rn(p_patch, ini_date, sppt_config(jg), &
+        &          sppt(jg)%rn_2d_now, sppt(jg)%rn_2d_new)
+
+      CALL message(modname, 'Initialisation of SPPT completed')
+
+    ENDIF
+
+  ENDIF
+
 
   IF (timers_level > 3) CALL timer_stop(timer_init_nwp_phy)
 
