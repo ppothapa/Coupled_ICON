@@ -75,7 +75,8 @@ MODULE mo_nh_interface_nwp
   USE mo_nh_diagnose_pres_temp,   ONLY: diagnose_pres_temp, diag_pres, diag_temp, calc_qsum
 
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config, iprog_aero
-  USE mo_util_phys,               ONLY: tracer_add_phytend, iau_update_tracer
+  USE mo_iau,                     ONLY: iau_update_tracer
+  USE mo_util_phys,               ONLY: tracer_add_phytend
   USE mo_lnd_nwp_config,          ONLY: ntiles_total, ntiles_water
   USE mo_cover_koe,               ONLY: cover_koe, cover_koe_config
   USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu, latent_heat_sublimation

@@ -13,38 +13,9 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-!! The time stepping does eventually perform an IAU with the follwing
-!! characteristics:
+!! The time stepping does eventually perform an (iterative) Incremental Analysis 
+!! Update (IAU). See mo_iau.f90 for details.
 !!
-!! IAU iteration
-!!
-!!                     input
-!!                       /
-!!                      /
-!!                     / 
-!!          ........../
-!!         /         
-!!        /
-!!       /
-!!      /
-!!     /
-!!  -90min               0min              90min         
-!! ---|------------------|------------------|------------->
-!!    |//////////////////| - - - - - - - - - - - - - - - ->                  
-!!                       /       free forecast (iteration = false)             
-!!                      /
-!!                     /
-!!          ........../
-!!         /   reset           
-!!        /   
-!!       /
-!!      /
-!!     /
-!!  -90min               0min              90min         
-!! ---|------------------|------------------|------------->
-!!    |//////////////////|//////////////////| free forecast                
-!!
-!!    \_______IAU________/  
 !!
 !----------------------------
 #include "omp_definitions.inc"
@@ -169,7 +140,7 @@ MODULE mo_nh_stepping
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
-  USE mo_nh_init_utils,            ONLY: compute_iau_wgt, save_initial_state, restore_initial_state
+  USE mo_iau,                      ONLY: compute_iau_wgt, save_initial_state, restore_initial_state
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
   USE mo_td_ext_data,              ONLY: update_nwp_phy_bcs, set_sst_and_seaice
   USE mo_initicon_types,           ONLY: t_pi_atm

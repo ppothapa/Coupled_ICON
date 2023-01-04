@@ -25,17 +25,15 @@ MODULE mo_util_phys
     &                                 rdv,             & !! r_d / r_v
     &                                 cpd, p0ref, rd,  &
     &                                 vtmpc1, t3, grav
-  USE mo_exception,             ONLY: finish, message
+  USE mo_exception,             ONLY: finish
   USE mo_satad,                 ONLY: sat_pres_water, sat_pres_ice
-  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, assert_acc_device_only
+  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only
   USE mo_impl_constants,        ONLY: min_rlcell_int
   USE mo_model_domain,          ONLY: t_patch
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag, t_nwp_phy_tend
-  USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqni, ininact, &
-       &                              iqm_max, nqtendphy, lart, &
-       &                              iqh, iqnc, iqnr, iqns, iqng, iqnh
-  USE mo_nh_diagnose_pres_temp, ONLY: diag_pres, diag_temp
+  USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqni, ininact, &
+       &                              iqm_max, nqtendphy, lart, iqnc, iqnr, iqns
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,        ONLY: is_ls_forcing, is_nudging_tq, &
        &                              nudge_start_height, nudge_full_height, dt_relax
@@ -43,12 +41,8 @@ MODULE mo_util_phys
   USE mo_loopindices,           ONLY: get_indices_c
   USE mo_atm_phy_nwp_config,    ONLY: atm_phy_nwp_config
   USE mo_nwp_tuning_config,     ONLY: tune_gust_factor, itune_gust_diag, tune_gustsso_lim
-  USE mo_advection_config,      ONLY: advection_config
   USE mo_art_config,            ONLY: art_config
-  USE mo_initicon_config,       ONLY: iau_wgt_adv, qcana_mode, qiana_mode, qrsgana_mode
   USE mo_nonhydrostatic_config, ONLY: kstart_moist
-  USE mo_satad,                 ONLY: qsat_rho
-  USE mo_upatmo_config,         ONLY: upatmo_config
   USE mo_2mom_mcrph_util,       ONLY: set_qnc, set_qnr, set_qni, set_qns
   USE gscp_ice,                 ONLY: zxiconv
 
@@ -65,7 +59,6 @@ MODULE mo_util_phys
   PUBLIC :: rel_hum
   PUBLIC :: compute_field_rel_hum_wmo
   PUBLIC :: compute_field_rel_hum_ifs
-  PUBLIC :: iau_update_tracer
   PUBLIC :: tracer_add_phytend
   PUBLIC :: calc_ustar
 
@@ -562,149 +555,6 @@ CONTAINS
     vap_pres = (qv * pres) / (rdv + O_m_rdv*qv)
 
   END FUNCTION vap_pres
-
-  !
-  ! Add IAU increment to qv during IAU phase
-  !
-  ! Add analysis increments from data assimilation to qv
-  !
-  ! Initial revision by Daniel Reinert, DWD (2018-05-18)
-  ! Previously, this code snippet was part of nh_update_tracer_phy
-  ! 
-  SUBROUTINE iau_update_tracer( pt_prog, p_metrics, pt_diag, pt_prog_rcf, &
-    &                     jg, jb, i_startidx, i_endidx, kend, lacc )
-
-    TYPE(t_nh_prog)    ,INTENT(IN)   :: pt_prog      !< NH prog state at dynamic time step
-    TYPE(t_nh_metrics) ,INTENT(IN)   :: p_metrics    !< NH metrics variables
-    TYPE(t_nh_diag)    ,INTENT(INOUT):: pt_diag      !< the diagnostic variables
-    TYPE(t_nh_prog)    ,INTENT(INOUT):: pt_prog_rcf  !< the tracer field at
-                                                      !< reduced calling frequency
-    INTEGER            ,INTENT(IN)   :: jg           !< domain ID
-    INTEGER            ,INTENT(IN)   :: jb           !< block index
-    INTEGER            ,INTENT(IN)   :: i_startidx   !< hor. start idx
-    INTEGER            ,INTENT(IN)   :: i_endidx     !< hor. end idx
-    INTEGER            ,INTENT(IN)   :: kend         !< vert. end idx
-    LOGICAL, OPTIONAL  ,INTENT(IN)   :: lacc         ! If true, use openacc
-
-    ! Local variables
-    INTEGER  :: jk,jc
-    REAL(wp) :: zqin
-    REAL(wp) :: zrhw(nproma, kend) ! relative humidity w.r.t. water
-
-
-    CALL assert_acc_device_only("iau_update_tracer", lacc)
-
-    ! add analysis increments from data assimilation to qv
-    !
-    ! Diagnose pressure and temperature for subsequent calculations
-    CALL diag_temp (pt_prog, pt_prog_rcf, advection_config(jg)%trHydroMass%list, pt_diag, &
-                    jb, i_startidx, i_endidx, 1, kstart_moist(jg), kend)
-    CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend, &
-      &             opt_lconstgrav=upatmo_config(jg)%nwp_phy%l_constgrav)
-
-    !$ACC DATA CREATE(zrhw) PRESENT(pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config)
-
-    ! Compute relative humidity w.r.t. water
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP SEQ
-    DO jk = 1, kend
-      !$ACC LOOP GANG(STATIC: 1) VECTOR
-      DO jc = i_startidx, i_endidx
-        zrhw(jc,jk) = pt_prog_rcf%tracer(jc,jk,jb,iqv)/qsat_rho(pt_diag%temp(jc,jk,jb),pt_prog%rho(jc,jk,jb))
-      ENDDO
-    ENDDO
-
-    ! GZ: This loop needs to be split for correct vectorization because rhoc_incr is allocated for qcana_mode >= 1 only;
-    !     otherwise, the NEC runs into a segfault. Likewise, the remaining case selections need to be done outside the
-    !     vectorized loops in order to avoid invalid memory accesses.
-    !$ACC LOOP SEQ
-    DO jk = 1, kend
-      IF (qcana_mode >= 1) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqin)
-          DO jc = i_startidx, i_endidx
-          IF (qcana_mode == 2 .AND. pt_prog_rcf%tracer(jc,jk,jb,iqc) > 0._wp) THEN
-            pt_prog_rcf%tracer(jc,jk,jb,iqv) = pt_prog_rcf%tracer(jc,jk,jb,iqv) + &
-              iau_wgt_adv*pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
-            pt_prog_rcf%tracer(jc,jk,jb,iqc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqc) + &
-              iau_wgt_adv*pt_diag%rhoc_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-          ELSE 
-            zqin = (pt_diag%rhov_incr(jc,jk,jb)+pt_diag%rhoc_incr(jc,jk,jb))/pt_prog%rho(jc,jk,jb)
-            ! DA increments of humidity are limited to positive values if p > 150 hPa and RH < 2% or QV < 5.e-7
-            IF (pt_diag%pres(jc,jk,jb) > 15000._wp .AND. zrhw(jc,jk) < 0.02_wp .OR. &
-              pt_prog_rcf%tracer(jc,jk,jb,iqv) < 5.e-7_wp) zqin = MAX(0._wp, zqin)
-            pt_prog_rcf%tracer(jc,jk,jb,iqv) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqv) + iau_wgt_adv*zqin)
-          ENDIF
-        ENDDO
-      ELSE
-          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqin)
-          DO jc = i_startidx, i_endidx
-          zqin = pt_diag%rhov_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb)
-          ! DA increments of humidity are limited to positive values if p > 150 hPa and RH < 2% or QV < 5.e-7
-          IF (pt_diag%pres(jc,jk,jb) > 15000._wp .AND. zrhw(jc,jk) < 0.02_wp .OR. &
-            pt_prog_rcf%tracer(jc,jk,jb,iqv) < 5.e-7_wp) zqin = MAX(0._wp, zqin)
-          pt_prog_rcf%tracer(jc,jk,jb,iqv) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqv) + iau_wgt_adv*zqin)
-        ENDDO
-      ENDIF
-
-      IF (qiana_mode > 0) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
-          DO jc = i_startidx, i_endidx
-          pt_prog_rcf%tracer(jc,jk,jb,iqi) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqi) + &
-            iau_wgt_adv*pt_diag%rhoi_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-        ENDDO
-      ENDIF
-
-      IF (qrsgana_mode > 0) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
-          DO jc = i_startidx, i_endidx
-          pt_prog_rcf%tracer(jc,jk,jb,iqr) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqr) + &
-            iau_wgt_adv * pt_diag%rhor_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-          pt_prog_rcf%tracer(jc,jk,jb,iqs) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqs) + &
-            iau_wgt_adv * pt_diag%rhos_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-        ENDDO
-      ENDIF
-
-      IF (qrsgana_mode > 0 .AND. iqg <= iqm_max) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
-          DO jc = i_startidx, i_endidx
-          pt_prog_rcf%tracer(jc,jk,jb,iqg) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqg) + &
-            iau_wgt_adv * pt_diag%rhog_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-        ENDDO
-      ENDIF
-
-      IF (atm_phy_nwp_config(jg)%l2moment) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
-          DO jc = i_startidx, i_endidx
-          IF (qcana_mode > 0) THEN
-            pt_prog_rcf%tracer(jc,jk,jb,iqnc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnc) + &
-                 iau_wgt_adv * pt_diag%rhonc_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-          END IF
-          IF (qiana_mode > 0) THEN
-            pt_prog_rcf%tracer(jc,jk,jb,iqni) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqni) + &
-                 iau_wgt_adv * pt_diag%rhoni_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-          END IF
-          IF (qrsgana_mode > 0) THEN
-            pt_prog_rcf%tracer(jc,jk,jb,iqh) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqh) + &
-                 iau_wgt_adv * pt_diag%rhoh_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-            pt_prog_rcf%tracer(jc,jk,jb,iqnr) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnr) + &
-                 iau_wgt_adv * pt_diag%rhonr_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-            pt_prog_rcf%tracer(jc,jk,jb,iqns) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqns) + &
-                 iau_wgt_adv * pt_diag%rhons_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-            pt_prog_rcf%tracer(jc,jk,jb,iqng) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqng) + &
-                 iau_wgt_adv * pt_diag%rhong_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-            pt_prog_rcf%tracer(jc,jk,jb,iqnh) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnh) + &
-                 iau_wgt_adv * pt_diag%rhonh_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
-          END IF
-        ENDDO
-      ENDIF
-
-    ENDDO
-    !$ACC END PARALLEL
-
-    !$ACC WAIT
-    !$ACC END DATA
-
-  END SUBROUTINE iau_update_tracer
 
 
 
