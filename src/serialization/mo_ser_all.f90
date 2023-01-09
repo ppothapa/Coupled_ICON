@@ -361,9 +361,10 @@ MODULE mo_ser_all
        ENDIF
 
        IF(ldass_lhn) THEN
-           ! Serialize radar data fields
-           CALL ser_var_list('radar_data_ct_dom_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
-           CALL ser_var_list('radar_data_td_dom_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           ! Serialize radar data and LHN fields
+           CALL ser_var_list('radar_data_ct_dom_',    abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           CALL ser_var_list('radar_data_td_dom_',    abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           CALL ser_var_list('lhn_fields_of_domain_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
        ENDIF
 
        ! Serialize dynamics fields

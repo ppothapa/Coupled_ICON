@@ -39,21 +39,21 @@ MODULE mo_radar_data_state
   USE mo_var_list_register,  ONLY: vlr_add, vlr_del
   USE mo_cf_convention,      ONLY: t_cf_var
   USE mo_grib2,              ONLY: t_grib2_var, grib2_var
-  USE mo_cdi,                ONLY: DATATYPE_PACK16, DATATYPE_FLT32,                 &
-    &                              TSTEP_CONSTANT, TSTEP_INSTANT, cdi_undefid, &
+  USE mo_cdi,                ONLY: DATATYPE_PACK16, DATATYPE_FLT32,                &
+    &                              TSTEP_CONSTANT, TSTEP_INSTANT, TSTEP_ACCUM,     &
+    &                              cdi_undefid,                                    &
     &                              streamClose, gridInqUUID, GRID_UNSTRUCTURED,    &
     &                              FILETYPE_GRB2, streamOpenRead,   &
     &                              streamInqFileType, streamInqVlist, vlistNtsteps,&
     &                              vlistInqTaxis, streamInqTimestep, taxisInqVdate,&
     &                              taxisInqVtime, vlistInqVarGrid, vlistInqVarName
   USE mo_cdi_constants,      ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL
-  USE mo_zaxis_type,         ONLY: ZA_SURFACE
+  USE mo_zaxis_type,         ONLY: ZA_SURFACE, ZA_REFERENCE
   USE mo_util_cdi,           ONLY: get_cdi_varID, read_cdi_2d, t_inputParameters,  &
     &                              makeInputParameters, deleteInputParameters
   USE mo_util_uuid_types,    ONLY: t_uuid, uuid_string_length
   USE mo_util_uuid,          ONLY: OPERATOR(==), uuid_unparse
   USE mo_dictionary,         ONLY: t_dictionary
-  USE mo_fortran_tools,       ONLY: init
 
 #include "add_var_acc_macro.inc"
 
@@ -70,17 +70,21 @@ MODULE mo_radar_data_state
   ! Needs to be changed into a variable if landcover classifications 
   ! with a different number of classes become available
   PUBLIC :: radar_data
-  PUBLIC :: init_radar_data  
+  PUBLIC :: init_radar_data
+  PUBLIC :: destruct_radar_data
   PUBLIC :: lhn_fields
-  PUBLIC :: construct_lhn
-  PUBLIC :: destruct_lhn
-!  PUBLIC :: destruct_radar_data
+  PUBLIC :: construct_lhn_state
+  PUBLIC :: destruct_lhn_state
 
   TYPE(t_radar_fields),TARGET, ALLOCATABLE :: &
     &  radar_data(:)  ! n_dom
 
+
+  ! LHN variable state and list
   TYPE(t_lhn_diag),TARGET, ALLOCATABLE :: &
     &  lhn_fields(:)  ! n_dom
+
+  TYPE(t_var_list_ptr), ALLOCATABLE :: lhn_fields_list(:)  ! n_dom
 
 !-------------------------------------------------------------------------
 
@@ -98,11 +102,9 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Klaus Stephan, DWD (2015-01-30) based on mo_radar_data_state.f90
   !!
-  SUBROUTINE init_radar_data (p_patch, radar_data)
+  SUBROUTINE init_radar_data (p_patch)
 
-    TYPE(t_patch), INTENT(IN)            :: p_patch(:)
-    TYPE(t_radar_fields), INTENT(INOUT) :: radar_data(:)
-
+    TYPE(t_patch), INTENT(IN)  :: p_patch(:)
 
     INTEGER              :: jg, ist
     INTEGER, ALLOCATABLE :: cdi_radar_id(:)  !< CDI stream ID (for each domain)
@@ -113,7 +115,6 @@ CONTAINS
     ! GRIB2 shortnames or NetCDF var names.
     TYPE (t_dictionary) :: radar_varnames_dict
 
-!    TYPE(t_datetime) :: datetime
     CHARACTER(len=max_char_length), PARAMETER :: &
       routine = modname//':init_radar_data',     &
       radar_varnames_map_file = 'radar_dict_file.dat'
@@ -131,6 +132,20 @@ CONTAINS
       CALL message (TRIM(routine),message_text)
       RETURN
     ENDIF
+
+    !------------------------------------------
+    ! Allocate state array radar_data
+    !
+    ! Note that radar_data is already required by inquire_radar fields. Hence this allocation
+    ! cannot be moved into into the constructor construct_radar_state, as it is usualy done.
+    ! Further note that construct_radar_data cannot be called earlier, as it relies on the output of
+    ! inquire_radar_fields (i.e. nobs_times).
+    !------------------------------------------
+    ALLOCATE (radar_data(n_dom), STAT=ist)
+    IF (ist /= SUCCESS) CALL finish(routine,'allocation for radar_data failed')
+    !$ACC ENTER DATA CREATE(radar_data)
+
+
     !-------------------------------------------------------------------------
     !  1.  inquire radar files for their data structure
     !-------------------------------------------------------------------------
@@ -152,9 +167,9 @@ CONTAINS
     !  2.  construct radar fields for the model
     !------------------------------------------------------------------
 
-    ! top-level procedure for building data structures for 
+    ! top-level procedure for building data structures and variable lists for
     ! radar data.
-    CALL construct_radar_data(p_patch, radar_data)
+    CALL construct_radar_data(p_patch(:))
 
     !-------------------------------------------------------------------------
     !  3.  read the data into the fields
@@ -162,10 +177,10 @@ CONTAINS
 
     ! Check, whether radar data should be read from file
 
-      CALL message( TRIM(routine),'Start reading radar data from file' )
+    CALL message( TRIM(routine),'Start reading radar data from file' )
 
-      CALL read_radar_data (p_patch, radar_data, cdi_radar_id, cdi_black_id, cdi_height_id, &
-        &                     radar_varnames_dict)
+    CALL read_radar_data (p_patch, radar_data, cdi_radar_id, cdi_black_id, cdi_height_id, &
+      &                     radar_varnames_dict)
 
     CALL message( TRIM(routine),'Finished reading radar data' )
 
@@ -193,12 +208,12 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2010-07-12)
   !!
-  SUBROUTINE construct_radar_data (p_patch, radar_data)
+  SUBROUTINE construct_radar_data (p_patch)
 
-    TYPE(t_patch),          INTENT(IN)    :: p_patch(:)
-    TYPE(t_radar_fields),  INTENT(INOUT) :: radar_data(:)
+    TYPE(t_patch),         INTENT(IN)    :: p_patch(:)
 
     INTEGER :: jg
+    INTEGER :: ist
 
     CHARACTER(len=MAX_CHAR_LENGTH) :: listname
 
@@ -208,15 +223,14 @@ CONTAINS
 !-------------------------------------------------------------------------
 
 
-    CALL message (TRIM(routine), 'Construction of data structure for ' // &
-      &                          'radar data started')
+    CALL message (routine, 'Construction of data structure for ' // &
+      &                    'radar data started')
 
     ! Build radar data list for constant-in-time fields for the atm model
     DO jg = 1, n_dom
       IF (assimilation_config(jg)%luse_rad) THEN
         WRITE(listname,'(a,i2.2)') 'radar_data_ct_dom_',jg
-        CALL new_radar_data_ct_list(p_patch(jg),radar_data(jg)%radar_ct,radar_data(jg)%radar_ct_list, TRIM(listname), &
-                                    assimilation_config(jg)%nradar)
+        CALL new_radar_data_ct_list(p_patch(jg),radar_data(jg)%radar_ct,radar_data(jg)%radar_ct_list, TRIM(listname))
       ENDIF
     END DO
 
@@ -229,10 +243,55 @@ CONTAINS
       ENDIF
     END DO
 
-    CALL message (TRIM(routine), 'Construction of data structure for ' // &
-      &                          'radar data finished')
+    CALL message (routine, 'Construction of data structure for ' // &
+      &                    'radar data finished')
 
   END SUBROUTINE construct_radar_data
+
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Destruct radar data data structure and lists
+  !!
+  !! Destruct radar data data structure and lists
+  !!
+  !! @par Revision History
+  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
+  !!
+  SUBROUTINE destruct_radar_data
+
+    INTEGER :: jg
+    INTEGER :: ist
+    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
+      routine = modname//':destruct_radar_data'
+    !-------------------------------------------------------------------------
+
+    CALL message (routine, 'Destruction of data structure for ' // &
+      &                    'radar data started')
+
+    DO jg = 1,n_dom
+      IF (assimilation_config(jg)%luse_rad) THEN
+        ! Delete list of constant in time atmospheric elements
+        CALL vlr_del(radar_data(jg)%radar_ct_list)
+
+        ! Delete list of time-dependent atmospheric elements
+        CALL vlr_del(radar_data(jg)%radar_td_list)
+      ENDIF
+    ENDDO
+
+    ! deallocate radar_data array
+    !$ACC EXIT DATA DELETE(radar_data)
+    DEALLOCATE(radar_data, STAT=ist)
+    IF (ist /= SUCCESS) THEN
+      CALL finish(routine, 'deallocation of radar_data for LHN')
+    ENDIF
+
+    CALL message (routine, 'Destruction of data structure for ' // &
+      &                    'radar data finished')
+
+  END SUBROUTINE destruct_radar_data
+  !-------------------------------------------------------------------------
+
 
   !-------------------------------------------------------------------------
   !
@@ -250,15 +309,16 @@ CONTAINS
   !! Statements that assign initial value added by Hui Wan (MPI-M, 2011-05-30)
   !!
   SUBROUTINE new_radar_data_ct_list ( p_patch, p_radar_ct, p_radar_ct_list, &
-    &                                listname, nradar)
+    &                                listname)
 !
-    TYPE(t_patch), TARGET, INTENT(IN)     :: & !< current patch
+    TYPE(t_patch), INTENT(IN) :: & !< current patch
       &  p_patch
 
     TYPE(t_radar_ct_fields), INTENT(INOUT) :: & !< current radar data structure
       &  p_radar_ct 
 
-    TYPE(t_var_list_ptr) :: p_radar_ct_list !< current radar data list
+    TYPE(t_var_list_ptr), INTENT(INOUT) :: &  !< current radar data list
+      &  p_radar_ct_list
 
     CHARACTER(len=*), INTENT(IN)      :: & !< list name
       &  listname
@@ -266,12 +326,9 @@ CONTAINS
     TYPE(t_cf_var)    :: cf_desc
     TYPE(t_grib2_var) :: grib2_desc
 
-    INTEGER, INTENT(IN) :: nradar
-
     INTEGER :: nblks_c    !< number of cell blocks to allocate
 
     INTEGER :: shape2d_c(2)
-    INTEGER :: shape3d_c(3)
 
     INTEGER :: ibits         !< "entropy" of horizontal slice
 
@@ -288,7 +345,6 @@ CONTAINS
 
     ! predefined array shapes
     shape2d_c  = (/ nproma, nblks_c /)
-    shape3d_c  = (/ nproma, nradar, nblks_c       /)
 
     !
     ! Register a field list and apply default settings
@@ -327,21 +383,23 @@ CONTAINS
   SUBROUTINE new_radar_data_td_list ( p_patch, p_radar_td, &
     &                               p_radar_td_list, listname, nobs, nradheight)
 !
-    TYPE(t_patch), TARGET, INTENT(IN)     :: & !< current patch
+    TYPE(t_patch), INTENT(IN)     :: & !< current patch
       &  p_patch
 
     TYPE(t_radar_td_fields), INTENT(INOUT) :: & !< current radar data structure
       &  p_radar_td 
 
-    TYPE(t_var_list_ptr) :: p_radar_td_list  !< current radar data list
+    TYPE(t_var_list_ptr), INTENT(INOUT) :: &   !< current radar data list
+      &  p_radar_td_list
 
     CHARACTER(len=*), INTENT(IN)      :: & !< list name
       &  listname
 
+    INTEGER, INTENT(IN) :: nobs, nradheight
+
     TYPE(t_cf_var)    :: cf_desc
     TYPE(t_grib2_var) :: grib2_desc
 
-    INTEGER, INTENT(IN) :: nobs, nradheight
     INTEGER :: nblks_c      !< number of cell blocks to allocate
 
     INTEGER :: shape3d_c(3), shape3d_h(3)
@@ -386,7 +444,7 @@ CONTAINS
       &           isteptype=TSTEP_CONSTANT, lopenacc=.TRUE. )  ! Meta info constituentType missing
     __acc_attach(p_radar_td%spqual)
 
-!    ! radar beam height
+    ! radar beam height
     !
     ! radheight  p_radar_td%radheight(nproma,nblks_c,nobs_times)
     cf_desc    = t_cf_var('rad_height', 'm', &
@@ -399,45 +457,6 @@ CONTAINS
     __acc_attach(p_radar_td%radheight)
 
   END SUBROUTINE new_radar_data_td_list
-  !-------------------------------------------------------------------------
-
-
-
-  !-------------------------------------------------------------------------
-  !>
-  !! Destruct radar data data structure and lists
-  !!
-  !! Destruct radar data data structure and lists
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
-  !!
-  SUBROUTINE destruct_radar_data
-
-    INTEGER :: jg
-    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
-      routine = modname//':destruct_radar_data'
-    !-------------------------------------------------------------------------
-
-    CALL message (TRIM(routine), 'Destruction of data structure for ' // &
-      &                          'radar data started')
-
-    DO jg = 1,n_dom
-      ! Delete list of constant in time atmospheric elements
-      CALL vlr_del(radar_data(jg)%radar_ct_list)
-    ENDDO
-
-    IF (iforcing > 1 ) THEN
-    DO jg = 1,n_dom
-      ! Delete list of time-dependent atmospheric elements
-      CALL vlr_del(radar_data(jg)%radar_td_list)
-    ENDDO
-    END IF
-
-    CALL message (TRIM(routine), 'Destruction of data structure for ' // &
-      &                          'radar data finished')
-
-  END SUBROUTINE destruct_radar_data
   !-------------------------------------------------------------------------
 
 
@@ -611,8 +630,8 @@ CONTAINS
     INTEGER, ALLOCATABLE    :: rdatetime(:,:)
     CHARACTER(len=MAX_CHAR_LENGTH)  :: zname
 
-    CHARACTER(len=8) cobsdate
-    CHARACTER(len=6) cobstime
+!    CHARACTER(len=8) cobsdate
+!    CHARACTER(len=6) cobstime
 
     !---------------------------------------------!
     ! Check validity of black parameter file   !
@@ -931,7 +950,6 @@ CONTAINS
       routine = modname//':read_radar_data'
 
     INTEGER :: jg
-    INTEGER :: jk
     INTEGER :: ret
 
     TYPE(t_inputParameters) :: parameters
@@ -996,63 +1014,212 @@ CONTAINS
   END SUBROUTINE read_radar_data
   !-------------------------------------------------------------------------
 
- SUBROUTINE construct_lhn (lhn_fields,p_patch)
 
-  TYPE (t_lhn_diag), INTENT(INOUT) :: lhn_fields(:)
-  TYPE (t_patch), INTENT(IN) :: p_patch(:)
-  INTEGER :: jg
 
-  DO jg = 1, n_dom
-    ALLOCATE (lhn_fields(jg)%ttend_lhn(nproma,p_patch(jg)%nlev,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%ttend_lhn)
-    ALLOCATE (lhn_fields(jg)%qvtend_lhn(nproma,p_patch(jg)%nlev,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%qvtend_lhn)
-    ALLOCATE (lhn_fields(jg)%brightband(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%brightband)
-    ALLOCATE (lhn_fields(jg)%pr_obs_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_obs_sum)
-    ALLOCATE (lhn_fields(jg)%pr_mod_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_mod_sum)
-    ALLOCATE (lhn_fields(jg)%pr_ref_sum(nproma,p_patch(jg)%nblks_c))
-    !$ACC ENTER DATA CREATE(lhn_fields(jg)%pr_ref_sum)
-  
-!$OMP PARALLEL 
-    CALL init(lhn_fields(jg)%ttend_lhn(:,:,:))
-    CALL init(lhn_fields(jg)%qvtend_lhn(:,:,:))
-    CALL init(lhn_fields(jg)%brightband(:,:),-1._wp)
-    CALL init(lhn_fields(jg)%pr_obs_sum(:,:))
-    CALL init(lhn_fields(jg)%pr_mod_sum(:,:))
-    CALL init(lhn_fields(jg)%pr_ref_sum(:,:))
-!$OMP END PARALLEL
+  !>
+  !! Constructor for lhn state
+  !!
+  !! @par Revision History
+  !! Initial revision by Daniel Reinert, DWD (2023-01-05)
+  !!
+  SUBROUTINE construct_lhn_state (p_patch)
 
-  ENDDO
- END SUBROUTINE construct_lhn
+    TYPE(t_patch), INTENT(in) :: p_patch(:)
 
-!===============================================================================
+    ! local variables
+    INTEGER :: jg
+    INTEGER :: ist                             !< error status
+    CHARACTER(len=MAX_CHAR_LENGTH) :: listname
 
- SUBROUTINE destruct_lhn (lhn_fields)
+    CHARACTER(*), PARAMETER :: routine = modname//':construct_lhn_state'
 
-  TYPE (t_lhn_diag), INTENT(INOUT) :: lhn_fields(:)
-  INTEGER :: jg
 
-  DO jg = 1, n_dom
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%ttend_lhn)
-    DEALLOCATE (lhn_fields(jg)%ttend_lhn)
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%qvtend_lhn)
-    DEALLOCATE (lhn_fields(jg)%qvtend_lhn)
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%brightband)
-    DEALLOCATE (lhn_fields(jg)%brightband)
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_obs_sum)
-    DEALLOCATE (lhn_fields(jg)%pr_obs_sum)
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_mod_sum)
-    DEALLOCATE (lhn_fields(jg)%pr_mod_sum)
-    !$ACC EXIT DATA DELETE(lhn_fields(jg)%pr_ref_sum)
-    DEALLOCATE (lhn_fields(jg)%pr_ref_sum)
-  
-  ENDDO
- END SUBROUTINE destruct_lhn
+    ! Allocate pointer arrays prep_adv, as well as the corresponding list arrays.
+    !
+    ALLOCATE(lhn_fields(n_dom), lhn_fields_list(n_dom), STAT=ist)
+    IF(ist/=SUCCESS)THEN
+      CALL finish (routine, 'allocation of lhn_fields array and list failed')
+    ENDIF
 
-!===============================================================================
+    !$ACC ENTER DATA CREATE(lhn_fields)
+
+    DO jg = 1, n_dom
+      WRITE(listname,'(a,i2.2)') 'lhn_fields_of_domain_',jg
+      CALL new_lhn_fields_list( p_patch(jg), listname, lhn_fields_list(jg), lhn_fields(jg))
+    ENDDO
+
+    CALL message(routine, 'construction of lhn_fields state finished')
+
+  END SUBROUTINE construct_lhn_state
+
+
+
+
+  !>
+  !! Destructor for lhn state
+  !!
+  !! @par Revision History
+  !! Initial revision by Daniel Reinert, DWD (2023-01-05)
+  !!
+  SUBROUTINE destruct_lhn_state ()
+
+    ! local variables
+    INTEGER :: jg
+    INTEGER :: ist                             !< error status
+    CHARACTER(*), PARAMETER :: routine = modname//':destruct_lhn_state'
+
+    !--------------------------------------------------------------
+
+    ! delete prep_adv varlist
+    DO jg = 1, n_dom
+      CALL vlr_del(lhn_fields_list(jg))
+    ENDDO
+
+    !$ACC EXIT DATA DELETE(lhn_fields)
+
+    DEALLOCATE(lhn_fields, lhn_fields_list, STAT=ist)
+    IF(ist/=SUCCESS)THEN
+      CALL finish (routine, 'deallocation of lhn_fields array and list failed')
+    ENDIF
+
+    CALL message(routine, 'destruction of lhn_fields state finished')
+
+  END SUBROUTINE destruct_lhn_state
+
+
+
+  !>
+  !! Constructor for prepadv state
+  !!
+  !! @par Revision History
+  !! Initial revision by Daniel Reinert, DWD (2021-08-11)
+  !!
+  SUBROUTINE new_lhn_fields_list (p_patch, listname, lhn_fields_list, lhn_fields)
+
+    TYPE(t_patch)         , INTENT(IN   ) :: p_patch
+    CHARACTER(len=*)      , INTENT(IN   ) :: listname
+    TYPE(t_var_list_ptr)  , INTENT(INOUT) :: lhn_fields_list
+    TYPE(t_lhn_diag)      , INTENT(INOUT) :: lhn_fields
+
+    ! local variables
+    INTEGER :: nblks_c    !< number of cell blocks to allocate
+
+    INTEGER :: nlev
+
+    TYPE(t_cf_var)    :: cf_desc
+    TYPE(t_grib2_var) :: grib2_desc
+
+    INTEGER :: shape3d_c(3), shape2d_c(2)
+
+    INTEGER :: ibits         !< "entropy" of horizontal slice
+    INTEGER :: datatype_flt
+
+    CHARACTER(*), PARAMETER :: routine = modname//':new_lhn_fields_list'
+
+
+    !--------------------------------------------------------------
+
+    nblks_c = p_patch%nblks_c
+
+    ! number of vertical levels
+    nlev   = p_patch%nlev
+
+    ibits        = DATATYPE_PACK16   ! "entropy" of horizontal slice
+    datatype_flt = DATATYPE_FLT32 
+
+    shape3d_c = (/nproma, nlev, nblks_c /)
+    shape2d_c = (/nproma,       nblks_c /)
+
+    !------------------------------
+    ! Ensure that all pointers have a defined association status
+    !------------------------------
+    NULLIFY(lhn_fields%ttend_lhn,   &
+      &     lhn_fields%qvtend_lhn,  &
+      &     lhn_fields%brightband,  &
+      &     lhn_fields%pr_obs_sum,  &
+      &     lhn_fields%pr_mod_sum,  &
+      &     lhn_fields%pr_ref_sum   )
+
+    !
+    ! Register a field list and apply default settings
+    !
+    CALL vlr_add(lhn_fields_list, TRIM(listname), patch_id=p_patch%id, lrestart=.FALSE.)
+
+
+    ! ttend_lhn      lhn_fields%ttend_lhn(nproma,nlev,nblks_c)
+    cf_desc    = t_cf_var('ttend_lhn', 'K s-1', &
+      &                   'temperature increment due to LHN', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'ttend_lhn', lhn_fields%ttend_lhn,              &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,       &
+                & ldims=shape3d_c, loutput=.FALSE.,                                &
+                & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%ttend_lhn)
+
+
+    ! qvtend_lhn      lhn_fields%qvtend_lhn(nproma,nlev,nblks_c)
+    cf_desc    = t_cf_var('qvtend_lhn', 'kg kg-1 s-1', &
+      &                   'moisture increment due to LHN', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'qvtend_lhn', lhn_fields%qvtend_lhn,            &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,       &
+                & ldims=shape3d_c, loutput=.FALSE.,                                &
+                & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%qvtend_lhn)
+
+
+    ! brightband      lhn_fields%brightband(nproma,nblks_c)
+    cf_desc    = t_cf_var('brightband', '-',        &
+      &                   'bright band mask field', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'brightband', lhn_fields%brightband,            &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
+                & ldims=shape2d_c, loutput=.FALSE.,                                &
+                & initval=-1._wp,                                                  &
+                & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%brightband)
+
+
+    ! pr_obs_sum      lhn_fields%pr_obs_sum(nproma,nblks_c)
+    cf_desc    = t_cf_var('pr_obs_sum', 'kg m-2', &
+      &                   'accumulated precipitation (hourly)', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'pr_obs_sum', lhn_fields%pr_obs_sum,            &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
+                & ldims=shape2d_c, loutput=.FALSE.,                                &
+                & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%pr_obs_sum)
+
+
+    ! pr_mod_sum      lhn_fields%pr_mod_sum(nproma,nblks_c)
+    cf_desc    = t_cf_var('pr_mod_sum', 'kg m-2', &
+      &                   'accumulated precipitation (hourly)', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'pr_mod_sum', lhn_fields%pr_mod_sum,            &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
+                & ldims=shape2d_c, loutput=.FALSE.,                                &
+                & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%pr_mod_sum)
+
+
+    ! pr_ref_sum      lhn_fields%pr_ref_sum(nproma,nblks_c)
+    cf_desc    = t_cf_var('pr_ref_sum', 'kg m-2', &
+      &                   'accumulated precipitation (hourly)', &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( lhn_fields_list, 'pr_ref_sum', lhn_fields%pr_ref_sum,            &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
+                & ldims=shape2d_c, loutput=.FALSE.,                                &
+                & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
+    __acc_attach(lhn_fields%pr_ref_sum)
+
+
+  END SUBROUTINE new_lhn_fields_list
 
 END MODULE mo_radar_data_state
 

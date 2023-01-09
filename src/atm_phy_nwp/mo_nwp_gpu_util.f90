@@ -86,9 +86,10 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('ext_data_atm_D', .false., domain=jg, lacc=.TRUE.)
 
     IF(ldass_lhn) THEN
-        ! Update radar data fields
-        CALL gpu_update_var_list('radar_data_ct_dom_', .false., domain=jg, lacc=.TRUE.)
-        CALL gpu_update_var_list('radar_data_td_dom_', .false., domain=jg, lacc=.TRUE.)
+      ! Update radar data and LHN fields
+      CALL gpu_update_var_list('radar_data_ct_dom_',    .false., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('radar_data_td_dom_',    .false., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('lhn_fields_of_domain_', .false., domain=jg, lacc=.TRUE.)
     ENDIF
 
     ! Update dynamics fields
@@ -193,9 +194,10 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('ext_data_atm_D', .true., domain=jg, lacc=.TRUE.)
 
     IF(ldass_lhn) THEN
-        ! Update radar data fields
-        CALL gpu_update_var_list('radar_data_ct_dom_', .true., domain=jg, lacc=.TRUE.)
-        CALL gpu_update_var_list('radar_data_td_dom_', .true., domain=jg, lacc=.TRUE.)
+      ! Update radar data and LHN fields
+      CALL gpu_update_var_list('radar_data_ct_dom_',    .true., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('radar_data_td_dom_',    .true., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('lhn_fields_of_domain_', .true., domain=jg, lacc=.TRUE.)
     ENDIF
 
     ! Update dynamics fields

@@ -136,7 +136,8 @@ USE mo_turb_vdiff_params,   ONLY: VDIFF_TURB_3DSMAGORINSKY
 USE mo_limarea_config,      ONLY: latbc_config
 USE mo_async_latbc_types,   ONLY: t_latbc_data
 USE mo_async_latbc,         ONLY: init_prefetch, close_prefetch
-USE mo_radar_data_state,    ONLY: radar_data, init_radar_data, construct_lhn, lhn_fields, destruct_lhn
+USE mo_radar_data_state,    ONLY: init_radar_data, destruct_radar_data, &
+  &                               construct_lhn_state, destruct_lhn_state
 USE mo_rttov_interface,     ONLY: rttov_finalize, rttov_initialize
 USE mo_synsat_config,       ONLY: lsynsat
 USE mo_mpi,                 ONLY: my_process_is_stdio, p_comm_work_only, my_process_is_work_only
@@ -346,19 +347,15 @@ CONTAINS
     ENDDO
 
    IF (ldass_lhn) THEN
-     ALLOCATE (radar_data(n_dom), lhn_fields(n_dom), STAT=ist)
-     IF (ist /= SUCCESS) &
-       CALL finish(routine,'allocation for radar_data and lhn_fields failed')
-     !$ACC ENTER DATA CREATE(radar_data(n_dom), lhn_fields(n_dom))
-
      CALL message(routine,'configure_lhn')
      DO jg =1,n_dom
        CALL configure_lhn(jg)
      ENDDO 
      !$ACC ENTER DATA COPYIN(assimilation_config)
 
-     CALL init_radar_data(p_patch(1:), radar_data)
-     CALL construct_lhn(lhn_fields,p_patch(1:))
+     CALL init_radar_data(p_patch(1:))
+
+     CALL construct_lhn_state(p_patch(1:))
    ENDIF
 
     !------------------------------------------------------------------
@@ -867,14 +864,12 @@ CONTAINS
     END IF
 
 
-    IF (ldass_lhn) THEN 
-      ! deallocate ext_data array
-      !$ACC EXIT DATA DELETE(radar_data)
-      DEALLOCATE(radar_data, STAT=ist)
-      IF (ist /= SUCCESS) THEN
-        CALL finish(routine, 'deallocation of radar_data for LHN')
-      ENDIF
-      CALL destruct_lhn (lhn_fields)
+    IF (ldass_lhn) THEN
+      ! delete state variables and lists for radar
+      CALL destruct_radar_data()
+
+      ! delete state variables and lists for LHN
+      CALL destruct_lhn_state()
     ENDIF
 
     IF (assimilation_config(1)% dace_coupling .AND. my_process_is_work_only()) then
