@@ -16,19 +16,10 @@
 #
 export EXPERIMENT='dwd_run_ICON_09_R2B4N5_EPS'
 
-# TYPES is a list of names identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
-# to be checked.
-#
-export TYPES='atm_3d_DOM01_ml atm_3d_DOM02_ml'
-
-# DATES is a list of dates identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
-# to be checked.
-#
-export DATES='20220301T000000Z'
-
-# RESTART_DATE defines the date and time from which restarts should be performed.
-# 
-export RESTART_DATE='20220301T000000Z'
+# set parameters to avoid crash of icon-dev.checksuite
+export TYPES="void"
+export DATES="void"
+export RESTART_DATE="void"
 
 #--------------------------------------------------------------------------------
 # 
@@ -55,11 +46,6 @@ export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
 rundir=`pwd`
 cd checksuite.icon-dev
 
-# load python packages
-case $HOST in
-    *daint*)
-        export MD='t'
-esac
 
 ./icon-dev.checksuite
 STATUS=$?

@@ -663,10 +663,7 @@ MODULE mo_nh_stepping
       IF (output_mode%l_nml        .AND. &    ! meteogram output is only initialized for nml output
         & p_patch(jg)%ldom_active  .AND. &
         & meteogram_is_sample_step( meteogram_output_config(jg), 0 ) ) THEN
-#ifdef _OPENACC
-        CALL finish (routine, 'meteogram_sample_vars: OpenACC version currently not ported')
-#endif
-        CALL meteogram_sample_vars(jg, 0, time_config%tc_startdate)
+        CALL meteogram_sample_vars(jg, 0, time_config%tc_startdate, lacc=i_am_accel_node)
       END IF
     END DO
 #ifdef MESSY
@@ -1385,10 +1382,7 @@ MODULE mo_nh_stepping
       IF (output_mode%l_nml        .AND. &    ! meteogram output is only initialized for nml output
         & p_patch(jg)%ldom_active  .AND. .NOT. (jstep == 0 .AND. iau_iter == 2) .AND. &
         & meteogram_is_sample_step(meteogram_output_config(jg), jstep)) THEN
-#ifdef _OPENACC
-        CALL finish (routine, 'meteogram_sample_vars: OpenACC version currently not implemented')
-#endif
-        CALL meteogram_sample_vars(jg, jstep, mtime_current)
+        CALL meteogram_sample_vars(jg, jstep, mtime_current, lacc=i_am_accel_node)
       END IF
     END DO
 

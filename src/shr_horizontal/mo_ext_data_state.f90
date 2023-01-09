@@ -679,7 +679,8 @@ CONTAINS
         &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,    &
         &           isteptype=TSTEP_INSTANT,                        &
         &           post_op=post_op(POST_OP_SCALE, arg1=100._wp,    &
-        &                 new_cf=new_cf_desc) )
+        &                 new_cf=new_cf_desc), lopenacc=.TRUE. )
+      __acc_attach(p_ext_atm%plcov)
 
 
       ! plcov_t     p_ext_atm%plcov_t(nproma,nblks_c,ntiles_total)
@@ -727,7 +728,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'lai', p_ext_atm%lai,           &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,    &
         &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,    &
-        &           isteptype=TSTEP_INSTANT )
+        &           isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+      __acc_attach(p_ext_atm%lai)
 
       ! Surface area index (aggregated)
       !
@@ -816,7 +818,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'rootdp', p_ext_atm%rootdp,     &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,    &
         &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,    &
-        &           isteptype=TSTEP_INSTANT )
+        &           isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+      __acc_attach(p_ext_atm%rootdp)
 
       ! rootdp_t      p_ext_atm%rootdp_t(nproma,nblks_c,ntiles_total)
       cf_desc    = t_cf_var('root_depth_of_vegetation', 'm',&

@@ -475,6 +475,25 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
  ml_varlist       = 'rho'
 /
 
+&meteogram_output_nml
+  lmeteogram_enabled = .FALSE., .TRUE. ! generate no more than one meteogram file. Otherwise probtest will complain.
+  ldistributed       = .FALSE., .FALSE.
+  loutput_tiles      = .TRUE.
+  n0_mtgrm           = 0
+  ninc_mtgrm         = 2
+  stationlist_tot = 47.065, 7.094, 'La Neuveville',
+    49.931, 9.568, 'Neustadt am Main',
+    54.107, 10.816, 'Neustadt in Holstein',
+    48.193, 14.903, 'Neustadtl an der Donau',
+    51.037, 5.862, 'Nieuwstadt',
+    54.942, 22.867, 'Kudirkos Naumiestis',
+    43.852, 18.385, 'Sarajevo-Novi Grad'
+
+  max_time_stamps    = 6
+  zprefix            = 'Meteogram_', 'Meteogram_'
+  var_list           = '  '
+/
+
 !output!! ser_nml: serialization configuration ----------------------------------------
 !&ser_nml
 ! ser_initialization          =                            1,12,12 !

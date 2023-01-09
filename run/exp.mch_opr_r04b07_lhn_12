@@ -400,6 +400,29 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  h_levels             = 5000, 3000, 1500
 /
 
+&meteogram_output_nml
+ lmeteogram_enabled = .TRUE.
+ ldistributed       = .FALSE.
+ loutput_tiles      = .TRUE.
+ n0_mtgrm           = 0
+ ninc_mtgrm         = 1
+ stationlist_tot =
+   46.95, 7.45, 'Bern',
+   47.37, 8.54, 'Zurich',
+   46.01, 8.95, 'Lugano',
+   46.80, 9.83, 'Davos',
+   46.20, 6.15, 'Geneva',
+   46.50, 9.84, 'St. Moritz',
+   46.14, 7.88, 'Balfrin',
+   46.62, 10.29, 'Piz Daint',
+   45.98, 7.66, 'Matterhorn',
+   45.94, 7.87, 'Monte Rosa',
+
+ max_time_stamps    = 4
+ zprefix            = 'Meteogram_'
+ var_list           = '  '
+/
+
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
  ecrad_isolver               =                          2

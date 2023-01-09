@@ -185,7 +185,7 @@ CONTAINS
     !---------------------------------------------------------------------
     ! 6. Integration finished. Clean up.
     !---------------------------------------------------------------------
-    CALL destruct_atmo_nonhydrostatic(latbc)
+    CALL destruct_atmo_nonhydrostatic(latbc, lacc=.TRUE.)
 
   END SUBROUTINE atmo_nonhydrostatic
   !---------------------------------------------------------------------
@@ -744,9 +744,9 @@ CONTAINS
   END SUBROUTINE construct_atmo_nonhydrostatic
 
   !---------------------------------------------------------------------
-  SUBROUTINE destruct_atmo_nonhydrostatic(latbc)
+  SUBROUTINE destruct_atmo_nonhydrostatic(latbc, lacc)
     TYPE(t_latbc_data), INTENT(INOUT) :: latbc !< data structure for async latbc prefetching
-
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     CHARACTER(*), PARAMETER :: routine = "destruct_atmo_nonhydrostatic"
 
 
@@ -858,7 +858,7 @@ CONTAINS
       CALL message(routine, 'finalize meteogram output')
       DO jg = 1, n_dom
         IF (meteogram_output_config(jg)%lenabled) THEN
-          CALL meteogram_finalize(jg)
+          CALL meteogram_finalize(jg, lacc=lacc)
         END IF
       END DO
       DO jg = 1, max_dom
