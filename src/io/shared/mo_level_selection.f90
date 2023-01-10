@@ -113,8 +113,8 @@ CONTAINS
     nlev_value = nlevs
     IF (PRESENT(opt_nlev_value)) nlev_value = opt_nlev_value
     CALL util_do_parse_intlist(selection_str, nlev_value, int_list, ierrstat)
+    IF (ierrstat /= 0) CALL finish(routine, 'Parsing of level selection failed for "'//TRIM(selection_str)//'"')
     level_selection%s(1:nlevs) = (int_list(1:nlevs) == 1)
-    IF (ierrstat /= 0) CALL finish(routine, 'Parsing of level selection failed.')
     ! count no. of selected levels
     level_selection%n_selected = COUNT(level_selection%s)
     ! get mapping: global level -> local level index

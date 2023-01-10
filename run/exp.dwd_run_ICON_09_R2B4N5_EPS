@@ -142,6 +142,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  nproma          =  ${nproma}
  !nblocks_c       =  ${nblocks_c:-0} ! does not work with nesting. TODO make this work (maybe)
  nblocks_c       =  0
+ nproma_sub      = 2000 ! radiation nproma
  p_test_run      = .false.
  l_test_openmp   = .true.
  l_log_checks    = .true.
@@ -193,7 +194,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  use_lakeiceana               = .true.
  lp2cintp_incr                = .TRUE.
  lp2cintp_sfcana              = .TRUE.
- pinit_seed                   =  -1        ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed                   = 0          ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude              = 1e-14      ! amplitude of perturbation 
 /
 &io_nml
@@ -265,7 +266,7 @@ a_hshr       = 2.0
   itype_snowevap = 2
   itype_canopy   = 2
   lsnowtile      = .true.
-  lseaice        = .FALSE. ! TODO: turn on after porting seaice
+  lseaice        = .TRUE.
   llake          = .true.
   itype_lndtbl   = 4
   itype_evsl     = 4
@@ -275,22 +276,23 @@ a_hshr       = 2.0
   c_soil_urb     = 0.5
   sstice_mode    = 2 ! TODO: test it mode 2 and probably port it
   lprog_albsi    = .true.
+  hice_min       = 0.5 ! For Buildbot Testing. Let even thick ice be taken out of the list_seaice_idx
 /
 &radiation_nml
- nproma_rad  = 2000
- irad_o3     = 79
- irad_aero   = 6
- albedo_type = 2 ! Modis albedo
- direct_albedo = 4
+ ecrad_isolver       = 2
+ irad_o3             = 79
+ irad_aero           = 6
+ albedo_type         = 2 ! Modis albedo
+ direct_albedo       = 4
  direct_albedo_water = 3
- albedo_whitecap = 1
- vmr_co2    = 390.e-06 ! values representative for 2012
- vmr_ch4    = 1800.e-09
- vmr_n2o    = 322.0e-09
- vmr_o2     = 0.20946
- vmr_cfc11  = 240.e-12
- vmr_cfc12  = 532.e-12
- ecrad_data_path = './ecrad_data'
+ albedo_whitecap     = 1
+ vmr_co2             = 390.e-06 ! values representative for 2012
+ vmr_ch4             = 1800.e-09
+ vmr_n2o             = 322.0e-09
+ vmr_o2              = 0.20946
+ vmr_cfc11           = 240.e-12
+ vmr_cfc12           = 532.e-12
+ ecrad_data_path     = './ecrad_data'
 /
 &nonhydrostatic_nml
  itime_scheme    = 4
@@ -391,69 +393,105 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
 !   TT    OOO  DDD   OOO  
 !
 ! Checkout the original output_nml namelists and make sure that all output can
-! be written and is correct. For this, probtest needs to be extended.
+! be written and is correct. Note, that not all variables can be verified using
+! Probtest due to their chaotic behavior and the relatively small Probtest
+! ensemble of just 10 members.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 &output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ ! The probability that one cpu run is not within the tolerance spread produced
+ ! by 10 other cpu runs is less than 0.3% per variable.
  output_filename  = "${EXPNAME}_atm_3d"
  filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 1                         ! global domain
  filetype         = 5
  remap            = 0
  output_grid      = .TRUE.
- output_bounds    = 0,9999999,${dtime}        ! start, end, increment
- steps_per_file   = 20
+ output_bounds    = 0,$((3*dtime)),${dtime}   ! start, end, increment, 4 steps
+ steps_per_file   = 4
  include_last     = .TRUE.
  ml_varlist       =
-  'u','v','vt','qc','qi','qs','qv','rho','theta_v','tke','vn','w',
-  'ddt_vn_phy','ddt_exner_phy','ddt_temp_dyn','exner_pr','exner_dyn_incr',
-  'ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
-  'div','div_ic','hdef_ic','vor','mass_fl_e',
-  'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqc_dia','tqi_dia',
-  'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
-  'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
-  't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
-  'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_drag','ddt_qv_turb','ddt_temp_turb',
-  'ddt_temp_pconv','ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso',
-  'ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
-EOF
+  'cape', 'clct_mod', 'ddt_qc_conv', 'ddt_temp_radlw', 'ddt_v_sso',
+  'ddt_vn_pgr', 'div', 'div_ic', 'hdef_ic', 'lwflxall', 'rho_snow', 'runoff_g',
+  'temp', 'temp_ifc', 'thbclr_s', 'tke', 'tot_prec', 'tot_qi_dia',
+  'u', 'v', 'v_10m', 'vt'
+/
 
-if [[ "$mpi_procs_pernode" -ge 10 ]]; then
-  # This is a hackish workaround to temporarily avoid marginal errors being shown by probtest
-  # The following output variables should only be used when on CPU, not no GPU.
-  # mpi_procs_pernode is abused here as proxy to differentiate between GPU and CPU
-  # TODO (from 2022-05-10): Try to output these variable again with the GPU code when other numeric are changed.
-  cat >> ${basedir}/run/${atmo_namelist} << EOF
-    'exner', 'pres_sfc',
-EOF
-fi
-
-cat >> ${basedir}/run/${atmo_namelist} << EOF
-  'runoff_g','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','rh'
-  ! 'plantevap','dwdx','dwdy'
-
- pl_varlist           = 'temp', 'w'
- !, 'omega' ! omega is temporarily removed as it probably gives a false alarm
+&output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ output_filename  = "${EXPNAME}_atm_3d"
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 2                         ! nested domain
+ filetype         = 5
+ remap            = 0
+ output_grid      = .TRUE.
+ output_bounds    = 0,$((3*dtime)),${dtime}   ! start, end, increment, 4 steps
+ steps_per_file   = 4
+ include_last     = .TRUE.
+ ml_varlist       =
+  'cape_ml', 'cin_ml', 'clct_mod', 'cldepth', 'ddt_temp_drag', 'ddt_temp_radlw',
+  'ddt_tke_hsh', 'dyn_gust', 'exner_pr', 'gust10', 'hdef_ic', 'lhfl_bs',
+  'lwflx_up_clr', 'lwflxall', 'rh', 'rho', 'rho_ic', 'runoff_g', 'shfl_s',
+  'sp_10m', 't_sk', 'temp', 'temp_ifc', 'tempv', 'thbclr_s', 'theta_v',
+  'tqc_dia', 'tqs'
+ pl_varlist           = 'temp'
  p_levels             = 100, 200, 92500, 100000
- 
- hl_varlist           = 'temp', 'w', 
+ hl_varlist           = 'temp'
  h_levels             = 5000, 3000, 1500
 /
 
 &output_nml
+ ! This namelist is designed for Probtest tolerance testing
  output_filename  = "${EXPNAME}_atm_3d_ll"
  filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 1                         ! global domain
  filetype         = 5
  remap            = 1
  output_grid      = .TRUE.
- output_bounds    = 0,9999999,${dtime}        ! start, end, increment
+ output_bounds    = 0,$((3*dtime)),${dtime}   ! start, end, increment, 4 steps
  steps_per_file   = 20
  include_last     = .FALSE.
  reg_lon_def      = 0.,2.5,359.501
  reg_lat_def      = -90.,2.5,90.
  output_grid      = .false.
- ml_varlist       = 'u','v','qc','rho'
+ ml_varlist       = 'u', 'v'
+/
+
+&output_nml
+ ! This namelist is designed for Probtest tolerance testing
+ output_filename  = "${EXPNAME}_atm_3d_ll"
+ filename_format  = "<output_filename>_DOM<physdom>_<levtype_l>_<datetime2>"
+ dom              = 2                         ! nested domain
+ filetype         = 5
+ remap            = 1
+ output_grid      = .TRUE.
+ output_bounds    = 0,$((3*dtime)),${dtime}   ! start, end, increment, 4 steps
+ steps_per_file   = 20
+ include_last     = .FALSE.
+ reg_lon_def      = 0.,2.5,359.501
+ reg_lat_def      = -90.,2.5,90.
+ output_grid      = .false.
+ ml_varlist       = 'rho'
+/
+
+&meteogram_output_nml
+  lmeteogram_enabled = .FALSE., .TRUE. ! generate no more than one meteogram file. Otherwise probtest will complain.
+  ldistributed       = .FALSE., .FALSE.
+  loutput_tiles      = .TRUE.
+  n0_mtgrm           = 0
+  ninc_mtgrm         = 2
+  stationlist_tot = 47.065, 7.094, 'La Neuveville',
+    49.931, 9.568, 'Neustadt am Main',
+    54.107, 10.816, 'Neustadt in Holstein',
+    48.193, 14.903, 'Neustadtl an der Donau',
+    51.037, 5.862, 'Nieuwstadt',
+    54.942, 22.867, 'Kudirkos Naumiestis',
+    43.852, 18.385, 'Sarajevo-Novi Grad'
+
+  max_time_stamps    = 6
+  zprefix            = 'Meteogram_', 'Meteogram_'
+  var_list           = '  '
 /
 
 !output!! ser_nml: serialization configuration ----------------------------------------

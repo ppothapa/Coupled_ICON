@@ -235,7 +235,7 @@ cat > NAMELIST_nwptest << EOF
  tkmmin                       = 0.75
  pat_len                      = 750.
  c_diff                       = 0.2
- rat_sea                      = 7.5     ! resolution independent since r21818 (2015-04-13)
+ rat_sea                      = 0.8     ! resolution independent since r21818 (2015-04-13)
  ltkesso                      = .true.
  frcsmot                      = 0.2     ! vertical smoothing of TKE source terms, tropics (only)
  imode_frcsmot                = 2       ! to reduce moist bias in the tropical lower troposphere

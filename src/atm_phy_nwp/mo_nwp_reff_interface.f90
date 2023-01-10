@@ -33,7 +33,7 @@
 
 MODULE mo_nwp_reff_interface
 
-  USE mo_kind              ,   ONLY: wp,i4
+  USE mo_kind,                 ONLY: wp, i4
   USE mo_exception,            ONLY: message, message_text
 
   USE mo_run_config,           ONLY: msg_level, iqc, iqi, iqr, iqs,       &
@@ -55,7 +55,7 @@ MODULE mo_nwp_reff_interface
   USE mo_nwp_tuning_config,    ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
 
   USE mo_reff_types,           ONLY: t_reff_calc_dom,  nreff_max_calc
-  USE mo_reff_main,            ONLY: init_reff_calc, mapping_indices,calculate_ncn,calculate_reff,combine_reff, set_max_reff
+  USE mo_reff_main,            ONLY: init_reff_calc, mapping_indices, calculate_ncn, calculate_reff, combine_reff, set_max_reff
   USE mo_impl_constants,       ONLY: max_dom  
 
   IMPLICIT NONE
@@ -91,6 +91,8 @@ MODULE mo_nwp_reff_interface
 
     ! domain ID
     jg = p_patch%id
+
+    !$ACC ENTER DATA CREATE(reff_calc_dom(jg:jg))
 
 
 ! The initialization is needed only once and could be set in a different routine
@@ -438,7 +440,7 @@ MODULE mo_nwp_reff_interface
 
 ! Main routine to calculate effective radius
 ! Calculate effective radius according to different parameterizations
-  SUBROUTINE set_reff (prm_diag, p_patch, p_prog,p_nh_diag,ext_data, return_reff ) 
+  SUBROUTINE set_reff( prm_diag, p_patch, p_prog, p_nh_diag, ext_data, return_reff )
 
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag         !Diagnostic statistics from physics (inlcuding reff)
     TYPE(t_patch)          , INTENT(in)   :: p_patch          !<grid/patch info.
@@ -449,22 +451,22 @@ MODULE mo_nwp_reff_interface
 
     ! End of subroutine variables
 
-    ! Auxialry arrays
+    ! Auxiliary arrays
     REAL(wp)              :: ncn(nproma,p_patch%nlev)     ! Number concentration
-    INTEGER (KIND=i4)     :: indices(nproma,p_patch%nlev) ! Mapping for going through array 
+    INTEGER (KIND=i4)     :: indices(nproma,p_patch%nlev) ! Mapping for going through array
     INTEGER (KIND=i4)     :: n_ind(p_patch%nlev)          ! Number of indices for each k level
 
     ! Local scalars:
-    INTEGER               :: jb,jg, ireff                 !<block indices
+    INTEGER               :: jb, jg, ireff                !<block indices
     INTEGER               :: i_startblk, i_endblk         !< blocks
     INTEGER               :: is, ie                       !< slices
     INTEGER               :: i_rlstart, i_rlend           ! blocks limits 
     INTEGER               :: nlev                         ! Number of grid levels in vertical
     LOGICAL               :: return_fct(nreff_max_calc)   ! Return values
     INTEGER               :: nreff_calc                   ! Number of effective radius calculations 
-   
 
-    ! Initiare proper return
+
+    ! Initiate proper return
     IF ( PRESENT (return_reff) ) return_reff = .true.
 
 
@@ -488,58 +490,72 @@ MODULE mo_nwp_reff_interface
 
     ! Main loop HERE OMP
 
+    !$ACC ENTER DATA CREATE(indices, n_ind, ncn)
+    !$ACC DATA PRESENT(reff_calc_dom(jg:jg), reff_calc_dom(jg)%reff_calc_arr(nreff_calc)) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(1)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(2)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(3)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(4)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(5)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(6)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(7)%p_reff) &
+    !$ACC   PRESENT(reff_calc_dom(jg)%reff_calc_arr(8)%p_reff)
+
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,is,ie,ncn,indices, n_ind,ireff) FIRSTPRIVATE(return_fct) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,is,ie,ncn,indices,n_ind,ireff) FIRSTPRIVATE(return_fct) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk     
 
-       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
            &                is, ie, i_rlstart, i_rlend)
-      
-! Set to zero all  
+
+! Set to zero all
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
       DO ireff = 1, nreff_calc
         reff_calc_dom(jg)%reff_calc_arr(ireff)%p_reff(:,:,jb) = 0.0_wp  ! Clean values
       END DO
+      !$ACC END PARALLEL
 
       DO ireff = 1, nreff_calc
 
-        ! Obtain indices using qc_dia 
-        CALL mapping_indices (  indices, n_ind ,                                            & 
-             &                  reff_calc = reff_calc_dom(jg)%reff_calc_arr(ireff),         &
-             &                  k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie,jb=jb, &
+      ! Obtain indices using qc_dia
+        CALL mapping_indices (  indices, n_ind,                                             &
+             &                  reff_calc=reff_calc_dom(jg)%reff_calc_arr(ireff),           &
+             &                  k_start=kstart_moist(jg), k_end=nlev, is=is, ie=ie, jb=jb,  &
              &                  return_fct=return_fct(ireff) )
 
         IF ( .NOT. return_fct(ireff) ) THEN
-          WRITE(*,*) "WARNNING: Something went wrong with mapping_indices for calulation ", &
-             & ireff," in domain ", jg      
+          WRITE(*,*) "WARNING: Something went wrong with mapping_indices for calculation ", &
+             & ireff," in domain ", jg
           IF ( PRESENT (return_reff) ) return_reff = .false.
         END IF
 
-        CALL calculate_ncn (    ncn, reff_calc_dom(jg)%reff_calc_arr(ireff) ,indices,       & 
-             &                  n_ind, k_start =kstart_moist(jg),k_end = nlev,jb=jb,        &
-             &                  rho = p_prog%rho(:,:,jb),  t = p_nh_diag%temp(:,:,jb),      &
-             &                  return_fct=return_fct(ireff)) 
+        CALL calculate_ncn (    ncn, reff_calc_dom(jg)%reff_calc_arr(ireff), indices,       &
+             &                  n_ind, k_start=kstart_moist(jg), k_end = nlev, jb=jb,       &
+             &                  rho=p_prog%rho(:,:,jb), t=p_nh_diag%temp(:,:,jb),           &
+             &                  return_fct=return_fct(ireff) )
 
         IF ( .NOT. return_fct(ireff) )  THEN
-          WRITE(*,*) "WARNNING: Something went wrong with calculate_ncn", ireff ,           &
+          WRITE(*,*) "WARNING: Something went wrong with calculate_ncn", ireff,             &
              &       " in domain ", jg      
           IF ( PRESENT (return_reff) ) return_reff = .false.
         END IF
 
-        CALL calculate_reff (   reff_calc_dom(jg)%reff_calc_arr(ireff), indices, n_ind ,    & 
-             &                  rho = p_prog%rho(:,:,jb) ,                                  & 
-             &                  ncn = ncn, clc =  prm_diag%clc(:,:,jb),                     &                               
-             &                  k_start =kstart_moist(jg),k_end = nlev,jb=jb,               &
+        CALL calculate_reff (   reff_calc_dom(jg)%reff_calc_arr(ireff), indices, n_ind,     &
+             &                  rho=p_prog%rho(:,:,jb),                                     &
+             &                  ncn=ncn, clc= prm_diag%clc(:,:,jb),                         &
+             &                  k_start=kstart_moist(jg), k_end=nlev, jb=jb,                &
              &                  fr_gl = ext_data%atm%fr_glac(:,jb),                         &
              &                  fr_land = ext_data%atm%fr_land(:,jb),                       &
              &                  return_fct=return_fct(ireff) )
 
         IF ( .NOT. return_fct(ireff) )  THEN 
-          WRITE(*,*) "WARNNING: Something went wrong with calculate_reff for calulation ",  &
+          WRITE(*,*) "WARNING: Something went wrong with calculate_reff for calculation ",  &
              &      ireff ," in domain ", jg      
           IF ( PRESENT (return_reff) ) return_reff = .false.        
         END IF
+      END DO
     END DO
-  END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -552,17 +568,19 @@ MODULE mo_nwp_reff_interface
   
   IF ( PRESENT (return_reff) ) THEN
     IF ( .NOT. return_reff ) THEN
-      WRITE (message_text,*) 'WARNNING: Something wrong in Reff calculations for domain ', jg
+      WRITE (message_text,*) 'WARNING: Something wrong in Reff calculations for domain ', jg
       CALL message('',message_text)
     END IF
   END IF
+  
+  !$ACC END DATA ! p_reff
+  !$ACC EXIT DATA DELETE(indices, n_ind, ncn)
 
-    
   END SUBROUTINE set_reff
 
 ! Main routine to combine all hidropmeteors into a frozen phase and a liquid phase for radiation
 ! It changes the effective radius fields, as well as the tot_cld fields
-  SUBROUTINE combine_phases_radiation_reff (prm_diag, p_patch, p_prog,return_reff )
+  SUBROUTINE combine_phases_radiation_reff( prm_diag, p_patch, p_prog, return_reff )
       TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag         !Diagnostic statistics from physics (inlcuding reff)
       TYPE(t_patch)          , INTENT(in)   :: p_patch          !<grid/patch info.
       TYPE(t_nh_prog)        , INTENT(in)   :: p_prog           !<the dyn prog vars
@@ -577,7 +595,7 @@ MODULE mo_nwp_reff_interface
       INTEGER               :: jb,jg, ireff                 !<block indices
       INTEGER               :: i_startblk, i_endblk         !< blocks
       INTEGER               :: is, ie                       !< slices
-      INTEGER               :: i_rlstart, i_rlend           ! blocks limits 
+      INTEGER               :: i_rlstart, i_rlend           ! blocks limits
       INTEGER               :: nlev                         ! Number of grid levels in vertical
 
       !
@@ -601,49 +619,47 @@ MODULE mo_nwp_reff_interface
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,is,ie) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk     
+    DO jb = i_startblk, i_endblk
        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
            &                is, ie, i_rlstart, i_rlend)
-       
+
 
 ! Combine rain into the liquid phase
-       IF ( ASSOCIATED( prm_diag%reff_qr ) ) THEN
-         CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqc),  prm_diag%reff_qc(:,:,jb),  &
-             &              p_prog%tracer(:,:,jb,iqr),     prm_diag%reff_qr(:,:,jb),  &
-             &              prm_diag%clc(:,:,jb),                                  &
-             &              k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie    )
-       END IF
+      IF ( ASSOCIATED( prm_diag%reff_qr ) ) THEN
+        CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqc), prm_diag%reff_qc(:,:,jb), &
+          &                p_prog%tracer(:,:,jb,iqr), prm_diag%reff_qr(:,:,jb),    &
+          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                k_end=nlev, is=is, ie=ie                                )
+      END IF
 
 ! Combine snow into the ice phase
-       IF ( ASSOCIATED( prm_diag%reff_qs ) ) THEN
-         CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi),  prm_diag%reff_qi(:,:,jb),  &
-             &              p_prog%tracer(:,:,jb,iqs),     prm_diag%reff_qs(:,:,jb),  &
-             &              prm_diag%clc(:,:,jb),                                  &
-             &              k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie    )
-       END IF
+      IF ( ASSOCIATED( prm_diag%reff_qs ) ) THEN
+        CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi), prm_diag%reff_qi(:,:,jb), &
+          &                p_prog%tracer(:,:,jb,iqs), prm_diag%reff_qs(:,:,jb),    &
+          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                k_end=nlev, is=is, ie=ie                                )
+      END IF
 ! Combine graupel into the ice phase
-       IF ( (iqg > 0 ) .AND. ASSOCIATED( prm_diag%reff_qg ) ) THEN
-          CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi),  prm_diag%reff_qi(:,:,jb), &
-           &              p_prog%tracer(:,:,jb,iqg),     prm_diag%reff_qg(:,:,jb),    &
-           &              prm_diag%clc(:,:,jb),                                    &
-           &              k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie    )
-       END IF
-
+      IF ( (iqg > 0 ) .AND. ASSOCIATED( prm_diag%reff_qg ) ) THEN
+        CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi), prm_diag%reff_qi(:,:,jb), &
+          &                p_prog%tracer(:,:,jb,iqg), prm_diag%reff_qg(:,:,jb),    &
+          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                k_end=nlev, is=is, ie=ie                                )
+      END IF
 ! Set maximum radius in the liquid phase keeping the ratio q/r constant
-       CALL set_max_reff ( prm_diag%tot_cld(:,:,jb,iqc),  prm_diag%reff_qc(:,:,jb), reff_max_qc, & 
-           &               k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie    )
+       CALL set_max_reff ( prm_diag%tot_cld(:,:,jb,iqc), prm_diag%reff_qc(:,:,jb), reff_max_qc, &
+           &               k_start=kstart_moist(jg), k_end=nlev, is=is, ie=ie )
 
 ! Set maximum radius in the frozen phase keeping the ratio q/r constant
-       CALL set_max_reff ( prm_diag%tot_cld(:,:,jb,iqi),  prm_diag%reff_qi(:,:,jb), reff_max_qi, & 
-           &               k_start =kstart_moist(jg),k_end = nlev,is = is,ie=ie    )
+       CALL set_max_reff ( prm_diag%tot_cld(:,:,jb,iqi), prm_diag%reff_qi(:,:,jb), reff_max_qi, &
+           &               k_start=kstart_moist(jg), k_end=nlev, is=is, ie=ie )
 
 
-
-     END DO
+    END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-      
-   END SUBROUTINE combine_phases_radiation_reff
+
+  END SUBROUTINE combine_phases_radiation_reff
 
 
 END MODULE mo_nwp_reff_interface

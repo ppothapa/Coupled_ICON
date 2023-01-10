@@ -37,7 +37,7 @@ MODULE mo_run_config
   PUBLIC :: lvert_nest, num_lev, nshift, nsteps, dtime
   PUBLIC :: ltimer, timers_level, activate_sync_timers, msg_level
   PUBLIC :: iqv, iqc, iqi, iqs, iqr, iqtvar, nqtendphy, iqt, ico2, ich4, in2o, io3
-  PUBLIC :: iqni, iqni_nuc, iqg, iqm_max
+  PUBLIC :: iqni, iqg, iqm_max
   PUBLIC :: iqh, iqnh, iqnr, iqns, iqng, iqnc, inccn, ininpot, ininact, iqgl, iqhl
   PUBLIC :: iqtke
   PUBLIC :: grid_generatingCenter     ! non-namelist variables
@@ -111,11 +111,7 @@ MODULE mo_run_config
     INTEGER :: iqv       = 0  !< water vapor
     INTEGER :: iqc       = 0  !< cloud water
     INTEGER :: iqi       = 0  !< cloud ice
-    !CK>
-    INTEGER :: iqni      = 0  !< cloud ice number
-    INTEGER :: iqni_nuc  = 0  !< activated ice nuclei
     INTEGER :: iqg       = 0  !< graupel
-    !CK<    
     INTEGER :: iqr       = 0  !< rain water
     INTEGER :: iqs       = 0  !< snow
     INTEGER :: iqtvar    = 0  !< total water variance
@@ -126,6 +122,7 @@ MODULE mo_run_config
     INTEGER :: iqh       = 0  !<hail
     INTEGER :: iqnh      = 0  !<hail number
     INTEGER :: iqnr      = 0  !<rain number
+    INTEGER :: iqni      = 0  !<cloud ice number
     INTEGER :: iqns      = 0  !<snow number
     INTEGER :: iqng      = 0  !<graupel number
     INTEGER :: iqnc      = 0  !<cloud number

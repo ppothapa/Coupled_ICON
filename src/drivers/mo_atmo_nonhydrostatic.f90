@@ -13,7 +13,7 @@
 !!
 MODULE mo_atmo_nonhydrostatic
 
-USE mo_kind,                 ONLY: wp
+USE mo_kind,                 ONLY: wp, i4, i8
 USE mo_exception,            ONLY: message, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
@@ -47,7 +47,7 @@ USE mo_nh_testcases_nml,     ONLY: nh_test_name
 USE mo_ls_forcing_nml,       ONLY: is_ls_forcing, is_nudging
 USE mo_ls_forcing,           ONLY: init_ls_forcing
 USE mo_turbulent_diagnostic, ONLY: init_les_turbulent_output, close_les_turbulent_output
-USE mo_interface_les,        ONLY: init_les_phy_interface
+USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
 USE mo_dynamics_config,      ONLY: nnow, nnow_rcf, nnew, idiv_method
 ! Horizontal grid
@@ -132,6 +132,7 @@ USE mo_upatmo_phy_setup,    ONLY: finalize_upatmo_phy_nwp
 USE mo_util_mtime,          ONLY: getElapsedSimTimeInSeconds
 USE mo_output_event_types,  ONLY: t_sim_step_info
 USE mo_action,              ONLY: ACTION_RESET, reset_act
+USE mo_turb_vdiff_params,   ONLY: VDIFF_TURB_3DSMAGORINSKY
 USE mo_limarea_config,      ONLY: latbc_config
 USE mo_async_latbc_types,   ONLY: t_latbc_data
 USE mo_async_latbc,         ONLY: init_prefetch, close_prefetch
@@ -146,6 +147,8 @@ USE mo_random_util,         ONLY: add_random_noise
 
 USE mo_icon2dace,           ONLY: init_dace, finish_dace
 
+USE mo_sppt_state,          ONLY: construct_sppt_state, destruct_sppt_state
+USE mo_sppt_config,         ONLY: sppt_config, configure_sppt
 !-------------------------------------------------------------------------
 #ifdef HAVE_CDI_PIO
   USE mo_impl_constants,      ONLY: pio_type_cdipio
@@ -182,7 +185,7 @@ CONTAINS
     !---------------------------------------------------------------------
     ! 6. Integration finished. Clean up.
     !---------------------------------------------------------------------
-    CALL destruct_atmo_nonhydrostatic(latbc)
+    CALL destruct_atmo_nonhydrostatic(latbc, lacc=.TRUE.)
 
   END SUBROUTINE atmo_nonhydrostatic
   !---------------------------------------------------------------------
@@ -200,6 +203,8 @@ CONTAINS
     TYPE(t_key_value_store), POINTER :: restartAttributes
     LOGICAL :: lrestart
     CHARACTER(LEN=filename_max) :: model_base_dir
+    INTEGER :: seed_size, i
+    INTEGER, ALLOCATABLE :: seed(:)
 
 
     IF (timers_level > 1) CALL timer_start(timer_model_init)
@@ -238,6 +243,11 @@ CONTAINS
         CALL configure_art(jg)
       ENDDO
 
+      ! configure SPPT
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL configure_sppt(n_dom, p_patch(1:), time_config%tc_current_date)
+      ENDIF
+
     ENDIF
 
     ! Check if optional diagnostics are requested for output
@@ -261,16 +271,14 @@ CONTAINS
     ! Note(GZ): Land state now needs to be allocated even if physics is turned
     ! off because ground temperature is included in feedback since r8133
     ! However, setting inwp_surface = 0 effects that only a few 2D fields are allocated
-    ALLOCATE(p_nh_state(n_dom), p_nh_state_lists(n_dom), p_lnd_state(n_dom), &
-         stat=ist)
+    ALLOCATE(p_lnd_state(n_dom), stat=ist)
     IF (ist /= success) CALL finish(routine, &
-      &                             'allocation for state failed')
+      &                             'allocation for (NWP) land state failed')
 
     IF(iforcing /= inwp) atm_phy_nwp_config(:)%inwp_surface = 0
 
-    ! Now allocate memory for the states
-    CALL construct_nh_state(p_patch(1:), p_nh_state, p_nh_state_lists, n_timelevels=2, &
-      &                     var_in_output=var_in_output(:))
+    ! Now allocate memory for the nonhydrostatic state
+    CALL construct_nh_state(p_patch(1:), n_timelevels=2, var_in_output=var_in_output(:))
 
     ! Add optional diagnostic variable lists (might remain empty)
     CALL construct_opt_diag(p_patch(1:), .TRUE.)
@@ -281,6 +289,12 @@ CONTAINS
     IF (iforcing == inwp) THEN
       CALL construct_nwp_phy_state( p_patch(1:), var_in_output)
       CALL construct_nwp_lnd_state( p_patch(1:), p_lnd_state, var_in_output(:)%smi, n_timelevels=2 )
+
+      ! Construct SPPT state
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL construct_sppt_state(p_patch(1:))
+      ENDIF
+
     END IF
 
     IF (iforcing == iaes) THEN
@@ -370,15 +384,10 @@ CONTAINS
 #ifndef __NO_ICON_LES__
     ! init LES
     DO jg = 1 , n_dom
-      IF(atm_phy_nwp_config(jg)%is_les_phy) THEN
-        CALL init_les_phy_interface(jg, p_patch(jg)       ,&
-           &                        p_int_state(jg)       ,&
-           &                        p_nh_state(jg)%metrics)
-      END IF
-      IF(aes_vdf_config(jg)%turb==2) THEN
-        CALL init_les_phy_interface(jg, p_patch(jg)       ,&
-           &                        p_int_state(jg)       ,&
-           &                        p_nh_state(jg)%metrics)
+      IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
+        CALL init_vertical_grid_for_les(jg, p_patch(jg)       ,&
+           &                            p_int_state(jg)       ,&
+           &                            p_nh_state(jg)%metrics)
       END IF
     END DO
 #endif
@@ -479,27 +488,39 @@ CONTAINS
         !
       END IF ! ltestcase
 
-      IF(pinit_seed > 0) THEN
+      IF(pinit_seed /= 0_i8) THEN
+        CALL RANDOM_SEED(SIZE = seed_size)
+        ALLOCATE(seed(seed_size))
+
+        seed(1) = INT(pinit_seed, i4)
+        IF (seed_size>1_i8) seed(2) = INT(pinit_seed/2_i8**32_i8, i4)
+
+        DO i=3,seed_size
+            seed(i) = ISHFTC(seed(i-2), 1)
+        ENDDO
+
+        CALL RANDOM_SEED(PUT = seed)
+
         DO jg=1,n_dom
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%w)
-          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%vn)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%theta_v)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%exner)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_nh_state(jg)%prog(nnow(jg))%rho)
 
           IF (.NOT. ltestcase .OR. nh_test_name == 'dcmip_pa_12') THEN
-             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                    p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,1))
           ENDIF
 
           IF (iforcing == inwp ) THEN
             DO jt = 1, SIZE(p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t,4)
-              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, pinit_seed, &
+              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
                                 p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t(:,:,:,jt) )
             ENDDO
           ENDIF
@@ -723,9 +744,9 @@ CONTAINS
   END SUBROUTINE construct_atmo_nonhydrostatic
 
   !---------------------------------------------------------------------
-  SUBROUTINE destruct_atmo_nonhydrostatic(latbc)
+  SUBROUTINE destruct_atmo_nonhydrostatic(latbc, lacc)
     TYPE(t_latbc_data), INTENT(INOUT) :: latbc !< data structure for async latbc prefetching
-
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     CHARACTER(*), PARAMETER :: routine = "destruct_atmo_nonhydrostatic"
 
 
@@ -755,12 +776,9 @@ CONTAINS
     CALL destruct_opt_diag()
 
     ! Delete state variables
-
     CALL destruct_nh_state( p_nh_state, p_nh_state_lists )
-    DEALLOCATE (p_nh_state, p_nh_state_lists, STAT=ist)
-    IF (ist /= SUCCESS) CALL finish(routine,'deallocation for state failed')
 
-
+    ! Delete state variables for transport
     CALL destruct_prepadv_state()
 
 #ifndef __NO_ICON_LES__
@@ -773,6 +791,12 @@ CONTAINS
     ! cleanup NWP physics
     IF (iforcing == inwp) THEN
       CALL cleanup_nwp_phy()
+    
+      ! Destruct SPPT state
+      IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+        CALL destruct_sppt_state()
+      ENDIF
+
     ENDIF
 
     IF (iforcing == iaes) THEN
@@ -834,7 +858,7 @@ CONTAINS
       CALL message(routine, 'finalize meteogram output')
       DO jg = 1, n_dom
         IF (meteogram_output_config(jg)%lenabled) THEN
-          CALL meteogram_finalize(jg)
+          CALL meteogram_finalize(jg, lacc=lacc)
         END IF
       END DO
       DO jg = 1, max_dom

@@ -18,13 +18,11 @@ origin=${origin%%.*} # cut off .git
 # always stored according to the real experiment name `exp`
 base_exp=${base_exp:-${exp}}
 
-# set global arguments for reference generation (must be in sync with list_part_tolerance)
-seeds=1,2,3,4,5,6,7,8,9,941
 builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
 [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
 model_output_dir=$basedir/experiments/${base_exp}
 reference_dir=$icon_data_rootFolder/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/$builder
-stats_file_name=stats_${exp}_{seed}.csv
+stats_file_name=stats_${exp}_{member_id}.csv
 default_reference_stats_file_name=stats_${exp}_ref.csv
 reference_file_name=$reference_dir/reference/${exp}.csv
 
@@ -67,7 +65,14 @@ generate_probtest_tolerance()
 
     # set up probtest config file
     export PROBTEST_CONFIG=${exp}-config.json
-    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir} --seeds ${seeds}
+    # set global arguments for reference generation (must be in sync with list_part_tolerance)
+    if [[ $builder == *"mixed"* ]];
+    then
+      member_ids=mixed_1,mixed_2,mixed_3,mixed_4,mixed_5,mixed_6,mixed_7,mixed_8,mixed_9,mixed_10
+    else
+      member_ids=double_1,double_2,double_3,double_4,double_5,double_6,double_7,double_8,double_9,double_10
+    fi
+    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir} --member_ids ${member_ids} --time_dim time
 
     # create stats file for each seed (layer-wise max/min/mean)
     $PROBTEST stats --ensemble --stats-file-name $stats_file_name || status=1

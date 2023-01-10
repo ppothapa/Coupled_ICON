@@ -48,7 +48,7 @@ MODULE mo_nwp_ecrad_init
                                  &   iRadAeroKinneSP, iRadAeroNone
 #ifdef __ECRAD
   USE mo_ecrad,                ONLY: t_ecrad_conf, ecrad_setup,                          &
-                                 &   ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, &
+                                 &   ISolverHomogeneous, ISolverMcICA, ISolverMcICAACC, ISolverSpartacus, &
                                  &   ISolverTripleclouds, ISolverCloudless,              &
                                  &   IGasModelMonochromatic, IGasModelIFSRRTMG,          &
                                  &   IGasModelECCKD,                                     &
@@ -181,6 +181,9 @@ CONTAINS
       CASE(1)
         ecrad_conf%i_solver_sw  = ISolverTripleclouds !< Short-wave solver
         ecrad_conf%i_solver_lw  = ISolverTripleclouds !< Long-wave solver
+      CASE(2)
+        ecrad_conf%i_solver_sw  = ISolverMcICAACC !< Short-wave solver
+        ecrad_conf%i_solver_lw  = ISolverMcICAACC !< Long-wave solver
       CASE DEFAULT
         CALL finish(routine, 'ecrad_isolver not valid for ecRad')
     END SELECT
@@ -346,6 +349,8 @@ CONTAINS
       CASE(ISolverHomogeneous)
         CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverHomogeneous not ported to GPU')
       CASE (ISolverMcICA)
+        CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverMcICA not ported to GPU (use ISolverMcICAACC instead)')
+      CASE (ISolverMcICAACC)
         ! ok, ported
       CASE (ISolverSpartacus)
         CALL finish(routine,'ecrad_conf%i_solver_lw == ISolverSPARTACUS not ported to GPU.')
@@ -359,6 +364,8 @@ CONTAINS
       CASE(ISolverHomogeneous)
         CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverHomogeneous not ported to GPU')
       CASE (ISolverMcICA)
+        CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverMcICA not ported to GPU (use ISolverMcICAACC instead)')
+      CASE (ISolverMcICAACC)
         ! ok, ported
       CASE (ISolverSpartacus)
         CALL finish(routine,'ecrad_conf%i_solver_sw == ISolverSPARTACUS not ported to GPU.')

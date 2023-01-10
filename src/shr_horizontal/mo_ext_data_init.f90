@@ -1137,7 +1137,29 @@ CONTAINS
           ENDDO
         ENDIF
 
-        !$ACC UPDATE DEVICE(ext_data(jg)%atm%i_lc_snow_ice)
+        !$ACC UPDATE &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_snow_ice) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_water) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_urban) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_bare_soil) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_sparse) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_irrig) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_rain) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_crop_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_veg_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_b_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_b_d) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_woodland) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_n_eg) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_n_d) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_bn) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_mos) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_rf) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_pf) &
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf)
 
         ! Urban canopy parameters
         ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp
@@ -1155,6 +1177,8 @@ CONTAINS
         DO ilu = 1, num_lcc
           IF (ilu == ext_data(jg)%atm%i_lc_urban .OR. ilu == ext_data(jg)%atm%i_lc_water) THEN
             ext_data(jg)%atm%z0_lcc_min(ilu) = ext_data(jg)%atm%z0_lcc(ilu) ! no reduction in urban regions and over water
+          ELSE IF (pp_sso == 2 .AND. ext_data(jg)%atm%z0_lcc(ilu) >= 0.5_wp) THEN   ! if MERIT/REMA orography is used:
+            ext_data(jg)%atm%z0_lcc_min(ilu) = 0.75_wp*ext_data(jg)%atm%z0_lcc(ilu) ! 75% for nominal roughness lengths >= 50 cm
           ELSE IF (ext_data(jg)%atm%z0_lcc(ilu) > 0.1_wp) THEN
             ext_data(jg)%atm%z0_lcc_min(ilu) = 0.3_wp*ext_data(jg)%atm%z0_lcc(ilu) ! 30% for nominal roughness lengths > 10 cm
           ELSE
@@ -1737,29 +1761,33 @@ CONTAINS
                ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                IF (lterra_urb) THEN
                  ! impervious surface area (ISA)
-                 ext_data(jg)%atm%fr_paved_t(jc,jb,1) = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
-                 ! albedo reduction factor for the urban canopy
-                 ext_data(jg)%atm%urb_alb_red_t(jc,jb,1) = 0.9_wp
+                 ext_data(jg)%atm%fr_paved_t(jc,jb,1)    = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                  ! building area fraction with respect to urban tile
                  ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)  = 0.667_wp
                  ! street canyon H/W ratio
-                 ext_data(jg)%atm%urb_h2w_t(jc,jb,1)  = 1.5_wp
+                 ext_data(jg)%atm%urb_h2w_t(jc,jb,1)     = 1.5_wp
                  ! surface area index of the urban canopy
-                 ext_data(jg)%atm%urb_ai_t(jc,jb,1)   = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))  &
-                   &                                  * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
-                   &                                  + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+                 ext_data(jg)%atm%urb_ai_t(jc,jb,1)      = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))  &
+                   &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
+                   &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+                 ! albedo reduction factor for the urban canopy
+                 ! Reduce the effective albedo according to the building density,
+                 ! the reduction factor is based on Monte-Carlo simulations.
+                 ext_data(jg)%atm%urb_alb_red_t(jc,jb,1) = EXP(-0.6_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))       &
+                   &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
+                   &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
                  ! building height
-                 ext_data(jg)%atm%urb_h_bld_t(jc,jb,1)  = 15._wp
+                 ext_data(jg)%atm%urb_h_bld_t(jc,jb,1)   = 15._wp
                  ! thermal albedo of urban material
-                 ext_data(jg)%atm%urb_alb_th_t(jc,jb,1) = 0.14_wp
-                 ! solar albedo of urban material
-                 ext_data(jg)%atm%urb_alb_so_t(jc,jb,1) = 0.101_wp
+                 ext_data(jg)%atm%urb_alb_th_t(jc,jb,1)  = 0.14_wp
+                 ! solar albedo of urban material, times albedo reduction factor for the urban canopy
+                 ext_data(jg)%atm%urb_alb_so_t(jc,jb,1)  = 0.101_wp * ext_data(jg)%atm%urb_alb_red_t(jc,jb,1)
                  ! volumetric heat capacity of urban material
-                 ext_data(jg)%atm%urb_hcap_t(jc,jb,1) = 1250000._wp
+                 ext_data(jg)%atm%urb_hcap_t(jc,jb,1)    = 1250000._wp
                  ! thermal conductivity of urban material
-                 ext_data(jg)%atm%urb_hcon_t(jc,jb,1) = 0.767_wp
+                 ext_data(jg)%atm%urb_hcon_t(jc,jb,1)    = 0.767_wp
                  ! anthropogenic heat flux
-                 ext_data(jg)%atm%ahf_t(jc,jb,1)      = ext_data(jg)%atm%ahf_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+                 ext_data(jg)%atm%ahf_t(jc,jb,1)         = ext_data(jg)%atm%ahf_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                ENDIF
 !
                ! minimal stomata resistance
@@ -1949,39 +1977,43 @@ CONTAINS
 
                  IF (lterra_urb) THEN
                    ! impervious surface area (ISA)
-                   ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu) = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
-
-                   ! albedo reduction factor for the urban canopy
-                   ext_data(jg)%atm%urb_alb_red_t(jc,jb,i_lu) = 0.9_wp
+                   ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu)    = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                    ! building area fraction with respect to urban tile
                    ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu)  = 0.667_wp
 
                    ! street canyon H/W ratio
-                   ext_data(jg)%atm%urb_h2w_t(jc,jb,i_lu)  = 1.5_wp
+                   ext_data(jg)%atm%urb_h2w_t(jc,jb,i_lu)     = 1.5_wp
 
                    ! surface area index of the urban canopy
-                   ext_data(jg)%atm%urb_ai_t(jc,jb,i_lu) = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,i_lu)) &
-                     &                                   * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu))       &
-                     &                                   + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu)
+                   ext_data(jg)%atm%urb_ai_t(jc,jb,i_lu)      = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,i_lu)) &
+                     &                                        * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu))       &
+                     &                                        + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu)
+
+                   ! albedo reduction factor for the urban canopy
+                   ! Reduce the effective albedo according to the building density,
+                   ! the reduction factor is based on Monte-Carlo simulations.
+                   ext_data(jg)%atm%urb_alb_red_t(jc,jb,i_lu) = EXP(-0.6_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,i_lu))      &
+                     &                                        * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu))       &
+                     &                                        + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,i_lu)
 
                    ! building height
-                   ext_data(jg)%atm%urb_h_bld_t(jc,jb,i_lu)  = 15._wp
+                   ext_data(jg)%atm%urb_h_bld_t(jc,jb,i_lu)   = 15._wp
 
                    ! thermal albedo of urban material
-                   ext_data(jg)%atm%urb_alb_th_t(jc,jb,i_lu) = 0.14_wp
+                   ext_data(jg)%atm%urb_alb_th_t(jc,jb,i_lu)  = 0.14_wp
 
-                   ! solar albedo of urban material
-                   ext_data(jg)%atm%urb_alb_so_t(jc,jb,i_lu) = 0.101_wp
+                   ! solar albedo of urban material, times albedo reduction factor for the urban canopy
+                   ext_data(jg)%atm%urb_alb_so_t(jc,jb,i_lu)  = 0.101_wp * ext_data(jg)%atm%urb_alb_red_t(jc,jb,i_lu)
 
                    ! volumetric heat capacity of urban material
-                   ext_data(jg)%atm%urb_hcap_t(jc,jb,i_lu) = 1250000._wp
+                   ext_data(jg)%atm%urb_hcap_t(jc,jb,i_lu)    = 1250000._wp
 
                    ! thermal conductivity of urban material
-                   ext_data(jg)%atm%urb_hcon_t(jc,jb,i_lu) = 0.767_wp
+                   ext_data(jg)%atm%urb_hcon_t(jc,jb,i_lu)    = 0.767_wp
 
                    ! anthropogenic heat flux
-                   ext_data(jg)%atm%ahf_t(jc,jb,i_lu)      = ext_data(jg)%atm%ahf_lcc(lu_subs)
+                   ext_data(jg)%atm%ahf_t(jc,jb,i_lu)         = ext_data(jg)%atm%ahf_lcc(lu_subs)
                  ENDIF
 !
                  ! minimal stomata resistance

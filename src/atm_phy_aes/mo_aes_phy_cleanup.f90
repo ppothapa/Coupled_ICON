@@ -20,7 +20,7 @@ MODULE mo_aes_phy_cleanup
   USE mo_cloud_mig_memory,         ONLY: destruct_cloud_mig_memory
   USE mo_radiation_forcing_memory, ONLY: destruct_radiation_forcing_list
   USE mo_aes_phy_config,           ONLY: aes_phy_tc, dt_zero
-  USE mo_vdiff_solver,             ONLY: cleanup_vdiff_solver
+  USE mo_turb_vdiff,               ONLY: vdiff_cleanup
 
   IMPLICIT NONE
   PRIVATE
@@ -44,7 +44,7 @@ CONTAINS
     DO jg = 1,n_dom
        lany = lany .OR. (aes_phy_tc(jg)%dt_vdf > dt_zero)
     END DO
-    IF (lany) CALL cleanup_vdiff_solver      ! deallocate array "matrix_idx"
+    IF (lany) CALL vdiff_cleanup             ! deallocate array "matrix_idx"
 
     lany=.FALSE.
     DO jg = 1,n_dom

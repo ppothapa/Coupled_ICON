@@ -1,11 +1,13 @@
 !>
-!! @brief Read and apply optical properties of aerosol climatology 
+!! @brief Read and apply optical properties of aerosol climatology
 !!        for volcanic stratospheric aerosols as provided for CMIP6
 !!
 !! @author J.S. Rast (MPI-M)
 !!
 !! @par Revision History
-!!      2018-05-25: original version
+!! original source by J.S. Rast (2010-02-19)
+!! Adapted to ICON by J.S. Rast (2013-09-18)
+!! Rewrite of caching mechanism by R. Wirth, DWD (2022-09)
 !!
 !! @par Copyright and License
 !!
@@ -19,657 +21,798 @@
 MODULE mo_bc_aeropt_cmip6_volc
 
   USE mo_kind,                   ONLY: wp, i8
-  USE mo_mpi,                    ONLY: my_process_is_stdio, p_bcast, p_io, p_comm_work
-  USE mo_exception,              ONLY: finish
+  USE mo_exception,              ONLY: finish, message, message_text
   USE mo_read_interface,         ONLY: openInputFile, closeFile, read_1D, &
-    &                                  read_1D_extdim_time, &
     &                                  read_extdim_slice_extdim_extdim_extdim
-  USE mo_netcdf_errhandler,      ONLY: nf
   USE mo_latitude_interpolation, ONLY: latitude_weights_li
-  USE mo_physical_constants,     ONLY: rgrav, rd
   USE mo_math_constants,         ONLY: deg2rad, pi_2
-  USE mtime,                     ONLY: datetime 
+  USE mtime,                     ONLY: datetime
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
+  USE mo_time_config,            ONLY: time_config
 
   IMPLICIT NONE
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
-  PUBLIC                           :: read_bc_aeropt_cmip6_volc, &
-                                      add_bc_aeropt_cmip6_volc
+  PUBLIC :: read_bc_aeropt_cmip6_volc
+  PUBLIC :: add_bc_aeropt_cmip6_volc
 
-  REAL(wp), ALLOCATABLE, TARGET    :: aod_v_s(:,:,:),   & ! volcanic AOD solar
-                                      ssa_v_s(:,:,:,:), & ! volcanic SSA solar
-                                      asy_v_s(:,:,:,:), & ! volcanic ASY solar
-                                      ext_v_s(:,:,:,:), & ! volcanic EXT solar
-                                      aod_v_t(:,:,:),   & ! volcanic AOD therm
-                                      ssa_v_t(:,:,:,:), & ! volcanic SSA therm
-                                      ext_v_t(:,:,:,:), & ! volcanic EXT therm
-                                      r_alt_clim(:),    & ! altitude (km)
-                                      r_lat_clim(:)       ! latitudes
-  REAL(wp)                         :: r_lat_shift, r_rdeltalat
-  INTEGER, SAVE                    :: inm2_time_interpolation=-999999
-  LOGICAL, SAVE                    :: l_mem_alloc=.FALSE.
-  INTEGER, SAVE                    :: k_alt_clim, lat_clim
-  INTEGER, PARAMETER               :: nmonths=2
-!!$  REAL(wp), PARAMETER              :: rdog=rd*rgrav
+  ! Data file layout.
+
+  !> Prefix of the filename from which the aerosol data is read.
+  CHARACTER(len=*), PARAMETER :: filename_base = 'bc_aeropt_cmip6_volc_lw_b16_sw_b14_'
+  !> Name of the latitude dimension.
+  CHARACTER(len=*), PARAMETER :: dim_name_lat = 'latitude'
+  !> Name of the altitude dimension.
+  CHARACTER(len=*), PARAMETER :: dim_name_alt = 'altitude'
+  !> Name of the month dimension.
+  CHARACTER(len=*), PARAMETER :: dim_name_month = 'month'
+  !> Name of the solar band dimension.
+  CHARACTER(len=*), PARAMETER :: dim_name_sband = 'solar_bands'
+  !> Name of terrestrial band dimension.
+  CHARACTER(len=*), PARAMETER :: dim_name_tband = 'terrestrial_bands'
+
+  INTEGER, PARAMETER :: max_dim_name_len = &
+      & MAX(LEN(dim_name_lat), LEN(dim_name_alt), LEN(dim_name_month), LEN(dim_name_sband), &
+      &   LEN(dim_name_tband))
+  !> Dimension layout for solar data.
+  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_sol(4) = [ &
+      & CHARACTER(len=max_dim_name_len) :: &
+      & dim_name_month, dim_name_alt, dim_name_lat, dim_name_sband &
+    ]
+  !> Dimension layout for terrestrial data.
+  CHARACTER(len=max_dim_name_len), PARAMETER :: dim_names_terr(4) = [ &
+      & CHARACTER(len=max_dim_name_len) :: &
+      & dim_name_month, dim_name_alt, dim_name_lat, dim_name_tband &
+    ]
+
+  !> Marker for `pre_year` to show that arrays do not contain valid data.
+  INTEGER(i8), PARAMETER :: PRE_YEAR_UNINITIALIZED = -HUGE(1_i8)
+
+  REAL(wp), ALLOCATABLE :: aod_v_s(:,:,:)   !< volcanic AOD solar (nbndsw,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: ssa_v_s(:,:,:,:) !< volcanic SSA solar (nbndsw,nalts,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: asy_v_s(:,:,:,:) !< volcanic ASY solar (nbndsw,nalts,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: ext_v_s(:,:,:,:) !< volcanic EXT solar (nbndsw,nalts,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: aod_v_t(:,:,:)   !< volcanic AOD therm (nbndlw,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: ssa_v_t(:,:,:,:) !< volcanic SSA therm (nbndlw,nalts,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: ext_v_t(:,:,:,:) !< volcanic EXT therm (nbndlw,nalts,nlats,nmonths).
+  REAL(wp), ALLOCATABLE :: r_alt_clim(:)    !< altitude [m] (nalts).
+  REAL(wp), ALLOCATABLE :: r_lat_clim(:)    !< latitudes [rad] (nlats).
+  REAL(wp)              :: r_lat_shift, r_rdeltalat
+  INTEGER               :: k_alt_clim, lat_clim
+
+  INTEGER(i8)           :: pre_year = PRE_YEAR_UNINITIALIZED
+  INTEGER(i8)           :: nyears
+  INTEGER               :: imonth_beg, imonth_end
+
+  LOGICAL               :: lend_of_year
+
+  TYPE(t_time_interpolation_weights) :: tiw_beg
+  TYPE(t_time_interpolation_weights) :: tiw_end
 
 CONTAINS
-  !>
-  !! SUBROUTINE su_bc_aeropt_cmip6_volc -- sets up the memory for fields in which
-  !! the aerosol optical properties are stored when needed
-SUBROUTINE su_bc_aeropt_cmip6_volc( p_patch_id, clat_dim, calt_dim,  &
-                                    nbndlw    , nbndsw  , kyear      )
-  INTEGER, INTENT(IN)          :: p_patch_id
-  INTEGER(i8), INTENT(IN)      :: kyear
-  CHARACTER(LEN=*), INTENT(IN) :: clat_dim, calt_dim
-  INTEGER, INTENT(IN)          :: nbndlw, nbndsw
 
-  CHARACTER(LEN=256)           :: cfname, csubprog_name
-  CHARACTER(LEN=32)            :: ckyear
 
-  INTEGER                      :: ifile_id, idim_id
+  !> Set up memory for fields in which the aerosol optical properties are stored when needed.
+  SUBROUTINE su_bc_aeropt_cmip6_volc(nbndlw, nbndsw)
 
-  csubprog_name='su_bc_aeropt_cmip6_volc---of---mo_bc_aeropt_cmip6_volc.f90'
-  IF (my_process_is_stdio()) THEN
-    WRITE(ckyear,*) kyear
-    cfname='bc_aeropt_cmip6_volc_lw_b16_sw_b14_'//TRIM(ADJUSTL(ckyear))//'.nc'
-    CALL openInputFile(ifile_id, cfname)
-!!$write(0,*) 'cfname=',TRIM(ADJUSTL(cfname)),'ifile_id=',ifile_id
-    CALL nf(nf_inq_dimid(ifile_id,TRIM(ADJUSTL(clat_dim)),idim_id), &
-           TRIM(ADJUSTL(csubprog_name)))
-    CALL nf(nf_inq_dimlen(ifile_id, idim_id, lat_clim), &
-           TRIM(ADJUSTL(csubprog_name)))
-    CALL nf(nf_inq_dimid(ifile_id,TRIM(ADJUSTL(calt_dim)),idim_id), &
-           TRIM(ADJUSTL(csubprog_name)))
-    CALL nf(nf_inq_dimlen(ifile_id, idim_id, k_alt_clim), &
-           TRIM(ADJUSTL(csubprog_name)))
-  END IF
-  CALL p_bcast(lat_clim,p_io,p_comm_work)
-  CALL p_bcast(k_alt_clim,p_io,p_comm_work)
-! allocate memory for optical properties
-  ALLOCATE(aod_v_s(nbndsw,0:lat_clim+1,nmonths))
-  ALLOCATE(ext_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,nmonths))
-  ALLOCATE(ssa_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,nmonths))
-  ALLOCATE(asy_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,nmonths))
-  ALLOCATE(aod_v_t(nbndlw,0:lat_clim+1,nmonths))
-  ALLOCATE(ext_v_t(nbndlw,k_alt_clim+1,0:lat_clim+1,nmonths))
-  ALLOCATE(ssa_v_t(nbndlw,k_alt_clim+1,0:lat_clim+1,nmonths))
-  ALLOCATE(r_alt_clim(k_alt_clim))
-  ALLOCATE(r_lat_clim(0:lat_clim+1))
-  l_mem_alloc=.TRUE.
-  
-! initialize with zero
-  aod_v_s(:,:,:)=0._wp
-  ext_v_s(:,:,:,:)=0._wp
-  ssa_v_s(:,:,:,:)=0._wp
-  asy_v_s(:,:,:,:)=0._wp
-  aod_v_t(:,:,:)=0._wp
-  ext_v_t(:,:,:,:)=0._wp
-  ssa_v_t(:,:,:,:)=0._wp
-  r_alt_clim(:)=0._wp
-  r_lat_clim(:)=0._wp
-END SUBROUTINE su_bc_aeropt_cmip6_volc
+    INTEGER, INTENT(IN) :: nbndlw !< Number of long-wave bands in the data files.
+    INTEGER, INTENT(IN) :: nbndsw !< Number of short-wave bands in the data files.
 
-  !> SUBROUTINE shift_months_bc_aeropt_cmip6_volc -- shifts months in order to read a new one.
+    ! String with enough space for filename and 5-digit year.
+    CHARACTER(len=LEN(filename_base) + 5 + 3) :: filename
 
-SUBROUTINE shift_months_bc_aeropt_cmip6_volc
+    INTEGER :: file_id
 
-  aod_v_s(:,:,1)=aod_v_s(:,:,2)
-  ext_v_s(:,:,:,1)=ext_v_s(:,:,:,2)
-  ssa_v_s(:,:,:,1)=ssa_v_s(:,:,:,2)
-  asy_v_s(:,:,:,1)=asy_v_s(:,:,:,2)
-  aod_v_t(:,:,1)=aod_v_t(:,:,2)
-  ext_v_t(:,:,:,1)=ext_v_t(:,:,:,2)
-  ssa_v_t(:,:,:,1)=ssa_v_t(:,:,:,2)
-  
-END SUBROUTINE shift_months_bc_aeropt_cmip6_volc
+    REAL(wp), POINTER :: zlat(:), zalt(:)
 
-  !> SUBROUTINE read_bc_aeropt_cmip6_volc -- read the aerosol optical properties 
-  !! of the volcanic CMIP6 aerosols
+    CHARACTER(len=*), PARAMETER :: subroutine_name = &
+        & 'mo_bc_aeropt_cmip6_volc:su_bc_aeropt_cmip6_volc'
 
-SUBROUTINE read_bc_aeropt_cmip6_volc(current_date, p_patch_id, nbndlw, nbndsw)
-  TYPE(datetime), POINTER, INTENT(in) :: current_date
-  INTEGER, INTENT(in)                 :: p_patch_id
-  INTEGER, INTENT(in)                 :: nbndlw, nbndsw
+    IF (ALLOCATED(aod_v_s)) RETURN
 
-  !LOCAL VARIABLES
-  INTEGER(i8) :: iyear(2)
-  INTEGER :: imonth(2), nmonths, imonths
+    lend_of_year = ( time_config%tc_stopdate%date%month  == 1  .AND. &
+      &              time_config%tc_stopdate%date%day    == 1  .AND. &
+      &              time_config%tc_stopdate%time%hour   == 0  .AND. &
+      &              time_config%tc_stopdate%time%minute == 0  .AND. &
+      &              time_config%tc_stopdate%time%second == 0 )
 
-  TYPE(t_time_interpolation_weights) :: tiw
+    nyears = time_config%tc_stopdate%date%year - time_config%tc_startdate%date%year + 1
+    IF ( lend_of_year ) nyears = nyears - 1
 
-  tiw = calculate_time_interpolation_weights(current_date)  
-  
-  IF (tiw%month2_index == inm2_time_interpolation) RETURN
+    ! ----------------------------------------------------------------------
 
-  IF (ALLOCATED(aod_v_s)) THEN
+    tiw_beg = calculate_time_interpolation_weights(time_config%tc_startdate)
+    tiw_end = calculate_time_interpolation_weights(time_config%tc_stopdate)
 
-    ! skip shifting (and reading) of data if we have a turn of the year,
-    ! but update control index. In general, reading takes place around the
-    ! middle of a month, not when a month changes.
-    ! This assumes that read_bc_aeropt_cmip6_volc
-    ! is called with a sufficiently high period of less than half a month,
-    ! half of the time interval at which data (here monthly) are provided.
-
-    IF ( inm2_time_interpolation == 13 .AND. tiw%month2_index == 1 ) THEN
-       inm2_time_interpolation=tiw%month2_index
-       RETURN
+    IF ( nyears > 1 ) THEN
+      imonth_beg = 0
+      imonth_end = 13
+    ELSE
+      imonth_beg = tiw_beg%month1
+      imonth_end = tiw_end%month2
+      ! special case for runs starting on 1 Jan that run for less than a full year
+      IF ( imonth_beg == 12 .AND. time_config%tc_startdate%date%month == 1 ) imonth_beg = 0
+      ! special case for runs ending in 2nd half of Dec that run for less than a full year
+      IF ( lend_of_year .OR. ( imonth_end == 1 .AND. time_config%tc_stopdate%date%month == 12 ) ) &
+          & imonth_end = 13
     ENDIF
 
-    CALL shift_months_bc_aeropt_cmip6_volc
-    imonth(2)=tiw%month2_index
-    iyear(2)=current_date%date%year
-    IF (imonth(2) == 13 ) THEN
-      imonth(2)=1
-      iyear(2)=iyear(2)+1
+    WRITE (message_text,'(a,i2,a,i2)') &
+      & ' Allocating CMIP6 volcanic aerosols for months ', imonth_beg, ' to ', imonth_end
+    CALL message(subroutine_name, message_text)
+
+    ! Get altitude and latitude points from the first file. These are assumed to be constant
+    ! throughout the run.
+    WRITE (filename,'(a,i0,a)') filename_base, time_config%tc_startdate%date%year, '.nc'
+
+    CALL openInputFile(file_id, filename)
+    CALL read_1D(file_id=file_id, variable_name=dim_name_alt, return_pointer=zalt)
+    CALL read_1D(file_id=file_id, variable_name=dim_name_lat, return_pointer=zlat)
+    CALL closeFile(file_id)
+
+    k_alt_clim = SIZE(zalt)
+    lat_clim = SIZE(zlat)
+
+    ALLOCATE(aod_v_s(nbndsw,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(ext_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(ssa_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(asy_v_s(nbndsw,k_alt_clim+1,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(aod_v_t(nbndlw,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(ext_v_t(nbndlw,k_alt_clim+1,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(ssa_v_t(nbndlw,k_alt_clim+1,0:lat_clim+1,imonth_beg:imonth_end))
+    ALLOCATE(r_alt_clim(k_alt_clim))
+    ALLOCATE(r_lat_clim(0:lat_clim+1))
+
+    !$ACC ENTER DATA CREATE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+    !$ACC   CREATE(r_alt_clim, r_lat_clim)
+
+    aod_v_s(:,:,:) = 0._wp
+    ext_v_s(:,:,:,:) = 0._wp
+    ssa_v_s(:,:,:,:) = 0._wp
+    asy_v_s(:,:,:,:) = 0._wp
+    aod_v_t(:,:,:) = 0._wp
+    ext_v_t(:,:,:,:) = 0._wp
+    ssa_v_t(:,:,:,:) = 0._wp
+
+    ! reverse and convert from km to m.
+    r_alt_clim(:) = 1000._wp * zalt(k_alt_clim:1:-1)
+
+    r_lat_clim(1:lat_clim) = deg2rad * zlat(lat_clim:1:-1)
+    r_lat_clim(0) = 0.0_wp
+    r_lat_clim(lat_clim+1) = -pi_2
+    r_lat_shift = r_lat_clim(1)     ! this is the value next to the N-pole (so +87.5 for example)
+    r_rdeltalat = ABS(1.0_wp/(r_lat_clim(2)-r_lat_clim(1)))
+
+    DEALLOCATE(zalt, zlat)
+
+    !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+    !$ACC   DEVICE(r_alt_clim, r_lat_clim)
+
+  END SUBROUTINE su_bc_aeropt_cmip6_volc
+
+
+  !> Shifts December of current year into imonth=0 and January of the following year into imonth=1
+  !! (these months do not need to be read again).
+  SUBROUTINE shift_months_bc_aeropt_cmip6_volc()
+
+    CHARACTER(len=*), PARAMETER :: subroutine_name = &
+        & 'mo_bc_aeropt_cmip6_volc:shift_months_bc_aeropt_cmip6_volc'
+
+    IF ( .NOT. ALLOCATED(aod_v_s) ) CALL finish(subroutine_name, 'data arrays are not allocated')
+
+    IF ( imonth_beg > 0 .OR. imonth_end < 13 ) THEN
+      WRITE (message_text,'(a,i2,a,i2)') ' CMIP6 volcanic aerosols are allocated for months ', &
+          & imonth_beg, ' to ', imonth_end, 'only.'
+      CALL message(subroutine_name, message_text)
+      CALL finish(subroutine_name, &
+          & ' CMIP6 volcanic aerosols are not allocated over required range 0 to 13.')
+    ENDIF
+
+    WRITE (message_text,'(a)') &
+        & ' Copy CMIP6 volcanic aerosols for months 12:13 to months 0:1'
+    CALL message(subroutine_name, message_text)
+
+    aod_v_s(:,:,0:1) = aod_v_s(:,:,12:13)
+    ext_v_s(:,:,:,0:1) = ext_v_s(:,:,:,12:13)
+    ssa_v_s(:,:,:,0:1) = ssa_v_s(:,:,:,12:13)
+    asy_v_s(:,:,:,0:1) = asy_v_s(:,:,:,12:13)
+    aod_v_t(:,:,0:1) = aod_v_t(:,:,12:13)
+    ext_v_t(:,:,:,0:1) = ext_v_t(:,:,:,12:13)
+    ssa_v_t(:,:,:,0:1) = ssa_v_t(:,:,:,12:13)
+
+  END SUBROUTINE shift_months_bc_aeropt_cmip6_volc
+
+
+  !> Read optical properties of CMIP6 volcanic aerosols from external files into interpolation
+  !! cache. This routine has to be called on initialization and on Jan 1 of each simulation year.
+  SUBROUTINE read_bc_aeropt_cmip6_volc(mtime_current, nbndlw, nbndsw)
+
+    TYPE(datetime), POINTER, INTENT(IN) :: mtime_current !< Current date.
+    INTEGER, INTENT(IN) :: nbndsw !< Number of short-wave bands.
+    INTEGER, INTENT(in) :: nbndlw !< Number of long-wave bands.
+
+    ! LOCAL VARIABLES
+    INTEGER(i8)                   :: iyear
+    INTEGER                       :: imonthb, imonthe
+
+    iyear = mtime_current%date%year
+
+    IF (iyear > pre_year) THEN
+
+      ! beginning of job or change of year
+
+      IF ( pre_year > PRE_YEAR_UNINITIALIZED ) THEN
+        CALL shift_months_bc_aeropt_cmip6_volc()
+      ELSE
+        CALL su_bc_aeropt_cmip6_volc(nbndlw, nbndsw)
+      ENDIF
+
+      ! Restrict reading of data to those months that are needed
+
+      IF ( nyears > 1 ) THEN
+
+        IF ( pre_year > PRE_YEAR_UNINITIALIZED ) THEN
+          ! second and following years of current run
+          imonthb = 2
+        ELSE
+          ! first year of current run
+          imonthb = tiw_beg%month1
+          IF ( imonthb == 12 .AND. time_config%tc_startdate%date%month == 1 ) imonthb = 0
+        ENDIF
+
+        IF ( mtime_current%date%year < time_config%tc_stopdate%date%year ) THEN
+          imonthe = 13
+        ELSE
+
+          IF ( tiw_end%month2 == 1 .AND. time_config%tc_stopdate%date%month == 12 ) THEN
+              imonthe = 13
+          ELSE
+              imonthe = tiw_end%month2
+              ! no reading of month 2 if end is already before 15 Jan.
+              IF ( imonthb == 2 .AND. imonthe < imonthb ) THEN
+                pre_year = mtime_current%date%year
+                RETURN
+              ENDIF
+          ENDIF
+
+        ENDIF
+
+      ELSE
+
+        ! only less or equal one year in current run
+        ! we can savely narrow down the data that have to be read in.
+
+        imonthb = tiw_beg%month1
+        imonthe = tiw_end%month2
+        ! special case for runs starting on 1 Jan that run for less than a full year
+        IF ( imonthb == 12 .AND. time_config%tc_startdate%date%month == 1  ) imonthb = 0
+        ! special case for runs ending in 2nd half of Dec that run for less than a full year
+        IF ( lend_of_year .OR. ( imonthe == 1 .AND. time_config%tc_stopdate%date%month == 12 ) ) &
+            & imonthe = 13
+
+      ENDIF
+
+      CALL read_months_bc_aeropt_cmip6_volc(imonthb, imonthe, iyear)
+
+      pre_year = mtime_current%date%year
+
+      !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
+      !$ACC   DEVICE(r_alt_clim, r_lat_clim)
+
+    END IF ! iyear > pre_year
+  END SUBROUTINE read_bc_aeropt_cmip6_volc
+
+
+  !> Add aerosol optical properties of CMIP6 volcanic aerosols to all wave length bands (solar and
+  !! IR). The height profile is taken into account.
+  SUBROUTINE add_bc_aeropt_cmip6_volc( &
+      & current_date,          jg,              jcs,                  &
+      & kproma,                kbdim,           klev,                 &
+      & krow,                  nb_sw,           nb_lw,                &
+      & zf,                    dz,                                    &
+      & paer_tau_sw_vr,        paer_piz_sw_vr,  paer_cg_sw_vr,        &
+      & paer_tau_lw_vr                                                )
+
+    ! INPUT PARAMETERS
+    TYPE(datetime), POINTER, INTENT(IN) :: current_date !< Current date and time.
+    INTEGER, INTENT(IN) :: jg !< Domain index (for cell -> latitude mapping).
+    INTEGER, INTENT(IN) :: jcs !< Start index in block.
+    INTEGER, INTENT(IN) :: kproma !< Actual block length.
+    INTEGER, INTENT(IN) :: kbdim !< Maximum block length.
+    INTEGER, INTENT(IN) :: krow !< Block index.
+    INTEGER, INTENT(IN) :: klev !< Number of vertical levels.
+    INTEGER, INTENT(IN) :: nb_lw !< Number of wave-length bands (far IR).
+    INTEGER, INTENT(IN) :: nb_sw !< Number of wave-length bands (solar).
+    REAL(wp), INTENT(IN) :: dz(kbdim,klev) !< Geometric height thickness [m]
+    REAL(wp), INTENT(IN) :: zf(kbdim,klev) !< Geometric height [m].
+
+    ! OUTPUT PARAMETERS
+    !> Aerosol optical depth (far IR).
+    REAL(wp), INTENT(INOUT) :: paer_tau_lw_vr(kbdim,klev,nb_lw)
+    !> aerosol optical depth (solar), sum_i(tau_i).
+    REAL(wp), INTENT(INOUT) :: paer_tau_sw_vr(kbdim,klev,nb_sw)
+    !> weighted sum of single scattering albedos, sum_i(tau_i*omega_i).
+    REAL(wp), INTENT(INOUT) :: paer_piz_sw_vr(kbdim,klev,nb_sw)
+    !> Weighted sum of asymmetry factors, sum_i(tau_i*omega_i*g_i).
+    REAL(wp), INTENT(INOUT) :: paer_cg_sw_vr(kbdim,klev,nb_sw)
+
+    ! LOCAL VARIABLES
+    INTEGER, PARAMETER                    :: norder=-1 ! latitudes in climatology order from N->S
+    INTEGER                               :: jl,jk,jki,jwl
+    INTEGER                               :: idx_lat_1, idx_lat_2, idx_lev
+    REAL(wp)                              :: w1_lat, w2_lat
+    INTEGER,  DIMENSION(kbdim,klev)       :: kindex ! index field for pressure interpolation
+    LOGICAL,  DIMENSION(kbdim,klev)       :: l_kindex
+    REAL(wp), DIMENSION(kbdim)            :: wgt1_lat,wgt2_lat
+    INTEGER,  DIMENSION(kbdim)            :: inmw1_lat, inmw2_lat
+    REAL(wp), DIMENSION(kbdim,nb_sw)      :: zaod_s, zext_s_int, zfact_s
+    REAL(wp), DIMENSION(kbdim,klev,nb_sw) :: zext_s, zomg_s, zasy_s
+    REAL(wp), DIMENSION(kbdim,klev,nb_lw) :: zext_t, zomg_t
+    REAL(wp), DIMENSION(kbdim,nb_lw)      :: zaod_t, zext_t_int, zfact_t
+    REAL(wp)                              :: p_lat_shift, p_rdeltalat
+    INTEGER                               :: jc
+    REAL(wp)                              :: dz_clim, z_max_lim_clim
+
+    TYPE(t_time_interpolation_weights) :: tiw
+    INTEGER :: nm1, nm2
+
+    CHARACTER(len=*), PARAMETER :: subroutine_name = &
+        & 'mo_bc_aeropt_cmip6_volc:set_bc_aeropt_cmip6_volc'
+
+    tiw = calculate_time_interpolation_weights(current_date)
+    nm1 = tiw%month1_index
+    nm2 = tiw%month2_index
+
+    IF (current_date%date%year /= pre_year) THEN
+      WRITE (message_text,'(A,I4,A,I4)') 'Stale data: requested year is', current_date%date%year, &
+          & ' but data is for ', pre_year
+      CALL finish(subroutine_name, message_text)
     END IF
-    CALL read_month_bc_aeropt_cmip6_volc (p_patch_id, &
-         imonth(2), iyear(2), 2, nbndlw, nbndsw       )
-    
-    inm2_time_interpolation=tiw%month2_index
-    
-  ELSE
-    imonth(1)=tiw%month1_index
-    imonth(2)=tiw%month2_index
-    iyear(1)=current_date%date%year
-    iyear(2)=current_date%date%year
-    IF (imonth(1) == 0) THEN
-      imonth(1)=12
-      iyear(1)=iyear(1)-1
-    END IF
-    IF (imonth(2) == 13) THEN
-      imonth(2)=1
-      iyear(2)=iyear(2)+1
-    END IF
-    nmonths=2
-    inm2_time_interpolation=tiw%month2_index
-    CALL su_bc_aeropt_cmip6_volc(p_patch_id, 'latitude', 'altitude', &
-                                 nbndlw    , nbndsw    , iyear(1)    )
-    DO imonths=1,nmonths
-       CALL read_month_bc_aeropt_cmip6_volc (p_patch_id,            &
-         imonth(imonths), iyear(imonths), imonths, nbndlw, nbndsw   )
-    END DO
-  ENDIF
-END SUBROUTINE read_bc_aeropt_cmip6_volc
-!-------------------------------------------------------------------------
-!> SUBROUTINE add_bc_aeropt_cmip6_volc
 
-!! add aerosol optical properties for all wave length bands (solar and IR)
-!! in the case of CMIP6 volcanic aerosols
-!! The height profile is taken into account.
-!!
-!! !REVISION HISTORY:
-!! original source by J.S. Rast (2010-02-19)
-!! adapted to icon by J.S. Rast (2013-09-18)
-SUBROUTINE add_bc_aeropt_cmip6_volc( &
-     & current_date,          jg,              jcs,                  &
-     & kproma,                kbdim,           klev,                 &
-     & krow,                  nb_sw,           nb_lw,                &
-     & zf,                    dz,                                    &
-     & paer_tau_sw_vr,        paer_piz_sw_vr,  paer_cg_sw_vr,        &
-     & paer_tau_lw_vr                                                )
+    ! It is assumed that the pressure levels of the climatology do not change with time but
+    ! are unequally spaced. Since the pressure of each icon level may change with time,
+    ! each specific icon level may have its centre in a different level of the climatology at
+    ! each time step.
 
-  ! !INPUT PARAMETERS
-  TYPE(datetime), POINTER, INTENT(in) :: current_date
-  INTEGER,INTENT(in)  :: jg,     &! domain index
-                         jcs,    &! start index in block
-                         kproma, &! actual block length
-                         kbdim,  &! maximum block length
-                         krow,   &! block index
-                         klev,   &! number of vertical levels
-                         nb_lw,  &! number of wave length bands (far IR)
-                         nb_sw    ! number of wave length bands (solar)
-  REAL(wp),INTENT(in) :: dz(kbdim,klev),      & ! geometric height thickness [m]
-                         zf(kbdim,klev)         ! geometric height 
-! !OUTPUT PARAMETERS
-  REAL(wp),INTENT(inout),DIMENSION(kbdim,klev,nb_lw):: &
-   paer_tau_lw_vr      !aerosol optical depth (far IR)
-  REAL(wp),INTENT(inout),DIMENSION(kbdim,klev,nb_sw):: &
-   paer_tau_sw_vr,   & !aerosol optical depth (solar), sum_i(tau_i)
-   paer_piz_sw_vr,   & !weighted sum of single scattering albedos, 
-                       !sum_i(tau_i*omega_i)
-   paer_cg_sw_vr       !weighted sum of asymmetry factors, 
-                       !sum_i(tau_i*omega_i*g_i)
+    ! 1. calculate for each icon gridbox the index of the data set layer
+    !     in which p_mid_icon is located and geometrical height of layers
+    dz_clim=r_alt_clim(1)-r_alt_clim(2)
+    z_max_lim_clim=r_alt_clim(1)+0.5_wp*dz_clim
+    CALL altitude_index( &
+        & jcs,            kproma,     zf,     dz_clim, &
+        & z_max_lim_clim, k_alt_clim, kindex, l_kindex )
 
-! !LOCAL VARIABLES
-  
-  INTEGER, PARAMETER                    :: norder=-1 ! latitudes in climatology order from N->S
-  INTEGER, PARAMETER                    :: nm1=1, nm2=2 ! there are only two months of a year
-                                                        ! stored in the field (saves memory)
-  INTEGER                               :: jl,jk,jki,jwl
-  INTEGER                               :: idx_lat_1, idx_lat_2, idx_lev
-  REAL(wp)                              :: w1_lat, w2_lat
-  INTEGER,  DIMENSION(kbdim,klev)       :: kindex ! index field for pressure interpolation
-  LOGICAL,  DIMENSION(kbdim,klev)       :: l_kindex
-  REAL(wp), DIMENSION(kbdim)            :: wgt1_lat,wgt2_lat
-  INTEGER,  DIMENSION(kbdim)            :: inmw1_lat, inmw2_lat 
-  REAL(wp), DIMENSION(kbdim,nb_sw)      :: zaod_s, zext_s_int, zfact_s
-  REAL(wp), DIMENSION(kbdim,klev,nb_sw) :: zext_s, zomg_s, zasy_s
-  REAL(wp), DIMENSION(kbdim,klev,nb_lw) :: zext_t, zomg_t
-  REAL(wp), DIMENSION(kbdim,nb_lw)      :: zaod_t, zext_t_int, zfact_t 
-  REAL(wp)                              :: p_lat_shift, p_rdeltalat
-  INTEGER                               :: jc
-  REAL(wp)                              :: dz_clim, z_max_lim_clim
-  REAL(wp), DIMENSION(k_alt_clim+1)     :: r_alt_clim_q
-  TYPE(t_time_interpolation_weights) :: tiw
+    p_lat_shift=r_lat_shift
+    p_rdeltalat=r_rdeltalat
+    CALL latitude_weights_li( &
+        & jg,          jcs,            kproma,            kbdim,           &
+        & krow,        wgt1_lat,       wgt2_lat,          inmw1_lat,       &
+        & inmw2_lat,   p_lat_shift,    p_rdeltalat,       r_lat_clim,      &
+        & lat_clim,    norder                                              )
 
-  tiw = calculate_time_interpolation_weights(current_date)
-  
-! It is assumed that the pressure levels of the climatology do not change with time but
-! are unequally spaced. Since the pressure of each icon level may change with time,
-! each specific icon level may have its centre in a different level of the climatology at
-! each time step.
-
-! 1. calculate for each icon gridbox the index of the data set layer 
-!     in which p_mid_icon is located and geometrical height of layers
-  dz_clim=r_alt_clim(1)-r_alt_clim(2)
-  z_max_lim_clim=r_alt_clim(1)+0.5_wp*dz_clim
-  CALL altitude_index( &
-       & jcs,          kproma,         kbdim,           klev,              &
-       & zf,           dz_clim,        z_max_lim_clim,  k_alt_clim,        &
-       & kindex,       l_kindex                                            )
-!!$  IF (my_process_is_stdio()) THEN
-!!$  WRITE(0,*) '======================================================================'
-!!$  r_alt_clim_q(1)=r_alt_clim(1)+250._wp
-!!$  DO jk=2,k_alt_clim
-!!$    r_alt_clim_q(jk)=0.5_wp*(r_alt_clim(jk-1)+r_alt_clim(jk))
-!!$  END DO
-!!$  r_alt_clim_q(k_alt_clim+1)=r_alt_clim(k_alt_clim)-250._wp
-!!$  WRITE(0,*) 'r_alt_clim_q=',r_alt_clim_q
-!!$  DO jk=1,klev
-!!$     IF (l_kindex(1,jk)) THEN
-!!$        WRITE(0,*) 'kindex(1,jk)=',kindex(1,jk),'zf=',zf(1,jk),'r_alt_clim=',r_alt_clim_q(kindex(1,jk)),r_alt_clim_q(kindex(1,jk)+1)
-!!$     ELSE
-!!$        WRITE(0,*) 'kindex(1,jk)=',kindex(1,jk),'zf=',zf(1,jk)
-!!$     END IF
-!!$  END DO
-!!$  WRITE(0,*) '======================================================================'
-!!$  END IF
-  p_lat_shift=r_lat_shift
-  p_rdeltalat=r_rdeltalat
-  CALL latitude_weights_li( &
-       & jg,          jcs,            kproma,            kbdim,           &
-       & krow,        wgt1_lat,       wgt2_lat,          inmw1_lat,       &
-       & inmw2_lat,   p_lat_shift,    p_rdeltalat,       r_lat_clim,      &
-       & lat_clim,    norder                                              )
-! 2. Solar radiation
-! 2.1 interpolate optical properties solar radiation
-  DO jwl=1,nb_sw
-     DO jk=1,klev
+    ! 2. Solar radiation
+    ! 2.1 interpolate optical properties solar radiation
+    DO jwl=1,nb_sw
+      DO jk=1,klev
         DO jl=jcs,kproma
-           idx_lat_1=inmw1_lat(jl)
-           idx_lat_2=inmw2_lat(jl)
-           w1_lat=wgt1_lat(jl)
-           w2_lat=wgt2_lat(jl)
-           idx_lev=kindex(jl,jk)
-!!$           IF (my_process_is_stdio()) THEN
-!!$              IF (jwl==9.and.jl==kproma) THEN
-!!$                 write(0,*) '========================================'
-!!$                 write(0,*) 'jk=',jk, 'kindex(jl,jk)=',idx_lev,'zf(jl,jk)=',zf(jl,jk)
-!!$                 write(0,*) 'tiw%weight1=',tiw%weight1,'tiw%weight2=',tiw%weight2
-!!$                 write(0,*) 'idx_lat_1=',idx_lat_1,'w1_lat=',w1_lat,'idx_lat_2=',idx_lat_2,'w2_lat=',w2_lat
-!!$                 write(0,*) 'ext_v_s(jwl,idx_lev,idx_lat_1,nm1)=',ext_v_s(jwl,idx_lev,idx_lat_1,nm1)
-!!$                 write(0,*) 'ext_v_s(jwl,idx_lev,idx_lat_2,nm1)=',ext_v_s(jwl,idx_lev,idx_lat_2,nm1)
-!!$                 write(0,*) 'ext_v_s(jwl,idx_lev,idx_lat_1,nm2)=',ext_v_s(jwl,idx_lev,idx_lat_1,nm2)
-!!$                 write(0,*) 'ext_v_s(jwl,idx_lev,idx_lat_2,nm2)=',ext_v_s(jwl,idx_lev,idx_lat_2,nm2)
-!!$                 write(0,*) '========================================'
-!!$              END IF
-!!$           END IF
-           zext_s(jl,jk,jwl)=tiw%weight1*(w1_lat*ext_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
-                                     w2_lat*ext_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
-                             tiw%weight2*(w1_lat*ext_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
-                                     w2_lat*ext_v_s(jwl,idx_lev,idx_lat_2,nm2))
-           zomg_s(jl,jk,jwl)=tiw%weight1*(w1_lat*ssa_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
-                                     w2_lat*ssa_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
-                             tiw%weight2*(w1_lat*ssa_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
-                                     w2_lat*ssa_v_s(jwl,idx_lev,idx_lat_2,nm2))
-           zasy_s(jl,jk,jwl)=tiw%weight1*(w1_lat*asy_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
-                                     w2_lat*asy_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
-                             tiw%weight2*(w1_lat*asy_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
-                                     w2_lat*asy_v_s(jwl,idx_lev,idx_lat_2,nm2))
+          idx_lat_1=inmw1_lat(jl)
+          idx_lat_2=inmw2_lat(jl)
+          w1_lat=wgt1_lat(jl)
+          w2_lat=wgt2_lat(jl)
+          idx_lev=kindex(jl,jk)
+          zext_s(jl,jk,jwl)=tiw%weight1*(w1_lat*ext_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
+                                        w2_lat*ext_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
+                            tiw%weight2*(w1_lat*ext_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
+                                        w2_lat*ext_v_s(jwl,idx_lev,idx_lat_2,nm2))
+          zomg_s(jl,jk,jwl)=tiw%weight1*(w1_lat*ssa_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
+                                        w2_lat*ssa_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
+                            tiw%weight2*(w1_lat*ssa_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
+                                        w2_lat*ssa_v_s(jwl,idx_lev,idx_lat_2,nm2))
+          zasy_s(jl,jk,jwl)=tiw%weight1*(w1_lat*asy_v_s(jwl,idx_lev,idx_lat_1,nm1)+ &
+                                        w2_lat*asy_v_s(jwl,idx_lev,idx_lat_2,nm1))+ &
+                            tiw%weight2*(w1_lat*asy_v_s(jwl,idx_lev,idx_lat_1,nm2)+ &
+                                        w2_lat*asy_v_s(jwl,idx_lev,idx_lat_2,nm2))
         END DO
-     END DO
-  END DO
-  DO jwl=1,nb_sw
-     DO jl=jcs,kproma
+      END DO
+    END DO
+    DO jwl=1,nb_sw
+      DO jl=jcs,kproma
         idx_lat_1=inmw1_lat(jl)
         idx_lat_2=inmw2_lat(jl)
         w1_lat=wgt1_lat(jl)
         w2_lat=wgt2_lat(jl)
         zaod_s(jl,jwl)=tiw%weight1*(w1_lat*aod_v_s(jwl,idx_lat_1,nm1)+ &
-                               w2_lat*aod_v_s(jwl,idx_lat_2,nm1))+ &
+                                   w2_lat*aod_v_s(jwl,idx_lat_2,nm1))+ &
                        tiw%weight2*(w1_lat*aod_v_s(jwl,idx_lat_1,nm2)+ &
-                               w2_lat*aod_v_s(jwl,idx_lat_2,nm2))
-     END DO
-  END DO
-! 2.2 normalize zext to the correct total optical depth
-!     the normalization factor generally depends on the wavelength if
-!     the ratios of the extinction at different wavelengths are not 
-!     independent of the height level. Generally, the aerosol composition
-!     depends on height, this leads to different ratios of the extinction
-!     between two given wavelengths at different heights.
-  zext_s_int(jcs:kproma,1:nb_sw)=0._wp
-  DO jwl=1,nb_sw
-     DO jk=1,klev
+                                   w2_lat*aod_v_s(jwl,idx_lat_2,nm2))
+      END DO
+    END DO
+
+    ! 2.2 normalize zext to the correct total optical depth
+    !     the normalization factor generally depends on the wavelength if
+    !     the ratios of the extinction at different wavelengths are not
+    !     independent of the height level. Generally, the aerosol composition
+    !     depends on height, this leads to different ratios of the extinction
+    !     between two given wavelengths at different heights.
+    zext_s_int(jcs:kproma,1:nb_sw)=0._wp
+    DO jwl=1,nb_sw
+      DO jk=1,klev
         zext_s_int(jcs:kproma,jwl)=zext_s_int(jcs:kproma,jwl) + &
-          zext_s(jcs:kproma,jk,jwl)*dz(jcs:kproma,jk)
-     END DO
-  END DO
-  WHERE (zext_s_int(jcs:kproma,1:nb_sw) > 0._wp) 
-     zfact_s(jcs:kproma,1:nb_sw)=zaod_s(jcs:kproma,1:nb_sw)/ &
+                 zext_s(jcs:kproma,jk,jwl)*dz(jcs:kproma,jk)
+      END DO
+    END DO
+    WHERE (zext_s_int(jcs:kproma,1:nb_sw) > 0._wp)
+      zfact_s(jcs:kproma,1:nb_sw)=zaod_s(jcs:kproma,1:nb_sw)/ &
                               zext_s_int(jcs:kproma,1:nb_sw)
-  ELSEWHERE
-     zfact_s(jcs:kproma,1:nb_sw)=1._wp
-  END WHERE
-  DO jwl=1,nb_sw
-     DO jk=1,klev
+    ELSEWHERE
+      zfact_s(jcs:kproma,1:nb_sw)=1._wp
+    END WHERE
+    DO jwl=1,nb_sw
+      DO jk=1,klev
         zext_s(jcs:kproma,jk,jwl)=zext_s(jcs:kproma,jk,jwl)* &
-             dz(jcs:kproma,jk)*zfact_s(jcs:kproma,jwl)
-!!$             zfact_s(jcs:kproma,jwl)*1000._wp
-     END DO
-  END DO
-! 2.3 add optical parameters to the optical parameters of aerosols
-!     inverse height profile
-  DO jk=1,klev
-     jki=klev-jk+1
-     WHERE (zext_s(jcs:kproma,jki,1:nb_sw)>0._wp) 
-     paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)*&
-       paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)*paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)+&
-       zext_s(jcs:kproma,jki,1:nb_sw)*zomg_s(jcs:kproma,jki,1:nb_sw)*&
-       zasy_s(jcs:kproma,jki,1:nb_sw)
-     paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)*&
-       paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)+&
-       zext_s(jcs:kproma,jki,1:nb_sw)*zomg_s(jcs:kproma,jki,1:nb_sw)
-     paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)+&
-       zext_s(jcs:kproma,jki,1:nb_sw)
-     paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)/&
+               dz(jcs:kproma,jk)*zfact_s(jcs:kproma,jwl)
+      END DO
+    END DO
+
+    ! 2.3 add optical parameters to the optical parameters of aerosols
+    !     inverse height profile
+    DO jk=1,klev
+      jki=klev-jk+1
+      WHERE (zext_s(jcs:kproma,jki,1:nb_sw)>0._wp)
+        paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)*&
+          paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)*paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)+&
+          zext_s(jcs:kproma,jki,1:nb_sw)*zomg_s(jcs:kproma,jki,1:nb_sw)*&
+          zasy_s(jcs:kproma,jki,1:nb_sw)
+        paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)*&
+          paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)+&
+          zext_s(jcs:kproma,jki,1:nb_sw)*zomg_s(jcs:kproma,jki,1:nb_sw)
+        paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)+&
+          zext_s(jcs:kproma,jki,1:nb_sw)
+        paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw)/&
           paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)
-     paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)/&
+        paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)=paer_cg_sw_vr(jcs:kproma,jk,1:nb_sw)/&
           (paer_tau_sw_vr(jcs:kproma,jk,1:nb_sw)*paer_piz_sw_vr(jcs:kproma,jk,1:nb_sw))
-     END WHERE
-  END DO
-! 3. far infrared
-! 2.1 interpolate optical properties thermal radiation
-  DO jwl=1,nb_lw
-     DO jk=1,klev
+      END WHERE
+    END DO
+
+    ! 3. far infrared
+    ! 2.1 interpolate optical properties thermal radiation
+    DO jwl=1,nb_lw
+      DO jk=1,klev
         DO jl=jcs,kproma
-           idx_lat_1=inmw1_lat(jl)
-           idx_lat_2=inmw2_lat(jl)
-           w1_lat=wgt1_lat(jl)
-           w2_lat=wgt2_lat(jl)
-           idx_lev=kindex(jl,jk)
-           zext_t(jl,jk,jwl)=tiw%weight1*(w1_lat*ext_v_t(jwl,idx_lev,idx_lat_1,nm1)+ &
-                                     w2_lat*ext_v_t(jwl,idx_lev,idx_lat_2,nm1))+ &
-                             tiw%weight2*(w1_lat*ext_v_t(jwl,idx_lev,idx_lat_1,nm2)+ &
-                                     w2_lat*ext_v_t(jwl,idx_lev,idx_lat_2,nm2))
-           zomg_t(jl,jk,jwl)=tiw%weight1*(w1_lat*ssa_v_t(jwl,idx_lev,idx_lat_1,nm1)+ &
-                                     w2_lat*ssa_v_t(jwl,idx_lev,idx_lat_2,nm1))+ &
-                             tiw%weight2*(w1_lat*ssa_v_t(jwl,idx_lev,idx_lat_1,nm2)+ &
-                                     w2_lat*ssa_v_t(jwl,idx_lev,idx_lat_2,nm2))
+          idx_lat_1=inmw1_lat(jl)
+          idx_lat_2=inmw2_lat(jl)
+          w1_lat=wgt1_lat(jl)
+          w2_lat=wgt2_lat(jl)
+          idx_lev=kindex(jl,jk)
+          zext_t(jl,jk,jwl)=tiw%weight1*(w1_lat*ext_v_t(jwl,idx_lev,idx_lat_1,nm1)+ &
+                                        w2_lat*ext_v_t(jwl,idx_lev,idx_lat_2,nm1))+ &
+                            tiw%weight2*(w1_lat*ext_v_t(jwl,idx_lev,idx_lat_1,nm2)+ &
+                                        w2_lat*ext_v_t(jwl,idx_lev,idx_lat_2,nm2))
+          zomg_t(jl,jk,jwl)=tiw%weight1*(w1_lat*ssa_v_t(jwl,idx_lev,idx_lat_1,nm1)+ &
+                                        w2_lat*ssa_v_t(jwl,idx_lev,idx_lat_2,nm1))+ &
+                            tiw%weight2*(w1_lat*ssa_v_t(jwl,idx_lev,idx_lat_1,nm2)+ &
+                                        w2_lat*ssa_v_t(jwl,idx_lev,idx_lat_2,nm2))
         END DO
-     END DO
-  END DO
-  DO jwl=1,nb_lw
-     DO jl=jcs,kproma
+      END DO
+    END DO
+    DO jwl=1,nb_lw
+      DO jl=jcs,kproma
         idx_lat_1=inmw1_lat(jl)
         idx_lat_2=inmw2_lat(jl)
         w1_lat=wgt1_lat(jl)
         w2_lat=wgt2_lat(jl)
         zaod_t(jl,jwl)=tiw%weight1*(w1_lat*aod_v_t(jwl,idx_lat_1,nm1)+ &
-                               w2_lat*aod_v_t(jwl,idx_lat_2,nm1))+ &
+                                   w2_lat*aod_v_t(jwl,idx_lat_2,nm1))+ &
                        tiw%weight2*(w1_lat*aod_v_t(jwl,idx_lat_1,nm2)+ &
-                               w2_lat*aod_v_t(jwl,idx_lat_2,nm2))
-     END DO
-  END DO
-! 2.2 normalize zext to the correct total optical depth
-!     the normalization factor generally depends on the wavelength if
-!     the ratios of the extinction at different wavelengths are not 
-!     independent of the height level. Generally, the aerosol composition
-!     depends on height, this leads to different ratios of the extinction
-!     between two given wavelengths at different heights.
-  zext_t_int(jcs:kproma,1:nb_lw)=0._wp
-  DO jwl=1,nb_lw
-     DO jk=1,klev
+                                   w2_lat*aod_v_t(jwl,idx_lat_2,nm2))
+      END DO
+    END DO
+
+    ! 2.2 normalize zext to the correct total optical depth
+    !     the normalization factor generally depends on the wavelength if
+    !     the ratios of the extinction at different wavelengths are not
+    !     independent of the height level. Generally, the aerosol composition
+    !     depends on height, this leads to different ratios of the extinction
+    !     between two given wavelengths at different heights.
+    zext_t_int(jcs:kproma,1:nb_lw)=0._wp
+    DO jwl=1,nb_lw
+      DO jk=1,klev
         zext_t_int(jcs:kproma,jwl)=zext_t_int(jcs:kproma,jwl) + &
-          zext_t(jcs:kproma,jk,jwl)*dz(jcs:kproma,jk)
-     END DO
-  END DO
-  WHERE (zext_t_int(jcs:kproma,1:nb_lw) > 0._wp) 
-     zfact_t(jcs:kproma,1:nb_lw)=zaod_t(jcs:kproma,1:nb_lw)/ &
+                zext_t(jcs:kproma,jk,jwl)*dz(jcs:kproma,jk)
+      END DO
+    END DO
+    WHERE (zext_t_int(jcs:kproma,1:nb_lw) > 0._wp)
+      zfact_t(jcs:kproma,1:nb_lw)=zaod_t(jcs:kproma,1:nb_lw)/ &
                               zext_t_int(jcs:kproma,1:nb_lw)
-  ELSEWHERE
-     zfact_t(jcs:kproma,1:nb_lw)=1._wp
-  END WHERE
-  DO jwl=1,nb_lw
-     DO jk=1,klev
+    ELSEWHERE
+      zfact_t(jcs:kproma,1:nb_lw)=1._wp
+    END WHERE
+    DO jwl=1,nb_lw
+      DO jk=1,klev
         zext_t(jcs:kproma,jk,jwl)=zext_t(jcs:kproma,jk,jwl)* &
-             dz(jcs:kproma,jk)*zfact_t(jcs:kproma,jwl)
-!!$             zfact_t(jcs:kproma,jwl)*1000._wp
-     END DO
-  END DO
-! 2.3 add optical parameters to the optical parameters of aerosols
-!     inverse height profile
-  DO jk=1,klev
-     jki=klev-jk+1
-     ! use explicit DO loop to circumvent possible SXf90 compiler bug
-     DO jc = jcs,kproma
+              dz(jcs:kproma,jk)*zfact_t(jcs:kproma,jwl)
+      END DO
+    END DO
+
+    ! 2.3 add optical parameters to the optical parameters of aerosols
+    !     inverse height profile
+    DO jk=1,klev
+      jki=klev-jk+1
+      ! use explicit DO loop to circumvent possible SXf90 compiler bug
+      DO jc = jcs,kproma
         paer_tau_lw_vr(jc,jk,1:nb_lw)=paer_tau_lw_vr(jc,jk,1:nb_lw) + &
-          zext_t(jc,jki,1:nb_lw)*(1._wp-zomg_t(jc,jki,1:nb_lw))
-     ENDDO
-  END DO  
+              zext_t(jc,jki,1:nb_lw)*(1._wp-zomg_t(jc,jki,1:nb_lw))
+      ENDDO
+    END DO
 
-END SUBROUTINE add_bc_aeropt_cmip6_volc
+  END SUBROUTINE add_bc_aeropt_cmip6_volc
 
-!------------------------------------------------------------------------
-SUBROUTINE altitude_index( &
-     & jcs,            kproma,         kbdim,             klev,              &
-     & zf,             dz_clim,        z_max_lim_clim,    k_lev_clim,        &
-     & kindex,         l_kindex                                              )
-  INTEGER, INTENT(in)  :: jcs                  ! minimum block index
-  INTEGER, INTENT(in)  :: kproma, kbdim, klev  ! dimensions of ICON fields
-  REAL(wp), INTENT(in) :: zf(kbdim,klev),     &! mid-layer altitudes of ICON
-                        & dz_clim,            &! layer thickness of climatology
-                        & z_max_lim_clim       ! altitude of highest layer limit of clim.
-  INTEGER, INTENT(in)  :: k_lev_clim           ! number of layers in climatology
-  INTEGER, INTENT(out) :: kindex(kbdim,klev)   ! layer index of climatology in which
-                                               ! icon layer is located
-  LOGICAL, INTENT(out) :: l_kindex(kbdim,klev) ! .true. if index in range [1,k_lev_clim]
-  REAL(wp)             :: dz_clim_inv
-  INTEGER              :: jk
-  dz_clim_inv=1._wp/dz_clim
-  kindex(jcs:kproma,:)=FLOOR((z_max_lim_clim-zf(jcs:kproma,:))*dz_clim_inv)+1
-  WHERE (kindex(jcs:kproma,:).LT.1.OR.kindex(jcs:kproma,:).GT.k_alt_clim)
-    l_kindex(jcs:kproma,:)=.FALSE.
-    kindex(jcs:kproma,:)=k_lev_clim+1
-  END WHERE
-!!$  IF (my_process_is_stdio()) THEN
-!!$     do jk=1,SIZE(zf(1,:))
-!!$        WRITE(0,*) 'jk=',jk,'zf(1,jk)=',zf(1,jk),'kindex(1,jk)=',kindex(1,jk),'z_max_lim_clim=',z_max_lim_clim
-!!$     end do
-!!$  END IF
-END SUBROUTINE altitude_index
-!-------------------------------------------------------------------------
-! 
-!> SUBROUTINE read_month_bc_aeropt_cmip6_volc -- reads optical aerosol parameters from 
-!    original file containing the following quantities (attention: longitude means wavelengths!)
-!!   tautl: monthly average of zonal mean total aod for all wavelengths tautl(time, latitude, longitude) 
-!!   exts: extinction for each level corresp. to tautl in 1/m: exts(time, levels, latitude, longitude) 
-!!   omega: single scattering albedo corresp. to tautl: omega(time, levels, latitude, longitude)
-!!   asymm: asymmetry fractor corresp. to tautl: asymm(time, levels, latitude, longitude)
-!!   levels: non-equidistant pressure levels corresp. to exts, omega, asymm: levels(levels).
-!!     Only the mid-point pressures are given.
-  SUBROUTINE read_month_bc_aeropt_cmip6_volc (p_patch_id, kmonth, kyear,     &
-                                              ktime_step, nbndlw, nbndsw     )
-  !
-  INTEGER, INTENT(in)            :: p_patch_id     ! id number of the patch
-  INTEGER, INTENT(in)            :: kmonth         ! number of month to be read
-  INTEGER(i8), INTENT(in)        :: kyear          ! year of month
-  INTEGER, INTENT(in)            :: ktime_step     ! month that has to be set by new data
-  INTEGER, INTENT(in)            :: nbndlw, nbndsw ! number of long- and shortwave spectral bands
+  !------------------------------------------------------------------------
+  SUBROUTINE altitude_index ( &
+        & jcs, kproma, zf, dz_clim, z_max_lim_clim, k_lev_clim, kindex, l_kindex &
+      )
 
-  CHARACTER(len=256)             :: cfname   ! file name containing variables
-  CHARACTER(len=32)              :: ckmonth,ckyear
-  CHARACTER(len=256)             :: cdim_names(4)
+    INTEGER, INTENT(IN) :: jcs !< Minimum block index.
+    INTEGER, INTENT(IN) :: kproma !< Maximum block index.
+    REAL(wp), INTENT(IN) :: zf(:,:) !< Mid-layer altitudes of ICON grid (jc,jl).
+    REAL(wp), INTENT(IN) :: dz_clim !< Layer thickness of climatology.
+    REAL(wp), INTENT(IN) :: z_max_lim_clim !< Altitude of highest layer limit of clim.
+    INTEGER, INTENT(IN)  :: k_lev_clim !< Number of layers in climatology.
+    !> layer index of climatology in which icon layer is located (jc,jl).
+    INTEGER, INTENT(OUT) :: kindex(:,:)
+    !> `.TRUE.` if index in range `[1,k_lev_clim]` (jc,jl).
+    LOGICAL, INTENT(OUT) :: l_kindex(:,:)
 
-  INTEGER                        :: ifile_id,lbnd,i
-  REAL(wp), POINTER              :: zvar3d(:,:,:,:)
-  REAL(wp), POINTER              :: zalt(:), zlat(:)
-  REAL(wp)                       :: delta_alt
+    REAL(wp) :: dz_clim_inv
 
-  IF (kmonth < 1 .OR. kmonth > 12 ) THEN
-    WRITE(ckmonth,*) kmonth
-    CALL finish ('read_month_bc_aeropt_cmip6_volc in mo_bc_aeropt_cmip6_volc', &
-                 'month to be read outside valid range 1<=kmonth<=12, '// &
-                 'kmonth='//TRIM(ADJUSTL(ckmonth))) 
-  END IF
-  WRITE(ckyear,*) kyear
-  cfname='bc_aeropt_cmip6_volc_lw_b16_sw_b14_'//TRIM(ADJUSTL(ckyear))//'.nc'
-  CALL openInputFile(ifile_id, cfname)
-  CALL read_1D(file_id=ifile_id, variable_name='altitude', return_pointer=zalt)
-  ! order altitudes from top to bottom of atmosphere (should be outside reading routine)
-  r_alt_clim=zalt
-  DO lbnd=1,k_alt_clim
-    zalt(k_alt_clim-lbnd+1)=r_alt_clim(lbnd)
-  END DO
-!convert from km to metres
-  r_alt_clim(1:k_alt_clim)=1000._wp*zalt(1:k_alt_clim)
-  delta_alt=r_alt_clim(1)-r_alt_clim(2)
-  CALL read_1D(file_id=ifile_id, variable_name='latitude', return_pointer=zlat)
-  r_lat_clim(1:lat_clim)=zlat(lat_clim:1:-1)*deg2rad
-  r_lat_clim(0)=0.0_wp
-  r_lat_clim(lat_clim+1)=-pi_2
-  r_lat_shift=r_lat_clim(1)                      ! this is the value next to the N-pole (so +87.5 for example)
-  r_rdeltalat=ABS(1.0_wp/(r_lat_clim(2)-r_lat_clim(1)))
-  cdim_names(1)='month'
-  cdim_names(2)='altitude'
-  cdim_names(3)='latitude'
-  cdim_names(4)='solar_bands'
-  CALL read_extdim_slice_extdim_extdim_extdim( &
-    &                             file_id=ifile_id, variable_name='ext_sun', &
-    &                             return_pointer=zvar3d, dim_names=cdim_names, &
-    &                             start_extdim1=kmonth, end_extdim1=kmonth)
-  CALL rearrange_cmip6_volc_3d (zvar3d(1,:,:,:),'ext_v_s',ktime_step)
-!convert units from 1/km to 1/m
-  ext_v_s(:,:,:,ktime_step)=0.001_wp*ext_v_s(:,:,:,ktime_step)
-  CALL read_extdim_slice_extdim_extdim_extdim( &
-    &                             file_id=ifile_id, variable_name='omega_sun', &
-    &                             return_pointer=zvar3d, dim_names=cdim_names, &
-    &                             start_extdim1=kmonth, end_extdim1=kmonth)
-  CALL rearrange_cmip6_volc_3d (zvar3d(1,:,:,:),'ssa_v_s',ktime_step)
-  CALL read_extdim_slice_extdim_extdim_extdim( &
-    &                             file_id=ifile_id, variable_name='g_sun', &
-    &                             return_pointer=zvar3d, dim_names=cdim_names, &
-    &                             start_extdim1=kmonth, end_extdim1=kmonth)
-  CALL rearrange_cmip6_volc_3d (zvar3d(1,:,:,:),'asy_v_s',ktime_step)
-  cdim_names(4)='terrestrial_bands'
-  CALL read_extdim_slice_extdim_extdim_extdim( &
-    &                             file_id=ifile_id, variable_name='ext_earth', &
-    &                             return_pointer=zvar3d, dim_names=cdim_names, &
-    &                             start_extdim1=kmonth, end_extdim1=kmonth)
-  CALL rearrange_cmip6_volc_3d (zvar3d(1,:,:,:),'ext_v_t',ktime_step)
-  !convert units from 1/km to 1/m
-  ext_v_t(:,:,:,ktime_step)=0.001_wp*ext_v_t(:,:,:,ktime_step)
-  CALL read_extdim_slice_extdim_extdim_extdim( &
-    &                           file_id=ifile_id, variable_name='omega_earth', &
-    &                           return_pointer=zvar3d, dim_names=cdim_names, &
-    &                           start_extdim1=kmonth, end_extdim1=kmonth)
-  CALL rearrange_cmip6_volc_3d (zvar3d(1,:,:,:),'ssa_v_t',ktime_step)
-  ! calculate AOD of atmosphere
-  DO lbnd=1,nbndsw
-     CALL trapezoidal_rule(delta_alt,                       &
-          & ext_v_s(lbnd,1:k_alt_clim,0:lat_clim+1,ktime_step), &
-          & k_alt_clim, k_alt_clim, lat_clim+2,             &
-          & aod_v_s(lbnd,0:lat_clim+1,ktime_step)               )
-  END DO
-  DO lbnd=1,nbndlw
-     CALL trapezoidal_rule(delta_alt,                       &
-          & ext_v_t(lbnd,1:k_alt_clim,0:lat_clim+1,ktime_step), &
-          & k_alt_clim, k_alt_clim, lat_clim+2,             &
-          & aod_v_t(lbnd,0:lat_clim+1,ktime_step)               )
-  END DO
-  DEALLOCATE(zalt,zlat,zvar3d)
-  CALL closeFile(ifile_id)
-  END SUBROUTINE read_month_bc_aeropt_cmip6_volc
+    dz_clim_inv = 1._wp/dz_clim
+    kindex(jcs:kproma,:) = FLOOR((z_max_lim_clim-zf(jcs:kproma,:))*dz_clim_inv)+1
 
-!-------------------------------------------------------------------------
-! 
-!> SUBROUTINE rearrange_cmip6_volc -- rearrange dimensions and distribute on
-!!   module variables for time step time_step
+    WHERE (kindex(jcs:kproma,:) < 1 .OR. kindex(jcs:kproma,:) > k_alt_clim)
+      l_kindex(jcs:kproma,:) = .FALSE.
+      kindex(jcs:kproma,:) = k_lev_clim+1
+    ELSEWHERE
+      l_kindex(jcs:kproma,:) = .TRUE.
+    END WHERE
+  END SUBROUTINE altitude_index
 
-  SUBROUTINE rearrange_cmip6_volc_3d (array_in,cvar,time_step)
+  !>
+  !! Read the month range `imnthb:imonthe` for base year `iyear` into the global arrays.
+  SUBROUTINE read_months_bc_aeropt_cmip6_volc (imnthb, imnthe, iyear)
 
-    REAL(wp), INTENT(in)          :: array_in(:,:,:)
-    CHARACTER(LEN=*), INTENT(in)  :: cvar
-    INTEGER, INTENT(in)           :: time_step
+    !> Begin month to read (may be `0` for month 12 of previous year).
+    INTEGER, INTENT(IN) :: imnthb
+    !> End month to read (may be `13` for month 1 of next year).
+    INTEGER, INTENT(IN) :: imnthe
+    !> Base year.
+    INTEGER(i8), INTENT(IN) :: iyear
 
-    REAL(wp), POINTER             :: var(:,:,:)
-    INTEGER                       :: nbands, nlev, nlat, i
-    REAL(wp), ALLOCATABLE         :: array_out(:,:,:)
+    INTEGER :: kmonthb, kmonthe
+    ! Space for YYYYY.nc suffix
+    CHARACTER(LEN=LEN(filename_base)+5+3) :: cfnameyear
 
-    nlev=SIZE(array_in,1)
-    nlat=SIZE(array_in,2)
-    nbands=SIZE(array_in,3)
-    ALLOCATE(array_out(nbands,nlev,nlat))
-!!$    IF (my_process_is_stdio()) THEN
-!!$       write(0,*) ' nbands=',nbands,' nlev=',nlev,' nlat=',nlat
-!!$       write(0,*) 'rearrange_cmip6_volc_3d: zvar3d(:,16,5)'
-!!$       DO i=1,nlev
-!!$          write(0,*) i,array_in(i,16,5)
-!!$       END DO
-!!$    END IF 
-    SELECT CASE (TRIM(cvar))
-    CASE ('ext_v_s')
-      var => ext_v_s(:,:,:,time_step)
-    CASE ('ext_v_t')
-      var => ext_v_t(:,:,:,time_step)
-    CASE ('ssa_v_s')
-      var => ssa_v_s(:,:,:,time_step)
-    CASE ('ssa_v_t')
-      var => ssa_v_t(:,:,:,time_step)
-    CASE ('asy_v_s')
-      var => asy_v_s(:,:,:,time_step)
-    CASE DEFAULT 
-      CALL finish('rearrange_cmip6_volc_2d of mo_bc_aeropt_cmip6_volc', &
-                  'Variable '//TRIM(ADJUSTL(cvar))//' unknown')
-    END SELECT
-    ! attention: the indices of var are
-    ! (1:bands[nbnd{sw,lw}],1:nlev[k_alt_clim],1:nlat+2[lat_clim+2])
-    ! order latitudes from N->S and altitudes from bottom to top
-    var(1:nbands,1:nlev,2:nlat+1)= &
-         RESHAPE(array_in(nlev:1:-1,nlat:1:-1,1:nbands), &
-         SHAPE = (/nbands,nlev,nlat/), ORDER=(/2,3,1/))
-    var(1:nbands,1:nlev,1)=var(1:nbands,1:nlev,2)
-    var(1:nbands,1:nlev,nlat+2)=var(1:nbands,1:nlev,nlat+1)
-!!$    IF (my_process_is_stdio()) THEN
-!!$       write(0,*) 'rearrange_cmip6_volc_3d, var(5,nlev-24+1,:)'
-!!$       do i=2,nlat+1
-!!$          write(0,*) i,var(5,nlev-24+1,i)
-!!$       end do
-!!$       write(0,*) 'rearrange_cmip6_volc_3d, var(5,:,nlat-16+1+1)'
-!!$       do i=1,nlev
-!!$          write(0,*) i, var(5,i,nlat-16+1+1)
-!!$       end do
-!!$    END IF
-         NULLIFY(var)
-  END SUBROUTINE rearrange_cmip6_volc_3d
-!-------------------------------------------------------------------------
-! 
-SUBROUTINE trapezoidal_rule(dx,f,NMAX,n,m,f_ts)
-  ! calculates trapezoidal sum for m functions f(NMAX,m) over the first n
-  ! grid points.
-  ! input: dx: interval length of equidistant grid of f(1:n,1:m)
-  ! input: f(NMAX,m): m tabulated functions f(1:n,1:m) on n equidistant grid
-  !                   points
-  ! input: NMAX: first dimension of f as declared in calling (sub)program
-  ! input: n: actual number of grid points tabulated for each function f(:,1:m)
-  ! input: m: number of functions for which integral is calculated
-  ! output: f_ts(m): the m integrals over f(:,1:m)
-  INTEGER, INTENT(in)    :: NMAX,n,m
-  REAL(wp), INTENT(in)   :: dx, f(NMAX,m)
-  REAL(wp), INTENT(out)  :: f_ts(m)
-  f_ts(:)=dx*(SUM(f(2:n-1,:),DIM=1)+0.5_wp*(f(1,:)+f(n,:)))
-END SUBROUTINE trapezoidal_rule
+    CHARACTER(len=*), PARAMETER :: subroutine_name = &
+        & 'mo_bc_aeropt_cmip6_volc:read_months_bc_aeropt_cmip6_volc'
+
+    IF (imnthb < 0 .OR. imnthe < imnthb .OR. imnthe > 13 ) THEN
+      WRITE (message_text, '(a,2(a,i0))') &
+          'months to be read outside valid range 0<=imnthb<=imnthe<=13, ', &
+          'imnthb=', imnthb, ', imnthe=', imnthe
+      CALL finish(subroutine_name, message_text)
+    END IF
+
+    WRITE (message_text,'(a,i2,a,i2)') ' reading CMIP6 volcanic aerosols from imonth ', imnthb, ' to ', imnthe
+    CALL message(subroutine_name, message_text)
+
+    ! Read data for last month of previous year
+
+    IF (imnthb == 0) THEN
+
+      WRITE (cfnameyear,'(a,i0,a)') filename_base, iyear-1, '.nc'
+
+      CALL read_single_month_bc_aeropt_cmip6_volc ( &
+          & filename=cfnameyear, &
+          & aod_s=aod_v_s(:,:,0:0), &
+          & ssa_s=ssa_v_s(:,:,:,0:0), &
+          & asy_s=asy_v_s(:,:,:,0:0), &
+          & ext_s=ext_v_s(:,:,:,0:0), &
+          & aod_t=aod_v_t(:,:,0:0), &
+          & ssa_t=ssa_v_t(:,:,:,0:0), &
+          & ext_t=ext_v_t(:,:,:,0:0), &
+          & start_timestep=12, &
+          & end_timestep=12 &
+        )
+
+    END IF
+
+    WRITE (cfnameyear,'(a,i0,a)') filename_base, iyear, '.nc'
+
+    kmonthb=MAX(1,imnthb)
+    kmonthe=MIN(12,imnthe)
+
+    CALL read_single_month_bc_aeropt_cmip6_volc ( &
+        & filename=cfnameyear, &
+        & aod_s=aod_v_s(:,:,kmonthb:kmonthe), &
+        & ssa_s=ssa_v_s(:,:,:,kmonthb:kmonthe), &
+        & asy_s=asy_v_s(:,:,:,kmonthb:kmonthe), &
+        & ext_s=ext_v_s(:,:,:,kmonthb:kmonthe), &
+        & aod_t=aod_v_t(:,:,kmonthb:kmonthe), &
+        & ssa_t=ssa_v_t(:,:,:,kmonthb:kmonthe), &
+        & ext_t=ext_v_t(:,:,:,kmonthb:kmonthe), &
+        & start_timestep=kmonthb, &
+        & end_timestep=kmonthe &
+      )
+
+    ! Read data for first month of next year
+    IF (imnthe == 13) THEN
+
+      WRITE (cfnameyear,'(a,i0,a)') filename_base, iyear+1, '.nc'
+
+      CALL read_single_month_bc_aeropt_cmip6_volc ( &
+          & filename=cfnameyear, &
+          & aod_s=aod_v_s(:,:,13:13), &
+          & ssa_s=ssa_v_s(:,:,:,13:13), &
+          & asy_s=asy_v_s(:,:,:,13:13), &
+          & ext_s=ext_v_s(:,:,:,13:13), &
+          & aod_t=aod_v_t(:,:,13:13), &
+          & ssa_t=ssa_v_t(:,:,:,13:13), &
+          & ext_t=ext_v_t(:,:,:,13:13), &
+          & start_timestep=1, &
+          & end_timestep=1 &
+        )
+    END IF
+
+  END SUBROUTINE read_months_bc_aeropt_cmip6_volc
+
+  !> Read a month range from a single file.
+  SUBROUTINE read_single_month_bc_aeropt_cmip6_volc (&
+        & filename, aod_s, ssa_s, asy_s, ext_s, aod_t, ssa_t, ext_t, start_timestep, end_timestep &
+      )
+
+    CHARACTER(len=*), INTENT(IN) :: filename
+    REAL(wp), INTENT(INOUT) :: aod_s(:,:,:)
+    REAL(wp), INTENT(INOUT) :: ssa_s(:,:,:,:)
+    REAL(wp), INTENT(INOUT) :: asy_s(:,:,:,:)
+    REAL(wp), INTENT(INOUT) :: ext_s(:,:,:,:)
+    REAL(wp), INTENT(INOUT) :: aod_t(:,:,:)
+    REAL(wp), INTENT(INOUT) :: ssa_t(:,:,:,:)
+    REAL(wp), INTENT(INOUT) :: ext_t(:,:,:,:)
+    INTEGER, INTENT(IN) :: start_timestep, end_timestep
+
+    INTEGER :: file_id
+    REAL(wp), POINTER :: var(:,:,:,:)
+    REAL(wp) :: delta_alt
+
+
+    CALL message ('mo_bc_aeropt_cmip6_volc:read_months_bc_aeropt_cmip6_volc', &
+         &            ' reading from file '//TRIM(ADJUSTL(filename)))
+
+    CALL openInputFile(file_id, filename)
+
+    CALL read_extdim_slice_extdim_extdim_extdim ( &
+        & file_id=file_id, &
+        & variable_name='ext_sun', &
+        & return_pointer=var, &
+        & dim_names=dim_names_sol, &
+        & start_extdim1=start_timestep, &
+        & end_extdim1=end_timestep &
+      )
+    !convert units from 1/km to 1/m
+    var(:,:,:,:) = 0.001_wp * var(:,:,:,:)
+    CALL permute_shape(var, ext_s)
+    DEALLOCATE(var)
+
+    CALL read_extdim_slice_extdim_extdim_extdim ( &
+        & file_id=file_id, &
+        & variable_name='omega_sun', &
+        & return_pointer=var, &
+        & dim_names=dim_names_sol, &
+        & start_extdim1=start_timestep, &
+        & end_extdim1=end_timestep &
+      )
+    CALL permute_shape(var, ssa_s)
+    DEALLOCATE(var)
+
+    CALL read_extdim_slice_extdim_extdim_extdim ( &
+        & file_id=file_id, &
+        & variable_name='g_sun', &
+        & return_pointer=var, &
+        & dim_names=dim_names_sol, &
+        & start_extdim1=start_timestep, &
+        & end_extdim1=end_timestep &
+      )
+    CALL permute_shape(var, asy_s)
+    DEALLOCATE(var)
+
+    CALL read_extdim_slice_extdim_extdim_extdim ( &
+        & file_id=file_id, &
+        & variable_name='ext_earth', &
+        & return_pointer=var, &
+        & dim_names=dim_names_terr, &
+        & start_extdim1=start_timestep, &
+        & end_extdim1=end_timestep &
+      )
+    !convert units from 1/km to 1/m
+    var(:,:,:,:) = 0.001_wp * var(:,:,:,:)
+    CALL permute_shape(var, ext_t)
+    DEALLOCATE(var)
+
+    CALL read_extdim_slice_extdim_extdim_extdim ( &
+        & file_id=file_id, &
+        & variable_name='omega_earth', &
+        & return_pointer=var, &
+        & dim_names=dim_names_terr, &
+        & start_extdim1=start_timestep, &
+        & end_extdim1=end_timestep &
+      )
+    CALL permute_shape(var, ssa_t)
+    DEALLOCATE(var)
+
+    CALL closeFile(file_id)
+
+
+    ! calculate AOD of atmosphere by numerically integrating extinction over altitude levels.
+    delta_alt = r_alt_clim(1) - r_alt_clim(2)
+
+    CALL trapezoidal_rule(delta_alt, ext_s(:,:,:,:), aod_s(:,:,:))
+    CALL trapezoidal_rule(delta_alt, ext_t(:,:,:,:), aod_t(:,:,:))
+
+  CONTAINS
+
+    !> Permute the array dimensions to (bands,levels,latitudes,months), order altitude levels top
+    !! to bottom and latitudes north to south, and fill the north and south pole points.
+    SUBROUTINE permute_shape (src, tgt)
+
+      REAL(wp), INTENT(IN) :: src(:,:,:,:)
+      REAL(wp), INTENT(INOUT) :: tgt(:,:,:,:)
+
+      INTEGER :: nbands
+      INTEGER :: nlev
+      INTEGER :: nlat
+      INTEGER :: nmonths
+
+      nmonths = SIZE(src,1)
+      nlev = SIZE(src,2)
+      nlat = SIZE(src,3)
+      nbands = SIZE(src,4)
+
+      tgt(1:nbands,1:nlev,2:nlat+1,1:nmonths) = RESHAPE( &
+          & src(1:nmonths,nlev:1:-1,nlat:1:-1,1:nbands), &
+          & SHAPE=[nbands,nlev,nlat,nmonths], &
+          & ORDER=[4,2,3,1] &
+        )
+
+      tgt(1:nbands,1:nlev,1,:) = tgt(1:nbands,1:nlev,2,:)
+      tgt(1:nbands,1:nlev,nlat+2,:) = tgt(1:nbands,1:nlev,nlat+1,:)
+
+    END SUBROUTINE permute_shape
+
+  END SUBROUTINE read_single_month_bc_aeropt_cmip6_volc
+
+  !>
+  !! Calculates trapezoidal sum for functions f(:,1:n,:,:) over the n
+  !! grid points in the second dimension.
+  SUBROUTINE trapezoidal_rule (dx, f, f_ts)
+    !> Interval length of equidistant grid of the second dimension.
+    REAL(wp), INTENT(IN) :: dx
+    !> Tabulated functions f(:,1:n,:,:) on n equidistant grid points.
+    REAL(wp), INTENT(IN) :: f(:,:,:,:)
+    !> The integrals over f(:,1:n,:,:)
+    REAL(wp), INTENT(OUT) :: f_ts(:,:,:)
+
+    INTEGER :: n
+    INTEGER :: lbnd, nm
+
+    n = SIZE(f, DIM=2)
+
+    DO nm = 1, SIZE(f, 4)
+      DO lbnd = 1, SIZE(f, 1)
+        f_ts(lbnd,:,nm) = dx * (SUM(f(lbnd,2:n-1,:,nm),DIM=1) + &
+            & 0.5_wp * (f(lbnd,1,:,nm) + f(lbnd,n,:,nm)))
+      END DO
+    END DO
+  END SUBROUTINE trapezoidal_rule
 
 END MODULE mo_bc_aeropt_cmip6_volc

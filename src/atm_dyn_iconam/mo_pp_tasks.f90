@@ -97,6 +97,7 @@ MODULE mo_pp_tasks
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
   USE mo_run_config,              ONLY: timers_level, msg_level
+  USE mo_advection_config,        ONLY: advection_config
   USE mo_fortran_tools,           ONLY: init, copy
 #ifdef _OPENACC
   USE mo_mpi,                     ONLY: i_am_accel_node
@@ -808,7 +809,7 @@ CONTAINS
     ! local variables
     CHARACTER(*), PARAMETER :: routine = modname//"::pp_task_ipzlev"
     INTEGER                            :: &
-      &  vert_intp_method, jg,                    &
+      &  vert_intp_method,                        &
       &  in_var_idx, out_var_idx, nlev, nlevp1,   &
       &  n_ipzlev, npromz, nblks, ierrstat,       &
       &  in_var_ref_pos, out_var_ref_pos,         &
@@ -866,7 +867,6 @@ CONTAINS
     vert_intp_method = p_info%vert_interp%vert_intp_method
 
     ! patch, state, and metrics
-    jg                =  ptr_task%data_input%jg
     p_patch           => ptr_task%data_input%p_patch
     p_metrics         => ptr_task%data_input%p_nh_state%metrics
     p_diag            => ptr_task%data_input%p_nh_state%diag
@@ -1153,7 +1153,7 @@ CONTAINS
     REAL(wp), PARAMETER :: ZERO_HEIGHT   =    0._wp, &
       &                    EXTRAPOL_DIST = -500._wp
 
-    INTEGER                            :: nblks_c, npromz_c, nblks_e, jg,          &
+    INTEGER                            :: nblks_c, npromz_c, jg,          &
       &                                   out_var_idx, nlev, i_endblk
     TYPE (t_var), POINTER :: in_var, out_var
     TYPE(t_var_metadata),      POINTER :: p_info
@@ -1187,8 +1187,7 @@ CONTAINS
     nlev     = p_patch%nlev
     nblks_c  = p_patch%nblks_c
     npromz_c = p_patch%npromz_c
-    nblks_e  = p_patch%nblks_e
-    
+
     out_var_idx = 1
     IF (out_var%info%lcontained) out_var_idx = out_var%info%ncontained
 
@@ -1332,9 +1331,18 @@ CONTAINS
 
 
 #ifdef _OPENACC
-    IF (ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
+    IF (ptr_task%job_type /= TASK_COMPUTE_SDI2 .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_HBAS_SC .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_HTOP_SC .AND. &
         ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_RH) THEN
+        ptr_task%job_type /= TASK_COMPUTE_CEILING .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_TWATER .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_SMI .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_RH .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZCMAX .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZLMX_LOW .AND. &
+        ptr_task%job_type /= TASK_COMPUTE_DBZ850) THEN
       CALL warning('pp_task_compute_field','untested postproc job-type on GPU for variable '//TRIM(p_info%name) )
     ENDIF
 #endif
@@ -1390,7 +1398,7 @@ CONTAINS
         ! p_patch_local_parent(jg) seems to exist
         CALL compute_field_sdi( p_patch, jg, p_patch_local_parent(jg), p_int_state_local_parent(jg),     &
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,    &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
       ELSE
         CALL message( "pp_task_compute_field", "WARNING: SDI2 cannot be computed since no reduced grid is available" )
       END IF
@@ -1408,7 +1416,7 @@ CONTAINS
     CASE (TASK_COMPUTE_CEILING)
       CALL compute_field_ceiling( p_patch, jg,                                       &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_VIS)
       CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
@@ -1417,17 +1425,18 @@ CONTAINS
     CASE (TASK_COMPUTE_HBAS_SC)
       CALL compute_field_hbas_sc( p_patch,                                           &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_HTOP_SC)
       CALL compute_field_htop_sc( p_patch,                                           &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag,                      &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_TWATER)
-      CALL compute_field_twater( p_patch, jg,                                        &
-          &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_prog_rcf,            &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+      CALL compute_field_twater( p_patch, ptr_task%data_input%p_nh_state%metrics%ddqz_z_full, &
+          &                      p_prog%rho, p_prog_rcf%tracer,                               &
+          &                      advection_config(jg)%trHydroMass%list,                       &
+          &                      out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node )
 
     CASE (TASK_COMPUTE_Q_SEDIM)
       CALL compute_field_q_sedim( p_patch, jg, p_prog,                               &
@@ -1435,7 +1444,7 @@ CONTAINS
 
     CASE (TASK_COMPUTE_DBZ850)
       CALL compute_field_dbz850( p_patch, prm_diag%k850(:,:), prm_diag%dbz3d_lin(:,:,:), &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZLMX_LOW)
       ! NOTE: The layer bounds 1000 m and 2000 m were found more appropriate than the fixed bounds
@@ -1445,15 +1454,15 @@ CONTAINS
       !       changing the fixed bounds in the eccodes definitions.
       CALL compute_field_dbzlmx( p_patch, jg, 1000.0_wp, 2000.0_wp, &
           &   ptr_task%data_input%p_nh_state%metrics, prm_diag%dbz3d_lin(:,:,:), &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZCMAX)
       CALL compute_field_dbzcmax( p_patch, jg, prm_diag%dbz3d_lin(:,:,:),            &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_SMI)
       CALL compute_field_smi(p_patch, p_lnd_state(jg)%diag_lnd, &
-           &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1))
+           &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_WSHEAR_U)
       CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &

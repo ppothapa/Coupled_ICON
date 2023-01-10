@@ -729,6 +729,7 @@ enable_les
 enable_upatmo
 enable_ocean
 enable_jsbach
+enable_waves
 enable_coupling
 enable_aes
 enable_ecrad
@@ -1474,6 +1475,8 @@ Model Features:
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
+  --enable-waves          enable the surface wave component of ICON
+                          [default=no]
   --enable-coupling       enable the coupling [default=yes]
   --enable-aes            enable the AES physics package [default=yes]
   --enable-ecrad          enable usage of the ECMWF radiation scheme (ECRAD)
@@ -2511,6 +2514,16 @@ if test "${enable_jsbach+set}" = set; then :
 fi
 else
   enable_jsbach=yes
+fi
+
+
+# Check whether --enable-waves was given.
+if test "${enable_waves+set}" = set; then :
+  enableval=$enable_waves; if test x"$enableval" != xno; then :
+  enable_waves=yes
+fi
+else
+  enable_waves=no
 fi
 
 
@@ -4685,6 +4698,10 @@ fi
 
 if test "x$enable_jsbach" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_JSBACH__"
+fi
+
+if test "x$enable_waves" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_WAVES__"
 fi
 
 if test "x$enable_coupling" = xyes; then :
@@ -9544,6 +9561,9 @@ ac_config_files="$ac_config_files run/collect.set-up.info"
 ac_config_commands="$ac_config_commands run/set-up.info"
 
 
+ac_config_commands="$ac_config_commands run/SETUP.config"
+
+
 ac_config_commands="$ac_config_commands depfiles"
 
 
@@ -10495,6 +10515,7 @@ do
     "icon.mk") CONFIG_FILES="$CONFIG_FILES icon.mk" ;;
     "run/collect.set-up.info") CONFIG_FILES="$CONFIG_FILES run/collect.set-up.info" ;;
     "run/set-up.info") CONFIG_COMMANDS="$CONFIG_COMMANDS run/set-up.info" ;;
+    "run/SETUP.config") CONFIG_COMMANDS="$CONFIG_COMMANDS run/SETUP.config" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -11058,8 +11079,14 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
   case $ac_file$ac_mode in
     "run/collect.set-up.info":F) chmod +x "$ac_file" ;;
-    "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: failed to create \"$ac_file\"" >&5
-$as_echo "$as_me: WARNING: failed to create \"$ac_file\"" >&2;} ;;
+    "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    as_fn_error $? "failed to create $ac_file" "$LINENO" 5 ;;
+    "run/SETUP.config":C) rm -f "$ac_file"
+   ac_rel_source='set-up.info'
+   ac_source="run/${ac_rel_source}"
+   ln -s "$ac_rel_source" "$ac_file" 2>/dev/null ||
+     ln "$ac_source" "$ac_file" 2>/dev/null ||
+     cp -p "$ac_source" "$ac_file" ||
+     as_fn_error $? "cannot link or copy $ac_source to $ac_file" "$LINENO" 5 ;;
     "depfiles":C) ${MAKE-make} -f icon.mk dummy-depend >/dev/null 2>&5
    sleep 1
    touch icon.mk ;;

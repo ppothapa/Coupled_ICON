@@ -62,7 +62,7 @@ MODULE mo_nonhydro_state
   USE mo_run_config,           ONLY: iforcing, ntracer, iqm_max, iqt,           &
     &                                iqv, iqc, iqi, iqr, iqs, iqtvar,           &
     &                                ico2, ich4, in2o, io3,                     &
-    &                                iqni, iqni_nuc, iqg, iqh, iqnr, iqns,      & 
+    &                                iqni, iqg, iqh, iqnr, iqns,                & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
     &                                iqtke, ltestcase, lart
@@ -71,12 +71,10 @@ MODULE mo_nonhydro_state
   USE mo_limarea_config,       ONLY: latbc_config
   USE mo_advection_config,     ONLY: t_advection_config, advection_config
   USE mo_turbdiff_config,      ONLY: turbdiff_config
-  USE mo_initicon_config,      ONLY: init_mode, lcalc_avg_fg, iso8601_start_timedelta_avg_fg, &
-    &                                iso8601_end_timedelta_avg_fg, iso8601_interval_avg_fg, &
-    &                                qcana_mode, qiana_mode, qrsgana_mode, icpl_da_sfcevap, icpl_da_skinc, &
-    &                                icpl_da_sfcfric
+  USE mo_initicon_config,      ONLY: init_mode, qcana_mode, qiana_mode, qrsgana_mode, &
+    &                                icpl_da_sfcevap, icpl_da_skinc, icpl_da_sfcfric
   USE mo_nudging_config,       ONLY: nudging_config, indg_type
-  USE mo_var_list, ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
+  USE mo_var_list,             ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
   USE mo_var_list_register, ONLY: vlr_add, vlr_del
   USE mo_var_list_register_utils, ONLY: vlr_add_vref
   USE mo_var,                  ONLY: t_var
@@ -100,12 +98,11 @@ MODULE mo_nonhydro_state
     &                                ZA_REFERENCE_HALF_HHL, ZA_SURFACE, ZA_MEANSEA
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64,                 &
     &                                DATATYPE_PACK16, DATATYPE_PACK24,               &
-    &                                DATATYPE_INT, TSTEP_CONSTANT, TSTEP_AVG,        &
-    &                                GRID_UNSTRUCTURED
-  USE mo_action,               ONLY: ACTION_RESET, new_action, actions
+    &                                DATATYPE_INT, TSTEP_CONSTANT, GRID_UNSTRUCTURED
   USE mo_upatmo_config,        ONLY: upatmo_dyn_config
   USE mo_upatmo_impl_const,    ONLY: idamtr
   USE mo_aes_vdf_config,       ONLY: aes_vdf_config
+  USE mo_turb_vdiff_params,    ONLY: VDIFF_TURB_3DSMAGORINSKY
   USE mo_loopindices,          ONLY: get_indices_c
 
 #include "add_var_acc_macro.inc"
@@ -145,24 +142,19 @@ MODULE mo_nonhydro_state
   !! @par Revision History
   !! Initial release by Almut Gassmann (2009-03-06)
   !!
-  SUBROUTINE construct_nh_state(p_patch, p_nh_state, p_nh_state_lists, n_timelevels, var_in_output)
-    TYPE(t_patch),     INTENT(IN)   ::        & ! patch
+  SUBROUTINE construct_nh_state(p_patch,  n_timelevels, var_in_output)
+    TYPE(t_patch),         INTENT(IN) ::      & ! patch
       &  p_patch(n_dom)
-    TYPE(t_nh_state),  INTENT(INOUT)::        & ! nh state at different grid levels
-      &  p_nh_state(n_dom)
-    TYPE(t_nh_state_lists),  INTENT(INOUT)::  & ! nh state at different grid levels
-      &  p_nh_state_lists(n_dom)
-    INTEGER, OPTIONAL, INTENT(IN)   ::  & ! number of timelevels
-      &  n_timelevels    
+    INTEGER,               INTENT(IN) ::      & ! number of timelevels
+      &  n_timelevels
     TYPE(t_var_in_output), INTENT(IN) ::      & !< switches for optional diagnostics
       &  var_in_output(:)
-    INTEGER  :: ntl,      &! local number of timelevels
-                ntl_pure, &! local number of timelevels (without any extra timelevs)
+
+    INTEGER  :: ntl,      &! local number of timelevels (with extra timelevels)
                 ist,      &! status
                 jg,       &! grid level counter
                 jt         ! time level counter
     LOGICAL  :: l_extra_timelev
-    INTEGER :: ic, jb, jc, i_startblk, i_endblk, i_startidx, i_endidx
 
     CHARACTER(len=vlname_len) :: listname
     CHARACTER(LEN=vname_len) :: varname_prefix
@@ -171,16 +163,17 @@ MODULE mo_nonhydro_state
 !-----------------------------------------------------------------------
 
     CALL message (routine, 'Construction of NH state started')
+
+
+    ALLOCATE(p_nh_state(n_dom), p_nh_state_lists(n_dom), stat=ist)
+    IF (ist /= success) CALL finish(routine, &
+      &  'allocation of nonhydrostatic state  array and list failed')
+
     !$ACC ENTER DATA COPYIN(p_nh_state)
+
     DO jg = 1, n_dom
 
-      IF(PRESENT(n_timelevels))THEN
-        ntl      = n_timelevels
-        ntl_pure = n_timelevels
-      ELSE
-        ntl      = 1
-        ntl_pure = 1
-      ENDIF
+      ntl = n_timelevels
 
       ! As grid nesting is not called at every dynamics time step, an extra time
       ! level is needed for full-field interpolation and boundary-tendency calculation
@@ -197,7 +190,7 @@ MODULE mo_nonhydro_state
       nsav2(jg) = ntl
 
       !
-      ! Allocate pointer array p_nh_state(jg)%prog, as well as the 
+      ! Allocate pointer array p_nh_state(jg)%prog, as well as the
       ! corresponding list array for each grid level.
       !
       ! create state arrays
@@ -212,40 +205,14 @@ MODULE mo_nonhydro_state
         'allocation of prognostic state list array failed')
 
       ! create tracer list (no extra timelevels)
-      ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:ntl_pure), STAT=ist)
+      ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:n_timelevels), STAT=ist)
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic tracer list array failed')
-
-      ! Moved here from set_nh_metrics because we need bdy_halo_c_dim/blk/idx for add_var
-      i_startblk = p_patch(jg)%cells%start_block(min_rlcell_int-1)
-      i_endblk   = p_patch(jg)%cells%end_block(min_rlcell)
-      ic = 0
-      DO jb = i_startblk, i_endblk
-
-        CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
-                           i_startidx, i_endidx, min_rlcell_int-1, min_rlcell)
-
-        DO jc = i_startidx, i_endidx
-          IF (p_patch(jg)%cells%refin_ctrl(jc,jb)>=1 .AND. &
-              p_patch(jg)%cells%refin_ctrl(jc,jb)<=4) THEN
-            ic = ic+1
-          ENDIF
-        ENDDO
-      ENDDO
-      p_nh_state(jg)%metrics%bdy_halo_c_dim = ic
-      !$ACC UPDATE DEVICE(p_nh_state(jg)%metrics%bdy_halo_c_dim)
-      ! Index list for halo points belonging to the lateral boundary interpolation zone
-
-      IF ( ic == 0 ) THEN
-         ALLOCATE(p_nh_state(jg)%metrics%bdy_halo_c_idx(0:0),p_nh_state(jg)%metrics%bdy_halo_c_blk(0:0))
-      ELSE
-         ALLOCATE(p_nh_state(jg)%metrics%bdy_halo_c_idx(ic),p_nh_state(jg)%metrics%bdy_halo_c_blk(ic))
-      ENDIF
 
 
       !
       ! Build lists for every timelevel
-      ! 
+      !
       DO jt = 1, ntl
 
         ! Tracer fields do not need extra time levels because feedback is not incremental
@@ -334,12 +301,12 @@ MODULE mo_nonhydro_state
   !!
   SUBROUTINE destruct_nh_state(p_nh_state, p_nh_state_lists)
 !
-    TYPE(t_nh_state), INTENT(INOUT) ::       & ! nh state at different grid levels
-      &  p_nh_state(n_dom)
-                                             
-    TYPE(t_nh_state_lists), INTENT(INOUT) :: & ! lists of nh state at different grid levels
-      &  p_nh_state_lists(n_dom)
-                                             
+    TYPE(t_nh_state),       ALLOCATABLE, INTENT(INOUT) :: & ! nh state at different grid levels
+      &  p_nh_state(:)
+
+    TYPE(t_nh_state_lists), ALLOCATABLE, INTENT(INOUT) :: & ! lists of nh state at different grid levels
+      &  p_nh_state_lists(:)
+
     INTEGER  :: ntl_prog, & ! number of timelevels prog state
                 ntl_tra,  & ! number of timelevels 
                 ist, &      ! status
@@ -404,6 +371,9 @@ MODULE mo_nonhydro_state
     ENDDO
 
     !$ACC EXIT DATA DELETE(p_nh_state)
+
+    DEALLOCATE (p_nh_state, p_nh_state_lists, STAT=ist)
+    IF (ist /= SUCCESS) CALL finish(routine,'deallocation of nonhydrostatic state vector failed')
 
     CALL message(routine, 'NH state destruction completed')
 
@@ -1098,38 +1068,6 @@ MODULE mo_nonhydro_state
           __acc_attach(p_prog%tracer_ptr(iqni)%p_3d)
         END IF
 
-
-        !QNI_NUC activated ice nuclei tracking var # per kg, local
-        IF ( iqni_nuc /= 0 ) THEN
-          tlen = LEN_TRIM(advconf%tracer_names(iqni_nuc))
-          tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqni_nuc)(1:tlen)//suffix
-
-          CALL add_ref( p_prog_list, 'tracer',                                         &
-            &           tracer_name, p_prog%tracer_ptr(iqni_nuc)%p_3d,                 &
-            &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-            &           t_cf_var(tracer_name(1:vntl+tlen),                             &
-            &           ' kg-1','number concentration of activated_IN', datatype_flt), &
-            &           grib2_var(0, 1, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),     &
-            &           ref_idx=iqni_nuc,                                              &
-            &           ldims=shape3d_c,                                               &
-            &           tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
-            &           tracer_info=create_tracer_metadata(lis_tracer=.TRUE.,          &
-            &                       name        = tracer_name,                         &
-            &                       ihadv_tracer=advconf%ihadv_tracer(iqni_nuc),       &
-            &                       ivadv_tracer=advconf%ivadv_tracer(iqni_nuc)),      &
-            &           vert_interp=create_vert_interp_metadata(                       &
-            &                       vert_intp_type=vintp_types("P","Z","I"),           &
-            &                       vert_intp_method=VINTP_METHOD_LIN,                 &
-            &                       l_loglin=.FALSE.,                                  &
-            &                       l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
-            &                       lower_limit=0._wp  ),                              &
-            &           in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
-            &                           "LATBC_PREFETCH_VARS")  )
-          __acc_attach(p_prog%tracer_ptr(iqni_nuc)%p_3d)
-        END IF
-        !CK<
-
-
         !rain droplet concentration
         IF ( iqnr /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqnr))
@@ -1778,14 +1716,8 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%u_avg, &
-    &       p_diag%v_avg, &
-    &       p_diag%pres_avg, &
-    &       p_diag%temp_avg, &
-    &       p_diag%qv_avg, &
     &       p_diag%vor_u, &
     &       p_diag%vor_v, &
-    &       p_diag%nsteps_avg, &
     &       p_diag%extra_2d, &
     &       p_diag%extra_3d)
 
@@ -3545,129 +3477,6 @@ MODULE mo_nonhydro_state
     ENDIF
 
 
-    IF (p_patch%id == 1 .AND. lcalc_avg_fg) THEN
-      ! NOTE: the following time-averaged fields are not written into the restart file, 
-      !       meaning that they will contain wrong values in case that a restart is 
-      !       performed during the avaraging phase. Since this averaging procedure 
-      !       will likely be active only during our (short) assimilation runs, we 
-      !       refrain from writing them into the restart file. Normally, we do not 
-      !       write restart files during assimilation runs, anyway.  
-
-      ! u_avg   p_diag%u_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('u_avg', ' ',                   &
-        &                   'u time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'u_avg', p_diag%u_avg,                          &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=iso8601_start_timedelta_avg_fg,  &
-                  &             opt_end  =iso8601_end_timedelta_avg_fg,    &
-                  &             opt_ref  =iso8601_start_timedelta_avg_fg)),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%u_avg)
-
-      ! v_avg   p_diag%v_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('v_avg', ' ',                   &
-        &                   'v time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'v_avg', p_diag%v_avg,                          &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=iso8601_start_timedelta_avg_fg,  &
-                  &             opt_end  =iso8601_end_timedelta_avg_fg,    &
-                  &             opt_ref  =iso8601_start_timedelta_avg_fg)),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%v_avg)
-
-
-
-      ! pres_avg   p_diag%pres_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('pres_avg', ' ',                   &
-        &                   'pressure time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 3, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'pres_avg', p_diag%pres_avg,                    &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%pres_avg)
-
-
-      ! temp_avg   p_diag%temp_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('temp_avg', ' ',                   &
-        &                   'temperature time average for DA', datatype_flt)
-      grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'temp_avg', p_diag%temp_avg,                    &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%temp_avg)
-
-
-      ! qv_avg   p_diag%qv_avg(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('qv_avg', ' ',                   &
-        &                   'specific humidity time average for DA', datatype_flt)
-      grib2_desc = grib2_var(  0, 1, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'qv_avg', p_diag%qv_avg,                        &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                  & ldims=shape3d_c,                                             &
-                  & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_AVG,       &
-                  & resetval=0._wp,                                              &
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%qv_avg)
-
-
-      ! nsteps_avg  p_diag%nsteps_avg(1)
-      !
-      cf_desc    = t_cf_var('nsteps_avg', ' ',                   &
-        &                   'number of time steps summed up for FG averaging', DATATYPE_INT)
-      grib2_desc = grib2_var(192,192,192, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'nsteps_avg', p_diag%nsteps_avg,                &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,     &
-                  & ldims=(/1/),                                                 &
-                  & lrestart=.FALSE., loutput=.FALSE.,                           &
-                  & initval=0, resetval=0,                                       & 
-                  & action_list=actions(new_action(ACTION_RESET,                 &
-                  &             TRIM(iso8601_interval_avg_fg),                   &
-                  &             opt_start=TRIM(iso8601_start_timedelta_avg_fg),  &
-                  &             opt_end  =TRIM(iso8601_end_timedelta_avg_fg),    &
-                  &             opt_ref  =TRIM(iso8601_start_timedelta_avg_fg))),&
-                  & lopenacc = .TRUE. )
-      __acc_attach(p_diag%nsteps_avg)
-
-    ENDIF
-
     !----------------------
     ! optional diagnostics
     !----------------------
@@ -3962,6 +3771,7 @@ MODULE mo_nonhydro_state
     INTEGER :: DATATYPE_PACK_VAR  !< variable "entropy" for selected fields
     INTEGER :: datatype_flt       !< floating point accuracy in NetCDF output
     LOGICAL :: group(MAX_GROUPS)
+    INTEGER :: ic, jb, jc, i_startblk, i_endblk, i_startidx, i_endidx
 
     !--------------------------------------------------------------
 
@@ -3990,6 +3800,27 @@ MODULE mo_nonhydro_state
     ELSE
       datatype_flt = DATATYPE_FLT32
     ENDIF
+
+
+    ! Moved here from set_nh_metrics because we need bdy_halo_c_dim/blk/idx for add_var
+    i_startblk = p_patch%cells%start_block(min_rlcell_int-1)
+    i_endblk   = p_patch%cells%end_block(min_rlcell)
+    ic = 0
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+                         i_startidx, i_endidx, min_rlcell_int-1, min_rlcell)
+
+      DO jc = i_startidx, i_endidx
+        IF (p_patch%cells%refin_ctrl(jc,jb)>=1 .AND. &
+          & p_patch%cells%refin_ctrl(jc,jb)<=4) THEN
+          ic = ic+1
+        ENDIF
+      ENDDO
+    ENDDO
+    p_metrics%bdy_halo_c_dim = ic
+    !$ACC UPDATE DEVICE(p_metrics%bdy_halo_c_dim)
+
 
     ! predefined array shapes
     shape1d_c        = (/nlev                        /)
@@ -4180,9 +4011,10 @@ MODULE mo_nonhydro_state
     __acc_attach(p_metrics%ddxt_z_full)
 
 #ifndef __NO_ICON_LES__
-    IF (atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2) THEN
+    IF (atm_phy_nwp_config(jg)%is_les_phy &
+       & .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
 #else
-    IF (aes_vdf_config(jg)%turb==2) THEN
+    IF (aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY) THEN
 #endif
       ! slope of the terrain in normal direction (half level)
       ! ddxn_z_half_e  p_metrics%ddxn_z_full(nproma,nlevp1,nblks_e)
@@ -4946,9 +4778,10 @@ MODULE mo_nonhydro_state
 
     !Add LES related variables : Anurag Dipankar MPIM (2013-04)
 #ifndef __NO_ICON_LES__
-    IF(atm_phy_nwp_config(jg)%is_les_phy .OR. aes_vdf_config(jg)%turb==2)THEN
+    IF(atm_phy_nwp_config(jg)%is_les_phy &
+      & .OR. aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY)THEN
 #else
-    IF(aes_vdf_config(jg)%turb==2)THEN
+    IF(aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY)THEN
 #endif
       ! inv_ddqz_z_half_e  p_metrics%inv_ddqz_z_half_e(nproma,nlevp1,nblks_e)
       !

@@ -111,7 +111,7 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_parameters,      ONLY: t_phy_params
 
   USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
-                                    icpl_da_sfcfric
+                                    icpl_da_sfcfric, icpl_da_tkhmin
 
   USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
   USE mo_cuparameters,        ONLY: sugwd
@@ -135,13 +135,20 @@ MODULE mo_nwp_phy_init
   USE mo_grid_config,         ONLY: l_scm_mode
   USE mo_scm_nml,             ONLY: i_scm_netcdf, lscm_read_tke, lscm_read_z0, &
                                     scm_sfc_temp, scm_sfc_qv
-  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc,read_soil_profile_nc_uf
+  USE mo_nh_torus_exp,        ONLY: read_soil_profile_nc
 
   USE mo_cover_koe,           ONLY: cover_koe_config
   USE mo_bc_aeropt_kinne,     ONLY: read_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc,ONLY: read_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,   ONLY: setup_bc_aeropt_splumes
   USE mo_bc_ozone,            ONLY: read_bc_ozone
+  USE mo_bc_solar_irradiance, ONLY: read_bc_solar_irradiance
+
+  USE mo_sppt_state,          ONLY: sppt
+  USE mo_sppt_config,         ONLY: sppt_config
+  USE mo_sppt_util,           ONLY: init_rn
+
+
 
   IMPLICIT NONE
 
@@ -204,7 +211,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   REAL(wp), PARAMETER :: pr400  = 400._wp / 1013.25_wp
   REAL(wp), PARAMETER :: pr700  = 700._wp / 1013.25_wp
 
-  REAL(wp) :: ttropo, ptropo, temp, zfull, dtfac_heatc
+  REAL(wp) :: ttropo, ptropo, temp, zfull, dtfac_heatc, tbias_wgt
 
   REAL(wp) :: dz1, dz2, dz3, fact_z0rough
   REAL(wp), ALLOCATABLE :: zrefpres(:,:,:)   ! ref press computed from ref exner
@@ -216,7 +223,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   LOGICAL :: lstoch_expl, lstoch_sde,lstoch_deep,lvvcouple,lvv_shallow_deep
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
-  LOGICAL :: lupatmo_phy, l_filename_year
+  LOGICAL :: lupatmo_phy
 
   INTEGER :: jb,ic,jc,jt,jg,ist,nzprv
   INTEGER :: nlev, nlevp1, nlevcm    !< number of full, half and canopy levels
@@ -446,6 +453,17 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
       ENDDO
     ENDIF
+    IF (icpl_da_tkhmin >= 1) THEN
+      ! Adaptive tuning of near-surface minimum vertical diffusion for heat
+      DO jc = i_startidx,i_endidx
+        tbias_wgt = 10800._wp/dt_ana*(p_diag%t_avginc(jc,jb)+0.5_wp*p_diag%t_wgt_avginc(jc,jb))
+        IF (tbias_wgt < 0._wp) THEN
+          prm_diag%tkred_sfc_h(jc,jb) = MAX(0.25_wp, 1._wp+2._wp*tbias_wgt)
+        ELSE
+          prm_diag%tkred_sfc_h(jc,jb) = 1._wp/SQRT(MAX(0.25_wp, 1._wp-2._wp*tbias_wgt))
+        ENDIF
+      ENDDO
+    ENDIF
     IF (icpl_da_sfcfric >= 1) THEN
       ! Tuning factor for surface friction (roughness length and SSO blocking)
       DO jc = i_startidx,i_endidx
@@ -462,9 +480,11 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         IF (ext_data%atm%fr_glac(jc,jb) > 0.99_wp .AND. zlat < -60._wp) prm_diag%sfcfric_fac(jc,jb) = 1._wp
 
         ! prevent reduction of surface friction in regions where 10m wind data are blacklisted
-        IF (zlon >= 30._wp .AND. zlon <= 50._wp .AND. zlat >= 40._wp .AND. zlat <= 70._wp .OR. &
-            zlon >= 50._wp .AND. zlon <= 90._wp .AND. zlat >= 55._wp .AND. zlat <= 70._wp .OR. &
-            zlon >= 90._wp .AND. zlon <= 140._wp .AND. zlat >= 50._wp .AND. zlat <= 70._wp) THEN 
+        ! use icpl_da_sfcfric = 2 in combination without blacklisting
+        IF (icpl_da_sfcfric == 1 .AND.                                                          &
+           (zlon >= 30._wp .AND. zlon <= 50._wp .AND. zlat >= 40._wp .AND. zlat <= 70._wp .OR.  &
+            zlon >= 50._wp .AND. zlon <= 90._wp .AND. zlat >= 55._wp .AND. zlat <= 70._wp .OR.  &
+            zlon >= 90._wp .AND. zlon <= 140._wp .AND. zlat >= 50._wp .AND. zlat <= 70._wp)) THEN 
           prm_diag%sfcfric_fac(jc,jb) = MAX(1._wp, prm_diag%sfcfric_fac(jc,jb))
         ENDIF
 
@@ -928,6 +948,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   ! This should be moved to init routine in an interface module
   cover_koe_config(jg)%icldscheme  = atm_phy_nwp_config(jg)%inwp_cldcover
   cover_koe_config(jg)%inwp_turb   = atm_phy_nwp_config(jg)%inwp_turb
+  cover_koe_config(jg)%inwp_gscp   = atm_phy_nwp_config(jg)%inwp_gscp
   cover_koe_config(jg)%inwp_cpl_re = atm_phy_nwp_config(jg)%icpl_rad_reff
   cover_koe_config(jg)%inwp_reff   = atm_phy_nwp_config(jg)%icalc_reff
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond
@@ -1026,7 +1047,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN
           ! Volcanic aerosol from CMIP6
-          CALL read_bc_aeropt_cmip6_volc(ini_date, p_patch%id, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+          CALL read_bc_aeropt_cmip6_volc(ini_date, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
           ! Simple plume anthropogenic aerosol
@@ -1045,6 +1066,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           CASE(1)       ! 1: Use ssi values from Coddington et al (2016)
             ssi_radt(:) = ecrad_ssi_coddington(:)
           CASE(2)       ! 2: Use ssi values from external file
+            CALL read_bc_solar_irradiance(ini_date%date%year,.TRUE.)
             ssi_radt(:) = 0._wp
         END SELECT
         tsi_radt    = SUM(ssi_radt(:))
@@ -1850,6 +1872,27 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (upatmo_config(jg)%l_status( iUpatmoStat%timer )) CALL timer_stop(timer_upatmo)
   ENDIF
 #endif
+
+  ! SPPT
+  IF (linit_mode) THEN
+
+    IF (sppt_config(jg)%lsppt) THEN
+
+        ! GPU currently not supported
+#ifdef _OPENACC
+        CALL finish(modname,'GPU version not available for SPPT.')
+#endif
+
+      ! Initate, i.e. generate random patterns during initiation
+      CALL init_rn(p_patch, ini_date, sppt_config(jg), &
+        &          sppt(jg)%rn_2d_now, sppt(jg)%rn_2d_new)
+
+      CALL message(modname, 'Initialisation of SPPT completed')
+
+    ENDIF
+
+  ENDIF
+
 
   IF (timers_level > 3) CALL timer_stop(timer_init_nwp_phy)
 

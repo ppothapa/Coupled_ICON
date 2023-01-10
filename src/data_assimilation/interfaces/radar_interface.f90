@@ -143,7 +143,7 @@ MODULE radar_interface
        composite_meta_type, &
        list_domains_for_radar, ndoms_max, &
        bubble_list_type, bubble_list, nautobubbles_max, &
-       dbzcalc_params
+       t_dbzcalc_params
 
   USE radar_data_namelist, ONLY :  &
        ldebug_radsim,              &
@@ -1012,7 +1012,7 @@ CONTAINS
     cloud%mu    = 3.0000d0               !.mu.....Breiteparameter der Verteil.
     cloud%nu    = 3.0000d0               !.nu.....Exp.-parameter der Verteil.
     cloud%n0_const = 1.0d0               !.n0.....Scaling parameter of distribution (only set if constant)
-    cloud%a_geo = dble(rho_w)*pi6        !.a_geo..Koeff. Geometrie
+    cloud%a_geo = DBLE(rho_w)*pi6        !.a_geo..Koeff. Geometrie
     cloud%b_geo = 3.0000d0               !.b_geo..Koeff. Geometrie
     ! here: x_min == x_max == x(D_c=20um)
     ! medial mass of cloud droplets; monodisperse distribution
@@ -1050,7 +1050,7 @@ CONTAINS
     rain%nu    = 1.0000d0               !.nu.....Exp.-parameter der Verteil.
     rain%x_max = miss_value             !.x_max..maximale Teilchenmasse
     rain%x_min = miss_value             !.x_min..minimale Teilchenmasse
-    rain%a_geo = dble(rho_w)*pi6        !.a_geo..Koeff. Geometrie
+    rain%a_geo = DBLE(rho_w)*pi6        !.a_geo..Koeff. Geometrie
     rain%b_geo = 3.0000d0               !.b_geo..Koeff. Geometrie
     ! Parameters for terminal velocity: vt = a_velD * D^b_velD = a_velx * x^b_velx
     ! first, set them as D-space parameters (as were given in vthydroparams_1mom)
@@ -3272,9 +3272,9 @@ CONTAINS
   SUBROUTINE initialize_tmax_1mom_vec_par(neigh,namlist,do_always)
 
     IMPLICIT NONE
-    REAL(KIND=dp), INTENT(in)        :: neigh
-    TYPE(dbzcalc_params), INTENT(in) :: namlist
-    LOGICAL, OPTIONAL, INTENT(in)    :: do_always
+    REAL(KIND=dp), INTENT(in)          :: neigh
+    TYPE(t_dbzcalc_params), INTENT(in) :: namlist
+    LOGICAL, OPTIONAL, INTENT(in)      :: do_always
 
     LOGICAL :: do_all
 
@@ -3314,9 +3314,9 @@ CONTAINS
   SUBROUTINE initialize_tmax_2mom_vec_par(neigh,namlist,do_always)
 
     IMPLICIT NONE
-    REAL(KIND=dp), INTENT(in)        :: neigh
-    TYPE(dbzcalc_params), INTENT(in) :: namlist
-    LOGICAL, OPTIONAL, INTENT(in)    :: do_always
+    REAL(KIND=dp), INTENT(in)          :: neigh
+    TYPE(t_dbzcalc_params), INTENT(in) :: namlist
+    LOGICAL, OPTIONAL, INTENT(in)      :: do_always
 
     LOGICAL :: do_all
 
@@ -3401,7 +3401,7 @@ CONTAINS
     ! General setup of the spatial modulation function in the testpattern:
     minmaxrange = .TRUE.
     
-    ! Temperature limits [degree Celsius]:
+    ! Temperature limits [deg C]:
     tc_min = -38.0_wp
     ! rain at -40C seems unrealistic, but is predicted by COSMO in warm bubble
     ! test case, so we want to test that...

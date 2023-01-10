@@ -182,7 +182,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ana_varnames_map_file        = "map_file.ana"        ! Dictionary for initial data file
  ltile_coldstart              = .TRUE.  ! coldstart for surface tiles
  ltile_init                   = .FALSE.  ! gdm origin .F. set it to .TRUE. if FG data originate from run without tiles
- pinit_seed                  =                         -1         ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed                  =                          0         ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude             =                          0.        ! amplitude of perturbation
 /
 
@@ -350,13 +350,15 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_turb','ddt_temp_drag',
   'ddt_temp_pconv','ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso',
   'ddt_qv_turb','ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
-  'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','exner','lpi','lpi_max'
+  'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','exner','lpi','lpi_max',
+  'ddt_qv_gscp', 'ddt_qc_gscp', 'ddt_qi_gscp','ddt_qr_gscp','ddt_qs_gscp','ddt_qg_gscp'
 
 
 /
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
+ ecrad_isolver               =    2
  islope_rad                  =    1 ! as reference for 2 where the topography shading is corrected
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols

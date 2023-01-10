@@ -49,9 +49,8 @@ author_list='Marco Giorgetta, MPIM'
 #                          --> parallel_nml/nproma
 #                          --> parallel_nml/nblocks_c
 #
-# - rrtmgp_columns_chunk = radiation blocking length, <= nproma
-#                          --> aes_rad_nml(1)%rrtmgp_columns_chunk
-#
+# - nproma_sub           = radiation blocking length, <= nproma
+#                          --> nproma_sub
 #--------------------------------------------------------------------------------------------------
 #
 # Variables provided by the header section (->create_target_header) of the full runscript
@@ -69,7 +68,7 @@ author_list='Marco Giorgetta, MPIM'
 # nblocks_c             = number of looping chunks used for cells
 #                         which is set in run/create_target_header for the used machine
 #
-# rrtmgp_columns_chunk  = radiation blocking length
+#  nproma_sub           = radiation blocking length
 #
 #--------------------------------------------------------------------------------------------------
 #
@@ -156,6 +155,7 @@ cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma             = ${nproma}
  nblocks_c          = ${nblocks_c}
+ nproma_sub         = ${nproma_sub}
  num_io_procs       = 1
  io_proc_chunk_size = 16
  iorder_sendrecv    = 3
@@ -191,7 +191,7 @@ cat > ${atmo_namelist} << EOF
 &initicon_nml
  init_mode          = 2           ! 2: initialize from IFS analysis
  ifs2icon_filename  = 'ic_atmosphere.nc'
- pinit_seed         = -1          ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed         = 0           ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude    = 0.          ! amplitude of perturbation
 /
 EOF
@@ -308,7 +308,6 @@ cat >> ${atmo_namelist} << EOF
  aes_rad_config(1)%irad_cfc12 =  3
  aes_rad_config(1)%irad_aero  =  0
  aes_rad_config(1)%lclearsky  = ${lclearsky}
- aes_rad_config(1)%rrtmgp_columns_chunk = ${rrtmgp_columns_chunk}
 /
 EOF
 fi # ${dt_rad}

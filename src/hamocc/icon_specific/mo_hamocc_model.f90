@@ -27,7 +27,7 @@ MODULE mo_hamocc_model
   USE mtime,                  ONLY: MAX_DATETIME_STR_LEN, datetimeToString
   USE mo_name_list_output_init, ONLY: init_name_list_output, parse_variable_groups, &
     &                                 output_file
-  USE mo_name_list_output,    ONLY: close_name_list_output, name_list_io_main_proc
+  USE mo_name_list_output,    ONLY: close_name_list_output
   USE mo_name_list_output_config,  ONLY: use_async_name_list_io
   USE mo_level_selection, ONLY: create_mipz_level_selections
   USE mo_dynamics_config,     ONLY: configure_dynamics

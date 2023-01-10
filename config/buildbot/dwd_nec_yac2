@@ -40,7 +40,7 @@ cd build/vector
 # additional check, we set another cache variable 'acx_cv_fc_c_compatible_mpi'
 # to 'yes'.
 
-${ICON_DIR}/config/dwd/rcl.VE.nfort-3.2.0_oper --disable-openmp --enable-ocean --disable-ecrad --prefix=${ICON_DIR}/vector MPI_LAUNCH='/opt/nec/ve/bin/mpirun' acx_cv_prog_mpirun='/opt/nec/ve/bin/mpirun' acx_cv_fc_c_compatible_mpi=yes
+${ICON_DIR}/config/dwd/rcl.VE.nfort-3.5.1_mpi-2.20_art_oper --disable-openmp --enable-ocean --enable-ecrad --enable-coupling --enable-yaxt --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice --prefix=${ICON_DIR}/vector MPI_LAUNCH='/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun' acx_cv_prog_mpirun='/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun' acx_cv_fc_c_compatible_mpi=yes
 
 
 if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
@@ -66,7 +66,7 @@ cp -v $OLDPWD/run/set-up.info run/
 # create vector host binary
 mkdir -p build/host
 cd build/host
-${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_oper --enable-ocean --disable-ecrad --enable-coupling --prefix=${ICON_DIR}/host
+${ICON_DIR}/config/dwd/rcl.VH.gcc-9.1.0_mpi-2.20_art_oper --enable-ocean --enable-ecrad --enable-coupling --prefix=${ICON_DIR}/host
 
 if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
   echo " ***** Configuration logs from '$(pwd)' ***** "

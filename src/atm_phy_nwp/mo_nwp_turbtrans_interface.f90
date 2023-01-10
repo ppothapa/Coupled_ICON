@@ -31,7 +31,7 @@
 MODULE mo_nwp_turbtrans_interface
 
   USE mo_kind,                 ONLY: wp
-  USE mo_exception,            ONLY: message, finish, warning
+  USE mo_exception,            ONLY: message, finish
   USE mo_model_domain,         ONLY: t_patch
   USE mo_impl_constants,       ONLY: min_rlcell_int, icosmo, igme, ismag, iedmf, iprog
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
@@ -69,6 +69,7 @@ MODULE mo_nwp_turbtrans_interface
   USE mo_timer
   USE mo_run_config,           ONLY: timers_level
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+
 
   IMPLICIT NONE
 
@@ -861,9 +862,6 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
     CASE(igme,ismag,iprog)
 
-#ifdef _OPENACC
-      CALL warning('GPU:mo_nwp_turbtrans_interface:nwp_turbtrans', 'igme/ismag/iprog unsupported. Only cosmo turbulence is supported on GPU!')
-#endif
 !-------------------------------------------------------------------------
 !> GME turbulence scheme
 !-------------------------------------------------------------------------
@@ -879,7 +877,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
         &           tcm=prm_diag%tcm(:,jb), tch=prm_diag%tch(:,jb),                     & !out
         &           gz0=prm_diag%gz0(:,jb),       shfl_s=prm_diag%shfl_s(:,jb),         & !inout, out
         &           lhfl_s=prm_diag%lhfl_s(:,jb), qhfl_s=prm_diag%qhfl_s(:,jb),         & !out, out
-        &           umfl_s=prm_diag%umfl_s(:,jb), vmfl_s=prm_diag%vmfl_s(:,jb))           !out, out
+        &           umfl_s=prm_diag%umfl_s(:,jb), vmfl_s=prm_diag%vmfl_s(:,jb),         & !out, out
+        &           lacc=lzacc                                                          ) !in
 
 
       !DR inside "nearsfc", lhfl_s is converted to qhfl_s via
@@ -901,22 +900,33 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
         &           i_startidx=i_startidx, i_endidx=i_endidx,                           & !in
         &           t_2m=prm_diag%t_2m(:,jb), qv_2m=prm_diag%qv_2m(:,jb),               & !out
         &           td_2m=prm_diag%td_2m(:,jb), rh_2m=prm_diag%rh_2m(:,jb),             & !out
-        &           u_10m=prm_diag%u_10m(:,jb), v_10m=prm_diag%v_10m(:,jb)              ) !out
+        &           u_10m=prm_diag%u_10m(:,jb), v_10m=prm_diag%v_10m(:,jb),             & !out
+        &           lacc=lzacc                                                          ) !in
 
 
       ! dynamic gusts
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%dyn_gust(jc,jb) = nwp_dyn_gust(prm_diag%u_10m(jc,jb), prm_diag%v_10m(jc,jb), &
           &  prm_diag%tcm(jc,jb), p_diag%u(jc,nlev,jb), p_diag%v(jc,nlev,jb),                 &
           &  p_diag%u(jc,jk_gust(jc),jb), p_diag%v(jc,jk_gust(jc),jb),                        &
           &  ext_data%atm%lc_frac_t(jc,jb,isub_water),p_metrics%mask_mtnpoints_g(jc,jb) )
       ENDDO
+      !$ACC END PARALLEL
 
       ! instantaneous max/min 2m temperature over tiles (trivial operation for 1 tile)
-      prm_diag%t_tilemax_inst_2m(i_startidx:i_endidx,jb) = prm_diag%t_2m(i_startidx:i_endidx,jb)
-      prm_diag%t_tilemin_inst_2m(i_startidx:i_endidx,jb) = prm_diag%t_2m(i_startidx:i_endidx,jb)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        prm_diag%t_tilemax_inst_2m(jc,jb) = prm_diag%t_2m(jc,jb)
+        prm_diag%t_tilemin_inst_2m(jc,jb) = prm_diag%t_2m(jc,jb)
+      ENDDO
+      !$ACC END PARALLEL
 
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jt = 1, ntiles_total+ntiles_water
         DO jc = i_startidx, i_endidx
 
@@ -940,12 +950,14 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           prm_diag%vmfl_s_t(jc,jb,jt) = prm_diag%vmfl_s(jc,jb)
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
+
 
 #ifndef __NO_ICON_EDMF__
     CASE(iedmf)
 
 #ifdef _OPENACC
-      CALL warning('GPU:mo_nwp_turbtrans_interface:nwp_turbtrans', 'iedmf unsupported. Only cosmo turbulence is supported on GPU!')
+      CALL finish('GPU:mo_nwp_turbtrans_interface:nwp_turbtrans', 'iedmf unsupported. Only cosmo turbulence is supported on GPU!')
 #endif
 !-------------------------------------------------------------------------
 !> EDMF surface layer

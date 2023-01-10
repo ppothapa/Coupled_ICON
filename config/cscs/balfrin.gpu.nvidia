@@ -67,7 +67,7 @@ CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2 ${NETCDFFI} ${ECCODESI}"
 
 FC='mpif90'
-FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc80 -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} ${NETCDFFI} -D__USE_G2G -D__SWAPDIM -D__ENABLE_REALLOC"
+FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -gpu=cc80 -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} ${NETCDFFI} -D__USE_G2G -D__SWAPDIM -D__ENABLE_REALLOC"
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_80 -g -O3'
 
@@ -125,7 +125,6 @@ if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
   echo "Copying runscript input files from the source directory..."
   rsync -uavz ${ICON_DIR}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
   ln -sf -t run/ ${ICON_DIR}/run/standard_*
-  ln -sf set-up.info run/SETUP.config
   rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='rrtmgp*.nc' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${ICON_DIR}/make_runscripts .
   ln -sf ${ICON_DIR}/data

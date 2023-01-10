@@ -299,7 +299,7 @@ CONTAINS
     END IF
 
     IF (run_is_global_mpi_parallel() .AND. &
-      & (l_debug .OR. ilevel == em_warn .OR. ilevel == em_error)) THEN
+      & (l_debug .OR. lprint .OR. ilevel == em_warn .OR. ilevel == em_error)) THEN
       WRITE(write_text,'(1x,a,i6,a,a)') 'PE ', get_my_global_mpi_id(), ' ', &
         & TRIM(message_text)
       lprint = .TRUE.

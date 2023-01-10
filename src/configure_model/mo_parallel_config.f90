@@ -26,6 +26,7 @@ MODULE mo_parallel_config
   PRIVATE
   ! Exported variables:
   PUBLIC :: nproma, nblocks_c, ignore_nproma_use_nblocks_c
+  PUBLIC :: nproma_sub, nblocks_sub, ignore_nproma_sub_use_nblocks_sub
 !
   PUBLIC :: n_ghost_rows,                                     &
        &  div_geometric, division_method, division_file_name,       &
@@ -45,7 +46,7 @@ MODULE mo_parallel_config
        &  io_process_stride, io_process_rotate, proc0_shift,        &
        &  use_omp_input
 
-  PUBLIC :: set_nproma, get_nproma, cpu_min_nproma, update_nproma_on_device, proc0_offloading, &
+  PUBLIC :: set_nproma, get_nproma, cpu_min_nproma, proc0_offloading, &
        &    check_parallel_configuration, use_async_restart_output, blk_no, idx_no, idx_1d,    &
        &    update_nproma_for_io_procs
 
@@ -55,6 +56,12 @@ MODULE mo_parallel_config
   !$ACC DECLARE COPYIN(nproma)
   INTEGER  :: nblocks_c = 0
   LOGICAL  :: ignore_nproma_use_nblocks_c = .FALSE.
+
+  ! Secondary nproma for, e.g., radiation chunking
+  INTEGER  :: nproma_sub = -1
+  !$ACC DECLARE COPYIN(nproma_sub)
+  INTEGER  :: nblocks_sub = -1
+  LOGICAL  :: ignore_nproma_sub_use_nblocks_sub = .TRUE.
 
   ! Number of rows of ghost cells
   INTEGER :: n_ghost_rows = 1
@@ -294,20 +301,11 @@ CONTAINS
     INTEGER, INTENT(IN) :: new_nproma
 
     nproma = new_nproma
-
+    !$ACC UPDATE DEVICE(nproma) IF_PRESENT
 
   END SUBROUTINE set_nproma
   !-------------------------------------------------------------------------
 
-  !-------------------------------------------------------------------------
-  !>
-  SUBROUTINE update_nproma_on_device( i_am_worker )
-  LOGICAL, INTENT(IN)   :: i_am_worker
-
-    !$ACC UPDATE DEVICE(nproma) IF(i_am_worker)
-
-  END SUBROUTINE update_nproma_on_device
-  !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
   !>

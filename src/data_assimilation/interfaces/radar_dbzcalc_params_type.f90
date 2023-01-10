@@ -39,6 +39,7 @@ MODULE radar_dbzcalc_params_type
 #else
   USE radar_kind, ONLY : wpfwo
 #endif
+  USE radar_data_mie, ONLY : T0C_fwo ! T[K] at 0 deg C
   
   IMPLICIT NONE
 
@@ -52,10 +53,19 @@ MODULE radar_dbzcalc_params_type
 
   !------------------------------------------------------------------------------
 
+  TYPE t_polMP
+    SEQUENCE   
+    CHARACTER (LEN=8)      :: ARmodel      ! AR scheme to apply (Reference abbrev., eg 'R11', or 'Poly' for polynomial)
+    REAL      (KIND=wpfwo) :: c0           ! AR 0th order polynomial coeff
+    REAL      (KIND=wpfwo) :: c1           ! AR 1th order polynomial coeff
+    REAL      (KIND=wpfwo) :: ARmin        ! low bound of AR
+    REAL      (KIND=wpfwo) :: sig          ! canting angle distribution width
+  END TYPE t_polMP
+
   ! Type to hold the namelist parameters configuring radar reflectivity calculation for
   ! routine calc_dbz_vec() from radar_mie_iface_cosmo_driver.f90:
   
-  TYPE dbzcalc_params
+  TYPE t_dbzcalc_params
 
     SEQUENCE   ! Important: ensures that the following parameters are one block in memory
                !       and that an MPI-distribution by a derived MPI-datatype is possible:
@@ -68,29 +78,34 @@ MODULE radar_dbzcalc_params_type
     REAL    (KIND=wpfwo)       :: lambda_radar       ! radar wavelength
     ! melting scheme parameters
     REAL    (KIND=wpfwo)       :: Tmeltbegin_i       ! temperature[K], above which ice is assumed wet
-    REAL    (KIND=wpfwo)       :: meltdegTmin_i      ! degree of ice melting at T=Tmin
+    !REAL    (KIND=wpfwo)       :: Tmin_i             ! Temperature[K] at which smallest ice particles melt
+    REAL    (KIND=wpfwo)       :: meltdegTmin_i      ! degree of ice melting at T=Tmin_i
     REAL    (KIND=wpfwo)       :: Tmax_min_i         ! minimum Tmax[K] of ice in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: Tmax_max_i         ! maximum Tmax[K] of ice in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: qthresh_i          ! q threshold to apply dynamic melting scheme for ice
     REAL    (KIND=wpfwo)       :: qnthresh_i         ! qn threshold to apply dynamic melting scheme for ice
     REAL    (KIND=wpfwo)       :: Tmeltbegin_s       ! temperature[K], above which snow is assumed wet
-    REAL    (KIND=wpfwo)       :: meltdegTmin_s      ! degree of snow melting at T=Tmin
+    !REAL    (KIND=wpfwo)       :: Tmin_s             ! Temperature[K] at which smallest snow particles melt
+    REAL    (KIND=wpfwo)       :: meltdegTmin_s      ! degree of snow melting at T=Tmin_s
     REAL    (KIND=wpfwo)       :: Tmax_min_s         ! minimum Tmax[K] of snow in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: Tmax_max_s         ! maximum Tmax[K] of snow in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: qthresh_s          ! q threshold to apply dynamic melting scheme for snow
     REAL    (KIND=wpfwo)       :: qnthresh_s         ! qn threshold to apply dynamic melting scheme for snow
     REAL    (KIND=wpfwo)       :: Tmeltbegin_g       ! temperature[K], above which graupel is assumed wet
-    REAL    (KIND=wpfwo)       :: meltdegTmin_g      ! degree of graupel melting at T=Tmin
+    !REAL    (KIND=wpfwo)       :: Tmin_g             ! Temperature[K] at which smallest graupel particles melt
+    REAL    (KIND=wpfwo)       :: meltdegTmin_g      ! degree of graupel melting at T=Tmin_g
     REAL    (KIND=wpfwo)       :: Tmax_min_g         ! minimum Tmax[K] of graupel in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: Tmax_max_g         ! maximum Tmax[K] of graupel in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: qthresh_g          ! q threshold to apply dynamic melting scheme for graupel
     REAL    (KIND=wpfwo)       :: qnthresh_g         ! qn threshold to apply dynamic melting scheme for graupel
     REAL    (KIND=wpfwo)       :: Tmeltbegin_h       ! temperature[K], above which hail is assumed wet
-    REAL    (KIND=wpfwo)       :: meltdegTmin_h      ! degree of hail melting at T=Tmin
+    !REAL    (KIND=wpfwo)       :: Tmin_h             ! Temperature[K] at which smallest hail particles melt
+    REAL    (KIND=wpfwo)       :: meltdegTmin_h      ! degree of hail melting at T=Tmin_h
     REAL    (KIND=wpfwo)       :: Tmax_min_h         ! minimum Tmax[K] of hail in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: Tmax_max_h         ! maximum Tmax[K] of hail in dynamic melting scheme
     REAL    (KIND=wpfwo)       :: qthresh_h          ! q threshold to apply dynamic melting scheme for hail
     REAL    (KIND=wpfwo)       :: qnthresh_h         ! qn threshold to apply dynamic melting scheme for hail
+
     INTEGER                    :: station_id         ! unique 6-digit station ID
     INTEGER                    :: itype_refl         ! type of reflectivity calculation (Mie, Tmat or 3 different Rayleigh types)
     INTEGER                    :: isnow_type         ! type of (dry&wet) snow particle model for Mie/Tmat Scattering
@@ -121,31 +136,42 @@ MODULE radar_dbzcalc_params_type
     CHARACTER (LEN=12)         :: ctype_dryhail_ray    ! dry hail, for Rayleigh-theory itype_refl=2
     CHARACTER (LEN=12)         :: ctype_wethail_ray    ! wet hail, for Rayleigh-theory itype_refl=2
 
-  END TYPE dbzcalc_params
+    ! polarimetry-relevant microphysics assumptions
+    TYPE(t_polMP)              :: polMP_r            ! polarimetric microphysics structure for rain
+    TYPE(t_polMP)              :: polMP_i            ! polarimetric microphysics structure for ice
+    TYPE(t_polMP)              :: polMP_s            ! polarimetric microphysics structure for snow
+    TYPE(t_polMP)              :: polMP_g            ! polarimetric microphysics structure for graupel
+    TYPE(t_polMP)              :: polMP_h            ! polarimetric microphysics structure for hail
+
+  END TYPE t_dbzcalc_params
 
   !.. Global default for namelist parameters for the dbz-calculation
   !   from radar_mie_lm_vec.f90:
-  TYPE(dbzcalc_params), PARAMETER  :: dbz_namlst_d = dbzcalc_params ( &
+  TYPE(t_dbzcalc_params), PARAMETER  :: dbz_namlst_d = t_dbzcalc_params ( &
        0.055_wpfwo    , & ! %lambda_radar         [m]
        273.16_wpfwo   , & ! %Tmeltbegin_i         [K]
+       !T0C_fwo        , & ! %Tmin_i               [K]
        0.0_wpfwo      , & ! %meltdegTmin_i        [-]
        275.16_wpfwo   , & ! %Tmax_min_i           [K]
        278.16_wpfwo   , & ! %Tmax_max_i           [K]
        1e-8_wpfwo     , & ! %qthresh_i            [kg/kg]
        1e0_wpfwo      , & ! %qnthresh_i           [#/kg]
        273.16_wpfwo   , & ! %Tmeltbegin_s         [K]
+       !T0C_fwo        , & ! %Tmin_s               [K]
        0.0_wpfwo      , & ! %meltdegTmin_s        [-]
        276.16_wpfwo   , & ! %Tmax_min_s           [K]
        283.16_wpfwo   , & ! %Tmax_max_s           [K]
        1e-8_wpfwo     , & ! %qthresh_s            [kg/kg]
        1e0_wpfwo      , & ! %qnthresh_s           [#/kg]
        263.16_wpfwo   , & ! %Tmeltbegin_g         [K]
+       !T0C_fwo        , & ! %Tmin_g               [K]
        0.2_wpfwo      , & ! %meltdegTmin_g        [-]
        276.16_wpfwo   , & ! %Tmax_min_g           [K]
        288.16_wpfwo   , & ! %Tmax_max_g           [K]
        1e-8_wpfwo     , & ! %qthresh_g            [kg/kg]
        1e-3_wpfwo     , & ! %qnthresh_g           [#/kg]
        263.16_wpfwo   , & ! %Tmeltbegin_h         [K]
+       !T0C_fwo        , & ! %Tmin_h               [K]
        0.2_wpfwo      , & ! %meltdegTmin_h        [-]
        278.16_wpfwo   , & ! %Tmax_min_h           [K]
        303.16_wpfwo   , & ! %Tmax_max_h           [K]
@@ -178,7 +204,13 @@ MODULE radar_dbzcalc_params_type
        'mis         ' , & ! %ctype_drygraupel_ray [12-char string]
        'mawsms      ' , & ! %ctype_wetgraupel_ray [12-char string]
        'mis         ' , & ! %ctype_dryhail_ray    [12-char string]
-       'mawsms      '   & ! %ctype_wethail_ray    [12-char string]
+       'mawsms      ' , & ! %ctype_wethail_ray    [12-char string]
+       ! emulate original standard EMVO behaviour (for itype_refl=5, otherwise irrelevant)
+       t_polMP('R11     ', 0.0, 0.0, 0.0, -99.0), & ! t_polMP parameters for rain
+       t_polMP('R11     ', 0.0, 0.0, 0.0, -99.0), & ! t_polMP parameters for ice
+       t_polMP('R11     ', 0.0, 0.0, 0.0, -99.0), & ! t_polMP parameters for snow
+       t_polMP('R11     ', 0.0, 0.0, 0.0, -99.0), & ! t_polMP parameters for graupel
+       t_polMP('R11     ', 0.0, 0.0, 0.0, -99.0)  & ! t_polMP parameters for hail
        )
 
 

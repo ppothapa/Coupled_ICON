@@ -374,50 +374,6 @@ USE turb_data, ONLY : &
     vap     ,     & ! index for water vapor
     liq             ! index for liquid water
 
-#ifdef ALLOC_WKARR
-USE turb_data, ONLY : &
-    ! targets of used pointers
-    diss_tar   ,  & ! target for eddy dissipation rate (m2/s3)
-
-    ! internal atmospheric variables
-
-    len_scale,    & ! turbulent length-scale (m)
-    hor_scale,    & ! effective hoprizontal length-scale used for sep. horiz. shear calc. (m)
-    xri,          & ! a function of Ri-number used for tuning corrections (hyper-parameterizations)
-
-    l_scal  ,     & ! reduced maximal turbulent length scale due to horizontal grid spacing (m)
-
-    fc_min  ,     & ! minimal value for TKE-forcing (1/s2)
-
-    shv     ,     & ! velocity scale of the separated horiz. shear mode (m/s)
-    frh     ,     & ! thermal forcing (1/s2) or thermal acceleration (m/s2)
-    frm     ,     & ! mechan. forcing (1/s2) or mechan. accelaration (m/s2)
-    ftm     ,     & ! mechan. forcing (1/s2) by pure turbulent shear 
-    grad    ,     & ! any vertical gradient
-    hig     ,     & ! obere und untere Referenzhoehe bei der Bildung nicht-lokaler Gradienten
-
-    prss    ,     & ! surface pressure (Pa)
-    tmps    ,     & ! surface temperature (K)
-    vaps    ,     & ! surface specific humidity
-    liqs    ,     & ! liquid water content at the surface
-
-    dicke   ,     & ! any (effective) depth of model layers (m) or other auxilary variables
-    hlp     ,     & ! any 'help' variable
-
-    zaux    ,     & ! auxilary array containing thermodynamical properties
-                    ! (dQs/dT,ex_fakt,cp_fakt,g_tet,g_vap) or various
-                    ! auxilary variables for calculation of implicit vertical diffusion
-
-    can    ,      & ! auxilary array valid for the vertically resolved canopy
-    lay    ,      & ! any variable at a specific layer
-    lays   ,      & ! any (2-D) vector of variables at a specific layer
-
-    src    ,      & ! effective depth of Prandtl-layer applied to scalars  (m)
-
-    dzsm   ,      & ! effective depth of Prandtl-layer applied to momentum (m)
-    dzsh   ,      & ! effective depth of Prandtl-layer applied to scalars  (m)
-    lev             ! eingrenzende Hoehenvieaus
-#endif
 
 !-------------------------------------------------------------------------------
 ! Control parameters for the run
@@ -498,7 +454,7 @@ SUBROUTINE turbdiff ( &
 !
           impl_weight,                                               &
 !
-          tvm, tvh, tfm, tfh,      tkred_sfc,                        &
+          tvm, tvh, tfm, tfh, tkred_sfc, tkred_sfc_h,                &
           tke, tkvm, tkvh, rcld, tkhm, tkhh,                         &
           hdef2, hdiv, dwdx, dwdy,                                   &
 !
@@ -766,7 +722,7 @@ REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(INOUT) :: &
   tfh              ! of scalars                                      --
 
 REAL (KIND=wp), DIMENSION(:), TARGET, OPTIONAL, INTENT(IN) :: &
-  tkred_sfc        ! reduction factor for minimum diffusion coefficients near the surface
+  tkred_sfc, tkred_sfc_h   ! reduction factors for minimum diffusion coefficients near the surface
 
 
 ! Atmospheric variables of the turbulence model:
@@ -893,7 +849,7 @@ REAL (KIND=wp) ::   &
 
 ! Hilfsvariablen:
   wert, val1, val2, & ! Platzhalter fuer beliebige Zwischenergebnisse
-  fakt,             & !  ,,         ,,     ,,     Faktoren
+  fakt, fakt2,      & !  ,,         ,,     ,,     Faktoren
 
 ! Platzh. fuer thermodynamische Hilfsgreossen
   flw_h2o_g,        & !                 rc/(1+(lh_v/cp_d)*d_qsat/d_T)
@@ -960,7 +916,6 @@ LOGICAL ::          &
 
 TYPE (varprf) :: pvar(naux+1) !vertical variable profiles
 
-#ifndef ALLOC_WKARR
 ! these fields are still taken as local arrays, because the CRAY compiler cannot do the
 ! same optimizations with OMP threadprivate variables
 
@@ -1014,7 +969,6 @@ REAL (KIND=wp)         ::  &
 ! gemittelten Profile bei nicht-lokaler Gradient-Berechnung:
 INTEGER                ::  &
   lev(nvec,2)
-#endif
 
 LOGICAL, PARAMETER :: ldebug=.FALSE.
 
@@ -1154,18 +1108,11 @@ LOGICAL :: lzacc
   !$ACC DATA &
   !Working arrays                                                        !
   !$ACC   CREATE(ivtp, tinc, hig, ltend, lsfli) &
-#ifdef ALLOC_WKARR
-  !$ACC   PRESENT(diss_tar, c_big, c_sml, r_air) &
-  !$ACC   PRESENT(len_scale, hor_scale, xri, l_scal, fc_min, ediss) &
-  !$ACC   PRESENT(shv, frh, frm, ftm, prss, tmps, vaps, liqs, dicke) &
-  !$ACC   PRESENT(hlp, zaux, can, lay, lays, src, dzsm, dzsh, grad, hig, lev) &
-#else
   !$ACC   CREATE(diss_tar) PRESENT(c_big, c_sml, r_air) &
   !$ACC   CREATE(len_scale, hor_scale, xri, l_scal, fc_min, ediss) &
   !$ACC   CREATE(shv, frh, frm, ftm, prss, tmps, vaps, liqs, dicke) &
   !$ACC   CREATE(hlp, zaux, can, lay, lays, src, dzsm, dzsh, grad, hig, lev) &
   !$ACC   IF(lzacc)
-#endif
 
   !Note ACC : optional hdef2,hdiv,dwdx,dwdy,tketens,tketadv,trop_mask,ut_sso,vt_sso,edr,
   ! tket_sso,tket_hshr,tkhm,tkhh,tket_conv,shfl_s,qvfl_s have separate data region 
@@ -2409,7 +2356,7 @@ my_thrd_id = omp_get_thread_num()
     ! Beschraenkung der Diffusionskoeffizienten:
 
     !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(fakt, val1, val2, x4, x4i)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(fakt, fakt2, val1, val2, x4, x4i)
     DO k=2, ke
 !DIR$ IVDEP
       DO i=ivstart, ivend
@@ -2421,13 +2368,16 @@ my_thrd_id = omp_get_thread_num()
           ! Factor for variable minimum diffusion coefficient proportional to 1/SQRT(Ri);
           ! the namelist parameters tkhmin/tkmmin specify the value for Ri=1:
           IF (gz0(i) < 0.01_wp .AND. l_pat(i) > 0._wp) THEN ! glaciers
-            fakt=MIN( z1, tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
+            fakt =MIN( z1, tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
+            fakt2=MIN( z1, tkred_sfc_h(i)*tkred_sfc(i)*4.e-3_wp*(hhl(i,k)-hhl(i,ke1)) ) !low-level red.-fact.
           ELSE
-            fakt=MIN( z1, tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
+            fakt =MIN( z1, tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
+            fakt2=MIN( z1, tkred_sfc_h(i)*tkred_sfc(i)*(0.25_wp+7.5e-3_wp*(hhl(i,k)-hhl(i,ke1))) ) !low-level red.-fact.
           ENDIF
-          fakt=MIN( 2.5_wp, MAX( 0.01_wp, fakt*xri(i,k) ) )
+          fakt =MIN( 2.5_wp, MAX( 0.01_wp, fakt*xri(i,k) ) )
+          fakt2=MIN( 2.5_wp, MAX( 0.01_wp, fakt2*xri(i,k) ) )
 
-          val1=tkmmin*fakt; val2=tkhmin*fakt
+          val1=tkmmin*fakt; val2=tkhmin*fakt2
 
           IF (tkhmin_strat.GT.z0 .OR. tkmmin_strat.GT.z0) THEN
             IF (PRESENT(innertrop_mask)) THEN

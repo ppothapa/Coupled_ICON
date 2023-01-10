@@ -427,8 +427,8 @@ CONTAINS
         lsgs_cond(jg) = .FALSE.
       ENDIF
 
-      IF (icpl_aero_gscp > 0 .AND. inwp_gscp(jg) > 2) THEN
-        CALL finish( TRIM(routine), 'Aerosol-microphysics coupling currently available only for inwp_gscp=1,2')
+      IF (icpl_aero_gscp > 0 .AND. inwp_gscp(jg) > 3) THEN
+        CALL finish( TRIM(routine), 'Aerosol-microphysics coupling currently available only for inwp_gscp=1,2,3')
       ENDIF
 
 #ifdef _OPENACC

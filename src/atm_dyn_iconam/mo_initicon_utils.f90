@@ -72,9 +72,7 @@ MODULE mo_initicon_utils
   USE sfc_flake,              ONLY: flake_coldinit
   USE mtime,                  ONLY: datetime, newDatetime, deallocateDatetime, &
     &                               OPERATOR(==), OPERATOR(+) 
-  USE mo_intp_data_strc,      ONLY: t_int_state, p_int_state
-  USE mo_intp_rbf,            ONLY: rbf_vec_interpol_cell
-  USE mo_statistics,          ONLY: time_avg
+  USE mo_intp_data_strc,      ONLY: p_int_state
   USE mo_dictionary,          ONLY: t_dictionary
   USE mo_checksum,            ONLY: printChecksum
   USE mo_fortran_tools,       ONLY: init
@@ -106,8 +104,6 @@ MODULE mo_initicon_utils
   PUBLIC :: copy_initicon2prog_sfc
   PUBLIC :: copy_fg2initicon
   PUBLIC :: initVarnamesDict
-  PUBLIC :: average_first_guess
-  PUBLIC :: reinit_average_first_guess
   PUBLIC :: fill_tile_points
   PUBLIC :: init_snowtiles
   PUBLIC :: printChecksums
@@ -1030,156 +1026,6 @@ MODULE mo_initicon_utils
     lread_vn = .TRUE.
 
   END SUBROUTINE copy_fg2initicon
-
-
-  !>
-  !! SUBROUTINE average_first_guess
-  !! Averages atmospheric variables needed as first guess for data assimilation 
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2014-11-24)
-  !! Modification by Daniel Reinert, DWD (2014-12-17)
-  !! - make use of time_avg function, which makes finalize-option obsolete
-  !!
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-09)
-  !! - Call to "seaice_coldinit_nwp" is modified with due regard for
-  !!   prognostic treatment of the sea-ice albedo.
-  !!
-  SUBROUTINE average_first_guess(p_patch, p_int, p_diag, p_prog_dyn, p_prog)
-
-    TYPE(t_patch),          INTENT(IN) :: p_patch
-    TYPE(t_int_state),      INTENT(IN) :: p_int
-
-    TYPE(t_nh_diag),     INTENT(INOUT) :: p_diag
-    TYPE(t_nh_prog),     INTENT(INOUT) :: p_prog_dyn, p_prog
-
-    INTEGER :: jb, jk, jc
-    INTEGER :: nlev, rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx
-    REAL(wp):: wgt                     ! time average weight
-
-    CHARACTER(len=*), PARAMETER     :: routine = modname//':average_first_guess'
-    !------------------------------------------------------------------------------
-
-    CALL rbf_vec_interpol_cell(p_prog_dyn%vn, p_patch, p_int, p_diag%u, p_diag%v, &
-                               opt_rlend=min_rlcell_int)
-
-    nlev = p_patch%nlev
-
-    rl_start = 1
-    rl_end   = min_rlcell_int
-
-    i_startblk = p_patch%cells%start_block(rl_start)
-    i_endblk   = p_patch%cells%end_block(rl_end)
-
-
-    p_diag%nsteps_avg = p_diag%nsteps_avg + 1
-
-    ! compute weight
-    wgt = 1._wp/REAL(p_diag%nsteps_avg(1),wp)
-
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
-
-      DO jk = 1, nlev
-        DO jc = i_startidx, i_endidx
-          p_diag%u_avg(jc,jk,jb)    = time_avg(p_diag%u_avg(jc,jk,jb)   , &
-            &                                  p_diag%u(jc,jk,jb)       , &
-            &                                  wgt)
-          p_diag%v_avg(jc,jk,jb)    = time_avg(p_diag%v_avg(jc,jk,jb)   , &
-            &                                  p_diag%v(jc,jk,jb)       , &
-            &                                  wgt)
-          p_diag%temp_avg(jc,jk,jb) = time_avg(p_diag%temp_avg(jc,jk,jb), &
-            &                                  p_diag%temp(jc,jk,jb)    , &
-            &                                  wgt)
-          p_diag%pres_avg(jc,jk,jb) = time_avg(p_diag%pres_avg(jc,jk,jb), &
-            &                                  p_diag%pres(jc,jk,jb)    , &
-            &                                  wgt)
-          p_diag%qv_avg(jc,jk,jb)   = time_avg(p_diag%qv_avg(jc,jk,jb)  , &
-            &                                  p_prog%tracer(jc,jk,jb,iqv), &
-            &                                  wgt)
-        ENDDO
-      ENDDO
-    ENDDO  ! jb
-!$OMP END DO
-!$OMP END PARALLEL
-
-
-    ! debug output
-    IF(my_process_is_stdio() .AND. msg_level>=13) THEN
-      WRITE(message_text,'(a,I3)') 'step ', p_diag%nsteps_avg(1)
-      CALL message(TRIM(routine), TRIM(message_text))
-    ENDIF
-
-  END SUBROUTINE average_first_guess
-
-
-  !>
-  !! SUBROUTINE reinit_average_first_guess
-  !! Re-Initialization routine for SUBROUTINE average_first_guess.
-  !! Ensures that the average is centered in time. 
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD (2015-02-10)
-  !!
-  !!
-  SUBROUTINE reinit_average_first_guess(p_patch, p_diag, p_prog)
-
-    TYPE(t_patch),       INTENT(IN)    :: p_patch
-
-    TYPE(t_nh_diag),     INTENT(INOUT) :: p_diag
-    TYPE(t_nh_prog),     INTENT(IN)    :: p_prog
-
-    INTEGER :: jb, jk, jc
-    INTEGER :: nlev, rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx
-
-    CHARACTER(len=*), PARAMETER     :: routine = modname//':reinit_average_first_guess'
-
-    !------------------------------------------------------------------------------
-
-    nlev = p_patch%nlev
-
-    rl_start = 1
-    rl_end   = min_rlcell_int
-
-    i_startblk = p_patch%cells%start_block(rl_start)
-    i_endblk   = p_patch%cells%end_block(rl_end)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
-
-      DO jk = 1, nlev
-!DIR$ IVDEP
-        DO jc = i_startidx, i_endidx
-          p_diag%u_avg(jc,jk,jb)    = p_diag%u(jc,jk,jb)
-          p_diag%v_avg(jc,jk,jb)    = p_diag%v(jc,jk,jb)
-          p_diag%temp_avg(jc,jk,jb) = p_diag%temp(jc,jk,jb)
-          p_diag%pres_avg(jc,jk,jb) = p_diag%pres(jc,jk,jb)
-          p_diag%qv_avg(jc,jk,jb)   = p_prog%tracer(jc,jk,jb,iqv)
-        ENDDO
-      ENDDO
-    ENDDO  ! jb
-!$OMP END DO
-!$OMP END PARALLEL
-
-    p_diag%nsteps_avg = 1
-
-    ! debug output
-    IF(my_process_is_stdio() .AND. msg_level>=13) THEN
-      WRITE(message_text,'(a,I3)') 'step ', p_diag%nsteps_avg(1)
-      CALL message(TRIM(routine), TRIM(message_text))
-    ENDIF
-
-  END SUBROUTINE reinit_average_first_guess
-
 
 
   !-------------
@@ -2538,24 +2384,6 @@ MODULE mo_initicon_utils
       IF(ASSOCIATED(p_nh_state(jg)%diag%rhov_incr)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"rhov_incr: ", &
         & p_nh_state(jg)%diag%rhov_incr)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%u_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"u_avg: ", &
-        & p_nh_state(jg)%diag%u_avg)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%v_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"v_avg: ", &
-        & p_nh_state(jg)%diag%v_avg)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%pres_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"pres_avg: ", &
-        & p_nh_state(jg)%diag%pres_avg)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%temp_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"temp_avg: ", &
-        & p_nh_state(jg)%diag%temp_avg)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%qv_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"qv_avg: ", &
-        & p_nh_state(jg)%diag%qv_avg)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%nsteps_avg)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"nsteps_avg: ", &
-        & p_nh_state(jg)%diag%nsteps_avg)
       WRITE (prefix, '(a,i0,a)') "checksum of p_nh_state(", jg, ")%ref%"
       pfx_tlen = LEN_TRIM(prefix)
       IF(ASSOCIATED(p_nh_state(jg)%ref%vn_ref)) &

@@ -29,7 +29,7 @@
 MODULE mo_o3_util
 
   USE mo_kind,                 ONLY: wp, i8
-  USE mo_exception,            ONLY: finish
+  USE mo_exception,            ONLY: finish, message_text
   USE mo_parallel_config,      ONLY: nproma
   USE mo_impl_constants,       ONLY: min_rlcell_int, max_dom, SUCCESS, io3_ape
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
@@ -42,7 +42,7 @@ MODULE mo_o3_util
   USE mo_o3_gems_data,         ONLY: rghg7
   USE mo_o3_macc_data,         ONLY: rghg7_macc
   USE mo_radiation_config,     ONLY: irad_o3
-  USE mo_bc_ozone,             ONLY: ext_ozone
+  USE mo_bc_ozone,             ONLY: ext_ozone, read_bc_ozone
   USE mo_physical_constants,   ONLY: amd,amo3,rd,grav
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, ltuning_ozone, icpl_o3_tp
   USE mo_time_config,          ONLY: time_config
@@ -85,6 +85,10 @@ CONTAINS
     LOGICAL,       OPTIONAL, INTENT(in)    :: lacc
 
     ! Local variables
+    TYPE(datetime), POINTER :: &
+      &  prev_radtime            !< Datetime of previous radiation time step
+    TYPE(timedelta), POINTER ::&
+      &  td_dt_rad               !< Radiation time step
     REAL(wp), ALLOCATABLE   :: &
       &  zo3_timint(:,:),      & !< intermediate value of ozone, for irad_o3=5
       &  zptop32(:,:),         & !< irad_o3=6
@@ -174,6 +178,23 @@ CONTAINS
        !$ACC WAIT
         CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,o3,use_acc=lzacc)
       CASE(5)
+
+        ! Daily update of ozone
+        td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(dt_rad), ms=0)
+        prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
+        IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
+          IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3)
+        END IF
+        CALL deallocateTimedelta(td_dt_rad)
+        CALL deallocateDatetime(prev_radtime)
+
+      
+        IF (mtime_datetime%date%year /= ext_ozone(jg)%year) THEN
+          WRITE(message_text,'(a,i0,a,i0,a)') 'Stale data: Ozone data is valid for year ', &
+            & ext_ozone(jg)%year, ' but current year is ', mtime_datetime%date%year, '.'
+          CALL finish(routine, message_text)
+        END IF
+
         ALLOCATE(zo3_timint(nproma,ext_ozone(jg)%nplev_o3), STAT=istat)
           IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of zo3_timint failed')
 !$OMP PARALLEL

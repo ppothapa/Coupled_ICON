@@ -364,7 +364,7 @@ support_baryctr_intp         =                      .false.        ! use barycen
  tkmmin                      =                          0.75      ! scaling factor for minimum vertical diffusion coefficient
  pat_len                     =                        100.0       ! 
  c_diff                      =                          0.2       !
- rat_sea                     =                          9.0       !
+ rat_sea                     =                          0.8       !
 /
 
 ! lnd_nml: land scheme switches -----------------------------------------------

@@ -69,8 +69,6 @@ SUBROUTINE get_indices_c(p_patch, i_blk, i_startblk, i_endblk, i_startidx, &
 
   INTEGER :: irl_end
 
-  !$ACC ROUTINE SEQ
-
   IF (PRESENT(opt_rl_end)) THEN
     irl_end = opt_rl_end
   ELSE
@@ -121,8 +119,6 @@ SUBROUTINE get_indices_e(p_patch, i_blk, i_startblk, i_endblk, i_startidx, &
 
   INTEGER :: irl_end
 
-  !$ACC ROUTINE SEQ
-
   IF (PRESENT(opt_rl_end)) THEN
     irl_end = opt_rl_end
   ELSE
@@ -165,8 +161,6 @@ SUBROUTINE get_indices_v(p_patch, i_blk, i_startblk, i_endblk, i_startidx, &
   ! Local variables
 
   INTEGER :: irl_end
-
-  !$ACC ROUTINE SEQ
 
   IF (PRESENT(opt_rl_end)) THEN
     irl_end = opt_rl_end

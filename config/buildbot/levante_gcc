@@ -29,7 +29,7 @@ fi
 make -j ${MAKE_PROCS}
 
 if [ ! -z "${BB_NAME-}" ] ; then
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
 fi

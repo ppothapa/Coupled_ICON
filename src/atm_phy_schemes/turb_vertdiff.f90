@@ -134,26 +134,6 @@ USE turb_data, ONLY : &
     vap     ,     & ! index for water vapor
     liq             ! index for liquid water
 
-#ifdef ALLOC_WKARR
-USE turb_data, ONLY : &
-
-    ! internal atmospheric variables
-
-    len_scale,    & ! turbulent length-scale (m)
-
-    frh     ,     & ! thermal forcing (1/s2) or thermal acceleration (m/s2)
-    frm     ,     & ! mechan. forcing (1/s2) or mechan. accelaration (m/s2)
-
-    eprs    ,     & ! surface Exner-factor
-
-    dicke   ,     & ! any (effective) depth of model layers (m) or other auxilary variables
-    hlp     ,     & ! any 'help' variable
-
-    zaux            ! auxilary array containing thermodynamical properties
-                    ! (dQs/dT,ex_fakt,cp_fakt,g_tet,g_vap) or various
-                    ! auxilary variables for calculation of implicit vertical diffusion
-#endif
-
 !-------------------------------------------------------------------------------
 ! Control parameters for the run
 !-------------------------------------------------------------------------------
@@ -513,7 +493,6 @@ REAL (KIND=wp), POINTER :: &
 
   TYPE (turvar) :: vtyp(ntyp)       !variable types (momentum and scalars)
 
-#ifndef ALLOC_WKARR
 ! these fields are still taken as local arrays, because the CRAY compiler cannot do the
 ! same optimizations with OMP threadprivate variables
 
@@ -532,7 +511,6 @@ REAL (KIND=wp), TARGET ::   &
     zaux     (nvec,ke1,ndim)   ! auxilary array containing thermodynamical properties
                                ! (dQs/dT,ex_fakt,cp_fakt,g_tet,g_vap) or various
                                ! auxilary variables for calculation of implicit vertical diffusion
-#endif
 
 LOGICAL :: ldebug=.FALSE.
 
@@ -577,11 +555,7 @@ INTEGER :: my_cart_id, my_thrd_id
 
   !Begin of GPU data region
   !$ACC DATA &
-#ifdef ALLOC_WKARR
-  !$ACC   PRESENT(len_scale, frh, frm, eprs, dicke, hlp, zaux, tinc) &
-#else
   !$ACC   CREATE(len_scale, frh, frm, eprs, dicke, hlp, zaux, tinc)
-#endif
 
   ltend(u_m)=PRESENT(u_tens)
   IF (ltend(u_m)) THEN !calculation of tendencies required

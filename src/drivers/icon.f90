@@ -33,7 +33,8 @@ PROGRAM icon
   USE mo_master_init,         ONLY: init_master_control
   USE mo_master_control,      ONLY: get_my_namelist_filename, get_my_process_type,      &
     &                               atmo_process, ocean_process, ps_radiation_process,  &
-    &                               hamocc_process, jsbach_process, icon_output_process
+    &                               hamocc_process, jsbach_process, icon_output_process,&
+    &                               wave_process
 #ifndef __NO_ICON_TESTBED__
   USE mo_master_control,      ONLY: testbed_process
 #endif
@@ -45,6 +46,10 @@ PROGRAM icon
 #ifndef __NO_ICON_OCEAN__
   USE mo_ocean_model,         ONLY: ocean_model
   USE mo_hamocc_model,        ONLY: hamocc_model
+#endif
+
+#ifndef __NO_ICON_WAVES__
+  USE mo_wave_model,          ONLY: wave_model
 #endif
 
 #ifndef __NO_ICON_TESTBED__
@@ -183,7 +188,7 @@ PROGRAM icon
     END DO
     IF (.NOT. lmatch) THEN
       lcmdarg(ARG_UNKNOWN) = .TRUE.
-      CALL message("", "command-line argument '"//TRIM(arg)//"' unknown!")      
+      CALL message("", "command-line argument '"//TRIM(arg)//"' unknown!")
     END IF
     i = i+1
   END DO
@@ -230,6 +235,11 @@ PROGRAM icon
 #ifndef __NO_ICON_OCEAN__
   CASE (hamocc_process)
     CALL hamocc_model (my_namelist_filename, TRIM(master_namelist_filename))
+#endif
+
+#ifndef __NO_ICON_WAVES__
+  CASE (wave_process)
+    CALL wave_model (my_namelist_filename, TRIM(master_namelist_filename))
 #endif
 
 #ifndef __NO_JSBACH__

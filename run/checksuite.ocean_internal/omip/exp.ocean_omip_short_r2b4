@@ -30,12 +30,10 @@ init_relax=1
 ocean_vertical_levels=40
 grid_name="icon_grid_0036_R02B04_O"
 ocean_grids="R2B4_ocean-grid.nc"
-ocean_data_InputFolder="/pool/data/ICON/oes/input/r0004/${grid_name}"
+ocean_data_InputFolder="${icon_data_rootFolder}/oes/input/r0004/${grid_name}"
 grids_folder=${ocean_data_InputFolder}
 nproma=8
 #-----------------------------------------------------------------------------
-#icon_data_rootFolder=/pool/data/ICON
-#
 # write namelist parameters
 # -------------------------
 cat > ${ocean_namelist} << EOF

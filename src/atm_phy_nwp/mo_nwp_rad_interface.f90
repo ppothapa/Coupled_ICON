@@ -35,9 +35,8 @@ MODULE mo_nwp_rad_interface
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,                            &
     &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, &
     &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark,             &
-    &                                irad_aero, iRadAeroConstKinne, iRadAeroKinne,         &
-    &                                iRadAeroVolc, iRadAeroKinneVolc,                      &
-    &                                iRadAeroKinneVolcSP, iRadAeroKinneSP
+    &                                irad_aero, iRadAeroKinne, iRadAeroVolc,               &
+    &                                iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -48,9 +47,9 @@ MODULE mo_nwp_rad_interface
   USE mo_ecrad,                ONLY: ecrad_conf
 #endif
   USE mo_albedo,               ONLY: sfc_albedo, sfc_albedo_modis, sfc_albedo_scm
-  USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,           &          
-    &                                operator(+), newTimedelta, deallocateDatetime,        &
-    &                                getPTStringFromSeconds, newDatetime
+  USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,                  &
+    &                                operator(+), operator(-), newTimedelta, deallocateTimedelta, &
+    &                                getPTStringFromSeconds, newDatetime, deallocateDatetime
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nwp_gpu_util,         ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
@@ -58,13 +57,11 @@ MODULE mo_nwp_rad_interface
 #if defined( _OPENACC )
   USE mo_mpi,                  ONLY: i_am_accel_node, my_process_is_work
 #endif
-  USE mo_bc_aeropt_kinne,      ONLY: set_bc_aeropt_kinne
-  USE mo_bc_aeropt_cmip6_volc, ONLY: add_bc_aeropt_cmip6_volc
-  USE mo_bc_aeropt_splumes,    ONLY: add_bc_aeropt_splumes
   USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
   USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
     &                                 calculate_time_interpolation_weights
   USE mo_o3_util,              ONLY: o3_interface
+  USE mo_nwp_aerosol,          ONLY: nwp_aerosol_interface, nwp_aerosol_cleanup
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
@@ -115,6 +112,9 @@ MODULE mo_nwp_rad_interface
     TYPE(timedelta), POINTER :: td_radiation_offset      !< Offset to center of radiation time step
     TYPE(t_time_interpolation_weights) :: radiation_time_interpolation_weights
 
+    TYPE(datetime), POINTER :: prev_radtime
+    TYPE(timedelta), POINTER :: td_dt_rad
+
     REAL(wp) :: &
       & zaeq1(nproma,pt_patch%nlev,pt_patch%nblks_c), &
       & zaeq2(nproma,pt_patch%nlev,pt_patch%nblks_c), &
@@ -122,11 +122,7 @@ MODULE mo_nwp_rad_interface
       & zaeq4(nproma,pt_patch%nlev,pt_patch%nblks_c), &
       & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c)
 
-    REAL(wp), ALLOCATABLE :: &
-      & od_lw_vr(:,:,:) , & !< LW optical thickness of aerosols    (vertically reversed)
-      & od_sw_vr(:,:,:) , & !< SW aerosol optical thickness        (vertically reversed)
-      & g_sw_vr (:,:,:) , & !< SW aerosol asymmetry factor         (vertically reversed)
-      & ssa_sw_vr(:,:,:), & !< SW aerosol single scattering albedo (vertically reversed)
+    REAL(wp), ALLOCATABLE :: & ! These fields are currently only used for Kinne-Aerosol
       & od_lw(:,:,:,:)  , & !< LW optical thickness of aerosols
       & od_sw(:,:,:,:)  , & !< SW aerosol optical thickness
       & g_sw (:,:,:,:)  , & !< SW aerosol asymmetry factor
@@ -134,110 +130,67 @@ MODULE mo_nwp_rad_interface
 
     CHARACTER(len=max_timedelta_str_len) :: dstring
     INTEGER :: jg
-    INTEGER :: jb, jk                  !< loop indices
-    INTEGER :: rl_start, rl_end
-    INTEGER :: i_startblk, i_endblk    !> blocks
-    INTEGER :: i_startidx, i_endidx    !< slices
-    INTEGER :: i_nchdom                !< domain index
     INTEGER :: istat
+    INTEGER :: nbands_lw, nbands_sw    !< Number of short and long wave bands
+    REAL(wp), POINTER :: wavenum1_sw(:), wavenum2_sw(:)
     LOGICAL :: lzacc
 
     REAL(wp):: zsct                    ! solar constant (at time of year)
-    REAL(wp):: x_cdnc(nproma)          ! Scale factor for Cloud Droplet Number Concentration
     REAL(wp):: dsec                    ! [s] time increment of radiative transfer wrt. datetime
 
     !-------------------------------------------------
 
+    wavenum1_sw => NULL()
+    wavenum2_sw => NULL()
     ! patch ID
     jg = pt_patch%id
-    i_nchdom  = MAX(1,pt_patch%n_childdom)
-
-    rl_start = grf_bdywidth_c+1
-    rl_end   = min_rlcell_int
-
-    i_startblk = pt_patch%cells%start_blk(rl_start,1)
-    i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
+    !-------------------------------------------------------------------------
+    !  Update irradiance
+    !-------------------------------------------------------------------------
+    ! Only run on first radiation time of the day.
+
+    td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(atm_phy_nwp_config(jg)%dt_rad), ms=0)
+    prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
+
+    IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
+      IF (isolrad == 2) CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
+    END IF
+
+    CALL deallocateTimedelta(td_dt_rad)
+    CALL deallocateDatetime(prev_radtime)
 
     !-------------------------------------------------------------------------
     !> Radiation setup
     !-------------------------------------------------------------------------
 
+#ifdef __ECRAD
+    SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
+      CASE(4)
+        nbands_lw   = ecrad_conf%n_bands_lw
+        nbands_sw   = ecrad_conf%n_bands_sw
+        IF (nbands_sw /= ecrad_conf%gas_optics_sw%spectral_def%nband) THEN
+          WRITE(message_text,'(a,i3,a,i3)') 'Internal error in sw band configuration: ', &
+            &                               nbands_sw,' /= ',ecrad_conf%gas_optics_sw%spectral_def%nband
+          CALL finish (routine, 'Internal error: sw band configuration')
+        ENDIF
+        wavenum1_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber1_band
+        wavenum2_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber2_band
+    END SELECT
+#endif
+
+    ! Aerosol
+    CALL nwp_aerosol_interface(mtime_datetime, pt_patch, zf(:,:,:), zh(:,:,:), dz(:,:,:), &
+      &                        atm_phy_nwp_config(jg)%dt_rad,                             &
+      &                        atm_phy_nwp_config(jg)%inwp_radiation,                     &
+      &                        nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,            &
+      &                        od_lw, od_sw, ssa_sw, g_sw)
+
+    ! Ozone
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
       &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lzacc)
-
-#ifdef __ECRAD
-    IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc, &
-      &                     iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
-
-      ALLOCATE(od_lw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_lw)                   , &
-      &        od_sw_vr (nproma,pt_patch%nlev,ecrad_conf%n_bands_sw)                   , &
-      &        g_sw_vr  (nproma,pt_patch%nlev,ecrad_conf%n_bands_sw)                   , &
-      &        ssa_sw_vr(nproma,pt_patch%nlev,ecrad_conf%n_bands_sw)                   , &
-      &        od_lw    (nproma,pt_patch%nlev,pt_patch%nblks_c,ecrad_conf%n_bands_lw)  , &
-      &        od_sw    (nproma,pt_patch%nlev,pt_patch%nblks_c,ecrad_conf%n_bands_sw)  , &
-      &        ssa_sw   (nproma,pt_patch%nlev,pt_patch%nblks_c,ecrad_conf%n_bands_sw)  , &
-      &        g_sw     (nproma,pt_patch%nlev,pt_patch%nblks_c,ecrad_conf%n_bands_sw)  , &
-      &        STAT=istat                                                                )
-
-      IF(istat /= SUCCESS) CALL finish(routine, 'Allocation of od_lw_vr,od_sw_vr, g_sw_vr, &
-                                       ssa_sw_vr, od_lw, od_sw, ssa_sw, g_sw failed'       )
-
-!$OMP PARALLEL 
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx, od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr, x_cdnc) ICON_OMP_DEFAULT_SCHEDULE
-      DO jb = i_startblk,i_endblk
-        CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
-
-        IF (i_startidx>i_endidx) CYCLE
-
-        od_lw_vr(:,:,:)  = 0.0_wp
-        od_sw_vr(:,:,:)  = 0.0_wp
-        ssa_sw_vr(:,:,:) = 1.0_wp
-        g_sw_vr (:,:,:)  = 0.0_wp
-
-        IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroKinneVolc, &
-          &                     iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
-          CALL set_bc_aeropt_kinne(mtime_datetime, jg, 1, i_endidx, &
-            & nproma, pt_patch%nlev, jb, ecrad_conf%n_bands_sw,     &
-            & ecrad_conf%n_bands_lw, zf(:,:,jb), dz(:,:,jb),        &
-            & od_sw_vr(:,:,:), ssa_sw_vr(:,:,:),                    &
-            & g_sw_vr (:,:,:), od_lw_vr(:,:,:)                      )
-        END IF
-        IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN 
-          CALL add_bc_aeropt_cmip6_volc(mtime_datetime, jg, 1,      &
-            & i_endidx, nproma, pt_patch%nlev, jb,                  &
-            & ecrad_conf%n_bands_sw, ecrad_conf%n_bands_lw,         &
-            & zf(:,:,jb), dz(:,:,jb), od_sw_vr(:,:,:),              &
-            & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), od_lw_vr(:,:,:)    )
-        END IF
-        IF (ANY( irad_aero == (/iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
-          CALL add_bc_aeropt_splumes(jg, 1, i_endidx, nproma, pt_patch%nlev,   &
-            & jb, ecrad_conf%n_bands_sw, mtime_datetime, zf(:,:,jb),           &
-            & dz(:,:,jb), zh(:,pt_patch%nlev+1,jb), ecrad_conf%gas_optics_sw%spectral_def%wavenumber1, &
-            & ecrad_conf%gas_optics_sw%spectral_def%wavenumber2, od_sw_vr(:,:,:),                      &
-            & ssa_sw_vr(:,:,:), g_sw_vr (:,:,:), x_cdnc                        )
-        END IF
-        !
-        ! Vertically reverse the fields:
-        DO jk = 1, pt_patch%nlev
-          od_lw (:,jk,jb,:) = od_lw_vr (:,pt_patch%nlev-jk+1,:)
-          od_sw (:,jk,jb,:) = od_sw_vr (:,pt_patch%nlev-jk+1,:)
-          ssa_sw(:,jk,jb,:) = ssa_sw_vr(:,pt_patch%nlev-jk+1,:)
-          g_sw  (:,jk,jb,:) = g_sw_vr  (:,pt_patch%nlev-jk+1,:)
-        ENDDO
-
-      END DO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-      DEALLOCATE(od_lw_vr, od_sw_vr, ssa_sw_vr, g_sw_vr, STAT=istat)
-      IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of od_lw_vr, &
-                                       od_sw_vr, ssa_sw_vr, g_sw_vr failed')
-
-    END IF
-#endif
 
     IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN 
       ! Interpolate greenhouse gas concentrations to the current date and time, 
@@ -260,13 +213,15 @@ MODULE mo_nwp_rad_interface
       CALL getPTStringFromSeconds(dsec, dstring)
       td_radiation_offset => newTimedelta(dstring)
       radiation_time => newDatetime(mtime_datetime + td_radiation_offset)
+      CALL deallocateTimedelta(td_radiation_offset)
       !
       ! interpolation weights for linear interpolation
       ! of monthly means onto the radiation time step
       radiation_time_interpolation_weights = calculate_time_interpolation_weights(radiation_time)
+      CALL deallocateDatetime(radiation_time)
+
       !
       ! total and spectral solar irradiation at the mean sun earth distance
-      CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
       CALL ssi_time_interpolation(radiation_time_interpolation_weights,.TRUE.,tsi_radt,ssi_radt)
     ENDIF
 #endif
@@ -377,24 +332,8 @@ MODULE mo_nwp_rad_interface
 
     !$ACC END DATA
 
-    IF( ALLOCATED(od_lw) ) THEN
-      DEALLOCATE(od_lw, STAT=istat)
-      IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of od_lw failed.')
-    ENDIF
-    IF( ALLOCATED(od_sw) ) THEN
-      DEALLOCATE(od_sw, STAT=istat)
-      IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of od_sw failed.')
-    ENDIF
-    IF( ALLOCATED(ssa_sw) ) THEN
-      DEALLOCATE(ssa_sw, STAT=istat)
-      IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of ssa_sw failed.')
-    ENDIF    
-    IF( ALLOCATED(g_sw) ) THEN
-      DEALLOCATE(g_sw, STAT=istat)
-      IF(istat /= SUCCESS) CALL finish(routine, 'Deallocation of g_sw failed.')
-    ENDIF
 
-    IF (ASSOCIATED(radiation_time)) CALL deallocateDatetime(radiation_time)
+    CALL nwp_aerosol_cleanup(od_lw, od_sw, ssa_sw, g_sw)
 
   END SUBROUTINE nwp_radiation
 

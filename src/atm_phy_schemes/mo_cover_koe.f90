@@ -74,6 +74,7 @@ MODULE mo_cover_koe
     INTEGER(KIND=i4)        ::     icldscheme    ! cloud cover option
     LOGICAL                 ::     lsgs_cond     ! subgrid-scale condensation 
     INTEGER(KIND=i4)        ::     inwp_turb     ! turbulence scheme number
+    INTEGER(KIND=i4)        ::     inwp_gscp     ! microphysics scheme number
     INTEGER(KIND=i4)        ::     inwp_cpl_re   ! coupling reff (for qs altering qi)
     INTEGER(KIND=i4)        ::     inwp_reff     ! reff option (for qs altering qi)
   END TYPE t_cover_koe_config
@@ -401,9 +402,13 @@ CASE( 1 )
       rhcrit_sgsice = 1._wp - 0.25_wp*tune_sgsclifac*MAX(0._wp,0.75_wp-zqisat(jl,jk)/zqlsat(jl,jk))
       fac_aux = 1._wp - MIN(1._wp,MAX(0._wp,tt(jl,jk)-tm40)/15._wp)
 
-      qi_mod = MERGE( MAX(qi(jl,jk), 0.1_wp*(qi(jl,jk)+qs(jl,jk))), qi(jl,jk), l_addsnow) + &
-               fac_aux*MIN(1._wp,tune_sgsclifac*zrcld/(box_ice*zqisat(jl,jk)))* &
-               MAX(0._wp,qv(jl,jk)-rhcrit_sgsice*zqisat(jl,jk))
+      if ( cover_koe_config%inwp_gscp == 3 ) then
+        qi_mod = qi(jl,jk) + 0.1_wp*qs(jl,jk)  
+      else
+        qi_mod = MERGE( MAX(qi(jl,jk), 0.1_wp*(qi(jl,jk)+qs(jl,jk))), qi(jl,jk), l_addsnow) 
+      end if
+      qi_mod = qi_mod + fac_aux*MIN(1._wp,tune_sgsclifac*zrcld/(box_ice*zqisat(jl,jk))) * &
+                                MAX(0._wp,qv(jl,jk)-rhcrit_sgsice*zqisat(jl,jk))
 
      !ice cloud: assumed box distribution, width 0.1 qisat, saturation above qv 
      !           (qv is microphysical threshold for ice as seen by grid scale microphysics)

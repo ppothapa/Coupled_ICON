@@ -1,0 +1,18 @@
+#%  if JOB['.trigger'] is defined:
+
+# Trigger follow-up jobs
+
+status = 0
+#%    for trigger in JOB['.trigger']|d([])|list:
+#%      set args = trigger|split|list
+#%      set job = args.pop(0)
+#%      set type = jobs[job]['.type']
+#%      do args.insert(0, './'+EXP_ID+'.'+job)
+#%      if type != 'serial':
+#%        do args.insert(0, JOB.batch_command)
+#%      endif
+status_sub = subprocess.call(%{args} + [str(start_date)])
+if status_sub: status = status_sub
+#%    endfor
+sys.exit(status)
+#%  endif

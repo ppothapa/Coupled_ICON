@@ -33,7 +33,7 @@ MODULE mo_ecrad
   USE radiation_config,           ONLY: t_ecrad_conf=>config_type,                        &
                                     &   ISolverHomogeneous, ISolverMcICA,                 &
                                     &   ISolverSpartacus, ISolverTripleclouds,            &
-                                    &   ISolverCloudless,                                 &
+                                    &   ISolverCloudless, ISolverMcICAACC,                &
                                     &   IGasModelMonochromatic, IGasModelIFSRRTMG,        &
                                     &   IGasModelECCKD,                                   &
                                     &   ILiquidModelMonochromatic, ILiquidModelSlingo,    &
@@ -88,7 +88,7 @@ MODULE mo_ecrad
 
 ! ecRad enumerators
   ! Solver
-  PUBLIC :: ISolverCloudless, ISolverHomogeneous, ISolverMcICA, ISolverSpartacus, ISolverTripleclouds
+  PUBLIC :: ISolverCloudless, ISolverHomogeneous, ISolverMcICA, ISolverMcICAACC, ISolverSpartacus, ISolverTripleclouds
   ! Gas model
   PUBLIC :: IGasModelMonochromatic, IGasModelIFSRRTMG, IGasModelECCKD
   ! Liquid hydrometeor scattering
@@ -112,7 +112,7 @@ MODULE mo_ecrad
 ! ----------------------------------------------------
 ! Configuration state
 
-  TYPE(t_ecrad_conf) :: ecrad_conf
+  TYPE(t_ecrad_conf), TARGET :: ecrad_conf
 
 ! Near-IR, visible, and photosynthetically active radiation weightings
   INTEGER            :: nweight_nir_ecrad

@@ -31,7 +31,6 @@ MODULE mo_grib2_util
     &                              CLASS_CHEM_STAT, CLASS_CHEM_OPTP,         &
     &                              CLASS_DISTR, CLASS_DISTR_STAT
   USE mo_action_types,       ONLY: ACTION_RESET, getActiveAction
-  USE mo_util_string,        ONLY: one_of
 #ifndef __NO_ICON_ATMO__
   USE mo_lnd_nwp_config,     ONLY: tile_list
   USE mo_nwp_sfc_tiles,      ONLY: t_tileinfo_icon, t_tileinfo_grb2
@@ -485,16 +484,15 @@ CONTAINS
     INTEGER                       :: var_actionId                  ! action from which metainfo is used
     CHARACTER(len=*), PARAMETER   :: routine = 'set_GRIB2_timedep_keys'
 
-    ! special fields for which time-dependent metainfos should be set even though they are not of 
-    ! steptype TSTEP_MAX or TSTEP_MIN. These fields are special in the sense that averaging is not 
+    ! special fields for which time-dependent metainfos should be set even though they are not of
+    ! steptype TSTEP_MAX or TSTEP_MIN. These fields are special in the sense that averaging is not
     ! performed over the entire model run but over only some intervals.
-    CHARACTER(LEN=17) :: ana_avg_vars(21) = (/"u_avg            ", "v_avg            ", "pres_avg         ",&
-                                            & "temp_avg         ", "qv_avg           ", "rain_gsp         ",&
-                                            & "snow_gsp         ", "graupel_gsp      ", "ice_gsp          ",&
-                                            & "hail_gsp         ", "prec_gsp         ", "rain_con         ",&
-                                            & "snow_con         ", "prec_con         ", "tot_prec         ",&
-                                            & "tot_prec_d       ", "prec_gsp_d       ", "prec_con_d       ",&
-                                            & "prec_con_rate_avg", "prec_gsp_rate_avg", "tot_prec_rate_avg"/)
+    !CHARACTER(LEN=17) :: ana_avg_vars(16) = (/"rain_gsp         ",                                          &
+    !                                        & "snow_gsp         ", "graupel_gsp      ", "ice_gsp          ",&
+    !                                        & "hail_gsp         ", "prec_gsp         ", "rain_con         ",&
+    !                                        & "snow_con         ", "prec_con         ", "tot_prec         ",&
+    !                                        & "tot_prec_d       ", "prec_gsp_d       ", "prec_con_d       ",&
+    !                                        & "prec_con_rate_avg", "prec_gsp_rate_avg", "tot_prec_rate_avg"/)
 
 
     !---------------------------------------------------------

@@ -20,9 +20,9 @@ MODULE mo_initicon_nml
 !-------------------------------------------------------------------------
 !
 !
-  USE mo_kind,               ONLY: wp
+  USE mo_kind,               ONLY: wp, i8
   USE mo_exception,          ONLY: finish, message, message_text
-  USE mo_impl_constants,     ONLY: max_char_length, max_dom, vname_len,      &
+  USE mo_impl_constants,     ONLY: max_dom, vname_len,                       &
     &                              max_var_ml, MODE_IFSANA, MODE_DWDANA,     &
     &                              MODE_IAU, MODE_IAU_OLD, MODE_COMBINED,    &
     &                              MODE_COSMO, MODE_ICONVREMAP, ivexpol
@@ -54,11 +54,9 @@ MODULE mo_initicon_nml
     & config_icpl_da_skinc       => icpl_da_skinc,       &
     & config_icpl_da_snowalb     => icpl_da_snowalb,     &
     & config_icpl_da_sfcfric     => icpl_da_sfcfric,     &
+    & config_icpl_da_tkhmin      => icpl_da_tkhmin,      &
     & config_dt_ana              => dt_ana,              &
     & config_adjust_tso_tsnow    => adjust_tso_tsnow,    &
-    & config_start_time_avg_fg   => start_time_avg_fg,   &
-    & config_end_time_avg_fg     => end_time_avg_fg,     &
-    & config_interval_avg_fg     => interval_avg_fg,     &
     & config_filetype            => filetype,            &
     & config_dt_iau              => dt_iau,              &
     & config_iterate_iau         => iterate_iau,         &
@@ -76,6 +74,8 @@ MODULE mo_initicon_nml
 
 
   IMPLICIT NONE
+
+  PRIVATE
 
   PUBLIC :: read_initicon_namelist
 
@@ -138,13 +138,16 @@ CONTAINS
 
   LOGICAL  :: ltile_init       ! If true, initialize tile-based surface fields from first guess without tiles
 
-  INTEGER  :: icpl_da_sfcevap  ! Type of coupling between data assimilation and model parameters affecting surface evaporation (plants + bare soil)
+  INTEGER  :: icpl_da_sfcevap  ! Type of coupling between data assimilation and model parameters 
+                               ! affecting surface evaporation (plants + bare soil)
 
   INTEGER  :: icpl_da_skinc    ! Coupling between data assimilation and skin conductivity
 
   INTEGER  :: icpl_da_snowalb  ! Coupling between data assimilation and snow albedo
 
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
+
+  INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
@@ -155,12 +158,6 @@ CONTAINS
   LOGICAL  :: lvert_remap_fg   ! If true, vertical remappting of first guess input is performed
 
   INTEGER  :: qcana_mode, qiana_mode, qrsgana_mode, qnxana_2mom_mode  ! mode of processing QC/QI/QR/QS/QG/QH/QNX increments
-
-  ! Variables controlling computation of temporally averaged first guess fields for DA
-  ! The calculation is switched on by setting end_time > start_time
-  REAL(wp) :: start_time_avg_fg   ! start time [s]
-  REAL(wp) :: end_time_avg_fg     ! end time [s]
-  REAL(wp) :: interval_avg_fg     ! averaging interval [s]
 
   INTEGER  :: filetype      ! One of CDI's FILETYPE\_XXX constants. Possible values: 2 (=FILETYPE\_GRB2), 4 (=FILETYPE\_NC2)
 
@@ -221,8 +218,8 @@ CONTAINS
   ! GRIB2 shortnames or NetCDF var names.
   CHARACTER(LEN=filename_max) :: ana_varnames_map_file
 
-  ! perturb initial conditions. perturbation is only applied for pinit_seed > 0
-  INTEGER :: pinit_seed = 0
+  ! perturb initial conditions. perturbation is only applied for pinit_seed /= 0
+  INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
   NAMELIST /initicon_nml/ init_mode, zpbl1, zpbl2, l_coarse2fine_mode,      &
@@ -233,14 +230,14 @@ CONTAINS
                           type_iau_wgt, check_ana, check_fg,                &
                           ana_varnames_map_file, lp2cintp_incr,             &
                           lp2cintp_sfcana, use_lakeiceana,                  &
-                          start_time_avg_fg, end_time_avg_fg,               &
-                          interval_avg_fg, ltile_coldstart, ltile_init,     &
+                          ltile_coldstart, ltile_init,                      &
                           lvert_remap_fg, iterate_iau, niter_divdamp,       &
                           niter_diffu, qcana_mode, qiana_mode, qrsgana_mode,&
                           qnxana_2mom_mode, itype_vert_expol, pinit_seed,   &
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
-                          icpl_da_sfcfric, lcouple_ocean_coldstart
+                          icpl_da_sfcfric, lcouple_ocean_coldstart,         &
+                          icpl_da_tkhmin
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -304,6 +301,7 @@ CONTAINS
                         ! 1: use filtered T2M bias 
                         ! 2: use filtered T2M bias and filtered RH increment at lowest model level
                         ! 3: use filtered T and RH increments at lowest model level
+                        ! 4: as 3, but uses cr_bsmin instead of c_soil for adapting bare-soil evaporation
 
   icpl_da_skinc = 0     ! Coupling between data assimilation and skin conductivity
                         ! 0: off, 1: on, 2: as 1, plus soil heat conductivity and capacity
@@ -314,15 +312,14 @@ CONTAINS
   icpl_da_sfcfric = 0   ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
                         ! 0: off, 1:on
 
+  icpl_da_tkhmin   = 0  ! Coupling between data assimilation and near-surface profile of minimum vertical diffusion for heat
+                        ! 0: off, 1:on
+
   adjust_tso_tsnow = .FALSE. ! If .TRUE., apply T increments for lowest model level also to snow and upper soil layers
 
   dt_ana  = 10800._wp   ! Time interval of assimilation cycle (relevant for icpl_da_sfcevap >= 2; set 3600 s for ICON-D2
 
-  start_time_avg_fg = 0._wp
-  end_time_avg_fg   = 0._wp
-  interval_avg_fg   = 0._wp
-
-  pinit_seed        = 0           ! <0: do not perturb initial data. >0: perturb initial data with this as seed
+  pinit_seed        = 0_i8        ! <0: do not perturb initial data. >0: perturb initial data with this as seed
   pinit_amplitude   = 0._wp       ! amplitude of the initial perturbation for numerical tolerance test
 
   !------------------------------------------------------------
@@ -386,19 +383,6 @@ CONTAINS
   lp2cintp_incr(1)   = .FALSE.
   lp2cintp_sfcana(1) = .FALSE.
 
-  ! Check if settings for temporally averaged first guess output make sense
-  IF (end_time_avg_fg > start_time_avg_fg) THEN
-    IF (interval_avg_fg < 1.e-10_wp) THEN
-      WRITE(message_text,'(a,f8.2,a)') 'averaging interval for first guess output must be positive'
-      CALL finish(TRIM(routine),message_text)
-    ENDIF
-    IF (end_time_avg_fg < start_time_avg_fg + interval_avg_fg) THEN
-      WRITE(message_text,'(a,f8.2,a)') &
-        'averaging period for first guess output must be larger than averaging interval'
-      CALL finish(TRIM(routine),message_text)
-    ENDIF
-  ENDIF
-
   ! make sure that dt_shift is negative or 0.
   IF ( dt_shift > 0._wp ) THEN
     WRITE(message_text,'(a,f8.2,a)') 'dt_shift=', dt_shift, &
@@ -408,7 +392,12 @@ CONTAINS
 
   ! this is needed because the I/O of the filtered T increment is controlled via icpl_da_sfcevap >= 3
   IF (icpl_da_snowalb >= 1 .AND. icpl_da_sfcevap < 3) THEN
-    WRITE(message_text,'(a)') 'icpl_da_snowalb = 1 must be combined with icpl_da_sfcevap = 3'
+    WRITE(message_text,'(a)') 'icpl_da_snowalb = 1 must be combined with icpl_da_sfcevap >= 3'
+    CALL finish(TRIM(routine),message_text)
+  ENDIF
+
+  IF (icpl_da_tkhmin >= 1 .AND. (icpl_da_skinc == 0 .OR. icpl_da_sfcevap <= 2) ) THEN
+    WRITE(message_text,'(a)') 'icpl_da_tkhmin = 1 must be combined with icpl_da_sfcevap > 2 and icpl_da_skinc > 0'
     CALL finish(TRIM(routine),message_text)
   ENDIF
 
@@ -457,12 +446,10 @@ CONTAINS
   config_icpl_da_skinc       = icpl_da_skinc
   config_icpl_da_snowalb     = icpl_da_snowalb
   config_icpl_da_sfcfric     = icpl_da_sfcfric
+  config_icpl_da_tkhmin      = icpl_da_tkhmin
   config_dt_ana              = dt_ana
   config_adjust_tso_tsnow    = adjust_tso_tsnow
   config_lvert_remap_fg      = lvert_remap_fg
-  config_start_time_avg_fg   = start_time_avg_fg
-  config_end_time_avg_fg     = end_time_avg_fg
-  config_interval_avg_fg     = interval_avg_fg
   config_filetype            = filetype
   config_dt_iau              = dt_iau
   config_iterate_iau         = iterate_iau

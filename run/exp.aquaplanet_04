@@ -78,6 +78,7 @@ cat > ${atmo_namelist} << EOF
 !
 &parallel_nml
  nproma           = ${nproma}
+ nproma_sub       = 8000
  num_io_procs      = ${mpi_atm_io_procs}
  num_restart_procs = 300
  io_process_stride = 12
@@ -126,7 +127,7 @@ cat > ${atmo_namelist} << EOF
  flat_height      = 16000.      ! [m]
 /
 &initicon_nml
- pinit_seed       = -1          ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed       = 0           ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude  = 0.          ! amplitude of perturbation
 /
 &diffusion_nml
@@ -171,7 +172,6 @@ cat > ${atmo_namelist} << EOF
  aes_rad_config(1)%irad_cfc11 =  0
  aes_rad_config(1)%irad_cfc12 =  0
  aes_rad_config(1)%irad_aero  =  0
- aes_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
 &aes_vdf_nml
  aes_vdf_config(1)%pr0        =  0.7

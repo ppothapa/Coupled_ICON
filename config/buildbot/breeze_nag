@@ -31,11 +31,11 @@ ${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-yaxt --disable-openmp --e
 make -j ${MAKE_PROCS}
 
 if test ! -z "${BB_NAME-}"; then
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_depgen_warnings.sh"
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_remake.sh"
   # Build the tests in parallel:
   make -j ${MAKE_PROCS} check TESTS= XFAIL_TESTS=
   # Run the tests serially:
   make check
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_git_untracked.sh"
 fi

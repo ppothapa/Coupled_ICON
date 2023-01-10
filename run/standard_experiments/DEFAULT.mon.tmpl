@@ -4,15 +4,16 @@
 #SBATCH --qos=%{JOB.qos}
 #%  endif
 #SBATCH --job-name=%{EXP_ID}.%{JOB.id}
-#SBATCH --partition=prepost,shared
+#SBATCH --partition=%{JOB.partition}
 #%  if JOB.tasks is defined:
 #SBATCH --ntasks=%{JOB.tasks}
 #%  endif
 #%  if JOB.hardware_threads|default('') is not set:
 #SBATCH --ntasks-per-core=1
 #%  endif
-#SBATCH --output=%{SCRIPT_DIR}/%x.%j.log
+#SBATCH --output=%{SCRIPT_DIR}/%x.%8j.log
 #SBATCH --time=%{JOB.time_limit}
+#%include 'standard_environments/'+ENVIRONMENT+'.tmpl' ignore missing
 
 '''\
 Create monitoring from ICON experiment data for a given period
@@ -21,6 +22,7 @@ Create monitoring from ICON experiment data for a given period
 import argparse
 import errno
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,8 +36,8 @@ def check_date(arg):
     try:
         value = mtime.DateTime(arg)
     except ValueError as ve:
-        raise argparse.ArgumentTypeError(ve.message)
-    return str(value.date)
+        raise argparse.ArgumentTypeError(str(ve))
+    return value
 
 command_line = argparse.ArgumentParser(description=__doc__.split('\n', 1)[0])
 command_line.add_argument('start_date', type=check_date, help=
@@ -50,58 +52,234 @@ command_line.add_argument('-c', '--clean', action='store_true', help=
 command_line.add_argument('-f', '--force', action='store_true', help=
     'continue to run even if working directory exists. '
     'Use ONLY after you made absolutely sure that no other job is running!')
+command_line.add_argument('-w', '--work-stamp', action='store_true', help=
+    'expect time stamps in model format instead of post-processed')
+command_line.add_argument('-W', '--work-dir', action='store_true', help=
+    'take files from work directory instead of data directory')
+command_line.add_argument('-N', '--include-next-date', action='store_true', help=
+    'also include files with time stamps for next start date')
 args = command_line.parse_args()
 
 # Do time computations using mtime
 
 initial_date = mtime.DateTime('%{INITIAL_DATE}')
-start_date = mtime.DateTime(args.start_date)
+start_date = args.start_date
 
 if start_date < initial_date:
     logging.error("start_date is before initial_date")
     sys.exit(1)
     
-interval = mtime.TimeDelta('%{INTERVAL}')
+interval = mtime.TimeDelta('%{JOB.interval|d(INTERVAL)}')
+final_date = mtime.DateTime('%{FINAL_DATE}')
 next_date = start_date + interval
-end_date = next_date + mtime.TimeDelta('-P1D')
+
+if next_date > final_date:
+    logging.warn('next date after final date; setting next date to final date')
+    next_date = final_date
+
+offset = mtime.TimeDelta('-%{namelists.NAMELIST_atm.run_nml.modeltimestep}')
+end_date = next_date + offset
+
+# Determine date/time stamp formatting
+
+weed = re.compile(r'[-:]|\.\d+$') # for re-formatting of date/time stamps
+def data_stamp(date):
+    return re.sub(weed, '', str(date.date))
+def run_stamp(date):
+    return re.sub(weed, '', str(date))
+def work_stamp(date):
+    return re.sub(weed, '', str(date)) + 'Z'
+
+stamp = work_stamp if args.work_stamp else data_stamp
+
+# Determine directory to read files from
+
+input_dir = '%{DATA_DIR}'
+if args.work_dir:
+    input_dir = os.path.join('%{WORK_DIR}', '%{jobs.run.subdir}').format(
+        start_stamp=run_stamp(start_date), end_stamp=run_stamp(end_date))
+
 
 # Define required output
 
-#%  set set_tags = []
+#%- set set_tags = []
 #%  if JOB.tags is defined:
 #%      set tags = JOB.tags
 #%      for tag in tags.scalars|sort if tags[tag] is set:
 #%          do set_tags.append(tag)
 #%      endfor
 #%  endif
-tags = %{set_tags}
+#%- set extension_map = {1: 'grb', 2: 'grb', 3: 'nc', 4: 'nc', 5: 'nc', 6: 'nc'}
+#%- set file_infos = []
+#%  for namelist in namelists:
+#%    set namelist_data = namelists[namelist]
+#%    set remove_list = namelist_data['.remove']|d([])|list
+#%    for group in namelist_data.sections if group|match('^output_nml'):
+#%      set group_data = namelist_data[group]
+#%      set hidden = (group_data['.hide'] is set) or (group in remove_list)
+#%      if not hidden:
+#%        set output_filename = group_data.output_filename
+#%        if output_filename is not defined :
+logging.warning("'output_filename' not defined in '%{namelist}.%{group}'")
+#%        endif
+#%        set output_tag = output_filename|d('')|match('^'+EXP_ID+'_(.*)$')
+#%        if output_tag and output_tag in set_tags:
+#%          set filename_format = group_data.filename_format
+#%          set extension = extension_map[group_data.filetype|d(4)|int]
+#%          set output_start = group_data.output_start
+#%          set output_start = output_start|replace('{initial_date}', INITIAL_DATE)
+#%          set output_start = output_start|replace('{final_date}', FINAL_DATE)
+#%          set output_end = group_data.output_end
+#%          set output_end = output_end|replace('{initial_date}', INITIAL_DATE)
+#%          set output_end = output_end|replace('{final_date}', FINAL_DATE)
+#%#         # Revert file life-time hack
+#%-         set file_interval = group_data.file_interval
+#%          if file_interval.endswith('T1S'):
+#%            set file_interval = file_interval[0:-3]
+#%          endif
+#%          set info = {}
+#%          do info.update(frequency = group_data.output_interval)
+#%          do info.update(time_reduction = group_data.operation or 'inst')
+#%          do info.update(output_start = output_start)
+#%          do info.update(output_end = output_end)
+#%          do info.update(file_interval = file_interval)
+#%          do info.update(filename_tmpl = filename_format|replace('<output_filename>', output_filename)|replace('<levtype_l>', levtype_l)+'.'+extension)
+#%          do file_infos.append(info)
+#%        endif
+#%      endif
+#%    endfor
+#%  endfor
+#%#
+
+file_infos = [
+#%  for info in file_infos:
+    %{info},
+#%  endfor
+]
+
+files = []
+
+for info in file_infos:
+
+    output_start = mtime.DateTime(info['output_start'])
+    output_end = mtime.DateTime(info['output_end'])
+    file_interval = mtime.TimeDelta(info['file_interval'])
+
+    # Check if current interval is overlapping with file life-time
+    if output_start < next_date and output_end >= start_date:
+
+        # Set lower and upper limits for file life-time wrtt current interval
+        file_start_date = max(start_date, output_start)
+        file_next_date = min(next_date, output_end)
+
+        # Generate output per file date
+        date = output_start
+
+        while ((args.include_next_date and date <= file_next_date)
+               or date < file_next_date):
+            if file_start_date <= date:
+                # Set current file name
+                filename = info['filename_tmpl'].replace('<datetime2>', stamp(date))
+                logging.info("current file '%s'", filename)
+
+                # Get variables from file
+                if os.path.isfile(os.path.join(input_dir, filename)):
+                    files.append(filename)
+                else:
+                    logging.warning("file '%s' does not exist", filename)
+
+            date += file_interval
+
+logging.debug('files: %s', ', '.join(files))
 
 # Set-up template variables
 
+mon_dir = '%{MON_DIR}'
+exp_id = '%{EXP_ID}'
+
 template_dict = {}
-template_dict['start_date'] = args.start_date.replace('-', '')
-template_dict['end_date'] = str(end_date.date).replace('-', '')
-template_dict['tags'] = ' '.join(tags)
+template_dict['start_date'] = str(start_date)
+template_dict['min_date'] = str(start_date)
+if args.include_next_date:
+    template_dict['min_date'] = str(start_date+mtime.TimeDelta('PT1S'))
+template_dict['end_date'] = str(end_date)
+template_dict['start_stamp'] = stamp(start_date)
+template_dict['end_stamp'] = stamp(end_date)
+template_dict['files'] = ' '.join(files)
 template_dict['mean_op'] = '%{JOB.mean_op|d('yearavg')}'
+template_dict['mean_op_name'] = re.sub(r'\W+', '_',
+                                       template_dict['mean_op']).strip('_')
+template_dict['input_dir'] = input_dir
+template_dict['mon_dir'] = mon_dir
+template_dict['exp_id'] = exp_id
 
 # Prolog
 
 logging.info('monitoring started '
              'for {start_date}-{end_date}'.format(**template_dict))
 
+# Determine additional files to be plotted
+
+add_dirs = [(d if os.path.isabs(d) else
+            os.path.normpath(os.path.join(os.path.dirname(mon_dir), d)))
+            for d in %{MON_ADD_DIRS|d|list}]
+
+logging.debug('add_dirs: %s', ', '.join(add_dirs))
+
+add_prefixes = []
+add_prefix_options = []
+idx = 2
+
+for add_dir in add_dirs:
+    add_exp_id = os.path.basename(add_dir)
+    add_prefix = os.path.join(add_dir, add_exp_id)
+
+    add_prefixes.append(add_prefix)
+
+    add_prefix_options.append(
+        '--with{0}={1}_$${{tag}}.nc:{2}_$${{tag}}.nc'.format(
+            idx, add_prefix, add_exp_id))
+    add_prefix_options.append(
+        '--with{0}a={1}_$${{tag}}_$(MEAN_OP_NAME).nc'.format(idx, add_exp_id))
+
+    idx += 1
+
+template_dict['add_prefixes'] = ' '.join(add_prefixes)
+template_dict['add_prefix_options'] = ' '.join(add_prefix_options)
+
 # Set-up directory structure
 
-targets_dir = os.path.join('%{MON_DIR}', 'targets')
+targets_dir = os.path.join(mon_dir, 'targets')
 try: os.makedirs(targets_dir)
 except OSError as xcptn:
     if xcptn.errno != errno.EEXIST: raise
 template_dict['targets_dir'] = targets_dir
 
 work_dir = os.path.join('%{JOB.work_dir}',
-                        '%{JOB.id}_{start_date}-{end_date}'.
+                        '%{JOB.id}_{start_stamp}-{end_stamp}'.
                         format(**template_dict))
 
 logging.info('working directory is {0}'.format(work_dir))
+
+# TODO HACK! Avoid skipping of overlapping files if time was not corrected
+# by always re-doing start and end files ie removing the target stamps
+if args.include_next_date:
+    conflict_names = []
+    for info in file_infos:
+        dates = []
+        if start_date != initial_date:
+            dates.append(start_date)
+        dates.append(next_date)
+        for date in dates:
+            name = info['filename_tmpl'].replace('<datetime2>', stamp(date))
+            (base, ignore) = os.path.splitext(name)
+            conflict_names.extend((name, base+'.pdf', base+'.html'))
+    for name in conflict_names:
+        try:
+            os.remove(os.path.join(targets_dir, name))
+            logging.info("removed time stamp for '{0}'".format(name))
+        except OSError as xcptn:
+            if xcptn.errno != errno.ENOENT: raise
 
 try:
     os.makedirs(work_dir)
@@ -126,66 +304,77 @@ CDO = cdo
 CDOFLAGS = -s -O
 PLOT_TIMESER = plot_timeser
 
-EXP_ID = %{EXP_ID}
-DATA_DIR = %{DATA_DIR}
-MON_DIR = %{MON_DIR}
+EXP_ID = {exp_id}
+DATA_DIR = {input_dir}
+MON_DIR = {mon_dir}
 SCRIPT_DIR = %{SCRIPT_DIR}
 
 MON_SCRIPT = $(SCRIPT_DIR)/$(EXP_ID).%{JOB.id}
 MON_INDEX_SCRIPT = $(SCRIPT_DIR)/$(EXP_ID).mon_index
 
-START_DATE = {start_date}
-TAGS = {tags}
+MIN_DATE = {min_date}
+START_STAMP = {start_stamp}
+FILES = {files}
 TARGETS_DIR = {targets_dir}
 MEAN_OP = {mean_op}
+MEAN_OP_NAME = {mean_op_name}
 
-TARGETS = $(TAGS:%=$(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).html) $(MON_DIR)/index.html
+FILES1 = $(FILES:.nc=)
+FILES2 = $(FILES1:.grb=)
+TARGETS = $(FILES2:%=$(TARGETS_DIR)/%.html) $(MON_DIR)/index.html
 
 all: $(TARGETS)
 
 clean:
-	$(RM) $(TARGETS) $(TARGETS:.html=.pdf) $(TARGETS:.html=.nc)
+	$(RM) $(TARGETS) $(TARGETS:.html=.pdf) $(TARGETS:.html=)
 
-.PRECIOUS: $(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).pdf $(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).nc
+.PRECIOUS: $(TARGETS_DIR)/%.pdf $(TARGETS_DIR)/%.nc
 
 $(MON_DIR)/index.html: $(MON_INDEX_SCRIPT)
 	SHELL= filelock $@ -c '$(MON_INDEX_SCRIPT) $@'
 
-$(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).nc: $(DATA_DIR)/$(EXP_ID)_%_$(START_DATE).nc $(MON_SCRIPT)
-	SHELL= filelock $(TARGETS_DIR)/$(EXP_ID)_$*.nc -c \
-	   'set -e ;\
-	    if [ -f $(MON_DIR)/$(EXP_ID)_$*.nc ] ;\
+$(TARGETS_DIR)/%.nc: $(DATA_DIR)/%.nc $(MON_SCRIPT)
+	$(CDO) $(CDOFLAGS) select,startdate=$(MIN_DATE) $< $(<F)
+	base=$*; base=$${{base%_*}}; SHELL= filelock $(TARGETS_DIR)/$$base.nc -c \
+	   "set -e ;\
+	    if [ -f $(MON_DIR)/$$base.nc ] ;\
 	    then \
-	        $(CDO) $(CDOFLAGS) mergetime $< $(MON_DIR)/$(EXP_ID)_$*.nc \
-	            $(EXP_ID)_$*.nc ;\
-	        mv $(EXP_ID)_$*.nc $(MON_DIR)/$(EXP_ID)_$*.nc ;\
+	        $(CDO) $(CDOFLAGS) mergetime $(<F) $(MON_DIR)/$$base.nc \
+	            $$base.nc ;\
+	        mv $$base.nc $(MON_DIR)/$$base.nc ;\
 	    else \
-	        cp $< $(MON_DIR)/$(EXP_ID)_$*.nc ;\
-	    fi'
+	        cp $(<F) $(MON_DIR)/$$base.nc ;\
+	    fi"
 	touch $@
 
-$(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).pdf: $(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).nc
-	SHELL= filelock $(TARGETS_DIR)/$(EXP_ID)_$*.pdf \
-	    filelock -s $(TARGETS_DIR)/$(EXP_ID)_$*.nc -c \
+$(TARGETS_DIR)/%.pdf: $(TARGETS_DIR)/%.nc
+	base=$*; base=$${{base%_*}}; SHELL= filelock $(TARGETS_DIR)/$$base.pdf \
+	    filelock -s $(TARGETS_DIR)/$$base.nc -c \
 	   'set -e ;\
-      $(CDO) $(CDOFLAGS) $(MEAN_OP) $(MON_DIR)/$(EXP_ID)_$*.nc \
-	            $(EXP_ID)_$*_yearavg.nc ;\
-	    mv $(EXP_ID)_$*_yearavg.nc $(MON_DIR)/$(EXP_ID)_$*_yearavg.nc ;\
+	    base='$$base'; \
+	    tag=$${{base#$(EXP_ID)_}} ; \
+	    for prefix in $(MON_DIR)/$(EXP_ID) {add_prefixes}; do \
+	        f=$${{prefix}}_$${{tag}}.nc; \
+	        fm=$$(basename $$prefix)_$${{tag}}_$(MEAN_OP_NAME).nc; \
+	        $(CDO) -f nc $(CDOFLAGS) $(MEAN_OP) $$f $$fm ;\
+	        mv $$fm $(MON_DIR)/$$fm ;\
+	    done; \
 	    cd $(MON_DIR) ;\
-	    $(PLOT_TIMESER) --manifest=$(EXP_ID)_$*.lst --mode=monitoring \
-	        --with1=$(EXP_ID)_$*.nc --with1a=$(EXP_ID)_$*_yearavg.nc --output=$(EXP_ID)_$*'
+	    $(PLOT_TIMESER) --manifest=$$base.lst --mode=monitoring \
+	        --with1=$$base.nc --with1a=$${{base}}_$(MEAN_OP_NAME).nc \
+	        {add_prefix_options} --output=$$base'
 	touch $@
 
-$(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).html: $(TARGETS_DIR)/$(EXP_ID)_%_$(START_DATE).pdf
-	SHELL= filelock $(TARGETS_DIR)/$(EXP_ID)_$*.html \
-	    filelock -s $(TARGETS_DIR)/$(EXP_ID)_$*.pdf -c \
-	   'set -e ;\
-	    mkdir -p $* ;\
-	    TEMP=$$PWD/$* ;\
+$(TARGETS_DIR)/%.html: $(TARGETS_DIR)/%.pdf
+	base=$*; base=$${{base%_*}}; SHELL= filelock $(TARGETS_DIR)/$$base.html \
+	    filelock -s $(TARGETS_DIR)/$$base.pdf -c \
+	   "set -e ;\
+	    mkdir -p $$base ;\
+	    TEMP=$$PWD/$$base ;\
 	    export TEMP ;\
 	    cd $(MON_DIR) ;\
-	    create_plot_browser -t "$(EXP_ID) $*" $(EXP_ID)_$*.lst \
-	        > $(EXP_ID)_$*.html'
+	    create_plot_browser -t $$base $$base.lst \
+	        > $$base.html"
 	touch $@ 
 '''
 
@@ -237,6 +426,30 @@ if make_result:
     logging.error("'{0}' returned {1}".format(' '.join(make_args), make_result))
     sys.exit(1)
 
+#%  if JOB.upload_url|d:
+
+logging.info('transfer data to upload URL')
+
+import itertools, fnmatch, urllib.request, mimetypes
+
+upload_url = '%{JOB.upload_url}'
+names = os.listdir(mon_dir)
+
+for name in itertools.chain.from_iterable(
+    fnmatch.filter(names, pattern) for pattern in ('*.pdf', '*.png', '*.html')
+):
+    with open(os.path.join(mon_dir, name), "rb") as input:
+        data = input.read()
+    url = upload_url.replace('/?', '/%{EXP_ID}/' + name + '?')
+    request = urllib.request.Request(url=url, data=data, method='PUT')
+    (mime_type, encoding) = mimetypes.guess_type(name)
+    request.add_header('Content-Type', mime_type)
+    with urllib.request.urlopen(request) as response:
+        pass
+    logging.info('%s (%s): %s (%d)',
+        name, mime_type, response.reason, response.status)
+
+#%  endif
 os.chdir('%{SCRIPT_DIR}')
 
 #%  if JOB.debug_level|d(0)|int < 1:
@@ -249,8 +462,4 @@ shutil.rmtree(work_dir)
 logging.info('monitoring finished '
              'for {start_date}-{end_date}'.format(**template_dict))
 
-#% for job in JOB['.trigger']|list:
-#%   if job:
-subprocess.check_call(['%{JOB.batch_command}', '%{EXP_ID}.%{job}', args.start_date])
-#%   endif
-#% endfor
+#% include 'standard_experiments/trigger.tmpl'

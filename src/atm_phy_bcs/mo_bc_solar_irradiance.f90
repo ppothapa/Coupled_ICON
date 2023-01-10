@@ -19,12 +19,13 @@
 MODULE mo_bc_solar_irradiance
 
   USE mo_kind,            ONLY: dp, i8
-  USE mo_exception,       ONLY: finish, message, warning
+  USE mo_exception,       ONLY: finish, message, warning, message_text
   USE mo_netcdf_parallel, ONLY: p_nf_open, p_nf_inq_dimid, p_nf_inq_dimlen, &
        &                        p_nf_inq_varid, p_nf_get_vara_double, p_nf_close, &
        &                        nf_read, nf_noerr, p_nf_get_var_int
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights
-  USE mo_run_config,             ONLY: msg_level
+  USE mo_run_config,      ONLY: msg_level
+
 
   IMPLICIT NONE
   PRIVATE
@@ -62,10 +63,12 @@ CONTAINS
        IF (last_year /= year) lread_solar=.TRUE.
     ENDIF
 
-    IF (.NOT.lread_solar_radt .AND. .NOT.lread_solar) THEN
-      IF (msg_level >= 11) CALL message('','Solar irradiance data already read ...')
+    IF ((lradt .AND. .NOT. lread_solar_radt) .OR. (.NOT. lradt .AND. .NOT. lread_solar)) THEN
       RETURN
     ENDIF
+
+    WRITE (message_text,'(A,I4,A)') 'reading bc_solar_irradiance_sw_b14.nc (year ', year, ')'
+    CALL message('mo_bc_solar_irradiance:read_bc_solar_irradiance', message_text)
 
     CALL nf_check(p_nf_open('bc_solar_irradiance_sw_b14.nc', nf_read, ncid))
 
@@ -133,6 +136,11 @@ CONTAINS
     CHARACTER(len=14)               :: ctsi
 
     IF (lradt) THEN
+      IF (.NOT. (tiw%year1 == last_year_radt .OR. tiw%year2 == last_year_radt)) THEN
+        WRITE (message_text,'(A,I4,A,I4,A,I4)') 'Stale data: requested years are ', tiw%year1, ' and ', &
+            & tiw%year2, ' but data is for ', last_year_radt
+        CALL finish('mo_bc_solar_irradiance:ssi_time_interpolation', message_text)
+      END IF
       IF (.NOT.PRESENT(ssi)) THEN
         CALL finish ('ssi_time_interpolation of mo_bc_solar_irradiance', &
                      'Interpolation to radiation time step needs ssi',exit_no=1)
@@ -152,7 +160,7 @@ CONTAINS
       END IF
       tsi    = tiw%weight1 * tsi_m(tiw%month1_index) + tiw%weight2 * tsi_m(tiw%month2_index)
     END IF
-       
+
   END SUBROUTINE ssi_time_interpolation
 
 

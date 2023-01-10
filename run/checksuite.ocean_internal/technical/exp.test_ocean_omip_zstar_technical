@@ -15,16 +15,16 @@ ln -s checksuite.ocean_internal/technical/exp.${EXPERIMENT} .
 # TYPES is a list of names identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
 # to be checked.
 #
-export TYPES='oceDefault'
+export TYPES='oceDefault inst restart_oce max'
 
 # DATES is a list of dates identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
 # to be checked.
 #
-export DATES='20010101T000000Z 20010101T120000Z 20010101T180000Z 20010102T000000Z 20010102T120000Z 20010102T180000Z 20010103T000000Z'
+export DATES='20010102T000000Z'
 
 # RESTART_DATE defines the date and time from which restarts should be performed.
 # 
-export RESTART_DATE='20010102T000000Z'
+export RESTART_DATE='20010101T120000Z'
 
 #--------------------------------------------------------------------------------
 # 

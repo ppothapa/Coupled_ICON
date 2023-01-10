@@ -154,18 +154,17 @@ CONTAINS
 !  different program steps/subroutines for the latent heat nudging
 !-------------------------------------------------------------------------------
 
-SUBROUTINE organize_lhn ( &
-                            & dt_loc, p_sim_time,             & !>in
-                            & pt_patch, p_metrics,              & !>in
-                            & pt_int_state,                     & !>in
-                            & pt_prog_rcf,                      & !>inout
-                            & pt_diag ,                         & !>inout
-                            & prm_diag,                         & !>inout
-                            & lhn_fields,                       & !>inout
-                            & radar_data,                       &
-                            & prm_nwp_tend,                     &
-                            & datetime_current,                 &
-                            & ltlhn, ltlhnverif, lvalid_data    ) !>in / out
+SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
+                        & pt_patch, p_metrics,            & !>in
+                        & pt_int_state,                   & !>in
+                        & pt_prog_rcf,                    & !>inout
+                        & pt_diag ,                       & !>inout
+                        & prm_diag,                       & !>inout
+                        & lhn_fields,                     & !>inout
+                        & radar_data,                     &
+                        & prm_nwp_tend,                   &
+                        & datetime_current,               &
+                        & ltlhn, ltlhnverif, lvalid_data  ) !>in/out
 
 !-------------------------------------------------------------------------------
 !
@@ -192,87 +191,80 @@ SUBROUTINE organize_lhn ( &
 
   TYPE(t_patch),   TARGET, INTENT(inout) :: pt_patch     !<grid/patch info.
   TYPE(t_nh_metrics),      INTENT(in)    :: p_metrics
-  TYPE(t_nh_diag), TARGET, INTENT(inout) :: pt_diag     !<the diagnostic variables
-  TYPE(t_nh_prog), TARGET, INTENT(inout) :: pt_prog_rcf !<the prognostic variables (with
-                                                          !< red. calling frequency for tracers!
-  TYPE(t_nwp_phy_diag),    INTENT(inout)    :: prm_diag
+  TYPE(t_nh_diag), TARGET, INTENT(inout) :: pt_diag      !<the diagnostic variables
+  TYPE(t_nh_prog), TARGET, INTENT(inout) :: pt_prog_rcf  !<the prognostic variables (with
+                                                           !<red. calling frequency for tracers!)
+  TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag
   TYPE(t_radar_fields),    INTENT(in)    :: radar_data
-  TYPE(t_lhn_diag),        INTENT(inout)    :: lhn_fields
-  TYPE(t_int_state)   ,    INTENT(IN)    :: pt_int_state
+  TYPE(t_lhn_diag),        INTENT(inout) :: lhn_fields
+  TYPE(t_int_state),       INTENT(in)    :: pt_int_state
 
-  TYPE(t_nwp_phy_tend),TARGET,INTENT(in) :: prm_nwp_tend
-  TYPE (datetime),INTENT(in) :: datetime_current
+  TYPE(t_nwp_phy_tend), TARGET, INTENT(in) :: prm_nwp_tend
+  TYPE(datetime),               INTENT(in) :: datetime_current
 
-  REAL(KIND=wp), INTENT(IN) :: &
-   dt_loc, p_sim_time
+  REAL(KIND=wp), INTENT(in) :: dt_loc, p_sim_time
 
-  LOGICAL, INTENT(IN)  :: &
-    ltlhn,ltlhnverif                 ! true if latent heat nudging is active
+  LOGICAL, INTENT(in) :: ltlhn, ltlhnverif   ! true if latent heat nudging is active
 
-  LOGICAL, INTENT(OUT) :: lvalid_data
+  LOGICAL, INTENT(out) :: lvalid_data
 
 ! Local parameters, scalars, arrays:
 !-------------------------------------------------------------------------------
 ! Local scalars:
 !---------------
 
-  LOGICAL                   ::           &
-    lopen_log  
+  LOGICAL :: lopen_log  
  
-  INTEGER ::  kqrs(nproma)       ! upper layer with qrs_flux > 0.0
+  INTEGER :: kqrs(nproma)   ! upper layer with qrs_flux > 0.0
 
-  INTEGER :: jg          ! domain ID
-  INTEGER :: jb,jc,jk,i_rlstart, i_rlend, ndiag, iter, nlev
-  INTEGER :: i_startblk, i_endblk    !> blocks
-  INTEGER :: i_startidx, i_endidx    !< slices
+  INTEGER :: jg   ! domain ID
+  INTEGER :: jb, jc, jk, i_rlstart, i_rlend, ndiag, iter, nlev
+  INTEGER :: i_startblk, i_endblk   !> blocks
+  INTEGER :: i_startidx, i_endidx   !< slices
 
-  REAL (KIND=wp) :: zdcoeff
+  REAL(KIND=wp) :: zdcoeff
 
-  REAL (KIND=wp)               ::           &
-    zdt_1                ! inverse of the timestep for physics ( = 1/dt )
+  REAL(KIND=wp) :: zdt_1   ! inverse of the timestep for physics ( = 1/dt )
 
-
-  REAL (KIND=wp), DIMENSION(nproma)  ::  qrsgmax,qrsgthres,ttmin,ttmax,vcoordsum,qrsflux_int
+  REAL(KIND=wp), DIMENSION(nproma) :: qrsgmax, qrsgthres, ttmin, ttmax, vcoordsum, qrsflux_int
 
 ! Local arrays:
 
-  REAL (KIND=wp) ::       &
-    zprmod       (nproma,pt_patch%nblks_c)  ,&
-    zprmod_ref   (nproma,pt_patch%nblks_c)  ,&
-    zprrad       (nproma,pt_patch%nblks_c)  ,&
-    zprmod_ref_f (nproma,pt_patch%nblks_c)  ,&
-    zprrad_f     (nproma,pt_patch%nblks_c)
+  REAL(KIND=wp) :: &
+    zprmod      (nproma,pt_patch%nblks_c), &
+    zprmod_ref  (nproma,pt_patch%nblks_c), &
+    zprrad      (nproma,pt_patch%nblks_c), &
+    zprmod_ref_f(nproma,pt_patch%nblks_c), &
+    zprrad_f    (nproma,pt_patch%nblks_c)
 
-  REAL  (KIND=wp) ::           &
-    pr_obs(nproma,pt_patch%nblks_c)     ,& ! observed (radar) precipitation rate         (kg/m2*s)
-    pr_mod(nproma,pt_patch%nblks_c)     ,& ! total model precipitation rate              (kg/m2*s)
-    pr_ref(nproma,pt_patch%nblks_c)     ,& ! total reference precipitation rate              (kg/m2*s)
-    pr_ana(nproma,pt_patch%nblks_c)     ,& ! analyzed precipitation rate                 (kg/m2*s)
-    hzerocl(nproma,pt_patch%nblks_c)    ,& ! freezing level (m); use local variable because diagnostic differs from prm_diag%hzerocl
-    pr_mod_nofilt(nproma,pt_patch%nblks_c),& !
-    pr_obs_nofilt(nproma,pt_patch%nblks_c),& !
-    z_pr_mod(nproma,1,pt_patch%nblks_c),& !
-    z_pr_obs(nproma,1,pt_patch%nblks_c),& !
-    z_nabla2_prmod(nproma,pt_patch%nlev,pt_patch%nblks_c),& !
-    z_nabla2_probs(nproma,pt_patch%nlev,pt_patch%nblks_c),& !
-    z_nabla2_ttlh(nproma,pt_patch%nlev,pt_patch%nblks_c),& !
-    wobs_space(nproma,pt_patch%nblks_c) ,& ! weights (spatial) for the precip obs          ( 1 )
-    wobs_time(nproma,pt_patch%nblks_c)  ,& ! weights (temporal) for the precip obs         ( 1 )
-    lhn_diag(nproma,pt_patch%nlev-16:pt_patch%nlev,pt_patch%nblks_c)   ,& ! array for test output of diverse 2D fields
-    tt_lheat(nproma,pt_patch%nlev,pt_patch%nblks_c)   ,& ! tt_lheat
-    qrsflux(nproma,pt_patch%nlev,pt_patch%nblks_c)    ,& ! qrsflux
-    scale_diag(nproma,pt_patch%nblks_c)   ,& ! global distribution of scale_fac
-    treat_diag(nproma,pt_patch%nblks_c)  ! ,& ! diagnose of treatment
-!    windcor_diag(nproma,pt_patch%nblks_c) ,& ! weight with respect to the mean wind
+  REAL(KIND=wp) :: &
+    pr_obs        (nproma,pt_patch%nblks_c), &   ! observed (radar) precipitation rate  (kg/m2*s)
+    pr_mod        (nproma,pt_patch%nblks_c), &   ! total model precipitation rate       (kg/m2*s)
+    pr_ref        (nproma,pt_patch%nblks_c), &   ! total reference precipitation rate   (kg/m2*s)
+    pr_ana        (nproma,pt_patch%nblks_c), &   ! analyzed precipitation rate          (kg/m2*s)
+    hzerocl       (nproma,pt_patch%nblks_c), &   ! freezing level (m); use local variable because diagnostic differs from prm_diag%hzerocl
+    pr_mod_nofilt (nproma,pt_patch%nblks_c), &   !
+    pr_obs_nofilt (nproma,pt_patch%nblks_c), &   !
+    scale_diag    (nproma,pt_patch%nblks_c), &   ! global distribution of scale_fac
+    treat_diag    (nproma,pt_patch%nblks_c), &   ! diagnose of treatment
+!    windcor_diag  (nproma,pt_patch%nblks_c), &   ! weight with respect to the mean wind
+    wobs_space    (nproma,pt_patch%nblks_c), &   ! weights (spatial) for the precip obs    ( 1 )
+    wobs_time     (nproma,pt_patch%nblks_c), &   ! weights (temporal) for the precip obs   ( 1 )
+    z_pr_mod      (nproma,1,pt_patch%nblks_c), &  !
+    z_pr_obs      (nproma,1,pt_patch%nblks_c), &  !
+    z_nabla2_prmod(nproma,pt_patch%nlev,pt_patch%nblks_c), &  !
+    z_nabla2_probs(nproma,pt_patch%nlev,pt_patch%nblks_c), &  !
+    z_nabla2_ttlh (nproma,pt_patch%nlev,pt_patch%nblks_c), &  !
+    tt_lheat      (nproma,pt_patch%nlev,pt_patch%nblks_c), &  ! tt_lheat
+    qrsflux       (nproma,pt_patch%nlev,pt_patch%nblks_c), &  ! qrsflux
+    lhn_diag      (nproma,pt_patch%nlev-16:pt_patch%nlev,pt_patch%nblks_c)  ! array for test output of diverse 2D fields
 
-  INTEGER (KIND=i4)  ::        &
-    diag_out(pt_patch%nblks_c,ndiag_max) ! array for exchange between PE's (used by global_values)
+  INTEGER(KIND=i4) :: diag_out(pt_patch%nblks_c,ndiag_max)   ! array for exchange between PE's (used by global_values)
 
-  LOGICAL  :: &
-    scale_fac_index(nproma,pt_patch%nblks_c)
+  LOGICAL :: scale_fac_index(nproma,pt_patch%nblks_c)
 
   LOGICAL :: ltoold, ltoyoung
-  INTEGER :: izlocstat        ! error status on allocation of fields
+  INTEGER :: izlocstat  ! error status on allocation of fields
 
 !- End of header
 !===============================================================================
@@ -284,66 +276,73 @@ SUBROUTINE organize_lhn ( &
 !             Check if lhn should be executed at the current timestep
 !             Allocate space for fields; determine dt
 !-------------------------------------------------------------------------------
-  yroutine='organize_lhn'
+  yroutine = 'organize_lhn'
 
-  izlocstat  = 0   ! initialization
-  jg         = pt_patch%id
-  nlev       = pt_patch%nlev
-  zdt        = dt_loc
+  izlocstat = 0   ! initialization
+  jg        = pt_patch%id
+  nlev      = pt_patch%nlev
+  zdt       = dt_loc
 
   zdt_1 = 1.0_wp/zdt
   sec_per_hr_inv = 1.0_wp/sec_per_hr
 
   IF (msg_level > 12) THEN
-     WRITE(message_text,'(a,f10.2,3i10)' ) 'intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
-     CALL message(yroutine,message_text)
+    WRITE(message_text, '(a,f10.2,3i10)') 'intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
+    CALL message(yroutine, message_text)
   ENDIF
 
-  rnlhn      = (p_sim_time)/REAL(assimilation_config(jg)%nlhn_end)
+  rnlhn = (p_sim_time)/REAL(assimilation_config(jg)%nlhn_end)
 
   ! settings to exclude boundary interpolation zone of nested domains
-  i_rlstart = grf_bdywidth_c+1
+  i_rlstart = grf_bdywidth_c + 1
   i_rlend   = min_rlcell_int
 
   i_startblk = pt_patch%cells%start_block(i_rlstart)
   i_endblk   = pt_patch%cells%end_block(i_rlend)
 
-  !$ACC ENTER DATA COPYIN(kstart_moist(jg:jg), assimilation_config(jg:jg))
-  !$ACC DATA PRESENT(prm_diag, pt_diag, pt_diag%temp, p_metrics, p_metrics%z_ifc) &
-  !$ACC   PRESENT(p_metrics%z_mc, lhn_fields, lhn_fields%ttend_lhn, lhn_fields%qvtend_lhn) &
-  !$ACC   PRESENT(kstart_moist(jg:jg)) &
-  !$ACC   COPYOUT(pr_obs, pr_ana, wobs_space, wobs_time, lhn_diag, scale_diag, treat_diag) &
-  !$ACC   COPYOUT(diag_out, scale_fac_index, pr_mod, pr_ref, tt_lheat, hzerocl)
+  diag_out(1:pt_patch%nblks_c, 1:ndiag_max) = 0
+
+  !$ACC DATA COPYIN(kstart_moist(jg:jg), assimilation_config(jg:jg)) &
+  !$ACC   CREATE(pr_obs, pr_ana, wobs_space, wobs_time, scale_diag, treat_diag, scale_fac_index, lhn_diag, pr_mod) &
+  !$ACC   CREATE(pr_ref, tt_lheat, hzerocl, ttmin, ttmax, qrsflux, qrsgmax, qrsgthres, z_pr_obs, z_pr_mod) &
+  !$ACC   CREATE(z_nabla2_prmod, z_nabla2_probs, z_nabla2_ttlh, pr_obs_nofilt, pr_mod_nofilt, qrsflux_int, vcoordsum) &
+  !$ACC   CREATE(kqrs, zprmod, zprmod_ref, zprrad, zprmod_ref_f, zprrad_f) &
+  !$ACC   PRESENT(lhn_fields, lhn_fields%ttend_lhn, lhn_fields%qvtend_lhn, lhn_fields%pr_obs_sum) &
+  !$ACC   PRESENT(lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%brightband, prm_diag) &
+  !$ACC   PRESENT(prm_diag%rain_gsp_rate, prm_diag%snow_gsp_rate, prm_diag%graupel_gsp_rate, prm_diag%hail_gsp_rate) &
+  !$ACC   PRESENT(prm_diag%qrs_flux, prm_diag%rain_con_rate_3d, prm_diag%snow_con_rate_3d, prm_diag%tt_lheat) &
+  !$ACC   PRESENT(prm_diag%ttend_lhn, prm_diag%qvtend_lhn, prm_diag%lhn_diag, prm_nwp_tend) &
+  !$ACC   PRESENT(prm_nwp_tend%ddt_temp_pconv, pt_diag, pt_diag%temp, p_metrics, p_metrics%z_ifc, p_metrics%z_mc) &
+  !$ACC   PRESENT(pt_patch, pt_patch%cells%area)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb)
-  !$ACC LOOP SEQ
   DO jb = 1, pt_patch%nblks_c
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
     DO jc = 1, nproma
-      pr_obs(jc,jb) = -0.1_wp
-      pr_ana(jc,jb) = 0.0_wp
-      wobs_space(jc,jb) = -1.0_wp
-      wobs_time(jc,jb) = -1.0_wp
-      scale_diag(jc,jb) = 0.0_wp
-      treat_diag(jc,jb) = 0.0_wp
+      pr_obs         (jc,jb) = -0.1_wp
+      pr_ana         (jc,jb) = 0.0_wp
+      wobs_space     (jc,jb) = -1.0_wp
+      wobs_time      (jc,jb) = -1.0_wp
+      scale_diag     (jc,jb) = 0.0_wp
+      treat_diag     (jc,jb) = 0.0_wp
       scale_fac_index(jc,jb) =.FALSE.
     END DO
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+
+    !$ACC LOOP SEQ
     DO jk = nlev-16, nlev
+      !$ACC LOOP GANG VECTOR
       DO jc = 1, nproma
         lhn_diag(jc,jk,jb) = -99.0_wp
       END DO
     END DO
-    !$ACC LOOP GANG VECTOR
-    DO jc = 1, ndiag_max
-      diag_out(jb,jc) = 0
-    END DO
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+
+    !$ACC LOOP SEQ
     DO jk = 1, nlev
+      !$ACC LOOP GANG VECTOR
       DO jc = 1, nproma
-        lhn_fields%ttend_lhn(jc,jk,jb) = 0.0_wp
+        lhn_fields%ttend_lhn (jc,jk,jb) = 0.0_wp
         lhn_fields%qvtend_lhn(jc,jk,jb) = 0.0_wp
       END DO
     END DO
@@ -354,14 +353,16 @@ SUBROUTINE organize_lhn ( &
 !$OMP DO PRIVATE(jb)
   !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP SEQ
-  DO jb = 1, i_startblk    ! initialization along nest boundaries
+  DO jb = 1, i_startblk   ! initialization along nest boundaries
     !$ACC LOOP GANG VECTOR
     DO jc = 1, nproma
       pr_mod(jc,jb) = 0.0_wp
       pr_ref(jc,jb) = 0.0_wp
     END DO
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+
+    !$ACC LOOP SEQ
     DO jk = 1, nlev
+      !$ACC LOOP GANG VECTOR
       DO jc = 1, nproma
         tt_lheat(jc,jk,jb) = 0.0_wp
       END DO
@@ -376,58 +377,57 @@ SUBROUTINE organize_lhn ( &
 
     CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       hzerocl(jc,jb) = p_metrics%z_ifc(jc,nlev+1,jb)
     END DO
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP SEQ
     DO jk = kstart_moist(jg)+1, nlev
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx 
         IF (hzerocl(jc,jb) /= p_metrics%z_ifc(jc,nlev+1,jb)) THEN ! freezing level found
           CYCLE
         ELSE IF (pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt) THEN
-          hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -                     &
-         &      ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) )*  &
-         &      (    pt_diag%temp(jc,jk-1,jb) - tmelt ) /                   &
-         &      (    pt_diag%temp(jc,jk-1,jb) - pt_diag%temp(jc,jk,jb) )
+          hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -                      &
+                ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) ) * &
+                ( pt_diag%temp  (jc,jk-1,jb) - tmelt                      ) / &
+                ( pt_diag%temp  (jc,jk-1,jb) - pt_diag%temp  (jc,jk,jb) )
         END IF
-      ENDDO
-    ENDDO
-    !$ACC LOOP GANG VECTOR
+      END DO
+    END DO
     ! Extrapolate freezing level below ground if none has been found, assuming a gradient of -6.5K/km
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       IF (hzerocl(jc,jb) == p_metrics%z_ifc(jc,nlev+1,jb)) THEN
-        hzerocl(jc,jb) = MAX(0._wp, p_metrics%z_mc(jc,nlev,jb) + (pt_diag%temp(jc,nlev,jb)-tmelt)/6.5e-3_wp)
-      ENDIF
+        hzerocl(jc,jb) = MAX(0._wp, p_metrics%z_mc(jc,nlev,jb) + (pt_diag%temp(jc,nlev,jb) - tmelt)/6.5e-3_wp)
+      END IF
     END DO
     !$ACC END PARALLEL
-  ENDDO
+  END DO
 !$OMP END DO
 !$OMP END PARALLEL
 
-  IF (my_process_is_stdio() .AND. (assimilation_config(jg)%lhn_diag) ) THEN
-     INQUIRE (file=yulhn,OPENED=lopen_log)
-     IF (.NOT. lopen_log ) THEN
-       CALL open_lhn_log()
-       WRITE (nulhn,'(a,f10.2,3i10)' ) 'LHN : intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
-       WRITE (nulhn,'(a,2f10.2)' ) 'LHN : relevant time step/time now : ',zdt,p_sim_time*sec_per_hr_inv
-       WRITE(nulhn, *)' parameters set for LHN :'
-       WRITE(nulhn, *)' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ',assimilation_config(jg)%lhn_artif
-       WRITE(nulhn, *)' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ',assimilation_config(jg)%lhn_filt
-       WRITE(nulhn, *)' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
-                        assimilation_config(jg)%lhn_relax,assimilation_config(jg)%nlhn_relax
-       WRITE(nulhn, *)' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ',assimilation_config(jg)%lhn_limit,&
-                        assimilation_config(jg)%abs_lhn_lim,' (K/second)'
-       WRITE(nulhn, *)' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ',assimilation_config(jg)%lhn_limitp,&
-                        assimilation_config(jg)%abs_lhn_lim,' (K/second)'
-       WRITE(nulhn, *)' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ',assimilation_config(jg)%lhn_hum_adj
-       WRITE(nulhn, *)' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ',assimilation_config(jg)%lhn_diag
-     ENDIF  
-  ENDIF  
-
+  IF (my_process_is_stdio() .AND. (assimilation_config(jg)%lhn_diag)) THEN
+    INQUIRE (file=yulhn, OPENED=lopen_log)
+    IF (.NOT. lopen_log) THEN
+      CALL open_lhn_log()
+      WRITE(nulhn, '(a,f10.2,3i10)') 'LHN : intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
+      WRITE(nulhn, '(a,2f10.2)') 'LHN : relevant time step/time now : ', zdt, p_sim_time*sec_per_hr_inv
+      WRITE(nulhn, *) ' parameters set for LHN :'
+      WRITE(nulhn, *) ' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ', assimilation_config(jg)%lhn_artif
+      WRITE(nulhn, *) ' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ', assimilation_config(jg)%lhn_filt
+      WRITE(nulhn, *) ' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
+                        assimilation_config(jg)%lhn_relax, assimilation_config(jg)%nlhn_relax
+      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ', assimilation_config(jg)%lhn_limit, &
+                        assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
+      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ', assimilation_config(jg)%lhn_limitp, &
+                        assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
+      WRITE(nulhn, *) ' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ', assimilation_config(jg)%lhn_hum_adj
+      WRITE(nulhn, *) ' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ', assimilation_config(jg)%lhn_diag
+    END IF  
+  END IF  
 
 
 !-------------------------------------------------------------------------------
@@ -439,13 +439,13 @@ SUBROUTINE organize_lhn ( &
 !               (includes interpolation in time between consecutive obs)
 !-------------------------------------------------------------------------------
 
-     CALL lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs(:,:),hzerocl(:,:),wobs_space(:,:),wobs_time(:,:), &
-       &                ltoyoung,ltoold,datetime_current)
+  CALL lhn_obs_prep(pt_patch, radar_data, prm_diag, lhn_fields, pr_obs(:,:), hzerocl(:,:), wobs_space(:,:), &
+                    wobs_time(:,:), ltoyoung, ltoold, datetime_current)
 
-     !$ACC END DATA
+  lvalid_data = .NOT. ltoold
+  IF (.NOT. (ltoold.OR.ltoyoung)) THEN
 
-     lvalid_data = .NOT. ltoold
-     IF (ltoold.OR.ltoyoung) RETURN
+    !$ACC UPDATE HOST(wobs_space) ASYNC(1) IF(.NOT. assimilation_config(jg)%lhn_diag .AND. ltlhnverif)
 
 
 !-------------------------------------------------------------------------------
@@ -453,114 +453,101 @@ SUBROUTINE organize_lhn ( &
 !             Analyze precipitation, i.e. combine model and observation values
 !-------------------------------------------------------------------------------
 
-          !$ACC ENTER DATA CREATE(zprmod)
-          !$ACC DATA PRESENT(prm_diag, prm_diag%rain_gsp_rate, prm_diag%snow_gsp_rate, prm_diag%graupel_gsp_rate) &
-          !$ACC   PRESENT(prm_diag%hail_gsp_rate, prm_diag%qrs_flux, prm_diag%rain_con_rate_3d) &
-          !$ACC   PRESENT(prm_diag%snow_con_rate_3d, prm_diag%tt_lheat, prm_diag%ttend_lhn) &
-          !$ACC   PRESENT(prm_diag%qvtend_lhn, prm_diag%lhn_diag, prm_nwp_tend, prm_nwp_tend%ddt_temp_pconv) &
-          !$ACC   PRESENT(p_metrics, p_metrics%z_ifc, pt_patch, pt_patch%cells%area) &
-          !$ACC   PRESENT(lhn_fields, lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum) &
-          !$ACC   PRESENT(lhn_fields%brightband, kstart_moist(jg:jg), assimilation_config(jg:jg), zprmod) &
-          !$ACC   COPYIN(tt_lheat, wobs_space, wobs_time, pr_ana, pr_obs, pr_mod, pr_ref) &
-          !$ACC   COPYIN(treat_diag, scale_diag, lhn_diag, scale_fac_index) &
-          !$ACC   CREATE(ttmin, ttmax, qrsflux, qrsgmax, qrsgthres, z_pr_obs, z_pr_mod) &
-          !$ACC   CREATE(z_nabla2_prmod, z_nabla2_probs, z_nabla2_ttlh, pr_obs_nofilt, pr_mod_nofilt) &
-          !$ACC   CREATE(qrsflux_int, vcoordsum, kqrs)
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-          DO jb = i_startblk, i_endblk
+    DO jb = i_startblk, i_endblk
 
-            CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-            SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
-            CASE(1,3)
+      SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
+      CASE(1, 3)
 
-              !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-              DO jc = i_startidx, i_endidx
-                pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb)
-              ENDDO
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
+          pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb)
+        END DO
 
-            CASE(2)
+      CASE(2)
 
-              !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-              DO jc = i_startidx, i_endidx
-                pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb)
-              ENDDO
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
+          pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb)
+        END DO
 
-            CASE(4,5) ! 2-mom schemes
+      CASE(4, 5) ! 2-mom schemes
 
-              !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-              DO jc = i_startidx, i_endidx
-                pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + &
-                                prm_diag%graupel_gsp_rate(jc,jb) + prm_diag%hail_gsp_rate(jc,jb)
-              ENDDO
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
+          pr_mod(jc,jb) = prm_diag%rain_gsp_rate   (jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + &
+                          prm_diag%graupel_gsp_rate(jc,jb) + prm_diag%hail_gsp_rate(jc,jb)
+        END DO
 
-            CASE(9)
+      CASE(9)
 
-              !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-              DO jc = i_startidx, i_endidx
-                pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
-              ENDDO
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
+          pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
+        END DO
 
-            END SELECT
+      END SELECT
 
-            !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-            DO jk = kstart_moist(jg), nlev
-              DO jc = i_startidx, i_endidx
-                qrsflux(jc,jk,jb) = prm_diag%qrs_flux(jc,jk,jb)
-              ENDDO
-            ENDDO
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+      DO jk = kstart_moist(jg), nlev
+        DO jc = i_startidx, i_endidx
+          qrsflux(jc,jk,jb) = prm_diag%qrs_flux(jc,jk,jb)
+        END DO
+      END DO
 
-            IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
+      IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
+          pr_mod(jc,jb) = pr_mod(jc,jb) + prm_diag%rain_con_rate_3d(jc,nlev,jb) + prm_diag%snow_con_rate_3d(jc,nlev,jb)
+        END DO
 
-              !$ACC PARALLEL DEFAULT(PRESENT)
-              !$ACC LOOP GANG VECTOR
-              DO jc = i_startidx, i_endidx
-                pr_mod(jc,jb) = pr_mod(jc,jb) + prm_diag%rain_con_rate_3d (jc,nlev,jb) + prm_diag%snow_con_rate_3d (jc,nlev,jb)
-              ENDDO
+        !$ACC LOOP SEQ
+        DO jk = kstart_moist(jg), nlev
+          !$ACC LOOP GANG VECTOR
+          DO jc = i_startidx, i_endidx
+            qrsflux(jc,jk,jb) = qrsflux(jc,jk,jb) + &
+                      prm_diag%rain_con_rate_3d(jc,jk,jb) + prm_diag%snow_con_rate_3d(jc,jk,jb)
+          END DO
+        END DO
+        !$ACC END PARALLEL
+      END IF
 
-              !$ACC LOOP GANG VECTOR COLLAPSE(2)
-              DO jk = kstart_moist(jg), nlev
-                DO jc = i_startidx, i_endidx
-                  qrsflux(jc,jk,jb) = qrsflux(jc,jk,jb) &
-                       + prm_diag%rain_con_rate_3d(jc,jk,jb) + prm_diag%snow_con_rate_3d(jc,jk,jb)
-                ENDDO
-              ENDDO
-              !$ACC END PARALLEL
-            ENDIF
-
-            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-            DO jc = 1, nproma
-              pr_ref(jc,jb) = pr_mod(jc,jb)
-              zprmod(jc,jb) = pr_mod(jc,jb)
-            END DO
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+      DO jc = 1, nproma
+        pr_ref(jc,jb) = pr_mod(jc,jb)
+        zprmod(jc,jb) = pr_mod(jc,jb)
+      END DO
 
 !-------------------------------------------------------------------------------
 ! Section 3: Get total model latent heating profiles
 !            (in terms of temperature tendency as K/s)
 !-------------------------------------------------------------------------------
 
-            IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
-              !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-              DO jk = kstart_moist(jg), nlev
-                DO jc = i_startidx, i_endidx
-                  tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1 + prm_nwp_tend%ddt_temp_pconv(jc,jk,jb)
-                ENDDO
-              ENDDO
-            ELSE
-              !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-              DO jk = kstart_moist(jg), nlev
-                DO jc = i_startidx, i_endidx
-                  tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1
-                ENDDO
-              ENDDO
-            ENDIF
+      IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+        DO jk = kstart_moist(jg), nlev
+          DO jc = i_startidx, i_endidx
+            tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1 + prm_nwp_tend%ddt_temp_pconv(jc,jk,jb)
+          END DO
+        END DO
+      ELSE
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+        DO jk = kstart_moist(jg), nlev
+          DO jc = i_startidx, i_endidx
+            tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1
+          END DO
+        END DO
+      END IF
 
-          ENDDO
+    END DO
 !$OMP END DO 
 !$OMP END PARALLEL
 
+    !$ACC UPDATE HOST(zprmod) ASYNC(1) IF(ltlhnverif)
 
 ! ------------------------------------------------------------------------------
 ! Section 4: get reference precipition for comparison of radar and model
@@ -571,83 +558,84 @@ SUBROUTINE organize_lhn ( &
 
 !$OMP PARALLEL
 
-   IF (assimilation_config(jg)%lhn_qrs) THEN
+    IF (assimilation_config(jg)%lhn_qrs) THEN
 
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,qrsflux_int,qrsgmax,qrsgthres,vcoordsum,kqrs) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
+      DO jb = i_startblk, i_endblk
 
-       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-       DO jc = i_startidx, i_endidx
-         qrsgmax(jc) = 0._wp
-       END DO
+        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          qrsgmax(jc) = 0._wp
+        END DO
 
-       !$ACC PARALLEL DEFAULT(PRESENT)
-       !$ACC LOOP SEQ
-       DO jk = kstart_moist(jg), nlev
-         !$ACC LOOP GANG VECTOR
-         DO jc=i_startidx,i_endidx
-           qrsgmax(jc) = MAX(qrsgmax(jc),qrsflux(jc,jk,jb))
-         ENDDO
-       ENDDO
-       !$ACC END PARALLEL
-       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-       DO jc=i_startidx,i_endidx
-         qrsgthres(jc) = MAX(assimilation_config(jg)%thres_lhn,assimilation_config(jg)%rqrsgmax*qrsgmax(jc))
-         qrsflux_int(jc) = 0.0_wp
-         vcoordsum(jc)=0.0_wp
-         kqrs(jc)=nlev+1
-       ENDDO
+        !$ACC LOOP SEQ
+        DO jk = kstart_moist(jg), nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
+            qrsgmax(jc) = MAX(qrsgmax(jc), qrsflux(jc,jk,jb))
+          END DO
+        END DO
 
-       !$ACC PARALLEL DEFAULT(PRESENT)
-       !$ACC LOOP SEQ
-       DO jk=kstart_moist(jg),nlev
-         !$ACC LOOP GANG VECTOR
-         DO jc=i_startidx,i_endidx
-           IF (qrsgmax(jc) >= qrsgthres(jc)) THEN
-             IF (qrsflux(jc,jk,jb) >= qrsgthres(jc) .AND. kqrs(jc)==nlev+1) then
-               kqrs(jc)=jk
-             ENDIF
-           ENDIF
-         ENDDO
-       ENDDO
-       !$ACC LOOP SEQ
-       DO jk=MINVAL(kqrs(i_startidx:i_endidx)),nlev
-         !$ACC LOOP GANG VECTOR
-         DO jc=i_startidx,i_endidx
-           IF (jk >= kqrs(jc)) THEN
-             qrsflux_int(jc) = qrsflux_int(jc) + qrsflux(jc,jk,jb)  &
-                              * (p_metrics%z_ifc(jc,jk,jb)-p_metrics%z_ifc(jc,jk+1,jb))
-             vcoordsum(jc)=vcoordsum(jc)+(p_metrics%z_ifc(jc,jk,jb)-p_metrics%z_ifc(jc,jk+1,jb))
-           ENDIF
-         ENDDO
-       ENDDO
-       !$ACC LOOP GANG VECTOR
-       DO jc=i_startidx,i_endidx
-         IF (vcoordsum(jc) /= 0.0_wp) qrsflux_int(jc) = qrsflux_int(jc) / vcoordsum(jc)
-         pr_ref(jc,jb) = qrsflux_int(jc)
-       ENDDO
-       !$ACC END PARALLEL
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          qrsgthres(jc)   = MAX(assimilation_config(jg)%thres_lhn, assimilation_config(jg)%rqrsgmax*qrsgmax(jc))
+          qrsflux_int(jc) = 0.0_wp
+          vcoordsum(jc)   = 0.0_wp
+          kqrs(jc)        = nlev+1
+        END DO
 
-     ENDDO
+        !$ACC LOOP SEQ
+        DO jk = kstart_moist(jg), nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
+            IF (qrsgmax(jc) >= qrsgthres(jc)) THEN
+              IF (qrsflux(jc,jk,jb) >= qrsgthres(jc) .AND. kqrs(jc) == nlev+1) THEN
+                kqrs(jc) = jk
+              END IF
+            END IF
+          END DO
+        END DO
+        
+        !$ACC LOOP SEQ
+        DO jk = MINVAL(kqrs(i_startidx:i_endidx)), nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
+            IF (jk >= kqrs(jc)) THEN
+              qrsflux_int(jc) = qrsflux_int(jc) + qrsflux(jc,jk,jb) * &
+                                ( p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb) )
+              vcoordsum(jc) = vcoordsum(jc) + ( p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb) )
+            END IF
+          END DO
+        END DO
+        
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc=i_startidx, i_endidx
+          IF (vcoordsum(jc) /= 0.0_wp) qrsflux_int(jc) = qrsflux_int(jc) / vcoordsum(jc)
+          pr_ref(jc,jb) = qrsflux_int(jc)
+        END DO
+        !$ACC END PARALLEL
+
+      END DO
 !$OMP END DO 
-   ENDIF
+    END IF
 
 !$OMP DO PRIVATE(jb)
-   !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-   DO jb=i_startblk,i_endblk
-     DO jc = 1, nproma
-       pr_obs_nofilt(jc,jb) = pr_obs(jc,jb)
-       pr_mod_nofilt(jc,jb) = pr_ref(jc,jb)
-     END DO
-   ENDDO
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+    DO jb=i_startblk,i_endblk
+      DO jc = 1, nproma
+        pr_obs_nofilt(jc,jb) = pr_obs(jc,jb)
+        pr_mod_nofilt(jc,jb) = pr_ref(jc,jb)
+      END DO
+    END DO
 !$OMP END DO
 
 !$OMP END PARALLEL
 
 
-   IF (assimilation_config(jg)%lhn_relax) THEN
+    IF (assimilation_config(jg)%lhn_relax) THEN
 
       !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
       DO jb = 1, pt_patch%nblks_c
@@ -659,44 +647,44 @@ SUBROUTINE organize_lhn ( &
 
       CALL sync_patch_array_mult(SYNC_C, pt_patch, 3, z_pr_mod, z_pr_obs, tt_lheat)
 
-      zdcoeff = 0.05_wp ! diffusion coefficient for nabla2 diffusion
+      zdcoeff = 0.05_wp   ! diffusion coefficient for nabla2 diffusion
   
-      DO iter = 1, assimilation_config(jg)%nlhn_relax ! perform niter iterations
-                         ! note: a variable number of iterations (with an exit condition) potentially 
-                         ! causes trouble with MPI reproducibility
+      DO iter = 1, assimilation_config(jg)%nlhn_relax   ! perform niter iterations
+                                                        ! note: a variable number of iterations (with an exit condition) 
+                                                        !       potentially causes trouble with MPI reproducibility
   
         CALL nabla2_scalar(z_pr_mod, pt_patch, pt_int_state, z_nabla2_prmod, 1, 1, grf_bdywidth_c+1, min_rlcell_int)
         CALL nabla2_scalar(z_pr_obs, pt_patch, pt_int_state, z_nabla2_probs, 1, 1, grf_bdywidth_c+1, min_rlcell_int)
-        CALL nabla2_scalar(tt_lheat, pt_patch, pt_int_state, z_nabla2_ttlh,        &
-                           kstart_moist(jg), nlev, grf_bdywidth_c+1, min_rlcell_int)
+        CALL nabla2_scalar( tt_lheat, pt_patch, pt_int_state, z_nabla2_ttlh, &
+                            kstart_moist(jg), nlev, grf_bdywidth_c+1, min_rlcell_int )
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-        DO jb = i_startblk,i_endblk
+        DO jb = i_startblk, i_endblk
 
-          CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-                             i_startidx, i_endidx, i_rlstart, i_rlend)
+          CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
           !$ACC PARALLEL DEFAULT(PRESENT)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
-            pr_ref(jc,jb) = MAX(0.0_wp, z_pr_mod(jc,1,jb) + zdcoeff *           &
-                            pt_patch%cells%area(jc,jb) * z_nabla2_prmod(jc,1,jb))
+            pr_ref(jc,jb) = MAX( 0.0_wp, z_pr_mod(jc,1,jb) + zdcoeff * &
+                                  pt_patch%cells%area(jc,jb) * z_nabla2_prmod(jc,1,jb) )
    
-            pr_obs(jc,jb) = z_pr_obs(jc,1,jb) + zdcoeff *           &
-                            pt_patch%cells%area(jc,jb) * z_nabla2_probs(jc,1,jb)
-          ENDDO
+            pr_obs(jc,jb) = z_pr_obs(jc,1,jb) + zdcoeff * &
+                                 pt_patch%cells%area(jc,jb) * z_nabla2_probs(jc,1,jb)
+          END DO
 
-          !$ACC LOOP GANG VECTOR COLLAPSE(2)
-          DO jk = kstart_moist(jg),pt_patch%nlev
+          !$ACC LOOP SEQ
+          DO jk = kstart_moist(jg), pt_patch%nlev
+            !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
-              tt_lheat(jc,jk,jb) = tt_lheat(jc,jk,jb) + zdcoeff *                    &
-                                  pt_patch%cells%area(jc,jb) * z_nabla2_ttlh(jc,jk,jb)
-            ENDDO
-          ENDDO
+              tt_lheat(jc,jk,jb) = tt_lheat(jc,jk,jb) + zdcoeff * &
+                                         pt_patch%cells%area(jc,jb) * z_nabla2_ttlh(jc,jk,jb)
+            END DO
+          END DO
           !$ACC END PARALLEL
 
-        ENDDO
+        END DO
 !$OMP END DO 
 !$OMP END PARALLEL
    
@@ -717,42 +705,40 @@ SUBROUTINE organize_lhn ( &
             pr_obs(jc,jb) = z_pr_obs(jc,1,jb)
           END DO
         END DO
-      ENDDO
+      
+      END DO
 
-! Clipping negative values and reset to original radar domain
+      ! Clipping negative values and reset to original radar domain
       !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
       DO jb = 1, pt_patch%nblks_c
         DO jc = 1, nproma
-          IF (pr_obs(jc,jb) < 0.0_wp) pr_obs(jc,jb) = 0.0_wp
+          IF (pr_obs(jc,jb) < 0.0_wp)        pr_obs(jc,jb) = 0.0_wp
           IF (pr_obs_nofilt(jc,jb) < 0.0_wp) pr_obs(jc,jb) = -1.0_wp
         END DO
       END DO
 
-   ENDIF
+    END IF
   
- IF (ltlhnverif) THEN
-  !$ACC DATA PRESENT(pr_mod_nofilt, pr_obs_nofilt, pr_ref, pr_obs) &
-  !$ACC   COPYOUT(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f)
+    IF (ltlhnverif) THEN
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb)
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-  DO jb = i_startblk, i_endblk
-    DO jc = 1, nproma
-      zprmod_ref  (jc,jb) = pr_mod_nofilt(jc,jb)
-      zprrad      (jc,jb) = pr_obs_nofilt(jc,jb)
-      zprmod_ref_f(jc,jb) = pr_ref       (jc,jb)
-      zprrad_f    (jc,jb) = pr_obs       (jc,jb)
-    END DO
-  END DO
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+      DO jb = i_startblk, i_endblk
+        DO jc = 1, nproma
+          zprmod_ref  (jc,jb) = pr_mod_nofilt(jc,jb)
+          zprrad      (jc,jb) = pr_obs_nofilt(jc,jb)
+          zprmod_ref_f(jc,jb) = pr_ref       (jc,jb)
+          zprrad_f    (jc,jb) = pr_obs       (jc,jb)
+        END DO
+      END DO
+      !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f)
 !$OMP END DO
 !$OMP END PARALLEL
-  !$ACC END DATA
-  !$ACC UPDATE HOST(zprmod)
-
-   CALL lhn_verification ('SW',pt_patch,radar_data,lhn_fields,p_sim_time,wobs_space,&
-                          zprmod,zprmod_ref,zprrad,zprmod_ref_f,zprrad_f)
- ENDIF
- !$ACC EXIT DATA DELETE(zprmod)
+      !$ACC WAIT(1)
+      CALL lhn_verification( 'SW', pt_patch, radar_data, lhn_fields, p_sim_time, wobs_space, &
+                             zprmod, zprmod_ref, zprrad, zprmod_ref_f, zprrad_f )
+    END IF
 
 
 !-------------------------------------------------------------------------------
@@ -762,78 +748,80 @@ SUBROUTINE organize_lhn ( &
 !             heating profiles that are found outside the PE's subdomain)
 !-------------------------------------------------------------------------------
 
-   IF (izlocstat /= 0) THEN
-     yerrmsg =' ERROR  *** allocation of space for lhn - fields failed'
-     CALL finish (yroutine,yerrmsg)
-   ENDIF
-   scale_fac_index = .FALSE.
+    IF (izlocstat /= 0) THEN
+      yerrmsg = ' ERROR  *** allocation of space for lhn - fields failed'
+      CALL finish(yroutine, yerrmsg)
+    END IF
 
 
 
-   IF (assimilation_config(jg)%lhn_diag) THEN
+    IF (assimilation_config(jg)%lhn_diag) THEN
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
-       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       CALL lhn_t_inc (i_startidx,i_endidx,jg,pt_patch%nlev,p_metrics%z_ifc(:,:,jb), &
-                       tt_lheat(:,:,jb),wobs_time(:,jb), wobs_space(:,jb), pr_obs(:,jb), pr_ref(:,jb),pr_ana(:,jb),     &
-                       lhn_fields%ttend_lhn(:,:,jb), treat_diag(:,jb),scale_diag(:,jb),scale_fac_index(:,jb),           &
-!                       prm_nwp_tend%ddt_temp_pconv(:,:,jb),diag_out(jb,:))
-                       pt_diag%u(:,:,jb),pt_diag%v(:,:,jb),prm_diag%k850(:,jb),prm_diag%k950(:,jb),prm_diag%k700(:,jb), &
-                       diag_out(jb,:))
-     ENDDO
+      DO jb = i_startblk, i_endblk
+        
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+        CALL lhn_t_inc( i_startidx, i_endidx, jg, pt_patch%nlev, p_metrics%z_ifc(:,:,jb), &
+                        tt_lheat(:,:,jb), wobs_time(:,jb), wobs_space(:,jb), pr_obs(:,jb), pr_ref(:,jb), &
+                        pr_ana(:,jb), lhn_fields%ttend_lhn(:,:,jb), treat_diag(:,jb), scale_diag(:,jb), &
+                        scale_fac_index(:,jb), &
+!                        prm_nwp_tend%ddt_temp_pconv(:,:,jb), diag_out(jb,:))
+                        pt_diag%u(:,:,jb), pt_diag%v(:,:,jb), prm_diag%k850(:,jb), prm_diag%k950(:,jb), &
+                        prm_diag%k700(:,jb), diag_out(jb,:) )
+      END DO
 !$OMP END DO 
 !$OMP END PARALLEL
     ELSE
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
-       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       CALL lhn_t_inc (i_startidx,i_endidx,jg,pt_patch%nlev,p_metrics%z_ifc(:,:,jb), &
-                       tt_lheat(:,:,jb),wobs_time(:,jb), wobs_space(:,jb), pr_obs(:,jb), pr_ref(:,jb),pr_ana(:,jb),     &
-                       lhn_fields%ttend_lhn(:,:,jb), treat_diag(:,jb),scale_diag(:,jb),scale_fac_index(:,jb),           &
-!                       prm_nwp_tend%ddt_temp_pconv(:,:,jb))
-                       pt_diag%u(:,:,jb),pt_diag%v(:,:,jb),prm_diag%k850(:,jb),prm_diag%k950(:,jb),prm_diag%k700(:,jb)  &
-                       )
-     ENDDO
+      DO jb = i_startblk, i_endblk
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+        CALL lhn_t_inc( i_startidx, i_endidx, jg, pt_patch%nlev, p_metrics%z_ifc(:,:,jb), &
+                        tt_lheat(:,:,jb), wobs_time(:,jb), wobs_space(:,jb), pr_obs(:,jb), pr_ref(:,jb), &
+                        pr_ana(:,jb), lhn_fields%ttend_lhn(:,:,jb), treat_diag(:,jb), scale_diag(:,jb), &
+                        scale_fac_index(:,jb), &
+!                        prm_nwp_tend%ddt_temp_pconv(:,:,jb))
+                        pt_diag%u(:,:,jb), pt_diag%v(:,:,jb), prm_diag%k850(:,jb), prm_diag%k950(:,jb), &
+                        prm_diag%k700(:,jb) )
+      END DO
 !$OMP END DO 
 !$OMP END PARALLEL
-    ENDIF
+    END IF
 
     IF (assimilation_config(jg)%lhn_diag) THEN
-       diag_sum = 0
-       g_diag_sum = 0
-       DO ndiag=1,15
-         diag_sum(ndiag) = SUM(diag_out(:,ndiag))
-       ENDDO
-       g_diag_sum(1:15) = global_sum(diag_sum(1:15),opt_iroot=p_io) 
+      diag_sum   = 0
+      g_diag_sum = 0
+      
+      DO ndiag = 1, 15
+        diag_sum(ndiag) = SUM(diag_out(:,ndiag))
+      END DO
+
+      g_diag_sum(1:15) = global_sum(diag_sum(1:15), opt_iroot=p_io) 
 
       IF (my_process_is_stdio()) THEN
         WRITE(nulhn, *)
-        WRITE(nulhn, *)' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
+        WRITE(nulhn, *)              ' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
 
-        WRITE(nulhn, *)'Diagnostics of LHN, lhn_t_inc, timestep : ',p_sim_time*zdt_1
-        WRITE(nulhn, '(A,L3,f6.2)' )' Latent Heat Nudging active          : ',ltlhn, REAL(diag_out(i_endblk,16))/100.
-        WRITE(nulhn, *)' n of points with increments         : ',g_diag_sum(1)
-        WRITE(nulhn, *)' n of points with local profiles     : ',g_diag_sum(2)
-        WRITE(nulhn, *)' n of points with upscaling          : ',g_diag_sum(3)
-        WRITE(nulhn, *)' n of points with limited upscaling  : ',g_diag_sum(4)
-        WRITE(nulhn, *)' n of points with downscaling        : ',g_diag_sum(5)
-        WRITE(nulhn, *)' n of points with limited downscaling: ',g_diag_sum(6)
-        WRITE(nulhn, *)' n of points with artif. prof         : ',g_diag_sum(7)
-        WRITE(nulhn, *)' points with imposed positive limit  : ',g_diag_sum(8)
-        WRITE(nulhn, *)' points with imposed negative limit  : ',g_diag_sum(9)
-        WRITE(nulhn, *)' points with wind weighting < 1 and > 0 : ',g_diag_sum(10)
-        WRITE(nulhn, *)' points with wind weighting equal 0     : ',g_diag_sum(11)
-        WRITE(nulhn, *)' points with applied in_cloud treatment : ',g_diag_sum(15)
+        WRITE(nulhn, *)              'Diagnostics of LHN, lhn_t_inc, timestep : ', p_sim_time*zdt_1
+        WRITE(nulhn, '(A,L3,f6.2)' ) ' Latent Heat Nudging active          : ', ltlhn, REAL(diag_out(i_endblk,16))/100.
+        WRITE(nulhn, *)              ' n of points with increments         : ',               g_diag_sum(1)
+        WRITE(nulhn, *)              ' n of points with local profiles     : ',               g_diag_sum(2)
+        WRITE(nulhn, *)              ' n of points with upscaling          : ',               g_diag_sum(3)
+        WRITE(nulhn, *)              ' n of points with limited upscaling  : ',               g_diag_sum(4)
+        WRITE(nulhn, *)              ' n of points with downscaling        : ',               g_diag_sum(5)
+        WRITE(nulhn, *)              ' n of points with limited downscaling: ',               g_diag_sum(6)
+        WRITE(nulhn, *)              ' n of points with artif. prof         : ',              g_diag_sum(7)
+        WRITE(nulhn, *)              ' points with imposed positive limit  : ',               g_diag_sum(8)
+        WRITE(nulhn, *)              ' points with imposed negative limit  : ',               g_diag_sum(9)
+        WRITE(nulhn, *)              ' points with wind weighting < 1 and > 0 : ',            g_diag_sum(10)
+        WRITE(nulhn, *)              ' points with wind weighting equal 0     : ',            g_diag_sum(11)
+        WRITE(nulhn, *)              ' points with applied in_cloud treatment : ',            g_diag_sum(15)
         WRITE(nulhn, *)
-        WRITE(nulhn, *)' Vert. Filtering : n points eliminate oscillations: ',g_diag_sum(12)
-        WRITE(nulhn, *)' Vert. Filtering : n points eliminate isolate peaks: ',g_diag_sum(13)
-        WRITE(nulhn, *)' Vert. Filtering : n points smoothed : ',g_diag_sum(14)
-      ENDIF
-    ENDIF
+        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate oscillations: ',  g_diag_sum(12)
+        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate isolate peaks: ', g_diag_sum(13)
+        WRITE(nulhn, *)              ' Vert. Filtering : n points smoothed : ',               g_diag_sum(14)
+      END IF
+    END IF
 
 !-------------------------------------------------------------------------------
 ! Section 9 : Apply a corresponding humidity increment to maintain or produce
@@ -846,28 +834,24 @@ SUBROUTINE organize_lhn ( &
 
 
 !$OMP PARALLEL
+    IF (assimilation_config(jg)%lhn_hum_adj) THEN
 
-  IF (assimilation_config(jg)%lhn_hum_adj) THEN
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
+      DO jb = i_startblk, i_endblk
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-!$OMP DO PRIVATE(jb,jc,i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
-       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-         &                i_startidx, i_endidx, i_rlstart, i_rlend)
-
-        CALL lhn_q_inc( &
-             i_startidx,i_endidx,jg,zdt,nlev, &
-             pt_diag%temp(:,:,jb),lhn_fields%ttend_lhn(:,:,jb), &
-             pt_diag%pres(:,:,jb), &
-             pt_prog_rcf%tracer (:,:,jb,iqv), &
-             pt_prog_rcf%tracer (:,:,jb,iqc), &
-             pt_prog_rcf%tracer (:,:,jb,iqi), &
-             lhn_fields%qvtend_lhn(:,:,jb), &
-             scale_fac_index(:,jb))
-     ENDDO
+        CALL lhn_q_inc( i_startidx, i_endidx, jg, zdt, nlev, &
+                        pt_diag%temp(:,:,jb), lhn_fields%ttend_lhn(:,:,jb), &
+                        pt_diag%pres(:,:,jb), &
+                        pt_prog_rcf%tracer(:,:,jb,iqv), &
+                        pt_prog_rcf%tracer(:,:,jb,iqc), &
+                        pt_prog_rcf%tracer(:,:,jb,iqi), &
+                        lhn_fields%qvtend_lhn(:,:,jb), &
+                        scale_fac_index(:,jb) )
+      END DO
 !$OMP END DO 
 
-  ENDIF
-
+    END IF
 !$OMP END PARALLEL
 
 !-------------------------------------------------------------------------------
@@ -883,20 +867,19 @@ SUBROUTINE organize_lhn ( &
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,ttmin,ttmax)
-  DO jb=i_startblk,i_endblk
+    DO jb = i_startblk, i_endblk
 
-    CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-      &                i_startidx, i_endidx, i_rlstart, i_rlend)
+      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-   !$ACC PARALLEL DEFAULT(PRESENT)
-   !$ACC LOOP GANG VECTOR
-   DO jc = i_startidx, i_endidx
-     IF (pr_obs(jc,jb) > 0.0_wp)     lhn_fields%pr_obs_sum(jc,jb) = lhn_fields%pr_obs_sum(jc,jb)       &
-                                                   + pr_obs_nofilt(jc,jb) * zdt
-     IF (pr_obs(jc,jb) > 0.0_wp)     lhn_fields%pr_mod_sum(jc,jb) = lhn_fields%pr_mod_sum(jc,jb)       &
-                                                   + pr_mod(jc,jb) * zdt
-     IF (pr_obs(jc,jb) > 0.0_wp)     lhn_fields%pr_ref_sum(jc,jb) = lhn_fields%pr_ref_sum(jc,jb)       &
-                                                   + pr_mod_nofilt(jc,jb) * zdt
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
+        IF (pr_obs(jc,jb) > 0.0_wp) lhn_fields%pr_obs_sum(jc,jb) = lhn_fields%pr_obs_sum(jc,jb) + &
+                                                                         pr_obs_nofilt(jc,jb) * zdt
+        IF (pr_obs(jc,jb) > 0.0_wp) lhn_fields%pr_mod_sum(jc,jb) = lhn_fields%pr_mod_sum(jc,jb) + &
+                                                                        pr_mod(jc,jb) * zdt
+        IF (pr_obs(jc,jb) > 0.0_wp) lhn_fields%pr_ref_sum(jc,jb) = lhn_fields%pr_ref_sum(jc,jb) + &
+                                                                        pr_mod_nofilt(jc,jb) * zdt
 
 !-------------------------------------------------------------------------------
 ! Section 10b : control output for some variables via lhn_diag
@@ -904,94 +887,97 @@ SUBROUTINE organize_lhn ( &
 ! control output of pr_mod, pr_obs, pr_ana in lhn_diag (upper 3 levels)
 ! ouput is in kg/(s*m**2)
 
-     lhn_diag(jc,nlev,jb) = pr_obs(jc,jb)
+        lhn_diag(jc,nlev,  jb) = pr_obs(jc,jb)
+        lhn_diag(jc,nlev-1,jb) = pr_mod(jc,jb)      ! ive: 2
+        lhn_diag(jc,nlev-2,jb) = pr_ref(jc,jb)      ! ive: 3
+        lhn_diag(jc,nlev-3,jb) = pr_ana(jc,jb)      ! ive: 4
+        lhn_diag(jc,nlev-4,jb) = wobs_space(jc,jb)  ! ive: 5
+        lhn_diag(jc,nlev-5,jb) = wobs_time(jc,jb)   ! ive: 6
 
-     lhn_diag(jc,nlev-1,jb) = pr_mod(jc,jb)                 ! ive: 2
-     lhn_diag(jc,nlev-2,jb) = pr_ref(jc,jb)                 ! ive: 3
-     lhn_diag(jc,nlev-3,jb) = pr_ana(jc,jb)                 ! ive: 4
-     lhn_diag(jc,nlev-4,jb) = wobs_space(jc,jb)             ! ive: 5
-     lhn_diag(jc,nlev-5,jb) = wobs_time(jc,jb)              ! ive: 6
-     IF (pr_obs(jc,jb) > assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) > assimilation_config(jg)%thres_lhn) &
-       lhn_diag(jc,nlev-6,jb) = 1.0_wp          ! ive: 7
-     IF (pr_obs(jc,jb) > assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) <= assimilation_config(jg)%thres_lhn) &
-       lhn_diag(jc,nlev-6,jb) = 2.0_wp          ! ive: 7
-     IF (pr_obs(jc,jb) <= assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) > assimilation_config(jg)%thres_lhn) &
-       lhn_diag(jc,nlev-6,jb) = 3.0_wp          ! ive: 7
-     IF (pr_obs(jc,jb) > pr_ref(jc,jb)) THEN
-       lhn_diag(jc,nlev-7,jb) = 1.0_wp          ! ive: 8
-     ELSE
-       lhn_diag(jc,nlev-7,jb) = 0.0_wp          ! ive: 8
-     ENDIF
-     IF (pr_obs(jc,jb) < pr_ref(jc,jb)) THEN
-       lhn_diag(jc,nlev-8,jb) = -1.0_wp         ! ive: 9
-     ELSE
-       lhn_diag(jc,nlev-8,jb) = 0.0_wp          ! ive: 9
-     ENDIF
-     lhn_diag(jc,nlev-10,jb) = lhn_fields%pr_obs_sum(jc,jb)            ! ive: 11
-     lhn_diag(jc,nlev-11,jb) = lhn_fields%pr_mod_sum(jc,jb)            ! ive: 12
-     lhn_diag(jc,nlev-12,jb) = lhn_fields%pr_ref_sum(jc,jb)            ! ive: 13
-     lhn_diag(jc,nlev-13,jb) = scale_diag(jc,jb)       ! ive: 14
-     lhn_diag(jc,nlev-14,jb) = treat_diag(jc,jb)            ! ive: 15
-     lhn_diag(jc,nlev-15,jb) = lhn_fields%brightband(jc,jb) ! ive: 16
-     lhn_diag(jc,nlev-16,jb) = pr_obs_nofilt(jc,jb)
-   ENDDO
-   !$ACC END PARALLEL
+        IF (pr_obs(jc,jb) > assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) > assimilation_config(jg)%thres_lhn) &
+          lhn_diag(jc,nlev-6,jb) = 1.0_wp            ! ive: 7
+        IF (pr_obs(jc,jb) > assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) <= assimilation_config(jg)%thres_lhn) &
+          lhn_diag(jc,nlev-6,jb) = 2.0_wp            ! ive: 7
+        IF (pr_obs(jc,jb) <= assimilation_config(jg)%thres_lhn .AND. pr_ref(jc,jb) > assimilation_config(jg)%thres_lhn) &
+          lhn_diag(jc,nlev-6,jb) = 3.0_wp            ! ive: 7
+        IF (pr_obs(jc,jb) > pr_ref(jc,jb)) THEN
+          lhn_diag(jc,nlev-7,jb) = 1.0_wp            ! ive: 8
+        ELSE
+          lhn_diag(jc,nlev-7,jb) = 0.0_wp            ! ive: 8
+        END IF
+        IF (pr_obs(jc,jb) < pr_ref(jc,jb)) THEN
+          lhn_diag(jc,nlev-8,jb) = -1.0_wp           ! ive: 9
+        ELSE
+          lhn_diag(jc,nlev-8,jb) = 0.0_wp            ! ive: 9
+        END IF
 
-   !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-   DO jc = i_startidx, i_endidx
-     ttmin(jc) = 0._wp
-     ttmax(jc) = 0._wp
-   END DO
+        lhn_diag(jc,nlev-10,jb) = lhn_fields%pr_obs_sum(jc,jb)  ! ive: 11
+        lhn_diag(jc,nlev-11,jb) = lhn_fields%pr_mod_sum(jc,jb)  ! ive: 12
+        lhn_diag(jc,nlev-12,jb) = lhn_fields%pr_ref_sum(jc,jb)  ! ive: 13
+        lhn_diag(jc,nlev-13,jb) = scale_diag(jc,jb)             ! ive: 14
+        lhn_diag(jc,nlev-14,jb) = treat_diag(jc,jb)             ! ive: 15
+        lhn_diag(jc,nlev-15,jb) = lhn_fields%brightband(jc,jb)  ! ive: 16
+        lhn_diag(jc,nlev-16,jb) = pr_obs_nofilt(jc,jb)
+      END DO
 
-   !$ACC PARALLEL DEFAULT(PRESENT)
-   !$ACC LOOP SEQ
-   DO jk = kstart_moist(jg), nlev
-     !$ACC LOOP GANG VECTOR
-     DO jc = i_startidx, i_endidx
-       ttmin(jc) = MIN(ttmin(jc),lhn_fields%ttend_lhn(jc,jk,jb))
-       ttmax(jc) = MAX(ttmax(jc),lhn_fields%ttend_lhn(jc,jk,jb))
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
+        ttmin(jc) = 0._wp
+        ttmax(jc) = 0._wp
+      END DO
 
-       prm_diag%tt_lheat(jc,jk,jb) = tt_lheat(jc,jk,jb)
-       prm_diag%ttend_lhn(jc,jk,jb) = lhn_fields%ttend_lhn(jc,jk,jb)
-       prm_diag%qvtend_lhn(jc,jk,jb) = lhn_fields%qvtend_lhn(jc,jk,jb)
-     ENDDO
-   ENDDO
-   !$ACC END PARALLEL
+      !$ACC LOOP SEQ
+      DO jk = kstart_moist(jg), nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          ttmin(jc) = MIN(ttmin(jc), lhn_fields%ttend_lhn(jc,jk,jb))
+          ttmax(jc) = MAX(ttmax(jc), lhn_fields%ttend_lhn(jc,jk,jb))
 
-   !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-   DO jc = i_startidx, i_endidx
-     lhn_diag(jc,nlev-9,jb) = MERGE(0._wp,1._wp,ttmin(jc)==0._wp .AND. ttmax(jc)==0._wp)
-   ENDDO
-   !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-   DO jk = nlev-16, nlev
-     DO jc = i_startidx, i_endidx
-       prm_diag%lhn_diag(jc,jk,jb) = lhn_diag(jc,jk,jb)
-     END DO
-   END DO
+          prm_diag%tt_lheat  (jc,jk,jb) = tt_lheat(jc,jk,jb)
+          prm_diag%ttend_lhn (jc,jk,jb) = lhn_fields%ttend_lhn(jc,jk,jb)
+          prm_diag%qvtend_lhn(jc,jk,jb) = lhn_fields%qvtend_lhn(jc,jk,jb)
+        END DO
+      END DO
 
-  ENDDO
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
+        lhn_diag(jc,nlev-9,jb) = MERGE(0._wp, 1._wp, ttmin(jc) == 0._wp .AND. ttmax(jc) == 0._wp)
+      END DO
+      
+      !$ACC LOOP SEQ
+      DO jk = nlev-16, nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          prm_diag%lhn_diag(jc,jk,jb) = lhn_diag(jc,jk,jb)
+        END DO
+      END DO
+      !$ACC END PARALLEL
+
+    END DO
 
 !$OMP END DO 
 !$OMP END PARALLEL
 
-   !$ACC END DATA
-   !$ACC EXIT DATA DELETE(kstart_moist(jg:jg), assimilation_config(jg:jg))
-
-   IF (datetime_current%time%minute  == 0) THEN
+    IF (datetime_current%time%minute  == 0) THEN
       IF (ltlhnverif) THEN
-         !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
-         CALL lhn_verification ('HR',pt_patch,radar_data,lhn_fields,p_sim_time/3600.,wobs_space,&
-                                lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum,lhn_fields%pr_obs_sum)
-      ENDIF
+        !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
+        CALL lhn_verification( 'HR', pt_patch, radar_data, lhn_fields, p_sim_time/3600._wp, wobs_space, &
+                               lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%pr_obs_sum )
+      END IF
+      
       !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
       DO jb = 1, pt_patch%nblks_c
         DO jc = 1, nproma
-          lhn_fields%pr_obs_sum(jc,jb)  = 0.0_wp
-          lhn_fields%pr_mod_sum(jc,jb)  = 0.0_wp
-          lhn_fields%pr_ref_sum(jc,jb)  = 0.0_wp
+          lhn_fields%pr_obs_sum(jc,jb) = 0.0_wp
+          lhn_fields%pr_mod_sum(jc,jb) = 0.0_wp
+          lhn_fields%pr_ref_sum(jc,jb) = 0.0_wp
         END DO
       END DO
-   ENDIF
+    END IF
+  
+  END IF
+
+  !$ACC END DATA
 
 !-------------------------------------------------------------------------------
 ! Section 11 : Deallocate fields needed only during the lhn - step
@@ -1264,11 +1250,11 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
   weight_index_m1lim = MAX(1,weight_index_m1) ! to avoid errors with array bound checking
   weight_index_m2lim = MAX(1,weight_index_m2) ! to avoid errors with array bound checking
 
-  !$ACC ENTER DATA CREATE(num_t_obs)
-  !$ACC DATA PRESENT(pt_patch, prm_diag, lhn_fields, lhn_fields%brightband, radar_data) &
-  !$ACC   PRESENT(radar_data%radar_ct%blacklist, radar_data%radar_td%obs, radar_data%radar_td%spqual) &
-  !$ACC   PRESENT(wobs_time, wobs_space, pr_obs, hzerocl, num_t_obs, assimilation_config(jg:jg)) &
-  !$ACC   COPYIN(td_in_min) CREATE(obs_sum, obs_ratio, bbllim, obs_cnt)
+  !$ACC DATA COPYIN(td_in_min) &
+  !$ACC   CREATE(num_t_obs, obs_sum, obs_ratio, bbllim, obs_cnt) &
+  !$ACC   PRESENT(pt_patch, prm_diag, lhn_fields, lhn_fields%brightband, radar_data, radar_data%radar_ct%blacklist) &
+  !$ACC   PRESENT(radar_data%radar_td%obs, radar_data%radar_td%spqual, wobs_time, wobs_space, pr_obs, hzerocl) &
+  !$ACC   PRESENT(assimilation_config(jg:jg))
 
   IF (assimilation_config(jg)%lhn_bright .AND. &
    & ( (MOD(datetime_current%time%minute,5)  == 0 .AND. datetime_current%time%second < 10 ) &
@@ -1748,9 +1734,6 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 !$OMP END PARALLEL
   
    ENDIF
-   !$ACC END DATA
-
-  DEALLOCATE (td_in_min)
 
 ! if no spatial quality function is used, set wobs_space constant to one
 !IF (.NOT.assimilation_config(jg)%lhn_spqual) wobs_space(:,:) = 1.0_wp
@@ -1793,7 +1776,10 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
      WRITE(nulhn, *)
     ENDIF
   ENDIF
-  !$ACC EXIT DATA DELETE(num_t_obs)
+
+  !$ACC END DATA
+
+  DEALLOCATE (td_in_min)
 
 !-------------------------------------------------------------------------------
 ! Section 5: Deallocate space of temporal arrays
@@ -1864,9 +1850,8 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
    nbright    = 0
    nbrightg    = 0
 
-   !$ACC DATA PRESENT(pt_patch, prm_diag, lhn_fields, lhn_fields%brightband) &
-   !$ACC   PRESENT(radar_data, radar_data%radar_ct%blacklist, radar_data%radar_td%radheight) &
-   !$ACC   PRESENT(sumrad, bbllim, hzerocl, assimilation_config(jg:jg))
+   !$ACC DATA PRESENT(lhn_fields, lhn_fields%brightband, radar_data, radar_data%radar_ct%blacklist) &
+   !$ACC   PRESENT(radar_data%radar_td%radheight, sumrad, bbllim, hzerocl, assimilation_config(jg:jg))
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,nh) ICON_OMP_GUIDED_SCHEDULE
 
@@ -1894,7 +1879,6 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
    ENDDO
 !$OMP END DO 
 !$OMP END PARALLEL
-   !$ACC END DATA
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
     !$ACC UPDATE HOST(lhn_fields%brightband)
@@ -1903,6 +1887,7 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
     IF (my_process_is_stdio()) &
      WRITE(nulhn, *)' n of points which are possibly brightband    : numbright = ',nbrightg
   ENDIF
+   !$ACC END DATA
    
 !-------------------------------------------------------------------------------
 ! End of subroutine
@@ -2005,7 +1990,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   INTEGER   (KIND=i4)                              ::       &
     nelimosc, nelimiso, nsmooth ,& ! diagnostic variables for filter_prof
     nelimosc_proc, nelimiso_proc, nsmooth_proc, &
-    n_windcor, n_windcor0, n_incloud, ntreat, treat_list(nproma)
+    n_windcor, n_windcor0, n_incloud, ntreat, ntreat_local, treat_list(nproma)
 
   REAL (KIND=wp)                         ::       &
     scale_fac                 ,& ! scaling factor determined for each profile
@@ -2061,10 +2046,10 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   zlev_artif_max = assimilation_config(jg)%zlev_artif_max
   std_zlev = zlev_artif_max/assimilation_config(jg)%std_artif_max
 
-  !$ACC DATA PRESENT(wobs_time, wobs_space, pr_obs, pr_mod, tt_lheat, zlev) &
-  !$ACC   PRESENT(ttend_lhn, treat_diag, pr_ana, scale_diag, scale_fac_index) &
-  !$ACC   PRESENT(u, v, k850, k950, k700, assimilation_config(jg:jg)) &
-  !$ACC   CREATE(treat_list, tt_artif, abs_lim_prof, wind_corr)
+  !$ACC DATA CREATE(treat_list, tt_artif, abs_lim_prof, wind_corr) &
+  !$ACC   PRESENT(wobs_time, wobs_space, pr_obs, pr_mod, tt_lheat, zlev, ttend_lhn, treat_diag, pr_ana, scale_diag) &
+  !$ACC   PRESENT(scale_fac_index, ttend_lhn, treat_diag, pr_ana, scale_diag, scale_fac_index, u, v, k850, k950, k700) &
+  !$ACC   PRESENT(assimilation_config(jg:jg))
 
 ! set temperature increments to be determined to zero
   !$ACC KERNELS DEFAULT(PRESENT)
@@ -2129,36 +2114,46 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   ENDIF
 
   !$ACC PARALLEL DEFAULT(PRESENT) COPY(ntreat)
-  !$ACC LOOP SEQ PRIVATE(w)
-  DO ip=i_startidx,i_endidx
+  !$ACC LOOP GANG VECTOR PRIVATE(w, ntreat_local)
+  DO ip = i_startidx, i_endidx
 
-! Calculate pr_ana when wobs_time*wobs_spce > 0
-     w = wobs_time(ip) * wobs_space(ip)
-     IF ( w == 0.0_wp                                             &
-       .OR. (pr_obs(ip)  < 0.0 )                                  &
-       .OR. ((pr_obs(ip) < assimilation_config(jg)%thres_lhn)     &
-       .AND. (pr_mod(ip) < assimilation_config(jg)%thres_lhn) )   &
-        ) THEN
-        pr_ana(ip) = pr_mod(ip)
-        treat_diag(ip)=-1_wp
-        CYCLE
-     ELSE
-        IF ( w < 0.0_wp .OR. w > 1.0_wp ) then
+    ! Calculate pr_ana when wobs_time*wobs_spce > 0
+    w = wobs_time(ip) * wobs_space(ip)
+    IF ( (w == 0.0_wp) .OR. &
+         (pr_obs(ip) < 0.0) .OR. &
+         ( (pr_obs(ip) < assimilation_config(jg)%thres_lhn) .AND. &
+           (pr_mod(ip) < assimilation_config(jg)%thres_lhn) ) &
+       ) THEN
+      
+      pr_ana(ip) = pr_mod(ip)
+      treat_diag(ip)=-1.0_wp
+      CYCLE
+
+    ELSE
+
+      IF ( w < 0.0_wp .OR. w > 1.0_wp ) THEN
+
 #if !defined(__SX__) && !defined(_OPENACC)
-           WRITE(message_text,'(a,f8.4,i6)') 'lhn_pr_ana w unvalid : ',w,ip
-           CALL message ('',message_text,level=2)
+        WRITE(message_text, '(a,f8.4,i6)') 'lhn_pr_ana w unvalid : ', w, ip
+        CALL message('',message_text,level=2)
 #endif
-           CYCLE
-        ELSE
-           pr_ana(ip) = w * pr_obs(ip) + (1.0_wp-w) * pr_mod(ip)
-! !$ACC ATOMIC CAPTURE
-           ntreat = ntreat +1
-           treat_list(ntreat) = ip
-! !$ACC END ATOMIC
-           treat_diag(ip)=0_wp
-        ENDIF
-     ENDIF
-  ENDDO
+        CYCLE
+      ELSE
+        pr_ana(ip) = w * pr_obs(ip) + (1.0_wp - w) * pr_mod(ip)
+
+        !$ACC ATOMIC CAPTURE
+        ntreat = ntreat + 1
+        ntreat_local = ntreat
+        !$ACC END ATOMIC
+
+        treat_list(ntreat_local) = ip
+
+        treat_diag(ip) = 0.0_wp
+        
+      END IF
+    END IF
+
+  END DO
   !$ACC END PARALLEL
 
   !$ACC PARALLEL DEFAULT(PRESENT)
@@ -2184,7 +2179,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
      IF ( pr_quot >= assimilation_config(jg)%fac_lhn_down .AND. pr_quot <= assimilation_config(jg)%fac_lhn_up ) THEN
         scale_fac = pr_quot
         n_local = n_local + 1
-        treat_diag(ip)=1_wp
+        treat_diag(ip)=1.0_wp
         IF ( pr_quot < 1 ) n_down = n_down + 1
         IF ( pr_quot > 1 ) n_up   = n_up   + 1
 
@@ -2192,7 +2187,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
      ELSEIF ( pr_quot < assimilation_config(jg)%fac_lhn_down ) THEN
         scale_fac = assimilation_config(jg)%fac_lhn_down 
         n_down_lim = n_down_lim + 1
-        treat_diag(ip)=2_wp
+        treat_diag(ip)=2.0_wp
 
      ELSEIF ( pr_quot > assimilation_config(jg)%fac_lhn_artif .AND. assimilation_config(jg)%lhn_artif) THEN
 
@@ -2210,14 +2205,14 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
         scale_fac = assimilation_config(jg)%fac_lhn_artif_tune * (pr_ana(ip))/pr_artif 
 
         n_artif = n_artif + 1
-        treat_diag(ip)=4_wp
+        treat_diag(ip)=4.0_wp
 
 ! local model precip is too small -> limited 
 ! upscaling of local profile
      ELSE
         scale_fac = assimilation_config(jg)%fac_lhn_up
         n_up_lim = n_up_lim + 1
-        treat_diag(ip)=3_wp
+        treat_diag(ip)=3.0_wp
      ENDIF
     
      IF (pr_quot > assimilation_config(jg)%fac_lhn_up) THEN
@@ -2227,7 +2222,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
      ENDIF
      scale_diag(ip)=scale_fac
 
-     IF (assimilation_config(jg)%lhn_artif_only) treat_diag(ip) = 4_wp
+     IF (assimilation_config(jg)%lhn_artif_only) treat_diag(ip) = 4.0_wp
 
   ENDDO
   !$ACC END PARALLEL
@@ -2273,12 +2268,12 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 !NEC$ ivdep
     DO i = 1, ntreat
       ip = treat_list(i)
-      IF (treat_diag(ip) > 0 .AND. treat_diag(ip) < 4) THEN
+      IF (treat_diag(ip) > 0.0_wp .AND. treat_diag(ip) < 4.0_wp) THEN
 
         ttend_lhn(ip,k) = (scale_diag(ip)-1.) * tt_lheat(ip,k)
         ttend_lhn(ip,k) = assimilation_config(jg)%lhn_coef * ttend_lhn(ip,k) * ntcoeff
 
-      ELSE IF (treat_diag(ip) == 4) THEN
+      ELSE IF (treat_diag(ip) == 4.0_wp) THEN
 
         ttend_lhn(ip,k) = ABS(scale_diag(ip) * tt_artif(ip,k)) * assimilation_config(jg)%lhn_coef * ntcoeff
 
@@ -2544,12 +2539,11 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
 
   zt = tau_nudge * zdt
 
-  !$ACC DATA PRESENT(t, p, qc, qi, qv, scale_fac_index, qvtend_lhn) &
-  !$ACC   PRESENT(ttend_lhn, assimilation_config(jg:jg)) &
-  !$ACC   CREATE(qv_new)
+  !$ACC DATA CREATE(qv_new) &
+  !$ACC   PRESENT(t, p, qc, qi, qv, scale_fac_index, qvtend_lhn, ttend_lhn, assimilation_config(jg:jg))
+
   !$ACC PARALLEL DEFAULT(PRESENT)
-  !$ACC LOOP GANG VECTOR COLLAPSE(2) &
-  !$ACC   REDUCTION(+: nred, ninc, ninc2) PRIVATE(zp, esat, relhum, zqv)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nred, ninc, ninc2) PRIVATE(zp, esat, relhum, zqv)
   DO   k=1,ke
     DO jc=i_startidx,i_endidx
 
@@ -2609,6 +2603,7 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
     ENDDO
   ENDDO
   !$ACC END PARALLEL
+
   !$ACC END DATA
 
 !-------------------------------------------------------------------------------
@@ -2688,7 +2683,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
    nelimiso = 0
    nsmooth  = 0
 
-   !$ACC DATA PRESENT(treat_list, prof_filt) CREATE(lflag, nheat, proffilt)
+   !$ACC DATA CREATE(lflag, nheat, proffilt) PRESENT(treat_list, prof_filt)
 ! eliminate isolated peaks
    IF (lelim) THEN
 

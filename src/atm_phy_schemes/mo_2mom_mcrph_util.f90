@@ -190,6 +190,8 @@ CONTAINS
     !                                                                              *
     !*******************************************************************************
 
+    !$ACC ROUTINE SEQ
+
     IMPLICIT NONE
 
     REAL(wp) :: gfct
@@ -587,6 +589,8 @@ CONTAINS
 
     END IF
 
+    !$ACC ENTER DATA COPYIN(ltable, ltable%x, ltable%xhr, ltable%igf, ltable%igfhr)
+
     RETURN
   END SUBROUTINE incgfct_lower_lookupcreate
 
@@ -618,6 +622,9 @@ CONTAINS
   !*******************************************************************************
 
   DOUBLE PRECISION FUNCTION incgfct_lower_lookup(x, ltable)
+
+    !$ACC ROUTINE SEQ
+
     DOUBLE PRECISION, INTENT(in) :: x  ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
     INTEGER :: iu, io
@@ -771,6 +778,8 @@ CONTAINS
   !*******************************************************************************
 
   DOUBLE PRECISION FUNCTION incgfct_upper_lookup(x, ltable)
+
+    !$ACC ROUTINE SEQ
 
     DOUBLE PRECISION, INTENT(in)     :: x    ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
@@ -1453,6 +1462,8 @@ CONTAINS
 
       END DO
 
+      !$ACC ENTER DATA COPYIN(ltab, ltab%x1, ltab%x2, ltab%x3, ltab%x4, ltab%ltable)
+
       ! clean up memory:
       DEALLOCATE(Tvec_wg_g_loc,dmin_wg_g_loc)
 
@@ -1484,6 +1495,8 @@ CONTAINS
 
   ! wet growth Grenzdurchmesser in m
   FUNCTION dmin_wg_gr_ltab_equi(p_a,T_a,qw_a,qi_a,ltab) RESULT (dmin_loc)
+
+    !$ACC ROUTINE SEQ
 
     REAL(wp) :: dmin_loc
     REAL(wp), INTENT(in) :: p_a,T_a,qw_a,qi_a
@@ -1744,6 +1757,9 @@ CONTAINS
 !==============================================================================
 
   REAL(wp) Function set_qnc(qc)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qc  ! either [kg/kg] or [kg/m^3]
     REAL(wp), PARAMETER   :: Dmean = 10e-6_wp    ! Diameter of mean particle mass:
 
@@ -1753,9 +1769,10 @@ CONTAINS
   END FUNCTION set_qnc
 
   REAL(wp) Function set_qni(qi)
-!    REAL(wp), INTENT(in)  :: T  ! Temperature (K)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qi  ! either [kg/kg] or [kg/m^3]
-    !  REAL(wp), PARAMETER   :: Dmean = 100e-6_wp  ! Diameter of mean particle mass:
 
 !    set_qni  = qi / 1e-10   !  qiin / ( ( Dmean / ageo) ** (1.0_wp / bgeo) )
     set_qni  = qi / 1e-10   !  qiin / ( exp(log(( Dmean / ageo)) * (1.0_wp / bgeo)) )
@@ -1764,6 +1781,9 @@ CONTAINS
   END FUNCTION set_qni
 
   REAL(wp) Function set_qnr(qr)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qr  ! has to be [kg/m^3]
     REAL(wp), PARAMETER   :: N0r = 8000.0e3_wp ! intercept of MP distribution
 
@@ -1777,6 +1797,9 @@ CONTAINS
   END FUNCTION set_qnr
 
   REAL(wp) Function set_qns(qs)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qs  ! has to be [kg/m^3]
     REAL(wp), PARAMETER   :: N0s = 800.0e3_wp
     REAL(wp), PARAMETER   :: ams = 0.038_wp  ! needs to be connected to snow-type
@@ -1792,6 +1815,9 @@ CONTAINS
   END FUNCTION set_qns
 
   REAL(wp) Function set_qng(qg)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qg  ! has to be [kg/m^3]
     REAL(wp), PARAMETER   :: N0g = 4000.0e3_wp
     REAL(wp), PARAMETER   :: amg = 169.6_wp     ! needs to be connected to graupel-type
@@ -1807,6 +1833,9 @@ CONTAINS
   END FUNCTION set_qng
 
   REAL(wp) Function set_qnh(qh)
+
+    !$ACC ROUTINE SEQ
+
     REAL(wp), INTENT(in)  :: qh  ! either [kg/kg] or [kg/m^3]
     REAL(wp), PARAMETER   :: Dmean = 5e-3_wp    ! Diameter of mean particle mass
     REAL(wp), PARAMETER   :: rhob_hail = 750.0  ! assumed bulk density of hail

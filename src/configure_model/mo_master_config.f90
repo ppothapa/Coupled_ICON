@@ -87,6 +87,7 @@ MODULE mo_master_config
   INTEGER, PARAMETER :: ps_radiation_process = 3
   INTEGER, PARAMETER :: hamocc_process       = 4
   INTEGER, PARAMETER :: jsbach_process       = 5
+  INTEGER, PARAMETER :: wave_process         = 98
   INTEGER, PARAMETER :: testbed_process      = 99
   INTEGER, PARAMETER :: icon_output_process  = 100
   ! ------------------------------------------------------------------------

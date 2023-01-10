@@ -249,7 +249,7 @@ cat > NAMELIST_${EXPNAME} << EOF
  tkmmin        = 0.75   !           " 
  pat_len       = 750.
  c_diff        = 0.2
- rat_sea       = 8.5    ! new value since rev. 25646 (reduced saturation vapor pressure over salt water)
+ rat_sea       = 0.8
  ltkesso       = .false.
 !frcsmot       = 0.2    ! these 2 switches together apply vertical smoothing of the TKE source terms
 !imode_frcsmot = 2      ! in the tropics (only), which reduces the moist bias in the tropical lower troposphere

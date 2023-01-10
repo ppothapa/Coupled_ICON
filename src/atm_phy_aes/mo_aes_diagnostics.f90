@@ -37,13 +37,7 @@ CONTAINS
 
     REAL(wp) :: tas_gmean, rsdt_gmean, rsut_gmean, rlut_gmean, prec_gmean, evap_gmean, radtop_gmean, fwfoce_gmean
     TYPE(t_aes_phy_field), POINTER    :: field
-    INTEGER  :: jc, jcs, jce, jk, jks, jke, rls, rle
-
-    ! Compute row and block bounds for derived variables
-    rls = grf_bdywidth_c + 1
-    rle = min_rlcell_int
-    jks = patch%cells%start_blk(rls, 1)
-    jke = patch%cells%end_blk(rle, MAX(1, patch%n_childdom))
+    INTEGER  :: jb, jbs, jbe, jc, jcs, jce, rls, rle
 
     ! global mean t2m, tas_gmean, if requested for output
     tas_gmean = 0.0_wp
@@ -111,20 +105,25 @@ CONTAINS
 
       field => prm_field(patch%id)
 
+      ! Compute row and block bounds for derived variables
+      rls = grf_bdywidth_c + 1
+      rle = min_rlcell_int
+      jbs = patch%cells%start_blk(rls, 1)
+      jbe = patch%cells%end_blk(rle, MAX(1, patch%n_childdom))
+
       !$ACC DATA PRESENT(field%rsdt, field%rsut, field%rlut) &
       !$ACC   CREATE(scr)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP SEQ
-      DO jk = jks, jke
-        CALL get_indices_c(patch, jk, jks, jke, jcs, jce, rls, rle)
+      DO jb = jbs, jbe
+        CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = jcs, jce
-          scr(jc,jk) = 0.0_wp
-          scr(jc,jk) = field%rsdt(jc,jk) - field%rsut(jc,jk) - field%rlut(jc,jk)
+          scr(jc,jb) = 0.0_wp
+          scr(jc,jb) = field%rsdt(jc,jb) - field%rsut(jc,jb) - field%rlut(jc,jb)
         END DO
+        !$ACC END PARALLEL
       END DO
-      !$ACC END PARALLEL
       call levels_horizontal_mean( scr(:,:), &
           & patch%cells%area(:,:), &
           & patch%cells%owned, &
@@ -146,12 +145,11 @@ CONTAINS
       !$ACC   CREATE(scr)
 
       !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP SEQ
-      DO jk = 1, patch%alloc_cell_blocks
-        !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jb = 1, patch%alloc_cell_blocks
         DO jc = 1, nproma
-          scr(jc,jk) = 0.0_wp
-          scr(jc,jk) = (field%pr(jc,jk) + field%evap(jc,jk))*field%sftof(jc,jk)
+          scr(jc,jb) = 0.0_wp
+          scr(jc,jb) = (field%pr(jc,jb) + field%evap(jc,jb))*field%sftof(jc,jb)
         END DO
       END DO
       !$ACC END PARALLEL
@@ -160,6 +158,7 @@ CONTAINS
           & patch%cells%owned, &
           & fwfoce_gmean, lopenacc=.TRUE.)
 
+      !$ACC WAIT
       !$ACC END DATA
 
       NULLIFY(field)

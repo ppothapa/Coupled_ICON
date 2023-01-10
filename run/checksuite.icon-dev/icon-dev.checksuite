@@ -429,6 +429,9 @@ function tolerance_check
         *atm*ape*)
             FILE_IDS="atm_3d"
             ;;
+        *mch_opr_r04b07_lhn_12*)
+            FILE_IDS="atm_3d_ml,atm_3d_hl,atm_3d_pl,Meteogram"
+            ;;
         *mch_*nest*)
             FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
@@ -436,7 +439,7 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *dwd_run_ICON_*)
-            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
+            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml,Meteogram"
             ;;
         *)
             echo "no file ids specified for '${EXPERIMENT}'"
@@ -457,7 +460,8 @@ function tolerance_check
         --reference "not-used" \
         --experiment-name "${EXP_BASE}" \
         --file-ids "${FILE_IDS}" \
-        --config "${PROBTEST_CONFIG}"
+        --config "${PROBTEST_CONFIG}" \
+        --time_dim time
     if [[ $? != 0 ]] ; then
         echo "probtest did not initialized successfully"
         TOL_STATUS=1

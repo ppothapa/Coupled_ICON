@@ -837,11 +837,6 @@ CONTAINS
     i_startblk = pt_patch%cells%start_block(rl_start)
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
-    ! Initialize fields for runtime diagnostics
-    ! In case that average ABS(dpsdt) is diagnosed
-    !$ACC DATA CREATE(dps_blk, npoints_blk) IF(lzacc)
-
-
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
@@ -884,9 +879,6 @@ CONTAINS
       ENDDO
 !$OMP END DO
 
-
-      !$ACC UPDATE HOST(dps_blk, npoints_blk) IF(lzacc)
-
 !$OMP MASTER
       dpsdt_avg = SUM(dps_blk(i_startblk:i_endblk))
       npoints   = SUM(npoints_blk(i_startblk:i_endblk))
@@ -903,7 +895,6 @@ CONTAINS
 !$OMP END MASTER
     ENDIF  ! msg_level
 !$OMP END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE compute_dpsdt
 

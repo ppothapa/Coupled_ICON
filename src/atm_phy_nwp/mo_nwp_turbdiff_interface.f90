@@ -469,6 +469,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  tfm=prm_diag%tfm(:,jb),                                                    & !inout
         &  tfh=prm_diag%tfh(:,jb),                                                    & !inout
         &  tkred_sfc=prm_diag%tkred_sfc(:,jb),                                        & !inout
+        &  tkred_sfc_h=prm_diag%tkred_sfc_h(:,jb),                                    & !inout
         &  tke=z_tvs(:,:,:),                                                          & !inout
         &  tkvm=prm_diag%tkvm(:,:,jb),                                                & !inout
         &  tkvh=prm_diag%tkvh(:,:,jb),                                                & !inout
