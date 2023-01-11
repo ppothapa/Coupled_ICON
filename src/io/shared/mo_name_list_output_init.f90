@@ -2809,8 +2809,7 @@ CONTAINS
         CALL finish(routine, message_text)
       END IF
       zaxisID = zaxis%cdi_id
-
-      IF (info%lmask_boundary .AND. config_lmask_boundary .AND. &
+      IF (info%lmask_boundary .AND. ANY(config_lmask_boundary(:)) .AND. &
         &      (info%hgrid == GRID_UNSTRUCTURED_CELL)) THEN
         missval = BOUNDARY_MISSVAL
       END IF

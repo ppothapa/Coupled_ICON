@@ -979,7 +979,7 @@ CONTAINS
     ! Only for synchronous output mode: communicate the largest global
     ! index of the lateral boundary cells, if required:
 
-    IF ((.NOT. participate_in_async_io) .AND. config_lmask_boundary)  THEN
+    IF ((.NOT. participate_in_async_io) .AND. config_lmask_boundary(i_log_dom))  THEN
       last_bdry_index = get_last_bdry_index(i_log_dom)
     ELSE
       last_bdry_index = 0
@@ -1451,7 +1451,7 @@ CONTAINS
     !
     nmiss = MERGE(1, 0, (info%lmiss &
       &                  .OR. (info%lmask_boundary &
-      &                        .AND. config_lmask_boundary) ) &
+      &                        .AND. ANY(config_lmask_boundary(:))) ) &
       &                 .AND. last_bdry_index > 0)
 
     make_level_selection = ASSOCIATED(of%level_selection) &
@@ -1557,7 +1557,7 @@ CONTAINS
         ! value. Note that this modifies only the output buffer!
         IF ( info%lmask_boundary                   .AND. &
              & (info%hgrid == GRID_UNSTRUCTURED_CELL) .AND. &
-             & config_lmask_boundary ) THEN
+             & ANY(config_lmask_boundary(:)) ) THEN
           missval = BOUNDARY_MISSVAL
           IF (info%lmiss)  missval = info%missval%rval
 
@@ -1656,7 +1656,7 @@ CONTAINS
 
     apply_missval =       info%lmask_boundary                  &
       &             .AND. info%hgrid == GRID_UNSTRUCTURED_CELL &
-      &             .AND. config_lmask_boundary
+      &             .AND. config_lmask_boundary(i_log_dom)
     IF (apply_missval) THEN
       missval = get_bdry_missval(info, idata_type)
       CALL get_bdry_blk_idx(i_log_dom, &
@@ -1747,7 +1747,7 @@ CONTAINS
     ! set missval if needed
     apply_missval =       info%lmask_boundary                  &
       &             .AND. info%hgrid == GRID_UNSTRUCTURED_CELL &
-      &             .AND. config_lmask_boundary
+      &             .AND. config_lmask_boundary(i_log_dom)
     IF (apply_missval) THEN
       missval = get_bdry_missval(info, idata_type)
       CALL get_bdry_blk_idx(i_log_dom, &
@@ -2458,7 +2458,7 @@ CONTAINS
       & .OR. of%output_type == FILETYPE_GRB2) THEN
       nmiss = MERGE(1, 0, ( info%lmiss .OR.  &
            &  ( info%lmask_boundary    .AND. &
-           &    config_lmask_boundary  .AND. &
+           &    config_lmask_boundary(i_log_dom)  .AND. &
            &    ((i_log_dom > 1) .OR. l_limited_area) ) ))
     ELSE
       nmiss = 0
@@ -2946,7 +2946,7 @@ CONTAINS
       IF (have_grib) THEN
         IF ( info%lmiss .OR.                                            &
           &  ( info%lmask_boundary    .AND. &
-          &    config_lmask_boundary  .AND. &
+          &    config_lmask_boundary(i_log_dom)  .AND. &
           &    ((i_log_dom > 1) .OR. l_limited_area) ) ) THEN
           nmiss = 1
         ELSE

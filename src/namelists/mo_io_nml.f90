@@ -166,7 +166,7 @@ CONTAINS
 
     INTEGER :: timeSteps_per_outputStep
 
-    LOGICAL :: lmask_boundary ! flag: true, if interpolation zone should be masked *in output*
+    LOGICAL :: lmask_boundary(max_dom) ! flag: true, if interpolation zone should be masked *in output*
 
     CHARACTER(LEN = 256) :: restart_write_mode
 
@@ -245,7 +245,7 @@ CONTAINS
     write_last_restart      = config_write_last_restart
     timeSteps_per_outputStep        = config_timeSteps_per_outputStep
 
-    lmask_boundary          = .FALSE.
+    lmask_boundary(:)       = .FALSE.
 
     restart_write_mode = ""
     nrestart_streams   = 1

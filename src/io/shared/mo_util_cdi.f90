@@ -1187,9 +1187,9 @@ CONTAINS
     IF (this_cf%long_name /= '')     CALL vlistDefVarLongname(vlistID, varID, TRIM(this_cf%long_name))
     IF (this_cf%standard_name /= '') CALL vlistDefVarStdname(vlistID, varID, TRIM(this_cf%standard_name))
     IF (this_cf%units /= '')         CALL vlistDefVarUnits(vlistID, varID, TRIM(this_cf%units))
-    
-    IF (info%lmiss .OR.                                        &
-      &   (info%lmask_boundary .AND. config_lmask_boundary .AND. &
+
+    IF (info%lmiss .OR.                                                  &
+      &   (info%lmask_boundary .AND. ANY(config_lmask_boundary(:)) .AND. &
       &   (info%hgrid == GRID_UNSTRUCTURED_CELL))) THEN
       CALL vlistDefVarMissval(vlistID, varID, missval)
     END IF
