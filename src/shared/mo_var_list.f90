@@ -1074,6 +1074,7 @@ CONTAINS
     ref_info%ndims = ndims
     ref_info%used_dimensions(:) = 0
     ref_info%used_dimensions(1:ndims) = target_info%used_dimensions(di(1:ndims))
+    ref_info%dom = target_info%dom
     IF (PRESENT(var_class)) THEN
       IF (ANY((/CLASS_TILE, CLASS_TILE_LAND/) == var_class)) THEN
         ! automatically add tile to its variable specific tile-group
