@@ -53,10 +53,11 @@ MODULE radar_interface
   USE mo_nwp_phy_state,         ONLY: prm_diag
   USE mo_model_domain,          ONLY: p_patch, t_patch
   USE mo_atm_phy_nwp_config,    ONLY: atm_phy_nwp_config
-  USE mo_impl_constants,        ONLY: min_rlcell, min_rlcell_int, max_dom
+  USE mo_impl_constants,        ONLY: min_rlcell, min_rlcell_int, max_dom, MODE_IAU, MODE_IAU_OLD
   USE mo_impl_constants_grf,    ONLY: grf_bdywidth_c
   USE mo_loopindices,           ONLY: get_indices_c
   USE mo_time_config,           ONLY: time_config
+  USE mo_initicon_config,       ONLY: init_mode, timeshift
   USE mo_util_mtime,            ONLY: getElapsedSimTimeInSeconds
   USE mo_run_config,            ONLY: dtime, nsteps, ntracer, ltimer, &
        &                              iqc,  iqi,  iqr,  iqs,  iqg,  iqh,  iqv, &
@@ -122,15 +123,15 @@ MODULE radar_interface
        lcompute_pe_fwo, & ! indicates whether this is a compute PE or not
        radar_meta_type, & ! TYPE to hold the radar meta informations
        radar_grid_type, & ! TYPE to hold the pointers to the data on the aux azimutal slice grid
-       i_fwo_prep_compute,& ! Timing flag
-       i_fwo_bubbles   ,& ! Timing flag
-       i_fwo_composites,& ! Timing flag
+       i_fwo_prep_compute,&! Timing flag
+       i_fwo_bubbles   ,&  ! Timing flag
+       i_fwo_composites,&  ! Timing flag
        i_fwo_ini,       &  ! Timing flag for the initialization of the forward operator
        i_fwo_compgrid,  &  ! Timing flag for computations on the model grid
        i_fwo_comm,      &  ! Timing flag for MPI-communications
        i_fwo_ongeom,    &  ! Timing flag for the ray tracing in online beam propagation
        i_fwo_comppolar, &  ! Timing flag for interpolation of reflectivity and radial wind
-                             !  from model grid points to the radar bins/auxiliary azi slice grid
+                           !  from model grid points to the radar bins/auxiliary azi slice grid
        i_fwo_out,       &  ! Timing flag for output (collecting simulated data on one PE per station, sorting, ASCII-output,
                              !  reading obs data, producing feedback files)
        i_fwo_barrier,   &  ! Timing flag for barrier waiting in MPI-communications (measure for load imbalance)
@@ -177,7 +178,7 @@ MODULE radar_interface
        rlarot2rla,           &
        phi2phirot,           &
        rla2rlarot,           &
-       get_utc_date,         &
+       new_datetime,         &
        init_vari
 
   USE radar_data_io, ONLY : t_grib2_modelspec
@@ -554,13 +555,10 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER, INTENT(in)    :: idom
+    INTEGER, INTENT(in)         :: idom
 
-    CHARACTER(len=80)      :: yzroutine
-    CHARACTER(len=cmaxlen) :: yerrmsg
-
-    yzroutine(:) = ' '
-    yzroutine    = 'get_model_config_for_radar'
+    CHARACTER(len=*), PARAMETER :: yzroutine = 'get_model_config_for_radar'
+    CHARACTER(len=cmaxlen)      :: yerrmsg
 
     ! Set up domain decomposition of COSMO:
     IF (lcompute_pe_fwo) THEN
@@ -635,9 +633,9 @@ CONTAINS
     INTEGER, INTENT(in) :: ntlev, idom
 
     ! Local variables:
-    CHARACTER(LEN=25)       :: yzroutine = 'get_model_hydrometeors'
-    CHARACTER(LEN=cmaxlen)  :: yerrmsg
-    INTEGER                 :: ierror, ni, nk, nkp1, nj
+    CHARACTER(LEN=*), PARAMETER :: yzroutine = 'get_model_hydrometeors'
+    CHARACTER(LEN=cmaxlen)      :: yerrmsg
+    INTEGER                     :: ierror, ni, nk, nkp1, nj
 
     ierror  = 0
     yerrmsg = ' '
@@ -1177,9 +1175,9 @@ CONTAINS
     INTEGER, INTENT(in) :: ntlev_dyn, ntlev_qx, idom
 
     ! Local variables:
-    CHARACTER(LEN=25)       :: yzroutine = 'get_model_variables'
-    CHARACTER(LEN=cmaxlen)  :: yerrmsg
-    INTEGER                 :: ierror, kbub, ncomp, ni, nk, nkp1, nj, k, nk_outer
+    CHARACTER(LEN=*), PARAMETER :: yzroutine = 'get_model_variables'
+    CHARACTER(LEN=cmaxlen)      :: yerrmsg
+    INTEGER                     :: ierror, kbub, ncomp, ni, nk, nkp1, nj, k, nk_outer
 
     ! For checking if the last call was on the same domain at same time and time levels:
     INTEGER, SAVE           :: ntlev_dyn_lastcall = -HUGE(1), &
@@ -1305,10 +1303,7 @@ CONTAINS
     REAL(wp), INTENT(inout)                 :: z_radar(:,:,:)
 
     CHARACTER(len=cmaxlen)                  :: yerrmsg
-    CHARACTER(len=80)                       :: yzroutine
-
-    yzroutine(:) = ' '
-    yzroutine    = 'get_dbz3dlin_with_model_method_1mom'
+    CHARACTER(len=*), PARAMETER             :: yzroutine = 'get_dbz3dlin_with_model_method_1mom'
 
     SELECT CASE ( itype_gscp_model_in )
       
@@ -1406,10 +1401,7 @@ CONTAINS
     REAL(wp), INTENT(inout)                 :: z_radar(:,:,:)
 
     CHARACTER(len=cmaxlen)                  :: yerrmsg
-    CHARACTER(len=80)                       :: yzroutine
-
-    yzroutine(:) = ' '
-    yzroutine    = 'get_dbz3dlin_with_model_method_2mom'
+    CHARACTER(len=*), PARAMETER             :: yzroutine = 'get_dbz3dlin_with_model_method_2mom'
 
 
     SELECT CASE ( itype_gscp_model_in )
@@ -1554,16 +1546,13 @@ CONTAINS
 
     INTEGER, ALLOCATABLE, DIMENSION(:,:) :: counter
 
-    CHARACTER(len=32)  :: yzroutine
+    CHARACTER(len=*), PARAMETER  :: yzroutine = 'setup_auxgrid_for_cellindex'
 
     CHARACTER(len=cmaxlen) :: testfile
 
 
     ! Code:
     !------
-
-    yzroutine(:) = ' '
-    yzroutine    = 'setup_auxgrid_for_cellindex'
 
     IF (ldebug .OR. my_radar_id == 0) WRITE(*,*) TRIM(yzroutine)//' on proc ', my_radar_id
 
@@ -1668,8 +1657,8 @@ CONTAINS
     i_startblk = p_patch(idom) % cells % start_block(grf_bdywidth_c+1)
     i_endblk   = p_patch(idom) % cells % end_block(min_rlcell_int)       ! excluding halo cells
 
-    clon(:,:) = -999.99_dp
-    clat(:,:) = -999.99_dp
+    clon(:,:) = miss_value
+    clat(:,:) = miss_value
 !$OMP PARALLEL PRIVATE(i,k,is,ie)
 !$OMP DO
     DO k = i_startblk, i_endblk
@@ -1816,8 +1805,8 @@ CONTAINS
     i_endblk   = p_patch(idom) % cells % end_block(min_rlcell_int)  ! exluding the halo cells
 
     max_edge_length(:,:) = -HUGE(1.0_dp)
-    lon_vertex(:,:,:)    = -999.99_dp
-    lat_vertex(:,:,:)    = -999.99_dp
+    lon_vertex(:,:,:)    = miss_value
+    lat_vertex(:,:,:)    = miss_value
 !$OMP PARALLEL
 !$OMP DO PRIVATE(i,k,is,ie,i_idx,i_blk,edge_length,rlon,rlat)
     DO k = i_startblk, i_endblk
@@ -2146,7 +2135,7 @@ CONTAINS
                          i, k, tmplon, lon_vertex(iidx,iblk,1:3), tmplat, lat_vertex(iidx,iblk,1:3)
                   ELSE
                     PRINT '(a,2i5,4(1x,es21.14),"   ",4(1x,es21.14))', '  DEBUG  ', &
-                         i, k, tmplon, -999.99_dp, -999.99_dp, -999.99_dp, tmplat, -999.99_dp, -999.99_dp, -999.99_dp
+                         i, k, tmplon, miss_value, miss_value, miss_value, tmplat, miss_value, miss_value, miss_value
                   END IF
                 END IF
               END DO
@@ -2211,11 +2200,21 @@ CONTAINS
 
   !============================================================================
 
+  !============================================================================
+  !
+  ! Subroutines for profiling output (timer) of EMVORADO, which is integrated
+  !  into the model's native timer output
+  !
+  ! - file YUTIMING for COSMO
+  ! - stdout of ICON job
+  !
+  !============================================================================
+
   SUBROUTINE setup_runtime_timings ()
 
     IMPLICIT NONE
 
-    ! Set up runtime timings (will appear in the COSMO YUTIMING output):
+    ! Set up runtime timings (will appear in the ICON job output):
     i_fwo_prep_compute = timer_radar_prep_compute
     i_fwo_bubbles      = timer_radar_bubbles
     i_fwo_composites   = timer_radar_composites
@@ -2394,7 +2393,8 @@ CONTAINS
 
   !============================================================================
   ! 
-  ! Function for getting the initial date of the model run (String YYYYMMDDhhmmss).
+  ! Function for getting the initial date of the model run (String YYYYMMDDhhmmss),
+  ! which is used as a time reference for the relative forecast time in seconds.
   !
   !============================================================================
 
@@ -2416,7 +2416,9 @@ CONTAINS
 
   !============================================================================
   ! 
-  ! Function for getting the actual date of the model run (String YYYYMMDDhhmmss).
+  ! Function for getting the actual date of the model run (String YYYYMMDDhhmmss)
+  ! as multiple of the model time step or rounded to the next full minute
+  ! interval after the model initial date/time (entire minutes after model start)
   !
   !============================================================================
 
@@ -2426,15 +2428,14 @@ CONTAINS
 
     LOGICAL, OPTIONAL       :: l_round_to_minute
 
-    CHARACTER(len=14)       :: actdate
+    CHARACTER(len=14)       :: actdate, ydate_ini
 
-    INTEGER                 :: nactday, zitype_calendar, ntstep
-    CHARACTER (LEN=28)      :: dum1
-    REAL (KIND=dp)          :: dum2, dtloc
-    CHARACTER(len=14)       :: ydate_ini
+    INTEGER                 :: ntstep
+    REAL (KIND=dp)          :: dtloc, time_mod_s
     LOGICAL                 :: l_round
 
-    ydate_ini = get_datetime_ini ()
+    ydate_ini  = get_datetime_ini ()
+    time_mod_s = get_model_time_sec ()
 
     IF (PRESENT(l_round_to_minute)) THEN
       l_round = l_round_to_minute
@@ -2443,23 +2444,18 @@ CONTAINS
     END IF
     IF (l_round) THEN
       dtloc = 60.0_dp
+      time_mod_s = NINT(time_mod_s / dtloc) * dtloc
     ELSE
       dtloc = dtime
     END IF
-    ntstep = NINT(get_model_time_sec () / dtloc)
-
-    zitype_calendar = 0       !  = 0: gregorian calendar (default)
-                              !    (but this needs a bug fix in get_utc_date,
-                              !    because up to now we only have julian calendar)
-                              !  = 1: every year has 360 days
-                              !  = 2: every year has 365 days
-    actdate(:) = '0'
-    IF (ntstep > 0) THEN
-      CALL get_utc_date (ntstep, ydate_ini, dtloc, zitype_calendar, actdate, dum1, nactday, dum2)
+    
+    ntstep  = NINT(time_mod_s / dtloc)
+    IF (ntstep == 0) THEN
+      actdate = ydate_ini
     ELSE
-      actdate = get_datetime_ini ()
+      actdate = new_datetime(ydate_ini, time_mod_s)
     END IF
-
+    
   END FUNCTION get_datetime_act
 
   !------------------------------------------------------------------------------
@@ -2486,7 +2482,9 @@ CONTAINS
   ! 
   ! Subroutine for getting the model time in <ddhhmmss> since model start.
   ! Alternatively, convert a given time in seconds (optional input) to <ddhhmmss>.
-  ! For negative forecast times, it uses the absolute value.
+  ! For negative forecast times, it uses the absolute value for computations
+  ! but puts a minus sign to the dd part. Then, dd can only be in the
+  ! range "-9" to "-0"!
   !
   !============================================================================
 
@@ -2498,13 +2496,21 @@ CONTAINS
     
     CHARACTER(len=8)       :: ddhhmmss
     INTEGER                :: time_mod_s, dd, hh, mm, ss
+    LOGICAL                :: is_negative
 
     IF (.NOT.PRESENT(time_mod_in)) THEN
-      time_mod_s = ABS(NINT(REAL(time_mod_sec, kind=dp)))   ! [s] since tc_exp_startdate
+      time_mod_s = NINT(REAL(time_mod_sec, kind=dp))   ! [s] since tc_exp_startdate
     ELSE
-      time_mod_s = ABS(NINT(time_mod_in))
+      time_mod_s = NINT(time_mod_in)
     END IF
     ddhhmmss(:) = '0'
+
+    IF (time_mod_s < 0) THEN
+      is_negative = .TRUE.
+    ELSE
+      is_negative = .FALSE.
+    END IF
+    time_mod_s = ABS(time_mod_s)
     
     ! This computatation should work out to about 2*10^5 days (time_mod_s <= HUGE(1)):
     dd = time_mod_s / (24*3600)
@@ -2512,8 +2518,12 @@ CONTAINS
     mm = MOD(time_mod_s,    3600) / 60
     ss = MOD(time_mod_s,      60)
 
-    WRITE ( ddhhmmss , '(4I2.2)' ) dd, hh, mm, ss
-        
+    IF (is_negative) THEN
+      WRITE ( ddhhmmss , '("-",I1.1,3I2.2)' ) dd, hh, mm, ss
+    ELSE
+      WRITE ( ddhhmmss , '(4I2.2)' ) dd, hh, mm, ss
+    END IF
+
     ddhhmmss = TRIM(ddhhmmss)
 
   END FUNCTION get_model_time_ddhhmmss  
@@ -2616,7 +2626,7 @@ CONTAINS
   ! Function for computing the index of the nearest obs_time to the current
   !  model time. The obs times are given in an input vector. If none of the
   !  obs times falls within the current model time step +/- 0.5*dt, no
-  !  index can be found and -999 is returned.
+  !  index can be found and missval_int is returned.
   !
   !============================================================================
 
@@ -2632,7 +2642,7 @@ CONTAINS
 
     time_mod = get_model_time_sec ()  ! [s] since tc_exp_startdate
 
-    i_time = -999
+    i_time = missval_int
     DO n = 1, UBOUND(obs_times,1)
       IF ((obs_times(n) - 0.5_dp*dtime < time_mod .AND. time_mod <= obs_times(n) + 0.5_dp*dtime)) THEN
         i_time = n
@@ -2663,7 +2673,7 @@ CONTAINS
 
     INTEGER       :: n
 
-    i_time = -999
+    i_time = missval_int
     DO n = 1, UBOUND(obs_times,1)
       IF ((obs_times(n) - 0.5_dp*dtime < time_mod .AND. time_mod <= obs_times(n) + 0.5_dp*dtime)) THEN
         i_time = n
@@ -2707,8 +2717,12 @@ CONTAINS
     REAL(KIND=dp) :: time
 
     ! Start time of the domain in experiment (in seconds from tc_exp_startdate)
-    time = MAX(start_time(idom), 0.0_wp)   ! [s] since tc_exp_startdate
-
+    IF (idom == 1 .AND. ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode)) THEN
+      time = timeshift%dt_shift   ! [s] since tc_exp_startdate
+    ELSE
+      time = MAX(start_time(idom), 0.0_wp)   ! [s] since tc_exp_startdate
+    END IF
+    
   END FUNCTION get_domain_starttime_in_sec
 
   !------------------------------------------------------------------------------
@@ -2719,9 +2733,14 @@ CONTAINS
     REAL(KIND=dp) :: time
     REAL(KIND=dp) :: current_run_start
 
-    ! Start time of the domain in the current run (in seconds from tc_exp_startdate)
-    current_run_start = REAL( getElapsedSimTimeInSeconds(time_config%tc_startdate), KIND=dp)
-    time = MAX( MAX(start_time(idom), 0.0_wp), current_run_start )   ! [s] since tc_exp_startdate
+    ! Start time of the domain in the current run (in seconds from tc_exp_startdate, is larger than
+    !  tc_exp_startdate for restart runs)
+    IF (idom == 1 .AND. ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode) .AND. .NOT.run_is_restart()) THEN
+      time = timeshift%dt_shift   ! [s] since tc_exp_startdate
+    ELSE
+      current_run_start = REAL( getElapsedSimTimeInSeconds(time_config%tc_startdate), KIND=dp)
+      time = MAX( MAX(start_time(idom), 0.0_wp), current_run_start )   ! [s] since tc_exp_startdate
+    END IF
 
   END FUNCTION get_domain_runstarttime_in_sec
 
@@ -2747,7 +2766,8 @@ CONTAINS
     REAL(KIND=dp) :: time
     REAL(KIND=dp) :: current_run_end
 
-    ! End time of the domain in the current run (in seconds from tc_exp_startdate)
+    ! End time of the domain in the current run (in seconds from tc_exp_startdate, is larger than
+    !  tc_exp_startdate for restart runs)
     current_run_end = REAL( getElapsedSimTimeInSeconds(time_config%tc_stopdate), KIND=dp)
     time = MIN( end_time(idom), current_run_end )   ! [s] since tc_exp_startdate
 
@@ -4164,8 +4184,8 @@ CONTAINS
       
       IF (ind_intptmp(irp,3) == -1) THEN
         nobs_below_sfc = nobs_below_sfc + 1
-        w_intp(nobs_below_sfc,1)   = -999.99_dp
-        ind_intp(nobs_below_sfc,1) = -999
+        w_intp(nobs_below_sfc,1)   = miss_value
+        ind_intp(nobs_below_sfc,1) = missval_int
         ind_intp(nobs_below_sfc,2) = ind_intptmp(irp,1)
         hl_loc(nobs_below_sfc)     = alt_rtmp(irp)          
       END IF
@@ -4232,7 +4252,7 @@ CONTAINS
     ngrd = 0     
 
     ALLOCATE(hl(ngrdmax))
-    CALL init_vari(hl, -999.99_dp)
+    CALL init_vari(hl, miss_value)
 
     DO n = 1, rs_grid%nal+1      ! loop over arc length
       CALL init_vari(idx(:), -HUGE(1))
@@ -4850,10 +4870,10 @@ CONTAINS
 
     ! Domain corners of computational domain (excluding the nboundlines) in rotated lon/lat coordinates:
     !  (DOES NOT MAKE SENSE FOR ICON UNSTRUCTURED GRID, THEREFORE SET TO A MISSING VALUE)
-    IF (PRESENT(rlon_min)) rlon_min = -999.99_dp
-    IF (PRESENT(rlon_max)) rlon_max = -999.99_dp
-    IF (PRESENT(rlat_min)) rlat_min = -999.99_dp
-    IF (PRESENT(rlat_max)) rlat_max = -999.99_dp
+    IF (PRESENT(rlon_min)) rlon_min = miss_value
+    IF (PRESENT(rlon_max)) rlon_max = miss_value
+    IF (PRESENT(rlat_min)) rlat_min = miss_value
+    IF (PRESENT(rlat_max)) rlat_max = miss_value
 
   END SUBROUTINE geo2model_coord_domaincheck
 
@@ -5031,7 +5051,7 @@ CONTAINS
     !              geographic location and height.
     !
     ! If the lon/lat is not within the local model domain or below the surface or
-    !  above model top, a missing value of -999.99 is returned and the flag "found"
+    !  above model top, a missing value of miss_value is returned and the flag "found"
     !  is set to .FALSE.
     !
     !------------------------------------------------------------------------------
@@ -5605,10 +5625,8 @@ CONTAINS
     LOGICAL       :: is_inside
     REAL(kind=dp) :: rlon_model, rlat_model
     CHARACTER(len=cmaxlen) :: yerrmsg
-    CHARACTER(len=32) :: yzroutine
-
-    yzroutine(:) = ' '
-    yzroutine    = 'trigger_warm_bubbles'
+    CHARACTER(len=*), PARAMETER :: yzroutine = 'trigger_warm_bubbles'
+    
     ierror = 0
 
     IF (ldebug_radsim) WRITE (*,*) TRIM(yzroutine), ' on proc ', my_radar_id
@@ -5776,27 +5794,24 @@ CONTAINS
   SUBROUTINE advect_bubbles ( idom_model, time_mod_sec, bubble_list, dt_advect, &
                               zlow_meanwind_for_advect, zup_meanwind_for_advect)
 
-    INTEGER, intent(in)        :: idom_model   ! No. of the model domain in the hosting model (dummy for COSMO)
-    REAL (kind=dp), INTENT(in) :: time_mod_sec ! model time in seconds since model start
+    INTEGER, intent(in)         :: idom_model   ! No. of the model domain in the hosting model (dummy for COSMO)
+    REAL (kind=dp), INTENT(in)  :: time_mod_sec ! model time in seconds since model start
     TYPE(bubble_list_type), INTENT(inout) :: bubble_list
     
-    REAL (kind=dp), INTENT(in) :: dt_advect                 ! Time scale for downstream advection of automatic bubbles [seconds]
-    REAL (kind=dp), INTENT(in) :: zlow_meanwind_for_advect  ! The lower bound of averaging height interval for bubble advection speed [meters AMSL]
-    REAL (kind=dp), INTENT(in) :: zup_meanwind_for_advect   ! The upper bound of averaging height interval for bubble advection speed [meters AMSL]
+    REAL (kind=dp), INTENT(in)  :: dt_advect                 ! Time scale for downstream advection of automatic bubbles [seconds]
+    REAL (kind=dp), INTENT(in)  :: zlow_meanwind_for_advect  ! The lower bound of averaging height interval for bubble advection speed [meters AMSL]
+    REAL (kind=dp), INTENT(in)  :: zup_meanwind_for_advect   ! The upper bound of averaging height interval for bubble advection speed [meters AMSL]
 
     
-    INTEGER                    :: i, k, ierror
+    INTEGER                     :: i, k, ierror
     REAL (kind=dp), DIMENSION(nautobubbles_max)  :: &
          lon_model, lat_model, bub_centlon_orig, bub_centlat_orig
-    REAL (kind=dp)             :: dt_advect_total, dummylon, dummylat, dist_x, dist_y
-    REAL (kind=dp)             :: u_bub, v_bub, dz_sum, hhl_u, hhl_o, zdz, zml, utmp, vtmp
-    LOGICAL                    :: is_inside, found
-    CHARACTER(LEN=50)          :: yzroutine
-    CHARACTER(len=cmaxlen)     :: yerrmsg
+    REAL (kind=dp)              :: dt_advect_total, dummylon, dummylat, dist_x, dist_y
+    REAL (kind=dp)              :: u_bub, v_bub, dz_sum, hhl_u, hhl_o, zdz, zml, utmp, vtmp
+    LOGICAL                     :: is_inside, found
+    CHARACTER(LEN=*), PARAMETER :: yzroutine = 'advect_bubbles'
+    CHARACTER(len=cmaxlen)      :: yerrmsg
 
-    
-    yzroutine(:) = ' '
-    yzroutine    = 'advect_bubbles'
     yerrmsg(:)   = ' '
 
     IF (ldebug_radsim) WRITE (*,*) TRIM(yzroutine), ' on proc ', my_radar_id
@@ -5877,7 +5892,7 @@ CONTAINS
         END DO
          
         ! Distribute the corrected positions to all compute PEs. We use a global MAX operation, because
-        !  only on the PE(s) where the bubble was found the indices are > -999.99:
+        !  only on the PE(s) where the bubble was found the indices are > miss_value:
         IF (num_compute_fwo > 1) THEN
           CALL global_values_radar(lon_model, bubble_list%nbubbles, 'MAX', icomm_cart_fwo, -1, yerrmsg, ierror)
           CALL global_values_radar(lat_model, bubble_list%nbubbles, 'MAX', icomm_cart_fwo, -1, yerrmsg, ierror)
