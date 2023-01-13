@@ -34,15 +34,6 @@ export RESTART_DATE='20180921T000000Z'
 # 
 # 2. Define the checksuite mode
 #
-# u = update test
-# r = restart test
-# n = nproma test
-# m = mpi test
-# o = omp test
-# t = tolerance test
-#
-# default: MD='t'
-#
 export MD='t'
 
 #--------------------------------------------------------------------------------

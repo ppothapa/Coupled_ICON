@@ -1963,6 +1963,19 @@ create_target_header()
             use_mpi_procs_pernode=4
             use_nproma=1600
             ;;
+        *mch_opr_r04b07_performance.run|*mch_opr_r04b07_performance_seed_*.run)
+            use_nodes=1
+            case $use_target in
+                daint_cpu*)
+                    use_mpi_procs_pernode=12
+                    use_nproma=16
+                ;;
+                daint_gpu*)
+                    use_mpi_procs_pernode=2
+                    # no nproma needed since this uses nlbocks_c anyway
+                ;;
+            esac
+            ;;
         *mch_*)
             case $use_target in
                 daint*)

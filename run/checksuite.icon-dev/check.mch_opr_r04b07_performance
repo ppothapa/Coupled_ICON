@@ -14,27 +14,18 @@
 # - the output  file names: <EXPNAME>_<TYPE>_<DATE>.nc
 # - the restart file names: 
 #
-export EXPERIMENT='mch_de_r03b07_lhn'
+export EXPERIMENT='mch_opr_r04b07_performance'
 
-# TYPES is a list of names identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
-# to be checked.
-#
-export TYPES='atm_3d_ml'
-
-# DATES is a list of dates identifying the files <EXPNAME>_<TYPE>_<DATE>.nc
-# to be checked.
-#
-export DATES='20200311T090000Z'
-
-# RESTART_DATE defines the date and time from which restarts should be performed.
-# 
-export RESTART_DATE='20200311T090000Z'
+# set parameters to avoid crash of icon-dev.checksuite
+export TYPES="void"
+export DATES="void"
+export RESTART_DATE="void"
 
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode
 #
-export MD='t'
+export MD='p'
 
 #--------------------------------------------------------------------------------
 # 
@@ -45,12 +36,6 @@ export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
 
 rundir=`pwd`
 cd checksuite.icon-dev
-
-# load python packages
-case $HOST in
-    *daint*)
-        export MD='t'
-esac
 
 ./icon-dev.checksuite
 STATUS=$?
