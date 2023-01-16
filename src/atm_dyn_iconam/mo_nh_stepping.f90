@@ -596,7 +596,7 @@ MODULE mo_nh_stepping
       &                                       l_output_step  = .TRUE.,                  &
       &                                       l_dom_active   = p_patch(1:)%ldom_active, &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
-    CALL pp_scheduler_process(simulation_status)
+    CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
     ! global mean diagnostics
     DO jg = 1, n_dom
@@ -1335,7 +1335,7 @@ MODULE mo_nh_stepping
       &                                       l_accumulation_step = l_accumulation_step, &
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
-    CALL pp_scheduler_process(simulation_status)
+    CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
     ! global mean diagnostics
     DO jg = 1, n_dom

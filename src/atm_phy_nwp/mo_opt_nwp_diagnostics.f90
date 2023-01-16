@@ -534,13 +534,13 @@ CONTAINS
     CALL cells2verts_scalar( theta_cf, p_patch, p_int_state%cells_aw_verts, theta_vf )
     
     !Interpolate theta to edges
-    CALL cells2edges_scalar( theta_cf, p_patch, p_int_state%c_lin_e, theta_ef )
+    CALL cells2edges_scalar( theta_cf, p_patch, p_int_state%c_lin_e, theta_ef, lacc=lzacc )
     
     !Interpolate w to vertices
     CALL cells2verts_scalar( p_prog%w, p_patch, p_int_state%cells_aw_verts, w_vh )
     
     !Interpolate w to edges
-    CALL cells2edges_scalar( p_prog%w, p_patch, p_int_state%c_lin_e, w_eh )
+    CALL cells2edges_scalar( p_prog%w, p_patch, p_int_state%c_lin_e, w_eh, lacc=lzacc )
     
     !Interpolate vorticity to edges
     CALL verts2edges_scalar( p_diag%omega_z, p_patch, p_int_state%v_1o2_e, vor_ef )
@@ -1644,14 +1644,14 @@ CONTAINS
                           i_startidx, i_endidx, i_rlstart, i_rlend)
       
       !$ACC PARALLEL DEFAULT(NONE)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
         ceiling_height(jc,jb) = p_metrics%z_mc(jc,1,jb)  ! arbitrary default value
       END DO
       !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF ( .NOT.(cld_base_found(jc)) .AND. (prm_diag%clc(jc,jk,jb) > 0.5_wp) ) THEN
             ceiling_height(jc,jb) = p_metrics%z_mc(jc,jk,jb)

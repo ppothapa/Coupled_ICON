@@ -219,7 +219,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  output_nml_dict             =              "${dict_file}"        ! translates the output nml names to icon names
  netcdf_dict                 =              "${dict_file}"        ! specifies the names in the output netcdf file
  lnetcdf_flt64_output        =                      .TRUE.        ! double precision output
- itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
+ itype_pres_msl              =                          2         ! method for computation of mean sea level pressure (Anything < 3 to enable i-level interpolation.)
  itype_rh                    =                          1         ! method for computation of relative humidity
  lmask_boundary              =                      .FALSE.       ! mask out interpolation zone in output
  itype_convindices           =                          2         ! full computation of Most Unstable indeces
@@ -394,10 +394,14 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  p_levels         =    10000, 20000, 50000, 100000
 
  hl_varlist       =
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','ddt_temp_radlw','ddt_temp_turb',
-  ! 'ddt_temp_drag','ddt_temp_pconv','ddt_v_sso','ddt_u_sso', ! Temporarily disabled (2022-11-22), vertical interpolation on GPU_mixed fails.
+  'tot_qc_dia','tot_qi_dia','ddt_temp_radlw','ddt_temp_turb',
   'ddt_u_pconv','ddt_v_turb','ddt_u_turb','rh', 'pv'
  h_levels             = 5000, 3000, 1500
+
+ il_varlist           = 'rh', 'pv', 'temp',
+   'ddt_temp_drag','ddt_temp_pconv','ddt_v_sso','ddt_u_sso'
+ i_levels             = 270, 300, 320, 340, 400, 500, 600
+
 /
 
 &meteogram_output_nml

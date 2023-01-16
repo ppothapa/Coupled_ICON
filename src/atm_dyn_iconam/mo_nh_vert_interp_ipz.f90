@@ -38,6 +38,8 @@ MODULE mo_nh_vert_interp_ipz
     &                               PRES_MSL_METHOD_DWD, PRES_MSL_METHOD_IFS_CORR,          &
     &                               SUCCESS
   USE mo_exception,           ONLY: finish
+  USE mo_fortran_tools,       ONLY: copy, init, assert_acc_device_only, assert_lacc_equals_i_am_accel_node, &
+    &                               set_acc_host_or_device, assert_acc_host_only, minval_1d
   USE mo_initicon_config,     ONLY: zpbl1, zpbl2
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_sync,                ONLY: SYNC_E, sync_patch_array_mult
@@ -46,7 +48,7 @@ MODULE mo_nh_vert_interp_ipz
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_nh_deepatmo_utils,   ONLY: height_transform
 #ifdef _OPENACC
-  USE mo_mpi,                 ONLY: i_am_accel_node
+  USE openacc,                ONLY: acc_is_present
 #endif  
 
   IMPLICIT NONE
@@ -90,7 +92,7 @@ CONTAINS
   !! - simplistic OpenACC implementation
 
   SUBROUTINE prepare_vert_interp_z(p_patch, p_diag, p_metrics, intp_hrz, nzlev,  &
-    &                              temp_z_out, pres_z_out, p_z3d_out, vcoeff_z)
+    &                              temp_z_out, pres_z_out, p_z3d_out, vcoeff_z, lacc)
 
     TYPE(t_patch),        TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_nh_diag),      POINTER                    :: p_diag
@@ -101,6 +103,7 @@ CONTAINS
       &                                                 pres_z_out(:,:,:)
     REAL(wp) ,            POINTER                    :: p_z3d_out(:,:,:)  !< height field
     TYPE(t_vcoeff),                    INTENT(INOUT) :: vcoeff_z
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
     CHARACTER(*), PARAMETER :: routine = modname//":prepare_vert_interp_z"
@@ -113,12 +116,10 @@ CONTAINS
     ! Pointer to virtual temperature / temperature, depending on whether the run is moist or dry
     REAL(wp), POINTER, DIMENSION(:,:,:) :: ptr_tempv
     LOGICAL :: lconstgrav
-#ifdef _OPENACC
-    LOGICAL :: save_i_am_accel_node
-#endif
-
 
     !-------------------------------------------------------------------------
+    CALL assert_acc_device_only(routine, lacc)
+    CALL assert_lacc_equals_i_am_accel_node(routine, lacc)
 
     vcoeff_z%l_initialized = .TRUE.
     IF (p_patch%n_patch_cells==0) RETURN
@@ -133,46 +134,49 @@ CONTAINS
 
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
-    !$ACC UPDATE HOST(p_diag%temp, p_diag%pres) IF(i_am_accel_node)
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv(:,:,:)
-      !$ACC UPDATE HOST(ptr_tempv) IF(i_am_accel_node)
     ELSE
       ptr_tempv => p_diag%temp(:,:,:)
-! temp already updated above
     END IF
-
 #ifdef _OPENACC
-    save_i_am_accel_node = i_am_accel_node
-    i_am_accel_node = .FALSE.
+    IF(.NOT.acc_is_present(p_z3d_out)) CALL finish(routine, "p_z3d_out is expected to be available on GPU")
 #endif
+    !$ACC DATA PRESENT(p_patch, p_diag, p_metrics, temp_z_out, pres_z_out, p_z3d_out) &
+    !$ACC   CREATE(z_auxz, p_z3d_edge, z_me)
 
     !--- Coefficients: Interpolation to z-level fields
 
     ! allocate coefficient table:
-    CALL vcoeff_allocate(nblks_c, nblks_e, nzlev, vcoeff_z)
+    CALL vcoeff_allocate(nblks_c, nblks_e, nzlev, vcoeff_z, lacc=.TRUE.)
 
     ! Prepare interpolation coefficients
     CALL prepare_lin_intp(p_metrics%z_mc, p_z3d_out,                                         & !in
       &                   nblks_c, npromz_c, nlev, nzlev,                                    & !in
       &                   vcoeff_z%lin_cell%wfac_lin,                                        & !out
       &                   vcoeff_z%lin_cell%idx0_lin,                                        & !out
-      &                   vcoeff_z%lin_cell%bot_idx_lin  )                                     !out
+      &                   vcoeff_z%lin_cell%bot_idx_lin,                                     & !out
+      &                   lacc=.TRUE.)
     IF ( ANY((/PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_IFS_CORR, PRES_MSL_METHOD_DWD/)== itype_pres_msl) ) THEN
       CALL prepare_extrap_ifspp(p_metrics%z_ifc, p_metrics%z_mc, nblks_c, npromz_c, nlev,    & !in
         &                       vcoeff_z%lin_cell%kpbl1, vcoeff_z%lin_cell%zextrap,          & !out
-        &                       vcoeff_z%lin_cell%wfacpbl1)                                    !out
-      vcoeff_z%lin_cell%kpbl2(:,:) = 0
-      vcoeff_z%lin_cell%wfacpbl2(:,:) = 0._wp
+        &                       vcoeff_z%lin_cell%wfacpbl1,                                  & !out
+        &                       lacc=.TRUE.)
+      !$OMP PARALLEL
+      CALL init(vcoeff_z%lin_cell%kpbl2(:,:), opt_acc_async=.TRUE.)
+      CALL init(vcoeff_z%lin_cell%wfacpbl2(:,:), opt_acc_async=.TRUE.)
+      !$OMP END PARALLEL
     ELSE
       CALL prepare_extrap(p_metrics%z_mc, nblks_c, npromz_c, nlev,                           & !in
         &                 vcoeff_z%lin_cell%kpbl1, vcoeff_z%lin_cell%wfacpbl1,               & !out
-        &                 vcoeff_z%lin_cell%kpbl2, vcoeff_z%lin_cell%wfacpbl2 )                !out
+        &                 vcoeff_z%lin_cell%kpbl2, vcoeff_z%lin_cell%wfacpbl2,               & !out
+        &                  lacc=.TRUE.)
     ENDIF
     CALL prepare_cubic_intp(p_metrics%z_mc, p_z3d_out, nblks_c, npromz_c, nlev, nzlev,       & !in
       &                     vcoeff_z%cub_cell%coef1, vcoeff_z%cub_cell%coef2,                & !out
       &                     vcoeff_z%cub_cell%coef3,                                         & !out
-      &                     vcoeff_z%cub_cell%idx0_cub, vcoeff_z%cub_cell%bot_idx_cub )        !out
+      &                     vcoeff_z%cub_cell%idx0_cub, vcoeff_z%cub_cell%bot_idx_cub,       & !out
+      &                     lacc=.TRUE.)
 
     ! Perform vertical interpolation
 
@@ -185,15 +189,18 @@ CONTAINS
       &                   vcoeff_z%lin_cell%wfacpbl1, vcoeff_z%lin_cell%kpbl1,              & !in
       &                   vcoeff_z%lin_cell%wfacpbl2, vcoeff_z%lin_cell%kpbl2,              & !in
       &                   l_restore_sfcinv=.FALSE., l_hires_corr=.FALSE.,                   & !in
-      &                   extrapol_dist=0._wp, l_pz_mode=.TRUE., zextrap=vcoeff_z%lin_cell%zextrap) !in
+      &                   extrapol_dist=0._wp, l_pz_mode=.TRUE.,                            & !in
+      &                   zextrap=vcoeff_z%lin_cell%zextrap, lacc=.TRUE.)
 
 
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      temp_z_out(:,:,1:i_endblk) = z_auxz(:,:,1:i_endblk)
+      !$OMP PARALLEL
+      CALL copy(z_auxz(:,:,1:i_endblk), temp_z_out(:,:,1:i_endblk), opt_acc_async=.TRUE.)
+      !$OMP END PARALLEL
     ENDIF
    
-    CALL cell_avg(z_auxz, p_patch, p_int_state(jg)%c_bln_avg, temp_z_out)
+    CALL cell_avg(z_auxz, p_patch, p_int_state(jg)%c_bln_avg, temp_z_out, lacc=.TRUE.)
 
     ! Interpolate pressure on z-levels
     CALL pressure_intp(p_diag%pres, ptr_tempv, p_metrics%z_mc,                              & !in
@@ -202,20 +209,25 @@ CONTAINS
       &                vcoeff_z%lin_cell%wfac_lin,    vcoeff_z%lin_cell%idx0_lin,           & !in
       &                vcoeff_z%lin_cell%bot_idx_lin, vcoeff_z%lin_cell%wfacpbl1,           & !in
       &                vcoeff_z%lin_cell%kpbl1, vcoeff_z%lin_cell%wfacpbl2,                 & !in
-      &                vcoeff_z%lin_cell%kpbl2, vcoeff_z%lin_cell%zextrap,                  & !in
-      &                opt_lconstgrav=lconstgrav                                            ) !optin
-    
+      &                vcoeff_z%lin_cell%kpbl2,                                             & !in
+      &                zextrap=vcoeff_z%lin_cell%zextrap,                                   & !optin
+      &                opt_lconstgrav=lconstgrav,                                           & !optin
+      &                lacc=.TRUE.                                                          ) !optin
+
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      pres_z_out(:,:,1:i_endblk) = z_auxz(:,:,1:i_endblk)
+      !$OMP PARALLEL
+      CALL copy(z_auxz(:,:,1:i_endblk), pres_z_out(:,:,1:i_endblk), opt_acc_async=.TRUE.)
+      !$OMP END PARALLEL
     ENDIF
 
-    CALL cell_avg(z_auxz, p_patch, p_int_state(jg)%c_bln_avg, pres_z_out)
+    CALL cell_avg(z_auxz, p_patch, p_int_state(jg)%c_bln_avg, pres_z_out, lacc=.TRUE.)
 
     IF ( ANY((/PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_IFS_CORR, PRES_MSL_METHOD_DWD/)== itype_pres_msl) ) THEN
       CALL prepare_extrap(p_metrics%z_mc, nblks_c, npromz_c, nlev,                           & !in
         &                 vcoeff_z%lin_cell%kpbl1, vcoeff_z%lin_cell%wfacpbl1,               & !out
-        &                 vcoeff_z%lin_cell%kpbl2, vcoeff_z%lin_cell%wfacpbl2 )                !out
+        &                 vcoeff_z%lin_cell%kpbl2, vcoeff_z%lin_cell%wfacpbl2,               & !out
+        &                 lacc=.TRUE.)
     ENDIF
 
     !--- Interpolation data for the vertical interface of cells, "nlevp1"
@@ -223,33 +235,36 @@ CONTAINS
     CALL prepare_lin_intp(p_metrics%z_ifc, p_z3d_out, nblks_c, npromz_c, nlevp1, nzlev,     & !in
       &                   vcoeff_z%lin_cell_nlevp1%wfac_lin,                                & !out
       &                   vcoeff_z%lin_cell_nlevp1%idx0_lin,                                & !out
-      &                   vcoeff_z%lin_cell_nlevp1%bot_idx_lin  )                             !out
+      &                   vcoeff_z%lin_cell_nlevp1%bot_idx_lin,                             & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(p_metrics%z_ifc, nblks_c, npromz_c, nlevp1,                         & !in
       &                 vcoeff_z%lin_cell_nlevp1%kpbl1, vcoeff_z%lin_cell_nlevp1%wfacpbl1,  & !out
-      &                 vcoeff_z%lin_cell_nlevp1%kpbl2, vcoeff_z%lin_cell_nlevp1%wfacpbl2 )   !out
+      &                 vcoeff_z%lin_cell_nlevp1%kpbl2, vcoeff_z%lin_cell_nlevp1%wfacpbl2,  & !out
+      &                 lacc=.TRUE.)
 
     !--- Compute data for interpolation of edge-based fields
 
     ! Compute geometric height at edge points
-    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE.)
-    CALL cells2edges_scalar(p_z3d_out, p_patch, intp_hrz%c_lin_e, p_z3d_edge, opt_fill_latbc=.TRUE.)
+    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE., lacc=.TRUE.)
+    CALL cells2edges_scalar(p_z3d_out, p_patch, intp_hrz%c_lin_e, p_z3d_edge, opt_fill_latbc=.TRUE., lacc=.TRUE.)
     CALL sync_patch_array_mult(SYNC_E,p_patch,2,z_me,p_z3d_edge)
 
     CALL prepare_lin_intp(z_me, p_z3d_edge, nblks_e, npromz_e, nlev, nzlev,                 & !in
       &                   vcoeff_z%lin_edge%wfac_lin, vcoeff_z%lin_edge%idx0_lin,           & !out
-      &                   vcoeff_z%lin_edge%bot_idx_lin  )                                    !out
+      &                   vcoeff_z%lin_edge%bot_idx_lin,                                    & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(z_me, nblks_e, npromz_e, nlev,                                      & !in
       &                 vcoeff_z%lin_edge%kpbl1, vcoeff_z%lin_edge%wfacpbl1,                & !out
-      &                 vcoeff_z%lin_edge%kpbl2, vcoeff_z%lin_edge%wfacpbl2 )                 !out
+      &                 vcoeff_z%lin_edge%kpbl2, vcoeff_z%lin_edge%wfacpbl2,                & !out
+      &                 lacc=.TRUE.)
     CALL prepare_cubic_intp(z_me, p_z3d_edge, nblks_e, npromz_e, nlev, nzlev,               & !in
       &                     vcoeff_z%cub_edge%coef1, vcoeff_z%cub_edge%coef2,               & !out
       &                     vcoeff_z%cub_edge%coef3,                                        & !out
-      &                     vcoeff_z%cub_edge%idx0_cub, vcoeff_z%cub_edge%bot_idx_cub )       !out
+      &                     vcoeff_z%cub_edge%idx0_cub, vcoeff_z%cub_edge%bot_idx_cub,      & !out
+      &                     lacc=.TRUE.)
 
-#ifdef _OPENACC
-    i_am_accel_node = save_i_am_accel_node
-    !$ACC UPDATE DEVICE(temp_z_out, pres_z_out) IF(i_am_accel_node)
-#endif
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE prepare_vert_interp_z
 
@@ -264,7 +279,7 @@ CONTAINS
   !! Modification by W. Sawyer, CSCS (2019-11-26)
   !! - simplistic OpenACC implementation
   SUBROUTINE prepare_vert_interp_p(p_patch, p_diag, p_metrics, intp_hrz, nplev,     &
-    &                              gh_p_out, temp_p_out, p_p3d_out, vcoeff_p)
+    &                              gh_p_out, temp_p_out, p_p3d_out, vcoeff_p, lacc)
 
     TYPE(t_patch),        TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_nh_diag),      POINTER                    :: p_diag
@@ -275,6 +290,7 @@ CONTAINS
       &                                                 temp_p_out(:,:,:)
     REAL(wp),             POINTER                    :: p_p3d_out(:,:,:)  !< pressure field
     TYPE(t_vcoeff),                    INTENT(INOUT) :: vcoeff_p          !< out
+    LOGICAL,              OPTIONAL,    INTENT(IN)    :: lacc              !< If true, use openacc
 
     ! LOCAL VARIABLES
     CHARACTER(*), PARAMETER :: routine = modname//":prepare_vert_interp_p"
@@ -287,9 +303,9 @@ CONTAINS
     ! Pointer to virtual temperature / temperature, depending on whether the run is moist or dry
     REAL(wp), POINTER, DIMENSION(:,:,:) :: ptr_tempv
     LOGICAL :: lconstgrav
-#ifdef _OPENACC
-    LOGICAL :: save_i_am_accel_node
-#endif
+
+    CALL assert_acc_device_only(routine, lacc)
+    CALL assert_lacc_equals_i_am_accel_node(routine, lacc)
 
     vcoeff_p%l_initialized = .TRUE.
     IF (p_patch%n_patch_cells==0) RETURN
@@ -304,32 +320,30 @@ CONTAINS
 
     lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
-    !$ACC UPDATE HOST(p_diag%temp, p_diag%pres) IF(i_am_accel_node) ! temp required farther down
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv
-      !$ACC UPDATE HOST(ptr_tempv) IF(i_am_accel_node)
     ELSE
       ptr_tempv => p_diag%temp
     ENDIF
-#ifdef _OPENACC
-    save_i_am_accel_node = i_am_accel_node
-    i_am_accel_node = .FALSE.
-#endif
+
+    !$ACC DATA CREATE(z_auxp, gh_p_edge, z_me)
 
     ! allocate coefficient table:
-    CALL vcoeff_allocate(nblks_c, nblks_e, nplev, vcoeff_p)
+    CALL vcoeff_allocate(nblks_c, nblks_e, nplev, vcoeff_p, lacc=.TRUE.)
 
     !--- Coefficients: Interpolation to pressure-level fields
     IF ( ANY((/PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_IFS_CORR, PRES_MSL_METHOD_DWD/)== itype_pres_msl) ) THEN
       CALL prepare_extrap_ifspp(p_metrics%z_ifc, p_metrics%z_mc, nblks_c, npromz_c, nlev, & !in
         &                       vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%zextrap,       & !out
-        &                       vcoeff_p%lin_cell%wfacpbl1)                                 !out
+        &                       vcoeff_p%lin_cell%wfacpbl1,                               & !out
+        &                       lacc=.TRUE.)
       vcoeff_p%lin_cell%kpbl2(:,:) = 0
       vcoeff_p%lin_cell%wfacpbl2(:,:) = 0._wp
     ELSE
       CALL prepare_extrap(p_metrics%z_mc, nblks_c, npromz_c, nlev,                          & !in
         &                 vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%wfacpbl1,              & !out
-        &                 vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2 )               !out
+        &                 vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2,              & !out
+        &                 lacc=.TRUE.)
     ENDIF
 
     ! Compute height at pressure levels (i.e. geopot/g); this height
@@ -339,15 +353,17 @@ CONTAINS
       &               p_p3d_out, z_auxp, nblks_c, npromz_c, nlev, nplev,                    & !in,out,in
       &               vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%wfacpbl1,                  & !in
       &               vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2,                  & !in
-      &               vcoeff_p%lin_cell%zextrap,                                            & !in
-      &               opt_lconstgrav=lconstgrav                                             ) !optin
-    
+      &               zextrap=vcoeff_p%lin_cell%zextrap, opt_lconstgrav=lconstgrav,         & !optin
+      &               lacc=.TRUE. )
+
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      gh_p_out(:,:,1:i_endblk) = z_auxp(:,:,1:i_endblk)
+      !$OMP PARALLEL
+      CALL copy(z_auxp(:,:,1:i_endblk), gh_p_out(:,:,1:i_endblk), opt_acc_async=.TRUE.)
+      !$OMP END PARALLEL
     ENDIF
 
-    CALL cell_avg(z_auxp, p_patch, p_int_state(jg)%c_bln_avg, gh_p_out)
+    CALL cell_avg(z_auxp, p_patch, p_int_state(jg)%c_bln_avg, gh_p_out, lacc=.TRUE.)
 
     ! Prepare again interpolation coefficients (now for pressure levels)
     ! Note: the coefficients are partly identical to the z-level
@@ -355,11 +371,13 @@ CONTAINS
     !       complicated code.
     CALL prepare_lin_intp(p_metrics%z_mc, gh_p_out, nblks_c, npromz_c, nlev, nplev,         & !in
       &                   vcoeff_p%lin_cell%wfac_lin, vcoeff_p%lin_cell%idx0_lin,           & !out
-      &                   vcoeff_p%lin_cell%bot_idx_lin )                                     !out
+      &                   vcoeff_p%lin_cell%bot_idx_lin,                                    & !out
+      &                   lacc=.TRUE. )
     CALL prepare_cubic_intp(p_metrics%z_mc, gh_p_out, nblks_c, npromz_c, nlev, nplev,       & !in
       &                     vcoeff_p%cub_cell%coef1, vcoeff_p%cub_cell%coef2,               & !out
       &                     vcoeff_p%cub_cell%coef3,                                        & !out
-      &                     vcoeff_p%cub_cell%idx0_cub, vcoeff_p%cub_cell%bot_idx_cub )       !out
+      &                     vcoeff_p%cub_cell%idx0_cub, vcoeff_p%cub_cell%bot_idx_cub,      & !out
+      &                     lacc=.TRUE.)
 
     ! Perform vertical interpolation
     CALL temperature_intp(p_diag%temp, z_auxp, p_metrics%z_mc, gh_p_out,                    & !in,out
@@ -372,19 +390,22 @@ CONTAINS
       &                   vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%wfacpbl2,              & !in
       &                   vcoeff_p%lin_cell%kpbl2, l_restore_sfcinv=.FALSE.,                & !in
       &                   l_hires_corr=.FALSE., extrapol_dist=0._wp, l_pz_mode=.TRUE.,      & !in
-      &                   zextrap=vcoeff_p%lin_cell%zextrap)
+      &                   zextrap=vcoeff_p%lin_cell%zextrap, lacc=.TRUE.)
 
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
       i_endblk = p_patch%cells%end_blk(1,1)
-      temp_p_out(:,:,1:i_endblk) = z_auxp(:,:,1:i_endblk)
+      !$OMP PARALLEL
+      CALL copy(z_auxp(:,:,1:i_endblk), temp_p_out(:,:,1:i_endblk), opt_acc_async=.TRUE.)
+      !$OMP END PARALLEL
     ENDIF
 
-    CALL cell_avg(z_auxp, p_patch, p_int_state(jg)%c_bln_avg, temp_p_out)
+    CALL cell_avg(z_auxp, p_patch, p_int_state(jg)%c_bln_avg, temp_p_out, lacc=.TRUE.)
 
     IF ( ANY((/PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_IFS_CORR, PRES_MSL_METHOD_DWD/)== itype_pres_msl) ) THEN
       CALL prepare_extrap(p_metrics%z_mc, nblks_c, npromz_c, nlev,                          & !in
         &                 vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%wfacpbl1,              & !out
-        &                 vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2 )               !out
+        &                 vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2,              & !out
+        &                 lacc=.TRUE.)
     ENDIF
 
     !--- Interpolation data for the vertical interface of cells, "nlevp1"
@@ -392,32 +413,34 @@ CONTAINS
     CALL prepare_lin_intp(p_metrics%z_ifc, gh_p_out, nblks_c, npromz_c, nlevp1, nplev,      & !in
       &                   vcoeff_p%lin_cell_nlevp1%wfac_lin,                                & !out
       &                   vcoeff_p%lin_cell_nlevp1%idx0_lin,                                & !out
-      &                   vcoeff_p%lin_cell_nlevp1%bot_idx_lin  )                             !out
+      &                   vcoeff_p%lin_cell_nlevp1%bot_idx_lin,                             & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(p_metrics%z_ifc, nblks_c, npromz_c, nlevp1,                         & !in
       &                 vcoeff_p%lin_cell_nlevp1%kpbl1, vcoeff_p%lin_cell_nlevp1%wfacpbl1,  & !out
-      &                 vcoeff_p%lin_cell_nlevp1%kpbl2, vcoeff_p%lin_cell_nlevp1%wfacpbl2 )   !out
+      &                 vcoeff_p%lin_cell_nlevp1%kpbl2, vcoeff_p%lin_cell_nlevp1%wfacpbl2,  & !out
+      &                 lacc=.TRUE.)
 
     !--- Compute data for interpolation of edge-based fields
 
-    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE.)
-    CALL cells2edges_scalar(gh_p_out, p_patch, intp_hrz%c_lin_e, gh_p_edge, opt_fill_latbc=.TRUE.)
+    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE., lacc=.TRUE.)
+    CALL cells2edges_scalar(gh_p_out, p_patch, intp_hrz%c_lin_e, gh_p_edge, opt_fill_latbc=.TRUE., lacc=.TRUE.)
     CALL sync_patch_array_mult(SYNC_E,p_patch,2,z_me,gh_p_edge)
 
     CALL prepare_lin_intp(z_me, gh_p_edge, nblks_e, npromz_e, nlev, nplev,                   & !in
       &                   vcoeff_p%lin_edge%wfac_lin, vcoeff_p%lin_edge%idx0_lin,            & !out
-      &                   vcoeff_p%lin_edge%bot_idx_lin )                                      !out
+      &                   vcoeff_p%lin_edge%bot_idx_lin,                                     & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(z_me, nblks_e, npromz_e, nlev,                                       & !in
       &                 vcoeff_p%lin_edge%kpbl1, vcoeff_p%lin_edge%wfacpbl1,                 & !out
-      &                 vcoeff_p%lin_edge%kpbl2, vcoeff_p%lin_edge%wfacpbl2 )                  !out
+      &                 vcoeff_p%lin_edge%kpbl2, vcoeff_p%lin_edge%wfacpbl2,                 & !out
+      &                 lacc=.TRUE.)
     CALL prepare_cubic_intp(z_me, gh_p_edge, nblks_e, npromz_e, nlev, nplev,                 & !in
       &                     vcoeff_p%cub_edge%coef1, vcoeff_p%cub_edge%coef2,                & !out
       &                     vcoeff_p%cub_edge%coef3,                                         & !out
-      &                     vcoeff_p%cub_edge%idx0_cub, vcoeff_p%cub_edge%bot_idx_cub )        !out
-
-#ifdef _OPENACC
-    i_am_accel_node = save_i_am_accel_node
-    !$ACC UPDATE DEVICE(gh_p_out, temp_p_out) IF(i_am_accel_node)
-#endif
+      &                     vcoeff_p%cub_edge%idx0_cub, vcoeff_p%cub_edge%bot_idx_cub,       & !out
+      &                     lacc=.TRUE.)
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE prepare_vert_interp_p
 
@@ -433,7 +456,7 @@ CONTAINS
   !! - simplistic OpenACC implementation
   !!
   SUBROUTINE prepare_vert_interp_i(p_patch, p_prog, p_diag, p_metrics, intp_hrz, nilev,     &
-    &                              gh_i_out, temp_i_out, p_i3d_out, vcoeff_i)
+    &                              gh_i_out, temp_i_out, p_i3d_out, vcoeff_i, lacc)
 
     TYPE(t_patch),        TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),      POINTER                    :: p_prog
@@ -445,15 +468,13 @@ CONTAINS
       &                                                 temp_i_out(:,:,:)
     REAL(wp),             POINTER                    :: p_i3d_out(:,:,:)  !< theta field
     TYPE(t_vcoeff),                    INTENT(INOUT) :: vcoeff_i          !< out
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
     CHARACTER(*), PARAMETER :: routine = modname//":prepare_vert_interp_i"
     INTEGER :: nlev, nlevp1, nblks_c, nblks_e, npromz_c,npromz_e !< blocking parameters
     REAL(wp), DIMENSION(nproma,nilev,p_patch%nblks_e)        :: gh_i_edge
     REAL(wp), DIMENSION(nproma,p_patch%nlev,p_patch%nblks_e) :: z_me
-#ifdef _OPENACC
-    LOGICAL :: save_i_am_accel_node
-#endif
 
     vcoeff_i%l_initialized = .TRUE.
 
@@ -464,14 +485,12 @@ CONTAINS
     nblks_e  = p_patch%nblks_e
     npromz_e = p_patch%npromz_e
 
-    !$ACC UPDATE HOST(p_prog%theta_v, p_diag%temp) IF(i_am_accel_node) ! required farther down
-#ifdef _OPENACC
-    save_i_am_accel_node = i_am_accel_node
-    i_am_accel_node = .FALSE.
-#endif
-    
+    !$ACC DATA CREATE(gh_i_edge, z_me)
+
+    CALL assert_acc_device_only(routine, lacc)
+
     ! allocate coefficient table:
-    CALL vcoeff_allocate(nblks_c, nblks_e, nilev, vcoeff_i)
+    CALL vcoeff_allocate(nblks_c, nblks_e, nilev, vcoeff_i, lacc=.TRUE.)
 
     !--- Coefficients: Interpolation to isentropes
 
@@ -484,23 +503,26 @@ CONTAINS
     !       complicated code:
     CALL prepare_extrap(p_metrics%z_mc, nblks_c, npromz_c, nlev,                            & !in
       &                 vcoeff_i%lin_cell%kpbl1, vcoeff_i%lin_cell%wfacpbl1,                & !out
-      &                 vcoeff_i%lin_cell%kpbl2, vcoeff_i%lin_cell%wfacpbl2 )                 !out
+      &                 vcoeff_i%lin_cell%kpbl2, vcoeff_i%lin_cell%wfacpbl2,                & !out
+      &                 lacc=.TRUE.)
 
     CALL z_at_theta_levels(p_prog%theta_v, p_metrics%z_mc,                                  & !in
       &                    p_i3d_out, gh_i_out,                                             & !out
       &                    vcoeff_i%lin_cell%wfacpbl1, vcoeff_i%lin_cell%kpbl1,             & !in
       &                    vcoeff_i%lin_cell%wfacpbl2, vcoeff_i%lin_cell%kpbl2, nblks_c,    & !in
-      &                    npromz_c, nlev, nilev)
+      &                    npromz_c, nlev, nilev, lacc=.TRUE.)
 
     ! Prepare again interpolation coefficients (now for isentropic levels)
     CALL prepare_lin_intp(p_metrics%z_mc, gh_i_out, nblks_c, npromz_c, nlev, nilev,         & !in
       &                   vcoeff_i%lin_cell%wfac_lin, vcoeff_i%lin_cell%idx0_lin,           & !out
-      &                   vcoeff_i%lin_cell%bot_idx_lin )                                     !out
+      &                   vcoeff_i%lin_cell%bot_idx_lin,                                    & !out
+      &                   lacc=.TRUE.)
 
     CALL prepare_cubic_intp(p_metrics%z_mc, gh_i_out, nblks_c, npromz_c, nlev, nilev,       & !in
       &                     vcoeff_i%cub_cell%coef1, vcoeff_i%cub_cell%coef2,               & !out
       &                     vcoeff_i%cub_cell%coef3,                                        & !out
-      &                     vcoeff_i%cub_cell%idx0_cub, vcoeff_i%cub_cell%bot_idx_cub )       !out
+      &                     vcoeff_i%cub_cell%idx0_cub, vcoeff_i%cub_cell%bot_idx_cub,      & !out
+      &                     lacc=.TRUE.)
 
     ! Perform vertical interpolation
     CALL temperature_intp(p_diag%temp, temp_i_out, p_metrics%z_mc, gh_i_out,                & !in,out
@@ -512,7 +534,8 @@ CONTAINS
       &                   vcoeff_i%lin_cell%bot_idx_lin, vcoeff_i%lin_cell%wfacpbl1,        & !in
       &                   vcoeff_i%lin_cell%kpbl1, vcoeff_i%lin_cell%wfacpbl2,              & !in
       &                   vcoeff_i%lin_cell%kpbl2, l_restore_sfcinv=.TRUE.,                 & !in
-      &                   l_hires_corr=.FALSE., extrapol_dist=0._wp, l_pz_mode=.TRUE.)        !in
+      &                   l_hires_corr=.FALSE., extrapol_dist=0._wp, l_pz_mode=.TRUE.,      & !in
+      &                   lacc=.TRUE.)
 
     !--- Interpolation data for the vertical interface of cells, "nlevp1"
 
@@ -520,32 +543,34 @@ CONTAINS
       &                   nblks_c, npromz_c, nlevp1, nilev,                                 & !in
       &                   vcoeff_i%lin_cell_nlevp1%wfac_lin,                                & !out
       &                   vcoeff_i%lin_cell_nlevp1%idx0_lin,                                & !out
-      &                   vcoeff_i%lin_cell_nlevp1%bot_idx_lin  )                             !out
+      &                   vcoeff_i%lin_cell_nlevp1%bot_idx_lin,                             & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(p_metrics%z_ifc, nblks_c, npromz_c, nlevp1,                         & !in
       &                 vcoeff_i%lin_cell_nlevp1%kpbl1, vcoeff_i%lin_cell_nlevp1%wfacpbl1,  & !out
-      &                 vcoeff_i%lin_cell_nlevp1%kpbl2, vcoeff_i%lin_cell_nlevp1%wfacpbl2 )   !out
+      &                 vcoeff_i%lin_cell_nlevp1%kpbl2, vcoeff_i%lin_cell_nlevp1%wfacpbl2,  & !out
+      &                 lacc=.TRUE.)
 
     !--- Compute data for interpolation of edge-based fields
 
-    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE.)
-    CALL cells2edges_scalar(gh_i_out, p_patch, intp_hrz%c_lin_e, gh_i_edge, opt_fill_latbc=.TRUE.)
+    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, intp_hrz%c_lin_e, z_me, opt_fill_latbc=.TRUE., lacc=.TRUE.)
+    CALL cells2edges_scalar(gh_i_out, p_patch, intp_hrz%c_lin_e, gh_i_edge, opt_fill_latbc=.TRUE., lacc=.TRUE.)
     CALL sync_patch_array_mult(SYNC_E,p_patch,2,z_me,gh_i_edge)
 
     CALL prepare_lin_intp(z_me, gh_i_edge, nblks_e, npromz_e, nlev, nilev,                   & !in
       &                   vcoeff_i%lin_edge%wfac_lin, vcoeff_i%lin_edge%idx0_lin,            & !out
-      &                   vcoeff_i%lin_edge%bot_idx_lin )                                      !out
+      &                   vcoeff_i%lin_edge%bot_idx_lin,                                     & !out
+      &                   lacc=.TRUE. )
     CALL prepare_extrap(z_me, nblks_e, npromz_e, nlev,                                       & !in
       &                 vcoeff_i%lin_edge%kpbl1, vcoeff_i%lin_edge%wfacpbl1,                 & !out
-      &                 vcoeff_i%lin_edge%kpbl2, vcoeff_i%lin_edge%wfacpbl2 )                  !out
+      &                 vcoeff_i%lin_edge%kpbl2, vcoeff_i%lin_edge%wfacpbl2,                 & !out
+      &                 lacc=.TRUE.)
     CALL prepare_cubic_intp(z_me, gh_i_edge, nblks_e, npromz_e, nlev, nilev,                 & !in
       &                     vcoeff_i%cub_edge%coef1, vcoeff_i%cub_edge%coef2,                & !out
       &                     vcoeff_i%cub_edge%coef3,                                         & !out
-      &                     vcoeff_i%cub_edge%idx0_cub, vcoeff_i%cub_edge%bot_idx_cub )        !out
-
-#ifdef _OPENACC
-    i_am_accel_node = save_i_am_accel_node
-#endif
-
+      &                     vcoeff_i%cub_edge%idx0_cub, vcoeff_i%cub_edge%bot_idx_cub,       & !out
+      &                     lacc=.TRUE. )
+    !$ACC WAIT
+    !$ACC END DATA
   END SUBROUTINE prepare_vert_interp_i
 
 
@@ -569,8 +594,8 @@ CONTAINS
   !!
   SUBROUTINE z_at_plevels(pres_ml, tempv_ml, z3d_ml, pres_pl, z3d_pl, &
                           nblks, npromz, nlevs_ml, nlevs_pl,          &
-                          kpbl1, wfacpbl1, kpbl2, wfacpbl2, zextrap,  &
-                          opt_lconstgrav                              )
+                          kpbl1, wfacpbl1, kpbl2, wfacpbl2,           &
+                          zextrap, opt_lconstgrav, lacc               )
 
     ! Input fields
     REAL(wp),         INTENT(IN)  :: pres_ml  (:,:,:) ! pressure field on model levels
@@ -596,13 +621,16 @@ CONTAINS
     INTEGER , INTENT(IN) :: kpbl2(:,:)     ! index of model level immediately above (by default) 1000 m AGL
     REAL(wp), INTENT(IN) :: wfacpbl2(:,:)  ! corresponding interpolation coefficient
 
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true use OpenACC
+
     REAL(wp), OPTIONAL, INTENT(IN) :: zextrap(:,:)   ! AGL height from which downward extrapolation starts (in postprocesing mode)
     LOGICAL,  OPTIONAL, INTENT(IN) :: opt_lconstgrav 
 
     ! LOCAL VARIABLES
 
-    INTEGER  :: jb, jkm, jkp, jc, jkm_start
-    INTEGER  :: nlen, ierror(nblks)
+    CHARACTER(*), PARAMETER :: routine = modname//":z_at_plevels"
+    INTEGER  :: jb, jkm, jkp, jc, jkm_start, jkp_start
+    INTEGER  :: nlen
     INTEGER , DIMENSION(nproma)          :: bot_idx_ml
     INTEGER , DIMENSION(nproma,nlevs_pl) :: idx0_ml
 
@@ -614,11 +642,14 @@ CONTAINS
     REAL(wp), ALLOCATABLE, TARGET        :: zgpot_ml(:,:,:)
     REAL(wp),              POINTER       :: z_ml(:,:,:)
 
-    LOGICAL :: l_found(nproma),lfound_all,lzextrap
+    LOGICAL :: l_found(nproma),lfound_all,lzextrap, lerror
     LOGICAL :: lconstgrav
     INTEGER :: istat
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (PRESENT(zextrap)) THEN
       lzextrap = .TRUE.
@@ -635,8 +666,9 @@ CONTAINS
     IF (lconstgrav) THEN
       z_ml => z3d_ml
     ELSE
+      CALL assert_acc_host_only(routine//":lconstgrav==.FALSE", lacc)
       ALLOCATE(zgpot_ml(nproma, nlevs_ml, nblks), STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp_ipz: z_at_plevels', 'Allocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed!')
       ! Compute geopotential heights in case of the deep atmosphere
       CALL height_transform( z_in       = z3d_ml,     &  !in 
         &                    z_out      = zgpot_ml,   &  !out       
@@ -651,61 +683,96 @@ CONTAINS
       ! (Put another way: we regard 'zpbl1', 'zpbl2', and 'zextrap' to represent geopotential heights.)
     ENDIF
 
+    !$ACC DATA IF(lzacc) &
+    !$ACC   PRESENT(pres_ml, tempv_ml, z3d_ml, pres_pl, z3d_pl, kpbl1, wfacpbl1, kpbl2, wfacpbl2, zextrap, vct_a) &
+    !$ACC   PRESENT(num_lev, z_ml) &
+    !$ACC   CREATE(bot_idx_ml, idx0_ml, wfac_ml, dtvdz, z3d_ml_di, tmsl, tsfc_mod, tempv1, tempv2, vtgrad_up) &
+    !$ACC   CREATE(sfc_inv, l_found)
+
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jkm,jkp,jc,nlen,jkm_start,bot_idx_ml,idx0_ml,z_up,z_down,&
+!$OMP DO PRIVATE(jb,jkm,jkp,jc,nlen,jkm_start,jkp_start,bot_idx_ml,idx0_ml,z_up,z_down,&
 !$OMP wfac_ml,tmsl,tsfc_mod,dtvdz,tempv1,tempv2,vtgrad_up,sfc_inv,l_found,&
-!$OMP lfound_all,z3d_ml_di) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP lfound_all,z3d_ml_di,lerror) ICON_OMP_DEFAULT_SCHEDULE
 
     DO jb = 1, nblks
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        z3d_pl(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jkp = 1, nlevs_pl
+          DO jc = nlen+1, nproma
+            z3d_pl(jc,jkp,jb) = 0.0_wp
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
-      ierror(jb) = 0
+      lerror = .FALSE.
 
       ! First compute coefficients for those target levels/points for which interpolation
       ! between model-level data is possible
       jkm_start = 1
       DO jkp = 1, nlevs_pl
-        l_found(:) = .FALSE.
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          l_found(jc) = .FALSE.
+        ENDDO
         lfound_all = .FALSE.
+        !$ACC LOOP SEQ
         DO jkm = jkm_start,nlevs_ml-1
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
-            IF (pres_pl(jc,jkp,jb) >= pres_ml(jc,jkm,jb) .AND. &
-                pres_pl(jc,jkp,jb) <  pres_ml(jc,jkm+1,jb)) THEN
-              idx0_ml(jc,jkp) = jkm
-              wfac_ml(jc,jkp) = (pres_pl(jc,jkp,jb)-pres_ml(jc,jkm+1,jb))/&
-                                (pres_ml(jc,jkm,jb)-pres_ml(jc,jkm+1,jb))
-              bot_idx_ml(jc) = jkp
-              l_found(jc) = .TRUE.
-            ELSE IF (pres_pl(jc,jkp,jb) >= pres_ml(jc,nlevs_ml,jb)) THEN
-              l_found(jc) = .TRUE.
-              idx0_ml(jc,jkp) = nlevs_ml
-              IF (jkp == 1) bot_idx_ml(jc) = 0
-            ELSE IF (pres_pl(jc,jkp,jb) < pres_ml(jc,1,jb)) THEN
-              idx0_ml(jc,jkp) = 1
-              wfac_ml(jc,jkp) = (pres_pl(jc,jkp,jb)-pres_ml(jc,2,jb))/&
-                                (pres_ml(jc,1  ,jb)-pres_ml(jc,2,jb))
-              bot_idx_ml(jc) = jkp
-              l_found(jc) = .TRUE.
+            IF( .NOT. l_found(jc)) THEN
+              IF (pres_pl(jc,jkp,jb) >= pres_ml(jc,jkm,jb) .AND. &
+                  pres_pl(jc,jkp,jb) <  pres_ml(jc,jkm+1,jb)) THEN
+                idx0_ml(jc,jkp) = jkm
+                wfac_ml(jc,jkp) = (pres_pl(jc,jkp,jb)-pres_ml(jc,jkm+1,jb))/&
+                                  (pres_ml(jc,jkm,jb)-pres_ml(jc,jkm+1,jb))
+                bot_idx_ml(jc) = jkp
+                l_found(jc) = .TRUE.
+              ELSE IF (pres_pl(jc,jkp,jb) >= pres_ml(jc,nlevs_ml,jb)) THEN
+                l_found(jc) = .TRUE.
+                idx0_ml(jc,jkp) = nlevs_ml
+                IF (jkp == 1) bot_idx_ml(jc) = 0
+              ELSE IF (pres_pl(jc,jkp,jb) < pres_ml(jc,1,jb)) THEN
+                idx0_ml(jc,jkp) = 1
+                wfac_ml(jc,jkp) = (pres_pl(jc,jkp,jb)-pres_ml(jc,2,jb))/&
+                                  (pres_ml(jc,1  ,jb)-pres_ml(jc,2,jb))
+                bot_idx_ml(jc) = jkp
+                l_found(jc) = .TRUE.
+              ENDIF
             ENDIF
           ENDDO
+#ifndef _OPENACC
+          ! this optimization is not supported by OpenACC but also less important
           IF (ALL(l_found(1:nlen))) THEN
             lfound_all = .TRUE.
             EXIT
           ENDIF
+#endif
         ENDDO
+        !$ACC END PARALLEL
+#ifdef _OPENACC
+        lfound_all = .TRUE.
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
+        !$ACC LOOP GANG VECTOR
+        DO jc = 1, nlen
+          lfound_all = lfound_all .AND. l_found(jc)
+        ENDDO
+        !$ACC END PARALLEL
+        !$ACC WAIT
+#endif
+
         IF (lfound_all) THEN
-          jkm_start = MIN(MINVAL(idx0_ml(1:nlen,jkp)),nlevs_ml-1)
+          jkm_start = MIN(minval_1d(idx0_ml(1:nlen, jkp), lacc=lzacc), nlevs_ml-1)
         ELSE
-          ierror(jb) = ierror(jb) + 1
+          lerror = .TRUE.
+          EXIT
         ENDIF
       ENDDO
 
-      IF (ierror(jb) > 0) CALL finish("z_at_plevels:",&
-        "Error in computing interpolation coefficients")
+      IF (lerror) CALL finish(routine, "Error in computing interpolation coefficients")
 
       IF (itype_pres_msl == PRES_MSL_METHOD_GME) THEN
 
@@ -717,6 +784,8 @@ CONTAINS
         ! solution, but it is used for the time being in order to be consistent
         ! with IFS and GME.
 
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = 1, nlen
           tsfc_mod(jc) = tempv_ml(jc,nlevs_ml,jb)
           IF (tsfc_mod(jc) < t_low) tsfc_mod(jc) = 0.5_wp*(t_low+tsfc_mod(jc))
@@ -730,12 +799,15 @@ CONTAINS
             ENDIF
           ENDIF
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE IF ( lzextrap .AND. itype_pres_msl >= 3 ) THEN
 
         ! Similar method to option 1, but we use the temperature at 150 m AGL
         ! for extrapolation (kpbl1 contains the required index in this case)
 
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = 1, nlen
 
           tsfc_mod(jc) = wfacpbl1(jc,jb) *tempv_ml(jc,kpbl1(jc,jb),jb  ) + &
@@ -753,11 +825,14 @@ CONTAINS
             ENDIF
           ENDIF
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE
         ! Use a temperature profile that is (roughly) consistent with
         ! that used for temperature extrapolation
 
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = 1, nlen
           ! Virtual temperature at height zpbl1
           tempv1(jc) = wfacpbl1(jc,jb) *tempv_ml(jc,kpbl1(jc,jb),jb  ) + &
@@ -804,10 +879,17 @@ CONTAINS
           ENDIF
 
         ENDDO
+        !$ACC END PARALLEL
 
       ENDIF
 
-      DO jkp = MINVAL(bot_idx_ml(1:nlen))+1, nlevs_pl
+      jkp_start = minval_1d(bot_idx_ml(1: nlen), lacc=lzacc) + 1
+
+
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO jkp = jkp_start, nlevs_pl
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           IF (jkp >= bot_idx_ml(jc)+1) THEN
             ! Store extrapolation distance on wfac_ml if target point is below the
@@ -818,7 +900,9 @@ CONTAINS
         ENDDO
       ENDDO
 
+      !$ACC LOOP SEQ
       DO jkm = 1, nlevs_ml - 1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           z3d_ml_di(jc, jkm) = 1.0_wp &
                / (z_ml(jc,jkm,jb) - z_ml(jc,jkm+1,jb))
@@ -826,7 +910,9 @@ CONTAINS
       END DO
 
       ! Now, compute vertical gradients of virtual potential temperature
+      !$ACC LOOP SEQ
       DO jkp = 1, nlevs_pl
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkm)
         DO jc = 1, nlen
           IF (jkp <= bot_idx_ml(jc)) THEN
             jkm = idx0_ml(jc,jkp)
@@ -842,7 +928,9 @@ CONTAINS
       ENDDO
 
       ! Finally, compute height of pressure levels
+      !$ACC LOOP SEQ
       DO jkp = 1, nlevs_pl
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jkm, z_up, z_down)
         DO jc = 1, nlen
           IF (jkp <= bot_idx_ml(jc)) THEN
 
@@ -886,15 +974,18 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT
+    !$ACC END DATA
     NULLIFY(z_ml)
     IF (.NOT. lconstgrav) THEN
       DEALLOCATE(zgpot_ml, STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp_ipz: z_at_plevels', 'Deallocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed!')
       ! 'z3d_pl' contains geopotential heights: transform it to geometric heights
       CALL height_transform( z_inout    = z3d_pl,     &  !in/out
         &                    nblks      = nblks,      &  !in
@@ -928,7 +1019,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE z_at_theta_levels(theta_ml, z3d_ml, theta_thl, z3d_thl, wfacpbl1, kpbl1, &
-                               wfacpbl2, kpbl2, nblks, npromz, nlevs_ml, nlevs_thl)
+                               wfacpbl2, kpbl2, nblks, npromz, nlevs_ml, nlevs_thl, lacc)
 
 
     ! Input fields
@@ -954,12 +1045,12 @@ CONTAINS
     INTEGER , INTENT(IN) :: npromz     ! Length of last block
     INTEGER , INTENT(IN) :: nlevs_ml   ! Number of model levels
     INTEGER , INTENT(IN) :: nlevs_thl  ! Number of theta levels
-
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     ! LOCAL VARIABLES
 
 
     INTEGER  :: jb, jkm, jkt, jc, jkm_start
-    INTEGER  :: nlen, ierror(nblks)
+    INTEGER  :: nlen
     INTEGER , DIMENSION(nproma)          :: bot_idx_ml
     INTEGER , DIMENSION(nproma,nlevs_thl) :: idx0_ml
 
@@ -967,73 +1058,111 @@ CONTAINS
 
     REAL(wp) :: theta1, theta2, vthgrad
 
-    LOGICAL :: l_found(nproma),lfound_all
+    LOGICAL :: l_found(nproma),lfound_all, lerror
 
 !-------------------------------------------------------------------------
+    CALL assert_acc_device_only("z_at_theta_levels", lacc)
 
-
+    !$ACC DATA PRESENT(theta_ml, z3d_ml, theta_thl, kpbl1, wfacpbl1, kpbl2, wfacpbl2, z3d_thl) &
+    !$ACC   CREATE(bot_idx_ml, idx0_ml, wfac_ml, l_found)
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jkm,jkt,jc,nlen,jkm_start,bot_idx_ml,idx0_ml,wfac_ml,theta1,theta2,vthgrad, &
-!$OMP            l_found,lfound_all) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP            l_found,lfound_all, lerror) ICON_OMP_DEFAULT_SCHEDULE
 
     DO jb = 1, nblks
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        z3d_thl(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
+        DO jkt = 1, nlevs_thl
+          DO jc = nlen+1, nproma
+            z3d_thl(jc,jkt,jb) = 0.0_wp
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
-      ierror(jb) = 0
+      lerror = .FALSE.
 
       ! Compute coefficients for those target levels/points for which interpolation
       ! between model-level data is possible
       jkm_start = 1
-      bot_idx_ml(:) = 0
+      !$ACC PARALLEL LOOP ASYNC(1) DEFAULT(PRESENT)
+      DO jc = 1, nlen
+        bot_idx_ml(jc) = 0
+      ENDDO
+      !$ACC END PARALLEL LOOP
       DO jkt = 1, nlevs_thl
-        l_found(:) = .FALSE.
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          l_found(jc) = .FALSE.
+        ENDDO
         lfound_all = .FALSE.
+        !$ACC LOOP SEQ
         DO jkm = jkm_start,nlevs_ml-1
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
-            IF (theta_thl(jc,jkt,jb) <= theta_ml(jc,jkm,jb) .AND. &
-                theta_thl(jc,jkt,jb) >  theta_ml(jc,jkm+1,jb)) THEN
-              idx0_ml(jc,jkt) = jkm
-              wfac_ml(jc,jkt) = (theta_thl(jc,jkt,jb)-theta_ml(jc,jkm+1,jb))/&
-                                (theta_ml(jc,jkm,jb) -theta_ml(jc,jkm+1,jb))
-              bot_idx_ml(jc) = jkt
-              l_found(jc) = .TRUE.
-            ! The second criterion here is needed to prevent running into the extrapolation branch
-            ! if a pair of levels fulfiling the interpolation condition has already been found
-            ! (relevant if theta does not increase monotonically with height)
-            ELSE IF (theta_thl(jc,jkt,jb) <= theta_ml(jc,nlevs_ml,jb) .AND. bot_idx_ml(jc) < jkt ) THEN
-              l_found(jc) = .TRUE.
-              idx0_ml(jc,jkt) = nlevs_ml
-              ! Store "extrapolation distance" on wfac_ml if target point is below the
-              ! surface of the input data
-              wfac_ml(jc,jkt) = theta_thl(jc,jkt,jb)-theta_ml(jc,nlevs_ml,jb)
-            ELSE IF (theta_thl(jc,jkt,jb) > theta_ml(jc,1,jb)) THEN
-              idx0_ml(jc,jkt) = 1
-              wfac_ml(jc,jkt) = (theta_thl(jc,jkt,jb)-theta_ml(jc,2,jb))/&
-                                (theta_ml (jc,1  ,jb)-theta_ml(jc,2,jb))
-              bot_idx_ml(jc) = jkt
-              l_found(jc) = .TRUE.
+            IF (.NOT. l_found(jc)) THEN
+              IF (theta_thl(jc,jkt,jb) <= theta_ml(jc,jkm,jb) .AND. &
+                  theta_thl(jc,jkt,jb) >  theta_ml(jc,jkm+1,jb)) THEN
+                idx0_ml(jc,jkt) = jkm
+                wfac_ml(jc,jkt) = (theta_thl(jc,jkt,jb)-theta_ml(jc,jkm+1,jb))/&
+                                  (theta_ml(jc,jkm,jb) -theta_ml(jc,jkm+1,jb))
+                bot_idx_ml(jc) = jkt
+                l_found(jc) = .TRUE.
+              ! The second criterion here is needed to prevent running into the extrapolation branch
+              ! if a pair of levels fulfiling the interpolation condition has already been found
+              ! (relevant if theta does not increase monotonically with height)
+              ELSE IF (theta_thl(jc,jkt,jb) <= theta_ml(jc,nlevs_ml,jb) .AND. bot_idx_ml(jc) < jkt ) THEN
+                l_found(jc) = .TRUE.
+                idx0_ml(jc,jkt) = nlevs_ml
+                ! Store "extrapolation distance" on wfac_ml if target point is below the
+                ! surface of the input data
+                wfac_ml(jc,jkt) = theta_thl(jc,jkt,jb)-theta_ml(jc,nlevs_ml,jb)
+              ELSE IF (theta_thl(jc,jkt,jb) > theta_ml(jc,1,jb)) THEN
+                idx0_ml(jc,jkt) = 1
+                wfac_ml(jc,jkt) = (theta_thl(jc,jkt,jb)-theta_ml(jc,2,jb))/&
+                                  (theta_ml (jc,1  ,jb)-theta_ml(jc,2,jb))
+                bot_idx_ml(jc) = jkt
+                l_found(jc) = .TRUE.
+              ENDIF
             ENDIF
           ENDDO
+#ifndef _OPENACC
+          ! this optimization is not supported by OpenACC but also less important
           IF (ALL(l_found(1:nlen))) THEN
             lfound_all = .TRUE.
             EXIT
           ENDIF
+#endif
         ENDDO
+        !$ACC END PARALLEL
+#ifdef _OPENACC
+        lfound_all = .TRUE.
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(.AND.: lfound_all)
+        !$ACC LOOP GANG VECTOR
+        DO jc = 1, nlen
+          lfound_all = lfound_all .AND. l_found(jc)
+        ENDDO
+        !$ACC END PARALLEL
+        !$ACC WAIT
+#endif
         IF (lfound_all) THEN
-          jkm_start = MIN(MINVAL(idx0_ml(1:nlen,jkt)),nlevs_ml-1)
+          jkm_start = MIN(minval_1d(idx0_ml(1:nlen, jkt), lacc=.TRUE.), nlevs_ml-1)
         ELSE
-          ierror(jb) = ierror(jb) + 1
+          lerror = .TRUE.
+          EXIT
         ENDIF
       ENDDO
 
-      IF (ierror(jb) > 0) CALL finish("z_at_theta_levels:",&
+      IF (lerror) CALL finish("z_at_theta_levels:",&
         "Calculation of interpolation coefficients failed")
 
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+      !$ACC LOOP SEQ
       DO jkt = 1, nlevs_thl
+        !$ACC LOOP GANG VECTOR PRIVATE(theta1, theta2, vthgrad)
         DO jc = 1, nlen
           IF (jkt <= bot_idx_ml(jc)) THEN
 
@@ -1067,10 +1196,13 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE z_at_theta_levels
 

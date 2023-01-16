@@ -26,7 +26,7 @@ MODULE mo_nh_pzlev_config
 
   USE mo_kind,               ONLY: wp
   USE mo_impl_constants,     ONLY: SUCCESS, MAX_CHAR_LENGTH, max_dom
-  USE mo_math_utilities,     ONLY: t_value_set
+  USE mo_math_utilities,     ONLY: t_value_set, deallocate_set
   USE mo_exception,          ONLY: finish
   USE mo_util_sort,          ONLY: quicksort
   USE mo_mpi,                ONLY: my_process_is_stdio
@@ -86,7 +86,7 @@ CONTAINS
     INTEGER :: ist
     INTEGER :: nlen
     INTEGER :: z_nplev, z_nzlev, z_nilev
-    INTEGER :: jb, jk           ! loop indices
+    INTEGER :: jb, jc, jk           ! loop indices
     !-----------------------------------------------------------------------
 
     z_nplev = nh_pzlev_config(jg)%plevels%nvalues
@@ -123,10 +123,18 @@ CONTAINS
       CALL finish ( 'mo_nh_pzlev_nml: configure_nh_pzlev',       &
         &      'allocation of p3d, z3d, i3d failed' )
     ENDIF
+    !$ACC ENTER DATA ASYNC(1) COPYIN(nh_pzlev_config(jg:jg))
+    ! The %values components are allocated on CPU via collect_requested_ipz_levels
+    !$ACC ENTER DATA ASYNC(1) &
+    !$ACC   COPYIN(nh_pzlev_config(jg)%plevels%values) &
+    !$ACC   COPYIN(nh_pzlev_config(jg)%zlevels%values) &
+    !$ACC   COPYIN(nh_pzlev_config(jg)%ilevels%values) &
+    !$ACC   CREATE(nh_pzlev_config(jg)%p3d, nh_pzlev_config(jg)%z3d, nh_pzlev_config(jg)%i3d)
 
     ! Fill z3d field of pressure-level data and pressure field of 
     ! height-level data
     !
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,nlen)
     DO jb = 1,nblks_c
@@ -137,22 +145,70 @@ CONTAINS
         nlen = npromz_c
       ENDIF
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ
       DO jk = 1, z_nplev
-        nh_pzlev_config(jg)%p3d(1:nlen,jk,jb) = nh_pzlev_config(jg)%plevels%values(jk)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          nh_pzlev_config(jg)%p3d(jc,jk,jb) = nh_pzlev_config(jg)%plevels%values(jk)
+        ENDDO
       ENDDO
 
+      !$ACC LOOP SEQ
       DO jk = 1, z_nzlev
-        nh_pzlev_config(jg)%z3d(1:nlen,jk,jb) = nh_pzlev_config(jg)%zlevels%values(jk)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          nh_pzlev_config(jg)%z3d(jc,jk,jb) = nh_pzlev_config(jg)%zlevels%values(jk)
+        ENDDO
       ENDDO
 
+      !$ACC LOOP SEQ
       DO jk = 1, z_nilev
-        nh_pzlev_config(jg)%i3d(1:nlen,jk,jb) = nh_pzlev_config(jg)%ilevels%values(jk)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          nh_pzlev_config(jg)%i3d(jc,jk,jb) = nh_pzlev_config(jg)%ilevels%values(jk)
+        ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
     
   END SUBROUTINE configure_nh_pzlev
+
+
+  SUBROUTINE deallocate_nh_pzlev( jg )
+    INTEGER, INTENT(IN) :: jg
+    INTEGER :: ist
+    CHARACTER(LEN=*), PARAMETER :: routine = "mo_nh_pzlev_nml: deallocate_nh_pzlev"
+    ! deallocate 3D pressure, z-, and i-level fields
+
+    !$ACC WAIT
+
+    IF (ALLOCATED(nh_pzlev_config(jg)%plevels%values)) THEN
+      !$ACC EXIT DATA DELETE(nh_pzlev_config(jg)%plevels%values)
+      CALL deallocate_set(nh_pzlev_config(jg)%plevels)
+    ENDIF
+
+    IF (ALLOCATED(nh_pzlev_config(jg)%zlevels%values)) THEN
+      !$ACC EXIT DATA DELETE(nh_pzlev_config(jg)%zlevels%values)
+      CALL deallocate_set(nh_pzlev_config(jg)%zlevels)
+    ENDIF
+
+    IF (ALLOCATED(nh_pzlev_config(jg)%ilevels%values)) THEN
+      !$ACC EXIT DATA DELETE(nh_pzlev_config(jg)%ilevels%values)
+      CALL deallocate_set(nh_pzlev_config(jg)%ilevels)
+    ENDIF
+
+    !$ACC EXIT DATA DELETE(nh_pzlev_config(jg)%p3d, nh_pzlev_config(jg)%z3d, nh_pzlev_config(jg)%i3d)
+    !$ACC EXIT DATA DELETE(nh_pzlev_config(jg:jg))
+    DEALLOCATE( &
+      nh_pzlev_config(jg)%p3d, &
+      nh_pzlev_config(jg)%z3d, &
+      nh_pzlev_config(jg)%i3d, &
+      STAT=ist )
+    IF (ist /= SUCCESS) CALL finish( routine, 'deallocation of p3d, z3d, i3d failed' )
+  END SUBROUTINE deallocate_nh_pzlev
 
 END MODULE mo_nh_pzlev_config

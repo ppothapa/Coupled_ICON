@@ -3957,7 +3957,9 @@ __acc_attach(diag%clct)
                     &             l_loglin=.FALSE.,                                  &
                     &             l_extrapol=.FALSE., l_pd_limit=.TRUE.,             &
                     &             lower_limit=0._wp ),                               &
-                    & l_pp_scheduler_task=TASK_COMPUTE_RH, lrestart=.FALSE.          )
+                    & l_pp_scheduler_task=TASK_COMPUTE_RH, lrestart=.FALSE.,         &
+                    & lopenacc=.TRUE.)
+      __acc_attach(diag%rh)
     END IF
     
     ! &     potential vorticity

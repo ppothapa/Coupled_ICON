@@ -471,6 +471,7 @@ MODULE mo_nh_diagnose_pres_temp
 
     IF (slev < slev_moist) THEN
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, slev_moist-1
         DO jc = i_startidx, i_endidx
           qsum(jc,jk) = 0._wp

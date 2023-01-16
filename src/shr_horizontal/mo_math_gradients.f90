@@ -106,13 +106,16 @@ USE mo_timer,              ONLY: timer_start, timer_stop, timer_grad
 USE mo_loopindices,        ONLY: get_indices_c, get_indices_e
 USE mo_fortran_tools,      ONLY: init
 #ifdef _OPENACC
-USE mo_mpi,                 ONLY: i_am_accel_node
+USE mo_mpi,                ONLY: i_am_accel_node
 #endif
 
 IMPLICIT NONE
 
 PRIVATE
 
+#ifndef _OPENACC
+LOGICAL :: i_am_accel_node=.FALSE.
+#endif
 
 PUBLIC :: grad_fd_norm, grad_fd_tang
 PUBLIC :: grad_green_gauss_cell
@@ -974,7 +977,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !  of using precomputed geometrical factors)
 IF ( PRESENT(opt_p_face) ) THEN
   CALL cells2edges_scalar( p_cc, ptr_patch, ptr_int%c_lin_e, opt_p_face,  &
-    &                      slev, elev)
+    &                      slev, elev, lacc=i_am_accel_node)
 ENDIF
 
 

@@ -47,12 +47,14 @@ MODULE mo_fortran_tools
   PUBLIC :: init_zero_contiguous_dp, init_zero_contiguous_sp
   PUBLIC :: init_contiguous_dp, init_contiguous_sp
   PUBLIC :: init_contiguous_i4, init_contiguous_l
+  PUBLIC :: minval_1d
   PUBLIC :: resize_arr_c1d
   PUBLIC :: DO_DEALLOCATE
   PUBLIC :: DO_PTR_DEALLOCATE
   PUBLIC :: insert_dimension
   PUBLIC :: assert_acc_host_only
   PUBLIC :: assert_acc_device_only
+  PUBLIC :: assert_lacc_equals_i_am_accel_node
   PUBLIC :: set_acc_host_or_device
 
   PRIVATE
@@ -1467,6 +1469,34 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_contiguous_l
 
+  FUNCTION minval_1d(var, lacc)
+  !! Computes the MINVAL(var)
+  !! This wrapper enables the use of OpenACC without using ACC-KERNELS
+    INTEGER, INTENT(IN) :: var(:) ! input array
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true, use OpenACC
+    LOGICAL :: lzacc ! non-optional version of lacc
+    INTEGER :: minval_1d, i, s1
+
+#ifdef _OPENACC
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    s1 = SIZE(var, 1)
+
+    minval_1d = HUGE(minval_1d)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_1d) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
+    !$ACC LOOP GANG VECTOR
+    DO i = 1, s1
+      minval_1d = MIN(minval_1d, var(i)) ! The loop is equivalent to MINVAL(var(:))
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT ! required to sync result back to CPU
+#else
+    minval_1d = MINVAL(var(:))
+#endif
+
+  END FUNCTION minval_1d
+
   SUBROUTINE insert_dimension_r_dp_3_2_s(ptr_out, ptr_in, in_shape, &
        new_dim_rank)
     INTEGER, PARAMETER :: out_rank = 3
@@ -1986,6 +2016,18 @@ CONTAINS
     ENDIF
 #endif
   END SUBROUTINE assert_acc_device_only
+
+  SUBROUTINE assert_lacc_equals_i_am_accel_node(routine_name, lacc)
+    CHARACTER(len=*), INTENT(in) :: routine_name
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+#ifdef _OPENACC
+    IF ( PRESENT(lacc) .AND. (lacc .neqv. i_am_accel_node)) THEN
+      CALL finish(routine_name, 'lacc /= i_am_accel_node')
+    ENDIF
+#endif
+
+  END SUBROUTINE assert_lacc_equals_i_am_accel_node
 
   SUBROUTINE set_acc_host_or_device(lzacc, lacc)
     LOGICAL, INTENT(out) :: lzacc

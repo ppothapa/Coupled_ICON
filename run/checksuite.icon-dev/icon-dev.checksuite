@@ -430,7 +430,7 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *mch_opr_r04b07_lhn_12*)
-            FILE_IDS="atm_3d_ml,atm_3d_hl,atm_3d_pl,Meteogram"
+            FILE_IDS="atm_3d_ml,atm_3d_il,atm_3d_hl,atm_3d_pl,Meteogram"
             ;;
         *mch_*nest*)
             FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"

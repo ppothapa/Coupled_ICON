@@ -27,7 +27,7 @@ USE mo_key_value_store,      ONLY: t_key_value_store
 USE mo_restart_nml_and_att,  ONLY: getAttributesForRestarting
 USE mo_io_config,            ONLY: configure_io, init_var_in_output, var_in_output
 USE mo_parallel_config,      ONLY: nproma, num_prefetch_proc
-USE mo_nh_pzlev_config,      ONLY: configure_nh_pzlev
+USE mo_nh_pzlev_config,      ONLY: configure_nh_pzlev, deallocate_nh_pzlev
 USE mo_advection_config,     ONLY: configure_advection
 USE mo_art_config,           ONLY: configure_art
 USE mo_assimilation_config,  ONLY: configure_lhn, assimilation_config
@@ -875,7 +875,13 @@ CONTAINS
     IF (assimilation_config(1)% dace_coupling .AND. my_process_is_work_only()) then
        CALL finish_dace ()
     END IF
- 
+
+    IF (output_mode%l_nml) THEN
+      DO jg = 1, n_dom
+        CALL deallocate_nh_pzlev(jg)
+      ENDDO
+    END IF
+
     CALL message(routine,'clean-up finished')
 
   END SUBROUTINE destruct_atmo_nonhydrostatic

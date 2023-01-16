@@ -40,6 +40,7 @@ MODULE mo_opt_diagnostics
     &                                HINTP_TYPE_NONE
   USE mo_physical_constants,   ONLY: earth_radius
   USE mo_exception,            ONLY: finish!!$, message, message_text
+  USE mo_fortran_tools,        ONLY: init, assert_acc_device_only
   USE mo_grid_config,          ONLY: n_dom
   USE mo_run_config,           ONLY: ntracer,iqv,iqc,iqi
   USE mo_advection_config,     ONLY: t_advection_config, advection_config
@@ -748,19 +749,22 @@ CONTAINS
       &       vcoeff_lin%zextrap(nproma,nblks), STAT=ierrstat )
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
-    !$ACC ENTER DATA CREATE(vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin) &
+    !$ACC ENTER DATA ASYNC(1) &
+    !$ACC   CREATE(vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin) &
     !$ACC   CREATE(vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1) &
     !$ACC   CREATE(vcoeff_lin%kpbl2, vcoeff_lin%zextrap)
 
     ! Initialization
-    vcoeff_lin%wfac_lin    = 0._wp
-    vcoeff_lin%idx0_lin    = 0
-    vcoeff_lin%bot_idx_lin = 0
-    vcoeff_lin%wfacpbl1    = 0._wp
-    vcoeff_lin%wfacpbl2    = 0._wp
-    vcoeff_lin%kpbl1       = 0
-    vcoeff_lin%kpbl2       = 0
-    vcoeff_lin%zextrap     = 0._wp
+    !$OMP PARALLEL
+    CALL init(vcoeff_lin%wfac_lin, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%idx0_lin, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%bot_idx_lin, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%wfacpbl1, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%wfacpbl2, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%kpbl1, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%kpbl2, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_lin%zextrap, opt_acc_async=.TRUE.)
+    !$OMP END PARALLEL
   END SUBROUTINE vcoeff_lin_allocate
 
 
@@ -786,15 +790,18 @@ CONTAINS
       &       STAT=ierrstat )
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
-    !$ACC ENTER DATA CREATE(vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3) &
+    !$ACC ENTER DATA ASYNC(1) &
+    !$ACC   CREATE(vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3) &
     !$ACC   CREATE(vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub)
 
     ! Initialization
-    vcoeff_cub%coef1       = 0._wp
-    vcoeff_cub%coef2       = 0._wp
-    vcoeff_cub%coef3       = 0._wp
-    vcoeff_cub%idx0_cub    = 0
-    vcoeff_cub%bot_idx_cub = 0
+    !$OMP PARALLEL
+    CALL init(vcoeff_cub%coef1, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_cub%coef2, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_cub%coef3, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_cub%idx0_cub, opt_acc_async=.TRUE.)
+    CALL init(vcoeff_cub%bot_idx_cub, opt_acc_async=.TRUE.)
+    !$OMP END PARALLEL
   END SUBROUTINE vcoeff_cub_allocate
 
 
@@ -803,27 +810,27 @@ CONTAINS
   ! Initialize a variable containing coefficient tables for vertical
   ! interpolation. There exist to different kinds of coefficients: For
   ! p- and for z-level-interpolation.
-  SUBROUTINE vcoeff_allocate(nblks_c, nblks_e, nlev, vcoeff)
+  SUBROUTINE vcoeff_allocate(nblks_c, nblks_e, nlev, vcoeff, lacc)
     INTEGER,                           INTENT(IN)    :: nblks_c, nblks_e
     INTEGER,                           INTENT(IN)    :: nlev
     TYPE(t_vcoeff),                    INTENT(INOUT) :: vcoeff
+    LOGICAL, OPTIONAL,                 INTENT(IN)    :: lacc ! If true, use openacc
+    CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_allocate"
 
-!!$    CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_allocate"
-
-    !$ACC ENTER DATA CREATE(vcoeff)
-
+    CALL assert_acc_device_only(routine, lacc)
     IF (.NOT. vcoeff%l_allocated) THEN
+
       CALL vcoeff_lin_allocate(nblks_c, nlev, vcoeff%lin_cell)
       CALL vcoeff_lin_allocate(nblks_c, nlev, vcoeff%lin_cell_nlevp1)
       CALL vcoeff_lin_allocate(nblks_e, nlev, vcoeff%lin_edge)
-
-! TODO: attach these pointers
 
       ! CUBIC interpolation coefficients:
       CALL vcoeff_cub_allocate(nblks_c, nlev, vcoeff%cub_cell)
       CALL vcoeff_cub_allocate(nblks_e, nlev, vcoeff%cub_edge)
 
-! TODO: attach these pointers
+      ! MJ: At the moment, we don't have to attach the allocatable components
+      !     vcoeff%*%{coef1, coef2, coef3, idx0_cub, bot_idx_cub} (!$ACC ATTACH)
+      !$ACC ENTER DATA CREATE(vcoeff) ASYNC(1)
 
       vcoeff%l_allocated = .TRUE.
     END IF
@@ -886,13 +893,19 @@ CONTAINS
   ! Clear a variable containing coefficient tables for vertical
   ! interpolation. There exist to different kinds of coefficients: For
   ! p-, z- and for i-level-interpolation.
-  SUBROUTINE vcoeff_deallocate(vcoeff)
+  SUBROUTINE vcoeff_deallocate(vcoeff, lacc)
     TYPE(t_vcoeff), INTENT(INOUT) :: vcoeff
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-!!$    CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_deallocate"
+    CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_deallocate"
+
+    CALL assert_acc_device_only(routine, lacc)
 
     ! deallocate coefficient tables:
     IF (vcoeff%l_allocated) THEN
+      !$ACC WAIT ! subsequent code is synchronous.
+      ! MJ: If the sub components of vcoeff were ATTACHed in vcoeff_allocate, they
+      !     would have to be DETACHed here. (!$ACC DETACH)
       CALL vcoeff_lin_deallocate(vcoeff%lin_cell)
       CALL vcoeff_lin_deallocate(vcoeff%lin_cell_nlevp1)
       CALL vcoeff_lin_deallocate(vcoeff%lin_edge)
@@ -901,9 +914,8 @@ CONTAINS
       call vcoeff_cub_deallocate(vcoeff%cub_edge)
 
       vcoeff%l_allocated = .FALSE.
+      !$ACC EXIT DATA DELETE(vcoeff)
     END IF
-
-    !$ACC EXIT DATA DELETE(vcoeff)
 
     vcoeff%l_initialized = .FALSE.
   END SUBROUTINE vcoeff_deallocate

@@ -51,8 +51,7 @@ MODULE mo_nonhydro_gpu_types
   USE mo_intp_data_strc,       ONLY: t_int_state
   USE mo_grf_intp_data_strc,   ONLY: t_gridref_single_state, t_gridref_state
   USE mo_var_list_gpu,         ONLY: gpu_update_var_list
-  USE mo_run_config,           ONLY: ltestcase
-
+  USE mo_run_config,           ONLY: ltestcase, num_lev
   IMPLICIT NONE
   PRIVATE 
 
@@ -81,7 +80,7 @@ CONTAINS
     CALL assert_acc_device_only("h2d_icon", lacc)
 
     !$ACC ENTER DATA COPYIN(p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent) &
-    !$ACC   COPYIN(p_nh_state, prep_adv, advection_config, les_config)
+    !$ACC   COPYIN(p_nh_state, prep_adv, advection_config, les_config, num_lev)
 
     CALL transfer_int_state( p_int_state, .TRUE. )
     CALL transfer_int_state( p_int_state_local_parent, .TRUE. )
@@ -136,7 +135,7 @@ CONTAINS
     END IF
 
     !$ACC EXIT DATA DELETE(p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent) &
-    !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config)
+    !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config, num_lev)
 
   END SUBROUTINE d2h_icon
 
