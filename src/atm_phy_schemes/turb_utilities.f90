@@ -176,6 +176,7 @@ USE turb_data , ONLY :   &
     alpha0,       & ! Charnock-parameter
     alpha0_max,   & ! upper limit of velocity-dependent Charnock-parameter
     alpha0_pert,  & ! additive ensemble perturbation of Charnock-parameter
+    imode_charpar,& ! type of Charnock parameter estimation
 !
     vel_min,      & ! minimal velocity scale [m/s]
 !
@@ -556,6 +557,7 @@ ELEMENTAL FUNCTION alpha0_char(u10)
   ulim = MIN(u10,umax)
   ured = MAX(0._wp, ulim-u2)
   alpha0_char = MIN(alpha0_max, MAX (alpha0, a + alpha0_pert + ulim*(b + c*ulim - d*ured)))
+  alpha0_char = MERGE( MIN(alpha0_char, 0.8_wp/MAX(1._wp,u10)), alpha0_char, imode_charpar==3)
 
 END FUNCTION alpha0_char
 

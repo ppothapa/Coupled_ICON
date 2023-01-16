@@ -431,6 +431,7 @@ CONTAINS
 
 
   SUBROUTINE wsoil2smi(wsoil, dzsoil, soiltyp, smi, ierr)
+    !$ACC ROUTINE SEQ
     !
     REAL(wp), INTENT(IN) :: wsoil    !< soil moisture mass [m H2O]
     REAL(wp), INTENT(IN) :: dzsoil   !< soil layer thickness [m]

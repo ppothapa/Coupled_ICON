@@ -42,13 +42,15 @@ MODULE mo_reff_main
   USE mo_math_constants    ,   ONLY: pi
   USE mo_math_utilities    ,   ONLY: gamma_fct  
   USE mo_physical_constants,   ONLY: rhoh2o     ! Water density  
-  USE mo_exception,            ONLY: message, message_text
+  USE mo_exception,            ONLY: message, message_text, finish
 
   USE mo_reff_types,           ONLY: t_reff_calc
   USE mo_2mom_mcrph_driver,    ONLY: two_mom_reff_coefficients 
   USE gscp_data,               ONLY: one_mom_reff_coefficients,                   &
                                    & one_mom_calculate_ncn,                       &
                                    & cloud_num
+  USE mo_parallel_config,      ONLY: nproma
+
   IMPLICIT NONE
   PRIVATE
   
@@ -282,6 +284,8 @@ MODULE mo_reff_main
         END SELECT
 
       END IF
+
+      !$ACC UPDATE DEVICE(reff_calc%reff_coeff)
     
   END SUBROUTINE init_reff_calc
 
@@ -310,28 +314,27 @@ MODULE mo_reff_main
 
 
 !! Calculte running indices for reff and n of a parameterization differentiating between grid and subgrid
-    SUBROUTINE mapping_indices (  indices, n_ind , reff_calc, k_start, k_end ,is,ie,jb , return_fct) 
+    SUBROUTINE mapping_indices ( indices, n_ind, reff_calc, k_start, k_end, is, ie, jb, return_fct )
 
 
-      INTEGER (KIND=i4), INTENT(INOUT)   ::     indices(:,:) ! Mapping for going through array 
+      INTEGER (KIND=i4), INTENT(INOUT)   ::     indices(:,:) ! Mapping for going through array
       INTEGER (KIND=i4), INTENT(INOUT)   ::     n_ind(:)     ! Number of indices for each k level
       TYPE(t_reff_calc), INTENT(IN)      ::     reff_calc    ! Reff calculation parameters and pointers
-        
-      INTEGER, INTENT(IN)                ::     k_start, k_end, is, ie    ! Start, end total indices    
-      INTEGER, INTENT(IN)                ::    jb            ! Domain index    
-      LOGICAL, INTENT(INOUT)             ::    return_fct    ! Function return. .true. for right
+
+      INTEGER, INTENT(IN)                ::     k_start, k_end, is, ie    ! Start, end total indices
+      INTEGER, INTENT(IN)                ::     jb            ! Domain index
+      LOGICAL, INTENT(INOUT)             ::     return_fct    ! Function return. .true. for right
 
       ! End of subroutine variable declaration
 
       REAL(wp) ,POINTER, DIMENSION(:,:)  ::     q            ! Mixing ratio of hydrometeor
       REAL(wp) ,POINTER, DIMENSION(:,:)  ::     q_tot        ! Mixing ratio of hydrometeor
                                                              ! From ICON Scientific Documentaion (Cloud scheme)
-      REAL(wp), PARAMETER                ::     qmin = 1E-6  ! Difference between cloud/nocloud in kg/kg 
+      REAL(wp), PARAMETER                ::     qmin = 1E-6  ! Difference between cloud/nocloud in kg/kg
       REAL(wp), PARAMETER                ::     qsub = 1E-6  ! Difference between grid/subgrid in kg/kg
 
       INTEGER                            ::     k,jc         ! Counters
       LOGICAL                            ::     llq          ! logical conditions for cloud/no cloud and grid/subgrid
-   
 
 
     ! Check input return_fct
@@ -343,8 +346,22 @@ MODULE mo_reff_main
 
 
       ! Initialize inidices
-      indices = 0
-      n_ind = 0
+      !$ACC DATA PRESENT(indices, n_ind)
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO k = 1,k_end
+        DO jc = 1,nproma
+          indices(jc,k) = 0
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
+      DO jc = 1,k_end
+        n_ind(jc) = 0
+      END DO
+      !$ACC END PARALLEL
+      !$ACC END DATA
 
       SELECT CASE ( reff_calc%grid_scope )
 
@@ -357,15 +374,21 @@ MODULE mo_reff_main
           q=>reff_calc%p_q(:,:,jb)
         END IF
 
+        !$ACC DATA PRESENT(n_ind, indices, q)
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP SEQ
         DO k = k_start,k_end
-          DO jc = is, ie            
+          !$ACC LOOP SEQ
+          DO jc = is, ie
             llq =  q(jc,k) > qmin
             IF (llq) THEN
-              n_ind(k)            =  n_ind(k) + 1              
+              n_ind(k)            =  n_ind(k) + 1
               indices(n_ind(k),k) = jc
             END IF
           END DO
         END DO
+        !$ACC END PARALLEL
+        !$ACC END DATA
 
       CASE (1) ! Only grid scale (with same subgrid/grid criteria as subgrid)
         
@@ -373,7 +396,11 @@ MODULE mo_reff_main
           q_tot=>reff_calc%p_qtot(:,:,jb)
           q=>reff_calc%p_q(:,:,jb)
 
+          !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP SEQ
           DO k = k_start,k_end
+            !$ACC LOOP SEQ
             DO jc = is, ie            
               llq =  (q(jc,k) > qsub) .AND. (q_tot(jc,k) > qmin) 
               IF (llq) THEN
@@ -382,6 +409,9 @@ MODULE mo_reff_main
               END IF
             END DO
           END DO
+          !$ACC END PARALLEL
+          !$ACC END DATA
+
         ELSE
           WRITE (message_text,*) 'Warning: Reff does not have information for generate inidices for subgrid ncn'
           CALL message('',message_text)
@@ -395,15 +425,22 @@ MODULE mo_reff_main
           q_tot=>reff_calc%p_qtot(:,:,jb)
           q=>reff_calc%p_q(:,:,jb)
 
+          !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
+          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC LOOP SEQ
           DO k = k_start,k_end
-            DO jc = is, ie            
+            !$ACC LOOP SEQ
+            DO jc = is, ie
               llq =   (q_tot(jc,k) > qmin) .AND. (q(jc,k) < qsub)
               IF (llq) THEN
-                n_ind(k)            =  n_ind(k) + 1  
-                indices(n_ind(k),k) = jc                
+                n_ind(k)            =  n_ind(k) + 1
+                indices(n_ind(k),k) = jc
               END IF
             END DO
           END DO
+          !$ACC END PARALLEL
+          !$ACC END DATA
+
         ELSE
           WRITE (message_text,*) 'Warning: Reff does not have information for generate inidices for subgrid ncn'
           CALL message('',message_text)
@@ -419,25 +456,25 @@ MODULE mo_reff_main
 
 ! -----------------------------------------------------------------------------------------------------------
   
-  !! Calculte reff based on the parameters and ncn and indices previosly calculated
-  SUBROUTINE calculate_reff (  reff_calc, indices, n_ind , rho, k_start,  & 
-                            &  k_end ,jb , return_fct,ncn,clc,fr_gl,fr_land)
-    
+  !! Calculate reff based on the parameters and ncn and indices previosly calculated
+  SUBROUTINE calculate_reff ( reff_calc, indices, n_ind, rho, k_start,      &
+                            & k_end, jb, return_fct, ncn, clc, fr_gl, fr_land )
+
     TYPE(t_reff_calc)  ,INTENT(INOUT)    ::    reff_calc        ! Reff calculation parameters and pointers
-    INTEGER (KIND=i4)  ,INTENT(IN)       ::    indices(:,:)     ! Mapping for going through array 
+    INTEGER (KIND=i4)  ,INTENT(IN)       ::    indices(:,:)     ! Mapping for going through array
     INTEGER (KIND=i4)  ,INTENT(IN)       ::    n_ind(:)         ! Number of indices for each k level
     REAL(wp) ,INTENT(IN)                 ::    rho(:,:)         ! Densityof air
 
-    INTEGER ,INTENT(IN)                  ::    k_start, k_end   ! Start, end total indices    
-    INTEGER ,INTENT(IN)                  ::    jb               ! Domain    
+    INTEGER ,INTENT(IN)                  ::    k_start, k_end   ! Start, end total indices
+    INTEGER ,INTENT(IN)                  ::    jb               ! Domain
     LOGICAL ,INTENT(INOUT)               ::    return_fct       ! Function return. .true. for right
-      
+
     REAL(wp) ,INTENT(INOUT), OPTIONAL    ::    ncn(:,:)         ! Number concentration
-    REAL(wp) ,INTENT(IN),OPTIONAL        ::    clc(:,:)         ! Cloud fraction  
+    REAL(wp) ,INTENT(IN),OPTIONAL        ::    clc(:,:)         ! Cloud fraction
     REAL(wp) ,INTENT(IN),OPTIONAL        ::    fr_gl(:)         ! Fraction of glaciers (for RRTM)
     REAL(wp) ,INTENT(IN),OPTIONAL        ::    fr_land(:)       ! Fraction of land (for RRTM)
-    
-      
+
+
     ! End of subroutine variable declarations
 
     REAL(wp) ,POINTER, DIMENSION(:,:)    ::     reff            ! Pointer to effective radius
@@ -477,15 +514,21 @@ MODULE mo_reff_main
 
     ! Translate ncn values from incloud to grid-scale values
     IF ( reff_calc%ncn_param_incloud == 1 .AND. PRESENT(ncn) .AND. reff_calc%ncn_param >= 0 ) THEN 
+      !$ACC DATA PRESENT(indices, ncn, clc, n_ind)
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP SEQ
       DO k = k_start,k_end
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic  = 1,n_ind(k)
           jc        =  indices(ic,k)
           ncn(jc,k) =  ncn(jc,k)*clc(jc,k) 
         END DO
       END DO
+      !$ACC END PARALLEL
+      !$ACC END DATA
     END IF
-            
-      
+
+
     SELECT CASE ( reff_calc%microph_param ) ! Choose which microphys param
 
     CASE (0,1,2,3,4,5,6,7,9,100)      ! Currently all cases except for RRTM follow same scheme as function of mean mass
@@ -496,6 +539,9 @@ MODULE mo_reff_main
 
       SELECT CASE (reff_calc%reff_param )        
       CASE (0)    !Spheroid  : reff = 0.5*c1*x**c2 (x= mean mass)
+        !$ACC DATA PRESENT(indices, ncn, n_ind, rho, q, reff_calc, reff, reff_calc%reff_coeff(2))
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP GANG VECTOR PRIVATE(jc, x)
         DO k = k_start,k_end
           DO ic  = 1,n_ind(k)
             jc         =  indices(ic,k)
@@ -504,11 +550,17 @@ MODULE mo_reff_main
             reff(jc,k) =  0.5_wp* reff_calc%reff_coeff(1) * EXP( reff_calc%reff_coeff(2) * LOG( x ) )
           END DO
         END DO
+        !$ACC END PARALLEL
+        !$ACC END DATA
 
       !Fu Needles: reff= c5/(c1*x**c2 + c3*x**c4) 
       ! Here c5=0.5 fixed (different from libRadtran documentation c5=3*sqrt(3)/8=0.65)
       CASE (1)  
+        !$ACC DATA PRESENT(indices, ncn, n_ind, rho, q, reff_calc, reff, reff_calc%reff_coeff(4))
+        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC LOOP SEQ
         DO k = k_start,k_end
+          !$ACC LOOP GANG VECTOR PRIVATE(jc, x)
           DO ic  = 1,n_ind(k)
             jc         =  indices(ic,k)
             x          =  rho(jc,k)* q(jc,k) / ( ncn(jc,k) + eps )                
@@ -517,9 +569,16 @@ MODULE mo_reff_main
                         & reff_calc%reff_coeff(3) * EXP( reff_calc%reff_coeff(4) * LOG( x ) ) )
           END DO
         END DO
+        !$ACC END PARALLEL
+        !$ACC END DATA
       END SELECT
 
     CASE(101)  ! RRTM
+
+#ifdef _OPENACC
+      CALL finish('calculate_reff:','CASE microph_param=101 not available on GPU')
+#endif
+
       r_max = reff_calc%r_max
       r_min = reff_calc%r_min
       
@@ -558,27 +617,27 @@ MODULE mo_reff_main
 
 
   !! Calculte number concentraion of a hydrometeor
-  SUBROUTINE calculate_ncn(  ncn, reff_calc, indices, n_ind , k_start, k_end ,jb, return_fct, rho, t)
-    
+  SUBROUTINE calculate_ncn( ncn, reff_calc, indices, n_ind , k_start, k_end ,jb, return_fct, rho, t )
+
     REAL(wp)          , INTENT(INOUT), DIMENSION(:,:) :: ncn             ! Number concentration
     TYPE(t_reff_calc) , INTENT(IN)                    :: reff_calc       ! Reff calculation parameters and pointers
-    INTEGER (KIND=i4) , INTENT(IN)   , DIMENSION(:,:) :: indices         ! Mapping for going through array 
+    INTEGER (KIND=i4) , INTENT(IN)   , DIMENSION(:,:) :: indices         ! Mapping for going through array
     INTEGER (KIND=i4) , INTENT(IN)   , DIMENSION(:)   :: n_ind           ! Number of indices for each k level
-    
-    INTEGER           , INTENT(IN)                    :: k_start, k_end  ! Start, end total indices    
-    INTEGER           , INTENT(IN)                    :: jb              ! Domain  index
+
+    INTEGER           , INTENT(IN)                    :: k_start, k_end  ! Start, end total indices
+    INTEGER           , INTENT(IN)                    :: jb              ! Domain index
     LOGICAL           , INTENT(INOUT)                 :: return_fct      ! Function return. .true. for right
 
-    REAL(wp), OPTIONAL, INTENT(IN)   , DIMENSION(:,:) :: rho             ! Densityof air
+    REAL(wp), OPTIONAL, INTENT(IN)   , DIMENSION(:,:) :: rho             ! Density of air
     REAL(wp), OPTIONAL, INTENT(IN)   , DIMENSION(:,:) :: t               ! Temperature
-  
-  
+
+
     ! End of subroutine variable declarations
 
     REAL(wp), POINTER                , DIMENSION(:)   :: surf_cloud_num  ! Number concentration at surface (cloud_num)
-    REAL(wp), POINTER                , DIMENSION(:,:) :: space_cloud_num ! Number concentrarion 
+    REAL(wp), POINTER                , DIMENSION(:,:) :: space_cloud_num ! Number concentration
     REAL(wp), POINTER                , DIMENSION(:,:) :: q               ! Mixing ratio of hydrometeor
-    INTEGER                                           :: k,ic,jc         ! Counters
+    INTEGER                                           :: k, ic, jc       ! Counters
     LOGICAL                                           :: well_posed      ! Logical check
 
 
@@ -590,7 +649,7 @@ MODULE mo_reff_main
     END IF
 
     ! In case tot is avalaible, use it by default
-    IF ( ASSOCIATED(reff_calc%p_qtot) .AND. reff_calc%grid_scope .NE. 1 ) THEN 
+    IF ( ASSOCIATED(reff_calc%p_qtot) .AND. reff_calc%grid_scope .NE. 1 ) THEN
       q=>reff_calc%p_qtot(:,:,jb)
     ELSE  ! In case grid scale only or no total available
       q=>reff_calc%p_q(:,:,jb)
@@ -604,35 +663,37 @@ MODULE mo_reff_main
       surf_cloud_num=>reff_calc%p_ncn2D(:,jb)
     END IF
 
-
     ncn = 0.0
 
     SELECT CASE ( reff_calc%ncn_param ) ! Choose which microphys param
 
     CASE (0)      ! Constant number. Use cloud_num variable.
+#ifdef _OPENACC
+      CALL finish('calculate_ncn:','CASE ncn_param=0 not available on GPU')
+#endif
       DO k = k_start,k_end
         DO ic  = 1,n_ind(k)
           jc        = indices(ic,k)
-          ncn(jc,k) = cloud_num 
+          ncn(jc,k) = cloud_num
         END DO
       END DO
-  
+
     CASE (1,2,3)  ! 1 mom microphysics
 
 
       SELECT CASE ( reff_calc%hydrometeor)
       CASE (0) ! Cloud water. It currently uses cloud_num 2D for the cloud water.
-        IF (ASSOCIATED(reff_calc%p_ncn2D)) THEN   
-          ! Cloud_num field  
-          CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc ,k_start, k_end, &  
-                                   & indices, n_ind, surf_cloud_num = surf_cloud_num) 
+        IF (ASSOCIATED(reff_calc%p_ncn2D)) THEN
+          ! Cloud_num field
+          CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc, k_start, k_end, &
+                                   & indices, n_ind, surf_cloud_num = surf_cloud_num )
         ELSE
-          ! Constant cloud_num 
-          CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc ,k_start, k_end, &  
-                                   & indices, n_ind) 
+          ! Constant cloud_num
+          CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc, k_start, k_end, &
+                                   & indices, n_ind )
         END IF
 
-      CASE DEFAULT 
+      CASE DEFAULT
         well_posed = ASSOCIATED(reff_calc%p_q) .AND. PRESENT(t) .AND. PRESENT(rho)
         IF (.NOT. well_posed) THEN
           WRITE (message_text,*) 'Reff: Insufficient arguments to call calculate ncn from 1 moment scheme'
@@ -640,7 +701,7 @@ MODULE mo_reff_main
           return_fct = .false.
           RETURN
         END IF
-        CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc ,k_start, k_end,indices, n_ind, q , t, rho) 
+        CALL one_mom_calculate_ncn( ncn, return_fct, reff_calc, k_start, k_end, indices, n_ind, q, t, rho )
       END SELECT
 
 
@@ -660,16 +721,25 @@ MODULE mo_reff_main
         return_fct = .false.
         RETURN
       END IF
-      
-      DO k = k_start,k_end
-          DO ic  = 1,n_ind(k)
-            jc        = indices(ic,k)
-            ncn(jc,k) = space_cloud_num(jc,k)
-          END DO
-      END DO
 
-      
+      !$ACC DATA PRESENT(n_ind, indices, ncn, space_cloud_num)
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP SEQ
+      DO k = k_start,k_end
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
+        DO ic  = 1,n_ind(k)
+          jc        = indices(ic,k)
+          ncn(jc,k) = space_cloud_num(jc,k)
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      !$ACC END DATA
+
+
     CASE (102) ! Use cloud_num (from radiation). This is current default for 1 mom microphysics.
+#ifdef _OPENACC
+      CALL finish('calculate_ncn:','CASE ncn_param=102 not available on GPU')
+#endif
       well_posed = ASSOCIATED(reff_calc%p_ncn2D)
       IF (.NOT. well_posed) THEN
         WRITE (message_text,*) 'Reff: surf_cloud needs to be provided to calculate cloud number calculate_ncn'
@@ -677,15 +747,15 @@ MODULE mo_reff_main
         return_fct = .false.
         RETURN
       END IF
-      
+
       DO k = k_start,k_end
         DO ic  = 1,n_ind(k)
           jc        = indices(ic,k)
           ncn(jc,k) = surf_cloud_num(jc)
         END DO
       END DO
-      
-    CASE(-1) ! No calculation of ncn, but also not error (beacuse not neccesary)
+
+    CASE(-1) ! No calculation of ncn, but also not error (because not neccesary)
 
     CASE DEFAULT
 
@@ -693,7 +763,7 @@ MODULE mo_reff_main
       CALL message('',message_text)
       return_fct = .false.
       RETURN
-      
+
     END SELECT
 
 
@@ -702,29 +772,33 @@ MODULE mo_reff_main
 
 
 ! Combine two hydrometeors fields into one, keeping qtot/rtot = q1/r1 + q2/r2
-  SUBROUTINE  combine_reff( q1,reff_1, q2,reff_2,clc,k_start,k_end,is,ie )
-    
+  SUBROUTINE  combine_reff( q1, reff_1, q2, reff_2, clc, k_start, k_end, is, ie )
+
     REAL(wp)          , INTENT(INOUT)         :: q1(:,:)                ! Mass concentration of smaller hydromet. (also store results)
     REAL(wp)          , INTENT(INOUT)         :: reff_1(:,:)            ! Effective radius of smaller hydromet. (also store results)
     REAL(wp)          , INTENT(IN)            :: q2(:,:)                ! Mass concentration of larger hydromet (ususally not in cloud cover).
-    REAL(wp)          , INTENT(IN)            :: reff_2(:,:)            ! Effective radius of larger hydromet.  
+    REAL(wp)          , INTENT(IN)            :: reff_2(:,:)            ! Effective radius of larger hydromet.
     REAL(wp)          , INTENT(INOUT)         :: clc(:,:)               ! Cloud cover. It is set to 1 if reff_2 > 1e-5  and q2>qcrit_reff
-    INTEGER           , INTENT(IN)            :: k_start, k_end, is, ie ! Start, end total indices    
+    INTEGER           , INTENT(IN)            :: k_start, k_end, is, ie ! Start, end total indices
 
-    REAL(wp)                                  :: q_ov_reff     ! Local cross section
-    INTEGER                                   :: k,jc           ! Local counters                                                  
+    REAL(wp)                                  :: q_ov_reff              ! Local cross section
+
+    INTEGER                                   :: k, jc                  ! Local counters
 
     REAL(wp)          , PARAMETER             :: qcrit_reff = 5e-5
 
+    !$ACC DATA PRESENT(q1, reff_1, q2, reff_2, clc)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_ov_reff)
     DO k = k_start,k_end
-      DO jc  = is,ie
+      DO jc = is,ie
         IF ( reff_2(jc,k) > 1e-5_wp .AND. q2(jc,k) > qcrit_reff) THEN  ! Combine only when there is something in second phase
           clc(jc,k) = 1.0_wp        ! Set cloud cover to 1.0 if there is somethin in the larger phase
           IF ( reff_1(jc,k) > 1e-6_wp)  THEN ! Also something in first phase
             q_ov_reff = q1(jc,k)/reff_1(jc,k) + q2(jc,k)/reff_2(jc,k)
-            q1(jc,k)     =  q1(jc,k) +  q2(jc,k)
+            q1(jc,k)  = q1(jc,k) + q2(jc,k)
             IF ( q_ov_reff > 1E-6) THEN
-              reff_1(jc,k) =  q1(jc,k)/q_ov_reff
+              reff_1(jc,k) = q1(jc,k)/q_ov_reff
             ELSE
               q1(jc,k)     = 0.0_wp
               reff_1(jc,k) = 0.0_wp  ! Set to 0 micro, nominally for negligible extinction
@@ -736,19 +810,24 @@ MODULE mo_reff_main
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE combine_reff
 
 ! Set a maximum effective radius, keeping qend/rmax = qini/rini
-  SUBROUTINE set_max_reff( q,reff,reff_max,k_start,k_end,is,ie )
+  SUBROUTINE set_max_reff( q, reff, reff_max, k_start, k_end, is, ie )
     REAL(wp)          , INTENT(INOUT)         :: q(:,:)                 ! Mass concentration of hydromet. (also store results)
     REAL(wp)          , INTENT(INOUT)         :: reff(:,:)              ! Effective radius of hydromet. (also store results)
     REAL(wp)          , INTENT(IN)            :: reff_max               ! Maximum effective radius
     INTEGER           , INTENT(IN)            :: k_start, k_end, is, ie ! Start, end total indices    
- 
+
     REAL(wp)                                  :: q_ov_reff     ! Local cross section
     INTEGER                                   :: k,jc           ! Local counters 
     
+    !$ACC DATA PRESENT(q, reff)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k = k_start,k_end
       DO jc  = is,ie
         IF ( reff(jc,k) > reff_max) THEN
@@ -757,6 +836,8 @@ MODULE mo_reff_main
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE set_max_reff
 

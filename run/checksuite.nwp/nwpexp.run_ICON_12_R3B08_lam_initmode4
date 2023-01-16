@@ -378,7 +378,7 @@ cat > NAMELIST_NWP << EOF
  tkmmin                      =                          0.75      ! scaling factor for minimum vertical diffusion coefficient
  pat_len                     =                        750.0       ! effective length scale of thermal surface patterns
  c_diff                      =                          0.2       ! length scale factor for vertical diffusion of TKE
- rat_sea                     =                          7.5       ! controls laminar resistance for sea surface
+ rat_sea                     =                          0.8       ! controls laminar resistance for sea surface
  ltkesso                     =                        .TRUE.      ! consider TKE-production by sub-grid SSO wakes
  frcsmot                     =                          0.2       ! these 2 switches together apply vertical smoothing of the TKE source terms
  imode_frcsmot               =                            2       ! in the tropics (only), which reduces the moist bias in the tropical lower troposphere

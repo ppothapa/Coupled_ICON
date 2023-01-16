@@ -175,14 +175,14 @@ MODULE mo_2mom_mcrph_main
 
   ! debug switches
   LOGICAL, PARAMETER     :: ischeck = .false.    ! frequently check for positive definite q's
-  
+
   ! some cloud microphysical switches
   LOGICAL, PARAMETER     :: ice_multiplication = .TRUE.  ! default is .true.
   LOGICAL, PARAMETER     :: enhanced_melting   = .TRUE.  ! default is .true.
   LOGICAL, PARAMETER     :: classic_melting_in_lwf_scheme = .False.
 
   !..Pre-defined particle types (used in init_2mom_scheme)
-  
+
   TYPE(particle_frozen), PARAMETER :: &
        &        graupelhail_cosmo5 = particle_frozen( & ! graupelhail2test4
        &        'graupelhail_cosmo5' ,& !.name
@@ -206,8 +206,8 @@ MODULE mo_2mom_mcrph_main
        &        100.0d-6, & !..D_crit_c...D-threshold for cloud riming
        &        1.000d-6, & !..q_crit_c...q-threshold for cloud riming
        &        0.0       & !..sigma_vel..dispersion of fall velocity for collection kernel
-       &        )    
-  
+       &        )
+
   TYPE(particle_lwf), PARAMETER :: graupel_vivek = particle_lwf( & ! graupelhail2test4
        &        'graupel_vivek' ,& !.name...Bezeichnung
        &        1.000000, & !..nu.....Breiteparameter der Verteil.
@@ -352,7 +352,7 @@ MODULE mo_2mom_mcrph_main
        &        0.80,     & !..ecoll_c
        &        150.0d-6, & !..D_crit_c
        &        1.000d-5, & !..q_crit_c
-       &        0.25      & !..sigma_vel 
+       &        0.25      & !..sigma_vel
        &        )
 
   TYPE(particle_frozen), PARAMETER :: &
@@ -468,8 +468,8 @@ MODULE mo_2mom_mcrph_main
   TYPE(collection_coeffs), SAVE :: gcr_coeffs  ! graupel cloud  riming
   TYPE(collection_coeffs), SAVE :: sic_coeffs  ! snow ice collection
   TYPE(collection_coeffs), SAVE :: hic_coeffs  ! hail ice collection
-  TYPE(collection_coeffs), SAVE :: gic_coeffs  ! graupel ice collection 
-  TYPE(collection_coeffs), SAVE :: hsc_coeffs  ! hail snow collection 
+  TYPE(collection_coeffs), SAVE :: gic_coeffs  ! graupel ice collection
+  TYPE(collection_coeffs), SAVE :: hsc_coeffs  ! hail snow collection
   TYPE(collection_coeffs), SAVE :: gsc_coeffs  ! graupel snow collection
 
   PUBLIC :: atmosphere, particle, particle_lwf, particle_frozen
@@ -536,35 +536,50 @@ CONTAINS
 
     IF (isdebug) CALL message(TRIM(routine),"clouds_twomoment start")
 
+    !$ACC DATA CREATE(dep_rate_ice, dep_rate_snow) &
+    !$ACC   PRESENT(cloud, rain, ice, snow, graupel, hail)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    dep_rate_ice(:,:)  = 0.0_wp
-    dep_rate_snow(:,:) = 0.0_wp
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = 1,size(cloud%n,2)
+      DO i = 1,size(cloud%n,1)
+        dep_rate_ice(i,k)  = 0.0_wp
+        dep_rate_snow(i,k) = 0.0_wp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
 
     IF (isdebug) CALL message(TRIM(routine),'cloud_nucleation')
 
     IF (nuc_c_typ .EQ. 0) THEN
-       IF (isdebug) CALL message(TRIM(routine),'  ... force constant cloud droplet number')
-       cloud%n(:,:) = qnc_const
+      IF (isdebug) CALL message(TRIM(routine),'  ... force constant cloud droplet number')
+
+#ifdef _OPENACC
+      CALL finish(routine,'nuc_c_typ=0 not supported on GPU')
+#endif
+
+      cloud%n(:,:) = qnc_const
     ELSEIF (nuc_c_typ < 6) THEN
-       IF (isdebug) CALL message(TRIM(routine),'  ... Hande et al CCN activation')
-       IF (PRESENT(n_cn)) THEN
-          CALL finish(TRIM(routine),&
+      IF (isdebug) CALL message(TRIM(routine),'  ... Hande et al CCN activation')
+      IF (PRESENT(n_cn)) THEN
+        CALL finish(TRIM(routine),&
                & 'Error in two_moment_mcrph: Hande et al activation not supported for progn. aerosol')
-       ELSE
-          CALL ccn_activation_hdcp2(ik_slice,atmo,cloud)
-       END IF
+      ELSE
+        CALL ccn_activation_hdcp2(ik_slice,atmo,cloud)
+      END IF
     ELSE
-       IF (isdebug) CALL message(TRIM(routine), &
-            & '  ... CCN activation using look-up tables according to Segal& Khain')
-       IF (PRESENT(n_cn)) THEN
-          CALL ccn_activation_sk_4d(ik_slice,ccn_coeffs,atmo,cloud,n_cn)
-       ELSE
-          CALL ccn_activation_sk_4d(ik_slice,ccn_coeffs,atmo,cloud)
-       END IF
+      IF (isdebug) CALL message(TRIM(routine), &
+            & '  ... CCN activation using look-up tables according to Segal & Khain')
+      IF (PRESENT(n_cn)) THEN
+        CALL ccn_activation_sk_4d(ik_slice,ccn_coeffs,atmo,cloud,n_cn)
+      ELSE
+        CALL ccn_activation_sk_4d(ik_slice,ccn_coeffs,atmo,cloud)
+      END IF
     END IF
 
     IF (ischeck) CALL check(ik_slice,'start',cloud,rain,ice,snow,graupel,hail)
@@ -573,12 +588,15 @@ CONTAINS
     CALL set_default_n(ik_slice, cloud, ice, rain, snow, graupel)
 
     IF (nuc_c_typ.ne.0) THEN
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=kstart,kend
         DO i=istart,iend
           cloud%n(i,k) = MAX(cloud%n(i,k), cloud%q(i,k) / cloud%x_max)
           cloud%n(i,k) = MIN(cloud%n(i,k), cloud%q(i,k) / cloud%x_min)
         END DO
       END DO
+      !$ACC END PARALLEL
     END IF
 
     ! homogeneous and heterogeneous ice nucleation
@@ -588,12 +606,16 @@ CONTAINS
     CALL cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
     IF (ischeck) CALL check(ik_slice,'cloud_freeze', cloud, rain, ice, snow, graupel,hail)
 
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
         ice%n(i,k) = MIN(ice%n(i,k), ice%q(i,k)/ice%x_min)
         ice%n(i,k) = MAX(ice%n(i,k), ice%q(i,k)/ice%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
+
     IF (ischeck) CALL check(ik_slice,'ice nucleation',cloud,rain,ice,snow,graupel,hail)
 
     ! depositional growth of all ice particles
@@ -605,7 +627,7 @@ CONTAINS
 
     ! ice-ice collisions
     CALL ice_selfcollection(ik_slice,dt,atmo,ice,snow,ice_coeffs)
-    CALL snow_selfcollection(ik_slice,dt,atmo,snow,snow_coeffs)    
+    CALL snow_selfcollection(ik_slice,dt,atmo,snow,snow_coeffs)
     CALL particle_particle_collection(ik_slice, dt, atmo, ice, snow, sic_coeffs)
     IF (ischeck) CALL check(ik_slice, 'ice and snow collection',cloud,rain,ice,snow,graupel,hail)
 
@@ -615,11 +637,11 @@ CONTAINS
     IF (ischeck) CALL check(ik_slice, 'graupel collection',cloud,rain,ice,snow,graupel,hail)
 
     ! conversion of graupel to hail in wet growth regime
-    IF (timers_level > 10) CALL timer_start(timer_phys_2mom_wetgrowth) 
+    IF (timers_level > 10) CALL timer_start(timer_phys_2mom_wetgrowth)
     CALL graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
          &                             graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
          &                             atmo, graupel, cloud, rain, ice, snow, hail)
-    IF (timers_level > 10) CALL  timer_stop(timer_phys_2mom_wetgrowth) 
+    IF (timers_level > 10) CALL  timer_stop(timer_phys_2mom_wetgrowth)
     IF (ischeck) CALL check(ik_slice, 'graupel_hail_conv_wet_gamlook',cloud,rain,ice,snow,graupel,hail)
 
     ! hail collisions
@@ -657,16 +679,22 @@ CONTAINS
 
     ! melting of graupel and hail can be simple or LWF-based
     SELECT TYPE (graupel)
-    TYPE IS (particle_frozen) 
+    TYPE IS (particle_frozen)
       CALL graupel_melting(ik_slice,dt,graupel_coeffs,atmo,graupel,rain)
     TYPE IS (particle_lwf)
+#ifdef _OPENACC
+      CALL finish('graupel','particle_lwf not supported on GPU')
+#endif
       CALL prepare_melting_lwf(ik_slice, atmo, gmelting)
       CALL particle_melting_lwf(ik_slice, dt, graupel, rain, gmelting)
     END SELECT
     SELECT TYPE (hail)
-    TYPE IS (particle_frozen) 
+    TYPE IS (particle_frozen)
       CALL hail_melting_simple(ik_slice,dt,hail_coeffs,atmo,hail,rain)
     TYPE IS (particle_lwf)
+#ifdef _OPENACC
+      CALL finish('hail','particle_lwf not supported on GPU')
+#endif
       CALL particle_melting_lwf(ik_slice, dt, hail, rain, gmelting)
     END SELECT
     IF (ischeck) CALL check(ik_slice, 'melting',cloud,rain,ice,snow,graupel,hail)
@@ -680,17 +708,23 @@ CONTAINS
     ! warm rain processes
     ! (using something other than SB is somewhat inconsistent and not recommended)
     IF (auto_typ == 1) THEN
+#ifdef _OPENACC
+       CALL finish('warm_rain_processes','auto_typ == 1 not supported on GPU')
+#endif
        CALL autoconversionKB(ik_slice, dt, cloud, rain)   ! Beheng (1994)
        CALL accretionKB(ik_slice, dt, cloud, rain)
        CALL rain_selfcollectionSB(ik_slice, dt, rain)
     ELSE IF (auto_typ == 2) THEN
+#ifdef _OPENACC
+       CALL finish('warm_rain_processes','auto_typ == 2 not supported on GPU')
+#endif
        ! Khairoutdinov and Kogan (2000)
        ! (KK2000 originally assume a 25 micron size threshold)
        CALL autoconversionKK(ik_slice, dt, cloud, rain)
        CALL accretionKK(ik_slice, dt, cloud, rain)
        CALL rain_selfcollectionSB(ik_slice, dt, rain)
     ELSE IF (auto_typ == 3) THEN
-       CALL autoconversionSB(ik_slice, dt, cloud_coeffs, cloud, rain) 
+       CALL autoconversionSB(ik_slice, dt, cloud_coeffs, cloud, rain)
        CALL accretionSB(ik_slice, dt, cloud, rain)
        CALL rain_selfcollectionSB(ik_slice, dt, rain)
     ENDIF
@@ -701,21 +735,30 @@ CONTAINS
 
     ! size limits for all hydrometeors
     IF (nuc_c_typ > 0) THEN
-       DO k=kstart,kend
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO k=kstart,kend
         DO i=istart,iend
           cloud%n(i,k) = MIN(cloud%n(i,k), cloud%q(i,k)/cloud%x_min)
           cloud%n(i,k) = MAX(cloud%n(i,k), cloud%q(i,k)/cloud%x_max)
           ! Hard upper limit for cloud number conc.
           cloud%n(i,k) = MIN(cloud%n(i,k), 5000d6)
         END DO
-       END DO
+      END DO
+      !$ACC END PARALLEL
     END IF
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
-       DO i=istart,iend
-          rain%n(i,k) = MIN(rain%n(i,k), rain%q(i,k)/rain%x_min)
-          rain%n(i,k) = MAX(rain%n(i,k), rain%q(i,k)/rain%x_max)
-       END DO
+      DO i=istart,iend
+        rain%n(i,k) = MIN(rain%n(i,k), rain%q(i,k)/rain%x_min)
+        rain%n(i,k) = MAX(rain%n(i,k), rain%q(i,k)/rain%x_max)
+      END DO
     END DO
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
         ice%n(i,k) = MIN(ice%n(i,k), ice%q(i,k)/ice%x_min)
@@ -726,43 +769,49 @@ CONTAINS
         graupel%n(i,k) = MAX(graupel%n(i,k), graupel%q(i,k)/graupel%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
         hail%n(i,k) = MIN(hail%n(i,k), hail%q(i,k)/hail%x_min)
         hail%n(i,k) = MAX(hail%n(i,k), hail%q(i,k)/hail%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (ischeck) CALL check(ik_slice, 'clouds_twomoment end',cloud,rain,ice,snow,graupel,hail)
     IF (isdebug) CALL message(TRIM(routine),"clouds_twomoment end")
 
+    !$ACC END DATA ! dep_rate_ice, dep_rate_snow, cloud, rain, ice, snow, graupel, hail
+
   END SUBROUTINE clouds_twomoment
-  
+
   !*******************************************************************************
   ! This subroutine has to be called once per time step to properly sets
-  ! the different hydrometeor classes according to predefined parameter sets 
+  ! the different hydrometeor classes according to predefined parameter sets
   !*******************************************************************************
 
   SUBROUTINE init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
     CLASS(particle),INTENT(inout)        :: cloud, rain
     CLASS(particle_frozen),INTENT(inout) :: ice, snow, graupel, hail
-    
+
     call particle_assign(cloud,cloud_nue1mue1)
     call particle_assign(rain,rainSBB)
     call particle_frozen_assign(ice,ice_cosmo5)
     call particle_frozen_assign(snow,snowSBB)
 
     SELECT TYPE (graupel)
-    TYPE IS (particle_frozen)  
+    TYPE IS (particle_frozen)
       call particle_frozen_assign(graupel,graupelhail_cosmo5)
-    TYPE IS (particle_lwf) 
+    TYPE IS (particle_lwf)
       call particle_lwf_assign(graupel,graupel_vivek)
     END SELECT
 
     SELECT TYPE (hail)
-    TYPE IS (particle_frozen) 
+    TYPE IS (particle_frozen)
       call particle_frozen_assign(hail,hail_cosmo5)
-    TYPE IS (particle_lwf) 
+    TYPE IS (particle_lwf)
       call particle_lwf_assign(hail,hail_vivek)
     END SELECT
 
@@ -793,17 +842,12 @@ CONTAINS
     auto_typ  = MOD(cloud_type,10)        ! choice of warm rain scheme, see clouds_twomoment()
 
     CALL setup_particle_coeffs(rain,rain_coeffs)
-    ! work around to avoid internal compiler error with old gfortran (gcc version 4.8.1)
-    rain_coeffs%particle_nonsphere%alfa = rainSBBcoeffs%particle_nonsphere%alfa
-    rain_coeffs%particle_nonsphere%beta = rainSBBcoeffs%particle_nonsphere%beta
-    rain_coeffs%particle_nonsphere%gama = rainSBBcoeffs%particle_nonsphere%gama
-!    rain_coeffs%alfa = rainSBBcoeffs%alfa
-!    rain_coeffs%beta = rainSBBcoeffs%beta
-!    rain_coeffs%gama = rainSBBcoeffs%gama 
-!!$    rain_coeffs%cmu0 = rainSBBcoeffs%cmu0 ! now this comes from cfg_params
-!!$    rain_coeffs%cmu1 = rainSBBcoeffs%cmu1 ! now this comes from cfg_params
+
+    rain_coeffs%alfa = rainSBBcoeffs%alfa
+    rain_coeffs%beta = rainSBBcoeffs%beta
+    rain_coeffs%gama = rainSBBcoeffs%gama
+
     rain_coeffs%cmu2 = rainSBBcoeffs%cmu2
-!!$    rain_coeffs%cmu3 = rainSBBcoeffs%cmu3 ! now this comes from cfg_params
     rain_coeffs%cmu4 = rainSBBcoeffs%cmu4
     rain_coeffs%cmu5 = rainSBBcoeffs%cmu5
 
@@ -908,10 +952,10 @@ CONTAINS
       WRITE(txt,'(A,D10.3)') "     vq_rain_min  = ",vq_rain_min ; CALL message(routine,TRIM(txt))
       WRITE(txt,'(A,D10.3)') "     vq_rain_max  = ",vq_rain_max ; CALL message(routine,TRIM(txt))
     END IF
-    
+
     ! initialization for snow_cloud_riming
     CALL setup_particle_collection_type1(snow,cloud,scr_coeffs)
-    
+
     IF (isprint) THEN
       WRITE(txt,'(A,D10.3)') "   a_snow      = ",snow%a_geo ; CALL message(routine,TRIM(txt))
       WRITE(txt,'(A,D10.3)') "   b_snow      = ",snow%b_geo ; CALL message(routine,TRIM(txt))
@@ -1269,17 +1313,21 @@ CONTAINS
     ENDIF
 
     ! Init SK Activation table
-    IF (nuc_c_typ > 5) THEN 
+    IF (nuc_c_typ > 5) THEN
       call ccn_activation_sk_4d()
-      IF (isprint) THEN      
+      IF (isprint) THEN
         CALL message(routine,"Equidistant lookup table for Segal-Khain created")
       ENDIF
     END IF
-   
+
+    !$ACC ENTER DATA COPYIN(rain_coeffs, ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs, cloud_coeffs) &
+    !$ACC   COPYIN(sic_coeffs, gic_coeffs, gsc_coeffs, hic_coeffs, hsc_coeffs, scr_coeffs, srr_coeffs) &
+    !$ACC   COPYIN(irr_coeffs, icr_coeffs, hrr_coeffs, grr_coeffs, hcr_coeffs, gcr_coeffs, hic_coeffs) &
+    !$ACC   COPYIN(gic_coeffs)
 
   END SUBROUTINE init_2mom_scheme_once
 
-  SUBROUTINE check(ik_slice, mtxt,cloud,rain,ice,snow,graupel,hail)
+  SUBROUTINE check(ik_slice, mtxt, cloud, rain, ice, snow, graupel, hail)
     ! start and end indices for 2D slices
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in) :: ik_slice(4)
@@ -1290,6 +1338,9 @@ CONTAINS
     REAL(wp), PARAMETER  :: meps = -1e-12_wp
     CHARACTER(len=2), PARAMETER  :: qname(6) = (/ 'qc', 'qr', 'qi', 'qs', 'qg', 'qh' /)
 
+#ifdef _OPENACC
+    CALL finish(routine,'SUBROUTINE check not supported on GPU')
+#endif
     jcs    = ik_slice(1)
     jce    = ik_slice(2)
     kstart = ik_slice(3)
@@ -1361,7 +1412,7 @@ CONTAINS
         CALL finish (TRIM(routine),TRIM(txt))
       ENDIF
     END DO
-    
+
 #endif
 
   END SUBROUTINE check

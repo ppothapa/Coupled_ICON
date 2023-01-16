@@ -10,6 +10,7 @@ MODULE mo_rte_rrtmgp_interface
   USE mo_math_constants,             ONLY: pi
   USE mo_physical_constants,         ONLY: rhoh2o
   USE mo_exception,                  ONLY: finish, warning
+  USE mo_parallel_config,            ONLY: nproma_sub
   USE mo_radiation_random,           ONLY: seed_size
   USE mo_cloud_optics_parameters,    ONLY: rad_perm
   USE mo_radiation_cloud_optics,     ONLY: cloud_optics
@@ -193,7 +194,7 @@ CONTAINS
     LOGICAL :: lclearsky
 
     ! --------------------------------------------------------------------------
-    INTEGER :: ncol_supplied, ncol_needed, ncol_chunk, jchunk_start, jchunk_end
+    INTEGER :: ncol_supplied, ncol_needed, jchunk_start, jchunk_end
     INTEGER :: nbndsw, nbndlw, i, ilev, iband,  jl, jk, jband
     ! --- Aerosol optical properites - vertically reversed fields
     REAL(wp) ::                &
@@ -342,12 +343,11 @@ CONTAINS
     !
     ncol_supplied = size(pcos_mu0) ! baustelle - this should be = nproma?
     ncol_needed   = jce-jcs+1
-    ncol_chunk    = aes_rad_config(jg)%rrtmgp_columns_chunk
     !
     ! RTE+RRTMGP process all columns supplied and assume a starting index of 1.
     !   If these conditions are satisfied we can call the interface directly...
     !
-    IF (jcs==1 .and. ncol_needed == ncol_supplied .and. ncol_chunk == ncol_needed) THEN
+    IF (jcs==1 .and. ncol_needed == ncol_supplied .and. nproma_sub == ncol_needed) THEN
 
        CALL rte_rrtmgp_interface_onBlock(                              &
           & lclearsky,                                                 &
@@ -384,8 +384,8 @@ CONTAINS
        !   to RTE+RRMTPG
        !
 
-       DO jchunk_start = jcs,jce, ncol_chunk
-        jchunk_end = MIN(jchunk_start + ncol_chunk - 1, jce)
+       DO jchunk_start = jcs,jce, nproma_sub
+        jchunk_end = MIN(jchunk_start + nproma_sub - 1, jce)
         CALL shift_and_call_rte_rrtmgp_interface_onBlock(                &
             & lclearsky,                                                 &
             & jchunk_start,      jchunk_end,                             &

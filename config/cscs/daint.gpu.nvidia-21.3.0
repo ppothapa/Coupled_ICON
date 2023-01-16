@@ -64,7 +64,7 @@ CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2"
 
 FC='ftn'
-FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc60 -Minfo=accel,inline ${SERIALBOXI} -I${NETCDF_DIR}/include ${ECCODESI} -D__SWAPDIM"
+FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -gpu=cc60 -Minfo=accel,inline ${SERIALBOXI} -I${NETCDF_DIR}/include ${ECCODESI} -D__SWAPDIM"
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_60 -g -O3'
 

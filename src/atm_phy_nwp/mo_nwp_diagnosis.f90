@@ -58,12 +58,13 @@ MODULE mo_nwp_diagnosis
   USE mo_advection_config,   ONLY: advection_config
   USE mo_io_config,          ONLY: lflux_avg, uh_max_zmin, uh_max_zmax, &
     &                              luh_max_out, uh_max_nlayer, var_in_output, &
-    &                              itype_dursun, t_var_in_output
+    &                              itype_dursun, itype_convindices, t_var_in_output
   USE mo_sync,               ONLY: global_max, global_min
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
   USE mo_nh_diagnose_pres_temp, ONLY: diagnose_pres_temp
-  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, &
+  USE mo_opt_nwp_diagnostics,ONLY: calsnowlmt, cal_cape_cin, cal_cape_cin_mu, cal_cape_cin_mu_COSMO, &    
+                                   cal_si_sli_swiss, cal_cloudtop, &
                                    maximize_field_lpi, compute_field_tcond_max, &
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
@@ -1400,7 +1401,7 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
-        CALL ww_diagnostics( nproma, nlev, nlevp1, i_startidx, i_endidx, jg,             &
+        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,             &
             &                pt_diag%temp(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv),       &
             &                pt_prog_rcf%tracer(:,:,jb,iqc),                             &
             &                pt_diag%u   (:,:,jb), pt_diag%v         (:,:,jb),           &
@@ -1434,30 +1435,82 @@ CONTAINS
       !  in order to avoid unphysically low test parcel temperature.
       !  Otherwise computation crashes in sat_pres_water  
       !$ACC WAIT
-      CALL cal_cape_cin( i_startidx, i_endidx,                     &
-        &                kmoist  = MAX(kstart_moist,phy_params%k060), & !in
-        &                te      = pt_diag%temp(:,:,jb)          , & !in
-        &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
-        &                prs     = pt_diag%pres(:,:,jb)          , & !in
-        &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
-        &                cape_ml = prm_diag%cape_ml(:,jb)        , & !out
-        &                cin_ml  = prm_diag%cin_ml(:,jb)         , & !out
-        &                lacc = lzacc                              ) !in
+      IF (var_in_output(jg)%cape_3km .OR. var_in_output(jg)%lcl_ml .OR. var_in_output(jg)%lfc_ml) THEN
+        CALL cal_cape_cin( i_startidx, i_endidx,                     &
+        &                kmoist   = MAX(kstart_moist,phy_params%k060), & !in
+        &                te       = pt_diag%temp(:,:,jb)          , & !in
+        &                qve      = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+        &                prs      = pt_diag%pres(:,:,jb)          , & !in
+        &                hhl      = p_metrics%z_ifc(:,:,jb)       , & !in
+        &                cape_ml  = prm_diag%cape_ml(:,jb)        , & !out
+        &                cin_ml   = prm_diag%cin_ml(:,jb)         , & !out
+        &                cape_3km = prm_diag%cape_3km(:,jb)       , & !out
+        &                lcl_ml   = prm_diag%lcl_ml(:,jb)         , & !out
+        &                lfc_ml   = prm_diag%lfc_ml(:,jb)         , & !out
+        &                lacc     = lacc                            ) !in
+      ELSE
+        CALL cal_cape_cin( i_startidx, i_endidx,                     &
+        &                kmoist   = MAX(kstart_moist,phy_params%k060), & !in
+        &                te       = pt_diag%temp(:,:,jb)          , & !in
+        &                qve      = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
+        &                prs      = pt_diag%pres(:,:,jb)          , & !in
+        &                hhl      = p_metrics%z_ifc(:,:,jb)       , & !in
+        &                cape_ml  = prm_diag%cape_ml(:,jb)        , & !out
+        &                cin_ml   = prm_diag%cin_ml(:,jb)         , & !out
+        &                lacc     = lacc                            ) !in
+      ENDIF
 
       IF (var_in_output(jg)%cape_mu .OR. var_in_output(jg)%cin_mu ) THEN
         !$ACC WAIT
-        CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
-             &                kmoist  = kstart_moist,                   & !in
-             &                z_limit = 3000.0_wp,                      & !in
-             &                te      = pt_diag%temp(:,:,jb)          , & !in
-             &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv), & !in
-             &                prs     = pt_diag%pres(:,:,jb)          , & !in
-             &                hhl     = p_metrics%z_ifc(:,:,jb)       , & !in
-             &                cape_mu = prm_diag%cape_mu(:,jb)        , & !out
-             &                cin_mu  = prm_diag%cin_mu(:,jb)         , & !out
-             &                lacc = lzacc                              ) !in
-      END IF
-      
+        IF (itype_convindices .EQ. 1) THEN
+          CALL cal_cape_cin_mu( i_startidx, i_endidx,                     &
+          &                kmoist  = kstart_moist,                       & !in
+          &                z_limit = 3000.0_wp,                          & !in
+          &                te      = pt_diag%temp(:,:,jb)              , & !in
+          &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+          &                prs     = pt_diag%pres(:,:,jb)              , & !in
+          &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+          &                cape_mu = prm_diag%cape_mu(:,jb)            , & !out
+          &                cin_mu  = prm_diag%cin_mu(:,jb)             , & !out
+          &                lacc    = lacc                                ) !in
+        ELSEIF (itype_convindices .EQ. 2) THEN
+          CALL cal_cape_cin_mu_COSMO( i_startidx, i_endidx,               &
+          &                kmoist  = MAX(kstart_moist,phy_params%k060) , & !in
+          &                te      = pt_diag%temp(:,:,jb)              , & !in
+          &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+          &                prs     = pt_diag%pres(:,:,jb)              , & !in
+          &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+          &                cape_mu_COSMO = prm_diag%cape_mu(:,jb)      , & !out
+          &                cin_mu_COSMO  = prm_diag%cin_mu(:,jb)       , & !out
+          &                lacc    = lacc                                ) !in
+        ENDIF
+      ENDIF
+      IF (var_in_output(jg)%si .OR. var_in_output(jg)%sli .OR. var_in_output(jg)%swiss12 .OR. var_in_output(jg)%swiss00) THEN
+        !$ACC WAIT
+        CALL cal_si_sli_swiss( i_startidx, i_endidx,                 &
+        &                kmoist  = MAX(kstart_moist,phy_params%k060) , & !in
+        &                te      = pt_diag%temp(:,:,jb)              , & !in
+        &                qve     = pt_prog_rcf%tracer(:,:,jb,iqv)    , & !in
+        &                prs     = pt_diag%pres(:,:,jb)              , & !in
+        &                hhl     = p_metrics%z_ifc(:,:,jb)           , & !in
+        &                u       = pt_diag%u(:,:,jb)                 , & !in
+        &                v       = pt_diag%v(:,:,jb)                 , & !in
+        &                si      = prm_diag%si(:,jb)                 , & !out
+        &                sli     = prm_diag%sli(:,jb)                , & !out
+        &                swiss12 = prm_diag%swiss12(:,jb)            , & !out
+        &                swiss00 = prm_diag%swiss00(:,jb)            , & !out
+        &                lacc    = lacc                                ) !in
+      ENDIF
+
+      IF (var_in_output(jg)%cloudtop) THEN
+        !$ACC WAIT
+        CALL cal_cloudtop( i_startidx, i_endidx,                            &
+        &                kmoist       = MAX(kstart_moist,phy_params%k060) , & !in
+        &                clc          = prm_diag%clc(:,:,jb)              , & !in
+        &                h            = p_metrics%z_mc(:,:,jb)            , & !in
+        &                cloudtop     = prm_diag%cloudtop(:,jb)           , & !out
+        &                lacc         = lacc                                ) !in
+      ENDIF
     ENDDO  ! jb
 !$OMP END DO
 
@@ -1841,34 +1894,25 @@ CONTAINS
 
       IF (l_need_dbz3d) THEN
         CALL compute_field_dbz3d_lin( jg, p_patch(jg), p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)), &
-             &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin )
+             &                        p_nh(jg)%diag, prm_diag(jg), prm_diag(jg)%dbz3d_lin, lacc=.TRUE. )
       END IF
 
       ! output of dbz_ctmax (column maximum reflectivity during a time interval (namelist param. celltracks_interval) is required
       IF ( var_in_output(jg)%dbzctmax .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('dbzctmax')
-#endif
-        CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax )
+        CALL maximize_field_dbzctmax( p_patch(jg), jg, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%dbz_ctmax, lacc=.TRUE.)
       END IF
 
       ! output of echotop (minimum pressure where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotop .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('echotop')
-#endif
-        CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop )
+        CALL compute_field_echotop ( p_patch(jg), jg, p_nh(jg)%diag, prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotop, lacc=.TRUE. )
       END IF
 
       ! output of echotopinm (maximum height where reflectivity exceeds threshold(s) 
       ! during a time interval (namelist param. echotop_meta(jg)%time_interval) is required:
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('echotopinm')
-#endif
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
-                                        prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm )
+                                        prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm, lacc=.TRUE. )
       END IF
     END DO
 
@@ -1886,7 +1930,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE nwp_opt_diagnostics_2(p_patch, p_metrics, p_prog, p_prog_rcf, p_diag, &
-             &                     prm_diag, cosmu0, p_sim_time, dt_phy)
+             &                     prm_diag, cosmu0, zsct, p_sim_time, dt_phy, lacc)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch         !< current patch
     TYPE(t_nh_metrics),    INTENT(IN)    :: p_metrics       !< in
@@ -1896,16 +1940,22 @@ CONTAINS
     TYPE(t_nh_diag),       INTENT(IN)    :: p_diag          !< NH diagnostic state
     TYPE(t_nwp_phy_diag),  INTENT(INOUT) :: prm_diag        !< physics diagnostics
     REAL(wp),              INTENT(IN)    :: cosmu0(:,:)     !< Cosine of solar zenith angle
+    REAL(wp),              INTENT(IN)    :: zsct            !< solar constant (at time of year) [W/m2]
     REAL(wp),              INTENT(IN)    :: p_sim_time      !< elapsed simulation time on this grid level
     REAL(wp),              INTENT(IN)    :: dt_phy          !< time interval for fast physics
-
+    LOGICAL,    OPTIONAL,  INTENT(IN)    :: lacc            !< initialization flag
     ! Local variables
     INTEGER                                     :: jg
     LOGICAL                                     :: l_present_dursun_m, l_present_dursun_r
     REAL(wp), DIMENSION(nproma,p_patch%nblks_c) :: twater
+    LOGICAL :: lzacc             ! OpenACC flag 
+    CALL set_acc_host_or_device(lzacc, lacc)
 
+    !$ACC DATA &
+    !$ACC   CREATE(twater) &
+    !$ACC   IF(lzacc)
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
-    
+
     l_present_dursun_m = .FALSE.
     l_present_dursun_r = .FALSE.
     IF (ASSOCIATED(prm_diag%dursun_m)) l_present_dursun_m=.TRUE.
@@ -1915,7 +1965,9 @@ CONTAINS
 
     IF (var_in_output(jg)%dursun .AND. (p_sim_time > 0._wp) ) THEN
       IF (l_present_dursun_m .OR. l_present_dursun_r) THEN
-        CALL compute_field_twater(p_patch, jg, p_metrics, p_prog, p_prog_rcf, twater)
+      CALL compute_field_twater( p_patch, p_metrics%ddqz_z_full, p_prog%rho,               &
+          &                      p_prog_rcf%tracer, advection_config(jg)%trHydroMass%list, &
+          &                      twater, lacc=lzacc )
       ENDIF
       IF (itype_dursun == 0) THEN
         ! WMO sunshine duration is an accumulative value like precipitation or runoff
@@ -1924,8 +1976,8 @@ CONTAINS
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &
              &                    120.0_wp, 0.01_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
-             &                    prm_diag%flxdwswtoa(:,:),                 &
-             &                    p_diag%pres(:,p_patch%nlev,:), twater     )
+             &                    zsct,                                     &
+             &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSEIF (itype_dursun == 1) THEN
         ! MeteoSwiss sunshine duration with a 200 W/m^2 threshold
         CALL compute_field_dursun(p_patch, dt_phy, prm_diag%dursun,         &
@@ -1933,15 +1985,15 @@ CONTAINS
              &                    prm_diag%swflx_dn_sfc_diff, cosmu0,       &
              &                    200.0_wp, 60.0_wp,                        &
              &                    prm_diag%dursun_m, prm_diag%dursun_r,     &
-             &                    prm_diag%flxdwswtoa(:,:),                 &
-             &                    p_diag%pres(:,p_patch%nlev,:), twater     )
+             &                    zsct,                                     &
+             &                    p_diag%pres(:,p_patch%nlev,:), twater, lacc=lzacc)
       ELSE
         CALL finish('nwp_opt_diagnostics_2', 'itype_dursun can only have the value 0 or 1.')
       ENDIF
     ENDIF
 
     IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
-
+    !$ACC END DATA
   END SUBROUTINE nwp_opt_diagnostics_2
 
   !-------------------------------------------------------------------------
@@ -2411,13 +2463,7 @@ CONTAINS
 
     REAL(wp) :: tas_gmean, rsdt_gmean, rsut_gmean, rlut_gmean, prec_gmean, evap_gmean, radtop_gmean
     TYPE(t_nwp_phy_diag), POINTER    :: field
-    INTEGER  :: jc, jcs, jce, jk, jks, jke, rls, rle
-
-    ! Compute row and block bounds for derived variables
-    rls = grf_bdywidth_c + 1
-    rle = min_rlcell_int
-    jks = pt_patch%cells%start_blk(rls, 1)
-    jke = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+    INTEGER  :: jb, jbs, jbe, jc, jcs, jce, rls, rle
 
     ! global mean t2m, tas_gmean, if requested for output
     tas_gmean = 0.0_wp
@@ -2495,26 +2541,32 @@ CONTAINS
 
       field => prm_diag
 
+      ! Compute row and block bounds for derived variables
+      rls = grf_bdywidth_c + 1
+      rle = min_rlcell_int
+      jbs = pt_patch%cells%start_blk(rls, 1)
+      jbe = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+
       !$ACC DATA PRESENT(field) &
       !$ACC   CREATE(scr)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
-      !$ACC LOOP SEQ
-      DO jk = jks, jke
-        CALL get_indices_c(pt_patch, jk, jks, jke, jcs, jce, rls, rle)
+      DO jb = jbs, jbe
+        CALL get_indices_c(pt_patch, jb, jbs, jbe, jcs, jce, rls, rle)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = jcs, jce
-          scr(jc,jk) = 0.0_wp
+          scr(jc,jb) = 0.0_wp
           !scr(jc,jk) = field%sod_t(jc,jk) - field%sou_t(jc,jk) + field%thb_t(jc,jk)
-          scr(jc,jk) = field%flxdwswtoa(jc,jk) - field%swflx_up_toa(jc,jk) + field%lwflxtoa(jc,jk)
+          scr(jc,jb) = field%flxdwswtoa(jc,jb) - field%swflx_up_toa(jc,jb) + field%lwflxtoa(jc,jb)
         END DO
+        !$ACC END PARALLEL
       END DO
-      !$ACC END PARALLEL
       CALL levels_horizontal_mean( scr(:,:), &
           & pt_patch%cells%area(:,:), &
           & pt_patch%cells%owned, &
           & radtop_gmean, lopenacc=.TRUE.)
 
+      !$ACC WAIT
       !$ACC END DATA
 
       NULLIFY(field)

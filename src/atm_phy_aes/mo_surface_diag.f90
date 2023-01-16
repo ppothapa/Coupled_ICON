@@ -19,7 +19,7 @@ MODULE mo_surface_diag
   USE mo_physical_constants,ONLY: grav, als, alv, vtmpc2, cpd, rdv, tmelt,    &
                                   vtmpc1, vtmpc2, rd
   USE mo_aes_convect_tables,ONLY: lookup_ua_list_spline
-  USE mo_aes_vdiff_params,  ONLY: tpfac2
+  USE mo_turb_vdiff_params, ONLY: tpfac2
   USE mo_aes_phy_memory,    ONLY: cdimissval
   USE mo_index_list,        ONLY: generate_index_list_batched
 
@@ -239,7 +239,7 @@ CONTAINS
     ! Compute grid box mean and time integral
     ! The instantaneous grid box mean moisture flux will be passed on
     ! to the cumulus convection scheme.
-    
+
     !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
     DO jk = 1, kbdim
       pevap_gbm(jk)  = 0._wp
@@ -517,12 +517,12 @@ CONTAINS
         zmerge = MERGE(zcbs,zcbu,pri_tile(jl,jsfc) .GT. 0._wp)
         zred   = (zcbn + zmerge) / pbh_tile(jl,jsfc)
         zh2m   = pcpt_tile(jl,jsfc) + zred * (pcptgz(jl) - pcpt_tile(jl,jsfc))
-        ptas_tile(jl,jsfc) = (zh2m - zhtq*grav ) / cpd 
+        ptas_tile(jl,jsfc) = (zh2m - zhtq*grav ) / cpd
 
         zqs1       = ua(jls) / papm1(jl)
         zqs1       = zqs1 / (1._wp - vtmpc1 * zqs1)
         zrh2m(jl)  = MAX(zephum, pqm1(jl) / zqs1)
- 
+
         zaph2m(jl) = paphm1(jl) * &  ! = paphm1(jcs:kproma, klevp1)
             (1._wp - zhtq*grav / ( rd * ptas_tile(jl,jsfc) * (1._wp + vtmpc1 * pqm1(jl) - pxm1(jl))))
       ENDDO

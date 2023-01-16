@@ -17,6 +17,8 @@ MODULE mo_gme_turbdiff
   USE mo_exception,          ONLY: message
   USE mo_run_config,         ONLY: msg_level
 
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
   PRIVATE
@@ -419,11 +421,11 @@ END SUBROUTINE partura
 
 !=======================================================================
 
-SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
-                    t_g  , qv_s, ps   , fr_land, h_ice,          &
+SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
+                    t_g  , qv_s, ps   , fr_land, h_ice,           &
                     ie   , i_startidx , i_endidx,                 &
                     tcm  , tch , gz0  ,                           &
-                    shfl_s, lhfl_s, qhfl_s, umfl_s, vmfl_s )
+                    shfl_s, lhfl_s, qhfl_s, umfl_s, vmfl_s, lacc )
  
 !**** *parturs*  calculates turbulent transfer coefficients
 !=======================================================================
@@ -460,8 +462,7 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
 
   REAL(KIND=wp), INTENT(INOUT)   :: tcm (ie) ! transfer coefficient for momentum  
   REAL(KIND=wp), INTENT(INOUT)   :: tch (ie) ! transfer coefficient for heat/moisture 
-  REAL(KIND=wp), INTENT(INOUT) :: gz0 (ie) ! roughness length * g (m2/s2)
-! REAL(KIND=wp), INTENT(INOUT) :: gz0s(ie) ! roughness length snow * g (m2/s2)
+  REAL(KIND=wp), INTENT(INOUT)   :: gz0 (ie) ! roughness length * g (m2/s2)
 
   REAL(KIND=wp), INTENT(INOUT)   :: shfl_s(ie) ! sensible   heat flux at surface (W/m2)
   REAL(KIND=wp), INTENT(INOUT)   :: lhfl_s(ie) ! latent     heat flux at surface (W/m2)
@@ -503,15 +504,25 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
   REAL(KIND=wp) :: zustar   !
 
 ! local utility variables
-  REAL(KIND=wp) :: ztvg, ztvs, zgz0d, zgz0dd, zxi, zxih, zy , rho_s
+  REAL(KIND=wp) :: ztvg, ztvs, zgz0d, zgz0dd, zxi, zxih, zy, rho_s
   INTEGER       :: j1          ! loop indices
 
   REAL(KIND=wp), PARAMETER :: z1d3  = 1.0_wp/3.0_wp
   REAL(KIND=wp), PARAMETER :: z2d3  = 2.0_wp/3.0_wp
 
-  IF ( msg_level >= 25) CALL message( 'mo_gme_turbdiff:', 'parturs')
+! OpenACC variables
+  LOGICAL, OPTIONAL, INTENT(in)   :: lacc  ! GPU flag
+  LOGICAL                         :: lzacc ! non-optional version of lacc
+
+      CALL set_acc_host_or_device(lzacc, lacc)
+
+      !$ACC DATA CREATE(zvpb, zx, ztcm, ztch, zdfip, zris, zgz0m, zgz0h, lo_ice)
+
+      IF ( msg_level >= 25) CALL message( 'mo_gme_turbdiff:', 'parturs')
  
 !     wind velocity in Prandtl layer
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG VECTOR
       DO j1 = i_startidx, i_endidx
         zvpb(j1) = MAX( SQRT( u1(j1)**2 +v1(j1)**2), zvmin)
         IF ( lseaice) THEN
@@ -520,8 +531,11 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
           lo_ice(j1) = t_g(j1) < tmelt - 1.7_wp
         END IF
       END DO
+      !$ACC END PARALLEL
  
 !     calculation of new transfer coefficients   
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(ztvg, ztvs, zgz0d, zgz0dd, zxi, zxih, zy, rho_s, zustar)
       DO j1 = i_startidx, i_endidx
         ztvg = t_g(j1)  * (1._wp + vtmpc1*qv_s(j1)   )
         ztvs = t1 (j1)*(1._wp + vtmpc1*qv1 (j1))
@@ -659,7 +673,10 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
         
  
       END DO
- 
+      !$ACC END PARALLEL
+
+      !$ACC END DATA ! zvpb, zx, ztcm, ztch, zdfip, zris, zgz0m, zgz0h, lo_ice
+
   END SUBROUTINE parturs
 
 !=======================================================================
@@ -1100,7 +1117,7 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
                &      fr_land,pf1   , qv_s  , ie    , ke   ,  &
                &      i_startidx, i_endidx,                   &
                &      t_2m  , qv_2m , td_2m , rh_2m ,         &
-               &      u_10m , v_10m )
+               &      u_10m , v_10m, lacc )
 !
 !=======================================================================
 !
@@ -1243,6 +1260,16 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
         cMOtconexp = 0.5_wp        , & ! Exponent in the MO flux-profile relationships
                                        ! (temperature, convection) [-]
         small_num  = 1.0E-04_wp        ! A small number (security constant)
+!
+!=======================================================================
+!
+  LOGICAL, OPTIONAL, INTENT(in)   :: lacc  ! GPU flag
+  LOGICAL                         :: lzacc ! non-optional version of lacc
+
+      CALL set_acc_host_or_device(lzacc, lacc)
+
+      !$ACC DATA CREATE(zv, zcm, zch, zgz0) IF(lzacc)
+
 !_dm<
 !
 !=======================================================================
@@ -1265,29 +1292,25 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,   &
 !     heat/moisture         ---> zch
 !     roughness length      ---> zgz0
 !
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO j1 = i_startidx, i_endidx
         zv  (j1) = MAX ( SQRT (u(j1,ke)**2+v(j1,ke)**2), zvmin )
         zcm (j1) = MAX ( tcm(j1), 5.E-4_wp )
         zch (j1) = MAX ( tch(j1), 4.E-5_wp )
         zgz0(j1) = MAX ( gz0(j1), 1.E-3_wp )
       ENDDO
-!     IF ( lz0_snow) THEN
-!       DO j1 = i_startidx, i_endidx
-!         IF ( lolp(j1) ) THEN
-!           IF( gz0s(j1)<=0._wp) THEN
-!             zgz0s(j1) = zgz0(j1)
-!           ELSE
-!             zgz0s(j1) = MIN( gz0s(j1),zgz0(j1) )
-!           END IF
-!         END IF !lolp
-!       ENDDO
-!     END IF
+      !$ACC END PARALLEL
 !
 !=======================================================================
 !
 ! 4.  Compute the temperature and dew point temperature at 2 m, and the
 !     wind components at 10 m
 !
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(zh_s, zh_p, zfi_p, zfi_2, zsqcm, zchdcm, zlnz, zh_05m) &
+      !$ACC   PRIVATE(zh_2m, zp_2m, zp_p, zpsat_2m, zpsat_p, zqvs_2m, zqvs_p, zqv_2m, zqv_2m_min, zfrac) &
+      !$ACC   PRIVATE(rho_s, ufr_s, psiMO_tp, psiMO_t2, lOburecip, z0tWMO_g, rho_srec)
       DO j1 = i_startidx, i_endidx
 !
 !     Dry static energy at the surface            ---> zh_s
@@ -1524,8 +1547,6 @@ Water_or_Land: IF( fr_land(j1) < 0.5_wp ) THEN
 !     Specific humidity at saturation at 2 m and at the lowest model
 !     layer
 !
-!       zqvs_2m    = Rdv*zpsat_2m/(zp_2m - O_m_rdv*zpsat_2m)
-!       zqvs_p     = Rdv*zpsat_p /(zp_p  - O_m_rdv*zpsat_p )
         zqvs_2m = spec_humi( zpsat_2m, zp_2m)
         zqvs_p  = spec_humi( zpsat_p , zp_p )
 !
@@ -1546,7 +1567,10 @@ Water_or_Land: IF( fr_land(j1) < 0.5_wp ) THEN
         rh_2m(j1) = sat_pres_water( td_2m(j1) )/zpsat_p
 !
       ENDDO
-!
+      !$ACC END PARALLEL
+
+      !$ACC END DATA ! zv, zcm, zch, zgz0
+
   END SUBROUTINE nearsfc
 
 END MODULE mo_gme_turbdiff

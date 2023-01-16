@@ -287,6 +287,7 @@ CONTAINS
                   tch              , & ! turbulent transfer coefficient for heat       ( -- )
                   tcm              , & ! turbulent transfer coefficient for momentum   ( -- )
                   tfv              , & ! laminar reduction factor for evaporation      ( -- )
+                  tfvsn            , & ! reduction factor for snow evaporation from model-DA coupling     ( -- )
 !
                   sobs             , & ! solar radiation at the ground                 ( W/m2)
                   thbs             , & ! thermal radiation at the ground               ( W/m2)
@@ -386,7 +387,8 @@ CONTAINS
                   z0                   ! vegetation roughness length                    ( m )
 
   REAL    (KIND = wp), DIMENSION(nvec),           INTENT(IN) :: &
-                  tfv                  ! laminar reduction factor for evaporation      ( -- )
+                  tfv              , & ! laminar reduction factor for evaporation      ( -- )
+                  tfvsn                ! reduction factor for snow evaporation from model-DA coupling     ( -- )
 
   REAL    (KIND = wp), DIMENSION(nvec), OPTIONAL, INTENT(INOUT) :: &
                   plevap               ! function of accumulated plant evaporation     (kg/m2)
@@ -711,6 +713,7 @@ CONTAINS
     ! Snow density
     ztau_snow      , & ! 'ageing constant' for snow density          (-)
     zrhosmax       , & ! temperature-dependent target density for snow ageing
+    zrhosmin       , & ! wind-speed-dependent minimum density for new snow
     zgrfrac        , & ! fraction of graupel / convective snow
     zrho_snowe     , & ! updated density of existing snow ('ageing') kg/m**3
     zrho_snowf     , & ! density of fresh snow                       kg/m**3
@@ -737,7 +740,6 @@ CONTAINS
   INTEGER          :: ke_soil_hy_m   ! number of active soil moisture layers for Mire
   CHARACTER(LEN=7) :: yhc            ! heating or cooling indicator
 
-#ifndef ALLOC_WKARR
 ! Local (automatic) arrays:
 ! -------------------------
 
@@ -975,7 +977,6 @@ CONTAINS
 
   LOGICAL     :: &
     limit_tch (nvec)         ! indicator for flux limitation problem
-#endif
 
 
 #ifdef __SX__
@@ -1173,7 +1174,7 @@ ENDDO
   !$ACC   PRESENT(t_snow_now, t_s_now, t_sk_now, t_g) &
   !$ACC   PRESENT(qv_s, w_snow_now) &
   !$ACC   PRESENT(rho_snow_now, h_snow, w_i_now, w_p_now, w_s_now) &
-  !$ACC   PRESENT(freshsnow, zf_snow, tch, tcm, tfv, runoff_s) &
+  !$ACC   PRESENT(freshsnow, zf_snow, tch, tcm, tfv, tfvsn, runoff_s) &
   !$ACC   PRESENT(runoff_g, t_snow_mult_now, rho_snow_mult_now) &
   !$ACC   PRESENT(wliq_snow_now, wtot_snow_now, dzh_snow_now) &
   !$ACC   PRESENT(t_so_now, w_so_now, w_so_ice_now) &
@@ -2053,8 +2054,8 @@ ENDDO
     IF (ABS(zdqsnow).LT.0.01_wp*eps_soil) zdqsnow = 0.0_wp
 
     ! potential evaporation at T_snow and Ts
-    zep_snow(i) = (1._wp-ztsnow_pm(i))* tfv(i)*zrhoch(i)*zdqsnow
-    zep_s   (i) =                       tfv(i)*zrhoch(i)*zdqs
+    zep_snow(i) = (1._wp-ztsnow_pm(i))*tfv(i)*zrhoch(i)*zdqsnow*MERGE(tfvsn(i), 1._wp, zdqsnow<0._wp)
+    zep_s   (i) =                      tfv(i)*zrhoch(i)*zdqs
   ENDDO
 
 !------------------------------------------------------------------------------
@@ -5122,7 +5123,7 @@ ENDDO
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zzz, ztau_snow, zrhosmax, zrho_snowe) &
-    !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv)
+    !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv, zrhosmin)
     !$NEC sparse
     DO i = ivstart, ivend
 
@@ -5137,9 +5138,11 @@ ENDDO
       zrho_snowe= MAX(rho_snow_now(i),zrhosmax+(rho_snow_now(i)-zrhosmax)* &
                   EXP(-ztau_snow*zdt/86400._wp) )
 
-      ! b) density of fresh snow
-      zrho_snowf= crhosminf+(crhosmaxf-crhosminf)* ((zth_low(i)-csnow_tmin) / (t0_melt   -csnow_tmin))**2
-      zrho_snowf= MAX(crhosminf,MIN(crhosmaxf,zrho_snowf))
+      ! b) density of fresh snow; the minimum density depends on wind speed to account for wind compression of powder snow
+      zuv = SQRT ( u_10m(i)**2 + v_10m(i)**2 )
+      zrhosmin = crhosminf*MIN(2._wp, 1._wp + 0.125_wp*MAX(0._wp, zuv-4._wp))
+      zrho_snowf= zrhosmin+(crhosmaxf-zrhosmin)* ((zth_low(i)-csnow_tmin) / (t0_melt-csnow_tmin))**2
+      zrho_snowf= MAX(zrhosmin,MIN(crhosmaxf,zrho_snowf))
 
       zrho_grauf= crhogminf+(crhogmaxf-crhogminf)* ((zth_low(i)-csnow_tmin)/(t0_melt-csnow_tmin))**2
       zrho_grauf= MAX(crhogminf,MIN(crhogmaxf,zrho_grauf))

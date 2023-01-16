@@ -23,6 +23,8 @@ MODULE mo_2mom_prepare
   USE mo_kind,            ONLY: wp
   USE mo_exception,       ONLY: finish, message, message_text
   USE mo_2mom_mcrph_main, ONLY: particle, particle_lwf, atmosphere
+#include "add_var_acc_macro.inc"
+
   IMPLICIT NONE
   PUBLIC :: prepare_twomoment, post_twomoment
 
@@ -52,6 +54,12 @@ CONTAINS
     INTEGER :: ii, kk
 
     ! ... Transformation of microphysics variables to densities
+    !$ACC DATA PRESENT(qv, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh) &
+    !$ACC   PRESENT(ninact, ninpot, nccn, rho, cloud) &
+    !$ACC   PRESENT(rain, ice, snow, graupel, hail)
+
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk = kts, kte
       DO ii = its, ite
 
@@ -80,18 +88,21 @@ CONTAINS
         if (lprogin) then
           ninpot(ii,kk)  = rho(ii,kk) * ninpot(ii,kk)
         end if
+#ifndef _OPENACC
         IF (lprogmelt) THEN
           qgl(ii,kk)  = rho(ii,kk) * qgl(ii,kk)
           qhl(ii,kk)  = rho(ii,kk) * qhl(ii,kk)
         END IF
+#endif
 
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lprogmelt.AND.(.not.PRESENT(qgl).or..not.PRESENT(qhl))) THEN
       CALL finish(TRIM(routine),'Error in prepare_twomoment, something wrong with qgl or qhl')
     END IF
-        
+
     ! set pointers
     atmo%w   => w
     atmo%T   => tk
@@ -99,6 +110,12 @@ CONTAINS
     atmo%qv  => qv
     atmo%rho => rho
     atmo%zh  => hhl
+    __acc_attach(atmo%w)
+    __acc_attach(atmo%T)
+    __acc_attach(atmo%p)
+    __acc_attach(atmo%qv)
+    __acc_attach(atmo%rho)
+    __acc_attach(atmo%zh)
 
     cloud%rho_v   => rhocld
     rain%rho_v    => rhocorr
@@ -121,17 +138,38 @@ CONTAINS
     hail%n    => qnh
 
     SELECT TYPE (graupel)
-    CLASS IS (particle_lwf) 
+    CLASS IS (particle_lwf)
        graupel%l => qgl
     END SELECT
 
     SELECT TYPE (hail)
-    CLASS IS (particle_lwf) 
+    CLASS IS (particle_lwf)
        hail%l    => qhl
     END SELECT
 
+    __acc_attach(ice%rho_v)
+    __acc_attach(graupel%rho_v)
+    __acc_attach(snow%rho_v)
+    __acc_attach(hail%rho_v)
+    __acc_attach(cloud%rho_v)
+    __acc_attach(rain%rho_v)
+    __acc_attach(ice%q)
+    __acc_attach(ice%n)
+    __acc_attach(snow%q)
+    __acc_attach(snow%n)
+    __acc_attach(graupel%q)
+    __acc_attach(graupel%n)
+    __acc_attach(hail%q)
+    __acc_attach(hail%n)
+    __acc_attach(cloud%q)
+    __acc_attach(cloud%n)
+    __acc_attach(rain%q)
+    __acc_attach(rain%n)
+
     ! enforce upper and lower bounds for number concentrations
     ! (may not be necessary or only at initial time)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk=kts,kte
       DO ii=its,ite
         rain%n(ii,kk) = MIN(rain%n(ii,kk), rain%q(ii,kk)/rain%x_min)
@@ -146,13 +184,23 @@ CONTAINS
         hail%n(ii,kk) = MAX(hail%n(ii,kk), hail%q(ii,kk)/hail%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
 
-     WHERE(cloud%q(its:ite,kts:kte)   <= 1.0e-12_wp) cloud%n(its:ite,kts:kte)   = 0.0_wp  
-     WHERE(rain%q(its:ite,kts:kte)    <= 1.0e-12_wp) rain%n(its:ite,kts:kte)    = 0.0_wp  
-     WHERE(ice%q(its:ite,kts:kte)     <= 1.0e-12_wp) ice%n(its:ite,kts:kte)     = 0.0_wp  
-     WHERE(snow%q(its:ite,kts:kte)    <= 1.0e-12_wp) snow%n(its:ite,kts:kte)    = 0.0_wp  
-     WHERE(graupel%q(its:ite,kts:kte) <= 1.0e-12_wp) graupel%n(its:ite,kts:kte) = 0.0_wp  
-     WHERE(hail%q(its:ite,kts:kte)    <= 1.0e-12_wp) hail%n(its:ite,kts:kte)     = 0.0_wp  
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO kk=kts,kte
+      DO ii=its,ite
+        IF(cloud%q(ii,kk) <= 1.0e-12) cloud%n(ii,kk) = 0.0_wp
+        IF(rain%q(ii,kk) <= 1.0e-12) rain%n(ii,kk) = 0.0_wp
+        IF(ice%q(ii,kk) <= 1.0e-12) ice%n(ii,kk) = 0.0_wp
+        IF(snow%q(ii,kk) <= 1.0e-12) snow%n(ii,kk) = 0.0_wp
+        IF(graupel%q(ii,kk) <= 1.0e-12) graupel%n(ii,kk) = 0.0_wp
+        IF(hail%q(ii,kk) <= 1.0e-12) hail%n(ii,kk) = 0.0_wp
+      END DO
+    END DO
+    !$ACC END PARALLEL
+
+    !$ACC END DATA ! DATA PRESENT
 
   END SUBROUTINE prepare_twomoment
 
@@ -219,6 +267,10 @@ CONTAINS
     END SELECT
 
     ! ... Transformation of variables back to ICON standard variables
+    !$ACC DATA PRESENT(qv, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh) &
+    !$ACC   PRESENT(ninact, ninpot, nccn, rho_r)
+    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC LOOP GANG VECTOR PRIVATE(hlp) COLLAPSE(2)
     DO kk = kts, kte
       DO ii = its, ite
 
@@ -249,13 +301,17 @@ CONTAINS
         if (lprogin) THEN
           ninpot(ii,kk)  = hlp * ninpot(ii,kk)
         end if
+#ifndef _OPENACC
         IF (lprogmelt) THEN
           qgl(ii,kk)  = hlp * qgl(ii,kk)
           qhl(ii,kk)  = hlp * qhl(ii,kk)
         END IF
+#endif
 
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE post_twomoment
 

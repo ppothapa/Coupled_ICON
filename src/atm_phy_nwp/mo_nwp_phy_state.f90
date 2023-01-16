@@ -124,8 +124,7 @@ USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interva
   &                                maxt_interval, precip_interval, t_var_in_output, &
   &                                totprec_d_interval, &
   &                                uh_max_zmin, uh_max_zmax, luh_max_out, uh_max_nlayer, &
-  &                                sunshine_interval, n_wshear, wshear_uv_heights, &
-  &                                n_srh, srh_heights
+  &                                sunshine_interval, n_wshear, n_srh
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
@@ -266,31 +265,31 @@ SUBROUTINE destruct_nwp_phy_state()
     
   END DO
 
+  !$ACC EXIT DATA DELETE(prm_diag, prm_nwp_tend)
+
   DEALLOCATE(prm_diag, prm_nwp_diag_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
+    CALL finish (routine, &
        &  'deallocation of NWP physics diagnostic array and list failed')
   ENDIF
  
   DEALLOCATE(prm_nwp_tend, prm_nwp_tend_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
-         &' deallocation of NWP physics tendencies array and list failed') 
+    CALL finish (routine, &
+       &  'deallocation of NWP physics tendencies array and list failed')
   ENDIF
 
   DEALLOCATE(prm_nwp_stochconv, prm_nwp_stochconv_list, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish ('mo_nwp_phy_state:destruct_nwp_phy_state', &
+    CALL finish (routine, &
        &  'deallocation of NWP stochastic convection array and list failed')
   ENDIF 
 
   !$ACC EXIT DATA DELETE(phy_params)
   DEALLOCATE(phy_params, STAT=ist)
   IF(ist/=success)THEN
-    CALL finish (routine, ' deallocation of phy_params array failed')
+    CALL finish (routine, 'deallocation of phy_params array failed')
   ENDIF
-
-  !$ACC EXIT DATA DELETE(prm_diag, prm_nwp_tend)
 
   CALL message(routine, 'destruction of 3D state vector finished')
 
@@ -389,6 +388,14 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%bruvais, &
       &     diag%buffer_rrg, &
       &     diag%buffer_rttov, &
+      &     diag%cloudtop, &
+      &     diag%si, &
+      &     diag%sli, &
+      &     diag%swiss12, &
+      &     diag%swiss00, &
+      &     diag%cape_3km, &
+      &     diag%lfc_ml, &
+      &     diag%lcl_ml, &
       &     diag%cape_mu, &
       &     diag%ceiling_height, &
       &     diag%cin_mu, &
@@ -443,6 +450,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%tcond10_max, &
       &     diag%tcond_max, &
       &     diag%tetfl_turb, &
+      &     diag%tkred_sfc, &
+      &     diag%tkred_sfc_h, &
       &     diag%tt_lheat, &
       &     diag%ttend_lhn, &
       &     diag%twater, &
@@ -528,7 +537,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,4,5,6,7)
+    CASE (1,2,3,4,5,6,7)
 
        ! &      diag%ice_gsp_rate(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp_rate', 'kg m-2 s-1', 'gridscale ice rate', &
@@ -702,7 +711,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,4,5,6,7)
+    CASE (1,2,3,4,5,6,7)
 
        ! &      diag%ice_gsp(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp', 'kg m-2', 'gridscale ice', datatype_flt)
@@ -955,11 +964,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE.                                             )
     __acc_attach(diag%tot_prec_rate_avg)
 
-
-
     ! &      diag%cape(nproma,nblks_c)
     cf_desc    = t_cf_var('cape', 'J kg-1 ', 'conv avail pot energy', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)      &
+    &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
     CALL add_var( diag_list, 'cape', diag%cape,                               &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
                 & ldims=shape2d, lrestart=.FALSE.,                            &
@@ -970,33 +978,32 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%cape)
 
-    ! &      diag%cape_ml(nproma,nblks_c)
-    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-    cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-    &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-    CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE.,                            &
-                & hor_interp=create_hor_interp_metadata(                      &
-                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                & lopenacc=.TRUE. )
-    __acc_attach(diag%cape_ml)
+      ! &      diag%cape_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+      CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cape_ml)
 
-    ! &      diag%cin_ml(nproma,nblks_c)
-    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-    cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
-    grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-    &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-    CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d, lrestart=.FALSE.,                            &
-!!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
-                & hor_interp=create_hor_interp_metadata(                      &
-                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                & lopenacc=.TRUE. )
-    __acc_attach(diag%cin_ml)
-
+      ! &      diag%cin_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+      CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cin_ml)
 
     ! &      diag%gust10(nproma,nblks_c)
     CALL getPTStringFromMS(NINT(1000*gust_interval(k_jg), i8), gust_int)
@@ -2818,7 +2825,9 @@ __acc_attach(diag%clct)
           &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,                   &
           &             lower_limit=0._wp ),                                      &
           & hor_interp=create_hor_interp_metadata(                                &
-          &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB)) 
+          &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
+          & lopenacc=.TRUE.                                                       )
+        __acc_attach(diag%reff_qh)
       END IF
     END IF  ! IF effective radius
 
@@ -2899,13 +2908,22 @@ __acc_attach(diag%clct)
     __acc_attach(diag%tkr)
 
     ! &      diag%tkred_sfc(nproma,nblks_c)
-    cf_desc    = t_cf_var('tkred_sfc', ' ','reduction factor for minimum diffusion coefficients', &
+    cf_desc    = t_cf_var('tkred_sfc', ' ','reduction factor for minimum diffusion coefficients for EPS perturbations', &
          &                DATATYPE_FLT32)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'tkred_sfc', diag%tkred_sfc,                 &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
       & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
     __acc_attach(diag%tkred_sfc)
+
+    ! &      diag%tkred_sfc_h(nproma,nblks_c)
+    cf_desc    = t_cf_var('tkred_sfc_h', ' ','reduction factor for minimum diffusion coefficient for heat for model-DA coupling', &
+         &                DATATYPE_FLT32)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'tkred_sfc_h', diag%tkred_sfc_h,             &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=.TRUE., initval=1._wp, lopenacc=.TRUE. )
+    __acc_attach(diag%tkred_sfc_h)
 
     ! &      diag%pat_len(nproma,nblks_c)
     cf_desc    = t_cf_var('pat_len', 'm','length scale of sub-grid scale roughness elements', &
@@ -3752,16 +3770,20 @@ __acc_attach(diag%clct)
            &                datatype_flt)
       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'bruvais', diag%bruvais,                     &
-        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,      &
-        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE. )
+        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,   &
+        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE.,               &
+        & lopenacc=.TRUE.                                                   )
+      __acc_attach(diag%bruvais)
 
       ! &      diag%mech_prod(nproma,nlev+1,nblks_c)
       cf_desc    = t_cf_var('mech_prod', 'm**2/s**3', 'mechanical production term in TKE Eq', &
            &                datatype_flt)
       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'mech_prod', diag%mech_prod,                     &
-        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,          &
-        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE. )
+        & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,       &
+        & ldims=shape3dkp1, initval=0.0_wp, lrestart=.FALSE.,                   &
+        & lopenacc=.TRUE.                                                       )
+      __acc_attach(diag%mech_prod)
 
       !1D and 0D diagnostic variables that can not be part of add_var
       ALLOCATE( diag%turb_diag_1dvar(klevp1,SIZE(turb_profile_list,1)),  &
@@ -3967,7 +3989,8 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_SDI2, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_SDI2, lrestart=.FALSE., lopenacc=.TRUE.)
+       __acc_attach(diag%sdi2)
     END IF
 
     IF (var_in_output%lpi) THEN
@@ -4225,7 +4248,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_CEILING, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_CEILING, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+    __acc_attach(diag%ceiling_height)
     END IF
 
     IF (var_in_output%vis) THEN
@@ -4250,7 +4275,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_HBAS_SC, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_HBAS_SC, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%hbas_sc)
     END IF
 
     IF (var_in_output%htop_sc) THEN
@@ -4263,7 +4290,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_HTOP_SC, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_HTOP_SC, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%htop_sc)
     END IF
 
     IF (var_in_output%twater) THEN
@@ -4275,7 +4304,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_TWATER, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_TWATER, lrestart=.FALSE.,     &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%twater)
     END IF
 
     IF (var_in_output%q_sedim) THEN
@@ -4467,6 +4498,129 @@ __acc_attach(diag%clct)
                     & l_pp_scheduler_task=TASK_COMPUTE_SRH, lrestart=.FALSE.)
     END IF
 
+    IF (var_in_output%cloudtop) THEN
+      ! &      diag%cloudtop(nproma,nblks_c)
+      cf_desc    = t_cf_var('cloudtop', 'm', 'Cloud top height', datatype_flt)
+      grib2_desc = grib2_var(0, 6, 12, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'cloudtop', diag%cloudtop,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%cloudtop)
+    ENDIF
+
+    IF (var_in_output%si .OR. var_in_output%sli .OR. var_in_output%swiss12 .OR. var_in_output%swiss00) THEN
+      ! &      diag%si(nproma,nblks_c)
+      cf_desc    = t_cf_var('si', 'K', 'Showalter Index', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 13, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'si', diag%si,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%si)
+
+      ! &      diag%sli(nproma,nblks_c)
+      cf_desc    = t_cf_var('sli', 'K', 'Surface Lifted Index', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 10)
+      CALL add_var( diag_list, 'sli', diag%sli,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%sli)
+
+      ! &      diag%swiss12(nproma,nblks_c)
+      cf_desc    = t_cf_var('swiss12', 'K', 'SWISS12 Index', datatype_flt)
+      grib2_desc = grib2_var(215, 7, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
+      CALL add_var( diag_list, 'swiss12', diag%swiss12,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%swiss12)
+
+      ! &      diag%swiss00(nproma,nblks_c)
+      cf_desc    = t_cf_var('swiss00', 'K', 'SWISS00 Index', datatype_flt)
+      grib2_desc = grib2_var(215, 7, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
+      CALL add_var( diag_list, 'swiss00', diag%swiss00,                               &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+                  & in_group=groups("additional_precip_vars"),                  &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                    &
+                  &    fallback_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%swiss00)
+    ENDIF
+
+
+
+    IF (var_in_output%cape_3km .OR. var_in_output%lcl_ml .OR. var_in_output%lfc_ml) THEN
+      ! &      diag%lcl_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('lcl_ml', 'm ', 'Lifted Condensation Level of Mean Layer parcel (HAG)', datatype_flt)
+      grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 5)                  &
+      &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)
+      CALL add_var( diag_list, 'lcl_ml', diag%lcl_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%lcl_ml)
+
+          ! &      diag%lfc_ml(nproma,nblks_c)
+      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+      cf_desc    = t_cf_var('lfc_ml', 'm ', 'Level of Free Convection of Mean Layer parcel (HAG)', datatype_flt)
+      grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+      &           + t_grib2_int_key("typeOfFirstFixedSurface", 194)                &
+      &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)
+      CALL add_var( diag_list, 'lfc_ml', diag%lfc_ml,                           &
+                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                  & ldims=shape2d, lrestart=.FALSE.,                            &
+  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                  & hor_interp=create_hor_interp_metadata(                      &
+                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%lfc_ml)
+      
+      cf_desc    = t_cf_var('cape_3km', 'J kg-1 ',                                 &
+            'Mean Layer CAPE, with endpoint at 3000 m', datatype_flt)
+      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)        &
+            &           + t_grib2_int_key("typeOfFirstFixedSurface", 103)         &
+            &           + t_grib2_int_key("typeOfSecondFixedSurface", 192)        &
+            &           + t_grib2_int_key("scaledValueOfFirstFixedSurface", 3000) &
+            &           + t_grib2_int_key("scaleFactorOfFirstFixedSurface", 0)
+      CALL add_var( diag_list, 'cape_3km', diag%cape_3km,                         &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                         &
+                    & cf_desc, grib2_desc,                                        &
+                    & ldims=shape2d,                                              &
+                    & isteptype=TSTEP_INSTANT,                                    &
+                    & hor_interp=create_hor_interp_metadata(                      &
+                    &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                    & lrestart=.FALSE., lopenacc=.TRUE.)
+      __acc_attach(diag%cape_3km)
+    ENDIF
+
     IF (var_in_output%cape_mu .OR. var_in_output%cin_mu) THEN
       cf_desc    = t_cf_var('cape_mu', 'J kg-1 ',                                 &
            'Most unstable CAPE, approximated by parcel with largest Theta_e in 3000 m layer', datatype_flt)
@@ -4496,7 +4650,8 @@ __acc_attach(diag%clct)
                     & lrestart=.FALSE., lopenacc=.TRUE.)
       __acc_attach(diag%cin_mu)
     END IF
-    
+
+
     IF (var_in_output%dbz .OR. var_in_output%dbz850 .OR. var_in_output%dbzcmax .OR. var_in_output%dbzctmax .OR. &
          var_in_output%dbzlmx_low .OR. var_in_output%echotop .OR. var_in_output%echotopinm) THEN
       cf_desc    = t_cf_var('dbz', 'dBZ',&
@@ -4512,7 +4667,9 @@ __acc_attach(diag%clct)
                   &             vert_intp_method=VINTP_METHOD_LIN,             &
                   &             l_loglin=.FALSE., l_pd_limit=.FALSE.,          &
                   &             l_extrapol=.FALSE., lower_limit=0._wp),        &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),           &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz3d_lin)
     END IF
     
     IF (var_in_output%dbzcmax) THEN
@@ -4527,7 +4684,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZCMAX,                &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_cmax)
     END IF
 
     IF (var_in_output%dbz850) THEN
@@ -4541,7 +4700,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZ850,                 &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_850)
     END IF
 
     IF (var_in_output%dbzlmx_low) THEN
@@ -4568,7 +4729,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.FALSE., loutput=.TRUE.,                        &
                   & l_pp_scheduler_task=TASK_COMPUTE_DBZLMX_LOW,             &
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp) )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),         &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbzlmx_low)
     END IF
 
     IF (var_in_output%dbzctmax) THEN
@@ -4587,7 +4750,9 @@ __acc_attach(diag%clct)
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
                   & resetval=0.0_wp, initval=0.0_wp,                            &
                   & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), & 
-                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp)             )
+                  & post_op=post_op(POST_OP_LIN2DBZ, arg1=1e-15_wp),            &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%dbz_ctmax)
     END IF
 
     IF (var_in_output%echotop) THEN
@@ -4610,7 +4775,9 @@ __acc_attach(diag%clct)
                   & hor_interp=create_hor_interp_metadata(                      &
                   &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
 !!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
-                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
+                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%echotop)
     END IF
 
     IF (var_in_output%echotopinm) THEN
@@ -4633,7 +4800,9 @@ __acc_attach(diag%clct)
                   & hor_interp=create_hor_interp_metadata(                      &
                   &            hor_intp_type=HINTP_TYPE_LONLAT_NNB),            &
 !!$                  & lmiss=.TRUE., missval=-999.0_wp,                            &
-                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) )  )
+                  & action_list=actions( new_action( ACTION_RESET, echotop_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%echotopinm)
     END IF
 
 
@@ -4647,7 +4816,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE. )
+        __acc_attach(diag%dursun_m)
       ! &      diag%dursun_r(nproma,nblks_c)
       cf_desc    = t_cf_var('relative_duration_of_sunshine', '%', 'relative duration of sunshine', datatype_flt)
       grib2_desc = grib2_var(0, 6, 206, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -4656,7 +4827,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE.)
+        __acc_attach(diag%dursun_r)
     END IF
     IF (var_in_output%dursun) THEN
       ! &      diag%dursun(nproma,nblks_c)
@@ -4667,7 +4840,9 @@ __acc_attach(diag%clct)
         &           ldims=shape2d,                                              &
         &           lrestart=.TRUE., isteptype=TSTEP_ACCUM ,                    &
         &           initval=0._wp, resetval=0._wp,                              &
-        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))) )
+        &           action_list=actions(new_action(ACTION_RESET,sunshine_interval(k_jg))), &
+        &           lopenacc=.TRUE.)
+        __acc_attach(diag%dursun)
     END IF
 
 
@@ -5220,9 +5395,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE. )
     __acc_attach(phy_tend%ddt_temp_clcov)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     cf_desc    = t_cf_var('ddt_temp_drag', 'K s-1', &
            &                'sso + gwdrag temperature tendency', datatype_flt)
     grib2_desc = grib2_var(192, 162, 125, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -5247,9 +5419,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & ldims=shape3d, in_group=groups("phys_tendencies"),            &
                   & lopenacc=.TRUE. )
                   __acc_attach(phy_tend%ddt_temp_pconv)
-#ifndef __NO_ICON_LES__
-    ENDIF
-#endif
 
 #ifndef __NO_ICON_LES__
     IF (atm_phy_nwp_config(k_jg)%is_les_phy .OR. &
@@ -5288,9 +5457,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE.)
     __acc_attach(phy_tend%ddt_u_turb)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     ! &      phy_tend%ddt_u_sso(nproma,nlev,nblks)
     cf_desc    = t_cf_var('ddt_u_sso', 'm s-2', &
             &                            'sso tendency of zonal wind', datatype_flt)
@@ -5330,9 +5496,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                    & lopenacc=.TRUE. )
        __acc_attach(phy_tend%ddt_u_pconv)
 
-#ifndef __NO_ICON_LES__
-    END IF
-#endif
 
     !------------------------------
     ! Meridional Wind tendencies
@@ -5351,9 +5514,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                 & in_group=groups("phys_tendencies"), lopenacc=.TRUE.)
     __acc_attach(phy_tend%ddt_v_turb)
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     ! &      phy_tend%ddt_v_sso(nproma,nlev,nblks)
     cf_desc    = t_cf_var('ddt_v_sso', 'm s-2', &
            &                            'sso tendency of meridional wind', datatype_flt)
@@ -5394,8 +5554,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_v_pconv)
 
 #ifndef __NO_ICON_LES__
-    END IF
-
     !------------------------------
     ! Vertical Wind tendencies
     !------------------------------
@@ -5411,7 +5569,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
                   & vert_intp_type=vintp_types("P","Z","I"),                      &
                   & vert_intp_method=VINTP_METHOD_LIN),                           &
                   & ldims=shape3d, lrestart=.FALSE.,                              &
-                  & initval=0._wp, in_group=groups("phys_tendencies") )
+                  & initval=0._wp, in_group=groups("phys_tendencies"),            &
+                  & lopenacc=.TRUE. )
+      __acc_attach(phy_tend%ddt_w_turb)
     END IF
 #endif
 
@@ -5487,9 +5647,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
 
     ! --- Convection moist tracer tendencies
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     cf_desc    = t_cf_var('ddt_tracer_pconv', 'kg m-3 s-1', &
            &                            'convective tendency of tracers', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -5577,10 +5734,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     ENDIF
 #endif
 
-#ifndef __NO_ICON_LES__
-    END IF !.not.is_les_phy
-#endif
-
     ! --- Microphysics moist tracer tendencies
 
     IF ( is_variable_in_output(var_name="ddt_qv_gscp") .OR.   &
@@ -5598,9 +5751,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
       __acc_attach(phy_tend%ddt_tracer_gscp)
 
       IF (lart) THEN
-       ktracer=5 + nart_tendphy 
+       ktracer=6 + nart_tendphy 
       ELSE
-       ktracer=5
+       ktracer=6
       ENDIF
       ALLOCATE( phy_tend%tracer_gscp_ptr(ktracer) )
 
@@ -5710,9 +5863,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     ! TKE tendency
     !------------------------------
 
-#ifndef __NO_ICON_LES__
-    IF ( .NOT. atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
-#endif
     !      phy_tend%ddt_tke(nproma,nlevp1,nblks)
     cf_desc    = t_cf_var('ddt_tke', 'm s-2'          , &
            &                'tendency of turbulent velocity scale', datatype_flt)
@@ -5760,7 +5910,6 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_tke_hsh)
 
 #ifndef __NO_ICON_LES__
-    END IF
  
    !Anurag Dipankar, MPIM (2013-May-31)
    !Large-scale tendencies for idealized testcases: add_var doesn't work

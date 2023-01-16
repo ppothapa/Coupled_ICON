@@ -616,7 +616,10 @@ SUBROUTINE graupel     (             &
   ENDIF
 
   !$ACC DATA &
-  !$ACC   CREATE(t_in, qv_in, qc_in, qi_in, qr_in, qs_in, qg_in) IF(lldiag_qtend)
+  !$ACC   CREATE(qv_in, qc_in, qi_in, qr_in, qs_in, qg_in) IF(lldiag_qtend)
+
+  !$ACC DATA &
+  !$ACC   CREATE(t_in) IF(lldiag_ttend)
 
   ! save input arrays for final tendency calculation
   IF (lldiag_ttend) THEN
@@ -1628,7 +1631,8 @@ SUBROUTINE graupel     (             &
   ENDIF
 
   !$ACC WAIT
-  !$ACC END DATA
+  !$ACC END DATA ! lldiag_ttend
+  !$ACC END DATA ! lldiag_qtend
   !$ACC END DATA
 
 !------------------------------------------------------------------------------

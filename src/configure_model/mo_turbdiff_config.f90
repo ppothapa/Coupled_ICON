@@ -90,6 +90,8 @@ MODULE mo_turbdiff_config
       &  pat_len   !
     REAL(wp):: &   ! scaling factor for stability correction of 'tur_len'
       &  a_stab    !
+    REAL(wp):: &   ! mode of estimating the Charnock-Parameter
+      & imode_charpar
     REAL(wp):: &   ! lower limit of velocity-dependent Charnock-parameter
       &  alpha0    !
     REAL(wp):: &   ! upper limit of velocity-dependent Charnock-parameter

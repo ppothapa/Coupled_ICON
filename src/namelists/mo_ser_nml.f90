@@ -33,22 +33,24 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_turbtrans(3)
   INTEGER, TARGET ::  ser_convection(3)
   INTEGER, TARGET ::  ser_cover(3)
+  INTEGER, TARGET ::  ser_set_reff(3)
   INTEGER, TARGET ::  ser_radiation(3)
   INTEGER, TARGET ::  ser_radheat(3)
   INTEGER, TARGET ::  ser_gwdrag(3)
   INTEGER, TARGET ::  ser_time_loop_end(3)
   INTEGER, TARGET ::  ser_reset_to_initial_state(3)
-  INTEGER, TARGET ::  ser_all_debug(3)                   !! serialize statements using ser_all anywhere for debug purposes
+  INTEGER, TARGET ::  ser_all_debug(3)            !! serialize statements using ser_all anywhere for debug purposes
+  LOGICAL  ::  ser_rbf
   REAL(wp) ::  ser_nfail
-  INTEGER ::  ser_nreport
-  LOGICAL ::  ser_debug                          !! serialize the debug calls from mo_ser_debug
+  INTEGER  ::  ser_nreport
+  LOGICAL  ::  ser_debug                          !! serialize the debug calls from mo_ser_debug
 
   NAMELIST /ser_nml/ ser_initialization, ser_output_diag, ser_output_opt, ser_output_diag_dyn, ser_latbc_data, &
   &                  ser_nesting_save_progvars, ser_dynamics, &
-  &                  ser_debug, ser_diffusion, ser_nesting_compute_tendencies, ser_nesting_boundary_interpolation, &
-  &                  ser_nesting_relax_feedback, ser_physics_init, &
+  &                  ser_debug, ser_rbf, ser_diffusion, ser_nesting_compute_tendencies, &
+  &                  ser_nesting_boundary_interpolation, ser_nesting_relax_feedback, ser_physics_init, &
   &                  ser_step_advection, ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
-  &                  ser_microphysics, ser_convection, ser_cover, ser_radiation, ser_radheat, &
+  &                  ser_microphysics, ser_convection, ser_cover, ser_set_reff, ser_radiation, ser_radheat, &
   &                  ser_turbtrans, ser_turbdiff, ser_gwdrag, ser_time_loop_end, ser_reset_to_initial_state, &
   &                  ser_nfail, ser_nreport
 
@@ -86,6 +88,7 @@ MODULE mo_ser_nml
    ser_turbdiff = param_def
    ser_convection = param_def
    ser_cover = param_def
+   ser_set_reff = param_def
    ser_radiation = param_def
    ser_radheat = param_def
    ser_gwdrag = param_def
@@ -95,6 +98,7 @@ MODULE mo_ser_nml
    ser_nfail = 1._wp
    ser_nreport = 10
    ser_debug = .FALSE.
+   ser_rbf = .FALSE.
 
    IF (my_process_is_stdio()) THEN
      iunit = temp_defaults()

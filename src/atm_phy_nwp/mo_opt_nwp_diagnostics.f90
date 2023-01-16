@@ -33,14 +33,11 @@ MODULE mo_opt_nwp_diagnostics
     &                                 rhoh2o, rhoice, K_w_0, K_i_0
   USE mo_convect_tables,        ONLY: c1es, c3les, c4les
   USE gscp_data,                ONLY: cloud_num
-  USE mo_2mom_mcrph_main,       ONLY: init_2mom_scheme,      &
-    &                                 rain_coeffs  ! contains the parameters for the mue-Dm-relation
-  USE mo_2mom_mcrph_types,      ONLY: particle, particle_frozen
-  USE mo_2mom_mcrph_util,       ONLY: gfct
-  USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
+  USE mo_nh_diagnose_pres_temp, ONLY: calc_qsum
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE mo_exception,             ONLY: finish, message
-  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only
+  USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
+    &                                 init
   USE mo_impl_constants,        ONLY: min_rlcell_int, min_rledge_int, &
     &                                 min_rlcell, grf_bdywidth_c
   USE mo_impl_constants_grf,    ONLY: grf_bdyintp_start_c,  &
@@ -83,7 +80,7 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_mpi,                     ONLY: get_my_mpi_work_comm_size
   USE gscp_data,                  ONLY: isnow_n0temp
 #endif
-  
+
   IMPLICIT NONE
 
   PRIVATE
@@ -105,8 +102,11 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_vorw_ctmax
   PUBLIC :: compute_field_w_ctmax
   PUBLIC :: compute_field_smi
+  PUBLIC :: cal_cloudtop
   PUBLIC :: cal_cape_cin
   PUBLIC :: cal_cape_cin_mu
+  PUBLIC :: cal_cape_cin_mu_COSMO
+  PUBLIC :: cal_si_sli_swiss
   PUBLIC :: compute_field_dbz3d_lin
   PUBLIC :: compute_field_dbzcmax
   PUBLIC :: compute_field_dbz850
@@ -365,14 +365,14 @@ CONTAINS
   !! Initial revision by Daniel Reinert, DWD (2017-05-03) 
   !!
   SUBROUTINE compute_field_smi(ptr_patch, diag_lnd, ext_data, out_var, &
-    &                            opt_rlstart, opt_rlend)
+    &                            opt_rlstart, opt_rlend, lacc)
 
     TYPE(t_patch)        , INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
     TYPE(t_lnd_diag)     , INTENT(IN)    :: diag_lnd               !< nwp diag land state
     TYPE(t_external_data), INTENT(IN)    :: ext_data               !< ext_data state
     REAL(wp)             , INTENT(INOUT) :: out_var(:,:,:)         !< output variable, dim: (nproma,nlev,nblks_c)
     INTEGER, INTENT(IN), OPTIONAL        :: opt_rlstart, opt_rlend !< start and end values of refin_ctrl flag
-
+    LOGICAL              , INTENT(IN), OPTIONAL :: lacc            !< If true, use openacc
 
     ! local
     INTEGER :: rl_start, rl_end
@@ -380,7 +380,13 @@ CONTAINS
     INTEGER :: jc, jk, jb, ic  
     INTEGER :: i_count
     INTEGER :: ierr, ierr_wsoil2smi
+    LOGICAL :: lzacc ! non-optional version of lacc
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+   !$ACC DATA &
+   !$ACC   PRESENT(ptr_patch, diag_lnd%w_so, dzsoil, ext_data%atm%list_land%ncount) &
+   !$ACC   PRESENT(ext_data%atm%soiltyp, out_var) IF(lzacc)
     ! default values
     rl_start = 2
     rl_end   = min_rlcell_int-1
@@ -400,10 +406,11 @@ CONTAINS
 
       ! loop over target (ICON) land points only
       i_count = ext_data%atm%list_land%ncount(jb)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG PRIVATE(jc)
       DO ic = 1, i_count
         jc = ext_data%atm%list_land%idx(ic,jb)
-
+        !$ACC LOOP VECTOR PRIVATE(ierr_wsoil2smi) REDUCTION(MIN: ierr)
         DO jk = 1, nlev_soil-1
 
           CALL wsoil2smi(wsoil   = diag_lnd%w_so(jc,jk,jb),     & !in
@@ -417,7 +424,7 @@ CONTAINS
         ! assume no-gradient condition for soil moisture reservoir layer
         out_var(jc,nlev_soil,jb) = out_var(jc,nlev_soil-1,jb)
       ENDDO
-
+      !$ACC END PARALLEL
       IF (ierr < 0) THEN
         CALL finish("compute_field_smi", "Landpoint has invalid soiltype (sea water or sea ice)")
       ENDIF
@@ -425,7 +432,7 @@ CONTAINS
     ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_smi
 
 
@@ -665,7 +672,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_sdi( ptr_patch, jg, ptr_patch_local_parent, p_int,    &
                                 p_metrics, p_prog, p_diag,                 &
-                                sdi_2 )
+                                sdi_2, lacc)
 
     IMPLICIT NONE
 
@@ -679,6 +686,7 @@ CONTAINS
     TYPE(t_nh_diag),    INTENT(IN)    :: p_diag
  
     REAL(wp),           INTENT(OUT)   :: sdi_2(:,:)    !< output variable, dim: (nproma,nblks_c)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
@@ -736,6 +744,19 @@ CONTAINS
     INTEGER :: nblks_c_lp
 
     REAL(wp) :: EPS = 1.0E-20_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_diag%vor, p_int%cell_environ%idx) &
+    !$ACC   PRESENT(p_int%cell_environ%blk, p_int%cell_environ%area_norm) &
+    !$ACC   PRESENT(p_metrics%z_ifc, p_prog%w, sdi_2) &
+    !$ACC   CREATE(hsurf, vol) &
+    !$ACC   CREATE(w_vmean, zeta_vmean, w_w_vmean, zeta_zeta_vmean, w_zeta_vmean) &
+    !$ACC   CREATE(w_mean, zeta_mean, w_w_mean, zeta_zeta_mean, w_zeta_mean) &
+    !$ACC   CREATE(p_mean) IF(lzacc)
+
 
     ! definition of the vertical integration limits:
     z_min = 1500.0  ! in m
@@ -755,7 +776,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         !sdi_1   ( jc, jb ) = 0.0_wp
         sdi_2 ( jc, jb ) = 0.0_wp
@@ -767,6 +789,7 @@ CONTAINS
         w_zeta_vmean   (jc,jb) = 0.0_wp
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -787,6 +810,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
 
         w_vmean        (jc,jb) = 0.0_wp
@@ -798,8 +823,9 @@ CONTAINS
         vol  (jc) = 0.0_wp
         hsurf(jc) = p_metrics%z_ifc(jc,ptr_patch%nlev+1,jb)
       END DO
-
+      !$ACC LOOP SEQ
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(delta_z, w_c)
         DO jc = i_startidx, i_endidx
 
           IF ( ( p_metrics%z_ifc(jc,jk+1,jb) >= hsurf(jc) + z_min ) .AND.      &
@@ -822,7 +848,7 @@ CONTAINS
 
         END DO
       END DO
-
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(vol_inv)
       DO jc = i_startidx, i_endidx
         vol_inv = 1.0_wp / vol(jc)
         w_vmean        (jc,jb) = w_vmean        (jc,jb) * vol_inv
@@ -831,7 +857,7 @@ CONTAINS
         zeta_zeta_vmean(jc,jb) = zeta_zeta_vmean(jc,jb) * vol_inv
         w_zeta_vmean   (jc,jb) = w_zeta_vmean   (jc,jb) * vol_inv
       END DO
-
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -850,13 +876,14 @@ CONTAINS
     iidx => p_pp%cells%child_idx
     iblk => p_pp%cells%child_blk
 
+
     nblks_c_lp = p_pp%cells%end_block( min_rlcell )
 
     ALLOCATE( p_vmean ( nproma, 5, nblks_c_lp), STAT=ist )
     IF ( ist /= 0 ) THEN
       CALL finish( modname//':compute_field_sdi', "allocate failed" )
     END IF
-
+    !$ACC DATA CREATE(p_vmean) IF(lzacc)
     ! first nullify all lateral grid points
 
     ! Start/End block in the parent domain
@@ -876,12 +903,14 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO idx=1, 5
         DO jc = i_startidx, i_endidx
           p_vmean ( jc, idx, jb ) = 0.0_wp
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -904,7 +933,8 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
 
         p_vmean(jc, idx_w, jb) =                                                 &
@@ -938,10 +968,11 @@ CONTAINS
           + w_zeta_vmean   ( iidx(jc,jb,4), iblk(jc,jb,4) ) * p_fbkwgt(jc,jb,4)
 
        END DO
+       !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  
     ! --- Exchange of these fields on the parent grid
 
     CALL exchange_data( p_pp%comm_pat_c, recv=p_vmean )
@@ -960,12 +991,17 @@ CONTAINS
 
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,             &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      DO jc = i_startidx, i_endidx
-        p_mean( jc, 1:5 ) = 0.0_wp
-      END DO
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO idx=1, 5
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          p_mean( jc, idx ) = 0.0_wp
+        END DO
+      ENDDO
+      !$ACC LOOP SEQ
       DO l=1, p_int%cell_environ%max_nmbr_nghbr_cells
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jc2, jb2, area_norm)
         DO jc = i_startidx, i_endidx
 
           jc2       = p_int%cell_environ%idx      ( jc, jb, l)
@@ -982,7 +1018,9 @@ CONTAINS
       END DO
 
       ! write back to the 4 child grid cells:
+      !$ACC LOOP SEQ
       DO i = 1, 4
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           w_mean        ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_w )
           zeta_mean     ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_zeta )
@@ -991,10 +1029,10 @@ CONTAINS
           w_zeta_mean   ( iidx(jc,jb,i), iblk(jc,jb,i) ) = p_mean( jc, idx_w_zeta )
         END DO
       END DO
-
+      !$ACC END PARALLEL
     END DO
 !$OMP END PARALLEL
-
+    !$ACC END DATA ! p_vmean
     DEALLOCATE( p_vmean, STAT=ist ) 
     IF ( ist /= 0 ) THEN
       CALL finish( modname//':compute_field_sdi', "deallocate failed" )
@@ -1015,6 +1053,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,      &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(helic_mean, zeta2_mean, w2_mean, helic_w_corr)
       DO jc = i_startidx, i_endidx
 
         helic_mean  = w_zeta_mean(jc,jb)    - w_mean(jc,jb) * zeta_mean(jc,jb)
@@ -1039,10 +1079,11 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_sdi
 
 
@@ -1107,10 +1148,8 @@ CONTAINS
 
     REAL(wp) :: frac_w( nproma, ptr_patch%nblks_c )
 
-    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk, idx, blk
-    INTEGER :: size1,size2,size3
+    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk
     INTEGER :: nblks_c_lp
-    REAL(wp),DIMENSION(:,:,:), POINTER :: area_norm
     LOGICAL :: lzacc ! non-optional version of lacc
 
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -1562,7 +1601,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_ceiling( ptr_patch, jg,    &
                                 p_metrics, prm_diag,  &
-                                ceiling_height )
+                                ceiling_height, lacc )
 
     IMPLICIT NONE
 
@@ -1572,6 +1611,9 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: ceiling_height(:,:)    !< output variable, dim: (nproma,nblks_c)
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc ! If true, use openacc
+    ! Local scalar and arrays
+    ! -----------------------
 
     LOGICAL ::  cld_base_found( nproma ) 
 
@@ -1579,7 +1621,14 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+    LOGICAL :: lzacc
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(ceiling_height, ptr_patch) &
+    !$ACC   PRESENT(p_metrics, prm_diag, kstart_moist(jg)) &
+    !$ACC   CREATE(cld_base_found) &
+    !$ACC   IF(lzacc)
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -1593,24 +1642,26 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      
+      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
         ceiling_height(jc,jb) = p_metrics%z_mc(jc,1,jb)  ! arbitrary default value
       END DO
-
+      !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
-
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
-
           IF ( .NOT.(cld_base_found(jc)) .AND. (prm_diag%clc(jc,jk,jb) > 0.5_wp) ) THEN
             ceiling_height(jc,jb) = p_metrics%z_mc(jc,jk,jb)
             cld_base_found(jc) = .TRUE.
           ENDIF
-
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
     ENDDO
+  !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -1627,7 +1678,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_hbas_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
-                                hbas_sc )
+                                hbas_sc, lacc)
 
     IMPLICIT NONE
 
@@ -1636,13 +1687,21 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: hbas_sc(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    LOGICAL,              INTENT(IN), OPTIONAL :: lacc   !< If true, use openacc
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jc, idx
+    
 
     REAL(wp), PARAMETER :: undefValue = 0.0_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_metrics%z_mc, prm_diag%ktype) &
+    !$ACC   PRESENT(prm_diag%mbas_con, hbas_sc) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -1657,7 +1716,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(idx)
       DO jc = i_startidx, i_endidx
 
         IF ( prm_diag%ktype(jc,jb) == 2 ) THEN
@@ -1669,10 +1729,11 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_hbas_sc
 
 
@@ -1686,7 +1747,7 @@ CONTAINS
   !!
   SUBROUTINE compute_field_htop_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
-                                htop_sc )
+                                htop_sc, lacc)
 
     IMPLICIT NONE
 
@@ -1695,13 +1756,20 @@ CONTAINS
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
 
     REAL(wp),             INTENT(OUT) :: htop_sc(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    LOGICAL,              INTENT(IN), OPTIONAL :: lacc   !< If true, use openacc
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jc, idx
 
     REAL(wp), PARAMETER :: undefValue = 0.0_wp
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   PRESENT(ptr_patch, p_metrics%z_mc, prm_diag%ktype) &
+    !$ACC   PRESENT(prm_diag%mbas_con, htop_sc) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -1716,7 +1784,8 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(idx)
       DO jc = i_startidx, i_endidx
 
         IF ( prm_diag%ktype(jc,jb) == 2 ) THEN
@@ -1728,116 +1797,124 @@ CONTAINS
         END IF
 
       END DO
+      !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
+  !$ACC END DATA
   END SUBROUTINE compute_field_htop_sc
 
 
   !>
-  !! Calculate total column integrated water (twater)
+  !! Calculate total column integrated water in kg m-2 (twater)
   !!
   !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
+  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
+  !! Rewrite which uses a water tracer index list by Daniel Reinert, DWD (2022-11-16)
   !!
-  SUBROUTINE compute_field_twater( ptr_patch, jg,      &
-                                   p_metrics, p_prog, p_prog_rcf,  &
-                                   twater )
+  SUBROUTINE compute_field_twater( p_patch, ddqz_z_full, rho, tracer,  &
+                                   idx_list_condensate, twater, opt_slev, lacc )
 
-    IMPLICIT NONE
+    TYPE(t_patch),     INTENT(IN)  :: p_patch                !< patch on which computation is performed
+    REAL(wp),          INTENT(IN)  :: ddqz_z_full(:,:,:)     !< cell height [m]
+    REAL(wp),          INTENT(IN)  :: rho(:,:,:)             !< total air density [kg m-3]
+    REAL(wp),          INTENT(IN)  :: tracer(:,:,:,:)        !< tracer mass fractions [kg kg-1]
+    INTEGER,           INTENT(IN)  :: idx_list_condensate(:) !< IDs of all water tracers
+                                                             !< excluding qv
+    REAL(wp),          INTENT(OUT) :: twater(:,:)            !< total column integrated water [kg m-2]
+                                                             !< dim: (nproma,nblks_c)
+    INTEGER, OPTIONAL, INTENT(IN)  :: opt_slev               !< vertical start level
+    LOGICAL, OPTIONAL, INTENT(IN)  :: lacc                   !< if true, use OpenACC
 
-    TYPE(t_patch),        INTENT(IN)  :: ptr_patch     !< patch on which computation is performed
-    INTEGER,              INTENT(IN)  :: jg            ! domain ID of main grid
-    TYPE(t_nh_metrics),   INTENT(IN)  :: p_metrics
-    TYPE(t_nh_prog),      INTENT(IN)  :: p_prog, p_prog_rcf
-
-    REAL(wp),             INTENT(OUT) :: twater(:,:)    !< output variable, dim: (nproma,nblks_c)
-
+    ! Local variables
+    !----------------
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+    INTEGER :: jg
+    INTEGER :: slev              ! start level
+    INTEGER :: slev_moist        ! start level for moisture variables other than qv
 
-    REAL(wp) :: q_water( nproma, ptr_patch%nlev )
+    REAL(wp):: q_water( nproma, p_patch%nlev )
+    LOGICAL :: lzacc             ! OpenACC flag
 
-    ! without halo or boundary  points:
+    CHARACTER(len=*), PARAMETER :: routine = modname//':compute_field_twater'
+
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA &
+    !$ACC   CREATE(q_water) &
+    !$ACC   IF(lzacc)
+
+    jg = p_patch%id
+
+    ! sanity check
+    !
+    IF (ANY(idx_list_condensate > SIZE(tracer,4))) THEN
+      CALL finish( routine, "tracer ID exceeds size of tracer container" )
+    END IF
+
+    IF ( PRESENT(opt_slev) ) THEN
+      slev = opt_slev
+    ELSE
+      slev = 1
+    ENDIF
+    ! start index for moisture variables other than qv
+    slev_moist = MAX(kstart_moist(jg),slev)
+
+    ! without halo or boundary points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
 
-    i_startblk = ptr_patch%cells%start_block( i_rlstart )
-    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+    i_startblk = p_patch%cells%start_block( i_rlstart )
+    i_endblk   = p_patch%cells%end_block  ( i_rlend   )
 
-    twater( :, 1:i_startblk-1 ) = 0.0_wp
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,q_water), ICON_OMP_RUNTIME_SCHEDULE
+    CALL init(twater(:,:))
+
+!$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx,q_water), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      DO jk = 1, ptr_patch%nlev
+      ! get total mass fraction of condensates (excluding qv)
+      ! calc_sum ensures that q_water is initialized with zero for slev<=jk<=slev_moist
+      !
+      CALL calc_qsum (tracer(:,:,:,:), q_water(:,:), idx_list_condensate, &
+        &             jb, i_startidx, i_endidx, slev, slev_moist, p_patch%nlev)
+
+      ! add contribution by qv
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = slev, p_patch%nlev
         DO jc = i_startidx, i_endidx
-          q_water(jc,jk) = p_prog_rcf%tracer(jc,jk,jb,iqv)   &
-            &            + p_prog_rcf%tracer(jc,jk,jb,iqc)
+          q_water(jc,jk) = q_water(jc,jk) + tracer(jc,jk,jb,iqv)
         END DO
       END DO
+      !$ACC END PARALLEL
 
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqi)%p_3d ) ) THEN
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqi)
-          END DO
-        END DO
-      END IF
-
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqr)%p_3d ) ) THEN
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqr)
-          END DO
-        END DO
-      END IF
-
-      IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqs)%p_3d ) ) THEN
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqs)
-          END DO
-        END DO
-      END IF
-
-      IF ( atm_phy_nwp_config(jg)%lhave_graupel ) THEN
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqg)
-          END DO
-        END DO
-      END IF
-
-      IF ( atm_phy_nwp_config(jg)%l2moment ) THEN
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          DO jc = i_startidx, i_endidx
-            q_water(jc,jk) = q_water(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqh)
-          END DO
-        END DO
-      END IF
-
-      ! calculate vertically integrated mass
-
-      twater(:, jb) = 0.0_wp
-      DO jk = 1, ptr_patch%nlev
+      ! integrate over column
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO jk = slev, p_patch%nlev
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           twater(jc,jb) = twater(jc,jb)       &
-            &            + p_prog%rho(jc,jk,jb) * q_water(jc,jk) * p_metrics%ddqz_z_full(jc,jk,jb)
+            &            + rho(jc,jk,jb) * q_water(jc,jk) * ddqz_z_full(jc,jk,jb)
         END DO
       END DO
-
-    END DO
+      !$ACC END PARALLEL
+    ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC END DATA
   END SUBROUTINE compute_field_twater
 
 
@@ -2291,11 +2368,18 @@ CONTAINS
   !! Output: 
   !!         - cape_ml/cin_ml: CAPE/CIN based on a parcel with thermodynamical 
   !!                           properties of the lowest mean layer in the PBL (50hPa)
+  !!         - cape_3km/cin_3km: CAPE/CIN based on a parcel with thermodynamical 
+  !!                           properties of the lowest mean layer in the PBL (50hPa)
+  !!                           with end of ascent at 3 km HAG.
+  !!         - lcl_ml/lfc_ml: Lifting Condensation Level/Level of Free Convection
+  !!                           based on a parcel with thermodynamical properties of the lowest
+  !!                           mean layer in the PBL (50hPa)(ABOVE GROUND level) 
   !!
   !!----------------------------------------------------------------------------
   
-  SUBROUTINE cal_cape_cin ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                            cape_ml, cin_ml, lacc )
+  SUBROUTINE cal_cape_cin ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl, & ! in
+                            cape_ml, cin_ml, cape_3km, lcl_ml, lfc_ml,       & ! out 
+                            lacc )                                             ! in (optional)
 
     ! Input data
     !----------- 
@@ -2304,16 +2388,21 @@ CONTAINS
          kmoist                    ! start index for moist processes
 
     REAL    (wp),    INTENT (IN) ::  &
-         te  (:,:),   & ! environment temperature
-         qve (:,:),   & ! environment specific humidity
-         prs (:,:),   & ! full level pressure
-         hhl (:,:)      ! height of half levels
+         te  (:,:),         & ! environment temperature
+         qve (:,:),         & ! environment specific humidity
+         prs (:,:),         & ! full level pressure
+         hhl (:,:)            ! height of half levels
 
     ! Output data
     !------------ 
     REAL (wp), INTENT (OUT) :: &
-         cape_ml  (:),   & ! mixed layer CAPE_ML
-         cin_ml   (:)      ! mixed layer CIN_ML
+         cape_ml   (:),  & ! mixed layer CAPE_ML
+         cin_ml    (:)     ! mixed layer CIN_ML
+
+    REAL (wp), INTENT (OUT), OPTIONAL :: &
+         cape_3km  (:),  & ! mixed layer CAPE_ML, with endpoint 3km
+         lcl_ml    (:),  & ! mixed layer Lifting Condensation Level ABOVE GROUND level
+         lfc_ml    (:)     ! mixed layer Level of Free Convection ABOVE GROUND level
 
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
@@ -2323,23 +2412,32 @@ CONTAINS
     REAL(wp) :: &
          qvp_start(SIZE(te,1)), & ! parcel initial specific humidity in mixed layer
          tp_start (SIZE(te,1)), & ! parcel initial potential temperature in mixed layer
-         te_start (SIZE(te,1))    ! parcel initial temperature at center height of mixed layer
+         te_start (SIZE(te,1)), & ! parcel initial temperature at center height of mixed layer
+         hl_l,hl_u                ! height of full levels in order to find the closest model level
 
     INTEGER :: &
-         i, k, nlev,             &
+         jc, k, nlev,             &
          kstart(SIZE(te,1)),     & ! Model level corresponding to start height of parcel
-         k_ml(SIZE(te,1))          ! Index for calculation of mixed layer averages 
+         klcl  (SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
+         klfc  (SIZE(te,1)),     & ! Level of Free Convection LFC and
+         kel   (SIZE(te,1)),     & ! Equilibrium level EL
+         k_ml  (SIZE(te,1))        ! Index for calculation of mixed layer averages 
                                    ! (potential temperature, moisture)
+
 #ifndef _OPENACC
     LOGICAL :: lexit(SIZE(te,1))
 #endif
 
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: &
+         lzacc,         & ! non-optional version of lacc
+         l3km,          & ! true if cape_3km is requested
+         llev             ! true if either lfc_ml or lcl_ml is requested
 
     ! Local parameters:
     !------------------
     
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
 
     ! Depth of mixed surface layer: 50hPa following Huntrieser, 1997.
     ! Other frequently used value is 100hPa.
@@ -2358,80 +2456,123 @@ CONTAINS
     !------------------------------------------------------------------------------
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(k_ml, kstart, qvp_start, tp_start, te_start) &
-    !$ACC   PRESENT(te, qve, prs, hhl, cape_ml, cin_ml) &
-    !$ACC   IF(lzacc)
+    IF (PRESENT(cape_3km)) THEN
+      l3km = .TRUE.
+    ELSE
+      l3km = .FALSE.
+    ENDIF
+
+    IF (PRESENT(lfc_ml) .OR. PRESENT(lcl_ml)) THEN
+      llev = .TRUE.
+    ELSE
+      llev = .FALSE.
+    ENDIF
 
     nlev = SIZE( te,2)
-    
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
-    do i = 1, SIZE( te,1)
-      k_ml  (i)  = nlev  ! index used to step through the well mixed layer
-      kstart(i)  = nlev  ! index of model level corresponding to average 
+
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl) &
+    !$ACC   PRESENT(cape_ml, cin_ml, cape_3km, lcl_ml, lfc_ml) &
+    !$ACC   CREATE(qvp_start, tp_start, te_start) &
+    !$ACC   CREATE(kstart, klcl, klfc, k_ml) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx
+      k_ml  (jc)  = nlev  ! index used to step through the well mixed layer
+      kstart(jc)  = nlev  ! index of model level corresponding to average 
+      klfc  (jc)  = nlev  !
+      klcl  (jc)  = nlev  !
       ! mixed layer pressure
-      qvp_start(i) = 0.0_wp ! specific humidities in well mixed layer
-      tp_start (i) = 0.0_wp ! potential temperatures in well mixed layer
+      qvp_start(jc) = 0.0_wp ! specific humidities in well mixed layer
+      tp_start (jc) = 0.0_wp ! potential temperatures in well mixed layer
+      ! outputs
+      cape_ml  (jc) = 0.0_wp 
+      cin_ml   (jc) = missing_value
 #ifndef _OPENACC
-      lexit(i)     = .FALSE.
+      lexit(jc)     = .FALSE.
 #endif
     ENDDO
-    !$ACC END PARALLEL
 
+    
     ! now calculate the mixed layer average potential temperature and 
     ! specific humidity
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = nlev, kmoist, -1
 #ifndef _OPENACC
       IF (ALL(lexit(i_startidx:i_endidx))) EXIT
 #endif
       !$ACC LOOP GANG(STATIC: 1) VECTOR
-      DO i = i_startidx, i_endidx
-
-        IF ( prs(i,k) > (prs(i,nlev) - ml_depth)) THEN
-          qvp_start(i) = qvp_start(i) + qve(i,k)
-          tp_start (i) = tp_start (i) + te (i,k)*(p0/prs(i,k))**rd_o_cpd
+      DO jc = i_startidx, i_endidx
+        IF ( prs(jc,k) > (prs(jc,nlev) - ml_depth)) THEN
+          qvp_start(jc) = qvp_start(jc) + qve(jc,k)
+          tp_start (jc) = tp_start (jc) + te (jc,k)*(p0/prs(jc,k))**rd_o_cpd
 
           ! Find the level, where pressure approximately corresponds to the 
           ! average pressure of the well mixed layer. Simply assume a threshold
           ! of ml_depth/2 as average pressure in the layer, if this threshold 
           ! is surpassed the level with approximate mean pressure is found
-          IF (prs(i,k) > prs(i,nlev) - ml_depth*0.5_wp) THEN
-            kstart(i) = k
+          IF (prs(jc,k) > prs(jc,nlev) - ml_depth*0.5_wp) THEN
+            kstart(jc) = k
           ENDIF
 
-          k_ml(i) = k - 1
+          k_ml(jc) = k - 1
 #ifndef _OPENACC
         ELSE
-          lexit(i) = .TRUE.
+          lexit(jc) = .TRUE.
 #endif
         ENDIF
 
       ENDDO
     ENDDO
-
     ! Calculate the start values for the parcel ascent, 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO i = i_startidx, i_endidx
-      IF (k_ml(i) < nlev) THEN
-        qvp_start(i) =  qvp_start(i) / (nlev-k_ml(i))
-        tp_start (i) =  tp_start (i) / (nlev-k_ml(i))
-        te_start (i) =  tp_start (i)*(prs(i,kstart(i))/p0)**rd_o_cpd
+    DO jc = i_startidx, i_endidx
+      IF (k_ml(jc) < nlev) THEN
+        qvp_start(jc) =  qvp_start(jc) / (nlev-k_ml(jc))
+        tp_start (jc) =  tp_start (jc) / (nlev-k_ml(jc))
+        te_start (jc) =  tp_start (jc)*(prs(jc,kstart(jc))/p0)**rd_o_cpd
       ELSE
-        qvp_start(i) =  qve(i,nlev)
-        te_start (i) =  te (i,nlev)
+        qvp_start(jc) =  qve(jc,nlev)
+        te_start (jc) =  te (jc,nlev)
       END IF
     ENDDO
     !$ACC END PARALLEL
-
     ! The pseudoadiabatic ascent of the test parcel:
-    CALL ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                  kstart, qvp_start, te_start, cape_ml, cin_ml, lacc=lzacc )
-    
-    !$ACC WAIT
+    IF (l3km) THEN
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,  &
+                    kstart=kstart, qvp_start=qvp_start, te_start=te_start,                                      &
+                    acape=cape_ml, acape3km=cape_3km, acin=cin_ml, alcl=klcl, alfc=klfc,                        &
+                    lacc= lacc )
+    ELSE
+      ! cape_3km is not computed
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,  &
+                    kstart=kstart, qvp_start=qvp_start, te_start=te_start,                                      &
+                    acape=cape_ml, acin=cin_ml, alcl=klcl, alfc=klfc,                        &
+                    lacc= lacc )
+    ENDIF
+    IF (llev) THEN
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF ((klcl(jc) .LE. 0) .OR. (klcl(jc) .GT. nlev)) THEN ! if index not defined
+          lcl_ml(jc) = missing_value                       ! lcl=missing_val
+        ELSE
+          ! Lifting condensation level computations ABOVE GROUND level
+          lcl_ml (jc) = 0.5_wp * ( hhl(jc,klcl(jc)) + hhl(jc,klcl(jc)+1) )-hhl(jc,nlev+1)
+          ! Level of free condensation ABOVE GROUND level
+        ENDIF
+        IF ((klfc(jc) .LE. 0) .OR. (klfc(jc) .GT. nlev)) THEN ! if index not defined
+          lfc_ml(jc) = missing_value                       ! lfc=missing_val
+        ELSE
+          lfc_ml (jc) = 0.5_wp * ( hhl(jc,klfc(jc)) + hhl(jc,klfc(jc)+1) )-hhl(jc,nlev+1)
+          ! Equilibrium level ABOVE GROUND level
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
     !$ACC END DATA
-
   END SUBROUTINE cal_cape_cin
 
 
@@ -2475,23 +2616,33 @@ CONTAINS
     REAL(wp), DIMENSION(SIZE(te,1))            :: qvp_start, te_start
     REAL(wp), DIMENSION(SIZE(te,1),SIZE(te,2)) :: tequiv
 
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: lzacc
 
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
-    
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(tequiv, kstart, qvp_start, te_start) &
+    !$ACC DATA &
+    !$ACC   CREATE(tequiv, kstart, qvp_start, te_start) &
     !$ACC   PRESENT(te, qve, prs, hhl, cape_mu, cin_mu) &
     !$ACC   IF(lzacc)
 
     nk = SIZE(te,2)
     
+    ! initialize outputs (good practice)
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cape_mu  (jc) = 0.0_wp 
+      cin_mu   (jc) = missing_value
+    ENDDO
+    
     ! Compute equivalent potential temperature T_equiv approximation after Bolton (1980), Eq. 28:
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    
     !$ACC LOOP SEQ
     DO jk = kmoist, nk
-      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
+      !$ACC LOOP GANG VECTOR PRIVATE(zml, t_dew, t_lcl, p_lcl)
       DO jc = i_startidx, i_endidx
         zml = 0.5_wp * (hhl(jc,jk)+hhl(jc,jk+1)) - hhl(jc,nk+1)  ! m AGL
         IF (zml <= z_limit) THEN
@@ -2512,20 +2663,20 @@ CONTAINS
 
     ! The layer with the maximum T_equiv defines the starting values of the test parcel for the pseudo-adiabatic ascent
     !  to compute an approximation of cape_mu and cin_mu:
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       kstart(jc) = kmoist
     END DO
     !$ACC LOOP SEQ
     DO jk = kmoist+1, nk
-      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF (tequiv(jc,jk) > tequiv(jc,jk-1)) THEN
           kstart(jc) = jk
         END IF
       END DO
     END DO
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       qvp_start(jc) = qve(jc,kstart(jc))
       te_start (jc) = te (jc,kstart(jc))
@@ -2533,16 +2684,504 @@ CONTAINS
     !$ACC END PARALLEL
 
     ! The pseudoadiabatic ascent of the test parcel:
-    CALL ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                  kstart, qvp_start, te_start, cape_mu, cin_mu, lacc=lzacc )
-  
-    !$ACC WAIT
+    CALL ascent ( i_startidx = i_startidx,  &
+                  i_endidx   = i_endidx,    &
+                  kmoist     = kmoist,      &
+                  te         = te,          &
+                  qve        = qve,         &
+                  prs        = prs,         &
+                  hhl        = hhl,         &
+                  kstart     = kstart,      &
+                  qvp_start  = qvp_start,   &
+                  te_start   = te_start,    &
+                  acape      = cape_mu,     &
+                  acin       = cin_mu,      &
+                  lacc       = lzacc )
     !$ACC END DATA
 
   END SUBROUTINE cal_cape_cin_mu
 
-  SUBROUTINE ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
-                      kstart, qvp_start, te_start, cape, cin, lacc )
+  SUBROUTINE cal_cape_cin_mu_COSMO(i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  &
+    cape_mu_COSMO, cin_mu_COSMO, lacc )
+
+      ! Input data
+      !----------- 
+      INTEGER, INTENT (IN) ::  &
+          i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+          kmoist                    ! start index for moist processes
+
+      REAL    (wp),    INTENT (IN) ::  &
+          te  (:,:),   & ! environment temperature
+          qve (:,:),   & ! environment specific humidity
+          prs (:,:),   & ! full level pressure
+          hhl (:,:)      ! height of half levels
+
+    ! Output data
+      !------------ 
+      REAL (wp), INTENT (OUT) :: &
+        cape_mu_COSMO  (:),   & ! CAPE 
+        cin_mu_COSMO   (:)      ! CIN  with respect to the starting values qvp_start, tp_start at level kstart
+
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+      !-----------------------------------
+        REAL (wp)             :: &
+          acape       (SIZE(te,1)),   & ! CAPE Helper variable for the output from the routine ASCENT
+          acin        (SIZE(te,1)),   & ! CIN Helper variable for the output from the routine ASCENT
+          mup_lay_thck         ! thickness of layer in which most unstable parcel 
+        
+        INTEGER       :: &
+        jc, k, nlev,           & !
+        kstart(SIZE(te,1))       ! Model level corresponding to start height of parcel
+
+        REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
+        LOGICAL,  DIMENSION(SIZE(te,1))            :: lcomp
+
+        LOGICAL :: lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    nlev = SIZE(te,2)
+    ! Thickness of the layer within which the most unstable parcel 
+    ! is searched for -> smaller values of this parameter result in
+    ! less computational cost, adapt if the code is running very slowly!
+    mup_lay_thck = 30000._wp
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl) &
+    !$ACC   CREATE(cape_mu_COSMO, cin_mu_COSMO, acape, acin, lcomp, kstart) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cape_mu_COSMO(jc)  = 0.0_wp
+      cin_mu_COSMO (jc)  = missing_value
+      acape        (jc)  = 0.0_wp
+      acin         (jc)  = missing_value
+      lcomp        (jc)  = .FALSE.
+      kstart       (jc)  = nlev
+    ENDDO
+    !$ACC END PARALLEL
+  
+
+      
+
+    !------------------------------------------------------------------------------
+    ! Start computation. Overview:
+    ! 
+    ! parcelloop varies the start level
+    ! of the parcel in most unstable calculation method.
+    ! One single ascent of a parcel is calculated within the 
+    ! SUBROUTINE ascent further below. 
+    ! Here we make sure that "ascent" is being called with the 
+    ! correct initial temperature, moisture, model level and 
+    ! gridpoint indices. 
+    !
+    ! The initial model level, from where the parcel starts ascending is varied 
+    ! until the pressure at this level is lower than the threshold mup_lay_thck, 
+    ! defined above.
+    !------------------------------------------------------------------------------
+    parcelloop:  DO k = kmoist, nlev
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        kstart(jc) = k
+        lcomp (jc) = (prs(jc,k) > (prs(jc,nlev)-mup_lay_thck))
+        acape (jc) = 0.0_wp
+        acin  (jc) = missing_value
+      ENDDO
+      !$ACC END PARALLEL
+      ! ! Take temperature and moisture of environment profile at current 
+      ! ! level as initial values for the ascending parcel, call "ascent"
+      ! ! to perform the dry/moist adiabatic parcel ascent and get back
+      ! ! the calculated CAPE/CIN
+      ! 
+      ! 
+      CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist,   & ! in (indeces)
+                     te=te, qve=qve, prs=prs, hhl=hhl,                         & ! in (environment)
+                     kstart=kstart, qvp_start=qve(:,k), te_start=te(:,k),      & ! in (initial conditions)
+                     acape=acape, acin=acin, lcomp = lcomp,                    & ! out (cape, cin) in (logical array for computation)
+                     lacc= lacc )
+      
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF ( acape(jc) > cape_mu_COSMO(jc) ) THEN
+          cape_mu_COSMO(jc)  = acape(jc)
+          cin_mu_COSMO (jc)  = acin (jc)
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDDO parcelloop
+    !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE cal_si_sli_swiss ( i_startidx, i_endidx, kmoist,                    & ! in
+                                  te, qve, prs, hhl, u, v,                         & ! in
+                                  si, sli, swiss12, swiss00,                       & ! out 
+                                  lacc )                                          ! in (optional)
+
+
+    ! Input data
+    !----------- 
+    INTEGER, INTENT (IN) ::  &
+         i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+         kmoist                    ! start index for moist processes
+
+    REAL    (wp),    INTENT (IN) ::  &
+         te  (:,:),   & ! environment temperature
+         qve (:,:),   & ! environment specific humidity
+         prs (:,:),   & ! full level pressure
+         u   (:,:),   & ! environment zonal wind speed
+         v   (:,:),   & ! environment meridional wind speed
+         hhl (:,:)      ! height of half levels
+
+    ! Output data
+    !------------ 
+    REAL (wp), INTENT (OUT) :: &
+         si       (:),    & ! Showalter Index SI
+         sli      (:),    & ! Surface Lifted Index SLI
+         swiss12  (:),    & ! SWISS12 index
+         swiss00  (:)       ! SWISS00 index
+
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+    !-----------------------------------
+
+    REAL(wp) :: &
+         qvp_start(SIZE(te,1)), & ! parcel initial specific humidity
+         te_start (SIZE(te,1)), & ! parcel initial temperature
+         hl_l, hl_u,            & ! height of full levels in order to find the closest model level
+         e,                     & ! water vapor pressure
+         td,                    & ! dew point temperature
+         vh3000,                & ! norm of the horiz. wind vectors at approx. 3000m
+         vh6000,                & ! norm of the horiz. wind vectors at approx. 3000m
+         vhfirstlev               ! norm of the horiz. wind vectors at the first model level
+
+    INTEGER :: &
+         jc, k, nlev,             &
+         kstart(SIZE(te,1)),     & ! Model level corresponding to start height of parcel
+         k3000m(SIZE(te,1)),     & ! Model level corresponding to 3 km a.s.l.
+         k6000m(SIZE(te,1)),     & ! Model level corresponding to 6 km a.s.l.
+         k600  (SIZE(te,1)),     & ! Model level corresponding to 600 hPa
+         k650  (SIZE(te,1))        ! Model level corresponding to 650 hPa
+
+    REAL (wp), PARAMETER :: sistartprs = 85000.0_wp ! lower limit pressure for SI calculation, per definition 850hPa
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
+
+    LOGICAL :: lzacc
+
+  CALL set_acc_host_or_device(lzacc, lacc)
+  !$ACC DATA &
+  !$ACC   PRESENT(te, qve, prs, u, v, hhl) &
+  !$ACC   PRESENT(si, sli, swiss12, swiss00) &
+  !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
+  !$ACC   CREATE(qvp_start, te_start) &
+  !$ACC   IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  ! initialization
+  nlev = SIZE( te,2)
+  !$ACC LOOP GANG VECTOR
+  DO jc = i_startidx, i_endidx
+    kstart(jc) = nlev  
+    si    (jc) = missing_value         
+  ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 1: Showalter Index SI calculation
+  !
+  ! Definition: Tp - Te at 500hPa, where Tp is temperature of parcel, ascending 
+  ! from start level 850hPa and Te is environment temperature.
+  ! Implementation here is done straightforward based on this definition.
+  !------------------------------------------------------------------------------
+    ! Loop through the levels, from highest pressure to lowest (ground -> up)
+    ! in order to find the first level >= 850 hPa to initialize the parcel ascent
+    !$ACC LOOP SEQ
+    siloop: DO k = nlev, kmoist, -1
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF (prs(jc,k) >=  sistartprs) THEN
+          kstart(jc) = k           
+        ENDIF
+      ENDDO
+    ENDDO siloop
+    ! set the initial conditions for the parcel ascent
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+        te_start(jc) = te  (jc,kstart(jc))
+        qvp_start(jc) = qve (jc,kstart(jc))
+    ENDDO
+  !$ACC END PARALLEL
+    CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                & ! in (grid)
+                  kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
+                  kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
+                  asi=si,                                                  & ! out (Showalter Index)
+                  lacc= lacc )                                            ! in (GPU flag)
+    
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+        IF (prs(jc,nlev) < sistartprs) THEN
+          si(jc) = missing_value
+        ENDIF
+    ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 2: surface lifed index SLI calculation
+  !
+  ! Definition: Tp - Te at 500hPa, where Tp is temperature of parcel, ascending 
+  ! from lowest level and Te is environment temperature.
+  ! Implementation here is done straightforward based on this definition.
+  !------------------------------------------------------------------------------
+  
+  ! initialization
+  !$ACC LOOP GANG VECTOR
+  DO jc = i_startidx, i_endidx
+    kstart   (jc) = nlev  
+    sli      (jc) = missing_value     
+    te_start (jc) = te  (jc,kstart(jc))
+    qvp_start(jc) = qve (jc,kstart(jc))    
+  ENDDO
+  !$ACC END PARALLEL
+  CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                  & ! in (grid)
+                  kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
+                  kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
+                  asi=sli,                                                 & ! out (Surface Lifted Index)
+                  lacc= lacc )                                            ! in (GPU flag)
+
+  !------------------------------------------------------------------------------
+  ! Section 3: SWISS indices
+  !
+  ! Definition: SWISS00 and SWISS12 are two statistically based indices developped
+  !             using data originating from the meteorological station of
+  !             Payerne in Switzerland. SWISS00 has been developed with observations at
+  !             00:00UTC whereas SWISS12 has been develped with observations at 12:00UTC.
+  !------------------------------------------------------------------------------
+  ! For these indeces, we need to obtain the levels corresponding to 600 hPa, 650 hPa,
+  ! 3000m and 6000m (NOTE that this is not Height Above Ground (HAG) but Above mean Sea Level (a.s.l.))
+  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  ! inizialisation
+  !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
+  DO jc = i_startidx, i_endidx
+    k600  (jc) = -1
+    k650  (jc) = -1
+    k3000m(jc) = -1
+    k6000m(jc) = -1  
+  ENDDO       
+  
+  ! Find these indeces
+  !$ACC LOOP SEQ
+  kloop: DO k = nlev-1, kmoist+1, -1
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      !Find the k index coressponding to the model level closest to 600 hPa
+      IF ((prs (jc,k) >= 60000._wp).AND.(prs (jc,k-1) <= 60000._wp))THEN
+          IF (abs(prs (jc,k)- 60000._wp) <= abs(prs(jc,k-1)- 60000._wp))THEN
+            k600(jc) = k
+          ELSE
+            k600(jc) = k-1
+          ENDIF
+      ENDIF
+
+      !Find the k index coressponding to the model level closest to 650 hPa
+      IF ((prs (jc,k) >= 65000._wp).AND.(prs (jc,k-1) <= 65000._wp))THEN
+          IF (abs(prs (jc,k)- 65000._wp) <= abs(prs(jc,k-1)- 65000._wp))THEN
+            k650(jc) = k
+          ELSE
+            k650(jc) = k-1
+          ENDIF
+      ENDIF
+
+      hl_l = 0.5_wp * (hhl(jc,k) + hhl(jc,k+1)) ! height a.s.l.
+      hl_u = 0.5_wp * (hhl(jc,k-1) + hhl(jc,k)) ! height a.s.l.
+      !Find the k index corresponding to the model level closest to 3000 m
+      IF ((hl_l  <=  3000._wp) .AND. (hl_u  >=  3000._wp)) THEN
+          IF (abs(hl_l - 3000._wp) <= abs(hl_u - 3000._wp)) THEN
+            k3000m(jc) = k
+          ELSE
+            k3000m(jc) = k-1
+          ENDIF
+      ENDIF
+
+      !Find the k index corresponding to the model level closest to 6000 m
+      IF ((hl_l  <=  6000._wp) .AND. (hl_u  >=  6000._wp)) THEN
+          IF (abs(hl_l - 6000._wp) <= abs(hl_u - 6000._wp)) THEN
+            k6000m(jc) = k
+          ELSE
+            k6000m(jc) = k-1
+          ENDIF
+      ENDIF
+    ENDDO
+  ENDDO kloop
+  !------------------------------------------------------------------------------
+  ! Section 3a: SWISS00 index
+  !
+  !             Its components are:
+  !               - the showalter index (see above)
+  !               - the wind shear between 3000m and 6000m
+  !               - the dew point depression at 600hPa
+  !
+  !             A SWISS00 value less than 5.1 means "likely thunderstorms".
+  !------------------------------------------------------------------------------
+  !$ACC LOOP GANG VECTOR PRIVATE(e, td, vh6000, vh3000)
+  DO jc = i_startidx, i_endidx
+    IF ( (k600(jc)  <  0) .OR. (k3000m(jc)  <  0  .OR.  k6000m(jc) < 0 .OR. si(jc) < -900.0_wp) ) THEN
+      swiss00(jc) = missing_value
+    ELSE
+      !Compute vapor pressure at approximately 600 hPa using index k600
+      e = prs(jc,k600(jc))*qve(jc,k600(jc))/(qve(jc,k600(jc))+rdv*(1 - qve(jc,k600(jc))))
+      !Compute dew point temperature at approximately 650 hPa
+      !Obtained using this identity: e = fesatw(td) at approximately 650 hPa
+      !It means that the vapor pressure is equal to the saturation vapor
+      !pressure at the dew point temperature
+
+      IF (e <= 0.0_wp) THEN
+          swiss00(jc) = missing_value
+      ELSE
+        td = ( 273.16_wp * 17.2693882_wp -log(e/610.78_wp)* 35.86_wp ) / ( 17.2693882_wp -log(e/ 610.78_wp) )
+        !Compute norm of horizontal wind vectors at approximately 6000 m
+        !using k6000 index
+        vh6000 = sqrt ( u (jc,k6000m(jc)) **2 + v (jc,k6000m(jc)) **2)
+        !Compute norm of horizontal wind vectors at approximately 3000 m
+        !using k3000 index
+        vh3000 = sqrt ( u (jc,k3000m(jc)) **2 + v (jc,k3000m(jc)) **2)
+        swiss00(jc) = si(jc) + 0.4_wp*(vh6000-vh3000) + 0.1_wp*MAX(0.0_wp,(te(jc,k600(jc))-td))
+      ENDIF
+    ENDIF
+  ENDDO
+  !------------------------------------------------------------------------------
+  ! Section 3b: SWISS12 index
+  !
+  !             Its components are:
+  !               - the surface lifted index (see above)
+  !               - the wind shear between the ground and 3000m
+  !               - the dew point depression at 650hPa
+  !
+  !             The concept of "wind at the ground" is ambiguous: the wind at the
+  !             surface is equal to zero but we could also consider the wind at
+  !             10m for example as "ground value". We use the wind at the first
+  !             model level as an approximation for the surface wind.
+  !
+  !             A SWISS12 value less than 0.6 means "likely thunderstorms".
+  !------------------------------------------------------------------------------
+  !$ACC LOOP GANG VECTOR PRIVATE(e, td, vh3000, vhfirstlev)
+  DO jc = i_startidx, i_endidx
+    IF ( (k650(jc)  <  0) .OR. (k3000m(jc)  <  0) ) THEN
+      swiss12(jc) = missing_value
+    ELSE
+      !Compute vapor pressure at approximately 650 hPa using index k650
+      e = prs(jc,k650(jc))*qve(jc,k650(jc))/(qve(jc,k650(jc))+rdv*(1 - qve(jc,k650(jc))))
+
+      !Compute dew point temperature at approximately 650 hPa
+      !Obtained using this identity: e = fesatw(td) at approximately 650 hPa
+      !It means that the vapor pressure is equal to the saturation vapor
+      !pressure at the dew point temperature
+
+      IF (e <= 0.0_wp) THEN
+          swiss12(jc) = missing_value
+      ELSE
+        ! dewpoint: e = vapor pressure
+        ! td = dewpoint_water(qve(i, k650(i)), prs(i, k650(i)))
+        ! td = ftd (e)
+        ! td = ( b3*b2w -log(e/b1)*b4w ) / ( b2w -log(e/b1) )
+        td = ( 273.16_wp * 17.2693882_wp -log(e/610.78_wp)* 35.86_wp ) / ( 17.2693882_wp -log(e/ 610.78_wp) )
+        !Compute norm of horizontal wind vectors  at approximately 3000 m
+        vh3000 = sqrt ( u(jc,k3000m(jc)) **2 + v(jc,k3000m(jc)) **2)
+        !Compute norm of horizontal wind vectors  at the first model level
+        ! WARNING: Currently the first model level is at 10m a.s.l. but this
+        !          height could change!!!
+        vhfirstlev = sqrt ( u(jc,nlev) **2 + v(jc,nlev) **2)
+        !Compute SWISS12 Index with the above calculated parameters and the
+        !surface lifted index
+        swiss12(jc) = sli(jc) - 0.3_wp*(vh3000-vhfirstlev) + 0.3_wp*(MAX(0.0_wp,(te(jc,k650(jc))-td)))
+      ENDIF
+    ENDIF
+  ENDDO
+  !$ACC END PARALLEL
+  !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE cal_cloudtop(i_startidx, i_endidx, kmoist,          & ! in
+                          clc, h,                                & ! in
+                          cloudtop,                              & ! out
+                          lacc)                                 ! in (optional)
+  
+    ! Input data
+    !----------- 
+    INTEGER, INTENT (IN) ::  &
+         i_startidx, i_endidx,  &  ! start and end indices of loops in horizontal patch
+         kmoist                    ! start index for moist processes
+
+    REAL    (wp),    INTENT (IN) ::  &
+         clc          (:,:),             & ! cloud coverage
+         h            (:,:)                ! Geometric height at full level center
+
+    ! Output data
+    !------------ 
+    REAL (wp), INTENT (OUT) :: &
+         cloudtop    (:)           ! CLOUDTOP: 
+
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    ! Local scalars and automatic arrays
+    !-----------------------------------
+    INTEGER :: &
+         jc, k, nlev             
+
+#ifndef _OPENACC
+    LOGICAL :: lexit(SIZE(clc,1))
+#endif
+
+    LOGICAL :: lzacc
+
+    ! Local parameters:
+    !------------------
+    LOGICAL :: &
+    lcloudtop(SIZE(clc,1))         ! logical array to stop computation after findind cloudtop
+
+    REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value
+
+
+    IF (PRESENT(lacc)) THEN
+      lzacc = lacc
+    ELSE
+      lzacc = .FALSE.
+    END IF
+    ! Initialize
+    nlev = SIZE( clc,2)
+    !$ACC DATA &
+    !$ACC   PRESENT(clc, h, cloudtop) &
+    !$ACC   CREATE(lcloudtop) &
+    !$ACC   IF(lzacc)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      cloudtop     (jc) = missing_value
+      lcloudtop    (jc) = .FALSE.
+    ENDDO
+    !$ACC LOOP SEQ
+    DO k = kmoist, nlev ! the only difference with CEILING computation, looping from top to surface (nlev is surface)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        IF((clc(jc,k) > 0.5) .AND. (.NOT. lcloudtop(jc))) THEN
+          cloudtop  (jc) = h(jc,k)
+          lcloudtop (jc) = .TRUE.
+        ENDIF
+      ENDDO
+    ENDDO
+  !$ACC END PARALLEL
+  !$ACC END DATA
+  END SUBROUTINE
+
+  SUBROUTINE ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  & ! in
+                      kstart, qvp_start, te_start,                      & ! in
+                      acape, acape3km, acin,                            & ! out (optional)
+                      alcl, alfc,                                       & ! out (optional)
+                      asi,                                              & ! out (optional)
+                      lcomp, lacc )                                    ! in (optional)
 
     !------------------------------------------------------------------------------
     !
@@ -2621,32 +3260,41 @@ CONTAINS
          prs (:,:),   & ! full level pressure
          hhl (:,:)      ! height of half levels
 
-    REAL(wp), INTENT(in) :: &
+    REAL(wp), INTENT(IN) :: &
          qvp_start(:), & ! parcel initial specific humidity
          te_start (:)    ! parcel initial temperature
 
-    INTEGER, INTENT(in) :: &
+    INTEGER, INTENT(IN) :: &
          kstart(:)  ! Model level corresponding to start height of parcel
 
     ! Output data
     !------------ 
-    REAL (wp), INTENT (OUT) :: &
-         cape  (:),   & ! CAPE with respect to the starting values qvp_start, tp_start at level kstart
-         cin   (:)      ! CIN  with respect to the starting values qvp_start, tp_start at level kstart
+    REAL (wp), INTENT (OUT), OPTIONAL :: &
+         acape   (:),   & ! CAPE 
+         acape3km(:),   & ! CAPE_3KM
+         acin    (:),   & ! CIN
+         asi     (:)      ! SI
 
-    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+    INTEGER, INTENT (OUT), OPTIONAL :: & ! these are also in the local scalars so that they can be optional outputs
+         alcl(:),     & ! Indices for Lifting Condensation Level LCL,
+         alfc(:)        ! Level of Free Convection LFC
+
+    LOGICAL, INTENT(IN), OPTIONAL :: &
+      lacc   ,      & ! If true, use openacc
+      lcomp  (:)      ! Most Unstable Computation
 
     ! Local scalars and automatic arrays
     !-----------------------------------
-    INTEGER :: nlev
+    INTEGER :: &
+      nlev, jc, k,             & ! Indices of input/output fields
+      k3000m(SIZE(te,1)),     & ! Indices for endpoint of 3KM ascent
+      lcllev(SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
+      lfclev(SIZE(te,1)),     & ! Level of Free Convection LFC
+      ellev (SIZE(te,1))        ! Equilibrium Level EL
 
     REAL (wp), PARAMETER :: p0 = 1.e5_wp   ! reference pressure for calculation of potential temperature
     REAL (wp), PARAMETER :: missing_value  = -999.9_wp   ! Missing value for CIN (if no LFC/CAPE was found),
-
-    INTEGER              :: &     
-         i, k,                   & ! Indices of input/output fields
-         lcllev(SIZE(te,1)),     & ! Indices for Lifting Condensation Level LCL,
-         lfclev(SIZE(te,1))        ! Level of Free Convection LFC
+   
 
     ! The following parameters are help values for the iterative calculation 
     ! of the parcel temperature during the moist adiabatic ascent
@@ -2658,6 +3306,8 @@ CONTAINS
     ! REAL    (wp)             :: rp, r1,r2
     REAL    (wp)             :: q1, q2
     REAL    (wp), PARAMETER  :: eps=0.03
+    REAL    (wp), PARAMETER  :: sistopprs = 50000.0_wp ! upper limit pressure for SI calculation, per definition 500hPa
+
 
     ! this parameter helps to find the LFC above a capping inversion in cases, 
     ! where a LFC already was found in an unstable layer in the convective 
@@ -2667,6 +3317,10 @@ CONTAINS
     INTEGER ::    icount              ! counter for the iterative process
 
     REAL (wp) ::             &
+         cape    (SIZE(te,1)),  & ! CAPE computed in this parcel ascent
+         cape3km (SIZE(te,1)),  & ! CAPE_3KM computed in this parcel ascent
+         cin     (SIZE(te,1)),  & ! CIN computed in this parcel ascent
+         si      (SIZE(te,1)),  & ! SI computed in this parcel ascent
          cin_help(SIZE(te,1)),  & ! help variable, the CIN above the LFC
          buo     (SIZE(te,1)),  & ! parcel buoyancy at level k
          tp      (SIZE(te,1)),  & ! temperature profile of ascending parcel
@@ -2677,19 +3331,85 @@ CONTAINS
          tve,                   & ! virtual temperature of environment at level k
          buo_belo,              & ! parcel buoyancy of level k+1 below
          esatp,                 & ! saturation vapour pressure at level k
-         qvsp                     ! saturation specific humidity at level k
+         qvsp,                  & ! saturation specific humidity at level k
+         hl_l,hl_u                ! height of full levels in order to find the closest model level
     ! calculation of moist adiabatic ascent
 
     INTEGER :: lfcfound(SIZE(te,1))   ! flag indicating if a LFC has already been found
     ! below, in cases where several EL and LFC's occur
-    LOGICAL :: lzacc ! non-optional version of lacc
+    LOGICAL :: &
+    lzacc,     & ! GPU flag
+    lacape,    & ! check if ACAPE is present
+    lacape3km, & ! check if ACAPE3KM is present
+    lacin,     & ! check if ACIN is present
+    lalcl,     & ! check if ALCL is present
+    lalfc,     & ! check if ALFC is present
+    lasi,      & ! check if ASI is present
+    lmu(SIZE(te,1)) ! local non-optional version of lcomp for
+                    ! COSMO-like Most Unstable computation
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(lcllev, lfclev, cin_help, buo, tp, tp_start, qvp, thp, lfcfound) &
-    !$ACC   PRESENT(te, qve, prs, hhl, kstart, qvp_start, te_start, cape, cin) IF(lzacc)
 
+
+    IF (PRESENT(acape)) THEN
+      lacape = .TRUE.
+    ELSE
+      lacape = .FALSE.
+    END IF
+
+    IF (PRESENT(acape3km)) THEN
+      lacape3km = .TRUE.
+    ELSE
+      lacape3km = .FALSE.
+    END IF
+
+    IF (PRESENT(acin)) THEN
+      lacin = .TRUE.
+    ELSE
+      lacin = .FALSE.
+    END IF
+
+    IF (PRESENT(alcl)) THEN
+      lalcl = .TRUE.
+    ELSE
+      lalcl = .FALSE.
+    END IF
+
+    IF (PRESENT(alfc)) THEN
+      lalfc = .TRUE.
+    ELSE
+      lalfc = .FALSE.
+    END IF
+
+    IF (PRESENT(asi)) THEN
+      lasi = .TRUE.
+    ELSE
+      lasi = .FALSE.
+    END IF
+    !$ACC DATA &
+    !$ACC   PRESENT(te, qve, prs, hhl, qvp_start, te_start, kstart) &
+    !$ACC   PRESENT(acape, acape3km, acin) &
+    !$ACC   PRESENT(alfc, alcl, asi, lcomp) &
+    !$ACC   CREATE(k3000m, lcllev, lfclev, ellev) &
+    !$ACC   CREATE(cape, cape3km, cin, si, cin_help, buo, tp, tp_start) &
+    !$ACC   CREATE(qvp, thp, lfcfound, lmu) &
+    !$ACC   IF(lzacc)
     nlev = SIZE( te,2)
+
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    
+    IF (PRESENT(lcomp)) THEN
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx  
+        lmu(jc) = lcomp(jc)
+      ENDDO
+    ELSE
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx  
+        lmu(jc) = .TRUE.
+      ENDDO
+    END IF
 
     !------------------------------------------------------------------------------
     !
@@ -2701,124 +3421,137 @@ CONTAINS
     !------------------------------------------------------------------------------
 
     ! Initialization
-
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG VECTOR
-    DO i = i_startidx, i_endidx
-      tp_start(i) = te_start(i) * (p0/prs(i,kstart(i)))**rd_o_cpd
-    END DO
-
-    !$ACC LOOP GANG VECTOR
-    DO i = 1, SIZE( te,1)      
-      cape(i)  = 0.0_wp
-      cin(i)   = 0.0_wp
-
-      lcllev  (i) = 0
-      lfclev  (i) = 0
-      lfcfound(i) = 0
-      cin_help(i) = 0.0_wp
-      tp (i)      = 0.0_wp
-      qvp(i)      = 0.0_wp               
-      buo(i)      = 0.0_wp
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx  
+      tp_start(jc) = te_start(jc) * (p0/prs(jc,kstart(jc)))**rd_o_cpd
+      cape    (jc) = 0.0_wp
+      cape3km (jc) = 0.0_wp
+      cin     (jc) = 0.0_wp ! not missing value because we add to this 0_wp
+      si      (jc) = missing_value
+      lcllev  (jc) = 0
+      lfclev  (jc) = 0
+      ellev   (jc) = 0
+      lfcfound(jc) = 0
+      cin_help(jc) = 0.0_wp
+      tp      (jc) = 0.0_wp
+      qvp     (jc) = 0.0_wp               
+      buo     (jc) = 0.0_wp
+      k3000m  (jc) = -1 ! this is done also in the COSMO subroutine so it is reproduced here
     ENDDO
     !$ACC END PARALLEL
+    IF(lacape3km) THEN
+      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO k = nlev-1, kmoist+1, -1
+        !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
+        DO jc = i_startidx, i_endidx
+          hl_l = 0.5_wp * (hhl(jc,k) + hhl(jc,k+1)) - hhl(jc,nlev+1)
+          hl_u = 0.5_wp * (hhl(jc,k-1) + hhl(jc,k)) - hhl(jc,nlev+1)
+          IF ((hl_l  <=  3000._wp) .AND. (hl_u  >=  3000._wp)) THEN
+            IF (abs(hl_l - 3000._wp) <= abs(hl_u - 3000._wp)) THEN
+              k3000m(jc) = k
+            ELSE
+              k3000m(jc) = k-1
+            ENDIF
+          ENDIF
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
 
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
     ! Loop over all model levels above kstart
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
-
-      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(buo_belo, esat, esatp, tguess1, tguess2) &
-      !$ACC   PRIVATE(thetae1, thetae2, tvp, tve, icount, q1, q2, qvsp)
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-
+      !$ACC LOOP GANG VECTOR PRIVATE(esatp, qvsp)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
         ! Dry ascent if below cloud base, assume first level is not saturated 
         ! (first approximation)
-        IF (k > lcllev(i)) THEN
-          tp (i)   = tp_start(i)*( prs(i,k)/p0)**rd_o_cpd   ! dry adiabatic process
-          qvp(i)   = qvp_start(i)                           ! spec humidity conserved
+        IF (k > lcllev(jc)) THEN
+          tp (jc)   = tp_start(jc)*( prs(jc,k)/p0)**rd_o_cpd   ! dry adiabatic process
+          qvp(jc)   = qvp_start(jc)                           ! spec humidity conserved
 
           ! Calculate parcel saturation vapour pressure and saturation 
           ! specific humidity
-          esatp = esat_water( tp(i))
-          qvsp  = fqvs( esatp, prs(i,k))
+          esatp = esat_water( tp(jc))
+          qvsp  = fqvs( esatp, prs(jc,k))
 
           ! Check whether parcel is saturated or not and 
           ! no LCL was already found below
-          IF ( (qvp(i) >= qvsp) .AND. (lcllev(i) == 0) ) THEN  
-            lcllev(i) = k                                    ! LCL is reached
+          IF ( (qvp(jc) >= qvsp) .AND. (lcllev(jc) == 0) ) THEN  
+            lcllev(jc) = k                                    ! LCL is reached
 
             ! Moist ascent above LCL, first calculate an approximate thetae to hold 
             ! constant during the remaining ascent
-            !         rp      = qvp(i)/( 1._wp - qvp(i) )
-            !         thp(i)  = fthetae( tp(i),prs(i,k),rp )
-            thp(i)  = fthetae( tp(i),prs(i,k), qvp(i) )
-
+            !         rp      = qvp(jc)/( 1._wp - qvp(jc) )
+            !         thp(jc)  = fthetae( tp(jc),prs(jc,k),rp )
+            thp(jc)  = fthetae( tp(jc),prs(jc,k), qvp(jc) )
           ENDIF
         ENDIF
 
 #ifdef __SX__
       ENDDO ! i = i_startidx, i_endidx
-
+      !$ACC LOOP GANG VECTOR
       ! Vectorized version
-      DO i = i_startidx, i_endidx
-        lcalc(i) = .FALSE.
-        IF ( k > kstart(i) ) CYCLE
-        IF ( k <= lcllev(i) ) THEN
+      DO jc = i_startidx, i_endidx
+        lcalc(jc) = .FALSE.
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
+        IF ( k <= lcllev(jc) ) THEN ! If we are above the LCL
           ! The scheme uses a first guess temperature, which is the parcel
           ! temperature at the level below. If it happens that the initial
           ! parcel is already saturated, the environmental temperature
           ! is taken as first guess instead
-          IF (  k == kstart(i) ) THEN
-            tguess1v(i) = te(i,kstart(i))
+          IF (  k == kstart(jc) ) THEN
+            tguess1v(jc) = te(jc,kstart(jc))
           ELSE
-            tguess1v(i) = tp(i)
+            tguess1v(jc) = tp(jc)
           END IF
-          lcalc(i) = .TRUE.
+          lcalc(jc) = .TRUE.
         ENDIF
-      ENDDO ! i = i_startidx, i_endidx
+      ENDDO ! jc = i_startidx, i_endidx
 
-
+      !$ACC LOOP SEQ
       ! Calculate iteratively parcel temperature from thp, prs and 1st guess tguess1
       DO icount = 1, 21
         IF (COUNT(lcalc(i_startidx:i_endidx)) > 0) THEN
-          DO i = i_startidx, i_endidx
-            IF ( lcalc(i) ) THEN
-              esat     = esat_water( tguess1v(i))
-              q1       = fqvs( esat, prs(i,k) )
-              thetae1  = fthetae( tguess1v(i),prs(i,k),q1)
+          !$ACC LOOP GANG VECTOR PRIVATE(esat, q1, thetae1, tguess2, esat, q2, thetae2)
+          DO jc = i_startidx, i_endidx
+            IF ( lcalc(jc) ) THEN
+              esat     = esat_water( tguess1v(jc))
+              q1       = fqvs( esat, prs(jc,k) )
+              thetae1  = fthetae( tguess1v(jc),prs(jc,k),q1)
 
-              tguess2  = tguess1v(i) - 1.0_wp
+              tguess2  = tguess1v(jc) - 1.0_wp
               esat     = esat_water( tguess2)
-              q2       = fqvs( esat, prs(i,k) )
-              thetae2  = fthetae( tguess2,prs(i,k),q2)
+              q2       = fqvs( esat, prs(jc,k) )
+              thetae2  = fthetae( tguess2,prs(jc,k),q2)
 
-              tguess1v(i)  = tguess1v(i)+(thetae1-thp(i))/(thetae2-thetae1)
+              tguess1v(jc)  = tguess1v(jc)+(thetae1-thp(jc))/(thetae2-thetae1)
 
-              IF ( ABS( thetae1-thp(i)) < eps .OR. icount > 20) THEN
-                tp(i) = tguess1v(i)
-                lcalc(i) = .false.
+              IF ( ABS( thetae1-thp(jc)) < eps .OR. icount > 20) THEN
+                tp(jc) = tguess1v(jc)
+                lcalc(jc) = .false.
               END IF
             END IF
-          ENDDO ! i = i_startidx, i_endidx
+          ENDDO ! jc = i_startidx, i_endidx
         ELSE
           EXIT
         ENDIF
       END DO
 
       ! update specific humidity of the saturated parcel for new temperature
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-        IF ( k <= lcllev(i) ) THEN
-          esatp  = esat_water( tp(i))
-          qvp(i) = fqvs( esatp,prs(i,k))
+      !$ACC LOOP GANG VECTOR PRIVATE(esatp)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
+        IF ( k <= lcllev(jc) ) THEN
+          esatp  = esat_water( tp(jc))
+          qvp(jc) = fqvs( esatp,prs(jc,k))
         END IF
-      ENDDO ! i = i_startidx, i_endidx
-
-      DO i = i_startidx, i_endidx
-        IF ( k > kstart(i) ) CYCLE
-
+      ENDDO ! jc = i_startidx, i_endidx
+      !$ACC LOOP GANG VECTOR PRIVATE(tguess1, icount, esat, q1, thetae1, tguess2, q2, thetae2, esatp, tvp, tve, buo_belo)
+      DO jc = i_startidx, i_endidx
+        IF ( k > kstart(jc) .OR. (.NOT. lmu(jc)) ) CYCLE 
 #else
 
         ! Moist adiabatic process: the parcel temperature during this part of 
@@ -2828,15 +3561,15 @@ CONTAINS
         ! few (less than 10) iterations, its accuracy can be tuned with the 
         ! parameter "eps", a value of 0.03 is tested and recommended. 
 
-        IF ( k <= lcllev(i) ) THEN                                
+        IF ( k <= lcllev(jc) ) THEN                                
           ! The scheme uses a first guess temperature, which is the parcel 
           ! temperature at the level below. If it happens that the initial 
           ! parcel is already saturated, the environmental temperature 
           ! is taken as first guess instead
-          IF (  k == kstart(i) ) THEN
-            tguess1 = te(i,kstart(i))            
+          IF (  k == kstart(jc) ) THEN
+            tguess1 = te(jc,kstart(jc))            
           ELSE
-            tguess1 = tp(i)
+            tguess1 = tp(jc)
           END IF
           icount = 0       ! iterations counter
 
@@ -2844,41 +3577,41 @@ CONTAINS
           ! thp, prs and 1st guess tguess1
           DO
             esat     = esat_water( tguess1)
-            !         r1       = rdv*esat/(prs(i,k)-esat)
-            !         thetae1  = fthetae( tguess1,prs(i,k),r1)
-            q1       = fqvs( esat, prs(i,k))
-            thetae1  = fthetae( tguess1,prs(i,k),q1)
+            !         r1       = rdv*esat/(prs(jc,k)-esat)
+            !         thetae1  = fthetae( tguess1,prs(jc,k),r1)
+            q1       = fqvs( esat, prs(jc,k))
+            thetae1  = fthetae( tguess1,prs(jc,k),q1)
 
             tguess2  = tguess1 - 1.0_wp
             esat     = esat_water( tguess2)
-            !         r2       = rdv*esat/(prs(i,k)-esat)
-            !         thetae2  = fthetae( tguess2,prs(i,k),r2)
-            q2       = fqvs( esat, prs(i,k))
-            thetae2  = fthetae( tguess2,prs(i,k),q2)
+            !         r2       = rdv*esat/(prs(jc,k)-esat)
+            !         thetae2  = fthetae( tguess2,prs(jc,k),r2)
+            q2       = fqvs( esat, prs(jc,k))
+            thetae2  = fthetae( tguess2,prs(jc,k),q2)
 
-            tguess1  = tguess1+(thetae1-thp(i))/(thetae2-thetae1)
+            tguess1  = tguess1+(thetae1-thp(jc))/(thetae2-thetae1)
             icount   = icount    + 1   
 
-            IF ( ABS( thetae1-thp(i)) < eps .OR. icount > 20 ) THEN
-              tp(i) = tguess1
+            IF ( ABS( thetae1-thp(jc)) < eps .OR. icount > 20 ) THEN
+              tp(jc) = tguess1
               EXIT
             END IF
           END DO
 
           ! update specific humidity of the saturated parcel for new temperature
-          esatp  = esat_water( tp(i))
-          qvp(i) = fqvs( esatp,prs(i,k))
+          esatp  = esat_water( tp(jc))
+          qvp(jc) = fqvs( esatp,prs(jc,k))
         END IF
 #endif       
 
         ! Calculate virtual temperatures of parcel and environment
-        tvp    = tp(i  ) * (1.0_wp + vtmpc1*qvp(i  )/(1.0_wp - qvp(i  )) )  
-        tve    = te(i,k) * (1.0_wp + vtmpc1*qve(i,k)/(1.0_wp - qve(i,k)) ) 
+        tvp    = tp(jc  ) * (1.0_wp + vtmpc1*qvp(jc  )/(1.0_wp - qvp(jc  )) )  
+        tve    = te(jc,k) * (1.0_wp + vtmpc1*qve(jc,k)/(1.0_wp - qve(jc,k)) ) 
 
         ! Calculate the buoyancy of the parcel at current level k, 
         ! save buoyancy from level k+1 below (buo_belo) to check if LFC or EL have been passed
-        buo_belo = buo(i)
-        buo(i)   = tvp - tve
+        buo_belo = buo(jc)
+        buo(jc)   = tvp - tve
 
         ! Check for level of free convection (LFC) and set flag accordingly. 
         ! Basic LFC condition is that parcel buoyancy changes from negative to 
@@ -2899,23 +3632,24 @@ CONTAINS
         ! from bottom to top in a stepwise manner.)
 
         ! Find the first LFC
-        IF ( (buo(i) > 0.0_wp) .AND. (buo_belo <= 0.0_wp)            &
-             .AND. ( lfcfound(i)==0) ) THEN
+        IF ( (buo(jc) > 0.0_wp) .AND. (buo_belo <= 0.0_wp)            &
+             .AND. ( lfcfound(jc)==0) ) THEN
 
           ! Check whether it is an LFC at one of the lowest model levels 
           ! (indicated by CAPE=0)
-          IF ( (cape(i) > 0.0_wp) .AND. ( lfcfound(i) == 0 ) ) THEN
+          IF ( (cape(jc) > 0.0_wp) .AND. ( lfcfound(jc) == 0 ) ) THEN
             ! Check if there is a major capping inversion below, defined as 
             ! having CIN with an absolute value larger than the CAPE accumulated
             ! below times some arbitrary factor cc_comp - if this is the case the
             ! LFC index "lfclev" is updated to the current level k and 
             ! "lfcfound"-flag is now set to 1 assuming that we have found the 
             ! level of free convection finally. 
-            IF ( cc_comp * ABS(cin_help(i)) > cape(i) ) THEN
-              lfclev(i)   = k
-              cape (i) = 0.0_wp
-              cin_help(i) = 0.0_wp
-              lfcfound(i) = 1
+            IF ( cc_comp * ABS(cin_help(jc)) > cape(jc) ) THEN
+              lfclev   (jc) = k
+              cape     (jc) = 0.0_wp
+              cape3km  (jc) = 0.0_wp
+              cin_help (jc) = 0.0_wp
+              lfcfound (jc) = 1
             ENDIF
           ELSE
             ! the LFC found is near the surface, set the LFC index to the current
@@ -2923,39 +3657,68 @@ CONTAINS
             ! indicate that a further LFC may be present above the boundary layer
             ! and an eventual capping inversion. Reset the CIN_HELP to zero to 
             ! store the contribution of CIN above this LFC.
-            lfclev(i)   = k
-            cin_help(i) = 0.0_wp
+            lfclev(jc)   = k
+            cin_help(jc) = 0.0_wp
           ENDIF
         ENDIF
-
+        
+        IF ( (buo(jc) < 0_wp) .AND. (buo_belo >= 0_wp) .AND. (lfclev(jc) /= 0) ) THEN
+          ellev(jc) = k
+        ENDIF
         ! Accumulation of CAPE and CIN according to definition given in Doswell 
         ! and Rasmussen (1994), 
-        IF ( (buo(i) >= 0.0_wp) .AND. (k <= lfclev(i)) ) THEN   
-          cape(i)  = cape(i)  + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
-        ELSEIF ( (buo(i) < 0.0) .AND. (k < kstart(i)) ) THEN  
-          cin(i)      = cin(i)      + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
-          cin_help(i) = cin_help(i) + (buo(i)/tve)*grav*(hhl(i,k) - hhl(i,k+1))
+        IF ( (buo(jc) >= 0.0_wp) .AND. (k <= lfclev(jc)) ) THEN   
+          cape(jc)  = cape(jc)  + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+          IF (lacape3km) THEN
+             IF ( k3000m(jc) > 0 .AND. k >= k3000m(jc) ) THEN
+                cape3km(jc) = cape3km(jc) + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+             ENDIF
+          ENDIF
+        ELSEIF ( (buo(jc) < 0.0) .AND. (k < kstart(jc)) ) THEN  
+          ! buo is negative, hhl(jc,k) > hhl(jc,k+1) so we add a negative contribution
+          cin(jc)      = cin(jc)      + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
+          cin_help(jc) = cin_help(jc) + (buo(jc)/tve)*grav*(hhl(jc,k) - hhl(jc,k+1))
         ENDIF
-
-      ENDDO ! i = i_startidx, i_endidx
+        
+        ! If 500hPa level approximately reached, save parcel temperature for 
+        ! calculation of Showalter Index. Do not check at lowest level of parcel
+        ! ascent since pressure at level below is not defined if kstart=kdim 
+        ! (parcel starting at lowest model level.)
+        IF (lasi .AND. (k < nlev)) THEN
+          ! Assume 500hPa level is approximately reached if model level pressure
+          ! changes from >500hPa to <=500hPa
+          IF ( (prs(jc,k) <= sistopprs) .AND. (prs(jc,k+1) > sistopprs) ) THEN
+            asi(jc) = te(jc,k)-tp(jc)
+          ENDIF
+        ENDIF
+      ENDDO ! jc = i_startidx, i_endidx
     ENDDO  kloop       ! End k-loop over levels
+    !$ACC END PARALLEL
+
 
     ! Subtract the CIN above the LFC from the total accumulated CIN to 
     ! get only contriubtions from below the LFC as the definition demands.
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO i = i_startidx, i_endidx
-
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
       ! make CIN positive
-      cin(i) = ABS (cin(i) - cin_help(i))
-
+      cin(jc) = ABS (cin(jc) - cin_help(jc))
       ! set the CIN to missing value if no LFC was found or no CAPE exists
-      IF ( (lfclev(i) == 0) .OR. (cape(i) == 0.0_wp)  ) cin(i) = missing_value 
+      IF ( (lfclev(jc) == 0) .OR. (ABS(cape(jc)) < 1.0E-8_wp)) cin(jc) = missing_value 
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC WAIT
+    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      IF (lacape)    acape(jc)    = cape      (jc)
+      IF (lacape3km) acape3km(jc) = cape3km   (jc)
+      IF (lacin)     acin (jc)    = cin       (jc)
+      IF (lalcl)     alcl (jc)    = lcllev    (jc)
+      IF (lalfc)     alfc (jc)    = lfclev    (jc) 
+    ENDDO
+    !$ACC END PARALLEL
     !$ACC END DATA
-
   END SUBROUTINE ascent
 
   !!>
@@ -3056,7 +3819,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision  :  U. Blahak, DWD (2020-01-20)
   
-  SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin)
+  SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin, lacc)
 
     INTEGER, INTENT(in)  :: jg
     ! patch on which computation is performed:
@@ -3067,6 +3830,7 @@ CONTAINS
     TYPE(t_nh_diag), INTENT(IN)       :: p_diag
     TYPE(t_nwp_phy_diag), INTENT(IN)  :: prm_diag
     REAL(wp),        INTENT(OUT)      :: dbz3d_lin(:,:,:)  !< reflectivity in mm^6/m^3
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc              !< initialization flag
 
     ! local variables
     CHARACTER(len=*), PARAMETER :: routine = modname//': compute_field_dbz3d_lin'
@@ -3078,7 +3842,9 @@ CONTAINS
     REAL(wp), ALLOCATABLE, DIMENSION(:,:,:), TARGET :: dummy0
     REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
 
-    
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
 #ifdef HAVE_RADARFWO
     IF ( synradar_meta%itype_refl == 4 ) THEN
 #endif
@@ -3100,7 +3866,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, i_endblk, i_startblk, i_endblk, i_startidx, i_endidx_2, i_rlstart, i_rlend)
 
       SELECT CASE ( atm_phy_nwp_config(jg)%inwp_gscp )
-      CASE ( 1 )
+      CASE ( 1,3 )
 
         IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 2) THEN
           ! Not yet implemented in microphysics! We give a dummy value here.
@@ -3136,7 +3902,8 @@ CONTAINS
              q_rain    = p_prog_rcf%tracer(:,:,:,iqr),     &
              q_snow    = p_prog_rcf%tracer(:,:,:,iqs),     &
              n_cloud_s = qnc_s(:,:),                       &  ! 1/kg
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
       CASE ( 2 )
 
@@ -3175,10 +3942,13 @@ CONTAINS
              q_snow    = p_prog_rcf%tracer(:,:,:,iqs),     &
              q_graupel = p_prog_rcf%tracer(:,:,:,iqg),     &
              n_cloud_s = qnc_s(:,:),                       &  ! 1/kg
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
       CASE ( 4, 5, 6 )
-
+#ifdef _OPENACC
+        CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
+#endif
         CALL compute_field_dbz_2mom( npr       = nproma,                           &
              nlev      = ptr_patch%nlev,                   &
              nblks     = ptr_patch%nblks_c,                &
@@ -3210,11 +3980,14 @@ CONTAINS
              n_snow    = p_prog_rcf%tracer(:,:,:,iqns),    &
              n_graupel = p_prog_rcf%tracer(:,:,:,iqng),    &
              n_hail    = p_prog_rcf%tracer(:,:,:,iqnh),    &
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
 
       CASE ( 7 )
-
+#ifdef _OPENACC
+        CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
+#endif
         CALL compute_field_dbz_2mom( npr       = nproma,                           &
              nlev      = ptr_patch%nlev,                   &
              nblks     = ptr_patch%nblks_c,                &
@@ -3248,7 +4021,8 @@ CONTAINS
              n_hail    = p_prog_rcf%tracer(:,:,:,iqnh),    &
              ql_graupel= p_prog_rcf%tracer(:,:,:,iqgl),    &
              ql_hail   = p_prog_rcf%tracer(:,:,:,iqhl),    &
-             z_radar   = dbz3d_lin(:,:,:)                  )
+             z_radar   = dbz3d_lin(:,:,:),                 &
+             lacc      = lzacc                             )
 
 
       CASE DEFAULT
@@ -3281,7 +4055,7 @@ CONTAINS
       ldebug_dbz = (msg_level > 15)
 
       SELECT CASE ( atm_phy_nwp_config(jg)%inwp_gscp )
-      CASE ( 1, 2 )
+      CASE ( 1, 2, 3 )
 
         t   => p_diag%temp(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
@@ -3315,53 +4089,59 @@ CONTAINS
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
           ! Mie- or T-matrix scattering from EMVORADO:
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_mie_1mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_mie_1mom_vec( &
-               myproc         = get_my_mpi_work_id(), &
-               lambda_radar   = synradar_meta%lambda_radar, &
-               itype_gscp_fwo = itype_gscp_emvo, &
-               itype_refl     = synradar_meta%itype_refl, &
-               luse_tmatrix   = (synradar_meta%itype_refl >= 5), &
-               ldo_nonsphere  = (synradar_meta%itype_refl == 5), &
-               isnow_n0temp   = isnow_n0temp, &
-               igraupel_type= synradar_meta%igraupel_type, &
-               itype_Dref_fmelt = synradar_meta%itype_Dref_fmelt, &
-               ctype_dryice = synradar_meta%ctype_dryice_mie, &
-               ctype_wetice = synradar_meta%ctype_wetice_mie, &
-               ctype_drysnow = synradar_meta%ctype_drysnow_mie, &
-               ctype_wetsnow = synradar_meta%ctype_wetsnow_mie, &
-               ctype_drygraupel = synradar_meta%ctype_drygraupel_mie, &
-               ctype_wetgraupel = synradar_meta%ctype_wetgraupel_mie, &
-               Tmeltbegin_i  = synradar_meta%Tmeltbegin_i, &
-               meltdegTmin_i = synradar_meta%meltdegTmin_i, &
-               Tmax_min_i    = synradar_meta%Tmax_min_i, &
-               Tmax_max_i    = synradar_meta%Tmax_max_i, &
-               Tmeltbegin_s  = synradar_meta%Tmeltbegin_s, &
-               meltdegTmin_s = synradar_meta%meltdegTmin_s, &
-               Tmax_min_s    = synradar_meta%Tmax_min_s, &
-               Tmax_max_s    = synradar_meta%Tmax_max_s, &
-               Tmeltbegin_g  = synradar_meta%Tmeltbegin_g, &
-               meltdegTmin_g = synradar_meta%meltdegTmin_g, &
-               Tmax_min_g    = synradar_meta%Tmax_min_g, &
-               Tmax_max_g    = synradar_meta%Tmax_max_g, &
-               rho           = rho_tot(:,:,:), &
-               t             = t(:,:,:), &
-               qc            = qc(:,:,:), &
-               qr            = qr(:,:,:), &
-               qi            = qi(:,:,:), &
-               qs            = qs(:,:,:), &
-               qg            = qg(:,:,:), &
-               Tmax_i        = Tmax_i(:,:), &
-               Tmax_s        = Tmax_s(:,:), &
-               Tmax_g        = Tmax_g(:,:), &
+               myproc               = get_my_mpi_work_id(), &
+               lambda_radar         = synradar_meta%lambda_radar, &
+               itype_gscp_fwo       = itype_gscp_emvo, &
+               itype_refl           = synradar_meta%itype_refl, &
+               luse_tmatrix         = (synradar_meta%itype_refl >= 5), &
+               ldo_nonsphere        = (synradar_meta%itype_refl == 5), &
+               isnow_n0temp         = isnow_n0temp, &
+               igraupel_type        = synradar_meta%igraupel_type, &
+               itype_Dref_fmelt     = synradar_meta%itype_Dref_fmelt, &
+               ctype_dryice         = synradar_meta%ctype_dryice_mie, &
+               ctype_wetice         = synradar_meta%ctype_wetice_mie, &
+               ctype_drysnow        = synradar_meta%ctype_drysnow_mie, &
+               ctype_wetsnow        = synradar_meta%ctype_wetsnow_mie, &
+               ctype_drygraupel     = synradar_meta%ctype_drygraupel_mie, &
+               ctype_wetgraupel     = synradar_meta%ctype_wetgraupel_mie, &
+               Tmeltbegin_i         = synradar_meta%Tmeltbegin_i, &
+               meltdegTmin_i        = synradar_meta%meltdegTmin_i, &
+               Tmax_min_i           = synradar_meta%Tmax_min_i, &
+               Tmax_max_i           = synradar_meta%Tmax_max_i, &
+               Tmeltbegin_s         = synradar_meta%Tmeltbegin_s, &
+               meltdegTmin_s        = synradar_meta%meltdegTmin_s, &
+               Tmax_min_s           = synradar_meta%Tmax_min_s, &
+               Tmax_max_s           = synradar_meta%Tmax_max_s, &
+               Tmeltbegin_g         = synradar_meta%Tmeltbegin_g, &
+               meltdegTmin_g        = synradar_meta%meltdegTmin_g, &
+               Tmax_min_g           = synradar_meta%Tmax_min_g, &
+               Tmax_max_g           = synradar_meta%Tmax_max_g, &
+               pMPr                 = synradar_meta%polMP_r, &
+               pMPi                 = synradar_meta%polMP_i, &
+               pMPs                 = synradar_meta%polMP_s, &
+               pMPg                 = synradar_meta%polMP_g, &
+               rho                  = rho_tot(:,:,:), &
+               t                    = t(:,:,:), &
+               qc                   = qc(:,:,:), &
+               qr                   = qr(:,:,:), &
+               qi                   = qi(:,:,:), &
+               qs                   = qs(:,:,:), &
+               qg                   = qg(:,:,:), &
+               Tmax_i               = Tmax_i(:,:), &
+               Tmax_s               = Tmax_s(:,:), &
+               Tmax_g               = Tmax_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
-               lalloc_qi     = .TRUE., &
-               lalloc_qs     = .TRUE., &
-               lalloc_qg     = atm_phy_nwp_config(jg)%lhave_graupel, &
-               llookup       = synradar_meta%llookup_mie, &
-               impipar_lookupgen = 2, &
-               pe_start          = proc0_shift,   & ! Start-PE of the gang which computes the lookup tables, numbering within the work-communicator
-               pe_end        = get_my_mpi_work_comm_size()-1, &  ! End-PE of the gang. Can be at most the number of work PEs minus 1
+               lalloc_qi            = .TRUE., &
+               lalloc_qs            = .TRUE., &
+               lalloc_qg            = atm_phy_nwp_config(jg)%lhave_graupel, &
+               llookup              = synradar_meta%llookup_mie, &
+               impipar_lookupgen    = 2, &
+               pe_start             = proc0_shift,   & ! Start-PE of the gang which computes the lookup tables, numbering within the work-communicator
+               pe_end               = get_my_mpi_work_comm_size()-1, &  ! End-PE of the gang. Can be at most the number of work PEs minus 1
                linterp_mode_dualpol = (synradar_meta%itype_refl >= 5), &
                ydir_lookup_read     = TRIM(ydir_mielookup_read), &
                ydir_lookup_write    = TRIM(ydir_mielookup_write), &
@@ -3370,33 +4150,35 @@ CONTAINS
                )
 
         CASE ( 3 )
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_rayleigh_oguchi_1mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_rayleigh_oguchi_1mom_vec( &
                myproc         = get_my_mpi_work_id(), &
                lambda_radar   = synradar_meta%lambda_radar, &
                itype_gscp_fwo = itype_gscp_emvo, &
                isnow_n0temp   = isnow_n0temp, &
-               Tmeltbegin_i  = synradar_meta%Tmeltbegin_i, &
-               meltdegTmin_i = synradar_meta%meltdegTmin_i, &
-               Tmeltbegin_s  = synradar_meta%Tmeltbegin_s, &
-               meltdegTmin_s = synradar_meta%meltdegTmin_s, &
-               Tmeltbegin_g  = synradar_meta%Tmeltbegin_g, &
-               meltdegTmin_g = synradar_meta%meltdegTmin_g, &
-               rho           = rho_tot(:,:,:), &
-               t             = t(:,:,:), &
-               qc            = qc(:,:,:), &
-               qr            = qr(:,:,:), &
-               qi            = qi(:,:,:), &
-               qs            = qs(:,:,:), &
-               qg            = qg(:,:,:), &
-               Tmax_i        = Tmax_i(:,:), &
-               Tmax_s        = Tmax_s(:,:), &
-               Tmax_g        = Tmax_g(:,:), &
+               Tmeltbegin_i   = synradar_meta%Tmeltbegin_i, &
+               meltdegTmin_i  = synradar_meta%meltdegTmin_i, &
+               Tmeltbegin_s   = synradar_meta%Tmeltbegin_s, &
+               meltdegTmin_s  = synradar_meta%meltdegTmin_s, &
+               Tmeltbegin_g   = synradar_meta%Tmeltbegin_g, &
+               meltdegTmin_g  = synradar_meta%meltdegTmin_g, &
+               rho            = rho_tot(:,:,:), &
+               t              = t(:,:,:), &
+               qc             = qc(:,:,:), &
+               qr             = qr(:,:,:), &
+               qi             = qi(:,:,:), &
+               qs             = qs(:,:,:), &
+               qg             = qg(:,:,:), &
+               Tmax_i         = Tmax_i(:,:), &
+               Tmax_s         = Tmax_s(:,:), &
+               Tmax_g         = Tmax_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
-               lalloc_qi     = .TRUE., &
-               lalloc_qs     = .TRUE., &
-               lalloc_qg     = atm_phy_nwp_config(jg)%lhave_graupel, &
-               zh_radar             = dbz3d_lin(:,:,:), &
+               lalloc_qi      = .TRUE., &
+               lalloc_qs      = .TRUE., &
+               lalloc_qg      = atm_phy_nwp_config(jg)%lhave_graupel, &
+               zh_radar       = dbz3d_lin(:,:,:), &
                lhydrom_choice_testing = synradar_meta%lhydrom_choice_testing &
                )
 
@@ -3456,69 +4238,76 @@ CONTAINS
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
           ! Mie-scattering from EMVORADO:
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_mie_2mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_mie_2mom_vec( &
-               myproc           = get_my_mpi_work_id(), &
-               lambda_radar     = synradar_meta%lambda_radar, &
-               itype_gscp_fwo   = 260, &
-               itype_refl       = synradar_meta%itype_refl, &
-               luse_tmatrix   = (synradar_meta%itype_refl >= 5), &
-               ldo_nonsphere  = (synradar_meta%itype_refl == 5), &
-               igraupel_type    = synradar_meta%igraupel_type, &
-               itype_Dref_fmelt = synradar_meta%itype_Dref_fmelt, &
-               ctype_dryice     = synradar_meta%ctype_dryice_mie, &
-               ctype_wetice     = synradar_meta%ctype_wetice_mie, &
-               ctype_drysnow    = synradar_meta%ctype_drysnow_mie, &
-               ctype_wetsnow    = synradar_meta%ctype_wetsnow_mie, &
-               ctype_drygraupel = synradar_meta%ctype_drygraupel_mie, &
-               ctype_wetgraupel = synradar_meta%ctype_wetgraupel_mie, &
-               ctype_dryhail    = synradar_meta%ctype_dryhail_mie, &
-               ctype_wethail    = synradar_meta%ctype_wethail_mie, &
-               Tmeltbegin_i     = synradar_meta%Tmeltbegin_i, &
-               meltdegTmin_i    = synradar_meta%meltdegTmin_i, &
-               Tmax_min_i       = synradar_meta%Tmax_min_i, &
-               Tmax_max_i       = synradar_meta%Tmax_max_i, &
-               Tmeltbegin_s     = synradar_meta%Tmeltbegin_s, &
-               meltdegTmin_s    = synradar_meta%meltdegTmin_s, &
-               Tmax_min_s       = synradar_meta%Tmax_min_s, &
-               Tmax_max_s       = synradar_meta%Tmax_max_s, &
-               Tmeltbegin_g     = synradar_meta%Tmeltbegin_g, &
-               meltdegTmin_g    = synradar_meta%meltdegTmin_g, &
-               Tmax_min_g       = synradar_meta%Tmax_min_g, &
-               Tmax_max_g       = synradar_meta%Tmax_max_g, &
-               Tmeltbegin_h     = synradar_meta%Tmeltbegin_h, &
-               meltdegTmin_h    = synradar_meta%meltdegTmin_h, &
-               Tmax_min_h       = synradar_meta%Tmax_min_h, &
-               Tmax_max_h       = synradar_meta%Tmax_max_h, &
-               rho              = rho_tot(:,:,:), &
-               t                = t(:,:,:), &
-               qc               = qc(:,:,:), &
-               qr               = qr(:,:,:), &
-               qi               = qi(:,:,:), &
-               qs               = qs(:,:,:), &
-               qg               = qg(:,:,:), &
-               qh               = qh(:,:,:), &
-               qnc              = qnc(:,:,:), &
-               qnr              = qnr(:,:,:), &
-               qni              = qni(:,:,:), &
-               qns              = qns(:,:,:), &
-               qng              = qng(:,:,:), &
-               qnh              = qnh(:,:,:), &
-               qgl              = qgl(:,:,:), &
-               qhl              = qhl(:,:,:), &
-               Tmax_i           = Tmax_i(:,:), &
-               Tmax_s           = Tmax_s(:,:), &
-               Tmax_g           = Tmax_g(:,:), &
-               Tmax_h           = Tmax_h(:,:), &
+               myproc            = get_my_mpi_work_id(), &
+               lambda_radar      = synradar_meta%lambda_radar, &
+               itype_gscp_fwo    = 260, &
+               itype_refl        = synradar_meta%itype_refl, &
+               luse_tmatrix      = (synradar_meta%itype_refl >= 5), &
+               ldo_nonsphere     = (synradar_meta%itype_refl == 5), &
+               igraupel_type     = synradar_meta%igraupel_type, &
+               itype_Dref_fmelt  = synradar_meta%itype_Dref_fmelt, &
+               ctype_dryice      = synradar_meta%ctype_dryice_mie, &
+               ctype_wetice      = synradar_meta%ctype_wetice_mie, &
+               ctype_drysnow     = synradar_meta%ctype_drysnow_mie, &
+               ctype_wetsnow     = synradar_meta%ctype_wetsnow_mie, &
+               ctype_drygraupel  = synradar_meta%ctype_drygraupel_mie, &
+               ctype_wetgraupel  = synradar_meta%ctype_wetgraupel_mie, &
+               ctype_dryhail     = synradar_meta%ctype_dryhail_mie, &
+               ctype_wethail     = synradar_meta%ctype_wethail_mie, &
+               Tmeltbegin_i      = synradar_meta%Tmeltbegin_i, &
+               meltdegTmin_i     = synradar_meta%meltdegTmin_i, &
+               Tmax_min_i        = synradar_meta%Tmax_min_i, &
+               Tmax_max_i        = synradar_meta%Tmax_max_i, &
+               Tmeltbegin_s      = synradar_meta%Tmeltbegin_s, &
+               meltdegTmin_s     = synradar_meta%meltdegTmin_s, &
+               Tmax_min_s        = synradar_meta%Tmax_min_s, &
+               Tmax_max_s        = synradar_meta%Tmax_max_s, &
+               Tmeltbegin_g      = synradar_meta%Tmeltbegin_g, &
+               meltdegTmin_g     = synradar_meta%meltdegTmin_g, &
+               Tmax_min_g        = synradar_meta%Tmax_min_g, &
+               Tmax_max_g        = synradar_meta%Tmax_max_g, &
+               Tmeltbegin_h      = synradar_meta%Tmeltbegin_h, &
+               meltdegTmin_h     = synradar_meta%meltdegTmin_h, &
+               Tmax_min_h        = synradar_meta%Tmax_min_h, &
+               Tmax_max_h        = synradar_meta%Tmax_max_h, &
+               pMPr              = synradar_meta%polMP_r, &
+               pMPi              = synradar_meta%polMP_i, &
+               pMPs              = synradar_meta%polMP_s, &
+               pMPg              = synradar_meta%polMP_g, &
+               pMPh              = synradar_meta%polMP_g, &
+               rho               = rho_tot(:,:,:), &
+               t                 = t(:,:,:), &
+               qc                = qc(:,:,:), &
+               qr                = qr(:,:,:), &
+               qi                = qi(:,:,:), &
+               qs                = qs(:,:,:), &
+               qg                = qg(:,:,:), &
+               qh                = qh(:,:,:), &
+               qnc               = qnc(:,:,:), &
+               qnr               = qnr(:,:,:), &
+               qni               = qni(:,:,:), &
+               qns               = qns(:,:,:), &
+               qng               = qng(:,:,:), &
+               qnh               = qnh(:,:,:), &
+               qgl               = qgl(:,:,:), &
+               qhl               = qhl(:,:,:), &
+               Tmax_i            = Tmax_i(:,:), &
+               Tmax_s            = Tmax_s(:,:), &
+               Tmax_g            = Tmax_g(:,:), &
+               Tmax_h            = Tmax_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
-               lalloc_qi        = .TRUE., &
-               lalloc_qs        = .TRUE., &
-               lalloc_qg        = .TRUE., &
-               lalloc_qh        = .TRUE., &
-               llookup          = synradar_meta%llookup_mie, &
-               impipar_lookupgen= 2, &
-               pe_start         = proc0_shift,   & ! Start-PE of the gang which computes the lookup tables, numbering within the work-communicator
-               pe_end           = get_my_mpi_work_comm_size()-1, &  ! End-PE of the gang. Can be at most the number of work PEs minus 1
+               lalloc_qi         = .TRUE., &
+               lalloc_qs         = .TRUE., &
+               lalloc_qg         = .TRUE., &
+               lalloc_qh         = .TRUE., &
+               llookup           = synradar_meta%llookup_mie, &
+               impipar_lookupgen = 2, &
+               pe_start          = proc0_shift,   & ! Start-PE of the gang which computes the lookup tables, numbering within the work-communicator
+               pe_end            = get_my_mpi_work_comm_size()-1, &  ! End-PE of the gang. Can be at most the number of work PEs minus 1
                linterp_mode_dualpol = (synradar_meta%itype_refl >= 5), &
                ydir_lookup_read  = TRIM(ydir_mielookup_read), &
                ydir_lookup_write = TRIM(ydir_mielookup_write), &
@@ -3527,7 +4316,9 @@ CONTAINS
                )
 
         CASE ( 3 )
-
+#ifdef _OPENACC
+          CALL finish(routine, 'radar_rayleigh_oguchi_2mom_vec is not supported by OpenACC.')
+#endif
           CALL radar_rayleigh_oguchi_2mom_vec( &
                myproc         = get_my_mpi_work_id(), &
                lambda_radar   = synradar_meta%lambda_radar, &
@@ -3560,9 +4351,9 @@ CONTAINS
                Tmax_g         = Tmax_g(:,:), &
                Tmax_h         = Tmax_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
-               lalloc_qi        = .TRUE., &
-               lalloc_qs        = .TRUE., &
-               lalloc_qg        = .TRUE., &
+               lalloc_qi      = .TRUE., &
+               lalloc_qs      = .TRUE., &
+               lalloc_qg      = .TRUE., &
                lalloc_qh      = .TRUE., &
                zh_radar       = dbz3d_lin(:,:,:), &
                lhydrom_choice_testing = synradar_meta%lhydrom_choice_testing &
@@ -3597,7 +4388,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax )
+  SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax, lacc )
 
     IMPLICIT NONE
 
@@ -3606,11 +4397,20 @@ CONTAINS
     REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
 
     REAL(wp),             INTENT(OUT) :: dbz_cmax(:,:)  !< output variable, dim: (nproma,nblks_c)
+    
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc           !< initialization flag
+
+    REAL(wp) :: most_negative_value
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_cmax, kstart_moist(jg:jg), ptr_patch) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -3619,27 +4419,32 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
+    most_negative_value = -HUGE(1.0_wp)
 
 !$OMP PARALLEL
+    CALL init(dbz_cmax(:,i_startblk:i_endblk), most_negative_value)
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        dbz_cmax(:,jb) = -HUGE(1.0_wp)
-
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
 
             dbz_cmax(jc,jb) = MAX (dbz_cmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
           END DO
         END DO
-      
+        !$ACC END PARALLEL
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbzcmax
 
@@ -3649,7 +4454,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax )
+  SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax, lacc )
 
     IMPLICIT NONE
 
@@ -3659,10 +4464,17 @@ CONTAINS
 
     REAL(wp),             INTENT(INOUT) :: dbz_ctmax(:,:)  !< input/output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_ctmax, kstart_moist(jg:jg), ptr_patch) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -3678,17 +4490,23 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
 
             dbz_ctmax(jc,jb) = MAX (dbz_ctmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
           END DO
         END DO
-      
+        !$ACC END PARALLEL
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE maximize_field_dbzctmax
 
@@ -3698,7 +4516,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850 )
+  SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850, lacc )
 
     IMPLICIT NONE
 
@@ -3708,10 +4526,17 @@ CONTAINS
 
     REAL(wp),             INTENT(OUT) :: dbz_850(:,:)  !< output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbz3d_lin, dbz_850, k850) IF(lzacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -3720,16 +4545,16 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
-
 !$OMP PARALLEL
+    CALL init(dbz_850(:,i_startblk:i_endblk))
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      dbz_850( :,jb) = 0.0_wp
-
+      
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(jk)
       DO jc = i_startidx, i_endidx
 
         jk = k850(jc,jb)
@@ -3740,10 +4565,13 @@ CONTAINS
         dbz_850(jc,jb) = dbz3d_lin(jc,jk,jb)
 
       END DO
+      !$ACC END PARALLEL
       
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbz850
 
@@ -3761,7 +4589,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
   !!
-  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx )
+  SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx, lacc )
 
     IMPLICIT NONE
 
@@ -3774,11 +4602,19 @@ CONTAINS
 
     REAL(wp),             INTENT(OUT) :: dbzlmx(:,:)  !< output variable, dim: (nproma,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
     INTEGER  :: jb, jk, jc, nlevp1
     REAL(wp) :: zml
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA PRESENT(dbzlmx, dbz3d_lin, kstart_moist(jg:jg), ptr_patch, p_metrics, p_metrics%z_mc, p_metrics%z_ifc) &
+    !$ACC   IF(lzacc)
 
     nlevp1 = ptr_patch%nlev+1
     
@@ -3789,17 +4625,18 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
-
 !$OMP PARALLEL
+    CALL init(dbzlmx(:,i_startblk:i_endblk))
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zml), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      dbzlmx( :,jb) = 0.0_wp
-
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
+        !$ACC LOOP GANG VECTOR PRIVATE(zml)
         DO jc = i_startidx, i_endidx
 
           zml = p_metrics%z_mc(jc,jk,jb) - p_metrics%z_ifc(jc,nlevp1,jb)
@@ -3812,10 +4649,13 @@ CONTAINS
 
         END DO
       END DO
-      
+      !$ACC END PARALLEL
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_dbzlmx
 
@@ -3825,7 +4665,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p )
+  SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p, lacc )
 
     IMPLICIT NONE
 
@@ -3836,6 +4676,8 @@ CONTAINS
 
     REAL(wp),             INTENT(INOUT) :: echotop_p(:,:,:)  !< input/output variable, dim: (nproma,nechotop,nblks_c)
 
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
+
     INTEGER               :: i_rlstart,  i_rlend
     INTEGER               :: i_startblk, i_endblk
     INTEGER               :: i_startidx, i_endidx
@@ -3845,6 +4687,12 @@ CONTAINS
     REAL(wp)              :: zthresh, zzthresh, zpA, zpB, zzdbzA,  zzdbzB
 
     REAL(wp), PARAMETER   :: repsilon = 1.0E8_wp*TINY(1.0_wp)  ! To prevent numerical division by 0 below
+
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA CREATE(jk_echotop) PRESENT(dbz3d_lin, echotop_p, kstart_moist(jg:jg), ptr_patch, p_diag, p_diag%pres) &
+    !$ACC   IF(lzacc)
     
     ! NOTE: pressure does not have to be recomputed/diagnosed here because this was already done when computing
     !       dbz3d_lin in the call to compute_field_dbz3d_lin() in mo_nh_stepping().
@@ -3869,9 +4717,17 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        
         ! Find the model level just below the echotop:
-        jk_echotop(:)  = -999
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          jk_echotop(jc)  = -999
+        END DO
+
+        !$ACC LOOP SEQ
         DO jk = MAX(kstart_moist(jg),2), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF ( jk_echotop(jc) < -900 .AND. dbz3d_lin(jc,jk,jb) >= zthresh ) THEN
               jk_echotop(jc) = jk
@@ -3880,6 +4736,7 @@ CONTAINS
         END DO
 
         ! Interpolate the exact echotop pressure log-linearily and take the min to the pre-existing "old" value:
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk, pechotop, zpA, zpB, zzdbzA, zzdbzB)
         DO jc = i_startidx, i_endidx
           IF (jk_echotop(jc) >= -900) THEN
             jk = jk_echotop(jc)
@@ -3900,12 +4757,16 @@ CONTAINS
             END IF
           END IF
         END DO
-        
+
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_echotop
 
@@ -3915,7 +4776,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
-  SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z )
+  SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z, lacc )
 
     IMPLICIT NONE
 
@@ -3925,6 +4786,8 @@ CONTAINS
     REAL(wp),             INTENT(IN)  :: dbz3d_lin(:,:,:) !< reflectivity in mm^6/m^3
 
     REAL(wp),             INTENT(INOUT) :: echotop_z(:,:,:)  !< input/output variable, dim: (nproma,nechotop,nblks_c)
+
+    LOGICAL,    OPTIONAL, INTENT(IN)  :: lacc             !< initialization flag
 
     INTEGER               :: i_rlstart,  i_rlend
     INTEGER               :: i_startblk, i_endblk
@@ -3936,8 +4799,13 @@ CONTAINS
 
     REAL(wp), PARAMETER   :: repsilon = 1.0E8_wp*TINY(1.0_wp)  ! To prevent numerical division by 0 below
 
-    
-    
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA CREATE(jk_echotop) &
+    !$ACC   PRESENT(dbz3d_lin, echotop_z, kstart_moist(jg:jg), ptr_patch, p_metrics, p_metrics%z_mc) &
+    !$ACC   IF(lzacc)
+
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -3958,9 +4826,17 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+
         ! Find the model level just below the echotop:
-        jk_echotop(:)  = -999
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          jk_echotop(jc)  = -999
+        END DO
+
+        !$ACC LOOP SEQ
         DO jk = MAX(kstart_moist(jg),2), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF ( jk_echotop(jc) < -900 .AND. dbz3d_lin(jc,jk,jb) >= zthresh ) THEN
               jk_echotop(jc) = jk
@@ -3969,6 +4845,7 @@ CONTAINS
         END DO
 
         ! Interpolate the exact echotop height linearily and take the max to the pre-existing "old" value:
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk, zA, zB, zechotop, zzdbzA, zzdbzB)
         DO jc = i_startidx, i_endidx
           IF (jk_echotop(jc) >= -900) THEN
             jk = jk_echotop(jc)
@@ -3985,12 +4862,16 @@ CONTAINS
             echotop_z (jc,lev_etop,jb) = MAX(echotop_z(jc,lev_etop,jb), zechotop)
           END IF
         END DO
-        
+
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_echotopinm
 
@@ -4027,7 +4908,7 @@ CONTAINS
   SUBROUTINE compute_field_dursun( pt_patch, dt_phy, dursun,                    &
     &                              swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff,   &
     &                              cosmu0, dursun_thresh, dursun_thresh_width,  &
-    &                              dursun_m, dursun_r, pi0, pres, twater)
+    &                              dursun_m, dursun_r, zsct, pres, twater, lacc)
 
     TYPE(t_patch),      INTENT(IN)    :: pt_patch              !< patch on which computation is performed
     REAL(wp),           INTENT(IN)    :: dt_phy                !< time interval for fast physics
@@ -4040,9 +4921,10 @@ CONTAINS
     REAL(wp),           INTENT(IN)    :: dursun_thresh_width   !< smoothness / width of the threshold
     REAL(wp), INTENT(INOUT), POINTER  :: dursun_m(:,:)         !< maximum sunshine duration (s)
     REAL(wp), INTENT(INOUT), POINTER  :: dursun_r(:,:)         !< relative sunshine duration (s)
-    REAL(wp), INTENT(IN), OPTIONAL    :: pi0(:,:)              !< local solar incoming flux at TOA [W/m2]
+    REAL(wp), INTENT(IN)              :: zsct                  !< solar constant (at time of year) [W/m2]
     REAL(wp), INTENT(IN), OPTIONAL    :: pres(:,:)             !< pressure
     REAL(wp), INTENT(IN), OPTIONAL    :: twater(:,:)           !< total column water
+    LOGICAL,  INTENT(IN), OPTIONAL    :: lacc                  !< initialization flag
 
     ! Use a minimum value to avoid div0: The exact value does not make a difference
     ! as the dursun_thresh [W/m2] will not be hit for such small values anyway.
@@ -4050,12 +4932,17 @@ CONTAINS
 
     ! local variables
     LOGICAL  :: l_present_dursun_m, l_present_dursun_r
-    REAL(wp) :: sun_el, swrad_dir, theta_sun, xval, &
-                zsct ! solar constant (at time of year)
+    REAL(wp) :: sun_el, swrad_dir, theta_sun, xval
     INTEGER  :: i_rlstart,  i_rlend
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
     INTEGER  :: jb, jc
+    LOGICAL  :: lzacc             ! OpenACC flag 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    !$ACC DATA &
+    !$ACC   PRESENT(cosmu0, dursun, dursun_m, dursun_r, pres, pt_patch) &
+    !$ACC   PRESENT(swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff, twater) &
+    !$ACC   IF(lzacc)
 
     l_present_dursun_m = .FALSE.
     l_present_dursun_r = .FALSE.
@@ -4070,12 +4957,13 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block  ( i_rlend   )
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,sun_el,swrad_dir,theta_sun,xval,zsct), ICON_OMP_RUNTIME_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,sun_el,swrad_dir,theta_sun,xval), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( pt_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(sun_el, swrad_dir, theta_sun, xval)
       DO jc = i_startidx, i_endidx
         IF(cosmu0(jc,jb)>cosmu0_dark) THEN
 
@@ -4101,9 +4989,7 @@ CONTAINS
           sun_el = ASIN(cosmu0(jc,jb))
           ! sun elevation angle in radians
           theta_sun = MAX(0.0_wp, sun_el)
-          ! from "calculate solar incoming flux at TOA" in mo_nh_interface_nwp.f90 line 1308
-          ! get solar constant 
-          zsct = pi0(jc,jb)/cosmu0(jc,jb)
+
           IF ( swflxsfc(jc,jb) > 0.0001_wp .AND. SIN(theta_sun) > 0.0001_wp ) THEN
             swrad_dir = zsct * 0.94_wp * EXP(                                    &
                  - 0.00146_wp * pres(jc,jb) / 1.0E3_wp / 0.8_wp / SIN(theta_sun) &
@@ -4129,11 +5015,12 @@ CONTAINS
           dursun_r(jc,jb) = MIN(100.0_wp, MAX(0.0_wp, dursun_r(jc,jb)))
         ENDIF
 
-      END DO
-    END DO
+      END DO ! jc loop
+      !$ACC END PARALLEL
+    END DO ! jb loop
+    !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
   END SUBROUTINE compute_field_dursun
 
   !>
@@ -4679,7 +5566,7 @@ CONTAINS
     REAL(wp),POINTER ::   rho(:,:,:)  ! total density (inkluding hydrometeors)
 
     ! specific tracer concentrations
-    REAL(wp) :: Cvmax, Ccmax, Cimax, Crmax, Csmax, Cgmax
+    REAL(wp) :: Ccmax, Cimax, Crmax, Csmax, Cgmax
 
     ! parameters for vis parametrization
     REAL(wp), parameter :: a_c = 144.7_wp, b_c = 0.88_wp  
@@ -4692,7 +5579,7 @@ CONTAINS
     INTEGER, PARAMETER :: top_lev = 3  ! number of levels from ground used for vis diagnostic
 
     REAL(wp) :: vis, vis_night, visrh, qrh
-    REAL(wp) :: pvsat, pv, rhmax, vishyd, visrh_clip, &
+    REAL(wp) :: pvsat, pv, rhmax, visrh_clip, &
 	     &  shear, shear_fac, czen, zen_fac
     real(wp),allocatable :: rh(:)
 

@@ -4,11 +4,11 @@
 !! This module is the interface between nwp_nh_interface to the 
 !! microphysical parameterisations:
 !!
-!! inwp_gscp == 1 : one_moment bulk microphysics by Doms and Schaettler(2004) 
-!!                                                and Seifert and Beheng(2006)
+!! inwp_gscp == 1 : one_moment bulk microphysics by Doms and Schaettler (2004) 
+!!                                                and Seifert and Beheng (2001)
 !! inwp_gscp == 2 : one-moment graupel scheme
 !!
-!! inwp_gscp == 3 : two-moment cloud ice scheme of Koehler (2013)
+!! inwp_gscp == 3 : two-moment cloud ice scheme (extension of gscp=1)
 !!
 !! inwp_gscp == 4 : two-moment bulk microphysics by Seifert and Beheng (2006)
 !!                  with prognostic cloud droplet number
@@ -58,14 +58,14 @@ MODULE mo_nwp_gscp_interface
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag, t_nwp_phy_tend
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi, iqr, iqs,       &
-                                     iqni, iqni_nuc, iqg, iqh, iqnr, iqns,     &
+                                     iqni, iqg, iqh, iqnr, iqns,               &
                                      iqng, iqnh, iqnc, inccn, ininpot, ininact,&
                                      iqtvar, iqgl, iqhl
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero
   USE gscp_kessler,            ONLY: kessler
   USE gscp_cloudice,           ONLY: cloudice
+  USE gscp_ice,                ONLY: cloudice2mom
   USE gscp_graupel,            ONLY: graupel
-  USE gscp_hydci_pp_ice,       ONLY: hydci_pp_ice
   USE mo_exception,            ONLY: finish
   USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph
   USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,set_qnh
@@ -185,9 +185,6 @@ CONTAINS
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
     CASE(4,5,6,7)
 
-#ifdef _OPENACC
-        CALL finish('mo_nwp_gscp_interface:','only graupel microphysics (inwp_gscp=2) is supported on GPU!')
-#endif
        ! Update lateral boundaries of nested domains
        IF ( (l_limited_area.AND.jg==1) .OR. l_nest_other_micro) THEN
 
@@ -205,7 +202,8 @@ CONTAINS
 
              CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                   i_startidx, i_endidx, i_rlstart, i_rlend)
-             
+             !$ACC PARALLEL DEFAULT(PRESENT)
+             !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(rholoc, rhoinv)
              DO jk = 1, nlev
                 DO jc = i_startidx, i_endidx
                    rholoc = p_prog%rho(jc,jk,jb)
@@ -218,6 +216,7 @@ CONTAINS
                    ptr_tracer(jc,jk,jb,iqnh) = set_qnh(ptr_tracer(jc,jk,jb,iqh)*rholoc)*rhoinv
                 ENDDO
              ENDDO
+             !$ACC END PARALLEL
           ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -401,44 +400,45 @@ CONTAINS
             & l_cv=.TRUE.                               ,    &
             & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
 
-        CASE(3)  ! improved ice nucleation scheme by C. Koehler based on hydci_pp
+        CASE(3)  ! extended version of cloudice scheme with progn. cloud ice number
 
-          CALL hydci_pp_ice (                                &
-            & nvec   =nproma                            ,    & !> in:  actual array size
-            & ke     =nlev                              ,    & !< in:  actual array size
-            & ke1    =nlevp1                            ,    & !< in:  half model levels (start index is 1)
-            & ivstart=i_startidx                        ,    & !< in:  start index of calculation
-            & ivend  =i_endidx                          ,    & !< in:  end index of calculation
-            & kstart =kstart_moist(jg)                  ,    & !< in:  vertical start index
-            & zdt    =tcall_gscp_jg                     ,    & !< in:  timestep
-            & qi0    =atm_phy_nwp_config(jg)%qi0        ,    & 
-            & qc0    =atm_phy_nwp_config(jg)%qc0        ,    & 
-            & dz     =p_metrics%ddqz_z_full(:,:,jb)     ,    & !< in:  vertical layer thickness
-            & t      =p_diag%temp   (:,:,jb)            ,    & !< in:  temp,tracer,...
-            & p      =p_diag%pres   (:,:,jb)            ,    & !< in:  full level pres
-            & w      =p_prog%w(:,:,jb)                  ,    & !< in:  vertical wind speed, half levs (m/s)
-            & tke    =ptr_tke(:,:,jb)            ,    & !< in:  turbulent kinetik energy
-            & rho    =p_prog%rho    (:,:,jb  )          ,    & !< in:  density
-            & qv     =ptr_tracer (:,:,jb,iqv)    ,    & !< in:  spec. humidity
-            & qc     =ptr_tracer (:,:,jb,iqc)    ,    & !< in:  cloud water
-            & qi     =ptr_tracer (:,:,jb,iqi)    ,    & !< in:  cloud ice
-            & qni    =ptr_tracer (:,:,jb,iqni)   ,    & !< in:  cloud ice number     ( 1/kg)
-            & qni_nuc=ptr_tracer (:,:,jb,iqni_nuc),   & !< in:  activated ice nuclei ( 1/kg)
-            & qr     =ptr_tracer (:,:,jb,iqr)    ,    & !< in:  rain water
-            & qs     =ptr_tracer (:,:,jb,iqs)    ,    & !< in:  snow
-            & prr_gsp=prm_diag%rain_gsp_rate (:,jb)     ,    & !< out: precipitation rate of rain
-            & prs_gsp=prm_diag%snow_gsp_rate (:,jb)     ,    & !< out: precipitation rate of snow
-            & qrsflux= prm_diag%qrs_flux (:,:,jb)       ,    & !< out: precipitation flux
-            & ldiag_ttend = ldiag_ttend                 ,    & !< in:  if temp. tendency shall be diagnosed
-            & ldiag_qtend = ldiag_qtend                 ,    & !< in:  if moisture tendencies shall be diagnosed
-            & ddt_tend_t  = ddt_tend_t                  ,    & !< out: tendency temperature
-            & ddt_tend_qv = ddt_tend_qv                 ,    & !< out: tendency QV
-            & ddt_tend_qc = ddt_tend_qc                 ,    & !< out: tendency QC
-            & ddt_tend_qi = ddt_tend_qi                 ,    & !< out: tendency QI
-            & ddt_tend_qr = ddt_tend_qr                 ,    & !< out: tendency QR
-            & ddt_tend_qs = ddt_tend_qs                 ,    & !< out: tendency QS
-            & idbg=msg_level/2                          ,    &
-            & l_cv=.TRUE. )
+          CALL cloudice2mom (                               &
+            & nvec   =nproma                           ,    & !> in:  actual array size
+            & ke     =nlev                             ,    & !< in:  actual array size
+            & ivstart=i_startidx                       ,    & !< in:  start index of calculation
+            & ivend  =i_endidx                         ,    & !< in:  end index of calculation
+            & kstart =kstart_moist(jg)                 ,    & !< in:  vertical start index
+            & zdt    =tcall_gscp_jg                    ,    & !< in:  timestep
+            & qi0    =atm_phy_nwp_config(jg)%qi0       ,    & 
+            & qc0    =atm_phy_nwp_config(jg)%qc0       ,    & 
+            & dz     =p_metrics%ddqz_z_full(:,:,jb)    ,    & !< in:  vertical layer thickness
+            & t      =p_diag%temp   (:,:,jb)           ,    & !< inout:  temp,tracer,...
+            & p      =p_diag%pres   (:,:,jb)           ,    & !< in:  full level pres
+            & rho    =p_prog%rho    (:,:,jb  )         ,    & !< in:  density
+            & qv     =ptr_tracer (:,:,jb,iqv)          ,    & !< inout:  spec. humidity
+            & qc     =ptr_tracer (:,:,jb,iqc)          ,    & !< inout:  cloud water
+            & qi     =ptr_tracer (:,:,jb,iqi)          ,    & !< inout:  cloud ice
+            & qr     =ptr_tracer (:,:,jb,iqr)          ,    & !< inout:  rain water
+            & qs     =ptr_tracer (:,:,jb,iqs)          ,    & !< inout:  snow
+            & qni    = ptr_tracer (:,:,jb,iqni)        ,    & !< inout:  cloud ice number
+            & ninact = ptr_tracer (:,:,jb,ininact)     ,    & !< inout:  activated ice nuclei
+            & w      = p_prog%w(:,:,jb)                ,    & !< in:  vertical wind speed, half levels
+            & qnc    = qnc_s                           ,    & !< in:  cloud number concentration
+            & prr_gsp=prm_diag%rain_gsp_rate (:,jb)    ,    & !< out: precipitation rate of rain
+            & prs_gsp=prm_diag%snow_gsp_rate (:,jb)    ,    & !< out: precipitation rate of snow
+            & pri_gsp=prm_diag%ice_gsp_rate (:,jb)     ,    & !< out: precipitation rate of cloud ice
+            & qrsflux= prm_diag%qrs_flux (:,:,jb)      ,    & !< out: precipitation flux
+            & ldiag_ttend = ldiag_ttend                ,    & !< in:  if temp. tendency shall be diagnosed
+            & ldiag_qtend = ldiag_qtend                ,    & !< in:  if moisture tendencies shall be diagnosed
+            & ddt_tend_t  = ddt_tend_t                 ,    & !< out: tendency temperature
+            & ddt_tend_qv = ddt_tend_qv                ,    & !< out: tendency QV
+            & ddt_tend_qc = ddt_tend_qc                ,    & !< out: tendency QC
+            & ddt_tend_qi = ddt_tend_qi                ,    & !< out: tendency QI
+            & ddt_tend_qr = ddt_tend_qr                ,    & !< out: tendency QR
+            & ddt_tend_qs = ddt_tend_qs                ,    & !< out: tendency QS
+            & idbg=msg_level/2                         ,    &
+            & l_cv=.TRUE.                              ,    &
+            & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
 
         CASE(4)  ! two-moment scheme 
 
@@ -477,7 +477,7 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level,                   &
                        & l_cv=.TRUE.,                           &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water ) !< in: latent heat choice
 
         CASE(5)  ! two-moment scheme with prognostic cloud droplet number
                  ! and budget equations for CCN and IN
@@ -519,7 +519,8 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level                ,    &
                        & l_cv=.TRUE.                        ,    &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water ) !< in: latent heat choice
+
 #ifdef __ICON_ART
         CASE(6)  ! two-moment scheme with prognostic cloud droplet number
                  ! and chemical composition taken from the ART extension
@@ -588,7 +589,7 @@ CONTAINS
                        qrsflux= prm_diag%qrs_flux  (:,:,jb)     ,    & !inout: 3D precipitation flux for LHN
                        msg_level = msg_level                ,    &
                        & l_cv=.TRUE.                        ,    &
-                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water) !< in: latent heat choice
+                       & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water )!< in: latent heat choice
 
         CASE(9)  ! Kessler scheme (warm rain scheme)
 
@@ -667,11 +668,10 @@ CONTAINS
           SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
           CASE(4,5,6,7)
 
-#ifdef _OPENACC
-           CALL finish('mo_nwp_gscp_interface:','only graupel microphysics (inwp_gscp=2) is supported on GPU!')
-#endif
 
 !DIR$ IVDEP
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
              prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)                         &
                   &                   + tcall_gscp_jg * prm_diag%rain_gsp_rate (jc,jb)
@@ -700,6 +700,7 @@ CONTAINS
                   &                   )
 
            ENDDO
+           !$ACC END PARALLEL
 
           CASE(2)
 
@@ -733,6 +734,27 @@ CONTAINS
                   &                   + prm_diag%snow_gsp_rate (jc,jb)       &
                   &                   + prm_diag%graupel_gsp_rate (jc,jb)    &
                   &                   )
+
+           ENDDO
+           !$ACC END PARALLEL
+
+          CASE(9)  ! Kessler scheme (warm rain scheme)
+
+!DIR$ IVDEP
+           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC LOOP GANG VECTOR
+           DO jc =  i_startidx, i_endidx
+
+             prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)         &
+               &                      + tcall_gscp_jg                    &
+               &                      * prm_diag%rain_gsp_rate (jc,jb)
+
+             prm_diag%prec_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)
+
+             ! to compute tot_prec_d lateron:
+             prm_diag%prec_gsp_d(jc,jb) = prm_diag%prec_gsp_d(jc,jb)     &
+               &                      + tcall_gscp_jg                    &
+               &                      * prm_diag%rain_gsp_rate (jc,jb)
 
            ENDDO
            !$ACC END PARALLEL

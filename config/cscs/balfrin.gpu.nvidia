@@ -67,7 +67,7 @@ CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2 ${NETCDFFI} ${ECCODESI}"
 
 FC='mpif90'
-FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -ta=nvidia:cc80 -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} ${NETCDFFI} -D__USE_G2G -D__SWAPDIM -D__ENABLE_REALLOC"
+FCFLAGS="-g -O -Mrecursive -Mallocatable=03 -Mbackslash -acc=verystrict -gpu=cc80 -Minfo=accel,inline ${SERIALBOXI} ${ECCODESI} ${NETCDFFI} -D__USE_G2G -D__SWAPDIM -D__ENABLE_REALLOC"
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_80 -g -O3'
 

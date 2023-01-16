@@ -62,7 +62,7 @@ MODULE mo_aes_phy_init
 
   ! vertical diffusion
   USE mo_aes_vdf_config,       ONLY: eval_aes_vdf_config, print_aes_vdf_config, aes_vdf_config
-  USE mo_vdiff_solver,         ONLY: init_vdiff_solver
+  USE mo_turb_vdiff,           ONLY: vdiff_init
 
 #ifndef __NO_JSBACH__
   ! land surface
@@ -243,7 +243,7 @@ CONTAINS
       nhydromet = 2              ! diffuse two hydro meteor specied: cloud water and ice
       ntrac = ntracer - iqt + 1  ! and ntrac further species
       !
-      CALL init_vdiff_solver( nhydromet, ntrac, nlev )
+      CALL vdiff_init( nhydromet, ntrac )
       !
       ! JSBACH land processes
       !
@@ -401,7 +401,6 @@ CONTAINS
     END DO
 
     iqt=iqm_max+1
-    
     ! Is "graupel" cloud microphysics active?
     ! Then iqv, iqc, iqi, iqr, iqs, and iqg must be non-zero and in {1,2,3,4,5,6}
     lany=.FALSE.
@@ -904,7 +903,7 @@ CONTAINS
 
       SELECT CASE (nh_test_name)
 
-      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','aes_bubble','CBL_flxconst','RCEMIP_analytical') 
+      CASE('APE','APE_aes','RCEhydro','RCE_glb','RCE_Tconst','RCE_Tprescr','RCE_bubble','CBL_flxconst','RCEMIP_analytical')
         ! Note that there is only one surface type in this case !!!
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE

@@ -83,6 +83,7 @@ cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma            = ${nproma}
  num_io_procs      = ${num_io_procs}
+ nproma_sub        = 8000
  io_process_stride = 6
 /
 &grid_nml
@@ -191,7 +192,6 @@ cat > ${atmo_namelist} << EOF
  aes_rad_config(1)%irad_cfc11 =  0
  aes_rad_config(1)%irad_cfc12 =  0
  aes_rad_config(1)%irad_aero  =  0
- aes_rad_config(1)%rrtmgp_columns_chunk = 8000
 /
 &aes_vdf_nml
  aes_vdf_config(1)%pr0        = 0.7

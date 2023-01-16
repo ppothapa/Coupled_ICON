@@ -60,6 +60,7 @@ MODULE mo_bc_aeropt_kinne
   TYPE(t_ext_aeropt_kinne), ALLOCATABLE :: ext_aeropt_kinne(:)
 
   INTEGER(i8), SAVE                :: pre_year(max_dom)=-HUGE(1)
+  LOGICAL, SAVE                    :: is_transient(max_dom) = .FALSE.
   INTEGER, PARAMETER               :: lev_clim=40
   REAL(wp)                         :: dz_clim
   REAL(wp)                         :: rdz_clim
@@ -258,7 +259,10 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
          ELSE
             imonthe = tiw_end%month2
             ! no reading of month 2 if end is already before 15 Jan.
-            IF ( imonthb == 2 .AND. imonthe < imonthb ) RETURN
+            IF ( imonthb == 2 .AND. imonthe < imonthb ) THEN
+              pre_year(jg) = mtime_current%date%year
+              RETURN
+            ENDIF
          ENDIF
 
       ENDIF
@@ -303,6 +307,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     rdz_clim = 1._wp/dz_clim
     pre_year(jg) = mtime_current%date%year
+    is_transient(jg) = l_filename_year
 
     !$ACC UPDATE DEVICE(ext_aeropt_kinne(jg)%aod_c_s, ext_aeropt_kinne(jg)%aod_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%ssa_c_s, ext_aeropt_kinne(jg)%ssa_f_s) &
@@ -380,6 +385,12 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   IF (PRESENT(opt_use_acc)) use_acc = opt_use_acc
 
   tiw = calculate_time_interpolation_weights(current_date)
+
+  IF (is_transient(jg) .AND. current_date%date%year /= pre_year(jg)) THEN
+    WRITE (message_text,'(A,I4,A,I4)') 'Stale data: requested year is', current_date%date%year, &
+        & ' but data is for ', pre_year(jg)
+    CALL finish('mo_bc_aeropt_kinne:set_bc_aeropt_kinne', message_text)
+  END IF
 
   !$ACC DATA PRESENT(zf, dz, paer_tau_sw_vr, paer_piz_sw_vr, paer_cg_sw_vr) &
   !$ACC   PRESENT(paer_tau_lw_vr, ext_aeropt_kinne) &

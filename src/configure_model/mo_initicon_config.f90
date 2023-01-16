@@ -15,7 +15,7 @@
 !!
 MODULE mo_initicon_config
 
-  USE mo_kind,               ONLY: wp
+  USE mo_kind,               ONLY: wp, i8
   USE mo_exception,          ONLY: finish
   USE mo_util_string,        ONLY: t_keyword_list, associate_keyword, with_keywords, &
     &                              int2string
@@ -27,17 +27,13 @@ MODULE mo_initicon_config
   USE mo_io_util,            ONLY: get_filetype
   USE mo_model_domain,       ONLY: t_patch
   USE mo_grid_config,        ONLY: l_limited_area, nroot
-  USE mo_time_config,        ONLY: time_config
   USE mo_master_config,      ONLY: getModelBaseDir
-  USE mtime,                 ONLY: timedelta, newTimedelta,                          &
-    &                              max_timedelta_str_len, datetime, OPERATOR(+),     &
-    &                              OPERATOR(<=), OPERATOR(>=), &
-    &                              getPTStringFromSeconds
+  USE mtime,                 ONLY: timedelta
   USE mo_upatmo_config,      ONLY: upatmo_config
 
   IMPLICIT NONE
 
-  PRIVATE 
+  PRIVATE
 
 
   ! Types
@@ -60,16 +56,9 @@ MODULE mo_initicon_config
   PUBLIC :: lcouple_ocean_coldstart
   PUBLIC :: ltile_coldstart
   PUBLIC :: ltile_init
-  PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, dt_ana
+  PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, icpl_da_tkhmin, dt_ana
   PUBLIC :: adjust_tso_tsnow
   PUBLIC :: lvert_remap_fg
-  PUBLIC :: lcalc_avg_fg
-  PUBLIC :: start_time_avg_fg
-  PUBLIC :: end_time_avg_fg
-  PUBLIC :: interval_avg_fg
-  PUBLIC :: iso8601_start_timedelta_avg_fg
-  PUBLIC :: iso8601_end_timedelta_avg_fg
-  PUBLIC :: iso8601_interval_avg_fg
   PUBLIC :: ifs2icon_filename
   PUBLIC :: dwdfg_filename
   PUBLIC :: dwdana_filename
@@ -93,7 +82,6 @@ MODULE mo_initicon_config
 
   ! Functions
   PUBLIC :: generate_filename
-  PUBLIC :: is_avgFG_time
   PUBLIC :: fgFilename
   PUBLIC :: fgFiletype
   PUBLIC :: anaFilename
@@ -150,6 +138,8 @@ MODULE mo_initicon_config
 
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
+  INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
+
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
   LOGICAL  :: adjust_tso_tsnow ! Apply T increments for lowest model level also to snow and upper soil layers
@@ -159,17 +149,6 @@ MODULE mo_initicon_config
   LOGICAL  :: lvert_remap_fg   ! If true, vertical remappting of first guess input is performed
 
   INTEGER  :: qcana_mode, qiana_mode, qrsgana_mode, qnxana_2mom_mode  ! mode of processing QC/QI/QR/QS/QG/QH/QNX increments
-
-  ! Variables controlling computation of temporally averaged first guess fields for DA
-  ! The calculation is switched on by setting end_time > start_time
-  REAL(wp) :: start_time_avg_fg   ! start time [s]
-  REAL(wp) :: end_time_avg_fg     ! end time [s]
-  REAL(wp) :: interval_avg_fg     ! averaging interval [s]
-  TYPE(datetime), TARGET :: startdatetime_avgFG ! as start_time_avg_fg but mtime compatible full datetime
-  TYPE(datetime), TARGET :: enddatetime_avgFG   ! as end_time_avg_fg   but mtime compatible full datetime
-  CHARACTER(len=max_timedelta_str_len):: iso8601_start_timedelta_avg_fg  ! start time in ISO8601 Format (relative)
-  CHARACTER(len=max_timedelta_str_len):: iso8601_end_timedelta_avg_fg    ! end time in ISO8601 Format (relative)
-  CHARACTER(len=max_timedelta_str_len):: iso8601_interval_avg_fg      ! averaging interval in ISO8601 Format
 
   INTEGER  :: filetype      ! One of CDI's FILETYPE\_XXX constants. Possible values: 2 (=FILETYPE\_GRB2), 4 (=FILETYPE\_NC2)
 
@@ -232,10 +211,6 @@ MODULE mo_initicon_config
   !> determines whether IAU is active at current time
   LOGICAL :: is_iau_active = .FALSE.
 
-  !> determines whether temporally averaged first guess fields are
-  !  computed
-  LOGICAL :: lcalc_avg_fg
-
   REAL(wp):: iau_wgt_dyn = 0._wp    !< IAU weight for dynamics fields 
   REAL(wp):: iau_wgt_adv = 0._wp    !< IAU weight for tracer fields
 
@@ -249,8 +224,8 @@ MODULE mo_initicon_config
 
   TYPE(t_initicon_config), TARGET :: initicon_config(0:max_dom)
 
-  ! perturb initial conditions. perturbation is only applied for pinit_seed > 0
-  INTEGER :: pinit_seed = 0
+  ! perturb initial conditions. perturbation is only applied for pinit_seed /= 0
+  INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
 CONTAINS
@@ -269,11 +244,7 @@ CONTAINS
   SUBROUTINE configure_initicon()
     !
     CHARACTER(len=*), PARAMETER :: routine = 'mo_initicon_config:configure_initicon'
-    !
-    TYPE(timedelta), POINTER             :: td_start_time_avg_fg, td_end_time_avg_fg
-    CHARACTER(len=max_timedelta_str_len) :: str_start_time_avg_fg, str_end_time_avg_fg
 
-    !
     !-----------------------------------------------------------------------
     !
 
@@ -288,52 +259,6 @@ CONTAINS
     ELSE
        init_mode_soil = 2  ! warmstart with full fields for h_snow from snow analysis
     ENDIF
-
-    
-    ! Preparations for first guess averaging
-    !
-    IF (end_time_avg_fg > start_time_avg_fg) THEN
-      lcalc_avg_fg  = .TRUE.   ! determines allocation
-    ELSE
-      lcalc_avg_fg  = .FALSE.
-    ENDIF
-    !
-    ! transform end_time_avg_fg, start_time_avg_fg to mtime format
-    !
-    ! get start and end datetime in mtime-format
-    CALL getPTStringFromSeconds(start_time_avg_fg, str_start_time_avg_fg)
-    td_start_time_avg_fg => newTimedelta(str_start_time_avg_fg)
-    CALL getPTStringFromSeconds(end_time_avg_fg, str_end_time_avg_fg)
-    td_end_time_avg_fg   => newTimedelta(str_end_time_avg_fg)
-    !
-    startdatetime_avgFG = time_config%tc_startdate + td_start_time_avg_fg
-    enddatetime_avgFG   = time_config%tc_startdate + td_end_time_avg_fg
-    !
-    ! get start and end datetime in ISO_8601 format relative to "tc_startdate"
-    ! start time
-    CALL getPTStringFromSeconds(start_time_avg_fg, iso8601_start_timedelta_avg_fg)
-    ! end time
-    CALL getPTStringFromSeconds(end_time_avg_fg, iso8601_end_timedelta_avg_fg)
-
-    !******************************************************* 
-    ! can be removed, once the new libmtime is available (timedeltaToString)
-    IF (TRIM(iso8601_start_timedelta_avg_fg)=="-P00.000S") THEN
-      iso8601_start_timedelta_avg_fg = "-PT00.000S"
-    ELSE IF (TRIM(iso8601_start_timedelta_avg_fg)=="+P00.000S") THEN
-      iso8601_start_timedelta_avg_fg = "+PT00.000S"
-    ENDIF 
-    IF (TRIM(iso8601_end_timedelta_avg_fg)=="-P00.000S") THEN
-      iso8601_end_timedelta_avg_fg = "-PT00.000S"
-    ELSE IF (TRIM(iso8601_end_timedelta_avg_fg)=="+P00.000S") THEN
-      iso8601_end_timedelta_avg_fg = "+PT00.000S"
-    ENDIF 
-    !********************************************************
-
-
-    !
-    ! transform averaging interval to ISO_8601 format
-    !
-    CALL getPTStringFromSeconds(interval_avg_fg, iso8601_interval_avg_fg)
 
     !
     ! set switch(es) for vertical extrapolation of initial data
@@ -412,30 +337,5 @@ CONTAINS
         resultVar = filetype
     END IF
   END FUNCTION anaFiletype
-
-
-  !>
-  !! Determines, whether it is time for first guess averaging
-  !!
-  !! Determines, whether it is time for first guess averaging.
-  !! The fields u, v, temp, pres and qv can be averaged over a user-specified 
-  !! time interval in order to provide them to the data assimilation 
-  !! as 'filtered/averaged' first guess fields. 
-  !! This function indicates, whether the current model time is within the 
-  !! user-specified averaging interval.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-12-17)
-  !!
-  LOGICAL FUNCTION is_avgFG_time(curdatetime)
-    TYPE(datetime), POINTER :: curdatetime     !< current datetime in mtime format
-
-    ! check whether startdatetime_avgFG <= curdatetime <= enddatetime_avgFG
-    !
-    is_avgFG_time = (curdatetime >= startdatetime_avgFG) .AND.              &
-                    (curdatetime <= enddatetime_avgFG    .AND. lcalc_avg_fg )
-
-  END FUNCTION is_avgFG_time
-
 
 END MODULE mo_initicon_config

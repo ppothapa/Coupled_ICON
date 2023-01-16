@@ -26,7 +26,7 @@
 MODULE mo_les_turb_interface
 
   USE mo_kind,                 ONLY: wp
-  USE mo_exception,            ONLY: message
+  USE mo_exception,            ONLY: message, finish
   USE mo_model_domain,         ONLY: t_patch
   USE mo_intp_data_strc,       ONLY: t_int_state
   USE mo_impl_constants,       ONLY: min_rlcell_int, ismag, iprog
@@ -41,6 +41,8 @@ MODULE mo_les_turb_interface
   USE mo_sgs_turbulence,       ONLY: drive_subgrid_diffusion
   USE mo_sgs_turbmetric,       ONLY: drive_subgrid_diffusion_m
   USE mo_les_config,           ONLY: les_config
+  USE mo_fortran_tools,        ONLY: assert_acc_device_only
+
 
   IMPLICIT NONE
 
@@ -64,7 +66,8 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
                           & prm_diag, prm_nwp_tend,           & !>inout
                           & lnd_prog_now,                     & !>in 
                           & lnd_prog_new,                     & !>inout only for idealized LES
-                          & lnd_diag                          ) !>in
+                          & lnd_diag,                         & !>in
+                          & lacc                              ) !>in
 
 
   TYPE(t_patch),        TARGET,INTENT(inout):: p_patch        !!<grid/patch info.
@@ -92,6 +95,10 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
   INTEGER :: jc,jk,jb,jg      !loop indices
 
   INTEGER  :: nlev            !< number of full levels
+
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+
+  CALL assert_acc_device_only("les_turbulence", lacc)
 
 !--------------------------------------------------------------
 
@@ -123,11 +130,12 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
                                      lnd_diag,        & !inout
                                      prm_diag,        & !inout
                                      prm_nwp_tend,    & !inout
-                                     tcall_turb_jg    & !in
-                                     )
-
-
+                                     tcall_turb_jg,   & !in
+                                     lacc=.TRUE.      ) !in
     ELSE
+#ifdef _OPENACC
+      CALL finish ('mo_les_turb_interface:', 'inwp_turb=ismag,iprog only available for les_metric on OpenACC')
+#endif
       CALL drive_subgrid_diffusion(p_sim_time,        & !in (Christopher Moseley)
                                    p_prog,            & !inout for w (it is updated inside)
                                    p_prog_now_rcf,    & !inout   
@@ -168,6 +176,8 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
     ! is done at the end of the NWP interface by first interpolating the u/v tendencies to the 
     ! velocity points (in order to minimize interpolation errors) and then adding the tendencies
     ! to vn
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
         p_prog_rcf%tracer(jc,jk,jb,iqv) =MAX(0._wp, p_prog_rcf%tracer(jc,jk,jb,iqv) &
@@ -178,13 +188,17 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
         p_diag%v(jc,jk,jb) = p_diag%v(jc,jk,jb) + tcall_turb_jg*prm_nwp_tend%ddt_v_turb(jc,jk,jb)
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
     ! QC is updated only in that part of the model domain where moisture physics is active
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = kstart_moist(jg), nlev
       DO jc = i_startidx, i_endidx
         p_prog_rcf%tracer(jc,jk,jb,iqc) =MAX(0._wp, p_prog_rcf%tracer(jc,jk,jb,iqc) &
              &           + tcall_turb_jg*prm_nwp_tend%ddt_tracer_turb(jc,jk,jb,iqc))
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
   ENDDO ! jb
 !$OMP END DO NOWAIT

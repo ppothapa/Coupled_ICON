@@ -48,6 +48,9 @@ MODULE mo_parallel_nml
     & set_nproma, &
     & config_nblocks_c           => nblocks_c,             &
     & config_use_nblocks_c       => ignore_nproma_use_nblocks_c,     &
+    & config_nproma_sub          => nproma_sub,            &
+    & config_nblocks_sub         => nblocks_sub,           &
+    & config_use_nblocks_sub     => ignore_nproma_sub_use_nblocks_sub,     &
     & config_use_icon_comm       => use_icon_comm,        &
     & config_icon_comm_debug     => icon_comm_debug,        &
     & div_geometric, check_parallel_configuration,          &
@@ -173,6 +176,9 @@ MODULE mo_parallel_nml
     INTEGER :: nproma    ! inner loop length/vector length
     INTEGER :: nblocks_c   ! inner loop number of blocks used for cells
 
+    INTEGER :: nproma_sub    ! secondary nproma, by default the same as the basic one
+    INTEGER :: nblocks_sub   ! number of blocks to subdivide the basic nproma into
+
     LOGICAL :: use_dp_mpi2io
 
     ! The (asynchronous) restart is capable of writing and communicating
@@ -205,6 +211,7 @@ MODULE mo_parallel_nml
       & num_io_procs_radar, &
       & itype_comm,        iorder_sendrecv,     &
       & nproma, nblocks_c,                      &
+      & nproma_sub, nblocks_sub,                &
       & use_icon_comm, &
       & icon_comm_debug, max_send_recv_buffer_size, &
       & division_file_name, use_dycore_barrier, &
@@ -304,6 +311,10 @@ MODULE mo_parallel_nml
     nproma = 1
     nblocks_c = 0
 
+    ! secondary inner loop length/vector length
+    nproma_sub = -1
+    nblocks_sub = -1
+
     ! MPI gather to output processes in DOUBLE PRECISION
     use_dp_mpi2io = .FALSE.
 
@@ -384,6 +395,11 @@ MODULE mo_parallel_nml
     config_nblocks_c           = nblocks_c
     config_use_nblocks_c       = (nblocks_c > 0) ! Only use nblocks_c if it has a reasonable value
     CALL set_nproma(nproma)
+
+    ! nblocks_sub defaults to 1; but explicitly set, it overrides nproma_sub
+    config_nproma_sub          = nproma_sub
+    config_nblocks_sub         = MERGE(nblocks_sub, 1, nblocks_sub > 0)
+    config_use_nblocks_sub     = (nproma_sub <= 0)
 
     config_use_icon_comm       = use_icon_comm
     config_icon_comm_debug     = icon_comm_debug

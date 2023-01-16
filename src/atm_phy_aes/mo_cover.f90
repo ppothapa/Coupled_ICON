@@ -59,6 +59,7 @@ MODULE mo_cover
   USE mo_physical_constants,   ONLY : vtmpc1, cpd, grav
   USE mo_aes_convect_tables,   ONLY : prepare_ua_index_spline,       lookup_ua_eor_uaw_spline,     &
                                       prepare_ua_index_spline_batch, lookup_ua_eor_uaw_spline_batch
+  USE mo_aes_cop_config,       ONLY : aes_cop_config
   USE mo_aes_cov_config,       ONLY : aes_cov_config
   USE mo_index_list,           ONLY : generate_index_list
 
@@ -203,13 +204,14 @@ CONTAINS
           !
        END DO   !jk
 #else
-      CALL prepare_ua_index_spline_batch( jg,'cover (2)',jcs,kproma,klev-jks+1,                                    &
+      CALL prepare_ua_index_spline_batch( 'cover (2)',jcs,kproma,klev-jks+1,                                    &
                                           ptm1(:,jks:),idx_batch(:,jks:),za_batch(:,jks:),pxim1(:,jks:),  &
                                           nphase_batch(jks:), zphase_batch(:,jks:), iphase_batch(:,jks:),    &
-                                          kblock=jb, kblock_size=kbdim, opt_need_host_nphase=.FALSE. )
+                                          kblock=jb, kblock_size=kbdim, opt_need_host_nphase=.FALSE., &
+                                          csecfrl=aes_cop_config(jg)%csecfrl, cthomi=aes_cop_config(jg)%cthomi)
 
       CALL lookup_ua_eor_uaw_spline_batch( jcs, kproma, klev-jks+1,                    &
-                                           idx_batch(:,jks:), iphase_batch(:,jks:), & 
+                                           idx_batch(:,jks:), iphase_batch(:,jks:), &
                                            za_batch(:,jks:),  ua_batch(:,jks:) )
 
 
@@ -228,7 +230,7 @@ CONTAINS
        !
     END SELECT
 
-    
+
     ! Calculate the cloud cover
     !
     SELECT CASE (icov)
@@ -325,7 +327,7 @@ CONTAINS
              ! Scaling factors < 1 are computed for cells below an inversion in conditions
              ! allowing for marine stratocumulus clouds.
              !
-             jbm=knvb(jl)                           ! if inversion was found: level below inversion, otherwise = 1 
+             jbm=knvb(jl)                           ! if inversion was found: level below inversion, otherwise = 1
              lao=(jksinv <= jbm .AND. jbm <= jkeinv)! true if jbm of this column is in valid range of height
              lao1=(jk == jbm)                       ! true if jk is the level just below the inversion
              IF (lao .AND. lao1) THEN               ! this is a layer below an inversion, where zsat needs to be modified

@@ -35,7 +35,9 @@ MODULE mo_atm_phy_nwp_config
   USE mo_model_domain,        ONLY: t_patch
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_radiation_config,    ONLY: irad_o3
-  USE mo_les_config,          ONLY: configure_les
+#ifndef __NO_ICON_LES__
+  USE mo_les_config,          ONLY: configure_les, les_config
+#endif
   USE mo_limarea_config,      ONLY: configure_latbc
   USE mo_time_config,         ONLY: time_config
   USE mo_initicon_config,     ONLY: timeshift
@@ -382,6 +384,13 @@ CONTAINS
         CALL configure_les(jg,dtime)
         atm_phy_nwp_config(jg)%is_les_phy = .TRUE. 
       END IF 
+
+      !sanity check
+      IF( atm_phy_nwp_config(jg)%inwp_surface>0 .AND. les_config(jg)%isrfc_type>1)THEN
+         WRITE(message_text,'(a,i2,a)') 'isrfc_type = ',les_config(jg)%isrfc_type, &
+            ' enables idealized surface which needs inwp_surface = 0. Check simulation configuration!'
+        CALL finish(routine, message_text)
+      END IF
 
       IF( atm_phy_nwp_config(jg)%is_les_phy ) THEN
 

@@ -182,6 +182,10 @@ MODULE mo_meteogram_output
   USE mo_util_phys,             ONLY: rel_hum, swdir_s
   USE mo_grid_config,           ONLY: grid_sphere_radius, is_plane_torus
   USE mo_aes_phy_memory,        ONLY: prm_field
+  USE mo_fortran_tools,         ONLY: assert_acc_device_only, set_acc_host_or_device
+#ifdef _OPENACC
+  USE openacc,                  ONLY: acc_is_present
+#endif
   IMPLICIT NONE
 
   PRIVATE
@@ -1114,6 +1118,8 @@ CONTAINS
 
       IF (i_T /= -1 .AND. i_QV /= -1 .AND. i_PEXNER  /= -1) THEN
         nlevs = SIZE(out_buf%atmo_vars(i_T)%a, 2)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP COLLAPSE(2) PRIVATE(istation_buf, temp, qv, p_ex)
         DO ilev=1,nlevs
           DO istation = 1, ithis_nlocal_pts
             istation_buf = buf_idx(istation)
@@ -1127,6 +1133,7 @@ CONTAINS
               = rel_hum(temp, qv, p_ex)
           END DO
         END DO
+        !$ACC END PARALLEL
       ELSE
         CALL message(routine, ">>> meteogram: REL_HUM could not be computed&
           & (T, QV, and/or PEXNER missing)")
@@ -1140,6 +1147,8 @@ CONTAINS
       i_SWDIFD_S = diag_var_indices%i_SWDIFD_S
       i_SOBS = diag_var_indices%i_SOBS
       IF (i_ALB /= -1 .AND. i_SWDIFD_S /= -1 .AND. i_SOBS /= -1) THEN
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR PRIVATE(istation_buf, albedo, swdifd_s, sobs)
         DO istation = 1, ithis_nlocal_pts
           istation_buf = buf_idx(istation)
           albedo   = out_buf%sfc_vars(i_ALB)%a(istation_buf, i_tstep)
@@ -1148,6 +1157,7 @@ CONTAINS
           out_buf%sfc_vars(i_SWDIR_S)%a(istation_buf, i_tstep) &
             = swdir_s(albedo, swdifd_s, sobs)
         END DO
+        !$ACC END PARALLEL
       ELSE
         CALL message(routine, ">>> meteogram: SWDIR_S could not be computed&
           & (ALB, SWDIFD_S, and/or SOBS missing)")
@@ -1378,6 +1388,8 @@ CONTAINS
         &                            var_list, pack_buf)
       CALL resize_var_info(var_list, mtgrm(jg)%var_info, mtgrm(jg)%sfc_var_info)
 
+      CALL acc_copyin_var_info(mtgrm(jg)%var_info, mtgrm(jg)%sfc_var_info)
+
       IF (pack_buf%l_is_varlist_sender) THEN
         CALL p_send_packed(pack_buf%msg_varlist, mtgrm(jg)%io_collector_rank, &
           &                TAG_VARLIST, pack_buf%pos, &
@@ -1449,6 +1461,8 @@ CONTAINS
         END DO
       END IF
     END IF
+
+    !$ACC ENTER DATA COPYIN(mtgrm(jg)%tri_idx_local) ASYNC(1)
 
     ! ------------------------------------------------------------
     ! If this is the IO PE: initialize global data structure
@@ -1682,16 +1696,20 @@ CONTAINS
     ALLOCATE(out_buf%atmo_vars(nvars_atmo), out_buf%sfc_vars(nvars_sfc), &
       out_buf%station_idx(nstations), stat=ierror)
     IF (ierror == success) THEN
+      !$ACC ENTER DATA CREATE(out_buf) ASYNC(1)
+      !$ACC ENTER DATA CREATE(out_buf%atmo_vars, out_buf%sfc_vars) ASYNC(1)
       DO ivar = 1, nvars_atmo
         nlevs = var_info(ivar)%nlevs
         ALLOCATE(out_buf%atmo_vars(ivar)%a(nstations,nlevs,max_time_stamps))
         IF (ierror /= success) EXIT
+        !$ACC ENTER DATA CREATE(out_buf%atmo_vars(ivar)%a) ASYNC(1)
       END DO
     END IF
     IF (ierror == success) THEN
       DO ivar = 1, nvars_sfc
         ALLOCATE(out_buf%sfc_vars(ivar)%a(nstations,max_time_stamps))
         IF (ierror /= success) EXIT
+        !$ACC ENTER DATA CREATE(out_buf%sfc_vars(ivar)%a) ASYNC(1)
       END DO
     END IF
     IF (ierror /= SUCCESS) CALL finish(routine, &
@@ -1743,13 +1761,14 @@ CONTAINS
   !! @par Revision History
   !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
-  SUBROUTINE meteogram_sample_vars(jg, cur_step, cur_datetime)
+  SUBROUTINE meteogram_sample_vars(jg, cur_step, cur_datetime, lacc)
     !> patch index
     INTEGER,          INTENT(IN)  :: jg
     !> current model iteration step
     INTEGER,          INTENT(IN)  :: cur_step
     !> date and time of point sample
     TYPE(datetime), INTENT(IN) :: cur_datetime
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! local variables
     CHARACTER(*), PARAMETER :: routine = modname//":meteogram_sample_vars"
@@ -1757,6 +1776,8 @@ CONTAINS
     CHARACTER(len=MAX_DATETIME_STR_LEN) :: zdate
     INTEGER :: msg(2)
     INTEGER :: buf_idx(mtgrm(jg)%nstations_local)
+
+    CALL assert_acc_device_only(routine, lacc)
 
     IF (dbg_level > 0) THEN
       WRITE(message_text,*) "Sampling at step=", cur_step
@@ -1777,7 +1798,7 @@ CONTAINS
           comm=mtgrm(jg)%io_collect_comm)
       END IF
 
-      CALL meteogram_flush_file(jg)
+      CALL meteogram_flush_file(jg, lacc=.TRUE.)
     END IF
     i_tstep = mtgrm(jg)%icurrent + 1
     mtgrm(jg)%icurrent = i_tstep
@@ -1798,12 +1819,16 @@ CONTAINS
           buf_idx(istation) = istation
         END DO
       END IF
+      !$ACC DATA COPYIN(buf_idx)
       ! fill time step with values
+      !$ACC WAIT
       CALL sample_station_vars(&
         mtgrm(jg)%tri_idx_local, &
         mtgrm(jg)%var_info, mtgrm(jg)%sfc_var_info, &
         mtgrm(jg)%diag_var_indices, i_tstep, ithis_nlocal_pts, &
         mtgrm(jg)%out_buf, buf_idx)
+      !$ACC WAIT
+      !$ACC END DATA
     END IF
   END SUBROUTINE meteogram_sample_vars
 
@@ -1826,8 +1851,11 @@ CONTAINS
 
     ! sample 3D variables:
     nvars = SIZE(var_info)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG
     VAR_LOOP : DO ivar=1,nvars
       IF (.NOT. BTEST(var_info(ivar)%igroup_id, FLAG_DIAG)) THEN
+        !$ACC LOOP VECTOR PRIVATE(istation_buf, iidx, iblk)
         DO istation = 1, ithis_nlocal_pts
           istation_buf = buf_idx(istation)
           iidx  = tri_idx_local(istation, 1)
@@ -1837,10 +1865,15 @@ CONTAINS
         END DO
       END IF
     END DO VAR_LOOP
+    !$ACC END PARALLEL
+
     ! sample surface variables:
     nvars = SIZE(sfc_var_info)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG
     SFCVAR_LOOP : DO ivar=1,nvars
       IF (.NOT. BTEST(sfc_var_info(ivar)%igroup_id, FLAG_DIAG)) THEN
+        !$ACC LOOP VECTOR PRIVATE(istation_buf, iidx, iblk)
         DO istation = 1, ithis_nlocal_pts
           istation_buf = buf_idx(istation)
           iidx  = tri_idx_local(istation, 1)
@@ -1850,6 +1883,7 @@ CONTAINS
         END DO
       END IF
     END DO SFCVAR_LOOP
+    !$ACC END PARALLEL
 
     ! compute additional diagnostic quantities:
     CALL compute_diagnostics(diag_var_indices, i_tstep, &
@@ -1865,8 +1899,9 @@ CONTAINS
   !! @par Revision History
   !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
-  SUBROUTINE meteogram_finalize(jg)
+  SUBROUTINE meteogram_finalize(jg, lacc)
     INTEGER, INTENT(IN)         :: jg    !< patch index
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     ! local variables:
     CHARACTER(*), PARAMETER     :: routine = modname//":meteogram_finalize"
     INTEGER                     :: ierror
@@ -1875,7 +1910,7 @@ CONTAINS
     ! ------------------------------------------------------------
     ! flush, and if this is the IO PE, close NetCDF file
     ! ------------------------------------------------------------
-    CALL meteogram_close_file(jg)
+    CALL meteogram_close_file(jg, lacc=lacc)
 
     is_mpi_workroot = my_process_is_mpi_workroot()
     IF (     mtgrm(jg)%nstations_local > 0 &
@@ -2670,18 +2705,36 @@ CONTAINS
   !! @par Revision History
   !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
-  SUBROUTINE meteogram_flush_file(jg)
+  SUBROUTINE meteogram_flush_file(jg, lacc)
     INTEGER, INTENT(IN)         :: jg       !< patch index
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
     ! local variables:
+    INTEGER :: ivar
     CHARACTER(len=*), PARAMETER :: routine = modname//":meteogram_flush_file"
+    LOGICAL :: lzacc ! non-optional version of lacc
 
     IF (dbg_level > 5)  WRITE (*,*) routine, " Enter"
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+    DO ivar=1,SIZE(mtgrm(jg)%var_info)
+      !$ACC UPDATE HOST(mtgrm(jg)%out_buf%atmo_vars(ivar)%a) ASYNC(1) IF(lzacc)
+    END DO
+    DO ivar=1,SIZE(mtgrm(jg)%sfc_var_info)
+      !$ACC UPDATE HOST(mtgrm(jg)%out_buf%sfc_vars(ivar)%a) ASYNC(1) IF(lzacc)
+    END DO
+    !$ACC WAIT
 
     ! In "non-distributed" mode, station data is gathered by PE #0
     ! which writes a single file:
-    IF (.NOT. mtgrm(jg)%meteogram_file_info%ldistributed) &
+    IF (.NOT. mtgrm(jg)%meteogram_file_info%ldistributed) THEN
       CALL meteogram_collect_buffers(mtgrm(jg), jg)
+    ELSE
+#ifdef _OPENACC
+      CALL finish(routine, "ldistributed has not been tested with OpenACC.")
+      ! MJ assumes that the code should work. Please test it and if it works,
+      ! please add a ldistributed test to the testing and remove this warning.
+#endif
+    ENDIF
     IF (mtgrm(jg)%l_is_writer) THEN
       CALL disk_flush(mtgrm(jg)%var_info, mtgrm(jg)%sfc_var_info, &
       &               mtgrm(jg)%out_buf, mtgrm(jg)%time_offset, &
@@ -2784,13 +2837,14 @@ CONTAINS
   !! @par Revision History
   !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
-  SUBROUTINE meteogram_close_file(jg)
+  SUBROUTINE meteogram_close_file(jg, lacc)
     INTEGER, INTENT(IN)  :: jg    !< patch index
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     CHARACTER(len=*), PARAMETER :: routine=modname//"::meteogram_close_file"
 
     ! write remaining buffers:
-    CALL meteogram_flush_file(jg)
+    CALL meteogram_flush_file(jg, lacc=lacc)
 
     ! Close NetCDF file
     ! skip routine, if this PE has nothing to do...
@@ -2912,6 +2966,15 @@ CONTAINS
       CALL finish(routine, message_text)
     END IF
 
+#ifdef _OPENACC
+    IF (.NOT. acc_is_present(var_info(ivar)%p_source)) THEN
+      WRITE (message_text, '(3a)') 'Source array ', &
+        TRIM(var_info(ivar)%cf%standard_name), ' not present on accelerator!'
+      CALL finish(routine, message_text)
+    END IF
+    !$ACC ENTER DATA ATTACH(var_info(ivar)%p_source)
+#endif
+
   END SUBROUTINE add_atmo_var_3d
 
 
@@ -2984,6 +3047,15 @@ CONTAINS
     CALL set_cf_info(sfc_var_info(ivar)%cf, zname, zlong_name, zunit)
     sfc_var_info(ivar)%igroup_id        = igroup_id
     sfc_var_info(ivar)%p_source  => source
+
+#ifdef _OPENACC
+    IF (.NOT. acc_is_present(sfc_var_info(ivar)%p_source)) THEN
+      WRITE (message_text, '(3a)') 'Source array ', &
+        TRIM(sfc_var_info(ivar)%cf%standard_name), ' not present on accelerator!'
+      CALL finish(routine, message_text)
+    END IF
+    !$ACC ENTER DATA ATTACH(sfc_var_info(ivar)%p_source)
+#endif
   END SUBROUTINE add_sfc_var_2d
 
 
@@ -3043,6 +3115,22 @@ CONTAINS
     tmp_sfc_var_info = sfc_var_info(1:nvars)
     CALL MOVE_ALLOC(tmp_sfc_var_info, sfc_var_info)
   END SUBROUTINE resize_var_info
+
+  !> copy var list and buffers on OpenACC device and attach pointers
+  SUBROUTINE acc_copyin_var_info(var_info, sfc_var_info)
+    TYPE(t_var_info), ALLOCATABLE, INTENT(inout) :: var_info(:)
+    TYPE(t_sfc_var_info), ALLOCATABLE, INTENT(inout) :: sfc_var_info(:)
+
+    INTEGER :: ivar
+
+    !$ACC ENTER DATA COPYIN(var_info, sfc_var_info) ASYNC(1)
+    DO ivar = 1, SIZE(var_info)
+      !$ACC ENTER DATA ATTACH(var_info(ivar)%p_source) ASYNC(1)
+    ENDDO
+    DO ivar = 1, SIZE(sfc_var_info)
+      !$ACC ENTER DATA ATTACH(sfc_var_info(ivar)%p_source) ASYNC(1)
+    ENDDO
+  END SUBROUTINE acc_copyin_var_info
 
   !>
   !!  Utility function.

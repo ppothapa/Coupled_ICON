@@ -46,6 +46,7 @@ MODULE mo_nwp_sfc_interface
     &                               itype_snowevap, zml_soil
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
   USE mo_initicon_config,     ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
+  USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_ensemble_pert_config,ONLY: sst_pert_corrfac
   USE mo_satad,               ONLY: sat_pres_water, sat_pres_ice, spec_humi, dqsatdT_ice
   USE sfc_terra,              ONLY: terra
@@ -56,7 +57,7 @@ MODULE mo_nwp_sfc_interface
   USE sfc_terra_data                ! soil and vegetation parameters for TILES
   USE mo_physical_constants,  ONLY: tmelt, grav, salinity_fac, rhoh2o
   USE mo_index_list,          ONLY: generate_index_list
-  USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device
+  USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device, assert_acc_device_only
   IMPLICIT NONE 
 
   PRIVATE
@@ -176,6 +177,7 @@ CONTAINS
     REAL(wp) :: tch_t      (nproma)
     REAL(wp) :: tcm_t      (nproma)
     REAL(wp) :: tfv_t      (nproma)
+    REAL(wp) :: tfvsn_t    (nproma)
 
     REAL(wp) :: sobs_t     (nproma)
     REAL(wp) :: thbs_t     (nproma)
@@ -333,7 +335,7 @@ CONTAINS
     !$ACC   CREATE(prs_gsp_t, pri_gsp_t, prg_gsp_t, sobs_t, thbs_t, pabs_t, tsnred) &
     !$ACC   CREATE(t_snow_now_t, t_s_now_t, t_sk_now_t, t_g_t, qv_s_t, w_snow_now_t) &
     !$ACC   CREATE(rho_snow_now_t, h_snow_t, w_i_now_t, w_p_now_t, w_s_now_t) &
-    !$ACC   CREATE(freshsnow_t, snowfrac_t, tch_t, tcm_t, tfv_t, runoff_s_inst_t) &
+    !$ACC   CREATE(freshsnow_t, snowfrac_t, tch_t, tcm_t, tfv_t, tfvsn_t, runoff_s_inst_t) &
     !$ACC   CREATE(runoff_g_inst_t, resid_wso_inst_t, t_snow_mult_now_t) &
     !$ACC   CREATE(rho_snow_mult_now_t) &
     !$ACC   CREATE(wliq_snow_now_t, wtot_snow_now_t, dzh_snow_now_t, t_so_now_t) &
@@ -352,7 +354,7 @@ CONTAINS
 !$OMP   prr_gsp_t,prs_gsp_t,pri_gsp_t,u_t,v_t,t_t,qv_t,p0_t,sso_sigma_t,lc_class_t,t_snow_now_t,t_s_now_t,  &
 !$OMP   t_g_t,qv_s_t,w_snow_now_t,rho_snow_now_t,w_i_now_t,w_p_now_t,w_s_now_t,freshsnow_t,                 &
 !$OMP   snowfrac_t,runoff_s_inst_t,runoff_g_inst_t,resid_wso_inst_t,u_10m_t,v_10m_t,tch_t,tcm_t,tfv_t,      &
-!$OMP   sobs_t,thbs_t,pabs_t,r_bsmin,                                                                       &
+!$OMP   tfvsn_t,sobs_t,thbs_t,pabs_t,r_bsmin,                                                               &
 !$OMP   soiltyp_t,plcov_t,rootdp_t,sai_t,tai_t,eai_t,rsmin2d_t,t_snow_mult_now_t,wliq_snow_now_t,           &
 !$OMP   rho_snow_mult_now_t,wtot_snow_now_t,dzh_snow_now_t,t_so_now_t,w_so_now_t,w_so_ice_now_t,            &
 !$OMP   t_s_new_t,w_snow_new_t,rho_snow_new_t,h_snow_t,w_i_new_t,w_p_new_t,w_s_new_t,t_so_new_t,            &
@@ -464,7 +466,7 @@ CONTAINS
          DO isubs = ntiles_lnd+1, ntiles_total
            i_count = ext_data%atm%gp_count_t(jb,isubs) 
 !$NEC ivdep
-           !$ACC LOOP VECTOR PRIVATE(jc, tmp1)
+           !$ACC LOOP VECTOR PRIVATE(jc, tmp1, tmp2)
            DO ic = 1, i_count
              jc = ext_data%atm%idx_lst_t(ic,jb,isubs)
              ! Another tuning factor in order to treat partial snow cover different for fresh snow and 'old' snow
@@ -483,7 +485,12 @@ CONTAINS
              ! glacier snow density (which depends on the climatological 2m-temperature) and the freshsnow factor
              !
              IF (ext_data%atm%lc_class_t(jc,jb,isubs) == ext_data%atm%i_lc_snow_ice) THEN
-               tmp1 = tcall_sfc_jg * 7.5e-9_wp * (600._wp-lnd_prog_now%rho_snow_t(jc,jb,isubs))*       &
+               IF (icpl_da_sfcevap>=2) THEN
+                 tmp2 = 7.5e-9_wp*MAX(0._wp,1._wp+100._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+               ELSE
+                 tmp2 = 7.5e-9_wp
+               ENDIF
+               tmp1 = tcall_sfc_jg * tmp2 * (600._wp-lnd_prog_now%rho_snow_t(jc,jb,isubs))*       &
                  MAX(0._wp,SQRT(SQRT(lnd_diag%freshsnow_t(jc,jb,isubs)))*prm_diag%dyn_gust(jc,jb)-7.5_wp)
 
                p_prog_rcf%tracer(jc,nlev,jb,iqi) = p_prog_rcf%tracer(jc,nlev,jb,iqi) + tmp1 * &
@@ -671,6 +678,7 @@ CONTAINS
           tch_t(ic)                 =  prm_diag%tch_t(jc,jb,isubs)
           tcm_t(ic)                 =  prm_diag%tcm_t(jc,jb,isubs)
           tfv_t(ic)                 =  prm_diag%tfv_t(jc,jb,isubs)
+          tfvsn_t(ic)               =  1._wp
           sobs_t(ic)                =  prm_diag%swflxsfc_t(jc,jb,isubs) 
           thbs_t(ic)                =  prm_diag%lwflxsfc_t(jc,jb,isubs) 
           pabs_t(ic)                =  prm_diag%swflx_par_sfc(jc,jb) 
@@ -738,9 +746,11 @@ CONTAINS
               (1._wp - prm_diag%albdif_t(jc,jb,isubs)) )) * sntunefac2(jc,isubs)
             IF (icpl_da_sfcevap >= 2) THEN  ! adjust tuning to RH bias inferred from assimilation increments
               IF (p_diag%rh_avginc(jc,jb) <= 0._wp) THEN
-                tmp1 = tmp1*MAX(0._wp,1._wp-125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+                tmp1 = tmp1*(1._wp-125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
+                tfvsn_t(ic) = 1._wp/(1._wp-250._wp*MIN(0.2_wp,z0_t(ic))*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb))
               ELSE
-                tmp1 = tmp1*MAX(0._wp,1._wp/(1._wp+125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb)))
+                tmp1 = tmp1*(1._wp/(1._wp+125._wp*10800._wp/dt_ana*p_diag%rh_avginc(jc,jb)))
+                tfvsn_t(ic) = 1._wp
               ENDIF
             ENDIF
             qsat1 = spec_humi(sat_pres_ice(t_snow_now_t(ic)),ps_t(ic) )
@@ -926,7 +936,8 @@ CONTAINS
 !
         &  tch           = tch_t                             , & !INOUT turbulent transfer coefficient for heat     ( -- )
         &  tcm           = tcm_t                             , & !INOUT turbulent transfer coefficient for momentum ( -- )
-        &  tfv           = tfv_t                             , & !INOUT laminar reduction factor for evaporation    ( -- )
+        &  tfv           = tfv_t                             , & !IN laminar reduction factor for evaporation       ( -- )
+        &  tfvsn         = tfvsn_t                           , & !IN reduction factor for snow evaporation from model-DA coupling   ( -- )
 !
         &  sobs          = sobs_t                            , & !IN solar radiation at the ground               (W/m2)
         &  thbs          = thbs_t                            , & !IN thermal radiation at the ground             (W/m2)
@@ -1457,13 +1468,8 @@ CONTAINS
     ! Call seaice parameterization
     !
     IF ( (atm_phy_nwp_config(jg)%inwp_surface == 1) .AND. (lseaice) ) THEN
-      
-#ifdef _OPENACC
-      CALL finish (routine, 'nwp_seaice:  OpenACC version currently not implemented')
-#endif
-
       CALL nwp_seaice(p_patch, p_diag, prm_diag, p_prog_wtr_now, p_prog_wtr_new, &
-        &             lnd_prog_now, lnd_prog_new, ext_data, lnd_diag, tcall_sfc_jg)
+        &             lnd_prog_now, lnd_prog_new, ext_data, lnd_diag, tcall_sfc_jg, lacc=lzacc)
     ENDIF
 
     !
@@ -1660,7 +1666,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_seaice (p_patch, p_diag, prm_diag, p_prog_wtr_now,  &
     &                    p_prog_wtr_new, lnd_prog_now, lnd_prog_new, &
-    &                    ext_data, p_lnd_diag, dtime)
+    &                    ext_data, p_lnd_diag, dtime, lacc)
 
     TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch        !< grid/patch info
     TYPE(t_nh_diag),      TARGET,INTENT(in)   :: p_diag         !< diag vars
@@ -1673,6 +1679,7 @@ CONTAINS
     TYPE(t_lnd_diag),            INTENT(inout):: p_lnd_diag     !< diag vars for sfc
     REAL(wp),                    INTENT(in)   :: dtime          !< time interval for 
                                                                 !< surface
+    LOGICAL, OPTIONAL,           INTENT(in)   :: lacc ! If true, use openacc
 
     ! Local arrays  (local copies)
     !
@@ -1704,9 +1711,14 @@ CONTAINS
     !
     INTEGER :: jc, jb, ic              !loop indices
     INTEGER :: i_count
+    LOGICAL :: lis_coupled_run   !< TRUE for coupled ocean-atmosphere runs (copy for ACC vectorisation)
 
     CHARACTER(len=*), PARAMETER :: routine = 'mo_nwp_sfc_interface:nwp_seaice'
     !-------------------------------------------------------------------------
+
+    CALL assert_acc_device_only(routine, lacc)
+
+    lis_coupled_run = is_coupled_run()
 
     ! exclude nest boundary and halo points
     rl_start = grf_bdywidth_c+1
@@ -1720,6 +1732,10 @@ CONTAINS
     IF (msg_level >= 15) THEN
       CALL message(routine, 'call nwp_seaice scheme')
     ENDIF
+
+    !$ACC DATA CREATE(shfl_s, lhfl_s, lwflxsfc, swflxsfc, condhf_i, snow_rate, rain_rate, tice_now, hice_now) &
+    !$ACC   CREATE(tsnow_now, hsnow_now, albsi_now, tice_new, hice_new, tsnow_new, hsnow_new, albsi_new) &
+    !$ACC   PRESENT(ext_data, p_lnd_diag, prm_diag, p_prog_wtr_now, lnd_prog_new, p_prog_wtr_new, p_diag)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_count,ic,jc,shfl_s,lhfl_s,lwflxsfc,swflxsfc,snow_rate,rain_rate, &
@@ -1735,6 +1751,8 @@ CONTAINS
 
       IF (i_count == 0) CYCLE ! skip loop if the index list for the given block is empty
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(jc)
       DO ic = 1, i_count
         jc = ext_data%atm%list_seaice%idx(ic,jb)
 
@@ -1752,7 +1770,7 @@ CONTAINS
         hsnow_now(ic) = p_prog_wtr_now%h_snow_si(jc,jb)
         albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)             ! sea-ice albedo [-]
       ENDDO  ! ic
-
+      !$ACC END PARALLEL
 
       ! call seaice time integration scheme
       !
@@ -1779,15 +1797,21 @@ CONTAINS
       ! optional arguments dticedt, dhicedt, dtsnowdt, dhsnowdt (tendencies) are neglected
 
 
-      !  set conductive heat flux to zero outside list_seaice, 
-      !  may be used by ocean (e.g. through interpolation)
-
-      p_lnd_diag%condhf_ice (:,jb) = 0.0_wp
+      IF (lis_coupled_run) THEN
+#ifdef _OPENACC
+        CALL finish('mo_nwp_sfc_interface', 'A-O coupling in nwp_seaice is not available on GPU')
+#endif
+        !  set conductive heat flux to zero outside list_seaice,
+        !  may be used by ocean (e.g. through interpolation)
+        p_lnd_diag%condhf_ice (:,jb) = 0.0_wp
+      ENDIF
 
 
       !  Recover fields from index list
       !
 !$NEC ivdep
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(jc)
       DO ic = 1, i_count
         jc = ext_data%atm%list_seaice%idx(ic,jb)
 
@@ -1798,14 +1822,16 @@ CONTAINS
         IF (lprog_albsi) THEN
           p_prog_wtr_new%alb_si(jc,jb)  = albsi_new(ic)
         ENDIF
-        ! conductive heat flux at bottom of sea-ice [W/m^2]
-        p_lnd_diag%condhf_ice (jc,jb)   = condhf_i (ic)
-
+        IF (lis_coupled_run) THEN
+          ! conductive heat flux at bottom of sea-ice [W/m^2]
+          p_lnd_diag%condhf_ice (jc,jb)   = condhf_i (ic)
+        ENDIF
         lnd_prog_new%t_g_t(jc,jb,isub_seaice) = tice_new(ic)
         ! surface saturation specific humidity (uses saturation water vapor pressure over ice)
         p_lnd_diag%qv_s_t(jc,jb,isub_seaice)  = spec_humi(sat_pres_ice(tice_new(ic)), &
           &                                     p_diag%pres_sfc(jc,jb) )
       ENDDO  ! ic
+      !$ACC END PARALLEL
 
 
       ! Update dynamic sea-ice index list
@@ -1838,6 +1864,9 @@ CONTAINS
     ENDDO  ! jb
 !$OMP END DO
 !$OMP END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE nwp_seaice
 

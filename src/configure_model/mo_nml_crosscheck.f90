@@ -43,7 +43,7 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ntracer, ltestcase,                   &
     &                                    nqtendphy, iqtke, iqv, iqc, iqi,                  &
     &                                    iqs, iqr, iqt, iqtvar, ltimer,                    &
-    &                                    iqni, iqni_nuc, iqg, iqm_max,                     &
+    &                                    iqni, iqg, iqm_max,                               &
     &                                    iqh, iqnr, iqns, iqng, iqnh, iqnc, iqgl, iqhl,    & 
     &                                    inccn, ininact, ininpot,                          &
     &                                    activate_sync_timers, timers_level, lart,         &
@@ -104,6 +104,9 @@ MODULE mo_nml_crosscheck
 #ifdef HAVE_RADARFWO
   USE radar_data,            ONLY: ndoms_max_radar => ndoms_max
 #endif
+
+  USE mo_sppt_config,              ONLY: sppt_config, crosscheck_sppt
+
 
   IMPLICIT NONE
 
@@ -315,6 +318,11 @@ CONTAINS
         CALL message(routine,' WARNING! NWP forcing set but '//&
                     'only turbulence selected!')
 
+        IF( atm_phy_nwp_config(jg)%inwp_surface == 1 .AND. &
+        &   atm_phy_nwp_config(jg)%inwp_gscp == 0 ) &
+        ! Perhaps it would be easy to implement this combination if needed.
+        &  CALL finish( routine,'Surface model TERRA requires a gscp scheme at the moment.')
+
 
         IF (( atm_phy_nwp_config(jg)%inwp_turb == icosmo ) .AND. &
           & (turbdiff_config(jg)%lconst_z0) ) THEN
@@ -401,8 +409,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
             IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
-            IF (.NOT. ANY( ecrad_isolver  == (/0,1/)       ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0 or 1')
+            IF (.NOT. ANY( ecrad_isolver  == (/0,1,2/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, or 2')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
@@ -553,7 +561,7 @@ CONTAINS
       CASE(3)  ! improved ice nucleation scheme C. Koehler (note: iqm_max does not change!)
 
         iqni     = 6 ; advection_config(:)%tracer_names(iqni)     = 'qni'     !! cloud ice number
-        iqni_nuc = 7 ; advection_config(:)%tracer_names(iqni_nuc) = 'qni_nuc' !! activated ice nuclei  
+        ininact  = 7 ; advection_config(:)%tracer_names(ininact)  = 'ninact'  !! activated ice nuclei  
         iqt      = iqt + 2
 
         ntracer = ntracer + 2  !! increase total number of tracers by 2
@@ -1057,6 +1065,18 @@ CONTAINS
     ! ********************************************************************************
 
     CALL emvorado_crosscheck()
+
+
+
+    ! ********************************************************************************
+    !
+    !  Cross checks for SPPT (Stochastic Perturbation of Physics Tendencies)
+    !
+    ! ********************************************************************************
+
+    IF( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
+      CALL crosscheck_sppt()
+    ENDIF
 
   END  SUBROUTINE atm_crosscheck
   !---------------------------------------------------------------------------------------

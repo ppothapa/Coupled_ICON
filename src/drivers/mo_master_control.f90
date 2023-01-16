@@ -29,7 +29,8 @@ MODULE mo_master_control
     & are_multiple_models, use_restart_namelists, isRestart,              &
     & process_exists, hamocc_process, my_process_is_hamocc,               &
     & my_process_is_oceanic, jsbach_process, my_process_is_jsbach,        &
-    & icon_output_process, my_process_is_icon_output
+    & icon_output_process, my_process_is_icon_output,                     &
+    & wave_process, my_process_is_waves
 
 CONTAINS
 
@@ -101,6 +102,14 @@ CONTAINS
     my_process_is_ocean = (my_process_model == ocean_process)
 
   END FUNCTION my_process_is_ocean
+  !------------------------------------------------------------------------
+
+  !------------------------------------------------------------------------
+  LOGICAL FUNCTION my_process_is_waves()
+
+    my_process_is_waves = (my_process_model == wave_process)
+
+  END FUNCTION my_process_is_waves
   !------------------------------------------------------------------------
 
   !------------------------------------------------------------------------

@@ -55,9 +55,10 @@
 MODULE mo_upatmo_phy_vdfmol
 
   USE mo_kind,                 ONLY: wp
-  USE mo_impl_constants,       ONLY: SUCCESS, cvdifts
+  USE mo_impl_constants,       ONLY: SUCCESS
   USE mo_physical_constants,   ONLY: argas, tmelt
   USE mo_math_constants,       ONLY: dbl_eps
+  USE mo_turb_vdiff_params,    ONLY: cvdifts
 
   IMPLICIT NONE
 

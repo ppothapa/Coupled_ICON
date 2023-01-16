@@ -316,82 +316,6 @@ USE turb_data, ONLY : &
     h2o_g   ,     & ! Gesamtwasseergehalt
     liq             ! Fluessigwasser  ,,
 
-#ifdef ALLOC_WKARR
-USE turb_data, ONLY : &
-
-    ! targets of used pointers
-    diss_tar    , & ! target for eddy dissipation rate (m2/s3)
-    tketens_tar , & ! target for turbulent transport of SQRT(TKE) (m/s2)
-
-    ! internal atmospheric variables
-
-    len_scale,    & ! turbulent length-scale (m)
-    l_scal  ,     & ! reduced maximal turbulent length scale due to horizontal grid spacing (m)
-
-    fc_min  ,     & ! minimal value for TKE-forcing (1/s2)
-
-    rclc    ,     & ! cloud cover
-    rhon    ,     & ! bondary level air density (including surface level) (Kg/m3)
-    frh     ,     & ! thermal forcing (1/s2) or thermal acceleration (m/s2)
-    frm     ,     & ! mechan. forcing (1/s2) or mechan. accelaration (m/s2)
-
-    zaux    ,     & ! auxilary array containing thermodynamical properties
-                    ! (dQs/dT,ex_fakt,cp_fakt,g_tet,g_vap) or various
-                    ! auxilary variables for calculation of implicit vertical diffusion
-    zvari   ,     & ! set of variables used in the turbulent 2-nd order equations
-                    ! and later their effective vertical gradients
-
-    grad    ,     & ! any vertical gradient
-
-    prss    ,     & ! surface pressure (Pa)
-    eprs    ,     & ! surface Exner-factor
-    tmps    ,     & ! surface temperature (K)
-    vaps    ,     & ! surface specific humidity
-    liqs    ,     & ! liquid water content at the surface
-
-    tl_s_2d ,     & ! surface level value of conserved temperature (liquid water temperature) (K)
-    qt_s_2d ,     & ! surface level value of conserved humidity    (total water)
-    vel_2d  ,     & ! wind speed (m/s) at the top of the transfer layer (lowest mid level of atm. model)
-
-    velmin  ,     & ! modified 'vel_min' used for tuning corrections (hyper-parameterizations) (m/s)
-    ratsea  ,     & ! modified 'rat_sea' used for tuning corrections (hyper-parameterizations)
-
-    ! internal variables for the resistance model
-
-    lo_ice  ,     & ! logical sea ice indicator
-
-    k_2d    ,     & ! index field of the upper level index to be used for near surface diagn.
-
-    hk_2d   ,     & ! mid level height above ground belonging to 'k_2d' (m)
-    hk1_2d  ,     & ! mid level height above ground of the previous layer (below) (m)
-
-    h_top_2d,     & ! boundary level height of transfer layer (top  level)
-    h_atm_2d,     & ! mid      level heigth of transfer layer (atm. level)
-    h_can_2d,     & ! effective canopy height (m) used for calculation of roughness layer
-                    ! resistance for momentum
-    edh     ,     & ! reciprocal of a layer depth
-
-    z0m_2d  ,     & ! mean  roughness length
-    z0d_2d  ,     & ! diag. roughness length
-    z2m_2d  ,     & ! height of 2m  level (above the surface)
-    z10m_2d ,     & ! height of 10m level (above the surface)
-
-    rat_m_2d,     & ! any surface layer ratio for momentum (like Re-number or Stability factor)
-    rat_h_2d,     & ! any surface layer ratio for scalars  (like Re-number or Stability factor)
-    fac_h_2d,     & ! surface layer profile factor for scalars
-    fac_m_2d,     & ! surface layer profile factor for momentum
-
-    frc_2d  ,     & ! length scale fraction
-
-    dz_sg_m ,     & ! laminar resistance lenght for momentum (m)
-    dz_sg_h,      & ! laminar resistance length for scalars (m)
-    dz_g0_h,      & ! turbulent roughness layer resistance length for scalars (m)
-    dz_0a_m ,     & ! turbulent Prandtl-layer resistance length for momentum (m)
-    dz_0a_h ,     & ! turbulent Prandtl-layer resistance length for scalars (m)
-    dz_sa_h ,     & ! total transfer resistance length for scalars (m)
-    dz_s0_h         ! total roughness layer resistance lenght for scalars (m)
-#endif
-
 !-------------------------------------------------------------------------------
 ! Control parameters for the run
 !-------------------------------------------------------------------------------
@@ -876,7 +800,6 @@ REAL (KIND=wp), POINTER :: &
 !    pointer for eddy dissipation rate:
      ediss(:,:)
 
-#ifndef ALLOC_WKARR
 ! these fields are still taken as local arrays, because the CRAY compiler cannot
 ! do the same optimizations with OMP threadprivate variables
 
@@ -961,7 +884,6 @@ INTEGER        ::             &
                                 !   for near surface diagn.
 LOGICAL        ::             &
   lo_ice      (nvec)            ! logical sea ice indicator
-#endif
 
 LOGICAL        ::   ldebug = .FALSE.
 
@@ -1110,8 +1032,7 @@ my_thrd_id = omp_get_thread_num()
       !$ACC   NO_CREATE(rcld, qsat_dT, qvfl_s, umfl_s, vmfl_s) &
       !$ACC   NO_CREATE(edr, tvh, tvm, qsat_dt, t_2m) &
       !$ACC   NO_CREATE(qv_2m, rcl_2d, prs, qda_2d, ta_2d) &
-      !$ACC   NO_CREATE(v_10m, u_10m, vel1_2d, rh_2m, td_2m) &
-      !$ACC   
+      !$ACC   NO_CREATE(v_10m, u_10m, vel1_2d, vel2_2d, rh_2m, td_2m)
       
 ! Berechnung einiger Hilfsgroessen und Initialisierung der Diffusionskoeff.:
 

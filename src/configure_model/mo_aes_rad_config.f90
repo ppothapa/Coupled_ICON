@@ -136,10 +136,6 @@ MODULE mo_aes_rad_config
      !
      LOGICAL  :: lclearsky
      !
-     ! --- Number of columns that RRTMGP would process at a time,
-     !     default is just nproma
-     !
-     INTEGER  :: rrtmgp_columns_chunk
 
      !
   END TYPE t_aes_rad_config
@@ -206,8 +202,6 @@ CONTAINS
     !
     aes_rad_config(:)% lclearsky      = .TRUE.
     !
-    aes_rad_config(:)% rrtmgp_columns_chunk = nproma
-    !
   END SUBROUTINE init_aes_rad_config
 
   !----
@@ -233,7 +227,6 @@ CONTAINS
     REAL(wp), POINTER ::            vmr_co2,  vmr_ch4,  vmr_n2o,           vmr_o2,  vmr_cfc11,  vmr_cfc12
     REAL(wp), POINTER :: frad_h2o, frad_co2, frad_ch4, frad_n2o, frad_o3, frad_o2
     LOGICAL , POINTER :: lclearsky
-    INTEGER , POINTER :: rrtmgp_columns_chunk
     REAL(wp), POINTER :: frad_cfc11, frad_cfc12
 
     CALL message    ('','')
@@ -287,8 +280,6 @@ CONTAINS
        frad_cfc12 => aes_rad_config(jg)% frad_cfc12
        !
        lclearsky  => aes_rad_config(jg)% lclearsky
-       !
-       rrtmgp_columns_chunk => aes_rad_config(jg)% rrtmgp_columns_chunk
        !
        WRITE(cg,'(i0)') jg
        !
@@ -592,18 +583,6 @@ CONTAINS
        !
        CALL message   ('','')
        !
-       IF (rrtmgp_columns_chunk > 0 ) THEN
-         IF (rrtmgp_columns_chunk > nproma) THEN
-            CALL warning(routine, 'Column chunk size: rrtmgp_columns_chunk cannot be bigger than nproma, adjusted')
-            rrtmgp_columns_chunk = nproma
-         END IF
-         CALL print_value('Column chunk size: rrtmgp_columns_chunk =', rrtmgp_columns_chunk)
-       ELSE
-         CALL finish(routine,'ERROR: rrtmgp_columns_chunk <= 0 is not allowed')
-       END IF
-       !
-       CALL message('','')
-       !
     END DO ! jg loop
     !
     CALL message('','')
@@ -684,7 +663,6 @@ CONTAINS
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% frad_cfc12    ',aes_rad_config(jg)% frad_cfc12    )
        CALL message    ('','')
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% lclearsky     ',aes_rad_config(jg)% lclearsky     )
-       CALL print_value('    aes_rad_config('//TRIM(cg)//')% rrtmgp_columns_chunk ',aes_rad_config(jg)% rrtmgp_columns_chunk)
        CALL message    ('','')
        !
     END DO

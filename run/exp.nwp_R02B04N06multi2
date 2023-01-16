@@ -275,7 +275,7 @@ cat > ${atmo_namelist} << EOF
  tkmmin                      =                          0.2       ! scaling factor for minimum vertical diffusion coefficient
  pat_len                     =                        100.0       ! 
  c_diff                      =                          0.2       !
- rat_sea                     =                         10         !
+ rat_sea                     =                          0.8       !
 /
 EOF
 

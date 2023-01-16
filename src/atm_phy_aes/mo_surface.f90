@@ -31,10 +31,10 @@ MODULE mo_surface
   USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_aes_phy_memory,    ONLY: cdimissval
   USE mo_aes_vdf_config,    ONLY: aes_vdf_config
-  USE mo_aes_vdiff_params,  ONLY: tpfac2
-  USE mo_vdiff_solver,      ONLY: ih, iqv, iu, iv, imh, imqv, imuv, &
+  USE mo_turb_vdiff,        ONLY: ih, iqv, iu, iv, imh, imqv, imuv, &
                                 & nmatrix, nvar_vdiff,              &
                                 & matrix_to_richtmyer_coeff
+  USE mo_turb_vdiff_params, ONLY: tpfac2
   USE mo_surface_diag,      ONLY: wind_stress, surface_fluxes
   USE mo_index_list,        ONLY: generate_index_list_batched
   USE mtime,                ONLY: datetime
@@ -373,7 +373,7 @@ CONTAINS
     ! - perform bottom level elimination;
     ! - convert matrix entries to Richtmyer-Morton coefficients
     IF (idx_lnd <= ksfc_type) THEN
-      CALL matrix_to_richtmyer_coeff( jg, jcs, kproma, kbdim, klev, ksfc_type, idx_lnd, &! in
+      CALL matrix_to_richtmyer_coeff( jcs, kproma, klev, ksfc_type, idx_lnd, &! in
         & aa(:,:,:,imh:imqv), bb(:,:,ih:iqv),      &! in
         & pdtime, delz,                            &! in
         & aa_btm, bb_btm,                          &! inout
@@ -381,7 +381,7 @@ CONTAINS
         & pcair = pcair(:),                        &! in
         & pcsat = pcsat(:))                         ! in
     ELSE
-      CALL matrix_to_richtmyer_coeff( jg, jcs, kproma, kbdim, klev, ksfc_type, idx_lnd, &! in
+      CALL matrix_to_richtmyer_coeff( jcs, kproma, klev, ksfc_type, idx_lnd, &! in
         & aa(:,:,:,imh:imqv), bb(:,:,ih:iqv),      &! in
         & pdtime, delz,                            &! in
         & aa_btm, bb_btm,                          &! inout

@@ -164,11 +164,6 @@ case "$use_site" in
         use_target='rcl'
         use_shell='/bin/bash'
         use_mpi_startrun='/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun'
-        case "$use_compiler_version" in
-          3.2*)
-            use_mpi_startrun='/opt/nec/ve/bin/mpirun'
-          ;;
-        esac
       ;;
       xc*)
         use_submit='qsub'

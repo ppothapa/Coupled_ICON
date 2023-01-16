@@ -171,6 +171,7 @@ CONTAINS
       CASE (jsbach_process)
       CASE (testbed_process)
       CASE (icon_output_process)
+      CASE (wave_process)
       CASE default
         CALL finish("check_my_component","my_process_model is unkown")
     END SELECT

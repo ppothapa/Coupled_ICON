@@ -25,7 +25,7 @@ MODULE mo_ser_all
                                    ser_physics, ser_lhn, ser_nudging, ser_all_debug, ser_surface, &
                                    ser_microphysics, ser_convection, ser_cover, ser_radiation, &
                                    ser_radheat, ser_gwdrag, ser_time_loop_end, ser_physics_init, &
-                                   ser_reset_to_initial_state
+                                   ser_reset_to_initial_state, ser_set_reff
   USE mo_ser_manually,       ONLY: ser_manually
   USE mo_mpi,                ONLY: get_my_mpi_work_id
 #endif
@@ -259,6 +259,8 @@ MODULE mo_ser_all
         ser_setting => ser_convection
       CASE("cover")
         ser_setting => ser_cover
+      CASE("set_reff")
+        ser_setting => ser_set_reff
       CASE("radiation")
         ser_setting => ser_radiation
       CASE("radheat")

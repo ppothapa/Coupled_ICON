@@ -2419,6 +2419,9 @@ CONTAINS
   !!       x - the answer
   !!       n - number of equations
   SUBROUTINE tdma_solver(a,b,c,d,n,varout)
+
+       !$ACC ROUTINE SEQ
+
        INTEGER, INTENT(in) :: n
        REAL(wp),DIMENSION(n),INTENT(in)  :: a,b,c,d
        REAL(wp),DIMENSION(n),INTENT(out) :: varout

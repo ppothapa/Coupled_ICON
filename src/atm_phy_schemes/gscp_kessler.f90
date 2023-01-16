@@ -122,7 +122,6 @@ USE data_constants  , ONLY :   &
 USE data_runcontrol , ONLY :   &
     ldiabf_lh,      & ! include diabatic forcing due to latent heat in RK-scheme
     lsuper_coolw,   & ! switch for supercooled liquid water
-    lsppt,          & ! switch, if .true., perturb the physical tendencies
     itype_qxpert_rn,& ! define which hum variables tend. are perturbed
     itype_qxlim_rn    ! type of reduction/removal of the perturbation 
                       ! in case of negative (qv, qc, qi) or 
@@ -173,12 +172,6 @@ USE gscp_data, ONLY: &          ! all variables are used here
     x7o8,                                     &
     zkcac,   zkphi1,    zkphi2,    zkphi3,    &
     x1o8,      x3o16,   iautocon
-
-#ifdef __ICON__
-! this is (at the moment) an ICON part
-USE gscp_data, ONLY: &          ! all variables are used here
-    kc_c2
-#endif
 
 !==============================================================================
 
