@@ -17,7 +17,7 @@ MODULE mo_gme_turbdiff
   USE mo_exception,          ONLY: message
   USE mo_run_config,         ONLY: msg_level
 
-  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device, assert_acc_device_only
 
   IMPLICIT NONE
 
@@ -512,9 +512,8 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
 
 ! OpenACC variables
   LOGICAL, OPTIONAL, INTENT(in)   :: lacc  ! GPU flag
-  LOGICAL                         :: lzacc ! non-optional version of lacc
 
-      CALL set_acc_host_or_device(lzacc, lacc)
+      CALL assert_acc_device_only("parturs", lacc)
 
       !$ACC DATA CREATE(zvpb, zx, ztcm, ztch, zdfip, zris, zgz0m, zgz0h, lo_ice)
 

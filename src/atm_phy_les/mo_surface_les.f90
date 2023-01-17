@@ -122,16 +122,15 @@ MODULE mo_surface_les
 
     jg = p_patch%id
 
-! pres_sfc not ported to GPU
-#ifndef _OPENACC
-    IF(les_config(jg)%psfc < 0._wp)THEN
-      !use pressure from dynamics
-      pres_sfc = p_nh_diag%pres_sfc
-    ELSE
-      !use imposed pressure 
-      pres_sfc = les_config(jg)%psfc
+    IF(les_config(jg)%isrfc_type > 1) THEN
+      IF(les_config(jg)%psfc < 0._wp)THEN
+        !use pressure from dynamics
+        pres_sfc = p_nh_diag%pres_sfc
+      ELSE
+        !use imposed pressure
+        pres_sfc = les_config(jg)%psfc
+      END IF
     END IF
-#endif
 
     ! number of vertical levels
     nlev = p_patch%nlev
