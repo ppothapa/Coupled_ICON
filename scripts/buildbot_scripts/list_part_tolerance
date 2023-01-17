@@ -50,14 +50,14 @@ add_tolerance_exp () {
       $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_member_id_{member_id}
 
       # add base experiment and tolerance generation script
-      ./addexp exp.${exp} --builders "${builder}" --list $listname
+      ./addexp exp.${exp} --builders "${builder}" --list $listname --runflags "tolerance_run=true"
       ./addexp checksuite.icon-dev/pp.refgen_${exp} --builders "${builder}" --list $listname
 
       # create the list of perturbed experiments
       perturbed_experiments=$(printf "exp.${exp}_member_id_%s " "${member_ids[@]}")
       
       # add all the ensemble experiments and make refgen depend on all of them
-      ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname
+      ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname --runflags "tolerance_run=true"
       ./adddep --from-experiment checksuite.icon-dev/pp.refgen_${exp} --to-experiment "${perturbed_experiments}" --builders "${builder}" --list $listname
     done
 }

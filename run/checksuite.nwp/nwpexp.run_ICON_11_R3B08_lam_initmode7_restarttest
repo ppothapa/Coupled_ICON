@@ -473,7 +473,7 @@ EXP1="reference"
 EXP2="restart"
 
 
-EXIT_STATUS=0
+ERROR_SUM=0
 DIFF_STATUS_RESTART=0
 
 # EXP1 output filenames
@@ -481,39 +481,28 @@ FILE1_DOM01="NWP_LAM_1_DOM01_20170112T230000Z_0012.nc"
 # EXP2 output filenames
 FILE2_DOM01="NWP_LAM_3_DOM01_20170112T230000Z_0012.nc"
 
-DIFF_FILE_DOM01="NWP_diff_DOM01.out"
 
+echo "=================================================================="
+echo "Check restart and different patch weights"
+echo "=> Compare experiments: $EXP1 $EXP2"
 
- echo "=================================================================="
- echo "Check restart and different patch weights"
- echo "=> Compare experiments: $EXP1 $EXP2"
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE1_DOM01}" "${FILE2_DOM01}"
+DIFF_STATUS_RESTART=$?
+ERROR_SUM=$((EXIT_STATUS + DIFF_STATUS_RESTART))
 
- $cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} > ${DIFF_FILE_DOM01}
+if [[ $DIFF_STATUS_RESTART -eq 0 ]]; then
+  echo "DOM01: EXP $EXP1 and EXP $EXP2 are identical"
+  echo " "
+  echo "Restart test SUCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "Restart test FAILED"
+  echo " "
+fi
 
- if [ -s ${DIFF_FILE_DOM01} ]; then
-   echo " DOM01: file 1 and file 2 differ"
-   echo " - file 1: ${FILE1_DOM01}"
-   echo " - file 2: ${FILE2_DOM01}"
-   cat ${DIFF_FILE_DOM01}
-   rm  ${DIFF_FILE_DOM01}
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_RESTART=1
- else
-   echo "DOM01: EXP $EXP1 and EXP $EXP2 are identical"
- fi
-
- if [ $DIFF_STATUS_RESTART == 0 ]; then
-   echo " "
-   echo "Restart test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "Restart test FAILED:"
-   echo " "
- fi
-
-echo "EXIT_STATUS: $EXIT_STATUS"
-exit $EXIT_STATUS
+echo "Cdo test ERROR_SUM: $ERROR_SUM"
+exit $ERROR_SUM
 #
 #-----------------------------------------------------------------------------

@@ -705,18 +705,19 @@ REAL (KIND=wp), DIMENSION(:), INTENT(IN) :: &
 ! Diagnostic surface variable of the turbulence model:
 ! -----------------------------------------------------
 
-REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(INOUT) :: &
+REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(IN) :: &
   gz0,           & ! roughness length * g of the vertically not
                    ! resolved canopy                               (m2/s2)
   !Achtung: Der g-Faktor ist ueberfluessig!
 
   ! turbulent (transfer) velocity scales at the surface
   tvm,           & ! for momentum                                  ( m/s)
-  tvh,           & ! for heat and moisture                         ( m/s)
+  tvh              ! for heat and moisture                         ( m/s)
 
   !Notice that 'tcm' and 'tch' are dispensable. The common use of the related
   !vecolities  'tvm' and 'tvh' makes live much easier!!               
 
+REAL (KIND=wp), DIMENSION(:), TARGET, INTENT(INOUT) :: &
   ! turbulent transfer factors for laminar- and roughness-layer transfer
   tfm,           & ! of momentum                                     --
   tfh              ! of scalars                                      --

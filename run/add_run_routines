@@ -167,4 +167,49 @@ make_and_change_to_experiment_dir()
 
   cd "${EXPDIR}"
 }
+
+compare_output_files()
+{
+  # Compare two output files with cdo.
+  #
+  # Usage: compare_output_files <file1> <file2>
+  # Return: 0 if both files have the same content (according to cdo diffn)
+  #
+  # Environment variable `cdo` can be used to specify the cdo binary.
+
+  FILE1=$1
+  FILE2=$2
+  if [[ ! -s "$FILE1" ]]; then
+    echo "no such file '${FILE1}'."
+    echo "Usage:  compare_output_files  FILE1 FILE2"
+    return 1
+  fi
+  if [[ ! -s "$FILE2" ]]; then
+    echo "no such file '${FILE2}'."
+    echo "Usage:  compare_output_files  FILE1 FILE2"
+    return 1
+  fi
+
+  # Please note that the exit status of 'cdo diffn' has changed with cdo 1.9.6.
+  #   cdo version >= 1.9.6: "Exit status is 0 if inputs are the same and 1 if they differ"
+  #   cdo version <  1.9.6: "Exit status is 1, if 'cdo diffn' fails and 0 otherwise"
+  # Thus we cannot rely on the return value but have to check the stdout.
+  set +e
+  diffn_output="$(${cdo:-cdo} diffn "${FILE1}" "${FILE2}")"
+  cdo_exitstat=$?
+  set -e
+
+  if [[ $cdo_exitstat -eq 0 ]] && [[ -z "$diffn_output" ]]; then
+    echo " File 1 and file 2 are identical."
+    echo " - file 1: ${FILE1}"
+    echo " - file 2: ${FILE2}"
+    return 0
+  fi
+
+  echo " File 1 and file 2 differ or cdo failed (cdo exit status: $cdo_exitstat)"
+  echo " - file 1: ${FILE1}"
+  echo " - file 2: ${FILE2}"
+  echo "$diffn_output"
+  return 1
+}
 #-----------------------------------------------------------------------------

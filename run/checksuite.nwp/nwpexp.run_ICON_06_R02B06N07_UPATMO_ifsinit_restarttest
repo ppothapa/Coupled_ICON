@@ -641,32 +641,13 @@ if [ ! -f ${FILE_REFF} ] || [ ! -f ${FILE_REST} ]; then
   exit $SCRIPT_STATUS
 fi
 
-# difference file
-DIFF_FILE="DIFF_DOM01_ML_0001.out"
-
 echo "##############################################################"
 echo "###       Restart test: check match of output files        ###"
 echo "##############################################################"
 
-$cdo diffn ${FILE_REFF} ${FILE_REST} > ${DIFF_FILE}
-
-SCRIPT_STATUS=$?
-
-if [ $SCRIPT_STATUS -ne 0 ]; then
-  echo " Command: '$cdo diffn' failed"
-  echo " SCRIPT_STATUS: "$SCRIPT_STATUS
-  exit $SCRIPT_STATUS
-fi
-
-if [ -s ${DIFF_FILE} ]; then
-  echo " Restart test: file 1 and file 2 differ"
-  echo " - file 1: ${FILE_REFF}"
-  echo " - file 2: ${FILE_REST}"
-  cat ${DIFF_FILE}
-  rm  ${DIFF_FILE}
-  #
-  TEST_STATUS=$(($TEST_STATUS + 1))
-fi
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE_REFF}" "${FILE_REST}"
+TEST_STATUS=$((TEST_STATUS + $?))
 
 if [ $TEST_STATUS == 0 ]; then
   echo " "

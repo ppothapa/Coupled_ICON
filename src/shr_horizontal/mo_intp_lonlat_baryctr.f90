@@ -1019,6 +1019,13 @@
       !$  IF (dbg_level > 10) THEN
       !$    WRITE (0,*) get_my_mpi_work_id()," :: compute barycentric coordinates; elapsed time: ", toc
       !$  END IF
+
+    !$ACC UPDATE DEVICE(ptr_int_lonlat%baryctr%idx) &
+    !$ACC   DEVICE(ptr_int_lonlat%baryctr%blk) &
+    !$ACC   DEVICE(ptr_int_lonlat%baryctr%coeff) &
+    !$ACC   DEVICE(ptr_int_lonlat%baryctr%stencil) &
+    !$ACC   DEVICE(ptr_int_lonlat%baryctr%v)
+
     END SUBROUTINE compute_barycentric_coordinates
 
 

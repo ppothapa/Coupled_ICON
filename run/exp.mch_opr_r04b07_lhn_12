@@ -211,7 +211,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 &interpol_nml
  nudge_zone_width            =                         10         ! width of lateral boundary nudging zone
  nudge_max_coeff             =                          0.075     ! maximum relaxation coefficient for lateral boundary nudging
- support_baryctr_intp        =                     .FALSE.        ! barycentric interpolation support for output
+ support_baryctr_intp        =                      .TRUE.        ! barycentric interpolation support for output is enabled for testing (usually not used in LAM)
 /
 
 ! io_nml: general switches for model I/O -------------------------------------
@@ -402,6 +402,20 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
    'ddt_temp_drag','ddt_temp_pconv','ddt_v_sso','ddt_u_sso'
  i_levels             = 270, 300, 320, 340, 400, 500, 600
 
+/
+
+&output_nml
+ output_filename  = "${EXPNAME}_atm_2d_ll"
+ filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
+ filetype         = 5
+ remap            = 1
+ output_grid      = .TRUE.
+ output_bounds    = ${output_bounds}        ! start, end, increment
+ steps_per_file   = ${steps_per_file}
+ include_last     = .FALSE.
+ ml_varlist       = 't_2m' ! test barycentric lat-lon interpolation
+ reg_lon_def      =  2.5,0.2,16.0
+ reg_lat_def      = 43.5,0.2,49.0
 /
 
 &meteogram_output_nml

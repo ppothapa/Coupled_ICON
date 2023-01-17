@@ -38,6 +38,8 @@ MODULE mo_nwp_gpu_util
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
+    !$ACC WAIT
+
     !$ACC UPDATE HOST(prm_diag%qrs_flux)
 
     !$ACC UPDATE HOST(ext_data%atm%list_seaice%ncount) &
@@ -144,6 +146,8 @@ MODULE mo_nwp_gpu_util
     INTEGER :: jg
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
+
+    !$ACC WAIT
 
     !$ACC UPDATE DEVICE(prm_diag%qrs_flux)
 

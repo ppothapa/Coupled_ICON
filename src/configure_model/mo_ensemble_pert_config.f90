@@ -50,6 +50,7 @@ MODULE mo_ensemble_pert_config
   USE mo_exception,          ONLY: message_text, message, finish
   USE mtime,                 ONLY: datetime, getDayOfYearFromDateTime
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
+  USE mo_run_config,         ONLY: ldass_lhn
 #ifdef _OPENACC
   USE ISO_C_BINDING,         ONLY: C_SIZEOF
   USE openacc,               ONLY: acc_is_present
@@ -281,7 +282,7 @@ MODULE mo_ensemble_pert_config
 
       ! Apply perturbations to physics tuning parameters
       linit = .TRUE.
-      CALL set_scalar_ens_pert(timedep_pert<2)
+      CALL set_scalar_ens_pert(timedep_pert<2, lacc=.FALSE.)
 
       ! Reinitialization of randum number generator in order to make external parameter perturbations
       ! independent of the number of RANDOM_NUMBER calls so far
@@ -338,6 +339,8 @@ MODULE mo_ensemble_pert_config
         rnd_fac_ccqc(i) = rnd_num
 
       ENDDO
+
+      !$ACC ENTER DATA COPYIN(rnd_tkred_sfc, rnd_fac_ccqc)
 
       ! Ensure that perturbations on VH and VE cores are the same
 #if defined (__SX__) || defined (__NEC_VH__)
@@ -445,9 +448,10 @@ MODULE mo_ensemble_pert_config
   !! @par Revision History
   !! Initial revision by Guenther Zaengl, DWD (2020-11-16)
   !!
-  SUBROUTINE set_scalar_ens_pert(lprint)
+  SUBROUTINE set_scalar_ens_pert(lprint, lacc)
 
     LOGICAL, INTENT(in) :: lprint ! print control output
+    LOGICAL, INTENT(in) :: lacc ! If true, update data on device
 
     REAL(wp) :: rnd_fac, rnd_num, tkfac
     INTEGER :: jg
@@ -655,14 +659,31 @@ MODULE mo_ensemble_pert_config
     IF(acc_is_present(cwimax_ml, C_SIZEOF(cwimax_ml))) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `cwimax_ml` is supposed to be on CPU only.")
 
-    DO jg = 1, max_dom
-      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor, turbdiff_config(jg)%tkhmin) &
-      !$ACC   DEVICE(turbdiff_config(jg)%tkhmin_strat, turbdiff_config(jg)%tkmmin, turbdiff_config(jg)%tkmmin_strat) &
-      !$ACC   DEVICE(turbdiff_config(jg)%rlam_heat, turbdiff_config(jg)%rat_sea, turbdiff_config(jg)%tur_len) &
-      !$ACC   DEVICE(turbdiff_config(jg)%a_hshr, turbdiff_config(jg)%a_stab, turbdiff_config(jg)%c_diff) &
-      !$ACC   DEVICE(turbdiff_config(jg)%q_crit, turbdiff_config(jg)%alpha0, turbdiff_config(jg)%alpha0_max) &
-      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert, assimilation_config(jg)%lhn_coef) &
-      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune, assimilation_config(jg)%fac_lhn_down) &
+    DO jg = 1, n_dom
+      ! atm_phy_nwp_config is copied onto the device in an early phase so that it is present while this
+      ! routine is still called with lacc=.FALSE.. Thus IF_PRESENT is used in the following UPDATE.
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) IF_PRESENT
+
+      !$ACC UPDATE IF(lacc) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tkhmin) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tkhmin_strat) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tkmmin) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tkmmin_strat) &
+      !$ACC   DEVICE(turbdiff_config(jg)%rlam_heat) &
+      !$ACC   DEVICE(turbdiff_config(jg)%rat_sea) &
+      !$ACC   DEVICE(turbdiff_config(jg)%tur_len) &
+      !$ACC   DEVICE(turbdiff_config(jg)%a_hshr) &
+      !$ACC   DEVICE(turbdiff_config(jg)%a_stab) &
+      !$ACC   DEVICE(turbdiff_config(jg)%c_diff) &
+      !$ACC   DEVICE(turbdiff_config(jg)%q_crit) &
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0) &
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_max) &
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert)
+
+      !$ACC UPDATE IF(ldass_lhn .AND. lacc) &
+      !$ACC   DEVICE(assimilation_config(jg)%lhn_coef) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_down) &
       !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up)
     ENDDO
 #endif
@@ -710,7 +731,7 @@ MODULE mo_ensemble_pert_config
   !! @par Revision History
   !! Initial revision by Guenther Zaengl, DWD (2016-04-08)
   !!
-  SUBROUTINE compute_ensemble_pert(p_patch, ext_data, prm_diag, phy_params, mtime_date, lrecomp)
+  SUBROUTINE compute_ensemble_pert(p_patch, ext_data, prm_diag, phy_params, mtime_date, lrecomp, lacc)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch(:)
     TYPE(t_external_data), INTENT(IN)    :: ext_data(:)
@@ -718,14 +739,11 @@ MODULE mo_ensemble_pert_config
     TYPE(t_phy_params),    INTENT(INOUT) :: phy_params(:)
     TYPE(datetime),        POINTER       :: mtime_date
     LOGICAL,               INTENT(IN)    :: lrecomp
+    LOGICAL,               INTENT(IN)    :: lacc
 
     INTEGER  :: jg, jb, jc, jt, ilu, iyr
     INTEGER  :: rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx
     REAL(wp) :: wrnd_num(nproma), wrnd_num2(nproma), log_range_tkred, log_range_ccqc, phaseshift, phaseshift2
-
-#ifdef _OPENACC
-     CALL message ('', 'compute_ensemble_pert: OpenACC version currently not tested')
-#endif
 
     rl_start = grf_bdywidth_c+1
     rl_end   = min_rlcell_int
@@ -761,11 +779,10 @@ MODULE mo_ensemble_pert_config
         CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
           i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC DATA CREATE(rnd_tkred_sfc, rnd_fac_ccqc, wrnd_num, wrnd_num2) &
-        !$ACC   PRESENT(ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc)
-        !$ACC UPDATE DEVICE(rnd_tkred_sfc, rnd_fac_ccqc)
+        !$ACC DATA CREATE(wrnd_num, wrnd_num2) &
+        !$ACC   PRESENT(ext_data, prm_diag, p_patch, rnd_tkred_sfc, rnd_fac_ccqc) IF(lacc)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           wrnd_num(jc) = 0._wp
@@ -805,7 +822,7 @@ MODULE mo_ensemble_pert_config
 
     IF (timedep_pert == 2) THEN
       linit = .FALSE.
-      CALL set_scalar_ens_pert(.NOT. lrecomp)
+      CALL set_scalar_ens_pert(.NOT. lrecomp, lacc=lacc)
       !
       ! resolution-dependent convection and SSO tuning parameters need to be recomputed during runtime
       IF (lrecomp) THEN

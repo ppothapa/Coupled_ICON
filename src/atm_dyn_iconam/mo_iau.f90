@@ -91,7 +91,7 @@ MODULE mo_iau
   USE mo_advection_config,      ONLY: advection_config
   USE mo_upatmo_config,         ONLY: upatmo_config
   USE mo_nonhydrostatic_config, ONLY: kstart_moist
-  USE mo_fortran_tools,         ONLY: init, copy, assert_acc_device_only
+  USE mo_fortran_tools,         ONLY: init, copy, assert_acc_device_only, assert_acc_host_only
   USE mo_var,                   ONLY: t_var
   USE mo_var_groups,            ONLY: var_groups_dyn
   USE mo_var_list_register,     ONLY: t_vl_register_iter
@@ -341,7 +341,8 @@ CONTAINS
     TYPE(t_wtr_prog), POINTER :: wtr_prog
 
 #ifdef _OPENACC
-    if (.not. i_am_accel_node) CALL finish('restore_initial_state', 'This should be called in GPU mode only.')
+    ! make sure that accelerator is not used (this check is necessary as long as copy/init use i_am_accel_node)
+    CALL assert_acc_host_only("restore_initial_state", i_am_accel_node)
 #endif
 
     IF (ANY(atm_phy_nwp_config(:)%inwp_surface == LSS_JSBACH)) THEN
@@ -355,16 +356,6 @@ CONTAINS
       lnd_prog => p_lnd(jg)%prog_lnd(nnow_rcf(jg))
       lnd_diag => p_lnd(jg)%diag_lnd
       wtr_prog => p_lnd(jg)%prog_wtr(nnow_rcf(jg))
-
-      !$ACC DATA COPYIN(saveinit(jg)%fr_seaice, saveinit(jg)%t_ice, saveinit(jg)%h_ice, saveinit(jg)%gz0) &
-      !$ACC   COPYIN(saveinit(jg)%t_mnw_lk, saveinit(jg)%t_wml_lk, saveinit(jg)%h_ml_lk, saveinit(jg)%t_bot_lk) &
-      !$ACC   COPYIN(saveinit(jg)%c_t_lk, saveinit(jg)%t_b1_lk, saveinit(jg)%h_b1_lk, saveinit(jg)%theta_v) &
-      !$ACC   COPYIN(saveinit(jg)%rho, saveinit(jg)%exner, saveinit(jg)%w, saveinit(jg)%tke, saveinit(jg)%vn) &
-      !$ACC   COPYIN(saveinit(jg)%tracer, saveinit(jg)%gz0_t, saveinit(jg)%t_g_t, saveinit(jg)%t_sk_t) &
-      !$ACC   COPYIN(saveinit(jg)%qv_s_t, saveinit(jg)%freshsnow_t, saveinit(jg)%snowfrac_t) &
-      !$ACC   COPYIN(saveinit(jg)%snowfrac_lc_t, saveinit(jg)%w_snow_t, saveinit(jg)%w_i_t, saveinit(jg)%h_snow_t) &
-      !$ACC   COPYIN(saveinit(jg)%t_snow_t, saveinit(jg)%rho_snow_t, saveinit(jg)%w_so_t, saveinit(jg)%w_so_ice_t) &
-      !$ACC   COPYIN(saveinit(jg)%t_so_t)
 
 !$OMP PARALLEL
       CALL copy(saveinit(jg)%fr_seaice, lnd_diag%fr_seaice)
@@ -403,24 +394,14 @@ CONTAINS
       CALL copy(saveinit(jg)%w_so_ice_t, lnd_prog%w_so_ice_t)
       CALL copy(saveinit(jg)%t_so_t, lnd_prog%t_so_t)
 
-      !$ACC WAIT
-      !$ACC END DATA
-
       IF (ntiles_total > 1 .AND. lsnowtile .AND. .NOT. ltile_coldstart) THEN
-        !$ACC DATA COPYIN(saveinit(jg)%snowtile_flag_t, saveinit(jg)%idx_lst_t, saveinit(jg)%frac_t) &
-        !$ACC   COPYIN(saveinit(jg)%gp_count_t)
         CALL copy(saveinit(jg)%snowtile_flag_t, ext_data(jg)%atm%snowtile_flag_t)
         CALL copy(saveinit(jg)%idx_lst_t, ext_data(jg)%atm%idx_lst_t)
         CALL copy(saveinit(jg)%frac_t, ext_data(jg)%atm%frac_t)
         CALL copy(saveinit(jg)%gp_count_t, ext_data(jg)%atm%gp_count_t)
-        !$ACC WAIT
-        !$ACC END DATA
       ENDIF
 
       IF (lmulti_snow) THEN
-#ifdef _OPENACC
-        CALL finish('restore_initial_state', 'lmulti_snow is not supported/tested with OpenACC')
-#endif
         CALL copy(saveinit(jg)%t_snow_mult_t, lnd_prog%t_snow_mult_t)
         CALL copy(saveinit(jg)%rho_snow_mult_t, lnd_prog%rho_snow_mult_t)
         CALL copy(saveinit(jg)%wtot_snow_t, lnd_prog%wtot_snow_t)
@@ -431,16 +412,10 @@ CONTAINS
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%lstoch_deep) THEN
-#ifdef _OPENACC
-        CALL finish('restore_initial_state', 'lstoch_deep is not supported/tested with OpenACC')
-#endif
         CALL copy(saveinit(jg)%clnum_d, prm_stochconv(jg)%clnum_d)
         CALL copy(saveinit(jg)%clmf_d,  prm_stochconv(jg)%clmf_d)
       ENDIF
       IF (atm_phy_nwp_config(jg)%lstoch_sde) THEN
-#ifdef _OPENACC
-        CALL finish('restore_initial_state', 'lstoch_sde is not supported/tested with OpenACC')
-#endif
         CALL copy(saveinit(jg)%clnum_a, prm_stochconv(jg)%clnum_a)
         CALL copy(saveinit(jg)%clmf_a,  prm_stochconv(jg)%clmf_a)
         CALL copy(saveinit(jg)%clnum_p, prm_stochconv(jg)%clnum_p)
@@ -448,30 +423,18 @@ CONTAINS
       ENDIF
 
       IF (iprog_aero >= 1) THEN
-#ifdef _OPENACC
-        CALL finish('restore_initial_state', 'iprog_aero >= 1 is not supported/tested with OpenACC')
-#endif        
         CALL copy(saveinit(jg)%aerosol, prm_diag(jg)%aerosol)
       ENDIF
       IF (lprog_albsi) THEN
-        !$ACC DATA COPYIN(saveinit(jg)%alb_si)
         CALL copy(saveinit(jg)%alb_si, wtr_prog%alb_si)
-        !$ACC WAIT
-        !$ACC END DATA
       ENDIF
       IF (itype_trvg == 3) THEN
-        !$ACC DATA COPYIN(saveinit(jg)%plantevap_t)
         CALL copy(saveinit(jg)%plantevap_t, lnd_diag%plantevap_t)
-        !$ACC WAIT
-        !$ACC END DATA
       ENDIF
       IF (itype_snowevap == 3) THEN
-        !$ACC DATA COPYIN(saveinit(jg)%hsnow_max, saveinit(jg)%h_snow, saveinit(jg)%snow_age)
         CALL copy(saveinit(jg)%hsnow_max, lnd_diag%hsnow_max)
         CALL copy(saveinit(jg)%h_snow, lnd_diag%h_snow)
         CALL copy(saveinit(jg)%snow_age, lnd_diag%snow_age)
-        !$ACC WAIT
-        !$ACC END DATA
       ENDIF
 
       ! Fields that need to be reset to zero in order to obtain identical results
@@ -485,7 +448,9 @@ CONTAINS
       CALL init (p_nh(jg)%diag%exner_dyn_incr)
       CALL init (prm_diag(jg)%rain_gsp_rate)
       CALL init (prm_diag(jg)%snow_gsp_rate)
-      CALL init (prm_diag(jg)%ice_gsp_rate)
+      IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jg)%inwp_gscp)) THEN
+        CALL init (prm_diag(jg)%ice_gsp_rate)
+      ENDIF
       CALL init (prm_diag(jg)%shfl_s_t)
       CALL init (prm_diag(jg)%qhfl_s_t)
       CALL init (lnd_diag%runoff_s_t)
@@ -518,14 +483,11 @@ CONTAINS
 
       ! For the limited-area mode and one-way nesting, we also need to reset grf_tend_vn on the nudging points
       !
-      !$ACC PARALLEL PRESENT(p_nh) ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE(je, jb)
       DO ic = 1, p_nh(jg)%metrics%nudge_e_dim
         je = p_nh(jg)%metrics%nudge_e_idx(ic)
         jb = p_nh(jg)%metrics%nudge_e_blk(ic)
         p_nh(jg)%diag%grf_tend_vn(je,:,jb) = 0._wp
       ENDDO
-      !$ACC END PARALLEL
 
       ! deallocate
       CALL saveinit(jg)%finalize

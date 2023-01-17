@@ -513,6 +513,7 @@ SUBROUTINE get_turbdiff_param (jg)
    alpha0       = turbdiff_config(jg)%alpha0
    alpha0_max   = turbdiff_config(jg)%alpha0_max
    alpha0_pert  = turbdiff_config(jg)%alpha0_pert
+   !$ACC UPDATE DEVICE(imode_charpar, alpha0, alpha0_max, alpha0_pert)
 
    c_diff       = turbdiff_config(jg)%c_diff
    rlam_heat    = turbdiff_config(jg)%rlam_heat

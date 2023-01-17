@@ -166,7 +166,7 @@ MODULE mo_nh_stepping
   USE mo_async_latbc_utils,        ONLY: recv_latbc_data
   USE mo_async_latbc_types,        ONLY: t_latbc_data
   USE mo_nonhydro_types,           ONLY: t_nh_state, t_nh_diag
-  USE mo_fortran_tools,            ONLY: swap, copy, init
+  USE mo_fortran_tools,            ONLY: swap, copy, init, assert_acc_device_only
   USE mtime,                       ONLY: datetime, newDatetime, deallocateDatetime, datetimeToString,     &
        &                                 timedelta, newTimedelta, deallocateTimedelta, timedeltaToString, &
        &                                 MAX_DATETIME_STR_LEN, MAX_TIMEDELTA_STR_LEN, newDatetime,        &
@@ -409,7 +409,7 @@ MODULE mo_nh_stepping
 
   ! Initialize time-dependent ensemble perturbations if necessary
   IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-    CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .FALSE.)
+    CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .FALSE., lacc=.FALSE.)
   ENDIF
 
 
@@ -935,7 +935,7 @@ MODULE mo_nh_stepping
 
     ! Update time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .TRUE.)
+      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .TRUE., lacc=.TRUE.)
     ENDIF
 
     ! update model date and time mtime based
@@ -3163,6 +3163,8 @@ MODULE mo_nh_stepping
     ! Local variables
     INTEGER :: jg ! loop indices
 
+    CALL assert_acc_device_only("aggr_landvars", lacc)
+
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
     DO jg = 1, n_dom
@@ -3199,9 +3201,7 @@ MODULE mo_nh_stepping
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-#ifdef _OPENACC
-    IF( lacc /= i_am_accel_node ) CALL finish ( 'fill_nestlatbc_phys', 'lacc /= i_am_accel_node' )
-#endif
+    CALL assert_acc_device_only("fill_nestlatbc_phys", lacc)
 
     ! Fill boundaries of nested domains
     DO jg = n_dom, 1, -1
@@ -3308,6 +3308,10 @@ MODULE mo_nh_stepping
     nnew(:)     = 2
     nnew_rcf(:) = 2
 
+#ifdef _OPENACC
+    i_am_accel_node = .FALSE. ! Reset data on CPU. No host update required.
+#endif
+
     WRITE(message_text,'(a)') 'Reset model to initial state, repeat IAU with full incrementation window'
     CALL message('',message_text)
 
@@ -3317,11 +3321,12 @@ MODULE mo_nh_stepping
 
     ! Reinitialize time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, datetime_current, .FALSE.)
+      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, datetime_current, .FALSE., lacc=.FALSE.)
     ENDIF
 
     DO jg=1, n_dom
       IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
 
       CALL diagnose_pres_temp (p_nh_state(jg)%metrics, p_nh_state(jg)%prog(nnow(jg)), &
         &                      p_nh_state(jg)%prog(nnow_rcf(jg)),                     &
@@ -3339,13 +3344,8 @@ MODULE mo_nh_stepping
         &                  rho       = p_nh_state(jg)%prog(nnow(jg))%rho, & !in
         &                  airmass   = p_nh_state(jg)%diag%airmass_new    ) !inout
 
-      CALL init_exner_pr(jg, nnow(jg), use_acc=.TRUE.)
+      CALL init_exner_pr(jg, nnow(jg), use_acc=.FALSE.)
 
-#ifdef _OPENACC
-      CALL message('reset_to_initial_state', "Copy data to CPU for init_nwp_phy")
-      CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
-      i_am_accel_node = .FALSE.
-#endif
       CALL init_nwp_phy(                            &
            & p_patch(jg)                           ,&
            & p_nh_state(jg)%metrics                ,&
@@ -3365,12 +3365,15 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
       CALL message('reset_to_initial_state', "Copy reinitialized data back to GPU after init_nwp_phy")
-      i_am_accel_node = my_process_is_work()
       CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), phy_params=phy_params(jg), &
-                          atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
+                          atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
 #endif
 
     ENDDO
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()
+#endif
 
     CALL aggr_landvars(lacc=.TRUE.)
 
