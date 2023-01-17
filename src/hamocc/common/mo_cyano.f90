@@ -202,8 +202,10 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
               
                  ! limitation on DIC
                  if (local_bgc_mem%bgctra(j,k,isco212).le.rcar*phosy_cya) then
-                     cyapro = min(avnit-1.e-11_wp*rnoi,max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp))/(rcar*phosy_cya)*cyapro))
-                     phosy_cya=max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp)))/rcar
+                     cyapro=0._wp
+                     phosy_cya=0._wp    
+!                     cyapro = min(avnit-1.e-11_wp*rnoi,max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp))/(rcar*phosy_cya)*cyapro))
+!                    phosy_cya=max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp)))/rcar
                  endif
                  ! ---------- nutrient uptake
 

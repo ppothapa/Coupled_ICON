@@ -83,6 +83,7 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
   REAL(wp) :: surface_height
 
   REAL(wp) :: dms_prod, dms_uv, dms_bac 
+  REAL(wp) :: reminfac
 
  ! N-cycle variables
   REAL(wp) :: limp, limf,limn, po4lim, felim, no3lim, nh4lim, hib
@@ -348,10 +349,11 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
            ! DOC decomposition
            avoxy = local_bgc_mem%bgctra(j,k,ioxygen) -remin*ro2ut - thresh_aerob      ! available O2
            IF(l_doc_q10)then  ! T-dependency (Maerz et al., 2020)
-            xn=local_bgc_mem%bgctra(j,k,idoc)/(1._wp+remido*doc_remin_q10**((ptho(j,k)-doc_remin_tref)/10._wp))
+            reminfac=remido*doc_remin_q10**((ptho(j,k)-doc_remin_tref)/10._wp)
            ELSE
-            xn=local_bgc_mem%bgctra(j,k,idoc)/(1._wp+remido)
+            reminfac=remido
            ENDIF
+           xn=(local_bgc_mem%bgctra(j,k,idoc)+reminfac*docmin)/(1._wp+reminfac)
            bacfra=MAX(0._wp,local_bgc_mem%bgctra(j,k,idoc) - xn)
 
            !!!! N cycle !!!!!!!!

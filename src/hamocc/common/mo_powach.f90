@@ -531,8 +531,8 @@ CONTAINS
         &                             local_bgc_mem%akb3(j,kbo(j)),local_sediment_mem%powtra(j,k,ipowasi),local_sediment_mem%powtra(j,k,ipowaph),&
         &                             local_sediment_mem%powtra(j,k,ipowaal))
 
-                powcar(k)  = local_sediment_mem%powtra(j,k,ipowaic) / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j)) &
-        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j))))
+                powcar(k)  = local_sediment_mem%powtra(j,k,ipowaic) / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j)) &
+        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j))))
          ENDIF
       END DO
       
@@ -868,8 +868,8 @@ SUBROUTINE powach_impl(local_bgc_mem, local_sediment_mem, start_idx, end_idx, ps
         &                             local_bgc_mem%akb3(j,kbo(j)),local_sediment_mem%powtra(j,k,ipowasi),local_sediment_mem%powtra(j,k,ipowaph),&
         &                             alk)
 
-                powcar(k)  = c / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j)) &
-        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j))))
+                powcar(k)  = c / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j)) &
+        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j))))
           ENDIF
       END DO
 
