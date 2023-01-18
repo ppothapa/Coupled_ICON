@@ -163,7 +163,7 @@ case "$use_site" in
         use_sync_submit='qsub'
         use_target='rcl'
         use_shell='/bin/bash'
-        use_mpi_startrun='/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun'
+        use_mpi_startrun='@MPI_LAUNCH@'
       ;;
       xc*)
         use_submit='qsub'
