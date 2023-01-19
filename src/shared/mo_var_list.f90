@@ -1079,7 +1079,11 @@ CONTAINS
         ! automatically add tile to its variable specific tile-group
         ts_pos = INDEX(target_info%name, TIMELEVEL_SUFFIX)
         ts_pos = MERGE(ts_pos-1, vname_len, ts_pos .GT. 0)
-        ref_info%in_group = groups(target_info%name(1:ts_pos), groups_in=in_group)
+        IF (PRESENT(in_group)) then
+          ref_info%in_group = groups(target_info%name(1:ts_pos), groups_in=in_group)
+        ELSE
+          ref_info%in_group = groups(target_info%name(1:ts_pos))
+        END IF
       END IF
     END IF
     IF (target_info%lcontainer) THEN
