@@ -454,7 +454,7 @@ MODULE mo_nh_stepping
       ENDIF
       IF ( iforcing == inwp ) THEN
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), &
+          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), &
             phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
         ENDDO
         CALL devcpy_nwp(lacc=.TRUE.)
@@ -688,7 +688,7 @@ MODULE mo_nh_stepping
     ENDIF
     IF ( iforcing == inwp ) THEN
       DO jg=1, n_dom
-         CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=.TRUE.)
+         CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
       ENDDO
       CALL hostcpy_nwp(lacc=.TRUE.)
     ENDIF
@@ -1019,7 +1019,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Device to host copy before update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+           CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
         i_am_accel_node = .FALSE.
 #endif
@@ -1046,7 +1046,7 @@ MODULE mo_nh_stepping
         i_am_accel_node = my_process_is_work()
         CALL message('mo_nh_stepping', 'Host to device copy after update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
 #endif
 
@@ -1056,7 +1056,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+           CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
         i_am_accel_node = .FALSE.
 #endif
@@ -1093,7 +1093,7 @@ MODULE mo_nh_stepping
         i_am_accel_node = my_process_is_work()
         CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
 #endif
       END IF
@@ -2483,7 +2483,7 @@ MODULE mo_nh_stepping
               & CALL message (routine, 'NESTING online init: Switching to CPU for initialization')
 
             ! The online initialization of the nest runs on CPU only.
-            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+            CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
             i_am_accel_node = .FALSE. ! disable the execution of ACC kernels
 #endif
             CALL initialize_nest(jg, jgc)
@@ -2555,8 +2555,8 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
             i_am_accel_node = my_process_is_work()
-            CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node) ! necessary as Halo-Data can be modified
-            CALL gpu_h2d_nh_nwp(p_patch(jgc), prm_diag(jgc), ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
+            CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node) ! necessary as Halo-Data can be modified
+            CALL gpu_h2d_nh_nwp(jgc, ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
                                 atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
             IF (msg_level >= 7) &
               & CALL message (routine, 'NESTING online init: Switching back to GPU')
@@ -3365,7 +3365,7 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
       CALL message('reset_to_initial_state', "Copy reinitialized data back to GPU after init_nwp_phy")
-      CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), phy_params=phy_params(jg), &
+      CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), phy_params=phy_params(jg), &
                           atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
 #endif
 

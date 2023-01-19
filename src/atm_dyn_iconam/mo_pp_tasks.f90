@@ -252,7 +252,7 @@ CONTAINS
   SUBROUTINE pp_task_lonlat(ptr_task)
     TYPE(t_job_queue), TARGET :: ptr_task
     ! local variables
-    CHARACTER(*), PARAMETER :: routine = modname//"::p_task_lonlat"
+    CHARACTER(*), PARAMETER :: routine = modname//"::pp_task_lonlat"
     INTEGER                            ::        &
       &  lonlat_id, jg,                          &
       &  in_var_idx, out_var_idx, out_var_idx_2, &
@@ -275,6 +275,25 @@ CONTAINS
     jg             =  ptr_task%data_input%jg
     ptr_int_lonlat => lonlat_grids%list(lonlat_id)%intp(jg)
     hintp_type     = p_info%hor_interp%hor_intp_type
+
+#ifdef _OPENACC
+      IF(i_am_accel_node .AND. .NOT. p_info%lopenacc) THEN
+        CALL message(routine, "WARNING: " // TRIM(p_info%name) // " is temporarily copied onto accelerator. If " // &
+          "this warning appears at every output step, consider making the variable present permanently. However " // &
+          "as this variable is not present on the device it is unlikely that it changes over time as it is not " // &
+          "part of any physics. Therefore one might want to limit the output frequency of " // TRIM(p_info%name))
+        ! MJ: Some fields that are constant over time are not necessary to be available on the devices. Their memory
+        ! can be saved. In principle it would be enough to output them only at the first time step. Thus this warning
+        ! should only appear once.
+        IF(ASSOCIATED(in_var%r_ptr)) THEN
+          !$ACC ENTER DATA COPYIN(in_var%r_ptr)
+        ELSEIF(ASSOCIATED(in_var%s_ptr)) THEN
+          !$ACC ENTER DATA COPYIN(in_var%s_ptr)
+        ELSEIF(ASSOCIATED(in_var%i_ptr)) THEN
+          !$ACC ENTER DATA COPYIN(in_var%i_ptr)
+        ENDIF
+      ENDIF
+#endif
 
     ! --------------------------------------------------------------------------
     !
@@ -597,7 +616,15 @@ CONTAINS
       DEALLOCATE(tmp_var, STAT=ierrstat)
       IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')
     ENDIF
-
+    IF(i_am_accel_node .AND. .NOT. p_info%lopenacc) THEN
+      IF(ASSOCIATED(in_var%r_ptr)) THEN
+        !$ACC EXIT DATA DELETE(in_var%r_ptr)
+      ELSEIF(ASSOCIATED(in_var%s_ptr)) THEN
+        !$ACC EXIT DATA DELETE(in_var%s_ptr)
+      ELSEIF(ASSOCIATED(in_var%i_ptr)) THEN
+        !$ACC EXIT DATA DELETE(in_var%i_ptr)
+      ENDIF
+    ENDIF
   END SUBROUTINE pp_task_lonlat
 
 
@@ -1330,24 +1357,6 @@ CONTAINS
     p_diag      => ptr_task%data_input%p_nh_state%diag
     prm_diag    => ptr_task%data_input%prm_diag
 
-
-#ifdef _OPENACC
-    IF (ptr_task%job_type /= TASK_COMPUTE_SDI2 .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_LPI .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_HBAS_SC .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_HTOP_SC .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_OMEGA .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_CEILING .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_TWATER .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_SMI .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_RH .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_DBZCMAX .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_DBZLMX_LOW .AND. &
-        ptr_task%job_type /= TASK_COMPUTE_DBZ850) THEN
-      CALL warning(routine,'untested postproc job-type on GPU for variable '//TRIM(p_info%name) )
-    ENDIF
-#endif
-
     SELECT CASE(ptr_task%job_type)
     CASE (TASK_COMPUTE_RH)
 
@@ -1361,6 +1370,9 @@ CONTAINS
         ELSE
           lclip = .FALSE.
         ENDIF
+#ifdef _OPENACC
+        CALL finish(routine, 'not yet ported postproc RH_METHOD_IFS, RH_METHOD_IFS_CLIP for variable '//TRIM(p_info%name) )
+#endif
         CALL compute_field_rel_hum_ifs(p_patch, p_prog, p_diag,        &
           &                        out_var%r_ptr(:,:,:,out_var_idx,1), &
           &                        opt_lclip=lclip)
@@ -1379,6 +1391,9 @@ CONTAINS
         &   out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_VOR_U)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VOR_U for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_vor(p_patch, p_int_state(jg),             &
         &   ptr_task%data_input%p_nh_state%metrics, p_prog,        &
         &   var_in_output(jg)%vor_u .AND. var_in_output(jg)%vor_v, &
@@ -1387,6 +1402,9 @@ CONTAINS
         &   opt_verbose = msg_level > 14)
 
     CASE (TASK_COMPUTE_VOR_V)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VOR_U for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_vor(p_patch, p_int_state(jg),             &
         &   ptr_task%data_input%p_nh_state%metrics, p_prog,        &
         &   var_in_output(jg)%vor_u .AND. var_in_output(jg)%vor_v, &
@@ -1401,7 +1419,7 @@ CONTAINS
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,    &
           &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
       ELSE
-        CALL message( "pp_task_compute_field", "WARNING: SDI2 cannot be computed since no reduced grid is available" )
+        CALL message( routine, "WARNING: SDI2 cannot be computed since no reduced grid is available" )
       END IF
 
     CASE (TASK_COMPUTE_LPI)
@@ -1411,7 +1429,7 @@ CONTAINS
           &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_prog_rcf, p_diag,    &
           &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
       ELSE
-        CALL message( "pp_task_compute_field", "WARNING: LPI cannot be computed since no reduced grid is available" )
+        CALL message( routine, "WARNING: LPI cannot be computed since no reduced grid is available" )
       END IF
 
     CASE (TASK_COMPUTE_CEILING)
@@ -1420,6 +1438,9 @@ CONTAINS
           &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_VIS)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VIS for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
@@ -1437,11 +1458,11 @@ CONTAINS
       CALL compute_field_twater( p_patch, ptr_task%data_input%p_nh_state%metrics%ddqz_z_full, &
           &                      p_prog%rho, p_prog_rcf%tracer,                               &
           &                      advection_config(jg)%trHydroMass%list,                       &
-          &                      out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node )
+          &                      out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_Q_SEDIM)
       CALL compute_field_q_sedim( p_patch, jg, p_prog,                               &
-          &   out_var%r_ptr(:,:,:,out_var_idx,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_DBZ850)
       CALL compute_field_dbz850( p_patch, prm_diag%k850(:,:), prm_diag%dbz3d_lin(:,:,:), &
@@ -1466,18 +1487,30 @@ CONTAINS
            &                 ext_data(jg), out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
 
     CASE (TASK_COMPUTE_WSHEAR_U)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_WSHEAR_U for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &
            &                     p_diag%u, wshear_uv_heights(1:n_wshear), out_var%r_ptr(:,:,:,out_var_idx,1) )
       
     CASE (TASK_COMPUTE_WSHEAR_V)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_WSHEAR_V for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_wshear( p_patch, ptr_task%data_input%p_nh_state%metrics, &
            &                     p_diag%v, wshear_uv_heights(1:n_wshear), out_var%r_ptr(:,:,:,out_var_idx,1) )
 
     CASE (TASK_COMPUTE_LAPSERATE)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_LAPSERATE for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_lapserate( p_patch, ptr_task%data_input%p_nh_state%metrics, &
            &                        p_diag, 500e2_wp, 850e2_wp, out_var%r_ptr(:,:,out_var_idx,1,1) )
 
     CASE (TASK_COMPUTE_SRH)
+#ifdef _OPENACC
+      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_SRH for variable '//TRIM(p_info%name) )
+#endif
       CALL compute_field_srh( ptr_patch     = p_patch,   &
            &                  p_metrics     = ptr_task%data_input%p_nh_state%metrics, &
            &                  p_diag        = p_diag,    &

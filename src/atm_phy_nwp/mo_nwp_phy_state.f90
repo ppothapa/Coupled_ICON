@@ -4321,7 +4321,9 @@ __acc_attach(diag%clct)
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape3d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_Q_SEDIM, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_Q_SEDIM, lrestart=.FALSE.,    &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%q_sedim)
     END IF
 
     IF (var_in_output%tcond_max) THEN
@@ -4338,7 +4340,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
                   & resetval=0.0_wp, initval=0.0_wp,                         &
-                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
+                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%tcond_max)
     END IF
 
     IF (var_in_output%tcond10_max) THEN
@@ -4358,7 +4362,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
                   & resetval=0.0_wp, initval=0.0_wp,                         &
-                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
+                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%tcond10_max)
     END IF
 
     luh_max_out(k_jg, :) = (/var_in_output%uh_max_low, var_in_output%uh_max_med, var_in_output%uh_max/)
@@ -4372,7 +4378,9 @@ __acc_attach(diag%clct)
       CALL add_var( diag_list, 'uh_max_3d', diag%uh_max_3d,              &
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                  &
                   & cf_desc, grib2_desc, ldims=shape3d_uh_max,           &
-                  & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE. )
+                  & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%uh_max_3d)
 
       ALLOCATE( diag%uh_max_ptr(uh_max_nlayer) )
 
@@ -4429,7 +4437,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
                   & resetval=0.0_wp, initval=0.0_wp,                         &
-                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
+                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%vorw_ctmax)
     END IF
 
     IF (var_in_output%w_ctmax) THEN
@@ -4449,7 +4459,9 @@ __acc_attach(diag%clct)
                   & ldims=shape2d,                                           &
                   & lrestart=.TRUE., loutput=.TRUE., isteptype=TSTEP_MAX,    &
                   & resetval=0.0_wp, initval=0.0_wp,                         &
-                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) )
+                  & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ) , &
+                  & lopenacc=.TRUE. )
+      __acc_attach(diag%w_ctmax)
     END IF
 
     IF (var_in_output%wshear_u) THEN

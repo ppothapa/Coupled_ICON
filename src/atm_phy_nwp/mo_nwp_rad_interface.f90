@@ -270,7 +270,7 @@ MODULE mo_nwp_rad_interface
     IF(lzacc) THEN
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
-      CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
+      CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
       i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif
@@ -295,7 +295,7 @@ MODULE mo_nwp_rad_interface
       IF(lzacc) THEN
         CALL message('mo_nh_interface_nwp', &
           &  'Host to device copy after nwp_rrtm_radiation. This needs to be removed once port is finished!')
-        CALL gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
+        CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
         i_am_accel_node = my_process_is_work()
       ENDIF
 #endif

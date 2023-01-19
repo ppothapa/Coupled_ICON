@@ -22,10 +22,9 @@ MODULE mo_nwp_gpu_util
 
   CONTAINS
 
-  SUBROUTINE gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
+  SUBROUTINE gpu_d2h_nh_nwp(jg, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
 
-    TYPE(t_patch), TARGET, INTENT(in) :: pt_patch
-    TYPE(t_nwp_phy_diag), INTENT(inout) :: prm_diag
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_external_data), OPTIONAL, INTENT(inout):: ext_data
     TYPE(t_int_state), OPTIONAL, INTENT(inout) :: p_int
     TYPE(t_phy_params), OPTIONAL, INTENT(inout) :: phy_params
@@ -34,13 +33,10 @@ MODULE mo_nwp_gpu_util
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
 
-    INTEGER :: jg
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
     !$ACC WAIT
-
-    !$ACC UPDATE HOST(prm_diag%qrs_flux)
 
     !$ACC UPDATE HOST(ext_data%atm%list_seaice%ncount) &
     !$ACC   HOST(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
@@ -74,8 +70,6 @@ MODULE mo_nwp_gpu_util
     !$ACC   IF(PRESENT(p_int))
 
 #ifdef _OPENACC
-    jg = pt_patch%id
-
     ! Update NWP fields
     CALL gpu_update_var_list('prm_diag_of_domain_', .false., domain=jg, lacc=.TRUE.)
     CALL gpu_update_var_list('prm_tend_of_domain_', .false., domain=jg, lacc=.TRUE.)
@@ -131,10 +125,9 @@ MODULE mo_nwp_gpu_util
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
 
-  SUBROUTINE gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
+  SUBROUTINE gpu_h2d_nh_nwp(jg, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
 
-    TYPE(t_patch), TARGET, INTENT(in) :: pt_patch
-    TYPE(t_nwp_phy_diag), INTENT(inout) :: prm_diag
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_external_data), OPTIONAL, INTENT(inout):: ext_data
     TYPE(t_int_state), OPTIONAL, INTENT(inout) :: p_int
     TYPE(t_phy_params), OPTIONAL, INTENT(inout) :: phy_params
@@ -143,13 +136,10 @@ MODULE mo_nwp_gpu_util
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
 
-    INTEGER :: jg
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
     !$ACC WAIT
-
-    !$ACC UPDATE DEVICE(prm_diag%qrs_flux)
 
     !$ACC UPDATE DEVICE(ext_data%atm%list_seaice%ncount) &
     !$ACC   DEVICE(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
@@ -183,8 +173,6 @@ MODULE mo_nwp_gpu_util
     !$ACC   IF(PRESENT(p_int))
 
 #ifdef _OPENACC
-    jg = pt_patch%id
-
     ! Update NWP fields
     CALL gpu_update_var_list('prm_diag_of_domain_', .true., domain=jg, lacc=.TRUE.)
     CALL gpu_update_var_list('prm_tend_of_domain_', .true., domain=jg, lacc=.TRUE.)

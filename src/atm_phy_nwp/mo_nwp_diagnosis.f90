@@ -522,13 +522,11 @@ CONTAINS
 
         ELSEIF (.NOT. lflux_avg) THEN
 
-#ifdef _OPENACC
-          CALL finish('mo_nwp_diagnosis:','accumulating surface not available on GPU. ')
-#endif
-
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           IF (lcall_phy_jg(itturb)) THEN
 
 !DIR$ IVDEP
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
               ! the sign, in the output all fluxes must be positive downwards
@@ -564,8 +562,10 @@ CONTAINS
                                 &   * dt_phy_jg(itfastphy)
             ENDDO
 
+            !$ACC LOOP SEQ
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
+              !$ACC LOOP GANG(STATIC: 1) VECTOR
               DO jc = i_startidx, i_endidx
                 prm_diag%alhfl_pl(jc,jk,jb) =  prm_diag%alhfl_pl(jc,jk,jb)&
                                  &  + prm_diag%lhfl_pl(jc,jk,jb)          & 
@@ -576,6 +576,7 @@ CONTAINS
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
+              !$ACC LOOP GANG(STATIC: 1) VECTOR
               DO jc = i_startidx, i_endidx
                 ! accumulated surface u-momentum flux SSO
                 prm_diag%astr_u_sso(jc,jb) = prm_diag%astr_u_sso(jc,jb)     &
@@ -605,6 +606,7 @@ CONTAINS
 
           IF ( lcall_phy_jg(itradheat) ) THEN
 !DIR$ IVDEP
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
 
               ! accumulated shortwave net flux at surface
@@ -678,6 +680,7 @@ CONTAINS
 
             END DO
           ENDIF  ! lcall_phy_jg(itradheat)
+          !$ACC END PARALLEL
 
         ENDIF  ! lflux_avg
 
@@ -1833,13 +1836,10 @@ CONTAINS
       ! update of TCOND_MAX (total column-integrated condensate, max. during the time interval "celltracks_interval") if required
       IF ( ( var_in_output(jg)%tcond_max .OR. var_in_output(jg)%tcond10_max ) .AND.  &
            ( l_output(jg) .OR. l_celltracks_event_active) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('tcond_max or tcond10_max')
-#endif
         CALL compute_field_tcond_max( p_patch(jg), jg, p_nh(jg)%metrics,   &
              &                        p_nh(jg)%prog(nnow(jg)),  p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag, &
              &                        var_in_output(jg)%tcond_max, var_in_output(jg)%tcond10_max,     &
-             &                        prm_diag(jg)%tcond_max, prm_diag(jg)%tcond10_max  )
+             &                        prm_diag(jg)%tcond_max, prm_diag(jg)%tcond10_max, lacc=.TRUE. )
       END IF
 
       ! update vorticity for the calculation of uh_max / vorw_ctmax;
@@ -1847,7 +1847,7 @@ CONTAINS
       IF ( (ANY(luh_max_out(jg,:)) .OR. var_in_output(jg)%vorw_ctmax) .AND. &
             l_celltracks_event_active .AND. .NOT. l_output(jg) ) THEN
 #ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('uh_max or vorw_ctmax')
+        CALL warning('mo_nwp_diagnosis', 'Untested output on GPU: update vorticity for uh_max or vorw_ctmax ')
 #endif
         CALL rot_vertex (p_nh(jg)%prog(nnow(jg))%vn, p_patch(jg), p_int(jg), p_nh(jg)%diag%omega_z)
         ! Diagnose relative vorticity on cells
@@ -1859,31 +1859,22 @@ CONTAINS
 
         ! update of UH_MAX (updraft helicity, max.  during the time interval "celltracks_interval") if required
         IF ( luh_max_out(jg,k) .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
-#ifdef _OPENACC
-          CALL warn_for_untested_output_on_GPU('uh_max')
-#endif
           CALL compute_field_uh_max( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), p_nh(jg)%diag,  &
-               &                     uh_max_zmin(k), uh_max_zmax(k), prm_diag(jg)%uh_max_3d(:,:,k) )
+               &                     uh_max_zmin(k), uh_max_zmax(k), prm_diag(jg)%uh_max_3d(:,:,k), lacc=.TRUE. )
         END IF
 
       END DO
 
       ! update of VORW_CTMAX (Maximum rotation amplitude during the time interval "celltracks_interval") if required
       IF ( var_in_output(jg)%vorw_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('vorw_ctmax')
-#endif
         CALL compute_field_vorw_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%diag,  &
-             &                         prm_diag(jg)%vorw_ctmax  )
+             &                         prm_diag(jg)%vorw_ctmax, lacc=.TRUE. )
       END IF
 
       ! update of W_CTMAX (Maximum updraft track during the ime interval "celltracks_interval") if required
       IF ( var_in_output(jg)%w_ctmax .AND. (l_output(jg) .OR. l_celltracks_event_active ) ) THEN
-#ifdef _OPENACC
-        CALL warn_for_untested_output_on_GPU('w_ctmax')
-#endif
         CALL compute_field_w_ctmax( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)),  &
-             &                      prm_diag(jg)%w_ctmax  )
+             &                      prm_diag(jg)%w_ctmax, lacc=.TRUE. )
       END IF
 
 
@@ -2440,17 +2431,8 @@ CONTAINS
           CALL finish('nwp_diag_output_minmax_micro', 'Cloud microphysics scheme not yet known in diagnostics.')
     END SELECT
 
-
   END SUBROUTINE nwp_diag_output_minmax_micro
 
-#ifdef _OPENACC
-  SUBROUTINE warn_for_untested_output_on_GPU(output)
-      CHARACTER(LEN=*), INTENT(IN) :: output
-
-      WRITE(message_text,'(A,A)') 'Untested output on GPU: ', TRIM(output)
-      CALL warning('mo_nwp_diagnosis',message_text)
-  END SUBROUTINE warn_for_untested_output_on_GPU
-#endif
 
   SUBROUTINE nwp_diag_global(pt_patch,prm_diag,var_in_output)
   ! this routine is to calculate global means based 

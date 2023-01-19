@@ -32,6 +32,8 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 # This experiment describes a ICON-LAM experiment using the physics packages that are
 # used at MeteoSwiss for production. This simulation computes a few time steps on 
 # a low-resolution grid over Switzerland. The setup is for development purposes.
+#
+# This experiment includes output of accumulated fluxes.
 # ==========================================================================
 
 # ========================
@@ -223,6 +225,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  itype_rh                    =                          1         ! method for computation of relative humidity
  lmask_boundary              =                      .FALSE.       ! mask out interpolation zone in output
  itype_convindices           =                          2         ! full computation of Most Unstable indeces
+ lflux_avg                   =                      .FALSE.       ! the output fluxes are accumulated from the beginning of the run
 /
 
 ! limarea_nml: settings for limited area mode ---------------------------------
@@ -387,8 +390,10 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'echotop', 'echotopinm',
   'group:land_vars','group:land_tile_vars','group:dwd_fg_sfc_vars',
   'albdif','clc','clch','clcl','clcm','clct','geopot','gz0','plcov','pv','rh',
-  'sdi2', 'ceiling', 'htop_sc', 'hbas_sc', 'smi'
-
+  'sdi2', 'ceiling', 'htop_sc', 'hbas_sc', 'smi',
+  'accthb_t','accsob_t','accshfl_s','acclhfl_s','accthb_s','accsob_s','accqhfl_s',
+  'Q_SEDIM', 'FIS', 'TOPOGRAPHY_C', 'NDVIRATIO', 'TCOND10_MAX', 'TCOND_MAX',
+  'UH_MAX', 'UH_MAX_LOW', 'UH_MAX_MED', 'VORW_CTMAX', 'W_CTMAX'
  pl_varlist       =
   'u','v','qc','qi','qr','qs','qv','rho','tke','omega','clc','geopot','dpres_mc','div','vor'
  p_levels         =    10000, 20000, 50000, 100000
