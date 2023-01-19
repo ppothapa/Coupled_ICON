@@ -923,7 +923,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         lhn_diag(jc,nlev-12,jb) = lhn_fields%pr_ref_sum(jc,jb)  ! ive: 13
         lhn_diag(jc,nlev-13,jb) = scale_diag(jc,jb)             ! ive: 14
         lhn_diag(jc,nlev-14,jb) = treat_diag(jc,jb)             ! ive: 15
-        lhn_diag(jc,nlev-15,jb) = lhn_fields%brightband(jc,jb)  ! ive: 16
+        lhn_diag(jc,nlev-15,jb) = MERGE(1._wp, 0._wp, lhn_fields%brightband(jc,jb))  ! ive: 16
         lhn_diag(jc,nlev-16,jb) = pr_obs_nofilt(jc,jb)
       END DO
 
@@ -1295,7 +1295,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
          obs_ratio (jc,jb) =  0.0_wp
          obs_cnt   (jc,jb) =  0_i4
          bbllim    (jc,jb) =  0.0_wp
-         lhn_fields%brightband(jc,jb) = 0.0_wp
+         lhn_fields%brightband(jc,jb) = .FALSE.
        END DO
      END DO
 !$OMP END DO
@@ -1414,7 +1414,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx,i_endidx
-        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN
+        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. .NOT. lhn_fields%brightband(jc,jb)) THEN
           IF ((radar_data%radar_td%obs(jc,jb,weight_index_0) >= pr_time_limit) .AND. &
               (lp1 .AND. radar_data%radar_td%obs(jc,jb,weight_index_p1) >= pr_time_limit)) THEN
             ! observation is valid between t>=0 and t<=+lhn_dt_obs
@@ -1585,7 +1585,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
        !$ACC LOOP GANG VECTOR
        DO jc = i_startidx,i_endidx
 
-        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN
+        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. .NOT. lhn_fields%brightband(jc,jb)) THEN
          IF ((radar_data%radar_td%obs(jc,jb,weight_index_0) >= pr_time_limit) .AND. &
              (lm1 .AND. radar_data%radar_td%obs(jc,jb,weight_index_m1lim) >= pr_time_limit)) THEN
            ! observation is valid between t>=0 and t<=+lhn_dt_obs
@@ -1905,7 +1905,7 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
                .AND.  (hzerocl(jc,jb)-radar_data%radar_td%radheight(jc,jb,nh)) >= -100_wp &
                .AND.  (hzerocl(jc,jb)-radar_data%radar_td%radheight(jc,jb,nh)) <= bbllim(jc,jb) &
                .AND.  sumrad(jc,jb) > 1.0_wp) THEN
-                       lhn_fields%brightband(jc,jb)=1.0_wp
+                       lhn_fields%brightband(jc,jb)= .TRUE.
                        EXIT
                  ENDIF
               ENDDO
@@ -1918,7 +1918,7 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
     !$ACC UPDATE HOST(lhn_fields%brightband)
-    nbright=COUNT(lhn_fields%brightband > 0.0)
+    nbright=COUNT(lhn_fields%brightband)
     nbrightg=global_sum(nbright,opt_iroot=p_io)
     IF (my_process_is_stdio()) &
      WRITE(nulhn, *)' n of points which are possibly brightband    : numbright = ',nbrightg
@@ -2981,7 +2981,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
        DO jc = i_startidx,i_endidx
           IF (wobs_space(jc,jb) > 0.75_wp                         .AND.  &
               NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4  .AND.  &
-              NINT(lhn_fields%brightband(jc,jb)) /= 1_i4 .AND.  &
+              .NOT. lhn_fields%brightband(jc,jb)                  .AND.  &
               zprrad(jc,jb) >= 0.0_wp) THEN
               zprmod_s        = zprmod_s        + zprmod(jc,jb)
               zprmod_ref_s    = zprmod_ref_s    + zprmod_ref(jc,jb)
@@ -3065,8 +3065,6 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    i_endblk   = pt_patch%cells%end_block(i_rlend)
 
 
-!!$OMP PARALLEL
-!!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,i1,i2,ith,anzobsmod) ICON_OMP_GUIDED_SCHEDULE
    DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
@@ -3074,7 +3072,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
       DO jc = i_startidx,i_endidx
        IF (wobs_space(jc,jb) > 0.75_wp .AND. &
            NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. &
-           NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN 
+           .NOT. lhn_fields%brightband(jc,jb)) THEN 
            i1=1
            i2=1
            IF (zprrad(jc,jb) > 0.0_wp) THEN
@@ -3098,8 +3096,6 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
        ENDIF
      ENDDO
    ENDDO
-!!$OMP END DO 
-!!$OMP END PARALLEL
 
    DO ith=1,nthre
 

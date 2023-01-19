@@ -86,7 +86,7 @@ MODULE mo_iau
   USE mo_io_config,             ONLY: var_in_output
   USE mo_initicon_config,       ONLY: type_iau_wgt, is_iau_active, iau_wgt_dyn, iau_wgt_adv, &
     &                                 ltile_coldstart, qcana_mode, qiana_mode, qrsgana_mode
-  USE mo_run_config,            ONLY: ntracer, ldass_lhn, iqv, iqc, iqi, iqr, iqs, iqg, iqh, &
+  USE mo_run_config,            ONLY: ntracer, iqv, iqc, iqi, iqr, iqs, iqg, iqh, &
     &                                 iqm_max, iqni, iqnc, iqnr, iqns, iqng, iqnh
   USE mo_advection_config,      ONLY: advection_config
   USE mo_upatmo_config,         ONLY: upatmo_config
@@ -461,7 +461,6 @@ CONTAINS
         CALL init (lnd_diag%resid_wso_t)
         CALL init (lnd_diag%resid_wso_inst_t)
       ENDIF
-      IF (ldass_lhn) CALL init (lhn_fields(jg)%brightband(:,:), -1._wp)
 
       ! If explicit stochastic scheme is selected, set all cloud ensemble
       ! variables to zero at init stage. Required to get identical results

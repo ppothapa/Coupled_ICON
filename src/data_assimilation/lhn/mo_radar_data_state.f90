@@ -1170,6 +1170,11 @@ CONTAINS
     __acc_attach(lhn_fields%qvtend_lhn)
 
 
+    ! NOTE: The GRIB2 and Netcdf settings 'datatype=datatype_flt' and 'ibits=DATATYPE_PACK16'
+    !       are inappropriate for a field of type LOGICAL.
+    !       Currently the correct settings are unclear to me. As this field is not
+    !       meant for output anyways (loutput=.FALSE.), we leave it as is.
+    !
     ! brightband      lhn_fields%brightband(nproma,nblks_c)
     cf_desc    = t_cf_var('brightband', '-',        &
       &                   'bright band mask field', &
@@ -1178,7 +1183,7 @@ CONTAINS
     CALL add_var( lhn_fields_list, 'brightband', lhn_fields%brightband,            &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
                 & ldims=shape2d_c, loutput=.FALSE.,                                &
-                & initval=-1._wp,                                                  &
+                & initval=.FALSE.,                                                 &
                 & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
     __acc_attach(lhn_fields%brightband)
 

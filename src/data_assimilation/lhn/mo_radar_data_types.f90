@@ -72,10 +72,16 @@ TYPE t_lhn_diag
     & ::                    &
     & ttend_lhn(:,:,:)     ,& ! temperature increment due to LHN
     & qvtend_lhn(:,:,:)    ,& ! moisture increment due to LHN
-    & brightband(:,:)      ,& ! bright band mask field
     & pr_obs_sum(:,:)      ,& ! cumulated precipitation (hourly)
     & pr_mod_sum(:,:)      ,& ! cumulated precipitation (hourly)
     & pr_ref_sum(:,:)         ! cumulated precipitation (hourly)
+
+  LOGICAL, POINTER          &
+#ifdef _CRAYFTN
+      , CONTIGUOUS             &
+#endif
+    & ::                    &
+    & brightband(:,:)         ! bright band mask field
 
 END TYPE t_lhn_diag
 
