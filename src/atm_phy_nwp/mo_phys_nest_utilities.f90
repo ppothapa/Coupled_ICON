@@ -2360,7 +2360,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
           z_aux3dl2_p(jc,17,jb) = ptr_wprogp%h_snow_si(jc,jb)
           z_aux3dl2_p(jc,18,jb) = ptr_ldiagp%fr_seaice(jc,jb)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
       ELSE
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx, i_endidx

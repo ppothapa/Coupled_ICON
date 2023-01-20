@@ -686,7 +686,7 @@ SUBROUTINE cloudice2mom (            &
   ENDIF
 
   ! Delete precipitation fluxes from previous timestep
-  !$ACC PARALLEL DEFAULT(NONE)
+  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(iv_start, iv_end, licenum)
   !$ACC LOOP GANG VECTOR
   DO iv = iv_start, iv_end
     prr_gsp (iv) = 0.0_wp
@@ -726,7 +726,7 @@ SUBROUTINE cloudice2mom (            &
 ! transfer rates  and sedimentation terms
 ! *********************************************************************
 
-  !$ACC PARALLEL DEFAULT(NONE)
+  !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP SEQ
 #ifdef __LOOP_EXCHANGE
   DO iv = iv_start, iv_end  !loop over horizontal domain
@@ -1692,7 +1692,7 @@ SUBROUTINE cloudice2mom (            &
     !$ACC DATA &
     !$ACC   PRESENT(ddt_tend_t, t, t_in)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, ke, iv_start, iv_end, zdtr)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end
@@ -1709,7 +1709,7 @@ SUBROUTINE cloudice2mom (            &
     !$ACC   PRESENT(ddt_tend_qv, ddt_tend_qc, ddt_tend_qr, ddt_tend_qs) &
     !$ACC   PRESENT(ddt_tend_qi, qv_in, qc_in, qr_in, qs_in, qi_in)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, ke, iv_start, iv_end, zdtr)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end

@@ -509,7 +509,7 @@ MODULE mo_nwp_reff_interface
            &                is, ie, i_rlstart, i_rlend)
 
 ! Set to zero all
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nreff_calc, jg, jb)
       !$ACC LOOP GANG VECTOR
       DO ireff = 1, nreff_calc
         reff_calc_dom(jg)%reff_calc_arr(ireff)%p_reff(:,:,jb) = 0.0_wp  ! Clean values

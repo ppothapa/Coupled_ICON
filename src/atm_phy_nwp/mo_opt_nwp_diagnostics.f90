@@ -1643,7 +1643,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
       
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
@@ -2477,7 +2477,7 @@ CONTAINS
     !$ACC   CREATE(kstart, klcl, klfc, k_ml) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       k_ml  (jc)  = nlev  ! index used to step through the well mixed layer
@@ -2553,7 +2553,7 @@ CONTAINS
                     lacc= lacc )
     ENDIF
     IF (llev) THEN
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ((klcl(jc) .LE. 0) .OR. (klcl(jc) .GT. nlev)) THEN ! if index not defined
@@ -2631,7 +2631,7 @@ CONTAINS
     nk = SIZE(te,2)
     
     ! initialize outputs (good practice)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nk, z_limit) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu  (jc) = 0.0_wp 
@@ -2753,7 +2753,7 @@ CONTAINS
     !$ACC   CREATE(cape_mu_COSMO, cin_mu_COSMO, acape, acin, lcomp, kstart) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu_COSMO(jc)  = 0.0_wp
@@ -2784,7 +2784,7 @@ CONTAINS
     ! defined above.
     !------------------------------------------------------------------------------
     parcelloop:  DO k = kmoist, nlev
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k, nlev, i_startidx, i_endidx, mup_lay_thck) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         kstart(jc) = k
@@ -2805,7 +2805,7 @@ CONTAINS
                      acape=acape, acin=acin, lcomp = lcomp,                    & ! out (cape, cin) in (logical array for computation)
                      lacc= lacc )
       
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( acape(jc) > cape_mu_COSMO(jc) ) THEN
@@ -2882,7 +2882,7 @@ CONTAINS
   !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
   !$ACC   CREATE(qvp_start, te_start) &
   !$ACC   IF(lzacc)
-  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) PRIVATE(nlev) FIRSTPRIVATE(i_startidx, i_endidx, kmoist) IF(lzacc)
   ! initialization
   nlev = SIZE( te,2)
   !$ACC LOOP GANG VECTOR
@@ -2921,7 +2921,7 @@ CONTAINS
                   asi=si,                                                  & ! out (Showalter Index)
                   lacc= lacc )                                            ! in (GPU flag)
     
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         IF (prs(jc,nlev) < sistartprs) THEN
@@ -2961,7 +2961,7 @@ CONTAINS
   !------------------------------------------------------------------------------
   ! For these indeces, we need to obtain the levels corresponding to 600 hPa, 650 hPa,
   ! 3000m and 6000m (NOTE that this is not Height Above Ground (HAG) but Above mean Sea Level (a.s.l.))
-  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   ! inizialisation
   !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
   DO jc = i_startidx, i_endidx
@@ -2974,7 +2974,7 @@ CONTAINS
   ! Find these indeces
   !$ACC LOOP SEQ
   kloop: DO k = nlev-1, kmoist+1, -1
-    !$ACC LOOP GANG VECTOR
+    !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
     DO jc = i_startidx, i_endidx
       !Find the k index coressponding to the model level closest to 600 hPa
       IF ((prs (jc,k) >= 60000._wp).AND.(prs (jc,k-1) <= 60000._wp))THEN
@@ -3156,7 +3156,7 @@ CONTAINS
     !$ACC   CREATE(lcloudtop) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cloudtop     (jc) = missing_value
@@ -3397,7 +3397,7 @@ CONTAINS
     !$ACC   IF(lzacc)
     nlev = SIZE( te,2)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     
     IF (PRESENT(lcomp)) THEN
       !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -3440,7 +3440,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
     IF(lacape3km) THEN
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP SEQ
       DO k = nlev-1, kmoist+1, -1
         !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
@@ -3459,7 +3459,13 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+! Different data clauses are needed with and without __SX__
+#ifdef __SX__
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx, lacape3km, lasi) IF(lzacc)
+#else
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx, lacape3km, lasi) &
+    !$ACC   FIRSTPRIVATE(tguess1, icount, esat, q1, thetae1, tguess2, q2, thetae2, esatp, tvp, tve, buo_belo) IF(lzacc)
+#endif
     ! Loop over all model levels above kstart
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
@@ -3698,7 +3704,7 @@ CONTAINS
 
     ! Subtract the CIN above the LFC from the total accumulated CIN to 
     ! get only contriubtions from below the LFC as the definition demands.
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       ! make CIN positive
@@ -3708,7 +3714,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, lacape, lacape3km, lacin, lalcl, lalfc) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       IF (lacape)    acape(jc)    = cape      (jc)
