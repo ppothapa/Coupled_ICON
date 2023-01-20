@@ -60,7 +60,7 @@ case $HOST in
     *daint*)
 ##        export MD='rnmot' # <-- PROVISIONAL, do not add tolerance test, references are missing
         export PYTHONPATH=""
-        source /project/g110/icon/probtest/env/bin/activate
+        source /project/g110/icon/probtest/conda/miniconda/bin/activate probtest
 esac
 
 ./icon-dev.checksuite
