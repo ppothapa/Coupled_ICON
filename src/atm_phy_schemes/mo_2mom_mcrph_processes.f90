@@ -1245,7 +1245,7 @@ CONTAINS
     IF (isdebug) CALL message(routine, "rain_evaporation")
 
     !$ACC DATA PRESENT(atmo, cloud, rain, rain_coeffs)
-    !$ACC PARALLEL DEFAULT(PRESENT) 
+    !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, p_a, e_sw, s_sw, g_d, eva_q, eva_n, eva_q_fak, q_r, n_r, x_r, e_d, f_v) &
     !$ACC   PRIVATE(mue, d_m, gamma_eva, lam, d_vtp, gfak, mm)

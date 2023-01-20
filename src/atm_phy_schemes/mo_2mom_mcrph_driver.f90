@@ -856,7 +856,7 @@ CONTAINS
 
           ! .. save old variables for latent heat calculation
 
-          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, lprogmelt) 
+          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, lprogmelt)
           !$ACC LOOP GANG VECTOR
           DO ii = its, ite
             q_vap_old(ii,k) = qv(ii,k)
