@@ -101,7 +101,7 @@ case "$use_site" in
       ;;
 
       # balfrin
-      *nid*)
+      *nid*|*balfrin*)
         if test -f "/etc/xthostname"; then
           host_name=$(cat /etc/xthostname)
 
