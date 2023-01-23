@@ -28,8 +28,8 @@ MODULE mo_nwp_ecrad_prep_aerosol
   USE mo_fortran_tools,          ONLY: assert_acc_host_only, assert_acc_device_only
 #ifdef __ECRAD
   USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type, t_ecrad_conf, t_opt_ptrs
+  USE mo_aerosol_util,           ONLY: get_nbands_lw_aerosol, get_nbands_sw_aerosol
 #endif
-
   USE mo_aerosol_util,           ONLY: tegen_scal_factors
 
 #ifdef __ICON_ART
@@ -81,8 +81,10 @@ CONTAINS
       &  od_lw, ssa_lw, g_lw,   & !< Optical depth, single scattering albedo, assymetry factor long wave
       &  od_sw, ssa_sw, g_sw      !< Optical depth, single scattering albedo, assymetry factor short wave
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
-
+! Local variables
     INTEGER                  :: &
+      &  n_bands_sw,            & !< Number of ecrad shortwave bands
+      &  n_bands_lw,            & !< Number of ecrad longwave bands
       &  jc, jk, jband            !< Loop indices
 
     CALL assert_acc_device_only("nwp_ecrad_prep_aerosol_constant", lacc)
@@ -90,9 +92,10 @@ CONTAINS
     !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, ssa_lw, od_lw, g_lw, ssa_sw, od_sw, g_sw)
 
     IF (ecrad_conf%do_lw) THEN
+      n_bands_lw = get_nbands_lw_aerosol(ecrad_conf)
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
-      DO jband = 1, ecrad_conf%n_bands_lw
+      DO jband = 1, n_bands_lw
         DO jk = slev, nlev
           DO jc = i_startidx, i_endidx
             ecrad_aerosol%od_lw(jband,jk,jc)  = 0._wp
@@ -114,9 +117,10 @@ CONTAINS
     ENDIF
 
     IF (ecrad_conf%do_sw) THEN
+      n_bands_sw = get_nbands_sw_aerosol(ecrad_conf)
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
-      DO jband = 1, ecrad_conf%n_bands_sw
+      DO jband = 1, n_bands_sw
         DO jk = slev, nlev
           DO jc = i_startidx, i_endidx
             ecrad_aerosol%od_sw(jband,jk,jc)  = 0._wp
@@ -191,25 +195,9 @@ CONTAINS
     scal_sct => tegen_scal_factors%scattering
     scal_asy => tegen_scal_factors%asymmetry
 
-    ! Determine number of ecrad bands
-    IF (ecrad_conf%do_sw) THEN
-      IF (ecrad_conf%do_cloud_aerosol_per_sw_g_point) THEN
-        n_bands_sw = ecrad_conf%n_g_sw
-      ELSE
-        n_bands_sw = ecrad_conf%n_bands_sw
-      ENDIF
-    ELSE
-      n_bands_sw = 0
-    ENDIF
-    IF (ecrad_conf%do_lw) THEN
-      IF (ecrad_conf%do_cloud_aerosol_per_lw_g_point) THEN
-        n_bands_lw = ecrad_conf%n_g_lw
-      ELSE
-        n_bands_lw = ecrad_conf%n_bands_lw
-      ENDIF
-    ELSE
-      n_bands_lw = 0
-    ENDIF
+    n_bands_lw = get_nbands_lw_aerosol(ecrad_conf)
+    n_bands_sw = get_nbands_sw_aerosol(ecrad_conf)
+
     CALL assert_acc_device_only("nwp_ecrad_prep_aerosol_tegen", lacc)
 
     !$ACC DATA PRESENT(ecrad_conf, ecrad_aerosol, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, scal_abs, scal_sct, scal_asy)

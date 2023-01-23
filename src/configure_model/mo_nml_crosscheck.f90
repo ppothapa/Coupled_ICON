@@ -413,6 +413,12 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, or 2')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
+            IF (ecrad_igas_model == 1 .AND. .NOT. ANY(irad_aero == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen/) ) )&
+              &  CALL finish(routine,'For ecrad_igas_model=1, only Tegen aerosol implemented (irad_aero=0,2,6)')
+            IF (ecrad_igas_model == 1 .AND. isolrad /= 1) THEN
+              isolrad = 1
+              CALL message(routine,'Warning: For ecrad_igas_model = 1, only Coddington scaling is available. Setting isolrad=1')
+            ENDIF
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
           ELSE

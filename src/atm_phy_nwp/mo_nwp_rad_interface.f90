@@ -169,13 +169,10 @@ MODULE mo_nwp_rad_interface
 #ifdef __ECRAD
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
       CASE(4)
-        nbands_lw   = ecrad_conf%n_bands_lw
-        nbands_sw   = ecrad_conf%n_bands_sw
-        IF (nbands_sw /= ecrad_conf%gas_optics_sw%spectral_def%nband) THEN
-          WRITE(message_text,'(a,i3,a,i3)') 'Internal error in sw band configuration: ', &
-            &                               nbands_sw,' /= ',ecrad_conf%gas_optics_sw%spectral_def%nband
-          CALL finish (routine, 'Internal error: sw band configuration')
-        ENDIF
+        ! Careful: With ecckd, aerosol can be calculated on g-points, so the following variables need further thinking
+        !          when enabling further aerosol options (especially Kinne) for ecckd.
+        nbands_lw   = ecrad_conf%n_bands_lw ! With ecckd, this might actually be g-points if ecrad_conf%do_cloud_aerosol_per_lw_g_point
+        nbands_sw   = ecrad_conf%n_bands_sw ! With ecckd, this might actually be g-points if ecrad_conf%do_cloud_aerosol_per_sw_g_point
         wavenum1_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber1_band
         wavenum2_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber2_band
     END SELECT
