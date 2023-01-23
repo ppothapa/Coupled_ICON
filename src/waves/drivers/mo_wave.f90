@@ -100,8 +100,6 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = "destruct_wave"
 
 
-!    INTEGER :: jg, ist
-
     CALL destruct_wave_state( )
 
     CALL message(TRIM(routine),'finished')

@@ -89,6 +89,7 @@ CONTAINS
 
 
 
+
   SUBROUTINE new_wave_state_diag_list(p_patch, p_diag, p_diag_list, listname)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch
@@ -129,8 +130,6 @@ CONTAINS
 
 
   !>
-  !! Destruction of wave-specific variable lists and memory deallocation
-  !!
   !! Destruction of wave-specific variable lists and memory deallocation
   !!
   !! @par Revision History

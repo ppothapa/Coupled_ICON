@@ -58,6 +58,11 @@ MODULE mo_wave_model
        &                                output_file, create_vertical_axes
   USE mo_var_list_register_utils, ONLY: vlr_print_groups
   USE mo_wave,                    ONLY: wave
+  USE mo_wave_ext_data_state,     ONLY: wave_ext_data, wave_ext_data_list, destruct_wave_ext_data_state
+  USE mo_wave_ext_data_init,      ONLY: init_wave_ext_data
+  USE mo_ext_data_state,          ONLY: ext_data
+  USE mo_ext_data_init,           ONLY: init_ext_data
+  USE mo_alloc_patches,           ONLY: destruct_patches
 
  ! Vertical grid
   USE mo_vertical_coord_table,    ONLY: vct_a, vct_b, vct, allocate_vct_atmo
@@ -65,10 +70,8 @@ MODULE mo_wave_model
   USE mo_util_vgrid,              ONLY: construct_vertical_grid
 
   USE mo_intp_data_strc,          ONLY: p_int_state
-  USE mo_intp_state,              ONLY: construct_2d_interpol_state
-  USE mo_ext_data_state,          ONLY: ext_data
-  USE mo_ext_data_init,           ONLY: init_ext_data
-  USE mo_icon_comm_interface,     ONLY: construct_icon_communication
+  USE mo_intp_state,              ONLY: construct_2d_interpol_state, destruct_2d_interpol_state
+  USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
   USE mo_interpol_config,         ONLY: configure_interpolation
   USE mo_complete_subdivision,    ONLY: setup_phys_patches
 
@@ -91,7 +94,9 @@ CONTAINS
 
     CALL wave()
 
-    CALL message(routine, 'done.')
+    CALL destruct_wave_model()
+
+    CALL message(routine, 'finished')
 
     ! print performance timers:
     IF (ltimer) CALL print_timer
@@ -172,7 +177,6 @@ CONTAINS
     zaxisTypeList = t_zaxisTypeList()
 
 
-
     IF (timers_level > 4) CALL timer_start(timer_domain_decomp)
 
     CALL build_decomposition(num_lev, nshift, is_ocean_decomposition = .true.)
@@ -221,6 +225,7 @@ CONTAINS
     ! optionally read those data from netCDF file.
 
     CALL init_ext_data (p_patch(1:), p_int_state(1:), ext_data)
+    CALL init_wave_ext_data (p_patch(1:), wave_ext_data, wave_ext_data_list)
 
 
     CALL allocate_vct_atmo(p_patch(1)%nlevp1)
@@ -228,13 +233,54 @@ CONTAINS
     CALL construct_vertical_grid(p_patch(1:), p_int_state(1:), ext_data, &
       &                          vct_a, vct_b, vct, nflatlev)
 
-    CALL message(routine, 'done.')
-
-    !    IF (timers_level > 1) CALL timer_stop(timer_model_init)
-
+    CALL message(routine, 'finished.')
 
   END SUBROUTINE construct_wave_model
   !-------------------------------------------------------------------
 
+  SUBROUTINE destruct_wave_model()
+
+    CHARACTER(*), PARAMETER :: routine = "mo_wave_model:destruct_wave_model"
+
+    INTEGER                 :: error_status
+
+
+    ! Deallocate wave external data state and variable lists
+    CALL destruct_wave_ext_data_state()
+
+    ! Deallocate interpolation fields
+    CALL destruct_2d_interpol_state( p_int_state )
+    IF (msg_level>5) CALL message(routine,'destruct_2d_interpol_state is done')
+
+    DEALLOCATE (p_int_state, STAT=error_status)
+    IF (error_status /= SUCCESS) THEN
+       CALL finish(routine, 'deallocation for ptr_int_state failed')
+    ENDIF
+
+    ! Deallocate global registry for lon-lat grids
+    CALL lonlat_grids%finalize()
+
+    ! Deallocate grid patches
+    CALL destruct_patches( p_patch )
+    IF (msg_level>5) CALL message(routine, 'destruct_patches is done')
+
+    DEALLOCATE( p_patch, STAT=error_status )
+    IF (error_status/=SUCCESS) THEN
+       CALL finish(routine, 'deallocate for patch array failed')
+    ENDIF
+
+    ! Delete output variable lists
+    IF (output_mode%l_nml) THEN
+       CALL message(routine, 'delete output variable lists')
+       CALL close_name_list_output
+       CALL message(routine, 'finish statistics streams')
+    END IF
+
+    CALL destruct_icon_communication()
+
+    CALL message(routine, 'clean-up finished')
+
+  END SUBROUTINE destruct_wave_model
+  !-------------------------------------------------------------------
 
 END MODULE mo_wave_model

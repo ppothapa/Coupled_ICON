@@ -16,21 +16,13 @@
 !!
 MODULE mo_wave_crosscheck
 
-  !USE mo_kind,              ONLY: wp
-  USE mo_exception,         ONLY: message!, finish, warning
-!  USE mo_grid_config,       ONLY: init_grid_configuration
-  USE mo_parallel_config,   ONLY: check_parallel_configuration!, p_test_run, l_fast_sum, &
-!       &                          use_dp_mpi2io
-  USE mo_run_config,        ONLY: nsteps!, dtime, nlev
-  USE mo_time_config,       ONLY: time_config, dt_restart
-!  USE mo_io_config,         ONLY: dt_checkpoint, write_initial_state, lnetcdf_flt64_output
-!  USE mo_grid_config,       ONLY: grid_rescale_factor, use_duplicated_connectivity
-!  USE mo_wave_nml
-!  USE mo_master_config,     ONLY: isRestart
+  USE mo_exception,         ONLY: message
+  USE mo_parallel_config,   ONLY: check_parallel_configuration
+  USE mo_run_config,        ONLY: nsteps
+  USE mo_time_config,       ONLY: dt_restart
   USE mo_time_management,   ONLY: compute_timestep_settings,                        &
        &                          compute_restart_settings,                         &
        &                          compute_date_settings
-!  USE mo_event_manager,     ONLY: initEventManager
 
   IMPLICIT NONE
 
@@ -58,10 +50,6 @@ CONTAINS
     CALL compute_timestep_settings()
     CALL compute_restart_settings()
     CALL compute_date_settings("wave", dt_restart, nsteps)
-    !
-    ! Create an event manager, ie. a collection of different events
-    !
-!    CALL initEventManager(time_config%tc_exp_refdate)
 
     !--------------------------------------------------------------------
     ! Parallelization
@@ -74,7 +62,8 @@ CONTAINS
     !
     !ADD HERE ...
 
-    CALL message(routine,'done.')
+    CALL message(routine,'finished.')
+
 
   END SUBROUTINE wave_crosscheck
 
