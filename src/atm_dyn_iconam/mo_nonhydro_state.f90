@@ -467,9 +467,11 @@ MODULE mo_nonhydro_state
     INTEGER           :: ipassive        ! loop counter
     INTEGER           :: dummy_idx, vntl, tlen
 
+    CHARACTER(LEN=vname_len)             :: tracer_container_name
     CHARACTER(LEN=vname_len+LEN(suffix)) :: tracer_name
+
     TYPE(t_var), POINTER :: target_element
-    INTEGER                       :: tracer_idx
+    INTEGER              :: tracer_idx
 
     LOGICAL :: ingroup(MAX_GROUPS)
     !**
@@ -539,7 +541,8 @@ MODULE mo_nonhydro_state
       &           ldims=shape3d_e,                                              &
       &           in_group=groups("nh_prog_vars","dwd_fg_atm_vars",             &
       &                           "mode_dwd_fg_in","mode_iau_fg_in",            &
-      &                           "mode_iau_old_fg_in","LATBC_PREFETCH_VARS"),  &
+      &                           "mode_iau_old_fg_in","LATBC_PREFETCH_VARS",   &
+      &                           "iau_restore_vars"),                          &
       &           lopenacc = .TRUE. )
     __acc_attach(p_prog%vn)
 
@@ -556,7 +559,8 @@ MODULE mo_nonhydro_state
       &                          "dwd_fg_atm_vars","mode_dwd_fg_in",           &
       &                          "mode_iau_fg_in","mode_iau_old_fg_in",        &
       &                          "LATBC_PREFETCH_VARS",                        &
-      &                          "mode_iniana","icon_lbc_vars"),               &
+      &                          "mode_iniana","icon_lbc_vars",                &
+      &                          "iau_restore_vars"),                          &
       &          lopenacc = .TRUE.)
     __acc_attach(p_prog%w)
 
@@ -571,7 +575,8 @@ MODULE mo_nonhydro_state
       &              vert_intp_method=VINTP_METHOD_LIN ),                      &
       &           in_group=groups("nh_prog_vars","dwd_fg_atm_vars",            &
       &                           "mode_dwd_fg_in","mode_iau_fg_in",           &
-      &                           "mode_iau_old_fg_in","LATBC_PREFETCH_VARS"), &
+      &                           "mode_iau_old_fg_in","LATBC_PREFETCH_VARS",  &
+      &                           "iau_restore_vars"),                         &
       &           lopenacc = .TRUE. )
     __acc_attach(p_prog%rho)
 
@@ -584,7 +589,8 @@ MODULE mo_nonhydro_state
       &           ldims=shape3d_c,                                                    &
       &           in_group=groups("nh_prog_vars","dwd_fg_atm_vars",                   &
       &           "mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in",             &
-      &           "LATBC_PREFETCH_VARS"),                                             &
+      &           "LATBC_PREFETCH_VARS",                                              &
+      &           "iau_restore_vars"),                                                &
       &           lopenacc = .TRUE. )
     __acc_attach(p_prog%theta_v)
 
@@ -593,9 +599,10 @@ MODULE mo_nonhydro_state
       ! exner        p_prog%exner(nproma,nlev,nblks_c)
       cf_desc    = t_cf_var('exner_pressure', '-', 'exner pressure', datatype_flt)
       grib2_desc = grib2_var(0, 3, 26, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_prog_list, vname_prefix(1:vntl)//'exner'//suffix, p_prog%exner,   &
+      CALL add_var( p_prog_list, vname_prefix(1:vntl)//'exner'//suffix, p_prog%exner, &
         &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,        &
-        &           ldims=shape3d_c, in_group=groups("nh_prog_vars"),                 &
+        &           ldims=shape3d_c,                                                  &
+        &           in_group=groups("nh_prog_vars","iau_restore_vars"),               &
         &           lopenacc = .TRUE. )
       __acc_attach(p_prog%exner)
 
@@ -603,12 +610,15 @@ MODULE mo_nonhydro_state
 
       ! tracer         p_prog%tracer(nproma,nlev,nblks_c,ntracer)
       IF (ntracer > 0) THEN
+        tracer_container_name = vname_prefix(1:vntl)//'tracer'//suffix
         cf_desc    = t_cf_var('tracer', 'kg kg-1', 'tracer', datatype_flt)
         grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-        CALL add_var( p_prog_list, 'tracer', p_prog%tracer,                       &
+        CALL add_var( p_prog_list, tracer_container_name, p_prog%tracer,          &
           &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,  &
-          &           ldims=shape4d_c ,                                           &
-          &           lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,       &
+          &           ldims=shape4d_c, tlev_source=TLEV_NNOW_RCF,                 &
+          &           lcontainer=.TRUE., lrestart=.FALSE.,                        &
+          &           in_group=groups("iau_restore_vars"),                        &
+          &           loutput=.FALSE.,                                            &
           &           lopenacc = .TRUE. )
         __acc_attach(p_prog%tracer)
       ENDIF
@@ -644,7 +654,7 @@ MODULE mo_nonhydro_state
         IF ( iqv /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqv))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqv)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqv)%p_3d,                      &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(vname_prefix(1:vntl)//'specific_humidity',            &
@@ -695,7 +705,7 @@ MODULE mo_nonhydro_state
         IF ( iqc /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqc))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqc)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',&
+          CALL add_ref( p_prog_list, tracer_container_name,                          &
             &         tracer_name, p_prog%tracer_ptr(iqc)%p_3d,                      &
             &         GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &         t_cf_var(tracer_name(1:tlen+vntl),                             &
@@ -723,7 +733,7 @@ MODULE mo_nonhydro_state
         IF ( iqi /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqi))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqi)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                       &
+          CALL add_ref( p_prog_list, tracer_container_name,                          &
             &         tracer_name, p_prog%tracer_ptr(iqi)%p_3d,                      &
             &         GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &         t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -751,7 +761,7 @@ MODULE mo_nonhydro_state
         IF ( iqr /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqr))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqr)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqr)%p_3d,                      &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -783,7 +793,7 @@ MODULE mo_nonhydro_state
         IF ( iqs /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqs))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqs)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqs)%p_3d,                      &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:tlen+vntl),                             &
@@ -815,7 +825,7 @@ MODULE mo_nonhydro_state
         IF ( iqg /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqg))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqg)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqg)%p_3d,                      &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -848,7 +858,7 @@ MODULE mo_nonhydro_state
         IF ( iqh /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqh))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqh)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                       &
+          CALL add_ref( p_prog_list, tracer_container_name,                          &
             &           tracer_name, p_prog%tracer_ptr(iqh)%p_3d,                    &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
             &           t_cf_var(tracer_name(1:vntl+tlen),                           &
@@ -880,7 +890,7 @@ MODULE mo_nonhydro_state
         IF ( iqgl /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqgl))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqgl)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                        &
+          CALL add_ref( p_prog_list, tracer_container_name,                           &
             &           tracer_name, p_prog%tracer_ptr(iqgl)%p_3d,                    &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                         &
             &           t_cf_var(tracer_name(1:vntl+tlen),                            &
@@ -912,7 +922,7 @@ MODULE mo_nonhydro_state
         IF ( iqhl /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqhl))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqhl)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                       &
+          CALL add_ref( p_prog_list, tracer_container_name,                          &
             &           tracer_name, p_prog%tracer_ptr(iqhl)%p_3d,                   &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
             &           t_cf_var(tracer_name(1:tlen+vntl),                           &
@@ -944,7 +954,7 @@ MODULE mo_nonhydro_state
         IF ( iqt <= io3 .AND. io3 <= ntracer) THEN
           tlen = LEN_TRIM(advconf%tracer_names(io3))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(io3)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(io3)%p_3d,                      &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -968,7 +978,7 @@ MODULE mo_nonhydro_state
         IF ( iqt <= ico2 .AND. ico2 <= ntracer) THEN
           tlen = LEN_TRIM(advconf%tracer_names(ico2))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(ico2)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(ico2)%p_3d,                     &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -992,7 +1002,7 @@ MODULE mo_nonhydro_state
         IF ( iqt <= ich4 .AND. ich4 <= ntracer ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(ich4))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(ich4)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(ich4)%p_3d,                     &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1016,7 +1026,7 @@ MODULE mo_nonhydro_state
         IF ( iqt <= in2o .AND. in2o <= ntracer) THEN
           tlen = LEN_TRIM(advconf%tracer_names(in2o))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(in2o)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(in2o)%p_3d,                     &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1041,7 +1051,7 @@ MODULE mo_nonhydro_state
         IF ( iqni /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqni))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqni)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqni)%p_3d,                     &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1072,7 +1082,7 @@ MODULE mo_nonhydro_state
         IF ( iqnr /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqnr))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqnr)(1:tlen)//suffix
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(iqnr)%p_3d,                     &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1104,7 +1114,7 @@ MODULE mo_nonhydro_state
         IF ( iqns /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqns))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqns)(1:tlen)//suffix
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(iqns)%p_3d,                     &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1135,7 +1145,7 @@ MODULE mo_nonhydro_state
         IF ( iqng /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqng))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqng)(1:tlen)//suffix
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(iqng)%p_3d,                     &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1166,7 +1176,7 @@ MODULE mo_nonhydro_state
         IF ( iqnh /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqnh))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqnh)(1:tlen)//suffix
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(iqnh)%p_3d,                     &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1198,7 +1208,7 @@ MODULE mo_nonhydro_state
         IF ( iqnc /= 0 ) THEN
             tlen = LEN_TRIM(advconf%tracer_names(iqnc))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqnc)(1:tlen)//suffix
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(iqnc)%p_3d,                     &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1230,7 +1240,7 @@ MODULE mo_nonhydro_state
             tlen = LEN_TRIM(advconf%tracer_names(ininact))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(ininact)(1:tlen)//suffix
             ! NO OFFICIAL GRIB CODINGS YET! THE "255, 255, 255" HAS TO BE ADAPTED WHEN THESE CODINGS BECOME AVAILABLE!
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(ininact)%p_3d,                  &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),' kg-1 ',                    &
@@ -1258,7 +1268,7 @@ MODULE mo_nonhydro_state
             tlen = LEN_TRIM(advconf%tracer_names(inccn))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(inccn)(1:tlen)//suffix
             ! NO OFFICIAL GRIB CODINGS YET! THE "255, 255, 255" HAS TO BE ADAPTED WHEN THESE CODINGS BECOME AVAILABLE!
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(inccn)%p_3d,                    &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),' kg-1 ',                    &
@@ -1285,7 +1295,7 @@ MODULE mo_nonhydro_state
             tlen = LEN_TRIM(advconf%tracer_names(ininpot))
             tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(ininpot)(1:tlen)//suffix
             ! NO OFFICIAL GRIB CODINGS YET! THE "255, 255, 255" HAS TO BE ADAPTED WHEN THESE CODINGS BECOME AVAILABLE!
-            CALL add_ref( p_prog_list, 'tracer',                                     &
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
                     & tracer_name, p_prog%tracer_ptr(ininpot)%p_3d,                  &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & t_cf_var(tracer_name(1:vntl+tlen),' kg-1 ',                    &
@@ -1312,7 +1322,7 @@ MODULE mo_nonhydro_state
         IF ( iqtvar /= 0 ) THEN
           tlen = LEN_TRIM(advconf%tracer_names(iqtvar))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqtvar)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                         &
+          CALL add_ref( p_prog_list, tracer_container_name,                            &
             &           tracer_name, p_prog%tracer_ptr(iqtvar)%p_3d,                   &
             &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
             &           t_cf_var(tracer_name(1:vntl+tlen),                             &
@@ -1339,7 +1349,7 @@ MODULE mo_nonhydro_state
           cf_desc    = t_cf_var(tracer_name(1:vntl+tlen), 'm s-1',         &
             &          'turbulent velocity scale (at full levels)', datatype_flt)
           grib2_desc = grib2_var(0, 19, 11, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-          CALL add_ref( p_prog_list, 'tracer',                                       &
+          CALL add_ref( p_prog_list, tracer_container_name,                          &
                     & tracer_name, p_prog%tracer_ptr(iqtke)%p_3d,                    &
                     & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
                     & cf_desc, grib2_desc,                                           &
@@ -1381,7 +1391,7 @@ MODULE mo_nonhydro_state
           &           in_group=groups("atmo_ml_vars", "atmo_pl_vars",             &
           &           "atmo_zl_vars", "dwd_fg_atm_vars", "mode_dwd_fg_in",        &
           &           "mode_iau_fg_in","mode_iau_old_fg_in",                      &
-          &           "mode_iniana","icon_lbc_vars"),                             &
+          &           "mode_iniana","icon_lbc_vars","iau_restore_vars"),          &
           &           lopenacc = .TRUE.  )
         __acc_attach(p_prog%tke)
         
@@ -1393,7 +1403,7 @@ MODULE mo_nonhydro_state
         DO jt = 1, ntracer - advection_config(p_patch%id)%npassive_tracer
           tlen = LEN_TRIM(advconf%tracer_names(jt))
           tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(jt)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, 'tracer',                                  &
+          CALL add_ref( p_prog_list, tracer_container_name,                     &
             & tracer_name, p_prog%tracer_ptr(jt)%p_3d,                          &
             & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                             &
             & t_cf_var(tracer_name(1:vntl+tlen),                                &
@@ -1436,7 +1446,7 @@ MODULE mo_nonhydro_state
         tracer_name(tlen+1:) = suffix
         cf_desc    = t_cf_var(tracer_name(1:tlen), 'kg kg-1', 'passive tracer', datatype_flt)
         grib2_desc = grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-        CALL add_tracer_ref( p_prog_list, 'tracer',                                  &
+        CALL add_tracer_ref( p_prog_list, tracer_container_name,                     &
           &                  tracer_name,                                            &
           &                  dummy_idx,                                              &
           &                  p_prog%tracer_ptr(:),                                   &
@@ -1801,6 +1811,7 @@ MODULE mo_nonhydro_state
     CALL add_var( p_diag_list, 'ddt_vn_phy', p_diag%ddt_vn_phy,                 &
                 & GRID_UNSTRUCTURED_EDGE, ZA_REFERENCE, cf_desc, grib2_desc,    &
                 & ldims=shape3d_e,                                              &
+                & in_group=groups("iau_init_vars"),                             &
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%ddt_vn_phy)
 
@@ -2370,6 +2381,7 @@ MODULE mo_nonhydro_state
                 & vert_interp=create_vert_interp_metadata(                      &
                 &             vert_intp_type=vintp_types("P","Z","I"),          &
                 &             vert_intp_method=VINTP_METHOD_LIN ),              &
+                & in_group=groups("iau_init_vars"),                             &
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%ddt_temp_dyn)
 
@@ -2391,6 +2403,7 @@ MODULE mo_nonhydro_state
     CALL add_var( p_diag_list, 'exner_dyn_incr', p_diag%exner_dyn_incr,         &
                 & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,    &
                 & ldims=shape3d_c, lrestart=.FALSE.,                            &
+                & in_group=groups("iau_init_vars"),                             &
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%exner_dyn_incr)
 
@@ -3048,6 +3061,7 @@ MODULE mo_nonhydro_state
                   & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,  &
                   & ldims=shape4d_c,                                            &
                   & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,       &
+                  & in_group=groups("iau_init_vars"),                           &
                   & lopenacc = .TRUE. )
       __acc_attach(p_diag%ddt_tracer_adv)
 

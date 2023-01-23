@@ -12,7 +12,6 @@
 !!
 !! @par Revision History
 !! First version by Guenther Zaengl, DWD (2011-07-13)
-!! - encapsulated type definitions by Daniel Reinert, DWD (2012-12-17)
 !!
 !!
 !! @par Copyright and License
@@ -25,17 +24,15 @@
 !!
 MODULE mo_initicon_types
 
-  USE mo_kind,                 ONLY: dp, sp, wp
+  USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: max_ntracer, vname_len
   USE mo_run_config,           ONLY: ntracer
   USE mo_var,                  ONLY: t_var
   USE mo_dictionary,           ONLY: t_dictionary
   USE mo_ifs_coord,            ONLY: t_vct
-  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE, DO_PTR_DEALLOCATE, copy
+  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE, DO_PTR_DEALLOCATE
   USE mtime,                   ONLY: datetime
-  USE mo_exception,            ONLY: finish
-  USE mo_hash_table,           ONLY: t_HashTable, hashTable_make
-  USE mo_util_texthash,        ONLY: text_hash, text_isEqual
+
 
   IMPLICIT NONE
   PRIVATE
@@ -52,8 +49,6 @@ MODULE mo_initicon_types
   PUBLIC :: t_pi_tracer
   PUBLIC :: t_pi_sfc
   PUBLIC :: t_sfc_inc
-  PUBLIC :: t_saved_field
-  PUBLIC :: t_saveinit_state ! state for saving initial state for double IAU runs
   PUBLIC :: geop_ml_var, alb_snow_var
   PUBLIC :: ana_varnames_dict
   ! functions
@@ -238,46 +233,6 @@ MODULE mo_initicon_types
     PROCEDURE, PUBLIC :: finalize => t_initicon_state_finalize
   END TYPE t_initicon_state
 
-  TYPE :: t_saved_field
-    REAL(dp), ALLOCATABLE :: r(:,:,:,:,:)
-    REAL(sp), ALLOCATABLE :: s(:,:,:,:,:)
-    INTEGER, ALLOCATABLE :: i(:,:,:,:,:)
-    LOGICAL, ALLOCATABLE :: l(:,:,:,:,:)
-  CONTAINS
-    PROCEDURE, PRIVATE :: t_saved_field__put_r, t_saved_field__put_s, t_saved_field__put_i, t_saved_field__put_l
-    GENERIC :: put => t_saved_field__put_r, t_saved_field__put_s, t_saved_field__put_i, t_saved_field__put_l
-
-    PROCEDURE, PRIVATE :: t_saved_field__get_r, t_saved_field__get_s, t_saved_field__get_i, t_saved_field__get_l
-    GENERIC :: get => t_saved_field__get_r, t_saved_field__get_s, t_saved_field__get_i, t_saved_field__get_l
-
-    PROCEDURE :: is_allocated => t_saved_field__is_allocated
-  END TYPE t_saved_field
-
-  ! state for saving initial state
-  TYPE :: t_saveinit_state
-
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: fr_seaice, t_ice, h_ice, alb_si, gz0, hsnow_max, h_snow, snow_age, &
-                                             t_mnw_lk, t_wml_lk, h_ml_lk, t_bot_lk, c_t_lk, t_b1_lk, h_b1_lk,   &
-                                             clnum_d, clmf_d, clnum_a, clmf_a, clnum_p, clmf_p
-
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:,:) :: theta_v, rho, exner, w, tke, vn, gz0_t, t_sk_t,                   &
-                                               t_g_t, qv_s_t, freshsnow_t, snowfrac_t, snowfrac_lc_t, w_snow_t,  &
-                                               w_i_t, h_snow_t, t_snow_t, rho_snow_t, aerosol, frac_t, plantevap_t
-
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:,:,:) :: tracer,                                                            &
-                                                 w_so_t, w_so_ice_t, t_so_t,                                        &
-                                                 t_snow_mult_t, rho_snow_mult_t, wtot_snow_t, wliq_snow_t, dzh_snow_t
-
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:) :: snowtile_flag_t, idx_lst_t
-    INTEGER, ALLOCATABLE, DIMENSION(:,:)   :: gp_count_t
-
-    TYPE(t_HashTable), POINTER :: fields => NULL()
-
-  CONTAINS
-    PROCEDURE :: init => t_saveinit_state_init !< constructor
-    PROCEDURE :: finalize => t_saveinit_state_finalize !< destructor
-  END TYPE t_saveinit_state
-
 
   CHARACTER(LEN=vname_len) :: geop_ml_var  ! model level surface geopotential
   CHARACTER(LEN=vname_len) :: alb_snow_var ! snow albedo
@@ -460,177 +415,5 @@ CONTAINS
     CALL init_data%atm_inc%finalize()
     CALL init_data%sfc_inc%finalize()
   END SUBROUTINE t_initicon_state_finalize
-
-
-  !> Check allocation status of a saved field.
-  LOGICAL FUNCTION t_saved_field__is_allocated (self) RESULT(res)
-    CLASS(t_saved_field), INTENT(IN) :: self
-
-    res = ANY([ ALLOCATED(self%r), ALLOCATED(self%s), ALLOCATED(self%i), ALLOCATED(self%l) ])
-  END FUNCTION t_saved_field__is_allocated
-
-
-  !> Put a double-precision field into the saved field.
-  SUBROUTINE t_saved_field__put_r (self, r)
-    CLASS(t_saved_field), INTENT(INOUT) :: self
-    REAL(dp), INTENT(IN) :: r(:,:,:,:,:)
-
-    IF (self%is_allocated()) CALL finish('t_saved_field%put_r', 'Field is in use.')
-
-    ! Allocating assignment.
-    self%r = r
-  END SUBROUTINE t_saved_field__put_r
-
-  !> Put a single-precision field into the saved field.
-  SUBROUTINE t_saved_field__put_s (self, s)
-    CLASS(t_saved_field), INTENT(INOUT) :: self
-    REAL(sp), INTENT(IN) :: s(:,:,:,:,:)
-
-    IF (self%is_allocated()) CALL finish('t_saved_field%put_s', 'Field is in use.')
-
-    ! Allocating assignment.
-    self%s = s
-  END SUBROUTINE t_saved_field__put_s
-
-  !> Put an integer field into the saved field.
-  SUBROUTINE t_saved_field__put_i (self, i)
-    CLASS(t_saved_field), INTENT(INOUT) :: self
-    INTEGER, INTENT(IN) :: i(:,:,:,:,:)
-
-    IF (self%is_allocated()) CALL finish('t_saved_field%put_i', 'Field is in use.')
-
-    ! Allocating assignment.
-    self%i = i
-  END SUBROUTINE t_saved_field__put_i
-
-  !> Put a logical field into the saved field.
-  SUBROUTINE t_saved_field__put_l (self, l)
-    CLASS(t_saved_field), INTENT(INOUT) :: self
-    LOGICAL, INTENT(IN) :: l(:,:,:,:,:)
-
-    IF (self%is_allocated()) CALL finish('t_saved_field%put_l', 'Field is in use.')
-
-    ! Allocating assignment.
-    self%l = l
-  END SUBROUTINE t_saved_field__put_l
-
-  !> Retrieve a double-precision field from the saved field.
-  SUBROUTINE t_saved_field__get_r (self, r)
-    CLASS(t_saved_field), INTENT(IN) :: self
-    REAL(dp), INTENT(OUT) :: r(:,:,:,:,:)
-
-    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_r'
-
-    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
-    IF (.NOT. ALLOCATED(self%r)) CALL finish(procedure_name, 'Wong data type.')
-
-    CALL copy(self%r, r)
-  END SUBROUTINE t_saved_field__get_r
-
-  !> Retrieve a double-precision field from the saved field.
-  SUBROUTINE t_saved_field__get_s (self, s)
-    CLASS(t_saved_field), INTENT(IN) :: self
-    REAL(sp), INTENT(OUT) :: s(:,:,:,:,:)
-
-    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_s'
-
-    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
-    IF (.NOT. ALLOCATED(self%s)) CALL finish(procedure_name, 'Wong data type.')
-
-    CALL copy(self%s, s)
-  END SUBROUTINE t_saved_field__get_s
-
-  !> Retrieve an integer field from the saved field.
-  SUBROUTINE t_saved_field__get_i (self, i)
-    CLASS(t_saved_field), INTENT(IN) :: self
-    INTEGER, INTENT(OUT) :: i(:,:,:,:,:)
-
-    CALL copy(self%i, i)
-  END SUBROUTINE t_saved_field__get_i
-
-  !> Retrieve a logical field from the saved field.
-  SUBROUTINE t_saved_field__get_l (self, l)
-    CLASS(t_saved_field), INTENT(IN) :: self
-    LOGICAL, INTENT(OUT) :: l(:,:,:,:,:)
-
-    CHARACTER(len=*), PARAMETER :: procedure_name = 't_saved_field%get_l'
-
-    IF (.NOT. self%is_allocated()) CALL finish(procedure_name, 'Field is not in use.')
-    IF (.NOT. ALLOCATED(self%l)) CALL finish(procedure_name, 'Wong data type.')
-
-    CALL copy(self%l, l)
-  END SUBROUTINE t_saved_field__get_l
-
-
-  SUBROUTINE t_saveinit_state_init(saveinit_data)
-    CLASS(t_saveinit_state), INTENT(INOUT) :: saveinit_data
-
-    saveinit_data%fields => hashTable_make(text_hash, text_isEqual)
-
-  END SUBROUTINE t_saveinit_state_init
-
-  SUBROUTINE t_saveinit_state_finalize(saveinit_data)
-    CLASS(t_saveinit_state), INTENT(INOUT) :: saveinit_data
-
-    CALL DO_DEALLOCATE(saveinit_data%fr_seaice)
-    CALL DO_DEALLOCATE(saveinit_data%t_ice)
-    CALL DO_DEALLOCATE(saveinit_data%h_ice)
-    CALL DO_DEALLOCATE(saveinit_data%alb_si)
-    CALL DO_DEALLOCATE(saveinit_data%gz0)
-    CALL DO_DEALLOCATE(saveinit_data%t_mnw_lk)
-    CALL DO_DEALLOCATE(saveinit_data%t_wml_lk)
-    CALL DO_DEALLOCATE(saveinit_data%h_ml_lk)
-    CALL DO_DEALLOCATE(saveinit_data%t_bot_lk)
-    CALL DO_DEALLOCATE(saveinit_data%c_t_lk)
-    CALL DO_DEALLOCATE(saveinit_data%t_b1_lk)
-    CALL DO_DEALLOCATE(saveinit_data%h_b1_lk)
-    CALL DO_DEALLOCATE(saveinit_data%hsnow_max)
-    CALL DO_DEALLOCATE(saveinit_data%h_snow)
-    CALL DO_DEALLOCATE(saveinit_data%snow_age)
-    CALL DO_DEALLOCATE(saveinit_data%theta_v)
-    CALL DO_DEALLOCATE(saveinit_data%rho)
-    CALL DO_DEALLOCATE(saveinit_data%exner)
-    CALL DO_DEALLOCATE(saveinit_data%w)
-    CALL DO_DEALLOCATE(saveinit_data%tke)
-    CALL DO_DEALLOCATE(saveinit_data%vn)
-    CALL DO_DEALLOCATE(saveinit_data%gz0_t)
-    CALL DO_DEALLOCATE(saveinit_data%t_sk_t)
-    CALL DO_DEALLOCATE(saveinit_data%t_g_t)
-    CALL DO_DEALLOCATE(saveinit_data%qv_s_t)
-    CALL DO_DEALLOCATE(saveinit_data%freshsnow_t)
-    CALL DO_DEALLOCATE(saveinit_data%snowfrac_t)
-    CALL DO_DEALLOCATE(saveinit_data%snowfrac_lc_t)
-    CALL DO_DEALLOCATE(saveinit_data%w_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%w_i_t)
-    CALL DO_DEALLOCATE(saveinit_data%h_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%t_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%rho_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%aerosol)
-    CALL DO_DEALLOCATE(saveinit_data%frac_t)
-    CALL DO_DEALLOCATE(saveinit_data%plantevap_t)
-    CALL DO_DEALLOCATE(saveinit_data%tracer)
-    CALL DO_DEALLOCATE(saveinit_data%w_so_t)
-    CALL DO_DEALLOCATE(saveinit_data%w_so_ice_t)
-    CALL DO_DEALLOCATE(saveinit_data%t_so_t)
-    CALL DO_DEALLOCATE(saveinit_data%t_snow_mult_t)
-    CALL DO_DEALLOCATE(saveinit_data%rho_snow_mult_t)
-    CALL DO_DEALLOCATE(saveinit_data%wtot_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%wliq_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%dzh_snow_t)
-    CALL DO_DEALLOCATE(saveinit_data%snowtile_flag_t)
-    CALL DO_DEALLOCATE(saveinit_data%idx_lst_t)
-    CALL DO_DEALLOCATE(saveinit_data%gp_count_t)
-    CALL DO_DEALLOCATE(saveinit_data%clnum_d)
-    CALL DO_DEALLOCATE(saveinit_data%clmf_d)
-    CALL DO_DEALLOCATE(saveinit_data%clnum_a)
-    CALL DO_DEALLOCATE(saveinit_data%clmf_a)
-    CALL DO_DEALLOCATE(saveinit_data%clnum_p)
-    CALL DO_DEALLOCATE(saveinit_data%clmf_p)
-
-    IF (ASSOCIATED(saveinit_data%fields)) THEN
-      CALL saveinit_data%fields%destruct
-      DEALLOCATE(saveinit_data%fields)
-    END IF
-  END SUBROUTINE t_saveinit_state_finalize
 
 END MODULE mo_initicon_types

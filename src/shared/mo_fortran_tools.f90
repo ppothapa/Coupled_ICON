@@ -188,7 +188,9 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE init_3d_dp
     MODULE PROCEDURE init_3d_spdp
     MODULE PROCEDURE init_5d_dp
+    MODULE PROCEDURE init_5d_sp
     MODULE PROCEDURE init_5d_i4
+    MODULE PROCEDURE init_5d_l
   END INTERFACE init
 
   INTERFACE negative2zero
@@ -1232,6 +1234,44 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_5d_dp
 
+
+  SUBROUTINE init_5d_sp(init_var, init_val, opt_acc_async)
+    REAL(sp), INTENT(out) :: init_var(:, :, :, :, :)
+    REAL(sp), INTENT(in) :: init_val
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+
+    INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
+
+    m1 = SIZE(init_var, 1)
+    m2 = SIZE(init_var, 2)
+    m3 = SIZE(init_var, 3)
+    m4 = SIZE(init_var, 4)
+    m5 = SIZE(init_var, 5)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
+#if (defined(__INTEL_COMPILER))
+!$omp do private(i1,i2,i3,i4,i5)
+#else
+!$omp do collapse(5)
+#endif
+    DO i5 = 1, m5
+      DO i4 = 1, m4
+        DO i3 = 1, m3
+          DO i2 = 1, m2
+            DO i1 = 1, m1
+              init_var(i1, i2, i3, i4, i5) = init_val
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+!$omp end do nowait
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE init_5d_sp
+
+
+
   SUBROUTINE init_5d_i4(init_var, init_val, opt_acc_async)
     INTEGER(ik4), INTENT(out) :: init_var(:, :, :, :, :)
     INTEGER(ik4), INTENT(in) :: init_val
@@ -1266,6 +1306,43 @@ CONTAINS
 
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_5d_i4
+
+
+  SUBROUTINE init_5d_l(init_var, init_val, opt_acc_async)
+    LOGICAL, INTENT(out) :: init_var(:, :, :, :, :)
+    LOGICAL, INTENT(in)  :: init_val
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+
+    INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
+
+    m1 = SIZE(init_var, 1)
+    m2 = SIZE(init_var, 2)
+    m3 = SIZE(init_var, 3)
+    m4 = SIZE(init_var, 4)
+    m5 = SIZE(init_var, 5)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
+#if (defined(__INTEL_COMPILER))
+!$omp do private(i1,i2,i3,i4,i5)
+#else
+!$omp do collapse(5)
+#endif
+    DO i5 = 1, m5
+      DO i4 = 1, m4
+        DO i3 = 1, m3
+          DO i2 = 1, m2
+            DO i1 = 1, m1
+              init_var(i1, i2, i3, i4, i5) = init_val
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+!$omp end do nowait
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE init_5d_l
+
 
 
   SUBROUTINE var_scale_3d_dp(var, scale_val, opt_acc_async)

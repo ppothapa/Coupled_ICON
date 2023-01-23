@@ -68,16 +68,25 @@ CONTAINS
   !  corresponding to the group @p grp_name
   SUBROUTINE vlr_group(grp_name, var_name, nvars,       &
     &                      loutputvars_only, lremap_lonlat, &
-    &                      opt_vlevel_type, opt_dom_id)
+    &                      opt_vlevel_type, opt_dom_id, opt_lskip_container)
     CHARACTER(*), INTENT(IN) :: grp_name
     CHARACTER(LEN=vname_len), INTENT(OUT) :: var_name(:)
     INTEGER, INTENT(OUT) :: nvars
     LOGICAL, INTENT(IN) :: loutputvars_only, lremap_lonlat
     INTEGER, OPTIONAL, INTENT(IN) :: opt_vlevel_type, opt_dom_id
+    LOGICAL, OPTIONAL, INTENT(IN) :: opt_lskip_container
+
+    LOGICAL :: lskip_container
     TYPE(t_vl_register_iter) :: iter
     CHARACTER(*), PARAMETER :: routine = modname//":collect_group"
     INTEGER :: grp_id, i
     TYPE(t_var_metadata), POINTER :: info
+
+    IF (PRESENT(opt_lskip_container)) THEN
+      lskip_container = opt_lskip_container
+    ELSE
+      lskip_container = .TRUE.
+    ENDIF
 
     nvars  = 0
     grp_id = var_groups_dyn%group_id(grp_name)
@@ -90,7 +99,13 @@ CONTAINS
       END IF
       DO i = 1, iter%cur%p%nvars
         info => iter%cur%p%vl(i)%p%info
-        IF (info%lcontainer .OR. .NOT.info%in_group(grp_id)) CYCLE
+
+        IF (lskip_container) THEN
+          IF (info%lcontainer .OR. .NOT.info%in_group(grp_id)) CYCLE
+        ELSE
+          IF (.NOT.info%in_group(grp_id)) CYCLE
+        ENDIF
+
         IF (loutputvars_only .AND. (.NOT.info%loutput .OR. &
           & .NOT.iter%cur%p%loutput)) CYCLE
         IF (lremap_lonlat) THEN

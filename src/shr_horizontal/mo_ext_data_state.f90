@@ -1203,6 +1203,7 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'idx_lst_t', p_ext_atm%idx_lst_t, &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,      &
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,    &
+        &           in_group=groups("iau_restore_vars"),              &
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%idx_lst_t)
 
@@ -1216,6 +1217,7 @@ CONTAINS
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
         &           grib2_desc, ldims=(/nblks_c,ntiles_total/),         &
         &           loutput=.FALSE.,                                    &
+        &           in_group=groups("iau_restore_vars"),                &
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%gp_count_t)
 
@@ -1231,6 +1233,7 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'snowtile_flag_t', p_ext_atm%snowtile_flag_t, &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                  &
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,                &
+        &           in_group=groups("iau_restore_vars"),                          &
         &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%snowtile_flag_t)
 
@@ -1280,7 +1283,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'frac_t', p_ext_atm%frac_t,   &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,  &
         &           grib2_desc, ldims=shape3d_ntw, loutput=.FALSE., lcontainer=.TRUE., &
-        &          lopenacc=.TRUE.)
+        &           in_group=groups("iau_restore_vars"),          &
+        &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%frac_t)
 
       ! fill the separate variables belonging to the container frac_t

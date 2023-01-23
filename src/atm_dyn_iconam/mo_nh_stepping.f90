@@ -402,7 +402,7 @@ MODULE mo_nh_stepping
 
   ! Save initial state if IAU iteration mode is chosen
   IF (iterate_iau .AND. .NOT. isRestart()) THEN
-    CALL save_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_stochconv, p_lnd_state, ext_data)
+    CALL save_initial_state(p_patch(1:))
     WRITE(message_text,'(a)') 'IAU iteration is activated: Start of first cycle with halved IAU window'
     CALL message('',message_text)
   ENDIF
@@ -3317,7 +3317,7 @@ MODULE mo_nh_stepping
 
     atm_phy_nwp_config(:)%lcalc_acc_avg = .FALSE.
 
-    CALL restore_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_tend, prm_nwp_stochconv, p_lnd_state, ext_data, lhn_fields)
+    CALL restore_initial_state(p_patch(1:), p_nh_state)
 
     ! Reinitialize time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN

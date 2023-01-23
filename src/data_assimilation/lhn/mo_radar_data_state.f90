@@ -1184,7 +1184,8 @@ CONTAINS
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
                 & ldims=shape2d_c, loutput=.FALSE.,                                &
                 & initval=.FALSE.,                                                 &
-                & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+                & isteptype=TSTEP_INSTANT,                                         &
+                & lopenacc=.TRUE. )
     __acc_attach(lhn_fields%brightband)
 
 

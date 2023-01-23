@@ -64,9 +64,8 @@ MODULE mo_nwp_lnd_state
     &                                lmulti_snow, ntiles_water, lseaice, llake, &
     &                                itype_interception, l2lay_rho_snow, itype_trvg, &
     &                                itype_snowevap, groups_smi, zml_soil
-  USE mo_coupling_config,      ONLY: is_coupled_run
   USE mo_io_config,            ONLY: lnetcdf_flt64_output, runoff_interval, &
-    &                                melt_interval                                                
+    &                                melt_interval
   USE mo_gribout_config,       ONLY: gribout_config
   USE mo_var_list,             ONLY: add_var, add_ref, t_var_list_ptr
   USE mo_var_list_register,    ONLY: vlr_add, vlr_del
@@ -444,7 +443,10 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'t_g_t'//suffix, p_prog_lnd%t_g_t,  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,  cf_desc, grib2_desc,           &
-         & ldims=shape3d_subsw, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
+         & ldims=shape3d_subsw, lcontainer=.TRUE., lrestart=.FALSE.,           &
+         & loutput=.FALSE.,                                                    &
+         & tlev_source=TLEV_NNOW_RCF,                                          &
+         & in_group=groups("iau_restore_vars"),                                &
          & lopenacc=.TRUE. )  
     __acc_attach(p_prog_lnd%t_g_t)
 
@@ -500,9 +502,12 @@ MODULE mo_nwp_lnd_state
     cf_desc    = t_cf_var('t_sk_t', 'K', 'skin temperature', datatype_flt)
     grib2_desc = grib2_var(0, 0, 17, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'t_sk_t'//suffix, p_prog_lnd%t_sk_t,  &
-         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
-         & ldims=shape3d_subsw, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
-         & lopenacc=.TRUE.)  
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,        &
+         & ldims=shape3d_subsw, lcontainer=.TRUE., lrestart=.FALSE.,       &
+         & loutput=.FALSE.,                                                &
+         & tlev_source=TLEV_NNOW_RCF,                                      &
+         & in_group=groups("iau_restore_vars"),                            &
+         & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%t_sk_t)
 
     ! fill the separate variables belonging to the container t_sk
@@ -532,7 +537,10 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(2, 0, 13, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'w_i_t'//suffix, p_prog_lnd%w_i_t,     &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,               &
-         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
+         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,               &
+         & loutput=.FALSE.,                                                       &
+         & tlev_source=TLEV_NNOW_RCF,                                             &
+         & in_group=groups("iau_restore_vars"),                                   &
          & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%w_i_t)
 
@@ -620,7 +628,10 @@ MODULE mo_nwp_lnd_state
     CALL add_var( prog_list, vname_prefix//'t_so_t'//suffix, p_prog_lnd%t_so_t,  &
          & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_LAND_P1, cf_desc, grib2_desc,  &
          & ldims=(/nproma,nlev_soil+1,kblks,ntiles_total/),                      &
-         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE. ) 
+         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+         & tlev_source=TLEV_NNOW_RCF,                                            &
+         & in_group=groups("iau_restore_vars"),                                  &
+         & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%t_so_t)
 
     ! fill the separate variables belonging to the container t_so
@@ -653,7 +664,10 @@ MODULE mo_nwp_lnd_state
     CALL add_var( prog_list, vname_prefix//'w_so_t'//suffix, p_prog_lnd%w_so_t,  &
          & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_LAND, cf_desc, grib2_desc,     &
          & ldims=(/nproma,nlev_soil,kblks,ntiles_total/),                        &
-         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE. ) 
+         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+         & tlev_source=TLEV_NNOW_RCF,                                            &
+         & in_group=groups("iau_restore_vars"),                                  &
+         & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%w_so_t)
 
     ! fill the separate variables belonging to the container w_so
@@ -685,7 +699,10 @@ MODULE mo_nwp_lnd_state
     CALL add_var( prog_list, vname_prefix//'w_so_ice_t'//suffix,                 &
          & p_prog_lnd%w_so_ice_t, GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_LAND,   &
          & cf_desc, grib2_desc, ldims=(/nproma,nlev_soil,kblks,ntiles_total/),   &
-         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE. ) 
+         & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+         & tlev_source=TLEV_NNOW_RCF,                                            &
+         & in_group=groups("iau_restore_vars"),                                  &
+         & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%w_so_ice_t)
 
     ! fill the separate variables belonging to the container w_so_ice
@@ -717,7 +734,10 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 0, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'t_snow_t'//suffix, p_prog_lnd%t_snow_t,&
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,  cf_desc, grib2_desc,               &
-         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
+         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,                &
+         & loutput=.FALSE.,                                                        &
+         & tlev_source=TLEV_NNOW_RCF,                                              &
+         & in_group=groups("iau_restore_vars"),                                    &
          & lopenacc=.TRUE. ) 
     __acc_attach(p_prog_lnd%t_snow_t)
 
@@ -746,7 +766,10 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 1, 60, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'w_snow_t'//suffix, p_prog_lnd%w_snow_t,&
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,  cf_desc, grib2_desc,               &
-         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
+         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,                &
+         & loutput=.FALSE.,                                                        &
+         & tlev_source=TLEV_NNOW_RCF,                                              &
+         & in_group=groups("iau_restore_vars"),                                    &
          & lopenacc=.TRUE.)
     __acc_attach(p_prog_lnd%w_snow_t)
 
@@ -775,7 +798,10 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 1, 61, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( prog_list, vname_prefix//'rho_snow_t'//suffix, p_prog_lnd%rho_snow_t, &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,  cf_desc, grib2_desc,                    &
-         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,    &
+         & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,                     &
+         & loutput=.FALSE.,                                                             &
+         & tlev_source=TLEV_NNOW_RCF,                                                   &
+         & in_group=groups("iau_restore_vars"),                                         &
          & lopenacc=.TRUE.)
         __acc_attach(p_prog_lnd%rho_snow_t)
 
@@ -806,7 +832,10 @@ MODULE mo_nwp_lnd_state
       CALL add_var( prog_list, vname_prefix//'rho_snow_mult_t'//suffix,              &
            & p_prog_lnd%rho_snow_mult_t, GRID_UNSTRUCTURED_CELL, ZA_SNOW,            &
            & cf_desc, grib2_desc, ldims=shape4d_snow_subs,                           &
-           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.)
+           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                   &
+           & tlev_source=TLEV_NNOW_RCF,                                              &
+           & in_group=groups("iau_restore_vars"),                                    &
+           & lopenacc=.TRUE.)
       __acc_attach(p_prog_lnd%rho_snow_mult_t)
 
       ! fill the separate variables belonging to the container rho_snow_mult
@@ -839,7 +868,10 @@ MODULE mo_nwp_lnd_state
       CALL add_var( prog_list, vname_prefix//'t_snow_mult_t'//suffix, p_prog_lnd%t_snow_mult_t, &
        & GRID_UNSTRUCTURED_CELL, ZA_SNOW_HALF, cf_desc, grib2_desc,               &
        & ldims=(/nproma,nlev_snow+1,kblks,ntiles_total/),                         &
-       & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.) 
+       & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                    &
+       & tlev_source=TLEV_NNOW_RCF,                                               &
+       & in_group=groups("iau_restore_vars"),                                     &
+       & lopenacc=.TRUE.)
       __acc_attach(p_prog_lnd%t_snow_mult_t)
 
       ! fill the separate variables belonging to the container t_snow_mult
@@ -870,7 +902,10 @@ MODULE mo_nwp_lnd_state
       CALL add_var( prog_list, vname_prefix//'wtot_snow_t'//suffix,                &
            & p_prog_lnd%wtot_snow_t, GRID_UNSTRUCTURED_CELL, ZA_SNOW,              &
            & cf_desc, grib2_desc, ldims=shape4d_snow_subs,                         &
-           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.)
+           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+           & tlev_source=TLEV_NNOW_RCF,                                            &
+           & in_group=groups("iau_restore_vars"),                                  &
+           & lopenacc=.TRUE.)
       __acc_attach(p_prog_lnd%wtot_snow_t)
 
       ! fill the separate variables belonging to the container wtot_snow
@@ -897,9 +932,12 @@ MODULE mo_nwp_lnd_state
       cf_desc    = t_cf_var('wliq_snow_t', 'm H2O', 'liquid water content in snow', datatype_flt)
       grib2_desc = grib2_var(0, 1, 210, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( prog_list, vname_prefix//'wliq_snow_t'//suffix,                &
-           & p_prog_lnd%wliq_snow_t, GRID_UNSTRUCTURED_CELL, ZA_SNOW,              & 
+           & p_prog_lnd%wliq_snow_t, GRID_UNSTRUCTURED_CELL, ZA_SNOW,              &
            & cf_desc, grib2_desc, ldims=shape4d_snow_subs,                         &
-           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.)
+           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+           & tlev_source=TLEV_NNOW_RCF,                                            &
+           & in_group=groups("iau_restore_vars"),                                  &
+           & lopenacc=.TRUE.)
       __acc_attach(p_prog_lnd%wliq_snow_t)
 
       ! fill the separate variables belonging to the container wliq_snow
@@ -928,7 +966,10 @@ MODULE mo_nwp_lnd_state
       CALL add_var( prog_list, vname_prefix//'dzh_snow_t'//suffix,                 &
            & p_prog_lnd%dzh_snow_t, GRID_UNSTRUCTURED_CELL, ZA_SNOW,               &
            & cf_desc, grib2_desc, ldims=shape4d_snow_subs,                         &
-           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.)
+           & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,                 &
+           & tlev_source=TLEV_NNOW_RCF,                                            &
+           & in_group=groups("iau_restore_vars"),                                  &
+           & lopenacc=.TRUE.)
       __acc_attach(p_prog_lnd%dzh_snow_t)
 
       ! fill the separate variables belonging to the container dzh_snow
@@ -1055,7 +1096,7 @@ MODULE mo_nwp_lnd_state
          & initval = tmelt,                                                    &
          & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in","mode_iau_fg_in", &
          &                 "mode_iau_old_fg_in","mode_combined_in","mode_cosmo_in", &
-         &                 "mode_iniana"), lopenacc=.TRUE. )
+         &                 "mode_iniana","iau_restore_vars"), lopenacc=.TRUE. )
     __acc_attach(p_prog_wtr%t_ice)
 
 
@@ -1070,7 +1111,7 @@ MODULE mo_nwp_lnd_state
          & ldims=shape2d, tlev_source=TLEV_NNOW_RCF,                           &
          & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in","mode_iau_fg_in", &
          &                 "mode_iau_old_fg_in","mode_combined_in",            &
-         &                 "mode_cosmo_in","mode_iniana"),                     &   
+         &                 "mode_cosmo_in","mode_iniana","iau_restore_vars"),  &
          & lopenacc=.TRUE. )   
     __acc_attach(p_prog_wtr%h_ice)
 
@@ -1106,7 +1147,8 @@ MODULE mo_nwp_lnd_state
          & initval = ALB_SI_MISSVAL,                                             &
          & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_NNB ), & 
          & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in", "mode_iau_fg_in", &
-         &  "mode_iau_old_fg_in","mode_cosmo_in","mode_iniana","mode_combined_in"), &
+         &  "mode_iau_old_fg_in","mode_cosmo_in","mode_iniana",                  &
+         &  "mode_combined_in","iau_restore_vars"),                              &
          & post_op=post_op(POST_OP_SCALE, arg1=100._wp, new_cf=new_cf_desc),     &
          & lopenacc=.TRUE. )   
     __acc_attach(p_prog_wtr%alb_si)
@@ -1142,7 +1184,8 @@ MODULE mo_nwp_lnd_state
       &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
       CALL add_var( prog_list, vname_prefix//'t_mnw_lk'//suffix, p_prog_wtr%t_mnw_lk,                                 &
            & GRID_UNSTRUCTURED_CELL, ZA_LAKE_BOTTOM, cf_desc, grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF,   &
-           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana"), &
+           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana",  &
+           & "iau_restore_vars"),                                                                                     &
            & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%t_mnw_lk)
 
@@ -1153,7 +1196,8 @@ MODULE mo_nwp_lnd_state
         &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
       CALL add_var( prog_list, vname_prefix//'t_wml_lk'//suffix, p_prog_wtr%t_wml_lk,                                 &
            & GRID_UNSTRUCTURED_CELL, ZA_MIX_LAYER, cf_desc, grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF,     &
-           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana"), &
+           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana",  &
+           & "iau_restore_vars"),                                                                                     &
            & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%t_wml_lk)
 
@@ -1164,7 +1208,8 @@ MODULE mo_nwp_lnd_state
         &           + t_grib2_int_key("typeOfFirstFixedSurface", 1)
       CALL add_var( prog_list, vname_prefix//'h_ml_lk'//suffix, p_prog_wtr%h_ml_lk,                                   &
            & GRID_UNSTRUCTURED_CELL, ZA_MIX_LAYER, cf_desc, grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF,     &
-           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana"), &
+           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana",  &
+           & "iau_restore_vars"),                                                                                     &
            & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%h_ml_lk)
 
@@ -1175,7 +1220,8 @@ MODULE mo_nwp_lnd_state
       grib2_desc = grib2_var(1, 2, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( prog_list, vname_prefix//'t_bot_lk'//suffix, p_prog_wtr%t_bot_lk,                                    &
            & GRID_UNSTRUCTURED_CELL, ZA_LAKE_BOTTOM_HALF, cf_desc, grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF, &
-           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana"),    &
+           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana",     &
+           & "iau_restore_vars"),                                                                                        &
            & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%t_bot_lk)
 
@@ -1187,7 +1233,8 @@ MODULE mo_nwp_lnd_state
         &           + t_grib2_int_key("typeOfSecondFixedSurface", 162)
       CALL add_var( prog_list, vname_prefix//'c_t_lk'//suffix, p_prog_wtr%c_t_lk,                                     &
            & GRID_UNSTRUCTURED_CELL, ZA_MIX_LAYER, cf_desc, grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF,     &
-           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana"), &
+           & in_group=groups("dwd_fg_sfc_vars","mode_dwd_fg_in","mode_iau_fg_in","mode_iau_old_fg_in","mode_iniana",  &
+           & "iau_restore_vars"),                                                                                     &
            & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%c_t_lk)
 
@@ -1199,7 +1246,9 @@ MODULE mo_nwp_lnd_state
       grib2_desc = grib2_var(1, 2, 4, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( prog_list, vname_prefix//'t_b1_lk'//suffix, p_prog_wtr%t_b1_lk, &
            & GRID_UNSTRUCTURED_CELL, ZA_SEDIMENT_BOTTOM_TW_HALF, cf_desc,           &
-           & grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF, lopenacc=.TRUE. )   
+           & grib2_desc, ldims=shape2d, tlev_source=TLEV_NNOW_RCF,                  &
+           & in_group=groups("iau_restore_vars"),                                   &
+           & lopenacc=.TRUE. )   
       __acc_attach(p_prog_wtr%t_b1_lk)
 
 
@@ -1210,7 +1259,9 @@ MODULE mo_nwp_lnd_state
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 165)
       CALL add_var( prog_list, vname_prefix//'h_b1_lk'//suffix, p_prog_wtr%h_b1_lk,      &
            & GRID_UNSTRUCTURED_CELL, ZA_LAKE_BOTTOM, cf_desc, grib2_desc, ldims=shape2d, &
-           & tlev_source=TLEV_NNOW_RCF, lopenacc=.TRUE. )   
+           & tlev_source=TLEV_NNOW_RCF,                                                  &
+           & in_group=groups("iau_restore_vars"),                                        &
+           & lopenacc=.TRUE. )
       __acc_attach(p_prog_wtr%h_b1_lk)
 
     ENDIF  ! llake
@@ -1345,7 +1396,7 @@ MODULE mo_nwp_lnd_state
            & initval=0._wp,                                                    &
            & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in","mode_iau_ana_in",&
            &                 "mode_iau_old_ana_in","mode_combined_in",         &
-           &                 "mode_iniana"), lopenacc=.TRUE. )      
+           &                 "mode_iniana","iau_restore_vars"), lopenacc=.TRUE. )
     __acc_attach(p_diag_lnd%fr_seaice)
 
     ! & p_diag_lnd%condhf_ice(nproma,nblks_c)
@@ -1363,6 +1414,7 @@ MODULE mo_nwp_lnd_state
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
            & ldims=shape3d_subsw, lcontainer=.TRUE., lrestart=.FALSE.,         &
            & loutput=.FALSE.,                                                  &
+           & in_group=groups("iau_restore_vars"),                              &
            & initval=0.001_wp, lopenacc=.TRUE. )
     __acc_attach(p_diag_lnd%qv_s_t)
 
@@ -1476,7 +1528,8 @@ MODULE mo_nwp_lnd_state
              & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
              & ldims=shape2d, lrestart=.TRUE.,                                   &
              & in_group=groups("dwd_fg_sfc_vars","mode_iau_fg_in",               &
-             &                "mode_dwd_fg_in","mode_iniana","mode_combined_in"),&
+             &                "mode_dwd_fg_in","mode_iniana","mode_combined_in", &
+             &                "iau_restore_vars"),                               &
              & lopenacc=.TRUE.)
       __acc_attach(p_diag_lnd%hsnow_max)
 
@@ -1487,7 +1540,8 @@ MODULE mo_nwp_lnd_state
              & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
              & ldims=shape2d, lrestart=.TRUE.,                                   &
              & in_group=groups("dwd_fg_sfc_vars","mode_iau_fg_in",               &
-             &                "mode_dwd_fg_in","mode_iniana","mode_combined_in"),&
+             &                "mode_dwd_fg_in","mode_iniana","mode_combined_in", &
+             &                "iau_restore_vars"),                               &
              & lopenacc=.TRUE.)
       __acc_attach(p_diag_lnd%snow_age)
 
@@ -1617,6 +1671,7 @@ MODULE mo_nwp_lnd_state
     CALL add_var( diag_list, vname_prefix//'runoff_s_inst_t', p_diag_lnd%runoff_s_inst_t,  &
            & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_RUNOFF_S, cf_desc, grib2_desc,       &
            & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,     &
+           & in_group=groups("iau_init_vars"),                                             &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%runoff_s_inst_t)
 
@@ -1627,6 +1682,7 @@ MODULE mo_nwp_lnd_state
     CALL add_var( diag_list, vname_prefix//'runoff_g_inst_t', p_diag_lnd%runoff_g_inst_t,    &
            & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_RUNOFF_G, cf_desc, grib2_desc,       &
            & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,       &
+           & in_group=groups("iau_init_vars"),                                               &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%runoff_g_inst_t) 
 
@@ -1638,6 +1694,7 @@ MODULE mo_nwp_lnd_state
       CALL add_var( diag_list, vname_prefix//'resid_wso_inst_t', p_diag_lnd%resid_wso_inst_t, &
             & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_RUNOFF_G, cf_desc, grib2_desc,                 &
             & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,       &
+            & in_group=groups("iau_init_vars"),                                               &
             & lopenacc=.TRUE.)
       __acc_attach(p_diag_lnd%resid_wso_inst_t) 
     ENDIF
@@ -1651,6 +1708,7 @@ MODULE mo_nwp_lnd_state
            & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
            & initval=0._wp, resetval=0._wp,                              &
            & action_list=actions(new_action(ACTION_RESET,runoff_interval(p_jg))), &
+           & in_group=groups("iau_init_vars"),                                    &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%runoff_s_t)
 
@@ -1663,6 +1721,7 @@ MODULE mo_nwp_lnd_state
            & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
            & initval=0._wp, resetval=0._wp,                              &
            & action_list=actions(new_action(ACTION_RESET,runoff_interval(p_jg))), &
+           & in_group=groups("iau_init_vars"),                                    &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%runoff_g_t)
 
@@ -1676,6 +1735,7 @@ MODULE mo_nwp_lnd_state
             & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
             & initval=0._wp, resetval=0._wp,                              &
             & action_list=actions(new_action(ACTION_RESET,runoff_interval(p_jg))), &
+            & in_group=groups("iau_init_vars"),                                    &
             & lopenacc=.TRUE.)
       __acc_attach(p_diag_lnd%resid_wso_t)
     ENDIF
@@ -1815,7 +1875,9 @@ MODULE mo_nwp_lnd_state
       grib2_desc = grib2_var(2, 0, 198, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, vname_prefix//'plantevap_t', p_diag_lnd%plantevap_t,  &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,                &
-           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
+           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,                &
+           & in_group=groups("iau_restore_vars"),                                    &
+           & loutput=.FALSE.,                                                        &
            & lopenacc=.TRUE.)
       __acc_attach(p_diag_lnd%plantevap_t)
 
@@ -1888,7 +1950,7 @@ MODULE mo_nwp_lnd_state
            & ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.,                  &
            & in_group=groups("dwd_fg_sfc_vars","mode_dwd_ana_in","mode_iau_fg_in", &
            &                 "mode_iau_ana_in","mode_iau_old_ana_in",              &
-           &                 "mode_combined_in","mode_iniana"),                    &
+           &                 "mode_combined_in","mode_iniana","iau_restore_vars"), &
            &                 lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%h_snow)
 
@@ -1897,7 +1959,9 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 1, 11, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'h_snow_t', p_diag_lnd%h_snow_t,    &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
-           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
+           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,          &
+           & in_group=groups("iau_restore_vars"),                              &
+           & loutput=.FALSE.,                                                  &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%h_snow_t)
 
@@ -1939,7 +2003,9 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 1, 203, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'freshsnow_t', p_diag_lnd%freshsnow_t, &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,             &
-           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,&
+           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,             &
+           & in_group=groups("iau_restore_vars"),                                 &
+           & loutput=.FALSE.,                                                     &
            & lopenacc=.TRUE.)
     __acc_attach(p_diag_lnd%freshsnow_t)
 
@@ -1995,7 +2061,9 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'snowfrac_t', p_diag_lnd%snowfrac_t, &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,           &
-           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
+           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,           &
+           & in_group=groups("iau_restore_vars"),                               &
+           & loutput=.FALSE.,                                                   &
            & lopenacc=.TRUE. )
     __acc_attach(p_diag_lnd%snowfrac_t)
 
@@ -2027,7 +2095,9 @@ MODULE mo_nwp_lnd_state
     grib2_desc = grib2_var(0, 1, 42, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, vname_prefix//'snowfrac_lc_t', p_diag_lnd%snowfrac_lc_t, &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,            &
-           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE., &
+           & ldims=shape3d_subs, lcontainer=.TRUE., lrestart=.FALSE.,            &
+           & in_group=groups("iau_restore_vars"),                                &
+           & loutput=.FALSE.,                                                    &
            & lopenacc=.TRUE. )
     __acc_attach(p_diag_lnd%snowfrac_lc_t)
 
