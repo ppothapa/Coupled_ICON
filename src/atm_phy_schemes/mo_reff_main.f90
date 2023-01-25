@@ -347,7 +347,7 @@ MODULE mo_reff_main
 
       ! Initialize inidices
       !$ACC DATA PRESENT(indices, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_end, nproma)
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(nproma) FIRSTPRIVATE(k_end)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1,k_end
         DO jc = 1,nproma
