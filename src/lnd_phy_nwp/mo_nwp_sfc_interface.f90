@@ -204,6 +204,7 @@ CONTAINS
     REAL(wp) :: urb_h_bld_t   (nproma)
     REAL(wp) :: urb_hcap_t    (nproma)
     REAL(wp) :: urb_hcon_t    (nproma)
+    REAL(wp) :: ahf_t         (nproma)
 !
     REAL(wp) :: rsmin2d_t (nproma)
     REAL(wp) :: r_bsmin (nproma)
@@ -329,7 +330,7 @@ CONTAINS
     !$ACC DATA CREATE(soiltyp_t, plcov_t, rootdp_t, sai_t, eai_t, tai_t, laifac_t) &
     !$ACC   CREATE(skinc_t) &
     !$ACC   CREATE(fr_paved_t, urb_isa_t, urb_ai_t, urb_h_bld_t) &
-    !$ACC   CREATE(urb_hcap_t, urb_hcon_t, r_bsmin) &
+    !$ACC   CREATE(urb_hcap_t, urb_hcon_t, ahf_t, r_bsmin) &
     !$ACC   CREATE(rsmin2d_t, u_t, v_t, t_t, qv_t, p0_t, ps_t, h_snow_gp_t) &
     !$ACC   CREATE(u_10m_t, v_10m_t, prr_con_t, prs_con_t, conv_frac, prr_gsp_t) &
     !$ACC   CREATE(prs_gsp_t, pri_gsp_t, prg_gsp_t, sobs_t, thbs_t, pabs_t, tsnred) &
@@ -362,7 +363,7 @@ CONTAINS
 !$OMP   wliq_snow_new_t,wtot_snow_new_t,dzh_snow_new_t,w_so_new_t,w_so_ice_new_t,lhfl_pl_t,                 &
 !$OMP   shfl_soil_t,lhfl_soil_t,shfl_snow_t,lhfl_snow_t,t_snow_new_t,graupel_gsp_rate,prg_gsp_t,            &
 !$OMP   snow_melt_flux_t,h_snow_gp_t,conv_frac,t_sk_now_t,t_sk_new_t,skinc_t,tsnred,plevap_t,z0_t,laifac_t, &
-!$OMP   fr_paved_t,urb_isa_t,urb_ai_t,urb_h_bld_t,urb_hcap_t,urb_hcon_t,                                    &
+!$OMP   fr_paved_t,urb_isa_t,urb_ai_t,urb_h_bld_t,urb_hcap_t,urb_hcon_t,ahf_t,                              &
 !$OMP   cond,init_list_tmp,ic_tot,icount_init_tmp,heatcond_fac,heatcap_fac,                                 &
 !$OMP   qsat1,dqsdt1,qsat2,dqsdt2,sntunefac,sntunefac2,snowfrac_lcu_t) ICON_OMP_GUIDED_SCHEDULE
 
@@ -699,6 +700,7 @@ CONTAINS
             urb_h_bld_t(ic)         =  ext_data%atm%urb_h_bld_t(jc,jb,isubs)
             urb_hcap_t(ic)          =  ext_data%atm%urb_hcap_t(jc,jb,isubs)
             urb_hcon_t(ic)          =  ext_data%atm%urb_hcon_t(jc,jb,isubs)
+            ahf_t(ic)               =  ext_data%atm%ahf_t(jc,jb,isubs)
           ELSE
             fr_paved_t(ic)          =  0._wp
             urb_isa_t(ic)           =  0._wp
@@ -707,6 +709,7 @@ CONTAINS
             urb_h_bld_t(ic)         =  0._wp
             urb_hcap_t(ic)          =  0._wp
             urb_hcon_t(ic)          =  0._wp
+            ahf_t(ic)               =  0._wp
           ENDIF
 
           rsmin2d_t(ic)             =  ext_data%atm%rsmin2d_t(jc,jb,isubs)
@@ -833,7 +836,7 @@ CONTAINS
         &  zmls         = zml_soil                           , & !IN processing soil level structure 
         &  icant        = icant                              , & !IN canopy-type
         &  nclass_gscp  = atm_phy_nwp_config(jg)%nclass_gscp , & !IN number of hydrometeor classes
-        &  dt           = tcall_sfc_jg                       , & !IN 
+        &  dt           = tcall_sfc_jg                       , & !IN time step
         &  soiltyp_subs = soiltyp_t                          , & !IN type of the soil (keys 0-9)         --    
         &  plcov        = plcov_t                            , & !IN fraction of plant cover             --
         &  rootdp       = rootdp_t                           , & !IN depth of the roots                ( m  )
@@ -850,6 +853,7 @@ CONTAINS
         &  urb_h_bld    = urb_h_bld_t                        , & !IN building height                               (  m  )
         &  urb_hcap     = urb_hcap_t                         , & !IN volumetric heat capacity of urban material (J/m**3/K)
         &  urb_hcon     = urb_hcon_t                         , & !IN thermal conductivity of urban material        (W/m/K)
+        &  ahf          = ahf_t                              , & !IN anthropogenic heat flux                      (W/m**2)
 !
         &  heatcond_fac = heatcond_fac                       , & !IN tuning factor for soil thermal conductivity
         &  heatcap_fac  = heatcap_fac                        , & !IN tuning factor for soil heat capacity

@@ -1162,13 +1162,13 @@ CONTAINS
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf)
 
         ! Urban canopy parameters
-        ext_data(jg)%atm%fr_paved_lcc(:) = 0._wp
-        ext_data(jg)%atm%ahf_lcc(:)      = 0._wp
-
         DO ilu = 1, num_lcc
           IF (ilu == ext_data(jg)%atm%i_lc_urban) THEN
-            ext_data(jg)%atm%fr_paved_lcc(ilu)    = 1._wp        ! Impervious surface area (ISA) for urban land use class
-            ext_data(jg)%atm%ahf_lcc(ilu)         = 3._wp        ! Anthropogenic heat flux for urban land use class
+            ext_data(jg)%atm%fr_paved_lcc(ilu) = 1._wp        ! Impervious surface area (ISA) fraction for urban land use class
+            ext_data(jg)%atm%ahf_lcc(ilu)      = 15._wp       ! Anthropogenic heat flux for urban land use class
+          ELSE
+            ext_data(jg)%atm%fr_paved_lcc(ilu) = 0._wp
+            ext_data(jg)%atm%ahf_lcc(ilu)      = 0._wp
           ENDIF
         ENDDO
 

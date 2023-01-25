@@ -3937,16 +3937,20 @@ lurbalb &
 L & .TRUE. &  & If .TRUE., use urban albedo and emissivity (Wouters et al.\ 2016) & lterra\_urb = .TRUE.
 \tabularnewline
 
+lurbahf &
+L & .TRUE. &  & If .TRUE., use urban anthropogenic heat flux (Wouters et al.\ 2016) & lterra\_urb = .TRUE.
+\tabularnewline
+
 itype\_kbmo &
 I & 2 &  & Type of bluff-body thermal roughness length parameterisation \\
-1 = Raschendorfer (2001) \\
-2 = Brutsaert Kanda parameterisation for bluff-body elements (kB-1) (Kanda et al.\ 2007) \\
+1 = Standard SAI-based turbtran (Raschendorfer 2001) \\
+2 = Brutsaert-Kanda parameterisation for bluff-body elements (kB-1) (Kanda et al.\ 2007) \\
 3 = Zilitinkevich (1970) & lterra\_urb = .TRUE.
 \tabularnewline
 
 itype\_eisa &
 I & 3 &  & Type of evaporation from impervious surface area \\
-1 = Evaporation like bare soil \\
+1 = Evaporation like bare soil (cf. Schulz and Vogel 2020) \\
 2 = No evaporation \\
 3 = PDF-based puddle evaporation (Wouters et al.\ 2015) & lterra\_urb = .TRUE.
 \tabularnewline
