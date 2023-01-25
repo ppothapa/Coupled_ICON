@@ -163,8 +163,7 @@ SUBROUTINE art_washout_interface(pt_prog,pt_diag, dtime, p_patch, &
               CALL fields%modal_param(p_art_data(jg)%air_prop%art_free_path(:,:,jb),              &
                 &                     istart, iend, 1, nlev, jb, tracer(:,:,jb,:))
               !Washout rate
-              IF (iqnr == 9) THEN ! Check if qnr is present (if present iqnr seems to be 9, 
-                                  ! otherwise value is 105)
+              IF (iqnr == 9 .OR. iqnr == 11) THEN ! Check if qnr is present
                 CALL art_aerosol_washout(pt_diag%temp(:,:,jb),                                    &
                   &                tracer(:,:,jb,fields%itr0), fields%density(:,:,jb),            &
                   &                fields%diameter(:,:,jb),fields%info%sg_ini, tracer(:,:,jb,iqr),&
@@ -193,25 +192,21 @@ SUBROUTINE art_washout_interface(pt_prog,pt_diag, dtime, p_patch, &
                   &                iart_aero_washout=art_config(jg)%iart_aero_washout)
               END IF
 
-              CALL fields%update_mass(jb, tracer(:,:,:,:), wash_rate_m3(:,:), dtime,  &
-                &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
               ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
               DO ijsp = 1, fields%ntr-1
                 CALL art_save_aerosol_wet_deposition(p_art_data(jg),                              &
                   & wash_rate_m3(:,:), art_config(jg)%iart_aero_washout,                          &
                   & prm_diag%rain_gsp_rate(:,jb)+prm_diag%rain_con_rate(:,jb),                    &
                   & p_metrics%ddqz_z_full(:,:,:), dtime, fields%itr3(ijsp), jb,                   &
-                  & istart, iend, kstart_wo, nlev )
+                  & istart, iend, kstart_wo, nlev, fields%third_moment(:,:,jb),                   &
+                  & tracer(:,:,jb,fields%itr3(ijsp)))
               ENDDO
+              ! Update mass mixing ratios
+              CALL fields%update_mass(jb, tracer(:,:,:,:), wash_rate_m3(:,:), dtime,  &
+                &                     istart,iend, kstart_wo, nlev, rho(:,:,jb))
               ! Update mass-specific number
-              CALL fields%update_number(tracer(:,:,:,:), wash_rate_m0(:,:), dtime, jb,    &
-                &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
-              ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
-              CALL art_save_aerosol_wet_deposition(p_art_data(jg),                                &
-                &    wash_rate_m0(:,:), art_config(jg)%iart_aero_washout,                         &
-                &    prm_diag%rain_gsp_rate(:,jb)+prm_diag%rain_con_rate(:,jb),                   &
-                &    p_metrics%ddqz_z_full(:,:,:), dtime, fields%itr0, jb,                        &
-                &    istart, iend, kstart_wo, nlev )
+              CALL fields%update_number(tracer(:,:,jb,fields%itr0), wash_rate_m0(:,:), dtime,  &
+                &                     istart,iend, kstart_wo, nlev, rho(:,:,jb))
   
   
               IF (art_config(jg)%iart_aero_washout > 0) THEN
@@ -241,26 +236,21 @@ SUBROUTINE art_washout_interface(pt_prog,pt_diag, dtime, p_patch, &
                   wash_rate_m0(:,:) = wash_rate_m0(:,:)*phy_params(jg)%rcucov
                 ENDIF
   
-                ! Update mass mixing ratios
-                CALL fields%update_mass(jb, tracer(:,:,:,:), wash_rate_m3(:,:), dtime,           &
-                  &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
                 ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
                 DO ijsp = 1, fields%ntr-1
                   CALL art_save_aerosol_wet_deposition(p_art_data(jg),                            &
                     &  wash_rate_m3(:,:), art_config(jg)%iart_aero_washout+100,                   &
                     &  prm_diag%rain_gsp_rate(:,jb)+prm_diag%rain_con_rate(:,jb),                 &
                     &  p_metrics%ddqz_z_full(:,:,:), dtime, fields%itr3(ijsp), jb,                &
-                    &  istart, iend, kstart_wo, nlev )
+                    &  istart, iend, kstart_wo, nlev, fields%third_moment(:,:,jb),                &
+                    &  tracer(:,:,jb,fields%itr3(ijsp)))
                 ENDDO
+                ! Update mass mixing ratios
+                CALL fields%update_mass(jb, tracer(:,:,:,:), wash_rate_m3(:,:), dtime,           &
+                  &                     istart,iend, kstart_wo, nlev, rho(:,:,jb))
                 ! Update mass-specific number
-                CALL fields%update_number(tracer(:,:,:,:), wash_rate_m0(:,:), dtime, jb,  &
-                  &                     istart,iend, kstart_wo, nlev,opt_rho = rho(:,:,jb))
-                ! DIAGNOSTIC: acc_wetdepo_gscp/acc_wetdepo_con/acc_wetdepo_rrsfc of art-tracer
-                CALL art_save_aerosol_wet_deposition(p_art_data(jg),                              &
-                  &  wash_rate_m0(:,:), art_config(jg)%iart_aero_washout+100,                     &
-                  &  prm_diag%rain_gsp_rate(:,jb)+prm_diag%rain_con_rate(:,jb),                   &
-                  &  p_metrics%ddqz_z_full(:,:,:), dtime, fields%itr0, jb,                        &
-                  &  istart, iend, kstart_wo, nlev )
+                CALL fields%update_number(tracer(:,:,jb,fields%itr0), wash_rate_m0(:,:), dtime,  &
+                  &                     istart,iend, kstart_wo, nlev, rho(:,:,jb))
               ENDIF !2nd call
             ENDDO
 !$omp end parallel do
