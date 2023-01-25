@@ -59,7 +59,7 @@ ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C
 ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
 
 # Tolerate an additional argument mismatch in DACE:
-ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -wmismatch=p_bcast_derivedtype -C=all"
+ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -wmismatch=p_bcast_derivedtype -C=all -mismatch"
 ICON_DACE_PATH='externals/dace_icon'
 
 # Enable recognition of non-standard double precision complex intrinsic

@@ -297,7 +297,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   INTEGER :: idg(nproma), ish(nproma)
 
   INTEGER :: jb, jc, jk, i_startblk, i_endblk, is, ie, j, k, rlstart
-  INTEGER :: nlev_rg, isens, n_profs, ncalc, iprint, &
+  INTEGER :: nlev_rg, isens, n_profs, ncalc, &
     &        istatus, synsat_idx, isynsat
 
   CALL assert_acc_host_only('rttov_driver', lacc)
@@ -459,7 +459,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
         sat_a(jc) = rad2deg * (1. + ATAN2(TAN(lon), SIN(p_gcp%center(jc,jb)%lat)))
       ENDDO
 
-      iprint = 0
 
       IF (dbg_level > 2) THEN
         WRITE (0,*) "PE ", get_my_mpi_all_id(), " :: CALL to rttov_direct_ifc: isens = ", isens, &
@@ -479,7 +478,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
              T_b_clear = T_b_clear(1:numchans(isens), 1:n_profs), &
              rad       = rad      (1:numchans(isens), 1:n_profs), &
              radclear  = rad_clear(1:numchans(isens), 1:n_profs), &
-             iprint    = iprint,                                  &
              pe        = p_pe)
       IF (istatus /= NO_ERROR) THEN
         WRITE(message_text,'(a)') TRIM(rtifc_errmsg(istatus))

@@ -46,6 +46,8 @@ MODULE mo_assimilation_config
     LOGICAL :: dace_coupling      !> Invoke DACE for model equivalents of observations
     INTEGER :: dace_time_ctrl(3)  !> Steering parameters for DACE time control: start,end,step
     INTEGER :: dace_debug         !> Debugging level for DACE interface
+    CHARACTER(LEN=255) :: &
+      dace_output_file            !> Filename for redirection of DACE stdout
 
     ! Namelist variables for LHN
 

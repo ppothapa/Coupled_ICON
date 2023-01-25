@@ -297,6 +297,9 @@ MODULE mo_rtifc
   ! atlas use
   public :: atlas_single_inst
 
+  ! surftypes
+  public :: rts_land, rts_sea, rts_ice, rts_name
+
   interface rtifc_check_nlevs
     module procedure check_nlevs
   end interface rtifc_check_nlevs
