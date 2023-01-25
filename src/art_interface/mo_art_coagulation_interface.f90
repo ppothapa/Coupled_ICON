@@ -165,10 +165,10 @@ SUBROUTINE art_coagulation_interface(pt_prog,pt_diag, dtime, p_patch, &
                       &                             kstart, nlev, jb)
                   CASE (3)
                     ! Updating fields
-                    CALL fields%update_number(tracer(:,:,:,:), dtime, jb,                         &
-                      &                       istart, iend, kstart, nlev, opt_rho = rho(:,:,jb))
+                    CALL fields%update_number(tracer(:,:,:,:), jb, dtime,                         &
+                      &                       istart, iend, kstart, nlev, rho(:,:,jb))
                     CALL fields%update_mass(tracer(:,:,:,:), jb, dtime,                           &
-                      &                     istart, iend, kstart, nlev, opt_rho = rho(:,:,jb))
+                      &                     istart, iend, kstart, nlev, rho(:,:,jb))
                   CASE DEFAULT
                     CALL finish(TRIM(routine)//':art_coagulation_interface', &
                       &         'ART: Too many coag_iterations')

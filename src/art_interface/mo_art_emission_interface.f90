@@ -313,6 +313,7 @@ CONTAINS
 
           IF (p_art_data(jg)%tracer2aeroemiss%lisinit) THEN
             this_mode=>p_art_data(jg)%tracer2aeroemiss%e2t_list%p%first_mode
+            p_art_data(jg)%diag%emiss(:,jb,:) = 0.0_wp
             DO WHILE(ASSOCIATED(this_mode))
               SELECT TYPE(this=>this_mode%fields)
                 TYPE IS(t_art_emiss2tracer)
@@ -364,7 +365,48 @@ CONTAINS
                         CALL this%distribute_emissions(emiss_rateM, emiss_rate0, tracer(:,:,:,:),  &
                           &                            art_atmo%rho(:,:,jb), dtime, istart, iend,   &
                           &                            nlev, nlev, jb)
-                      
+                      CASE('seas_mode1')
+                        ! Sea salt emission  (sodium and chloride)
+                        emiss_rateM(:,:,:) = 0.0_wp
+                        emiss_rate0(:,:,:) = 0.0_wp
+                        CALL art_seas_emiss_mode1(art_atmo%u_10m(:,jb),                           &
+                          &                       art_atmo%v_10m(:,jb),art_atmo%dz(:,art_atmo%nlev,jb),     &
+                          &                       p_diag_lnd%t_s(:,jb),ext_data%atm%fr_land(:,jb),          &
+                          &                       p_diag_lnd%fr_seaice(:,jb), ext_data%atm%fr_lake(:,jb),   &
+                          &                       istart,iend,emiss_rateM(:,nlev,1))
+                        CALL this%calc_number_from_mass(emiss_rateM, emiss_rate0, istart, iend,     &
+                          &                             nlev, nlev)
+                        CALL this%distribute_emissions(emiss_rateM, emiss_rate0, tracer(:,:,:,:),  &
+                          &                            art_atmo%rho(:,:,jb), dtime, istart, iend,   &
+                          &                            nlev, nlev, jb)
+                      CASE('seas_mode2')
+                        ! Sea salt emission  (sodium and chloride)
+                        emiss_rateM(:,:,:) = 0.0_wp
+                        emiss_rate0(:,:,:) = 0.0_wp
+                        CALL art_seas_emiss_mode2(art_atmo%u_10m(:,jb),                           &
+                          &                       art_atmo%v_10m(:,jb),art_atmo%dz(:,art_atmo%nlev,jb),     &
+                          &                       p_diag_lnd%t_s(:,jb),ext_data%atm%fr_land(:,jb),          &
+                          &                       p_diag_lnd%fr_seaice(:,jb), ext_data%atm%fr_lake(:,jb),   &
+                          &                       istart,iend,emiss_rateM(:,nlev,1))
+                        CALL this%calc_number_from_mass(emiss_rateM, emiss_rate0, istart, iend,     &
+                          &                             nlev, nlev)
+                        CALL this%distribute_emissions(emiss_rateM, emiss_rate0, tracer(:,:,:,:),  &
+                          &                            art_atmo%rho(:,:,jb), dtime, istart, iend,   &
+                          &                            nlev, nlev, jb)
+                      CASE('seas_mode3')
+                        ! Sea salt emission  (sodium and chloride)
+                        emiss_rateM(:,:,:) = 0.0_wp
+                        emiss_rate0(:,:,:) = 0.0_wp
+                        CALL art_seas_emiss_mode3(art_atmo%u_10m(:,jb),                           &
+                          &                       art_atmo%v_10m(:,jb),art_atmo%dz(:,art_atmo%nlev,jb),     &
+                          &                       p_diag_lnd%t_s(:,jb),ext_data%atm%fr_land(:,jb),          &
+                          &                       p_diag_lnd%fr_seaice(:,jb), ext_data%atm%fr_lake(:,jb),   &
+                          &                       istart,iend,emiss_rateM(:,nlev,1))
+                        CALL this%calc_number_from_mass(emiss_rateM, emiss_rate0, istart, iend,     &
+                          &                             nlev, nlev)
+                        CALL this%distribute_emissions(emiss_rateM, emiss_rate0, tracer(:,:,:,:),  &
+                          &                            art_atmo%rho(:,:,jb), dtime, istart, iend,   &
+                          &                            nlev, nlev, jb)
                       CASE('dust')
                         ! Mineral dust emission Rieger et al. 2017
                         emiss_rateM(:,:,:) = 0.0_wp
@@ -453,6 +495,9 @@ CONTAINS
                       CASE DEFAULT
                         !nothing to do
                     END SELECT
+                    CALL art_save_aerosol_emission(this, p_art_data(jg),                           &
+                      & emiss_rateM(:,:,:), emiss_rate0(:,:,:), art_atmo%dz(:,:,:),                &
+                      & dtime,  jb, istart, iend, 1, art_atmo%nlev)
                     IF(ALLOCATED(emiss_rateM)) DEALLOCATE(emiss_rateM)
                     IF(ALLOCATED(emiss_rate0)) DEALLOCATE(emiss_rate0)
                   END IF !this%lcalcemiss
