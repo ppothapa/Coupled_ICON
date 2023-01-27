@@ -44,30 +44,17 @@ MODULE mo_wave_model
        &                                ignore_nproma_use_nblocks_c, nproma, update_nproma_for_io_procs
   USE mo_grid_config,             ONLY: n_dom, n_dom_start
   USE mo_build_decomposition,     ONLY: build_decomposition
-  USE mo_sync,                    ONLY: global_max
   USE mo_zaxis_type,              ONLY: zaxisTypeList, t_zaxisTypeList
   USE mo_wave_state,              ONLY: p_wave_state, p_wave_state_lists, construct_wave_state
   USE mo_model_domain,            ONLY: p_patch
   USE mo_name_list_output_config, ONLY: use_async_name_list_io
   USE mo_name_list_output,        ONLY: write_name_list_output
-#ifndef NOMPI
-  ! Prefetching
-  USE mo_async_latbc,             ONLY: prefetch_main_proc
-#endif
   USE mo_name_list_output_init,   ONLY: init_name_list_output, parse_variable_groups, &
        &                                output_file, create_vertical_axes
-  USE mo_var_list_register_utils, ONLY: vlr_print_groups
   USE mo_wave,                    ONLY: wave
   USE mo_wave_ext_data_state,     ONLY: wave_ext_data, wave_ext_data_list, destruct_wave_ext_data_state
   USE mo_wave_ext_data_init,      ONLY: init_wave_ext_data
-  USE mo_ext_data_state,          ONLY: ext_data
-  USE mo_ext_data_init,           ONLY: init_ext_data
   USE mo_alloc_patches,           ONLY: destruct_patches
-
- ! Vertical grid
-  USE mo_vertical_coord_table,    ONLY: vct_a, vct_b, vct, allocate_vct_atmo
-  USE mo_init_vgrid,              ONLY: nflatlev
-  USE mo_util_vgrid,              ONLY: construct_vertical_grid
 
   USE mo_intp_data_strc,          ONLY: p_int_state
   USE mo_intp_state,              ONLY: construct_2d_interpol_state, destruct_2d_interpol_state
@@ -181,11 +168,6 @@ CONTAINS
 
     CALL build_decomposition(num_lev, nshift, is_ocean_decomposition = .true.)
 
-    !    IF (ignore_nproma_use_nblocks_c) THEN
-    !       nproma_max = global_max(nproma)
-    !       CALL update_nproma_for_io_procs(nproma_max)
-    !    ENDIF
-
     IF (timers_level > 4) CALL timer_stop(timer_domain_decomp)
 
     CALL init_io_processes()
@@ -209,29 +191,15 @@ CONTAINS
 
     CALL construct_icon_communication(p_patch, n_dom)
 
-    !--------------------------------------------
+    !------------------------------------------------------------------
     ! Setup the information for the physical patches
+    !------------------------------------------------------------------
     CALL setup_phys_patches
 
     !------------------------------------------------------------------
     ! Create and optionally read external data fields
     !------------------------------------------------------------------
-    ALLOCATE (ext_data(n_dom), STAT=error_status)
-    IF (error_status /= SUCCESS) THEN
-       CALL finish(routine, 'allocation for ext_data failed')
-    ENDIF
-
-    ! allocate memory for atmospheric/oceanic external data and
-    ! optionally read those data from netCDF file.
-
-    CALL init_ext_data (p_patch(1:), p_int_state(1:), ext_data)
     CALL init_wave_ext_data (p_patch(1:), wave_ext_data, wave_ext_data_list)
-
-
-    CALL allocate_vct_atmo(p_patch(1)%nlevp1)
-    nflatlev=1
-    CALL construct_vertical_grid(p_patch(1:), p_int_state(1:), ext_data, &
-      &                          vct_a, vct_b, vct, nflatlev)
 
     CALL message(routine, 'finished.')
 
