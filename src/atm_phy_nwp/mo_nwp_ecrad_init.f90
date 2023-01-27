@@ -197,8 +197,8 @@ CONTAINS
       CASE(1)
         ecrad_conf%i_gas_model = IGasModelECCKD  !< Use ecckd gas model
         ecrad_conf%use_general_cloud_optics = .true. !ecckd needs general cloud optics framework
-        ecrad_conf%do_cloud_aerosol_per_lw_g_point = .false.
-        ecrad_conf%do_cloud_aerosol_per_sw_g_point = .false.
+        ecrad_conf%do_cloud_aerosol_per_lw_g_point = .true.
+        ecrad_conf%do_cloud_aerosol_per_sw_g_point = .true.
       CASE DEFAULT
         CALL finish(routine, 'ecrad_igas_model not valid for ecRad')
     END SELECT
