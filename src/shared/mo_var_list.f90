@@ -5,7 +5,6 @@
 !! Please see the file LICENSE in the root of the source tree for this code.
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
-#include "icon_contiguous_defines.inc"
 #include "omp_definitions.inc"
 
 MODULE mo_var_list
@@ -259,10 +258,10 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, tlev_source, l_pp_scheduler_task, &
       & initval_i, resetval_i, missval_i, var_class
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    REAL(dp), CONTIGUOUS_TARGET, OPTIONAL :: p5_r(:,:,:,:,:)
-    REAL(sp), CONTIGUOUS_TARGET, OPTIONAL :: p5_s(:,:,:,:,:)
-    INTEGER, CONTIGUOUS_TARGET, OPTIONAL :: p5_i(:,:,:,:,:)
-    LOGICAL, CONTIGUOUS_TARGET, OPTIONAL :: p5_l(:,:,:,:,:)
+    REAL(dp), CONTIGUOUS, TARGET, OPTIONAL :: p5_r(:,:,:,:,:)
+    REAL(sp), CONTIGUOUS, TARGET, OPTIONAL :: p5_s(:,:,:,:,:)
+    INTEGER, CONTIGUOUS, TARGET, OPTIONAL :: p5_i(:,:,:,:,:)
+    LOGICAL, CONTIGUOUS, TARGET, OPTIONAL :: p5_l(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_post_op_meta), INTENT(IN), OPTIONAL :: post_op
@@ -425,7 +424,7 @@ CONTAINS
       & tlev_source, var_class
     REAL(dp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    REAL(dp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(dp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -460,7 +459,7 @@ CONTAINS
     REAL(dp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
     CLASS(t_tracer_meta), INTENT(in), OPTIONAL :: tracer_info
-    REAL(dp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(dp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -496,7 +495,7 @@ CONTAINS
     REAL(dp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
     CLASS(t_tracer_meta), INTENT(IN), OPTIONAL :: tracer_info
-    REAL(dp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(dp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -531,7 +530,7 @@ CONTAINS
       & tlev_source, var_class
     REAL(dp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    REAL(dp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(dp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -565,7 +564,7 @@ CONTAINS
       & tlev_source, var_class
     REAL(sp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    REAL(sp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(sp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -600,7 +599,7 @@ CONTAINS
     REAL(sp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
     CLASS(t_tracer_meta),    INTENT(in), OPTIONAL :: tracer_info
-    REAL(sp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(sp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -636,7 +635,7 @@ CONTAINS
     REAL(sp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
     CLASS(t_tracer_meta),    INTENT(in), OPTIONAL :: tracer_info
-    REAL(sp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(sp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -671,7 +670,7 @@ CONTAINS
       & tlev_source, var_class
     REAL(sp), INTENT(IN), OPTIONAL :: initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    REAL(sp), CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    REAL(sp), CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -704,7 +703,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class, initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    INTEGER, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    INTEGER, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -737,7 +736,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class, initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    INTEGER, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    INTEGER, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -770,7 +769,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class, initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    INTEGER, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    INTEGER, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -803,7 +802,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class, initval, resetval, missval
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    INTEGER, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    INTEGER, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -837,7 +836,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    LOGICAL, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    LOGICAL, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -871,7 +870,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    LOGICAL, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    LOGICAL, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -905,7 +904,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    LOGICAL, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    LOGICAL, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element
@@ -939,7 +938,7 @@ CONTAINS
     INTEGER, INTENT(IN), OPTIONAL :: isteptype, l_pp_scheduler_task, &
       & tlev_source, var_class
     TYPE(t_var_metadata), POINTER, OPTIONAL :: info
-    LOGICAL, CONTIGUOUS_TARGET, OPTIONAL :: p5(:,:,:,:,:)
+    LOGICAL, CONTIGUOUS, TARGET, OPTIONAL :: p5(:,:,:,:,:)
     TYPE(t_vert_interp_meta), INTENT(IN), OPTIONAL :: vert_interp
     TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
     TYPE(t_var), POINTER, OPTIONAL :: new_element

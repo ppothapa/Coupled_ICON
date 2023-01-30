@@ -933,11 +933,7 @@ CONTAINS !......................................................................
 #endif
 
     ! Pointers
-    INTEGER, DIMENSION(:,:,:), POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS                       &
-#endif
-      ::                                 &
+    INTEGER, DIMENSION(:,:,:), POINTER, CONTIGUOUS :: &
       icidx, icblk, ieidx, ieblk, iqidx, iqblk, ividx, ivblk, incidx, incblk
 
     INTEGER  :: nlev, nlevp1          !< number of full and half levels

@@ -7,42 +7,7 @@
 !! headers of the routines.
 MODULE mo_cloud_diag
 
-#ifdef __COSMO__
-
-USE data_parameters , ONLY :   &
-    ireals,       & !! KIND-type parameters for real variables
-    iintegers       !! KIND-type parameter for standard integer variables
-
-USE data_turbulence, ONLY: &
-    clc_diag,     & !! cloud cover at saturation in statistical cloud diagnostic
-    q_crit          !! critical value for normalized over-saturation
-
-USE data_constants  , ONLY :   &
-!! 2. physical constants and related variables
-!! -------------------------------------------
-    t0,           & !! melting temperature of ice
-    rdv,          & !! r_d / r_v
-    o_m_rdv,      & !! 1 - r_d/r_v
-    rvd_m_o,      & !! r_v/r_d - 1
-    lhocp,        & !! lh_v/cp_d
-! 3. constants for parametrizations
-!! ---------------------------------
-    b1,           & !! variables for computing the saturation vapour pressure
-    b2w,          & !! over water (w) and ice (i)
-    b2i,          & !!               -- " --
-    b3,           & !!               -- " --
-    b4w,          & !!               -- " --
-    b234w,        & !!               -- " --
-    b4i,          & !!               -- " --
-    uc1,          & !! variable for computing the rate of cloud cover in
-    uc2,          & !! the unsaturated case
-    ucl             !!               -- " --
-
-#endif
-
 !------------------------------------------------------------------------------
-
-#ifdef __ICON__
 
 USE mo_kind, ONLY: &
     ireals   =>wp       , &
@@ -79,7 +44,6 @@ USE mo_satad, ONLY: zpsat_w => sat_pres_water, & !! saturation vapor pressure w.
                     zqvap   => spec_humi     , & !! Specific humidity
                     zdqsdt  => dqsatdT           !! Derivation of qsat w.r.t. temperature
 
-#endif
 
 !------------------------------------------------------------------------------
 
@@ -362,15 +326,6 @@ REAL (KIND=ireals) :: &
   tord, pres, ql, qt, qs, tl, dq, & !
   gam, q, sig, uc,                & !
   zsigma, zclc1, zq_max             !
-
-!------------------------------------------------------------------
-!Festlegung der Formelfunktionen fuer die Turbulenzparametrisierung:
-
-!-------------------------------------------------------------------
-#ifdef __COSMO__
- INCLUDE 'statement_functs.incf'
-#endif 
-!__COSMO------------------------------------------------------------
 
 !------------ End of header ----------------------------------------
 

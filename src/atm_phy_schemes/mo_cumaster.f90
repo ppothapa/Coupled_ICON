@@ -69,11 +69,9 @@
 !! headers of the routines.
 !!
 MODULE mo_cumaster
-  
-#ifdef __ICON__
+
   USE mo_kind   ,ONLY: JPRB=>wp, vp   , &
     &                  jpim=>i4
-#endif
 
 ! USE yomhook   ,ONLY : lhook,   dr_hook
   USE mo_cuparameters , ONLY :                                   &

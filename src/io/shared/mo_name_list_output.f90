@@ -1172,11 +1172,7 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER :: jl_start, jl_end, jl
     INTEGER :: max_glb_idx, tmp_dummy
-    INTEGER, POINTER &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         , CONTIGUOUS &
-#endif
-         :: glb_index(:)
+    INTEGER, POINTER, CONTIGUOUS :: glb_index(:)
 
     rl_start   = 1
     rl_end     = grf_bdywidth_c

@@ -27,7 +27,6 @@
 !----------------------------
 #include "omp_definitions.inc"
 #include "consistent_fma.inc"
-#include "icon_contiguous_defines.inc"
 !----------------------------
 
 MODULE mo_nwp_diagnosis
@@ -2213,7 +2212,7 @@ CONTAINS
     TYPE(t_patch),   INTENT(in) :: p_patch     !< grid/patch info.
     TYPE(t_nh_diag), INTENT(in) :: p_diag      !< NH diagnostic state
     !> tracer variables
-    REAL(wp), CONTIGUOUS_ARGUMENT(in) :: ptr_tracer(:,:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(in) :: ptr_tracer(:,:,:,:)
 
 
     ! Local variables

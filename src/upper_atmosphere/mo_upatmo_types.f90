@@ -53,13 +53,9 @@ MODULE mo_upatmo_types
   !------------------------------------------------------  
 
   TYPE t_upatmo_diag
-    
-    REAL(wp), POINTER  &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS       &
-#endif
-     ::                &
-     
+
+    REAL(wp), POINTER, CONTIGUOUS :: &
+
      gas(:,:,:,:),     &  ! Gas mass mixing ratio
                           ! (nproma,nlev,nblks_c,ngas) [kg/kg]
      mdry(:,:,:),      &  ! Dry air mass
@@ -117,25 +113,13 @@ MODULE mo_upatmo_types
   !---------------------------
 
   TYPE t_ddt_tot_3d
-    REAL(wp), POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS                  &
-#endif
-     ::                           & 
-
-     tot(:,:,:) => NULL()
+    REAL(wp), POINTER, CONTIGUOUS :: tot(:,:,:) => NULL()
   END TYPE t_ddt_tot_3d
 
   !---------------------------
 
   TYPE t_ddt_tot_4d
-    REAL(wp), POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS                  &
-#endif
-     ::                           & 
-
-     tot(:,:,:,:) => NULL()
+    REAL(wp), POINTER, CONTIGUOUS :: tot(:,:,:,:) => NULL()
 
     TYPE(t_ptr_2d3d), ALLOCATABLE :: tot_ptr(:)
   END TYPE t_ddt_tot_4d
@@ -168,12 +152,8 @@ MODULE mo_upatmo_types
   !---------------------------
 
   TYPE t_upatmo_tend
-    
-    REAL(wp), POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS                  &
-#endif
-     ::                           &  ! Tendencies of ...
+
+    REAL(wp), POINTER , CONTIGUOUS ::                           &  ! Tendencies of ...
 
      ddt_temp_srbc(:,:,:),        &  ! temperature due to SRBC heating by O2
                                      ! (nproma,nlev,nblks_c) [K/s]

@@ -223,11 +223,7 @@ MODULE mo_nh_deepatmo_solve
     LOGICAL :: l_vert_nested, l_child_vertnest
 
     ! Pointers
-    INTEGER, POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS     &
-#endif
-      ::               &
+    INTEGER, POINTER, CONTIGUOUS :: &
       ! to cell indices
       icidx(:,:,:), icblk(:,:,:), &
       ! to edge indices

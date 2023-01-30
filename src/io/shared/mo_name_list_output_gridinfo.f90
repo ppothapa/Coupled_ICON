@@ -977,11 +977,8 @@ CONTAINS
     ! reorder1: get the physical patch points from the logical patch
     ! Note that this works within the array as long as idx is monotonically increasing
     SUBROUTINE reorder1(starts, counts, array)
-      INTEGER, INTENT(IN)     :: starts(:), counts(:)
-      REAL(wp), INTENT(INOUT) :: array(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: starts, counts, array
-#endif
+      INTEGER, INTENT(IN), CONTIGUOUS :: starts(:), counts(:)
+      REAL(wp), INTENT(INOUT), CONTIGUOUS :: array(:)
       INTEGER :: i, j, m, n, doff, soff
 
       m = SIZE(counts)
@@ -998,11 +995,8 @@ CONTAINS
 
     ! reorder2: same as reorder1 for 2D array
     SUBROUTINE reorder2(starts, counts, array)
-      INTEGER, INTENT(IN)     :: starts(:), counts(:)
-      REAL(wp), INTENT(INOUT) :: array(:,:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: starts, counts, array
-#endif
+      INTEGER, INTENT(IN), CONTIGUOUS :: starts(:), counts(:)
+      REAL(wp), INTENT(INOUT), CONTIGUOUS :: array(:,:)
       INTEGER :: i, j, m, n, doff, soff
 
       m = SIZE(counts)
@@ -1262,10 +1256,7 @@ CONTAINS
   CONTAINS
     SUBROUTINE write_unstruct_grid2var(fileid, varid, r_out_dp_1D, ri)
       INTEGER, INTENT(in) :: fileid, varid
-      REAL(wp), INTENT(in) :: r_out_dp_1d(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: r_out_dp_1d
-#endif
+      REAL(wp), INTENT(in), CONTIGUOUS :: r_out_dp_1d(:)
       TYPE(t_reorder_info), INTENT(in) :: ri
 #ifdef HAVE_CDI_PIO
       TYPE(extent) :: grid_size_desc, grid_part_desc
@@ -1287,10 +1278,7 @@ CONTAINS
 
     SUBROUTINE write_remap_grid2var(fileid, varid, r_out_dp)
       INTEGER, INTENT(in) :: fileid, varid
-      REAL(wp), TARGET, INTENT(in) :: r_out_dp(:,:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: r_out_dp
-#endif
+      REAL(wp), TARGET, INTENT(in), CONTIGUOUS :: r_out_dp(:,:)
 #ifdef HAVE_CDI_PIO
       TYPE(extent) :: grid_size_desc(2), grid_part_desc(2)
       INTEGER(c_int) :: grid_chunk(2, 3)

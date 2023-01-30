@@ -510,13 +510,10 @@ END SUBROUTINE setup_comm_pattern
        glb2loc_index_recv, glb2loc_index_send, inplace)
     CLASS(t_comm_pattern_yaxt), TARGET, INTENT(out) :: p_pat
     INTEGER, INTENT(in) :: comm
-    TYPE(xfer_list), INTENT(in) :: recv_msg(:), send_msg(:)
+    TYPE(xfer_list), INTENT(in), CONTIGUOUS :: recv_msg(:), send_msg(:)
     TYPE(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index_recv, &
          glb2loc_index_send
     LOGICAL, OPTIONAL, INTENT(in) :: inplace
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: recv_msg, send_msg
-#endif
     INTEGER :: i, np_recv, np_send, nlocal
     TYPE(xt_com_list), ALLOCATABLE :: src_com(:), dst_com(:)
     TYPE(xt_idxlist) :: src_idxlist, dst_idxlist
@@ -562,16 +559,13 @@ END SUBROUTINE setup_comm_pattern
 #endif
   CONTAINS
     SUBROUTINE compose_lists(com, list, nlocal, glb2loc_index, msg, mask)
-      TYPE(xt_com_list), INTENT(out) :: com(:)
+      TYPE(xt_com_list), INTENT(out), CONTIGUOUS :: com(:)
       TYPE(xt_idxlist), INTENT(out) :: list
       INTEGER, INTENT(in) :: nlocal
-      TYPE(xfer_list), INTENT(in) :: msg(:)
+      TYPE(xfer_list), INTENT(in), CONTIGUOUS ::  msg(:)
       type(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index
       LOGICAL, OPTIONAL, ALLOCATABLE, INTENT(out) :: mask(:)
       INTEGER(xt_int_kind) :: indices(nlocal)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: com, msg
-#endif
       INTEGER :: np, nidx, i, j, jl, glbidx
       indices = -1_xt_int_kind
       np = SIZE(msg)

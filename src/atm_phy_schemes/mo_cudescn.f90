@@ -28,10 +28,8 @@
 
 MODULE mo_cudescn
 
-#ifdef __ICON__
   USE mo_kind   ,ONLY: jprb=>wp     , &
     &                  jpim=>i4
-#endif
 
 !  USE yomhook   ,ONLY : lhook,   dr_hook
   

@@ -821,11 +821,7 @@ LOGICAL ::        &
 REAL (KIND=wp) :: &
   fr_tke              ! z1/dt_tke
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 ! pointer for density and eddy dissipation rate:
   prhon(:,:), prhoh(:,:), ediss(:,:)
 
@@ -889,11 +885,7 @@ INTEGER ::          &
 REAL (KIND=wp), TARGET :: &
      tinc(nmvar)      !
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 ! Pointer fuer Tendenzfelder:
   utens(:,:), vtens(:,:), ttens(:,:), qvtens(:,:), qctens(:,:)
 
@@ -901,11 +893,7 @@ REAL (KIND=wp), POINTER :: &
 ! The following buffers wouldn't be necessary, if the related pointers above
 ! were allowed to be allocated at run time:
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
-#endif
   cur_prof, upd_prof, sav_prof, &
   expl_mom, impl_mom, invs_mom, &
   eff_flux

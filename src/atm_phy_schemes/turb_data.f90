@@ -415,11 +415,7 @@ REAL (KIND=wp)     ::        &
 !-------------------------------
 
 TYPE modvar !model variable
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
      REAL (KIND=wp), POINTER, CONTIGUOUS     ::         &
-#else
-     REAL (KIND=wp), POINTER                 ::         &
-#endif
              av(:,:) => NULL(), & !atmospheric values
              sv(:)   => NULL(), & !surface     values (concentration of flux density)
              at(:,:) => NULL()    !atmospheric time tendencies
@@ -428,21 +424,13 @@ TYPE modvar !model variable
 END TYPE modvar
 
 TYPE turvar !turbulence variables
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
      REAL (KIND=wp), POINTER, CONTIGUOUS     ::         &
-#else
-     REAL (KIND=wp), POINTER                 ::         &
-#endif
              tkv(:,:) => NULL(), & !turbulent coefficient for vert. diff.
              tsv(:)   => NULL()    !turbulent velocity at the surface
 END TYPE turvar
 
 TYPE varprf !variable profile
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
      REAL (KIND=wp), POINTER, CONTIGUOUS     ::         &
-#else
-     REAL (KIND=wp), POINTER                 ::         &
-#endif
              bl(:,:), & !variable at boundary model levels
              ml(:,:)    !variable at main     model levels
 END TYPE varprf

@@ -1,8 +1,7 @@
 ! the Intel compiler has an interesting behaviour: if optimization is off,
 ! actual arguments to dummy arguments with attribute CONTIGUOUS will always
 ! be copied
-#if defined HAVE_FC_ATTRIBUTE_CONTIGUOUS \
-  && ((! defined __INTEL_COMPILER) || defined __OPTIMIZE__)
+#if ((! defined __INTEL_COMPILER) || defined __OPTIMIZE__)
 #define USE_CONTIGUOUS 1
 #else
 #undef USE_CONTIGUOUS

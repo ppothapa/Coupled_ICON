@@ -28,7 +28,6 @@ MODULE mo_derived_variable_handling
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
-!#include "add_var_acc_macro.inc"
 
   IMPLICIT NONE
   PRIVATE
@@ -270,7 +269,6 @@ CONTAINS
       & in_group=info%in_group, &
       & loutput=.TRUE., lrestart=.FALSE., var_class=info%var_class, &
       & lopenacc = .FALSE. )
-!    __acc_attach(vl_elem%r_ptr)
     SELECT CASE(info%hgrid)
     CASE(GRID_UNSTRUCTURED_CELL)
       vl_elem%info%subset = patch_2d%cells%owned

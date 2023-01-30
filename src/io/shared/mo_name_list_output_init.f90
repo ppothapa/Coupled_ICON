@@ -1629,10 +1629,7 @@ CONTAINS
     INTEGER, INTENT(in) :: i, local_i
     TYPE (t_sim_step_info), INTENT(IN) :: sim_step_info
     INTEGER, INTENT(out) :: dom_sim_step_info_jstep0
-    TYPE(t_event_data_local), INTENT(INOUT)  :: event_list_local(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: event_list_local
-#endif
+    TYPE(t_event_data_local), INTENT(INOUT), CONTIGUOUS :: event_list_local(:)
 
     !> length of local list of output events
     INTEGER, INTENT(inout) :: ievent_list_local
@@ -2220,11 +2217,10 @@ CONTAINS
   END SUBROUTINE set_reorder_info
 
   SUBROUTINE bitmask2start_count_blks(mask, nb, starts, counts)
-    INTEGER(i8), INTENT(in) :: mask(0:), nb
+    INTEGER(i8), INTENT(in), CONTIGUOUS :: mask(0:)
+    INTEGER(i8), INTENT(in) :: nb
     INTEGER, ALLOCATABLE, INTENT(out) :: starts(:), counts(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: mask
-#endif
+
     INTEGER(i8) :: i
     INTEGER(i8), PARAMETER :: nbits_i8 = BIT_SIZE(i)
     INTEGER :: num_cblk, n

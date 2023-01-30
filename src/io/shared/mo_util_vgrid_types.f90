@@ -34,12 +34,7 @@ MODULE mo_util_vgrid_types
     ! Note: This array is deallocated after being used in
     !       mo_vertical_grid::set_nh_metrics
     !
-    REAL(wp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS         &
-#endif
-      ::                    &
-      z_ifc(:,:,:)
+    REAL(wp), POINTER, CONTIGUOUS :: z_ifc(:,:,:)
 
     ! UUID of vertical grid
     TYPE(t_uuid) :: uuid

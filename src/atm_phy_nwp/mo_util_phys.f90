@@ -576,11 +576,7 @@ CONTAINS
   SUBROUTINE tracer_add_phytend( p_rho_now, prm_nwp_tend, pdtime, prm_diag, &
     &                            pt_prog_rcf, p_metrics, dt_loc, jg, jb, i_startidx, i_endidx, kend, lacc)
 
-    REAL(wp)             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS         &
-#endif
-                        ,INTENT(IN)   :: p_rho_now(:,:)  !< total air density
+    REAL(wp), CONTIGUOUS,INTENT(IN)   :: p_rho_now(:,:)  !< total air density
     TYPE(t_nwp_phy_tend),INTENT(IN)   :: prm_nwp_tend    !< atm tend vars
     REAL(wp)            ,INTENT(IN)   :: pdtime          !< time step
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag        !< the physics variables

@@ -29,11 +29,7 @@ MODULE mo_wave_types
 
    ! diagnostic variables state vector
   TYPE t_wave_diag
-     REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-   , CONTIGUOUS              &
-#endif
-     ::                      &
+     REAL(wp), POINTER, CONTIGUOUS :: &
      process_id(:,:)         &
      => NULL()
   END type t_wave_diag

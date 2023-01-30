@@ -18,7 +18,6 @@
 
 !----------------------------
 #include "omp_definitions.inc"
-#include "icon_contiguous_defines.inc"
 !----------------------------
 
 MODULE mo_nh_nest_utilities
@@ -1594,7 +1593,7 @@ CONTAINS
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
-    REAL(wp), CONTIGUOUS_ARGUMENT(inout) :: ptr_tracer(:,:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(inout) :: ptr_tracer(:,:,:,:)
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int
@@ -1910,7 +1909,7 @@ CONTAINS
 
     TYPE(t_patch),      INTENT(IN)    :: p_patch
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
-    REAL(wp), CONTIGUOUS_ARGUMENT(inout) :: ptr_tracer(:,:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(inout) :: ptr_tracer(:,:,:,:)
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),    INTENT(INOUT) :: p_diag
     TYPE(t_int_state),  INTENT(IN)    :: p_int

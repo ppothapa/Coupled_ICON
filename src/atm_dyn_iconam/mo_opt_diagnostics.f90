@@ -137,11 +137,7 @@ MODULE mo_opt_diagnostics
   END TYPE t_pointer_3d_wp
   ! variable to be accumulated manually
   TYPE t_nh_acc
-    REAL(wp), POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS        &
-#endif
-    &  ::               &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     !
     ! dynamics
     &  rho(:,:,:),      &

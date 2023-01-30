@@ -409,11 +409,7 @@ LOGICAL ::    &
   ldovardif,  & !berechne (teil-)implizite Vert.diff von Mod.var 1-ter Ordnung
   ldogrdcor     !mache Gradientkorrektur bei Berechnung der vertikalen Diffusion
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 !
 ! pointer for density, exner factor and eddy dissipation rate:
   prhon(:,:), prhoh(:,:)
@@ -454,11 +450,7 @@ REAL (KIND=wp), POINTER :: &
   REAL (KIND=wp), TARGET :: &
     tinc(nmvar+ndtr)
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
   REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-  REAL (KIND=wp), POINTER :: &
-#endif
 !
 !   Pointer fuer Tendenzfelder:
     utens(:,:), vtens(:,:), &
@@ -468,19 +460,11 @@ REAL (KIND=wp), POINTER :: &
 ! The following buffers wouldn't be necessary, if the related pointers above
 ! were allowed to be allocated at run time:
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
   REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
-#else
-  REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
-#endif
 !
     cur_prof, dvar_av, dvar_at, vtyp_tkv
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
   REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-  REAL (KIND=wp), POINTER :: &
-#endif
   dvar_sv(:)
 
   LOGICAL ::  &

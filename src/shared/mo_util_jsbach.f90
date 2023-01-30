@@ -1418,11 +1418,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS &
-#endif
-      ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL    :: new_element         ! pointer to new var list element
@@ -1494,11 +1490,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS &
-#endif
-      ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL :: new_element           ! pointer to new var list element
@@ -1567,11 +1559,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL  :: new_element           ! pointer to new var list element

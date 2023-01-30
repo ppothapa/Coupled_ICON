@@ -18,7 +18,6 @@
 !!
 !! TODO: ctfreez in echam = 271.38, this is 271.45 K
 !
-#include "icon_contiguous_defines.inc"
 MODULE mo_bc_sst_sic
   
   USE mo_kind,               ONLY: dp, i8
@@ -42,8 +41,8 @@ MODULE mo_bc_sst_sic
   PRIVATE
 
   TYPE t_ext_sea
-    REAL(dp), CONTIGUOUS_POINTER :: sst(:,:,:) => NULL()
-    REAL(dp), CONTIGUOUS_POINTER :: sic(:,:,:) => NULL()
+    REAL(dp), CONTIGUOUS, POINTER :: sst(:,:,:) => NULL()
+    REAL(dp), CONTIGUOUS, POINTER :: sic(:,:,:) => NULL()
   END TYPE t_ext_sea
 
   TYPE(t_ext_sea), TARGET :: ext_sea(max_dom)
@@ -144,7 +143,7 @@ CONTAINS
   SUBROUTINE read_sst_sic_data(p_patch, dst, fn, y)
 !TODO: switch to reading via mo_read_netcdf_distributed?
     TYPE(t_patch), INTENT(in) :: p_patch
-    REAL(dp), CONTIGUOUS_ARGUMENT(INOUT) :: dst(:,:,imonth_beg:)
+    REAL(dp), CONTIGUOUS, INTENT(INOUT) :: dst(:,:,imonth_beg:)
     CHARACTER(len=*), INTENT(IN) :: fn
     INTEGER(i8), INTENT(in) :: y
     REAL(dp), ALLOCATABLE :: zin(:)
@@ -244,7 +243,7 @@ CONTAINS
     REAL(dp) :: zts(SIZE(tsw,1),SIZE(tsw,2))
     REAL(dp) :: zic(SIZE(tsw,1),SIZE(tsw,2))
     REAL(dp) :: ztsw(SIZE(tsw,1),SIZE(tsw,2))
-    REAL(dp), CONTIGUOUS_POINTER :: sst(:,:,:), sic(:,:,:)
+    REAL(dp), CONTIGUOUS, POINTER :: sst(:,:,:), sic(:,:,:)
 
     INTEGER  :: jc, jb, jg, jce, nblk
 #ifdef _OPENACC

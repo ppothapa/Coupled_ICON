@@ -39,7 +39,6 @@
 
 !----------------------------
 #include "omp_definitions.inc"
-#include "icon_contiguous_defines.inc"
 !----------------------------
 
 MODULE mo_nwp_gscp_interface
@@ -113,8 +112,8 @@ CONTAINS
     TYPE(t_patch)          , INTENT(in)   :: p_patch        !!<grid/patch info.
     TYPE(t_nh_metrics)     , INTENT(in)   :: p_metrics
     TYPE(t_nh_prog)        , INTENT(inout):: p_prog          !<the dyn prog vars
-    REAL(wp), CONTIGUOUS_ARGUMENT(inout) :: ptr_tracer(:,:,:,:)
-    REAL(wp), CONTIGUOUS_ARGUMENT(in) :: ptr_tke(:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(inout) :: ptr_tracer(:,:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(in) :: ptr_tke(:,:,:)
     TYPE(t_nh_diag)        , INTENT(inout):: p_diag          !<the dyn diag vars
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag        !<the atm phys vars
     TYPE(t_nwp_phy_tend)   , TARGET, INTENT(inout):: prm_nwp_tend    !< atm tend vars
