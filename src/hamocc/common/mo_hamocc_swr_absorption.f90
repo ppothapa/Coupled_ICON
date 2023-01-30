@@ -18,7 +18,7 @@ MODULE mo_hamocc_swr_absorption
 
 CONTAINS
 
-SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicomo, dzw)
+SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicomo, dzw, use_acc)
 
     TYPE(t_bgc_memory), POINTER :: local_bgc_mem
     INTEGER, INTENT(in):: start_idx
@@ -27,6 +27,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
     REAL(wp), INTENT(in):: pfswr(bgc_nproma)
     REAL(wp), INTENT(in):: psicomo(bgc_nproma)
     REAL(wp), INTENT(in):: dzw(bgc_nproma,bgc_zlevs)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     !! Analogue to Zielinski et al., Deep-Sea Research II 49 (2002), 3529-3542
 
@@ -47,12 +48,19 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
     REAL(wp) :: rcyano
 
     INTEGER :: k, kpke, j
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     ! if prognostic cyanobacteria are calculated
     ! use them in absorption (rcyano=1)
     rcyano=merge(1._wp,0._wp,l_cyadyn)
 
- 
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO j = start_idx, end_idx
 
       local_bgc_mem%strahl(j) = pfswr(j) * (1._wp - psicomo(j))
@@ -66,7 +74,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
 
       swr_r = redfrac
       swr_b = (1._wp-redfrac)
-
+      !$ACC LOOP SEQ
       DO k=2,kpke
  
            swr_r = swr_r * EXP(-dzw(j,k-1) *  atten_r)
@@ -75,6 +83,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
            local_bgc_mem%swr_frac(j,k) = swr_r + swr_b
 
       END DO
+      !$ACC LOOP SEQ
       DO k=1,kpke-1
            local_bgc_mem%meanswr(j,k) = (local_bgc_mem%swr_frac(j,k) + local_bgc_mem%swr_frac(j,k+1))/2._wp
       END DO
@@ -82,7 +91,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
 
       ENDIF
    ENDDO
- 
+   !$ACC END PARALLEL
  
 
 END SUBROUTINE swr_absorption

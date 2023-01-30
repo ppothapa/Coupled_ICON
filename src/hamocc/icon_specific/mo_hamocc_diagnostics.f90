@@ -29,7 +29,10 @@ MODULE mo_hamocc_diagnostics
 
    USE mo_name_list_output_init, ONLY: isRegistered
    USE mo_statistics, ONLY: levels_horizontal_mean
-
+#ifdef _OPENACC
+   USE mo_mpi,                      ONLY: i_am_accel_node
+   USE openacc
+#endif
 
 IMPLICIT NONE
 
@@ -40,19 +43,28 @@ PUBLIC:: get_inventories, get_monitoring,get_omz
 
 CONTAINS
 
-SUBROUTINE get_omz(hamocc_state, p_patch_3d, pddpo, ssh)
+SUBROUTINE get_omz(hamocc_state, p_patch_3d, pddpo, ssh, use_acc)
 
 TYPE(t_hamocc_state) :: hamocc_state
 TYPE(t_patch_3d ),TARGET, INTENT(in)   :: p_patch_3d
 REAL(wp), INTENT(IN) :: pddpo(:,:,:)
 REAL(wp), INTENT(IN) :: ssh(:,:)
+LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
 ! Local variables
-INTEGER :: jc,  jb
+INTEGER :: jc, jb, jk
 INTEGER :: start_index, end_index
 TYPE(t_subset_range), POINTER :: all_cells
 INTEGER:: i_time_stat
-INTEGER:: max_lev, komz
+INTEGER:: max_lev, omz_depth_index
+REAL(wp):: ref_o2
+LOGICAL :: lacc
+
+IF (PRESENT(use_acc)) THEN
+  lacc = use_acc
+ELSE
+  lacc = .FALSE.
+END IF
 
 all_cells => p_patch_3d%p_patch_2d(1)%cells%ALL
 i_time_stat=nold(1)
@@ -61,59 +73,49 @@ i_time_stat=nold(1)
 DO jb = all_cells%start_block, all_cells%end_block
 
     CALL get_index_range(all_cells, jb, start_index, end_index)
-    
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jc=start_index, end_index
      
-       max_lev = p_patch_3D%p_patch_1d(1)%dolic_c(jc,jb) 
+      max_lev = p_patch_3D%p_patch_1d(1)%dolic_c(jc,jb) 
 
-      if (max_lev > 0)then
+      IF (max_lev > 0)then
 
-       komz=calc_omz_depth_index(max_lev,hamocc_state%p_prog(i_time_stat)%tracer(jc,:,jb,ioxygen))
+        !omz_depth_index = calc_omz_depth_index(max_levels,o2)
+        omz_depth_index=max_lev
+        ref_o2=100._wp
+        !$ACC LOOP SEQ
+        DO jk = 1, max_lev
+          IF (hamocc_state%p_prog(i_time_stat)%tracer(jc,jk,jb,ioxygen) < ref_o2)then
+            omz_depth_index=jk
+            ref_o2 = hamocc_state%p_prog(i_time_stat)%tracer(jc,jk,jb,ioxygen)
+          END IF
+        END DO
 
-      !o2min = o2(jc,calc_omz_depth_index(max_levels,o2),jb) in mol m-3
-       hamocc_state%p_tend%o2min(jc,jb)=kilo*hamocc_state%p_prog(i_time_stat)%tracer(jc,komz,jb,ioxygen)
+        !o2min = o2(jc,omz_depth_index,jb) in mol m-3
+        hamocc_state%p_tend%o2min(jc,jb)=kilo*hamocc_state%p_prog(i_time_stat)%tracer(jc,omz_depth_index,jb,ioxygen)
     
-      !zo2min = sum(thickness(1:calc_omz_depth_index(max_levels,o2))) + zeta
-       hamocc_state%p_tend%zo2min(jc,jb)=SUM(pddpo(jc,1:komz,jb))+ ssh(jc,jb)
+        !zo2min = sum(thickness(1:omz_depth_index)) + zeta
+        hamocc_state%p_tend%zo2min(jc,jb)=SUM(pddpo(jc,1:omz_depth_index,jb)) + ssh(jc,jb)
 
-       endif
+       END IF
 
-    ENDDO
+    END DO
+    !$ACC END PARALLEL
 
-ENDDO
+END DO
 
 END SUBROUTINE get_omz
 
-!<Optimize:inUse>
-  FUNCTION calc_omz_depth_index(max_lev, oxygen) &
-    & result(omz_depth_index)
-  ! get the level index of the shallowest O2 minimum
-  INTEGER,  INTENT(in)  :: max_lev
-  REAL(wp), INTENT(in)  :: oxygen(n_zlev)
-  INTEGER :: omz_depth_index
-  INTEGER :: jk
-  REAL(wp) :: ref_o2
-
-   omz_depth_index=max_lev
-   ref_o2=100._wp
-  
-   DO jk = 1, max_lev
-    if (oxygen(jk) < ref_o2)then
-      omz_depth_index=jk
-      ref_o2 = oxygen(jk)
-    endif
-   ENDDO
-
-  END FUNCTION calc_omz_depth_index
-
-  SUBROUTINE get_monitoring(hamocc_state, tracer, ssh, pddpo, p_patch_3d)
+  SUBROUTINE get_monitoring(hamocc_state, tracer, ssh, pddpo, p_patch_3d, use_acc)
 
     USE mo_memory_bgc, ONLY: n2prod, doccya_fac, rcar
     TYPE(t_hamocc_state) :: hamocc_state
     REAL(wp), INTENT(IN) :: ssh(:,:)
     REAL(wp), INTENT(IN) :: pddpo(:,:,:)
     REAL(wp), INTENT(IN) :: tracer(:,:,:,:)
-    TYPE(t_patch_3d ),TARGET, INTENT(in)   :: p_patch_3d
+    TYPE(t_patch_3d),TARGET, INTENT(in)   :: p_patch_3d
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     REAL(wp) :: glob_n2b, glob_pwn2b, glob_srf_thick
     REAL(wp) :: glob_det, glob_doc, glob_phy, glob_zoo, glob_cya
@@ -122,6 +124,13 @@ END SUBROUTINE get_omz
 
     TYPE(t_patch), POINTER :: patch_2d
     TYPE(t_subset_range), POINTER :: owned_cells
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2d => p_patch_3d%p_patch_2d(1)
     owned_cells    => patch_2d%cells%owned
@@ -542,7 +551,7 @@ END SUBROUTINE get_omz
     hamocc_state%p_tend%monitor%cyaldoc(1)      = hamocc_state%p_tend%monitor%cyaldet(1) * p2gtc * doccya_fac
     hamocc_state%p_tend%monitor%cyaldet(1)      = hamocc_state%p_tend%monitor%cyaldet(1) * p2gtc *(1._wp - doccya_fac)
 
-    CALL levels_horizontal_mean(pddpo(:,1,:), patch_2d%cells%area(:,:), owned_cells, glob_srf_thick)
+    CALL levels_horizontal_mean(pddpo(:,1,:), patch_2d%cells%area(:,:), owned_cells, glob_srf_thick, lopenacc=lacc)
 
     ! mean values of surface concentrations
     hamocc_state%p_tend%monitor%sfalk(1)        = hamocc_state%p_tend%monitor%sfalk(1)/totalarea/glob_srf_thick
@@ -976,6 +985,8 @@ INTEGER:: jk
 REAL(wp) :: ptmp
 TYPE(t_patch), POINTER :: patch_2d
 
+!$ACC UPDATE HOST(pfield3d) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+
 patch_2d => patch3D%p_patch_2d(1)
 
 field_globsum=0._wp
@@ -1020,6 +1031,8 @@ INTEGER:: jk
 TYPE(t_patch), POINTER :: patch_2d
 REAL(wp) :: ptmp
 
+!$ACC UPDATE HOST(pfield3d) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+
 patch_2d => patch3D%p_patch_2d(1)
 
 field_globsum=0._wp
@@ -1050,6 +1063,8 @@ INTEGER,  OPTIONAL :: jk
 ! Local
 TYPE(t_patch), POINTER :: patch_2d
 INTEGER :: ik
+
+!$ACC UPDATE HOST(pfield2d) IF(i_am_accel_node .AND. acc_is_present(pfield2d))
 
 patch_2d => patch3D%p_patch_2d(1)
 

@@ -62,7 +62,7 @@ CONTAINS
   !! Dirk Notz, following MPI-OM. Code transfered to ICON.
   !!
   SUBROUTINE set_ice_albedo(i_startidx_c, i_endidx_c, nbdim, kice, Tsurf, hi, hs, &
-      & albvisdir, albvisdif, albnirdir, albnirdif)
+      & albvisdir, albvisdif, albnirdir, albnirdif, use_acc)
 
     INTEGER, INTENT(IN)  :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)  :: Tsurf(nbdim,kice)
@@ -72,20 +72,28 @@ CONTAINS
     REAL(wp),INTENT(OUT) :: albvisdif  (nbdim,kice)
     REAL(wp),INTENT(OUT) :: albnirdir  (nbdim,kice)
     REAL(wp),INTENT(OUT) :: albnirdif  (nbdim,kice)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
 
     !Local variables
     REAL(wp), PARAMETER :: albtrans   = 0.5_wp
     REAL(wp)            :: albflag, frac_snow
     INTEGER             :: jc,k
+    LOGICAL :: lacc
     !-------------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(Tsurf, hi, hs, albvisdir, albvisdif, albnirdir, albnirdif)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(Tsurf, hi, hs, albvisdir, albvisdif, albnirdir, albnirdif) IF(lacc)
 
     SELECT CASE (i_ice_albedo)
     CASE (1)
       ! This is Uwe's albedo expression from the old budget function
-      !$ACC PARALLEL
+      !$ACC PARALLEL IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR PRIVATE(albflag)
@@ -108,7 +116,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! all albedos are the same
-      !$ACC PARALLEL
+      !$ACC PARALLEL IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -122,7 +130,7 @@ CONTAINS
 
     CASE (2)
       ! This is the CCSM 3 albedo scheme
-      !$ACC PARALLEL
+      !$ACC PARALLEL IF(lacc)
       !$ACC LOOP SEQ
 !PREVENT_INCONSISTENT_IFORT_FMA
       DO k=1,kice
@@ -143,7 +151,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! diffuse and direct albedos are the same
-      !$ACC PARALLEL
+      !$ACC PARALLEL IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR

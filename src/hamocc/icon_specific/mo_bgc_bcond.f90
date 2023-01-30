@@ -27,6 +27,7 @@ USE mo_master_control,       ONLY: get_my_process_name
   USE mo_model_domain,       ONLY: t_patch, t_patch_3D
   USE mo_exception,          ONLY: message, message_text, finish
   USE mo_grid_config,        ONLY: n_dom
+  USE mo_grid_subset,        ONLY: get_index_range, t_subset_range
   USE mo_mpi,                ONLY: my_process_is_stdio
   USE mo_hamocc_types,       ONLY: t_hamocc_bcond
   USE mo_var_list,           ONLY: add_var, t_var_list_ptr
@@ -108,6 +109,8 @@ CONTAINS
     ELSE
      CALL read_ext_data_bgc(p_patch, ext_data)
     ENDIF
+
+    !$ACC ENTER DATA COPYIN(ext_data_bgc, ext_data_bgc%dusty, ext_data_bgc%nitro)
 
   END SUBROUTINE construct_bgc_ext_data
   !-------------------------------------------------------------------------
@@ -522,17 +525,27 @@ CONTAINS
 
 !<Optimize:inUse>
 
-   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime)
+   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime, use_acc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hamocc_bcond)                        :: bgc_ext
     TYPE(datetime), INTENT(IN)                  :: this_datetime
+    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
 
   
  ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_bgc_bcond:update_bgc_bcond'
     INTEGER  :: jmon, jdmon, jmon1, jmon2
     REAL(wp) :: rday1, rday2
+    INTEGER  :: jc, jb, startidx, endidx
+    TYPE(t_subset_range), POINTER :: all_cells
+    TYPE(t_patch), POINTER :: p_patch
+    LOGICAL :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
 
     !  calculate day and month
@@ -561,12 +574,20 @@ CONTAINS
        bgc_ext%prcaca(:,:) = ext_data(1)%bgc%prcaca(:,:) 
        bgc_ext%produs(:,:) = ext_data(1)%bgc%produs(:,:) 
        bgc_ext%silpro(:,:) = ext_data(1)%bgc%silpro(:,:) 
-      ELSE 
-       bgc_ext%dusty(:,:) = rday1*ext_data(1)%bgc%dust(:,jmon1,:) + &
-       &                                   rday2*ext_data(1)%bgc%dust(:,jmon2,:)
-    
-       bgc_ext%nitro(:,:) = rday1*ext_data(1)%bgc%nitro(:,jmon1,:) + &
-       &                                   rday2*ext_data(1)%bgc%nitro(:,jmon2,:)
+      ELSE
+       p_patch => p_patch_3D%p_patch_2D(1)
+       all_cells => p_patch%cells%all
+       DO jb = all_cells%start_block, all_cells%end_block
+         call get_index_range(all_cells, jb, startidx, endidx)
+         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+         DO jc = startidx, endidx
+           bgc_ext%dusty(jc,jb) = rday1*ext_data(1)%bgc%dust(jc,jmon1,jb) + &
+           &                                   rday2*ext_data(1)%bgc%dust(jc,jmon2,jb)
+           bgc_ext%nitro(jc,jb) = rday1*ext_data(1)%bgc%nitro(jc,jmon1,jb) + &
+           &                                   rday2*ext_data(1)%bgc%nitro(jc,jmon2,jb)
+         END DO
+         !$ACC END PARALLEL
+       END DO
       ENDIF
 
   END SUBROUTINE update_bgc_bcond

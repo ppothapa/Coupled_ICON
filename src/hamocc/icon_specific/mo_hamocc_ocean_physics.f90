@@ -43,7 +43,12 @@
     USE mo_ocean_tracer_dev,       ONLY: advect_ocean_tracers_dev, advect_ocean_tracers_GMRedi_zstar
     USE mo_ocean_physics_types,    ONLY: v_params
     USE mo_ocean_state,            ONLY: ocean_state
- 
+
+    ! OpenACC data movement - to be deleted later on
+    USE mo_bgc_memory_types, ONLY: t_bgc_memory, t_sediment_memory, t_aggregates_memory, &
+                                 & bgc_local_memory, sediment_local_memory, aggregates_memory
+
+
     IMPLICIT NONE
     PRIVATE
 
@@ -73,13 +78,23 @@
     REAL(wp) :: ssh(bgc_nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: ssh_new(bgc_nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
 
+    ! OpenACC data movement - to be deleted later on
+    TYPE(t_bgc_memory), POINTER :: local_bgc_memory
+    TYPE(t_sediment_memory), POINTER :: local_sediment_memory
+    TYPE(t_aggregates_memory), POINTER :: local_aggregate_memory
+    INTEGER :: local_memory_idx
+
     INTEGER :: i, jk
+    LOGICAL :: lacc
     
     transport_state => hamocc_ocean_state%ocean_transport_state
     patch_3d => transport_state%patch_3d
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
     hamocc_state_prog => hamocc_state%p_prog(nold(1))
+
+    ! 2023-01 dzo-DKRZ: Use OpenACC directives in called functions for GPU runs
+    lacc = .TRUE.
 
     !----------------------------------------------------------------------
 
@@ -113,29 +128,36 @@
       CALL offline_sediment(patch_3d, hamocc_ocean_state, current_time, ssh, pddpo, ptiestu)
       RETURN
     ENDIF
-    
+
+    !$ACC DATA COPY(pddpo, pddpo_new, ptiestu, ssh, ssh_new)
+
+    ! OpenACC data movement - to be deleted later on
+    local_memory_idx = 0
+    local_bgc_memory => bgc_local_memory(local_memory_idx)
+    local_sediment_memory => sediment_local_memory(local_memory_idx)
+    local_aggregate_memory => aggregates_memory(local_memory_idx)
+
+
     IF (vert_cor_type == 1) THEN ! z* coordinate
       CALL dilute_hamocc_tracers_zstar(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, &
                   &              ocean_to_hamocc_state%stretch_c, hamocc_state%p_prog(nold(1)))
     ELSE
-      CALL dilute_hamocc_tracers(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, hamocc_state%p_prog(nold(1)))
+      CALL dilute_hamocc_tracers(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, hamocc_state%p_prog(nold(1)), use_acc=lacc)
     ENDIF
     !------------------------------------------------------------------------
     
-    CALL update_bgc_bcond( patch_3d, ext_data_bgc,  current_time)   
-      
+    CALL update_bgc_bcond(patch_3d, ext_data_bgc, current_time, use_acc=lacc)   
+
     !------------------------------------------------------------------------
     ! call HAMOCC
     if(ltimer) call timer_start(timer_bgc_tot)
-    CALL bgc_icon(patch_3d, hamocc_ocean_state, ssh, pddpo, ptiestu)
+    CALL bgc_icon(patch_3d, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc=lacc)
     if(ltimer) call timer_stop(timer_bgc_tot)
-
 
     IF (l_bgc_check) THEN
       CALL message('3. after bgc + fluxes and weathering', 'inventories', io_stdo_bgc)
       CALL get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, patch_3d, 0._wp, 0._wp)
     ENDIF
-
 
     !------------------------------------------------------------------------
     ! transport tracers and diffuse them
@@ -143,11 +165,10 @@
     old_tracer_collection => hamocc_state%p_prog(nold(1))%tracer_collection
     new_tracer_collection => hamocc_state%p_prog(nnew(1))%tracer_collection
 
-
     DO i = 1, old_tracer_collection%no_of_tracers
-        old_tracer_collection%tracer(i)%hor_diffusion_coeff => ocean_to_hamocc_state%hor_diffusion_coeff
-        old_tracer_collection%tracer(i)%ver_diffusion_coeff => ocean_to_hamocc_state%ver_diffusion_coeff
-    ENDDO
+      old_tracer_collection%tracer(i)%hor_diffusion_coeff => ocean_to_hamocc_state%hor_diffusion_coeff
+      old_tracer_collection%tracer(i)%ver_diffusion_coeff => ocean_to_hamocc_state%ver_diffusion_coeff
+    END DO
 
     start_timer(timer_bgc_tracer_ab,1)
     hamocc_state_prog => hamocc_state%p_prog(nnew(1))
@@ -173,7 +194,8 @@
       ENDIF
     ELSE
       IF (GMRedi_configuration == Cartesian_Mixing) THEN
-        CALL advect_ocean_tracers(old_tracer_collection, new_tracer_collection, transport_state, operators_coefficients)
+        CALL advect_ocean_tracers(old_tracer_collection, new_tracer_collection, transport_state, &
+             &  operators_coefficients, use_acc=lacc)
       ELSE
         IF (my_process_is_hamocc() ) THEN
           CALL finish("concurrent HAMOCC", "GMRedi is not possible at present")
@@ -192,9 +214,13 @@
       CALL get_inventories(hamocc_state, ssh_new, pddpo_new, hamocc_state%p_prog(nnew(1))%tracer, patch_3d, 0._wp, 0._wp)
     ENDIF
     !------------------------------------------------------------------------
-    
+
+    ! Update on the host the ocean variables modified inside HAMOCC
+    !$ACC UPDATE HOST(hamocc_to_ocean_state%swr_fraction, hamocc_to_ocean_state%co2_flux)
+
      CALL get_monitoring( hamocc_state, hamocc_state%p_prog(nnew(1))%tracer, ssh_new, pddpo_new, patch_3d)
     !------------------------------------------------------------------------
+    !$ACC END DATA
 
     END SUBROUTINE tracer_biochemistry_transport
 
@@ -222,31 +248,42 @@
     END SUBROUTINE offline_sediment
 
 
-    SUBROUTINE DILUTE_HAMOCC_TRACERS(p_patch_3D, top_dilution_coeff, hamocc_state_prog)
+    SUBROUTINE DILUTE_HAMOCC_TRACERS(p_patch_3D, top_dilution_coeff, hamocc_state_prog, use_acc)
     ! HAMOCC tracer dilution using old and new h
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)     :: p_patch_3D
     TYPE(t_hamocc_prog), INTENT(inout)       :: hamocc_state_prog
     REAL(wp), INTENT(in)                     :: top_dilution_coeff(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     ! Local variables
     INTEGER:: jb, jc, i_bgc_tra, i_startidx_c, i_endidx_c
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: p_patch
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     p_patch => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch%cells%all
 
     DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
             IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
+                !$ACC LOOP SEQ
                 DO i_bgc_tra = 1, n_bgctra
                      hamocc_state_prog%tracer(jc,1,jb,i_bgc_tra)  = hamocc_state_prog%tracer(jc,1,jb,i_bgc_tra) &
     &                                                               * top_dilution_coeff(jc,jb)
                 ENDDO
             endif
         ENDDO
+        !$ACC END PARALLEL
     ENDDO
 
    END SUBROUTINE DILUTE_HAMOCC_TRACERS

@@ -40,7 +40,10 @@ MODULE mo_ocean_tracer_diffusion
   IMPLICIT NONE
   
   PRIVATE
-  
+
+  !> module name string
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_ocean_tracer_diffusion'
+
   ! !VERSION CONTROL:
   CHARACTER(LEN=*), PARAMETER :: version = '$Id$'
   CHARACTER(LEN=12)           :: str_module    = 'oceDiffusion'  ! Output of module for 1 line debug
@@ -60,88 +63,127 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   !Subroutine computes the horizontal diffusive flux of an arbitrary tracer.
-   SUBROUTINE tracer_diffusion_horz(patch_3D, trac_in, diff_flx, k_t, subset_range)
+   SUBROUTINE tracer_diffusion_horz(patch_3D, trac_in, diff_flx, k_t, subset_range, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3D
     REAL(wp), INTENT(in)              :: trac_in(nproma,n_zlev,patch_3D%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)           :: diff_flx(nproma,n_zlev,patch_3D%p_patch_2d(1)%nblks_e)
     REAL(wp), OPTIONAL                :: k_t(:,:,:) !mixing coefficient for tracer    
     TYPE(t_subset_range), TARGET, INTENT(in), OPTIONAL :: subset_range
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     !Local variables
     INTEGER :: level, blockNo, edge_index
     INTEGER :: il_c1, ib_c1, il_c2, ib_c2
-    INTEGER :: start_edge_index, end_edge_index
+    INTEGER :: start_edge_index, end_edge_index, start_block, end_block
+    LOGICAL :: is_in_domain
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
+    LOGICAL :: lacc
+
+    ! Pointers needed for GPU/OpenACC
+    INTEGER,  DIMENSION(:,:),   POINTER :: dolic_e
+    INTEGER,  DIMENSION(:,:,:), POINTER :: cell_idx
+    INTEGER,  DIMENSION(:,:,:), POINTER :: cell_blk
+    REAL(wp), DIMENSION(:,:,:), POINTER :: prism_thick_e
+    REAL(wp), DIMENSION(:,:),   POINTER :: inv_dual_edge_length
     ! CHARACTER(len=max_char_length), PARAMETER :: &
     !        & routine = ('mo_ocediffusion:tracer_diffusion_horz')
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3D%p_patch_2d(1)
     edges_in_domain => patch_2D%edges%in_domain
     !-------------------------------------------------------------------------------
-    
+    dolic_e => patch_3D%p_patch_1d(1)%dolic_e
+    cell_idx => patch_2D%edges%cell_idx
+    cell_blk => patch_2D%edges%cell_blk
+    prism_thick_e => patch_3D%p_patch_1d(1)%prism_thick_e
+    inv_dual_edge_length => patch_2D%edges%inv_dual_edge_length
+    !-------------------------------------------------------------------------------
+    start_block = edges_in_domain%start_block
+    end_block = edges_in_domain%end_block
+
+    IF (PRESENT(subset_range)) THEN
+      is_in_domain = subset_range%is_in_domain
+    END IF
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
   IF(PRESENT(k_t))THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
-    DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       diff_flx(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
-        il_c1 = patch_2D%edges%cell_idx(edge_index,blockNo,1)
-        ib_c1 = patch_2D%edges%cell_blk(edge_index,blockNo,1)
-        il_c2 = patch_2D%edges%cell_idx(edge_index,blockNo,2)
-        ib_c2 = patch_2D%edges%cell_blk(edge_index,blockNo,2)
+        il_c1 = cell_idx(edge_index,blockNo,1)
+        ib_c1 = cell_blk(edge_index,blockNo,1)
+        il_c2 = cell_idx(edge_index,blockNo,2)
+        ib_c2 = cell_blk(edge_index,blockNo,2)
 
-        DO level=1,  patch_3D%p_patch_1d(1)%dolic_e(edge_index,blockNo)
+        DO level=1,  dolic_e(edge_index,blockNo)
           
           diff_flx(edge_index,level,blockNo) = &
             &   k_t(edge_index,level,blockNo) &
-            & * patch_3D%p_patch_1d(1)%prism_thick_e(edge_index,level,blockNo)  &
+            & * prism_thick_e(edge_index,level,blockNo)  &
             & * (trac_in(il_c2,level,ib_c2) - trac_in(il_c1,level,ib_c1))       &
-            & * patch_2D%edges%inv_dual_edge_length(edge_index,blockNo)
+            & * inv_dual_edge_length(edge_index,blockNo)
             
         ENDDO
         
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
-      IF (.NOT. subset_range%is_in_domain) &
+      IF (.NOT. is_in_domain) &
         & CALL sync_patch_array(sync_e, patch_2D, diff_flx)
-    ENDIF    
-    
+    ENDIF
+
   ELSEIF(.NOT.PRESENT(k_t))THEN  
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
-    DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       diff_flx(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
-        il_c1 = patch_2D%edges%cell_idx(edge_index,blockNo,1)
-        ib_c1 = patch_2D%edges%cell_blk(edge_index,blockNo,1)
-        il_c2 = patch_2D%edges%cell_idx(edge_index,blockNo,2)
-        ib_c2 = patch_2D%edges%cell_blk(edge_index,blockNo,2)
+        il_c1 = cell_idx(edge_index,blockNo,1)
+        ib_c1 = cell_blk(edge_index,blockNo,1)
+        il_c2 = cell_idx(edge_index,blockNo,2)
+        ib_c2 = cell_blk(edge_index,blockNo,2)
 
-        DO level=1,  patch_3D%p_patch_1d(1)%dolic_e(edge_index,blockNo)
+        DO level=1, dolic_e(edge_index,blockNo)
           
           diff_flx(edge_index,level,blockNo) = &
-            & patch_3D%p_patch_1d(1)%prism_thick_e(edge_index,level,blockNo)  &
+            & prism_thick_e(edge_index,level,blockNo)  &
             & * (trac_in(il_c2,level,ib_c2) - trac_in(il_c1,level,ib_c1))       &
-            & * patch_2D%edges%inv_dual_edge_length(edge_index,blockNo)
+            & * inv_dual_edge_length(edge_index,blockNo)
             
         ENDDO
         
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
-      IF (.NOT. subset_range%is_in_domain) &
+      IF (.NOT. is_in_domain) &
         & CALL sync_patch_array(sync_e, patch_2D, diff_flx)
-    ENDIF 
+    ENDIF
+
   ENDIF  
     
   END SUBROUTINE tracer_diffusion_horz
@@ -274,22 +316,32 @@ CONTAINS
     & patch_3d,                  &
     & ocean_tracer,              &
     & a_v,                       &
-    & h) !,  &
+    & h, use_acc) !,  &
     ! & diff_column)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: ocean_tracer
     REAL(wp), INTENT(inout)              :: a_v(:,:,:)
     REAL(wp), INTENT(in)                 :: h(:,:)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     INTEGER :: cell_block, start_index, end_index
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    LOGICAL :: lacc
 
     start_timer(timer_dif_vert,4)
+
     !-----------------------------------------------------------------------
     cells_in_domain       =>  patch_3d%p_patch_2d(1)%cells%in_domain
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     IF (oldDateString /= getCurrentDate_to_String()) THEN 
       eliminate_upper_diag = .not. eliminate_upper_diag
       oldDateString = getCurrentDate_to_String()
@@ -310,7 +362,7 @@ CONTAINS
           & ocean_tracer,                   &
           & a_v(:,:,cell_block),            &
           & h(:,cell_block),                &
-          & cell_block, start_index, end_index)
+          & cell_block, start_index, end_index, use_acc=lacc)
 
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -324,7 +376,7 @@ CONTAINS
           & ocean_tracer,                   &
           & a_v(:,:,cell_block),            &
           & h(:,cell_block),                &
-          & cell_block, start_index, end_index)
+          & cell_block, start_index, end_index, use_acc=lacc)
 
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -467,7 +519,7 @@ CONTAINS
     & ocean_tracer,            &
     & a_v,                     &
     & h,                       &
-    & blockNo, start_index, end_index) !,  &
+    & blockNo, start_index, end_index, use_acc) !,  &
     ! & diff_column)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -475,6 +527,7 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:)
     REAL(wp), INTENT(in)                 :: h(:)
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     !
     REAL(wp) :: inv_prism_thickness(nproma,1:n_zlev), inv_prisms_center_distance(nproma,1:n_zlev)
@@ -487,6 +540,12 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
     REAL(wp) :: top_cell_thickness(nproma)
+    LOGICAL :: lacc
+    CHARACTER(len=*), PARAMETER :: routine = modname//':tracer_diffusion_vertical_implicit_onBlock_lvector'
+
+#ifdef _OPENACC
+    CALL finish(routine, 'This version is not intended for OpenACC')
+#endif
 
 !     REAL(wp) :: tmp, tmp_add
     !-----------------------------------------------------------------------
@@ -495,7 +554,13 @@ CONTAINS
     field_column    => ocean_tracer%concentration
     !-----------------------------------------------------------------------
 !     dt_inv = 1.0_wp/dtime
-    
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     DO cell_index = start_index, end_index
       bottom_level(cell_index) = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
       IF (bottom_level(cell_index) < 2 ) CYCLE ! nothing to diffuse
@@ -624,7 +689,7 @@ CONTAINS
     & ocean_tracer,            &
     & a_v,                     &
     & h,                       &
-    & blockNo, start_index, end_index) !,  &
+    & blockNo, start_index, end_index, use_acc) !,  &
     ! & diff_column)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -632,6 +697,7 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:)
     REAL(wp), INTENT(in)                 :: h(:)
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     !
     REAL(wp) :: inv_prism_thickness(nproma,1:n_zlev), inv_prisms_center_distance(nproma,1:n_zlev)
@@ -639,39 +705,66 @@ CONTAINS
     REAL(wp) :: fact(nproma,1:n_zlev)
     REAL(wp) :: column_tracer(nproma,1:n_zlev)
     REAL(wp), POINTER :: field_column(:,:,:)
-    INTEGER :: bottom_level(nproma)
+    INTEGER :: bottom_level(nproma), max_bottom_level
     INTEGER :: cell_index, level
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
     REAL(wp) :: top_cell_thickness(nproma)
+    LOGICAL :: lacc
 
 !     REAL(wp) :: tmp, tmp_add
+
+    ! Pointers needed for GPU/OpenACC
+    INTEGER, POINTER :: dolic_c(:,:)
+    REAL(wp), POINTER :: inv_prism_thick_c(:,:,:), inv_prism_center_dist_c(:,:,:)
+    REAL(wp), POINTER :: prism_thick_flat_sfc_c(:,:,:)
+
     !-----------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2d%cells%in_domain
     field_column    => ocean_tracer%concentration
     !-----------------------------------------------------------------------
+    dolic_c => patch_3d%p_patch_1d(1)%dolic_c
+    inv_prism_thick_c => patch_3d%p_patch_1d(1)%inv_prism_thick_c
+    inv_prism_center_dist_c => patch_3d%p_patch_1d(1)%inv_prism_center_dist_c
+    prism_thick_flat_sfc_c => patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c
+    !-----------------------------------------------------------------------
 !     dt_inv = 1.0_wp/dtime
-    
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef NAGFOR
     inv_prism_thickness(:,:) = 0.0_wp
     inv_prisms_center_distance(:,:) = 0.0_wp
+#endif
+
+    !$ACC DATA CREATE(a, b, bottom_level, c, column_tracer, fact, inv_prism_thickness) &
+    !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) IF(lacc)
+
+    max_bottom_level = -1
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_bottom_level) IF(lacc)
     DO cell_index = start_index, end_index
-      bottom_level(cell_index) = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
+      bottom_level(cell_index) = dolic_c(cell_index,blockNo)
+      max_bottom_level = MAX(max_bottom_level, bottom_level(cell_index))
       IF (bottom_level(cell_index) < 2 ) CYCLE ! nothing to diffuse
 
       top_cell_thickness(cell_index) = &
-              & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(cell_index,1,blockNo) + h(cell_index)
+              & prism_thick_flat_sfc_c(cell_index,1,blockNo) + h(cell_index)
 
       inv_prism_thickness(cell_index,1) = 1.0_wp /  top_cell_thickness(cell_index)
       
       inv_prisms_center_distance(cell_index,2) = 1.0_wp / ( 0.5_wp * &
-          & (top_cell_thickness(cell_index) + patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(cell_index,2,blockNo))) 
+          & (top_cell_thickness(cell_index) + prism_thick_flat_sfc_c(cell_index,2,blockNo))) 
           
       DO level=2,bottom_level(cell_index)
-        inv_prism_thickness(cell_index, level)        = patch_3d%p_patch_1d(1)%inv_prism_thick_c(cell_index,level,blockNo)
+        inv_prism_thickness(cell_index, level)        = inv_prism_thick_c(cell_index,level,blockNo)
        ENDDO
       DO level=3,bottom_level(cell_index)
-        inv_prisms_center_distance(cell_index,level) = patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(cell_index,level,blockNo)
+        inv_prisms_center_distance(cell_index,level) = inv_prism_center_dist_c(cell_index,level,blockNo)
       ENDDO
       
       DO level=1,bottom_level(cell_index)
@@ -679,37 +772,44 @@ CONTAINS
       ENDDO
           
     ENDDO
-    
+    !$ACC END PARALLEL LOOP
+
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
-    
+
     !  top level
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
 !       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
       a(cell_index,1) = 0.0_wp
       c(cell_index,1) = -a_v(cell_index,2) * inv_prism_thickness(cell_index,1) * inv_prisms_center_distance(cell_index,2)*dtime
     ENDDO
-    
+
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       b(cell_index,1) = 1.0_wp - c(cell_index,1)
     ENDDO
-    
-    
-    DO level=2, MAXVAL(bottom_level(start_index:end_index))-1
+
+    !$ACC LOOP SEQ
+    DO level=2, max_bottom_level-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index = start_index, end_index
         a(cell_index,level) = - a_v(cell_index,level)   * inv_prism_thickness(cell_index,level) * inv_prisms_center_distance(cell_index,level)*dtime
         c(cell_index,level) = - a_v(cell_index,level+1) * inv_prism_thickness(cell_index,level) * inv_prisms_center_distance(cell_index,level+1)*dtime
       END DO
     ENDDO
-    
+
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       DO level=2,bottom_level(cell_index)-1
         b(cell_index,level) = 1.0_wp - a(cell_index,level) - c(cell_index,level)
       END DO
     ENDDO
-    
+
     ! bottom
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
       a(cell_index,bottom_level(cell_index)) = -a_v(cell_index,bottom_level(cell_index)) * &
@@ -717,10 +817,12 @@ CONTAINS
       c(cell_index,bottom_level(cell_index)) = 0.0_wp
       b(cell_index,bottom_level(cell_index)) = 1.0_wp - a(cell_index,bottom_level(cell_index))
     ENDDO
-            
+
     IF (eliminate_upper_diag) THEN
-      ! solve the tridiagonal matrix by eliminating c (the upper diagonal) 
-      DO level=MAXVAL(bottom_level(start_index:end_index))-1,1,-1
+      ! solve the tridiagonal matrix by eliminating c (the upper diagonal)
+      !$ACC LOOP SEQ
+      DO level=max_bottom_level-1,1,-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index = start_index, end_index
           IF (level >= bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
           
@@ -731,13 +833,16 @@ CONTAINS
           
         ENDDO
       ENDDO
-        
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index = start_index, end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
-        ocean_tracer%concentration(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
+        field_column(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
       ENDDO
-      
-      DO level=2,MAXVAL(bottom_level(start_index:end_index))
+
+      !$ACC LOOP SEQ
+      DO level=2,max_bottom_level
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level > bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
           
@@ -747,10 +852,11 @@ CONTAINS
       ENDDO
       
     ELSE
-    
-      ! solve the tridiagonal matrix by eliminating a (the lower diagonal)        
-        
-      DO level=2, MAXVAL(bottom_level(start_index:end_index))
+
+      ! solve the tridiagonal matrix by eliminating a (the lower diagonal)
+      !$ACC LOOP SEQ
+      DO level=2, max_bottom_level
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level > bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
         
@@ -760,15 +866,17 @@ CONTAINS
           column_tracer(cell_index,level) = column_tracer(cell_index,level) - fact(cell_index,level)*column_tracer(cell_index,level-1)
         ENDDO
       ENDDO
-      
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index=start_index,end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
-        ocean_tracer%concentration(cell_index,bottom_level(cell_index),blockNo) = &
+        field_column(cell_index,bottom_level(cell_index),blockNo) = &
             column_tracer(cell_index,bottom_level(cell_index))/b(cell_index,bottom_level(cell_index))
       ENDDO
-      
-      
-      DO level=MAXVAL(bottom_level(start_index:end_index))-1,1,-1
+
+      !$ACC LOOP SEQ
+      DO level=max_bottom_level-1,1,-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level >= bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
         
@@ -779,7 +887,8 @@ CONTAINS
       ENDDO
       
     ENDIF  ! eliminate_upper_diag
-        
+    !$ACC END PARALLEL
+    !$ACC END DATA
   END SUBROUTINE tracer_diffusion_vertical_implicit_onBlock_cpuvector
   !------------------------------------------------------------------------
 
