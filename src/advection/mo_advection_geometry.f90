@@ -418,6 +418,7 @@ CONTAINS
           ! because warnings are otherwise suppressed for all PEs but PE0
           WRITE(0,'(a,a,i5,a,i5,a,i5,a,f8.2,a,f8.2,a,f10.2,a,f10.2)') &
                & 'horizontal CFL number exceeded at:',                &
+               & 'horizontal CFL number exceeded (in divide_flux_area) at:',                &
                & ' je =',je,' jk =',jk,' jb =',jb,                    &
                & ' lon(deg)=',p_patch%edges%center(je,jb)%lon*rad2deg,&
                & ' lat(deg)=',p_patch%edges%center(je,jb)%lat*rad2deg,&
@@ -1310,7 +1311,7 @@ CONTAINS
           ! Note: direct write to standard error output is used here by intention
           ! because warnings are otherwise suppressed for all PEs but PE0
           WRITE(0,'(a,a,i5,a,i5,a,i5,a,f8.2,a,f8.2,a,f10.2,a,f10.2)') &
-               & 'horizontal CFL number exceeded at:',                &
+               & 'horizontal CFL number exceeded (in divide_flux_area_list) at:',                &
                & ' je =',je,' jk =',jk,' jb =',jb,                    &
                & ' lon(deg)=',p_patch%edges%center(je,jb)%lon*rad2deg,&
                & ' lat(deg)=',p_patch%edges%center(je,jb)%lat*rad2deg,&
