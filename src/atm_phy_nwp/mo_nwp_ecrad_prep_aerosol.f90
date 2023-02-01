@@ -28,12 +28,8 @@ MODULE mo_nwp_ecrad_prep_aerosol
   USE mo_fortran_tools,          ONLY: assert_acc_host_only, assert_acc_device_only
 #ifdef __ECRAD
   USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type, t_ecrad_conf, t_opt_ptrs
-  USE mo_aerosol_util,           ONLY: get_nbands_lw_aerosol, get_nbands_sw_aerosol
-#endif
-  USE mo_aerosol_util,           ONLY: tegen_scal_factors
-
-#ifdef __ICON_ART
-  USE mo_art_radiation_interface, ONLY: art_rad_aero_interface
+  USE mo_aerosol_util,           ONLY: get_nbands_lw_aerosol, get_nbands_sw_aerosol,   &
+                                   &   tegen_scal_factors
 #endif
 
   IMPLICIT NONE
@@ -50,7 +46,6 @@ INTERFACE nwp_ecrad_prep_aerosol
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_constant
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_tegen
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_td
-  MODULE PROCEDURE nwp_ecrad_prep_aerosol_art
 END INTERFACE nwp_ecrad_prep_aerosol
   
   
@@ -335,88 +330,5 @@ CONTAINS
   END SUBROUTINE nwp_ecrad_prep_aerosol_td
   !---------------------------------------------------------------------------------------
 
-  !---------------------------------------------------------------------------------------
-  !>
-  !! SUBROUTINE nwp_ecrad_prep_aerosol_art
-  !! Preparation of aerosol optical properties from ART for ecRad. The Subroutine reshapes the ART
-  !! output variables and reverses them vertically. 
-  !!
-  !! @par Revision History
-  !! Initial release by Anika Rohde, KIT, Karlsruhe (2021-09-15)
-  !!
-  !---------------------------------------------------------------------------------------
-  SUBROUTINE nwp_ecrad_prep_aerosol_art ( slev, nlev, i_startidx, i_endidx, jb, jg,   &
-    &                                     nproma, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,  &
-    &                                     ecrad_conf, ecrad_aerosol, lacc )
-    INTEGER, INTENT(in)      :: &
-      &  slev, nlev,            & !< Start and end index of vertical loop
-      &  i_startidx, i_endidx,  & !< Start and end index of horizontal loop
-      &  jb, jg, nproma           !< Block and domain index
-    REAL(wp), INTENT(in)     :: &
-      &  zaeq1(:,:),            & !< Tegen optical thicknesses       1: continental
-      &  zaeq2(:,:),            & !< relative to 550 nm, including   2: maritime
-      &  zaeq3(:,:),            & !< a vertical profile              3: desert
-      &  zaeq4(:,:),            & !< for 5 different                 4: urban
-      &  zaeq5(:,:)               !< aerosol species.                5: stratospheric background
-    TYPE(t_ecrad_conf),        INTENT(in)    :: &
-      &  ecrad_conf                        !< ecRad configuration object
-    TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
-      &  ecrad_aerosol                     !< ecRad aerosol information (input)
-    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
-
-#ifdef __ICON_ART
-    ! Local variables
-    REAL(wp)                                                :: &
-      &  tau_lw_art(nproma, nlev, ecrad_conf%n_bands_lw),     &  !< AOD LW (vertically reversed)      
-      &  tau_sw_art(nproma, nlev, ecrad_conf%n_bands_sw),     &  !< AOD SW (vertically reversed)      
-      &  ssa_sw_art(nproma, nlev, ecrad_conf%n_bands_sw),     &  !< SSA SW (vertically reversed)       
-      &  g_sw_art(nproma,   nlev, ecrad_conf%n_bands_sw)         !< Assymetry parameter SW (vertically reversed)                  
-    INTEGER                  :: &
-      &  jc, jk, jband, jkb          !< Loop indices
-
-    CALL assert_acc_host_only("nwp_ecrad_prep_aerosol_art", lacc)
-
-    CALL art_rad_aero_interface(zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,   & !< Tegen aerosol
-      &                         tegen_scal_factors%absorption,   & !
-      &                         tegen_scal_factors%scattering,   & !< Tegen coefficients
-      &                         tegen_scal_factors%asymmetry,    & !
-      &                         jg, jb, slev, nlev,              & !< Indices domain, block, level
-      &                         i_startidx, i_endidx,            & !< Indices nproma loop
-      &                         ecrad_conf%n_bands_lw,           & !< Number of SW bands
-      &                         ecrad_conf%n_bands_sw,           & !< Number of LW bands
-      &                         tau_lw_art,                      & !< OUT: Optical depth LW
-      &                         tau_sw_art,                      & !< OUT: Optical depth SW
-      &                         ssa_sw_art,                      & !< OUT: SSA SW
-      &                         g_sw_art)                          !< OUT: Assymetry parameter SW
-
-    ! ART gives vertically reversed optical properties
-    ! Furthermore, the shape of ecrad variables (bands, nlev, nproma) 
-    ! and art variables (nproma, nlev, bands) differ
-
-    DO jc = i_startidx, i_endidx 
-      DO jk = slev, nlev
-        jkb = nlev+1-jk
-        DO jband = 1, ecrad_conf%n_bands_lw
-          ecrad_aerosol%od_lw(jband, jk, jc)  = tau_lw_art(jc, jkb, jband)
-        ENDDO
-      ENDDO
-    ENDDO
-
-    DO jc = i_startidx, i_endidx
-      DO jk = slev, nlev
-        jkb = nlev+1-jk
-        DO jband = 1, ecrad_conf%n_bands_sw
-          ecrad_aerosol%od_sw(jband, jk, jc)  = tau_sw_art(jc, jkb, jband)
-          ecrad_aerosol%ssa_sw(jband, jk, jc) = ssa_sw_art(jc, jkb, jband)
-          ecrad_aerosol%g_sw(jband, jk, jc)   = g_sw_art(jc, jkb, jband)
-        ENDDO
-      ENDDO
-    ENDDO 
-
-    ecrad_aerosol%ssa_lw(:,:,:) = 0._wp
-    ecrad_aerosol%g_lw  (:,:,:) = 0._wp
-   
-#endif
-  END SUBROUTINE nwp_ecrad_prep_aerosol_art
 #endif
 END MODULE mo_nwp_ecrad_prep_aerosol

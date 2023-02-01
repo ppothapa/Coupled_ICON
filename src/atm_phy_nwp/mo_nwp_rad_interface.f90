@@ -34,9 +34,7 @@ MODULE mo_nwp_rad_interface
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,                            &
     &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, &
-    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark,             &
-    &                                irad_aero, iRadAeroKinne, iRadAeroVolc,               &
-    &                                iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP
+    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -178,12 +176,17 @@ MODULE mo_nwp_rad_interface
     END SELECT
 #endif
 
+    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
+    CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
+      & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
+
     ! Aerosol
     CALL nwp_aerosol_interface(mtime_datetime, pt_patch, zf(:,:,:), zh(:,:,:), dz(:,:,:), &
       &                        atm_phy_nwp_config(jg)%dt_rad,                             &
       &                        atm_phy_nwp_config(jg)%inwp_radiation,                     &
       &                        nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,            &
-      &                        od_lw, od_sw, ssa_sw, g_sw)
+      &                        zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                         &
+      &                        od_lw, od_sw, ssa_sw, g_sw, lacc=lzacc)
 
     ! Ozone
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
@@ -259,7 +262,6 @@ MODULE mo_nwp_rad_interface
     !-------------------------------------------------------------------------
     !
 
-    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
     CASE (1) ! RRTM
 
@@ -268,11 +270,10 @@ MODULE mo_nwp_rad_interface
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
       CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
+      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
       i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif
-      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=.FALSE. )
     
       IF ( .NOT. lredgrid ) THEN
           
@@ -299,10 +300,6 @@ MODULE mo_nwp_rad_interface
 
     CASE (4) ! ecRad
 #ifdef __ECRAD
-      !$ACC WAIT
-      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
-
       IF (.NOT. lredgrid) THEN
         !$ACC WAIT
         CALL nwp_ecRad_radiation ( mtime_datetime, pt_patch, ext_data,      &

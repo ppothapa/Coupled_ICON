@@ -400,7 +400,7 @@ CONTAINS
             IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
               &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
               &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
-              WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid fo inwp_radiation=4'
+              WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid for inwp_radiation=4'
               CALL finish(routine,message_text)
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
@@ -1159,8 +1159,8 @@ CONTAINS
     ENDIF
     
     DO jg= 1,n_dom
-      IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART) THEN
-        CALL finish(routine,'irad_aero=9 (ART) does not work with a reduced radiation grid')
+      IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4) THEN
+        CALL finish(routine,'irad_aero=9 (ART) and a reduced radiation grid only works with ecRad (inwp_radiation=4)')
       ENDIF
       IF(art_config(jg)%iart_ari == 0 .AND. irad_aero == iRadAeroART) THEN
         CALL finish(routine,'irad_aero=9 (ART) needs iart_ari > 0')

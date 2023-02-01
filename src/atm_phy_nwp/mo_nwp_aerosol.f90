@@ -28,17 +28,23 @@ MODULE mo_nwp_aerosol
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_impl_constants,       ONLY: min_rlcell_int, SUCCESS
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 ! External infrastruture
   USE mtime,                   ONLY: datetime, timedelta, newDatetime, newTimedelta,       &
                                  &   operator(+), deallocateTimedelta, deallocateDatetime
 ! Radiation-specific
   USE mo_radiation_config,     ONLY: irad_aero, iRadAeroConstKinne, iRadAeroKinne,         &
-                                 &   iRadAeroVolc, iRadAeroKinneVolc,                      &
+                                 &   iRadAeroVolc, iRadAeroKinneVolc, iRadAeroART,         &
                                  &   iRadAeroKinneVolcSP, iRadAeroKinneSP, iRadAeroTegen
 ! Aerosol-specific
   USE mo_bc_aeropt_kinne,      ONLY: read_bc_aeropt_kinne, set_bc_aeropt_kinne
   USE mo_bc_aeropt_cmip6_volc, ONLY: read_bc_aeropt_cmip6_volc, add_bc_aeropt_cmip6_volc
   USE mo_bc_aeropt_splumes,    ONLY: add_bc_aeropt_splumes
+
+#ifdef __ICON_ART
+  USE mo_aerosol_util,            ONLY: tegen_scal_factors
+  USE mo_art_radiation_interface, ONLY: art_rad_aero_interface
+#endif
 
   IMPLICIT NONE
 
@@ -59,7 +65,8 @@ CONTAINS
   !!
   SUBROUTINE nwp_aerosol_interface(mtime_datetime, pt_patch, zf, zh, dz, dt_rad,                   &
     &                              inwp_radiation, nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw, &
-    &                              od_lw, od_sw, ssa_sw, g_sw)
+    &                              zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                              &
+    &                              od_lw, od_sw, ssa_sw, g_sw, lacc)
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//':nwp_radiation'
 
@@ -74,6 +81,12 @@ CONTAINS
     REAL(wp), POINTER, INTENT(in) :: &
       &  wavenum1_sw(:),       & !< Shortwave wavenumber lower band bounds
       &  wavenum2_sw(:)          !< Shortwave wavenumber upper band bounds
+    REAL(wp), INTENT(in) ::    &
+      &  zaeq1(:,:,:),         & !< Tegen optical thicknesses       1: continental
+      &  zaeq2(:,:,:),         & !< relative to 550 nm, including   2: maritime
+      &  zaeq3(:,:,:),         & !< a vertical profile              3: desert
+      &  zaeq4(:,:,:),         & !< for 5 different                 4: urban
+      &  zaeq5(:,:,:)            !< aerosol species.                5: stratospheric background
     INTEGER, INTENT(in) ::     &
       &  inwp_radiation,       & !< Radiation scheme (1=rrtmg, 4=ecrad)
       &  nbands_lw, nbands_sw    !< Number of short and long wave bands
@@ -82,8 +95,22 @@ CONTAINS
       &  od_sw(:,:,:,:),       & !< Shortwave optical thickness
       &  ssa_sw(:,:,:,:),      & !< Shortwave asymmetry factor
       &  g_sw(:,:,:,:)           !< Shortwave single scattering albedo
+    LOGICAL, OPTIONAL, INTENT(in) :: lacc ! If true, use openacc
+
+    LOGICAL :: lzacc
+
     ! Local variables
+#ifdef __ICON_ART
+    REAL(wp), ALLOCATABLE ::   &
+      &  od_lw_art_vr(:,:,:),  &      !< AOD LW (vertically reversed)
+      &  od_sw_art_vr(:,:,:),  &      !< AOD SW (vertically reversed)
+      &  ssa_sw_art_vr(:,:,:), &      !< SSA SW (vertically reversed)
+      &  g_sw_art_vr(:,:,:)           !< Assymetry parameter SW (vertically reversed)
+    INTEGER :: jc, jk, jk_vr, jband   !< Loop indices
+#endif
     INTEGER :: jb, rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx, istat
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     rl_start   = grf_bdywidth_c+1
     rl_end     = min_rlcell_int
@@ -94,6 +121,86 @@ CONTAINS
 ! Tegen aerosol
       CASE(iRadAeroTegen)
         ! Open TODO: Move nwp_aerosol from rrtm_interface to here
+! Prognostic ART aerosol plus Tegen
+      CASE(iRadAeroART)
+#if defined(__ECRAD) && defined(__ICON_ART)
+#ifdef _OPENACC
+        IF (lzacc) CALL finish(routine, "irad_aero==iRadAeroART is not ported to openACC.")
+#endif
+        IF (inwp_radiation == 4) THEN
+          ! Allocations
+          ALLOCATE(od_lw        (nproma,pt_patch%nlev,pt_patch%nblks_c,nbands_lw), &
+            &      od_sw        (nproma,pt_patch%nlev,pt_patch%nblks_c,nbands_sw), &
+            &      ssa_sw       (nproma,pt_patch%nlev,pt_patch%nblks_c,nbands_sw), &
+            &      g_sw         (nproma,pt_patch%nlev,pt_patch%nblks_c,nbands_sw), &
+            &      od_lw_art_vr (nproma,pt_patch%nlev,                 nbands_lw), &
+            &      od_sw_art_vr (nproma,pt_patch%nlev,                 nbands_lw), &
+            &      ssa_sw_art_vr(nproma,pt_patch%nlev,                 nbands_lw), &
+            &      g_sw_art_vr  (nproma,pt_patch%nlev,                 nbands_lw), &
+            &      STAT=istat)
+          IF(istat /= SUCCESS) &
+            &  CALL finish(routine, 'Allocation of od_lw, od_sw, ssa_sw, g_sw plus ART variants failed')
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx,                              &
+!$OMP            od_lw_art_vr,od_sw_art_vr,ssa_sw_art_vr,g_sw_art_vr, &
+!$OMP            jc,jk,jk_vr,jband) ICON_OMP_DEFAULT_SCHEDULE
+          DO jb = i_startblk,i_endblk
+            CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
+            IF (i_startidx>i_endidx) CYCLE
+
+            CALL art_rad_aero_interface(zaeq1(:,:,jb),zaeq2(:,:,jb),       & !
+              &                         zaeq3(:,:,jb),zaeq4(:,:,jb),       & !< Tegen aerosol
+              &                         zaeq5(:,:,jb),                     & !
+              &                         tegen_scal_factors%absorption,     & !
+              &                         tegen_scal_factors%scattering,     & !< Tegen coefficients
+              &                         tegen_scal_factors%asymmetry,      & !
+              &                         pt_patch%id, jb, 1, pt_patch%nlev, & !< Indices domain, block, level
+              &                         i_startidx, i_endidx,              & !< Indices nproma loop
+              &                         nbands_lw,                         & !< Number of SW bands
+              &                         nbands_sw,                         & !< Number of LW bands
+              &                         od_lw_art_vr(:,:,:),               & !< OUT: Optical depth LW
+              &                         od_sw_art_vr(:,:,:),               & !< OUT: Optical depth SW
+              &                         ssa_sw_art_vr(:,:,:),              & !< OUT: SSA SW
+              &                         g_sw_art_vr(:,:,:))                  !< OUT: Assymetry parameter SW
+
+! LONGWAVE
+            DO jc = i_startidx, i_endidx
+              DO jk = 1, pt_patch%nlev
+                jk_vr = pt_patch%nlev+1-jk
+!NEC$ nointerchange
+!NEC$ nounroll
+                DO jband = 1, nbands_lw
+                  od_lw(jc,jk,jb,jband) = od_lw_art_vr(jc,jk_vr,jband)
+                ENDDO
+              ENDDO
+            ENDDO
+
+! SHORTWAVE
+            DO jc = i_startidx, i_endidx
+              DO jk = 1, pt_patch%nlev
+                jk_vr = pt_patch%nlev+1-jk
+!NEC$ nointerchange
+!NEC$ nounroll
+                DO jband = 1, nbands_sw
+                  od_sw(jc,jk,jb,jband) = od_sw_art_vr(jc,jk_vr,jband)
+                  ssa_sw(jc,jk,jb,jband) = ssa_sw_art_vr(jc,jk_vr,jband)
+                  g_sw(jc,jk,jb,jband) = g_sw_art_vr(jc,jk_vr,jband)
+                ENDDO
+              ENDDO
+            ENDDO
+
+          END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+          ! Deallocations
+          DEALLOCATE(od_lw_art_vr, od_sw_art_vr, ssa_sw_art_vr, g_sw_art_vr, &
+            &        STAT=istat)
+          IF(istat /= SUCCESS) &
+            &  CALL finish(routine, 'Deallocation of od_lw_art_vr, od_sw_art_vr, ssa_sw_art_vr, g_sw_art_vr failed')
+        ENDIF
+#endif
+
 ! Kinne aerosol
       CASE(iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP)
         ! Compatibility checks
@@ -105,6 +212,9 @@ CONTAINS
 #else
         WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' requires to compile with --enable-ecrad.'
         CALL finish(routine, message_text)
+#endif
+#ifdef _OPENACC
+        IF (lzacc) CALL finish(routine, "irad_aero==*Kinne* is not ported to openACC.")
 #endif
 
         ! Update Kinne aerosol from files once per day
