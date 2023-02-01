@@ -1040,7 +1040,7 @@ Name of the radar data file. This might be either in GRIB2 or in NetCDF (recomme
 L&
 .FALSE.&
 &
-Apply a blacklist information in the radar data obtained by comparison against satelite clound information&
+Apply a blacklist information in the radar data obtained by comparison against satelite cloud information&
 \tabularnewline
 
 %\hline
@@ -1083,6 +1083,13 @@ Maximal number of radar height layers contained within height\_file&
 lhn\_bright=.TRUE.
 \tabularnewline
 
+%\hline
+ {lhn\_spqual}&
+L&
+.FALSE.&
+&
+Use quality index to infer the horizontal spatial weight of the LHN increments. The quality index is read in as RAD\_QUAL variable (besides the RAD\_PRECIP variable) from the LHN input file.&
+\tabularnewline
 \end{longtab}
 
 Defined and used in: \verb+src/namelists/mo_assimilation_nml.f90+

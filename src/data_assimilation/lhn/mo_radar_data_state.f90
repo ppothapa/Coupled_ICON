@@ -983,8 +983,10 @@ CONTAINS
           ! time dependent
             CALL read_cdi_2d(parameters, assimilation_config(jg)%nobs_times, 'RAD_PRECIP', radar_data(jg)%radar_td%obs)
 !print *,'RADAR SUMME: ',SUM(radar_data(jg)%radar_td%obs),COUNT(radar_data(jg)%radar_td%obs>0.0)
-!            CALL read_cdi_2d(parameters, assimilation_config(jg)%nobs_times, 'RAD_QUAL', radar_data(jg)%radar_td%spqual)
-
+            IF (assimilation_config(jg)%lhn_spqual) THEN
+              CALL read_cdi_2d(parameters, assimilation_config(jg)%nobs_times, 'RAD_QUAL', radar_data(jg)%radar_td%spqual)
+            END IF
+            
             CALL deleteInputParameters(parameters)
 
           ! time indipendent
