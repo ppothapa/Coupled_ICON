@@ -34,7 +34,7 @@ MODULE mo_sppt_core
   USE mo_sppt_types,              ONLY: t_sppt
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_tend
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqr, iqs, iqg
-  USE mo_fortran_tools,           ONLY: negative2zero
+  USE mo_fortran_tools,           ONLY: negative2zero, assert_acc_device_only
 
   IMPLICIT NONE
 
@@ -57,7 +57,7 @@ MODULE mo_sppt_core
   !!<-------------------------------------------------------------------
 
   SUBROUTINE time_interpol_rn (p_patch, sppt_config, rn_2d_now, rn_2d_new, &
-    &                          mtime_datetime, rn_3d)
+    &                          mtime_datetime, rn_3d, lacc)
 
     TYPE(t_patch),                INTENT(IN)        :: p_patch          !< patch variables
     TYPE(t_sppt_config),          INTENT(IN)        :: sppt_config
@@ -66,6 +66,7 @@ MODULE mo_sppt_core
 
     TYPE(datetime),  POINTER,     INTENT(IN)        :: mtime_datetime   !< Date/time information
     REAL(wp),                     INTENT(INOUT)     :: rn_3d(:,:,:)     !< 3d field of random numbers
+    LOGICAL, OPTIONAL,            intent(in)        :: lacc             !< OpenACC flag
 
     ! Local variables
     INTEGER  :: jk, jc, jb
@@ -82,6 +83,8 @@ MODULE mo_sppt_core
     INTEGER :: rl_start, rl_end
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_endidx, i_startidx
+
+    CALL assert_acc_device_only("time_interpol_rn", lacc)
 
     rl_start = grf_bdywidth_c+1
     rl_end   = min_rlcell_int
@@ -102,7 +105,7 @@ MODULE mo_sppt_core
       ! get elapsed time in seconds
       elapsed_time = getTotalSecondsTimeDelta(td, mtime_datetime)
 
-      int_fact_1 = elapsed_time / (sppt_config%hinc_rn*3600.0_wp)  ! assumes that hinc_rn is given in hours
+      int_fact_1 = elapsed_time / (sppt_config%hinc_rn)  ! assumes that hinc_rn is given in seconds
       int_fact_2 = 1.0_wp - int_fact_1
 
 !$OMP PARALLEL
@@ -114,6 +117,8 @@ MODULE mo_sppt_core
 
         ! Interpolate random numbers in time
         !
+        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, p_patch%nlev
           DO jc = i_startidx, i_endidx
 
@@ -121,6 +126,7 @@ MODULE mo_sppt_core
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
 
         !<---------------------------------------------------------------------
         ! Tapering
@@ -129,6 +135,8 @@ MODULE mo_sppt_core
         IF(ltaper) THEN
 
           ! Apply tapering factor
+          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, p_patch%nlev
             DO jc = i_startidx, i_endidx
 
@@ -136,6 +144,7 @@ MODULE mo_sppt_core
 
             ENDDO ! end of jc
           ENDDO ! end of jk
+          !$ACC END PARALLEL
 
         ENDIF ! end of ltaper
 
@@ -144,7 +153,6 @@ MODULE mo_sppt_core
 !$OMP END PARALLEL
 
     ENDIF ! end of linter
-
 
   END SUBROUTINE time_interpol_rn
 
@@ -157,7 +165,7 @@ MODULE mo_sppt_core
   !!
   !!<-------------------------------------------------------------------
 
-  SUBROUTINE calc_tend (i_startidx, i_endidx, nlev, ddt, var_new, var_now, dt)
+  SUBROUTINE calc_tend (i_startidx, i_endidx, nlev, ddt, var_new, var_now, dt, lacc)
 
     INTEGER,                  INTENT(IN)        :: i_startidx
     INTEGER,                  INTENT(IN)        :: i_endidx
@@ -169,13 +177,19 @@ MODULE mo_sppt_core
 
     REAL(wp),                 INTENT(IN)        :: dt             !< (advective) time step applicable to local grid level
 
+    LOGICAL, OPTIONAL,        INTENT(IN)        :: lacc           !< OpenACC flag
+
     ! Local variables
     INTEGER  :: jk,jc
+
+    CALL assert_acc_device_only("calc_tend", lacc)
 
     !<---------------------------------------------------------------------
     ! Calculate tendencies
     !>---------------------------------------------------------------------
 
+    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
 
@@ -183,6 +197,7 @@ MODULE mo_sppt_core
 
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
   END SUBROUTINE calc_tend
 
@@ -196,7 +211,7 @@ MODULE mo_sppt_core
 
   SUBROUTINE pert_tend(jb, jg, i_startidx, i_endidx, nlev, sppt,  &
                         prm_nwp_tend, rho_atm,                &
-                        ddt_temp, ddt_u_tot, ddt_v_tot) 
+                        ddt_temp, ddt_u_tot, ddt_v_tot, lacc) 
 
     INTEGER,                     INTENT(IN)        :: jb
     INTEGER,                     INTENT(IN)        :: jg             !< patch ID
@@ -212,14 +227,19 @@ MODULE mo_sppt_core
     REAL(wp),                    INTENT(INOUT)     :: ddt_temp(:,:)
     REAL(wp),                    INTENT(INOUT)     :: ddt_u_tot(:,:)
     REAL(wp),                    INTENT(INOUT)     :: ddt_v_tot(:,:)
+    LOGICAL, OPTIONAL,           INTENT(IN)        :: lacc           !< OpenACC flag
 
     ! Local variables
     INTEGER  :: jk, jc
+
+    CALL assert_acc_device_only("pert_tend", lacc)
 
     !<---------------------------------------------------------------------
     ! Perturb tendencies
     !>---------------------------------------------------------------------
 
+    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
 
@@ -257,11 +277,14 @@ MODULE mo_sppt_core
 
       ENDDO  ! end of jc
     ENDDO ! end of jk
+    !$ACC END PARALLEL
 
 
     ! note that convective tendencies for qr and qs exist only if ldetrain_conv_prec=.TRUE.
     IF (atm_phy_nwp_config(jg)%ldetrain_conv_prec) THEN
 
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
           ! rain
@@ -273,9 +296,12 @@ MODULE mo_sppt_core
             &                    * sppt%rn_3d(jc,jk,jb)
         ENDDO  ! end of jc
       ENDDO ! end of jk
+      !$ACC END PARALLEL
 
     ELSE
 
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
           ! rain
@@ -285,6 +311,7 @@ MODULE mo_sppt_core
           sppt%ddt_qs(jc,jk,jb) = sppt%ddt_qs_fast(jc,jk,jb) * sppt%rn_3d(jc,jk,jb)
         ENDDO  ! end of jc
       ENDDO ! end of jk
+      !$ACC END PARALLEL
 
     ENDIF
 
@@ -300,7 +327,7 @@ MODULE mo_sppt_core
   !!
   !!<-------------------------------------------------------------------
 
-  SUBROUTINE apply_tend(pt_patch, sppt, pt_prog_rcf)
+  SUBROUTINE apply_tend(pt_patch, sppt, pt_prog_rcf, lacc)
 
     ! Subroutine Arguments ((in/out/inout)
     TYPE(t_patch),   INTENT(IN)        :: pt_patch       !< grid/patch info
@@ -308,6 +335,8 @@ MODULE mo_sppt_core
     TYPE(t_sppt),    INTENT(IN)        :: sppt
 
     TYPE(t_nh_prog), INTENT(INOUT)     :: pt_prog_rcf
+
+    LOGICAL, INTENT(IN), OPTIONAL      :: lacc 
 
 
     ! Local variables
@@ -317,6 +346,8 @@ MODULE mo_sppt_core
     INTEGER  :: rl_start, rl_end
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
+
+    CALL assert_acc_device_only("pert_tend", lacc)
 
     ! Number of vertical levels
     nlev = pt_patch%nlev
@@ -340,6 +371,8 @@ MODULE mo_sppt_core
         &                i_startidx, i_endidx, rl_start, rl_end)
 
 
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = kstart_moist(pt_patch%id), nlev
         DO jc = i_startidx, i_endidx
 
@@ -355,6 +388,7 @@ MODULE mo_sppt_core
 
         ENDDO ! jc
       ENDDO ! jk
+      !$ACC END PARALLEL
     ENDDO ! jb
 !$OMP END DO
 
@@ -372,7 +406,7 @@ MODULE mo_sppt_core
   !!<-------------------------------------------------------------------
 
   SUBROUTINE save_state(jb, i_startidx, i_endidx, nlev,        &
-                         temp, tracer, sppt)
+                         temp, tracer, sppt, lacc)
 
     INTEGER,             INTENT(IN)        :: jb
     INTEGER,             INTENT(IN)        :: i_startidx
@@ -385,13 +419,19 @@ MODULE mo_sppt_core
 
     TYPE(t_sppt),        INTENT(INOUT)     :: sppt
 
+    LOGICAL, OPTIONAL,   INTENT(IN)        :: lacc
+
     ! Local variables
     INTEGER  :: jk, jc
+
+    CALL assert_acc_device_only("save_state", lacc)
 
     !<---------------------------------------------------------------------
     ! Save state
     !>---------------------------------------------------------------------
 
+    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
 
@@ -409,6 +449,7 @@ MODULE mo_sppt_core
 
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
   END SUBROUTINE save_state
 

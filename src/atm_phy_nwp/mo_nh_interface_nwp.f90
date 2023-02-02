@@ -354,11 +354,9 @@ CONTAINS
     lconstgrav = upatmo_config(jg)%nwp_phy%l_constgrav  ! const. gravitational acceleration?
 
     IF(sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
-
       ! Construct field of random numbers for SPPT
       CALL construct_rn (pt_patch, mtime_datetime, sppt_config(jg), sppt(jg)%rn_3d, &
-        &                sppt(jg)%rn_2d_now, sppt(jg)%rn_2d_new)
-
+        &                sppt(jg)%rn_2d_now, sppt(jg)%rn_2d_new, lacc=lzacc)
     ENDIF ! end of lsppt
 
     !$ACC DATA CREATE(zddt_v_raylfric, zddt_u_raylfric, sqrt_ri, z_ddt_temp, z_ddt_alpha, z_ddt_v_tot) &
@@ -524,12 +522,10 @@ CONTAINS
 
 
       IF(sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
-
-      ! Save prognostic/diagnostic variables for SPPT - Temperature and Tracer
+        ! Save prognostic/diagnostic variables for SPPT - Temperature and Tracer
         CALL save_state(jb, i_startidx, i_endidx, nlev,    &
           &             pt_diag%temp, pt_prog_rcf%tracer,  &
-          &             sppt(jg))
-
+          &             sppt(jg), lacc=lzacc)
       ENDIF ! end of lsppt
 
 
@@ -1165,26 +1161,34 @@ CONTAINS
                            i_startidx, i_endidx, rl_start, rl_end)
 
         ! Temperature
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_temp_fast(:,:,jb), pt_diag%temp(:,:,jb), sppt(jg)%temp_now(:,:,jb), dt_loc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_temp_fast(:,:,jb), pt_diag%temp(:,:,jb), sppt(jg)%temp_now(:,:,jb), dt_loc, lacc=lzacc)
 
         ! Wind components - use existing tendencies from turbulence
-        sppt(jg)%ddt_u_fast(:,:,jb) = prm_nwp_tend%ddt_u_turb(:,:,jb)
-        sppt(jg)%ddt_v_fast(:,:,jb) = prm_nwp_tend%ddt_v_turb(:,:,jb)
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jk = 1, nlev
+          DO jc = i_startidx, i_endidx
+            sppt(jg)%ddt_u_fast(jc,jk,jb) = prm_nwp_tend%ddt_u_turb(jc,jk,jb)
+            sppt(jg)%ddt_v_fast(jc,jk,jb) = prm_nwp_tend%ddt_v_turb(jc,jk,jb)
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
 
         ! Tracer
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qv_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv), sppt(jg)%qv_now(:,:,jb), dt_loc)
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qi_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqi), sppt(jg)%qi_now(:,:,jb), dt_loc)
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qr_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqr), sppt(jg)%qr_now(:,:,jb), dt_loc)
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qs_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqs), sppt(jg)%qs_now(:,:,jb), dt_loc)
-        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qc_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqc), sppt(jg)%qc_now(:,:,jb), dt_loc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qv_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv), sppt(jg)%qv_now(:,:,jb), dt_loc, lacc=lzacc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qi_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqi), sppt(jg)%qi_now(:,:,jb), dt_loc, lacc=lzacc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qr_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqr), sppt(jg)%qr_now(:,:,jb), dt_loc, lacc=lzacc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qs_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqs), sppt(jg)%qs_now(:,:,jb), dt_loc, lacc=lzacc)
+        CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qc_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqc), sppt(jg)%qc_now(:,:,jb), dt_loc, lacc=lzacc)
 
         IF ( iqg /= 0 ) THEN
-          CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qg_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqg), sppt(jg)%qg_now(:,:,jb), dt_loc)
+          CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_qg_fast(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqg), sppt(jg)%qg_now(:,:,jb), dt_loc, lacc=lzacc)
         ENDIF
 
       ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+      
     ENDIF ! end of lsppt
 
     !!-------------------------------------------------------------------------
@@ -1957,11 +1961,12 @@ CONTAINS
 
         IF(sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
           !
-          ! Add tendencies from the fast physics to the ones derived from the slow pysics as well as pertubations
+          ! Add tendencies from the fast physics to the ones derived from the slow pysics as well as perturbations
           !
+
           CALL pert_tend(jb, jg, i_startidx, i_endidx, pt_patch%nlev, sppt(jg),           &
                          prm_nwp_tend, pt_prog%rho(:,:,jb),                               &
-                         z_ddt_temp(:,:), z_ddt_u_tot(:,:,jb), z_ddt_v_tot(:,:,jb) )
+                         z_ddt_temp(:,:), z_ddt_u_tot(:,:,jb), z_ddt_v_tot(:,:,jb), lacc=lzacc)
         ENDIF ! end of lsppt
 
 
@@ -1988,7 +1993,6 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
-
 
         ! Convert temperature tendency into Exner function tendency
         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
@@ -2127,9 +2131,7 @@ CONTAINS
     ! Add only perturbed tendencies of tracers to the corresponding variable.
     ! Adding tendencies was taking care of during fast physics already.
     IF (sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
-
-      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf)
-
+      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf, lacc=lzacc)
     ENDIF ! end of lsppt
 
     !--------------------------------------------------------
@@ -2308,6 +2310,7 @@ CONTAINS
 #else
       IF ( l_any_slowphys .AND. lcall_phy_jg(itturb) ) THEN
 #endif
+
         !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE

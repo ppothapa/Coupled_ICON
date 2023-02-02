@@ -340,7 +340,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  lsppt                      =                      .TRUE.     ! if set to .TRUE. SPPT is active
  dlat_rn                    =                       0.01      ! random number coarse grid point distance in meridional direction (rad)
  dlon_rn                    =                       0.01      ! random number coarse grid point distance in zonal direction      (rad)
- hinc_rn                    =                          6      ! maximum range +/- for random numbers                             (hours)
+ hinc_rn                    =                         30      ! maximum range +/- for random numbers                             (seconds)
  range_rn                   =                        0.8      !  max magnitude of random numbers                                 (-)
 /
 
@@ -512,6 +512,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
+ ecrad_isolver               =                          2
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
  albedo_type                 =                          2         ! type of surface albedo

@@ -12,6 +12,7 @@ MODULE mo_nwp_gpu_util
   USE mo_fortran_tools,           ONLY: assert_acc_device_only
 #ifdef _OPENACC
   USE mo_var_list_gpu,            ONLY: gpu_update_var_list
+  USE mo_sppt_config,             ONLY: sppt_config
 #endif
 
   IMPLICIT NONE
@@ -96,6 +97,12 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnow_rcf(jg), lacc=.TRUE.) !p_prog_now_rcf
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnew_rcf(jg), lacc=.TRUE.) !p_prog_rcf
     CALL gpu_update_var_list('prepadv_of_domain_', .false., domain=jg, lacc=.TRUE.)
+
+    ! Update sppt
+    IF (sppt_config(jg)%lsppt) THEN
+      CALL gpu_update_var_list('sppt_of_domain_', .false., domain=jg, lacc=.TRUE.)
+    END IF
+
 #endif
 
     IF (PRESENT(phy_params)) THEN
@@ -200,6 +207,12 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .true., domain=jg, substr='_and_timelev_', timelev=nnow_rcf(jg), lacc=.TRUE.) !p_prog_now_rcf
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .true., domain=jg, substr='_and_timelev_', timelev=nnew_rcf(jg), lacc=.TRUE.) !p_prog_new_rcf
     CALL gpu_update_var_list('prepadv_of_domain_', .true., domain=jg, lacc=.TRUE.)
+
+    ! Update sppt
+    IF (sppt_config(jg)%lsppt) THEN
+      CALL gpu_update_var_list('sppt_of_domain_', .true., domain=jg, lacc=.TRUE.)
+    END IF
+
 #endif
 
     IF (PRESENT(phy_params)) THEN

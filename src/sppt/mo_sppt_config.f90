@@ -66,7 +66,7 @@ MODULE mo_sppt_config
 
     LOGICAL :: lsppt      ! > forecast with SPPT
 
-    REAL(wp) :: hinc_rn   ! > time increment (h) for drawing a new field of random numbers
+    REAL(wp) :: hinc_rn   ! > time increment (s) for drawing a new field of random numbers
     REAL(wp) :: dlat_rn   ! > random number coarse grid point distance in meridional direction (deg)
     REAL(wp) :: dlon_rn   ! > random number coarse grid point distance in zonal direction (deg)
     REAL(wp) :: range_rn  ! > max magnitude of random numbers
@@ -126,7 +126,6 @@ MODULE mo_sppt_config
     INTEGER  ::    k50        , & ! indexes for vertical tapering
                    k100       , & !
                    k870
-    REAL(wp) :: hinc_rn_in_sec    ! time increment for drawing a new field of random numbers in seconds
 
     REAL(wp), PARAMETER                        ::  &
       &                   h_scal  = 10000.0_wp    , &
@@ -136,6 +135,7 @@ MODULE mo_sppt_config
     CHARACTER(len=*), PARAMETER ::  &
       &      routine = modname//":configure_sppt"
 
+    !$ACC ENTER DATA CREATE(sppt_config)
 
     DO jg = 1, n_dom
 
@@ -153,9 +153,7 @@ MODULE mo_sppt_config
       ! Convert hinc_rn into mtime timedelta
       !>-------------------------------
 
-      hinc_rn_in_sec = sppt_config(jg)%hinc_rn * 3600._wp
-      !
-      CALL mtime_timedelta_from_fseconds(hinc_rn_in_sec, mtime_current, sppt_config(jg)%mtime_hinc_rn)
+      CALL mtime_timedelta_from_fseconds(sppt_config(jg)%hinc_rn, mtime_current, sppt_config(jg)%mtime_hinc_rn)
 
       !<--------------------------------
       ! Create factors for tapering
@@ -278,6 +276,9 @@ MODULE mo_sppt_config
       sppt_config(jg)%coarse_nlat = ceiling((sppt_config(jg)%bbmax_lat - sppt_config(jg)%bbmin_lat) &
         &                           /sppt_config(jg)%dlat_rn)+1
 
+      !$ACC UPDATE DEVICE(sppt_config(jg:jg))
+      !$ACC ENTER DATA COPYIN(sppt_config(jg)%taper)
+
     ENDDO  ! jg
 
   END SUBROUTINE configure_sppt
@@ -296,7 +297,7 @@ MODULE mo_sppt_config
     ! Input arguments
     TYPE(event), POINTER, INTENT(INOUT) :: read_rapa_Event ! and all consecutive events
 
-    REAL(wp),             INTENT(IN)    :: hinc_rn         ! increment in hours to read/create 
+    REAL(wp),             INTENT(IN)    :: hinc_rn         ! increment in seconds to read/create 
                                                            ! new random numbers (namelist parameter)
 
     ! Local
@@ -307,7 +308,7 @@ MODULE mo_sppt_config
     ! Create event read_rapa_Event for reading/creating random numbers for perturbation
     !>-------------------------------
 
-    CALL getPTStringFromMS(INT(hinc_rn*3600.0_wp*1000.0_wp,i8), td_string)
+    CALL getPTStringFromMS(INT(hinc_rn*1000.0_wp,i8), td_string)
 
     eventInterval => newTimedelta(td_string)
 
@@ -345,11 +346,6 @@ MODULE mo_sppt_config
     IF(is_ls_forcing) THEN
         CALL finish(routine, "SPPT and large scale forcing not supported.")
       ENDIF
-#endif
-
-    ! ... code compiled for GPU
-#ifdef _OPENACC
-      CALL finish(routine,'SPPT not supported on GPU -- run without SPPT')
 #endif
 
     !>-----------------------------

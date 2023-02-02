@@ -36,6 +36,7 @@ MODULE mo_sppt_state
    &                                    create_hor_interp_metadata,             &
    &                                    vintp_types
   USE mo_run_config,              ONLY: iqg
+  USE mo_sppt_config,             ONLY: sppt_config
 
 
 #include "add_var_acc_macro.inc"
@@ -84,7 +85,7 @@ MODULE mo_sppt_state
 
     DO jg = 1, n_dom
 
-      WRITE(listname,'(a,i2.2)') 'sppt_for_domain_',jg
+      WRITE(listname,'(a,i2.2)') 'sppt_of_domain_',jg
 
       CALL new_sppt_list(p_patch(jg), listname, sppt_list(jg), sppt(jg))
 
@@ -114,7 +115,15 @@ MODULE mo_sppt_state
       CALL vlr_del(sppt_list(jg))
     ENDDO
 
-    !$ACC EXIT DATA DELETE(sppt)
+    DO jg = 1, n_dom
+      !$ACC EXIT DATA DELETE(sppt_config(jg)%taper)
+      DEALLOCATE(sppt_config(jg)%taper, STAT=ist)
+      IF(ist/=SUCCESS)THEN
+        CALL finish (TRIM(routine), 'deallocation of sppt_config(:)%taper failed')
+      ENDIF
+    ENDDO
+
+    !$ACC EXIT DATA DELETE(sppt, sppt_config)
 
     DEALLOCATE(sppt, sppt_list, STAT=ist)
 
@@ -223,7 +232,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%temp_now)
 
     ! qv_now         sppt%qv_now(nproma,nlev,nblks_c)
     cf_desc    = t_cf_var('qv_now', 'kg kg-1', 'current value of tracer water vapour - sppt)', datatype_flt)
@@ -236,7 +247,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                 & vert_interp=create_vert_interp_metadata(                                         &
                 &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                & lopenacc=.TRUE. )
+      __acc_attach(sppt%qv_now)
 
 
     ! qi_now         sppt%qi_now(nproma,nlev,nblks_c)
@@ -250,7 +263,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                 & vert_interp=create_vert_interp_metadata(                                         &
                 &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%qi_now)
 
 
     ! qr_now         sppt%qr_now(nproma,nlev,nblks_c)
@@ -264,7 +279,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                 & vert_interp=create_vert_interp_metadata(                                         &
                 &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%qr_now)
 
 
     ! qs_now         sppt%qs_now(nproma,nlev,nblks_c)
@@ -278,7 +295,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                 & vert_interp=create_vert_interp_metadata(                                         &
                 &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%qs_now)
 
 
     ! qc_now         sppt%qc_now(nproma,nlev,nblks_c)
@@ -292,7 +311,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                 & vert_interp=create_vert_interp_metadata(                                         &
                 &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%qc_now)
 
     IF ( iqg /= 0 ) THEN
       ! qg_now         sppt%qg_now(nproma,nlev,nblks_c)
@@ -306,7 +327,9 @@ MODULE mo_sppt_state
                   &            fallback_type=HINTP_TYPE_LONLAT_RBF),                                 &
                   & vert_interp=create_vert_interp_metadata(                                         &
                   &             vert_intp_type=vintp_types("P","Z","I"),                             &
-                  &             vert_intp_method=VINTP_METHOD_LIN ) )
+                  &             vert_intp_method=VINTP_METHOD_LIN ),                                 &
+                  & lopenacc=.TRUE. )
+      __acc_attach(sppt%qg_now)
     ENDIF
 
     ! b) fields for random number generation
@@ -322,23 +345,29 @@ MODULE mo_sppt_state
                &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                & vert_interp=create_vert_interp_metadata(                            &
                &             vert_intp_type=vintp_types("P","Z","I"),                &
-               &             vert_intp_method=VINTP_METHOD_LIN ) )
+               &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+               & lopenacc=.TRUE. )
+   __acc_attach(sppt%rn_3d)
 
 
     ! rn_2d_now     sppt%rn_2d_now(nproma,nblks_c)
     cf_desc    = t_cf_var('rn_2d_now', '-', 'utility field for gaussian random number for sppt ', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, DATATYPE_PACK_VAR, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( sppt_list, 'rn_2d_now', sppt%rn_2d_now,                                       &
-         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,                        &
-         & ldims=shape2d_c, lrestart=.FALSE.)
+    CALL add_var( sppt_list, 'rn_2d_now', sppt%rn_2d_now,                      &
+         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,          &
+         & ldims=shape2d_c, lrestart=.FALSE.,                                  &
+         & lopenacc=.TRUE. )
+__acc_attach(sppt%rn_2d_now)
 
 
     ! rn_2d_new     sppt%rn_2d_new(nproma,nblks_c)
     cf_desc    = t_cf_var('rn_2d_new', '-', 'utility field for gaussian random number for sppt ', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, DATATYPE_PACK_VAR, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( sppt_list, 'rn_2d_new', sppt%rn_2d_new,                                       &
-         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,                        &
-         & ldims=shape2d_c, lrestart=.FALSE.)
+    CALL add_var( sppt_list, 'rn_2d_new', sppt%rn_2d_new,                       &
+         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,           &
+         & ldims=shape2d_c, lrestart=.FALSE.,                                   &
+         & lopenacc=.TRUE. )
+__acc_attach(sppt%rn_2d_new)
 
 
     ! c) additional fields for SPPT
@@ -354,7 +383,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_temp_fast)
 
     ! ddt_u_fast         sppt%ddt_u_fast(nproma,nlev,nblks_c)
     cf_desc    = t_cf_var('ddt_u_fast', 'm s-2', 'fast physics tendencies for u component)', datatype_flt)
@@ -367,7 +398,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_u_fast)
 
 
     ! ddt_v_fast         sppt%ddt_v_fast(nproma,nlev,nblks_c)
@@ -381,7 +414,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_v_fast)
 
 
     ! ddt_qv_fast         sppt%ddt_qv_fast(nproma,nlev,nblks_c)
@@ -395,7 +430,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qv_fast)
 
 
     ! ddt_qi_fast         sppt%ddt_qi_fast(nproma,nlev,nblks_c)
@@ -409,7 +446,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qi_fast)
 
 
     ! ddt_qr_fast         sppt%ddt_qr_fast(nproma,nlev,nblks_c)
@@ -423,7 +462,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qr_fast)
 
 
     ! ddt_qs_fast         sppt%ddt_qs_fast(nproma,nlev,nblks_c)
@@ -437,7 +478,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qs_fast)
 
 
     ! ddt_qc_fast         sppt%ddt_qc_fast(nproma,nlev,nblks_c)
@@ -451,7 +494,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qc_fast)
 
     IF ( iqg /= 0 ) THEN
       ! ddt_qg_fast         sppt%ddt_qg_fast(nproma,nlev,nblks_c)
@@ -465,7 +510,9 @@ MODULE mo_sppt_state
                   &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                   & vert_interp=create_vert_interp_metadata(                            &
                   &             vert_intp_type=vintp_types("P","Z","I"),                &
-                  &             vert_intp_method=VINTP_METHOD_LIN ) )
+                  &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(sppt%ddt_qg_fast)
     ENDIF
 
     ! ddt_qv         sppt%ddt_qv(nproma,nlev,nblks_c)
@@ -479,7 +526,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qv)
 
 
     ! ddt_qi         sppt%ddt_qi(nproma,nlev,nblks_c)
@@ -493,7 +542,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qi)
 
 
     ! ddt_qr         sppt%ddt_qr(nproma,nlev,nblks_c)
@@ -507,7 +558,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qr)
 
 
     ! ddt_qs         sppt%ddt_qs(nproma,nlev,nblks_c)
@@ -521,7 +574,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qs)
 
 
     ! ddt_qc         sppt%ddt_qc(nproma,nlev,nblks_c)
@@ -535,7 +590,9 @@ MODULE mo_sppt_state
                 &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                 & vert_interp=create_vert_interp_metadata(                            &
                 &             vert_intp_type=vintp_types("P","Z","I"),                &
-                &             vert_intp_method=VINTP_METHOD_LIN ) )
+                &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(sppt%ddt_qc)
 
     IF ( iqg /= 0 ) THEN
       ! ddt_qg         sppt%ddt_qg(nproma,nlev,nblks_c)
@@ -549,7 +606,9 @@ MODULE mo_sppt_state
                   &            fallback_type=HINTP_TYPE_LONLAT_RBF),                    &
                   & vert_interp=create_vert_interp_metadata(                            &
                   &             vert_intp_type=vintp_types("P","Z","I"),                &
-                  &             vert_intp_method=VINTP_METHOD_LIN ) )
+                  &             vert_intp_method=VINTP_METHOD_LIN ),                    &
+                  & lopenacc=.TRUE. )
+      __acc_attach(sppt%ddt_qg)
     ENDIF
 
   END SUBROUTINE new_sppt_list
