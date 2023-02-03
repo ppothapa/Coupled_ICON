@@ -1525,7 +1525,7 @@ set_run_target_balfrin_cpu()
         set_default use_mpi_procs_pernode 4
         set_default use_openmp_threads 32
     else
-        set_default use_mpi_procs_pernode 64
+        set_default use_mpi_procs_pernode 16
     fi
 
     job_type=parallel
@@ -1953,17 +1953,17 @@ create_target_header()
 
     use_prefetch_procs=0
  	case $job_name in
-        *mch_opr_r04b07.run|*mch_opr_r04b07_seed_*.run)
+        *mch_opr_r04b07.run|*mch_opr_r04b07_member_id*.run)
             use_nodes=1
-            use_mpi_procs_pernode=2
+            use_mpi_procs_pernode=3
             use_nproma=4250
             ;;
-        *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_seed_*.run)
+        *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_member_id*.run)
             use_nodes=1
             use_mpi_procs_pernode=4
             use_nproma=1600
             ;;
-        *mch_opr_r04b07_performance.run|*mch_opr_r04b07_performance_seed_*.run)
+        *mch_opr_r04b07_performance.run|*mch_opr_r04b07_performance_member_id*.run)
             use_nodes=1
             case $use_target in
                 daint_cpu*)

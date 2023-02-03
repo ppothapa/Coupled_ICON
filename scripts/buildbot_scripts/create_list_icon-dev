@@ -84,24 +84,25 @@ $addexp checksuite.infrastructure/testbed/exp.icon-testbed_read-netcdf --builder
 ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical         --builders "DAINT_GPU_nvidia" --list $listname
 ./rmexp checksuite.icon-dev/check.atm_amip_update                                 --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
 
-# add tolerance check to daint builders
-$addexp "checksuite.icon-dev/check.mch_ch_lowres"                                 --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+# add tolerance check to CSCS builders
+$addexp "checksuite.icon-dev/check.mch_ch_lowres"                                 --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                     --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                     --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                             --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
-./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance                      --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r04b07_performance"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_00                           --builders "balfrin_gpu_nvidia"  --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12                           --builders "balfrin_gpu_nvidia"  --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance                      --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 
 # GPU builders explicitly turned off due to unresolved bug
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders "DAINT_CPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                             --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                             --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme using gscp=5
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"                       --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"                       --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 3d-turbulence scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                           --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                           --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tracer only test to DAINT builders (for checking equivalence of vertical transport code for GPU vs CPU)
 $addexp checksuite.icon-dev/check.atm_tracer_Hadley                                  --builders "DAINT_CPU_nvidia" --list $listname
 #$addexp checksuite.icon-dev/check.atm_tracer_Hadley                                  --builders DAINT_GPU_nvidia --list $listname

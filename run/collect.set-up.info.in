@@ -44,7 +44,7 @@ use_host='@host_fqdn@'
 use_site='local.net'
 case "$use_host" in
   l*.lvt.dkrz.de|mlogin*) use_site=dkrz.de ;;
-  daint*|tave*|santis*|kesch*|tsa*|nid*) use_site=cscs.ch ;;
+  daint*|tave*|santis*|kesch*|tsa*|nid*|balfrin*) use_site=cscs.ch ;;
   uc2*|fh2*|hk*) use_site=kit.edu ;;
   xc*|rcnl*|oflws*) use_site=dwd.de ;;
   *euler.ethz.ch) use_site=ethz.ch ;;
@@ -100,7 +100,7 @@ case "$use_site" in
         if test xyes = x"${use_gpu}"; then use_target='daint_gpu'; else use_target='daint_cpu'; fi
       ;;
 
-      # balfrin
+      # balfrin (the current hostname is nid but will be changed to balfrin)
       *nid*|*balfrin*)
         if test -f "/etc/xthostname"; then
           host_name=$(cat /etc/xthostname)

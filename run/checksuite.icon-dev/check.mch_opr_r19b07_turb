@@ -46,10 +46,15 @@ export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
 rundir=`pwd`
 cd checksuite.icon-dev
 
-# load python packages
 case $HOST in
     *daint*)
         export MD='tm'
+        ;;
+    # balfrin (the current hostname is nid but will be changed to balfrin)
+    *nid*|*balfrin*)
+        # Jan 2023: Note that the MPI tests fail on Balfrin for unknown reasons
+        export MD='t'
+        ;;
 esac
 
 ./icon-dev.checksuite
