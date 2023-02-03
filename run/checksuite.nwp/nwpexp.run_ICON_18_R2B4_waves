@@ -72,6 +72,9 @@ num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
 
+#spectral resolution
+nd=4            # NUMBER OF DIRECTIONS
+nf=30           # NUMBER OF FREQUENCIES
 
 wave_namelist=NAMELIST_${EXPNAME}
 
@@ -107,11 +110,15 @@ cat > ${wave_namelist} << EOF
  coupled_mode         = .false.
 /
 &run_nml
- num_lev              = 3
+ num_lev              = 1
  dtime                = ${dtime}     ! [s] timestep in seconds
  ltimer               = .true.
  timers_level         = 10
  msg_level            = 15
+ ltestcase            = .TRUE.       ! run testcase
+ ldynamics            = .TRUE.
+ ltransport           = .TRUE.
+ ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /
 &parallel_nml
@@ -136,8 +143,8 @@ cat > ${wave_namelist} << EOF
  extpar_filename = '${wave_extpar}'
 /
 &wave_nml
- ndirs       = 36           !! NUMBER OF DIRECTIONS
- nfreqs      = 25           !! NUMBER OF FREQUENCIES
+ ndirs       = ${nd}           !! NUMBER OF DIRECTIONS
+ nfreqs      = ${nf}           !! NUMBER OF FREQUENCIES
 /
 &output_nml
  filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
@@ -148,6 +155,10 @@ cat > ${wave_namelist} << EOF
  include_last            =                      .TRUE.        ! flag whether to include the last time step
  output_filename         =                      'WAVE'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ ml_varlist              =  'process_id','bathymetry_c','group:wind_10m',
+                            'group:wave_spectrum',
+			    'group:wave_phy',
+			    'group:wave_short'
  ml_varlist              =  'process_id','bathymetry_c'
  m_levels                = '1'
 /
@@ -172,6 +183,7 @@ fi
 # ----------------------------------------------------------------------------
 
 echo "EXIT_STATUS: $EXIT_STATUS"
+echo $EXPDIR
 exit $EXIT_STATUS
 
 

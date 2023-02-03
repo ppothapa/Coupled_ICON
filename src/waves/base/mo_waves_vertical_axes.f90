@@ -19,7 +19,8 @@
 !!
 MODULE mo_waves_vertical_axes
 
-  USE mo_zaxis_type,                        ONLY: ZA_SURFACE
+  USE mo_kind,                              ONLY: dp
+  USE mo_zaxis_type,                        ONLY: ZA_SURFACE, ZA_HEIGHT_10M
   USE mo_name_list_output_zaxes_types,      ONLY: t_verticalAxisList
   USE mo_name_list_output_zaxes,            ONLY: single_level_axis
 
@@ -41,6 +42,9 @@ CONTAINS
 
     ! surface level
     CALL verticalAxisList%append(single_level_axis(ZA_surface))
+
+    ! Specified height level above ground: 10m
+    CALL verticalAxisList%append(single_level_axis(ZA_height_10m, opt_level_value=10._dp))
 
   END SUBROUTINE setup_zaxes_waves
 

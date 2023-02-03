@@ -18,6 +18,7 @@
 MODULE mo_wave_nml
 
   USE mo_kind,                ONLY: wp
+  USE mo_impl_constants,      ONLY: max_dom
   USE mo_namelist,            ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_io_units,            ONLY: nnml, nnml_output
   USE mo_master_control,      ONLY: use_restart_namelists
@@ -25,38 +26,8 @@ MODULE mo_wave_nml
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist,     &
     &                               open_and_restore_namelist, close_tmpfile
   USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
-  USE mo_wave_config,         ONLY:&
-       & config_ndirs           => ndirs          , &
-       & config_nfreqs          => nfreqs         , &
-       & config_fr1             => fr1            , &
-       & config_CO              => CO             , &
-       & config_ALPHA           => ALPHA          , &
-       & config_FM              => FM             , &
-       & config_GAMMA_wave      => GAMMA_wave     , &
-       & config_SIGMA_A         => SIGMA_A        , &
-       & config_SIGMA_B         => SIGMA_B        , &
-       & config_THETAQ          => THETAQ         , &
-       & config_FETCH           => FETCH          , &
-       & config_ROAIR           => ROAIR          , &
-       & config_RNUAIR          => RNUAIR         , &
-       & config_RNUAIRM         => RNUAIRM        , &
-       & config_ROWATER         => ROWATER        , &
-       & config_XEPS            => XEPS           , &
-       & config_XINVEPS         => XINVEPS        , &
-       & config_XKAPPA          => XKAPPA         , &
-       & config_XNLEV           => XNLEV          , &
-       & config_BETAMAX         => BETAMAX        , &
-       & config_ZALP            => ZALP           , &
-       & config_coldstart       => coldstart      , &
-       & config_iforc_waves     => iforc_waves    , &
-       & config_linput_sf1      => linput_sf1     , &
-       & config_linput_sf2      => linput_sf2     , &
-       & config_ldissip_sf      => ldissip_sf     , &
-       & config_lnon_linear_sf  => lnon_linear_sf , &
-       & config_lbottom_fric_sf => lbottom_fric_sf, &
-       & config_lwave_stress1   => lwave_stress1  , &
-       & config_lwave_stress2   => lwave_stress2  , &
-       & config_lgrid_refr      => lgrid_refr
+  USE mo_wave_config,         ONLY: wave_config
+
 
   IMPLICIT NONE
 
@@ -64,20 +35,20 @@ MODULE mo_wave_nml
 
   PUBLIC  :: read_wave_namelist
 
-
 CONTAINS
   !>
   !!
   SUBROUTINE read_wave_namelist(filename)
     CHARACTER(LEN=*), INTENT(IN) :: filename
     INTEGER :: istat, iunit, funit
+    INTEGER :: jg
 
     CHARACTER(len=*), PARAMETER ::  &
-         &  routine = 'mo_wave_nml:read_wave_namelist'
-
+      &  routine = 'mo_wave_nml:read_wave_namelist'
 
     INTEGER  :: ndirs    ! NUMBER OF DIRECTIONS.
     INTEGER  :: nfreqs   ! NUMBER OF FREQUENCIES.
+    INTEGER  :: IREF     ! FREQUENCY BIN NUMBER OF REFERENCE FREQUENCY
 
     REAL(wp) :: fr1      ! FIRST FREQUENCY [HZ].
     REAL(wp) :: CO       ! FREQUENCY RATIO
@@ -124,7 +95,7 @@ CONTAINS
 
     NAMELIST /wave_nml/ &
          coldstart, iforc_waves,                            &
-         ndirs, nfreqs, fr1, CO,                                    &
+         ndirs, nfreqs, fr1, CO, IREF,                      &
          ALPHA, FM, GAMMA_wave, SIGMA_A, SIGMA_B, THETAQ, FETCH,    &
          dt_wave,  dt_fastphy, ROAIR, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
          XKAPPA, XNLEV, BETAMAX, ZALP, &
@@ -139,24 +110,27 @@ CONTAINS
     nfreqs     = 25             !! NUMBER OF FREQUENCIES.
     fr1        = 0.04177248_wp  !! FIRST FREQUENCY [HZ].
     CO         = 1.1_wp         !! FREQUENCY RATIO
+    IREF       = 1              !! FREQUENCY BIN NUMBER OF REFERENCE FREQUENCY
+
     ALPHA      = 0.018_wp       !! PHILLIPS PARAMETER.
     FM         = 0.2_wp         !! PEAK FREQUENCY (HZ) AND/OR MAXIMUM FREQUENCY.
     GAMMA_wave = 3.0_wp         !! OVERSHOOT FACTOR.
     SIGMA_A    = 0.07_wp        !! LEFT PEAK WIDTH.
     SIGMA_B    = 0.09_wp        !! RIGHT PEAK WIDTH.
     THETAQ     = 0.0_wp         !! WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1).
-    FETCH      = 300000._wp      !! FETCH IN METRES.
+
+    FETCH      = 300000._wp     !! FETCH IN METRES.
 
     ROAIR      = 1.225_wp       !! AIR DENSITY
     RNUAIR     = 1.5E-5_wp      !! KINEMATIC AIR VISCOSITY
     RNUAIRM    = 0.11_wp*RNUAIR !! KINEMATIC AIR VISCOSITY FOR MOMENTUM TRANSFER
+
     ROWATER    = 1000._wp       !! WATER DENSITY
     XEPS       = ROAIR/ROWATER
     XINVEPS    = 1./XEPS
 
     BETAMAX    = 1.20_wp        !! PARAMETER FOR WIND INPUT (ECMWF CY45R1).
     ZALP       = 0.0080_wp      !! SHIFTS GROWTH CURVE (ECMWF CY45R1).
-
 
     XKAPPA     = 0.40_wp        !! VON KARMAN CONSTANT.
     XNLEV      = 10.0_wp        !! WINDSPEED REF. LEVEL.
@@ -207,47 +181,44 @@ CONTAINS
     END SELECT
     CALL close_nml
 
-
-    !----------------------------------------------------
-    ! 4. Sanity check
-    !----------------------------------------------------
-
-
     !----------------------------------------------------
     ! 5. Fill the configuration state
     !----------------------------------------------------
 
-    config_ndirs           = ndirs
-    config_nfreqs          = nfreqs
-    config_fr1             = fr1
-    config_CO              = CO
-    config_ALPHA           = ALPHA
-    config_FM              = FM
-    config_GAMMA_wave      = GAMMA_wave
-    config_SIGMA_A         = SIGMA_A
-    config_SIGMA_B         = SIGMA_B
-    config_THETAQ          = THETAQ
-    config_FETCH           = FETCH
-    config_ROAIR           = ROAIR
-    config_RNUAIR          = RNUAIR
-    config_RNUAIRM         = RNUAIRM
-    config_ROWATER         = ROWATER
-    config_XEPS            = XEPS
-    config_XINVEPS         = XINVEPS
-    config_XKAPPA          = XKAPPA
-    config_XNLEV           = XNLEV
-    config_BETAMAX         = BETAMAX
-    config_ZALP            = ZALP
-    config_coldstart       = coldstart
-    config_iforc_waves     = iforc_waves
-    config_linput_sf1      = linput_sf1
-    config_linput_sf2      = linput_sf2
-    config_ldissip_sf      = ldissip_sf
-    config_lnon_linear_sf  = lnon_linear_sf
-    config_lbottom_fric_sf = lbottom_fric_sf
-    config_lwave_stress1   = lwave_stress1
-    config_lwave_stress2   = lwave_stress2
-    config_lgrid_refr      = lgrid_refr
+    DO jg=1,max_dom
+      wave_config(jg)%ndirs           = ndirs
+      wave_config(jg)%nfreqs          = nfreqs
+      wave_config(jg)%fr1             = fr1
+      wave_config(jg)%CO              = CO
+      wave_config(jg)%IREF            = IREF
+      wave_config(jg)%ALPHA           = ALPHA
+      wave_config(jg)%FM              = FM
+      wave_config(jg)%GAMMA_wave      = GAMMA_wave
+      wave_config(jg)%SIGMA_A         = SIGMA_A
+      wave_config(jg)%SIGMA_B         = SIGMA_B
+      wave_config(jg)%THETAQ          = THETAQ
+      wave_config(jg)%FETCH           = FETCH
+      wave_config(jg)%ROAIR           = ROAIR
+      wave_config(jg)%RNUAIR          = RNUAIR
+      wave_config(jg)%RNUAIRM         = RNUAIRM
+      wave_config(jg)%ROWATER         = ROWATER
+      wave_config(jg)%XEPS            = XEPS
+      wave_config(jg)%XINVEPS         = XINVEPS
+      wave_config(jg)%XKAPPA          = XKAPPA
+      wave_config(jg)%XNLEV           = XNLEV
+      wave_config(jg)%BETAMAX         = BETAMAX
+      wave_config(jg)%ZALP            = ZALP
+      wave_config(jg)%coldstart       = coldstart
+      wave_config(jg)%iforc_waves     = iforc_waves
+      wave_config(jg)%linput_sf1      = linput_sf1
+      wave_config(jg)%linput_sf2      = linput_sf2
+      wave_config(jg)%ldissip_sf      = ldissip_sf
+      wave_config(jg)%lnon_linear_sf  = lnon_linear_sf
+      wave_config(jg)%lbottom_fric_sf = lbottom_fric_sf
+      wave_config(jg)%lwave_stress1   = lwave_stress1
+      wave_config(jg)%lwave_stress2   = lwave_stress2
+      wave_config(jg)%lgrid_refr      = lgrid_refr
+    ENDDO
 
 
     !-----------------------------------------------------
@@ -258,7 +229,6 @@ CONTAINS
       WRITE(funit,NML=wave_nml)
       CALL store_and_close_namelist(funit, 'wave_nml')
     ENDIF
-
 
     !------------------------------------------------------------------
     ! 7. Write the namelist to an ASCII file

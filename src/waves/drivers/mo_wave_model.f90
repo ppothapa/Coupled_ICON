@@ -27,15 +27,15 @@ MODULE mo_wave_model
   USE mo_master_control,          ONLY: wave_process
   USE mo_intp_lonlat_types,       ONLY: lonlat_grids
   USE mo_impl_constants,          ONLY: success, pio_type_async, pio_type_cdipio
-  USE mo_run_config,              ONLY: configure_run, &
-       &                                ltimer, dtime, &
+  USE mo_dynamics_config,         ONLY: configure_dynamics
+  USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,  &
+       &                                ntracer, ltimer, dtime,                &
        &                                nshift, num_lev, output_mode, msg_level
   USE mo_time_config,             ONLY: time_config
   USE mo_io_config,               ONLY: restartWritingParameters, configure_io
   USE mo_load_restart,            ONLY: read_restart_header
   USE mo_restart,                 ONLY: detachRestartProcs
-  USE mo_name_list_output,        ONLY: name_list_io_main_proc, &
-       &                                close_name_list_output
+  USE mo_name_list_output,        ONLY: close_name_list_output
   USE mo_icon_output_tools,       ONLY: init_io_processes
   USE mo_wave_read_namelists,     ONLY: read_wave_namelists
   USE mo_wave_crosscheck,         ONLY: wave_crosscheck
@@ -48,16 +48,19 @@ MODULE mo_wave_model
   USE mo_wave_state,              ONLY: p_wave_state, p_wave_state_lists, construct_wave_state
   USE mo_model_domain,            ONLY: p_patch
   USE mo_name_list_output_config, ONLY: use_async_name_list_io
-  USE mo_name_list_output,        ONLY: write_name_list_output
+
   USE mo_name_list_output_init,   ONLY: init_name_list_output, parse_variable_groups, &
        &                                output_file, create_vertical_axes
   USE mo_wave,                    ONLY: wave
+  USE mo_wave_config,             ONLY: configure_wave, wave_config
+
   USE mo_wave_ext_data_state,     ONLY: wave_ext_data, wave_ext_data_list, destruct_wave_ext_data_state
   USE mo_wave_ext_data_init,      ONLY: init_wave_ext_data
-  USE mo_alloc_patches,           ONLY: destruct_patches
 
+  USE mo_alloc_patches,           ONLY: destruct_patches
   USE mo_intp_data_strc,          ONLY: p_int_state
   USE mo_intp_state,              ONLY: construct_2d_interpol_state, destruct_2d_interpol_state
+
   USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
   USE mo_interpol_config,         ONLY: configure_interpolation
   USE mo_complete_subdivision,    ONLY: setup_phys_patches
@@ -87,6 +90,7 @@ CONTAINS
 
     ! print performance timers:
     IF (ltimer) CALL print_timer
+
 
   END SUBROUTINE wave_model
   !-------------------------------------------------------------------
@@ -163,7 +167,6 @@ CONTAINS
 
     zaxisTypeList = t_zaxisTypeList()
 
-
     IF (timers_level > 4) CALL timer_start(timer_domain_decomp)
 
     CALL build_decomposition(num_lev, nshift, is_ocean_decomposition = .true.)
@@ -196,6 +199,13 @@ CONTAINS
     !------------------------------------------------------------------
     CALL setup_phys_patches
 
+    CALL configure_dynamics (n_dom, ldynamics, ltransport)
+
+    ! setup wave model
+    ! - configuration of the wave spectrum
+    !
+    CALL configure_wave(n_dom, ntracer)
+
     !------------------------------------------------------------------
     ! Create and optionally read external data fields
     !------------------------------------------------------------------
@@ -210,7 +220,8 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "mo_wave_model:destruct_wave_model"
 
-    INTEGER                 :: error_status
+    INTEGER :: jg
+    INTEGER :: error_status
 
 
     ! Deallocate wave external data state and variable lists
@@ -224,6 +235,11 @@ CONTAINS
     IF (error_status /= SUCCESS) THEN
        CALL finish(routine, 'deallocation for ptr_int_state failed')
     ENDIF
+
+    ! deallocate wave_config fields
+    DO jg=1,n_dom
+      CALL wave_config(jg)%destruct()
+    ENDDO
 
     ! Deallocate global registry for lon-lat grids
     CALL lonlat_grids%finalize()
@@ -249,6 +265,5 @@ CONTAINS
     CALL message(routine, 'clean-up finished')
 
   END SUBROUTINE destruct_wave_model
-  !-------------------------------------------------------------------
 
 END MODULE mo_wave_model

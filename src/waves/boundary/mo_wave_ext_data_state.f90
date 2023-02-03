@@ -76,7 +76,6 @@ CONTAINS
          routine = modname//':construct_wave_ext_data'
 
     !-------------------------------------------------------------------------
-
     ALLOCATE(wave_ext_data(n_dom), wave_ext_data_list(n_dom), stat=ist)
     IF (ist /= SUCCESS) CALL finish(routine, &
       &  'allocation of wave ext_data state array and list failed')
@@ -103,6 +102,7 @@ CONTAINS
 
     INTEGER :: jg
     INTEGER :: ist
+
     CHARACTER(len=*), PARAMETER :: &
          routine = modname//':destruct_wave_ext_data'
 

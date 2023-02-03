@@ -42,7 +42,7 @@ MODULE mo_idx_list
 
   ! types
   PUBLIC :: t_idx_list_blocked
-
+  PUBLIC :: t_idx_list1D
 
   ! standard (non-blocked) index list
   TYPE t_idx_list1D

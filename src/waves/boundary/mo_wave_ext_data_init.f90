@@ -89,6 +89,7 @@ CONTAINS
       WHERE (wave_ext_data(jg)%bathymetry_c(:,:).lt.0.5_wp)
         wave_ext_data(jg)%bathymetry_c(:,:) = 0.5_wp
       END WHERE
+
     END DO
 
   END SUBROUTINE read_ext_data_wave
