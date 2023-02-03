@@ -96,7 +96,7 @@ USE mo_loopindices,             ONLY: get_indices_c
 USE mo_nonhydro_types,          ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
 USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend
 USE mo_impl_constants_grf,      ONLY: grf_bdywidth_c
-USE mo_impl_constants,          ONLY: min_rlcell_int, SUCCESS
+USE mo_impl_constants,          ONLY: min_rlcell_int, SUCCESS, max_dom
 USE mo_nonhydrostatic_config,   ONLY: kstart_moist
 USE mo_model_domain,            ONLY: t_patch
 USE mo_radar_data_types,        ONLY: t_radar_fields, t_lhn_diag
@@ -120,7 +120,7 @@ PUBLIC :: organize_lhn
 !---------------
 
   INTEGER (KIND=i4) ::  &
-    nulhn                ! unit of lhn output file
+    nulhn(max_dom)        ! unit of lhn output file
 
   REAL  (KIND=wp)              ::           &
     zdt                ,& ! valid time step for integration
@@ -130,7 +130,7 @@ PUBLIC :: organize_lhn
 
   CHARACTER (LEN=20)    ::  yroutine    ! name of the subroutine
   CHARACTER (LEN=80)    ::  yerrmsg     ! text message for model abort
-  CHARACTER (LEN=12)    ::  yulhn       ! name of lhn output file
+  CHARACTER (LEN=14)    ::  yulhn       ! name of lhn output file
 
 
 ! Local arrays  
@@ -265,6 +265,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
   LOGICAL :: ltoold, ltoyoung
   INTEGER :: izlocstat  ! error status on allocation of fields
+
+  CHARACTER (LEN=3) cjg
 
 !- End of header
 !===============================================================================
@@ -412,22 +414,27 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END PARALLEL
 
   IF (my_process_is_stdio() .AND. (assimilation_config(jg)%lhn_diag)) THEN
+    IF (jg == 1) THEN
+      yulhn = 'lhn.log'
+    ELSE
+      WRITE(cjg,'(i2.2)') jg 
+      yulhn = 'lhn_DOM'//TRIM(cjg)//'.log'
+    ENDIF
     INQUIRE (file=yulhn, OPENED=lopen_log)
     IF (.NOT. lopen_log) THEN
-      CALL open_lhn_log()
-      WRITE(nulhn, '(a,f10.2,3i10)') 'LHN : intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
-      WRITE(nulhn, '(a,2f10.2)') 'LHN : relevant time step/time now : ', zdt, p_sim_time*sec_per_hr_inv
-      WRITE(nulhn, *) ' parameters set for LHN :'
-      WRITE(nulhn, *) ' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ', assimilation_config(jg)%lhn_artif
-      WRITE(nulhn, *) ' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ', assimilation_config(jg)%lhn_filt
-      WRITE(nulhn, *) ' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
+      CALL open_lhn_log(nulhn(jg))
+      WRITE(nulhn(jg), '(a,2f10.2,i5)') 'LHN : relevant time step/time now, domain : ', zdt, p_sim_time*sec_per_hr_inv,jg
+      WRITE(nulhn(jg), *) ' parameters set for LHN :'
+      WRITE(nulhn(jg), *) ' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ', assimilation_config(jg)%lhn_artif
+      WRITE(nulhn(jg), *) ' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ', assimilation_config(jg)%lhn_filt
+      WRITE(nulhn(jg), *) ' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
                         assimilation_config(jg)%lhn_relax, assimilation_config(jg)%nlhn_relax
-      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ', assimilation_config(jg)%lhn_limit, &
+      WRITE(nulhn(jg), *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ', assimilation_config(jg)%lhn_limit, &
                         assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
-      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ', assimilation_config(jg)%lhn_limitp, &
+      WRITE(nulhn(jg), *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ', assimilation_config(jg)%lhn_limitp, &
                         assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
-      WRITE(nulhn, *) ' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ', assimilation_config(jg)%lhn_hum_adj
-      WRITE(nulhn, *) ' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ', assimilation_config(jg)%lhn_diag
+      WRITE(nulhn(jg), *) ' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ', assimilation_config(jg)%lhn_hum_adj
+      WRITE(nulhn(jg), *) ' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ', assimilation_config(jg)%lhn_diag
     END IF  
   END IF  
 
@@ -806,27 +813,27 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       g_diag_sum(1:15) = global_sum(diag_sum(1:15), opt_iroot=p_io) 
 
       IF (my_process_is_stdio()) THEN
-        WRITE(nulhn, *)
-        WRITE(nulhn, *)              ' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
+        WRITE(nulhn(jg), *)
+        WRITE(nulhn(jg), *)              ' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
 
-        WRITE(nulhn, *)              'Diagnostics of LHN, lhn_t_inc, timestep : ', p_sim_time*zdt_1
-        WRITE(nulhn, '(A,L3,f6.2)' ) ' Latent Heat Nudging active          : ', ltlhn, REAL(diag_out(i_endblk,16))/100.
-        WRITE(nulhn, *)              ' n of points with increments         : ',               g_diag_sum(1)
-        WRITE(nulhn, *)              ' n of points with local profiles     : ',               g_diag_sum(2)
-        WRITE(nulhn, *)              ' n of points with upscaling          : ',               g_diag_sum(3)
-        WRITE(nulhn, *)              ' n of points with limited upscaling  : ',               g_diag_sum(4)
-        WRITE(nulhn, *)              ' n of points with downscaling        : ',               g_diag_sum(5)
-        WRITE(nulhn, *)              ' n of points with limited downscaling: ',               g_diag_sum(6)
-        WRITE(nulhn, *)              ' n of points with artif. prof         : ',              g_diag_sum(7)
-        WRITE(nulhn, *)              ' points with imposed positive limit  : ',               g_diag_sum(8)
-        WRITE(nulhn, *)              ' points with imposed negative limit  : ',               g_diag_sum(9)
-        WRITE(nulhn, *)              ' points with wind weighting < 1 and > 0 : ',            g_diag_sum(10)
-        WRITE(nulhn, *)              ' points with wind weighting equal 0     : ',            g_diag_sum(11)
-        WRITE(nulhn, *)              ' points with applied in_cloud treatment : ',            g_diag_sum(15)
-        WRITE(nulhn, *)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate oscillations: ',  g_diag_sum(12)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate isolate peaks: ', g_diag_sum(13)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points smoothed : ',               g_diag_sum(14)
+        WRITE(nulhn(jg), *)              'Diagnostics of LHN, lhn_t_inc, timestep : ', p_sim_time*zdt_1
+        WRITE(nulhn(jg), '(A,L3,f6.2)' ) ' Latent Heat Nudging active          : ', ltlhn, REAL(diag_out(i_endblk,16))/100.
+        WRITE(nulhn(jg), *)              ' n of points with increments         : ',               g_diag_sum(1)
+        WRITE(nulhn(jg), *)              ' n of points with local profiles     : ',               g_diag_sum(2)
+        WRITE(nulhn(jg), *)              ' n of points with upscaling          : ',               g_diag_sum(3)
+        WRITE(nulhn(jg), *)              ' n of points with limited upscaling  : ',               g_diag_sum(4)
+        WRITE(nulhn(jg), *)              ' n of points with downscaling        : ',               g_diag_sum(5)
+        WRITE(nulhn(jg), *)              ' n of points with limited downscaling: ',               g_diag_sum(6)
+        WRITE(nulhn(jg), *)              ' n of points with artif. prof         : ',              g_diag_sum(7)
+        WRITE(nulhn(jg), *)              ' points with imposed positive limit  : ',               g_diag_sum(8)
+        WRITE(nulhn(jg), *)              ' points with imposed negative limit  : ',               g_diag_sum(9)
+        WRITE(nulhn(jg), *)              ' points with wind weighting < 1 and > 0 : ',            g_diag_sum(10)
+        WRITE(nulhn(jg), *)              ' points with wind weighting equal 0     : ',            g_diag_sum(11)
+        WRITE(nulhn(jg), *)              ' points with applied in_cloud treatment : ',            g_diag_sum(15)
+        WRITE(nulhn(jg), *)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points eliminate oscillations: ',  g_diag_sum(12)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points eliminate isolate peaks: ', g_diag_sum(13)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points smoothed : ',               g_diag_sum(14)
       END IF
     END IF
 
@@ -1796,22 +1803,22 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
     g_diag_sum(1:ndiag) = global_sum( diag_out(1:ndiag),opt_iroot=p_io )
 
     IF (my_process_is_stdio()) THEN
-     WRITE(nulhn, *)
-     WRITE(nulhn, *)' Diagnostics of RADAR obs time interpolation, lhn_dt_obs = ',assimilation_config(jg)%lhn_dt_obs
-     WRITE(nulhn, *)' number of treated obs points in time weighting : ',  &
+     WRITE(nulhn(jg), *)
+     WRITE(nulhn(jg), *)' Diagnostics of RADAR obs time interpolation, lhn_dt_obs = ',assimilation_config(jg)%lhn_dt_obs
+     WRITE(nulhn(jg), *)' number of treated obs points in time weighting : ',  &
           g_diag_sum( 1)+g_diag_sum( 2)+g_diag_sum( 3)+g_diag_sum( 4)+g_diag_sum( 5)
-     WRITE(nulhn, *)' n of points with obs-dist 1 delta_t  : num1delta_t_obs = ',g_diag_sum( 1)
-     WRITE(nulhn, *)' n of points with obs-dist 2 delta_t  : num2delta_t_obs = ',g_diag_sum( 2)
-     WRITE(nulhn, *)' n of points with obs-dist 3 delta_t  : num3delta_t_obs = ',g_diag_sum( 3)
-     WRITE(nulhn, *)' n of points with obs-dist 4 delta_t  : num4delta_t_obs = ',g_diag_sum( 4)
-     WRITE(nulhn, *)' n of points without obs              : numnone = ',g_diag_sum( 5)
-     WRITE(nulhn, *)' n of points which are blacklisted    : numblack = ',g_diag_sum( 6)
-     WRITE(nulhn, *)
-     WRITE(nulhn, *)' Diagnostics of RADAR obs space weighting'
-     WRITE(nulhn, *)' n of points with full    spatial weight : numfull = ',g_diag_sum( 7)
-     WRITE(nulhn, *)' n of points with reduced spatial weight : numred  = ',g_diag_sum( 8)
-     WRITE(nulhn, *)' n of points with zero    spatial weight : numzero = ',g_diag_sum( 9)
-     WRITE(nulhn, *)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 1 delta_t  : num1delta_t_obs = ',g_diag_sum( 1)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 2 delta_t  : num2delta_t_obs = ',g_diag_sum( 2)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 3 delta_t  : num3delta_t_obs = ',g_diag_sum( 3)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 4 delta_t  : num4delta_t_obs = ',g_diag_sum( 4)
+     WRITE(nulhn(jg), *)' n of points without obs              : numnone = ',g_diag_sum( 5)
+     WRITE(nulhn(jg), *)' n of points which are blacklisted    : numblack = ',g_diag_sum( 6)
+     WRITE(nulhn(jg), *)
+     WRITE(nulhn(jg), *)' Diagnostics of RADAR obs space weighting'
+     WRITE(nulhn(jg), *)' n of points with full    spatial weight : numfull = ',g_diag_sum( 7)
+     WRITE(nulhn(jg), *)' n of points with reduced spatial weight : numred  = ',g_diag_sum( 8)
+     WRITE(nulhn(jg), *)' n of points with zero    spatial weight : numzero = ',g_diag_sum( 9)
+     WRITE(nulhn(jg), *)
     ENDIF
   ENDIF
 
@@ -1921,7 +1928,7 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
     nbright=COUNT(lhn_fields%brightband)
     nbrightg=global_sum(nbright,opt_iroot=p_io)
     IF (my_process_is_stdio()) &
-     WRITE(nulhn, *)' n of points which are possibly brightband    : numbright = ',nbrightg
+     WRITE(nulhn(jg), *)' n of points which are possibly brightband    : numbright = ',nbrightg
   ENDIF
    !$ACC END DATA
    
@@ -2922,6 +2929,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    realbuf  (7),      & ! for communication
    realbuf_g(7)         ! for communication
 
+ INTEGER :: jg   ! domain ID
 
  INTEGER (KIND=i4) :: &
    jb,jc !,i_ver(nproma,pt_patch%nblks_c)
@@ -2968,6 +2976,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    zpranz         = 0_i4
 
    ! exclude boundary interpolation zone of nested domains
+   jg = pt_patch%id
    i_rlstart = grf_bdywidth_c+1
    i_rlend   = min_rlcell_int
 
@@ -3012,15 +3021,15 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
 
      ENDIF
 
-      WRITE(nulhn, *)'Verification:'
+      WRITE(nulhn(jg), *)'Verification:'
       IF (ytime == "HR") THEN
-        WRITE(nulhn, '(a,a3,f6.1,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
-        WRITE(nulhn, '(a,a3,f6.1,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
-        WRITE(nulhn, '(a,a3,f6.1,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
       ELSE
-        WRITE(nulhn, '(a,a3,f10.0,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
-        WRITE(nulhn, '(a,a3,f10.0,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
-        WRITE(nulhn, '(a,a3,f10.0,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
       ENDIF
 
 
@@ -3194,11 +3203,11 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
     hss = 100.0_wp * (rass+rdss-rhss)/(rass+rbss+rcss+rdss-rhss)
 
     IF (ytime == "HR") THEN
-      WRITE(nulhn,'(a25,a3,f6.1,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
-      WRITE(nulhn,'(a14,a3,f6.1,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
+      WRITE(nulhn(jg),'(a25,a3,f6.1,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
+      WRITE(nulhn(jg),'(a14,a3,f6.1,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
     ELSE
-      WRITE(nulhn,'(a25,a3,f10.0,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
-      WRITE(nulhn,'(a14,a3,f10.0,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
+      WRITE(nulhn(jg),'(a25,a3,f10.0,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
+      WRITE(nulhn(jg),'(a14,a3,f10.0,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
     ENDIF
 
   ENDIF
@@ -3223,24 +3232,24 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
       histmod(ith)=histmod(ith)-histmod(ith+1)
    ENDDO
    IF (ytime == "HR") THEN
-     WRITE(nulhn,'(a17,a3,f6.1,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
-     WRITE(nulhn,'(a17,a3,f6.1,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f6.1,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f6.1,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
    ELSE
-     WRITE(nulhn,'(a17,a3,f10.0,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
-     WRITE(nulhn,'(a17,a3,f10.0,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f10.0,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f10.0,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
    ENDIF
  ENDIF
 
 END SUBROUTINE lhn_verification
 
   !-------------------------------------------------------------------------
-  SUBROUTINE open_lhn_log( )
+  SUBROUTINE open_lhn_log(nulhn)
 
-!    CHARACTER (len=MAX_CHAR_LENGTH) :: file_ti    ! file name
+    INTEGER (KIND=i4), INTENT(INOUT) :: nulhn
+
     INTEGER :: istatus
     LOGICAL :: lopened
 
-    yulhn = 'lhn.log'
     INQUIRE (FILE=TRIM(yulhn),OPENED=lopened)
     IF (lopened) THEN
       CALL message('LHN','lhn.log already open!')
