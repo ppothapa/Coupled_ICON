@@ -312,7 +312,7 @@ CONTAINS
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_mflx_anti_1, z_mflx_anti_2, z_mflx_anti_3)
 #ifdef __LOOP_EXCHANGE
 !DIR$ IVDEP,PREFERVECTOR
       DO jc = i_startidx, i_endidx
@@ -389,11 +389,10 @@ CONTAINS
         ! nonsense and therefore need artificial limitation
 
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        !$ACC LOOP GANG
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           IF (ptr_patch%cells%refin_ctrl(jc,jb) == grf_bdywidth_c-1 .OR. &
               ptr_patch%cells%refin_ctrl(jc,jb) == grf_bdywidth_c) THEN
-            !$ACC LOOP VECTOR
             DO jk = slev, elev
               z_tracer_new_low(jc,jk,jb) = MAX(0.9_wp*p_cc(jc,jk,jb),z_tracer_new_low(jc,jk,jb))
               z_tracer_new_low(jc,jk,jb) = MIN(1.1_wp*p_cc(jc,jk,jb),z_tracer_new_low(jc,jk,jb))
@@ -439,12 +438,12 @@ CONTAINS
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
 #endif
@@ -464,10 +463,8 @@ CONTAINS
             &                 z_tracer_min(iilnc(jc,jb,3),jk,iibnc(jc,jb,3)) )
         ENDDO
       ENDDO
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
 
@@ -520,7 +517,7 @@ CONTAINS
       ! compute final limited fluxes
       !
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_signum, r_frac)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         DO jk = slev, elev
@@ -723,12 +720,12 @@ CONTAINS
                          i_startidx, i_endidx, i_rlstart_c, i_rlend_c)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_mflx1, z_mflx2, z_mflx3, p_m)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
 #endif
@@ -761,13 +758,10 @@ CONTAINS
   
         ENDDO
       ENDDO
-      !$ACC END PARALLEL
 
       !
       ! 2. Compute total outward mass
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
 !DIR$ IVDEP
         DO jc = i_startidx, i_endidx
@@ -836,15 +830,13 @@ CONTAINS
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
-      !$ACC LOOP GANG
       DO je = i_startidx, i_endidx
         ! this is potentially needed for calls from miura_cycl
         IF (ptr_patch%edges%refin_ctrl(je,jb) == grf_bdywidth_e-2) CYCLE
-        !$ACC LOOP VECTOR PRIVATE(z_signum)
         DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_signum)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
           IF (ptr_patch%edges%refin_ctrl(je,jb) == grf_bdywidth_e-2) CYCLE
