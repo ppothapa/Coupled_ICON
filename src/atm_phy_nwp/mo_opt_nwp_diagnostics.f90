@@ -3459,13 +3459,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
 
-! Different data clauses are needed with and without __SX__
-#ifdef __SX__
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx, lacape3km, lasi) IF(lzacc)
-#else
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx, lacape3km, lasi) &
-    !$ACC   FIRSTPRIVATE(tguess1, icount, esat, q1, thetae1, tguess2, q2, thetae2, esatp, tvp, tve, buo_belo) IF(lzacc)
-#endif
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     ! Loop over all model levels above kstart
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
