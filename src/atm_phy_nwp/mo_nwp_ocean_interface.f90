@@ -206,8 +206,8 @@ CONTAINS
     !  - lake part is included in land part, must be subtracted as well
     IF ( mask_checksum > 0 ) THEN
 
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
+!ICON_OMP PARALLEL
+!ICON_OMP DO PRIVATE(jb, jc, i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
       DO jb = i_startblk, i_endblk
   
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &

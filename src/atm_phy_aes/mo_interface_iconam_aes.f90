@@ -659,7 +659,7 @@ CONTAINS
     END DO
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jcs,jce,jk,jc) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_c,jbe_c
       !
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
