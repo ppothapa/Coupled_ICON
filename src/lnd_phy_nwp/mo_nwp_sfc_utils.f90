@@ -1166,7 +1166,7 @@ CONTAINS
   !! Segregated from nwp_surface_init, to avoid recoding again
   !-------------------------------------------------------------------------
 
-  SUBROUTINE aggregate_tg_qvs( p_patch, frac_t, t_g_t, qv_s_t, t_g, qv_s )
+  SUBROUTINE aggregate_tg_qvs( p_patch, frac_t, t_g_t, qv_s_t, t_g, qv_s, lacc )
 
     TYPE(t_patch), INTENT(IN)    :: p_patch
     REAL(wp)     , INTENT(IN)    :: frac_t(:,:,:)   !< tile-specific area fraction
@@ -1174,6 +1174,8 @@ CONTAINS
     REAL(wp)     , INTENT(IN)    :: qv_s_t(:,:,:)   !< specific humidity at the surface (tiled)
     REAL(wp)     , INTENT(INOUT) :: t_g(:,:)        !< surface temperature (aggregated)
     REAL(wp)     , INTENT(INOUT) :: qv_s(:,:)       !< specific humidity at the surface (aggregated)
+
+    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
 
     ! Local array bounds:
 
@@ -1185,7 +1187,11 @@ CONTAINS
 
     INTEGER :: jc,jb,isubs
     REAL(wp):: t_g_s(nproma), qv_s_s(nproma)
+
+    LOGICAL :: lzacc
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! exclude nest boundary and halo points
     rl_start = grf_bdywidth_c+1
@@ -1194,6 +1200,7 @@ CONTAINS
     i_startblk = p_patch%cells%start_block(rl_start)
     i_endblk   = p_patch%cells%end_block(rl_end)
 
+    !$ACC DATA CREATE(qv_s_s, t_g_s) IF(lzacc)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,isubs,i_startidx,i_endidx,t_g_s,qv_s_s)
@@ -1202,31 +1209,47 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         & i_startidx, i_endidx, rl_start, rl_end)
 
-
        IF (ntiles_total == 1) THEN
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR
          DO jc = i_startidx, i_endidx
            t_g (jc,jb) = t_g_t (jc,jb,1)
            qv_s(jc,jb) = qv_s_t(jc,jb,1)
          ENDDO
+         !$ACC END PARALLEL
        ELSE ! aggregate fields over tiles
-         t_g_s(:)  =  0._wp
-         qv_s_s(:) =  0._wp
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR
+         DO jc = 1, nproma
+           t_g_s(jc) = 0._wp
+           qv_s_s(jc) = 0._wp
+         END DO
+         !$ACC END PARALLEL
+
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+         !$ACC LOOP SEQ
          DO isubs = 1,ntiles_total+ntiles_water
-           DO jc = i_startidx, i_endidx
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = i_startidx, i_endidx
              t_g_s (jc) = t_g_s (jc) + frac_t(jc,jb,isubs) * t_g_t (jc,jb,isubs)**4
              qv_s_s(jc) = qv_s_s(jc) + frac_t(jc,jb,isubs) * qv_s_t(jc,jb,isubs)
            ENDDO
          ENDDO
+
+         !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO jc = i_startidx, i_endidx
            t_g (jc,jb) = SQRT(SQRT(t_g_s(jc)))
            qv_s(jc,jb) = qv_s_s(jc)
          ENDDO
+         !$ACC END PARALLEL
 
        ENDIF  ! with or without tiles
 
     ENDDO  ! jb
 !$OMP END DO
 !$OMP END PARALLEL
+
+    !$ACC END DATA
 
   END SUBROUTINE aggregate_tg_qvs
 
@@ -2701,7 +2724,7 @@ CONTAINS
   !!
   SUBROUTINE process_sst_and_seaice (p_patch, fr_seaice, t_seasfc, pres_sfc, ext_data,&
     &                               prog_lnd_now, prog_lnd_new, prog_wtr_now, prog_wtr_new, &
-    &                               diag_lnd, optin_h_ice)
+    &                               diag_lnd, optin_h_ice, lacc)
 
     TYPE(t_patch),           INTENT(IN)    :: p_patch
     REAL(wp),                INTENT(INOUT) :: fr_seaice(:,:)    !< sea ice fraction from 
@@ -2717,6 +2740,7 @@ CONTAINS
     TYPE(t_lnd_diag),        INTENT(INOUT) :: diag_lnd          !< diag vars for sfc
     REAL(wp), OPTIONAL,      INTENT(IN)    :: optin_h_ice(:,:)  !< ice thickness from 
                                                                 !  external sources
+    LOGICAL,  OPTIONAL,      INTENT(IN)    :: lacc
 
     ! Local scalars:
     !
@@ -2751,7 +2775,10 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = 'mo_nwp_sfc_interface:process_sst_and_seaice'
 
+    LOGICAL :: lzacc
+
 !----------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! exclude nest boundary and halo points
     rl_start = grf_bdywidth_c+1
@@ -2763,6 +2790,10 @@ CONTAINS
     lpresent_h_ice = PRESENT(optin_h_ice)
 
     IF (lseaice) THEN
+
+#ifdef _OPENACC
+      CALL finish(routine, 'The branch for lseaice==.TRUE. is not supported by OpenACC.')
+#endif
 
       ! allocate index lists for seaice and open water points
       !
@@ -3109,11 +3140,12 @@ CONTAINS
 
     ELSE   ! seaice model switched off
 
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jb = i_startblk, i_endblk
 
-
 !$NEC ivdep
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
         DO ic = 1, ext_data%atm%list_sea%ncount(jb)
 
           jc = ext_data%atm%list_sea%idx(ic,jb)
@@ -3132,6 +3164,7 @@ CONTAINS
         ENDDO  ! ic
 
       ENDDO  ! jb
+      !$ACC END PARALLEL
 
     ENDIF  ! lseaice
 
@@ -3142,14 +3175,16 @@ CONTAINS
       &                    t_g_t   = prog_lnd_now%t_g_t(:,:,:),  & ! in
       &                    qv_s_t  = diag_lnd%qv_s_t(:,:,:),     & ! in
       &                    t_g     = prog_lnd_now%t_g(:,:),      & ! inout
-      &                    qv_s    = diag_lnd%qv_s(:,:)          ) ! inout
+      &                    qv_s    = diag_lnd%qv_s(:,:),         & ! inout
+      &                    lacc    = lzacc                       )
 
     CALL aggregate_tg_qvs( p_patch = p_patch,                    & ! in
       &                    frac_t  = ext_data%atm%frac_t(:,:,:), & ! in
       &                    t_g_t   = prog_lnd_new%t_g_t(:,:,:),  & ! in
       &                    qv_s_t  = diag_lnd%qv_s_t(:,:,:),     & ! in
       &                    t_g     = prog_lnd_new%t_g(:,:),      & ! inout
-      &                    qv_s    = diag_lnd%qv_s(:,:)          ) ! inout
+      &                    qv_s    = diag_lnd%qv_s(:,:),         & ! inout
+      &                    lacc    = lzacc                       )
 
   END SUBROUTINE process_sst_and_seaice
 

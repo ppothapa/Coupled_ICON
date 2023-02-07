@@ -720,7 +720,7 @@ MODULE mo_nh_stepping
     TYPE(t_latbc_data),     INTENT(INOUT)  :: latbc !< data structure for async latbc prefetching
     TYPE(datetime),         POINTER        :: mtime_current     ! current datetime (mtime)
 
-  INTEGER                              :: jg, jn, jgc
+  INTEGER                              :: jg, jn, jgc, jc, jb
   INTEGER                              :: ierr
   LOGICAL                              :: l_compute_diagnostic_quants,  &
     &                                     l_nml_output, l_nml_output_dom(max_dom), lprint_timestep, &
@@ -1053,49 +1053,56 @@ MODULE mo_nh_stepping
       END IF ! end update of surface parameter fields
 
       IF (sstice_mode == SSTICE_INST) THEN
-#ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
-        DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
-        ENDDO
-        i_am_accel_node = .FALSE.
-#endif
-        DO jg=1, n_dom
-          CALL sst_intp(jg)%intp(mtime_current, sst_dat)
-          WHERE (sst_dat(:,1,:,1) > 0.0_wp)
-            p_lnd_state(jg)%diag_lnd%t_seasfc(:,:) = sst_dat(:,1,:,1)
-          END WHERE
 
+        ! Note: sic_dat and sst_dat are created on GPU inside sic_intp(jg)%intp and sst_intp(jg)%intp during the first
+        !       call to perform_nh_stepping.
+        !$ACC DATA PRESENT(p_lnd_state, p_patch, sic_dat, sst_dat)
+
+        DO jg=1, n_dom
+          
+          CALL sst_intp(jg)%intp(mtime_current, sst_dat)
           CALL sic_intp(jg)%intp(mtime_current, sic_dat)
-          WHERE (sic_dat(:,1,:,1) < frsi_min)
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = 0.0_wp
-          ELSEWHERE  (sic_dat(:,1,:,1) > 1.0_wp-frsi_min)
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = 1.0_wp
-          ELSEWHERE
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = sic_dat(:,1,:,1)
-          ENDWHERE
+
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
+          DO jb=1, p_patch(jg)%nblks_c
+            DO jc=1, nproma
+              
+              IF (sst_dat(jc,1,jb,1) > 0.0_wp) THEN
+                p_lnd_state(jg)%diag_lnd%t_seasfc(jc,jb) = sst_dat(jc,1,jb,1)
+              END IF
+
+              IF (sic_dat(jc,1,jb,1) < frsi_min) THEN
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = 0.0_wp
+              ELSE IF (sic_dat(jc,1,jb,1) > 1.0_wp-frsi_min) THEN
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = 1.0_wp
+              ELSE
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = sic_dat(jc,1,jb,1)
+              END IF
+
+            END DO
+          END DO
+          !$ACC END PARALLEL
 
           ! rebuild index lists for water and seaice based on fr_seaice, 
           ! and update tiled surface temperatures
           !
           CALL process_sst_and_seaice (p_patch      = p_patch(jg),                             & !in
-            &                          fr_seaice = p_lnd_state(jg)%diag_lnd%fr_seaice(:,:),    & !in(out)
-            &                          t_seasfc  = p_lnd_state(jg)%diag_lnd%t_seasfc(:,:),     & !in
+            &                          fr_seaice    = p_lnd_state(jg)%diag_lnd%fr_seaice(:,:), & !in(out)
+            &                          t_seasfc     = p_lnd_state(jg)%diag_lnd%t_seasfc(:,:),  & !in
             &                          pres_sfc     = p_nh_state(jg)%diag%pres_sfc(:,:),       & !in
             &                          ext_data     = ext_data(jg),                            & !inout
             &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)),  & !inout
             &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)),  & !inout
             &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)),  & !inout
             &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)),  & !inout
-            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )                 !inout
+            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd,                & !inout
+            &                          lacc         = .TRUE.                                   )
+
         ENDDO
-#ifdef _OPENACC
-        i_am_accel_node = my_process_is_work()
-        CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
-        DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
-        ENDDO
-#endif
+
+        !$ACC END DATA
+
       END IF
 
 
