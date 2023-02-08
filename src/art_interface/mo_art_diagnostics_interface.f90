@@ -39,7 +39,8 @@ MODULE mo_art_diagnostics_interface
   USE mo_art_config,                    ONLY: art_config
   USE mo_art_aero_optical_props,        ONLY: art_calc_aod, art_calc_bsc, art_calc_aodvar
   USE mo_art_diag_state,                ONLY: art_create_diagnostics
-  USE mo_art_diagnostics,               ONLY: art_volc_diagnostics, art_radio_diagnostics
+  USE mo_art_diagnostics,               ONLY: art_volc_diagnostics, art_radio_diagnostics, &
+                                          &   art_dust_diagnostics, art_seas_diagnostics
   USE mo_art_clipping,                  ONLY: art_clip_lt
   USE mo_art_modes_linked_list,         ONLY: p_mode_state, t_mode
   USE mo_art_modes,                     ONLY: t_fields_2mom
@@ -174,11 +175,27 @@ SUBROUTINE art_diagnostics_interface(rho, pres, p_trac, dz, hml, jg, &
         ENDIF
 
         ! -------------------------------------
+        ! --- Calculate mineral dust products
+        ! -------------------------------------
+        IF (art_config(jg)%iart_dust > 0) THEN
+          CALL art_dust_diagnostics( rho(:,:,jb), p_trac(:,:,jb,:),                     &
+            &                        istart, iend, art_atmo%nlev, jb, p_art_data(jg) )
+        END IF
+
+        ! -------------------------------------
+        ! --- Calculate sea salt products
+        ! -------------------------------------
+        IF (art_config(jg)%iart_seasalt > 0) THEN
+          CALL art_seas_diagnostics( rho(:,:,jb), p_trac(:,:,jb,:),                     &
+            &                        istart, iend, art_atmo%nlev, jb, p_art_data(jg) )
+        END IF
+
+        ! -------------------------------------
         ! --- Calculate volcanic ash products
         ! -------------------------------------
         IF (art_config(jg)%iart_volcano > 0) THEN
-          CALL art_volc_diagnostics( rho(:,:,jb), pres(:,:,jb), p_trac(:,:,jb,:), dz(:,:,jb),     &
-            &                        hml(:,:,jb), istart, iend, art_atmo%nlev, jb, p_art_data(jg),&
+          CALL art_volc_diagnostics( rho(:,:,jb), pres(:,:,jb), p_trac(:,:,jb,:), dz(:,:,jb),       &
+            &                        hml(:,:,jb), istart, iend, art_atmo%nlev, jb, p_art_data(jg),  &
             &                        art_config(jg)%iart_volcano )
         END IF
 
