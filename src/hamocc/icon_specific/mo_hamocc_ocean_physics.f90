@@ -21,7 +21,7 @@
     USE mo_sea_ice_types,                ONLY: t_sea_ice
     USE mo_run_config,                   ONLY: ltimer
     USE mo_ocean_nml,                    ONLY: Cartesian_Mixing, GMRedi_configuration, &
-    &                                          lsediment_only, vert_cor_type
+    &                                          lsediment_only, vert_cor_type, lfb_bgc_oce
     USE mo_hamocc_types,                 ONLY: t_hamocc_prog, t_hamocc_state
     USE mo_bgc_icon_comm,                ONLY: hamocc_state
     USE mo_dynamics_config,              ONLY: nold, nnew 
@@ -172,6 +172,10 @@
 
     start_timer(timer_bgc_tracer_ab,1)
     hamocc_state_prog => hamocc_state%p_prog(nnew(1))
+
+    IF ((my_process_is_hamocc()) .AND. lfb_bgc_oce) THEN
+      CALL finish("concurrent HAMOCC", "OBGC (phytoplankton and cyano) feedback is not possible with concurent.")
+    ENDIF
 
     IF (vert_cor_type == 1) THEN ! zstar transport routines
       IF (PRESENT(stretch_e)) THEN
