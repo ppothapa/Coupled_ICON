@@ -135,7 +135,7 @@ CONTAINS
       CALL transfer_aes( p_patch, .FALSE. )
     END IF
 
-    !$ACC EXIT DATA DELETE(p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent) &
+    !$ACC EXIT DATA DELETE(p_patch, p_patch_local_parent) &
     !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config)
 
   END SUBROUTINE d2h_icon
