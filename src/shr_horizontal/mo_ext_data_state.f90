@@ -48,7 +48,7 @@ MODULE mo_ext_data_state
   USE mo_ext_data_types,     ONLY: t_external_data, t_external_atmos_td, &
     &                              t_external_atmos
   USE mo_var_groups,         ONLY: groups
-  USE mo_var_metadata_types, ONLY: POST_OP_SCALE, POST_OP_LUC, CLASS_TILE
+  USE mo_var_metadata_types, ONLY: POST_OP_SCALE, POST_OP_LUC, CLASS_TILE, CLASS_TILE_LAND
   USE mo_var_metadata,       ONLY: post_op, create_hor_interp_metadata
   USE mo_var_list_register,  ONLY: vlr_add, vlr_del
   USE mo_var_list,           ONLY: add_var, add_ref, t_var_list_ptr
@@ -700,9 +700,10 @@ CONTAINS
                & 'plcov_t_'//ADJUSTL(TRIM(csfc)),                        &
                & p_ext_atm%plcov_t_ptr(jsfc)%p_2d,                       &
                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                     &
-               & t_cf_var('plcov_t_'//csfc, '', '', datatype_flt),     &
+               & t_cf_var('plcov_t_'//csfc, '', '', datatype_flt),       &
                & grib2_desc,                                             &
                & ref_idx=jsfc,                                           &
+               & var_class=CLASS_TILE_LAND,                              &
                & ldims=shape2d_c, loutput=.TRUE.)
       ENDDO
 

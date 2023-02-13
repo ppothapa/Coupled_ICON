@@ -90,7 +90,8 @@ USE mo_lnd_nwp_config,      ONLY: ntiles_total, ntiles_water, nlev_soil
 USE mo_var_list,            ONLY: add_var, add_ref, t_var_list_ptr
 USE mo_var_list_register,   ONLY: vlr_add, vlr_del
 USE mo_var_groups,          ONLY: groups, MAX_GROUPS
-USE mo_var_metadata_types,  ONLY: POST_OP_SCALE, POST_OP_LIN2DBZ, CLASS_SYNSAT, CLASS_CHEM
+USE mo_var_metadata_types,  ONLY: POST_OP_SCALE, POST_OP_LIN2DBZ, CLASS_SYNSAT, CLASS_CHEM, &
+  &                               CLASS_TILE, CLASS_TILE_LAND
 USE mo_var_metadata,        ONLY: create_vert_interp_metadata,  &
   &                               create_hor_interp_metadata,   &
   &                               vintp_types, post_op
@@ -1737,8 +1738,10 @@ __acc_attach(diag%clct)
            & diag%albdif_t_ptr(jsfc)%p_2d,                                 &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
            & t_cf_var('albdif_t_'//csfc, '', '', datatype_flt),    &
-           & grib2_var(0, 19, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL),        &
-           & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE.                  )
+           & grib2_var(0, 19, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL),     &
+           & ref_idx=jsfc, ldims=shape2d,                                  &
+           & var_class=CLASS_TILE,                                         &
+           & lrestart=.TRUE.                  )
       ENDDO
 
       !        diag%albvisdif_t (nproma, nblks, ntiles_total+ntiles_water)
@@ -1762,7 +1765,9 @@ __acc_attach(diag%clct)
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
            & t_cf_var('albvisdif_t_'//csfc, '', '', datatype_flt), &
            & grib2_var(0, 19, 222, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-           & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE.                  )
+           & ref_idx=jsfc, ldims=shape2d,                                  &
+           & var_class=CLASS_TILE,                                         &
+           & lrestart=.TRUE.                  )
       ENDDO
 
       !        diag%albnirdif_t (nproma, nblks, ntiles_total+ntiles_water)
@@ -1787,7 +1792,9 @@ __acc_attach(diag%clct)
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
            & t_cf_var('albnirdif_t_'//csfc, '', '', datatype_flt), &
            & grib2_var(0, 19, 223, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-           & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE.                  )
+           & ref_idx=jsfc, ldims=shape2d,                                  &
+           & var_class=CLASS_TILE,                                         &
+           & lrestart=.TRUE.                  )
       ENDDO
 
 
@@ -1811,7 +1818,9 @@ __acc_attach(diag%clct)
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
            & t_cf_var('swflxsfc_t_'//csfc, '', '', datatype_flt),  &
            & grib2_var(0, 4, 9, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
-           & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE., &
+           & ref_idx=jsfc, ldims=shape2d,                                  &
+           & var_class=CLASS_TILE,                                         &
+           & lrestart=.TRUE., loutput=.TRUE.,                              &
            & in_group=groups("rad_vars"))
       ENDDO
 
@@ -1835,7 +1844,9 @@ __acc_attach(diag%clct)
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
            & t_cf_var('lwflxsfc_t_'//csfc, '', '', datatype_flt),  &
            & grib2_var(0, 5, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
-           & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE., &
+           & ref_idx=jsfc, ldims=shape2d,                                  &
+           & var_class=CLASS_TILE,                                         &
+           & lrestart=.TRUE., loutput=.TRUE.,                              &
            & in_group=groups("rad_vars"))
       ENDDO
     ENDIF
@@ -2962,7 +2973,9 @@ __acc_attach(diag%clct)
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
          & t_cf_var('rlamh_fac_'//TRIM(csfc), '', '', datatype_flt),     &
          & grib2_var(255,255,255, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.FALSE.                  )
+         & ref_idx=jsfc, ldims=shape2d,                                  &
+         & var_class=CLASS_TILE,                                         &
+         & lrestart=.FALSE.)
     ENDDO
 
 
@@ -3160,7 +3173,9 @@ __acc_attach(diag%clct)
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
          & t_cf_var('shfl_s_t_'//csfc, '', '', datatype_flt), &
          & grib2_var(0, 0, 11, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%lhfl_s_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3179,10 +3194,12 @@ __acc_attach(diag%clct)
       CALL add_ref( diag_list, 'lhfl_s_t',                            &
          & 'lhfl_s_t_'//TRIM(ADJUSTL(csfc)),                          &
          & diag%lhfl_s_t_ptr(jsfc)%p_2d,                              &
-         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        & 
-         & t_cf_var('lhfl_s_t_'//csfc, '', '', datatype_flt), &
-         & grib2_var(0, 0, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL),  & 
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
+         & t_cf_var('lhfl_s_t_'//csfc, '', '', datatype_flt),         &
+         & grib2_var(0, 0, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%lhfl_bs_t(nproma,nblks_c,ntiles_total)
@@ -3201,10 +3218,12 @@ __acc_attach(diag%clct)
       CALL add_ref( diag_list, 'lhfl_bs_t',                           &
          & 'lhfl_bs_t_'//TRIM(ADJUSTL(csfc)),                         &
          & diag%lhfl_bs_t_ptr(jsfc)%p_2d,                             &
-         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        & 
-         & t_cf_var('lhfl_bs_t_'//csfc, '', '', datatype_flt),&
-         & grib2_var(2, 0, 193, ibits, GRID_UNSTRUCTURED, GRID_CELL), & 
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.)
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
+         & t_cf_var('lhfl_bs_t_'//csfc, '', '', datatype_flt),        &
+         & grib2_var(2, 0, 193, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE_LAND,                                 &
+         & lrestart=.FALSE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%lhfl_pl_t(nproma,nlev_soil,nblks_c,ntiles_total)
@@ -3224,10 +3243,12 @@ __acc_attach(diag%clct)
       CALL add_ref( diag_list, 'lhfl_pl_t',                           &
          & 'lhfl_pl_t_'//TRIM(ADJUSTL(csfc)),                         &
          & diag%lhfl_pl_t_ptr(jsfc)%p_3d,                             &
-         & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_LAND,               & 
-         & t_cf_var('lhfl_pl_t_'//csfc, '', '', datatype_flt),&
-         & grib2_var(2, 0, 194, ibits, GRID_UNSTRUCTURED, GRID_CELL), & 
-         & ref_idx=jsfc, ldims=(/nproma,nlev_soil,kblks/), lrestart=.FALSE., &
+         & GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_LAND,               &
+         & t_cf_var('lhfl_pl_t_'//csfc, '', '', datatype_flt),        &
+         & grib2_var(2, 0, 194, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
+         & ref_idx=jsfc,                                              &
+         & var_class=CLASS_TILE_LAND,                                 &
+         & ldims=(/nproma,nlev_soil,kblks/), lrestart=.FALSE.,        &
          & loutput=.TRUE.)
     ENDDO
 
@@ -3249,10 +3270,12 @@ __acc_attach(diag%clct)
       CALL add_ref( diag_list, 'qhfl_s_t',                            &
          & 'qhfl_s_t_'//TRIM(ADJUSTL(csfc)),                          &
          & diag%qhfl_s_t_ptr(jsfc)%p_2d,                              &
-         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        & 
-         & t_cf_var('qhfl_s_t_'//csfc, '', '', datatype_flt),   &
-         & grib2_var(2, 0, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL),   & 
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
+         & t_cf_var('qhfl_s_t_'//csfc, '', '', datatype_flt),         &
+         & grib2_var(2, 0, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tcm_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3271,10 +3294,12 @@ __acc_attach(diag%clct)
       CALL add_ref( diag_list, 'tcm_t',                               &
          & 'tcm_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%tcm_t_ptr(jsfc)%p_2d,                                 &
-         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        & 
-         & t_cf_var('tcm_t_'//csfc, '', '', datatype_flt),    &
-         & grib2_var(0, 2, 29, ibits, GRID_UNSTRUCTURED, GRID_CELL),  & 
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
+         & t_cf_var('tcm_t_'//csfc, '', '', datatype_flt),            &
+         & grib2_var(0, 2, 29, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tch_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3295,9 +3320,11 @@ __acc_attach(diag%clct)
          & 'tch_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%tch_t_ptr(jsfc)%p_2d,                                 &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('tch_t_'//csfc, '', '', datatype_flt),    &
+         & t_cf_var('tch_t_'//csfc, '', '', datatype_flt),            &
          & grib2_var(0, 0, 19, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tfv_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3318,9 +3345,11 @@ __acc_attach(diag%clct)
          & 'tfv_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%tfv_t_ptr(jsfc)%p_2d,                                 &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('tfv_t_'//csfc, '', '', datatype_flt),    &
+         & t_cf_var('tfv_t_'//csfc, '', '', datatype_flt),            &
          & grib2_var(0, 4, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tvm_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3340,10 +3369,12 @@ __acc_attach(diag%clct)
          & 'tvm_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%tvm_t_ptr(jsfc)%p_2d,                                 &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('tvm_t_'//csfc, '', '', DATATYPE_FLT32),    &
+         & t_cf_var('tvm_t_'//csfc, '', '', DATATYPE_FLT32),          &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-!        & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)  !nec. for rest. only if 'tvm' substitutes 'tcm'
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+!        & lrestart=.TRUE., loutput=.TRUE.)  !nec. for rest. only if 'tvm' substitutes 'tcm'
+         & lrestart=.FALSE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tvh_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3364,10 +3395,12 @@ __acc_attach(diag%clct)
          & 'tvh_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%tvh_t_ptr(jsfc)%p_2d,                                 &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('tvh_t_'//csfc, '', '', DATATYPE_FLT32),    &
+         & t_cf_var('tvh_t_'//csfc, '', '', DATATYPE_FLT32),          &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-!        & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.) !nec. for rest. only if 'tvm' substitutes 'tcm'
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+!        & lrestart=.TRUE., loutput=.TRUE.) !nec. for rest. only if 'tvm' substitutes 'tcm'
+         & lrestart=.FALSE., loutput=.TRUE.)
     ENDDO
 
     ! &      diag%tkr_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3389,8 +3422,10 @@ __acc_attach(diag%clct)
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
          & t_cf_var('tkr_t_'//csfc, '', '', DATATYPE_FLT32),    &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-!        & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.) !nec. for rest. only if 'imode_trancnf>=4'
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.FALSE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+!        & lrestart=.TRUE., loutput=.TRUE.) !nec. for rest. only if 'imode_trancnf>=4'
+         & lrestart=.FALSE., loutput=.TRUE.)
     ENDDO
 
 
@@ -3415,9 +3450,11 @@ __acc_attach(diag%clct)
          & 'gz0_t_'//TRIM(ADJUSTL(csfc)),                             &
          & diag%gz0_t_ptr(jsfc)%p_2d,                                 &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('gz0_t_'//csfc, '', '', datatype_flt),    &
+         & t_cf_var('gz0_t_'//csfc, '', '', datatype_flt),            &
          & grib2_var(2, 0, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
 
@@ -3440,9 +3477,11 @@ __acc_attach(diag%clct)
          & 'tvs_s_t_'//TRIM(ADJUSTL(csfc)),                              &
          & diag%tvs_s_t_ptr(jsfc)%p_2d,                                  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                           &
-         & t_cf_var('tvs_s_t_'//csfc, '', '', datatype_flt),     &
+         & t_cf_var('tvs_s_t_'//csfc, '', '', datatype_flt),             &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),&
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.FALSE.)
+         & ref_idx=jsfc, ldims=shape2d,                                  &
+         & var_class=CLASS_TILE,                                         &
+         & lrestart=.TRUE., loutput=.FALSE.)
     ENDDO
 
 
@@ -3466,9 +3505,11 @@ __acc_attach(diag%clct)
          & 'tkvm_s_t_'//TRIM(ADJUSTL(csfc)),                              &
          & diag%tkvm_s_t_ptr(jsfc)%p_2d,                                  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                            &
-         & t_cf_var('tkvm_s_t_'//csfc, '', '', datatype_flt),     &
+         & t_cf_var('tkvm_s_t_'//csfc, '', '', datatype_flt),             &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.FALSE.)
+         & ref_idx=jsfc, ldims=shape2d,                                   &
+         & var_class=CLASS_TILE,                                          &
+         & lrestart=.TRUE., loutput=.FALSE.)
     ENDDO
 
 
@@ -3491,9 +3532,11 @@ __acc_attach(diag%clct)
          & 'tkvh_s_t_'//TRIM(ADJUSTL(csfc)),                              &
          & diag%tkvh_s_t_ptr(jsfc)%p_2d,                                  &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                            &
-         & t_cf_var('tkvh_s_t_'//csfc, '', '', datatype_flt),     &
+         & t_cf_var('tkvh_s_t_'//csfc, '', '', datatype_flt),             &
          & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.FALSE.)
+         & ref_idx=jsfc, ldims=shape2d,                                   &
+         & var_class=CLASS_TILE,                                          &
+         & lrestart=.TRUE., loutput=.FALSE.)
     ENDDO
 
 
@@ -3514,9 +3557,11 @@ __acc_attach(diag%clct)
          & 'u_10m_t_'//TRIM(ADJUSTL(csfc)),                           &
          & diag%u_10m_t_ptr(jsfc)%p_2d,                               &
          & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M,                     &
-         & t_cf_var('u_10m_t_'//csfc, '', '', datatype_flt),  &
+         & t_cf_var('u_10m_t_'//csfc, '', '', datatype_flt),          &
          & grib2_var(0, 2, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
 
@@ -3538,9 +3583,11 @@ __acc_attach(diag%clct)
          & 'v_10m_t_'//TRIM(ADJUSTL(csfc)),                           &
          & diag%v_10m_t_ptr(jsfc)%p_2d,                               &
          & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M,                     &
-         & t_cf_var('v_10m_t_'//csfc, '', '', datatype_flt),  &
+         & t_cf_var('v_10m_t_'//csfc, '', '', datatype_flt),          &
          & grib2_var(0, 2, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL),   &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE.)
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.)
     ENDDO
 
 
@@ -3561,9 +3608,11 @@ __acc_attach(diag%clct)
          & 'umfl_s_t_'//TRIM(ADJUSTL(csfc)),                          &
          & diag%umfl_s_t_ptr(jsfc)%p_2d,                              &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('umfl_s_t_'//csfc, '', '', datatype_flt), &
+         & t_cf_var('umfl_s_t_'//csfc, '', '', datatype_flt),         &
          & grib2_var(0, 2, 17, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE., &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
     !EDMF requires lrestart=.TRUE. 
@@ -3585,9 +3634,11 @@ __acc_attach(diag%clct)
          & 'vmfl_s_t_'//TRIM(ADJUSTL(csfc)),                          &
          & diag%vmfl_s_t_ptr(jsfc)%p_2d,                              &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
-         & t_cf_var('vmfl_s_t_'//csfc, '', '', datatype_flt), &
+         & t_cf_var('vmfl_s_t_'//csfc, '', '', datatype_flt),         &
          & grib2_var(0, 2, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-         & ref_idx=jsfc, ldims=shape2d, lrestart=.TRUE., loutput=.TRUE., &
+         & ref_idx=jsfc, ldims=shape2d,                               &
+         & var_class=CLASS_TILE,                                      &
+         & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
     !EDMF requires lrestart=.TRUE. 
