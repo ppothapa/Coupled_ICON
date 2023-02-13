@@ -183,7 +183,7 @@ CONTAINS
         td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(dt_rad), ms=0)
         prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
         IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
-          IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3)
+          IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3, vmr2mmr_opt=amo3/amd)
         END IF
         CALL deallocateTimedelta(td_dt_rad)
         CALL deallocateDatetime(prev_radtime)
