@@ -669,7 +669,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
                         'H_ICE',     'FR_ICE',  'H_SNOW', 'FRESHSNW',
                         'CAPE_CON', 'TQV', 'TQC_DIA', 'TQI_DIA',
                         'TMIN_2M',   'TMAX_2M', 'T_G', 'ATHB_S',  'ATHB_T',
-                        'ASOB_S',  'ASOB_T',  'ASWDIFD_S', 'ASWDIFU_S', 'ASWDIR_S'
+                        'ASOB_S',  'ASOB_T',  'ASWDIFD_S', 'ASWDIFU_S', 'ASWDIR_S','tiles:THBS_RAD'
  stream_partitions_pl = 1
  pe_placement_pl      = 1
  pl_varlist           = 'T',         'U',         'V',
