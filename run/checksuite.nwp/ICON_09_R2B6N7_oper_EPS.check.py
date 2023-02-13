@@ -148,10 +148,10 @@ async def check_grb_metadata(test_data, reference, condition):
                     print("  '{}' / '{}'".format(keyval, keyval_ref))
                     differ = True
         eccodes.codes_keys_iterator_delete(iterid)
-        #if not differ:
-        #    print(">>> check_grb_metadata '{}' : passed.".format(grb_metadata(reference.grb,"shortName")))
         if differ:
             raise Exception("GRB metadata differs for '{}'!".format(grb_metadata(test_data.grb,"shortName")))
+        else:
+            print(">>> check_grb_metadata '{}' : passed.".format(grb_metadata(reference.grb,"shortName")))
 
 # --------------------------------------------------------------------------------
 # > TEST: check that variable is greater than 0
@@ -194,7 +194,7 @@ async def read_grib_record(test_data, reference, check_fct):
 # > @return True if test and reference record correspond to the same data.
 def grb_record_eqv(grbA,grbB):
     if (grbA is None) or (grbB is None):  return False
-    for item in ["shortName", "scaleFactorOfFirstFixedSurface", \
+    for item in ["shortName", "scaleFactorOfFirstFixedSurface", "tileIndex", \
                  "scaledValueOfFirstFixedSurface", "dateTime", "partitionNumber"]:
         try:
             if (grb_metadata(grbA,item) != grb_metadata(grbB,item)):  return False
