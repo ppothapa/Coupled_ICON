@@ -1547,8 +1547,8 @@ MODULE mo_nonhydro_state
     INTEGER :: n_timlevs     !< number of time levels for advection 
                              !< tendency fields
 
-    INTEGER :: shape2d_c(2), shape2d_e(2), shape3d_c(3),           &
-      &        shape3d_e(3), shape3d_v(3), shape3d_chalf(3),       &
+    INTEGER :: shape2d_c(2),  shape3d_c(3), shape3d_e(3),          &
+      &        shape3d_e2(3), shape3d_v(3), shape3d_chalf(3),      &
       &        shape3d_ehalf(3), shape4d_chalf(4), shape4d_e(4),   &
       &        shape4d_entl(4), shape4d_chalfntl(4), shape4d_c(4), &
       &        shape2d_extra(3), shape3d_extra(4), shape3d_ubcc(3),&
@@ -1600,10 +1600,10 @@ MODULE mo_nonhydro_state
 
     ! predefined array shapes
     shape2d_c     = (/nproma,          nblks_c    /)
-    shape2d_e     = (/nproma,          nblks_e    /)
     shape2d_extra = (/nproma, nblks_c, inextra_2d /)
     shape3d_c     = (/nproma, nlev   , nblks_c    /)
     shape3d_e     = (/nproma, nlev   , nblks_e    /)
+    shape3d_e2    = (/nproma, 2      , nblks_e    /)
     shape3d_v     = (/nproma, nlev   , nblks_v    /)
     shape3d_chalf = (/nproma, nlevp1 , nblks_c    /)
     shape3d_ehalf = (/nproma, nlevp1 , nblks_e    /)
@@ -1700,8 +1700,8 @@ MODULE mo_nonhydro_state
     &       p_diag%grf_bdy_mflx, &
     &       p_diag%grf_tend_thv, &
     &       p_diag%grf_tend_tracer, &
-    &       p_diag%dvn_ie_int, &
-    &       p_diag%dvn_ie_ubc, &
+    &       p_diag%vn_ie_int, &
+    &       p_diag%vn_ie_ubc, &
     &       p_diag%w_int, &
     &       p_diag%w_ubc, &
     &       p_diag%theta_v_ic_int, &
@@ -2849,31 +2849,31 @@ MODULE mo_nonhydro_state
     __acc_attach(p_diag%grf_tend_thv)
 
 
-    ! Storage fields for vertical nesting; the middle index (2) addresses 
+    ! Storage fields for vertical nesting; for vn, the middle index (2) addresses 
     ! the field and its temporal tendency
 
-    ! dvn_ie_int   p_diag%dvn_ie_int(nproma,nblks_e)
+    ! vn_ie_int   p_diag%vn_ie_int(nproma,2,nblks_e)
     !
-    cf_desc    = t_cf_var('normal_velocity_parent_interface_level', 'm s-1',  &
-      &                   'normal velocity at parent interface level', datatype_flt)
+    cf_desc    = t_cf_var('vn_ie_int', 'm s-1',                               &
+      &                   'normal velocity and tendency at parent interface level', datatype_flt)
     grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
-    CALL add_var( p_diag_list, 'dvn_ie_int', p_diag%dvn_ie_int,               &
+    CALL add_var( p_diag_list, 'vn_ie_int', p_diag%vn_ie_int,                 &
                 & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d_e, lrestart=.FALSE.,                          &
+                & ldims=shape3d_e2, lrestart=.FALSE.,                         &
                 & lopenacc = .TRUE. )
-    __acc_attach(p_diag%dvn_ie_int)
+    __acc_attach(p_diag%vn_ie_int)
 
 
-    ! dvn_ie_ubc   p_diag%dvn_ie_ubc(nproma,nblks_e)
+    ! vn_ie_ubc   p_diag%vn_ie_ubc(nproma,2,nblks_e)
     !
-    cf_desc    = t_cf_var('normal_velocity_child_upper_boundary', 'm s-1',    &
-      &                   'normal velocity at child upper boundary', datatype_flt)
+    cf_desc    = t_cf_var('vn_ie_ubc', 'm s-1',                               &
+      &                   'normal velocity and tendency at child upper boundary', datatype_flt)
     grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
-    CALL add_var( p_diag_list, 'dvn_ie_ubc', p_diag%dvn_ie_ubc,               &
+    CALL add_var( p_diag_list, 'vn_ie_ubc', p_diag%vn_ie_ubc,                 &
                 & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,    &
-                & ldims=shape2d_e, lrestart=.FALSE.,                          &
+                & ldims=shape3d_e2, lrestart=.FALSE.,                         &
                 & lopenacc = .TRUE.  )
-    __acc_attach(p_diag%dvn_ie_ubc)
+    __acc_attach(p_diag%vn_ie_ubc)
 
 
     ! w_int       p_diag%w_int(nproma,nblks_c,ndyn_substeps_max+2)

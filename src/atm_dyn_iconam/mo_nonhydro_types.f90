@@ -109,8 +109,8 @@ MODULE mo_nonhydro_types
                               ! (nproma,nlev,nblks_c)                          [K/s]
     &  grf_tend_tracer(:,:,:,:), & ! tracer tendency field for use in grid refinement
                                    ! (nproma,nlev,nblks_c,ntracer)          [kg/kg/s]
-    &  dvn_ie_int(:,:),         & ! Storage field for vertical nesting: vn at parent interface level
-    &  dvn_ie_ubc(:,:),         & ! Storage field for vertical nesting: vn at child upper boundary
+    &  vn_ie_int(:,:,:),        & ! Storage field for vertical nesting: vn plus time tendency at parent interface level
+    &  vn_ie_ubc(:,:,:),        & ! Storage field for vertical nesting: vn plus time tendency at child upper boundary
     &  w_int(:,:,:),            & ! Storage field for vertical nesting: w at parent interface level
     &  w_ubc(:,:,:),            & ! Storage field for vertical nesting: 
                                   ! average w plus time tendency at child upper boundary
