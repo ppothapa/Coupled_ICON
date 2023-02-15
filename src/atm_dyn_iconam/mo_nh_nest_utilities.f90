@@ -551,8 +551,8 @@ CONTAINS
         !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR
         DO je = i_startidx, i_endidx
-          p_nh%diag%dvn_ie_int(je,jb) = 0.5_wp*(p_nh%diag%dvn_ie_int(je,jb) + &
-            p_nh%diag%vn_ie(je,nshift,jb) - p_nh%diag%vn_ie(je,nshift+1,jb))
+          p_nh%diag%vn_ie_int(je,2,jb) = rdt_ubc*(p_nh%diag%vn_ie(je,nshift,jb)-p_nh%diag%vn_ie_int(je,1,jb))
+          p_nh%diag%vn_ie_int(je,1,jb) = 0.5_wp*(p_nh%diag%vn_ie_int(je,1,jb)+p_nh%diag%vn_ie(je,nshift,jb))
         ENDDO
         !$ACC END PARALLEL
 
@@ -834,10 +834,10 @@ CONTAINS
         !$ACC END KERNELS
       ENDIF
 
-      CALL sync_patch_array(SYNC_E,p_pp,p_diagp%dvn_ie_int)
+      CALL sync_patch_array(SYNC_E,p_pp,p_diagp%vn_ie_int)
 
       CALL interpol_vec_ubc (p_pp, p_pc, p_grf%p_dom(i_chidx), &
-        p_diagp%dvn_ie_int, p_diagc%dvn_ie_ubc)
+        p_diagp%vn_ie_int, p_diagc%vn_ie_ubc)
 
       ! Start and end blocks for which interpolation is needed
       i_startblk = p_pp%cells%start_block(0)

@@ -2360,12 +2360,12 @@ MODULE mo_initicon_utils
       IF(ASSOCIATED(p_nh_state(jg)%diag%grf_tend_tracer)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"grf_tend_tracer: ", &
         & p_nh_state(jg)%diag%grf_tend_tracer)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%dvn_ie_int)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"dvn_ie_int: ", &
-        & p_nh_state(jg)%diag%dvn_ie_int)
-      IF(ASSOCIATED(p_nh_state(jg)%diag%dvn_ie_ubc)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"dvn_ie_ubc: ", &
-        & p_nh_state(jg)%diag%dvn_ie_ubc)
+      IF(ASSOCIATED(p_nh_state(jg)%diag%vn_ie_int)) &
+        & CALL printChecksum(prefix(1:pfx_tlen)//"vn_ie_int: ", &
+        & p_nh_state(jg)%diag%vn_ie_int)
+      IF(ASSOCIATED(p_nh_state(jg)%diag%vn_ie_ubc)) &
+        & CALL printChecksum(prefix(1:pfx_tlen)//"vn_ie_ubc: ", &
+        & p_nh_state(jg)%diag%vn_ie_ubc)
       IF(ASSOCIATED(p_nh_state(jg)%diag%mflx_ic_int)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"mflx_ic_int: ", &
         & p_nh_state(jg)%diag%mflx_ic_int)
