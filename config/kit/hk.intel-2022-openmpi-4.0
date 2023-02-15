@@ -12,15 +12,15 @@ SCRIPT_DIR=$( cd "$(dirname "$0")";     pwd )
 ICON_DIR=$(   cd "${SCRIPT_DIR}/../.."; pwd )
 
 # Configure build requirements
-COMPILER_NAME="gnu"
-COMPILER_VERSION="9"
+COMPILER_NAME="intel"
+COMPILER_VERSION="2022.0.2"
 MPI_NAME="openmpi"
 MPI_VERSION="4.0"
-ECCODES_VERSION="2.22.0"
-NETCDF_VERSION="4.7"
+ECCODES_VERSION="2.25.0"
+NETCDF_VERSION="4.9"
 NETCDFF_VERSION="4.5"
-HDF5_VERSION="1.10"
-MKL_VERSION="2020"
+HDF5_VERSION="1.12"
+MKL_VERSION="2022.0.2"
 
 MODULES=(
     compiler/${COMPILER_NAME}/${COMPILER_VERSION}
@@ -75,12 +75,9 @@ if [[ ! -d "${GRIBAPI_LIB}"  ||
 fi
 
 # MKL config
-MKL_LIB="${MKLROOT}/lib/intel64"
-if [[ ! -d "${MKL_LIB}" ]]; then
-    echo "Required MKL directory '${MKL_LIB}' not found"
-    exit 1
-fi
-BLAS_LAPACK_LDFLAGS="-L${MKL_LIB} -Wl,--no-as-needed -lmkl_gf_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl"
+MKL_FCFLAGS='-qmkl=sequential'
+MKL_LDFLAGS="-L${MKL_LIB_DIR} -Wl,-rpath -Wl,${MKL_LIB_DIR}"
+##BLAS_LAPACK_LDFLAGS='-mkl=sequential'
 
 # libxml config
 XML2_ROOT='/usr'
@@ -113,29 +110,32 @@ BUILD_ENV+='export FC=$(type -p mpifort);'
 BUILD_ENV+='export MPI_LAUNCH=$(type -p mpiexec);'
 BUILD_ENV+='export LC_ALL=en_US;'
 
-CFLAGS='-O2 -march=native -flto'
+CFLAGS="-no-prec-sqrt -no-prec-div -fast-transcendentals -m64 -march=core-avx2 -mtune=core-avx2 -no-fma -ip -pc64 -O3 -qno-opt-dynamic-align ${MKL_FCFLAGS}"
 if [[ "${USE_DEBUG}" == true ]]; then
     CFLAGS+=" ${C_DEBUG_FLAGS}"
 fi
-CXXFLAGS='O2 -march=native -flto'
+CXXFLAGS='-O2 -xCORE-AVX2 -pc64'
 if [[ "${USE_DEBUG}" == true ]]; then
     CXXFLAGS+=" ${CXX_DEBUG_FLAGS}"
 fi
 CPPFLAGS="-I${HDF5_INCL} -I${NETCDF_INCL} -I${GRIBAPI_INCL} -I${XML2_INCL}"
 
-FC_OPT_FLAGS='-O2 -march=native -flto -ffree-line-length-none'
 FC_SEARCH_FLAGS="-I${NETCDFF_INCL}"
-FCFLAGS="${FC_SEARCH_FLAGS} ${FC_OPT_FLAGS}"
+FCFLAGS="${FC_SEARCH_FLAGS} -pc64 -fp-model source ${MKL_FCFLAGS}"
+ICON_FCFLAGS='-fp-model source -qoverride-limits -assume realloc_lhs -align array64byte -no-prec-sqrt -no-prec-div -fast-transcendentals -m64 -march=core-avx2 -mtune=core-avx2 -no-fma -ip -pc64 -D__LOOP_EXCHANGE -D__SWAPDIM -DIFORT_CONSISTENCY_ENFORCE -DLRTM_FULL_VECTORIZATION -DOCE_SOLVE_OMP -DDO_NOT_COMBINE_PUT_AND_NOCHECK'
+ICON_BUNDLED_CFLAGS='-O2 -ftz'
+ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec'
 if [[ "${USE_DEBUG}" == true ]]; then
     FCFLAGS+=" ${FC_DEBUG_FLAGS}"
 fi
 
-LDFLAGS="-L${HDF5_LIB} -L${NETCDF_LIB} -L${NETCDFF_LIB} -L${GRIBAPI_LIB} ${BLAS_LAPACK_LDFLAGS}"
+LDFLAGS="-L${HDF5_LIB} -L${NETCDF_LIB} -L${NETCDFF_LIB} -L${GRIBAPI_LIB} ${MKL_LDFLAGS}"
 LIBS="${XML2_LIBS} ${GRIBAPI_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} "
 
 EXTRA_CONFIG_ARGS='--disable-rpaths --enable-grib2'
 # as long as all openmpi released have an error we need to disable mpi checking
 EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks"
+##EXTRA_CONFIG_ARGS='--enable-intel-consistency --enable-vectorized-lrtm --enable-parallel-netcdf --enable-grib2 --enable-yaxt'
 eval "${BUILD_ENV}"
 
 
@@ -143,14 +143,15 @@ eval "${BUILD_ENV}"
 
 "${ICON_DIR}/configure" \
     BUILD_ENV="${BUILD_ENV}" \
-    AR="$(type -p gcc-ar)" \
-    NM="$(type -p gcc-nm)" \
-    RANLIB="$(type -p gcc-ranlib)" \
+    AR="$(type -p xiar)" \
     CC="${CC}" \
     CFLAGS="${CFLAGS}" \
     CPPFLAGS="${CPPFLAGS}" \
     FC="${FC}" \
     FCFLAGS="${FCFLAGS}" \
+    ICON_FCFLAGS="${ICON_FCFLAGS}" \
+    ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
+    ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
     LDFLAGS="${LDFLAGS}" \
     LIBS="${LIBS}" \
     MPI_LAUNCH="${MPI_LAUNCH}" \
