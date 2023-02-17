@@ -129,7 +129,7 @@ MODULE mo_nh_diffusion
     REAL(vp) :: dvt_norm, dvt_tang, vn_vert1, vn_vert2, vn_vert3, vn_vert4, vn_cell1, vn_cell2
 
     REAL(vp) :: smag_offset, nabv_tang, nabv_norm, rd_o_cvd, nudgezone_diff, bdy_diff, enh_diffu
-    REAL(vp), DIMENSION(p_patch%nlev) :: smag_limit, diff_multfac_smag, enh_smag_fac
+    REAL(vp), DIMENSION(p_patch%nlev) :: smag_limit, diff_multfac_smag, enh_smag_fac, smag_blending
     INTEGER  :: nblks_zdiffu, nproma_zdiffu, npromz_zdiffu, nlen_zdiffu
 
     REAL(wp) :: alin, dz32, df32, dz42, df42, bqdr, aqdr, zf, dzlin, dzqdr
@@ -137,7 +137,7 @@ MODULE mo_nh_diffusion
     ! Additional variables for 3D Smagorinsky coefficient
     REAL(wp):: z_w_v(nproma,p_patch%nlevp1,p_patch%nblks_v)
     REAL(wp), DIMENSION(nproma,p_patch%nlevp1) :: z_vn_ie, z_vt_ie
-    REAL(wp), DIMENSION(nproma,p_patch%nlev) :: dvndz, dvtdz, dwdz, dthvdz, dwdn, dwdt, kh_smag3d_e
+    REAL(wp) :: dvndz, dvtdz, dwdz, dthvdz, dwdn, dwdt, def_3d, def_2d, def_aux
 
     ! Variables for provisional fix against runaway cooling in local topography depressions
     INTEGER  :: icount(p_patch%nblks_c), iclist(2*nproma,p_patch%nblks_c), iklist(2*nproma,p_patch%nblks_c)
@@ -301,6 +301,13 @@ MODULE mo_nh_diffusion
         !
         enh_smag_fac(jk) = REAL(diffusion_config(jg)%hdiff_smag_fac + dzlin*alin + dzqdr*(aqdr+dzqdr*bqdr),vp)
         !
+        IF (zf < 100._wp) THEN
+          smag_blending(jk) = 0._wp
+        ELSE IF (zf < 500._wp) THEN
+          smag_blending(jk) = 0.0025_wp*(zf-100._wp)
+        ELSE
+          smag_blending(jk) = 1._wp
+        ENDIF
       ENDDO
 
       ! Smagorinsky coefficient is also enhanced in the six model levels beneath a vertical nest interface
@@ -322,8 +329,8 @@ MODULE mo_nh_diffusion
 
     !$ACC DATA CREATE(div, kh_c, kh_smag_e, kh_smag_ec, u_vert, v_vert, u_cell, v_cell, z_w_v, z_temp) &
     !$ACC   CREATE(z_nabla4_e, z_nabla4_e2, z_nabla2_e, z_nabla2_c, enh_diffu_3d, icount) &
-    !$ACC   CREATE(z_vn_ie, z_vt_ie, dvndz, dvtdz, dwdz, dthvdz, dwdn, dwdt, kh_smag3d_e) &
-    !$ACC   COPYIN(nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, enh_smag_fac) &
+    !$ACC   CREATE(z_vn_ie, z_vt_ie) &
+    !$ACC   COPYIN(nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, enh_smag_fac, smag_blending) &
     !$ACC   PRESENT(p_patch, p_int, p_nh_prog, p_nh_diag, p_nh_metrics) &
     !$ACC   PRESENT(ividx, ivblk, iecidx, iecblk, icidx, icblk, ieidx, ieblk) &
     !$ACC   IF(i_am_accel_node)
@@ -514,7 +521,7 @@ MODULE mo_nh_diffusion
       i_endblk   = p_patch%edges%end_block(rl_end)
 
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,je,vn_vert1,vn_vert2,vn_vert3,vn_vert4,dvt_norm,dvt_tang, &
-!$OMP            z_vn_ie,z_vt_ie,dvndz,dvtdz,dwdz,dthvdz,dwdn,dwdt,kh_smag3d_e), ICON_OMP_RUNTIME_SCHEDULE
+!$OMP            z_vn_ie,z_vt_ie,dvndz,dvtdz,dwdz,dthvdz,dwdn,dwdt,def_3d,def_2d,def_aux), ICON_OMP_RUNTIME_SCHEDULE
       DO jb = i_startblk,i_endblk
 
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
@@ -605,65 +612,65 @@ MODULE mo_nh_diffusion
                         v_vert(ividx(je,jb,3),jk,ivblk(je,jb,3)) * &
                         p_patch%edges%dual_normal_vert(je,jb,3)%v2)
 
-            dvndz(je,jk) = (z_vn_ie(je,jk) - z_vn_ie(je,jk+1)) / p_nh_metrics%ddqz_z_full_e(je,jk,jb)
-            dvtdz(je,jk) = (z_vt_ie(je,jk) - z_vt_ie(je,jk+1)) / p_nh_metrics%ddqz_z_full_e(je,jk,jb)
+            ! The factor of 4 comes from dividing by twice the "correct" length
+            z_nabla2_e(je,jk,jb) = 4._wp * (                        &
+              (vn_vert4 + vn_vert3 - 2._wp*p_nh_prog%vn(je,jk,jb))  &
+              *p_patch%edges%inv_vert_vert_length(je,jb)**2 +       &
+              (vn_vert2 + vn_vert1 - 2._wp*p_nh_prog%vn(je,jk,jb))  &
+              *p_patch%edges%inv_primal_edge_length(je,jb)**2 )
 
-            dwdz (je,jk) =                                                                     &
+            dvndz = (z_vn_ie(je,jk) - z_vn_ie(je,jk+1)) / p_nh_metrics%ddqz_z_full_e(je,jk,jb)
+            dvtdz = (z_vt_ie(je,jk) - z_vt_ie(je,jk+1)) / p_nh_metrics%ddqz_z_full_e(je,jk,jb)
+
+            dwdz =                                                                             &
               (p_int%c_lin_e(je,1,jb)*(p_nh_prog%w(iecidx(je,jb,1),jk,  iecblk(je,jb,1)) -     &
                                        p_nh_prog%w(iecidx(je,jb,1),jk+1,iecblk(je,jb,1)) ) +   &
                p_int%c_lin_e(je,2,jb)*(p_nh_prog%w(iecidx(je,jb,2),jk,  iecblk(je,jb,2)) -     &
                                        p_nh_prog%w(iecidx(je,jb,2),jk+1,iecblk(je,jb,2)) ) ) / &
                p_nh_metrics%ddqz_z_full_e(je,jk,jb)
 
-            dthvdz(je,jk) =                                                                             &
+            dthvdz =                                                                                    &
               (p_int%c_lin_e(je,1,jb)*(p_nh_diag%theta_v_ic(iecidx(je,jb,1),jk,  iecblk(je,jb,1)) -     &
                                        p_nh_diag%theta_v_ic(iecidx(je,jb,1),jk+1,iecblk(je,jb,1)) ) +   &
                p_int%c_lin_e(je,2,jb)*(p_nh_diag%theta_v_ic(iecidx(je,jb,2),jk,  iecblk(je,jb,2)) -     &
                                        p_nh_diag%theta_v_ic(iecidx(je,jb,2),jk+1,iecblk(je,jb,2)) ) ) / &
                p_nh_metrics%ddqz_z_full_e(je,jk,jb)
 
-            dwdn (je,jk) = p_patch%edges%inv_dual_edge_length(je,jb)* (    &
+            dwdn = p_patch%edges%inv_dual_edge_length(je,jb)* (            &
               0.5_wp*(p_nh_prog%w(iecidx(je,jb,1),jk,  iecblk(je,jb,1)) +  &
                       p_nh_prog%w(iecidx(je,jb,1),jk+1,iecblk(je,jb,1))) - &
               0.5_wp*(p_nh_prog%w(iecidx(je,jb,2),jk,  iecblk(je,jb,2)) +  &
                       p_nh_prog%w(iecidx(je,jb,2),jk+1,iecblk(je,jb,2)))   )
 
-            dwdt (je,jk) = p_patch%edges%inv_primal_edge_length(je,jb) *                                   &
-                           p_patch%edges%tangent_orientation(je,jb) * (                                     &
+            dwdt = p_patch%edges%inv_primal_edge_length(je,jb)*p_patch%edges%tangent_orientation(je,jb) *( &
               0.5_wp*(z_w_v(ividx(je,jb,1),jk,ivblk(je,jb,1))+z_w_v(ividx(je,jb,1),jk+1,ivblk(je,jb,1))) - &
               0.5_wp*(z_w_v(ividx(je,jb,2),jk,ivblk(je,jb,2))+z_w_v(ividx(je,jb,2),jk+1,ivblk(je,jb,2)))   )
 
-            kh_smag3d_e(je,jk) = 2._wp*(                                                           &
-              ( (vn_vert4-vn_vert3)*p_patch%edges%inv_vert_vert_length(je,jb) )**2 + &
-              (dvt_tang*p_patch%edges%inv_primal_edge_length(je,jb))**2 + dwdz(je,jk)**2) + &
-              0.5_wp *( (p_patch%edges%inv_primal_edge_length(je,jb) *                             &
-              p_patch%edges%tangent_orientation(je,jb)*(vn_vert2-vn_vert1) +          &
-              p_patch%edges%inv_vert_vert_length(je,jb)*dvt_norm )**2 +                     &
-              (dvndz(je,jk) + dwdn(je,jk))**2 + (dvtdz(je,jk) + dwdt(je,jk))**2 ) -                &
-              3._wp*grav * dthvdz(je,jk) / (                                                       &
-              p_int%c_lin_e(je,1,jb)*p_nh_prog%theta_v(iecidx(je,jb,1),jk,iecblk(je,jb,1)) +       &
-              p_int%c_lin_e(je,2,jb)*p_nh_prog%theta_v(iecidx(je,jb,2),jk,iecblk(je,jb,2)) )
+            def_aux = ( (vn_vert2-vn_vert1)*p_patch%edges%tangent_orientation(je,jb)*                             &
+              p_patch%edges%inv_primal_edge_length(je,jb) + dvt_norm*p_patch%edges%inv_vert_vert_length(je,jb) )**2
 
-            ! 2D Smagorinsky diffusion coefficient
-            kh_smag_e(je,jk,jb) = diff_multfac_smag(jk)*SQRT( MAX(kh_smag3d_e(je,jk), fac2d*( &
-              ((vn_vert4-vn_vert3)*p_patch%edges%inv_vert_vert_length(je,jb)-   &
-              dvt_tang*p_patch%edges%inv_primal_edge_length(je,jb) )**2 + (            &
-              (vn_vert2-vn_vert1)*p_patch%edges%tangent_orientation(je,jb)*      &
-              p_patch%edges%inv_primal_edge_length(je,jb) +                                   &
-              dvt_norm*p_patch%edges%inv_vert_vert_length(je,jb) )**2 ) ) )
+            def_3d = 0.5_wp*(                                                                &
+              ( (vn_vert4-vn_vert3)*p_patch%edges%inv_vert_vert_length(je,jb) )**2 +         &
+              (dvt_tang*p_patch%edges%inv_primal_edge_length(je,jb))**2 + dwdz**2) +         &
+              def_aux + (dvndz + dwdn)**2 + (dvtdz + dwdt)**2  - 3._wp*grav * dthvdz / (     &
+              p_int%c_lin_e(je,1,jb)*p_nh_prog%theta_v(iecidx(je,jb,1),jk,iecblk(je,jb,1)) + &
+              p_int%c_lin_e(je,2,jb)*p_nh_prog%theta_v(iecidx(je,jb,2),jk,iecblk(je,jb,2))   )
 
-            ! The factor of 4 comes from dividing by twice the "correct" length
-            z_nabla2_e(je,jk,jb) = 4._wp * (                                      &
-              (vn_vert4 + vn_vert3 - 2._wp*p_nh_prog%vn(je,jk,jb))  &
-              *p_patch%edges%inv_vert_vert_length(je,jb)**2 +                     &
-              (vn_vert2 + vn_vert1 - 2._wp*p_nh_prog%vn(je,jk,jb))  &
-              *p_patch%edges%inv_primal_edge_length(je,jb)**2 )
+            def_2d = ((vn_vert4-vn_vert3)*p_patch%edges%inv_vert_vert_length(je,jb)- &
+              dvt_tang*p_patch%edges%inv_primal_edge_length(je,jb) )**2 + def_aux
 
-            kh_smag_ec(je,jk,jb) = kh_smag_e(je,jk,jb)
+            ! 2D Smagorinsky diffusion coefficient (needed as input for turbulence)
+            kh_smag_ec(je,jk,jb) = diff_multfac_smag(jk)*SQRT(def_2d) 
+
+            ! 3D Smagorinsky diffusion coefficient with blending to 2D coefficient near the surface
+            kh_smag_e(je,jk,jb) = diff_multfac_smag(jk)*SQRT( &
+              MAX(smag_blending(jk)*def_3d + (1._wp-smag_blending(jk))*def_2d, fac2d*def_2d) )
+
             ! Subtract part of the fourth-order background diffusion coefficient
             kh_smag_e(je,jk,jb) = MAX(0._vp,kh_smag_e(je,jk,jb) - smag_offset)
             ! Limit diffusion coefficient to the theoretical CFL stability threshold
             kh_smag_e(je,jk,jb) = MIN(kh_smag_e(je,jk,jb),smag_limit(jk))
+
           ENDDO
         ENDDO
         !$ACC END PARALLEL LOOP
