@@ -123,7 +123,7 @@ MODULE mo_assimilation_config
 
   SUBROUTINE configure_lhn(jg)
    INTEGER, INTENT(IN) :: jg          !< patch
-   CHARACTER (LEN=100)              ::           &
+   CHARACTER (LEN=255)              ::           &
      filepath
    LOGICAL  :: lf_exist,lb_exist,lh_exist
    INTEGER  :: nobs,nt_end,nt_start, idt_shift

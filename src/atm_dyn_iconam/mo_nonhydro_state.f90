@@ -3431,10 +3431,12 @@ MODULE mo_nonhydro_state
                  + t_grib2_int_key("typeOfGeneratingProcess", 207)     &
                  + t_grib2_int_key("typeOfSecondFixedSurface", 1)      &
                  + t_grib2_int_key("scaledValueOfFirstFixedSurface", 20)
-      CALL add_var( p_diag_list, 'rh_avginc', p_diag%rh_avginc,                       &
-        &           GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
-        &           ldims=shape2d_c, lrestart=.true.,                                 &
-        &           in_group=groups("mode_iau_fg_in","mode_dwd_fg_in","mode_combined_in") )
+      CALL add_var( p_diag_list, 'rh_avginc', p_diag%rh_avginc,                            &
+        &           GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,            &
+        &           ldims=shape2d_c, lrestart=.true.,                                      &
+        &           in_group=groups("mode_iau_fg_in","mode_dwd_fg_in","mode_combined_in"), & 
+        &           lopenacc = .TRUE. )
+      __acc_attach(p_diag%rh_avginc)
     ENDIF
 
     IF (icpl_da_sfcevap >= 3) THEN

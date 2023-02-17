@@ -505,6 +505,14 @@
         ! set validity Datetime
         latbc%latbc_data(prev_latbc_tlev)%vDateTime = time_config%tc_current_date
 
+        !$ACC UPDATE DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%pres, latbc%latbc_data(prev_latbc_tlev)%atm%temp) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%vn) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%theta_v, latbc%latbc_data(prev_latbc_tlev)%atm%rho) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%u, latbc%latbc_data(prev_latbc_tlev)%atm%v) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%w, latbc%latbc_data(prev_latbc_tlev)%atm%qv) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%qc, latbc%latbc_data(prev_latbc_tlev)%atm%qi) &
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%qr, latbc%latbc_data(prev_latbc_tlev)%atm%qs)
+
       ENDIF
 
       ! Read atmospheric latbc data for nominal start date if necessary
