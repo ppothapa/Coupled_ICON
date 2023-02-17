@@ -62,19 +62,19 @@ configure options. The wrappers can be found in the respective subdirectories of
 the [./config](./config) directory.
 
 For example, if you need to build ICON on
-[Mistral@DKRZ](https://www.dkrz.de/up/systems/mistral) with OpenMP feature
+[Levante@DKRZ](https://docs.dkrz.de/doc/levante/index.html) with OpenMP feature
 enabled using Intel compiler, you can run:
 
 ```console
 $ cd /path/to/icon
-$ ./config/dkrz/mistral.intel --enable-openmp
+$ ./config/dkrz/levante.intel --enable-openmp
 ```
 
 Alternatively, you can create a directory and perform an *out-of-source* build:
 
 ```console
 $ mkdir build && cd build
-$ /path/to/icon/config/dkrz/mistral.intel --enable-openmp
+$ /path/to/icon/config/dkrz/levante.intel --enable-openmp
 ```
 
 This way, you can build ICON in several different configurations, i.e. with
@@ -579,35 +579,55 @@ without having to re-initialize the environment accordingly.
 
 Real case configuration commands might be rather long and complex. For example,
 below, you can find an example of the configuration command for
-[Mistral@DKRZ](https://www.dkrz.de/up/systems/mistral):
+[Levante@DKRZ](https://docs.dkrz.de/doc/levante/index.html):
 
 ```console
 $ ./configure \
   AR=xiar \
-  BUILD_ENV=". /sw/rhel6-x64/etc/profile.mistral; \
-             . ./config/dkrz/module_switcher; \
-             switch_for_module gcc/6.4.0 intel/17.0.6 openmpi/2.0.2p1_hpcx-intel14;" \
+  BUILD_ENV=". ./config/dkrz/module_switcher; \
+             switch_for_module \
+               intel-oneapi-compilers/2022.0.1-gcc-11.2.0 \
+               openmpi/4.1.2-intel-2021.5.0;" \
   CC=mpicc \
-  CFLAGS='-gdwarf-4 -O3 -qno-opt-dynamic-align -ftz -march=native -g' \
-  CPPFLAGS="-I/sw/rhel6-x64/hdf5/hdf5-1.8.18-parallel-openmpi2-intel14/include \
-            -I/sw/rhel6-x64/netcdf/netcdf_c-4.4.0-parallel-openmpi2-intel14/include \
-            -I/sw/rhel6-x64/grib_api/grib_api-1.15.0-gcc48/include \
+  CFLAGS="-g -gdwarf-4 -qno-opt-dynamic-align -m64 -march=core-avx2 \
+          -mtune=core-avx2 -fma -ip -pc64 -std=gnu99" \
+  CPPFLAGS="-I/sw/spack-levante/hdf5-1.12.1-tvymb5/include \
+            -I/sw/spack-levante/netcdf-c-4.8.1-2k3cmu/include \
+            -I/sw/spack-levante/eccodes-2.21.0-3ehkbb/include \
             -I/usr/include/libxml2" \
   FC=mpif90 \
-  FCFLAGS="-I/sw/rhel6-x64/netcdf/netcdf_fortran-4.4.3-parallel-openmpi2-intel14/include \
-           -gdwarf-4 -g -march=native -pc64 -fp-model source" \
-  ICON_FCFLAGS='-O2 -assume realloc_lhs -ftz' \
-  ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec' \
-  LDFLAGS="-L/sw/rhel6-x64/hdf5/hdf5-1.8.18-parallel-openmpi2-intel14/lib \
-           -L/sw/rhel6-x64/netcdf/netcdf_c-4.4.0-parallel-openmpi2-intel14/lib \
-           -L/sw/rhel6-x64/netcdf/netcdf_fortran-4.4.3-parallel-openmpi2-intel14/lib \
-           -L/sw/rhel6-x64/grib_api/grib_api-1.15.0-gcc48/lib \
-           -mkl=sequential" \
-  LIBS='-Wl,--as-needed -lxml2 -lgrib_api -lnetcdff -lnetcdf -lhdf5' \
+  FCFLAGS="-I/sw/spack-levante/netcdf-fortran-4.5.3-k6xq5g/include \
+           -m64 -march=core-avx2 -mtune=core-avx2 -g -gdwarf-4 -pc64 \
+           -fp-model source" \
+  ICON_BUNDLED_CFLAGS='-O2 -ftz' \
+  ICON_CDI_CFLAGS='-O2 -ftz' \
+  ICON_CFLAGS='-O3 -ftz' \
+  ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0' \
+  ICON_FCFLAGS="-DDO_NOT_COMBINE_PUT_AND_NOCHECK -O3 -ftz \
+                -qoverride-limits -assume realloc_lhs \
+                -align array64byte -fma -ip \
+                -D__SWAPDIM -DOCE_SOLVE_OMP" \
+  ICON_OCEAN_FCFLAGS="-O3 -assume norealloc_lhs -reentrancy threaded \
+                      -qopt-report-file=stdout -qopt-report=0 \
+                      -qopt-report-phase=vec" \
+  ICON_YAC_CFLAGS='-O2 -ftz' \
+  LDFLAGS="-L/sw/spack-levante/hdf5-1.12.1-tvymb5/lib \
+           -L/sw/spack-levante/netcdf-c-4.8.1-2k3cmu/lib \
+           -L/sw/spack-levante/netcdf-fortran-4.5.3-k6xq5g/lib \
+           -L/sw/spack-levante/netlib-lapack-3.9.1-rwhcz7/lib64 \
+           -L/sw/spack-levante/eccodes-2.21.0-3ehkbb/lib64" \
+  LIBS="-Wl,--disable-new-dtags -Wl,--as-needed -lxml2 -leccodes \
+        -llapack -lblas -lnetcdff -lnetcdf -lhdf5" \
   MPI_LAUNCH=mpiexec \
   --enable-intel-consistency \
   --enable-vectorized-lrtm \
-  --enable-parallel-netcdf
+  --enable-parallel-netcdf \
+  --enable-grib2 \
+  --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice \
+  --enable-yaxt \
+  --enable-art \
+  --enable-ecrad \
+  --disable-mpi-checks
 ```
 
 Obviously, repeatedly composing such a command is exhausting and error-prone.
@@ -622,7 +642,7 @@ recommend to consider the following features:
 [configure](./configure) script, so that the users are able to override the
 default values of the configure options, for example:
     ```console
-    $ ./config/dkrz/mistral.intel --enable-openmp
+    $ ./config/dkrz/levante.intel --enable-openmp
     ```
     Also, account for the case of calling the wrapper with the `--help` argument.
 2. Account for out-of-source building:
@@ -668,16 +688,16 @@ a prior in-source configuration and building before an out-of-source
 configuration can take place.
 
 The following example shows how ICON can be configured on
-[Mistral@DKRZ](https://www.dkrz.de/up/systems/mistral) in two different
+[Levante@DKRZ](https://docs.dkrz.de/doc/levante/index.html) in two different
 directories using Intel and GCC compiler toolchains (assuming that the source
 root directory of ICON is `/path/to/icon-srcdir`):
 
 ```console
 $ mkdir intel && cd intel
-$ /path/to/icon-srcdir/config/dkrz/mistral.intel
+$ /path/to/icon-srcdir/config/dkrz/levante.intel
 $ cd ..
 $ mkdir gcc && cd gcc
-$ /path/to/icon-srcdir/config/dkrz/mistral.gcc
+$ /path/to/icon-srcdir/config/dkrz/levante.gcc
 $ cd..
 ```
 

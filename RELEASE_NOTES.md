@@ -1,9 +1,49 @@
+# Release notes for icon-2.6.6
+
+Later than expected: this is another ICON release
+
+- OpenACC port for Nvidia GPUs and enabling HPE-Cray OpenACC use with AMD GPUs
+  - almost all of the ICON atmospheric components are ready for use on GPU equiped machines. This has been a big effort by Nvidia, HPE/Cray, MeteoSwiss, DWD, CSCS, CSC, and MPIM (the order is arbitrary).
+  - there is further progress coming up
+- CSCS
+  - preparation of daint/dom transition for Nvidia compiler bumb to 22.5.
+  - added Docker files for EXCLAIM project in scripts/docker/exclaim
+  - OpenACC beautification application running to allow passing a required CI test
+  - more test cases
+- DWD
+  - still persisting problem with OpenMP (non-reproducability) in buildbot tests.
+  - bufixes and improvements in the data assimilation part and physics
+  - two-moment cloud microphysics has been replaced by a new version
+  - initial steps for wave model implementation
+  - added jsbach/vdiff from former ICON echam-physics
+  - enable/fix more problems with respect to run icon-seamless 
+  - some code moves and consolidation
+  - more test cases
+- MPIM
+  - bugfixes in the ocean
+  - added additional diagnostics
+  - improvements in JSBACH (HD mask, LCC, former dynveg)
+  - updating of build on levante and macos
+  - fixes for claw
+  - fixes for building ICON with some data assimilation components
+  - Nvidia 22.9 is needed for JSBACH
+  - ocean updated to zstar vertical coordinate
+  - bump rte-rrtmgp to new version
+- DKRZ
+  - fix many errors and enabled new features with respect to coupling external components
+  - new and updated config-wrappers
+  - improve buildbot testing
+
+For details take a look at:
+
+https://gitlab.dkrz.de/icon/wiki/-/wikis/Protocol-of-Release-Commits
+
 # Release notes for icon-2.6.5
 
 It is time for yet another ICON release.
 
-After 10 month we managed to provide a new ICON release wuth new
-amchine configurations, a new buildbot, significantly extended,
+After 10 month we managed to provide a new ICON release with new
+machine configurations, a new buildbot, significantly extended,
 improved GPU capabilities, first steps into ICON seamless and a
 cleaned up version of the MPIM AES physics (now available as aes
 physics and not echam anymore.
@@ -21,9 +61,9 @@ physics and not echam anymore.
        tuning and adding bugfixes. Setting up on the new ECMWF system
        and supporting the data assimilation system. First steps for
        ICON-seamless are done, especially the coupling to ICON ocean
-       is technically available and mot of the time varying external
+       is technically available and most of the time varying external
        data for climate simulations have been added. However, the code
-       variant has to tuned and extensively tested and some parts are
+       variant has to be tuned and extensively tested and some parts are
        still missing. This activity is a joint effort of DWD and MPIM
        colleagues.
 
