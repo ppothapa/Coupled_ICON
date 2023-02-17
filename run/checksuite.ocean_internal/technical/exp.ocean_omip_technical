@@ -19,7 +19,7 @@ output_interval="PT12H"                  # ocean model output interval in days
 daily="P1D"
 monthly="P1M"
 file_interval="PT12H"
-modelTimeStep="PT5M"
+modelTimeStep="PT1H"
 autoPostProcessing="false"                         # submit postprocessing job
 #steps_per_file=610                               # assigned output intervals per file interval
 #-----------------------------------------------------------------------------

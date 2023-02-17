@@ -42,10 +42,11 @@ class PBSJob(BatchJob):
             print(f"Parsing jobid from pbs job failed, got {self.jobid}")
             sys.exit(1)
 
-        # qsub will return immediately. That's why we pass along qwait
-        qwaitCmd = 'qwait {}'.format(self.jobid)
+        # qsub will return immediately. That's why we pass along qwait as the
+        # real job. It's results will be handled by the wait() method
+        qwaitCmd = f'qwait {self.jobid}'
         if debugOutput:
-            print('|qwait call: "{}"|'.format(qwaitCmd))
+            print(f'|qwait call: "{qwaitCmd}"|')
         self.job = subprocess.Popen(qwaitCmd,
                                     shell=True,
                                     stderr=subprocess.PIPE,
@@ -74,3 +75,17 @@ class PBSJob(BatchJob):
         self.returncode = exit_code
 
         return exit_code
+
+    def cancel(self):
+        if None is not self.jobid:
+            subprocess.Popen(["qdel",self.jobid])
+            qdel = subprocess.Popen(["qdel",self.jobid],
+                                    shell=False,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    cwd=self.cwd,
+                                    encoding="UTF-8")
+            print(qdel.stdout.realines())
+            print(qdel.stderr.realines())
+        else:
+            print('Cannot find jobid to cancel job!')

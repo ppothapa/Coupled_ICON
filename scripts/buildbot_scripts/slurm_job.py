@@ -30,3 +30,17 @@ class SlurmJob(BatchJob):
             print("Parsing jobid from slurm job failed, got {}".format(self.jobid))
             sys.exit(1)
         self.job = sp
+
+    def cancel(self):
+        if None is not self.jobid:
+            subprocess.Popen(["scancel",self.jobid])
+            qdel = subprocess.Popen(["scancel",self.jobid],
+                                    shell=False,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    cwd=self.cwd,
+                                    encoding="UTF-8")
+            print(qdel.stdout.realines())
+            print(qdel.stderr.realines())
+        else:
+            print('Cannot find jobid to cancel job!')

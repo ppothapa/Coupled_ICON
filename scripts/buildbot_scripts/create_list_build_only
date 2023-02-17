@@ -8,8 +8,7 @@
 listname=build_only
 ./rmlist $listname
 ./create_all_builders $listname
-./set_builder_flags build_only --builders "*" --list $listname
-#lets see the list
-./lslist $listname
+./set_builder_flags build_only --builders "$(./lslist $listname --builders-only)" --list $listname
 
+./lslist $listname
 #############################################################################

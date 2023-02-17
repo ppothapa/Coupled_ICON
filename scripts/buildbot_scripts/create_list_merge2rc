@@ -8,11 +8,11 @@ cd $(dirname "${BASH_SOURCE[0]}")
 addexp="./addexp"
 #############################################################################
 ##
-## create icon-dev list
+## create merge2rc list: to avoid double work with running icon-dev and dwd list
 ##
 #############################################################################
 
-listname=${1:-icon-dev}
+listname=${1:-merge2rc}
 ./rmlist $listname
 # ./mklist $listname
 ./create_all_builders $listname
@@ -50,6 +50,9 @@ $addexp "checksuite.icon-dev/check.atm_ape"               --machines "daint" --l
 
 # limitted area runs
 $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybrid" --list $listname
+
+# DWD wave model test on levante
+$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"   --builders "levante_intel_hybrid"  --list $listname
 
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
@@ -117,33 +120,11 @@ $addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" 
 $addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=32"  --machines levante --list $listname
 # this experiment runs only with-mpi and without openmp
 #
-# builders at DWD
-for builder in DWD_nec DWD_nec_hybrid; do
-  $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders ${builder} --list $listname
-  $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders ${builder} --list $listname
-done
 for builder in DWD_nec DWD_nec_yac2 DWD_nec_hybrid; do
   # remove non-dwd tests
   ./rmexp checksuite.ocean_internal/technical/exp.ocean_omip_ptest                   --builders ${builder} --list $listname
   ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical          --builders ${builder} --list $listname
-#off#  ./rmexp checksuite.icon-dev/check.atm_2mom_bubble_rceTorus                     --builders ${builder} --list $listname
 done
-# only DWD_nec
-$addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                            --builders DWD_nec --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest --builders DWD_nec --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_07_R02B04N06M_restarttest               --builders DWD_nec --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       --builders DWD_nec --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
-$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                    --builders DWD_nec --list $listname
-# only DWD_nec_yac2
-$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2   --list $listname
-#only DWD_nec_hybrid
-$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
-
-# wave tests
-$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders DWD_nec_hybrid        --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders levante_intel_hybrid  --list $listname
-
 
 #-----------------------------------------------------------
 # Ruby0 coupled tests, only with mpi
@@ -206,6 +187,45 @@ done
 ./set_builder_flags Active --builders 'levante_gpu_nvhpc' --list $listname
 $addexp checksuite.infrastructure/gpu/exp.atm_gpu_auto --builders levante_gpu_nvhpc --list ${listname}
 $addexp checksuite.infrastructure/gpu/exp.atm_gpu.run --builders levante_gpu_nvhpc --list ${listname}
+
+
+# experiments from dwd list
+
+$addexp checksuite.nwp/nwpexp.run_ICON_01_R3B9_lam                             --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                            --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_03_R19B7N8-ID2_ID1_lam                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_04_R02B06N08_ifsinit_restarttest        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_05_R02B06N07_ifsinit_restarttest        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_07_R02B04N06M_restarttest               --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
+# test 10 is inactive
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_12_R3B08_lam_initmode4                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_13_R2B08-dkltest                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec --list $listname
+
+# DWD_nec_yac2
+$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname
+
+# ART experiments
+$addexp checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen       --builders DWD_nec --list $listname
+# SCM experiments
+$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_01_BOMEX.run                            --builders DWD_nec --list $listname
+$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                             --builders DWD_nec --list $listname
+$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_03_LANFEX.run                           --builders DWD_nec --list $listname
+
+# DWD_nec_hybrid
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --builders DWD_nec_hybrid --list $listname
+
+$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders DWD_nec_hybrid        --list $listname
+
 
 #lets see the list
 ./lslist $listname
