@@ -242,7 +242,7 @@ EOF
 . ${thisdir}/exec.iconrun
 
 cd -
-
+module load gnuplot
 cmd='set key off; set term dumb 120 80; plot '
 set +x
 for file in m*log; do cmd=" ${cmd} '$file' using 1:2,"; done

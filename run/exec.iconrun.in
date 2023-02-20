@@ -343,7 +343,7 @@ rm -f finish.status
 #
 date
 set -x
-${START} ${MODEL} # > out.txt 2>&1
+${START} ${MODEL} || exit 1
 set +x
 date
 

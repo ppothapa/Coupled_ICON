@@ -250,6 +250,15 @@ class BuildbotConfig(object):
 
         return out
 
+    def list_builders(self):
+        machines = self.data.columns.levels[0]
 
+        col_idx = self.data.columns.to_frame()
 
-        
+        builderNames = []
+        for midx in machines:
+            builders = col_idx.loc[(midx, slice(None)), "builder"].sort_index().values
+            for b in builders:
+                builderNames.append(b)
+
+        return ' '.join(builderNames)

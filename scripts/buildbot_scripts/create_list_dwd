@@ -10,39 +10,9 @@ listname=dwd
 ./rmlist $listname
 # ./mklist $listname
 ./create_all_builders $listname
+# deactivate all builders
+./set_builder_flags Inactive --builders "$(./lslist $listname --builders-only)" --list $listname
 
-# deactivate all builders except DWD_cray
-./set_builder_flags Inactive --builders MISTRAL_gcc                  --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel                --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel_hybrid         --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel_openmp         --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel_hybrid_mixed   --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel17              --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel17_hybrid       --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel17_openmp       --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel17_hybrid_mixed --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel18              --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel18_hybrid       --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel18_openmp       --list $listname
-./set_builder_flags Inactive --builders MISTRAL_intel18_hybrid_mixed --list $listname
-./set_builder_flags Inactive --builders MISTRAL_nag                  --list $listname
-./set_builder_flags Inactive --builders MISTRAL_nag_serial           --list $listname
-./set_builder_flags Inactive --builders MISTRAL_ocean                --list $listname
-./set_builder_flags Inactive --builders MISTRAL_ocean_intel17        --list $listname
-./set_builder_flags Inactive --builders MISTRAL_ocean_intel18        --list $listname
-./set_builder_flags Inactive --builders BREEZE_gcc                   --list $listname
-./set_builder_flags Inactive --builders BREEZE_gcc_openmp            --list $listname
-./set_builder_flags Inactive --builders BREEZE_intel                 --list $listname
-./set_builder_flags Inactive --builders BREEZE_intel_openmp          --list $listname
-./set_builder_flags Inactive --builders BREEZE_nag                   --list $listname
-./set_builder_flags Inactive --builders DAINT_CPU_cce                --list $listname
-./set_builder_flags Inactive --builders DAINT_CPU_pgi                --list $listname
-./set_builder_flags Inactive --builders DAINT_GPU_pgi                --list $listname
-./set_builder_flags Inactive --builders DAINT_CPU_nvidia             --list $listname
-./set_builder_flags Inactive --builders DAINT_GPU_nvidia             --list $listname
-./set_builder_flags Inactive --builders DAINT_CPU_nvidia_mixed       --list $listname
-./set_builder_flags Inactive --builders DAINT_GPU_nvidia_mixed       --list $listname
-./set_builder_flags Inactive --builders MPIMAC_gcc                   --list $listname
 ./set_builder_flags Active   --builders DWD_nec                      --list $listname
 ./set_builder_flags Active   --builders DWD_nec_hybrid               --list $listname
 ./set_builder_flags Active   --builders DWD_nec_yac2                 --list $listname

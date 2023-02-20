@@ -8,11 +8,11 @@ cd $(dirname "${BASH_SOURCE[0]}")
 addexp="./addexp"
 #############################################################################
 ##
-## create icon-dev list
+## create atm list
 ##
 #############################################################################
 
-listname=${1:-icon-dev}
+listname=${1:-atm}
 ./rmlist $listname
 # ./mklist $listname
 ./create_all_builders $listname
@@ -20,18 +20,14 @@ listname=${1:-icon-dev}
 #-----------------------------------------------------------
 # AES
 # add qubicc tests incl. GRIB output to Levante only
-#
-# the number for ntasks is the current default set in create_targe_header for
-# levante setting queue=shared,compute can lead to only 2 cpus available for
-# the job. so for consistency of the environment ntasks is set here
-$addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute"
-$addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=compute"
-$addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=compute"
+$addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname --runflags="queue=shared memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname --runflags="queue=shared memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname --runflags="queue=shared memory=32G"
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" --list $listname --runflags "queue=shared"
+$addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=shared"
+$addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=shared"
 # add qubicc update test on Levante (netcdf) only
-$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags="queue=shared memory=32G"
 
 # add qubicc test with tolerances on netcdf to daint
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --machines "daint" --list $listname --runflags "cpu_time=00:30:00"
@@ -44,7 +40,7 @@ $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "daint" --l
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "daint" --list $listname
 
 # no update test for qubicc on levante_nag's
-./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial" --list $listname
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
 
@@ -56,40 +52,11 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 #-----------------------------------------------------------
 
 #-----------------------------------------------------------
-# OES
-# add omip technical tests only with mpi parallelization
-$addexp "checksuite.ocean_internal/technical/exp.ocean_omip_ptest" \
-	--machines levante --without-configureflags "--without-mpi --enable-mixed" \
-	--runflags "cpu_time=00:20:00 mpi_procs_pernode=5  openmp_threads=4 queue=shared,compute ntasks=24"  --list $listname
-$addexp "checksuite.ocean_internal/technical/exp.test_ocean_omip_technical" \
-	--machines levante --without-configureflags "--without-mpi --enable-mixed" \
-	--runflags "cpu_time=00:10:00 queue=shared,compute ntasks=32"  --list $listname
-# add omip binary-identical test
-$addexp "checksuite.ocean_internal/ShallowWater/exp.ocean_WilliamsonTestCase2_Hex" \
-	--machines levante --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=shared,compute ntasks=16" --list $listname
-$addexp "checksuite.ocean_internal/omip/exp.test_ocean_omip_10days" \
-	--machines levante --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=shared,compute ntasks=16 memory=32G" --list $listname
-$addexp "checksuite.ocean_internal/omip/exp.test_ocean_zstar_omip_10days checksuite.ocean_internal/omip/exp.test_ocean_newice_omip_10days" \
-        --machines levante --without-configureflags "--enable-mixed" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=16" --list $listname
-$addexp "checksuite.ocean_internal/hamocc/exp.test_concurrent_hamocc_omip_10days" \
-	--machines levante --without-configureflags "--without-mpi --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=1 queue=compute" --list $listname
-$addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
-	--machines levante --without-configureflags "--without-mpi --with-openmp --enable-mixed" --runflags "cpu_time=00:30:00 no_of_nodes=2 queue=compute" --list $listname
-
-
-#-----------------------------------------------------------
-# communication + seamless + oce lrestart cont
-# These mistral tests need to be re-added
-
-#-----------------------------------------------------------
 # CSCS
 # Additional tests for GPU
 
 # NVIDIA for GPU: failing currently because:
 #              mo_ice_interface:ice_fast_interface: This part has not been ported to GPU.
-./rmexp checksuite.ocean_internal/technical/exp.ocean_omip_ptest          --builders "DAINT_GPU_nvidia" --list $listname
-./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical --builders "DAINT_GPU_nvidia" --list $listname
-
 # add tolerance check to daint builders
 $addexp "checksuite.icon-dev/check.mch_ch_lowres"                         --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                       --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
@@ -108,25 +75,20 @@ $addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"               --buil
 # add tolerance check for 3d-turbulence scheme
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                   --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tracer only test to DAINT builders (for checking equivalence of vertical transport code for GPU vs CPU)
-$addexp checksuite.icon-dev/check.atm_tracer_Hadley                       --builders "DAINT_CPU_nvidia" --list $listname
+$addexp checksuite.icon-dev/check.atm_tracer_Hadley                                  --builders "DAINT_CPU_nvidia" --list $listname
+#$addexp checksuite.icon-dev/check.atm_tracer_Hadley                                  --builders DAINT_GPU_nvidia --list $listname
 
 #-----------------------------------------------------------
 # DWD
 # tests for nwp
-$addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=64G ntasks=32"  --machines levante --list $listname
-$addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=32"  --machines levante --list $listname
+$addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared memory=64G ntasks=32"  --machines levante --list $listname
+$addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared memory=32G ntasks=32"  --machines levante --list $listname
 # this experiment runs only with-mpi and without openmp
 #
 # builders at DWD
 for builder in DWD_nec DWD_nec_hybrid; do
   $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders ${builder} --list $listname
   $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders ${builder} --list $listname
-done
-for builder in DWD_nec DWD_nec_yac2 DWD_nec_hybrid; do
-  # remove non-dwd tests
-  ./rmexp checksuite.ocean_internal/technical/exp.ocean_omip_ptest                   --builders ${builder} --list $listname
-  ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical          --builders ${builder} --list $listname
-#off#  ./rmexp checksuite.icon-dev/check.atm_2mom_bubble_rceTorus                     --builders ${builder} --list $listname
 done
 # only DWD_nec
 $addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                            --builders DWD_nec --list $listname
@@ -144,7 +106,6 @@ $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    -
 $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders DWD_nec_hybrid        --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders levante_intel_hybrid  --list $listname
 
-
 #-----------------------------------------------------------
 # Ruby0 coupled tests, only with mpi
 $addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines levante --runflags "cpu_time=00:20:00 no_of_nodes=2" --list $listname
@@ -152,7 +113,6 @@ $addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines lev
 # test memory loggin in amip setup
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog         --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog_AsyncIO --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
-$addexp checksuite.infrastructure/memLog/exp.oce_memLog         --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
 #-----------------------------------------------------------
 #remove red setups
 ./rmexp "exp.test_nwp_R02B04N06_multifile_restart exp.test_nwp_R02B04N06multi2" --builders levante_nag --list $listname
@@ -166,21 +126,16 @@ for builder in levante_intel_pio; do
   $addexp checksuite.infrastructure/output/exp.atm_amip_R2B4_1day     --builders ${builder} --list $listname
   $addexp exp.esm_bb_ruby0_pio  --builders ${builder} --list $listname --runflags "cpu_time=00:20:00 no_of_nodes=4"
   $addexp exp.esm_bb_ruby0      --builders ${builder} --list $listname --runflags "cpu_time=00:20:00 no_of_nodes=4"
-  $addexp checksuite.infrastructure/output/exp.hamocc_omip_10days  --builders ${builder} --runflags "no_of_nodes=4" --list $listname
 done
 
 # activate experiments for the Mac builder and breeze
 for builder in MPIMAC_gcc breeze_gcc breeze_nag breeze_intel; do
   [[ 'MPIMAC_gcc' = "${builder}" ]] && ./set_builder_flags Active --builders ${builder}  --list $listname
   $addexp exp.atm_qubicc_test_short --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
-  $addexp checksuite.ocean_internal/omip/exp.ocean_omip_short_r2b4 --builders ${builder} --list $listname --runflags "mpi_procs_pernode=4"
 done
 
-
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
-# Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1
-# Until there is a fix, these tests are deactivated
-#$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
+$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 
 # icon-clm tests
@@ -191,15 +146,7 @@ for experiment in exp.esm_bb_ruby0 exp.test_nwp_R02B04N06multi exp.test_nwp_R02B
 do
   ./rmexp $experiment --builders levante_nag --list $listname
 done
-for experiment in \
-  checksuite.icon-dev/check.atm_ape \
-  checksuite.icon-dev/check.atm_qubicc \
-  checksuite.icon-dev/check.atm_qubicc_nofor \
-  checksuite.icon-dev/check.atm_qubicc_onlyfor \
-  checksuite.ocean_internal/omip/exp.test_ocean_omip_10days \
-  checksuite.ocean_internal/omip/exp.test_ocean_zstar_omip_10days \
-  checksuite.ocean_internal/omip/exp.test_ocean_newice_omip_10days \
-  checksuite.icon-dev/check.atm_sma
+for experiment in checksuite.icon-dev/check.atm_ape checksuite.icon-dev/check.atm_qubicc checksuite.icon-dev/check.atm_qubicc_nofor checksuite.icon-dev/check.atm_qubicc_onlyfor
 do
   ./rmexp $experiment --builders levante_nag_serial --list $listname
 done

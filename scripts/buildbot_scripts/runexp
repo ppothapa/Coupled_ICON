@@ -1,14 +1,15 @@
 #! /usr/bin/env python3
+from pathlib import Path
+import sys
+import json
+import signal
+import time
+
 from buildbot_config import BuildbotConfig
 from icon_paths import run_path, buildbot_list_path, base_path
 from cmd_line_job import CmdLineJob
 from slurm_job import SlurmJob
 from pbs_job import PBSJob
-
-from pathlib import Path
-import sys
-import json
-import time
 
 def parse_line(line):
     return line.strip("\n").replace("'","").split("=")
@@ -28,21 +29,21 @@ def runexp():
 
     builder = "{}_{}".format(setup_dict["use_target"].upper(), setup_dict["use_compiler"])
 
-    with open(str(run_path / "buildbot_config.json"), "r") as f:
-      config = json.load(f)
+    with open(str(run_path / "buildbot_config.json"), "r") as file:
+        config = json.load(file)
 
     builder = config["builder"]
     list_name = config["list_name"]
 
-    print("initializing experiments for builder {} in list {}".format(builder, list_name))
+    print(f"initializing experiments for builder {builder} in list {list_name}")
 
     full_list_name = buildbot_list_path / list_name
 
     if Path(full_list_name).exists():
-      thisList = BuildbotConfig.from_pickle(full_list_name)
+        thisList = BuildbotConfig.from_pickle(full_list_name)
     else:
-      print("did not find experiment list {}".format(full_list_name))
-      sys.exit(1)
+        print(f"did not find experiment list {full_list_name}")
+        sys.exit(1)
 
     bobj = thisList.builder_meta[builder]
     bobj.submit = setup_dict["use_submit"]
@@ -54,7 +55,7 @@ def runexp():
     elif bobj.submit == "":
         BatchJob = CmdLineJob
     else:
-        print("no batch job helper class implemented for machine {}".format(bobj.machine))
+        print(f"no batch job helper class implemented for machine {bobj.machine}")
         sys.exit(1)
 
     # set up the experiments for job submission
@@ -62,11 +63,18 @@ def runexp():
     eobjs = thisList.get_experiments_by_builder(builder).flatten()
     for eobj in eobjs:
         # BatchJob keeps track of dependencies and is responsible for submitting to the queue
-        eobj.batch_job = BatchJob(bobj.submit, run_path) 
-    
+        eobj.batch_job = BatchJob(bobj.submit, run_path)
+
     for eobj in eobjs:
         # finally submit the jobs
         eobj.submit(bobj)
+
+    def cleanupOnInterupt(signum,frame):
+        print("runexp: caught signal",signum, frame)
+        print("runexp: Try to cancel all jobs ...")
+        for eobj in eobjs:
+            eobj.cancel()
+    signal.signal(signal.SIGTERM, cleanupOnInterupt)
 
     # wait for completion of all gathered processes
     for eobj in eobjs:
@@ -76,22 +84,38 @@ def runexp():
     # with a certain delay
     time.sleep(20)
 
-    # parse returncode and write STATUS file
+    # 1) parse returncodes of all experiments and fail if at least one of them did fail
+    # 2) write STATUS file which is supposed to be shown by buildbot for better overview
     loop_status_exp_file = Path(base_path) / "LOOP_STATUS_EXP_FILE"
-    exit_code = 0
-    with open(str(loop_status_exp_file), "w") as f:
+    experimentsFailed    = []
+    exit_code            = -1
+    with open(str(loop_status_exp_file), "w") as file:
         for eobj in eobjs:
+            exp_jobid = eobj.batch_job.jobid
             exp_file = eobj.get_run_name(relative=False)
             if eobj.batch_job.returncode is not None:
-                x = "OK" if eobj.batch_job.returncode == 0 else "FAILED"
+                if eobj.batch_job.returncode == 0:
+                    experimentsFailed.append(False)
+                    exit_msg = f"OK (jobID:{exp_jobid})"
+                else:
+                    experimentsFailed.append(True)
+                    exit_msg = f"FAILED (jobID:{exp_jobid})"
             else:
-                print("internal error, did not get returncode for {}".format(eobj.name))
-                x = "FAILED"
+                experimentsFailed.append(True)
+                print(f"internal error, did not get returncode for {eobj.name} (jobID:{exp_jobid})")
+                exit_msg = "FAILED"
 
-            exit_code = exit_code if x == "OK" else 1
-            print("exit code for {}: {}".format(exp_file, x, int(exit_code)))
-            f.write("{0:50}: {1}\n".format(exp_file.name, x))
+            if True == experimentsFailed[-1]:
+                exit_code = 1
+            else:
+                exit_code = 0
+            print(f"exit code for {exp_file}: {exit_msg} (code:{int(exit_code)})")
+            file.write("{0:50}: {1}\n".format(exp_file.name, exit_msg))
 
+    if True in experimentsFailed:
+        exit_code = 1
+    else:
+        exit_code = 0
     sys.exit(exit_code)
 
 if __name__ == "__main__":

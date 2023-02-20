@@ -91,7 +91,7 @@ test -n '@MPI_LAUNCH@' && use_mpi_startrun='@MPI_LAUNCH@ -n $mpi_total_procs'
 # Set site-specific values:
 case "$use_site" in
   cscs.ch)
-    case "$HOST" in
+    case "${HOST:-$(hostname)}" in
       *daint*|*dom*)
         use_load_profile='. /opt/modules/default/etc/modules.sh'
         use_submit='sbatch'
@@ -181,69 +181,15 @@ case "$use_site" in
   ;;
 
   dkrz.de)
-    case "$use_host" in
-      btlogin*|btc*|mlogin*|m*)
-        use_load_profile='. /etc/profile'
-        use_load_modules='ncl cdo git python python3/2021.01-gcc-9.1.0 @top_srcdir@/etc/Modules/icon-switch'
-        use_submit='sbatch'
-        use_sync_submit='sbatch --wait'
-        use_mpi_startrun='srun'
-        if test xyes = x"${use_gpu}"; then use_target='bullx_gpu'; else use_target='bullx_cpu'; fi
-
-        # We need to set $use_mpi_root, which actually serves as a vendor ID of
-        # MPI library. Later, we might implement a proper check for MPI vendor
-        # in the configure script by calling MPI_Get_library_version()
-        # (supported only starting MPI 3 though). For now, we set use_mpi_root
-        # depending on whether $FC is an MPI wrapper or not:
-        #     a) if $FC is an MPI wrapper, we assume that it resides in
-        #        $use_mpi_root/bin (or in any other first-level subdirectory of
-        #        the root directory);
-        #     b) otherwise, we parse $FCFLAGS for -I flags, detect the first
-        #        directory containing mpi.mod file and assume that its path
-        #        is $use_mpi_root/include (or any other first-level
-        #        subdirectory of the root directory).
-        # In both cases, we set use_mpi_root accordingly. We also know that we
-        # are on Mistral, therefore we don't have to care too much about
-        # portability of the following checks.
-
-        if @FC@ -show >/dev/null 2>&1; then
-          # If $FC accepts '-show' then consider it to be an MPI wrapper (we
-          # use head -1 to account for the case when $FC is a program with
-          # arguments, i.e. 'ifort -someflag'):
-          use_mpi_root=$(cd "$(dirname "$(which @FC@ | head -1)")/.."; pwd)
-        else
-          # Otherwise, we extract all -I flags from $FC $FCFLAGS and return
-          # path to the first directory containing mpi.mod.
-
-          # Find out the real name of the MPI Fortran module:
-          mpi_mod=mpi.@FC_MOD_FILE_EXT@
-          test xyes = x"@FC_MOD_FILE_UPPER@" && mpi_mod=MPI.@FC_MOD_FILE_EXT@
-
-          # Replace '-I[ ]*' with _INCLUDE_MARKER_ in $FC $FCFLAGS:
-          fcflags=`echo '@FC@ @FCFLAGS@' | sed 's%-I[ ]*%_INCLUDE_MARKER_%g'`
-
-          # Find the directory containing $mpi_mod.
-          for flag in $fcflags; do
-            case $flag in
-              _INCLUDE_MARKER_*)
-                dir=`echo "$flag" | sed 's%_INCLUDE_MARKER_%%'`
-                test -f "$dir/$mpi_mod" && use_mpi_root=$(dirname "$dir") && break
-              ;;
-            esac
-          done
-        fi
-      ;;
-      l*)
-        use_load_profile='. /etc/profile'
-        use_load_modules=''
-        use_shell='/usr/bin/bash'
-        use_submit='sbatch'
-        use_sync_submit='sbatch --wait'
-        use_mpi_startrun='srun'
-        use_target='bull_milan'
-        use_mpi_root='openmpi'
-      ;;
-    esac
+    use_load_profile='. /etc/profile'
+    use_load_modules=''
+    use_shell='/usr/bin/bash'
+    use_submit='sbatch'
+    use_sync_submit='sbatch --wait'
+    use_mpi_startrun='srun'
+    use_target='bull_milan'
+    use_mpi_root='openmpi'
+    if test xyes = x"${use_gpu}"; then use_target='bullx_gpu'; else use_target='bull_milan'; fi
   ;;
 
   kfa-juelich.de|fz-juelich.de|*jureca*|*juwels*)
