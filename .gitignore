@@ -55,7 +55,7 @@
 /run/checksuite.nwp/*.run
 
 # Common user-generated files:
-/build
+/build*/
 
 # Buildbot-generated files:
 /scripts/buildbot_scripts/experiment_lists
