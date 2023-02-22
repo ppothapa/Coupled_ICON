@@ -42,31 +42,33 @@ MODULE mo_wave_types
   TYPE t_wave_diag
     REAL(wp), POINTER, CONTIGUOUS :: &
       &  process_id(:,:),         &
-      &  u_10m (:,:),             & ! zonal wind in 10m  (nproma,nblks_c)           ( m/s )
-      &  v_10m (:,:),             & ! meridional wind in 10m (nproma,nblks_c)       ( m/s )
-      &  sp_10m(:,:),             & ! wind speed in 10m  (nproma,nblks_c)           ( m/s )
-      &  dir_10m(:,:),            & ! wind direction in 10m (nproma,nblks_c)        ( deg )
-      &  ALPHAJ(:,:),     & ! JONSWAP ALPHA (nproma,nblks_c)
-      &  FP(:,:),         & ! JONSWAP PEAK FREQUENCY (nproma,nblks_c)               ( Hz )
-      &  ET(:,:,:),       & ! JONSWAP SPECTRA (nproma,nblks_c,nfreqs)
-      &  FLMINFR(:,:,:),  & ! THE MINIMUM VALUE IN SPECTRAL BINS FOR A GIVEN FREQUENCY (nproma,nblks_c,nfreqs)
-      &  emean(:,:),      & ! TOTAL ENERGY (nproma,nblks_c)                         ( m^2 )
-      &  emeanws(:,:),    & ! TOTAL WINDSEA ENERGY (nproma,nblks_c)                 ( m^2 )
-      &  femean(:,:),     & ! MEAN FREQUENCY ENERGY (nproma,nblks_c)
-      &  f1mean(:,:),     & ! MEAN FREQUENCY BASED ON F-MOMENT (nproma,nblks_c)
-      &  femeanws(:,:),   & ! MEAN WINDSEA FREQUENCY ENERGY (nproma,nblks_c)
-      &  ustar(:,:),      & ! friction velocity  (nproma,nblks_c)                   ( m/s )
-      &  z0(:,:),         & ! roughness length   (nproma,nblks_c)                   ( m )
-      &  tauw(:,:),       & ! wave stress        (nproma,nblks_c)                   ( (m/s)^2 )
-      &  fl(:,:,:),       & ! DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE (nproma,nblks_e,ndirs*nfreqs)
-      &  sl(:,:,:),       & ! TOTAL SOURCE FUNCTION                    (nproma,nblks_e,ndirs*nfreqs)
-      &  Hs(:,:),         & ! significant wave height             (nproma,nblks_c)  ( m )
-      &  Hs_dir(:,:)      & ! mean direction of total wave height (nproma,nblks_c)  ( deg )
+      &  gv_c(:,:,:),   & ! group velocity                      (nproma,nblks_c,nfreqs)  [m/s]
+      &  gv_e(:,:,:),   & ! group velocity                      (nproma,nblks_e,nfreqs)  [m/s]
+      &  gvn_e(:,:,:),  & ! orthogonal normal group velocity    (nproma,nblks_e,nfreqs)  [m/s]
+      &  gvt_e(:,:,:),  & ! tangential group velocity           (nproma,nblks_e,nfreqs)  [m/s]
+      &  ALPHAJ(:,:),   & ! JONSWAP ALPHA (nproma,nblks_c)
+      &  FP(:,:),       & ! JONSWAP PEAK FREQUENCY (nproma,nblks_c)               ( Hz )
+      &  ET(:,:,:),     & ! JONSWAP SPECTRA (nproma,nblks_c,nfreqs)
+      &  FLMINFR(:,:,:),& ! THE MINIMUM VALUE IN SPECTRAL BINS FOR A GIVEN FREQUENCY (nproma,nblks_c,nfreqs)
+      &  emean(:,:),    & ! TOTAL ENERGY (nproma,nblks_c)                         ( m^2 )
+      &  emeanws(:,:),  & ! TOTAL WINDSEA ENERGY (nproma,nblks_c)                 ( m^2 )
+      &  femean(:,:),   & ! MEAN FREQUENCY ENERGY (nproma,nblks_c)
+      &  f1mean(:,:),   & ! MEAN FREQUENCY BASED ON F-MOMENT (nproma,nblks_c)
+      &  femeanws(:,:), & ! MEAN WINDSEA FREQUENCY ENERGY (nproma,nblks_c)
+      &  ustar(:,:),    & ! friction velocity  (nproma,nblks_c)                   ( m/s )
+      &  z0(:,:),       & ! roughness length   (nproma,nblks_c)                   ( m )
+      &  tauw(:,:),     & ! wave stress        (nproma,nblks_c)                   ( (m/s)^2 )
+      &  fl(:,:,:),     & ! DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE (nproma,nblks_e,ndirs*nfreqs)
+      &  sl(:,:,:),     & ! TOTAL SOURCE FUNCTION                    (nproma,nblks_e,ndirs*nfreqs)
+      &  Hs(:,:),       & ! significant wave height             (nproma,nblks_c)  ( m )
+      &  Hs_dir(:,:)    & ! mean direction of total wave height (nproma,nblks_c)  ( deg )
       &  => NULL()
 
     INTEGER, POINTER ::        &
       &  LLWS(:,:,:)           & ! TRUE WHERE SINPUT IS POSITIVE, wind sea, swell splitting flag  (nproma,nblks_c,ntracer)
       &  => NULL()
+
+    TYPE(t_ptr_2d3d), ALLOCATABLE :: freq_ptr(:) !< pointer array: one pointer for each frequence
   END type t_wave_diag
 
   TYPE t_wave_state

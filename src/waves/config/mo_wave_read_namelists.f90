@@ -31,7 +31,6 @@ MODULE mo_wave_read_namelists
   USE mo_extpar_nml,         ONLY: read_extpar_namelist
   USE mo_advection_nml,      ONLY: read_transport_namelist
   USE mo_wave_nml,           ONLY: read_wave_namelist
-  USE mo_nonhydrostatic_nml, ONLY: read_nonhydrostatic_namelist
   USE mo_interpol_nml,       ONLY: read_interpol_namelist
   USE mo_sleve_nml,          ONLY: read_sleve_namelist
 
@@ -71,8 +70,6 @@ CONTAINS
     CALL read_sleve_namelist          (wave_namelist_filename(1:tlen))
 
     CALL init_grid_configuration()
-
-    CALL read_nonhydrostatic_namelist (wave_namelist_filename(1:tlen))
 
     CALL read_transport_namelist      (wave_namelist_filename(1:tlen))
 

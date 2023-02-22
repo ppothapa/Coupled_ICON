@@ -67,7 +67,7 @@ for gridfile in ${wave_grid}; do
   dynamics_grid_filename="${dynamics_grid_filename} '${gridfile}',"
 done
 
-num_io_procs=0
+num_io_procs=1
 num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
@@ -143,8 +143,9 @@ cat > ${wave_namelist} << EOF
  extpar_filename = '${wave_extpar}'
 /
 &wave_nml
- ndirs       = ${nd}           !! NUMBER OF DIRECTIONS
- nfreqs      = ${nf}           !! NUMBER OF FREQUENCIES
+ ndirs       = ${nd}   ! number of directions
+ nfreqs      = ${nf}   ! number of frequencies
+ forc_file_prefix = '' ! prefix of forcing file name
 /
 &output_nml
  filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
@@ -155,12 +156,11 @@ cat > ${wave_namelist} << EOF
  include_last            =                      .TRUE.        ! flag whether to include the last time step
  output_filename         =                      'WAVE'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
- ml_varlist              =  'process_id','bathymetry_c','group:wind_10m',
+ ml_varlist              =  'process_id','bathymetry_c','bathymetry_e',
+                            'group:wave_forcing',
                             'group:wave_spectrum',
 			    'group:wave_phy',
 			    'group:wave_short'
- ml_varlist              =  'process_id','bathymetry_c'
- m_levels                = '1'
 /
 EOF
 

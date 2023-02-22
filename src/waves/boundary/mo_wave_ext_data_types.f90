@@ -54,5 +54,4 @@ MODULE mo_wave_ext_data_types
 
   END TYPE t_external_wave
 
-
 END MODULE mo_wave_ext_data_types

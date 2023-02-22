@@ -25,6 +25,7 @@ MODULE mo_wave_config
   USE mo_wave_constants,       ONLY: EX_TAIL
   USE mo_fortran_tools,        ONLY: DO_DEALLOCATE
   USE mo_idx_list,             ONLY: t_idx_list1D
+  USE mo_io_units,             ONLY: filename_max
 
   IMPLICIT NONE
 
@@ -69,10 +70,18 @@ MODULE mo_wave_config
     REAL(wp) :: BETAMAX ! PARAMETER FOR WIND INPUT (ECMWF CY45R1).
     REAL(wp) :: ZALP    ! SHIFTS GROWTH CURVE (ECMWF CY45R1).
 
-    LOGICAL :: coldstart           ! if .TRUE. start from initialisation without restart file
-    INTEGER :: iforc_waves         ! 1 - test case
-                                   ! 2 - forcing from coupled atmosphere
-                                   ! 3 - forcing from data reader
+    LOGICAL :: coldstart ! if .TRUE. start from initialisation without restart file
+
+    INTEGER :: iforc_waves ! 1 - test case
+                           ! 2 - forcing from coupled atmosphere
+                           ! 3 - forcing from data reader
+
+    CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
+                                           ! the real file name will be constructed as:
+                                           ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
+                                           ! forc_file_prefix+'_ice'  for sea ice concentration (fraction of 1)
+                                           ! forc_file_prefix+'_slh'  for sea level height (m)
+                                           ! forc_file_prefix+'_osc'  for U and V ocean surface currents (m/s)
 
     LOGICAL :: linput_sf1      ! if .TRUE., calculate wind input source function term, first call
     LOGICAL :: linput_sf2      ! if .TRUE., calculate wind input source function term, second call

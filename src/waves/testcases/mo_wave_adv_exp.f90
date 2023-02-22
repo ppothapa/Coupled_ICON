@@ -23,6 +23,7 @@ MODULE mo_wave_adv_exp
   USE mo_kind,                 ONLY: wp
   USE mo_model_domain,         ONLY: t_patch
   USE mo_wave_types,           ONLY: t_wave_diag
+  USE mo_wave_forcing_types,   ONLY: t_wave_forcing
   USE mo_math_constants,       ONLY: pi, rad2deg
   USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, min_rlcell
   USE mo_loopindices,          ONLY: get_indices_c
@@ -39,13 +40,13 @@ MODULE mo_wave_adv_exp
 
 CONTAINS
 
-  SUBROUTINE init_wind_adv_test(p_patch, p_diag)
+  SUBROUTINE init_wind_adv_test(p_patch, p_forcing)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = modname//'::init_wind_adv_test'
 
-    TYPE(t_patch),      INTENT(IN)    :: p_patch
-    TYPE(t_wave_diag),  INTENT(INOUT) :: p_diag
+    TYPE(t_patch),        INTENT(IN)    :: p_patch
+    TYPE(t_wave_forcing), INTENT(INOUT) :: p_forcing
 
     INTEGER :: jc, jb
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -80,10 +81,10 @@ CONTAINS
         d1 = MIN( 1._wp, (r/RR) )
 
         !45 degree towards NE
-        p_diag%u_10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
-        p_diag%v_10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
-        p_diag%sp_10m(jc,jb) = SQRT(p_diag%u_10m(jc,jb)**2 + p_diag%v_10m(jc,jb)**2)
-        p_diag%dir_10m(jc,jb) = ATAN2(p_diag%v_10m(jc,jb),p_diag%u_10m(jc,jb))*rad2deg
+        p_forcing%u10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
+        p_forcing%v10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
+        p_forcing%sp10m(jc,jb) = SQRT(p_forcing%u10m(jc,jb)**2 + p_forcing%v10m(jc,jb)**2)
+        p_forcing%dir10m(jc,jb) = ATAN2(p_forcing%v10m(jc,jb),p_forcing%u10m(jc,jb))*rad2deg
       END DO ! cell loop
     END DO
 !$OMP END DO NOWAIT

@@ -20,10 +20,11 @@ MODULE mo_wave_crosscheck
   USE mo_parallel_config,   ONLY: check_parallel_configuration
   USE mo_run_config,        ONLY: nsteps, ldynamics, ltransport, ntracer, num_lev
   USE mo_grid_config,       ONLY: n_dom
-  USE mo_time_config,       ONLY: dt_restart
+  USE mo_time_config,       ONLY: time_config, dt_restart
   USE mo_time_management,   ONLY: compute_timestep_settings,                        &
        &                          compute_restart_settings,                         &
        &                          compute_date_settings
+  USE mo_event_manager,     ONLY: initEventManager
   USE mo_wave_config,       ONLY: wave_config
 
   IMPLICIT NONE
@@ -52,6 +53,10 @@ CONTAINS
     CALL compute_timestep_settings()
     CALL compute_restart_settings()
     CALL compute_date_settings("wave", dt_restart, nsteps)
+    !
+    ! Create an event manager, ie. a collection of different events
+    !
+    CALL initEventManager(time_config%tc_exp_refdate)
 
     !--------------------------------------------------------------------
     ! Parallelization

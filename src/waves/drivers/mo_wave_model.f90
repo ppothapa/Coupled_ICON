@@ -209,7 +209,7 @@ CONTAINS
     !------------------------------------------------------------------
     ! Create and optionally read external data fields
     !------------------------------------------------------------------
-    CALL init_wave_ext_data (p_patch(1:), wave_ext_data, wave_ext_data_list)
+    CALL init_wave_ext_data (p_patch(1:), p_int_state, wave_ext_data, wave_ext_data_list)
 
     CALL message(routine, 'finished.')
 

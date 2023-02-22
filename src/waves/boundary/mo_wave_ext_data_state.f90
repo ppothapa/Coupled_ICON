@@ -24,7 +24,8 @@ MODULE mo_wave_ext_data_state
   USE mo_model_domain,        ONLY: t_patch
   USE mo_wave_ext_data_types, ONLY: t_external_wave
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, SUCCESS
-  USE mo_cdi_constants,       ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL
+  USE mo_cdi_constants,       ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
+    &                               GRID_CELL, GRID_EDGE
   USE mo_var_list_register,   ONLY: vlr_add, vlr_del
   USE mo_var_list,            ONLY: add_var, t_var_list_ptr
   USE mo_grid_config,         ONLY: n_dom
@@ -143,9 +144,10 @@ CONTAINS
     TYPE(t_cf_var)    :: cf_desc
     TYPE(t_grib2_var) :: grib2_desc
 
-    INTEGER :: nblks_c   !< number of cell blocks to allocate
+    INTEGER :: nblks_c, & !< number of cell blocks to allocate
+      &        nblks_e    !< number of edge blocks to allocate
 
-    INTEGER :: shape2d_c(2)
+    INTEGER :: shape2d_c(2), shape2d_e(2)
 
     INTEGER :: ibits         !< "entropy" of horizontal slice
 
@@ -161,11 +163,13 @@ CONTAINS
 
     !determine size of arrays
     nblks_c = p_patch%alloc_cell_blocks
+    nblks_e = p_patch%nblks_e
 
     ibits = DATATYPE_PACK16 ! packing accuracy of horizontal slice
 
     ! predefined array shapes
     shape2d_c = (/ nproma, nblks_c /)
+    shape2d_e = (/ nproma, nblks_e /)
 
     CALL vlr_add(ext_data_wave_list, TRIM(listname), patch_id=p_patch%id, lrestart=.FALSE.)
 
@@ -175,6 +179,16 @@ CONTAINS
     grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( ext_data_wave_list, 'bathymetry_c', ext_data_wave%bathymetry_c,      &
       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_c )
+
+
+    ! bathymetric height at cell edge
+    !
+    ! bathymetry_e  p_ext_oce%bathymetry_e(nproma,nblks_e)
+    cf_desc    = t_cf_var('Model bathymetry at edge', 'm', &
+                          'Model bathymetry', datatype_flt)
+    grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
+    CALL add_var( ext_data_wave_list, 'bathymetry_e', ext_data_wave%bathymetry_e,      &
+                  GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_e )
 
   END SUBROUTINE new_ext_data_wave_list
 

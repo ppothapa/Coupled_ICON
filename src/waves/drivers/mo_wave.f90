@@ -16,6 +16,7 @@ MODULE mo_wave
   USE mo_model_domain,          ONLY: p_patch
   USE mo_grid_config,           ONLY: n_dom, start_time, end_time
   USE mo_wave_state,            ONLY: construct_wave_state, destruct_wave_state
+  USE mo_wave_forcing_state,    ONLY: construct_wave_forcing_state, destruct_wave_forcing_state
   USE mo_time_config,           ONLY: time_config
   USE mo_util_mtime,            ONLY: getElapsedSimTimeInSeconds
   USE mo_output_event_types,    ONLY: t_sim_step_info
@@ -42,7 +43,7 @@ CONTAINS
 
     CALL construct_wave()
 
-    CALL perform_wave_stepping(time_config%tc_current_date)
+    CALL perform_wave_stepping(time_config)
 
     CALL destruct_wave()
 
@@ -71,6 +72,8 @@ CONTAINS
     END DO
 
     CALL construct_wave_state(p_patch(1:),n_timelevels=2)
+
+    CALL construct_wave_forcing_state(p_patch(1:))
 
     !------------------------------------------------------------------
     ! Prepare output file
@@ -120,8 +123,9 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "destruct_wave"
 
-
     CALL destruct_wave_state( )
+
+    CALL destruct_wave_forcing_state()
 
     CALL message(TRIM(routine),'finished')
 

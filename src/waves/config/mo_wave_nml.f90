@@ -20,7 +20,7 @@ MODULE mo_wave_nml
   USE mo_kind,                ONLY: wp
   USE mo_impl_constants,      ONLY: max_dom
   USE mo_namelist,            ONLY: position_nml, positioned, open_nml, close_nml
-  USE mo_io_units,            ONLY: nnml, nnml_output
+  USE mo_io_units,            ONLY: nnml, nnml_output, filename_max
   USE mo_master_control,      ONLY: use_restart_namelists
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist,     &
@@ -79,9 +79,17 @@ CONTAINS
     INTEGER :: dt_wave             ! PROPAGATION TIMESTEP !@waves: add units, s?
     INTEGER :: dt_fastphy          ! time step for fast physics processes !@waves: replace dt_wave by dt_fstphy?
     LOGICAL :: coldstart           ! if .TRUE. start from initialisation without restart file
-    INTEGER :: iforc_waves         ! 1 - test case
-    ! 2 - forcing from coupled atmosphete
-    ! 3 - forcing from data reader
+
+    INTEGER :: iforc_waves ! 1 - test case
+                           ! 2 - forcing from coupled atmosphete
+                           ! 3 - forcing from data reader
+
+    CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
+                                           ! the real file name will be constructed as:
+                                           ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
+                                           ! forc_file_prefix+'_ice'  for sea ice concentration (fraction of 1)
+                                           ! forc_file_prefix+'_slh'  for sea level height (m)
+                                           ! forc_file_prefix+'_osc'  for U and V ocean surface currents (m/s)
 
     LOGICAL :: linput_sf1      ! if .TRUE., calculate wind input source function term, first call
     LOGICAL :: linput_sf2      ! if .TRUE., calculate wind input source function term, second call
@@ -94,7 +102,7 @@ CONTAINS
 
 
     NAMELIST /wave_nml/ &
-         coldstart, iforc_waves,                            &
+         coldstart, iforc_waves, forc_file_prefix,          &
          ndirs, nfreqs, fr1, CO, IREF,                      &
          ALPHA, FM, GAMMA_wave, SIGMA_A, SIGMA_B, THETAQ, FETCH,    &
          dt_wave,  dt_fastphy, ROAIR, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
@@ -138,6 +146,8 @@ CONTAINS
     dt_wave    = 600            !! PROPAGATION TIMESTEP, s
 
     iforc_waves = 1         !! 1 - test case, 2 - forcing from coupled  atmosphere
+
+    forc_file_prefix = ''
 
     linput_sf1 =       .TRUE. !< if .TRUE., calculate wind input source function term, first call
     linput_sf2 =       .TRUE. !< if .TRUE., calculate wind input source function term, second call
@@ -186,38 +196,39 @@ CONTAINS
     !----------------------------------------------------
 
     DO jg=1,max_dom
-      wave_config(jg)%ndirs           = ndirs
-      wave_config(jg)%nfreqs          = nfreqs
-      wave_config(jg)%fr1             = fr1
-      wave_config(jg)%CO              = CO
-      wave_config(jg)%IREF            = IREF
-      wave_config(jg)%ALPHA           = ALPHA
-      wave_config(jg)%FM              = FM
-      wave_config(jg)%GAMMA_wave      = GAMMA_wave
-      wave_config(jg)%SIGMA_A         = SIGMA_A
-      wave_config(jg)%SIGMA_B         = SIGMA_B
-      wave_config(jg)%THETAQ          = THETAQ
-      wave_config(jg)%FETCH           = FETCH
-      wave_config(jg)%ROAIR           = ROAIR
-      wave_config(jg)%RNUAIR          = RNUAIR
-      wave_config(jg)%RNUAIRM         = RNUAIRM
-      wave_config(jg)%ROWATER         = ROWATER
-      wave_config(jg)%XEPS            = XEPS
-      wave_config(jg)%XINVEPS         = XINVEPS
-      wave_config(jg)%XKAPPA          = XKAPPA
-      wave_config(jg)%XNLEV           = XNLEV
-      wave_config(jg)%BETAMAX         = BETAMAX
-      wave_config(jg)%ZALP            = ZALP
-      wave_config(jg)%coldstart       = coldstart
-      wave_config(jg)%iforc_waves     = iforc_waves
-      wave_config(jg)%linput_sf1      = linput_sf1
-      wave_config(jg)%linput_sf2      = linput_sf2
-      wave_config(jg)%ldissip_sf      = ldissip_sf
-      wave_config(jg)%lnon_linear_sf  = lnon_linear_sf
-      wave_config(jg)%lbottom_fric_sf = lbottom_fric_sf
-      wave_config(jg)%lwave_stress1   = lwave_stress1
-      wave_config(jg)%lwave_stress2   = lwave_stress2
-      wave_config(jg)%lgrid_refr      = lgrid_refr
+      wave_config(jg)%ndirs            = ndirs
+      wave_config(jg)%nfreqs           = nfreqs
+      wave_config(jg)%fr1              = fr1
+      wave_config(jg)%CO               = CO
+      wave_config(jg)%IREF             = IREF
+      wave_config(jg)%ALPHA            = ALPHA
+      wave_config(jg)%FM               = FM
+      wave_config(jg)%GAMMA_wave       = GAMMA_wave
+      wave_config(jg)%SIGMA_A          = SIGMA_A
+      wave_config(jg)%SIGMA_B          = SIGMA_B
+      wave_config(jg)%THETAQ           = THETAQ
+      wave_config(jg)%FETCH            = FETCH
+      wave_config(jg)%ROAIR            = ROAIR
+      wave_config(jg)%RNUAIR           = RNUAIR
+      wave_config(jg)%RNUAIRM          = RNUAIRM
+      wave_config(jg)%ROWATER          = ROWATER
+      wave_config(jg)%XEPS             = XEPS
+      wave_config(jg)%XINVEPS          = XINVEPS
+      wave_config(jg)%XKAPPA           = XKAPPA
+      wave_config(jg)%XNLEV            = XNLEV
+      wave_config(jg)%BETAMAX          = BETAMAX
+      wave_config(jg)%ZALP             = ZALP
+      wave_config(jg)%coldstart        = coldstart
+      wave_config(jg)%iforc_waves      = iforc_waves
+      wave_config(jg)%forc_file_prefix = forc_file_prefix
+      wave_config(jg)%linput_sf1       = linput_sf1
+      wave_config(jg)%linput_sf2       = linput_sf2
+      wave_config(jg)%ldissip_sf       = ldissip_sf
+      wave_config(jg)%lnon_linear_sf   = lnon_linear_sf
+      wave_config(jg)%lbottom_fric_sf  = lbottom_fric_sf
+      wave_config(jg)%lwave_stress1    = lwave_stress1
+      wave_config(jg)%lwave_stress2    = lwave_stress2
+      wave_config(jg)%lgrid_refr       = lgrid_refr
     ENDDO
 
 
