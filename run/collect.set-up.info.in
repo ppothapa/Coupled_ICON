@@ -235,7 +235,7 @@ case "$use_site" in
       ;;
       l*)
         use_load_profile='. /etc/profile'
-        use_load_modules=''
+        use_load_modules="$use_srcdir/etc/Modules/icon-levante"
         use_shell='/usr/bin/bash'
         use_submit='sbatch'
         use_sync_submit='sbatch --wait'

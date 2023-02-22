@@ -37,6 +37,8 @@
 *.pp-*.f90
 *.xmodstamp
 /bin
+/include
+/lib
 /mod
 /srclist
 /version.c

@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 from buildbot_config import BuildbotConfig
 from icon_paths import run_path, buildbot_list_path, base_path
+import icon_env
 from cmd_line_job import CmdLineJob
 from slurm_job import SlurmJob
 from pbs_job import PBSJob
@@ -9,22 +10,11 @@ from pathlib import Path
 import sys
 import json
 import time
-
-def parse_line(line):
-    return line.strip("\n").replace("'","").split("=")
-
-def parse_setup_info():
-    try:
-        with open(str(run_path / "set-up.info"), "r") as f:
-            setup_dict = {parse_line(l)[0]: parse_line(l)[1] for l in f.readlines()}
-    except:
-        print("could not find set-up.info file")
-        sys.exit(1)
-
-    return setup_dict
+import os
 
 def runexp():
-    setup_dict = parse_setup_info()
+    # Get build settings
+    setup_dict = icon_env.info()
 
     builder = "{}_{}".format(setup_dict["use_target"].upper(), setup_dict["use_compiler"])
 
@@ -47,6 +37,10 @@ def runexp():
     bobj = thisList.builder_meta[builder]
     bobj.submit = setup_dict["use_submit"]
 
+    # Set up mkexp run-time environment (currently breaks on DWD)
+    if bobj.machine != 'dwd_nec':
+        icon_env.load()
+
     if bobj.submit.startswith("sbatch"):
         BatchJob = SlurmJob
     elif bobj.submit.startswith("qsub"):
@@ -60,6 +54,7 @@ def runexp():
     # set up the experiments for job submission
     # builder info and batch system information need to be added
     eobjs = thisList.get_experiments_by_builder(builder).flatten()
+
     for eobj in eobjs:
         # BatchJob keeps track of dependencies and is responsible for submitting to the queue
         eobj.batch_job = BatchJob(bobj.submit, run_path) 

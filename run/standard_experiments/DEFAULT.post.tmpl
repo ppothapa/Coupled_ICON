@@ -35,7 +35,7 @@ def check_date(arg):
     try:
         value = mtime.DateTime(arg)
     except ValueError as ve:
-        raise argparse.ArgumentTypeError(ve.message)
+        raise argparse.ArgumentTypeError(ve)
     return value
 
 command_line = argparse.ArgumentParser(description=__doc__.split('\n', 1)[0])
