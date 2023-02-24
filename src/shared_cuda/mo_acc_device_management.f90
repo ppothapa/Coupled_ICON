@@ -157,6 +157,8 @@ END ENUM ! cudaError
 !==============================================================================
 ! Interface definition
 
+#ifndef __HIP__
+
 INTERFACE ! [['const', 'char', '*'], 'cudaGetErrorString', [['cudaError_t', None, 'error']]]
   FUNCTION cudaGetErrorString(error) RESULT( res ) BIND(C, name="cudaGetErrorString")
     USE, INTRINSIC :: ISO_C_BINDING
@@ -214,6 +216,68 @@ INTERFACE ! [['cudaError_t', None], 'cudaDeviceSynchronize', ['void']]
     INTEGER (KIND(cudaSuccess)) :: res
   END FUNCTION cudaDeviceSynchronize
 END INTERFACE
+
+#else ! HIP versions
+
+INTERFACE ! [['const', 'char', '*'], 'cudaGetErrorString', [['cudaError_t', None, 'error']]]
+  FUNCTION cudaGetErrorString(error) RESULT( res ) BIND(C, name="hipGetErrorString")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER (KIND(cudaSuccess)), VALUE :: error
+    TYPE(c_ptr) :: res
+  END FUNCTION cudaGetErrorString
+END INTERFACE
+
+INTERFACE ! [['cudaError_t', None], 'cudaGetDeviceCount', [['int', '*', 'count']]]
+  FUNCTION cudaGetDeviceCount(count) RESULT( res ) BIND(C, name="hipGetDeviceCount")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER(c_int) :: count
+    INTEGER (KIND(cudaSuccess)) :: res
+  END FUNCTION cudaGetDeviceCount
+END INTERFACE
+
+INTERFACE ! [['cudaError_t', None], 'cudaSetDevice', [['int', None, 'device']]]
+  FUNCTION cudaSetDevice(device) RESULT( res ) BIND(C, name="hipSetDevice")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER(c_int), VALUE :: device
+    INTEGER (KIND(cudaSuccess)) :: res
+  END FUNCTION cudaSetDevice
+END INTERFACE
+
+INTERFACE ! [['cudaError_t', None], 'cudaDeviceReset', ['void']]
+  FUNCTION cudaDeviceReset() RESULT( res ) BIND(C, name="hipDeviceReset")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER (KIND(cudaSuccess)) :: res
+  END FUNCTION cudaDeviceReset
+END INTERFACE
+
+INTERFACE ! [['cudaError_t', None], 'cudaMemGetInfo', [['int', '*', 'free'],['int', '*', 'total']]]
+  FUNCTION cudaMemGetInfo(free, total) RESULT( res ) BIND(C, name="hipMemGetInfo")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER (c_size_t) :: free, total
+    INTEGER (KIND(cudaSuccess)) :: res
+  END FUNCTION cudaMemGetInfo
+END INTERFACE
+
+INTERFACE ! [['cudaError_t', None], 'cudaDeviceSynchronize', ['void']]
+  FUNCTION cudaDeviceSynchronize() RESULT( res ) BIND(C,name="hipDeviceSynchronize")
+    USE, INTRINSIC :: ISO_C_BINDING
+    IMPORT cudaSuccess
+    IMPLICIT NONE
+    INTEGER (KIND(cudaSuccess)) :: res
+  END FUNCTION cudaDeviceSynchronize
+END INTERFACE
+
+#endif
 
 !==============================================================================
 ! Module procedures in acc_device_management

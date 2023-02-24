@@ -376,7 +376,7 @@ CONTAINS
               zqx(jl,jk,jb) =  field%qtrc(jl,jk,jb,iqc) + field%qtrc(jl,jk,jb,iqi)
             END DO
           END DO
-          !$ACC END PARALLEL
+          !$ACC END PARALLEL LOOP
           !
           !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
           DO jl = jcs,jce

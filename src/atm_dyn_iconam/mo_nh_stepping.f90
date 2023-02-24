@@ -3208,6 +3208,7 @@ MODULE mo_nh_stepping
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
+
     CALL assert_acc_device_only("fill_nestlatbc_phys", lacc)
 
     ! Fill boundaries of nested domains

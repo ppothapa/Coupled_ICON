@@ -643,7 +643,7 @@ END SUBROUTINE gscp_set_coefficients
       END IF
 
       !$ACC DATA PRESENT(indices, ncn, t, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL
       !$ACC LOOP SEQ
       DO k = k_start,k_end
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
