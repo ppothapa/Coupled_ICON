@@ -2875,6 +2875,9 @@ CONTAINS
 
     LOGICAL :: lzacc
 
+  ! initialization
+  nlev = SIZE( te,2)
+
   CALL set_acc_host_or_device(lzacc, lacc)
   !$ACC DATA &
   !$ACC   PRESENT(te, qve, prs, u, v, hhl) &
@@ -2882,9 +2885,7 @@ CONTAINS
   !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
   !$ACC   CREATE(qvp_start, te_start) &
   !$ACC   IF(lzacc)
-  !$ACC PARALLEL DEFAULT(NONE) PRIVATE(nlev) FIRSTPRIVATE(i_startidx, i_endidx, kmoist) IF(lzacc)
-  ! initialization
-  nlev = SIZE( te,2)
+  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = i_startidx, i_endidx
     kstart(jc) = nlev  
