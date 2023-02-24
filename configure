@@ -8099,13 +8099,17 @@ esac
    while test $# != 0; do
      acx_tmp=$1
      case $acx_tmp in #(
-  BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*) :
+  BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*) :
      ;; #(
-  MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*) :
+  UTIL_LINUX_UUID_C_INCLUDE=*|UTIL_LINUX_UUID_C_LIB=*) :
      ;; #(
-  PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*) :
+  OSSP_UUID_C_INCLUDE=*|OSSP_UUID_C_LIB=*|DCE_UUID_C_INCLUDE=*) :
      ;; #(
-  PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*) :
+  DCE_UUID_C_LIB=*|MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_LAUNCH=*) :
+     ;; #(
+  MPI_FC_MOD=*|MPI_FC_LIB=*|PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*) :
+     ;; #(
+  YAXT_FC_MOD=*|YAXT_FC_LIB=*|PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*) :
      ;; #(
   -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
      ;; #(
@@ -8117,11 +8121,19 @@ esac
      ;; #(
   -enable-cf-interface|-enable-cf-interface=*|--enable-cf-interface|--enable-cf-interface=*|-disable-cf-interface|--disable-cf-interface) :
      ;; #(
+  -enable-ruby-interface|-enable-ruby-interface=*|--enable-ruby-interface|--enable-ruby-interface=*|-disable-ruby-interface|--disable-ruby-interface) :
+     ;; #(
+  -enable-python-interface|-enable-python-interface=*|--enable-python-interface|--enable-python-interface=*|-disable-python-interface|--disable-python-interface) :
+     ;; #(
+  -enable-openmp|-enable-openmp=*|--enable-openmp|--enable-openmp=*|-disable-openmp|--disable-openmp) :
+     ;; #(
   -enable-shared|-enable-shared=*|--enable-shared|--enable-shared=*|-disable-shared|--disable-shared) :
      ;; #(
   -enable-static|-enable-static=*|--enable-static|--enable-static=*|-disable-static|--disable-static) :
      ;; #(
   -enable-grib|-enable-grib=*|--enable-grib|--enable-grib=*|-disable-grib|--disable-grib) :
+     ;; #(
+  -enable-across|-enable-across=*|--enable-across|--enable-across=*|-disable-across|--disable-across) :
      ;; #(
   -enable-cgribex|-enable-cgribex=*|--enable-cgribex|--enable-cgribex=*|-disable-cgribex|--disable-cgribex) :
      ;; #(
@@ -8129,7 +8141,21 @@ esac
      ;; #(
   -enable-ppm-dist-array|-enable-ppm-dist-array=*|--enable-ppm-dist-array|--enable-ppm-dist-array=*|-disable-ppm-dist-array|--disable-ppm-dist-array) :
      ;; #(
+  -with-util-linux-uuid-include|-with-util-linux-uuid-include=*|--with-util-linux-uuid-include|--with-util-linux-uuid-include=*|-without-util-linux-uuid-include|--without-util-linux-uuid-include) :
+     ;; #(
+  -with-util-linux-uuid-lib|-with-util-linux-uuid-lib=*|--with-util-linux-uuid-lib|--with-util-linux-uuid-lib=*|-without-util-linux-uuid-lib|--without-util-linux-uuid-lib) :
+     ;; #(
+  -with-ossp-uuid-include|-with-ossp-uuid-include=*|--with-ossp-uuid-include|--with-ossp-uuid-include=*|-without-ossp-uuid-include|--without-ossp-uuid-include) :
+     ;; #(
+  -with-ossp-uuid-lib|-with-ossp-uuid-lib=*|--with-ossp-uuid-lib|--with-ossp-uuid-lib=*|-without-ossp-uuid-lib|--without-ossp-uuid-lib) :
+     ;; #(
+  -with-dce-uuid-include|-with-dce-uuid-include=*|--with-dce-uuid-include|--with-dce-uuid-include=*|-without-dce-uuid-include|--without-dce-uuid-include) :
+     ;; #(
+  -with-dce-uuid-lib|-with-dce-uuid-lib=*|--with-dce-uuid-lib|--with-dce-uuid-lib=*|-without-dce-uuid-lib|--without-dce-uuid-lib) :
+     ;; #(
   -with-threads|-with-threads=*|--with-threads|--with-threads=*|-without-threads|--without-threads) :
+     ;; #(
+  -with-fdb5|-with-fdb5=*|--with-fdb5|--with-fdb5=*|-without-fdb5|--without-fdb5) :
      ;; #(
   -with-szlib|-with-szlib=*|--with-szlib|--with-szlib=*|-without-szlib|--without-szlib) :
      ;; #(
@@ -8164,7 +8190,7 @@ esac
 esac
      shift
    done
-   set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"      F77=no      CXX=no MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= PKG_CONFIG= YAXT_C_INCLUDE= YAXT_C_LIB= YAXT_FC_MOD= YAXT_FC_LIB= PPM_CORE_C_INCLUDE= PPM_CORE_C_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_MPI_C_LIB= BUILD_MPI_FC_LIB= BUILD_CC= BUILD_CXX= BUILD_FC= BUILD_F77= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-mpi="$enable_cdi_pio" --enable-iso-c-interface --enable-cf-interface="$enable_cdi_pio" --disable-shared --enable-static --enable-grib --enable-cgribex --disable-cdi-app --enable-ppm-dist-array="$enable_cdi_pio" --without-threads --without-szlib --with-netcdf      --with-eccodes="$enable_grib2" --without-grib_api --with-on-demand-check-programs --without-example-programs      acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes      acx_cv_have_pnetcdf=no      acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no ac_cv_lib_uuid_uuid_generate=no ac_cv_func_uuid_create=no; shift
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"      F77=no      CXX=no UTIL_LINUX_UUID_C_INCLUDE= UTIL_LINUX_UUID_C_LIB= OSSP_UUID_C_INCLUDE= OSSP_UUID_C_LIB= DCE_UUID_C_INCLUDE= DCE_UUID_C_LIB= MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_LAUNCH="$MPI_LAUNCH" MPI_FC_MOD= MPI_FC_LIB= PKG_CONFIG= YAXT_C_INCLUDE= YAXT_C_LIB= YAXT_FC_MOD= YAXT_FC_LIB= PPM_CORE_C_INCLUDE= PPM_CORE_C_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_MPI_C_LIB= BUILD_MPI_FC_LIB= BUILD_CC= BUILD_CXX= BUILD_FC= BUILD_F77= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-mpi="$enable_cdi_pio" --enable-iso-c-interface --enable-cf-interface="$enable_cdi_pio" --disable-ruby-interface --disable-python-interface --disable-openmp --disable-shared --enable-static --enable-grib --disable-across --enable-cgribex --disable-cdi-app --enable-ppm-dist-array="$enable_cdi_pio" --without-util-linux-uuid --without-ossp-uuid --without-dce-uuid --without-threads --without-fdb5 --without-szlib --with-netcdf      --with-eccodes="$enable_grib2" --without-grib_api --with-on-demand-check-programs --without-example-programs      acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes      acx_cv_have_pnetcdf=no      acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :

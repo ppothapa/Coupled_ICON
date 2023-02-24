@@ -1734,22 +1734,35 @@ version of CDI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_CDI_CFLAGS=${ICON_CDI_CFLAGS-$ICON_BUNDLED_CFLAGS}
    ACX_SUBDIR_INIT_CONFIG([externals/cdi], [no-run])
    ACX_SUBDIR_REMOVE_ARGS([externals/cdi],
-     [BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*],
-     [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
-     [PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*],
-     [PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*],
+     [BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*],
+     [UTIL_LINUX_UUID_C_INCLUDE=*|UTIL_LINUX_UUID_C_LIB=*],
+     [OSSP_UUID_C_INCLUDE=*|OSSP_UUID_C_LIB=*|DCE_UUID_C_INCLUDE=*],
+     [DCE_UUID_C_LIB=*|MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_LAUNCH=*],
+     [MPI_FC_MOD=*|MPI_FC_LIB=*|PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*],
+     [YAXT_FC_MOD=*|YAXT_FC_LIB=*|PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mpi])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([iso-c-interface])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cf-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([ruby-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([python-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([openmp])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([grib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([across])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cgribex])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cdi-app])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([ppm-dist-array])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([util-linux-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([util-linux-uuid-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ossp-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ossp-uuid-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([dce-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([dce-uuid-lib])],
      [ACX_SUBDIR_CONFIG_PATTERN_WITH([threads])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([fdb5])],
      [ACX_SUBDIR_CONFIG_PATTERN_WITH([szlib])],
      [ACX_SUBDIR_CONFIG_PATTERN_WITH([netcdf])],
      [ACX_SUBDIR_CONFIG_PATTERN_WITH([eccodes])],
@@ -1776,19 +1789,23 @@ dnl set for the C++ compiler. Therefore, by disabling CXX we get the same
 dnl behaviour (still questionable but satisfactory for us) as if CDI didn't use
 dnl the C++ compiler at all (e.g. like in YAXT).
      [CXX=no],
-     [MPI_LAUNCH="$MPI_LAUNCH"], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
-     [MPI_FC_MOD=], [MPI_FC_LIB=], [PKG_CONFIG=], [YAXT_C_INCLUDE=],
-     [YAXT_C_LIB=], [YAXT_FC_MOD=], [YAXT_FC_LIB=], [PPM_CORE_C_INCLUDE=],
-     [PPM_CORE_C_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=], [BUILD_LDFLAGS=],
-     [BUILD_LIBS=], [BUILD_MPI_C_LIB=], [BUILD_MPI_FC_LIB=], [BUILD_CC=],
-     [BUILD_CXX=], [BUILD_FC=], [BUILD_F77=],
+     [UTIL_LINUX_UUID_C_INCLUDE=], [UTIL_LINUX_UUID_C_LIB=],
+     [OSSP_UUID_C_INCLUDE=], [OSSP_UUID_C_LIB=], [DCE_UUID_C_INCLUDE=],
+     [DCE_UUID_C_LIB=], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+     [MPI_LAUNCH="$MPI_LAUNCH"], [MPI_FC_MOD=], [MPI_FC_LIB=], [PKG_CONFIG=],
+     [YAXT_C_INCLUDE=], [YAXT_C_LIB=], [YAXT_FC_MOD=], [YAXT_FC_LIB=],
+     [PPM_CORE_C_INCLUDE=], [PPM_CORE_C_LIB=], [BUILD_CFLAGS=],
+     [BUILD_FCFLAGS=], [BUILD_LDFLAGS=], [BUILD_LIBS=], [BUILD_MPI_C_LIB=],
+     [BUILD_MPI_FC_LIB=], [BUILD_CC=], [BUILD_CXX=], [BUILD_FC=], [BUILD_F77=],
      [--enable-silent-rules="$enable_silent_rules"],
      [--disable-maintainer-mode], [--enable-mpi="$enable_cdi_pio"],
      [--enable-iso-c-interface], [--enable-cf-interface="$enable_cdi_pio"],
-     [--disable-shared], [--enable-static], [--enable-grib],
-     [--enable-cgribex], [--disable-cdi-app],
-     [--enable-ppm-dist-array="$enable_cdi_pio"], [--without-threads],
-     [--without-szlib], [--with-netcdf],
+     [--disable-ruby-interface], [--disable-python-interface],
+     [--disable-openmp], [--disable-shared], [--enable-static],
+     [--enable-grib], [--disable-across], [--enable-cgribex],
+     [--disable-cdi-app], [--enable-ppm-dist-array="$enable_cdi_pio"],
+     [--without-util-linux-uuid], [--without-ossp-uuid], [--without-dce-uuid],
+     [--without-threads], [--without-fdb5], [--without-szlib], [--with-netcdf],
 dnl Currently, we don't have full control on choosing the GRIB2 backend (e.g.
 dnl grib_api, eccodes) due to the limitations of the configure script of
 dnl libcdi. Therefore, we set --with-eccodes=$enable_grib2 --without-grib_api
@@ -1809,8 +1826,7 @@ dnl very old (i.e. 4.3.3 or later) and the library is configured with the
 dnl Parallel-NetCDF features enabled, CDI will override the default value.
      [acx_cv_have_pnetcdf=no],
 dnl Disable unwanted extra dependencies.
-     [acx_cv_have_libnc_dap=no], [acx_cv_have_nc4hdf5=no],
-     [ac_cv_lib_uuid_uuid_generate=no], [ac_cv_func_uuid_create=no])
+     [acx_cv_have_libnc_dap=no], [acx_cv_have_nc4hdf5=no])
    AS_VAR_IF([enable_cdi_pio], [yes],
 dnl To enable the test suite of CDI, we need to provide the configure script of
 dnl the library with information on how to link to the bundled YAXT and PPM
