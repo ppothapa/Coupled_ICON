@@ -13,7 +13,8 @@ import sys
 
 @click.command()
 @click.argument("name", type=str)
-def lslist(name):
+@click.option("--builders-only","builders_only", is_flag=True, show_default=False, default=False, help="list only the builders of a list", required=False)
+def lslist(name,builders_only):
 
     full_list_name = buildbot_list_path / name
 
@@ -23,7 +24,10 @@ def lslist(name):
       print("did not find experiment list {}".format(full_list_name))
       sys.exit(1)
 
-    print(thisList.to_string())
+    if builders_only:
+      print(thisList.list_builders())
+    else:
+      print(thisList.to_string())
 
 if __name__ == "__main__":
     lslist()

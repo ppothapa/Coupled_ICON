@@ -1,0 +1,19 @@
+#!/bin/bash
+
+addexp="./addexp"
+#############################################################################
+listname=debug1
+./rmlist $listname
+
+./create_all_builders $listname
+
+# deactivate all builders
+./set_builder_flags Inactive --builders "$(./lslist $listname --builders-only)" --list $listname
+
+myBuilder='levante_nag_serial'
+./set_builder_flags Active --builders $myBuilder --list $listname
+./addexp checksuite.infrastructure/buildbot/exp.failed_experiment --builders $myBuilder --list $listname
+./addexp checksuite.infrastructure/buildbot/exp.failed_in_subshell --builders $myBuilder --list $listname
+./addexp checksuite.infrastructure/buildbot/exp.failed_in_srun --builders $myBuilder --list $listname
+
+./lslist $listname

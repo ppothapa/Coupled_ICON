@@ -1,0 +1,17 @@
+srun -n 500 /usr/bin/true
+
+date
+
+srun -n 500 /usr/bin/true || exit 1
+
+date
+
+set -uef -o pipefail
+
+srun -n 500 /usr/bin/true
+
+date
+
+srun -n 500 /usr/bin/true || exit 1
+
+date

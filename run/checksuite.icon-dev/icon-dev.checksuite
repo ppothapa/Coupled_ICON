@@ -185,6 +185,10 @@ function print_usage
     echo '     experiment'
     echo '-u : if files of the experiments differ, '
     echo '     calculate the difference between these files with cdo sub'
+    echo
+    echo 'NOTE: In its current state this checksuite use the runscript generator'
+    echo '      with its default values. Please check run/create_target_header'
+    echo '      wrt. the target system for the exact values!'
 }
 #------------------------------------------------------------------------
 function diff_results
@@ -773,7 +777,7 @@ SCRIPT=${EXPERIMENT}
 cd ${MODEL_DIR}
 
 if [ ! -f ${SCRIPT_DIR}/exp.${SCRIPT}.run -o "$FORCE_MRS" == 'yes' ]; then
-    ./make_runscripts ${SCRIPT}
+    ./make_runscripts ${SCRIPT} -d
 fi
 
 if [ ! -d experiments ]; then

@@ -3157,7 +3157,7 @@ CONTAINS
     !
     ! loop through all patch cells
     !
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc,ile1,ibe1) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,je,i_startidx,i_endidx,ile1,ibe1) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
@@ -3874,7 +3874,9 @@ CONTAINS
   !! - added projection of cell centers
   !!
   SUBROUTINE init_tplane_c_sphere (ptr_patch, ptr_int)
-
+#ifdef __INTEL_COMPILER
+!DIR$ OPTIMIZE:2
+#endif
     TYPE(t_patch),     INTENT(inout) :: ptr_patch  !< patch
 
     TYPE(t_int_state), INTENT(inout) :: ptr_int    !< interpolation state
