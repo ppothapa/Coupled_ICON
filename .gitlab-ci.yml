@@ -1,5 +1,5 @@
 variables:
-  BEAUTIFIER_REVISION: "v0.1.0"
+  BEAUTIFIER_REVISION: "v0.3.0"
   BEAUTIFIER_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.dkrz.de/dwd-sw/icon-openacc-beautifier.git"
 
 stages:
