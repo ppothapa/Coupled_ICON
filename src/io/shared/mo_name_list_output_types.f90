@@ -390,21 +390,18 @@ MODULE mo_name_list_output_types
     ! Vertical axis meta-data
     TYPE(t_verticalAxisList)              :: verticalAxisList
 
+    INTEGER                               :: cdiVlistID           !< CDI variable list used for new files
+
     ! The following members are set during open
-    INTEGER                               :: cdiFileId
-    INTEGER                               :: cdiVlistId           !< cdi vlist handler
-    INTEGER                               :: cdiVlistId_orig      !< cdi vlist handler, model internal vlist id during append
+    INTEGER                               :: cdiFileID
     INTEGER                               :: cdiCellGridID
     INTEGER                               :: cdiSingleGridID
     INTEGER                               :: cdiZonal1DegID
     INTEGER                               :: cdiVertGridID
     INTEGER                               :: cdiEdgeGridID
     INTEGER                               :: cdiLonLatGridID
-    INTEGER                               :: cdiTaxisID
-    INTEGER                               :: cdiTaxisID_orig
     INTEGER                               :: cdiTimeIndex
     INTEGER                               :: cdi_grb2(3,2)        !< geographical position: (GRID, latitude/longitude)
-    LOGICAL                               :: appending = .FALSE.  !< the current file is appended (.true.), otherwise .false.
 
   END TYPE t_output_file
 

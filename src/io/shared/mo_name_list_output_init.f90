@@ -1193,7 +1193,7 @@ CONTAINS
 ! NOMPI
 
     output_file(:)%cdiFileID  = CDI_UNDEFID ! i.e. not opened
-    output_file(:)%cdiVlistId = CDI_UNDEFID ! i.e. not defined
+    output_file(:)%cdiVlistID = CDI_UNDEFID ! i.e. not defined
 
 
     ! --------------------------------------------------------------------------------------
@@ -1344,7 +1344,6 @@ CONTAINS
           p_of%cdiVertGridID   = CDI_UNDEFID
           p_of%cdiLonLatGridID = CDI_UNDEFID
           p_of%cdiZonal1DegID  = CDI_UNDEFID
-          p_of%cdiTaxisID      = CDI_UNDEFID
           p_of%cdiVlistID      = CDI_UNDEFID
 
           p_of%npartitions     = npartitions
@@ -2372,6 +2371,7 @@ CONTAINS
     LOGICAL                           :: lrotated
     REAL(wp), ALLOCATABLE             :: rotated_pts(:,:,:)
     TYPE (t_lon_lat_grid), POINTER :: grid
+    INTEGER                           :: taxisID
 
 #ifdef HAVE_CDI_PIO
     TYPE(xt_idxlist)                  :: null_idxlist
@@ -2712,19 +2712,19 @@ CONTAINS
     !
     SELECT CASE (of%name_list%mode)
     CASE (1)  ! forecast mode
-     of%cdiTaxisID = taxisCreate(TAXIS_RELATIVE)
+     taxisID = taxisCreate(TAXIS_RELATIVE)
 
      IF (of%name_list%taxis_tunit > 10 .OR. of%name_list%taxis_tunit < 1 ) THEN
        of%name_list%taxis_tunit=TUNIT_MINUTE
        CALL message('','invalid taxis_tunit, reset to TUNIT_MINUTE')
      END IF
-     CALL taxisDefTunit (of%cdiTaxisID, of%name_list%taxis_tunit)
+     CALL taxisDefTunit (taxisID, of%name_list%taxis_tunit)
 
      SELECT CASE(calendarType())
      CASE (mtime_proleptic_gregorian)
-       CALL taxisDefCalendar (of%cdiTaxisID, dtime_proleptic_gregorian)
+       CALL taxisDefCalendar (taxisID, dtime_proleptic_gregorian)
      CASE (mtime_year_of_360_days)
-       CALL taxisDefCalendar (of%cdiTaxisID, dtime_cly360)
+       CALL taxisDefCalendar (taxisID, dtime_cly360)
      CASE default
        CALL finish(routine, "Unsupported calendar!")
      END SELECT
@@ -2734,19 +2734,19 @@ CONTAINS
      itime = cdiEncodeTime(time_config%tc_exp_startdate%time%hour, time_config%tc_exp_startdate%time%minute, &
                            INT(time_config%tc_exp_startdate%time%second))
 
-     CALL taxisDefRdate (of%cdiTaxisID, idate )
-     CALL taxisDefRtime (of%cdiTaxisID, itime )
+     CALL taxisDefRdate (taxisID, idate)
+     CALL taxisDefRtime (taxisID, itime)
 
-     !WRITE(6,'(a,i,a,i)')'idate ',idate,' ',taxisInqRdate(of%cdiTaxisID)
-     !WRITE(6,'(a,i,a,i)')'itime ',itime,' ',taxisInqRtime(of%cdiTaxisID)
+     !WRITE(6,'(a,i,a,i)')'idate ',idate,' ',taxisInqRdate(taxisID)
+     !WRITE(6,'(a,i,a,i)')'itime ',itime,' ',taxisInqRtime(taxisID)
     CASE (2)  ! climate mode
-     of%cdiTaxisID = taxisCreate(TAXIS_ABSOLUTE)
+     taxisID = taxisCreate(TAXIS_ABSOLUTE)
     CASE DEFAULT
-     of%cdiTaxisID = taxisCreate(TAXIS_ABSOLUTE)
+     taxisID = taxisCreate(TAXIS_ABSOLUTE)
     END SELECT
 
     !
-    CALL vlistDefTaxis(of%cdiVlistID, of%cdiTaxisID)
+    CALL vlistDefTaxis(of%cdiVlistID, taxisID)
 
     !
     ! add variables
