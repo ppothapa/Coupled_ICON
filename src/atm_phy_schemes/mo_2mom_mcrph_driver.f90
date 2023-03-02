@@ -256,9 +256,7 @@ CONTAINS
 
     INTEGER :: ik_slice(4)
 
-    !$ACC DATA CREATE(q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld) &
-    !$ACC   PRESENT(dz, qr, qi, qs, qg, qh, qc, qnr, qni, qns, qng, qnh, qnc, rho, nccn, hhl, ninact, ninpot) &
-    !$ACC   COPYIN(ccn_coeffs, in_coeffs)
+    !$ACC DATA CREATE(q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld)
 
     lprogccn  = PRESENT(nccn)
     lprogin   = PRESENT(ninpot)
@@ -318,7 +316,7 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost) 
 
     ! inverse of vertical layer thickness
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk = kts,kte
       DO ii = its,ite
@@ -333,7 +331,7 @@ CONTAINS
     END IF
     
     IF (clipping) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO kk = kts,kte
         DO ii = its,ite
@@ -377,7 +375,7 @@ CONTAINS
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine), "prepare variables for 2mom")
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(hlp) COLLAPSE(2)
     DO kk = kts, kte
        DO ii = its, ite
@@ -396,7 +394,8 @@ CONTAINS
 
     ! .. set the particle types, but no calculations
     CALL init_2mom_scheme(cloud,rain,ice,snow,graupel,hail)
-    !$ACC ENTER DATA COPYIN(cloud, rain, ice, snow, graupel, hail, atmo)
+    !$ACC DATA COPYIN(cloud, rain, ice, snow, graupel, hail) &
+    !$ACC   CREATE(atmo)
 
     ! .. convert to densities and set pointerns to two-moment module
     !    (pointers are used to avoid passing everything explicitly by argument and
@@ -481,7 +480,7 @@ CONTAINS
        IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_sedi) 
 
     ELSE
-       CALL clouds_twomoment_implicit ()
+      CALL clouds_twomoment_implicit ()
     END IF
 
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost)    
@@ -496,9 +495,18 @@ CONTAINS
          lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
 
     IF (clipping) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO kk = kts,kte
+      IF (lprogmelt) THEN
+        WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
+        WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
+      END IF
+    END IF
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP SEQ
+    DO kk = kts,kte
+
+      IF (clipping) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO ii = its,ite
           IF ( qr(ii,kk) < 0.0_wp)  qr(ii,kk) = 0.0_wp
           IF ( qi(ii,kk) < 0.0_wp)  qi(ii,kk) = 0.0_wp
@@ -511,19 +519,10 @@ CONTAINS
           IF (qng(ii,kk) < 0.0_wp) qng(ii,kk) = 0.0_wp
           IF (qnh(ii,kk) < 0.0_wp) qnh(ii,kk) = 0.0_wp
         ENDDO
-      ENDDO
-      !$ACC END PARALLEL
+      END IF
 
-       IF (lprogmelt) THEN
-          WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
-          WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
-       END IF
-    END IF
-
-    IF (lprogccn) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf)
-      DO kk=kts,kte
+      IF (lprogccn) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zf)
         DO ii=its,ite
           zf = 0.5_wp*(hhl(ii,kk)+hhl(ii,kk+1))
           !..reset nccn for cloud-free grid points to background profile
@@ -536,26 +535,18 @@ CONTAINS
             END IF
           END IF
         END DO
-      END DO
-      !$ACC END PARALLEL
-    END IF
+      END IF
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO kk=kts,kte
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO ii=its,ite
         !..relaxation of activated IN number density to zero
         IF(qi(ii,kk) == 0) THEN
           ninact(ii,kk) = ninact(ii,kk) - ninact(ii,kk)*(1._wp/tau_inact)*dt
         END IF
       END DO
-    END DO
-    !$ACC END PARALLEL
 
-    IF (lprogin) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf, in_bgrd)
-      DO kk=kts,kte
+      IF (lprogin) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zf, in_bgrd)
         DO ii=its,ite
           zf = 0.5_wp*(hhl(ii,kk)+hhl(ii,kk+1))
           !..relaxation of potential IN number density to background profile
@@ -566,39 +557,26 @@ CONTAINS
           END IF
           ninpot(ii,kk) = ninpot(ii,kk) - (ninpot(ii,kk)-in_bgrd)*(1._wp/tau_inpot)*dt
         END DO
-      END DO
-      !$ACC END PARALLEL
-    END IF
+      END IF
 
-    IF (lprogccn) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO kk = kts,kte
+      IF (lprogccn) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO ii = its,ite
           IF ( nccn(ii,kk) < 35e6_wp ) nccn(ii,kk) = 35e6_wp
         ENDDO
-      ENDDO
-      !$ACC END PARALLEL
-    END IF
+      END IF
   
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO kk = kts,kte
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO ii = its,ite
         IF(qc(ii,kk) < 1.0e-12_wp) qnc(ii,kk) = 0.0_wp
       ENDDO
+
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC EXIT DATA DELETE(cloud, rain, ice, snow, graupel, hail, atmo)
-    !$ACC END DATA ! DATA CREATE PRESENT COPY
-
-!   AS: Clip large values?? Why is that necessary? Who put that in?  
-!    WHERE(qr(its:ite,kts:kte) > 0.02_wp) qr(its:ite,kts:kte) = 0.02_wp
-!    WHERE(qi(its:ite,kts:kte) > 0.02_wp) qi(its:ite,kts:kte) = 0.02_wp
-!    WHERE(qs(its:ite,kts:kte) > 0.02_wp) qs(its:ite,kts:kte) = 0.02_wp
-!    WHERE(qg(its:ite,kts:kte) > 0.02_wp) qg(its:ite,kts:kte) = 0.02_wp
-!    WHERE(qh(its:ite,kts:kte) > 0.02_wp) qh(its:ite,kts:kte) = 0.02_wp
+    !$ACC WAIT
+    !$ACC END DATA ! cloud, rain, ice, snow, graupel, hail, atmo
+    !$ACC END DATA ! q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine), "two moment mcrph ends!")
 
@@ -638,12 +616,6 @@ CONTAINS
       REAL(wp), DIMENSION(isize,ke) :: rdzdt
       INTEGER :: i, ii, k, kk
 
-#ifdef _OPENACC
-      ! The following mysterious variables cannot be removed, otherwise the tolerance test fails on GPU
-      ! Check gitlab.dkrz.de/icon/wiki/-/wikis/GPU-development/Get-rid-of-mysterious-variables for more information
-      REAL(wp), DIMENSION(isize,ke) :: mysterious_var1, mysterious_var2 ! Don't remove
-#endif
-
       logical, parameter :: lmicro_impl = .true.  ! microphysics within semi-implicit sedimentation loop?
 
       !$ACC DATA &
@@ -658,10 +630,7 @@ CONTAINS
       !$ACC   CREATE(qi_flux_now, qi_flux_new, qi_sum, vi_sedq_new, vi_sedq_now, qi_impl, xi_now) &
       !$ACC   CREATE(ni_flux_now, ni_flux_new, ni_sum, vi_sedn_new, vi_sedn_now, ni_impl) &
       !$ACC   CREATE(lh_flux_now, lh_flux_new, lh_sum, vh_sedl_new, vh_sedl_now, lh_impl) &
-      !$ACC   CREATE(lg_flux_now, lg_flux_new, lg_sum, vg_sedl_new, vg_sedl_now, lg_impl, rdzdt) &
-      !$ACC   PRESENT(qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh, qv, qc, rdz, q_vap_old, q_liq_old, tk, rho_r) &
-      !$ACC   PRESENT(rain, ice, snow, graupel, hail) &
-      !$ACC   PRESENT(prec_r, prec_i, prec_s, prec_g, prec_h)
+      !$ACC   CREATE(lg_flux_now, lg_flux_new, lg_sum, vg_sedl_new, vg_sedl_now, lg_impl, rdzdt)
 
       if (.not.lmicro_impl) then
 #ifdef _OPENACC
@@ -710,7 +679,7 @@ CONTAINS
       end if
 
       ! clipping maybe not necessary
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kts,kte
         DO i = its,ite
@@ -733,7 +702,7 @@ CONTAINS
         WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
       end if
 
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kts,kte
         DO i = its,ite
@@ -742,9 +711,9 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(isize)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
-      DO i = 1,isize
+      DO i = its,ite
         qr_flux_now(i) = 0.0_wp
         nr_flux_now(i) = 0.0_wp
         qr_flux_new(i) = 0.0_wp
@@ -779,7 +748,7 @@ CONTAINS
         lh_flux_new(:) = 0.0_wp        
       end if
 
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       do i=its,ite
         vr_sedn_new(i) = rain%vsedi_min
@@ -806,13 +775,11 @@ CONTAINS
       ! i.e. we start from kts+1 going down in physical space
 
 !DIR$ IVDEP
-      ! The variables have to be created outside or within this loop otherwise the tolerance test fail
-      ! Check gitlab.dkrz.de/icon/wiki/-/wikis/GPU-development/Get-rid-of-mysterious-variables for more information
-      !$ACC DATA CREATE(mysterious_var1, mysterious_var2) ! Don't remove
       DO k=kts+1,kte
 
-        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k)
-        !$ACC LOOP GANG VECTOR
+        !$ACC DATA PRESENT(rain, ice, snow, graupel, hail)
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         do i=its,ite
           xr_now(i) = particle_meanmass(rain, qr(i,k),qnr(i,k))
           xi_now(i) = particle_meanmass(ice, qi(i,k),qni(i,k))
@@ -821,6 +788,7 @@ CONTAINS
           xh_now(i) = particle_meanmass(hail, qh(i,k),qnh(i,k))
         end do
         !$ACC END PARALLEL
+        !$ACC END DATA
 
         call sedi_vel_rain(rain,rain_coeffs,qr(:,k),xr_now,rhocorr(:,k),vr_sedn_now,vr_sedq_now,its,ite,qc(:,k),lacc=.TRUE.)
         call sedi_vel_sphere(ice,ice_coeffs,qi(:,k),xi_now,rhocorr(:,k),vi_sedn_now,vi_sedq_now,its,ite)
@@ -856,8 +824,8 @@ CONTAINS
 
           ! .. save old variables for latent heat calculation
 
-          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, lprogmelt)
-          !$ACC LOOP GANG VECTOR
+          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO ii = its, ite
             q_vap_old(ii,k) = qv(ii,k)
             if (lprogmelt) then
@@ -877,8 +845,8 @@ CONTAINS
                ninact, nccn, ninpot)
 
           ! .. latent heat term for temperature equation
-          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, z_heat_cap_r, lconstant_lh, lprogmelt)
-          !$ACC LOOP GANG VECTOR PRIVATE(led, lwe, convice, convliq, q_liq_new, q_vap_new)
+          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(led, lwe, convice, convliq, q_liq_new, q_vap_new)
           DO ii = its, ite
 
             IF (lconstant_lh) THEN
@@ -933,7 +901,6 @@ CONTAINS
         END IF
 
       END DO
-      !$ACC END DATA ! mysterious_var1, mysterious_var2
 
       IF (lprogmelt) THEN
         ! implicit solver for LWF-scheme still has some issues
@@ -943,9 +910,9 @@ CONTAINS
         prec_i(:) = qi_flux_new
         prec_s(:) = qs_flux_new
       ELSE
-        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(isize)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
-        DO i = 1,isize
+        DO i = its,ite
           prec_r(i) = qr_flux_new(i)
           prec_i(i) = qi_flux_new(i)
           prec_s(i) = qs_flux_new(i)
@@ -960,6 +927,7 @@ CONTAINS
         qrsflux(:,kte) = qr_flux_new + qi_flux_new + qs_flux_new + qg_flux_new + qh_flux_new
       END IF
 
+      !$ACC WAIT
       !$ACC END DATA ! DATA CREATE PRESENT
       
     END SUBROUTINE clouds_twomoment_implicit
@@ -1127,8 +1095,7 @@ CONTAINS
     REAL(wp) :: q_star, flux_sum
     INTEGER  :: i
 
-    !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new, flux_now, rdzdt)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(q_star, flux_sum)
     do i=its,ite
 
@@ -1156,7 +1123,6 @@ CONTAINS
       q_sum(i)  = q_sum(i) - q_star           
     end do
     !$ACC END PARALLEL
-    !$ACC END DATA
     
   end SUBROUTINE implicit_core
   
@@ -1168,8 +1134,7 @@ CONTAINS
 
     INTEGER  :: i
     
-    !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
     do i=its,ite
 
@@ -1182,7 +1147,6 @@ CONTAINS
 
     end do
     !$ACC END PARALLEL
-    !$ACC END DATA
     
   end SUBROUTINE implicit_time
 
@@ -1349,7 +1313,8 @@ CONTAINS
      END IF
      
     IF (msg_level>5) CALL message (TRIM(routine), " finished two_moment_mcrph_init successfully")
-    
+    !$ACC ENTER DATA COPYIN(ccn_coeffs, in_coeffs)
+
   END SUBROUTINE two_moment_mcrph_init
 
 

@@ -201,7 +201,7 @@ CONTAINS
 
              CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                   i_startidx, i_endidx, i_rlstart, i_rlend)
-             !$ACC PARALLEL DEFAULT(PRESENT)
+             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
              !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(rholoc, rhoinv)
              DO jk = 1, nlev
                 DO jc = i_startidx, i_endidx
@@ -263,7 +263,7 @@ CONTAINS
         ELSE IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 1) THEN
 
           IF (iprog_aero == 0) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
             !$ACC LOOP GANG VECTOR
             DO jc=i_startidx,i_endidx
               qnc_s(jc) = prm_diag%cloud_num(jc,jb)
@@ -291,7 +291,7 @@ CONTAINS
 
         ELSE
 
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR
           DO jc=i_startidx,i_endidx
             qnc_s(jc) = cloud_num
@@ -303,7 +303,7 @@ CONTAINS
         ! tt_lheat to be in used LHN
         ! lateron the updated p_diag%temp is added again
         IF (lcompute_tt_lheat) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk=1,nlev
             DO jc=i_startidx,i_endidx
@@ -632,7 +632,7 @@ CONTAINS
         IF (timers_level > 10) CALL timer_stop(timer_phys_micro_specific) 
 
         IF (ldiag_ttend) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), nlev
             DO jc = i_startidx, i_endidx
@@ -642,7 +642,7 @@ CONTAINS
           !$ACC END PARALLEL
         ENDIF
         IF (ldiag_qtend) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR
           DO jk = kstart_moist(jg), nlev
             DO jc = i_startidx, i_endidx
@@ -669,7 +669,7 @@ CONTAINS
 
 
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
              prm_diag%rain_gsp(jc,jb) = prm_diag%rain_gsp(jc,jb)                         &
@@ -704,7 +704,7 @@ CONTAINS
           CASE(2)
 
 !DIR$ IVDEP
-           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
            !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
 
@@ -740,7 +740,7 @@ CONTAINS
           CASE(9)  ! Kessler scheme (warm rain scheme)
 
 !DIR$ IVDEP
-           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
            !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
 
@@ -761,7 +761,7 @@ CONTAINS
           CASE DEFAULT
 
 !DIR$ IVDEP
-           !$ACC PARALLEL DEFAULT(PRESENT)
+           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
            !$ACC LOOP GANG VECTOR
            DO jc =  i_startidx, i_endidx
 
@@ -846,7 +846,7 @@ CONTAINS
 
         ! Update tt_lheat to be used in LHN
         IF (lcompute_tt_lheat) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk=1,nlev
               DO jc=i_startidx,i_endidx
@@ -865,6 +865,7 @@ CONTAINS
        CALL nwp_diag_output_minmax_micro(p_patch, p_prog, p_diag, ptr_tracer)
     END IF
 
+    !$ACC WAIT
     !$ACC END DATA
      
   END SUBROUTINE nwp_microphysics

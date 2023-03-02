@@ -654,20 +654,23 @@ CONTAINS
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
+    ! DEFAULT(NONE) required::
+    ! - The FUNCTION rain_mue_dm_relation cannot find mo_2mom_mcrph_type:particle_rain_coeff with DEFAULT(PRESENT)
+    ! - Probably a compiler issue as inlining the function solves it
     !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq, qc) IF(lzacc)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite) IF(lzacc)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) FIRSTPRIVATE(its, ite) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(D_m, mue, D_p)
     do i=its,ite
-       if (q(i).gt.q_crit) then
+      if (q(i).gt.q_crit) then
           D_m = particle_diameter(this, x(i))
           IF (PRESENT(qc)) THEN
-             if (qc(i) >= q_crit) THEN
-                mue = (this%nu+1.0_wp)/this%b_geo - 1.0_wp
-             else
-                mue = rain_mue_dm_relation(thisCoeffs, D_m)
-             end if
+            if (qc(i) >= q_crit) THEN
+              mue = (this%nu+1.0_wp)/this%b_geo - 1.0_wp
+            else
+              mue = rain_mue_dm_relation(thisCoeffs, D_m)
+            end if
           ELSE
-             mue = rain_mue_dm_relation(thisCoeffs, D_m)
+            mue = rain_mue_dm_relation(thisCoeffs, D_m)
           END IF
           D_p = D_m * exp((-1./3.)*log((mue+3.)*(mue+2.)*(mue+1.)))
           vn(i) = thisCoeffs%alfa - thisCoeffs%beta * exp(-(mue+1.)*log(1.0 + thisCoeffs%gama*D_p))
@@ -695,8 +698,7 @@ CONTAINS
     integer  :: i
     real(wp) :: lam,v_n,v_q
 
-    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(lam, v_n, v_q)
     do i=its,ite
        if (q(i).gt.q_crit) then
@@ -715,7 +717,6 @@ CONTAINS
        end if
     end do
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   end subroutine sedi_vel_sphere
 
@@ -882,8 +883,7 @@ CONTAINS
 
     x_s_i = 1.0_wp / cloud%x_max
 
-    !$ACC DATA PRESENT(cloud, rain, cloud_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, x_s_i)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_c, n_c, q_r, x_c, au, tau, phi, sc)
     DO k = kstart,kend
        DO i = istart,iend
@@ -914,7 +914,6 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE autoconversionSB
 
@@ -944,8 +943,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, rain)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_c, q_c, q_r, tau, phi, ac, x_c)
     DO k = kstart,kend
        DO i = istart,iend
@@ -971,7 +969,6 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE accretionSB
 
@@ -1002,8 +999,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(rain)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_r, q_r, x_r, D_r, sc, br)
     DO k = kstart,kend
        DO i = istart,iend
@@ -1028,7 +1024,6 @@ CONTAINS
       END DO
    END DO
    !$ACC END PARALLEL
-   !$ACC END DATA
 
   END SUBROUTINE rain_selfcollectionSB
 
@@ -1244,8 +1239,7 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_evaporation")
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, rain_coeffs)
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, p_a, e_sw, s_sw, g_d, eva_q, eva_n, eva_q_fak, q_r, n_r, x_r, e_d, f_v) &
     !$ACC   PRIVATE(mue, d_m, gamma_eva, lam, d_vtp, gfak, mm)
@@ -1334,7 +1328,6 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE rain_evaporation
 
@@ -1363,8 +1356,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(prtcl, atmo, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q, T_a, e_d, e_sw, s_sw, g_d, n, x, D, v, f_v) &
     !$ACC   PRIVATE(eva_q, eva_n)
     DO k = kstart,kend
@@ -1410,7 +1402,6 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE evaporation
 
@@ -1440,8 +1431,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, ice, atmo, cloud_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, nuc_c_typ, qnc_const)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, T_c, q_c, n_c, fr_q, fr_n, x_c, j_hom)
     DO k = kstart,kend
       DO i = istart,iend
@@ -1495,7 +1485,7 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+
   END SUBROUTINE cloud_freeze
 
   SUBROUTINE ice_nucleation_homhet(ik_slice, use_prog_in, &
@@ -1600,8 +1590,7 @@ CONTAINS
     LOGICAL  :: ndiag_mask(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
     REAL(wp) :: nuc_n_a(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
 
-    !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff) &
-    !$ACC   PRESENT(n_inpot, atmo, ice)
+    !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1669,7 +1658,7 @@ CONTAINS
     END IF
 
     IF (use_prog_in) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kstart, kend
         DO i = istart, iend
@@ -1683,7 +1672,7 @@ CONTAINS
 
     ! Homogeneous nucleation using KHL06 approach
     IF (use_homnuc) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, ni_hom_max)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) &
       !$ACC   PRIVATE(acoeff, bcoeff, p_a, T_a, e_si, ssi, scr, n_i, q_i, x_i, r_i) &
       !$ACC   PRIVATE(v_th, flux, n_sat, ri_dot, R_ik, w_pre, cool, ctau, tau, delta, phi) &
@@ -1763,6 +1752,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
+    !$ACC WAIT
     !$ACC END DATA ! nuc_n_a, ndiag_mask, acoeff, bcoeff, n_inpot, atmo, ice
 
   END SUBROUTINE ice_nucleation_homhet
@@ -1802,9 +1792,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, ice, cloud, n_inact, n_inpot, nuc_n_a, ndiag_mask)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, ni_het_max) &
-    !$ACC   FIRSTPRIVATE(use_prog_in, na_soot, na_orga, na_dust)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, e_si, ssi, xt, tt, infrac, xs, ss, ssr) &
     !$ACC   PRIVATE(ndiag, ndiag_dust, ndiag_all, nuc_n, nuc_q, lwrite_n_inpot)
@@ -1904,7 +1892,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE ice_nucleation_het_philips
 
@@ -2042,12 +2029,9 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA CREATE(s_si, g_i) &
-    !$ACC   COPYIN(dep_ice, dep_snow, dep_graupel, dep_hail) &
-    !$ACC   PRESENT(atmo, ice, snow, graupel, hail) &
-    !$ACC   PRESENT(dep_rate_ice, dep_rate_snow)
+    !$ACC DATA CREATE(s_si, g_i, dep_ice, dep_snow, dep_graupel, dep_hail)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(p_a, T_a, e_d, e_si, D_vtp)
     DO k = kstart,kend
        DO i = istart,iend
@@ -2067,18 +2051,6 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k = kstart,kend
-      DO i = 1,size(dep_rate_ice,1)
-        dep_ice(i,k)     = 0.0
-        dep_snow(i,k)    = 0.0
-        dep_graupel(i,k) = 0.0
-        dep_hail(i,k)    = 0.0
-      END DO
-    END DO
-    !$ACC END PARALLEL
-
     CALL vapor_deposition_generic(ik_slice, ice, ice_coeffs, g_i, s_si,dt_local, dep_ice)
     CALL vapor_deposition_generic(ik_slice, snow, snow_coeffs, g_i, s_si, dt_local, dep_snow)
     CALL vapor_deposition_generic(ik_slice, graupel, graupel_coeffs, g_i, s_si, dt_local, dep_graupel)
@@ -2086,7 +2058,7 @@ CONTAINS
 
     zdt = 1.0/dt_local
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, zdt, dt_local)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(qvsidiff, tau_i_i, tau_s_i, tau_g_i, tau_h_i, Xi_i, Xfac) &
     !$ACC   PRIVATE(dep_ice_n, dep_snow_n, dep_graupel_n, dep_hail_n, dep_sum, x_i, x_s, x_g, x_h, T_a)
     DO k = kstart,kend
@@ -2133,16 +2105,6 @@ CONTAINS
                 END IF
 
                 dep_sum = dep_ice(i,k) + dep_graupel(i,k) + dep_snow(i,k) + dep_hail(i,k)
-
-                ! this limiter should not be necessary
-                !IF (qvsidiff > 0.0_wp .and. dep_sum > qvsidiff) then
-                !   weight = qvsidiff / dep_sum
-                !   dep_sum          = weight * dep_sum
-                !   dep_ice(i,k)     = weight * dep_ice(i,k)
-                !   dep_snow(i,k)    = weight * dep_snow(i,k)
-                !   dep_graupel(i,k) = weight * dep_graupel(i,k)
-                !   dep_hail(i,k)    = weight * dep_hail(i,k)
-                !END IF
                 
                 IF ( reduce_sublimation) THEN
                   x_i = particle_meanmass(ice    , ice%    q(i,k), ice%    n(i,k))
@@ -2181,8 +2143,9 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-   
-    !$ACC END DATA ! CREATE COPYIN PRESENT
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE vapor_dep_relaxation
 
@@ -2208,8 +2171,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(prtcl, coeffs, dep_q, g_i, s_si)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n, q, x, D, v, f_v)
     DO k = kstart,kend
       DO i = istart,iend
@@ -2231,7 +2193,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE vapor_deposition_generic
 
@@ -2279,9 +2240,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, rain, graupel, hail, ice, rain_ltable1, rain_ltable2, rain_ltable3, rain_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, rain_g1, rain_g2) &
-    !$ACC   FIRSTPRIVATE(rain_nm1, rain_nm2, rain_nm3, xmax_ice, xmax_gr, dt)
+    ! Explicit PRESENT statement required for rain_ltable*
+    ! - Otherwise error: illegal address during kernel execution
+    ! - Reason unknown as inlining of incgfct_lower_lookup solves issue
+    !$ACC DATA PRESENT(rain_ltable1, rain_ltable2, rain_ltable3)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, n_r, fr_q, fr_n, fr_n_i, fr_q_i, fr_n_g) &
     !$ACC   PRIVATE(fr_q_g, fr_n_h, fr_q_h, fr_n_tmp, fr_q_tmp) &
     !$ACC   PRIVATE(x_r, lam, lam_rnm1, lam_rnm2, lam_rnm3, n_0, j_het)
@@ -2556,8 +2519,7 @@ CONTAINS
 
     x_conv_ii = (cfg_params%D_conv_ii/snow%a_geo)**(1./snow%b_geo)
 
-    !$ACC DATA PRESENT(atmo, ice, ice_coeffs, snow)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, x_conv_ii)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_i, n_i, x_i, d_i, v_i, e_coll, self_n, self_q)
     DO k = kstart,kend
        DO i = istart,iend
@@ -2597,7 +2559,6 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE ice_selfcollection
 
@@ -2662,8 +2623,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, snow, snow_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, v_s, e_coll, self_n)
     DO k = kstart,kend
       DO i = istart,iend
@@ -2693,7 +2653,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE snow_selfcollection
 
@@ -2722,8 +2681,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, snow, rain, snow_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, e_a, n_s, x_s, D_s, v_s) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -2775,7 +2733,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE snow_melting
 
@@ -2815,8 +2772,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, ctype, ptype, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, q_p, n_p, x_p, d_p, v_p, q_i, n_i, x_i, d_i, v_i, coll_n, coll_q, e_coll)
     DO k = kstart,kend
@@ -2871,7 +2827,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE particle_particle_collection
 
@@ -2974,8 +2929,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, graupel, graupel_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_g, n_g, x_g, d_g, v_g, self_n)
     DO k = kstart,kend
        DO i = istart,iend
@@ -3000,7 +2954,6 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE graupel_selfcollection
 
@@ -3026,8 +2979,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(ice, atmo, rain, cloud)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
@@ -3058,7 +3010,6 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE ice_melting
 
@@ -3103,8 +3054,7 @@ CONTAINS
 
     const1 = const0 * ptype%ecoll_c
 
-    !$ACC DATA PRESENT(atmo, rain, cloud, ptype, ice, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const1, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_c, q_p, n_c, n_p, x_p, D_p, x_c, D_c) &
     !$ACC   PRIVATE(v_p, v_c, e_coll_n, e_coll_q, rime_n, rime_q) &
     !$ACC   PRIVATE(mult_1, mult_2, mult_n, mult_q, melt_n, melt_q)
@@ -3180,7 +3130,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE particle_cloud_riming
 
@@ -3216,8 +3165,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, rain, ptype, ice, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, q_p, n_r, n_p, x_p, d_p, v_p, x_r, D_r) &
     !$ACC   PRIVATE(v_r, rime_n, rime_q, mult_1, mult_2, mult_n, mult_q) &
     !$ACC   PRIVATE(melt_q, melt_n)
@@ -3289,7 +3237,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE particle_rain_riming
 
@@ -3318,8 +3265,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, graupel, rain, graupel_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    ! Explicit PRESENT statement required for graupel:
+    ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
+    ! - Reason unknown as inlining of particle_* solves issue
+    !$ACC DATA PRESENT(graupel)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_g, e_a, n_g, x_g, D_g, v_g) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -3413,8 +3363,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, hail, rain, hail_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    ! Explicit PRESENT statement required for hail:
+    ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
+    ! - Reason unknown as inlining of particle_* solves issue
+    !$ACC DATA PRESENT(hail)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_h, e_a, n_h, x_h, D_h, v_h) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -3731,8 +3684,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, snow, hail, graupel_ltable1, graupel_ltable2, ltabdminwgg)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, graupel_nm2, graupel_g1, graupel_g2, graupel_nm1)
+    ! Explicit PRESENT statement required for graupel_ltable1 and graupel_ltable2:
+    ! - Otherwise error: illegal address during kernel execution
+    ! - Reason unknown as inlining of incgfct_upper_lookup solves issue
+    !$ACC DATA PRESENT(graupel_ltable1, graupel_ltable2)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, p_a, d_trenn, qw_a, qi_a, n_0, lam, xmin) &
     !$ACC   PRIVATE(q_g, n_g, x_g, d_g, q_c, q_r, conv_n, conv_q)
     DO k = kstart,kend
@@ -3844,8 +3800,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, dep_rate_ice) &
-    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qi, rime_rate_qr, rime_rate_nr)
+    !$ACC DATA CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qi, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, ice, cloud, icr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, ice, rain, irr_coeffs, dt, &
@@ -3857,7 +3812,7 @@ CONTAINS
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const5)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, d_i, T_a, x_r, rime_n, rime_q) &
     !$ACC   PRIVATE(rime_qr, rime_qi, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
@@ -4027,6 +3982,8 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE ice_riming
@@ -4077,8 +4034,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, snow, ice, graupel, dep_rate_snow) &
-    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qs, rime_rate_qr, rime_rate_nr)
+    !$ACC DATA CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qs, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, snow, cloud, scr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, snow, rain, srr_coeffs, dt, &
@@ -4087,7 +4043,7 @@ CONTAINS
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice 
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const5)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, x_r, rime_n, rime_q) &
     !$ACC   PRIVATE(rime_qr, rime_qs, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
@@ -4285,6 +4241,8 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+
+    !$ACC WAIT
     !$ACC END DATA
 
  END SUBROUTINE snow_riming
@@ -4323,8 +4281,7 @@ CONTAINS
 
    const1 = const0 * ptype%ecoll_c
 
-   !$ACC DATA PRESENT(ptype, cloud, rime_rate_qb, rime_rate_nb, coeffs)
-   !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const1, dt)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_p, n_p, x_p, d_p, v_p) &
    !$ACC   PRIVATE(q_c, n_c, x_c, d_c, v_c, e_coll, rime_n, rime_q)
    DO k = kstart,kend
@@ -4375,7 +4332,6 @@ CONTAINS
      ENDDO
    ENDDO
    !$ACC END PARALLEL
-   !$ACC END DATA
     
  END SUBROUTINE riming_cloud_core
 
@@ -4415,8 +4371,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
+    ! DEFAULT(NONE) required::
+    ! - The FUNCTIONS particle_* cannot find mo_2mom_mcrph_type:particle with DEFAULT(PRESENT)
+    ! - Probably a compiler issue as inlining the functions solves it
     !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_a, n_a, x_a, d_a, v_a) &
     !$ACC   PRIVATE(q_r, n_r, x_r, d_r, v_r, rime_n, rime_qi, rime_qr)
     DO k = kstart,kend
@@ -4984,7 +4943,6 @@ CONTAINS
     INTEGER              :: i, k, kp1_fl
     INTEGER              :: iu, ju, ku, lu
     REAL(wp)             :: hilf1(2,2,2,2), hilf2(2,2,2), hilf3(2,2), hilf4(2)
-    INTEGER              :: h1, h2, h3, h4
 
     LOGICAL, PARAMETER   :: lincloud_nuc = .TRUE.
 
@@ -5019,15 +4977,12 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(tab, cloud, atmo) CREATE(hilf1, hilf2, hilf3, hilf4)
-    !$ACC DATA PRESENT(n_cn) IF(PRESENT(n_cn))
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, kp1_fl, n_cn0) &
-    !$ACC   FIRSTPRIVATE(z0_nccn, z1e_nccn, r2, lsigs, etas)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) CREATE(hilf1, hilf2, hilf3, hilf4)
     !$ACC LOOP SEQ
     DO k = kstart,kend
       kp1_fl = MIN(k+1,SIZE(atmo%rho,dim=2))
 !NEC$ ivdep
-      !$ACC LOOP GANG VECTOR PRIVATE(n_c, q_c, nuc_n, nuc_q, ncn, nccn, wcb) &
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(n_c, q_c, nuc_n, nuc_q, ncn, nccn, wcb) &
       !$ACC   PRIVATE(r2_loc, lsigs_loc, ncn_loc, wcb_loc, zf, iu, ju, ku, lu) &
       !$ACC   PRIVATE(hilf1, hilf2, hilf3, hilf4)
       DO i = istart,iend
@@ -5097,23 +5052,11 @@ CONTAINS
           wcb_loc   = MIN(MAX(wcb,    tab%x4(1)), tab%x4(tab%n4))
           lu = MIN(FLOOR((wcb_loc -   tab%x4(1)) * tab%odx4 ) + 1, tab%n4-1)
 
-          !$ACC LOOP SEQ
-          DO h4=1,2
-            !$ACC LOOP SEQ
-            DO h3=1,2
-              !$ACC LOOP SEQ
-              DO h2=1,2
-                !$ACC LOOP SEQ
-                DO h1=1,2
-                  hilf1(h1,h2,h3,h4) = tab%ltable(iu+h1-1,ju+h2-1,ku+h3-1,lu+h4-1)
-                ENDDO
-                hilf2(h2,h3,h4) = hilf1(1,h2,h3,h4) + (hilf1(2,h2,h3,h4)-hilf1(1,h2,h3,h4)) * tab%odx1 * (r2_loc-tab%x1(iu))
-              ENDDO
-              hilf3(h3,h4) = hilf2(1,h3,h4) + (hilf2(2,h3,h4)-hilf2(1,h3,h4)) * tab%odx2 * (lsigs_loc-tab%x2(ju))
-            ENDDO
-            hilf4(h4) = hilf3(1,h4) + (hilf3(2,h4)-hilf3(1,h4)) * tab%odx3 * (ncn_loc-tab%x3(ku))
-          ENDDO
-          nccn = hilf4(1) + (hilf4(2)-hilf4(1)) * tab%odx4 * (wcb_loc-tab%x4(lu))
+          hilf1 = tab%ltable( iu:iu+1, ju:ju+1, ku:ku+1, lu:lu+1)
+          hilf2 = hilf1(1,:,:,:) + (hilf1(2,:,:,:) - hilf1(1,:,:,:)) * tab%odx1 * ( r2_loc    - tab%x1(iu) )
+          hilf3 = hilf2(1,:,:)   + (hilf2(2,:,:)   - hilf2(1,:,:)  ) * tab%odx2 * ( lsigs_loc - tab%x2(ju) )
+          hilf4 = hilf3(1,:)     + (hilf3(2,:)     - hilf3(1,:)    ) * tab%odx3 * ( ncn_loc   - tab%x3(ku) )
+          nccn  = hilf4(1)       + (hilf4(2)       - hilf4(1)      ) * tab%odx4 * ( wcb_loc   - tab%x4(lu) )
 
           ! If n_cn is outside the range of the lookup table values, resulting 
           ! NCCN are clipped to the margin values. For the case of these margin values
@@ -5139,8 +5082,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA ! n_cn
-    !$ACC END DATA ! tab, cloud, atmo, hilf1, hilf2, hilf3, hilf4
 
   END SUBROUTINE ccn_activation_sk_4d
 
@@ -5638,67 +5579,67 @@ CONTAINS
     CLASS(particle), INTENT(inout)      :: snow
     CLASS(particle), INTENT(inout)      :: graupel
     REAL(wp), DIMENSION(:,:), OPTIONAL  :: n_cn
+    LOGICAL                             :: n_cn_pres
 
     ! start and end indices for 2D slices
-    INTEGER :: istart, iend, kstart, kend 
+    INTEGER :: istart, iend, kstart, kend
     INTEGER :: i,k
     REAL(wp), PARAMETER :: eps = 1e-3_wp
+
+    IF (PRESENT(n_cn)) THEN
+      n_cn_pres = .TRUE.
+    ELSE
+      n_cn_pres = .FALSE.
+    ENDIF
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, ice, rain, snow, graupel)
-    !$ACC PARALLEL DEFAULT(PRESENT)
-    IF ( .NOT. PRESENT(n_cn)) THEN
-      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-      DO k = kstart,kend
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP SEQ
+    DO k = kstart,kend
+
+      IF ( .NOT. n_cn_pres) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i = istart,iend
           IF ( cloud%q(i,k) > 0.0_wp .AND. cloud%n(i,k) < eps) THEN
             cloud%n(i,k) = set_qnc(cloud%q(i,k)) 
           END IF
         END DO
-      END DO
-    END IF
+      END IF
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( ice%q(i,k) > 0.0_wp .AND. ice%n(i,k) < eps) THEN
           ice%n(i,k) = set_qni(ice%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( rain%q(i,k) > 0.0_wp .AND. rain%n(i,k) < eps) THEN
           rain%n(i,k) = set_qnr(rain%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( snow%q(i,k) > 0.0_wp .AND. snow%n(i,k) < eps) THEN
           snow%n(i,k) = set_qns(snow%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( graupel%q(i,k) > 0.0_wp .AND. graupel%n(i,k) < eps) THEN
           graupel%n(i,k) = set_qng(graupel%q(i,k)) 
         END IF
       END DO
+
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE set_default_n
 
