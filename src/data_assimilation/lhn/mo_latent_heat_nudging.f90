@@ -575,30 +575,36 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
         !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           qrsgmax(jc) = 0._wp
         END DO
+        !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), nlev
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             qrsgmax(jc) = MAX(qrsgmax(jc), qrsflux(jc,jk,jb))
           END DO
         END DO
+        !$ACC END PARALLEL
 
-        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           qrsgthres(jc)   = MAX(assimilation_config(jg)%thres_lhn, assimilation_config(jg)%rqrsgmax*qrsgmax(jc))
           qrsflux_int(jc) = 0.0_wp
           vcoordsum(jc)   = 0.0_wp
           kqrs(jc)        = nlev+1
         END DO
+        !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), nlev
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             IF (qrsgmax(jc) >= qrsgthres(jc)) THEN
               IF (qrsflux(jc,jk,jb) >= qrsgthres(jc) .AND. kqrs(jc) == nlev+1) THEN
@@ -607,10 +613,12 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
             END IF
           END DO
         END DO
+        !$ACC END PARALLEL
         
+        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO jk = MINVAL(kqrs(i_startidx:i_endidx)), nlev
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             IF (jk >= kqrs(jc)) THEN
               qrsflux_int(jc) = qrsflux_int(jc) + qrsflux(jc,jk,jb) * &
@@ -619,8 +627,10 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
             END IF
           END DO
         END DO
+        !$ACC END PARALLEL
         
-        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           IF (vcoordsum(jc) /= 0.0_wp) qrsflux_int(jc) = qrsflux_int(jc) / vcoordsum(jc)
           pr_ref(jc,jb) = qrsflux_int(jc)
