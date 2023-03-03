@@ -75,7 +75,8 @@ CONTAINS
             &   SWnet,          & ! Downwelling shortwave flux [W/m^2]                           
             &   nonsolar,       & ! Latent and sensible heat flux and longwave radiation [W/m^2] 
             &   dnonsolardT,    & ! Derivative of non-solar fluxes w.r.t. temperature [W/m^2/K]  
-            &   Tfw)              ! Freezing temperature of the ocean
+            &   Tfw,            & ! Freezing temperature of the ocean
+            &   use_acc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -90,6 +91,7 @@ CONTAINS
     REAL(wp),INTENT(IN)    :: nonsolar   (nbdim,kice)
     REAL(wp),INTENT(IN)    :: dnonsolardT(nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     !!Local variables
     REAL(wp) ::      &
@@ -111,15 +113,22 @@ CONTAINS
     REAL(wp) :: idt2 ! 1 / (2*dt)
 
     INTEGER :: k, jk, jc ! loop indices
-    
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     muS = mu*Sice
     
    !-------------------------------------------------------------------------------
     !$ACC DATA PRESENT(Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
-    !$ACC   PRESENT(dnonsolardT, Tfw)
+    !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
 
     ! initialization
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -131,7 +140,7 @@ CONTAINS
     !$ACC END PARALLEL
     idt2   =  1.0_wp / (2.0_wp*pdtime)
     
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &

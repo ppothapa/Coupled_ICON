@@ -229,7 +229,8 @@ CONTAINS
             &   SWnet,          &  ! net shortwave flux (includes albedo effect)
             &   nonsolar,       &  ! net nonsolar fluxes = lat + sens + LWnet
             &   dnonsolardT,    &  ! gradient of nonsolar fluxes = dlatdT + dsensdT + dLWdT
-            &   Tfw)               ! sea surface freezing temperature
+            &   Tfw,            &  ! sea surface freezing temperature
+            &   use_acc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -242,6 +243,7 @@ CONTAINS
     REAL(wp),INTENT(IN)    :: nonsolar   (nbdim,kice)
     REAL(wp),INTENT(IN)    :: dnonsolardT(nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     ! Local variables
     REAL(wp) ::             &
@@ -256,12 +258,19 @@ CONTAINS
     ! & I_0 -- fraction of the net SW radiation penetrating the ice (not in use)
 
     INTEGER :: k, jk, jc ! loop indices
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
-    !$ACC   PRESENT(dnonsolardT, Tfw)
+    !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
     
     ! initialization of the output
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -282,7 +291,7 @@ CONTAINS
         nfg_flag = 1._wp
     ENDIF
 
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
@@ -334,7 +343,7 @@ CONTAINS
   !! Initial release by Vladimir Lapin, MPI (2016-11)
   !
   SUBROUTINE set_ice_temp_zerolayer_analytical(i_startidx_c, i_endidx_c, nbdim, kice, &
-            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy)
+            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, use_acc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(INOUT) :: Tsurf      (nbdim,kice)
@@ -343,7 +352,8 @@ CONTAINS
     REAL(wp),INTENT(OUT)   :: Qtop       (nbdim,kice)
     REAL(wp),INTENT(OUT)   :: Qbot       (nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
-    INTEGER,INTENT(IN)     :: doy
+    INTEGER, INTENT(IN)    :: doy
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     ! Local variables
     REAL(wp) ::             &
       & F_A         ,       &  ! net atmospheric heat flux                  (positive=upward)
@@ -353,11 +363,18 @@ CONTAINS
       & deltaT                 ! temperature increment from the prev timestep
     ! Loop indices
     INTEGER :: k, jk, jc
+    LOGICAL :: lacc
 
-    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, Tfw)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, Tfw) IF(lacc)
 
     ! initialization of output variables
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -368,7 +385,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL
+    !$ACC PARALLEL IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &

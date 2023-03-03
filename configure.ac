@@ -17,19 +17,16 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([utils])
 AC_CONFIG_SRCDIR([src/drivers/icon.f90])
 
-dnl Temporary message for the users that is emitted on the first failure of the
-dnl script. Please, remove it once all the current users are used to using the
-dnl wrappers:
 icon_usr_note="
 ********************************************************************************
-Note that ICON building system has been updated. Now users are recommended to
-run site-specific wrappers instead of this generic configure script.
+The users are recommended to run site-specific wrappers instead of this generic
+configure script.
 
 You can find the wrappers in '${srcdir}/config/<organization>/'.
 
 If you are running a wrapper and still see this message than either you are
-using a wrong one or the wrapper is broken, or there is a problem with the new
-configure script.
+using a wrong one or the wrapper is broken, or there is really a problem with
+the configure script.
 ********************************************************************************
 "
 m4_define([AC_MSG_FAILURE],
@@ -86,6 +83,12 @@ AC_ARG_ENABLE([silent-rules],
      [less verbose build output (undo: "make V=1") @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_silent_rules=yes])],
   [enable_silent_rules=yes])
+
+AC_ARG_ENABLE([delayed-config],
+  [AS_HELP_STRING([--enable-delayed-config],
+     [configure the bundled libraries at the build time @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_delayed_config=yes])],
+  [enable_delayed_config=yes])
 
 m4_divert_once([HELP_ENABLE], [[
 Model Features:]])
@@ -912,7 +915,7 @@ dnl libraries:
 bundled_includes=
 
 dnl Get absolute paths to the source and build directories:
-_AC_SRCDIRS([.])
+ASX_SRCDIRS([.])
 icon_abs_top_srcdir=$ac_abs_top_srcdir
 icon_abs_top_builddir=$ac_abs_top_builddir
 
@@ -1230,16 +1233,18 @@ bundled version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/rte-rrtmgp],
-        [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
-         [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([gpu])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
-         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
-         [--enable-gpu="$enable_gpu"],
-         [--enable-silent-rules="$enable_silent_rules"]])
+      ACX_SUBDIR_INIT_CONFIG([externals/rte-rrtmgp], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/rte-rrtmgp],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([gpu])])
+      ACX_SUBDIR_APPEND_ARGS([externals/rte-rrtmgp],
+        [CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
+        [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
+        [--enable-gpu="$enable_gpu"],
+        [--enable-silent-rules="$enable_silent_rules"])
       AS_VAR_APPEND([bundled_includes],
         ["${FC_MOD_IN}externals/rte-rrtmgp/mod "])
       BUNDLED_LIBFILES="externals/rte-rrtmgp/librte.a $BUNDLED_LIBFILES"
@@ -1279,17 +1284,19 @@ bundled version of ECRAD library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of ECRAD library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/ecrad],
-        [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
-         [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([single-precision])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([pgi-inlib])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS"],
-         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
-         [--enable-silent-rules="$enable_silent_rules"],
-         [--enable-pgi-inlib="$enable_pgi_inlib"]])
+      ACX_SUBDIR_INIT_CONFIG([externals/ecrad], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/ecrad],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([single-precision])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([pgi-inlib])])
+      ACX_SUBDIR_APPEND_ARGS([externals/ecrad],
+        [CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS"],
+        [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
+        [--enable-silent-rules="$enable_silent_rules"],
+        [--enable-pgi-inlib="$enable_pgi_inlib"])
       AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/ecrad/mod "])
       BUNDLED_LIBFILES="externals/ecrad/libifsaux.a $BUNDLED_LIBFILES"
       BUNDLED_LIBFILES="externals/ecrad/libutilities.a $BUNDLED_LIBFILES"
@@ -1360,30 +1367,32 @@ bundled version of SCT library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of SCT library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_SCT_CFLAGS=${ICON_SCT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/sct],
-        [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
-         [MPICC=*|MPIFC=*|MPI_LAUNCH=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mpi])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mpirun-check])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([openmp])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([rpath])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([papi])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([hdf5])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([libpapi-prefix])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([libhdf5-prefix])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_SCT_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_SCT_FCFLAGS"],
-         [MPICC=], [MPIFC=], [--enable-static], [--disable-shared],
-         [--disable-maintainer-mode], [--enable-mpi="$enable_mpi"],
-         [--enable-openmp="$enable_openmp"], [--disable-rpath],
-         [--disable-papi], [--enable-hdf5],
-         [--enable-silent-rules="$enable_silent_rules"],
-         [--without-libpapi-prefix], [--without-libhdf5-prefix],
-         [MPI_LAUNCH="$MPI_LAUNCH"]])
+      ACX_SUBDIR_INIT_CONFIG([externals/sct], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/sct],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [MPICC=*|MPIFC=*|MPI_LAUNCH=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mpi])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mpirun-check])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([openmp])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([rpath])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([papi])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([hdf5])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([libpapi-prefix])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([libhdf5-prefix])])
+      ACX_SUBDIR_APPEND_ARGS([externals/sct],
+        [CFLAGS="$subdir_CFLAGS $ICON_SCT_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_SCT_FCFLAGS"],
+        [MPICC=], [MPIFC=], [--enable-static], [--disable-shared],
+        [--disable-maintainer-mode], [--enable-mpi="$enable_mpi"],
+        [--enable-openmp="$enable_openmp"], [--disable-rpath],
+        [--disable-papi], [--enable-hdf5],
+        [--enable-silent-rules="$enable_silent_rules"],
+        [--without-libpapi-prefix], [--without-libhdf5-prefix],
+        [MPI_LAUNCH="$MPI_LAUNCH"])
       AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/sct/src "])
       BUNDLED_LIBFILES="externals/sct/src/.libs/libsct.a $BUNDLED_LIBFILES"])])
 
@@ -1444,32 +1453,34 @@ bundled version of YAXT library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of YAXT library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_YAXT_CFLAGS=${ICON_YAXT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/yaxt],
-        [[BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
-         [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-include])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-lib])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-mod])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-lib])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([regard-for-quality])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([on-demand-check-programs])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([example-programs])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([perf-programs])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS"],
-         [MPI_LAUNCH="$MPI_LAUNCH"], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
-         [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
-         [BUILD_LDFLAGS=], [BUILD_LIBS=],
-         [--enable-silent-rules="$enable_silent_rules"],
-         [--disable-maintainer-mode], [--disable-shared], [--enable-static],
-         [--with-regard-for-quality="$enable_mpi_checks"],
-         [--with-on-demand-check-programs], [--without-example-programs],
-         [--without-perf-programs]])
+      ACX_SUBDIR_INIT_CONFIG([externals/yaxt], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/yaxt],
+        [BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
+        [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-root])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-include])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-lib])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-mod])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-lib])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([regard-for-quality])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([on-demand-check-programs])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([example-programs])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([perf-programs])])
+      ACX_SUBDIR_APPEND_ARGS([externals/yaxt],
+        [CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS"],
+        [MPI_LAUNCH="$MPI_LAUNCH"], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+        [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
+        [BUILD_LDFLAGS=], [BUILD_LIBS=],
+        [--enable-silent-rules="$enable_silent_rules"],
+        [--disable-maintainer-mode], [--disable-shared], [--enable-static],
+        [--with-regard-for-quality="$enable_mpi_checks"],
+        [--with-on-demand-check-programs], [--without-example-programs],
+        [--without-perf-programs])
 dnl Currently, we cannot properly override the environment variables BUILD_CC
 dnl and BUILD_FC on the command line when configuring YAXT because the variables
 dnl are used even if they are set to empty strings. We could set the variables
@@ -1497,7 +1508,7 @@ dnl below) since it should not affect any other bundled libraries.
         [AS_VAR_SET([BUNDLED_LIBFILES],
            ["externals/yaxt/src/.libs/libyaxt.a $BUNDLED_LIBFILES"])],
         [no],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yaxt], [[FC=no]])])])])
+        [ACX_SUBDIR_APPEND_ARGS([externals/yaxt], [FC=no])])])])
 
 AS_VAR_IF([enable_emvorado], [yes],
   [AC_CACHE_CHECK([whether the Fortran 90 interfaces of ECCODES library is dnl
@@ -1544,49 +1555,51 @@ bundled version of PPM library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
      [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of PPM library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_PPM_CFLAGS=${ICON_PPM_CFLAGS-$ICON_BUNDLED_CFLAGS}
-   ACX_CONFIG_SUBDIR([externals/ppm],
-     [[BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
-      [PLATFORM_OPT_LIBM=*|IEEE_ARITHMETICROOT=*|IEEE_ARITHMETIC_FC_MOD=*],
-      [IEEE_ARITHMETIC_FC_LIB=*|IEEE_ARHMETIC_FCFLAGS=*|MPIROOT=*],
-      [MPI_FC_MOD=*|MPI_FC_LIB=*|MPI_FC_INCLUDE=*|MPI_C_INCLUDE=*|MPI_C_LIB=*],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mh-file])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([MPI])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([netcdf])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([hdf5])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([parmetis])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([metis])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([crypto])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([setup])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-root])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-fc-mod])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([ieee-arithmetic-fc-lib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-mod])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-lib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-include])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-lib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([regard-for-quality])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([on-demand-check-programs])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([example-programs])]],
-     [[CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS"],
-      [FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS"],
-      [MPI_LAUNCH="$MPI_LAUNCH"], [PLATFORM_OPT_LIBM=], [IEEE_ARITHMETICROOT=],
-      [IEEE_ARITHMETIC_FC_MOD=], [IEEE_ARITHMETIC_FC_LIB=],
-      [IEEE_ARHMETIC_FCFLAGS=], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
-      [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
-      [BUILD_LDFLAGS=], [BUILD_FCLDFLAGS=],
-      [--enable-silent-rules="$enable_silent_rules"],
-      [--disable-maintainer-mode], [--disable-shared], [--enable-static],
-      [--enable-MPI], [--disable-netcdf], [--disable-hdf5],
-      [--disable-parmetis], [--disable-metis], [--disable-crypto],
-      [--with-regard-for-quality="$enable_mpi_checks"],
-      [--with-on-demand-check-programs], [--without-example-programs],
+   ACX_SUBDIR_INIT_CONFIG([externals/ppm], [no-run])
+   ACX_SUBDIR_REMOVE_ARGS([externals/ppm],
+     [BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
+     [PLATFORM_OPT_LIBM=*|IEEE_ARITHMETICROOT=*|IEEE_ARITHMETIC_FC_MOD=*],
+     [IEEE_ARITHMETIC_FC_LIB=*|IEEE_ARHMETIC_FCFLAGS=*|MPIROOT=*],
+     [MPI_FC_MOD=*|MPI_FC_LIB=*|MPI_FC_INCLUDE=*|MPI_C_INCLUDE=*|MPI_C_LIB=*],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mh-file])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([MPI])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([netcdf])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([hdf5])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([parmetis])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([metis])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([crypto])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([setup])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ieee-arithmetic-root])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ieee-arithmetic-fc-mod])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ieee-arithmetic-fc-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-root])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-mod])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([regard-for-quality])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([on-demand-check-programs])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([example-programs])])
+   ACX_SUBDIR_APPEND_ARGS([externals/ppm],
+     [CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS"],
+     [FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS"],
+     [MPI_LAUNCH="$MPI_LAUNCH"], [PLATFORM_OPT_LIBM=], [IEEE_ARITHMETICROOT=],
+     [IEEE_ARITHMETIC_FC_MOD=], [IEEE_ARITHMETIC_FC_LIB=],
+     [IEEE_ARHMETIC_FCFLAGS=], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+     [MPI_FC_MOD=], [MPI_FC_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=],
+     [BUILD_LDFLAGS=], [BUILD_FCLDFLAGS=],
+     [--enable-silent-rules="$enable_silent_rules"],
+     [--disable-maintainer-mode], [--disable-shared], [--enable-static],
+     [--enable-MPI], [--disable-netcdf], [--disable-hdf5],
+     [--disable-parmetis], [--disable-metis], [--disable-crypto],
+     [--with-regard-for-quality="$enable_mpi_checks"],
+     [--with-on-demand-check-programs], [--without-example-programs],
 dnl There is currently no need in the Fortran interface of the library:
-      [FC=no]])
+     [FC=no])
    BUNDLED_LIBFILES="externals/ppm/src/.libs/libscalesppmcore.a dnl
 $BUNDLED_LIBFILES"])])
 
@@ -1719,38 +1732,53 @@ bundled version of CDI library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
      [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of CDI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_CDI_CFLAGS=${ICON_CDI_CFLAGS-$ICON_BUNDLED_CFLAGS}
-   ACX_CONFIG_SUBDIR([externals/cdi],
-     [[BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*],
-      [MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*],
-      [PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*],
-      [PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([mpi])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([iso-c-interface])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cf-interface])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([grib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cgribex])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([cdi-app])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([ppm-dist-array])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([threads])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([szlib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([netcdf])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([eccodes])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([grib_api])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-root])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-include])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-lib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-mod])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([mpi-fc-lib])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([on-demand-check-programs])],
-      [ACX_CONFIG_SUBDIR_PATTERN_WITH([example-programs])]],
-     [[CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS"],
-      [FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"],
+   ACX_SUBDIR_INIT_CONFIG([externals/cdi], [no-run])
+   ACX_SUBDIR_REMOVE_ARGS([externals/cdi],
+     [BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*],
+     [UTIL_LINUX_UUID_C_INCLUDE=*|UTIL_LINUX_UUID_C_LIB=*],
+     [OSSP_UUID_C_INCLUDE=*|OSSP_UUID_C_LIB=*|DCE_UUID_C_INCLUDE=*],
+     [DCE_UUID_C_LIB=*|MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_LAUNCH=*],
+     [MPI_FC_MOD=*|MPI_FC_LIB=*|PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*],
+     [YAXT_FC_MOD=*|YAXT_FC_LIB=*|PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mpi])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([iso-c-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cf-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([ruby-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([python-interface])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([openmp])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([grib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([across])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cgribex])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([cdi-app])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([ppm-dist-array])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([util-linux-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([util-linux-uuid-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ossp-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([ossp-uuid-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([dce-uuid-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([dce-uuid-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([threads])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([fdb5])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([szlib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([netcdf])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([eccodes])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([grib_api])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-root])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-include])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-mod])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([mpi-fc-lib])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([on-demand-check-programs])],
+     [ACX_SUBDIR_CONFIG_PATTERN_WITH([example-programs])])
+   ACX_SUBDIR_APPEND_ARGS([externals/cdi],
+     [CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS"],
+     [FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"],
 dnl No need to check for compatibility with F77.
-      [F77=no],
+     [F77=no],
 dnl Avoid possible inconsistency in the generation of the 'postdeps' variable
 dnl for Fortran (!!!) compiler inside the *.la files. We care about those files
 dnl because they are used when linking the test suite of CDI (i.e. when running
@@ -1760,42 +1788,45 @@ dnl variable 'output_verbose_link_cmd' as it should but uses the value that is
 dnl set for the C++ compiler. Therefore, by disabling CXX we get the same
 dnl behaviour (still questionable but satisfactory for us) as if CDI didn't use
 dnl the C++ compiler at all (e.g. like in YAXT).
-      [CXX=no],
-      [MPI_LAUNCH="$MPI_LAUNCH"], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
-      [MPI_FC_MOD=], [MPI_FC_LIB=], [PKG_CONFIG=], [YAXT_C_INCLUDE=],
-      [YAXT_C_LIB=], [YAXT_FC_MOD=], [YAXT_FC_LIB=], [PPM_CORE_C_INCLUDE=],
-      [PPM_CORE_C_LIB=], [BUILD_CFLAGS=], [BUILD_FCFLAGS=], [BUILD_LDFLAGS=],
-      [BUILD_LIBS=], [BUILD_MPI_C_LIB=], [BUILD_MPI_FC_LIB=], [BUILD_CC=],
-      [BUILD_CXX=], [BUILD_FC=], [BUILD_F77=],
-      [--enable-silent-rules="$enable_silent_rules"],
-      [--disable-maintainer-mode], [--enable-mpi="$enable_cdi_pio"],
-      [--enable-iso-c-interface], [--enable-cf-interface="$enable_cdi_pio"],
-      [--disable-shared], [--enable-static], [--enable-grib],
-      [--enable-cgribex], [--disable-cdi-app],
-      [--enable-ppm-dist-array="$enable_cdi_pio"], [--without-threads],
-      [--without-szlib], [--with-netcdf],
+     [CXX=no],
+     [UTIL_LINUX_UUID_C_INCLUDE=], [UTIL_LINUX_UUID_C_LIB=],
+     [OSSP_UUID_C_INCLUDE=], [OSSP_UUID_C_LIB=], [DCE_UUID_C_INCLUDE=],
+     [DCE_UUID_C_LIB=], [MPIROOT=], [MPI_C_INCLUDE=], [MPI_C_LIB=],
+     [MPI_LAUNCH="$MPI_LAUNCH"], [MPI_FC_MOD=], [MPI_FC_LIB=], [PKG_CONFIG=],
+     [YAXT_C_INCLUDE=], [YAXT_C_LIB=], [YAXT_FC_MOD=], [YAXT_FC_LIB=],
+     [PPM_CORE_C_INCLUDE=], [PPM_CORE_C_LIB=], [BUILD_CFLAGS=],
+     [BUILD_FCFLAGS=], [BUILD_LDFLAGS=], [BUILD_LIBS=], [BUILD_MPI_C_LIB=],
+     [BUILD_MPI_FC_LIB=], [BUILD_CC=], [BUILD_CXX=], [BUILD_FC=], [BUILD_F77=],
+     [--enable-silent-rules="$enable_silent_rules"],
+     [--disable-maintainer-mode], [--enable-mpi="$enable_cdi_pio"],
+     [--enable-iso-c-interface], [--enable-cf-interface="$enable_cdi_pio"],
+     [--disable-ruby-interface], [--disable-python-interface],
+     [--disable-openmp], [--disable-shared], [--enable-static],
+     [--enable-grib], [--disable-across], [--enable-cgribex],
+     [--disable-cdi-app], [--enable-ppm-dist-array="$enable_cdi_pio"],
+     [--without-util-linux-uuid], [--without-ossp-uuid], [--without-dce-uuid],
+     [--without-threads], [--without-fdb5], [--without-szlib], [--with-netcdf],
 dnl Currently, we don't have full control on choosing the GRIB2 backend (e.g.
 dnl grib_api, eccodes) due to the limitations of the configure script of
 dnl libcdi. Therefore, we set --with-eccodes=$enable_grib2 --without-grib_api
 dnl unconditionally. This way, the configure script of libcdi enables support
 dnl for grib2 regardless of whether grib_api or eccodes library is provided
 dnl with the LDFLAGS and LIBS variables.
-      [--with-eccodes="$enable_grib2"], [--without-grib_api],
-      [--with-on-demand-check-programs], [--without-example-programs],
+     [--with-eccodes="$enable_grib2"], [--without-grib_api],
+     [--with-on-demand-check-programs], [--without-example-programs],
 dnl The configure script of CDI runs nc-config to check for the features of the
 dnl provided NetCDF library. The script might not be available or might belong
 dnl to another NetCDF installation. Therefore, we enforce enabling of NetCDF2
 dnl and NetCDF4 features by setting the corresponding cache variables on the
 dnl command line.
-      [acx_cv_have_netcdf2=yes], [acx_cv_have_netcdf4=yes],
+     [acx_cv_have_netcdf2=yes], [acx_cv_have_netcdf4=yes],
 dnl For the same reasons as above, we tell CDI not to use the Parallel-NetCDF
 dnl features by default. If the version of the provided NetCDF library is not
 dnl very old (i.e. 4.3.3 or later) and the library is configured with the
 dnl Parallel-NetCDF features enabled, CDI will override the default value.
-      [acx_cv_have_pnetcdf=no],
+     [acx_cv_have_pnetcdf=no],
 dnl Disable unwanted extra dependencies.
-      [acx_cv_have_libnc_dap=no], [acx_cv_have_nc4hdf5=no],
-      [ac_cv_lib_uuid_uuid_generate=no], [ac_cv_func_uuid_create=no]])
+     [acx_cv_have_libnc_dap=no], [acx_cv_have_nc4hdf5=no])
    AS_VAR_IF([enable_cdi_pio], [yes],
 dnl To enable the test suite of CDI, we need to provide the configure script of
 dnl the library with information on how to link to the bundled YAXT and PPM
@@ -1815,23 +1846,23 @@ dnl   ld: warning: ignoring file libcdipio.a, building for macOS-x86_64 but atte
 dnl To circumvent all those problems, we tell the configure of CDI to link the
 dnl test programs to the bundled YAXT and PPM using libtool .la files.
      [AS_VAR_IF([with_external_yaxt], [no],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/cdi],
-           [[acx_cv_c_include_yaxt_h=dnl
+        [ACX_SUBDIR_APPEND_ARGS([externals/cdi],
+           [acx_cv_c_include_yaxt_h=dnl
 "-I${icon_abs_top_builddir}/externals/yaxt/inst_headers"],
-            [acx_cv_option_search_xt_initialized_c=dnl
+           [acx_cv_option_search_xt_initialized_c=dnl
 "${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"],
-            [acx_cv_fortran_mod_yaxt=dnl
+           [acx_cv_fortran_mod_yaxt=dnl
 "${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90"],
-            [acx_cv_option_search_xt_initialized_fc=dnl
+           [acx_cv_option_search_xt_initialized_fc=dnl
 "${icon_abs_top_builddir}/externals/yaxt/src/libyaxt.la dnl
-${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"]])])
+${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"])])
       AS_VAR_IF([with_external_ppm], [no],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/cdi],
-           [[acx_cv_c_include_ppm_ppm_h=dnl
+        [ACX_SUBDIR_APPEND_ARGS([externals/cdi],
+           [acx_cv_c_include_ppm_ppm_h=dnl
 "-I${icon_abs_top_builddir}/externals/ppm/include"],
-            [ac_cv_header_ppm_dist_array_h=yes],
-            [acx_cv_option_search_PPM_initialize_c=dnl
-"${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la"]])])
+           [ac_cv_header_ppm_dist_array_h=yes],
+           [acx_cv_option_search_PPM_initialize_c=dnl
+"${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la"])])
       AS_VAR_APPEND([bundled_includes],
         ["${FC_INC_FLAG}${srcdir}/externals/cdi/src "])
       BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdipio.a $BUNDLED_LIBFILES"])
@@ -1887,19 +1918,21 @@ bundled version of MTIME library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
      [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of MTIME library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_MTIME_CFLAGS=${ICON_MTIME_CFLAGS-$ICON_BUNDLED_CFLAGS}
-   ACX_CONFIG_SUBDIR([externals/mtime],
-     [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([static])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([shared])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([examples])],
-      [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([openmp])]],
-     [[CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS"],
-      [FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS"],
-      [--enable-static], [--disable-shared], [--disable-maintainer-mode],
-      [--enable-silent-rules="$enable_silent_rules"], [--disable-examples],
-      [--enable-openmp="$enable_openmp"]])
+   ACX_SUBDIR_INIT_CONFIG([externals/mtime], [no-run])
+   ACX_SUBDIR_REMOVE_ARGS([externals/mtime],
+     [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([static])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([shared])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([examples])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([openmp])])
+   ACX_SUBDIR_APPEND_ARGS([externals/mtime],
+     [CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS"],
+     [FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS"],
+     [--enable-static], [--disable-shared], [--disable-maintainer-mode],
+     [--enable-silent-rules="$enable_silent_rules"], [--disable-examples],
+     [--enable-openmp="$enable_openmp"])
    AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/mtime/src "])
    BUNDLED_LIBFILES="externals/mtime/src/.libs/libmtime.a $BUNDLED_LIBFILES"])
 
@@ -1952,55 +1985,58 @@ bundled version of YAC library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of YAC library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_YAC_CFLAGS=${ICON_YAC_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/yac],
-        [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
-         [MPI_CFLAGS=*|MPI_CLIBS=*|MPI_FCFLAGS=*|MPI_FCLIBS=*],
-         [YAXT_CFLAGS=*|YAXT_CLIBS=*|YAXT_FCFLAGS=*|YAXT_FCLIBS=*],
-         [NETCDF_CFLAGS=*|NETCDF_CLIBS=*|XML2_CFLAGS=*|XML2_CLIBS=*],
-         [MTIME_CFLAGS=*|MTIME_CLIBS=*|FORTRAN_LAPACK_CLIBS=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([lib-only])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([netcdf])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([external-lapack])],
-         [ACX_CONFIG_SUBDIR_PATTERN_WITH([external-mtime])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS"],
-         [MPI_CFLAGS=], [MPI_CLIBS=], [MPI_FCFLAGS=], [MPI_FCLIBS=],
-         [YAXT_CLIBS=], [YAXT_FCLIBS=], [NETCDF_CFLAGS=], [NETCDF_CLIBS=],
-         [XML2_CFLAGS=], [XML2_CLIBS=], [MTIME_CLIBS=], [FORTRAN_LAPACK_CLIBS=],
-         [--enable-silent-rules="$enable_silent_rules"],
-         [--disable-maintainer-mode], [--enable-lib-only], [--enable-netcdf],
-         [--with-external-lapack=fortran], [--with-external-mtime]])
+      ACX_SUBDIR_INIT_CONFIG([externals/yac], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/yac],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*],
+        [MPI_CFLAGS=*|MPI_CLIBS=*|MPI_FCFLAGS=*|MPI_FCLIBS=*],
+        [YAXT_CFLAGS=*|YAXT_CLIBS=*|YAXT_FCFLAGS=*|YAXT_FCLIBS=*],
+        [NETCDF_CFLAGS=*|NETCDF_CLIBS=*|XML2_CFLAGS=*|XML2_CLIBS=*],
+        [MTIME_CFLAGS=*|MTIME_CLIBS=*|FORTRAN_LAPACK_CLIBS=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([lib-only])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([netcdf])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([external-lapack])],
+        [ACX_SUBDIR_CONFIG_PATTERN_WITH([external-mtime])])
+      ACX_SUBDIR_APPEND_ARGS([externals/yac],
+        [CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS"],
+        [MPI_CFLAGS=], [MPI_CLIBS=], [MPI_FCFLAGS=], [MPI_FCLIBS=],
+        [YAXT_CLIBS=], [YAXT_FCLIBS=], [NETCDF_CFLAGS=], [NETCDF_CLIBS=],
+        [XML2_CFLAGS=], [XML2_CLIBS=], [MTIME_CLIBS=], [FORTRAN_LAPACK_CLIBS=],
+        [--enable-silent-rules="$enable_silent_rules"],
+        [--disable-maintainer-mode], [--enable-lib-only], [--enable-netcdf],
+        [--with-external-lapack=fortran], [--with-external-mtime])
       AS_VAR_SET_IF([MPI_LAUNCH],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-           [[MPI_LAUNCH="$MPI_LAUNCH"]])])
+        [ACX_SUBDIR_APPEND_ARGS([externals/yac], [MPI_LAUNCH="$MPI_LAUNCH"])])
       AS_VAR_IF([with_external_yaxt], [yes],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-           [[YAXT_CFLAGS=], [YAXT_FCFLAGS=]])],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-           [[YAXT_CFLAGS=dnl
+        [ACX_SUBDIR_APPEND_ARGS([externals/yac],
+           [YAXT_CFLAGS=], [YAXT_FCFLAGS=])],
+        [ACX_SUBDIR_RUN_EXTRA([externals/yac],
+           [icon_try=dnl
+"${MAKE-make} -C '${icon_abs_top_builddir}/externals/yaxt/inst_headers' yaxt.h"
+            AC_MSG_NOTICE([running $icon_try])
+            AC_TRY_EVAL([icon_try]) >&AS_MESSAGE_LOG_FD])
+         ACX_SUBDIR_APPEND_ARGS([externals/yac],
+           [YAXT_CFLAGS=dnl
 "-I${icon_abs_top_builddir}/externals/yaxt/inst_headers"],
-            [ac_cv_header_yaxt_h=yes],
-            [acx_cv_c_lib_func_xt_initialized=dnl
-"${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"]])
+           [acx_cv_c_lib_func_xt_initialized=dnl
+"${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"])
          AS_IF([test x"${icon_bundled_yaxt_fc-no}" != xno],
-           [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-              [[YAXT_FCFLAGS=dnl
+           [ACX_SUBDIR_APPEND_ARGS([externals/yac],
+              [YAXT_FCFLAGS=dnl
 "${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90"],
-               [acx_cv_fc_module_YAXT=yes],
-               [acx_cv_fc_lib_func_XT_INITIALIZED=dnl
+              [acx_cv_fc_module_YAXT=yes],
+              [acx_cv_fc_lib_func_XT_INITIALIZED=dnl
 "${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt.a dnl
-${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"]])],
-           [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-              [[YAXT_FCFLAGS=]])])])
+${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"])],
+           [ACX_SUBDIR_APPEND_ARGS([externals/yac], [YAXT_FCFLAGS=])])])
       AS_VAR_IF([with_external_mtime], [yes],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-           [[MTIME_CFLAGS=]])],
-        [ACX_CONFIG_SUBDIR_APPEND_ARGS([externals/yac],
-           [[MTIME_CFLAGS="-I${icon_abs_top_srcdir}/externals/mtime/include"],
-            [acx_cv_c_lib_func_datetimeToString=dnl
-"${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"]])])
+        [ACX_SUBDIR_APPEND_ARGS([externals/yac], [MTIME_CFLAGS=])],
+        [ACX_SUBDIR_APPEND_ARGS([externals/yac],
+           [MTIME_CFLAGS="-I${icon_abs_top_srcdir}/externals/mtime/include"],
+           [acx_cv_c_lib_func_datetimeToString=dnl
+"${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"])])
       AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/yac/src "])
       BUNDLED_LIBFILES="externals/yac/src/libyac.a $BUNDLED_LIBFILES"])])
 
@@ -2038,15 +2074,17 @@ bundled version of TIXI library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
         [C compiler flags to be appended to CFLAGS when configuring the bundled
 version of TIXI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       ICON_TIXI_CFLAGS=${ICON_TIXI_CFLAGS-$ICON_BUNDLED_CFLAGS}
-      ACX_CONFIG_SUBDIR([externals/tixi],
-        [[BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
-         [XML2_CFLAGS=*|XML2_CLIBS=*],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([maintainer-mode])],
-         [ACX_CONFIG_SUBDIR_PATTERN_ENABLE([silent-rules])]],
-        [[CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS"],
-         [FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS"],
-         [XML2_CFLAGS=], [XML2_CLIBS=], [--disable-maintainer-mode],
-         [--enable-silent-rules="$enable_silent_rules"]])
+      ACX_SUBDIR_INIT_CONFIG([externals/tixi], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/tixi],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [XML2_CFLAGS=*|XML2_CLIBS=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])])
+      ACX_SUBDIR_APPEND_ARGS([externals/tixi],
+        [CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS"],
+        [XML2_CFLAGS=], [XML2_CLIBS=], [--disable-maintainer-mode],
+        [--enable-silent-rules="$enable_silent_rules"])
       AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/tixi/src "])
       BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a dnl
 $BUNDLED_LIBFILES"])])
@@ -2072,120 +2110,27 @@ GPU support (--disable-gpu) or provide an external version of CUB library dnl
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
 
-dnl Collect extra dependencies of the bundled libraries:
-AC_CONFIG_COMMANDS_PRE([dnl
-dnl We use $ac_link below, make sure it is set for the Fortran compiler:
-   AC_LANG([Fortran])
-   ACX_CONFIG_SUBDIR_IFELSE([externals/yac],
-dnl The bundled version of YAC, which we link statically, might require
-dnl additional linker flags enabling linking to the software implementation of
-dnl the long double arithmetic:
-     [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
-[YAC library])
-      AC_CACHE_VAL([icon_cv_YAC_extra_libs],
-        [icon_cv_YAC_extra_libs=
-         ACX_CONFIG_SUBDIR_VAR([icon_cv_YAC_extra_libs],
-           [externals/yac], [@LONG_DOUBLE_CLIBS@])
-         icon_cv_YAC_extra_libs=dnl
-`AS_ECHO(["$icon_cv_YAC_extra_libs"]) | sed 's/^ *//;s/ *$//'`])
-      AS_VAR_IF([icon_cv_YAC_extra_libs], [],
-        [AC_MSG_RESULT([none needed])],
-        [AC_MSG_RESULT([$icon_cv_YAC_extra_libs])
-         LIBS="$icon_cv_YAC_extra_libs $LIBS"])])
-dnl
-   ACX_CONFIG_SUBDIR_IFELSE([externals/sct],
-dnl The bundled version of SCT, which we link statically, might require
-dnl additional linker flags:
-dnl   1) a flag enabling linking to librt;
-dnl   2) a flag enabling linking to C code that uses OpenMP.
-     [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
-[SCT library])
-      AC_CACHE_VAL([icon_cv_SCT_extra_libs],
-        [icon_cv_SCT_extra_libs=
-dnl First, we check whether we already have '-lrt' in the LIBS:
-         AS_CASE([" $LIBS "],
-           [*' -lrt '*], [],
-dnl If that is not the case, check whether the configure script of SCT "decided"
-dnl to include '-lrt' in the LIBS of SCT:
-           [ACX_CONFIG_SUBDIR_VAR([icon_sct_LIBS], [externals/sct], [@LIBS@])
-            icon_sct_LIBS=dnl
-`AS_ECHO(["$icon_sct_LIBS"]) | sed 's/^ *//;s/ *$//'`
-            AS_CASE([" $icon_sct_LIBS "],
-dnl If yes, we need to link with '-lrt':
-              [*' -lrt '*], [icon_cv_SCT_extra_libs='-lrt'])])
-dnl Second, get the flags enabling the Fortran compiler to link C code that uses
-dnl OpenMP.
-         ACX_CONFIG_SUBDIR_VAR([icon_sct_OPENMP_FC_C_FLAGS], [externals/sct],
-            [@OPENMP_FC_C_FLAGS@])
-         icon_sct_OPENMP_FC_C_FLAGS=dnl
-`AS_ECHO(["$icon_sct_OPENMP_FC_C_FLAGS"]) | sed 's/^ *//;s/ *$//'`
-dnl Check, whether we already have the flag in the linking command:
-         AS_IF([test -n "$icon_sct_OPENMP_FC_C_FLAGS"],
-           [eval "icon_link_cmd=\"$ac_link\""
-            AS_CASE([" $icon_link_cmd "],
-dnl (note that the following does not properly account for multiple flags, which
-dnl is, however, very unlikely):
-              [*" $icon_sct_OPENMP_FC_C_FLAGS "*], [],
-dnl If that is not the case, we need to link with the flag:
-              [icon_cv_SCT_extra_libs=dnl
-"$icon_sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}"])])])
-      AS_VAR_IF([icon_cv_SCT_extra_libs], [],
-        [AC_MSG_RESULT([none needed])],
-        [AC_MSG_RESULT([$icon_cv_SCT_extra_libs])
-         LIBS="$icon_cv_SCT_extra_libs $LIBS"])])
-dnl
-   ACX_CONFIG_SUBDIR_IFELSE([externals/cdi],
-dnl The bundled version of CDI, which we link statically, might require an
-dnl additional linker flags enabling linking to librt:
-     [AC_MSG_CHECKING([for extra linker flags needed to link the bundled ]dnl
-[CDI library])
-      AC_CACHE_VAL([icon_cv_CDI_extra_libs],
-        [icon_cv_CDI_extra_libs=
-         ACX_CONFIG_SUBDIR_VAR([icon_cv_CDI_extra_libs],
-           [externals/cdi], [@LIBRT@])
-         icon_cv_CDI_extra_libs=dnl
-`AS_ECHO(["$icon_cv_CDI_extra_libs"]) | sed 's/^ *//;s/ *$//'`
-         AS_IF([test "x$icon_cv_CDI_extra_libs" = x && dnl
-test "x$enable_cdi_pio" = xyes],
-           [dnl
-dnl We are here because either CDI does not depend on librt or the dependency
-dnl is hidden by the libtool script of CDI (e.g. it found a libtool .la file
-dnl that has '-lrt' among the 'dependency_libs', overlinked to librt and the
-dnl configure script of CDI reported that no additional linker flags are
-dnl required to link to the library, hence LIBRT was set to an empty string).
-dnl The absence of the dependency on librt is very unlikely and here we could
-dnl simply set the variable icon_cv_CDI_extra_libs to '-lrt'. However, we use
-dnl this case as an example of how such issues can be resolved in general.
-dnl
-dnl Note that libcdipio.la does not exist yet, therefore we cannot parse it.
-dnl Instead, we are going to run the libtool script of CDI in a way that is
-dnl close to how the make program will call it:
-            ACX_CONFIG_SUBDIR_VAR([icon_cdi_LINK], [externals/cdi],
-              ["@SHELL@ ${icon_abs_top_builddir}/externals/cdi/libtool dnl
---tag=CC --mode=link @CC@ @CFLAGS@ @LDFLAGS@ -o libconftest.la @LIBS@"])
-dnl The libtool script generates some extra files and subdirectories, which we
-dnl would like to remove easily. Therefore, we create a temporary subdirectory
-dnl and switch to it:
-            AS_MKDIR_P([conftest.dir])
-            cd conftest.dir
-dnl If calling the libtool script of CDI is successful and the created dummy
-dnl libtool file 'libconftest.la' has '-lrt' among the 'dependency_libs', we set
-dnl icon_cv_CDI_extra_libs to '-lrt':
-            AS_IF([AC_TRY_EVAL([icon_cdi_LINK]) >&AS_MESSAGE_LOG_FD],
-              [ac_try=dnl
-["grep \"dependency_libs=.*[ ']-lrt[ '].*\" libconftest.la"]
-               AS_IF([AC_TRY_EVAL([ac_try]) >&AS_MESSAGE_LOG_FD],
-                 [icon_cv_CDI_extra_libs='-lrt'])])
-            cd ..
-            rm -rf conftest.dir])
-dnl We do not need icon_cv_CDI_extra_libs if its value is already in the LIBS:
-         AS_IF([test -n "$icon_cv_CDI_extra_libs"],
-           [AS_CASE([" $LIBS "],
-              [*" $icon_cv_CDI_extra_libs "*], [icon_cv_CDI_extra_libs=])])])
-      AS_VAR_IF([icon_cv_CDI_extra_libs], [],
-        [AC_MSG_RESULT([none needed])],
-        [AC_MSG_RESULT([$icon_cv_CDI_extra_libs])
-         LIBS="$icon_cv_CDI_extra_libs $LIBS"])])])
+dnl Either generate rules for the delayed configuration of the bundled
+dnl libraries or register all the libraries for the configuration by this
+dnl top-level configure script:
+AC_SUBST([ICON_DELAYED_CONFIG_RULES], [''])
+AS_VAR_IF([enable_delayed_config], [yes],
+  [icon_rule_sep=''
+   for icon_bundled_srcdir in $extra_src_subdirs; do
+     ACX_SUBDIR_GET_BUILD_DIR([icon_bundled_builddir], [$icon_bundled_srcdir])
+     ACX_SUBDIR_GET_RUN_CMD([icon_bundled_config_cmd], [$icon_bundled_srcdir])
+     AS_VAR_APPEND([ICON_DELAYED_CONFIG_RULES], [dnl
+"$icon_rule_sep$icon_bundled_builddir: dnl
+\$(if \$(filter mostlyclean clean distclean,\$(MAKECMDGOALS)),,dnl
+$icon_bundled_builddir/Makefile)
+$icon_bundled_builddir/Makefile: icon.mk
+	\$(silent_CONFIG)\$(MKDIR_P) \$(@D) && cd \$(@D) && dnl
+$icon_bundled_config_cmd \$(if \$(silent_CONFIG),--silent)"])
+     icon_rule_sep="$as_nl$as_nl"
+   done],
+  [for icon_bundled_srcdir in $extra_src_subdirs; do
+     ACX_SUBDIR_RUN_RESET([$icon_bundled_srcdir], [yes])
+   done])
 
 ##################### PREPROCESSORS AND AUXILIARY COMMANDS #####################
 
@@ -2342,6 +2287,10 @@ AS_VAR_IF([enable_silent_rules], [yes],
   [AC_SUBST([DEFAULT_VERBOSITY], [0])],
   [AC_SUBST([DEFAULT_VERBOSITY], [1])])
 
+AS_VAR_IF([enable_delayed_config], [yes],
+  [AC_SUBST([DELAYED_CONFIG_ENABLED], [''])],
+  [AC_SUBST([DELAYED_CONFIG_ENABLED], ['#'])])
+
 AS_VAR_IF([enable_jsbach], [yes],
   [AC_SUBST([JSBACH_ENABLED], [''])],
   [AC_SUBST([JSBACH_ENABLED], ['#'])])
@@ -2405,7 +2354,10 @@ AC_CONFIG_FILES([
   icon.mk
 ])
 
-AC_CONFIG_FILES([run/collect.set-up.info], [chmod +x "$ac_file"])
+AC_CONFIG_FILES([
+  collect.extra-libs
+  run/collect.set-up.info
+], [chmod +x "$ac_file"])
 
 dnl The make_runscripts generator should call run/collect.set-up.info and
 dnl generate run/set-up.info. This is currently not the case, therefore we
@@ -2442,3 +2394,10 @@ AC_CONFIG_COMMANDS([depfiles],
    touch icon.mk])
 
 AC_OUTPUT
+
+AS_IF([test "x$enable_delayed_config" = xyes && test -n "$extra_src_subdirs"],
+  [AS_ECHO(["
+The following bundled libraries will be configured at the build time:dnl
+`AS_ECHO(["$extra_src_subdirs"]) | tr ' ' '
+'`
+"]) >&AS_MESSAGE_FD])

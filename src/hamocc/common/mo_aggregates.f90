@@ -58,29 +58,15 @@ MODULE mo_aggregates
 !                           &      4.8429e-7_wp, -4.7172e-8_wp,7.5986e-10_wp,1.3550e-7_wp,&
 !                           &      -2.5853e-9_wp,6.0833e-11_wp,-1.1652e-12_wp/)
 
-     REAL(wp) :: n_det,n_opal,n_calc,n_dust,n_total       ! total primary particle number (#)
-     REAL(wp) :: mf                                       ! mass factor for aggregates 
      REAL(wp) :: V_dp_dust,V_dp_det,V_dp_calc,V_dp_opal   ! volumes of primary particles (L^3)
      REAL(wp) :: A_dp_dust,A_dp_det,A_dp_calc,A_dp_opal   ! surface areas of primary particles (L^2)
      REAL(wp) :: A_dust,A_det,A_calc,A_opal,A_total       ! total surface area of primary particles per unit volume (L^2/L^3)
      REAL(wp) :: stickiness_min, stickiness_max           ! minimum and maximum stickiness of primary particles
-     REAL(wp) :: stickiness_mapped                        ! mapped mean stickiness of particles on range (0,1)
      REAL(wp) :: df_slope                                 ! slope for stickiness to fractal dimension mapping
      REAL(wp) :: rho_V_dp_dust,rho_V_dp_det,rho_V_dp_calc,rho_V_dp_opal ! mass of primary particles (M)
-     REAL(wp) :: V_det,V_opal,V_calc,V_dust,V_solid       ! total volume of primary particles in a unit volume (L^3/L^3)
-     REAL(wp) :: Rm_SiP                                   ! molar mass ratio opal (SiO_2) to POM
-     REAL(wp) :: thick_shell                              ! diatom frustule shell thickness (L)
-     REAL(wp) :: d_frustule_inner                         ! diameter of hollow part in diatom frustule (L)
      REAL(wp) :: V_frustule_inner                         ! volume of hollow part in diatom frustule (L^3)
      REAL(wp) :: V_frustule_opal                          ! volume of opal shell material (L^3)
      REAL(wp) :: rho_V_frustule_opal                      ! mass of frustule material (M) 
-     REAL(wp) :: cell_det_mass                            ! mass of detritus material in diatoms
-     REAL(wp) :: cell_pot_det_mass                        ! potential (max) mass detritus material in diatoms
-     REAL(wp) :: free_detritus                            ! freely available detritus mass outside the frustule
-     REAL(wp) :: V_POM_cell                               ! volume of POM in frustule
-     REAL(wp) :: V_aq                                     ! volume of water space in frustule
-     REAL(wp) :: rho_frustule                             ! density of diatom frustule incl. opal, detritus and water
-     REAL(wp) :: rho_diatom                               ! ensity of either hollow frustule 
 
    CONTAINS
 
@@ -91,7 +77,10 @@ MODULE mo_aggregates
      !! Initilization of parameters
      !!
      IMPLICIT NONE
-
+     REAL(wp) :: Rm_SiP                                   ! molar mass ratio opal (SiO_2) to POM
+     REAL(wp) :: thick_shell                              ! diatom frustule shell thickness (L)
+     REAL(wp) :: d_frustule_inner                         ! diameter of hollow part in diatom frustule (L)
+      
      V_dp_dust = one6th * pi * dp_dust**3._wp * num_fac
      V_dp_det  = one6th * pi * dp_det**3._wp  * num_fac
      V_dp_calc = one6th * pi * dp_calc**3._wp * num_fac
@@ -195,8 +184,20 @@ MODULE mo_aggregates
      !!
      IMPLICIT NONE
 
-    TYPE(t_bgc_memory), POINTER    :: local_bgc_mem
-    TYPE(t_aggregates_memory), POINTER :: aggr_mem
+     REAL(wp) :: n_det,n_opal,n_calc,n_dust,n_total       ! total primary particle number (#)
+     REAL(wp) :: mf                                       ! mass factor for aggregates 
+     REAL(wp) :: V_det,V_opal,V_calc,V_dust,V_solid       ! total volume of primary particles in a unit volume (L^3/L^3)
+     REAL(wp) :: stickiness_mapped                        ! mapped mean stickiness of particles on range (0,1)
+     REAL(wp) :: cell_det_mass                            ! mass of detritus material in diatoms
+     REAL(wp) :: cell_pot_det_mass                        ! potential (max) mass detritus material in diatoms
+     REAL(wp) :: free_detritus                            ! freely available detritus mass outside the frustule
+     REAL(wp) :: V_POM_cell                               ! volume of POM in frustule
+     REAL(wp) :: V_aq                                     ! volume of water space in frustule
+     REAL(wp) :: rho_frustule                             ! density of diatom frustule incl. opal, detritus and water
+     REAL(wp) :: rho_diatom                               ! ensity of either hollow frustule 
+ 
+     TYPE(t_bgc_memory), POINTER    :: local_bgc_mem
+     TYPE(t_aggregates_memory), POINTER :: aggr_mem
 
      INTEGER, INTENT(in), TARGET    :: klev(bgc_nproma)       !<  vertical levels
      INTEGER, INTENT(in)            :: start_idx              !< start index for j loop (ICON cells, MPIOM lat dir)
@@ -217,7 +218,7 @@ MODULE mo_aggregates
                        &  stickiness_frustule(:,:),&  ! frustule stickiness
                        &  dynvis(:,:),             &  ! molecular dynamic viscosity
                        &  av_rhof_V(:,:)
-    REAL(wp), POINTER :: aggdiag(:,:,:)    ! 3d concentration EU
+     REAL(wp), POINTER :: aggdiag(:,:,:)    ! 3d concentration EU
 
        av_dp              =>  aggr_mem%av_dp              
        av_rho_p           =>  aggr_mem%av_rho_p           
