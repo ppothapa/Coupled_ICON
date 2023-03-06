@@ -40,6 +40,7 @@ CONTAINS
        &                     zh            ,& ! in: height of half levels
        &                     rho           ,& ! in: density
        &                     pf            ,& ! in: pressure
+       &                     tke           ,& ! in: TKE (on half levels, size nlev+1)
        &                     cpair         ,& ! in: pressure
        &                     ta            ,& ! inout: temp
        &                     qv            ,& ! inout: specific humidity
@@ -50,7 +51,7 @@ CONTAINS
        &                     qg, qng       ,& ! inout: graupel
        &                     qh, qnh       ,& ! inout: hail
        &                     ninact        ,& ! inout: activated ice nuclei
-       &                     wa            ,& ! inout: w
+       &                     wa            ,& ! inout: w (on half levels, size nlev+1)
        &                     tend_ta       ,& ! out: tendency of temperature
        &                     tend_qv       ,& ! out: tendency of specific humidity
        &                     tend_qc       ,& ! out: tendency of cloud water
@@ -87,6 +88,7 @@ CONTAINS
     REAL(wp), DIMENSION(:,:), INTENT(in)  :: zh       !< height of half levels
     REAL(wp), DIMENSION(:,:), INTENT(in)  :: rho      !< density
     REAL(wp), DIMENSION(:,:), INTENT(in)  :: pf       !< pressure
+    REAL(wp), DIMENSION(:,:), INTENT(in), POINTER  :: tke      !< TKE
     REAL(wp), DIMENSION(:,:), INTENT(in)  :: cpair    !< specific heat of air
     !
     REAL(wp), DIMENSION(:,:), INTENT(inout)  :: ta       !< temperature
@@ -204,6 +206,7 @@ CONTAINS
          &        hhl     = zhhl    (:,:) ,& !<    in: height of half levels
          &        rho     = rho     (:,:) ,& !<    in: density
          &        pres    = pf      (:,:) ,& !<    in: pressure
+         &        tke     = tke     (:,:) ,& !<    in: TKE (on half levels, size nlev+1)
          &        qv      = zqv     (:,:) ,& !< inout: sp humidity
          &        qc      = zqc     (:,:) ,& !< inout: cloud water
          &        qnc     = zqnc    (:,:) ,& !< inout: cloud droplet number 
@@ -219,7 +222,7 @@ CONTAINS
          &        qnh     = zqnh    (:,:) ,& !< inout: hail number
          &        ninact  = zninact (:,:) ,& !< inout: IN number
          &        tk      = zta     (:,:) ,& !< inout: temp
-         &        w       = wa      (:,:) ,& !< inout: w
+         &        w       = wa      (:,:) ,& !< inout: w (on half levels, size nlev+1)
          &        prec_r  = pr_rain (:)   ,& !< inout: precip rate rain
          &        prec_i  = pr_ice  (:)   ,& !< inout: precip rate ice
          &        prec_s  = pr_snow (:)   ,& !< inout: precip rate snow

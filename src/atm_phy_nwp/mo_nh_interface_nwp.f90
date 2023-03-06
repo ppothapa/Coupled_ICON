@@ -783,7 +783,7 @@ CONTAINS
                             & pt_patch, p_metrics,              & !>input
                             & pt_prog,                          & !>inout
                             & pt_prog_rcf%tracer,               & !>inout
-                            & pt_prog_rcf%tke,                  & !>in
+                            & pt_prog_now_rcf%tke,              & !>in
                             & pt_diag ,                         & !>inout
                             & prm_diag, prm_nwp_tend,           & !>inout
                             & ext_data,                         & !>in

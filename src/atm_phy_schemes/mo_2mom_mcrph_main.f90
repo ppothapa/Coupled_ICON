@@ -428,8 +428,8 @@ MODULE mo_2mom_mcrph_main
        &        'rainSBB', & !..name
        &        0.000000,  & !..nu
        &        0.333333,  & !..mu
-       &        3.00d-06,  & !..x_max
-       &        2.60d-10,  & !..x_min
+       &        6.50d-05,  & !..x_max  ! 5 mm 
+       &        2.60d-10,  & !..x_min  ! 80 mum
        &        1.24d-01,  & !..a_geo
        &        0.333333,  & !..b_geo
        &        114.0137,  & !..a_vel
@@ -712,7 +712,7 @@ CONTAINS
 #endif
        CALL autoconversionKB(ik_slice, dt, cloud, rain)   ! Beheng (1994)
        CALL accretionKB(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ELSE IF (auto_typ == 2) THEN
 #ifdef _OPENACC
        CALL finish('warm_rain_processes','auto_typ == 2 not supported on GPU')
@@ -721,11 +721,11 @@ CONTAINS
        ! (KK2000 originally assume a 25 micron size threshold)
        CALL autoconversionKK(ik_slice, dt, cloud, rain)
        CALL accretionKK(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ELSE IF (auto_typ == 3) THEN
-       CALL autoconversionSB(ik_slice, dt, cloud_coeffs, cloud, rain)
-       CALL accretionSB(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL autoconversionSB(ik_slice, dt, atmo, cloud_coeffs, cloud, rain) 
+       CALL accretionSB(ik_slice, dt, atmo, cloud, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ENDIF
     IF (ischeck) CALL check(ik_slice,'warm rain',cloud,rain,ice,snow,graupel,hail)
 

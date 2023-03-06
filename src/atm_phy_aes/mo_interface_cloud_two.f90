@@ -67,6 +67,9 @@ CONTAINS
     TYPE(t_cloud_two_input ),POINTER    :: input
     TYPE(t_cloud_two_output),POINTER    :: output
 
+    ! Dummy pointer to tke
+    REAL(wp)                ,POINTER    :: ptr_tke(:,:)
+
     ! Local variables
     !
     LOGICAL  :: lparamcpl
@@ -110,6 +113,8 @@ CONTAINS
     jks       =  aes_phy_config(jg)%jks_cloudy
     lparamcpl =  aes_phy_config(jg)%lparamcpl
     fc_two    =  aes_phy_config(jg)%fc_two
+    
+    ptr_tke => NULL()
 
     jke       =  nlev
 
@@ -167,7 +172,7 @@ CONTAINS
     IF (ASSOCIATED(input% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqh)    , input% qh    (:,:,jb))
     IF (ASSOCIATED(input% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnh)   , input% qnh   (:,:,jb))
     IF (ASSOCIATED(input% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,ininact), input% ninact(:,:,jb))
-    IF (ASSOCIATED(input% w     )) CALL copy(jcs,jce, jks,jke, field% wa(:,:,jb)           , input% w     (:,:,jb))
+    IF (ASSOCIATED(input% w     )) CALL copy(jcs,jce, jks,jke+1, field% wa(:,:,jb)         , input% w     (:,:,jb))
     !
     IF (ASSOCIATED(input% pr_rain)) CALL copy(jcs,jce, field% rain_gsp_rate (:,jb), input% pr_rain   (:,jb))
     IF (ASSOCIATED(input% pr_ice )) CALL copy(jcs,jce, field%  ice_gsp_rate (:,jb), input% pr_ice    (:,jb))
@@ -191,6 +196,7 @@ CONTAINS
                &          field% zh        (:,:,jb)       ,& !< in : height of half levels
                &          field% rho       (:,:,jb)       ,& !< in : density
                &          field% pfull     (:,:,jb)       ,& !< in : pressure
+               &          ptr_tke                         ,& !< in : TKE  (dummy because of no TKE in AES)
                &          field% cpair     (:,:,jb)       ,& !< in : specific heat of air
                &          field% ta        (:,:,jb)       ,& !< inout : temperature
                &          field% qtrc      (:,:,jb,iqv)   ,& !< inout : sp humidity
@@ -363,7 +369,7 @@ CONTAINS
     IF (ASSOCIATED(output% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqh)    , output% qh    (:,:,jb))
     IF (ASSOCIATED(output% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnh)   , output% qnh   (:,:,jb))
     IF (ASSOCIATED(output% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,ininact), output% ninact(:,:,jb))
-    IF (ASSOCIATED(output% w     )) CALL copy(jcs,jce, jks,jke, field% wa(:,:,jb)           , output% w     (:,:,jb))
+    IF (ASSOCIATED(output% w     )) CALL copy(jcs,jce, jks,jke+1, field% wa(:,:,jb)         , output% w     (:,:,jb))
     !
 !!$         CASE(2)
 !!$            ! use tendency as forcing in the dynamics

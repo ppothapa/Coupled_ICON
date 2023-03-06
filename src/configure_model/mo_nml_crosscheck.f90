@@ -471,6 +471,18 @@ CONTAINS
           CALL finish(routine,'mu_snow requires: 0 < mu_snow < 5')
         END IF ! microphysics
 
+        IF (  atm_phy_nwp_config(jg)%inwp_turb /= icosmo  .AND. &
+          &  atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc ) THEN
+          CALL finish(routine,' Turbulence enhancement of collisions '//  &
+                      'in two-moment scheme (lturb_enhc) only applicable for inwp_turb = 1')
+        ENDIF
+
+        IF (  iforcing==iaes  .AND. &
+          &  atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc ) THEN
+          CALL finish(routine,' Turbulence enhancement of collisions '//  &
+                      'in two-moment scheme (lturb_enhc) not applicable for aes physics.')
+        ENDIF
+
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
         CASE (0)
           IF (ntiles_lnd > 1) THEN

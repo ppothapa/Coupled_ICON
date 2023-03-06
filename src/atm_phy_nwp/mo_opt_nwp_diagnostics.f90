@@ -4037,6 +4037,7 @@ CONTAINS
              K_ice     = K_i_0,                            &
              T_melt    = Tmelt,                            &
              q_crit_radar = 1e-8_wp,                       &
+             luse_mu_Dm_rain = atm_phy_nwp_config(jg)%cfg_2mom%luse_mu_Dm_rain, &
              T         = p_diag%temp(:,:,:),               &
              rho       = p_prog%rho(:,:,:),                &
              q_cloud   = p_prog_rcf%tracer(:,:,:,iqc),     &
@@ -4076,6 +4077,7 @@ CONTAINS
              K_ice     = K_i_0,                            &
              T_melt    = Tmelt,                            &
              q_crit_radar = 1e-8_wp,                       &
+             luse_mu_Dm_rain = atm_phy_nwp_config(jg)%cfg_2mom%luse_mu_Dm_rain, &
              T         = p_diag%temp(:,:,:),               &
              rho       = p_prog%rho(:,:,:),                &
              q_cloud   = p_prog_rcf%tracer(:,:,:,iqc),     &
@@ -4155,7 +4157,7 @@ CONTAINS
         ELSE
           itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
         END IF
-        CALL init_1mom_types(itype_gscp_fwo=itype_gscp_emvo, rho_w=rhoh2o)
+        CALL init_1mom_types(itype_gscp_loc=itype_gscp_emvo, rho_w=rhoh2o)
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -4380,6 +4382,7 @@ CONTAINS
                pe_start          = proc0_shift,   & ! Start-PE of the gang which computes the lookup tables, numbering within the work-communicator
                pe_end            = get_my_mpi_work_comm_size()-1, &  ! End-PE of the gang. Can be at most the number of work PEs minus 1
                linterp_mode_dualpol = (synradar_meta%itype_refl >= 5), &
+               luse_muD_relation_rain  = atm_phy_nwp_config(jg)%cfg_2mom%luse_mu_Dm_rain, &
                ydir_lookup_read  = TRIM(ydir_mielookup_read), &
                ydir_lookup_write = TRIM(ydir_mielookup_write), &
                zh_radar          = dbz3d_lin(:,:,:), &
@@ -4426,6 +4429,7 @@ CONTAINS
                lalloc_qs      = .TRUE., &
                lalloc_qg      = .TRUE., &
                lalloc_qh      = .TRUE., &
+               luse_muD_relation_rain  = atm_phy_nwp_config(jg)%cfg_2mom%luse_mu_Dm_rain, &
                zh_radar       = dbz3d_lin(:,:,:), &
                lhydrom_choice_testing = synradar_meta%lhydrom_choice_testing &
                )

@@ -150,6 +150,7 @@ CONTAINS
                        hhl,               & ! in: height of half levels
                        rho,               & ! in: density
                        pres,              & ! in: pressure
+                       tke,               & ! in: tke
                        qv,                & ! inout: specific humidity
                        qc, qnc,           & ! inout: cloud water
                        qr, qnr,           & ! inout: rain
@@ -182,6 +183,9 @@ CONTAINS
 
     ! Dynamical core variables
     REAL(wp), DIMENSION(:,:), INTENT(IN), TARGET :: dz, rho, pres, w
+
+    ! Optional Dynamical core variables
+    REAL(wp), DIMENSION(:,:), INTENT(IN), POINTER :: tke
 
     REAL(wp), DIMENSION(:,:), INTENT(IN), TARGET :: hhl
 
@@ -255,6 +259,7 @@ CONTAINS
     CLASS(particle_frozen), pointer :: ice, snow, graupel, hail
 
     INTEGER :: ik_slice(4)
+
 
     !$ACC DATA CREATE(q_liq_old, q_vap_old, rdz, rhocorr, rho_r, rhocld)
 
@@ -402,7 +407,7 @@ CONTAINS
     !     to avoid local allocates within the OpenMP-loop, and keep everything on stack)
 
     CALL prepare_twomoment(atmo, cloud, rain, ice, snow, graupel, hail, &
-         rho, rhocorr, rhocld, pres, w, tk, hhl, &
+         rho, rhocorr, rhocld, pres, w, tk, hhl, tke, &
          nccn, ninpot, ninact, &
          qv, qc, qnc, qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh, qgl, qhl, &
          lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
@@ -1097,7 +1102,7 @@ CONTAINS
 
     !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(q_star, flux_sum)
-    do i=its,ite
+    DO i=its,ite
 
       ! new on r.h.s. is new value from level above
       vsed_new(i) = 0.5 * (vsed_now(i) + vsed_new(i))
@@ -1121,10 +1126,10 @@ CONTAINS
       q_star    = q_impl(i) * q_sum(i)       
       q_val(i)  = q_star                     ! source/sinks work on star-values
       q_sum(i)  = q_sum(i) - q_star           
-    end do
+    END DO
     !$ACC END PARALLEL
     
-  end SUBROUTINE implicit_core
+  END SUBROUTINE implicit_core
   
   SUBROUTINE implicit_time(q_val,q_sum,q_impl,vsed_new,vsed_now,flux_new,its,ite)
 
@@ -1136,19 +1141,19 @@ CONTAINS
     
     !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
-    do i=its,ite
-
+    DO i=its,ite
+      
       ! time integration
-      q_val(i) =   max( 0.0_wp, q_impl(i)*(q_sum(i) + q_val(i)))    
+      q_val(i) =   MAX( 0.0_wp, q_impl(i)*(q_sum(i) + q_val(i)))    
 
       ! prepare for next level
       flux_new(i) = q_val(i) * vsed_new(i)     ! flux_(k),new
       vsed_new(i) = vsed_now(i)
 
-    end do
+    END DO
     !$ACC END PARALLEL
     
-  end SUBROUTINE implicit_time
+  END SUBROUTINE implicit_time
 
   !===========================================================================================
 
@@ -1296,7 +1301,7 @@ CONTAINS
     WRITE(message_text,'(A,D10.3)') "    z0   = ",ccn_coeffs%z0  ; CALL message(TRIM(routine),TRIM(message_text))
     WRITE(message_text,'(A,D10.3)') "    z1e  = ",ccn_coeffs%z1e ; CALL message(TRIM(routine),TRIM(message_text))
 
-    IF (present(N_in0)) THEN
+    IF (PRESENT(N_in0)) THEN
 
        in_coeffs%N0  = 200.0e6_wp ! this is currently just a scaling factor for the PDA scheme
        in_coeffs%z0  = 3000.0d0
@@ -1313,7 +1318,7 @@ CONTAINS
      END IF
      
     IF (msg_level>5) CALL message (TRIM(routine), " finished two_moment_mcrph_init successfully")
-    !$ACC ENTER DATA COPYIN(ccn_coeffs, in_coeffs)
+    !$ACC ENTER DATA COPYIN(ccn_coeffs, in_coeffs, cfg_params)
 
   END SUBROUTINE two_moment_mcrph_init
 

@@ -5912,46 +5912,70 @@ iforcing=3, inwp\_gscp=4,5,6,7
 alpha\_spacefilling &
 R& 0.01 & &
 Parameter in conversion of snow or cloud ice to graupel by riming: degree of void filling by frozen supercooled droples within the ice particle skeleton, above which the particle is converted to the graupel class. Smaller values lead to faster conversion. 0.01 means very fast conversion to graupel. A value of 0.68 is the theoretical limit for densest sphere packing and leads to rather slow conversion.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_conv\_ii &
 R & 75.0e-6 & m &
 diameter threshold for the onset of conversion to snow by ice selfcollection  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_rainfrz\_ig &
 R& 0.50e-3 & m &
 Spectral size threshold below which freezing rain drops are converted to cloud ice. Larger drops are converted to graupel or hail, depending on parameter D\_rainfrz\_gh.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_rainfrz\_gh &
 R & 1.25e-3 & m &
 Spectral size threshold above which freezing rain drops are converted to hail. Smaller drops are converted to cloud ice or graupel, depending on parameter D\_rainfrz\_ig.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+luse\_mu\_Dm\_rain &
+L& .FALSE. & &
+To switch on the usage of the dynamical $\mu$-$D_M$-relation for raindrops below cloud base. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu0 &
 R&  6.0 & &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 asymptotic $\mu$-value for spectra with small mean diameter.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu1 &
 R& 30.0 & &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 asymptotic $\mu$-value for spectra with large mean diameter.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu3 &
 R& 1.1e-3 & m &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 equilibrium mean spectral diameter for breakup and selfcollection.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+melt\_h\_tune\_fac &
+R& 1.0 & &
+Tuning factor for the hail melting rate. Values larger than 1.0 enhance the hail melting, smaller values slow down the melting. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+Tmax\_gr\_rime &
+R& 270.16 & K &
+Graupel formation by riming of snow and cloud ice is only active below this temperature threshold. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+lturb\_enhc &
+L& .TRUE. &  &
+To switch on the turbulent enhancement of collision processes involving water droplets (autoconversion, accretion, rain selfcollection). &
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 

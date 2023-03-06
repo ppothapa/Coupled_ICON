@@ -112,8 +112,8 @@ CONTAINS
     TYPE(t_patch)          , INTENT(in)   :: p_patch        !!<grid/patch info.
     TYPE(t_nh_metrics)     , INTENT(in)   :: p_metrics
     TYPE(t_nh_prog)        , INTENT(inout):: p_prog          !<the dyn prog vars
-    REAL(wp), CONTIGUOUS, INTENT(inout) :: ptr_tracer(:,:,:,:)
-    REAL(wp), CONTIGUOUS, INTENT(in) :: ptr_tke(:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(inout)       :: ptr_tracer(:,:,:,:)
+    REAL(wp), CONTIGUOUS, INTENT(in), POINTER :: ptr_tke(:,:,:)
     TYPE(t_nh_diag)        , INTENT(inout):: p_diag          !<the dyn diag vars
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag        !<the atm phys vars
     TYPE(t_nwp_phy_tend)   , TARGET, INTENT(inout):: prm_nwp_tend    !< atm tend vars
@@ -145,6 +145,9 @@ CONTAINS
     REAL(wp) :: zncn(nproma,p_patch%nlev),qnc(nproma,p_patch%nlev),qnc_s(nproma),rholoc,rhoinv
     LOGICAL  :: l_nest_other_micro
     LOGICAL  :: ldiag_ttend, ldiag_qtend
+    LOGICAL  :: lavail_tke
+
+    REAL(wp), CONTIGUOUS, POINTER :: ptr_tke_loc(:,:)
 
     CALL assert_acc_device_only("nwp_microphysics", lacc)
 
@@ -165,6 +168,12 @@ CONTAINS
       ldiag_qtend = .TRUE.
     ELSE
       ldiag_qtend = .FALSE.
+    ENDIF
+
+    IF (ASSOCIATED(ptr_tke) .AND. atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc ) THEN
+      lavail_tke = .true.
+    ELSE
+      lavail_tke = .false.
     ENDIF
 
     ! boundary conditions for number densities
@@ -247,6 +256,13 @@ CONTAINS
 
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
           &                i_startidx, i_endidx, i_rlstart, i_rlend)
+        
+        ! Check if there is tke 
+        IF (lavail_tke) THEN
+          ptr_tke_loc => ptr_tke(:,:,jb)
+        ELSE
+          ptr_tke_loc => NULL()
+        ENDIF
 
 
         IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 2) THEN
@@ -452,6 +468,7 @@ CONTAINS
                        hhl    = p_metrics%z_ifc(:,:,jb),        &!in: height of half levels
                        rho    = p_prog%rho(:,:,jb  )       ,    &!in:  density
                        pres   = p_diag%pres(:,:,jb  )      ,    &!in:  pressure
+                       tke    = ptr_tke_loc                ,    &!in:  turbulent kinetic energy (on half levels, size nlev+1)
                        qv     = ptr_tracer (:,:,jb,iqv), &!inout:sp humidity
                        qc     = ptr_tracer (:,:,jb,iqc), &!inout:cloud water
                        qnc    = ptr_tracer (:,:,jb,iqnc),&!inout: cloud droplet number
@@ -467,7 +484,7 @@ CONTAINS
                        qnh    = ptr_tracer (:,:,jb,iqnh),&!inout: hail number
                        ninact = ptr_tracer (:,:,jb,ininact), &!inout: IN number
                        tk     = p_diag%temp(:,:,jb),            &!inout: temp 
-                       w      = p_prog%w(:,:,jb),               &!inout: w
+                       w      = p_prog%w(:,:,jb),               &!inout: w (on half levels, size nlev+1)
                        prec_r = prm_diag%rain_gsp_rate (:,jb),  &!inout precp rate rain
                        prec_i = prm_diag%ice_gsp_rate (:,jb),   &!inout precp rate ice
                        prec_s = prm_diag%snow_gsp_rate (:,jb),  &!inout precp rate snow
@@ -492,6 +509,7 @@ CONTAINS
                        hhl    = p_metrics%z_ifc(:,:,jb),        &!in: height of half levels
                        rho    = p_prog%rho(:,:,jb  )       ,    &!in:  density
                        pres   = p_diag%pres(:,:,jb  )      ,    &!in:  pressure
+                       tke    = ptr_tke_loc                ,    &!in:  turbulent kinetic energy (on half levels, size nlev+1)
                        qv     = ptr_tracer (:,:,jb,iqv), &!inout: humidity
                        qc     = ptr_tracer (:,:,jb,iqc), &!inout: cloud water
                        qnc    = ptr_tracer (:,:,jb,iqnc),&!inout: cloud droplet number
@@ -509,7 +527,7 @@ CONTAINS
                        ninpot = ptr_tracer (:,:,jb,ininpot), &!inout: IN number
                        ninact = ptr_tracer (:,:,jb,ininact), &!inout: IN number
                        tk     = p_diag%temp(:,:,jb),            &!inout: temp 
-                       w      = p_prog%w(:,:,jb),               &!inout: w
+                       w      = p_prog%w(:,:,jb),               &!inout: w (on half levels, size nlev+1)
                        prec_r = prm_diag%rain_gsp_rate (:,jb),  &!inout precp rate rain
                        prec_i = prm_diag%ice_gsp_rate (:,jb),   &!inout precp rate ice
                        prec_s = prm_diag%snow_gsp_rate (:,jb),  &!inout precp rate snow
@@ -536,16 +554,16 @@ CONTAINS
                        dz     = p_metrics%ddqz_z_full(:,:,jb),   &!in: vertical layer thickness
                        rho    = p_prog%rho(:,:,jb  )       ,     &!in:  density
                        pres   = p_diag%pres(:,:,jb  )      ,     &!in:  pressure
-                       tke    = ptr_tke(:,:,jb),          &!in:  turbulent kinetik energy
-                       p_trac = ptr_tracer (:,:,jb,:),    &!inout: all tracers
+                       tke    = ptr_tke_loc,                 &!in:  turbulent kinetik energy (on half levels, size nlev+1)
+                       p_trac = ptr_tracer (:,:,jb,:),           &!inout: all tracers
                        tk     = p_diag%temp(:,:,jb),             &!inout: temp 
-                       w      = p_prog%w(:,:,jb),                &!inout: w
+                       w      = p_prog%w(:,:,jb),                &!inout: w (on half levels, size nlev+1)
                        prec_r = prm_diag%rain_gsp_rate (:,jb),   &!inout precp rate rain
                        prec_i = prm_diag%ice_gsp_rate (:,jb),    &!inout precp rate ice
                        prec_s = prm_diag%snow_gsp_rate (:,jb),   &!inout precp rate snow
                        prec_g = prm_diag%graupel_gsp_rate (:,jb),&!inout precp rate graupel
                        prec_h = prm_diag%hail_gsp_rate (:,jb),   &!inout precp rate hail
-! not impl yet!        qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
+! not impl yet!        qrsflux= prm_diag%qrs_flux(:,:,jb),        & !inout: 3D precipitation flux for LHN
                        tkvh   = prm_diag%tkvh(:,:,jb),           &!in: turbulent diffusion coefficients for heat     (m/s2 )
                        l_cv=.TRUE.     )
 #endif
@@ -562,6 +580,7 @@ CONTAINS
                        hhl    = p_metrics%z_ifc(:,:,jb),        &!in: height of half levels
                        rho    = p_prog%rho(:,:,jb  )       ,    &!in:  density
                        pres   = p_diag%pres(:,:,jb  )      ,    &!in:  pressure
+                       tke    = ptr_tke_loc            ,    &!in:  turbulent kinetik energy (on half levels, size nlev+1)
                        qv     = ptr_tracer (:,:,jb,iqv), &!inout:sp humidity
                        qc     = ptr_tracer (:,:,jb,iqc), &!inout:cloud water
                        qnc    = ptr_tracer (:,:,jb,iqnc),&!inout: cloud droplet number
@@ -579,7 +598,7 @@ CONTAINS
                        qhl    = ptr_tracer (:,:,jb,iqhl),&!inout: liquid water on hail
                        ninact = ptr_tracer (:,:,jb,ininact), &!inout: IN number
                        tk     = p_diag%temp(:,:,jb),            &!inout: temp 
-                       w      = p_prog%w(:,:,jb),               &!inout: w
+                       w      = p_prog%w(:,:,jb),               &!inout: w (on half levels, size nlev+1)
                        prec_r = prm_diag%rain_gsp_rate (:,jb),  &!inout precp rate rain
                        prec_i = prm_diag%ice_gsp_rate (:,jb),   &!inout precp rate ice
                        prec_s = prm_diag%snow_gsp_rate (:,jb),  &!inout precp rate snow

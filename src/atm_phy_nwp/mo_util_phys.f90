@@ -687,17 +687,9 @@ CONTAINS
       !$ACC LOOP SEQ
       DO jt=1,SIZE(conv_list)
         idx = conv_list(jt)
-        IF (idx <= 0) CYCLE
-
-        IF ( idx == iqv ) THEN ! No number concentration for iqv
-          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-          DO jk = kstart_moist(jg), kend
-            DO jc = i_startidx, i_endidx              
-              pt_prog_rcf%tracer(jc,jk,jb,iqnc) =  pt_prog_rcf%tracer(jc,jk,jb,iqnc)    &
-                   + set_qnc( pdtime *  prm_nwp_tend%ddt_tracer_pconv(jc,jk,jb,iqv) )/p_rho_now(jc,jk)   
-            END DO
-          END DO
-        ELSEIF ( idx == iqc ) THEN
+        IF (idx <= 0 .OR. idx == iqv) CYCLE
+     
+        IF ( idx == iqc ) THEN
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), kend
             DO jc = i_startidx, i_endidx              

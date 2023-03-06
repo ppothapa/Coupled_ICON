@@ -161,7 +161,7 @@ MODULE radar_interface
        rain, cloud, snow, ice, graupel, hail, rain_coeffs, &
        Tmax_i_modelgrid, Tmax_s_modelgrid, Tmax_g_modelgrid, Tmax_h_modelgrid, &
        q_crit_radar, n_crit_radar, &
-       lgsp_fwo, itype_gscp_fwo, T0C_fwo, pi6 => pi6_dp
+       lgsp_fwo, itype_gscp_fwo, luse_muD_relation_rain_fwo, T0C_fwo, pi6 => pi6_dp
 
   USE radar_parallel_utilities, ONLY :  &
        global_values_radar, distribute_values_radar, distribute_path_radar
@@ -240,7 +240,7 @@ MODULE radar_interface
                         i_fwo_barrier
   INTEGER            :: ie_fwo, je_fwo, ke_fwo, itype_gscp_fwo
   REAL(kind=wp)      :: K_ice_model, K_w_model, rho_ice_model, rho_w_model, t0_melt_model
-  logical            :: lgsp_fwo
+  LOGICAL            :: lgsp_fwo, luse_muD_relation_rain_fwo
 
 ! End of dummies
 !
@@ -589,6 +589,7 @@ CONTAINS
     CASE (4,5,6,7)
       ! 2-moment scheme including hail:
       itype_gscp_fwo = 260
+      luse_muD_relation_rain_fwo = atm_phy_nwp_config(idom)%cfg_2mom%luse_mu_Dm_rain
     CASE default
       yerrmsg(:) = ' '
       WRITE (yerrmsg,'(a,i3)') 'Error inwp_gscp: scheme not implemented in EMVORADO: inwp_gscp = ', &
@@ -999,10 +1000,10 @@ CONTAINS
 ! - but: a/b_vel in mass (x) space
 ! - unknown/irrelevant parameters set to fill value
 
-  SUBROUTINE init_1mom_types(itype_gscp_fwo, rho_w)
+  SUBROUTINE init_1mom_types(itype_gscp_loc, rho_w)
     IMPLICIT NONE
 
-    INTEGER, INTENT(in)        :: itype_gscp_fwo
+    INTEGER, INTENT(in)        :: itype_gscp_loc
     REAL(kind=wp), INTENT(in)  :: rho_w
     REAL(kind=dp)              :: rain_n0_factor
 
@@ -1029,14 +1030,14 @@ CONTAINS
     cloud%a_ven = miss_value             !.a_ven..Koeff. Ventilation
     cloud%b_ven = miss_value             !.b_ven..Koeff. Ventilation
 
-    IF (itype_gscp_fwo < 150) THEN
+    IF (itype_gscp_loc < 150) THEN
       rain_n0_factor = 1.0d0
     ELSE
       rain_n0_factor = 1.0d0 ! in COSMO-DE graupel scheme it is 0.1 to artificially
                              ! reduce rain evaporation below cloud base, but we choose 1.0 to not
                              ! overestimate Z in rain compared to obs
     END IF
-    IF (itype_gscp_fwo < 150) THEN
+    IF (itype_gscp_loc < 150) THEN
       rain%name  = 'rain1mom_nograupel' !.name...Bezeichnung der Partikelklasse
       rain%mu    = 0.0000d0            !.mu.....Breiteparameter der Verteil.
     ELSE
@@ -1089,7 +1090,7 @@ CONTAINS
     ice%a_ven = miss_value              !.a_ven..Koeff. Ventilation
     ice%b_ven = miss_value              !.b_ven..Koeff. Ventilation
 
-    IF (itype_gscp_fwo < 150) THEN
+    IF (itype_gscp_loc < 150) THEN
       snow%name  = 'snow1mom_nograupel' !.name...Bezeichnung der Partikelklasse
       snow%a_geo = 0.0690d0             !.a_geo..Koeff. Geometrie
     ELSE
@@ -1385,6 +1386,7 @@ CONTAINS
 
   SUBROUTINE get_dbz3dlin_with_model_method_2mom (ni, nj, nk,           &
        itype_gscp_model_in, rho_water, rho_ice, K_water, K_ice, t0melt, &
+       luse_muD_relation_rain,                                          &
        t_in, rho_in, qc_in, qr_in, qi_in, qs_in, qg_in, qh_in,          &
        qnc_in, qnr_in, qni_in, qns_in, qng_in, qnh_in, qgl_in, qhl_in,  &
        z_radar )
@@ -1394,6 +1396,7 @@ CONTAINS
     INTEGER , INTENT(in)                    :: ni, nj, nk
     INTEGER , INTENT(in)                    :: itype_gscp_model_in
     REAL(wp), INTENT(in)                    :: rho_water, rho_ice, K_water, K_ice, t0melt
+    LOGICAL,  INTENT(in)                    :: luse_muD_relation_rain
     REAL(wp), INTENT(in), DIMENSION(:,:,:)  :: t_in, rho_in, &
                                                qc_in,  qr_in,  qi_in,  qs_in,  qg_in,  qh_in, &
                                                qnc_in, qnr_in, qni_in, qns_in, qng_in, qnh_in, &
@@ -1426,6 +1429,7 @@ CONTAINS
                                    K_ice     = K_ice,                &
                                    T_melt    = t0melt,               &
                                    q_crit_radar = 1e-8_wp,           &
+                                   luse_mu_Dm_rain = luse_muD_relation_rain,  &
                                    T         = t(:,:,:),             &
                                    rho       = rho(:,:,:),           &
                                    q_cloud   = qc_in(:,:,:),         &
@@ -1462,6 +1466,7 @@ CONTAINS
                                    K_ice     = K_ice,                &
                                    T_melt    = t0melt,               &
                                    q_crit_radar = 1e-8_wp,           &
+                                   luse_mu_Dm_rain = luse_muD_relation_rain,  &
                                    T         = t(:,:,:),             &
                                    rho       = rho(:,:,:),           &
                                    q_cloud   = qc_in(:,:,:),         &
