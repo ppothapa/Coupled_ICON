@@ -1,9 +1,11 @@
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
-from util import config_dict_to_string, config_dict_to_list
+import icon_env
 from icon_paths import run_path, base_path
+from util import config_dict_to_string, config_dict_to_list
+
 
 class Experiment:
     def __init__(self, name, builder, run_flags=None):
@@ -15,10 +17,12 @@ class Experiment:
         # The runscript will be generated with the filename. This means
         # self.name needs to be transformed: "path/to/filename" -> "filename"
         # by pathlibs "name" functionality.
-        if Path(self.name).suffix == ".run":
-            self.run_name = Path(self.name).name
-        else:
-            self.run_name = "{}.run".format(Path(self.name).name)
+        path = Path(self.name)
+        self.run_name = (
+           path.name if path.suffix == '.run'
+           else str(path.with_suffix('.run_start')) if path.suffix == '.config'
+           else f'{path.name}.run'
+        )
 
         self.parents = []
         self.children = []
@@ -45,7 +49,12 @@ class Experiment:
         self.parents.append(parent)
 
     def get_run_name(self, relative=True):
-        return self.run_name if relative else run_path / self.run_name
+        path = Path(self.run_name)
+        return (
+            self.run_name if relative # str
+            else path if path.is_absolute() # Path
+            else run_path / path # Path
+        )
 
     def submit(self, from_builder, parent_job=None):
         # if no job is submitted, return empty process list
@@ -115,6 +124,24 @@ class Experiment:
 
             # return relative path to runscript
             status = 0
+        elif exp_path.suffix == ".config":
+            icon_env.load()
+            status = subprocess.run(
+                f'mkexp {self.name}'.split() +
+                    config_dict_to_list(self.run_flags),
+                cwd=run_path, encoding='UTF-8'
+            ).returncode
+            if status: return status
+            sp = subprocess.run(
+                f'getexp -k EXP_ID -k SCRIPT_DIR {self.name}'.split() +
+                    config_dict_to_list(self.run_flags),
+                cwd=run_path, stdout=subprocess.PIPE, encoding='UTF-8'
+            )
+            status = sp.returncode
+            if status: return status
+            exp_name, script_dir = sp.stdout.split()
+            self.run_name = str(
+                (Path(script_dir)/exp_name).with_suffix('.run_start'))
         else:
             # get filename -> get last element of filename (i.e. check.atm_amip -> atm_amip)
             exp_name = Path(self.name).name.split(".")[-1]

@@ -27,6 +27,7 @@ MODULE mo_memory_bgc
   REAL(wp) :: ems_per_step
   REAL(wp) :: totarea
   REAL(wp) :: phytomi, grami, grazra, rrrcl,docmin
+  !$ACC DECLARE CREATE(rrrcl)
   REAL(wp) :: remido, dyphy, zinges, epsher, spemor, gammap, gammaz, ecan
   REAL(wp) :: ro2ut, rcar, rnit, rnoi, rnit23, rnit13, ropal, rn2, p2gtc
   REAL(wp) :: bkphy, bkzoo, bkopal, bifr13, bifr14, plafr13, plafr14

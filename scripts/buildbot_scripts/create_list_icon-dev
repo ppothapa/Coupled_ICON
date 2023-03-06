@@ -147,8 +147,13 @@ $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders levante_intel_
 
 
 #-----------------------------------------------------------
+# ICON Coupled Setups
+
 # Ruby0 coupled tests, only with mpi
 $addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines levante --runflags "cpu_time=00:20:00 no_of_nodes=2" --list $listname
+
+# nextGEMS test setup (!) ALPHA
+$addexp test_nextGEMS.config --builders levante_intel_hybrid --list $listname
 
 # test memory loggin in amip setup
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog         --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname

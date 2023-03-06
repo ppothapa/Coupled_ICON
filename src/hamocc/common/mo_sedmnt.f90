@@ -26,6 +26,8 @@ MODULE mo_sedmnt
   REAL(wp), ALLOCATABLE :: seddzi(:)  ! global variable
   REAL(wp), ALLOCATABLE :: z_sed(:)   ! global variable
 
+  REAL(wp), ALLOCATABLE :: zcoefsu(:), zcoeflo(:)
+
   REAL(wp) :: sedict, calcon, rno3, o2ut, ansed, sedac, sedifti
   REAL(wp) :: calcwei, opalwei, orgwei
   REAL(wp) :: calcdens, opaldens, orgdens, claydens
@@ -85,6 +87,18 @@ SUBROUTINE sediment_bottom
   sedifti = sedict / (sumsed**2)               ! not used
   sedict=sedict*sedac
 
+  zcoefsu(0) = 0.0_wp
+  DO  k = 1, ks
+     ! sediment diffusion coefficient * 1/dz * fraction of pore water at half depths
+     zcoefsu(k  ) = -sedict * seddzi(k) * porwah(k)
+     ! the lowerdiffusive flux of layer k is identical to
+     ! the upper diff. flux of layer k+1
+     zcoeflo(k-1) = -sedict * seddzi(k) * porwah(k)
+  END DO
+
+  ! diffusion coefficient for bottom sediment layer
+  zcoeflo(ks) = 0.0_wp
+
   ! ******************************************************************
   !
   ! densities etc. for SEDIMENT SHIFTING
@@ -124,20 +138,33 @@ SUBROUTINE sediment_bottom
          &   * (claydens - rhoref_water) / 1.567_wp * 1000._wp  &  ! excess density / dyn. visc. | -> cm/s to m/day
          &   * dustd2 * 1.e-4_wp)                              ! *diameter**2 |*1000 *1.e-4?
 
+  !$ACC ENTER DATA COPYIN(pors2w, seddw, porsol, porwat, zcoefsu, zcoeflo)
+
 
 END SUBROUTINE
 
 
 
-SUBROUTINE  ini_bottom(local_bgc_mem, start_idx,end_idx,klevs,pddpo)
+SUBROUTINE  ini_bottom(local_bgc_mem, start_idx, end_idx, klevs, pddpo, use_acc)
 
  TYPE(t_bgc_memory), POINTER :: local_bgc_mem
  REAL(wp), INTENT(IN):: pddpo(bgc_nproma,bgc_zlevs)
 
  INTEGER, INTENT(IN) :: start_idx, end_idx
  INTEGER,  TARGET::klevs(bgc_nproma)
+ LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+ LOGICAL :: lacc
  INTEGER ::  j, k, kpke
 
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
+
+  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO j = start_idx, end_idx
    k=klevs(j)
         local_bgc_mem%kbo(j) = 1
@@ -155,10 +182,11 @@ SUBROUTINE  ini_bottom(local_bgc_mem, start_idx,end_idx,klevs,pddpo)
 
   ! bolaymin is neanilges, as is only compuetd on an arbitery local memory
 !   bolaymin=8000._wp
- 	
+  !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO j = start_idx, end_idx
    kpke=klevs(j)
    IF(kpke>0)THEN ! always valid for MPIOM
+   !$ACC LOOP SEQ
    DO k = kpke-1, 1, -1
       IF ( pddpo(j,k) > EPSILON(0.5_wp) .AND. pddpo(j,k+1) <= EPSILON(0.5_wp) ) THEN
          local_bgc_mem%bolay(j) = pddpo(j,k) ! local thickness of bottom layer
@@ -168,6 +196,7 @@ SUBROUTINE  ini_bottom(local_bgc_mem, start_idx,end_idx,klevs,pddpo)
     END DO
    ENDIF
   END DO
+  !$ACC END PARALLEL
   
  END SUBROUTINE
  
@@ -179,6 +208,8 @@ SUBROUTINE  ini_bottom(local_bgc_mem, start_idx,end_idx,klevs,pddpo)
     ALLOCATE (porsol(ks))
     ALLOCATE (porwah(ks))
     ALLOCATE (pors2w(ks))
+    ALLOCATE (zcoefsu(0:ks))
+    ALLOCATE (zcoeflo(0:ks))
 
   END SUBROUTINE ALLOC_MEM_SEDMNT
 
