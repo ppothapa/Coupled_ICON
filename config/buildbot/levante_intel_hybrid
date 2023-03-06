@@ -9,6 +9,7 @@ if [ ! -z "${BB_NAME-}" ]; then
   set -x
 
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
+  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_src_noexec.sh"
 
   set MPI_LAUNCH='srun -A mh0156 -p compute -N 1 -t 2'
 else
