@@ -45,11 +45,15 @@
 #______________________________________________________________________________
 
 set -eu
+set +x
 
 #define defaults
+FALSE=0
+TRUE=1
 secondary_build_dir=""
 in_folder="run"
 name="all"
+debug=$FALSE
 this_folder="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
 echo_usage()
@@ -57,6 +61,7 @@ echo_usage()
     echo "usage: ./make_runscripts [<experiment name> | --all] \\"
     echo "                         [-r <run directory to process>] \\"
     echo "                         [-s <secondary build dir>] \\"
+    echo "                         [-d] \\"
     echo
     echo "  --all  Use '-all' as experiment name to process all experiments."
     echo "  -r     Specify run directory _relative_ to the location of make_runscripts."
@@ -65,6 +70,7 @@ echo_usage()
     echo "         working directory or absolute.  The secondary build dir is used for"
     echo "         setups like the hybrid NEC host/vector. For the NEC, the path to the"
     echo "         ICON host binaries can be set here."
+    echo " -d      Print make_target_runscript with all options"
 }
 
 function error_trap()
@@ -97,12 +103,14 @@ if [[ "$name" != "--all" ]] && [[ "${name:0:1}" = "-" ]]; then
 fi
 
 # Parse options using getops
-while getopts ":hr:s:" opt
+while getopts ":hdr:s:" opt
 do
     case $opt in
         h) echo_usage
            exit 0
            ;;
+        d) debug=$TRUE
+          ;;
         r) in_folder="${OPTARG}"
            ;;
         s) secondary_build_dir="${OPTARG}"
@@ -135,7 +143,6 @@ then
     echo_usage
     exit 1
 fi
-
 #______________________________________________________________________________
 #==============================================================================
 
@@ -185,7 +192,7 @@ then
     #       EXPNAME=<name> variable
     #__________________________________________________________________________
 
-
+[[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=exp.${name}\
@@ -195,6 +202,7 @@ then
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
+set +x
 fi
 
 # NWP experiment runscript
@@ -213,7 +221,7 @@ then
     #       EXPNAME=<name> variable
     #__________________________________________________________________________
 
-
+[[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=nwpexp.${name}\
@@ -222,6 +230,7 @@ then
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
+set +x
 fi
 
 # post-processing runscript
@@ -240,6 +249,7 @@ then
     #    with_mpi="no" with_openmp="no"
     #__________________________________________________________________________
 
+[[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=post.${name} \
@@ -249,6 +259,7 @@ then
         with_mpi="no" \
         with_openmp="no" \
         queue="express"
+set +x
 fi
 
 

@@ -5,17 +5,17 @@
 #SBATCH --time=01:00:00
 
 #set -x
-set -e
+# abort on error
+set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
 
-if test ! -z "${SLURM_SUBMIT_DIR}"; then
+if test "${SLURM_SUBMIT_DIR:-0}" != '0'; then
   ICON_DIR="${SLURM_SUBMIT_DIR}"
 else
   ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
 fi
 echo "SCRIPT_DIR:        |${SCRIPT_DIR}|"
-echo "SLURM_SUBMIT_DIR:  |${SLURM_SUBMIT_DIR}|"
 echo "ICON_DIR:          |${ICON_DIR}|"
 echo "BB_NAME:           |${BB_NAME}|"
 echo "BB_SYSTEM:         |${BB_SYSTEM}|"

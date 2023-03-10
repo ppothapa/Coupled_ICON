@@ -129,6 +129,8 @@ LDFLAGS="-L${HDF5_LIB} -L${NETCDF_LIB} -L${NETCDFF_LIB} -L${GRIBAPI_LIB} ${BLAS_
 LIBS="${XML2_LIBS} ${GRIBAPI_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} "
 
 EXTRA_CONFIG_ARGS='--disable-rpaths --enable-grib2'
+# as long as all openmpi released have an error we need to disable mpi checking
+EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks"
 eval "${BUILD_ENV}"
 
 

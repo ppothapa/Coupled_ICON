@@ -13,3 +13,6 @@ class BatchJob(object):
 
     def wait(self):
         self.returncode = self.job.wait()
+
+    def cancel(self):
+        self.job.cancel()
