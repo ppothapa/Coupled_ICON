@@ -51,13 +51,6 @@ MODULE mo_nh_stepping
     &                                    timer_bdy_interp, timer_feedback, timer_nesting, &
     &                                    timer_integrate_nh, timer_nh_diagnostics,        &
     &                                    timer_iconam_aes, timer_dace_coupling
-  USE mo_atm_phy_nwp_config,       ONLY: dt_phy, atm_phy_nwp_config, iprog_aero, setup_nwp_diag_events
-  USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
-  USE mo_nwp_phy_init,             ONLY: init_nwp_phy, init_cloud_aero_cpl
-  USE mo_nwp_phy_state,            ONLY: prm_diag, prm_nwp_tend, phy_params, prm_nwp_stochconv
-  USE mo_lnd_nwp_config,           ONLY: nlev_soil, nlev_snow, sstice_mode, sst_td_filename, &
-    &                                    ci_td_filename, frsi_min
-  USE mo_nwp_lnd_state,            ONLY: p_lnd_state
   USE mo_ext_data_state,           ONLY: ext_data
   USE mo_limarea_config,           ONLY: latbc_config
   USE mo_model_domain,             ONLY: p_patch, t_patch, p_patch_local_parent
@@ -75,6 +68,7 @@ MODULE mo_nh_stepping
   USE mo_grf_intp_data_strc,       ONLY: p_grf_state, p_grf_state_local_parent
   USE mo_gridref_config,           ONLY: l_density_nudging, grf_intmethod_e
   USE mo_grf_bdyintp,              ONLY: interpol_scal_grf
+  USE mo_nh_init_utils,            ONLY: compute_exner_pert
   USE mo_nh_nest_utilities,        ONLY: compute_tendencies, boundary_interpolation,    &
                                          prep_bdy_nudging, nest_boundary_nudging,       &
                                          prep_rho_bdy_nudging, density_boundary_nudging,&
@@ -91,23 +85,40 @@ MODULE mo_nh_stepping
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
   USE mo_advection_stepping,       ONLY: step_advection
-  USE mo_advection_aerosols,       ONLY: aerosol_2D_advection, setup_aerosol_advection
-  USE mo_aerosol_util,             ONLY: aerosol_2D_diffusion
   USE mo_nh_dtp_interface,         ONLY: prepare_tracer, compute_airmass
   USE mo_nh_diffusion,             ONLY: diffusion
   USE mo_memory_log,               ONLY: memory_log_add
   USE mo_mpi,                      ONLY: proc_split, push_glob_comm, pop_glob_comm, &
        &                                 p_comm_work, my_process_is_mpi_workroot,   &
        &                                 my_process_is_mpi_test, my_process_is_work_only, i_am_accel_node
-#ifdef HAVE_RADARFWO
-  USE mo_emvorado_interface,       ONLY: emvorado_radarfwo
-#endif
 #ifdef NOMPI
   USE mo_mpi,                      ONLY: my_process_is_mpi_all_seq
 #endif
-
   USE mo_sync,                     ONLY: sync_patch_array_mult, sync_patch_array, SYNC_C, SYNC_E, global_max
+#ifdef HAVE_RADARFWO
+  USE mo_emvorado_interface,       ONLY: emvorado_radarfwo
+#endif
+  ! NWP physics
+  USE mo_atm_phy_nwp_config,       ONLY: dt_phy, atm_phy_nwp_config, iprog_aero, setup_nwp_diag_events
+  USE mo_nwp_phy_state,            ONLY: prm_diag, prm_nwp_tend, phy_params, prm_nwp_stochconv
+  USE mo_lnd_nwp_config,           ONLY: nlev_soil, nlev_snow, sstice_mode, sst_td_filename, &
+    &                                    ci_td_filename, frsi_min
+  USE mo_nwp_lnd_state,            ONLY: p_lnd_state
+  USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
+  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
+#ifndef __NO_NWP__
   USE mo_nh_interface_nwp,         ONLY: nwp_nh_interface
+  USE mo_phy_events,               ONLY: mtime_ctrl_physics
+  USE mo_nwp_phy_init,             ONLY: init_nwp_phy, init_cloud_aero_cpl
+  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, aggr_landvars, process_sst_and_seaice
+  USE mo_nwp_diagnosis,            ONLY: nwp_diag_for_output, nwp_opt_diagnostics, nwp_diag_global
+  USE mo_td_ext_data,              ONLY: update_nwp_phy_bcs, set_sst_and_seaice
+  USE mo_advection_aerosols,       ONLY: aerosol_2D_advection, setup_aerosol_advection
+  USE mo_aerosol_util,             ONLY: aerosol_2D_diffusion
+  USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
+  USE mo_iau,                      ONLY: save_initial_state, restore_initial_state
+#endif
+  USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
   USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
   USE mo_aes_phy_memory,           ONLY: prm_tend
@@ -136,13 +147,10 @@ MODULE mo_nh_stepping
   USE mo_art_config,               ONLY: art_config
 #endif
 
-  USE mo_nwp_sfc_utils,            ONLY: aggregate_landvars, process_sst_and_seaice
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
-  USE mo_iau,                      ONLY: compute_iau_wgt, save_initial_state, restore_initial_state
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
-  USE mo_td_ext_data,              ONLY: update_nwp_phy_bcs, set_sst_and_seaice
   USE mo_initicon_types,           ONLY: t_pi_atm
   USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, iterate_iau, dt_iau
   USE mo_synsat_config,            ONLY: lsynsat
@@ -159,7 +167,6 @@ MODULE mo_nh_stepping
   USE mo_prepadv_state,            ONLY: prep_adv, jstep_adv
   USE mo_action,                   ONLY: reset_act
   USE mo_output_event_handler,     ONLY: get_current_jfile
-  USE mo_nwp_diagnosis,            ONLY: nwp_diag_for_output, nwp_opt_diagnostics
   USE mo_opt_diagnostics,          ONLY: update_opt_acc, reset_opt_acc, &
     &                                    calc_mean_opt_acc, p_nh_opt_diag
   USE mo_var_list_register_utils,  ONLY: vlr_print_vls
@@ -179,7 +186,6 @@ MODULE mo_nh_stepping
   USE mo_util_mtime,               ONLY: mtime_utils, assumePrevMidnight, FMT_DDHHMMSS_DAYSEP, &
     &                                    getElapsedSimTimeInSeconds, is_event_active
   USE mo_event_manager,            ONLY: addEventGroup, getEventGroup, printEventGroup
-  USE mo_phy_events,               ONLY: mtime_ctrl_physics
   USE mo_derived_variable_handling, ONLY: update_statistics, statistics_active_on_dom
 #ifdef MESSY
   USE messy_main_channel_bi,       ONLY: messy_channel_write_output &
@@ -211,13 +217,11 @@ MODULE mo_nh_stepping
     &                                    upatmoRestartAttributesGet,     &
     &                                    upatmoRestartAttributesDeallocate
 #endif
-  use mo_icon2dace,                ONLY: mec_Event, init_dace_op, run_dace_op, dace_op_init
+  USE mo_icon2dace,                ONLY: mec_Event, init_dace_op, run_dace_op, dace_op_init
   USE mo_extpar_config,            ONLY: generate_td_filename
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface  
-  USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
-  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
-  USE mo_nwp_diagnosis,            ONLY: nwp_diag_global
+
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -241,12 +245,14 @@ MODULE mo_nh_stepping
 
   PUBLIC :: perform_nh_stepping
 
+#ifndef __NO_NWP__
   TYPE(t_sst_sic_reader), ALLOCATABLE, TARGET :: sst_reader(:) 
   TYPE(t_sst_sic_reader), ALLOCATABLE, TARGET :: sic_reader(:)
   TYPE(t_time_intp),      ALLOCATABLE         :: sst_intp(:)
   TYPE(t_time_intp),      ALLOCATABLE         :: sic_intp(:)
   REAL(wp),               ALLOCATABLE         :: sst_dat(:,:,:,:)
   REAL(wp),               ALLOCATABLE         :: sic_dat(:,:,:,:)
+#endif
 
   TYPE t_datetime_ptr
     TYPE(datetime), POINTER :: ptr => NULL()
@@ -309,12 +315,18 @@ MODULE mo_nh_stepping
       &                  rho       = p_nh_state(jg)%prog(nnow(jg))%rho, & !in
       &                  airmass   = p_nh_state(jg)%diag%airmass_new    ) !inout
 
-    
     ! initialize exner_pr if the model domain is active
-    IF (p_patch(jg)%ldom_active .AND. .NOT. isRestart()) CALL init_exner_pr(jg, nnow(jg), use_acc=.FALSE.)
+    IF (p_patch(jg)%ldom_active .AND. .NOT. isRestart()) THEN
+      CALL compute_exner_pert(exner     = p_nh_state(jg)%prog(nnow(jg))%exner,  & !in
+        &                     exner_ref = p_nh_state(jg)%metrics%exner_ref_mc,  & !in
+        &                     exner_pr  = p_nh_state(jg)%diag%exner_pr,         & !inout
+        &                     use_acc   =.FALSE.)
+    ENDIF
+
   ENDDO
 
   IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
     IF (ANY((/SSTICE_CLIM,SSTICE_AVG_MONTHLY,SSTICE_AVG_DAILY/) == sstice_mode)) THEN
       ! t_seasfc and fr_seaice have to be set again from the ext_td_data files;
       ! the values from the analysis have to be overwritten.
@@ -380,6 +392,7 @@ MODULE mo_nh_stepping
 
       ENDDO
     END IF
+#endif
   END IF
 
 #ifdef __ICON_ART
@@ -400,12 +413,14 @@ MODULE mo_nh_stepping
   END IF
 #endif
 
+#ifndef __NO_NWP__
   ! Save initial state if IAU iteration mode is chosen
   IF (iterate_iau .AND. .NOT. isRestart()) THEN
     CALL save_initial_state(p_patch(1:))
     WRITE(message_text,'(a)') 'IAU iteration is activated: Start of first cycle with halved IAU window'
     CALL message('',message_text)
   ENDIF
+
 
   ! Initialize time-dependent ensemble perturbations if necessary
   IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
@@ -439,6 +454,7 @@ MODULE mo_nh_stepping
 
     ENDDO
   ENDIF
+#endif
 
 #if defined( _OPENACC )
     ! initialize GPU for NWP and AES
@@ -464,9 +480,11 @@ MODULE mo_nh_stepping
 
   SELECT CASE (iforcing)
   CASE (inwp)
+
+#ifndef __NO_NWP__
     IF (.NOT.isRestart()) THEN
       ! Compute diagnostic physics fields
-      CALL aggr_landvars(lacc=.TRUE.)
+      CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
       ! Initial call of (slow) physics schemes, including computation of transfer coefficients
       CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
 
@@ -537,8 +555,10 @@ MODULE mo_nh_stepping
     ELSE
       ! Restart case: Compute diagnostic physics fields because some of them are used
       ! in prognostic equations
-      CALL aggr_landvars(lacc=.TRUE.)
+      CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
     ENDIF!is_restart
+#endif /* _NO_NWP__ */
+
   CASE (iaes)
     IF (.NOT.isRestart()) THEN
       CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
@@ -598,13 +618,14 @@ MODULE mo_nh_stepping
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
+#ifndef __NO_NWP__
     ! global mean diagnostics
     DO jg = 1, n_dom
       IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
-        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
         CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
       ENDIF
     ENDDO
+#endif
 
     CALL update_statistics
     IF (p_nh_opt_diag(1)%acc%l_any_m) THEN
@@ -635,8 +656,10 @@ MODULE mo_nh_stepping
             CALL finish ("perform_nh_stepping","MEC not configured")
        IF (timeshift%dt_shift == 0._wp .and. &
             is_event_active(mec_Event, mtime_current, proc0_offloading)) THEN
+#ifndef __NO_NWP__
           IF (iforcing == inwp) &
-               CALL aggr_landvars(lacc=.TRUE.)
+               CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
+#endif
           IF (.NOT. dace_op_init) THEN
              CALL message('perform_nh_stepping','calling init_dace_op before run_dace_op')
              IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
@@ -698,11 +721,12 @@ MODULE mo_nh_stepping
 
   CALL deallocate_nh_stepping
 
+#ifndef __NO_NWP__
   IF (ALLOCATED(sst_reader)) DEALLOCATE(sst_reader)
   IF (ALLOCATED(sic_reader)) DEALLOCATE(sic_reader)
   IF (ALLOCATED(sst_intp)) DEALLOCATE(sst_intp)
   IF (ALLOCATED(sic_intp)) DEALLOCATE(sic_intp)
-
+#endif
   END SUBROUTINE perform_nh_stepping
   !-------------------------------------------------------------------------
 
@@ -933,10 +957,12 @@ MODULE mo_nh_stepping
       ENDIF
     ENDDO
 
+#ifndef __NO_NWP__
     ! Update time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
       CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .TRUE., lacc=.TRUE.)
     ENDIF
+#endif
 
     ! update model date and time mtime based
     mtime_current = mtime_current + model_time_step
@@ -1003,7 +1029,7 @@ MODULE mo_nh_stepping
     ! * instead of skipping the boundary condition upate after the first of 2 IAU iterations, 
     !   do the update and fire a corresponding reset call. 
     IF (iforcing == inwp) THEN
-
+#ifndef __NO_NWP__
 
       ! Update the following surface fields, if a new day is coming
       !
@@ -1049,7 +1075,6 @@ MODULE mo_nh_stepping
           CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
 #endif
-
       END IF ! end update of surface parameter fields
 
       IF (sstice_mode == SSTICE_INST) THEN
@@ -1104,7 +1129,7 @@ MODULE mo_nh_stepping
         !$ACC END DATA
 
       END IF
-
+#endif  /* __NO_NWP__ */
 
     ENDIF  ! iforcing == inwp
 
@@ -1190,11 +1215,12 @@ MODULE mo_nh_stepping
       !$ser verbatim ENDDO
 
       IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
         !$ser verbatim DO jg = 1, n_dom
         !$ser verbatim   CALL serialize_all(nproma, jg, "output_diag", .TRUE., opt_lupdate_cpu=.TRUE.)
         !$ser verbatim ENDDO
         !$ACC WAIT
-        CALL aggr_landvars(lacc=.TRUE.)
+        CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
 
         DO jg = 1, n_dom
             IF (.NOT. p_patch(jg)%ldom_active) CYCLE
@@ -1279,6 +1305,7 @@ MODULE mo_nh_stepping
         !$ser verbatim   CALL serialize_all(nproma, jg, "output_diag", .FALSE., opt_lupdate_cpu=.TRUE.)
         !$ser verbatim ENDDO
 
+#endif /* __NO_NWP__ */
       END IF !iforcing=inwp
 
 #ifdef __ICON_ART
@@ -1313,10 +1340,12 @@ MODULE mo_nh_stepping
 
     ! Calculate optional diagnostic output variables if requested in the namelist(s)
     IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
       CALL nwp_opt_diagnostics(p_patch(1:), p_patch_local_parent, p_int_state_local_parent, &
                                p_nh_state, p_int_state(1:), prm_diag, &
                                l_nml_output_dom, nnow, nnow_rcf, lpi_max_Event, celltracks_Event,  &
                                dbz_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
+#endif
     ENDIF
 
     ! Adapt number of dynamics substeps if necessary
@@ -1344,13 +1373,14 @@ MODULE mo_nh_stepping
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
     CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
+#ifndef __NO_NWP__
     ! global mean diagnostics
     DO jg = 1, n_dom
       IF (iforcing == inwp .AND. statistics_active_on_dom(jg)) THEN
-        !CALL nwp_diag_global(p_patch(jg), prm_diag(jg))
         CALL nwp_diag_global(p_patch(jg), prm_diag(jg), var_in_output(jg))
       ENDIF
     ENDDO
+#endif
 
 #ifdef MESSY
     DO jg = 1, n_dom
@@ -1461,7 +1491,10 @@ MODULE mo_nh_stepping
        IF (.NOT. ASSOCIATED (mec_Event)) &
             CALL finish ("perform_nh_timeloop","MEC not configured")
        IF (is_event_active(mec_Event, mtime_current, proc0_offloading, plus_slack=model_time_step)) THEN
-          IF (iforcing == inwp) CALL aggr_landvars(lacc=.TRUE.)
+#ifndef __NO_NWP__
+          IF (iforcing == inwp) &
+            CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
+#endif
           sim_time = getElapsedSimTimeInSeconds(mtime_current)
           IF (sim_time > 0._wp .OR. iau_iter == 1) THEN
              IF (.NOT. dace_op_init) THEN
@@ -1484,9 +1517,11 @@ MODULE mo_nh_stepping
 
     IF (lwrite_checkpoint) THEN
       CALL diag_for_output_dyn ()
+#ifndef __NO_NWP__
       IF (iforcing == inwp) THEN
-        CALL aggr_landvars(lacc=.TRUE.)
+        CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
       END IF
+#endif
 
         DO jg = 1, n_dom
 
@@ -1569,6 +1604,7 @@ MODULE mo_nh_stepping
     ! Reset model to initial state if IAU iteration is selected and the first iteration cycle has been completed
 
     IF (jstep == 0 .AND. iau_iter == 1) THEN
+#ifndef __NO_NWP__
       !$ser verbatim DO jg = 1, n_dom
       !$ser verbatim   CALL serialize_all(nproma, jg, "reset_to_initial_state", .TRUE., opt_lupdate_cpu=.FALSE.)
       !$ser verbatim ENDDO      
@@ -1592,12 +1628,13 @@ MODULE mo_nh_stepping
 
       iau_iter = 2
       jstep = jstep0+jstep_shift+1
+#endif
     ELSE
      jstep = jstep + 1
     ENDIF
 
     sim_time = getElapsedSimTimeInSeconds(mtime_current) 
-    
+
   ENDDO TIME_LOOP
 
   ! clean-up routine for mo_nh_supervise module (eg. closing of files)
@@ -2023,8 +2060,9 @@ MODULE mo_nh_stepping
             &       opt_deepatmo_t2mc = p_nh_state(jg)%metrics%deepatmo_t2mc  ) !optin
           !$ser verbatim CALL serialize_all(nproma, jg, "step_advection", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
 
+#ifndef __NO_NWP__
           IF (iprog_aero >= 1) THEN
-            
+
 #ifdef _OPENACC
             CALL finish (routine, 'aerosol_2D_advection: OpenACC version currently not implemented')
 #endif
@@ -2038,6 +2076,7 @@ MODULE mo_nh_stepping
             CALL sync_patch_array(SYNC_C, p_patch(jg), prm_diag(jg)%aerosol)
             CALL aerosol_2D_diffusion( p_patch(jg), p_int_state(jg), nproma, prm_diag(jg)%aerosol)
           ENDIF
+#endif
 
         ! ART tracer sedimentation:
         !     Optional internal substepping with nart_substeps_sedi
@@ -2081,19 +2120,17 @@ MODULE mo_nh_stepping
 
         IF ( ( iforcing==inwp .OR. iforcing==iaes ) ) THEN
 
-          ! Determine which physics packages must be called/not called at the current
-          ! time step
-          IF ( iforcing==inwp ) THEN
-            CALL mtime_ctrl_physics(phyProcs      = atm_phy_nwp_config(jg)%phyProcs,    & !in
-              &                     mtime_current = datetime_local(jg)%ptr,             & !in
-              &                     isInit        = .FALSE.,                            & !in
-              &                     lcall_phy     = atm_phy_nwp_config(jg)%lcall_phy(:) ) !inout
-          END IF
-
           SELECT CASE (iforcing)
 
           CASE (inwp) ! iforcing
 
+#ifndef __NO_NWP__
+            ! Determine which physics packages must be called/not called at the current
+            ! time step
+            CALL mtime_ctrl_physics(phyProcs      = atm_phy_nwp_config(jg)%phyProcs,    & !in
+              &                     mtime_current = datetime_local(jg)%ptr,             & !in
+              &                     isInit        = .FALSE.,                            & !in
+              &                     lcall_phy     = atm_phy_nwp_config(jg)%lcall_phy(:) ) !inout
 
             ! nwp physics
             !$ser verbatim CALL serialize_all(nproma, jg, "physics", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
@@ -2123,6 +2160,7 @@ MODULE mo_nh_stepping
                 &                  p_nh_state_lists(jg)%prog_list(n_new_rcf), & !in
                 &                  lacc=.TRUE.                         ) !in
             !$ser verbatim CALL serialize_all(nproma, jg, "physics", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
+#endif
 
           CASE (iaes) ! iforcing
 
@@ -2479,11 +2517,13 @@ MODULE mo_nh_stepping
             linit_dyn(jgc)               = .TRUE.
             dt_sub                       = dt_loc/2._wp
 
+#ifndef __NO_NWP__
             IF (  atm_phy_nwp_config(jgc)%inwp_surface == 1 ) THEN
               CALL aggregate_landvars(p_patch(jg), ext_data(jg),                &
                 p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), p_lnd_state(jg)%diag_lnd, &
                 lacc=.TRUE.)
             ENDIF
+#endif
 
 #ifdef _OPENACC
             IF (msg_level >= 7) &
@@ -2501,12 +2541,17 @@ MODULE mo_nh_stepping
               p_nh_state(jgc)%prog(nnow(jgc))%rho, p_nh_state(jgc)%prog(nnow(jgc))%exner,    &
               p_nh_state(jgc)%prog(nnow(jgc))%theta_v )
 
-            CALL init_exner_pr(jgc, nnow(jgc), use_acc=.FALSE.)
+            ! initialize perturbation exner pressure exner_pr
+            CALL compute_exner_pert(exner     = p_nh_state(jgc)%prog(nnow(jgc))%exner, & !in
+              &                     exner_ref = p_nh_state(jgc)%metrics%exner_ref_mc,  & !in
+              &                     exner_pr  = p_nh_state(jgc)%diag%exner_pr,         & !inout
+              &                     use_acc   =.FALSE.)
 
             ! Activate cold-start mode in TERRA-init routine irrespective of what has been used for the global domain
             init_mode_soil = 1
 
             IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
               CALL init_nwp_phy(                           &
                 & p_patch(jgc)                            ,&
                 & p_nh_state(jgc)%metrics                 ,&
@@ -2545,6 +2590,7 @@ MODULE mo_nh_stepping
                 &                       ext_data(jgc), prm_diag(jgc))
 
               IF (iprog_aero >= 1) CALL setup_aerosol_advection(p_patch(jgc))
+#endif
             ENDIF
 
             ! init airmass_new (diagnose airmass from \rho(now)). airmass_now not needed
@@ -2809,22 +2855,21 @@ MODULE mo_nh_stepping
     ! Set local variable for rcf-time levels
     n_now_rcf = nnow_rcf(jg)
 
-    IF (iforcing == inwp) THEN
-      CALL mtime_ctrl_physics(phyProcs      = atm_phy_nwp_config(jg)%phyProcs,    &
-        &                     mtime_current = mtime_current,                      &
-        &                     isInit        = .TRUE.,                             &
-        &                     lcall_phy     = atm_phy_nwp_config(jg)%lcall_phy(:) )
-    END IF
-
 
     IF (msg_level >= 7) THEN
       WRITE(message_text,'(a,i2)') 'initial call of (slow) physics, domain ', jg
       CALL message(routine, message_text)
     ENDIF
-   
+
     SELECT CASE (iforcing)
 
     CASE (inwp) ! iforcing
+
+#ifndef __NO_NWP__
+      CALL mtime_ctrl_physics(phyProcs      = atm_phy_nwp_config(jg)%phyProcs,    &
+        &                     mtime_current = mtime_current,                      &
+        &                     isInit        = .TRUE.,                             &
+        &                     lcall_phy     = atm_phy_nwp_config(jg)%lcall_phy(:) )
       !
       ! nwp physics, slow physics forcing
       !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .TRUE., opt_lupdate_cpu=.FALSE.)
@@ -2854,7 +2899,7 @@ MODULE mo_nh_stepping
           &                  p_nh_state_lists(jg)%prog_list(n_now_rcf), & !in
           &                  lacc=lacc) !in
       !$ser verbatim CALL serialize_all(nproma, jg, "physics_init", .FALSE., opt_lupdate_cpu=.FALSE.)
-
+#endif
 
     CASE (iaes) ! iforcing
 #ifdef __NO_AES__   
@@ -3154,43 +3199,7 @@ MODULE mo_nh_stepping
   END SUBROUTINE diag_for_output_dyn
 
 
-
-  !-------------------------------------------------------------------------
-  !>
-  !! Wrapper for computation of aggregated land variables
-  !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2014-07-21)
-  !!
-  SUBROUTINE aggr_landvars(lacc)
-
-    LOGICAL, INTENT(IN)   :: lacc
-
-    ! Local variables
-    INTEGER :: jg ! loop indices
-
-    CALL assert_acc_device_only("aggr_landvars", lacc)
-
-    IF (ltimer) CALL timer_start(timer_nh_diagnostics)
-
-    DO jg = 1, n_dom
-
-      IF (.NOT. p_patch(jg)%domain_is_owned) CYCLE
-      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-
-      IF (  atm_phy_nwp_config(jg)%inwp_surface == 1 ) THEN
-        CALL aggregate_landvars( p_patch(jg), ext_data(jg),                 &
-             p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), p_lnd_state(jg)%diag_lnd, &
-             lacc=lacc)
-      ENDIF
-
-    ENDDO ! jg-loop
-
-    IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
-
-  END SUBROUTINE aggr_landvars
-
+#ifndef __NO_NWP__
   !-------------------------------------------------------------------------
   !>
   !! Fills nest boundary cells for physics fields
@@ -3241,69 +3250,6 @@ MODULE mo_nh_stepping
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! Update of vertical wind offcentering and divergence damping
-  !!
-  !! This routine handles the increased sound-wave damping (by increasing the vertical wind offcentering)
-  !! and mixed second-order/fourth-order divergence damping during the initial spinup phase
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-06-04)
-  !!
-  SUBROUTINE update_spinup_damping(elapsed_time)
-
-    REAL(wp), INTENT(IN) :: elapsed_time
-    REAL(wp) :: time1, time2
-
-    time1 = 1800._wp  ! enhanced damping during the first half hour of integration
-    time2 = 7200._wp  ! linear decrease of enhanced damping until time2
-
-    IF (elapsed_time <= time1) THEN ! apply slightly super-implicit weights
-      divdamp_fac_o2 = 8._wp*divdamp_fac
-    ELSE IF (elapsed_time <= time2) THEN ! linearly decrease minimum weights to 0.5
-      divdamp_fac_o2 = 8._wp*divdamp_fac*(time2-elapsed_time)/(time2-time1)
-    ELSE
-      divdamp_fac_o2 = 0._wp
-    ENDIF
-
-
-  END SUBROUTINE update_spinup_damping
-
-
-  !-------------------------------------------------------------------------
-  !> Auxiliary routine to encapsulate initialization of exner_pr variable
-  !!
-  SUBROUTINE init_exner_pr(jg, nnow, use_acc)
-    INTEGER, INTENT(IN) :: jg, nnow ! domain ID / time step indicator
-    LOGICAL, INTENT(IN) :: use_acc  ! if True, use openACC
-    INTEGER :: i,j,k,ie,je,ke
-
-   ie = SIZE(p_nh_state(jg)%diag%exner_pr, 1)
-   je = SIZE(p_nh_state(jg)%diag%exner_pr, 2)
-   ke = SIZE(p_nh_state(jg)%diag%exner_pr, 3)
-!$OMP PARALLEL
-#if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
-!$OMP DO PRIVATE(i,j,k)
-#else
-!$OMP DO COLLAPSE(3) PRIVATE(i,j,k)
-#endif
-  !$ACC PARALLEL PRESENT(p_nh_state) ASYNC(1) IF(use_acc)
-  !$ACC LOOP GANG VECTOR COLLAPSE(3)
-  DO k = 1, ke
-    DO j = 1, je
-      DO i = 1, ie
-        p_nh_state(jg)%diag%exner_pr(i,j,k) = &
-          & p_nh_state(jg)%prog(nnow)%exner(i,j,k) - &
-          & REAL(p_nh_state(jg)%metrics%exner_ref_mc(i,j,k), wp)
-      END DO
-    END DO
-  END DO
-  !$ACC END PARALLEL
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-  END SUBROUTINE init_exner_pr
-
-  !-------------------------------------------------------------------------
   !> Driver routine to reset the model to its initial state if IAU iteration is selected
   !!
   SUBROUTINE reset_to_initial_state(datetime_current)
@@ -3352,7 +3298,12 @@ MODULE mo_nh_stepping
         &                  rho       = p_nh_state(jg)%prog(nnow(jg))%rho, & !in
         &                  airmass   = p_nh_state(jg)%diag%airmass_new    ) !inout
 
-      CALL init_exner_pr(jg, nnow(jg), use_acc=.FALSE.)
+
+      ! initialize perturbation exner pressure exner_pr
+      CALL compute_exner_pert(exner     = p_nh_state(jg)%prog(nnow(jg))%exner, & !in
+        &                     exner_ref = p_nh_state(jg)%metrics%exner_ref_mc, & !in
+        &                     exner_pr  = p_nh_state(jg)%diag%exner_pr,        & !inout
+        &                     use_acc   =.FALSE.)
 
       CALL init_nwp_phy(                            &
            & p_patch(jg)                           ,&
@@ -3376,20 +3327,50 @@ MODULE mo_nh_stepping
       CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), phy_params=phy_params(jg), &
                           atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
 #endif
-
     ENDDO
 
 #ifdef _OPENACC
     i_am_accel_node = my_process_is_work()
 #endif
 
-    CALL aggr_landvars(lacc=.TRUE.)
+    CALL aggr_landvars(p_patch(1:), ext_data(:), p_lnd_state(:), lacc=.TRUE.)
 
     CALL init_slowphysics (datetime_current, 1, dtime, lacc=.TRUE.)
 
     CALL fill_nestlatbc_phys(lacc=.TRUE.)
 
   END SUBROUTINE reset_to_initial_state
+#endif  /* __NO_NWP__ */
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Update of vertical wind offcentering and divergence damping
+  !!
+  !! This routine handles the increased sound-wave damping (by increasing the vertical wind offcentering)
+  !! and mixed second-order/fourth-order divergence damping during the initial spinup phase
+  !!
+  !! @par Revision History
+  !! Developed by Guenther Zaengl, DWD (2013-06-04)
+  !!
+  SUBROUTINE update_spinup_damping(elapsed_time)
+
+    REAL(wp), INTENT(IN) :: elapsed_time
+    REAL(wp) :: time1, time2
+
+    time1 = 1800._wp  ! enhanced damping during the first half hour of integration
+    time2 = 7200._wp  ! linear decrease of enhanced damping until time2
+
+    IF (elapsed_time <= time1) THEN ! apply slightly super-implicit weights
+      divdamp_fac_o2 = 8._wp*divdamp_fac
+    ELSE IF (elapsed_time <= time2) THEN ! linearly decrease minimum weights to 0.5
+      divdamp_fac_o2 = 8._wp*divdamp_fac*(time2-elapsed_time)/(time2-time1)
+    ELSE
+      divdamp_fac_o2 = 0._wp
+    ENDIF
+
+
+  END SUBROUTINE update_spinup_damping
+
 
   !-------------------------------------------------------------------------
   !> Control routine for adaptive number of dynamic substeps
@@ -3484,6 +3465,7 @@ MODULE mo_nh_stepping
       &    'deallocation for linit_dyn failed' )
   ENDIF
 
+#ifndef __NO_NWP__
   IF (ALLOCATED(sst_reader)) THEN
     DO jg = 1, n_dom
       CALL sst_reader(jg)%deinit
@@ -3494,7 +3476,7 @@ MODULE mo_nh_stepping
       CALL sic_reader(jg)%deinit
     ENDDO
   ENDIF
-
+#endif
   END SUBROUTINE deallocate_nh_stepping
   !-------------------------------------------------------------------------
 

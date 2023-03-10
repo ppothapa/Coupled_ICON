@@ -732,6 +732,7 @@ enable_jsbach
 enable_waves
 enable_coupling
 enable_aes
+enable_nwp
 enable_ecrad
 enable_rte_rrtmgp
 enable_rttov
@@ -1475,10 +1476,11 @@ Model Features:
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
-  --enable-waves          enable the surface wave component of ICON
+  --enable-waves          enable the ocean surface wave component of ICON
                           [default=no]
   --enable-coupling       enable the coupling [default=yes]
   --enable-aes            enable the AES physics package [default=yes]
+  --enable-nwp            enable the NWP physics package [default=yes]
   --enable-ecrad          enable usage of the ECMWF radiation scheme (ECRAD)
                           [default=no]
   --enable-rte-rrtmgp     enable usage of the RTE+RRTMGP toolbox for radiation
@@ -2544,6 +2546,16 @@ if test "${enable_aes+set}" = set; then :
 fi
 else
   enable_aes=yes
+fi
+
+
+# Check whether --enable-nwp was given.
+if test "${enable_nwp+set}" = set; then :
+  enableval=$enable_nwp; if test x"$enableval" != xno; then :
+  enable_nwp=yes
+fi
+else
+  enable_nwp=yes
 fi
 
 
@@ -4710,6 +4722,10 @@ fi
 
 if test "x$enable_aes" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_AES__"
+fi
+
+if test "x$enable_nwp" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_NWP__"
 fi
 
 if test "x$enable_ecrad" = xyes; then :

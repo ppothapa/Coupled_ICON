@@ -12,8 +12,16 @@ if [ ! -z "${BB_NAME-}" ]; then
 
 fi
 
+# Make sure we run serially:
+config_args='--disable-mpi  --disable-openmp'
+
 # Make sure we disable all features that require MPI:
-${ICON_DIR}/config/dkrz/levante.nag --disable-mpi --disable-parallel-netcdf --disable-coupling --disable-yaxt --disable-openmp
+config_args+=' --disable-parallel-netcdf --disable-coupling --disable-yaxt'
+
+# Additionally, check whether we can build without NWP:
+config_args+=' --disable-nwp'
+#
+${ICON_DIR}/config/dkrz/levante.nag ${config_args}
 
 if [ ! -z "${BB_NAME-}" ] ; then
   MAKE_PROCS=22

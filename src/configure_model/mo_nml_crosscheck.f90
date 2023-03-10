@@ -290,9 +290,14 @@ CONTAINS
     CALL finish( routine, 'NWP physics only implemented in the '//&
                'nonhydrostatic atm model')
 
-#ifdef __NO_AES
+#ifdef __NO_AES__
     IF ( iforcing==iaes ) &
       CALL finish( routine, 'AES physics desired, but compilation with --disable-aes' )
+#endif
+
+#ifdef __NO_NWP__
+    IF ( iforcing==inwp ) &
+      CALL finish( routine, 'NWP physics desired, but compilation with --disable-nwp' )
 #endif
 
     !--------------------------------------------------------------------

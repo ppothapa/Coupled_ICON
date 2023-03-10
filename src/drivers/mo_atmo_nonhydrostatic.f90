@@ -65,10 +65,6 @@ USE mo_nh_nest_utilities,    ONLY: complete_nesting_setup
 USE mo_nonhydrostatic_config,ONLY: configure_nonhydrostatic, kstart_moist, kend_qvsubstep, &
   &                                l_open_ubc, itime_scheme, kstart_tracer, ndyn_substeps
 
-USE mo_atm_phy_nwp_config,   ONLY: configure_atm_phy_nwp, atm_phy_nwp_config
-USE mo_ensemble_pert_config, ONLY: configure_ensemble_pert
-USE mo_synsat_config,        ONLY: configure_synsat
-USE mo_nwp_ww,               ONLY: configure_ww
 ! NH-Model states
 USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
   &                                construct_nh_state, destruct_nh_state,      &
@@ -76,16 +72,11 @@ USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
 USE mo_prepadv_state,        ONLY: construct_prepadv_state, destruct_prepadv_state
 USE mo_opt_diagnostics,      ONLY: construct_opt_diag, destruct_opt_diag,      &
   &                                compute_lonlat_area_weights
-USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend, prm_nwp_stochconv,  &
-  &                                construct_nwp_phy_state
-USE mo_nwp_lnd_state,        ONLY: p_lnd_state, construct_nwp_lnd_state
-USE mo_nwp_phy_cleanup,      ONLY: cleanup_nwp_phy
 ! Time integration
 USE mo_nh_stepping,          ONLY: perform_nh_stepping
 ! Initialization with real data
 USE mo_initicon,            ONLY: init_icon
 USE mo_ext_data_state,      ONLY: ext_data
-USE mo_ext_data_init,       ONLY: init_index_lists
 ! meteogram output
 USE mo_meteogram_output,    ONLY: meteogram_init, meteogram_finalize
 USE mo_meteogram_config,    ONLY: meteogram_output_config
@@ -97,6 +88,21 @@ USE mo_name_list_output_init, ONLY:  init_name_list_output,        &
 USE mo_level_selection,     ONLY: create_mipz_level_selections
 USE mo_name_list_output,    ONLY: close_name_list_output
 USE mo_pp_scheduler,        ONLY: pp_scheduler_init, pp_scheduler_finalize
+
+! NWP physics
+USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend, prm_nwp_stochconv,  &
+  &                                construct_nwp_phy_state
+USE mo_nwp_lnd_state,        ONLY: p_lnd_state, construct_nwp_lnd_state
+USE mo_atm_phy_nwp_config,   ONLY: configure_atm_phy_nwp, atm_phy_nwp_config
+USE mo_synsat_config,        ONLY: configure_synsat
+#ifndef __NO_NWP__
+USE mo_ensemble_pert_config, ONLY: configure_ensemble_pert
+USE mo_ext_data_init,        ONLY: init_index_lists
+USE mo_sppt_state,           ONLY: construct_sppt_state, destruct_sppt_state
+USE mo_sppt_config,          ONLY: sppt_config, configure_sppt
+USE mo_nwp_phy_cleanup,      ONLY: cleanup_nwp_phy
+USE mo_nwp_ww,               ONLY: configure_ww
+#endif
 
 ! AES physics
 USE mo_aes_phy_config,      ONLY: aes_phy_tc, dt_zero, aes_phy_config
@@ -148,8 +154,6 @@ USE mo_random_util,         ONLY: add_random_noise
 
 USE mo_icon2dace,           ONLY: init_dace, finish_dace
 
-USE mo_sppt_state,          ONLY: construct_sppt_state, destruct_sppt_state
-USE mo_sppt_config,         ONLY: sppt_config, configure_sppt
 !-------------------------------------------------------------------------
 #ifdef HAVE_CDI_PIO
   USE mo_impl_constants,      ONLY: pio_type_cdipio
@@ -226,28 +230,34 @@ CONTAINS
 
     IF(iforcing == inwp) THEN
 
+#ifndef __NO_NWP__
       CALL configure_ensemble_pert(ext_data, time_config%tc_exp_startdate)
 
       ! - generate index lists for tiles (land, ocean, lake)
       ! index lists for ice-covered and non-ice covered ocean points
       ! are initialized in init_nwp_phy
       CALL init_index_lists (p_patch(1:), ext_data)
+#endif
 
       CALL configure_atm_phy_nwp(n_dom, p_patch(1:), dtime)
 
       CALL configure_synsat()
 
       DO jg = 1, n_dom
+#ifndef __NO_NWP__
         CALL configure_ww( time_config%tc_startdate, jg, p_patch(jg)%nlev, p_patch(jg)%nshift_total, 'ICON')
+#endif
         !
         ! initialize number of chemical tracers for convection
         CALL configure_art(jg)
       ENDDO
 
+#ifndef __NO_NWP__
       ! configure SPPT
       IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
         CALL configure_sppt(n_dom, p_patch(1:), time_config%tc_current_date)
       ENDIF
+#endif
 
     ENDIF
 
@@ -288,6 +298,7 @@ CONTAINS
     CALL construct_prepadv_state (p_patch(1:))
 
     IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
       CALL construct_nwp_phy_state( p_patch(1:), var_in_output)
       CALL construct_nwp_lnd_state( p_patch(1:), p_lnd_state, var_in_output(:)%smi, n_timelevels=2 )
 
@@ -295,7 +306,7 @@ CONTAINS
       IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
         CALL construct_sppt_state(p_patch(1:))
       ENDIF
-
+#endif
     END IF
 
     IF (iforcing == iaes) THEN
@@ -787,13 +798,14 @@ CONTAINS
 #endif
     ! cleanup NWP physics
     IF (iforcing == inwp) THEN
+#ifndef __NO_NWP__
       CALL cleanup_nwp_phy()
-    
+
       ! Destruct SPPT state
       IF ( ANY(sppt_config(1:n_dom)%lsppt) ) THEN
         CALL destruct_sppt_state()
       ENDIF
-
+#endif
     ENDIF
 
     IF (iforcing == iaes) THEN

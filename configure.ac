@@ -128,7 +128,7 @@ AC_ARG_ENABLE([jsbach],
 
 AC_ARG_ENABLE([waves],
   [AS_HELP_STRING([--enable-waves],
-     [enable the surface wave component of ICON @<:@default=no@:>@])],
+     [enable the ocean surface wave component of ICON @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_waves=yes])],
     [enable_waves=no])
 
@@ -143,6 +143,12 @@ AC_ARG_ENABLE([aes],
      [enable the AES physics package @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_aes=yes])],
   [enable_aes=yes])
+
+AC_ARG_ENABLE([nwp],
+  [AS_HELP_STRING([--enable-nwp],
+     [enable the NWP physics package @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_nwp=yes])],
+  [enable_nwp=yes])
 
 AC_ARG_ENABLE([ecrad],
   [AS_HELP_STRING([--enable-ecrad],
@@ -721,6 +727,9 @@ AS_VAR_IF([enable_coupling], [yes],
 
 AS_VAR_IF([enable_aes], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_AES__"])])
+
+AS_VAR_IF([enable_nwp], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_NWP__"])])
 
 AS_VAR_IF([enable_ecrad], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ECRAD"])])

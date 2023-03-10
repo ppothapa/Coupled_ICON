@@ -45,13 +45,14 @@ MODULE mo_nwp_sfc_utils
   USE mo_nwp_lnd_types,       ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag, t_lnd_state
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE mo_parallel_config,     ONLY: nproma
-  USE mo_grid_config,         ONLY: l_limited_area
+  USE mo_grid_config,         ONLY: l_limited_area, n_dom
   USe mo_extpar_config,       ONLY: itopo, itype_vegetation_cycle
   USE mo_lnd_nwp_config,      ONLY: nlev_soil, nlev_snow, ntiles_total, ntiles_water, &
     &                               lseaice, llake, lmulti_snow, idiag_snowfrac, ntiles_lnd, &
     &                               lsnowtile, isub_water, isub_seaice, isub_lake,    &
     &                               itype_interception, l2lay_rho_snow, lprog_albsi, itype_trvg, &
                                     itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_nwp_tuning_config,   ONLY: tune_minsnowfrac
   USE mo_initicon_config,     ONLY: init_mode_soil, ltile_coldstart, init_mode, lanaread_tseasfc, use_lakeiceana
@@ -72,7 +73,8 @@ MODULE mo_nwp_sfc_utils
   USE mo_util_string,         ONLY: int2string
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_index_list,          ONLY: generate_index_list
-  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_device_only
+  USE mo_timer,               ONLY: ltimer, timer_nh_diagnostics, timer_start, timer_stop
 
   IMPLICIT NONE
 
@@ -88,7 +90,7 @@ INTEGER, PARAMETER :: nlsoil= 8
 
   PUBLIC :: nwp_surface_init
   PUBLIC :: diag_snowfrac_tg
-  PUBLIC :: aggregate_landvars
+  PUBLIC :: aggregate_landvars, aggr_landvars
   PUBLIC :: aggregate_tg_qvs
   PUBLIC :: update_idx_lists_lnd
   PUBLIC :: update_idx_lists_sea
@@ -1256,6 +1258,44 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Wrapper for computation of aggregated land variables
+  !!
+  !!
+  !! @par Revision History
+  !! Developed by Guenther Zaengl, DWD (2014-07-21)
+  !!
+  SUBROUTINE aggr_landvars(p_patch, ext_data, p_lnd_state, lacc)
+
+    TYPE(t_patch),             INTENT(IN)    :: p_patch(:)     !< grid/patch info
+    TYPE(t_external_data),     INTENT(IN)    :: ext_data(:)    !< external data
+    TYPE(t_lnd_state),         INTENT(INOUT) :: p_lnd_state(:) !< prog and diag lnd state
+    LOGICAL,                   INTENT(IN)    :: lacc
+
+    ! Local variables
+    INTEGER :: jg ! loop indices
+
+    CALL assert_acc_device_only("aggr_landvars", lacc)
+
+    DO jg = 1, n_dom
+
+      IF (.NOT. p_patch(jg)%domain_is_owned) CYCLE
+      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+      IF (  atm_phy_nwp_config(jg)%inwp_surface == 1 ) THEN
+        CALL aggregate_landvars( p_patch(jg), ext_data(jg),                 &
+             p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), p_lnd_state(jg)%diag_lnd, &
+             lacc=lacc)
+      ENDIF
+
+    ENDDO ! jg-loop
+
+  END SUBROUTINE aggr_landvars
+
+!-------------------------------------------------------------------------
+
   !>
   !! Aggregation of tile-specific, instantaneous soil and surface fields
   !!
@@ -1270,7 +1310,7 @@ CONTAINS
   !!
   SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, lacc )
 
-    TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch       !< grid/patch info
+    TYPE(t_patch),               INTENT(in)   :: p_patch       !< grid/patch info
     TYPE(t_external_data),       INTENT(in)   :: ext_data      !< external data
     TYPE(t_lnd_prog),            INTENT(inout):: lnd_prog      !< prog vars for sfc
     TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag      !< diag vars for sfc
@@ -1290,6 +1330,8 @@ CONTAINS
     INTEGER :: icount         ! index list length per block
     INTEGER :: ic
     INTEGER :: styp           ! soil type index
+
+    IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
     !$ACC DATA CREATE(lmask) PRESENT(ext_data, lnd_prog, lnd_diag, dzsoil) IF(lacc)
 
@@ -1693,6 +1735,8 @@ CONTAINS
 
     !$ACC WAIT
     !$ACC END DATA
+
+    IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
 
   END SUBROUTINE aggregate_landvars
 
