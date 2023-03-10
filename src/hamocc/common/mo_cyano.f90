@@ -97,7 +97,7 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
         ENDIF
 
      ENDDO
-     !$ACC END PARALLEL
+     !$ACC END PARALLEL LOOP
      !$ACC END DATA
  
  
@@ -331,7 +331,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
             ENDIF ! wet cells
       ENDDO ! 
   ENDDO ! 
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
  
 
 ! -------------- buoyancy of cyanobacteria----------------------------------------
@@ -371,7 +371,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
     endif   
    ENDIF
  ENDDO
- !$ACC END PARALLEL
+ !$ACC END PARALLEL LOOP
                   
  
 END SUBROUTINE  cyadyn

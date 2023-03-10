@@ -101,7 +101,7 @@ DO jb = all_cells%start_block, all_cells%end_block
        END IF
 
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
 END DO
 

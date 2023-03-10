@@ -1180,11 +1180,11 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_inDomain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       level_loop_e: DO level = startLevel, endLevel
         edge_idx_loop: DO je =  start_edge_index, end_edge_index
           IF (lsm_e(je,level,blockNo) == sea) THEN
@@ -1310,11 +1310,11 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         IF (dolic_e(je,blockNo) < 1) CYCLE
@@ -1556,7 +1556,7 @@ CONTAINS
       
       out_vn_e(:,:,blockNo) = 0.0_wp
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       level_loop_e2: DO level = startLevel, endLevel
         edge_idx_loop2: DO je =  start_edge_index, end_edge_index
           IF (lsm_e(je,level,blockNo) == sea) THEN
@@ -1937,11 +1937,11 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_inDomain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       out_vn_e(:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       edge_idx_loop: DO je =  start_edge_index, end_edge_index
         endLevel = dolic_e(je,blockNo)
         level_loop_e: DO level = startLevel, endLevel
@@ -2063,7 +2063,7 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_indomain, blockNo, start_edge_index, end_edge_index)
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         
         out_vn_e(je,blockNo) = 0.0_wp

@@ -312,11 +312,11 @@ CONTAINS
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
       
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_index, end_index
         DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)
           
@@ -340,14 +340,14 @@ CONTAINS
     DO blockNo = cells_start_block, cells_end_block
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
       
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_tracer_new_low(:,:,blockNo)    = 0.0_wp
       z_tracer_update_horz(:,:,blockNo)= 0.0_wp
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_index, end_index
         IF (dolic_c(jc,blockNo) < 1) CYCLE
         ! get prism thickness
@@ -454,14 +454,14 @@ CONTAINS
 
       ! this is only needed for the parallel test setups
       ! it will try  tocheck the uninitialized (land) parts
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       r_m(:,:,blockNo) = 0.0_wp
       r_p(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
         
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_index, end_index
         
         ! get prism thickness
@@ -546,11 +546,11 @@ CONTAINS
 
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_index, end_index
       
         DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)

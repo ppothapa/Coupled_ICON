@@ -869,13 +869,13 @@ CONTAINS
           & start_level=1, end_level=n_zlev)
         ! integrate div on columns
         div_z_depth_int_c(:) = 0.0_wp
-!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE)
+!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
         DO jc = start_cell_index, end_cell_index
           div_z_depth_int_c(jc) = SUM(div_z_c(jc, 1:dolic_c(jc,blockNo)))
         END DO
 !        !$ACC END PARALLEL LOOP
         p_rhs_sfc_eq(:,blockNo) = 0.0_wp
-!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE)
+!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
         DO jc = start_cell_index, end_cell_index
           IF (dolic_c(jc,blockNo) > 0) THEN
             p_rhs_sfc_eq(jc,blockNo) = ((h_old(jc,blockNo) &
@@ -1130,7 +1130,7 @@ CONTAINS
           CALL div_oce_3D_onTriangles_onBlock(mass_flx_e, patch_3D, div_coeff, &
             & div_mass_flx_c(:,:,blockNo), blockNo=blockNo, start_index=start_index, &
             & end_index=end_index, start_level=1, end_level=n_zlev)
-!          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE)
+!          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
           DO jc = start_index, end_index
             !use bottom boundary condition for vertical velocity at bottom of prism
             ! this should be awlays zero

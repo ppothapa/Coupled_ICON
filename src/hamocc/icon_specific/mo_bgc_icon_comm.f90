@@ -123,7 +123,7 @@
         ENDDO
         ENDIF
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
  
       END SUBROUTINE
 
