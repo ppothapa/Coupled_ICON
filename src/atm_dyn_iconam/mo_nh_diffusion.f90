@@ -1308,16 +1308,34 @@ MODULE mo_nh_diffusion
         ENDDO
         !$ACC END PARALLEL LOOP
 
-        ! Add nabla2 diffusion in upper damping layer (if present)
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
-        DO jk = 2, nrdmax(jg)
-!DIR$ IVDEP
-          DO jc = i_startidx, i_endidx
-            p_nh_prog%w(jc,jk,jb) = p_nh_prog%w(jc,jk,jb) +                         &
-              diff_multfac_n2w(jk) * p_patch%cells%area(jc,jb) * z_nabla2_c(jc,jk,jb)
+        ! add Smagorinsky diffusion on vertical wind speed
+        IF (diffusion_config(jg)%lhdiff_smag_w) THEN
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+          DO jk = 2, nlev
+            DO jc = i_startidx, i_endidx
+              p_nh_prog%w(jc,jk,jb) = p_nh_prog%w(jc,jk,jb) + p_patch%cells%area(jc,jb)*z_nabla2_c(jc,jk,jb) * &
+                MAX(diff_multfac_n2w(jk) ,                                                                     &
+                 0.5_wp*(kh_smag_e(ieidx(jc,jb,1),jk,ieblk(jc,jb,1))*p_int%e_bln_c_s(jc,1,jb)   +              &
+                         kh_smag_e(ieidx(jc,jb,2),jk,ieblk(jc,jb,2))*p_int%e_bln_c_s(jc,2,jb)   +              &
+                         kh_smag_e(ieidx(jc,jb,3),jk,ieblk(jc,jb,3))*p_int%e_bln_c_s(jc,3,jb)   +              &
+                         kh_smag_e(ieidx(jc,jb,1),jk-1,ieblk(jc,jb,1))*p_int%e_bln_c_s(jc,1,jb) +              &
+                         kh_smag_e(ieidx(jc,jb,2),jk-1,ieblk(jc,jb,2))*p_int%e_bln_c_s(jc,2,jb) +              &
+                         kh_smag_e(ieidx(jc,jb,3),jk-1,ieblk(jc,jb,3))*p_int%e_bln_c_s(jc,3,jb)) )
+            ENDDO
           ENDDO
-        ENDDO
-        !$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL LOOP
+        ELSE
+          ! Add nabla2 diffusion in upper damping layer (if present)
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+          DO jk = 2, nrdmax(jg)
+!DIR$ IVDEP
+            DO jc = i_startidx, i_endidx
+              p_nh_prog%w(jc,jk,jb) = p_nh_prog%w(jc,jk,jb) +                         &
+                diff_multfac_n2w(jk) * p_patch%cells%area(jc,jb) * z_nabla2_c(jc,jk,jb)
+            ENDDO
+          ENDDO
+          !$ACC END PARALLEL LOOP
+        ENDIF
 
       ENDDO
 !$OMP END DO

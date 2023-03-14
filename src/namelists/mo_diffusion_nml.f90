@@ -17,6 +17,7 @@ MODULE mo_diffusion_nml
   USE mo_diffusion_config,    ONLY: diffusion_config
   USE mo_dynamics_config,     ONLY: iequations
   USE mo_kind,                ONLY: wp
+  USE mo_impl_constants,      ONLY: max_dom
   USE mo_mpi,                 ONLY: my_process_is_stdio 
   USE mo_exception,           ONLY: message, finish
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -61,7 +62,8 @@ MODULE mo_diffusion_nml
   LOGICAL :: lhdiff_temp   ! if .TRUE., apply horizontal diffusion to temp.
   LOGICAL :: lhdiff_vn     ! if .TRUE., apply horizontal diffusion to horizontal momentum.
   LOGICAL :: lhdiff_w      ! if .TRUE., apply horizontal diffusion to vertical momentum.
-  LOGICAL :: lsmag_3d      ! if .TRUE., compute 3D Smagorinsky diffusion coefficient.
+  LOGICAL :: lsmag_3d(max_dom)      ! if .TRUE., compute 3D Smagorinsky diffusion coefficient.
+  LOGICAL :: lhdiff_smag_w(max_dom) ! if .TRUE., apply additional Smagorinsky diffusion to vertical momentum.
 
   NAMELIST/diffusion_nml/ hdiff_order,                                                       &
                           hdiff_efdt_ratio, hdiff_min_efdt_ratio, hdiff_tv_ratio,            &
@@ -101,7 +103,8 @@ CONTAINS
     lhdiff_temp          = .TRUE.
     lhdiff_vn            = .TRUE.
     lhdiff_w             = .TRUE.
-    lsmag_3d             = .FALSE.
+    lsmag_3d(:)          = .FALSE.
+    lhdiff_smag_w(:)     = .FALSE.
 
     IF (iequations == 3) THEN
       hdiff_order          = 5
@@ -229,7 +232,8 @@ CONTAINS
     diffusion_config(:)% lhdiff_temp          =  lhdiff_temp
     diffusion_config(:)% lhdiff_vn            =  lhdiff_vn
     diffusion_config(:)% lhdiff_w             =  lhdiff_w
-    diffusion_config(:)% lsmag_3d             =  lsmag_3d
+    diffusion_config(:)% lsmag_3d             =  lsmag_3d(:)
+    diffusion_config(:)% lhdiff_smag_w        =  lhdiff_smag_w(:)
     diffusion_config(:)% hdiff_order          =  hdiff_order
     diffusion_config(:)% hdiff_efdt_ratio     =  hdiff_efdt_ratio
     diffusion_config(:)% hdiff_w_efdt_ratio   =  hdiff_w_efdt_ratio

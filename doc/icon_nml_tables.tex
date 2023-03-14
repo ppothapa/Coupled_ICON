@@ -1223,9 +1223,16 @@ background diffusion as specified via hdiff\_efdt\_ratio  &
 
 %\hline
 \textbf{lsmag\_3d}&
-L& .FALSE. & &
+L(max\_dom)& .FALSE. & &
 .TRUE.: Use 3D Smagorinsky formulation for computing the horizontal diffusion coefficient (recommended at mesh sizes
 finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; itype\_vn\_diffu=1
+\tabularnewline
+
+%\hline
+\textbf{lhdiff\_smag\_w}&
+L(max\_dom)& .FALSE. & &
+.TRUE.: Use additional Smagorinsky diffusion for w (recommended at mesh sizes
+finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; lhdiff\_w=.true.
 \tabularnewline
 
 %\hline
