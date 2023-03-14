@@ -2060,7 +2060,7 @@ CONTAINS
     TYPE(t_reorder_info),  INTENT(in) :: ri
     INTEGER, INTENT(inout) :: ioff
     INTEGER, INTENT(in) :: nlevs
-
+    
     INTEGER :: i, jk, ri_blk, ri_idx
     DO jk = 1, nlevs
       DO i = 1, ri%n_own
