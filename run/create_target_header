@@ -2079,6 +2079,19 @@ create_target_header()
                     ;;
             esac
             ;;
+        *run_ICON_19_R2B4_R2B6_AO_coupled*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+#                    elapstim_req=01:00:00 # this variable does not exist yet
+                    ;;
+            esac
+            ;;
         *run_ICON-ART_01_R3B08_lam_initmode7_pollen*)
             use_memory="18gb"
             case $use_target in

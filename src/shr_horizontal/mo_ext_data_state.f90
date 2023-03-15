@@ -1492,9 +1492,9 @@ CONTAINS
       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
       &           grib2_desc, ldims=shape2d_c )
 
-    ! land-sea-mask switched by ocean on cell centers
+    ! land-sea-mask switched by ocean on cell centers (type of change)
     ! lsm_switch  p_ext_atm%lsm_switch(nproma,nblks_c)
-    cf_desc    = t_cf_var('lsm_switch', '0/1/2',                           &
+    cf_desc    = t_cf_var('lsm_switch', '0/1/2/3/4/5/10',                  &
       &                   'land-sea-mask switched by ocean', datatype_flt)
     grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_ext_atm_list, 'lsm_switch', p_ext_atm%lsm_switch,      &

@@ -118,6 +118,8 @@ CONTAINS
 
     REAL(wp), ALLOCATABLE :: lsmnolake(:,:)
 
+    REAL, PARAMETER :: eps = 1.E-10_wp
+
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
 
@@ -332,7 +334,7 @@ CONTAINS
        DO jb = 1, patch_horz%nblks_c
           DO jc = 1, nproma
 
-             IF ( lsmnolake(jc, jb) .LT. 1.0_wp ) THEN
+             IF ( lsmnolake(jc, jb) .LT. (1.0_wp - eps) ) THEN
                ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
                is_valid((jb-1)*nproma+jc) = .TRUE.
              ELSE
@@ -383,12 +385,63 @@ CONTAINS
     ENDDO
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
-    !
-    ! Get the mask on which the discharge is provided
-    ! Transfer the mask to YAC
-    ! Define additional coupling field(s) for JSBACH/HD
 
-    CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, grid_id, patch_horz%n_patch_cells)
+    IF (iforcing .NE. INWP) THEN  ! preliminary, not allowed to go here without jsbach/hd
+
+!     !
+!     ! Attention: needs to be checked with Roland Wirth and JSBACH users in case a second runoff mask is used
+!     !            if a separate runoff mask is used, the dimension of cell_mask_ids is (2)
+!     !
+!     ! ! Define cell_mask_ids(2) for runoff:
+!     ! !slo old!   Ocean coastal points with respect to HDmodel mask only are valid.
+!     ! !slo old!   The integer mask for the HDmodel is ext_data(1)%atm%lsm_hd_c(:,:).
+!     ! !slo old!   Caution: jg=1 is only valid for coupling to ocean
+!     ! !
+!     IF ( mask_checksum > 0 ) THEN
+! 
+! !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+!         DO jb = 1, patch_horz%nblks_c
+!           DO jc = 1, nproma
+! 
+!              IF ( lsmnolake(jc, jb) .LT. (1.0_wp - eps) ) THEN
+!                ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
+!                ! eps necessary because lsmnolake=lsm_ctr_c has input values of 0.999999 instead of 1.0)
+!                is_valid((jb-1)*nproma+jc) = .TRUE.
+!              ELSE
+!                ! land point (fraction of land is one, lsmnolake=1.) is undef
+!                is_valid((jb-1)*nproma+jc) = .FALSE.
+!              ENDIF
+! 
+!           ENDDO
+!         ENDDO
+! !ICON_OMP_END_PARALLEL_DO
+!     ELSE
+! !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+!        DO jc = 1,patch_horz%nblks_c * nproma
+!           is_valid(jc) = .TRUE.
+!        ENDDO
+! !ICON_OMP_END_PARALLEL_DO
+! 
+!     ENDIF
+! 
+!     CALL yac_fdef_mask (          &
+!       & grid_id,                  &
+!       & patch_horz%n_patch_cells, &
+!       & YAC_LOCATION_CELL,        &
+!       & is_valid,                 &
+!       & cell_mask_ids(2) )
+! 
+!     ! Define additional coupling field(s) for JSBACH/HD
+!     ! Utilize mask field for runoff
+!     ! cell_mask_ids(2) shall contain ocean coast points only for source point mapping (source_to_target_map)
+!     ! Currently it is the same mask as for the rest. 
+
+      ! change of call to be checked - no second mask used for this call
+      !CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids(2:2) )
+
+      CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, grid_id, patch_horz%n_patch_cells)
+
+    ENDIF
 
 #endif
 
@@ -403,6 +456,7 @@ CONTAINS
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 
   END SUBROUTINE construct_atmo_coupling
-
+  
 END MODULE mo_atmo_coupling_frame
+
 

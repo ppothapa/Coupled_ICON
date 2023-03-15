@@ -188,7 +188,7 @@ CONTAINS
     !
 #ifdef YAC_coupling
     IF ( is_coupled_run() ) THEN
-      CALL construct_atmo_coupling(p_patch)
+      CALL construct_atmo_coupling(p_patch(1:))
     ENDIF
 #endif
 

@@ -3,6 +3,20 @@
 !!
 !! @author Martin Koehler (DWD) and Rene Redler (MPI-M) based on ECHAM version by Marco Giorgetta (MPI-M)
 !!
+!! Notes on openMP parallelisation:
+!!   Most jb-loops cannot be optimized easily because converting a 2-D field into a 1-D field
+!!   requires remembering the 1-D index "ncount", which is incremented over the loop.  This 
+!!   technique is used in the current code and openMP is not used.
+!!   A solution suggested by Rene Redler would be to calculate that index (nn) would look like this:
+!!      !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+!!      DO jb = i_startblk, i_endblk
+!!        nn = (jb-1)*nproma                               ! translation to 1-d buffer fields
+!!        DO ic = 1, ext_data%atm%list_sea%ncount(jb)      ! number of ocean points (open water & sea ice)
+!!          jc = ext_data%atm%list_sea%idx(ic,jb)  
+!!          prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
+!!  It might also be necessary to synch the data before each loop passing data to the ocean.
+!!      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
+!! 
 !! @par Revision History
 !!
 !! @par Copyright and License
@@ -12,6 +26,7 @@
 !! Please see the file LICENSE in the root of the source tree for this code.
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
+!!
 !!
 
 !----------------------------
@@ -28,7 +43,7 @@ MODULE mo_nwp_ocean_interface
   USE mo_ext_data_types      ,ONLY: t_external_data
   USE mo_ccycle_config       ,ONLY: ccycle_config
 
-  USE mo_fortran_tools       ,ONLY: assert_acc_host_only
+  USE mo_fortran_tools       ,ONLY: init, assert_acc_host_only
   USE mo_parallel_config     ,ONLY: nproma
   USE mo_impl_constants_grf  ,ONLY: grf_bdywidth_c
   USE mo_impl_constants      ,ONLY: min_rlcell, min_rlcell_int
@@ -45,16 +60,12 @@ MODULE mo_nwp_ocean_interface
 
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
 
+  USE mo_parallel_config     ,ONLY: nproma
+
 #ifdef YAC_coupling
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
   USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
 #endif
-#endif
-
-  USE mo_parallel_config     ,ONLY: nproma
-
-  USE mo_coupling_config     ,ONLY: is_coupled_run
-#ifdef YAC_coupling
   USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
     &                               mask_checksum, field_id
   USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget,                     &
@@ -112,15 +123,12 @@ CONTAINS
     INTEGER               :: rl_start, rl_end
     INTEGER               :: i_startblk, i_endblk  ! blocks
     INTEGER               :: i_startidx, i_endidx  ! slices
-    INTEGER               :: i_nchdom              ! domain index
     INTEGER               :: ncount                ! buffer counter
 
     REAL(wp)              :: scr(nproma,p_patch%alloc_cell_blocks)
     REAL(wp)              :: frac_oce(nproma,p_patch%alloc_cell_blocks)
+    REAL(wp)              :: buffer(nproma*p_patch%nblks_c,5) ! buffer transferred to YAC coupler
     REAL (wp), PARAMETER  :: csmall = 1.0E-5_wp    ! small number (security constant)
-    REAL(wp), ALLOCATABLE :: buffer(:,:)           ! buffer transferred to YAC coupler
-
-    IF ( .NOT. is_coupled_run() ) RETURN
 
     CALL assert_acc_host_only('nwp_couple_ocean', lacc)
 
@@ -128,17 +136,22 @@ CONTAINS
     CALL finish('nwp_couple_ocean: unintentionally called. Check your source code and configure.')
 #else
 
-    ALLOCATE(buffer(nproma*p_patch%nblks_c,5))
+    ! As YAC does not touch masked data an explicit initialisation with zero
+    ! is required as some compilers are asked to initialise with NaN
+    ! and as we loop over the full array.
+
+!$OMP PARALLEL
+    CALL init(buffer(:,:))
+!$OMP END PARALLEL
 
     jg = p_patch%id
-    i_nchdom  = MAX(1,p_patch%n_childdom)
 
     ! include boundary interpolation zone of nested domains and halo points
     rl_start = 1
     rl_end   = min_rlcell
 
-    i_startblk = p_patch%cells%start_blk(rl_start,1)
-    i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = p_patch%cells%start_block(rl_start)
+    i_endblk   = p_patch%cells%end_block(rl_end)
 
     nbr_hor_cells = p_patch%n_patch_cells
 
@@ -161,7 +174,7 @@ CONTAINS
     !    prm_diag%hail_gsp_rate    (:,:)                grid_scale surface hail rate    [kg/m2/s]
     !
     !    prm_diag%qhfl_s_t(:,:,isub_water/isub_seaice)  moisture flux (surface) aka evaporation rate at surface [Kg/m2/s]
-    
+    !
     ! 4. prm_diag%swflxsfc_t (:,:,:)                    tile-based shortwave net flux at surface [W/m2]
     !    prm_diag%lwflxsfc_t (:,:,:)                    tile-based longwave net flux at surface  [W/m2]
     !    prm_diag%shfl_s_t   (:,:,:)                    tile-based sensible heat flux at surface [W/m2]
@@ -193,8 +206,6 @@ CONTAINS
     !-------------------------------------------------------------------------
 
 
-!! WRITE(*,*) 'ocean_interface 1 '
-
 !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
 !  Send fields from atmosphere to ocean
 !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
@@ -206,13 +217,9 @@ CONTAINS
     !  - lake part is included in land part, must be subtracted as well
     IF ( mask_checksum > 0 ) THEN
 
-!ICON_OMP PARALLEL
-!ICON_OMP DO PRIVATE(jb, jc, i_startidx, i_endidx) ICON_OMP_GUIDED_SCHEDULE
-      DO jb = i_startblk, i_endblk
-  
+      DO jb = i_startblk, i_endblk  
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                         & i_startidx, i_endidx, rl_start, rl_end)
-  
+                         & i_startidx, i_endidx, rl_start, rl_end)  
         DO jc = i_startidx, i_endidx
           IF ( lseaice ) THEN
             frac_oce(jc,jb) = ext_data%atm%frac_t(jc,jb,isub_water)+ ext_data%atm%frac_t(jc,jb,isub_seaice) ! sea ice
@@ -220,27 +227,17 @@ CONTAINS
             frac_oce(jc,jb) = ext_data%atm%frac_t(jc,jb,isub_water)                                         ! open sea
           END IF
         ENDDO
-
       ENDDO
-!ICON_OMP_END_DO
-!ICON_OMP_END_PARALLEL
 
     ELSE
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_DO PRIVATE(jb, jc, i_startidx, i_endidx) ICON_OMP_RUNTIME_SCHEDULE
-      DO jb = i_startblk, i_endblk
-  
+      DO jb = i_startblk, i_endblk  
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-          & i_startidx, i_endidx, rl_start, rl_end)
-  
+          & i_startidx, i_endidx, rl_start, rl_end)  
         DO jc = i_startidx, i_endidx
           frac_oce(jc,jb) = 1.0
         ENDDO
-
       ENDDO
-!ICON_OMP_END_DO
-!ICON_OMP_END_PARALLEL
 
     ENDIF
 
@@ -252,7 +249,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -262,7 +258,6 @@ CONTAINS
         buffer(ncount,2) = prm_diag%umfl_s_t(jc,jb,isub_seaice)     ! sea ice
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
 !  The nwp_ocean_interface and YAC has not yet been adapted for nested ICON setups.  
 !  It only works for global configuations.
@@ -290,7 +285,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -300,7 +294,6 @@ CONTAINS
         buffer(ncount,2) = prm_diag%vmfl_s_t(jc,jb,isub_seaice)     ! sea ice 
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -330,7 +323,6 @@ CONTAINS
       scr(:,:) = 0.0_wp
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -354,7 +346,6 @@ CONTAINS
         IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) scr(jc,jb) = buffer(ncount,3)
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
       &  CALL dbg_print('NWPOce: evapo-cpl',scr,str_module,3,in_subset=p_patch%cells%owned)
@@ -365,8 +356,7 @@ CONTAINS
     CALL yac_fput ( field_id(3), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-      CALL warning('nwp_couple_ocean', &
-                   'YAC says fput called after end of run - id=3, fresh water flux')
+      CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=3, fresh water flux')
 
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
@@ -378,7 +368,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -390,7 +379,6 @@ CONTAINS
         buffer(ncount,4) = prm_diag%lhfl_s_t   (jc,jb,isub_water)
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -411,7 +399,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -422,7 +409,6 @@ CONTAINS
         buffer(ncount,2) = lnd_diag%condhf_ice(jc,jb)  !  melt potential via conductive heat flux at bottom of sea-ice
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -447,7 +433,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -457,7 +442,6 @@ CONTAINS
         buffer(ncount,1) = prm_diag%sp_10m(jc,jb)
        ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -490,7 +474,6 @@ CONTAINS
 !------------------------------------------------
 
     ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        & i_startidx, i_endidx, rl_start, rl_end)
@@ -499,7 +482,6 @@ CONTAINS
         buffer(ncount,1) = pt_diag%pres_sfc(jc,jb)
        ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -532,7 +514,6 @@ CONTAINS
     IF (ccycle_config(jg)%iccycle /= 0) THEN
 
       ncount = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx, i_endidx, ncount) ICON_OMP_RUNTIME_SCHEDULE
       DO jb = i_startblk, i_endblk
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          & i_startidx, i_endidx, rl_start, rl_end)
@@ -561,7 +542,6 @@ CONTAINS
         END SELECT
 
       ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
       IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -586,7 +566,6 @@ CONTAINS
 #endif
 
 
-
 !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
 !  Receive fields from ocean to atmosphere
 !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
@@ -595,15 +574,17 @@ CONTAINS
 !   - ocean fields have undefined values on land, which are not sent to the atmosphere,
 !     therefore buffer is set to zero to avoid unintended usage of ocean values over land
 
-    buffer(:,:) = 0.0_wp
+    !buffer(:,:) = 0.0_wp
+!$OMP PARALLEL
+    CALL init(buffer(:,:))
+!$OMP END PARALLEL
 
     ! exclude nest boundary and halo points
     rl_start   = grf_bdywidth_c+1          
     rl_end     = min_rlcell_int
-    i_nchdom   = MAX(1,p_patch%n_childdom)
 
-    i_startblk = p_patch%cells%start_blk(rl_start,1)
-    i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = p_patch%cells%start_block(rl_start)
+    i_endblk   = p_patch%cells%end_block(rl_end)
 
 
 !------------------------------------------------
@@ -632,9 +613,8 @@ CONTAINS
 
       ! new lists are calculated in process_sst_and_seaice in mo_nwp_sfc_utils.f90
 
-      scr(:,:) = 285.0_wp  !  value over land - for dbg_print
+      scr(:,:) = 270.0_wp                                             ! value over land - for dbg_print only
 
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn, scr) ICON_OMP_RUNTIME_SCHEDULE
       DO jb = i_startblk, i_endblk
         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
 
@@ -650,7 +630,6 @@ CONTAINS
 
         END DO
       ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
       IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
         &  CALL dbg_print('NWPOce: SSToce-cpl',scr,str_module,3,in_subset=p_patch%cells%owned)
@@ -677,23 +656,18 @@ CONTAINS
 
 !--- no ocean current in turbtran yet
 !     IF ( info > 0 .AND. info < 7 ) THEN
-! 
 ! !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
 !       DO jb = i_startblk, i_endblk
 !         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-! 
 !         DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
 !           jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
 !          !ECHAM  prm_field(jg)%ocu(n,i_blk) = buffer(nn+jc,1)
 !          !NWP: no ocean current in turbtran yet
 !         END DO
-! 
 !       ENDDO
 ! !ICON_OMP_END_PARALLEL_DO
-! 
 !       !ECHAM CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocu(:,:))
 !       !NWP: no ocean current in turbtran yet
-! 
 !     END IF
 
 
@@ -714,20 +688,16 @@ CONTAINS
 
 !--- no ocean current in turbtran yet
 !     IF ( info > 0 .AND. info < 7 ) THEN
-! 
 ! !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
 !       DO jb = i_startblk, i_endblk
 !         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-! 
 !         DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
 !           jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
 !          !ECHAM  prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
 !          !NWP: no ocean current in turbtran yet
 !         END DO
-! 
 !       ENDDO
 ! !ICON_OMP_END_PARALLEL_DO
-! 
 !       !ECHAM CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocv(:,:))
 !       !NWP: no ocean current in turbtran yet
 !     END IF
@@ -754,7 +724,6 @@ CONTAINS
 
 ! --- Here we loop only over ocean points, because fr_seaice and h_ice are also used for oceans and lakes.
 
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
       DO jb = i_startblk, i_endblk
         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
 
@@ -772,7 +741,6 @@ CONTAINS
         END DO
 
       ENDDO
-!ICON_OMP_END_PARALLEL_DO
 
       CALL sync_patch_array(sync_c, p_patch, lnd_diag%fr_seaice    (:,:) ) 
       CALL sync_patch_array(sync_c, p_patch, wtr_prog_new%h_ice    (:,:) )
@@ -793,7 +761,10 @@ CONTAINS
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
 
-      buffer(:,:) = 0.0_wp ! needs to be checked if this is necessary
+      ! needs to be checked if this is necessary
+!$OMP PARALLEL
+      CALL init(buffer(:,:))
+!$OMP END PARALLEL
 
       CALL yac_fget ( field_id(12), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
       IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
@@ -805,8 +776,7 @@ CONTAINS
 
 !--- no prognostic CO2 in NWP physics
 !       IF ( info > 0 .AND. info < 7 ) THEN
-! 
-! !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
+! ! deactivate !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
 !         DO jb = 1, p_patch%nblks_c
 !           nn = (jb-1)*nproma
 !           IF (jb /= p_patch%nblks_c) THEN
@@ -824,8 +794,7 @@ CONTAINS
 !             ENDIF
 !           ENDDO
 !         ENDDO
-! !ICON_OMP_END_PARALLEL_DO
-! 
+! ! deactivate !ICON_OMP_END_PARALLEL_DO
 !         !ECHAM  CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%co2_flux_tile(:,:,iwtr))
 !         !NWP: no prognostic CO2 in NWP physics
 !       ENDIF
@@ -905,8 +874,6 @@ CONTAINS
     ENDIF
 
 !---------------------------------------------------------------------
-
-    DEALLOCATE(buffer)
 
 !YAC_coupling
 #endif

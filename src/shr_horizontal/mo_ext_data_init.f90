@@ -1039,15 +1039,14 @@ CONTAINS
 
         ELSE
 
-          ! --- option MPI grids: read full [-2,2] land-sea mask in grid file
-          ! get land-sea-mask on cells, integer marks are:
-          ! inner sea (-2), boundary sea (-1, cells and vertices), boundary (0, edges),
-          ! boundary land (1, cells and vertices), inner land (2)
+          ! --- option MPI grids for coupling: Read fraction of land (land-sea mask) from
+          ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
+          ! 0.0 is ocean, 1.0 is land, fractions on coasts (lakes are land).
+          ! Used for lsmnolake in src/atm_coupling/mo_atmo_coupling_frame.f90.
 
           CALL openInputFile(stream_id, p_patch(jg)%grid_filename, p_patch(jg), default_read_method)
 
-          CALL read_2D_int(stream_id, on_cells, 'cell_sea_land_mask', &
-            &              ext_data(jg)%atm%lsm_ctr_c)
+          CALL read_2D (stream_id, on_cells, 'cell_sea_land_mask', ext_data(jg)%atm%lsm_ctr_c)
 
           CALL closeFile(stream_id)
 
@@ -1215,11 +1214,12 @@ CONTAINS
 
         IF ( is_coupled_run() ) THEN
 
-          ! --- option NWP grids: read ocean [0,1] land-sea mask in extpar file
-          ! get land-sea-mask on cells - interpolated from ocean land-sea-mask
-          ! integer marks are: sea (0), land (1)
+          ! --- option NWP grids for coupling: Read fraction of land (land-sea mask) from
+          ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
+          ! 0.0 is ocean, 1.0 is land, fractions on coasts (lakes are land).
+          ! Used in routine lsm_ocean_atmo.
 
-          CALL read_extdata('cell_sea_land_mask', arr2di=ext_data(jg)%atm%lsm_ctr_c)
+          CALL read_extdata('cell_sea_land_mask', ext_data(jg)%atm%lsm_ctr_c)
 
         ENDIF
 
@@ -1416,7 +1416,7 @@ CONTAINS
 
         ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
 
-        IF ( iforcing == inwp .AND. is_coupled_run() ) THEN
+        IF ( is_coupled_run() ) THEN
           CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
         ENDIF
 
@@ -2854,17 +2854,20 @@ CONTAINS
   !!                      0    0.6    1
   !!            ___________________________________
   !!             0    |   0   !0     !0       ICON-O deletes all ICON-A land
-  !! ICON-O      0.4  |   0    0.6   !0.4
-  !! lsm_ctr_c   1    |  !1    0.6    1       
+  !! ICON-O      0.4  |   0   !0.4   !0.4
+  !! lsm_ctr_c   1    |  !1   !1      1
   !!
-  !! note: idential  ocean/atmo grids: lsm_ctr_c is integer
+  !! note: lsm_ctr_c is real variable (float)
+  !!       identical ocean/atmo grids: lsm_ctr_c is 0. or 1. only
   !!       different ocean/atmo grids: lsm_ctr_c is float (fraction)
-  !! ICON-seamless prototype 1 - common grid supports only integer
+  !! ICON-seamless prototype 2 - uncommon grids (A/O) support fractional lsm_ctr_c at ocean coast
   !! This routine doesn't support the case ntiles=1.  Additional surface parameters
   !! would have to be implemented
   !!
   !! @par Revision History
   !! Initial revision by Martin Koehler, DWD (2021-01-27)
+  !! Modification by Stephan Lorenz, MPI (2022-08-02)
+  !! Generalization to arbitrarily overlapping grids
   !!
   !-------------------------------------------------------------------------
 
@@ -2873,24 +2876,24 @@ CONTAINS
     TYPE(t_patch), INTENT(IN)            :: p_patch
     TYPE(t_external_data), INTENT(INOUT) :: ext_data
 
-    INTEGER  :: jb,jc,i_nchdom
+    INTEGER  :: jb,jc
     INTEGER  :: rl_start, rl_end
     INTEGER  :: i_startblk, i_endblk,i_startidx, i_endidx
+    REAL(wp) :: lat, lon
+    REAL(wp), PARAMETER :: eps = 1.e-10_wp
 
     !-----------------------------------------------------------------------
 
     CALL message('','Adjust atmo LSM to ocean LSM for coupled simulation.')
 
-    i_nchdom  = MAX(1,p_patch%n_childdom)
-
     rl_start = 1
     rl_end   = min_rlcell
 
-    i_startblk = p_patch%cells%start_blk(rl_start,1)
-    i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = p_patch%cells%start_block(rl_start)
+    i_endblk   = p_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,lat,lon)
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
@@ -2900,51 +2903,112 @@ CONTAINS
         ! land-sea-mask switched by ocean, 0: no change, 1: new land, 2: new ocean
         ext_data%atm%lsm_switch     (jc,jb)   = 0
  
-        SELECT CASE(ext_data%atm%lsm_ctr_c(jc,jb))
+        ! ICON-O is ocean but ICON-A is fractional land:
+        ! convert ICON-A land and lake to pure ocean (flooded grid-point)
 
-        CASE (0)         ! ICON-O ocean but ICON-A fractional land:  delete all ICON-A land and lake
-          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) > 0.0_wp ) THEN
-            ext_data%atm%lsm_switch (jc,jb)   = 2
-            ext_data%atm%fr_land    (jc,jb)   = 0.0_wp
-            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
-            ext_data%atm%topography_c(jc,jb)  = 0.0_wp      ! topography to zero
+        IF ( ext_data%atm%lsm_ctr_c(jc,jb) == 0._wp ) THEN
+
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) > 0._wp ) THEN
+            ext_data%atm%lsm_switch (jc,jb)   = 1
+            ext_data%atm%fr_land    (jc,jb)   = 0._wp
+            ext_data%atm%fr_lake    (jc,jb)   = 0._wp
+            ext_data%atm%topography_c(jc,jb)  = 0._wp      ! topography to zero
           ENDIF
 
-        CASE (1)         ! ICON-O land but ICON-A fractional ocean:  make artificial ICON-A pure land
-                         !                                           (another option: artificial lake)
-          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1.0_wp ) THEN
-            ext_data%atm%lsm_switch (jc,jb)   = 1
-            ! set fraction to land
-            ext_data%atm%fr_land    (jc,jb)   = 1.0_wp
-            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
-            ext_data%atm%soiltyp    (jc,jb)   = 4           ! soil type to sandy loam (sfc_terra_data)
-            ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0.0_wp
-            ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1.0_wp  ! grass-land (read_ext_data_atm)
-            ! land use variables will then automatically be set in init_index_lists
-            ! frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
-            ! plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
+        ! ICON-O is land but ICON-A is fractional ocean:  make artificial ICON-A pure land
+        ! convert ICON-A ocean to artificial pure land (rising grid-point): (alternative: artificial lake)
 
+        ELSE IF ( ext_data%atm%lsm_ctr_c(jc,jb) > (1._wp-eps) ) THEN
+
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1._wp ) THEN
+
+            ! switch land lakes from ocean to flake (Caspian and Dead Seas)
+
+            lat = p_patch%cells%center(jc,jb)%lat*rad2deg
+            lon = p_patch%cells%center(jc,jb)%lon*rad2deg
+
+               ! Dead Sea    (< -390m)
+            IF ( ( (lon > 35._wp).AND.(lon < 36._wp) .AND. (lat > 31._wp).AND.(lat < 32._wp) ) .OR. &
+               ! Caspian Sea (< -25m)
+               & ( (lon > 46._wp).AND.(lon < 55._wp) .AND. (lat > 36._wp).AND.(lat < 48._wp) ) ) THEN
+
+              ext_data%atm%lsm_switch (jc,jb)   = 6
+              ext_data%atm%fr_lake    (jc,jb)   = 1._wp - ext_data%atm%fr_land(jc,jb)
+              ext_data%atm%depth_lk   (jc,jb)   = 50._wp
+
+            ELSE
+
+              ext_data%atm%lsm_switch (jc,jb)   = 2
+              ! set fraction to land
+              ext_data%atm%fr_land    (jc,jb)   = 1._wp
+              ext_data%atm%fr_lake    (jc,jb)   = 0._wp
+              ! topography values
+              ext_data%atm%topography_c(jc,jb)  = 0._wp       ! alternative: add little hight (1m?)
+              ext_data%atm%soiltyp    (jc,jb)   = 4           ! soil type to sandy loam (sfc_terra_data)
+              ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0._wp
+              ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1._wp 
+                                                              ! grass-land (read_ext_data_atm)
+              ! land use variables will then automatically be set in init_index_lists:
+              !   frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
+              !   plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
+              ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean
+
+            ENDIF
+
+          ENDIF
+
+        ! ICON-O is fractional ocean (coast)
+        ! attention: fr_lake is not allowed on the coast
+
+        ELSE IF ( (ext_data%atm%lsm_ctr_c(jc,jb) > 0._wp) .AND. (ext_data%atm%lsm_ctr_c(jc,jb) < (10_wp-eps)) ) THEN
+                                     ! eps necessary because lsm_ctr_c has input values of 0.999999 instead of 1.0)
+
+          ! ICON-A is pure land: reduce land & delete lake accordingly
+          IF (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb)) == 1._wp ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 3
+           !ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%fr_land(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+           !ext_data%atm%fr_lake    (jc,jb)  = ext_data%atm%fr_lake(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+
+          ! ICON-A is fraction: adjust ICON-A lsm to ICON-O lsm, no lake fraction
+          !   attention: prevent small fr_land being deleted with soiltyp=9
+          ELSE IF ( (ext_data%atm%fr_land(jc,jb) > frlnd_thrhld)    .OR. &
+            &       (ext_data%atm%fr_lake(jc,jb) > frlake_thrhld) ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 4
+           !lsm_atm                          = ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake  (jc,jb)
+           !ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%fr_land(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb) / lsm_atm
+           !ext_data%atm%fr_lake    (jc,jb)  = ext_data%atm%fr_lake(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb) / lsm_atm
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+
+          ! ICON-A is pure ocean: add land in ICON-A according to ICON-O lsm, no lake fraction (rising coastal area)
+          !   attention: small fr_land is deleted elsewhere
+          ELSE IF ( (ext_data%atm%fr_land(jc,jb)) <= frlnd_thrhld    .AND. &
+            &       (ext_data%atm%fr_lake(jc,jb)) <= frlake_thrhld ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 5
+            ! set fraction to land
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+            ! topography values
+            ext_data%atm%topography_c(jc,jb) = 0._wp       ! alternative: add little hight (1m?)
+            ext_data%atm%soiltyp    (jc,jb)  = 4            ! soil type to sandy loam (sfc_terra_data)
+            ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0._wp
+            ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1._wp  ! grass-land (read_ext_data_atm)
+            ! land use variables will then automatically be set in init_index_lists:
+            !   frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
+            !   plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
             ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean
 
-            ! topography values
-            ext_data%atm%topography_c(jc,jb) = 0.0_wp
-
           ENDIF
 
-        CASE DEFAULT     ! ICON-O fractional (coast) but ICON-A pure land: reduce land & lake accordingly
-                         ! Attention: this case is not yet supported
-          IF  (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb))== 1.0_wp ) THEN 
-          ! set fr_land for all coastal points to lsm-oce:
-          ! IF  ( ext_data%atm%fr_land  (jc,jb) .NE. ext_data%atm%lsm_ctr_c  (jc,jb) ) THEN 
-          ! ext_data%atm%fr_land  (jc,jb) = ext_data%atm%lsm_ctr_c(jc,jb)
-          ! ext_data%atm%fr_lake  (jc,jb) = 0.0_wp
-
-            ext_data%atm%fr_land  (jc,jb) = ext_data%atm%fr_land  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
-            ext_data%atm%fr_lake  (jc,jb) = ext_data%atm%fr_lake  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
-          ! tile adjustments!
-          ENDIF
-
-        END SELECT
+        ! ICON-O is < 0.0 or > 1.0; not allowed (ICON-O input data problems)
+        ELSE   
+          ext_data%atm%lsm_switch   (jc,jb)  = 10
+        ENDIF
 
       ENDDO
     ENDDO

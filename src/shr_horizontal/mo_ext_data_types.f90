@@ -71,9 +71,9 @@ MODULE mo_ext_data_types
       &  llake_c(:,:)          ! .TRUE. if lake point
                                ! index1=1,nproma, index2=1,nblks_c
 
-    INTEGER, POINTER  ::   &   !< ocean land-sea-mask on cell centers [ ]
+    REAL(wp), POINTER  ::   &  !< ocean land fraction (land-sea-mask) on cell centers [ ]
       &  lsm_ctr_c(:,:)        !  index1=1,nproma, index2=1,nblks_c
-                               ! 0: ocean, 1: land (read from extpar file)
+                               ! 0.0: ocean, 1.0: land or fraction (read from extpar file)
 
     INTEGER, POINTER  ::   &   !< land-sea-mask switched by ocean         [ ]
       &  lsm_switch(:,:)       !  index1=1,nproma, index2=1,nblks_c
