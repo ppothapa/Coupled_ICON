@@ -584,9 +584,7 @@ CONTAINS
     ! Assign values to derived variables in the configuration states
     !---------------------------------------------------------------------
 
-
-    CALL configure_diffusion( n_dom, dynamics_parent_grid_id )
-
+    CALL configure_diffusion( n_dom, p_patch(1:)%parent_id )
 
     CALL configure_gribout(grid_generatingCenter, grid_generatingSubcenter, n_phys_dom)
 
