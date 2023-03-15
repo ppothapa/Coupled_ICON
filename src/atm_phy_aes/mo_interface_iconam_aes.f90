@@ -60,7 +60,7 @@ MODULE mo_interface_iconam_aes
 #endif
   USE mo_parallel_config       ,ONLY: nproma
   USE mo_advection_config      ,ONLY: advection_config
-  USE mo_run_config            ,ONLY: nlev, ntracer, iqv, iqc, iqi
+  USE mo_run_config            ,ONLY: nlev, ntracer, iqv, iqc, iqi, iqr, iqs, iqg
   USE mo_nonhydrostatic_config ,ONLY: lhdiff_rcf
   USE mo_diffusion_config      ,ONLY: diffusion_config
   USE mo_aes_phy_config        ,ONLY: aes_phy_config
@@ -182,7 +182,7 @@ CONTAINS
  
     REAL(wp) :: z_exner              !< to save provisional new exner
     REAL(wp) :: z_qsum               !< summand of virtual increment
-!!$    REAL(wp) :: z_ddt_qsum           !< summand of virtual increment
+    REAL(wp) :: qliq, qice           !< sum of liquid and ice phases respectively
 
     REAL(wp) :: zvn1, zvn2
     REAL(wp), POINTER :: zdudt(:,:,:), zdvdt(:,:,:)
@@ -250,6 +250,8 @@ CONTAINS
     !$ACC   PRESENT(field%mdry, field%mref, field%xref, field%wa, field%omega) &
     !$ACC   PRESENT(field%clon, field%clat, field%mtrc, field%qtrc) &
     !$ACC   PRESENT(field%mtrcvi, field%mh2ovi, field%mairvi, field%mdryvi, field%mrefvi) &
+    !$ACC   PRESENT(field%uphyvi, field%udynvi) &
+    !$ACC   PRESENT(field%shfl_qsa, field%evap_tsa, field%rsfl_tsa, field%ssfl_tsa) &
     !$ACC   PRESENT(tend%ua_phy, tend%va_phy, tend%ta_phy, tend%qtrc, tend%qtrc_dyn) &
     !$ACC   PRESENT(tend%qtrc_phy, tend%mtrc_phy, tend%mtrcvi_phy, p_metrics%deepatmo_t1mc) &
     !$ACC   CREATE(deepatmo_vol) &
@@ -390,6 +392,8 @@ CONTAINS
     ! are ready to be used in the physics.
     !
     !=====================================================================================
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jk,jc,jcs,jce,qliq,qice) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_c,jbe_c
       !
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
@@ -406,23 +410,26 @@ CONTAINS
       DO jk = 1,nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = jcs, jce
+          qliq = pt_prog_new_rcf% tracer(jc,jk,jb,iqc) + pt_prog_new_rcf% tracer(jc,jk,jb,iqr) 
+          qice = pt_prog_new_rcf% tracer(jc,jk,jb,iqi) + pt_prog_new_rcf% tracer(jc,jk,jb,iqs)  &
+            &  + pt_prog_new_rcf% tracer(jc,jk,jb,iqg)
+
           field% udynvi(jc,jb) = field% udynvi(jc,jb) + &
-                  internal_energy(                         &
-                  pt_diag% temp(jc,jk,jb),                 &!temperature
-                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
-                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
-                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
-                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
-                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
-                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
-                  pt_prog_new% rho(jc,jk,jb)         ,     &!density
-                  field%        dz(jc,jk,jb)               &!delta z
-                  )
+                  internal_energy(                      &
+                  pt_diag% temp(jc,jk,jb),              & ! temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,iqv),& ! qv
+                  qliq                               ,  & ! sum of liq phases
+                  qice                               ,  & ! sum of ice phases
+                  pt_prog_new% rho(jc,jk,jb)         ,  & ! density
+                  field%        dz(jc,jk,jb)         )    ! delta z
         END DO
       END DO
       !$ACC END PARALLEL
       !
+
     END DO ! jb
+!$OMP END DO
+!$OMP END PARALLEL
     !=====================================================================================
     !
     ! (3) Copy the new prognostic state and the related diagnostics from the
@@ -958,7 +965,7 @@ CONTAINS
 
     ! Loop over cells
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce,z_qsum,z_exner) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce,z_qsum,z_exner,qliq,qice) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_c,jbe_c
       !
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
@@ -1072,31 +1079,57 @@ CONTAINS
           ! (It is accumulated over one advective time step in solve_nh)
           pt_diag% exner_dyn_incr(jc,jk,jb) = 0._wp
           !
-          field% uphyvi(jc,jb) = field% uphyvi(jc,jb) + &
-                  internal_energy(                         &
-                  pt_diag% temp(jc,jk,jb),                 &!temperature
-                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
-                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
-                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
-                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
-                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
-                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
-                  pt_prog_new% rho(jc,jk,jb)         ,     &!density 
-                  field%        dz(jc,jk,jb)               &!delta z
-                  )
         END DO
       END DO
       !$ACC END PARALLEL
 
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
       DO jc = jcs, jce
-        field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,1) * field% shflx(jc,jb)/cpd
+        field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,iqv) * field% shflx(jc,jb)/cpd
         field% evap_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%lhflx(jc,jb)/alv
         field% rsfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%rsfl(jc,jb)
         field% ssfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%ssfl(jc,jb)
       END DO
       !
     END DO !jb
+!$OMP END DO
+!$OMP END PARALLEL
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jk,jc,jcs,jce,qliq,qice) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = jcs, jce
+        field% uphyvi(jc,jb) = 0.0_wp
+      END DO
+
+      !$ACC LOOP SEQ
+      DO jk = 1,nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = jcs, jce
+          qliq = pt_prog_new_rcf% tracer(jc,jk,jb,iqc) + pt_prog_new_rcf% tracer(jc,jk,jb,iqr) 
+          qice = pt_prog_new_rcf% tracer(jc,jk,jb,iqi) + pt_prog_new_rcf% tracer(jc,jk,jb,iqs)  &
+            &  + pt_prog_new_rcf% tracer(jc,jk,jb,iqg)
+
+          field% uphyvi(jc,jb) = field% uphyvi(jc,jb) + &
+                  internal_energy(                      &
+                  pt_diag% temp(jc,jk,jb),              & ! temperature
+                  pt_prog_new_rcf% tracer(jc,jk,jb,iqv),& ! qv
+                  qliq                               ,  & ! sum of liq phases
+                  qice                               ,  & ! sum of ice phases
+                  pt_prog_new% rho(jc,jk,jb)         ,  & ! density
+                  field%        dz(jc,jk,jb)         )    ! delta z
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      !
+
+    END DO ! jb
 !$OMP END DO
 !$OMP END PARALLEL
 
