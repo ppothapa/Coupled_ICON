@@ -280,10 +280,13 @@ CONTAINS
     ENDDO
 
     ! deallocate radar_data array
-    !$ACC EXIT DATA DELETE(radar_data)
-    DEALLOCATE(radar_data, STAT=ist)
-    IF (ist /= SUCCESS) THEN
-      CALL finish(routine, 'deallocation of radar_data for LHN')
+    IF(allocated(radar_data)) THEN
+      !$ACC EXIT DATA DELETE(radar_data) ASYNC(1)
+      !$ACC WAIT
+      DEALLOCATE(radar_data, STAT=ist)
+      IF (ist /= SUCCESS) THEN
+        CALL finish(routine, 'deallocation of radar_data for LHN')
+      ENDIF
     ENDIF
 
     CALL message (routine, 'Destruction of data structure for ' // &

@@ -351,7 +351,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  nlhnverif_start = 0
  radar_in        = '${latbc_path}/'
 !radardata_file  = 'radardata_DOM1.nc','radardata_DOM2.nc',
- radardata_file  = 'rad4icon_M01.nc'
+ radardata_file  = 'no_rad4icon_M01.nc' ! this is set on purpose wrong, to test correctness in case of unavailable radar data
  rqrsgmax        = 0.5
  start_fadeout   = 1.0
  std_artif_max   = 4.
