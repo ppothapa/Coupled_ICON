@@ -1608,22 +1608,18 @@ EOF
 set_run_target_euler()
 {
   # euler.ethz.ch
-  typeset poolFolder_prefix=/cluster/work/climate/colombsi
+  typeset poolFolder_prefix=/cluster/work/climate
   icon_data_rootFolder=${icon_data_rootFolder:=${poolFolder_prefix}/icon_input}
   icon_data_poolFolder=${icon_data_poolFolder:=${poolFolder_prefix}/icon_input}
 
   set_default use_nproma 64
-  set_default use_nproma_sub 64
+  set_default use_rrtmgp_columns_chunk 64
   set_default use_nodes 1
 
   #JENKINS_NO_OF_CORES can is unbound when not used with jenkins icon
   set +eu
 
-  if [[ -z $JENKINS_NO_OF_CORES ]]; then 
-      set_default use_mpi_procs_pernode 1
-  else
-      set_default use_mpi_procs_pernode $JENKINS_NO_OF_CORES
-  fi
+  set_default use_mpi_procs_pernode 1
   set_default use_openmp_threads 1
 
   set -eu
@@ -1632,14 +1628,20 @@ set_run_target_euler()
   cdo_diff="diff"
 
   job_log_name="LOG.$job_name.%J"
+  s_cpu_time="SBATCH --time=00:15:00"
+  # Use ntasks (#cores) for no of nodes on Euler!
+  SBATCH_nodes="SBATCH --ntasks=${use_nodes}"
 
   cat >> $output_script << EOF
 # ===========================
-#### BATCH_SYSTEM=BSUB ####
+#### BATCH_SYSTEM=SBATCH ####
 #-----------------------------------------------------------------------------
-#BSUB -J $job_name
-#BSUB -oo $output_folder/$job_log_name.o
-#BSUB -eo $output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --constraint=EPYC_7H12
+#$SBATCH_nodes
+#$s_cpu_time
 # ===========================
 EOF
 
