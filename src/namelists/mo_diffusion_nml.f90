@@ -70,7 +70,7 @@ MODULE mo_diffusion_nml
                           hdiff_smag_fac, hdiff_smag_fac2, hdiff_smag_fac3, hdiff_smag_fac4, &
                           hdiff_smag_z,   hdiff_smag_z2,   hdiff_smag_z3,   hdiff_smag_z4,   &
                           hdiff_multfac, lhdiff_temp, lhdiff_vn, itype_vn_diffu,             &
-                          itype_t_diffu, hdiff_w_efdt_ratio, lhdiff_w, lsmag_3d
+                          itype_t_diffu, hdiff_w_efdt_ratio, lhdiff_w, lsmag_3d, lhdiff_smag_w
 
 CONTAINS
   !-------------------------------------------------------------------------
