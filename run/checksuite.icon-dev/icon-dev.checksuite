@@ -410,10 +410,11 @@ function string_in_list
 #------------------------------------------------------------------------
 function tolerance_check
 {
-    typeset MODEL_DIR1 EXP_BASE EXPERIMENT STATUS
+    typeset MODEL_DIR1 EXP_BASE EXPERIMENT TIME_DIM STATUS
     MODEL_DIR1=$1
     EXP_BASE=$2
     EXPERIMENT=$3
+    TIME_DIM=$4
     PROBTEST=externals/probtest/probtest.py
 
     # status variable that is evaluated after the function call
@@ -439,6 +440,9 @@ function tolerance_check
         *mch_*nest*)
             FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
             ;;
+        *mch_*dace*)
+            FILE_IDS="fofAIREP"
+            ;;
         *mch_*)
             FILE_IDS="atm_3d"
             ;;
@@ -459,13 +463,13 @@ function tolerance_check
 
     export PROBTEST_CONFIG=${EXP_BASE}.json
     # initialize configuration file
-    python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
+        python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
         --codebase-install "${MODEL_DIR1}" \
         --reference "not-used" \
         --experiment-name "${EXP_BASE}" \
         --file-ids "${FILE_IDS}" \
         --config "${PROBTEST_CONFIG}" \
-        --time_dim time
+        --time_dim ${TIME_DIM:-time}
     if [[ $? != 0 ]] ; then
         echo "probtest did not initialized successfully"
         TOL_STATUS=1
@@ -587,7 +591,7 @@ cd $SCRIPT_DIR
 # possible test modes
 MODES="b u r n m o t p ur un um uo rn rm ro nm no mo mp tp urn urm uro unm uno umo rnm rno rmo nmo tmp urnm urno urmo unmo rnmo urnmo rnmot"
 
-while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
+while getopts ":cd:e:f:hm:o:pr:s:t:u" OPT; do
     case $OPT in
         c  ) COLOUR='yes'
             ;;
@@ -638,6 +642,8 @@ while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
                 print_usage $0
                 exit 1
             fi
+            ;;
+        p  ) PROBTEST_TIME_DIM=$OPTARG
             ;;
         r  ) REFERENCE=$OPTARG
             CMODES="u ur un um uo urn urm uro unm uno umo urnm urno urmo unmo urnmo"
@@ -1242,7 +1248,7 @@ if string_in_list $MD $CMODES; then
     echo ' '
 
     # compare base run with reference
-    tolerance_check $MODEL_DIR $EXP_BASE $EXPERIMENT
+    tolerance_check $MODEL_DIR $EXP_BASE $EXPERIMENT $PROBTEST_TIME_DIM
     if [ "$TOL_STATUS" == 0 ]; then
         PASSED_TESTS="$PASSED_TESTS $TEST"
         EXIT_STATUS=$(($EXIT_STATUS + 0))

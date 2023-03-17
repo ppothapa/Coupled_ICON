@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # set basic names and paths for probtest
-file_ids=atm_3d
-exp=mch_ch_lowres
+probtest_file_ids=atm_3d
+probtest_exp=mch_ch_lowres
 
 . ./add_refgen_routines
 

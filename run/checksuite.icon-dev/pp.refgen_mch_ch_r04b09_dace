@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # set experiment specific variables
-probtest_file_ids=atm_3d
-probtest_exp=mch_opr_r04b07
+probtest_file_ids=fofAIREP
+probtest_exp=mch_ch_r04b09_dace
+probtest_time_dim=None
 
 . ./add_refgen_routines
 

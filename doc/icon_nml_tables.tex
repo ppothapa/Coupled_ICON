@@ -1090,6 +1090,46 @@ L&
 &
 Use quality index to infer the horizontal spatial weight of the LHN increments. The quality index is read in as RAD\_QUAL variable (besides the RAD\_PRECIP variable) from the LHN input file.&
 \tabularnewline
+
+%\hline
+ {dace\_coupling}&
+L&
+.FALSE.&
+&
+Invoke DACE for model equivalents of observations &
+\tabularnewline
+
+%\hline
+ {dace\_time\_ctrl}&
+I(3)&
+0&
+&
+Steering parameters for DACE time control: start,end,step &
+\tabularnewline
+
+%\hline
+ {dace\_debug}&
+I&
+0&
+&
+Debugging level for DACE interface &
+\tabularnewline
+
+%\hline
+ {dace\_output\_file}&
+C&
+""&
+&
+Filename for redirection of DACE stdout &
+\tabularnewline
+
+%\hline
+ {dace\_namelist\_file}&
+C&
+'namelist'&
+&
+Filename of the file containing the dace namelist &
+\tabularnewline
 \end{longtab}
 
 Defined and used in: \verb+src/namelists/mo_assimilation_nml.f90+

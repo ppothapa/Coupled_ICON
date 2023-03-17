@@ -1831,6 +1831,10 @@ create_target_header()
                 ;;
             esac
             ;;
+        *mch_ch_r04b09_dace.run|*mch_ch_r04b09_dace_seed_*.run)
+            use_nodes=4
+            use_mpi_procs_pernode=12 # Use 12 procs pernode for GPU as well until bug is fixed
+            ;;
         *mch_*)
             case $use_target in
                 daint*)

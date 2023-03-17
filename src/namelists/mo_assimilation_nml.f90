@@ -86,17 +86,19 @@ MODULE mo_assimilation_nml
     bbthres           ,& ! threshold of precipitation rate used in bright band detection
     hzerolim             ! limitation of hzerocl used in bright band detection
 
- CHARACTER (LEN=100)              ::           &
+  CHARACTER (LEN=100)              ::           &
     radar_in             ,& ! directory for reading radar-files
     radardata_file(max_dom)       ,& ! filename of radar data
     blacklist_file(max_dom)       ,& ! filename of blacklist for radar data
     height_file(max_dom)             ! filename of radar beam heights
 
- LOGICAL :: dace_coupling
- INTEGER :: dace_time_ctrl(3)
- INTEGER :: dace_debug       ! Debugging level for DACE interface
- CHARACTER(LEN=255) :: &
+  LOGICAL :: dace_coupling
+  INTEGER :: dace_time_ctrl(3)
+  INTEGER :: dace_debug       ! Debugging level for DACE interface
+  CHARACTER(LEN=255) :: &
     dace_output_file         ! filename for stdout redirection
+  CHARACTER(LEN=255) :: &
+    dace_namelist_file       ! filename of the file containing the dace namelist
 
 ! CHARACTER (LEN=12)               ::           &
 !    noobs_date (n_noobs)    ! array of missing observations
@@ -122,7 +124,7 @@ MODULE mo_assimilation_nml
                               tt_artif_max ,zlev_artif_max, std_artif_max,         &
                               start_fadeout,                                       &
                               dace_coupling ,dace_time_ctrl, dace_debug,           &
-                              dace_output_file
+                              dace_output_file, dace_namelist_file
 CONTAINS
   !>
   !!
@@ -141,6 +143,7 @@ CONTAINS
     dace_time_ctrl     = 0
     dace_debug         = 0
     dace_output_file   = ""
+    dace_namelist_file = 'namelist'
 
     llhn(:)               = ldass_lhn
     llhnverif(:)          = .TRUE.
@@ -243,6 +246,7 @@ CONTAINS
         assimilation_config(jg)%dace_time_ctrl  = dace_time_ctrl
         assimilation_config(jg)%dace_debug      = dace_debug
         assimilation_config(jg)%dace_output_file= dace_output_file
+        assimilation_config(jg)%dace_namelist_file = dace_namelist_file
         assimilation_config(jg)%llhn            = llhn(jg)
         assimilation_config(jg)%llhnverif       = llhnverif(jg)
         assimilation_config(jg)%lhn_artif       = lhn_artif

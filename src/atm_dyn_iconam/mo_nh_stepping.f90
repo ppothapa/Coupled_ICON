@@ -105,7 +105,7 @@ MODULE mo_nh_stepping
     &                                    ci_td_filename, frsi_min
   USE mo_nwp_lnd_state,            ONLY: p_lnd_state
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
-  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
+  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp, gpu_d2h_dace
 #ifndef __NO_NWP__
   USE mo_nh_interface_nwp,         ONLY: nwp_nh_interface
   USE mo_phy_events,               ONLY: mtime_ctrl_physics
@@ -221,7 +221,6 @@ MODULE mo_nh_stepping
   USE mo_extpar_config,            ONLY: generate_td_filename
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface  
-
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -649,9 +648,6 @@ MODULE mo_nh_stepping
     ! time step 0 cannot be reached in time stepping
     !-----------------------------------------------
     IF (assimilation_config(1)% dace_coupling) THEN
-#ifdef _OPENACC
-       CALL finish (routine, 'dace_coupling: OpenACC version currently not implemented')
-#endif
        IF (.NOT. ASSOCIATED (mec_Event)) &
             CALL finish ("perform_nh_stepping","MEC not configured")
        IF (timeshift%dt_shift == 0._wp .and. &
@@ -666,10 +662,21 @@ MODULE mo_nh_stepping
              IF (my_process_is_work_only()) CALL init_dace_op ()
              IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
           END IF
+#ifdef _OPENACC
+          CALL message('mo_nh_stepping', 'Copy init values for DACE to CPU')
+          DO jg=1, n_dom
+            CALL gpu_d2h_dace(jg)
+          ENDDO
+          i_am_accel_node = .FALSE.
+#endif
           CALL message('perform_nh_stepping','calling run_dace_op')
           IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
           IF (my_process_is_work_only()) CALL run_dace_op (mtime_current)
           IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
+#ifdef _OPENACC
+          ! There is no data from DACE coming back to ICON, so no data copies are needed
+          i_am_accel_node = my_process_is_work()
+#endif
        END IF
     END IF
 
@@ -1485,9 +1492,6 @@ MODULE mo_nh_stepping
     ! Pass forecast state at selected steps to DACE observation operators
     !--------------------------------------------------------------------
     IF (assimilation_config(1)% dace_coupling) then
-#ifdef _OPENACC
-       CALL finish (routine, 'dace_coupling: OpenACC version currently not implemented')
-#endif
        IF (.NOT. ASSOCIATED (mec_Event)) &
             CALL finish ("perform_nh_timeloop","MEC not configured")
        IF (is_event_active(mec_Event, mtime_current, proc0_offloading, plus_slack=model_time_step)) THEN
@@ -1497,20 +1501,31 @@ MODULE mo_nh_stepping
 #endif
           sim_time = getElapsedSimTimeInSeconds(mtime_current)
           IF (sim_time > 0._wp .OR. iau_iter == 1) THEN
-             IF (.NOT. dace_op_init) THEN
-                CALL message('perform_nh_timeloop','calling init_dace_op before run_dace_op')
-                IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
-                IF (my_process_is_work_only()) CALL init_dace_op ()
-                IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
-             END IF
-             IF (sim_time == 0._wp) THEN
-                CALL message('perform_nh_timeloop','calling run_dace_op for sim_time=0')
-             ELSE
-                CALL message('perform_nh_timeloop','calling run_dace_op')
-             END IF
-             IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
-             IF (my_process_is_work_only()) CALL run_dace_op (mtime_current)
-             IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
+            IF (.NOT. dace_op_init) THEN
+              CALL message('perform_nh_timeloop','calling init_dace_op before run_dace_op')
+              IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
+              IF (my_process_is_work_only()) CALL init_dace_op ()
+              IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
+            END IF
+#ifdef _OPENACC
+            CALL message('mo_nh_stepping', 'Copy values for DACE to CPU')
+            DO jg=1, n_dom
+              CALL gpu_d2h_dace(jg)
+            ENDDO
+            i_am_accel_node = .FALSE.
+#endif
+            IF (sim_time == 0._wp) THEN
+              CALL message('perform_nh_timeloop','calling run_dace_op for sim_time=0')
+            ELSE
+              CALL message('perform_nh_timeloop','calling run_dace_op')
+            END IF
+            IF (timers_level > 4) CALL timer_start(timer_dace_coupling)
+            IF (my_process_is_work_only()) CALL run_dace_op (mtime_current)
+            IF (timers_level > 4) CALL timer_stop(timer_dace_coupling)
+#ifdef _OPENACC
+            ! There is no data from DACE coming back to ICON, so no data copies are needed
+            i_am_accel_node = my_process_is_work()
+#endif
           END IF
        END IF
     END IF

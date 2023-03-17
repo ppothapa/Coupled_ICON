@@ -114,6 +114,7 @@ mkdir -p $RADAROUTPUTDIR $YDIR_MIELOOKUP
 # the namelist filename
 atmo_namelist=NAMELIST_${EXP}
 
+
 # global timing
 start_date="2020-03-11T09:00:00Z"
 ndays_restart=90
@@ -1128,7 +1129,7 @@ data=/hpc/rhome/routfor/routfox/3dvar/const
 if [[ ! -d "$data" ]]; then
   data = "${DATADIR}/const"
 fi
-cat > namelist  << end_input_MEC
+cat > namelist << end_input_MEC
  !===================
  ! general parameters
  !===================

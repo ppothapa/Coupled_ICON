@@ -48,6 +48,8 @@ MODULE mo_assimilation_config
     INTEGER :: dace_debug         !> Debugging level for DACE interface
     CHARACTER(LEN=255) :: &
       dace_output_file            !> Filename for redirection of DACE stdout
+    CHARACTER(LEN=255) :: &
+      dace_namelist_file          !> Filename of the file containing the dace namelist
 
     ! Namelist variables for LHN
 
