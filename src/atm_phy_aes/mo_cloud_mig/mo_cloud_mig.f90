@@ -159,8 +159,6 @@ CONTAINS
     IF (ltimer) call timer_start(timer_sat)
     !
     CALL saturation_adjustment(                  &
-         &           idim     = nproma          ,& !> in
-         &           kdim     = jke             ,& !> in
          &           ilo      = jcs             ,& !> in
          &           iup      = jce             ,& !> in
          &           klo      = jks             ,& !> in
@@ -184,7 +182,7 @@ CONTAINS
          &        ivstart = jcs           ,& !< in
          &        ivend   = jce           ,& !< in
          &        kstart  = jks           ,& !< in
-         &        zdt     = pdtime        ,& !< in   : timestep
+         &        dt      = pdtime        ,& !< in   : timestep
          &        qnc     = zqnc    (:)   ,& !< in
          &        dz      = dz      (:,:) ,& !< in   : vertical layer thickness
          &        rho     = rho     (:,:) ,& !< in   : density
@@ -198,7 +196,7 @@ CONTAINS
          &        qs      = zqs     (:,:) ,& !< inout: snow
          &        qg      = zqg     (:,:) ,& !< inout: graupel
 
-         &        qrsflux = zqrsflux(:,:) ,& !<   out: precip flux in atmosphere
+         &        pflx    = zqrsflux(:,:) ,& !<   out: precip flux in atmosphere
          &        prr_gsp = pr_rain (:)   ,& !<   out: precip rate rain
          &        pri_gsp = pr_ice  (:)   ,& !<   out: precip rate cloud ice
          &        prs_gsp = pr_snow (:)   ,& !<   out: precip rate snow
@@ -211,8 +209,6 @@ CONTAINS
     IF (ltimer) call timer_start(timer_sat)
     !
     CALL saturation_adjustment(                  &
-         &           idim     = nproma          ,& !> in
-         &           kdim     = jke             ,& !> in
          &           ilo      = jcs             ,& !> in
          &           iup      = jce             ,& !> in
          &           klo      = jks             ,& !> in
