@@ -109,7 +109,7 @@ SUBROUTINE saturation_adjustment ( ilo,  iup,  klo,  kup, &
 !!!=============================================================================================
 
   !$ACC PARALLEL DEFAULT(PRESENT)
-  !$ACC LOOP GANG VECTOR TILE(128,1)
+  !$ACC LOOP GANG VECTOR TILE(128, 1)
   DO k = klo, kup
     DO i = ilo , iup
       qt      = qve(i,k) + qce(i,k) + qre(i,k) + qti(i,k)
