@@ -57,25 +57,27 @@ AC_DEFUN([ACX_SUBDIR_INIT_CONFIG],
 [m4_ifval([$4], ['$4], [configure'])"])
    AS_VAR_SET([_ACX_SUBDIR_RUN_DIR_VAR([$1])], ["m4_default([$3], [$1])"])
    m4_cond([acx_subdir_opt_adjust_args], [adjust-args],
-     [m4_ifndef([ACX_SUBDIR_ADJUST_ARGS_DEFINED],
-        [acx_subdir_pre_adjusted_args=$ac_configure_args
-         _ACX_SUBDIR_REMOVE_ARGS([acx_subdir_pre_adjusted_args],
-           [[ACX_SUBDIR_CONFIG_PATTERN_STDPOS([cache-file])| \
-             ACX_SUBDIR_CONFIG_PATTERN_STDPOS([srcdir])| \
-             ACX_SUBDIR_CONFIG_PATTERN_STDPOS([prefix])], [1]],
-           [[ACX_SUBDIR_CONFIG_PATTERN_STDOPT([cache-file])| \
-             ACX_SUBDIR_CONFIG_PATTERN_STDOPT([srcdir])| \
-             ACX_SUBDIR_CONFIG_PATTERN_STDOPT([prefix])| \
-             --config-cache|-C| \
-             ACX_SUBDIR_CONFIG_PATTERN_ENABLE([option-checking])], [0]])
-         AS_VAR_APPEND([acx_subdir_pre_adjusted_args],
-           [" '--disable-option-checking'"])
-         AS_VAR_IF([prefix], [NONE],
-           [acx_tmp="--prefix=$ac_default_prefix"],
-           [acx_tmp="--prefix=$prefix"])
-         ASX_ESCAPE_SINGLE_QUOTE([acx_tmp])
-         AS_VAR_APPEND([acx_subdir_pre_adjusted_args], [" '$acx_tmp'"])
-         m4_define([ACX_SUBDIR_ADJUST_ARGS_DEFINED])])dnl
+     [AC_REQUIRE_SHELL_FN([acx_subdir_pre_adjust_config_args], [],
+        [AS_VAR_SET_IF([acx_subdir_pre_adjusted_args], [],
+           [acx_subdir_pre_adjusted_args=$ac_configure_args
+            _ACX_SUBDIR_REMOVE_ARGS([acx_subdir_pre_adjusted_args],
+              [[ACX_SUBDIR_CONFIG_PATTERN_STDPOS([cache-file])| \
+                ACX_SUBDIR_CONFIG_PATTERN_STDPOS([srcdir])| \
+                ACX_SUBDIR_CONFIG_PATTERN_STDPOS([prefix])], [1]],
+              [[ACX_SUBDIR_CONFIG_PATTERN_STDOPT([cache-file])| \
+                ACX_SUBDIR_CONFIG_PATTERN_STDOPT([srcdir])| \
+                ACX_SUBDIR_CONFIG_PATTERN_STDOPT([prefix])| \
+                --config-cache|-C| \
+                ACX_SUBDIR_CONFIG_PATTERN_ENABLE([option-checking])], [0]])
+            AS_VAR_APPEND([acx_subdir_pre_adjusted_args],
+              [" '--disable-option-checking'"])
+            AS_VAR_IF([prefix], [NONE],
+              [acx_tmp="--prefix=$ac_default_prefix"],
+              [acx_tmp="--prefix=$prefix"])
+            ASX_ESCAPE_SINGLE_QUOTE([acx_tmp])
+            AS_VAR_APPEND([acx_subdir_pre_adjusted_args],
+              [" '$acx_tmp'"])])])dnl
+      acx_subdir_pre_adjust_config_args
       AS_VAR_SET([_ACX_SUBDIR_RUN_ARG_VAR([$1])],
         [$acx_subdir_pre_adjusted_args])
       AS_VAR_IF([cache_file], ['/dev/null'],

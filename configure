@@ -2085,6 +2085,54 @@ fi
 
 } # ac_fn_fc_try_run
 
+acx_subdir_pre_adjust_config_args ()
+{
+if ${acx_subdir_pre_adjusted_args+:} false; then :
+
+else
+  acx_subdir_pre_adjusted_args=$ac_configure_args
+            eval "set dummy $acx_subdir_pre_adjusted_args"; shift
+   acx_subdir_pre_adjusted_args=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  -cache-file|--cache-file|--cache-fil|--cache-fi|--cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
+                -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
+                -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
+    test 2 -gt $# || shift;  ;; #(
+  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*|--cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
+                -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
+                -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
+                --config-cache|-C| \
+                -enable-option-checking|-enable-option-checking=*|--enable-option-checking|--enable-option-checking=*|-disable-option-checking|--disable-option-checking) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'" ;;
+esac
+     shift
+   done
+            as_fn_append acx_subdir_pre_adjusted_args " '--disable-option-checking'"
+            if test "x$prefix" = xNONE; then :
+  acx_tmp="--prefix=$ac_default_prefix"
+else
+  acx_tmp="--prefix=$prefix"
+fi
+            case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+            as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'"
+fi
+} # acx_subdir_pre_adjust_config_args
+
 acx_subdir_extra_run_0 ()
 {
 icon_try="${MAKE-make} -C '${icon_abs_top_builddir}/externals/yaxt/inst_headers' yaxt.h"
@@ -7121,47 +7169,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/rte-rrtmgp"
    acx_subdir_run_cmd_externals_rte_rrtmgp="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_rte_rrtmgp="externals/rte-rrtmgp"
-   acx_subdir_pre_adjusted_args=$ac_configure_args
-         eval "set dummy $acx_subdir_pre_adjusted_args"; shift
-   acx_subdir_pre_adjusted_args=
-   while test $# != 0; do
-     acx_tmp=$1
-     case $acx_tmp in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi|--cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-             -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-             -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    test 2 -gt $# || shift;  ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*|--cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-             -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-             -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-             --config-cache|-C| \
-             -enable-option-checking|-enable-option-checking=*|--enable-option-checking|--enable-option-checking=*|-disable-option-checking|--disable-option-checking) :
-     ;; #(
-  *) :
-           case $acx_tmp in #(
-  *\'*) :
-    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
-  *) :
-     ;;
-esac
-        as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'" ;;
-esac
-     shift
-   done
-         as_fn_append acx_subdir_pre_adjusted_args " '--disable-option-checking'"
-         if test "x$prefix" = xNONE; then :
-  acx_tmp="--prefix=$ac_default_prefix"
-else
-  acx_tmp="--prefix=$prefix"
-fi
-         case $acx_tmp in #(
-  *\'*) :
-    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
-  *) :
-     ;;
-esac
-         as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'"
-               acx_subdir_run_args_externals_rte_rrtmgp=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_rte_rrtmgp=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -7270,7 +7279,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/ecrad"
    acx_subdir_run_cmd_externals_ecrad="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_ecrad="externals/ecrad"
-         acx_subdir_run_args_externals_ecrad=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_ecrad=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -7471,7 +7481,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/sct"
    acx_subdir_run_cmd_externals_sct="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_sct="externals/sct"
-         acx_subdir_run_args_externals_sct=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_sct=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -7619,7 +7630,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/yaxt"
    acx_subdir_run_cmd_externals_yaxt="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_yaxt="externals/yaxt"
-         acx_subdir_run_args_externals_yaxt=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_yaxt=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -7786,7 +7798,8 @@ fi
                         acx_subdir_srcdirs_fn "externals/ppm"
    acx_subdir_run_cmd_externals_ppm="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_ppm="externals/ppm"
-         acx_subdir_run_args_externals_ppm=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_ppm=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -8069,7 +8082,8 @@ fi
                         acx_subdir_srcdirs_fn "externals/cdi"
    acx_subdir_run_cmd_externals_cdi="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_cdi="externals/cdi"
-         acx_subdir_run_args_externals_cdi=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_cdi=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -8309,7 +8323,8 @@ fi
                         acx_subdir_srcdirs_fn "externals/mtime"
    acx_subdir_run_cmd_externals_mtime="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_mtime="externals/mtime"
-         acx_subdir_run_args_externals_mtime=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_mtime=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -8429,7 +8444,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/yac"
    acx_subdir_run_cmd_externals_yac="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_yac="externals/yac"
-         acx_subdir_run_args_externals_yac=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_yac=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
@@ -8633,7 +8649,8 @@ fi
                            acx_subdir_srcdirs_fn "externals/tixi"
    acx_subdir_run_cmd_externals_tixi="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_tixi="externals/tixi"
-         acx_subdir_run_args_externals_tixi=$acx_subdir_pre_adjusted_args
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_tixi=$acx_subdir_pre_adjusted_args
       if test "x$cache_file" = x'/dev/null'; then :
   acx_tmp=$cache_file
 else
