@@ -40,6 +40,7 @@ MODULE mo_ser_nml
   INTEGER, TARGET ::  ser_time_loop_end(3)
   INTEGER, TARGET ::  ser_reset_to_initial_state(3)
   INTEGER, TARGET ::  ser_all_debug(3)            !! serialize statements using ser_all anywhere for debug purposes
+
   LOGICAL  ::  ser_rbf
   REAL(wp) ::  ser_nfail
   INTEGER  ::  ser_nreport

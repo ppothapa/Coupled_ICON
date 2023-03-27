@@ -267,7 +267,9 @@ CONTAINS
    
     TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
     TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
- 
+
+    !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac)
+
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
     hamocc_ocean_state%ocean_transport_state => transport_state 
@@ -295,7 +297,10 @@ CONTAINS
     ocean_to_hamocc_state%stretch_c          => ocean_state%p_prog(nold(1))%stretch_c
     ocean_to_hamocc_state%stretch_c_new      => ocean_state%p_prog(nnew(1))%stretch_c
     ocean_to_hamocc_state%draftave           => sea_ice%draftave    
-    
+
+    !$ACC ENTER DATA COPYIN(hamocc_ocean_state, hamocc_ocean_state%hamocc_to_ocean_state, hamocc_ocean_state%hamocc_to_ocean_state%swr_fraction) &
+    !$ACC   COPYIN(hamocc_ocean_state%hamocc_to_ocean_state%co2_flux)
+
   END SUBROUTINE fill_ocean_to_hamocc_interface
   !------------------------------------------------------------------------
 

@@ -128,7 +128,7 @@ contains
     real(kind=jprb),     intent(in), optional :: transm(:,:,:)
     real(kind=jprb),     intent(in), optional :: opdep(:,:,:)
     real(kind=jprb),     intent(in), optional :: p_l2c(:,:)
-    integer,             intent(in), optional :: ideb
+    integer,             intent(in), optional :: ideb(:)
 
     call finish('rtifc_l2c_god', err_msg(ERR_NO_RTTOV_LIB))
 
@@ -145,13 +145,12 @@ contains
   end function rtifc_coef_index
 
 
-  subroutine rtifc_cleanup(status, lprof, lcoef, latlas)
-    integer, intent(out) :: status  ! exit status
+  subroutine rtifc_cleanup(lprof, lcoef, latlas)
     logical, intent(in), optional :: lprof
     logical, intent(in), optional :: lcoef
     logical, intent(in), optional :: latlas
 
-    status = ERR_NO_RTTOV_LIB
+!   call finish('rtifc_cleanup', err_msg(ERR_NO_RTTOV_LIB))
 
   end subroutine rtifc_cleanup
 
@@ -245,7 +244,7 @@ contains
     integer,             intent(out),optional:: errorstatus    (:)
     integer,             intent(out),optional:: reg_lim    (:,:,:)
     integer,             intent(out),optional:: rflag        (:,:)
-    integer,             intent(in) ,optional:: iprint
+    integer,             intent(in) ,optional:: iprint         (:)
     logical,             intent(in) ,optional:: dealloc
     integer,             intent(in) ,optional:: rad_out_flg
     integer,             intent(in) ,optional:: pe
@@ -299,7 +298,7 @@ contains
     integer,             intent(out),optional:: rflag        (:,:)
     logical,             intent(in) ,optional:: dealloc
     integer,             intent(in) ,optional:: rad_out_flg
-    integer,             intent(in) ,optional:: iprint
+    integer,             intent(in) ,optional:: iprint         (:)
     integer,             intent(in) ,optional:: pe
     logical,             intent(in) ,optional:: l_pio
 

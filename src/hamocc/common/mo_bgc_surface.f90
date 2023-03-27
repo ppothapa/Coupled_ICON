@@ -17,7 +17,7 @@ MODULE mo_bgc_surface
 
 contains
 
-SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo)
+SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
 
 ! update linear age tracer
   USE mo_param1_bgc, ONLY     : iagesc
@@ -31,14 +31,24 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo)
   INTEGER, INTENT(in), TARGET    :: klev(bgc_nproma)       !<  vertical levels
 
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
-
+  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
 
   INTEGER :: jc,k, kpke
   REAL(wp) :: fac001
+  LOGICAL :: lacc
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
   fac001 = dtbgc/(86400._wp*365._wp) 
+
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO jc = start_idx, end_idx
      kpke=klev(jc)
+     !$ACC LOOP SEQ
      DO k = 2, kpke
       if(pddpo(jc,k) > EPSILON(0.5_wp)) then
          local_bgc_mem%bgctra(jc,k,iagesc) = local_bgc_mem%bgctra(jc,k,iagesc) + fac001
@@ -46,11 +56,12 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo)
      ENDDO
      if(pddpo(jc,1) > EPSILON(0.5_wp)) local_bgc_mem%bgctra(jc,1,iagesc) = 0._wp
   ENDDO
+  !$ACC END PARALLEL LOOP
 
 
 END SUBROUTINE update_linage 
 
-SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za)
+SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_acc)
 ! apply weathering rates
 
   USE mo_memory_bgc, ONLY : calcinp, orginp, silinp
@@ -65,11 +76,20 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za)
 
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)      !< surface height
+  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
 
   ! Local variables
 
   INTEGER :: jc
+  LOGICAL :: lacc
 
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
+
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -86,10 +106,11 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za)
   endif
 
   ENDDO
+  !$ACC END PARALLEL LOOP
 
 END SUBROUTINE
 
-SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,nitinput)
+SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nitinput, use_acc)
 ! apply nitrogen deposition
   USE mo_param1_bgc, ONLY     : iano3, ialkali, kn2b,knitinp
   USE mo_bgc_constants, ONLY  : rmnit
@@ -103,12 +124,21 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,nitin
   REAL(wp),INTENT(in) :: nitinput(bgc_nproma )                         !< nitrogen input
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)                   !< surface height
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
   
   ! Local variables
 
   INTEGER :: jc
-  REAL(wp) :: ninp 
+  REAL(wp) :: ninp
+  LOGICAL :: lacc
 
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
+
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -124,10 +154,11 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,nitin
   endif
 
   ENDDO
+  !$ACC END PARALLEL LOOP
 
 
 END SUBROUTINE
-SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,dustinp)
+SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp, use_acc)
 ! apply dust deposition
   USE mo_memory_bgc, ONLY      : perc_diron 
   USE mo_param1_bgc, ONLY     : iiron, idust
@@ -143,12 +174,20 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,dustinp)
   REAL(wp),INTENT(in) :: dustinp(bgc_nproma )                        !< dust input
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)                   !< surface height
-  
+  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
+
   ! Local variables
 
   INTEGER :: jc
+  LOGICAL :: lacc
 
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -160,12 +199,13 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo,za,dustinp)
   endif
 
  ENDDO
+ !$ACC END PARALLEL LOOP
 
 END SUBROUTINE
 
 
 SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
-     &              pfu10, psicomo )
+     &              pfu10, psicomo, use_acc)
 !! @brief Computes sea-air gass exchange
 !!         for oxygen, O2, N2, N2O, DMS, and CO2.
 !!
@@ -200,6 +240,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   REAL(wp),INTENT(in) :: pfu10(bgc_nproma)           !< forcing field wind speed
   REAL(wp),INTENT(in) :: psicomo(bgc_nproma)         !< sea ice concentration
   REAL(wp),INTENT(in) :: za(bgc_nproma)              !< sea surface height
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
   !! Local variables
 
@@ -211,17 +252,25 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   REAL(wp) :: oxflux,niflux,nlaughflux, dmsflux
   REAL(wp) :: ato2, atn2, atco2,pco2
   REAL(wp) :: thickness
+  LOGICAL :: lacc
 
   ! for extended N-cycle
   REAL (wp):: kgammo,kh_nh3i,kh_nh3,pka_nh3,ka_nh3,nh3sw,ammoflux 
   REAL (wp):: ecoef,tabs
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
+
 
   !
   !---------------------------------------------------------------------
   !
 
   k = 1      ! surface layer
-
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO j = start_idx, end_idx
 
 
@@ -396,6 +445,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
 
         ENDIF ! wet cell
      END DO
+     !$ACC END PARALLEL LOOP
 
 END SUBROUTINE 
 END MODULE mo_bgc_surface

@@ -241,8 +241,8 @@ MODULE mo_icon2dace
                             add_veri,        &! add entry to feedback file
                             prefix_out        ! feedback output file prefix
   use mo_tovs,        only: read_tovs_nml,   &! read TOVS_* namelists
-                            superob_tovs,    &
-                            use_reff          ! use ICON effective radii in RTTOV 
+                            use_reff,        &! use ICON effective radii in RTTOV
+                            thin_superob_tovs !
   use mo_rad,         only: rad_set,         &! Options for radiance datasets
                             n_set
   !------------------------
@@ -301,6 +301,12 @@ MODULE mo_icon2dace
   type(t_fdbk_3dv)     :: mon              ! feedback file meta data
   type(t_vector)       :: H_det            ! model equivalents
   type(t_atm), pointer :: atm(:) => NULL() ! model states
+  !----------------------------------------------------------------------------
+  ! DACE diagnostic output control
+  !-------------------------------
+  integer              :: dace_output_unit = 0  ! old version (backward compatible)
+! integer              :: dace_output_unit = 6  ! new version (stdout redirection)
+  character(255)       :: dace_output_file = "" ! filename
   !----------------------------------------------------------------------------
   ! ICON model information
   !-----------------------
@@ -386,6 +392,13 @@ contains
 
     dbg_level = max (dbg_level, assimilation_config(1)% dace_debug)
 
+    if (assimilation_config(1)% dace_output_file /= "") then
+       dace_output_unit = 6         ! new version (stdout redirection)
+       dace_output_file = adjustl (assimilation_config(1)% dace_output_file)
+    else
+       dace_output_unit = 0         ! old version (backward compatible)
+    end if
+
     IF (.not. ldetached) then
       call set_dace_comm (comm, p_io)
     ENDIF
@@ -425,6 +438,8 @@ contains
        write (1000+dace% pe,*) "#fr_land =",shape  (ext_data(1)% atm% fr_land)
        write (1000+dace% pe,*) "#hhl     =",shape  (p_nh_state(1)% metrics% z_ifc)
     end if
+
+    call dace_open_output (first=.true.)
 
     !---------------------------
     ! Start date (analysis date)
@@ -501,6 +516,8 @@ contains
     call message ("icon2dace","grid setup completed")
 
     call message ("icon2dace","init_dace done.")
+
+    call dace_close_output ()
 
 #endif /* __DACE__ */
 
@@ -809,6 +826,9 @@ contains
     real(wp), allocatable       :: c1(:), c2(:), d1(:), d2(:)
     integer,  allocatable       :: owner_c(:,:,:)
     integer,  allocatable       :: owner_v(:,:,:)
+    integer                     :: ou
+
+    ou = dace_output_unit
 
     ! This is needed for consistency with set_dace_comm
     call MPI_COMM_RANK (comm, p_pe, ierr)
@@ -902,7 +922,7 @@ contains
     icongrid% global = global
     if (dace% lpio) then
       if (dbg_level > 0) then
-        write(0,*) "# patch is global     = ", icongrid% global
+        write(ou,*) "# patch is global     = ", icongrid% global
       end if
     end if
 
@@ -960,7 +980,7 @@ contains
        if (dace% lpio) then
           do j = 1, n_cells
              if (ext_glb_idx(j) < 1) &
-                  write(0,*) "### BAD:", j,":", ext_glb_idx(j)
+                  write(ou,*) "### BAD:", j,":", ext_glb_idx(j)
           end do
        end if
        call finish ("icongrid_from_icon","bad global index")
@@ -1138,9 +1158,9 @@ contains
                       .and. (patch% verts% cell_blk(jc,jb,  k  ) == &
                              patch% verts% cell_blk(jc,jb,1:k-1))   ) ) then
                 if (dbg_level > 1) then
-                   write(0,*) "### 'Duplicate' neighbor cells: ne,jc,jb,k=", ne, jc, jb, k
-                   write(0,*) "# patch% verts% cell_idx=", patch% verts% cell_idx(jc,jb,1:k)
-                   write(0,*) "# patch% verts% cell_blk=", patch% verts% cell_blk(jc,jb,1:k)
+                  write(ou,*) "### 'Duplicate' neighbor cells: ne,jc,jb,k=", ne, jc, jb, k
+                  write(ou,*) "# patch% verts% cell_idx=", patch% verts% cell_idx(jc,jb,1:k)
+                  write(ou,*) "# patch% verts% cell_blk=", patch% verts% cell_blk(jc,jb,1:k)
                 end if
                 !--------------------------------------------------------------------
                 ! Adjust number of edges for boundary points with duplicate neighbors
@@ -1322,10 +1342,10 @@ contains
 !      write(*,*)
 !   end if
 
-    if (dace% lpio) write(0,*) 'checking neighbor relationships in ICON grid'
+    if (dace% lpio) write(ou,*) 'checking neighbor relationships in ICON grid'
     call check_neighbours (icongrid)
 
-    if (dace% lpio) write(0,*) 'deriving gridpoint distance to grid boundary'
+    if (dace% lpio) write(ou,*) 'deriving gridpoint distance to grid boundary'
     call dist_to_bound (p, 50)
 
     !-----------------------------------------------------
@@ -1347,10 +1367,10 @@ contains
              vlat(j) = p% verts% vertex(j,1)% lat * r2d
           end do
           if (dace% lpio) then
-             write(0,*)
-             write(0,*) "checking DACE interpolation routines on vertices"
-             write(0,*) "vert: min/max(lon) =", minval (vlon), maxval (vlon)
-             write(0,*) "vert: min/max(lat) =", minval (vlat), maxval (vlat)
+            write(ou,*)
+            write(ou,*) "checking DACE interpolation routines on vertices"
+            write(ou,*) "vert: min/max(lon) =", minval (vlon), maxval (vlon)
+            write(ou,*) "vert: min/max(lat) =", minval (vlat), maxval (vlat)
           end if
           idx = 0
           blk = 0
@@ -1360,11 +1380,11 @@ contains
           call search_icon_global (icongrid, vlon, vlat, idx, blk, w, ngp)
           call cpu_time (t2)
           if (dace% lpio) then
-             write(0,*) "min/max(ngp) =", minval (ngp(1:n_verts)), maxval (ngp(1:n_verts))
-             write(0,*) "min/max(w)   =", minval (w(:,1:n_verts)), maxval (w(:,1:n_verts))
-             write(0,*) "Time for search [s]:", real (t2-t1)
-             write(0,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_verts*1.e6_wp)
-             write(0,*)
+            write(ou,*) "min/max(ngp) =", minval (ngp(1:n_verts)), maxval (ngp(1:n_verts))
+            write(ou,*) "min/max(w)   =", minval (w(:,1:n_verts)), maxval (w(:,1:n_verts))
+            write(ou,*) "Time for search [s]:", real (t2-t1)
+            write(ou,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_verts*1.e6_wp)
+            write(ou,*)
           end if
           !---------------------------------------
           ! Check validity of interpolation points
@@ -1383,9 +1403,9 @@ contains
              end if
           end do
           if (dace% lpio) then
-             write(0,*) "Maximum distance to closest cell center", real (dmax), &
-                  "for index", j0, ": vlon,vlat=", real([vlon(j0), vlat(j0)])
-             write(0,*)
+            write(ou,*) "Maximum distance to closest cell center", real (dmax), &
+                 "for index", j0, ": vlon,vlat=", real([vlon(j0), vlat(j0)])
+            write(ou,*)
           end if
           ! Derive points from cell center coordinates with small perturbations
           call random_number (clon)
@@ -1395,9 +1415,9 @@ contains
              clat(j) = (2*clat(j)-1)*0.005_wp + p% cells% center(j,1)% lat * r2d
           end do
           if (dace% lpio) then
-             write(0,*) "checking DACE interpolation routines near cell centers"
-             write(0,*) "cell: min/max(lon) =", minval (clon), maxval (clon)
-             write(0,*) "cell: min/max(lat) =", minval (clat), maxval (clat)
+            write(ou,*) "checking DACE interpolation routines near cell centers"
+            write(ou,*) "cell: min/max(lon) =", minval (clon), maxval (clon)
+            write(ou,*) "cell: min/max(lat) =", minval (clat), maxval (clat)
           end if
           idx = 0
           blk = 0
@@ -1407,11 +1427,11 @@ contains
           call search_icon_global (icongrid, clon, clat, idx, blk, w, ngp)
           call cpu_time (t2)
           if (dace% lpio) then
-             write(0,*) "min/max(ngp) =", minval (ngp(1:n_cells)), maxval (ngp(1:n_cells))
-             write(0,*) "min/max(w)   =", minval (w(:,1:n_cells)), maxval (w(:,1:n_cells))
-             write(0,*) "Time for search [s]:", real (t2-t1)
-             write(0,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_cells*1.e6_wp)
-             write(0,*)
+            write(ou,*) "min/max(ngp) =", minval (ngp(1:n_cells)), maxval (ngp(1:n_cells))
+            write(ou,*) "min/max(w)   =", minval (w(:,1:n_cells)), maxval (w(:,1:n_cells))
+            write(ou,*) "Time for search [s]:", real (t2-t1)
+            write(ou,*) "Time for search [microseconds/point]:", real ((t2-t1)/n_cells*1.e6_wp)
+            write(ou,*)
           end if
           !---------------------------------------
           ! Check validity of interpolation points
@@ -1430,9 +1450,9 @@ contains
              end if
           end do
           if (dace% lpio) then
-             write(0,*) "Maximum distance to closest cell center", real (dmax), &
-                  "for index", j0, ": vlon,vlat=", real([clon(j0), clat(j0)])
-             write(0,*)
+            write(ou,*) "Maximum distance to closest cell center", real (dmax), &
+                 "for index", j0, ": vlon,vlat=", real([clon(j0), clat(j0)])
+            write(ou,*)
           end if
        end block
 #endif
@@ -1560,7 +1580,7 @@ contains
 
     if (dbg_level > 0) then
        call message ("grid_from_icon","ICON grid:")
-       call print   (g, iunit=0, verbose=dbg_level > 1)
+       call print   (g, iunit=dace_output_unit, verbose=dbg_level > 1)
        call message ("","")
     end if
 
@@ -1595,8 +1615,8 @@ contains
                                                   "qv_dia qc_dia qi_dia clc"
     character(*), parameter :: fields_rad_reff  = "reff_qc reff_qi" 
     character(512)          :: fields
+    integer                 :: ou
 
- 
     g  => state% grid
     nz =  g% nz
     atm_d => p_nh_state(1)% diag
@@ -1703,9 +1723,10 @@ contains
     call set_rh  (state)
 
     if (dbg_level > 0) then
+       ou = dace_output_unit
        call print (state, grid=.false., comment="ICON state", &
-                          iunit=0,      verbose= dbg_level > 1)
-       flush (6)
+                          iunit=ou,     verbose= dbg_level > 1)
+       flush (ou)
     end if
 
   end subroutine atm_from_icon
@@ -1797,6 +1818,8 @@ contains
        write(0,*) "pe, myproc =", dace% pe, grid% dc% myproc
        call finish ("init_dace_op","bad myproc")
     end if
+
+    call dace_open_output ()
 
     !----------------------------------
     ! "Reference" atmosphere for MEC:
@@ -1939,7 +1962,7 @@ contains
     !------------------------------
     call derive_rept_stat (obs% o)
     call gather_rept_stat
-    call print_rept_stat  ('after observation input', unit=0)
+    call print_rept_stat  ('after observation input', unit=dace_output_unit)
 
     !------------------------------
     ! apply some checks on the data
@@ -1956,7 +1979,7 @@ contains
     !------------------------------
     call derive_rept_stat (obs% o)
     call gather_rept_stat
-    call print_rept_stat  ('after additional checks', unit=0)
+    call print_rept_stat  ('after additional checks', unit=dace_output_unit)
 
     !--------
     ! Cleanup
@@ -1969,6 +1992,7 @@ contains
     dace_op_init = .true.
     call message ("init_dace_op","done.")
     CALL message ('','')
+    call dace_close_output ()
 
 #endif /* __DACE__ */
 
@@ -2190,6 +2214,8 @@ contains
        call finish ("run_dace_op","DACE operators not initialized.")
     end if
 
+    call dace_open_output ()
+
     mec_time => newtimedelta('PT0S')
     mec_time =  mtime_current - mec_RefDate
     CALL datetimeToString  (mtime_current, dt_string)
@@ -2252,7 +2278,7 @@ contains
           call apply_H  (H_det , obs, atm(mec_slotn:mec_slotn), bg=first)
        end if
 
-       call superob_tovs(obs, H_det)
+       call thin_superob_tovs(obs, H_det)
        call process_obs (TSK_R,    obs)
 
        if (first) then
@@ -2282,6 +2308,8 @@ contains
 
     end if
 
+    call dace_close_output ()
+
 #endif /* __DACE__ */
 
   end subroutine run_dace_op
@@ -2295,6 +2323,8 @@ contains
     CALL finish ("finish_dace","DACE coupling requested but not compiled in")
 #else
     character(22) :: comment
+
+    call dace_open_output ()
 
     if (ens_mem > 1) then
        write (comment,'("ensemble member",i4)') ens_mem
@@ -2314,7 +2344,7 @@ contains
     !------------------------------
     call derive_rept_stat (obs% o)
     call gather_rept_stat
-    call print_rept_stat  (unit=0)
+    call print_rept_stat  (unit=dace_output_unit)
 
     !------------------------
     ! append to feedback file
@@ -2345,6 +2375,7 @@ contains
 
     call message ("icon2dace","Done.")
     call message ("","")
+    call dace_close_output ()
 
 #endif /* __DACE__ */
 
@@ -2383,7 +2414,7 @@ contains
 
     if (dbg_level > 1) then
        n = p_sum (n)
-       if (dace% lpio) write (0,*) "fix_gp_indices: ", n, "reports"
+       if (dace% lpio) write (dace_output_unit,*) "fix_gp_indices: ", n, "reports"
     end if
   end subroutine fix_gp_indices
 
@@ -2451,6 +2482,41 @@ contains
                                          "interpolation > 1 not supported")
 
   end subroutine read_nml_mec_obs
+
+  !============================================================================
+
+  subroutine dace_open_output (first)
+    logical, intent(in), optional :: first  ! Check if writable on first open
+    !-------------------------------------------------------------
+    ! (Re-)Open DACE output_unit on I/O processor (in append mode)
+    !-------------------------------------------------------------
+    integer :: iu, ios
+
+    if (.not. dace% lpio .or. dace_output_unit == 0 &
+                         .or. dace_output_file == "") return
+    if (present (first)) then
+       if (first) then
+          iu = get_unit_number ()
+          open (iu, file=dace_output_file, status='new', iostat=ios)
+          if (ios /= 0) call finish ("dace_open_output",                      &
+                                     "cannot write: "//trim (dace_output_file))
+          close (iu, status='delete')
+          call return_unit_number (iu)
+       end if
+    end if
+    open (unit=dace_output_unit, file=dace_output_file, position="APPEND")
+  end subroutine dace_open_output
+
+  !============================================================================
+
+  subroutine dace_close_output ()
+    !----------------------------------------
+    ! Close DACE output_unit on I/O processor
+    !----------------------------------------
+    if (.not. dace% lpio .or. dace_output_unit == 0 &
+                         .or. dace_output_file == "") return
+    close (unit=dace_output_unit)
+  end subroutine dace_close_output
 
 #endif /* __DACE__ */
   !============================================================================

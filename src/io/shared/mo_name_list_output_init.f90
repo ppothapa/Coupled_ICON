@@ -47,7 +47,8 @@ MODULE mo_name_list_output_init
     &                                             GRID_EDGE, GRID_CELL, LONLAT_PREFIX
   USE mo_io_units,                          ONLY: filename_max, nnml, nnml_output
   USE mo_master_config,                     ONLY: getModelBaseDir, isRestart
-  USE mo_master_control,                    ONLY: my_process_is_oceanic, my_process_is_jsbach
+  USE mo_master_control,                    ONLY: my_process_is_atmo, my_process_is_oceanic, my_process_is_jsbach, &
+    &                                             my_process_is_waves
   ! basic utility modules
   USE mo_exception,                         ONLY: finish, message, message_text
   USE mo_dictionary,                        ONLY: t_dictionary
@@ -78,7 +79,6 @@ MODULE mo_name_list_output_init
     &                                             first_output_name_list
   USE mo_time_config,                       ONLY: time_config
   USE mo_gribout_config,                    ONLY: gribout_config
-  USE mo_dynamics_config,                   ONLY: iequations
 
 #ifndef __NO_ICON_ATMO__
   USE mo_nh_pzlev_config,                   ONLY: nh_pzlev_config
@@ -160,6 +160,9 @@ MODULE mo_name_list_output_init
   USE mo_name_list_output_zaxes,            ONLY: setup_ml_axes_atmo, setup_pl_axis_atmo,         &
     &                                             setup_hl_axis_atmo, setup_il_axis_atmo,         &
     &                                             setup_zaxes_oce
+#ifndef __NO_ICON_WAVES__
+  USE mo_waves_vertical_axes,               ONLY: setup_zaxes_waves
+#endif
   USE mo_level_selection_types,             ONLY: t_level_selection
 #ifndef __NO_JSBACH__
   USE mo_atm_phy_nwp_config,                ONLY: atm_phy_nwp_config
@@ -939,9 +942,9 @@ CONTAINS
       this_i_lctype = i_lctype(print_patch_id)
 #endif
 
-      CALL print_var_list(out_varnames_dict,   &
-        &                 print_patch_id, iequations,                 &
-        &                 gribout_config(print_patch_id),             &
+      CALL print_var_list(out_varnames_dict,              &
+        &                 print_patch_id,                 &
+        &                 gribout_config(print_patch_id), &
         &                 this_i_lctype)
     END IF
 
@@ -1190,7 +1193,7 @@ CONTAINS
 ! NOMPI
 
     output_file(:)%cdiFileID  = CDI_UNDEFID ! i.e. not opened
-    output_file(:)%cdiVlistId = CDI_UNDEFID ! i.e. not defined
+    output_file(:)%cdiVlistID = CDI_UNDEFID ! i.e. not defined
 
 
     ! --------------------------------------------------------------------------------------
@@ -1341,7 +1344,6 @@ CONTAINS
           p_of%cdiVertGridID   = CDI_UNDEFID
           p_of%cdiLonLatGridID = CDI_UNDEFID
           p_of%cdiZonal1DegID  = CDI_UNDEFID
-          p_of%cdiTaxisID      = CDI_UNDEFID
           p_of%cdiVlistID      = CDI_UNDEFID
 
           p_of%npartitions     = npartitions
@@ -1626,10 +1628,7 @@ CONTAINS
     INTEGER, INTENT(in) :: i, local_i
     TYPE (t_sim_step_info), INTENT(IN) :: sim_step_info
     INTEGER, INTENT(out) :: dom_sim_step_info_jstep0
-    TYPE(t_event_data_local), INTENT(INOUT)  :: event_list_local(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: event_list_local
-#endif
+    TYPE(t_event_data_local), INTENT(INOUT), CONTIGUOUS :: event_list_local(:)
 
     !> length of local list of output events
     INTEGER, INTENT(inout) :: ievent_list_local
@@ -1785,15 +1784,18 @@ CONTAINS
 
       p_of%verticalAxisList = t_verticalAxisList()
 
-      IF (.not. my_process_is_oceanic()) THEN ! atm
+
+      IF (my_process_is_oceanic()) THEN
+        CALL setup_zaxes_oce(p_of%verticalAxisList,p_of%level_selection)
+
+      ELSE IF (my_process_is_atmo()) THEN
         SELECT CASE(p_of%ilev_type)
         CASE (level_type_ml)
-          IF (.NOT. my_process_is_jsbach()) CALL setup_ml_axes_atmo(p_of%verticalAxisList, p_of%level_selection, p_of%log_patch_id)
+          CALL setup_ml_axes_atmo(p_of%verticalAxisList, p_of%level_selection, p_of%log_patch_id)
 #ifndef __NO_JSBACH__
-          IF (ANY(aes_phy_config(:)%ljsb .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH))) &
-              & CALL setup_zaxes_jsbach(p_of%verticalAxisList)
+          IF (ANY(aes_phy_config(1:n_dom)%ljsb .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH))) &
+            &  CALL setup_zaxes_jsbach(p_of%verticalAxisList)
 #endif
-#ifndef __NO_ICON_ATMO__
         CASE (level_type_pl)
           CALL setup_pl_axis_atmo(p_of%verticalAxisList, nh_pzlev_config(p_of%log_patch_id)%plevels, &
             &                     p_of%level_selection)
@@ -1803,13 +1805,20 @@ CONTAINS
         CASE (level_type_il)
           CALL setup_il_axis_atmo(p_of%verticalAxisList, nh_pzlev_config(p_of%log_patch_id)%ilevels, &
             &                     p_of%level_selection)
-#endif
         CASE DEFAULT
           CALL finish(routine, "Internal error!")
         END SELECT
-      ELSE
-        CALL setup_zaxes_oce(p_of%verticalAxisList,p_of%level_selection)
-      END IF
+
+      ELSE IF (my_process_is_jsbach()) THEN
+#ifndef __NO_JSBACH__
+        CALL setup_zaxes_jsbach(p_of%verticalAxisList)
+#endif
+      ELSE IF (my_process_is_waves()) THEN
+#ifndef __NO_ICON_WAVES__
+        CALL setup_zaxes_waves(p_of%verticalAxisList)
+#endif
+      ENDIF
+
     END DO
   END SUBROUTINE create_vertical_axes
 
@@ -2207,11 +2216,10 @@ CONTAINS
   END SUBROUTINE set_reorder_info
 
   SUBROUTINE bitmask2start_count_blks(mask, nb, starts, counts)
-    INTEGER(i8), INTENT(in) :: mask(0:), nb
+    INTEGER(i8), INTENT(in), CONTIGUOUS :: mask(0:)
+    INTEGER(i8), INTENT(in) :: nb
     INTEGER, ALLOCATABLE, INTENT(out) :: starts(:), counts(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: mask
-#endif
+
     INTEGER(i8) :: i
     INTEGER(i8), PARAMETER :: nbits_i8 = BIT_SIZE(i)
     INTEGER :: num_cblk, n
@@ -2363,6 +2371,7 @@ CONTAINS
     LOGICAL                           :: lrotated
     REAL(wp), ALLOCATABLE             :: rotated_pts(:,:,:)
     TYPE (t_lon_lat_grid), POINTER :: grid
+    INTEGER                           :: taxisID
 
 #ifdef HAVE_CDI_PIO
     TYPE(xt_idxlist)                  :: null_idxlist
@@ -2703,19 +2712,19 @@ CONTAINS
     !
     SELECT CASE (of%name_list%mode)
     CASE (1)  ! forecast mode
-     of%cdiTaxisID = taxisCreate(TAXIS_RELATIVE)
+     taxisID = taxisCreate(TAXIS_RELATIVE)
 
      IF (of%name_list%taxis_tunit > 10 .OR. of%name_list%taxis_tunit < 1 ) THEN
        of%name_list%taxis_tunit=TUNIT_MINUTE
        CALL message('','invalid taxis_tunit, reset to TUNIT_MINUTE')
      END IF
-     CALL taxisDefTunit (of%cdiTaxisID, of%name_list%taxis_tunit)
+     CALL taxisDefTunit (taxisID, of%name_list%taxis_tunit)
 
      SELECT CASE(calendarType())
      CASE (mtime_proleptic_gregorian)
-       CALL taxisDefCalendar (of%cdiTaxisID, dtime_proleptic_gregorian)
+       CALL taxisDefCalendar (taxisID, dtime_proleptic_gregorian)
      CASE (mtime_year_of_360_days)
-       CALL taxisDefCalendar (of%cdiTaxisID, dtime_cly360)
+       CALL taxisDefCalendar (taxisID, dtime_cly360)
      CASE default
        CALL finish(routine, "Unsupported calendar!")
      END SELECT
@@ -2725,19 +2734,19 @@ CONTAINS
      itime = cdiEncodeTime(time_config%tc_exp_startdate%time%hour, time_config%tc_exp_startdate%time%minute, &
                            INT(time_config%tc_exp_startdate%time%second))
 
-     CALL taxisDefRdate (of%cdiTaxisID, idate )
-     CALL taxisDefRtime (of%cdiTaxisID, itime )
+     CALL taxisDefRdate (taxisID, idate)
+     CALL taxisDefRtime (taxisID, itime)
 
-     !WRITE(6,'(a,i,a,i)')'idate ',idate,' ',taxisInqRdate(of%cdiTaxisID)
-     !WRITE(6,'(a,i,a,i)')'itime ',itime,' ',taxisInqRtime(of%cdiTaxisID)
+     !WRITE(6,'(a,i,a,i)')'idate ',idate,' ',taxisInqRdate(taxisID)
+     !WRITE(6,'(a,i,a,i)')'itime ',itime,' ',taxisInqRtime(taxisID)
     CASE (2)  ! climate mode
-     of%cdiTaxisID = taxisCreate(TAXIS_ABSOLUTE)
+     taxisID = taxisCreate(TAXIS_ABSOLUTE)
     CASE DEFAULT
-     of%cdiTaxisID = taxisCreate(TAXIS_ABSOLUTE)
+     taxisID = taxisCreate(TAXIS_ABSOLUTE)
     END SELECT
 
     !
-    CALL vlistDefTaxis(of%cdiVlistID, of%cdiTaxisID)
+    CALL vlistDefTaxis(of%cdiVlistID, taxisID)
 
     !
     ! add variables
@@ -2809,8 +2818,7 @@ CONTAINS
         CALL finish(routine, message_text)
       END IF
       zaxisID = zaxis%cdi_id
-
-      IF (info%lmask_boundary .AND. config_lmask_boundary .AND. &
+      IF (info%lmask_boundary .AND. ANY(config_lmask_boundary(:)) .AND. &
         &      (info%hgrid == GRID_UNSTRUCTURED_CELL)) THEN
         missval = BOUNDARY_MISSVAL
       END IF

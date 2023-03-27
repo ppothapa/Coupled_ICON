@@ -557,13 +557,10 @@ CONTAINS
        glb2loc_index_recv, glb2loc_index_send, inplace)
     CLASS(t_comm_pattern_orig), TARGET, INTENT(out) :: p_pat
     INTEGER, INTENT(in) :: comm
-    TYPE(xfer_list), INTENT(in) :: recv_msg(:), send_msg(:)
+    TYPE(xfer_list), INTENT(in), CONTIGUOUS :: recv_msg(:), send_msg(:)
     TYPE(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index_recv, &
          glb2loc_index_send
     LOGICAL, OPTIONAL, INTENT(in) :: inplace
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: recv_msg, send_msg
-#endif
     INTEGER :: np_recv, np_send, n_send, n_recv, comm_rank, &
          n_pnts_recv, n_pnts_send, comm_size
     LOGICAL :: is_inter
@@ -648,13 +645,10 @@ CONTAINS
     SUBROUTINE list2limits(comm_size, limits, msg, is_inter)
       INTEGER, INTENT(in) :: comm_size
       INTEGER, INTENT(out) :: limits(0:comm_size)
-      TYPE(xfer_list), INTENT(in) :: msg(:)
+      TYPE(xfer_list), INTENT(in), CONTIGUOUS :: msg(:)
       LOGICAL, INTENT(in) :: is_inter
       INTEGER :: i, msg_rank, nmsg, limits_psum
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: msg
-#endif
-      nmsg = SIZE(msg)
+     nmsg = SIZE(msg)
       limits(0:comm_size) = 0
       DO i = 1, nmsg
         msg_rank = msg(i)%rank
@@ -668,12 +662,9 @@ CONTAINS
     END SUBROUTINE list2limits
 
     SUBROUTINE expand1d2blkidx(msg, limits, recv_src)
-      TYPE(xfer_list), INTENT(in) :: msg(:)
-      INTEGER, INTENT(in) :: limits(0:)
-      INTEGER, INTENT(out) :: recv_src(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: msg, limits, recv_src
-#endif
+      TYPE(xfer_list), INTENT(in), CONTIGUOUS :: msg(:)
+      INTEGER, INTENT(in), CONTIGUOUS :: limits(0:)
+      INTEGER, INTENT(out), CONTIGUOUS :: recv_src(:)
       INTEGER :: nmsg, i, sz, msg_rank, jls, jl, jle
       nmsg = SIZE(msg)
       DO i = 1, nmsg
@@ -689,15 +680,12 @@ CONTAINS
 
     SUBROUTINE  expandglb2blkidx(msg, glb2loc_index, limits, &
          a_blk, a_idx)
-      TYPE(xfer_list), INTENT(in) :: msg(:)
+      TYPE(xfer_list), INTENT(in), CONTIGUOUS :: msg(:)
       TYPE(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index
-      INTEGER, INTENT(in) :: limits(0:)
-      INTEGER, INTENT(out) :: a_blk(:), a_idx(:)
+      INTEGER, INTENT(in), CONTIGUOUS :: limits(0:)
+      INTEGER, INTENT(out), CONTIGUOUS :: a_blk(:), a_idx(:)
       INTEGER :: i, jl, msg_rank, sz, jls, jle, np, nmsg
       LOGICAL :: any_np_le_0
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      CONTIGUOUS :: limits, msg, a_blk, a_idx
-#endif
       nmsg = SIZE(msg)
       any_np_le_0 = .FALSE.
       DO i = 1, nmsg

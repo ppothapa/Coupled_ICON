@@ -573,7 +573,6 @@ MODULE mo_ext_data_types
 !  END TYPE external_ocean_td
 
 
-
   !>
   !! External data class including lists
   !!
@@ -592,6 +591,7 @@ MODULE mo_ext_data_types
 
     TYPE(t_external_bgc)      :: bgc
     TYPE(t_var_list_ptr)          :: bgc_list
+
 !    TYPE(t_external_ocean_td) :: oce_td
 !    TYPE(t_var_list_ptr), POINTER :: oce_td_list
 

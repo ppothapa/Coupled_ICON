@@ -1069,10 +1069,7 @@ CONTAINS
     INTEGER,                               INTENT(IN)  :: local_event_no       !< local index of this event on local PE
     INTEGER,                               INTENT(IN)  :: icomm                !< MPI communicator
     !> local list of output events
-    TYPE(t_event_data_local),              INTENT(INOUT)  :: event_list_local(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: event_list_local
-#endif
+    TYPE(t_event_data_local),              INTENT(INOUT), CONTIGUOUS :: event_list_local(:)
     !> length of local list of output events
     INTEGER,                               INTENT(INOUT) :: ievent_list_local
 
@@ -1187,12 +1184,9 @@ CONTAINS
     TYPE(t_par_output_event), POINTER :: union_of_all_events
     !> MPI communicator for intra-I/O communication
     INTEGER,                INTENT(IN)  :: icomm, root_outevent
-    TYPE(t_event_data_local), INTENT(INOUT) :: event_list_local(:)
+    TYPE(t_event_data_local), INTENT(INOUT), CONTIGUOUS :: event_list_local(:)
     !> length of local list of output events
     INTEGER, INTENT(in) :: ievent_list_local
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: event_list_local
-#endif
 
     INTERFACE
       !> As an argument of this function, the user must provide a
@@ -1856,10 +1850,7 @@ CONTAINS
   ! ROUTINES PERFORMING DATA TRANSFER TO ROOT PE DURING SETUP
   !---------------------------------------------------------------
   SUBROUTINE p_gatherv_event_data_1d1d(sbuf, rbuf, p_dest, counts, comm)
-    TYPE(t_event_data_local), INTENT(in) :: sbuf(:)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: sbuf
-#endif
+    TYPE(t_event_data_local), INTENT(in), CONTIGUOUS :: sbuf(:)
     TYPE(t_event_data_local), ALLOCATABLE, INTENT(inout) :: rbuf(:)
     INTEGER, ALLOCATABLE, INTENT(inout) :: counts(:)
     INTEGER, INTENT(in) :: p_dest

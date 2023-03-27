@@ -49,7 +49,7 @@ MODULE mo_ocprod
 CONTAINS
 
 
-SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu, l_dynamic_pi)
+SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptiestu, l_dynamic_pi, max_klevs, use_acc)
     
 
   IMPLICIT NONE
@@ -67,6 +67,8 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
   REAL(wp), INTENT(in) :: ptiestu(bgc_nproma,bgc_zlevs) !< depth of scalar grid cell [m]
 
   LOGICAL, INTENT(in) :: l_dynamic_pi
+  INTEGER, INTENT(IN) :: max_klevs
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
  !  Local variables
 
@@ -84,6 +86,10 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
 
   REAL(wp) :: dms_prod, dms_uv, dms_bac 
 
+  LOGICAL :: lacc
+
+  REAL(wp) :: reminfac
+
  ! N-cycle variables
   REAL(wp) :: limp, limf,limn, po4lim, felim, no3lim, nh4lim, hib
   REAL(wp) :: nfrac, detn, remin_nit, rdnrn, rdnra, fdnrn, fdnra, no3rmax
@@ -92,15 +98,18 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
   REAL(wp) :: newnitr, oxpot, nitox, ammox, remsulf, detnew, ntotlim
   REAL(wp) :: dnrn, dnra, nlim, no2a, no2c_max, n2oa, nrn2, n2oc_max 
   REAL(wp) :: anamox, avo2, n2oprod, n2on2, no2rmax
- 
 
- DO j = start_idx, end_idx
-  
-     kpke=klev(j)
- 
-     DO k = 1, kpke
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
-      IF(pddpo(j,k) > EPSILON(0.5_wp)) then
+ !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+ DO k = 1, max_klevs
+   DO j = start_idx, end_idx
+
+      IF(pddpo(j,k) > EPSILON(0.5_wp) .and. k <= klev(j)) then
 
        surface_height = MERGE(za(j), 0._wp, k==1) 
 
@@ -348,10 +357,11 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
            ! DOC decomposition
            avoxy = local_bgc_mem%bgctra(j,k,ioxygen) -remin*ro2ut - thresh_aerob      ! available O2
            IF(l_doc_q10)then  ! T-dependency (Maerz et al., 2020)
-            xn=local_bgc_mem%bgctra(j,k,idoc)/(1._wp+remido*doc_remin_q10**((ptho(j,k)-doc_remin_tref)/10._wp))
+            reminfac=remido*doc_remin_q10**((ptho(j,k)-doc_remin_tref)/10._wp)
            ELSE
-            xn=local_bgc_mem%bgctra(j,k,idoc)/(1._wp+remido)
+            reminfac=remido
            ENDIF
+           xn=(local_bgc_mem%bgctra(j,k,idoc)+reminfac*docmin)/(1._wp+reminfac)
            bacfra=MAX(0._wp,local_bgc_mem%bgctra(j,k,idoc) - xn)
 
            !!!! N cycle !!!!!!!!
@@ -814,7 +824,7 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx,end_idx, ptho,pddpo, za,ptiestu
       ENDIF ! wet cells
      ENDDO ! k=1,kpke
   ENDDO ! j=start_idx,end_idx 
-
+  !$ACC END PARALLEL LOOP
  
  
 

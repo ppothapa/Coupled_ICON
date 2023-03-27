@@ -34,11 +34,7 @@ MODULE mo_prepadv_types
   !
   TYPE :: t_prepare_adv
 
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS            &
-#endif
-      ::                    &
+    REAL(wp), POINTER, CONTIGUOUS ::                    &
       mass_flx_me(:,:,:) ,  & !< mass flux at full level edges   [kg/m^2/s]
                               !< averaged over dynamics substeps
       mass_flx_ic(:,:,:) ,  & !< mass flux at half level centers [kg/m^2/s]

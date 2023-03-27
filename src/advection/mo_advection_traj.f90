@@ -45,7 +45,6 @@
 
 !----------------------------
 #include "omp_definitions.inc"
-#include "icon_contiguous_defines.inc"
 !----------------------------
 MODULE mo_advection_traj
 
@@ -74,15 +73,15 @@ MODULE mo_advection_traj
   TYPE t_back_traj
     ! line indices of cell centers in which the calculated barycenters are located
     ! dim: (nproma,nlev,p_patch%nblks_e)
-    INTEGER, CONTIGUOUS_POINTER :: cell_idx(:,:,:) => NULL()
+    INTEGER, CONTIGUOUS, POINTER :: cell_idx(:,:,:) => NULL()
     !
     ! block indices of cell centers in which the calculated barycenters are located
     ! dim: (nproma,nlev,p_patch%nblks_e)
-    INTEGER, CONTIGUOUS_POINTER :: cell_blk(:,:,:) => NULL()
+    INTEGER, CONTIGUOUS, POINTER :: cell_blk(:,:,:) => NULL()
     !
     ! distance vectors cell center --> barycenter of advected area (geographical coordinates)
     ! dim: (nproma,nlev,p_patch%nblks_e,2)
-    REAL(vp), CONTIGUOUS_POINTER :: distv_bary(:,:,:,:) => NULL()
+    REAL(vp), CONTIGUOUS, POINTER :: distv_bary(:,:,:,:) => NULL()
 
   CONTAINS
     !
@@ -222,8 +221,8 @@ CONTAINS
     INTEGER :: i_rlstart, i_rlend
     INTEGER :: slev, elev        !< vertical start and end level
 ! These convenience pointers are needed to avoid PGI trying to copy derived type instance btraj back from device to host
-    INTEGER, CONTIGUOUS_POINTER  :: p_cell_idx(:,:,:), p_cell_blk(:,:,:)
-    REAL(vp), CONTIGUOUS_POINTER :: p_distv_bary(:,:,:,:)
+    INTEGER, CONTIGUOUS, POINTER  :: p_cell_idx(:,:,:), p_cell_blk(:,:,:)
+    REAL(vp), CONTIGUOUS, POINTER :: p_distv_bary(:,:,:,:)
     LOGICAL :: lvn_pos
 
     !-------------------------------------------------------------------------

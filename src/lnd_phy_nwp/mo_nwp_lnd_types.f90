@@ -48,11 +48,7 @@ MODULE mo_nwp_lnd_types
   !
   TYPE t_lnd_prog
 
-    REAL(wp), POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS                  &
-#endif
-    &  ::                         &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     &  t_s_t          (:,:,:)   , & ! temperature of the ground surface             (  K  )
     &  t_sk_t         (:,:,:)   , & ! skin temperature                              (  K  )
     &  t_g            (:,:)     , & ! weighted surface temperature                  (  K  )
@@ -98,11 +94,7 @@ MODULE mo_nwp_lnd_types
   !
   TYPE t_wtr_prog
 
-    REAL(wp), POINTER         &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS              &
-#endif
-    &  ::                     &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     &  t_ice        (:,:)   , & ! temperature of the sea ice             (  K  )
     &  h_ice        (:,:)   , & ! depth of the sea ice                   (  m  )
     &  t_snow_si    (:,:)   , & ! temperature of the snow on sea ice     (  K  )
@@ -127,11 +119,7 @@ MODULE mo_nwp_lnd_types
   !
   TYPE t_lnd_diag
 
-    REAL(wp), POINTER         &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS              &
-#endif
-    &  ::                     &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     &  qv_s         (:,:)   , & ! specific humidity at the surface              (kg/kg)
     &  t_s          (:,:)   , & ! temperature of the ground surface             (  K  )
     &  t_sk         (:,:)   , & ! skin temperature                              (  K  )

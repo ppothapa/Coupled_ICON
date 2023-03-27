@@ -66,19 +66,19 @@ SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
   TYPE(t_patch), INTENT(inout) :: p_pc
 
   ! input: delta vn at interface level
-  REAL(wp), INTENT(IN) :: p_vn_in(:,:) ! dim: (nproma,nblks_e)
+  REAL(wp), INTENT(IN) :: p_vn_in(:,:,:) ! dim: (nproma,2,nblks_e)
 
   ! Indices of source points and interpolation coefficients
   TYPE(t_gridref_single_state),   TARGET, INTENT(IN) ::  p_grf
 
   ! reconstructed edge-normal wind component
-  REAL(wp),INTENT(INOUT) :: p_vn_out(nproma,1,p_pc%nblks_e)
+  REAL(wp),INTENT(INOUT) :: p_vn_out(:,:,:)
 
 
-  INTEGER :: jb, je                    ! loop indices
+  INTEGER :: jb, je, jk                    ! loop indices
   INTEGER :: nproma_ubcintp, nblks_ubcintp, npromz_ubcintp, nlen, nshift
 
-  REAL(wp) :: vn_aux(1,p_grf%npoints_ubcintp_e,4)
+  REAL(wp) :: vn_aux(2,p_grf%npoints_ubcintp_e,4)
 
   ! Pointers to index fields/lists
   INTEGER,  DIMENSION(:,:),   POINTER :: iidx, iblk
@@ -107,62 +107,63 @@ SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
     nshift = (jb-1)*nproma_ubcintp
 
     !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(p_pp%edges%refin_ctrl) IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO je = nshift+1, nshift+nlen
+      DO jk = 1,2
 
-      ! child edge 1
-      vn_aux(1,je,1) = p_grf%coeff_ubcintp_e12(1,je) * &
-        p_vn_in(iidx(1,je),iblk(1,je)) +               &
-        p_grf%coeff_ubcintp_e12(2,je) *                &
-        p_vn_in(iidx(2,je),iblk(2,je)) +               &
-        p_grf%coeff_ubcintp_e12(3,je)*                 &
-        p_vn_in(iidx(6,je),iblk(6,je)) +               &
-        p_grf%coeff_ubcintp_e12(4,je)*                 &
-        p_vn_in(iidx(10,je),iblk(10,je)) +             &
-        p_grf%coeff_ubcintp_e12(5,je) *                &
-        p_vn_in(iidx(11,je),iblk(11,je)) +             &
-        p_grf%coeff_ubcintp_e12(6,je)*                 &
-        p_vn_in(iidx(12,je),iblk(12,je)) 
+        ! child edge 1
+        vn_aux(jk,je,1) = p_grf%coeff_ubcintp_e12(1,je) * &
+          p_vn_in(iidx(1,je),jk,iblk(1,je)) +               &
+          p_grf%coeff_ubcintp_e12(2,je) *                &
+          p_vn_in(iidx(2,je),jk,iblk(2,je)) +               &
+          p_grf%coeff_ubcintp_e12(3,je)*                 &
+          p_vn_in(iidx(6,je),jk,iblk(6,je)) +               &
+          p_grf%coeff_ubcintp_e12(4,je)*                 &
+          p_vn_in(iidx(10,je),jk,iblk(10,je)) +             &
+          p_grf%coeff_ubcintp_e12(5,je) *                &
+          p_vn_in(iidx(11,je),jk,iblk(11,je)) +             &
+          p_grf%coeff_ubcintp_e12(6,je)*                 &
+          p_vn_in(iidx(12,je),jk,iblk(12,je)) 
 
-      ! child edge 2
-      vn_aux(1,je,2) = p_grf%coeff_ubcintp_e12(7,je) * &
-        p_vn_in(iidx(1,je),iblk(1,je)) +               &
-        p_grf%coeff_ubcintp_e12(8,je) *                &
-        p_vn_in(iidx(3,je),iblk(3,je)) +               &
-        p_grf%coeff_ubcintp_e12(9,je)*                 &
-        p_vn_in(iidx(7,je),iblk(7,je)) +               &
-        p_grf%coeff_ubcintp_e12(10,je)*                &
-        p_vn_in(iidx(13,je),iblk(13,je)) +             &
-        p_grf%coeff_ubcintp_e12(11,je) *               &
-        p_vn_in(iidx(14,je),iblk(14,je)) +             &
-        p_grf%coeff_ubcintp_e12(12,je)*                &
-        p_vn_in(iidx(15,je),iblk(15,je)) 
+        ! child edge 2
+        vn_aux(jk,je,2) = p_grf%coeff_ubcintp_e12(7,je) * &
+          p_vn_in(iidx(1,je),jk,iblk(1,je)) +               &
+          p_grf%coeff_ubcintp_e12(8,je) *                &
+          p_vn_in(iidx(3,je),jk,iblk(3,je)) +               &
+          p_grf%coeff_ubcintp_e12(9,je)*                 &
+          p_vn_in(iidx(7,je),jk,iblk(7,je)) +               &
+          p_grf%coeff_ubcintp_e12(10,je)*                &
+          p_vn_in(iidx(13,je),jk,iblk(13,je)) +             &
+          p_grf%coeff_ubcintp_e12(11,je) *               &
+          p_vn_in(iidx(14,je),jk,iblk(14,je)) +             &
+          p_grf%coeff_ubcintp_e12(12,je)*                &
+          p_vn_in(iidx(15,je),jk,iblk(15,je)) 
 
-      ! child edge 3
-      vn_aux(1,je,3) = p_grf%coeff_ubcintp_e34(1,je) * &
-        p_vn_in(iidx(1,je),iblk(1,je)) +               &
-        p_grf%coeff_ubcintp_e34(2,je) *                &
-        p_vn_in(iidx(2,je),iblk(2,je)) +               &
-        p_grf%coeff_ubcintp_e34(3,je)*                 &
-        p_vn_in(iidx(3,je),iblk(3,je)) +               &
-        p_grf%coeff_ubcintp_e34(4,je)*                 &
-        p_vn_in(iidx(4,je),iblk(4,je)) +               &
-        p_grf%coeff_ubcintp_e34(5,je) *                &
-        p_vn_in(iidx(5,je),iblk(5,je)) 
+        ! child edge 3
+        vn_aux(jk,je,3) = p_grf%coeff_ubcintp_e34(1,je) * &
+          p_vn_in(iidx(1,je),jk,iblk(1,je)) +               &
+          p_grf%coeff_ubcintp_e34(2,je) *                &
+          p_vn_in(iidx(2,je),jk,iblk(2,je)) +               &
+          p_grf%coeff_ubcintp_e34(3,je)*                 &
+          p_vn_in(iidx(3,je),jk,iblk(3,je)) +               &
+          p_grf%coeff_ubcintp_e34(4,je)*                 &
+          p_vn_in(iidx(4,je),jk,iblk(4,je)) +               &
+          p_grf%coeff_ubcintp_e34(5,je) *                &  
+          p_vn_in(iidx(5,je),jk,iblk(5,je)) 
 
-      ! child edge 4
-      IF (p_pp%edges%refin_ctrl(iidx(1,je),iblk(1,je)) == -1) CYCLE
-      vn_aux(1,je,4) = p_grf%coeff_ubcintp_e34(6,je) * &
-        p_vn_in(iidx(1,je),iblk(1,je)) +               &
-        p_grf%coeff_ubcintp_e34(7,je) *                &
-        p_vn_in(iidx(6,je),iblk(6,je)) +               &
-        p_grf%coeff_ubcintp_e34(8,je)*                 &
-        p_vn_in(iidx(7,je),iblk(7,je)) +               &
-        p_grf%coeff_ubcintp_e34(9,je)*                 &
-        p_vn_in(iidx(8,je),iblk(8,je)) +               &
-        p_grf%coeff_ubcintp_e34(10,je) *               &
-        p_vn_in(iidx(9,je),iblk(9,je)) 
-
+        ! child edge 4
+        IF (p_pp%edges%refin_ctrl(iidx(1,je),iblk(1,je)) == -1) CYCLE
+        vn_aux(jk,je,4) = p_grf%coeff_ubcintp_e34(6,je) * &
+          p_vn_in(iidx(1,je),jk,iblk(1,je)) +               &
+          p_grf%coeff_ubcintp_e34(7,je) *                &
+          p_vn_in(iidx(6,je),jk,iblk(6,je)) +               &
+          p_grf%coeff_ubcintp_e34(8,je)*                 &
+          p_vn_in(iidx(7,je),jk,iblk(7,je)) +               &
+          p_grf%coeff_ubcintp_e34(9,je)*                 &
+          p_vn_in(iidx(8,je),jk,iblk(8,je)) +               &
+          p_grf%coeff_ubcintp_e34(10,je) *               &
+          p_vn_in(iidx(9,je),jk,iblk(9,je)) 
+      ENDDO
     ENDDO
     !$ACC END PARALLEL
 
@@ -172,7 +173,7 @@ SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
 
   ! Store results in p_vn_out
 
-  CALL exchange_data_grf(p_pc%comm_pat_coll_interpol_vec_ubc,1,1, &
+  CALL exchange_data_grf(p_pc%comm_pat_coll_interpol_vec_ubc,1,2, &
     &                    RECV1=p_vn_out,SEND1=vn_aux)
 
   !$ACC END DATA

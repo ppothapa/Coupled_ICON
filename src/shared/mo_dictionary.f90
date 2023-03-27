@@ -28,14 +28,10 @@
 !! -----------------------------------------------------------------------------------
 MODULE mo_dictionary
 
-#ifdef __ICON__
   USE mo_exception,      ONLY: finish
   USE mo_util_string,    ONLY: tocompact
   USE mo_io_units,       ONLY: find_next_free_unit
   USE mo_key_value_store, ONLY: t_key_value_store
-#else
-  USE mo_utilities,      ONLY: finish, tocompact, find_next_free_unit
-#endif
 
   IMPLICIT NONE
   PRIVATE

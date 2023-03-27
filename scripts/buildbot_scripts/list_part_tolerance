@@ -50,30 +50,30 @@ add_tolerance_exp () {
       $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_member_id_{member_id}
 
       # add base experiment and tolerance generation script
-      ./addexp exp.${exp} --builders "${builder}" --list $listname
+      ./addexp exp.${exp} --builders "${builder}" --list $listname --runflags "tolerance_run=true"
       ./addexp checksuite.icon-dev/pp.refgen_${exp} --builders "${builder}" --list $listname
 
       # create the list of perturbed experiments
       perturbed_experiments=$(printf "exp.${exp}_member_id_%s " "${member_ids[@]}")
       
       # add all the ensemble experiments and make refgen depend on all of them
-      ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname
+      ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname --runflags "tolerance_run=true"
       ./adddep --from-experiment checksuite.icon-dev/pp.refgen_${exp} --to-experiment "${perturbed_experiments}" --builders "${builder}" --list $listname
     done
 }
 
-add_tolerance_exp mch_ch_lowres "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r04b07 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_opr_r04b07_lhn_00 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_opr_r04b07_lhn_12 "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_opr_r04b07_nest "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_lpi "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_opr_r19b07_2m "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_2m_gscp5 "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_turb "DAINT_CPU_nvidia"
-add_tolerance_exp mch_opr_r19b07_midnight "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_bench_r19b07_dev "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_bench_r19b07_dev_sppt "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_ch_lowres "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_lhn_00 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_lhn_12 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_nest "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r04b07_sstice_inst "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r19b07_lpi "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r19b07_2m "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_2m_gscp5 "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_turb "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_opr_r19b07_midnight "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_bench_r19b07_dev_sppt "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp atm_qubicc_nc_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
 add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
 add_tolerance_exp dwd_run_ICON_09_R2B4N5_EPS "DAINT_CPU_nvidia"

@@ -28,6 +28,7 @@ MODULE mo_ser_all
                                    ser_reset_to_initial_state, ser_set_reff
   USE mo_ser_manually,       ONLY: ser_manually
   USE mo_mpi,                ONLY: get_my_mpi_work_id
+  USE mo_sppt_config,        ONLY: sppt_config
 #endif
 
   IMPLICIT NONE
@@ -358,12 +359,18 @@ MODULE mo_ser_all
            CALL ser_var_list('wtr_prog_of_domain_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg, substr='_and_timelev_', timelev=nnew(jg))
            CALL ser_var_list('ext_data_atm_td_D', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
            CALL ser_var_list('ext_data_atm_D', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+
+           ! Serialize sppt
+           IF (sppt_config(jg)%lsppt) THEN
+            CALL ser_var_list('sppt_of_domain_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           END IF
        ENDIF
 
        IF(ldass_lhn) THEN
-           ! Serialize radar data fields
-           CALL ser_var_list('radar_data_ct_dom_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
-           CALL ser_var_list('radar_data_td_dom_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           ! Serialize radar data and LHN fields
+           CALL ser_var_list('radar_data_ct_dom_',    abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           CALL ser_var_list('radar_data_td_dom_',    abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
+           CALL ser_var_list('lhn_fields_of_domain_', abs_threshold, rel_threshold, lupdate_cpu, ser_mode, domain=jg)
        ENDIF
 
        ! Serialize dynamics fields

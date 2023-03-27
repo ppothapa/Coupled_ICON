@@ -130,7 +130,7 @@ USE mo_lnd_nwp_config,     ONLY: lmulti_snow, l2lay_rho_snow,     &
   &                              itype_root, itype_heatcond,      &
   &                              itype_hydbound,                  &
   &                              itype_canopy, tau_skin,          &
-  &                              lterra_urb, itype_eisa,          &
+  &                              lterra_urb, lurbahf, itype_eisa, &
   &                              lstomata,                        &
   &                              max_toplaydepth, itype_interception, &
   &                              cwimax_ml
@@ -197,6 +197,7 @@ CONTAINS
                   urb_h_bld        , & ! building height                               (  m  )
                   urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
                   urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
@@ -354,6 +355,7 @@ CONTAINS
                   urb_h_bld        , & ! building height                               (  m  )
                   urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
                   urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
@@ -798,6 +800,7 @@ CONTAINS
     zgsb           (nvec)          , & ! heat-flux through snow
     zrnet_s        (nvec)          , & ! net radiation
     zsprs          (nvec)          , & ! utility variable
+    zahf           (nvec)          , & ! TERRA_URB: anthropogenic heat flux
 
     ! Tendencies
     zdwidt         (nvec)          , & ! interception store tendency
@@ -1063,6 +1066,7 @@ mvid =   8
         WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
         WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
         WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
+        WRITE(*,'(A,F28.16)') '   ahf              :  ', ahf         (i)
         WRITE(*,'(A,F28.16)') '   rsmin2d          :  ', rsmin2d     (i)
         WRITE(*,'(A       )') ' Other input parameters:'
         WRITE(*,'(A,F28.16)') '   u     ke         :  ', u           (i)
@@ -1161,7 +1165,7 @@ ENDDO
   !$ACC   PRESENT(laifac) &
   !$ACC   PRESENT(skinc) &
   !$ACC   PRESENT(fr_paved, urb_isa, urb_ai, urb_h_bld) &
-  !$ACC   PRESENT(urb_hcap, urb_hcon) &
+  !$ACC   PRESENT(urb_hcap, urb_hcon, ahf) &
   !$ACC   PRESENT(heatcond_fac, heatcap_fac) &
   !$ACC   PRESENT(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m) &
   !$ACC   PRESENT(v_10m, prr_con, prs_con, conv_frac, prr_gsp, prs_gsp, pri_gsp) &
@@ -1199,7 +1203,7 @@ ENDDO
   !$ACC   CREATE(zw_m_org, zw_m_soil, zw_m_up, zw_m_low, zaa) &
   !$ACC   CREATE(zrhoch, zth_low, zf_wi, ztmch, zep_s, zep_snow) &
   !$ACC   CREATE(zverbo, zversn, zthsoi, zthsnw, zfor_s, zgsb) &
-  !$ACC   CREATE(zrnet_s, zsprs, zdwidt, zdwsndt, zdtsdt) &
+  !$ACC   CREATE(zrnet_s, zsprs, zahf, zdwidt, zdwsndt, zdtsdt) &
   !$ACC   CREATE(zdtsnowdt, zdwgdt, zwinstr, zinfmx, zwimax, zvers) &
   !$ACC   CREATE(zwisnstr, zwpnstr, zfd_wi, zf_pd, zwisn, zwpn) &
   !$ACC   CREATE(zewi, zepd, zept, zesn, zdrr, zrrs, zg1, zlhfl) &
@@ -1440,6 +1444,7 @@ ENDDO
     lhfl_bs(i)            = 0.0_wp
     lhfl_pl(i,ke_soil+1)  = 0.0_wp
     rstom  (i)            = 0.0_wp
+    zahf   (i)            = 0.0_wp         ! TERRA_URB: Anthropogenic heat flux
 !   IF (lterra_urb .AND. (itype_eisa==2)) THEN
 !     zeisa(i)            = 0.0_wp
 !   ENDIF
@@ -1686,7 +1691,7 @@ ENDDO
     ! As a result, the effective thermal conductivity of the upper surface is increased.
     ! This is also the case in the layers beneath, in which the effective thermal conductivity
     ! decreases with depth.
-
+    !
     ! This modification decreases with depth with respect to the
     ! natural soil below the buildings.
 
@@ -1695,8 +1700,8 @@ ENDDO
 
         zalpha_uf    = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
 
-        zalam(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcon(i)*urb_ai(i)  &
-                                                 +         zalpha_uf  * zalam(i,kso)        )  &
+        zalam(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcon(i)*urb_ai(i)   &
+                                                 +         zalpha_uf  * zalam(i,kso)          ) &
                      + (1.0_wp - urb_isa(i)) * zalam(i,kso)
 
       ENDDO
@@ -2318,7 +2323,7 @@ ENDDO
 
   IF (itype_evsl == 4 .OR. itype_evsl == 5) THEN   ! Resistance version
     ! Calculation of bare soil evaporation using a resistance formulation.
-    ! For a review see Schulz et al. (1998) 
+    ! For a review see Schulz et al. (1998) and Schulz and Vogel (2020).
     !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zice, zevap, zbeta, zalpha)
     DO i = ivstart, ivend
       IF (zep_s(i) < 0.0_wp) THEN   ! upwards directed potential evaporation
@@ -2815,8 +2820,8 @@ ENDDO
 
         zalpha_uf   = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
 
-        zroc(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcap(i)*urb_ai(i)  &
-                                                +         zalpha_uf  * zroc(i,kso)         )  &
+        zroc(i,kso) =           urb_isa(i)  * ( (1.0_wp - zalpha_uf) * urb_hcap(i)*urb_ai(i)   &
+                                                +         zalpha_uf  * zroc(i,kso)           ) &
                     + (1.0_wp - urb_isa(i)) * zroc(i,kso)
 
       ENDDO
@@ -4021,6 +4026,16 @@ ENDDO
 
   ELSE  ! single-layer snow model
 
+    ! TERRA_URB: Set anthropogenic heat flux
+    IF (lterra_urb .AND. lurbahf) THEN
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR
+      DO i = ivstart, ivend
+        zahf(i) = urb_isa(i)*ahf(i)
+      END DO
+      !$ACC END PARALLEL
+    END IF
+
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(ztalb, zgstr, zro, zalas, zzz, zd, zfr_melt, zw_ovpv)
     !$NEC sparse
@@ -4118,8 +4133,8 @@ ENDDO
       ! Calculation of the surface energy balance
 
       ! total forcing for uppermost soil layer
-      zfor_s(i) = ( zrnet_s(i) + zshfl_s(i) + zlhfl_s(i) ) &
-                     * (1._wp - zf_snow(i)) + zsprs(i) &
+      zfor_s(i) = ( zrnet_s(i) + zshfl_s(i) + zlhfl_s(i) )       &
+                     * (1._wp - zf_snow(i)) + zsprs(i) + zahf(i) &
                   + zf_snow(i) * (1._wp-ztsnow_pm(i)) * zgsb(i)
 
     END DO
@@ -5038,8 +5053,8 @@ ENDDO
       IF (w_snow_now(i) > eps_soil .OR. w_snow_new(i) > eps_soil) THEN
         t_sk_new(i) = t_s_new(i) ! needs to be t_s rather than t_snow in order to obtain correct t_g afterwards
       ELSE
-        t_sk_new(i) = t_sk_now(i) + 0.5_wp*(t_s_new(i) - t_s_now(i)) + zdt/tau_skin *                           &
-          ( (zrnet_s(i) + zshfl_s(i) + zlhfl_s(i) + zsprs(i))/MAX(5.0_wp,skinc(i)) - (t_sk_now(i) - t_s_now(i)) )
+        t_sk_new(i) = t_sk_now(i) + 0.5_wp*(t_s_new(i) - t_s_now(i)) + zdt/tau_skin *                                     &
+          ( (zrnet_s(i) + zshfl_s(i) + zlhfl_s(i) + zsprs(i) + zahf(i))/MAX(5.0_wp,skinc(i)) - (t_sk_now(i) - t_s_now(i)) )
       ENDIF
 
     END IF

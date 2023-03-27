@@ -297,7 +297,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   INTEGER :: idg(nproma), ish(nproma)
 
   INTEGER :: jb, jc, jk, i_startblk, i_endblk, is, ie, j, k, rlstart
-  INTEGER :: nlev_rg, isens, n_profs, ncalc, iprint, &
+  INTEGER :: nlev_rg, isens, n_profs, ncalc, &
     &        istatus, synsat_idx, isynsat
 
   CALL assert_acc_host_only('rttov_driver', lacc)
@@ -459,7 +459,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
         sat_a(jc) = rad2deg * (1. + ATAN2(TAN(lon), SIN(p_gcp%center(jc,jb)%lat)))
       ENDDO
 
-      iprint = 0
 
       IF (dbg_level > 2) THEN
         WRITE (0,*) "PE ", get_my_mpi_all_id(), " :: CALL to rttov_direct_ifc: isens = ", isens, &
@@ -479,7 +478,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
              T_b_clear = T_b_clear(1:numchans(isens), 1:n_profs), &
              rad       = rad      (1:numchans(isens), 1:n_profs), &
              radclear  = rad_clear(1:numchans(isens), 1:n_profs), &
-             iprint    = iprint,                                  &
              pe        = p_pe)
       IF (istatus /= NO_ERROR) THEN
         WRITE(message_text,'(a)') TRIM(rtifc_errmsg(istatus))
@@ -942,54 +940,54 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
   npromz_c = p_gcp%end_index(min_rlcell_int)
 
   CALL prepare_extrap(rg_z_mc, nblks_c, npromz_c, nlev_rg,    &
-                      kpbl1, wfacpbl1, kpbl2, wfacpbl2     )
+                      kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.FALSE.)
 
   CALL z_at_plevels(rg_pres, rg_temp, rg_z_mc, pres3d_rttov, z3d_rttov, &
                     nblks_c, npromz_c, nlev_rg, nlev_rttov,             &
-                    kpbl1, wfacpbl1, kpbl2, wfacpbl2                    )
+                    kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.FALSE.      )
 
   CALL prepare_lin_intp(rg_z_mc, z3d_rttov, nblks_c, npromz_c, nlev_rg,             &
-                        nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin, lextrap=.FALSE.)                       
+                        nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin, lacc=.FALSE., lextrap=.FALSE.)
 
   CALL prepare_lin_intp(rg_z_ifc, z3d_rttov, nblks_c, npromz_c, nlevp1_rg,                &
-                        nlev_rttov, wfac_lin_i, idx0_lin_i, bot_idx_lin_i, lextrap=.FALSE.)                       
+                        nlev_rttov, wfac_lin_i, idx0_lin_i, bot_idx_lin_i, lacc=.FALSE., lextrap=.FALSE.)
 
   ! Execute interpolation
 
   CALL lin_intp(rg_temp, temp_rttov,  nblks_c, npromz_c, nlev_rg,   &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,        &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.FALSE., &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.               )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE. )
 
   CALL lin_intp(rg_qv, qv_rttov,  nblks_c, npromz_c, nlev_rg,       &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,        &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,  &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.               )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE. )
 
   CALL lin_intp(rg_qc_vi, qc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.                )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
 
   CALL lin_intp(rg_qcc_vi, qcc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,           &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,     &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.                  )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.    )
 
   CALL lin_intp(rg_qi_vi, qi_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.                )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
 
   CALL lin_intp(rg_qs_vi, qs_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.                )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
 
   CALL lin_intp(rg_clc_vi, clc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,           &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,     &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE.                  )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.    )
 
 
   ! Calculate layer averages of cloud variables from vertically integrated fields

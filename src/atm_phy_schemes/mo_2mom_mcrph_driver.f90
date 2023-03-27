@@ -318,7 +318,7 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_2mom_prepost) 
 
     ! inverse of vertical layer thickness
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk = kts,kte
       DO ii = its,ite
@@ -333,7 +333,7 @@ CONTAINS
     END IF
     
     IF (clipping) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO kk = kts,kte
         DO ii = its,ite
@@ -377,7 +377,7 @@ CONTAINS
 
     IF (msg_level>dbg_level) CALL message(TRIM(routine), "prepare variables for 2mom")
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
     !$ACC LOOP GANG VECTOR PRIVATE(hlp) COLLAPSE(2)
     DO kk = kts, kte
        DO ii = its, ite
@@ -496,7 +496,7 @@ CONTAINS
          lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
 
     IF (clipping) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO kk = kts,kte
         DO ii = its,ite
@@ -521,7 +521,7 @@ CONTAINS
     END IF
 
     IF (lprogccn) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf)
       DO kk=kts,kte
         DO ii=its,ite
@@ -540,7 +540,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk=kts,kte
       DO ii=its,ite
@@ -553,7 +553,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     IF (lprogin) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zf, in_bgrd)
       DO kk=kts,kte
         DO ii=its,ite
@@ -571,7 +571,7 @@ CONTAINS
     END IF
 
     IF (lprogccn) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO kk = kts,kte
         DO ii = its,ite
@@ -581,7 +581,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
   
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk = kts,kte
       DO ii = its,ite
@@ -710,7 +710,7 @@ CONTAINS
       end if
 
       ! clipping maybe not necessary
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kts,kte
         DO i = its,ite
@@ -733,7 +733,7 @@ CONTAINS
         WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
       end if
 
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, dt)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kts,kte
         DO i = its,ite
@@ -742,7 +742,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(isize)
       !$ACC LOOP GANG VECTOR
       DO i = 1,isize
         qr_flux_now(i) = 0.0_wp
@@ -779,7 +779,7 @@ CONTAINS
         lh_flux_new(:) = 0.0_wp        
       end if
 
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
       !$ACC LOOP GANG VECTOR
       do i=its,ite
         vr_sedn_new(i) = rain%vsedi_min
@@ -811,7 +811,7 @@ CONTAINS
       !$ACC DATA CREATE(mysterious_var1, mysterious_var2) ! Don't remove
       DO k=kts+1,kte
 
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k)
         !$ACC LOOP GANG VECTOR
         do i=its,ite
           xr_now(i) = particle_meanmass(rain, qr(i,k),qnr(i,k))
@@ -856,7 +856,7 @@ CONTAINS
 
           ! .. save old variables for latent heat calculation
 
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, lprogmelt)
           !$ACC LOOP GANG VECTOR
           DO ii = its, ite
             q_vap_old(ii,k) = qv(ii,k)
@@ -877,7 +877,7 @@ CONTAINS
                ninact, nccn, ninpot)
 
           ! .. latent heat term for temperature equation
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite, k, z_heat_cap_r, lconstant_lh, lprogmelt)
           !$ACC LOOP GANG VECTOR PRIVATE(led, lwe, convice, convliq, q_liq_new, q_vap_new)
           DO ii = its, ite
 
@@ -943,7 +943,7 @@ CONTAINS
         prec_i(:) = qi_flux_new
         prec_s(:) = qs_flux_new
       ELSE
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(isize)
         !$ACC LOOP GANG VECTOR
         DO i = 1,isize
           prec_r(i) = qr_flux_new(i)
@@ -1128,7 +1128,7 @@ CONTAINS
     INTEGER  :: i
 
     !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new, flux_now, rdzdt)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
     !$ACC LOOP GANG VECTOR PRIVATE(q_star, flux_sum)
     do i=its,ite
 
@@ -1169,7 +1169,7 @@ CONTAINS
     INTEGER  :: i
     
     !$ACC DATA PRESENT(q_val, q_sum, q_impl, vsed_new, vsed_now, flux_new)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
     !$ACC LOOP GANG VECTOR
     do i=its,ite
 

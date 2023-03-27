@@ -28,7 +28,6 @@ MODULE mo_bc_ozone
   &                                      read_3D_time, t_stream_id, on_cells
   USE mo_mpi,                      ONLY: my_process_is_stdio, p_bcast,        &
   &                                      p_comm_work_test, p_comm_work, p_io
-  USE mo_physical_constants,       ONLY: amo3, amd
   USE mo_impl_constants,           ONLY: max_dom
   USE mo_grid_config,              ONLY: n_dom
   USE mo_aes_rad_config,           ONLY: aes_rad_config
@@ -38,7 +37,6 @@ MODULE mo_bc_ozone
   &                                      calculate_time_interpolation_weights
   IMPLICIT NONE
   PRIVATE
-  REAL(wp), PARAMETER               :: vmr2mmr_o3=1._wp     ! No conversion for RTE-RRTMGP
   INTEGER(i8), SAVE                 :: pre_year(max_dom)=-HUGE(1) ! Variable to check if it is time to read
 
   PUBLIC                            :: ext_ozone
@@ -62,11 +60,12 @@ MODULE mo_bc_ozone
   
 CONTAINS
 
-  SUBROUTINE read_bc_ozone(year, p_patch, irad_o3)
+  SUBROUTINE read_bc_ozone(year, p_patch, irad_o3, vmr2mmr_opt)
 
-    INTEGER(i8)  , INTENT(in)         :: year
-    TYPE(t_patch), TARGET, INTENT(in) :: p_patch
-    INTEGER      , INTENT(in)         :: irad_o3
+    INTEGER(i8)  , INTENT(in)            :: year
+    TYPE(t_patch), TARGET, INTENT(in)    :: p_patch
+    INTEGER      , INTENT(in)            :: irad_o3
+    REAL(wp)     , INTENT(in), OPTIONAL  :: vmr2mmr_opt
 
     CHARACTER(len=512)                :: fname
     TYPE(t_stream_id)                 :: stream_id
@@ -79,9 +78,16 @@ CONTAINS
     INTEGER                           :: kmonth_beg, kmonth_end      ! months with range 1-12
     INTEGER                           :: nmonths
     REAL(wp), POINTER                 :: zo3_plev(:,:,:,:)           ! (nproma, levels, blocks, time)
+    REAL(wp)                          :: vmr2mmr_o3
 
     jg    = p_patch%id
     WRITE(cjg,'(i2.2)') jg
+
+    IF ( PRESENT(vmr2mmr_opt) ) THEN
+      vmr2mmr_o3 = vmr2mmr_opt
+    ELSE
+      vmr2mmr_o3 = 1._wp
+    END IF
 
     ! This should be part of an initialisation routine
     ! check when mergeing with branch icon-aes-link-echam-bc

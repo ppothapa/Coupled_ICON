@@ -31,7 +31,7 @@ CONTAINS
 
 
 SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
-     &               pddpo, ptiestu, kldtday)
+     &               pddpo, ptiestu, kldtday, use_acc)
 
   
   IMPLICIT NONE
@@ -47,6 +47,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   REAL(wp) :: ptho(bgc_nproma,bgc_zlevs)  !< potential temperature [deg C]
   REAL(wp) :: pddpo(bgc_nproma,bgc_zlevs) !< size of scalar grid cell (3rd REAL) [m]
   REAL(wp) :: ptiestu(bgc_nproma,bgc_zlevs)  !< depth of scalar grid cell [m]
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
   !! Local variables
 
@@ -58,7 +59,14 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   REAL(wp) :: pis, pis2, rs,s2,deltav,deltak,lnkpk0(11)
   REAL(wp) :: aksi, cksi, aks, cks, akf, ckf, free2sws,total2sws
   REAL(wp) :: ck1p,ck2p,ck3p, ak1p,ak2p,ak3p, total2free
-  REAL(wp) :: sti, fti, total2free_0p, free2SWS_0p, total2SWS_0p,SWS2total 
+  REAL(wp) :: sti, fti, total2free_0p, free2SWS_0p, total2SWS_0p,SWS2total
+  LOGICAL :: lacc
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
   !     -----------------------------------------------------------------
   !*            SET MEAN TOTAL [CA++] IN SEAWATER (MOLES/KG)
@@ -76,7 +84,8 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   !*        21. CHEMICAL CONSTANTS - SEA SURFACE
   !             --------------------------------
   !
- 
+
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
  DO jc = start_idx, end_idx
 
        IF (pddpo(jc, 1) > EPSILON(0.5_wp)) THEN           ! wet cell
@@ -304,7 +313,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
            ENDIF
 
      END DO
-
+     !$ACC END PARALLEL LOOP
 
   !
   !     -----------------------------------------------------------------
@@ -317,9 +326,10 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
      !*     22.1 APPROX. SEAWATER PRESSURE AT U-POINT DEPTH (BAR)
      !  ----------------------------------------------------------------
 
-
+  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(lnkpk0) DEFAULT(PRESENT) IF(lacc)
   DO jc = start_idx, end_idx
      kpke=klevs(jc)
+     !$ACC LOOP SEQ
       DO k = 1, kpke
         p = 1.025e-1_wp * ptiestu(jc,k)   ! pressure
            IF(kpke.ne.0)THEN
@@ -580,6 +590,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
           END IF
         END DO
   END DO
+  !$ACC END PARALLEL LOOP
 
 
 

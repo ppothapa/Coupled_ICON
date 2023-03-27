@@ -191,11 +191,7 @@ MODULE mo_math_utilities
     REAL(wp), ALLOCATABLE :: values(:)                       !< sorted set of values.
 
     !> Everytime when new values are inserted into the set, the total
-    !  list of values is re-sorted. However, the following index list
-    !  allows to get the values in the order in which they have
-    !  originally been inserted. This is useful, when indices are
-    !  stored somewhere else.
-    INTEGER , ALLOCATABLE :: sorted_index(:)
+    !  list of values is re-sorted.
   END TYPE t_value_set
 
   REAL(wp), PARAMETER :: fcirc = 2.0_wp * pi

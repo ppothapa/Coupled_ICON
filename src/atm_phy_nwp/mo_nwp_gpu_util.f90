@@ -12,6 +12,7 @@ MODULE mo_nwp_gpu_util
   USE mo_fortran_tools,           ONLY: assert_acc_device_only
 #ifdef _OPENACC
   USE mo_var_list_gpu,            ONLY: gpu_update_var_list
+  USE mo_sppt_config,             ONLY: sppt_config
 #endif
 
   IMPLICIT NONE
@@ -22,10 +23,9 @@ MODULE mo_nwp_gpu_util
 
   CONTAINS
 
-  SUBROUTINE gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
+  SUBROUTINE gpu_d2h_nh_nwp(jg, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
 
-    TYPE(t_patch), TARGET, INTENT(in) :: pt_patch
-    TYPE(t_nwp_phy_diag), INTENT(inout) :: prm_diag
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_external_data), OPTIONAL, INTENT(inout):: ext_data
     TYPE(t_int_state), OPTIONAL, INTENT(inout) :: p_int
     TYPE(t_phy_params), OPTIONAL, INTENT(inout) :: phy_params
@@ -34,11 +34,10 @@ MODULE mo_nwp_gpu_util
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
 
-    INTEGER :: jg
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
-    !$ACC UPDATE HOST(prm_diag%qrs_flux)
+    !$ACC WAIT
 
     !$ACC UPDATE HOST(ext_data%atm%list_seaice%ncount) &
     !$ACC   HOST(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
@@ -72,8 +71,6 @@ MODULE mo_nwp_gpu_util
     !$ACC   IF(PRESENT(p_int))
 
 #ifdef _OPENACC
-    jg = pt_patch%id
-
     ! Update NWP fields
     CALL gpu_update_var_list('prm_diag_of_domain_', .false., domain=jg, lacc=.TRUE.)
     CALL gpu_update_var_list('prm_tend_of_domain_', .false., domain=jg, lacc=.TRUE.)
@@ -86,9 +83,10 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('ext_data_atm_D', .false., domain=jg, lacc=.TRUE.)
 
     IF(ldass_lhn) THEN
-        ! Update radar data fields
-        CALL gpu_update_var_list('radar_data_ct_dom_', .false., domain=jg, lacc=.TRUE.)
-        CALL gpu_update_var_list('radar_data_td_dom_', .false., domain=jg, lacc=.TRUE.)
+      ! Update radar data and LHN fields
+      CALL gpu_update_var_list('radar_data_ct_dom_',    .false., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('radar_data_td_dom_',    .false., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('lhn_fields_of_domain_', .false., domain=jg, lacc=.TRUE.)
     ENDIF
 
     ! Update dynamics fields
@@ -99,6 +97,12 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnow_rcf(jg), lacc=.TRUE.) !p_prog_now_rcf
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnew_rcf(jg), lacc=.TRUE.) !p_prog_rcf
     CALL gpu_update_var_list('prepadv_of_domain_', .false., domain=jg, lacc=.TRUE.)
+
+    ! Update sppt
+    IF (sppt_config(jg)%lsppt) THEN
+      CALL gpu_update_var_list('sppt_of_domain_', .false., domain=jg, lacc=.TRUE.)
+    END IF
+
 #endif
 
     IF (PRESENT(phy_params)) THEN
@@ -128,10 +132,9 @@ MODULE mo_nwp_gpu_util
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
 
-  SUBROUTINE gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
+  SUBROUTINE gpu_h2d_nh_nwp(jg, ext_data, p_int, phy_params, atm_phy_nwp_config, lacc)
 
-    TYPE(t_patch), TARGET, INTENT(in) :: pt_patch
-    TYPE(t_nwp_phy_diag), INTENT(inout) :: prm_diag
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_external_data), OPTIONAL, INTENT(inout):: ext_data
     TYPE(t_int_state), OPTIONAL, INTENT(inout) :: p_int
     TYPE(t_phy_params), OPTIONAL, INTENT(inout) :: phy_params
@@ -140,11 +143,10 @@ MODULE mo_nwp_gpu_util
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
 
-    INTEGER :: jg
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
-    !$ACC UPDATE DEVICE(prm_diag%qrs_flux)
+    !$ACC WAIT
 
     !$ACC UPDATE DEVICE(ext_data%atm%list_seaice%ncount) &
     !$ACC   DEVICE(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
@@ -178,8 +180,6 @@ MODULE mo_nwp_gpu_util
     !$ACC   IF(PRESENT(p_int))
 
 #ifdef _OPENACC
-    jg = pt_patch%id
-
     ! Update NWP fields
     CALL gpu_update_var_list('prm_diag_of_domain_', .true., domain=jg, lacc=.TRUE.)
     CALL gpu_update_var_list('prm_tend_of_domain_', .true., domain=jg, lacc=.TRUE.)
@@ -193,9 +193,10 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('ext_data_atm_D', .true., domain=jg, lacc=.TRUE.)
 
     IF(ldass_lhn) THEN
-        ! Update radar data fields
-        CALL gpu_update_var_list('radar_data_ct_dom_', .true., domain=jg, lacc=.TRUE.)
-        CALL gpu_update_var_list('radar_data_td_dom_', .true., domain=jg, lacc=.TRUE.)
+      ! Update radar data and LHN fields
+      CALL gpu_update_var_list('radar_data_ct_dom_',    .true., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('radar_data_td_dom_',    .true., domain=jg, lacc=.TRUE.)
+      CALL gpu_update_var_list('lhn_fields_of_domain_', .true., domain=jg, lacc=.TRUE.)
     ENDIF
 
     ! Update dynamics fields
@@ -206,6 +207,12 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .true., domain=jg, substr='_and_timelev_', timelev=nnow_rcf(jg), lacc=.TRUE.) !p_prog_now_rcf
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .true., domain=jg, substr='_and_timelev_', timelev=nnew_rcf(jg), lacc=.TRUE.) !p_prog_new_rcf
     CALL gpu_update_var_list('prepadv_of_domain_', .true., domain=jg, lacc=.TRUE.)
+
+    ! Update sppt
+    IF (sppt_config(jg)%lsppt) THEN
+      CALL gpu_update_var_list('sppt_of_domain_', .true., domain=jg, lacc=.TRUE.)
+    END IF
+
 #endif
 
     IF (PRESENT(phy_params)) THEN

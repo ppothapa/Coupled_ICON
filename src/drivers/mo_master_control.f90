@@ -25,7 +25,7 @@ MODULE mo_master_control
   PUBLIC :: master_namelist_filename,                                     &
     & get_my_namelist_filename, get_my_process_type, get_my_process_name, &
     & atmo_process, ocean_process, ps_radiation_process, testbed_process, &
-    & my_process_is_ocean, get_my_model_no,                               &
+    & my_process_is_atmo, my_process_is_ocean, get_my_model_no,           &
     & are_multiple_models, use_restart_namelists, isRestart,              &
     & process_exists, hamocc_process, my_process_is_hamocc,               &
     & my_process_is_oceanic, jsbach_process, my_process_is_jsbach,        &
@@ -95,6 +95,13 @@ CONTAINS
 
   END FUNCTION process_exists
   !------------------------------------------------------------------------
+
+  !------------------------------------------------------------------------
+  LOGICAL FUNCTION my_process_is_atmo()
+
+    my_process_is_atmo = (my_process_model == atmo_process)
+
+  END FUNCTION my_process_is_atmo
 
   !------------------------------------------------------------------------
   LOGICAL FUNCTION my_process_is_ocean()

@@ -94,13 +94,19 @@ MODULE mo_index_list
       USE iso_c_binding
 
       INTEGER(c_int),           INTENT(in),  VALUE  :: batch_size
+#ifdef _CRAYFTN
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: conditions
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: nvalid
+#else
       TYPE(c_devptr),           INTENT(in),  VALUE  :: conditions
+      TYPE(c_devptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
+      TYPE(c_devptr),           INTENT(in),  VALUE  :: nvalid
+#endif
       INTEGER(c_int),           INTENT(in),  VALUE  :: cond_stride
       INTEGER(c_int),           INTENT(in),  VALUE  :: startid
       INTEGER(c_int),           INTENT(in),  VALUE  :: endid
-      TYPE(c_devptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
       INTEGER(c_int),           INTENT(in),  VALUE  :: idx_stride
-      TYPE(c_devptr),           INTENT(in),  VALUE  :: nvalid
       INTEGER(acc_handle_kind), INTENT(in),  VALUE  :: stream
 
     END SUBROUTINE generate_index_list_batched_i1_gpu
@@ -118,13 +124,19 @@ MODULE mo_index_list
       USE iso_c_binding
 
       INTEGER(c_int),           INTENT(in),  VALUE  :: batch_size
+#ifdef _CRAYFTN
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: conditions
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
+      TYPE(c_ptr),           INTENT(in),  VALUE  :: nvalid
+#else
       TYPE(c_devptr),           INTENT(in),  VALUE  :: conditions
+      TYPE(c_devptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
+      TYPE(c_devptr),           INTENT(in),  VALUE  :: nvalid
+#endif
       INTEGER(c_int),           INTENT(in),  VALUE  :: cond_stride
       INTEGER(c_int),           INTENT(in),  VALUE  :: startid
       INTEGER(c_int),           INTENT(in),  VALUE  :: endid
-      TYPE(c_devptr),           INTENT(in),  VALUE  :: indices ! actually intent is more like inout, but this doesn't work now
       INTEGER(c_int),           INTENT(in),  VALUE  :: idx_stride
-      TYPE(c_devptr),           INTENT(in),  VALUE  :: nvalid
       INTEGER(acc_handle_kind), INTENT(in),  VALUE  :: stream
 
     END SUBROUTINE generate_index_list_batched_i4_gpu

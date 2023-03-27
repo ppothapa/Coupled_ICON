@@ -48,6 +48,10 @@ MODULE mo_rtifc_base
   use mo_exception,       only: finish
 #endif
 
+#if defined(__DACE__)
+  use mo_rad,               only: usd
+#endif
+
 #if (_RTTOV_VERSION > 0)
   use rttov_const,        only: version,               &!
                                 release,               &!
@@ -58,8 +62,10 @@ MODULE mo_rtifc_base
                                 tmin_rttov => tmin,    &! minimum allowed temperature
                                 tmax_rttov => tmax,    &! maximum allowed temperature
                                 min_od,                &!
-                                def_gas_unit =>        &
-                                   gas_unit_specconc
+                                def_gas_unit => gas_unit_specconc,  &
+                                rts_land     => surftype_land,      &
+                                rts_sea      => surftype_sea,       &
+                                rts_ice      => surftype_seaice
   use parkind1,           only: jprb, jpim, jplm, jpis
 #endif
 
@@ -159,10 +165,16 @@ MODULE mo_rtifc_base
   real(kind=wp),   parameter :: qmax_rttov      = -1._wp
   real(kind=wp),   parameter :: tmin_rttov      = -1._wp
   real(kind=wp),   parameter :: tmax_rttov      = -1._wp
+  integer,         parameter :: rts_land        = 0
+  integer,         parameter :: rts_sea         = 1
+  integer,         parameter :: rts_ice         = 2
 #else
   ! Used from rttov modules
 #endif
 
+#if !defined(__DACE__)
+  integer :: usd = stdout
+#endif
 
 
   ! error codes and messages
@@ -351,6 +363,22 @@ contains
 
   end function errmsg
 
+  function rts_name(styp) result(name)
+    character(len=6) :: name
+    integer, intent(in) :: styp
+    select case(styp)
+    case(rts_land)
+      name = 'land'
+    case(rts_sea )
+      name = 'sea'
+    case(rts_ice)
+      name = 'seaice'
+    case default
+      name = '??????'
+    end select
+  end function rts_name
+
+
 #if ! (defined(__DACE__) || defined(__ICON__))
   subroutine finish(proc, msg)
     character(len=*), intent(in) :: proc
@@ -526,7 +554,7 @@ contains
         end if
         tau0(i) = exp(od0_tot)
         od0_tot = od0_tot + od0
-        if (l_debug) print*,'check_god_infl tau -> tau0',i,od,od0, tau_(i), tau0(i)
+        if (l_debug) write(usd,*) 'check_god_infl tau -> tau0',i,od,od0, tau_(i), tau0(i)
       end do
       tau0(nl+1) = exp(od0_tot)
     else
@@ -542,7 +570,7 @@ contains
         od0 = min(rttov_o2god(od, p=god(i)), 0._jprb)
         od0_tot = od0_tot + od0
         tau0(i+1) = exp(od0_tot)
-        if (l_debug) print*,'check_god_infl od_ref -> tau*',i,od,od0, tau_(i), tau0(i)
+        if (l_debug) write(usd,*) 'check_god_infl od_ref -> tau*',i,od,od0, tau_(i), tau0(i)
       end do
     end if
 
@@ -553,19 +581,21 @@ contains
       s_infl = s_infl + infl0(i)
     end do
 
-    if (l_debug) write(0,*) i,s_infl
+    if (l_debug) write(usd,*) i,s_infl
     if (s_infl > 0._jprb) then
       do i = 1, nl
         rdiff = (infl(i)-infl0(i))/s_infl
-        if (l_debug) print*,i,infl(i),infl0(i),infl(i)-infl0(i),(infl(i)-infl0(i))/s_infl
+        if (l_debug) write(usd,*) i,infl(i),infl0(i),infl(i)-infl0(i),(infl(i)-infl0(i))/s_infl
         if (rdiff > god_thresh) then
           istat = 1
           l = len_trim(msg) + 1
-          if (l > 1) then
-            msg = trim(msg)//','
-            l = l + 1
+          if (l+30 <= len(msg)) then
+            if (l > 1) then
+              msg = trim(msg)//','
+              l = l + 1
+            end if
+            write(msg(l:),'("layer ",I3," d(infl)/infl=",f6.4)') i, rdiff
           end if
-          write(msg(l:),'("layer ",I3," d(infl)/infl=",f6.4)') i, rdiff
         end if
       end do
     else
@@ -613,7 +643,8 @@ contains
       end if
       tau0(i) = exp(od0_tot)
       od0_tot = od0_tot + od0
-      if (l_debug) print*,proc//' tau',i, tau(i), tau0(i),od,od0,god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od, p=god(igod))
+      if (l_debug) write(usd,*) proc//' tau',i, tau(i), tau0(i),od,od0,&
+           god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od, p=god(igod))
 
     end do
     tau0(nl) = exp(od0_tot)
@@ -621,16 +652,16 @@ contains
     ! Determine transmission at l2c
     l0 = int(l2c)
     l1 = l0 + 1
-    if (l_debug) print*,proc//' l2c',l2c,l0,l1,nl
+    if (l_debug) write(usd,*) proc//' l2c',l2c,l0,l1,nl
     if (l1 <= nl) then
       w0 = (l1 - l2c)
       tr_l2c = w0 * tau(l0) + (1._jprb - w0) * tau(l1)
     else
       l2c_corr = l2c
-      if (l_debug) print*,proc//' l1 > nl',l2c_corr
+      if (l_debug) write(usd,*) proc//' l1 > nl',l2c_corr
       return
     end if
-    if (l_debug) print*,proc//' tr_l2c',l2c,tr_l2c
+    if (l_debug) write(usd,*) proc//' tr_l2c',l2c,tr_l2c
 
     ! Calc. level where tau0 equals tr_l2c
     l2c_corr = -1.
@@ -648,7 +679,7 @@ contains
     end do
     if (l2c_corr <= 0.) l2c_corr = real(nl)
 
-    if (l_debug) print*,proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
+    if (l_debug) write(usd,*) proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
 
   end subroutine l2c_god_tau
 
@@ -683,6 +714,7 @@ contains
     end if
     nlr = size(opd)+1
     nl  = size(lp_l2c)
+    if (l_debug) write(usd,*) proc//' nl',nl,nlr
 
     ! Calculate opdep (total( profile with/without god-smoothing
     od (1) = 0._jprb
@@ -693,23 +725,24 @@ contains
       od(i)  = od(i-1) + od_
       od0_   = min(rttov_o2god(od_, p=god(igod)), 0._jprb)
       od0(i) = od0(i-1) + od0_
-      if (l_debug) print*,proc//' od',i, od_, od(i), od0_, od0(i), god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od_, p=god(igod))
+      if (l_debug) write(usd,*) proc//' od',i, od_, od(i), od0_, od0(i), &
+           god(igod)%tr(1:god(igod)%ntr)%opdep,rttov_o2god(od_, p=god(igod))
     end do
-    if (l_debug) print*,proc//' od_diff',abs(od(nlr) - od0(nlr)), eps
+    if (l_debug) write(usd,*) proc//' od_diff',abs(od(nlr) - od0(nlr)), eps
     if (abs(od(nlr) - od0(nlr)) < eps) return
 
     ! Determine ln(p) at l2c
     l0 = int(l2c)
     l1 = l0 + 1
-    if (l_debug) print*,proc//' l2c',l2c,l0,l1,nl
+    if (l_debug) write(usd,*) proc//' l2c',l2c,l0,l1,nl
     if (l1 <= nl) then
       w0 = (l1 - l2c)
       lp = w0 * lp_l2c(l0) + (1._jprb - w0) * lp_l2c(l1)
     else
-      if (l_debug) print*,proc//' l1 > nl',l2c_corr
+      if (l_debug) write(usd,*) proc//' l1 > nl',l2c_corr
       return
     end if
-    if (l_debug) print*,proc//' lp',l2c,lp,exp(lp)
+    if (l_debug) write(usd,*) proc//' lp',l2c,lp,exp(lp)
 
     ! Find corresponding RT-level
     l1 = -1
@@ -720,18 +753,18 @@ contains
       end if
     end do
     if (l1 <= 1) then
-      if (l_debug) print*,proc//' l1 <= 0',l2c_corr
+      if (l_debug) write(usd,*) proc//' l1 <= 0',l2c_corr
       return
     end if
     l0 = l1 - 1
-    if (l_debug) print*,proc//' l0,l1',l0,l1,abs(od(l1) - od0(l1)),eps
+    if (l_debug) write(usd,*) proc//' l0,l1',l0,l1,abs(od(l1) - od0(l1)),eps
     if (abs(od(l1) - od0(l1)) < eps) return
 
     ! Calc. od at l2c
     w0 = (lp_rt(l1) - lp)/(lp_rt(l1) - lp_rt(l0))
-    if (l_debug) print*,proc//' calc_od_l2c',lp_rt(l0),lp_rt(l1),w0,od(l0),od(l1)
+    if (l_debug) write(usd,*) proc//' calc_od_l2c',lp_rt(l0),lp_rt(l1),w0,od(l0),od(l1)
     od_l2c =  w0 * od(l0) + (1._jprb - w0) * od(l1)
-    if (l_debug) print*,proc//' od_l2c',od_l2c
+    if (l_debug) write(usd,*) proc//' od_l2c',od_l2c
 
     ! Find RT level with od0 == od_l2c
     l1 = nlr
@@ -752,37 +785,37 @@ contains
       end if
     end do
     l0 = l1 - 1
-    if (l_debug) print*,proc//' l0,l1',l0,l1
+    if (l_debug) write(usd,*) proc//' l0,l1',l0,l1
 
     ! Calc. p at this level
     lp_corr = lp_rt(l1)
     if (l1 > 1 .and. od0(l1) <= od_l2c) then
       if (od0(l1) < od0(l0)) then
         w0 = (od0(l1) - od_l2c) / (od0(l1) - od0(l0))
-        if (l_debug) print*,proc//' calc lp_corr',od0(l0),od0(l1),w0,lp_rt(l0),lp_rt(l1)
+        if (l_debug) write(usd,*) proc//' calc lp_corr',od0(l0),od0(l1),w0,lp_rt(l0),lp_rt(l1)
         lp_corr = w0 * lp_rt(l0) + (1._jprb - w0) * lp_rt(l1)
       end if
     end if
-    if (l_debug) print*,proc//' lp_corr',lp_corr,exp(lp_corr)
+    if (l_debug) write(usd,*) proc//' lp_corr',lp_corr,exp(lp_corr)
     lp_corr = max(lp, lp_corr)
 
     ! Corrected l2c value
     l1 = nl
     do i = 1, nl
-      if (l_debug) print*,proc//' lp_l2c',i,lp_l2c(i),exp(lp_l2c(i))
+      if (l_debug) write(usd,*) proc//' lp_l2c',i,lp_l2c(i),exp(lp_l2c(i))
       if (lp_l2c(i) >= lp_corr) then
         l1 = i
         exit
       end if
     end do
     l0 = l1 - 1
-    if (l_debug) print*,proc//' l0,l1',l0,l1
+    if (l_debug) write(usd,*) proc//' l0,l1',l0,l1
     l2c_corr = real(l1)
     if (l1 > 1 .and. lp_l2c(l1) >= lp_corr) then
       w0 = (lp_l2c(l1) - lp_corr) / (lp_l2c(l1) - lp_l2c(l0))
       l2c_corr = w0 * l0 + (1._jprb - w0) * l1
     end if
-    if (l_debug) print*,proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
+    if (l_debug) write(usd,*) proc//' l2c_corr',l2c_corr,l2c_corr-l2c,l2c_corr==l2c
 
   end subroutine l2c_god_opd
 #endif

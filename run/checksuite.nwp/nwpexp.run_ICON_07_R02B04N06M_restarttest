@@ -361,7 +361,7 @@ EXP1="reference"
 EXP2="restart"
 
 
-EXIT_STATUS=0
+ERROR_SUM=0
 DIFF_STATUS_RESTART=0
 
 # EXP1 output filenames
@@ -371,52 +371,31 @@ FILE1_DOM02="NWP1_DOM02_ML_0004.nc"
 FILE2_DOM01="NWP3_DOM01_ML_0004.nc"
 FILE2_DOM02="NWP3_DOM02_ML_0004.nc"
 
-DIFF_FILE_DOM01="NWP_diff_DOM01.out"
-DIFF_FILE_DOM02="NWP_diff_DOM02.out"
+echo "=================================================================="
+echo "Check restart and different patch weights"
+echo "=> Compare experiments: $EXP1 $EXP2"
 
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE1_DOM01}" "${FILE2_DOM01}"
+DIFF_STATUS_RESTART=$((DIFF_STATUS_RESTART + $?))
 
- echo "=================================================================="
- echo "Check restart and different patch weights"
- echo "=> Compare experiments: $EXP1 $EXP2"
+compare_output_files "${FILE1_DOM02}" "${FILE2_DOM02}"
+DIFF_STATUS_RESTART=$((DIFF_STATUS_RESTART + $?))
 
- $cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} > ${DIFF_FILE_DOM01}
- $cdo diffn ${FILE1_DOM02} ${FILE2_DOM02} > ${DIFF_FILE_DOM02}
+ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_RESTART))
 
- if [ -s ${DIFF_FILE_DOM01} ]; then
-   echo " DOM01: file 1 and file 2 differ"
-   echo " - file 1: ${FILE1_DOM01}"
-   echo " - file 2: ${FILE2_DOM01}"
-   cat ${DIFF_FILE_DOM01}
-   rm  ${DIFF_FILE_DOM01}
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_RESTART=1
- else
-   echo "DOM01: EXP $EXP1 and EXP $EXP2 are identical"
- fi
- if [ -s ${DIFF_FILE_DOM02} ]; then
-   echo " DOM02: file 1 and file 2 differ"
-   echo " - file 1: ${FILE1_DOM02}"
-   echo " - file 2: ${FILE2_DOM02}"
-   cat ${DIFF_FILE_DOM02}
-   rm  ${DIFF_FILE_DOM02}
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_RESTART=1
- else
-   echo "DOM02: EXP $EXP1 and EXP $EXP2 are identical"
- fi
- if [ $DIFF_STATUS_RESTART == 0 ]; then
-   echo " "
-   echo "Restart test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "Restart test FAILED:"
-   echo " "
- fi
+if [[ $DIFF_STATUS_RESTART -eq 0 ]]; then
+  echo "DOM01 and DOM02: EXP1 $EXP1 and EXP1 $EXP2 are identical"
+  echo " "
+  echo "Restart test SUCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "Restart test FAILED:"
+  echo " "
+fi
 
-echo "EXIT_STATUS: $EXIT_STATUS"
-exit $EXIT_STATUS
+echo "Cdo test ERROR_SUM: $ERROR_SUM"
+exit $ERROR_SUM
 #
 #-----------------------------------------------------------------------------

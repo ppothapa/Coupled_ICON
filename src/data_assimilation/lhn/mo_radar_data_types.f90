@@ -15,9 +15,15 @@ MODULE mo_radar_data_types
   USE mo_var_list,           ONLY: t_var_list_ptr
   USE mtime,                 ONLY: datetime
 
-IMPLICIT NONE
+  IMPLICIT NONE
 
-PUBLIC t_radar_fields , t_lhn_diag, t_radar_td_fields, t_radar_ct_fields
+  PRIVATE
+
+  PUBLIC :: t_radar_fields
+  PUBLIC :: t_lhn_diag
+  PUBLIC :: t_radar_td_fields
+  PUBLIC :: t_radar_ct_fields
+
 
 TYPE t_radar_td_fields
 
@@ -34,6 +40,7 @@ TYPE t_radar_td_fields
 
 END TYPE t_radar_td_fields
 
+
 TYPE t_radar_ct_fields
 
   REAL(wp), POINTER      &
@@ -42,8 +49,8 @@ TYPE t_radar_ct_fields
 #endif
     & :: blacklist(:,:) ! blacklist for DX radar data
 
-
 END TYPE t_radar_ct_fields
+
 
 TYPE t_radar_fields
 
@@ -55,19 +62,26 @@ TYPE t_radar_fields
 
 END TYPE t_radar_fields
 
+
 TYPE t_lhn_diag
 !
-  REAL(wp), ALLOCATABLE      &
-!#ifdef _CRAYFTN
-!      , CONTIGUOUS             &
-!#endif
+  REAL(wp), POINTER      &
+#ifdef _CRAYFTN
+      , CONTIGUOUS             &
+#endif
     & ::                    &
     & ttend_lhn(:,:,:)     ,& ! temperature increment due to LHN
     & qvtend_lhn(:,:,:)    ,& ! moisture increment due to LHN
-    & brightband(:,:)      ,& ! bright band mask field
     & pr_obs_sum(:,:)      ,& ! cumulated precipitation (hourly)
     & pr_mod_sum(:,:)      ,& ! cumulated precipitation (hourly)
     & pr_ref_sum(:,:)         ! cumulated precipitation (hourly)
+
+  LOGICAL, POINTER          &
+#ifdef _CRAYFTN
+      , CONTIGUOUS             &
+#endif
+    & ::                    &
+    & brightband(:,:)         ! bright band mask field
 
 END TYPE t_lhn_diag
 

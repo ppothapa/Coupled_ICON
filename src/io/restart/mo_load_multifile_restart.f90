@@ -21,7 +21,6 @@
 !! in the calling "src/drivers" routine.
 !!
 #include "omp_definitions.inc"
-#include "icon_contiguous_defines.inc"
 
 MODULE mo_load_multifile_restart
 
@@ -386,11 +385,11 @@ CONTAINS
     INTEGER :: ofs, i, hgrid, nblk, nds(SIZE(vDat)), pCt(SIZE(files)), max_r, max_e
     REAL(dp), ALLOCATABLE, TARGET :: buf_e(:), buf_r(:)
     REAL(dp), POINTER :: ptr_3d_d(:,:,:)
-    REAL(dp), CONTIGUOUS_POINTER :: buf_3d_d(:,:,:), buf_d(:)
+    REAL(dp), CONTIGUOUS, POINTER :: buf_3d_d(:,:,:), buf_d(:)
     REAL(sp), POINTER :: ptr_3d_s(:,:,:)
-    REAL(sp), CONTIGUOUS_POINTER :: buf_3d_s(:,:,:), buf_s(:)
+    REAL(sp), CONTIGUOUS, POINTER :: buf_3d_s(:,:,:), buf_s(:)
     INTEGER, POINTER :: ptr_3d_i(:,:,:)
-    INTEGER, CONTIGUOUS_POINTER :: buf_3d_i(:,:,:), buf_i(:)
+    INTEGER, CONTIGUOUS, POINTER :: buf_3d_i(:,:,:), buf_i(:)
     CHARACTER(*), PARAMETER :: routine = modname//":multifileReadPatch:readData"
     LOGICAL :: en_bloc
     TYPE(C_PTR) :: cptr_r, cptr_e

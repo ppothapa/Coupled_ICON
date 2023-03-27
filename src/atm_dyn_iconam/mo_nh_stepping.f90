@@ -166,7 +166,7 @@ MODULE mo_nh_stepping
   USE mo_async_latbc_utils,        ONLY: recv_latbc_data
   USE mo_async_latbc_types,        ONLY: t_latbc_data
   USE mo_nonhydro_types,           ONLY: t_nh_state, t_nh_diag
-  USE mo_fortran_tools,            ONLY: swap, copy, init
+  USE mo_fortran_tools,            ONLY: swap, copy, init, assert_acc_device_only
   USE mtime,                       ONLY: datetime, newDatetime, deallocateDatetime, datetimeToString,     &
        &                                 timedelta, newTimedelta, deallocateTimedelta, timedeltaToString, &
        &                                 MAX_DATETIME_STR_LEN, MAX_TIMEDELTA_STR_LEN, newDatetime,        &
@@ -402,14 +402,14 @@ MODULE mo_nh_stepping
 
   ! Save initial state if IAU iteration mode is chosen
   IF (iterate_iau .AND. .NOT. isRestart()) THEN
-    CALL save_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_stochconv, p_lnd_state, ext_data)
+    CALL save_initial_state(p_patch(1:))
     WRITE(message_text,'(a)') 'IAU iteration is activated: Start of first cycle with halved IAU window'
     CALL message('',message_text)
   ENDIF
 
   ! Initialize time-dependent ensemble perturbations if necessary
   IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-    CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .FALSE.)
+    CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .FALSE., lacc=.FALSE.)
   ENDIF
 
 
@@ -454,7 +454,7 @@ MODULE mo_nh_stepping
       ENDIF
       IF ( iforcing == inwp ) THEN
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), &
+          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), &
             phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
         ENDDO
         CALL devcpy_nwp(lacc=.TRUE.)
@@ -471,8 +471,7 @@ MODULE mo_nh_stepping
       CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
 
 #ifdef HAVE_RADARFWO
-      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. &
-           mtime_current >= time_config%tc_exp_startdate ) THEN
+      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) ) THEN
         ! Radar forward operator EMVORADO: radar simulation in the first timestep for each
         !  radar-active model domain:
         CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, luse_radarfwo(1:n_dom), 0, nsteps)
@@ -597,7 +596,7 @@ MODULE mo_nh_stepping
       &                                       l_output_step  = .TRUE.,                  &
       &                                       l_dom_active   = p_patch(1:)%ldom_active, &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
-    CALL pp_scheduler_process(simulation_status)
+    CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
     ! global mean diagnostics
     DO jg = 1, n_dom
@@ -689,7 +688,7 @@ MODULE mo_nh_stepping
     ENDIF
     IF ( iforcing == inwp ) THEN
       DO jg=1, n_dom
-         CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=.TRUE.)
+         CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
       ENDDO
       CALL hostcpy_nwp(lacc=.TRUE.)
     ENDIF
@@ -721,7 +720,7 @@ MODULE mo_nh_stepping
     TYPE(t_latbc_data),     INTENT(INOUT)  :: latbc !< data structure for async latbc prefetching
     TYPE(datetime),         POINTER        :: mtime_current     ! current datetime (mtime)
 
-  INTEGER                              :: jg, jn, jgc
+  INTEGER                              :: jg, jn, jgc, jc, jb
   INTEGER                              :: ierr
   LOGICAL                              :: l_compute_diagnostic_quants,  &
     &                                     l_nml_output, l_nml_output_dom(max_dom), lprint_timestep, &
@@ -936,7 +935,7 @@ MODULE mo_nh_stepping
 
     ! Update time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .TRUE.)
+      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .TRUE., lacc=.TRUE.)
     ENDIF
 
     ! update model date and time mtime based
@@ -1020,7 +1019,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Device to host copy before update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+           CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
         i_am_accel_node = .FALSE.
 #endif
@@ -1047,56 +1046,63 @@ MODULE mo_nh_stepping
         i_am_accel_node = my_process_is_work()
         CALL message('mo_nh_stepping', 'Host to device copy after update_nwp_phy_bcs. This needs to be removed once port is finished!')
         DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+          CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
         ENDDO
 #endif
 
       END IF ! end update of surface parameter fields
 
       IF (sstice_mode == SSTICE_INST) THEN
-#ifdef _OPENACC
-        CALL message('mo_nh_stepping', 'Device to host copy before process_sst_and_seaice. This needs to be removed once port is finished!')
-        DO jg=1, n_dom
-           CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
-        ENDDO
-        i_am_accel_node = .FALSE.
-#endif
-        DO jg=1, n_dom
-          CALL sst_intp(jg)%intp(mtime_current, sst_dat)
-          WHERE (sst_dat(:,1,:,1) > 0.0_wp)
-            p_lnd_state(jg)%diag_lnd%t_seasfc(:,:) = sst_dat(:,1,:,1)
-          END WHERE
 
+        ! Note: sic_dat and sst_dat are created on GPU inside sic_intp(jg)%intp and sst_intp(jg)%intp during the first
+        !       call to perform_nh_stepping.
+        !$ACC DATA PRESENT(p_lnd_state, p_patch, sic_dat, sst_dat)
+
+        DO jg=1, n_dom
+          
+          CALL sst_intp(jg)%intp(mtime_current, sst_dat)
           CALL sic_intp(jg)%intp(mtime_current, sic_dat)
-          WHERE (sic_dat(:,1,:,1) < frsi_min)
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = 0.0_wp
-          ELSEWHERE  (sic_dat(:,1,:,1) > 1.0_wp-frsi_min)
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = 1.0_wp
-          ELSEWHERE
-            p_lnd_state(jg)%diag_lnd%fr_seaice(:,:) = sic_dat(:,1,:,1)
-          ENDWHERE
+
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
+          DO jb=1, p_patch(jg)%nblks_c
+            DO jc=1, nproma
+              
+              IF (sst_dat(jc,1,jb,1) > 0.0_wp) THEN
+                p_lnd_state(jg)%diag_lnd%t_seasfc(jc,jb) = sst_dat(jc,1,jb,1)
+              END IF
+
+              IF (sic_dat(jc,1,jb,1) < frsi_min) THEN
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = 0.0_wp
+              ELSE IF (sic_dat(jc,1,jb,1) > 1.0_wp-frsi_min) THEN
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = 1.0_wp
+              ELSE
+                p_lnd_state(jg)%diag_lnd%fr_seaice(jc,jb) = sic_dat(jc,1,jb,1)
+              END IF
+
+            END DO
+          END DO
+          !$ACC END PARALLEL
 
           ! rebuild index lists for water and seaice based on fr_seaice, 
           ! and update tiled surface temperatures
           !
           CALL process_sst_and_seaice (p_patch      = p_patch(jg),                             & !in
-            &                          fr_seaice = p_lnd_state(jg)%diag_lnd%fr_seaice(:,:),    & !in(out)
-            &                          t_seasfc  = p_lnd_state(jg)%diag_lnd%t_seasfc(:,:),     & !in
+            &                          fr_seaice    = p_lnd_state(jg)%diag_lnd%fr_seaice(:,:), & !in(out)
+            &                          t_seasfc     = p_lnd_state(jg)%diag_lnd%t_seasfc(:,:),  & !in
             &                          pres_sfc     = p_nh_state(jg)%diag%pres_sfc(:,:),       & !in
             &                          ext_data     = ext_data(jg),                            & !inout
             &                          prog_lnd_now = p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)),  & !inout
             &                          prog_lnd_new = p_lnd_state(jg)%prog_lnd(nnew_rcf(jg)),  & !inout
             &                          prog_wtr_now = p_lnd_state(jg)%prog_wtr(nnow_rcf(jg)),  & !inout
             &                          prog_wtr_new = p_lnd_state(jg)%prog_wtr(nnew_rcf(jg)),  & !inout
-            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd )                 !inout
+            &                          diag_lnd     = p_lnd_state(jg)%diag_lnd,                & !inout
+            &                          lacc         = .TRUE.                                   )
+
         ENDDO
-#ifdef _OPENACC
-        i_am_accel_node = my_process_is_work()
-        CALL message('mo_nh_stepping', 'Host to device copy after process_sst_and_seaice. This needs to be removed once port is finished!')
-        DO jg=1, n_dom
-          CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
-        ENDDO
-#endif
+
+        !$ACC END DATA
+
       END IF
 
 
@@ -1163,7 +1169,7 @@ MODULE mo_nh_stepping
 
 #ifdef HAVE_RADARFWO    
     IF (.NOT.my_process_is_mpi_test() .AND. iforcing == inwp .AND. ANY(luse_radarfwo(1:n_dom)) .AND. &
-         ( jstep >= 0 .AND. (.NOT.iterate_iau .OR. iau_iter == 2 .OR. isRestart() ) ) ) THEN
+         (.NOT.iterate_iau .OR. iau_iter == 2 .OR. isRestart() ) ) THEN
       CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, &
                               luse_radarfwo(1:n_dom), jstep, nsteps+jstep0)
     END IF
@@ -1336,7 +1342,7 @@ MODULE mo_nh_stepping
       &                                       l_accumulation_step = l_accumulation_step, &
       &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
       &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow_rcf)
-    CALL pp_scheduler_process(simulation_status)
+    CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
     ! global mean diagnostics
     DO jg = 1, n_dom
@@ -2484,7 +2490,7 @@ MODULE mo_nh_stepping
               & CALL message (routine, 'NESTING online init: Switching to CPU for initialization')
 
             ! The online initialization of the nest runs on CPU only.
-            CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
+            CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node)
             i_am_accel_node = .FALSE. ! disable the execution of ACC kernels
 #endif
             CALL initialize_nest(jg, jgc)
@@ -2556,8 +2562,8 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
             i_am_accel_node = my_process_is_work()
-            CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node) ! necessary as Halo-Data can be modified
-            CALL gpu_h2d_nh_nwp(p_patch(jgc), prm_diag(jgc), ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
+            CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), lacc=i_am_accel_node) ! necessary as Halo-Data can be modified
+            CALL gpu_h2d_nh_nwp(jgc, ext_data=ext_data(jgc), phy_params=phy_params(jgc), &
                                 atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
             IF (msg_level >= 7) &
               & CALL message (routine, 'NESTING online init: Switching back to GPU')
@@ -3164,6 +3170,8 @@ MODULE mo_nh_stepping
     ! Local variables
     INTEGER :: jg ! loop indices
 
+    CALL assert_acc_device_only("aggr_landvars", lacc)
+
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
     DO jg = 1, n_dom
@@ -3200,9 +3208,8 @@ MODULE mo_nh_stepping
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
-#ifdef _OPENACC
-    IF( lacc /= i_am_accel_node ) CALL finish ( 'fill_nestlatbc_phys', 'lacc /= i_am_accel_node' )
-#endif
+
+    CALL assert_acc_device_only("fill_nestlatbc_phys", lacc)
 
     ! Fill boundaries of nested domains
     DO jg = n_dom, 1, -1
@@ -3309,20 +3316,25 @@ MODULE mo_nh_stepping
     nnew(:)     = 2
     nnew_rcf(:) = 2
 
+#ifdef _OPENACC
+    i_am_accel_node = .FALSE. ! Reset data on CPU. No host update required.
+#endif
+
     WRITE(message_text,'(a)') 'Reset model to initial state, repeat IAU with full incrementation window'
     CALL message('',message_text)
 
     atm_phy_nwp_config(:)%lcalc_acc_avg = .FALSE.
 
-    CALL restore_initial_state(p_patch(1:), p_nh_state, prm_diag, prm_nwp_tend, prm_nwp_stochconv, p_lnd_state, ext_data, lhn_fields)
+    CALL restore_initial_state(p_patch(1:), p_nh_state)
 
     ! Reinitialize time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
-      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, datetime_current, .FALSE.)
+      CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, datetime_current, .FALSE., lacc=.FALSE.)
     ENDIF
 
     DO jg=1, n_dom
       IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
 
       CALL diagnose_pres_temp (p_nh_state(jg)%metrics, p_nh_state(jg)%prog(nnow(jg)), &
         &                      p_nh_state(jg)%prog(nnow_rcf(jg)),                     &
@@ -3340,13 +3352,8 @@ MODULE mo_nh_stepping
         &                  rho       = p_nh_state(jg)%prog(nnow(jg))%rho, & !in
         &                  airmass   = p_nh_state(jg)%diag%airmass_new    ) !inout
 
-      CALL init_exner_pr(jg, nnow(jg), use_acc=.TRUE.)
+      CALL init_exner_pr(jg, nnow(jg), use_acc=.FALSE.)
 
-#ifdef _OPENACC
-      CALL message('reset_to_initial_state', "Copy data to CPU for init_nwp_phy")
-      CALL gpu_d2h_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), lacc=i_am_accel_node)
-      i_am_accel_node = .FALSE.
-#endif
       CALL init_nwp_phy(                            &
            & p_patch(jg)                           ,&
            & p_nh_state(jg)%metrics                ,&
@@ -3366,12 +3373,15 @@ MODULE mo_nh_stepping
 
 #ifdef _OPENACC
       CALL message('reset_to_initial_state', "Copy reinitialized data back to GPU after init_nwp_phy")
-      i_am_accel_node = my_process_is_work()
-      CALL gpu_h2d_nh_nwp(p_patch(jg), prm_diag(jg), ext_data=ext_data(jg), phy_params=phy_params(jg), &
-                          atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=i_am_accel_node)
+      CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), phy_params=phy_params(jg), &
+                          atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
 #endif
 
     ENDDO
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()
+#endif
 
     CALL aggr_landvars(lacc=.TRUE.)
 

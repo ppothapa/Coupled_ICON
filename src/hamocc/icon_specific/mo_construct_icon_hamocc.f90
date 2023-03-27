@@ -56,6 +56,7 @@ MODULE mo_construct_icon_hamocc
     & t_hamocc_ocean_state
     
   USE mo_bgc_memory_types
+  USE mo_var_list_gpu,        ONLY: gpu_update_var_list
   
   IMPLICIT NONE
   PRIVATE
@@ -120,7 +121,7 @@ SUBROUTINE INI_BGC_ICON(hamocc_ocean_state,l_is_restart)
   TYPE(t_patch),POINTER    :: p_patch
   TYPE(t_subset_range), POINTER :: all_cells
 
-  INTEGER :: jc,  jb
+  INTEGER :: jc, jb, kpke
   INTEGER :: start_index, end_index
   INTEGER  :: levels(nproma)
 
@@ -217,7 +218,8 @@ SUBROUTINE INI_BGC_ICON(hamocc_ocean_state,l_is_restart)
   local_sediment_memory => sediment_local_memory(local_memory_idx)
   local_aggregate_memory => aggregates_memory(local_memory_idx)
   
-    
+  kpke = MAXVAL(p_patch_3D%p_patch_1d(1)%dolic_c(:,:))
+ 
 !   CALL debug_messages_on()
 
 !DIR$ INLINE
@@ -255,9 +257,9 @@ IF (test_memory_copies /= bgc_memory_copies) &
 
           CALL update_bgc(local_bgc_memory, local_sediment_memory, start_index,end_index,levels,&
              & p_patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,jb),&  ! cell thickness
-             &jb, hamocc_state%p_prog(nnew(1))%tracer(:,:,jb,:)&
+             &jb, hamocc_state%p_prog(nnew(1))%tracer&
              &,hamocc_ocean_state%ocean_to_hamocc_state%co2_mixing_ratio(:,jb)&
-             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend)
+             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend, kpke)
 
          ELSE
 
@@ -286,7 +288,29 @@ IF (test_memory_copies /= bgc_memory_copies) &
 !ICON_OMP_END_PARALLEL
 
     IF (i_settling /= 2) CALL print_wpoc(bgc_local_memory(0)%wpoc)
- 
+
+    !$ACC UPDATE DEVICE(local_bgc_memory%atm, local_bgc_memory%satn2, local_bgc_memory%satn2o) &
+    !$ACC   DEVICE(local_bgc_memory%solco2, local_bgc_memory%bgctra, local_bgc_memory%hi, local_bgc_memory%co3) &
+    !$ACC   DEVICE(local_bgc_memory%aksp, local_bgc_memory%ak13, local_bgc_memory%ak23, local_bgc_memory%akb3) &
+    !$ACC   DEVICE(local_bgc_memory%akw3, local_bgc_memory%aksi3, local_bgc_memory%ak1p3, local_bgc_memory%ak2p3) &
+    !$ACC   DEVICE(local_bgc_memory%ak3p3, local_bgc_memory%aks3, local_bgc_memory%akf3, local_bgc_memory%satoxy) &
+    !$ACC   DEVICE(local_bgc_memory%bgctend, local_bgc_memory%kbo, local_bgc_memory%bolay, local_bgc_memory%strahl) &
+    !$ACC   DEVICE(local_bgc_memory%swr_frac, local_bgc_memory%meanswr, local_bgc_memory%bgcflux, local_bgc_memory%aksurf) &
+    !$ACC   DEVICE(local_bgc_memory%wpoc, local_bgc_memory%wcal, local_bgc_memory%wopal, local_bgc_memory%wdust) &
+    !$ACC   DEVICE(local_bgc_memory%sedfluxo)
+
+    !$ACC UPDATE DEVICE(local_sediment_memory%silpro, local_sediment_memory%produs) &
+    !$ACC   DEVICE(local_sediment_memory%prcaca, local_sediment_memory%prorca, local_sediment_memory%burial) &
+    !$ACC   DEVICE(local_sediment_memory%sedlay, local_sediment_memory%powtra, local_sediment_memory%sedhpl) &
+    !$ACC   DEVICE(local_sediment_memory%powh2obud, local_sediment_memory%pown2bud, local_sediment_memory%sedtend)
+
+    !$ACC UPDATE DEVICE(local_aggregate_memory%aggdiag)
+
+    call gpu_update_var_list('hamocc_aggregate_list', .true., lacc=.true.)
+    call gpu_update_var_list('hamocc_tendency_list' , .true., lacc=.true.)
+    call gpu_update_var_list('hamocc_restart_list'  , .true., lacc=.true.)
+    call gpu_update_var_list('hamocc_sediment_list' , .true., lacc=.true.)
+
 END SUBROUTINE INI_BGC_ICON
 
 

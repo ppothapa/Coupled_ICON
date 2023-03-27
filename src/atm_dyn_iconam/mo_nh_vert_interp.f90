@@ -39,7 +39,8 @@ MODULE mo_nh_vert_interp
   USE mo_exception,           ONLY: finish, message, message_text
   USE mo_initicon_config,     ONLY: zpbl1, zpbl2, l_coarse2fine_mode, init_mode, lread_vn, lvert_remap_fg
   USE mo_initicon_types,      ONLY: t_init_state, t_initicon_state
-  USE mo_fortran_tools,       ONLY: init
+  USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device, assert_acc_device_only, &
+    &                               assert_acc_host_only, minval_1d
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_nh_init_utils,       ONLY: interp_uv_2_vn, adjust_w, convert_thdvars
   USE mo_util_phys,           ONLY: virtual_temp, vap_pres
@@ -53,6 +54,7 @@ MODULE mo_nh_vert_interp
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_nh_deepatmo_utils,   ONLY: height_transform
   USE mo_nh_vert_extrap_utils,ONLY: t_expol_state
+
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
@@ -90,6 +92,97 @@ MODULE mo_nh_vert_interp
 
 CONTAINS
 
+  !-------------
+  !>
+  !! FUNCTION start_idx_diff_threshold
+  !! Computes the minimum index where the difference between a z-level and z-level
+  !! reference is less or equal the threshold.
+  !! This wrapper enables the use of OpenACC
+  !!
+  FUNCTION start_idx_diff_threshold(threshold, z2d_in, z_reference, nlen, nlevs, lacc)
+    REAL(wp), INTENT(IN) :: threshold
+    ! The CONTIGUOUS keyword is necessary to circumvent an inlining-openmp bug in nfort 3.2 and 3.5.1
+    REAL(wp), CONTIGUOUS, INTENT(IN) :: z2d_in(:, :), z_reference(:)
+    INTEGER, INTENT(IN) :: nlen, nlevs
+    LOGICAL, INTENT(IN) :: lacc ! if true, use OpenACC
+    INTEGER :: start_idx_diff_threshold, jc, jk
+
+    !nlen = SIZE(z2d_in,1)
+    !nlevs = SIZE(z2d_in,2)
+
+    start_idx_diff_threshold = nlevs-1
+    ! OpenACC requires a different approach, as EXIT would be illegal
+    ! and MINVAL would be very inefficient within an ACC-loop.
+#ifndef _OPENACC
+    DO jk = 1, nlevs
+      IF (MINVAL(z2d_in(1:nlen,jk)-z_reference(1:nlen)) <= threshold) THEN
+        start_idx_diff_threshold = jk - 1
+        EXIT
+      ENDIF
+    ENDDO
+#else
+    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(MIN: start_idx_diff_threshold) IF(lacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO jk = 1, nlevs
+      DO jc = 1, nlen
+        IF ( z2d_in(jc,jk)-z_reference(jc) <= threshold ) THEN
+          start_idx_diff_threshold = MIN(start_idx_diff_threshold, jk)
+        END IF
+      END DO
+    END DO
+    !$ACC END PARALLEL
+    !$ACC WAIT ! required to sync result back to CPU
+
+    start_idx_diff_threshold = start_idx_diff_threshold - 1
+    ! OpenACC does its own initialization of reduction variables with a very high value.
+    ! Thus we make sure that the final value is in a valid range
+    IF ( start_idx_diff_threshold > nlevs-1 ) start_idx_diff_threshold = nlevs-1
+#endif
+  END FUNCTION start_idx_diff_threshold
+
+
+  !-------------
+  !>
+  !! FUNCTION start_idx_threshold
+  !! Computes the minimum index where zalml is less than the threshold.
+  !! This wrapper enables the use of OpenACC
+  !!
+  FUNCTION start_idx_threshold(threshold, zalml, nlen, nlevs, lacc)
+    REAL(wp), INTENT(IN) :: threshold
+    ! The CONTIGUOUS keyword is necessary to circumvent an inlining-openmp bug in nfort 3.2 and 3.5.1
+    REAL(wp), CONTIGUOUS, INTENT(IN) :: zalml(:, :)
+    INTEGER, INTENT(IN) :: nlen, nlevs
+    LOGICAL, INTENT(IN) :: lacc ! if true, use OpenACC
+    INTEGER :: start_idx_threshold, jc, jk
+
+    !nlen = SIZE(zalml,1)
+    !nlevs = SIZE(zalml,2)
+
+    start_idx_threshold = nlevs-1
+    ! OpenACC requires a different approach, as EXIT would be illegal
+    ! and MINVAL would be very inefficient within an ACC-loop.
+#ifndef _OPENACC
+    DO jk = 1, nlevs
+      IF (MINVAL(zalml(1:nlen,jk)) < threshold) THEN
+        start_idx_threshold = jk
+        EXIT
+      ENDIF
+    ENDDO
+#else
+    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(MIN: start_idx_threshold) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO jk = 1, nlevs
+      DO jc = 1, nlen
+        IF ( zalml(jc,jk) < threshold ) THEN
+          start_idx_threshold = MIN(start_idx_threshold, jk)
+        END IF
+      END DO
+    END DO
+    !$ACC END PARALLEL
+
+    !$ACC WAIT ! required to sync result back to CPU
+#endif
+  END FUNCTION start_idx_threshold
 
 
   !-------------
@@ -298,6 +391,12 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 
+#ifdef _OPENACC
+    IF(i_am_accel_node) CALL finish(routine, "Does not support OpenACC (or is untested).")
+    ! In order to support OpenACC, the lacc flags in the following code must be turned on.
+    ! Additional porting might be necessary.
+#endif
+
     jg = p_patch%id
 
     nlev_in = initicon%atm_in%nlev
@@ -361,17 +460,17 @@ CONTAINS
     ! if the weighting would be regarded as a volume weighting)
     CALL prepare_lin_intp(z_mc_in, initicon%const%z_mc,                     &
                           p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev, &
-                          wfac_lin, idx0_lin, bot_idx_lin)
+                          wfac_lin, idx0_lin, bot_idx_lin, lacc=.FALSE.)
 
     CALL prepare_extrap(z_mc_in,                                    &
                         p_patch%nblks_c, p_patch%npromz_c, nlev_in, &
-                        kpbl1, wfacpbl1, kpbl2, wfacpbl2)
+                        kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.FALSE.)
 
 
 
     CALL prepare_cubic_intp(z_mc_in, initicon%const%z_mc,                     &
                             p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev, &
-                            coef1, coef2, coef3, idx0_cub, bot_idx_cub)
+                            coef1, coef2, coef3, idx0_cub, bot_idx_cub, lacc=.FALSE.)
 
     ! (Initialize upper-atmosphere extrapolation type.)
     lexpol = upatmo_config(jg)%exp%l_expol
@@ -391,7 +490,7 @@ CONTAINS
                           wfacpbl1, kpbl1, wfacpbl2, kpbl2,                       &
                           l_restore_sfcinv=.TRUE., l_hires_corr=lc2f,             &
                           extrapol_dist=-1500._wp, l_pz_mode=.FALSE., slope=slope,&
-                          opt_lmask=opt_lmask_c )
+                          opt_lmask=opt_lmask_c, lacc=.FALSE. )
 
     ! (Extrapolate temperature to upper atmosphere
     ! Note: the following subroutine is a post-processing routine, 
@@ -408,27 +507,27 @@ CONTAINS
       !
 
       ! full level heights at edges for initicon input
-      CALL cells2edges_scalar(z_mc_in, p_patch, p_int%c_lin_e, atm_in_z_me, opt_fill_latbc=.TRUE.)
+      CALL cells2edges_scalar(z_mc_in, p_patch, p_int%c_lin_e, atm_in_z_me, opt_fill_latbc=.TRUE., lacc=.FALSE.)
 
 
       ! full level heights at edges for ICON vertical grid
-      CALL cells2edges_scalar(p_metrics%z_mc, p_patch, p_int%c_lin_e, z_me, opt_fill_latbc=.TRUE.)
+      CALL cells2edges_scalar(p_metrics%z_mc, p_patch, p_int%c_lin_e, z_me, opt_fill_latbc=.TRUE., lacc=.FALSE.)
 
 
       ! compute extrapolation coefficients for edges
       CALL prepare_extrap(atm_in_z_me, p_patch%nblks_e, p_patch%npromz_e, &
-        &                 nlev_in, kpbl1_e, wfacpbl1_e, kpbl2_e, wfacpbl2_e)
+        &                 nlev_in, kpbl1_e, wfacpbl1_e, kpbl2_e, wfacpbl2_e, lacc=.FALSE.)
 
 
       ! compute linear interpolation coefficients for edges
       CALL prepare_lin_intp(atm_in_z_me, z_me,                                &
                             p_patch%nblks_e, p_patch%npromz_e, nlev_in, nlev, &
-                            wfac_lin_e, idx0_lin_e, bot_idx_lin_e)
+                            wfac_lin_e, idx0_lin_e, bot_idx_lin_e, lacc=.FALSE.)
 
       ! compute cubic interpolation coefficients for edges
       CALL prepare_cubic_intp(atm_in_z_me, z_me,                                &
                             p_patch%nblks_e, p_patch%npromz_e, nlev_in, nlev,   &
-                            coef1_e, coef2_e, coef3_e, idx0_cub_e, bot_idx_cub_e)
+                            coef1_e, coef2_e, coef3_e, idx0_cub_e, bot_idx_cub_e, lacc=.FALSE.)
 
       ! vertically interpolate vn to ICON grid
       CALL uv_intp(initicon%atm_in%vn, initicon%atm%vn,                  &
@@ -437,7 +536,7 @@ CONTAINS
                    coef1_e, coef2_e, coef3_e, wfac_lin_e,                &
                    idx0_cub_e, idx0_lin_e, bot_idx_cub_e, bot_idx_lin_e, &
                    wfacpbl1_e, kpbl1_e, wfacpbl2_e, kpbl2_e,             &
-                   l_hires_intp=lc2f                                     )
+                   l_hires_intp=lc2f, lacc=.FALSE.                       )
 
     ELSE
       CALL uv_intp(initicon%atm_in%u, initicon%atm%u,                &
@@ -446,14 +545,14 @@ CONTAINS
                    coef1, coef2, coef3, wfac_lin,                    &
                    idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin,     &
                    wfacpbl1, kpbl1, wfacpbl2, kpbl2,                 &
-                   l_hires_intp=lc2f                                 )
+                   l_hires_intp=lc2f, lacc=.FALSE.                   )
       CALL uv_intp(initicon%atm_in%v, initicon%atm%v,                &
                    z_mc_in, initicon%const%z_mc,                     &
                    p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev, &
                    coef1, coef2, coef3, wfac_lin,                    &
                    idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin,     &
                    wfacpbl1, kpbl1, wfacpbl2, kpbl2,                 &
-                   l_hires_intp=lc2f                                 )
+                   l_hires_intp=lc2f, lacc=.FALSE.                   )
 
       ! Convert u and v on cell points to vn at edge points
       CALL interp_uv_2_vn(p_patch, p_int, initicon%atm%u, initicon%atm%v, initicon%atm%vn)
@@ -472,7 +571,7 @@ CONTAINS
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,    &
                   wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,    &
                   wfacpbl2, kpbl2, l_loglin=.TRUE., l_extrapol=.TRUE., &
-                  l_pd_limit=.TRUE., lower_limit=2.5e-7_wp             )
+                  l_pd_limit=.TRUE., lower_limit=2.5e-7_wp, lacc=.FALSE.)
 
     ! Cloud and precipitation variables - linear interpolation only because cubic may
     ! cause negative values, and no-gradient condition for downward extrapolation
@@ -481,25 +580,25 @@ CONTAINS
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,      &
                   wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,      &
                   wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                  l_pd_limit=.TRUE.)
+                  l_pd_limit=.TRUE., lacc=.FALSE.)
 
     CALL lin_intp(initicon%atm_in%qi, initicon%atm%qi,                   &
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,      &
                   wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,      &
                   wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                  l_pd_limit=.TRUE.)
+                  l_pd_limit=.TRUE., lacc=.FALSE.)
 
     CALL lin_intp(initicon%atm_in%qr, initicon%atm%qr,                   &
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,      &
                   wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,      &
                   wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                  l_pd_limit=.TRUE.)
+                  l_pd_limit=.TRUE., lacc=.FALSE.)
 
     CALL lin_intp(initicon%atm_in%qs, initicon%atm%qs,                   &
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,      &
                   wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,      &
                   wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                  l_pd_limit=.TRUE.)
+                  l_pd_limit=.TRUE., lacc=.FALSE.)
 
     ! ... additional tracer variables
     DO idx=1, ntracer
@@ -518,7 +617,7 @@ CONTAINS
                       p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlev,                  &
                       wfac_lin, idx0_lin, bot_idx_lin, wfacpbl1, kpbl1,                  &
                       wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE.,             &
-                      l_pd_limit=.TRUE.)
+                      l_pd_limit=.TRUE., lacc=.FALSE.)
       ENDIF
     ENDDO
 
@@ -550,7 +649,8 @@ CONTAINS
                  idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin,                      &
                  wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_satlimit=.TRUE.,               &
                  lower_limit=2.5e-7_wp, l_restore_pbldev=.TRUE.,                    &
-                 opt_hires_corr=lc2f, opt_qc=initicon%atm%qc, opt_lmask=opt_lmask_c )
+                 opt_hires_corr=lc2f, opt_qc=initicon%atm%qc, opt_lmask=opt_lmask_c,&
+                 lacc=.FALSE. )
 
     ! Compute virtual temperature with final QV
     CALL virtual_temp(p_patch, initicon%atm%temp, initicon%atm%qv, initicon%atm%qc,    &
@@ -590,7 +690,7 @@ CONTAINS
     ! Compute coefficients for w interpolation
     CALL prepare_lin_intp(z_mc_in, initicon%const%z_ifc,       &
                           p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlevp1, &
-                          wfac_lin_w, idx0_lin_w, bot_idx_lin_w)
+                          wfac_lin_w, idx0_lin_w, bot_idx_lin_w, lacc=.FALSE.)
 
 
     ! Perform linear interpolation of w
@@ -600,7 +700,7 @@ CONTAINS
                   p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlevp1,    &
                   wfac_lin_w, idx0_lin_w, bot_idx_lin_w, wfacpbl1, kpbl1,&
                   wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                  l_pd_limit=.FALSE.)
+                  l_pd_limit=.FALSE., lacc=.FALSE.)
 
     ! (Extrapolation of the vertical wind to the upper atmosphere.)
     IF (lexpol) CALL expol%w(p_patch, initicon%atm%w)
@@ -618,7 +718,7 @@ CONTAINS
                     p_patch%nblks_c, p_patch%npromz_c, nlev_in, nlevp1,    &
                     wfac_lin_w, idx0_lin_w, bot_idx_lin_w, wfacpbl1, kpbl1,&
                     wfacpbl2, kpbl2, l_loglin=.FALSE., l_extrapol=.FALSE., &
-                    l_pd_limit=.TRUE., lower_limit=1.e-5_wp)
+                    l_pd_limit=.TRUE., lower_limit=1.e-5_wp, lacc=.FALSE.)
     ENDIF
 
     ! (Finalize upper-atmosphere extrapolation)
@@ -722,7 +822,7 @@ CONTAINS
   !!
   SUBROUTINE prepare_lin_intp(z3d_in, z3d_out,                    &
                               nblks, npromz, nlevs_in, nlevs_out, &
-                              wfac, idx0, bot_idx, lextrap        )
+                              wfac, idx0, bot_idx, lextrap, lacc )
 
     ! Input fields
     REAL(wp), INTENT(IN) :: z3d_in(:,:,:) ! height coordinate field of input data (m)
@@ -737,6 +837,8 @@ CONTAINS
     ! Switch for extrapolation beyond top of input data
     LOGICAL, INTENT(IN), OPTIONAL :: lextrap ! if true, apply linear extrapolation
 
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true use OpenACC
+
     ! Output fields
     REAL(wp), INTENT(OUT) :: wfac(:,:,:)       ! weighting factor of upper level
     INTEGER , INTENT(OUT) :: idx0(:,:,:)       ! index of upper level
@@ -746,7 +848,7 @@ CONTAINS
 
     INTEGER :: jb, jk, jc, jk1, jk_start
     INTEGER :: nlen, ierror(nblks), nerror
-    LOGICAL :: l_found(nproma), lfound_all, l_extrap
+    LOGICAL :: l_found(nproma), lfound_all, l_extrap, lzacc
 
 !-------------------------------------------------------------------------
 
@@ -756,60 +858,98 @@ CONTAINS
       l_extrap = .TRUE.
     ENDIF
 
+    CALL set_acc_host_or_device(lzacc, lacc)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jc,jk1,jk_start,l_found,lfound_all) ICON_OMP_DEFAULT_SCHEDULE
+    !$ACC DATA CREATE(l_found) IF(lzacc)
 
     DO jb = 1, nblks
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        bot_idx(nlen+1:nproma,jb) = nlevs_out
-        wfac(nlen+1:nproma,:,jb)  = 0.5_wp
-        idx0(nlen+1:nproma,:,jb)  = nlevs_in-1
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
+        DO jc = nlen+1, nproma
+          bot_idx(jc,jb) = nlevs_out
+          wfac(jc,:,jb)  = 0.5_wp
+          idx0(jc,:,jb)  = nlevs_in-1
+        ENDDO
+        !$ACC END PARALLEL
       ENDIF
       ierror(jb) = 0
 
       jk_start = 1
       DO jk = 1, nlevs_out
-        l_found(:) = .FALSE.
         lfound_all = .FALSE.
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          l_found(jc) = .FALSE.
+        ENDDO
+
+        !$ACC LOOP SEQ
         DO jk1 = jk_start,nlevs_in-1
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
-            IF (z3d_out(jc,jk,jb) <= z3d_in(jc,jk1,jb) .AND. &
-                z3d_out(jc,jk,jb) >  z3d_in(jc,jk1+1,jb)) THEN
-              idx0(jc,jk,jb) = jk1
-              wfac(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1+1,jb))/&
-                               (z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+1,jb))
-              bot_idx(jc,jb) = jk
-              l_found(jc) = .TRUE.
-            ELSE IF (z3d_out(jc,jk,jb) <= z3d_in(jc,nlevs_in,jb)) THEN
-              l_found(jc) = .TRUE.
-              idx0(jc,jk,jb) = nlevs_in
-              IF (jk == 1)  bot_idx(jc,jb) = 0
-            ELSE IF (z3d_out(jc,jk,jb) > z3d_in(jc,1,jb)) THEN ! linear extrapolation
-              idx0(jc,jk,jb) = 1
-              IF (l_extrap) THEN
-                wfac(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,2,jb))/&
-                                 (z3d_in(jc,1,jb)-z3d_in(jc,2,jb))
-              ELSE
-                wfac(jc,jk,jb) = 1._wp ! use constant values above top of input data
+            IF (.NOT. l_found(jc) ) THEN
+              IF (z3d_out(jc,jk,jb) <= z3d_in(jc,jk1,jb) .AND. &
+                  z3d_out(jc,jk,jb) >  z3d_in(jc,jk1+1,jb)) THEN
+                idx0(jc,jk,jb) = jk1
+                wfac(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1+1,jb))/&
+                                 (z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+1,jb))
+                bot_idx(jc,jb) = jk
+                l_found(jc) = .TRUE.
+              ELSE IF (z3d_out(jc,jk,jb) <= z3d_in(jc,nlevs_in,jb)) THEN
+                l_found(jc) = .TRUE.
+                idx0(jc,jk,jb) = nlevs_in
+                IF (jk == 1)  bot_idx(jc,jb) = 0
+              ELSE IF (z3d_out(jc,jk,jb) > z3d_in(jc,1,jb)) THEN ! linear extrapolation
+                idx0(jc,jk,jb) = 1
+                IF (l_extrap) THEN
+                  wfac(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,2,jb))/&
+                                   (z3d_in(jc,1,jb)-z3d_in(jc,2,jb))
+                ELSE
+                  wfac(jc,jk,jb) = 1._wp ! use constant values above top of input data
+                ENDIF
+                bot_idx(jc,jb) = jk
+                l_found(jc) = .TRUE.
               ENDIF
-              bot_idx(jc,jb) = jk
-              l_found(jc) = .TRUE.
             ENDIF
           ENDDO
+
+#ifndef _OPENACC
+          ! ACC: the following EXIT would be illegal within an OpenACC Kernel, thus we skip this CPU optimization
           IF (ALL(l_found(1:nlen))) THEN
             lfound_all = .TRUE.
             EXIT
           ENDIF
+#endif
+
         ENDDO
+        !$ACC END PARALLEL
+
+#ifdef _OPENACC
+        lfound_all = .TRUE.
+        ! The following reduction must appear in its own small kernel as it did not work otherwise with Nvidia 21.2
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
+        !$ACC LOOP VECTOR
+        DO jc = 1, nlen
+          lfound_all = lfound_all .AND. l_found(jc)
+        ENDDO
+        !$ACC END PARALLEL
+        !$ACC WAIT
+#endif
+
         IF (lfound_all) THEN
-          jk_start = MIN(MINVAL(idx0(1:nlen,jk,jb)),nlevs_in-1)
+          jk_start = MIN(minval_1d(idx0(1:nlen,jk,jb), lacc=lzacc),nlevs_in-1)
         ELSE
           ierror(jb) = ierror(jb) + 1
           ! Write extra debug output before finishing
           WRITE(0,*) 'prepare_lin_intp',jb,jk,nlevs_out,jk_start,jk1,nlevs_in
+          !$ACC UPDATE HOST(l_found, z3d_in, z3d_in, z3d_out) ASYNC(1) IF(lzacc)
+          !$ACC WAIT
           DO jc = 1, nlen
             IF(.NOT.l_found(jc)) THEN
               WRITE(0,*)'prepare_lin_intp',z3d_in(jc,jk_start:jk1,jb),&
@@ -818,7 +958,12 @@ CONTAINS
           ENDDO
         ENDIF
       ENDDO
-      DO jk = MINVAL(bot_idx(1:nlen,jb))+1, nlevs_out
+
+      jk_start = minval_1d(bot_idx(1:nlen,jb), lacc=lzacc) + 1
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = jk_start, nlevs_out
         DO jc = 1, nlen
           IF (jk >= bot_idx(jc,jb)+1) THEN
             ! Store extrapolation distance on wfac if target point is below the
@@ -828,9 +973,12 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
 
     ENDDO
+    !$ACC END DATA
+
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -858,7 +1006,7 @@ CONTAINS
   !!
   !!
   SUBROUTINE prepare_extrap(z3d_in, nblks, npromz, nlevs_in, &
-                            kpbl1, wfacpbl1, kpbl2, wfacpbl2 )
+                            kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc )
 
     ! Input fields
     REAL(wp), INTENT(IN) :: z3d_in(:,:,:) ! height coordinate field of input data (m)
@@ -874,68 +1022,51 @@ CONTAINS
     REAL(wp), INTENT(OUT) :: wfacpbl1(:,:), & ! Corresponding interpolation coefficients
                              wfacpbl2(:,:)
 
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true use OpenACC
     ! LOCAL VARIABLES
 
     INTEGER :: jb, jk, jc, jk_start
     INTEGER :: nlen
     REAL(wp):: kpbl1_min, kpbl2_min
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jc,jk_start) ICON_OMP_DEFAULT_SCHEDULE
 
-    !$ACC DATA PRESENT(z3d_in, kpbl1, kpbl2, wfacpbl1, wfacpbl2) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(z3d_in, kpbl1, kpbl2, wfacpbl1, wfacpbl2) IF(lzacc)
 
     DO jb = 1, nblks
 
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      kpbl1(1:nproma,jb) = -1
-      kpbl2(1:nproma,jb) = -1
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      DO jc = 1, nproma
+        kpbl1(jc,jb) = -1
+        kpbl2(jc,jb) = -1
+      ENDDO
+      !$ACC END PARALLEL LOOP
 
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        kpbl1(nlen+1:nproma,jb) = nlevs_in
-        kpbl2(nlen+1:nproma,jb) = nlevs_in
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc = nlen+1, nproma
+          kpbl1(jc,jb) = nlevs_in
+          kpbl2(jc,jb) = nlevs_in
 
-        wfacpbl1(nlen+1:nproma,jb) = 0.5_wp
-        wfacpbl2(nlen+1:nproma,jb) = 0.5_wp
-        !$ACC END KERNELS
+          wfacpbl1(jc,jb) = 0.5_wp
+          wfacpbl2(jc,jb) = 0.5_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
-      jk_start = nlevs_in-1
-      ! OpenACC requires a different approach, as MINVAL within device code
-      !  would be very inefficient
-#ifndef _OPENACC
-      DO jk = 1, nlevs_in
-        IF (MINVAL(z3d_in(1:nlen,jk,jb)-z3d_in(1:nlen,nlevs_in,jb)) <= zpbl2) THEN
-          jk_start = jk - 1
-          EXIT
-        ENDIF
-      ENDDO
-#else
-      !$ACC WAIT
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: jk_start) COLLAPSE(2) &
-      !$ACC   IF(i_am_accel_node)
-      DO jk = 1, nlevs_in
-        DO jc = 1, nlen
-          IF ( z3d_in(jc,jk,jb)-z3d_in(jc,nlevs_in,jb) <= zpbl2 ) THEN
-            jk_start = min(jk_start, jk-1)
-          END IF
-        END DO
-      END DO
-      !$ACC END PARALLEL LOOP
+      jk_start = start_idx_diff_threshold(zpbl2, z3d_in(:, : ,jb), z3d_in(:,nlevs_in,jb), nlen, nlevs_in, lzacc)
 
-      ! OpenACC does its own initialization of reductions variables, make sure
-      !  that the value is correct
-      IF ( jk_start > nlevs_in-1 ) jk_start = nlevs_in-1
-#endif
-
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = jk_start, nlevs_in-1
         DO jc = 1, nlen
 
@@ -955,22 +1086,22 @@ CONTAINS
 
         ENDDO
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
     ! If the input data is corrupted, no kpbl1 or kpbl2 is found, i.e. still equal -1
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     kpbl1_min = MINVAL(kpbl1(:,1:nblks))
     !$ACC END KERNELS
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     kpbl2_min = MINVAL(kpbl2(:,1:nblks))
     !$ACC END KERNELS
 
-    !$ACC END DATA
     !$ACC WAIT
+    !$ACC END DATA
 
     IF ( kpbl1_min < 0 .OR. kpbl2_min < 0 ) THEN
       CALL finish("prepare_extrap:", &
@@ -995,7 +1126,7 @@ CONTAINS
   !!
   !!
   !!
-  SUBROUTINE prepare_extrap_ifspp(z3d_h_in, z3d_in, nblks, npromz, nlevs_in, kextrap, zextrap, wfac_extrap)
+  SUBROUTINE prepare_extrap_ifspp(z3d_h_in, z3d_in, nblks, npromz, nlevs_in, kextrap, zextrap, wfac_extrap, lacc)
 
     ! Input fields
     REAL(wp), INTENT(IN) :: z3d_h_in(:,:,:) ! half-level height coordinate field of input data (m)
@@ -1010,6 +1141,7 @@ CONTAINS
     INTEGER , INTENT(OUT) :: kextrap(:,:) ! Indices of model levels lying immediately above zextrap
     REAL(wp), INTENT(OUT) :: zextrap(:,:) ! AGL height from which downward extrapolation starts (between 10 m and 150 m)
     REAL(wp), INTENT(OUT) :: wfac_extrap(:,:) ! Corresponding interpolation coefficients
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
 
@@ -1019,6 +1151,8 @@ CONTAINS
 
 
 !-------------------------------------------------------------------------
+
+    CALL assert_acc_device_only("prepare_extrap_ifspp", lacc)
 
     ! Use extrapolation from 150 m AGL if one of the IFS methods is selected, and 
     ! orography-height dependent blending between 10 m and 150 m AGL if the new DWD
@@ -1033,24 +1167,29 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jc,jk_start) ICON_OMP_DEFAULT_SCHEDULE
 
-    !$ACC DATA PRESENT(z3d_h_in, z3d_in, kextrap, zextrap, wfac_extrap) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(z3d_h_in, z3d_in, kextrap, zextrap, wfac_extrap)
 
     DO jb = 1, nblks
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      kextrap(:,jb) = -1
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+      DO jc = 1, nproma
+        kextrap(jc,jb) = -1
+      ENDDO
+      !$ACC END PARALLEL LOOP
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        kextrap(nlen+1:nproma,jb) = nlevs_in
-        wfac_extrap(nlen+1:nproma,jb) = 0.5_wp
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+        DO jc = nlen+1, nproma
+          kextrap(jc,jb) = nlevs_in
+          wfac_extrap(jc,jb) = 0.5_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       ! Compute start height above ground for downward extrapolation, depending on topography height
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = 1, nlen
         IF (z3d_h_in(jc,nlevs_in+1,jb) <= topo_extrap_1) THEN
           zextrap(jc,jb) = zagl_extrap
@@ -1061,39 +1200,14 @@ CONTAINS
                            (z3d_h_in(jc,nlevs_in+1,jb) - topo_extrap_1) / trans_depth
         ENDIF
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
-      jk_start = nlevs_in-1
-      ! OpenACC requires a different approach, as MINVAL within device code
-      !  would be very inefficient
-#ifndef _OPENACC
-      DO jk = 1, nlevs_in
-        IF (MINVAL(z3d_in(1:nlen,jk,jb)-z3d_h_in(1:nlen,nlevs_in+1,jb)) <= zagl_extrap_2) THEN
-          jk_start = jk - 1
-          EXIT
-        ENDIF
-      ENDDO
-#else
-      !$ACC WAIT
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: jk_start) COLLAPSE(2) &
-      !$ACC   IF(i_am_accel_node)
-      DO jk = 1, nlevs_in
-        DO jc = 1, nlen
-          IF ( z3d_in(jc,jk,jb)-z3d_h_in(jc,nlevs_in+1,jb) <= zagl_extrap_2 ) THEN
-            jk_start = min(jk_start, jk-1)
-          END IF
-        END DO
-      END DO
-      !$ACC END PARALLEL LOOP
+      jk_start = start_idx_diff_threshold(zagl_extrap_2, z3d_in(:,:,jb), z3d_h_in(:,nlevs_in+1,jb), nlen, nlevs_in, lacc=.TRUE.)
 
-      ! OpenACC does its own initialization of reductions variables, make sure
-      !  that the value is correct
-      IF ( jk_start > nlevs_in-1 ) jk_start = nlevs_in-1
-#endif
-
-! These two loops cannot be collapsed because it would not be thread safe
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ ! These two loops must not be collapsed because of kextrap
       DO jk = jk_start, nlevs_in-1
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           IF (z3d_in(jc,jk,jb)  >= z3d_h_in(jc,nlevs_in+1,jb)+zextrap(jc,jb) .AND. &
@@ -1105,8 +1219,9 @@ CONTAINS
           ENDIF
 
         ENDDO
-        !$ACC END PARALLEL LOOP
+
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 
@@ -1136,7 +1251,7 @@ CONTAINS
   !!
   SUBROUTINE prepare_cubic_intp(z3d_in, z3d_out,                    &
                                 nblks, npromz, nlevs_in, nlevs_out, &
-                                coef1, coef2, coef3, idx0, bot_idx)
+                                coef1, coef2, coef3, idx0, bot_idx, lacc)
 
     ! Input fields
     REAL(wp), INTENT(IN) :: z3d_in(:,:,:) ! height coordinate field of input data (m)
@@ -1155,13 +1270,18 @@ CONTAINS
     INTEGER , INTENT(OUT) :: idx0(:,:,:)       ! index of upper level
     INTEGER , INTENT(OUT) :: bot_idx(:,:)      ! index of lowest level for which interpolation is possible
 
+    LOGICAL , INTENT(IN), OPTIONAL :: lacc      ! If true, use OpenACC
+
     ! LOCAL VARIABLES
 
     INTEGER :: jb, jk, jc, jk1, jk_start
     INTEGER :: nlen, ierror(nblks), nerror
     LOGICAL :: l_found(nproma),lfound_all
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (nlevs_in <= 3) CALL finish("prepare_cubic_intp:",&
       "Error, number of levels too small for cubic interpolation")
@@ -1169,62 +1289,101 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jc,jk1,jk_start,l_found,lfound_all) ICON_OMP_DEFAULT_SCHEDULE
 
+    !$ACC DATA CREATE(l_found) IF(lzacc)
     DO jb = 1, nblks
       IF (jb /= nblks) THEN
         nlen = nproma
       ELSE
         nlen = npromz
-        bot_idx(nlen+1:nproma,jb) = nlevs_out
-        coef1(nlen+1:nproma,:,jb) = 0.5_wp
-        coef2(nlen+1:nproma,:,jb) = 0.5_wp
-        coef3(nlen+1:nproma,:,jb) = 0.5_wp
-        idx0(nlen+1:nproma,:,jb)  = nlevs_in-1
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR
+        DO jc = nlen+1, nproma
+          bot_idx(jc,jb) = nlevs_out
+          coef1(jc,:,jb) = 0.5_wp
+          coef2(jc,:,jb) = 0.5_wp
+          coef3(jc,:,jb) = 0.5_wp
+          idx0(jc,:,jb)  = nlevs_in-1
+        ENDDO
+        !$ACC END PARALLEL
       ENDIF
       ierror(jb) = 0
 
       jk_start = 2
       DO jk = 1, nlevs_out
-        l_found(:) = .FALSE.
         lfound_all = .FALSE.
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          l_found(jc) = .FALSE.
+        ENDDO
+
+        !$ACC LOOP SEQ
         DO jk1 = jk_start,nlevs_in-2 ! cubic interpolation requires jk1-1, jk1, jk1+1 and jk1+2
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
-            IF (z3d_out(jc,jk,jb) <= z3d_in(jc,jk1,jb) .AND. &
-                z3d_out(jc,jk,jb) >  z3d_in(jc,jk1+1,jb)) THEN
-              idx0(jc,jk,jb)  = jk1-1
-              coef1(jc,jk,jb) = z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb)
-              coef2(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb))*&
-                                (z3d_out(jc,jk,jb)-z3d_in(jc,jk1  ,jb))
-              coef3(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb))*&
-                                (z3d_out(jc,jk,jb)-z3d_in(jc,jk1  ,jb))*&
-                                (z3d_out(jc,jk,jb)-z3d_in(jc,jk1+1,jb))
-              bot_idx(jc,jb) = jk
-              l_found(jc) = .TRUE.
-            ELSE IF (z3d_out(jc,jk,jb) <= z3d_in(jc,nlevs_in-1,jb)) THEN
-              l_found(jc) = .TRUE.
-              idx0(jc,jk,jb) = nlevs_in-1
-            ELSE IF (z3d_out(jc,jk,jb) >  z3d_in(jc,2,jb)) THEN
-              ! linear interpolation between two upper input levels or extrapolation beyond top level
-              idx0(jc,jk,jb) = 1
-              coef1(jc,jk,jb) = z3d_out(jc,jk,jb)-z3d_in(jc,1,jb)
-              coef2(jc,jk,jb) = 0._wp
-              coef3(jc,jk,jb) = 0._wp
-              bot_idx(jc,jb) = jk
-              l_found(jc) = .TRUE.
+            IF (.NOT. l_found(jc) ) THEN
+              IF (z3d_out(jc,jk,jb) <= z3d_in(jc,jk1,jb) .AND. &
+                  z3d_out(jc,jk,jb) >  z3d_in(jc,jk1+1,jb)) THEN
+                idx0(jc,jk,jb)  = jk1-1
+                coef1(jc,jk,jb) = z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb)
+                coef2(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb))*&
+                                  (z3d_out(jc,jk,jb)-z3d_in(jc,jk1  ,jb))
+                coef3(jc,jk,jb) = (z3d_out(jc,jk,jb)-z3d_in(jc,jk1-1,jb))*&
+                                  (z3d_out(jc,jk,jb)-z3d_in(jc,jk1  ,jb))*&
+                                  (z3d_out(jc,jk,jb)-z3d_in(jc,jk1+1,jb))
+                bot_idx(jc,jb) = jk
+                l_found(jc) = .TRUE.
+              ELSE IF (z3d_out(jc,jk,jb) <= z3d_in(jc,nlevs_in-1,jb)) THEN
+                l_found(jc) = .TRUE.
+                idx0(jc,jk,jb) = nlevs_in-1
+              ELSE IF (z3d_out(jc,jk,jb) >  z3d_in(jc,2,jb)) THEN
+                ! linear interpolation between two upper input levels or extrapolation beyond top level
+                idx0(jc,jk,jb) = 1
+                coef1(jc,jk,jb) = z3d_out(jc,jk,jb)-z3d_in(jc,1,jb)
+                coef2(jc,jk,jb) = 0._wp
+                coef3(jc,jk,jb) = 0._wp
+                bot_idx(jc,jb) = jk
+                l_found(jc) = .TRUE.
+              ENDIF
             ENDIF
           ENDDO
+
+#ifndef _OPENACC
+          ! ACC: the following EXIT would be illegal within an OpenACC Kernel, thus we skip this CPU optimization
           IF (ALL(l_found(1:nlen))) THEN
             lfound_all = .TRUE.
             EXIT
           ENDIF
+#endif
+
         ENDDO
+        !$ACC END PARALLEL
+
+#ifdef _OPENACC
+        lfound_all = .TRUE.
+        ! The following reduction must appear in its own small kernel as it did not work otherwise with Nvidia 21.2
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
+        !$ACC LOOP GANG VECTOR
+        DO jc = 1, nlen
+          lfound_all = lfound_all .AND. l_found(jc)
+        ENDDO
+        !$ACC END PARALLEL
+#endif
+        !$ACC WAIT
+
         IF (lfound_all) THEN
-          jk_start = MIN(MINVAL(idx0(1:nlen,jk,jb))+1,nlevs_in-2)
+          jk_start = MIN(minval_1d(idx0(1:nlen,jk,jb), lacc=lzacc)+1,nlevs_in-2)
+          jk_start = MAX(jk_start, 2) ! avoid out-of-bounds access
         ELSE
           ierror(jb) = ierror(jb) + 1
         ENDIF
       ENDDO
 
-      DO jk = MINVAL(bot_idx(1:nlen,jb))+1, nlevs_out
+      jk_start = minval_1d(bot_idx(1:nlen,jb), lacc=lzacc) + 1
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = jk_start, nlevs_out
         DO jc = 1, nlen
           IF (jk >= bot_idx(jc,jb)+1) THEN
             coef1(jc,jk,jb) = 0._wp
@@ -1234,10 +1393,13 @@ CONTAINS
            ENDIF
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+    !$ACC WAIT
+    !$ACC END DATA
 
     nerror = SUM(ierror)
 
@@ -1271,7 +1433,7 @@ CONTAINS
                       nblks, npromz, nlevs_in, nlevs_out,   &
                       wfac, idx0, bot_idx, wfacpbl1, kpbl1, &
                       wfacpbl2, kpbl2, l_loglin, l_pd_limit,&
-                      l_extrapol, lower_limit               )
+                      l_extrapol, lower_limit, lacc         )
 
 
     ! Atmospheric fields
@@ -1297,6 +1459,7 @@ CONTAINS
     LOGICAL,  INTENT(IN) :: l_loglin    ! switch for logarithmic interpolation
     LOGICAL,  INTENT(IN) :: l_pd_limit  ! switch for use of positive definite limiter
     LOGICAL,  INTENT(IN) :: l_extrapol  ! switch for use of downward extrapolation (no-gradient condition otherwise)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true use OpenACC
 
     REAL(wp), INTENT(IN), OPTIONAL :: lower_limit ! lower limit of variable
 
@@ -1305,8 +1468,11 @@ CONTAINS
     INTEGER  :: jb, jk, jc
     INTEGER  :: nlen
     REAL(wp) :: zf_in_tr(nproma,nlevs_in), zf_in_lim(nproma,nlevs_in), z_limit, f3d_z1, f3d_z2, vgrad_f3d
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! return, if nothing to do:
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0))) RETURN
@@ -1317,6 +1483,9 @@ CONTAINS
       z_limit = 0._wp
     ENDIF
 
+    !$ACC DATA IF(lzacc) &
+    !$ACC   PRESENT(f3d_in, f3d_out, wfac, idx0, bot_idx, kpbl1, wfacpbl1, kpbl2, wfacpbl2) &
+    !$ACC   CREATE(zf_in_tr, zf_in_lim)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jc,zf_in_tr,zf_in_lim,f3d_z1,f3d_z2,vgrad_f3d) ICON_OMP_DEFAULT_SCHEDULE
@@ -1326,22 +1495,36 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        f3d_out(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jk = 1, nlevs_out
+          DO jc = nlen+1, nproma
+            f3d_out(jc,jk,jb)  = 0.0_wp
+          END DO
+        END DO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
-      IF (l_pd_limit) THEN
-        zf_in_lim(1:nlen,1:nlevs_in) = MAX(z_limit,f3d_in(1:nlen,1:nlevs_in,jb))
-      ELSE
-        zf_in_lim(1:nlen,1:nlevs_in) = f3d_in(1:nlen,1:nlevs_in,jb)
-      ENDIF
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO jk = 1, nlevs_in
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = 1, nlen
+          IF (l_pd_limit) THEN
+            zf_in_lim(jc, jk) = MAX(z_limit,f3d_in(jc, jk, jb))
+          ELSE
+            zf_in_lim(jc, jk) = f3d_in(jc, jk, jb)
+          ENDIF
+          IF (l_loglin) THEN
+            zf_in_tr(jc, jk) = LOG(MAX(1.e-20_wp,zf_in_lim(jc, jk)))
+          ELSE
+            zf_in_tr(jc, jk) = zf_in_lim(jc, jk)
+          ENDIF
+        ENDDO
+      ENDDO
 
-      IF (l_loglin) THEN
-        zf_in_tr(1:nlen,1:nlevs_in) = LOG(MAX(1.e-20_wp,zf_in_lim(1:nlen,1:nlevs_in)))
-      ELSE
-        zf_in_tr(1:nlen,1:nlevs_in) = zf_in_lim(1:nlen,1:nlevs_in)
-      ENDIF
-
+      !$ACC LOOP SEQ
       DO jk = 1, nlevs_out
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(f3d_z1, f3d_z2, vgrad_f3d)
         DO jc = 1, nlen
           IF (jk <= bot_idx(jc,jb)) THEN
 
@@ -1379,10 +1562,19 @@ CONTAINS
       ENDDO
 
       IF (l_pd_limit) THEN
-        f3d_out(1:nlen,1:nlevs_out,jb) = MAX(z_limit,f3d_out(1:nlen,1:nlevs_out,jb))
+        !$ACC LOOP SEQ
+        DO jk = 1, nlevs_out
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = 1, nlen
+            f3d_out(jc, jk, jb) = MAX(z_limit,f3d_out(jc, jk, jb))
+          ENDDO
+        ENDDO
       ENDIF
+      !$ACC END PARALLEL
 
     ENDDO
+    !$ACC WAIT
+    !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -1408,7 +1600,7 @@ CONTAINS
   SUBROUTINE pressure_intp(pres_in, tempv_in, z3d_in, pres_out, z3d_out,                   &
                            nblks, npromz, nlevs_in, nlevs_out,                             &
                            wfac, idx0, bot_idx, wfacpbl1, kpbl1, wfacpbl2, kpbl2, zextrap, &
-                           opt_lconstgrav                                                  )
+                           opt_lconstgrav, lacc                                            )
 
 
     ! Input fields
@@ -1437,9 +1629,11 @@ CONTAINS
 
     REAL(wp), OPTIONAL, INTENT(IN) :: zextrap(:,:)   ! AGL height from which downward extrapolation starts (in postprocesing mode)
     LOGICAL,  OPTIONAL, INTENT(IN) :: opt_lconstgrav 
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
 
+    CHARACTER(*), PARAMETER :: routine = 'mo_nh_vert_interp: pressure_intp'
     INTEGER  :: jb, jk, jc, jk1, nlen
     REAL(wp), DIMENSION(nproma,nlevs_out) :: dtvdz_down
     REAL(wp), DIMENSION(nproma)           :: tmsl, tsfc_mod, tempv1, tempv2, vtgrad_up, sfc_inv
@@ -1455,7 +1649,7 @@ CONTAINS
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0))) RETURN
 
     IF (.NOT. PRESENT(zextrap) .AND. itype_pres_msl >= 3 ) THEN
-      CALL finish("pressure_intp:", "zextrap missing in argument list")
+      CALL finish(routine, "zextrap missing in argument list")
     ENDIF
 
     IF (PRESENT(opt_lconstgrav)) THEN
@@ -1468,8 +1662,10 @@ CONTAINS
       z_in  => z3d_in
       z_out => z3d_out
     ELSE
+      CALL assert_acc_host_only(routine//": lconstgrav==.FALSE.", lacc)
+
       ALLOCATE(zgpot_in(nproma, nlevs_in,  nblks), zgpot_out(nproma, nlevs_out, nblks), STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp', 'Allocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed!')
       ! Compute geopotential heights in case of the deep atmosphere
       CALL height_transform( z_in       = z3d_out,    &  !in 
         &                    z_out      = zgpot_out,  &  !out       
@@ -1486,6 +1682,12 @@ CONTAINS
       ! (Put another way: we regard 'zpbl1', 'zpbl2', and 'zextrap' to represent geopotential heights.)
     ENDIF
 
+    CALL assert_acc_device_only(routine, lacc)
+
+    !$ACC DATA PRESENT(pres_in, tempv_in, z3d_in, z3d_out, pres_out, wfac, idx0, bot_idx, kpbl1, wfacpbl1, kpbl2) &
+    !$ACC   PRESENT(wfacpbl2, z_in, z_out, zextrap, num_lev, vct_a) &
+    !$ACC   CREATE(dtvdz_down, tmsl, tsfc_mod, tempv1, tempv2, vtgrad_up, sfc_inv)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,nlen,jk,jk1,jc,dtvdz_down,p_up,p_down,tmsl,tsfc_mod,tempv1,tempv2,&
 !$OMP            vtgrad_up,sfc_inv,t_extr) ICON_OMP_DEFAULT_SCHEDULE
@@ -1495,9 +1697,14 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        pres_out(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+        DO jc = nlen+1, nproma
+          pres_out(jc,:,jb)  = 0.0_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       IF (itype_pres_msl == PRES_MSL_METHOD_GME) THEN
 
         ! Preparations for extrapolation below the ground: calculate temperature
@@ -1508,6 +1715,7 @@ CONTAINS
         ! solution, but it is used for the time being in order to be consistent
         ! with IFS and GME.
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           tsfc_mod(jc) = tempv_in(jc,nlevs_in,jb)
           IF (tsfc_mod(jc) < t_low) tsfc_mod(jc) = 0.5_wp*(t_low+tsfc_mod(jc))
@@ -1527,6 +1735,7 @@ CONTAINS
         ! Similar method to option 1, but we use the temperature at 150 m AGL
         ! for extrapolation (kpbl1 contains the required index in this case)
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           tsfc_mod(jc) = wfacpbl1(jc,jb) *tempv_in(jc,kpbl1(jc,jb),jb  ) + &
@@ -1550,6 +1759,7 @@ CONTAINS
         ! Use a temperature profile that is (roughly) consistent with
         ! that used for temperature extrapolation
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           ! Virtual temperature at height zpbl1
           tempv1(jc) = wfacpbl1(jc,jb) *tempv_in(jc,kpbl1(jc,jb),jb  ) + &
@@ -1600,8 +1810,10 @@ CONTAINS
       ENDIF
 
       ! Compute vertical gradients of virtual potential temperature
+      !$ACC LOOP SEQ
       DO jk = 1, nlevs_out
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen           ! The vertical gradient is needed for downward extrapolation only
 
           IF (z_in(jc,nlevs_in,jb) > 1._wp) THEN
@@ -1617,8 +1829,10 @@ CONTAINS
       ENDDO
 
       ! Now compute pressure on target grid
+      !$ACC LOOP SEQ
       DO jk = 1, nlevs_out
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk1, p_up, p_down, t_extr)
         DO jc = 1, nlen
           IF (jk <= bot_idx(jc,jb)) THEN
 
@@ -1657,15 +1871,18 @@ CONTAINS
         ENDDO
 
       ENDDO
+      !$ACC END PARALLEL
 
     ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+    !$ACC WAIT
+    !$ACC END DATA
 
     NULLIFY(z_in, z_out)
     IF (.NOT. lconstgrav) THEN
       DEALLOCATE(zgpot_in, zgpot_out, STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp', 'Deallocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed!')
     ENDIF
 
   END SUBROUTINE pressure_intp
@@ -1732,7 +1949,6 @@ CONTAINS
     INTEGER  :: istat
 
 !-------------------------------------------------------------------------
-
     ! return, if nothing to do:
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0))) RETURN
 
@@ -2006,7 +2222,7 @@ CONTAINS
                              idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin,   &
                              wfacpbl1, kpbl1, wfacpbl2, kpbl2,               &
                              l_hires_corr, l_restore_sfcinv, extrapol_dist,  &
-                             l_pz_mode, zextrap, slope, opt_lmask)
+                             l_pz_mode, zextrap, slope, opt_lmask, lacc)
 
 
     ! Atmospheric fields
@@ -2053,6 +2269,7 @@ CONTAINS
     LOGICAL, INTENT(IN) :: l_pz_mode
 
     REAL(wp), INTENT(IN) :: extrapol_dist ! Maximum extrapolation distance using the local vertical gradient
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     REAL(wp), INTENT(IN), OPTIONAL :: slope(:,:)  ! slope of mass points
     LOGICAL, OPTIONAL,  INTENT(IN) :: opt_lmask(:,:)
@@ -2069,8 +2286,11 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,nlevs_in)  :: zalml_in, sfc_inv, temp_mod, g1, g2, g3
     REAL(wp), DIMENSION(nproma,nlevs_in-1) :: zalml_in_d
     REAL(wp), DIMENSION(nproma,nlevs_out) :: zalml_out
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! return, if nothing to do:
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0))) RETURN
@@ -2079,7 +2299,7 @@ CONTAINS
       "slope correction requires slope data as input")
 
     IF (.NOT. PRESENT(zextrap) .AND. l_pz_mode .AND. itype_pres_msl >= 3) THEN
-      CALL finish("pressure_intp:", "zextrap missing in argument list")
+      CALL finish("temperature_intp:", "zextrap missing in argument list")
     ENDIF
 
     ! Artificial upper limit on sea-level temperature for so-called plateau correction
@@ -2087,17 +2307,31 @@ CONTAINS
 
 !$OMP PARALLEL private(jc, jk, zalml_in, zalml_out)
 
+    !$ACC DATA IF(lzacc) &
+    !$ACC   PRESENT(num_lev) &
+    !$ACC   CREATE(ik1, temp1, temp2, vtgrad_up, zdiff_inout) &
+    !$ACC   CREATE(redinv1, redinv2, tmsl, tmsl_mod) &
+    !$ACC   CREATE(l_found, zalml_in, sfc_inv, temp_mod, g1, g2, g3) &
+    !$ACC   CREATE(zalml_out, zalml_in_d) &
+    !$ACC   PRESENT(temp_in, temp_out, z3d_in, z3d_out, coef1, coef2, coef3, wfac_lin, idx0_cub, idx0_lin) &
+    !$ACC   PRESENT(bot_idx_cub, bot_idx_lin, kpbl1, wfacpbl1, kpbl2, wfacpbl2, zextrap, slope, opt_lmask)
 
-    do jc = 1, nproma
-      do jk = 1, nlevs_in
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_in
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_in(jc, jk) = (jc - 1) * nlevs_in + jk
-      end do
-    end do
-    do jc = 1, nproma
-      do jk = 1, nlevs_out
+      END DO
+    END DO
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_out
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_out(jc, jk) = (jc - 1) * nlevs_out + jk
-      end do
-    end do
+      END DO
+    END DO
+    !$ACC END PARALLEL
 
 !-------------------------------------------------------------------------
 
@@ -2110,10 +2344,15 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        temp_out(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc=nlen+1, nproma
+          temp_out(jc,:,jb)  = 0.0_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       IF (PRESENT(opt_lmask)) THEN
+        CALL assert_acc_host_only("temperature_intp:opt_lmask", lacc)
         IF (.NOT. ANY(opt_lmask(:,jb))) THEN
           temp_out(:,:,jb) = fill_temp
           CYCLE
@@ -2122,6 +2361,8 @@ CONTAINS
 
       IF (l_pz_mode .AND. itype_pres_msl < 3) THEN
 
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk1 = 1, nlevs_in
           DO jc = 1, nlen
 
@@ -2130,17 +2371,22 @@ CONTAINS
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE IF (l_pz_mode) THEN ! new IFS method: extrapolate downward from 150 m AGL
                                ! with the standard atmosphere gradient
 
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           ! Temperature at height zpbl1 (150 m AGL in this case)
           temp1(jc) = wfacpbl1(jc,jb) *temp_in(jc,kpbl1(jc,jb),jb  ) + &
                (1._wp-wfacpbl1(jc,jb))*temp_in(jc,kpbl1(jc,jb)+1,jb)
         ENDDO
 
+        !$ACC LOOP SEQ
         DO jk1 = 1, nlevs_in
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
             IF (jk1 <= kpbl1(jc,jb)) THEN ! just use the input temperature
               temp_mod(jc,jk1) = temp_in(jc,jk1,jb)
@@ -2150,8 +2396,11 @@ CONTAINS
             ENDIF
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           ! Temperature at height zpbl1
           temp1(jc) = wfacpbl1(jc,jb) *temp_in(jc,kpbl1(jc,jb),jb  ) + &
@@ -2173,7 +2422,9 @@ CONTAINS
           zdiff_inout(jc) = z3d_out(jc,nlevs_out,jb) - z3d_in(jc,nlevs_in,jb)
         ENDDO
 
+        !$ACC LOOP SEQ
         DO jk1 = 1, nlevs_in
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
 
             ! Height above lowest model level
@@ -2199,13 +2450,10 @@ CONTAINS
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
 
-        DO jk1 = 1, nlevs_in
-          IF (MINVAL(zalml_in(1:nlen,jk1)) < zpbl1) THEN
-            jk_start_in = jk1
-            EXIT
-          ENDIF
-        ENDDO
+        jk_start_in = start_idx_threshold(zpbl1, zalml_in(:,:), nlen, nlevs_in, lzacc)
+
       ENDIF
 
       ! Reduce the surface inversion strength depending on the slope of the target point and
@@ -2218,7 +2466,9 @@ CONTAINS
       ! and on slope points because cold air drainage in reality lets the cold air
       ! accumulate at the valley bottom.
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       IF (l_hires_corr) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           IF (slope(jc,jb) <= 5.e-2_wp) THEN ! 50 m/km
@@ -2240,7 +2490,9 @@ CONTAINS
         ENDDO
 
         ! Reduce surface inversion if sfc_inv > 0 (i.e. there is really enhanced static stability)
+        !$ACC LOOP SEQ
         DO jk1 = jk_start_in, nlevs_in
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
             IF (sfc_inv(jc,jk1) > 0._wp) THEN
               sfc_inv(jc,jk1) = sfc_inv(jc,jk1)*MIN(1._wp, redinv1(jc)*redinv2(jc))
@@ -2250,20 +2502,19 @@ CONTAINS
 
       ENDIF
 
-
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = 1, nlen
         ! Compute vertical gradients of input data
         g1(jc,1) = (temp_mod(jc,1)-temp_mod(jc,2))/ &
              (z3d_in(jc,1,jb)-z3d_in(jc,2,jb))
-      ENDDO
-      DO jc = 1, nlen
-        ! Compute vertical gradients of input data
         g1(jc,2) = (temp_mod(jc,2)-temp_mod(jc,3))/ &
              (z3d_in(jc,2,jb)-z3d_in(jc,3,jb))
         ! Compute vertical gradients of gradients
         g2(jc,2-1) = (g1(jc,1)-g1(jc,2))/(z3d_in(jc,1,jb)-z3d_in(jc,3,jb))
       ENDDO
+      !$ACC LOOP SEQ
       DO jk1 = 3, nlevs_in-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           ! Compute vertical gradients of input data
           g1(jc,jk1) = (temp_mod(jc,jk1 )-temp_mod(jc,jk1+1 ))/ &
@@ -2278,7 +2529,9 @@ CONTAINS
       ! Now perform vertical interpolation, based on the modified temperature field
       IF (.NOT. l_pz_mode) THEN ! mode for interpolating initial data
 
+        !$ACC LOOP SEQ
         DO jk = 1, nlevs_out
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk1)
           DO jc = 1, nlen
             IF (jk <= bot_idx_cub(jc,jb)) THEN
 
@@ -2316,6 +2569,7 @@ CONTAINS
       ELSE ! mode for interpolation to pressure or height levels
 
         ! Some precomputations that do not depend on the model level
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           ! extrapolated mean sea level temperature
@@ -2334,7 +2588,9 @@ CONTAINS
           ENDIF
         ENDDO
 
+        !$ACC LOOP SEQ
         DO jk = 1, nlevs_out
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk1)
           DO jc = 1, nlen
             IF (jk <= bot_idx_cub(jc,jb)) THEN
 
@@ -2350,7 +2606,7 @@ CONTAINS
               temp_out(jc,jk,jb) = wfac_lin(jc,jk,jb)*temp_mod(jc,jk1) + &
                 (1._wp-wfac_lin(jc,jk,jb))*temp_mod(jc,jk1+1)
 
-            ELSE ! apply empiricial correction computed above for extrapolation below the ground
+            ELSE ! apply empirical correction computed above for extrapolation below the ground
 
               temp_out(jc,jk,jb) = temp_mod(jc,nlevs_in) + wfac_lin(jc,jk,jb)* &
                 (temp_mod(jc,nlevs_in)-tmsl_mod(jc))/z3d_in(jc,nlevs_in,jb)
@@ -2361,53 +2617,67 @@ CONTAINS
         ENDDO
 
       ENDIF
+      !$ACC END PARALLEL
 
       ! Finally, subtract surface inversion from preliminary temperature field
       IF (l_restore_sfcinv .AND. .NOT. l_pz_mode) THEN
 
-        DO jk = 1, nlevs_out
-          IF (MINVAL(zalml_out(1:nlen,jk)) < zpbl1) THEN
-            jk_start_out = jk
-            EXIT
-          ENDIF
-        ENDDO
+        jk_start_out = start_idx_threshold(zpbl1, zalml_out(:,:), nlen, nlevs_out, lzacc)
 
-        zalml_in_d = 1.0 / (zalml_in(1:nproma,1:nlevs_in-1) - &
-          &                 zalml_in(1:nproma,2:nlevs_in))
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jk = 1, nlevs_in-1
+          DO jc = 1, nlen
+            zalml_in_d(jc,jk) = 1.0_wp / (zalml_in(jc,jk) - zalml_in(jc,jk+1))
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
 
         jk_start = jk_start_in - 1
         DO jk = jk_start_out, nlevs_out
-          l_found(:) = .FALSE.
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = 1, nlen
+            l_found(jc) = .FALSE.
+          ENDDO
+          !$ACC LOOP SEQ
           DO jk1 = jk_start, nlevs_in-1
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wfac, sfcinv)
             DO jc = 1, nlen
-              IF (zalml_out(jc,jk) >= zpbl1) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
-              ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
-                       zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
+              IF(.NOT. l_found(jc)) THEN
+                IF (zalml_out(jc,jk) >= zpbl1) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
+                         zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
 
-                wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1))*&
-                       zalml_in_d(jc,jk1)
-                sfcinv = wfac*sfc_inv(jc,jk1) + (1._wp-wfac)*sfc_inv(jc,jk1+1)
+                  wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1)) * zalml_in_d(jc,jk1)
+                  sfcinv = wfac*sfc_inv(jc,jk1) + (1._wp-wfac)*sfc_inv(jc,jk1+1)
 
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk1
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk1
 
-                temp_out(jc,jk,jb) =  temp_out(jc,jk,jb) - sfcinv
+                  temp_out(jc,jk,jb) =  temp_out(jc,jk,jb) - sfcinv
 
-              ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ENDIF
               ENDIF
             ENDDO
+#ifndef _OPENACC
+            ! ACC: the following EXIT would be illegal within an OpenACC Kernel, thus we skip this CPU optimization
             IF (ALL(l_found(1:nlen))) EXIT
+#endif
           ENDDO
-          jk_start = MINVAL(ik1(1:nlen))
+          !$ACC END PARALLEL
+          jk_start = minval_1d(ik1(1: nlen), lacc=lzacc)
         ENDDO
       ENDIF
 
       ! Fill data-void grid points
       IF (PRESENT(opt_lmask)) THEN
+        CALL assert_acc_host_only("temperature_intp:opt_lmask", lacc)
         DO jc = 1, nlen
           IF (.NOT. opt_lmask(jc,jb)) THEN
             temp_out(jc,:,jb) = fill_temp
@@ -2416,6 +2686,8 @@ CONTAINS
       ENDIF
 
     ENDDO
+    !$ACC WAIT
+    !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -2449,7 +2721,8 @@ CONTAINS
                      coef1, coef2, coef3, wfac_lin,                &
                      idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin, &
                      wfacpbl1, kpbl1, wfacpbl2, kpbl2,             &
-                     l_hires_intp, l_restore_fricred, extrap_limit )
+                     l_hires_intp, l_restore_fricred,              &
+                     extrap_limit, lacc)
 
 
     ! Atmospheric fields
@@ -2483,6 +2756,7 @@ CONTAINS
     REAL(wp), INTENT(IN) :: wfacpbl2(:,:)   ! corresponding interpolation coefficient
 
     LOGICAL,  INTENT(IN) :: l_hires_intp ! mode for interpolation to (much) finer grid
+    LOGICAL,  INTENT(IN), OPTIONAL :: lacc ! If true, use OpenACC
     LOGICAL,  INTENT(IN), OPTIONAL :: l_restore_fricred ! subtract/restore frictional reduction of wind speed
     REAL(wp), INTENT(IN), OPTIONAL :: extrap_limit  ! multiplicative limit in case of downward extrapolation
 
@@ -2500,8 +2774,10 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,nlevs_in)  :: zalml_in, fric_red, uv_mod, g1, g2, g3
     REAL(wp), DIMENSION(nproma,nlevs_in-1) :: zalml_in_d
     REAL(wp), DIMENSION(nproma,nlevs_out) :: zalml_out, zdiff_inout, red_speed
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! return, if nothing to do:
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0)))  RETURN
@@ -2528,16 +2804,28 @@ CONTAINS
 
 !$OMP PARALLEL private(jc, jk, zalml_in,zalml_out)
 
-    do jc = 1, nproma
-      do jk = 1, nlevs_in
+    !$ACC DATA IF(lzacc) &
+    !$ACC   PRESENT(uv_in, uv_out, z3d_in, z3d_out, coef1, coef2, coef3) &
+    !$ACC   PRESENT(wfac_lin, idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin, kpbl1, wfacpbl1, kpbl2, wfacpbl2) &
+    !$ACC   CREATE(ik1, uv1, uv2, dudz_up, l_found, zalml_in, fric_red, uv_mod, g1, g2, g3) &
+    !$ACC   CREATE(zalml_out, zalml_in_d, zdiff_inout, red_speed)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_in
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_in(jc, jk) = (jc - 1) * nlevs_in + jk
-      end do
-    end do
-    do jc = 1, nproma
-      do jk = 1, nlevs_out
+      END DO
+    END DO
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_out
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_out(jc, jk) = (jc - 1) * nlevs_out + jk
-      end do
-    end do
+      END DO
+    END DO
+    !$ACC END PARALLEL
 
 !-------------------------------------------------------------------------
 
@@ -2550,9 +2838,15 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        uv_out(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc = nlen+1, nproma
+          uv_out(jc,:,jb)  = 0.0_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = 1, nlen
         ! Wind component at height zpbl1
         uv1(jc) = wfacpbl1(jc,jb) *uv_in(jc,kpbl1(jc,jb),jb  ) + &
@@ -2566,7 +2860,9 @@ CONTAINS
         dudz_up(jc) = (uv2(jc) - uv1(jc))/(zpbl2 - zpbl1)
       ENDDO
 
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           ! Height above lowest model level
@@ -2584,22 +2880,21 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
-      DO jk1 = 1, nlevs_in
-        IF (MINVAL(zalml_in(1:nlen,jk1)) < zpbl1) THEN
-          jk_start_in = jk1
-          EXIT
-        ENDIF
-      ENDDO
+      jk_start_in = start_idx_threshold(zpbl1, zalml_in(:,:), nlen, nlevs_in, lzacc)
 
       ! Compute factor for artificial wind speed reduction when interpolating
       ! into deep valleys, whose presence is inferred from zdiff_inout
       ! (of course, this inference assumes that the target grid has a much finer
       ! resolution than the source grid; thus, the reduction is used for l_hires_intp only
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       IF (l_hires_intp) THEN
 
+        !$ACC LOOP SEQ
         DO jk = 1, nlevs_out
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = 1, nlen
 
             ! height distance between lowest input and output grid points
@@ -2619,13 +2914,21 @@ CONTAINS
 
       ELSE !  no artificial reduction
 
-        red_speed(:,:) = 1._wp
+        !$ACC LOOP SEQ
+        DO jk = 1, nlevs_out
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = 1, nlen
+            red_speed(jc,jk) = 1._wp
+          ENDDO
+        ENDDO
 
       ENDIF
 
 
       ! Compute vertical gradients of input data
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g1(jc,jk1) = (uv_mod(jc,jk1 )-uv_mod(jc,jk1+1 ))/ &
                        (z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+1,jb))
@@ -2633,21 +2936,27 @@ CONTAINS
       ENDDO
 
       ! Compute vertical gradients of gradients
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-2
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g2(jc,jk1) = (g1(jc,jk1)-g1(jc,jk1+1))/(z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+2,jb))
         ENDDO
       ENDDO
 
       ! Compute third-order vertical gradients
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-3
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g3(jc,jk1) = (g2(jc,jk1)-g2(jc,jk1+1))/(z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+3,jb))
         ENDDO
       ENDDO
 
       ! Now perform vertical interpolation, based on the modified temperature field
+      !$ACC LOOP SEQ
       DO jk = 1, nlevs_out
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk1)
         DO jc = 1, nlen
           IF (jk <= bot_idx_cub(jc,jb)) THEN
 
@@ -2700,53 +3009,70 @@ CONTAINS
 
         ENDDO
       ENDDO
-
-      DO jk = 1, nlevs_out
-        IF (MINVAL(zalml_out(1:nlen,jk)) < zpbl1) THEN
-          jk_start_out = jk
-          EXIT
-        ENDIF
-      ENDDO
+      !$ACC END PARALLEL
 
       ! subtract frictional reduction from preliminary wind field
       IF (lrestore_fricred) THEN
 
-        zalml_in_d = 1.0 / (zalml_in(1:nproma,1:nlevs_in-1) - &
-          &                 zalml_in(1:nproma,2:nlevs_in))
+        jk_start_out = start_idx_threshold(zpbl1, zalml_out(:,:), nlen, nlevs_out, lzacc)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jk = 1, nlevs_in-1
+          DO jc = 1, nlen
+            zalml_in_d(jc,jk) = 1.0_wp / (zalml_in(jc,jk) - zalml_in(jc,jk+1))
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
 
         jk_start = jk_start_in - 1
         DO jk = jk_start_out, nlevs_out
-          l_found(:) = .FALSE.
+
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = 1, nlen
+            l_found(jc) = .FALSE.
+          ENDDO
+          !$ACC LOOP SEQ
           DO jk1 = jk_start, nlevs_in-1
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wfac, fricred)
             DO jc = 1, nlen
-              IF (zalml_out(jc,jk) >= zpbl1) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
-              ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
-                       zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
+              IF (.NOT. l_found(jc) ) THEN
+                IF (zalml_out(jc,jk) >= zpbl1) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
+                         zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
 
-                wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1))*&
-                       zalml_in_d(jc,jk1)
-                fricred = wfac*fric_red(jc,jk1) + (1._wp-wfac)*fric_red(jc,jk1+1)
+                  wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1)) * zalml_in_d(jc,jk1)
+                  fricred = wfac*fric_red(jc,jk1) + (1._wp-wfac)*fric_red(jc,jk1+1)
 
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk1
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk1
 
-                uv_out(jc,jk,jb) = (uv_out(jc,jk,jb)/red_speed(jc,jk)-fricred)*red_speed(jc,jk)
+                  uv_out(jc,jk,jb) = (uv_out(jc,jk,jb)/red_speed(jc,jk)-fricred)*red_speed(jc,jk)
 
-              ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ENDIF
               ENDIF
             ENDDO
+#ifdef _OPENACC
+            ! ACC: the following EXIT would be illegal within an OpenACC Kernel, thus we skip this CPU optimization
             IF (ALL(l_found(1:nlen))) EXIT
+#endif
           ENDDO
-          jk_start = MINVAL(ik1(1:nlen))
+          !$ACC END PARALLEL
+
+          jk_start = minval_1d(ik1(1:nlen), lacc=lzacc)
         ENDDO
       ENDIF
 
     ENDDO
 !$OMP END DO NOWAIT
+    !$ACC WAIT
+    !$ACC END DATA
 !$OMP END PARALLEL
 
   END SUBROUTINE uv_intp
@@ -2777,7 +3103,7 @@ CONTAINS
                      idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin,    &
                      wfacpbl1, kpbl1, wfacpbl2, kpbl2,                &
                      lower_limit, l_satlimit, l_restore_pbldev,       &
-                     opt_hires_corr, opt_qc, opt_lmask)
+                     opt_hires_corr, opt_qc, opt_lmask, lacc)
 
 
     ! Specific humidity fields
@@ -2824,6 +3150,7 @@ CONTAINS
     REAL(wp), INTENT(IN) :: lower_limit     ! lower limit of QV
     LOGICAL , INTENT(IN) :: l_satlimit       ! limit input field to water saturation
     LOGICAL , INTENT(IN) :: l_restore_pbldev ! restore PBL deviation of QV from extrapolated profile
+    LOGICAL , INTENT(IN), OPTIONAL :: lacc ! If true, use OpenACC
 
     LOGICAL, OPTIONAL, INTENT(IN) :: opt_hires_corr   ! apply corrections / limits for coarse-to-fine grid interpolation
     LOGICAL, OPTIONAL, INTENT(IN) :: opt_lmask(:,:)
@@ -2843,8 +3170,10 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,nlevs_in-1) :: zalml_in_d
     REAL(wp), DIMENSION(nproma,nlevs_out) :: zalml_out, qsat_out
     LOGICAL :: lmask(nproma)
+    LOGICAL :: lzacc ! non-optional version of lacc
 
 !-------------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! return, if nothing to do:
     IF ((nblks == 0) .OR. ((nblks == 1) .AND. (npromz == 0))) RETURN
@@ -2863,16 +3192,31 @@ CONTAINS
 
 !$OMP PARALLEL private(jc, jk, zalml_in, zalml_out)
 
-    do jc = 1, nproma
-      do jk = 1, nlevs_in
+    !$ACC DATA IF(lzacc) &
+    !$ACC   PRESENT(qv_in, qv_out, opt_qc, temp_in, pres_in, temp_out, pres_out, z3d_in, z3d_out, coef1, coef2) &
+    !$ACC   PRESENT(coef3, wfac_lin, idx0_cub, idx0_lin, bot_idx_cub, bot_idx_lin, kpbl1, wfacpbl1, kpbl2) &
+    !$ACC   PRESENT(wfacpbl2) &
+    !$ACC   CREATE(qv1, qv2, dqvdz_up) &
+    !$ACC   CREATE(l_found, lmask, ik1) &
+    !$ACC   CREATE(zalml_in, pbl_dev, qv_mod, g1, g2, g3, qsat_in, qv_in_lim) &
+    !$ACC   CREATE(zalml_out, qsat_out, zalml_in_d)
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_in
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_in(jc, jk) = (jc - 1) * nlevs_in + jk
-      end do
-    end do
-    do jc = 1, nproma
-      do jk = 1, nlevs_out
+      END DO
+    END DO
+    !$ACC LOOP SEQ
+    DO jk = 1, nlevs_out
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nproma
         zalml_out(jc, jk) = (jc - 1) * nlevs_out + jk
-      end do
-    end do
+      END DO
+    END DO
+    !$ACC END PARALLEL
 
 !-------------------------------------------------------------------------
 
@@ -2885,26 +3229,37 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = npromz
-        qv_out(nlen+1:nproma,:,jb)  = 0.0_wp
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc = nlen+1, nproma
+          qv_out(jc,:,jb)  = 0.0_wp
+        ENDDO
+        !$ACC END PARALLEL LOOP
       ENDIF
 
       IF (PRESENT(opt_lmask)) THEN
+        CALL assert_acc_host_only("qv_intp:opt_lmask", lacc)
         lmask(:) =  opt_lmask(:,jb)
+        IF (.NOT. ANY(lmask)) THEN
+          qv_out(:,:,jb)  = 0.0_wp
+          CYCLE
+        ENDIF
       ELSE
-        lmask(:) = .TRUE.
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc = 1, nproma
+          lmask(jc) = .TRUE.
+        ENDDO
+        !$ACC END PARALLEL LOOP
       END IF
 
-      IF (.NOT. ANY(lmask)) THEN
-        qv_out(:,:,jb)  = 0.0_wp
-        CYCLE
-      ENDIF
-
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(e_vapor)
         DO jc = 1, nlen
           IF (lmask(jc)) THEN
 
             ! Limit input data to the 'lower_limit' specified in the argument list
-           qv_in_lim(jc,jk1) = MAX(qv_in(jc,jk1,jb),lower_limit)
+            qv_in_lim(jc,jk1) = MAX(qv_in(jc,jk1,jb),lower_limit)
 
             ! compute vapour pressure e_vapor=f(qv_in,pres_in)
             e_vapor = vap_pres(qv_in_lim(jc,jk1),pres_in(jc,jk1,jb))
@@ -2930,6 +3285,7 @@ CONTAINS
 
 
 
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = 1, nlen
         ! QV at height zpbl1
         qv1(jc) = wfacpbl1(jc,jb) *qv_in_lim(jc,kpbl1(jc,jb)  ) + &
@@ -2943,7 +3299,9 @@ CONTAINS
         dqvdz_up(jc) = MIN(5.e-6_wp, MAX(-5.e-6_wp, (qv2(jc) - qv1(jc))/(zpbl2 - zpbl1)))
       ENDDO
 
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
 
           ! Height above lowest model level
@@ -2963,17 +3321,15 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
-      DO jk1 = 1, nlevs_in
-        IF (MINVAL(zalml_in(1:nlen,jk1)) < zpbl1) THEN
-          jk_start_in = jk1
-          EXIT
-        ENDIF
-      ENDDO
+      jk_start_in = start_idx_threshold(zpbl1, zalml_in(:,:), nlen, nlevs_in, lzacc)
 
-
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
       ! Compute vertical gradients of input data
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g1(jc,jk1) = (qv_mod(jc,jk1 )-qv_mod(jc,jk1+1 ))/ &
                        (z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+1,jb))
@@ -2981,21 +3337,27 @@ CONTAINS
       ENDDO
 
       ! Compute vertical gradients of gradients
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-2
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g2(jc,jk1) = (g1(jc,jk1)-g1(jc,jk1+1))/(z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+2,jb))
         ENDDO
       ENDDO
 
       ! Compute third-order vertical gradients
+      !$ACC LOOP SEQ
       DO jk1 = 1, nlevs_in-3
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = 1, nlen
           g3(jc,jk1) = (g2(jc,jk1)-g2(jc,jk1+1))/(z3d_in(jc,jk1,jb)-z3d_in(jc,jk1+3,jb))
         ENDDO
       ENDDO
 
       ! Now perform vertical interpolation, based on the modified temperature field
+      !$ACC LOOP SEQ
       DO jk = 1, nlevs_out
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jk1, e_vapor)
         DO jc = 1, nlen
 
           IF (jk <= bot_idx_cub(jc,jb)) THEN
@@ -3039,52 +3401,67 @@ CONTAINS
 
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
-      DO jk = 1, nlevs_out
-        IF (MINVAL(zalml_out(1:nlen,jk)) < zpbl1) THEN
-          jk_start_out = jk
-          EXIT
-        ENDIF
+      jk_start_out = start_idx_threshold(zpbl1, zalml_out(:,:), nlen, nlevs_out, lzacc)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
+      DO jk = 1, nlevs_in-1
+        DO jc = 1, nlen
+          zalml_in_d(jc,jk) = 1.0_wp / (zalml_in(jc,jk) - zalml_in(jc,jk+1))
+        ENDDO
       ENDDO
-
-      zalml_in_d = 1.0 / (zalml_in(1:nproma,1:nlevs_in-1) - &
-        &                 zalml_in(1:nproma,2:nlevs_in))
+      !$ACC END PARALLEL
 
       ! subtract boundary-layer deviation from preliminary QV
       IF (l_restore_pbldev) THEN
         jk_start = jk_start_in - 1
         DO jk = jk_start_out, nlevs_out
-          l_found(:) = .FALSE.
+          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
+          DO jc = 1, nlen
+            l_found(jc) = .FALSE.
+          ENDDO
+          !$ACC LOOP SEQ
           DO jk1 = jk_start, nlevs_in-1
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = 1, nlen
-              IF (zalml_out(jc,jk) >= zpbl1) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
-              ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
-                       zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
+              IF( .NOT. l_found(jc) ) THEN
+                IF (zalml_out(jc,jk) >= zpbl1) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) <  zalml_in(jc,jk1) .AND. &
+                         zalml_out(jc,jk) >= zalml_in(jc,jk1+1)) THEN
 
-                wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1))*&
-                       zalml_in_d(jc,jk1)
+                  wfac = (zalml_out(jc,jk)-zalml_in(jc,jk1+1)) * zalml_in_d(jc,jk1)
+                  pbldev = wfac*pbl_dev(jc,jk1) + (1._wp-wfac)*pbl_dev(jc,jk1+1)
 
-                pbldev = wfac*pbl_dev(jc,jk1) + (1._wp-wfac)*pbl_dev(jc,jk1+1)
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk1
 
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk1
+                  qv_out(jc,jk,jb) =  qv_out(jc,jk,jb) - pbldev*qsat_out(jc,jk)
 
-                qv_out(jc,jk,jb) =  qv_out(jc,jk,jb) - pbldev*qsat_out(jc,jk)
-
-              ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
-                l_found(jc) = .TRUE.
-                ik1(jc)     = jk_start
+                ELSE IF (zalml_out(jc,jk) > zalml_in(jc,jk_start)) THEN
+                  l_found(jc) = .TRUE.
+                  ik1(jc)     = jk_start
+                ENDIF
               ENDIF
             ENDDO
+#ifdef _OPENACC
+            ! ACC: the following EXIT would be illegal within an OpenACC Kernel, thus we skip this CPU optimization
             IF (ALL(l_found(1:nlen))) EXIT
+#endif
           ENDDO
-          jk_start = MINVAL(ik1(1:nlen))
+          !$ACC END PARALLEL
+          jk_start = minval_1d(ik1(1:nlen), lacc=lzacc)
+
         ENDDO
       ENDIF
 
       IF (l_check_qv_qc) THEN ! apply consistency checks between QV and QC
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(rhum, qtot)
         DO jk = 1, nlevs_out
           DO jc = 1, nlen
 
@@ -3108,8 +3485,11 @@ CONTAINS
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
 
       ELSE ! impose only some obvious constraints on QV
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevs_out
           DO jc = 1, nlen
 
@@ -3126,9 +3506,13 @@ CONTAINS
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
       ENDIF
 
     ENDDO
+    !$ACC WAIT
+    !$ACC END DATA
+
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 

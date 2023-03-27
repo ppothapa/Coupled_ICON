@@ -889,7 +889,7 @@ CONTAINS !......................................................................
   !! - NOTE: Open-ACC parallelization of original subroutine has been removed!
   !!
   SUBROUTINE velocity_tendencies_deepatmo (p_prog, p_patch, p_int, p_metrics, p_diag, z_w_concorr_me, z_kin_hor_e, &
-                                           z_vt_ie, ntnd, istep, lvn_only, dtime, opt_nrdmax)
+                                           z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc, opt_nrdmax)
 
     ! Passed variables
     TYPE(t_patch), TARGET, INTENT(IN)    :: p_patch
@@ -905,6 +905,7 @@ CONTAINS !......................................................................
     INTEGER, INTENT(IN)  :: istep    ! 1: predictor step, 2: corrector step
     LOGICAL, INTENT(IN)  :: lvn_only ! true: compute only vn tendency
     REAL(wp),INTENT(IN)  :: dtime    ! time step
+    REAL(wp),INTENT(IN)  :: dt_linintp_ubc  ! time shift for upper boundary condition
     ! 'nrdmax' cannot be included from 'mo_vertical_grid' within this module, 
     ! because of circular dependencies
     INTEGER, INTENT(IN), OPTIONAL :: opt_nrdmax(:) 
@@ -933,11 +934,7 @@ CONTAINS !......................................................................
 #endif
 
     ! Pointers
-    INTEGER, DIMENSION(:,:,:), POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS                       &
-#endif
-      ::                                 &
+    INTEGER, DIMENSION(:,:,:), POINTER, CONTIGUOUS :: &
       icidx, icblk, ieidx, ieblk, iqidx, iqblk, ividx, ivblk, incidx, incblk
 
     INTEGER  :: nlev, nlevp1          !< number of full and half levels
@@ -1116,7 +1113,7 @@ CONTAINS !......................................................................
           ! vn_ie(jk=1) is extrapolated using parent domain information in this case
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
-            p_diag%vn_ie(je,1,jb) = p_diag%vn_ie(je,2,jb) + p_diag%dvn_ie_ubc(je,jb)
+            p_diag%vn_ie(je,1,jb) = p_diag%vn_ie_ubc(je,1,jb)+dt_linintp_ubc*p_diag%vn_ie_ubc(je,2,jb)
             ! vt_ie(jk=1) is actually unused, but we need it for convenience of implementation
             z_vt_ie(je,1,jb) = p_diag%vt(je,1,jb)
             !

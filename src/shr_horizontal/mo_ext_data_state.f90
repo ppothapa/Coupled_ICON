@@ -48,7 +48,7 @@ MODULE mo_ext_data_state
   USE mo_ext_data_types,     ONLY: t_external_data, t_external_atmos_td, &
     &                              t_external_atmos
   USE mo_var_groups,         ONLY: groups
-  USE mo_var_metadata_types, ONLY: POST_OP_SCALE, POST_OP_LUC, CLASS_TILE
+  USE mo_var_metadata_types, ONLY: POST_OP_SCALE, POST_OP_LUC, CLASS_TILE, CLASS_TILE_LAND
   USE mo_var_metadata,       ONLY: post_op, create_hor_interp_metadata
   USE mo_var_list_register,  ONLY: vlr_add, vlr_del
   USE mo_var_list,           ONLY: add_var, add_ref, t_var_list_ptr
@@ -700,9 +700,10 @@ CONTAINS
                & 'plcov_t_'//ADJUSTL(TRIM(csfc)),                        &
                & p_ext_atm%plcov_t_ptr(jsfc)%p_2d,                       &
                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                     &
-               & t_cf_var('plcov_t_'//csfc, '', '', datatype_flt),     &
+               & t_cf_var('plcov_t_'//csfc, '', '', datatype_flt),       &
                & grib2_desc,                                             &
                & ref_idx=jsfc,                                           &
+               & var_class=CLASS_TILE_LAND,                              &
                & ldims=shape2d_c, loutput=.TRUE.)
       ENDDO
 
@@ -1203,6 +1204,7 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'idx_lst_t', p_ext_atm%idx_lst_t, &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,      &
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,    &
+        &           in_group=groups("iau_restore_vars"),              &
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%idx_lst_t)
 
@@ -1216,6 +1218,7 @@ CONTAINS
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,        &
         &           grib2_desc, ldims=(/nblks_c,ntiles_total/),         &
         &           loutput=.FALSE.,                                    &
+        &           in_group=groups("iau_restore_vars"),                &
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%gp_count_t)
 
@@ -1231,6 +1234,7 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'snowtile_flag_t', p_ext_atm%snowtile_flag_t, &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                  &
         &           grib2_desc, ldims=shape3d_nt, loutput=.FALSE.,                &
+        &           in_group=groups("iau_restore_vars"),                          &
         &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%snowtile_flag_t)
 
@@ -1280,7 +1284,8 @@ CONTAINS
       CALL add_var( p_ext_atm_list, 'frac_t', p_ext_atm%frac_t,   &
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,  &
         &           grib2_desc, ldims=shape3d_ntw, loutput=.FALSE., lcontainer=.TRUE., &
-        &          lopenacc=.TRUE.)
+        &           in_group=groups("iau_restore_vars"),          &
+        &           lopenacc=.TRUE.)
       __acc_attach(p_ext_atm%frac_t)
 
       ! fill the separate variables belonging to the container frac_t

@@ -96,7 +96,7 @@ USE mo_loopindices,             ONLY: get_indices_c
 USE mo_nonhydro_types,          ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
 USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend
 USE mo_impl_constants_grf,      ONLY: grf_bdywidth_c
-USE mo_impl_constants,          ONLY: min_rlcell_int, SUCCESS
+USE mo_impl_constants,          ONLY: min_rlcell_int, SUCCESS, max_dom
 USE mo_nonhydrostatic_config,   ONLY: kstart_moist
 USE mo_model_domain,            ONLY: t_patch
 USE mo_radar_data_types,        ONLY: t_radar_fields, t_lhn_diag
@@ -120,7 +120,7 @@ PUBLIC :: organize_lhn
 !---------------
 
   INTEGER (KIND=i4) ::  &
-    nulhn                ! unit of lhn output file
+    nulhn(max_dom)        ! unit of lhn output file
 
   REAL  (KIND=wp)              ::           &
     zdt                ,& ! valid time step for integration
@@ -130,7 +130,7 @@ PUBLIC :: organize_lhn
 
   CHARACTER (LEN=20)    ::  yroutine    ! name of the subroutine
   CHARACTER (LEN=80)    ::  yerrmsg     ! text message for model abort
-  CHARACTER (LEN=12)    ::  yulhn       ! name of lhn output file
+  CHARACTER (LEN=14)    ::  yulhn       ! name of lhn output file
 
 
 ! Local arrays  
@@ -266,6 +266,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   LOGICAL :: ltoold, ltoyoung
   INTEGER :: izlocstat  ! error status on allocation of fields
 
+  CHARACTER (LEN=3) cjg
+
 !- End of header
 !===============================================================================
 !-------------------------------------------------------------------------------
@@ -316,11 +318,12 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   !$ACC   PRESENT(pt_patch, pt_patch%cells%area)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb)
-  DO jb = 1, pt_patch%nblks_c
+!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+  DO jb = i_startblk, i_endblk
+    CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
     !$ACC PARALLEL DEFAULT(PRESENT)
-    !$ACC LOOP GANG VECTOR
-    DO jc = 1, nproma
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx
       pr_obs         (jc,jb) = -0.1_wp
       pr_ana         (jc,jb) = 0.0_wp
       wobs_space     (jc,jb) = -1.0_wp
@@ -332,37 +335,38 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     !$ACC LOOP SEQ
     DO jk = nlev-16, nlev
-      !$ACC LOOP GANG VECTOR
-      DO jc = 1, nproma
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
         lhn_diag(jc,jk,jb) = -99.0_wp
       END DO
     END DO
 
     !$ACC LOOP SEQ
     DO jk = 1, nlev
-      !$ACC LOOP GANG VECTOR
-      DO jc = 1, nproma
-        lhn_fields%ttend_lhn (jc,jk,jb) = 0.0_wp
-        lhn_fields%qvtend_lhn(jc,jk,jb) = 0.0_wp
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
+        tt_lheat(jc,jk,jb) = 0.0_wp
       END DO
     END DO
     !$ACC END PARALLEL
+
   END DO
 !$OMP END DO
 
-!$OMP DO PRIVATE(jb)
+!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
   !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP SEQ
-  DO jb = 1, i_startblk   ! initialization along nest boundaries
-    !$ACC LOOP GANG VECTOR
+  DO jb = 1, i_startblk    ! initialization along nest boundaries
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = 1, nproma
-      pr_mod(jc,jb) = 0.0_wp
       pr_ref(jc,jb) = 0.0_wp
+      pr_obs(jc,jb) = -0.1_wp
+      z_pr_obs(jc,1,jb) = 0.0_wp
+      z_pr_mod(jc,1,jb) = -0.1_wp
     END DO
-
     !$ACC LOOP SEQ
     DO jk = 1, nlev
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = 1, nproma
         tt_lheat(jc,jk,jb) = 0.0_wp
       END DO
@@ -410,22 +414,27 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END PARALLEL
 
   IF (my_process_is_stdio() .AND. (assimilation_config(jg)%lhn_diag)) THEN
+    IF (jg == 1) THEN
+      yulhn = 'lhn.log'
+    ELSE
+      WRITE(cjg,'(i2.2)') jg 
+      yulhn = 'lhn_DOM'//TRIM(cjg)//'.log'
+    ENDIF
     INQUIRE (file=yulhn, OPENED=lopen_log)
     IF (.NOT. lopen_log) THEN
-      CALL open_lhn_log()
-      WRITE(nulhn, '(a,f10.2,3i10)') 'LHN : intent(in) parameter: ', p_sim_time, nproma, pt_patch%nlev,jg
-      WRITE(nulhn, '(a,2f10.2)') 'LHN : relevant time step/time now : ', zdt, p_sim_time*sec_per_hr_inv
-      WRITE(nulhn, *) ' parameters set for LHN :'
-      WRITE(nulhn, *) ' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ', assimilation_config(jg)%lhn_artif
-      WRITE(nulhn, *) ' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ', assimilation_config(jg)%lhn_filt
-      WRITE(nulhn, *) ' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
+      CALL open_lhn_log(nulhn(jg))
+      WRITE(nulhn(jg), '(a,2f10.2,i5)') 'LHN : relevant time step/time now, domain : ', zdt, p_sim_time*sec_per_hr_inv,jg
+      WRITE(nulhn(jg), *) ' parameters set for LHN :'
+      WRITE(nulhn(jg), *) ' Climatological Profile enable : assimilation_config(jg)%lhn_artif = ', assimilation_config(jg)%lhn_artif
+      WRITE(nulhn(jg), *) ' Vertical Filtering of increments  : assimilation_config(jg)%lhn_filt   = ', assimilation_config(jg)%lhn_filt
+      WRITE(nulhn(jg), *) ' Horizontal Filtering of increments : assimilation_config(jg)%lhn_relax  = ', &
                         assimilation_config(jg)%lhn_relax, assimilation_config(jg)%nlhn_relax
-      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ', assimilation_config(jg)%lhn_limit, &
+      WRITE(nulhn(jg), *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limit = ', assimilation_config(jg)%lhn_limit, &
                         assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
-      WRITE(nulhn, *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ', assimilation_config(jg)%lhn_limitp, &
+      WRITE(nulhn(jg), *) ' Absolute limit of incs.  :  assimilation_config(jg)%lhn_limitp = ', assimilation_config(jg)%lhn_limitp, &
                         assimilation_config(jg)%abs_lhn_lim, ' (K/second)'
-      WRITE(nulhn, *) ' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ', assimilation_config(jg)%lhn_hum_adj
-      WRITE(nulhn, *) ' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ', assimilation_config(jg)%lhn_diag
+      WRITE(nulhn(jg), *) ' Humidity enhancement :     assimilation_config(jg)%lhn_hum_adj = ', assimilation_config(jg)%lhn_hum_adj
+      WRITE(nulhn(jg), *) ' Diagnostic output :        assimilation_config(jg)%lhn_diag    = ', assimilation_config(jg)%lhn_diag
     END IF  
   END IF  
 
@@ -439,8 +448,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !               (includes interpolation in time between consecutive obs)
 !-------------------------------------------------------------------------------
 
-  CALL lhn_obs_prep(pt_patch, radar_data, prm_diag, lhn_fields, pr_obs(:,:), hzerocl(:,:), wobs_space(:,:), &
-                    wobs_time(:,:), ltoyoung, ltoold, datetime_current)
+     CALL lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs(:,:),hzerocl(:,:),wobs_space(:,:),wobs_time(:,:), &
+       &                ltoyoung,ltoold,datetime_current)
 
   lvalid_data = .NOT. ltoold
   IF (.NOT. (ltoold.OR.ltoyoung)) THEN
@@ -500,14 +509,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
       IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
         !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = pr_mod(jc,jb) + prm_diag%rain_con_rate_3d(jc,nlev,jb) + prm_diag%snow_con_rate_3d(jc,nlev,jb)
         END DO
 
         !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), nlev
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             qrsflux(jc,jk,jb) = qrsflux(jc,jk,jb) + &
                       prm_diag%rain_con_rate_3d(jc,jk,jb) + prm_diag%snow_con_rate_3d(jc,jk,jb)
@@ -517,7 +526,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END IF
 
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-      DO jc = 1, nproma
+      DO jc = i_startidx, i_endidx
         pr_ref(jc,jb) = pr_mod(jc,jb)
         zprmod(jc,jb) = pr_mod(jc,jb)
       END DO
@@ -612,7 +621,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         END DO
         
         !$ACC LOOP GANG(STATIC: 1) VECTOR
-        DO jc=i_startidx, i_endidx
+        DO jc = i_startidx, i_endidx
           IF (vcoordsum(jc) /= 0.0_wp) qrsflux_int(jc) = qrsflux_int(jc) / vcoordsum(jc)
           pr_ref(jc,jb) = qrsflux_int(jc)
         END DO
@@ -622,14 +631,17 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END DO 
     END IF
 
-!$OMP DO PRIVATE(jb)
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-    DO jb=i_startblk,i_endblk
-      DO jc = 1, nproma
-        pr_obs_nofilt(jc,jb) = pr_obs(jc,jb)
-        pr_mod_nofilt(jc,jb) = pr_ref(jc,jb)
-      END DO
-    END DO
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+     CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+
+     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+     DO jc = i_startidx, i_endidx
+       pr_obs_nofilt(jc,jb) = pr_obs(jc,jb)
+       pr_mod_nofilt(jc,jb) = pr_ref(jc,jb)
+     END DO
+   ENDDO
 !$OMP END DO
 
 !$OMP END PARALLEL
@@ -637,13 +649,20 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     IF (assimilation_config(jg)%lhn_relax) THEN
 
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-      DO jb = 1, pt_patch%nblks_c
-        DO jc = 1, nproma
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
           z_pr_obs(jc,1,jb) = pr_obs(jc,jb)
           z_pr_mod(jc,1,jb) = pr_ref(jc,jb)
         END DO
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
 
       CALL sync_patch_array_mult(SYNC_C, pt_patch, 3, z_pr_mod, z_pr_obs, tt_lheat)
 
@@ -665,18 +684,21 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
           !$ACC PARALLEL DEFAULT(PRESENT)
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             pr_ref(jc,jb) = MAX( 0.0_wp, z_pr_mod(jc,1,jb) + zdcoeff * &
                                   pt_patch%cells%area(jc,jb) * z_nabla2_prmod(jc,1,jb) )
    
             pr_obs(jc,jb) = z_pr_obs(jc,1,jb) + zdcoeff * &
                                  pt_patch%cells%area(jc,jb) * z_nabla2_probs(jc,1,jb)
+
+            z_pr_mod(jc,1,jb) = pr_ref(jc,jb)
+            z_pr_obs(jc,1,jb) = pr_obs(jc,jb)
           END DO
 
           !$ACC LOOP SEQ
           DO jk = kstart_moist(jg), pt_patch%nlev
-            !$ACC LOOP GANG VECTOR
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
             DO jc = i_startidx, i_endidx
               tt_lheat(jc,jk,jb) = tt_lheat(jc,jk,jb) + zdcoeff * &
                                          pt_patch%cells%area(jc,jb) * z_nabla2_ttlh(jc,jk,jb)
@@ -685,47 +707,39 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
           !$ACC END PARALLEL
 
         END DO
-!$OMP END DO 
+!$OMP END DO
 !$OMP END PARALLEL
-   
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-        DO jb = 1, pt_patch%nblks_c
-          DO jc = 1, nproma
-            z_pr_mod(jc,1,jb) = pr_ref(jc,jb)
-            z_pr_obs(jc,1,jb) = pr_obs(jc,jb)
-          END DO
-        END DO
 
-        CALL sync_patch_array_mult(SYNC_C, pt_patch, 3, z_pr_mod, z_pr_obs, tt_lheat)
+        IF ( iter < assimilation_config(jg)%nlhn_relax ) CALL sync_patch_array_mult(SYNC_C, pt_patch, 3, z_pr_mod, z_pr_obs, tt_lheat)
 
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-        DO jb = 1, pt_patch%nblks_c
-          DO jc = 1, nproma
-            pr_ref(jc,jb) = z_pr_mod(jc,1,jb)
-            pr_obs(jc,jb) = z_pr_obs(jc,1,jb)
-          END DO
-        END DO
-      
       END DO
 
       ! Clipping negative values and reset to original radar domain
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-      DO jb = 1, pt_patch%nblks_c
-        DO jc = 1, nproma
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+                           i_startidx, i_endidx, i_rlstart, i_rlend)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
           IF (pr_obs(jc,jb) < 0.0_wp)        pr_obs(jc,jb) = 0.0_wp
           IF (pr_obs_nofilt(jc,jb) < 0.0_wp) pr_obs(jc,jb) = -1.0_wp
         END DO
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
 
     END IF
   
     IF (ltlhnverif) THEN
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb)
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk, i_endblk
-        DO jc = 1, nproma
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+           &               i_startidx, i_endidx, i_rlstart, i_rlend)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
           zprmod_ref  (jc,jb) = pr_mod_nofilt(jc,jb)
           zprrad      (jc,jb) = pr_obs_nofilt(jc,jb)
           zprmod_ref_f(jc,jb) = pr_ref       (jc,jb)
@@ -799,27 +813,27 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       g_diag_sum(1:15) = global_sum(diag_sum(1:15), opt_iroot=p_io) 
 
       IF (my_process_is_stdio()) THEN
-        WRITE(nulhn, *)
-        WRITE(nulhn, *)              ' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
+        WRITE(nulhn(jg), *)
+        WRITE(nulhn(jg), *)              ' Diagnostics of LHN - nudging scheme, subroutine lhn_t_inc'
 
-        WRITE(nulhn, *)              'Diagnostics of LHN, lhn_t_inc, timestep : ', p_sim_time*zdt_1
-        WRITE(nulhn, '(A,L3,f6.2)' ) ' Latent Heat Nudging active          : ', ltlhn, REAL(diag_out(i_endblk,16))/100.
-        WRITE(nulhn, *)              ' n of points with increments         : ',               g_diag_sum(1)
-        WRITE(nulhn, *)              ' n of points with local profiles     : ',               g_diag_sum(2)
-        WRITE(nulhn, *)              ' n of points with upscaling          : ',               g_diag_sum(3)
-        WRITE(nulhn, *)              ' n of points with limited upscaling  : ',               g_diag_sum(4)
-        WRITE(nulhn, *)              ' n of points with downscaling        : ',               g_diag_sum(5)
-        WRITE(nulhn, *)              ' n of points with limited downscaling: ',               g_diag_sum(6)
-        WRITE(nulhn, *)              ' n of points with artif. prof         : ',              g_diag_sum(7)
-        WRITE(nulhn, *)              ' points with imposed positive limit  : ',               g_diag_sum(8)
-        WRITE(nulhn, *)              ' points with imposed negative limit  : ',               g_diag_sum(9)
-        WRITE(nulhn, *)              ' points with wind weighting < 1 and > 0 : ',            g_diag_sum(10)
-        WRITE(nulhn, *)              ' points with wind weighting equal 0     : ',            g_diag_sum(11)
-        WRITE(nulhn, *)              ' points with applied in_cloud treatment : ',            g_diag_sum(15)
-        WRITE(nulhn, *)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate oscillations: ',  g_diag_sum(12)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points eliminate isolate peaks: ', g_diag_sum(13)
-        WRITE(nulhn, *)              ' Vert. Filtering : n points smoothed : ',               g_diag_sum(14)
+        WRITE(nulhn(jg), *)              'Diagnostics of LHN, lhn_t_inc, timestep : ', p_sim_time*zdt_1
+        WRITE(nulhn(jg), '(A,L3,f6.2)' ) ' Latent Heat Nudging active          : ', ltlhn, REAL(diag_out(i_endblk,16))/100.
+        WRITE(nulhn(jg), *)              ' n of points with increments         : ',               g_diag_sum(1)
+        WRITE(nulhn(jg), *)              ' n of points with local profiles     : ',               g_diag_sum(2)
+        WRITE(nulhn(jg), *)              ' n of points with upscaling          : ',               g_diag_sum(3)
+        WRITE(nulhn(jg), *)              ' n of points with limited upscaling  : ',               g_diag_sum(4)
+        WRITE(nulhn(jg), *)              ' n of points with downscaling        : ',               g_diag_sum(5)
+        WRITE(nulhn(jg), *)              ' n of points with limited downscaling: ',               g_diag_sum(6)
+        WRITE(nulhn(jg), *)              ' n of points with artif. prof         : ',              g_diag_sum(7)
+        WRITE(nulhn(jg), *)              ' points with imposed positive limit  : ',               g_diag_sum(8)
+        WRITE(nulhn(jg), *)              ' points with imposed negative limit  : ',               g_diag_sum(9)
+        WRITE(nulhn(jg), *)              ' points with wind weighting < 1 and > 0 : ',            g_diag_sum(10)
+        WRITE(nulhn(jg), *)              ' points with wind weighting equal 0     : ',            g_diag_sum(11)
+        WRITE(nulhn(jg), *)              ' points with applied in_cloud treatment : ',            g_diag_sum(15)
+        WRITE(nulhn(jg), *)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points eliminate oscillations: ',  g_diag_sum(12)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points eliminate isolate peaks: ', g_diag_sum(13)
+        WRITE(nulhn(jg), *)              ' Vert. Filtering : n points smoothed : ',               g_diag_sum(14)
       END IF
     END IF
 
@@ -836,7 +850,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP PARALLEL
     IF (assimilation_config(jg)%lhn_hum_adj) THEN
 
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
       DO jb = i_startblk, i_endblk
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
@@ -916,7 +930,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         lhn_diag(jc,nlev-12,jb) = lhn_fields%pr_ref_sum(jc,jb)  ! ive: 13
         lhn_diag(jc,nlev-13,jb) = scale_diag(jc,jb)             ! ive: 14
         lhn_diag(jc,nlev-14,jb) = treat_diag(jc,jb)             ! ive: 15
-        lhn_diag(jc,nlev-15,jb) = lhn_fields%brightband(jc,jb)  ! ive: 16
+        lhn_diag(jc,nlev-15,jb) = MERGE(1._wp, 0._wp, lhn_fields%brightband(jc,jb))  ! ive: 16
         lhn_diag(jc,nlev-16,jb) = pr_obs_nofilt(jc,jb)
       END DO
 
@@ -965,14 +979,21 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
                                lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%pr_obs_sum )
       END IF
       
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-      DO jb = 1, pt_patch%nblks_c
-        DO jc = 1, nproma
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+
+        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
+
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
           lhn_fields%pr_obs_sum(jc,jb) = 0.0_wp
           lhn_fields%pr_mod_sum(jc,jb) = 0.0_wp
           lhn_fields%pr_ref_sum(jc,jb) = 0.0_wp
         END DO
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
     END IF
   
   END IF
@@ -993,7 +1014,7 @@ END SUBROUTINE organize_lhn
 !+ Module procedure in "lheat_nudge" preparing radar precip data for lhn
 !-------------------------------------------------------------------------------
 
-SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl, &
+SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
                       &  wobs_space, wobs_time, ltoyoung,ltoold,datetime_current)
 
 !-------------------------------------------------------------------------------
@@ -1026,10 +1047,9 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 !    i_startidx, i_endidx,jg
   TYPE(t_patch),   TARGET, INTENT(in)    :: pt_patch     !<grid/patch info.
   TYPE(t_radar_fields),    INTENT(in)    :: radar_data
-  TYPE(t_nwp_phy_diag),    INTENT(in)    :: prm_diag
   TYPE(t_lhn_diag),        INTENT(inout) :: lhn_fields
 
-  REAL (KIND=wp), DIMENSION(nproma,pt_patch%nblks_c),INTENT(OUT)    :: &
+  REAL (KIND=wp), DIMENSION(nproma,pt_patch%nblks_c),INTENT(INOUT)    :: &
     wobs_time, wobs_space, pr_obs
 
   REAL (KIND=wp), DIMENSION(nproma,pt_patch%nblks_c),INTENT(IN)    :: hzerocl
@@ -1102,7 +1122,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
   INTEGER         ::           &
     obs_cnt(nproma,pt_patch%nblks_c)      ! total model precipitation rate              (kg/m2*s)
 
-  INTEGER :: ns, nsums, nsume, nsum_g
+  INTEGER :: ns, nsums, nsume, nsum_g, nslim
 
 ! Local arrays:
 !--------------
@@ -1250,50 +1270,57 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
   weight_index_m1lim = MAX(1,weight_index_m1) ! to avoid errors with array bound checking
   weight_index_m2lim = MAX(1,weight_index_m2) ! to avoid errors with array bound checking
 
+! exclude boundary interpolation zone of nested domains
+  i_rlstart = grf_bdywidth_c+1
+  i_rlend   = min_rlcell_int
+
+  i_startblk = pt_patch%cells%start_block(i_rlstart)
+  i_endblk   = pt_patch%cells%end_block(i_rlend)
+
   !$ACC DATA COPYIN(td_in_min) &
   !$ACC   CREATE(num_t_obs, obs_sum, obs_ratio, bbllim, obs_cnt) &
-  !$ACC   PRESENT(pt_patch, prm_diag, lhn_fields, lhn_fields%brightband, radar_data, radar_data%radar_ct%blacklist) &
+  !$ACC   PRESENT(pt_patch, lhn_fields, lhn_fields%brightband, radar_data, radar_data%radar_ct%blacklist) &
   !$ACC   PRESENT(radar_data%radar_td%obs, radar_data%radar_td%spqual, wobs_time, wobs_space, pr_obs, hzerocl) &
   !$ACC   PRESENT(assimilation_config(jg:jg))
-
-  IF (assimilation_config(jg)%lhn_bright .AND. &
-   & ( (MOD(datetime_current%time%minute,5)  == 0 .AND. datetime_current%time%second < 10 ) &
-   &   .OR. MAXVAL(lhn_fields%brightband(:,:)) < 0)) &
-   & THEN
+  IF (assimilation_config(jg)%dass_lhn_brightband%isActive(datetime_current)) THEN
    ! brightband detection is called at every observation time, ie. every 5 minutes
-   ! the hourly precipitation sum is calculated from the hour around icenter time [icenter - 5;icenter + 6]
-      ! exclude boundary interpolation zone of nested domains
-      i_rlstart = grf_bdywidth_c+1
-      i_rlend   = min_rlcell_int
+   ! the hourly precipitation sum is calculated from the hour around icenter time ie. [icenter - 5;icenter + 6] (for lhn_dt_obs = 5 min)
 
-      i_startblk = pt_patch%cells%start_block(i_rlstart)
-      i_endblk   = pt_patch%cells%end_block(i_rlend)
+     nslim = INT (30.0_wp / assimilation_config(jg)%lhn_dt_obs) - 1
+     nsums = MAX(1,icenter-nslim)
+     nslim = INT (60.0_wp / assimilation_config(jg)%lhn_dt_obs)
+     nsume = MIN(iread,nsums+nslim)
 
-
-     nsums=MAX(1,icenter-5)
-     nsume=MIN(iread,nsums+12)
-
-     !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-     DO jb = 1, pt_patch%nblks_c
-       DO jc = 1, nproma
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+     DO jb = i_startblk,i_endblk
+       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+         &                i_startidx, i_endidx, i_rlstart, i_rlend)
+       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+       DO jc = i_startidx,i_endidx
          obs_sum   (jc,jb) =  0.0_wp
          obs_ratio (jc,jb) =  0.0_wp
          obs_cnt   (jc,jb) =  0_i4
+         bbllim    (jc,jb) =  0.0_wp
+         lhn_fields%brightband(jc,jb) = .FALSE.
        END DO
      END DO
+!$OMP END DO
+!$OMP END PARALLEL
+
      obs_sum_g       =  0.0_wp
      nsum_g          =  0_i4
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,ns) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
+     DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
         !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO ns=nsums,nsume
           !$ACC LOOP GANG VECTOR
-          DO jc=i_startidx,i_endidx
+          DO jc = i_startidx,i_endidx
             IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 0_i4 ) CYCLE
             IF (radar_data%radar_td%obs(jc,jb,ns) >= 0.0_wp) THEN
               obs_sum (jc,jb) = obs_sum (jc,jb) + radar_data%radar_td%obs(jc,jb,ns)
@@ -1306,12 +1333,12 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 !$OMP END DO 
 !$OMP END PARALLEL
 
-     DO jb=i_startblk,i_endblk
+     DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
         !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP GANG VECTOR REDUCTION(+: obs_sum_g, nsum_g)
-        DO jc=i_startidx,i_endidx
+        DO jc = i_startidx,i_endidx
             IF (obs_cnt (jc,jb) <  1_i4 ) CYCLE
             obs_sum (jc,jb) = obs_sum (jc,jb) / REAL(obs_cnt (jc,jb),wp)
             IF ( obs_sum (jc,jb) > assimilation_config(jg)%bbthres ) THEN 
@@ -1324,70 +1351,77 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 
       obs_sum_g = global_sum(obs_sum_g)
       nsum_g = global_sum(nsum_g)
-      IF (nsum_g < 1 ) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-        DO jb = 1, pt_patch%nblks_c
-          DO jc = 1, nproma
-            obs_ratio (jc,jb) =  0.0
-          END DO
-        END DO
-      ELSE
+
+      IF (nsum_g > 0 ) THEN
          obs_sum_g = obs_sum_g / nsum_g
          IF ( obs_sum_g > 0._wp ) THEN
-           !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-           DO jb = 1, pt_patch%nblks_c
-             DO jc = 1, nproma
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+           DO jb = i_startblk, i_endblk
+             CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+               &                i_startidx, i_endidx, i_rlstart, i_rlend)
+             !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+             DO jc = i_startidx, i_endidx
                obs_ratio (jc,jb) = obs_sum (jc,jb) / obs_sum_g
              END DO
            END DO
+!$OMP END DO
+!$OMP END PARALLEL
          END IF
       ENDIF
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
-      DO jb = 1, pt_patch%nblks_c
-        DO jc = 1, nproma
-          lhn_fields%brightband(jc,jb) = 0.0_wp
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+         &                i_startidx, i_endidx, i_rlstart, i_rlend)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        DO jc = i_startidx, i_endidx
           bbllim(jc,jb)= MAX(MIN(1000._wp,assimilation_config(jg)%hzerolim - hzerocl(jc,jb)),-100._wp)
         END DO
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
 
-      CALL detect_bright_band (pt_patch,radar_data,prm_diag,lhn_fields,obs_ratio,bbllim,hzerocl)
- 
+      CALL detect_bright_band (pt_patch,radar_data,lhn_fields,obs_ratio,bbllim,hzerocl)
+
   ENDIF
 
-! reset counters
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT)
-  DO jn = 0, 4
-    DO jb = 1, pt_patch%nblks_c
-      DO jc = 1, nproma
-        num_t_obs(jc,jb,jn) = 0
-      END DO
-    END DO
-  END DO
 
-!  print *, MAXVAL(obs)
 
 
   pr_time_limit = 0.0_wp
 ! If the data is in high frequency take into account observations that
 ! are within the interval [-2,3]*lhn_dt_obs fore the time interpolation
 ! of obs and wobs_space
-  ! exclude boundary interpolation zone of nested domains
-  i_rlstart = grf_bdywidth_c+1
-  i_rlend   = min_rlcell_int
 
-  i_startblk = pt_patch%cells%start_block(i_rlstart)
-  i_endblk   = pt_patch%cells%end_block(i_rlend)
+!! reset counters
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,jn,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+  DO jb = i_startblk, i_endblk
+      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+        &                i_startidx, i_endidx, i_rlstart, i_rlend)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+    DO jn = 0, 4
+      DO jc = i_startidx, i_endidx
+        num_t_obs(jc,jb,jn) = 0
+      END DO
+    END DO
+  END DO
+!$OMP END DO
+!$OMP END PARALLEL
+
 
   IF (td_in_min(weight_index_0) >= 0) THEN
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
-    DO jb=i_startblk,i_endblk
+    DO jb = i_startblk,i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
       &                i_startidx, i_endidx, i_rlstart, i_rlend)
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR
-      DO jc=i_startidx,i_endidx
-        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN
+      DO jc = i_startidx,i_endidx
+        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. .NOT. lhn_fields%brightband(jc,jb)) THEN
           IF ((radar_data%radar_td%obs(jc,jb,weight_index_0) >= pr_time_limit) .AND. &
               (lp1 .AND. radar_data%radar_td%obs(jc,jb,weight_index_p1) >= pr_time_limit)) THEN
             ! observation is valid between t>=0 and t<=+lhn_dt_obs
@@ -1551,14 +1585,14 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
-     DO jb=i_startblk,i_endblk
+     DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
        &                i_startidx, i_endidx, i_rlstart, i_rlend)
        !$ACC PARALLEL DEFAULT(PRESENT)
        !$ACC LOOP GANG VECTOR
-       DO jc=i_startidx,i_endidx
+       DO jc = i_startidx,i_endidx
 
-        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN
+        IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. .NOT. lhn_fields%brightband(jc,jb)) THEN
          IF ((radar_data%radar_td%obs(jc,jb,weight_index_0) >= pr_time_limit) .AND. &
              (lm1 .AND. radar_data%radar_td%obs(jc,jb,weight_index_m1lim) >= pr_time_limit)) THEN
            ! observation is valid between t>=0 and t<=+lhn_dt_obs
@@ -1743,37 +1777,48 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
   IF ( assimilation_config(jg)%lhn_diag ) THEN
     !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist)
     diag_out(:) = 0
-    diag_out(1) = count( num_t_obs(:,:,1) == 1) !num1delta_t_obs
-    diag_out(2) = count( num_t_obs(:,:,2) == 1) !num2delta_t_obs
-    diag_out(3) = count( num_t_obs(:,:,3) == 1) !num3delta_t_obs
-    diag_out(4) = count( num_t_obs(:,:,4) == 1) !num4delta_t_obs
-    diag_out(5) = count( num_t_obs(:,:,0) == 1)         !numnone
-    diag_out(6) = count( radar_data%radar_ct%blacklist(:,:) > 0.0_wp ) !blacklist
-    diag_out(7) = count( wobs_space(:,:) == 1.0_wp)    !numfull
-    diag_out(8) = count( (wobs_space(:,:) <  1.0_wp) &  !numred
-                         .and. (wobs_space(:,:) >  0.0_wp) )
-    diag_out(9) = count( wobs_space(:,:) == 0.0_wp)    !numzero
-
+    DO jb = i_startblk, i_endblk
+      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+        &                i_startidx, i_endidx, i_rlstart, i_rlend)
+      DO jc = i_startidx, i_endidx
+         diag_out(1) = diag_out(1) + num_t_obs (jc,jb,1) !num1delta_t_obs
+         diag_out(2) = diag_out(2) + num_t_obs (jc,jb,2) !num2delta_t_obs
+         diag_out(3) = diag_out(3) + num_t_obs (jc,jb,3) !num3delta_t_obs
+         diag_out(4) = diag_out(4) + num_t_obs (jc,jb,4) !num4delta_t_obs
+         diag_out(5) = diag_out(5) + num_t_obs (jc,jb,0) !numnone
+         IF ( radar_data%radar_ct%blacklist(jc,jb) > 0.0_wp) THEN
+            diag_out(6) = diag_out(6) + 1
+         ENDIF
+         IF (wobs_space (jc,jb) == 1.0_wp) THEN
+            diag_out(7) = diag_out(7) + 1
+         ELSE IF (wobs_space (jc,jb) == 0.0_wp) THEN
+            diag_out(9) = diag_out(9) + 1
+         ELSE IF (wobs_space (jc,jb) > 0.0_wp) THEN
+            diag_out(8) = diag_out(8) + 1
+         ENDIF
+       ENDDO
+    ENDDO
+        
     g_diag_sum = 0
     g_diag_sum(1:ndiag) = global_sum( diag_out(1:ndiag),opt_iroot=p_io )
 
     IF (my_process_is_stdio()) THEN
-     WRITE(nulhn, *)
-     WRITE(nulhn, *)' Diagnostics of RADAR obs time interpolation, lhn_dt_obs = ',assimilation_config(jg)%lhn_dt_obs
-     WRITE(nulhn, *)' number of treated obs points in time weighting : ',  &
+     WRITE(nulhn(jg), *)
+     WRITE(nulhn(jg), *)' Diagnostics of RADAR obs time interpolation, lhn_dt_obs = ',assimilation_config(jg)%lhn_dt_obs
+     WRITE(nulhn(jg), *)' number of treated obs points in time weighting : ',  &
           g_diag_sum( 1)+g_diag_sum( 2)+g_diag_sum( 3)+g_diag_sum( 4)+g_diag_sum( 5)
-     WRITE(nulhn, *)' n of points with obs-dist 1 delta_t  : num1delta_t_obs = ',g_diag_sum( 1)
-     WRITE(nulhn, *)' n of points with obs-dist 2 delta_t  : num2delta_t_obs = ',g_diag_sum( 2)
-     WRITE(nulhn, *)' n of points with obs-dist 3 delta_t  : num3delta_t_obs = ',g_diag_sum( 3)
-     WRITE(nulhn, *)' n of points with obs-dist 4 delta_t  : num4delta_t_obs = ',g_diag_sum( 4)
-     WRITE(nulhn, *)' n of points without obs              : numnone = ',g_diag_sum( 5)
-     WRITE(nulhn, *)' n of points which are blacklisted    : numblack = ',g_diag_sum( 6)
-     WRITE(nulhn, *)
-     WRITE(nulhn, *)' Diagnostics of RADAR obs space weighting'
-     WRITE(nulhn, *)' n of points with full    spatial weight : numfull = ',g_diag_sum( 7)
-     WRITE(nulhn, *)' n of points with reduced spatial weight : numred  = ',g_diag_sum( 8)
-     WRITE(nulhn, *)' n of points with zero    spatial weight : numzero = ',g_diag_sum( 9)
-     WRITE(nulhn, *)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 1 delta_t  : num1delta_t_obs = ',g_diag_sum( 1)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 2 delta_t  : num2delta_t_obs = ',g_diag_sum( 2)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 3 delta_t  : num3delta_t_obs = ',g_diag_sum( 3)
+     WRITE(nulhn(jg), *)' n of points with obs-dist 4 delta_t  : num4delta_t_obs = ',g_diag_sum( 4)
+     WRITE(nulhn(jg), *)' n of points without obs              : numnone = ',g_diag_sum( 5)
+     WRITE(nulhn(jg), *)' n of points which are blacklisted    : numblack = ',g_diag_sum( 6)
+     WRITE(nulhn(jg), *)
+     WRITE(nulhn(jg), *)' Diagnostics of RADAR obs space weighting'
+     WRITE(nulhn(jg), *)' n of points with full    spatial weight : numfull = ',g_diag_sum( 7)
+     WRITE(nulhn(jg), *)' n of points with reduced spatial weight : numred  = ',g_diag_sum( 8)
+     WRITE(nulhn(jg), *)' n of points with zero    spatial weight : numzero = ',g_diag_sum( 9)
+     WRITE(nulhn(jg), *)
     ENDIF
   ENDIF
 
@@ -1804,7 +1849,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,prm_diag,lhn_fields,pr_obs,hzerocl,
 
 END SUBROUTINE lhn_obs_prep
 
-SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbllim,hzerocl)
+SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzerocl)
 !-------------------------------------------------------------------------------
 !
 ! Description:
@@ -1815,7 +1860,6 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
 
   TYPE(t_patch),   TARGET, INTENT(in)    :: pt_patch     !<grid/patch info.
   TYPE(t_radar_fields),    INTENT(in)    :: radar_data
-  TYPE(t_nwp_phy_diag),    INTENT(in)    :: prm_diag
   TYPE(t_lhn_diag),        INTENT(inout)    :: lhn_fields
 
   REAL (KIND=wp), DIMENSION(nproma,pt_patch%nblks_c),INTENT(IN)    :: &
@@ -1854,13 +1898,12 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
    !$ACC   PRESENT(radar_data%radar_td%radheight, sumrad, bbllim, hzerocl, assimilation_config(jg:jg))
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,nh) ICON_OMP_GUIDED_SCHEDULE
-
-   DO jb=i_startblk,i_endblk
+   DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
        !$ACC PARALLEL DEFAULT(PRESENT)
-       !$ACC LOOP GANG VECTOR
-       DO jc=i_startidx,i_endidx
+       !$ACC LOOP GANG(STATIC: 1) VECTOR
+       DO jc = i_startidx,i_endidx
            IF(NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. &
              MAXVAL(radar_data%radar_td%radheight(jc,jb,:)) > 0.0_wp ) THEN
               !$ACC LOOP SEQ
@@ -1869,7 +1912,7 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
                .AND.  (hzerocl(jc,jb)-radar_data%radar_td%radheight(jc,jb,nh)) >= -100_wp &
                .AND.  (hzerocl(jc,jb)-radar_data%radar_td%radheight(jc,jb,nh)) <= bbllim(jc,jb) &
                .AND.  sumrad(jc,jb) > 1.0_wp) THEN
-                       lhn_fields%brightband(jc,jb)=1.0_wp
+                       lhn_fields%brightband(jc,jb)= .TRUE.
                        EXIT
                  ENDIF
               ENDDO
@@ -1882,10 +1925,10 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,prm_diag,lhn_fields,sumrad,bbl
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
     !$ACC UPDATE HOST(lhn_fields%brightband)
-    nbright=COUNT(lhn_fields%brightband > 0.0)
+    nbright=COUNT(lhn_fields%brightband)
     nbrightg=global_sum(nbright,opt_iroot=p_io)
     IF (my_process_is_stdio()) &
-     WRITE(nulhn, *)' n of points which are possibly brightband    : numbright = ',nbrightg
+     WRITE(nulhn(jg), *)' n of points which are possibly brightband    : numbright = ',nbrightg
   ENDIF
    !$ACC END DATA
    
@@ -2240,11 +2283,13 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 ! filter and scale the local profiles and nearby profiles from this node
 ! or artificial profiles
 
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
   DO k = ke-4, ke
-    DO i = 1, nproma
-      tt_artif(i,k) = 0.0
-      abs_lim_prof(i,k) = 0.0
+!NEC$ ivdep
+    DO i = 1, ntreat
+      ip = treat_list(i)
+      tt_artif(ip,k) = 0.0
+      abs_lim_prof(ip,k) = 0.0
     END DO
   END DO
 
@@ -2532,7 +2577,6 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
 ! 1. Increase / decrease specific humidity
 !-------------------------------------------------------------------------------
 
-
   nred = 0
   ninc = 0
   ninc2 = 0
@@ -2542,10 +2586,15 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
   !$ACC DATA CREATE(qv_new) &
   !$ACC   PRESENT(t, p, qc, qi, qv, scale_fac_index, qvtend_lhn, ttend_lhn, assimilation_config(jg:jg))
 
+  ! set moisture increments to be determined to zero
+  !$ACC KERNELS DEFAULT(PRESENT)
+  qvtend_lhn(:,:) = 0.0_wp
+  !$ACC END KERNELS
+
   !$ACC PARALLEL DEFAULT(PRESENT)
   !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nred, ninc, ninc2) PRIVATE(zp, esat, relhum, zqv)
   DO   k=1,ke
-    DO jc=i_startidx,i_endidx
+    DO jc = i_startidx,i_endidx
 
      IF ( ttend_lhn(jc,k) < delt_minn .OR. ttend_lhn(jc,k) > delt_minp) THEN
        zp = p(jc,k)
@@ -2688,7 +2737,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
    IF (lelim) THEN
 
      !$ACC PARALLEL DEFAULT(PRESENT)
-     !$ACC LOOP GANG VECTOR PRIVATE(ip)
+     !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
 !NEC$ ivdep
      DO i = 1, ntreat
        ip = treat_list(i)
@@ -2704,9 +2753,10 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          proffilt(ip,kup) = prof_filt(ip,kup)
        ENDIF
      ENDDO
-     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nelimosc) PRIVATE(ip)
+     !$ACC LOOP SEQ
      DO k=klow-1,kup+1,-1
 !NEC$ ivdep
+       !$ACC LOOP GANG(STATIC: 1) VECTOR REDUCTION(+: nelimosc) PRIVATE(ip)
        DO i = 1, ntreat
          ip = treat_list(i)
          IF ( (prof_filt(ip,k-1)*prof_filt(ip,k)) <= 0. .AND.   &
@@ -2718,7 +2768,6 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          ENDIF
        ENDDO
      ENDDO
-     !$ACC END PARALLEL
 
 !    eliminate isolated peaks of small vertical extent
 !    a) value on one level below and above is below specified eps
@@ -2728,23 +2777,25 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
 !          - is reset to zero when an isolated peak is diagnosed or the heating
 !            at the level considered is below specified eps
 
-     !$ACC PARALLEL DEFAULT(PRESENT)
-     !$ACC LOOP GANG VECTOR
-     DO i = 1, nproma
-       nheat(i) = 0
+     !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
+!NEC$ ivdep
+     DO i = 1, ntreat
+       ip = treat_list(i)
+       nheat(ip) = 0
      END DO
-     !$ACC LOOP GANG VECTOR COLLAPSE(2)
+     !$ACC LOOP SEQ
      DO k = kup, klow
-       DO i = 1, nproma
-         lflag(i,k) = .FALSE.
+!NEC$ ivdep
+       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
+       DO i = 1, ntreat
+         ip = treat_list(i)
+         lflag(ip,k) = .FALSE.
        END DO
      END DO
-     !$ACC END PARALLEL
 
-     !$ACC PARALLEL DEFAULT(PRESENT)
      !$ACC LOOP SEQ
      DO k=klow-1,kup+2,-1
-       !$ACC LOOP GANG VECTOR REDUCTION(+: nelimiso) PRIVATE(ip)
+       !$ACC LOOP GANG(STATIC: 1) VECTOR REDUCTION(+: nelimiso) PRIVATE(ip)
 !NEC$ ivdep
        DO i = 1, ntreat
          ip = treat_list(i)
@@ -2762,22 +2813,25 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          ENDIF
        ENDDO
      ENDDO
-     !$ACC END PARALLEL
 
-     !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
+     !$ACC LOOP SEQ
      DO k=klow,kup,-1
 !NEC$ ivdep
+       !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
        DO i = 1, ntreat
          ip = treat_list(i)
          IF (lflag(ip,k)) proffilt(ip,k) = 0.
          prof_filt(ip,k) = proffilt(ip,k)
        ENDDO
      ENDDO
+     !$ACC END PARALLEL
    ELSE
-     !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+     !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
      DO k = kup, klow
-       DO i = 1, nproma
-         proffilt(i,k)=prof_filt(i,k)
+!NEC$ ivdep
+       DO i = 1, ntreat
+         ip = treat_list(i)
+         proffilt(ip,k)=prof_filt(ip,k)
        END DO
      END DO
    ENDIF
@@ -2786,9 +2840,10 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
    IF (lsmooth) THEN
 
      !$ACC PARALLEL DEFAULT(PRESENT)
-     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nsmooth) PRIVATE(ip)
+     !$ACC LOOP SEQ
      DO k=klow-1,kup+1,-1
 !NEC$ ivdep
+       !$ACC LOOP GANG(STATIC: 1) VECTOR REDUCTION(+: nsmooth) PRIVATE(ip)
        DO i = 1, ntreat
          ip = treat_list(i)
          IF ( ABS(proffilt(ip,k)) >= eps ) THEN
@@ -2797,7 +2852,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          ENDIF
        ENDDO
      ENDDO
-     !$ACC LOOP GANG VECTOR REDUCTION(+: nsmooth) PRIVATE(ip)
+     !$ACC LOOP GANG(STATIC: 1) VECTOR REDUCTION(+: nsmooth) PRIVATE(ip)
 !NEC$ ivdep
      DO i = 1, ntreat
        ip = treat_list(i)
@@ -2806,7 +2861,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          nsmooth = nsmooth + 1
        ENDIF
      ENDDO
-     !$ACC LOOP GANG VECTOR REDUCTION(+: nsmooth) PRIVATE(ip)
+     !$ACC LOOP GANG(STATIC: 1) VECTOR REDUCTION(+: nsmooth) PRIVATE(ip)
 !NEC$ ivdep
      DO i = 1, ntreat
        ip = treat_list(i)
@@ -2874,6 +2929,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    realbuf  (7),      & ! for communication
    realbuf_g(7)         ! for communication
 
+ INTEGER :: jg   ! domain ID
 
  INTEGER (KIND=i4) :: &
    jb,jc !,i_ver(nproma,pt_patch%nblks_c)
@@ -2893,7 +2949,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
  INTEGER (KIND=i4) ::  &
    i,j,ii,jj,  &
    itab(7,7),i1,i2,ith, &
-   histmod(7),histobs(7),anzobs,anzmod
+   histmod(7),histobs(7),anzobsmod
 
  REAL (KIND=wp) ::  &
    rass,rbss,rcss,rdss    ! table of contengency as real
@@ -2920,6 +2976,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    zpranz         = 0_i4
 
    ! exclude boundary interpolation zone of nested domains
+   jg = pt_patch%id
    i_rlstart = grf_bdywidth_c+1
    i_rlend   = min_rlcell_int
 
@@ -2927,15 +2984,13 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    i_endblk   = pt_patch%cells%end_block(i_rlend)
 
 
-!!$OMP PARALLEL
-!!$OMP DO PRIVATE(jc,i_startidx,i_endidx,zprmod_s,zprmod_ref_s,zprrad_s,zprcount,zprmod_ref_f_s,zprrad_f_s) ICON_OMP_GUIDED_SCHEDULE
-   DO jb=i_startblk,i_endblk
+   DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       DO jc=i_startidx,i_endidx
+       DO jc = i_startidx,i_endidx
           IF (wobs_space(jc,jb) > 0.75_wp                         .AND.  &
               NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4  .AND.  &
-              NINT(lhn_fields%brightband(jc,jb)) /= 1_i4 .AND.  &
+              .NOT. lhn_fields%brightband(jc,jb)                  .AND.  &
               zprrad(jc,jb) >= 0.0_wp) THEN
               zprmod_s        = zprmod_s        + zprmod(jc,jb)
               zprmod_ref_s    = zprmod_ref_s    + zprmod_ref(jc,jb)
@@ -2946,8 +3001,6 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
           ENDIF
        ENDDO
    ENDDO
-!!$OMP END DO 
-!!$OMP END PARALLEL
 
    zpranz = global_sum(zprcount,opt_iroot=p_io)
    zprmod_s = global_sum(zprmod_s,opt_iroot=p_io)
@@ -2968,15 +3021,15 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
 
      ENDIF
 
-      WRITE(nulhn, *)'Verification:'
+      WRITE(nulhn(jg), *)'Verification:'
       IF (ytime == "HR") THEN
-        WRITE(nulhn, '(a,a3,f6.1,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
-        WRITE(nulhn, '(a,a3,f6.1,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
-        WRITE(nulhn, '(a,a3,f6.1,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
+        WRITE(nulhn(jg), '(a,a3,f6.1,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
       ELSE
-        WRITE(nulhn, '(a,a3,f10.0,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
-        WRITE(nulhn, '(a,a3,f10.0,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
-        WRITE(nulhn, '(a,a3,f10.0,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,3f8.4)')'Modell (mod,ref,filt)',ytime,nsteps,zprmod_s,zprmod_ref_s,zprmod_ref_f_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,2f9.4)')'Radar      (obs,filt)',ytime,nsteps,zprrad_s,zprrad_f_s
+        WRITE(nulhn(jg), '(a,a3,f10.0,f9.4)')'Statist (bias)',ytime,nsteps,zprmod_s-zprrad_s
       ENDIF
 
 
@@ -2999,8 +3052,7 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    thr = thr_o / timefac
    histobs(:) = 0_i4
    histmod(:) = 0_i4
-   anzobs=0_i4
-   anzmod=0_i4
+   anzobsmod=0_i4
 
 ! contingence table:
 !             |   Observed    |
@@ -3022,16 +3074,14 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
    i_endblk   = pt_patch%cells%end_block(i_rlend)
 
 
-!!$OMP PARALLEL
-!!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,i1,i2,histobs,histmod,ith,itab,anzobs,anzmod) ICON_OMP_GUIDED_SCHEDULE
-   DO jb=i_startblk,i_endblk
+   DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      DO jc=i_startidx,i_endidx
+      DO jc = i_startidx,i_endidx
        IF (wobs_space(jc,jb) > 0.75_wp .AND. &
            NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. &
-           NINT(lhn_fields%brightband(jc,jb)) /= 1_i4) THEN 
+           .NOT. lhn_fields%brightband(jc,jb)) THEN 
            i1=1
            i2=1
            IF (zprrad(jc,jb) > 0.0_wp) THEN
@@ -3051,13 +3101,10 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
             ENDIF
            ENDDO
            itab(i1,i2)=itab(i1,i2)+1
-           anzobs=anzobs+1_i4
-           anzmod=anzmod+1_i4
+           anzobsmod=anzobsmod+1_i4
        ENDIF
      ENDDO
    ENDDO
-!!$OMP END DO 
-!!$OMP END PARALLEL
 
    DO ith=1,nthre
 
@@ -3156,11 +3203,11 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
     hss = 100.0_wp * (rass+rdss-rhss)/(rass+rbss+rcss+rdss-rhss)
 
     IF (ytime == "HR") THEN
-      WRITE(nulhn,'(a25,a3,f6.1,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
-      WRITE(nulhn,'(a14,a3,f6.1,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
+      WRITE(nulhn(jg),'(a25,a3,f6.1,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
+      WRITE(nulhn(jg),'(a14,a3,f6.1,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
     ELSE
-      WRITE(nulhn,'(a25,a3,f10.0,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
-      WRITE(nulhn,'(a14,a3,f10.0,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
+      WRITE(nulhn(jg),'(a25,a3,f10.0,5i7,f5.2)')'skill scores (a,b,c,d):',ytime,nsteps,ass,bss,css,dss,zss,thr_o(ith)
+      WRITE(nulhn(jg),'(a14,a3,f10.0,9f8.2)')'skill scores:',ytime,nsteps,hr,pod,far,fr,fbi,ts,ets,hss,tss
     ENDIF
 
   ENDIF
@@ -3170,41 +3217,39 @@ SUBROUTINE lhn_verification (ytime,pt_patch,radar_data,lhn_fields,nsteps,wobs_sp
  realbuf = 0
  realbuf( 1)= REAL(histmod(7))
  realbuf( 2)= REAL(histobs(7))
- realbuf( 3)= REAL(anzobs)
- realbuf( 4)= REAL(anzmod)
+ realbuf( 3)= REAL(anzobsmod)
 
- realbuf_g(1:4) = global_sum(realbuf(1:4),opt_iroot=p_io)
+ realbuf_g(1:3) = global_sum(realbuf(1:3),opt_iroot=p_io)
 
  IF(my_process_is_stdio()) THEN
 
    histmod(7) = INT(realbuf_g( 1))
    histobs(7) = INT(realbuf_g( 2))
-   anzobs = INT(realbuf_g( 3))
-   anzmod = INT(realbuf_g( 4))
+   anzobsmod = INT(realbuf_g( 3))
 
    DO ith=1,6
       histobs(ith)=histobs(ith)-histobs(ith+1)
       histmod(ith)=histmod(ith)-histmod(ith+1)
    ENDDO
    IF (ytime == "HR") THEN
-     WRITE(nulhn,'(a17,a3,f6.1,8i12)')'Histogramm model:',ytime,nsteps,anzmod,(histmod(i),i=1,7)
-     WRITE(nulhn,'(a17,a3,f6.1,8i12)')'Histogramm radar:',ytime,nsteps,anzobs,(histobs(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f6.1,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f6.1,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
    ELSE
-     WRITE(nulhn,'(a17,a3,f10.0,8i12)')'Histogramm model:',ytime,nsteps,anzmod,(histmod(i),i=1,7)
-     WRITE(nulhn,'(a17,a3,f10.0,8i12)')'Histogramm radar:',ytime,nsteps,anzobs,(histobs(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f10.0,8i12)')'Histogramm model:',ytime,nsteps,anzobsmod,(histmod(i),i=1,7)
+     WRITE(nulhn(jg),'(a17,a3,f10.0,8i12)')'Histogramm radar:',ytime,nsteps,anzobsmod,(histobs(i),i=1,7)
    ENDIF
  ENDIF
 
 END SUBROUTINE lhn_verification
 
   !-------------------------------------------------------------------------
-  SUBROUTINE open_lhn_log( )
+  SUBROUTINE open_lhn_log(nulhn)
 
-!    CHARACTER (len=MAX_CHAR_LENGTH) :: file_ti    ! file name
+    INTEGER (KIND=i4), INTENT(INOUT) :: nulhn
+
     INTEGER :: istatus
     LOGICAL :: lopened
 
-    yulhn = 'lhn.log'
     INQUIRE (FILE=TRIM(yulhn),OPENED=lopened)
     IF (lopened) THEN
       CALL message('LHN','lhn.log already open!')

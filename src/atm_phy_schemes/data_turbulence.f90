@@ -58,17 +58,9 @@ MODULE data_turbulence
 !
 ! Modules used:
 
-#ifdef __COSMO__
-USE data_parameters, ONLY : &
-    ireals,    & ! KIND-type parameter for real variables
-    iintegers    ! KIND-type parameter for standard integer variables
-#endif
-
-#ifdef __ICON__
 USE mo_kind, ONLY :  &
      ireals   => wp, &
      iintegers=> i4
-#endif
 
 !==============================================================================
 

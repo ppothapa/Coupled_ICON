@@ -34,15 +34,6 @@ export RESTART_DATE='20211124T235950Z'
 # 
 # 2. Define the checksuite mode
 #
-# u = update test
-# r = restart test
-# n = nproma test
-# m = mpi test
-# o = omp test
-# t = tolerance test
-#
-# default: MD='t'
-#
 export MD='tm'
 
 #--------------------------------------------------------------------------------
@@ -55,10 +46,15 @@ export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
 rundir=`pwd`
 cd checksuite.icon-dev
 
-# load python packages
 case $HOST in
     *daint*)
         export MD='tm'
+        ;;
+    # balfrin (the current hostname is nid but will be changed to balfrin)
+    *nid*|*balfrin*)
+        # Jan 2023: Note that the MPI tests fail on Balfrin for unknown reasons
+        export MD='t'
+        ;;
 esac
 
 ./icon-dev.checksuite

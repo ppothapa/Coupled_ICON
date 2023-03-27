@@ -70,6 +70,8 @@ $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_03_LANFEX.run                   
 $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --builders DWD_nec_hybrid --list $listname
+# wave tests
+$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                      --builders DWD_nec_hybrid --list $listname
 
 #lets see the list
 ./lslist $listname

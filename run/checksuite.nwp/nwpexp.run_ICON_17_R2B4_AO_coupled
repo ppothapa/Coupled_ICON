@@ -1603,7 +1603,8 @@ done
 rm -f finish.status
 date
 
-export LD_LIBRARY_PATH=/hpc/sw/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin:/hpc/sw/gcc-9.1.0/VH/lib64:/opt/nec/ve/mpi/2.6.0/lib/vh/gnu/9.1.0:/hpc/sw/grib_api-1.23.1/VH/lib:/hpc/sw/hdf5/1.10.5/VH/gnu/lib:/hpc/sw/netcdf4/4.7.3/VH/gnu/lib:$LD_LIBRARY_PATH
+# this appears to be unnecessary and even causes a runtime error when linking the MPI library dynamically
+# export LD_LIBRARY_PATH=/hpc/sw/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin:/hpc/sw/gcc-9.1.0/VH/lib64:/opt/nec/ve/mpi/2.6.0/lib/vh/gnu/9.1.0:/hpc/sw/grib_api-1.23.1/VH/lib:/hpc/sw/hdf5/1.10.5/VH/gnu/lib:/hpc/sw/netcdf4/4.7.3/VH/gnu/lib:$LD_LIBRARY_PATH
 
 # ----------------------------------------------------------------------
 # run the model!

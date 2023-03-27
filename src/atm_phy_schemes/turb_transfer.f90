@@ -769,11 +769,7 @@ LOGICAL            ::  &
 
 ! Local arrays:
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
      REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-     REAL (KIND=wp), POINTER :: &
-#endif
 !
         vel1_2d  (:),      &
         vel2_2d  (:),      &
@@ -791,11 +787,7 @@ LOGICAL            ::  &
 !
         tvt      (:,:)
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 !
 !    pointer for eddy dissipation rate:
      ediss(:,:)

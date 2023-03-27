@@ -112,7 +112,10 @@ INTEGER (KIND=jpim)   :: kland(klon)
 ! beta(1) for land, beta(2) for sea - Takahashi 2006 (mentioned
 ! in Lopez 2016)
 REAL(KIND=jprb), PARAMETER :: beta(2)= [0.7_jprb , 0.45_jprb ]  
+! Causes currently internal compiler error for Cray, ifdef should be removed when fixed
+#ifndef _CRAYFTN
   !$ACC DECLARE COPYIN(beta)
+#endif
 REAL(KIND=jprb), PARAMETER :: Vgraup=3.0_jprb ! 3   m/s fall speed for graupel
 REAL(KIND=jprb), PARAMETER :: Vsnow=0.5_jprb  ! 0.5 m/s fall speed for snow
 

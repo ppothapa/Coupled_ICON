@@ -5,7 +5,6 @@
 !! Please see the file LICENSE in the root of the source tree for this code.
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
-#include "icon_contiguous_defines.inc"
 
 MODULE mo_var
 
@@ -33,10 +32,10 @@ MODULE mo_var
   CHARACTER(LEN=2), PARAMETER    :: lev_type_str(4) = (/ 'ML', 'PL', 'HL', 'IL' /)
 
   TYPE t_var
-    REAL(dp), CONTIGUOUS_POINTER :: r_ptr(:,:,:,:,:) => NULL()
-    REAL(sp), CONTIGUOUS_POINTER :: s_ptr(:,:,:,:,:) => NULL()
-    INTEGER,  CONTIGUOUS_POINTER :: i_ptr(:,:,:,:,:) => NULL()
-    LOGICAL,  CONTIGUOUS_POINTER :: l_ptr(:,:,:,:,:) => NULL()
+    REAL(dp), CONTIGUOUS, POINTER :: r_ptr(:,:,:,:,:) => NULL()
+    REAL(sp), CONTIGUOUS, POINTER :: s_ptr(:,:,:,:,:) => NULL()
+    INTEGER,  CONTIGUOUS, POINTER :: i_ptr(:,:,:,:,:) => NULL()
+    LOGICAL,  CONTIGUOUS, POINTER :: l_ptr(:,:,:,:,:) => NULL()
     INTEGER                      :: var_base_size      ! generic size in bytes of variable used
     TYPE(t_var_metadata)         :: info               ! meta data for this entry
     TYPE(t_var_metadata_dynamic) :: info_dyn           ! dynamic meta data for this entry (see type description)

@@ -43,13 +43,8 @@
 !!
 MODULE mo_nml_annotate
 
-#ifdef __ICON__  
   USE mo_io_units,    ONLY: find_next_free_unit, filename_max
   USE mo_exception,   ONLY: finish
-#else
-  USE mo_utilities,   ONLY: finish, find_next_free_unit,        &
-    &                       filename_max
-#endif
   USE mo_util_file,   ONLY: util_tmpnam, util_unlink
   USE mo_util_nml,    ONLY: util_annotate_nml
   

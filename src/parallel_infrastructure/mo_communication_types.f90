@@ -108,11 +108,7 @@ ABSTRACT INTERFACE
     IMPORT t_comm_pattern, xfer_list, t_glb2loc_index_lookup
     CLASS(t_comm_pattern), TARGET, INTENT(OUT) :: p_pat
     INTEGER, INTENT(in) :: comm
-    TYPE(xfer_list), &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         CONTIGUOUS, &
-#endif
-         INTENT(in) :: recv_msg(:), send_msg(:)
+    TYPE(xfer_list), INTENT(in), CONTIGUOUS :: recv_msg(:), send_msg(:)
     TYPE(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index_recv, &
          glb2loc_index_send
     LOGICAL, OPTIONAL, INTENT(in) :: inplace

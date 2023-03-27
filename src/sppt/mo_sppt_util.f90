@@ -27,6 +27,7 @@ MODULE mo_sppt_util
   USE mo_impl_constants,          ONLY: min_rlcell_int
   USE mo_gribout_config,          ONLY: gribout_config
   USE mo_exception,               ONLY: message, message_text
+  USE mo_fortran_tools,           ONLY: set_acc_host_or_device, assert_acc_device_only, copy
 
 
   IMPLICIT NONE
@@ -107,7 +108,7 @@ MODULE mo_sppt_util
   !!
   !<--------------------------------------------------------------------
   !
-  SUBROUTINE construct_rn (pt_patch, mtime_current, sppt_config, rn_3d, rn_2d_now, rn_2d_new)
+  SUBROUTINE construct_rn (pt_patch, mtime_current, sppt_config, rn_3d, rn_2d_now, rn_2d_new, lacc)
 
     ! Subroutine arguments
     TYPE(t_patch),            INTENT(IN)        :: pt_patch         !< patch variables
@@ -117,11 +118,14 @@ MODULE mo_sppt_util
     REAL(wp),                 INTENT(INOUT)     :: rn_3d(:,:,:)     !< 3d field of random numbers
     REAL(wp),                 INTENT(INOUT)     :: rn_2d_now(:,:)   !< 2d utility field
     REAL(wp),                 INTENT(INOUT)     :: rn_2d_new(:,:)   !< 2d utility field
+    LOGICAL,     OPTIONAL,    INTENT(IN)        :: lacc             !< OpenACC flag
 
     ! Local
     LOGICAL                                     :: rapa_event_active      !< local logical for events
     TYPE(datetime), POINTER                     :: mtime_current_new
     CHARACTER(LEN=MAX_DATETIME_STR_LEN)         :: valid_time_string
+
+    CALL assert_acc_device_only("construct_rn", lacc)
 
     ! Check if event is active and assign
     rapa_event_active = is_event_active(sppt_config%read_rapa_Event,  mtime_current, proc0_offloading)
@@ -133,8 +137,7 @@ MODULE mo_sppt_util
 
     IF(rapa_event_active) THEN ! event active
 
-      ! Copy rn_2d_new to rn2d_now
-      rn_2d_now(:,:) = rn_2d_new(:,:)
+      CALL copy(rn_2d_new,rn_2d_now)
 
       ! ... since generate_rn expects a pointer
       mtime_current_new => newDatetime('0001-01-01T00:00:00')
@@ -142,7 +145,7 @@ MODULE mo_sppt_util
       mtime_current_new = mtime_current + sppt_config%mtime_hinc_rn
 
       ! Generate random pattern - and write message to output
-      CALL generate_rn(pt_patch, sppt_config, mtime_current_new, rn_2d_new)
+      CALL generate_rn(pt_patch, sppt_config, mtime_current_new, rn_2d_new, lacc=.TRUE.)
 
       CALL datetimeToString(mtime_current_new, valid_time_string)
       WRITE(message_text, '(a,a)') 'rn_2d_new generated for : ', valid_time_string
@@ -158,7 +161,7 @@ MODULE mo_sppt_util
     ! time interpolation/tapering of random numbers
     !
     CALL time_interpol_rn(pt_patch, sppt_config, rn_2d_now(:,:), rn_2d_new(:,:), &
-                          mtime_current, rn_3d(:,:,:))
+                          mtime_current, rn_3d(:,:,:), lacc=.TRUE.)
 
   END SUBROUTINE construct_rn
 
@@ -185,7 +188,7 @@ MODULE mo_sppt_util
 
     ! Subroutine arguments (in/out/inout)
     INTEGER,            INTENT(IN)                           :: seed          ! seed to be used
-    REAL(wp),               INTENT(IN)                           :: values_range  ! allowed range of random numbers
+    REAL(wp),           INTENT(IN)                           :: values_range  ! allowed range of random numbers
     REAL(wp),           DIMENSION(:), INTENT(INOUT)          :: values        ! array of value to be filled with random numbers
 
     ! Local parameters
@@ -238,23 +241,23 @@ MODULE mo_sppt_util
     ! is seeded with "seed".
     !-------------------------------------------------------------------------
 
-      rseed = REAL(ABS(seed), KIND=jprb)
+    rseed = REAL(ABS(seed), KIND=jprb)
 
-      DO ii = 1, nmaxstreams
+    DO ii = 1, nmaxstreams
 
-        rnd_init = NINT(                                                                                &
-                   MOD(rseed * ii * (1._jprb - 0.05_jprb*ii + 0.005_jprb*ii*ii) * IMinstdA0, IMinstdM), &
-                                                                                             KIND=jpib)
-        istate(ii) = MOD(IMinstdA * rnd_init, IMinstdM)
+      rnd_init = NINT(                                                                                &
+                  MOD(rseed * ii * (1._jprb - 0.05_jprb*ii + 0.005_jprb*ii*ii) * IMinstdA0, IMinstdM), &
+                                                                                            KIND=jpib)
+      istate(ii) = MOD(IMinstdA * rnd_init, IMinstdM)
 
-      END DO
+    END DO
 
     ! -------------------------------------------------------------------------
     ! For each element of values, draw a random number from a normal distribution
     ! -------------------------------------------------------------------------
 
-      values_loop:          &
-      DO ii = 1, SIZE(values)
+    values_loop:          &
+    DO ii = 1, SIZE(values)
 
     ! Retrieve nmaxstreams new random numbers to use in draw from normal distribution
     
@@ -276,37 +279,37 @@ MODULE mo_sppt_util
       DO
         IF ( idx > nmaxstreams - 4 ) EXIT values_loop
 
+        uu = randnum(idx)
+        IF ( uu == 0. ) THEN
+          idx = idx + 1
           uu = randnum(idx)
-          IF ( uu == 0. ) THEN
-            idx = idx + 1
-            uu = randnum(idx)
-          ENDIF
-          idx = idx + 1
+        ENDIF
+        idx = idx + 1
 
+        vv = randnum(idx)
+        IF ( vv == 0. ) THEN
+          idx = idx + 1
           vv = randnum(idx)
-          IF ( vv == 0. ) THEN
-            idx = idx + 1
-            vv = randnum(idx)
-          ENDIF
-          vv = 1.7156_jprb * (vv - 0.5_jprb)
-          idx = idx + 1
+        ENDIF
+        vv = 1.7156_jprb * (vv - 0.5_jprb)
+        idx = idx + 1
 
-          ! Evaluate the quadratic form
-          xx = uu - ss
-          yy = ABS(vv) - tt
-          qq = xx * xx + yy * (aa*yy - bb*xx)
-          ! Accept P if inside inner ellipse
-          IF ( qq < r1 ) EXIT
-          ! Reject P if outside outer ellipse
-          IF ( qq > r2 ) CYCLE
-          ! Reject P if outside acceptance region
-          IF ( vv * vv < -4.0_jprb * LOG(uu) * uu * uu ) EXIT
+        ! Evaluate the quadratic form
+        xx = uu - ss
+        yy = ABS(vv) - tt
+        qq = xx * xx + yy * (aa*yy - bb*xx)
+        ! Accept P if inside inner ellipse
+        IF ( qq < r1 ) EXIT
+        ! Reject P if outside outer ellipse
+        IF ( qq > r2 ) CYCLE
+        ! Reject P if outside acceptance region
+        IF ( vv * vv < -4.0_jprb * LOG(uu) * uu * uu ) EXIT
       END DO
 
-    ! Assign value
-    values(ii) = REAL( vv / uu )
+      ! Assign value
+      values(ii) = REAL( vv / uu )
 
-  END DO values_loop
+    END DO values_loop
 
   ! Limit random number range
   WHERE     (values(:) > values_range)
@@ -333,6 +336,8 @@ MODULE mo_sppt_util
 
     REAL(wp)             :: w, QdotVec_1, QdotVec_2
 
+    !$ACC ROUTINE SEQ
+
     w = 1.0_wp/((x2-x1)*(y2-y1))     
 
     QdotVec_1 = fq11*(y2 - y) + fq12*(y - y1) 
@@ -354,12 +359,13 @@ MODULE mo_sppt_util
   !
   !<--------------------------------------------------------------------
 
-  SUBROUTINE generate_rn(p_patch, sppt_config, mtime_current, rn_2d )
+  SUBROUTINE generate_rn(p_patch, sppt_config, mtime_current, rn_2d, lacc)
 
     TYPE(t_patch),            INTENT(IN )    :: p_patch
     TYPE(t_sppt_config),      INTENT(IN )    :: sppt_config
     TYPE(datetime),  POINTER, INTENT(IN )    :: mtime_current     !< current_datetime 
-    REAL(wp),                 INTENT(OUT)  :: rn_2d(:,:)        !< gaussian random number field (triangular grid)
+    REAL(wp),                 INTENT(OUT)    :: rn_2d(:,:)        !< gaussian random number field (triangular grid)
+    LOGICAL, OPTIONAL,        intent(in)     :: lacc              !< flag to run on GPU
 
  
     REAL(wp):: lat_cell, lon_cell
@@ -377,6 +383,9 @@ MODULE mo_sppt_util
     REAL(wp):: rn_1d_coarse(sppt_config%coarse_nlon * sppt_config%coarse_nlat)
 
     INTEGER :: num_block_c
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! Initializations
     coarse_nlon = sppt_config%coarse_nlon
@@ -390,7 +399,6 @@ MODULE mo_sppt_util
     CALL random_normal_values(seed_rn, sppt_config%range_rn, rn_1d_coarse)
     rn_2d_coarse(:,:) = reshape(rn_1d_coarse, (/SIZE(rn_2d_coarse,1), SIZE(rn_2d_coarse,2)/))
 
-
    ! Interpolate form coarse to fine
 
     rl_start = 1
@@ -399,15 +407,19 @@ MODULE mo_sppt_util
     i_startblk = p_patch%cells%start_block(rl_start)
     i_endblk   = p_patch%cells%end_block(rl_end)
 
+    !$ACC DATA COPYIN(rn_2d_coarse)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,lon_cell,lat_cell,ilon_lo,ilat_lo,ilon_hi,ilat_hi, &
 !$OMP            lon_lo,lat_lo,lon_hi,lat_hi,fq11,fq21,fq12,fq22) ICON_OMP_DEFAULT_SCHEDULE
     ! Interpolate form coarse to fine
     DO jb = i_startblk, i_endblk
 
-     CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(lon_cell, lat_cell, ilon_lo, ilat_lo, ilon_hi, ilat_hi, lon_lo, lat_lo, lon_hi, lat_hi, fq11, fq21, fq12, fq22)
       DO jc = i_startidx,i_endidx
 
         lon_cell = p_patch%cells%center(jc,jb)%lon
@@ -442,10 +454,14 @@ MODULE mo_sppt_util
           &                  fq11=fq11, fq21=fq21, fq12=fq12, fq22=fq22)       
 
       END DO
+      !$ACC END PARALLEL
     END DO
+
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC END DATA
+    
   END SUBROUTINE generate_rn
 
   !>--------------------------------------------------------------------

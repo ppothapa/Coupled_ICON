@@ -237,7 +237,7 @@ MODULE mo_io_config
   ! currently used by hydrostatic model only
   LOGICAL :: l_outputtime      ! if .true., output is written at the end of the time step.
 
-  LOGICAL :: lmask_boundary    ! flag: true, if interpolation zone should be masked *in output*
+  LOGICAL :: lmask_boundary(max_dom)    ! flag: true, if interpolation zone should be masked *in output*
 
   CHARACTER(LEN = 256) :: restart_write_mode
 

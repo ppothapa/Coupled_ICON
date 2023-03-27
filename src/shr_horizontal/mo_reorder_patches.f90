@@ -293,11 +293,8 @@ CONTAINS
   SUBROUTINE reorder_decomp_info(decomp_info, idx_old2new, n, nblks, npromz)
 
     TYPE(t_grid_domain_decomp_info), INTENT(inout) :: decomp_info
-    INTEGER, INTENT(IN) :: idx_old2new(:) ! permutation array
+    INTEGER, INTENT(IN), CONTIGUOUS :: idx_old2new(:) ! permutation array
     INTEGER, INTENT(IN) :: n, nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: idx_old2new
-#endif
 
     CALL reorder_array_pos(decomp_info%owner_mask, idx_old2new, nblks, npromz)
     CALL reorder_array_pos(decomp_info%decomp_domain, idx_old2new, nblks, npromz)
@@ -340,12 +337,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_i1D(arr, idx_old2new, nentries)
-    INTEGER,     INTENT(INOUT) :: arr(:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: arr(:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nentries
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     INTEGER :: tmp(SIZE(arr,1))
     INTEGER :: j
@@ -363,12 +358,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_i2D(arr, idx_old2new, nblks, npromz)
-    INTEGER,     INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     INTEGER :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -393,12 +386,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_l2D(arr, idx_old2new, nblks, npromz)
-    LOGICAL,     INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    LOGICAL,     INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     LOGICAL :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -423,12 +414,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_r2D(arr, idx_old2new, nblks, npromz)
-    REAL(wp),    INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    REAL(wp),    INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     REAL(wp) :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER  :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -453,12 +442,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_g2D(arr, idx_old2new, nblks, npromz)
-    TYPE(t_geographical_coordinates), INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    TYPE(t_geographical_coordinates), INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     TYPE(t_geographical_coordinates) :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER  :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -483,12 +470,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_t2D(arr, idx_old2new, nblks, npromz)
-    TYPE(t_tangent_vectors), INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    TYPE(t_tangent_vectors), INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     TYPE(t_tangent_vectors) :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER  :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -513,12 +498,10 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_pos_c2D(arr, idx_old2new, nblks, npromz)
-    TYPE(t_cartesian_coordinates), INTENT(INOUT) :: arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:) ! permutation array
+    TYPE(t_cartesian_coordinates), INTENT(INOUT), CONTIGUOUS :: arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS :: idx_old2new(:) ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     TYPE(t_cartesian_coordinates) :: tmp(SIZE(arr,1), SIZE(arr,2))
     INTEGER  :: iidx,jc,jb,jc_new,jb_new,i_endidx
@@ -544,14 +527,12 @@ CONTAINS
   !
   SUBROUTINE reorder_array_pos_i3D(arr, idx_old2new, nblks, npromz, &
     &                              idim_nproma, idim_blks, opt_owner)
-    INTEGER,     INTENT(INOUT) :: arr(:,:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: arr(:,:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
     INTEGER,     INTENT(IN)    :: idim_nproma, idim_blks ! index positions of nproma and blocks
-    LOGICAL, INTENT(IN), OPTIONAL :: opt_owner(:,:)
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new, opt_owner
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL, CONTIGUOUS :: opt_owner(:,:)
+
     ! local variables
     CHARACTER (LEN=*), PARAMETER :: routine = modname//":reorder_array_pos_i3D"
     INTEGER :: tmp(SIZE(arr,1), SIZE(arr,2), SIZE(arr,3))
@@ -597,13 +578,11 @@ CONTAINS
   !
   SUBROUTINE reorder_array_pos_i4D(arr, idx_old2new, nblks, npromz, &
     &                              idim_nproma, idim_blks)
-    INTEGER,     INTENT(INOUT) :: arr(:,:,:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: arr(:,:,:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
     INTEGER,     INTENT(IN)    :: idim_nproma, idim_blks ! index positions of nproma and blocks
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     CHARACTER (LEN=*), PARAMETER :: routine = modname//":reorder_array_pos_i4D"
     INTEGER :: tmp(SIZE(arr,1), SIZE(arr,2), SIZE(arr,3), SIZE(arr,4))
@@ -634,13 +613,11 @@ CONTAINS
   !
   SUBROUTINE reorder_array_pos_r3D(arr, idx_old2new, nblks, npromz, &
     &                              idim_nproma, idim_blks)
-    REAL(wp),    INTENT(INOUT) :: arr(:,:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    REAL(wp),    INTENT(INOUT), CONTIGUOUS :: arr(:,:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
     INTEGER,     INTENT(IN)    :: idim_nproma, idim_blks ! index positions of nproma and blocks
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     CHARACTER (LEN=*), PARAMETER :: routine = modname//":reorder_array_pos_r3D"
     REAL(wp) :: tmp(SIZE(arr,1), SIZE(arr,2), SIZE(arr,3))
@@ -682,13 +659,11 @@ CONTAINS
   !
   SUBROUTINE reorder_array_pos_t3D(arr, idx_old2new, nblks, npromz, &
     &                              idim_nproma, idim_blks)
-    TYPE(t_tangent_vectors),    INTENT(INOUT) :: arr(:,:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    TYPE(t_tangent_vectors),    INTENT(INOUT), CONTIGUOUS :: arr(:,:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
     INTEGER,     INTENT(IN)    :: idim_nproma, idim_blks ! index positions of nproma and blocks
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, idx_old2new
-#endif
+
     ! local variables
     CHARACTER (LEN=*), PARAMETER :: routine = modname//":reorder_array_pos_t3D"
     TYPE(t_tangent_vectors) :: tmp(SIZE(arr,1), SIZE(arr,2), SIZE(arr,3))
@@ -729,13 +704,11 @@ CONTAINS
   !  @todo OpenMP parallelization.
   !
   SUBROUTINE reorder_array_content_i1D(arr, glb_idx, idx_old2new, nentries)
-    INTEGER,     INTENT(INOUT) :: arr(:)                 ! global-size array
-    INTEGER,     INTENT(IN)    :: glb_idx(:)             ! index local->global
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: arr(:)                 ! global-size array
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: glb_idx(:)             ! index local->global
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nentries               ! no. of local entries
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: arr, glb_idx, idx_old2new
-#endif
+
     ! local variables
     INTEGER :: j, idx_g
     INTEGER :: tmp(SIZE(arr,1))
@@ -756,13 +729,11 @@ CONTAINS
   !
   SUBROUTINE reorder_array_content_i2D(idx_arr, blk_arr, idx_old2new, nblks, npromz, &
     &                                 opt_owner)
-    INTEGER,     INTENT(INOUT) :: idx_arr(:,:), blk_arr(:,:)
-    INTEGER,     INTENT(IN)    :: idx_old2new(:)         ! permutation array
+    INTEGER,     INTENT(INOUT), CONTIGUOUS :: idx_arr(:,:), blk_arr(:,:)
+    INTEGER,     INTENT(IN), CONTIGUOUS    :: idx_old2new(:)         ! permutation array
     INTEGER,     INTENT(IN)    :: nblks, npromz
-    LOGICAL, INTENT(IN), OPTIONAL :: opt_owner(:,:)
-#if (defined(HAVE_FC_ATTRIBUTE_CONTIGUOUS) && !defined(_CRAYFTN))
-    CONTIGUOUS :: idx_arr, blk_arr, idx_old2new, opt_owner
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL, CONTIGUOUS :: opt_owner(:,:)
+
     ! local variables
     CHARACTER (LEN=*), PARAMETER :: routine = modname//":reorder_array_content_i2D"
     INTEGER :: iidx,jc,jb,i_endidx

@@ -16,21 +16,16 @@
 !!
 MODULE mo_wave_crosscheck
 
-  !USE mo_kind,              ONLY: wp
-  USE mo_exception,         ONLY: message!, finish, warning
-!  USE mo_grid_config,       ONLY: init_grid_configuration
-  USE mo_parallel_config,   ONLY: check_parallel_configuration!, p_test_run, l_fast_sum, &
-!       &                          use_dp_mpi2io
-  USE mo_run_config,        ONLY: nsteps!, dtime, nlev
+  USE mo_exception,         ONLY: message, finish
+  USE mo_parallel_config,   ONLY: check_parallel_configuration
+  USE mo_run_config,        ONLY: nsteps, ldynamics, ltransport, ntracer, num_lev
+  USE mo_grid_config,       ONLY: n_dom
   USE mo_time_config,       ONLY: time_config, dt_restart
-!  USE mo_io_config,         ONLY: dt_checkpoint, write_initial_state, lnetcdf_flt64_output
-!  USE mo_grid_config,       ONLY: grid_rescale_factor, use_duplicated_connectivity
-!  USE mo_wave_nml
-!  USE mo_master_config,     ONLY: isRestart
   USE mo_time_management,   ONLY: compute_timestep_settings,                        &
        &                          compute_restart_settings,                         &
        &                          compute_date_settings
-!  USE mo_event_manager,     ONLY: initEventManager
+  USE mo_event_manager,     ONLY: initEventManager
+  USE mo_wave_config,       ONLY: wave_config
 
   IMPLICIT NONE
 
@@ -45,7 +40,7 @@ CONTAINS
   SUBROUTINE wave_crosscheck
 
     CHARACTER(len=*), PARAMETER :: routine =   modname//'::wave_crosscheck'
-
+    INTEGER :: jg
 
     !--------------------------------------------------------------------
     ! Compute date/time/time step settings
@@ -61,20 +56,32 @@ CONTAINS
     !
     ! Create an event manager, ie. a collection of different events
     !
-!    CALL initEventManager(time_config%tc_exp_refdate)
+    CALL initEventManager(time_config%tc_exp_refdate)
 
     !--------------------------------------------------------------------
     ! Parallelization
     !--------------------------------------------------------------------
     CALL check_parallel_configuration()
 
-    !--------------------------------------------------------------------
-    ! @WAVES TO DO: check the wave model settings
-    !--------------------------------------------------------------------
-    !
-    !ADD HERE ...
+    IF (.not.ldynamics) THEN
+      CALL finish(TRIM(routine),'Error: ldynamics must be TRUE')
+    END IF
 
-    CALL message(routine,'done.')
+    IF (.not.ltransport) THEN
+      CALL finish(TRIM(routine),'Error: ltransport must be TRUE')
+    END IF
+
+    DO jg=1,n_dom
+      IF (ntracer /= wave_config(jg)%nfreqs*wave_config(jg)%ndirs) THEN
+        CALL finish(TRIM(routine),'Error: ntracer must be equal to nfreqs*ndirs')
+      END IF
+    ENDDO
+
+    IF (ANY(num_lev(1:n_dom).ne.1)) THEN
+      CALL finish(TRIM(routine),'Error: num_lev must be 1')
+    END IF
+
+    CALL message(routine,'finished.')
 
   END SUBROUTINE wave_crosscheck
 

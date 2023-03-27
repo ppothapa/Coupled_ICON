@@ -133,16 +133,14 @@ CONTAINS
   SUBROUTINE reshuffle(description, in_glb_idx, in_values, owner_idx, nglb_indices, communicator, out_values, &
     &                  out_count)
     CHARACTER(LEN=*), INTENT(IN) :: description !< description string (for debugging purposes)
-    INTEGER, INTENT(IN)    :: in_glb_idx(:)    !< global indices to which "values" correspond
-    INTEGER, INTENT(IN)    :: in_values(:)     !< values to send
-    INTEGER, INTENT(IN)    :: owner_idx(:)     !< array indices "owned" by local PE
+    INTEGER, INTENT(IN), CONTIGUOUS :: in_glb_idx(:)    !< global indices to which "values" correspond
+    INTEGER, INTENT(IN), CONTIGUOUS :: in_values(:)     !< values to send
+    INTEGER, INTENT(IN), CONTIGUOUS :: owner_idx(:)     !< array indices "owned" by local PE
     INTEGER, INTENT(IN)    :: nglb_indices     !< total size of distributed array
     INTEGER, INTENT(IN)    :: communicator     !< MPI comm.
-    INTEGER, INTENT(INOUT) :: out_values(:,:)  !< resulting local part of distributed array
-    INTEGER, INTENT(INOUT) :: out_count(:,:)   !< counts, how often an entry was received
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: out_count, out_values, in_glb_idx, in_values, owner_idx
-#endif
+    INTEGER, INTENT(INOUT), CONTIGUOUS :: out_values(:,:)  !< resulting local part of distributed array
+    INTEGER, INTENT(INOUT), CONTIGUOUS :: out_count(:,:)   !< counts, how often an entry was received
+
     ! local variables
     CHARACTER(LEN=*), PARAMETER :: routine = modname//':reshuffle'
     INTEGER                   :: nsend, nlocal, i, j, ncollisions, local_idx, nvals, dst_idx, nerror

@@ -195,8 +195,8 @@ CONTAINS
 
     CALL cells2edges_scalar( zsigma_mc,                    &! in
                            & p_patch, p_int_state%c_lin_e, &! in
-                           & zsigma_me )                    ! out
-
+                           & zsigma_me, lacc=.TRUE.)        ! out
+    !$ACC WAIT
     ! Now compute the velocity tendency due to friction
 
     jbs = p_patch%edges%start_blk( grf_bdywidth_e+1,1 )

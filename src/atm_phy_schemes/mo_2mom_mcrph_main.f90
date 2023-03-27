@@ -588,7 +588,7 @@ CONTAINS
     CALL set_default_n(ik_slice, cloud, ice, rain, snow, graupel)
 
     IF (nuc_c_typ.ne.0) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=kstart,kend
         DO i=istart,iend
@@ -606,7 +606,7 @@ CONTAINS
     CALL cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
     IF (ischeck) CALL check(ik_slice,'cloud_freeze', cloud, rain, ice, snow, graupel,hail)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
@@ -735,7 +735,7 @@ CONTAINS
 
     ! size limits for all hydrometeors
     IF (nuc_c_typ > 0) THEN
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=kstart,kend
         DO i=istart,iend
@@ -747,7 +747,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     END IF
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
@@ -757,7 +757,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
@@ -770,7 +770,7 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend

@@ -243,7 +243,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  lnetcdf_flt64_output        =                      .TRUE.        ! double precision output
  itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
  itype_rh                    =                          1         ! method for computation of relative humidity
- lmask_boundary              =                      .TRUE.       ! mask out interpolation zone in output
+ lmask_boundary              =               .TRUE., .TRUE.       ! mask out interpolation zone in output
 /
 
 ! limarea_nml: settings for limited area mode ---------------------------------
@@ -358,7 +358,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  steps_per_file   = 4
  include_last     = .TRUE.
  ml_varlist       =
-  'cape', 'clct_mod', 'cldepth', 'dpres_mc', 'drag_u_grid', 'exner',
+  'clct_mod', 'cldepth', 'dpres_mc', 'drag_u_grid', 'exner',
   'exner_dyn_incr', 'exner_pr', 'h_snow', 'hdef_ic', 'lhfl_bs', 'lhfl_s',
   'lwflx_up', 'pres_sfc', 'qhfl_s', 'qi', 'qr', 'qs', 'rain_gsp', 'rho',
   'rho_ic', 'rho_snow', 'runoff_g', 'sp_10m', 'str_u_sso', 'str_v_sso', 't_2m',
@@ -386,7 +386,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'clct_mod', 'cldepth', 'ddt_qc_conv', 'ddt_temp_turb', 'exner_pr',
   'freshsnow', 'h_snow', 'lwflx_dn_clr', 'lwflx_up', 'lwflxall', 'qc', 'qv',
   'rain_gsp', 'rh', 'rho', 'runoff_g', 'runoff_s', 'theta_v', 'theta_v_ic',
-  'thu_s', 'tot_prec', 'tot_qv_dia', 'tqc', 'tqc_dia', 'tqi', 'tqi_dia', 'tqr',
+  'tot_prec', 'tot_qv_dia', 'tqc', 'tqc_dia', 'tqi', 'tqi_dia', 'tqr',
   'tsfctrad', 'u'
  pl_varlist           = 'temp'
  p_levels             = 100, 200, 92500, 100000

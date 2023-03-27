@@ -17,7 +17,7 @@ CONTAINS
 !>
 ! !! @file settling.f90
 !! @brief compute settling of debris
-      SUBROUTINE settling (local_bgc_mem, local_sediment_mem, klev,start_idx, end_idx,pddpo,za)
+      SUBROUTINE settling (local_bgc_mem, local_sediment_mem, klev,start_idx, end_idx, pddpo, za, use_acc)
 
       USE mo_param1_bgc, ONLY     : icalc, iopal, kopex90,   &
        &                            idet, kcalex90, &
@@ -47,11 +47,19 @@ CONTAINS
 
       REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
       REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)      !< surface height
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
 
       ! Local variables
       INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
       INTEGER :: k, kpke,j
+      LOGICAL :: lacc
+
+      IF (PRESENT(use_acc)) THEN
+        lacc = use_acc
+      ELSE
+        lacc = .FALSE.
+      END IF
 
 
      ! implicit method:
@@ -62,12 +70,12 @@ CONTAINS
      !
      kbo => local_bgc_mem%kbo
      
- 
+       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
        DO j=start_idx,end_idx
         kpke=klev(j)        
 
         IF(kpke > 0)THEN
-        IF(pddpo(j,1) >EPSILON(0.5_wp))THEN
+        IF(pddpo(j,1) > EPSILON(0.5_wp))THEN
 
          if(kpke>=n90depth)then
            local_bgc_mem%bgcflux(j,kcoex90)  = local_bgc_mem%bgctra(j,n90depth,idet)* &
@@ -116,6 +124,7 @@ CONTAINS
            local_bgc_mem%bgctend(j,k,kwcal)  = local_bgc_mem%wcal(j,k)*inv_dtbgc
           ENDIF
 
+         !$ACC LOOP SEQ
          DO k=2,kpke
           IF(pddpo(j,k) > EPSILON(0.5_wp))THEN
           ! water column
@@ -156,8 +165,7 @@ CONTAINS
           ENDIF
          ENDIF
       END DO
- 
- 
+      !$ACC END PARALLEL LOOP
       END SUBROUTINE settling 
 
 

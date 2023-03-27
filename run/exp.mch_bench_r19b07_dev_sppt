@@ -340,7 +340,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  lsppt                      =                      .TRUE.     ! if set to .TRUE. SPPT is active
  dlat_rn                    =                       0.01      ! random number coarse grid point distance in meridional direction (rad)
  dlon_rn                    =                       0.01      ! random number coarse grid point distance in zonal direction      (rad)
- hinc_rn                    =                          6      ! maximum range +/- for random numbers                             (hours)
+ hinc_rn                    =                         30      ! maximum range +/- for random numbers                             (seconds)
  range_rn                   =                        0.8      !  max magnitude of random numbers                                 (-)
 /
 
@@ -464,7 +464,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  ml_varlist           = 'ALB_DIF', 'alhfl_s','athb_s','athd_s','athu_s','ashfl_s',
                         'asob_s','aswdifd_s','aswdifu_s','aswdir_s','aumfl_s','avmfl_s',
                         'CLC', 'CLCH', 'CLCL', 'CLCM', 'CLCT',
-                        'CAPE','CAPE_ML','CIN_ML',!'DBZ_CMAX','DBZ_CTMAX','DBZ_850','DURSUN_M','DURSUN',
+                        'CAPE_ML','CIN_ML',!'DBZ_CMAX','DBZ_CTMAX','DBZ_850','DURSUN_M','DURSUN',
                         'C_T_LK', 'CEILING', 'FRESHSNW', 'GRAUPEL_GSP', 'gz0',
                         'H_ML_LK', 'H_SNOW', 'HTOP_SC', 'HBAS_SC', 'HZEROCL',
                         'LPI', 'LPI_MAX', 'PFULL', 'PMSL', 'PS', 'QV', 'QC', 'QI',
@@ -497,7 +497,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
   'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
   'omega','div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
   'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
+  'tot_prec','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
   'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
   'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
   'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
@@ -512,6 +512,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
+ ecrad_isolver               =                          2
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
  albedo_type                 =                          2         ! type of surface albedo

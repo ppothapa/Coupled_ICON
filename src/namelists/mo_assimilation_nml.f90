@@ -95,6 +95,8 @@ MODULE mo_assimilation_nml
  LOGICAL :: dace_coupling
  INTEGER :: dace_time_ctrl(3)
  INTEGER :: dace_debug       ! Debugging level for DACE interface
+ CHARACTER(LEN=255) :: &
+    dace_output_file         ! filename for stdout redirection
 
 ! CHARACTER (LEN=12)               ::           &
 !    noobs_date (n_noobs)    ! array of missing observations
@@ -119,7 +121,8 @@ MODULE mo_assimilation_nml
                               lhn_dt_obs   ,nradar, radardata_file     ,           &
                               tt_artif_max ,zlev_artif_max, std_artif_max,         &
                               start_fadeout,                                       &
-                              dace_coupling ,dace_time_ctrl, dace_debug
+                              dace_coupling ,dace_time_ctrl, dace_debug,           &
+                              dace_output_file
 CONTAINS
   !>
   !!
@@ -137,6 +140,7 @@ CONTAINS
     dace_coupling      = .false.
     dace_time_ctrl     = 0
     dace_debug         = 0
+    dace_output_file   = ""
 
     llhn(:)               = ldass_lhn
     llhnverif(:)          = .TRUE.
@@ -238,6 +242,7 @@ CONTAINS
         assimilation_config(jg)%dace_coupling   = dace_coupling
         assimilation_config(jg)%dace_time_ctrl  = dace_time_ctrl
         assimilation_config(jg)%dace_debug      = dace_debug
+        assimilation_config(jg)%dace_output_file= dace_output_file
         assimilation_config(jg)%llhn            = llhn(jg)
         assimilation_config(jg)%llhnverif       = llhnverif(jg)
         assimilation_config(jg)%lhn_artif       = lhn_artif
