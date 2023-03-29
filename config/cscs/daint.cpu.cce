@@ -26,5 +26,5 @@ git clone --depth 1 --recurse-submodules --shallow-submodules -b ${SPACK_VERSION
 . spack-c2sm/setup-env.sh
 
 MAKE_PROCS=12
-spack env activate config/cscs/spack/$SPACK_VERSION/daint_cpu_nvhpc || exit 1
+spack env activate config/cscs/spack/$SPACK_VERSION/daint_cpu_cce || exit 1
 spack install -v -j ${MAKE_PROCS} || exit 1
