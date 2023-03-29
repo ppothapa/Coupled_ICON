@@ -65,6 +65,7 @@ MODULE mo_lnd_nwp_nml
     &                               config_tau_skin           => tau_skin          , &
     &                               config_lterra_urb         => lterra_urb        , &
     &                               config_lurbalb            => lurbalb           , &
+    &                               config_lurbahf            => lurbahf           , &
     &                               config_itype_kbmo         => itype_kbmo        , &
     &                               config_itype_eisa         => itype_eisa        , &
     &                               config_lstomata           => lstomata          , &
@@ -146,6 +147,7 @@ CONTAINS
     REAL(wp)::  tau_skin          !< relaxation time scale for the computation of the skin temperature
     LOGICAL ::  lterra_urb        !< activate urban model TERRA_URB
     LOGICAL ::  lurbalb           !< use urban albedo and emissivity
+    LOGICAL ::  lurbahf           !< use urban anthropogenic heat flux
     INTEGER ::  itype_kbmo        !< type of bluff-body thermal roughness length parameterisation
     INTEGER ::  itype_eisa        !< type of evaporation from impervious surface area
     INTEGER ::  itype_hydbound    !< type of hydraulic lower boundary condition
@@ -171,27 +173,27 @@ CONTAINS
     ! nwp forcing (right hand side)
     !--------------------------------------------------------------------
 
-    NAMELIST/lnd_nml/ nlev_snow, zml_soil, ntiles                     , &
-         &               frlnd_thrhld, lseaice, lprog_albsi, llake, lmelt, &
-         &               frlndtile_thrhld, frlake_thrhld                 , &
-         &               frsea_thrhld, lmelt_var, lmulti_snow            , &
-         &               hice_min, hice_max                              , &
-         &               itype_trvg, idiag_snowfrac, max_toplaydepth     , &
-         &               itype_evsl                                      , &
-         &               itype_lndtbl                                    , &
-         &               itype_root                                      , &
-         &               itype_heatcond                                  , &
-         &               itype_interception                              , &
-         &               itype_hydbound                                  , &
-         &               itype_canopy, cskinc, tau_skin                  , &
-         &               lterra_urb, lurbalb, itype_kbmo, itype_eisa     , &
-         &               lstomata                                        , &
-         &               l2tls                                           , &
-         &               lana_rho_snow, l2lay_rho_snow                   , &
-         &               lsnowtile, itype_snowevap                       , &
-         &               sstice_mode                                     , &
-         &               sst_td_filename                                 , &
-         &               ci_td_filename, cwimax_ml, c_soil, c_soil_urb   , &
+    NAMELIST/lnd_nml/ nlev_snow, zml_soil, ntiles                             , &
+         &               frlnd_thrhld, lseaice, lprog_albsi, llake, lmelt     , &
+         &               frlndtile_thrhld, frlake_thrhld                      , &
+         &               frsea_thrhld, lmelt_var, lmulti_snow                 , &
+         &               hice_min, hice_max                                   , &
+         &               itype_trvg, idiag_snowfrac, max_toplaydepth          , &
+         &               itype_evsl                                           , &
+         &               itype_lndtbl                                         , &
+         &               itype_root                                           , &
+         &               itype_heatcond                                       , &
+         &               itype_interception                                   , &
+         &               itype_hydbound                                       , &
+         &               itype_canopy, cskinc, tau_skin                       , &
+         &               lterra_urb, lurbalb, lurbahf, itype_kbmo, itype_eisa , &
+         &               lstomata                                             , &
+         &               l2tls                                                , &
+         &               lana_rho_snow, l2lay_rho_snow                        , &
+         &               lsnowtile, itype_snowevap                            , &
+         &               sstice_mode                                          , &
+         &               sst_td_filename                                      , &
+         &               ci_td_filename, cwimax_ml, c_soil, c_soil_urb        , &
          &               czbot_w_so, cr_bsmin
 
     CHARACTER(len=*), PARAMETER ::  &
@@ -262,28 +264,27 @@ CONTAINS
     cskinc         = -1._wp  ! use map of skin conductivity (W/m**2/K)
     tau_skin      = 3600._wp ! relaxation time scale for the computation of the skin temperature
     !
-    lterra_urb     =.FALSE.  ! if .TRUE., activate urban model TERRA_URB by Wouters et al. (2016, 2017)
-    lurbalb        =.TRUE.   ! if .TRUE., use urban albedo and emissivity (Wouters et al. 2016)
+    lterra_urb     = .FALSE. ! if .TRUE., activate urban model TERRA_URB by Wouters et al. (2016, 2017)
+    lurbalb        = .TRUE.  ! if .TRUE., use urban albedo and emissivity (Wouters et al. 2016)
+    lurbahf        = .TRUE.  ! if .TRUE., use urban anthropogenic heat flux (Wouters et al. 2016)
     itype_kbmo     = 2       ! type of bluff-body thermal roughness length parameterisation
-                             !  1: Raschendorfer (2001)
-                             !  2: Brutsaert Kanda parameterisation for bluff-body elements (kB-1)
+                             !  1: standard SAI-based turbtran (Raschendorfer 2001)
+                             !  2: Brutsaert-Kanda parameterisation for bluff-body elements (kB-1)
                              !     (Kanda et al. 2007)
                              !  3: Zilitinkevich (1970)
     itype_eisa     = 3       ! type of evaporation from impervious surface area
-                             !  1: evaporation like bare soil
+                             !  1: evaporation like bare soil (cf. Schulz and Vogel 2020)
                              !  2: no evaporation
                              !  3: PDF-based puddle evaporation (Wouters et al. 2015)
     !
-    lstomata       =.TRUE.   ! map of minimum stomata resistance
-    l2tls          =.TRUE.   ! forecast with 2-TL integration scheme
-    lana_rho_snow  =.TRUE.   ! if .TRUE., take rho_snow-values from analysis file 
+    lstomata       = .TRUE.  ! map of minimum stomata resistance
+    l2tls          = .TRUE.  ! forecast with 2-TL integration scheme
+    lana_rho_snow  = .TRUE.  ! if .TRUE., take rho_snow-values from analysis file 
 
-
-    lseaice     = .TRUE.     ! .TRUE.: sea-ice model is used
-    lprog_albsi = .FALSE.    ! .TRUE.: sea-ice albedo is computed prognostically 
+    lseaice        = .TRUE.  ! .TRUE.: sea-ice model is used
+    lprog_albsi    = .FALSE. ! .TRUE.: sea-ice albedo is computed prognostically 
                              ! (only takes effect if "lseaice=.TRUE.")
-    llake       = .TRUE.     ! .TRUE.: lake model is used
-    
+    llake          = .TRUE.  ! .TRUE.: lake model is used
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
@@ -313,7 +314,6 @@ CONTAINS
       END IF
     END SELECT
     CALL close_nml
-
 
     !----------------------------------------------------
     ! 4. Sanity check (if necessary)
@@ -411,6 +411,7 @@ CONTAINS
     config_tau_skin           = tau_skin
     config_lterra_urb         = lterra_urb
     config_lurbalb            = lurbalb
+    config_lurbahf            = lurbahf
     config_itype_kbmo         = itype_kbmo
     config_itype_eisa         = itype_eisa
     config_lstomata           = lstomata

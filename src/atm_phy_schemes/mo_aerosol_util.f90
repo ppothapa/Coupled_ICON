@@ -33,18 +33,17 @@ MODULE mo_aerosol_util
   USE mo_kind,                   ONLY: wp
   USE mo_exception,              ONLY: finish
   USE mo_loopindices,            ONLY: get_indices_c
-  USE mo_lrtm_par,               ONLY: jpband => nbndlw, wavenum1_lw => wavenum1, wavenum2_lw => wavenum2
+  USE mo_lrtm_par,               ONLY: jpband => nbndlw
   USE mo_model_domain,           ONLY: t_patch
   USE mo_intp_data_strc,         ONLY: t_int_state
-  USE mo_srtm_config,            ONLY: jpsw, wavenum1_sw => wavenum1, wavenum2_sw => wavenum2
+  USE mo_srtm_config,            ONLY: jpsw
   USE mo_lnd_nwp_config,         ONLY: ntiles_lnd, dzsoil, isub_water
   USE mo_nwp_tuning_config,      ONLY: tune_dust_abs
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
   USE mo_aerosol_sources,        ONLY: aerosol_dust_aod_source, aerosol_ssa_aod_source
   USE mo_math_laplace,           ONLY: nabla2_scalar
 #ifdef __ECRAD
-  USE mo_ecrad,                  ONLY: t_ecrad_conf,         &
-                                   &   ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
+  USE mo_ecrad,                  ONLY: t_ecrad_conf, ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
 #endif
   USE mo_fortran_tools,          ONLY: set_acc_host_or_device
 
@@ -56,12 +55,31 @@ MODULE mo_aerosol_util
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_aerosol_util'
 
   !RRTM
-  REAL  (wp)              ::           &
+  REAL  (wp) ::             &
   zaea_rrtm(jpsw+jpband,5), &  ! ratio of optical thickness for the absorption in spectral
                                ! interval jpspec  and total optical thickness at 0.55m*1.E-06 
                                ! for an aerosoltyp specified by second array index
   zaes_rrtm(jpsw+jpband,5), &  ! analog for the optical thickness of scattering 
   zaeg_rrtm(jpsw+jpband,5)!, zaef_rrtm(jpsw+jpband,5)
+
+  ! The (long wave) wavenumbers from rrtm are not set when not using RRTM
+  ! So we copy the values from mo_lrtm_setup (long wave) and mo_srtm_config (short wave)
+  REAL(wp), PARAMETER :: & !< Lower wavenumber bound long wave
+    &  rrtm_wavenum1_lw(jpband) = (/  10._wp, 350._wp, 500._wp, 630._wp, 700._wp, 820._wp, &
+                                &    980._wp,1080._wp,1180._wp,1390._wp,1480._wp,1800._wp, &
+                                &   2080._wp,2250._wp,2380._wp,2600._wp/)
+  REAL(wp), PARAMETER :: & !< Upper wavenumber bound long wave
+    &  rrtm_wavenum2_lw(jpband) = (/ 350._wp, 500._wp, 630._wp, 700._wp, 820._wp, 980._wp, &
+                                &   1080._wp,1180._wp,1390._wp,1480._wp,1800._wp,2080._wp, &
+                                &   2250._wp,2380._wp,2600._wp,3250._wp/)
+  REAL(wp), PARAMETER :: & !< Lower wavenumber bound short wave
+    &  rrtm_wavenum1_sw(jpsw) = (/ 2600._wp, 3250._wp, 4000._wp, 4650._wp, 5150._wp, 6150._wp, &
+                              &    7700._wp, 8050._wp,12850._wp,16000._wp,22650._wp,29000._wp, &
+                              &   38000._wp, 820._wp  /)
+  REAL(wp), PARAMETER :: & !< Upper wavenumber bound short wave
+    &  rrtm_wavenum2_sw(jpsw) = (/ 3250._wp, 4000._wp, 4650._wp, 5150._wp, 6150._wp, 7700._wp, &
+                              &    8050._wp,12850._wp,16000._wp,22650._wp,29000._wp,38000._wp, &
+                              &   50000._wp, 2600._wp /)
 
   !ecRad
   TYPE t_tegen_scal_factors
@@ -89,6 +107,7 @@ MODULE mo_aerosol_util
   PUBLIC :: tegen_scal_factors
 #ifdef __ECRAD
   PUBLIC :: init_aerosol_props_tegen_ecrad
+  PUBLIC :: get_nbands_lw_aerosol, get_nbands_sw_aerosol
 #endif
 
   !$ACC DECLARE CREATE(zaea_rrtm, zaes_rrtm, zaeg_rrtm)
@@ -344,33 +363,16 @@ CONTAINS
 
     ELSE ! ECCKD gas optics, variable number of bands/g-points
 
-      ! Determine number of ecrad bands
-      IF (ecrad_conf%do_sw) THEN
-        IF (ecrad_conf%do_cloud_aerosol_per_sw_g_point) THEN
-          n_bands_sw = ecrad_conf%n_g_sw
-        ELSE
-          n_bands_sw = ecrad_conf%n_bands_sw
-        ENDIF
-      ELSE
-        n_bands_sw = 0
-      ENDIF
-      IF (ecrad_conf%do_lw) THEN
-        IF (ecrad_conf%do_cloud_aerosol_per_lw_g_point) THEN
-          n_bands_lw = ecrad_conf%n_g_lw
-        ELSE
-          n_bands_lw = ecrad_conf%n_bands_lw
-        ENDIF
-      ELSE
-        n_bands_lw = 0
-      ENDIF
+      n_bands_lw = get_nbands_lw_aerosol(ecrad_conf)
+      n_bands_sw = get_nbands_sw_aerosol(ecrad_conf)
 
       CALL tegen_scal_factors_mod%init(n_bands_lw+n_bands_sw)
 
       IF (ecrad_conf%do_sw) THEN
         ALLOCATE(mapping(n_bands_sw,jpsw))
 
-        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(       &
-          &    ecrad_solar_ref_temp, wavenum1_sw(16:29), wavenum2_sw(16:29), mapping_transp, &
+        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(   &
+          &    ecrad_solar_ref_temp, rrtm_wavenum1_sw, rrtm_wavenum2_sw, mapping_transp, &
           &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_sw_g_point) )
 
         mapping = transpose(mapping_transp)
@@ -391,8 +393,8 @@ CONTAINS
       IF (ecrad_conf%do_lw) THEN
         ALLOCATE(mapping(n_bands_lw,jpband))
 
-        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(     &
-          &    ecrad_terrestrial_ref_temp, wavenum1_lw, wavenum2_lw, mapping_transp,       &
+        CALL ecrad_conf%gas_optics_lw%spectral_def%calc_mapping_from_wavenumber_bands(         &
+          &    ecrad_terrestrial_ref_temp, rrtm_wavenum1_lw, rrtm_wavenum2_lw, mapping_transp, &
           &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_lw_g_point) )
 
         mapping = transpose(mapping_transp)
@@ -478,6 +480,44 @@ CONTAINS
       DEALLOCATE(this%asymmetry)
   END SUBROUTINE
   !---------------------------------------------------------------------------------------
+
+#ifdef __ECRAD
+  ! Calculate the number of bands or g-points based on the configuration of ecrad (long wave)
+  !
+  FUNCTION get_nbands_lw_aerosol(ecrad_conf) RESULT(n_bands_lw)
+    TYPE(t_ecrad_conf), INTENT(in) :: ecrad_conf
+    INTEGER                        :: n_bands_lw
+
+      IF (ecrad_conf%do_lw) THEN
+        IF (ecrad_conf%do_cloud_aerosol_per_lw_g_point) THEN
+          n_bands_lw = ecrad_conf%gas_optics_lw%spectral_def%ng
+        ELSE
+          n_bands_lw = ecrad_conf%gas_optics_lw%spectral_def%nband
+        ENDIF
+      ELSE
+        n_bands_lw = 0
+      ENDIF
+
+  END FUNCTION get_nbands_lw_aerosol
+
+  ! Calculate the number of bands or g-points based on the configuration of ecrad (short wave)
+  !
+  FUNCTION get_nbands_sw_aerosol(ecrad_conf) RESULT(n_bands_sw)
+    TYPE(t_ecrad_conf), INTENT(in) :: ecrad_conf
+    INTEGER                        :: n_bands_sw
+
+      IF (ecrad_conf%do_sw) THEN
+        IF (ecrad_conf%do_cloud_aerosol_per_sw_g_point) THEN
+          n_bands_sw = ecrad_conf%gas_optics_sw%spectral_def%ng
+        ELSE
+          n_bands_sw = ecrad_conf%gas_optics_sw%spectral_def%nband
+        ENDIF
+      ELSE
+        n_bands_sw = 0
+      ENDIF
+
+  END FUNCTION get_nbands_sw_aerosol
+#endif
 
   ! Very simple parameterization of source and sink terms for prognostic 2D aerosol fields
   !

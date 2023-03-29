@@ -34,9 +34,7 @@ MODULE mo_nwp_rad_interface
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation_config,     ONLY: albedo_type, albedo_fixed,                            &
     &                                irad_co2, irad_n2o, irad_ch4, irad_cfc11, irad_cfc12, &
-    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark,             &
-    &                                irad_aero, iRadAeroKinne, iRadAeroVolc,               &
-    &                                iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP
+    &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
     &                                nwp_rrtm_radiation_reduced,     &
@@ -169,24 +167,26 @@ MODULE mo_nwp_rad_interface
 #ifdef __ECRAD
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
       CASE(4)
-        nbands_lw   = ecrad_conf%n_bands_lw
-        nbands_sw   = ecrad_conf%n_bands_sw
-        IF (nbands_sw /= ecrad_conf%gas_optics_sw%spectral_def%nband) THEN
-          WRITE(message_text,'(a,i3,a,i3)') 'Internal error in sw band configuration: ', &
-            &                               nbands_sw,' /= ',ecrad_conf%gas_optics_sw%spectral_def%nband
-          CALL finish (routine, 'Internal error: sw band configuration')
-        ENDIF
+        ! Careful: With ecckd, aerosol can be calculated on g-points, so the following variables need further thinking
+        !          when enabling further aerosol options (especially Kinne) for ecckd.
+        nbands_lw   = ecrad_conf%n_bands_lw ! With ecckd, this might actually be g-points if ecrad_conf%do_cloud_aerosol_per_lw_g_point
+        nbands_sw   = ecrad_conf%n_bands_sw ! With ecckd, this might actually be g-points if ecrad_conf%do_cloud_aerosol_per_sw_g_point
         wavenum1_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber1_band
         wavenum2_sw => ecrad_conf%gas_optics_sw%spectral_def%wavenumber2_band
     END SELECT
 #endif
+
+    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
+    CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
+      & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
 
     ! Aerosol
     CALL nwp_aerosol_interface(mtime_datetime, pt_patch, zf(:,:,:), zh(:,:,:), dz(:,:,:), &
       &                        atm_phy_nwp_config(jg)%dt_rad,                             &
       &                        atm_phy_nwp_config(jg)%inwp_radiation,                     &
       &                        nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,            &
-      &                        od_lw, od_sw, ssa_sw, g_sw)
+      &                        zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,                         &
+      &                        od_lw, od_sw, ssa_sw, g_sw, lacc=lzacc)
 
     ! Ozone
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
@@ -262,7 +262,6 @@ MODULE mo_nwp_rad_interface
     !-------------------------------------------------------------------------
     !
 
-    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_radiation)
     CASE (1) ! RRTM
 
@@ -270,12 +269,11 @@ MODULE mo_nwp_rad_interface
     IF(lzacc) THEN
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
-      CALL gpu_d2h_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
+      CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
+      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
       i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif
-      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=.FALSE. )
     
       IF ( .NOT. lredgrid ) THEN
           
@@ -295,17 +293,13 @@ MODULE mo_nwp_rad_interface
       IF(lzacc) THEN
         CALL message('mo_nh_interface_nwp', &
           &  'Host to device copy after nwp_rrtm_radiation. This needs to be removed once port is finished!')
-        CALL gpu_h2d_nh_nwp(pt_patch, prm_diag, ext_data, lacc=lzacc)
+        CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
         i_am_accel_node = my_process_is_work()
       ENDIF
 #endif
 
     CASE (4) ! ecRad
 #ifdef __ECRAD
-      !$ACC WAIT
-      CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-        & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
-
       IF (.NOT. lredgrid) THEN
         !$ACC WAIT
         CALL nwp_ecRad_radiation ( mtime_datetime, pt_patch, ext_data,      &

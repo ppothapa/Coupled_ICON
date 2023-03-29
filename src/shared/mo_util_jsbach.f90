@@ -954,6 +954,7 @@ MODULE mo_jsb_io_netcdf_iface
     PROCEDURE :: Read_2d_int    => netcdf_read_int_2d
     PROCEDURE :: Has_dim        => netcdf_file_has_dim
     PROCEDURE :: Has_var        => netcdf_file_has_var
+    PROCEDURE :: Get_dimlen     => netcdf_file_get_dimlen
   END TYPE t_input_file
 
   INTERFACE netcdf_open_input
@@ -1192,6 +1193,26 @@ CONTAINS
 
   END FUNCTION netcdf_file_has_var
 
+  INTEGER FUNCTION netcdf_file_get_dimlen(input_file, dimname)
+
+    CLASS(t_input_file), INTENT(in) :: input_file
+    CHARACTER(LEN=*),    INTENT(in) :: dimname
+
+    INTEGER :: IO_dim_id, status
+
+    CHARACTER(len=*), PARAMETER :: routine = modname//':netcdf_file_get_dimlen'
+
+    IF (my_process_is_stdio()) THEN
+      IF(.NOT. input_file%is_open) CALL finish(TRIM(routine), 'NetCDF file not open')
+
+      CALL nf(nf_inq_dimid  (input_file%file_id, TRIM(dimname), IO_dim_id), TRIM(routine))
+      CALL nf(nf_inq_dimlen (input_file%file_id, IO_dim_id, netcdf_file_get_dimlen), TRIM(routine))
+    ELSE
+      CALL finish(TRIM(routine), 'should only be called on io process!')
+    END IF
+
+  END FUNCTION netcdf_file_get_dimlen
+
 END MODULE mo_jsb_io_netcdf_iface
 
 !! ==============================================================================================================================
@@ -1418,11 +1439,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS &
-#endif
-      ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL    :: new_element         ! pointer to new var list element
@@ -1494,11 +1511,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS &
-#endif
-      ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL :: new_element           ! pointer to new var list element
@@ -1567,11 +1580,7 @@ CONTAINS
     REAL(dp),             INTENT(in), OPTIONAL :: missval_r           ! missing value
     INTEGER,              INTENT(in), OPTIONAL :: tlev_source         ! actual TL for TL dependent vars
     TYPE(t_var_metadata), POINTER,    OPTIONAL :: info                ! returns reference to metadata
-    REAL(wp),             TARGET &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     ,    OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
+    REAL(wp),             TARGET, CONTIGUOUS, OPTIONAL :: p5(:,:,:,:,:)       ! provided pointer
     CHARACTER(len=VARNAME_LEN), INTENT(in), OPTIONAL :: in_groups(:)  ! groups to which a variable belongs
     LOGICAL,              INTENT(in), OPTIONAL :: verbose             ! print information
     TYPE(t_list_element), POINTER, OPTIONAL  :: new_element           ! pointer to new var list element

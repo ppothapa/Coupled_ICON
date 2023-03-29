@@ -116,55 +116,49 @@ CONTAINS
     ! Atmosphere
     REAL(wp), INTENT(in) :: pwvcm(kproma)           ! precipitable water vapor (cm)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(in) :: semiss(:,:)        ! lw surface emissivity
+    REAL(wp), INTENT(in), CONTIGUOUS :: semiss(:,:)        ! lw surface emissivity
     !    Dimensions: (nbndlw)
-    REAL(wp), INTENT(in) :: planklay(:,:,:)      !
+    REAL(wp), INTENT(in), CONTIGUOUS :: planklay(:,:,:)      !
     !    Dimensions: (nlayers,nbndlw)
-    REAL(wp), INTENT(in) :: planklev(:,0:,:)     !
+    REAL(wp), INTENT(in), CONTIGUOUS :: planklev(:,0:,:)     !
     !    Dimensions: (0:nlayers,nbndlw)
-    REAL(wp), INTENT(in) :: plankbnd(:,:)        !
+    REAL(wp), INTENT(in), CONTIGUOUS :: plankbnd(:,:)        !
     !    Dimensions: (nbndlw)
-    REAL(wp), INTENT(in) :: fracs(:,:,:)         !
+    REAL(wp), INTENT(in), CONTIGUOUS :: fracs(:,:,:)         !
     !    Dimensions: (kproma,nlayers,ngptw)
-    REAL(wp), INTENT(in) :: taut(:,:,:)          ! gaseous + aerosol optical depths
+    REAL(wp), INTENT(in), CONTIGUOUS :: taut(:,:,:)          ! gaseous + aerosol optical depths
     !    Dimensions: (kproma,nlayers,ngptlw)
 
     ! Clouds
     INTEGER, INTENT(in) :: ncbands(kproma)          ! number of cloud spectral bands
-    REAL(wp), INTENT(in) :: cldfrac(:,:)       ! layer cloud fraction
+    REAL(wp), INTENT(in), CONTIGUOUS :: cldfrac(:,:)       ! layer cloud fraction
     !    Dimensions: (nlayers)
-    REAL(wp), INTENT(in) :: taucloud(:,:,:)      ! layer cloud optical depth
+    REAL(wp), INTENT(in), CONTIGUOUS :: taucloud(:,:,:)      ! layer cloud optical depth
     !    Dimensions: (nlayers,nbndlw)
     INTEGER, INTENT(in) :: idrv            ! flag for calculation of dF/dt from
     ! Planck derivative [0=off, 1=on]
-    REAL(wp), INTENT(in) :: dplankbnd_dt(:,:)    ! derivative of Planck function wrt temp
+    REAL(wp), INTENT(in), CONTIGUOUS :: dplankbnd_dt(:,:)    ! derivative of Planck function wrt temp
     !    Dimensions: (nbndlw)
 
     ! ----- Output -----
-    REAL(wp), INTENT(out) :: totuflux(:,0:)      ! upward longwave flux (w/m2)
+    REAL(wp), INTENT(out), CONTIGUOUS :: totuflux(:,0:)      ! upward longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: totdflux(:,0:)      ! downward longwave flux (w/m2)
+    REAL(wp), INTENT(out), CONTIGUOUS :: totdflux(:,0:)      ! downward longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: fnet(:,0:)          ! net longwave flux (w/m2)
+    REAL(wp), INTENT(out), CONTIGUOUS :: fnet(:,0:)          ! net longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: totuclfl(:,0:)      ! clear sky upward longwave flux (w/m2)
+    REAL(wp), INTENT(out), CONTIGUOUS :: totuclfl(:,0:)      ! clear sky upward longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
     REAL(wp), INTENT(out) :: totdclfl(:,0:)      ! clear sky downward longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: fnetc(:,0:)         ! clear sky net longwave flux (w/m2)
+    REAL(wp), INTENT(out), CONTIGUOUS :: fnetc(:,0:)         ! clear sky net longwave flux (w/m2)
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: dtotuflux_dt(:,0:)  ! change in upward longwave flux (w/m2/k)
+    REAL(wp), INTENT(out), CONTIGUOUS :: dtotuflux_dt(:,0:)  ! change in upward longwave flux (w/m2/k)
     ! with respect to surface temperature
     !    Dimensions: (0:nlayers)
-    REAL(wp), INTENT(out) :: dtotuclfl_dt(:,0:)  ! change in upward longwave flux (w/m2/k)
+    REAL(wp), INTENT(out), CONTIGUOUS :: dtotuclfl_dt(:,0:)  ! change in upward longwave flux (w/m2/k)
     ! with respect to surface temperature
     !    Dimensions: (0:nlayers)
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: semiss, planklay, planklev, plankbnd, fracs, taut, &
-      cldfrac, taucloud, dplankbnd_dt, totuflux, totdflux, fnet, totuclfl, &
-      fnetc, dtotuflux_dt, dtotuclfl_dt
-#endif
-
 
     ! Vectorized version implemented by Guenther Zaengl, DWD
     ! See above for variable descriptions
@@ -1148,10 +1142,7 @@ CONTAINS
          facclr2(kproma,nlayers+1), &
          faccmb1(kproma,nlayers+1), &
          faccmb2(kproma,nlayers+1)
-    REAL(wp), INTENT(in) :: cldfrac(:,:)       ! layer cloud fraction
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: cldfrac
-#endif
+    REAL(wp), INTENT(in), CONTIGUOUS :: cldfrac(:,:)       ! layer cloud fraction
 
     REAL(wp) :: fmax, fmin, rat1(kproma), rat2(kproma)
     INTEGER :: lev, jl, blev, clev, olev, icld, iclr

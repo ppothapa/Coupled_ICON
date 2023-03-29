@@ -7,6 +7,7 @@ MODULE mo_sedmnt_diffusion
  USE mo_kind, ONLY           : wp
  USE mo_hamocc_nml, ONLY     : ks,porwat, l_N_cycle
  USE mo_bgc_memory_types, ONLY  : t_bgc_memory, t_sediment_memory
+ USE mo_sedmnt, ONLY : zcoefsu,zcoeflo
  
  IMPLICIT NONE
 
@@ -17,7 +18,7 @@ MODULE mo_sedmnt_diffusion
 
 CONTAINS
 
-SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
+SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc)
 !! @brief diffusion of pore water
 !!
 !! vertical diffusion of sediment pore water tracers
@@ -51,7 +52,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
 
   INTEGER, INTENT(in)  :: start_idx    !< start index for j loop (ICON cells, MPIOM lat dir)          
   INTEGER, INTENT(in)  :: end_idx      !< end index  for j loop  (ICON cells, MPIOM lat dir) 
-         
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
   !! Local variables
   INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
@@ -59,29 +60,23 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
   INTEGER :: iv_oc                         !< index of local_bgc_mem%bgctra in local_sediment_mem%powtra loop
 
   REAL(wp) :: sedb1(0:ks,npowtra)          !< 
-  REAL(wp) :: zcoefsu(0:ks),zcoeflo(0:ks)  !< diffusion coefficients (upper/lower)
   REAL(wp) :: tredsy(0:ks,3)               !< redsy for 'reduced system'
 
   REAL(wp) :: aprior                       !< start value of oceanic tracer in bottom layer
+  LOGICAL :: lacc
 
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
   !
   ! --------------------------------------------------------------------
   !
   kbo => local_bgc_mem%kbo  
-  zcoefsu(0) = 0.0_wp
 
-  DO  k = 1, ks
-     ! sediment diffusion coefficient * 1/dz * fraction of pore water at half depths
-     zcoefsu(k  ) = -sedict * seddzi(k) * porwah(k)
-     ! the lowerdiffusive flux of layer k is identical to
-     ! the upper diff. flux of layer k+1
-     zcoeflo(k-1) = -sedict * seddzi(k) * porwah(k)
-  END DO
-
-  ! diffusion coefficient for bottom sediment layer
-  zcoeflo(ks) = 0.0_wp
-
+  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(sedb1, tredsy) DEFAULT(PRESENT) IF(lacc)
   DO j = start_idx, end_idx
         
     if(local_bgc_mem%bolay(j) > EPSILON(0.5_wp))then
@@ -92,7 +87,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
         ! dz(kbo) - diff upper - diff lower
         tredsy(k,2) =  local_bgc_mem%bolay(j) - tredsy(k,1) - tredsy(k,3)
 
-
+        !$ACC LOOP SEQ
         DO iv = 1, npowtra      ! loop over pore water tracers
 
           iv_oc = iv
@@ -119,19 +114,23 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
            
         END DO
 
+        !$ACC LOOP SEQ
         DO k = 1, ks
            tredsy(k,1) = zcoefsu(k)
            tredsy(k,3) = zcoeflo(k)
            tredsy(k,2) = seddw(k) * porwat(k) - tredsy(k,1) - tredsy(k,3)
        END DO
 
+       !$ACC LOOP SEQ
        DO iv= 1, npowtra
+        !$ACC LOOP SEQ
         DO k = 1, ks
               ! tracer_concentration(k[1:ks]) * porewater fraction(k) * dz(k)
               sedb1(k,iv) = local_sediment_mem%powtra(j,k,iv) * porwat(k) * seddw(k)
         END DO
        END DO
 
+       !$ACC LOOP SEQ
        DO k = 1, ks
               ! this overwrites tredsy(k=0) for k=1
               tredsy(k-1,1) = tredsy(k,1) / tredsy(k-1,2)
@@ -142,7 +141,9 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
        END DO
 
      ! diffusion from above
+     !$ACC LOOP SEQ
      DO iv = 1, npowtra
+        !$ACC LOOP SEQ
         DO k = 1, ks
               sedb1(k,iv) = sedb1(k,iv)                        &
                    &        - tredsy(k-1,1) * sedb1(k-1,iv)
@@ -151,13 +152,16 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
 
      ! sediment bottom layer
      k = ks
+     !$ACC LOOP SEQ
      DO iv = 1, npowtra
         local_sediment_mem%powtra(j,k,iv) = sedb1(k,iv) / tredsy(k,2)
      END DO
 
 
      ! sediment column
+     !$ACC LOOP SEQ
      DO iv = 1, npowtra
+        !$ACC LOOP SEQ
         DO k = 1, ks-1
            l = ks-k
            local_sediment_mem%powtra(j,l,iv) = ( sedb1(l,iv)            &
@@ -167,6 +171,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
      END DO
 
      ! sediment ocean interface
+     !$ACC LOOP SEQ
      DO iv = 1, npowtra
         ! 
         ! check mo_param1_bgc.f90 for consistency
@@ -201,6 +206,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx,end_idx)
      endif
 
   END DO ! j loop
+  !$ACC END PARALLEL LOOP
 
 END SUBROUTINE DIPOWA
 

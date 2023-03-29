@@ -212,6 +212,7 @@ MODULE mo_rtifc_13
 #include "rttov_hdf_save.interface"
 #include "rttov_print_opts.interface"
 #include "rttov_print_profile.interface"
+#include "rttov_user_options_checkinput.interface"
 #if defined(_RTTOV_ATLAS)
 #include "rttov_setup_emis_atlas.interface"
 #include "rttov_get_emis.interface"
@@ -223,7 +224,7 @@ MODULE mo_rtifc_13
 #if defined(_RTIFC_DISTRIBCOEF)
 #include "rttov_nullify_coefs.interface"
 #if !defined(HAVE_MPI_MOD)
-  include "mpif.h"
+! include "mpif.h"   ! already imported via "use mo_rtifc_base"
 #endif
 #endif
 
@@ -1101,10 +1102,10 @@ FTRACE_BEGIN('rtifc_init')
 
     errstat = 0
     do instr = 1, ninstr
-      FTRACE_BEGIN('read_coeffs')
       rto => rt_opts(iopts(instr))
       ic = rto%icoeff
       if (coefs(ic)%initialised) cycle
+      FTRACE_BEGIN('read_coeffs')
 
       ! Merge options/channels with following options/channels for the same instrument
       opts_ = rto%opts
@@ -1493,7 +1494,7 @@ FTRACE_BEGIN('rtifc_init')
     real(kind=jprb),     intent(in), optional :: transm(:,:,:)
     real(kind=jprb),     intent(in), optional :: opdep(:,:,:)
     real(kind=jprb),     intent(in), optional :: p_l2c(:,:)
-    integer,             intent(in), optional :: ideb
+    integer,             intent(in), optional :: ideb(:)
 
     character(len=13),   parameter   :: proc   = 'rtifc_l2c_god'
     type(t_rtopts),      pointer     :: rto    => null()
@@ -1501,9 +1502,8 @@ FTRACE_BEGIN('rtifc_init')
     real(kind=jprb),     allocatable :: p_rt(:)
     integer :: ic
     integer :: nprof, nchan, nlev, nlev_
-    integer :: ipr, ich
-    integer :: idb, stat
-    logical :: l_opdep
+    integer :: ipr, ich, ip
+    logical :: l_opdep, ldeb
 
     if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
     l_opdep = present(opdep)
@@ -1519,8 +1519,6 @@ FTRACE_BEGIN('rtifc_init')
 
 #if defined(_RTTOV_GOD)
     if (associated(coefs(ic)%coef%god)) then
-      idb = -1
-      if (present(ideb)) idb = ideb
       if (l_opdep) then
         nprof = size(opdep, 3)
         nchan = size(opdep, 2)
@@ -1534,19 +1532,25 @@ FTRACE_BEGIN('rtifc_init')
       end if
 
       do ipr = 1, nprof
+        if (present(ideb)) then
+          ldeb = any(ipr == ideb)
+        else
+          ldeb = .false.
+        end if
         do ich = 1, nchan
-          if (idb == ipr) print*,'rtifc_l2c_god',ipr,ich,chans(ich), &
+          if (ldeb) write(usd,*) 'debug_spot rtifc_l2c_god',ipr,ich,chans(ich), &
                any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0)
           if (any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0) .and. valid(ich,ipr)) then
             if (l_opdep) then
+              ip = min(ipr,ubound(p_l2c,2))
               call l2c_god_opd(opdep(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
-                               log(p_l2c(:,ipr)), log(p_rt(:)),                    &
-                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+                               log(p_l2c(:,ip)), log(p_rt(:)),                     &
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=ldeb) !debug=(ich==404))
             else
               call l2c_god_tau(transm(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
-                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=ldeb) !debug=(ich==404))
             end if
-            if (idb == ipr) print*,'rtifc_l2c_god result',ipr,ich,chans(ich), &
+            if (ldeb) write(usd,*) 'debug_spot rtifc_l2c_god result',ipr,ich,chans(ich), &
                  l2c(ich,ipr), l2c_corr(ich,ipr),l2c(ich,ipr)==l2c_corr(ich,ipr)
           else
             l2c_corr(ich,ipr) = l2c(ich,ipr)
@@ -1596,40 +1600,35 @@ FTRACE_BEGIN('rtifc_init')
 
 
 
-  subroutine rtifc_cleanup(status, lprof, lcoef, latlas)
-    integer, intent(out)          :: status  ! exit status
+  subroutine rtifc_cleanup(lprof, lcoef, latlas)
     logical, intent(in), optional :: lprof
     logical, intent(in), optional :: lcoef
     logical, intent(in), optional :: latlas
     !------------------------------------------------------
     ! frees memory allocated by rtifc_init/rtifc_fill_input
     !------------------------------------------------------
-    integer(jpim) :: i
-    integer       :: stat
-    integer(jpim) :: nrttov_ids
-    integer :: k
+    character(len=13), parameter :: proc = 'rtifc_cleanup'
+    integer :: i, k, stat
     logical :: l
-
-    status = NO_ERROR
 
     ! deallocation of rttov permanent arrays
     if (present(lprof)) then ; l = lprof ; else ; l = .true. ; endif
     if (l) then
       if (associated(profiles)) then
-        call dealloc_rttov_arrays(status, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission &
+        call dealloc_rttov_arrays(stat, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission &
 #ifdef _RTTOV_ARCH_VECTOR
                                  ,profdat=profdat&
 #endif
                                  )
-        if (status /= NO_ERROR) return
+        if (stat /= NO_ERROR) call finish(proc, 'failed to deallocated RTTOV profiles/rad./transm.')
       endif
       if (associated(profiles_k)) then
-        call dealloc_rttov_arrays(status, profs=profiles_k,rads=radiance_k,transm=transmission_k &
+        call dealloc_rttov_arrays(stat, profs=profiles_k,rads=radiance_k,transm=transmission_k &
 #ifdef _RTTOV_ARCH_VECTOR
                                  ,profdat=profdat_k &
 #endif
 )
-        if (status /= NO_ERROR) return
+        if (stat /= NO_ERROR) call finish(proc, 'failed to deallocated RTTOV-K profiles/rad./transm.')
       endif
     end if
 
@@ -1637,13 +1636,9 @@ FTRACE_BEGIN('rtifc_init')
     if (present(lcoef)) then ; l = lcoef ; else ; l = .true. ; endif
     if (l) then
       if ((associated(coefs))) then
-        nRttov_ids = size(coefs)
-        do i=1,nRttov_ids
+        do i=1,size(coefs)
           call rttov_dealloc_coefs(stat, coefs(i))
-          if (stat /= ERRORSTATUS_SUCCESS) then
-            status = ERR_ALLOC
-            return
-          endif
+          if (stat /= NO_ERROR) call finish(proc, 'failed to deallocated RTTOV coefficients')
         enddo
         deallocate(coefs)
       endif
@@ -2502,10 +2497,11 @@ FTRACE_END('rtifc_fill_input_var')
 
 
   subroutine rtifc_direct (iopt,lprofs,chans,emissiv,t_b,status,                    &
-                           refl,sat_zen,sat_azi,t_b_clear,rad,radclear,radupclear,  &
-                           raddnclear,refdnclear,radovercast,radtotal,radrefl,      &
-                           radrefl_clear,quality,transm,transmtotal,opdep,height,   &
-                           istore,reg_lim,rflag,dealloc,iprint,rad_out_flg,pe,l_pio)
+                           refl,sat_zen,sat_azi,specularity, t_b_clear,rad,radclear,&
+                           radupclear,raddnclear,refdnclear,radovercast,radtotal,   &
+                           radrefl,radrefl_clear,quality,transm,transmcld,          &
+                           transmtotal,opdep,height,istore,reg_lim,rflag,dealloc,   &
+                           iprint,rad_out_flg,pe,l_pio)
     integer,             intent(in)              :: iopt               ! options index
     integer,             intent(in)              :: lprofs         (:) ! list of profile indices (nchans*nprof)
     integer,             intent(in)              :: chans          (:) ! list of channel indices (nchans*nprof)
@@ -2521,6 +2517,7 @@ FTRACE_END('rtifc_fill_input_var')
                                                                        ! (The above sat_* variables are useful here in
                                                                        ! order to use the same profile for different
                                                                        ! satellites, e.g. for synsat calc.)
+    real(wp),            intent(in),    optional :: specularity  (:,:) ! specularity for do_lambertian option
     real(wp),            intent(out),   optional :: t_b_clear    (:,:) ! calc. clear sky b.t. (nchans,nprof) [K]
     real(wp),            intent(out),   optional :: rad          (:,:) ! calculated total radiance
                                                                        ! (nchans,nprof) [mW/cm^-1/ster/m^2]
@@ -2540,14 +2537,15 @@ FTRACE_END('rtifc_fill_input_var')
     real(wp),            intent(out),   optional :: radrefl      (:,:) ! calculated reflectances
     real(wp),            intent(out),   optional :: radrefl_clear(:,:) ! calculated clear sky reflectances
     integer(jpim),       intent(out),   optional :: quality      (:,:) ! RTTOV quality output flag
-    real(wp),            intent(out),   optional :: transm     (:,:,:) ! transmission (nlevs,nchans,nprof)
+    real(wp),            intent(out),   optional :: transm     (:,:,:) ! clearsky transmission (nlevs,nchans,nprof)
+    real(wp),            intent(out),   optional :: transmcld  (:,:,:) ! cloudy transmission (nlevs,nchans,nprof)
     real(wp),            intent(out),   optional :: transmtotal  (:,:) ! total surface to TOA transmission (nchans,nprof)
     real(wp),            intent(out),   optional :: opdep      (:,:,:) ! original optical depth (nlevs,nchans,nprof)
     real(wp),            intent(out),   optional :: height       (:,:) ! height estimated on basis of weighting function
     integer,             intent(in),    optional :: istore       (:,:) ! put result i into array position (istore(i,1),istore(i,2))
     integer,             intent(out),   optional :: reg_lim    (:,:,:) ! result of apply_reg_limits (nlevs,nvars,nprof)
     integer,             intent(out),   optional :: rflag        (:,:) ! results of other test like e.g. the chk_god test
-    integer,             intent(in),    optional :: iprint             ! profile to printed in RTTOV (debug)
+    integer,             intent(in),    optional :: iprint        (:)  ! profile to printed in RTTOV (debug)
     logical,             intent(in),    optional :: dealloc
     integer,             intent(in),    optional :: rad_out_flg        ! bit field (see OUT_* parameters)
     integer,             intent(in),    optional :: pe
@@ -2564,9 +2562,8 @@ FTRACE_END('rtifc_fill_input_var')
     type(t_rtopts),     pointer  :: rto    => null()
     type(rttov_options),pointer  :: ropts  => null()
     integer                      :: ic
-    integer                      :: ipr
+    integer                      :: ipr(5), npr
     integer                      :: rad_out
-    integer                      :: iu
     integer(jpim)                :: iprof
     integer(jpim)                :: nlevs_coef
     integer(jpim)                :: nchans
@@ -2591,12 +2588,12 @@ FTRACE_END('rtifc_fill_input_var')
     type(rttov_chanprof)         :: chanprof(size(chans))
     integer                      :: lims_flag(nlevs,2)
 
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
     real(kind=jprb),     pointer :: height_aux(:) => NULL() ! height of weighting function
 #endif
 
     logical                      :: lpio
-    logical                      :: l_opdep, l_transm, l_radoverc
+    logical                      :: l_opdep, l_transm, l_radoverc, l_spec, l_transmcld, l_refl
     logical                      :: l_chk_god
 
     type(rttov_options)          :: ropts_
@@ -2620,19 +2617,22 @@ FTRACE_BEGIN('rtifc_direct')
     l_transm   = .false. ; if (present(transm     )) l_transm   = (size(transm)      > 0)
     l_opdep    = .false. ; if (present(opdep      )) l_opdep    = (size(opdep )      > 0)
     l_radoverc = .false. ; if (present(radovercast)) l_radoverc = (size(radovercast) > 0)
+    l_spec     = .false. ; if (present(specularity)) l_spec     = (size(specularity) > 0)
+    l_transmcld= .false. ; if (present(transmcld  )) l_transmcld= (size(transmcld)   > 0)
+    l_refl     = .false. ; if (present(refl       )) l_refl     = (size(refl  )      > 0)
 
+    npr = 0 ; ipr = 0
     if (present(iprint)) then
-       ipr = iprint
-    else
-       ipr = 0
+      npr = count(iprint > 0)
+      ipr(1:npr) = pack(iprint, mask=(iprint>0))
     end if
-    if (ipr > 0) then
-      ipr_deb = ipr
-!      iu = stderr
-      iu = stdout
-      write(msg,*) 'rttov input profile ',ipr,trim(profiles(ipr)%id)
-      call rttov_print_profile(profiles(ipr), iu, trim(msg))
-      call rttov_print_opts(ropts, iu, 'ropts (options for rttov_direct call):')
+    if (npr > 0) then
+      ipr_deb = ipr(1)
+      do i = 1, npr
+        write(msg,*) 'rttov input profile ',ipr(i),trim(profiles(ipr(i))%id)
+        call rttov_print_profile(profiles(ipr(i)), usd, trim(msg))
+        call rttov_print_opts(ropts, usd, 'ropts (options for rttov_direct call):')
+      end do
     else
       ipr_deb = 0
     end if
@@ -2716,13 +2716,17 @@ FTRACE_BEGIN('rtifc_direct')
       sind = 1
       eind = nchans
       do iprof=1,nprof
-        emissivity(sind:eind)%emis_in  = emissiv(1:nchans,iprof)
-        emissivity(sind:eind)%emis_out = 0._jprb
-        emissivity(sind:eind)%specularity = 0._jprb
-        if (present(refl)) then
-          reflectance(sind:eind)%refl_in          = refl(1:nchans,iprof)
+        emissivity(sind:eind)%emis_in           = emissiv(1:nchans,iprof)
+        emissivity(sind:eind)%emis_out          = 0._jprb
+        if (l_spec) then
+          emissivity(sind:eind)%specularity     = specularity(1:nchans,iprof)
         else
-          reflectance(sind:eind)%refl_in          = 0._jprb
+          emissivity(sind:eind)%specularity     = 1._jprb
+        end if
+        if (l_refl) then
+          reflectance(sind:eind)%refl_in        = refl(1:nchans,iprof)
+        else
+          reflectance(sind:eind)%refl_in        = 0._jprb
         end if
         reflectance(sind:eind)%refl_out         = 0._jprb
         reflectance(sind:eind)%diffuse_refl_in  = 0._jprb
@@ -2735,13 +2739,17 @@ FTRACE_BEGIN('rtifc_direct')
     else
 !NEC$ ivdep
       do i = 1, nchansprofs
-        emissivity(i)%emis_in  = emissiv(istore(i,1),istore(i,2))
-        emissivity(i)%emis_out = 0._jprb
-        emissivity(i)%specularity = 0._jprb
-        if (present(refl)) then
-          reflectance(i)%refl_in          = refl(istore(i,1),istore(i,2))
+        emissivity(i)%emis_in           = emissiv(istore(i,1),istore(i,2))
+        emissivity(i)%emis_out          = 0._jprb
+        if (l_spec) then
+          emissivity(i)%specularity     = specularity(istore(i,1),istore(i,2))
         else
-          reflectance(i)%refl_in          = 0._jprb
+          emissivity(i)%specularity     = 1._jprb
+        end if
+        if (l_refl) then
+          reflectance(i)%refl_in        = refl(istore(i,1),istore(i,2))
+        else
+          reflectance(i)%refl_in        = 0._jprb
         end if
         reflectance(i)%refl_out         = 0._jprb
         reflectance(i)%diffuse_refl_in  = 0._jprb
@@ -2764,7 +2772,7 @@ FTRACE_BEGIN('rtifc_direct')
            (size(t_b,2) < nprof_store )) then
         DIM_ERROR('t_b')
       endif
-      if (present(refl)) then
+      if (l_refl) then
         if (size(refl) < nchansprofs) then
           DIM_ERROR('refl')
         endif
@@ -3041,12 +3049,12 @@ FTRACE_BEGIN('rtifc_direct')
     do i=1, nchansprofs
       calcrefl(i) = profiles(chanprof(i)%prof)%skin%surftype == 1 .or. reflectance(i)%refl_in < 0._jprb
     enddo
-    if (ipr > 0) then
+    if (npr > 0) then
       do i = 1, nchansprofs
-        if (chanprof(i)% prof == ipr) then
-          print*,'rttov emissivity input: ',i,chanprof(i)%chan,emissivity(i),calcemis(i)
-          if (present(refl)) then
-            print*,'rttov reflectance input: ',i,chanprof(i)%chan,reflectance(i)%refl_in,calcrefl(i)
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
+          write(usd,*) 'debug_spot rttov emissivity input: ',i,chanprof(i),emissivity(i)%emis_in,calcemis(i)
+          if (l_refl) then
+            write(usd,*) 'debug_spot rttov reflectance input: ',i,chanprof(i),reflectance(i)%refl_in,calcrefl(i)
           endif
         end if
       end do
@@ -3090,9 +3098,17 @@ FTRACE_BEGIN('rtifc_direct')
        return
     endif
 
+    if (npr > 0) then
+      do i = 1, nchansprofs
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
+          write(usd,*) 'debug_spot rttov emissivity output: ',i,chanprof(i),emissivity(i)%emis_out
+        end if
+      end do
+    end if
+
     ! Calculate height
     if (present(height)) then
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
       call realloc_rttov_arrays(status, nprof, nlevs+nlevs_top, nchansprofs, &
                                 ropts, height=height_aux)
       if (status /= NO_ERROR) return
@@ -3120,7 +3136,7 @@ FTRACE_BEGIN('rtifc_direct')
         where (calcemis(sind:eind)) &
              emissiv(1:nchans,iprof) = dble(emissivity(sind:eind)%emis_out)
         t_b(1:nchans,iprof) = dble(radiance% bt(sind:eind))
-        if (btest(rad_out,OUT_VIS) .and. present(refl)) then
+        if (btest(rad_out,OUT_VIS) .and. l_refl) then
           where (calcrefl(sind:eind)) &
                refl(1:nchans,iprof) = dble(reflectance(sind:eind)%refl_out)
         end if
@@ -3146,11 +3162,13 @@ FTRACE_BEGIN('rtifc_direct')
         if (present(quality )) quality (1:nchans,iprof)=radiance%quality   (sind:eind)
         if (l_radoverc) &
              radovercast(:,1:nchans,iprof) = dble(radiance% overcast(:,sind:eind))
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (present(height))    height   (1:nchans,iprof)=height_aux(sind:eind)
-#endif
+#endif        
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
+        if (l_transmcld) &
+             transmcld(:,1:nchans,iprof) = dble(transmission%tau_levels_cld(1+nlevs_top:,sind:eind))
         if (present(transmtotal)) transmtotal(1:nchans,iprof) = dble(transmission%tau_total(sind:eind))
 #if defined(_DACE_) && !defined(__ICON__)
         if (l_opdep) &
@@ -3164,7 +3182,12 @@ FTRACE_BEGIN('rtifc_direct')
       do i = 1, nchansprofs
         t_b(istore(i,1),istore(i,2)) = dble(radiance% bt(i))
         if (calcemis(i)) emissiv(istore(i,1),istore(i,2)) = dble(emissivity(i)%emis_out)
-        if (btest(rad_out, OUT_VIS) .and. present(refl)) then
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
+          write(usd,*) 'debug_spot rttov emissivity output2: ',i,chanprof(i),istore(i,:),emissiv(istore(i,1),istore(i,2))
+        end if
+
+
+        if (btest(rad_out, OUT_VIS) .and. l_refl) then
           if (calcrefl(i)) refl(istore(i,1),istore(i,2)) = dble(reflectance(i)%refl_out)
         end if
         if (btest(rad_out,OUT_CSB)) then
@@ -3181,15 +3204,16 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if (present(radtotal   )) radtotal    (istore(i,1),istore(i,2))   = dble(radiance% clear   (i))
         if (l_radoverc) radovercast (:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
-#if defined(_DACE_)
+#if defined(_DACE_) && !defined(__ICON__)
         if (present(height     )) height      (istore(i,1),istore(i,2))   = height_aux(i)
 #endif
-        if (l_transm) transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
+        if (l_transm   ) transm   (:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels    (1+nlevs_top:,i))
+        if (l_transmcld) transmcld(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels_cld(1+nlevs_top:,i))
         if (present(transmtotal)) transmtotal(istore(i,1),istore(i,2)) = dble(transmission%tau_total(i))
         if (btest(rad_out,OUT_VIS)) then
           if (present(radrefl      )) radrefl      (istore(i,1),istore(i,2))   = dble(radiance% refl      (i))
           if (present(radrefl_clear)) radrefl_clear(istore(i,1),istore(i,2))   = dble(radiance% refl_clear(i))
-          if (istore(i,2) == ipr) print*,'radrefl result',i,istore(i,1),radiance%refl(i),radiance%refl_clear(i)
+!          if (istore(i,2) == ipr) write(usd,*) 'debug_spot radrefl result',i,istore(i,1),radiance%refl(i),radiance%refl_clear(i)
         end if
         if (present(quality    )) quality     (istore(i,1),istore(i,2))   = radiance% quality (i)
 
@@ -3236,17 +3260,17 @@ FTRACE_BEGIN('rtifc_direct')
     if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (lprofs(i) == ipr) then
-          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
-          print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
+        if (any(lprofs(i) == ipr(1:npr))) then
+          write(usd,*) 'debug_spot check_god_ifc prof',trim(profiles(lprofs(i))%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
+          write(usd,*) 'debug_spot check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
         end if
         if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
           if (transmission%l_opdep) then
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+                                od_ref=transmission%opdep_ref(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           else
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
+                                tau=transmission%tau_levels(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           end if
           if (stat /= 0) then
             if (btest(chk_god, 0)) then
@@ -3260,9 +3284,8 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if ((btest(chk_god,1) .or. btest(chk_god,2)) .and. all(shape(rflag) > 0)) then
           if (present(istore)) then
-            if (lprofs(i) == ipr) then
-              print*,'check_god_ifc stat',stat,istore(i,:)
-            end if
+            if (any(lprofs(i) == ipr(1:npr))) &
+                 write(usd,*) 'debug_spot check_god_ifc stat',stat,istore(i,:)
             rflag(istore(i,1), istore(i,2)) = stat
           else
             ! TODO !!!
@@ -3287,10 +3310,11 @@ FTRACE_END('rtifc_direct')
 
   subroutine rtifc_k (iopt,lprofs,chans,emissiv,emissiv_k,temp_k,humi_k,            &
                       t2m_k,q2m_k,stemp_k,t_b,status,refl,refl_k,sat_zen,sat_azi,   &
-                      t_b_clear,rad,radclear,radtotal,radrefl,radrefl_clear,quality,&
-                      radovercast,transm,opdep,psurf_k,u10m_k,v10m_k,o3_surf_k,     &
-                      wfetc_k,ctp_k,cfraction_k,clw_k,o3_k,co2_k,n2o_k,co_k,ch4_k,  &
-                      istore,reg_lim,rflag,dealloc,iprint,rad_out_flg,pe,l_pio)
+                      specularity,t_b_clear,rad,radclear,radtotal,radrefl,          &
+                      radrefl_clear,quality,radovercast,transm,transmcld,opdep,     &
+                      psurf_k,u10m_k,v10m_k,o3_surf_k,wfetc_k,ctp_k,cfraction_k,    &
+                      clw_k,o3_k,co2_k,n2o_k,co_k,ch4_k,istore,reg_lim,rflag,       &
+                      dealloc,iprint,rad_out_flg,pe,l_pio)
     integer,             intent(in)              :: iopt               ! options index
     integer,             intent(in)              :: lprofs         (:) ! list of profile indices(nchans*nprof)
     integer,             intent(in)              :: chans          (:) ! list of channel indices(nchans*nprof)
@@ -3312,6 +3336,7 @@ FTRACE_END('rtifc_direct')
                                                                        ! (These variables are useful here in order to
                                                                        ! use the same profile for different satellites,
                                                                        ! e.g. for synsat calc.)
+    real(wp),            intent(in),    optional :: specularity  (:,:) ! specularity (for do_lambertian)
     real(wp),            intent(out),   optional :: t_b_clear    (:,:) ! calc. clear sky b.t. (nchans,nprof) [K]
     real(wp),            intent(out),   optional :: rad          (:,:) ! calculated total radiance
                                                                        ! (nchans,nprof) [mW/cm^-1/ster/m^2]
@@ -3324,7 +3349,8 @@ FTRACE_END('rtifc_direct')
     integer(jpim),       intent(out),   optional :: quality      (:,:) ! RTTOV quality output flag
     real(wp),            intent(out),   optional :: radovercast(:,:,:) ! calculated overcast radiances
                                                                        !   (nlevs,nchans,nprof) [mW/cm^-1/ster/m^2]
-    real(wp),            intent(out),   optional :: transm     (:,:,:) ! transmission (nlevs,nchans,nprof)
+    real(wp),            intent(out),   optional :: transm     (:,:,:) ! clearsky transmission (nlevs,nchans,nprof)
+    real(wp),            intent(out),   optional :: transmcld  (:,:,:) ! cloudy (allsky) transmission (nlevs,nchans,nprof)
     real(wp),            intent(out),   optional :: opdep      (:,:,:) ! transmission (nlevs,nchans,nprof)
     real(wp),            intent(out),   optional :: psurf_k      (:,:) ! grad. of surf. press. (nchans,nprof) [K/hPa]
     real(wp),            intent(out),   optional :: u10m_k       (:,:) ! grad. of 10m U wind (nchans,nprof) [K/(m/s)]
@@ -3345,7 +3371,7 @@ FTRACE_END('rtifc_direct')
     integer,             intent(out),   optional :: rflag        (:,:) ! results of other test like e.g. the chk_god test
     logical,             intent(in),    optional :: dealloc
     integer,             intent(in),    optional :: rad_out_flg        ! bit field (see OUT_* parameters)
-    integer,             intent(in),    optional :: iprint
+    integer,             intent(in),    optional :: iprint         (:)
     integer,             intent(in),    optional :: pe
     logical,             intent(in),    optional :: l_pio
 
@@ -3362,7 +3388,7 @@ FTRACE_END('rtifc_direct')
     integer                      :: ic
     integer                      :: rad_out
     integer                      :: pe_loc
-    integer                      :: ipr
+    integer                      :: ipr(5),npr
     integer(jpim)                :: iprof
     integer(jpim)                :: ichan
     integer(jpim)                :: i, k
@@ -3392,7 +3418,7 @@ FTRACE_END('rtifc_direct')
     type(rttov_chanprof)         :: chanprof(size(chans))
     integer                      :: lims_flag(nlevs,2)
     logical                      :: lpio
-    logical                      :: l_opdep, l_transm, l_radoverc
+    logical                      :: l_opdep, l_transm, l_radoverc, l_spec, l_transmcld, l_refl
     logical                      :: l_chk_god
     type(rttov_options)          :: ropts_
     type(rttov_profile), pointer :: p => null()
@@ -3416,6 +3442,9 @@ FTRACE_BEGIN('rtifc_k')
     l_transm   = .false. ; if (present(transm     )) l_transm   = (size(transm)      > 0)
     l_opdep    = .false. ; if (present(opdep      )) l_opdep    = (size(opdep )      > 0)
     l_radoverc = .false. ; if (present(radovercast)) l_radoverc = (size(radovercast) > 0)
+    l_spec     = .false. ; if (present(specularity)) l_spec     = (size(specularity) > 0)
+    l_transmcld= .false. ; if (present(transmcld  )) l_transmcld= (size(transmcld)   > 0)
+    l_refl     = .false. ; if (present(refl       )) l_refl     = (size(refl  )      > 0)
 
     if (present(pe)) then
       pe_loc = pe
@@ -3432,16 +3461,18 @@ FTRACE_BEGIN('rtifc_k')
       if (present(radclear )) rad_out = ibset(rad_out,OUT_CSR)
     end if
 
+    npr = 0 ; ipr = 0
     if (present(iprint)) then
-       ipr = iprint
-    else
-       ipr = 0
+      npr = count(iprint > 0)
+      ipr(1:npr) = pack(iprint, mask=(iprint>0))
     end if
-    if (ipr > 0) then
-      ipr_deb = ipr
-      write(msg,*) 'rttov input profile ',ipr,trim(profiles(ipr)%id)
-      call rttov_print_profile(profiles(ipr), stdout, trim(msg))
-      call rttov_print_opts(ropts, stdout, 'ropts (options for rttov_k call):')
+    if (npr > 0) then
+      ipr_deb = ipr(1)
+      do i = 1, npr
+        write(msg,*) 'rttov input profile ',ipr(i),trim(profiles(ipr(i))%id)
+        call rttov_print_profile(profiles(ipr(i)), usd, trim(msg))
+        call rttov_print_opts(ropts, usd, 'ropts (options for rttov_direct call):')
+      end do
     else
       ipr_deb = 0
     end if
@@ -3509,16 +3540,20 @@ FTRACE_BEGIN('rtifc_k')
       sind = 1
       eind = nchans
       do iprof=1,nprof
-        emissivity  (sind:eind)%emis_in     = real (emissiv  (1:nchans,iprof),jprb)
-        emissivity_k(sind:eind)%emis_in     = 0.0_jprb
-        emissivity  (sind:eind)%emis_out    = 0.0_jprb
-        emissivity_k(sind:eind)%emis_out    = 0.0_jprb
-        emissivity  (sind:eind)%specularity = 0.0_jprb
-        emissivity_k(sind:eind)%specularity = 0.0_jprb
-        if (present(refl)) then
-          reflectance  (sind:eind)%refl_in          = refl(1:nchans,iprof)
+        emissivity  (sind:eind)%emis_in           = real(emissiv(1:nchans,iprof),jprb)
+        emissivity_k(sind:eind)%emis_in           = 0.0_jprb
+        emissivity  (sind:eind)%emis_out          = 0.0_jprb
+        emissivity_k(sind:eind)%emis_out          = 0.0_jprb
+        if (l_spec) then
+          emissivity(sind:eind)%specularity       = specularity(1:nchans,iprof)
         else
-          reflectance  (sind:eind)%refl_in          = 0._jprb
+          emissivity(sind:eind)%specularity       = 1._jprb
+        end if
+        emissivity_k(sind:eind)%specularity       = 1._jprb
+        if (l_refl) then
+          reflectance  (sind:eind)%refl_in        = refl(1:nchans,iprof)
+        else
+          reflectance  (sind:eind)%refl_in        = 0._jprb
         end if
         reflectance_k(sind:eind)%refl_in          = 0.0_jprb
         reflectance  (sind:eind)%refl_out         = 0.0_jprb
@@ -3536,14 +3571,18 @@ FTRACE_BEGIN('rtifc_k')
     else
 !NEC$ ivdep
       do i = 1, nchansprofs
-        emissivity  (i)%emis_in     = real (emissiv  (istore(i,1),istore(i,2)),jprb)
-        emissivity_k(i)%emis_in     = 0.0_jprb
-        emissivity  (i)%emis_out    = 0.0_jprb
-        emissivity_k(i)%emis_out    = 0.0_jprb
-        emissivity  (i)%specularity = 0.0_jprb
-        emissivity_k(i)%specularity = 0.0_jprb
+        emissivity  (i)%emis_in           = real (emissiv  (istore(i,1),istore(i,2)),jprb)
+        emissivity_k(i)%emis_in           = 0.0_jprb
+        emissivity  (i)%emis_out          = 0.0_jprb
+        emissivity_k(i)%emis_out          = 0.0_jprb
+        if (l_spec) then
+          emissivity  (i)%specularity     = specularity(istore(i,1),istore(i,2))
+        else
+          emissivity  (i)%specularity     = 1._jprb
+        end if
+        emissivity_k(i)%specularity       = 1._jprb
 
-        if (present(refl)) then
+        if (l_refl) then
           reflectance  (i)%refl_in        = refl(istore(i,1),istore(i,2))
         else
           reflectance  (i)%refl_in        = 0._jprb
@@ -3589,7 +3628,7 @@ FTRACE_BEGIN('rtifc_k')
         (size(emissiv_k) <  nchansprofs)) then
       DIM_ERROR('lprofs,emissiv* nchansprofs')
     endif
-    if (present(refl)) then
+    if (l_refl) then
       if (size(refl  ) < nchansprofs) then
         DIM_ERROR('refl* nchansprofs')
       endif
@@ -3814,12 +3853,12 @@ FTRACE_BEGIN('rtifc_k')
     do i=1, nchansprofs
       calcrefl(i) = profiles(chanprof(i)%prof)%skin%surftype == 1 .or. reflectance(i)%refl_in < 0._jprb
     enddo
-    if (ipr > 0) then
+    if (npr > 0) then
       do i = 1, nchansprofs
-        if (chanprof(i)% prof == ipr) then
-          print*,'rttov emissivity input: ',i,chanprof(i)%chan,emissivity(i),calcemis(i)
-          if (present(refl)) then
-            print*,'rttov reflectance input: ',i,chanprof(i)%chan,reflectance(i)%refl_in,calcrefl(i)
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
+          write(usd,*) 'debug_spot rttov emissivity input: ',i,chanprof(i),emissivity(i)%emis_in,calcemis(i)
+          if (l_refl) then
+            write(usd,*) 'debug_spot rttov reflectance input: ',i,chanprof(i),reflectance(i)%refl_in,calcrefl(i)
           endif
         end if
       end do
@@ -3916,7 +3955,7 @@ FTRACE_BEGIN('rtifc_k')
           emissiv  (1:nusedchans,iprof) = dble(emissivity  (sind:eind)%emis_out)
         emissiv_k(1:nusedchans,iprof) = dble(emissivity_k(sind:eind)%emis_out)
         if (btest(rad_out, OUT_VIS)) then
-          if (present(refl)) then
+          if (l_refl) then
             where (calcrefl(sind:eind)) &
               refl   (1:nusedchans,iprof) = dble(reflectance  (sind:eind)%refl_out)
           end if
@@ -3946,6 +3985,8 @@ FTRACE_BEGIN('rtifc_k')
         if (present(quality )) quality (1:nusedchans,iprof) = radiance%quality   (sind:eind)
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
+        if (l_transmcld) &
+             transmcld(:,1:nchans,iprof) = dble(transmission%tau_levels_cld(1+nlevs_top:,sind:eind))
 #if defined(_DACE_) && !defined(__ICON__)
         if (l_opdep) &
              opdep(:,1:nchans,iprof) = dble(transmission%opdep_ref(1+nlevs_top:,sind:eind))
@@ -3960,14 +4001,14 @@ FTRACE_BEGIN('rtifc_k')
       enddo
     else
       do i = 1, nchansprofs
-        if (chanprof(i)%prof == ipr) then
-          print*,'rtifc_result t_b',i,istore(i,:),radiance%bt(i)
-        end if
+        ! if (chanprof(i)%prof == ipr) then
+        !   write(usd,*) 'debug_spot rtifc_result t_b',i,istore(i,:),radiance%bt(i)
+        ! end if
 
         ! Forward calc
         t_b(istore(i,1),istore(i,2)) = dble(radiance% bt(i))
         if (btest(rad_out,OUT_VIS)) then
-          if (present(refl  ) .and. calcrefl(i)) refl  (istore(i,1),istore(i,2)) = dble(reflectance (i) % refl_out)
+          if (l_refl .and. calcrefl(i)) refl  (istore(i,1),istore(i,2)) = dble(reflectance (i) % refl_out)
           if (present(refl_k)) refl_k(istore(i,1),istore(i,2)) = dble(reflectance_k(i)% refl_out)
         end if
 
@@ -3989,6 +4030,8 @@ FTRACE_BEGIN('rtifc_k')
         if (l_radoverc) radovercast(:,istore(i,1),istore(i,2)) = dble(radiance% overcast(:,i))
         if (l_transm) &
              transm(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels(1+nlevs_top:,i))
+        if (l_transmcld) &
+             transmcld(:,istore(i,1),istore(i,2)) = dble(transmission%tau_levels_cld(1+nlevs_top:,i))
 #if defined(_DACE_) && !defined(__ICON__)
         if (l_opdep) &
              opdep(:,istore(i,1),istore(i,2)) = dble(transmission%opdep_ref(1+nlevs_top:,i))
@@ -4019,7 +4062,8 @@ FTRACE_BEGIN('rtifc_k')
         t2m_k    (istore(i,1),istore(i,2)) = dble(profiles_k(i)% s2m% t )
         q2m_k    (istore(i,1),istore(i,2)) = dble(profiles_k(i)% s2m% q )
         stemp_k  (istore(i,1),istore(i,2)) = dble(profiles_k(i)% skin% t)
-       if (chanprof(i)%prof == ipr) print*,'rtifc_result emis',i,istore(i,:),emissivity  (i)%emis_out, calcemis(i)
+        ! if (chanprof(i)%prof == ipr) write(usd,*) 'debug_spot rtifc_result emis',&
+        !      i,istore(i,:),emissivity  (i)%emis_out, calcemis(i)
         if (calcemis(i)) emissiv  (istore(i,1),istore(i,2)) = dble(emissivity  (i)%emis_out  )
         emissiv_k(istore(i,1),istore(i,2)) = dble(emissivity_k(i)%emis_out)
 
@@ -4070,17 +4114,19 @@ FTRACE_BEGIN('rtifc_k')
     if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (lprofs(i) == ipr) then
-          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
-          print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
+        if (any(lprofs(i) == ipr(1:npr))) then
+          write(usd,*) 'debug_spot check_god_ifc prof',trim(profiles(lprofs(i))%id),chans(i),&
+               coefs(ic)%coef%ff_ori_chn(chans(i))
+          write(usd,*) 'debug_spot check_god_ifc ntr',chans(i),&
+               any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
         end if
         if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
           if (transmission%l_opdep) then
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+                                od_ref=transmission%opdep_ref(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           else
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
+                                tau=transmission%tau_levels(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           end if
           if (stat /= 0) then
             if (btest(chk_god, 0)) then
@@ -4094,8 +4140,8 @@ FTRACE_BEGIN('rtifc_k')
         end if
         if ((btest(chk_god,1) .or. btest(chk_god,2)) .and. all(shape(rflag) > 0)) then
           if (present(istore)) then
-            if (lprofs(i) == ipr) then
-              print*,'check_god_ifc stat',stat,istore(i,:)
+            if (any(lprofs(i) == ipr(1:npr))) then
+              write(usd,*) 'debug_spot check_god_ifc stat',stat,istore(i,:)
             end if
             rflag(istore(i,1), istore(i,2)) = stat
           else
@@ -4126,11 +4172,12 @@ FTRACE_END('rtifc_k')
 
 
 #if defined(_RTTOV_ATLAS)
-  subroutine rtifc_emis_retrieve(iopt, lprofs, chans, obs, emis, stat, pe, ldeb)
+  subroutine rtifc_emis_retrieve(iopt, lprofs, chans, obs, spec, emis, stat, pe, ldeb)
     integer,             intent(in)  :: iopt      ! options index
     integer,             intent(in)  :: lprofs(:) ! list of profile indices
     integer,             intent(in)  :: chans(:)  ! list of channel indices
     real(wp),            intent(in)  :: obs(:)    ! observed brightness temperature
+    real(wp),            intent(in)  :: spec(:,:) ! specularity
     real(wp),            intent(out) :: emis(:)   ! computed emissivities
     integer,             intent(out) :: stat      ! error status
     integer,             intent(in), optional:: pe
@@ -4204,11 +4251,12 @@ FTRACE_END('rtifc_k')
         emis_in,                        & ! <--> emissivities -
         t_b,                            & !  --> calculated brightness
         stat,                           & !  --> exit status
+        specularity  = spec,            & ! <--  specularities
         radclear     = radclear,        & !  --> TOA radiance
         radupclear   = radupclear,      & !  --> TOA upweeling radiance(with emissivity term)
         raddnclear   = raddnclear,      & !  --> downelling radiance at surface
         transmtotal  = gamma,           & !  --> calculated transmittance
-        iprint       = ipr              )! <--  debug
+        iprint       = (/ipr/)          )! <--  debug
    if (stat /= NO_ERROR) return
 
    ! Compute emissivity
@@ -4406,7 +4454,7 @@ FTRACE_END('rtifc_k')
 
  end subroutine rtifc_init_atlas
 
- subroutine rtifc_emis_atlas(iopt, atlas_id, lprofs, chan, emis, stat, ldebug)
+ subroutine rtifc_emis_atlas(iopt, atlas_id, lprofs, chan, emis, stat, ldebug, max_dst)
    integer,  intent(in)           :: iopt     ! options index
    integer,  intent(in)           :: atlas_id ! 1: TELSEM, 2: CNRM, 3: CAMEL-Climatology
    integer,  intent(in)           :: lprofs(:)! list of profile indices
@@ -4414,6 +4462,7 @@ FTRACE_END('rtifc_k')
    real(wp), intent(out)          :: emis(:)  ! emissivities
    integer,  intent(out)          :: stat     ! error status
    logical,  intent(in), optional :: ldebug
+   real(wp), intent(in), optional :: max_dst
    !--------------------------
    ! Get emissivity from atlas
    !--------------------------
@@ -4466,9 +4515,13 @@ FTRACE_END('rtifc_k')
       chanprof(i)% chan = chan(i)
       chanprof(i)% prof = lprofs(i)
    enddo
-   if (ldeb) call rttov_print_profile(profiles(lprofs(1)), stdout, trim(proc))
-   call rttov_get_emis(stat, ropts, chanprof, profiles, coefs(ic), atlas(iatl), emis)
-   if (ldeb) write(*,*) 'debug_spot rtifc_emis_atlas',stat,emis
+   if (ldeb) call rttov_print_profile(profiles(lprofs(1)), usd, trim(proc))
+   call rttov_get_emis(stat, ropts, chanprof, profiles, coefs(ic), atlas(iatl), emis &
+#if defined(_DACE_) && !defined(__ICON__)
+        ,max_dst=max_dst &
+#endif
+        )
+   if (ldeb) write(usd,*) 'debug_spot',proc,' result',emis
    if (stat /= 0) then
      write(0,*) 'stat=',stat
      call finish(proc, 'rttov_get_emis failed')
@@ -5198,7 +5251,7 @@ FTRACE_END('dealloc_rttov_arrays')
       if (.not.l_req) l_req = (n_channels /= size(transm%tau_total) .and. rtifc_alloc_mode == 0) .or. &
                               (n_channels >  size(transm%tau_total) .and. rtifc_alloc_mode >= 1)
       if (.not.l_req) l_req = n_levels   /= size(transm%tau_levels,1)
-#if defined(_RTTOV_GOD)
+#if defined(_DACE_) && !defined(__ICON__)
       if (.not.l_req .and. transm%l_opdep) then
         if (associated(transm%opdep_ref)) then
           l_req = (size(transm%opdep_ref,1) < n_levels_coef-1)
@@ -5947,7 +6000,6 @@ FTRACE_END('dealloc_rttov_arrays')
     !-------------------------------------------------------------------------
     ! Broadcast an rttov_coef_pccomp structure across all available processors
     !-------------------------------------------------------------------------
-    integer :: run1
     integer :: dims(4)
 
     call p_bcast_rttov_container (coef_pccomp1, source, comm)
@@ -5984,7 +6036,6 @@ FTRACE_END('dealloc_rttov_arrays')
     !-------------------------------------------------------------------------
     ! Broadcast an rttov_coef_pccomp structure across all available processors
     !-------------------------------------------------------------------------
-    integer :: run1
     integer :: dims(4)
 
     call p_bcast_rttov_container (coef_pccomp2, source, comm)
@@ -6074,7 +6125,6 @@ FTRACE_END('dealloc_rttov_arrays')
     !------------------------------------------------------------------------
     ! Broadcast an rttov_mfasis_lut structure across all available processors
     !------------------------------------------------------------------------
-    integer :: i
     integer :: dims(2)
 
     call p_bcast_rttov_container(mfasis_lut, source, comm)
@@ -6105,7 +6155,6 @@ FTRACE_END('dealloc_rttov_arrays')
     !------------------------------------------------------------------------
     ! Broadcast an rttov_mfasis_lut structure across all available processors
     !------------------------------------------------------------------------
-    integer :: i
     integer :: dims(31)
 
     call p_bcast_rttov_container(coef, source, comm)
@@ -6966,127 +7015,10 @@ FTRACE_END('dealloc_rttov_arrays')
     integer, intent(in) :: unit
     integer             :: j
     do j = 1, size(profiles)
-      call print_profile(j,unit=unit)
+      call rttov_print_profile(profiles(j),usd)
     end do
   end subroutine rtifc_print_profiles
 
-
-  subroutine print_profile(i, unit, form)
-    integer, intent(in)           :: i
-    integer, intent(in), optional :: unit
-    logical, intent(in), optional :: form
-    !--------------------------------------------
-    ! subroutine print_profile for debugging only
-    !--------------------------------------------
-
-    real(jprb), parameter :: RDRD = mh2o/mair
-    real(jprb) :: q, ppmv_dry
-    integer :: iunit, j
-    logical :: form_loc
-
-    if (present(unit)) then
-      iunit=unit
-    else
-      iunit=stdout
-    end if
-    form_loc=.true.
-    if (present(form)) form_loc = form
-
-    if (form_loc) then
-      if (i > size(profiles)) then
-        write(iunit,*) 'rttov input profile: invalid index'
-        return
-      end if
-      write(iunit,*) 'rttov input profile ',i,trim(profiles(i)%id)
-      write(iunit,*) profiles(i)%nlevels
-      if (associated(profiles(i)%p) .and. associated(profiles(i)%t) .and. associated(profiles(i)%q)) then
-        write(iunit,'(3x,9x,"p",9x,"t",13x,"q",4x,"ppmv(dry)")')
-        do j = 1, size(profiles(i)%p)
-          select case (profiles(i)%gas_units)
-          case(gas_unit_specconc)
-            q = profiles(i)%q(j)
-            ppmv_dry = (1.d6 * q) / (RDRD * (1 - q))
-          case(gas_unit_ppmvdry)
-            ppmv_dry = profiles(i)%q(j)
-            q = (RDRD * ppmv_dry) / (1.d6 + RDRD * ppmv_dry)
-          case(gas_unit_ppmv)
-            ppmv_dry = profiles(i)%q(j) / (1._jprb - 1.E-6_jprb * profiles(i)%q(j))
-            q = (RDRD * ppmv_dry) / (1.d6 + RDRD * ppmv_dry)
-          end select
-          write(iunit,'(I3,2(1x,f9.4),2(1x,E13.6))') j, profiles(i)%p(j), profiles(i)%t(j), q, ppmv_dry
-        end do
-      end if
-      write(iunit,*) 'cloud'
-      !    if (associated(profiles(i)%cloud)) write(iunit,'(6(1x,e25.17))'),profiles(i)%cloud(:,:)
-      if (associated(profiles(i)%cloud)) write(iunit,*) profiles(i)%cloud(:,:)
-      write(iunit,*) 'cfrac'
-      !    if (associated(profiles(i)%cfrac)) write(iunit,'(6(1x,e25.17))'),profiles(i)%cfrac(:,:)
-      if (associated(profiles(i)%cfrac)) write(iunit,*) profiles(i)%cfrac(:)
-      write(iunit,*) 'icede_param=',profiles(i)%icede_param
-      write(iunit,*) 'ice_scheme=',profiles(i)%ice_scheme
-      write(iunit,*) 'skin'
-      write(iunit,*) 'surftype=',profiles(i)%skin%surftype
-      write(iunit,*) 'watertype=',profiles(i)%skin%watertype
-      write(iunit,*) 't=',profiles(i)%skin%t
-      write(iunit,*) 'fastem=',profiles(i)%skin%fastem
-      write(iunit,*) '2m'
-      write(iunit,*) 't=',profiles(i)%s2m%t
-      write(iunit,*) 'q=',profiles(i)%s2m%q
-      write(iunit,*) 'o=',profiles(i)%s2m%o
-      write(iunit,*) 'p=',profiles(i)%s2m%p
-      write(iunit,*) 'u=',profiles(i)%s2m%u
-      write(iunit,*) 'v=',profiles(i)%s2m%v
-      write(iunit,*) 'wfetch =',profiles(i)%s2m%wfetc
-      write(iunit,*) 'zenangle=',profiles(i)%zenangle
-      write(iunit,*) 'azangle=',profiles(i)%azangle
-      write(iunit,*) 'sunzenangle=',profiles(i)%sunzenangle
-      write(iunit,*) 'sunazangle=',profiles(i)%sunazangle
-      write(iunit,*) 'elevation=',profiles(i)%elevation
-      write(iunit,*) 'latitude=',profiles(i)%latitude
-      write(iunit,*) 'longitude=',profiles(i)%longitude
-      write(iunit,*) 'Be=',profiles(i)%Be
-      write(iunit,*) 'cosbk=',profiles(i)%cosbk
-      write(iunit,*) 'ctp=',profiles(i)%ctp
-      write(iunit,*) 'cfraction=',profiles(i)%cfraction
-    else
-      if (i > size(profiles)) then
-        write(iunit) 'rttov input profile: invalid index'
-        return
-      end if
-      write(iunit) profiles(i)%nlevels
-      if (associated(profiles(i)%p) .and. associated(profiles(i)%t) .and. associated(profiles(i)%q)) then
-        do j = 1, size(profiles(i)%p)
-          write(iunit) j, profiles(i)%p(j), profiles(i)%t(j), profiles(i)%q(j)
-        end do
-      end if
-      if (associated(profiles(i)%cloud)) write(iunit) profiles(i)%cloud(:,:)
-      if (associated(profiles(i)%cfrac)) write(iunit) profiles(i)%cfrac(:)
-      write(iunit) profiles(i)%icede_param
-      write(iunit) profiles(i)%ice_scheme
-      write(iunit) profiles(i)%skin%surftype
-      write(iunit) profiles(i)%skin%watertype
-      write(iunit) profiles(i)%skin%t
-      write(iunit) profiles(i)%skin%fastem
-      write(iunit) profiles(i)%s2m%t
-      write(iunit) profiles(i)%s2m%q
-      write(iunit) profiles(i)%s2m%o
-      write(iunit) profiles(i)%s2m%p
-      write(iunit) profiles(i)%s2m%u
-      write(iunit) profiles(i)%s2m%v
-      write(iunit) profiles(i)%s2m%wfetc
-      write(iunit) profiles(i)%zenangle
-      write(iunit) profiles(i)%azangle
-      write(iunit) profiles(i)%sunzenangle
-      write(iunit) profiles(i)%sunazangle
-      write(iunit) profiles(i)%elevation
-      write(iunit) profiles(i)%latitude
-      write(iunit) profiles(i)%longitude
-      write(iunit) profiles(i)%Be
-      write(iunit) profiles(i)%cosbk
-      write(iunit) profiles(i)%ctp
-      write(iunit) profiles(i)%cfraction
-    end if
-  end subroutine print_profile
 
 !==================================
 #endif /* (_RTTOV_VERSION == 13) */

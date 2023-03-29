@@ -163,7 +163,7 @@ CONTAINS
          ' sec on proc ', get_my_mpi_all_id()
     CALL stop_mpi()
     ! Info for Luis: This STOP is not an error stop but it ends the program
-    ! regularly on an asynchronous PE. It is mandatory an cannot be replaced by
+    ! regularly on an asynchronous PE. It is mandatory and cannot be replaced by
     ! finish()!
     STOP
 #endif
@@ -184,6 +184,7 @@ CONTAINS
     REAL(wp)  :: sim_time     !< elapsed simulation time
     INTEGER   :: sendtag_radar = 0
     INTEGER   :: jg, jg_list(n_dom_model)
+    CHARACTER(len=12) :: csimtime
 #ifndef NOMPI
     INTEGER   :: mpierr, mpirequest
 #endif
@@ -191,6 +192,8 @@ CONTAINS
     CALL timer_start (timer_radar_tot)
       
     sim_time = getElapsedSimTimeInSeconds(mtime_current)
+    csimtime(:) = ' '
+    WRITE (csimtime, '(f0.1)') sim_time
 #ifdef HAVE_RADARFWO
     time_mod_sec = sim_time   ! internal timer of EMVORADO
 #endif
@@ -223,7 +226,7 @@ CONTAINS
     DO jg = 1, n_dom_model
       IF ( jg_list(jg) > -1 ) THEN
         IF (msg_level >= 11 .AND. my_process_is_mpi_workroot()) THEN
-          CALL message('emvorado_radarfwo(): ', 'calling organize_radar(''compute'')', &
+          CALL message('emvorado_radarfwo(): ', 'calling organize_radar(''compute'') for sim_time = '//TRIM(csimtime)//' s', &
                         all_print=.TRUE.)
         END IF
         CALL organize_radar('compute', ntime_dyn(jg), ntime_qx(jg), jg)    

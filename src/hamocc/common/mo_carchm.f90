@@ -34,13 +34,14 @@ INTEGER, PARAMETER :: jp_maxniter_atgen    = 50
 ! Bookkeeping variables for each method
 ! - SOLVE_AT_GENERAL and SOLVE_AT_GENERAL_DNAD
 INTEGER :: niter_atgen    = jp_maxniter_atgen
+!$ACC DECLARE CREATE(niter_atgen)
 
 !===============================================================================
 
 
 CONTAINS
 
-SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,ptiestu)
+SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao, ptiestu, use_acc)
 
 !! Computes calcium carbonate dissolution
   
@@ -57,6 +58,7 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,pt
   REAL(wp),INTENT(in) :: pddpo(bgc_nproma,bgc_zlevs) !< size of scalar grid cell (3rd REAL) [m]
   REAL(wp),INTENT(in) :: psao(bgc_nproma,bgc_zlevs)  !< salinity
   REAL(wp),INTENT(in) :: ptiestu(bgc_nproma,bgc_zlevs)  !< depth of scalar grid cell [m]
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
   !! Local variables
 
@@ -65,6 +67,14 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,pt
   REAL(wp) :: supsat, undsa, dissol
   REAL(wp) :: supsatup,satdiff,depthdiff   ! needed to calculate depth of lysocline
   INTEGER  :: iflag
+  LOGICAL :: lacc
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
+
   !
    !*********************************************************************
   !
@@ -73,6 +83,7 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,pt
   !*********************************************************************
  ! Dissolution in surface layer, 
  ! needs to be separate from subsurface due to lysocline depth different calculation
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO j= start_idx, end_idx
 
         k=1
@@ -108,7 +119,7 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,pt
 !  Dissolution of subsurface layers 
    
         kpke=klevs(j)
-    
+        !$ACC LOOP SEQ
         DO k = 2, kpke
 
            IF(pddpo(j,k) > EPSILON(0.5_wp)) THEN
@@ -143,10 +154,13 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao,pt
 
          END DO
   END DO
+  !$ACC END PARALLEL LOOP
+
 END SUBROUTINE
 
 
 FUNCTION update_hi(hi,c,ak1,ak2,akw,aks,akf,aksi,ak1p,ak2p,ak3p,s,akb,sit,pt,alk) RESULT (h)
+ !$ACC ROUTINE SEQ
  ! update hydrogen ion concentration
  
  REAL(wp) :: ah1, hi
@@ -208,6 +222,7 @@ SUBROUTINE anw_infsup(p_dictot, p_bortot,                                     &
                       p_po4tot, p_siltot,                                     &
                       p_so4tot, p_flutot,                                     &
                       p_alknw_inf, p_alknw_sup)
+!$ACC ROUTINE SEQ
 
 ! Subroutine returns the lower and upper bounds of "non-water-selfionization"
 ! contributions to total alkalinity (the infimum and the supremum), i.e
@@ -240,6 +255,7 @@ FUNCTION equation_at(p_alktot, p_h,       p_dictot, p_bortot,                 &
                      p_so4tot, p_flutot,                                      &
                      K1, K2, Kb, Kw, Ks, Kf, K1p, K2p, K3p, Ksi,              &
                      p_deriveqn)
+!$ACC ROUTINE SEQ
 
   ! Purpose: Compute total alkalinity from ion concentrations and equilibrium constants
 
@@ -363,6 +379,7 @@ END FUNCTION equation_at
 !===============================================================================
 
 SUBROUTINE ahini_for_at(p_alkcb, p_dictot, p_bortot, K1, K2, Kb, p_hini)
+!$ACC ROUTINE SEQ
 
 ! Subroutine returns the root for the 2nd order approximation of the
 ! DIC -- B_T -- A_CB equation for [H+] (reformulated as a cubic polynomial)
@@ -428,6 +445,7 @@ FUNCTION solve_at_general(p_alktot, p_dictot, p_bortot,                       &
                           p_so4tot, p_flutot,                                 &
                           K1, K2, Kb, Kw, Ks, Kf, K1p, K2p, K3p, Ksi,         &
                           p_hini,   p_val)
+!$ACC ROUTINE SEQ
 
 ! Purpose: Compute [H degree] ion concentration from sea-water ion concentrations,
 !          alkalinity, DIC, and equilibrium constants

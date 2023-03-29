@@ -377,8 +377,8 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
   'div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
   'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
+  'tot_prec','gust10','dyn_gust','clct_mod','cldepth',
+  'cape','cape_ml','cin_ml', 'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
   'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
   'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
   't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
@@ -387,8 +387,9 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
   'ddt_qv_turb','ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
   'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','exner'
 
+  ! 2023-01-31 Note: This is the only GPU test that has a tolerance test for 'cape'
 
-/
+/ 
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml

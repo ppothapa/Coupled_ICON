@@ -414,8 +414,6 @@ END SUBROUTINE gscp_set_coefficients
 
 !==============================================================================
 
-#ifdef __ICON__
-
   ! Subroutine that provides coefficients for the effective radius calculations
   ! consistent with microphysics
   SUBROUTINE one_mom_reff_coefficients( reff_calc ,return_fct)
@@ -645,7 +643,7 @@ END SUBROUTINE gscp_set_coefficients
       END IF
 
       !$ACC DATA PRESENT(indices, ncn, t, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL
       !$ACC LOOP SEQ
       DO k = k_start,k_end
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
@@ -742,8 +740,6 @@ END SUBROUTINE gscp_set_coefficients
     END SELECT
 
   END SUBROUTINE one_mom_calculate_ncn
-
-#endif
 
 
 !==============================================================================

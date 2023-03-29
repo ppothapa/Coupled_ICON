@@ -2937,7 +2937,9 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":add_atmo_var_3d"
     INTEGER                         :: nlev, ivar
 
-    WRITE ( * , * ) " add_atmo_var_3d: calling for ", TRIM(zname)
+    IF (dbg_level > 0) &
+      &  WRITE ( * , * ) " add_atmo_var_3d: calling for ", TRIM(zname)
+
     IF (LEN_TRIM(meteogram_config%var_list(1)) /= 0) THEN
       ! If the user has specified a list of variable names to be
       ! included in the meteogram, check if this variable is contained
@@ -2995,7 +2997,8 @@ CONTAINS
     ! Local variables
     INTEGER                          :: isource_idx, nidx
 
-    WRITE ( * , * ) " add_atmo_var_4d: calling for ", TRIM(zname)
+    IF (dbg_level > 0) &
+      &  WRITE ( * , * ) " add_atmo_var_4d: calling for ", TRIM(zname)
 
     IF (PRESENT(iidx)) THEN
       CALL add_atmo_var_3d(meteogram_config, var_list, igroup_id, zname, &
@@ -3028,7 +3031,8 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":add_sfc_var_2d"
     INTEGER                         :: ivar
 
-    WRITE ( * , * ) " add_sfc_var_2d: calling for ", TRIM(zname)
+    IF (dbg_level > 0) &
+      &  WRITE ( * , * ) " add_sfc_var_2d: calling for ", TRIM(zname)
 
     IF (LEN_TRIM(meteogram_config%var_list(1)) /= 0) THEN
       ! If the user has specified a list of variable names to be
@@ -3077,7 +3081,8 @@ CONTAINS
     ! Local variables
     INTEGER                 :: isource_idx, nidx
 
-    WRITE ( * , * ) " add_sfc_var_3d: calling for ", TRIM(zname)
+    IF (dbg_level > 0) &
+      &  WRITE ( * , * ) " add_sfc_var_3d: calling for ", TRIM(zname)
 
     IF (PRESENT(iidx)) THEN
       CALL add_sfc_var_2d(meteogram_config, var_list, igroup_id, zname, &

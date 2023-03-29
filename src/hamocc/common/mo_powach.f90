@@ -21,7 +21,7 @@ MODULE mo_powach
 
 
 CONTAINS
-   SUBROUTINE POWACH(local_bgc_mem, local_sediment_mem, start_idx,end_idx,psao,pddpo)
+   SUBROUTINE POWACH(local_bgc_mem, local_sediment_mem, start_idx, end_idx, psao, pddpo, use_acc)
 !!   @brief compute sediment chemistry, explicit discretisation
 !!   call pore water diffusion
 !!
@@ -66,12 +66,13 @@ CONTAINS
 
    REAL(wp), INTENT(in) :: psao(bgc_nproma,bgc_zlevs)   !< salinity [psu.].
    REAL(wp), INTENT(in) :: pddpo(bgc_nproma,bgc_zlevs)  !< size of scalar grid cell 
-  
+   LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
   !! Local variables
 
    INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
    INTEGER :: j,k
-
+   LOGICAL :: lacc
 
    REAL(wp) :: orgsed                        ! sum of C12 and C13 in organic sed.
    REAL(wp) :: sssnew                        ! temporarily value of solid constituent after solution
@@ -111,12 +112,17 @@ CONTAINS
    REAL(wp) :: quadno3        ! for saturation function quadartic no3
    REAL(wp) :: newammo,newnitr
 
+   IF (PRESENT(use_acc)) THEN
+     lacc = use_acc
+   ELSE
+     lacc = .FALSE.
+   END IF
    
   kbo => local_bgc_mem%kbo
-   
+
 !!! WE start with remineralisation of organic to estimate alkalinity changes first
 !          
-
+    !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(powcar) DEFAULT(PRESENT) IF(lacc)
     Do j = start_idx, end_idx
 
          IF(local_bgc_mem%bolay(j) > 0._wp) THEN
@@ -531,8 +537,8 @@ CONTAINS
         &                             local_bgc_mem%akb3(j,kbo(j)),local_sediment_mem%powtra(j,k,ipowasi),local_sediment_mem%powtra(j,k,ipowaph),&
         &                             local_sediment_mem%powtra(j,k,ipowaal))
 
-                powcar(k)  = local_sediment_mem%powtra(j,k,ipowaic) / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j)) &
-        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j))))
+                powcar(k)  = local_sediment_mem%powtra(j,k,ipowaic) / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j)) &
+        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j))))
          ENDIF
       END DO
       
@@ -569,16 +575,16 @@ CONTAINS
          ENDIF
    ENDDO
  ENDDO
- 
- 
+ !$ACC END PARALLEL LOOP
 
-  CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx)
-
+  CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, use_acc=lacc)
+  
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
   DO j = start_idx, end_idx
         local_sediment_mem%sedlay(j,1,issster) = local_sediment_mem%sedlay(j,1,issster)                 &
              &                + local_sediment_mem%produs(j)/(porsol(1)*seddw(1))
   ENDDO
-
+  !$ACC END PARALLEL LOOP
       END SUBROUTINE POWACH
       
       
@@ -868,8 +874,8 @@ SUBROUTINE powach_impl(local_bgc_mem, local_sediment_mem, start_idx, end_idx, ps
         &                             local_bgc_mem%akb3(j,kbo(j)),local_sediment_mem%powtra(j,k,ipowasi),local_sediment_mem%powtra(j,k,ipowaph),&
         &                             alk)
 
-                powcar(k)  = c / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j)) &
-        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j))))
+                powcar(k)  = c / (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak23(j,kbo(j)) &
+        &                    * (1._wp + local_sediment_mem%sedhpl(j,k)/local_bgc_mem%ak13(j,kbo(j))))
           ENDIF
       END DO
 

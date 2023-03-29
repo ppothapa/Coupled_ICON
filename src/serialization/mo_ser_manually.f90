@@ -19,6 +19,7 @@ MODULE mo_ser_manually
   USE mo_nwp_phy_state,      ONLY: phy_params
   USE mo_ext_data_state,     ONLY: ext_data
 
+  USE mo_nh_pzlev_config,    ONLY: nh_pzlev_config
     IMPLICIT NONE
 
   PUBLIC :: ser_manually
@@ -141,6 +142,25 @@ MODULE mo_ser_manually
     CALL ser_component(o, "atm%snowalb_lcc", ext_data(domain)%atm%snowalb_lcc)
     CALL ser_component(o, "atm%snowtile_lcc", ext_data(domain)%atm%snowtile_lcc)
     CALL ser_component(o, "atm%t_cl", ext_data(domain)%atm%t_cl)
+
+    IF(ALLOCATED(nh_pzlev_config(domain)%plevels%values)) THEN
+      CALL ser_component(o, "plevels%nvalues", nh_pzlev_config(domain)%plevels%nvalues)
+      CALL ser_component(o, "plevels%values", nh_pzlev_config(domain)%plevels%values)
+    ENDIF
+    IF(ALLOCATED(nh_pzlev_config(domain)%zlevels%values)) THEN
+      CALL ser_component(o, "zlevels%nvalues", nh_pzlev_config(domain)%zlevels%nvalues)
+      CALL ser_component(o, "zlevels%values", nh_pzlev_config(domain)%zlevels%values)
+    ENDIF
+    IF(ALLOCATED(nh_pzlev_config(domain)%ilevels%values)) THEN
+      CALL ser_component(o, "ilevels%nvalues", nh_pzlev_config(domain)%ilevels%nvalues)
+      CALL ser_component(o, "ilevels%values", nh_pzlev_config(domain)%ilevels%values)
+    ENDIF
+    IF(ASSOCIATED(nh_pzlev_config(domain)%p3d) .AND. SIZE(nh_pzlev_config(domain)%p3d) > 0) &
+      CALL ser_component(o, "p3d", nh_pzlev_config(domain)%p3d)
+    IF(ASSOCIATED(nh_pzlev_config(domain)%z3d) .AND. SIZE(nh_pzlev_config(domain)%z3d) > 0) &
+      CALL ser_component(o, "z3d", nh_pzlev_config(domain)%z3d)
+    IF(ASSOCIATED(nh_pzlev_config(domain)%i3d) .AND. SIZE(nh_pzlev_config(domain)%i3d) > 0) &
+      CALL ser_component(o, "i3d", nh_pzlev_config(domain)%i3d)
 
   END SUBROUTINE ser_manually
 

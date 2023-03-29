@@ -157,11 +157,7 @@ CONTAINS
     INTEGER,  INTENT(IN) ::          &  !< time step counter [1]
       &  k_step                         !< necessary for Strang Splitting
 
-    REAL(wp) &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     , INTENT(IN) ::                 &  !< tracer mixing ratios (specific concentrations)
+    REAL(wp), CONTIGUOUS, INTENT(IN) ::                 &  !< tracer mixing ratios (specific concentrations)
       &  p_tracer_now(:,:,:,:)          !< at current time level n (before transport)
                                         !< [kg/kg]
                                         !< dim: (nproma,nlev,nblks_c,ntracer)
@@ -197,11 +193,7 @@ CONTAINS
                                         !< [kg/kg]
                                         !< dim: (nproma,nlev,nblks_c,ntracer)
 
-    REAL(wp) &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     , INTENT(INOUT) ::          &      !< tracer mixing ratios (specific concentrations)
+    REAL(wp), CONTIGUOUS, INTENT(INOUT) ::          &      !< tracer mixing ratios (specific concentrations)
       &  p_tracer_new(:,:,:,:)          !< at time level n+1 (after transport)
                                         !< [kg/kg]  
                                         !< dim: (nproma,nlev,nblks_c,ntracer)

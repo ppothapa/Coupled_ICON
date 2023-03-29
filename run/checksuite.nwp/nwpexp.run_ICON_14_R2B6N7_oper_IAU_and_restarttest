@@ -630,14 +630,8 @@ done # model run iterations
 
 # now start with the tests
 
-# Please note that the exit status of 'cdo diffn' has changed with cdo 1.9.6.
-# cdo version >= 1.9.6: "Exit status is 0 if inputs are the same and 1 if they differ"
-# cdo version <  1.9.6: "Exit status is 1, if 'cdo diffn' fails and 0 otherwise"
 
-# Therefore, the error handling of the following test might need to be adapted, 
-# if a cdo version < 1.9.6 is used. 
-
-EXIT_STATUS=0
+ERROR_SUM=0
 DIFF_STATUS_IAU=0
 DIFF_STATUS_RESTART=0
 DIFF_STATUS_NPROMA=0
@@ -653,9 +647,6 @@ FILE2_DOM02="NWP2_winds_DOM02_ML_0001.nc"
 FILE3_DOM01="NWP3_winds_DOM01_ML_0001.nc"
 FILE3_DOM02="NWP3_winds_DOM02_ML_0001.nc"
 
-DIFF_FILE_DOM01="NWP_winds_diff_DOM01.out"
-DIFF_FILE_DOM02="NWP_winds_diff_DOM02.out"
-
 # OMP/NPROMA check output filenames
 REF_FILE_DOM01="NWP1_omp_npr_DOM01_ML_0001.nc"
 REF_FILE_DOM02="NWP1_omp_npr_DOM02_ML_0001.nc"
@@ -663,250 +654,117 @@ NPR_FILE_DOM01="NWP4_omp_npr_DOM01_ML_0001.nc"
 NPR_FILE_DOM02="NWP4_omp_npr_DOM02_ML_0001.nc"
 OMP_FILE_DOM01="NWP5_omp_npr_DOM01_ML_0001.nc"
 OMP_FILE_DOM02="NWP5_omp_npr_DOM02_ML_0001.nc"
-OMP_NPR_DIFF_FILE_DOM01="NWP_omp_npr_diff_DOM01.out"
-OMP_NPR_DIFF_FILE_DOM02="NWP_omp_npr_diff_DOM02.out"
 
- echo "=================================================================="
- echo "Check iterative IAU"
- echo "=> Compare experiments: $EXP1 $EXP2"
+echo "=================================================================="
+echo "Check iterative IAU"
+echo "=> Compare experiments: $EXP1 $EXP2"
 
-# We want to use EXIT_STATUS at the end and we do not want the script to quit
-# for the reason of better error handling in case of a cdo error.
- set +e
- $cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} > ${DIFF_FILE_DOM01}
- cdo_exitstat_DOM01=$(echo $?)
- $cdo diffn ${FILE1_DOM02} ${FILE2_DOM02} > ${DIFF_FILE_DOM02}
- cdo_exitstat_DOM02=$(echo $?)
- set -e
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE1_DOM01}" "${FILE2_DOM01}"
+DIFF_STATUS_IAU=$((DIFF_STATUS_IAU + $?))
+compare_output_files "${FILE1_DOM02}" "${FILE2_DOM02}"
+DIFF_STATUS_IAU=$((DIFF_STATUS_IAU + $?))
 
- # DOM01 IAU
- if [[ ${cdo_exitstat_DOM01} -ne 0 ]]; then
-   if [ -s ${DIFF_FILE_DOM01} ]; then
-      echo " DOM01: file 1 and file 2 differ"
-      echo " - file 1: ${FILE1_DOM01}"
-      echo " - file 2: ${FILE2_DOM01}"
-      cat ${DIFF_FILE_DOM01}
-      rm  ${DIFF_FILE_DOM01}
-   else
-      echo "DOM01: cdo diffn ${FILE1_DOM01} ${FILE2_DOM01} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_IAU=1
- else
-   echo "DOM01: EXP $EXP1 and EXP $EXP2 are identical"
- fi
- #
- # DOM02 IAU
- if [[ ${cdo_exitstat_DOM02} -ne 0 ]]; then
-   if [ -s ${DIFF_FILE_DOM02} ]; then
-      echo " DOM02: file 1 and file 2 differ"
-      echo " - file 1: ${FILE1_DOM02}"
-      echo " - file 2: ${FILE2_DOM02}"
-      cat ${DIFF_FILE_DOM02}
-      rm  ${DIFF_FILE_DOM02}
-   else
-      echo "DOM02: cdo diffn ${FILE1_DOM02} ${FILE2_DOM02} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_IAU=1
- else
-   echo "DOM02: EXP $EXP1 and EXP $EXP2 are identical"
- fi
+ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_IAU))
+if [[ $DIFF_STATUS_IAU -eq 0 ]]; then
+  echo "DOM01 and DOM02: EXP1 $EXP1 and EXP2 $EXP2 are identical"
+else
+  echo "DOM01 or DOM02: EXP1 $EXP1 and EXP2 $EXP2 differ"
+fi
 
+echo "=================================================================="
+echo "Check restart"
+echo "=> Compare experiments:" $EXP2 $EXP3
 
- echo "=================================================================="
- echo "Check restart"
- echo "=> Compare experiments:" $EXP2 $EXP3
+compare_output_files "${FILE2_DOM01}" "${FILE3_DOM01}"
+DIFF_STATUS_RESTART=$((DIFF_STATUS_RESTART + $?))
+compare_output_files "${FILE2_DOM02}" "${FILE3_DOM02}"
+DIFF_STATUS_RESTART=$((DIFF_STATUS_RESTART + $?))
 
-# We want to use EXIT_STATUS at the end and we do not want the script to quit
-# for the reason of better error handling in case of a cdo error.
- set +e
- $cdo diffn ${FILE2_DOM01} ${FILE3_DOM01} > ${DIFF_FILE_DOM01}
- cdo_exitstat_DOM01=$(echo $?)
- $cdo diffn ${FILE2_DOM02} ${FILE3_DOM02} > ${DIFF_FILE_DOM02}
- cdo_exitstat_DOM02=$(echo $?)
- set -e
+ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_RESTART))
+if [[ $DIFF_STATUS_RESTART -eq 0 ]]; then
+  echo "DOM01 and DOM02: EXP2 $EXP2 and EXP3 $EXP3 are identical"
+else
+  echo "DOM01 or DOM02: EXP2 $EXP2 and EXP3 $EXP3 differ"
+fi
 
- # DOM01 RESTART
- if [[ ${cdo_exitstat_DOM01} -ne 0 ]]; then
-   if [ -s ${DIFF_FILE_DOM01} ]; then
-      echo " DOM01: file 2 and file 3 differ"
-      echo " - file 2: ${FILE2_DOM01}"
-      echo " - file 3: ${FILE3_DOM01}"
-      cat ${DIFF_FILE_DOM01}
-      rm  ${DIFF_FILE_DOM01}
-   else
-      echo "DOM01: cdo diffn ${FILE2_DOM01} ${FILE3_DOM01} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_RESTART=1
- else
-   echo "DOM01: EXP $EXP2 and EXP $EXP3 are identical"
- fi
- #
- # DOM02 RESTART
- if [[ ${cdo_exitstat_DOM02} -ne 0 ]]; then
-   if [ -s ${DIFF_FILE_DOM02} ]; then
-      echo " DOM02: file 2 and file 3 differ"
-      echo " - file 2: ${FILE2_DOM02}"
-      echo " - file 3: ${FILE3_DOM02}"
-      cat ${DIFF_FILE_DOM02}
-      rm  ${DIFF_FILE_DOM02}
-   else
-      echo "DOM02: cdo diffn ${FILE2_DOM02} ${FILE3_DOM02} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_RESTART=1
- else
-   echo "DOM02: EXP $EXP2 and EXP $EXP3 are identical"
- fi
+echo "=================================================================="
+echo "Check nproma"
+echo "=> Compare experiments:" $EXP1 $EXP4
 
- echo "=================================================================="
- echo "Check nproma"
- echo "=> Compare experiments:" $EXP1 $EXP4
+compare_output_files "${REF_FILE_DOM01}" "${NPR_FILE_DOM01}"
+DIFF_STATUS_NPROMA=$((DIFF_STATUS_NPROMA + $?))
+compare_output_files "${REF_FILE_DOM02}" "${NPR_FILE_DOM02}"
+DIFF_STATUS_NPROMA=$((DIFF_STATUS_NPROMA + $?))
 
-# We want to use EXIT_STATUS at the end and we do not want the script to quit
-# for the reason of better error handling in case of a cdo error.
- set +e
- $cdo diffn ${REF_FILE_DOM01} ${NPR_FILE_DOM01} > ${OMP_NPR_DIFF_FILE_DOM01}
- cdo_exitstat_DOM01=$(echo $?)
- $cdo diffn ${REF_FILE_DOM02} ${NPR_FILE_DOM02} > ${OMP_NPR_DIFF_FILE_DOM02}
- cdo_exitstat_DOM02=$(echo $?)
- set -e
-
- # DOM01 NPROMA
- if [[ ${cdo_exitstat_DOM01} -ne 0 ]]; then
-   if [ -s ${OMP_NPR_DIFF_FILE_DOM01} ]; then
-      echo " DOM01: nproma file 1 and file 5 differ"
-      echo " - nproma file: ${REF_FILE_DOM01}"
-      echo " - nproma file: ${NPR_FILE_DOM01}"
-      cat ${OMP_NPR_DIFF_FILE_DOM01}
-      rm  ${OMP_NPR_DIFF_FILE_DOM01}
-   else
-      echo "DOM01: cdo diffn ${REF_FILE_DOM01} ${NPR_FILE_DOM01} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_NPROMA=1
- else
-   echo "DOM01: EXP $EXP1 and EXP $EXP4 are identical"
- fi
- #
- # DOM02 NPROMA
- if [[ ${cdo_exitstat_DOM02} -ne 0 ]]; then
-   if [ -s ${OMP_NPR_DIFF_FILE_DOM02} ]; then
-      echo " DOM02: nproma file 1 and file 5 differ"
-      echo " - nproma file: ${REF_FILE_DOM02}"
-      echo " - nproma file: ${NPR_FILE_DOM02}"
-      cat ${OMP_NPR_DIFF_FILE_DOM02}
-      rm  ${OMP_NPR_DIFF_FILE_DOM02}
-   else
-      echo "DOM02: cdo diffn ${REF_FILE_DOM02} ${NPR_FILE_DOM02} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_OMP=1
- else
-   echo "DOM02: EXP $EXP1 and EXP $EXP4 are identical"
- fi
+ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_NPROMA))
+if [[ $DIFF_STATUS_NPROMA -eq 0 ]]; then
+  echo "DOM01 and DOM02: EXP1 $EXP1 and EXP4 $EXP4 are identical"
+else
+  echo "DOM01 or DOM02: EXP1 $EXP1 and EXP4 $EXP4 differ"
+fi
 
 if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
- echo "=================================================================="
- echo "Check OMP"
- echo "=> Compare experiments:" $EXP1 $EXP5
+  echo "=================================================================="
+  echo "Check OMP"
+  echo "=> Compare experiments:" $EXP1 $EXP5
 
-# We want to use EXIT_STATUS at the end and we do not want the script to quit
-# for the reason of better error handling in case of a cdo error.
- set +e
- $cdo diffn ${REF_FILE_DOM01} ${OMP_FILE_DOM01} > ${OMP_NPR_DIFF_FILE_DOM01}
- cdo_exitstat_DOM01=$(echo $?)
- $cdo diffn ${REF_FILE_DOM02} ${OMP_FILE_DOM02} > ${OMP_NPR_DIFF_FILE_DOM02}
- cdo_exitstat_DOM02=$(echo $?)
- set -e
+  compare_output_files "${REF_FILE_DOM01}" "${OMP_FILE_DOM01}"
+  DIFF_STATUS_OMP=$((DIFF_STATUS_OMP + $?))
+  compare_output_files "${REF_FILE_DOM02}" "${OMP_FILE_DOM02}"
+  DIFF_STATUS_OMP=$((DIFF_STATUS_OMP + $?))
 
- # DOM01 OMP
- if [[ ${cdo_exitstat_DOM01} -ne 0 ]]; then
-   if [ -s ${OMP_NPR_DIFF_FILE_DOM01} ]; then
-      echo " DOM01: omp file 1 and file 5 differ"
-      echo " - omp file: ${REF_FILE_DOM01}"
-      echo " - omp file: ${OMP_FILE_DOM01}"
-      cat ${OMP_NPR_DIFF_FILE_DOM01}
-      rm  ${OMP_NPR_DIFF_FILE_DOM01}
-   else
-      echo "DOM01: cdo diffn ${REF_FILE_DOM01} ${OMP_FILE_DOM01} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_OMP=1
- else
-   echo "DOM01: EXP $EXP1 and EXP $EXP5 are identical"
- fi
- #
- # DOM02 OMP
- if [[ ${cdo_exitstat_DOM02} -ne 0 ]]; then
-   if [ -s ${OMP_NPR_DIFF_FILE_DOM02} ]; then
-      echo " DOM02: omp file 1 and file 5 differ"
-      echo " - omp file: ${REF_FILE_DOM02}"
-      echo " - omp file: ${OMP_FILE_DOM02}"
-      cat ${OMP_NPR_DIFF_FILE_DOM02}
-      rm  ${OMP_NPR_DIFF_FILE_DOM02}
-   else
-      echo "DOM02: cdo diffn ${REF_FILE_DOM02} ${OMP_FILE_DOM02} failed"
-   fi
-   #
-   EXIT_STATUS=$(($EXIT_STATUS + 1))
-   DIFF_STATUS_OMP=1
- else
-   echo "DOM02: EXP $EXP1 and EXP $EXP5 are identical"
- fi
- fi
+  ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_OMP))
+  if [[ $DIFF_STATUS_OMP -eq 0 ]]; then
+    echo "DOM01 and DOM02: EXP1 $EXP1 and EXP5 $EXP5 are identical"
+  else
+    echo "DOM01 or DOM02: EXP1 $EXP1 and EXP5 $EXP5 differ"
+  fi
+
+fi
 #
 #-----------------------------------------------------------------------------
 #
- if [ $DIFF_STATUS_IAU == 0 ]; then
-   echo " "
-   echo "IAU test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "IAU test FAILED"
-   echo " "
- fi
- if [ $DIFF_STATUS_RESTART == 0 ]; then
-   echo " "
-   echo "Restart test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "Restart test FAILED"
-   echo " "
- fi
- if [ $DIFF_STATUS_NPROMA == 0 ]; then
-   echo " "
-   echo "nproma test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "nproma test FAILED"
-   echo " "
- fi
- if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
- if [ $DIFF_STATUS_OMP == 0 ]; then
-   echo " "
-   echo "OMP test SUCESSFUL"
-   echo " "
- else
-   echo " "
-   echo "OMP test FAILED"
-   echo " "
- fi
- fi
+if [ $DIFF_STATUS_IAU == 0 ]; then
+  echo " "
+  echo "IAU test SUCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "IAU test FAILED"
+  echo " "
+fi
+if [ $DIFF_STATUS_RESTART == 0 ]; then
+  echo " "
+  echo "Restart test SUCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "Restart test FAILED"
+  echo " "
+fi
+if [ $DIFF_STATUS_NPROMA == 0 ]; then
+  echo " "
+  echo "nproma test SUCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "nproma test FAILED"
+  echo " "
+fi
+if [[ ${BB_NAME} == 'DWD_nec_hybrid' ]]; then
+  if [ $DIFF_STATUS_OMP == 0 ]; then
+    echo " "
+    echo "OMP test SUCESSFUL"
+    echo " "
+  else
+    echo " "
+    echo "OMP test FAILED"
+    echo " "
+  fi
+fi
 
-echo "EXIT_STATUS: $EXIT_STATUS"
-exit $EXIT_STATUS
+echo "Cdo test ERROR_SUM: $ERROR_SUM"
+exit $ERROR_SUM
 #
 #-----------------------------------------------------------------------------

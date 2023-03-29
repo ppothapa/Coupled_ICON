@@ -46,6 +46,8 @@ MODULE mo_assimilation_config
     LOGICAL :: dace_coupling      !> Invoke DACE for model equivalents of observations
     INTEGER :: dace_time_ctrl(3)  !> Steering parameters for DACE time control: start,end,step
     INTEGER :: dace_debug         !> Debugging level for DACE interface
+    CHARACTER(LEN=255) :: &
+      dace_output_file            !> Filename for redirection of DACE stdout
 
     ! Namelist variables for LHN
 
@@ -109,6 +111,7 @@ MODULE mo_assimilation_config
   
    TYPE(t_phyProcFast)  :: dass_lhn   !> event for LHN
    TYPE(t_phyProcFast)  :: dass_lhn_verif   !> event for LHN
+   TYPE(t_phyProcFast)  :: dass_lhn_brightband   !> event for LHN
    TYPE(t_phyProcGroup) :: dass_g        
 
   END TYPE t_assimilation_config
@@ -120,7 +123,7 @@ MODULE mo_assimilation_config
 
   SUBROUTINE configure_lhn(jg)
    INTEGER, INTENT(IN) :: jg          !< patch
-   CHARACTER (LEN=100)              ::           &
+   CHARACTER (LEN=255)              ::           &
      filepath
    LOGICAL  :: lf_exist,lb_exist,lh_exist
    INTEGER  :: nobs,nt_end,nt_start, idt_shift
@@ -128,10 +131,12 @@ MODULE mo_assimilation_config
 
     ! local
     TYPE(timedelta), POINTER        :: eventInterval    => NULL()
+    TYPE(timedelta), POINTER        :: eventInterval_bb    => NULL()
     TYPE(datetime)                  :: eventEndDate_proc     ! process-specific end date
                                                              ! set to startDate, if process is disabled
     TYPE(timedelta), POINTER        :: plusSlack    => NULL()
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dt_ass_str       ! physics timestep (PT-format)
+    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dt_bb_str       ! physics timestep (PT-format)
 
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: td_start_str
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: td_end_str
@@ -273,8 +278,10 @@ MODULE mo_assimilation_config
     !
     CALL getPTStringFromMS(INT(dt_ass*1000._wp,i8), dt_ass_str)
     eventInterval=>newTimedelta(dt_ass_str)
+    CALL getPTStringFromMS(INT(assimilation_config(jg)%lhn_dt_obs*60*1000._wp,i8), dt_bb_str)
+    eventInterval_bb=>newTimedelta(dt_bb_str)
 
-    CALL assimilation_config(jg)%dass_g%construct(grpName=TRIM("DASS_G"), pid=jg, grpSize=2)
+    CALL assimilation_config(jg)%dass_g%construct(grpName=TRIM("DASS_G"), pid=jg, grpSize=3)
     !
     CALL assimilation_config(jg)%dass_lhn%initialize(                             &
       &                     name          = 'dass_lhn',                           & !in
@@ -290,6 +297,22 @@ MODULE mo_assimilation_config
     CALL assimilation_config(jg)%dass_g%addToGroup(                          &
       &                     phyProc = assimilation_config(jg)%dass_lhn)
 
+
+    eventEndDate_proc = MERGE(eventEndDate, eventStartDate, assimilation_config(jg)%lhn_bright)
+
+    CALL assimilation_config(jg)%dass_lhn_brightband%initialize(                       &
+      &                     name          = 'dass_lhn_brightband',                & !in
+      &                     id            = 3,                                    & !in
+      &                     is_enabled    = assimilation_config(jg)%lhn_bright,   & !in
+!      &                     referenceDate = domStartDate,                         & !in
+      &                     startDate     = eventStartDate,                       & !in
+      &                     endDate       = eventEndDate_proc,                    & !in
+      &                     dt            = eventInterval_bb,                     & !in
+      &                     plusSlack     = plusSlack,                            & !in
+      &                     optInclStart  = .TRUE.                                ) !in
+!    ! add to physics group
+    CALL assimilation_config(jg)%dass_g%addToGroup(                          &
+      &                     phyProc = assimilation_config(jg)%dass_lhn_brightband)
     ! compute event start date
     IF (jg > 1) THEN
       CALL getPTStringFromMS(INT(assimilation_config(jg)%nlhnverif_start*1000._wp,i8), td_start_str)

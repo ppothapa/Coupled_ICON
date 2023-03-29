@@ -146,10 +146,6 @@ CONTAINS
 
     ! LW scattering due to clouds
     ecrad_conf%do_lw_cloud_scattering = ecrad_llw_cloud_scat
-    
-    ! For the time being do not use generalised cloud hydrometeors, but the old ice/water method
-    ecrad_conf%use_general_cloud_optics = .false. ! Default is .true., which behaves differently to previous
-                                                  ! default settings (e.g. different default liquid/ice optics)
 
     ! Liquid cloud particle scattering properties
     SELECT CASE (ecrad_iliquid_scat)
@@ -192,9 +188,17 @@ CONTAINS
     SELECT CASE (ecrad_igas_model)
       CASE(0)
         ecrad_conf%i_gas_model = IGasModelIFSRRTMG  !< Use RRTM gas model
+        ! For the time being do not use generalised cloud hydrometeors, but the old ice/water method
+        ecrad_conf%use_general_cloud_optics = .false. ! Default is .true., which behaves differently to previous
+                                                      ! default settings (e.g. different default liquid/ice optics)
+        ! Although the following switches are meant for ecckd, we set them to false to prevent unexpected behavior when accessing these switches
+        ecrad_conf%do_cloud_aerosol_per_lw_g_point = .false.
+        ecrad_conf%do_cloud_aerosol_per_sw_g_point = .false.
       CASE(1)
         ecrad_conf%i_gas_model = IGasModelECCKD  !< Use ecckd gas model
-        CALL finish(routine, 'ecrad_igas_model = 1 not yet ready for usage')
+        ecrad_conf%use_general_cloud_optics = .true. !ecckd needs general cloud optics framework
+        ecrad_conf%do_cloud_aerosol_per_lw_g_point = .true.
+        ecrad_conf%do_cloud_aerosol_per_sw_g_point = .true.
       CASE DEFAULT
         CALL finish(routine, 'ecrad_igas_model not valid for ecRad')
     END SELECT
@@ -205,11 +209,11 @@ CONTAINS
       ecrad_conf%do_setup_ifsrrtm = .false.
     ENDIF
 
-    IF (isolrad == 0) THEN
+    IF (isolrad == 0 .OR. ecrad_igas_model == 1) THEN
+      ! ecckd applies Coddington scaling by default
       ecrad_conf%use_spectral_solar_scaling  = .false.
     ELSE
-      ecrad_conf%use_spectral_solar_scaling  = .true. !< Apply scaling to solar spectrum in order to match 
-                                                      !< Coddington et al.(2016) measurements or the transient external data
+      ecrad_conf%use_spectral_solar_scaling  = .true.
     ENDIF
 
     !---------------------------------------------------------------------------------------

@@ -448,7 +448,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  dp0=p_diag%dpres_mc(:,:,jb),                                               & !in
         &  trop_mask=prm_diag%tropics_mask(:,jb),                                     & !in
         &  innertrop_mask=prm_diag%innertropics_mask(:,jb),                           & !in
-        &  gz0=prm_diag%gz0(:,jb),                                                    & !inout
+        &  gz0=prm_diag%gz0(:,jb),                                                    & !in
         &  l_pat = ext_data%atm%l_pat(:,jb),                                          & !in
         &  t_g=lnd_prog_now%t_g(:,jb),                                                & !in
         &  qv_s=lnd_diag%qv_s(:,jb),                                                  & !in

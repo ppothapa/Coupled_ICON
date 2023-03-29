@@ -232,7 +232,8 @@ MODULE mo_solve_nonhydro
                r_nsubsteps, r_dtimensubsteps, scal_divdamp_o2,      &
                alin, dz32, df32, dz42, df42, bqdr, aqdr,            &
                zf, dzlin, dzqdr
-    REAL(wp) :: dt_linintp_ubc               ! time increment for linear interpolation of nest UBC
+    ! time shifts for linear interpolation of nest UBC
+    REAL(wp) :: dt_linintp_ubc, dt_linintp_ubc_nnow, dt_linintp_ubc_nnew
     REAL(wp) :: z_raylfac(nrdmax(p_patch%id))
     REAL(wp) :: z_ntdistv_bary_1, distv_bary_1, z_ntdistv_bary_2, distv_bary_2
 
@@ -264,11 +265,7 @@ MODULE mo_solve_nonhydro
     LOGICAL :: l_vert_nested, l_child_vertnest
 
     ! Pointers
-    INTEGER, POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS     &
-#endif
-      ::               &
+    INTEGER, POINTER, CONTIGUOUS :: &
       ! to cell indices
       icidx(:,:,:), icblk(:,:,:), &
       ! to edge indices
@@ -408,7 +405,9 @@ MODULE mo_solve_nonhydro
     ! \phi(t) = \phi0 + (t-t0)*dphi/dt, with t=(jstep+0.5)*dtime, and t0=dt_phy
     !
     ! dt_linintp_ubc == (t-t0)
-    dt_linintp_ubc = jstep*dtime - dt_shift
+    dt_linintp_ubc      = jstep*dtime - dt_shift ! valid for center of current time step
+    dt_linintp_ubc_nnow = dt_linintp_ubc - 0.5_wp*dtime
+    dt_linintp_ubc_nnew = dt_linintp_ubc + 0.5_wp*dtime
 
     ! Coefficient for reduced fourth-order divergence damping along nest boundaries
     bdy_divdamp(:) = 0.75_wp/(nudge_max_coeff + dbl_eps)*ABS(scal_divdamp(:))
@@ -476,13 +475,13 @@ MODULE mo_solve_nonhydro
             lvn_only = .FALSE.
           ENDIF
           CALL velocity_tendencies(p_nh%prog(nnow),p_patch,p_int,p_nh%metrics,p_nh%diag,z_w_concorr_me, &
-            z_kin_hor_e,z_vt_ie,ntl1,istep,lvn_only,dtime)
+            z_kin_hor_e,z_vt_ie,ntl1,istep,lvn_only,dtime,dt_linintp_ubc_nnow)
         ENDIF
         nvar = nnow
       ELSE                 ! corrector step
         lvn_only = .FALSE.
         CALL velocity_tendencies(p_nh%prog(nnew),p_patch,p_int,p_nh%metrics,p_nh%diag,z_w_concorr_me, &
-          z_kin_hor_e,z_vt_ie,ntl2,istep,lvn_only,dtime)
+          z_kin_hor_e,z_vt_ie,ntl2,istep,lvn_only,dtime,dt_linintp_ubc_nnew)
         nvar = nnew
       ENDIF
 
@@ -1300,14 +1299,13 @@ MODULE mo_solve_nonhydro
           CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                              i_startidx, i_endidx, rl_start, rl_end)
 
-          ! Store values at nest interface levels
+          ! Store values at nest interface levels; this is done here for the first sub-time step,
+          ! the final averaging is done in mo_nh_nest_utilities:compute_tendencies
           IF (idyn_timestep == 1 .AND. l_child_vertnest) THEN
           !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR
-!DIR$ IVDEP
             DO je = i_startidx, i_endidx
-              p_nh%diag%dvn_ie_int(je,jb) = p_nh%diag%vn_ie(je,nshift,jb) - &
-                                            p_nh%diag%vn_ie(je,nshift+1,jb)
+              p_nh%diag%vn_ie_int(je,1,jb) = p_nh%diag%vn_ie(je,nshift,jb)
             ENDDO
             !$ACC END PARALLEL
           ENDIF
@@ -2099,12 +2097,12 @@ MODULE mo_solve_nonhydro
             ENDDO
             !$ACC END PARALLEL
           ELSE
-            ! vn_ie(jk=1) is extrapolated using parent domain information in this case
+            ! vn_ie(jk=1) is interpolated horizontally from the parent domain, and linearly interpolated in time
             !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
             !$ACC LOOP GANG VECTOR
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
-              p_nh%diag%vn_ie(je,1,jb) = p_nh%diag%vn_ie(je,2,jb) + p_nh%diag%dvn_ie_ubc(je,jb)
+              p_nh%diag%vn_ie(je,1,jb) = p_nh%diag%vn_ie_ubc(je,1,jb)+dt_linintp_ubc_nnew*p_nh%diag%vn_ie_ubc(je,2,jb)
               ! vt_ie(jk=1) is actually unused, but we need it for convenience of implementation
               z_vt_ie(je,1,jb) = p_nh%diag%vt(je,1,jb)
               !
@@ -2542,7 +2540,7 @@ MODULE mo_solve_nonhydro
             ! UBC for w: horizontally interpolated from the parent interface level, 
             !            and linearly interpolated in time.
             p_nh%prog(nnew)%w(jc,1,jb) = p_nh%diag%w_ubc(jc,jb,1)  &
-              &                        + dt_linintp_ubc * p_nh%diag%w_ubc(jc,jb,2)
+              &                        + dt_linintp_ubc_nnew * p_nh%diag%w_ubc(jc,jb,2)
             !
             z_contr_w_fl_l(jc,1) = z_mflx_top(jc,jb) * p_nh%metrics%vwind_expl_wgt(jc,jb)
           ENDDO
@@ -3183,7 +3181,7 @@ MODULE mo_solve_nonhydro
        TYPE(t_prepare_adv), TARGET, INTENT(INOUT) :: prep_adv
 
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp                 ! p_prog  WP
-       REAL(wp), DIMENSION(:,:),     POINTER  :: dvn_ie_ubc_tmp                                                 ! p_diag  WP 2D
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: vn_ie_ubc_tmp                                                 ! p_diag  WP 2D
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: w_ubc_tmp, mflx_ic_ubc_tmp, theta_v_ic_ubc_tmp, rho_ic_ubc_tmp ! p_diag  WP
 
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: theta_v_ic_tmp, rho_ic_tmp                                     ! p_diag  WP
@@ -3279,11 +3277,11 @@ MODULE mo_solve_nonhydro
        !$ACC UPDATE DEVICE(ddt_vn_grf_tmp) IF(p_nh%diag%ddt_vn_grf_is_associated)
 
        mflx_ic_ubc_tmp     => p_nh%diag%mflx_ic_ubc
-       dvn_ie_ubc_tmp      => p_nh%diag%dvn_ie_ubc
+       vn_ie_ubc_tmp       => p_nh%diag%vn_ie_ubc
        theta_v_ic_ubc_tmp  => p_nh%diag%theta_v_ic_ubc
        rho_ic_ubc_tmp      => p_nh%diag%rho_ic_ubc
        w_ubc_tmp           => p_nh%diag%w_ubc
-       !$ACC UPDATE DEVICE(mflx_ic_ubc_tmp, dvn_ie_ubc_tmp, theta_v_ic_ubc_tmp, rho_ic_ubc_tmp, w_ubc_tmp) IF(l_vert_nested)
+       !$ACC UPDATE DEVICE(mflx_ic_ubc_tmp, vn_ie_ubc_tmp, theta_v_ic_ubc_tmp, rho_ic_ubc_tmp, w_ubc_tmp) IF(l_vert_nested)
 
        ddt_exner_phy_tmp   => p_nh%diag%ddt_exner_phy
        ddt_vn_phy_tmp      => p_nh%diag%ddt_vn_phy
@@ -3321,7 +3319,7 @@ MODULE mo_solve_nonhydro
        TYPE(t_prepare_adv), TARGET, INTENT(INOUT) :: prep_adv
 
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp                 ! p_prog  WP
-       REAL(wp), DIMENSION(:,:),     POINTER  :: dvn_ie_int_tmp                                                 ! p_diag  WP 2D
+       REAL(wp), DIMENSION(:,:,:),   POINTER  :: vn_ie_int_tmp                                                  ! p_diag  WP 2D
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: theta_v_ic_tmp, rho_ic_tmp, rho_ic_int_tmp, w_int_tmp          ! p_diag  WP
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: theta_v_ic_int_tmp, grf_bdy_mflx_tmp                           ! p_diag  WP
        REAL(wp), DIMENSION(:,:,:),   POINTER  :: mass_fl_e_tmp,  mflx_ic_int_tmp, exner_pr_tmp                  ! p_diag  WP
@@ -3395,8 +3393,8 @@ MODULE mo_solve_nonhydro
        rho_ic_int_tmp      => p_nh%diag%rho_ic_int
        !$ACC UPDATE HOST(w_int_tmp, mflx_ic_int_tmp, theta_v_ic_int_tmp, rho_ic_int_tmp) IF(l_child_vertnest)
 
-      dvn_ie_int_tmp      => p_nh%diag%dvn_ie_int
-      !$ACC UPDATE HOST(dvn_ie_int_tmp) IF(idyn_timestep == 1 .AND. l_child_vertnest)
+      vn_ie_int_tmp      => p_nh%diag%vn_ie_int
+      !$ACC UPDATE HOST(vn_ie_int_tmp) IF(idyn_timestep == 1 .AND. l_child_vertnest)
 
       grf_bdy_mflx_tmp    => p_nh%diag%grf_bdy_mflx
       !$ACC UPDATE HOST(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e >= 5) .AND. (idiv_method == 1) .AND. (jstep == 0))

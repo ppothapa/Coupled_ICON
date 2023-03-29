@@ -17,11 +17,7 @@
 !! -----------------------------------------------------------------------------------
 MODULE mo_lonlat_grid
 
-#ifdef __ICON__
   USE mo_kind,              ONLY: wp
-#else
-  USE mo_utilities,         ONLY: wp
-#endif
   USE mo_mpi,               ONLY: p_bcast
   USE mo_exception,         ONLY: finish
 

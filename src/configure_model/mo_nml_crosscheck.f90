@@ -400,7 +400,7 @@ CONTAINS
             IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
               &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
               &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
-              WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid fo inwp_radiation=4'
+              WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid for inwp_radiation=4'
               CALL finish(routine,message_text)
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
@@ -413,6 +413,12 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, or 2')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
+            IF (ecrad_igas_model == 1 .AND. .NOT. ANY(irad_aero == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen/) ) )&
+              &  CALL finish(routine,'For ecrad_igas_model=1, only Tegen aerosol implemented (irad_aero=0,2,6)')
+            IF (ecrad_igas_model == 1 .AND. isolrad /= 1) THEN
+              isolrad = 1
+              CALL message(routine,'Warning: For ecrad_igas_model = 1, only Coddington scaling is available. Setting isolrad=1')
+            ENDIF
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
           ELSE
@@ -786,7 +792,7 @@ CONTAINS
         END SELECT ! iforcing
 
 #ifdef _OPENACC
-        IF ( advection_config(jg)%llsq_svd == .FALSE. ) THEN
+        IF ( .not. advection_config(jg)%llsq_svd ) THEN
           ! The .FALSE. version is not supported by OpenACC. However, both versions to the same. The .TRUE. version 
           ! is faster during runtime on most platforms but involves a more expensive calculation of coefficients. 
           CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
@@ -1153,8 +1159,8 @@ CONTAINS
     ENDIF
     
     DO jg= 1,n_dom
-      IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART) THEN
-        CALL finish(routine,'irad_aero=9 (ART) does not work with a reduced radiation grid')
+      IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4) THEN
+        CALL finish(routine,'irad_aero=9 (ART) and a reduced radiation grid only works with ecRad (inwp_radiation=4)')
       ENDIF
       IF(art_config(jg)%iart_ari == 0 .AND. irad_aero == iRadAeroART) THEN
         CALL finish(routine,'irad_aero=9 (ART) needs iart_ari > 0')

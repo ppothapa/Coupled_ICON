@@ -58,8 +58,10 @@ ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
 ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion"
 ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
 
-# Tolerate an additional argument mismatch in DACE:
-ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -wmismatch=p_bcast_derivedtype -C=all"
+# Tolerate all argument mismatches in DACE (setting the function-specific
+# -wmismatch=p_bcast_derivedtype flag does not work due to what seems to be a
+# compiler bug):
+ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=all"
 ICON_DACE_PATH='externals/dace_icon'
 
 # Enable recognition of non-standard double precision complex intrinsic

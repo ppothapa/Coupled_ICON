@@ -434,7 +434,7 @@ function tolerance_check
             FILE_IDS="atm_3d"
             ;;
         *mch_opr_r04b07_lhn_12*)
-            FILE_IDS="atm_3d_ml,atm_3d_hl,atm_3d_pl,Meteogram"
+            FILE_IDS="atm_3d_ml,atm_3d_il,atm_3d_hl,atm_3d_pl,atm_2d_ll,Meteogram"
             ;;
         *mch_*nest*)
             FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
@@ -506,6 +506,53 @@ function tolerance_check
     return $TOL_STATUS
 }
 
+function performance_check
+{
+    typeset MODEL_DIR1 EXPERIMENT
+    MODEL_DIR1=$1
+    EXPERIMENT=$2
+    PROBTEST=externals/probtest/probtest.py
+
+    # status variable that is evaluated after the function call
+    TOL_STATUS=0
+    cd $MODEL_DIR1 || exit 1
+
+    # use the correct reference
+    PERFORMANCE_REFERENCE="${MODEL_DIR1}/run/performance_reference/${EXPERIMENT}_${BB_NAME}"
+
+    # find LOG file (This assumes there is only one log file of the exp in question in the run directory)
+    LOG_FILE=$(find "${MODEL_DIR1}/run" -name "LOG.check.${EXPERIMENT}*" -print -prune)
+
+    echo "Running performance check with reference at ${PERFORMANCE_REFERENCE}"
+
+    # generate performance data from the LOG file
+    $PROBTEST --log-file check-${EXPERIMENT}.log performance \
+        --timing-regex ${LOG_FILE} \
+        --timing-database ${EXPERIMENT}_${BB_NAME} \
+        --append-time False
+
+    # compare the generated performance against the reference
+    # Assumption: The first table is the correct one
+    $PROBTEST --log-file check-${EXPERIMENT}.log performance-check \
+        --timing-current ${EXPERIMENT}_${BB_NAME} \
+        --timing-reference run/performance_reference/${EXPERIMENT}_${BB_NAME} \
+        --i-table 0 \
+        --measurement-uncertainty 1 \
+        --tolerance-factor 1.1 \
+        --new-reference-threshold 0.95
+
+    # get the relevant success check
+    fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
+    crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
+    finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
+    if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
+        echo "testsuite did not complete successfully"
+        TOL_STATUS=1
+    fi
+
+    return $TOL_STATUS
+}
+
 make_sure_cdo_exists_and_runs() {
 
     # is cdo in PATH?
@@ -538,7 +585,7 @@ MODEL_DIR=`pwd`
 cd $SCRIPT_DIR
 
 # possible test modes
-MODES="b u r n m o t ur un um uo rn rm ro nm no mo urn urm uro unm uno umo rnm rno rmo nmo urnm urno urmo unmo rnmo urnmo rnmot"
+MODES="b u r n m o t p ur un um uo rn rm ro nm no mo mp tp urn urm uro unm uno umo rnm rno rmo nmo tmp urnm urno urmo unmo rnmo urnmo rnmot"
 
 while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
     case $OPT in
@@ -559,14 +606,15 @@ while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
             ;;
         m  ) MODE=$OPTARG 
             case $MODE in
-                'base')     MD='b';;
-                'update')   MD='u';;
-                'restart')  MD='r';;
-                'nproma')   MD='n';;
-                'mpi')      MD='m';;
-                'omp')      MD='o';;
-                'tolerance')MD='t';;
-                *)      MD=$MODE;;
+                'base')         MD='b';;
+                'update')       MD='u';;
+                'restart')      MD='r';;
+                'nproma')       MD='n';;
+                'mpi')          MD='m';;
+                'omp')          MD='o';;
+                'tolerance')    MD='t';;
+                'performance')  MD='p';;
+                *)              MD=$MODE;;
             esac
 
             # Check if the given MODE arguments are correct
@@ -625,6 +673,15 @@ EXPERIMENT=${EXPERIMENT='atm_qubicc_test'}
 # if the respective runscript is present 
 FORCE_MRS=${FORCE_MRS='yes'}
 # Test mode
+#
+# u = update test
+# r = restart test
+# n = nproma test
+# m = mpi test
+# o = omp test
+# t = tolerance test
+# p = performance test
+#
 MD=${MD='rnmo'}
 # Force to overwrite existing experiments even if they are present
 OVERWRITE=${OVERWRITE='yes'}
@@ -928,13 +985,7 @@ if string_in_list $MD $CMODES; then
 
         N_NPROMA=`grep "nproma=" ${RUN_SCRIPT}`
         N_NPROMA=${N_NPROMA#nproma=}
-        # When using a negative nproma as no. blocks, decrease this value by one instead of increasing it
-        # This is mainly so nproma=-1 doesn't get changed to nproma=0
-        if [ ${N_NPROMA} -lt 0 ]; then
-            ((N_NPROMA_NEW=N_NPROMA - 1))
-        else
-            ((N_NPROMA_NEW=N_NPROMA + 1))
-        fi
+        ((N_NPROMA_NEW=N_NPROMA + 1))
         sed s/nproma=$N_NPROMA/nproma=$N_NPROMA_NEW/g < ${RUN_SCRIPT} > ${RUN_SCRIPT}.out
         mv ${RUN_SCRIPT}.out ${RUN_SCRIPT}
 
@@ -970,7 +1021,7 @@ if string_in_list $MD $CMODES; then
 fi # MODE
 
 
-CMODES="m um rm nm mo tm urm unm umo rnm rmo nmo urnm urmo unmo rnmo urnmo rnmot"
+CMODES="m um rm nm mo tm mp urm unm umo rnm rmo nmo tmp urnm urmo unmo rnmo urnmo rnmot"
 if string_in_list $MD $CMODES; then
     TEST='mpi'
     echo ' '
@@ -1183,7 +1234,7 @@ if string_in_list $MD $CMODES; then
     fi # TEST_POSSIBLE
 fi # MODE
 
-CMODES="t tm rnmot rt"
+CMODES="t tm rnmot rt tp tmp"
 if string_in_list $MD $CMODES; then
     TEST='tolerance'
     echo ' '
@@ -1192,6 +1243,25 @@ if string_in_list $MD $CMODES; then
 
     # compare base run with reference
     tolerance_check $MODEL_DIR $EXP_BASE $EXPERIMENT
+    if [ "$TOL_STATUS" == 0 ]; then
+        PASSED_TESTS="$PASSED_TESTS $TEST"
+        EXIT_STATUS=$(($EXIT_STATUS + 0))
+    else
+        FAILED_TESTS="$FAILED_TESTS $TEST"
+        EXIT_STATUS=$(($EXIT_STATUS + 1))
+    fi
+fi
+
+CMODES="p tp mp tmp"
+if string_in_list $MD $CMODES; then
+    TEST='performance'
+    echo ' '
+    echo "#################### perform $TEST test          ####################"
+    echo ' '
+
+    # compare base run with reference
+    performance_check $MODEL_DIR $EXPERIMENT
+
     if [ "$TOL_STATUS" == 0 ]; then
         PASSED_TESTS="$PASSED_TESTS $TEST"
         EXIT_STATUS=$(($EXIT_STATUS + 0))

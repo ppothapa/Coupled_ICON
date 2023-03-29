@@ -78,68 +78,6 @@ MODULE gscp_kessler
 ! Microphysical constants and variables
 !------------------------------------------------------------------------------
 
-#ifdef __COSMO__
-USE kind_parameters, ONLY :   &
-  wp ,       &    !! KIND-type parameter for real variables
-  i4              !! KIND-type parameter for standard integer vaiables
-
-USE data_constants  , ONLY :   &
-!   pi,           & !!
-!! 2. physical constants and related variables
-!! -------------------------------------------
-    t0=>t0_melt,  & !! melting temperature of ice
-!   r_d,          & !! gas constant for dry air
-    r_v,          & !! gas constant for water vapour
-    rdv,          & !! r_d / r_v
-    o_m_rdv,      & !! 1 - r_d/r_v
-    rvd_m_o,      & !! r_v/r_d - 1
-    cp_d,         & !! specific heat of dry air
-    cpdr,         & !! 1 / cp_d
-    lh_v,         & !! latent heat of vapourization
-!   lh_f,         & !! latent heat of fusion
-    lh_s,         & !! latent heat of sublimation
-!   g,            & !! acceleration due to gravity
-!   rho_w,        & !! density of liquid water (kg/m^3)
-! 3. constants for parametrizations
-!! ---------------------------------
-    b1,           & !! variables for computing the saturation vapour pressure
-    b2w,          & !! over water (w) and ice (i)
-    b2i,          & !!               -- " --
-    b3,           & !!               -- " --
-    b4w,          & !!               -- " --
-    b234w,        & !!               -- " --
-    b4i,          & !!               -- " --
-!> 4. tuning constants for radiation, cloud physics, turbulence
-!! ------------------------------------------------------------
-    qi0,          & !! cloud ice threshold for autoconversion
-    qc0,          & !! cloud water threshold for autoconversion
-!> 5. Precision-dependent security parameters (epsilons)
-!! ------------------------------------------------------
-    repsilon        !! precision of 1.0 in current floating point format
-
-!! end of data_constants
-
-USE data_runcontrol , ONLY :   &
-    ldiabf_lh,      & ! include diabatic forcing due to latent heat in RK-scheme
-    lsuper_coolw,   & ! switch for supercooled liquid water
-    itype_qxpert_rn,& ! define which hum variables tend. are perturbed
-    itype_qxlim_rn    ! type of reduction/removal of the perturbation 
-                      ! in case of negative (qv, qc, qi) or 
-                      ! supersaturated (qv) values
-
-!------------------------------------------------------------------------------
-!! COSMO environment modules
-!------------------------------------------------------------------------------
-
-USE utilities,                ONLY : message
-USE meteo_utilities,          ONLY : satad       !! saturation adjustment
-USE src_stoch_physics,        ONLY : apply_tqx_tend_adj
-#endif
-! of ifdef __COSMO__
-
-!------------------------------------------------------------------------------
-
-#ifdef __ICON__
 USE mo_kind,               ONLY: wp         , &
                                  i4
 !USE mo_math_constants    , ONLY: pi
@@ -161,11 +99,9 @@ USE mo_satad,              ONLY: sat_pres_water     !! saturation vapor pressure
 USE mo_exception,          ONLY: message, message_text
 
 USE mo_run_config,         ONLY: ldass_lhn
-#endif
 
 !------------------------------------------------------------------------------
 
-! this can be used by ICON and COSMO
 USE gscp_data, ONLY: &          ! all variables are used here
 
     zconst,   zbev,    zvz0r,                 &
@@ -184,14 +120,6 @@ PRIVATE
 
 PUBLIC :: kessler
 
-!------------------------------------------------------------------------------
-!> Parameters and variables which are global in this module
-!------------------------------------------------------------------------------
-
-#ifdef __COSMO__
-CHARACTER(132) :: message_text = ''
-#endif
-
 !==============================================================================
 
 CONTAINS
@@ -207,14 +135,9 @@ SUBROUTINE kessler  (             &
   idbg,                              & !! optional debug level
   zdt, dz,                           & !! numerics parameters
   t,p,rho,qv,qc,qr,                  & !! prognostic variables
-#ifdef __ICON__
   !xxx: this should become a module variable, e.g. in a new module mo_gscp_data.f90
   qc0,                               & !! cloud ice/water threshold for autoconversion
-#endif
   prr_gsp,                           & !! surface precipitation rates
-#ifdef __COSMO__
-  tinc_lh,                           & !  t-increment due to latent heat 
-#endif
   qrsflux,                           & !  precipitation flux
   l_cv,                              &
   ldiag_ttend,     ldiag_qtend     , &
@@ -259,10 +182,8 @@ SUBROUTINE kessler  (             &
   REAL(KIND=wp), INTENT(IN) :: &
     zdt                    !> time step for integration of microphysics     (  s  )
 
-#ifdef __ICON__
   REAL(KIND=wp), INTENT(IN) :: &
     qc0              !> cloud ice/water threshold for autoconversion
-#endif
 
   REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::      &   ! (ie,ke)
     dz              ,    & !> layer thickness of full levels                (  m  )
@@ -281,11 +202,6 @@ SUBROUTINE kessler  (             &
     qv              ,    & !! specific water vapor content                  (kg/kg)
     qc              ,    & !! specific cloud water content                  (kg/kg)
     qr                     !! specific rain content                         (kg/kg)
-
-#ifdef __COSMO__
-  REAL(KIND=wp), INTENT(INOUT) :: &
-       tinc_lh(:,:)    ! temperature increments due to heating             ( K/s ) 
-#endif  
 
   REAL(KIND=wp), INTENT(INOUT) :: &
        qrsflux(:,:)        !  precipitation flux
@@ -360,9 +276,6 @@ SUBROUTINE kessler  (             &
     qr_in                !! specific rain content                         (kg/kg)
 
   REAL (KIND=wp)   ::  &
-#ifdef __COSMO__
-    fpvsw, fqvs  ,     & !
-#endif
     zpv          ,     & !
     zdtdh, zphi  ,     & !
     zqrk, lnzqrk ,     & !
@@ -384,9 +297,6 @@ SUBROUTINE kessler  (             &
     zvzr        (nvec),     & !
     zpkr        (nvec),     & !
     zprvr       (nvec),     & !
-#ifdef __COSMO__
-    zdummy      (nvec,8),   & !
-#endif
     zpkm1r      (nvec)        !
 
 !------------ End of header ---------------------------------------------------
@@ -398,26 +308,15 @@ SUBROUTINE kessler  (             &
 !> Statement functions
 ! -------------------
 
-! saturation vapour pressure over water (fpvsw)
-! and specific humidity at vapour saturation (fqvs)
-#ifdef __COSMO__
-  fpvsw(ztx)     = b1*EXP( b2w*(ztx-b3)/(ztx-b4w) )
-  fqvs (zpv,zpx) = rdv*zpv/( zpx - o_m_rdv*zpv )
-#endif
   fsa3(ztx) = 3.86E-3_wp - 9.41E-5_wp*(ztx-t0)
 
-  
 !------------------------------------------------------------------------------
 !  Section 1: Initial setting of local variables
 !------------------------------------------------------------------------------
 
 ! Define reciprocal of heat capacity of dry air (at constant pressure vs at constant volume)
 
-#ifdef __COSMO__
-  z_heat_cap_r = cpdr
-#endif
 
-#ifdef __ICON__
   IF (PRESENT(l_cv)) THEN
     IF (l_cv) THEN
       z_heat_cap_r = cvdr
@@ -427,17 +326,13 @@ SUBROUTINE kessler  (             &
   ELSE
     z_heat_cap_r = cpdr
   ENDIF
-#endif
 
   ! Delete precipitation fluxes from previous timestep
   prr_gsp (:) = 0.0_wp
   zpkr    (:) = 0.0_wp
   zprvr   (:) = 0.0_wp
   zvzr    (:) = 0.0_wp
-#ifdef __COSMO__
-  ! CDIR COLLAPSE
-  zdummy(:,:)=0.0_wp
-#endif
+
   ! Optional arguments
 
   IF (PRESENT(ivstart)) THEN
@@ -523,13 +418,6 @@ SUBROUTINE kessler  (             &
 ! ----------------------------------------------------------------------
 
 loop_over_levels: DO k = 1, ke
-
-#ifdef __COSMO__
-  IF ( ldiabf_lh ) THEN
-    ! initialize temperature increment due to latent heat
-    tinc_lh(:,k) = tinc_lh(:,k) - t(:,k)
-  ENDIF
-#endif
 
   !----------------------------------------------------------------------------
   !  Section 2: Test for clouds and precipitation in present layer.
@@ -627,14 +515,7 @@ loop_over_levels: DO k = 1, ke
 
     ELSEIF ( (zqrk) > 0.0_wp .AND. qcg <= 0.0_wp )    THEN
 
-#ifdef __COSMO__
-      zspw  = fpvsw(tg)
-      zsqvw = fqvs(zspw, ppg)
-#endif
-
-#ifdef __ICON__
       zsqvw = sat_pres_water(tg)/(rhog * r_v *tg)
-#endif
 
       ! Coefficients
       zsrmax = zzar*rhogr * zdtr
@@ -683,13 +564,6 @@ loop_over_levels: DO k = 1, ke
     qv (iv,k) = MAX ( 0.0_wp, qv(iv,k) + zqvts*zdt )
     qc (iv,k) = MAX ( 0.0_wp, qc(iv,k) + zqcts*zdt )
 
-#ifndef __ICON__
-    ! Store optional microphysical rates for diagnostics
-    IF (PRESENT(ddt_diag_au)) ddt_diag_au(:,k) = zswra
-    IF (PRESENT(ddt_diag_ac)) ddt_diag_ac(:,k) = zswrk
-    IF (PRESENT(ddt_diag_ev)) ddt_diag_ev(:,k) = zsrd
-#endif
-
   ENDDO loop_over_i
 
   IF (izdebug > 25) THEN
@@ -709,23 +583,6 @@ loop_over_levels: DO k = 1, ke
       ENDIF
     ENDDO
   ENDIF
-
-#if defined (__COSMO__)
-  ! Do a final saturation adjustment for new values of t, qv and qc
-  CALL satad ( 1, t(:,k), qv(:,k),          &
-    qc(:,k), t(:,k), p(:,k),                &
-    zdummy(:,1),zdummy(:,2),zdummy(:,3),    &
-    zdummy(:,4),zdummy(:,5),zdummy(:,6),    &
-    zdummy(:,7),zdummy(:,8),                &
-    b1, b2w, b3, b4w, b234w, rdv, o_m_rdv,  &
-    rvd_m_o, lh_v, cpdr, cp_d,              &
-    nvec, 1, iv_start, iv_end, 1 , 1 )
-
-  IF ( ldiabf_lh ) THEN
-    ! compute temperature increment due to latent heat
-    tinc_lh(:,k) = tinc_lh(:,k) + t(:,k)
-  ENDIF
-#endif
 
 ENDDO loop_over_levels
 

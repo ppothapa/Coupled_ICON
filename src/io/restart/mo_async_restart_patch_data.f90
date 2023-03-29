@@ -17,7 +17,6 @@
 !! Where software is supplied by third parties, it is indicated in the
 !! headers of the routines.
 !!
-#include "icon_contiguous_defines.inc"
 
 MODULE mo_async_restart_patch_data
 #ifndef NOMPI
@@ -90,9 +89,9 @@ CONTAINS
     INTEGER, INTENT(IN) :: ncid
     INTEGER(MPI_ADDRESS_KIND) :: ioff(0:num_work_procs-1), bGet, bWrite
     REAL(dp), ALLOCATABLE, TARGET :: buf(:)
-    REAL(dp), CONTIGUOUS_POINTER :: p_dp(:,:)
-    REAL(sp), CONTIGUOUS_POINTER :: p_sp(:,:)
-    INTEGER, CONTIGUOUS_POINTER :: p_i(:,:)
+    REAL(dp), CONTIGUOUS, POINTER :: p_dp(:,:)
+    REAL(sp), CONTIGUOUS, POINTER :: p_sp(:,:)
+    INTEGER, CONTIGUOUS, POINTER :: p_i(:,:)
     INTEGER :: ichunk, rcs, maxl, iv, nlevs, nd, st(3), ct(3)
     REAL(dp) :: t_get, t_write
     CHARACTER(*), PARAMETER :: routine = modname//':asyncPatchData_writeData'

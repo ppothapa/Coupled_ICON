@@ -142,6 +142,7 @@ MODULE mo_icon_interpolation_scalar
   USE mo_run_config,          ONLY: timers_level
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e, get_indices_v
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_intp
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_lacc_equals_i_am_accel_node
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
@@ -270,16 +271,12 @@ DO jb = i_startblk, i_endblk
                      i_startidx, i_endidx, rl_start, rl_end)
 
   !$ACC PARALLEL IF(i_am_accel_node)
-
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-  !$ACC LOOP GANG
   DO je = i_startidx, i_endidx
-    !$ACC LOOP VECTOR
     DO jk = slev, elev
 #else
-  !$ACC LOOP GANG
   DO jk = slev, elev
-    !$ACC LOOP VECTOR
     DO je = i_startidx, i_endidx
 #endif
 
@@ -327,7 +324,7 @@ END SUBROUTINE verts2edges_scalar
 !!
 SUBROUTINE cells2edges_scalar( p_cell_in, ptr_patch, c_int, p_edge_out,                    &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, opt_fill_latbc, &
-  &                            opt_acc_async)
+  &                            lacc)
 !
 
 TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
@@ -345,9 +342,8 @@ INTEGER, INTENT(in), OPTIONAL :: opt_elev  ! optional vertical end level
 ! start and end values of refin_ctrl flag
 INTEGER, INTENT(in), OPTIONAL :: opt_rlstart, opt_rlend
 
-LOGICAL, INTENT(in), OPTIONAL :: opt_acc_async
-
 LOGICAL, INTENT(in), OPTIONAL :: opt_fill_latbc  ! if true, fill lateral nest boundaries
+LOGICAL, INTENT(in), OPTIONAL :: lacc  ! if true, use openACC
 
 ! edge based scalar output field
 REAL(wp), INTENT(inout) :: p_edge_out(:,:,:) ! dim: (nproma,nlev,nblks_e)
@@ -359,7 +355,7 @@ INTEGER :: i_endblk                  ! end block
 INTEGER :: i_startidx                ! start index
 INTEGER :: i_endidx                  ! end index
 INTEGER :: rl_start, rl_end, i_nchdom
-LOGICAL :: lfill_latbc
+LOGICAL :: lfill_latbc, lzacc
 
 INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
 
@@ -398,6 +394,8 @@ ELSE
   lfill_latbc = .FALSE.
 END IF
 
+CALL set_acc_host_or_device(lzacc, lacc)
+CALL assert_lacc_equals_i_am_accel_node('mo_interpolation:cells2edges_scalar', lacc)
 
 iidx => ptr_patch%edges%cell_idx
 iblk => ptr_patch%edges%cell_blk
@@ -409,7 +407,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
 
 !$ACC DATA NO_CREATE(iidx, iblk, c_int, p_cell_in, p_edge_out)
 
-!$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
+!$OMP PARALLEL PRIVATE(i_startblk, i_endblk)
 
 IF ( (l_limited_area .OR. ptr_patch%id > 1) .AND. lfill_latbc) THEN ! Fill outermost nest boundary
 
@@ -446,7 +444,7 @@ IF ( (l_limited_area .OR. ptr_patch%id > 1) .AND. lfill_latbc) THEN ! Fill outer
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, 1, 1)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR TILE(32, 4)
     DO jk = slev, elev
       DO je = i_startidx, i_endidx
@@ -475,13 +473,12 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
     DO je = i_startidx, i_endidx
       DO jk = slev, elev
 #else
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO je = i_startidx, i_endidx
 #endif
@@ -500,15 +497,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
 !$OMP END PARALLEL
 
-  IF ( PRESENT(opt_acc_async) ) THEN
-    IF ( .NOT. opt_acc_async ) THEN
-      !$ACC WAIT
-    END IF
-  ELSE
-    !$ACC WAIT
-  END IF
-
-  !$ACC END DATA
+!$ACC END DATA
 
 IF (timers_level > 10) CALL timer_stop(timer_intp)
 
@@ -608,15 +597,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
     DO jv = i_startidx, i_endidx
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
-    !$ACC LOOP GANG
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO jv = i_startidx, i_endidx
 #endif
 
@@ -735,15 +721,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
-    !$ACC LOOP GANG
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO jc = i_startidx, i_endidx
 #endif
 
@@ -858,15 +841,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
-    !$ACC LOOP GANG
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO jc = i_startidx, i_endidx
 #endif
 
@@ -976,13 +956,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
     DO jv = i_startidx, i_endidx
       DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
 #endif
@@ -1106,13 +1085,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
     DO jv = i_startidx, i_endidx
       DO jk = slev, elev
 #else
 !CDIR UNROLL=6
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
 #endif
@@ -1234,13 +1212,12 @@ END SUBROUTINE cells2verts_scalar_sp
         &                i_startidx, i_endidx, rl_start, rl_end)
 
       !$ACC PARALLEL IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
       DO jv = i_startidx, i_endidx
         DO jk = slev, elev
 #else
 !CDIR UNROLL=6
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jv = i_startidx, i_endidx
 #endif
@@ -1357,14 +1334,13 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
                        i_startidx, i_endidx, rl_start, rl_end)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
+#ifdef __LOOP_EXCHANGE
     DO jv = i_startidx, i_endidx
       DO jk = slev, elev
          p_vert_out(jk,jv,jb) =                                         &
 #else
 !$NEC outerloop_unroll(4)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
          p_vert_out(jv,jk,jb) =                                         &
@@ -1468,14 +1444,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     ENDIF
 
     !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
     DO jc = 1, nlen
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = slev, elev
       DO jc = 1, nlen
 #endif
@@ -1575,15 +1549,12 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     ENDIF
 
     !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
     DO je = 1, nlen
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
-    !$ACC LOOP GANG
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO je = 1, nlen
 #endif
         p_edge_out(je,jk,jb) =                                        &
@@ -1624,7 +1595,7 @@ END SUBROUTINE edges2edges_scalar
 !!
 SUBROUTINE cell_avg( psi_c, ptr_patch, avg_coeff, avg_psi_c,     &
   &                  opt_slev, opt_elev, opt_rlstart, opt_rlend, &
-  &                  opt_acc_async )
+  &                  lacc )
 !
 !
 !  patch on which computation is performed
@@ -1651,7 +1622,7 @@ INTEGER, INTENT(in), OPTIONAL ::  &
   &  opt_rlstart, opt_rlend   ! start and end values of refin_ctrl flag
 
 LOGICAL, INTENT(IN), OPTIONAL :: & 
-  &  opt_acc_async    ! optional async OpenACC
+  &  lacc    ! if true, use OpenACC
 
 !
 !   cell based variable after averaging
@@ -1665,6 +1636,7 @@ INTEGER :: slev, elev     ! vertical start and end level
 INTEGER :: jc, jk, jb
 INTEGER :: rl_start, rl_end
 INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
+LOGICAL :: lzacc ! non-optional version of lacc
 
 INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
 
@@ -1697,6 +1669,8 @@ ELSE
   rl_end = min_rlcell
 END IF
 
+CALL set_acc_host_or_device(lzacc, lacc)
+
 iidx => ptr_patch%cells%neighbor_idx
 iblk => ptr_patch%cells%neighbor_blk
 
@@ -1711,8 +1685,6 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
 IF (timers_level > 10) CALL timer_start(timer_intp)
 
-!$ACC DATA NO_CREATE(psi_c, avg_coeff, avg_psi_c, iidx, iblk)
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,jk) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, i_endblk
@@ -1720,7 +1692,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -1747,16 +1719,6 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
-  IF ( PRESENT(opt_acc_async) ) THEN
-    IF ( .NOT. opt_acc_async ) THEN
-      !$ACC WAIT
-    END IF
-  ELSE
-    !$ACC WAIT
-  END IF
-
-  !$ACC END DATA
 
   IF (timers_level > 10) CALL timer_stop(timer_intp)
 

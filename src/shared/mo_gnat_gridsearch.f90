@@ -68,7 +68,6 @@ MODULE mo_gnat_gridsearch
 
 !$  USE OMP_LIB
 
-#ifdef __ICON__
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_math_constants,      ONLY: pi_180
@@ -81,13 +80,6 @@ MODULE mo_gnat_gridsearch
     &                               p_bcast, p_max, p_comm_work_2_test
   USE mo_communication,       ONLY: idx_1d
   USE mo_icon_comm_lib,       ONLY: t_mpi_mintype, mpi_reduce_mindistance_pts
-#else
-  USE mo_utilities,           ONLY: wp, t_patch, t_geographical_coordinates,              &
-    &                               message_text, min_rlcell_int, pi_180,                 &
-    &                               idx_1d, finish, message, get_indices_c,               &
-    &                               t_grid_cells, t_grid_vertices
-  USE mo_remap_config,        ONLY: dbg_level
-#endif
 #ifndef NOMPI
   USE mpi
 #endif
@@ -100,10 +92,8 @@ MODULE mo_gnat_gridsearch
   ! constants
   ! ---------------------------------------------------------
 
-#ifdef __ICON__
   !> level of output verbosity
   INTEGER, PARAMETER  :: dbg_level    = 0
-#endif
 
   ! GNAT degree
   !
@@ -198,11 +188,9 @@ MODULE mo_gnat_gridsearch
   ! utility functions
   PUBLIC :: gnat_std_radius
   PUBLIC :: dist_p
-#ifdef __ICON__
   ! distributed point query with MPI
   PUBLIC :: gnat_query_containing_triangles
   PUBLIC :: gnat_merge_distributed_queries
-#endif
   !
   ! constants and derived data types
   !
@@ -1492,8 +1480,6 @@ CONTAINS
   ! subroutines for distributed point query with MPI
   ! ---------------------------------------------------------
 
-#ifdef __ICON__
-
   ! Perform a nearest-neighbor query for a given list of points and
   ! return the indices and block indices of the mesh triangles that
   ! contain these points.
@@ -1654,7 +1640,5 @@ CONTAINS
     lonlat_points(:,:,1) = RESHAPE( new_lonlat_points(:,1), array_shape(:), (/ 0._gk /) )
     lonlat_points(:,:,2) = RESHAPE( new_lonlat_points(:,2), array_shape(:), (/ 0._gk /) )
   END SUBROUTINE gnat_merge_distributed_queries
-
-#endif
 
 END MODULE mo_gnat_gridsearch

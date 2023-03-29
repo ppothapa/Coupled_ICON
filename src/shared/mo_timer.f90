@@ -107,6 +107,7 @@ MODULE mo_timer
     timer_rrtm_coeffs, timer_psrad_scaling, timer_psrad_aerosol
 #endif
 
+  ! nwp physics
   PUBLIC :: timer_satad_v_3D
   PUBLIC :: timer_phys_exner
   PUBLIC :: timer_phys_u_v
@@ -134,6 +135,8 @@ MODULE mo_timer
   PUBLIC :: timer_phys_micro_specific
   PUBLIC :: timer_phys_micro_satad
 
+  ! IAU
+  PUBLIC :: timer_iau_save_restore
 
   PUBLIC :: timer_held_suarez_intr
 
@@ -304,6 +307,8 @@ MODULE mo_timer
   INTEGER :: timer_phys_2mom_sedi
   INTEGER :: timer_phys_micro_specific
   INTEGER :: timer_phys_micro_satad
+
+  INTEGER :: timer_iau_save_restore
 
   INTEGER :: timer_dyn_theta, timer_dyn_temp
 !   INTEGER :: timer_sync_wait
@@ -740,6 +745,9 @@ CONTAINS
     timer_radiation = new_timer("radiation")
     timer_radheat   = new_timer("radheat")
     timer_synsat    = new_timer("synsat")
+
+    ! IAU
+    timer_iau_save_restore = new_timer("iau_save_restore")
 
     timer_model_init    = new_timer("model_init")
     timer_domain_decomp = new_timer("compute_domain_decomp")

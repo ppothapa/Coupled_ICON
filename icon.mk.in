@@ -7,7 +7,7 @@ srcdir:= @srcdir@
 subdirs:= src support
 
 # Relative paths to the directories of the bundled packages:
-bundled_subdirs= @subdirs_extra@
+bundled_subdirs= @extra_build_subdirs@
 
 # Relative path to the directory with the Fortran module files:
 moddir:= mod
@@ -41,6 +41,7 @@ DSL4JSB= ${PYTHON} $(srcdir)/externals/jsbach/scripts/dsl4jsb/dsl4jsb.py
 SB2PP= @SB2PP@
 FPP= @FPP@
 INSTALL= @INSTALL@
+MKDIR_P = @MKDIR_P@
 
 # Fortran compiler flags:
 FCFLAGS= @FCFLAGS@
@@ -75,6 +76,7 @@ NVCFLAGS= @NVCFLAGS@
 # Linker flags and libraries:
 LDFLAGS= @LDFLAGS@
 BUNDLED_LIBFILES= @BUNDLED_LIBFILES@
+BUNDLED_EXTRA_LIBS= $(shell $(SHELL) ./collect.extra-libs)
 LIBS= @LIBS@
 
 ############################ SOURCE FILE COLLECTION ############################
@@ -300,6 +302,7 @@ V= @DEFAULT_VERBOSITY@
 ifeq ($(V),0)
 silent_AR=      @echo "  AR      " $@;
 silent_CC=      @echo "  CC      " $@;
+silent_CONFIG=  @echo "  CONFIG  " $(@D);
 silent_DEPGEN=  @echo "  DEPGEN  " $@;
 silent_DSL4JSB= @echo "  DSL4JSB " $@;
 silent_FC=      @echo "  FC      " $@;
@@ -319,14 +322,14 @@ endif
 # Delete partially updated files:
 .DELETE_ON_ERROR:
 # Targets not associated with files:
-.PHONY: all depend dummy-depend preprocess mostlyclean clean \
-        distclean install check check-bundled force-create-version \
+.PHONY: all preprocess depend check install mostlyclean clean distclean \
+        config-bundled check-bundled dummy-depend force-create-version \
         sanitize-mod-proxies claw
 
 # Targets that do not need the dependency files:
-nodep_targets:= depend dummy-depend preprocess mostlyclean clean \
-                distclean check-bundled $(bundled_subdirs) \
-                $(dep_files) $(pp_files)
+nodep_targets:= preprocess depend mostlyclean clean distclean config-bundled \
+                check-bundled dummy-depend $(bundled_subdirs) $(dep_files) \
+                $(pp_files)
 
 # Selective search paths:
 vpath %.f90 $(srcdir)
@@ -338,11 +341,23 @@ vpath %.cu $(srcdir)
 # Default rule:
 all: $(exec_files)
 
+# Explicit preprocessing rule:
+preprocess: $(pp_files)
+
 # Explicit dependency generation rule:
 depend: $(dep_files)
 
-# Explicit preprocessing rule:
-preprocess: $(pp_files)
+# Generate a list of files that are going to be compiled in the current
+# configuration:
+srclist: $(dep_files)
+	$(silent_GEN)$(DEPLIST) --inc-oo -t $(ICON_prog_obj_file) -f $^ 2>/dev/null | sed '/\(\.@OBJEXT@\|\.@FC_MOD_FILE_EXT@\.proxy\)$$/d' | sort > $@
+
+# Check rule:
+check: all check-bundled
+
+# Installation rule:
+install: all
+	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
 
 # A general rule for clean recipes is to delete only those files that have been
 # created explicitly, abandoning the idea of trying to delete all possible side
@@ -356,7 +371,10 @@ mostlyclean: $(bundled_subdirs)
 	rm -f $(moddir)/*.@FC_MOD_FILE_EXT@ $(moddir)/*.@FC_MOD_FILE_EXT@.proxy
 @PGI_INLIB_ENABLED@	rm -rf $(pgi_inlib_name)
 
-# Delete files generated at the building stage:
+# Delete files generated at the building stage (strictly speaking, we should
+# also translate 'clean' into 'distclean' for the bundled libraries when the
+# delayed configuration is enabled but that would be counterproductive,
+# therefore, we do not do that):
 clean_files= srclist version.c $(filter-out $(CLAW_mk_targets),$(pp_files))
 
 # With all components and all preprocessing steps enabled, the list above
@@ -384,7 +402,7 @@ clean: mostlyclean
 # Delete everything generated at the configure stage (and clean the created
 # directories if they are empty):
 distclean: clean
-	rm -f config.h config.log config.status depgen.c.config depgen.f90.config deplist.config
+	rm -f config.h config.log config.status depgen.c.config depgen.f90.config deplist.config collect.extra-libs
 	rm -f run/collect.set-up.info run/set-up.info run/SETUP.config
 	rm -f $(dep_files)
 	rm -f $(dir_files)
@@ -404,22 +422,13 @@ distclean: clean
 	fi
 	rm -f icon.mk
 
-# Installation rule:
-install: all
-	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
-
-# Generate a list of files that are going to be compiled in the current
-# configuration:
-srclist: $(dep_files)
-	$(silent_GEN)$(DEPLIST) --inc-oo -t $(ICON_prog_obj_file) -f $^ 2>/dev/null | sed '/\(\.@OBJEXT@\|\.@FC_MOD_FILE_EXT@\.proxy\)$$/d' | sort > $@
-
-# Check rule:
-check: all check-bundled
+# Explicit bundled libraries configuration rule:
+config-bundled: $(addsuffix /Makefile,$(bundled_subdirs))
 
 # Check rule for the bundled libraries (run the tests serially to make the
 # output readable and prevent from possible overloading due to multiple
 # simultaneous MPI runs):
-check-bundled:| $(if $(filter check,$(MAKECMDGOALS)),all) # run the tests after 'all' when 'make check'
+check-bundled: $(if $(filter check,$(MAKECMDGOALS)),all) # run the tests after 'all' when 'make check'
 	@test -z '$(bundled_subdirs)' && echo "The list of bundled libraries is empty: nothing to check." && exit 0; \
 	fail=; pass=; \
 	for d in $(bundled_subdirs); do \
@@ -436,7 +445,7 @@ $(ICON_exec_file): $(ICON_prog_obj_file) $(common_lib_file) $(BUNDLED_LIBFILES)
 
 # Common linking rule for the executables:
 $(exec_files): | $(dir_files)
-	$(silent_FCLD)$(FC) -o $@ $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(LDFLAGS) $+ $(LIBS)
+	$(silent_FCLD)$(FC) -o $@ $(make_FCFLAGS) $(FCFLAGS) $(ICON_FCFLAGS) $(LDFLAGS) $+ $(BUNDLED_EXTRA_LIBS) $(LIBS)
 
 # Dependencies of the common convenience library:
 $(common_lib_file): $(common_lib_obj_files)
@@ -531,19 +540,34 @@ sanitize-mod-proxies:
 # Call make inside the subdirectories unconditionally:
 .PHONY: $(bundled_subdirs)
 
+# We need to tolerate the absence of makefiles in the bundled
+# libraries when running clean rules. If the delayed configuration is disabled,
+# we tolerate the absence of the makefiles for the 'distclean' target only.
+# Otherwise, we additionaly enable the tolerance for the 'mostlyclean' and
+# 'clean' targets because they can be requested before the bundled directories
+# get configured:
+nomakefile_bundled_targets:= distclean
+@DELAYED_CONFIG_ENABLED@nomakefile_bundled_targets+= mostlyclean clean
+
 # Make bundled libraries:
 $(bundled_subdirs):
 	@if test -f '$@/Makefile'; then \
 	  $(MAKE) -C $@ $(filter all mostlyclean clean distclean,$(MAKECMDGOALS)) V=$(V); \
 	else \
-	  test xdistclean = x$(filter distclean,$(MAKECMDGOALS)); \
+	  case ' $(MAKECMDGOALS) ' in ${foreach tgt,$(nomakefile_bundled_targets),*\ $(tgt)\ *) ;;} *) false ;; esac; \
 	fi
 
-# Build the bundled mtime and yaxt before the bundled yac:
+# Build the bundled yaxt before configuring the bundled yac:
+externals/yac/Makefile:| @DELAYED_CONFIG_ENABLED@ $(filter externals/yaxt,$(bundled_subdirs))
+
+# Build the bundled mtime and yaxt before building the bundled yac:
 externals/yac: $(filter externals/mtime externals/yaxt,$(bundled_subdirs))
 
-# Build the bundled yaxt and ppm before the bundled cdi:
+# Build the bundled yaxt and ppm before building the bundled cdi:
 externals/cdi: $(filter externals/yaxt externals/ppm,$(bundled_subdirs))
+
+# Configure delayed bundled libraries:
+@ICON_DELAYED_CONFIG_RULES@
 
 # Relink executables if any of the source files of the bundled libraries
 # is updated (the semicolon is required to support parallel rebuild):
@@ -557,7 +581,7 @@ version.c: force-create-version
 
 # Directory creation rule:
 %/.dirstamp:
-	$(silent_MKDIR)@MKDIR_P@ $(@D) && touch $@
+	$(silent_MKDIR)$(MKDIR_P) $(@D) && touch $@
 
 # Keep directory stamps:
 .PRECIOUS: $(dir_files)

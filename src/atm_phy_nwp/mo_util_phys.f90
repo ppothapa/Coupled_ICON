@@ -415,9 +415,8 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, rl_start, rl_end)
 
-      ! MJ: it might be that out_var is not present on GPU, so we use COPY
-      !$ACC PARALLEL DEFAULT(PRESENT) COPY(out_var) IF(lzacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(temp, qv, p_ex)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -545,6 +544,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2013-07-25) 
   ELEMENTAL FUNCTION vap_pres(qv,pres)
+  !$ACC ROUTINE SEQ
 
   IMPLICIT NONE
 
@@ -576,11 +576,7 @@ CONTAINS
   SUBROUTINE tracer_add_phytend( p_rho_now, prm_nwp_tend, pdtime, prm_diag, &
     &                            pt_prog_rcf, p_metrics, dt_loc, jg, jb, i_startidx, i_endidx, kend, lacc)
 
-    REAL(wp)             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS         &
-#endif
-                        ,INTENT(IN)   :: p_rho_now(:,:)  !< total air density
+    REAL(wp), CONTIGUOUS,INTENT(IN)   :: p_rho_now(:,:)  !< total air density
     TYPE(t_nwp_phy_tend),INTENT(IN)   :: prm_nwp_tend    !< atm tend vars
     REAL(wp)            ,INTENT(IN)   :: pdtime          !< time step
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag        !< the physics variables

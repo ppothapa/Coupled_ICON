@@ -428,10 +428,9 @@
 
      END IF
 
-! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%idx) IF_PRESENT
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%blk) IF_PRESENT
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%stencil) IF_PRESENT
+    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%idx)
+    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%blk)
+    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%stencil)
 
     END SUBROUTINE rbf_c2l_index
 
@@ -678,8 +677,7 @@
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
 
-! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%coeff) IF_PRESENT
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%coeff)
 
     END SUBROUTINE rbf_compute_coeff_vec
 
@@ -855,8 +853,7 @@
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
 
-! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%coeff) IF_PRESENT
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%coeff)
 
     END SUBROUTINE rbf_compute_coeff_c2l
 
@@ -1037,10 +1034,9 @@
 
         END IF
 
-        ! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-        !$ACC UPDATE DEVICE(ptr_intp%blk) IF_PRESENT
-        !$ACC UPDATE DEVICE(ptr_intp%idx) IF_PRESENT
-        !$ACC UPDATE DEVICE(ptr_intp%coeff) IF_PRESENT
+        !$ACC UPDATE DEVICE(ptr_intp%blk)
+        !$ACC UPDATE DEVICE(ptr_intp%idx)
+        !$ACC UPDATE DEVICE(ptr_intp%coeff)
 
       END DO  
       IF (dbg_level > 1)  CALL message(routine, "done.")
@@ -1415,11 +1411,10 @@
       END DO
 !$OMP END PARALLEL DO
 
-! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%stencil) IF_PRESENT
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%coeff) IF_PRESENT
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx) IF_PRESENT
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx) IF_PRESENT
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%stencil)
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%coeff)
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
 
     END SUBROUTINE nnb_setup_interpol_lonlat_grid
 
@@ -1478,10 +1473,9 @@
 !$OMP END DO
 !$OMP END PARALLEL
       
-! Note: IF (i_am_accel_node) is not used because it is .FALSE. when this is called
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%stencil) IF_PRESENT
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%idx) IF_PRESENT
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%blk) IF_PRESENT
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%stencil)
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%idx)
+      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%blk)
 
       IF (dbg_level > 1) CALL message(routine, "compute lon-lat interpolation coefficients")
 

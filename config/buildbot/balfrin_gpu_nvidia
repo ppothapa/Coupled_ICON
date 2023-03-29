@@ -1,0 +1,21 @@
+#!/bin/bash
+
+SPACK_REMOTE='https://github.com/C2SM/spack-c2sm.git'
+SPACK_COMMIT=fdb342f5889410f516ad17f3092196bcf576ee13
+
+SPACK_SPEC="icon@gpu%nvhpc icon_target=gpu +eccodes ^eccodes@2.19.1"
+
+
+git clone ${SPACK_REMOTE}
+
+pushd spack-c2sm
+git checkout $SPACK_COMMIT
+git submodule init
+git submodule update
+. setup-env.sh
+popd
+
+MY_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+
+spack dev-build -u build ${SPACK_SPEC}

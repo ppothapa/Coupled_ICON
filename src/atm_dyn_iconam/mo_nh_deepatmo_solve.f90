@@ -223,11 +223,7 @@ MODULE mo_nh_deepatmo_solve
     LOGICAL :: l_vert_nested, l_child_vertnest
 
     ! Pointers
-    INTEGER, POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS     &
-#endif
-      ::               &
+    INTEGER, POINTER, CONTIGUOUS :: &
       ! to cell indices
       icidx(:,:,:), icblk(:,:,:), &
       ! to edge indices
@@ -407,13 +403,13 @@ MODULE mo_nh_deepatmo_solve
           ENDIF
           ! ('nrdmax' became an additional optional variable for the deep-atmosphere copy)
           CALL velocity_tendencies_deepatmo(p_nh%prog(nnow),p_patch,p_int,p_nh%metrics,p_nh%diag,z_w_concorr_me, &
-            &                               z_kin_hor_e,z_vt_ie,ntl1,istep,lvn_only,dtime,opt_nrdmax=nrdmax)
+            &                               z_kin_hor_e,z_vt_ie,ntl1,istep,lvn_only,dtime,dt_linintp_ubc,opt_nrdmax=nrdmax)
         ENDIF
         nvar = nnow
       ELSE                 ! corrector step
         lvn_only = .FALSE.
         CALL velocity_tendencies_deepatmo(p_nh%prog(nnew),p_patch,p_int,p_nh%metrics,p_nh%diag,z_w_concorr_me, &
-          &                               z_kin_hor_e,z_vt_ie,ntl2,istep,lvn_only,dtime,opt_nrdmax=nrdmax)
+          &                               z_kin_hor_e,z_vt_ie,ntl2,istep,lvn_only,dtime,dt_linintp_ubc,opt_nrdmax=nrdmax)
         nvar = nnew
       ENDIF
 
@@ -1011,8 +1007,7 @@ MODULE mo_nh_deepatmo_solve
           IF (idyn_timestep == 1 .AND. l_child_vertnest) THEN
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
-              p_nh%diag%dvn_ie_int(je,jb) = p_nh%diag%vn_ie(je,nshift,jb) - &
-                                            p_nh%diag%vn_ie(je,nshift+1,jb)
+              p_nh%diag%vn_ie_int(je,1,jb) = p_nh%diag%vn_ie(je,nshift,jb)
             ENDDO
           ENDIF
 
@@ -1740,7 +1735,7 @@ MODULE mo_nh_deepatmo_solve
             ! vn_ie(jk=1) is extrapolated using parent domain information in this case
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
-              p_nh%diag%vn_ie(je,1,jb) = p_nh%diag%vn_ie(je,2,jb) + p_nh%diag%dvn_ie_ubc(je,jb)
+              p_nh%diag%vn_ie(je,1,jb) = p_nh%diag%vn_ie_ubc(je,1,jb)+(dt_linintp_ubc+dtime)*p_nh%diag%vn_ie_ubc(je,2,jb)
               ! vt_ie(jk=1) is actually unused, but we need it for convenience of implementation
               z_vt_ie(je,1,jb) = p_nh%diag%vt(je,1,jb)
               !

@@ -44,11 +44,7 @@ MODULE mo_nonhydro_types
   ! prognostic variables state vector
   TYPE t_nh_prog
 
-    REAL(wp), POINTER    &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS         &
-#endif
-      ::                 &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       w(:,:,:),          & !> orthogonal vertical wind (nproma,nlevp1,nblks_c)     [m/s]
       vn(:,:,:),         & !! orthogonal normal wind (nproma,nlev,nblks_e)         [m/s]
       rho(:,:,:),        & !! density (nproma,nlev,nblks_c)                     [kg/m^3]
@@ -66,11 +62,7 @@ MODULE mo_nonhydro_types
   ! diagnostic variables state vector
   TYPE t_nh_diag
 
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS            &
-#endif
-    &  ::                   &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     ! a) variables needed for intermediate storage and physics-dynamics coupling
     &  u(:,:,:),            & ! zonal wind (nproma,nlev,nblks_c)               [m/s]
     &  v(:,:,:),            & ! meridional wind (nproma,nlev,nblks_c)          [m/s]
@@ -117,8 +109,8 @@ MODULE mo_nonhydro_types
                               ! (nproma,nlev,nblks_c)                          [K/s]
     &  grf_tend_tracer(:,:,:,:), & ! tracer tendency field for use in grid refinement
                                    ! (nproma,nlev,nblks_c,ntracer)          [kg/kg/s]
-    &  dvn_ie_int(:,:),         & ! Storage field for vertical nesting: vn at parent interface level
-    &  dvn_ie_ubc(:,:),         & ! Storage field for vertical nesting: vn at child upper boundary
+    &  vn_ie_int(:,:,:),        & ! Storage field for vertical nesting: vn plus time tendency at parent interface level
+    &  vn_ie_ubc(:,:,:),        & ! Storage field for vertical nesting: vn plus time tendency at child upper boundary
     &  w_int(:,:,:),            & ! Storage field for vertical nesting: w at parent interface level
     &  w_ubc(:,:,:),            & ! Storage field for vertical nesting: 
                                   ! average w plus time tendency at child upper boundary
@@ -152,11 +144,7 @@ MODULE mo_nonhydro_types
     &  => NULL()
 
     ! d) variables that are in single precision when "__MIXED_PRECISION" is defined
-    REAL(vp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS            &
-#endif
-    &  ::                   &
+    REAL(vp), POINTER, CONTIGUOUS :: &
     ! analysis increments
     &  vn_incr   (:,:,:),   & ! normal velocity increment        [m/s]
     &  exner_incr(:,:,:),   & ! exner inrement                   [-]
@@ -197,11 +185,7 @@ MODULE mo_nonhydro_types
     &  dwdy(:,:,:)          & ! meridional gradient of vertical wind speed (nproma,nlevp1,nblks_c)     [1/s]
     &  => NULL()              ! (nproma,nlevp1,nblks_c,1:3)                  [m/s^2]
 
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    &  , CONTIGUOUS    &
-#endif
-    &  ::              &
+    REAL(wp), POINTER, CONTIGUOUS :: &
     ! wind tendencies in dynamics [m/s^2]
     &  ddt_vn_dyn  (:,:,:) => NULL() ,& ! vn   total = sum of the following contributions
     &  ddt_ua_dyn  (:,:,:) => NULL() ,& ! ua
@@ -273,11 +257,7 @@ MODULE mo_nonhydro_types
     &  ddt_ua_grf_is_associated = .FALSE. ,& ! ua
     &  ddt_va_grf_is_associated = .FALSE.    ! va
 
-    REAL(vp), POINTER       & ! single precision if "__MIXED_PRECISION" is defined
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS            &
-#endif
-    &  ::                   &
+    REAL(vp), POINTER, CONTIGUOUS :: & ! single precision if "__MIXED_PRECISION" is defined
     &  ddt_temp_dyn(:,:,:)  & ! rediagnosed temperature tendency from dynamics [K/s]
     &  => NULL()
 
@@ -316,11 +296,7 @@ MODULE mo_nonhydro_types
   TYPE t_nh_metrics
 
     ! Variables that are always in double precision
-    REAL(wp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS           &
-#endif
-     ::                    &
+    REAL(wp), POINTER, CONTIGUOUS :: &
      ! a) General geometric quantities
      !
      z_ifc(:,:,:)        , & ! geometric height at the vertical interface of cells (nproma,nlevp1,nblks_c)
@@ -373,11 +349,7 @@ MODULE mo_nonhydro_types
      => NULL()
 
     ! Variables that are in single precision when "__MIXED_PRECISION" is defined
-    REAL(vp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS           &
-#endif
-     ::                    &
+    REAL(vp), POINTER, CONTIGUOUS :: &
      ! a) Layer thicknesses
      !
      ddxn_z_full(:,:,:)    , & ! slope of the terrain in normal direction (nproma,nlev,nblks_e)
@@ -433,11 +405,7 @@ MODULE mo_nonhydro_types
      pg_exdist (:)         &  ! extrapolation distance needed for igradp_method = 3
      => NULL()
 
-    INTEGER, POINTER          &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS              &
-#endif
-     ::                       &
+    INTEGER, POINTER, CONTIGUOUS :: &
      vertidx_gradp(:,:,:,:) , &  ! Vertical index of neighbor points needed for Taylor-expansion-based 
                                  ! pressure gradient (2,nproma,nlev,nblks_e)
      !
@@ -475,29 +443,17 @@ MODULE mo_nonhydro_types
 
      !
      ! Vertically varying nudging coefficient: nudgecoeff_vert(nlev)
-    REAL(wp), POINTER &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    , CONTIGUOUS           &
-#endif
-     :: nudgecoeff_vert(:)
+    REAL(wp), POINTER, CONTIGUOUS :: nudgecoeff_vert(:)
 
     ! Upper atmosphere/deep atmosphere
     !
-    REAL(wp), POINTER     &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS        &
-#endif
-     ::                   &
+    REAL(wp), POINTER, CONTIGUOUS :: &
      zgpot_ifc(:,:,:)   , & ! geopotential height of the grid layer interfaces (nproma,nlevp1,nblks_c)
      zgpot_mc(:,:,:)    , & ! geopotential height of cell centers (nproma,nlev,nblks_c)
      dzgpot_mc(:,:,:)     & ! geopotential layer thickness (nproma,nlev,nblks_c)   
      => NULL()
     !
-    REAL(wp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS         &
-#endif
-      ::                   &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       deepatmo_t1mc(:,:),  & ! metrical modification factors for full levels (nlev,nitem)
       deepatmo_t1ifc(:,:), & ! metrical modification factors for half levels (nlevp1,nitem)
       deepatmo_t2mc(:,:)   & ! metrical modification factors for full levels (nitem,nlev)

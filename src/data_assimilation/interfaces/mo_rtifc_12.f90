@@ -207,7 +207,7 @@ MODULE mo_rtifc_12
 #include "rttov_nullify_coef_pccomp.interface"
 #include "rttov_nullify_optpar_ir.interface"
 #if !defined(HAVE_MPI_MOD)
-  include "mpif.h"
+! include "mpif.h"   ! already imported via "use mo_rtifc_base"
 #endif
 #endif
 
@@ -947,10 +947,10 @@ FTRACE_BEGIN('rtifc_init')
 
     errstat = 0
     do instr = 1, ninstr
-      FTRACE_BEGIN('read_coeffs')
       rto => rt_opts(iopts(instr))
       ic = rto%icoeff
       if (coefs(ic)%initialised) cycle
+      FTRACE_BEGIN('read_coeffs')
 
       ! Merge options/channels with following options/channels for the same instrument
       opts_ = rto%opts
@@ -1331,7 +1331,7 @@ FTRACE_BEGIN('rtifc_init')
     real(kind=jprb),     intent(in), optional :: transm(:,:,:)
     real(kind=jprb),     intent(in), optional :: opdep(:,:,:)
     real(kind=jprb),     intent(in), optional :: p_l2c(:,:)
-    integer,             intent(in), optional :: ideb
+    integer,             intent(in), optional :: ideb(:)
 
     character(len=13),   parameter   :: proc   = 'rtifc_l2c_god'
     type(t_rtopts),      pointer     :: rto    => null()
@@ -1340,8 +1340,7 @@ FTRACE_BEGIN('rtifc_init')
     integer :: ic
     integer :: nprof, nchan, nlev, nlev_
     integer :: ipr, ich
-    integer :: idb, stat
-    logical :: l_opdep
+    logical :: l_opdep, ldeb
 
     if (iopt<=0 .or. iopt>n_opts) call finish(proc, 'invalid option index')
     l_opdep = present(opdep)
@@ -1357,8 +1356,6 @@ FTRACE_BEGIN('rtifc_init')
 
 #if defined(_RTTOV_GOD)
     if (associated(coefs(ic)%coef%god)) then
-      idb = -1
-      if (present(ideb)) idb = ideb
       if (l_opdep) then
         nprof = size(opdep, 3)
         nchan = size(opdep, 2)
@@ -1372,19 +1369,24 @@ FTRACE_BEGIN('rtifc_init')
       end if
 
       do ipr = 1, nprof
+        if (present(ideb)) then
+          ldeb = any(ipr == ideb)
+        else
+          ldeb = .false.
+        end if
         do ich = 1, nchan
-          if (idb == ipr) print*,'rtifc_l2c_god',ipr,ich,chans(ich), &
+          if (ldeb) print*,'rtifc_l2c_god',ipr,ich,chans(ich), &
                any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0)
           if (any(coefs(ic)%coef%god(:,chans(ich))%ntr > 0) .and. valid(ich,ipr)) then
             if (l_opdep) then
               call l2c_god_opd(opdep(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
                                log(p_l2c(:,ipr)), log(p_rt(:)),                    &
-                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=ldeb)
             else
               call l2c_god_tau(transm(:,ich,ipr), coefs(ic)%coef%god(:,chans(ich)), &
-                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=(idb==ipr)) !debug=(ich==404))
+                               l2c(ich,ipr), l2c_corr(ich,ipr), debug=ldeb)
             end if
-            if (idb == ipr) print*,'rtifc_l2c_god result',ipr,ich,chans(ich), &
+            if (ldeb) print*,'rtifc_l2c_god result',ipr,ich,chans(ich), &
                  l2c(ich,ipr), l2c_corr(ich,ipr),l2c(ich,ipr)==l2c_corr(ich,ipr)
           else
             l2c_corr(ich,ipr) = l2c(ich,ipr)
@@ -1433,32 +1435,27 @@ FTRACE_BEGIN('rtifc_init')
   end function rtifc_coef_index
 
 
-  subroutine rtifc_cleanup(status, lprof, lcoef, latlas)
-    integer, intent(out)          :: status  ! exit status
+  subroutine rtifc_cleanup(lprof, lcoef, latlas)
     logical, intent(in), optional :: lprof
     logical, intent(in), optional :: lcoef
     logical, intent(in), optional :: latlas
     !------------------------------------------------------
     ! frees memory allocated by rtifc_init/rtifc_fill_input
     !------------------------------------------------------
-    integer(jpim) :: i
-    integer       :: stat
-    integer(jpim) :: nrttov_ids
-    integer :: k
+    character(len=13), parameter :: proc = 'rtifc_cleanup'
+    integer :: i, k, stat
     logical :: l
-
-    status = NO_ERROR
 
     ! deallocation of rttov permanent arrays
     if (present(lprof)) then ; l = lprof ; else ; l = .true. ; endif
     if (l) then
       if (associated(profiles)) then
-        call dealloc_rttov_arrays(status, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission)
-        if (status /= NO_ERROR) return
+        call dealloc_rttov_arrays(stat, profs=profiles,rads=radiance,rads2=radiance2,transm=transmission)
+        if (stat /= NO_ERROR) call finish(proc, 'failed to deallocate RTTOV profiles/rad./transm.')
       endif
       if (associated(profiles_k)) then
-        call dealloc_rttov_arrays(status, profs=profiles_k,rads=radiance_k,transm=transmission_k  )
-        if (status /= NO_ERROR) return
+        call dealloc_rttov_arrays(stat, profs=profiles_k,rads=radiance_k,transm=transmission_k  )
+        if (stat /= NO_ERROR) call finish(proc, 'failed to deallocate RTTOV-K profiles/rad./transm.')
       endif
     end if
 
@@ -1466,13 +1463,9 @@ FTRACE_BEGIN('rtifc_init')
     if (present(lcoef)) then ; l = lcoef ; else ; l = .true. ; endif
     if (l) then
       if ((associated(coefs))) then
-        nRttov_ids = size(coefs)
-        do i=1,nRttov_ids
+        do i=1,size(coefs)
           call rttov_dealloc_coefs(stat, coefs(i))
-          if (stat /= ERRORSTATUS_SUCCESS) then
-            status = ERR_ALLOC
-            return
-          endif
+          if (stat /= NO_ERROR) call finish(proc, 'failed to deallocate RTTOV coefficients')
         enddo
         deallocate(coefs)
       endif
@@ -2289,7 +2282,7 @@ FTRACE_END('rtifc_fill_input_var')
     integer,             intent(in),  optional :: istore       (:,:) ! put result i into array position (istore(i,1),istore(i,2))
     integer,             intent(out), optional :: reg_lim    (:,:,:) ! result of apply_reg_limits (nlevs,nvars,nprof)
     integer,             intent(out), optional :: rflag        (:,:) ! results of other test like e.g. the chk_god test
-    integer,             intent(in),  optional :: iprint             ! profile to printed in RTTOV (debug)
+    integer,             intent(in),  optional :: iprint         (:) ! profile to printed in RTTOV (debug)
     logical,             intent(in),  optional :: dealloc
     integer,             intent(in),  optional :: rad_out_flg        ! bit field (see OUT_* parameters)
     integer,             intent(in),  optional :: pe
@@ -2306,7 +2299,7 @@ FTRACE_END('rtifc_fill_input_var')
     type(t_rtopts),     pointer  :: rto    => null()
     type(rttov_options),pointer  :: ropts  => null()
     integer                      :: ic
-    integer                      :: ipr
+    integer                      :: ipr(5),npr
     integer                      :: rad_out
     integer(jpim)                :: iprof
     integer(jpim)                :: nlevs_coef
@@ -2358,16 +2351,20 @@ FTRACE_BEGIN('rtifc_direct')
     l_opdep    = .false. ; if (present(opdep      )) l_opdep    = (size(opdep )      > 0)
     l_radoverc = .false. ; if (present(radovercast)) l_radoverc = (size(radovercast) > 0)
 
+    npr = 0 ; ipr = 0
     if (present(iprint)) then
-       ipr = iprint
-    else
-       ipr = 0
+      npr = count(iprint > 0)
+      ipr(1:npr) = pack(iprint, mask=(iprint>0))
     end if
-    if (ipr > 0) then
-      ipr_deb = ipr
-      write(msg,*) 'rttov input profile ',ipr,trim(profiles(ipr)%id)
-      call rttov_print_profile(profiles(ipr), stdout, trim(msg))
-      call rttov_print_opts(ropts, stdout, 'ropts (options for rttov_direct call):')
+    if (npr > 0) then
+      ipr_deb = ipr(1)
+      do i = 1, npr
+        write(msg,*) 'rttov input profile ',ipr(i),trim(profiles(ipr(i))%id)
+        call rttov_print_profile(profiles(ipr(i)), usd, trim(msg))
+        call rttov_print_opts(ropts, usd, 'ropts (options for rttov_direct call):')
+      end do
+    else
+      ipr_deb = 0
     end if
 
     if (present(pe)) then
@@ -2706,9 +2703,9 @@ FTRACE_BEGIN('rtifc_direct')
     enddo
 
     ! Debug
-    if (ipr > 0) then
+    if (npr > 0) then
       do i = 1, nchansprofs
-        if (chanprof(i)% prof == ipr) then
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
           print*,'rttov emissivity input: ',i,chanprof(i)%chan,emissivity(i),calcemis(i)
         end if
       end do
@@ -2874,17 +2871,17 @@ FTRACE_BEGIN('rtifc_direct')
     if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (lprofs(i) == ipr) then
-          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
+        if (any(lprofs(i) == ipr(1:npr))) then
+          print*,'check_god_ifc prof',trim(profiles(lprofs(i))%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
           print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
         end if
         if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
           if (transmission%l_opdep) then
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+                                od_ref=transmission%opdep_ref(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           else
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
+                                tau=transmission%tau_levels(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           end if
           if (stat /= 0) then
             if (btest(chk_god, 0)) then
@@ -2898,7 +2895,7 @@ FTRACE_BEGIN('rtifc_direct')
         end if
         if ((btest(chk_god,1) .or. btest(chk_god,2)) .and. all(shape(rflag) > 0)) then
           if (present(istore)) then
-            if (lprofs(i) == ipr) then
+            if (any(lprofs(i) == ipr(1:npr))) then
               print*,'check_god_ifc stat',stat,istore(i,:)
             end if
             rflag(istore(i,1), istore(i,2)) = stat
@@ -2976,7 +2973,7 @@ FTRACE_END('rtifc_direct')
     integer,             intent(out),optional:: rflag        (:,:) ! results of other test like e.g. the chk_god test
     logical,             intent(in), optional:: dealloc
     integer,             intent(in), optional:: rad_out_flg        ! bit field (see OUT_* parameters)
-    integer,             intent(in), optional:: iprint
+    integer,             intent(in), optional:: iprint         (:)
     integer,             intent(in), optional:: pe
     logical,             intent(in), optional:: l_pio
 
@@ -2993,7 +2990,7 @@ FTRACE_END('rtifc_direct')
     integer                      :: ic
     integer                      :: rad_out
     integer                      :: pe_loc
-    integer                      :: ipr
+    integer                      :: ipr(5),npr
     integer(jpim)                :: iprof
     integer(jpim)                :: ichan
     integer(jpim)                :: i, k
@@ -3060,16 +3057,20 @@ FTRACE_BEGIN('rtifc_k')
       if (present(radclear )) rad_out = ibset(rad_out,OUT_CSR)
      end if
 
+    npr = 0 ; ipr = 0
     if (present(iprint)) then
-       ipr = iprint
-    else
-       ipr = 0
+      npr = count(iprint > 0)
+      ipr(1:npr) = pack(iprint, mask=(iprint>0))
     end if
-    if (ipr > 0) then
-      ipr_deb = ipr
-      write(msg,*) 'rttov input profile ',ipr,trim(profiles(ipr)%id)
-      call rttov_print_profile(profiles(ipr), stdout, trim(msg))
-      call rttov_print_opts(ropts, stdout, 'ropts (options for rttov_k call):')
+    if (npr > 0) then
+      ipr_deb = ipr(1)
+      do i = 1, npr
+        write(msg,*) 'rttov input profile ',ipr(i),trim(profiles(ipr(i))%id)
+        call rttov_print_profile(profiles(ipr(i)), usd, trim(msg))
+        call rttov_print_opts(ropts, usd, 'ropts (options for rttov_direct call):')
+      end do
+    else
+      ipr_deb = 0
     end if
 
     if (present(dealloc)) then
@@ -3365,10 +3366,10 @@ FTRACE_BEGIN('rtifc_k')
     enddo
 
     ! Debug
-    if (ipr > 0) then
+    if (npr > 0) then
       do i = 1, nchansprofs
-        if (chanprof(i)% prof == ipr) then
-          print*,'rttov emissivity input: ',i,chanprof(i)%chan,emissivity(i),calcemis(i)
+        if (any(chanprof(i)% prof == ipr(1:npr))) then
+          print*,'rttov emissivity input: ',i,chanprof(i),emissivity(i),calcemis(i)
         end if
       end do
     end if
@@ -3576,17 +3577,17 @@ FTRACE_BEGIN('rtifc_k')
     if (l_chk_god) then
       do i = 1, nchansprofs
         stat = 0
-        if (lprofs(i) == ipr) then
-          print*,'check_god_ifc prof',trim(profiles(ipr)%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
+        if (any(lprofs(i) == ipr(1:npr))) then
+          print*,'check_god_ifc prof',trim(profiles(lprofs(i))%id),chans(i),coefs(ic)%coef%ff_ori_chn(chans(i))
           print*,'check_god_ifc ntr',chans(i),any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)
         end if
         if (any(coefs(ic)%coef%god(:,chans(i))%ntr > 0)) then
           if (transmission%l_opdep) then
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                od_ref=transmission%opdep_ref(:,i), debug=(lprofs(i)==ipr))
+                                od_ref=transmission%opdep_ref(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           else
             call check_god_infl(coefs(ic)%coef%god(:,chans(i)), stat, msg_, &
-                                tau=transmission%tau_levels(:,i), debug=(lprofs(i)==ipr))
+                                tau=transmission%tau_levels(:,i), debug=any(lprofs(i)==ipr(1:npr)))
           end if
           if (stat /= 0) then
             if (btest(chk_god, 0)) then
@@ -3600,7 +3601,7 @@ FTRACE_BEGIN('rtifc_k')
         end if
         if ((btest(chk_god,1) .or. btest(chk_god,2)) .and. all(shape(rflag) > 0)) then
           if (present(istore)) then
-            if (lprofs(i) == ipr) then
+            if (any(lprofs(i) == ipr(1:npr))) then
               print*,'check_god_ifc stat',stat,istore(i,:)
             end if
             rflag(istore(i,1), istore(i,2)) = stat
@@ -3628,11 +3629,12 @@ FTRACE_END('rtifc_k')
 
 
 #if defined(_RTTOV_ATLAS)
- subroutine rtifc_emis_retrieve(iopt, lprofs, chans, obs, emis, stat, pe, ldeb)
+ subroutine rtifc_emis_retrieve(iopt, lprofs, chans, obs, spec, emis, stat, pe, ldeb)
    integer,             intent(in)  :: iopt      ! options index
    integer,             intent(in)  :: lprofs(:) ! list of profile indices
    integer,             intent(in)  :: chans(:)  ! list of channel indices
    real(wp),            intent(in)  :: obs(:)    ! observed brightness temperature
+   real(wp),            intent(in)  :: spec(:,:) ! specularity (ignored here, for compat. with RT13)
    real(wp),            intent(out) :: emis(:)   ! computed emissivities
    integer,             intent(out) :: stat      ! error status
    integer,             intent(in), optional:: pe
@@ -3898,7 +3900,7 @@ FTRACE_END('rtifc_k')
 
  end subroutine rtifc_init_atlas
 
- subroutine rtifc_emis_atlas(iopt, atlas_id, lprofs, chan, emis, stat, ldebug)
+ subroutine rtifc_emis_atlas(iopt, atlas_id, lprofs, chan, emis, stat, ldebug, max_dst)
    integer,  intent(in)           :: iopt     ! options index
    integer,  intent(in)           :: atlas_id ! 1: TELSEM, 2: CNRM, 3: CAMEL-Climatology
    integer,  intent(in)           :: lprofs(:)! list of profile indices
@@ -3906,6 +3908,7 @@ FTRACE_END('rtifc_k')
    real(wp), intent(out)          :: emis(:)  ! emissivities
    integer,  intent(out)          :: stat     ! error status
    logical,  intent(in), optional :: ldebug
+   real(wp), intent(in), optional :: max_dst  ! ignored here, for compatibility with RT13
    !--------------------------
    ! Get emissivity from atlas
    !--------------------------
@@ -3960,7 +3963,6 @@ FTRACE_END('rtifc_k')
    enddo
    if (ldeb) call rttov_print_profile(profiles(lprofs(1)), stdout, trim(proc))
    call rttov_get_emis(stat, ropts, chanprof, profiles, coefs(ic), atlas(iatl), emis)
-   if (ldeb) write(*,*) 'debug_spot rtifc_emis_atlas',stat,emis
    if (stat /= 0) then
      write(0,*) 'stat=',stat
      call finish(proc, 'rttov_get_emis failed')

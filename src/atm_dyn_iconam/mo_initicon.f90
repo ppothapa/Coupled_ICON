@@ -1177,11 +1177,6 @@ MODULE mo_initicon
         CALL interpolate_vn_increments(initicon, p_patch(jg)%parent_id, jg)
       END IF
 
-      IF (icpl_da_sfcfric >= 1) THEN
-        CALL rbf_vec_interpol_cell(p_prog_now%vn, p_patch(jg), p_int_state(jg), p_diag%u, p_diag%v)
-        IF (lp2cintp_incr(jg)) CALL rbf_vec_interpol_cell(initicon(jg)%atm_inc%vn, p_patch(jg), &
-          p_int_state(jg), initicon(jg)%atm_inc%u, initicon(jg)%atm_inc%v)
-      ENDIF
 
       ! 1) Compute analysis increments for rho, exner (rho*theta_v), and rho*qv
       ! 
@@ -1329,14 +1324,6 @@ MODULE mo_initicon
           ENDDO
         ENDIF
 
-        IF (icpl_da_sfcfric >= 1) THEN
-          DO jc = i_startidx, i_endidx
-            p_diag%vabs_avginc(jc,jb) = p_diag%vabs_avginc(jc,jb) + dt_ana/216000._wp * (         &
-              SQRT( (p_diag%u(jc,nlev,jb)+initicon(jg)%atm_inc%u(jc,nlev,jb))**2 +                &
-                    (p_diag%v(jc,nlev,jb)+initicon(jg)%atm_inc%v(jc,nlev,jb))**2 ) -              &
-              SQRT(p_diag%u(jc,nlev,jb)**2 + p_diag%v(jc,nlev,jb)**2) - p_diag%vabs_avginc(jc,jb) )
-          ENDDO
-        ENDIF
 
       ENDDO  ! jb
 !$OMP END DO NOWAIT
@@ -1505,6 +1492,39 @@ MODULE mo_initicon
       DEALLOCATE( nabla2_vn_incr, z_qsum, zvn_incr, alpha, STAT=ist )
       IF (ist /= SUCCESS) THEN
         CALL finish(routine, 'deallocation of auxiliary arrays failed' )
+      ENDIF
+
+      ! Compute filtered wind increment for adaptive surface friction
+      IF (icpl_da_sfcfric >= 1) THEN
+
+        CALL rbf_vec_interpol_cell(p_prog_now%vn, p_patch(jg), p_int_state(jg), p_diag%u, p_diag%v)
+        CALL rbf_vec_interpol_cell(initicon(jg)%atm_inc%vn, p_patch(jg), p_int_state(jg), &
+          initicon(jg)%atm_inc%u, initicon(jg)%atm_inc%v)
+
+!$OMP PARALLEL PRIVATE(rl_start,rl_end,i_startblk,i_endblk)
+
+        rl_start = grf_bdywidth_c+1
+        rl_end   = min_rlcell_int
+
+        i_startblk = p_patch(jg)%cells%start_block(rl_start)
+        i_endblk   = p_patch(jg)%cells%end_block(rl_end)
+
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
+        DO jb = i_startblk, i_endblk
+
+          CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, &
+            & i_startidx, i_endidx, rl_start, rl_end)
+
+          DO jc = i_startidx, i_endidx
+            p_diag%vabs_avginc(jc,jb) = p_diag%vabs_avginc(jc,jb) + dt_ana/216000._wp * (         &
+              SQRT( (p_diag%u(jc,nlev,jb)+initicon(jg)%atm_inc%u(jc,nlev,jb))**2 +                &
+                    (p_diag%v(jc,nlev,jb)+initicon(jg)%atm_inc%v(jc,nlev,jb))**2 ) -              &
+              SQRT(p_diag%u(jc,nlev,jb)**2 + p_diag%v(jc,nlev,jb)**2) - p_diag%vabs_avginc(jc,jb) )
+          ENDDO
+        ENDDO
+!$OMP ENDDO
+!$OMP END PARALLEL
+
       ENDIF
 
       IF (latbc_config%fac_latbc_presbiascor > 0._wp) THEN

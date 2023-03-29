@@ -737,11 +737,11 @@ START_MODEL_function()
     if [ \${VH_OFFLOADING:-yes} = yes ]; then
         start_options=""
         start_options="\${start_options}  -v  -vh     -node 0         -np 1       -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
-        let "num_atm_procs=\${PPN}-\${mpi_oce_procs:-0}"
+        num_atm_procs=\$((\${PPN}-\${mpi_oce_procs:-0}))
         echo "Append \${num_atm_procs} VE procs (atmosphere) on hosts 0 to \${NE1}"
         start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${num_atm_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
         #calculate number of IO procs running on vector hosts
-        let "NH=\${num_restart_procs:-0}+\${num_io_procs:-0}+\${num_prefetch_proc:-0}+\${num_io_procs_radar:-0}"
+        NH=\$((\${num_restart_procs:-0}+\${num_io_procs:-0}+\${num_prefetch_proc:-0}+\${num_io_procs_radar:-0}))
         # if VH_DISTRIBUTION is not set, use NH processes on node 0
         VH_DISTRIBUTION=\${VH_DISTRIBUTION:-\$NH}
         nh_sum=0
@@ -749,14 +749,14 @@ START_MODEL_function()
         for nh_per_node in \${VH_DISTRIBUTION//,/ }; do
             if [ "\${nh_per_node}" = ":" ]; then
                 # replace wildcard with remaining number of nodes
-                let "nh_per_node=\${NH}-\${nh_sum}"
+                nh_per_node=\$((\${NH}-\${nh_sum}))
             fi
             if [ "\${nh_per_node}" -gt 0 ]; then
                 echo "Append \${nh_per_node} VH procs on host \${nh_node}"
                 start_options="\${start_options} : -vh -node \${nh_node} -np \${nh_per_node} -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
-                let "nh_sum=\${nh_sum}+\${nh_per_node}"
+                nh_sum=\$((\${nh_sum}+\${nh_per_node}))
             fi
-            let "nh_node=\${nh_node}+1"
+            nh_node=\$((\${nh_node}+1))
         done
         if [ "\${nh_sum}" -ne "\$NH" ]; then
             echo "Error while parsing VH_DISTRIBUTION."
@@ -1378,7 +1378,7 @@ set_run_target_balfrin_cpu()
         set_default use_mpi_procs_pernode 4
         set_default use_openmp_threads 32
     else
-        set_default use_mpi_procs_pernode 64
+        set_default use_mpi_procs_pernode 16
     fi
 
     job_type=parallel
@@ -1806,15 +1806,28 @@ create_target_header()
 
     use_prefetch_procs=0
  	case $job_name in
-        *mch_opr_r04b07.run|*mch_opr_r04b07_seed_*.run)
+        *mch_opr_r04b07.run|*mch_opr_r04b07_member_id*.run)
             use_nodes=1
-            use_mpi_procs_pernode=2
+            use_mpi_procs_pernode=3
             use_nproma=4250
             ;;
-        *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_seed_*.run)
+        *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_member_id*.run)
             use_nodes=1
             use_mpi_procs_pernode=4
             use_nproma=1600
+            ;;
+        *mch_opr_r04b07_performance.run|*mch_opr_r04b07_performance_member_id*.run)
+            use_nodes=1
+            case $use_target in
+                daint_cpu*)
+                    use_mpi_procs_pernode=12
+                    use_nproma=16
+                ;;
+                daint_gpu*)
+                    use_mpi_procs_pernode=2
+                    # no nproma needed since this uses nlbocks_c anyway
+                ;;
+            esac
             ;;
         *mch_*)
             case $use_target in

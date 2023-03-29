@@ -213,6 +213,7 @@ MODULE mo_pp_scheduler
     &                                   t_activity_status
   USE mo_timer,                   ONLY: timers_level, timer_start, timer_stop, timer_opt_diag_atmo
   USE mo_util_texthash,           ONLY: text_hash_c
+  USE mo_fortran_tools,           ONLY: assert_acc_device_only
 
   IMPLICIT NONE
   PRIVATE
@@ -1090,6 +1091,7 @@ CONTAINS
         CALL add_var( p_opt_diag_list_p, 'gh', p_diag_pz%p_gh,                  &
           & GRID_UNSTRUCTURED_CELL, ZA_PRESSURE, cf_desc, grib2_desc,           &
           & ldims=shape3d, lrestart=.FALSE., lopenacc=.TRUE.)
+        !$ACC ENTER DATA ATTACH(p_diag_pz%p_gh)
         CALL copy_variable("temp",   p_nh_state_lists(jg)%diag_list,    ZA_PRESSURE, shape3d, &
           &                p_diag_pz%p_temp, p_opt_diag_list_p)
       END IF
@@ -1099,7 +1101,8 @@ CONTAINS
         grib2_desc = grib2_var(0, 3, 5, ibits, GRID_UNSTRUCTURED, GRID_CELL)
         CALL add_var( p_opt_diag_list_i, 'gh', p_diag_pz%i_gh,                  &
           & GRID_UNSTRUCTURED_CELL, ZA_ISENTROPIC, cf_desc, grib2_desc,         &
-          & ldims=shape3d, lrestart=.FALSE.)
+          & ldims=shape3d, lrestart=.FALSE., lopenacc=.TRUE.)
+        !$ACC ENTER DATA ATTACH(p_diag_pz%i_gh)
         CALL copy_variable("temp",   p_nh_state_lists(jg)%diag_list,    ZA_ISENTROPIC, shape3d, &
           &                p_diag_pz%i_temp, p_opt_diag_list_i)
       END IF
@@ -1359,12 +1362,14 @@ CONTAINS
   !---------------------------------------------------------------
   !> Loop over job queue, call active tasks.
   !
-  SUBROUTINE pp_scheduler_process(simulation_status)
+  SUBROUTINE pp_scheduler_process(simulation_status, lacc)
     TYPE(t_simulation_status), INTENT(IN) :: simulation_status
     ! local variables
     CHARACTER(*), PARAMETER :: routine = modname//"::pp_scheduler_process"
     TYPE(t_job_queue), POINTER :: ptr_task
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
+    CALL assert_acc_device_only(routine, lacc)
     IF (dbg_level >= 10) THEN
       CALL message(routine,"Processing task list...")
     END IF
@@ -1391,7 +1396,7 @@ CONTAINS
         ! initialize vertical interpolation:
       CASE ( TASK_INIT_VER_Z, TASK_INIT_VER_P, TASK_INIT_VER_I, &
            & TASK_FINALIZE_IPZ)
-        CALL pp_task_ipzlev_setup(ptr_task)
+        CALL pp_task_ipzlev_setup(ptr_task, lacc=.TRUE.)
 
         ! perform horizontal interpolation:
       CASE ( TASK_INTP_HOR_LONLAT )
@@ -1399,7 +1404,7 @@ CONTAINS
 
         ! perform vertical interpolation:
       CASE ( TASK_INTP_VER_PLEV, TASK_INTP_VER_ZLEV, TASK_INTP_VER_ILEV )
-        CALL pp_task_ipzlev(ptr_task)
+        CALL pp_task_ipzlev(ptr_task, lacc=.TRUE.)
 
         ! synchronize halo regions:
       CASE ( TASK_INTP_SYNC )
@@ -1407,7 +1412,7 @@ CONTAINS
 
         ! compute mean sea level pressure:
       CASE ( TASK_INTP_MSL )
-        CALL pp_task_intp_msl(ptr_task)
+        CALL pp_task_intp_msl(ptr_task, lacc=.TRUE.)
 
         ! compute relative humidty, vertical velocity, potential vorticity, ...
       CASE ( TASK_COMPUTE_RH, TASK_COMPUTE_OMEGA, TASK_COMPUTE_PV, TASK_COMPUTE_SDI2,              &

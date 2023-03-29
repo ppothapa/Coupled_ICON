@@ -126,12 +126,9 @@ CONTAINS
        glb2loc_index_recv, glb2loc_index_send, opt_comm_type)
     CLASS(t_comm_pattern), POINTER, INTENT(INOUT) :: p_pat
     INTEGER, INTENT(in) :: comm
-    TYPE(xfer_list), INTENT(in) :: recv_msg(:), send_msg(:)
+    TYPE(xfer_list), INTENT(in), CONTIGUOUS :: recv_msg(:), send_msg(:)
     TYPE(t_glb2loc_index_lookup), INTENT(IN) :: glb2loc_index_recv, &
          glb2loc_index_send
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-    CONTIGUOUS :: recv_msg, send_msg
-#endif
 
    INTEGER, OPTIONAL, INTENT(IN) :: opt_comm_type
 

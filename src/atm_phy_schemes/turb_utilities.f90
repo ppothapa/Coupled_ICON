@@ -817,11 +817,7 @@ REAL (KIND=wp), DIMENSION(:,khi:), INTENT(INOUT) :: &
   rcld         !inp: standard deviation of oversaturation
                !out: saturation fraction
 
-REAL (KIND=wp), TARGET, INTENT(INOUT) &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     :: &
+REAL (KIND=wp), TARGET, INTENT(INOUT), CONTIGUOUS :: &
   tet_l(:,ktp:), &     !inp: liquid water potent. temp. (only if 'fip' is present)
                        !out: liquid water potent. temp. (or adjust. 't' , if "ladjout")
   q_h2o(:,ktp:), &     !inp: total  water content (only if 'fip' is present)
@@ -855,11 +851,7 @@ REAL (KIND=wp) :: &
 REAL (KIND=wp), DIMENSION(i_st:i_en,k_st:k_en) :: &
   rprs          !reduced pressure
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
   temp(:,:), &  !corrected temperature
   qvap(:,:), &  !corrected water vapour content
   virt(:,:)     !reciprocal virtual factor
@@ -1308,11 +1300,7 @@ REAL (KIND=wp), DIMENSION(i_st:i_en,1), TARGET :: &
 !
   tvs      !turbulent velocity scale
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 !
   tvs0 (:,:),   & ! pointer for intermediate turbulent velocity scale
   fm2_e(:,:)      ! pointer for the effictive mechanical forcing
@@ -1942,11 +1930,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
 REAL (KIND=wp), DIMENSION(istart:iend,kstart:kend), TARGET :: &
   qt_tar, tl_tar
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
-#endif
   sdsd !pointer for standard deviation of local oversaturation
 
 REAL (KIND=wp) :: &
@@ -2230,11 +2214,7 @@ REAL (KIND=wp), DIMENSION(:), OPTIONAL, INTENT(IN) :: &
 !
     rho_s            ! air density at the surface                   (Kg/m3)
 
-REAL (KIND=wp), TARGET, INTENT(INOUT) &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     :: &
+REAL (KIND=wp), TARGET, INTENT(INOUT), CONTIGUOUS :: &
 !
 !   Auxilary arrays:
 !
@@ -2254,11 +2234,7 @@ REAL (KIND=wp), DIMENSION(:,:), OPTIONAL, INTENT(OUT) :: &
     diff_mom         ! aux: saved comlete diffusion momentum (only in case of "itndcon.EQ.3")
 !++++
 
-REAL (KIND=wp), INTENT(INOUT) &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-     , CONTIGUOUS &
-#endif
-     :: &
+REAL (KIND=wp), INTENT(INOUT), CONTIGUOUS :: &
 !
 !   Inp-out-variable: DIMENSION(ie,ke1)
 !
@@ -2286,11 +2262,7 @@ REAL (KIND=wp) :: &
     fr_var, &           ! 1/dt_var
     tkmin               ! effective minimal diffusion coefficient
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
-#endif
 !
     rhon, rhoh
 
@@ -2828,11 +2800,7 @@ REAL (KIND=wp), INTENT(IN) :: &
    invs_fac(:,:), & !inversion factor
    scal_fac(:,:)    !scaling factor due to preconditioning
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), TARGET, CONTIGUOUS, INTENT(INOUT) :: &
-#else
-REAL (KIND=wp), TARGET, INTENT(INOUT) :: &
-#endif
 !
    cur_prof(:,:), & !inp: current vertical variable profile (including gradient corrections)
                     !out: current vertical variable profile (including tendency increment, if "itndcon>=1") 
@@ -2855,11 +2823,7 @@ INTEGER :: &
 !
    i,k              !horizontal and vertical coordiante indices
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), POINTER :: &
-#endif
 !
    old_prof(:,:), & !old variable profile value>
    rhs_prof(:,:)    !profile used at RHS of tridiag. system
@@ -3185,11 +3149,7 @@ LOGICAL :: lzacc
 
 INTEGER :: i,k,n
 
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
 REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
-#else
-REAL (KIND=wp), DIMENSION(:,:), POINTER :: &
-#endif
 !
    usdep, &        !used  layer depth
    !XL: Due to an issue with PGI16.7 with OpenACC and derive type we use 

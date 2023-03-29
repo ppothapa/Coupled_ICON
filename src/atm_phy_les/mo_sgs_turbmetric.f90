@@ -351,7 +351,7 @@ MODULE mo_sgs_turbmetric
     CALL cells2verts_scalar(p_nh_prog%w, p_patch, p_int%cells_aw_verts, w_vert,   &
                             opt_rlend=min_rlvert_int, opt_acc_async=.TRUE.)
     CALL cells2edges_scalar(p_nh_prog%w, p_patch, p_int%c_lin_e, w_ie,            &
-                            opt_rlend=min_rledge_int-2, opt_acc_async=.TRUE.)
+                            opt_rlend=min_rledge_int-2, lacc=.TRUE.)
 
     ! RBF reconstruction of velocity at vertices: include halos
     CALL rbf_vec_interpol_vertex(p_nh_prog%vn, p_patch, p_int, u_vert, v_vert,    &
@@ -715,7 +715,7 @@ MODULE mo_sgs_turbmetric
 
     ! 4c) Now calculate km at half levels at edge
     CALL cells2edges_scalar(kh_ic, p_patch, p_int%c_lin_e, km_ie, &
-                            opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1, opt_acc_async=.TRUE.)
+                            opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1, lacc=.TRUE.)
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx)
     DO jb = 1, p_patch%nblks_e
@@ -1261,7 +1261,7 @@ MODULE mo_sgs_turbmetric
 
     !density at edge
     CALL cells2edges_scalar(p_nh_prog%rho, p_patch, p_int%c_lin_e, inv_rhoe, &
-                            opt_rlstart=rl_start, opt_rlend=rl_end, opt_acc_async=.TRUE.)
+                            opt_rlstart=rl_start, opt_rlend=rl_end, lacc=.TRUE.)
 
     ! compute inv_rho
     ! compute D_11, D_12 on interface edges
@@ -2515,7 +2515,7 @@ MODULE mo_sgs_turbmetric
     REAL(wp) :: sflux(nproma,p_patch%nblks_c), outvar(p_patch%nlev+1)
 
     REAL(wp), DIMENSION(nproma,p_patch%nlev) :: a, b, c, rhs
-    REAL(wp)                                 :: var_new(p_patch%nlev)
+    REAL(wp)                                 :: var_new(nproma, p_patch%nlev)
     REAL(wp), POINTER :: kh_ic(:,:,:)
 
     INTEGER,  DIMENSION(:,:,:), POINTER :: iecidx, iecblk, ieidx, &
@@ -2573,7 +2573,7 @@ MODULE mo_sgs_turbmetric
     !2) Calculate exner at edge for horizontal diffusion
 
     IF (scalar_name == tracer_theta) &
-      CALL cells2edges_scalar(exner, p_patch, p_int%c_lin_e, exner_me, opt_rlend=min_rledge_int-2, opt_acc_async=.TRUE.)
+      CALL cells2edges_scalar(exner, p_patch, p_int%c_lin_e, exner_me, opt_rlend=min_rledge_int-2, lacc=.TRUE.)
 
     !3) Calculate exner at interface for vertical diffusion
 
@@ -2702,7 +2702,7 @@ MODULE mo_sgs_turbmetric
     !$ACC WAIT
     CALL sync_patch_array(SYNC_C, p_patch, var_ic)
 
-    CALL cells2edges_scalar(var_ic, p_patch, p_int%c_lin_e, var_ie, opt_acc_async=.TRUE.)
+    CALL cells2edges_scalar(var_ic, p_patch, p_int%c_lin_e, var_ie, lacc=.TRUE.)
     CALL cells2verts_scalar(var_ic, p_patch, p_int%cells_aw_verts, var_iv, opt_acc_async=.TRUE.)
 
 
@@ -3127,18 +3127,16 @@ MODULE mo_sgs_turbmetric
             END DO
             !$ACC END PARALLEL
 
-            ! Note: replacing the tdma solver by its vectorizing counterpart tdma_solver_vec,
-            !       led to problems during the ACC port. Hence, at this place we keep the
-            !       non-vectorizing variant for the time being.
             !$ACC WAIT
             !CALL TDMA
-            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-            !$ACC LOOP SEQ
-            DO jc = i_startidx, i_endidx
-              CALL tdma_solver(a(jc,:),b(jc,:),c(jc,:),rhs(jc,:),nlev,var_new)
-              tot_tend(jc,:,jb) = tot_tend(jc,:,jb) + ( var_new(:) - var(jc,:,jb) ) * inv_dt
+            CALL tdma_solver_vec(a,b,c,rhs,1,nlev,i_startidx,i_endidx,var_new)
+            !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
+            DO jk = 1, nlev
+              DO jc = i_startidx, i_endidx
+                tot_tend(jc,jk,jb) = tot_tend(jc,jk,jb) + ( var_new(jc,jk) - var(jc,jk,jb) ) * inv_dt
+              END DO
             END DO
-            !$ACC END PARALLEL
+            !$ACC END PARALLEL LOOP
           END DO!block
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

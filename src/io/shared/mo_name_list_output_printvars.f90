@@ -27,7 +27,11 @@ MODULE mo_name_list_output_printvars
   USE mo_name_list_output_zaxes_types,      ONLY: t_verticalAxisList, t_verticalAxis
   USE mo_level_selection_types,             ONLY: t_level_selection
   USE mo_name_list_output_zaxes,            ONLY: setup_ml_axes_atmo, setup_zaxes_oce
-  USE mo_master_control,                    ONLY: my_process_is_jsbach
+  USE mo_master_control,                    ONLY: my_process_is_atmo, my_process_is_ocean, my_process_is_jsbach, &
+    &                                             my_process_is_waves
+#ifndef __NO_ICON_WAVES__
+  USE mo_waves_vertical_axes,               ONLY: setup_zaxes_waves
+#endif
 #ifndef __NO_JSBACH__
   USE mo_atm_phy_nwp_config,                ONLY: atm_phy_nwp_config
   USE mo_grid_config,                       ONLY: n_dom
@@ -36,10 +40,10 @@ MODULE mo_name_list_output_printvars
 #endif
   USE mo_util_cdi,                          ONLY: create_cdi_variable
 #endif
-  USE mo_cdi, ONLY: cdi_max_name
+  USE mo_cdi,                               ONLY: cdi_max_name
   USE mo_gribout_config,                    ONLY: t_gribout_config
   USE mo_kind,                              ONLY: wp, dp
-  USE mo_impl_constants,                    ONLY: ihs_ocean, SUCCESS, vname_len
+  USE mo_impl_constants,                    ONLY: SUCCESS, vname_len
   USE mo_cf_convention,                     ONLY: t_cf_var
   USE mo_exception,                         ONLY: finish, message_text
   USE mo_var_metadata_types,                ONLY: t_var_metadata
@@ -190,12 +194,11 @@ CONTAINS
   !------------------------------------------------------------------------------------------------
   !> Print list of all output variables (LaTeX table formatting).
   !
-  SUBROUTINE print_var_list(out_varnames_dict,   &
-    &                       print_patch_id, iequations, gribout_config, &
+  SUBROUTINE print_var_list(out_varnames_dict, print_patch_id, gribout_config, &
     &                       i_lctype)
     TYPE(t_dictionary),     INTENT(IN) :: out_varnames_dict
     TYPE(t_gribout_config), INTENT(IN) :: gribout_config
-    INTEGER,                INTENT(IN) :: iequations, i_lctype, print_patch_id
+    INTEGER,                INTENT(IN) :: i_lctype, print_patch_id
 
     CHARACTER(*), PARAMETER :: routine = modname//"::print_var_list"
     INTEGER,      PARAMETER :: max_str_len = cdi_max_name + 1 + 128 + vname_len + 99
@@ -216,19 +219,26 @@ CONTAINS
     CHARACTER(len=128)                             :: descr_string
     TYPE(t_vl_register_iter) :: vl_iter
     ! ---------------------------------------------------------------------------
+
 #ifdef GRIBAPI
-    ! generate the CDI IDs for vertical axes:
-    IF (iequations/=ihs_ocean) THEN ! atm
-      IF (.NOT. my_process_is_jsbach()) THEN
-        CALL setup_ml_axes_atmo(tmp_verticalAxisList, tmp_level_selection, print_patch_id)
-      END IF
+    IF (my_process_is_ocean()) THEN
+      CALL setup_zaxes_oce(tmp_verticalAxisList, tmp_level_selection)
+
+    ELSE IF (my_process_is_atmo()) THEN
+      CALL setup_ml_axes_atmo(tmp_verticalAxisList, tmp_level_selection, print_patch_id)
 #ifndef __NO_JSBACH__
       IF (ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH)) &
           & CALL setup_zaxes_jsbach(tmp_verticalAxisList)
 #endif
-    ELSE
-      CALL setup_zaxes_oce(tmp_verticalAxisList, tmp_level_selection)
-    END IF
+    ELSE IF (my_process_is_jsbach()) THEN
+#ifndef __NO_JSBACH__
+      CALL setup_zaxes_jsbach(tmp_verticalAxisList)
+#endif
+    ELSE IF (my_process_is_waves()) THEN
+#ifndef __NO_ICON_WAVES__
+      CALL setup_zaxes_waves(tmp_verticalAxisList)
+#endif
+    ENDIF
     it => tmp_verticalAxisList
     DO
       IF (.NOT. ASSOCIATED(it%axis)) CALL finish(routine, "Internal error!")
@@ -237,6 +247,7 @@ CONTAINS
       it => it%next
     END DO
 #endif
+
     ! count the no. of output variables:
     nout_vars = 0
     DO WHILE(vl_iter%next())

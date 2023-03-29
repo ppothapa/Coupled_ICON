@@ -242,7 +242,9 @@ CONTAINS
 !     av_d_C = 0._wp
 !     av_por_V = 0._wp
      local_aggregates_memory%aggdiag = 0._wp
- 
+
+     !$ACC ENTER DATA COPYIN(local_aggregates_memory, local_aggregates_memory%aggdiag)
+
   END SUBROUTINE allocate_mem_aggregates_types
   !-------------------------------------------------------------------------
 
@@ -273,7 +275,17 @@ CONTAINS
     
     CALL allocate_memory_carbch(bgc_mem_instance)
     CALL alloc_mem_biomod_types(bgc_mem_instance)
-    
+
+    !$ACC ENTER DATA COPYIN(bgc_mem_instance, bgc_mem_instance%atm, bgc_mem_instance%satn2, bgc_mem_instance%satn2o) &
+    !$ACC   COPYIN(bgc_mem_instance%solco2, bgc_mem_instance%bgctra, bgc_mem_instance%hi, bgc_mem_instance%co3) &
+    !$ACC   COPYIN(bgc_mem_instance%aksp, bgc_mem_instance%ak13, bgc_mem_instance%ak23, bgc_mem_instance%akb3) &
+    !$ACC   COPYIN(bgc_mem_instance%akw3, bgc_mem_instance%aksi3, bgc_mem_instance%ak1p3, bgc_mem_instance%ak2p3) &
+    !$ACC   COPYIN(bgc_mem_instance%ak3p3, bgc_mem_instance%aks3, bgc_mem_instance%akf3, bgc_mem_instance%satoxy) &
+    !$ACC   COPYIN(bgc_mem_instance%bgctend, bgc_mem_instance%kbo, bgc_mem_instance%bolay, bgc_mem_instance%strahl) &
+    !$ACC   COPYIN(bgc_mem_instance%swr_frac, bgc_mem_instance%meanswr, bgc_mem_instance%bgcflux, bgc_mem_instance%aksurf) &
+    !$ACC   COPYIN(bgc_mem_instance%wpoc, bgc_mem_instance%wcal, bgc_mem_instance%wopal, bgc_mem_instance%wdust) &
+    !$ACC   COPYIN(bgc_mem_instance%sedfluxo)
+
 !     bgc_memory => bgc_local_memory(1)
   
   END SUBROUTINE allocate_bgc_memory_types
@@ -533,6 +545,11 @@ CONTAINS
     sediment_local_mem%sedtend(:,:,:)=0._wp
     ALLOCATE (sediment_local_mem%seddenit(bgc_nproma))
     sediment_local_mem%seddenit(:)=0._wp
+
+    !$ACC ENTER DATA COPYIN(sediment_local_mem, sediment_local_mem%silpro, sediment_local_mem%produs) &
+    !$ACC   COPYIN(sediment_local_mem%prcaca, sediment_local_mem%prorca, sediment_local_mem%burial) &
+    !$ACC   COPYIN(sediment_local_mem%sedlay, sediment_local_mem%powtra, sediment_local_mem%sedhpl) &
+    !$ACC   COPYIN(sediment_local_mem%powh2obud, sediment_local_mem%pown2bud, sediment_local_mem%sedtend)
 
   END SUBROUTINE allocate_local_mem_sediment
   !-------------------------------------------------------------------------

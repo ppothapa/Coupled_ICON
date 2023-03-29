@@ -178,27 +178,10 @@
 MODULE sfc_flake
 
 !===================================================================================================
-  
-! The following '#ifdef' statements make it possible to use "sfc_flake" within both ICON and COSMO.
 
-!_cdm>
-! Notice that due to different data structure (organization of calls, etc.) 
-! in ICON and COSMO the subroutines "flake_init" and "flake_interface" 
-! in the two models are quite different.
-! Since these two subroutines are just communication routines between FLake and the host
-! atmospheric models, the actual "physical parameterizations" of FLake remain the same
-! in ICON and COSMO.
-!_cdm<
-  
-#ifdef __COSMO__       
-  USE kind_parameters,   ONLY : wp     !< KIND-type parameter for real variables 
-#endif                 
-
-#ifdef __ICON__
   USE mo_kind,           ONLY : wp     !< KIND-type parameter for real variables
 
   USE mo_lnd_nwp_config, ONLY : frlake_thrhld  !< fraction threshold for creating a lake grid point
-#endif
 
 !===================================================================================================
 
@@ -286,21 +269,6 @@ MODULE sfc_flake
     &  tpl_kappa_S_max   , & !< Maximum molecular heat conductivity of snow [J m^{-1} s^{-1} K^{-1}]
     &  tpl_Gamma_kappa_S     !< Empirical parameter in expression for the 
                              !< snow heat conductivity [J m^{-2} s^{-1} K^{-1}]
-
-#ifdef __COSMO__
-  USE sfc_flake_data,        ONLY: &
-       frlake_thrhld     , & !
-       tpl_grav          , & !< Acceleration due to gravity [m s^{-2}]
-       tpl_T_f           , & !< Fresh water freezing point [K]
-       tpl_rho_w_r       , & !< Maximum density of fresh water [kg m^{-3}]
-       tpl_rho_I         , & !< Density of ice [kg m^{-3}]
-       tpl_L_f           , & !< Latent heat of fusion  [J kg^{-1}]
-       tpl_c_w           , & !< Specific heat of water [J kg^{-1} K^{-1}]
-       tpl_c_I           , & !< Specific heat of ice   [J kg^{-1} K^{-1}]
-       tpl_c_S           , & !< Specific heat of snow  [J kg^{-1} K^{-1}]
-       tpl_kappa_I           !< Molecular heat conductivity of ice          [J m^{-1} s^{-1} K^{-1}]
-#endif
-
 !_cdm>
 ! Most physical constants are taken from the ICON module "mo_physical_constants" 
 ! rather than from the FLake module "sfc_flake_data". 
@@ -315,7 +283,6 @@ MODULE sfc_flake
 ! FLake: tpl_kappa_I = 2.29,    ICON: ki   = 2.1656.
 !_cdm<
 
-#ifdef __ICON__
   USE mo_physical_constants, ONLY: &
     &  tpl_grav    => grav       , & !< Acceleration due to gravity [m s^{-2}]
     &  tpl_T_f     => tmelt      , & !< Fresh-water freezing point [K]
@@ -330,23 +297,11 @@ MODULE sfc_flake
   USE mo_exception, ONLY:       &
                     &  finish , &  !< external procedure, finishes model run and reports the reason
                     &  message     !< external procedure, sends a message (error, warning, etc.)
-#endif
 
  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
 !===================================================================================================
 
-!_cdm>
-! COSMO stuff. Currently unused within ICON.
-!_cdm<
-
-#ifdef __COSMO__
- USE data_parallel   , ONLY :   &
-   my_cart_id       ! rank of this sub-domain in the Cartesian communicator
-
- USE environment,      ONLY: model_abort
-#endif
-!_nu  
 !_cdm>
 ! MESSY stuff from COSMO. Currently unused within ICON.
 !_cdm<
@@ -528,7 +483,6 @@ CONTAINS
 
     ! Call model abort if errors are encountered
     IF( lcallabort ) THEN
-#ifdef __ICON__
       ! Send an error message
       WRITE(nameerr,*) "MODULE sfc_flake, SUBROUTINE flake_init"
       WRITE(texterr,*) "Lake fraction ", fr_lake(iflk),                          &
@@ -541,13 +495,6 @@ CONTAINS
       WRITE(nameerr,*) "sfc_flake:flake_init"
       WRITE(texterr,*) "error in lake fraction or lake depth"
       CALL finish(TRIM(nameerr), TRIM(texterr))
-#endif
-#ifdef __COSMO__
-      PRINT *, 'Lake fraction ', fr_lake(iflk),                         &
-                        ' is less than a minimum threshold value ', frlake_thrhld
-      PRINT *, ' or negative lake depth ', depth_lk(iflk)
-      CALL model_abort(my_cart_id, 10555, 'Problems with lake fraction or lake depth:', 'sfc_flake:flake_init')
-#endif
     END IF
 
     ! As different from lake fraction and lake depth 

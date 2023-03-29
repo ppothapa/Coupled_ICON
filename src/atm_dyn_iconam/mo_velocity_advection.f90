@@ -79,7 +79,7 @@ MODULE mo_velocity_advection
   !! the copy from diverging and becoming a code corpse sooner or later. Thank you!)
   !!
   SUBROUTINE velocity_tendencies (p_prog, p_patch, p_int, p_metrics, p_diag, z_w_concorr_me, z_kin_hor_e, &
-                                  z_vt_ie, ntnd, istep, lvn_only, dtime)
+                                  z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc)
 
     ! Passed variables
     TYPE(t_patch), TARGET, INTENT(IN)    :: p_patch
@@ -95,6 +95,7 @@ MODULE mo_velocity_advection
     INTEGER, INTENT(IN)  :: istep    ! 1: predictor step, 2: corrector step
     LOGICAL, INTENT(IN)  :: lvn_only ! true: compute only vn tendency
     REAL(wp),INTENT(IN)  :: dtime    ! time step
+    REAL(wp),INTENT(IN)  :: dt_linintp_ubc  ! time shift for upper boundary condition
 
     ! Local variables
     INTEGER :: jb, jk, jc, je
@@ -120,11 +121,7 @@ MODULE mo_velocity_advection
 #endif
 
     ! Pointers
-    INTEGER, DIMENSION(:,:,:), POINTER   &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS                       &
-#endif
-      ::                                 &
+    INTEGER, DIMENSION(:,:,:), POINTER, CONTIGUOUS :: &
       icidx, icblk, ieidx, ieblk, iqidx, iqblk, ividx, ivblk, incidx, incblk
 
     INTEGER  :: nlev, nlevp1          !< number of full and half levels
@@ -324,7 +321,7 @@ MODULE mo_velocity_advection
           !$ACC LOOP GANG VECTOR
 !DIR$ IVDEP
           DO je = i_startidx, i_endidx
-            p_diag%vn_ie(je,1,jb) = p_diag%vn_ie(je,2,jb) + p_diag%dvn_ie_ubc(je,jb)
+            p_diag%vn_ie(je,1,jb) = p_diag%vn_ie_ubc(je,1,jb)+dt_linintp_ubc*p_diag%vn_ie_ubc(je,2,jb)
             ! vt_ie(jk=1) is actually unused, but we need it for convenience of implementation
             z_vt_ie(je,1,jb) = p_diag%vt(je,1,jb)
             !

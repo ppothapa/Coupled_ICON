@@ -64,19 +64,21 @@ CONTAINS
     & trac_old,             &
     & transport_state,          &
     & operators_coeff,      &
-    & flux_div_vert)
+    & flux_div_vert, use_acc)
     
     TYPE(t_patch_3d ),TARGET :: patch_3d
     REAL(wp), INTENT(inout)           :: trac_old(:,:,:) ! (nproma,n_zlev,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     TYPE(t_ocean_transport_state), TARGET :: transport_state
     TYPE(t_operator_coeff), TARGET    :: operators_coeff
     REAL(wp), INTENT(inout)           :: flux_div_vert(:,:,:) ! (nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !new tracer
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     
     !Local variables
     REAL(wp) :: deriv_fst, deriv_sec, adpo_weight_upw_cntr, adpo_weight_cntr_upw
     REAL(wp) :: prism_volume, transport_in, transport_out, adpo_r1, adpo_r2
     INTEGER :: startIndex, endIndex
     INTEGER :: jc, jk, jb
+    LOGICAL :: lacc
     ! vertical advective tracer fluxes:
     REAL(wp), ALLOCATABLE :: z_adv_flux_v2(:,:,:) ! resulting flux
     REAL(wp), ALLOCATABLE :: z_adv_flux_v (:,:,:)  ! resulting flux
@@ -97,7 +99,13 @@ CONTAINS
 
     patch_2D         => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
-    
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     ! CALL sync_patch_array(sync_c, patch_2D, trac_old)
     
     ! This is already synced in  edges_in_domain !
@@ -114,7 +122,7 @@ CONTAINS
         & patch_3d%p_patch_1d(1)%prism_thick_c,     &
         & patch_3d%p_patch_1d(1)%inv_prism_thick_c, &
         & operators_coeff%verticalAdvectionPPMcoeffs, &
-        & flux_div_vert)
+        & flux_div_vert, use_acc=lacc)
 
         stop_timer(timer_adv_vert,2)
         RETURN
@@ -135,7 +143,7 @@ CONTAINS
     & w, dtime, vertical_limiter_type,    &
     & cell_thickeness,  cell_invheight,   &
     & verticalAdvection_ppm_coefficients, &
-    & flux_div_vert)
+    & flux_div_vert, use_acc)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d   
     REAL(wp), INTENT(inout)           :: tracer(nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< in: advected cell centered variable
@@ -146,12 +154,21 @@ CONTAINS
     TYPE(t_verticalAdvection_ppm_coefficients) :: verticalAdvection_ppm_coefficients(patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)           :: flux_div_vert(:,:,:) ! (nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !new tracer
     INTEGER, INTENT(in)               :: vertical_limiter_type                                  !< parameter to select limiter
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     !-----------------------------------------------------------------------
     TYPE(t_subset_range), POINTER :: cells_in_domain
     INTEGER                       :: startIndex, endIndex, jb
+    LOGICAL :: lacc
     !-----------------------------------------------------------------------
     cells_in_domain => patch_3d%p_patch_2d(1)%cells%in_domain
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
 #ifdef NAGFOR
     flux_div_vert(:,:,:) = 0.0_wp
 #endif
@@ -168,7 +185,8 @@ CONTAINS
             & verticalAdvection_ppm_coefficients(jb), &
             & flux_div_vert(:,:,jb),          & ! out
             & startIndex, endIndex,           &
-            & patch_3d%p_patch_1d(1)%dolic_c(:,jb))
+            & patch_3d%p_patch_1d(1)%dolic_c(:,jb), &
+            & use_acc=lacc)
     ENDDO ! end loop over blocks
 !ICON_OMP_END_PARALLEL_DO
 
@@ -207,7 +225,7 @@ CONTAINS
     & cell_thickeness, cell_invheight,   &
     & ppmCoeffs,                         &
     & flux_div_vert,                     &
-    & startIndex, endIndex, cells_noOfLevels)
+    & startIndex, endIndex, cells_noOfLevels, use_acc)
 
     REAL(wp), INTENT(in)           :: tracer(nproma,n_zlev)      !< advected cell centered variable
     REAL(wp), INTENT(in)           :: w(nproma,n_zlev+1)         !<  in : vertical velocity
@@ -219,13 +237,14 @@ CONTAINS
     REAL(wp), INTENT(inout)        :: flux_div_vert(nproma, n_zlev) !new tracer
     INTEGER, INTENT(in)            :: startIndex, endIndex
     INTEGER, INTENT(in)            :: cells_noOfLevels(nproma)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     REAL(wp) :: upward_tracer_flux(nproma,n_zlev+1)      !< tracer flux
     REAL(wp) :: z_face(nproma,n_zlev+1)   !< face values of transported field
     REAL(wp) :: z_face_up(nproma,n_zlev)  !< face value (upper face)
     REAL(wp) :: z_face_low(nproma,n_zlev) !< face value (lower face)
-    REAL(wp) :: z_lext_1(n_zlev+1)                 !< linear extrapolation value 1
-    REAL(wp) :: z_lext_2(n_zlev+1)                 !< linear extrapolation value 2
+    REAL(wp) :: z_lext_1                  !< linear extrapolation value 1
+    REAL(wp) :: z_lext_2                  !< linear extrapolation value 2
     REAL(wp) :: z_cfl_m, z_cfl_p !< CFL number (weta>0, w<0), CFL number (weta<0, w>0)
     REAL(wp) :: z_slope(nproma,n_zlev+1)  !< monotonized slope
     REAL(wp) :: z_slope_u, z_slope_l                            !< one-sided slopes
@@ -239,6 +258,7 @@ CONTAINS
     !                          !< or the flux across the edge   !< (.FALSE./not specified)
     !REAL(wp) :: opt_topflx_tra(nproma,patch_3D%p_patch_2D(1)%alloc_cell_blocks)  !< vertical tracer flux at upper boundary
     INTEGER, PARAMETER :: islopel_vsm = 1
+    LOGICAL :: lacc
     
     REAL(wp), POINTER ::  cellHeightRatio_This_toBelow(:,:)
     REAL(wp), POINTER ::  cellHeightRatio_This_toThisBelow(:,:)
@@ -263,6 +283,14 @@ CONTAINS
     firstLevel  = 1
     secondLevel = 2
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(upward_tracer_flux, z_face, z_face_low, z_face_up, z_slope) IF(lacc)
+
     ! advection is done with an upwind scheme and a piecwise parabolic
     ! approx. of the subgrid distribution is used.
     ! 3 options:  standard without limiter
@@ -275,12 +303,18 @@ CONTAINS
 
     ! 2. Calculate monotonized slope
     !
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_slope(:, :) = 0._wp
+    z_face(:, :)  = 0.0_wp
+    !$ACC END KERNELS
 
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
 ! !CDIR NODEP
     DO jc = startIndex, endIndex
 
 ! !CDIR NODEP
+      !$ACC LOOP SEQ
       DO thisLevel = secondLevel, cells_noOfLevels(jc) - 1
 
         levelAbove    = thisLevel - 1                 ! index of top half thisLevel
@@ -305,10 +339,10 @@ CONTAINS
           z_slope(jc,thisLevel) = SIGN(                                           &
             & MIN( ABS(z_slope(jc,thisLevel)), ABS(z_slope_u), ABS(z_slope_l) ),  &
             & z_slope(jc,thisLevel))
-
-        ENDIF
+        END IF
 
       END DO ! jc = startIndex, endIndex
+
     END DO ! end loop over vertical levels
 
     !
@@ -323,13 +357,14 @@ CONTAINS
     ! for faces k=firstLevel and k=nlevp1 a zero gradient condition is assumed and the
     ! face values are set to the tracer values of the corresponding cell centers
     !
-    z_face(:, :)  = 0.0_wp
 
 ! !CDIR NODEP
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = startIndex, endIndex
       cell_levels = cells_noOfLevels(jc)
 
 ! !CDIR NODEP
+      !$ACC LOOP SEQ
       DO thisLevel = secondLevel, cell_levels - 2
         levelAbove  = thisLevel - 1
         levelBelow  = thisLevel + 1
@@ -398,14 +433,17 @@ CONTAINS
       ENDIF
 
     ENDDO
+    !$ACC END PARALLEL
 
     ! 4. Limitation of first guess parabola (which is based on z_face)
     ! Note that z_face_up(k) does not need to equal z_face_low(k-1) after
     ! the limitation procedure.
     ! Therefore 2 additional fields z_face_up and z_face_low are
     ! introduced.
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_face_low(1:nproma,1:n_zlev) = 0.0_wp
     z_face_up (1:nproma,1:n_zlev) = 0.0_wp
+    !$ACC END KERNELS
 
     IF (vertical_limiter_type == islopel_vsm) THEN
       !     ! monotonic (mo) limiter
@@ -417,24 +455,33 @@ CONTAINS
         & z_face_low,        &
         & startIndex,        &
         & endIndex,          &
-        & cells_noOfLevels)
+        & cells_noOfLevels,  &
+        & use_acc=lacc)
 
     ELSE
         ! simply copy face values to 'face_up' and 'face_low' arrays
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = startIndex, endIndex
+          !$ACC LOOP SEQ
           DO thisLevel = secondLevel, cells_noOfLevels(jc)-1
             z_face_up(jc, thisLevel)  = z_face(jc, thisLevel    )
             z_face_low(jc,thisLevel)  = z_face(jc, thisLevel + 1)
           ENDDO
         END DO
+        !$ACC END PARALLEL LOOP
 
     ENDIF  !  p_ityp_vlimit
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     upward_tracer_flux(:,:) = 0.0_wp
+    !$ACC END KERNELS
 
 ! !CDIR NODEP
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = startIndex, endIndex
 ! !CDIR NODEP
+      !$ACC LOOP SEQ
       DO thisLevel = secondLevel, cells_noOfLevels(jc)
         ! index of top half thisLevel
         levelAbove = thisLevel - 1
@@ -454,7 +501,7 @@ CONTAINS
         z_cfl_p = z_weta_dt * cell_invheight(jc, thisLevel)
         z_cfl_m = z_weta_dt * cell_invheight(jc, levelAbove)
 
-        z_lext_1(thisLevel) = tracer(jc,levelAbove)                             &
+        z_lext_1 = tracer(jc,levelAbove)                                        &
           & + 0.5_wp * (z_face_low(jc,levelAbove) - z_face_up(jc,levelAbove))   &
           &          * ( 1.0_wp - z_cfl_m )                                     &
           & - z_a11 - z_a11 * z_cfl_m * ( -3._wp  + 2._wp * z_cfl_m)
@@ -464,7 +511,7 @@ CONTAINS
         z_a12     = tracer(jc,thisLevel)                                      &
           & - 0.5_wp * (z_face_low(jc,thisLevel) + z_face_up(jc,thisLevel))
 
-        z_lext_2(thisLevel) = tracer(jc,thisLevel)                            &
+        z_lext_2 = tracer(jc,thisLevel)                                       &
           & - 0.5_wp * (z_face_low(jc,thisLevel) - z_face_up(jc,thisLevel))   &
           &          * ( 1.0_wp - z_cfl_p )                                   &
           & - z_a12 + z_a12 * z_cfl_p * (- 3._wp + 2._wp * z_cfl_p)
@@ -476,8 +523,8 @@ CONTAINS
         !  & z_lext_1(jc,thisLevel), z_lext_2(jc,thisLevel))
         ! copy of   FUNCTION laxfr_upflux_v( p_vn, p_psi1, p_psi2 )  RESULT(upward_tracer_flux)
         upward_tracer_flux(jc,thisLevel) = 0.5_wp *  &
-          & ( w(jc,thisLevel)  * ( z_lext_1(thisLevel) + z_lext_2(thisLevel) )           &
-          & +  ABS( w(jc,thisLevel) ) * ( z_lext_2(thisLevel) - z_lext_1(thisLevel) )    &
+          & ( w(jc,thisLevel)  * ( z_lext_1 + z_lext_2 )           &
+          & +  ABS( w(jc,thisLevel) ) * ( z_lext_2 - z_lext_1 )    &
           & )
 
       END DO ! end loop over cells
@@ -487,8 +534,10 @@ CONTAINS
     !
     ! upward_tracer_flux(startIndex:endIndex,nlevp1) = 0.0_wp
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = startIndex, endIndex
 ! !CDIR NODEP
+      !$ACC LOOP SEQ
       DO thisLevel = firstLevel, cells_noOfLevels(jc)
         ! positive vertical divergence in direction of w (upward positive)
         flux_div_vert(jc,thisLevel) = upward_tracer_flux(jc, thisLevel) &
@@ -499,7 +548,8 @@ CONTAINS
         flux_div_vert(jc,thisLevel) = 0.0_wp
       ENDDO
     END DO
-
+    !$ACC END PARALLEL
+    !$ACC END DATA
   END SUBROUTINE upwind_vflux_ppm_onBlock
   !-------------------------------------------------------------------------
  

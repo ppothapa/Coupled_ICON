@@ -7,13 +7,28 @@
 # Purpose: Run script for ICON at 160 km grid spacing on a global domain.
 #          This is a low resolution version used for development purpose.
 
+# Checks included:
+# 2 forecast runs are performed:
+# 1) forecast run without iterative IAU
+# 2) forecast run with iterative IAU
+# By comparing the output files, this test case checks the correctness of
+# - iterative IAU
+#
+# If the environmental variable `tolerance_run` is set, only one iteration is
+# executed.
+
 #
 # Author: Marek Jacob (DWD) et al.
 #
 # =========================================================================== 
 
 set -x
-make_and_change_to_experiment_dir
+make_and_change_to_experiment_dir # function in ../add_run_routines
+
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -57,15 +72,15 @@ grids_folder=$INDIR
 # ----------------------------------------------------------------------
 
 # grids are automatically linked through make_runscripts
-#add_link_file ${GRIDDIR}/icon_grid_0011_R02B03_R.nc iconR2B03_DOM00.nc
-#add_link_file ${INDIR}/icon_grid_0012b_R02B04_G.nc iconR2B04_DOM01.nc
-#add_link_file ${INDIR}/icon_grid_0099_R02B05_N02.nc iconR2B05_DOM02.nc
+ln -s ${GRIDDIR}/icon_grid_0011_R02B03_R.nc iconR2B03_DOM00.nc
+ln -s ${INDIR}/icon_grid_0012b_R02B04_G.nc iconR2B04_DOM01.nc
+ln -s ${INDIR}/icon_grid_0099_R02B05_N02.nc iconR2B05_DOM02.nc
 
-add_link_file ${INDIR}/external_parameter_icon_domain1_DOM01_tiles.nc extpar_icon_grid_0012b_R02B04_G.nc
-add_link_file ${INDIR}/external_parameter_icon_domain2_DOM02_tiles.nc extpar_icon_grid_0099_R02B05_N02.nc
+ln -s ${INDIR}/external_parameter_icon_domain1_DOM01_tiles.nc extpar_iconR2B04_DOM01.nc
+ln -s ${INDIR}/external_parameter_icon_domain2_DOM02_tiles.nc extpar_iconR2B05_DOM02.nc
 
 # files needed for radiation
-add_link_file ${basedir}/externals/ecrad/data ecrad_data
+ln -s ${basedir}/externals/ecrad/data ecrad_data
 
 # ----------------------------------------------------------------------
 # global namelist settings
@@ -87,21 +102,18 @@ dtime=540
 nsteps=9
 
 # the grid parameters
-atmo_dyn_grids="icon_grid_0012b_R02B04_G.nc icon_grid_0099_R02B05_N02.nc"
-atmo_rad_grids="icon_grid_0011_R02B03_R.nc"
+atmo_dyn_grids="iconR2B04_DOM01.nc iconR2B05_DOM02.nc"
+atmo_rad_grids="iconR2B03_DOM00.nc"
 
-add_link_file ${INDIR}/an_20220228.grb an_R02B04_DOM01.grb
-add_link_file ${INDIR}/fc_R02B04.20220228223000_joined fg_R02B04_DOM01.grb
-add_link_file ${INDIR}/fc_R02B05_N02.20220228223000_joined fg_R02B05_DOM02.grb
+ln -s ${INDIR}/an_20220228.grb an_R02B04_DOM01.grb
+ln -s ${INDIR}/fc_R02B04.20220228223000_joined fg_R02B04_DOM01.grb
+ln -s ${INDIR}/fc_R02B05_N02.20220228223000_joined fg_R02B05_DOM02.grb
 
 # ----------------------------------------------------------------------
 # create ICON master namelist
 # ----------------------------------------------------------------------
 
 # For a complete list see Namelist_overview and Namelist_overview.pdf
-
-# prevent exec.iconrun overwriting the master namelist (make_runscripts)
-dont_create_icon_master_namelist=1
 
 cat > icon_master.namelist << EOF
 &master_nml
@@ -136,8 +148,33 @@ for gridfile in ${atmo_rad_grids}; do
   radiation_grid_filename="${radiation_grid_filename} '${gridfile}',"
 done
 
+tot_iter=2
+if [[ -n "$tolerance_run" ]]; then
+  tot_iter=1
+fi
 
-cat > ${basedir}/run/${atmo_namelist} << EOF
+for iter in $(seq $tot_iter); do
+
+  if [ "$iter" -eq 1 ] ; then
+
+    echo "#############################################################"
+    echo "###               Run without iterative IAU               ###"
+    echo "#############################################################"
+
+    # run without iterative IAU
+    iterate_iau=".FALSE."
+
+  elif [ "$iter" -eq 2 ] ; then
+
+    echo "##############################################################"
+    echo "###                 Run with iterative IAU                 ###"
+    echo "##############################################################"
+
+    iterate_iau=".TRUE."
+
+  fi
+
+cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma          =  ${nproma}
  !nblocks_c       =  ${nblocks_c:-0} ! does not work with nesting. TODO make this work (maybe)
@@ -183,7 +220,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  init_mode                    = 5
  dt_iau                       = 10800
  dt_shift                     = -5400
- iterate_iau                  = .false.  !.true.
+ iterate_iau                  = ${iterate_iau}
  zpbl1                        = 500.
  zpbl2                        = 1000.
  dwdfg_filename               = "<path>fg_R<nroot0>B<jlev>_DOM<idom>.grb"
@@ -366,7 +403,8 @@ support_baryctr_intp=.FALSE., ! TODO: check why this is not working with nvfortr
  itype_vegetation_cycle = 2
 /
 &ensemble_pert_nml
-use_ensemble_pert=.false.,
+ use_ensemble_pert              = .true.
+ timedep_pert                   = 2
 /
 &gribout_nml
  preset                          = "ensemble"
@@ -397,7 +435,23 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
 ! Probtest due to their chaotic behavior and the relatively small Probtest
 ! ensemble of just 10 members.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+&output_nml
+ ! This output is to test the iterative IAU reset. It is used to compare the
+ ! iterative and non-iterative execution of this experiment at timestep >= 1.
+ output_filename  = "${EXPNAME}_${iter}_winds"
+ dom              = 1,2                       ! both domains
+ filetype         = 5
+ remap            = 0
+ output_grid      = .TRUE.
+ output_bounds    = ${dtime},99999,${dtime}   ! start, end, increment, 4 steps
+ steps_per_file   = 99999
+ include_last     = .TRUE.
+ ml_varlist       = 'vn','w','t_g','w_so','t_so','tot_prec'
+/
+EOF
 
+if [ "$iter" -eq 1 ] ; then # write output in first iteration (with iterative IAU)
+cat >> ${atmo_namelist} << EOF
 &output_nml
  ! This namelist is designed for Probtest tolerance testing
  ! The probability that one cpu run is not within the tolerance spread produced
@@ -494,6 +548,10 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
   var_list           = '  '
 /
 
+EOF
+fi # [ "$iter" -eq 1 ]
+
+cat >> ${atmo_namelist} << EOF
 !output!! ser_nml: serialization configuration ----------------------------------------
 !&ser_nml
 ! ser_initialization          =                            1,12,12 !
@@ -602,3 +660,59 @@ cat > map_file.fc << EOF3
   vmax_10m          GUST10
   z0                GZ0
 EOF3
+
+  $START_MODEL
+  EXIT_STATUS=$?
+
+  if [ "$EXIT_STATUS" -ne "0" ]; then
+    echo "ICON EXIT_STATUS: $EXIT_STATUS"
+    exit $EXIT_STATUS
+  fi
+
+# ----------------------------------------------------------------------------
+done # model run iterations
+# ----------------------------------------------------------------------------
+
+ERROR_SUM=0
+
+# Iteration 1 output filenames
+FILE1_DOM01="${EXPNAME}_1_winds_DOM01_ML_0001.nc"
+FILE1_DOM02="${EXPNAME}_1_winds_DOM02_ML_0001.nc"
+# Iteration 2 output filenames
+FILE2_DOM01="${EXPNAME}_2_winds_DOM01_ML_0001.nc"
+FILE2_DOM02="${EXPNAME}_2_winds_DOM02_ML_0001.nc"
+
+set +x
+
+if [[ -z "${tolerance_run:-}" ]]; then
+
+  echo "Check iterative IAU"
+  DIFF_STATUS_IAU=0
+
+  # compare_output_files is defined in ./add_run_routines
+  compare_output_files "${FILE1_DOM01}" "${FILE2_DOM01}"
+  DIFF_STATUS_IAU=$((DIFF_STATUS_IAU + $?))
+  if [[ $(echo $atmo_dyn_grids | wc -w) -gt 1 ]]; then
+    compare_output_files "${FILE1_DOM02}" "${FILE2_DOM02}"
+    DIFF_STATUS_IAU=$((DIFF_STATUS_IAU + $?))
+  fi
+
+  ERROR_SUM=$((ERROR_SUM + DIFF_STATUS_IAU))
+
+  if [[ $DIFF_STATUS_IAU -ne 0 ]]; then
+   echo " "
+   echo "IAU test FAILED"
+   echo " "
+  fi
+
+  echo "Cdo comparison ERROR_SUM: $ERROR_SUM"
+
+else
+
+  echo "Skip iterative checks"
+
+fi
+
+exit $ERROR_SUM
+
+# This exit above avoids the execution of the script exec.iconrun which is added below.

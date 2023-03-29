@@ -47,6 +47,7 @@ MODULE mo_ocean_output
   USE mo_sea_ice_nml,            ONLY: i_ice_dyn
   USE mo_util_dbg_prnt,          ONLY: dbg_print
   USE mtime,                     ONLY: datetime, MAX_DATETIME_STR_LEN, datetimeToPosixString
+  USE mo_mpi,                    ONLY: i_am_accel_node
   
   IMPLICIT NONE
 
@@ -124,7 +125,11 @@ CONTAINS
     WRITE(message_text,'(a,a)') 'Write output at:', TRIM(datestring)
     CALL message (TRIM(routine),message_text)
 
+#ifdef _OPENACC
+    IF (output_mode%l_nml) CALL write_name_list_output(out_step, lacc=i_am_accel_node)
+#else
     IF (output_mode%l_nml) CALL write_name_list_output(out_step)
+#endif
 
   END SUBROUTINE output_ocean
   !-------------------------------------------------------------------------

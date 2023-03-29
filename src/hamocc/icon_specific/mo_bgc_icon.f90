@@ -69,21 +69,16 @@ MODULE mo_bgc_icon
 
 CONTAINS
 
-SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu)  
+SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc)  
 
   IMPLICIT NONE
 
   TYPE(t_patch_3d ),TARGET, INTENT(in)   :: p_patch_3d
   TYPE(t_hamocc_ocean_state), TARGET     :: hamocc_ocean_state
-  
-  TYPE(t_bgc_memory), POINTER :: local_bgc_memory
-  TYPE(t_sediment_memory), POINTER :: local_sediment_memory
-  TYPE(t_aggregates_memory), POINTER :: local_aggregate_memory
-  INTEGER :: local_memory_idx, test_memory_copies
-
   REAL(wp), INTENT(IN) :: pddpo(bgc_nproma, bgc_zlevs, p_patch_3d%p_patch_2d(1)%nblks_c)
   REAL(wp), INTENT(IN) :: ptiestu(bgc_nproma, bgc_zlevs, p_patch_3d%p_patch_2d(1)%nblks_c)
   REAL(wp), INTENT(IN) :: ssh(bgc_nproma, p_patch_3d%p_patch_2d(1)%nblks_c)
+  LOGICAL, INTENT(IN), OPTIONAL          :: use_acc
 
   ! Local variables
   INTEGER ::  jb
@@ -92,7 +87,10 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu)
   !INTEGER, POINTER :: levels(:)
   INTEGER :: levels(bgc_nproma)
 
-
+  TYPE(t_bgc_memory), POINTER :: local_bgc_memory
+  TYPE(t_sediment_memory), POINTER :: local_sediment_memory
+  TYPE(t_aggregates_memory), POINTER :: local_aggregate_memory
+  INTEGER :: local_memory_idx, test_memory_copies
 
   TYPE(t_subset_range), POINTER :: all_cells
   INTEGER :: alloc_cell_blocks
@@ -101,11 +99,18 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu)
   TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
   TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
 
-  INTEGER :: i, jk
+  INTEGER :: i,jc,k,kpke
+  LOGICAL :: lacc
   
   CHARACTER(LEN=*), PARAMETER  :: str_module = 'BGC_ICON'  ! Output of module for 1 line debug
 !   INTEGER :: idt_src
 !   TYPE(t_subset_range), POINTER :: owned_cells
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
 
   ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
   hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
@@ -154,6 +159,8 @@ IF(l_bgc_check)THEN
  call get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, p_patch_3d, 0._wp, 0._wp) 
 ENDIF
 
+kpke = MAXVAL(p_patch_3D%p_patch_1d(1)%dolic_c(:,:))
+
 IF (.not. lsediment_only) THEN
        
 local_memory_idx = 0
@@ -161,6 +168,8 @@ test_memory_copies = 1
 local_bgc_memory => bgc_local_memory(local_memory_idx)
 local_sediment_memory => sediment_local_memory(local_memory_idx)
 local_aggregate_memory => aggregates_memory(local_memory_idx)
+
+!$ACC DATA CREATE(levels) IF(lacc)
 
 !DIR$ INLINE
 #ifdef _OPENMP
@@ -180,35 +189,44 @@ IF (test_memory_copies /= bgc_memory_copies) &
 !ICON_OMP_DO PRIVATE(levels, start_index, end_index)
 #endif
   DO jb = all_cells%start_block, all_cells%end_block
-            
+
         CALL get_index_range(all_cells, jb, start_index, end_index)
         !  tracer 1: potential temperature
         !  tracer 2: salinity
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         levels(start_index:end_index) = p_patch_3D%p_patch_1d(1)%dolic_c(start_index:end_index,jb)
+        !$ACC END KERNELS
 
         start_detail_timer(timer_bgc_up_bgc,5)
         CALL update_bgc(local_bgc_memory, local_sediment_memory, start_index,end_index,levels,&
              & pddpo(:,:,jb),&  ! cell thickness
-             &jb, hamocc_state%p_prog(nold(1))%tracer(:,:,jb,:), &
+             &jb, hamocc_state%p_prog(nold(1))%tracer, &
              & ocean_to_hamocc_state%co2_mixing_ratio(:,jb)                        & ! co2mixing ratio
-             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend)
+             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend, kpke, use_acc=lacc)
         stop_detail_timer(timer_bgc_up_bgc,5)
 
-        CALL ini_bottom(local_bgc_memory, start_index,end_index,levels,pddpo(:,:,jb))
+        CALL ini_bottom(local_bgc_memory, start_index, end_index, levels, pddpo(:,:,jb), use_acc=lacc)
 
         start_detail_timer(timer_bgc_swr,5)
        ! Net solar radiation update and swr_frac
         CALL swr_absorption(local_bgc_memory, start_index,end_index,levels,                   &
  &                          ocean_to_hamocc_state%short_wave_flux(:,jb),                                 & ! SW radiation
  &                          ocean_to_hamocc_state%ice_concentration_sum(:,jb),                           & ! sea ice concentration
- &                          pddpo(:,:,jb))   ! level thickness
+ &                          pddpo(:,:,jb), use_acc=lacc)                                                  ! level thickness
 
-        hamocc_to_ocean_state%swr_fraction(:,:,jb) = local_bgc_memory%swr_frac(:,:)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+        DO k=1,kpke
+          DO jc = start_index,end_index
+            hamocc_to_ocean_state%swr_fraction(jc,k,jb) = local_bgc_memory%swr_frac(jc,k)
+          END DO
+        END DO
+        !$ACC END PARALLEL LOOP
+
         stop_detail_timer(timer_bgc_swr,5)
 
        ! Linear age
         CALL update_linage(local_bgc_memory, levels, start_index, end_index,  & ! index range, levels, salinity
-   &                 pddpo(:,:,jb))! cell thickness (check for z0)
+   &                 pddpo(:,:,jb), use_acc=lacc)! cell thickness (check for z0)
 
        ! Biogeochemistry
 
@@ -216,7 +234,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
        ! Weathering fluxes 
         CALL update_weathering(local_bgc_memory, start_index, end_index,  & ! index range, levels, salinity
    &                 pddpo(:,:,jb),&! cell thickness (check for z0)
-   &                 ssh(:,jb)) ! surface_height
+   &                 ssh(:,jb), use_acc=lacc) ! surface_height
 
         stop_detail_timer(timer_bgc_wea,5)
 
@@ -225,12 +243,12 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL dust_deposition(local_bgc_memory, start_index, end_index,  & ! index range, levels,
    &                 pddpo(:,:,jb), &! cell thickness (check for z0)
    &                 ssh(:,jb),& ! surface_height
-   &                 ext_data_bgc%dusty(:,jb))       ! dust input
+   &                 ext_data_bgc%dusty(:,jb), use_acc=lacc)       ! dust input
       ! Nitrogen deposition
         CALL nitrogen_deposition(local_bgc_memory, start_index, end_index,  & ! index range, levels
    &                 pddpo(:,:,jb), &! cell thickness (check for z0)
    &                 ssh(:,jb),& ! surface_height
-   &                 ext_data_bgc%nitro(:,jb))      ! nitrogen input
+   &                 ext_data_bgc%nitro(:,jb), use_acc=lacc)      ! nitrogen input
 
         stop_detail_timer(timer_bgc_depo,5)
        !----------------------------------------------------------------------
@@ -241,7 +259,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
    &                 ocean_to_hamocc_state%temperature(:,:,jb),                              & ! pot. temperature
    &                 pddpo(:,:,jb),                    & ! cell thickness
    &                 ptiestu(:,:,jb) ,  &           ! depths at interface  
-   &                 itrig_chemcon)           
+   &                 itrig_chemcon, use_acc=lacc)           
         stop_detail_timer(timer_bgc_chemcon,5)
        !----------------------------------------------------------------------
        ! Calculate plankton dynamics and particle settling 
@@ -265,7 +283,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
    &               pddpo(:,:,jb), & ! cell thickness
    &               ssh(:,jb),& ! surface height
    &               ptiestu(:,:,jb),& ! depths at interface  
-   &               l_dynamic_pi ) ! depths at interface  
+   &               l_dynamic_pi, kpke, use_acc=lacc) ! depths at interface
         stop_detail_timer(timer_bgc_ocprod,5)
 
         start_detail_timer(timer_bgc_sett,5)
@@ -277,7 +295,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         ELSE
          CALL settling(local_bgc_memory, local_sediment_memory, levels,start_index, end_index, &
    &                   pddpo(:,:,jb),& ! cell thickness
-   &                   ssh(:,jb))                   ! surface height
+   &                   ssh(:,jb), use_acc=lacc)                   ! surface height
        
         ENDIF
         stop_detail_timer(timer_bgc_sett,5) 
@@ -297,7 +315,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
      &               ssh(:,jb), &                 ! surface height
      &               ocean_to_hamocc_state%temperature(:,:,jb), &        ! pot. temperature 
      &               ptiestu(:,:,jb),& ! depths at interface  
-     &               l_dynamic_pi ) ! depths at interface  
+     &               l_dynamic_pi, kpke, use_acc=lacc) ! depths at interface  
        ELSE
         ! diagnostic N2 fixation
         CALL cyano (local_bgc_memory, start_index, end_index,pddpo(:,:,jb),&
@@ -316,7 +334,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
   &               ocean_to_hamocc_state%temperature(:,:,jb), &          ! pot. temperature 
   &               ocean_to_hamocc_state%salinity(:,:,jb), &          ! salinity
   &               ocean_to_hamocc_state%wind10m(:,jb)            , &          ! 10m wind speed 
-  &               ocean_to_hamocc_state%ice_concentration_sum(:,jb))                              ! sea ice concentration
+  &               ocean_to_hamocc_state%ice_concentration_sum(:,jb), use_acc=lacc)                              ! sea ice concentration
 
        stop_detail_timer(timer_bgc_gx,5)
         !----------------------------------------------------------------------
@@ -326,7 +344,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL calc_dissol(local_bgc_memory, start_index, end_index, levels,   & 
    &               pddpo(:,:,jb),& ! cell thickness
    &               ocean_to_hamocc_state%salinity(:,:,jb),         &  ! salinity
-   &               ptiestu(:,:,jb)) !depths at interface   
+   &               ptiestu(:,:,jb), use_acc=lacc) !depths at interface   
  
         stop_detail_timer(timer_bgc_calc,5)
        !----------------------------------------------------------------------
@@ -339,17 +357,18 @@ IF (test_memory_copies /= bgc_memory_copies) &
  
         CALL powach(local_bgc_memory, local_sediment_memory, start_index, end_index, &    
    &               ocean_to_hamocc_state%salinity(:,:,jb),          &! salinity
-   &               pddpo(:,:,jb))  ! cell thickness
+   &               pddpo(:,:,jb), use_acc=lacc)  ! cell thickness
          endif
         stop_detail_timer(timer_bgc_powach,5)
 
-        if(mod(ldtrunbgc,ndtdaybgc).eq.0) CALL sedshi(local_bgc_memory, local_sediment_memory, start_index,end_index)
+        if(mod(ldtrunbgc,ndtdaybgc).eq.0) CALL sedshi(local_bgc_memory, local_sediment_memory, &
+                                                      start_index, end_index, use_acc=lacc)
  
         start_detail_timer(timer_bgc_up_ic,5)
         CALL update_icon(local_bgc_memory, start_index,end_index,levels,&
   &               pddpo(:,:,jb),&  ! cell thickness
-  &               hamocc_state%p_prog(nold(1))%tracer(:,:,jb,:),            &
-  &               hamocc_to_ocean_state%co2_flux(:,jb)                    )          ! co2flux for coupling
+  &               jb, hamocc_state%p_prog(nold(1))%tracer,            &
+  &               hamocc_to_ocean_state%co2_flux(:,jb), use_acc=lacc)          ! co2flux for coupling
         stop_detail_timer(timer_bgc_up_ic,5)
 
         start_detail_timer(timer_bgc_tend,5)
@@ -360,7 +379,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
   &                                   hamocc_state%p_tend,            &
   &                                   hamocc_state%p_diag,            &
   &                                   hamocc_state%p_sed,             &
-  &                                   hamocc_state%p_agg)
+  &                                   hamocc_state%p_agg, kpke, use_acc=lacc)
 
         stop_detail_timer(timer_bgc_tend,5)
  ENDDO
@@ -369,7 +388,9 @@ IF (test_memory_copies /= bgc_memory_copies) &
 !ICON_OMP_END_PARALLEL
 #endif
 ! O2 min depth & value diagnostics
-CALL get_omz(hamocc_state,p_patch_3d,pddpo,ssh)
+CALL get_omz(hamocc_state, p_patch_3d, pddpo, ssh, use_acc=lacc)
+
+!$ACC END DATA
 
 ELSE
 ! offline sediment
@@ -390,9 +411,9 @@ ELSE
 
         CALL update_bgc(local_bgc_memory, local_sediment_memory, start_index,end_index,levels,&
              & pddpo(:,:,jb),&  ! cell thickness
-             &jb, hamocc_state%p_prog(nold(1))%tracer(:,:,jb,:), &
+             &jb, hamocc_state%p_prog(nold(1))%tracer, &
              & ocean_to_hamocc_state%co2_mixing_ratio(:,jb)                        & ! co2mixing ratio
-             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend)
+             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend, kpke)
 
         stop_detail_timer(timer_bgc_up_bgc,5)
 

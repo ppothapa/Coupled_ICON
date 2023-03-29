@@ -58,6 +58,7 @@ MODULE mo_ocean_nml
                                    ! that removes uniform height gradient errors
 
   INTEGER  :: n_zlev        ! number of ocean levels
+  !$ACC DECLARE CREATE(n_zlev)
   INTEGER, PARAMETER :: max_allocated_levels = 1024
   REAL(wp) :: dzlev_m(max_allocated_levels)  ! namelist input of layer thickness
 
@@ -1349,7 +1350,7 @@ MODULE mo_ocean_nml
       CALL finish(method_name, 'wrong laplacian_form parameter')
     ENDIF
       
-
+    !$ACC UPDATE DEVICE(n_zlev)
     IF( n_zlev < 1 ) &
       & CALL finish(method_name,  'n_zlev < 1')
     IF( iswm_oce == 1 .AND. n_zlev > 1 ) THEN

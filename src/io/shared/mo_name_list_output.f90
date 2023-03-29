@@ -297,49 +297,20 @@ CONTAINS
       name_len = part_idx-1
       INQUIRE(file=filename(1:name_len), exist=lexist)
       IF (lexist) THEN
-        ! store the orginal allocated vlist (the handlers different) for later use with new files
-        of%cdiVlistID_orig = of%cdiVlistID
-        of%cdiTaxisID_orig = of%cdiTaxisID
-
         ! open for append
         of%cdiFileID       = streamOpenAppend(filename(1:name_len))
 
-        ! inquire the opened file for its associated vlist
-        of%cdiVlistID      = vlistDuplicate(streamInqVlist(of%cdiFileID))
-
-        ! and time axis, the only components different to the previous model prepared vlist
-        of%cdiTaxisID      = taxisDuplicate(vlistInqTaxis(of%cdiVlistID))
-
-        ! get the already stored number of time steps
-        of%cdiTimeIndex    = vlistNtsteps(of%cdiVlistID)
         lappend            = .TRUE.
-        of%appending       = .TRUE.
       ELSE
-        IF (of%appending) THEN
-          ! restore model internal vlist and time axis handler association
-          of%cdiVlistID      = of%cdiVlistID_orig
-          of%cdiVlistID_orig = CDI_UNDEFID
-          of%cdiTaxisID      = of%cdiTaxisID_orig
-          of%cdiTaxisID_orig = CDI_UNDEFID
-        ENDIF
         ! file to append to does not exist that means we can use the name without part trailer
         of%cdiFileID       = streamOpenWrite(filename(1:name_len), of%output_type)
-        of%appending       = .FALSE.
       ENDIF
     ELSE
       name_len = LEN_TRIM(filename)
-      IF (of%appending) THEN
-        ! restore model internal vlist and time axis handler association
-        of%cdiVlistID      = of%cdiVlistID_orig
-        of%cdiVlistID_orig = CDI_UNDEFID
-        of%cdiTaxisID      = of%cdiTaxisID_orig
-        of%cdiTaxisID_orig = CDI_UNDEFID
-      ENDIF
       of%cdiFileID       = streamOpenWrite(filename(1:name_len), of%output_type)
       IF (gribout_config(of%phys_patch_id)%lgribout_compress_ccsds) THEN
         CALL streamDefCompType(of%cdiFileID, CDI_COMPRESS_SZIP)
       ENDIF
-      of%appending       = .FALSE.
     ENDIF
 
     IF (of%cdiFileID < 0) THEN
@@ -354,7 +325,10 @@ CONTAINS
       END IF
     ENDIF
 
-    IF (.NOT. lappend) THEN
+    IF (lappend) THEN
+      ! get the already stored number of time steps
+      of%cdiTimeIndex = vlistNtsteps(streamInqVlist(of%cdiFileID))
+    ELSE
       ! assign the vlist (which must have ben set before)
 #ifdef HAVE_CDI_PIO
       IF (pio_type == pio_type_cdipio) THEN
@@ -501,24 +475,22 @@ CONTAINS
   SUBROUTINE destroy_output_vlist(of)
     TYPE (t_output_file), INTENT(INOUT) :: of
     ! local variables
-    INTEGER :: j, vlistID
+    INTEGER :: j
 
-    vlistID = of%cdiVlistID
-    IF(vlistID /= CDI_UNDEFID) THEN
+    IF(of%cdiVlistID /= CDI_UNDEFID) THEN
       IF(of%cdiCellGridID   /= CDI_UNDEFID) CALL gridDestroy(of%cdiCellGridID)
       IF(of%cdiEdgeGridID   /= CDI_UNDEFID) CALL gridDestroy(of%cdiEdgeGridID)
       IF(of%cdiVertGridID   /= CDI_UNDEFID) CALL gridDestroy(of%cdiVertGridID)
       IF(of%cdiLonLatGridID /= CDI_UNDEFID) CALL gridDestroy(of%cdiLonLatGridID)
-      IF(of%cdiTaxisID      /= CDI_UNDEFID) CALL taxisDestroy(of%cdiTaxisID)
-      CALL vlistDestroy(vlistID)
+      CALL taxisDestroy(vlistInqTaxis(of%cdiVlistID))
+      CALL vlistDestroy(of%cdiVlistID)
     ENDIF
 
-    of%cdiVlistID      = CDI_UNDEFID
     of%cdiCellGridID   = CDI_UNDEFID
     of%cdiEdgeGridID   = CDI_UNDEFID
     of%cdiVertGridID   = CDI_UNDEFID
     of%cdiLonLatGridID = CDI_UNDEFID
-    of%cdiTaxisID      = CDI_UNDEFID
+    of%cdiVlistID      = CDI_UNDEFID
 
   END SUBROUTINE destroy_output_vlist
 
@@ -542,6 +514,7 @@ CONTAINS
     INTEGER                           :: noutput_pe_list, io_proc_id
     INTEGER                           :: output_pe_list(MAX(1,num_io_procs))
     INTEGER :: prev_cdi_namespace
+    INTEGER :: taxisID
     LOGICAL :: is_io, is_test
     LOGICAL :: lhas_output, all_print, do_sync
     LOGICAL :: ofile_is_active(SIZE(output_file)), &
@@ -616,7 +589,7 @@ CONTAINS
           ! Check if files have to be (re)opened
           ! -------------------------------------------------
           IF (ofile_has_first_write(i)) THEN
-            IF (output_file(i)%cdiVlistId == CDI_UNDEFID)  &
+            IF (output_file(i)%cdiVlistID == CDI_UNDEFID)  &
                  &  CALL setup_output_vlist(output_file(i))
             CALL open_output_file(output_file(i), all_print)
           END IF
@@ -675,8 +648,9 @@ CONTAINS
         itime = cdiEncodeTime(INT(io_datetime%time%hour),   &
           &                   INT(io_datetime%time%minute), &
           &                   INT(io_datetime%time%second))
-        CALL taxisDefVdate(output_file(i)%cdiTaxisID, idate)
-        CALL taxisDefVtime(output_file(i)%cdiTaxisID, itime)
+        taxisID = vlistInqTaxis(streamInqVlist(output_file(i)%cdiFileID))
+        CALL taxisDefVdate(taxisID, idate)
+        CALL taxisDefVtime(taxisID, itime)
         iret = streamDefTimestep(output_file(i)%cdiFileId, output_file(i)%cdiTimeIndex)
         output_file(i)%cdiTimeIndex = output_file(i)%cdiTimeIndex + 1
       END IF
@@ -979,7 +953,7 @@ CONTAINS
     ! Only for synchronous output mode: communicate the largest global
     ! index of the lateral boundary cells, if required:
 
-    IF ((.NOT. participate_in_async_io) .AND. config_lmask_boundary)  THEN
+    IF ((.NOT. participate_in_async_io) .AND. config_lmask_boundary(i_log_dom))  THEN
       last_bdry_index = get_last_bdry_index(i_log_dom)
     ELSE
       last_bdry_index = 0
@@ -1172,11 +1146,7 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER :: jl_start, jl_end, jl
     INTEGER :: max_glb_idx, tmp_dummy
-    INTEGER, POINTER &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         , CONTIGUOUS &
-#endif
-         :: glb_index(:)
+    INTEGER, POINTER, CONTIGUOUS :: glb_index(:)
 
     rl_start   = 1
     rl_end     = grf_bdywidth_c
@@ -1451,7 +1421,7 @@ CONTAINS
     !
     nmiss = MERGE(1, 0, (info%lmiss &
       &                  .OR. (info%lmask_boundary &
-      &                        .AND. config_lmask_boundary) ) &
+      &                        .AND. ANY(config_lmask_boundary(:))) ) &
       &                 .AND. last_bdry_index > 0)
 
     make_level_selection = ASSOCIATED(of%level_selection) &
@@ -1557,7 +1527,7 @@ CONTAINS
         ! value. Note that this modifies only the output buffer!
         IF ( info%lmask_boundary                   .AND. &
              & (info%hgrid == GRID_UNSTRUCTURED_CELL) .AND. &
-             & config_lmask_boundary ) THEN
+             & ANY(config_lmask_boundary(:)) ) THEN
           missval = BOUNDARY_MISSVAL
           IF (info%lmiss)  missval = info%missval%rval
 
@@ -1656,7 +1626,7 @@ CONTAINS
 
     apply_missval =       info%lmask_boundary                  &
       &             .AND. info%hgrid == GRID_UNSTRUCTURED_CELL &
-      &             .AND. config_lmask_boundary
+      &             .AND. config_lmask_boundary(i_log_dom)
     IF (apply_missval) THEN
       missval = get_bdry_missval(info, idata_type)
       CALL get_bdry_blk_idx(i_log_dom, &
@@ -1747,7 +1717,7 @@ CONTAINS
     ! set missval if needed
     apply_missval =       info%lmask_boundary                  &
       &             .AND. info%hgrid == GRID_UNSTRUCTURED_CELL &
-      &             .AND. config_lmask_boundary
+      &             .AND. config_lmask_boundary(i_log_dom)
     IF (apply_missval) THEN
       missval = get_bdry_missval(info, idata_type)
       CALL get_bdry_blk_idx(i_log_dom, &
@@ -2458,7 +2428,7 @@ CONTAINS
       & .OR. of%output_type == FILETYPE_GRB2) THEN
       nmiss = MERGE(1, 0, ( info%lmiss .OR.  &
            &  ( info%lmask_boundary    .AND. &
-           &    config_lmask_boundary  .AND. &
+           &    config_lmask_boundary(i_log_dom)  .AND. &
            &    ((i_log_dom > 1) .OR. l_limited_area) ) ))
     ELSE
       nmiss = 0
@@ -2946,7 +2916,7 @@ CONTAINS
       IF (have_grib) THEN
         IF ( info%lmiss .OR.                                            &
           &  ( info%lmask_boundary    .AND. &
-          &    config_lmask_boundary  .AND. &
+          &    config_lmask_boundary(i_log_dom)  .AND. &
           &    ((i_log_dom > 1) .OR. l_limited_area) ) ) THEN
           nmiss = 1
         ELSE

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
@@ -11,5 +12,6 @@ listname=tolerance
 # Tolerance references are only needed on CPU - turn off GPU builder
 ./set_builder_flags Inactive --builders 'DAINT_GPU_nvidia' --list $listname
 ./set_builder_flags Inactive --builders 'DAINT_GPU_nvidia_mixed' --list $listname
+./set_builder_flags Inactive --builders 'balfrin_gpu_nvidia' --list $listname
 
 ./lslist $listname

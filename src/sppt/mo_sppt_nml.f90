@@ -44,7 +44,7 @@ MODULE mo_sppt_nml
 
   LOGICAL  :: lsppt     ! > forecast with SPPT
 
-  REAL(wp) :: hinc_rn   ! > time increment (h) for drawing a new field of random numbers
+  REAL(wp) :: hinc_rn   ! > time increment (s) for drawing a new field of random numbers
   REAL(wp) :: dlat_rn   ! > random number coarse grid point distance in meridional direction (deg)
   REAL(wp) :: dlon_rn   ! > random number coarse grid point distance in zonal direction (deg)
   REAL(wp) :: range_rn  ! > max magnitude of random numbers
@@ -87,7 +87,7 @@ MODULE mo_sppt_nml
 
     lsppt = .FALSE.     ! if TRUE SPPT is switched on
 
-    hinc_rn = 6.0_wp    ! time increment for drawing a new field of random numbers         (hour)
+    hinc_rn = 21600_wp    ! time increment for drawing a new field of random numbers        (seconds)
 
     ! converted from deg to rad when copied to the config state (see below)
     dlat_rn = 1e-1_wp    ! random number coarse grid point distance in meridional direction (deg)

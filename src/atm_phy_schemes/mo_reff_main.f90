@@ -347,7 +347,7 @@ MODULE mo_reff_main
 
       ! Initialize inidices
       !$ACC DATA PRESENT(indices, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) PRESENT(nproma) FIRSTPRIVATE(k_end)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1,k_end
         DO jc = 1,nproma
@@ -355,7 +355,7 @@ MODULE mo_reff_main
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_end)
       !$ACC LOOP GANG VECTOR
       DO jc = 1,k_end
         n_ind(jc) = 0
@@ -375,7 +375,7 @@ MODULE mo_reff_main
         END IF
 
         !$ACC DATA PRESENT(n_ind, indices, q)
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
         !$ACC LOOP SEQ
         DO k = k_start,k_end
           !$ACC LOOP SEQ
@@ -397,7 +397,7 @@ MODULE mo_reff_main
           q=>reff_calc%p_q(:,:,jb)
 
           !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
           !$ACC LOOP SEQ
           DO k = k_start,k_end
             !$ACC LOOP SEQ
@@ -426,7 +426,7 @@ MODULE mo_reff_main
           q=>reff_calc%p_q(:,:,jb)
 
           !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
-          !$ACC PARALLEL DEFAULT(NONE)
+          !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
           !$ACC LOOP SEQ
           DO k = k_start,k_end
             !$ACC LOOP SEQ
@@ -515,7 +515,7 @@ MODULE mo_reff_main
     ! Translate ncn values from incloud to grid-scale values
     IF ( reff_calc%ncn_param_incloud == 1 .AND. PRESENT(ncn) .AND. reff_calc%ncn_param >= 0 ) THEN 
       !$ACC DATA PRESENT(indices, ncn, clc, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end)
       !$ACC LOOP SEQ
       DO k = k_start,k_end
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
@@ -540,7 +540,7 @@ MODULE mo_reff_main
       SELECT CASE (reff_calc%reff_param )        
       CASE (0)    !Spheroid  : reff = 0.5*c1*x**c2 (x= mean mass)
         !$ACC DATA PRESENT(indices, ncn, n_ind, rho, q, reff_calc, reff, reff_calc%reff_coeff(2))
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, x_max, x_min)
         !$ACC LOOP GANG VECTOR PRIVATE(jc, x)
         DO k = k_start,k_end
           DO ic  = 1,n_ind(k)
@@ -557,7 +557,7 @@ MODULE mo_reff_main
       ! Here c5=0.5 fixed (different from libRadtran documentation c5=3*sqrt(3)/8=0.65)
       CASE (1)  
         !$ACC DATA PRESENT(indices, ncn, n_ind, rho, q, reff_calc, reff, reff_calc%reff_coeff(4))
-        !$ACC PARALLEL DEFAULT(NONE)
+        !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, x_max, x_min)
         !$ACC LOOP SEQ
         DO k = k_start,k_end
           !$ACC LOOP GANG VECTOR PRIVATE(jc, x)
@@ -723,7 +723,7 @@ MODULE mo_reff_main
       END IF
 
       !$ACC DATA PRESENT(n_ind, indices, ncn, space_cloud_num)
-      !$ACC PARALLEL DEFAULT(NONE)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end)
       !$ACC LOOP SEQ
       DO k = k_start,k_end
         !$ACC LOOP GANG VECTOR PRIVATE(jc)
@@ -788,7 +788,7 @@ MODULE mo_reff_main
     REAL(wp)          , PARAMETER             :: qcrit_reff = 5e-5
 
     !$ACC DATA PRESENT(q1, reff_1, q2, reff_2, clc)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, is, ie)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_ov_reff)
     DO k = k_start,k_end
       DO jc = is,ie
@@ -826,7 +826,7 @@ MODULE mo_reff_main
     INTEGER                                   :: k,jc           ! Local counters 
     
     !$ACC DATA PRESENT(q, reff)
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k_start, k_end, is, ie, reff_max)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k = k_start,k_end
       DO jc  = is,ie

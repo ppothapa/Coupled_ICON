@@ -35,7 +35,7 @@ GRIDDIR=${DATAROOT}/ICON-waves/exp18
 #IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
 
 # directory with external parameter data:
-#EXTPARDIR=${DATAROOT}/Extpar_R2B6N8_IFStest
+EXTPARDIR=${DATAROOT}/ICON-waves/exp18
 
 # ----------------------------------------------------------------------------
 # copy input data: grids, external parameters, model
@@ -50,16 +50,7 @@ ln -sf ${GRIDDIR}/ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc ocean_icon_waves_
 #ln -sf ${GRIDDIR}/iconR2B07_DOM02.nc iconR2B07_DOM02.nc
 
 # external parameter (from ExtPar tool)
-#ln -sf ${EXTPARDIR}/extpar_R2B06_DOM01.nc extpar_iconR2B06_DOM01.nc
-#ln -sf ${EXTPARDIR}/extpar_R2B07_DOM02.nc extpar_iconR2B07_DOM02.nc
-
-# interpolated IFS data
-#ln -sf $IFSDATADIR/prepiconR2B06_DOM01_2012062100.nc ifs2icon_R2B06_DOM01.nc
-#ln -sf $IFSDATADIR/prepiconR2B07_DOM02_2012062100.nc ifs2icon_R2B07_DOM02.nc
-
-# files needed for radiation
-#ln -sf ${ICONDIR}/data/ECHAM6_CldOptProps.nc .
-#ln -sf ${ICONDIR}/data/rrtmg_lw.nc .
+ln -sf ${EXTPARDIR}/extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
 
 # copy binary
 cp -p $MODEL icon
@@ -69,17 +60,21 @@ cp -p $MODEL icon
 # grid namelist settings
 # ----------------------------------------------------------------------------
 wave_grid=ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
+wave_extpar=extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
 
 dynamics_grid_filename=""
 for gridfile in ${wave_grid}; do
   dynamics_grid_filename="${dynamics_grid_filename} '${gridfile}',"
 done
 
-num_io_procs=0
+num_io_procs=1
 num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
 
+#spectral resolution
+nd=4            # NUMBER OF DIRECTIONS
+nf=30           # NUMBER OF FREQUENCIES
 
 wave_namelist=NAMELIST_${EXPNAME}
 
@@ -115,11 +110,15 @@ cat > ${wave_namelist} << EOF
  coupled_mode         = .false.
 /
 &run_nml
- num_lev              = 3
+ num_lev              = 1
  dtime                = ${dtime}     ! [s] timestep in seconds
  ltimer               = .true.
  timers_level         = 10
  msg_level            = 15
+ ltestcase            = .TRUE.       ! run testcase
+ ldynamics            = .TRUE.
+ ltransport           = .TRUE.
+ ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /
 &parallel_nml
@@ -139,9 +138,14 @@ cat > ${wave_namelist} << EOF
 &grid_nml
  dynamics_grid_filename  = ${dynamics_grid_filename}
 /
+&extpar_nml
+ itopo = 0 !do not read atmospheric exp file
+ extpar_filename = '${wave_extpar}'
+/
 &wave_nml
- ndirs       = 36           !! NUMBER OF DIRECTIONS
- nfreqs      = 25           !! NUMBER OF FREQUENCIES
+ ndirs       = ${nd}   ! number of directions
+ nfreqs      = ${nf}   ! number of frequencies
+ forc_file_prefix = '' ! prefix of forcing file name
 /
 &output_nml
  filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
@@ -152,8 +156,11 @@ cat > ${wave_namelist} << EOF
  include_last            =                      .TRUE.        ! flag whether to include the last time step
  output_filename         =                      'WAVE'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
- ml_varlist              =  'process_id'
- m_levels                = '1'
+ ml_varlist              =  'process_id','bathymetry_c','bathymetry_e',
+                            'group:wave_forcing',
+                            'group:wave_spectrum',
+			    'group:wave_phy',
+			    'group:wave_short'
 /
 EOF
 
@@ -176,6 +183,7 @@ fi
 # ----------------------------------------------------------------------------
 
 echo "EXIT_STATUS: $EXIT_STATUS"
+echo $EXPDIR
 exit $EXIT_STATUS
 
 

@@ -39,10 +39,8 @@
 
 MODULE mo_cuflxtends
 
-#ifdef __ICON__
   USE mo_kind   ,ONLY: jprb=>wp     , &
     &                  jpim=>i4
-#endif
 
 !  USE yomhook   ,ONLY : lhook,   dr_hook
   !KF
@@ -958,6 +956,9 @@ CONTAINS
         ENDDO
       ENDDO
 
+#ifdef _CRAYFTN
+!dir$ inline
+#endif
       CALL cubidiag&
         & ( kidia,    kfdia,   klon,   ktdia, klev, &
         & kctop,    llcumbas, &
@@ -968,6 +969,9 @@ CONTAINS
         & kctop,    llcumbas, &
         & zmfus,    zb,     zdqdt,   zr2)
 
+#ifdef _CRAYFTN
+!dir$ noinline
+#endif
       ! Compute tendencies
 
       !PREVENT_INCONSISTENT_IFORT_FMA
@@ -1306,6 +1310,9 @@ CONTAINS
         ENDDO
       ENDDO
 
+#ifdef _CRAYFTN
+!dir$ inline
+#endif
       CALL cubidiag&
         & ( kidia, kfdia, klon, ktdia, klev, &
         & kctop, llcumbas, &
@@ -1315,6 +1322,10 @@ CONTAINS
         & ( kidia, kfdia, klon, ktdia, klev, &
         & kctop, llcumbas, &
         & zmfuu,    zb,    zdvdt,   zr2)
+
+#ifdef _CRAYFTN
+!dir$ noinline
+#endif
 
       ! Compute tendencies
 

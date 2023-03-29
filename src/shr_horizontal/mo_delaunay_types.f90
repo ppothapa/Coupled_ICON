@@ -372,7 +372,9 @@ CONTAINS
     TYPE (t_point_list), INTENT(IN)   :: pxyz
     INTEGER,             INTENT(IN)   :: ip(0:2)
     CALL finish("circum_circle_spherical_q128", &
-      "This function cannot be used without quadruple precision support")
+      "This function cannot be used without quadruple precision support. " // &
+      "Please consider applying `icondeluny` from the DWD ICON Tools on " // &
+      "the grid files manually to pre-generate the variable `cc_delaunay`.")
     circum_circle_spherical_q128 = .FALSE.
   END FUNCTION circum_circle_spherical_q128
 #endif

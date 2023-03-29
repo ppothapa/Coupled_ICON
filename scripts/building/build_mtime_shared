@@ -1,0 +1,22 @@
+#! /bin/sh
+#
+# Do build of mtime shared library for scripting
+#
+# Currently for in-source builds only!
+#
+
+set -eu
+
+ICON_DIR=$(unset CDPATH && cd "$(dirname "$0")/../.." && pwd)
+
+CC=$1
+FC=$2
+
+cd $ICON_DIR/externals
+rm -rf mtime_shared
+git clone mtime mtime_shared
+cd mtime_shared
+./configure CC="$CC" FC="$FC" --prefix="$ICON_DIR"
+make install
+cd ..
+rm -rf mtime_shared

@@ -25,7 +25,7 @@ MODULE mo_nwp_phy_init
   USE mo_kind,                ONLY: wp
   USE mo_math_constants,      ONLY: rad2deg
   USE mo_physical_constants,  ONLY: grav, rd_o_cpd, cpd, p0ref, rd, p0sl_bg,         &
-    &                               dtdz_standardatm, lh_v=>alv
+    &                               dtdz_standardatm, lh_v=>alv, o3mr2gg 
 !   USE mo_math_utilities,      ONLY: sphere_cell_mean_char_length
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag,t_nwp_phy_tend
   USE mo_nwp_lnd_types,       ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
@@ -1055,7 +1055,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF
         !
         ! Read ozone transient data
-        IF (irad_o3 == 5) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3)
+        IF (irad_o3 == 5) CALL read_bc_ozone(ini_date%date%year,p_patch,irad_o3,vmr2mmr_opt=o3mr2gg)
 
         !------------------------------------------------------------
         ! Initialize solar flux in SW bands and solar constant (W/m2)
@@ -1877,11 +1877,6 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   IF (linit_mode) THEN
 
     IF (sppt_config(jg)%lsppt) THEN
-
-        ! GPU currently not supported
-#ifdef _OPENACC
-        CALL finish(modname,'GPU version not available for SPPT.')
-#endif
 
       ! Initate, i.e. generate random patterns during initiation
       CALL init_rn(p_patch, ini_date, sppt_config(jg), &

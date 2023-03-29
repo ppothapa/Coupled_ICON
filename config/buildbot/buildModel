@@ -28,6 +28,12 @@ case $(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') in
       exit 1
     fi
     ;;
+  balfrin*) # balfrin
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
   breeze*|mpimac*)
     # MPIMET workstation (and macs) do not have any scheduler - local execution
     cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1

@@ -183,7 +183,7 @@ CONTAINS
         td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(dt_rad), ms=0)
         prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
         IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
-          IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3)
+          IF (irad_o3 == 5) CALL read_bc_ozone(mtime_datetime%date%year, pt_patch, irad_o3, vmr2mmr_opt=amo3/amd)
         END IF
         CALL deallocateTimedelta(td_dt_rad)
         CALL deallocateDatetime(prev_radtime)
@@ -536,16 +536,16 @@ CONTAINS
     CALL prepare_lin_intp(z3d_in=zf_o3,  z3d_out=z_mc,               &
           &                  nblks= nblks,npromz= npromz,            &
           &                  nlevs_in=nlev_o3,      nlevs_out=nlev,  &
-          &                  wfac=wfac, idx0=idx0  ,bot_idx=bot_idx  )
+          &                  wfac=wfac, idx0=idx0, bot_idx=bot_idx, lacc=.FALSE.)
 
     CALL lin_intp        (f3d_in=aux_o3, f3d_out=model_o3,                  &
           &                  nblks= nblks,npromz=npromz,                    &
           &                  nlevs_in=nlev_o3,      nlevs_out=nlev,         &
-          &                  wfac=wfac, idx0=idx0  ,bot_idx=bot_idx        ,&
+          &                  wfac=wfac, idx0=idx0  ,bot_idx=bot_idx,        &
           &                  kpbl1=kpbl1, wfacpbl1=wfacpbl1,                &
-          &                  kpbl2=kpbl2, wfacpbl2=wfacpbl2                ,& 
+          &                  kpbl2=kpbl2, wfacpbl2=wfacpbl2,                &
           &                  l_loglin=.false., l_pd_limit=.true.,           &
-          &                  l_extrapol=.false.                              )
+          &                  l_extrapol=.false., lacc=.FALSE.               )
 
 
   END SUBROUTINE o3_zl2ml

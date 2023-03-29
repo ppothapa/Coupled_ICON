@@ -13,7 +13,8 @@ cd $(dirname "${BASH_SOURCE[0]}")
 list=$1
 
 # add qubicc_nc binary-identical test on DAINT and levante
-./addexp checksuite.icon-dev/check.atm_qubicc_nc_update --machines "daint levante" --list $list
+./addexp checksuite.icon-dev/check.atm_qubicc_nc_update --machines daint --list $list
+./addexp checksuite.icon-dev/check.atm_qubicc_nc_update --machines levante --list $list --runflags="queue=compute"
 # add dependencies for update test reference generation
 ./addexp checksuite.icon-dev/pp.refgen_atm_qubicc_nc_test_update --machines "daint levante" --list $list
 ./adddep --from-experiment checksuite.icon-dev/pp.refgen_atm_qubicc_nc_test_update --to-experiment checksuite.icon-dev/check.atm_qubicc_nc_update --machines "daint levante" --list $list

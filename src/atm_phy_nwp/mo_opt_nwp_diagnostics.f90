@@ -37,7 +37,7 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE mo_exception,             ONLY: finish, message
   USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
-    &                                 init
+    &                                 assert_acc_device_only, init
   USE mo_impl_constants,        ONLY: min_rlcell_int, min_rledge_int, &
     &                                 min_rlcell, grf_bdywidth_c
   USE mo_impl_constants_grf,    ONLY: grf_bdyintp_start_c,  &
@@ -534,13 +534,13 @@ CONTAINS
     CALL cells2verts_scalar( theta_cf, p_patch, p_int_state%cells_aw_verts, theta_vf )
     
     !Interpolate theta to edges
-    CALL cells2edges_scalar( theta_cf, p_patch, p_int_state%c_lin_e, theta_ef )
+    CALL cells2edges_scalar( theta_cf, p_patch, p_int_state%c_lin_e, theta_ef, lacc=lzacc )
     
     !Interpolate w to vertices
     CALL cells2verts_scalar( p_prog%w, p_patch, p_int_state%cells_aw_verts, w_vh )
     
     !Interpolate w to edges
-    CALL cells2edges_scalar( p_prog%w, p_patch, p_int_state%c_lin_e, w_eh )
+    CALL cells2edges_scalar( p_prog%w, p_patch, p_int_state%c_lin_e, w_eh, lacc=lzacc )
     
     !Interpolate vorticity to edges
     CALL verts2edges_scalar( p_diag%omega_z, p_patch, p_int_state%v_1o2_e, vor_ef )
@@ -1642,16 +1642,16 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      
-      !$ACC PARALLEL DEFAULT(NONE)
-      !$ACC LOOP GANG VECTOR
+
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
         ceiling_height(jc,jb) = p_metrics%z_mc(jc,1,jb)  ! arbitrary default value
       END DO
       !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF ( .NOT.(cld_base_found(jc)) .AND. (prm_diag%clc(jc,jk,jb) > 0.5_wp) ) THEN
             ceiling_height(jc,jb) = p_metrics%z_mc(jc,jk,jb)
@@ -1924,7 +1924,7 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
   !!
-  SUBROUTINE compute_field_q_sedim( ptr_patch, jg, p_prog_rcf, q_sedim )
+  SUBROUTINE compute_field_q_sedim( ptr_patch, jg, p_prog_rcf, q_sedim, lacc )
 
     IMPLICIT NONE
 
@@ -1933,11 +1933,15 @@ CONTAINS
     TYPE(t_nh_prog),      INTENT(IN)  :: p_prog_rcf
 
     REAL(wp),             INTENT(OUT) :: q_sedim(:,:,:)  !< output variable, dim: (nproma,nlev,nblks_c)
+    LOGICAL, OPTIONAL,    INTENT(IN)  :: lacc            !< if true, use OpenACC
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -1945,10 +1949,9 @@ CONTAINS
 
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
-
-    q_sedim( :, :, 1:i_startblk-1 ) = 0.0_wp
-
 !$OMP PARALLEL
+    CALL init(q_sedim( :, :, 1:i_startblk-1 ))
+
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
 
@@ -1956,6 +1959,8 @@ CONTAINS
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
       ! it is assumed that at least a warm rain Kessler scheme is used, i.e. qr is available too
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), ptr_patch%nlev
         DO jc = i_startidx, i_endidx
           q_sedim(jc,jk,jb) = p_prog_rcf%tracer(jc,jk,jb,iqr)
@@ -1963,6 +1968,7 @@ CONTAINS
       END DO
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqs)%p_3d ) ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_sedim(jc,jk,jb) = q_sedim(jc,jk,jb) + p_prog_rcf%tracer(jc,jk,jb,iqs)
@@ -1971,6 +1977,7 @@ CONTAINS
       END IF
 
       IF ( atm_phy_nwp_config(jg)%lhave_graupel ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_sedim(jc,jk,jb) = q_sedim(jc,jk,jb) + p_prog_rcf%tracer(jc,jk,jb,iqg)
@@ -1979,12 +1986,14 @@ CONTAINS
       END IF
 
       IF ( atm_phy_nwp_config(jg)%l2moment ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_sedim(jc,jk,jb) = q_sedim(jc,jk,jb) + p_prog_rcf%tracer(jc,jk,jb,iqh)
           END DO
         END DO
       END IF
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
@@ -2007,7 +2016,7 @@ CONTAINS
   SUBROUTINE compute_field_tcond_max( ptr_patch, jg,                      &
                                    p_metrics, p_prog, p_prog_rcf, p_diag, &
                                    flag_tcond_max, flag_tcond10_max,      &
-                                   tcond_max,      tcond10_max )
+                                   tcond_max, tcond10_max, lacc )
 
     TYPE(t_patch),      INTENT(IN)    :: ptr_patch         !< patch on which computation is performed
     INTEGER,            INTENT(IN)    :: jg                ! domain ID of main grid
@@ -2020,6 +2029,7 @@ CONTAINS
 
     REAL(wp),           INTENT(INOUT) :: tcond_max  (:,:)    !< output variable, dim: (nproma,nblks_c)
     REAL(wp),           INTENT(INOUT) :: tcond10_max(:,:)    !< output variable, dim: (nproma,nblks_c)
+    LOGICAL, OPTIONAL,  INTENT(IN)  :: lacc                  !< if true, use OpenACC
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
@@ -2036,7 +2046,8 @@ CONTAINS
       CALL finish( "compute_field_tcond_max", "at least one of the two flags must be set to .TRUE." )
     END IF
 
-    
+    CALL assert_acc_device_only("compute_field_tcond_max", lacc)
+
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
@@ -2044,6 +2055,7 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
+    !$ACC DATA CREATE(q_cond, tcond)
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,q_cond,tcond), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
@@ -2052,6 +2064,8 @@ CONTAINS
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
       ! it is assumed that at least a warm rain Kessler scheme is used, i.e. qr is available too
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), ptr_patch%nlev
         DO jc = i_startidx, i_endidx
           q_cond(jc,jk) = p_prog_rcf%tracer(jc,jk,jb,iqc)  &
@@ -2060,6 +2074,7 @@ CONTAINS
       END DO
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqi)%p_3d ) ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_cond(jc,jk) = q_cond(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqi)
@@ -2068,6 +2083,7 @@ CONTAINS
       END IF
 
       IF ( ASSOCIATED( p_prog_rcf%tracer_ptr(iqs)%p_3d ) ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_cond(jc,jk) = q_cond(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqs)
@@ -2076,6 +2092,7 @@ CONTAINS
       END IF
 
       IF ( atm_phy_nwp_config(jg)%lhave_graupel ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_cond(jc,jk) = q_cond(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqg)
@@ -2084,32 +2101,47 @@ CONTAINS
       END IF
 
       IF ( atm_phy_nwp_config(jg)%l2moment ) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), ptr_patch%nlev
           DO jc = i_startidx, i_endidx
             q_cond(jc,jk) = q_cond(jc,jk) + p_prog_rcf%tracer(jc,jk,jb,iqh)
           END DO
         END DO
       END IF
-
+      !$ACC END PARALLEL
       ! calculate vertically integrated mass
 
       IF ( flag_tcond_max ) THEN
-        tcond( i_startidx: i_endidx) = 0.0_wp
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          tcond(jc) = 0.0_wp
+        END DO
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             tcond(jc) = tcond(jc)       &
               &       + p_prog%rho(jc,jk,jb) * q_cond(jc,jk) * p_metrics%ddqz_z_full(jc,jk,jb)
           END DO
         END DO
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           tcond_max( jc,jb ) = MAX( tcond_max( jc,jb ), tcond(jc) )
         END DO
+        !$ACC END PARALLEL
       END IF
 
       IF ( flag_tcond10_max ) THEN
-        tcond( i_startidx: i_endidx) = 0.0_wp
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          tcond(jc) = 0.0_wp
+        END DO
+        !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), ptr_patch%nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF ( p_diag%temp( jc,jk,jb) <= Tzero_m_10K ) THEN
               tcond(jc) = tcond(jc)       &
@@ -2118,15 +2150,19 @@ CONTAINS
           END DO
         END DO
 
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           tcond10_max( jc,jb ) = MAX( tcond10_max( jc,jb ), tcond(jc) )
         END DO
+        !$ACC END PARALLEL
       END IF
 
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_tcond_max
 
@@ -2145,7 +2181,7 @@ CONTAINS
   SUBROUTINE compute_field_uh_max( ptr_patch,                 &
                                    p_metrics, p_prog, p_diag, &
                                    zmin_in, zmax_in,          &
-                                   uh_max )
+                                   uh_max, lacc )
 
     TYPE(t_patch),      INTENT(IN)    :: ptr_patch         !< patch on which computation is performed
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
@@ -2156,6 +2192,7 @@ CONTAINS
     REAL(wp),           INTENT(IN)    :: zmax_in        !< upper boundary for vertical integration
 
     REAL(wp),           INTENT(INOUT) :: uh_max(:,:)    !< input/output variable, dim: (nproma,nblks_c)
+    LOGICAL, OPTIONAL,  INTENT(IN)  :: lacc             !< if true, use OpenACC
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
@@ -2167,12 +2204,16 @@ CONTAINS
     REAL(wp) :: uhel( nproma )
     REAL(wp) :: w_c
 
+    CALL assert_acc_device_only("compute_field_uh_max", lacc)
+
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
 
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    !$ACC DATA CREATE(zmin, zmax, uhel)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zmin,zmax,uhel,w_c), ICON_OMP_RUNTIME_SCHEDULE
@@ -2181,6 +2222,8 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         IF (zmin_in < 500._wp) THEN
           zmin(jc) = MAX( p_metrics%z_ifc( jc, ptr_patch%nlev+1, jb), zmin_in )
@@ -2188,10 +2231,12 @@ CONTAINS
           zmin(jc) = MAX( p_metrics%z_ifc( jc, ptr_patch%nlev+1, jb) + 500.0_wp, zmin_in )
         END IF
         zmax(jc) = zmin(jc) + zmax_in - zmin_in
+        uhel(jc) = 0.0_wp
       END DO
 
-      uhel( i_startidx:i_endidx ) = 0.0_wp
+      !$ACC LOOP SEQ
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(w_c)
         DO jc = i_startidx, i_endidx
 
           ! Parts of the grid boy are within the bounds, integrate over the exact bounds [zmin,zmax]:
@@ -2211,13 +2256,18 @@ CONTAINS
         END DO
       END DO
 
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         uh_max(jc,jb) = MERGE(uhel(jc), uh_max(jc,jb), ABS(uhel(jc)) > ABS(uh_max(jc,jb)) )
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_uh_max
 
@@ -2233,13 +2283,14 @@ CONTAINS
   !!
   SUBROUTINE compute_field_vorw_ctmax( ptr_patch,          &
                                        p_metrics, p_diag,  &
-                                       vorw_ctmax )
+                                       vorw_ctmax, lacc )
 
     TYPE(t_patch),      INTENT(IN)    :: ptr_patch         !< patch on which computation is performed
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_diag),    INTENT(IN)    :: p_diag
 
     REAL(wp),           INTENT(INOUT) :: vorw_ctmax(:,:)  !< input/output variable, dim: (nproma,nblks_c)
+    LOGICAL, OPTIONAL,  INTENT(IN)    :: lacc             !< if true, use OpenACC
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
@@ -2250,12 +2301,16 @@ CONTAINS
     REAL(wp) :: zmax( nproma )
     REAL(wp) :: vort( nproma )
 
+    CALL assert_acc_device_only("compute_field_vorw_ctmax", lacc)
+
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
     i_rlend   = min_rlcell_int
 
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    !$ACC DATA CREATE(zmin, zmax, vort)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,zmin,zmax,vort), ICON_OMP_RUNTIME_SCHEDULE
@@ -2264,13 +2319,16 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         zmin(jc) = p_metrics%z_ifc( jc, ptr_patch%nlev+1, jb)
         zmax(jc) = MAX( 3000.0_wp,  zmin(jc) + 1500.0_wp )
+        vort(jc) = 0.0_wp
       END DO
 
-      vort( i_startidx:i_endidx ) = 0.0_wp
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
 
           ! Parts of the grid box are within the bounds, integrate over the exact bounds [zmin,zmax]:
@@ -2287,14 +2345,19 @@ CONTAINS
         END DO
       END DO
 
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         vort(jc) = vort(jc) / (zmax(jc) - zmin(jc))
         vorw_ctmax(jc,jb) = MERGE(vort(jc), vorw_ctmax(jc,jb), ABS(vort(jc)) > ABS(vorw_ctmax(jc,jb)) )
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_vorw_ctmax
 
@@ -2309,18 +2372,21 @@ CONTAINS
   !!
   SUBROUTINE compute_field_w_ctmax( ptr_patch,             &
                                     p_metrics, p_prog,     &
-                                    w_ctmax )
+                                    w_ctmax, lacc )
 
     TYPE(t_patch),      INTENT(IN)    :: ptr_patch         !< patch on which computation is performed
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
     TYPE(t_nh_prog),    INTENT(IN)    :: p_prog
 
     REAL(wp),           INTENT(INOUT) :: w_ctmax(:,:)    !< input/output variable, dim: (nproma,nblks_c)
+    LOGICAL, OPTIONAL,  INTENT(IN)    :: lacc            !< if true, use OpenACC
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb, jk, jc
+
+    CALL assert_acc_device_only("compute_field_w_ctmax", lacc)
 
     ! without halo or boundary  points:
     i_rlstart = grf_bdywidth_c + 1
@@ -2336,7 +2402,10 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ
       DO jk = 1, ptr_patch%nlev
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
           IF ( p_metrics%z_mc( jc, jk, jb) <= 10000.0_wp ) THEN
@@ -2345,6 +2414,7 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL
 
     END DO
 !$OMP END DO NOWAIT
@@ -2477,7 +2547,7 @@ CONTAINS
     !$ACC   CREATE(kstart, klcl, klfc, k_ml) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       k_ml  (jc)  = nlev  ! index used to step through the well mixed layer
@@ -2553,7 +2623,7 @@ CONTAINS
                     lacc= lacc )
     ENDIF
     IF (llev) THEN
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ((klcl(jc) .LE. 0) .OR. (klcl(jc) .GT. nlev)) THEN ! if index not defined
@@ -2631,7 +2701,7 @@ CONTAINS
     nk = SIZE(te,2)
     
     ! initialize outputs (good practice)
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nk, z_limit) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu  (jc) = 0.0_wp 
@@ -2753,7 +2823,7 @@ CONTAINS
     !$ACC   CREATE(cape_mu_COSMO, cin_mu_COSMO, acape, acin, lcomp, kstart) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu_COSMO(jc)  = 0.0_wp
@@ -2784,7 +2854,7 @@ CONTAINS
     ! defined above.
     !------------------------------------------------------------------------------
     parcelloop:  DO k = kmoist, nlev
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k, nlev, i_startidx, i_endidx, mup_lay_thck) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         kstart(jc) = k
@@ -2805,7 +2875,7 @@ CONTAINS
                      acape=acape, acin=acin, lcomp = lcomp,                    & ! out (cape, cin) in (logical array for computation)
                      lacc= lacc )
       
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( acape(jc) > cape_mu_COSMO(jc) ) THEN
@@ -2875,6 +2945,9 @@ CONTAINS
 
     LOGICAL :: lzacc
 
+  ! initialization
+  nlev = SIZE( te,2)
+
   CALL set_acc_host_or_device(lzacc, lacc)
   !$ACC DATA &
   !$ACC   PRESENT(te, qve, prs, u, v, hhl) &
@@ -2882,9 +2955,7 @@ CONTAINS
   !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
   !$ACC   CREATE(qvp_start, te_start) &
   !$ACC   IF(lzacc)
-  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
-  ! initialization
-  nlev = SIZE( te,2)
+  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = i_startidx, i_endidx
     kstart(jc) = nlev  
@@ -2921,7 +2992,7 @@ CONTAINS
                   asi=si,                                                  & ! out (Showalter Index)
                   lacc= lacc )                                            ! in (GPU flag)
     
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         IF (prs(jc,nlev) < sistartprs) THEN
@@ -2961,7 +3032,7 @@ CONTAINS
   !------------------------------------------------------------------------------
   ! For these indeces, we need to obtain the levels corresponding to 600 hPa, 650 hPa,
   ! 3000m and 6000m (NOTE that this is not Height Above Ground (HAG) but Above mean Sea Level (a.s.l.))
-  !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   ! inizialisation
   !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
   DO jc = i_startidx, i_endidx
@@ -2974,7 +3045,7 @@ CONTAINS
   ! Find these indeces
   !$ACC LOOP SEQ
   kloop: DO k = nlev-1, kmoist+1, -1
-    !$ACC LOOP GANG VECTOR
+    !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
     DO jc = i_startidx, i_endidx
       !Find the k index coressponding to the model level closest to 600 hPa
       IF ((prs (jc,k) >= 60000._wp).AND.(prs (jc,k-1) <= 60000._wp))THEN
@@ -3156,7 +3227,7 @@ CONTAINS
     !$ACC   CREATE(lcloudtop) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cloudtop     (jc) = missing_value
@@ -3397,7 +3468,7 @@ CONTAINS
     !$ACC   IF(lzacc)
     nlev = SIZE( te,2)
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     
     IF (PRESENT(lcomp)) THEN
       !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -3440,7 +3511,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
     IF(lacape3km) THEN
-      !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP SEQ
       DO k = nlev-1, kmoist+1, -1
         !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
@@ -3459,7 +3530,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
     ! Loop over all model levels above kstart
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
@@ -3698,7 +3769,7 @@ CONTAINS
 
     ! Subtract the CIN above the LFC from the total accumulated CIN to 
     ! get only contriubtions from below the LFC as the definition demands.
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       ! make CIN positive
@@ -3708,7 +3779,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, lacape, lacape3km, lacin, lalcl, lalfc) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       IF (lacape)    acape(jc)    = cape      (jc)

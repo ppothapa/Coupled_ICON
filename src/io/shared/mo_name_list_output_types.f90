@@ -317,23 +317,11 @@ MODULE mo_name_list_output_types
     INTEGER                               :: mpi_win                          !< MPI window for data communication
     INTEGER                               :: mpi_win_metainfo                 !< MPI window for metadata
     !> Pointer to memory window (REAL*8)
-    REAL(dp), POINTER  &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         , CONTIGUOUS &
-#endif
-         :: mem_ptr_dp(:)
+    REAL(dp), POINTER, CONTIGUOUS :: mem_ptr_dp(:)
     !> Pointer to memory window (REAL*4)
-    REAL(sp), POINTER  &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         , CONTIGUOUS &
-#endif
-         :: mem_ptr_sp(:)
+    REAL(sp), POINTER, CONTIGUOUS :: mem_ptr_sp(:)
     !> Pointer to variable meta-info.
-    INTEGER,  POINTER &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-         , CONTIGUOUS &
-#endif
-         :: mem_ptr_metainfo_pe0(:,:)
+    INTEGER,  POINTER, CONTIGUOUS :: mem_ptr_metainfo_pe0(:,:)
   END TYPE t_mem_win
 
 
@@ -402,21 +390,18 @@ MODULE mo_name_list_output_types
     ! Vertical axis meta-data
     TYPE(t_verticalAxisList)              :: verticalAxisList
 
+    INTEGER                               :: cdiVlistID           !< CDI variable list used for new files
+
     ! The following members are set during open
-    INTEGER                               :: cdiFileId
-    INTEGER                               :: cdiVlistId           !< cdi vlist handler
-    INTEGER                               :: cdiVlistId_orig      !< cdi vlist handler, model internal vlist id during append
+    INTEGER                               :: cdiFileID
     INTEGER                               :: cdiCellGridID
     INTEGER                               :: cdiSingleGridID
     INTEGER                               :: cdiZonal1DegID
     INTEGER                               :: cdiVertGridID
     INTEGER                               :: cdiEdgeGridID
     INTEGER                               :: cdiLonLatGridID
-    INTEGER                               :: cdiTaxisID
-    INTEGER                               :: cdiTaxisID_orig
     INTEGER                               :: cdiTimeIndex
     INTEGER                               :: cdi_grb2(3,2)        !< geographical position: (GRID, latitude/longitude)
-    LOGICAL                               :: appending = .FALSE.  !< the current file is appended (.true.), otherwise .false.
 
   END TYPE t_output_file
 

@@ -636,7 +636,7 @@ CONTAINS
     CALL cells2verts_scalar(pwp1, p_patch, p_int%cells_aw_verts, w_vert,                   &
                             opt_rlend=min_rlvert_int, opt_acc_async=.TRUE.)
     CALL cells2edges_scalar(pwp1, p_patch, p_int%c_lin_e, w_ie, opt_rlend=min_rledge_int-2,&
-                            opt_acc_async=.TRUE.)
+                            lacc=.TRUE.)
 
     ! RBF reconstruction of velocity at vertices: include halos
     CALL rbf_vec_interpol_vertex(vn, p_patch, p_int, u_vert, v_vert,                       &
@@ -1004,7 +1004,7 @@ CONTAINS
     !4c) Now calculate visc at half levels at edge
     CALL cells2edges_scalar(kh_ic, p_patch, p_int%c_lin_e, km_ie,                   &
                             opt_rlstart=grf_bdywidth_e, opt_rlend=min_rledge_int-1, &
-                            opt_acc_async=.TRUE.)
+                            lacc=.TRUE.)
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     km_ie = MAX( km_min, km_ie * turb_prandtl )
     !$ACC END KERNELS
@@ -1133,7 +1133,7 @@ CONTAINS
     !density at edge
     CALL cells2edges_scalar(rho, p_patch, p_int%c_lin_e, inv_rhoe,                  &
                             opt_rlstart=grf_bdywidth_e+1, opt_rlend=min_rledge_int, &
-                            opt_acc_async=.TRUE.)
+                            lacc=.TRUE.)
 
     rl_start   = grf_bdywidth_e+1
     rl_end     = min_rledge_int
@@ -1728,7 +1728,11 @@ CONTAINS
     ieidx => p_patch%cells%edge_idx
     ieblk => p_patch%cells%edge_blk
 
-    !$ACC DATA CREATE(nabla2_e, var)
+    !$ACC DATA &
+    !---- Argument arrays - intent(out)
+    !$ACC   CREATE(nabla2_e, var) &
+    !$ACC   PRESENT(p_patch, km_ie, rho, p_int, hori_tend) &
+    !$ACC   PRESENT(iecidx, iecblk, ieidx, ieblk, var_temp)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     hori_tend = 0._wp

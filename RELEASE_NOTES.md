@@ -8,7 +8,6 @@ Later than expected: this is another ICON release
 - CSCS
   - preparation of daint/dom transition for Nvidia compiler bumb to 22.5.
   - added Docker files for EXCLAIM project in scripts/docker/exclaim
-  - OpenACC beautification application running to allow passing a required CI test
   - more test cases
 - DWD
   - still persisting problem with OpenMP (non-reproducability) in buildbot tests.
@@ -18,6 +17,7 @@ Later than expected: this is another ICON release
   - added jsbach/vdiff from former ICON echam-physics
   - enable/fix more problems with respect to run icon-seamless 
   - some code moves and consolidation
+  - OpenACC beautification application running to allow passing a required CI test
   - more test cases
 - MPIM
   - bugfixes in the ocean

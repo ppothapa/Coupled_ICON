@@ -47,12 +47,14 @@ MODULE mo_fortran_tools
   PUBLIC :: init_zero_contiguous_dp, init_zero_contiguous_sp
   PUBLIC :: init_contiguous_dp, init_contiguous_sp
   PUBLIC :: init_contiguous_i4, init_contiguous_l
+  PUBLIC :: minval_1d
   PUBLIC :: resize_arr_c1d
   PUBLIC :: DO_DEALLOCATE
   PUBLIC :: DO_PTR_DEALLOCATE
   PUBLIC :: insert_dimension
   PUBLIC :: assert_acc_host_only
   PUBLIC :: assert_acc_device_only
+  PUBLIC :: assert_lacc_equals_i_am_accel_node
   PUBLIC :: set_acc_host_or_device
 
   PRIVATE
@@ -186,7 +188,9 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE init_3d_dp
     MODULE PROCEDURE init_3d_spdp
     MODULE PROCEDURE init_5d_dp
+    MODULE PROCEDURE init_5d_sp
     MODULE PROCEDURE init_5d_i4
+    MODULE PROCEDURE init_5d_l
   END INTERFACE init
 
   INTERFACE negative2zero
@@ -1230,6 +1234,44 @@ CONTAINS
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_5d_dp
 
+
+  SUBROUTINE init_5d_sp(init_var, init_val, opt_acc_async)
+    REAL(sp), INTENT(out) :: init_var(:, :, :, :, :)
+    REAL(sp), INTENT(in) :: init_val
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+
+    INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
+
+    m1 = SIZE(init_var, 1)
+    m2 = SIZE(init_var, 2)
+    m3 = SIZE(init_var, 3)
+    m4 = SIZE(init_var, 4)
+    m5 = SIZE(init_var, 5)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
+#if (defined(__INTEL_COMPILER))
+!$omp do private(i1,i2,i3,i4,i5)
+#else
+!$omp do collapse(5)
+#endif
+    DO i5 = 1, m5
+      DO i4 = 1, m4
+        DO i3 = 1, m3
+          DO i2 = 1, m2
+            DO i1 = 1, m1
+              init_var(i1, i2, i3, i4, i5) = init_val
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+!$omp end do nowait
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE init_5d_sp
+
+
+
   SUBROUTINE init_5d_i4(init_var, init_val, opt_acc_async)
     INTEGER(ik4), INTENT(out) :: init_var(:, :, :, :, :)
     INTEGER(ik4), INTENT(in) :: init_val
@@ -1264,6 +1306,43 @@ CONTAINS
 
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_5d_i4
+
+
+  SUBROUTINE init_5d_l(init_var, init_val, opt_acc_async)
+    LOGICAL, INTENT(out) :: init_var(:, :, :, :, :)
+    LOGICAL, INTENT(in)  :: init_val
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+
+    INTEGER :: i1, i2, i3, i4, i5, m1, m2, m3, m4, m5
+
+    m1 = SIZE(init_var, 1)
+    m2 = SIZE(init_var, 2)
+    m3 = SIZE(init_var, 3)
+    m4 = SIZE(init_var, 4)
+    m5 = SIZE(init_var, 5)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COLLAPSE(5) IF(i_am_accel_node)
+#if (defined(__INTEL_COMPILER))
+!$omp do private(i1,i2,i3,i4,i5)
+#else
+!$omp do collapse(5)
+#endif
+    DO i5 = 1, m5
+      DO i4 = 1, m4
+        DO i3 = 1, m3
+          DO i2 = 1, m2
+            DO i1 = 1, m1
+              init_var(i1, i2, i3, i4, i5) = init_val
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+!$omp end do nowait
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE init_5d_l
+
 
 
   SUBROUTINE var_scale_3d_dp(var, scale_val, opt_acc_async)
@@ -1466,6 +1545,34 @@ CONTAINS
 
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_contiguous_l
+
+  FUNCTION minval_1d(var, lacc)
+  !! Computes the MINVAL(var)
+  !! This wrapper enables the use of OpenACC without using ACC-KERNELS
+    INTEGER, INTENT(IN) :: var(:) ! input array
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true, use OpenACC
+    LOGICAL :: lzacc ! non-optional version of lacc
+    INTEGER :: minval_1d, i, s1
+
+#ifdef _OPENACC
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    s1 = SIZE(var, 1)
+
+    minval_1d = HUGE(minval_1d)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_1d) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
+    !$ACC LOOP GANG VECTOR
+    DO i = 1, s1
+      minval_1d = MIN(minval_1d, var(i)) ! The loop is equivalent to MINVAL(var(:))
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT ! required to sync result back to CPU
+#else
+    minval_1d = MINVAL(var(:))
+#endif
+
+  END FUNCTION minval_1d
 
   SUBROUTINE insert_dimension_r_dp_3_2_s(ptr_out, ptr_in, in_shape, &
        new_dim_rank)
@@ -1986,6 +2093,18 @@ CONTAINS
     ENDIF
 #endif
   END SUBROUTINE assert_acc_device_only
+
+  SUBROUTINE assert_lacc_equals_i_am_accel_node(routine_name, lacc)
+    CHARACTER(len=*), INTENT(in) :: routine_name
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+#ifdef _OPENACC
+    IF ( PRESENT(lacc) .AND. (lacc .neqv. i_am_accel_node)) THEN
+      CALL finish(routine_name, 'lacc /= i_am_accel_node')
+    ENDIF
+#endif
+
+  END SUBROUTINE assert_lacc_equals_i_am_accel_node
 
   SUBROUTINE set_acc_host_or_device(lzacc, lacc)
     LOGICAL, INTENT(out) :: lzacc

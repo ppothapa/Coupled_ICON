@@ -105,11 +105,7 @@ MODULE mo_nwp_phy_types
     TYPE(t_ptr_2d3d),ALLOCATABLE :: aerosol_ptr(:)  !< pointer array: prognostic vertically integrated aerosol optical depth
     TYPE(t_ptr_2d3d),ALLOCATABLE :: uh_max_ptr(:)   !< pointer array: max. updraft helicity in time interval
 
-    REAL(wp), POINTER          &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS             &
-#endif
-      &  ::                    &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       &   acdnc(:,:,:),        & !! cloud droplet number concentration                   [1/m**3]
       &   cape    (:,:),       & !! convective available energy
       &   cloud_num(:,:),      & !! 2D cloud droplet number concentration for simple aerosol-cloud coupling [1/m**3]
@@ -256,19 +252,11 @@ MODULE mo_nwp_phy_types
       &  mf_num(:,:)             !! number of clouds per grid box
 
 
-    REAL(vp), POINTER          &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS             &
-#endif
-      &  ::                    &
+    REAL(vp), POINTER, CONTIGUOUS :: &
       &  qc_sgs(:,:,:)           !! subgrid-scale cloud water from cloud cover diagnostic
 
     !> Precipitation fields
-    REAL(wp), POINTER          &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS             &
-#endif
-      &  ::                    &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       !  Instantaneuous precipitation rates [kg/m2/s]
       !  grid scale
       &  rain_gsp_rate    (:,:),  & !! grid-scale surface rain rate                    [kg/m2/s]
@@ -326,11 +314,7 @@ MODULE mo_nwp_phy_types
 
 
     !> Parameter fields for turbulence
-    REAL(wp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS         &
-#endif
-      ::                   &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       rcld(:,:,:)     ,    & !> standard deviation of the saturation deficit    --
       tcm(:,:)        ,    & !! turbulent transfer coefficients for momentum    --
       tch(:,:)        ,    & !! turbulent transfer coefficients for heat        --
@@ -400,19 +384,11 @@ MODULE mo_nwp_phy_types
       reff_qh(:,:,:)         !! effective radius of cloud hail                (m)
 
     ! need only for EDMF
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS          &
-#endif
-      & ::                  &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       & z0m     (:,:)       !< aerodynamic roughness length
 
     !> Diagnostics for LES turbulence
-    REAL(wp), POINTER      &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS         &
-#endif
-      ::                   &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       z_pbl(:,:)     ,     & !> Boundary layer height  (m)
       bruvais(:,:,:) ,     & !> Brunt Vaisala Frequency
       mech_prod(:,:,:),    & !> Mechanical production/loss term in TKE equation
@@ -423,11 +399,7 @@ MODULE mo_nwp_phy_types
       !cld_opt_thck(
 
     ! time-interpolated values for Tegen aerosol climatology (needed as state fields for coupling with microphysics and convection)
-    REAL(wp), POINTER       &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS          &
-#endif
-      & ::                  &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       & pref_aerdis(:,:),   &
       & aercl_ss  (:,:),    &
       & aercl_or  (:,:),    &
@@ -436,11 +408,7 @@ MODULE mo_nwp_phy_types
       & aercl_du  (:,:),    &
       & aerosol   (:,:,:)
 
-    INTEGER, POINTER        &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS          &
-#endif
-      & ::                  &
+    INTEGER, POINTER, CONTIGUOUS :: &
       &  mbas_con(:,:),     & !< cloud base level index
       &  mtop_con(:,:),     & !< cloud top  level index
       &  ktype   (:,:),     & !< Type of convection
@@ -462,11 +430,7 @@ MODULE mo_nwp_phy_types
     REAL(wp), POINTER :: tropics_mask(:,:)      !< mask field that is 1 in the tropics and 0 in the extratropics
     REAL(wp), POINTER :: innertropics_mask(:,:) !< mask field that is 1 in the inner tropics and 0 elsewhere
 
-    LOGICAL, POINTER        &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS          &
-#endif
-      & ::                  &
+    LOGICAL, POINTER, CONTIGUOUS :: &
       & locum     (:,:),    & !< convective  activity indicator
       & ldshcv    (:,:)       !< shallow convection indicator
 
@@ -558,11 +522,7 @@ MODULE mo_nwp_phy_types
   !
   TYPE t_nwp_phy_tend
 
-    REAL(wp), POINTER           &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS              &
-#endif
-      ::                        &
+    REAL(wp), POINTER, CONTIGUOUS :: &
       ddt_temp_radsw  (:,:,:)  ,& !! Temp-tendency from shortwave radiation
       ddt_temp_radlw  (:,:,:)  ,& !! Temp-tendency from longwave radiation
       ddt_temp_turb   (:,:,:)  ,& !! Temp-tendency from turbulence
@@ -579,11 +539,7 @@ MODULE mo_nwp_phy_types
       ddt_tracer_gscp (:,:,:,:),& !! Hydromet-tendency from microphysics
       ddt_tke         (:,:,:)     !! tendency for turbulent velocity scale [m/s^2]
 
-    REAL(vp), POINTER           &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS              &
-#endif
-      ::                        &
+    REAL(vp), POINTER, CONTIGUOUS :: &
       ddt_temp_drag   (:,:,:)  ,& !! Temp-tendency from sso + gravity-wave drag + Rayleigh friction
       ddt_temp_pconv  (:,:,:)  ,& !! Temp-tendency from convective prec
       ddt_temp_clcov  (:,:,:)  ,& !! Temp-tendency from cloud cover scheme
@@ -648,11 +604,7 @@ MODULE mo_nwp_phy_types
   TYPE t_nwp_phy_stochconv
      
 ! Variables for SDE stochastic convection schemes
-     REAL(wp), POINTER           &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS              &
-#endif
-      & ::                        &
+     REAL(wp), POINTER, CONTIGUOUS :: &
       & clnum_a        (:,:)     ,& ! number density of active convective clouds    ( - )
       & clmf_a         (:,:)     ,& ! cloud-base mass flux for active conv. clouds  (kg/m**2s)
       & clnum_p        (:,:)     ,& ! number density of passive convective clouds   ( - )
@@ -661,11 +613,7 @@ MODULE mo_nwp_phy_types
       & clmf_d         (:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
      
 ! Variables for explicit stochastic convection scheme
-     REAL(wp), POINTER           &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS               &
-#endif
-      & ::                       &
+     REAL(wp), POINTER, CONTIGUOUS :: &
       & mf_i        (:,:,:)     ,& ! number density of active convective clouds    ( - )
       & time_i      (:,:,:)     ,& ! time since birth of cloud
       & life_i      (:,:,:)     ,& ! expected lifetime of cloud
@@ -673,11 +621,7 @@ MODULE mo_nwp_phy_types
       & type_i      (:,:,:)     ,& ! number density of deep convective clouds      ( - )
       & ktype_i     (:,:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
      
-    INTEGER, POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS               &
-#endif
-      & ::                       &      
+    INTEGER, POINTER, CONTIGUOUS :: &
       & depth_i     (:,:,:)     ,& ! number density of passive convective clouds   ( - )
       & base_i      (:,:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
       & used_cell   (:,:,:)        ! number density of deep convective clouds      ( - )
@@ -687,11 +631,7 @@ MODULE mo_nwp_phy_types
   TYPE t_ptr_cloud_ensemble
      ! Pointer to variables for explicit stochastic convection scheme
      ! (nproma,nlev) dimension only
-     REAL(wp), POINTER           &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS               &
-#endif
-      & ::                       &
+     REAL(wp), POINTER, CONTIGUOUS :: &
       & mf_i        (:,:)     ,& ! number density of active convective clouds    ( - )
       & time_i      (:,:)     ,& ! time since birth of cloud
       & life_i      (:,:)     ,& ! expected lifetime of cloud
@@ -699,11 +639,7 @@ MODULE mo_nwp_phy_types
       & type_i      (:,:)     ,& ! number density of deep convective clouds      ( - )
       & ktype_i     (:,:)        ! cloud-base mass flux for deep conv. clouds    (kg/m**2s)
      
-     INTEGER, POINTER             &
-#ifdef HAVE_FC_ATTRIBUTE_CONTIGUOUS
-      , CONTIGUOUS               &
-#endif
-      & ::                       &      
+     INTEGER, POINTER, CONTIGUOUS :: &
       & depth_i     (:,:)     ,& ! number density of passive convective clouds   ( - )
       & base_i      (:,:)     ,& ! cloud-base mass flux for passive conv. clouds (kg/m**2s)
       & used_cell   (:,:)        ! number density of deep convective clouds      ( - )

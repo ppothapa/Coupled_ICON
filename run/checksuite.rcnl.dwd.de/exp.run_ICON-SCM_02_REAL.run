@@ -426,7 +426,7 @@ EOF
 
 tic=$(date)
 
-/opt/nec/ve/mpi/2.20.0/bin/runtime/mpirun -v     -x      -venode        -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} 
+/opt/nec/ve/mpi/2.22.0/bin/runtime/mpirun -v     -x      -venode        -np ${PPN} -env OMP_NUM_THREADS 1 ${MODEL} 
 
 toc=$(date)
 echo 'tic: ' $tic

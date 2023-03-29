@@ -22,9 +22,9 @@ MODULE mo_surface
 #ifdef __NO_JSBACH__
   USE mo_exception,         ONLY: finish
 #endif
-#ifdef __NO_ICON_OCEAN__
+!#ifdef __NO_ICON_OCEAN__
   USE mo_exception,         ONLY: finish
-#endif
+!#endif
 
   USE mo_physical_constants,ONLY: grav, Tf, alf, albedoW, stbo, tmelt, rhos!!$, rhoi
   USE mo_coupling_config,   ONLY: is_coupled_run
@@ -1175,7 +1175,8 @@ CONTAINS
         &   albvisdir_ice,      & ! out
         &   albvisdif_ice,      & ! out
         &   albnirdir_ice,      & ! out
-        &   albnirdif_ice )       ! out
+        &   albnirdif_ice,      & ! out
+        &   use_acc=.TRUE.)       ! in
 
       ! Update the thickness of snow on ice in atmosphere only simulation.
       ! In coupled experiments this is done by the ocean model in either
