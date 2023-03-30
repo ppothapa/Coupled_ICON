@@ -1952,6 +1952,8 @@ CONTAINS
           ELSE
             ! all aerosol species are diagnostic
             ndiag = na_dust * infrac(1) + na_soot * infrac(2) + na_orga * infrac(3)
+            ndiag_dust = ndiag
+            ndiag_all = ndiag
           END IF
           ndiag = MIN(ndiag,ni_het_max)
 
