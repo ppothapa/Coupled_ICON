@@ -1147,7 +1147,7 @@ CONTAINS
     INTEGER :: jl_start, jl_end, jl
     INTEGER :: max_glb_idx, tmp_dummy
     INTEGER, POINTER, CONTIGUOUS :: glb_index(:)
-
+    CALL finish(modname//":get_last_bdry_index", "Caution: bug ahead! Synchronous (no IO proc) is deprecated so this bug won't be fixed.")
     rl_start   = 1
     rl_end     = grf_bdywidth_c
     CALL get_bdry_blk_idx(i_log_dom, &
@@ -1419,10 +1419,17 @@ CONTAINS
 
     ! set missval flag, if applicable
     !
+    ! Layerwise missing value masks are available in GRIB output format
+    ! only. A missing value might be set by the user (info%lmiss) or
+    ! automatically on nest boundary regions.
     nmiss = MERGE(1, 0, (info%lmiss &
       &                  .OR. (info%lmask_boundary &
       &                        .AND. ANY(config_lmask_boundary(:))) ) &
       &                 .AND. last_bdry_index > 0)
+    IF (.NOT. have_GRIB .AND. nmiss /= 0) THEN
+      ! this is the wrong place to set nmiss for NetCDF
+      CALL finish(routine, "Caution! Bug ahead. Synchronous (no IO proc) is deprecated so this bug won't be fixed.")
+    END IF
 
     make_level_selection = ASSOCIATED(of%level_selection) &
       &              .AND. (.NOT. var_ignore_level_selection) &
@@ -1575,6 +1582,8 @@ CONTAINS
         ! ----------
         IF (.NOT. is_test) THEN
           IF (.NOT. lwrite_single_precision) THEN
+            ! Note for NetCDF: We have already enabled/disabled missing values via vlistDefVarMissVal, since
+            !       it is impossible to introduce a FillValue here with nmiss here.
             CALL streamWriteVarSlice (of%cdiFileID, info%cdiVarID, lev-1, r_out_dp(:), nmiss)
           ELSE
             CALL streamWriteVarSliceF(of%cdiFileID, info%cdiVarID, lev-1, r_out_sp(:), nmiss)
@@ -2426,10 +2435,17 @@ CONTAINS
 
     IF (of%output_type == FILETYPE_GRB &
       & .OR. of%output_type == FILETYPE_GRB2) THEN
-      nmiss = MERGE(1, 0, ( info%lmiss .OR.  &
-           &  ( info%lmask_boundary    .AND. &
-           &    config_lmask_boundary(i_log_dom)  .AND. &
-           &    ((i_log_dom > 1) .OR. l_limited_area) ) ))
+      ! Layerwise missing value masks are available in GRIB output format
+      ! only. A missing value might be set by the user (info%lmiss) or
+      ! automatically on nest boundary regions.
+      IF ( info%lmiss .OR.                                            &
+        &  ( info%lmask_boundary    .AND. &
+        &    config_lmask_boundary(i_log_dom)  .AND. &
+        &    ((i_log_dom > 1) .OR. l_limited_area) ) ) THEN
+        nmiss = 1
+      ELSE
+        nmiss = 0
+      ENDIF
     ELSE
       nmiss = 0
     END IF
@@ -2909,11 +2925,11 @@ CONTAINS
 
       ! Set missval flag, if applicable
       !
-      ! Missing value masks are available in GRIB output format
+      ! Layerwise missing value masks are available in GRIB output format
       ! only. A missing value might be set by the user (info%lmiss) or
       ! automatically on nest boundary regions.
       !
-      IF (have_grib) THEN
+      IF (have_GRIB) THEN
         IF ( info%lmiss .OR.                                            &
           &  ( info%lmask_boundary    .AND. &
           &    config_lmask_boundary(i_log_dom)  .AND. &
@@ -3114,6 +3130,8 @@ CONTAINS
           t_0 = p_mpi_wtime() ! performance measurement
 
           IF (use_dp_mpi2io .OR. have_GRIB) THEN
+            ! Note for NetCDF: We have already enabled/disabled missing values via vlistDefVarMissVal, since
+            !       it is impossible to introduce a FillValue here with nmiss here.
             CALL streamWriteVarSlice(of%cdiFileID, info%cdiVarID, ilev-1, var3_dp, nmiss)
           ELSE
             CALL streamWriteVarSliceF(of%cdiFileID, info%cdiVarID, ilev-1, var3_sp, nmiss)
