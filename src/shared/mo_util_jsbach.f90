@@ -429,6 +429,7 @@ MODULE mo_jsb_time_iface
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
   USE mo_run_config,             ONLY: l_timer_host => ltimer, iforcing
   USE mo_impl_constants,         ONLY: inwp
+  USE mo_master_config,          ONLY: isRestart
 
   IMPLICIT NONE
   PRIVATE
@@ -480,11 +481,14 @@ CONTAINS
     IF (iforcing == inwp) THEN
       ztime = atm_phy_nwp_config(model_id)%dt_fastphy
     ELSE
+      ztime = -1._wp
+
       reference_datetime => newDatetime("1979-01-01T00:00:00.000") ! 1980-06-01T00:00:00.000
 
       ! First try to get time step from the vertical diffusion config in a coupled experiment
-
-      ztime = REAL(getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+      IF (ASSOCIATED(aes_phy_tc(model_id)%dt_vdf)) THEN
+        ztime = REAL(getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_vdf, reference_datetime), wp)
+      END IF
 
       IF (ztime <= 0._wp) THEN
         ! This should only happen for an ICON-Land standalone experiment;
@@ -613,9 +617,12 @@ CONTAINS
     INTEGER,                   INTENT(in) :: model_id
     LOGICAL                               :: ltrig_rad_m1
 
-    TYPE(t_datetime), POINTER :: datetime_next
-    INTEGER                   :: dt_rad
-    LOGICAL                   :: luse_rad
+    TYPE(t_datetime), POINTER       :: datetime_next
+    TYPE(timedelta),  POINTER, SAVE :: dt_zero => NULL()
+    INTEGER                         :: dt_rad
+    LOGICAL                         :: luse_rad
+
+    IF (.NOT. ASSOCIATED(dt_zero)) dt_zero => newTimedelta('PT0S')
 
     datetime_next => get_time_next(current, dt)
 
@@ -625,16 +632,19 @@ CONTAINS
       ltrig_rad_m1 = .TRUE.
 
     CASE DEFAULT
-      IF (aes_phy_tc(model_id)%dt_rad > dt_zero) THEN
-        dt_rad = getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_rad, datetime_next)
-        ltrig_rad_m1 = MOD(getNoOfSecondsElapsedInDayDateTime(datetime_next), dt_rad) == 0
-        ! Why doesn't this work? It somehow messes up the radiation calculation time step.
-        ! ltrig_rad_m1 = isCurrentEventActive(aes_phy_tc(model_id)%ev_rad, datetime_next)
-        luse_rad  = (aes_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
-          &         (aes_phy_tc(model_id)%ed_rad >  datetime_next)
-        ltrig_rad_m1 = ltrig_rad_m1 .AND. luse_rad
-      ELSE
-        ltrig_rad_m1 = .TRUE.
+      ltrig_rad_m1 = .TRUE.
+      IF (ASSOCIATED(aes_phy_tc(model_id)%dt_rad)) THEN
+        IF (aes_phy_tc(model_id)%dt_rad > dt_zero) THEN
+          dt_rad = getTotalSecondsTimeDelta(aes_phy_tc(model_id)%dt_rad, datetime_next)
+          ltrig_rad_m1 = MOD(getNoOfSecondsElapsedInDayDateTime(datetime_next), dt_rad) == 0
+          ! Why doesn't this work? It somehow messes up the radiation calculation time step.
+          ! ltrig_rad_m1 = isCurrentEventActive(aes_phy_tc(model_id)%ev_rad, datetime_next)
+          luse_rad  = (aes_phy_tc(model_id)%sd_rad <= datetime_next) .AND. &
+            &         (aes_phy_tc(model_id)%ed_rad >  datetime_next)
+          ltrig_rad_m1 = ltrig_rad_m1 .AND. luse_rad
+        ELSE
+          ltrig_rad_m1 = .TRUE.
+        END IF
       END IF
     END SELECT
 
@@ -643,11 +653,12 @@ CONTAINS
   LOGICAL FUNCTION is_time_experiment_start(current)
 
     USE mo_initicon_config, ONLY: timeshift
+    USE mo_master_control,  ONLY: get_my_process_name
 
     TYPE(t_datetime), POINTER, INTENT(in) :: current
 
     ! take care of possibe IAU-Timeshift
-    IF (timeshift%dt_shift < 0._wp) THEN
+    IF (TRIM(get_my_process_name()) == 'atm' .AND. timeshift%dt_shift < 0._wp) THEN
       is_time_experiment_start = current == time_config%tc_exp_startdate + timeshift%mtime_shift
     ELSE
       is_time_experiment_start = current == time_config%tc_exp_startdate
@@ -659,7 +670,7 @@ CONTAINS
 
     TYPE(t_datetime), POINTER, INTENT(in) :: current
 
-    is_time_restart = .NOT. is_time_experiment_start(current) .AND. (current == time_config%tc_startdate)
+    is_time_restart = isRestart() .AND. (current == time_config%tc_startdate)
 
   END FUNCTION is_time_restart
 
@@ -1307,12 +1318,12 @@ END MODULE mo_jsb_grid_iface
 !!
 MODULE mo_jsb_utils_iface
 
-  USE mo_fortran_tools, ONLY: assign_if_present
+  USE mo_fortran_tools, ONLY: assign_if_present, assign_if_present_allocatable
 
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: assign_if_present
+  PUBLIC :: assign_if_present, assign_if_present_allocatable
 
 END MODULE mo_jsb_utils_iface
 
@@ -1330,6 +1341,7 @@ MODULE mo_jsb_varlist_iface
 
   USE mo_kind,               ONLY: wp, dp
   USE mo_exception,          ONLY: finish
+  USE mo_master_control,     ONLY: get_my_process_name
   USE mo_var_list_register,  ONLY: vlr_get, vlr_add, get_nvl
   USE mo_var_list, ONLY: add_var_icon => add_var, t_var_list => t_var_list_ptr
   USE mo_var, ONLY: t_var
@@ -1386,10 +1398,19 @@ CONTAINS
     LOGICAL,          INTENT(in), OPTIONAL   :: linitial     ! read from initial file
     INTEGER,          INTENT(in), OPTIONAL   :: table        ! used only for ECHAM
 
+    CHARACTER(:), ALLOCATABLE :: model_name
+
+    IF (TRIM(get_my_process_name()) == 'atmo') THEN
+      ! Model (process) name from master namelist is 'atmo' but name for model_type is 'atm'
+      model_name = 'atm'
+    ELSE
+      model_name = TRIM(get_my_process_name())
+    END IF
+
     IF (PRESENT(table)) CONTINUE ! Only here to avoid compiler warning about "table" not being used
     CALL vlr_add(this_list, vname, output_type=output_type, restart_type=restart_type, &
       & post_suf=post_suf, rest_suf=rest_suf, init_suf=init_suf, loutput=loutput,      &
-      & lrestart=lrestart, linitial=linitial, patch_id=patch_id)
+      & lrestart=lrestart, linitial=linitial, model_type=model_name, patch_id=patch_id)
   END SUBROUTINE new_var_list
 
   LOGICAL FUNCTION is_variable_in_output(vname, in_groups)
@@ -1761,6 +1782,94 @@ MODULE mo_jsb_convect_tables_iface
 ! CONTAINS
 
 END MODULE mo_jsb_convect_tables_iface
+
+!! ==============================================================================================================================
+!>
+!! @brief Contains interfaces to ICON orbital and solar functions
+!!
+!! @author
+!!  Reiner Schnur, MPI-M Hamburg
+!!
+!! @par Revision History
+!! First version                                 by Reiner Schnur (2022-08-26)
+!!
+MODULE mo_jsb_orbit_solar_iface
+
+  USE mo_kind, ONLY: wp
+#ifdef __NO_RTE_RRTMGP__
+  USE mo_psrad_orbit,                ONLY: inquire_declination, orbit_kepler, orbit_vsop87, get_orbit_times
+  USE mo_psrad_solar_parameters,     ONLY: solar_parameters
+#else
+  USE mo_radiation_orbit,            ONLY: inquire_declination, orbit_kepler, orbit_vsop87, get_orbit_times
+  USE mo_radiation_solar_parameters, ONLY: solar_parameters
+#endif
+  USE mo_aes_rad_config,             ONLY: aes_rad_config
+
+  IMPLICIT NONE
+  PRIVATE
+
+  PUBLIC :: inquire_declination, compute_cos_zenith_angle
+
+  CHARACTER(len=*), PARAMETER :: modname = 'mo_jsb_orbit_solar_iface'
+
+CONTAINS
+
+  ! ====================================================================================================== !
+  !
+  !> Compute cosine of zenith angle (only used for standalone land model, one domain only!)
+  !
+  SUBROUTINE compute_cos_zenith_angle(this_datetime, patch, cos_zenith_angle)
+
+    USE mtime,           ONLY: datetime
+    USE mo_model_domain, ONLY: t_patch
+
+    TYPE(datetime), POINTER :: this_datetime
+    TYPE(t_patch), INTENT(in) :: patch
+    REAL(wp), INTENT(out) :: cos_zenith_angle(:,:)
+
+    REAL(wp) :: daylight_frc(SIZE(cos_zenith_angle,1),SIZE(cos_zenith_angle,2))
+    REAL(wp), POINTER :: cecc, cobld, clonp
+    LOGICAL,  POINTER :: l_orbvsop87
+    LOGICAL  :: lyr_perp
+    INTEGER  :: yr_perp
+    INTEGER  :: icosmu0
+    REAL(wp) :: dt_ext
+    LOGICAL  :: ldiur, l_sph_symm_irr
+    REAL(wp) :: time_of_day, orbit_date, rasc_sun, decl_sun, dist_sun
+
+    l_orbvsop87   => aes_rad_config(1)% l_orbvsop87 ! Default: .TRUE.
+    lyr_perp = .FALSE.
+    yr_perp  = -99999
+    CALL get_orbit_times(l_orbvsop87, this_datetime, lyr_perp, yr_perp, & ! in
+      &                  time_of_day, orbit_date)                         ! out
+
+    IF (l_orbvsop87) THEN
+      CALL orbit_vsop87(orbit_date, rasc_sun, decl_sun, dist_sun) ! in, out, out, out
+    ELSE
+      cecc  => aes_rad_config(1)% cecc
+      cobld => aes_rad_config(1)% cobld
+      clonp => aes_rad_config(1)% clonp
+      CALL orbit_kepler(cecc, cobld, clonp, orbit_date, & ! in
+        &               rasc_sun, decl_sun, dist_sun)     ! out
+    END IF
+
+    dt_ext         = 0.0_wp
+    icosmu0        = 0        ! not used for dt_ext=0
+    ldiur          = .TRUE.
+    l_sph_symm_irr = .FALSE.
+
+    CALL solar_parameters(decl_sun,         time_of_day,     & ! in
+      &                   icosmu0,          dt_ext,          & ! in
+      &                   ldiur,            l_sph_symm_irr,  & ! in
+      &                   patch,                             & ! in
+      &                   cos_zenith_angle(:,:),             & ! out
+      &                   daylight_frc(:,:))                   ! out
+
+    cos_zenith_angle(:,:) = cos_zenith_angle(:,:) * daylight_frc(:,:)
+
+  END SUBROUTINE compute_cos_zenith_angle
+
+END MODULE mo_jsb_orbit_solar_iface
 
 !! ==============================================================================================================================
 #else
