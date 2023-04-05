@@ -2085,7 +2085,7 @@ create_target_header()
                     ;;
             esac
             ;;
-        *run_ICON_19_R2B4_R2B6_AO_coupled*)
+        *run_ICON_20_R2B4_R2B6_AO_coupled*)
             case $use_target in
                 daint*)
                     use_nodes=10
