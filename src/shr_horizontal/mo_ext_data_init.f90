@@ -48,7 +48,7 @@ MODULE mo_ext_data_init
                                    frlndtile_thrhld, frlake_thrhld, frsea_thrhld, isub_water,       &
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
-                                   lterra_urb, cr_bsmin, itype_evsl
+                                   lterra_urb, itype_eisa, cr_bsmin, itype_evsl
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
@@ -1734,66 +1734,98 @@ CONTAINS
                ext_data(jg)%atm%lc_class_t(jc,jb,1) = MAXLOC(tile_frac,1,tile_mask)
                lhave_urban = ext_data(jg)%atm%lc_class_t(jc,jb,1) == ext_data(jg)%atm%i_lc_urban
                !
-               ! root depth
-               ext_data(jg)%atm%rootdp_t (jc,jb,1)  = ext_data(jg)%atm%rootdp(jc,jb)
-
-               ! plant cover
-               ext_data(jg)%atm%plcov_t  (jc,jb,1)  = ptr_ndviratio(jc,jb)  &
-                 &     * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcov_mx(jc,jb))
-               ! transpiration area index
-               ext_data(jg)%atm%tai_t    (jc,jb,1)  = ext_data(jg)%atm%plcov_t  (jc,jb,1)  &
-                 &                                  * ext_data(jg)%atm%lai_mx(jc,jb)
-               ! surface area index
-               ext_data(jg)%atm%sai_t    (jc,jb,1)  = c_lnd+ext_data(jg)%atm%tai_t(jc,jb,1)
-               ! evaporative soil area index
-               IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
-                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(0.75_wp,                   &
-                   2.0_wp-1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban),lhave_urban)
-                 ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
-               ELSE
-                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(c_soil_urb,c_soil,lhave_urban)
-                 ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
-               ENDIF
-               ! skin conductivity
-               ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
-!
-               ! impervious surface area of the urban canopy
+               ! Urban Canopy Parameters (UCPs)
+               !
+               ! impervious surface area fraction of the urban canopy
                ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+
                IF (lterra_urb) THEN
-                 ! impervious surface area (ISA)
+                 ! impervious surface area (ISA) fraction
                  ext_data(jg)%atm%fr_paved_t(jc,jb,1)    = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+
                  ! building area fraction with respect to urban tile
                  ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)  = 0.667_wp
+
                  ! street canyon H/W ratio
                  ext_data(jg)%atm%urb_h2w_t(jc,jb,1)     = 1.5_wp
+
                  ! surface area index of the urban canopy
                  ext_data(jg)%atm%urb_ai_t(jc,jb,1)      = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))  &
                    &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
                    &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+
                  ! albedo reduction factor for the urban canopy
                  ! Reduce the effective albedo according to the building density,
                  ! the reduction factor is based on Monte-Carlo simulations.
                  ext_data(jg)%atm%urb_alb_red_t(jc,jb,1) = EXP(-0.6_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))       &
                    &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
                    &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+
                  ! building height
                  ext_data(jg)%atm%urb_h_bld_t(jc,jb,1)   = 15._wp
+
                  ! thermal albedo of urban material
                  ext_data(jg)%atm%urb_alb_th_t(jc,jb,1)  = 0.14_wp
+
                  ! solar albedo of urban material, times albedo reduction factor for the urban canopy
                  ext_data(jg)%atm%urb_alb_so_t(jc,jb,1)  = 0.101_wp * ext_data(jg)%atm%urb_alb_red_t(jc,jb,1)
+
                  ! volumetric heat capacity of urban material
                  ext_data(jg)%atm%urb_hcap_t(jc,jb,1)    = 1250000._wp
+
                  ! thermal conductivity of urban material
                  ext_data(jg)%atm%urb_hcon_t(jc,jb,1)    = 0.767_wp
+
                  ! anthropogenic heat flux
                  ext_data(jg)%atm%ahf_t(jc,jb,1)         = ext_data(jg)%atm%ahf_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                ENDIF
-!
-               ! minimal stomata resistance
+               !
+               ! Vegetation Parameters etc.
+               !
+               ! root depth
+               ext_data(jg)%atm%rootdp_t (jc,jb,1)  = ext_data(jg)%atm%rootdp(jc,jb)
+
+               ! plant cover
+               ext_data(jg)%atm%plcov_t  (jc,jb,1)  = ptr_ndviratio(jc,jb)                                                   &
+                 &     * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcov_mx(jc,jb))
+
+               ! transpiration area index
+               ext_data(jg)%atm%tai_t    (jc,jb,1)  = ext_data(jg)%atm%plcov_t(jc,jb,1)                                      &
+                 &                                  * ext_data(jg)%atm%lai_mx(jc,jb)
+
+               ! surface area index
+               IF (lterra_urb) THEN
+                 ext_data(jg)%atm%sai_t  (jc,jb,1)  = c_lnd * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,1))                 &
+                                                    + ext_data(jg)%atm%urb_ai_t(jc,jb,1)*ext_data(jg)%atm%urb_isa_t(jc,jb,1) &
+                                                    + ext_data(jg)%atm%tai_t(jc,jb,1)
+               ELSE
+                 ext_data(jg)%atm%sai_t  (jc,jb,1)  = c_lnd + ext_data(jg)%atm%tai_t(jc,jb,1)
+               END IF
+
+               ! evaporative soil area index
+               IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = MERGE(0.75_wp,                                                         &
+                   2.0_wp-1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban),lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb)    = cr_bsmin
+               ELSE
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = MERGE(c_soil_urb,c_soil,lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb)    = 50._wp ! previously hard-coded in TERRA
+               ENDIF
+
+               IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = ext_data(jg)%atm%eai_t(jc,jb,1)                                        &
+                                                    * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,1))
+               END IF
+
+               ! skin conductivity
+               ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+
+               ! minimum stomatal resistance
                ext_data(jg)%atm%rsmin2d_t(jc,jb,1)  = ext_data(jg)%atm%rsmin(jc,jb)
+
                ! soil type
                ext_data(jg)%atm%soiltyp_t(jc,jb,1)  = ext_data(jg)%atm%soiltyp(jc,jb)
+
 
                ! Workaround for GLC2000 hole below 60 deg S
                ! (only necesary for old extpar files generated prior to 2014-01-31)
@@ -1936,47 +1968,17 @@ CONTAINS
                    ENDIF
                  ENDIF
 
+                 !
                  lu_subs = ext_data(jg)%atm%lc_class_t(jc,jb,i_lu)
                  IF (lu_subs < 0) CYCLE
-
-                 ! root depth
-                 ext_data(jg)%atm%rootdp_t (jc,jb,i_lu)  = ext_data(jg)%atm%rootdmax_lcc(lu_subs)
-                 ! plant cover
-                 ext_data(jg)%atm%plcov_t  (jc,jb,i_lu)  = ptr_ndviratio(jc,jb) &
-                   & * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcovmax_lcc(lu_subs))
-                 ! transpiration area index
-                 ext_data(jg)%atm%tai_t    (jc,jb,i_lu)  = ext_data(jg)%atm%plcov_t(jc,jb,i_lu) &
-                   & * ext_data(jg)%atm%laimax_lcc(lu_subs)
-
-                 ! surface area index
-                 ext_data(jg)%atm%sai_t    (jc,jb,i_lu)  = c_lnd+ ext_data(jg)%atm%tai_t (jc,jb,i_lu)
-
-                 ! evaporative soil area index
-                 IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
-                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(0.75_wp,2.0_wp,lu_subs == ext_data(jg)%atm%i_lc_urban)
-                   ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
-                   ! on non-urban tiles, the eai is reduced only if no urban tile is present on the grid point
-                   IF (.NOT. lhave_urban) ext_data(jg)%atm%eai_t(jc,jb,i_lu) =                  &
-                                          2.0_wp - 1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban)
-                 ELSE
-                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
-                   ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
-                 ENDIF
-
-                 ! skin conductivity
-                 lat = p_patch(jg)%cells%center(jc,jb)%lat*rad2deg
-                 IF (itype_lndtbl == 4 .AND. lat > -10._wp .AND. lat < 42.5_wp) THEN
-                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = MIN(200._wp,ext_data(jg)%atm%skinc_lcc(lu_subs)*           &
-                                                          (1._wp+MIN(1._wp,0.4_wp*(42.5_wp-lat),0.4_wp*(lat+10._wp))) )
-                 ELSE
-                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = ext_data(jg)%atm%skinc_lcc(lu_subs)
-                 ENDIF
-!
-                 ! impervious surface area of the urban canopy
-                 ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)  = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
+                 !
+                 ! Urban Canopy Parameters (UCPs)
+                 !
+                 ! impervious surface area fraction of the urban canopy
+                 ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)       = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                  IF (lterra_urb) THEN
-                   ! impervious surface area (ISA)
+                   ! impervious surface area (ISA) fraction
                    ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu)    = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                    ! building area fraction with respect to urban tile
@@ -2015,8 +2017,56 @@ CONTAINS
                    ! anthropogenic heat flux
                    ext_data(jg)%atm%ahf_t(jc,jb,i_lu)         = ext_data(jg)%atm%ahf_lcc(lu_subs)
                  ENDIF
-!
-                 ! minimal stomata resistance
+                 !
+                 ! Vegetation Parameters etc.
+                 !
+                 ! root depth
+                 ext_data(jg)%atm%rootdp_t (jc,jb,i_lu)  = ext_data(jg)%atm%rootdmax_lcc(lu_subs)
+
+                 ! plant cover
+                 ext_data(jg)%atm%plcov_t  (jc,jb,i_lu)  = ptr_ndviratio(jc,jb)                                            &
+                   & * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcovmax_lcc(lu_subs))
+
+                 ! transpiration area index
+                 ext_data(jg)%atm%tai_t    (jc,jb,i_lu)  = ext_data(jg)%atm%plcov_t(jc,jb,i_lu)                            &
+                   & * ext_data(jg)%atm%laimax_lcc(lu_subs)
+
+                 ! surface area index
+                 IF (lterra_urb) THEN
+                   ext_data(jg)%atm%sai_t  (jc,jb,i_lu)  = c_lnd * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu))       &
+                                          + ext_data(jg)%atm%urb_ai_t(jc,jb,i_lu) * ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu) &
+                                          + ext_data(jg)%atm%tai_t(jc,jb,i_lu)
+                 ELSE
+                   ext_data(jg)%atm%sai_t  (jc,jb,i_lu)  = c_lnd + ext_data(jg)%atm%tai_t(jc,jb,i_lu)
+                 END IF
+
+                 ! evaporative soil area index
+                 IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = MERGE(0.75_wp,2.0_wp,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb)       = cr_bsmin
+                   ! on non-urban tiles, the eai is reduced only if no urban tile is present on the grid point
+                   IF (.NOT. lhave_urban) ext_data(jg)%atm%eai_t(jc,jb,i_lu) =                                             &
+                                          2.0_wp - 1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban)
+                 ELSE
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb)       = 50._wp ! previously hard-coded in TERRA
+                 ENDIF
+
+                 IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = ext_data(jg)%atm%eai_t(jc,jb,i_lu)                              &
+                                                         * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu))
+                 END IF
+
+                 ! skin conductivity
+                 lat = p_patch(jg)%cells%center(jc,jb)%lat*rad2deg
+                 IF (itype_lndtbl == 4 .AND. lat > -10._wp .AND. lat < 42.5_wp) THEN
+                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = MIN(200._wp,ext_data(jg)%atm%skinc_lcc(lu_subs)*                &
+                                                          (1._wp+MIN(1._wp,0.4_wp*(42.5_wp-lat),0.4_wp*(lat+10._wp))) )
+                 ELSE
+                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = ext_data(jg)%atm%skinc_lcc(lu_subs)
+                 ENDIF
+
+                 ! minimum stomatal resistance
                  ext_data(jg)%atm%rsmin2d_t(jc,jb,i_lu)  = ext_data(jg)%atm%stomresmin_lcc(lu_subs)
 
                  ! soil type

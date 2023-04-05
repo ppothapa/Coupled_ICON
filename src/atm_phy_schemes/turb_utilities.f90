@@ -271,10 +271,12 @@ USE mo_convect_tables, ONLY : &
     b4w      => c4les,    & !               -- " --
     b4i      => c4ies,    & !               -- " --
     b234w    => c5les       ! b2w * (b3 - b4w)
-
+!
+USE mo_lnd_nwp_config, ONLY: lterra_urb, itype_eisa
+!
 !------------------------------------------------------------------------------
 #ifdef SCLM
-USE data_1d_global, ONLY : &
+USE data_1d_global,    ONLY : &
 !
     lsclm, i_cal, imb, &
 !
@@ -282,7 +284,7 @@ USE data_1d_global, ONLY : &
     TKE_SCLM=>TKE, BOYPR, SHRPR, DISSI, TRANP
 #endif
 !SCLM---------------------------------------------------------------------------
-USE mo_fortran_tools, ONLY: set_acc_host_or_device
+USE mo_fortran_tools,  ONLY: set_acc_host_or_device
 !==============================================================================
 
 IMPLICIT NONE
@@ -310,10 +312,10 @@ CONTAINS
 !+ of special external parameters describing the surface canopy needed for the
 !+ description of surface-to-atmosphere transfer and within canopy diffusion:
 
-SUBROUTINE init_canopy ( nvec, ke, ke1, kcm, ivstart, ivend,                &
-                         icant, l_hori, hhl, fr_land, plcov, d_pat, lai,    &
-                         sai, tai, eai, l_pat, h_can,  c_big, c_sml, r_air, &
-                         lacc )
+SUBROUTINE init_canopy ( nvec, ke, ke1, kcm, ivstart, ivend, icant,         &
+                         l_hori, hhl, fr_land, plcov, d_pat, lai,           &
+                         sai, tai, eai, l_pat, h_can, c_big, c_sml, r_air,  &
+                         urb_isa, urb_ai, lacc )
 
 !------------------------------------------------------------------------------
 !
@@ -347,17 +349,17 @@ INTEGER, INTENT(IN) :: &
 ! Horizontal and vertical sizes of the fields and related variables:
 ! --------------------------------------------------------------------
 !
-    nvec,    & ! number of grid points in the vector
-    ke,      & ! number of main model levels (start index is 1)
-    ke1,     & ! number of half model levels (start index is 1)
-    ivstart, & ! horizontal start-index
-    ivend      ! horizontal   end-index
+    nvec,         & ! number of grid points in the vector
+    ke,           & ! number of main model levels (start index is 1)
+    ke1,          & ! number of half model levels (start index is 1)
+    ivstart,      & ! horizontal start-index
+    ivend           ! horizontal   end-index
 
 INTEGER, OPTIONAL, INTENT(IN) :: &
 !
-    icant    ! index for the used canopy-type
-             ! 1: evapotransp.-fractions only based on plant-cover
-             ! 2: based on a surface-area-index for all evapotransp.-types
+    icant           ! index for the used canopy-type
+                    ! 1: evapotransp.-fractions only based on plant-cover
+                    ! 2: based on a surface-area-index for all evapotransp.-types
 
 INTEGER, TARGET, INTENT(INOUT) :: &
 !
@@ -402,20 +404,25 @@ REAL (KIND=wp), DIMENSION(:,kcm-1:), OPTIONAL, INTENT(INOUT) :: &
     r_air           ! log of air containing fraction of a gridbox inside
 !                   ! the canopy                                          (1)
 
+REAL (KIND=wp), DIMENSION(:), OPTIONAL, INTENT(IN) :: &
+!
+    urb_isa,      & ! urban impervious surface area fraction        ( 1 )
+    urb_ai          ! surface area index of the urban canopy        ( 1 )
+
 LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code 
 
 ! ----------------
 ! Local variables:
 ! ----------------
 
-  INTEGER ::    &
-    i,k,        & !  loop index
-    kcp           !  buffer for the vertical index of the upper boudary of the canopy
+  INTEGER ::      &
+    i,k,          & !  loop index
+    kcp             !  buffer for the vertical index of the upper boudary of the canopy
 
   REAL (KIND=wp) ::  fakt
 
-  LOGICAL :: &
-    lzacc          ! Needed as this routine is called during CPU init
+  LOGICAL ::      &
+    lzacc           ! Needed as this routine is called during CPU init
 
 !-------------------------------------------------------------------------------
 ! Begin Subroutine init_canopy
@@ -441,7 +448,6 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
         EXIT
       ENDIF
     END DO
-
 
     ! Up to now kcm points to the lowest layer being not a canopy layer.
     ! From now on kcm points the highest layer being     a canopy layer:
@@ -498,25 +504,39 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     END DO
     !$ACC END PARALLEL
 
-    IF (icant.EQ.1) THEN
+    IF (icant.EQ.1) THEN            ! icant is itype_tran
         !$ACC PARALLEL IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
-            sai(i)=tai(i)
-            eai(i)=(1.0_wp-plcov(i))*sai(i)
-            tai(i)=plcov(i)*tai(i)
+            sai(i) = tai(i)
+            eai(i) = (1.0_wp-plcov(i))*sai(i)
+            tai(i) = plcov(i)*tai(i)
           END IF
         END DO
         !$ACC END PARALLEL
-    ELSE
+    ELSE                            ! would then be icant = itype_tran = 2
         !$ACC PARALLEL IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
-            tai(i)=plcov(i)*tai(i)  ! transpiration area index
-            eai(i)=c_soil           ! evaporation area index
-            sai(i)=c_lnd+tai(i)     ! surface area index
+
+            tai(i) = plcov(i) * tai(i)  ! transpiration area index
+
+            ! evaporation area index
+            IF (lterra_urb .AND. ((itype_eisa==2) .OR. (itype_eisa==3))) THEN
+              eai(i) = c_soil * (1.0_wp - urb_isa(i))
+            ELSE
+              eai(i) = c_soil
+            END IF
+
+            ! surface area index
+            IF (lterra_urb) THEN
+              sai(i) = c_lnd * (1.0_wp - urb_isa(i)) + urb_ai(i) * urb_isa(i) + tai(i)
+            ELSE
+              sai(i) = c_lnd + tai(i)
+            END IF
+
           END IF    
         END DO
         !$ACC END PARALLEL
@@ -533,7 +553,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
           END DO
           !$ACC END PARALLEL
         END IF
-    END IF
+    END IF                          ! icant
 
   END IF
   !$ACC END DATA

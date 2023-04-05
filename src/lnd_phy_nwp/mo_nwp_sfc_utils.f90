@@ -50,7 +50,7 @@ MODULE mo_nwp_sfc_utils
   USE mo_lnd_nwp_config,      ONLY: nlev_soil, nlev_snow, ntiles_total, ntiles_water, &
     &                               lseaice, llake, lmulti_snow, idiag_snowfrac, ntiles_lnd, &
     &                               lsnowtile, isub_water, isub_seaice, isub_lake,    &
-    &                               itype_interception, l2lay_rho_snow, lprog_albsi, itype_trvg, &
+    &                               itype_interception, lterra_urb, l2lay_rho_snow, lprog_albsi, itype_trvg, &
                                     itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_coupling_config,     ONLY: is_coupled_run
@@ -3420,13 +3420,19 @@ CONTAINS
          DO ic = 1, i_count
            jc = ext_data%atm%idx_lst_lp_t(ic,jb,1)
            ! plant cover
-           ext_data%atm%plcov_t  (jc,jb,1)  = ext_data%atm%ndviratio(jc,jb)  &
+           ext_data%atm%plcov_t  (jc,jb,1)  = ext_data%atm%ndviratio(jc,jb)                                      &
              &     * MIN(ext_data%atm%ndvi_max(jc,jb),ext_data%atm%plcov_mx(jc,jb))
-           ! total area index
-           ext_data%atm%tai_t    (jc,jb,1)  = ext_data%atm%plcov_t  (jc,jb,1)  &
+           ! transpiration area index
+           ext_data%atm%tai_t    (jc,jb,1)  = ext_data%atm%plcov_t  (jc,jb,1)                                    &
              &                                  * ext_data%atm%lai_mx(jc,jb)
            ! surface area index
-           ext_data%atm%sai_t    (jc,jb,1)  = c_lnd+ext_data%atm%tai_t(jc,jb,1)
+           IF (lterra_urb) THEN
+             ext_data%atm%sai_t  (jc,jb,1)  = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,1))                 &
+                                            + ext_data%atm%urb_ai_t(jc,jb,1) * ext_data%atm%urb_isa_t(jc,jb,1)   &
+                                            + ext_data%atm%tai_t(jc,jb,1)
+           ELSE
+             ext_data%atm%sai_t  (jc,jb,1)  = c_lnd + ext_data%atm%tai_t(jc,jb,1)
+           END IF
 
          END DO
        ELSE ! ntiles_lnd > 1
@@ -3449,13 +3455,19 @@ CONTAINS
              IF (lu_subs < 0) CYCLE
 
              ! plant cover
-             ext_data%atm%plcov_t  (jc,jb,jt)  = ext_data%atm%ndviratio(jc,jb)   &
+             ext_data%atm%plcov_t(jc,jb,jt) = ext_data%atm%ndviratio(jc,jb)                                      &
                & * MIN(ext_data%atm%ndvi_max(jc,jb),ext_data%atm%plcovmax_lcc(lu_subs))
-             ! total area index
-             ext_data%atm%tai_t    (jc,jb,jt)  = ext_data%atm%plcov_t(jc,jb,jt)  &
+             ! transpiration area index
+             ext_data%atm%tai_t  (jc,jb,jt) = ext_data%atm%plcov_t(jc,jb,jt)                                     &
                & * ext_data%atm%laimax_lcc(lu_subs)
              ! surface area index
-             ext_data%atm%sai_t    (jc,jb,jt)  = c_lnd+ ext_data%atm%tai_t (jc,jb,jt)
+             IF (lterra_urb) THEN
+               ext_data%atm%sai_t(jc,jb,jt) = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))                &
+                                            + ext_data%atm%urb_ai_t(jc,jb,jt) * ext_data%atm%urb_isa_t(jc,jb,jt) &
+                                            + ext_data%atm%tai_t(jc,jb,jt)
+             ELSE
+               ext_data%atm%sai_t(jc,jb,jt) = c_lnd + ext_data%atm%tai_t(jc,jb,jt)
+             END IF
 
            END DO !ic
          END DO !jt
