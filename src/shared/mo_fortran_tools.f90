@@ -2077,8 +2077,10 @@ CONTAINS
     LOGICAL, INTENT(in), OPTIONAL :: lacc
 
 #ifdef _OPENACC
-    IF ( PRESENT(lacc) .AND. lacc ) THEN
-      CALL finish (routine_name, ' not supported on ACC device.')
+    IF ( PRESENT(lacc) ) THEN
+      IF ( lacc ) THEN
+        CALL finish (routine_name, ' not supported on ACC device.')
+      ENDIF
     ENDIF
 #endif
   END SUBROUTINE assert_acc_host_only
@@ -2088,8 +2090,12 @@ CONTAINS
     LOGICAL, INTENT(in), OPTIONAL :: lacc
 
 #ifdef _OPENACC
-    IF ( (.NOT. PRESENT(lacc)) .OR. (.NOT. lacc) ) THEN
-      CALL finish (routine_name, ' not supported on ACC host.')
+    IF ( .NOT. PRESENT(lacc) ) THEN
+      CALL finish (routine_name, ' must not be called without lacc.')
+    ELSE
+      IF ( .NOT. lacc ) THEN
+        CALL finish (routine_name, ' not supported in ACC host mode.')
+      ENDIF
     ENDIF
 #endif
   END SUBROUTINE assert_acc_device_only
@@ -2099,8 +2105,10 @@ CONTAINS
     LOGICAL, INTENT(in), OPTIONAL :: lacc
 
 #ifdef _OPENACC
-    IF ( PRESENT(lacc) .AND. (lacc .neqv. i_am_accel_node)) THEN
-      CALL finish(routine_name, 'lacc /= i_am_accel_node')
+    IF ( PRESENT(lacc) ) THEN
+      IF (lacc .neqv. i_am_accel_node) THEN
+        CALL finish(routine_name, 'lacc /= i_am_accel_node')
+      ENDIF
     ENDIF
 #endif
 

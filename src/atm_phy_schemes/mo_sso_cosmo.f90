@@ -398,47 +398,47 @@ SUBROUTINE sso (                                                       &
 
         IF (lo_sso(j1)) THEN
 
-!       Gravity wave drag (cf. documentation EQ.4.13)
-!       ---------------------------------------------
-        zdelp = pph(j1,j3+1)-pph(j1,j3)
-        ztemp = -G*(ztau(j1,j3+1)-ztau(j1,j3))           &
-                  /(zvph(j1,ke1)*zdelp)
-        zdudt(j1)=(zulow(j1)*zd1(j1)-zvlow(j1)*zd2(j1))  &
-                                    *ztemp/zdmod(j1)
-        zdvdt(j1)=(zvlow(j1)*zd1(j1)+zulow(j1)*zd2(j1))  &
-                                    *ztemp/zdmod(j1)
-        IF (j3 < 4) THEN
-         zdudt(j1)= SIGN(MIN(ABS(zdudt(j1)),20._wp/3600._wp),zdudt(j1))
-         zdvdt(j1)= SIGN(MIN(ABS(zdvdt(j1)),20._wp/3600._wp),zdvdt(j1))
-        ENDIF
+!         Gravity wave drag (cf. documentation EQ.4.13)
+!         ---------------------------------------------
+          zdelp = pph(j1,j3+1)-pph(j1,j3)
+          ztemp = -G*(ztau(j1,j3+1)-ztau(j1,j3))           &
+                    /(zvph(j1,ke1)*zdelp)
+          zdudt(j1)=(zulow(j1)*zd1(j1)-zvlow(j1)*zd2(j1))  &
+                                      *ztemp/zdmod(j1)
+          zdvdt(j1)=(zvlow(j1)*zd1(j1)+zulow(j1)*zd2(j1))  &
+                                      *ztemp/zdmod(j1)
+          IF (j3 < 4) THEN
+           zdudt(j1)= SIGN(MIN(ABS(zdudt(j1)),20._wp/3600._wp),zdudt(j1))
+           zdvdt(j1)= SIGN(MIN(ABS(zdvdt(j1)),20._wp/3600._wp),zdvdt(j1))
+          ENDIF
 
-        IF (j3==ke) THEN
-          fac_sfc = sfcfric_fac(j1)
-        ELSE
-          fac_sfc = 1._wp
-        ENDIF
+          IF (j3==ke) THEN
+            fac_sfc = sfcfric_fac(j1)
+          ELSE
+            fac_sfc = 1._wp
+          ENDIF
 
-!       Low level drag ('blocking') (cf. documentation EQ.4.14 ff.)
-!       -----------------------------------------------------------
-        IF (j3.GE.mkenvh(j1)) THEN
-         zb  = 1.0_wp-0.18_wp*psso_gamma(j1)-0.04_wp*psso_gamma(j1)**2
-         zc  = 0.48_wp*psso_gamma(j1)+0.3_wp*psso_gamma(j1)**2
-         zcs = COS(zpsi(j1,j3))**2
-         zss = 1.0_wp-zcs
-         zzd1  =zb*zcs+zc*zss
-         zconb =zdt2*Gkwake*psso_sigma(j1)/(2._wp*psso_stdh(j1))
-         zabsv =0.5_wp*SQRT(pu(j1,j3)**2+pv(j1,j3)**2)
-         zratio=(zcs+psso_gamma(j1)*zss)/(psso_gamma(j1)*zcs+zss)
-         zbet  =MAX(0._wp,2._wp-1._wp/zratio)*zconb*zzdep(j1,j3)*zzd1*zabsv
-         zbet = zbet * fac_sfc*MIN(1._wp,blockred*psso_stdh(j1)/(zfi(j1,j3)/G))
-!        Partially implicit tendency calculation
-!        ---------------------------------------
-         zdudt(j1)=-pu(j1,j3)/zdt2*(zbet/(1._wp+zbet))
-         zdvdt(j1)=-pv(j1,j3)/zdt2*(zbet/(1._wp+zbet))
-        END IF
+!         Low level drag ('blocking') (cf. documentation EQ.4.14 ff.)
+!         -----------------------------------------------------------
+          IF (j3.GE.mkenvh(j1)) THEN
+           zb  = 1.0_wp-0.18_wp*psso_gamma(j1)-0.04_wp*psso_gamma(j1)**2
+           zc  = 0.48_wp*psso_gamma(j1)+0.3_wp*psso_gamma(j1)**2
+           zcs = COS(zpsi(j1,j3))**2
+           zss = 1.0_wp-zcs
+           zzd1  =zb*zcs+zc*zss
+           zconb =zdt2*Gkwake*psso_sigma(j1)/(2._wp*psso_stdh(j1))
+           zabsv =0.5_wp*SQRT(pu(j1,j3)**2+pv(j1,j3)**2)
+           zratio=(zcs+psso_gamma(j1)*zss)/(psso_gamma(j1)*zcs+zss)
+           zbet  =MAX(0._wp,2._wp-1._wp/zratio)*zconb*zzdep(j1,j3)*zzd1*zabsv
+           zbet = zbet * fac_sfc*MIN(1._wp,blockred*psso_stdh(j1)/(zfi(j1,j3)/G))
+!          Partially implicit tendency calculation
+!          ---------------------------------------
+           zdudt(j1)=-pu(j1,j3)/zdt2*(zbet/(1._wp+zbet))
+           zdvdt(j1)=-pv(j1,j3)/zdt2*(zbet/(1._wp+zbet))
+          END IF
 
-        pdu_sso(j1,j3)=zdudt(j1)
-        pdv_sso(j1,j3)=zdvdt(j1)
+          pdu_sso(j1,j3)=zdudt(j1)
+          pdv_sso(j1,j3)=zdvdt(j1)
         ENDIF
 
         END DO
@@ -532,9 +532,9 @@ SUBROUTINE sso (                                                       &
         DO j1=istart,iend
           IF (j1.EQ.55) THEN
             DO j3=1,ke
-            WRITE (*,'(i3, 8E13.6)') j3, pph(j1,j3+1), ppf(j1,j3),  &
-            pu(j1,j3), pv(j1,j3), pt(j1,j3), pfif(j1,j3),     &
-            pdu_sso(j1,j3), pdv_sso(j1,j3)
+              WRITE (*,'(i3, 8E13.6)') j3, pph(j1,j3+1), ppf(j1,j3),  &
+              pu(j1,j3), pv(j1,j3), pt(j1,j3), pfif(j1,j3),     &
+              pdu_sso(j1,j3), pdv_sso(j1,j3)
             ENDDO
           ENDIF
         ENDDO
@@ -704,13 +704,6 @@ SUBROUTINE sso_setup (                                      &
 
       CALL set_acc_host_or_device(lzacc, lacc)
 
-      !Declaration of GPU arrays
-      !$ACC DATA PRESENT(pph, ppf, pu, pv, pt, pfi, psso_stdh, psso_theta, psso_gamma, lo_sso) &
-      !$ACC   PRESENT(prho, pri, pstab, ptau, pvph, ppsi, pzdep, pulow, pvlow, pd1) &
-      !$ACC   PRESENT(pd2, pdmod, kkcrith, kcrit, kkenvh, kknu, kknu2) &
-      !$ACC   CREATE(lo1, mknul, mknub, znu, znum, znup, znorm, zsqst, zdp, zvpf) IF(lzacc)
-
-  
       Nktopg = ke               ! number of topmost layer used to defined low level
 
 !     computational constants
@@ -728,9 +721,9 @@ SUBROUTINE sso_setup (                                      &
 !C
 !     security on anisotropy factor and presetting of critical levels
 
-
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) &
+      !$ACC   CREATE(lo1, mknul, mknub, znu, znum, znup, znorm, zsqst, zdp, zvpf)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         psso_gamma(j1) = MAX(psso_gamma(j1),Gtsec)
         kknu      (j1) = ke
@@ -739,16 +732,15 @@ SUBROUTINE sso_setup (                                      &
         mknul     (j1) = ke
         lo1(j1,ke1)    =.FALSE.    ! Initialize control variable
       END DO
-      !$ACC END PARALLEL
+
 !
 !!!!  define top of low level drag calculation layer (*kkcrit*)
 !     and other critical levels
 !     ============================================================
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1     ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zhcrit)
         DO j1=istart,iend
           zhcrit = 4._wp*psso_stdh(j1)
           lo1(j1,j3)=((pfi(j1,j3)/G).GT.zhcrit)
@@ -757,12 +749,11 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zhcrit)
         DO j1=istart,iend
           zhcrit          =3._wp*psso_stdh(j1)
           lo1(j1,j3)=((pfi(j1,j3)/G).GT.zhcrit          )
@@ -771,12 +762,11 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zhcrit)
         DO j1=istart,iend
           zhcrit          =2._wp*psso_stdh(j1)
           lo1(j1,j3)=((pfi(j1,j3)/G).GT.zhcrit          )
@@ -785,12 +775,11 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1    ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zhcrit)
         DO j1=istart,iend
           zhcrit          =psso_stdh(j1)
           lo1(j1,j3)=((pfi(j1,j3)/G).GT.zhcrit          )
@@ -799,28 +788,26 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     Confine critical level indices to be less or equal to Nktopg
 !     ============================================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         kknu(j1) =MIN(kknu(j1),Nktopg)
         mknub(j1)=MIN(mknub(j1),Nktopg)
         IF(mknub(j1).EQ.Nktopg) mknul(j1)=ke
         IF(mknub(j1).EQ.mknul(j1)) mknub(j1) = mknub(j1) - 1
       END DO
-      !$ACC END PARALLEL
+
 
 #ifndef _OPENACC
-        mi3h = MIN(ke-2,MINVAL(kknu(istart:iend)))
+      mi3h = MIN(ke-2,MINVAL(kknu(istart:iend)))
 #endif
 
 !     Initialize various arrays
 !     =========================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         prho (j1,ke1) = 0.0_wp
         pstab(j1,1  ) = 0.0_wp
@@ -838,111 +825,101 @@ SUBROUTINE sso_setup (                                      &
         znum (j1)     = 0.0_wp
         lo1  (j1,ke1) = .FALSE.
       END DO
-      !$ACC END PARALLEL
+
 
 !     pressure thickness, density and Brunt-Vaisala frequency (squared)
 !     =================================================================
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,2,-1        ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          zdp (j1,j3) = ppf(j1,j3)-ppf(j1,j3-1)
-!         density on half levels
-          prho (j1,j3) = 2._wp*pph(j1,j3)*zcons1              &
-     &                     /(pt(j1,j3)+pt(j1,j3-1))
-!         squared Brunt-Vaisala frequency on half levels
-          pstab(j1,j3)= 2._wp*zcons2/(pt(j1,j3)+pt(j1,j3-1))  &
-     &                    *( 1._wp-Cp_d*prho(j1,j3)           &
-     &                         *(pt(j1,j3)-pt(j1,j3-1))       &
-     &                             / zdp(j1,j3) )
-!         security on Brunt-Vaisala frequency
-          pstab(j1,j3)=MAX(pstab(j1,j3),gssec)
-          zsqst(j1,j3)=SQRT(pstab(j1,j3))
+            zdp (j1,j3) = ppf(j1,j3)-ppf(j1,j3-1)
+!           density on half levels
+            prho (j1,j3) = 2._wp*pph(j1,j3)*zcons1              &
+     &                       /(pt(j1,j3)+pt(j1,j3-1))
+!           squared Brunt-Vaisala frequency on half levels
+            pstab(j1,j3)= 2._wp*zcons2/(pt(j1,j3)+pt(j1,j3-1))  &
+     &                      *( 1._wp-Cp_d*prho(j1,j3)           &
+     &                           *(pt(j1,j3)-pt(j1,j3-1))       &
+     &                               / zdp(j1,j3) )
+!           security on Brunt-Vaisala frequency
+            pstab(j1,j3)=MAX(pstab(j1,j3),gssec)
+            zsqst(j1,j3)=SQRT(pstab(j1,j3))
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     Definition of blocked flow
 !     ==========================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=ke,mi3h,-1          ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          IF(j3.GE.mknub(j1).AND.j3.LE.mknul(j1)) THEN
-!         only layers with height between one and two stdh contribute
-          pulow(j1) = pulow(j1)                                     &
-     &                  +pu   (j1,j3)*(pph(j1,j3+1)-pph(j1,j3))
-          pvlow(j1) = pvlow(j1)                                     &
-     &                  +pv   (j1,j3)*(pph(j1,j3+1)-pph(j1,j3))
-          END IF
+            IF(j3.GE.mknub(j1).AND.j3.LE.mknul(j1)) THEN
+!             only layers with height between one and two stdh contribute
+              pulow(j1) = pulow(j1) +pu(j1,j3)*(pph(j1,j3+1)-pph(j1,j3))
+              pvlow(j1) = pvlow(j1) +pv(j1,j3)*(pph(j1,j3+1)-pph(j1,j3))
+            END IF
           END IF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     Division by pressure thickness of contributing layers and
 !     determination of wind speed of blocked flow
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
-        pulow(j1) = pulow(j1) /                                    &
-     &              (pph(j1,mknul(j1)+1)-pph(j1,mknub(j1)))
-        pvlow(j1) = pvlow(j1) /                                    &
-     &              (pph(j1,mknul(j1)+1)-pph(j1,mknub(j1)))
-        znorm(j1)=MAX(SQRT(pulow(j1)**2+pvlow(j1)**2),Gvsec)
-        pvph(j1,ke1)=znorm(j1)  ! projected flow at lower boundary
+          pulow(j1) = pulow(j1) / (pph(j1,mknul(j1)+1)-pph(j1,mknub(j1)))
+          pvlow(j1) = pvlow(j1) / (pph(j1,mknul(j1)+1)-pph(j1,mknub(j1)))
+          znorm(j1)=MAX(SQRT(pulow(j1)**2+pvlow(j1)**2),Gvsec)
+          pvph(j1,ke1)=znorm(j1)  ! projected flow at lower boundary
         END IF
       END DO
-      !$ACC END PARALLEL
+
 
 !     Axes of subgrid scale orography and plane of profiles
 !     =====================================================
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(llo, ZU, zb, zc)
       DO j1=istart,iend
         IF (lo_sso(j1)) THEN
-        llo=(pulow(j1).LT.Gvsec).AND.(pulow(j1).GE.-Gvsec)
+          llo=(pulow(j1).LT.Gvsec).AND.(pulow(j1).GE.-Gvsec)
           IF(llo) THEN
-          ZU=pulow(j1)+2._wp*Gvsec
+            ZU=pulow(j1)+2._wp*Gvsec
           ELSE
-          ZU=pulow(j1)
+            ZU=pulow(j1)
           ENDIF
-!       angle between principal axis of orog. and low-level wind direction
-!       ------------------------------------------------------------------
-        ppsi (j1,ke1) = psso_theta(j1)-ATAN(pvlow(j1)/ZU)
-!       Phillips parameters B and C
-!       ---------------------------
-        zb           = 1._wp-0.18_wp*psso_gamma(j1)                      &
-     &                   -0.04_wp*psso_gamma(j1)**2
-        zc           = 0.48_wp*psso_gamma(j1)+0.3_wp*psso_gamma(j1)**2
-!       projection parameters D1 and D2 (see documentation)
-        pd1  (j1) = zb-(zb-zc)*(SIN(ppsi(j1,ke1))**2)
-        pd2  (j1) = (zb-zc)*SIN(ppsi(j1,ke1))                   &
-     &                        *COS(ppsi(j1,ke1))
-        pdmod(j1) = SQRT(pd1(j1)**2+pd2(j1)**2)
+!         angle between principal axis of orog. and low-level wind direction
+!         ------------------------------------------------------------------
+          ppsi (j1,ke1) = psso_theta(j1)-ATAN(pvlow(j1)/ZU)
+!         Phillips parameters B and C
+!         ---------------------------
+          zb = 1._wp - 0.18_wp*psso_gamma(j1) - 0.04_wp*psso_gamma(j1)**2
+          zc = 0.48_wp*psso_gamma(j1) + 0.3_wp*psso_gamma(j1)**2
+!         projection parameters D1 and D2 (see documentation)
+          pd1  (j1) = zb-(zb-zc)*(SIN(ppsi(j1,ke1))**2)
+          pd2  (j1) = (zb-zc)*SIN(ppsi(j1,ke1))*COS(ppsi(j1,ke1))
+          pdmod(j1) = SQRT(pd1(j1)**2+pd2(j1)**2)
         END IF
       END DO
-      !$ACC END PARALLEL
+
 
 !     projection of flow into plane of low level stress  (eq.4.7)
 !     ===========================================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
       DO j3=1,ke                  ! vertical loop
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zvt1, zvt2)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          zvt1 = pulow(j1)*pu(j1,j3)+pvlow(j1)*pv(j1,j3)
-          zvt2 =-pvlow(j1)*pu(j1,j3)+pulow(j1)*pv(j1,j3)
-          zvpf(j1,j3)=(zvt1*pd1(j1)+zvt2*pd2(j1))             &
-     &                      /(znorm(j1)*pdmod(j1))
+            zvt1 = pulow(j1)*pu(j1,j3)+pvlow(j1)*pv(j1,j3)
+            zvt2 =-pvlow(j1)*pu(j1,j3)+pulow(j1)*pv(j1,j3)
+            zvpf(j1,j3)=(zvt1*pd1(j1)+zvt2*pd2(j1)) / (znorm(j1)*pdmod(j1))
           ENDIF
 
 !      initialize stress array *ptau*, depth of blocked layer *pzdep*
@@ -959,87 +936,79 @@ SUBROUTINE sso_setup (                                      &
 !
 !     linear interpolation of projected flow to half levels
 !     ========================================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=2,ke     ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          pvph(j1,j3)=                                  &
+            pvph(j1,j3)=                                  &
      &     ((pph(j1,j3)-ppf(j1,j3-1))*zvpf(j1,j3) +     &
      &      (ppf(j1,j3)-pph(j1,j3  ))*zvpf(j1,j3-1))    &
      &                         /zdp(j1,j3)
             IF(pvph(j1,j3).LT.Gvsec) THEN  ! critical layer
-            pvph(j1,j3)=Gvsec
-            if (j3.lt.mknub(j1)) kcrit(j1)=j3
-            ENDIF
+              pvph(j1,j3)=Gvsec
+              if (j3.lt.mknub(j1)) kcrit(j1)=j3
+              ENDIF
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     Brunt-Vaisala frequency and density for lowest level
 !     ====================================================
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=mi3h,ke   ! vertical loop
-        !$ACC LOOP GANG VECTOR PRIVATE(zst)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zst)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
             IF(j3.GE.(mknub(j1)+1).AND.j3.LE.mknul(j1)) THEN
-            zst=zcons2/pt(j1,j3)*(1._wp-Cp_d*prho(j1,j3)*     &
-     &                    (pt(j1,j3)-pt(j1,j3-1))/zdp(j1,j3))
-            pstab(j1,ke1)=pstab(j1,ke1)+zst*zdp(j1,j3)
-            pstab(j1,ke1)=MAX(pstab(j1,ke1),Gssec)
-            prho (j1,ke1)= prho(j1,ke1)                     &
-     &                    +pph(j1,j3)*2._wp*zdp(j1,j3)  &
-     &                    *zcons1/(pt(j1,j3)+pt(j1,j3-1))
+              zst=zcons2/pt(j1,j3)*(1._wp-Cp_d*prho(j1,j3)*     &
+     &                      (pt(j1,j3)-pt(j1,j3-1))/zdp(j1,j3))
+              pstab(j1,ke1)=pstab(j1,ke1)+zst*zdp(j1,j3)
+              pstab(j1,ke1)=MAX(pstab(j1,ke1),Gssec)
+              prho (j1,ke1)= prho(j1,ke1)                     &
+     &                      +pph(j1,j3)*2._wp*zdp(j1,j3)  &
+     &                      *zcons1/(pt(j1,j3)+pt(j1,j3-1))
             ENDIF
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     normalization
 !     -------------
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
-        pstab(j1,ke1)=pstab(j1,ke1)                    &
-     &      /(ppf(j1,mknul(j1))-ppf(j1,mknub(j1)))
-        pstab(j1,ke1)=MAX(pstab(j1,ke1),gssec)
-        prho (j1,ke1)=prho(j1,ke1)                     &
-     &      /(ppf(j1,mknul(j1))-ppf(j1,mknub(j1)))
+          pstab(j1,ke1)=pstab(j1,ke1) / (ppf(j1,mknul(j1))-ppf(j1,mknub(j1)))
+          pstab(j1,ke1)=MAX(pstab(j1,ke1),gssec)
+          prho (j1,ke1)=prho(j1,ke1) / (ppf(j1,mknul(j1))-ppf(j1,mknub(j1)))
         END IF
       END DO
-      !$ACC END PARALLEL
+
 
 !     mean flow Richardson number on half levels
 !     ==========================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=2,ke     ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zdwind)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          zdwind=MAX(ABS(zvpf(j1,j3)-zvpf(j1,j3-1)),Gvsec)
-          pri(j1,j3)=pstab(j1,j3)*(zdp(j1,j3)                  &
-     &            /(G*prho(j1,j3)*zdwind))**2
-          pri(j1,j3)=MAX(pri(j1,j3),Grcrit)
+            zdwind=MAX(ABS(zvpf(j1,j3)-zvpf(j1,j3-1)),Gvsec)
+            pri(j1,j3)=pstab(j1,j3)*(zdp(j1,j3) / (G*prho(j1,j3)*zdwind))**2
+            pri(j1,j3)=MAX(pri(j1,j3),Grcrit)
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     define top of 'envelope' layer (cf. eq.4.8)
 !     ===========================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO j3=mi3h,ke-1     ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(znum, zwind, zdelp)
         DO j1=istart,iend
           IF(lo_sso(j1) .AND. j3.GE.kknu2(j1)) THEN
             znum (j1)=znu(j1)
@@ -1058,22 +1027,20 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     dynamical mixing height for the breaking of gravity waves
 !     =========================================================
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         znup(j1)=0.0_wp
         znum(j1)=0.0_wp
       END DO
-      !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+
       !$ACC LOOP SEQ
       DO j3=ke-1,2,-1  ! vertical loop
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zwind, zdelp)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
             IF (j3.LT.kkenvh(j1)) THEN    ! only above envelope height
@@ -1092,28 +1059,28 @@ SUBROUTINE sso_setup (                                      &
           ENDIF
         END DO
       END DO                ! end of vertical loop
-      !$ACC END PARALLEL
+
 
 !     allow low level wave breaking only above height of 4*stdh
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO j1=istart,iend
         kkcrith(j1)=MIN(kkcrith(j1),kknu(j1))
       END DO
-      !$ACC END PARALLEL
+
 
 !     directional information for flow blocking
 !     =========================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
       DO j3=mi3h,ke     ! vertical loop
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(llo, ZU)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          IF(j3.GE.kkenvh(j1)) THEN  ! only within envelope layer
-          llo=(pu(j1,j3).LT.Gvsec).AND.(pu(j1,j3).GE.-Gvsec)
+            IF(j3.GE.kkenvh(j1)) THEN  ! only within envelope layer
+            llo=(pu(j1,j3).LT.Gvsec).AND.(pu(j1,j3).GE.-Gvsec)
             IF(llo) THEN
-            ZU=pu(j1,j3)+2._wp*Gvsec
+              ZU=pu(j1,j3)+2._wp*Gvsec
             ELSE
-            ZU=pu(j1,j3)
+              ZU=pu(j1,j3)
             ENDIF
           ppsi(j1,j3)=psso_theta(j1)-ATAN(pv(j1,j3)/ZU)
           ENDIF
@@ -1123,23 +1090,24 @@ SUBROUTINE sso_setup (                                      &
 
 !     assumed vertical profile of sso for blocking calculations
 !     =========================================================
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
       DO j3=mi3h,ke     ! vertical loop
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zggeenv, zggeo, zgvar)
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          IF(j3.GE.kkenvh(j1)) THEN   ! only within envelope layer
-          zggeenv= MAX(1._wp,                                             &
-     &     (pfi(j1,kkenvh(j1))+pfi(j1,kkenvh(j1)-1))/2._wp)
-          zggeo  = MAX(pfi(j1,j3),1._wp)
-          zgvar  = MAX(psso_stdh(j1)*G,1._wp)
-          pzdep(j1,j3)=SQRT((zggeenv-zggeo)/(zggeo+zgvar))
-          END IF
+            IF(j3.GE.kkenvh(j1)) THEN   ! only within envelope layer
+              zggeenv= MAX(1._wp, &
+     &         (pfi(j1,kkenvh(j1))+pfi(j1,kkenvh(j1)-1))/2._wp)
+              zggeo  = MAX(pfi(j1,j3),1._wp)
+              zgvar  = MAX(psso_stdh(j1)*G,1._wp)
+              pzdep(j1,j3)=SQRT((zggeenv-zggeo)/(zggeo+zgvar))
+            END IF
           END IF
         END DO
       END DO                ! end of vertical loop
 
-      !$ACC WAIT IF(lzacc)
-      !$ACC END DATA
+      !$ACC END PARALLEL
+
 !------------------------------------------------------------------------------
 ! End of the subroutine
 !------------------------------------------------------------------------------
@@ -1342,10 +1310,10 @@ SUBROUTINE gw_profil(                                    &
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
-        zoro(j1) = psso_sigma(j1)*pdmod(j1)           &
-     &               /(4._wp*MAX(psso_stdh(j1),1.0_wp))
-        ztau(j1,kknu(j1)+1) = ptau(j1,kknu(j1)+1)
-        ztau(j1,ke1          ) = ptau(j1,ke1          )
+          zoro(j1) = psso_sigma(j1)*pdmod(j1)           &
+     &                 /(4._wp*MAX(psso_stdh(j1),1.0_wp))
+          ztau(j1,kknu(j1)+1) = ptau(j1,kknu(j1)+1)
+          ztau(j1,ke1          ) = ptau(j1,ke1          )
         ENDIF
       END DO
       !$ACC END PARALLEL
@@ -1359,7 +1327,7 @@ SUBROUTINE gw_profil(                                    &
 !     ===========================================  
           IF(lo_sso(j1)) THEN
             IF(j3.GE.kknu2(j1)) THEN
-            ptau(j1,j3)=ztau(j1,ke1)
+              ptau(j1,j3)=ztau(j1,ke1)
             ENDIF
           ENDIF
 
@@ -1409,8 +1377,8 @@ SUBROUTINE gw_profil(                                    &
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
-        ztau(j1,kkenvh(j1)) =ptau(j1,kkenvh(j1))
-        ztau(j1,kkcrith(j1))=ptau(j1,kkcrith(j1))
+          ztau(j1,kkenvh(j1)) =ptau(j1,kkenvh(j1))
+          ztau(j1,kkcrith(j1))=ptau(j1,kkcrith(j1))
         ENDIF
       END DO
       !$ACC END PARALLEL
@@ -1420,13 +1388,13 @@ SUBROUTINE gw_profil(                                    &
       DO j3=1,ke      ! vertical loop
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
-          IF(j3.GT.kkcrith(j1).AND.j3.LT.kkenvh(j1))THEN
-          zdelp=pph(j1,j3)-pph(j1,kkenvh(j1))
-          zdelpt=pph(j1,kkcrith(j1))-pph(j1,kkenvh(j1))
-          ptau(j1,j3)=ztau(j1,kkenvh(j1)) +                 &
-     &        (ztau(j1,kkcrith(j1))-ztau(j1,kkenvh(j1)) )*  &
-     &            zdelp/zdelpt
-          ENDIF
+            IF(j3.GT.kkcrith(j1).AND.j3.LT.kkenvh(j1))THEN
+            zdelp=pph(j1,j3)-pph(j1,kkenvh(j1))
+            zdelpt=pph(j1,kkcrith(j1))-pph(j1,kkenvh(j1))
+            ptau(j1,j3)=ztau(j1,kkenvh(j1)) +                 &
+     &          (ztau(j1,kkcrith(j1))-ztau(j1,kkenvh(j1)) )*  &
+     &              zdelp/zdelpt
+            ENDIF
           ENDIF
         END DO
       END DO       ! end of vertical loop

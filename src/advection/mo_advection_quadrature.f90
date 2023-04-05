@@ -56,6 +56,7 @@ MODULE mo_advection_quadrature
   USE mo_parallel_config,     ONLY: nproma
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
+  USE mo_exception,           ONLY: warning
 #endif
 
   IMPLICIT NONE
@@ -492,8 +493,8 @@ CONTAINS
 
     !$ACC DATA PRESENT(p_coords_dreg_v, p_quad_vector_sum, p_dreg_area) &
     !$ACC   COPYIN(z_wgt, z_eta) PRESENT(shape_func) &
+    !$ACC   CREATE(z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector) &
     !$ACC   IF(i_am_accel_node)
-
 !$OMP PARALLEL
 !$OMP DO PRIVATE(je,jk,jb,jg,i_startidx,i_endidx,z_gauss_pts,wgt_t_detjac, &
 !$OMP z_quad_vector,z_x,z_y,z_area) ICON_OMP_DEFAULT_SCHEDULE
@@ -502,10 +503,17 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
+#ifdef _OPENACC
+      IF(i_am_accel_node) CALL warning("mo_advection_quadrature:prep_gauss_quadrature_q", "ACC optimization potential ahead.")
+  ! nproma-sized arrays should be converted to thread-private scalars.
+  ! or use cubic quadrature instead in your namelist.
+#endif
+
       !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector) COLLAPSE(2)
+      !$ACC LOOP SEQ
       DO jk = slev, elev
 !$NEC ivdep
+        !$ACC LOOP GANG VECTOR PRIVATE(jg, z_area)
         DO je = i_startidx, i_endidx
 
           z_x(je,1:4) = p_coords_dreg_v(je,1:4,1,jk,jb)

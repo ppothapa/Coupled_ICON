@@ -522,6 +522,11 @@ CONTAINS
     i_startblk = ptr_p%edges%start_block(i_rlstart)
     i_endblk   = ptr_p%edges%end_block(i_rlend)
 
+#ifdef _OPENACC
+    IF( .NOT. i_am_accel_node) CALL finish(modname//":btraj_dreg", "The following code must run in GPU mode.")
+    ! The OpenACC ATOMIC code must not run on CPU. (gang_eidx, gang_elev would be to small.)
+    ! TODO: remove all IF(i_am_accel_node)
+#endif
 
     !$ACC DATA PRESENT(ptr_p, ptr_int, p_vn, p_vt, p_coords_dreg_v, p_cell_idx, p_cell_blk) &
     !$ACC   NO_CREATE(opt_falist) CREATE(edge_verts, lvn_sys_pos) &
