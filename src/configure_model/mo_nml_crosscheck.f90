@@ -996,6 +996,11 @@ CONTAINS
 
     IF ( ANY((/MODE_IAU,MODE_IAU_OLD/) == init_mode) ) THEN  ! start from dwd analysis with incremental update
 
+      ! check if the appropriate physics package has been selected
+      IF (iforcing /= inwp) THEN
+        CALL finish(routine,"(iterative) IAU is available for NWP physics only")
+      ENDIF
+
       ! check analysis update window
       !
       IF ( (dt_iau > 0._wp) .AND. (dt_iau < dtime)) THEN

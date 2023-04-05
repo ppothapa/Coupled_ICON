@@ -14,17 +14,18 @@
 MODULE mo_atmo_nonhydrostatic
 
 USE mo_kind,                 ONLY: wp, i4, i8
-USE mo_exception,            ONLY: message, finish, print_value
+USE mo_exception,            ONLY: message, message_text, finish, print_value
 USE mtime,                   ONLY: OPERATOR(>)
 USE mo_fortran_tools,        ONLY: init
 USE mo_impl_constants,       ONLY: SUCCESS, max_dom, inwp, iaes, LSS_JSBACH
 USE mo_timer,                ONLY: timers_level, timer_start, timer_stop, timer_init_latbc, &
   &                                timer_model_init, timer_init_icon, timer_read_restart, timer_init_dace
 USE mo_master_config,        ONLY: isRestart, getModelBaseDir
-USE mo_time_config,          ONLY: time_config
+USE mo_time_config,          ONLY: t_time_config, time_config
 USE mo_load_restart,         ONLY: read_restart_files
 USE mo_key_value_store,      ONLY: t_key_value_store
 USE mo_restart_nml_and_att,  ONLY: getAttributesForRestarting
+USE mo_restart,              ONLY: t_RestartDescriptor, createRestartDescriptor, deleteRestartDescriptor
 USE mo_io_config,            ONLY: configure_io, init_var_in_output, var_in_output
 USE mo_parallel_config,      ONLY: nproma, num_prefetch_proc
 USE mo_nh_pzlev_config,      ONLY: configure_nh_pzlev, deallocate_nh_pzlev
@@ -40,7 +41,7 @@ USE mo_run_config,           ONLY: dtime,                & !    namelist paramet
   &                                iqc, iqt,             &
   &                                ico2, io3,            &
   &                                number_of_grid_used
-USE mo_initicon_config,      ONLY: pinit_seed, pinit_amplitude, init_mode
+USE mo_initicon_config,      ONLY: pinit_seed, pinit_amplitude, init_mode, iterate_iau
 USE mo_nh_testcases,         ONLY: init_nh_testcase, init_nh_testcase_scm
 USE mo_nh_testcases_nml,     ONLY: nh_test_name
 #ifndef __NO_ICON_LES__
@@ -49,7 +50,7 @@ USE mo_ls_forcing,           ONLY: init_ls_forcing
 USE mo_turbulent_diagnostic, ONLY: init_les_turbulent_output, close_les_turbulent_output
 USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
-USE mo_dynamics_config,      ONLY: nnow, nnow_rcf, nnew, idiv_method
+USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf, idiv_method
 ! Horizontal grid
 USE mo_model_domain,         ONLY: p_patch
 USE mo_grid_config,          ONLY: n_dom, n_dom_start, start_time, end_time, &
@@ -95,6 +96,7 @@ USE mo_nwp_phy_state,        ONLY: prm_diag, prm_nwp_tend, prm_nwp_stochconv,  &
 USE mo_nwp_lnd_state,        ONLY: p_lnd_state, construct_nwp_lnd_state
 USE mo_atm_phy_nwp_config,   ONLY: configure_atm_phy_nwp, atm_phy_nwp_config
 USE mo_synsat_config,        ONLY: configure_synsat
+USE mo_iau,                  ONLY: save_initial_state, reset_to_initial_state
 #ifndef __NO_NWP__
 USE mo_ensemble_pert_config, ONLY: configure_ensemble_pert
 USE mo_ext_data_init,        ONLY: init_index_lists
@@ -162,6 +164,7 @@ USE mo_icon2dace,           ONLY: init_dace, finish_dace
   USE mo_cdi_pio_interface,         ONLY: nml_io_cdi_pio_namespace
 #endif
 
+
 IMPLICIT NONE
 PRIVATE
 
@@ -173,22 +176,71 @@ CONTAINS
 
   !---------------------------------------------------------------------
   SUBROUTINE atmo_nonhydrostatic(latbc)
-    TYPE(t_latbc_data) :: latbc !< data structure for async latbc prefetching
+    TYPE(t_latbc_data)           :: latbc   !< data structure for async latbc prefetching
 
-!!$    CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
+    INTEGER                      :: iter
+    TYPE(t_time_config), TARGET  :: time_config_iau
+    TYPE(t_time_config), POINTER :: ptr_time_config  => NULL()
 
-!   CALL construct_atmo_nonhydrostatic(latbc)
+    CLASS(t_RestartDescriptor), POINTER  :: restartDescriptor
+
+    CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
+
 
     !------------------------------------------------------------------
     ! Now start the time stepping:
-    ! The special initial time step for the three time level schemes
-    ! is executed within process_grid_level
     !------------------------------------------------------------------
 
-    CALL perform_nh_stepping( time_config%tc_current_date, latbc )
+    restartDescriptor => createRestartDescriptor("atm")
+
+    ! for iterative IAU, perform_nh_stepping is called twice with distinct
+    ! model stop dates.
+    IF (iterate_iau .AND. .NOT. isRestart()) THEN
+
+      ! create a local copy of the time_config object
+      CALL time_config%copy(tc_new=time_config_iau)
+
+      DO iter=1,2
+        IF (iter==1) THEN
+          WRITE(message_text,'(a)') 'IAU iteration is activated: Start of first cycle with halved IAU window'
+          !
+          ! save initial state if IAU iteration mode is chosen
+          CALL save_initial_state(p_patch(1:))
+          !
+          ! modify model stop date for first iteration
+          time_config_iau%tc_stopdate = time_config%tc_exp_startdate
+          ptr_time_config => time_config_iau
+        ELSE IF (iter==2) THEN
+          WRITE(message_text,'(a)') 'Reset model to initial state, repeat IAU with full incrementation window'
+          !
+          ! restore initial state, and some additional control fields
+          CALL reset_to_initial_state(p_patch(1:), p_nh_state)
+          ptr_time_config => time_config
+        ENDIF
+        !
+        CALL message(routine, message_text)
+        CALL perform_nh_stepping( time_config       = ptr_time_config, &
+          &                       iau_iter          = iter,            &
+          &                       latbc             = latbc,           &
+          &                       restartDescriptor = restartDescriptor )
+      ENDDO
+
+      ! cleanup
+      ptr_time_config => NULL()
+      CALL time_config_iau%destruct()
+    ELSE
+
+      CALL perform_nh_stepping( time_config       = time_config, &
+        &                       iau_iter          = 0,           &
+        &                       latbc             = latbc,       &
+        &                       restartDescriptor = restartDescriptor )
+    ENDIF
+
+
+    CALL deleteRestartDescriptor(restartDescriptor)
 
     !---------------------------------------------------------------------
-    ! 6. Integration finished. Clean up.
+    ! Integration finished. Clean up.
     !---------------------------------------------------------------------
     CALL destruct_atmo_nonhydrostatic(latbc, lacc=.TRUE.)
 
@@ -758,7 +810,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = "destruct_atmo_nonhydrostatic"
 
 
-    INTEGER :: jg, ist
+    INTEGER :: jg
     
 #ifdef HAVE_CDI_PIO
     INTEGER :: prev_cdi_namespace
