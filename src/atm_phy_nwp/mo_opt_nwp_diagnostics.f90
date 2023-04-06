@@ -1167,12 +1167,6 @@ CONTAINS
         &     "no graupel available! Either switch off LPI output or change the microphysics scheme" )
     END IF
 
-#ifdef _OPENACC
-    IF (atm_phy_nwp_config(jg)%l2moment) THEN
-      CALL assert_acc_host_only(modname//':compute_field_lpi l2moment', lacc)
-    ENDIF
-#endif
-
     Tmelt_m_20K = Tmelt - 20.0_wp
 
     ! --- Thresholds, limits, ... for several criteria: ---

@@ -1,3 +1,4 @@
+import subprocess
 class BatchJob(object):
     def __init__(self, cmd, cwd):
         self.system = "undefined"
@@ -13,6 +14,15 @@ class BatchJob(object):
 
     def wait(self):
         self.returncode = self.job.wait()
+
+    def poll(self, timeout):
+        try:
+            returncode = self.job.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return False
+        else:
+            self.returncode = returncode
+            return True
 
     def cancel(self):
         self.job.cancel()

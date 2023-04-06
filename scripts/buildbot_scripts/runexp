@@ -76,9 +76,21 @@ def runexp():
             eobj.cancel()
     signal.signal(signal.SIGTERM, cleanupOnInterupt)
 
-    # wait for completion of all gathered processes
-    for eobj in eobjs:
-        eobj.batch_job.wait()
+    # wait for completion of all gathered processes and do some output while waiting
+    incomplete_jobs = set(eobjs)
+    while len(incomplete_jobs) > 0:
+        completed_jobs = set()
+        for eobj in incomplete_jobs:
+            if eobj.batch_job.poll(timeout=60):
+                print(f"job finished (jobID:{eobj.batch_job.jobid})")
+                completed_jobs.add(eobj)
+            else:
+                N = len(incomplete_jobs) - len(completed_jobs)
+                if N > 1:
+                    print(f"Still waiting for {N} jobs.")
+                elif N == 1:
+                    print(f"Still waiting for the last job.")
+        incomplete_jobs.difference_update(completed_jobs)
 
     # wait a bit longer, because queing or file system might create logfiles
     # with a certain delay
