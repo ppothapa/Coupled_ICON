@@ -1008,10 +1008,10 @@ SUBROUTINE sso_setup (                                      &
 !     ===========================================
       !$ACC LOOP SEQ
       DO j3=mi3h,ke-1     ! vertical loop
-        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(znum, zwind, zdelp)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zwind, zdelp)
         DO j1=istart,iend
           IF(lo_sso(j1) .AND. j3.GE.kknu2(j1)) THEN
-            znum (j1)=znu(j1)
+            znum(j1)=znu(j1)
             zwind= (pulow(j1)*pu(j1,j3)                           &
      &             +pvlow(j1)*pv(j1,j3))/                         &
      &         MAX(SQRT(pulow(j1)**2+pvlow(j1)**2),Gvsec)
