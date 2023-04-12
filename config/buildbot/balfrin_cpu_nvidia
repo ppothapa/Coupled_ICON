@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SPACK_REMOTE='https://github.com/C2SM/spack-c2sm.git'
-SPACK_COMMIT=mch_env_3
+SPACK_COMMIT=mch_env_3.p1
 
 SPACK_SPEC="icon@cpu%nvhpc icon_target=cpu +eccodes ^eccodes@2.19.1"
  
