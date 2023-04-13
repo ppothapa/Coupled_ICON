@@ -48,15 +48,14 @@ MODULE mo_rte_rrtmgp_radiation
   USE mo_aes_rad_config,      ONLY: aes_rad_config
   USE mo_bc_ozone,            ONLY: ext_ozone
 
-  USE mo_radiation_orbit,     ONLY: orbit_kepler, orbit_vsop87, get_orbit_times
-  USE mo_radiation_solar_data,       ONLY : ssi_default, ssi_amip,             &
+  USE mo_orbit,               ONLY: orbit_kepler, orbit_vsop87, get_orbit_times
+  USE mo_radiation_solar_data, ONLY: ssi_default, ssi_amip,                    &
                                      ssi_cmip5_picontrol, ssi_cmip6_picontrol, &
                                      ssi_RCEdiurnOn, ssi_RCEdiurnOff,          &
-                                     ssi_radt, tsi_radt, ssi_RCEmip_analytical
-  USE mo_radiation_solar_parameters, ONLY:                         &
-                                     psctm,                        &
-                                     ssi_factor,                   &
-                                     solar_parameters
+                                     ssi_radt, tsi_radt, ssi_RCEmip_analytical,&
+                                     psctm,                                    &  
+                                     ssi_factor
+  USE mo_solar_parameters,    ONLY: solar_parameters
   USE mo_cloud_gas_profiles,  ONLY: gas_profiles, cloud_profiles
   USE mo_radiation_general,   ONLY: nbndsw
 

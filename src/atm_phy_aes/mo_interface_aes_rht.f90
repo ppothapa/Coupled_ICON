@@ -31,7 +31,7 @@ MODULE mo_interface_aes_rht
   USE mo_timer                  ,ONLY: ltimer, timer_start, timer_stop, timer_rht
 
   USE mo_radheating             ,ONLY: radheating
-  USE mo_radiation_solar_parameters ,ONLY: psctm
+  USE mo_radiation_solar_data   ,ONLY: psctm
 
   IMPLICIT NONE
   PRIVATE
