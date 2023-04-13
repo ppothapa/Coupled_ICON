@@ -1,7 +1,11 @@
 MODULE mo_radiation_solar_data
   USE mo_kind, ONLY: wp
+  USE mo_impl_constants, ONLY: max_dom
   USE mo_radiation_general, ONLY: nbndsw
   PUBLIC
+
+  REAL(wp) :: psctm(max_dom)                !< orbit and time dependent solar constant for radiation time step
+  REAL(wp) :: ssi_factor(nbndsw)            !< fraction of TSI in the 14 RRTM SW bands
 
   REAL(wp), PARAMETER :: &
        !

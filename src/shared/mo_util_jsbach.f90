@@ -1795,15 +1795,10 @@ END MODULE mo_jsb_convect_tables_iface
 !!
 MODULE mo_jsb_orbit_solar_iface
 
-  USE mo_kind, ONLY: wp
-#ifdef __NO_RTE_RRTMGP__
-  USE mo_psrad_orbit,                ONLY: inquire_declination, orbit_kepler, orbit_vsop87, get_orbit_times
-  USE mo_psrad_solar_parameters,     ONLY: solar_parameters
-#else
-  USE mo_radiation_orbit,            ONLY: inquire_declination, orbit_kepler, orbit_vsop87, get_orbit_times
-  USE mo_radiation_solar_parameters, ONLY: solar_parameters
-#endif
-  USE mo_aes_rad_config,             ONLY: aes_rad_config
+  USE mo_kind,             ONLY: wp
+  USE mo_orbit,            ONLY: inquire_declination, orbit_kepler, orbit_vsop87, get_orbit_times
+  USE mo_solar_parameters, ONLY: solar_parameters
+  USE mo_aes_rad_config,   ONLY: aes_rad_config
 
   IMPLICIT NONE
   PRIVATE
