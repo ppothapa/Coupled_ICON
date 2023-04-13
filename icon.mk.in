@@ -6,8 +6,14 @@ srcdir:= @srcdir@
 # Relative paths to the directories with the ICON source code:
 subdirs:= src support
 
-# Relative paths to the directories of the bundled packages:
-bundled_subdirs= @extra_build_subdirs@
+# Relative paths to the directories of the Autoconf-based bundled packages:
+bundled_config_subdirs= @icon_bundled_config_subdirs@
+
+# Relative paths to the directories of the CMake-based bundled packages:
+bundled_cmake_subdirs= @icon_bundled_cmake_subdirs@
+
+# Relative paths to the directories of all bundled packages:
+bundled_subdirs= $(bundled_config_subdirs) $(bundled_cmake_subdirs)
 
 # Relative path to the directory with the Fortran module files:
 moddir:= mod
@@ -34,6 +40,7 @@ FC= @FC@
 NVCC= @NVCC@
 PYTHON= @PYTHON@
 PERL= @PERL@
+CMAKE= @CMAKE@
 DEPLIST= ${PYTHON} $(srcdir)/utils/mkhelper/deplist.py
 DEPGEN= ${PYTHON} $(srcdir)/utils/mkhelper/depgen.py
 MODCMP= ${PYTHON} $(srcdir)/utils/mkhelper/fortmodcmp.py
@@ -302,6 +309,7 @@ V= @DEFAULT_VERBOSITY@
 ifeq ($(V),0)
 silent_AR=      @echo "  AR      " $@;
 silent_CC=      @echo "  CC      " $@;
+silent_CMAKE=   @echo "  CMAKE   " $(@D);
 silent_CONFIG=  @echo "  CONFIG  " $(@D);
 silent_DEPGEN=  @echo "  DEPGEN  " $@;
 silent_DSL4JSB= @echo "  DSL4JSB " $@;
@@ -366,7 +374,7 @@ install: all
 
 # Delete the results of compilation and linking:
 mostlyclean: $(bundled_subdirs)
-@CLAW_ENABLED@	test -f claw.mk && $(MAKE) -f claw.mk $(MAKECMDGOALS) || test xdistclean = x$(filter distclean,$(MAKECMDGOALS))
+@CLAW_ENABLED@	test -f claw.mk && $(MAKE) -f claw.mk $(MAKECMDGOALS) || test -z '$(filter-out distclean,$(or $(MAKECMDGOALS),all))'
 	rm -f $(exec_files) $(lib_files) $(addsuffix .@OBJEXT@,$(basename $(f90_files) $(c_files) $(cu_files))) version.@OBJEXT@
 	rm -f $(moddir)/*.@FC_MOD_FILE_EXT@ $(moddir)/*.@FC_MOD_FILE_EXT@.proxy
 @PGI_INLIB_ENABLED@	rm -rf $(pgi_inlib_name)
@@ -406,6 +414,7 @@ distclean: clean
 	rm -f run/collect.set-up.info run/set-up.info run/SETUP.config
 	rm -f $(dep_files)
 	rm -f $(dir_files)
+	test -z "$(bundled_cmake_subdirs)" || rm -rf $(bundled_cmake_subdirs)
 	@for dir in $(bindir) $(libdir) $(moddir); do \
           if test -d "$$dir"; then \
             echo "find '$$dir' -type d -empty -delete"; \
@@ -428,11 +437,15 @@ config-bundled: $(addsuffix /Makefile,$(bundled_subdirs))
 # Check rule for the bundled libraries (run the tests serially to make the
 # output readable and prevent from possible overloading due to multiple
 # simultaneous MPI runs):
-check-bundled: $(if $(filter check,$(MAKECMDGOALS)),all) # run the tests after 'all' when 'make check'
+check-bundled: config-bundled $(bundled_cmake_subdirs) $(if $(filter check,$(MAKECMDGOALS)),all) # run the tests after 'all' when 'make check'
 	@test -z '$(bundled_subdirs)' && echo "The list of bundled libraries is empty: nothing to check." && exit 0; \
 	fail=; pass=; \
-	for d in $(bundled_subdirs); do \
+	for d in $(bundled_config_subdirs); do \
 	  if $(MAKE) -C "$$d" check V=$(V); then pass="$$pass$$d "; \
+	  else fail="$$fail$$d "; fi; \
+	done; \
+	for d in $(bundled_cmake_subdirs); do \
+	  if $(MAKE) -C "$$d" test VERBOSE=$(filter-out 0,$(V)); then pass="$$pass$$d "; \
 	  else fail="$$fail$$d "; fi; \
 	done; \
 	test -n "$$pass" && echo "PASS: $$pass"; \
@@ -549,12 +562,20 @@ sanitize-mod-proxies:
 nomakefile_bundled_targets:= distclean
 @DELAYED_CONFIG_ENABLED@nomakefile_bundled_targets+= mostlyclean clean
 
-# Make bundled libraries:
-$(bundled_subdirs):
+# Make Autoconf-based bundled libraries:
+$(bundled_config_subdirs):
 	@if test -f '$@/Makefile'; then \
 	  $(MAKE) -C $@ $(filter all mostlyclean clean distclean,$(MAKECMDGOALS)) V=$(V); \
 	else \
-	  case ' $(MAKECMDGOALS) ' in ${foreach tgt,$(nomakefile_bundled_targets),*\ $(tgt)\ *) ;;} *) false ;; esac; \
+	  test -z '$(filter-out $(nomakefile_bundled_targets),$(or $(MAKECMDGOALS),all))'; \
+	fi
+
+# Make CMake-based bundled libraries:
+$(bundled_cmake_subdirs):
+	@if test -f '$@/Makefile'; then \
+	  $(MAKE) -C $@ $(filter all clean,$(MAKECMDGOALS) $(if $(filter mostlyclean distclean,$(MAKECMDGOALS)),clean)) VERBOSE=$(filter-out 0,$(V)); \
+	else \
+	  test -z '$(filter-out $(nomakefile_bundled_targets),$(or $(MAKECMDGOALS),all))'; \
 	fi
 
 # Build the bundled yaxt before configuring the bundled yac:
@@ -629,11 +650,6 @@ dummy-depend: | $(dir_files)
 @CLAW_ENABLED@	$(MAKE) -f claw.mk $@
 
 # Include dependencies if required:
-current_targets:= $(strip $(MAKECMDGOALS))
-ifeq (,$(current_targets))
-current_targets:= all
-endif
-
-ifneq (,$(filter-out $(nodep_targets),$(current_targets)))
+ifneq (,$(filter-out $(nodep_targets),$(or $(MAKECMDGOALS),all)))
 include $(dep_files)
 endif
