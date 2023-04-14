@@ -18,12 +18,10 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_kind                ,ONLY: wp
   USE mo_model_domain        ,ONLY: t_patch
-  USE mo_nonhydro_types      ,ONLY: t_nh_diag
   USE mo_ext_data_state      ,ONLY: ext_data
 #ifndef __NO_AES__
   USE mo_aes_phy_memory      ,ONLY: prm_field
 #endif
-  USE mo_lnd_nwp_config      ,ONLY: isub_water
 
   USE mo_parallel_config     ,ONLY: nproma
 
@@ -39,7 +37,6 @@ MODULE mo_atmo_coupling_frame
   USE mo_master_control      ,ONLY: get_my_process_name
 
   USE mo_mpi                 ,ONLY: p_pe_work, p_comm_work, p_sum
-  USE mo_math_constants      ,ONLY: pi
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
@@ -63,14 +60,48 @@ MODULE mo_atmo_coupling_frame
 
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_atmo_coupling_frame' ! Output of module for debug
 
+  INTEGER, PARAMETER :: no_of_fields = 13
+  CHARACTER(len=*), PARAMETER :: field_name(no_of_fields) = [ CHARACTER(len=40) :: &
+      & "surface_downward_eastward_stress", &   ! bundled field containing two components
+      & "surface_downward_northward_stress", &  ! bundled field containing two components
+      & "surface_fresh_water_flux", &           ! bundled field containing three components
+      & "total_heat_flux", &                    ! bundled field containing four components
+      & "atmosphere_sea_ice_bundle", &          ! bundled field containing two components
+      & "sea_surface_temperature", &
+      & "eastward_sea_water_velocity", &
+      & "northward_sea_water_velocity", &
+      & "ocean_sea_ice_bundle", &               ! bundled field containing three components
+      & "10m_wind_speed", &
+      & "co2_mixing_ratio", &
+      & "co2_flux", &
+      & "sea_level_pressure" &
+    ]
+
+  INTEGER, PARAMETER :: CPF_UMFL = 1 !< Surface zonal stress for water and ice.
+  INTEGER, PARAMETER :: CPF_VMFL = 2 !< Surface meridional stress for water and ice.
+  INTEGER, PARAMETER :: CPF_FRESHFLX = 3 !< Fresh water flux (rain, snow, evap).
+  INTEGER, PARAMETER :: CPF_HEATFLX = 4 !< Heat flux (SW net, LW net, sensible, latent).
+  INTEGER, PARAMETER :: CPF_SEAICE_ATM = 5 !< Sea-ice fluxes (SW+LW+H+L, conductive at bottom).
+  INTEGER, PARAMETER :: CPF_SST = 6 !< Sea-surface temperature.
+  INTEGER, PARAMETER :: CPF_OCE_U = 7 !< Zonal ocean surface velocity.
+  INTEGER, PARAMETER :: CPF_OCE_V = 8 !< Meridional ocean surface velocity.
+  INTEGER, PARAMETER :: CPF_SEAICE_OCE = 9 !< Sea-ice state (h_ice, h_snow, fr_seaice).
+  INTEGER, PARAMETER :: CPF_SP10M = 10 !< 10m wind speed.
+  INTEGER, PARAMETER :: CPF_CO2_VMR = 11 !< CO2 volume mixing ratio at surface in PPM.
+  INTEGER, PARAMETER :: CPF_CO2_FLX = 12 !< CO2 flux.
+  INTEGER, PARAMETER :: CPF_PRES_MSL = 13 !< Sea-level pressure.
+
   PUBLIC :: construct_atmo_coupling
   PUBLIC :: lyac_very_1st_get, nbr_inner_cells, mask_checksum, field_id
 
-  INTEGER, PARAMETER    :: no_of_fields = 13
+  PUBLIC :: CPF_UMFL, CPF_VMFL, CPF_FRESHFLX, CPF_HEATFLX, CPF_SEAICE_ATM, CPF_SST, &
+      & CPF_OCE_U, CPF_OCE_V, CPF_SEAICE_OCE, CPF_SP10M, CPF_CO2_VMR, CPF_CO2_FLX, &
+      & CPF_PRES_MSL
+
   INTEGER               :: field_id(no_of_fields)
 
   INTEGER, SAVE         :: nbr_inner_cells
-  INTEGER, SAVE         :: mask_checksum
+  INTEGER, SAVE         :: mask_checksum = -1
   LOGICAL, SAVE         :: lyac_very_1st_get
 
 CONTAINS
@@ -82,7 +113,6 @@ CONTAINS
   SUBROUTINE construct_atmo_coupling (p_patch)
 
     TYPE(t_patch), TARGET, INTENT(IN) :: p_patch(:)
-    CHARACTER(LEN=MAX_CHAR_LENGTH)    :: field_name(no_of_fields)
 
     INTEGER :: error_status
 
@@ -118,7 +148,7 @@ CONTAINS
 
     REAL(wp), ALLOCATABLE :: lsmnolake(:,:)
 
-    REAL, PARAMETER :: eps = 1.E-10_wp
+    REAL(wp), PARAMETER :: eps = 1.E-10_wp
 
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
@@ -153,7 +183,7 @@ CONTAINS
 
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), &
          &                   end_datetime   = TRIM(stopdatestring)   )
- 
+
     ! Announce one grid (patch) to the coupler
     grid_name = "icon_atmos_grid"
 
@@ -173,8 +203,8 @@ CONTAINS
 
     nbr_vertices_per_cell = 3
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+    !ICON_OMP_PARALLEL
+    !ICON_OMP_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = 1, patch_horz%nblks_v
       DO jc = 1, nproma
         nn = (jb-1)*nproma+jc
@@ -182,9 +212,9 @@ CONTAINS
         buffer_lat(nn) = patch_horz%verts%vertex(jc,jb)%lat
       ENDDO
     ENDDO
-!ICON_OMP_END_DO NOWAIT
+    !ICON_OMP_END_DO NOWAIT
 
-!ICON_OMP_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+    !ICON_OMP_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = 1, patch_horz%nblks_c
       DO jc = 1, nproma
         nn = (jb-1)*nproma+jc
@@ -196,8 +226,8 @@ CONTAINS
                           patch_horz%cells%vertex_idx(jc,jb,3)
       ENDDO
     ENDDO
-!ICON_OMP_END_DO
-!ICON_OMP_END_PARALLEL
+    !ICON_OMP_END_DO
+    !ICON_OMP_END_PARALLEL
 
     ! Description of elements, here as unstructured grid
     CALL yac_fdef_grid(           &
@@ -217,7 +247,7 @@ CONTAINS
     ! patch_horz%cells%cartesian_center(:,:)%x(1:3)
     ! Here we use the longitudes and latitudes.
 
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+    !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
     DO jb = 1, patch_horz%nblks_c
       DO jc = 1, nproma
         nn = (jb-1)*nproma+jc
@@ -225,7 +255,7 @@ CONTAINS
         buffer_lat(nn) = patch_horz%cells%center(jc,jb)%lat
       ENDDO
     ENDDO
-!ICON_OMP_END_PARALLEL_DO
+    !ICON_OMP_END_PARALLEL_DO
 
     ! center points in cells (needed e.g. for patch recovery and nearest neighbour interpolation)
     CALL yac_fdef_points (        &
@@ -279,35 +309,77 @@ CONTAINS
 
     SELECT CASE( iforcing )
 
-       CASE ( inwp )
+      CASE ( inwp )
 
- !ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) ICON_OMP_RUNTIME_SCHEDULE
+        !ICON_OMP_PARALLEL PRIVATE(jb,jc)
+          !ICON_OMP_WORKSHARE
+          is_valid(:) = .FALSE.
+          !ICON_OMP_END_WORKSHARE
+
+          !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
           DO jb = 1, patch_horz%nblks_c
-             DO jc = 1, nproma
-                ! mask: 1.0: land or lake, 0.0: ocean or sea ice, fraction: coast
-                ! slo: later: use interpolated or adjusted fr_land and fr_lake - at first: use read in cell_sea_land_mask of extpar
-                ! lsmnolake(jc, jb) = ext_data(jg)%atm%fr_land(jc,jb) + ext_data(jg)%atm%fr_lake(jc,jb)
-                lsmnolake(jc, jb) = ext_data(jg)%atm%lsm_ctr_c(jc,jb)
-             ENDDO
-          ENDDO
-!ICON_OMP_END_PARALLEL_DO
-          CALL dbg_print('AtmFrame: fr_land',ext_data(jg)%atm%fr_land,str_module,3,in_subset=patch_horz%cells%owned)
-          CALL dbg_print('AtmFrame: fr_lake',ext_data(jg)%atm%fr_lake,str_module,3,in_subset=patch_horz%cells%owned)
-          CALL dbg_print('AtmFrame: lsmnolake',lsmnolake,str_module,2,in_subset=patch_horz%cells%owned)
+            DO jc = 1, ext_data(jg)%atm%list_sea%ncount(jb)
+              is_valid((jb-1)*nproma + ext_data(jg)%atm%list_sea%idx(jc,jb)) = .TRUE.
+            END DO
+          END DO
+          !ICON_OMP_END_DO
+        !ICON_OMP_END_PARALLEL
 
-       CASE ( iaes )
+        CALL dbg_print('AtmFrame: fr_land',ext_data(jg)%atm%fr_land,str_module,3,in_subset=patch_horz%cells%owned)
+        CALL dbg_print('AtmFrame: fr_lake',ext_data(jg)%atm%fr_lake,str_module,3,in_subset=patch_horz%cells%owned)
+
+      CASE ( iaes )
 #ifdef __NO_AES__
-          CALL finish ('mo_atmo_coupling_frame:construct_atmo_coupling' &
-            & //'coupled model needs aes; remove --disable-aes and reconfigure')
+        CALL finish ('mo_atmo_coupling_frame:construct_atmo_coupling', &
+            & 'coupled model needs aes; remove --disable-aes and reconfigure')
 #else
-!ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) ICON_OMP_RUNTIME_SCHEDULE
-          DO jb = 1, patch_horz%nblks_c
-             DO jc = 1, nproma
-                !  slo: caution - lsmask includes alake, must be added to refetch pure lsm:
-                lsmnolake(jc, jb) = prm_field(1)%lsmask(jc,jb) + prm_field(1)%alake(jc,jb)
-             ENDDO
+        !ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) ICON_OMP_RUNTIME_SCHEDULE
+        DO jb = 1, patch_horz%nblks_c
+            DO jc = 1, nproma
+              !  slo: caution - lsmask includes alake, must be added to refetch pure lsm:
+              lsmnolake(jc, jb) = prm_field(1)%lsmask(jc,jb) + prm_field(1)%alake(jc,jb)
+            ENDDO
+        ENDDO
+        !ICON_OMP_END_PARALLEL_DO
+
+        mask_checksum = 0
+        !ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) REDUCTION(+:mask_checksum) ICON_OMP_RUNTIME_SCHEDULE
+        DO jb = 1, patch_horz%nblks_c
+          DO jc = 1, nproma
+            mask_checksum = mask_checksum + ABS( lsmnolake(jc,jb))
           ENDDO
-!ICON_OMP_END_PARALLEL_DO
+        ENDDO
+        !ICON_OMP_END_PARALLEL_DO
+
+        mask_checksum = p_sum(mask_checksum, comm=p_comm_work)
+
+        !
+        ! Define cell_mask_ids(1): all ocean and coastal points are valid
+        !   This is the standard for the coupling of atmospheric fields listed below
+        !
+        IF ( mask_checksum > 0 ) THEN
+          !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+          DO jb = 1, patch_horz%nblks_c
+            DO jc = 1, nproma
+
+              IF ( lsmnolake(jc, jb) .LT. (1.0_wp - eps) ) THEN
+                ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
+                is_valid((jb-1)*nproma+jc) = .TRUE.
+              ELSE
+                ! land point (fraction of land is one, no sea water, lsmnolake=1.) is undef
+                is_valid((jb-1)*nproma+jc) = .FALSE.
+              ENDIF
+
+            ENDDO
+          ENDDO
+          !ICON_OMP_END_PARALLEL_DO
+        ELSE
+          !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+          DO jc = 1, patch_horz%nblks_c * nproma
+            is_valid(jc) = .TRUE.
+          ENDDO
+          !ICON_OMP_END_PARALLEL_DO
+        ENDIF
 #endif
        CASE DEFAULT
 
@@ -315,43 +387,7 @@ CONTAINS
             & //'src/coupling/mo_atmo_coupling_frame: construct_atmo_coupling. Thank you!')
 
     END SELECT
-    
-    mask_checksum = 0
-!ICON_OMP_PARALLEL_DO PRIVATE(jb,jc) REDUCTION(+:mask_checksum) ICON_OMP_RUNTIME_SCHEDULE
-    DO jb = 1, patch_horz%nblks_c
-      DO jc = 1, nproma
-        mask_checksum = mask_checksum + ABS( lsmnolake(jc,jb))
-      ENDDO
-    ENDDO
-!ICON_OMP_END_PARALLEL_DO
-    mask_checksum = p_sum(mask_checksum, comm=p_comm_work)
-    !
-    ! Define cell_mask_ids(1): all ocean and coastal points are valid
-    !   This is the standard for the coupling of atmospheric fields listed below
-    !
-    IF ( mask_checksum > 0 ) THEN
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-       DO jb = 1, patch_horz%nblks_c
-          DO jc = 1, nproma
 
-             IF ( lsmnolake(jc, jb) .LT. (1.0_wp - eps) ) THEN
-               ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
-               is_valid((jb-1)*nproma+jc) = .TRUE.
-             ELSE
-               ! land point (fraction of land is one, no sea water, lsmnolake=1.) is undef
-               is_valid((jb-1)*nproma+jc) = .FALSE.
-             ENDIF
-
-          ENDDO
-       ENDDO
-!ICON_OMP_END_PARALLEL_DO
-    ELSE
-!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-       DO jc = 1, patch_horz%nblks_c * nproma
-          is_valid(jc) = .TRUE.
-       ENDDO
-!ICON_OMP_END_PARALLEL_DO
-    ENDIF
 
     CALL yac_fdef_mask (          &
       & grid_id,                  &
@@ -359,20 +395,6 @@ CONTAINS
       & YAC_LOCATION_CELL,        &
       & is_valid,                 &
       & cell_mask_ids(1) )
-
-    field_name(1) = "surface_downward_eastward_stress"   ! bundled field containing two components
-    field_name(2) = "surface_downward_northward_stress"  ! bundled field containing two components
-    field_name(3) = "surface_fresh_water_flux"           ! bundled field containing three components
-    field_name(4) = "total_heat_flux"                    ! bundled field containing four components
-    field_name(5) = "atmosphere_sea_ice_bundle"          ! bundled field containing two components
-    field_name(6) = "sea_surface_temperature"
-    field_name(7) = "eastward_sea_water_velocity"
-    field_name(8) = "northward_sea_water_velocity"
-    field_name(9) = "ocean_sea_ice_bundle"               ! bundled field containing three components
-    field_name(10) = "10m_wind_speed"
-    field_name(11) = "co2_mixing_ratio"
-    field_name(12) = "co2_flux"
-    field_name(13) = "sea_level_pressure"
 
     DO jc = 1, no_of_fields
       CALL yac_fdef_field_mask ( &
@@ -398,11 +420,11 @@ CONTAINS
 !     ! !slo old!   Caution: jg=1 is only valid for coupling to ocean
 !     ! !
 !     IF ( mask_checksum > 0 ) THEN
-! 
+!
 ! !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
 !         DO jb = 1, patch_horz%nblks_c
 !           DO jc = 1, nproma
-! 
+!
 !              IF ( lsmnolake(jc, jb) .LT. (1.0_wp - eps) ) THEN
 !                ! ocean point (fraction of ocean is >0., lsmnolake .lt. 1.) is valid
 !                ! eps necessary because lsmnolake=lsm_ctr_c has input values of 0.999999 instead of 1.0)
@@ -411,7 +433,7 @@ CONTAINS
 !                ! land point (fraction of land is one, lsmnolake=1.) is undef
 !                is_valid((jb-1)*nproma+jc) = .FALSE.
 !              ENDIF
-! 
+!
 !           ENDDO
 !         ENDDO
 ! !ICON_OMP_END_PARALLEL_DO
@@ -421,20 +443,20 @@ CONTAINS
 !           is_valid(jc) = .TRUE.
 !        ENDDO
 ! !ICON_OMP_END_PARALLEL_DO
-! 
+!
 !     ENDIF
-! 
+!
 !     CALL yac_fdef_mask (          &
 !       & grid_id,                  &
 !       & patch_horz%n_patch_cells, &
 !       & YAC_LOCATION_CELL,        &
 !       & is_valid,                 &
 !       & cell_mask_ids(2) )
-! 
+!
 !     ! Define additional coupling field(s) for JSBACH/HD
 !     ! Utilize mask field for runoff
 !     ! cell_mask_ids(2) shall contain ocean coast points only for source point mapping (source_to_target_map)
-!     ! Currently it is the same mask as for the rest. 
+!     ! Currently it is the same mask as for the rest.
 
       ! change of call to be checked - no second mask used for this call
       !CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids(2:2) )
@@ -456,7 +478,7 @@ CONTAINS
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 
   END SUBROUTINE construct_atmo_coupling
-  
+
 END MODULE mo_atmo_coupling_frame
 
 

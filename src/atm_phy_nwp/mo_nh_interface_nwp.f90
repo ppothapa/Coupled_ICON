@@ -1692,8 +1692,7 @@ CONTAINS
 #ifdef _OPENACC
       CALL finish('mo_nh_interface_nwp', 'nwp_couple_ocean is not available on GPU')
 #endif
-      CALL nwp_couple_ocean( pt_patch, pt_diag, lnd_diag, &
-        &                    wtr_prog_now, wtr_prog_new, prm_diag, ext_data )
+      CALL nwp_couple_ocean( pt_patch, pt_diag, lnd_diag, wtr_prog_new, prm_diag, ext_data )
 
       !------------------------------------------------
       !  After receiving new sea-ice fraction (fr_seaice) and thickness (h_ice)

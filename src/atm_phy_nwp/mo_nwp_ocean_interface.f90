@@ -5,18 +5,18 @@
 !!
 !! Notes on openMP parallelisation:
 !!   Most jb-loops cannot be optimized easily because converting a 2-D field into a 1-D field
-!!   requires remembering the 1-D index "ncount", which is incremented over the loop.  This 
+!!   requires remembering the 1-D index "ncount", which is incremented over the loop.  This
 !!   technique is used in the current code and openMP is not used.
 !!   A solution suggested by Rene Redler would be to calculate that index (nn) would look like this:
 !!      !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
 !!      DO jb = i_startblk, i_endblk
 !!        nn = (jb-1)*nproma                               ! translation to 1-d buffer fields
 !!        DO ic = 1, ext_data%atm%list_sea%ncount(jb)      ! number of ocean points (open water & sea ice)
-!!          jc = ext_data%atm%list_sea%idx(ic,jb)  
+!!          jc = ext_data%atm%list_sea%idx(ic,jb)
 !!          prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
 !!  It might also be necessary to synch the data before each loop passing data to the ocean.
 !!      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
-!! 
+!!
 !! @par Revision History
 !!
 !! @par Copyright and License
@@ -30,162 +30,335 @@
 !!
 
 !----------------------------
-#include "omp_definitions.inc"
-!----------------------------
 
 MODULE mo_nwp_ocean_interface
 
+  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
+  USE mo_ccycle_config       ,ONLY: ccycle_config,                          &
+       & CCYCLE_MODE_NONE, CCYCLE_MODE_PRESCRIBED, CCYCLE_MODE_INTERACTIVE, &
+       & CCYCLE_CO2CONC_CONST, CCYCLE_CO2CONC_FROMFILE
+  USE mo_dbg_nml             ,ONLY: idbg_mxmn, idbg_val
+  USE mo_exception           ,ONLY: warning, message, finish
+  USE mo_ext_data_types      ,ONLY: t_external_data
+  USE mo_fortran_tools       ,ONLY: assert_acc_host_only, init
+  USE mo_idx_list            ,ONLY: t_idx_list_blocked
+  USE mo_impl_constants      ,ONLY: start_prog_cells, end_prog_cells
   USE mo_kind                ,ONLY: wp
+  USE mo_lnd_nwp_config      ,ONLY: isub_water, isub_seaice, isub_lake,     &
+       &                            hice_max
+  USE mo_loopindices         ,ONLY: get_indices_c
   USE mo_model_domain        ,ONLY: t_patch
   USE mo_nonhydro_types      ,ONLY: t_nh_diag
   USE mo_nwp_phy_types       ,ONLY: t_nwp_phy_diag
   USE mo_nwp_lnd_types       ,ONLY: t_wtr_prog, t_lnd_diag
-  USE mo_ext_data_types      ,ONLY: t_external_data
-  USE mo_ccycle_config       ,ONLY: ccycle_config
-
-  USE mo_fortran_tools       ,ONLY: init, assert_acc_host_only
   USE mo_parallel_config     ,ONLY: nproma
-  USE mo_impl_constants_grf  ,ONLY: grf_bdywidth_c
-  USE mo_impl_constants      ,ONLY: min_rlcell, min_rlcell_int
-  USE mo_loopindices         ,ONLY: get_indices_c
-
-  USE mo_run_config          ,ONLY: ltimer, ico2, nlev
+  USE mo_physical_constants  ,ONLY: vmr_to_mmr_co2
+  USE mo_run_config          ,ONLY: ltimer
   USE mo_timer               ,ONLY: timer_start, timer_stop,                &
        &                            timer_coupling_put, timer_coupling_get, &
        &                            timer_coupling_1stget
-
-  USE mo_lnd_nwp_config      ,ONLY: lseaice, isub_water, isub_seaice, isub_lake
-
-  USE mo_sync                ,ONLY: sync_c, sync_patch_array
-
-  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
-
-  USE mo_parallel_config     ,ONLY: nproma
+  USE mo_util_dbg_prnt       ,ONLY: dbg_print
 
 #ifdef YAC_coupling
-#if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
-  USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
-#endif
-  USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
-    &                               mask_checksum, field_id
-  USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget,                     &
+  USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, field_id,            &
+    & CPF_CO2_FLX, CPF_CO2_VMR, CPF_FRESHFLX, CPF_HEATFLX, CPF_OCE_U,       &
+    & CPF_OCE_V, CPF_PRES_MSL, CPF_SEAICE_ATM, CPF_SEAICE_OCE, CPF_SP10M,   &
+    & CPF_SST, CPF_UMFL, CPF_VMFL
+  USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget, yac_r8_ptr,         &
     &                               YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
 #endif
-
-  USE mo_exception           ,ONLY: warning, message, finish
-  USE mo_util_dbg_prnt       ,ONLY: dbg_print
-  USE mo_dbg_nml             ,ONLY: idbg_mxmn, idbg_val
-  USE mo_physical_constants  ,ONLY: vmr_to_mmr_co2
-  USE mo_lnd_nwp_config      ,ONLY: hice_max                      ! maximum sea-ice thickness [m]
 
   IMPLICIT NONE
 
   PRIVATE
 
+  !>
+  !! Package of fields passed to the ocean via YAC.
+  TYPE t_nwp_ocean_fields_tx
+
+    !> Sea-water fraction [m2(ocean)/m2(gridcell)].
+    REAL(wp), CONTIGUOUS, POINTER :: frac_w(:,:) => NULL()
+    !> Sea-ice fraction [m2(seaice)/m2(gridcell)].
+    REAL(wp), CONTIGUOUS, POINTER :: frac_i(:,:) => NULL()
+
+    !> Resolved zonal surface stress over sea water [N/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: umfl_s_w(:,:) => NULL()
+    !> Resolved zonal surface stress over sea ice [N/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: umfl_s_i(:,:) => NULL()
+    !> Resolved meridional surface stress over sea water [N/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: vmfl_s_w(:,:) => NULL()
+    !> Resolved meridional surface stress over sea ice [N/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: vmfl_s_i(:,:) => NULL()
+
+    !> Moisture flux at sea water surface [kg/m2/s].
+    REAL(wp), CONTIGUOUS, POINTER :: qhfl_s_w(:,:) => NULL()
+    !> Moisture flux at sea ice surface [kg/m2/s].
+    REAL(wp), CONTIGUOUS, POINTER :: qhfl_s_i(:,:) => NULL()
+
+    !> Sensible heat flux at sea water surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: shfl_s_w(:,:) => NULL()
+    !> Sensible heat flux at sea ice surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: shfl_s_i(:,:) => NULL()
+
+    !> Latent heat flux at sea water surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: lhfl_s_w(:,:) => NULL()
+    !> Latent heat flux at sea ice surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: lhfl_s_i(:,:) => NULL()
+
+    !> Conductive heat flux at water-ice interface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: chfl_i(:,:) => NULL()
+
+    !> 10m wind speed [m/s].
+    REAL(wp), CONTIGUOUS, POINTER :: sp_10m(:,:) => NULL()
+
+    !> Surface pressure [Pa].
+    REAL(wp), CONTIGUOUS, POINTER :: pres_sfc(:,:) => NULL()
+
+    !> Net short-wave flux at sea water surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: swflxsfc_w(:,:) => NULL()
+    !> Net short-wave flux at sea ice surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: swflxsfc_i(:,:) => NULL()
+
+    !> Net long-wave flux at sea water surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: lwflxsfc_w(:,:) => NULL()
+    !> Net long-wave flux at sea ice surface [W/m2].
+    REAL(wp), CONTIGUOUS, POINTER :: lwflxsfc_i(:,:) => NULL()
+
+    !> Total rain rate [kg/m2/s].
+    REAL(wp), CONTIGUOUS, POINTER :: rain_rate(:,:) => NULL()
+    !> Total snow rate [kg/m2/s].
+    REAL(wp), CONTIGUOUS, POINTER :: snow_rate(:,:) => NULL()
+
+    !> Surface CO2 concentration [kg(CO2)/kg(air)].
+    !! Not contiguous because it is the lowest level of a 3D field.
+    REAL(wp), POINTER :: q_co2(:,:) => NULL()
+
+  END TYPE t_nwp_ocean_fields_tx
+
+
+  !>
+  !! Package of fields received from the ocean via YAC.
+  TYPE t_nwp_ocean_fields_rx
+
+    !> Sea-surface temperature [K].
+    REAL(wp), CONTIGUOUS, POINTER :: t_seasfc(:,:) => NULL()
+
+    !> Sea-ice fraction [m2(seaice)/m2(ocean)].
+    REAL(wp), CONTIGUOUS, POINTER :: fr_seaice(:,:) => NULL()
+
+    !> Sea-ice thickness [m].
+    REAL(wp), CONTIGUOUS, POINTER :: h_ice(:,:) => NULL()
+
+    !> Zonal ocean surface velocity (optional) [m/s].
+    REAL(wp), CONTIGUOUS, POINTER :: ocean_u(:,:) => NULL()
+
+    !> Meridional ocean surface velocity (optional) [m/s].
+    REAL(wp), CONTIGUOUS, POINTER :: ocean_v(:,:) => NULL()
+
+    !> CO2 surface flux [kg/m2/s].
+    REAL(wp), CONTIGUOUS, POINTER :: flx_co2(:,:) => NULL()
+
+  END TYPE t_nwp_ocean_fields_rx
+
+
   PUBLIC :: nwp_couple_ocean
+  PUBLIC :: couple_ocean
+  PUBLIC :: t_nwp_ocean_fields_rx
+  PUBLIC :: t_nwp_ocean_fields_tx
 
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_ocean_interface' ! Output of module for debug
 
 CONTAINS
-
 
   !>
   !! SUBROUTINE nwp_couple_ocean -- the interface between
   !! NWP physics and the ocean, through a coupler
   !!
   !! This subroutine is called from nwp_nh_interface.
+  SUBROUTINE nwp_couple_ocean ( &
+      & p_patch, pt_diag, lnd_diag, wtr_prog_new, prm_diag, ext_data, lacc &
+    )
 
-  SUBROUTINE nwp_couple_ocean( p_patch, pt_diag, lnd_diag, &
-    &                          wtr_prog_now, wtr_prog_new, prm_diag, ext_data, lacc )
+    TYPE(t_patch),                INTENT(INOUT)  :: p_patch
+    TYPE(t_nh_diag),      TARGET, INTENT(INOUT)  :: pt_diag
+    TYPE(t_wtr_prog),     TARGET, INTENT(INOUT)  :: wtr_prog_new
+    TYPE(t_lnd_diag),     TARGET, INTENT(INOUT)  :: lnd_diag
+    TYPE(t_nwp_phy_diag), TARGET, INTENT(INOUT)  :: prm_diag
+    TYPE(t_external_data),        INTENT(IN)     :: ext_data
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+
+    TYPE(t_nwp_ocean_fields_tx) :: tx
+    TYPE(t_nwp_ocean_fields_rx) :: rx
+
+    REAL(wp), TARGET :: rain_rate(nproma, p_patch%nblks_c)
+    REAL(wp), TARGET :: snow_rate(nproma, p_patch%nblks_c)
+
+    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
+    INTEGER :: jb, jc
+
+    LOGICAL :: have_ice, have_hail, have_graupel
+
+
+    CALL assert_acc_host_only('nwp_couple_ocean', lacc)
+
+#ifndef YAC_coupling
+    CALL finish('nwp_couple_ocean', 'unintentionally called. Check your source code and configure.')
+#else
+
+    ! include boundary interpolation zone of nested domains and halo points
+    i_startblk = p_patch%cells%start_block(start_prog_cells)
+    i_endblk   = p_patch%cells%end_block(end_prog_cells)
+
+    have_ice = ASSOCIATED(prm_diag%ice_gsp_rate)
+    have_hail = ASSOCIATED(prm_diag%hail_gsp_rate)
+    have_graupel = ASSOCIATED(prm_diag%graupel_gsp_rate)
+
+    ! Prepare rain and snow rates.
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, start_prog_cells, end_prog_cells)
+
+      DO jc = i_startidx, i_endidx
+        rain_rate(jc,jb) = prm_diag%rain_con_rate(jc,jb) + prm_diag%rain_gsp_rate(jc,jb)
+        snow_rate(jc,jb) = prm_diag%snow_con_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb)
+
+        IF (have_ice) snow_rate(jc,jb) = snow_rate(jc,jb) + prm_diag%ice_gsp_rate(jc,jb)
+        IF (have_hail) snow_rate(jc,jb) = snow_rate(jc,jb) + prm_diag%hail_gsp_rate(jc,jb)
+        IF (have_graupel) snow_rate(jc,jb) = snow_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb)
+      END DO
+    END DO
+
+    ! Send fields:
+    ! 1. prm_diag%umfl_s_t(:,:,:)                       zonal resolved surface stress and  [N/m2]
+    !    prm_diag%vmfl_s_t(:,:,:)                       meridional resolved surface stress [N/m2]
+    !    prm_diag%sp_10m  (:,:)                         10m wind speed [m/s]
+    !    pt_diag%pres_sfc (:,:)                         surface pressure [Pa]
+    !
+    ! 2. prm_diag%rain_con_rate(:,:)                    convective surface rain rate    [kg/m2/s]
+    !    prm_diag%rain_gsp_rate(:,:)                    grid-scale surface rain rate    [kg/m2/s]
+    !
+    !    prm_diag%snow_con_rate    (:,:)                convective surface snow_rate    [kg/m2/s]
+    !    prm_diag%snow_gsp_rate    (:,:)                grid_scale surface snow rate    [kg/m2/s]
+    !    prm_diag%ice_gsp_rate     (:,:)                grid_scale surface ice rate     [kg/m2/s]
+    !    prm_diag%graupel_gsp_rate (:,:)                grid_scale surface graupel rate [kg/m2/s]
+    !    prm_diag%hail_gsp_rate    (:,:)                grid_scale surface hail rate    [kg/m2/s]
+    !
+    !    prm_diag%qhfl_s_t(:,:,isub_water/isub_seaice)  moisture flux (surface) aka evaporation rate at surface [kg/m2/s]
+    !
+    ! 3. prm_diag%swflxsfc_t (:,:,:)                    tile-based shortwave net flux at surface [W/m2]
+    !    prm_diag%lwflxsfc_t (:,:,:)                    tile-based longwave net flux at surface  [W/m2]
+    !    prm_diag%shfl_s_t   (:,:,:)                    tile-based sensible heat flux at surface [W/m2]
+    !    prm_diag%lhfl_s_t   (:,:,:)                    tile-based latent   heat flux at surface [W/m2]
+    !    lnd_diag%condhf_ice (:,:)                      conductive heat flux at ice-ocean interface [W/m2]
+
+    tx%frac_w => ext_data%atm%frac_t(:,:,isub_water)
+    tx%frac_i => ext_data%atm%frac_t(:,:,isub_seaice)
+
+    tx%umfl_s_w => prm_diag%umfl_s_t(:,:,isub_water)
+    tx%umfl_s_i => prm_diag%umfl_s_t(:,:,isub_seaice)
+    tx%vmfl_s_w => prm_diag%vmfl_s_t(:,:,isub_water)
+    tx%vmfl_s_i => prm_diag%vmfl_s_t(:,:,isub_seaice)
+
+    tx%qhfl_s_w => prm_diag%qhfl_s_t(:,:,isub_water)
+    tx%qhfl_s_i => prm_diag%qhfl_s_t(:,:,isub_seaice)
+
+    tx%shfl_s_w => prm_diag%shfl_s_t(:,:,isub_water)
+    tx%shfl_s_i => prm_diag%shfl_s_t(:,:,isub_seaice)
+
+    tx%lhfl_s_w => prm_diag%lhfl_s_t(:,:,isub_water)
+    tx%lhfl_s_i => prm_diag%lhfl_s_t(:,:,isub_seaice)
+
+    tx%chfl_i => lnd_diag%condhf_ice(:,:)
+
+    tx%sp_10m => prm_diag%sp_10m(:,:)
+    tx%pres_sfc => pt_diag%pres_sfc(:,:)
+
+    tx%swflxsfc_w => prm_diag%swflxsfc_t(:,:,isub_water)
+    tx%swflxsfc_i => prm_diag%swflxsfc_t(:,:,isub_seaice)
+
+    tx%lwflxsfc_w => prm_diag%lwflxsfc_t(:,:,isub_water)
+    tx%lwflxsfc_i => prm_diag%lwflxsfc_t(:,:,isub_seaice)
+
+    tx%rain_rate => rain_rate(:,:)
+    tx%snow_rate => snow_rate(:,:)
+
+    tx%q_co2 => NULL()
+
+    ! Receive fields
+    ! 1. lnd_diag%t_seasfc (:,:)   SST [K]
+    ! 2. lnd_diag%fr_seaice(:,:)   Sea-ice fraction [m2(ice)/m2(ocean)]
+    ! 3. wtr_prog_new%h_ice(:,:)   Sea-ice height [m]
+
+    rx%t_seasfc => lnd_diag%t_seasfc(:,:)
+    rx%fr_seaice => lnd_diag%fr_seaice(:,:)
+    rx%h_ice => wtr_prog_new%h_ice(:,:)
+    rx%ocean_u => NULL()
+    rx%ocean_v => NULL()
+    rx%flx_co2 => NULL()
+
+    CALL couple_ocean(p_patch, ext_data%atm%list_sea, tx, rx, lacc)
+
+#endif /* ifndef YAC_coupling */
+  END SUBROUTINE nwp_couple_ocean
+
+
+  !>
+  !! SUBROUTINE couple_ocean -- the actual interface between
+  !! NWP physics and the ocean, through a coupler
+  !!
+  SUBROUTINE couple_ocean( p_patch, list_sea, tx, rx, lacc )
 
     ! Arguments
 
-    TYPE(t_patch),   TARGET, INTENT(INOUT)  :: p_patch
-    TYPE(t_nh_diag), TARGET, INTENT(INOUT)  :: pt_diag
-    TYPE(t_wtr_prog),        INTENT(INOUT)  :: wtr_prog_now, wtr_prog_new
-    TYPE(t_lnd_diag),        INTENT(INOUT)  :: lnd_diag
-    TYPE(t_nwp_phy_diag),    INTENT(INOUT)  :: prm_diag
-    TYPE(t_external_data),   INTENT(INOUT)  :: ext_data
+    TYPE(t_patch), INTENT(IN) :: p_patch
+    TYPE(t_idx_list_blocked), INTENT(IN) :: list_sea
+    TYPE(t_nwp_ocean_fields_tx), INTENT(IN) :: tx
+    TYPE(t_nwp_ocean_fields_rx), INTENT(INOUT) :: rx
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! Local variables
 
     LOGICAL               :: write_coupler_restart
-    INTEGER               :: nbr_hor_cells         ! inner points
     INTEGER               :: jg                    ! grid index
-    INTEGER               :: nn                    ! block offset
     INTEGER               :: jb                    ! block loop count
     INTEGER               :: jc                    ! nproma loop count
     INTEGER               :: ic                    ! nproma loop count
-    INTEGER               :: nlen                  ! nproma/npromz
     INTEGER               :: info, ierror          ! return values from cpl_put/get calls
-    INTEGER               :: no_arr                ! no of arrays in bundle for put/get calls
-    INTEGER               :: rl_start, rl_end
     INTEGER               :: i_startblk, i_endblk  ! blocks
     INTEGER               :: i_startidx, i_endidx  ! slices
-    INTEGER               :: ncount                ! buffer counter
+    INTEGER               :: n_cells               ! total number of cells
 
-    REAL(wp)              :: scr(nproma,p_patch%alloc_cell_blocks)
-    REAL(wp)              :: frac_oce(nproma,p_patch%alloc_cell_blocks)
-    REAL(wp)              :: buffer(nproma*p_patch%nblks_c,5) ! buffer transferred to YAC coupler
-    REAL (wp), PARAMETER  :: csmall = 1.0E-5_wp    ! small number (security constant)
+    REAL(wp), TARGET      :: buf(nproma, p_patch%nblks_c)
+#ifdef YAC_coupling
+    TYPE(yac_r8_ptr)      :: ptrs(1,4)
+#endif
 
-    CALL assert_acc_host_only('nwp_couple_ocean', lacc)
+    REAL(wp), PARAMETER   :: csmall = 1.0E-5_wp    ! small number (security constant)
+
+    REAL(wp) :: co2conc
+
+    CALL assert_acc_host_only('couple_ocean', lacc)
 
 #ifndef YAC_coupling
-    CALL finish('nwp_couple_ocean: unintentionally called. Check your source code and configure.')
+    CALL finish('couple_ocean: unintentionally called. Check your source code and configure.')
 #else
 
     ! As YAC does not touch masked data an explicit initialisation with zero
     ! is required as some compilers are asked to initialise with NaN
     ! and as we loop over the full array.
 
-!$OMP PARALLEL
-    CALL init(buffer(:,:))
-!$OMP END PARALLEL
+    !$OMP PARALLEL
+    CALL init(buf(:,:))
+    !$OMP END PARALLEL
 
     jg = p_patch%id
 
-    ! include boundary interpolation zone of nested domains and halo points
-    rl_start = 1
-    rl_end   = min_rlcell
+    n_cells = nproma * p_patch%nblks_c
 
-    i_startblk = p_patch%cells%start_block(rl_start)
-    i_endblk   = p_patch%cells%end_block(rl_end)
-
-    nbr_hor_cells = p_patch%n_patch_cells
+    i_startblk = p_patch%cells%start_block(start_prog_cells)
+    i_endblk   = p_patch%cells%end_block(end_prog_cells)
 
     !-------------------------------------------------------------------------
-    ! If running in atm-oce coupled mode, exchange information 
-    !-------------------------------------------------------------------------
-    !
-    ! Possible fields that contain information to be sent to the ocean include
-    !
-    ! 1. prm_diag%umfl_s_t(:,:,:)                       zonal resolved surface stress and  [N/m2] 
-    ! 2. prm_diag%vmfl_s_t(:,:,:)                       meridional resolved surface stress [N/m2]
-    !
-    ! 3. prm_diag%rain_con_rate(:,:)                    convective surface rain rate    [kg/m2/s]
-    !    prm_diag%rain_gsp_rate(:,:)                    grid-scale surface rain rate    [kg/m2/s]
-    !
-    !    prm_diag%snow_con_rate(:,:)                    convective surface snow_rate    [kg/m2/s]
-    !    prm_diag%snow_gsp_rate    (:,:)                grid_scale surface snow rate    [kg/m2/s]
-    !    prm_diag%ice_gsp_rate     (:,:)                grid_scale surface ice rate     [kg/m2/s]
-    !    prm_diag%graupel_gsp_rate (:,:)                grid_scale surface graupel rate [kg/m2/s]
-    !    prm_diag%hail_gsp_rate    (:,:)                grid_scale surface hail rate    [kg/m2/s]
-    !
-    !    prm_diag%qhfl_s_t(:,:,isub_water/isub_seaice)  moisture flux (surface) aka evaporation rate at surface [Kg/m2/s]
-    !
-    ! 4. prm_diag%swflxsfc_t (:,:,:)                    tile-based shortwave net flux at surface [W/m2]
-    !    prm_diag%lwflxsfc_t (:,:,:)                    tile-based longwave net flux at surface  [W/m2]
-    !    prm_diag%shfl_s_t   (:,:,:)                    tile-based sensible heat flux at surface [W/m2]
-    !    prm_diag%lhfl_s_t   (:,:,:)                    tile-based latent   heat flux at surface [W/m2]
-    !
-    ! Possible fields to receive from the ocean include
-    !
-    ! 1. lnd_diag%t_seasfc     (:,:)   SST
-    !    ... tbc
-    !
-    !
     !  Send fields to ocean:
     !   field_id(1)  represents "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
     !   field_id(2)  represents "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
@@ -205,680 +378,450 @@ CONTAINS
     !
     !-------------------------------------------------------------------------
 
+    IF (.NOT. (SIZE(tx%umfl_s_w, 1) == nproma .AND. SIZE(tx%umfl_s_w, 2) >= p_patch%nblks_c)) THEN
+      CALL finish ('couple_ocean', 'first field extent must be nproma and &
+          &field size has to be at least nproma*nblocks_c')
+    END IF
 
-!  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
-!  Send fields from atmosphere to ocean
-!  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
+
+    !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
+    !  Send fields from atmosphere to ocean
+    !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
 
     write_coupler_restart = .FALSE.
 
-    ! Calculate fractional ocean mask 
-    ! evaporation over ice-free and ice-covered water fraction, of whole ocean part, without land part
-    !  - lake part is included in land part, must be subtracted as well
-    IF ( mask_checksum > 0 ) THEN
+    !------------------------------------------------
+    !  Send zonal wind stress bundle
+    !    field_id(1) represents "surface_downward_eastward_stress" bundle
+    !    - zonal wind stress component over ice and water
+    !------------------------------------------------
 
-      DO jb = i_startblk, i_endblk  
-        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                         & i_startidx, i_endidx, rl_start, rl_end)  
-        DO jc = i_startidx, i_endidx
-          IF ( lseaice ) THEN
-            frac_oce(jc,jb) = ext_data%atm%frac_t(jc,jb,isub_water)+ ext_data%atm%frac_t(jc,jb,isub_seaice) ! sea ice
-          ELSE
-            frac_oce(jc,jb) = ext_data%atm%frac_t(jc,jb,isub_water)                                         ! open sea
-          END IF
-        ENDDO
-      ENDDO
-
-    ELSE
-
-      DO jb = i_startblk, i_endblk  
-        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-          & i_startidx, i_endidx, rl_start, rl_end)  
-        DO jc = i_startidx, i_endidx
-          frac_oce(jc,jb) = 1.0
-        ENDDO
-      ENDDO
-
-    ENDIF
-
-
-!------------------------------------------------
-!  Send zonal wind stress bundle
-!    field_id(1) represents "surface_downward_eastward_stress" bundle 
-!    - zonal wind stress component over ice and water
-!------------------------------------------------
-
-    ncount = 0
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        buffer(ncount,1) = prm_diag%umfl_s_t(jc,jb,isub_water)      ! open sea
-        buffer(ncount,2) = prm_diag%umfl_s_t(jc,jb,isub_seaice)     ! sea ice
-      ENDDO
-    ENDDO
-
-!  The nwp_ocean_interface and YAC has not yet been adapted for nested ICON setups.  
-!  It only works for global configuations.
-    IF (ncount /= nbr_hor_cells) THEN
-      WRITE(*,*) 'ncount, nbr_hor_cells', ncount, nbr_hor_cells
-      CALL finish (TRIM(str_module), 'unequal ncount and nbr_hor_cells')
-    ENDIF
+    ptrs(1,1)%p(1:n_cells) => tx%umfl_s_w
+    ptrs(1,2)%p(1:n_cells) => tx%umfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 2
-    CALL yac_fput ( field_id(1), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         CALL warning('nwp_couple_ocean', &
-                      'YAC says fput called after end of run - id=1, u-stress')
-
+    CALL put_ (CPF_UMFL, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
+    CALL check_ ('id=1, u-stress', info, ierror)
 
-!------------------------------------------------
-!  Send meridional wind stress bundle
-!    field_id(2) represents "surface_downward_northward_stress" bundle 
-!    - meridional wind stress component over ice and water
-!------------------------------------------------
+    !------------------------------------------------
+    !  Send meridional wind stress bundle
+    !    field_id(2) represents "surface_downward_northward_stress" bundle
+    !    - meridional wind stress component over ice and water
+    !------------------------------------------------
 
-    ncount = 0
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        buffer(ncount,1) = prm_diag%vmfl_s_t(jc,jb,isub_water)      ! open sea
-        buffer(ncount,2) = prm_diag%vmfl_s_t(jc,jb,isub_seaice)     ! sea ice 
-      ENDDO
-    ENDDO
+    ptrs(1,1)%p(1:n_cells) => tx%vmfl_s_w
+    ptrs(1,2)%p(1:n_cells) => tx%vmfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 2
-    CALL yac_fput ( field_id(2), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', &
-                        'YAC says fput called after end of run - id=2, v-stress')
-
+    CALL put_ (CPF_VMFL, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
+    CALL check_ ('id=2, v-stress', info, ierror)
 
-!------------------------------------------------
-!  Send surface fresh water flux bundle
-!    field_id(3) represents "surface_fresh_water_flux" bundle 
-!    - liquid rain, snowfall, evaporation
-!
-!    Note: the evap_tile should be properly updated and added;
-!          as long as evaporation over sea-ice is not used in ocean thermodynamics, the evaporation over the
-!          whole ocean part of grid-cell is passed to the ocean
-!          for pre04 a preliminary solution for evaporation in ocean model is to exclude the land fraction
-!          evap.oce = (evap.wtr*frac.wtr + evap.ice*frac.ice)/(1-frac.lnd)
-!------------------------------------------------
+    !------------------------------------------------
+    !  Send surface fresh water flux bundle
+    !    field_id(3) represents "surface_fresh_water_flux" bundle
+    !    - liquid rain, snowfall, evaporation
+    !
+    !    Note: the evap_tile should be properly updated and added;
+    !          as long as evaporation over sea-ice is not used in ocean thermodynamics, the evaporation over the
+    !          whole ocean part of grid-cell is passed to the ocean
+    !          for pre04 a preliminary solution for evaporation in ocean model is to exclude the land fraction
+    !          evap.oce = (evap.wtr*frac.wtr + evap.ice*frac.ice)/(1-frac.lnd)
+    !------------------------------------------------
 
-    IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
-      scr(:,:) = 0.0_wp
-
-    ncount = 0
     DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-    
-        ! total rates of rain and snow over whole cell
-        buffer(ncount,1) = prm_diag%rain_con_rate(jc,jb) + prm_diag%rain_gsp_rate   (jc,jb)
-        buffer(ncount,2) = prm_diag%snow_con_rate(jc,jb) + prm_diag%snow_gsp_rate   (jc,jb)!+ &
-!             &            prm_diag%hail_gsp_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb) + &  ! when available
-!             &            prm_diag%ice_gsp_rate (jc,jb)                                         ! when available
+      CALL get_indices_c ( &
+          & p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
+          & start_prog_cells, end_prog_cells &
+        )
 
+      DO jc = i_startidx, i_endidx
         ! evaporation over ice-free and ice-covered water fraction, of whole ocean part, without land part
-        IF (frac_oce(jc,jb) <= 0.0_wp) THEN
+        IF (tx%frac_w(jc,jb) + tx%frac_i(jc,jb) <= 0.0_wp) THEN
           ! ocean part is zero
-          buffer(ncount,3) = 0.0_wp
-        ELSE  ! attention: this will underestimate fluxes for fractional coast
-          buffer(ncount,3) = prm_diag%qhfl_s_t(jc,jb,isub_water)  * ext_data%atm%frac_t(jc,jb,isub_water) + &
-            &                prm_diag%qhfl_s_t(jc,jb,isub_seaice) * ext_data%atm%frac_t(jc,jb,isub_seaice)
+          buf(jc,jb) = 0.0_wp
+        ELSE
+          buf(jc,jb) = tx%qhfl_s_w(jc,jb) * tx%frac_w(jc,jb) / (tx%frac_w(jc,jb) + tx%frac_i(jc,jb)) + &
+            &          tx%qhfl_s_i(jc,jb) * tx%frac_i(jc,jb) / (tx%frac_w(jc,jb) + tx%frac_i(jc,jb))
         ENDIF
-        IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) scr(jc,jb) = buffer(ncount,3)
       ENDDO
     ENDDO
 
-    IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
-      &  CALL dbg_print('NWPOce: evapo-cpl',scr,str_module,3,in_subset=p_patch%cells%owned)
+    IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) THEN
+      CALL dbg_print('NWPOce: evapo-cpl', buf, str_module, 3, in_subset=p_patch%cells%owned)
+    END IF
+
+    ptrs(1,1)%p(1:n_cells) => tx%rain_rate
+    ptrs(1,2)%p(1:n_cells) => tx%snow_rate
+    ptrs(1,3)%p(1:n_cells) => buf
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 3
-    CALL yac_fput ( field_id(3), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-      CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=3, fresh water flux')
-
+    CALL put_ (CPF_FRESHFLX, ptrs(:,1:3), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
+    CALL check_ ('id=3, fresh water flux', info, ierror)
 
-!------------------------------------------------
-!  Send total heat flux bundle
-!    field_id(4) represents "total heat flux" bundle 
-!    - short wave, long wave, sensible, latent heat flux
-!------------------------------------------------
+    !------------------------------------------------
+    !  Send total heat flux bundle
+    !    field_id(4) represents "total heat flux" bundle
+    !    - short wave, long wave, sensible, latent heat flux
+    !------------------------------------------------
 
-    ncount = 0
+    ptrs(1,1)%p(1:n_cells) => tx%swflxsfc_w
+    ptrs(1,2)%p(1:n_cells) => tx%lwflxsfc_w
+    ptrs(1,3)%p(1:n_cells) => tx%shfl_s_w
+    ptrs(1,4)%p(1:n_cells) => tx%lhfl_s_w
+
+    IF (ltimer) CALL timer_start(timer_coupling_put)
+    CALL put_ (CPF_HEATFLX, ptrs(:,1:4), info=info, ierror=ierror)
+    IF (ltimer) CALL timer_stop(timer_coupling_put)
+
+    CALL check_ ('id=4, heat flux', info, ierror)
+
+    !------------------------------------------------
+    !  Send sea ice flux bundle
+    !    field_id(5) represents "atmosphere_sea_ice_bundle"
+    !    - sea ice surface and bottom melt potentials Qtop, Qbot (conductive heat flux)
+    !------------------------------------------------
+
     DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
+      CALL get_indices_c ( &
+          & p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
+          & start_prog_cells, end_prog_cells &
+        )
+
       DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        buffer(ncount,1) = prm_diag%swflxsfc_t (jc,jb,isub_water)
-        buffer(ncount,2) = prm_diag%lwflxsfc_t (jc,jb,isub_water)
-        buffer(ncount,3) = prm_diag%shfl_s_t   (jc,jb,isub_water)
-        buffer(ncount,4) = prm_diag%lhfl_s_t   (jc,jb,isub_water)
+        buf(jc,jb) = tx%shfl_s_i(jc,jb) + tx%swflxsfc_i(jc,jb) &
+                 & + tx%lhfl_s_i(jc,jb) + tx%lwflxsfc_i(jc,jb)
       ENDDO
     ENDDO
 
-    IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 4
-    CALL yac_fput ( field_id(4), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         CALL warning('nwp_couple_ocean', &
-                      'YAC says fput called after end of run - id=4, heat flux')
-
-    IF (ltimer) CALL timer_stop(timer_coupling_put)
-
-
-!------------------------------------------------
-!  Send sea ice flux bundle
-!    field_id(5) represents "atmosphere_sea_ice_bundle" 
-!    - sea ice surface and bottom melt potentials Qtop, Qbot (conductive heat flux)
-!------------------------------------------------
-
-    ncount = 0
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        buffer(ncount,1) = prm_diag%shfl_s_t(jc,jb,isub_seaice) + prm_diag%swflxsfc_t(jc,jb,isub_seaice) &
-                       & + prm_diag%lhfl_s_t(jc,jb,isub_seaice) + prm_diag%lwflxsfc_t(jc,jb,isub_seaice) 
-        buffer(ncount,2) = lnd_diag%condhf_ice(jc,jb)  !  melt potential via conductive heat flux at bottom of sea-ice
-      ENDDO
-    ENDDO
+    ptrs(1,1)%p(1:n_cells) => buf
+    ptrs(1,2)%p(1:n_cells) => tx%chfl_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 2
-    CALL yac_fput ( field_id(5), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
-    IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
-      CALL warning('nwp_couple_ocean', &
-                   'YAC says fput called after end of run - id=5, atmos sea ice')
-
+    CALL put_ (CPF_SEAICE_ATM, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
-    IF ( write_coupler_restart ) THEN
-      CALL message('nwp_couple_ocean', 'YAC says it is put for restart - ids 1 to 5, atmosphere fields')
-    ENDIF
+    CALL check_ ('id=5, atmos sea ice', info, ierror)
 
+    !------------------------------------------------
+    !  Send 10m wind speed
+    !    field_id(10) represents "10m_wind_speed"
+    !    - atmospheric wind speed
+    !------------------------------------------------
 
-!------------------------------------------------
-!  Send 10m wind speed
-!    field_id(10) represents "10m_wind_speed" 
-!    - atmospheric wind speed
-!------------------------------------------------
-
-    ncount = 0
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        ! attention: using the grid-point mean of 10m wind instead of ocean wind
-        buffer(ncount,1) = prm_diag%sp_10m(jc,jb)
-       ENDDO
-    ENDDO
+    ptrs(1,1)%p(1:n_cells) => tx%sp_10m
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 1
-    CALL yac_fput ( field_id(10), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-      write_coupler_restart = .TRUE.
-    ELSE
-      write_coupler_restart = .FALSE.
-    ENDIF
-
-    IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
-       CALL warning('nwp_couple_ocean', &
-                    'YAC says fput called after end of run - id=10, wind speed')
-
+    CALL put_ (CPF_SP10M, ptrs(:,1:1), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
-    IF ( write_coupler_restart ) THEN
-      CALL message('nwp_couple_ocean', 'YAC says it is put for restart - ids 10, wind speed')
-    ENDIF
+    CALL check_ ('id=10, wind speed', info, ierror)
 
+    !------------------------------------------------
+    !  Send sea level pressure
+    !    field_id(13) represents "pres_msl"
+    !    - atmospheric sea level pressure
+    !    - pres_sfc is used insted of pres_msl because
+    !      * it is available at each fast physics timestep
+    !      * it calculated the hydrostatic surface pressure with less noise
+    !------------------------------------------------
 
-!------------------------------------------------
-!  Send sea level pressure
-!    field_id(13) represents "pres_msl" 
-!    - atmospheric sea level pressure
-!    - pres_sfc is used insted of pres_msl because
-!      * it is available at each fast physics timestep
-!      * it calculated the hydrostatic surface pressure with less noise
-!------------------------------------------------
-
-    ncount = 0
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                       & i_startidx, i_endidx, rl_start, rl_end)
-      DO jc = i_startidx, i_endidx
-        ncount = ncount + 1
-        buffer(ncount,1) = pt_diag%pres_sfc(jc,jb)
-       ENDDO
-    ENDDO
+    ptrs(1,1)%p(1:n_cells) => tx%pres_sfc
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-
-    no_arr = 1
-    CALL yac_fput ( field_id(13), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-       write_coupler_restart = .TRUE.
-    ELSE
-       write_coupler_restart = .FALSE.
-    ENDIF
-
-    IF ( info == YAC_ACTION_OUT_OF_BOUND )   &
-       & CALL warning('nwp_couple_ocean', &
-       &              'YAC says fput called after end of run - id=13, sea level pressure')
-
+    CALL put_ (CPF_PRES_MSL, ptrs(:,1:1), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
-    IF ( write_coupler_restart ) THEN
-       CALL message('nwp_couple_ocean', 'YAC says it is put for restart - ids 13, sea level pressure')
-    ENDIF
+    CALL check_ ('id=13, sea level pressure', info, ierror)
 
-
-!------------------------------------------------
-!  Send co2 mixing ratio
-!    field_id(11) represents "co2_mixing_ratio" 
-!    - CO2 mixing ratio in ppmv
-!------------------------------------------------
+    !------------------------------------------------
+    !  Send co2 mixing ratio
+    !    field_id(11) represents "co2_mixing_ratio"
+    !    - CO2 mixing ratio in ppmv
+    !------------------------------------------------
 
 #ifndef __NO_ICON_OCEAN__
-    IF (ccycle_config(jg)%iccycle /= 0) THEN
+    IF (ccycle_config(jg)%iccycle /= CCYCLE_MODE_NONE) THEN
 
-      ncount = 0
-      DO jb = i_startblk, i_endblk
-        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
-                         & i_startidx, i_endidx, rl_start, rl_end)
+      IF (ccycle_config(jg)%iccycle == CCYCLE_MODE_INTERACTIVE .AND. .NOT. ASSOCIATED(tx%q_co2)) THEN
+        CALL finish('nwp_couple_ocean', 'Interactive carbon cycle is active but no CO2 concentration passed.')
+      END IF
 
-        SELECT CASE (ccycle_config(jg)%iccycle)
-        CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc in kg/kg
+      SELECT CASE (ccycle_config(jg)%iccycle)
+
+      CASE (CCYCLE_MODE_INTERACTIVE)
+        DO jb = i_startblk, i_endblk
+          CALL get_indices_c ( &
+              & p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
+              & start_prog_cells, end_prog_cells &
+            )
           DO jc = i_startidx, i_endidx
-            ncount = ncount + 1
-!ECHAM      buffer(ncount,1)     =  1.0e6_wp * prm_field(jg)%qtrc(n,nlev,i_blk,ico2) / vmr_to_mmr_co2
-!NWP:  prognostic CO2 not yet available in NWP physics
-            buffer(ncount,1)    =  0.0_wp
+            buf(jc,jb) = 1.0e6_wp * tx%q_co2(jc,jb) / vmr_to_mmr_co2
           END DO
-        CASE (2) ! c-cycle with prescribed  atm. co2 concentration
-          SELECT CASE (ccycle_config(jg)%ico2conc)
-          CASE (2) ! constant  co2 concentration, vmr_co2 in m3/m3
-            DO jc = i_startidx, i_endidx
-              ncount = ncount + 1
-              buffer(ncount,1) = 1.0e6_wp * ccycle_config(jg)%vmr_co2
-            END DO
-          CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
-            DO jc = i_startidx, i_endidx
-              ncount = ncount + 1
-              buffer(ncount,1) = 1.0e6_wp * ghg_co2mmr / vmr_to_mmr_co2
-            END DO
-          END SELECT
+        END DO
+
+      CASE (CCYCLE_MODE_PRESCRIBED)
+        SELECT CASE (ccycle_config(jg)%ico2conc)
+        CASE (CCYCLE_CO2CONC_CONST)
+          co2conc = 1e6_wp * ccycle_config(jg)%vmr_co2
+        CASE (CCYCLE_CO2CONC_FROMFILE)
+          co2conc = 1e6_wp * ghg_co2mmr / vmr_to_mmr_co2
+        CASE DEFAULT
+          co2conc = 0._wp
+          CALL finish('nwp_couple_ocean', 'unknown value of ccycle_config(jg)%ico2conc')
         END SELECT
 
-      ENDDO
+        DO jb = i_startblk, i_endblk
+          CALL get_indices_c ( &
+              & p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
+              & start_prog_cells, end_prog_cells &
+            )
+          DO jc = i_startidx, i_endidx
+            buf(jc,jb) = co2conc
+          END DO
+        END DO
+
+      END SELECT
+
+      ptrs(1,1)%p(1:n_cells) => buf
 
       IF (ltimer) CALL timer_start(timer_coupling_put)
-
-      no_arr = 1
-      CALL yac_fput ( field_id(11), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-        write_coupler_restart = .TRUE.
-      ELSE
-        write_coupler_restart = .FALSE.
-      ENDIF
-
-      IF ( info == YAC_ACTION_OUT_OF_BOUND )  &
-         & CALL warning('nwp_couple_ocean', 'YAC says fput called after end of run - id=11, co2 mr')
-
+      CALL put_ (CPF_CO2_VMR, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_put)
 
-      IF ( write_coupler_restart ) THEN
-        CALL message('nwp_couple_ocean', 'YAC says it is put for restart - id=11, co2 mr')
-      ENDIF
+      CALL check_ ('id=11, co2 vmr', info, ierror)
 
     ENDIF
-#endif
+#endif /* ifndef __NO_ICON_OCEAN__ */
 
 
-!  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
-!  Receive fields from ocean to atmosphere
-!  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
-!
-!  Receive fields, only assign values if something was received ( info > 0 )
-!   - ocean fields have undefined values on land, which are not sent to the atmosphere,
-!     therefore buffer is set to zero to avoid unintended usage of ocean values over land
+    !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
+    !  Receive fields from ocean to atmosphere
+    !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
+    !
+    !  Receive fields, only assign values if something was received ( info > 0 )
+    !   - ocean fields have undefined values on land, which are not sent to the atmosphere,
+    !     therefore buffer is set to zero to avoid unintended usage of ocean values over land
 
-    !buffer(:,:) = 0.0_wp
-!$OMP PARALLEL
-    CALL init(buffer(:,:))
-!$OMP END PARALLEL
+    !$OMP PARALLEL
+    CALL init(buf(:,:))
+    !$OMP END PARALLEL
 
-    ! exclude nest boundary and halo points
-    rl_start   = grf_bdywidth_c+1          
-    rl_end     = min_rlcell_int
+    !------------------------------------------------
+    !  Receive SST
+    !    field_id(6) represents "sea_surface_temperature"
+    !    - SST
+    !------------------------------------------------
 
-    i_startblk = p_patch%cells%start_block(rl_start)
-    i_endblk   = p_patch%cells%end_block(rl_end)
-
-
-!------------------------------------------------
-!  Receive SST
-!    field_id(6) represents "sea_surface_temperature" 
-!    - SST
-!------------------------------------------------
-
-    IF ( .NOT. lyac_very_1st_get ) THEN
-      IF (ltimer) CALL timer_start(timer_coupling_1stget)
+    IF (ltimer .AND. .NOT. lyac_very_1st_get) THEN
+      CALL timer_start(timer_coupling_1stget)
     ENDIF
 
-    CALL yac_fget ( field_id(6), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=6, SST')
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=6, SST')
+    ptrs(1,1)%p(1:n_cells) => rx%t_seasfc
 
-    IF ( .NOT. lyac_very_1st_get ) THEN
-       IF (ltimer) CALL timer_stop(timer_coupling_1stget)
+    CALL get_ (CPF_SST, ptrs(:,1:1), info=info, ierror=ierror)
+
+    IF (ltimer .AND. .NOT. lyac_very_1st_get) THEN
+      CALL timer_stop(timer_coupling_1stget)
     ENDIF
+
+    CALL check_ ('id=6, sst', info, ierror)
 
     lyac_very_1st_get = .FALSE.
 
-    IF ( info > 0 .AND. info < 7 ) THEN
+    !------------------------------------------------
+    !  Receive zonal velocity
+    !    field_id(7) represents "eastward_sea_water_velocity"
+    !    - zonal velocity, u component of ocean surface current
+    !    RR: not used in NWP so far, not activated for exchange in coupling.xml
+    !------------------------------------------------
 
-      ! new lists are calculated in process_sst_and_seaice in mo_nwp_sfc_utils.f90
-
-      scr(:,:) = 270.0_wp                                             ! value over land - for dbg_print only
-
-      DO jb = i_startblk, i_endblk
-        nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-
-        DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
-          jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
-
-          lnd_diag%t_seasfc(jc,jb) = buffer(nn+jc,1)
-
-          !  for dbg_print only
-          IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) THEN
-            scr(jc,jb) = buffer(nn+jc,1)
-          ENDIF
-
-        END DO
-      ENDDO
-
-      IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
-        &  CALL dbg_print('NWPOce: SSToce-cpl',scr,str_module,3,in_subset=p_patch%cells%owned)
-
-      CALL sync_patch_array(sync_c, p_patch, lnd_diag%t_seasfc(:,:) )
-
-    END IF
-
-
-!------------------------------------------------
-!  Receive zonal velocity
-!    field_id(7) represents "eastward_sea_water_velocity" 
-!    - zonal velocity, u component of ocean surface current
-!    RR: not used in NWP so far, not activated for exchange in coupling.xml
-!------------------------------------------------
-
-    IF (ltimer) CALL timer_start(timer_coupling_get)
-    CALL yac_fget ( field_id(7), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=7, u velocity')
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=7, u velocity')
-    IF (ltimer) CALL timer_stop(timer_coupling_get)
-
-!--- no ocean current in turbtran yet
-!     IF ( info > 0 .AND. info < 7 ) THEN
-! !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-!       DO jb = i_startblk, i_endblk
-!         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-!         DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
-!           jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
-!          !ECHAM  prm_field(jg)%ocu(n,i_blk) = buffer(nn+jc,1)
-!          !NWP: no ocean current in turbtran yet
-!         END DO
-!       ENDDO
-! !ICON_OMP_END_PARALLEL_DO
-!       !ECHAM CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocu(:,:))
-!       !NWP: no ocean current in turbtran yet
-!     END IF
-
-
-!------------------------------------------------
-!  Receive meridional velocity
-!    field_id(8) represents "northward_sea_water_velocity" 
-!    - meridional velocity, v component of ocean surface current
-!    RR: not used in NWP so far, not activated for exchange in coupling.xml
-!------------------------------------------------
-
-    IF (ltimer) CALL timer_start(timer_coupling_get)
-    CALL yac_fget ( field_id(8), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=8, v velocity')
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=8, v velocity')
-    IF (ltimer) CALL timer_stop(timer_coupling_get)
-
-!--- no ocean current in turbtran yet
-!     IF ( info > 0 .AND. info < 7 ) THEN
-! !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-!       DO jb = i_startblk, i_endblk
-!         nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-!         DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
-!           jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
-!          !ECHAM  prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
-!          !NWP: no ocean current in turbtran yet
-!         END DO
-!       ENDDO
-! !ICON_OMP_END_PARALLEL_DO
-!       !ECHAM CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocv(:,:))
-!       !NWP: no ocean current in turbtran yet
-!     END IF
-
-
-!------------------------------------------------
-!  Receive sea ice bundle
-!    field_id(9) represents "ocean_sea_ice_bundle" 
-!    - ice thickness, snow thickness, ice concentration
-!------------------------------------------------
-
-    IF (ltimer) CALL timer_start(timer_coupling_get)
-
-    no_arr = 3
-    CALL yac_fget ( field_id(9), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
-    IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=9, sea ice')
-    IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
-         & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=9, sea ice')
-
-    IF (ltimer) CALL timer_stop(timer_coupling_get)
-
-    IF ( info > 0 .AND. info < 7 ) THEN
-
-! --- Here we loop only over ocean points, because fr_seaice and h_ice are also used for oceans and lakes.
-
-      DO jb = i_startblk, i_endblk
-        nn = (jb-1)*nproma                                            ! translation to 1-d buffer fields
-
-        DO ic = 1, ext_data%atm%list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
-          jc = ext_data%atm%list_sea%idx(ic,jb)                       ! index list of ocean points
-          lnd_diag%fr_seaice    (jc,jb) = buffer(nn+jc,3) 
-          wtr_prog_new%h_ice    (jc,jb) = buffer(nn+jc,1)             ! overwrite new ice thickness only
-! --- Limiting h_ice from ocean to hice_max used in atmospheric sea-ice.  Note that the ocean uses 
-!     seaice_limit*dzlev_m(1), a fractional thickness of the ocean top layer.  The user is responsible
-! --- for consistency of these three namelist parameters.  There is no ocean/atmo consistency check in ICON. 
-          wtr_prog_new%h_ice    (jc,jb) = MIN (wtr_prog_new%h_ice(jc,jb), hice_max-csmall)
-!         wtr_prog_now%h_ice    (jc,jb) = buffer(nn+jc,1)
-!         wtr_prog_now%h_snow_si(jc,jb) = buffer(nn+jc,2)             ! Dmitrii's seaice doesn't do snow.
-!         wtr_prog_new%h_snow_si(jc,jb) = buffer(nn+jc,2)             ! ...
-        END DO
-
-      ENDDO
-
-      CALL sync_patch_array(sync_c, p_patch, lnd_diag%fr_seaice    (:,:) ) 
-      CALL sync_patch_array(sync_c, p_patch, wtr_prog_new%h_ice    (:,:) )
-!     CALL sync_patch_array(sync_c, p_patch, wtr_prog_now%h_ice    (:,:) )
-!     CALL sync_patch_array(sync_c, p_patch, wtr_prog_now%h_snow_si(:,:) )
-!     CALL sync_patch_array(sync_c, p_patch, wtr_prog_new%h_snow_si(:,:) )
-
-    END IF
-
-
-!------------------------------------------------
-!  Receive co2 flux
-!    field_id(12) represents "co2_flux" 
-!    - ocean co2 flux
-!------------------------------------------------
-
-    IF (ccycle_config(jg)%iccycle /= 0) THEN
+    IF (ASSOCIATED(rx%ocean_u)) THEN
+      ptrs(1,1)%p(1:n_cells) => rx%ocean_u
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
-
-      ! needs to be checked if this is necessary
-!$OMP PARALLEL
-      CALL init(buffer(:,:))
-!$OMP END PARALLEL
-
-      CALL yac_fget ( field_id(12), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
-      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
-           & CALL message('nwp_couple_ocean', 'YAC says it is get for restart - id=12, CO2 flux')
-      IF ( info == YAC_ACTION_OUT_OF_BOUND )                      &
-           & CALL warning('nwp_couple_ocean', 'YAC says fget called after end of run - id=12, CO2 flux')
-
+      CALL get_ (CPF_OCE_U, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_get)
 
-!--- no prognostic CO2 in NWP physics
-!       IF ( info > 0 .AND. info < 7 ) THEN
-! ! deactivate !ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
-!         DO jb = 1, p_patch%nblks_c
-!           nn = (jb-1)*nproma
-!           IF (jb /= p_patch%nblks_c) THEN
-!             nlen = nproma
-!           ELSE
-!             nlen = p_patch%npromz_c
-!           END IF
-!           DO jc = 1, nlen
-!             IF ( nn+jc > nbr_inner_cells ) THEN
-!               !ECHAM  prm_field(jg)%co2_flux_tile(n,i_blk,iwtr) = 0.0_wp
-!               !NWP: no prognostic CO2 in NWP physics
-!             ELSE
-!               !ECHAM  prm_field(jg)%co2_flux_tile(n,i_blk,iwtr) = buffer(nn+jc,1)
-!               !NWP: no prognostic CO2 in NWP physics
-!             ENDIF
-!           ENDDO
-!         ENDDO
-! ! deactivate !ICON_OMP_END_PARALLEL_DO
-!         !ECHAM  CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%co2_flux_tile(:,:,iwtr))
-!         !NWP: no prognostic CO2 in NWP physics
-!       ENDIF
+      CALL check_ ('id=7, u velocity', info, ierror)
+    END IF
+
+    !------------------------------------------------
+    !  Receive meridional velocity
+    !    field_id(8) represents "northward_sea_water_velocity"
+    !    - meridional velocity, v component of ocean surface current
+    !    RR: not used in NWP so far, not activated for exchange in coupling.xml
+    !------------------------------------------------
+
+    IF (ASSOCIATED(rx%ocean_v)) THEN
+      ptrs(1,1)%p(1:n_cells) => rx%ocean_v
+
+      IF (ltimer) CALL timer_start(timer_coupling_get)
+      CALL get_ (CPF_OCE_V, ptrs(:,1:1), info=info, ierror=ierror)
+      IF (ltimer) CALL timer_stop(timer_coupling_get)
+
+      CALL check_ ('id=8, u velocity', info, ierror)
+    END IF
+
+    !------------------------------------------------
+    !  Receive sea ice bundle
+    !    field_id(9) represents "ocean_sea_ice_bundle"
+    !    - ice thickness, snow thickness, ice concentration
+    !------------------------------------------------
+
+    ptrs(1,1)%p(1:n_cells) => rx%h_ice
+    ptrs(1,2)%p(1:n_cells) => buf ! unused snow thickness
+    ptrs(1,3)%p(1:n_cells) => rx%fr_seaice
+
+    IF (ltimer) CALL timer_start(timer_coupling_get)
+    CALL get_ (CPF_SEAICE_OCE, ptrs(:,1:3), info=info, ierror=ierror)
+    IF (ltimer) CALL timer_stop(timer_coupling_get)
+
+    CALL check_ ('id=9, sea ice', info, ierror)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+
+      ! --- Here we loop only over ocean points, because h_ice is used by both oceans and lakes.
+
+      DO jb = i_startblk, i_endblk
+!$NEC ivdep
+        DO ic = 1, list_sea%ncount(jb)                   ! number of ocean points (open water & sea ice)
+          jc = list_sea%idx(ic,jb)                       ! index list of ocean points
+          ! --- Limiting h_ice from ocean to hice_max used in atmospheric sea-ice.  Note that the ocean uses
+          !     seaice_limit*dzlev_m(1), a fractional thickness of the ocean top layer.  The user is responsible
+          ! --- for consistency of these three namelist parameters.  There is no ocean/atmo consistency check in ICON.
+          rx%h_ice(jc,jb) = MIN (rx%h_ice(jc,jb), hice_max-csmall)
+        END DO
+
+      ENDDO
 
     END IF
 
 
-!---------DEBUG DIAGNOSTICS-------------------------------------------
+    !------------------------------------------------
+    !  Receive co2 flux
+    !    field_id(12) represents "co2_flux"
+    !    - ocean co2 flux
+    !------------------------------------------------
 
-    ! calculations for debug print output for namelist debug-values >0 only
+    IF (ccycle_config(jg)%iccycle /= CCYCLE_MODE_NONE .AND. ASSOCIATED(rx%flx_co2)) THEN
+
+      ptrs(1,1)%p(1:n_cells) => rx%flx_co2
+
+      IF (ltimer) CALL timer_start(timer_coupling_get)
+      CALL get_ (CPF_CO2_FLX, ptrs(:,1:1), info=info, ierror=ierror)
+      IF (ltimer) CALL timer_stop(timer_coupling_get)
+
+      CALL check_ ('id=12, CO2 flux', info, ierror)
+
+    END IF
+
+    !------------------------------------------------
+    ! Debug outputs
+    !------------------------------------------------
     IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) THEN
+      CALL dbg_print('NWPOce: u_stress wtr', tx%umfl_s_w(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: u_stress ice', tx%umfl_s_i(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: v_stress wtr', tx%vmfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: v_stress ice', tx%vmfl_s_i(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: sp_10m      ', tx%sp_10m(:,:), str_module, 3, in_subset=p_patch%cells%owned)
 
-      ! u/v-stress on ice and water
-      CALL dbg_print('NWPOce: u_stress wtr',prm_diag%umfl_s_t(:,:,isub_water) ,str_module,3,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: u_stress ice',prm_diag%umfl_s_t(:,:,isub_seaice),str_module,3,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: v_stress wtr',prm_diag%vmfl_s_t(:,:,isub_water) ,str_module,4,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: v_stress ice',prm_diag%vmfl_s_t(:,:,isub_seaice),str_module,4,in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: pres_msl    ', tx%pres_sfc(:,:), str_module, 3, in_subset=p_patch%cells%owned)
 
-      ! rain, snow, evaporation
-!      scr(:,:) = prm_diag%rain_gsp_rate(:,:) + prm_diag%rain_con_rate(:,:)
-!      CALL dbg_print('NWPOce: total rain  ',scr,str_module,3,in_subset=p_patch%cells%owned)
-!      scr(:,:) = prm_diag%snow_gsp_rate(:,:) + prm_diag%snow_con_rate(:,:)
-!      CALL dbg_print('NWPOce: total snow  ',scr,str_module,4,in_subset=p_patch%cells%owned)
-!      scr(:,:) = prm_diag%hail_gsp_rate   (:,:) &
-!        &      + prm_diag%graupel_gsp_rate(:,:) &
-!        &      + prm_diag%ice_gsp_rate    (:,:)
-!      CALL dbg_print('NWPOce: ice, hail,..',scr,str_module,4,in_subset=p_patch%cells%owned)
-      scr(:,:) = prm_diag%qhfl_s_t(:,:,isub_water)  * ext_data%atm%frac_t(:,:,isub_water) + &
-        &        prm_diag%qhfl_s_t(:,:,isub_seaice) * ext_data%atm%frac_t(:,:,isub_seaice)
-      CALL dbg_print('NWPOce: evaporation ',scr,str_module,4,in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: rain_rate   ', tx%rain_rate(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: snow_rate   ', tx%snow_rate(:,:), str_module, 3, in_subset=p_patch%cells%owned)
 
-      ! total: short wave, long wave, sensible, latent heat flux sent
-      scr(:,:) = prm_diag%swflxsfc_t(:,:,isub_water) &
-        &      + prm_diag%lwflxsfc_t(:,:,isub_water) &
-        &      + prm_diag%shfl_s_t  (:,:,isub_water) &
-        &      + prm_diag%lhfl_s_t  (:,:,isub_water)
-      CALL dbg_print('NWPOce: totalhfx.wtr',scr,str_module,2,in_subset=p_patch%cells%owned)
-      scr(:,:) = prm_diag%swflxsfc_t(:,:,isub_water)
-      CALL dbg_print('NWPOce: swflxsfc.wtr',scr,str_module,3,in_subset=p_patch%cells%owned)
-      scr(:,:) = prm_diag%lwflxsfc_t(:,:,isub_water)
-      CALL dbg_print('NWPOce: lwflxsfc.wtr',scr,str_module,4,in_subset=p_patch%cells%owned)
-      scr(:,:) =  prm_diag%shfl_s_t (:,:,isub_water)
-      CALL dbg_print('NWPOce: shflx.wtr   ',scr,str_module,4,in_subset=p_patch%cells%owned)
-      scr(:,:) =  prm_diag%lhfl_s_t (:,:,isub_water)
-      CALL dbg_print('NWPOce: lhflx.wtr   ',scr,str_module,4,in_subset=p_patch%cells%owned)
+      IF (ASSOCIATED(tx%q_co2)) THEN
+        CALL dbg_print('NWPOce: q_co2       ', tx%q_co2(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      END IF
 
-      ! Qtop and Qbot, windspeed sent
-      scr(:,:) = prm_diag%shfl_s_t(:,:,isub_seaice) + prm_diag%swflxsfc_t(:,:,isub_seaice) &
-             & + prm_diag%lhfl_s_t(:,:,isub_seaice) + prm_diag%lwflxsfc_t(:,:,isub_seaice)
-      CALL dbg_print('NWPOce: ice-Qtop    ',scr                ,str_module,4,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: ice-Qbot    ',lnd_diag%condhf_ice,str_module,3,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: sp_10m      ',prm_diag%sp_10m    ,str_module,3,in_subset=p_patch%cells%owned)
+      buf(:,:) = tx%swflxsfc_w(:,:) + tx%lwflxsfc_w(:,:) + tx%shfl_s_w(:,:) + tx%lhfl_s_w(:,:)
+      CALL dbg_print('NWPOce: totalhfx.wtr', buf(:,:), str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: swflxsfc.wtr', tx%swflxsfc_w(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: lwflxsfc.wtr', tx%lwflxsfc_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: shflx.wtr   ', tx%shfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: lhflx.wtr   ', tx%lhfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+
+      ! Qtop and Qbot
+      buf(:,:) = tx%shfl_s_i(:,:) + tx%swflxsfc_i + tx%lhfl_s_i(:,:) + tx%lwflxsfc_i(:,:)
+      CALL dbg_print('NWPOce: ice-Qtop    ', buf, str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: ice-Qbot    ', tx%chfl_i(:,:), str_module, 3, in_subset=p_patch%cells%owned)
 
       ! SST, sea ice, ocean velocity received
-      CALL dbg_print('NWPOce: t_seasfc    ',lnd_diag%t_seasfc(:,:)              ,str_module,2,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: new%h_ice   ',wtr_prog_new%h_ice(:,:)             ,str_module,4,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: now%h_ice   ',wtr_prog_now%h_ice(:,:)             ,str_module,4,in_subset=p_patch%cells%owned)
-!     CALL dbg_print('NWPOce: h_snow_si   ',wtr_prog_now%h_snow_si(:,:)         ,str_module,4,in_subset=p_patch%cells%owned)
-!     CALL dbg_print('NWPOce: siced       ',prm_field(jg)%siced       ,str_module,3,in_subset=p_patch%cells%owned)
-!     CALL dbg_print('NWPOce: seaice      ',prm_field(jg)%seaice      ,str_module,4,in_subset=p_patch%cells%owned)
-!     CALL dbg_print('NWPOce: ocu         ',prm_field(jg)%ocu         ,str_module,4,in_subset=p_patch%cells%owned)
-!     CALL dbg_print('NWPOce: ocv         ',prm_field(jg)%ocv         ,str_module,4,in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: t_seasfc    ', rx%t_seasfc(:,:), str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: h_ice       ', rx%h_ice(:,:), str_module, 4, in_subset=p_patch%cells%owned)
 
-      !error?
-      !CALL dbg_print('NWPOce: ts_tile.iwtr:iwtr',prm_field(jg)%ts_tile(:,:,iwtr:iwtr),str_module,2,in_subset=p_patch%cells%owned)
+      IF (ASSOCIATED(rx%ocean_u) .AND. ASSOCIATED(rx%ocean_v)) THEN
+        CALL dbg_print('NWPOce: ocu         ', rx%ocean_u(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+        CALL dbg_print('NWPOce: ocv         ', rx%ocean_v(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      END IF
+
+      IF (ASSOCIATED(rx%flx_co2)) THEN
+        CALL dbg_print('NWPOce: flx_co2     ', rx%flx_co2(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      END IF
 
       ! Fraction of tiles:
-      CALL dbg_print('NWPOce: lnd%fr_seaic',lnd_diag%fr_seaice(:,:)   ,str_module,4,in_subset=p_patch%cells%owned)
-      scr(:,:) = ext_data%atm%frac_t(:,:,isub_seaice)
-      CALL dbg_print('NWPOce: ext%frac.si  ',scr                      ,str_module,3,in_subset=p_patch%cells%owned)
-      scr(:,:) = ext_data%atm%frac_t(:,:,isub_water)
-      CALL dbg_print('NWPOce: ext%frac.wtr ',scr                      ,str_module,3,in_subset=p_patch%cells%owned)
-      scr(:,:) = 1.0_wp - ext_data%atm%frac_t(:,:,isub_water) - ext_data%atm%frac_t(:,:,isub_seaice)
-      CALL dbg_print('NWPOce: ext%frac.land',scr                      ,str_module,4,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: frac_oce     ',frac_oce                 ,str_module,3,in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: ext:frac.lake',ext_data%atm%frac_t(:,:,isub_lake),str_module,4,in_subset=p_patch%cells%owned)
-    ENDIF
+      CALL dbg_print('NWPOce: fr_seaice   ', rx%fr_seaice(:,:), str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: frac.si     ', tx%frac_i(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: frac.wtr    ', tx%frac_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
 
-!---------------------------------------------------------------------
+    END IF
 
-!YAC_coupling
-#endif
+  CONTAINS
 
-  END SUBROUTINE nwp_couple_ocean
+    SUBROUTINE put_ (field_key, send_field, info, ierror)
+      INTEGER, INTENT(IN) :: field_key
+      TYPE(yac_r8_ptr), INTENT(IN) :: send_field(:,:)
+      INTEGER, INTENT(OUT) :: info
+      INTEGER, INTENT(OUT) :: ierror
 
-  
+      CALL yac_fput ( &
+          & field_id=field_id(field_key), &
+          & nbr_pointsets=SIZE(send_field, 1), &
+          & collection_size=SIZE(send_field, 2), &
+          & send_field=send_field(:,:), &
+          & info=info, &
+          & ierror=ierror &
+        )
+
+    END SUBROUTINE
+
+    SUBROUTINE get_ (field_key, recv_field, info, ierror)
+      INTEGER, INTENT(IN) :: field_key
+      TYPE(yac_r8_ptr), INTENT(IN) :: recv_field(:,:)
+      INTEGER, INTENT(OUT) :: info
+      INTEGER, INTENT(OUT) :: ierror
+
+      CALL yac_fget ( &
+          & field_id=field_id(field_key), &
+          & collection_size=SIZE(recv_field, 2), &
+          & recv_field=recv_field(1,:), &
+          & info=info, &
+          & ierror=ierror &
+        )
+
+    END SUBROUTINE
+
+    SUBROUTINE check_ (location, info, ierror)
+      CHARACTER(len=*), INTENT(IN) :: location
+      INTEGER, INTENT(IN) :: info
+      INTEGER, INTENT(IN) :: ierror
+
+      IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
+          & write_coupler_restart = .TRUE. ! Declared in main function.
+      IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
+          & CALL warning('nwp_couple_ocean', &
+                         'YAC says fput called after end of run - ' // TRIM(location))
+    END SUBROUTINE
+
+#endif /* ifndef YAC_coupling */
+
+  END SUBROUTINE couple_ocean
+
+
 END MODULE mo_nwp_ocean_interface
