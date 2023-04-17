@@ -789,7 +789,7 @@ CONTAINS
       
       cell_idx_loop: DO cell_index =  start_cell_index, end_cell_index
  
-        endLevel=patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
+        endLevel=MIN(endLevel,patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo))
         level_loop: DO level = startLevel, endLevel
            !calculate velocity reconstruction at cell center
           p_vn_c(cell_index,level,blockNo)%x = 0.0_wp
@@ -991,7 +991,7 @@ CONTAINS
       
       cell_idx_loop: DO cell_index =  start_cell_index, end_cell_index
  
-        endLevel=patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
+        endLevel=MIN(endLevel, patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo))
         level_loop: DO level = startLevel, endLevel
            !calculate velocity reconstruction at cell center
           p_vn_c(cell_index,level,blockNo)%x = 0.0_wp
@@ -2664,7 +2664,7 @@ CONTAINS
         cell_1_block = patch_2d%edges%cell_blk(je,blockNo,1)
         cell_2_index = patch_2d%edges%cell_idx(je,blockNo,2)
         cell_2_block = patch_2d%edges%cell_blk(je,blockNo,2)
-        DO level = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
+        DO level = 1, MIN(endlevel,patch_3d%p_patch_1d(1)%dolic_e(je,blockNo))
           
           ptp_vn(je,level,blockNo) =&
             & DOT_PRODUCT(p_vn_c(cell_1_index,level,cell_1_block)%x,&
