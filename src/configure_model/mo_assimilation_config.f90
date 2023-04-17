@@ -74,7 +74,8 @@ MODULE mo_assimilation_config
       lhn_wweight      ,& ! apply a weighting with respect to the mean horizontal wind
       lhn_bright       ,& ! apply bright band detection
       lhn_diag         ,& ! produce more detailed diagnostic output during lhn
-      lhn_artif_only      ! apply only artificial temperature profile instead of applying modelled tt_lheat profile
+      lhn_artif_only   ,& ! apply only artificial temperature profile instead of applying modelled tt_lheat profile
+      lhn_refbias         ! apply bias correction of LHN reference precipitation
   
     INTEGER ::  &
       nlhn_start       ,& ! start of latent heat nudging period in timesteps
@@ -100,6 +101,8 @@ MODULE mo_assimilation_config
       zlev_artif_max    ,& ! altidude of maximum of artificial profile
       std_artif_max     ,& ! parameter to define vertical width of artifical temperature profile
       start_fadeout     ,& ! time relative to lhn_end, when the lhn coefficient in decreased toward 0
+      ref_bias0         ,& ! starting ratio of model precipitation to reference precipitation used in LHN
+      dtrefbias         ,& ! adaptation time scale for bias correction
       rttend            ,& ! ratio of temperature increment to be applied
       bbthres           ,& ! threshold of precipitation rate used in bright band detection
       hzerolim             ! limitation of hzerocl used in bright band detection

@@ -105,7 +105,7 @@ USE mo_mpi,                     ONLY: my_process_is_stdio, p_io
 USE mo_io_units,                ONLY: find_next_free_unit
 USE mo_run_config,              ONLY: msg_level, iqv, iqc, iqi
 USE mo_math_laplace,            ONLY: nabla2_scalar
-USE mo_sync,                    ONLY: SYNC_C, sync_patch_array_mult,global_sum
+USE mo_sync,                    ONLY: SYNC_C, sync_patch_array_mult, global_sum, global_sum_array
 USE mo_intp_data_strc,          ONLY: t_int_state
 
 !===============================================================================
@@ -236,6 +236,9 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
     zprrad      (nproma,pt_patch%nblks_c), &
     zprmod_ref_f(nproma,pt_patch%nblks_c), &
     zprrad_f    (nproma,pt_patch%nblks_c)
+
+  REAL (KIND=wp) :: r_pr_ref_bias, zprmod_s, zprref_s, zprmod_scal, zprref_scal
+  REAL (KIND=wp) :: zprmod_s_blk(pt_patch%nblks_c), zprref_s_blk(pt_patch%nblks_c)
 
   REAL(KIND=wp) :: &
     pr_obs        (nproma,pt_patch%nblks_c), &   ! observed (radar) precipitation rate  (kg/m2*s)
@@ -641,6 +644,66 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END DO 
     END IF
 
+!$OMP END PARALLEL
+
+   IF (assimilation_config(jg)%lhn_refbias) THEN
+   
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,zprmod_scal,zprref_scal) ICON_OMP_GUIDED_SCHEDULE
+     DO jb=i_startblk,i_endblk
+       zprmod_scal       = 0.0_wp
+       zprref_scal       = 0.0_wp
+       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+            &                i_startidx, i_endidx, i_rlstart, i_rlend)
+       
+       !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: zprmod_scal, zprref_scal)
+       !$ACC LOOP GANG VECTOR
+       DO jc=i_startidx,i_endidx
+         zprmod_scal    = zprmod_scal    + pr_mod(jc,jb)
+         zprref_scal    = zprref_scal    + pr_ref(jc,jb)
+       ENDDO
+       !$ACC END PARALLEL
+       zprmod_s_blk(jb)    = zprmod_scal
+       zprref_s_blk(jb)    = zprref_scal
+
+     ENDDO
+!$OMP END DO 
+
+!$OMP MASTER
+     zprmod_s = SUM((zprmod_s_blk(i_startblk:i_endblk)))
+     zprref_s = SUM((zprref_s_blk(i_startblk:i_endblk)))
+     zprmod_s = global_sum_array(zprmod_s, opt_iroot=p_io)
+     zprref_s = global_sum_array(zprref_s, opt_iroot=p_io)
+
+     IF ( zprref_s > 0.0_wp) THEN
+       r_pr_ref_bias = zprmod_s / zprref_s 
+     ELSE
+       r_pr_ref_bias = 1.0_wp
+     ENDIF
+!$OMP END MASTER 
+!$OMP BARRIER
+
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
+     DO jb=i_startblk,i_endblk
+       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+            &                i_startidx, i_endidx, i_rlstart, i_rlend)
+
+       !$ACC PARALLEL DEFAULT(PRESENT)
+       !$ACC LOOP GANG VECTOR
+       DO jc=i_startidx,i_endidx
+         lhn_fields%ref_bias(jc,jb) = lhn_fields%ref_bias(jc,jb) + zdt/assimilation_config(jg)%dtrefbias * &
+                                                                (r_pr_ref_bias - lhn_fields%ref_bias(jc,jb)) 
+         pr_ref(jc,jb) =  pr_ref(jc,jb) * lhn_fields%ref_bias(jc,jb)
+       ENDDO
+       !$ACC END PARALLEL
+       
+     ENDDO
+!$OMP END DO 
+!$OMP END PARALLEL
+   ENDIF
+
+
+!$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
@@ -653,9 +716,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
      END DO
    ENDDO
 !$OMP END DO
-
 !$OMP END PARALLEL
-
 
     IF (assimilation_config(jg)%lhn_relax) THEN
 
@@ -1182,8 +1243,12 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
   iread=assimilation_config(jg)%nobs_times
 
+  ltoold=.false.
+  ltoyoung=.false.
   IF (iread <= 1) THEN
     CALL message (yroutine,'too few radar data available')
+    ltoold=.true.
+    ltoyoung=.true.
     RETURN 
   ENDIF
 
@@ -1198,8 +1263,6 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
      ! To be consistent with the linear interpolation below, younger dates are set to negative !
   ENDDO
 
-  ltoold=.false.
-  ltoyoung=.false.
   IF (ALL(td_in_min > 0.5*assimilation_config(jg)%lhn_dt_obs) ) THEN
      IF (msg_level > 12) THEN
        CALL message (yroutine,'obsvervations are too old')

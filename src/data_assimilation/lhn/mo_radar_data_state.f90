@@ -213,7 +213,6 @@ CONTAINS
     TYPE(t_patch),         INTENT(IN)    :: p_patch(:)
 
     INTEGER :: jg
-    INTEGER :: ist
 
     CHARACTER(len=MAX_CHAR_LENGTH) :: listname
 
@@ -472,11 +471,10 @@ CONTAINS
   !
   ! @author F. Prill, DWD (2014-01-07)
   !-------------------------------------------------------------------------
-  SUBROUTINE inquire_radar_file(p_patch, jg, cdi_radar_id, cdi_filetype, &
+  SUBROUTINE inquire_radar_file(p_patch, cdi_radar_id, cdi_filetype, &
        lread_process)
 
-    TYPE(t_patch), INTENT(IN)      :: p_patch(:)
-    INTEGER,       INTENT(IN)      :: jg
+    TYPE(t_patch), INTENT(IN)      :: p_patch
     INTEGER,       INTENT(INOUT)   :: cdi_radar_id     !< CDI stream ID
     INTEGER,       INTENT(INOUT)   :: cdi_filetype     !< CDI filetype
     LOGICAL,       INTENT(in)      :: lread_process
@@ -494,6 +492,7 @@ CONTAINS
 
     LOGICAL                 :: lmatch                         ! for comparing UUIDs
 
+    INTEGER                 :: jg
     INTEGER                 :: cdiGridID, taxisID, nt,ntvars,is
     INTEGER, ALLOCATABLE    :: rdatetime(:,:)
     CHARACTER(len=MAX_CHAR_LENGTH)  :: zname
@@ -506,6 +505,7 @@ CONTAINS
     !---------------------------------------------!
 
 
+    jg      = p_patch%id
     ! flag. if true, then this PE reads data from file and broadcasts
     IF (lread_process) THEN
       ! generate file name
@@ -557,10 +557,10 @@ CONTAINS
       CALL gridInqUUID(cdiGridID, radar_uuidOfHGrid%DATA)
       !
       ! --- compare UUID of horizontal grid file with UUID from radar file
-      lmatch = (p_patch(jg)%grid_uuid == radar_uuidOfHGrid)
+      lmatch = (p_patch%grid_uuid == radar_uuidOfHGrid)
 
       IF (.NOT. lmatch) THEN
-        CALL uuid_unparse(p_patch(jg)%grid_uuid, grid_uuid_unparsed)
+        CALL uuid_unparse(p_patch%grid_uuid, grid_uuid_unparsed)
         CALL uuid_unparse(radar_uuidOfHGrid   , radar_uuid_unparsed)
         WRITE(message_text,'(a,a)') 'uuidOfHgrid from gridfile: ', TRIM(grid_uuid_unparsed)
         CALL message(routine,message_text)
@@ -607,11 +607,10 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
-  SUBROUTINE inquire_blacklist_file(p_patch, jg, cdi_black_id, & !cdi_filetype, &
+  SUBROUTINE inquire_blacklist_file(p_patch, cdi_black_id, & !cdi_filetype, &
        lread_process)
 
-    TYPE(t_patch), INTENT(IN)      :: p_patch(:)
-    INTEGER,       INTENT(IN)      :: jg
+    TYPE(t_patch), INTENT(IN)      :: p_patch
     INTEGER,       INTENT(INOUT)   :: cdi_black_id     !< CDI stream ID
 !    INTEGER,       INTENT(INOUT)   :: cdi_filetype     !< CDI filetype
     LOGICAL,       INTENT(in)      :: lread_process
@@ -629,18 +628,17 @@ CONTAINS
 
     LOGICAL                 :: lmatch                         ! for comparing UUIDs
 
-    INTEGER                 :: cdiGridID, taxisID, nt,ntvars,is
-    INTEGER, ALLOCATABLE    :: rdatetime(:,:)
+    INTEGER                 :: jg
+    INTEGER                 :: cdiGridID, ntvars
     CHARACTER(len=MAX_CHAR_LENGTH)  :: zname
 
-!    CHARACTER(len=8) cobsdate
-!    CHARACTER(len=6) cobstime
 
     !---------------------------------------------!
     ! Check validity of black parameter file   !
     !---------------------------------------------!
 
 
+    jg      = p_patch%id
     ! flag. if true, then this PE reads data from file and broadcasts
     IF (lread_process) THEN
       ! generate file name
@@ -667,22 +665,6 @@ CONTAINS
       CALL vlistInqVarName(vlist_id, 0, zname)
       ntvars=vlistNtsteps(vlist_id)
 
-!      IF (cdi_filetype > FILETYPE_GRB2) THEN
-!        assimilation_config(jg)%nobs_times=ntvars
-!      ELSE
-!        ntvars=assimilation_config(jg)%nobs_times
-!      ENDIF
-!
-!      ALLOCATE (rdatetime(ntvars, 2))
-
-!      ! get time dimension from black data file
-!      taxisID   = vlistInqTaxis(vlist_id)
-!      do nt = 0, ntvars-1
-!         is=streamInqTimestep(cdi_black_id,nt)
-!         rdatetime(nt+1,1)=taxisInqVdate(taxisID)
-!         rdatetime(nt+1,2)=taxisInqVtime(taxisID)
-!       CALL print_cdi_summary (vlist_id)
-!      enddo
 
       ! Compare UUID of radar observation file with UUID of grid.
       !
@@ -691,10 +673,10 @@ CONTAINS
       CALL gridInqUUID(cdiGridID, black_uuidOfHGrid%DATA)
       !
       ! --- compare UUID of horizontal grid file with UUID from radar file
-      lmatch = (p_patch(jg)%grid_uuid == black_uuidOfHGrid)
+      lmatch = (p_patch%grid_uuid == black_uuidOfHGrid)
 
       IF (.NOT. lmatch) THEN
-        CALL uuid_unparse(p_patch(jg)%grid_uuid, grid_uuid_unparsed)
+        CALL uuid_unparse(p_patch%grid_uuid, grid_uuid_unparsed)
         CALL uuid_unparse(black_uuidOfHGrid   , black_uuid_unparsed)
         WRITE(message_text,'(a,a)') 'uuidOfHgrid from gridfile: ', TRIM(grid_uuid_unparsed)
         CALL message(routine,message_text)
@@ -711,39 +693,12 @@ CONTAINS
 
     ENDIF ! lread_process
 
-    ! broadcast ntvars from I-Pe to WORK Pes
-!    CALL p_bcast(assimilation_config(jg)%nobs_times, p_io, p_comm_work)
-!    IF (.NOT. lread_process) THEN
-!      ALLOCATE (rdatetime(assimilation_config(jg)%nobs_times,2))
-!    ENDIF
-!
-!    ! broadcast time and date of obs from I-Pe to WORK Pes
-!    CALL p_bcast(rdatetime, p_io, p_comm_work)
-
-!    ALLOCATE (radar_data(jg)%radar_td%obs_date(assimilation_config(jg)%nobs_times))
-!
-!    DO nt = 1, assimilation_config(jg)%nobs_times
-!
-!      WRITE(cobsdate,'(I8.8)') rdatetime(nt,1)
-!      WRITE(cobstime,'(I6.6)') rdatetime(nt,2)
-!      READ (cobsdate(1:4),'(I4.4)') radar_data(jg)%radar_td%obs_date(nt)%date%year
-!      READ (cobsdate(5:6),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%date%month
-!      READ (cobsdate(7:8),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%date%day
-!      READ (cobstime(1:2),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%hour
-!      READ (cobstime(3:4),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%minute
-!      READ (cobstime(5:6),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%second
-!      radar_data(jg)%radar_td%obs_date(nt)%time%ms = 0
-!    ENDDO
-
-!print *,assimilation_config(jg)%nobs_times,radar_data(jg)%radar_td%obs_date
-
   END SUBROUTINE inquire_blacklist_file
 
-  SUBROUTINE inquire_height_file(p_patch, jg, cdi_height_id, & !cdi_filetype, &
+  SUBROUTINE inquire_height_file(p_patch, cdi_height_id, & !cdi_filetype, &
        lread_process)
 
-    TYPE(t_patch), INTENT(IN)      :: p_patch(:)
-    INTEGER,       INTENT(IN)      :: jg
+    TYPE(t_patch), INTENT(IN)      :: p_patch
     INTEGER,       INTENT(INOUT)   :: cdi_height_id     !< CDI stream ID
 !    INTEGER,       INTENT(INOUT)   :: cdi_filetype     !< CDI filetype
     LOGICAL,       INTENT(in)      :: lread_process
@@ -761,18 +716,17 @@ CONTAINS
 
     LOGICAL                 :: lmatch                         ! for comparing UUIDs
 
-    INTEGER                 :: cdiGridID, taxisID, nt,ntvars,is
-    INTEGER, ALLOCATABLE    :: rdatetime(:,:)
+    INTEGER                 :: jg
+    INTEGER                 :: cdiGridID, ntvars
     CHARACTER(len=MAX_CHAR_LENGTH)  :: zname
 
-    CHARACTER(len=8) cobsdate
-    CHARACTER(len=6) cobstime
 
     !---------------------------------------------!
     ! Check validity of height parameter file   !
     !---------------------------------------------!
 
 
+    jg      = p_patch%id
     ! flag. if true, then this PE reads data from file and broadcasts
     IF (lread_process) THEN
       ! generate file name
@@ -791,7 +745,6 @@ CONTAINS
 
       ! open file
       cdi_height_id = streamOpenRead(TRIM(height_file))
-!      cdi_filetype  = streamInqFileType(cdi_height_id)
 
       ! get the id of RAD_PRECIP
       radarobs_id          = get_cdi_varID(cdi_height_id, "RAD_HEIGHT")
@@ -800,23 +753,6 @@ CONTAINS
       CALL vlistInqVarName(vlist_id, 0, zname)
       ntvars=vlistNtsteps(vlist_id)
 
-!      IF (cdi_filetype > FILETYPE_GRB2) THEN
-!        assimilation_config(jg)%nobs_times=ntvars
-!      ELSE
-!        ntvars=assimilation_config(jg)%nobs_times
-!      ENDIF
-!
-!      ALLOCATE (rdatetime(ntvars, 2))
-
-!      ! get time dimension from height data file
-!      taxisID   = vlistInqTaxis(vlist_id)
-!      do nt = 0, ntvars-1
-!         is=streamInqTimestep(cdi_height_id,nt)
-!         rdatetime(nt+1,1)=taxisInqVdate(taxisID)
-!         rdatetime(nt+1,2)=taxisInqVtime(taxisID)
-!       CALL print_cdi_summary (vlist_id)
-!      enddo
-
       ! Compare UUID of radar observation file with UUID of grid.
       !
       ! get horizontal grid UUID contained in radar file
@@ -824,10 +760,10 @@ CONTAINS
       CALL gridInqUUID(cdiGridID, height_uuidOfHGrid%DATA)
       !
       ! --- compare UUID of horizontal grid file with UUID from radar file
-      lmatch = (p_patch(jg)%grid_uuid == height_uuidOfHGrid)
+      lmatch = (p_patch%grid_uuid == height_uuidOfHGrid)
 
       IF (.NOT. lmatch) THEN
-        CALL uuid_unparse(p_patch(jg)%grid_uuid, grid_uuid_unparsed)
+        CALL uuid_unparse(p_patch%grid_uuid, grid_uuid_unparsed)
         CALL uuid_unparse(height_uuidOfHGrid   , height_uuid_unparsed)
         WRITE(message_text,'(a,a)') 'uuidOfHgrid from gridfile: ', TRIM(grid_uuid_unparsed)
         CALL message(routine,message_text)
@@ -843,32 +779,6 @@ CONTAINS
       ENDIF      
 
     ENDIF ! lread_process
-
-    ! broadcast ntvars from I-Pe to WORK Pes
-!    CALL p_bcast(assimilation_config(jg)%nobs_times, p_io, p_comm_work)
-!    IF (.NOT. lread_process) THEN
-!      ALLOCATE (rdatetime(assimilation_config(jg)%nobs_times,2))
-!    ENDIF
-!
-!    ! broadcast time and date of obs from I-Pe to WORK Pes
-!    CALL p_bcast(rdatetime, p_io, p_comm_work)
-
-!    ALLOCATE (radar_data(jg)%radar_td%obs_date(assimilation_config(jg)%nobs_times))
-!
-!    DO nt = 1, assimilation_config(jg)%nobs_times
-!
-!      WRITE(cobsdate,'(I8.8)') rdatetime(nt,1)
-!      WRITE(cobstime,'(I6.6)') rdatetime(nt,2)
-!      READ (cobsdate(1:4),'(I4.4)') radar_data(jg)%radar_td%obs_date(nt)%date%year
-!      READ (cobsdate(5:6),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%date%month
-!      READ (cobsdate(7:8),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%date%day
-!      READ (cobstime(1:2),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%hour
-!      READ (cobstime(3:4),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%minute
-!      READ (cobstime(5:6),'(I2.2)') radar_data(jg)%radar_td%obs_date(nt)%time%second
-!      radar_data(jg)%radar_td%obs_date(nt)%time%ms = 0
-!    ENDDO
-
-!print *,assimilation_config(jg)%nobs_times,radar_data(jg)%radar_td%obs_date
 
   END SUBROUTINE inquire_height_file
 
@@ -889,7 +799,7 @@ CONTAINS
     INTEGER,       INTENT(INOUT)   :: cdi_height_id(:)  !< CDI stream ID
     INTEGER,       INTENT(INOUT)   :: cdi_filetype(:)   !< CDI filetype
     LOGICAL,       INTENT(in)      :: lread_process
-    INTEGER :: jg
+    INTEGER                        :: jg
 
     CHARACTER(len=max_char_length), PARAMETER :: &
       routine = modname//':inquire_radar_files'
@@ -911,15 +821,15 @@ CONTAINS
       ! 1. Check validity of radar files               !
       !------------------------------------------------!
       ! 1.1. radar observations                        !
-        CALL inquire_radar_file(p_patch, jg, cdi_radar_id(jg), &
+        CALL inquire_radar_file(p_patch(jg), cdi_radar_id(jg), &
              &               cdi_filetype(jg), lread_process)
       ! 1.2. radar blacklist
         IF (assimilation_config(jg)%lhn_black) &
-         &  CALL inquire_blacklist_file(p_patch, jg, cdi_black_id(jg), &
+         &  CALL inquire_blacklist_file(p_patch(jg), cdi_black_id(jg), &
                  &                                     lread_process)
       ! 1.3. radar height
         IF (assimilation_config(jg)%lhn_bright) &
-         &  CALL inquire_height_file(p_patch, jg, cdi_height_id(jg), &
+         &  CALL inquire_height_file(p_patch(jg), cdi_height_id(jg), &
                  &                                   lread_process)
 
 !evt. ist es sinnvoll die grib files vorher zusammen zu ketten
@@ -953,7 +863,6 @@ CONTAINS
       routine = modname//':read_radar_data'
 
     INTEGER :: jg
-    INTEGER :: ret
 
     TYPE(t_inputParameters) :: parameters
 
@@ -1107,6 +1016,7 @@ CONTAINS
     TYPE(t_lhn_diag)      , INTENT(INOUT) :: lhn_fields
 
     ! local variables
+    INTEGER :: jg
     INTEGER :: nblks_c    !< number of cell blocks to allocate
 
     INTEGER :: nlev
@@ -1124,6 +1034,7 @@ CONTAINS
 
     !--------------------------------------------------------------
 
+    jg      = p_patch%id
     nblks_c = p_patch%nblks_c
 
     ! number of vertical levels
@@ -1143,7 +1054,8 @@ CONTAINS
       &     lhn_fields%brightband,  &
       &     lhn_fields%pr_obs_sum,  &
       &     lhn_fields%pr_mod_sum,  &
-      &     lhn_fields%pr_ref_sum   )
+      &     lhn_fields%pr_ref_sum,  &
+      &     lhn_fields%ref_bias     )
 
     !
     ! Register a field list and apply default settings
@@ -1229,7 +1141,19 @@ CONTAINS
                 & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
     __acc_attach(lhn_fields%pr_ref_sum)
 
-
+    IF (assimilation_config(jg)%lhn_refbias) THEN
+      ! ref_bias      lhn_fields%ref_bias(nproma,nblks_c)
+      cf_desc    = t_cf_var('ref_bias', '-', &
+           &                   'accumulated bias between pr_ref and pr_mod',  &
+           &                   datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( lhn_fields_list, 'ref_bias', lhn_fields%ref_bias,         &
+           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
+           & ldims=shape2d_c, loutput=.FALSE.,                                &
+           & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
+      __acc_attach(lhn_fields%ref_bias)
+    END IF
+    
   END SUBROUTINE new_lhn_fields_list
 
 END MODULE mo_radar_data_state

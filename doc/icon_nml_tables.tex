@@ -841,6 +841,33 @@ lhn\_qrs = .TRUE.
 \tabularnewline
 
 %\hline
+ {lhn\_refbias}&
+L&
+.FALSE.&
+&
+Apply a bias correction between so called reference precipitation (lhn\_qrs = .TRUE.) and modelled precipitation at ground. This option is recommended when both quantities shows a systematic bias which cannot be adjusted by changing rqrsgmax.&
+lhn\_qrs = .TRUE.
+\tabularnewline
+
+%\hline
+ {ref\_bias0}&
+R&
+1.0&
+&
+In case of lhn\_refbias = .TRUE. the bias correction starts with this factor. So far, there is no cycling of the factor foreseen, but could be implemented, when it seems to be beneficial.&
+lhn\_refbias = .TRUE.
+\tabularnewline
+
+%\hline
+ {dtrefbias}&
+R&
+1800.0&
+s&
+Relaxation time, which defines how fast the bias correction is done.&
+lhn\_refbias = .TRUE.
+\tabularnewline
+
+%\hline
  {lhn\_hum\_adj}&
 L&
 .TRUE.&

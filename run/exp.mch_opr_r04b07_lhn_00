@@ -357,6 +357,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  std_artif_max   = 4.
  tt_artif_max    = 0.009
  zlev_artif_max  = 3000.
+ lhn_refbias     = .false.
 /
 
 &output_nml

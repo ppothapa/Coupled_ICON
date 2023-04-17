@@ -32,6 +32,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 # This experiment describes a ICON-LAM experiment using the physics packages that are
 # used at MeteoSwiss for production. This simulation computes a few time steps on 
 # a low-resolution grid over Switzerland. The setup is for development purposes.
+# As a new feature lhn_refbias is set by Klaus Stephan to test it on GPU
 #
 # This experiment includes output of accumulated fluxes.
 # ==========================================================================
@@ -359,6 +360,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  std_artif_max   = 4.
  tt_artif_max    = 0.009
  zlev_artif_max  = 3000.
+ lhn_refbias     = .true.
 /
 
 &output_nml
