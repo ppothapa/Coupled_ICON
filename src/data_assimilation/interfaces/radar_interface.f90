@@ -109,7 +109,7 @@ MODULE radar_interface
   USE radar_data, ONLY : &
        time_mod_sec,    & ! model forecast time in [s] since model start
        ie_fwo, je_fwo, ke_fwo, &
-       miss_threshold, miss_value, missval_int, &
+       miss_threshold, miss_value, missval_int, unused_value, &
        cmaxlen,         &
        num_compute_fwo,     & ! number of compute PEs
        num_radar,       & ! total number of radar PEs (num_compute + num_radario)
@@ -388,7 +388,8 @@ MODULE radar_interface
             get_obstime_ind_of_currtime, get_obstime_ind_of_modtime,                   &
             get_obs_time_tolerance,                                                    &
             check_obstime_within_forecast, check_obstime_within_modelrun,              &
-            check_if_currtime_is_obstime, get_domain_starttime_in_sec,                 &
+            check_if_currtime_is_obstime,                                              &
+            get_domain_starttime_in_sec, get_domain_endtime_in_sec,                    &
             alloc_aux_model_variables, dealloc_aux_model_variables,                    &
             it_is_time_for_radar, num_regular_obstimes,                                &
             it_is_time_for_bubblecheck,                                                &
@@ -444,6 +445,12 @@ INTERFACE check_obstime_within_modelrun
        check_obstime_within_run_vec
 END INTERFACE
 
+INTERFACE num_regular_obstimes
+  MODULE PROCEDURE    &
+       num_regular_obstimes_scal, &
+       num_regular_obstimes_triplet
+END INTERFACE num_regular_obstimes
+
 #endif
 
 !==============================================================================
@@ -493,7 +500,7 @@ CONTAINS
 
     loc_name(:) = ' '
     WRITE(loc_name, '(a,i4.4)') ' on proc ', my_id
-    loc_name = TRIM(routine)//TRIM(loc_name)
+    loc_name = 'emvorado::'//TRIM(routine)//TRIM(loc_name)
 
     loc_err(:) = ' '
     IF (PRESENT(mpi_error)) THEN
@@ -2265,7 +2272,7 @@ CONTAINS
       IF (lasttimer == -999 .AND. .NOT.zlstart) THEN 
         CALL abort_run(my_radar_id, 3767, &
            'ERROR get_runtime_timings() radar: wrong calling sequence, forgot call with lstart=.TRUE.', &
-           'emvorado::interp_model2azislices_scalar')
+           'interp_model2azislices_scalar')
       END IF
 
       IF (zlstart) THEN
@@ -2881,12 +2888,25 @@ CONTAINS
   ! 
   ! Function for computing the number of regularly spaced obs times within
   !  the model run for a specific domain, based on the model forecast time range and the
-  !  regular observation time interval dt_obs. Up to now, these intervals are assumed
-  !  to start at t=0.0, not at the true start time of the domain.
+  !  regular observation time interval dt_obs.
+  !
+  ! There is a traditional way of doing this, WHERE dt_obs is a scalar and is
+  !  the time interval. Here, the obs times span from model start to model end time.
+  !
+  ! There is also an alternative way, WHERE dt_obs is a triplet:
+  !  the first element is the starttime of the obs times interval,
+  !  the second element is the endtime of the obs times interval,
+  !  and the third element is the time interval.
+  ! HOWEVER: if in the triplet only the first element is > miss_threshold,
+  !  it is assumed that the user wants the traditional way, and the first element
+  !  is the time interval.
   !
   !============================================================================
 
-  FUNCTION num_regular_obstimes ( idom, dt_obs ) RESULT (n_times)
+  FUNCTION num_regular_obstimes_scal ( idom, dt_obs ) RESULT (n_times)
+
+    ! "Traditional" notation, only the dt is given in the first element of dt_obs and the
+    !  output timesteps span the entire model run:
 
     IMPLICIT NONE
 
@@ -2899,7 +2919,45 @@ CONTAINS
     time_sec = get_domain_endtime_in_sec(idom) - get_domain_starttime_in_sec(idom)
     n_times = INT(time_sec/dt_obs) + 1
 
-  END FUNCTION num_regular_obstimes
+  END FUNCTION num_regular_obstimes_scal
+
+  FUNCTION num_regular_obstimes_triplet ( idom, dt_obs ) RESULT (n_times)
+
+    ! Advanced notation with a triplet: dt_obs(1:3) "t_start":"t_end":"t_incr"
+
+    IMPLICIT NONE
+
+    INTEGER,       INTENT(in) :: idom
+    REAL(KIND=dp), INTENT(in) :: dt_obs(3)
+    INTEGER                   :: n_times
+
+    REAL(KIND=dp)             :: dt_loc, start_time, end_time
+    CHARACTER(len=cmaxlen)    :: yerrmsg
+
+    CHARACTER(len=*), PARAMETER :: yzroutine = 'num_regular_obstimes_triplet'
+
+    IF (dt_obs(3) > 0.0_dp) THEN
+      dt_loc = dt_obs(3)
+      IF (dt_obs(1) < miss_threshold) THEN
+        start_time = get_domain_starttime_in_sec(idom)
+      ELSE
+        start_time = MAX( dt_obs(1), get_domain_starttime_in_sec(idom) )
+      END IF
+      IF (dt_obs(2) < miss_threshold) THEN
+        end_time = get_domain_endtime_in_sec(idom)
+      ELSE
+        end_time = MIN( dt_obs(2), get_domain_endtime_in_sec(idom) )
+      END IF
+    ELSE
+      yerrmsg(:) = ' '
+      WRITE (yerrmsg, '(a,3(1x,f0.1,","),1x,a)') 'Error: wrong triplet', dt_obs, &
+           ', should either be (incr > 0.0, miss ,miss) or ( starttime/miss, endtime/miss, incr > 0.0)'
+      CALL abort_run(my_radar_id, 79555, yerrmsg, yzroutine)
+    END IF
+    
+    n_times = INT( (end_time-start_time)/dt_loc) + 1
+
+  END FUNCTION num_regular_obstimes_triplet
 
 
   !------------------------------------------------------------------------------
@@ -5382,7 +5440,7 @@ CONTAINS
     IF (at_k_upper_loc .AND. at_k_lower_loc) THEN
       CALL abort_run(my_radar_id, 3765, &
            'ERROR in call to interp_model2azislices_scalar: at_k_upper and at_k_lower cannot be both .TRUE.!', &
-           'emvorado::interp_model2azislices_scalar')
+           'interp_model2azislices_scalar')
     END IF
 
     !------------------------------------------------------------------------------
