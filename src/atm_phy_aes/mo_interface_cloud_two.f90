@@ -17,10 +17,14 @@
 MODULE mo_interface_cloud_two
 
   USE mo_kind                ,ONLY: wp
-  USE mtime                  ,ONLY: datetime
   USE mo_copy                ,ONLY: copy
 
-  USE mo_aes_phy_config      ,ONLY: aes_phy_config
+  USE mo_run_config          ,ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqh,  &
+       &                            iqnc, iqni, iqnr, iqns, iqng, iqnh, &
+       &                            ininact, msg_level
+
+  USE mo_aes_phy_dims        ,ONLY: aes_phy_dims
+  USE mo_aes_phy_config      ,ONLY: aes_phy_config, aes_phy_tc
   USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field, &
        &                            t_aes_phy_tend,  prm_tend
 
@@ -30,71 +34,69 @@ MODULE mo_interface_cloud_two
 
   USE mo_timer               ,ONLY: ltimer, timer_start, timer_stop, timer_two
 
-  USE mo_run_config          ,ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqh,  &
-       &                            iqnc, iqni, iqnr, iqns, iqng, iqnh,  &
-       &                            ininact, msg_level
-  ! USE mo_cloud_two_config    ,ONLY: cloud_two_config
-
   IMPLICIT NONE
   PRIVATE
   PUBLIC  :: interface_cloud_two
 
 CONTAINS
 
-  SUBROUTINE interface_cloud_two(jg,jb,jcs,jce        ,&
-       &                         nproma,nlev,ntracer  ,& 
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_cloud_two(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev,ntracer
-    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in) :: is_active
-    TYPE(datetime)          ,POINTER    :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
+    INTEGER, INTENT(in)       :: jg, jb, jcs, jce
 
     ! Pointers
     !
     ! to aes_phy_memory
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
-    TYPE(t_aes_phy_tend)    ,POINTER    :: tend
+    TYPE(t_aes_phy_field),    POINTER :: field
+    TYPE(t_aes_phy_tend),     POINTER :: tend
     !
     ! to cloud_two_memory
-    TYPE(t_cloud_two_input ),POINTER    :: input
-    TYPE(t_cloud_two_output),POINTER    :: output
+    TYPE(t_cloud_two_input ), POINTER :: input
+    TYPE(t_cloud_two_output), POINTER :: output
 
     ! Local variables
     !
-    LOGICAL  :: lparamcpl
+    INTEGER  :: nlev
+    INTEGER  :: nproma
+    !
+    REAL(wp) :: pdtime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
+    !
     INTEGER  :: fc_two
     !
-    REAL(wp) :: tend_ta_two(nproma,nlev)
-    REAL(wp) :: tend_qv_two(nproma,nlev)
-    REAL(wp) :: tend_qc_two(nproma,nlev)
-    REAL(wp) :: tend_qnc_two(nproma,nlev)
-    REAL(wp) :: tend_qi_two(nproma,nlev)
-    REAL(wp) :: tend_qni_two(nproma,nlev)
-    REAL(wp) :: tend_qr_two(nproma,nlev)
-    REAL(wp) :: tend_qnr_two(nproma,nlev)
-    REAL(wp) :: tend_qs_two(nproma,nlev)
-    REAL(wp) :: tend_qns_two(nproma,nlev)
-    REAL(wp) :: tend_qg_two(nproma,nlev)
-    REAL(wp) :: tend_qng_two(nproma,nlev)
-    REAL(wp) :: tend_qh_two(nproma,nlev)
-    REAL(wp) :: tend_qnh_two(nproma,nlev)
-    REAL(wp) :: tend_ninact_two(nproma,nlev)
+    REAL(wp) :: tend_ta_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qv_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qc_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qnc_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qi_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qni_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qr_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qnr_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qs_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qns_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qg_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qng_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qh_two    (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_qnh_two   (aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
+    REAL(wp) :: tend_ninact_two(aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
     !
     ! Dummy variable for 2mom scheme. Used only when
     !  assimilation of radar data using latent heat nudging
     !  is switched on (ldass_lhn=true). 
-    REAL(wp) :: zqrsflux(nproma,nlev)
+    REAL(wp) :: zqrsflux(aes_phy_dims(jg)%nproma, aes_phy_dims(jg)%nlev)
     !
     INTEGER  :: jk, jks, jke, jl
     INTEGER  :: jc
+
+    nlev    = aes_phy_dims(jg)%nlev
+    nproma  = aes_phy_dims(jg)%nproma
+
+    pdtime               =  aes_phy_tc(jg)%dt_phy_sec
+    is_in_sd_ed_interval =  aes_phy_tc(jg)%is_in_sd_ed_interval_art
+    is_active            =  aes_phy_tc(jg)%is_active_art
 
     ! associate pointers
     !
@@ -108,26 +110,25 @@ CONTAINS
 
     ! associate pointers
     jks       =  aes_phy_config(jg)%jks_cloudy
-    lparamcpl =  aes_phy_config(jg)%lparamcpl
     fc_two    =  aes_phy_config(jg)%fc_two
 
     jke       =  nlev
 
     ! security
-    tend_ta_two(:,:)   = 0.0_wp
-    tend_qv_two(:,:)   = 0.0_wp
-    tend_qc_two(:,:)   = 0.0_wp
-    tend_qnc_two(:,:)   = 0.0_wp
-    tend_qi_two(:,:)   = 0.0_wp
-    tend_qni_two(:,:)   = 0.0_wp
-    tend_qr_two(:,:)   = 0.0_wp
-    tend_qnr_two(:,:)   = 0.0_wp
-    tend_qs_two(:,:)   = 0.0_wp
-    tend_qns_two(:,:)   = 0.0_wp
-    tend_qg_two(:,:)   = 0.0_wp
-    tend_qng_two(:,:)   = 0.0_wp
-    tend_qh_two(:,:)   = 0.0_wp
-    tend_qnh_two(:,:)   = 0.0_wp
+    tend_ta_two    (:,:)   = 0.0_wp
+    tend_qv_two    (:,:)   = 0.0_wp
+    tend_qc_two    (:,:)   = 0.0_wp
+    tend_qnc_two   (:,:)   = 0.0_wp
+    tend_qi_two    (:,:)   = 0.0_wp
+    tend_qni_two   (:,:)   = 0.0_wp
+    tend_qr_two    (:,:)   = 0.0_wp
+    tend_qnr_two   (:,:)   = 0.0_wp
+    tend_qs_two    (:,:)   = 0.0_wp
+    tend_qns_two   (:,:)   = 0.0_wp
+    tend_qg_two    (:,:)   = 0.0_wp
+    tend_qng_two   (:,:)   = 0.0_wp
+    tend_qh_two    (:,:)   = 0.0_wp
+    tend_qnh_two   (:,:)   = 0.0_wp
     tend_ninact_two(:,:)   = 0.0_wp
 
     zqrsflux(:,:)  = 0.0_wp
@@ -136,7 +137,6 @@ CONTAINS
     !
     ! input parameters
     !
-    IF (ASSOCIATED(input% jg        )) CALL copy(jcs,jce, jg       , input% jg (:,jb))
     IF (ASSOCIATED(input% jcs       )) CALL copy(jcs,jce, jcs      , input% jcs (:,jb))
     IF (ASSOCIATED(input% jce       )) CALL copy(jcs,jce, jce      , input% jce (:,jb))
     IF (ASSOCIATED(input% msg_level )) CALL copy(jcs,jce, msg_level, input% msg_level (:,jb))
@@ -153,20 +153,20 @@ CONTAINS
     ! input fields, inout
     !
     IF (ASSOCIATED(input% ta    )) CALL copy(jcs,jce, jks,jke, field% ta   (:,:,jb)        , input% ta    (:,:,jb))
-    IF (ASSOCIATED(input% qv    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqv)    , input% qv    (:,:,jb))
-    IF (ASSOCIATED(input% qc    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqc)    , input% qc    (:,:,jb))
-    IF (ASSOCIATED(input% qnc   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnc)   , input% qnc   (:,:,jb))
-    IF (ASSOCIATED(input% qi    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqi)    , input% qi    (:,:,jb))
-    IF (ASSOCIATED(input% qni   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqni)   , input% qni   (:,:,jb))
-    IF (ASSOCIATED(input% qr    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqr)    , input% qr    (:,:,jb))
-    IF (ASSOCIATED(input% qnr   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnr)   , input% qnr   (:,:,jb))
-    IF (ASSOCIATED(input% qs    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqs)    , input% qs    (:,:,jb))
-    IF (ASSOCIATED(input% qns   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqns)   , input% qns   (:,:,jb))
-    IF (ASSOCIATED(input% qg    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqg)    , input% qg    (:,:,jb))
-    IF (ASSOCIATED(input% qng   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqng)   , input% qng   (:,:,jb))
-    IF (ASSOCIATED(input% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqh)    , input% qh    (:,:,jb))
-    IF (ASSOCIATED(input% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnh)   , input% qnh   (:,:,jb))
-    IF (ASSOCIATED(input% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,ininact), input% ninact(:,:,jb))
+    IF (ASSOCIATED(input% qv    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqv)    , input% qv    (:,:,jb))
+    IF (ASSOCIATED(input% qc    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqc)    , input% qc    (:,:,jb))
+    IF (ASSOCIATED(input% qnc   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnc)   , input% qnc   (:,:,jb))
+    IF (ASSOCIATED(input% qi    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqi)    , input% qi    (:,:,jb))
+    IF (ASSOCIATED(input% qni   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqni)   , input% qni   (:,:,jb))
+    IF (ASSOCIATED(input% qr    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqr)    , input% qr    (:,:,jb))
+    IF (ASSOCIATED(input% qnr   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnr)   , input% qnr   (:,:,jb))
+    IF (ASSOCIATED(input% qs    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqs)    , input% qs    (:,:,jb))
+    IF (ASSOCIATED(input% qns   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqns)   , input% qns   (:,:,jb))
+    IF (ASSOCIATED(input% qg    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqg)    , input% qg    (:,:,jb))
+    IF (ASSOCIATED(input% qng   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqng)   , input% qng   (:,:,jb))
+    IF (ASSOCIATED(input% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqh)    , input% qh    (:,:,jb))
+    IF (ASSOCIATED(input% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnh)   , input% qnh   (:,:,jb))
+    IF (ASSOCIATED(input% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,ininact), input% ninact(:,:,jb))
     IF (ASSOCIATED(input% w     )) CALL copy(jcs,jce, jks,jke, field% wa(:,:,jb)           , input% w     (:,:,jb))
     !
     IF (ASSOCIATED(input% pr_rain)) CALL copy(jcs,jce, field% rain_gsp_rate (:,jb), input% pr_rain   (:,jb))
@@ -182,7 +182,7 @@ CONTAINS
           IF (ltimer) CALL timer_start(timer_two)
           !
 
-          CALL cloud_two( jg,  nproma, nlev                     ,& !< in : grid index
+          CALL cloud_two( nproma, nlev                          ,& !< in : grid index
                &          jcs, jce                              ,& !< in : column index range
                &          jks, jke                              ,& !< in : column index range
                &          msg_level                             ,& !< in : message level 
@@ -193,20 +193,20 @@ CONTAINS
                &          field% pfull     (:,:,jb)       ,& !< in : pressure
                &          field% cpair     (:,:,jb)       ,& !< in : specific heat of air
                &          field% ta        (:,:,jb)       ,& !< inout : temperature
-               &          field% qtrc      (:,:,jb,iqv)   ,& !< inout : sp humidity
-               &          field% qtrc      (:,:,jb,iqc)   ,& !< inout : cloud water
-               &          field% qtrc      (:,:,jb,iqnc)  ,& !< inout : cloud water number
-               &          field% qtrc      (:,:,jb,iqi)   ,& !< inout : ice
-               &          field% qtrc      (:,:,jb,iqni)  ,& !< inout : ice number
-               &          field% qtrc      (:,:,jb,iqr)   ,& !< inout : rain
-               &          field% qtrc      (:,:,jb,iqnr)  ,& !< inout : rain number
-               &          field% qtrc      (:,:,jb,iqs)   ,& !< inout : snow
-               &          field% qtrc      (:,:,jb,iqns)  ,& !< inout : snow number
-               &          field% qtrc      (:,:,jb,iqg)   ,& !< inout : graupel
-               &          field% qtrc      (:,:,jb,iqng)  ,& !< inout : graupel number
-               &          field% qtrc      (:,:,jb,iqh)   ,& !< inout : hail
-               &          field% qtrc      (:,:,jb,iqnh)  ,& !< inout : hail number
-               &          field% qtrc      (:,:,jb,ininact) ,& !< inout : activated ice nuclei
+               &          field% qtrc_phy  (:,:,jb,iqv)   ,& !< inout : sp humidity
+               &          field% qtrc_phy  (:,:,jb,iqc)   ,& !< inout : cloud water
+               &          field% qtrc_phy  (:,:,jb,iqnc)  ,& !< inout : cloud water number
+               &          field% qtrc_phy  (:,:,jb,iqi)   ,& !< inout : ice
+               &          field% qtrc_phy  (:,:,jb,iqni)  ,& !< inout : ice number
+               &          field% qtrc_phy  (:,:,jb,iqr)   ,& !< inout : rain
+               &          field% qtrc_phy  (:,:,jb,iqnr)  ,& !< inout : rain number
+               &          field% qtrc_phy  (:,:,jb,iqs)   ,& !< inout : snow
+               &          field% qtrc_phy  (:,:,jb,iqns)  ,& !< inout : snow number
+               &          field% qtrc_phy  (:,:,jb,iqg)   ,& !< inout : graupel
+               &          field% qtrc_phy  (:,:,jb,iqng)  ,& !< inout : graupel number
+               &          field% qtrc_phy  (:,:,jb,iqh)   ,& !< inout : hail
+               &          field% qtrc_phy  (:,:,jb,iqnh)  ,& !< inout : hail number
+               &          field% qtrc_phy  (:,:,jb,ininact) ,& !< inout : activated ice nuclei
                &          field% wa        (:,:,jb)     ,& !< in : vertical velocity
                &          tend_ta_two      (:,:)          ,& !< out: tendency of temperature
                &          tend_qv_two      (:,:)          ,& !< out: tendency of water vapor
@@ -236,9 +236,13 @@ CONTAINS
           ! Calculate rain and snow
           !
           DO jc = jcs, jce
-            field% rsfl(jc,jb) = field% rain_gsp_rate (jc,jb)
-            field% ssfl(jc,jb) = field% snow_gsp_rate (jc,jb) + field% graupel_gsp_rate (jc,jb) &
-            &                  + field%  ice_gsp_rate (jc,jb) + field% hail_gsp_rate (jc,jb)
+            field% rsfl(jc,jb) = field%    rain_gsp_rate (jc,jb)    ! = liquid precip rate
+            field% ssfl(jc,jb) = field%    snow_gsp_rate (jc,jb) &  ! = frozen precip rate
+                 &             + field%     ice_gsp_rate (jc,jb) &
+                 &             + field% graupel_gsp_rate (jc,jb) &
+                 &             + field%    hail_gsp_rate (jc,jb)
+            field% pr  (jc,jb) = field% rsfl(jc,jb) &               ! = total  precip rate
+                 &             + field% ssfl(jc,jb)   
           END DO
           !
           !
@@ -315,61 +319,53 @@ CONTAINS
               tend% qtrc_phy(jl,jk,jb,ininact)= tend% qtrc_phy(jl,jk,jb,ininact) + tend_ninact_two(jl,jk)
             END DO
           END DO
-!!$       CASE(2)
-!!$          ! use tendency as forcing in the dynamics
-!!$          ...
        END SELECT
        !
        ! update physics state for input to the next physics process
-       IF (lparamcpl) THEN
-         SELECT CASE(fc_two)
-         CASE(0)
-            ! diagnostic, do not use tendency
-         CASE(1)
-             DO jk = jks, jke
-               DO jl = jcs, jce
-                 field%   ta(jl,jk,jb)        = field%   ta(jl,jk,jb)         + tend_ta_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqv)    = field% qtrc(jl,jk,jb,iqv)     + tend_qv_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqc)    = field% qtrc(jl,jk,jb,iqc)     + tend_qc_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqnc)   = field% qtrc(jl,jk,jb,iqnc)    + tend_qnc_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,iqi)    = field% qtrc(jl,jk,jb,iqi)     + tend_qi_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqni)   = field% qtrc(jl,jk,jb,iqni)    + tend_qni_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,iqr)    = field% qtrc(jl,jk,jb,iqr)     + tend_qr_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqnr)   = field% qtrc(jl,jk,jb,iqnr)    + tend_qnr_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,iqs)    = field% qtrc(jl,jk,jb,iqs)     + tend_qs_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqns)   = field% qtrc(jl,jk,jb,iqns)    + tend_qns_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,iqg)    = field% qtrc(jl,jk,jb,iqg)     + tend_qg_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqng)   = field% qtrc(jl,jk,jb,iqng)    + tend_qng_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,iqh)    = field% qtrc(jl,jk,jb,iqh)     + tend_qh_two(jl,jk)    *pdtime
-                 field% qtrc(jl,jk,jb,iqnh)   = field% qtrc(jl,jk,jb,iqnh)    + tend_qnh_two(jl,jk)   *pdtime
-                 field% qtrc(jl,jk,jb,ininact)= field% qtrc(jl,jk,jb,ininact) + tend_ninact_two(jl,jk)*pdtime
-               END DO
-             END DO
-             !
-    ! output fields, inout
-    !
-    IF (ASSOCIATED(output% ta    )) CALL copy(jcs,jce, jks,jke, field% ta   (:,:,jb)        , output% ta    (:,:,jb))
-    IF (ASSOCIATED(output% qv    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqv)    , output% qv    (:,:,jb))
-    IF (ASSOCIATED(output% qc    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqc)    , output% qc    (:,:,jb))
-    IF (ASSOCIATED(output% qnc   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnc)   , output% qnc   (:,:,jb))
-    IF (ASSOCIATED(output% qi    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqi)    , output% qi    (:,:,jb))
-    IF (ASSOCIATED(output% qni   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqni)   , output% qni   (:,:,jb))
-    IF (ASSOCIATED(output% qr    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqr)    , output% qr    (:,:,jb))
-    IF (ASSOCIATED(output% qnr   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnr)   , output% qnr   (:,:,jb))
-    IF (ASSOCIATED(output% qs    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqs)    , output% qs    (:,:,jb))
-    IF (ASSOCIATED(output% qns   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqns)   , output% qns   (:,:,jb))
-    IF (ASSOCIATED(output% qg    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqg)    , output% qg    (:,:,jb))
-    IF (ASSOCIATED(output% qng   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqng)   , output% qng   (:,:,jb))
-    IF (ASSOCIATED(output% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqh)    , output% qh    (:,:,jb))
-    IF (ASSOCIATED(output% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,iqnh)   , output% qnh   (:,:,jb))
-    IF (ASSOCIATED(output% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc (:,:,jb,ininact), output% ninact(:,:,jb))
-    IF (ASSOCIATED(output% w     )) CALL copy(jcs,jce, jks,jke, field% wa(:,:,jb)           , output% w     (:,:,jb))
-    !
-!!$         CASE(2)
-!!$            ! use tendency as forcing in the dynamics
-!!$            ...
-         END SELECT
-       END IF
+       SELECT CASE(fc_two)
+       CASE(0)
+          ! diagnostic, do not use tendency
+       CASE(1)
+          DO jk = jks, jke
+            DO jl = jcs, jce
+              field%       ta(jl,jk,jb)        = field%       ta(jl,jk,jb)         + tend_ta_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqv)    = field% qtrc_phy(jl,jk,jb,iqv)     + tend_qv_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqc)    = field% qtrc_phy(jl,jk,jb,iqc)     + tend_qc_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqnc)   = field% qtrc_phy(jl,jk,jb,iqnc)    + tend_qnc_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqi)    = field% qtrc_phy(jl,jk,jb,iqi)     + tend_qi_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqni)   = field% qtrc_phy(jl,jk,jb,iqni)    + tend_qni_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqr)    = field% qtrc_phy(jl,jk,jb,iqr)     + tend_qr_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqnr)   = field% qtrc_phy(jl,jk,jb,iqnr)    + tend_qnr_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqs)    = field% qtrc_phy(jl,jk,jb,iqs)     + tend_qs_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqns)   = field% qtrc_phy(jl,jk,jb,iqns)    + tend_qns_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqg)    = field% qtrc_phy(jl,jk,jb,iqg)     + tend_qg_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqng)   = field% qtrc_phy(jl,jk,jb,iqng)    + tend_qng_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqh)    = field% qtrc_phy(jl,jk,jb,iqh)     + tend_qh_two    (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,iqnh)   = field% qtrc_phy(jl,jk,jb,iqnh)    + tend_qnh_two   (jl,jk)*pdtime
+              field% qtrc_phy(jl,jk,jb,ininact)= field% qtrc_phy(jl,jk,jb,ininact) + tend_ninact_two(jl,jk)*pdtime
+            END DO
+          END DO
+          !
+          ! output fields, inout
+          !
+          IF (ASSOCIATED(output% ta    )) CALL copy(jcs,jce, jks,jke, field% ta       (:,:,jb)        , output% ta    (:,:,jb))
+          IF (ASSOCIATED(output% qv    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqv)    , output% qv    (:,:,jb))
+          IF (ASSOCIATED(output% qc    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqc)    , output% qc    (:,:,jb))
+          IF (ASSOCIATED(output% qnc   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnc)   , output% qnc   (:,:,jb))
+          IF (ASSOCIATED(output% qi    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqi)    , output% qi    (:,:,jb))
+          IF (ASSOCIATED(output% qni   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqni)   , output% qni   (:,:,jb))
+          IF (ASSOCIATED(output% qr    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqr)    , output% qr    (:,:,jb))
+          IF (ASSOCIATED(output% qnr   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnr)   , output% qnr   (:,:,jb))
+          IF (ASSOCIATED(output% qs    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqs)    , output% qs    (:,:,jb))
+          IF (ASSOCIATED(output% qns   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqns)   , output% qns   (:,:,jb))
+          IF (ASSOCIATED(output% qg    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqg)    , output% qg    (:,:,jb))
+          IF (ASSOCIATED(output% qng   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqng)   , output% qng   (:,:,jb))
+          IF (ASSOCIATED(output% qh    )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqh)    , output% qh    (:,:,jb))
+          IF (ASSOCIATED(output% qnh   )) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,iqnh)   , output% qnh   (:,:,jb))
+          IF (ASSOCIATED(output% ninact)) CALL copy(jcs,jce, jks,jke, field% qtrc_phy (:,:,jb,ininact), output% ninact(:,:,jb))
+          IF (ASSOCIATED(output% w     )) CALL copy(jcs,jce, jks,jke, field% wa       (:,:,jb)        , output% w     (:,:,jb))
+          !
+       END SELECT
        !
     ELSE       ! is_in_sd_ed_interval : bypass area
        !

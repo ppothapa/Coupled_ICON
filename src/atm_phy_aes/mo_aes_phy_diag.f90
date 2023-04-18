@@ -21,16 +21,17 @@
 
 MODULE mo_aes_phy_diag
 
-  USE mo_kind                ,ONLY: wp
+  USE mo_kind,                ONLY: wp
 
-  USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field,     &
+  USE mo_aes_phy_dims,        ONLY: aes_phy_dims
+  USE mo_aes_phy_memory,      ONLY: t_aes_phy_field, prm_field,     &
     &                               t_aes_phy_tend,  prm_tend,      &
     &                               cdimissval
 
-  USE mo_physical_constants  ,ONLY: cpd, cpv, cvd, cvv, Tf, tmelt
-  USE mo_run_config          ,ONLY: iqv
-  USE mo_aes_cop_config      ,ONLY: aes_cop_config
-  USE mo_aes_sfc_indices     ,ONLY: nsfc_type, iwtr, iice, ilnd
+  USE mo_physical_constants,  ONLY: cpd, cpv, cvd, cvv, Tf, tmelt
+  USE mo_run_config,          ONLY: iqv
+  USE mo_aes_cop_config,      ONLY: aes_cop_config
+  USE mo_aes_sfc_indices,     ONLY: nsfc_type, iwtr, iice, ilnd
 
   IMPLICIT NONE
   PRIVATE
@@ -43,21 +44,20 @@ MODULE mo_aes_phy_diag
 CONTAINS
 
   !---------------------------------------------------------------------
-  SUBROUTINE surface_fractions(jg,jb,jcs,jce ,&
-       &                       nproma,nlev   )
+  SUBROUTINE surface_fractions(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field), POINTER      :: field
-    REAL(wp)                            :: zfrw (nproma) !< cell area fraction of open water
-    REAL(wp)                            :: zfri (nproma) !< cell area fraction of ice covered water
-    REAL(wp)                            :: zfrl (nproma) !< cell area fraction of land
-    INTEGER                             :: jc
+    TYPE(t_aes_phy_field), POINTER :: field
+    
+    REAL(wp) :: zfrw (aes_phy_dims(jg)%nproma) !< cell area fraction of open water
+    REAL(wp) :: zfri (aes_phy_dims(jg)%nproma) !< cell area fraction of ice covered water
+    REAL(wp) :: zfrl (aes_phy_dims(jg)%nproma) !< cell area fraction of land
+    INTEGER  :: jc
 
     field => prm_field(jg)
  
@@ -143,32 +143,35 @@ CONTAINS
   !---------------------------------------------------------------------
 
   !---------------------------------------------------------------------
-  SUBROUTINE droplet_number(jg,jb,jcs,jce ,&
-       &                    nproma,nlev   )
+  SUBROUTINE droplet_number(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in)  :: jg, jb, jcs, jce
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field), POINTER      :: field
-    INTEGER                             :: jc, jk
-    LOGICAL                             :: lland(nproma)
-    LOGICAL                             :: lglac(nproma)
-    REAL(wp)                            :: zprat, zn1, zn2, zcdnc
+    INTEGER :: nlev
+    !
+    TYPE(t_aes_phy_field), POINTER :: field
+    !
+    INTEGER  :: jc, jk
+    LOGICAL  :: lland(aes_phy_dims(jg)%nproma)
+    LOGICAL  :: lglac(aes_phy_dims(jg)%nproma)
+    REAL(wp) :: zprat, zn1, zn2, zcdnc
 
     ! Shortcuts to components of aes_cop_config
     !
     REAL(wp) :: cn1lnd, cn2lnd, cn1sea, cn2sea
-    !
+
+    nlev   = aes_phy_dims(jg)%nlev
+
     cn1lnd = aes_cop_config(jg)% cn1lnd
     cn2lnd = aes_cop_config(jg)% cn2lnd
     cn1sea = aes_cop_config(jg)% cn1sea
     cn2sea = aes_cop_config(jg)% cn2sea
 
-    field => prm_field(jg)
+    field  => prm_field(jg)
 
     !$ACC DATA PRESENT(field) &
     !$ACC   CREATE(lland, lglac)
@@ -215,29 +218,32 @@ CONTAINS
   !---------------------------------------------------------------------
 
   !---------------------------------------------------------------------
-  SUBROUTINE cpair_cvair_qconv(jg,jb,jcs,jce ,&
-       &                       nproma,nlev   )
+  SUBROUTINE cpair_cvair_qconv(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field), POINTER      :: field
-    INTEGER                             :: jc, jk
+    INTEGER :: nlev
+    !
+    TYPE(t_aes_phy_field), POINTER :: field
+    !
+    INTEGER :: jc, jk
 
-    field => prm_field(jg)
+    nlev   = aes_phy_dims(jg)%nlev
+
+    field  => prm_field(jg)
     
-    !$ACC DATA PRESENT(field%cpair, field%qtrc, field%cvair, field%qconv, field%mair)
+    !$ACC DATA PRESENT(field%cpair, field%qtrc_phy, field%cvair, field%qconv, field%mair)
 
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,nlev
       DO jc=jcs,jce
-        field%cpair(jc,jk,jb) = cpd+(cpv-cpd)*field%qtrc(jc,jk,jb,iqv)
-        field%cvair(jc,jk,jb) = cvd+(cvv-cvd)*field%qtrc(jc,jk,jb,iqv)
+        field%cpair(jc,jk,jb) = cpd+(cpv-cpd)*field%qtrc_phy(jc,jk,jb,iqv)
+        field%cvair(jc,jk,jb) = cvd+(cvv-cvd)*field%qtrc_phy(jc,jk,jb,iqv)
         !
         field%qconv(jc,jk,jb) = 1._wp/(field%mair(jc,jk,jb)*field%cpair(jc,jk,jb))
       END DO
@@ -252,18 +258,20 @@ CONTAINS
   !---------------------------------------------------------------------
 
   !---------------------------------------------------------------------
-  SUBROUTINE initialize(jg,jb,jcs,jce ,&
-       &                nproma,nlev   )
+  SUBROUTINE initialize   (jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in) :: jg, jb, jcs, jce
 
     ! Local variables
     !
+    INTEGER :: nlev
+    !
     TYPE(t_aes_phy_field), POINTER      :: field
     INTEGER                             :: jc, jk
+
+    nlev   = aes_phy_dims(jg)%nlev
 
     field => prm_field(jg)
     
@@ -293,37 +301,28 @@ CONTAINS
   !---------------------------------------------------------------------
 
   !---------------------------------------------------------------------
-  SUBROUTINE finalize(jg,jb,jcs,jce ,&
-       &              nproma,nlev   )
+  SUBROUTINE finalize     (jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in) :: jg, jb, jcs, jce
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field), POINTER      :: field
-    TYPE(t_aes_phy_tend) , POINTER      :: tend
-    INTEGER                             :: jc, jk
+    INTEGER :: nlev
+    !
+    TYPE(t_aes_phy_field), POINTER :: field
+    TYPE(t_aes_phy_tend) , POINTER :: tend
+    !
+    INTEGER :: jc, jk
+
+    nlev  = aes_phy_dims(jg)%nlev
 
     field => prm_field(jg)
     tend  => prm_tend (jg)
 
-    !$ACC DATA PRESENT(field%pr, field%rsfl, field%ssfl, field%rsfc, field%ssfc, tend%ta_phy, field%cpair, field%cvair)
+    !$ACC DATA PRESENT(tend%ta_phy, field%cpair, field%cvair)
     
-    ! precipitation flux from all processes
-    !
-    !$ACC PARALLEL DEFAULT(PRESENT)
-    !$ACC LOOP GANG VECTOR
-    DO jc=jcs,jce
-    field% pr(jc,jb) =  field% rsfl(jc,jb) & ! large scale rain
-         &             +field% ssfl(jc,jb) & ! large scale snow
-         &             +field% rsfc(jc,jb) & ! convection  rain
-         &             +field% ssfc(jc,jb)   ! convection  snow
-    END DO
-    !$ACC END PARALLEL
- 
     ! convert the temperature tendency from physics, as computed for constant pressure conditions,
     ! to constant volume conditions, as needed for the coupling to the dynamics
     !$ACC PARALLEL DEFAULT(PRESENT)

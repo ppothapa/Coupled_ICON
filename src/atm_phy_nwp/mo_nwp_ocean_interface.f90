@@ -180,7 +180,7 @@ CONTAINS
     !   field_id(4)  represents "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
     !   field_id(5)  represents "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
     !   field_id(10) represents "10m_wind_speed"                           - atmospheric wind speed
-    !   field_id(11) represents "qtrc(nlev,co2)"                           - co2 mixing ratio
+    !   field_id(11) represents "qtrc_phy(nlev,co2)"                       - co2 mixing ratio
     !   field_id(13) represents "pres_msl"                                 - sea level pressure
     !
     !  Receive fields from ocean:
@@ -538,10 +538,10 @@ CONTAINS
                          & i_startidx, i_endidx, rl_start, rl_end)
 
         SELECT CASE (ccycle_config(jg)%iccycle)
-        CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc in kg/kg
+        CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc_phy in kg/kg
           DO jc = i_startidx, i_endidx
             ncount = ncount + 1
-!ECHAM      buffer(ncount,1)     =  1.0e6_wp * prm_field(jg)%qtrc(n,nlev,i_blk,ico2) / vmr_to_mmr_co2
+!ECHAM      buffer(ncount,1)     =  1.0e6_wp * prm_field(jg)%qtrc_phy(n,nlev,i_blk,ico2) / vmr_to_mmr_co2
 !NWP:  prognostic CO2 not yet available in NWP physics
             buffer(ncount,1)    =  0.0_wp
           END DO

@@ -21,7 +21,6 @@
 MODULE mo_aes_phy_bcs
 
   USE mo_kind                       ,ONLY: wp
-  USE mo_exception                  ,ONLY: warning
   USE mtime                         ,ONLY: datetime , newDatetime ,                        &
        &                                   timedelta, newTimedelta, max_timedelta_str_len, &
        &                                   operator(+), operator(-), operator(*),          &
@@ -61,7 +60,7 @@ MODULE mo_aes_phy_bcs
 
   ! for 6hourly sst and ice data
   USE mo_time_config,          ONLY: time_config
-  USE mo_aes_phy_init,         ONLY: sst_intp, sic_intp, sst_sic_reader
+  USE mo_aes_phy_init,         ONLY: sst_intp, sic_intp
 
   IMPLICIT NONE
   PRIVATE
@@ -149,8 +148,10 @@ CONTAINS
     LOGICAL, ALLOCATABLE                     :: mask_sftof(:,:)
 
 !!$    CHARACTER(*), PARAMETER :: method_name = "aes_phy_bcs"
-    LOGICAL                                  :: save_i_am_accel_node
 
+#ifdef _OPENACC
+    LOGICAL                                  :: save_i_am_accel_node
+#endif
     !
     INTEGER          :: jc, jb, jg,  jcs, jce, jbs, jbe
     TYPE(t_aes_phy_field) , POINTER    :: field

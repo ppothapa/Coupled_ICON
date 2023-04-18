@@ -286,7 +286,6 @@ MODULE mo_rte_rrtmgp_radiation
   !-------------------------------------------------------------------
   SUBROUTINE rte_rrtmgp_radiation( &
     jg, jb, jcs, jce, nproma, klev, ntracer, &
-    & ktype          ,&!< in  type of convection
     & loland         ,&!< in  land-sea mask. (1. = land, 0. = sea/lakes)
     & loglac         ,&!< in  fraction of land covered by glaciers
     & this_datetime  ,&!< in  actual time step
@@ -304,8 +303,8 @@ MODULE mo_rte_rrtmgp_radiation
     & pp_hl          ,&!< in  pressure at half levels at t-dt [Pa]
     & pp_fl          ,&!< in  pressure at full levels at t-dt [Pa]
     & tk_fl          ,&!< in  tk_fl  = temperature at full level at t-dt
-    & xm_dry         ,&!< in  dry air mass in layer [kg/m2]
-    & xm_trc         ,&!< in  tracer  mass in layer [kg/m2]
+    & xm_air         ,&!< in  air mass in layer [kg/m2]
+    & xq_trc         ,&!< in  tracer  mass fraction [kg/kg]
     & xv_ozn         ,&!< out ozone volume mixing ratio [mol/mol]
     !
     & cdnc           ,&!< in  cloud droplet number concentration
@@ -340,8 +339,7 @@ MODULE mo_rte_rrtmgp_radiation
     &                 )
 
     INTEGER, INTENT(in)     :: &
-    jg, jb, jcs, jce, nproma, klev, ntracer, &
-    & ktype(:)               !< convection type
+    jg, jb, jcs, jce, nproma, klev, ntracer
 
     LOGICAL, INTENT(IN)     :: &
     & loland(:),           & !< land mask
@@ -361,11 +359,11 @@ MODULE mo_rte_rrtmgp_radiation
     & zf(:,:),          & !< geometric height at full level      [m]
     & zh(:,:),          & !< geometric height at half level      [m]
     & dz(:,:),          & !< geometric height thickness of layer [m]
-    & xm_dry(:,:),      & !< dry air mass in layer [kg/m2]
     & pp_hl(:,:),       & !< pressure at half levels [Pa]
     & pp_fl(:,:),       & !< Pressure at full levels [Pa]
     & tk_fl(:,:),       & !< Temperature on full levels [K]
-    & xm_trc(:,:,:),    & !< tracer mass in layer [kg/m2]
+    & xm_air(:,:),      & !< air mass in layer [kg/m2]
+    & xq_trc(:,:,:),    & !< tracer mass fraction [kg/kg]
     & cdnc(:,:),        & !< Cloud drop number concentration
     & cld_frc(:,:)        !< Cloud fraction
     REAL(wp), INTENT(OUT) :: &
@@ -422,22 +420,20 @@ MODULE mo_rte_rrtmgp_radiation
 
     REAL (wp) :: pp_sfc(nproma)
 
-    INTEGER   :: jl, jk
+    INTEGER   :: jl, jk, jt
 
-    !
-    ! Shortcuts to components of aes_rad_config
-    !
     !$ACC DATA PRESENT(xv_ozn) &
     !$ACC   CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc) &
     !$ACC   CREATE(xvmr_vap, xvmr_co2, xvmr_o3, xvmr_o2, xvmr_ch4) &
     !$ACC   CREATE(xvmr_n2o, xvmr_cfc)
+
     CALL calculate_temperature_pressure(jcs, jce, nproma, klev, &
       pp_hl(:,:), pp_fl(:,:), tk_fl(:,:), tk_sfc(:), pp_sfc, tk_hl)
 
     CALL gas_profiles ( jg,           jb,                    jcs,             &
                       & jce,          nproma,                klev,            &
                       & ntracer,      this_datetime,         pp_hl,           &
-                      & pp_fl,        xm_trc,                xm_dry,          &
+                      & pp_fl,        xq_trc,                                 &
                       & xvmr_vap,     xvmr_co2,              xvmr_o3,         &
                       & xvmr_o2,      xvmr_ch4,              xvmr_n2o,        &
                       & xvmr_cfc                                              )
@@ -451,20 +447,20 @@ MODULE mo_rte_rrtmgp_radiation
     !$ACC END PARALLEL LOOP
 
     CALL cloud_profiles ( jg,           jcs,            jce,              &
-         &                klev,         xm_trc,         cld_frc,          &
+         &                klev,         xq_trc, xm_air, cld_frc,          &
          &                xm_liq,       xm_ice,         xc_frc,           &
          &                cld_cvr                                         )
 
     CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev, &
       aes_rad_config(jg)%irad_aero,  &
-      ktype, psctm(jg), ssi_factor, loland, loglac, this_datetime        ,&
+      psctm(jg), ssi_factor, loland, loglac, this_datetime               ,&
       pcos_mu0        ,daylght_frc                                       ,&
       alb_vis_dir     ,alb_nir_dir     ,alb_vis_dif     ,alb_nir_dif     ,&
       emissivity                                                         ,&
       zf              ,zh              ,dz                               ,&
       pp_sfc          ,pp_fl           ,pp_hl                            ,&
       tk_sfc          ,tk_fl           ,tk_hl                            ,&
-      xm_dry          ,xvmr_vap        ,xm_liq          ,xm_ice          ,&
+      xvmr_vap        ,xm_liq          ,xm_ice                           ,&
       cdnc            ,xc_frc                                            ,&
       xvmr_co2        ,xvmr_ch4        ,xvmr_n2o        ,xvmr_cfc        ,&
       xvmr_o3         ,xvmr_o2                                           ,&

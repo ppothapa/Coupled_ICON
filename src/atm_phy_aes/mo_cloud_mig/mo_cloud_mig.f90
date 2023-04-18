@@ -21,8 +21,6 @@ MODULE mo_cloud_mig
   USE mo_timer               ,ONLY: ltimer, timer_start, timer_stop, &
        &                            timer_sat, timer_grp
 
-  USE mo_aes_phy_config      ,ONLY: aes_phy_config
-  USE mo_cloud_mig_config    ,ONLY: cloud_mig_config
   USE mo_aes_thermo          ,ONLY: saturation_adjustment
   USE gscp_data              ,ONLY: cloud_num
   USE mo_aes_graupel         ,ONLY: graupel
@@ -31,15 +29,9 @@ MODULE mo_cloud_mig
   PRIVATE
   PUBLIC  :: cloud_mig
 
-  INTERFACE cloud_mig
-     MODULE PROCEDURE cloud_mig
-  END INTERFACE cloud_mig
-
 CONTAINS
 
-  SUBROUTINE cloud_mig     ( jg         ,&
-       &                     jcs, jce   ,&
-       &                     msg_level  ,&
+  SUBROUTINE cloud_mig     ( jcs, jce   ,&
        &                     pdtime     ,&
        &                     dz         ,&
        &                     rho        ,&
@@ -67,9 +59,7 @@ CONTAINS
 
     ! Arguments
     !
-    INTEGER , INTENT(in)  :: jg            !< grid index
     INTEGER , INTENT(in)  :: jcs, jce      !< column index range
-    INTEGER , INTENT(in)  :: msg_level     !< message level
     REAL(wp), INTENT(in)  :: pdtime        !< timestep
     !
     REAL(wp), INTENT(in)  :: dz      (:,:) !< vertical layer thickness

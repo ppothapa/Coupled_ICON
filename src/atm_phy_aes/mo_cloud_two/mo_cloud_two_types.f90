@@ -49,7 +49,6 @@ MODULE mo_cloud_two_types
      ! Input arguments: parameters
      ! ---------------------------
      !
-     INTEGER , POINTER :: jg        (:,  :)=>NULL() !< grid index
      INTEGER , POINTER :: jcs       (:,  :)=>NULL() !< column start index
      INTEGER , POINTER :: jce       (:,  :)=>NULL() !< column end   index
      INTEGER , POINTER :: msg_level (:,  :)=>NULL() !< message level

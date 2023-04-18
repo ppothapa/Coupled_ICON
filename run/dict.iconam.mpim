@@ -35,3 +35,14 @@
   psl                pres_msl
   pfull              pres
   phalf              pres_ifc
+#
+# provisional
+# -----------
+#
+ tend_qhus_mig       tend_hus_mig
+ tend_qclw_mig       tend_clw_mig
+ tend_qcli_mig       tend_cli_mig
+#
+# tend_qhus_phy       tend_hus_phy
+# tend_qclw_phy       tend_clw_phy
+# tend_qcli_phy       tend_cli_phy

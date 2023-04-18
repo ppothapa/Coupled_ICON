@@ -347,32 +347,4 @@ if [[ "$output_phy_3d" == "yes" ]]; then
 EOF
 fi
 
-
-output_trc_3d=yes
-#
-if [[ "$output_trc_3d" == "yes" ]]; then
-  #
-  cat >> ${atmo_namelist} << EOF
-&output_nml
- output_filename  = "${EXPNAME}_trc_3d"
- filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
- filetype         = 5
- remap            = 0
- output_grid      = .TRUE.
- output_start     = "${start_date}"
- output_end       = "${end_date}"
- output_interval  = "${output_interval}"
- file_interval    = "${file_interval}"
- include_last     = .FALSE.
- ml_varlist       = 'ps'        , 'pfull'     , 'zg'        ,
-                    'mairvi_phy',
-                    'mdryvi_phy',
-                    'mh2ovi_phy',
-                    'qhus_phy'  , 'mhusvi_phy', 'tend_mhusvi_phy',
-                    'qclw_phy'  , 'mclwvi_phy', 'tend_mclwvi_phy',
-                    'qcli_phy'  , 'mclivi_phy', 'tend_mclivi_phy',
-/
-EOF
-fi
-
 #--------------------------------------------------------------------------------------------------

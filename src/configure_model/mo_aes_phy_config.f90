@@ -20,10 +20,10 @@ MODULE mo_aes_phy_config
   USE mo_kind          ,ONLY: wp
   USE mo_impl_constants,ONLY: max_dom
 
-  USE mtime            ,ONLY: OPERATOR(<), OPERATOR(>), OPERATOR(==),                                                 &
-       &                      datetime , newDatetime , datetimeToString , max_datetime_str_len ,                      &
-       &                      timedelta, newTimedelta, timedeltaToString, max_timedelta_str_len, deallocateTimeDelta, &
-       &                      event    , newEvent    , eventGroup         , addEventToEventGroup                    , &
+  USE mtime            ,ONLY: OPERATOR(<), OPERATOR(>), OPERATOR(==),                                                              &
+       &                      t_datetime =>datetime , newDatetime , datetimeToString , max_datetime_str_len ,                      &
+       &                      t_timedelta=>timedelta, newTimedelta, timedeltaToString, max_timedelta_str_len, deallocateTimeDelta, &
+       &                      t_event    =>event    , newEvent    , eventGroup       , addEventToEventGroup ,                      &
        &                      getTotalMilliSecondsTimeDelta
   USE mo_event_manager ,ONLY: addEventGroup, getEventGroup, printEventGroup
 
@@ -60,15 +60,6 @@ MODULE mo_aes_phy_config
      ! ------------------------
      !
      ! dynamics physics coupling
-     LOGICAL  :: lparamcpl  !< determines the coupling between the parameterizations
-     !                      !  .FALSE.: parameterizations do not update the physics state
-     !                      !           so that all params get the same input state
-     !                      !  .TRUE. : parameterizations update the physics state
-     !                      !           so that each param. provides a new prov. state
-     !
-     LOGICAL  :: ldrymoist  !  .TRUE. : use dry   air mass as conserved reference air mass
-     !                      !  .FALSE.: use moist air mass as conserved reference air mass
-     !
      !                      !  If negative tracer mass fractions are found
      !                      !  in the dynamics to physics interface, then ...
      INTEGER  :: iqneg_d2p  !  1: ... they are reported
@@ -155,51 +146,69 @@ MODULE mo_aes_phy_config
      ! - dt_prc_sec = time interval in seconds
      !
      ! atmospheric physics
-     TYPE(timedelta), POINTER :: dt_rad
-     TYPE(datetime ), POINTER :: sd_rad   
-     TYPE(datetime ), POINTER :: ed_rad   
-     TYPE(event    ), POINTER :: ev_rad
-     REAL(wp)                 :: dt_rad_sec
+     TYPE(t_datetime ), POINTER :: datetime
+     TYPE(t_timedelta), POINTER :: dt_phy
+     REAL(wp)                   :: dt_phy_sec
      !
-     TYPE(timedelta), POINTER :: dt_vdf
-     TYPE(datetime ), POINTER :: sd_vdf
-     TYPE(datetime ), POINTER :: ed_vdf
-     TYPE(event    ), POINTER :: ev_vdf
-     REAL(wp)                 :: dt_vdf_sec
+     ! atmospheric processes
      !
-     TYPE(timedelta), POINTER :: dt_mig
-     TYPE(datetime ), POINTER :: sd_mig
-     TYPE(datetime ), POINTER :: ed_mig
-     TYPE(event    ), POINTER :: ev_mig
-     REAL(wp)                 :: dt_mig_sec
+     TYPE(t_timedelta), POINTER :: dt_rad
+     TYPE(t_datetime ), POINTER :: sd_rad
+     TYPE(t_datetime ), POINTER :: ed_rad
+     TYPE(t_event    ), POINTER :: ev_rad
+     REAL(wp)                   :: dt_rad_sec
+     LOGICAL                    :: is_in_sd_ed_interval_rad
+     LOGICAL                    :: is_active_rad
      !
-     TYPE(timedelta), POINTER :: dt_two
-     TYPE(datetime ), POINTER :: sd_two
-     TYPE(datetime ), POINTER :: ed_two
-     TYPE(event    ), POINTER :: ev_two
-     REAL(wp)                 :: dt_two_sec
+     TYPE(t_timedelta), POINTER :: dt_vdf
+     TYPE(t_datetime ), POINTER :: sd_vdf
+     TYPE(t_datetime ), POINTER :: ed_vdf
+     TYPE(t_event    ), POINTER :: ev_vdf
+     REAL(wp)                   :: dt_vdf_sec
+     LOGICAL                    :: is_in_sd_ed_interval_vdf
+     LOGICAL                    :: is_active_vdf
+     !
+     TYPE(t_timedelta), POINTER :: dt_mig
+     TYPE(t_datetime ), POINTER :: sd_mig
+     TYPE(t_datetime ), POINTER :: ed_mig
+     TYPE(t_event    ), POINTER :: ev_mig
+     REAL(wp)                   :: dt_mig_sec
+     LOGICAL                    :: is_in_sd_ed_interval_mig
+     LOGICAL                    :: is_active_mig
+     !
+     TYPE(t_timedelta), POINTER :: dt_two
+     TYPE(t_datetime ), POINTER :: sd_two
+     TYPE(t_datetime ), POINTER :: ed_two
+     TYPE(t_event    ), POINTER :: ev_two
+     REAL(wp)                   :: dt_two_sec
+     LOGICAL                    :: is_in_sd_ed_interval_two
+     LOGICAL                    :: is_active_two
      !
      ! atmospheric chemistry
      !
-     TYPE(timedelta), POINTER :: dt_car
-     TYPE(datetime ), POINTER :: sd_car
-     TYPE(datetime ), POINTER :: ed_car
-     TYPE(event    ), POINTER :: ev_car
-     REAL(wp)                 :: dt_car_sec
+     TYPE(t_timedelta), POINTER :: dt_car
+     TYPE(t_datetime ), POINTER :: sd_car
+     TYPE(t_datetime ), POINTER :: ed_car
+     TYPE(t_event    ), POINTER :: ev_car
+     REAL(wp)                   :: dt_car_sec
+     LOGICAL                    :: is_in_sd_ed_interval_car
+     LOGICAL                    :: is_active_car
      !
-     TYPE(timedelta), POINTER :: dt_art
-     TYPE(datetime ), POINTER :: sd_art
-     TYPE(datetime ), POINTER :: ed_art
-     TYPE(event    ), POINTER :: ev_art
-     REAL(wp)                 :: dt_art_sec
+     TYPE(t_timedelta), POINTER :: dt_art
+     TYPE(t_datetime ), POINTER :: sd_art
+     TYPE(t_datetime ), POINTER :: ed_art
+     TYPE(t_event    ), POINTER :: ev_art
+     REAL(wp)                   :: dt_art_sec
+     LOGICAL                    :: is_in_sd_ed_interval_art
+     LOGICAL                    :: is_active_art
      !
   END TYPE t_aes_phy_tc
 
   !>
   !! Configuration/logicals/timecontrol state vectors, for multiple domains/grids.
   !!
-  TYPE(t_aes_phy_config), TARGET :: aes_phy_config  (max_dom)
-  TYPE(t_aes_phy_tc)    , TARGET :: aes_phy_tc      (max_dom)
+  TYPE(t_aes_phy_config), TARGET :: aes_phy_config (max_dom)
+  TYPE(t_aes_phy_tc)    , TARGET :: aes_phy_tc     (max_dom)
   
   !>
   !! Events and event group
@@ -210,7 +219,7 @@ MODULE mo_aes_phy_config
   !>
   !! For convenience
   !!
-  TYPE(timedelta) , POINTER :: dt_zero
+  TYPE(t_timedelta) , POINTER :: dt_zero
 
 CONTAINS
 
@@ -227,9 +236,6 @@ CONTAINS
     ! ---------------------------
     !
     ! dynamics physics coupling
-    aes_phy_config(:)%lparamcpl = .TRUE.
-    aes_phy_config(:)%ldrymoist = .FALSE.
-    !
     aes_phy_config(:)%iqneg_d2p  = 0
     aes_phy_config(:)%iqneg_p2d  = 0
     !
@@ -370,7 +376,7 @@ CONTAINS
       INTEGER                             , INTENT(in)    :: config_fc
       !
       ! mtime time control (TC) variables
-      TYPE(timedelta), POINTER :: tc_dt
+      TYPE(t_timedelta), POINTER :: tc_dt
       !
       ! 1. if dt='' or dt contains only blanks, then use dt='PT0S',
       !    because MTIME cannot digest empty strings
@@ -534,10 +540,10 @@ CONTAINS
       CHARACTER(len=max_datetime_str_len ), INTENT(in) :: config_ed
       !
       ! mtime time control (TC) variables
-      TYPE(timedelta), POINTER :: tc_dt
-      TYPE(datetime ), POINTER :: tc_sd
-      TYPE(datetime ), POINTER :: tc_ed
-      TYPE(event    ), POINTER :: tc_ev
+      TYPE(t_timedelta), POINTER :: tc_dt
+      TYPE(t_datetime ), POINTER :: tc_sd
+      TYPE(t_datetime ), POINTER :: tc_ed
+      TYPE(t_event    ), POINTER :: tc_ev
       !
       REAL(wp), INTENT(out) :: dt_sec
 
@@ -593,12 +599,6 @@ CONTAINS
        CALL message    ('','..........................')
        CALL message    ('','')
        CALL message    ('','dynamics physics coupling')
-       CALL message    ('','parameterization coupling: .FALSE.: no updates of physics state, .TRUE.: updates phyiscs state')
-       CALL print_value('    aes_phy_config('//TRIM(cg)//')% lparamcpl  ',aes_phy_config(jg)% lparamcpl  )
-       CALL message    ('','')
-       CALL message    ('','tracer reference air mass: .FALSE.: moist air mass, .TRUE.: dry air mass')
-       CALL print_value('    aes_phy_config('//TRIM(cg)//')% ldrymoist  ',aes_phy_config(jg)% ldrymoist  )
-       CALL message    ('','')
        CALL message    ('','treatment of negative tracer mass fractions:')
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% iqneg_d2p  ',aes_phy_config(jg)% iqneg_d2p    )
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% iqneg_p2d  ',aes_phy_config(jg)% iqneg_p2d    )
@@ -753,15 +753,15 @@ CONTAINS
          &                                dt_sec      )
       !
       ! grid and name of evaluated configuration
-      CHARACTER(len=*)                    , INTENT(in)    :: cg
-      CHARACTER(len=*)                    , INTENT(in)    :: process
+      CHARACTER(len=*) , INTENT(in) :: cg
+      CHARACTER(len=*) , INTENT(in) :: process
       !
       ! mtime time control (TC) variables
-      TYPE(timedelta), POINTER :: tc_dt
-      TYPE(datetime ), POINTER :: tc_sd
-      TYPE(datetime ), POINTER :: tc_ed
+      TYPE(t_timedelta), POINTER    :: tc_dt
+      TYPE(t_datetime ), POINTER    :: tc_sd
+      TYPE(t_datetime ), POINTER    :: tc_ed
       !
-      REAL(wp), INTENT(in) :: dt_sec
+      REAL(wp)         , INTENT(in) :: dt_sec
       !
       CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: td_string
       CHARACTER(LEN=MAX_DATETIME_STR_LEN ) :: dt_string

@@ -22,7 +22,7 @@ MODULE mo_cloud_gas_profiles
 
   USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: max_dom
-  USE mo_run_config,           ONLY: nlev, ntracer
+  USE mo_run_config,           ONLY: ntracer
   USE mo_parallel_config,      ONLY: nproma
   USE mo_aes_rad_config,       ONLY: aes_rad_config
   USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
@@ -108,13 +108,13 @@ CONTAINS
       gas(3,jg)%frad = aes_rad_config(jg)% frad_ch4
       gas(3,jg)%mmr2vmr = amd/amch4
 !   O2
-      gas(4,jg)%name = 'o2  '
+      gas(4,jg)%name = 'o2   '
       gas(4,jg)%irad = aes_rad_config(jg)% irad_o2
       gas(4,jg)%vmr  = aes_rad_config(jg)% vmr_o2
       gas(4,jg)%frad = aes_rad_config(jg)% frad_o2
       gas(4,jg)%mmr2vmr = amd/amo2
 !   O3
-      gas(5,jg)%name = 'o3  '
+      gas(5,jg)%name = 'o3   '
       gas(5,jg)%irad = aes_rad_config(jg)% irad_o3
       gas(5,jg)%vmr  = missing_value
       gas(5,jg)%itrac= MIN(io3,ntracer)
@@ -128,13 +128,13 @@ CONTAINS
       gas(6,jg)%frad = aes_rad_config(jg)% frad_n2o
       gas(6,jg)%mmr2vmr = amd/amn2o
 !   CFC11
-      gas(7,jg)%name = 'cfc11  '
+      gas(7,jg)%name = 'cfc11'
       gas(7,jg)%irad = aes_rad_config(jg)% irad_cfc11
       gas(7,jg)%vmr  = aes_rad_config(jg)% vmr_cfc11
       gas(7,jg)%frad = aes_rad_config(jg)% frad_cfc11
       gas(7,jg)%mmr2vmr = amd/amc11
 !   CFC12
-      gas(8,jg)%name = 'cfc12  '
+      gas(8,jg)%name = 'cfc12'
       gas(8,jg)%irad = aes_rad_config(jg)% irad_cfc12
       gas(8,jg)%vmr  = aes_rad_config(jg)% vmr_cfc12
       gas(8,jg)%frad = aes_rad_config(jg)% frad_cfc12
@@ -149,7 +149,7 @@ CONTAINS
   SUBROUTINE gas_profiles ( jg,               jb,               jcs,        &
                           & jce,              kbdim,            klev,       &
                           & ntracer,          this_datetime,    pp_hl,      &
-                          & pp_fl,            xm_trc,           xm_dry,     &
+                          & pp_fl,            xq_trc,                       &
                           & xvmr_vap,         xvmr_co2,         xvmr_o3,    &
                           & xvmr_o2,          xvmr_ch4,         xvmr_n2o,   &
                           & xvmr_cfc                                        )
@@ -164,21 +164,13 @@ CONTAINS
     REAL(wp), INTENT(IN)    :: &
     & pp_hl(kbdim,klev+1),       & !> pressure at half levels [Pa]
     & pp_fl(kbdim,klev),         & !> Pressure at full levels [Pa]
-    & xm_trc(kbdim,klev,ntracer),& !> tracer mass in layer [kg/m^2], see remark below:
-    !> Dynamics: the transported quantities are tracer mass per mass moist air
-    !> in contrast to many other models.
-    !> When the program enters the physics part of "aes physics", the tracer concentrations
-    !> are converted either to mass mixing ratios (so, tracer mass divided by dry air mass)
-    !> if ldrymoist (aes_phy_nml) is .true. or the mass fractions (tracer mass divided by
-    !> the mass of moist air) are directly taken from the dynamics part (ldrymoist=.false.).
-    !> See the interface routine interface_iconam_aes (mo_interface_iconam_aes.f90).
-    !> The result is stored in (prm)field%qtrc such that these values depend on the choice of the
-    !> namelist parameter ldrymoist and represent either mass mixing ratios or mass fractions.
-    !> Radiation needs volume mixing ratios (so with respect to dry air).
-    !> Therefore, we prefer to use the mass of tracer per square meter in a layer here, since
-    !> this quantity is independent of the choice of ldrymoist.
-    & xm_dry(kbdim,klev)            !> dry air mass in [kg/m^2]
-    
+    & xq_trc(kbdim,klev,ntracer)   !> tracer mass fraction [kg/kg], see remark below:
+    !
+    ! Note: ICON has no sources and sinks in te equation for air density. This implies
+    !       that the total air mass is conserved. The parameterized turbulent mass flux
+    !       at the surface and precipitation have no effect on the atmospheric mass.
+    !       Therefore let let us use here the total air mass as dry air mass.
+    !
     TYPE(datetime),POINTER, INTENT(IN)  :: this_datetime !< actual time step
     REAL(wp), INTENT(INOUT) ::      &
     & xvmr_vap(kbdim,klev),         & !< water vapor mass in layer [kg/m2]
@@ -203,7 +195,7 @@ CONTAINS
     dom_gas => gas(:,jg)
         
     !$ACC DATA PRESENT(xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, xvmr_cfc) &
-    !$ACC   PRESENT(xm_dry, xm_trc, dom_gas) &
+    !$ACC   PRESENT(xq_trc, dom_gas) &
     !$ACC   CREATE(gas_profile)
 
 ! settings depending on time
@@ -233,7 +225,7 @@ CONTAINS
       CASE (1) ! gas is taken from interactive (so transported) tracer
         !note that trasported species are in MMR ...
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = (xm_trc(jcs:jce,:,igas)/xm_dry(jcs:jce,:)) * dom_gas(igas)%mmr2vmr
+        gas_profile(jcs:jce,:,igas) = xq_trc(jcs:jce,:,igas) * dom_gas(igas)%mmr2vmr
         !$ACC END KERNELS
       CASE (2,12) ! gas concentration is set from namelist value
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
@@ -292,7 +284,7 @@ CONTAINS
        IF (dom_gas(igas)%irad .ge. 12) THEN
 !          WRITE(0,*) 'igas=',igas,'dom_gas(igas)%name=',dom_gas(igas)%name
 !          WRITE(0,*) 'dom_gas(igas)%vpp=',dom_gas(igas)%vpp
-         CALL tanh_profile(jcs,       jce,           klev,                &
+         CALL tanh_profile(jcs,       jce,                                &
               &            pp_fl,     dom_gas(igas)%vpp, gas_profile(:,:,igas))
       END IF
     END DO
@@ -337,14 +329,15 @@ CONTAINS
   END SUBROUTINE gas_profiles
 
   SUBROUTINE cloud_profiles(jg,            jcs,           jce,         &
-       &                    klev,          xm_trc,        cld_frc,     &
+       &                    klev,          xq_trc,xm_air, cld_frc,     &
        &                    xm_liq,        xm_ice,        xc_frc,      &
        &                    cld_cvr                                    )
     INTEGER, INTENT(IN)    :: jg             ! domain index
     INTEGER, INTENT(IN)    :: jcs            ! start index in block of col.
     INTEGER, INTENT(IN)    :: jce            ! end index in block of col.
     INTEGER, INTENT(IN)    :: klev           ! number of vertical levels
-    REAL(wp), INTENT(IN)   :: xm_trc(:,:,:)  ! tracer mass mixing ratios
+    REAL(wp), INTENT(IN)   :: xq_trc(:,:,:)  ! tracer mass mixing ratios
+    REAL(wp), INTENT(IN)   :: xm_air(:,:)    ! air mass in layer
     REAL(wp), INTENT(IN)   :: cld_frc(:,:)   ! cloud fraction in layer
     REAL(wp), INTENT(OUT)  :: xm_liq(:,:)    ! cloud water
     REAL(wp), INTENT(OUT)  :: xm_ice(:,:)    ! cloud ice
@@ -356,7 +349,7 @@ CONTAINS
 
     frad = aes_rad_config(jg)% frad_h2o
 
-    !$ACC DATA PRESENT(xm_liq, xm_ice, xm_trc, xc_frc, cld_frc, cld_cvr)
+    !$ACC DATA PRESENT(xm_liq, xm_ice, xq_trc, xm_air, xc_frc, cld_frc, cld_cvr)
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
@@ -365,8 +358,8 @@ CONTAINS
       !$ACC END KERNELS
     CASE (1)
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_liq(jcs:jce,:) = MAX(xm_trc(jcs:jce,:,iqc)*frad,0._wp)
-      xm_ice(jcs:jce,:) = MAX(xm_trc(jcs:jce,:,iqi)*frad,0._wp)
+      xm_liq(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqc)*xm_air(jcs:jce,:)*frad,0._wp)
+      xm_ice(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqi)*xm_air(jcs:jce,:)*frad,0._wp)
       !$ACC END KERNELS
     END SELECT
     !
@@ -407,11 +400,10 @@ CONTAINS
     !$ACC END DATA
   END SUBROUTINE cloud_profiles
 
-  SUBROUTINE tanh_profile(jcs,      jce,     klev,       &
+  SUBROUTINE tanh_profile(jcs,      jce,                 &
        &                  pressure, vpp,     gas_profile )
     INTEGER,  INTENT (IN)    :: jcs              ! start index
     INTEGER,  INTENT (IN)    :: jce              ! end   index and horizontal dimension
-    INTEGER,  INTENT (IN)    :: klev             ! vertical dimensions
     REAL(wp), INTENT (IN)    :: pressure(:,:)    ! pressure at full levels (layer midpoints)
     REAL(wp), INTENT (IN)    :: vpp(3)           ! vertical profile parameters
     REAL(wp), INTENT (INOUT) :: gas_profile(:,:) ! gas profile being modified

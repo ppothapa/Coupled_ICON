@@ -51,10 +51,8 @@ MODULE mo_cloud_mig_types
      ! Input arguments: parameters
      ! ---------------------------
      !
-     INTEGER , POINTER :: jg        (:,  :)=>NULL() !< grid index
      INTEGER , POINTER :: jcs       (:,  :)=>NULL() !< column start index
      INTEGER , POINTER :: jce       (:,  :)=>NULL() !< column end   index
-     INTEGER , POINTER :: msg_level (:,  :)=>NULL() !< message level
      REAL(wp), POINTER :: pdtime    (:,  :)=>NULL() !< [s] physics time step
      !
      ! Input arguments: fields
@@ -84,13 +82,13 @@ MODULE mo_cloud_mig_types
      ! ------------------------
      !
      ! tendencies in the atmosphere
-     REAL(wp), POINTER :: tend_ta_mig (:,:,:)=>NULL() !< [K/s] tendency of temperature (cp)
+     REAL(wp), POINTER :: tend_ta_mig (:,:,:)=>NULL() !< [K/s] tendency of air temperature (cp)
      REAL(wp), POINTER :: tend_qv_mig (:,:,:)=>NULL() !< [1/s] tendency of specific humidity
-     REAL(wp), POINTER :: tend_qc_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud water
-     REAL(wp), POINTER :: tend_qi_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud ice
-     REAL(wp), POINTER :: tend_qr_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of rain
-     REAL(wp), POINTER :: tend_qs_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of snow
-     REAL(wp), POINTER :: tend_qg_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of graupel
+     REAL(wp), POINTER :: tend_qc_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud water in air
+     REAL(wp), POINTER :: tend_qi_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of cloud ice   in air
+     REAL(wp), POINTER :: tend_qr_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of rain        in air
+     REAL(wp), POINTER :: tend_qs_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of snow        in air
+     REAL(wp), POINTER :: tend_qg_mig (:,:,:)=>NULL() !< [1/s] tendency of mass fraction of graupel     in air
      !
      ! fluxes at the surface
      REAL(wp), POINTER :: pr_rain     (:,  :)=>NULL() !< [kg/m2/s] sfc rain    flux

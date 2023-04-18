@@ -20,6 +20,7 @@
 
 MODULE mo_interface_aes_wmo
 
+  USE mo_aes_phy_dims        ,ONLY: aes_phy_dims
   USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field
 
   USE mo_timer               ,ONLY: ltimer, timer_start, timer_stop, timer_wmo
@@ -32,23 +33,24 @@ MODULE mo_interface_aes_wmo
 
 CONTAINS
 
-  SUBROUTINE interface_aes_wmo  (jg,jb,jcs,jce,  &
-       &                         nproma,nlev   )
+  SUBROUTINE interface_aes_wmo(jg, jb, jcs, jce)
 
-    INTEGER                 ,INTENT(in) :: jg                  !< grid  index
-    INTEGER                 ,INTENT(in) :: jb                  !< block index
-    INTEGER                 ,INTENT(in) :: jcs, jce            !< start/end column index within this block
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
+    INTEGER  :: nlev
+    INTEGER  :: nproma
     !
+    TYPE(t_aes_phy_field), POINTER :: field
 
     IF (ltimer) call timer_start(timer_wmo)
 
+    nlev   = aes_phy_dims(jg)%nlev
+    nproma = aes_phy_dims(jg)%nproma
+
     ! associate pointers
-    field => prm_field(jg)
+    field  => prm_field(jg)
 
     CALL WMO_tropopause( jg,                       &! in
                        & jcs, jce, nproma, nlev,   &! in

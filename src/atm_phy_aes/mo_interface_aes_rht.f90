@@ -20,18 +20,18 @@
 
 MODULE mo_interface_aes_rht
 
-  USE mo_kind                   ,ONLY: wp
-  USE mo_exception              ,ONLY: finish
-  USE mtime                     ,ONLY: datetime
+  USE mo_kind,                       ONLY: wp
+  USE mo_exception,                  ONLY: finish
 
-  USE mo_aes_phy_config         ,ONLY: aes_phy_config
-  USE mo_aes_phy_memory         ,ONLY: t_aes_phy_field, prm_field, &
-    &                                  t_aes_phy_tend,  prm_tend
+  USE mo_aes_phy_dims,               ONLY: aes_phy_dims
+  USE mo_aes_phy_config,             ONLY: aes_phy_config, aes_phy_tc
+  USE mo_aes_phy_memory,             ONLY: t_aes_phy_field, prm_field, &
+    &                                      t_aes_phy_tend,  prm_tend
 
-  USE mo_timer                  ,ONLY: ltimer, timer_start, timer_stop, timer_rht
+  USE mo_radheating,                 ONLY: radheating
+  USE mo_radiation_solar_data,       ONLY: psctm
 
-  USE mo_radheating             ,ONLY: radheating
-  USE mo_radiation_solar_data   ,ONLY: psctm
+  USE mo_timer,                      ONLY: ltimer, timer_start, timer_stop, timer_rht
 
   IMPLICIT NONE
   PRIVATE
@@ -39,21 +39,11 @@ MODULE mo_interface_aes_rht
 
 CONTAINS
 
-  SUBROUTINE interface_aes_rht  (jg, jb,jcs,jce       ,&
-       &                         nproma,nlev,ntracer  ,& 
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_aes_rht(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev,ntracer
-    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in) :: is_active
-    TYPE(datetime)          ,POINTER    :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Pointers
     !
@@ -62,27 +52,39 @@ CONTAINS
 
     ! Shortcuts
     !
-    LOGICAL                             :: lparamcpl
-    INTEGER                             :: fc_rht
+    INTEGER  :: fc_rht
 
     ! Local variables
     !
-    INTEGER                             :: nlevp1, jc, jk
+    INTEGER  :: nlev
+    INTEGER  :: nproma
     !
-    REAL(wp)                            :: q_rad(nproma,nlev)
-    REAL(wp)                            :: q_rlw(nproma,nlev)
-    REAL(wp)                            :: q_rsw(nproma,nlev)
+    REAL(wp) :: pdtime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
     !
-    REAL(wp)                            :: tend_ta_rad(nproma,nlev)
+    INTEGER  :: nlevp1, jc, jk
+    !
+    REAL(wp) :: q_rad(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev)
+    REAL(wp) :: q_rlw(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev)
+    REAL(wp) :: q_rsw(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev)
+    !
+    REAL(wp) :: tend_ta_rad(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev)
 
     IF (ltimer) CALL timer_start(timer_rht)
 
-    ! associate pointers
-    field     => prm_field(jg)
-    tend      => prm_tend (jg)
+    nlev   = aes_phy_dims(jg)%nlev
+    nproma = aes_phy_dims(jg)%nproma
 
-    lparamcpl = aes_phy_config(jg)%lparamcpl
-    fc_rht    = aes_phy_config(jg)%fc_rht
+    pdtime               = aes_phy_tc(jg)%dt_phy_sec
+    is_in_sd_ed_interval = aes_phy_tc(jg)%is_in_sd_ed_interval_rad
+    is_active            = aes_phy_tc(jg)%is_active_rad
+
+    ! associate pointers
+    field  => prm_field(jg)
+    tend   => prm_tend (jg)
+
+    fc_rht = aes_phy_config(jg)%fc_rht
 
     IF ( is_in_sd_ed_interval ) THEN
        !$ACC DATA PRESENT(field, tend) &
@@ -303,14 +305,12 @@ CONTAINS
           ! diagnostic, do not use tendency
        CASE(1)
           ! use tendency to update the physics state
-          IF (lparamcpl) THEN
-            !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-            DO jk = 1, nlev
-              DO jc = jcs, jce
-                field% ta(jc,jk,jb) = field% ta(jc,jk,jb) + tend_ta_rad(jc,jk)*pdtime
-              END DO
+          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
+          DO jk = 1, nlev
+            DO jc = jcs, jce
+              field% ta(jc,jk,jb) = field% ta(jc,jk,jb) + tend_ta_rad(jc,jk)*pdtime
             END DO
-          END IF
+          END DO
        END SELECT
        !$ACC END PARALLEL
 
