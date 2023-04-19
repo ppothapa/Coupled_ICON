@@ -130,6 +130,8 @@ MODULE mo_radiation_config
     INTEGER  :: ecrad_isolver           !< Radiation solver
                                         !< 0: McICA (Pincus et al. 2003)
                                         !< 1: Tripleclouds (Shonk and Hogan 2008)
+                                        !< 2: McICA for OpenACC
+                                        !< 3: SPARTACUS (Hogan et al. 2016)
     INTEGER  :: ecrad_igas_model        !< Gas model and spectral bands
                                         !< 0: RRTMG (Iacono et al. 2008)
                                         !< 1: ecckd (Hogan and Matricardi 2020)
