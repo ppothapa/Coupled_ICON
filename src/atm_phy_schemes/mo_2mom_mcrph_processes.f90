@@ -87,6 +87,15 @@
 !   - sedi_icon_box_core() (vectorized version #if defined (__SX__) || defined (__NEC_VH__) || defined (__NECSX__))
 !   - sedi_icon_box_core_lwf() (vectorized version #if defined (__SX__) || defined (__NEC_VH__) || defined (__NECSX__))
 !===============================================================================!
+! OpenACC compiler error workarounds (04/2023 by MJ):
+! IPSF: Several intermediate pointers have been introduced to circumvent
+!       segmentation faults with nvhpc 22.7. The affected lines are marked by
+!       the following abbreviation:
+!       ! ACCWA (nvhpc 22.7, IPSF, see above)
+!       Without these pointer, the compiler or Nvidia runtime is otherwise
+!       unable to find the derived type on the accelerator device.
+!       This workaround also requires additional WAIT clauses.
+!===============================================================================!
 !!
 !! @par Copyright and License
 !!
@@ -152,7 +161,7 @@ MODULE mo_2mom_mcrph_processes
        & set_qns,                    &
        & set_qng,                    &
        & set_qnh                    
-  USE mo_fortran_tools
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -475,7 +484,7 @@ CONTAINS
 
     !$ACC ROUTINE SEQ
 
-    CLASS(particle_rain_coeffs), intent(in) :: this
+    TYPE(particle_rain_coeffs), INTENT(in) :: this
     REAL(wp), INTENT(in) :: D_m
     real(wp)             :: mue, delta
 
@@ -641,8 +650,9 @@ CONTAINS
   END FUNCTION coll_theta_12
 
   ! bulk sedimentation velocities
-  SUBROUTINE sedi_vel_rain(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc,lacc)
-    CLASS(particle), INTENT(in)            :: this
+  SUBROUTINE sedi_vel_rain(this_in,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc,lacc)
+    CLASS(particle), INTENT(in), TARGET :: this_in
+    CLASS(particle), POINTER :: this ! ACCWA (nvhpc 22.7, IPSF, see above)
     TYPE(particle_rain_coeffs), INTENT(in) :: thisCoeffs
     INTEGER,  INTENT(in)  :: its,ite
     REAL(wp), INTENT(in)  :: q(:),x(:), rhocorr(:)
@@ -656,12 +666,8 @@ CONTAINS
     
     CALL set_acc_host_or_device(lzacc, lacc)
 
-
-    ! DEFAULT(NONE) required::
-    ! - The FUNCTION rain_mue_dm_relation cannot find mo_2mom_mcrph_type:particle_rain_coeff with DEFAULT(PRESENT)
-    ! - Probably a compiler issue as inlining the function solves it
-    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq, qc, cfg_params) IF(lzacc)
-    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) FIRSTPRIVATE(its, ite) IF(lzacc)
+    this => this_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(its, ite) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(D_m, mue, D_p)
     DO i=its,ite
       IF (q(i).GT.q_crit) THEN
@@ -694,7 +700,7 @@ CONTAINS
       END IF
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE sedi_vel_rain
 
@@ -735,7 +741,7 @@ CONTAINS
 
   ! bulk sedimentation velocities
   SUBROUTINE sedi_vel_lwf(this,thisCoeffs,q,ql,x,rhocorr,vn,vq,vl,its,ite)
-    TYPE(particle_lwf), INTENT(in)     :: this
+    CLASS(particle_lwf), INTENT(in)    :: this
     CLASS(particle_sphere), INTENT(in) :: thisCoeffs
     INTEGER,  INTENT(in)  :: its,ite
     REAL(wp), INTENT(in)  :: q(:),x(:),ql(:),rhocorr(:)
@@ -868,7 +874,7 @@ CONTAINS
   !   e_es_vec  = e_3 * EXP (A_e * (ta - T_3) / (ta - B_e))
   ! END FUNCTION e_es_vec
 
-  SUBROUTINE autoconversionSB(ik_slice,dt,atmo,cloud_coeffs,cloud,rain)
+  SUBROUTINE autoconversionSB(ik_slice,dt,atmo,cloud_coeffs,cloud_in,rain)
     !*******************************************************************************
     ! Autoconversion of Seifert and Beheng (2001, Atmos. Res.)                     *
     !*******************************************************************************
@@ -878,7 +884,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     CLASS(atmosphere), INTENT(in)   :: atmo
     TYPE(particle_cloud_coeffs), INTENT(in) :: cloud_coeffs
-    CLASS(particle), INTENT(inout) :: cloud, rain
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER          :: i,k
@@ -902,6 +910,7 @@ CONTAINS
 
     REAL(wp)  :: kc_alf,kc_rad,kc_sig,kc_bet,prey,Re,tke,diss,k_turb,nu_c,D_c
 
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
     nu_c = cloud%nu
 
     kc_alf = ( kc1_a1 + kc1_a2 * nu_c )/ ( 1.0_wp + kc1_a3 * nu_c )
@@ -963,10 +972,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE autoconversionSB
 
-  SUBROUTINE accretionSB(ik_slice, dt, atmo, cloud, rain)
+  SUBROUTINE accretionSB(ik_slice, dt, atmo, cloud_in, rain_in)
     !*******************************************************************************
     ! Accretion of Seifert and Beheng (2001, Atmos. Res.)                          *
     !*******************************************************************************
@@ -975,7 +985,8 @@ CONTAINS
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
     CLASS(atmosphere), INTENT(in)   :: atmo
-    CLASS(particle), INTENT(inout)  :: cloud, rain
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in, rain_in
+    CLASS(particle), POINTER :: cloud, rain ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER     :: i, k
@@ -987,6 +998,9 @@ CONTAINS
     REAL(wp), PARAMETER :: eps = 1.00e-25_wp
 
     IF (isdebug) CALL message(routine, "accretionSB")
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1030,10 +1044,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE accretionSB
 
-  SUBROUTINE rain_selfcollectionSB(ik_slice, dt, atmo, rain)
+  SUBROUTINE rain_selfcollectionSB(ik_slice, dt, atmo, rain_in)
     !*******************************************************************************
     ! Selfcollection of Seifert and Beheng (2001, Atmos. Res.)                     *
     !*******************************************************************************
@@ -1042,7 +1057,8 @@ CONTAINS
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle) , INTENT(inout) :: rain
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER:: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER        :: i, k
@@ -1056,6 +1072,8 @@ CONTAINS
     REAL(wp), PARAMETER :: k_br = 1.00e+3_wp
 
     IF (isdebug) CALL message(routine, "rain_selfcollectionSB")
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1093,6 +1111,7 @@ CONTAINS
       END DO
    END DO
    !$ACC END PARALLEL
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE rain_selfcollectionSB
 
@@ -1108,6 +1127,10 @@ CONTAINS
     REAL(wp)         :: q_c, x_c, n_c, x_s_i, au
     REAL(wp), PARAMETER :: nu_c = 9.59_wp
     REAL(wp), PARAMETER :: k_a  = 6.0e+25_wp * nu_c**(-1.7_wp)
+
+#ifdef _OPENACC
+    CALL finish("autoconversionKB", "Routine has not been ported to openACC yet.")
+#endif
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1262,7 +1285,7 @@ CONTAINS
 
   END SUBROUTINE accretionKK
 
-  SUBROUTINE rain_evaporation(ik_slice, dt, rain_coeffs, rain_gfak, atmo, cloud, rain)
+  SUBROUTINE rain_evaporation(ik_slice, dt, rain_coeffs, rain_gfak, atmo, cloud, rain_in)
     !*******************************************************************************
     ! Evaporation of rain based on Seifert (2008, J. Atmos. Sci.)                  *
     !*******************************************************************************
@@ -1278,7 +1301,8 @@ CONTAINS
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout) :: atmo
     CLASS(particle),  INTENT(in)    :: cloud
-    CLASS(particle),  INTENT(inout) :: rain
+    CLASS(particle),  INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -1298,6 +1322,8 @@ CONTAINS
 
     LOGICAL, PARAMETER   :: reduce_evaporation = .false.
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -1309,11 +1335,7 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_evaporation")
 
-    ! DEFAULT(NONE) required::
-    ! - The FUNCTION rain_evaporation cannot find mo_2mom_mcrph_type:particle_rain_coeff with DEFAULT(PRESENT)
-    ! - Probably a compiler issue as inlining the function solves it
-    !$ACC DATA PRESENT(rain, atmo, cfg_params, cloud, rain_coeffs)
-    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, rain_gfak)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(kstart, kend, istart, iend, dt, rain_gfak)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, p_a, e_sw, s_sw, g_d, eva_q, eva_n, eva_q_fak, q_r, n_r, x_r, e_d, f_v) &
     !$ACC   PRIVATE(mue, D_m, gamma_eva, lam, D_vtp, gfak, vm, mue6)
@@ -1416,10 +1438,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
+
   END SUBROUTINE rain_evaporation
 
-  SUBROUTINE evaporation(ik_slice, dt, atmo, prtcl, coeffs)
+  SUBROUTINE evaporation(ik_slice, dt, atmo, prtcl_in, coeffs)
     !*******************************************************************************
     ! Evaporation of melting snow/graupel/hail, see SB2006                                      *
     !*******************************************************************************
@@ -1428,7 +1451,8 @@ CONTAINS
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: prtcl
+    CLASS(particle), INTENT(inout), TARGET :: prtcl_in
+    CLASS(particle), POINTER :: prtcl ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_coeffs), INTENT(in) :: coeffs
 
     LOGICAL, PARAMETER  :: reduce_melting = .true.
@@ -1438,6 +1462,8 @@ CONTAINS
     INTEGER             :: i,k
     REAL(wp)            :: T_a,e_sw,s_sw,g_d,eva_q,eva_n
     REAL(wp)            :: q,n,x,d,v,f_v,e_d
+
+    prtcl => prtcl_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1490,10 +1516,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE evaporation
 
-  SUBROUTINE cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
+  SUBROUTINE cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud_in, ice)
     !*******************************************************************************
     ! This is only the homogeneous freezing of liquid water droplets.              *
     ! Immersion freezing and homogeneous freezing of liquid aerosols are           *
@@ -1506,13 +1533,17 @@ CONTAINS
     REAL(wp), INTENT(in) :: qnc_const
     TYPE(particle_cloud_coeffs), INTENT(in) :: cloud_coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout)  :: cloud, ice
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: ice
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER            :: i, k
     REAL(wp)           :: fr_q, fr_n, T_a, q_c, x_c, n_c, j_hom, T_c
 
     REAL(wp), PARAMETER :: log_10 = LOG(10.0_wp)
+
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1573,11 +1604,12 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE cloud_freeze
 
   SUBROUTINE ice_nucleation_homhet(ik_slice, use_prog_in, &
-       atmo, cloud, ice, n_inact, n_inpot)
+       atmo, cloud, ice_in, n_inact, n_inpot)
     !*******************************************************************************
     !                                                                              *
     ! Homogeneous and heterogeneous ice nucleation                                 *
@@ -1602,7 +1634,9 @@ CONTAINS
     LOGICAL, INTENT(in) :: use_prog_in
 
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout)  :: cloud, ice
+    CLASS(particle), INTENT(inout), TARGET :: ice_in
+    CLASS(particle), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: cloud
     REAL(wp), DIMENSION(:,:) :: n_inact
     REAL(wp), DIMENSION(:,:), OPTIONAL :: n_inpot
 
@@ -1679,6 +1713,8 @@ CONTAINS
     REAL(wp) :: nuc_n_a(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
 
     !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff)
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2080,7 +2116,7 @@ CONTAINS
 
   SUBROUTINE vapor_dep_relaxation(ik_slice, dt_local, &
        &               ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs, &
-       &               atmo, ice, snow, graupel, hail, dep_rate_ice, dep_rate_snow)
+       &               atmo, ice_in, snow_in, graupel_in, hail_in, dep_rate_ice, dep_rate_snow)
     !*******************************************************************************
     ! Deposition and sublimation                                                   *
     !*******************************************************************************
@@ -2088,9 +2124,10 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in) :: ik_slice(4)
     TYPE(atmosphere)    :: atmo
-    CLASS(particle)     :: ice, snow, graupel, hail
+    CLASS(particle), INTENT(INOUT), TARGET :: ice_in, snow_in, graupel_in, hail_in
+    CLASS(particle), POINTER :: ice, snow, graupel, hail  ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_sphere), INTENT(IN) :: ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs
-    REAL(wp), INTENT(IN)              :: dt_local
+    REAL(wp), INTENT(IN) :: dt_local
     REAL(wp), INTENT(INOUT), DIMENSION(:,:) :: dep_rate_ice, dep_rate_snow
 
     REAL(wp), DIMENSION(size(dep_rate_ice,1),size(dep_rate_ice,2)) :: &
@@ -2113,6 +2150,11 @@ CONTAINS
                                                !     really makes sense, move to a global constant or into the particle types
     
     IF (isdebug) CALL message(routine, "vapor_deposition_growth")
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    snow => snow_in
+    graupel => graupel_in
+    hail => hail_in
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2240,15 +2282,11 @@ CONTAINS
 
   END SUBROUTINE vapor_dep_relaxation
 
-#ifdef _CRAYFTN
-  SUBROUTINE vapor_deposition_generic(ik_slice, prtcl, coeffs, g_i, s_si, &
+  SUBROUTINE vapor_deposition_generic(ik_slice, prtcl_in, coeffs, g_i, s_si, &
        dt, dep_q)
-#else
-  PURE SUBROUTINE vapor_deposition_generic(ik_slice, prtcl, coeffs, g_i, s_si, &
-       dt, dep_q)
-#endif
     INTEGER, INTENT(in) :: ik_slice(4)
-    CLASS(particle), INTENT(in) :: prtcl
+    CLASS(particle), INTENT(in), TARGET :: prtcl_in
+    CLASS(particle), POINTER :: prtcl ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_coeffs), INTENT(in) :: coeffs
     REAL(wp), INTENT(in) :: g_i(:, :), s_si(:, :)
     REAL(wp), INTENT(in) :: dt
@@ -2256,6 +2294,8 @@ CONTAINS
     REAL(wp)            :: q,n,x,d,v,f_v
     INTEGER             :: i,k
     INTEGER :: istart, iend, kstart, kend
+
+    prtcl => prtcl_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2284,12 +2324,13 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE vapor_deposition_generic
 
   SUBROUTINE rain_freeze_gamlook(ik_slice, dt, rain_ltable1, rain_ltable2, rain_ltable3, &
                                  rain_nm1, rain_nm2, rain_nm3, rain_g1, rain_g2,         &
-                                 rain_coeffs,atmo,rain,ice,snow,graupel,hail)
+                                 rain_coeffs, atmo, rain_in, ice, snow, graupel, hail)
     !*******************************************************************************
     ! Freezing of raindrops                                                        *
     ! by Uli Blahak                                                                *
@@ -2306,7 +2347,9 @@ CONTAINS
     TYPE(particle_rain_coeffs),INTENT(in) :: rain_coeffs
     ! prognostic variables
     TYPE(atmosphere), INTENT(inout)  :: atmo
-    CLASS(particle), INTENT(inout)   :: rain, ice, snow, graupel, hail
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: ice, snow, graupel, hail
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2323,6 +2366,8 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_freeze_gamlook")
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     xmax_ice = ( (cfg_params%D_rainfrz_ig/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
     xmax_gr  = ( (cfg_params%D_rainfrz_gh/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
 
@@ -2331,7 +2376,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    ! Explicit PRESENT statement required for rain_ltable*
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for rain_ltable*
     ! - Otherwise error: illegal address during kernel execution
     ! - Reason unknown as inlining of incgfct_lower_lookup solves issue
     !$ACC DATA PRESENT(rain_ltable1, rain_ltable2, rain_ltable3)
@@ -2481,6 +2526,7 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
     !$ACC END DATA
 
   END SUBROUTINE rain_freeze_gamlook
@@ -2577,7 +2623,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_ice_selfcollection
 
-  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice, snow, ice_coeffs)
+  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice_in, snow, ice_coeffs)
     !*******************************************************************************
     ! selfcollection of ice crystals, see SB2006 or Seifert (2002)                 *
     !*******************************************************************************
@@ -2590,7 +2636,9 @@ CONTAINS
 
     ! 2mom variables
     TYPE(atmosphere),       INTENT(inout) :: atmo
-    CLASS(particle_frozen), INTENT(inout) :: ice, snow
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ice_in
+    CLASS(particle_frozen), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout) :: snow
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2602,6 +2650,8 @@ CONTAINS
     REAL(wp)            :: self_n,self_q
 
     IF (isdebug) CALL message(routine, "ice_selfcollection")
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2650,6 +2700,7 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE ice_selfcollection
 
@@ -2686,7 +2737,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_snow_selfcollection
 
-  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow, snow_coeffs)
+  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow_in, snow_coeffs)
     !*******************************************************************************
     ! Selfcollection of snow                                                       *
     !*******************************************************************************
@@ -2698,7 +2749,8 @@ CONTAINS
     
     TYPE(particle_snow_coeffs), INTENT(in) :: snow_coeffs
     TYPE(atmosphere), INTENT(inout)        :: atmo
-    CLASS(particle_frozen), INTENT(inout)  :: snow
+    CLASS(particle_frozen), INTENT(inout), TARGET :: snow_in
+    CLASS(particle_frozen), POINTER :: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2708,6 +2760,8 @@ CONTAINS
     REAL(wp)            :: self_n
 
     IF (isdebug) CALL message(routine, "snow_selfcollection")
+
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2744,10 +2798,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE snow_selfcollection
 
-  SUBROUTINE snow_melting(ik_slice, dt, snow_coeffs, atmo, snow, rain)
+  SUBROUTINE snow_melting(ik_slice, dt, snow_coeffs, atmo, snow_in, rain)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -2757,7 +2812,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     CLASS(particle_sphere), INTENT(in) :: snow_coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: rain, snow
+    CLASS(particle), INTENT(inout), TARGET :: snow_in
+    CLASS(particle), POINTER :: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -2766,6 +2823,8 @@ CONTAINS
     REAL(wp)            :: fh_q, fv_q
 
     IF (isdebug) CALL message(routine, "snow_melting")
+
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2824,10 +2883,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE snow_melting
 
-  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype, ptype, coeffs)
+  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype_in, ptype_in, coeffs)
     !*******************************************************************************
     !  Most simple particle-particle collection for ice particles, e.g.,           *
     !    graupel+ice  -> graupel                                                   *
@@ -2844,7 +2904,8 @@ CONTAINS
 
     ! 2mom variables and coefficients
     TYPE(atmosphere), INTENT(inout)        :: atmo
-    CLASS(particle_frozen),  INTENT(inout) :: ctype, ptype
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ctype_in, ptype_in
+    CLASS(particle_frozen), POINTER :: ctype, ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
     TYPE(collection_coeffs), INTENT(in)    :: coeffs
     
     ! Locale Variablen
@@ -2857,6 +2918,9 @@ CONTAINS
     REAL(wp)            :: coll_n,coll_q,e_coll
 
     IF (isdebug) CALL message(routine, "particle_particle_collection")
+
+    ctype => ctype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2918,6 +2982,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_particle_collection
 
@@ -2995,7 +3060,7 @@ CONTAINS
 
   END SUBROUTINE setup_particle_collection_type2
 
-  SUBROUTINE graupel_selfcollection(ik_slice, dt, atmo, graupel, graupel_coeffs)
+  SUBROUTINE graupel_selfcollection(ik_slice, dt, atmo, graupel_in, graupel_coeffs)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -3005,7 +3070,8 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     TYPE(particle_graupel_coeffs), INTENT(in) :: graupel_coeffs
     TYPE(atmosphere), INTENT(inout)           :: atmo
-    CLASS(particle), INTENT(inout)            :: graupel
+    CLASS(particle), INTENT(inout), TARGET    :: graupel_in
+    CLASS(particle), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -3014,6 +3080,8 @@ CONTAINS
     REAL(wp)            :: self_n
 
     IF (isdebug) CALL message(routine, "graupel_selfcollection")
+
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3045,10 +3113,11 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE graupel_selfcollection
 
-  SUBROUTINE ice_melting(ik_slice, atmo, ice, cloud, rain)
+  SUBROUTINE ice_melting(ik_slice, atmo, ice_in, cloud, rain)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -3056,7 +3125,9 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in) :: ik_slice(4)
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: cloud, rain, ice
+    CLASS(particle), INTENT(inout), TARGET :: ice_in
+    CLASS(particle), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: cloud, rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3064,6 +3135,8 @@ CONTAINS
     REAL(wp)            :: melt_q,melt_n
 
     IF (isdebug) CALL message(routine, "ice_melting")
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3101,10 +3174,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE ice_melting
 
-  SUBROUTINE particle_cloud_riming(ik_slice, dt, atmo, ptype, coeffs, cloud, rain, ice)
+  SUBROUTINE particle_cloud_riming(ik_slice, dt, atmo, ptype_in, coeffs, cloud_in, rain, ice)
     !*******************************************************************************
     ! Riming of graupel or hail with cloud droplets                                *
     !*******************************************************************************
@@ -3116,8 +3190,12 @@ CONTAINS
 
     TYPE(collection_coeffs), INTENT(in)   :: coeffs
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, ptype
+    CLASS(particle), INTENT(inout)        :: rain
+    CLASS(particle_frozen), INTENT(inout) :: ice
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ptype_in
+    CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -3137,6 +3215,9 @@ CONTAINS
          const4 = c_w / L_ew
 
     IF (isdebug) CALL message(routine, "particle_cloud_riming")
+
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3221,11 +3302,12 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_cloud_riming
 
-  SUBROUTINE particle_rain_riming(ik_slice, dt, atmo, ptype, &
-       coeffs, rain, ice)
+  SUBROUTINE particle_rain_riming(ik_slice, dt, atmo, ptype_in, &
+       coeffs, rain_in, ice)
     !*******************************************************************************
     ! Riming of graupel or hail with rain drops                                    *
     !*******************************************************************************
@@ -3235,7 +3317,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     TYPE(collection_coeffs), INTENT(in) :: coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle),  INTENT(inout) :: rain, ice, ptype
+    CLASS(particle), INTENT(inout) :: ice
+    CLASS(particle), INTENT(inout), TARGET :: rain_in, ptype_in
+    CLASS(particle), POINTER :: rain, ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3250,6 +3334,9 @@ CONTAINS
          const4 = c_w / L_ew
 
     IF (isdebug) CALL message(routine, "particle_rain_riming")
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3328,10 +3415,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_rain_riming
 
-  SUBROUTINE graupel_melting(ik_slice, dt, graupel_coeffs, atmo, graupel, rain)
+  SUBROUTINE graupel_melting(ik_slice, dt, graupel_coeffs, atmo, graupel_in, rain)
     !*******************************************************************************
     ! Melting of graupel                                                           *
     !*******************************************************************************
@@ -3341,7 +3429,10 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     CLASS(particle_sphere), INTENT(in) :: graupel_coeffs
     TYPE(atmosphere), INTENT(inout)    :: atmo
-    CLASS(particle), INTENT(inout)     :: rain, graupel
+    CLASS(particle), INTENT(inout)     :: rain    
+    CLASS(particle), INTENT(inout), TARGET :: graupel_in
+    CLASS(particle), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3351,12 +3442,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "graupel_melting")
 
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    ! Explicit PRESENT statement required for graupel:
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for graupel:
     ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
     ! - Reason unknown as inlining of particle_* solves issue
     !$ACC DATA PRESENT(graupel)
@@ -3405,6 +3498,7 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
     !$ACC END DATA
 
   END SUBROUTINE graupel_melting
@@ -3427,7 +3521,7 @@ CONTAINS
 !!$     END SUBROUTINE HAIL_MELTING_LWF
 !!$  END INTERFACE hail_melting
 
-  SUBROUTINE hail_melting_simple(ik_slice, dt, hail_coeffs, atmo, hail, rain)
+  SUBROUTINE hail_melting_simple(ik_slice, dt, hail_coeffs, atmo, hail_in, rain)
     !*******************************************************************************
     ! Melting of hail                                                              *
     !*******************************************************************************
@@ -3438,7 +3532,8 @@ CONTAINS
     TYPE(particle_sphere), INTENT(in) :: hail_coeffs
     TYPE(atmosphere), INTENT(inout)   :: atmo
     CLASS(particle), INTENT(inout)    :: rain
-    CLASS(particle), INTENT(inout)    :: hail
+    CLASS(particle), INTENT(inout), TARGET:: hail_in
+    CLASS(particle), POINTER :: hail ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     ! local variables
@@ -3449,13 +3544,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "hail_melting")
 
+    hail => hail_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
 
-    ! Explicit PRESENT statement required for hail:
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for hail:
     ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
     ! - Reason unknown as inlining of particle_* solves issue
     !$ACC DATA PRESENT(hail)
@@ -3504,6 +3601,7 @@ CONTAINS
       ENDDO
    ENDDO
    !$ACC END PARALLEL
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
    !$ACC END DATA
 
   END SUBROUTINE hail_melting_simple
@@ -3542,6 +3640,10 @@ CONTAINS
     INTEGER :: istart, iend, kstart, kend
 
     IF (isdebug) CALL message(routine, "particle_melting_lwf")
+
+#ifdef _OPENACC
+    CALL finish("particle_melting_lwf", "Routine has not been ported to openACC yet.")
+#endif
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3739,7 +3841,7 @@ CONTAINS
 
   SUBROUTINE graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
        &                                   graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
-       &                                   atmo, graupel, cloud, rain, ice, snow, hail)
+       &                                   atmo, graupel_in, cloud, rain, ice, snow, hail)
     !*******************************************************************************
     !  Wet growth and conversion of graupel to hail                                *
     !  (uses look-up table for incomplete gamma functions)                         *
@@ -3757,7 +3859,9 @@ CONTAINS
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
     CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, graupel, snow, hail
+    CLASS(particle_frozen), INTENT(inout) :: ice, snow, hail    
+    CLASS(particle_frozen), INTENT(inout), TARGET :: graupel_in
+    CLASS(particle_frozen), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -3771,12 +3875,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "graupel_hail_conv_wet_gamlook")
 
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    ! Explicit PRESENT statement required for graupel_ltable1 and graupel_ltable2:
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for graupel_ltable1 and graupel_ltable2:
     ! - Otherwise error: illegal address during kernel execution
     ! - Reason unknown as inlining of incgfct_upper_lookup solves issue
     !$ACC DATA PRESENT(graupel_ltable1, graupel_ltable2)
@@ -3842,12 +3948,13 @@ CONTAINS
        ENDDO
     ENDDO
    !$ACC END PARALLEL
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
    !$ACC END DATA
 
   END SUBROUTINE graupel_hail_conv_wet_gamlook
 
   SUBROUTINE ice_riming(ik_slice, dt, icr_coeffs, irr_coeffs, &
-       &                atmo, ice, cloud, rain, graupel, dep_rate_ice)
+       &                atmo, ice_in, cloud, rain_in, graupel, dep_rate_ice)
     !*******************************************************************************
     !  Riming of ice with cloud droplet and rain drops. First the process rates    *
     !  are calculated in                                                           *
@@ -3865,10 +3972,14 @@ CONTAINS
     TYPE(rain_riming_coeffs), INTENT(in) :: irr_coeffs
     ! progn. variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, graupel
-    REAL(wp), INTENT (IN), DIMENSION(:,:) :: dep_rate_ice
+    CLASS(particle), INTENT(inout)        :: cloud
+    CLASS(particle_frozen), INTENT(inout) :: graupel
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ice_in
+    CLASS(particle_frozen), POINTER:: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
 
+    REAL(wp), INTENT (IN), DIMENSION(:,:) :: dep_rate_ice
     REAL(wp), DIMENSION(size(dep_rate_ice,1),size(dep_rate_ice,2)) ::       &
          &               rime_rate_qc, rime_rate_nc,                        &
          &               rime_rate_qi, rime_rate_qr, rime_rate_nr
@@ -3886,6 +3997,9 @@ CONTAINS
          const4 = 1.0_wp/(T_mult_opt - T_mult_max)
 
     IF (isdebug) CALL message(routine, "ice riming")
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -4082,7 +4196,7 @@ CONTAINS
   END SUBROUTINE ice_riming
 
   SUBROUTINE snow_riming(ik_slice, dt, scr_coeffs, srr_coeffs, &
-       &                 atmo, snow, cloud, rain, ice, graupel, dep_rate_snow)
+       &                 atmo, snow_in, cloud, rain_in, ice, graupel, dep_rate_snow)
     !*******************************************************************************
     !  Riming of snow with cloud droplet and rain drops. First the process rates   *
     !  are calculated in                                                           *
@@ -4100,10 +4214,14 @@ CONTAINS
     TYPE(rain_riming_coeffs),INTENT(in) :: srr_coeffs  ! snow rain riming
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: snow, ice, graupel
+    CLASS(particle), INTENT(inout)        :: cloud
+    CLASS(particle_frozen), INTENT(inout) :: ice, graupel
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: snow_in
+    CLASS(particle_frozen), POINTER:: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
+    
     REAL(wp), INTENT(IN), DIMENSION(:,:)  :: dep_rate_snow
-
     REAL(wp), DIMENSION(size(dep_rate_snow,1),size(dep_rate_snow,2)) ::       &
          & rime_rate_qc, rime_rate_nc,                                        &
          & rime_rate_qs, rime_rate_qr, rime_rate_nr
@@ -4121,6 +4239,9 @@ CONTAINS
          const4 = 1.0/(T_mult_opt - T_mult_max) 
 
     IF (isdebug) CALL message(routine, "snow_riming")
+
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -4341,7 +4462,7 @@ CONTAINS
 
  END SUBROUTINE snow_riming
 
- SUBROUTINE riming_cloud_core(ik_slice, ptype, cloud, coeffs, dt, &
+ SUBROUTINE riming_cloud_core(ik_slice, ptype_in, cloud_in, coeffs, dt, &
       &                     rime_rate_qb, rime_rate_nb)
    !*******************************************************************************
    !  Riming rate of ice or snow collecting cloud droplets                        *
@@ -4351,8 +4472,11 @@ CONTAINS
    ! start and end indices for 2D slices
    ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
    INTEGER, INTENT(in) :: ik_slice(4)
-   CLASS(particle_frozen), INTENT(in)  :: ptype
-   CLASS(particle), INTENT(in)         :: cloud
+   CLASS(particle_frozen), INTENT(in), TARGET:: ptype_in
+   CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
+   CLASS(particle), INTENT(in), TARGET :: cloud_in
+   CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+
    REAL(wp), INTENT(in)                :: dt 
    TYPE(collection_coeffs), INTENT(in) :: coeffs
    REAL(wp), INTENT(out)               :: rime_rate_qb(:, :), rime_rate_nb(:, :)
@@ -4368,6 +4492,9 @@ CONTAINS
 
    IF (isdebug) CALL message(routine, "riming_cloud_core")
    
+   ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+   cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
    istart = ik_slice(1)
    iend   = ik_slice(2)
    kstart = ik_slice(3)
@@ -4426,10 +4553,11 @@ CONTAINS
      ENDDO
    ENDDO
    !$ACC END PARALLEL
-    
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
+
  END SUBROUTINE riming_cloud_core
 
-  SUBROUTINE riming_rain_core(ik_slice, ptype, rain, coeffs, dt, &
+  SUBROUTINE riming_rain_core(ik_slice, ptype_in, rain_in, coeffs, dt, &
        &                      rime_rate_qa, rime_rate_qb, rime_rate_nb)
     !*******************************************************************************
     !  Riming rate of ice collecting rain drop, or rain collecting ice             *
@@ -4444,8 +4572,10 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     
     ! 2mom variables
-    CLASS(particle_frozen), INTENT(in)   :: ptype
-    TYPE(particle), INTENT(in)           :: rain
+    CLASS(particle_frozen), INTENT(in), TARGET :: ptype_in
+    CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(in), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     TYPE(rain_riming_coeffs), INTENT(in) :: coeffs
     REAL(wp), INTENT(out)                :: rime_rate_qa(:,:), rime_rate_qb(:,:), &
@@ -4460,16 +4590,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "ice_rain_riming")
 
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    ! DEFAULT(NONE) required::
-    ! - The FUNCTIONS particle_* cannot find mo_2mom_mcrph_type:particle with DEFAULT(PRESENT)
-    ! - Probably a compiler issue as inlining the functions solves it
-    !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb, coeffs)
-    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_a, n_a, x_a, d_a, v_a) &
     !$ACC   PRIVATE(q_r, n_r, x_r, d_r, v_r, rime_n, rime_qi, rime_qr)
     DO k = kstart,kend
@@ -4528,7 +4657,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE riming_rain_core
 
@@ -5449,6 +5578,10 @@ CONTAINS
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
 
+#ifdef _OPENACC
+    CALL finish("sedi_icon_rain", "Routine has not been ported to openACC yet.")
+#endif
+
     v_n_sedi(:,kts-1) = 0.0_wp
     v_q_sedi(:,kts-1) = 0.0_wp
        
@@ -5516,6 +5649,10 @@ CONTAINS
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
+
+#ifdef _OPENACC
+    CALL finish("sedi_icon_sphere", "Routine has not been ported to openACC yet.")
+#endif
 
     v_n_sedi(:, kts-1) = 0.0_wp
     v_q_sedi(:, kts-1) = 0.0_wp
@@ -5585,6 +5722,10 @@ CONTAINS
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
+
+#ifdef _OPENACC
+    CALL finish("sedi_icon_sphere_lwf", "Routine has not been ported to openACC yet.")
+#endif
 
     if (ptype%name .eq. 'hail_vivek') then
       avq = aviwch

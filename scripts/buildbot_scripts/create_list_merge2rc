@@ -106,7 +106,7 @@ $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"             --buil
 # GPU builders explicitly turned off due to unresolved bug
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"               --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                     --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                     --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme using gscp=5
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"               --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 3d-turbulence scheme
