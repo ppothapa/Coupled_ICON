@@ -48,7 +48,7 @@
 !----------------------------
 MODULE mo_advection_traj
 
-  USE mo_kind,                ONLY: wp, vp
+  USE mo_kind,                ONLY: wp, vp, i4
   USE mo_exception,           ONLY: finish
   USE mo_model_domain,        ONLY: t_patch
   USE mo_intp_data_strc,      ONLY: t_int_state
@@ -472,12 +472,12 @@ CONTAINS
     INTEGER :: ie, ie_capture      !< counter, and its captured value
 
     INTEGER, PARAMETER :: &
-         &  gang_size = 128
+         &  gang_size = 128, pts_per_thread = 20
     INTEGER :: num_gangs, jg, jl
     INTEGER :: gang_ie(1)
-    INTEGER :: gang_captured_ie(1) !< OpenACC captures
-    INTEGER :: gang_eidx(gang_size)!< OpenACC gang-local lists
-    INTEGER :: gang_elev(gang_size)
+    INTEGER :: gang_captured_ie(1)                    !< OpenACC captures
+    INTEGER(i4) :: gang_eidx(pts_per_thread*gang_size)!< OpenACC gang-local lists
+    INTEGER(i4) :: gang_elev(pts_per_thread*gang_size)
 
     REAL(wp):: traj_length         !< backward trajectory length [m]
     REAL(wp):: e2c_length          !< edge-upwind cell circumcenter length [m]
@@ -586,6 +586,15 @@ CONTAINS
         ! OpenACC/GPU - using a two-stage atomics below: each gang has one atomic counter in its shared memory.
         ! There is then a global counter that is only updated by a single thread from each gang
 
+        ! Nvidia compilers only support 65536 gangs
+        ! So if nproma*nlev > 65536 * gang_size * pts_per_thread the FAST_ATOMIC code won't work
+#ifdef __NVCOMPILER_MAJOR__
+        IF ( (elev-slev+1)*(i_endidx-i_startidx+1) > 65535 * gang_size * pts_per_thread ) THEN
+          CALL finish(modname//":btraj_dreg", & 
+            "Too many grid points for the fast algorithm, please undefine _USE_FAST_ATOMIC and recompile")
+        END IF
+#endif
+
         num_gangs = ( (elev-slev+1)*(i_endidx-i_startidx+1) + gang_size-1) / gang_size
         !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node) &
         !$ACC   PRIVATE(gang_ie, gang_captured_ie, gang_elev, gang_eidx) &
@@ -635,15 +644,14 @@ CONTAINS
         ! OpenACC path
         ! Copy gang-local lists into the global array
         !$ACC ATOMIC CAPTURE
-        opt_falist%len(jb)  = opt_falist%len(jb) + gang_ie(1)
         gang_captured_ie(1) = opt_falist%len(jb)
+        opt_falist%len(jb)  = opt_falist%len(jb) + gang_ie(1)
         !$ACC END ATOMIC
-        gang_captured_ie(1) = gang_captured_ie(1) - gang_ie(1)
 
         !$ACC LOOP GANG
         DO jg = 1, num_gangs
           !$ACC LOOP VECTOR
-          DO jl = 1, gang_size
+          DO jl = 1, gang_size*pts_per_thread
             IF (jl <= gang_ie(1)) THEN
               opt_falist%eidx(gang_captured_ie(1)+jl, jb) = gang_eidx(jl)
               opt_falist%elev(gang_captured_ie(1)+jl, jb) = gang_elev(jl)
