@@ -515,6 +515,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  nvec=nproma,                                           & !in
         &  ke=nlev, ke1=nlevp1,                                   & !in
         &  kcm=nlevcm, iblock=jb,                                 & !in
+        &  kstart_cloud=kstart_moist(jg),                         & !in start index for vertical diffusion of cloud-water
         &  kstart_tracer=kstart_tracer(jg,:),                     & !in start index for vertical diffusion of art tracers
         &  ivstart=i_startidx, ivend=i_endidx,                    & !in
         &  hhl       = p_metrics%z_ifc(:,:,jb),                   & !in

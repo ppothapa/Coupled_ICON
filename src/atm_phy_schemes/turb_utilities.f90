@@ -312,7 +312,7 @@ CONTAINS
 !+ of special external parameters describing the surface canopy needed for the
 !+ description of surface-to-atmosphere transfer and within canopy diffusion:
 
-SUBROUTINE init_canopy ( nvec, ke, ke1, kcm, ivstart, ivend, icant,         &
+SUBROUTINE init_canopy ( ke, ke1, kcm, ivstart, ivend, icant,         &
                          l_hori, hhl, fr_land, plcov, d_pat, lai,           &
                          sai, tai, eai, l_pat, h_can, c_big, c_sml, r_air,  &
                          urb_isa, urb_ai, lacc )
@@ -349,7 +349,6 @@ INTEGER, INTENT(IN) :: &
 ! Horizontal and vertical sizes of the fields and related variables:
 ! --------------------------------------------------------------------
 !
-    nvec,         & ! number of grid points in the vector
     ke,           & ! number of main model levels (start index is 1)
     ke1,          & ! number of half model levels (start index is 1)
     ivstart,      & ! horizontal start-index

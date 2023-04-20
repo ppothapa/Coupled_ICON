@@ -623,7 +623,7 @@ INTEGER,        INTENT(IN) :: &
 ! ------------------------------------------------------------------
 
 INTEGER,        INTENT(IN) :: &
-  nvec,         & ! number of grid points in zonal      direction
+  nvec,         & ! number of horizontal grid points in the nproma-vector
   ke,           & ! index of the lowest main model level
   ke1,          & ! index of the lowest model half level (=ke+1)
   kcm,          & ! level index of the upper canopy bound
