@@ -51,15 +51,6 @@ eval "$BUILD_ENV"
 
 NETCDFFI="-I${EBROOTNETCDFMINFORTRAN}/include"
 
-if [ -z "${CLAW+x}" ]; then
-    echo "Warning: CLAW is not set, please use spack or set manually if you intend to use CLAW"
-    CLAW=''
-    CLAWFLAGS=''
-else
-    # We have to tell CLAW where to look for netcdf.inc:
-    CLAWFLAGS=${NETCDFFI}
-fi
-
 CC='mpicc'
 CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2 -I${EBROOTNETCDF}/include"
@@ -93,8 +84,6 @@ EXTRA_CONFIG_ARGS+=' --disable-mpi-checks --disable-coupling'
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
-CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

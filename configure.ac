@@ -260,20 +260,6 @@ AC_ARG_ENABLE([yaxt],
   [AS_IF([test x"$enableval" != xno], [enable_yaxt=yes])],
   [enable_yaxt=no])
 
-AC_ARG_ENABLE([claw],
-[  --enable-claw           enable CLAW preprocessing. The value of the argument
-                          must be one of the following @<:@default=no@:>@:
-                            std|yes   enable STANDARD mode
-                            validate  enable VALIDATE mode
-                            no        disable CLAW preprocessing],
-[AS_CASE([$enableval],
-   [yes], [enable_claw=std],
-   [std|validate|no], [],
-   [AC_MSG_ERROR([unexpected value for the argument dnl
---enable-claw='$enableval'; valid values are 'std', 'validate', 'yes' dnl
-(same as 'std'), 'no'])])],
-[enable_claw=no])
-
 AC_ARG_ENABLE([explicit-fpp],
   [AS_HELP_STRING([--enable-explicit-fpp],
      [enable explicit Fortran preprocessing @<:@default=auto@:>@])],
@@ -767,9 +753,6 @@ AS_VAR_IF([enable_sct], [yes],
 
 AS_VAR_IF([enable_yaxt], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_YAXT"])])
-
-AS_IF([test x"$enable_claw" != xno],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}_CLAW"])])
 
 AS_IF([test x"$enable_serialization" != xno],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}SERIALIZE"])
@@ -2207,75 +2190,6 @@ AS_IF([test -n "$icon_bundled_cmake_subdirs"],
      [CMAKE=$acx_cv_prog_CMAKE])],
   [CMAKE=])
 
-dnl Override the descriptions of the variables set by ACX_PROG_CLAW:
-AC_ARG_VAR([CLAW], [CLAW preprocessor command (optional)])dnl
-AC_ARG_VAR([CLAWFLAGS], [CLAW preprocessor flags (optional)])dnl
-dnl We currently support the old CLAW driver:
-CLAW_NEW_DRIVER_ENABLED='#'
-CLAW_OLD_DRIVER_ENABLED='#'
-dnl Additional macro definitions to aid the dependency generator,
-dnl e.g. CLAW intrinsic macros:
-AC_SUBST([DEPGEN_CLAWFLAGS], ['-D_CLAW'])
-AS_IF([test x"$enable_claw" != xno],
-  [icon_subdir_srcdir="$srcdir/externals/omni-xmod-pool"
-   icon_subdir_unique_file="cdi"
-   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
-     [AC_MSG_ERROR([unable to find precompiled module files for OMNI dnl
-compiler required for CLAW preprocessing ($icon_subdir_unique_file) in dnl
-'$icon_subdir_srcdir': disable CLAW preprocessing (--disable-claw)])])
-   AS_VAR_IF([enable_openmp], [yes],
-     [AC_MSG_WARN([CLAW preprocessing is not compatible with OpenMP: it is dnl
-strongly recommended to disable OpenMP support (--disable-openmp)])])
-dnl
-   AS_VAR_IF([enable_gpu], [yes],
-     [AS_VAR_APPEND([CLAWFLAGS], [' --target=gpu --directive=acc'])
-      AS_VAR_APPEND([DEPGEN_CLAWFLAGS], [' -D_OPENACC'])],
-     [AS_VAR_APPEND([CLAWFLAGS], [' --target=cpu --directive=none'])])
-   AS_VAR_IF([enable_claw], [validate],
-     [AS_VAR_IF([enable_serialization], [no],
-        [AC_MSG_ERROR([unsupported combination of the configure options: you dnl
-are trying to configure with CLAW preprocessing in VALIDATE mode but the dnl
-Serialbox2 serialization is disabled: either enable CLAW preprocessing in a dnl
-different mode (--enable-claw=std) or enable the Serialbox2 serialization dnl
-(--enable-serialization)])])
-dnl Enable serialization support and update after kernels:
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_serialization_enabled:true'])
-      AS_VAR_APPEND([CLAWFLAGS],
-        [' -x=sca_serialization_enabled_direction:write'])
-      AS_VAR_APPEND([CLAWFLAGS],
-        [' -x=sca_forward_update_enabled_direction:out'])],
-     [dnl
-dnl Disable serialization support and updates by kernel:
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_serialization_enabled:false'])
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_forward_update_enabled:false'])])
-dnl Check for CLAW:
-   ACX_PROG_CLAW
-   AS_VAR_IF([acx_cv_prog_clawfc_works], [no],
-     [AC_MSG_FAILURE([unable to find a valid CLAW preprocessor command: dnl
-either disable CLAW preprocessing (--disable-claw) or set CLAW accordingly])])
-   ACX_CLAW_MODULE_OUT_FLAG(
-     [AC_SUBST([CLAW_MOD_OUT], [$acx_cv_claw_module_out_flag])])
-   ACX_CLAW_MODULE_IN_FLAG(
-     [AC_SUBST([CLAW_MOD_IN], [$acx_cv_claw_module_in_flag])])
-   ACX_CLAW_MODULE_GEN(
-dnl The new CLAW driver is used:
-     [CLAW_NEW_DRIVER_ENABLED=
-      AS_IF([test x"$FC_VENDOR" != xunknown],
-        [icon_vendor_CLAWFLAGS="--fc-vendor=$FC_VENDOR --fc-cmd=$FC"
-         ACX_CLAW_ACCEPTS([$icon_vendor_CLAWFLAGS],
-           [AS_VAR_APPEND([CLAWFLAGS], [" $icon_vendor_CLAWFLAGS"])],
-           [AC_MSG_WARN([unable to set the Fortran preprocessor command for dnl
-the CLAW preprocessor: make sure $CLAW is built with $FC (vendor: dnl
-$FC_VENDOR, version: $FC_VERSION)])],
-           [icon_cv_claw_accepts_vendor])])],
-dnl The old CLAW driver is used:
-     [CLAW_OLD_DRIVER_ENABLED=
-      AC_MSG_WARN([the provided CLAW preprocessor is of an old version, dnl
-which might not be supported in the future versions of ICON: consider dnl
-switching to version 2.1 or newer])])
-   AC_CONFIG_FILES([claw.mk])],
-  [CLAW=])
-
 AC_ARG_VAR([FPP], [Fortran preprocessor command (optional)])dnl
 AS_VAR_IF([enable_explicit_fpp], [yes],
   [ACX_PROG_FPP([FPP],
@@ -2362,10 +2276,6 @@ AS_VAR_IF([enable_gpu], [yes],
   [AC_SUBST([GPU_ENABLED], [''])],
   [AC_SUBST([GPU_ENABLED], ['#'])])
 
-AS_IF([test x"$enable_claw" != xno],
-  [AC_SUBST([CLAW_ENABLED], [''])],
-  [AC_SUBST([CLAW_ENABLED], ['#'])])
-
 AS_VAR_IF([enable_explicit_fpp], [yes],
   [AC_SUBST([FPP_ENABLED], [''])],
   [AC_SUBST([FPP_ENABLED], ['#'])])
@@ -2378,9 +2288,6 @@ AS_VAR_IF([enable_pgi_inlib], [yes],
   [AC_SUBST([PGI_INLIB_ENABLED], [''])
    AC_CONFIG_FILES([inlib.mk])],
   [AC_SUBST([PGI_INLIB_ENABLED], ['#'])])
-
-AC_SUBST([CLAW_NEW_DRIVER_ENABLED])
-AC_SUBST([CLAW_OLD_DRIVER_ENABLED])
 
 #################################### OUTPUT ####################################
 

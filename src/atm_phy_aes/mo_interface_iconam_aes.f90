@@ -285,7 +285,7 @@ CONTAINS
     !$ACC   PRESENT(dyn_new%exner, dyn_new%theta_v, adv_new%tracer) &
     !$ACC   PRESENT(dyn_now%exner, dyn_now%theta_v, adv_now%tracer) &
     !$ACC   PRESENT(diag%u, diag%v, diag%temp, diag%tempv) &
-    !$ACC   PRESENT(diag%exner_pr,  diag%exner_dyn_incr) &
+    !$ACC   PRESENT(diag%exner_pr, diag%exner_dyn_incr) &
     !$ACC   PRESENT(diag%ddt_exner_phy, diag%ddt_tracer_adv) &
     !$ACC   PRESENT(int_state%c_lin_e, trHydroMass_list) &
     !$ACC   PRESENT(patch%edges%cell_idx, patch%edges%cell_blk, patch%edges%primal_normal_cell) &

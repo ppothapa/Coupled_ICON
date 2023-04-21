@@ -51,7 +51,6 @@ RUN mkdir /opt/spack-environment \
  &&  echo "    - libtool" \
  &&  echo "    - netcdf-fortran" \
  &&  echo "    - eccodes" \
- &&  echo "    - claw" \
  &&  echo "    - serialbox" \
  &&  echo "    - netlib-lapack" \
  &&  echo "    - cdo" \

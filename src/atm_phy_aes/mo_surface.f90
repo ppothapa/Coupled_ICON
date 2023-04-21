@@ -288,24 +288,7 @@ CONTAINS
 
     REAL(wp) :: delz(kbdim)
 
-    !$ACC DATA PRESENT(pfrc, pcfh_tile, pcfm_tile, pfac_sfc, pocu, pocv, aa) &
-    !$ACC   PRESENT(aa_btm, bb, bb_btm, pcpt_tile, pqsat_tile, ptsfc_tile) &
-    !$ACC   PRESENT(plhflx_tile, pshflx_tile, pco2nat, aes_phy_config) &
-    !$ACC   PRESENT(pu_stress_gbm, pv_stress_gbm, plhflx_gbm, pshflx_gbm) &
-    !$ACC   PRESENT(pevap_gbm, pu_stress_tile, pv_stress_tile, pevap_tile) &
-    !$ACC   PRESENT(lsm, alake, pu, pv, ptemp, pq, prsfl, pmair) &
-    !$ACC   PRESENT(pssfl, rlds, rsds, rvds_dir, rpds_dir) &
-    !$ACC   PRESENT(rnds_dir, rvds_dif, rpds_dif, rnds_dif, ps) &
-    !$ACC   PRESENT(pcosmu0, pch_tile, pcsat, pcair, z0h_lnd) &
-    !$ACC   PRESENT(z0m_tile, albvisdir_tile, albnirdir_tile) &
-    !$ACC   PRESENT(albvisdif_tile, albnirdif_tile, albedo, albvisdir) &
-    !$ACC   PRESENT(albvisdif, albnirdir, albnirdif, albedo_tile) &
-    !$ACC   PRESENT(rlus, rsus, rsns_tile, rlns_tile, emissivity) &
-    !$ACC   PRESENT(pco2, pco2nat, pco2_flux_tile) &
-    !$ACC   NO_CREATE(ptsfc, ptsfc_rad, lake_ice_frc, q_snocpymlt) &
-    !$ACC   NO_CREATE(Tsurf, T1, T2, hi, hs, Qtop, Qbot, conc) &
-    !$ACC   NO_CREATE(albvisdir_ice, albvisdif_ice, albnirdir_ice) &
-    !$ACC   NO_CREATE(albnirdif_ice) &
+    !$ACC DATA &
     !$ACC   CREATE(loidx, is, se_sum, qv_sum, wgt_sum, wgt, zca, zcs) &
     !$ACC   CREATE(zfrc_oce, zen_h, zfn_h, zen_qv, zfn_qv, zlhflx_lnd) &
     !$ACC   CREATE(zlhflx_lwtr, zlhflx_lice, zshflx_lnd, zshflx_lwtr) &
@@ -506,27 +489,6 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-#ifdef _OPENACC
-#ifndef _CLAW
-      CALL warning('GPU:update_surface', 'GPU host synchronization for JSBACH since CLAW is not used!')
-      !$ACC UPDATE HOST(aa_btm, bb_btm, fract_par_diffuse) &
-      !$ACC   HOST(is, lake_ice_frc, loidx, pu_stress_gbm) &
-      !$ACC   HOST(pu_stress_tile, pv_stress_gbm, pv_stress_tile) &
-      !$ACC   HOST(q_snocpymlt, rnds, rpds, rvds, pco2, pco2_flux_tile) &
-      !$ACC   HOST(qsat_lnd, qsat_lwtr, qsat_lice, z0h_lnd, z0m_tile) &
-      !$ACC   HOST(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
-      !$ACC   HOST(zca, zcs, zen_h, zen_qv, zfn_h, zfn_qv, zlhflx_lice) &
-      !$ACC   HOST(zlhflx_lnd, zlhflx_lwtr, zshflx_lice, zshflx_lnd) &
-      !$ACC   HOST(zshflx_lwtr, ztsfc_lice, ztsfc_lnd, ztsfc_lnd_eff) &
-      !$ACC   HOST(ztsfc_lwtr, zwindspeed_lnd, zwindspeed10m_lnd)
-      !$ACC UPDATE HOST(ptemp, pq, prsfl, pssfl, rlds, ps) &
-      !$ACC   HOST(pfac_sfc, pcfh_tile, pch_tile, lsm, pcosmu0, pcair) &
-      !$ACC   HOST(pcsat, zevap_lnd, zgrnd_hcap, albvisdir_tile) &
-      !$ACC   HOST(albnirdir_tile, albvisdif_tile, albnirdif_tile) &
-      !$ACC   HOST(zevap_lwtr, zalbedo_lwtr, zevap_lice, zalbedo_lice)
-#endif
-#endif
-
       !$ACC WAIT
 
       IF (aes_phy_config(jg)%ljsb ) THEN
@@ -650,20 +612,6 @@ CONTAINS
        call fs_write_field(ppser_serializer, ppser_savepoint, 'ice_fract_lake', lake_ice_frc(jcs:kproma))
 #endif
 
-#ifdef _OPENACC
-#ifndef _CLAW
-       CALL warning('GPU:update_surface', 'GPU device synchronization for JSBACH since CLAW is not used!')
-       !$ACC UPDATE DEVICE(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd, qsat_lwtr, qsat_lice) &
-       !$ACC   DEVICE(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
-       !$ACC   DEVICE(pcair, pcsat, zevap_lnd, zlhflx_lnd) &
-       !$ACC   DEVICE(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
-       !$ACC   DEVICE(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-       !$ACC   DEVICE(albnirdif_tile, ztsfc_lwtr, zevap_lwtr, zlhflx_lwtr) &
-       !$ACC   DEVICE(zshflx_lwtr, zalbedo_lwtr, ztsfc_lice, zevap_lice) &
-       !$ACC   DEVICE(zlhflx_lice, zshflx_lice, zalbedo_lice, lake_ice_frc) &
-       !$ACC   DEVICE(pco2_flux_tile)
-#endif
-#endif
       ELSE
         CALL jsbach_interface ( jg, nblock, jcs, kproma,                                     & ! in
           & datetime, pdtime, pdtime,                                                        & ! in
@@ -740,16 +688,6 @@ CONTAINS
         call fs_write_field(ppser_serializer, ppser_savepoint, 'co2_flux', pco2_flux_tile(jcs:kproma,idx_lnd))
 #endif
 
-#ifdef _OPENACC
-#ifndef _CLAW
-        CALL warning('GPU:update_surface', 'GPU device synchronization for JSBACH since CLAW is not used!')
-        !$ACC UPDATE DEVICE(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd) &
-        !$ACC   DEVICE(zcpt_lnd, pcair, pcsat, zevap_lnd, zlhflx_lnd) &
-        !$ACC   DEVICE(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
-        !$ACC   DEVICE(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-        !$ACC   DEVICE(albnirdif_tile, pco2_flux_tile)
-#endif
-#endif
       END IF ! llake
       END IF ! ljsb
 

@@ -28,8 +28,6 @@ BLAS_LAPACK_LIBS='-llapack -lblas'
 
 XML2_LIBS='-lxml2'
 
-CLAW_ROOT='/project/d56/install/daint/claw/v2.0.1/pgi'
-
 # The rest of libraries required by CUDA will be provided by PGI compiler:
 STDCXX_LIBS='-lstdc++'
 
@@ -61,12 +59,11 @@ ICON_LDFLAGS='-Wl,--disable-new-dtags'
 
 MPI_LAUNCH='srun -p debug -C gpu'
 SB2PP="${SERIALBOX_ROOT}/python/pp_ser/pp_ser.py"
-CLAW="${CLAW_ROOT}/bin/clawfc"
 
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_60 -g -O3'
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --disable-loop-exchange --enable-claw --enable-gpu --enable-rte-rrtmgp --disable-psrad'
+EXTRA_CONFIG_ARGS='--enable-grib2 --disable-loop-exchange --enable-gpu --enable-rte-rrtmgp --disable-psrad'
 
 # Speed up the configuration by disabling MPI checks:
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
@@ -78,7 +75,6 @@ MPI_LAUNCH=false
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

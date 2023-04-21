@@ -56,7 +56,7 @@ MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 NVCC="${NV_ROOT}/compilers/bin/nvcc"
 NVCFLAGS='-arch=sm_80 -g -O2 -g'
 
-EXTRA_CONFIG_ARGS='--disable-atmo --disable-jsbach --disable-rte-rrtmgp --disable-coupling --enable-parallel-netcdf --disable-loop-exchange --disable-claw --enable-gpu --disable-mpi-checks --disable-openmp '
+EXTRA_CONFIG_ARGS='--disable-atmo --disable-jsbach --disable-rte-rrtmgp --disable-coupling --enable-parallel-netcdf --disable-loop-exchange --enable-gpu --disable-mpi-checks --disable-openmp '
 
 ################################################################################
 

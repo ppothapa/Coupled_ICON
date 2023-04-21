@@ -41,7 +41,6 @@ The git submodules:  come from various repositories, some public, some private. 
 - [submodule "externals/yaxt"] url = https://gitlab.dkrz.de/dkrz-sw/yaxt.git 
 - [submodule "externals/rte-rrtmgp"] url = https://github.com/earth-system-radiation/rte-rrtmgp.git
 - [submodule "externals/cub"] url = https://github.com/NVlabs/cub.git
-- [submodule "externals/omni-xmod-pool"] url = https://github.com/claw-project/omni-xmod-pool.git
 - [submodule "externals/cdi"]	url = https://gitlab.dkrz.de/mpim-sw/libcdi.git 
 - [submodule "externals/sct"]	url =https://gitlab.dkrz.de/dkrz-sw/sct.git
 - [submodule "externals/ecrad"]	url = git@github.com:C2SM/libecrad.git
