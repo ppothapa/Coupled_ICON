@@ -13,7 +13,7 @@ if test ! -z "${BB_NAME-}"; then
   "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_autoreconf_BREEZE.sh"
 fi
 
-${ICON_DIR}/config/mpim/${LINUX_CODENAME}.intel --disable-yaxt --disable-openmp --enable-claw
+${ICON_DIR}/config/mpim/${LINUX_CODENAME}.intel --disable-yaxt --disable-openmp
 
 MAKE_PROCS=8
 make -j ${MAKE_PROCS}

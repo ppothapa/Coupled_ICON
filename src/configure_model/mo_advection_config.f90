@@ -104,9 +104,17 @@ MODULE mo_advection_config
   TYPE :: t_advection_config
 
     ! namelist variables
-    CHARACTER(len=VNAME_LEN) ::  &       !< tracer-specific name suffixes  
-      &  tracer_names(MAX_NTRACER)       !< these are only required for 
-                                         !< idealized runs without NWP or AES forcing.
+    CHARACTER(len=VNAME_LEN) ::  &  !< tracer-specific name suffixes
+      &  tracer_names(MAX_NTRACER)  !< set by namelist, e.g. 'hus' for specific humidity
+                                    !< default: 'q<tracer index>'.
+
+    CHARACTER(len=VNAME_LEN) ::  &  !< CF convention standard names for tracer fields
+      &  cfstd_names(MAX_NTRACER)   !< set internally for known tracer_names
+                                    !< default: 'tracer_<tracer_names(tracer index)>'.
+
+    CHARACTER(len=VNAME_LEN) ::  &  !< long names for tracer fields
+      &  long_names(MAX_NTRACER)    !< set internally for known tracer_names
+                                    !< default: 'tracer_<tracer_names(tracer index)>'.
 
     INTEGER :: nname                !< number of names read from transport_nml/tracer_names
                                     !< which are stored in advection_config/tracer_names

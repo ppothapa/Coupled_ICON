@@ -26,8 +26,6 @@ SERIALBOX_LIBS='-lSerialboxFortran'
 
 XML2_LIBS='-lxml2'
 
-CLAW_ROOT="${SW_ROOT}/claw-master-7x4tpen"
-
 ################################################################################
 
 BUILD_ENV=". \"${SCRIPT_DIR}/../module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib:${SERIALBOX_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
@@ -54,7 +52,6 @@ ICON_LDFLAGS='-Wl,--disable-new-dtags'
 
 MPI_LAUNCH='srun -p debug -C gpu'
 SB2PP="${SERIALBOX_ROOT}/python/pp_ser/pp_ser.py"
-CLAW="${CLAW_ROOT}/bin/clawfc"
 
 EXTRA_CONFIG_ARGS='--enable-grib2 --enable-intel-consistency --enable-vectorized-lrtm --enable-rte-rrtmgp --disable-psrad --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
@@ -64,7 +61,6 @@ EXTRA_CONFIG_ARGS='--enable-grib2 --enable-intel-consistency --enable-vectorized
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

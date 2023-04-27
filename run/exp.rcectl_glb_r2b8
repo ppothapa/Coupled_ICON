@@ -341,7 +341,7 @@ if [[ "$output_atm_2d" == "yes" ]]; then
  output_interval  = "${output_interval_2d}"
  file_interval    = "${file_interval_2d}"
  include_last     = .FALSE.
- ml_varlist       = 'rlut', 'pr', 'prw', 'mh2ovi_phy'
+ ml_varlist       = 'rlut', 'pr', 'prw'
 /
 EOF
 fi

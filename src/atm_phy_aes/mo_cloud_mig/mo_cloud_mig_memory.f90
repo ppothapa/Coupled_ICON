@@ -21,12 +21,14 @@ MODULE mo_cloud_mig_memory
 
   USE mo_model_domain            ,ONLY: t_patch
   USE mo_parallel_config         ,ONLY: nproma
+  USE mo_run_config              ,ONLY: iqv ,iqc ,iqi , iqr ,iqs ,iqg
+  USE mo_advection_config        ,ONLY: advection_config
   USE mo_time_config             ,ONLY: get_dynamics_timestep
   USE mo_aes_phy_config          ,ONLY: aes_phy_tc, dt_zero
   USE mo_io_config               ,ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config ,ONLY: is_variable_in_output
 
-  USE mo_impl_constants          ,ONLY: success, vintp_method_lin
+  USE mo_impl_constants          ,ONLY: success, vintp_method_lin, vname_len
   USE mo_cdi_constants           ,ONLY: grid_unstructured_cell, grid_cell
   USE mo_cdi                     ,ONLY: grid_unstructured,                 &
        &                                datatype_pack16,                   &
@@ -178,12 +180,13 @@ CONTAINS
 
     ! Local variables
 
-    CHARACTER(len= 2) :: cg
-    CHARACTER(len=20) :: listname
+    CHARACTER(len= 2)        :: cg
+    CHARACTER(len=20)        :: listname
+    CHARACTER(LEN=vname_len) :: var_name
 
-    INTEGER           :: shape2d(2), shape3d(3)
-    INTEGER           :: datatype_grb
-    INTEGER           :: datatype_flt, datatype_int
+    INTEGER                  :: shape2d(2), shape3d(3)
+    INTEGER                  :: datatype_grb
+    INTEGER                  :: datatype_flt, datatype_int
 
     WRITE(cg,'(i2.2)') jg
     CALL message('construct_cloud_mig_list','create list and allocate memory for jg ='//cg)
@@ -213,26 +216,6 @@ CONTAINS
     ! ----------------
     !
     ! These fields are constructed only if they are requested for output
-    !
-    IF ( is_variable_in_output(var_name='jg_mig') ) THEN
-       CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'jg_mig'                                                 ,&
-            &        ptr         = cloud_mig_input%jg                                       ,&
-            &        hgrid       = grid_unstructured_cell                                   ,&
-            &        vgrid       = za_surface                                               ,&
-            &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('grid_index',                                   &
-            &                                '-',                                            &
-            &                                'grid index (cloud_mig input)',                 &
-            &                                datatype_int)                                  ,&
-            &        grib2       = grib2_var(255,255,255,                                    &
-            &                                datatype_grb,                                   &
-            &                                grid_unstructured,                              &
-            &                                grid_cell)                                     ,&
-            &        isteptype   = tstep_constant                                           ,&
-            &        lopenacc    =.TRUE.                                                    )
-       __acc_attach(cloud_mig_input%jg)
-    END IF
     !
     IF ( is_variable_in_output(var_name='jcs_mig') ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
@@ -272,26 +255,6 @@ CONTAINS
             &        isteptype   = tstep_constant                                           ,&
             &        lopenacc    =.TRUE.                                                    )
        __acc_attach(cloud_mig_input%jce)
-    END IF
-    !
-    IF ( is_variable_in_output(var_name='msg_level_mig') ) THEN
-       CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'msg_level_mig'                                          ,&
-            &        ptr         = cloud_mig_input%msg_level                                ,&
-            &        hgrid       = grid_unstructured_cell                                   ,&
-            &        vgrid       = za_surface                                               ,&
-            &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('message_level',                                &
-            &                                '-',                                            &
-            &                                'message level (cloud_mig input)',              &
-            &                                datatype_int)                                  ,&
-            &        grib2       = grib2_var(255,255,255,                                    &
-            &                                datatype_grb,                                   &
-            &                                grid_unstructured,                              &
-            &                                grid_cell)                                     ,&
-            &        isteptype   = tstep_constant                                           ,&
-            &        lopenacc    =.TRUE.                                                    )
-       __acc_attach(cloud_mig_input%msg_level)
     END IF
     !
     IF ( is_variable_in_output(var_name='pdtime_mig') ) THEN
@@ -395,9 +358,11 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('air_specific_heat',                            &
+            &        cf          = t_cf_var ('specific_heat_capacity_of_air_'//              &
+                                             'at_constant_pressure',                         &
             &                                'J/K/kg',                                       &
-            &                                'specific heat of air at constant pressure '//  &
+            &                                'specific heat capacity of air '//              &
+                                             'at constant pressure '//                       &
             &                                '(cloud_mig input)',                            &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,0,255,                                        &
@@ -435,9 +400,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%ta)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qv_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqv))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qv_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qv                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -458,9 +424,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%qv)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qc_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqc))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qc_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qc                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -482,9 +449,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%qc)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qi_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqi))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qi_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qi                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -506,9 +474,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%qi)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qr_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqr))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qr_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qr                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -530,9 +499,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%qr)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qs_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqs))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qs_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qs                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -554,9 +524,10 @@ CONTAINS
        __acc_attach(cloud_mig_input%qs)
     END IF
     !
-    IF ( is_variable_in_output(var_name='qg_mig') ) THEN
+    var_name=TRIM(advection_config(jg)%tracer_names(iqg))//'_mig'
+    IF ( is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'qg_mig'                                                 ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_input%qg                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
@@ -595,9 +566,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('temperature_tendency_graupel','K s-1',         &
-            &                       'temperature tendency due to graupel processes (cp) '//  &
-            &                                '(cloud_mig output)',                           &
+            &        cf          = t_cf_var ('tendency_of_air_temperature_'//                &
+            &                                'due_to_stratiform_cloud_and_precipitation',    &
+            &                                'K s-1',                                        &
+            &                                'tendency of air temperature '//                &
+            &                                'due to stratiform cloud and precipitation '//  &
+            &                                '(cp) (cloud_mig output)',                      &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,0,203,                                        &
             &                                datatype_grb,                                   &
@@ -611,17 +585,20 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_ta_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqv))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qhus_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qhus_mig'                                          ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qv_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qhus_mig',  'kg kg-1 s-1',                &
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qhus  due to graupel processes '//             &
+            &        cf          = t_cf_var ('tendency_of_specific_humidity_'//              &
+            &                                'due_to_stratiform_cloud_and_precipitation',    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of specific humidity '//              &
+            &                                'due to stratiform cloud and precipitation '//  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,1,203,                                        &
@@ -636,17 +613,22 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qv_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqc))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qclw_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qclw_mig'                                          ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qc_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qclw_mig',  'kg kg-1 s-1'                ,&
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qclw  due to graupel processes '//             &
+            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
+            &                                'stratiform_cloud_liquid_water_in_air_'//       &
+            &                                'due_to_cloud_microphysics',                    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of mass_fraction of '//               &
+            &                                'stratiform cloud liquid water in air '//       &
+            &                                'due to cloud microphysics '//                  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,6,203,                                        &
@@ -661,17 +643,22 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qc_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqi))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qcli_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qcli_mig'                                          ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qi_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qcli_mig',  'kg kg-1 s-1'                ,&
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qcli  due to graupel processes '//             &
+            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
+            &                                'stratiform_cloud_ice_in_air_'//                &
+            &                                'due_to_cloud_microphysics',                    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of mass_fraction of '//               &
+            &                                'stratiform cloud ice in air '//                &
+            &                                'due to cloud microphysics '//                  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,6,213,                                        &
@@ -686,17 +673,22 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qi_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqr))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qr_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qr_mig'                                            ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qr_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qr_mig',  'kg kg-1 s-1'                  ,&
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qr  due to graupel processes '//               &
+            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
+            &                                'rain_in_air_'//                                &
+            &                                'due_to_cloud_microphysics',                    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of mass fraction of '//               &
+            &                                'rain in air '//                                &
+            &                                'due to cloud microphysics '//                  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(255,255,255,                                    &
@@ -711,17 +703,22 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qr_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqs))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qs_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qs_mig'                                            ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qs_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qs_mig',  'kg kg-1 s-1'                  ,&
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qs  due to graupel processes '//               &
+            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
+            &                                'snow_in_air_'//                                &
+            &                                'due_to_cloud_microphysics',                    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of mass_fraction of '//               &
+            &                                'snow in air '//                                &
+            &                                'due to cloud microphysics '//                  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(255,255,255,                                    &
@@ -736,17 +733,22 @@ CONTAINS
        __acc_attach(cloud_mig_output%tend_qs_mig)
     END IF
     !
+    var_name='tend_'//TRIM(advection_config(jg)%tracer_names(iqg))//'_mig'
     IF ( aes_phy_tc(jg)%dt_mig > dt_dyn .OR.                                                 &
-         & is_variable_in_output(var_name='tend_qg_mig') ) THEN
+         & is_variable_in_output(var_name=TRIM(var_name)) ) THEN
        CALL add_var( this_list   = cloud_mig_list                                           ,&
-            &        varname     = 'tend_qg_mig'                                            ,&
+            &        varname     = TRIM(var_name)                                           ,&
             &        ptr         = cloud_mig_output%tend_qg_mig                             ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_reference                                             ,&
             &        ldims       = shape3d                                                  ,&
-            &        cf          = t_cf_var ('tend_qg_mig',  'kg kg-1 s-1'                  ,&
-            &                                'tendency of mass mixing ratio of tracer '//    &
-            &                                'qg  due to graupel processes '//               &
+            &        cf          = t_cf_var ('tendency_of_mass_fraction_of_'//               &
+            &                                'graupel_in_air_'//                             &
+            &                                'due_to_cloud_microphysics',                    &
+            &                                'kg kg-1 s-1',                                  &
+            &                                'tendency of mass fraction of '//               &
+            &                                'graupel in air '//                             &
+            &                                'due to cloud microphysics '//                  &
             &                                '(cloud_mig output)',                           &
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(255,255,255,                                    &
@@ -770,12 +772,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_surface                                               ,&
             &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('stratiform_rainfall_flux',                     &
-            &                                'kg/m2/s',                                      &
-            &                                'stratiform rainfall flux '//                   &
-            &                                '(cloud_mig output)',                           &
+            &        cf          = t_cf_var ('rainfall_flux',                                &
+            &                                'kg m-2 s-1',                                   &
+            &                                'rainfall flux '//                              &
+            &                                '(cloud_mig output)'                           ,&
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,77,                                         &
+            &        grib2       = grib2_var(0,1,65,                                         &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -791,12 +793,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_surface                                               ,&
             &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('stratiform_icefall_flux',                      &
-            &                                'kg/m2/s',                                      &
-            &                                'stratiform icefall flux '//                    &
-            &                                '(cloud_mig output)',                           &
+            &        cf          = t_cf_var ('icefall_flux'                                 ,&
+            &                                'kg m-2 s-1',                                   &
+            &                                'icefall flux '//                               &
+            &                                '(cloud_mig output)'                           ,&
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,78,                                         &
+            &        grib2       = grib2_var(0,1,68,                                         &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -812,12 +814,12 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_surface                                               ,&
             &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('stratiform_snowfall_flux',                     &
-            &                                'kg/m2/s',                                      &
-            &                                'stratiform snowfall flux '//                   &
-            &                                '(cloud_mig output)',                           &
+            &        cf          = t_cf_var ('snowfall_flux'                                ,&
+            &                                'kg m-2 s-1',                                   &
+            &                                'snowfall flux '//                              &
+            &                                '(cloud_mig output)'                           ,&
             &                                datatype_flt)                                  ,&
-            &        grib2       = grib2_var(0,1,56,                                         &
+            &        grib2       = grib2_var(0,1,66,                                         &
             &                                datatype_grb,                                   &
             &                                grid_unstructured,                              &
             &                                grid_cell)                                     ,&
@@ -833,10 +835,10 @@ CONTAINS
             &        hgrid       = grid_unstructured_cell                                   ,&
             &        vgrid       = za_surface                                               ,&
             &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('stratiform_graupel_flux',                      &
-            &                                'kg/m2/s',                                      &
-            &                                'stratiform graupel flux '//                    &
-            &                                '(cloud_mig output)',                           &
+            &        cf          = t_cf_var ('graupel_fall_flux'                            ,&
+            &                                'kg m-2 s-1',                                   &
+            &                                'graupel fall flux '//                          &
+            &                                '(cloud_mig output)'                           ,&
             &                                datatype_flt)                                  ,&
             &        grib2       = grib2_var(0,1,75,                                         &
             &                                datatype_grb,                                   &

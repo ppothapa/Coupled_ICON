@@ -90,7 +90,7 @@ CONTAINS
   !-------------------------------------------------------------------
   SUBROUTINE rte_rrtmgp_interface(                                               &
       jg, jb, jcs, jce, nproma, klev,                                       &
-      & irad_aero     , ktype                                              ,&
+      & irad_aero                                                          ,&
       & psctm, ssi_factor,                                                  &
       & loland          ,loglac          ,this_datetime                    ,&
       & pcos_mu0        ,daylght_frc                                       ,&
@@ -99,7 +99,7 @@ CONTAINS
       & zf              ,zh              ,dz                               ,&
       & pp_sfc          ,pp_fl           ,pp_hl                            ,&
       & tk_sfc          ,tk_fl           ,tk_hl                            ,&
-      & xm_dry          ,xvmr_vap        ,xm_liq          ,xm_ice          ,&
+      & xvmr_vap        ,xm_liq          ,xm_ice                           ,&
       & cdnc            ,xc_frc                                            ,&
       & xvmr_co2        ,xvmr_ch4        ,xvmr_n2o        ,xvmr_cfc        ,&
       & xvmr_o3         ,xvmr_o2                                           ,&
@@ -121,8 +121,7 @@ CONTAINS
          jb,           & !< block index
          jcs, jce,     & !< starting and ending columns
          nproma, klev, & !< array dimensions(?)
-         irad_aero,    & !< aerosol control
-         ktype(:)        !< type of convection
+         irad_aero       !< aerosol control
 
     REAL(wp),INTENT(IN) :: psctm                         !< orbit and time dependent solar constant for radiation time step
     REAL(wp),INTENT(IN) :: ssi_factor(:)                 !< fraction of TSI in the 14 RRTM SW bands
@@ -150,7 +149,6 @@ CONTAINS
          tk_sfc(:),       & !< surface temperature in K
          tk_fl(:,:),      & !< full level temperature in K
          tk_hl(:,:),      & !< half level temperature in K
-         xm_dry(:,:),     & !< dry air     mass in kg/m2
          xvmr_vap(:,:),   & !< water vapor volume mixing ratio 
          xm_liq(:,:),     & !< cloud water mass in kg/m2
          xm_ice(:,:),     & !< cloud ice   mass in kg/m2
@@ -352,7 +350,6 @@ CONTAINS
        CALL rte_rrtmgp_interface_onBlock(                              &
           & lclearsky,                                                 &
           & ncol_needed,       klev,                                   &
-          & ktype(:),                                                  &
           & psctm,             ssi_factor,                             &
           & loland(:),         loglac(:),                              &
           & pcos_mu0(:),       daylght_frc(:),                         &
@@ -362,7 +359,7 @@ CONTAINS
           & zf(:,:),           zh(:,:),           dz(:,:),             &
           & pp_sfc(:),         pp_fl(:,:),        pp_hl(:,:),          &
           & tk_sfc(:),         tk_fl(:,:),        tk_hl(:,:),          &
-          & xm_dry(:,:),       xvmr_vap(:,:),     xm_liq(:,:),         &
+          & xvmr_vap(:,:),     xm_liq(:,:),                            &
           & xm_ice(:,:),       cdnc(:,:),         xc_frc(:,:),         &
           & xvmr_co2(:,:),     xvmr_ch4(:,:),     xvmr_n2o (:,:),      &
           & xvmr_cfc(:,:,:),   xvmr_o3(:,:),      xvmr_o2(:,:),        &
@@ -390,7 +387,6 @@ CONTAINS
             & lclearsky,                                                 &
             & jchunk_start,      jchunk_end,                             &
             & klev,                                                      &
-            & ktype(:),                                                  &
             & psctm,             ssi_factor,                             &
             & loland(:),         loglac(:),                              &
             & pcos_mu0(:),       daylght_frc(:),                         &
@@ -400,7 +396,7 @@ CONTAINS
             & zf(:,:),           zh(:,:),           dz(:,:),             &
             & pp_sfc(:),         pp_fl(:,:),        pp_hl(:,:),          &
             & tk_sfc(:),         tk_fl(:,:),        tk_hl(:,:),          &
-            & xm_dry(:,:),       xvmr_vap(:,:),     xm_liq(:,:),         &
+            & xvmr_vap(:,:),     xm_liq(:,:),                            &
             & xm_ice(:,:),       cdnc(:,:),         xc_frc(:,:),         &
             & xvmr_co2(:,:),     xvmr_ch4(:,:),     xvmr_n2o (:,:),      &
             & xvmr_cfc(:,:,:),   xvmr_o3(:,:),      xvmr_o2(:,:),        &
@@ -481,7 +477,6 @@ CONTAINS
   SUBROUTINE rte_rrtmgp_interface_onBlock(                   &
        & lclearsky,                                          &
        & ncol,           klev,                               &
-       & ktype,                                              &
        & psctm,          ssi_factor,                         &
        & laland,         laglac,                             &
        & pcos_mu0,       daylght_frc,                        &
@@ -491,7 +486,7 @@ CONTAINS
        & zf,             zh,             dz,                 &
        & pp_sfc,         pp_fl,          pp_hl,              &
        & tk_sfc,         tk_fl,          tk_hl,              &
-       & xm_dry,         xvmr_vap,       xm_liq,             &
+       & xvmr_vap,       xm_liq,                             &
        & xm_ice,         cdnc,           cld_frc,            &
        & xvmr_co2,       xvmr_ch4,       xvmr_n2o ,          &
        & xvmr_cfc ,      xvmr_o3,        xvmr_o2,            &
@@ -513,8 +508,7 @@ CONTAINS
 
     INTEGER,INTENT(IN)  :: &
          ncol,             & !< number of columns
-         klev,             & !< number of levels
-         ktype(:)            !< type of convection
+         klev                !< number of levels
 
     REAL(wp),INTENT(IN) :: psctm                         !< orbit and time dependent solar constant for radiation time step
     REAL(wp),INTENT(IN) :: ssi_factor(:)                 !< fraction of TSI in the 14 RRTM SW bands
@@ -541,7 +535,6 @@ CONTAINS
          tk_sfc(:),        & !< surface temperature in K
          tk_fl(:,:),       & !< full level temperature in K
          tk_hl(:,:),       & !< half level temperature in K
-         xm_dry(:,:),      & !< dry air     mass in kg/m2
          xvmr_vap(:,:),    & !< water vapor volume mixing ratio
          xm_liq(:,:),      & !< cloud water mass in kg/m2
          xm_ice(:,:),      & !< cloud ice   mass in kg/m2
@@ -1289,7 +1282,7 @@ CONTAINS
       rnseeds1, rnseeds2, alb_vis_dir, alb_nir_dir, alb_vis_dif, alb_nir_dif, &
       tk_sfc, zf, zh, dz, pp_fl, pp_hl, tk_fl, tk_hl, &
       play, plev, tlay, tlev, &
-      xm_dry, xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, cdnc, &
+      xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, cdnc, &
       cld_frc, &
       flx_dnlw_clr, flx_uplw_clr, flx_dnsw_clr, flx_upsw_clr, &
       flx_dnlw, flx_uplw, flx_dnsw, flx_upsw, &
@@ -1307,7 +1300,6 @@ CONTAINS
     & jcs,            jce,                            &
     &                 klev,                           &
     !
-    & ktype,                                          &
     & psctm,          ssi_factor,                     &
     & laland,         laglac,                         &
     & pcos_mu0,       daylght_frc,                    &
@@ -1317,7 +1309,7 @@ CONTAINS
     & zf,             zh,             dz,             &
     & pp_sfc,         pp_fl,          pp_hl,          &
     & tk_sfc,         tk_fl,          tk_hl,          &
-    & xm_dry,         xvmr_vap,       xm_liq,         &
+    & xvmr_vap,       xm_liq,                         &
     & xm_ice,         cdnc,           xc_frc,         &
     & xvmr_co2,       xvmr_ch4,       xvmr_n2o,       &
     & xvmr_cfc,       xvmr_o3,        xvmr_o2,        &
@@ -1337,8 +1329,7 @@ CONTAINS
  INTEGER,INTENT(IN)  :: &
       & jcs,            & !< cell/column index, start
       & jce,            & !< cell/column index, end
-      & klev,           & !< number of full levels
-      & ktype(:)            !< type of convection
+      & klev              !< number of full levels
 
  REAL(wp),INTENT(IN) :: psctm                         !< orbit and time dependent solar constant for radiation time step
  REAL(wp),INTENT(IN) :: ssi_factor(:)                 !< fraction of TSI in the 14 RRTM SW bands
@@ -1364,7 +1355,6 @@ CONTAINS
       & tk_sfc(:),        & !< surface temperature in K
       & tk_fl(:,:),       & !< full level temperature in K
       & tk_hl(:,:),       & !< half level temperature in K
-      & xm_dry(:,:),      & !< dry air     mass in kg/m2
       & xvmr_vap(:,:),    & !< water vapor volume mixing ratio
       & xm_liq(:,:),      & !< cloud water mass in kg/m2
       & xm_ice(:,:),      & !< cloud ice   mass in kg/m2
@@ -1414,7 +1404,6 @@ CONTAINS
       & s_pp_hl          (jce-jcs+1,klev+1),     & !< full level pressure in Pa
       & s_tk_fl          (jce-jcs+1,klev),       & !< full level temperature in K
       & s_tk_hl          (jce-jcs+1,klev+1),     & !< half level temperature in K
-      & s_xm_dry         (jce-jcs+1,klev),       & !< dry air     mass in kg/m2
       & s_xvmr_vap       (jce-jcs+1,klev),       & !< water vapor volume mixing ratio
       & s_xm_liq         (jce-jcs+1,klev),       & !< cloud water mass in kg/m2
       & s_xm_ice         (jce-jcs+1,klev),       & !< cloud ice   mass in kg/m2
@@ -1451,7 +1440,7 @@ CONTAINS
   !$ACC DATA CREATE(s_zf, s_zh, s_dz) &
   !$ACC   CREATE(s_pp_fl, s_pp_hl) &
   !$ACC   CREATE(s_tk_fl, s_tk_hl) &
-  !$ACC   CREATE(s_xm_dry, s_xvmr_vap, s_xm_liq) &
+  !$ACC   CREATE(s_xvmr_vap, s_xm_liq) &
   !$ACC   CREATE(s_xm_ice, s_cdnc, s_xc_frc) &
   !$ACC   CREATE(s_xvmr_co2, s_xvmr_ch4, s_xvmr_n2o) &
   !$ACC   CREATE(s_xvmr_cfc, s_xvmr_o3, s_xvmr_o2) &
@@ -1466,7 +1455,6 @@ CONTAINS
   s_dz          (1:ncol,:)   = dz          (jcs:jce,:)
   s_pp_fl       (1:ncol,:)   = pp_fl       (jcs:jce,:)
   s_tk_fl       (1:ncol,:)   = tk_fl       (jcs:jce,:)
-  s_xm_dry      (1:ncol,:)   = xm_dry      (jcs:jce,:)
   s_xvmr_vap    (1:ncol,:)   = xvmr_vap    (jcs:jce,:)
   s_xm_liq      (1:ncol,:)   = xm_liq      (jcs:jce,:)
   s_xm_ice      (1:ncol,:)   = xm_ice      (jcs:jce,:)
@@ -1526,7 +1514,6 @@ CONTAINS
       & lclearsky,                                                                   &
       &   ncol,                klev,                                                 &
       !
-      &   ktype    (jcs:jce),                                                        &
       &   psctm,                  ssi_factor,                                        &
       & laland     (jcs:jce),     laglac     (jcs:jce),                              &
       & pcos_mu0   (jcs:jce),     daylght_frc(jcs:jce),                              &
@@ -1536,7 +1523,7 @@ CONTAINS
       & s_zf(:,:),                s_zh(:,:),                s_dz(:,:),               &
       & pp_sfc     (jcs:jce),     s_pp_fl(:,:),             s_pp_hl(:,:),            &
       & tk_sfc     (jcs:jce),     s_tk_fl(:,:),             s_tk_hl(:,:),            &
-      & s_xm_dry(:,:),            s_xvmr_vap(:,:),          s_xm_liq(:,:),           &
+      & s_xvmr_vap(:,:),          s_xm_liq(:,:),                                     &
       & s_xm_ice(:,:),            s_cdnc(:,:),              s_xc_frc(:,:),           &
       & s_xvmr_co2(:,:),          s_xvmr_ch4(:,:),          s_xvmr_n2o(:,:),         &
       & s_xvmr_cfc(:,:,:),        s_xvmr_o3(:,:),           s_xvmr_o2(:,:),          &

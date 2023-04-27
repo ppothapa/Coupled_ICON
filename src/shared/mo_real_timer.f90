@@ -42,9 +42,7 @@ MODULE mo_real_timer
 #endif
 
 #ifdef _USE_NVTX
-!$claw ignore
   USE nvtx
-!$claw end ignore
 #endif
 
 #ifndef NOMPI

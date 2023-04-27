@@ -16,8 +16,7 @@
 MODULE mo_surface_diag
 
   USE mo_kind,              ONLY: wp
-  USE mo_physical_constants,ONLY: grav, als, alv, vtmpc2, cpd, rdv, tmelt,    &
-                                  vtmpc1, vtmpc2, rd
+  USE mo_physical_constants,ONLY: grav, als, alv, cpd, rdv, tmelt, vtmpc1, rd
   USE mo_aes_convect_tables,ONLY: lookup_ua_list_spline
   USE mo_turb_vdiff_params, ONLY: tpfac2
   USE mo_aes_phy_memory,    ONLY: cdimissval
@@ -267,7 +266,7 @@ CONTAINS
   !!
   !! Compute wind stress over each surface type
   !!
-  SUBROUTINE wind_stress( jcs, kproma, kbdim, ksfc_type,        &! in
+  SUBROUTINE wind_stress( kbdim, ksfc_type,                     &! in
                         & psteplen,                             &! in
                         & loidx, is,                            &! in
                         & pfrc, pcfm_tile, pfac_sfc,            &! in
@@ -277,7 +276,7 @@ CONTAINS
                         & pu_stress_tile, pv_stress_tile        )! out
 
     REAL(wp),INTENT(IN)    :: psteplen
-    INTEGER, INTENT(IN)    :: jcs, kproma, kbdim, ksfc_type
+    INTEGER, INTENT(IN)    :: kbdim, ksfc_type
 
     INTEGER, INTENT(IN)    :: loidx(kbdim,ksfc_type) !< counter for masks
     INTEGER, INTENT(IN)    :: is   (      ksfc_type) !< counter for masks

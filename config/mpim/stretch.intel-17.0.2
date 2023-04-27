@@ -49,8 +49,6 @@ FCFLAGS="-I${NETCDFF_ROOT}/include -g -pc64 -assume realloc_lhs -O2 -msse2 -fltc
 LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${GRIBAPI_ROOT}/lib ${BLAS_LAPACK_LDFLAGS}"
 LIBS="-Wl,--as-needed ${XML2_LIBS} ${GRIBAPI_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS}"
 
-CLAW='/data/mpi/sclab/sip/m300488/sw/intel-17.0.2/claw-2.0.3-kbyqcrn/bin/clawfc'
-
 MPI_LAUNCH='mpiexec'
 
 EXTRA_CONFIG_ARGS='--enable-rte-rrtmgp --enable-grib2'
@@ -62,7 +60,6 @@ AR="${AR}" \
 BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
-CLAW="${CLAW}" \
 CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \

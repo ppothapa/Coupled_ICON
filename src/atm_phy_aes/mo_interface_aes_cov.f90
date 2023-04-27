@@ -22,7 +22,8 @@ MODULE mo_interface_aes_cov
 
   USE mo_kind                ,ONLY: wp
 
-  USE mo_aes_phy_config      ,ONLY:   aes_phy_config
+  USE mo_aes_phy_dims        ,ONLY: aes_phy_dims
+  USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field
   USE mo_aes_sfc_indices     ,ONLY: nsfc_type, iwtr, iice
   
@@ -37,41 +38,37 @@ MODULE mo_interface_aes_cov
 
 CONTAINS
 
-  SUBROUTINE interface_aes_cov  (jg,jb,jcs,jce ,&
-       &                         nproma,nlev   ) 
+  SUBROUTINE interface_aes_cov(jg, jb, jcs, jce) 
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Pointers
     !
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
+    TYPE(t_aes_phy_field), POINTER :: field
 
     ! Local variables
     !
+    INTEGER  :: nlev
+    INTEGER  :: nproma
+    !
     INTEGER  :: nlevp1, jc, jks
-    INTEGER  :: itype(nproma) !< type of convection
-    REAL(wp) :: zfrw (nproma) !< cell area fraction of open water
-    REAL(wp) :: zfri (nproma) !< cell area fraction of ice covered water
+    REAL(wp) :: zfrw (aes_phy_dims(jg)%nproma) !< cell area fraction of open water
+    REAL(wp) :: zfri (aes_phy_dims(jg)%nproma) !< cell area fraction of ice covered water
 
     IF (ltimer) call timer_start(timer_cov)
 
-    field => prm_field(jg)
+    nlev   = aes_phy_dims(jg)%nlev
+    nproma = aes_phy_dims(jg)%nproma
+
+    field  => prm_field(jg)
 
     jks    = aes_phy_config(jg)%jks_cloudy
     nlevp1 = nlev+1
 
-    !$ACC DATA PRESENT(field% rtype, field%frac_tile) &
-    !$ACC   CREATE(itype, zfrw, zfri)
-
-    !$ACC PARALLEL DEFAULT(PRESENT)
-    !$ACC LOOP GANG VECTOR
-    DO jc = jcs, jce
-      itype(jc) = NINT(field%rtype(jc,jb))
-    END DO
-    !$ACC END PARALLEL
+    !$ACC DATA PRESENT(field%frac_tile) &
+    !$ACC   CREATE(zfrw, zfri)
 
     !$ACC PARALLEL DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR
@@ -90,22 +87,20 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    CALL cover( jg,                        &! in
-         &      jb,                        &! in
-         &      jcs, jce, nproma,          &! in
-         &      jks, nlev, nlevp1,         &! in
-         &      itype,                     &! in
-         &      zfrw(:),                   &! in
-         &      zfri(:),                   &! in
-         &      field% zf(:,:,jb),         &! in
-         &      field% phalf(:,:,jb),      &! in
-         &      field% pfull(:,:,jb),      &! in
-         &      field%  ta(:,:,jb),        &! in    tm1
-         &      field%  qtrc(:,:,jb,iqv),  &! in    qm1
-         &      field%  qtrc(:,:,jb,iqc),  &! in    xlm1
-         &      field%  qtrc(:,:,jb,iqi),  &! in    xim1
-         &      field%  aclc(:,:,jb),      &! out   (for "radiation" and "vdiff_down")
-         &      field% rintop(:,  jb)     ) ! out   (for output)
+    CALL cover( jg,                            &! in
+         &      jb,                            &! in
+         &      jcs, jce, nproma,              &! in
+         &      jks, nlev, nlevp1,             &! in
+         &      zfrw(:),                       &! in
+         &      zfri(:),                       &! in
+         &      field% zf(:,:,jb),             &! in
+         &      field% phalf(:,:,jb),          &! in
+         &      field% pfull(:,:,jb),          &! in
+         &      field%  ta(:,:,jb),            &! in    tm1
+         &      field%  qtrc_phy(:,:,jb,iqv),  &! in    qm1
+         &      field%  qtrc_phy(:,:,jb,iqc),  &! in    xlm1
+         &      field%  qtrc_phy(:,:,jb,iqi),  &! in    xim1
+         &      field%  aclc(:,:,jb)          ) ! out   (for "radiation" and "vdiff_down")
 
     !$ACC END DATA
 
