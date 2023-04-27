@@ -600,10 +600,10 @@ REAL (KIND=wp), DIMENSION(:), INTENT(IN) :: &
 !
 ! External parameter fields:
 ! ----------------------------
-    fr_land,      & ! land portion of a grid point area             ( 1 )
-    depth_lk,     & ! lake depth                                    ( m )
-    sai,          & ! surface area index                            ( 1 )
-    urb_isa         ! urban impervious surface area                 ( 1 )
+    fr_land,      & ! land portion of a grid point area                    ( 1 )
+    depth_lk,     & ! lake depth                                           ( m )
+    sai,          & ! surface area index                                   ( 1 )
+    urb_isa         ! impervious surface area fraction of the urban canopy ( 1 )
 
 ! Fields for surface values and soil/canopy model variables:
 ! ------------------------------------------------------------

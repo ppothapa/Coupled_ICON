@@ -187,7 +187,17 @@ CONTAINS
     REAL(wp) :: runoff_g_inst_t (nproma)
     REAL(wp) :: resid_wso_inst_t (nproma)
 
-    INTEGER  :: soiltyp_t (nproma)
+    INTEGER  :: soiltyp_t  (nproma)
+
+    ! for TERRA_URB
+    REAL(wp) :: urb_isa_t  (nproma)
+    REAL(wp) :: fr_paved_t (nproma)
+    REAL(wp) :: urb_ai_t   (nproma)
+    REAL(wp) :: urb_h_bld_t(nproma)
+    REAL(wp) :: urb_hcap_t (nproma)
+    REAL(wp) :: urb_hcon_t (nproma)
+    REAL(wp) :: ahf_t      (nproma)
+    !
     REAL(wp) :: plcov_t   (nproma)
     REAL(wp) :: rootdp_t  (nproma)
     REAL(wp) :: sai_t     (nproma)
@@ -195,19 +205,8 @@ CONTAINS
     REAL(wp) :: laifac_t  (nproma)
     REAL(wp) :: eai_t     (nproma)
     REAL(wp) :: skinc_t   (nproma)
-
-    ! for TERRA_URB
-    REAL(wp) :: fr_paved_t    (nproma)
-    REAL(wp) :: urb_isa_t     (nproma)
-    REAL(wp) :: urb_ai_t      (nproma)
-!   REAL(wp) :: urb_alb_red_t (nproma)
-    REAL(wp) :: urb_h_bld_t   (nproma)
-    REAL(wp) :: urb_hcap_t    (nproma)
-    REAL(wp) :: urb_hcon_t    (nproma)
-    REAL(wp) :: ahf_t         (nproma)
-!
     REAL(wp) :: rsmin2d_t (nproma)
-    REAL(wp) :: r_bsmin (nproma)
+    REAL(wp) :: r_bsmin   (nproma)
 
     ! local dummy variable for precipitation rate of graupel, grid-scale
     REAL(wp), TARGET  :: dummy_graupel_gsp_rate(nproma,p_patch%nblks_c)
@@ -327,11 +326,10 @@ CONTAINS
     !$ACC   CREATE(cond, init_list_tmp) &
     !$ACC   PRESENT(p_graupel_gsp_rate)
 
-    !$ACC DATA CREATE(soiltyp_t, plcov_t, rootdp_t, sai_t, eai_t, tai_t, laifac_t) &
-    !$ACC   CREATE(skinc_t) &
-    !$ACC   CREATE(fr_paved_t, urb_isa_t, urb_ai_t, urb_h_bld_t) &
-    !$ACC   CREATE(urb_hcap_t, urb_hcon_t, ahf_t, r_bsmin) &
-    !$ACC   CREATE(rsmin2d_t, u_t, v_t, t_t, qv_t, p0_t, ps_t, h_snow_gp_t) &
+    !$ACC DATA CREATE(soiltyp_t, urb_isa_t, fr_paved_t, urb_ai_t, urb_h_bld_t) &
+    !$ACC   CREATE(urb_hcap_t, urb_hcon_t, ahf_t) &
+    !$ACC   CREATE(plcov_t, rootdp_t, sai_t, eai_t, tai_t, laifac_t, skinc_t) &
+    !$ACC   CREATE(rsmin2d_t, r_bsmin, u_t, v_t, t_t, qv_t, p0_t, ps_t, h_snow_gp_t) &
     !$ACC   CREATE(u_10m_t, v_10m_t, prr_con_t, prs_con_t, conv_frac, prr_gsp_t) &
     !$ACC   CREATE(prs_gsp_t, pri_gsp_t, prg_gsp_t, sobs_t, thbs_t, pabs_t, tsnred) &
     !$ACC   CREATE(t_snow_now_t, t_s_now_t, t_sk_now_t, t_g_t, qv_s_t, w_snow_now_t) &
@@ -357,13 +355,13 @@ CONTAINS
 !$OMP   snowfrac_t,runoff_s_inst_t,runoff_g_inst_t,resid_wso_inst_t,u_10m_t,v_10m_t,tch_t,tcm_t,tfv_t,      &
 !$OMP   tfvsn_t,sobs_t,thbs_t,pabs_t,r_bsmin,                                                               &
 !$OMP   soiltyp_t,plcov_t,rootdp_t,sai_t,tai_t,eai_t,rsmin2d_t,t_snow_mult_now_t,wliq_snow_now_t,           &
+!$OMP   urb_isa_t,fr_paved_t,urb_ai_t,urb_h_bld_t,urb_hcap_t,urb_hcon_t,ahf_t,                              &
 !$OMP   rho_snow_mult_now_t,wtot_snow_now_t,dzh_snow_now_t,t_so_now_t,w_so_now_t,w_so_ice_now_t,            &
 !$OMP   t_s_new_t,w_snow_new_t,rho_snow_new_t,h_snow_t,w_i_new_t,w_p_new_t,w_s_new_t,t_so_new_t,            &
 !$OMP   lhfl_bs_t,rstom_t,shfl_s_t,lhfl_s_t,qhfl_s_t,t_snow_mult_new_t,rho_snow_mult_new_t,                 &
 !$OMP   wliq_snow_new_t,wtot_snow_new_t,dzh_snow_new_t,w_so_new_t,w_so_ice_new_t,lhfl_pl_t,                 &
 !$OMP   shfl_soil_t,lhfl_soil_t,shfl_snow_t,lhfl_snow_t,t_snow_new_t,graupel_gsp_rate,prg_gsp_t,            &
 !$OMP   snow_melt_flux_t,h_snow_gp_t,conv_frac,t_sk_now_t,t_sk_new_t,skinc_t,tsnred,plevap_t,z0_t,laifac_t, &
-!$OMP   fr_paved_t,urb_isa_t,urb_ai_t,urb_h_bld_t,urb_hcap_t,urb_hcon_t,ahf_t,                              &
 !$OMP   cond,init_list_tmp,ic_tot,icount_init_tmp,heatcond_fac,heatcap_fac,                                 &
 !$OMP   qsat1,dqsdt1,qsat2,dqsdt2,sntunefac,sntunefac2,snowfrac_lcu_t) ICON_OMP_GUIDED_SCHEDULE
 
@@ -685,33 +683,31 @@ CONTAINS
           pabs_t(ic)                =  prm_diag%swflx_par_sfc(jc,jb) 
 
           soiltyp_t(ic)             =  ext_data%atm%soiltyp_t(jc,jb,isubs)
-          plcov_t(ic)               =  ext_data%atm%plcov_t(jc,jb,isubs)
-          rootdp_t(ic)              =  ext_data%atm%rootdp_t(jc,jb,isubs)
-          sai_t(ic)                 =  ext_data%atm%sai_t(jc,jb,isubs)
-          tai_t(ic)                 =  ext_data%atm%tai_t(jc,jb,isubs)
-          eai_t(ic)                 =  ext_data%atm%eai_t(jc,jb,isubs)
-          skinc_t(ic)               =  ext_data%atm%skinc_t(jc,jb,isubs)
 
           IF (lterra_urb) THEN
-            fr_paved_t(ic)          =  ext_data%atm%fr_paved_t(jc,jb,isubs)
             urb_isa_t(ic)           =  ext_data%atm%urb_isa_t(jc,jb,isubs)
+            fr_paved_t(ic)          =  ext_data%atm%fr_paved_t(jc,jb,isubs)
             urb_ai_t(ic)            =  ext_data%atm%urb_ai_t(jc,jb,isubs)
-!           urb_alb_red_t(ic)       =  ext_data%atm%urb_alb_red_t(jc,jb,isubs)
             urb_h_bld_t(ic)         =  ext_data%atm%urb_h_bld_t(jc,jb,isubs)
             urb_hcap_t(ic)          =  ext_data%atm%urb_hcap_t(jc,jb,isubs)
             urb_hcon_t(ic)          =  ext_data%atm%urb_hcon_t(jc,jb,isubs)
             ahf_t(ic)               =  ext_data%atm%ahf_t(jc,jb,isubs)
           ELSE
-            fr_paved_t(ic)          =  0._wp
             urb_isa_t(ic)           =  0._wp
+            fr_paved_t(ic)          =  0._wp
             urb_ai_t(ic)            =  0._wp
-!           urb_alb_red_t(ic)       =  0._wp
             urb_h_bld_t(ic)         =  0._wp
             urb_hcap_t(ic)          =  0._wp
             urb_hcon_t(ic)          =  0._wp
             ahf_t(ic)               =  0._wp
           ENDIF
 
+          plcov_t(ic)               =  ext_data%atm%plcov_t(jc,jb,isubs)
+          rootdp_t(ic)              =  ext_data%atm%rootdp_t(jc,jb,isubs)
+          sai_t(ic)                 =  ext_data%atm%sai_t(jc,jb,isubs)
+          tai_t(ic)                 =  ext_data%atm%tai_t(jc,jb,isubs)
+          eai_t(ic)                 =  ext_data%atm%eai_t(jc,jb,isubs)
+          skinc_t(ic)               =  ext_data%atm%skinc_t(jc,jb,isubs)
           rsmin2d_t(ic)             =  ext_data%atm%rsmin2d_t(jc,jb,isubs)
           r_bsmin(ic)               =  ext_data%atm%r_bsmin(jc,jb)
 
@@ -837,30 +833,31 @@ CONTAINS
         &  icant        = icant                              , & !IN canopy-type
         &  nclass_gscp  = atm_phy_nwp_config(jg)%nclass_gscp , & !IN number of hydrometeor classes
         &  dt           = tcall_sfc_jg                       , & !IN time step
-        &  soiltyp_subs = soiltyp_t                          , & !IN type of the soil (keys 0-9)         --    
+!
+        &  soiltyp_subs = soiltyp_t                          , & !IN type of the soil (keys 0-9)         --
+! for TERRA_URB
+        &  urb_isa      = urb_isa_t                          , & !IN impervious surface area fraction of the urban canopy ( - )
+        &  fr_paved     = fr_paved_t                         , & !IN impervious surface area (ISA) fraction               ( - )
+        &  urb_ai       = urb_ai_t                           , & !IN surface area index of the urban canopy               ( - )
+        &  urb_h_bld    = urb_h_bld_t                        , & !IN building height                                      ( m )
+        &  urb_hcap     = urb_hcap_t                         , & !IN volumetric heat capacity of urban material      (J/m**3/K)
+        &  urb_hcon     = urb_hcon_t                         , & !IN thermal conductivity of urban material             (W/m/K)
+        &  ahf          = ahf_t                              , & !IN anthropogenic heat flux                           (W/m**2)
+!
         &  plcov        = plcov_t                            , & !IN fraction of plant cover             --
-        &  rootdp       = rootdp_t                           , & !IN depth of the roots                ( m  )
+        &  rootdp       = rootdp_t                           , & !IN depth of the roots                ( m )
         &  sai          = sai_t                              , & !IN surface area index                  --
         &  tai          = tai_t                              , & !IN surface area index                  --
         &  laifac       = laifac_t                           , & !IN ratio between current LAI and laimax                 --
         &  eai          = eai_t                              , & !IN surface area index                  --
         &  skinc        = skinc_t                            , & !IN skin conductivity                 ( W/m**2/K )
-! for TERRA_URB
-        &  fr_paved     = fr_paved_t                         , & !IN total impervious surface area (ISA)           (  -  )
-        &  urb_isa      = urb_isa_t                          , & !IN urban impervious surface area                 (  -  )
-        &  urb_ai       = urb_ai_t                           , & !IN surface area index of the urban canopy        (  -  )
-!       &  urb_alb_red  = urb_alb_red_t                      , & !IN albedo reduction factor for the urban canopy  (  -  )
-        &  urb_h_bld    = urb_h_bld_t                        , & !IN building height                               (  m  )
-        &  urb_hcap     = urb_hcap_t                         , & !IN volumetric heat capacity of urban material (J/m**3/K)
-        &  urb_hcon     = urb_hcon_t                         , & !IN thermal conductivity of urban material        (W/m/K)
-        &  ahf          = ahf_t                              , & !IN anthropogenic heat flux                      (W/m**2)
 !
         &  heatcond_fac = heatcond_fac                       , & !IN tuning factor for soil thermal conductivity
         &  heatcap_fac  = heatcap_fac                        , & !IN tuning factor for soil heat capacity
 !
-        &  rsmin2d      = rsmin2d_t                          , & !IN minimum stomata resistance        ( s/m )
+        &  rsmin2d      = rsmin2d_t                          , & !IN minimum stomatal resistance       ( s/m )
         &  r_bsmin      = r_bsmin                            , & !IN minimum bare soil evap resistance ( s/m )
-        &  z0           = z0_t                               , & !IN vegetation roughness length        ( m )
+        &  z0           = z0_t                               , & !IN vegetation roughness length       ( m )
 !
         &  u            =  u_t                               , & !IN zonal wind speed
         &  v            =  v_t                               , & !IN meridional wind speed 

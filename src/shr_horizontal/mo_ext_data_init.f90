@@ -285,14 +285,10 @@ CONTAINS
             ext_data(jg)%atm%fr_land(:,:)     = 0._wp       ! land fraction
             ext_data(jg)%atm%llsm_atm_c(:,:)  = .FALSE.     ! land-sea mask
             ext_data(jg)%atm%llake_c(:,:)     = .FALSE.     ! lake mask
-            ext_data(jg)%atm%plcov_mx(:,:)    = 0.5_wp      ! plant cover
-            ext_data(jg)%atm%lai_mx(:,:)      = 3._wp       ! max Leaf area index
-            ext_data(jg)%atm%rootdp(:,:)      = 1._wp       ! root depth
-            ext_data(jg)%atm%skinc(:,:)       = 30._wp      ! skin conductivity
 !
-            ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area of the urban canopy
+            ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area fraction of the urban canopy
             IF (lterra_urb) THEN
-              ext_data(jg)%atm%fr_paved(:,:)    = 0._wp       ! impervious surface area (ISA)
+              ext_data(jg)%atm%fr_paved(:,:)    = 0._wp       ! impervious surface area (ISA) fraction
               ext_data(jg)%atm%urb_ai(:,:)      = 2._wp       ! surface area index of the urban canopy
               ext_data(jg)%atm%urb_alb_red(:,:) = 0.9_wp      ! albedo reduction factor for the urban canopy
               ext_data(jg)%atm%urb_fr_bld(:,:)  = 0.667_wp    ! building area fraction with respect to urban tile
@@ -305,6 +301,10 @@ CONTAINS
               ext_data(jg)%atm%ahf(:,:)         = 0._wp       ! anthropogenic heat flux
             ENDIF
 !
+            ext_data(jg)%atm%plcov_mx(:,:)    = 0.5_wp      ! plant cover
+            ext_data(jg)%atm%lai_mx(:,:)      = 3._wp       ! max Leaf area index
+            ext_data(jg)%atm%rootdp(:,:)      = 1._wp       ! root depth
+            ext_data(jg)%atm%skinc(:,:)       = 30._wp      ! skin conductivity
             ext_data(jg)%atm%rsmin(:,:)       = 150._wp     ! minimal stomata resistence
             ext_data(jg)%atm%soiltyp(:,:)     = 8           ! soil type
             ext_data(jg)%atm%z0(:,:)          = 0.001_wp    ! roughness length
@@ -1737,7 +1737,7 @@ CONTAINS
                ! Urban Canopy Parameters (UCPs)
                !
                ! impervious surface area fraction of the urban canopy
-               ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+               ext_data(jg)%atm%urb_isa_t(jc,jb,1)       = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
 
                IF (lterra_urb) THEN
                  ! impervious surface area (ISA) fraction
@@ -2257,12 +2257,6 @@ CONTAINS
 !CDIR NODEP
              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-               ext_data(jg)%atm%rootdp_t(jc,jb,jt)      = ext_data(jg)%atm%rootdp_t(jc,jb,jt_in)
-               ext_data(jg)%atm%plcov_t(jc,jb,jt)       = ext_data(jg)%atm%plcov_t(jc,jb,jt_in)
-               ext_data(jg)%atm%tai_t(jc,jb,jt)         = ext_data(jg)%atm%tai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%sai_t(jc,jb,jt)         = ext_data(jg)%atm%sai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%eai_t(jc,jb,jt)         = ext_data(jg)%atm%eai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%skinc_t(jc,jb,jt)       = ext_data(jg)%atm%skinc_t(jc,jb,jt_in)
 !
                ext_data(jg)%atm%urb_isa_t(jc,jb,jt)     = ext_data(jg)%atm%urb_isa_t(jc,jb,jt_in)
                IF (lterra_urb) THEN
@@ -2279,6 +2273,12 @@ CONTAINS
                  ext_data(jg)%atm%ahf_t(jc,jb,jt)         = ext_data(jg)%atm%ahf_t(jc,jb,jt_in)
                ENDIF
 !
+               ext_data(jg)%atm%rootdp_t(jc,jb,jt)      = ext_data(jg)%atm%rootdp_t(jc,jb,jt_in)
+               ext_data(jg)%atm%plcov_t(jc,jb,jt)       = ext_data(jg)%atm%plcov_t(jc,jb,jt_in)
+               ext_data(jg)%atm%tai_t(jc,jb,jt)         = ext_data(jg)%atm%tai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%sai_t(jc,jb,jt)         = ext_data(jg)%atm%sai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%eai_t(jc,jb,jt)         = ext_data(jg)%atm%eai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%skinc_t(jc,jb,jt)       = ext_data(jg)%atm%skinc_t(jc,jb,jt_in)
                ext_data(jg)%atm%rsmin2d_t(jc,jb,jt)     = ext_data(jg)%atm%rsmin2d_t(jc,jb,jt_in)
                ext_data(jg)%atm%soiltyp_t(jc,jb,jt)     = ext_data(jg)%atm%soiltyp_t(jc,jb,jt_in)
                ext_data(jg)%atm%lc_class_t(jc,jb,jt)    = ext_data(jg)%atm%lc_class_t(jc,jb,jt_in)
@@ -2287,7 +2287,6 @@ CONTAINS
 
            ENDDO
          ENDIF
-
 
 
          ! Initialize frac_t with lc_frac_t on all static grid points
@@ -2433,11 +2432,6 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         & i_startidx, i_endidx, rl_start, rl_end)
 
-
-      ext_data%atm%plcov      (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%rootdp     (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%lai        (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%skinc      (i_startidx:i_endidx,jb) = 0._wp
 !
       ext_data%atm%urb_isa    (i_startidx:i_endidx,jb) = 0._wp
       IF (lterra_urb) THEN
@@ -2454,11 +2448,14 @@ CONTAINS
         ext_data%atm%ahf        (i_startidx:i_endidx,jb) = 0._wp
       ENDIF
 !
+      ext_data%atm%plcov      (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%rootdp     (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%lai        (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%skinc      (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%rsmin      (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%tai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%eai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%sai        (i_startidx:i_endidx,jb) = 0._wp
-
 
 
       DO jt = 1, ntiles_total
@@ -2472,43 +2469,18 @@ CONTAINS
           ! therefore we multiply by inv_frland_from_tiles
           area_frac = ext_data%atm%frac_t(jc,jb,jt)           &
             &       * ext_data%atm%inv_frland_from_tiles(jc,jb)
-
-          ! plant cover (aggregated)
-          ext_data%atm%plcov(jc,jb) = ext_data%atm%plcov(jc,jb)       &
-            &              + ext_data%atm%plcov_t(jc,jb,jt) * area_frac
-
-          ! root depth (aggregated)
-          ext_data%atm%rootdp(jc,jb) = ext_data%atm%rootdp(jc,jb)     &
-            &              + ext_data%atm%rootdp_t(jc,jb,jt) * area_frac
-
-          ! surface area index (aggregated)
-          ext_data%atm%lai(jc,jb) = ext_data%atm%lai(jc,jb)           &
-            &              + ( ext_data%atm%tai_t(jc,jb,jt)                &
-            &              /(ext_data%atm%plcov_t(jc,jb,jt)+dbl_eps) * area_frac )
-
-          ! evaporative soil area index (aggregated)
-          ext_data%atm%eai(jc,jb) = ext_data%atm%eai(jc,jb)           &
-            &              +  ext_data%atm%eai_t(jc,jb,jt) * area_frac
-
-          ! transpiration area index (aggregated)
-          ext_data%atm%tai(jc,jb) = ext_data%atm%tai(jc,jb)           &
-            &              +  ext_data%atm%tai_t(jc,jb,jt) * area_frac
-
-          ! skin conductivity (aggregated)
-          ext_data%atm%skinc(jc,jb) = ext_data%atm%skinc(jc,jb)       &
-            &              + ext_data%atm%skinc_t(jc,jb,jt) * area_frac
 !
-          ! impervious surface area of the urban canopy (aggregated)
-          ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)   &
-            &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
+          ! impervious surface area fraction of the urban canopy (aggregated)
+          ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)           &
+              &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
 
           IF (lterra_urb) THEN
-            ! impervious surface area (ISA) (aggregated)
-            ext_data%atm%fr_paved(jc,jb) = ext_data%atm%fr_paved(jc,jb) &
+            ! impervious surface area (ISA) fraction (aggregated)
+            ext_data%atm%fr_paved(jc,jb) = ext_data%atm%fr_paved(jc,jb)       &
               &              + ext_data%atm%fr_paved_t(jc,jb,jt) * area_frac
 
             ! surface area index of the urban canopy (aggregated)
-            ext_data%atm%urb_ai(jc,jb) = ext_data%atm%urb_ai(jc,jb)     &
+            ext_data%atm%urb_ai(jc,jb) = ext_data%atm%urb_ai(jc,jb)           &
               &              + ext_data%atm%urb_ai_t(jc,jb,jt) * area_frac
 
             ! albedo reduction factor for the urban canopy (aggregated)
@@ -2544,10 +2516,35 @@ CONTAINS
               &              + ext_data%atm%urb_hcon_t(jc,jb,jt) * area_frac
 
             ! anthropogenic heat flux (aggregated)
-            ext_data%atm%ahf(jc,jb) = ext_data%atm%ahf(jc,jb)           &
+            ext_data%atm%ahf(jc,jb) = ext_data%atm%ahf(jc,jb)                 &
               &              + ext_data%atm%ahf_t(jc,jb,jt) * area_frac
           ENDIF
 !
+          ! plant cover (aggregated)
+          ext_data%atm%plcov(jc,jb) = ext_data%atm%plcov(jc,jb)       &
+            &              + ext_data%atm%plcov_t(jc,jb,jt) * area_frac
+
+          ! root depth (aggregated)
+          ext_data%atm%rootdp(jc,jb) = ext_data%atm%rootdp(jc,jb)     &
+            &              + ext_data%atm%rootdp_t(jc,jb,jt) * area_frac
+
+          ! surface area index (aggregated)
+          ext_data%atm%lai(jc,jb) = ext_data%atm%lai(jc,jb)           &
+            &              + ( ext_data%atm%tai_t(jc,jb,jt)           &
+            &              /(ext_data%atm%plcov_t(jc,jb,jt)+dbl_eps) * area_frac )
+
+          ! evaporative soil area index (aggregated)
+          ext_data%atm%eai(jc,jb) = ext_data%atm%eai(jc,jb)           &
+            &              +  ext_data%atm%eai_t(jc,jb,jt) * area_frac
+
+          ! transpiration area index (aggregated)
+          ext_data%atm%tai(jc,jb) = ext_data%atm%tai(jc,jb)           &
+            &              +  ext_data%atm%tai_t(jc,jb,jt) * area_frac
+
+          ! skin conductivity (aggregated)
+          ext_data%atm%skinc(jc,jb) = ext_data%atm%skinc(jc,jb)       &
+            &              + ext_data%atm%skinc_t(jc,jb,jt) * area_frac
+
           ! minimal stomata resistance (aggregated)
           ext_data%atm%rsmin(jc,jb) = ext_data%atm%rsmin(jc,jb)       &
             &              + ext_data%atm%rsmin2d_t(jc,jb,jt) * area_frac
@@ -2809,7 +2806,13 @@ CONTAINS
           ext_data%atm%laifac_t(jc,jb,jt) = &
             (wfac*ext_data%atm%laimax_lcc(ilu) + (1._wp-wfac)*laimin(ilu))/MAX(0.01_wp,ext_data%atm%laimax_lcc(ilu))
 
-          ext_data%atm%sai_t(jc,jb,jt) = c_lnd+ext_data%atm%tai_t(jc,jb,jt)
+          IF (lterra_urb) THEN
+            ext_data%atm%sai_t(jc,jb,jt) = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))                &
+                                         + ext_data%atm%urb_ai_t(jc,jb,jt) * ext_data%atm%urb_isa_t(jc,jb,jt) &
+                                         + ext_data%atm%tai_t(jc,jb,jt)
+          ELSE
+            ext_data%atm%sai_t(jc,jb,jt) = c_lnd + ext_data%atm%tai_t(jc,jb,jt)
+          END IF
 
 
           ! modification of root depth
@@ -2851,13 +2854,19 @@ CONTAINS
           ELSE IF (icpl_da_sfcevap >= 1) THEN
             IF (trh_bias < 0._wp) THEN
               ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)*(1._wp-0.5_wp*trh_bias)
-              ext_data%atm%eai_t(jc,jb,jt)     = MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) / &
+              ext_data%atm%eai_t(jc,jb,jt)     = MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) /     &
                                                  (1._wp-0.25_wp*trh_bias)
             ELSE
               ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)/(1._wp+0.5_wp*trh_bias)
               ext_data%atm%eai_t(jc,jb,jt)     = MIN(MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) * &
                                                  (1._wp+0.25_wp*trh_bias), 2._wp)
             ENDIF
+
+            IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+              ext_data%atm%eai_t(jc,jb,jt)     = ext_data%atm%eai_t(jc,jb,jt)                                  &
+                                               * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))
+            END IF
+
           ELSE
             ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)
           ENDIF

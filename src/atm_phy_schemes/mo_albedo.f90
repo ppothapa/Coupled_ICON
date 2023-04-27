@@ -639,7 +639,7 @@ CONTAINS
     REAL(wp):: zmaxsnow_alb            !< maximum snow albedo depending on landuse class
     REAL(wp):: zlimsnow_alb            !< upper limit snow albedo depending on snow depth and roughness length
     REAL(wp):: zsnowalb_lu             !< maximum snow albedo specified in landuse table
-    REAL(wp):: zurb_isa                !< impervious surface area of the urban canopy
+    REAL(wp):: zurb_isa                !< impervious surface area fraction of the urban canopy
     REAL(wp):: zsnowfree_albdif        !< shortwave broadband surface albedo (white sky)
     REAL(wp):: zsnowfree_albvisdif     !< UV visible broadband surface albedo (white sky)
     REAL(wp):: zsnowfree_albnirdif     !< near IR broadband surface albedo (white sky)
@@ -805,7 +805,7 @@ CONTAINS
             ! TERRA_URB: Set urban albedo by modifying background albedo (of snow-free fraction)
             !
             IF (lterra_urb .AND. lurbalb) THEN
-              ! impervious surface area of the urban canopy
+              ! impervious surface area fraction of the urban canopy
               zurb_isa = ext_data%atm%urb_isa_t(jc,jb,jt)
 
               zsnowfree_albdif    = zurb_isa * ext_data%atm%urb_alb_so_t(jc,jb,jt)      &

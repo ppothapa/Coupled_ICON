@@ -405,8 +405,8 @@ REAL (KIND=wp), DIMENSION(:,kcm-1:), OPTIONAL, INTENT(INOUT) :: &
 
 REAL (KIND=wp), DIMENSION(:), OPTIONAL, INTENT(IN) :: &
 !
-    urb_isa,      & ! urban impervious surface area fraction        ( 1 )
-    urb_ai          ! surface area index of the urban canopy        ( 1 )
+    urb_isa,      & ! impervious surface area fraction of the urban canopy ( 1 )
+    urb_ai          ! surface area index of the urban canopy               ( 1 )
 
 LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code 
 

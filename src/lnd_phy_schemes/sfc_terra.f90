@@ -169,7 +169,7 @@ CONTAINS
 !+ Computation of the first part of the soil parameterization scheme
 !------------------------------------------------------------------------------
 
-  SUBROUTINE terra         (         &
+  SUBROUTINE terra (                 &
                   nvec             , & ! array dimensions
                   ivstart          , & ! start index for computations in the parallel program
                   ivend            , & ! end index for computations in the parallel program
@@ -182,27 +182,27 @@ CONTAINS
                   dt               , & ! time step
 !
                   soiltyp_subs     , & ! type of the soil (keys 0-9)                     --
+! for TERRA_URB
+                  urb_isa          , & ! impervious surface area fraction of the urban canopy ( - )
+                  fr_paved         , & ! impervious surface area (ISA) fraction               ( - )
+                  urb_ai           , & ! surface area index of the urban canopy               ( - )
+                  urb_h_bld        , & ! building height                                      ( m )
+                  urb_hcap         , & ! volumetric heat capacity of urban material      (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material             (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                           (W/m**2)
+!
                   plcov            , & ! fraction of plant cover                         --
-                  rootdp           , & ! depth of the roots                            ( m  )
+                  rootdp           , & ! depth of the roots                            ( m )
                   sai              , & ! surface area index                              --
                   tai              , & ! transpiration area index                        --
                   laifac           , & ! ratio between current LAI and laimax            --
                   eai              , & ! earth area (evaporative surface area) index     --
-                  skinc            , & ! skin conductivity                        ( W/m**2/K )
-! for TERRA_URB
-                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
-                  urb_isa          , & ! urban impervious surface area                 (  -  )
-                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
-!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
-                  urb_h_bld        , & ! building height                               (  m  )
-                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
-                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
-                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
+                  skinc            , & ! skin conductivity                             ( W/m**2/K )
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
 !
-                  rsmin2d          , & ! minimum stomata resistance                    ( s/m )
+                  rsmin2d          , & ! minimum stomatal resistance                   ( s/m )
                   r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   z0               , & ! vegetation roughness length                   ( m   )
 !
@@ -340,6 +340,15 @@ CONTAINS
                   soiltyp_subs         ! type of the soil (keys 0-9)                     --
 
   REAL    (KIND = wp), DIMENSION(nvec), INTENT(IN) :: &
+! for TERRA_URB
+                  urb_isa          , & ! impervious surface area fraction of the urban canopy ( - )
+                  fr_paved         , & ! impervious surface area (ISA) fraction               ( - )
+                  urb_ai           , & ! surface area index of the urban canopy               ( - )
+                  urb_h_bld        , & ! building height                                      ( m )
+                  urb_hcap         , & ! volumetric heat capacity of urban material      (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material             (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                           (W/m**2)
+!
                   plcov            , & ! fraction of plant cover                         --
                   rootdp           , & ! depth of the roots                            ( m  )
                   sai              , & ! surface area index                              --
@@ -347,18 +356,10 @@ CONTAINS
                   laifac           , & ! ratio between current LAI and laimax
                   eai              , & ! earth area (evaporative surface area) index     --
                   skinc            , & ! skin conductivity                        ( W/m**2/K )
-! for TERRA_URB
-                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
-                  urb_isa          , & ! urban impervious surface area                 (  -  )
-                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
-!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
-                  urb_h_bld        , & ! building height                               (  m  )
-                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
-                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
-                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
+!
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
                   r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   u                , & ! zonal wind speed                              ( m/s )
@@ -1048,26 +1049,27 @@ mvid =   8
 #ifdef _OPENMP
        IF (my_thrd_id == mtid) THEN
 #endif
-        WRITE(*,'(A,2I5)'  ) 'SFC-DIAGNOSIS terra:  iblock = ', iblock, i
+        WRITE(*,'(A,2I5   )') ' SFC-DIAGNOSIS terra:  iblock = ', iblock, i
  
-        WRITE(*,'(A      )') ' External Parameters:  '
-        WRITE(*,'(A,I28  )') '   soiltyp          :  ', soiltyp_subs(i)
+        WRITE(*,'(A       )') ' External Parameters:  '
+        WRITE(*,'(A,I28   )') '   soiltyp          :  ', soiltyp_subs(i)
+! for TERRA_URB
+        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
+        WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
+        WRITE(*,'(A,F28.16)') '   urb_ai           :  ', urb_ai      (i)
+        WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
+        WRITE(*,'(A,F28.16)') '   ahf              :  ', ahf         (i)
+!
         WRITE(*,'(A,F28.16)') '   plcov            :  ', plcov       (i)
         WRITE(*,'(A,F28.16)') '   rootdp           :  ', rootdp      (i)
         WRITE(*,'(A,F28.16)') '   sai              :  ', sai         (i)
         WRITE(*,'(A,F28.16)') '   tai              :  ', tai         (i)
         WRITE(*,'(A,F28.16)') '   eai              :  ', eai         (i)
         WRITE(*,'(A,F28.16)') '   skinc            :  ', skinc       (i)
-! for TERRA_URB
-        WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
-        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
-        WRITE(*,'(A,F28.16)') '   urb_ai           :  ', urb_ai      (i)
-!       WRITE(*,'(A,F28.16)') '   urb_alb_red      :  ', urb_alb_red (i)
-        WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
-        WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
-        WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
-        WRITE(*,'(A,F28.16)') '   ahf              :  ', ahf         (i)
         WRITE(*,'(A,F28.16)') '   rsmin2d          :  ', rsmin2d     (i)
+        WRITE(*,'(A,F28.16)') '   r_bsmin          :  ', r_bsmin     (i)
         WRITE(*,'(A       )') ' Other input parameters:'
         WRITE(*,'(A,F28.16)') '   u     ke         :  ', u           (i)
         WRITE(*,'(A,F28.16)') '   v     ke         :  ', v           (i)
@@ -1161,11 +1163,9 @@ ENDDO
   ! Subroutine parameters IN
   !$ACC DATA &
   !$ACC   PRESENT(zmls) &
-  !$ACC   PRESENT(soiltyp_subs, plcov, rootdp, sai, eai, tai) &
-  !$ACC   PRESENT(laifac) &
-  !$ACC   PRESENT(skinc) &
-  !$ACC   PRESENT(fr_paved, urb_isa, urb_ai, urb_h_bld) &
+  !$ACC   PRESENT(soiltyp_subs, urb_isa, fr_paved, urb_ai, urb_h_bld) &
   !$ACC   PRESENT(urb_hcap, urb_hcon, ahf) &
+  !$ACC   PRESENT(plcov, rootdp, sai, eai, tai, laifac, skinc) &
   !$ACC   PRESENT(heatcond_fac, heatcap_fac) &
   !$ACC   PRESENT(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m) &
   !$ACC   PRESENT(v_10m, prr_con, prs_con, conv_frac, prr_gsp, prs_gsp, pri_gsp) &
