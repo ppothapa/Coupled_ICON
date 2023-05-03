@@ -1,0 +1,11 @@
+spack:
+  specs:
+  - cosmo-eccodes-definitions@2.19.0.7
+  - icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange ~ocean +rte-rrtmgp
+  view: true
+  concretizer:
+    unify: true
+  develop:
+    icon:
+      path: ../../../../..
+      spec: icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange ~ocean +rte-rrtmgp
