@@ -582,6 +582,8 @@ PACKAGE_BUGREPORT=''
 PACKAGE_URL=''
 
 ac_unique_file="src/drivers/icon.f90"
+extra_build_subdirs=
+extra_src_subdirs=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 CLAW_OLD_DRIVER_ENABLED
@@ -598,6 +600,7 @@ EMVORADO_ENABLED
 DACE_ENABLED_OR_NEEDED
 RTE_RRTMGP_ENABLED
 JSBACH_ENABLED
+DELAYED_CONFIG_ENABLED
 DEFAULT_VERBOSITY
 MPI_LAUNCH
 SB2PP
@@ -617,6 +620,7 @@ MKDIR_P
 INSTALL_DATA
 INSTALL_SCRIPT
 INSTALL_PROGRAM
+ICON_DELAYED_CONFIG_RULES
 ICON_TIXI_CFLAGS
 ICON_TIXI_FCFLAGS
 ICON_YAC_CFLAGS
@@ -633,7 +637,8 @@ ICON_SCT_CFLAGS
 ICON_SCT_FCFLAGS
 ICON_ECRAD_CFLAGS
 ICON_ECRAD_FCFLAGS
-subdirs_extra
+extra_src_subdirs
+extra_build_subdirs
 ICON_RTE_RRTMGP_CFLAGS
 ICON_RTE_RRTMGP_FCFLAGS
 BUNDLED_LIBFILES
@@ -723,6 +728,7 @@ ac_user_opts='
 enable_option_checking
 enable_rpaths
 enable_silent_rules
+enable_delayed_config
 enable_atmo
 enable_edmf
 enable_les
@@ -818,7 +824,15 @@ CLAWFLAGS
 FPP
 SB2PP
 MPI_LAUNCH'
-
+ac_subdirs_all='externals/rte-rrtmgp
+externals/ecrad
+externals/sct
+externals/yaxt
+externals/ppm
+externals/cdi
+externals/mtime
+externals/yac
+externals/tixi'
 
 # Initialize some variables set by options.
 ac_init_help=
@@ -1464,6 +1478,8 @@ Optional Features:
                           [default=yes]
   --enable-silent-rules   less verbose build output (undo: "make V=1")
                           [default=yes]
+  --enable-delayed-config configure the bundled libraries at the build time
+                          [default=yes]
 
 Model Features:
   --enable-atmo           enable the atmosphere component of ICON
@@ -1991,6 +2007,44 @@ $as_echo "$ac_res" >&6; }
 
 } # ac_fn_nvcc_check_header_compile
 
+acx_subdir_srcdirs_fn ()
+{
+ac_builddir=.
+
+case "$1" in
+.) ac_dir_suffix= ac_top_builddir_sub=. ac_top_build_prefix= ;;
+*)
+  ac_dir_suffix=/`$as_echo "$1" | sed 's|^\.[\\/]||'`
+  # A ".." for each directory in $ac_dir_suffix.
+  ac_top_builddir_sub=`$as_echo "$ac_dir_suffix" | sed 's|/[^\\/]*|/..|g;s|/||'`
+  case $ac_top_builddir_sub in
+  "") ac_top_builddir_sub=. ac_top_build_prefix= ;;
+  *)  ac_top_build_prefix=$ac_top_builddir_sub/ ;;
+  esac ;;
+esac
+ac_abs_top_builddir=$ac_pwd
+ac_abs_builddir=$ac_pwd$ac_dir_suffix
+# for backward compatibility:
+ac_top_builddir=$ac_top_build_prefix
+
+case $srcdir in
+  .)  # We are building in place.
+    ac_srcdir=.
+    ac_top_srcdir=$ac_top_builddir_sub
+    ac_abs_top_srcdir=$ac_pwd ;;
+  [\\/]* | ?:[\\/]* )  # Absolute name.
+    ac_srcdir=$srcdir$ac_dir_suffix;
+    ac_top_srcdir=$srcdir
+    ac_abs_top_srcdir=$srcdir ;;
+  *) # Relative name.
+    ac_srcdir=$ac_top_build_prefix$srcdir$ac_dir_suffix
+    ac_top_srcdir=$ac_top_build_prefix$srcdir
+    ac_abs_top_srcdir=$ac_pwd/$srcdir ;;
+esac
+ac_abs_srcdir=$ac_abs_top_srcdir$ac_dir_suffix
+
+} # acx_subdir_srcdirs_fn
+
 # ac_fn_fc_try_run LINENO
 # -----------------------
 # Try to link conftest.$ac_ext, and return whether this succeeded. Assumes
@@ -2032,6 +2086,18 @@ fi
   as_fn_set_status $ac_retval
 
 } # ac_fn_fc_try_run
+
+acx_subdir_extra_run_0 ()
+{
+icon_try="${MAKE-make} -C '${icon_abs_top_builddir}/externals/yaxt/inst_headers' yaxt.h"
+            { $as_echo "$as_me:${as_lineno-$LINENO}: running $icon_try" >&5
+$as_echo "$as_me: running $icon_try" >&6;}
+            { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$icon_try\""; } >&5
+  (eval $icon_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; } >&5
+} # acx_subdir_extra_run_0
 cat >config.log <<_ACEOF
 This file contains any messages produced by compilers while
 running configure, to aid debugging if configure makes a mistake.
@@ -2419,14 +2485,14 @@ ac_configure="$SHELL $ac_aux_dir/configure"  # Please don't use this var.
 
 icon_usr_note="
 ********************************************************************************
-Note that ICON building system has been updated. Now users are recommended to
-run site-specific wrappers instead of this generic configure script.
+The users are recommended to run site-specific wrappers instead of this generic
+configure script.
 
 You can find the wrappers in '${srcdir}/config/<organization>/'.
 
 If you are running a wrapper and still see this message than either you are
-using a wrong one or the wrapper is broken, or there is a problem with the new
-configure script.
+using a wrong one or the wrapper is broken, or there is really a problem with
+the configure script.
 ********************************************************************************
 "
 
@@ -2454,6 +2520,16 @@ if test "${enable_silent_rules+set}" = set; then :
 fi
 else
   enable_silent_rules=yes
+fi
+
+
+# Check whether --enable-delayed-config was given.
+if test "${enable_delayed_config+set}" = set; then :
+  enableval=$enable_delayed_config; if test x"$enableval" != xno; then :
+  enable_delayed_config=yes
+fi
+else
+  enable_delayed_config=yes
 fi
 
 
@@ -4310,7 +4386,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
       cd ..
       rm -rf conftest.dir
 fi
-   if test x"$acx_cv_fc_module_naming_upper" = xunknown || test x"$acx_cv_fc_module_naming_ext" = xunknown; then :
+   if test "x$acx_cv_fc_module_naming_upper" = xunknown || test "x$acx_cv_fc_module_naming_ext" = xunknown; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: unknown" >&5
 $as_echo "unknown" >&6; }
       { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
@@ -6108,40 +6184,7 @@ BUNDLED_LIBFILES=''
 
 bundled_includes=
 
-ac_builddir=.
-
-case . in
-.) ac_dir_suffix= ac_top_builddir_sub=. ac_top_build_prefix= ;;
-*)
-  ac_dir_suffix=/`$as_echo . | sed 's|^\.[\\/]||'`
-  # A ".." for each directory in $ac_dir_suffix.
-  ac_top_builddir_sub=`$as_echo "$ac_dir_suffix" | sed 's|/[^\\/]*|/..|g;s|/||'`
-  case $ac_top_builddir_sub in
-  "") ac_top_builddir_sub=. ac_top_build_prefix= ;;
-  *)  ac_top_build_prefix=$ac_top_builddir_sub/ ;;
-  esac ;;
-esac
-ac_abs_top_builddir=$ac_pwd
-ac_abs_builddir=$ac_pwd$ac_dir_suffix
-# for backward compatibility:
-ac_top_builddir=$ac_top_build_prefix
-
-case $srcdir in
-  .)  # We are building in place.
-    ac_srcdir=.
-    ac_top_srcdir=$ac_top_builddir_sub
-    ac_abs_top_srcdir=$ac_pwd ;;
-  [\\/]* | ?:[\\/]* )  # Absolute name.
-    ac_srcdir=$srcdir$ac_dir_suffix;
-    ac_top_srcdir=$srcdir
-    ac_abs_top_srcdir=$srcdir ;;
-  *) # Relative name.
-    ac_srcdir=$ac_top_build_prefix$srcdir$ac_dir_suffix
-    ac_top_srcdir=$ac_top_build_prefix$srcdir
-    ac_abs_top_srcdir=$ac_pwd/$srcdir ;;
-esac
-ac_abs_srcdir=$ac_abs_top_srcdir$ac_dir_suffix
-
+   acx_subdir_srcdirs_fn .
 icon_abs_top_srcdir=$ac_abs_top_srcdir
 icon_abs_top_builddir=$ac_abs_top_builddir
 
@@ -7091,24 +7134,79 @@ else
 fi
             ICON_RTE_RRTMGP_FCFLAGS=${ICON_RTE_RRTMGP_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_rte_rrtmgp=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
+                           acx_subdir_srcdirs_fn "externals/rte-rrtmgp"
+   acx_subdir_run_cmd_externals_rte_rrtmgp="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_rte_rrtmgp="externals/rte-rrtmgp"
+   acx_subdir_pre_adjusted_args=$ac_configure_args
+         eval "set dummy $acx_subdir_pre_adjusted_args"; shift
+   acx_subdir_pre_adjusted_args=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  -cache-file|--cache-file|--cache-fil|--cache-fi|--cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
+             -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
+             -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
+    test 2 -gt $# || shift;  ;; #(
+  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*|--cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
+             -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
+             -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
+             --config-cache|-C| \
+             -enable-option-checking|-enable-option-checking=*|--enable-option-checking|--enable-option-checking=*|-disable-option-checking|--disable-option-checking) :
      ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'" ;;
+esac
+     shift
+   done
+         as_fn_append acx_subdir_pre_adjusted_args " '--disable-option-checking'"
+         if test "x$prefix" = xNONE; then :
+  acx_tmp="--prefix=$ac_default_prefix"
+else
+  acx_tmp="--prefix=$prefix"
+fi
+         case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+         as_fn_append acx_subdir_pre_adjusted_args " '$acx_tmp'"
+               acx_subdir_run_args_externals_rte_rrtmgp=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.rte-rrtmgp"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_rte_rrtmgp " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/rte-rrtmgp"
+   as_fn_append extra_src_subdirs " externals/rte-rrtmgp"
+   acx_subdir_run_condition_externals_rte_rrtmgp=no
+      eval "set dummy $acx_subdir_run_args_externals_rte_rrtmgp"; shift
+   acx_subdir_run_args_externals_rte_rrtmgp=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
      ;; #(
   NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*) :
@@ -7118,32 +7216,26 @@ fi
   -enable-gpu|-enable-gpu=*|--enable-gpu|--enable-gpu=*|-disable-gpu|--disable-gpu) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_rte_rrtmgp " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_rte_rrtmgp " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$enable_gpu" --enable-silent-rules="$enable_silent_rules" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$enable_gpu" --enable-silent-rules="$enable_silent_rules"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_rte_rrtmgp " '$acx_config_subdir_arg'"
-      done
-      subdirs_extra="externals/rte-rrtmgp"
-
-
+     as_fn_append acx_subdir_run_args_externals_rte_rrtmgp " '$acx_tmp'"
+   done
       as_fn_append bundled_includes "${FC_MOD_IN}externals/rte-rrtmgp/mod "
       BUNDLED_LIBFILES="externals/rte-rrtmgp/librte.a $BUNDLED_LIBFILES"
       BUNDLED_LIBFILES="externals/rte-rrtmgp/librrtmgp.a $BUNDLED_LIBFILES"
@@ -7191,24 +7283,39 @@ else
 fi
             ICON_ECRAD_FCFLAGS=${ICON_ECRAD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_ecrad=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                           acx_subdir_srcdirs_fn "externals/ecrad"
+   acx_subdir_run_cmd_externals_ecrad="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_ecrad="externals/ecrad"
+         acx_subdir_run_args_externals_ecrad=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.ecrad"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_ecrad " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/ecrad"
+   as_fn_append extra_src_subdirs " externals/ecrad"
+   acx_subdir_run_condition_externals_ecrad=no
+      eval "set dummy $acx_subdir_run_args_externals_ecrad"; shift
+   acx_subdir_run_args_externals_ecrad=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
      ;; #(
   NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*) :
@@ -7220,30 +7327,26 @@ fi
   -enable-pgi-inlib|-enable-pgi-inlib=*|--enable-pgi-inlib|--enable-pgi-inlib=*|-disable-pgi-inlib|--disable-pgi-inlib) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_ecrad " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_ecrad " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_ecrad " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/ecrad"
+     as_fn_append acx_subdir_run_args_externals_ecrad " '$acx_tmp'"
+   done
       as_fn_append bundled_includes "${FC_MOD_IN}externals/ecrad/mod "
       BUNDLED_LIBFILES="externals/ecrad/libifsaux.a $BUNDLED_LIBFILES"
       BUNDLED_LIBFILES="externals/ecrad/libutilities.a $BUNDLED_LIBFILES"
@@ -7381,24 +7484,39 @@ else
 fi
             ICON_SCT_FCFLAGS=${ICON_SCT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_SCT_CFLAGS=${ICON_SCT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_sct=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                           acx_subdir_srcdirs_fn "externals/sct"
+   acx_subdir_run_cmd_externals_sct="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_sct="externals/sct"
+         acx_subdir_run_args_externals_sct=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.sct"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_sct " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/sct"
+   as_fn_append extra_src_subdirs " externals/sct"
+   acx_subdir_run_condition_externals_sct=no
+      eval "set dummy $acx_subdir_run_args_externals_sct"; shift
+   acx_subdir_run_args_externals_sct=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
      ;; #(
   MPICC=*|MPIFC=*|MPI_LAUNCH=*) :
@@ -7428,30 +7546,26 @@ fi
   -with-libhdf5-prefix|-with-libhdf5-prefix=*|--with-libhdf5-prefix|--with-libhdf5-prefix=*|-without-libhdf5-prefix|--without-libhdf5-prefix) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_sct " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_sct " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_SCT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_SCT_FCFLAGS" MPICC= MPIFC= --enable-static --disable-shared --disable-maintainer-mode --enable-mpi="$enable_mpi" --enable-openmp="$enable_openmp" --disable-rpath --disable-papi --enable-hdf5 --enable-silent-rules="$enable_silent_rules" --without-libpapi-prefix --without-libhdf5-prefix MPI_LAUNCH="$MPI_LAUNCH" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_SCT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_SCT_FCFLAGS" MPICC= MPIFC= --enable-static --disable-shared --disable-maintainer-mode --enable-mpi="$enable_mpi" --enable-openmp="$enable_openmp" --disable-rpath --disable-papi --enable-hdf5 --enable-silent-rules="$enable_silent_rules" --without-libpapi-prefix --without-libhdf5-prefix MPI_LAUNCH="$MPI_LAUNCH"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_sct " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/sct"
+     as_fn_append acx_subdir_run_args_externals_sct " '$acx_tmp'"
+   done
       as_fn_append bundled_includes "${FC_MOD_IN}externals/sct/src "
       BUNDLED_LIBFILES="externals/sct/src/.libs/libsct.a $BUNDLED_LIBFILES"
 fi
@@ -7518,24 +7632,39 @@ esac
 fi
             ICON_YAXT_FCFLAGS=${ICON_YAXT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_YAXT_CFLAGS=${ICON_YAXT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_yaxt=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                           acx_subdir_srcdirs_fn "externals/yaxt"
+   acx_subdir_run_cmd_externals_yaxt="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_yaxt="externals/yaxt"
+         acx_subdir_run_args_externals_yaxt=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.yaxt"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_yaxt " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/yaxt"
+   as_fn_append extra_src_subdirs " externals/yaxt"
+   acx_subdir_run_condition_externals_yaxt=no
+      eval "set dummy $acx_subdir_run_args_externals_yaxt"; shift
+   acx_subdir_run_args_externals_yaxt=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*) :
      ;; #(
   MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*) :
@@ -7567,30 +7696,26 @@ fi
   -with-perf-programs|-with-perf-programs=*|--with-perf-programs|--with-perf-programs=*|-without-perf-programs|--without-perf-programs) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_yaxt " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_yaxt " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs --without-perf-programs ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_YAXT_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAXT_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs --without-perf-programs; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yaxt " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/yaxt"
+     as_fn_append acx_subdir_run_args_externals_yaxt " '$acx_tmp'"
+   done
       { BUILD_CC=; unset BUILD_CC;}; { BUILD_FC=; unset BUILD_FC;}
       case $icon_bundled_yaxt_c in #(
   direct) :
@@ -7607,17 +7732,16 @@ esac
   transitive) :
     BUNDLED_LIBFILES="externals/yaxt/src/.libs/libyaxt.a $BUNDLED_LIBFILES" ;; #(
   no) :
-          set dummy FC=no ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+    set dummy FC=no; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yaxt " '$acx_config_subdir_arg'"
-      done
-    ;; #(
+     as_fn_append acx_subdir_run_args_externals_yaxt " '$acx_tmp'"
+   done ;; #(
   *) :
      ;;
 esac
@@ -7675,24 +7799,39 @@ fi
 fi
       ICON_PPM_FCFLAGS=${ICON_PPM_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
       ICON_PPM_CFLAGS=${ICON_PPM_CFLAGS-$ICON_BUNDLED_CFLAGS}
-         acx_config_subdir_args_externals_ppm=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                        acx_subdir_srcdirs_fn "externals/ppm"
+   acx_subdir_run_cmd_externals_ppm="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_ppm="externals/ppm"
+         acx_subdir_run_args_externals_ppm=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.ppm"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_ppm " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/ppm"
+   as_fn_append extra_src_subdirs " externals/ppm"
+   acx_subdir_run_condition_externals_ppm=no
+   eval "set dummy $acx_subdir_run_args_externals_ppm"; shift
+   acx_subdir_run_args_externals_ppm=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*) :
      ;; #(
   PLATFORM_OPT_LIBM=*|IEEE_ARITHMETICROOT=*|IEEE_ARITHMETIC_FC_MOD=*) :
@@ -7748,30 +7887,26 @@ fi
   -with-example-programs|-with-example-programs=*|--with-example-programs|--with-example-programs=*|-without-example-programs|--without-example-programs) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_ppm " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_ppm " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" PLATFORM_OPT_LIBM= IEEE_ARITHMETICROOT= IEEE_ARITHMETIC_FC_MOD= IEEE_ARITHMETIC_FC_LIB= IEEE_ARHMETIC_FCFLAGS= MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_FCLDFLAGS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --enable-MPI --disable-netcdf --disable-hdf5 --disable-parmetis --disable-metis --disable-crypto --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs FC=no ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_PPM_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_PPM_FCFLAGS" MPI_LAUNCH="$MPI_LAUNCH" PLATFORM_OPT_LIBM= IEEE_ARITHMETICROOT= IEEE_ARITHMETIC_FC_MOD= IEEE_ARITHMETIC_FC_LIB= IEEE_ARHMETIC_FCFLAGS= MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_FCLDFLAGS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --disable-shared --enable-static --enable-MPI --disable-netcdf --disable-hdf5 --disable-parmetis --disable-metis --disable-crypto --with-regard-for-quality="$enable_mpi_checks" --with-on-demand-check-programs --without-example-programs      FC=no; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_ppm " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/ppm"
+     as_fn_append acx_subdir_run_args_externals_ppm " '$acx_tmp'"
+   done
    BUNDLED_LIBFILES="externals/ppm/src/.libs/libscalesppmcore.a $BUNDLED_LIBFILES"
 fi
 fi
@@ -7947,31 +8082,50 @@ else
 fi
       ICON_CDI_FCFLAGS=${ICON_CDI_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
       ICON_CDI_CFLAGS=${ICON_CDI_CFLAGS-$ICON_BUNDLED_CFLAGS}
-         acx_config_subdir_args_externals_cdi=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
+                        acx_subdir_srcdirs_fn "externals/cdi"
+   acx_subdir_run_cmd_externals_cdi="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_cdi="externals/cdi"
+         acx_subdir_run_args_externals_cdi=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.cdi"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_cdi " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/cdi"
+   as_fn_append extra_src_subdirs " externals/cdi"
+   acx_subdir_run_condition_externals_cdi=no
+   eval "set dummy $acx_subdir_run_args_externals_cdi"; shift
+   acx_subdir_run_args_externals_cdi=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*) :
      ;; #(
-  BUILD_*=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|F77=*|CXX=*|MPI_LAUNCH=*) :
+  UTIL_LINUX_UUID_C_INCLUDE=*|UTIL_LINUX_UUID_C_LIB=*) :
      ;; #(
-  MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_FC_MOD=*|MPI_FC_LIB=*) :
+  OSSP_UUID_C_INCLUDE=*|OSSP_UUID_C_LIB=*|DCE_UUID_C_INCLUDE=*) :
      ;; #(
-  PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*|YAXT_FC_MOD=*|YAXT_FC_LIB=*) :
+  DCE_UUID_C_LIB=*|MPIROOT=*|MPI_C_INCLUDE=*|MPI_C_LIB=*|MPI_LAUNCH=*) :
      ;; #(
-  PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*) :
+  MPI_FC_MOD=*|MPI_FC_LIB=*|PKG_CONFIG=*|YAXT_C_INCLUDE=*|YAXT_C_LIB=*) :
+     ;; #(
+  YAXT_FC_MOD=*|YAXT_FC_LIB=*|PPM_CORE_C_INCLUDE=*|PPM_CORE_C_LIB=*) :
      ;; #(
   -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
      ;; #(
@@ -7983,11 +8137,19 @@ fi
      ;; #(
   -enable-cf-interface|-enable-cf-interface=*|--enable-cf-interface|--enable-cf-interface=*|-disable-cf-interface|--disable-cf-interface) :
      ;; #(
+  -enable-ruby-interface|-enable-ruby-interface=*|--enable-ruby-interface|--enable-ruby-interface=*|-disable-ruby-interface|--disable-ruby-interface) :
+     ;; #(
+  -enable-python-interface|-enable-python-interface=*|--enable-python-interface|--enable-python-interface=*|-disable-python-interface|--disable-python-interface) :
+     ;; #(
+  -enable-openmp|-enable-openmp=*|--enable-openmp|--enable-openmp=*|-disable-openmp|--disable-openmp) :
+     ;; #(
   -enable-shared|-enable-shared=*|--enable-shared|--enable-shared=*|-disable-shared|--disable-shared) :
      ;; #(
   -enable-static|-enable-static=*|--enable-static|--enable-static=*|-disable-static|--disable-static) :
      ;; #(
   -enable-grib|-enable-grib=*|--enable-grib|--enable-grib=*|-disable-grib|--disable-grib) :
+     ;; #(
+  -enable-across|-enable-across=*|--enable-across|--enable-across=*|-disable-across|--disable-across) :
      ;; #(
   -enable-cgribex|-enable-cgribex=*|--enable-cgribex|--enable-cgribex=*|-disable-cgribex|--disable-cgribex) :
      ;; #(
@@ -7995,7 +8157,21 @@ fi
      ;; #(
   -enable-ppm-dist-array|-enable-ppm-dist-array=*|--enable-ppm-dist-array|--enable-ppm-dist-array=*|-disable-ppm-dist-array|--disable-ppm-dist-array) :
      ;; #(
+  -with-util-linux-uuid-include|-with-util-linux-uuid-include=*|--with-util-linux-uuid-include|--with-util-linux-uuid-include=*|-without-util-linux-uuid-include|--without-util-linux-uuid-include) :
+     ;; #(
+  -with-util-linux-uuid-lib|-with-util-linux-uuid-lib=*|--with-util-linux-uuid-lib|--with-util-linux-uuid-lib=*|-without-util-linux-uuid-lib|--without-util-linux-uuid-lib) :
+     ;; #(
+  -with-ossp-uuid-include|-with-ossp-uuid-include=*|--with-ossp-uuid-include|--with-ossp-uuid-include=*|-without-ossp-uuid-include|--without-ossp-uuid-include) :
+     ;; #(
+  -with-ossp-uuid-lib|-with-ossp-uuid-lib=*|--with-ossp-uuid-lib|--with-ossp-uuid-lib=*|-without-ossp-uuid-lib|--without-ossp-uuid-lib) :
+     ;; #(
+  -with-dce-uuid-include|-with-dce-uuid-include=*|--with-dce-uuid-include|--with-dce-uuid-include=*|-without-dce-uuid-include|--without-dce-uuid-include) :
+     ;; #(
+  -with-dce-uuid-lib|-with-dce-uuid-lib=*|--with-dce-uuid-lib|--with-dce-uuid-lib=*|-without-dce-uuid-lib|--without-dce-uuid-lib) :
+     ;; #(
   -with-threads|-with-threads=*|--with-threads|--with-threads=*|-without-threads|--without-threads) :
+     ;; #(
+  -with-fdb5|-with-fdb5=*|--with-fdb5|--with-fdb5=*|-without-fdb5|--without-fdb5) :
      ;; #(
   -with-szlib|-with-szlib=*|--with-szlib|--with-szlib=*|-without-szlib|--without-szlib) :
      ;; #(
@@ -8020,56 +8196,50 @@ fi
   -with-example-programs|-with-example-programs=*|--with-example-programs|--with-example-programs=*|-without-example-programs|--without-example-programs) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_cdi " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS" F77=no CXX=no MPI_LAUNCH="$MPI_LAUNCH" MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_FC_MOD= MPI_FC_LIB= PKG_CONFIG= YAXT_C_INCLUDE= YAXT_C_LIB= YAXT_FC_MOD= YAXT_FC_LIB= PPM_CORE_C_INCLUDE= PPM_CORE_C_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_MPI_C_LIB= BUILD_MPI_FC_LIB= BUILD_CC= BUILD_CXX= BUILD_FC= BUILD_F77= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-mpi="$enable_cdi_pio" --enable-iso-c-interface --enable-cf-interface="$enable_cdi_pio" --disable-shared --enable-static --enable-grib --enable-cgribex --disable-cdi-app --enable-ppm-dist-array="$enable_cdi_pio" --without-threads --without-szlib --with-netcdf --with-eccodes="$enable_grib2" --without-grib_api --with-on-demand-check-programs --without-example-programs acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes acx_cv_have_pnetcdf=no acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no ac_cv_lib_uuid_uuid_generate=no ac_cv_func_uuid_create=no ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_CDI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_CDI_FCFLAGS"      F77=no      CXX=no UTIL_LINUX_UUID_C_INCLUDE= UTIL_LINUX_UUID_C_LIB= OSSP_UUID_C_INCLUDE= OSSP_UUID_C_LIB= DCE_UUID_C_INCLUDE= DCE_UUID_C_LIB= MPIROOT= MPI_C_INCLUDE= MPI_C_LIB= MPI_LAUNCH="$MPI_LAUNCH" MPI_FC_MOD= MPI_FC_LIB= PKG_CONFIG= YAXT_C_INCLUDE= YAXT_C_LIB= YAXT_FC_MOD= YAXT_FC_LIB= PPM_CORE_C_INCLUDE= PPM_CORE_C_LIB= BUILD_CFLAGS= BUILD_FCFLAGS= BUILD_LDFLAGS= BUILD_LIBS= BUILD_MPI_C_LIB= BUILD_MPI_FC_LIB= BUILD_CC= BUILD_CXX= BUILD_FC= BUILD_F77= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-mpi="$enable_cdi_pio" --enable-iso-c-interface --enable-cf-interface="$enable_cdi_pio" --disable-ruby-interface --disable-python-interface --disable-openmp --disable-shared --enable-static --enable-grib --disable-across --enable-cgribex --disable-cdi-app --enable-ppm-dist-array="$enable_cdi_pio" --without-util-linux-uuid --without-ossp-uuid --without-dce-uuid --without-threads --without-fdb5 --without-szlib --with-netcdf      --with-eccodes="$enable_grib2" --without-grib_api --with-on-demand-check-programs --without-example-programs      acx_cv_have_netcdf2=yes acx_cv_have_netcdf4=yes      acx_cv_have_pnetcdf=no      acx_cv_have_libnc_dap=no acx_cv_have_nc4hdf5=no; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/cdi"
+     as_fn_append acx_subdir_run_args_externals_cdi " '$acx_tmp'"
+   done
    if test "x$enable_cdi_pio" = xyes; then :
        if test "x$with_external_yaxt" = xno; then :
-        set dummy acx_cv_c_include_yaxt_h="-I${icon_abs_top_builddir}/externals/yaxt/inst_headers" acx_cv_option_search_xt_initialized_c="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la" acx_cv_fortran_mod_yaxt="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90" acx_cv_option_search_xt_initialized_fc="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt.la ${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy acx_cv_c_include_yaxt_h="-I${icon_abs_top_builddir}/externals/yaxt/inst_headers" acx_cv_option_search_xt_initialized_c="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la" acx_cv_fortran_mod_yaxt="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90" acx_cv_option_search_xt_initialized_fc="${icon_abs_top_builddir}/externals/yaxt/src/libyaxt.la ${icon_abs_top_builddir}/externals/yaxt/src/libyaxt_c.la"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_cdi " '$acx_tmp'"
+   done
 fi
       if test "x$with_external_ppm" = xno; then :
-        set dummy acx_cv_c_include_ppm_ppm_h="-I${icon_abs_top_builddir}/externals/ppm/include" ac_cv_header_ppm_dist_array_h=yes acx_cv_option_search_PPM_initialize_c="${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy acx_cv_c_include_ppm_ppm_h="-I${icon_abs_top_builddir}/externals/ppm/include" ac_cv_header_ppm_dist_array_h=yes acx_cv_option_search_PPM_initialize_c="${icon_abs_top_builddir}/externals/ppm/src/libscalesppmcore.la"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_cdi " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_cdi " '$acx_tmp'"
+   done
 fi
       as_fn_append bundled_includes "${FC_INC_FLAG}${srcdir}/externals/cdi/src "
       BUNDLED_LIBFILES="externals/cdi/src/.libs/libcdipio.a $BUNDLED_LIBFILES"
@@ -8152,24 +8322,39 @@ else
 fi
       ICON_MTIME_FCFLAGS=${ICON_MTIME_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
       ICON_MTIME_CFLAGS=${ICON_MTIME_CFLAGS-$ICON_BUNDLED_CFLAGS}
-         acx_config_subdir_args_externals_mtime=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                        acx_subdir_srcdirs_fn "externals/mtime"
+   acx_subdir_run_cmd_externals_mtime="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_mtime="externals/mtime"
+         acx_subdir_run_args_externals_mtime=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.mtime"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_mtime " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/mtime"
+   as_fn_append extra_src_subdirs " externals/mtime"
+   acx_subdir_run_condition_externals_mtime=no
+   eval "set dummy $acx_subdir_run_args_externals_mtime"; shift
+   acx_subdir_run_args_externals_mtime=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
      ;; #(
   -enable-static|-enable-static=*|--enable-static|--enable-static=*|-disable-static|--disable-static) :
@@ -8185,30 +8370,26 @@ fi
   -enable-openmp|-enable-openmp=*|--enable-openmp|--enable-openmp=*|-disable-openmp|--disable-openmp) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_mtime " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_mtime " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples --enable-openmp="$enable_openmp" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples --enable-openmp="$enable_openmp"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_mtime " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/mtime"
+     as_fn_append acx_subdir_run_args_externals_mtime " '$acx_tmp'"
+   done
    as_fn_append bundled_includes "${FC_MOD_IN}externals/mtime/src "
    BUNDLED_LIBFILES="externals/mtime/src/.libs/libmtime.a $BUNDLED_LIBFILES"
 fi
@@ -8261,24 +8442,39 @@ else
 fi
             ICON_YAC_FCFLAGS=${ICON_YAC_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_YAC_CFLAGS=${ICON_YAC_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_yac=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                           acx_subdir_srcdirs_fn "externals/yac"
+   acx_subdir_run_cmd_externals_yac="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_yac="externals/yac"
+         acx_subdir_run_args_externals_yac=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.yac"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/yac"
+   as_fn_append extra_src_subdirs " externals/yac"
+   acx_subdir_run_condition_externals_yac=no
+      eval "set dummy $acx_subdir_run_args_externals_yac"; shift
+   acx_subdir_run_args_externals_yac=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*|MPI_LAUNCH=*) :
      ;; #(
   MPI_CFLAGS=*|MPI_CLIBS=*|MPI_FCFLAGS=*|MPI_FCLIBS=*) :
@@ -8302,117 +8498,107 @@ fi
   -with-external-mtime|-with-external-mtime=*|--with-external-mtime|--with-external-mtime=*|-without-external-mtime|--without-external-mtime) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS" MPI_CFLAGS= MPI_CLIBS= MPI_FCFLAGS= MPI_FCLIBS= YAXT_CLIBS= YAXT_FCLIBS= NETCDF_CFLAGS= NETCDF_CLIBS= XML2_CFLAGS= XML2_CLIBS= MTIME_CLIBS= FORTRAN_LAPACK_CLIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-lib-only --enable-netcdf --with-external-lapack=fortran --with-external-mtime ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS" MPI_CFLAGS= MPI_CLIBS= MPI_FCFLAGS= MPI_FCLIBS= YAXT_CLIBS= YAXT_FCLIBS= NETCDF_CFLAGS= NETCDF_CLIBS= XML2_CFLAGS= XML2_CLIBS= MTIME_CLIBS= FORTRAN_LAPACK_CLIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-lib-only --enable-netcdf --with-external-lapack=fortran --with-external-mtime; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/yac"
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
       if ${MPI_LAUNCH+:} false; then :
-        set dummy MPI_LAUNCH="$MPI_LAUNCH" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy MPI_LAUNCH="$MPI_LAUNCH"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 fi
       if test "x$with_external_yaxt" = xyes; then :
-        set dummy YAXT_CFLAGS= YAXT_FCFLAGS= ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy YAXT_CFLAGS= YAXT_FCFLAGS=; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 else
-        set dummy YAXT_CFLAGS="-I${icon_abs_top_builddir}/externals/yaxt/inst_headers" ac_cv_header_yaxt_h=yes acx_cv_c_lib_func_xt_initialized="${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+                 as_fn_append acx_subdir_run_before_externals_yac ' acx_subdir_extra_run_0'
+         set dummy YAXT_CFLAGS="-I${icon_abs_top_builddir}/externals/yaxt/inst_headers" acx_cv_c_lib_func_xt_initialized="${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
          if test x"${icon_bundled_yaxt_fc-no}" != xno; then :
-        set dummy YAXT_FCFLAGS="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90" acx_cv_fc_module_YAXT=yes acx_cv_fc_lib_func_XT_INITIALIZED="${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt.a ${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy YAXT_FCFLAGS="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yaxt/inst_headers/f90" acx_cv_fc_module_YAXT=yes acx_cv_fc_lib_func_XT_INITIALIZED="${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt.a ${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 else
-        set dummy YAXT_FCFLAGS= ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy YAXT_FCFLAGS=; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 fi
 fi
       if test "x$with_external_mtime" = xyes; then :
-        set dummy MTIME_CFLAGS= ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy MTIME_CFLAGS=; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 else
-        set dummy MTIME_CFLAGS="-I${icon_abs_top_srcdir}/externals/mtime/include" acx_cv_c_lib_func_datetimeToString="${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+  set dummy MTIME_CFLAGS="-I${icon_abs_top_srcdir}/externals/mtime/include" acx_cv_c_lib_func_datetimeToString="${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_yac " '$acx_config_subdir_arg'"
-      done
-
+     as_fn_append acx_subdir_run_args_externals_yac " '$acx_tmp'"
+   done
 fi
       as_fn_append bundled_includes "${FC_MOD_IN}externals/yac/src "
       BUNDLED_LIBFILES="externals/yac/src/libyac.a $BUNDLED_LIBFILES"
@@ -8460,24 +8646,39 @@ else
 fi
             ICON_TIXI_FCFLAGS=${ICON_TIXI_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
             ICON_TIXI_CFLAGS=${ICON_TIXI_CFLAGS-$ICON_BUNDLED_CFLAGS}
-            acx_config_subdir_args_externals_tixi=
-   acx_config_subdir_ignore_arg=no
-   eval "set dummy $ac_configure_args"; shift
-   for acx_config_subdir_arg; do
-     if test "x$acx_config_subdir_ignore_arg" = xno; then :
-  case $acx_config_subdir_arg in #(
-  -cache-file|--cache-file|--cache-fil|--cache-fi| \
-           --cache-f|--cache-|--cache|--cach|--cac|--ca|--c| \
-           -srcdir|--srcdir|--srcdi|--srcd|--src|--sr| \
-           -prefix|--prefix|--prefi|--pref|--pre|--pr|--p) :
-    acx_config_subdir_ignore_arg=yes ;; #(
-  -cache-file=*|--cache-file=*|--cache-fil=*|--cache-fi=*| \
-           --cache-f=*|--cache-=*|--cache=*|--cach=*|--cac=*|--ca=*|--c=*| \
-           --config-cache|-C| \
-           -srcdir=*|--srcdir=*|--srcdi=*|--srcd=*|--src=*|--sr=*| \
-           -prefix=*|--prefix=*|--prefi=*|--pref=*|--pre=*|--pr=*|--p=*| \
-           --disable-option-checking) :
-     ;; #(
+                           acx_subdir_srcdirs_fn "externals/tixi"
+   acx_subdir_run_cmd_externals_tixi="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_tixi="externals/tixi"
+         acx_subdir_run_args_externals_tixi=$acx_subdir_pre_adjusted_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.tixi"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'"
+   done
+               as_fn_append extra_build_subdirs " externals/tixi"
+   as_fn_append extra_src_subdirs " externals/tixi"
+   acx_subdir_run_condition_externals_tixi=no
+      eval "set dummy $acx_subdir_run_args_externals_tixi"; shift
+   acx_subdir_run_args_externals_tixi=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
   BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
      ;; #(
   XML2_CFLAGS=*|XML2_CLIBS=*) :
@@ -8487,30 +8688,26 @@ fi
   -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
      ;; #(
   *) :
-
-           case $acx_config_subdir_arg in #(
+           case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-            as_fn_append acx_config_subdir_args_externals_tixi " '$acx_config_subdir_arg'" ;;
+        as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'" ;;
 esac
-else
-  acx_config_subdir_ignore_arg=no
-fi
+     shift
    done
-         set dummy CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS" XML2_CFLAGS= XML2_CLIBS= --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" ; shift
-      for acx_config_subdir_arg; do
-        case $acx_config_subdir_arg in #(
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS" XML2_CFLAGS= XML2_CLIBS= --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
   *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
   *) :
      ;;
 esac
-        as_fn_append acx_config_subdir_args_externals_tixi " '$acx_config_subdir_arg'"
-      done
-      as_fn_append subdirs_extra " externals/tixi"
+     as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'"
+   done
       as_fn_append bundled_includes "${FC_MOD_IN}externals/tixi/src "
       BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a $BUNDLED_LIBFILES"
 fi
@@ -8555,7 +8752,23 @@ if test -n "$bundled_includes"; then :
   FCFLAGS="${bundled_includes}${FCFLAGS}"
 fi
 
+ICON_DELAYED_CONFIG_RULES=''
 
+if test "x$enable_delayed_config" = xyes; then :
+  icon_rule_sep=''
+   for icon_bundled_srcdir in $extra_src_subdirs; do
+     eval icon_bundled_builddir=\$acx_subdir_run_dir_`$as_echo "$icon_bundled_srcdir" | $as_tr_sh`
+     icon_bundled_config_cmd="`eval 'as_val=${'acx_subdir_run_cmd_\`$as_echo "$icon_bundled_srcdir" | $as_tr_sh\`'};$as_echo "$as_val"'` `eval 'as_val=${'acx_subdir_run_args_\`$as_echo "$icon_bundled_srcdir" | $as_tr_sh\`'};$as_echo "$as_val"'`"
+     as_fn_append ICON_DELAYED_CONFIG_RULES "$icon_rule_sep$icon_bundled_builddir: \$(if \$(filter mostlyclean clean distclean,\$(MAKECMDGOALS)),,$icon_bundled_builddir/Makefile)
+$icon_bundled_builddir/Makefile: icon.mk
+	\$(silent_CONFIG)\$(MKDIR_P) \$(@D) && cd \$(@D) && $icon_bundled_config_cmd \$(if \$(silent_CONFIG),--silent)"
+     icon_rule_sep="$as_nl$as_nl"
+   done
+else
+  for icon_bundled_srcdir in $extra_src_subdirs; do
+     eval "acx_subdir_run_condition_`$as_echo "$icon_bundled_srcdir" | $as_tr_sh`=yes"
+   done
+fi
 
 ##################### PREPROCESSORS AND AUXILIARY COMMANDS #####################
 
@@ -9463,6 +9676,14 @@ else
 
 fi
 
+if test "x$enable_delayed_config" = xyes; then :
+  DELAYED_CONFIG_ENABLED=''
+
+else
+  DELAYED_CONFIG_ENABLED='#'
+
+fi
+
 if test "x$enable_jsbach" = xyes; then :
   JSBACH_ENABLED=''
 
@@ -9571,7 +9792,7 @@ ac_config_headers="$ac_config_headers config.h"
 ac_config_files="$ac_config_files Makefile depgen.c.config depgen.f90.config deplist.config icon.mk"
 
 
-ac_config_files="$ac_config_files run/collect.set-up.info"
+ac_config_files="$ac_config_files collect.extra-libs run/collect.set-up.info"
 
 
 ac_config_commands="$ac_config_commands run/set-up.info"
@@ -9692,249 +9913,52 @@ LIBOBJS=$ac_libobjs
 LTLIBOBJS=$ac_ltlibobjs
 
 
-if test "x$no_recursion" = xyes; then :
-  subdirs_extra=
+if test "x$no_recursion" != xyes; then :
+  if test "x$silent" = xyes; then :
+  acx_subdir_silent_arg="'--silent'"
 else
-  acx_config_subdir_common_args="'--disable-option-checking'"
-            if test "x$silent" = xyes; then :
-  as_fn_append acx_config_subdir_common_args " '--silent'"
+  acx_subdir_silent_arg=
 fi
-            acx_config_subdir_popdir=`pwd`
-            for acx_config_subdir in $subdirs_extra; do
-              acx_msg="=== configuring in $acx_config_subdir ($acx_config_subdir_popdir/$acx_config_subdir)"
-              $as_echo "$as_me:${as_lineno-$LINENO}: $acx_msg" >&5
-              $as_echo "$acx_msg" >&6
-              as_dir="$acx_config_subdir"; as_fn_mkdir_p
-              ac_builddir=.
-
-case "$acx_config_subdir" in
-.) ac_dir_suffix= ac_top_builddir_sub=. ac_top_build_prefix= ;;
-*)
-  ac_dir_suffix=/`$as_echo "$acx_config_subdir" | sed 's|^\.[\\/]||'`
-  # A ".." for each directory in $ac_dir_suffix.
-  ac_top_builddir_sub=`$as_echo "$ac_dir_suffix" | sed 's|/[^\\/]*|/..|g;s|/||'`
-  case $ac_top_builddir_sub in
-  "") ac_top_builddir_sub=. ac_top_build_prefix= ;;
-  *)  ac_top_build_prefix=$ac_top_builddir_sub/ ;;
-  esac ;;
-esac
-ac_abs_top_builddir=$ac_pwd
-ac_abs_builddir=$ac_pwd$ac_dir_suffix
-# for backward compatibility:
-ac_top_builddir=$ac_top_build_prefix
-
-case $srcdir in
-  .)  # We are building in place.
-    ac_srcdir=.
-    ac_top_srcdir=$ac_top_builddir_sub
-    ac_abs_top_srcdir=$ac_pwd ;;
-  [\\/]* | ?:[\\/]* )  # Absolute name.
-    ac_srcdir=$srcdir$ac_dir_suffix;
-    ac_top_srcdir=$srcdir
-    ac_abs_top_srcdir=$srcdir ;;
-  *) # Relative name.
-    ac_srcdir=$ac_top_build_prefix$srcdir$ac_dir_suffix
-    ac_top_srcdir=$ac_top_build_prefix$srcdir
-    ac_abs_top_srcdir=$ac_pwd/$srcdir ;;
-esac
-ac_abs_srcdir=$ac_abs_top_srcdir$ac_dir_suffix
-
-              cd "$acx_config_subdir"
-              if test -f "$ac_srcdir/configure.gnu"; then :
-  acx_config_subdir_script="$ac_srcdir/configure.gnu"
-elif test -f "$ac_srcdir/configure"; then :
-  acx_config_subdir_script="$ac_srcdir/configure"
-else
-  as_fn_error $? "unable to configure '$acx_config_subdir': no configure script found" "$LINENO" 5
-                 acx_config_subdir_script=
+            acx_subdir_run_any=no
+            for acx_subdir_srcdir in $extra_src_subdirs; do
+              eval as_val=\$acx_subdir_run_condition_`$as_echo "$acx_subdir_srcdir" | $as_tr_sh`
+   if test "x$as_val" = xyes; then :
+  acx_subdir_run_any=yes
+                 eval acx_subdir_builddir=\$acx_subdir_run_dir_`$as_echo "$acx_subdir_srcdir" | $as_tr_sh`
+                 eval acx_subdir_fns=\$acx_subdir_run_before_`$as_echo "$acx_subdir_srcdir" | $as_tr_sh`
+                 if test -n "$acx_subdir_fns"; then :
+  acx_tmp="=== running extra commands before configuring $acx_subdir_srcdir"
+                    $as_echo "$as_me:${as_lineno-$LINENO}: $acx_tmp" >&5
+                    $as_echo "$acx_tmp" >&6
+                    for acx_tmp in $acx_subdir_fns; do
+                      eval "$acx_tmp"
+                    done
 fi
-              if test -n "$acx_config_subdir_script"; then :
-  eval acx_config_subdir_args=\$acx_config_subdir_args_`$as_echo "$acx_config_subdir" | $as_tr_sh`
-                 if test /dev/null != "$cache_file"; then :
-  case $cache_file in #(
-  [\\/]* | ?:[\\/]*) :
-    acx_sub_cache_file=$cache_file ;; #(
-  *) :
-    acx_sub_cache_file="$ac_top_build_prefix$cache_file" ;;
-esac
-                      acx_sub_cache_file="$acx_sub_cache_file.`echo "$acx_config_subdir" | tr / .`"
-else
-  acx_sub_cache_file=$cache_file
+                 acx_tmp="=== configuring $acx_subdir_srcdir (in $acx_subdir_builddir)"
+                 $as_echo "$as_me:${as_lineno-$LINENO}: $acx_tmp" >&5
+                 $as_echo "$acx_tmp" >&6
+                 as_dir="$acx_subdir_builddir"; as_fn_mkdir_p
+                 acx_subdir_run_cmd="`eval 'as_val=${'acx_subdir_run_cmd_\`$as_echo "$acx_subdir_srcdir" | $as_tr_sh\`'};$as_echo "$as_val"'` `eval 'as_val=${'acx_subdir_run_args_\`$as_echo "$acx_subdir_srcdir" | $as_tr_sh\`'};$as_echo "$as_val"'`"
+                 acx_subdir_run_cmd="( cd '$acx_subdir_builddir' && $acx_subdir_run_cmd $acx_subdir_silent_arg)"
+                 { $as_echo "$as_me:${as_lineno-$LINENO}: running $acx_subdir_run_cmd" >&5
+$as_echo "$as_me: running $acx_subdir_run_cmd" >&6;}
+                 eval "$acx_subdir_run_cmd" || as_fn_error $? "configuration of $acx_subdir_srcdir failed" "$LINENO" 5
+                 eval acx_subdir_fns=\$acx_subdir_run_after_`$as_echo "$acx_subdir_srcdir" | $as_tr_sh`
+                 if test -n "$acx_subdir_fns"; then :
+  acx_tmp="=== running extra commands after configuring $acx_subdir_srcdir"
+                    $as_echo "$as_me:${as_lineno-$LINENO}: $acx_tmp" >&5
+                    $as_echo "$acx_tmp" >&6
+                    for acx_tmp in $acx_subdir_fns; do
+                      eval "$acx_tmp"
+                    done
 fi
-                 for acx_config_subdir_arg in \
-                   "--cache-file=$acx_sub_cache_file" \
-                   "--srcdir=$ac_srcdir" \
-                   "--prefix=$prefix"; do
-                   case $acx_config_subdir_arg in #(
-  *\'*) :
-    acx_config_subdir_arg=`$as_echo "$acx_config_subdir_arg" | sed "s/'/'\\\\\\\\''/g"` ;; #(
-  *) :
-     ;;
-esac
-                   as_fn_append acx_config_subdir_args " '$acx_config_subdir_arg'"
-                 done
-                 as_fn_append acx_config_subdir_args " $acx_config_subdir_common_args"
-                 { $as_echo "$as_me:${as_lineno-$LINENO}: running $SHELL $acx_config_subdir_script $acx_config_subdir_args" >&5
-$as_echo "$as_me: running $SHELL $acx_config_subdir_script $acx_config_subdir_args" >&6;}
-                 eval "\$SHELL \"$acx_config_subdir_script\" $acx_config_subdir_args" || as_fn_error $? "$acx_config_subdir_script failed for $acx_config_subdir" "$LINENO" 5
 fi
-              cd "$acx_config_subdir_popdir"
-            done
-            if test -n "$subdirs_extra"; then :
+               done
+               if test "x$acx_subdir_run_any" = xyes; then :
   $as_echo "===" >&6
-               $as_echo "$as_me:${as_lineno-$LINENO}: ===" >&5
+                  $as_echo "$as_me:${as_lineno-$LINENO}: ===" >&5
 fi
 fi
-   ac_ext=${ac_fc_srcext-f}
-ac_compile='$FC -c $FCFLAGS $ICON_FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
-ac_link='$FC -o conftest$ac_exeext $FCFLAGS $ICON_FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_fc_compiler_gnu
-
-   case " $subdirs_extra " in #(
-  *' externals/yac '*) :
-         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled YAC library" >&5
-$as_echo_n "checking for extra linker flags needed to link the bundled YAC library... " >&6; }
-      if ${icon_cv_YAC_extra_libs+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  icon_cv_YAC_extra_libs=
-         acx_exec_result=`$as_echo @LONG_DOUBLE_CLIBS@ | "externals/yac/config.status" -q --file=- 2>/dev/null`
-   if test $? -eq 0; then :
-  icon_cv_YAC_extra_libs=$acx_exec_result
-else
-  as_fn_error $? "unable to run 'externals/yac/config.status'" "$LINENO" 5
-fi
-         icon_cv_YAC_extra_libs=`$as_echo "$icon_cv_YAC_extra_libs" | sed 's/^ *//;s/ *$//'`
-fi
-
-      if ${icon_cv_YAC_extra_libs:+false} :; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-$as_echo "none needed" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_YAC_extra_libs" >&5
-$as_echo "$icon_cv_YAC_extra_libs" >&6; }
-         LIBS="$icon_cv_YAC_extra_libs $LIBS"
-fi ;; #(
-  *) :
-     ;;
-esac
-   case " $subdirs_extra " in #(
-  *' externals/sct '*) :
-         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled SCT library" >&5
-$as_echo_n "checking for extra linker flags needed to link the bundled SCT library... " >&6; }
-      if ${icon_cv_SCT_extra_libs+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  icon_cv_SCT_extra_libs=
-         case " $LIBS " in #(
-  *' -lrt '*) :
-     ;; #(
-  *) :
-               acx_exec_result=`$as_echo @LIBS@ | "externals/sct/config.status" -q --file=- 2>/dev/null`
-   if test $? -eq 0; then :
-  icon_sct_LIBS=$acx_exec_result
-else
-  as_fn_error $? "unable to run 'externals/sct/config.status'" "$LINENO" 5
-fi
-            icon_sct_LIBS=`$as_echo "$icon_sct_LIBS" | sed 's/^ *//;s/ *$//'`
-            case " $icon_sct_LIBS " in #(
-                *' -lrt '*) :
-    icon_cv_SCT_extra_libs='-lrt' ;; #(
-  *) :
-     ;;
-esac ;;
-esac
-         acx_exec_result=`$as_echo @OPENMP_FC_C_FLAGS@ | "externals/sct/config.status" -q --file=- 2>/dev/null`
-   if test $? -eq 0; then :
-  icon_sct_OPENMP_FC_C_FLAGS=$acx_exec_result
-else
-  as_fn_error $? "unable to run 'externals/sct/config.status'" "$LINENO" 5
-fi
-         icon_sct_OPENMP_FC_C_FLAGS=`$as_echo "$icon_sct_OPENMP_FC_C_FLAGS" | sed 's/^ *//;s/ *$//'`
-         if test -n "$icon_sct_OPENMP_FC_C_FLAGS"; then :
-  eval "icon_link_cmd=\"$ac_link\""
-            case " $icon_link_cmd " in #(
-                *" $icon_sct_OPENMP_FC_C_FLAGS "*) :
-     ;; #(
-  *) :
-                  icon_cv_SCT_extra_libs="$icon_sct_OPENMP_FC_C_FLAGS${icon_cv_SCT_extra_libs:+ $icon_cv_SCT_extra_libs}" ;;
-esac
-fi
-fi
-
-      if ${icon_cv_SCT_extra_libs:+false} :; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-$as_echo "none needed" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_SCT_extra_libs" >&5
-$as_echo "$icon_cv_SCT_extra_libs" >&6; }
-         LIBS="$icon_cv_SCT_extra_libs $LIBS"
-fi ;; #(
-  *) :
-     ;;
-esac
-   case " $subdirs_extra " in #(
-  *' externals/cdi '*) :
-         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for extra linker flags needed to link the bundled CDI library" >&5
-$as_echo_n "checking for extra linker flags needed to link the bundled CDI library... " >&6; }
-      if ${icon_cv_CDI_extra_libs+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  icon_cv_CDI_extra_libs=
-         acx_exec_result=`$as_echo @LIBRT@ | "externals/cdi/config.status" -q --file=- 2>/dev/null`
-   if test $? -eq 0; then :
-  icon_cv_CDI_extra_libs=$acx_exec_result
-else
-  as_fn_error $? "unable to run 'externals/cdi/config.status'" "$LINENO" 5
-fi
-         icon_cv_CDI_extra_libs=`$as_echo "$icon_cv_CDI_extra_libs" | sed 's/^ *//;s/ *$//'`
-         if test "x$icon_cv_CDI_extra_libs" = x && test "x$enable_cdi_pio" = xyes; then :
-              acx_exec_result=`$as_echo "@SHELL@ ${icon_abs_top_builddir}/externals/cdi/libtool --tag=CC --mode=link @CC@ @CFLAGS@ @LDFLAGS@ -o libconftest.la @LIBS@" | "externals/cdi/config.status" -q --file=- 2>/dev/null`
-   if test $? -eq 0; then :
-  icon_cdi_LINK=$acx_exec_result
-else
-  as_fn_error $? "unable to run 'externals/cdi/config.status'" "$LINENO" 5
-fi
-            as_dir=conftest.dir; as_fn_mkdir_p
-            cd conftest.dir
-            if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$icon_cdi_LINK\""; } >&5
-  (eval $icon_cdi_LINK) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; } >&5; then :
-  ac_try="grep \"dependency_libs=.*[ ']-lrt[ '].*\" libconftest.la"
-               if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; } >&5; then :
-  icon_cv_CDI_extra_libs='-lrt'
-fi
-fi
-            cd ..
-            rm -rf conftest.dir
-fi
-         if test -n "$icon_cv_CDI_extra_libs"; then :
-  case " $LIBS " in #(
-  *" $icon_cv_CDI_extra_libs "*) :
-    icon_cv_CDI_extra_libs= ;; #(
-  *) :
-     ;;
-esac
-fi
-fi
-
-      if ${icon_cv_CDI_extra_libs:+false} :; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-$as_echo "none needed" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_CDI_extra_libs" >&5
-$as_echo "$icon_cv_CDI_extra_libs" >&6; }
-         LIBS="$icon_cv_CDI_extra_libs $LIBS"
-fi ;; #(
-  *) :
-     ;;
-esac
 
 : "${CONFIG_STATUS=./config.status}"
 ac_write_fail=0
@@ -10529,6 +10553,7 @@ do
     "depgen.f90.config") CONFIG_FILES="$CONFIG_FILES depgen.f90.config" ;;
     "deplist.config") CONFIG_FILES="$CONFIG_FILES deplist.config" ;;
     "icon.mk") CONFIG_FILES="$CONFIG_FILES icon.mk" ;;
+    "collect.extra-libs") CONFIG_FILES="$CONFIG_FILES collect.extra-libs" ;;
     "run/collect.set-up.info") CONFIG_FILES="$CONFIG_FILES run/collect.set-up.info" ;;
     "run/set-up.info") CONFIG_COMMANDS="$CONFIG_COMMANDS run/set-up.info" ;;
     "run/SETUP.config") CONFIG_COMMANDS="$CONFIG_COMMANDS run/SETUP.config" ;;
@@ -11094,6 +11119,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
 
   case $ac_file$ac_mode in
+    "collect.extra-libs":F) chmod +x "$ac_file" ;;
     "run/collect.set-up.info":F) chmod +x "$ac_file" ;;
     "run/set-up.info":C) run/collect.set-up.info "$ac_file" 2>/dev/null ||    as_fn_error $? "failed to create $ac_file" "$LINENO" 5 ;;
     "run/SETUP.config":C) rm -f "$ac_file"
@@ -11144,3 +11170,10 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
 
+
+if test "x$enable_delayed_config" = xyes && test -n "$extra_src_subdirs"; then :
+  $as_echo "
+The following bundled libraries will be configured at the build time:`$as_echo "$extra_src_subdirs" | tr ' ' '
+'`
+" >&6
+fi

@@ -12,6 +12,7 @@
 /Makefile
 /c_binding.d
 /claw.mk
+/collect.extra-libs
 /confdefs.h
 /config.cache
 /config.cache.externals.*
@@ -36,6 +37,8 @@
 *.pp-*.f90
 *.xmodstamp
 /bin
+/include
+/lib
 /mod
 /srclist
 /version.c
@@ -54,7 +57,7 @@
 /run/checksuite.nwp/*.run
 
 # Common user-generated files:
-/build
+/build*/
 
 # Buildbot-generated files:
 /scripts/buildbot_scripts/experiment_lists

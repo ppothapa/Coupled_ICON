@@ -30,6 +30,9 @@ MODULE mo_surface_height_lhs
 
   PRIVATE
 
+  !> module name string
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_surface_height_lhs'
+
   PUBLIC :: t_surface_height_lhs
 
   TYPE, EXTENDS(t_lhs_agen) :: t_surface_height_lhs
@@ -168,6 +171,11 @@ CONTAINS
     REAL(wp) :: gdt2_inv, gam_times_beta
     INTEGER :: start_index, end_index, jc, blkNo, je
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
+    CHARACTER(len=*), PARAMETER :: routine = modname//':lhs_surface_height_ab_mim_wp'
+
+#ifdef _OPENACC
+    CALL finish(routine, 'OpenACC version currently not implemented')
+#endif
 
     cells_in_domain => this%patch_2D%cells%in_domain
     edges_in_domain => this%patch_2D%edges%in_domain

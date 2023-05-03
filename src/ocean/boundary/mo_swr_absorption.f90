@@ -337,9 +337,12 @@ CONTAINS
         swsum(jc,blockNo)=swr_frac(jc,2,blockNo)
 
     
-        DO level=1,n_zlev
-          swrab(:,:,level)=1.0_wp / swsum(jc,blockNo) &
-	  * (swr_frac(jc,level,blockNo) - swr_frac(jc,level+1,blockNo))
+        ! DO level=1,n_zlev
+        DO level=1,n_zlev-1  
+          swrab(:,level,:)=1.0_wp / swsum(jc,blockNo) &
+          * (swr_frac(jc,level,blockNo) &
+          - swr_frac(jc,level+1,blockNo)*patch_3D%wet_c(jc,level+1,blockNo)) & 
+          * patch_3D%wet_c(jc,level,blockNo) 
         ENDDO
 
         swsum(jc,blockNo)=swsum(jc,blockNo)*fvisible

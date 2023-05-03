@@ -219,6 +219,7 @@ CONTAINS
      dmsp(4) = 1.25_wp * 0.107638502e0_wp  ! production with delcar(coccolithoporides) 
      dmsp(5) = 1.25_wp * 0.109784522e-1_wp  ! production with delsil(diatoms)
      dmsp(6) = 0.1e-07_wp            ! half saturation rate const. bacterial decomp
+     !$ACC ENTER DATA COPYIN(dmsp)
 
     !
     ! extended N-cycle
@@ -274,6 +275,7 @@ CONTAINS
   calcon = 1.03e-2_wp
 
   rrrcl = salchl * 1.025_wp * bor1 * bor2
+  !$ACC UPDATE DEVICE(rrrcl)
 
   END SUBROUTINE SET_PARAMETERS_BGC
 
@@ -330,6 +332,7 @@ CONTAINS
     dremopal = dremopal * dtb  ! 1/d      
     dremn2o  = dremn2o * dtb      ! 1/d
     dremcalc = dremcalc *dtb    ! 
+    !$ACC UPDATE DEVICE(dremcalc)
     denitrification = denitrification *dtb 
     denit_sed = denit_sed *dtb    ! sediment denitrification rate
     sred_sed = sred_sed *dtb    ! sediment sulfate reduction rate

@@ -759,20 +759,6 @@ CONTAINS
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
        & in_group=groups("oce_cvmix_kpp"))
 
-   CALL add_var(ocean_params_list,'nl_trans_tend_heat',params_oce%cvmix_params%nl_trans_tend_heat,&
-       & grid_unstructured_cell, za_depth_below_sea_half, &
-       & t_cf_var('nl_trans_tend_heat', '', 'non-local heat transport tendency',datatype_flt),&
-       & grib2_var(255, 255, 255, datatype_pack16,GRID_UNSTRUCTURED,grid_cell),&
-       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
-       & in_group=groups("oce_cvmix_kpp"))
-
-   CALL add_var(ocean_params_list,'nl_trans_tend_salt',params_oce%cvmix_params%nl_trans_tend_salt,&
-       & grid_unstructured_cell, za_depth_below_sea_half, &
-       & t_cf_var('nl_trans_tend_salt', '', 'non-local salt transport tendency',datatype_flt),&
-       & grib2_var(255, 255, 255, datatype_pack16,GRID_UNSTRUCTURED,grid_cell),&
-       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
-       & in_group=groups("oce_cvmix_kpp"))
-
    CALL add_var(ocean_params_list,'nonLocalTransHeat',params_oce%cvmix_params%nonlocalTransHeat,&
        & grid_unstructured_cell, za_depth_below_sea_half, &
        & t_cf_var('nonLocalTransHeat', '', 'non-local heat transport: G(sigma) * 2',datatype_flt),&
@@ -786,9 +772,26 @@ CONTAINS
        & grib2_var(255, 255, 255, datatype_pack16,GRID_UNSTRUCTURED,grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
        & in_group=groups("oce_cvmix_kpp"))
-    ENDIF
+    END IF
     !-> end by_ogut
 
+    ! 2022-09 dzo-DKRZ: Providing nl_trans_tend_heat and nl_trans_tend_salt not only for
+    !                   vert_mix_type == vmix_kpp but also for vmix_pp (initially used with hamocc_omip_10days)
+    IF ((vert_mix_type .eq. vmix_kpp) .OR. (vert_mix_type .eq. vmix_pp)) THEN
+   CALL add_var(ocean_params_list,'nl_trans_tend_heat',params_oce%cvmix_params%nl_trans_tend_heat,&
+       & grid_unstructured_cell, za_depth_below_sea_half, &
+       & t_cf_var('nl_trans_tend_heat', '', 'non-local heat transport tendency',datatype_flt),&
+       & grib2_var(255, 255, 255, datatype_pack16,GRID_UNSTRUCTURED,grid_cell),&
+       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
+       & in_group=groups("oce_cvmix_kpp"))
+
+   CALL add_var(ocean_params_list,'nl_trans_tend_salt',params_oce%cvmix_params%nl_trans_tend_salt,&
+       & grid_unstructured_cell, za_depth_below_sea_half, &
+       & t_cf_var('nl_trans_tend_salt', '', 'non-local salt transport tendency',datatype_flt),&
+       & grib2_var(255, 255, 255, datatype_pack16,GRID_UNSTRUCTURED,grid_cell),&
+       & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
+       & in_group=groups("oce_cvmix_kpp"))
+    END IF
 
     !! Tracers
     IF ( no_tracer > 0 ) THEN

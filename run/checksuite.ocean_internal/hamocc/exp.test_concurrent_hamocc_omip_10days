@@ -228,6 +228,7 @@ cat >> ${ocean_namelist} << EOF4
 ! limit_seaice                    = .TRUE.    ! default: true
   seaice_limit                    =   0.8     ! hard limit set to 80% of upper layer for sea ice
   limit_elevation                 = .TRUE.
+  lfb_bgc_oce                     = .FALSE.   ! Feedback will not work with concurrency
 /
 &ocean_initialConditions_nml
   initial_salinity_type           = 1         ! read from file

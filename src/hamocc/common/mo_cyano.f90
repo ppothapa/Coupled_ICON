@@ -24,7 +24,7 @@ MODULE mo_cyano
 
 CONTAINS
 
-SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za )
+SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
 
 !! @brief diagostic N2 fixation
 
@@ -44,14 +44,25 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za )
 
   REAL(wp), INTENT(in) :: pddpo(bgc_nproma,bgc_zlevs) !< size of scalar grid cell (3rd dimension) [m].
   REAL(wp), INTENT(in) :: za(bgc_nproma)              !< surface height [m].
+  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
   !! Local variables
 
   REAL(wp) :: oldnitrate
   INTEGER  :: j
+  LOGICAL :: lacc
+
+  IF (PRESENT(use_acc)) THEN
+    lacc = use_acc
+  ELSE
+    lacc = .FALSE.
+  END IF
   !
   ! --------------------------------------------------------------------
   !
+  !$ACC DATA COPY(local_bgc_mem, local_bgc_mem%bgctra, local_bgc_mem%bgcflux) &
+  !$ACC   COPY(local_bgc_mem%bgctend, local_bgc_mem%satoxy) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR IF(lacc)
      DO j = start_idx, end_idx
 
         IF (pddpo(j,1) > EPSILON(0.5_wp)) THEN
@@ -86,13 +97,15 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za )
         ENDIF
 
      ENDDO
+     !$ACC END PARALLEL
+     !$ACC END DATA
  
  
 END SUBROUTINE cyano
 
 
 
-SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,l_dynamic_pi)
+SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, ptiestu, l_dynamic_pi, max_klevs, use_acc)
 !! @brief prognostic N2 fixation, cyanobacteria
 
       USE mo_memory_bgc, ONLY      : pi_alpha_cya,          &
@@ -126,6 +139,8 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
       REAL(wp), INTENT(in) :: ptiestu(bgc_nproma,bgc_zlevs) !< depth of scalar grid cell [m]
 
       LOGICAL, INTENT(in) :: l_dynamic_pi
+      INTEGER, INTENT(IN) :: max_klevs
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
       !! Local variables
    
@@ -139,19 +154,24 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
       REAL(wp) :: xa_P, xa_fe, avnit,l_P,l_fe
       REAL(wp) ::  phosy_cya
       REAL(wp) :: dyn_pi_alpha_cya
-      REAL(wp) :: surface_height  
+      REAL(wp) :: surface_height
+      LOGICAL :: lacc
 
       ! for N-cycle
       REAL(wp) :: no3cya, nh4cya, hib, xa_nh4, xa_no3, no3lim
       REAL(wp) :: xn_fe, xn_p
-  
-  DO j = start_idx, end_idx
-  
-    kpke=klevs(j)
 
-      DO k=1, kpke                     
+      IF (PRESENT(use_acc)) THEN
+        lacc = use_acc
+      ELSE
+        lacc = .FALSE.
+      END IF
+  
+  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+  DO k = 1, max_klevs
+   DO j = start_idx, end_idx
 
-            IF( pddpo(j,k) .GT. EPSILON(0.5_wp) ) THEN
+            IF( pddpo(j,k) .GT. EPSILON(0.5_wp) .and. k <= klevs(j)) THEN
                    
 
               avcyabac = MAX(1.e-11_wp,local_bgc_mem%bgctra(j,k,icya))                !available cyanobacteria
@@ -202,8 +222,10 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
               
                  ! limitation on DIC
                  if (local_bgc_mem%bgctra(j,k,isco212).le.rcar*phosy_cya) then
-                     cyapro = min(avnit-1.e-11_wp*rnoi,max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp))/(rcar*phosy_cya)*cyapro))
-                     phosy_cya=max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp)))/rcar
+                     cyapro=0._wp
+                     phosy_cya=0._wp    
+!                     cyapro = min(avnit-1.e-11_wp*rnoi,max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp))/(rcar*phosy_cya)*cyapro))
+!                    phosy_cya=max(0._wp,(local_bgc_mem%bgctra(j,k,isco212)-EPSILON(1.0_wp)))/rcar
                  endif
                  ! ---------- nutrient uptake
 
@@ -309,7 +331,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
             ENDIF ! wet cells
       ENDDO ! 
   ENDDO ! 
- 
+  !$ACC END PARALLEL
  
 
 ! -------------- buoyancy of cyanobacteria----------------------------------------
@@ -320,7 +342,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
   ! C(k,T+dt)=(ddpo(k)*C(k,T)+w*dt*C(k-1,T+dt))/(ddpo(k)+w*dt)
   ! sedimentation=w*dt*C(ks,T+dt)
   !
-
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
  DO j=start_idx,end_idx
     kpke=klevs(j)
     IF (kpke > 0)THEN
@@ -329,7 +351,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
                    &              / (pddpo(j,kpke)+wcya)
              
     ENDIF
-
+    !$ACC LOOP SEQ
     do k=(kpke-1),2,-1  
          ! water column
         if(pddpo(j,k+1).LE.EPSILON(0.5_wp))then ! last wet cell
@@ -349,9 +371,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs,start_idx,end_idx,pddpo,za,ptho, ptiestu,
     endif   
    ENDIF
  ENDDO
- 
- 
-
+ !$ACC END PARALLEL
                   
  
 END SUBROUTINE  cyadyn

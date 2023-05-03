@@ -1,8 +1,8 @@
 # Initialize date/time computation
 
 #%# Take mtime from installation prefix if defined, else from build location
-from distutils import sysconfig
-lib_dir = sysconfig.get_python_lib(prefix='%{PREFIX or BUILD_DIR}')
+import sysconfig
+lib_dir = sysconfig.get_path('platlib', vars={'platbase':'%{PREFIX or BUILD_DIR}'})
 import sys
 sys.path.insert(1, lib_dir)
 import mtime

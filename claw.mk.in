@@ -71,6 +71,7 @@ SHELL= @SHELL@
 CLAW= @CLAW@
 PYTHON= @PYTHON@
 DEPGEN= ${PYTHON} $(srcdir)/utils/mkhelper/depgen.py
+MKDIR_P= @MKDIR_P@
 
 # CLAW flags:
 CLAWFLAGS= @CLAWFLAGS@
@@ -252,7 +253,7 @@ sanitize-mod-proxies:
 
 # Directory creation rule:
 %/.dirstamp:
-	$(silent_MKDIR)@MKDIR_P@ $(@D) && touch $@
+	$(silent_MKDIR)$(MKDIR_P) $(@D) && touch $@
 
 # Keep directory stamps:
 .PRECIOUS: $(dir_files)

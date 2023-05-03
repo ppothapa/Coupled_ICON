@@ -32,7 +32,7 @@ MODULE mo_ocean_testbed_modules
   USE mo_math_constants,         ONLY: pi, pi_2, rad2deg, deg2rad, dbl_eps
   USE mo_math_types,             ONLY: t_cartesian_coordinates
   USE mo_ocean_nml,              ONLY: n_zlev, GMRedi_configuration, GMRedi_combined, Cartesian_Mixing, &
-    & atmos_flux_analytical_type, no_tracer, OceanReferenceDensity, l_with_vert_tracer_advection, &
+    & atmos_flux_analytical_type, no_tracer, OceanReferenceDensity, ab_gam, l_with_vert_tracer_advection, &
     & tracer_update_mode, use_none, l_edge_based, vert_cor_type
   USE mo_sea_ice_nml,            ONLY: init_analytic_conc_param, t_heat_base
   USE mo_dynamics_config,        ONLY: nold, nnew
@@ -87,6 +87,7 @@ MODULE mo_ocean_testbed_modules
   use mo_zaxis_type
   use mo_cf_convention
   use mo_grib2
+  USE mo_ocean_state,            ONLY: transfer_ocean_state
 
   USE mtime,                     ONLY: datetime, newDatetime, deallocateDatetime, datetimeToString, &
        &                               timedelta, newTimedelta, deallocateTimedelta,                &
@@ -608,30 +609,55 @@ CONTAINS
     CHARACTER(LEN=32)               :: datestring
     TYPE(t_patch), POINTER :: patch_2d
     INTEGER :: jstep0 ! start counter for time loop
-    INTEGER :: i
+    INTEGER :: i, blockNo, start_edge_index, end_edge_index, jk, je
     TYPE(timedelta), POINTER :: model_time_step => NULL()
     
     !CHARACTER(LEN=filename_max)  :: outputfile, gridfile
     TYPE(t_tracer_collection) , POINTER              :: old_tracer_collection, new_tracer_collection
     TYPE(t_ocean_transport_state)                    :: transport_state
 
+    TYPE(t_subset_range), POINTER :: edges_in_domain
+    REAL(wp), DIMENSION(:,:,:), POINTER :: vn_time_weighted, vn_new, vn_old
+    INTEGER, DIMENSION(:,:), POINTER :: dolic_e
+
     CHARACTER(LEN=max_char_length), PARAMETER :: &
       & method_name = 'mo_ocean_testbed_modules:ocean_test_advection'
     !------------------------------------------------------------------
     
     patch_2D      => patch_3d%p_patch_2d(1)
+    edges_in_domain => patch_2D%edges%in_domain
     CALL datetimeToString(this_datetime, datestring)
 
     ! IF (ltimer) CALL timer_start(timer_total)
     CALL timer_start(timer_total)
-    
+
+    jstep0 = 0
     IF (n_dom > 1 ) THEN
       CALL finish(TRIM(method_name), ' N_DOM > 1 is not allowed')
     END IF
     jg = n_dom
 
-    jstep0 = 0
-      
+    vn_time_weighted => ocean_state(jg)%p_diag%vn_time_weighted
+    vn_new => ocean_state(jg)%p_prog(nnew(1))%vn
+    vn_old => ocean_state(jg)%p_prog(nold(1))%vn
+    dolic_e => patch_3d%p_patch_1d(1)%dolic_e
+
+    !------------------------------------------------------------------
+    ! compute the vn_time_weighted field from vn explicilty
+    DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+      CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+      DO je=start_edge_index, end_edge_index
+
+        DO jk = 1, dolic_e(je,blockNo)
+          vn_time_weighted(je,jk,blockNo)      &
+            & =    ab_gam           * vn_new(je,jk,blockNo) &
+            &   + (1.0_wp - ab_gam) * vn_old(je,jk,blockNo)
+        END DO
+      END DO
+    END DO
+
+    CALL transfer_ocean_state(patch_3d, .TRUE.)
+    !------------------------------------------------------------------
     DO jstep = (jstep0+1), (jstep0+nsteps)
       
         CALL datetimeToString(this_datetime, datestring)
@@ -652,7 +678,8 @@ CONTAINS
           transport_state%patch_3d    => patch_3d
           transport_state%h_old       => ocean_state(jg)%p_prog(nold(1))%h
           transport_state%h_new       => ocean_state(jg)%p_prog(nnew(1))%h
-          transport_state%vn          => ocean_state(jg)%p_prog(nold(1))%vn
+          !transport_state%vn          => ocean_state(jg)%p_prog(nold(1))%vn
+          transport_state%vn          => ocean_state(jg)%p_diag%vn_time_weighted
           transport_state%w           => ocean_state(jg)%p_diag%w
           transport_state%mass_flux_e => ocean_state(jg)%p_diag%mass_flx_e
 

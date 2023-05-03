@@ -317,9 +317,9 @@ CONTAINS
     all_cells       => p_patch%cells%all
     !---------------------------------------------------------------------
 
-#ifdef _OPENACC
-    CALL finish(TRIM('mo_ice_interface:ice_fast_interface'),'This part has not been ported to GPU.')
-#endif
+!#ifdef _OPENACC
+!    CALL finish(TRIM('mo_ice_interface:ice_fast_interface'),'This part has not been tested on GPU.')
+!#endif
 
 !ICON_OMP_PARALLEL_DO PRIVATE(jb, i_startidx_c, i_endidx_c) SCHEDULE(dynamic)
         DO jb = all_cells%start_block, all_cells%end_block
@@ -396,7 +396,8 @@ CONTAINS
             &   albvisdif,      & ! Albedo VIS, diffuse
             &   albnirdir,      & ! Albedo NIR, direct/parallel
             &   albnirdif,      & ! Albedo NIR, diffuse
-            &   doy)              ! Day of the year
+            &   doy,            & ! Day of the year
+            &   use_acc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -417,10 +418,18 @@ CONTAINS
     REAL(wp),INTENT(OUT)   :: albnirdif  (nbdim,kice)
 
     INTEGER, OPTIONAL,INTENT(IN)  :: doy
+    LOGICAL, OPTIONAL,INTENT(IN)  :: use_acc
 
     INTEGER :: jk, ji
+    LOGICAL :: lacc
 
     !-------------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (ltimer) CALL timer_start(timer_ice_fast)
 
@@ -428,22 +437,22 @@ CONTAINS
 
     CASE (1)
       CALL set_ice_temp_zerolayer(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
-                            &   Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw)
+                            &   Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, use_acc=lacc)
 
     CASE (2)
       CALL set_ice_temp_winton(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
-                    &   Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw)
+                    &   Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, use_acc=lacc)
 
     CASE (3)
       IF ( .NOT. PRESENT(doy) ) THEN
         CALL finish(TRIM('mo_ice_interface:ice_fast'),'i_ice_therm = 3 not allowed in this context')
       ENDIF
       CALL set_ice_temp_zerolayer_analytical(i_startidx_c, i_endidx_c, nbdim, kice, &
-            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy)
+            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, use_acc=lacc)
 
     CASE (4)
-      !$ACC DATA PRESENT(Tsurf, hi, SWnet, nonsolar, dnonsolardT)
-      !$ACC PARALLEL
+      !$ACC DATA PRESENT(Tsurf, hi, SWnet, nonsolar, dnonsolardT) IF(lacc)
+      !$ACC PARALLEL IF(lacc)
       !$ACC LOOP SEQ
       DO ji = 1, kice
         !$ACC LOOP GANG VECTOR
@@ -463,7 +472,7 @@ CONTAINS
 
     ! New albedo based on the new surface temperature
     CALL set_ice_albedo(i_startidx_c, i_endidx_c, nbdim, kice, Tsurf, hi, hs, &
-      & albvisdir, albvisdif, albnirdir, albnirdif)
+      & albvisdir, albvisdif, albnirdir, albnirdif, use_acc=lacc)
 
     IF (ltimer) CALL timer_stop(timer_ice_fast)
 
