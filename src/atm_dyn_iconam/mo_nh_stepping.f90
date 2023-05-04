@@ -120,7 +120,6 @@ MODULE mo_nh_stepping
   USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
   USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
-  USE mo_aes_phy_memory,           ONLY: prm_tend
 #endif
   USE mo_phys_nest_utilities,      ONLY: interpol_phys_grf, feedback_phys_diag, interpol_rrg_grf, copy_rrg_ubc
   USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp
@@ -2146,12 +2145,23 @@ MODULE mo_nh_stepping
             ! aes physics
             IF (ltimer) CALL timer_start(timer_iconam_aes)
             !
+            !$ACC WAIT(1)
+            CALL diagnose_pres_temp  ( p_nh_state(jg)%metrics,                          &
+                &                      p_nh_state(jg)%prog(nnew(jg)),                   &
+                &                      p_nh_state(jg)%prog(nnew_rcf(jg)),               &
+                &                      p_nh_state(jg)%diag,                             &
+                &                      p_patch(jg),                                     &
+                &                      opt_calc_temp=.TRUE.,                            &
+                &                      opt_calc_pres=.TRUE.,                            &
+                &                      opt_lconstgrav=upatmo_config(jg)%dyn%l_constgrav )
+            !
             CALL interface_iconam_aes(     dt_loc                                    & !in
                 &                         ,datetime_local(jg)%ptr                    & !in
                 &                         ,p_patch(jg)                               & !in
                 &                         ,p_int_state(jg)                           & !in
-                &                         ,p_nh_state(jg)%metrics                    & !in
+                &                         ,p_nh_state(jg)%prog(nnow(jg))             & !inout
                 &                         ,p_nh_state(jg)%prog(nnew(jg))             & !inout
+                &                         ,p_nh_state(jg)%prog(n_now_rcf)            & !inout
                 &                         ,p_nh_state(jg)%prog(n_new_rcf)            & !inout
                 &                         ,p_nh_state(jg)%diag                       )
 
@@ -2889,7 +2899,6 @@ MODULE mo_nh_stepping
       !$OMP PARALLEL
       CALL init(p_nh_state(jg)%diag%ddt_exner_phy)
       CALL init(p_nh_state(jg)%diag%ddt_vn_phy)
-      CALL init(prm_tend  (jg)%qtrc)
       !$OMP END PARALLEL
 #endif
     END SELECT ! iforcing

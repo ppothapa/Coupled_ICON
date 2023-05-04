@@ -28,7 +28,7 @@ MODULE mo_aes_coupling
 
   USE mo_parallel_config     ,ONLY: nproma
 
-  USE mo_run_config          ,ONLY: ltimer, ico2, nlev
+  USE mo_run_config          ,ONLY: ltimer, ico2
   USE mo_timer,               ONLY: timer_start, timer_stop,                &
        &                            timer_coupling_put, timer_coupling_get, &
        &                            timer_coupling_1stget
@@ -96,6 +96,7 @@ CONTAINS
     LOGICAL               :: write_coupler_restart
     INTEGER               :: nbr_hor_cells  ! = inner and halo points
     INTEGER               :: jg             ! grid index
+    INTEGER               :: nlev           ! number of levels
     INTEGER               :: n              ! nproma loop count
     INTEGER               :: nn             ! block offset
     INTEGER               :: i_blk          ! block loop count
@@ -122,7 +123,8 @@ CONTAINS
 
     buffer(:,:) = 0.0_wp
 
-    jg = p_patch%id
+    jg   = p_patch%id
+    nlev = p_patch%nlev
 
     !-------------------------------------------------------------------------
     ! If running in atm-oce coupled mode, exchange information
@@ -135,7 +137,7 @@ CONTAINS
     !
     ! 2. prm_field(jg)% evap_tile(:,:,iwtr/iice)  evaporation rate over ice-covered and open ocean/lakes, no land;
     !
-    ! 3. prm_field(jg)%rsfl + prm_field(jg)%rsfc and prm_field(jg)%ssfl + prm_field(jg)%ssfc
+    ! 3. prm_field(jg)%rsfl and prm_field(jg)%ssfl
     !    which gives the liquid and solid precipitation rates, respectively
     !
     ! 4. prm_field(jg)% ta(:,nlev,:)  temperature at the lowest model level, or
@@ -161,7 +163,7 @@ CONTAINS
     !   field_id(4) represents "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
     !   field_id(5) represents "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
     !   field_id(10) represents "10m_wind_speed"                          - atmospheric wind speed
-    !   field_id(11) represents "qtrc(nlev,co2)"                          - co2 mixing ratio
+    !   field_id(11) represents "qtrc_phy(nlev,co2)"                      - co2 mixing ratio
     !   field_id(13) represents "pres_msl"                                - sea level pressure
     !
     !  Receive fields from ocean:
@@ -326,9 +328,9 @@ CONTAINS
         DO n = 1, nlen
 
           ! total rates of rain and snow over whole cell
-          buffer(nn+n,1) = (prm_field(jg)%rsfl(n,i_blk) + prm_field(jg)%rsfc(n,i_blk))
-          buffer(nn+n,2) = (prm_field(jg)%ssfl(n,i_blk) + prm_field(jg)%ssfc(n,i_blk))
-
+          buffer(nn+n,1) = prm_field(jg)%rsfl(n,i_blk)
+          buffer(nn+n,2) = prm_field(jg)%ssfl(n,i_blk)
+     
           ! evaporation over ice-free and ice-covered water fraction - of whole ocean part
           buffer(nn+n,3) = prm_field(jg)%evap_tile(n,i_blk,iwtr)*prm_field(jg)%frac_tile(n,i_blk,iwtr) + &
             &              prm_field(jg)%evap_tile(n,i_blk,iice)*prm_field(jg)%frac_tile(n,i_blk,iice)
@@ -352,9 +354,9 @@ CONTAINS
         DO n = 1, nlen
 
           ! total rates of rain and snow over whole cell
-          buffer(nn+n,1) = (prm_field(jg)%rsfl(n,i_blk) + prm_field(jg)%rsfc(n,i_blk))
-          buffer(nn+n,2) = (prm_field(jg)%ssfl(n,i_blk) + prm_field(jg)%ssfc(n,i_blk))
-
+          buffer(nn+n,1) = prm_field(jg)%rsfl(n,i_blk)
+          buffer(nn+n,2) = prm_field(jg)%ssfl(n,i_blk)
+    
           ! evaporation over ice-free and ice-covered water fraction, of whole ocean part, without land part
           !  - lake part is included in land part, must be subtracted as well
           !    frac_oce(n,i_blk)= 1.0_wp-prm_field(jg)%frac_tile(n,i_blk,ilnd)-prm_field(jg)%alake(n,i_blk)
@@ -550,10 +552,10 @@ CONTAINS
              nlen = p_patch%npromz_c
           END IF
           SELECT CASE (ccycle_config(jg)%iccycle)
-          CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc in kg/kg
+          CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc_phy in kg/kg
              !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
              DO n = 1, nlen
-                buffer(nn+n,1)    =  amd/amco2 * 1.0e6_wp * prm_field(jg)%qtrc(n,nlev,i_blk,ico2)
+                buffer(nn+n,1)    =  amd/amco2 * 1.0e6_wp * prm_field(jg)%qtrc_phy(n,nlev,i_blk,ico2)
              END DO
           CASE (2) ! c-cycle with prescribed  atm. co2 concentration
              SELECT CASE (ccycle_config(jg)%ico2conc)
@@ -859,9 +861,9 @@ CONTAINS
       CALL dbg_print('AESOce: v_stress.ice',scr,str_module,4,in_subset=p_patch%cells%owned)
 
       ! rain, snow, evaporation
-      scr(:,:) = prm_field(jg)%rsfl(:,:) + prm_field(jg)%rsfc(:,:)
+      scr(:,:) = prm_field(jg)%rsfl(:,:)
       CALL dbg_print('AESOce: total rain  ',scr,str_module,3,in_subset=p_patch%cells%owned)
-      scr(:,:) = prm_field(jg)%ssfl(:,:) + prm_field(jg)%ssfc(:,:)
+      scr(:,:) = prm_field(jg)%ssfl(:,:)
       CALL dbg_print('AESOce: total sn/grp',scr,str_module,4,in_subset=p_patch%cells%owned)
       CALL dbg_print('AESOce: evaporation ',prm_field(jg)%evap   ,str_module,4,in_subset=p_patch%cells%owned)
 

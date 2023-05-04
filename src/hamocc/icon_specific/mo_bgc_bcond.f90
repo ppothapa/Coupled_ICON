@@ -586,7 +586,7 @@ CONTAINS
            bgc_ext%nitro(jc,jb) = rday1*ext_data(1)%bgc%nitro(jc,jmon1,jb) + &
            &                                   rday2*ext_data(1)%bgc%nitro(jc,jmon2,jb)
          END DO
-         !$ACC END PARALLEL
+         !$ACC END PARALLEL LOOP
        END DO
       ENDIF
 

@@ -20,12 +20,13 @@
 MODULE mo_interface_aes_vdf
 
   USE mo_kind                ,ONLY: wp
-  USE mtime                  ,ONLY: datetime, OPERATOR(>)
+  USE mtime                  ,ONLY: t_datetime => datetime, OPERATOR(>)
 
-  USE mo_exception           ,ONLY: finish, warning
+  USE mo_exception           ,ONLY: finish
 
   USE mo_parallel_config     ,ONLY: nproma
   USE mo_run_config          ,ONLY: ntracer
+
   USE mo_aes_phy_config      ,ONLY: aes_phy_config, aes_phy_tc, dt_zero
   USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field, &
     &                               t_aes_phy_tend,  prm_tend
@@ -45,11 +46,10 @@ MODULE mo_interface_aes_vdf
   USE mo_aes_sfc_indices     ,ONLY: nsfc_type, iwtr, iice, ilnd
   USE mo_surface             ,ONLY: update_surface
   USE mo_surface_diag        ,ONLY: nsurf_diag
-  USE mo_run_config          ,ONLY: lart
   USE mo_aes_vdf_config      ,ONLY: aes_vdf_config
   USE mo_model_domain        ,ONLY: t_patch
   USE mo_impl_constants_grf  ,ONLY: grf_bdywidth_c
-  USE mo_impl_constants      ,ONLY: min_rlcell_int, min_rlcell
+  USE mo_impl_constants      ,ONLY: min_rlcell_int
   USE mo_loopindices         ,ONLY: get_indices_c
   USE mo_nh_testcases_nml    ,ONLY: is_dry_cbl, isrfc_type
 
@@ -60,30 +60,27 @@ MODULE mo_interface_aes_vdf
 
 CONTAINS
 
-  SUBROUTINE interface_aes_vdf  (patch                ,&
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_aes_vdf(patch)
 
     ! Arguments
     !
     TYPE(t_patch)   ,TARGET ,INTENT(inout) :: patch
-    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in) :: is_active
-    TYPE(datetime)          ,POINTER    :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
 
     ! Shortcuts
     !
-    LOGICAL :: lparamcpl, l2moment, ldtrad_gt0
+    LOGICAL :: l2moment, ldtrad_gt0
     INTEGER :: fc_vdf
     TYPE(t_aes_phy_field)   ,POINTER    :: field
     TYPE(t_aes_phy_tend)    ,POINTER    :: tend
 
     ! Local variables
     !
-    INTEGER  :: jg, jl, jk, jsfc, jt, jice, copy_nblks_c
+    TYPE(t_datetime), POINTER :: datetime
+    REAL(wp) :: pdtime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
+    !
+    INTEGER  :: jg, jl, jk, jsfc, jt, jice
     INTEGER  :: jb,jbs,jbe,jcs,jce,ncd,rls,rle
     INTEGER  :: nlev, nlevm1, nlevp1
     INTEGER  :: ntrac
@@ -143,7 +140,6 @@ CONTAINS
     REAL(wp) :: cfv        (nproma,patch%nlev,patch%nblks_c)
     REAL(wp) :: cftotte    (nproma,patch%nlev,patch%nblks_c)
     REAL(wp) :: cfthv      (nproma,patch%nlev,patch%nblks_c)
-    REAL(wp) :: thvsig     (nproma,patch%nblks_c)
 
     ! inout variables of update_surface
     !
@@ -184,6 +180,7 @@ CONTAINS
     REAL(wp) :: tend_ta_vdf  (nproma,patch%nlev,patch%nblks_c)
     REAL(wp) :: tend_ua_vdf  (nproma,patch%nlev,patch%nblks_c)
     REAL(wp) :: tend_va_vdf  (nproma,patch%nlev,patch%nblks_c)
+    REAL(wp) :: tend_wa_vdf  (nproma,patch%nlev+1,patch%nblks_c)
     REAL(wp), TARGET :: tend_qtrc_vdf(nproma,patch%nlev,patch%nblks_c,ntracer)
     REAL(wp), POINTER, CONTIGUOUS :: tend_qtrc_vdf_iqt(:,:,:,:)
     REAL(wp), TARGET :: tend_qtrc_vdf_dummy(nproma,patch%nlev,patch%nblks_c,0)
@@ -197,17 +194,19 @@ CONTAINS
     REAL(wp) :: qnc_hori_tend(nproma,patch%nlev,patch%nblks_c)
     REAL(wp) :: qni_hori_tend(nproma,patch%nlev,patch%nblks_c)
 
-    REAL(wp) :: ufric
-
     INTEGER, POINTER :: turb
 
     IF (ltimer) CALL timer_start(timer_vdf)
 
-    jg           = patch%id
-    nlev         = patch%nlev
+    jg   = patch%id
+    nlev = patch%nlev
+
+    datetime             => aes_phy_tc(jg)%datetime
+    pdtime               =  aes_phy_tc(jg)%dt_phy_sec
+    is_in_sd_ed_interval =  aes_phy_tc(jg)%is_in_sd_ed_interval_vdf
+    is_active            =  aes_phy_tc(jg)%is_active_vdf
 
     ! associate pointers
-    lparamcpl =  aes_phy_config(jg)%lparamcpl
     l2moment  =  aes_phy_config(jg)%l2moment
     ldtrad_gt0=  aes_phy_tc(jg)%dt_rad > dt_zero
     fc_vdf    =  aes_phy_config(jg)%fc_vdf
@@ -230,10 +229,10 @@ CONTAINS
     !$ACC   CREATE(cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa) &
     !$ACC   CREATE(zaa_btm, zbb, zbb_btm, zfactor_sfc, ddt_u, ddt_v) &
     !$ACC   CREATE(zthvvar, ztottevn, zch_tile, kedisp, tend_ua_vdf) &
-    !$ACC   CREATE(tend_va_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2, zxt_emis) &
+    !$ACC   CREATE(tend_va_vdf, tend_wa_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2, zxt_emis) &
     !$ACC   CREATE(tend_qtrc_vdf_dummy) &
     !$ACC   CREATE(tend_ta_sfc, q_rlw_impl, tend_ta_rlw_impl, tend_ta_vdf) &
-    !$ACC   CREATE(ts_tile, z0m_tile, ustar, wstar_tile, thvsig, rlus) &
+    !$ACC   CREATE(ts_tile, z0m_tile, ustar, wstar_tile, rlus) &
     !$ACC   CREATE(albvisdir_ice, albnirdir_ice, albvisdif_ice) &
     !$ACC   CREATE(albnirdif_ice, ts, ts_rad, evap, cair, csat, z0h_lnd) &
     !$ACC   CREATE(albvisdir, albnirdir, albvisdif, albnirdif) &
@@ -244,9 +243,9 @@ CONTAINS
 
     IF ( is_dry_cbl ) THEN
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      field% qtrc(:,:,:,iqv) = 0._wp
-      field% qtrc(:,:,:,iqi) = 0._wp
-      field% qtrc(:,:,:,iqc) = 0._wp
+      field% qtrc_phy(:,:,:,iqv) = 0._wp
+      field% qtrc_phy(:,:,:,iqi) = 0._wp
+      field% qtrc_phy(:,:,:,iqc) = 0._wp
       !$ACC END KERNELS
     END IF
 
@@ -274,7 +273,7 @@ CONTAINS
         jbs = patch%cells%start_blk(rls,  1)
         jbe = patch%cells%end_blk  (rle,ncd)
 
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jt,jsfc,jice,jcs,jce,mmr_co2)
         !## jb loop1, is_in_sd_ed_interval == T .and. is_active == T
         DO jb = jbs, jbe
           CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
@@ -340,7 +339,7 @@ CONTAINS
              ! co2 concentration in the lowermost layer
              !$ACC LOOP GANG VECTOR
              DO jl = jcs,jce
-               zco2(jl,jb) = field% qtrc(jl,nlev,jb,ico2)
+               zco2(jl,jb) = field% qtrc_phy(jl,nlev,jb,ico2)
              END DO
              !
           CASE (2) ! c-cycle with prescribed atm. co2 concentration
@@ -373,7 +372,7 @@ CONTAINS
           !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO jk = 1,nlev
             DO jl = jcs,jce
-              zqx(jl,jk,jb) =  field%qtrc(jl,jk,jb,iqc) + field%qtrc(jl,jk,jb,iqi)
+              zqx(jl,jk,jb) =  field%qtrc_phy(jl,jk,jb,iqc) + field%qtrc_phy(jl,jk,jb,iqi)
             END DO
           END DO
           !$ACC END PARALLEL LOOP
@@ -445,13 +444,12 @@ CONTAINS
               &          field%   va(:,:,:),                &! in, vm1
               &          field%   wa(:,:,:),                &! in, wp1
               &          field%   ta(:,:,:),                &! in, tm1
-              &          field% qtrc(:,:,:,iqv),            &! in, qm1
-              &          field% qtrc(:,:,:,iqc),            &! in, xlm1
-              &          field% qtrc(:,:,:,iqi),            &! in, xim1
+              &          field% qtrc_phy(:,:,:,iqv),        &! in, qm1
+              &          field% qtrc_phy(:,:,:,iqc),        &! in, xlm1
+              &          field% qtrc_phy(:,:,:,iqi),        &! in, xim1
               &                  zqx(:,:,:),                &! in, xlm1 + xim1
-              &          field% qtrc(:,:,:,iqt:),           &! in, xtm1
+              &          field% qtrc_phy(:,:,:,iqt:),       &! in, xtm1
               &          field% mair(:,:,:),                &! in, moist     air mass
-              &          field% mref(:,:,:),                &! in, reference air mass
               &          field% rho(:,:,:),                 &! in, air density
               &          field% phalf(:,:,:),               &! in, aphm1
               &          field% pfull(:,:,:),               &! in, apm1
@@ -482,6 +480,7 @@ CONTAINS
               &          zbb(:,:,:,:), zbb_btm(:,:,:,:),    &! out, for "vdiff_up"
               ! for Smagorinsky
               &          ddt_u(:,:,:), ddt_v(:,:,:),        &! out
+              &          tend_wa_vdf(:,:,:),                &! out
               &          ta_hori_tend(:,:,:),               &! out
               &          qv_hori_tend(:,:,:),               &! out
               &          ql_hori_tend(:,:,:),               &! out
@@ -494,7 +493,6 @@ CONTAINS
               &          zcpt_sfc_tile(:,:,:),              &! out, for "vdiff_up"
               &          field%cptgz(:,:,:),                &! out, for "vdiff_up"
               &          zthvvar(:,:,:),                    &! out, for "vdiff_up"
-              &          thvsig(:,:),                       &! out, for "cucall"
               &          ztottevn (:,:,:),                  &! out, for "vdiff_up"
               &          zch_tile(:,:,:),                   &! out, for "nsurf_diag"
 !!$               &          zchn_tile(:,:),                  &! out, for "nsurf_diag"
@@ -519,7 +517,7 @@ CONTAINS
         jbs = patch%cells%start_blk(rls,  1)
         jbe = patch%cells%end_blk  (rle,ncd)
 
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jsfc,jcs,jce)
         !## jb loop2, is_in_sd_ed_interval == T .and. is_active == T
         DO jb = jbs, jbe
           CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
@@ -633,6 +631,14 @@ CONTAINS
             END DO
             !$ACC END PARALLEL LOOP
           END IF
+          IF (ASSOCIATED(tend% wa_vdf)) THEN
+            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+            DO jk=1,nlev+1
+              DO jl=jcs,jce
+                tend% wa_vdf(jl,jk,jb) = tend_wa_vdf(jl,jk,jb)
+              END DO
+            END DO
+          END IF
           !
         END DO !## jb loop 2
         !$ACC WAIT
@@ -648,7 +654,7 @@ CONTAINS
         jbs = patch%cells%start_blk(rls,  1)
         jbe = patch%cells%end_blk  (rle,ncd)
 
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jt,jcs,jce)
         !## jb loop2-1, is_in_sd_ed_interval == T .and. is_active == T
         DO jb = jbs, jbe
           CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
@@ -664,7 +670,7 @@ CONTAINS
           CALL update_surface(jg, jcs, jce, nproma, field%kice,               &! in
                &              nlev, nsfc_type,                                &! in
                &              iwtr, iice, ilnd,                               &! in, indices of surface types
-               &              datetime_old,                                   &! in, date and time at beginning of this time step
+               &              datetime,                                       &! in, date and time at beginning of this time step
                &              pdtime,                                         &! in, time step
                &              field%frac_tile(:,jb,:),                        &! in, area fraction
                &                     cfh_tile(:,jb,:),                        &! in, from "vdiff_down"
@@ -694,14 +700,12 @@ CONTAINS
                &              pu    = field% ua(:,nlev,jb),                   &! in, um1
                &              pv    = field% va(:,nlev,jb),                   &! in, vm1
                &              ptemp = field% ta(:,nlev,jb),                   &! in, tm1
-               &              pq = field% qtrc(:,nlev,jb,iqv),                &! in, qm1
-               &              pco2 = zco2(:,jb),                                    &! in, co2, lowest level or fixed value
+               &              pq = field% qtrc_phy(:,nlev,jb,iqv),            &! in, qm1
+               &              pco2 = zco2(:,jb),                              &! in, co2, lowest level or fixed value
                &              prsfl = field% rsfl(:,jb),                      &! in, rain surface large scale (from cloud)
-               &              prsfc = field% rsfc(:,jb),                      &! in, rain surface concective (from cucall)
                &              pssfl = field% ssfl(:,jb),                      &! in, snow surface large scale (from cloud)
-               &              pssfc = field% ssfc(:,jb),                      &! in, snow surface concective (from cucall)
                &              rlds        = field% rlds (:,jb),               &! in,  downward surface  longwave flux [W/m2]
-               &              rlus        =        rlus (:,jb),                  &! inout, upward surface  longwave flux [W/m2]
+               &              rlus        =        rlus (:,jb),               &! inout, upward surface  longwave flux [W/m2]
                &              rsds        = field% rsds (:,jb),               &! in,  downward surface shortwave flux [W/m2]
                &              rsus        = field% rsus (:,jb),               &! in,  upward surface shortwave flux [W/m2]
                !
@@ -795,11 +799,10 @@ CONTAINS
                &        field%   va(:,:,jb),             &! in, vm1
                &        field%   ta(:,:,jb),             &! in, tm1
                &        field% mair(:,:,jb),             &! in, moist     air mass [kg/m2]
-!!$               &        field% mref(:,:,jb),             &! in, reference air mass [kg/m2]
-               &        field% qtrc(:,:,jb,iqv),         &! in, qm1
-               &        field% qtrc(:,:,jb,iqc),         &! in, xlm1
-               &        field% qtrc(:,:,jb,iqi),         &! in, xim1
-               &        field% qtrc(:,:,jb,iqt:),        &! in, xtm1
+               &        field% qtrc_phy(:,:,jb,iqv),     &! in, qm1
+               &        field% qtrc_phy(:,:,jb,iqc),     &! in, xlm1
+               &        field% qtrc_phy(:,:,jb,iqi),     &! in, xim1
+               &        field% qtrc_phy(:,:,jb,iqt:),    &! in, xtm1
                &        field% geom(:,:,jb),             &! in, pgeom1 = geopotential above ground
                &             ztottevn(:,:,jb),           &! in, TTE at intermediate time step
                &        aes_vdf_config(jg),              &! in
@@ -943,7 +946,7 @@ CONTAINS
         jbs = patch%cells%start_blk(rls,  1)
         jbe = patch%cells%end_blk  (rle,ncd)
 
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jt,jcs,jce)
         !## jb loop3, is_in_sd_ed_interval == T .and. is_active == F
         DO jb = jbs, jbe
           CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
@@ -980,6 +983,14 @@ CONTAINS
             DO jk = 1,nlev
               DO jl = jcs,jce
                 tend_va_vdf(jl,jk,jb) = tend% va_vdf(jl,jk,jb)
+              END DO
+            END DO
+          END IF
+          IF (ASSOCIATED(tend% wa_vdf)) THEN
+            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+            DO jk = 1,nlev+1
+              DO jl = jcs,jce
+                tend_wa_vdf(jl,jk,jb) = tend% wa_vdf(jl,jk,jb)
               END DO
             END DO
           END IF
@@ -1027,7 +1038,7 @@ CONTAINS
       jbe = patch%cells%end_blk  (rle,ncd)
 
 !## jb loop4, is_in_sd_ed_interval == T
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jt,jsfc,jice,jcs,jce)
       DO jb = jbs, jbe
         CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
         IF (jcs>jce) CYCLE
@@ -1086,12 +1097,10 @@ CONTAINS
              ! diagnostic, do not use tendency
           CASE(1)
              ! use tendency to update the physics state
-             IF (lparamcpl) THEN
-                !$ACC LOOP GANG VECTOR
-                DO jl = jcs, jce
-                   field% ta(jl,nlev,jb) = field% ta(jl,nlev,jb) + tend_ta_sfc(jl,jb)*pdtime
-                END DO
-             END IF
+             !$ACC LOOP GANG VECTOR
+             DO jl = jcs, jce
+               field% ta(jl,nlev,jb) = field% ta(jl,nlev,jb) + tend_ta_sfc(jl,jb)*pdtime
+            END DO
           END SELECT
           !$ACC END PARALLEL
 
@@ -1168,6 +1177,7 @@ CONTAINS
               DO jl = jcs, jce
                 tend%   ua_phy(jl,jk,jb)      = tend%   ua_phy(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)
                 tend%   va_phy(jl,jk,jb)      = tend%   va_phy(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)
+                tend%   wa_phy(jl,jk,jb)      = tend%   wa_phy(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)
                 tend%   ta_phy(jl,jk,jb)      = tend%   ta_phy(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)
                 tend% qtrc_phy(jl,jk,jb,iqv)  = tend% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv)
                 tend% qtrc_phy(jl,jk,jb,iqc)  = tend% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc)
@@ -1183,6 +1193,7 @@ CONTAINS
               DO jl = jcs, jce
                 tend%   ua_phy(jl,jk,jb)      = tend%   ua_phy(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)
                 tend%   va_phy(jl,jk,jb)      = tend%   va_phy(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)
+                tend%   wa_phy(jl,jk,jb)      = tend%   wa_phy(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)
                 tend%   ta_phy(jl,jk,jb)      = tend%   ta_phy(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)
                 tend% qtrc_phy(jl,jk,jb,iqv)  = tend% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv)
                 tend% qtrc_phy(jl,jk,jb,iqc)  = tend% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc)
@@ -1213,105 +1224,104 @@ CONTAINS
           ! diagnostic, do not use tendency
         CASE(1)
           ! use tendency to update the physics state
-          IF (lparamcpl) THEN
-             ! prognostic
-            IF (l2moment) THEN
-              !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-              DO jk = 1,nlev
-                DO jl = jcs, jce
-                  field%   ua(jl,jk,jb)      = field%   ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
-                  field%   va(jl,jk,jb)      = field%   va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
-                  field%   ta(jl,jk,jb)      = field%   ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
-                  field% qtrc(jl,jk,jb,iqv)  = field% qtrc(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
-                  field% qtrc(jl,jk,jb,iqc)  = field% qtrc(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
-                  field% qtrc(jl,jk,jb,iqi)  = field% qtrc(jl,jk,jb,iqi)  + tend_qtrc_vdf(jl,jk,jb,iqi) *pdtime
-                  field% qtrc(jl,jk,jb,iqnc)  = field% qtrc(jl,jk,jb,iqnc)  + tend_qtrc_vdf(jl,jk,jb,iqnc) *pdtime
-                  field% qtrc(jl,jk,jb,iqni)  = field% qtrc(jl,jk,jb,iqni)  + tend_qtrc_vdf(jl,jk,jb,iqni) *pdtime
-                END DO
-              END DO
-            ELSE
-              !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-              DO jk = 1,nlev
-                DO jl = jcs, jce
-                  field%   ua(jl,jk,jb)      = field%   ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
-                  field%   va(jl,jk,jb)      = field%   va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
-                  field%   ta(jl,jk,jb)      = field%   ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
-                  field% qtrc(jl,jk,jb,iqv)  = field% qtrc(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
-                  field% qtrc(jl,jk,jb,iqc)  = field% qtrc(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
-                  field% qtrc(jl,jk,jb,iqi)  = field% qtrc(jl,jk,jb,iqi)  + tend_qtrc_vdf(jl,jk,jb,iqi) *pdtime
-                  !$ACC LOOP SEQ
-                  DO jt = iqt,ntracer
-                    field% qtrc(jl,jk,jb,jt) = field% qtrc(jl,jk,jb,jt) + tend_qtrc_vdf(jl,jk,jb,jt)*pdtime
-                  END DO
-                END DO
-              END DO
-            END IF
-            IF ( is_dry_cbl ) THEN
-              !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-              DO jk = 1,nlev
-                DO jl = jcs, jce
-                  tend% qtrc_phy(jl,jk,jb,iqv)  = 0._wp
-                  tend% qtrc_phy(jl,jk,jb,iqc)  = 0._wp
-                  tend% qtrc_phy(jl,jk,jb,iqi)  = 0._wp
-                END DO
-              END DO
-            END IF
-            !
-            ! diagnostic
-            ! 2-tl-scheme
+          ! prognostic
+          IF (l2moment) THEN
             !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
             DO jk = 1,nlev
               DO jl = jcs, jce
-                field% tottem1   (jl,jk,jb) = field% totte (jl,jk,jb)
+                field%       ua(jl,jk,jb)      = field%       ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
+                field%       va(jl,jk,jb)      = field%       va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
+                field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
+                field%       ta(jl,jk,jb)      = field%       ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
+                field% qtrc_phy(jl,jk,jb,iqv)  = field% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
+                field% qtrc_phy(jl,jk,jb,iqc)  = field% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
+                field% qtrc_phy(jl,jk,jb,iqi)  = field% qtrc_phy(jl,jk,jb,iqi)  + tend_qtrc_vdf(jl,jk,jb,iqi) *pdtime
+                field% qtrc_phy(jl,jk,jb,iqnc) = field% qtrc_phy(jl,jk,jb,iqnc) + tend_qtrc_vdf(jl,jk,jb,iqnc)*pdtime
+                field% qtrc_phy(jl,jk,jb,iqni) = field% qtrc_phy(jl,jk,jb,iqni) + tend_qtrc_vdf(jl,jk,jb,iqni)*pdtime
               END DO
             END DO
-            !
-            !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
-            DO jl = jcs, jce
-              field% ts        (jl,jb)   = ts        (jl,jb)
-              field% ts_rad    (jl,jb)   = ts_rad    (jl,jb)
-              field% ustar     (jl,jb)   = ustar     (jl,jb)
-              field% evap      (jl,jb)   = evap      (jl,jb)
-              field% thvsig    (jl,jb)   = thvsig    (jl,jb)
-              field% cair      (jl,jb)   = cair      (jl,jb)
-              field% csat      (jl,jb)   = csat      (jl,jb)
-              field% z0h_lnd   (jl,jb)   = z0h_lnd   (jl,jb)
-              field% rlus      (jl,jb)   = rlus      (jl,jb)
-              !
-              field% albvisdir (jl,jb)   = albvisdir (jl,jb)
-              field% albnirdir (jl,jb)   = albnirdir (jl,jb)
-              field% albvisdif (jl,jb)   = albvisdif (jl,jb)
-              field% albnirdif (jl,jb)   = albnirdif (jl,jb)
-              field% albedo    (jl,jb)   = albedo    (jl,jb)
-            END DO
-            !
+          ELSE
             !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-            DO jsfc = 1,nsfc_type
-              DO jl = jcs,jce
-                field% ts_tile   (jl,jb,jsfc) = ts_tile   (jl,jb,jsfc)
-                field% wstar_tile(jl,jb,jsfc) = wstar_tile(jl,jb,jsfc)
-                field% z0m_tile  (jl,jb,jsfc) = z0m_tile  (jl,jb,jsfc)
-                !
-                field% albvisdir_tile (jl,jb,jsfc) = albvisdir_tile(jl,jb,jsfc)
-                field% albnirdir_tile (jl,jb,jsfc) = albnirdir_tile(jl,jb,jsfc)
-                field% albvisdif_tile (jl,jb,jsfc) = albvisdif_tile(jl,jb,jsfc)
-                field% albnirdif_tile (jl,jb,jsfc) = albnirdif_tile(jl,jb,jsfc)
-                field% albedo_tile    (jl,jb,jsfc) = albedo_tile   (jl,jb,jsfc)
-                !
+            DO jk = 1,nlev
+              DO jl = jcs, jce
+                field%       ua(jl,jk,jb)      = field%       ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
+                field%       va(jl,jk,jb)      = field%       va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
+                field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
+                field%       ta(jl,jk,jb)      = field%       ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
+                field% qtrc_phy(jl,jk,jb,iqv)  = field% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
+                field% qtrc_phy(jl,jk,jb,iqc)  = field% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
+                field% qtrc_phy(jl,jk,jb,iqi)  = field% qtrc_phy(jl,jk,jb,iqi)  + tend_qtrc_vdf(jl,jk,jb,iqi) *pdtime
+                !$ACC LOOP SEQ
+                DO jt = iqt,ntracer
+                  field% qtrc_phy(jl,jk,jb,jt) = field% qtrc_phy(jl,jk,jb,jt)   + tend_qtrc_vdf(jl,jk,jb,jt)  *pdtime
+                END DO
               END DO
             END DO
-            !
-            !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-            DO jice=1,nice
-              DO jl=jcs,jce
-                field% albvisdir_ice(jl,jice,jb) = albvisdir_ice(jl,jice,jb)
-                field% albnirdir_ice(jl,jice,jb) = albnirdir_ice(jl,jice,jb)
-                field% albvisdif_ice(jl,jice,jb) = albvisdif_ice(jl,jice,jb)
-                field% albnirdif_ice(jl,jice,jb) = albnirdif_ice(jl,jice,jb)
-              END DO
-            END DO
-            !
           END IF
+          IF ( is_dry_cbl ) THEN
+            !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+            DO jk = 1,nlev
+              DO jl = jcs, jce
+                tend% qtrc_phy(jl,jk,jb,iqv)  = 0._wp
+                tend% qtrc_phy(jl,jk,jb,iqc)  = 0._wp
+                tend% qtrc_phy(jl,jk,jb,iqi)  = 0._wp
+              END DO
+            END DO
+          END IF 
+          !
+          ! diagnostic
+          ! 2-tl-scheme
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          DO jk = 1,nlev
+            DO jl = jcs, jce
+              field% tottem1   (jl,jk,jb) = field% totte (jl,jk,jb)
+            END DO
+          END DO
+          !
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
+          DO jl = jcs, jce
+            field% ts        (jl,jb)   = ts        (jl,jb)
+            field% ts_rad    (jl,jb)   = ts_rad    (jl,jb)
+            field% ustar     (jl,jb)   = ustar     (jl,jb)
+            field% evap      (jl,jb)   = evap      (jl,jb)
+            field% cair      (jl,jb)   = cair      (jl,jb)
+            field% csat      (jl,jb)   = csat      (jl,jb)
+            field% z0h_lnd   (jl,jb)   = z0h_lnd   (jl,jb)
+            field% rlus      (jl,jb)   = rlus      (jl,jb)
+            !
+            field% albvisdir (jl,jb)   = albvisdir (jl,jb)
+            field% albnirdir (jl,jb)   = albnirdir (jl,jb)
+            field% albvisdif (jl,jb)   = albvisdif (jl,jb) 
+            field% albnirdif (jl,jb)   = albnirdif (jl,jb)
+            field% albedo    (jl,jb)   = albedo    (jl,jb)
+          END DO
+          !
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          DO jsfc = 1,nsfc_type
+            DO jl = jcs,jce
+              field% ts_tile   (jl,jb,jsfc) = ts_tile   (jl,jb,jsfc)
+              field% wstar_tile(jl,jb,jsfc) = wstar_tile(jl,jb,jsfc)
+              field% z0m_tile  (jl,jb,jsfc) = z0m_tile  (jl,jb,jsfc)
+              !
+              field% albvisdir_tile (jl,jb,jsfc) = albvisdir_tile(jl,jb,jsfc)
+              field% albnirdir_tile (jl,jb,jsfc) = albnirdir_tile(jl,jb,jsfc)
+              field% albvisdif_tile (jl,jb,jsfc) = albvisdif_tile(jl,jb,jsfc)
+              field% albnirdif_tile (jl,jb,jsfc) = albnirdif_tile(jl,jb,jsfc)
+              field% albedo_tile    (jl,jb,jsfc) = albedo_tile   (jl,jb,jsfc)
+              !
+            END DO
+          END DO
+          !
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          DO jice=1,nice
+            DO jl=jcs,jce
+              field% albvisdir_ice(jl,jice,jb) = albvisdir_ice(jl,jice,jb)
+              field% albnirdir_ice(jl,jice,jb) = albnirdir_ice(jl,jice,jb)
+              field% albvisdif_ice(jl,jice,jb) = albvisdif_ice(jl,jice,jb)
+              field% albnirdif_ice(jl,jice,jb) = albnirdif_ice(jl,jice,jb)
+            END DO
+          END DO
+          !
         END SELECT
         !
         !
@@ -1387,12 +1397,10 @@ CONTAINS
             ! diagnostic, do not use tendency
           CASE(1)
             ! use tendency to update the physics state
-            IF (lparamcpl) THEN
-              !$ACC LOOP GANG VECTOR
-              DO jl = jcs,jce
-                field% ta(jl,nlev,jb) = field% ta(jl,nlev,jb) + tend_ta_rlw_impl(jl,jb)*pdtime
-              END DO
-            END IF
+            !$ACC LOOP GANG VECTOR
+            DO jl = jcs,jce
+              field% ta(jl,nlev,jb) = field% ta(jl,nlev,jb) + tend_ta_rlw_impl(jl,jb)*pdtime
+            END DO
           END SELECT
         END IF
         !$ACC END PARALLEL
@@ -1405,7 +1413,7 @@ CONTAINS
         CALL nsurf_diag(jcs, jce, nproma, nsfc_type,     &! in
             &          ilnd,                            &! in
             &          field%frac_tile(:,jb,:),         &! in
-            &          field%  qtrc(:,nlev,jb,iqv),     &! in humidity qm1
+            &          field% qtrc_phy(:,nlev,jb,iqv),  &! in humidity qm1
             &          field%    ta(:,nlev,jb),         &! in tm1
             &          field% pfull(:,nlev,jb),         &! in, apm1
             &          field% phalf(:,nlevp1,jb),       &! in, aphm1
@@ -1449,7 +1457,7 @@ CONTAINS
       jbs = patch%cells%start_blk(rls,  1)
       jbe = patch%cells%end_blk  (rle,ncd)
 
-!$OMP PARALLEL DO PRIVATE(jb,jcs,jce)
+!$OMP PARALLEL DO PRIVATE(jb,jl,jk,jt,jsfc,jice,jcs,jce)
       !## jb loop5, is_in_sd_ed_interval == F
       DO jb = jbs, jbe
         CALL get_indices_c(patch, jb, jbs, jbe, jcs, jce, rls, rle)
@@ -1475,10 +1483,6 @@ CONTAINS
             field% hdtcbl(jl, jb) = 0.0_wp
           END DO
         END IF
-        !$ACC LOOP GANG VECTOR
-        DO jl = jcs,jce
-          field% thvsig(jl,jb) = 0.0_wp
-        END DO
         !$ACC END PARALLEL
         !
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
@@ -1716,6 +1720,14 @@ CONTAINS
           DO jk = 1,nlev
             DO jl = jcs,jce
               tend% va_vdf(jl,jk,jb) = 0.0_wp
+            END DO
+          END DO
+        END IF
+        IF (ASSOCIATED(tend% wa_vdf)) THEN
+          !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          DO jk = 1,nlev+1
+            DO jl = jcs,jce
+              tend% wa_vdf(jl,jk,jb) = 0.0_wp
             END DO
           END DO
         END IF

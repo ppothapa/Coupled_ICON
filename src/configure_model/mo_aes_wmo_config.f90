@@ -23,7 +23,7 @@
 !!
 MODULE mo_aes_wmo_config
 
-  USE mo_exception            ,ONLY: finish, message, print_value
+  USE mo_exception            ,ONLY: message, print_value
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
 

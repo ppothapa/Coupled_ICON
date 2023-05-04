@@ -31,7 +31,7 @@ MODULE mo_cloud_two
 
 CONTAINS
 
-  SUBROUTINE cloud_two     ( jg, nproma, nlev,&
+  SUBROUTINE cloud_two     ( nproma, nlev  ,&
        &                     jcs, jce      ,&
        &                     jks, jke      ,&
        &                     msg_level     ,&
@@ -76,7 +76,6 @@ CONTAINS
 
     ! Arguments
     !
-    INTEGER , INTENT(in)  :: jg            !< grid index
     INTEGER , INTENT(in)  :: nproma        !< grid index
     INTEGER , INTENT(in)  :: nlev          !< grid index
     INTEGER , INTENT(in)  :: jcs, jce      !< column index range

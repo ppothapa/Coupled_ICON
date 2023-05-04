@@ -824,7 +824,7 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
       ENDIF ! wet cells
      ENDDO ! k=1,kpke
   ENDDO ! j=start_idx,end_idx 
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
  
  
 

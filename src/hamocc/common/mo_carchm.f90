@@ -154,7 +154,7 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao, p
 
          END DO
   END DO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 END SUBROUTINE
 

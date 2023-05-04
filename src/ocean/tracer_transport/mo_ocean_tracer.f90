@@ -167,7 +167,7 @@ CONTAINS
     DO jb = start_block, end_block
       CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_cell_index, end_cell_index
         DO level = 1, n_zlev
           trac_new(jc,level,jb) = trac_old(jc,level,jb)
@@ -333,7 +333,7 @@ CONTAINS
     !---------------------------------------------------------------------
     
     !Shallow water is done with horizontal advection
-    !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     div_adv_flux_horz   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     div_adv_flux_vert   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     ! div_diff_flux_horz  (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
@@ -378,7 +378,7 @@ CONTAINS
     DO jb = start_block, end_block
       CALL get_index_range(cells_in_domain, jb, start_cell_index, end_cell_index)
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_cell_index, end_cell_index
         DO level = 1, 1!MIN(dolic_c(jc,jb),1)  ! this at most should be 1
 

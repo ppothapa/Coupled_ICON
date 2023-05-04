@@ -366,7 +366,7 @@ CONTAINS
     !   field_id(4)  represents "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
     !   field_id(5)  represents "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
     !   field_id(10) represents "10m_wind_speed"                           - atmospheric wind speed
-    !   field_id(11) represents "qtrc(nlev,co2)"                           - co2 mixing ratio
+    !   field_id(11) represents "qtrc_phy(nlev,co2)"                       - co2 mixing ratio
     !   field_id(13) represents "pres_msl"                                 - sea level pressure
     !
     !  Receive fields from ocean:

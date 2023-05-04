@@ -91,7 +91,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
 
       ENDIF
    ENDDO
-   !$ACC END PARALLEL
+   !$ACC END PARALLEL LOOP
  
 
 END SUBROUTINE swr_absorption

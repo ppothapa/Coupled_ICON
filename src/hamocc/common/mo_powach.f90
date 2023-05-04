@@ -575,7 +575,7 @@ CONTAINS
          ENDIF
    ENDDO
  ENDDO
- !$ACC END PARALLEL
+ !$ACC END PARALLEL LOOP
 
   CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, use_acc=lacc)
   
@@ -584,7 +584,7 @@ CONTAINS
         local_sediment_mem%sedlay(j,1,issster) = local_sediment_mem%sedlay(j,1,issster)                 &
              &                + local_sediment_mem%produs(j)/(porsol(1)*seddw(1))
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
       END SUBROUTINE POWACH
       
       

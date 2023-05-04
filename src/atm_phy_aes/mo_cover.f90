@@ -74,12 +74,11 @@ CONTAINS
        &           , jb                                & !in
        &           , jcs,      kproma,   kbdim         & !in
        &           , jks,      klev, klevp1            & !in
-       &           , ktype,    pfrw,     pfri          & !in
+       &           , pfrw,     pfri                    & !in
        &           , zf                                & !in
        &           , paphm1,   papm1                   & !in
        &           , ptm1,     pqm1,     pxlm1, pxim1  & !in
        &           , paclc                             & !out
-       &           , printop                           & !out
        &           )
     !---------------------------------------------------------------------------------
     !
@@ -87,7 +86,6 @@ CONTAINS
     INTEGER, INTENT(in)    :: jb                    !< block index
     INTEGER, INTENT(in)    :: jcs, kproma, kbdim    !< horizontal indices and dimensions
     INTEGER, INTENT(in)    :: jks, klev, klevp1     !< vertical   indices and dimensions
-    INTEGER, INTENT(in)    :: ktype(kbdim)          !< type of convection
     REAL(wp),INTENT(in)    :: pfrw(kbdim)         ,&!< water mask
          &                    pfri(kbdim)           !< ice mask
     REAL(wp),INTENT(in)    :: zf(kbdim,klev)      ,&!< geometric height thickness [m]
@@ -98,7 +96,6 @@ CONTAINS
          &                    pxlm1(kbdim,klev)   ,&!< cloud water
          &                    pxim1(kbdim,klev)     !< cloud ice
     REAL(wp),INTENT(out)   :: paclc(kbdim,klev)     !< cloud cover
-    REAL(wp),INTENT(out)   :: printop(kbdim)
 
     INTEGER :: jl, jk, jbm
     INTEGER :: locnt, nl
@@ -155,7 +152,7 @@ CONTAINS
     cqx    = aes_cov_config(jg)% cqx
     clcon  = aes_cov_config(jg)% clcon
 
-    !$ACC DATA PRESENT(ktype, pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc, printop) &
+    !$ACC DATA PRESENT(pfrw, pfri, zf, paphm1, papm1, pqm1, ptm1, pxlm1, pxim1, paclc) &
     !$ACC   CREATE(itv1, itv2, zdtmin, za, zqsm1, ua, zknvb, zphase) &
     !$ACC   CREATE(knvb, loidx, lomask, idx_batch, iphase_batch, za_batch, zphase_batch) &
     !$ACC   CREATE(ua_batch, nphase_batch)
@@ -166,10 +163,6 @@ CONTAINS
     !
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     paclc(1:kbdim,1:klev) = 0.0_wp
-    !$ACC END KERNELS
-    !
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-    printop(1:kbdim) = 0.0_wp
     !$ACC END KERNELS
 
 
@@ -269,14 +262,13 @@ CONTAINS
        !   Checking occurrence of low-level inversion
        !   (below 2000 m, sea points only, no convection)
        !
-       ! Build index list for columns, which have >50% sea surface, practically no sea ice, and
-       ! which are not convective.
+       ! Build index list for columns, which have >50% sea surface, and practically no sea ice.
        ! Indixes of these columns are stored in the index list loidx, with list indices jcs:locnt.
        !
        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jl = jcs,kproma
-          lomask(jl) = MERGE( 1, 0, (pfrw(jl).GT.0.5_wp.AND.pfri(jl).LT.1.e-12_wp.AND.ktype(jl).EQ.0) )
+          lomask(jl) = MERGE( 1, 0, (pfrw(jl).GT.0.5_wp.AND.pfri(jl).LT.1.e-12_wp) )
        END DO
        !$ACC END PARALLEL
 
@@ -331,7 +323,6 @@ CONTAINS
              lao=(jksinv <= jbm .AND. jbm <= jkeinv)! true if jbm of this column is in valid range of height
              lao1=(jk == jbm)                       ! true if jk is the level just below the inversion
              IF (lao .AND. lao1) THEN               ! this is a layer below an inversion, where zsat needs to be modified
-                printop(jl)=REAL(jk,wp)             ! store level index
                 zdtdz = (ptm1(jl,jbm-1)-ptm1(jl,jbm))/(zf(jl,jk-1)-zf(jl,jk)) ! lapse rate dT/dz (K/m)
                 zgam  = MAX(0.0_wp,-zdtdz*cpd/grav) ! ratio (dT/dz)/(dry adiab. dT/dz), truncated >= 0
                 zsat  = MIN(1.0_wp,csatsc+zgam)     ! scaling factor for saturation mixing ratio, with range [csatsc,1]

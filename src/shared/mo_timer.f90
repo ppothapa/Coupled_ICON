@@ -85,9 +85,9 @@ MODULE mo_timer
 
   ! iconam - aes coupling
   PUBLIC :: timer_iconam_aes
-  PUBLIC :: timer_dyn2phy, timer_d2p_prep, timer_d2p_sync, timer_d2p_couple
+  PUBLIC :: timer_dyn2phy, timer_d2p_sync
   PUBLIC :: timer_aes_bcs, timer_aes_phy
-  PUBLIC :: timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
+  PUBLIC :: timer_phy2dyn, timer_p2d_sync
   !
   ! aes physics
   PUBLIC :: timer_cov
@@ -342,9 +342,9 @@ MODULE mo_timer
 
   ! iconam - aes coupling
   INTEGER :: timer_iconam_aes
-  INTEGER :: timer_dyn2phy, timer_d2p_prep, timer_d2p_sync, timer_d2p_couple
+  INTEGER :: timer_dyn2phy, timer_d2p_sync
   INTEGER :: timer_aes_bcs, timer_aes_phy
-  INTEGER :: timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
+  INTEGER :: timer_phy2dyn, timer_p2d_sync
   !
   ! aes physics
   INTEGER :: timer_cov
@@ -654,15 +654,11 @@ CONTAINS
        ! iconam - aes coupling
        timer_iconam_aes  = new_timer("iconam_aes")
        timer_dyn2phy     = new_timer("dyn2phy")
-       timer_d2p_prep    = new_timer("d2p_prep")
        timer_d2p_sync    = new_timer("d2p_sync")
-       timer_d2p_couple  = new_timer("d2p_couple")
        timer_aes_bcs     = new_timer("aes_bcs")
        timer_aes_phy     = new_timer("aes_phy")
        timer_phy2dyn     = new_timer("phy2dyn")
-       timer_p2d_prep    = new_timer("p2d_prep")
        timer_p2d_sync    = new_timer("p2d_sync")
-       timer_p2d_couple  = new_timer("p2d_couple")
        !
        ! aes physics
        timer_cov    = new_timer("interface_aes_cov")

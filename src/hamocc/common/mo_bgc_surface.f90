@@ -56,7 +56,7 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
      ENDDO
      if(pddpo(jc,1) > EPSILON(0.5_wp)) local_bgc_mem%bgctra(jc,1,iagesc) = 0._wp
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 
 END SUBROUTINE update_linage 
@@ -106,7 +106,7 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_a
   endif
 
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 END SUBROUTINE
 
@@ -154,7 +154,7 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nit
   endif
 
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 
 END SUBROUTINE
@@ -199,7 +199,7 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp
   endif
 
  ENDDO
- !$ACC END PARALLEL
+ !$ACC END PARALLEL LOOP
 
 END SUBROUTINE
 
@@ -445,7 +445,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
 
         ENDIF ! wet cell
      END DO
-     !$ACC END PARALLEL
+     !$ACC END PARALLEL LOOP
 
 END SUBROUTINE 
 END MODULE mo_bgc_surface

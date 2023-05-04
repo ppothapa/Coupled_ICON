@@ -313,7 +313,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
            ENDIF
 
      END DO
-     !$ACC END PARALLEL
+     !$ACC END PARALLEL LOOP
 
   !
   !     -----------------------------------------------------------------
@@ -590,7 +590,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
           END IF
         END DO
   END DO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 
 

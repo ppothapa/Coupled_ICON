@@ -216,26 +216,6 @@ CONTAINS
     !
     ! These fields are constructed only if they are requested for output
     !
-    IF ( is_variable_in_output(var_name='jg_two') ) THEN
-       CALL add_var( this_list   = cloud_two_list                                           ,&
-            &        varname     = 'jg_two'                                                 ,&
-            &        ptr         = cloud_two_input%jg                                       ,&
-            &        hgrid       = grid_unstructured_cell                                   ,&
-            &        vgrid       = za_surface                                               ,&
-            &        ldims       = shape2d                                                  ,&
-            &        cf          = t_cf_var ('grid_index',                                   &
-            &                                '-',                                            &
-            &                                'grid index (cloud_two input)',                 &
-            &                                datatype_int)                                  ,&
-            &        grib2       = grib2_var(255,255,255,                                    &
-            &                                datatype_grb,                                   &
-            &                                grid_unstructured,                              &
-            &                                grid_cell)                                     ,&
-            &        isteptype   = tstep_constant                                           ,&
-            &        lopenacc    =.TRUE.                                                    )
-       __acc_attach(cloud_two_input%jg)
-    END IF
-    !
     IF ( is_variable_in_output(var_name='jcs_two') ) THEN
        CALL add_var( this_list   = cloud_two_list                                           ,&
             &        varname     = 'jcs_two'                                                ,&

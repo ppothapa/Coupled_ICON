@@ -547,11 +547,11 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, dolic_c, idx, vec_e) IF(lacc)
 
-    !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
     
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
       DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
         temp_div_vec = 0.0_wp
@@ -673,11 +673,11 @@ CONTAINS
 
     DO blockNo = start_block, end_block
       CALL get_index_range(cells_subset, blockNo, start_index, end_index)
-      !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       div_vec_c(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(NONE) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_index, end_index
         DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
           ! compute the discrete divergence for cell jc by finite volume
@@ -867,7 +867,7 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
 
       div_vec_c(jc) =  &
@@ -921,11 +921,11 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
     
-    !$ACC KERNELS DEFAULT(NONE) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     div_vec_c(:) = 0.0_wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
       temp_div_vec = 0.0_wp
 
@@ -983,7 +983,7 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
 
       div_vec_c(jc) =  &
@@ -1036,7 +1036,7 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(NONE) IF(lacc)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
       temp_div_vec = 0.0_wp
       !$ACC LOOP REDUCTION(+: temp_div_vec)

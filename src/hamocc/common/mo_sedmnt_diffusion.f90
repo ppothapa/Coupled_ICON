@@ -206,7 +206,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_ac
      endif
 
   END DO ! j loop
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 END SUBROUTINE DIPOWA
 

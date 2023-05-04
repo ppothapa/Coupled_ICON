@@ -220,7 +220,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
             hamocc_to_ocean_state%swr_fraction(jc,k,jb) = local_bgc_memory%swr_frac(jc,k)
           END DO
         END DO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
 
         stop_detail_timer(timer_bgc_swr,5)
 

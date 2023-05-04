@@ -53,7 +53,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${MKL_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--disable-atmo --disable-jsbach --disable-rte-rrtmgp --disable-coupling --enable-parallel-netcdf --disable-loop-exchange --disable-claw --disable-gpu --disable-mpi-checks --disable-openmp '
+EXTRA_CONFIG_ARGS='--disable-atmo --disable-jsbach --disable-rte-rrtmgp --disable-coupling --enable-parallel-netcdf --disable-loop-exchange --disable-gpu --disable-mpi-checks --disable-openmp '
 
 ################################################################################
 

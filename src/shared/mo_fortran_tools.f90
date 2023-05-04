@@ -148,6 +148,7 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE assign_if_present_integer_allocatable_1d
     MODULE PROCEDURE assign_if_present_real_allocatable
     MODULE PROCEDURE assign_if_present_real_allocatable_1d
+    MODULE PROCEDURE assign_if_present_character_allocatable
   END INTERFACE assign_if_present_allocatable
 
   !> `copy(b, a)` is meant to make it easier for compilers to circumvent
@@ -404,6 +405,15 @@ CONTAINS
     END IF
     y(:) = x(:)
   END SUBROUTINE assign_if_present_real_allocatable_1d
+
+  SUBROUTINE assign_if_present_character_allocatable(y,x)
+    CHARACTER(LEN=:), ALLOCATABLE, INTENT(INOUT) :: y
+    CHARACTER(LEN=*), OPTIONAL,    INTENT(IN)    :: x
+
+    IF (.NOT. PRESENT(x)) RETURN
+    IF ( TRIM(x) == '' )  RETURN
+    y = x
+  END SUBROUTINE assign_if_present_character_allocatable
 
   !>
   !! Swap content of two Integers

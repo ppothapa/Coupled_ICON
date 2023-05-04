@@ -287,7 +287,7 @@
                 ENDDO
             endif
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
     ENDDO
 
    END SUBROUTINE DILUTE_HAMOCC_TRACERS

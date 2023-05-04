@@ -3079,18 +3079,18 @@ MODULE mo_nonhydro_state
       ENDDO
 
 
-      ! Vertical integrals of mass-related tracers,  tracer_vi(nproma,nblks_c,iqm_max)
+      ! Vertical integrals of mass-related tracers,  tracer_vi(nproma,nblks_c,ntracer)
       cf_desc    = t_cf_var('tracer_vi', '', 'tracer_vi', datatype_flt)
       grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( p_diag_list, 'tracer_vi', p_diag%tracer_vi,                  &
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,     &
-                  & ldims=(/nproma, nblks_c, iqm_max/), lrestart=.FALSE.,        &
+                  & ldims=(/nproma, nblks_c, ntracer/), lrestart=.FALSE.,        &
                   & loutput=.FALSE., lcontainer=.TRUE.,                          &
                   & lopenacc = .TRUE. )
       __acc_attach(p_diag%tracer_vi)
 
 
-      ALLOCATE(p_diag%tracer_vi_ptr(iqm_max))
+      ALLOCATE(p_diag%tracer_vi_ptr(ntracer))
 
       ! Q1 vertical integral: tqv(nproma,nblks_c)
       IF ( iqv /= 0 ) THEN

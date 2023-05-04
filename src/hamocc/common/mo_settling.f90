@@ -165,7 +165,7 @@ CONTAINS
           ENDIF
          ENDIF
       END DO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       END SUBROUTINE settling 
 
 

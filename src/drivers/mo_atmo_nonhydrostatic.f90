@@ -116,6 +116,7 @@ USE mo_cloud_mig_memory,    ONLY: construct_cloud_mig_memory
 USE mo_cloud_two_memory,    ONLY: construct_cloud_two_memory
 USE mo_radiation_forcing_memory, ONLY: construct_rad_forcing_list => construct_radiation_forcing_list
 USE mo_physical_constants,  ONLY: amd, amco2
+USE mo_aes_phy_dims,        ONLY: init_aes_phy_dims
 USE mo_aes_phy_init,        ONLY: init_aes_phy_params, init_aes_phy_external, &
    &                              init_aes_phy_field, init_o3_lcariolle
 USE mo_aes_phy_cleanup,     ONLY: cleanup_aes_phy
@@ -276,6 +277,7 @@ CONTAINS
 #ifdef __NO_AES__   
       CALL finish (routine, 'Error: remove --disable-aes and reconfigure')
 #else
+      CALL init_aes_phy_dims
       CALL init_aes_phy_params( p_patch(1:) )
 #endif
     END IF

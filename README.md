@@ -326,9 +326,6 @@ for [source dependency tracking](#source-dependency-tracking) and some of the
 [preprocessing](#preprocessing) steps);
 - `PERL` &mdash; [Perl](https://www.perl.org/) interpreter command (used for
 [source provenance collection](#source-provenance-collection));
-- `CLAW` &mdash; [CLAW](https://claw-project.github.io/) compiler (source
-preprocessor) command (see section [Preprocessing](#preprocessing) for more
-details);
 - `FPP` &mdash; Fortran preprocessor command (used when explicit Fortran
 preprocessing is enabled, see section [Preprocessing](#preprocessing) for more
 details), must treat the first positional command-line argument as the path to
@@ -397,11 +394,6 @@ variablies to empty values: `ICON_CDI_CFLAGS=`, `ICON_MTIME_CFLAGS=`, etc.);
 - `NVCFLAGS` &mdash;
 [NVIDIA CUDA Compiler](https://developer.nvidia.com/cuda-llvm-compiler) flags to
 be used when configuring and compiling ICON;
-- `CLAWFLAGS` &mdash; extra [CLAW](https://claw-project.github.io/) compiler
-flags to be used at the building stage together with the flags that are composed
-automatically based on the [configure](./configure) options (e.g. Fortran
-compiler flags specifiying search paths (`-I<path>`) and macros
-(`-D<macro=value>`) found in `FCFLAGS` are passed to the CLAW preprocessor);
 - `LDFLAGS` &mdash; common Fortran and C compiler flags to be used when
 configuring and linking ICON, as well as passed to the configure scripts of the
 bundled libraries;
@@ -814,22 +806,13 @@ script. This is done only if the JSBACH component has been enabled at the
 configuration stage (`--enable-jsbach`). Otherwise, the source files of the
 component are completely ignored. The output files of this procedure have the
 same name as the input files plus an additional infix `.pp-jsb`.
-2. Depending on whether the *CLAW preprocessing* (`--enable-claw`) is enabled,
-the results of the previous step (currently, only JSBACH files are preprocessed
-at this step) are preprocessed with the [CLAW](https://claw-project.github.io/)
-compiler. The output files of this procedure have the same name as the input
-files plus an additional infix `.pp-clw`.
-    > **_NOTE:_** Unlike the rest of the preprocessing steps, the instructions
-for CLAW preprocessing are moved to a separate makefile called `claw.mk`, which
-is generated based on the [claw.mk.in](./claw.mk.in) template. This is done to
-enable an extra dependency generation step required for the preprocessing.
-3. Depending on whether the *explicit Fortran preprocessing* is enabled
+2. Depending on whether the *explicit Fortran preprocessing* is enabled
 (`--enable-explicit-fpp`), the results of the **actual** previous preprocessing
 step, together with Fortran source files that have not been preprocessed yet,
 are preprocessed with the standard Fortran preprocessor. The output files of
 this procedure have the same name as the input files plus an additional infix
 `.pp-fpp`.
-4. If the *Serialbox2 serialization* is enabled (`--enable-serialization`), the
+3. If the *Serialbox2 serialization* is enabled (`--enable-serialization`), the
 results of the **actual** previous preprocessing step, together with Fortran
 source files that have not been preprocessed yet, are preprocessed with the
 [corresponding script](https://github.com/GridTools/serialbox/blob/master/src/serialbox-python/pp_ser/pp_ser.py)
@@ -847,8 +830,6 @@ example, if the original source file of JSBACH
 `./externals/jsbach/src/base/mo_jsb_base.f90` is preprocessed by each of the
 preprocessing steps, the corresponding output files are saved as follows:
 - `./externals/jsbach/src/base/mo_jsb_base.pp-jsb.f90` &mdash; JSBACH
-preprocessing output;
-- `./externals/jsbach/src/base/mo_jsb_base.pp-jsb.pp-clw.f90` &mdash; CLAW
 preprocessing output;
 - `./externals/jsbach/src/base/mo_jsb_base.pp-jsb.pp-clw.pp-fpp.f90` &mdash;
 explicit Fortran preprocessing output;

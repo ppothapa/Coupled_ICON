@@ -51,7 +51,7 @@ MODULE mo_aes_phy_memory
   USE mo_model_domain,        ONLY: t_patch
   USE mo_var_list,            ONLY: add_var, add_ref, t_var_list_ptr
   USE mo_var_list_register,   ONLY: vlr_add, vlr_del
-  USE mo_var_metadata,        ONLY: create_vert_interp_metadata, vintp_types
+  USE mo_var_metadata,        ONLY: create_vert_interp_metadata, vintp_types, get_timelevel_string
   USE mo_action,              ONLY: ACTION_RESET, new_action, actions
   USE mo_nonhydro_state,      ONLY: p_nh_state_lists
   USE mo_ext_data_state,      ONLY: ext_data
@@ -63,7 +63,7 @@ MODULE mo_aes_phy_memory
     &                               GRID_UNSTRUCTURED, GRID_LONLAT,    &
     &                               TSTEP_INSTANT, TSTEP_CONSTANT,     &
     &                               TSTEP_MIN, TSTEP_MAX,              &
-    &                               cdiInqMissval, DATATYPE_INT
+    &                               cdiInqMissval
   USE mo_zaxis_type,          ONLY: ZA_REFERENCE, ZA_REFERENCE_HALF,           &
     &                               ZA_REFERENCE_HALF_HHL,                     &
     &                               ZA_SURFACE, ZA_GENERIC_ICE, ZA_TROPOPAUSE, &
@@ -71,7 +71,9 @@ MODULE mo_aes_phy_memory
     &                               ZA_ATMOSPHERE
   USE mo_sea_ice_nml,         ONLY: kice
   USE mo_run_config,          ONLY: iqv ,iqc ,iqi ,     &
-    &                               iqr ,iqs ,iqg, iqh
+    &                               iqr ,iqs ,iqg, iqh, &
+    &                               io3
+  USE mo_dynamics_config,     ONLY: nnew
   USE mo_advection_config,    ONLY: advection_config
 
 #include "add_var_acc_macro.inc"
@@ -142,10 +144,11 @@ MODULE mo_aes_phy_memory
     REAL(wp),POINTER ::     &
       & ua        (:,:,:)=>NULL(),  &!< [m/s]   zonal wind
       & va        (:,:,:)=>NULL(),  &!< [m/s]   meridional wind
+      & wa        (:,:,:)=>NULL(),  &!< [m/s]   vertical velocity
       & ta        (:,:,:)=>NULL(),  &!< [K]     temperature
       & tv        (:,:,:)=>NULL(),  &!< [K]     virtual temperature
-      & qtrc      (:,:,:,:)=>NULL(),&!< [kg/kg] tracer concentration
-      & mtrc      (:,:,:,:)=>NULL(),&!< [kg/m2] tracer content
+      & qtrc_dyn  (:,:,:,:)=>NULL(),&!< [kg/kg] tracer concentration
+      & qtrc_phy  (:,:,:,:)=>NULL(),&!< [kg/kg] tracer concentration
       & mtrcvi    (:,:,:)=>NULL(),  &!< [kg/m2] tracer content, vertically integrated through the atmospheric column
       & prw       (:,:)=>NULL(),    &!< [kg/m2] water vapor content, vertically integrated through the atmospheric column
       & cllvi     (:,:)=>NULL(),    &!< [kg/m2] cloud water content, vertically integrated through the atmospheric column
@@ -158,17 +161,8 @@ MODULE mo_aes_phy_memory
       & udynvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after dynamics
       & uphyvi    (:,:)=>NULL(),    &!< [kg/m2] vertically integrated moist internal energy -- after physics
       & rho       (:,:,:)=>NULL(),  &!< [kg/m3] air density
-      & mh2o      (:,:,:)=>NULL(),  &!< [kg/m2] h2o content (vap+liq+ice)
       & mair      (:,:,:)=>NULL(),  &!< [kg/m2] air content
       & mdry      (:,:,:)=>NULL(),  &!< [kg/m2] dry air content
-      & mref      (:,:,:)=>NULL(),  &!< [kg/m2] reference air content
-      & xref      (:,:,:)=>NULL(),  &!< []      ratio mair/mdry
-      & mh2ovi    (:,:)=>NULL(),    &!< [kg/m2] h2o content, vertically integrated through the atmospheric column
-      & mairvi    (:,:)=>NULL(),    &!< [kg/m2] air content, vertically integrated through the atmospheric column
-      & mdryvi    (:,:)=>NULL(),    &!< [kg/m2] dry air content, vertically integrated through the atmospheric column
-      & mrefvi    (:,:)=>NULL(),    &!< [kg/m2] reference air content, vertically integrated through the atmospheric column
-      & wa        (:,:,:)=>NULL(),  &!< [m/s]   vertical velocity in m/s (for Smagorinsky)
-      & omega     (:,:,:)=>NULL(),  &!< [Pa/s]  vertical velocity in pressure coord.
       & pv        (:,:,:)=>NULL(),  &!< [K/m2/kg/s] Ertel potential vorticity (NWP pp)
       & geoi      (:,:,:)=>NULL(),  &!< [m2/s2] geopotential above ground at half levels (vertical interfaces)
       & geom      (:,:,:)=>NULL(),  &!< [m2/s2] geopotential above ground at full levels (layer ave. or mid-point value)
@@ -182,8 +176,8 @@ MODULE mo_aes_phy_memory
       & evap_tsa  (:,  :)=>NULL(),  &!< [K kg/m2/s ] 
       & shfl_qsa  (:,  :)=>NULL()    !< [K kg/m2/s ] 
 
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_ptr(:)
-    TYPE(t_ptr_3d),ALLOCATABLE :: mtrc_ptr(:)
+    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_dyn_ptr(:)
+    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_phy_ptr(:)
     TYPE(t_ptr_2d),ALLOCATABLE :: mtrcvi_ptr(:)
 
     ! Radiation
@@ -270,8 +264,6 @@ MODULE mo_aes_phy_memory
     REAL(wp),POINTER ::     &
       & rsfl      (:,  :)=>NULL(),  &!< sfc rain    flux, large scale [kg m-2 s-1]
       & ssfl      (:,  :)=>NULL(),  &!< sfc snow    flux, large scale [kg m-2 s-1]
-      & rsfc      (:,  :)=>NULL(),  &!< sfc rain flux, convective  [kg m-2 s-1]
-      & ssfc      (:,  :)=>NULL(),  &!< sfc snow flux, convective  [kg m-2 s-1]
 !
 ! move to two
       & rain_gsp_rate(:,  :)=>NULL(),  &!< gridscale rain rate     [kg m-2 s-1]
@@ -286,19 +278,6 @@ MODULE mo_aes_phy_memory
     ! Tropopause
     REAL(wp),POINTER ::     &
       & ptp       (:,  :)=>NULL()    !< tropopause air pressure [Pa]
-
-    REAL(wp),POINTER ::     &
-      & rintop (:,  :)=>NULL(),     &!< low lever inversion, computed by "cover"
-      & rtype  (:,  :)=>NULL(),     &!< type of convection 0...3.
-      & topmax (:,  :)=>NULL()       !< maximum height of convective cloud tops [Pa]
-    INTEGER ,POINTER ::     &
-      & ictop  (:,  :)=>NULL()       !< level index of cnovective cloud top
-
-    ! Vertical diffusion
-    REAL(wp),POINTER ::     &
-      & thvsig (:,  :)=>NULL()       !< Std. dev. of virtual potential temperature at the upper
-                                     !< interface of the lowest model layer.
-                                     !< Computed in "vdiff" and used by "cucall".
 
     REAL(wp),POINTER ::     &
       & siced  (:,  :)=>NULL(),     &!< ice depth
@@ -327,16 +306,6 @@ MODULE mo_aes_phy_memory
       !
 !!$      & sh_vdiff (:,  :)=>NULL(),   &!< sensible heat flux of vdiff
 !!$      & qv_vdiff (:,  :)=>NULL(),   &!< qv flux of vdiff
-
-    ! orography
-    REAL(wp),POINTER :: &
-      & oromea (:,  :)=>NULL(),     &!< Orographic mean elevation
-      & orostd (:,  :)=>NULL(),     &!< Orographic standard deviation
-      & orosig (:,  :)=>NULL(),     &!< Orographic slope
-      & orogam (:,  :)=>NULL(),     &!< Orographic anisotropy
-      & orothe (:,  :)=>NULL(),     &!< Orographic angle
-      & oropic (:,  :)=>NULL(),     &!< Orographic peacks elevation
-      & oroval (:,  :)=>NULL()       !< Orographic valleys elevation
 
     ! JSBACH
     REAL(wp),POINTER :: &
@@ -541,21 +510,13 @@ MODULE mo_aes_phy_memory
 
     REAL(wp), POINTER ::   &
       !
-      ! tendency due to all processes
-      !
-      & qtrc     (:,:,:,:)=>NULL(), & !< [kg/kg/s] tracer mass mixing ratio
-      !
-      ! tendency due to resolved dynamics
-      !
-      & qtrc_dyn (:,:,:,:)=>NULL(), & !< [kg/kg/s] tracer mass mixing ratio
-      !
       ! tendency due to parameterized processes
       !
       &   ua_phy (:,:,:)=>NULL()  , & !< [m/s2]    u-wind
       &   va_phy (:,:,:)=>NULL()  , & !< [m/s2]    v-wind
+      &   wa_phy (:,:,:)=>NULL()  , & !< [m/s2]    w-wind
       &   ta_phy (:,:,:)=>NULL()  , & !< [K/s]     temperature (for const. volume)
       & qtrc_phy (:,:,:,:)=>NULL(), & !< [kg/kg/s] tracer mass mixing ratio
-      & mtrc_phy (:,:,:,:)=>NULL(), & !< [kg/m2/s] tracer mass
       & mtrcvi_phy(:,:,  :)=>NULL(),& !< [kg/m2/s] tracer content, vertically integrated through the atmospheric column
       !
       ! cloud microphysics
@@ -568,6 +529,7 @@ MODULE mo_aes_phy_memory
       &   ta_vdf (:,:,:)=>NULL()  , & !< temperature tendency due to vertical diffusion (for const. pressure)
       &   ua_vdf (:,:,:)=>NULL()  , & !< u-wind tendency due to vertical diffusion
       &   va_vdf (:,:,:)=>NULL()  , & !< v-wind tendency due to vertical diffusion
+      &   wa_vdf (:,:,:)=>NULL()  , & !< w-wind tendency due to vertical diffusion
       & qtrc_vdf (:,:,:,:)=>NULL(), & !< tracer tendency due to vertical diffusion
       !
       ! surface scheme
@@ -582,19 +544,14 @@ MODULE mo_aes_phy_memory
       &   ta_rlw_impl(:,:)=>NULL(), & !< temperature tendency due to LW rad. due to implicit land surface temperature change
       !                          (for const. pressure)
       !
-      ! Cariolle linearized ozone
+      ! tendency due to Cariolle linearized ozone in:
       ! 
-      & qtrc_car (:,:,:,:)=>NULL()    !< tracer mass mixing ratio (in fact that of ozone)
-      !                                  due to Cariolle's linearized ozone chemistry
+      &   o3_car (:,:,:)=>NULL()      !< mass fraction of ozone in air
 
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_ptr(:)
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_dyn_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_phy_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_cld_ptr(:)
     TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_vdf_ptr(:)
-    TYPE(t_ptr_3d),ALLOCATABLE :: qtrc_car_ptr(:)
               
-    TYPE(t_ptr_3d),ALLOCATABLE :: mtrc_phy_ptr(:)
     TYPE(t_ptr_2d),ALLOCATABLE :: mtrcvi_phy_ptr(:)
 
   END TYPE t_aes_phy_tend
@@ -664,7 +621,9 @@ CONTAINS
 
       WRITE(listname_f,'(a,i2.2)') 'prm_field_D',jg
       CALL new_aes_phy_field_list( jg, nproma, nlev, nblks, ntracer, nsfc_type,   &
+                                   & nnew(jg),                                    &
                                    & dt_dyn, listname_f, '',                      &
+                                   & p_nh_state_lists(jg)%prog_list(nnew(jg)),    &
                                    & p_nh_state_lists(jg)%diag_list,              &
                                    & p_nh_state_lists(jg)%metrics_list,           &
                                    & ext_data(jg)%atm_list,                       &
@@ -719,18 +678,22 @@ CONTAINS
   !--------------------------------------------------------------------
   !>
   SUBROUTINE new_aes_phy_field_list  ( jg, kproma, klev, kblks, ktracer, ksfc_type, &
+                                     & jt,                                          &
                                      & dt_dyn, listname, prefix,                    &
+                                     & prog_list,                                   &
                                      & diag_list,                                   &
                                      & metrics_list,                                &
                                      & ext_atm_list,                                &
                                      & field_list, field                            )
     INTEGER,INTENT(IN) :: jg !> patch ID
     INTEGER,INTENT(IN) :: kproma, klev, kblks, ktracer, ksfc_type  !< dimension sizes
+    INTEGER,INTENT(IN) :: jt                                       !< index for time level
 
     TYPE(timedelta),         INTENT(IN)    :: dt_dyn !< Dynamics timestep.
 
     CHARACTER(*),            INTENT(IN)    :: listname, prefix
 
+    TYPE(t_var_list_ptr),    INTENT(INOUT) :: prog_list
     TYPE(t_var_list_ptr),    INTENT(INOUT) :: diag_list
     TYPE(t_var_list_ptr),    INTENT(INOUT) :: metrics_list
     TYPE(t_var_list_ptr),    INTENT(INOUT) :: ext_atm_list
@@ -740,6 +703,7 @@ CONTAINS
     ! Local variables
 
     CHARACTER(LEN=vname_len) :: trcname, varname
+    CHARACTER(len=4) :: suffix_tl
     LOGICAL :: contvar_is_in_output
 
     TYPE(t_cf_var)    ::    cf_desc
@@ -760,6 +724,8 @@ CONTAINS
     shape3d  = (/kproma, klev, kblks/)
     shapesfc = (/kproma, kblks, ksfc_type/)
     shape3d_layer_interfaces = (/kproma,klev+1,kblks/)
+
+    suffix_tl = get_timelevel_string(jt)
 
     !$ACC ENTER DATA COPYIN(field)
     ! Register a field list and apply default settings
@@ -883,6 +849,24 @@ CONTAINS
                 &               vert_intp_type=vintp_types("P","Z","I") )      )
     __acc_attach(field%va)
 
+! &       field% wa     (nproma,nlevp1,nblks),          &
+    cf_desc    = t_cf_var('upward_air_velocity', 'm s-1', 'vertical velocity in m/s', datatype_flt)
+    grib2_desc = grib2_var(0,2,9, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_ref( prog_list, 'w'//suffix_tl,                                       &
+                & prefix//'wa_phy', field%wa,                                      &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF,                       &
+                & cf_desc, grib2_desc,                                             &
+                & ref_idx=1, ldims=shape3d_layer_interfaces,                       &
+                & lrestart = .FALSE.,                                              &
+                & vert_interp=create_vert_interp_metadata(                         &
+                &             vert_intp_type=vintp_types("P","Z","I"),             &
+                &             vert_intp_method=VINTP_METHOD_LIN_NLEVP1) )
+    ! Note: __acc_attach(field%<var>) must not be used here. The reason is that
+    ! the pointer field%<var> is dynamic, ie. generally changes every time step.
+    ! Therefore field%<var> needs to be attached after the host pointer has been
+    ! changed to its new target, which is done by a subsequent directive
+    ! ACC DATA PRESENT(field%<var>).
+
     ! &       field% ta        (nproma,nlev  ,nblks),          &
     cf_desc    = t_cf_var('air_temperature', 'K', 'air temperature', datatype_flt)
     grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -895,7 +879,11 @@ CONTAINS
                 & vert_interp = create_vert_interp_metadata(                   &
                 &               vert_intp_type=vintp_types("P","Z","I"),       &
                 &               vert_intp_method=VINTP_METHOD_LIN )            )
-    __acc_attach(field%ta)
+    ! Note: __acc_attach(field%<var>) must not be used here. The reason is that
+    ! the pointer field%<var> is dynamic, ie. generally changes every time step.
+    ! Therefore field%<var> needs to be attached after the host pointer has been
+    ! changed to its new target, which is done by a subsequent directive
+    ! ACC DATA PRESENT(field%<var>).
 
     ! &       field% tv        (nproma,nlev  ,nblks),          &
     cf_desc    = t_cf_var('virtual_temperature', 'K', 'virtual temperature', datatype_flt)
@@ -1019,8 +1007,10 @@ CONTAINS
                 & lopenacc=.TRUE.)
     __acc_attach(field%aer_aod_9731)
 
-    ! &       field% qtrc      (nproma,nlev  ,nblks,ntracer),  &
-    CALL add_var( field_list, prefix//'qtrc_phy', field%qtrc,                  &
+    IF (ktracer > 0) THEN
+    !
+    ! &       field% qtrc_phy  (nproma,nlev  ,nblks,ntracer),  &
+    CALL add_var( field_list, prefix//'qtrc_phy', field%qtrc_phy,              &
                 & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
                 & t_cf_var('mass_fraction_of_tracer_in_air', 'kg kg-1',        &
                 &          'mass fraction of tracer in air (physics)',         &
@@ -1029,19 +1019,19 @@ CONTAINS
                 & ldims = (/kproma,klev,kblks,ktracer/),                       &
                 & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
                 & lopenacc=.TRUE.)
-    __acc_attach(field%qtrc)
+    __acc_attach(field%qtrc_phy)
 
-    ! &       field% mtrc      (nproma,nlev  ,nblks,ntracer),  &
-    CALL add_var( field_list, prefix//'mtrc_phy', field%mtrc,                  &
+    ! &       field% qtrc_dyn      (nproma,nlev  ,nblks,ntracer),  &
+    CALL add_var( field_list, prefix//'qtrc_dyn', field%qtrc_dyn,                  &
                 & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                & t_cf_var('mass_of_tracer_in_air', 'kg m-2',                  &
-                &          'mass of tracer in air (physics)',                  &
+                & t_cf_var('mass_fraction_of_tracer_in_air', 'kg kg-1',        &
+                &          'mass fraction of tracer in air (dynamics)',        &
                 &          datatype_flt),                                      &
                 & grib2_var(0,20,2, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
                 & ldims = (/kproma,klev,kblks,ktracer/),                       &
                 & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
                 & lopenacc=.TRUE.)
-    __acc_attach(field%mtrc)
+    __acc_attach(field%qtrc_dyn)
 
     ! &       field% mtrcvi      (nproma,nblks,ntracer),  &
     CALL add_var( field_list, prefix//'mtrcvi_phy', field%mtrcvi,              &
@@ -1055,8 +1045,8 @@ CONTAINS
                 & lopenacc=.TRUE.)
     __acc_attach(field%mtrcvi)
 
-    ALLOCATE(field%qtrc_ptr(ktracer))
-    ALLOCATE(field%mtrc_ptr(ktracer))
+    ALLOCATE(field%qtrc_phy_ptr(ktracer))
+    ALLOCATE(field%qtrc_dyn_ptr(ktracer))
     ALLOCATE(field%mtrcvi_ptr(ktracer))
 
     ! Generic references to single tracers
@@ -1073,7 +1063,7 @@ CONTAINS
         grib2_tmp = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       END SELECT
       CALL add_ref( field_list, prefix//'qtrc_phy',                            &
-                  & prefix//'q'//TRIM(trcname)//'_phy', field%qtrc_ptr(jtrc)%p,&
+                  & prefix//'q'//TRIM(trcname)//'_phy', field%qtrc_phy_ptr(jtrc)%p,&
                   & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                      &
                   & t_cf_var('mass_fraction_of_'//TRIM(trcname)//'_in_air',    &
                   &          'kg kg-1',                                        &
@@ -1090,20 +1080,20 @@ CONTAINS
                   &             lower_limit=0._wp )                            )
       SELECT CASE (trcname)
       CASE ('hus')
-        grib2_tmp = grib2_var(0, 1, 64, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        grib2_tmp = grib2_var(0, 1,  2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CASE ('clw')
-        grib2_tmp = grib2_var(0, 1, 69, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        grib2_tmp = grib2_var(0, 1, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CASE ('cli')
-        grib2_tmp = grib2_var(0, 1, 70, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        grib2_tmp = grib2_var(0, 1, 23, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CASE default
         grib2_tmp = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       END SELECT
-      CALL add_ref( field_list, prefix//'mtrc_phy',                            &
-                  & prefix//'m'//TRIM(trcname)//'_phy', field%mtrc_ptr(jtrc)%p,&
+      CALL add_ref( field_list, prefix//'qtrc_dyn',                            &
+                  & prefix//'q'//TRIM(trcname)//'_dyn', field%qtrc_dyn_ptr(jtrc)%p,&
                   & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                      &
-                  & t_cf_var('mass_of_'//TRIM(trcname)//'_in_air',             &
-                  &          'kg m-2',                                         &
-                  &          'mass of '//TRIM(trcname)//' in air (physics)',   &
+                  & t_cf_var('mass_fraction_of_'//TRIM(trcname)//'_in_air',    &
+                  &          'kg kg-1',                                        &
+                  &          'mass fraction of '//TRIM(trcname)//' in air (dynamics)', &
                   &          datatype_flt),                                    &
                   & grib2_tmp,                                                 &
                   & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                 &
@@ -1208,80 +1198,45 @@ CONTAINS
                   & lrestart = .FALSE.                                         )
        END IF
     END DO
+    !
+    END IF ! (ktracer > 0)
 
     ! &       field% rho        (nproma,nlev  ,nblks),          &
     cf_desc    = t_cf_var('air_density', 'kg m-3', 'density of air',           &
          &                datatype_flt)
     grib2_desc = grib2_var(0,3,10, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'rho_phy', field%rho,                    &
-         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-         &        ldims=shape3d, lrestart = .FALSE.,                           &
-         &        vert_interp=create_vert_interp_metadata(                     &
-         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
-         &                    vert_intp_method=VINTP_METHOD_LIN,               &
-         &                    l_loglin=.FALSE.,                                &
-         &                    l_extrapol=.TRUE., l_pd_limit=.FALSE.,           &
-         &                    lower_limit=0._wp  ),                            &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%rho)
-
-    ! &       field% mh2o        (nproma,nlev  ,nblks),          &
-    cf_desc    = t_cf_var('h2o_mass', 'kg m-2', 'h2o (vap+liq+ice) mass in layer', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,1,21, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mh2o_phy', field%mh2o,                  &
-         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-         &        ldims=shape3d, lrestart = .FALSE.,                           &
-         &        vert_interp=create_vert_interp_metadata(                     &
-         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
-         &                    vert_intp_method=VINTP_METHOD_LIN,               &
-         &                    l_loglin=.FALSE.,                                &
-         &                    l_extrapol=.TRUE., l_pd_limit=.FALSE.,           &
-         &                    lower_limit=0._wp  ),                            &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mh2o)
-
-    ! &       field% mh2ovi     (nproma,nblks),          &
-    cf_desc    = t_cf_var('atmosphere_h2o_content', 'kg m-2', 'h2o (vap+liq+ice) path (physics)', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,1,78, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mh2ovi_phy', field%mh2ovi,              &
-         &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+    CALL add_ref( prog_list, 'rho'//suffix_tl,                                 &
+         &        prefix//'rho_phy', field%rho,                                &
+         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
          &        cf_desc, grib2_desc,                                         &
-         &        ldims=shape2d,                                               &
+         &        ref_idx=1, ldims=shape3d,                                    &
          &        lrestart = .FALSE.,                                          &
-         &        isteptype=TSTEP_INSTANT,                                     &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mh2ovi)
+         &        vert_interp=create_vert_interp_metadata(                     &
+         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
+         &                    vert_intp_method=VINTP_METHOD_LIN ) )
+    ! Note: __acc_attach(field%<var>) must not be used here. The reason is that
+    ! the pointer field%<var> is dynamic, ie. generally changes every time step.
+    ! Therefore field%<var> needs to be attached after the host pointer has been
+    ! changed to its new target, which is done by a subsequent directive
+    ! ACC DATA PRESENT(field%<var>).
 
     ! &       field% mair        (nproma,nlev  ,nblks),          &
     cf_desc    = t_cf_var('air_mass', 'kg m-2', 'air mass in layer', &
          &                datatype_flt)
     grib2_desc = grib2_var(0,1,21, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mair_phy', field%mair,                  &
-         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-         &        ldims=shape3d, lrestart = .FALSE., initval=1.0_wp,           &
-         &        vert_interp=create_vert_interp_metadata(                     &
-         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
-         &                    vert_intp_method=VINTP_METHOD_LIN,               &
-         &                    l_loglin=.FALSE.,                                &
-         &                    l_extrapol=.TRUE., l_pd_limit=.FALSE.,           &
-         &                    lower_limit=0._wp  ),                            &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mair)
-
-    ! &       field% mairvi     (nproma,nblks),          &
-    cf_desc    = t_cf_var('atmosphere_air_content', 'kg m-2', 'air path (physics)', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,3,210, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mairvi_phy', field%mairvi,              &
-         &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
+    CALL add_ref( diag_list, 'airmass_new',                                    &
+         &        prefix//'mair_phy', field%mair,                              &
+         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
          &        cf_desc, grib2_desc,                                         &
-         &        ldims=shape2d,                                               &
-         &        lrestart = .FALSE.,                                          &
-         &        isteptype=TSTEP_INSTANT,                                     &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mairvi)
+         &        ref_idx=1, ldims=shape3d,                                    &
+         &        lrestart = .FALSE., initval=1.0_wp,                          &
+         &        vert_interp = create_vert_interp_metadata(                   &
+         &                      vert_intp_type=vintp_types("P","Z","I"),       &
+         &                      vert_intp_method=VINTP_METHOD_LIN,             &
+         &                      l_loglin=.FALSE.,                              &
+         &                      l_extrapol=.TRUE., l_pd_limit=.FALSE.,         &
+         &                      lower_limit=0._wp ) )
+    __acc_attach(field%mair)
 
     ! &       field% mdry        (nproma,nlev  ,nblks),          &
     cf_desc    = t_cf_var('dry_air_mass', 'kg m-2', 'dry air mass in layer', &
@@ -1298,90 +1253,6 @@ CONTAINS
          &                    lower_limit=0._wp  ),                            &
          &        lopenacc=.TRUE.)
     __acc_attach(field%mdry)
-
-    ! &       field% mdryvi     (nproma,nblks),          &
-    cf_desc    = t_cf_var('atmosphere_dry_air_content', 'kg m-2', 'dry air path (physics)', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,3,211, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mdryvi_phy', field%mdryvi,              &
-         &        GRID_UNSTRUCTURED_CELL, ZA_ATMOSPHERE,                       &
-         &        cf_desc, grib2_desc,                                         &
-         &        ldims=shape2d,                                               &
-         &        lrestart = .FALSE.,                                          &
-         &        isteptype=TSTEP_INSTANT,                                     &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mdryvi)
-
-    ! &       field% mref        (nproma,nlev  ,nblks),          &
-    cf_desc    = t_cf_var('ref_air_mass', 'kg m-2', 'ref air mass in layer', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,1,21, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mref_phy', field%mref,                  &
-         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-         &        ldims=shape3d, lrestart = .FALSE., initval=1.0_wp,           &
-         &        vert_interp=create_vert_interp_metadata(                     &
-         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
-         &                    vert_intp_method=VINTP_METHOD_LIN,               &
-         &                    l_loglin=.FALSE.,                                &
-         &                    l_extrapol=.TRUE., l_pd_limit=.FALSE.,           &
-         &                    lower_limit=0._wp  ),                            &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mref)
-
-    ! &       field% mrefvi     (nproma,nblks),          &
-    cf_desc    = t_cf_var('atmosphere_ref_air_content', 'kg m-2', 'ref air path (physics)', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,1,64, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'mrefvi_phy', field%mrefvi,              &
-         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
-         &        cf_desc, grib2_desc,                                         &
-         &        ldims=shape2d,                                               &
-         &        lrestart = .FALSE.,                                          &
-         &        isteptype=TSTEP_INSTANT,                                     &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%mrefvi)
-
-    ! &       field% xref        (nproma,nlev  ,nblks),          &
-    cf_desc    = t_cf_var('ratio_mair_mdry', '', 'ratio mair/mdry', &
-         &                datatype_flt)
-    grib2_desc = grib2_var(0,1,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'xref_phy', field%xref,                  &
-         &        GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-         &        ldims=shape3d, lrestart = .FALSE., initval=1.0_wp,           &
-         &        vert_interp=create_vert_interp_metadata(                     &
-         &                    vert_intp_type=vintp_types("P","Z","I"),         & 
-         &                    vert_intp_method=VINTP_METHOD_LIN,               &
-         &                    l_loglin=.FALSE.,                                &
-         &                    l_extrapol=.TRUE., l_pd_limit=.FALSE.,           &
-         &                    lower_limit=0._wp  ),                            &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%xref)
-
-    ! &       field% wa     (nproma,nlevp1,nblks),          &
-    cf_desc    = t_cf_var('vertical_velocity', 'm s-1', 'vertical velocity in m/s', datatype_flt)
-    grib2_desc = grib2_var(0,2,8, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'wa_phy', field%wa,                          &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,  &
-                & ldims=shape3d_layer_interfaces, lrestart = .FALSE.,              &
-                & vert_interp=create_vert_interp_metadata(                         &
-                &             vert_intp_type=vintp_types("P","Z","I"),             &
-                &             vert_intp_method=VINTP_METHOD_LIN_NLEVP1,            &
-                &             l_loglin=.FALSE., l_extrapol=.FALSE.),               &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%wa)
-
-    ! &       field% omega     (nproma,nlev  ,nblks),          &
-    cf_desc    = t_cf_var('vertical_velocity', 'Pa s-1', 'vertical velocity in physics', datatype_flt)
-    grib2_desc = grib2_var(0,2,8, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'omega_phy', field%omega,                &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,   &
-                & ldims=shape3d, lrestart = .FALSE.,                           &
-                & vert_interp=create_vert_interp_metadata(                     &
-                &             vert_intp_type=vintp_types("P","Z","I"),         &
-                &             vert_intp_method=VINTP_METHOD_LIN,               &
-                &             l_loglin=.FALSE., l_extrapol=.FALSE.),           &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%omega)
 
     IF (is_variable_in_output(var_name=prefix//'pv')) THEN
        cf_desc    = t_cf_var('potential_vorticity', 'K m2 kg-1 s-1', 'potential vorticity', datatype_flt)
@@ -2479,30 +2350,6 @@ CONTAINS
          &        lopenacc=.TRUE.)
     __acc_attach(field%ssfl)
 
-    cf_desc    = t_cf_var('prcr', 'kg m-2 s-1',    &
-               & 'convective precipitation flux (water)', datatype_flt)
-    grib2_desc = grib2_var(0,1,58, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'prcr', field%rsfc,        &
-         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
-         &        cf_desc, grib2_desc,                           &
-         &        ldims=shape2d,                                 &
-         &        lrestart = .TRUE.,                             &
-         &        isteptype=TSTEP_INSTANT,                       &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%rsfc)
-
-    cf_desc    = t_cf_var('prcs', 'kg m-2 s-1',    &
-               & 'convective precipitation flux (snow)', datatype_flt)
-    grib2_desc = grib2_var(0,1,58, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'prcs', field%ssfc,        &
-         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE,            &
-         &        cf_desc, grib2_desc,                           &
-         &        ldims=shape2d,                                 &
-         &        lrestart = .TRUE.,                             &
-         &        isteptype=TSTEP_INSTANT,                       &
-         &        lopenacc=.TRUE.)
-    __acc_attach(field%ssfc)
-
     cf_desc    = t_cf_var('rain_gsp_rate', 'kg m-2 s-1',    &
                & 'gridscale rain rate ', datatype_flt)
     grib2_desc = grib2_var(0,1,77, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -2576,49 +2423,6 @@ CONTAINS
          &        lopenacc=.TRUE.)
     __acc_attach(field%pr)
 
-    ! &       field% rintop (nproma,       nblks), &
-    cf_desc    = t_cf_var('rintop', '', '', datatype_flt)
-    grib2_desc = grib2_var(0,6,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'rintop', field%rintop,              &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-                & lrestart = .FALSE., ldims=shape2d,                       &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%rintop)
-
-    ! &       field% rtype  (nproma,       nblks), &
-    cf_desc    = t_cf_var('convection_type', '', 'convection_type (0...3)', datatype_flt)
-    grib2_desc = grib2_var(0,6,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'rtype', field%rtype,                &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-                & lrestart = .TRUE., ldims=shape2d,                        &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%rtype)
-
-    IF (is_variable_in_output(var_name=prefix//'topmax')) THEN
-       cf_desc    = t_cf_var('topmax', 'Pa', 'maximum height of convective cloud tops', &
-            &                datatype_flt)
-       grib2_desc = grib2_var(0,6,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-       CALL add_var( field_list, prefix//'topmax', field%topmax,              &
-                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-                   & lrestart = .FALSE., ldims=shape2d,                       &
-                   & initval =  99999.0_wp, resetval =  99999.0_wp,           &
-                   & isteptype=TSTEP_MIN,                                     &
-                   & action_list=actions(new_action(ACTION_RESET,"P1D")),     &
-                   &  lopenacc=.TRUE.)
-       __acc_attach(field%topmax)
-    END IF
-
-    ! &       field% ictop  (nproma,       nblks), &
-    cf_desc    = t_cf_var('ictop', '-', 'level index of convective cloud tops', &
-         &                datatype_int)
-    grib2_desc = grib2_var(0,6,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'ictop', field%ictop,                &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-                & lrestart = .FALSE., ldims=shape2d,                       &
-                & isteptype=TSTEP_INSTANT,                                 &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%ictop)
-
     ! &       field% totte  (nproma,nlev  ,nblks), &
     cf_desc    = t_cf_var('total_turbulent_energy', 'J kg-1', 'total turbulent energy', &
          &                datatype_flt)
@@ -2634,15 +2438,6 @@ CONTAINS
                 &             lower_limit=0._wp ),                         &
                 & lopenacc=.TRUE.)
     __acc_attach(field%totte)
-
-    ! &       field% thvsig (nproma,       nblks), &
-    cf_desc    = t_cf_var('thvsig', 'K', '', datatype_flt)
-    grib2_desc = grib2_var(0,19,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( field_list, prefix//'thvsig', field%thvsig,              &
-                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-                & lrestart = .FALSE., initval = 1.e-2_wp, ldims=shape2d,   &
-                & lopenacc=.TRUE.)
-    __acc_attach(field%thvsig)
 
     !---------------------------
     ! WMO tropopause
@@ -4110,11 +3905,12 @@ CONTAINS
     CHARACTER(*), INTENT(IN) :: listname, prefix
     TYPE(t_var_list_ptr), INTENT(INOUT) :: tend_list
     TYPE(t_aes_phy_tend), INTENT(INOUT) :: tend
+    CHARACTER(LEN=vname_len) :: trc_name, cfstd_name, long_name, var_name
     CHARACTER(len=vname_len) :: trcname, varname
     LOGICAL :: contvar_is_in_output
     TYPE(t_cf_var)    ::    cf_desc
     TYPE(t_grib2_var) :: grib2_desc, grib2_tmp
-    INTEGER :: shape2d(2), shape3d(3), shape_trc(4)
+    INTEGER :: shape2d(2), shape3d(3), shape_trc(4), shape3d_layer_interfaces(3)
     INTEGER :: ibits, jtrc
     INTEGER :: datatype_flt
     !------------------------------
@@ -4124,6 +3920,7 @@ CONTAINS
     shape2d   = (/kproma, kblks/)
     shape3d   = (/kproma, klev, kblks/)
     shape_trc = (/kproma, klev, kblks, ktracer/)
+    shape3d_layer_interfaces = (/kproma,klev+1,kblks/)
 
     !$ACC ENTER DATA COPYIN(tend)
 
@@ -4315,37 +4112,51 @@ CONTAINS
        !
     END IF
 
+    !------------------------------
+    ! W-wind tendencies
+    !------------------------------
+    ! &       tend%    wa_phy (nproma,nlev,nblks),          &
+    cf_desc    = t_cf_var('tendency_of_upward_air_velocity', 'm s-2',                    &
+                &         'tendency of upward air velocity due to param. processes',     &
+                &         datatype_flt)
+    grib2_desc = grib2_var(0,2,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( tend_list, prefix//'wa_phy', tend%wa_phy,                              &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF,                             &
+                & cf_desc,grib2_desc,                                                    &
+                & ldims=shape3d_layer_interfaces,                                        &
+                & vert_interp=create_vert_interp_metadata(                               &
+                &   vert_intp_type=vintp_types("P","Z","I"),                             &
+                &   vert_intp_method=VINTP_METHOD_LIN,                                   &
+                &   l_extrapol=.FALSE. ),                                                &
+                & lopenacc=.TRUE.)
+    __acc_attach(tend%wa_phy)
+
+    IF ( aes_phy_tc(jg)%dt_vdf > dt_zero ) THEN
+       !
+       IF (aes_phy_tc(jg)%dt_vdf > dt_dyn .OR.                                                 &
+         & is_variable_in_output(var_name=prefix//'wa_vdf')) THEN
+          cf_desc    = t_cf_var('tendency_of_upward_air_velocity', 'm s-2',                    &
+                      &         'tendency of upward air velocity due to turbulent diffusion',  &
+                      &         datatype_flt)
+          grib2_desc = grib2_var(0,2,255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( tend_list, prefix//'wa_vdf', tend%wa_vdf,                              &
+                      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF,                             &
+                      & cf_desc,grib2_desc,                                                    &
+                      & ldims=shape3d_layer_interfaces,                                        &
+                      & vert_interp=create_vert_interp_metadata(                               &
+                      &   vert_intp_type=vintp_types("P","Z","I"),                             &
+                      &   vert_intp_method=VINTP_METHOD_LIN,                                   &
+                      &   l_extrapol=.FALSE. ),                                                &
+                      & lopenacc=.TRUE.)
+          __acc_attach(tend%wa_vdf)
+       END IF
+       !
+    END IF
+
     !-------------------
     ! Tracer tendencies
     !-------------------
     ! Tracer arrays for (model) internal use                                               
-
-    CALL add_var( tend_list, prefix//'qtrc', tend%qtrc,                        &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                & t_cf_var('tend_qtrc', 'kg kg-1 s-1',                         &
-                &          'tendency of mass mixing ratio of tracers',         &
-                &          datatype_flt),                                      &
-                & grib2_var(0,20,2, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
-                & ldims = shape_trc,                                           &
-                & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
-                & lopenacc=.TRUE.)
-
-    __acc_attach(tend%qtrc)
-    ALLOCATE(tend% qtrc_ptr(ktracer))
-
-    CALL add_var( tend_list, prefix//'qtrc_dyn', tend%qtrc_dyn,                &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                & t_cf_var('tend_qtrc_dyn', 'kg kg-1 s-1',                     &
-                &          'tendency of mass mixing ratio of tracers '//       &
-                &          'due to resolved dynamics',                         &
-                &          datatype_flt),                                      &
-                & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED,GRID_CELL),&
-                & ldims = shape_trc,                                           &
-                & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
-                & lopenacc=.TRUE.)
-
-    __acc_attach(tend%qtrc_dyn)
-    ALLOCATE(tend% qtrc_dyn_ptr(ktracer))
 
     CALL add_var( tend_list, prefix//'qtrc_phy', tend%qtrc_phy,                &
                 & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
@@ -4426,69 +4237,28 @@ CONTAINS
 
     IF ( (aes_phy_tc(jg)%dt_car > dt_zero) ) THEN
        !
-       contvar_is_in_output = .FALSE.
-       DO jtrc = 1,ktracer
-          trcname = advection_config(jg)%tracer_names(jtrc)
-          varname = prefix//'q'//TRIM(trcname)//'_car'
-          IF (is_variable_in_output(var_name=TRIM(varname))) THEN
-             contvar_is_in_output = .TRUE.
-          END IF
-       END DO
+       trc_name   = TRIM(advection_config(jg)%tracer_names(io3))
+       cfstd_name = TRIM(advection_config(jg)% cfstd_names(io3))
+       long_name  = TRIM(advection_config(jg)%  long_names(io3))
        !
-       IF (aes_phy_tc(jg)%dt_car > dt_dyn .OR.                                       &
-         & contvar_is_in_output) THEN
-          CALL add_var( tend_list, prefix//'qtrc_car', tend%qtrc_car,                &
-                      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                      & t_cf_var('tend_qtrc_car', 'kg kg-1 s-1',                     &
-                      &          'tendency of mass mixing ratio of tracers '//       &
-                      &          'due to linearized ozone chemistry (Cariolle)',     &
-                      &          datatype_flt),                                      &           
-                      & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED,GRID_CELL),&
-                      & ldims = shape_trc,                                           &
-                      & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
-                      & lopenacc=.TRUE.)
-          __acc_attach(tend%qtrc_car)
-          ALLOCATE(tend% qtrc_car_ptr(ktracer))
+       var_name = prefix//TRIM(trc_name)//'_car'
+       cf_desc = t_cf_var( 'tendency_of_mass_fraction_of_'//TRIM(cfstd_name)//'_due_to_linearized_ozone_chemistry_(Cariolle)', &
+                         & 'kg kg-1 s-1',                                                                                      &
+                         & 'tendency of mass fraction of '//TRIM(long_name)//' due to linearized ozone chemistry (Cariolle)',  &
+                         & datatype_flt )
+       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED,GRID_CELL)
+       !
+       IF (aes_phy_tc(jg)%dt_car > dt_dyn .OR. is_variable_in_output(var_name=TRIM(var_name))) THEN
+          CALL add_var( tend_list, var_name, tend%o3_car,     &
+                      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, &
+                      & cf_desc, grib2_desc,                  &
+                      & ldims = shape3d,                      &
+                      & lrestart=.FALSE., loutput=.FALSE.,    &
+                      & lopenacc=.TRUE. )
+          __acc_attach(tend%o3_car)
        END IF
        !
-       DO jtrc = 1,ktracer
-          !
-          trcname = advection_config(jg)%tracer_names(jtrc)
-          varname = prefix//'q'//TRIM(trcname)//'_car'
-          !
-          IF (is_variable_in_output(var_name=TRIM(varname))) THEN
-             CALL add_ref( tend_list, prefix//'qtrc_car',                                        &
-                         & TRIM(varname), tend%qtrc_car_ptr(jtrc)%p,                             &
-                         & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                                 &
-                         & t_cf_var(TRIM(varname), 'kg kg-1 s-1',                                &
-                         &          'tendency of mass mixing ratio of tracer '//                 &
-                         &          TRIM(trcname)//                                              &
-                         &          ' due to linearized ozone chemistry (Cariolle)',             &
-                         &          datatype_flt),                                               &
-                         & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),        &
-                         & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
-                         & vert_interp=create_vert_interp_metadata(                              &
-                         &             vert_intp_type=vintp_types("P","Z","I"),                  &
-                         &             vert_intp_method=VINTP_METHOD_LIN )                       )
-          END IF
-          !
-       END DO
-       !
     END IF
-
-    CALL add_var( tend_list, prefix//'mtrc_phy', tend%mtrc_phy,                &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                & t_cf_var('tend_mtrc_phy', 'kg m-2 s-1',                      &
-                &          'tendency of tracer mass '//                        &
-                &          'due to parameterized processes',                   &
-                &          datatype_flt),                                      &
-                & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED,GRID_CELL),&
-                & ldims = shape_trc,                                           &
-                & lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,        &
-                & lopenacc=.TRUE.)
-
-    __acc_attach(tend%mtrc_phy)
-    ALLOCATE(tend% mtrc_phy_ptr(ktracer))
 
     CALL add_var( tend_list, prefix//'mtrcvi_phy', tend%mtrcvi_phy,            &
                 & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
@@ -4511,49 +4281,6 @@ CONTAINS
       varname = prefix//'q'//trcname
       SELECT CASE (trcname)
       CASE ('hus')
-        grib2_tmp = grib2_var(0, 1,  200, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CASE default
-        grib2_tmp = grib2_var(0, 1,  255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      END SELECT
-      CALL add_ref( tend_list, prefix//'qtrc',                                            &
-                  & TRIM(varname), tend%qtrc_ptr(jtrc)%p,                                 &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                                 &
-                  & t_cf_var(TRIM(varname), 'kg kg-1 s-1',                                &
-                  &          'tendency of mass mixing ratio of tracer '//                 &
-                  &          TRIM(trcname),                                               &
-                  &          datatype_flt),                                               &
-                  & grib2_tmp,                                                            &
-                  & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
-                  & vert_interp=create_vert_interp_metadata(                              &
-                  &             vert_intp_type=vintp_types("P","Z","I"),                  &
-                  &             vert_intp_method=VINTP_METHOD_LIN )                       )
-      ! GRIB2 code triplet for dyn tendencies
-      SELECT CASE (trcname)
-      CASE ('hus')
-        grib2_tmp = grib2_var(0, 1, 201, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CASE ('clw')
-        grib2_tmp = grib2_var(0, 6, 201, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CASE ('cli')
-        grib2_tmp = grib2_var(0, 6, 211, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CASE default
-        grib2_tmp = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      END SELECT
-      CALL add_ref( tend_list, prefix//'qtrc_dyn',                                        &
-                  & TRIM(varname)//'_dyn', tend%qtrc_dyn_ptr(jtrc)%p,                     &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                                 &
-                  & t_cf_var(TRIM(varname)//'_dyn', 'kg kg-1 s-1',                        &
-                  &          'tendency of mass mixing ratio of tracer '//                 &
-                  &          TRIM(trcname)//                                              &
-                  &          ' due to resolved dynamics',                                 &
-                  &          datatype_flt),                                               &
-                  & grib2_tmp,                                                            &
-                  & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
-                  & vert_interp=create_vert_interp_metadata(                              &
-                  &             vert_intp_type=vintp_types("P","Z","I"),                  &
-                  &             vert_intp_method=VINTP_METHOD_LIN )                       )
-
-      SELECT CASE (trcname)
-      CASE ('hus')
         grib2_tmp = grib2_var(0, 1, 210, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CASE default
         grib2_tmp = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -4567,20 +4294,6 @@ CONTAINS
                   &          ' due to parameterized processes',                           &
                   &          datatype_flt),                                               &
                   & grib2_tmp,                                                            &
-                  & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
-                  & vert_interp=create_vert_interp_metadata(                              &
-                  &             vert_intp_type=vintp_types("P","Z","I"),                  &
-                  &             vert_intp_method=VINTP_METHOD_LIN )                       )
-
-      varname = prefix//'m'//trcname
-      CALL add_ref( tend_list, prefix//'mtrc_phy',                                        &
-                  & TRIM(varname)//'_phy', tend%mtrc_phy_ptr(jtrc)%p,                     &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                                 &
-                  & t_cf_var(TRIM(varname)//'_phy', 'kg m-2 s-1',                         &
-                  &          'tendency of '//TRIM(trcname)//                              &
-                  &          ' mass due to parameterized processes',                      &
-                  &          datatype_flt),                                               &
-                  & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),        &
                   & ref_idx=jtrc, ldims=(/kproma,klev,kblks/),                            &
                   & vert_interp=create_vert_interp_metadata(                              &
                   &             vert_intp_type=vintp_types("P","Z","I"),                  &

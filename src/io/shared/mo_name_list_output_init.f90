@@ -1796,6 +1796,7 @@ CONTAINS
           IF (ANY(aes_phy_config(1:n_dom)%ljsb .OR. ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH))) &
             &  CALL setup_zaxes_jsbach(p_of%verticalAxisList)
 #endif
+#ifndef __NO_ICON_ATMO__
         CASE (level_type_pl)
           CALL setup_pl_axis_atmo(p_of%verticalAxisList, nh_pzlev_config(p_of%log_patch_id)%plevels, &
             &                     p_of%level_selection)
@@ -1805,6 +1806,7 @@ CONTAINS
         CASE (level_type_il)
           CALL setup_il_axis_atmo(p_of%verticalAxisList, nh_pzlev_config(p_of%log_patch_id)%ilevels, &
             &                     p_of%level_selection)
+#endif
         CASE DEFAULT
           CALL finish(routine, "Internal error!")
         END SELECT

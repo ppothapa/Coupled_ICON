@@ -21,8 +21,6 @@ MODULE mo_cloud_mig
   USE mo_timer               ,ONLY: ltimer, timer_start, timer_stop, &
        &                            timer_sat, timer_grp
 
-  USE mo_aes_phy_config      ,ONLY: aes_phy_config
-  USE mo_cloud_mig_config    ,ONLY: cloud_mig_config
   USE mo_aes_thermo          ,ONLY: saturation_adjustment
   USE gscp_data              ,ONLY: cloud_num
   USE mo_aes_graupel         ,ONLY: graupel
@@ -31,15 +29,9 @@ MODULE mo_cloud_mig
   PRIVATE
   PUBLIC  :: cloud_mig
 
-  INTERFACE cloud_mig
-     MODULE PROCEDURE cloud_mig
-  END INTERFACE cloud_mig
-
 CONTAINS
 
-  SUBROUTINE cloud_mig     ( jg         ,&
-       &                     jcs, jce   ,&
-       &                     msg_level  ,&
+  SUBROUTINE cloud_mig     ( jcs, jce   ,&
        &                     pdtime     ,&
        &                     dz         ,&
        &                     rho        ,&
@@ -67,9 +59,7 @@ CONTAINS
 
     ! Arguments
     !
-    INTEGER , INTENT(in)  :: jg            !< grid index
     INTEGER , INTENT(in)  :: jcs, jce      !< column index range
-    INTEGER , INTENT(in)  :: msg_level     !< message level
     REAL(wp), INTENT(in)  :: pdtime        !< timestep
     !
     REAL(wp), INTENT(in)  :: dz      (:,:) !< vertical layer thickness
@@ -159,8 +149,6 @@ CONTAINS
     IF (ltimer) call timer_start(timer_sat)
     !
     CALL saturation_adjustment(                  &
-         &           idim     = nproma          ,& !> in
-         &           kdim     = jke             ,& !> in
          &           ilo      = jcs             ,& !> in
          &           iup      = jce             ,& !> in
          &           klo      = jks             ,& !> in
@@ -184,7 +172,7 @@ CONTAINS
          &        ivstart = jcs           ,& !< in
          &        ivend   = jce           ,& !< in
          &        kstart  = jks           ,& !< in
-         &        zdt     = pdtime        ,& !< in   : timestep
+         &        dt      = pdtime        ,& !< in   : timestep
          &        qnc     = zqnc    (:)   ,& !< in
          &        dz      = dz      (:,:) ,& !< in   : vertical layer thickness
          &        rho     = rho     (:,:) ,& !< in   : density
@@ -198,7 +186,7 @@ CONTAINS
          &        qs      = zqs     (:,:) ,& !< inout: snow
          &        qg      = zqg     (:,:) ,& !< inout: graupel
 
-         &        qrsflux = zqrsflux(:,:) ,& !<   out: precip flux in atmosphere
+         &        pflx    = zqrsflux(:,:) ,& !<   out: precip flux in atmosphere
          &        prr_gsp = pr_rain (:)   ,& !<   out: precip rate rain
          &        pri_gsp = pr_ice  (:)   ,& !<   out: precip rate cloud ice
          &        prs_gsp = pr_snow (:)   ,& !<   out: precip rate snow
@@ -211,8 +199,6 @@ CONTAINS
     IF (ltimer) call timer_start(timer_sat)
     !
     CALL saturation_adjustment(                  &
-         &           idim     = nproma          ,& !> in
-         &           kdim     = jke             ,& !> in
          &           ilo      = jcs             ,& !> in
          &           iup      = jce             ,& !> in
          &           klo      = jks             ,& !> in

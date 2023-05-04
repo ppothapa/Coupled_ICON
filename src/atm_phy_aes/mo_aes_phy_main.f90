@@ -27,27 +27,27 @@
 MODULE mo_aes_phy_main
 
   USE mo_kind                ,ONLY: wp
-  USE mo_exception           ,ONLY: message, warning
-  USE mtime                  ,ONLY: datetime, isCurrentEventActive, &
+  USE mo_exception           ,ONLY: message
+
+  USE mtime                  ,ONLY: t_datetime => datetime, isCurrentEventActive, &
        &                            OPERATOR(<=), OPERATOR(>)
 
   USE mo_model_domain        ,ONLY: t_patch
 
-  USE mo_omp_loop            ,ONLY: omp_loop_cell, omp_loop_cell_3
+  USE mo_omp_block_loop      ,ONLY: omp_block_loop_cell
 
-  USE mo_aes_phy_config      ,ONLY: aes_phy_config, aes_phy_tc, dt_zero
+  USE mo_aes_phy_config      ,ONLY: aes_phy_tc, dt_zero
   USE mo_aes_phy_diag        ,ONLY: surface_fractions, &
     &                               droplet_number,    &
     &                               cpair_cvair_qconv, &
     &                               initialize,        &
     &                               finalize
 
-  USE mo_aes_diagnostics     ,ONLY: aes_global_diagnostics, aes_diag_output_minmax_micro
+  USE mo_aes_diagnostics     ,ONLY: aes_global_diagnostics
 #if defined( _OPENACC )
+  USE mo_exception           ,ONLY: warning
   USE mo_var_list_gpu        ,ONLY: gpu_update_var_list
 #endif
-  USE mo_run_config          ,ONLY: msg_level
-
 
   USE mo_interface_aes_cov   ,ONLY: interface_aes_cov
   USE mo_interface_aes_wmo   ,ONLY: interface_aes_wmo
@@ -69,116 +69,115 @@ CONTAINS
 
   !>
   !!
-  SUBROUTINE aes_phy_main(patch         ,&
-    &                     datetime_old  ,&
-    &                     pdtime        )
+  SUBROUTINE aes_phy_main(patch, datetime, pdtime)
 
 
     ! Arguments
     !
     TYPE(t_patch)  ,TARGET ,INTENT(INOUT) :: patch
-    TYPE(datetime)         ,POINTER       :: datetime_old
+    TYPE(t_datetime)       ,POINTER       :: datetime
     REAL(wp)               ,INTENT(IN)    :: pdtime
 
     ! Local variables
     !
     INTEGER  :: jg                                         !< grid level/domain index
 
-    LOGICAL  :: is_in_sd_ed_interval                       !< time is in process interval [sd,ed[
-    LOGICAL  :: is_active                                  !< process is active
-
     jg = patch%id
 
-    !-------------------------------------------------------------------
-    ! Initialize (diagnostic)
-    !-------------------------------------------------------------------
+    ! store grid specific time parameters for physics
     !
-    CALL omp_loop_cell(patch,initialize)
+    aes_phy_tc(jg)%dt_phy_sec =  pdtime
+    aes_phy_tc(jg)%datetime   => datetime
 
     !-------------------------------------------------------------------
-    ! Specific heat of moist air (diagnostic)
+    ! Prepare for physics
     !-------------------------------------------------------------------
     !
-    CALL omp_loop_cell(patch,cpair_cvair_qconv)
+    CALL omp_block_loop_cell(patch, initialize)        ! initialize q_phy and q_phy_vi
+    CALL omp_block_loop_cell(patch, cpair_cvair_qconv) ! cp, cv and W/m2 -> K/s
+    CALL omp_block_loop_cell(patch, surface_fractions) ! surface fractions
+    CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after transport
 
     !-------------------------------------------------------------------
-    ! Calculate surface fraction (diagnostic)
-    !-------------------------------------------------------------------
-    !
-    CALL omp_loop_cell(patch,surface_fractions)
- 
-    !-------------------------------------------------------------------
-    ! Cloud cover (diagnostic)
-    !-------------------------------------------------------------------
-    !
-    CALL omp_loop_cell(patch,interface_aes_cov)
-
-    !---------------------------------------------------------------------
-    ! 3.9 Determine tropopause height (diagnostic)
-    !---------------------------------------------------------------------
-    !
-    CALL omp_loop_cell(patch,interface_aes_wmo)
-
-    !---------------------------------------------------------------------
-    ! Cloud droplet number concentration (diagnostic)
-    ! used in radiation and cloud
-    !---------------------------------------------------------------------
-    !
-    CALL omp_loop_cell(patch,droplet_number)
-
-    !-------------------------------------------------------------------
-    ! Graupel (microphysics) processes
+    ! single moment cloud microphysics "Graupel" (mig)
     !-------------------------------------------------------------------
     !
     IF ( aes_phy_tc(jg)%dt_mig > dt_zero ) THEN
        !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_mig <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_mig >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_mig,   datetime_old)
+       aes_phy_tc(jg)%is_in_sd_ed_interval_mig = (aes_phy_tc(jg)%sd_mig <= datetime) .AND. (aes_phy_tc(jg)%ed_mig > datetime)
+       aes_phy_tc(jg)%is_active_mig            = isCurrentEventActive(aes_phy_tc(jg)%ev_mig, datetime)
        !
-       CALL message_forcing_action('graupel microphysics (mig)',    &
-            &                      is_in_sd_ed_interval, is_active)
+       CALL message_forcing_action('graupel microphysics (mig)',            &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_mig, &
+            &                      aes_phy_tc(jg)%is_active_mig)
        !
-       CALL omp_loop_cell  (patch, interface_cloud_mig      ,&
-            &               is_in_sd_ed_interval, is_active ,&
-            &               datetime_old, pdtime            )
+       CALL omp_block_loop_cell(patch, interface_cloud_mig)
+       !
+       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after cloud microphysics
        !
     END IF
 
+    !--------------------------------------------------------------------
+    ! two-moment cloud microphysics (two) by Seifert and Beheng (2006)
+    !--------------------------------------------------------------------
+    !
+    IF ( aes_phy_tc(jg)%dt_two > dt_zero ) THEN
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU host synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .false., jg, lacc=.TRUE.)
+#endif
+       !
+       aes_phy_tc(jg)%is_in_sd_ed_interval_two = (aes_phy_tc(jg)%sd_two <= datetime) .AND. (aes_phy_tc(jg)%ed_two > datetime)
+       aes_phy_tc(jg)%is_active_two            = isCurrentEventActive(aes_phy_tc(jg)%ev_two, datetime)
+       !
+       CALL message_forcing_action('two-moment bulk microphysics (two)',    &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_two, &
+            &                      aes_phy_tc(jg)%is_active_two)
+       !
+       CALL omp_block_loop_cell(patch, interface_cloud_two)
+       !
+       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after cloud microphysics
+       !
+#if defined( _OPENACC )
+       CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
+       CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .true., jg, lacc=.TRUE.)
+#endif
+    END IF
+
     !-------------------------------------------------------------------
-    ! Radiation (one interface for LW+SW)
+    ! Radiation (LW+SW)
     !-------------------------------------------------------------------
     !
     IF ( aes_phy_tc(jg)%dt_rad > dt_zero ) THEN
        !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_rad <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_rad >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_rad,   datetime_old)
+       aes_phy_tc(jg)%is_in_sd_ed_interval_rad = (aes_phy_tc(jg)%sd_rad <= datetime) .AND. (aes_phy_tc(jg)%ed_rad > datetime)
+       aes_phy_tc(jg)%is_active_rad            = isCurrentEventActive(aes_phy_tc(jg)%ev_rad, datetime)
        !
-       ! RTE-RRTMGP
+       CALL message_forcing_action('LW and SW radiation (rad:fluxes )',     &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_rad, &
+            &                      aes_phy_tc(jg)%is_active_rad)
        !
-       CALL message_forcing_action('LW and SW radiation (rad:fluxes )' ,&
-            &                      is_in_sd_ed_interval, is_active )
+       ! cloud droplet number concentration
+       CALL omp_block_loop_cell(patch, droplet_number)
        !
        ! radiative fluxes
-       CALL omp_loop_cell     (patch, interface_aes_rad        ,&
-            &                  is_in_sd_ed_interval, is_active ,&
-            &                  datetime_old, pdtime            )
-
+       CALL omp_block_loop_cell(patch, interface_aes_rad)
        !
-       ! always compute radiative heating
-       is_active = .TRUE.
+       ! radiative heating is always active
+       aes_phy_tc(jg)%is_active_rad = .TRUE.
        !
-       CALL message_forcing_action('LW and SW radiation (rht:heating)' ,&
-            &                      is_in_sd_ed_interval, is_active )
+       CALL message_forcing_action('LW and SW radiation (rht:heating)',     &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_rad, &
+            &                      aes_phy_tc(jg)%is_active_rad)
        !
        ! radiative heating
-       CALL omp_loop_cell(patch, interface_aes_rht        ,&
-            &             is_in_sd_ed_interval, is_active ,&
-            &             datetime_old, pdtime            )
+       CALL omp_block_loop_cell(patch, interface_aes_rht)
+       !
+       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after radiation
        !
     END IF
-
 
     !-------------------------------------------------------------------
     ! Vertical diffusion, boundary layer and surface
@@ -186,16 +185,16 @@ CONTAINS
     !
     IF ( aes_phy_tc(jg)%dt_vdf > dt_zero ) THEN
        !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_vdf <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_vdf >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_vdf,   datetime_old)
+       aes_phy_tc(jg)%is_in_sd_ed_interval_vdf = (aes_phy_tc(jg)%sd_vdf <= datetime) .AND. (aes_phy_tc(jg)%ed_vdf > datetime)
+       aes_phy_tc(jg)%is_active_vdf            = isCurrentEventActive(aes_phy_tc(jg)%ev_vdf, datetime)
        !
-       CALL message_forcing_action('vertical diffusion (vdf)'      ,&
-            &                      is_in_sd_ed_interval, is_active )
+       CALL message_forcing_action('vertical diffusion (vdf)',              &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_vdf, &
+            &                      aes_phy_tc(jg)%is_active_vdf)
        !
-       CALL interface_aes_vdf(patch ,&
-            &                   is_in_sd_ed_interval, is_active ,&
-            &                   datetime_old, pdtime            )
+       CALL interface_aes_vdf(patch)
+       !
+       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after turbulent diffusion
        !
     END IF
 
@@ -207,24 +206,22 @@ CONTAINS
 #if defined( _OPENACC )
        CALL warning('GPU:aes_car_main','GPU host synchronization should be removed when port is done!')
        CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .false., jg, lacc=.TRUE.)
 #endif
        !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_car <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_car >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_car,   datetime_old)
+       aes_phy_tc(jg)%is_in_sd_ed_interval_car = (aes_phy_tc(jg)%sd_car <= datetime) .AND. (aes_phy_tc(jg)%ed_car > datetime)
+       aes_phy_tc(jg)%is_active_car            = isCurrentEventActive(aes_phy_tc(jg)%ev_car, datetime)
        !
-       CALL message_forcing_action('lin. Cariolle ozone chem. (car)' ,&
-            &                      is_in_sd_ed_interval, is_active   )
+       CALL message_forcing_action('lin. Cariolle ozone chem. (car)',       &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_car, &
+            &                      aes_phy_tc(jg)%is_active_car)
        !
-       CALL omp_loop_cell(patch, interface_aes_car        ,&
-            &             is_in_sd_ed_interval, is_active ,&
-            &             datetime_old, pdtime            )
+       CALL omp_block_loop_cell(patch, interface_aes_car)
        !
 #if defined( _OPENACC )
        CALL warning('GPU:aes_car_main','GPU device synchronization should be removed when port is done!')
        CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .true., jg, lacc=.TRUE.)
 #endif
     END IF
 
@@ -236,74 +233,42 @@ CONTAINS
 #if defined( _OPENACC )
        CALL warning('GPU:aes_art_main','GPU host synchronization should be removed when port is done!')
        CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D', .false., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .false., jg, lacc=.TRUE.)
 #endif
-      !
-      is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_art <= datetime_old) .AND. &
-           &                          (aes_phy_tc(jg)%ed_art >  datetime_old)
-      is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_art,   datetime_old)
-
-      CALL message_forcing_action('ART (rad)'                     ,&
-            &                     is_in_sd_ed_interval, is_active )
-      !
-      ! OMP loops are hidden inside the ART routines. Hence the full patch needs
-      ! to be passed to the ART routines and is it not possible to call the
-      ! ART reaction interface inside the standard omp block loop.
-      ! This should be reprogrammed.
-      !
-      CALL interface_aes_art(patch                           ,&
-           &                   is_in_sd_ed_interval, is_active ,&
-           &                   datetime_old, pdtime            )
-      !
+       !
+       aes_phy_tc(jg)%is_in_sd_ed_interval_art = (aes_phy_tc(jg)%sd_art <= datetime) .AND. (aes_phy_tc(jg)%ed_art > datetime)
+       aes_phy_tc(jg)%is_active_art            = isCurrentEventActive(aes_phy_tc(jg)%ev_art, datetime)
+       !
+       CALL message_forcing_action('ART (art)',                             &
+            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_art, &
+            &                      aes_phy_tc(jg)%is_active_art)
+       !
+       ! OMP loops are hidden inside the ART routines. Hence the full patch needs
+       ! to be passed to the ART routines and is it not possible to call the
+       ! ART reaction interface inside the standard omp block loop.
+       ! This should be reprogrammed.
+       !
+       CALL interface_aes_art(patch)
+       !
 #if defined( _OPENACC )
        CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
        CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D', .true., jg, lacc=.TRUE.)
+       CALL gpu_update_var_list('prm_tend_D' , .true., jg, lacc=.TRUE.)
 #endif
     END IF
-    !
-
-    !--------------------------------------------------------------------
-    ! two-moment bulk microphysics by Seifert and Beheng (2006) processes
-    !--------------------------------------------------------------------
-    !
-    IF ( aes_phy_tc(jg)%dt_two > dt_zero ) THEN
-       !
-       is_in_sd_ed_interval =          (aes_phy_tc(jg)%sd_two <= datetime_old) .AND. &
-            &                          (aes_phy_tc(jg)%ed_two >  datetime_old)
-       is_active = isCurrentEventActive(aes_phy_tc(jg)%ev_two,   datetime_old)
-       !
-       CALL message_forcing_action('two-moment bulk microphysics (two)',    &
-            &                      is_in_sd_ed_interval, is_active)
-       !
-       ! Preliminary: Some run time diagnostics (can also be used for other schemes)
-       IF (msg_level>14) THEN
-          CALL aes_diag_output_minmax_micro(patch,.TRUE.)
-       END IF
-
-       CALL omp_loop_cell(patch, interface_cloud_two      ,&
-            &             is_in_sd_ed_interval, is_active ,&
-            &             datetime_old, pdtime            )
-       !
-       ! Preliminary: Some run time diagnostics (can also be used for other schemes)
-       IF (msg_level>14) THEN
-          CALL aes_diag_output_minmax_micro(patch,.FALSE.)
-       END IF
-
-    END IF
 
     !-------------------------------------------------------------------
-    ! Global output diagnostics
+    ! Finish physics
     !-------------------------------------------------------------------
     !
-    CALL aes_global_diagnostics(patch)
-
+    CALL omp_block_loop_cell(patch,finalize)           ! dT/dt|phy,const.pressure -> dT/dt|phy,const.volume
 
     !-------------------------------------------------------------------
-    ! Finalize (diagnostic)
+    ! Output diagnostics
     !-------------------------------------------------------------------
     !
-    CALL omp_loop_cell(patch,finalize)
+    CALL omp_block_loop_cell(patch, interface_aes_wmo) ! WMO tropopause height
+    CALL aes_global_diagnostics(patch)                 ! global mean diagnostics
 
   END SUBROUTINE aes_phy_main
   !---------------------------------------------------------------------
