@@ -1285,6 +1285,7 @@ set_run_target_balfrin_gpu()
     rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
+    set_default use_nodes 1
     set_default use_nproma 8000
     set_default use_nblocks_c 1
     set_default use_prefetch_procs 0
@@ -1298,8 +1299,6 @@ set_run_target_balfrin_gpu()
 
     is_serial_run="no"
 
-    # hardcode number of nodes
-    use_nodes=1
     set_default use_mpi_procs_pernode $((4+use_prefetch_procs))
 
     job_type=parallel
@@ -1340,6 +1339,7 @@ set_run_target_balfrin_gpu()
 #SBATCH --job-name=$job_name
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --gpus-per-node=4
 #$SBATCH_nodes
 #$SBATCH_ntasks_per_node
 #$s_cpu_time
@@ -1350,6 +1350,7 @@ EOF
 export CRAY_CUDA_MPS=1
 export MPICH_GPU_SUPPORT_ENABLED=1
 export MPICH_RDMA_ENABLED_CUDA=1
+export NVCOMPILER_ACC_DEFER_UPLOADS=1
 export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
@@ -1828,6 +1829,30 @@ create_target_header()
                 daint_gpu*)
                     use_mpi_procs_pernode=2
                     # no nproma needed since this uses nlbocks_c anyway
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b08_icon1.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=2
+                    use_mpi_procs_pernode=5
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b08_kenda1.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=6
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b07_icon2.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=6
                 ;;
             esac
             ;;
