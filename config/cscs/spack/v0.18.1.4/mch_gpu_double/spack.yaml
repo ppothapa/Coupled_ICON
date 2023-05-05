@@ -1,6 +1,6 @@
 spack:
   specs:
-  - cosmo-eccodes-definitions@2.19.0.7
+  - cosmo-eccodes-definitions@2.25.0.1
   - icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange ~ocean +rte-rrtmgp
   view: true
   concretizer:

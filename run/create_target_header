@@ -943,7 +943,6 @@ EOF
   cat >>$output_script <<EOF
 export UCX_MEMTYPE_CACHE=n
 export UCX_TLS=tcp,sm
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
 
@@ -1056,7 +1055,6 @@ export UCX_TLS=tcp,sm
 export OMPI_MCA_osc="^rdma"
 export OMPI_MCA_pml="ucx"
 export OMPI_MCA_btl="^uct"
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 fi
 EOF
 }
@@ -1351,7 +1349,6 @@ export CRAY_CUDA_MPS=1
 export MPICH_GPU_SUPPORT_ENABLED=1
 export MPICH_RDMA_ENABLED_CUDA=1
 export NVCOMPILER_ACC_DEFER_UPLOADS=1
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
 
@@ -1427,7 +1424,6 @@ EOF
   start_header
 
   cat >> $output_script << EOF
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
 
