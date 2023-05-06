@@ -61,7 +61,7 @@ CONTAINS
     LOGICAL  :: is_in_sd_ed_interval
     LOGICAL  :: is_active
     !
-    INTEGER :: i1, i2
+    INTEGER :: i1, i2, i3
     LOGICAL :: loland(aes_phy_dims(jg)%nproma)
     LOGICAL :: loglac(aes_phy_dims(jg)%nproma)
     !
@@ -91,6 +91,7 @@ CONTAINS
           !
           !DA TODO: remove derived % after merging with mc8
           !$ACC DATA PRESENT(field, field%ts_rad_rt, field%ts_rad, field%sftlf, field%sftgif) &
+          !$ACC   PRESENT(field%qtrc_phy) & ! ACCWA (nvhpc on levante): to prevent illegal address during kernel execution
           !$ACC   CREATE(loland, loglac, qtrc_phy)
           !
           ! For some reason ACC kernels result in SEQ loop here
@@ -102,14 +103,22 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
           !
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-          qtrc_phy(:,:,:) = field%qtrc_phy(:,:,jb,:)
-          !$ACC END KERNELS
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR COLLAPSE(3) ASYNC(1)
+          DO i3=1,SIZE(qtrc_phy,3)
+            DO i2=1,SIZE(qtrc_phy,2)
+              DO i1=1,SIZE(qtrc_phy,1)
+                qtrc_phy(i1,i2,i3) = field%qtrc_phy(i1,i2,jb,i3)
+              END DO
+            END DO
+          END DO
+          !$ACC END PARALLEL LOOP
           !
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-          loland(:) = field% sftlf (:,jb) > 0._wp
-          loglac(:) = field% sftgif(:,jb) > 0._wp
-          !$ACC END KERNELS
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR ASYNC(1)
+          DO i1=1,SIZE(loland,1)
+            loland(i1) = field% sftlf (i1,jb) > 0._wp
+            loglac(i1) = field% sftgif(i1,jb) > 0._wp
+          END DO
+          !$ACC END PARALLEL LOOP
           !
           CALL rte_rrtmgp_radiation(                        &
               jg, jb, jcs, jce, nproma, nlev, ntracer,      &

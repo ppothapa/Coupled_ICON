@@ -223,6 +223,7 @@ CONTAINS
     !$ACC DATA CREATE(zxt_emis) IF(ntrac > 0)
     !$ACC DATA CREATE(ta_hori_tend, qv_hori_tend, ql_hori_tend, qi_hori_tend) IF(turb == 2)
     !$ACC DATA PRESENT(field, tend, ccycle_config) &
+    !$ACC   PRESENT(field%qtrc_phy) & ! ACCWA (nvhpc on levante): to prevent illegal address during kernel execution
     !$ACC   CREATE(zcpt_sfc_tile, ri_tile, zqx, zbn_tile) &
     !$ACC   CREATE(zbhn_tile, zbm_tile, zbh_tile, dummy, dummyx) &
     !$ACC   CREATE(wstar, qs_sfc_tile, hdtcbl, ri_atm, mixlen, cfm) &

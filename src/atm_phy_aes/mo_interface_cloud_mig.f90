@@ -100,6 +100,7 @@ CONTAINS
     output => cloud_mig_output(jg)
 
     !$ACC DATA PRESENT(field, tend, input, output) &
+    !$ACC   PRESENT(field%qtrc_phy) & ! ACCWA (nvhpc on levante): to prevent illegal address during kernel execution
     !$ACC   CREATE(tend_ta_mig) &
     !$ACC   CREATE(tend_qv_mig, tend_qc_mig, tend_qi_mig) &
     !$ACC   CREATE(tend_qr_mig, tend_qs_mig, tend_qg_mig) &
