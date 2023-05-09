@@ -69,6 +69,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_itune_gust_diag => itune_gust_diag, &  
     &                               config_tune_gustsso_lim => tune_gustsso_lim, &  
     &                               config_itune_albedo   => itune_albedo,       &
+    &                               config_itune_o3       => itune_o3,           &
     &                               config_lcalib_clcov   => lcalib_clcov,       &
     &                               config_max_calibfac_clcl => max_calibfac_clcl, &
     &                               config_max_freshsnow_inc => max_freshsnow_inc, &
@@ -203,6 +204,13 @@ MODULE mo_nwp_tuning_nml
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
 
+  INTEGER :: &                     !< type of artificial ozone tuning 
+    &  itune_o3                    ! 0: no tuning
+                                   ! 1: old tuning for RRTM radiation
+                                   ! 2: (default) standard tuning for EcRad with RRTM gas optics
+                                   ! 3: improved (for middle/upper stratosphere) tuning for EcRad with RRTM gas optics
+                                   ! 4: provisional tuning for EcRad with EcCKD gas optics
+
   INTEGER :: &                     !< Type of gust tuning / SSO coupling
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
                                    ! 2: use envelope top level, combined with adjusted tuning for MERIT/REMA orography
@@ -234,7 +242,7 @@ MODULE mo_nwp_tuning_nml
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,  &
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,     &
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
-    &                      tune_gustsso_lim, tune_eiscrit
+    &                      tune_gustsso_lim, tune_eiscrit, itune_o3
 
 
 CONTAINS
@@ -367,6 +375,7 @@ CONTAINS
     tune_dust_abs   = 0._wp        ! no tuning of LW absorption of mineral dust
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
     itune_albedo    = 0            ! original (measured) albedo
+    itune_o3        = 2            ! standard ozone tuning for EcRad
     !
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
@@ -488,6 +497,7 @@ CONTAINS
     config_itune_gust_diag       = itune_gust_diag
     config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
+    config_itune_o3              = itune_o3
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc

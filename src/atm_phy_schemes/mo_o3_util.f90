@@ -42,9 +42,10 @@ MODULE mo_o3_util
   USE mo_o3_gems_data,         ONLY: rghg7
   USE mo_o3_macc_data,         ONLY: rghg7_macc
   USE mo_radiation_config,     ONLY: irad_o3
+  USE mo_nwp_tuning_config,    ONLY: itune_o3
   USE mo_bc_ozone,             ONLY: ext_ozone, read_bc_ozone
   USE mo_physical_constants,   ONLY: amd,amo3,rd,grav
-  USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, ltuning_ozone, icpl_o3_tp
+  USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, icpl_o3_tp
   USE mo_time_config,          ONLY: time_config
   USE mo_timer,                ONLY: timer_start, timer_stop, timers_level, timer_preradiaton
   USE mo_impl_constants,       ONLY: io3_art
@@ -1180,9 +1181,9 @@ CONTAINS
     INTEGER  :: idy,im,imn,im1,im2,jk_start,i_startidx,i_endidx,i_nchdom,i_startblk,i_endblk
     INTEGER  :: rl_start,rl_end,k375,k100,ktp
     REAL(wp) :: ztimi,zxtime,zjl,zlatint,zint,zadd_o3,tuneo3_1(nlev_gems),tuneo3_2(nlev_gems),&
-                o3_macc1,o3_macc2,o3_gems1,o3_gems2,z1,z2,zgrad
+                o3_macc1,o3_macc2,o3_gems1,o3_gems2,z1,z2,zgrad,fac_tr70,fac_mst,fac_ust
     REAL(wp) :: dzsum,dtdzavg,tpshp,wfac,wfac_lat(ilat),wfac_p(nlev_gems),wfac_tr(ilat),&
-                wfac_p_tr(nlev_gems),wfac_p_tr2(nlev_gems),wfac_p_mst(nlev_gems),trfac,wfac2
+                wfac_p_tr(nlev_gems),wfac_p_tr2(nlev_gems),wfac_p_mst(nlev_gems),wfac_p_ust(nlev_gems),trfac,wfac2
     LOGICAL  :: lfound_all
 
     LOGICAL :: lk100_less_than_0
@@ -1195,9 +1196,29 @@ CONTAINS
       lacc = .false.
     end if
 
+    ! Option-dependent factors for ozone tuning
+    SELECT CASE (itune_o3)
+    CASE (1,2)
+      fac_tr70 = -0.3_wp
+      fac_mst  =  0.1_wp
+      fac_ust  =  0.0_wp
+    CASE (3)
+      fac_tr70 = -0.3_wp
+      fac_mst  =  0.1_wp
+      fac_ust  = -0.125_wp
+    CASE (4)
+      fac_tr70 = -0.4_wp
+      fac_mst  =  0.05_wp
+      fac_ust  =  0.0_wp
+    CASE DEFAULT
+      fac_tr70 =  0.0_wp
+      fac_mst  =  0.0_wp
+      fac_ust  =  0.0_wp
+    END SELECT
+
     !$ACC DATA CREATE(idx0, zlat, zozn, zpresh, rclpr, zo3, zviozo, zozovi) &
     !$ACC   CREATE(deltaz, dtdz, l_found, tuneo3_1, tuneo3_2, wfac_lat, wfac_p) &
-    !$ACC   CREATE(wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst) &
+    !$ACC   CREATE(wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst, wfac_p_ust) &
     !$ACC   PRESENT(atm_phy_nwp_config, o3, p_diag, prm_diag, pt_patch, RGHG7, RGHG7_MACC) &
     !$ACC   IF(lacc)
 
@@ -1371,7 +1392,7 @@ CONTAINS
       ENDDO
 
       ! Pressure mask field for ozone enhancement in the middle stratosphere around 10 hPa
-      IF (atm_phy_nwp_config(pt_patch%id)%inwp_radiation == 4) THEN
+      IF (itune_o3 >= 2) THEN
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jk = 1, nlev_gems
           IF (zrefp(jk) >= 700._wp .AND. zrefp(jk) <= 1000._wp) THEN
@@ -1386,6 +1407,27 @@ CONTAINS
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jk = 1, nlev_gems
           wfac_p_mst(jk) = 0._wp
+        ENDDO
+      ENDIF
+
+      ! Pressure mask field for ozone reduction in the upper stratosphere peaking between 3 and 5 hPa
+      IF (itune_o3 == 3) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jk = 1, nlev_gems
+          IF (zrefp(jk) >= 200._wp .AND. zrefp(jk) <= 300._wp) THEN
+            wfac_p_ust(jk) = (zrefp(jk)-200._wp)/100._wp
+          ELSE IF (zrefp(jk) >= 300._wp .AND. zrefp(jk) <= 500._wp) THEN
+            wfac_p_ust(jk) = 1._wp
+          ELSE IF (zrefp(jk) >= 500._wp .AND. zrefp(jk) <= 700._wp) THEN
+            wfac_p_ust(jk) = (700._wp-zrefp(jk))/200._wp
+          ELSE
+            wfac_p_ust(jk) = 0._wp
+          ENDIF
+        ENDDO
+      ELSE
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jk = 1, nlev_gems
+          wfac_p_ust(jk) = 0._wp
         ENDDO
       ENDIF
 
@@ -1431,7 +1473,7 @@ CONTAINS
           o3_gems2 = RGHG7(JL,JK,IM2) + MERGE(wfac_tr(jl)*wfac_p_tr(jk)*&
                      MAX(0._wp,RGHG7(JL,JK,12)-RGHG7(JL,JK,IM2)), 0._wp, im2>=1 .AND. im2<=5)
 
-          trfac    = 1._wp - 0.3_wp*wfac_tr(jl)*wfac_p_tr2(jk) + 0.1_wp*wfac_p_mst(jk)
+          trfac    = 1._wp + fac_tr70*wfac_tr(jl)*wfac_p_tr2(jk) + fac_mst*wfac_p_mst(jk) + fac_ust*wfac_p_ust(jk)
 
           zozn(JL,JK) = amo3/amd * trfac* ( wfac * (o3_macc2+ZTIMI*(o3_macc1-o3_macc2)) + &
                                      (1._wp-wfac)* (o3_gems2+ZTIMI*(o3_gems1-o3_gems2)) )
@@ -1592,7 +1634,7 @@ CONTAINS
 
           ! Tuning to increase stratospheric ozone in order to reduce temperature biases;
           ! the tuning factors are computed in atm_phy_nwp_config
-          IF ( ltuning_ozone ) THEN
+          IF ( itune_o3 >= 1 ) THEN
             zadd_o3 = MIN(atm_phy_nwp_config(pt_patch%id)%ozone_maxinc,                   &
                            o3(jc,jk,jb) * atm_phy_nwp_config(pt_patch%id)%fac_ozone(jk) * &
               MERGE(atm_phy_nwp_config(pt_patch%id)%shapefunc_ozone(jc,jb), 1._wp,        &

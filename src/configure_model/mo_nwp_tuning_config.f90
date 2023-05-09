@@ -68,6 +68,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
+  PUBLIC :: itune_o3
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
   PUBLIC :: max_freshsnow_inc
@@ -212,6 +213,13 @@ MODULE mo_nwp_tuning_config
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara
                                    ! 2: dimmed Sahara and brighter Antarctica
+
+  INTEGER :: &                     !< type of artificial ozone tuning 
+    &  itune_o3                    ! 0: no tuning
+                                   ! 1: old tuning for RRTM radiation
+                                   ! 2: (default) standard tuning for EcRad with RRTM gas optics
+                                   ! 3: improved (for middle/upper stratosphere) tuning for EcRad with RRTM gas optics
+                                   ! 4: provisional tuning for EcRad with EcCKD gas optics
 
   LOGICAL :: &                     ! cloud cover calibration over land points
     &  lcalib_clcov
