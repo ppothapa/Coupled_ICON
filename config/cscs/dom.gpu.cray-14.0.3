@@ -27,11 +27,6 @@ LIBS="-Wl,--as-needed ${XML2_LIBS}"
 
 MPI_LAUNCH='/apps/daint/UES/xalt/production/bin/srun -p debug -C gpu'
 
-CLAW='/project/d56/install/daint/claw/v2.0.1/pgi/bin/clawfc'
-# We have to tell CLAW where to look for netcdf.inc:
-NETCDF_DIR="/opt/cray/pe/netcdf/4.7.4.4/CRAYCLANG/10.0"
-CLAWFLAGS="-I${NETCDF_DIR}/include"
-
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_60 -g -O3'
 

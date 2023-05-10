@@ -22,16 +22,19 @@
 MODULE mo_turb_vdiff_diag
 
   USE mo_kind,              ONLY: wp, i1
-  USE mo_convect_tables,    ONLY: prepare_ua_index_spline, lookup_ua_spline, &
-    &                             compute_qsat, cthomi, csecfrl
+  USE mo_convect_tables,    ONLY: compute_qsat, cthomi, csecfrl
 
   ! DA: is it fine??
+#ifndef _OPENACC
+  USE mo_convect_tables,    ONLY: prepare_ua_index_spline, lookup_ua_spline
+#else
   USE mo_aes_convect_tables,ONLY: prepare_ua_index_spline_batch, lookup_ua_spline_batch
+#endif
 
   USE mo_turb_vdiff_config, ONLY: t_vdiff_config
   USE mo_turb_vdiff_params, ONLY: ckap, cb,cc, chneu, da1,                  &
     &                             eps_shear, eps_corio, totte_min, cons5
-  USE mo_physical_constants,ONLY: grav, rd, cpd, cpv, rd_o_cpd, rv,         &
+  USE mo_physical_constants,ONLY: grav, rd, cpd, rd_o_cpd, rv,         &
     &                             vtmpc1, tmelt, alv, als, p0ref
   USE mo_grid_config       ,ONLY: grid_angular_velocity
   USE mo_index_list        ,ONLY: generate_index_list_batched
@@ -65,7 +68,7 @@ CONTAINS
   !!
   SUBROUTINE atm_exchange_coeff( jb,                                      &! in, for debugging only
                                & jcs, kproma, kbdim,                      &! in
-                               & klev, klevm1, klevp1,                    &! in
+                               & klev, klevm1,                            &! in
                                & pdtime, pcoriol,                         &! in
                                & pghf, pghh,                              &! in
                                & pum1, pvm1, ptm1, ptvm1,                 &! in
@@ -84,7 +87,7 @@ CONTAINS
 
     INTEGER, INTENT(IN) :: jb
     INTEGER, INTENT(IN) :: jcs, kproma, kbdim
-    INTEGER, INTENT(IN) :: klev, klevm1, klevp1
+    INTEGER, INTENT(IN) :: klev, klevm1
     REAL(wp),INTENT(IN) :: pdtime
     REAL(wp),INTENT(IN) :: pcoriol(:)   !< (kbdim)
     REAL(wp),INTENT(IN) :: pghf(:,:)    !< (kbdim,klev)
@@ -147,7 +150,6 @@ CONTAINS
 
     ! - 1D variables and scalars
 
-    INTEGER  :: ihpbl (kbdim)        !< grid level index of PBL top
     INTEGER  :: ihpblc(kbdim),          ihpbld(kbdim),          idx(kbdim)
     INTEGER  :: jk, jl
     REAL(wp) :: za(kbdim),              zhdyn(kbdim)                          &
@@ -183,7 +185,7 @@ CONTAINS
     !$ACC DATA &
     !$ACC   CREATE(zlh, ztheta, zthetav, zthetal, zqsat, km, kh, zlhmid, zdgmid) &
     !$ACC   CREATE(zccovermid, zqxmid, zqmid, zqsatmid, zthetamid, zthetavmid, ztmid, ztvmid) &
-    !$ACC   CREATE(ihpbl, ihpblc, ihpbld, idx, za, zhdyn, zpapm1i, zua) &
+    !$ACC   CREATE(ihpblc, ihpbld, idx, za, zhdyn, zpapm1i, zua) &
     !$ACC   CREATE(idx_batch, za_batch, zua_batch)
 
     f_tau0   = vdiff_config%f_tau0
@@ -236,7 +238,7 @@ CONTAINS
         ! Virtual dry static energy, potential temperature, virtual potential
         ! temperature
 
-        pcptgz (jl,jk) = pghf(jl,jk)*grav+ptm1(jl,jk)*cpd !(cpd+(cpv-cpd)*pqm1(jl,jk))
+        pcptgz (jl,jk) = pghf(jl,jk)*grav+ptm1(jl,jk)*cpd
         ztheta (jl,jk) = ptm1(jl,jk)*ztheta(jl,jk)
         zthetav(jl,jk) = ztheta(jl,jk)*(1._wp+vtmpc1*pqm1(jl,jk)-pxm1(jl,jk))
 
@@ -271,7 +273,7 @@ CONTAINS
         ! Virtual dry static energy, potential temperature, virtual potential
         ! temperature
 
-        pcptgz (jl,jk) = pghf(jl,jk)*grav+ptm1(jl,jk)*cpd !*(cpd+(cpv-cpd)*pqm1(jl,jk))
+        pcptgz (jl,jk) = pghf(jl,jk)*grav+ptm1(jl,jk)*cpd
         ztheta (jl,jk) = ptm1(jl,jk)*ztheta(jl,jk)
         zthetav(jl,jk) = ztheta(jl,jk)*(1._wp+vtmpc1*pqm1(jl,jk)-pxm1(jl,jk))
 
@@ -378,7 +380,6 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jl=jcs,kproma
-      ihpbl (jl) = MIN(ihpblc(jl),ihpbld(jl))
       phdtcbl(jl) = pghf(jl,ihpblc(jl))                                        &
                   & -((pghf(jl,ihpblc(jl))-pghf(jl,ihpblc(jl)+1))              &
                   & /(pcptgz(jl,ihpblc(jl))-pcptgz(jl,ihpblc(jl)+1)))          &
@@ -562,7 +563,6 @@ CONTAINS
                                & pthetal_b, paclc_b,                     &! in
                                & ptotte_b, pthvvar_b,                    &! in
                                & vdiff_config,                       &! in
-                               & pthvsig_b,                              &! out
                                & pwstar, pwstar_tile,                    &! out, inout
                                & pqsat_tile, pcpt_tile,                  &! out
                                & pri_gbm, pri_tile,                      &! out
@@ -645,7 +645,6 @@ CONTAINS
     REAL(wp),INTENT(INOUT),DIMENSION(:,:) :: & ! DIMENSION(kbdim,ksfc_type)
                             pwstar_tile  !< convective velocity scale,
                                          !<  each sfc type
-    REAL(wp),INTENT(OUT) :: pthvsig_b (:)    !< (kbdim)
     REAL(wp),INTENT(OUT) :: pbn_tile  (:,:)  !< (kbdim,ksfc_type) for diagnostics
     REAL(wp),INTENT(OUT) :: pbhn_tile (:,:)  !< (kbdim,ksfc_type) for diagnostics
     REAL(wp),INTENT(OUT) :: pbm_tile  (:,:)  !< (kbdim,ksfc_type) for diagnostics
@@ -660,7 +659,6 @@ CONTAINS
     REAL(wp) :: pchn_tile (kbdim,ksfc_type)
     REAL(wp) :: pcdn_tile (kbdim,ksfc_type)
     REAL(wp) :: pcfnc_tile(kbdim,ksfc_type)
-    REAL(wp) :: pthvsig_tile(kbdim,ksfc_type)
 
     ! Local variables
 
@@ -691,7 +689,7 @@ CONTAINS
     REAL(wp) :: zucf, zucfh
     REAL(wp) :: zust
     REAL(wp) :: w1, ws
-    INTEGER  :: jsfc, jl, jls, js, isCap
+    INTEGER  :: jsfc, jl, jls, js
 
     ! Shortcuts to components of vdiff_config
     !
@@ -723,7 +721,7 @@ CONTAINS
     ek_ep_ratio_unstable = vdiff_config%ek_ep_ratio_unstable
 
     !$ACC DATA &
-    !$ACC   CREATE(pchn_tile, pcdn_tile, pcfnc_tile, pthvsig_tile, zdu2, zcfnch, zustar, zqts, zthetavmid) &
+    !$ACC   CREATE(pchn_tile, pcdn_tile, pcfnc_tile, zdu2, zcfnch, zustar, zqts, zthetavmid) &
     !$ACC   CREATE(zdthetal, lmix, e_kin, e_pot, f_tau, f_theta, z0h, pfrc_test, loidx, is)
     !-------------------
     ! Some constants
@@ -784,7 +782,7 @@ CONTAINS
     !$ACC PARALLEL LOOP COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = jcs,kproma
-        pfrc_test(jl, jsfc) = MERGE(1, 0, pfrc(jl, jsfc) > 0.0_wp)
+        pfrc_test(jl, jsfc) = MERGE(1_i1, 0_i1, pfrc(jl, jsfc) > 0.0_wp)
       END DO
     END DO
     !$ACC END PARALLEL LOOP
@@ -809,7 +807,7 @@ CONTAINS
         ELSE
           zqts(js,jsfc) = pqsat_tile(js,jsfc)                                              ! q_total at non-land surface
         END IF
-        pcpt_tile(js,jsfc) = ptsfc(js,jsfc) * cpd ! (cpd + (cpv - cpd) * zqts(js,jsfc))
+        pcpt_tile(js,jsfc) = ptsfc(js,jsfc) * cpd
 
         ztheta      = ptsfc(js,jsfc)*(p0ref/ppsfc(js))**rd_o_cpd
         zthetav     = ztheta*(1._wp+vtmpc1*zqts(js,jsfc))
@@ -870,10 +868,6 @@ CONTAINS
            e_kin(js,jsfc) = ptotte_b(js)/(1._wp+pri_tile(js,jsfc)/(ek_ep_ratio_unstable * pri_tile(js,jsfc)-pr0))
            e_pot(js,jsfc) = e_kin(js,jsfc)     *pri_tile(js,jsfc)/(ek_ep_ratio_unstable * pri_tile(js,jsfc)-pr0)
         END IF
-
-!   Near-surface virtual potential temperature variance used by convection scheme:
-
-        pthvsig_tile(js,jsfc) =  zthetav/grav*SQRT(2.0_wp*e_pot(js,jsfc)*ABS(zbuoy))
 
  !  Compute mixing length for neutrally stratified conditions:
 
@@ -1138,7 +1132,6 @@ CONTAINS
       DO jl = 1, kbdim
         pustarm(jl) = 0._wp
         pwstar(jl) = 0._wp
-        pthvsig_b(jl) = 0._wp
       ENDDO
       !$ACC END PARALLEL
 
@@ -1150,7 +1143,6 @@ CONTAINS
         js=loidx(jls,jsfc)
           pustarm(js) = pustarm(js) + pfrc(js,jsfc)*zustar(js,jsfc)
           pwstar(js)  = pwstar(js)  + pfrc(js,jsfc)*pwstar_tile(js,jsfc)
-          pthvsig_b(js)= pthvsig_b(js)+ pfrc(js,jsfc)*pthvsig_tile(js,jsfc)
         END DO
         !$ACC END PARALLEL
       END DO
@@ -1172,7 +1164,6 @@ CONTAINS
       DO jl = 1, kproma
         pustarm(jl) = 0._wp
         pwstar(jl) = 0._wp
-        pthvsig_b(jl) = 0._wp
       ENDDO
       !$ACC END PARALLEL
 

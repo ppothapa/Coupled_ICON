@@ -27,7 +27,6 @@ MODULE mo_aes_cop_config
   USE mo_kind                 ,ONLY: wp
   USE mo_impl_constants       ,ONLY: max_dom
   USE mo_physical_constants   ,ONLY: tmelt
-  USE mo_aes_phy_config       ,ONLY: aes_phy_tc, dt_zero
   USE mtime,                   ONLY: OPERATOR(>)
 
   IMPLICIT NONE

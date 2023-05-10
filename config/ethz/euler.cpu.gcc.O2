@@ -29,7 +29,7 @@ LIBS="-Wl,--disable-new-dtags -Wl,--as-needed -lnetcdf -lnetcdff -lxml2 -lopenbl
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS='--disable-claw --enable-rte-rrtmgp --enable-ecrad --enable-grib2'
+EXTRA_CONFIG_ARGS='--enable-rte-rrtmgp --enable-ecrad --enable-grib2'
 
 # Speed up the configuration by disabling MPI checks:
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'

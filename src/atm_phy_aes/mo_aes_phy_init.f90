@@ -21,14 +21,13 @@ MODULE mo_aes_phy_init
   USE mo_kind,                 ONLY: wp
   USE mo_exception,            ONLY: finish, message, message_text, print_value
   USE mtime,                   ONLY: datetime, OPERATOR(>), OPERATOR(==)
-  USE mo_io_config,            ONLY: default_read_method
   USE mo_read_interface,       ONLY: openInputFile, closeFile, read_2D, &
     &                                t_stream_id, on_cells
   USE mo_timer,                ONLY: timers_level, timer_start, timer_stop, &
     &                                timer_prep_aes_phy
 
   ! model configuration
-  USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c
+  USE mo_impl_constants,       ONLY: min_rlcell_int, grf_bdywidth_c, vname_len
   USE mo_parallel_config,      ONLY: nproma
   USE mo_master_config,        ONLY: isrestart
   USE mo_run_config,           ONLY: ltestcase, msg_level,                        &
@@ -41,9 +40,6 @@ MODULE mo_aes_phy_init
   USE mo_model_domain,         ONLY: t_patch
   USE mo_loopindices,          ONLY: get_indices_c
 
-  ! vertical grid
-  USE mo_vertical_coord_table, ONLY: vct
-  
   ! test cases
   USE mo_nh_testcases_nml,     ONLY: nh_test_name, ape_sst_case, th_cbl, tpe_temp
   USE mo_ape_params,           ONLY: ape_sst
@@ -61,7 +57,7 @@ MODULE mo_aes_phy_init
   USE mo_aes_rad_config,       ONLY: eval_aes_rad_config, print_aes_rad_config, aes_rad_config
 
   ! vertical diffusion
-  USE mo_aes_vdf_config,       ONLY: eval_aes_vdf_config, print_aes_vdf_config, aes_vdf_config
+  USE mo_aes_vdf_config,       ONLY: eval_aes_vdf_config, print_aes_vdf_config !!!, aes_vdf_config
   USE mo_turb_vdiff,           ONLY: vdiff_init
 
 #ifndef __NO_JSBACH__
@@ -353,28 +349,43 @@ CONTAINS
     iqm_max = 0 ! number of water species tracers
     !
     DO jt=1,advection_config(1)%nname
+       !
        SELECT CASE (TRIM(advection_config(1)%tracer_names(jt)))
        CASE('qv','hus')
           iqv=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='specific_humidity'
+          advection_config(:)% long_names(jt)='specific humidity'
        CASE('qc','clw')
           iqc=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='cloud_liquid_water'
+          advection_config(:)% long_names(jt)='cloud liquid water'
        CASE('qi','cli')
           iqi=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='cloud_ice'
+          advection_config(:)% long_names(jt)='cloud ice'
        CASE('qr')
           iqr=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='rain'
+          advection_config(:)% long_names(jt)='rain'
        CASE('qs')
           iqs=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='snow'
+          advection_config(:)% long_names(jt)='snow'
        CASE('qg')
           iqg=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='graupel'
+          advection_config(:)% long_names(jt)='graupel'
        CASE('qh')
           iqh=jt
           iqm_max=iqm_max+1
+          advection_config(:)%cfstd_names(jt)='hail'
+          advection_config(:)% long_names(jt)='hail'
        CASE('qnc')
           iqnc=jt
        CASE('qni')
@@ -391,12 +402,23 @@ CONTAINS
           ininact=jt
        CASE('o3')
           io3=jt
+          advection_config(:)%cfstd_names(jt)='ozone'
+          advection_config(:)% long_names(jt)='ozone'
        CASE('co2')
           ico2=jt
+          advection_config(:)%cfstd_names(jt)='carbon_dioxide'
+          advection_config(:)% long_names(jt)='carbon dioxide'
        CASE('ch4')
           ich4=jt
+          advection_config(:)%cfstd_names(jt)='methane'
+          advection_config(:)% long_names(jt)='methane'
        CASE('n2o')
           in2o=jt
+          advection_config(:)%cfstd_names(jt)='nitrous_oxide'
+          advection_config(:)% long_names(jt)='nitrous oxide'
+       CASE DEFAULT
+          advection_config(:)%cfstd_names(jt)='tracer_'//TRIM(advection_config(1)%tracer_names(jt)(:vname_len-7))
+          advection_config(:)% long_names(jt)='tracer '//TRIM(advection_config(1)%tracer_names(jt)(:vname_len-7))
        END SELECT
     END DO
 
@@ -408,13 +430,13 @@ CONTAINS
        lany = lany .OR. (aes_phy_tc(jg)%dt_mig > dt_zero)
     END DO
     IF (lany) THEN
-       IF (iqv*iqc*iqi*iqr*iqs*iqg == 0) THEN
+       IF (MIN(iqv,iqc,iqi,iqr,iqs,iqg) == 0) THEN
           CALL finish(routine,           &
                &      'For "Graupel" cloud microphysics, the 6 tracers '// &
                &      'qv/hus, qc/clw, qi/cli, qr, qs, and qg must be ' // &
                &      'included in transport_nml/tracer_names')
        END IF
-       IF (MAX(iqv,iqc,iqi,iqr,iqs,iqg) > 6) THEN ! <-- is this needed? depends on usage of iqm_max and iqt
+       IF (MAX(iqv,iqc,iqi,iqr,iqs,iqg) > 6) THEN
           CALL finish(routine,            &
                &      'For "Graupel" cloud microphysics, the 6 tracers ' // &
                &      'qv/hus, qc/clw, qi/cli, qr, qs, and qg must be '  // &
@@ -422,28 +444,26 @@ CONTAINS
        END IF
        IF (iqm_max > 6) THEN
           CALL print_value('ATTENTION! '   // &
-               &           '"Graupel" cloud microphysics is used with more than 6 ' // &
-               &           'water tracers: iqm_max',iqm_max, routine=routine)
+               &           '"Graupel" cloud microphysics is used with more than 6 ' //       &
+               &           'tracers for mass fractions of water substances in air: iqm_max', &
+               &           iqm_max, routine=routine)
        END IF
     END IF
 
     ! Is Two moment bulk cloud microphysics active?
-    ! Then iqv, iqc, iqi, iqr, iqs, iqg, iqh, iqni, iqnr, iqns, iqng, iqnc and ininact must be non-zero and in {1,...,14}
+    ! Then iqv, iqc, iqi, iqr, iqs, iqg, iqh, iqnc, iqni, iqnr, iqns, iqng, iqnh, and ininact
+    ! must be non-zero and in {1,...,14}
     lany=.FALSE.
     DO jg = 1,ng
        lany = lany .OR. (aes_phy_tc(jg)%dt_two > dt_zero)
     END DO
     IF (lany) THEN
-       !IF (iqv*iqc*iqi*iqr*iqs*iqg*iqh*iqni*iqnr*iqns*iqng*iqnc*ininact == 0) THEN
-       ! removed the first 3 tracer to avoid integer overflow. They should
-       ! always be defined...
-       IF (iqr*iqs*iqg*iqh*iqni*iqnr*iqns*iqng*iqnc*ininact == 0) THEN
+       IF (MIN(iqv,iqc,iqi,iqr,iqs,iqg,iqh,iqnc,iqni,iqnr,iqns,iqng,iqnh,ininact) == 0) THEN
           CALL finish('mo_aes_phy_init:init_aes_phy_tracer',                    &
                &      'For two moment bulk microphysics, 14 tracers must be '// &
                &      'included in transport_nml/tracer_names')
        END IF
-       IF (MAX(iqv,iqc,iqi,iqr,iqs,iqg,iqh,iqni,iqnr,iqns,iqng,iqnc,ininact) > 14) THEN 
-                                             ! <-- is this needed? depends on usage of iqm_max and iqt
+       IF (MAX(iqv,iqc,iqi,iqr,iqs,iqg,iqh,iqnc,iqni,iqnr,iqns,iqng,iqnh,ininact) > 14) THEN
           CALL finish('mo_aes_phy_init:init_aes_phy_tracer',                    &
                &      'For two moment bulk microphysics, 14 tracers must be '// &
                &      'among the first 14 included in transport_nml/tracer_names')
@@ -451,7 +471,7 @@ CONTAINS
        IF (iqm_max > 7) THEN
           CALL print_value('mo_aes_phy_init:init_aes_phy_tracer: ATTENTION! '       // &
                &           'two moment bulk microphysics is used with more than 7 ' // &
-               &           'water tracers: iqm_max',iqm_max)
+               &           'tracers for mass fractions of water substances in air: iqm_max',iqm_max)
        END IF
     END IF
 
@@ -477,22 +497,29 @@ CONTAINS
     CALL message('','total number of tracers')
     CALL print_value('ntracer',ntracer)
     CALL message('','index variables defined for active tracers')
-    IF (iqv  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqv))//'"  : iqv    ',iqv )
-    IF (iqc  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqc))//'"  : iqc    ',iqc )
-    IF (iqi  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqi))//'"  : iqi    ',iqi )
-    IF (iqr  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqr))//'"  : iqr    ',iqr )
-    IF (iqs  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqs))//'"  : iqs    ',iqs )
-    IF (iqg  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqg))//'"  : iqg    ',iqg )
-    IF (iqh  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqh))//'"  : iqh    ',iqh )
-    IF (io3  > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(io3))//'"  : io3    ',io3 )
-    IF (ico2 > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(ico2))//'" : ico2   ',ico2)
-    IF (ich4 > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(ich4))//'" : ich4   ',ich4)
-    IF (in2o > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(in2o))//'" : in2o   ',in2o)
-    CALL message('','last  index for water species mass mixing ratios')
+    IF (iqv  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqv))//'"  : iqv    ',iqv )
+    IF (iqc  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqc))//'"  : iqc    ',iqc )
+    IF (iqi  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqi))//'"  : iqi    ',iqi )
+    IF (iqr  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqr))//'"   : iqr    ',iqr )
+    IF (iqs  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqs))//'"   : iqs    ',iqs )
+    IF (iqg  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqg))//'"   : iqg    ',iqg )
+    IF (iqh  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqh))//'"   : iqh    ',iqh )
+    IF (iqnc > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqnc))//'"  : iqnc   ',iqc )
+    IF (iqni > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqni))//'"  : iqni   ',iqi )
+    IF (iqnr > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqnr))//'"  : iqnr   ',iqr )
+    IF (iqns > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqns))//'"  : iqns   ',iqs )
+    IF (iqng > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqng))//'"  : iqng   ',iqg )
+    IF (iqnh > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(iqnh))//'"  : iqnh   ',iqh )
+    IF (ininact > 0) CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(ininact))//'"  : ininact',iqh )
+    IF (io3  > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(io3))//'"  : io3    ',io3 )
+    IF (ico2 > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(ico2))//'" : ico2   ',ico2)
+    IF (ich4 > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(ich4))//'" : ich4   ',ich4)
+    IF (in2o > 0)    CALL print_value('tracer "'//TRIM(advection_config(1)%tracer_names(in2o))//'" : in2o   ',in2o)
+    CALL message('','last  index for tracers of mass fraction of water species in air')
     CALL print_value('iqm_max',iqm_max)
-    CALL message('','first index for other species mass mixing ratios')
+    CALL message('','first index for other tracers')
     CALL print_value('iqt    '    ,iqt    )
-    CALL message('','number of other species mass mixing ratios')
+    CALL message('','number of other tracers')
     CALL print_value('ntrac  ',ntracer-iqt+1)
 
   END SUBROUTINE init_aes_phy_tracer
@@ -509,7 +536,6 @@ CONTAINS
 
     CHARACTER(len=26+2+3) :: land_frac_fn
     CHARACTER(len=26+2+3) :: land_phys_fn
-    CHARACTER(len=25+2+3) :: land_sso_fn
 
     TYPE(t_time_interpolation_weights) :: current_time_interpolation_weights
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_aes_phy_external'

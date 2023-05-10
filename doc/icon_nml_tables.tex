@@ -393,15 +393,6 @@ aes\_phy\_config(jg)\% lsstice & L & .FALSE. & &
 .TRUE. for inst. 6hourly sst and ice (prelim) &
 run\_nml/iforcing = 2 \tabularnewline
 %
-aes\_phy\_config(jg)\% lparamcpl & L & .TRUE. & &
-.FALSE. : parameterizations update the physics state \newline
-        so that all params get the same input state &
-run\_nml/iforcing = 2 \tabularnewline
-%
-aes\_phy\_config(jg)\% ldrymoist & L & .FALSE. & &
-.true. : use dry air mass as conserved reference air mass &
-run\_nml/iforcing = 2 \tabularnewline
-%
 aes\_phy\_config(jg)\% iqneg\_d2p& I & 0 & &
 If negative tracer mass fractions are found in the dynamics to physics interface, then: \\
 1,3: they are reported; \\

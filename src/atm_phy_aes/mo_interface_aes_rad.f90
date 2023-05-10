@@ -24,20 +24,18 @@
 
 MODULE mo_interface_aes_rad
 
-  USE mo_kind,                ONLY: wp
-  USE mtime,                  ONLY: datetime, OPERATOR(<=), OPERATOR(>)
+  USE mo_kind,                 ONLY: wp
+  USE mtime,                   ONLY: t_datetime => datetime, OPERATOR(<=), OPERATOR(>)
 
-  USE mo_model_domain,        ONLY: t_patch
-
-  USE mo_parallel_config,     ONLY: nproma
-  USE mo_run_config,          ONLY: nlev, nlevp1
-  USE mo_aes_phy_memory,      ONLY: t_aes_phy_field, prm_field
+  USE mo_aes_phy_dims,         ONLY: aes_phy_dims
+  USE mo_aes_phy_config,       ONLY: aes_phy_tc
+  USE mo_aes_phy_memory,       ONLY: t_aes_phy_field, prm_field
 
 #ifndef __NO_RTE_RRTMGP__
-  USE mo_rte_rrtmgp_radiation,ONLY: rte_rrtmgp_radiation
+  USE mo_rte_rrtmgp_radiation, ONLY: rte_rrtmgp_radiation
 #endif
 
-  USE mo_timer,               ONLY: ltimer, timer_start, timer_stop, timer_radiation
+  USE mo_timer,                ONLY: ltimer, timer_start, timer_stop, timer_rad
 
   IMPLICIT NONE
   PRIVATE
@@ -45,32 +43,40 @@ MODULE mo_interface_aes_rad
 
 CONTAINS
 
-  !-------------------------------------------------------------------
-  SUBROUTINE interface_aes_rad  (jg, jb,jcs,jce       ,&
-       &                         nproma,nlev,ntracer  ,& 
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_aes_rad(jg, jb, jcs, jce)
 
-    INTEGER                 ,INTENT(in)    :: jg, jb, jcs, jce, &
-                                              nproma, nlev, ntracer
-    LOGICAL                 ,INTENT(in)    :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in)    :: is_active
-    TYPE(datetime)          ,POINTER       :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
+
+    ! Pointers
+    !
+    TYPE(t_aes_phy_field), POINTER :: field
 
     ! Local variables
     !
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
-    INTEGER :: itype(nproma)
-    INTEGER :: i1, i2
-    LOGICAL :: loland(nproma)
-    LOGICAL :: loglac(nproma)
-    REAL(wp):: mtrc(nproma,nlev,ntracer) ! temp variable since non-contiguous slicing
-                                         ! is not supported in OpenACC
+    INTEGER  :: ntracer
+    INTEGER  :: nlev
+    INTEGER  :: nproma
+    !
+    TYPE(t_datetime), POINTER :: datetime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
+    !
+    INTEGER :: i1, i2, i3
+    LOGICAL :: loland(aes_phy_dims(jg)%nproma)
+    LOGICAL :: loglac(aes_phy_dims(jg)%nproma)
+    !
+    ! temp variable since non-contiguous slicing is not supported in OpenACC
+    REAL(wp):: qtrc_phy(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev,aes_phy_dims(jg)%ntracer)
 
-    IF (ltimer) CALL timer_start(timer_radiation)
+    IF (ltimer) CALL timer_start(timer_rad)
+
+    ntracer = aes_phy_dims(jg)%ntracer
+    nlev    = aes_phy_dims(jg)%nlev
+    nproma  = aes_phy_dims(jg)%nproma
+
+    datetime             => aes_phy_tc(jg)%datetime
+    is_in_sd_ed_interval =  aes_phy_tc(jg)%is_in_sd_ed_interval_rad
+    is_active            =  aes_phy_tc(jg)%is_active_rad
 
     ! associate pointers
     field => prm_field(jg)
@@ -84,8 +90,9 @@ CONTAINS
           ! so that it can be reused in radheat in the other timesteps
           !
           !DA TODO: remove derived % after merging with mc8
-          !$ACC DATA PRESENT(field, field%ts_rad_rt, field%ts_rad, field%rtype, field%sftlf, field%sftgif) &
-          !$ACC   CREATE(itype, loland, loglac, mtrc)
+          !$ACC DATA PRESENT(field, field%ts_rad_rt, field%ts_rad, field%sftlf, field%sftgif) &
+          !$ACC   PRESENT(field%qtrc_phy) & ! ACCWA (nvhpc on levante): to prevent illegal address during kernel execution
+          !$ACC   CREATE(loland, loglac, qtrc_phy)
           !
           ! For some reason ACC kernels result in SEQ loop here
           !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
@@ -96,22 +103,28 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
           !
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-          mtrc(:,:,:) = field%mtrc(:,:,jb,:)
-          !$ACC END KERNELS
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR COLLAPSE(3) ASYNC(1)
+          DO i3=1,SIZE(qtrc_phy,3)
+            DO i2=1,SIZE(qtrc_phy,2)
+              DO i1=1,SIZE(qtrc_phy,1)
+                qtrc_phy(i1,i2,i3) = field%qtrc_phy(i1,i2,jb,i3)
+              END DO
+            END DO
+          END DO
+          !$ACC END PARALLEL LOOP
           !
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-          itype (:) = NINT(field%rtype(:,jb))
-          loland(:) = field% sftlf (:,jb) > 0._wp
-          loglac(:) = field% sftgif(:,jb) > 0._wp
-          !$ACC END KERNELS
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR ASYNC(1)
+          DO i1=1,SIZE(loland,1)
+            loland(i1) = field% sftlf (i1,jb) > 0._wp
+            loglac(i1) = field% sftgif(i1,jb) > 0._wp
+          END DO
+          !$ACC END PARALLEL LOOP
           !
           CALL rte_rrtmgp_radiation(                        &
               jg, jb, jcs, jce, nproma, nlev, ntracer,      &
-              & ktype          = itype                     ,&!< in  type of convection
               & loland         = loland                    ,&!< in  land-sea mask. (logical)
               & loglac         = loglac                    ,&!< in  glacier mask (logical)
-              & this_datetime  = datetime_old              ,&!< in  actual time step
+              & this_datetime  = datetime                  ,&!< in  actual time step
               & pcos_mu0       = field%cosmu0_rt(:,jb)     ,&!< in  solar zenith angle
               & daylght_frc    = field%daylght_frc_rt(:,jb),&!in daylight fraction
               & alb_vis_dir    = field%albvisdir(:,jb)     ,&!< in  surface albedo for visible range, direct
@@ -126,8 +139,8 @@ CONTAINS
               & pp_hl          = field%phalf(:,:,jb)       ,&!< in  pressure at half levels at t-dt [Pa]
               & pp_fl          = field%pfull(:,:,jb)       ,&!< in  pressure at full levels at t-dt [Pa]
               & tk_fl          = field%ta(:,:,jb)          ,&!< in  tk_fl  = temperature at full level at t-dt
-              & xm_dry         = field%mdry(:,:,jb)        ,&!< in  dry air mass in layer [kg/m2]
-              & xm_trc         = mtrc                      ,&!< in  tracer  mass in layer [kg/m2]
+              & xm_air         = field%mair(:,:,jb)        ,&!< in  air mass in layer [kg/m2]
+              & xq_trc         = qtrc_phy                  ,&!< in  tracer  mass fraction [kg/kg]
               & xv_ozn         = field%o3(:,:,jb)          ,&!< out ozone volume mixing ratio [mol/mol]
               !
               & cdnc           = field% acdnc(:,:,jb)      ,&!< in   cloud droplet number conc
@@ -199,7 +212,7 @@ CONTAINS
        !
        END IF
 
-     IF (ltimer) CALL timer_stop(timer_radiation)
+     IF (ltimer) CALL timer_stop(timer_rad)
 
   END SUBROUTINE interface_aes_rad
 

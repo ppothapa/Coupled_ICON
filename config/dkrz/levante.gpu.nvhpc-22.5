@@ -55,15 +55,12 @@ FCFLAGS="-I${NETCDFF_ROOT}/include -g -O2 -Mrecursive -Mallocatable=03 -acc=very
 LDFLAGS="-L${HDF5_ROOT}/lib -L${GCC_ROOT}/lib64 -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${XML2_ROOT}/lib64 -L${CUDA_ROOT}/lib64 -L${ECCODES_ROOT}/lib64 "
 LIBS="-Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${STDCPP_LIBS} ${CUDA_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIBS} -lrt"
 
-CLAW="${SW_ROOT}/claw-2.0.3-niqtgs/bin/clawfc"
-CLAWFLAGS=""
-
 NVCC="${SW_ROOT}/nvhpc-22.5-v4oky3/Linux_x86_64/22.5/compilers/bin/nvcc"
 NVCFLAGS='--std=c++11 -arch=sm_80 -g -O3'
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--disable-loop-exchange --enable-claw --enable-gpu --with-external-cub --enable-grib2 '
+EXTRA_CONFIG_ARGS='--disable-loop-exchange --enable-gpu --with-external-cub --enable-grib2 '
 
 EXTRA_CONFIG_ARGS+='--disable-mpi-checks '
 ################################################################################
@@ -73,7 +70,6 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
-CLAW="${CLAW}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \

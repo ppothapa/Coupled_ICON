@@ -46,11 +46,6 @@ LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${ECCODES_ROOT}/lib"
 #LIBS="-L/opt/pgi/20.1.1/linux86-64-llvm/20.1/lib/libomp -lomptarget -Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${SERIALBOX2_LIBS} ${STDCPP_LIBS}"
 LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${STDCPP_LIBS} -lcudart -leccodes -lnetcdff -lnetcdf -lhdf5"
 
-CLAW='/p/project/highresmonsoon/ICON/claw-2.0.2p/bin/clawfc'
-# We have to tell CLAW where to look for netcdf.inc:
-CLAWFLAGS=""
-#-I${NETCDF_DIR}/include"
-
 NVCC='nvcc'
 NVCFLAGS='--std=c++11 -arch=sm_80 -g -O3'
 
@@ -58,7 +53,7 @@ NVCFLAGS='--std=c++11 -arch=sm_80 -g -O3'
 
 #MPI_LAUNCH='/apps/daint/UES/xalt/production/bin/srun -p debug -C gpu'
 MPI_LAUNCH=false
-EXTRA_CONFIG_ARGS='--disable-loop-exchange --enable-grib2 --enable-claw --enable-gpu --with-external-cub --enable-rte-rrtmgp'
+EXTRA_CONFIG_ARGS='--disable-loop-exchange --enable-grib2 --enable-gpu --with-external-cub --enable-rte-rrtmgp'
 
 # Speed up the configuration by disabling MPI checks:
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks '
@@ -69,8 +64,6 @@ EXTRA_CONFIG_ARGS+=' --disable-mpi-checks '
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
-CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

@@ -42,15 +42,11 @@ LDFLAGS="-L${GCC_PATH}/snos/lib64 -L${SERIALBOX2_ROOT}/lib -L${XML2_ROOT}/lib"
 # RPATH entries of the executable, which are injected by the compiler.
 LIBS="-Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${SERIALBOX2_LIBS} ${STDCPP_LIBS}"
 
-CLAW='/project/d56/install/daint/claw/v2.0.1/pgi/bin/clawfc'
-# We have to tell CLAW where to look for netcdf.inc:
-CLAWFLAGS="-I${NETCDF_DIR}/include"
-
 SB2PP="${SERIALBOX2_ROOT}/python/pp_ser/pp_ser.py"
 
 MPI_LAUNCH='/apps/daint/UES/xalt/production/bin/srun -p debug -C gpu'
 
-EXTRA_CONFIG_ARGS='--disable-claw --enable-art --enable-rte-rrtmgp'
+EXTRA_CONFIG_ARGS='--enable-art --enable-rte-rrtmgp'
 
 # Speed up the configuration by disabling MPI checks:
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
@@ -61,8 +57,6 @@ EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
-CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

@@ -260,20 +260,6 @@ AC_ARG_ENABLE([yaxt],
   [AS_IF([test x"$enableval" != xno], [enable_yaxt=yes])],
   [enable_yaxt=no])
 
-AC_ARG_ENABLE([claw],
-[  --enable-claw           enable CLAW preprocessing. The value of the argument
-                          must be one of the following @<:@default=no@:>@:
-                            std|yes   enable STANDARD mode
-                            validate  enable VALIDATE mode
-                            no        disable CLAW preprocessing],
-[AS_CASE([$enableval],
-   [yes], [enable_claw=std],
-   [std|validate|no], [],
-   [AC_MSG_ERROR([unexpected value for the argument dnl
---enable-claw='$enableval'; valid values are 'std', 'validate', 'yes' dnl
-(same as 'std'), 'no'])])],
-[enable_claw=no])
-
 AC_ARG_ENABLE([explicit-fpp],
   [AS_HELP_STRING([--enable-explicit-fpp],
      [enable explicit Fortran preprocessing @<:@default=auto@:>@])],
@@ -597,6 +583,9 @@ m4_pushdef([AC_LANG(Fortran)],
 dnl Delay the cross-compilation check:
 ACX_COMPILER_CROSS_CHECK_DELAY
 AC_PROG_FC
+dnl Make sure that the bundled libraries pick up the same FC if not set by the
+dnl user on the command line:
+export FC
 
 dnl We put the following declarations here (i.e. after AC_PROG_FC) for better
 dnl readability of the help message:
@@ -765,9 +754,6 @@ AS_VAR_IF([enable_sct], [yes],
 AS_VAR_IF([enable_yaxt], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_YAXT"])])
 
-AS_IF([test x"$enable_claw" != xno],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}_CLAW"])])
-
 AS_IF([test x"$enable_serialization" != xno],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}SERIALIZE"])
    AS_CASE([$enable_serialization],
@@ -808,6 +794,9 @@ dnl Make sure the configure checks are run with ICON_CFLAGS:
 test -n "${ICON_CFLAGS}" && AS_VAR_APPEND([CFLAGS], [" ${ICON_CFLAGS}"])
 
 AC_PROG_CC
+dnl Make sure that the bundled libraries pick up the same CC if not set by the
+dnl user on the command line:
+export CC
 
 dnl We put the following declaration here (i.e. after AC_PROG_CC) for better
 dnl readability of the help message:
@@ -2110,22 +2099,47 @@ GPU support (--disable-gpu) or provide an external version of CUB library dnl
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
 
+dnl Generate lists of the build directories of all active Autoconf-based and
+dnl CMake-based bundled libraries:
+AC_SUBST([icon_bundled_config_subdirs], [''])
+AC_SUBST([icon_bundled_cmake_subdirs], [''])
+for icon_bundled_srcdir in $extra_src_subdirs; do
+  ACX_SUBDIR_GET_BUILD_DIR([icon_bundled_builddir], [$icon_bundled_srcdir])
+  ACX_SUBDIR_GET_BUILD_TYPE([icon_bundled_type], [$icon_bundled_srcdir])
+  AS_VAR_IF([icon_bundled_${icon_bundled_type}_subdirs], [],
+    [AS_VAR_COPY([icon_bundled_${icon_bundled_type}_subdirs],
+       [icon_bundled_builddir])],
+    [AS_VAR_APPEND([icon_bundled_${icon_bundled_type}_subdirs],
+       [" $icon_bundled_builddir"])])
+done
+
 dnl Either generate rules for the delayed configuration of the bundled
 dnl libraries or register all the libraries for the configuration by this
 dnl top-level configure script:
 AC_SUBST([ICON_DELAYED_CONFIG_RULES], [''])
 AS_VAR_IF([enable_delayed_config], [yes],
-  [icon_rule_sep=''
+  [dnl
+dnl Make sure that the bundled libraries pick up the same FC and CC if not set
+dnl by the user on the command line when configuring ICON:
+   ICON_DELAYED_CONFIG_RULES="export FC CC$as_nl$as_nl"
+   icon_rule_sep=''
    for icon_bundled_srcdir in $extra_src_subdirs; do
      ACX_SUBDIR_GET_BUILD_DIR([icon_bundled_builddir], [$icon_bundled_srcdir])
      ACX_SUBDIR_GET_RUN_CMD([icon_bundled_config_cmd], [$icon_bundled_srcdir])
+     ACX_SUBDIR_GET_BUILD_TYPE([icon_bundled_type], [$icon_bundled_srcdir])
+     AS_VAR_IF([icon_bundled_type], [cmake],
+       [icon_bundled_silent_var='silent_CMAKE'
+        icon_bundled_silent_suffix='>/dev/null'],
+       [icon_bundled_silent_var='silent_CONFIG'
+        icon_bundled_silent_suffix='--silent'])
      AS_VAR_APPEND([ICON_DELAYED_CONFIG_RULES], [dnl
 "$icon_rule_sep$icon_bundled_builddir: dnl
-\$(if \$(filter mostlyclean clean distclean,\$(MAKECMDGOALS)),,dnl
+\$(if \$(filter-out mostlyclean clean distclean,\$(or \$(MAKECMDGOALS),all)),dnl
 $icon_bundled_builddir/Makefile)
 $icon_bundled_builddir/Makefile: icon.mk
-	\$(silent_CONFIG)\$(MKDIR_P) \$(@D) && cd \$(@D) && dnl
-$icon_bundled_config_cmd \$(if \$(silent_CONFIG),--silent)"])
+	\$($icon_bundled_silent_var)\$(MKDIR_P) \$(@D) && cd \$(@D) && dnl
+$icon_bundled_config_cmd \$(if \$($icon_bundled_silent_var),dnl
+$icon_bundled_silent_suffix)"])
      icon_rule_sep="$as_nl$as_nl"
    done],
   [for icon_bundled_srcdir in $extra_src_subdirs; do
@@ -2146,7 +2160,7 @@ ARFLAGS=${ARFLAGS-cr}
 ACX_PROG_SEARCH([AR], [ar],
   [AC_COMPILE_IFELSE([AC_LANG_PROGRAM],
      [icon_prog_try=dnl
-'$acx_candidate ${ARFLAGS} libconftest.a conftest.$ac_objext'
+'$acx_candidate ${ARFLAGS} libconftest.a conftest.$ac_objext >/dev/null'
       AC_TRY_EVAL([icon_prog_try])
       rm -f libconftest.a])
    test $ac_status -eq 0],
@@ -2168,74 +2182,13 @@ ACX_PROG_SEARCH([PERL], [perl],
    test $ac_status -eq 0 || test $ac_status -eq 1],
   [PERL=$acx_cv_prog_PERL])
 
-dnl Override the descriptions of the variables set by ACX_PROG_CLAW:
-AC_ARG_VAR([CLAW], [CLAW preprocessor command (optional)])dnl
-AC_ARG_VAR([CLAWFLAGS], [CLAW preprocessor flags (optional)])dnl
-dnl We currently support the old CLAW driver:
-CLAW_NEW_DRIVER_ENABLED='#'
-CLAW_OLD_DRIVER_ENABLED='#'
-dnl Additional macro definitions to aid the dependency generator,
-dnl e.g. CLAW intrinsic macros:
-AC_SUBST([DEPGEN_CLAWFLAGS], ['-D_CLAW'])
-AS_IF([test x"$enable_claw" != xno],
-  [icon_subdir_srcdir="$srcdir/externals/omni-xmod-pool"
-   icon_subdir_unique_file="cdi"
-   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
-     [AC_MSG_ERROR([unable to find precompiled module files for OMNI dnl
-compiler required for CLAW preprocessing ($icon_subdir_unique_file) in dnl
-'$icon_subdir_srcdir': disable CLAW preprocessing (--disable-claw)])])
-   AS_VAR_IF([enable_openmp], [yes],
-     [AC_MSG_WARN([CLAW preprocessing is not compatible with OpenMP: it is dnl
-strongly recommended to disable OpenMP support (--disable-openmp)])])
-dnl
-   AS_VAR_IF([enable_gpu], [yes],
-     [AS_VAR_APPEND([CLAWFLAGS], [' --target=gpu --directive=acc'])
-      AS_VAR_APPEND([DEPGEN_CLAWFLAGS], [' -D_OPENACC'])],
-     [AS_VAR_APPEND([CLAWFLAGS], [' --target=cpu --directive=none'])])
-   AS_VAR_IF([enable_claw], [validate],
-     [AS_VAR_IF([enable_serialization], [no],
-        [AC_MSG_ERROR([unsupported combination of the configure options: you dnl
-are trying to configure with CLAW preprocessing in VALIDATE mode but the dnl
-Serialbox2 serialization is disabled: either enable CLAW preprocessing in a dnl
-different mode (--enable-claw=std) or enable the Serialbox2 serialization dnl
-(--enable-serialization)])])
-dnl Enable serialization support and update after kernels:
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_serialization_enabled:true'])
-      AS_VAR_APPEND([CLAWFLAGS],
-        [' -x=sca_serialization_enabled_direction:write'])
-      AS_VAR_APPEND([CLAWFLAGS],
-        [' -x=sca_forward_update_enabled_direction:out'])],
-     [dnl
-dnl Disable serialization support and updates by kernel:
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_serialization_enabled:false'])
-      AS_VAR_APPEND([CLAWFLAGS], [' -x=sca_forward_update_enabled:false'])])
-dnl Check for CLAW:
-   ACX_PROG_CLAW
-   AS_VAR_IF([acx_cv_prog_clawfc_works], [no],
-     [AC_MSG_FAILURE([unable to find a valid CLAW preprocessor command: dnl
-either disable CLAW preprocessing (--disable-claw) or set CLAW accordingly])])
-   ACX_CLAW_MODULE_OUT_FLAG(
-     [AC_SUBST([CLAW_MOD_OUT], [$acx_cv_claw_module_out_flag])])
-   ACX_CLAW_MODULE_IN_FLAG(
-     [AC_SUBST([CLAW_MOD_IN], [$acx_cv_claw_module_in_flag])])
-   ACX_CLAW_MODULE_GEN(
-dnl The new CLAW driver is used:
-     [CLAW_NEW_DRIVER_ENABLED=
-      AS_IF([test x"$FC_VENDOR" != xunknown],
-        [icon_vendor_CLAWFLAGS="--fc-vendor=$FC_VENDOR --fc-cmd=$FC"
-         ACX_CLAW_ACCEPTS([$icon_vendor_CLAWFLAGS],
-           [AS_VAR_APPEND([CLAWFLAGS], [" $icon_vendor_CLAWFLAGS"])],
-           [AC_MSG_WARN([unable to set the Fortran preprocessor command for dnl
-the CLAW preprocessor: make sure $CLAW is built with $FC (vendor: dnl
-$FC_VENDOR, version: $FC_VERSION)])],
-           [icon_cv_claw_accepts_vendor])])],
-dnl The old CLAW driver is used:
-     [CLAW_OLD_DRIVER_ENABLED=
-      AC_MSG_WARN([the provided CLAW preprocessor is of an old version, dnl
-which might not be supported in the future versions of ICON: consider dnl
-switching to version 2.1 or newer])])
-   AC_CONFIG_FILES([claw.mk])],
-  [CLAW=])
+AC_ARG_VAR([CMAKE], [CMake command])dnl
+AS_IF([test -n "$icon_bundled_cmake_subdirs"],
+  [ACX_PROG_SEARCH([CMAKE], [cmake],
+     [icon_prog_try='$acx_candidate --version >&AS_MESSAGE_LOG_FD'
+      AC_TRY_EVAL([icon_prog_try])],
+     [CMAKE=$acx_cv_prog_CMAKE])],
+  [CMAKE=])
 
 AC_ARG_VAR([FPP], [Fortran preprocessor command (optional)])dnl
 AS_VAR_IF([enable_explicit_fpp], [yes],
@@ -2323,10 +2276,6 @@ AS_VAR_IF([enable_gpu], [yes],
   [AC_SUBST([GPU_ENABLED], [''])],
   [AC_SUBST([GPU_ENABLED], ['#'])])
 
-AS_IF([test x"$enable_claw" != xno],
-  [AC_SUBST([CLAW_ENABLED], [''])],
-  [AC_SUBST([CLAW_ENABLED], ['#'])])
-
 AS_VAR_IF([enable_explicit_fpp], [yes],
   [AC_SUBST([FPP_ENABLED], [''])],
   [AC_SUBST([FPP_ENABLED], ['#'])])
@@ -2339,9 +2288,6 @@ AS_VAR_IF([enable_pgi_inlib], [yes],
   [AC_SUBST([PGI_INLIB_ENABLED], [''])
    AC_CONFIG_FILES([inlib.mk])],
   [AC_SUBST([PGI_INLIB_ENABLED], ['#'])])
-
-AC_SUBST([CLAW_NEW_DRIVER_ENABLED])
-AC_SUBST([CLAW_OLD_DRIVER_ENABLED])
 
 #################################### OUTPUT ####################################
 

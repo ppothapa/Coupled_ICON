@@ -37,7 +37,7 @@ MODULE mo_surface
   USE mo_turb_vdiff_params, ONLY: tpfac2
   USE mo_surface_diag,      ONLY: wind_stress, surface_fluxes
   USE mo_index_list,        ONLY: generate_index_list_batched
-  USE mtime,                ONLY: datetime
+  USE mtime,                ONLY: t_datetime => datetime
 #ifndef __NO_JSBACH__
   USE mo_jsb_interface,     ONLY: jsbach_interface
 #endif
@@ -72,7 +72,7 @@ CONTAINS
                            & kice,                              &! in
                            & klev, ksfc_type,                   &! in
                            & idx_wtr, idx_ice, idx_lnd,         &! in
-                           & datetime_old,                      &! in
+                           & datetime,                          &! in
                            & pdtime,                            &! in
                            & pfrc,                              &! in
                            & pcfh_tile, pcfm_tile,              &! in
@@ -97,9 +97,7 @@ CONTAINS
                            & pq,                                &! in
                            & pco2,                              &! in
                            & prsfl,                             &! in
-                           & prsfc,                             &! in
                            & pssfl,                             &! in
-                           & pssfc,                             &! in
                            & rlds,                              &! in
                            & rlus,                              &! inout
                            & rsds,                              &! in
@@ -147,7 +145,7 @@ CONTAINS
                            & albvisdir_ice, albvisdif_ice,      &! inout
                            & albnirdir_ice, albnirdif_ice)       ! inout
 
-    TYPE(datetime), INTENT(IN), POINTER :: datetime_old ! date and time at beginning of this time step
+    TYPE(t_datetime), INTENT(IN), POINTER :: datetime ! date and time at the end of this time step
     REAL(wp),INTENT(IN) :: pdtime
     INTEGER, INTENT(IN) :: jg
     INTEGER, INTENT(IN) :: jcs, kproma, kbdim
@@ -189,9 +187,7 @@ CONTAINS
     REAL(wp),OPTIONAL,INTENT(IN) :: pq        (:)   ! (kbdim) humidity of lowest atmospheric level
     REAL(wp),OPTIONAL,INTENT(IN) :: pco2      (:)   ! (kbdim) co2 of lowest atmospheric level
     REAL(wp),OPTIONAL,INTENT(IN) :: prsfl     (:)   ! (kbdim) rain large scale
-    REAL(wp),OPTIONAL,INTENT(IN) :: prsfc     (:)   ! (kbdim) rain convective
     REAL(wp),OPTIONAL,INTENT(IN) :: pssfl     (:)   ! (kbdim) snow large scale
-    REAL(wp),OPTIONAL,INTENT(IN) :: pssfc     (:)   ! (kbdim) snow convective
     REAL(wp),OPTIONAL,INTENT(IN) :: rlds      (:)   ! (kbdim) downward surface  longwave flux [W/m2]
     REAL(wp),OPTIONAL,INTENT(IN) :: rsds      (:)   ! (kbdim) downward surface shortwave flux [W/m2]
     
@@ -292,26 +288,7 @@ CONTAINS
 
     REAL(wp) :: delz(kbdim)
 
-   CHARACTER(len=*), PARAMETER :: method_name='mo_surface:update_surface'
-
-    !$ACC DATA PRESENT(pfrc, pcfh_tile, pcfm_tile, pfac_sfc, pocu, pocv, aa) &
-    !$ACC   PRESENT(aa_btm, bb, bb_btm, pcpt_tile, pqsat_tile, ptsfc_tile) &
-    !$ACC   PRESENT(plhflx_tile, pshflx_tile, pco2nat, aes_phy_config) &
-    !$ACC   PRESENT(pu_stress_gbm, pv_stress_gbm, plhflx_gbm, pshflx_gbm) &
-    !$ACC   PRESENT(pevap_gbm, pu_stress_tile, pv_stress_tile, pevap_tile) &
-    !$ACC   PRESENT(lsm, alake, pu, pv, ptemp, pq, prsfl, prsfc, pmair) &
-    !$ACC   PRESENT(pssfl, pssfc, rlds, rsds, rvds_dir, rpds_dir) &
-    !$ACC   PRESENT(rnds_dir, rvds_dif, rpds_dif, rnds_dif, ps) &
-    !$ACC   PRESENT(pcosmu0, pch_tile, pcsat, pcair, z0h_lnd) &
-    !$ACC   PRESENT(z0m_tile, albvisdir_tile, albnirdir_tile) &
-    !$ACC   PRESENT(albvisdif_tile, albnirdif_tile, albedo, albvisdir) &
-    !$ACC   PRESENT(albvisdif, albnirdir, albnirdif, albedo_tile) &
-    !$ACC   PRESENT(rlus, rsus, rsns_tile, rlns_tile, emissivity) &
-    !$ACC   PRESENT(pco2, pco2nat, pco2_flux_tile) &
-    !$ACC   NO_CREATE(ptsfc, ptsfc_rad, lake_ice_frc, q_snocpymlt) &
-    !$ACC   NO_CREATE(Tsurf, T1, T2, hi, hs, Qtop, Qbot, conc) &
-    !$ACC   NO_CREATE(albvisdir_ice, albvisdif_ice, albnirdir_ice) &
-    !$ACC   NO_CREATE(albnirdif_ice) &
+    !$ACC DATA &
     !$ACC   CREATE(loidx, is, se_sum, qv_sum, wgt_sum, wgt, zca, zcs) &
     !$ACC   CREATE(zfrc_oce, zen_h, zfn_h, zen_qv, zfn_qv, zlhflx_lnd) &
     !$ACC   CREATE(zlhflx_lwtr, zlhflx_lice, zshflx_lnd, zshflx_lwtr) &
@@ -339,7 +316,7 @@ CONTAINS
     !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO jsfc = 1,ksfc_type
       DO jl = jcs,kproma
-        pfrc_test(jl, jsfc) = MERGE(1, 0, pfrc(jl, jsfc) > 0.0_wp)
+        pfrc_test(jl, jsfc) = MERGE(1_i1, 0_i1, pfrc(jl, jsfc) > 0.0_wp)
       END DO
     END DO
     !$ACC END PARALLEL LOOP
@@ -499,8 +476,8 @@ CONTAINS
 
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl = jcs, kproma
-        rain_tmp(jl) = prsfl(jl) + prsfc(jl)
-        snow_tmp(jl) = pssfl(jl) + pssfc(jl)
+        rain_tmp(jl) = prsfl(jl)
+        snow_tmp(jl) = pssfl(jl)
         drag_srf_tmp(jl) = grav*pfac_sfc(jl) * pcfh_tile(jl,idx_lnd)
         IF(lsm(jl)>0._wp) THEN
           pch_tmp(jl) = pch_tile(jl,idx_lnd) ! MERGE(pch_tile(jcs:kproma,idx_lnd),1._wp,lsm(jcs:kproma)>0._wp)
@@ -512,33 +489,12 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-#ifdef _OPENACC
-#ifndef _CLAW
-      CALL warning('GPU:update_surface', 'GPU host synchronization for JSBACH since CLAW is not used!')
-      !$ACC UPDATE HOST(aa_btm, bb_btm, fract_par_diffuse) &
-      !$ACC   HOST(is, lake_ice_frc, loidx, pu_stress_gbm) &
-      !$ACC   HOST(pu_stress_tile, pv_stress_gbm, pv_stress_tile) &
-      !$ACC   HOST(q_snocpymlt, rnds, rpds, rvds, pco2, pco2_flux_tile) &
-      !$ACC   HOST(qsat_lnd, qsat_lwtr, qsat_lice, z0h_lnd, z0m_tile) &
-      !$ACC   HOST(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
-      !$ACC   HOST(zca, zcs, zen_h, zen_qv, zfn_h, zfn_qv, zlhflx_lice) &
-      !$ACC   HOST(zlhflx_lnd, zlhflx_lwtr, zshflx_lice, zshflx_lnd) &
-      !$ACC   HOST(zshflx_lwtr, ztsfc_lice, ztsfc_lnd, ztsfc_lnd_eff) &
-      !$ACC   HOST(ztsfc_lwtr, zwindspeed_lnd, zwindspeed10m_lnd)
-      !$ACC UPDATE HOST(ptemp, pq, prsfl, prsfc, pssfl, pssfc, rlds, ps) &
-      !$ACC   HOST(pfac_sfc, pcfh_tile, pch_tile, lsm, pcosmu0, pcair) &
-      !$ACC   HOST(pcsat, zevap_lnd, zgrnd_hcap, albvisdir_tile) &
-      !$ACC   HOST(albnirdir_tile, albvisdif_tile, albnirdif_tile) &
-      !$ACC   HOST(zevap_lwtr, zalbedo_lwtr, zevap_lice, zalbedo_lice)
-#endif
-#endif
-
       !$ACC WAIT
 
       IF (aes_phy_config(jg)%ljsb ) THEN
       IF (aes_phy_config(jg)%llake) THEN
         CALL jsbach_interface ( jg, nblock, jcs, kproma,                                     & ! in
-          & datetime_old, pdtime, pdtime,                                                    & ! in
+          & datetime, pdtime, pdtime,                                                        & ! in
           & t_air             = ptemp(jcs:kproma),                                           & ! in
           & q_air             = pq(jcs:kproma),                                              & ! in
           & rain              = rain_tmp(jcs:kproma),                                        & ! in
@@ -656,23 +612,9 @@ CONTAINS
        call fs_write_field(ppser_serializer, ppser_savepoint, 'ice_fract_lake', lake_ice_frc(jcs:kproma))
 #endif
 
-#ifdef _OPENACC
-#ifndef _CLAW
-       CALL warning('GPU:update_surface', 'GPU device synchronization for JSBACH since CLAW is not used!')
-       !$ACC UPDATE DEVICE(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd, qsat_lwtr, qsat_lice) &
-       !$ACC   DEVICE(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
-       !$ACC   DEVICE(pcair, pcsat, zevap_lnd, zlhflx_lnd) &
-       !$ACC   DEVICE(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
-       !$ACC   DEVICE(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-       !$ACC   DEVICE(albnirdif_tile, ztsfc_lwtr, zevap_lwtr, zlhflx_lwtr) &
-       !$ACC   DEVICE(zshflx_lwtr, zalbedo_lwtr, ztsfc_lice, zevap_lice) &
-       !$ACC   DEVICE(zlhflx_lice, zshflx_lice, zalbedo_lice, lake_ice_frc) &
-       !$ACC   DEVICE(pco2_flux_tile)
-#endif
-#endif
       ELSE
         CALL jsbach_interface ( jg, nblock, jcs, kproma,                                     & ! in
-          & datetime_old, pdtime, pdtime,                                                    & ! in
+          & datetime, pdtime, pdtime,                                                        & ! in
           & t_air             = ptemp(jcs:kproma),                                           & ! in
           & q_air             = pq(jcs:kproma),                                              & ! in
           & rain              = rain_tmp(jcs:kproma),                                        & ! in
@@ -746,16 +688,6 @@ CONTAINS
         call fs_write_field(ppser_serializer, ppser_savepoint, 'co2_flux', pco2_flux_tile(jcs:kproma,idx_lnd))
 #endif
 
-#ifdef _OPENACC
-#ifndef _CLAW
-        CALL warning('GPU:update_surface', 'GPU device synchronization for JSBACH since CLAW is not used!')
-        !$ACC UPDATE DEVICE(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd) &
-        !$ACC   DEVICE(zcpt_lnd, pcair, pcsat, zevap_lnd, zlhflx_lnd) &
-        !$ACC   DEVICE(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
-        !$ACC   DEVICE(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-        !$ACC   DEVICE(albnirdif_tile, pco2_flux_tile)
-#endif
-#endif
       END IF ! llake
       END IF ! ljsb
 
@@ -847,7 +779,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
 #else
-      CALL finish(method_name, "The JSBACH component is not activated")
+      CALL finish("mo_surface:update_surface", "The JSBACH component is not activated")
 #endif
     END IF ! idx_lnd
 
@@ -985,7 +917,7 @@ CONTAINS
 
     ! Compute wind stress
     IF (lsfc_mom_flux) THEN
-       CALL wind_stress( jcs, kproma, kbdim, ksfc_type,       &! in
+       CALL wind_stress( kbdim, ksfc_type,                    &! in
             &            pdtime,                              &! in
             &            loidx, is,                           &! in
             &            pfrc, pcfm_tile, pfac_sfc,           &! in
@@ -1189,7 +1121,7 @@ CONTAINS
             IF ( hi(jl,k) > 0._wp ) THEN
               ! Snow only falls when it's below freezing
               IF ( Tsurf(jl,k) < 0._wp ) THEN
-                hs(jl,k) = hs(jl,k) + (pssfl(jl) + pssfc(jl))*pdtime/rhos
+                hs(jl,k) = hs(jl,k) + pssfl(jl)*pdtime/rhos
               ENDIF
               ! Snow melt
               hs(jl,k) = hs(jl,k) - MIN( Qtop(jl,k)*pdtime/( alf*rhos ), hs(jl,k) )
@@ -1229,7 +1161,7 @@ CONTAINS
 
 #else
     ! __NO_ICON_OCEAN__
-      CALL finish(method_name, "The ice process requires the ICON_OCEAN component")
+      CALL finish("mo_surface:update_surface", "The ice process requires the ICON_OCEAN component")
 #endif
     ENDIF ! lice
 

@@ -65,6 +65,7 @@ MODULE  turb_utilities
 !  Updated with ICON Version d7e0252 (US)
 !    - output for GPU actions only for _OPENACC
 !    - modifications for definition of some argument lists
+!  Removed CLAW directives 2023-04-06 Reiner Schnur
 !
 ! Code Description:
 ! Language: Fortran 90.
@@ -2000,9 +2001,6 @@ LOGICAL ::  &
 
 
   !Note: 'qt' and 'tl' are not being changed in the following!
-  !$claw acc data present(psf) if(lzacc)
-  !$claw acc parallel if(lzacc)
-  !$claw acc loop seq
   !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
   !$ACC LOOP SEQ
   DO k = kstart, kend
@@ -2096,14 +2094,9 @@ LOGICAL ::  &
 
     ENDDO
 
-  !$claw end loop-hoist
   END DO
-  !$claw acc end parallel
-  !$claw acc end data
   !$ACC END PARALLEL
-
   !$ACC END DATA
-
 
 END SUBROUTINE turb_cloud
 
