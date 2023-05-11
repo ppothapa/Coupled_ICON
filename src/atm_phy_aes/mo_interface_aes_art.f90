@@ -20,104 +20,74 @@
 
 MODULE mo_interface_aes_art
 
-  USE mo_kind                   ,ONLY: wp
-  USE mtime                     ,ONLY: datetime
-
-  USE mo_dynamics_config        ,ONLY: nnew_rcf
   USE mo_model_domain           ,ONLY: t_patch
+
+  USE mo_kind                   ,ONLY: wp
+  USE mtime                     ,ONLY: t_datetime => datetime
+
+  USE mo_aes_phy_config         ,ONLY: aes_phy_tc
+  USE mo_aes_phy_memory         ,ONLY: t_aes_phy_field, prm_field
+
   USE mo_nonhydro_state         ,ONLY: p_nh_state_lists
-  
-!!$  USE mo_aes_phy_config       ,ONLY: aes_phy_config
-  USE mo_aes_phy_memory         ,ONLY: t_aes_phy_field, prm_field, &
-    &                                  t_aes_phy_tend,  prm_tend
+  USE mo_dynamics_config        ,ONLY: nnew_rcf
+
 #ifdef __ICON_ART
   USE mo_art_reaction_interface ,ONLY: art_reaction_interface
 #endif
+
   IMPLICIT NONE
   PRIVATE
   PUBLIC  :: interface_aes_art
 
 CONTAINS
 
-  SUBROUTINE interface_aes_art  (patch                ,&
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_aes_art(patch)
 
     ! Arguments
     !
-    TYPE(t_patch)   ,TARGET ,INTENT(in) :: patch
-    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in) :: is_active
-    TYPE(datetime)          ,POINTER    :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
+    TYPE(t_patch), TARGET, INTENT(in) :: patch
 
     ! Pointers
     !
-!!$    LOGICAL                 ,POINTER    :: lparamcpl
-!!$    INTEGER                 ,POINTER    :: fc_art
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
-    TYPE(t_aes_phy_tend)    ,POINTER    :: tend
+    TYPE(t_aes_phy_field), POINTER    :: field
 
     ! Local variables
+    !
+    TYPE(t_datetime), POINTER :: datetime
+    REAL(wp) :: pdtime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
+    !
     INTEGER  :: jg
 
     jg  = patch%id
 
-    ! associate pointers
-!!$    lparamcpl => aes_phy_config(jg)%lparamcpl
-!!$    fc_art    => aes_phy_config(jg)%fc_art
-    field     => prm_field(jg)
-    tend      => prm_tend (jg)  
+    datetime             => aes_phy_tc(jg)%datetime
+    pdtime               =  aes_phy_tc(jg)%dt_phy_sec
+    is_in_sd_ed_interval =  aes_phy_tc(jg)%is_in_sd_ed_interval_art
+    is_active            =  aes_phy_tc(jg)%is_active_art
 
+    ! associate pointers
+    field     => prm_field(jg)
 
     IF ( is_in_sd_ed_interval ) THEN
        !
-#ifdef __ICON_ART
        IF ( is_active ) THEN
           !
+#ifdef __ICON_ART
           CALL art_reaction_interface(jg,                                           & !> in
-               &                      datetime_old,                                 & !> in
+               &                      datetime,                                     & !> in
                &                      pdtime,                                       & !> in
                &                      p_nh_state_lists(jg)%prog_list(nnew_rcf(jg)), & !> in
-               &                      field%qtrc)
+               &                      field%qtrc_phy)
+#endif
           !
        END IF
-#endif
-       !
-!!$       ! accumulate tendencies for later updating the model state
-!!$       SELECT CASE(fc_art)
-!!$       CASE(0)
-!!$          ! diagnostic, do not use tendency
-!!$       CASE(1)
-!!$          ! use tendencies to update the model state
-!!$          ...
-!!$       END SELECT
-!!$       !
-!!$       ! update physics state for input to the next physics process
-!!$       SELECT CASE(fc_art)
-!!$       CASE(0)
-!!$          ! diagnostic, do not use tendency
-!!$       CASE(1)
-!!$          ! use tendency to update the physics state
-!!$          IF (lparamcpl) THEN
-!!$             ...
-!!$          END IF
-!!$       END SELECT
-!!$       !
-!!$    ELSE
-!!$       !
-!!$       ! reset output array of ART to default values valid for times
-!!$       ! before and after the interval [start date,end date[.
        !
     END IF
 
     ! disassociate pointers
-!!$    NULLIFY(lparamcpl)
-!!$    NULLIFY(fc_art)
-    NULLIFY(field)
-    NULLIFY(tend)
+    NULLIFY(datetime, field)
 
   END SUBROUTINE interface_aes_art
 

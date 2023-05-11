@@ -281,20 +281,6 @@ CONTAINS
     IF (upatmo_nwp%isInOpPhase( mtime_datetime )) THEN
 
       ! Check if a call of a physics group is due.
-      ! (Please note that there seems to be a difference in the treatment of 'mtime_datetime' 
-      ! between the ECHAM-dynamics interface and the NWP-dynamics interface: 
-      ! in 'src/atm_dyn_iconam/mo_nh_stepping: integrate_nh' the update 
-      ! of the model time 'datetime_local' takes place before the call 
-      ! of the interfaces: 
-      ! * src/atm_phy_nwp/mo_nh_interface_nwp: nwp_nh_interface
-      ! * src/atm_phy_aes/mo_interface_iconam_aes: interface_iconam_aes
-      ! Within the two interfaces 'datetime_local' is treated in the following way:
-      ! * NWP:   'datetime_local' seems to be regarded as the point in time to work with  
-      !          without further ado
-      ! * ECHAM: seems to subtract the advective timestep to compute the time 'datetime_old' 
-      !          which is used internally for the parameterizations
-      ! However, this might have no significant effect at all 
-      ! and/or is simply a misinterpretation from our side.)
       CALL mtime_ctrl_physics( phyProcs      = upatmo_nwp%event_mgmt_grp, & !in
         &                      mtime_current = mtime_datetime,            & !in
         &                      isInit        = .FALSE.,                   & !in

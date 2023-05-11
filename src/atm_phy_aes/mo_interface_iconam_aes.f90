@@ -1,25 +1,42 @@
 !>
 !!
 !!------------------------------------------------------------------------------
-!! This module provides the interface between dynamics+transport and physics.
+!! This module provides the interface between dynamics&transport and physics.
 !!
 !! @author Marco Giorgetta (MPI-M)
 !!
 !!------------------------------------------------------------------------------
 !!
-!! @brief Interface between ICONAM dynamics+transport and AES physics
+!! @brief Interface between ICONAM dynamics&transport and AES physics
 !!
-!! The whole physics is treated as "fast" phyiscs.
-!! The physics tendencies are computed from the provisional state reached
-!! after dynamics+transport and the full physics tendencies are then used
-!! to update and reach the final new state
+!! The provisional atmospheric state existing after dynamics&transport is used
+!! as input for the phyiscs parameterizations. The resulting physical tendencies
+!! are used to update and thus obtain the final atmospheric state of the time
+!! step. Thus the entire physics is treated as "fast" physics.
+!!
+!! Procedure:
+!! - Prepare the input fields from the prognostic state,
+!! - Call a subroutine to prepare the physics boundary conditions,
+!! - Call a subroutine to calculate the physics tendencies,
+!! - Call a subroutine to couple atmosphere and ocean, if needed,
+!! - Update the prognostic state with the physics tendencies,
+!! - Synchronize the prognostic state
+!!
+!! Memory:
+!! - Global atmospheric state fields needed in phyiscs are bundled in the
+!!   'field' (fld) data type, using references to the memory of the original
+!!   fields organized in a number of data types used in the dynamics and
+!!   transport components.
+!! - Tendencies dx/dt resulting from physics are stored in the 'tend' (ddt) data
+!!   type, which has its own memory. These physics tendencies are used for the
+!!   final update of the prognostic variables before the end of the interface.
 !!
 !!
 !! @par Revision History
 !!  first implementation by Marco Giorgetta, MPI-M (2014-03-27)
 !!
 !! @par Copyright
-!! 2002-2014 by DWD and MPI-M
+!! 2002-2023 by DWD and MPI-M
 !! This software is provided for non-commercial use only.
 !! See the LICENSE and the WARRANTY conditions.
 !!
@@ -53,62 +70,55 @@
 MODULE mo_interface_iconam_aes
 
   USE mo_kind                  ,ONLY: wp, vp
-  USE mo_exception             ,ONLY: warning, finish, print_value
+  USE mo_exception             ,ONLY: print_value
 
-#ifdef YAC_coupling
-  USE mo_coupling_config       ,ONLY: is_coupled_run
-#endif
-  USE mo_parallel_config       ,ONLY: nproma
+  USE mo_timer                 ,ONLY: ltimer, timer_start, timer_stop, &
+    &                                 timer_dyn2phy, timer_d2p_sync,   &
+    &                                 timer_aes_bcs, timer_aes_phy,    &
+    &                                 timer_phy2dyn, timer_p2d_sync
+
+  USE mo_run_config            ,ONLY: ntracer, iqv, iqc, iqi, iqr, iqs, iqg
   USE mo_advection_config      ,ONLY: advection_config
-  USE mo_run_config            ,ONLY: nlev, ntracer, iqv, iqc, iqi
-  USE mo_nonhydrostatic_config ,ONLY: lhdiff_rcf
-  USE mo_diffusion_config      ,ONLY: diffusion_config
-  USE mo_aes_phy_config        ,ONLY: aes_phy_config
+  USE mo_aes_phy_config        ,ONLY: aes_phy_config, aes_phy_tc, dt_zero
+  USE mo_aes_vdf_config        ,ONLY: aes_vdf_config
+
+  USE mtime                    ,ONLY: t_datetime  => datetime , newDatetime , deallocateDatetime     ,&
+    &                                 t_timedelta => timedelta, newTimedelta, deallocateTimedelta    ,&
+    &                                 max_timedelta_str_len   , getPTStringFromSeconds               ,&
+    &                                 OPERATOR(+), OPERATOR(>)
 
   USE mo_model_domain          ,ONLY: t_patch
   USE mo_intp_data_strc        ,ONLY: t_int_state
+  USE mo_nonhydro_types        ,ONLY: t_nh_prog, t_nh_diag
+  USE mo_aes_phy_memory        ,ONLY: t_aes_phy_field, prm_field, &
+    &                                 t_aes_phy_tend , prm_tend
+
+  USE mo_sync                  ,ONLY: sync_c, sync_e, sync_patch_array_mult
   USE mo_intp_rbf              ,ONLY: rbf_vec_interpol_cell
   USE mo_loopindices           ,ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants        ,ONLY: min_rlcell_int, grf_bdywidth_c, &
     &                                 min_rledge_int, grf_bdywidth_e
-  USE mo_sync                  ,ONLY: sync_c, sync_e, sync_patch_array, sync_patch_array_mult
 
-  USE mo_nonhydro_types        ,ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
-  USE mo_nh_diagnose_pres_temp ,ONLY: diagnose_pres_temp
   USE mo_math_constants        ,ONLY: rad2deg
-  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, grav, cpd, alv
-  USE mtime                    ,ONLY: datetime , newDatetime , deallocateDatetime     ,&
-    &                                 timedelta, newTimedelta, deallocateTimedelta    ,&
-    &                                 max_timedelta_str_len  , getPTStringFromSeconds ,&
-    &                                 OPERATOR(+), OPERATOR(>)
+  USE mo_physical_constants    ,ONLY: rd, p0ref, rd_o_cpd, vtmpc1, cpd, alv
 
-  USE mo_aes_phy_memory        ,ONLY: t_aes_phy_field, prm_field, &
-    &                                 t_aes_phy_tend , prm_tend
   USE mo_aes_phy_bcs           ,ONLY: aes_phy_bcs
   USE mo_aes_phy_main          ,ONLY: aes_phy_main
-#if defined(YAC_coupling) && !defined(__NO_AES__)
-  USE mo_aes_coupling          ,ONLY: interface_aes_ocean
-#endif
-  
+  USE mo_aes_thermo,            ONLY: internal_energy
+
 #ifndef __NO_JSBACH__
   USE mo_jsb_interface         ,ONLY: jsbach_start_timestep, jsbach_finish_timestep
 #endif
   
-  USE mo_timer                 ,ONLY: ltimer, timer_start, timer_stop,                                 &
-    &                                 timer_dyn2phy, timer_d2p_prep, timer_d2p_sync, timer_d2p_couple, &
-    &                                 timer_aes_bcs, timer_aes_phy, timer_coupling,                &
-    &                                 timer_phy2dyn, timer_p2d_prep, timer_p2d_sync, timer_p2d_couple
-  USE mo_run_config,            ONLY: lart
-  USE mo_art_config,            ONLY: art_config
-#if defined( _OPENACC )
-  USE mo_exception             ,ONLY: warning
+#if defined(YAC_coupling)
+  USE mo_timer                 ,ONLY: timer_coupling
+  USE mo_coupling_config       ,ONLY: is_coupled_run
+  USE mo_aes_coupling          ,ONLY: interface_aes_ocean
+#endif
+  
+#if defined(_OPENACC)
   USE mo_var_list_gpu          ,ONLY: gpu_update_var_list
 #endif
-
-  USE mo_upatmo_config         ,ONLY: upatmo_config
-  USE mo_upatmo_impl_const,     ONLY: idamtr
-
-  USE mo_aes_thermo,            ONLY: internal_energy
 
   IMPLICIT NONE
 
@@ -116,324 +126,226 @@ MODULE mo_interface_iconam_aes
 
   PUBLIC :: interface_iconam_aes
 
-  CHARACTER(len=*), PARAMETER :: module_name = 'mo_interface_iconam_aes'
-
 CONTAINS
   !
   !-----------------------------------------------------------------------
   !
-  !  This subroutine works as interface between dynamics+transport and
-  !  aes physics.
-  !
-  !  Marco Giorgetta, MPI-M, 2014
-  !
-  SUBROUTINE interface_iconam_aes  ( dt_loc          & !in
-    &                               ,datetime_new    & !in
-    &                               ,patch           & !in
-    &                               ,pt_int_state    & !in
-    &                               ,p_metrics       & !in
-    &                               ,pt_prog_new     & !inout
-    &                               ,pt_prog_new_rcf & !inout
-    &                               ,pt_diag         ) !inout
+  SUBROUTINE interface_iconam_aes(dt,            & !in
+    &                             datetime_new,  & !in
+    &                             patch,         & !in
+    &                             int_state,     & !in
+    &                             dyn_now,       & !inout
+    &                             dyn_new,       & !inout
+    &                             adv_now,       & !inout
+    &                             adv_new,       & !inout
+    &                             diag)            !inout
 
     !
-    !> Arguments:
+    !> Arguments
     !
-    REAL(wp)              , INTENT(in)            :: dt_loc          !< advective time step
-    TYPE(datetime)        , POINTER               :: datetime_new    !< date and time at the end of this time step
+    REAL(wp)              , INTENT(IN)            :: dt           !< advective time step
+    TYPE(t_datetime)      , POINTER               :: datetime_new !< date and time at the end of this time step
 
-    TYPE(t_patch)         , INTENT(inout), TARGET :: patch           !< grid/patch info
-    TYPE(t_int_state)     , INTENT(in)   , TARGET :: pt_int_state    !< interpolation state
-    TYPE(t_nh_metrics)    , INTENT(in)            :: p_metrics
+    TYPE(t_patch)         , INTENT(INOUT), TARGET :: patch        !< grid/patch info
+    TYPE(t_int_state)     , INTENT(IN)   , TARGET :: int_state    !< interpolation state
 
-    TYPE(t_nh_diag)       , INTENT(inout), TARGET :: pt_diag         !< diagnostic variables
-    TYPE(t_nh_prog)       , INTENT(inout), TARGET :: pt_prog_new     !< progn. vars after dynamics  for wind, temp. rho, ...
-    TYPE(t_nh_prog)       , INTENT(inout), TARGET :: pt_prog_new_rcf !< progn. vars after advection for tracers
+    TYPE(t_nh_diag)       , INTENT(INOUT), TARGET :: diag         !< diagnostic variables
+    TYPE(t_nh_prog)       , INTENT(INOUT), TARGET :: dyn_now      !< progn. vars in    dynamics  for wind, temp. rho, ...
+    TYPE(t_nh_prog)       , INTENT(INOUT), TARGET :: dyn_new      !< progn. vars after dynamics  for wind, temp. rho, ...
+    TYPE(t_nh_prog)       , INTENT(INOUT), TARGET :: adv_now      !< progn. vars in    advection for tracers
+    TYPE(t_nh_prog)       , INTENT(INOUT), TARGET :: adv_new      !< progn. vars after advection for tracers
 
-    ! Local array bounds
+    !> Local variables
+ 
+    CHARACTER(len=max_timedelta_str_len) :: neg_dt_string !< negative time delta as string
+    TYPE(t_timedelta)     , POINTER :: neg_dt_mtime       !< negative time delta as mtime variable
+    TYPE(t_datetime)      , POINTER :: datetime           !< date and time at the beginning of this time step
 
-    INTEGER  :: ncd                  !< number of child patches
+    TYPE(t_aes_phy_field) , POINTER :: f
+    TYPE(t_aes_phy_tend)  , POINTER :: t
+
+    INTEGER               , POINTER :: trHydroMass_list(:)
+
+    INTEGER  :: ncd          !< number of child patches
+    INTEGER  :: nlev         !< number of full levels
 
     INTEGER  :: rls_c, rle_c
-    INTEGER  :: jbs_c, jbe_c         !< start and end indices for rows of cells
-    INTEGER  :: jcs,jce              !< cell start and end indices
+
+    INTEGER  :: jbs_c, jbe_c !< start and end indices for rows of cells
+    INTEGER  :: jcs,jce      !< cell start and end indices
 
     INTEGER  :: rls_e, rle_e
-    INTEGER  :: jbs_e, jbe_e         !< start and end indices for rows of edges
-    INTEGER  :: jes,jee              !< edge start and end indices
 
-    INTEGER  :: jcn,jbn              !< jc and jb of neighbor cells sharing an edge je
+    INTEGER  :: jbs_e, jbe_e !< start and end indices for rows of edges
+    INTEGER  :: jes,jee      !< edge start and end indices
 
-    INTEGER  :: jg                   !< grid   index
-    INTEGER  :: jb                   !< block  index
-    INTEGER  :: jc                   !< cell   index
-    INTEGER  :: je                   !< edge   index
-    INTEGER  :: jk                   !< level  index
-    INTEGER  :: jt                   !< tracer index
+    INTEGER  :: jcn,jbn      !< jc and jb of neighbor cells sharing an edge je
 
-    ! Local variables
+    INTEGER  :: jg           !< grid   index
+    INTEGER  :: jt           !< tracer index
+    INTEGER  :: jb           !< block  index
+    INTEGER  :: jk           !< level  index
+    INTEGER  :: jc           !< cell   index
+    INTEGER  :: je           !< edge   index
 
-    CHARACTER(len=max_timedelta_str_len) :: neg_dt_loc_string !< negative time delta as string
-    TYPE(timedelta)         , POINTER    :: neg_dt_loc_mtime  !< negative time delta as mtime variable
-    TYPE(datetime)          , POINTER    :: datetime_old      !< date and time at the beginning of this time step
+    REAL(wp) :: qliq, qice   !< sum of liquid and ice phases respectively
 
-    TYPE(t_aes_phy_field)   , POINTER    :: field
-    TYPE(t_aes_phy_tend)    , POINTER    :: tend
- 
-    REAL(wp) :: z_exner              !< to save provisional new exner
-    REAL(wp) :: z_qsum               !< summand of virtual increment
-!!$    REAL(wp) :: z_ddt_qsum           !< summand of virtual increment
+    REAL(wp) :: vn1, vn2, tend_vn_phy !< for computing dvn/dt|phy
 
-    REAL(wp) :: zvn1, zvn2
-    REAL(wp), POINTER :: zdudt(:,:,:), zdvdt(:,:,:)
-
-    INTEGER  :: return_status
-
-    ! (For deep-atmosphere modification)
-    REAL(wp) :: deepatmo_vol(patch%nlev)
-
-    ! Local parameters
-
-    CHARACTER(*), PARAMETER :: method_name = "interface_iconam_aes"
-
-    INTEGER :: jt_end
+    REAL(wp) :: inv_dt       !< 1/dt
 
     !-------------------------------------------------------------------------------------
+    !
+    ! Compute the datetime, from which this time step started.
+    ! -> This assures correct events for the physics.
+    ! -> Physics boundary conditions for the datetime
+    !    from which the time step started.
+    !
+    CALL getPTStringFromSeconds(-dt, neg_dt_string)
+    neg_dt_mtime => newTimedelta(neg_dt_string)
+    datetime     => newDatetime(datetime_new)
+    datetime     =  datetime_new + neg_dt_mtime
 
-    IF (ltimer) CALL timer_start(timer_dyn2phy)
+    ! grid index
+    jg    = patch%id
 
-    IF (ltimer) CALL timer_start(timer_d2p_prep)
-
-    ! Inquire current grid level and the total number of grid cells
+    ! number of full levels on this patch
+    nlev  = patch%nlev
+    !
     ncd = MAX(1,patch%n_childdom)
-
-    ! cells
+    !
+    ! cell index ranges
     rls_c = grf_bdywidth_c+1
     rle_c = min_rlcell_int
     jbs_c = patch%cells%start_blk(rls_c,  1)
     jbe_c = patch%cells%  end_blk(rle_c,ncd)
 
-    ! edges
+    ! edge index ranges
     rls_e = grf_bdywidth_e+1
     rle_e = min_rledge_int
     jbs_e = patch%edges%start_blk(rls_e,  1)
     jbe_e = patch%edges%  end_blk(rle_e,ncd)
-
-    jg    = patch%id
-
+    !
+    ! inverse time step
+    inv_dt = 1.0_wp/dt
+    !
     ! associate pointers
-    field => prm_field(jg)
-    tend  => prm_tend (jg)
-
-    ! The date and time needed for the radiation computation in the physics is
-    ! the date and time of the initial data for this step.
-    ! As 'datetime_new' contains already the date and time of the end of this
-    ! time step, we compute here the old datetime 'datetime_old':
+    f => prm_field(jg)
+    t => prm_tend (jg)
     !
-    CALL getPTStringFromSeconds(-dt_loc, neg_dt_loc_string)
-    neg_dt_loc_mtime  => newTimedelta(neg_dt_loc_string)
-    datetime_old      => newDatetime(datetime_new)
-    datetime_old      =  datetime_new + neg_dt_loc_mtime
-    CALL deallocateTimedelta(neg_dt_loc_mtime)
+    trHydroMass_list => advection_config(jg)%trHydroMass%list
+    !
+    !=====================================================================================
 
-    !$ACC DATA PRESENT(pt_prog_new%vn, pt_prog_new%w, pt_prog_new%rho) &
-    !$ACC   PRESENT(pt_prog_new%exner, pt_prog_new%theta_v) &
-    !$ACC   PRESENT(pt_prog_new_rcf%tracer) &
-    !$ACC   PRESENT(pt_diag%u, pt_diag%v, pt_diag%temp, pt_diag%tempv) &
-    !$ACC   PRESENT(pt_diag%ddt_tracer_adv) &
-    !$ACC   PRESENT(pt_diag%ddt_vn_phy, pt_diag%exner_pr, pt_diag%ddt_exner_phy) &
-    !$ACC   PRESENT(pt_diag%exner_dyn_incr) &
-    !$ACC   PRESENT(pt_int_state%c_lin_e, advection_config(jg)%trHydroMass%list) &
-    !$ACC   PRESENT(patch%edges%cell_idx, patch%edges%primal_normal_cell) &
-    !$ACC   PRESENT(field%pfull) &
-    !$ACC   PRESENT(field%rho, field%mair, field%dz, field%mh2o) &
-    !$ACC   PRESENT(field%mdry, field%mref, field%xref, field%wa, field%omega) &
-    !$ACC   PRESENT(field%clon, field%clat, field%mtrc, field%qtrc) &
-    !$ACC   PRESENT(field%mtrcvi, field%mh2ovi, field%mairvi, field%mdryvi, field%mrefvi) &
-    !$ACC   PRESENT(tend%ua_phy, tend%va_phy, tend%ta_phy, tend%qtrc, tend%qtrc_dyn) &
-    !$ACC   PRESENT(tend%qtrc_phy, tend%mtrc_phy, tend%mtrcvi_phy, p_metrics%deepatmo_t1mc) &
-    !$ACC   CREATE(deepatmo_vol) &
+    !=====================================================================================
+    !
+    ! Memory references for the atmospheric state
+    !
+    ! dynamic pointers to the "new" time slice of the prognostic state
+    f%rho      => dyn_new%rho
+    f%wa       => dyn_new%w
+    f%qtrc_dyn => adv_new%tracer
+    !
+    ! dynamic pointers to the "now" time slice of the prognostic state,
+    ! used here to provide work space for internal updating in physics
+    f%qtrc_phy => adv_now%tracer
+    f%ta       => dyn_now%theta_v ! in physics, otherwise => diag%temp
+    !
+    ! static pointers to diagnostics
+    ! f%pfull  => diag%pres
+    ! f%phalf  => diag%pres_ifc
+    ! f%ua     => diag%u
+    ! f%va     => diag%v
+    ! f%ta     => diag%temp       ! before and after physics
+    ! f%tv     => diag%tempv
+    ! f%mair   => diag%airmass_new
+    ! f%mtrcvi => diag%tracer_vi
+    !
+    ! static pointers to metrics fields
+    ! f%zhalf  => metrics%z_ifc
+    ! f%zfull  => metrics%z_mc
+    ! f%dzhalf => metrics%ddqz_z_full
+    ! f%geom
+    ! f%geoi   => metrics%
+    !
+    ! copies from the patch information
+    ! f%clon      = p_patch%cells%center%lon
+    ! f%clat      = p_patch%cells%center%lat
+    ! f%areacella = p_patch%cells%area
+    ! f%coriol    = p_patch%cells%f_c
+    !
+    !=====================================================================================
+
+    !=====================================================================================
+    !
+    ! Manage GPU memory
+    !
+    !$ACC DATA &
+    !$ACC   PRESENT(dyn_new%vn, dyn_new%w, dyn_new%rho) &
+    !$ACC   PRESENT(dyn_new%exner, dyn_new%theta_v, adv_new%tracer) &
+    !$ACC   PRESENT(dyn_now%exner, dyn_now%theta_v, adv_now%tracer) &
+    !$ACC   PRESENT(diag%u, diag%v, diag%temp, diag%tempv) &
+    !$ACC   PRESENT(diag%exner_pr, diag%exner_dyn_incr) &
+    !$ACC   PRESENT(diag%ddt_exner_phy, diag%ddt_tracer_adv) &
+    !$ACC   PRESENT(int_state%c_lin_e, trHydroMass_list) &
+    !$ACC   PRESENT(patch%edges%cell_idx, patch%edges%cell_blk, patch%edges%primal_normal_cell) &
+    !$ACC   PRESENT(f%clon, f%clat, f%pfull) &
+    !$ACC   PRESENT(f%rho, f%mair, f%ta, f%wa) &
+    !$ACC   PRESENT(f%qtrc_dyn, f%qtrc_phy, f%mtrcvi) &
+    !$ACC   PRESENT(f%uphyvi, f%udynvi) &
+    !$ACC   PRESENT(f%shfl_qsa, f%evap_tsa, f%rsfl_tsa, f%ssfl_tsa) &
+    !$ACC   PRESENT(t%ua_phy, t%va_phy, t%wa_phy, t%ta_phy) &
+    !$ACC   PRESENT(t%qtrc_phy, t%mtrcvi_phy) &
     !$ACC   COPYIN(aes_phy_config(jg:jg))
-
-    jt_end = ntracer
-
-    ! Preparation for deep-atmosphere modifications:
-    ! - We could do without deepatmo_vol and access p_metrics%deepatmo_t1mc directly. 
-    !   However, we introduced deepatmo_vol as a further safety barrier.
-    ! - Independent of l_shallowatmo the modifications are computationally expensive!
-    !   The computation of field%mair and field/pt_prog_new%rho include 
-    !   an additional multiplication or division, respectively.
-    ! - The computational overhead could be avoided by the implementation 
-    !   of an additional metric 3d-array in field, which contains the values 
-    !   of the product field%dz(jc,jk,jb) * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol). 
-    !   However, at the cost of the considerable memory consumption of an additional 3d-array.
-    IF (upatmo_config(jg)%aes_phy%l_shallowatmo) THEN
-      ! no cell volume modification
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
-      DO jk = 1, patch%nlev
-        deepatmo_vol(jk) = 1._wp
-      END DO
-      !$ACC END PARALLEL
-    ELSE
-      ! cell volume modification factors from 'p_metrics'
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
-      DO jk = 1, patch%nlev
-        deepatmo_vol(jk) = p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)
-      END DO
-      !$ACC END PARALLEL
-    END IF
-
-    !=====================================================================================
-    !
-    ! The "new" state is provisional, updated only by dynamics,
-    ! diffusion and tracer transport.
-    ! In the following the phyiscs forcing is computed for this new
-    ! provisional state and the provisional new state is updated
-    ! to obtain the final "new" state X(t+dt).
     !
     !=====================================================================================
 
+    IF (ltimer) CALL timer_start(timer_dyn2phy)
+
     !=====================================================================================
     !
-    ! (1) Handling of negative tracer mass fractions resulting from dynamics
+    ! Prepare the input fields from the prognostic state and initialize output fields
     !
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jk,jc,jcs,jce,qliq,qice) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_c,jbe_c
       !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(3)
-      DO jt = 1,ntracer
-        DO jk = 1,nlev
-          DO jc = jcs, jce
-            !
-            IF (aes_phy_config(jg)%iqneg_d2p /= 0) THEN
-                IF (pt_prog_new_rcf% tracer(jc,jk,jb,jt) < 0.0_wp) THEN
-#ifndef _OPENACC
-                  IF (aes_phy_config(jg)%iqneg_d2p == 1 .OR. aes_phy_config(jg)%iqneg_d2p == 3) THEN
-                     CALL print_value('d2p:grid   index jg',jg)
-                     CALL print_value('d2p:tracer index jt',jt)
-                     CALL print_value('d2p:level  index jk',jk)
-                     CALL print_value('d2p:pressure   [Pa]',field% pfull(jc,jk,jb))
-                     CALL print_value('d2p:longitude [deg]',field% clon(jc,jb)*rad2deg)
-                     CALL print_value('d2p:latitude  [deg]',field% clat(jc,jb)*rad2deg)
-                     CALL print_value('d2p:pt_prog_new_rcf%tracer',pt_prog_new_rcf% tracer(jc,jk,jb,jt))
-                  END IF
-#endif
-                  IF (aes_phy_config(jg)%iqneg_d2p == 2 .OR. aes_phy_config(jg)%iqneg_d2p == 3) THEN
-                     pt_prog_new_rcf% tracer(jc,jk,jb,jt) = 0.0_wp
-                  END IF
-               END IF
-            END IF
-            !
-          END DO
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-    END DO
-!$OMP END DO
-!$OMP END PARALLEL
-    !
-    !=====================================================================================
-
-    !=====================================================================================
-    !
-    ! (2) Diagnostics
-    !
-    ! - pt_diag%tempv    = field%tv
-    ! - pt_diag%temp     = field%ta
-    ! - pt_diag%pres_sfc                surface pressure filtered to remove sound waves, see diagnose_pres_temp
-    ! - pt_diag%pres_ifc = field%phalf  hydrostatic pressure at layer interface
-    ! - pt_diag%pres     = field%pfull  hydrostatic pressure at layer midpoint = SQRT(upper pres_ifc * lower pres_ifc)
-    ! - pt_diag%dpres_mc                pressure thickness of layer
-    !
-    !$ACC WAIT(1)
-    CALL diagnose_pres_temp( p_metrics                ,&
-      &                      pt_prog_new              ,&
-      &                      pt_prog_new_rcf          ,&
-      &                      pt_diag                  ,&
-      &                      patch                    ,&
-      &                      opt_calc_temp=.TRUE.     ,&
-      &                      opt_calc_pres=.TRUE.     ,&
-      &                      opt_rlend=min_rlcell_int ,& 
-      &                      opt_lconstgrav=upatmo_config(jg)%aes_phy%l_constgrav )
-
-    IF (ltimer) CALL timer_stop(timer_d2p_prep)
-
-    ! - pt_diag%u
-    ! - pt_diag%v
-    IF (ltimer) CALL timer_start(timer_d2p_sync)
-    CALL sync_patch_array( SYNC_E, patch, pt_prog_new%vn )
-    IF (ltimer) CALL timer_stop(timer_d2p_sync)
-    !
-    IF (ltimer) CALL timer_start(timer_d2p_prep)
-
-    CALL rbf_vec_interpol_cell( pt_prog_new%vn      ,&! in
-      &                         patch               ,&! in
-      &                         pt_int_state        ,&! in
-      &                         pt_diag%u           ,&! out
-      &                         pt_diag%v           ,&! out
-      &                         opt_rlstart=rls_c   ,&! in
-      &                         opt_rlend  =rle_c   ,&! in
-      &                         opt_acc_async=.TRUE.) ! in
-
-    IF (ltimer) CALL timer_stop(timer_d2p_prep)
-    
-    !
-    ! Now the new prognostic and diagnostic state variables of the dynamical core
-    ! are ready to be used in the physics.
-    !
-    !=====================================================================================
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
+      CALL get_indices_c(patch, jb, jbs_c, jbe_c, jcs, jce, rls_c, rle_c)
       IF (jcs>jce) CYCLE
       !
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = jcs, jce
-        field% uphyvi(jc,jb) = 0.0_wp
-        field% udynvi(jc,jb) = 0.0_wp
+        f% udynvi(jc,jb) = 0.0_wp
       END DO
 
       !$ACC LOOP SEQ
       DO jk = 1,nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = jcs, jce
-          field% udynvi(jc,jb) = field% udynvi(jc,jb) + &
-                  internal_energy(                         &
-                  pt_diag% temp(jc,jk,jb),                 &!temperature
-                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
-                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
-                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
-                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
-                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
-                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
-                  pt_prog_new% rho(jc,jk,jb)         ,     &!density
-                  field%        dz(jc,jk,jb)               &!delta z
-                  )
-        END DO
-      END DO
+          qliq = adv_new% tracer(jc,jk,jb,iqc) + adv_new% tracer(jc,jk,jb,iqr)
+          qice = adv_new% tracer(jc,jk,jb,iqi) + adv_new% tracer(jc,jk,jb,iqs)  &
+            &  + adv_new% tracer(jc,jk,jb,iqg)
+
+          f%udynvi(jc,jb) = f%udynvi(jc,jb) +  &
+                  internal_energy(             &
+                  diag%temp(jc,jk,jb),         & ! temperature
+                  adv_new%tracer(jc,jk,jb,iqv),& ! qv
+                  qliq,                        & ! sum of liq phases
+                  qice,                        & ! sum of ice phases
+                  dyn_new%rho(jc,jk,jb),       & ! density
+                  f%dz(jc,jk,jb)              )  ! delta z
+        END DO !jc
+      END DO !jk
       !$ACC END PARALLEL
       !
     END DO ! jb
+!$OMP END DO
+!$OMP END PARALLEL
     !=====================================================================================
     !
-    ! (3) Copy the new prognostic state and the related diagnostics from the
-    !     dynamics state variables to the physics state variables
-    !
-
-    ! Loop over cells
-    IF (ltimer) CALL timer_start(timer_d2p_couple)
-
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_c,jbe_c
       !
       CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
@@ -444,74 +356,17 @@ CONTAINS
       DO jk = 1,nlev
         DO jc = jcs, jce
           !
-          ! Fill the time dependent physics state variables, which are used by aes:
+          ! copy temperature for in/out work in physics
+          f%ta    (jc,jk,jb) = diag% temp(jc,jk,jb)
+          ! reset physics tendencies
+          t%ua_phy(jc,jk,jb) = 0.0_wp
+          t%va_phy(jc,jk,jb) = 0.0_wp
+          t%wa_phy(jc,jk,jb) = 0.0_wp
+          t%ta_phy(jc,jk,jb) = 0.0_wp
           !
-          ! density
-          field%       rho(jc,jk,jb) = pt_prog_new% rho(jc,jk,jb)
-          !
-          ! air mass
-          field%      mair(jc,jk,jb) = pt_prog_new% rho(jc,jk,jb) &
-            &                         *field%        dz(jc,jk,jb) &
-            ! (deep-atmosphere modification factor for cell volume)
-            &                         *deepatmo_vol(jk)
-          !
-          ! H2O mass (vap+liq+ice)
-          field%      mh2o(jc,jk,jb) = ( pt_prog_new_rcf% tracer(jc,jk,jb,iqv)  &
-            &                           +pt_prog_new_rcf% tracer(jc,jk,jb,iqc)  &
-            &                           +pt_prog_new_rcf% tracer(jc,jk,jb,iqi)) &
-            &                         *field% mair(jc,jk,jb)
-          !
-          ! dry air mass
-          field%      mdry(jc,jk,jb) = field% mair(jc,jk,jb) &
-            &                         -field% mh2o(jc,jk,jb)
-          !
-          ! cloud water+ice
-          IF (aes_phy_config(jg)%ldrymoist) THEN
-            field%    mref(jc,jk,jb) = field% mdry(jc,jk,jb)
-            field%    xref(jc,jk,jb) = field% mair(jc,jk,jb) &
-              &                       /field% mdry(jc,jk,jb)
-          ELSE
-            field%    mref(jc,jk,jb) = field% mair(jc,jk,jb)
-            field%    xref(jc,jk,jb) = 1._wp
-          END IF
-          !
-          ! vertical velocity in p-system
-          ! (deep-atmosphere modification of 'grav' is assumed to be negligible here)
-          field%     omega(jc,jk,jb) = -0.5_wp                                                  &
-            &                         * (pt_prog_new% w(jc,jk,jb) + pt_prog_new% w(jc,jk+1,jb)) &
-            &                         *  pt_prog_new% rho(jc,jk,jb) * grav
-          !
-          ! Now reset the physics tendencies before entering the physics:
-          tend% ua_phy(jc,jk,jb)     = 0.0_wp
-          tend% va_phy(jc,jk,jb)     = 0.0_wp
-          tend% ta_phy(jc,jk,jb)     = 0.0_wp
-          !
-        END DO
-      END DO
+        END DO !jc
+      END DO !jk
       !$ACC END PARALLEL
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1,nlev+1
-        DO jc = jcs, jce
-          !
-          field%     wa(jc,jk,jb) = pt_prog_new% w(jc,jk,jb)          !
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-    END DO ! jb
-!$OMP END DO
-!$OMP END PARALLEL
-
-    CALL sync_patch_array( SYNC_C, patch, field%wa )
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
       !
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
@@ -519,37 +374,71 @@ CONTAINS
         DO jk = 1,nlev
           DO jc = jcs, jce
             !
-            ! Tracer mass
+            ! handle negative tracer mass fractions resulting from dynamics
             !
-            field%      mtrc(jc,jk,jb,jt)  = pt_prog_new_rcf% tracer(jc,jk,jb,jt) &
-                 &                            *field%           mair  (jc,jk,jb)
+            IF (aes_phy_config(jg)%iqneg_d2p /= 0) THEN
+                IF (adv_new% tracer(jc,jk,jb,jt) < 0.0_wp) THEN
+#ifndef _OPENACC
+                  IF (aes_phy_config(jg)%iqneg_d2p == 1 .OR. aes_phy_config(jg)%iqneg_d2p == 3) THEN
+                     CALL print_value('d2p:index of grid   jg',jg)
+                     CALL print_value('d2p:index of block  jb',jb)
+                     CALL print_value('d2p:index of tracer jt',jt)
+                     CALL print_value('d2p:index of level  jk',jk)
+                     CALL print_value('d2p:index of cell   jc',jc)
+                     CALL print_value('d2p:pressure      [Pa]',f% pfull(jc,jk,jb))
+                     CALL print_value('d2p:longitude    [deg]',f% clon(jc,jb)*rad2deg)
+                     CALL print_value('d2p:latitude     [deg]',f% clat(jc,jb)*rad2deg)
+                     CALL print_value('d2p:tracer(jt) [kg/kg]',adv_new% tracer(jc,jk,jb,jt))
+                  END IF
+#endif
+                  IF (aes_phy_config(jg)%iqneg_d2p == 2 .OR. aes_phy_config(jg)%iqneg_d2p == 3) THEN
+                     diag%ddt_tracer_adv(jc,jk,jb,jt) = diag% ddt_tracer_adv(jc,jk,jb,jt) - adv_new% tracer(jc,jk,jb,jt)*inv_dt
+                     adv_new% tracer(jc,jk,jb,jt) = 0.0_wp
+                  END IF
+               END IF
+            END IF
             !
-            ! Tracer mass fraction
-            field%      qtrc(jc,jk,jb,jt)  = pt_prog_new_rcf% tracer(jc,jk,jb,jt) &
-              &                             *field% xref(jc,jk,jb)
-
-            ! Tracer transport tendency
-            tend% qtrc_dyn(jc,jk,jb,jt)  = pt_diag% ddt_tracer_adv(jc,jk,jb,jt) &
-              &                           *field% xref(jc,jk,jb)
+            ! copy tracer mass fraction for in/out work in physics
+            f%qtrc_phy(jc,jk,jb,jt)  = adv_new%tracer(jc,jk,jb,jt)
             !
-            ! Initialize the total tendencies, to be computed later:
-            tend% qtrc    (jc,jk,jb,jt)  = 0.0_wp
+            ! reset physics tendencies
+            t%qtrc_phy(jc,jk,jb,jt)  = 0.0_wp
             !
-            ! Now reset the physics tendencies before entering the physics
-            tend% qtrc_phy(jc,jk,jb,jt)  = 0.0_wp
-            !
-          END DO
-        END DO
-      END DO
+          END DO !jc
+        END DO !jk
+      END DO !jt
       !$ACC END PARALLEL
       !
-    END DO
+    END DO !jb
 !$OMP END DO
 !$OMP END PARALLEL
 
     !$ACC WAIT(1)
-    IF (ltimer) CALL timer_stop(timer_d2p_couple)
 
+    ! only if turbulent diffusion parameterizations are used
+    IF (aes_phy_tc(jg)%dt_vdf > dt_zero) THEN
+      !
+      IF (ltimer) CALL timer_start(timer_d2p_sync)
+      CALL sync_patch_array_mult(SYNC_E, patch, 1, dyn_new%vn)
+      IF (ltimer) CALL timer_stop(timer_d2p_sync)
+      !
+      ! interpolate vn -> (u,v)
+      CALL rbf_vec_interpol_cell(dyn_new%vn, patch, int_state,       &! in
+        &                        diag%u, diag%v,                     &! out
+        &                        opt_rlstart=rls_c, opt_rlend=rle_c, &! in
+        &                        opt_acc_async=.TRUE.)                ! in
+      !
+      ! only if the Smagorinsky turbulent diffusion parameterizations is used
+      IF (aes_vdf_config(jg)%turb == 2) THEN
+        !
+        ! synchronize input fields to allow horizontal operations
+        IF (ltimer) CALL timer_start(timer_d2p_sync)
+        CALL sync_patch_array_mult(SYNC_C, patch, 4, f%rho, f%ua, f%va, f%wa)
+        IF (ltimer) CALL timer_stop(timer_d2p_sync)
+        !
+      END IF
+      !
+    END IF
     !
     !=====================================================================================
 
@@ -557,57 +446,40 @@ CONTAINS
 
     !=====================================================================================
     !
-    ! (3) Prepare boundary conditions for AES physics
+    ! Prepare the physics boundary conditions
     !
     IF (ltimer) CALL timer_start(timer_aes_bcs)
-
-    CALL aes_phy_bcs  ( patch        ,&! in
-      &                 datetime_old ,&! in
-      &                 dt_loc       ) ! out
-
+    CALL aes_phy_bcs( patch, datetime, dt )
     IF (ltimer) CALL timer_stop(timer_aes_bcs)
     !
     !=====================================================================================
+
+    !=====================================================================================
     !
-    ! (4) Call aes physics and compute the total physics tendencies.
-    !     This includes the atmospheric processes (proper AES) and
-    !     the land processes, which are vertically implicitly coupled
-    !     to the parameterization of vertical turbulent fluxes.
+    ! Calculate the physics tendencies
     !
 #ifndef __NO_JSBACH__
-    IF (aes_phy_config(jg)%ljsb) THEN
-      CALL jsbach_start_timestep(jg, datetime_old, dt_loc)
-    END IF
+    IF (aes_phy_config(jg)%ljsb) CALL jsbach_start_timestep(jg, datetime, dt)
 #endif
 
     IF (ltimer) CALL timer_start(timer_aes_phy)
-
-    ! Like in ECHAM, the subroutine *aes_phy_main* has direct access to the memory
-    ! buffers prm_field and prm_tend. 
-
-    CALL aes_phy_main( patch            & ! in
-      &                 ,datetime_old     & ! in
-      &                 ,dt_loc           ) ! in
-
+    CALL aes_phy_main( patch, datetime, dt)
     IF (ltimer) CALL timer_stop(timer_aes_phy)
 
 #ifndef __NO_JSBACH__
-    IF (aes_phy_config(jg)%ljsb) THEN
-      CALL jsbach_finish_timestep(jg, datetime_old, dt_loc)
-    END IF
+    IF (aes_phy_config(jg)%ljsb) CALL jsbach_finish_timestep(jg, datetime, dt)
 #endif
-
-    CALL deallocateDatetime(datetime_old)
     !
     !=====================================================================================
+
+    !=====================================================================================
     !
-    ! (5) Couple to ocean surface if an ocean is present and this is a coupling time step.
-    !
+    ! Couple atmosphere and ocean, if needed
     !
 #ifdef YAC_coupling
-    IF ( is_coupled_run() ) THEN
+    IF (is_coupled_run()) THEN
       IF (ltimer) CALL timer_start(timer_coupling)
-      CALL interface_aes_ocean( patch , pt_diag )
+      CALL interface_aes_ocean( patch, diag )
       IF (ltimer) CALL timer_stop(timer_coupling)
     END IF
 #endif
@@ -618,111 +490,44 @@ CONTAINS
 
     !=====================================================================================
     !
-    ! (6) Convert physics tendencies to dynamics tendencies
+    ! Update the prognostic state with the physics tendencies
     !
-    IF (ltimer) CALL timer_start(timer_p2d_prep)
-
-    !     (a) diagnose again temperature, which is provisionally updated in physics,
-    !         from the "new" state after dynamics, so that the temperature field
-    !         can be used for updating the model state
-    !
-    CALL diagnose_pres_temp( p_metrics                ,&
-      &                      pt_prog_new              ,&
-      &                      pt_prog_new_rcf          ,&
-      &                      pt_diag                  ,&
-      &                      patch                    ,&
-      &                      opt_calc_temp=.TRUE.     ,&
-      &                      opt_calc_pres=.FALSE.    ,&
-      &                      opt_rlend=min_rlcell_int ,& 
-      &                      opt_lconstgrav=upatmo_config(jg)%aes_phy%l_constgrav )
-
-    !     (b) (du/dt|phy, dv/dt|phy) --> dvn/dt|phy
-    !
-    ALLOCATE(zdudt(nproma,nlev,patch%nblks_c), &
-      &      zdvdt(nproma,nlev,patch%nblks_c), &
-      &      stat=return_status)
-    IF (return_status > 0) THEN
-      CALL finish (module_name//method_name, 'ALLOCATE(zdudt,zdvdt)')
-    END IF
-    !$ACC DATA CREATE(zdudt, zdvdt) ASYNC(1)
-
-    DO jb = 1, patch%nblks_c
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1, nlev
-        DO jc = 1, nproma
-          zdudt(jc,jk,jb) = 0.0_wp
-          zdvdt(jc,jk,jb) = 0.0_wp
-        END DO
-      END DO
-      !$ACC END PARALLEL
-    END DO
+    ! Only if turbulent diffusion parameterizations are used
+    IF (aes_phy_tc(jg)%dt_vdf > dt_zero) THEN
+      !
+      IF (ltimer) CALL timer_start(timer_p2d_sync)
+      CALL sync_patch_array_mult(SYNC_C, patch, 2, t%ua_phy, t%va_phy)
+      IF (ltimer) CALL timer_stop(timer_p2d_sync)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jcs,jce,jk,jc) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1, nlev
-        DO jc = jcs, jce
-          zdudt(jc,jk,jb) = tend% ua_phy(jc,jk,jb)
-          zdvdt(jc,jk,jb) = tend% va_phy(jc,jk,jb)
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1,nlev+1
-        DO jc = jcs, jce
-          !
-           pt_prog_new% w(jc,jk,jb)=field%     wa(jc,jk,jb)
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-    END DO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    CALL sync_patch_array( SYNC_C, patch, pt_prog_new%w )
-
-    IF (ltimer) CALL timer_stop(timer_p2d_prep)
-
-    IF (ltimer) CALL timer_start(timer_p2d_sync)
-    CALL sync_patch_array_mult(SYNC_C, patch, 2, zdudt, zdvdt)
-    IF (ltimer) CALL timer_stop(timer_p2d_sync)
-
-    IF (ltimer) CALL timer_start(timer_p2d_prep)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,je,jes,jee,jcn,jbn,zvn1,zvn2) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb, jk, je, jes, jee, jcn, jbn, vn1, vn2, tend_vn_phy) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs_e,jbe_e
       !
-      CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
+      CALL get_indices_e(patch, jb, jbs_e, jbe_e, jes, jee, rls_e, rle_e)
       IF (jes>jee) CYCLE
       !
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE(jcn, jbn, zvn1, zvn2) COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR PRIVATE(jcn, jbn, vn1, vn2, tend_vn_phy) COLLAPSE(2)
       DO jk = 1,nlev
         DO je = jes,jee
           !
-          jcn  =   patch%edges%cell_idx(je,jb,1)
-          jbn  =   patch%edges%cell_blk(je,jb,1)
-          zvn1 =   zdudt(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,1)%v1 &
-            &    + zdvdt(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,1)%v2
+          jcn =   patch%edges%cell_idx(je,jb,1)
+          jbn =   patch%edges%cell_blk(je,jb,1)
+          vn1 =   t%ua_phy(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,1)%v1 &
+            &   + t%va_phy(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,1)%v2
           !
-          jcn  =   patch%edges%cell_idx(je,jb,2)
-          jbn  =   patch%edges%cell_blk(je,jb,2)
-          zvn2 =   zdudt(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,2)%v1 &
-            &    + zdvdt(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,2)%v2
+          jcn =   patch%edges%cell_idx(je,jb,2)
+          jbn =   patch%edges%cell_blk(je,jb,2)
+          vn2 =   t%ua_phy(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,2)%v1 &
+            &   + t%va_phy(jcn,jk,jbn)*patch%edges%primal_normal_cell(je,jb,2)%v2
           !
-          pt_diag%ddt_vn_phy(je,jk,jb) =   REAL(  pt_int_state%c_lin_e(je,1,jb)*zvn1      &
-            &                                   + pt_int_state%c_lin_e(je,2,jb)*zvn2, vp)
+          tend_vn_phy = int_state%c_lin_e(je,1,jb)*vn1 + int_state%c_lin_e(je,2,jb)*vn2
+          !
+          ! new normal wind
+          dyn_new%vn(je,jk,jb) = dyn_new%vn(je,jk,jb) + dt*tend_vn_phy
+          !  
+          ! Set physics forcing to zero so that it is not re-applied in the dynamical core
+          diag%ddt_vn_phy(je,jk,jb) = 0._vp
           !
         END DO ! je
       END DO ! jk
@@ -731,425 +536,255 @@ CONTAINS
     END DO ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
-    !$ACC END DATA
-    DEALLOCATE(zdudt, zdvdt)
-
-    IF (ltimer) CALL timer_stop(timer_p2d_prep)
     !
-    !=====================================================================================
+    END IF  
 
-
-    !=====================================================================================
-    !
-    ! (7) Couple dynamics+transport and physics
-
-    IF (ltimer) CALL timer_start(timer_p2d_couple)
-    !
-    ! Here the physics forcing is treated as "fast" physics:
-    ! - The provisional "new" state is updated with the total phyiscs
-    !   tendencies, providing the final "new" state
-    ! - The physics forcing that is passed to the dynamical
-    !   core must be set to zero
-
+    ! Only if the Smagorinsky turbulent diffusion parameterizations is used
+    IF ( aes_phy_tc(jg)%dt_vdf > dt_zero .AND. aes_vdf_config(jg)%turb == 2) THEN
+      !
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,je,jes,jee) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_e,jbe_e
-      !
-      CALL get_indices_e(patch, jb,jbs_e,jbe_e, jes,jee, rls_e,rle_e)
-      IF (jes>jee) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1, nlev
-        DO je = jes, jee
-          !
-          ! (1) Velocity
-          !
-          ! Update with the total physics tendencies
-          pt_prog_new%vn    (je,jk,jb) =   pt_prog_new%vn    (je,jk,jb)             &
-            &                            + pt_diag%ddt_vn_phy(je,jk,jb) * dt_loc
-          !
-          ! Set physics forcing to zero so that it is not re-applied in the dynamical core
-          pt_diag%ddt_vn_phy(je,jk,jb) = 0._wp
-          !
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-    END DO !jb
-!$OMP END DO
-!$OMP END PARALLEL
-
-    IF (lart) jt_end = advection_config(jg)%nname
-
-    ! Loop over cells
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jt = 1,jt_end
-        DO jc = jcs, jce
-          field% mtrcvi    (jc,jb,jt) = 0.0_wp
-          tend%  mtrcvi_phy(jc,jb,jt) = 0.0_wp
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP SEQ
-      DO jk = 1,nlev
+!$OMP DO PRIVATE(jb, jk, jc, jcs, jce) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = jbs_c,jbe_c
+        !
+        CALL get_indices_c(patch, jb, jbs_c, jbe_c, jcs, jce, rls_c, rle_c)
+        IF (jcs>jce) CYCLE
+        !
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jt = 1,jt_end
-          DO jc = jcs, jce
-            !
-            ! Diagnose the total tendencies
-            tend% qtrc      (jc,jk,jb,jt) = tend% qtrc_dyn(jc,jk,jb,jt)  &
-              &                            +tend% qtrc_phy(jc,jk,jb,jt)
-            !
-            ! (2.1) Tracer mixing ratio with respect to reference air mass
-            !
-            ! tracer mass tendency
-            tend% mtrc_phy  (jc,jk,jb,jt) = tend% qtrc_phy(jc,jk,jb,jt) &
-              &                            *field% mref(jc,jk,jb)
-            !
-            ! tracer path tendency
-            tend% mtrcvi_phy(jc,   jb,jt) = tend% mtrcvi_phy(jc,   jb,jt) &
-              &                            +tend% mtrc_phy  (jc,jk,jb,jt)
-            !
-            ! If the physics tendency is /= 0 then change the tracer mass
-            ! and optionally check and correct negative values.
-            IF (tend% mtrc_phy  (jc,jk,jb,jt) /= 0.0_wp) THEN
-              !
-              ! new tracer mass
-              field% mtrc     (jc,jk,jb,jt) = field% mtrc(jc,jk,jb,jt) &
-                &                            +tend% mtrc_phy(jc,jk,jb,jt) &
-                &                            *dt_loc
-              !
-              ! Handling of negative tracer mass coming from physics
-              !   qtrc as well as other fields are derived from mtrc.
-              !   Therefore check mtrc for negative values.
-              !
-              IF (aes_phy_config(jg)%iqneg_p2d /= 0) THEN
-                IF (field% mtrc(jc,jk,jb,jt) < 0.0_wp) THEN
-#ifndef _OPENACC
-                  IF (aes_phy_config(jg)%iqneg_p2d == 1 .OR. aes_phy_config(jg)%iqneg_p2d == 3) THEN
-                    CALL print_value('p2d:grid   index jg',jg)
-                    CALL print_value('p2d:tracer index jt',jt)
-                    CALL print_value('p2d:level  index jk',jk)
-                    CALL print_value('p2d:pressure   [Pa]',field% pfull(jc,jk,jb))
-                    CALL print_value('p2d:longitude [deg]',field% clon(jc,jb)*rad2deg)
-                    CALL print_value('p2d:latitude  [deg]',field% clat(jc,jb)*rad2deg)
-                    CALL print_value('p2d:field%mtrc     ',field% mtrc(jc,jk,jb,jt))
-                  END IF
-#endif
-                  IF (aes_phy_config(jg)%iqneg_p2d == 2 .OR. aes_phy_config(jg)%iqneg_p2d == 3) THEN
-                    field% mtrc(jc,jk,jb,jt) = 0.0_wp
-                  END IF
-                END IF
-              END IF
-                  !
-            END IF
-            !
-            ! new tracer path
-            field% mtrcvi   (jc,   jb,jt) = field% mtrcvi  (jc,   jb,jt) &
-            &                            +field% mtrc    (jc,jk,jb,jt)
-            !
-          END DO  ! jc
-        END DO    ! jt
-      END DO      ! jk
-      !$ACC END PARALLEL
-      !
-    END DO  ! jb
-!$OMP END DO
-!$OMP END PARALLEL
-
-    ! Loop over cells
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,jcs,jce) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
-      DO jc = jcs, jce
-        ! initialize vertical integrals
-        field% mh2ovi(jc,jb) = 0.0_wp
-        field% mairvi(jc,jb) = 0.0_wp
-        field% mdryvi(jc,jb) = 0.0_wp
-        field% mrefvi(jc,jb) = 0.0_wp
-        field% cptgzvi(jc,jb) = 0.0_wp
-      END DO
-      !$ACC END PARALLEL
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP SEQ
-      DO jk = 1,nlev
-        !$ACC LOOP GANG VECTOR
-        DO jc = jcs, jce
-          !
-          ! new h2o mass
-          field% mh2o  (jc,jk,jb) = field% mtrc (jc,jk,jb,iqv) &
-            &                      +field% mtrc (jc,jk,jb,iqc) &
-            &                      +field% mtrc (jc,jk,jb,iqi)
-          !
-          IF (aes_phy_config(jg)%ldrymoist) THEN
-            !
-            ! new air mass
-            field%       mair(jc,jk,jb) = field% mref(jc,jk,jb) &
-              &                          +field% mh2o(jc,jk,jb)
-            !
-            ! new density
-            field%       rho (jc,jk,jb) = field% mair(jc,jk,jb) &
-              &                          /field% dz  (jc,jk,jb) &
-              ! (deep-atmosphere modification factor for cell volume)
-              &                          /deepatmo_vol(jk)
-            !
-            ! new density
-            pt_prog_new% rho (jc,jk,jb) = field% mair(jc,jk,jb) &
-              &                          /field% dz  (jc,jk,jb) &
-              ! (deep-atmosphere modification factor for cell volume)
-              &                          /deepatmo_vol(jk)
-            !
-          ELSE
-            !
-            ! new dry air mass
-            field%       mdry(jc,jk,jb) = field% mref(jc,jk,jb) &
-              &                          -field% mh2o(jc,jk,jb)
-            !              
-          END IF
-          !
-          ! h2o path
-          ! DA these guys prevent collapsing loops!!
-          ! DA TODO: figure out how to best optimize that
-          field% mh2ovi(jc,   jb) = field% mh2ovi(jc,   jb) &
-              &                    +field% mh2o  (jc,jk,jb)
-          !
-          ! air path
-          field% mairvi(jc,   jb) = field% mairvi(jc,   jb) &
-              &                    +field% mair  (jc,jk,jb)
-          !
-          ! dry air path
-          field% mdryvi(jc,   jb) = field% mdryvi(jc,   jb) &
-            &                      +field% mdry  (jc,jk,jb)
-          !
-          ! reference air path
-          field% mrefvi(jc,   jb) = field% mrefvi(jc,   jb) &
-            &                      +field% mref  (jc,jk,jb)
-          !
-          ! reference air path
-          field% cptgzvi(jc,  jb) = field% cptgzvi(jc,   jb) &
-            &                      +(field%cptgz(jc,jk,jb)*field%rho(jc,jk,jb)*field%dz(jc,jk,jb))
-          !
-        END DO
-      END DO
-      !$ACC END PARALLEL
-      !
-    END DO
-!$OMP END DO
-!$OMP END PARALLEL
-
-    ! Loop over cells
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jt,jb,jk,jc,jcs,jce,z_qsum,z_exner) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = jbs_c,jbe_c
-      !
-      CALL get_indices_c(patch, jb,jbs_c,jbe_c, jcs,jce, rls_c,rle_c)
-      IF (jcs>jce) CYCLE
-      !
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP SEQ
-      DO jt =1,jt_end
-        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO jc = jcs, jce
             !
-            ! new tracer mass fraction with respect to reference air mass
-            field%           qtrc   (jc,jk,jb,jt)  = field%  mtrc(jc,jk,jb,jt) &
-              &                                     /field%  mref(jc,jk,jb)
+            ! new vertical wind
+            dyn_new%w(jc,jk,jb) = dyn_new%w(jc,jk,jb) + dt*t%wa_phy(jc,jk,jb)
             !
-            IF (aes_phy_config(jg)%ldrymoist) THEN
-              ! in this case mtrc or mair or both may have changed, and
-              ! therefore always re-compute the tracer variable
-              pt_prog_new_rcf% tracer (jc,jk,jb,jt)  = field%  mtrc(jc,jk,jb,jt) &
-                &                                     /field%  mair(jc,jk,jb)
-              !
-            ELSE IF (aes_phy_config(jg)%l2moment) Then
-              ! this is a special case for the 2 moment scheme as field%mtrc
-              ! is changed by clipping after calculating changes due to physical
-              ! tendencies, so we have to re-compute all tracer variables.
-              pt_prog_new_rcf% tracer (jc,jk,jb,jt)  = field% mtrc(jc,jk,jb,jt) &
-                &                                     /field%  mair(jc,jk,jb)
-            ELSE
-              ! in this case mair is unchanged, and the tracer variable
-              ! is re-computed only if the mtrc is changed due to a physical
-              ! tendency so that changes of only numerical origin are avoided
-              IF (tend% mtrc_phy  (jc,jk,jb,jt) /= 0.0_wp) THEN
-                pt_prog_new_rcf% tracer (jc,jk,jb,jt)  = field%  mtrc(jc,jk,jb,jt) &
-                   &                                     /field%  mair(jc,jk,jb)
+          END DO ! jc
+        END DO ! jk
+        !$ACC END PARALLEL
+        !
+      END DO ! jb
+!$OMP END DO
+!$OMP END PARALLEL
+      !
+    END IF
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jt, jb, jk, jc, jcs, jce) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb, jbs_c, jbe_c, jcs, jce, rls_c, rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
+      DO jt = 1,ntracer
+        DO jk = 1,nlev
+          DO jc = jcs, jce
+            !
+            ! new tracer mass fraction
+            adv_new%tracer(jc,jk,jb,jt) = adv_new%tracer(jc,jk,jb,jt) + dt*t%qtrc_phy(jc,jk,jb,jt)
+            !
+            ! handle negative tracer mass fractions resulting from physics
+            IF (aes_phy_config(jg)%iqneg_p2d /= 0) THEN
+              IF (adv_new%tracer(jc,jk,jb,jt) < 0.0_wp) THEN
+#ifndef _OPENACC
+                IF (aes_phy_config(jg)%iqneg_p2d == 1 .OR. aes_phy_config(jg)%iqneg_p2d == 3) THEN
+                  CALL print_value('p2d:index of grid   index jg',jg)
+                  CALL print_value('p2d:index of block  index jb',jb)
+                  CALL print_value('p2d:index of tracer index jt',jt)
+                  CALL print_value('p2d:index of level  index jk',jk)
+                  CALL print_value('p2d:index of cell   index jc',jc)
+                  CALL print_value('p2d:pressure      [Pa]',f%pfull(jc,jk,jb))
+                  CALL print_value('p2d:longitude    [deg]',f%clon(jc,jb)*rad2deg)
+                  CALL print_value('p2d:latitude     [deg]',f%clat(jc,jb)*rad2deg)
+                  CALL print_value('p2d:tracer(jt) [kg/kg]',adv_new%tracer(jc,jk,jb,jt))
+                END IF
+#endif
+                IF (aes_phy_config(jg)%iqneg_p2d == 2 .OR. aes_phy_config(jg)%iqneg_p2d == 3) THEN
+                  t%qtrc_phy(jc,jk,jb,jt) = t%qtrc_phy(jc,jk,jb,jt) - adv_new%tracer(jc,jk,jb,jt)*inv_dt
+                  adv_new%tracer(jc,jk,jb,jt) = 0.0_wp
+                END IF
               END IF
               !
             END IF
             !
-          END DO
-        END DO
-      END DO
-
-      IF (lart) THEN
-        !$ACC LOOP SEQ
-        DO jt = jt_end+1,ntracer
-          !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-          DO jk = 1,nlev
-            DO jc = jcs, jce
-              pt_prog_new_rcf% tracer(jc,jk,jb,jt) = prm_field(jg)%qtrc(jc,jk,jb,jt)  +prm_tend(jg)%qtrc_phy(jc,jk,jb,jt)*dt_loc
-
-            ENDDO
-          ENDDO
-        ENDDO       
-      ENDIF
-
+          END DO !jc
+        END DO !jk
+      END DO ! jt
+      !$ACC END PARALLEL
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = 1,nlev
         DO jc = jcs, jce
           !
-          ! Re-compute new exner, tempv and theta_v only if physics tendencies
-          ! of temperature and water traces are non-zero in order to avoid
-          ! purely numerical changes.
-          IF (      tend% ta_phy   (jc,jk,jb)     /= 0.0_wp &
-            & .OR. tend% mtrc_phy (jc,jk,jb,iqv) /= 0.0_wp &
-            & .OR. tend% mtrc_phy (jc,jk,jb,iqc) /= 0.0_wp &
-            & .OR. tend% mtrc_phy (jc,jk,jb,iqi) /= 0.0_wp ) THEN
-            !
-            ! (3) Exner function and virtual potential temperature
-            !
-            ! (a) Update T, then compute Temp_v, Exner and Theta_v
-            !
-            pt_diag% temp (jc,jk,jb) =   pt_diag% temp  (jc,jk,jb)             &
-              &                        + tend%    ta_phy(jc,jk,jb) * dt_loc
-            !
-            z_qsum = SUM(pt_prog_new_rcf%tracer(jc,jk,jb,advection_config(jg)%trHydroMass%list))
-            !
-            pt_diag% tempv(jc,jk,jb) =   pt_diag%temp(jc,jk,jb)                                            &
-              &                       * ( 1._wp +  vtmpc1 * pt_prog_new_rcf% tracer(jc,jk,jb,iqv) - z_qsum)
-            !
-            ! Save provisional "new" exner from the slow-physics-forced dynamics
-            z_exner = pt_prog_new% exner(jc,jk,jb)
-            !
-            ! Compute final new exner
-            pt_prog_new% exner(jc,jk,jb) = EXP(rd_o_cpd*LOG(rd/p0ref * pt_prog_new% rho(jc,jk,jb) * pt_diag% tempv(jc,jk,jb)))
-            !
-            ! Add exner change from fast physics to exner_pr in order to avoid unphysical sound wave generation
-            pt_diag% exner_pr(jc,jk,jb)  = pt_diag% exner_pr(jc,jk,jb) + pt_prog_new% exner(jc,jk,jb) - z_exner
-            !
-!!$            ! (b) Update Exner, then compute Temp_v
-!!$            !
-!!$            pt_prog_new%exner(jc,jk,jb) = pt_prog_new% exner(jc,jk,jb)                 &
-!!$              &                         + pt_diag% ddt_exner_phy(jc,jk,jb) * dt_loc
-!!$            pt_diag%exner_old(jc,jk,jb) = pt_diag% exner_old(jc,jk,jb)                 &
-!!$              &                         + pt_diag% ddt_exner_phy(jc,jk,jb) * dt_loc
-!!$            !
-!!$            pt_diag%tempv(jc,jk,jb) = EXP(LOG(pt_prog_new%exner(jc,jk,jb)/rd_o_cpd)) &
-!!$              &                     / (pt_prog_new%rho(jc,jk,jb)*rd/p0ref)
-!!$            !
-            !
-            ! (a) and (b) Compute Theta_v
-            !
-            pt_prog_new% theta_v(jc,jk,  jb) = pt_diag% tempv(jc,jk,jb) / pt_prog_new% exner(jc,jk,jb)
-            !
-          END IF
+          ! new temperature
+          diag%temp (jc,jk,jb) = diag%temp(jc,jk,jb) + dt*t%ta_phy(jc,jk,jb)
           !
-          ! Set physics forcing to zero so that it is not re-applied in the dynamical core
-          pt_diag% ddt_exner_phy(jc,jk,jb) = 0._wp
+          ! new virtual temperature
+          diag%tempv(jc,jk,jb) = diag%temp(jc,jk,jb)*(1._wp + vtmpc1*adv_new%tracer(jc,jk,jb,iqv)      &
+            &                        - SUM(adv_new%tracer(jc,jk,jb,trHydroMass_list)))
           !
-          ! Additionally use this loop also to set the dynamical exner increment to zero.
-          ! (It is accumulated over one advective time step in solve_nh)
-          pt_diag% exner_dyn_incr(jc,jk,jb) = 0._wp
+          ! save provisional "new" exner from the slow-physics-forced dynamics
+          dyn_now%exner(jc,jk,jb) = dyn_new%exner(jc,jk,jb)
           !
-          field% uphyvi(jc,jb) = field% uphyvi(jc,jb) + &
-                  internal_energy(                         &
-                  pt_diag% temp(jc,jk,jb),                 &!temperature
-                  pt_prog_new_rcf% tracer(jc,jk,jb,1),     &!qv
-                  pt_prog_new_rcf% tracer(jc,jk,jb,2),     &!qc
-                  pt_prog_new_rcf% tracer(jc,jk,jb,4),     &!qr
-                  pt_prog_new_rcf% tracer(jc,jk,jb,3),     &!qi
-                  pt_prog_new_rcf% tracer(jc,jk,jb,5),     &!qs
-                  pt_prog_new_rcf% tracer(jc,jk,jb,6),     &!qg
-                  pt_prog_new% rho(jc,jk,jb)         ,     &!density 
-                  field%        dz(jc,jk,jb)               &!delta z
-                  )
-        END DO
-      END DO
+          ! new exner
+          dyn_new% exner(jc,jk,jb) = EXP(rd_o_cpd*LOG(rd/p0ref*dyn_new%rho(jc,jk,jb)*diag%tempv(jc,jk,jb)))
+          !
+          ! add exner change from fast physics to exner_pr in order to avoid unphysical sound wave generation
+          diag%exner_pr(jc,jk,jb)  = diag%exner_pr(jc,jk,jb) + dyn_new%exner(jc,jk,jb) - dyn_now%exner(jc,jk,jb)
+          !
+          dyn_new%theta_v(jc,jk,jb) = diag%tempv(jc,jk,jb)/dyn_new%exner(jc,jk,jb)
+          !
+          ! set physics forcing to zero so that it is not re-applied in the dynamical core
+          diag%ddt_exner_phy(jc,jk,jb) = 0._vp
+          !
+          ! set the dynamical exner increment to zero, accumulated in solve_nh, must be zero for next step
+          diag%exner_dyn_incr(jc,jk,jb) = 0._vp
+          !
+        END DO ! jc
+      END DO ! jk
       !$ACC END PARALLEL
-
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
-      DO jc = jcs, jce
-        field% shfl_qsa(jc,jb) = pt_prog_new_rcf% tracer(jc,nlev,jb,1) * field% shflx(jc,jb)/cpd
-        field% evap_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%lhflx(jc,jb)/alv
-        field% rsfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%rsfl(jc,jb)
-        field% ssfl_tsa(jc,jb) = pt_diag% temp(jc,nlev,jb) * field%ssfl(jc,jb)
-      END DO
       !
     END DO !jb
 !$OMP END DO
 !$OMP END PARALLEL
 
-    IF (ltimer) CALL timer_stop(timer_p2d_couple)
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb, jt, jk, jc, jcs, jce) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb, jbs_c, jbe_c, jcs, jce, rls_c, rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      DO jt = 1,ntracer
+        !
+        IF (ASSOCIATED(f%mtrcvi_ptr(jt)%p)) THEN
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR
+          DO jc = jcs, jce
+            f%mtrcvi(jc,jb,jt) = 0.0_wp
+            !
+          END DO ! jc
+          !
+          !$ACC LOOP SEQ
+          DO jk = 1,nlev
+          !$ACC LOOP GANG VECTOR
+            DO jc = jcs, jce
+              !
+              ! tracer path
+              f%mtrcvi(jc,jb,jt) = f%mtrcvi(jc,jb,jt) + f%mair(jc,jk,jb)*adv_new%tracer(jc,jk,jb,jt)
+              !
+            END DO ! jc
+          END DO ! jk
+          !$ACC END PARALLEL
+        END IF
+        !
+        IF (ASSOCIATED(t%mtrcvi_phy_ptr(jt)%p)) THEN
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR
+          DO jc = jcs, jce
+            t%mtrcvi_phy(jc,jb,jt) = 0.0_wp
+          END DO ! jc
+          !
+          !$ACC LOOP SEQ
+          DO jk = 1,nlev
+          !$ACC LOOP GANG VECTOR
+            DO jc = jcs, jce
+              !
+              ! tendency of tracer path
+              t%mtrcvi_phy(jc,jb,jt) = t%mtrcvi_phy(jc,jb,jt) + f%mair(jc,jk,jb)*t%qtrc_phy(jc,jk,jb,jt)
+             !
+            END DO ! jc
+          END DO ! jk
+          !$ACC END PARALLEL
+        END IF
+        !
+      END DO ! jt
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
+      DO jc = jcs, jce
+        f%shfl_qsa(jc,jb) = adv_new%tracer(jc,nlev,jb,iqv) * f%shflx(jc,jb)/cpd
+        f%evap_tsa(jc,jb) = diag%temp(jc,nlev,jb) * f%lhflx(jc,jb)/alv
+        f%rsfl_tsa(jc,jb) = diag%temp(jc,nlev,jb) * f%rsfl(jc,jb)
+        f%ssfl_tsa(jc,jb) = diag%temp(jc,nlev,jb) * f%ssfl(jc,jb)
+      END DO !jc
+      !$ACC END PARALLEL
+      !
+      !
+    END DO !jb
+!$OMP END DO
+!$OMP END PARALLEL
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb, jk, jc, jcs, jce, qliq, qice) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = jbs_c,jbe_c
+      !
+      CALL get_indices_c(patch, jb, jbs_c, jbe_c, jcs, jce, rls_c, rle_c)
+      IF (jcs>jce) CYCLE
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = jcs, jce
+        f%uphyvi(jc,jb) = 0.0_wp
+      END DO
+
+      !$ACC LOOP SEQ
+      DO jk = 1,nlev
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = jcs, jce
+          qliq = adv_new%tracer(jc,jk,jb,iqc) + adv_new%tracer(jc,jk,jb,iqr) 
+          qice = adv_new%tracer(jc,jk,jb,iqi) + adv_new%tracer(jc,jk,jb,iqs)  &
+            &  + adv_new%tracer(jc,jk,jb,iqg)
+
+          f%uphyvi(jc,jb) = f%uphyvi(jc,jb) +  &
+                  internal_energy(             &
+                  diag%temp(jc,jk,jb),         & ! temperature
+                  adv_new%tracer(jc,jk,jb,iqv),& ! qv
+                  qliq,                        & ! sum of liq phases
+                  qice,                        & ! sum of ice phases
+                  dyn_new%rho(jc,jk,jb),       & ! density
+                  f%dz(jc,jk,jb)            )    ! delta z
+        END DO !jc
+      END DO !jk
+      !$ACC END PARALLEL
+      !
+
+    END DO ! jb
+!$OMP END DO
+!$OMP END PARALLEL
+
     !
     !=====================================================================================
 
     !=====================================================================================
     !
-    ! Finally do some synchronization for the next dynamics and transport time step(s)
+    ! Synchronize the prognostic state
     !
     IF (ltimer) CALL timer_start(timer_p2d_sync)
-
-    CALL sync_patch_array_mult( SYNC_E, patch, 1, pt_prog_new%vn )
-
-    IF      (lhdiff_rcf .AND. diffusion_config(jg)%lhdiff_w) THEN
-      CALL sync_patch_array_mult( SYNC_C                       ,&
-        &                         patch                        ,&
-        &                         ntracer+5                    ,&
-        &                         pt_prog_new%w                ,&
-        &                         pt_prog_new%rho              ,&
-        &                         pt_diag%exner_pr             ,&
-        &                         pt_prog_new%exner            ,&
-        &                         pt_prog_new%theta_v          ,&
-        &                         f4din=pt_prog_new_rcf%tracer )
-    ELSE IF (lhdiff_rcf) THEN
-      CALL sync_patch_array_mult( SYNC_C                       ,&
-        &                         patch                        ,&
-        &                         ntracer+4                    ,&
-        &                         pt_prog_new%rho              ,&
-        &                         pt_diag%exner_pr             ,&
-        &                         pt_prog_new%exner            ,&
-        &                         pt_prog_new%theta_v          ,&
-        &                         f4din=pt_prog_new_rcf%tracer )
-    ELSE
-      CALL sync_patch_array_mult( SYNC_C                       ,&
-        &                         patch                        ,&
-        &                         ntracer+3                    ,&
-        &                         pt_prog_new%rho              ,&
-        &                         pt_prog_new%exner            ,&
-        &                         pt_prog_new%theta_v          ,&
-        &                         f4din=pt_prog_new_rcf%tracer )
-    ENDIF
-
+    CALL sync_patch_array_mult(SYNC_E, patch, 1,         &
+      &                        dyn_new%vn)
+    CALL sync_patch_array_mult(SYNC_C, patch, 5+ntracer, &
+      &                        dyn_new%w,                &
+      &                        dyn_new%rho,              &
+      &                        dyn_new%exner,            &
+      &                        dyn_new%theta_v,          &
+      &                        diag%exner_pr,            &
+      &                        f4din=adv_new%tracer)
+    IF (ltimer) CALL timer_stop(timer_p2d_sync)
+    !
     !$ACC WAIT(1)
     !$ACC END DATA
-
-    IF (ltimer) CALL timer_stop(timer_p2d_sync)
     !
     !=====================================================================================
 
-    NULLIFY(field)
-    NULLIFY(tend)
+    ! physics is finished: point 'ta' back to 'temp'
+    f%ta => diag%temp
+
+    NULLIFY(f)
+    NULLIFY(t)
+
+    CALL deallocateDatetime(datetime)
+    CALL deallocateTimedelta(neg_dt_mtime)
 
     IF (ltimer) CALL timer_stop(timer_phy2dyn)
 

@@ -28,7 +28,6 @@ MODULE mo_aes_cov_config
   USE mo_impl_constants       ,ONLY: max_dom
 
   USE mo_vertical_coord_table ,ONLY: vct_a
-  USE mo_physical_constants   ,ONLY: tmelt
 
   IMPLICIT NONE
   PRIVATE

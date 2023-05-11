@@ -171,7 +171,7 @@ CONTAINS
                        & pum1,       pvm1,      pwp1,                   &! in
                        & ptm1,       pqm1,                              &! in
                        & pxlm1,      pxim1,     pxm1,       pxtm1,      &! in
-                       & pmair,      pmref,     rho,                    &! in
+                       & pmair,      rho,                               &! in
                        & paphm1,     papm1,                             &! in
                        & ptvm1,      paclc,     pxt_emis,   pthvvar,    &! in
                        & pxvar,      pz0m_tile,                         &! in
@@ -183,7 +183,7 @@ CONTAINS
                        & pcfm,       pcfm_tile, pcfh,       pcfh_tile,  &! out
                        & pcfv,       pcftotte,  pcfthv,                 &! out
                        & aa,         aa_btm,    bb,         bb_btm,     &! out
-                       & ddt_u, ddt_v,                                  &! out
+                       & ddt_u, ddt_v, ddt_w,                           &! out
                        & ta_hori_tend,                                  &! out
                        & qv_hori_tend,                                  &! out
                        & ql_hori_tend,                                  &! out
@@ -192,7 +192,7 @@ CONTAINS
                        & qni_hori_tend,                                 &! out
                        & pfactor_sfc, pcpt_tile,                        &! out
                        & pcptgz,                                        &! out
-                       & pzthvvar,   pthvsig,   pztottevn,              &! out
+                       & pzthvvar,   pztottevn,                         &! out
                        & pch_tile,                                      &! out, for "nsurf_diag"
                        & pbn_tile,   pbhn_tile,                         &! out, for "nsurf_diag"
                        & pbm_tile,   pbh_tile,                          &! out, for "nsurf_diag"
@@ -227,7 +227,6 @@ CONTAINS
 
     REAL(wp),INTENT(IN) ::        &
       & pmair   (:,:,:)   ,&!< (kbdim,klev)     air mass [kg/m2]
-      & pmref   (:,:,:)   ,&!< (kbdim,klev) dra air mass [kg/m2]
       & paphm1  (:,:,:)   ,&!< (kbdim,klevp1) half level pressure [Pa]
       & papm1   (:,:,:)   ,&!< (kbdim,klev) full level pressure [Pa]
       & ptvm1   (:,:,:)   ,&!< (kbdim,klev) virtual temperature
@@ -259,7 +258,8 @@ CONTAINS
     REAL(wp),INTENT(INOUT) :: pwstar_tile(:,:,:)   !< (kbdim,ksfc_type)
     REAL(wp),INTENT(INOUT) :: pwp1    (:,:,:)      !< (kbdim,klevp1) vertical wind in m/s
     REAL(wp),INTENT(OUT)   :: ddt_u (:,:,:),      &
-                            & ddt_v (:,:,:)
+                            & ddt_v (:,:,:),      &
+                            & ddt_w (:,:,:)
     REAL(wp),INTENT(OUT)   :: ta_hori_tend (:,:,:)
     REAL(wp),INTENT(OUT)   :: qv_hori_tend (:,:,:)
     REAL(wp),INTENT(OUT)   :: ql_hori_tend (:,:,:)
@@ -305,7 +305,6 @@ CONTAINS
       & pcpt_tile (:,:,:) ,&!< (kbdim,ksfc_type) dry static energy at surface
       & pcptgz    (:,:,:) ,&!< (kbdim,klev) dry static energy
       & pzthvvar  (:,:,:) ,&!< (kbdim,klev)
-      & pthvsig   (:,:)   ,&!< (kbdim)
       & pztottevn (:,:,:)   !< (kbdim,klev) intermediate value of TTE
     REAL(wp) :: jztottevn(kbdim,nblks_c)
 
@@ -328,7 +327,6 @@ CONTAINS
     REAL(wp) :: zfactor(kbdim,klev,nblks_c)   !< prefactor for the exchange coefficients
     REAL(wp) :: zrmairm(kbdim,klev,nblks_c)
     REAL(wp) :: zrmairh(kbdim,klevm1,nblks_c)
-    REAL(wp) :: zrmrefm(kbdim,klev,nblks_c)
 
     REAL(wp), DIMENSION(kbdim,klev,nblks_c)   :: km_c
     REAL(wp), DIMENSION(kbdim,klevp1,nblks_v) :: km_iv
@@ -361,7 +359,7 @@ CONTAINS
 
     !---- Local variables
     !$ACC DATA &
-    !$ACC   CREATE(zghf, zghh, zfactor, zrmairm, zrmairh, zrmrefm, jztottevn) &
+    !$ACC   CREATE(zghf, zghh, zfactor, zrmairm, zrmairh, jztottevn) &
     !$ACC   CREATE(ztheta_b, zthetav_b, zthetal_b, zqsat_b, zlh_b)
 
 
@@ -406,7 +404,6 @@ CONTAINS
       DO jk = 1,klev
         DO jl = jcs,jce
           zrmairm(jl,jk,jb) = 1._wp / pmair(jl,jk,jb)
-          zrmrefm(jl,jk,jb) = 1._wp / pmref(jl,jk,jb)
         END DO
       END DO
       !$ACC END PARALLEL LOOP
@@ -425,6 +422,14 @@ CONTAINS
           ddt_u(jl,jk,jb) = 0._wp
           ddt_v(jl,jk,jb) = 0._wp
         END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk = 1,klev+1
+         DO jl = jcs,jce
+           ddt_w(jl,jk,jb) = 0._wp
+         END DO
       END DO
       !$ACC END PARALLEL LOOP
 
@@ -458,7 +463,7 @@ CONTAINS
 
         ! DA: this routine is async aware, so it's safe not not wait here
         CALL atm_exchange_coeff( jb,                                                         &! in, for debugging only
-                              & jcs, jce, kbdim, klev, klevm1, klevp1,                      &! in
+                              & jcs, jce, kbdim, klev, klevm1,                              &! in
                               & pdtime, pcoriol(:,jb),                                      &! in
                               & zghf(:,:,jb), zghh(:,:,jb),                                 &! in
                               & pum1(:,:,jb), pvm1(:,:,jb), ptm1(:,:,jb), ptvm1(:,:,jb),    &! in
@@ -502,8 +507,7 @@ CONTAINS
                               & ztheta_b (:,jb),    zthetav_b(:,jb),           &! in
                               & zthetal_b(:,jb),    paclc (:,klev,jb),         &! in
                               & ptottem1(:,klev,jb),pzthvvar(:,klevm1,jb),     &! in
-                              & vdiff_config,                              &! in
-                              & pthvsig(:,jb),                                 &! out
+                              & vdiff_config,                                  &! in
                               & pwstar(:,jb),       pwstar_tile(:,jb,:),       &! out, inout
                               & pqsat_tile(:,jb,:), pcpt_tile(:,jb,:),         &! out
                               & pri    (:,klev,jb), pri_tile(:,jb,:),          &! out
@@ -541,21 +545,20 @@ CONTAINS
 
       !$ACC DATA &
       !$ACC   CREATE(kh_ic, km_ic, km_c, km_iv, km_ie, vn, u_vert, v_vert, w_vert, rho_ic, div_c, w_ie)
-      CALL atm_exchange_coeff3d ( kbdim, nblks_c, nblks_v, nblks_e,                    &! in
+      CALL atm_exchange_coeff3d ( kbdim, nblks_c,                                     &! in
                             & klev, klevm1, klevp1,                                   &! in
                             & ksfc_type, idx_lnd,                                     &! in
                             & patch,                                                  &! in
                             & pz0m_tile(:,:,:), ptsfc_tile(:,:,:), pfrc(:,:,:),       &! in
                             & ppsfc(:,:),                                             &! in
-                            & zghf(:,:,:), zghh(:,:,:),                               &! in
+                            & zghf(:,:,:),                                            &! in
                             & pum1(:,:,:), pvm1(:,:,:), pwp1(:,:,:),                  &! in
                             & ptm1(:,:,:), ptvm1(:,:,:),                              &! in
                             & pqm1(:,:,:), pxm1(:,:,:),                               &! in
                             & rho(:,:,:),                                             &! in
                             & papm1(:,:,:), paphm1(:,:,:),                            &! in
-                            & vdiff_config,                                       &! in
+                            & vdiff_config,                                           &! in
                             & pri_tile(:,:,:),                                        &! out
-                            & pthvsig(:,:),                                           &! out
                             & pcfm_tile(:,:,:),                                       &! out
                             & pcfh_tile(:,:,:),                                       &! out
                             & pqsat_tile(:,:,:), pcpt_tile(:,:,:),                    &! out
@@ -575,16 +578,15 @@ CONTAINS
                             & pch_tile(:,:,:),                                        &! out, for "nsurf_diag"
                             & pbn_tile(:,:,:), pbhn_tile(:,:,:),                      &! out
                             & pbm_tile(:,:,:), pbh_tile(:,:,:),                       &! out
-                            & paz0lh=paz0lh(:,:),                                     &! in, optional
                             & pcsat=pcsat(:,:), pcair=pcair(:,:)                      )! in, optional
 
 
       CALL diffuse_hori_velocity( kbdim,                                            &
                                 & patch,                                            &
-                                & km_c(:,:,:), km_iv(:,:,:), km_ie(:,:,:),          &
+                                & km_c(:,:,:), km_iv(:,:,:),                        &
                                 & u_vert(:,:,:), v_vert(:,:,:), div_c(:,:,:),       &
-                                & rho(:,:,:), pum1(:,:,:), pvm1(:,:,:), vn(:,:,:),  &
-                                & ddt_u(:,:,:), ddt_v(:,:,:), pdtime)
+                                & rho(:,:,:), vn(:,:,:),                            &
+                                & ddt_u(:,:,:), ddt_v(:,:,:) )
 
       CALL diffuse_vert_velocity( kbdim,                                            &
                                 & patch,                                            &
@@ -592,13 +594,13 @@ CONTAINS
                                 & km_c(:,:,:), km_iv(:,:,:), km_ic(:,:,:),          &
                                 & u_vert(:,:,:), v_vert(:,:,:), div_c(:,:,:),       &
                                 & pum1(:,:,:), pvm1(:,:,:), pwp1(:,:,:), vn(:,:,:), &
-                                & pdtime)
+                                & ddt_w(:,:,:), pdtime)
 
 
       ! dry static energy
       call diffuse_scalar( kbdim, ptm1(:,:,:),               &
                         & patch,                            &
-                        & kh_ic(:,:,:), km_ie(:,:,:),       &
+                        & km_ie(:,:,:),                     &
                         & ta_hori_tend(:,:,:),              &
                         & rho,                              &
                         & tracer_dry_static,                &
@@ -606,7 +608,7 @@ CONTAINS
 
       call diffuse_scalar( kbdim, pqm1(:,:,:),               &
                         & patch,                            &
-                        & kh_ic(:,:,:), km_ie(:,:,:),       &
+                        & km_ie(:,:,:),                     &
                         & qv_hori_tend(:,:,:),              &
                         & rho,                              &
                         & tracer_water,                     &
@@ -614,7 +616,7 @@ CONTAINS
 
       call diffuse_scalar( kbdim, pxlm1(:,:,:),              &
                         & patch,                            &
-                        & kh_ic(:,:,:), km_ie(:,:,:),       &
+                        & km_ie(:,:,:),                     &
                         & ql_hori_tend(:,:,:),              &
                         & rho,                              &
                         & tracer_water,                     &
@@ -622,7 +624,7 @@ CONTAINS
 
       call diffuse_scalar( kbdim, pxim1(:,:,:),              &
                         & patch,                            &
-                        & kh_ic(:,:,:), km_ie(:,:,:),       &
+                        & km_ie(:,:,:),                     &
                         & qi_hori_tend(:,:,:),              &
                         & rho,                              &
                         & tracer_water,                     &
@@ -630,17 +632,17 @@ CONTAINS
 
       IF (PRESENT(l2moment)) THEN
         IF (l2moment) THEN
-          CALL diffuse_scalar( kbdim, pxtm1(:,:,:,1),          & !pxtm1(:,:,:,1) = qtrc (:,:,:,iqnc)
+          CALL diffuse_scalar( kbdim, pxtm1(:,:,:,1),          & !pxtm1(:,:,:,1) = qtrc_phy (:,:,:,iqnc)
                              & patch,                          &
-                             & kh_ic(:,:,:), km_ie(:,:,:),     &
+                             & km_ie(:,:,:),                   &
                              & qnc_hori_tend(:,:,:),           &
                              & rho,                            &
                              & tracer_water,                   &
                              & vdiff_config%rturb_prandtl)
 
-          CALL diffuse_scalar( kbdim, pxtm1(:,:,:,2),          & !pxtm1(:,:,:,2) = qtrc (:,:,:,iqni)
+          CALL diffuse_scalar( kbdim, pxtm1(:,:,:,2),          & !pxtm1(:,:,:,2) = qtrc_phy (:,:,:,iqni)
                              & patch,                          &
-                             & kh_ic(:,:,:), km_ie(:,:,:),     &
+                             & km_ie(:,:,:),                   &
                              & qni_hori_tend(:,:,:),           &
                              & rho,                            &
                              & tracer_water,                   &
@@ -701,7 +703,7 @@ CONTAINS
                             & pcfh_tile(:,jb,:),   pcfv  (:,:,jb),                &! in
                             & pcftotte (:,:,jb),   pcfthv(:,:,jb),                &! in
                             & zfactor  (:,:,jb),                                  &! in
-                            & zrmairm(:,:,jb), zrmairh(:,:,jb), zrmrefm(:,:,jb),  &! in
+                            & zrmairm(:,:,jb), zrmairh(:,:,jb),                   &! in
                             & aa(:,:,:,:,jb), aa_btm(:,:,:,:,jb)                  )! out
 
       ! Save for output, to be used in "update_surface"
@@ -724,7 +726,7 @@ CONTAINS
                     & ksfc_type, ktrac, pdtime,                                                       &! in
                     & pum1(:,:,jb), pvm1(:,:,jb), pcptgz(:,:,jb), pqm1(:,:,jb),                       &! in
                     & pxlm1(:,:,jb), pxim1(:,:,jb), pxvar(:,:,jb), pxtm1(:,:,jb,:), pxt_emis(:,:,jb), &! in
-                    & zrmrefm(:,:,jb), pztottevn(:,:,jb), pzthvvar(:,:,jb), aa(:,:,:,:,jb),           &! in
+                    & zrmairm(:,:,jb), pztottevn(:,:,jb), pzthvvar(:,:,jb), aa(:,:,:,:,jb),           &! in
                     & bb(:,:,:,jb), bb_btm(:,:,:,jb)                                                  )! out
 
       CALL rhs_elim ( jcs, jce, klev,              &! in
@@ -905,7 +907,7 @@ CONTAINS
   !! Initial revision by R. Wirth, DWD (2021-09)
   !!
   SUBROUTINE vdiff_update_boundary( &
-        & jcs, kproma, klev, dtime, pmair, pmref, shflx, qflx, aa, aa_btm, s_btm, q_btm, bb, &
+        & jcs, kproma, klev, dtime, pmair, shflx, qflx, aa, aa_btm, s_btm, q_btm, bb, &
         & uflx, vflx &
       )
 
@@ -916,8 +918,6 @@ CONTAINS
 
     !> Air mass in lowest layer [kg/m**2] (jcs:kproma).
     REAL(wp), INTENT(IN) :: pmair(:)
-    !> Reference mass for tracers in lowest layer [kg/m**2] (jcs:kproma).
-    REAL(wp), INTENT(IN) :: pmref(:)
 
     !> Sensible heat flux into surface [W/m**2] (jcs:kproma).
     REAL(wp), INTENT(IN) :: shflx(:)
@@ -960,7 +960,7 @@ CONTAINS
       bs = bs / (1._wp - aa_btm(jc, 1, 1, imh) - aa_btm(jc, 1, 1, imh) * aa(jc, klev-1, 3, imh))
       bb(jc, klev, ih) = bs
 
-      bqv = q_btm(jc) / tpfac1 - dtime * qflx(jc) / pmref(jc)
+      bqv = q_btm(jc) / tpfac1 - dtime * qflx(jc) / pmair(jc)
       bqv = bqv - aa_btm(jc, 1, 1, imqv) * bb(jc, klev-1, iqv)
       bqv = bqv / (1._wp - aa_btm(jc,1,1,imqv) - aa_btm(jc,1,1,imqv) * aa(jc, klev-1, 3, imqv))
       bb(jc, klev, iqv) = bqv
@@ -1053,7 +1053,6 @@ CONTAINS
     REAL(wp),INTENT(IN) :: pvm1    (:,:)   !< (kbdim,klev) q-wind at step t-dt
     REAL(wp),INTENT(IN) :: ptm1    (:,:)   !< (kbdim,klev) temperature at step t-dt
     REAL(wp),INTENT(IN) :: pmair   (:,:)   !< (kbdim,klev) moist air mass [kg/m2]
-    !!$    REAL(wp),INTENT(IN) :: pmref   (:,:)   !< (kbdim,klev) dry   air mass [kg/m2]
     REAL(wp),INTENT(IN) :: pqm1    (:,:)   !< (kbdim,klev) specific humidity at step t-dt
     REAL(wp),INTENT(IN) :: pxlm1   (:,:)   !< (kbdim,klev) cloud water concentration at step t-dt
     REAL(wp),INTENT(IN) :: pxim1   (:,:)   !< (kbdim,klev) cloud ice   concentration at step t-dt
@@ -1253,7 +1252,7 @@ CONTAINS
                               & pcfm, pcfh, pcfh_tile, pcfv,  &! in
                               & pcftotte, pcfthv,             &! in
                               & pprfac,                       &! in
-                              & prmairm, prmairh, prmrefm,    &! in
+                              & prmairm, prmairh,             &! in
                               & aa, aa_btm                    )! out
     ! Arguments
 
@@ -1268,7 +1267,6 @@ CONTAINS
     REAL(wp),INTENT(IN) :: pprfac   (:,:)   !< (kbdim,klev) prefactor for the exchange coefficients
     REAL(wp),INTENT(IN) :: prmairm  (:,:)   !< (kbdim,klev) reciprocal of layer air mass, full levels
     REAL(wp),INTENT(IN) :: prmairh  (:,:)   !< (kbdim,klevm1) reciprocal of layer air mass, half levels
-    REAL(wp),INTENT(IN) :: prmrefm  (:,:)   !< (kbdim,klev) reciprocal of layer ref air mass, full levels
 
     REAL(wp),INTENT(OUT) :: aa    (:,:,:,:)     !< (kbdim,klev,3,nmatrix) exchange coeff. matrices    out
     REAL(wp),INTENT(OUT) :: aa_btm(:,:,:,imh:)  !< (kbdim,3,ksfc_type,imh:imqv) out
@@ -1394,8 +1392,8 @@ CONTAINS
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,klevm1
       DO jc = jcs,kproma
-        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmrefm(jc,jk)  ! -K*_{k-1/2}/dm_k
-        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmrefm(jc,jk)  ! -K*_{k+1/2}/dm_k
+        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmairm(jc,jk)  ! -K*_{k-1/2}/dm_k
+        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmairm(jc,jk)  ! -K*_{k+1/2}/dm_k
         aa(jc,jk,2,im) = 1._wp - aa(jc,jk,1,im) - aa(jc,jk,3,im)
       ENDDO
     ENDDO
@@ -1412,8 +1410,8 @@ CONTAINS
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jc = jcs,kproma
-          aa_btm(jc,1,jsfc,im) = -zkstar(jc,jk-1)*prmrefm(jc,jk)    ! -K*_{k-1/2}/dm_k
-          aa_btm(jc,3,jsfc,im) = -pcfh_tile(jc,jsfc)*pprfac(jc,jk)*prmrefm(jc,jk)
+          aa_btm(jc,1,jsfc,im) = -zkstar(jc,jk-1)*prmairm(jc,jk)    ! -K*_{k-1/2}/dm_k
+          aa_btm(jc,3,jsfc,im) = -pcfh_tile(jc,jsfc)*pprfac(jc,jk)*prmairm(jc,jk)
           aa_btm(jc,2,jsfc,im) = 1._wp - aa_btm(jc,1,jsfc,im)
         ENDDO
       ENDDO
@@ -1423,8 +1421,8 @@ CONTAINS
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jsfc = 1,ksfc_type
         DO jc = jcs,kproma
-          aa_btm(jc,1,jsfc,im) = -zkstar(jc,jk-1)*prmrefm(jc,jk)    ! -K*_{k-1/2}/dm_k
-          aa_btm(jc,3,jsfc,im) = -pcfh_tile(jc,jsfc)*pprfac(jc,jk)*prmrefm(jc,jk)
+          aa_btm(jc,1,jsfc,im) = -zkstar(jc,jk-1)*prmairm(jc,jk)    ! -K*_{k-1/2}/dm_k
+          aa_btm(jc,3,jsfc,im) = -pcfh_tile(jc,jsfc)*pprfac(jc,jk)*prmairm(jc,jk)
           aa_btm(jc,2,jsfc,im) = 1._wp - aa_btm(jc,1,jsfc,im) - aa_btm(jc,3,jsfc,im)
         ENDDO
       ENDDO
@@ -1449,8 +1447,8 @@ CONTAINS
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,klev
       DO jc = jcs,kproma
-        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmrefm(jc,jk)  ! -K*_{k-1/2}/dm_k
-        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmrefm(jc,jk)  ! -K*_{k+1/2}/dm_k
+        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmairm(jc,jk)  ! -K*_{k-1/2}/dm_k
+        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmairm(jc,jk)  ! -K*_{k+1/2}/dm_k
         aa(jc,jk,2,im) = 1._wp - aa(jc,jk,1,im) - aa(jc,jk,3,im)
       ENDDO
     ENDDO
@@ -1481,8 +1479,8 @@ CONTAINS
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,klev
       DO jc = jcs,kproma
-        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmrefm(jc,jk)
-        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmrefm(jc,jk)
+        aa(jc,jk,1,im) = -zkstar(jc,jk-1)*prmairm(jc,jk)
+        aa(jc,jk,3,im) = -zkstar(jc,jk  )*prmairm(jc,jk)
         aa(jc,jk,2,im) = 1._wp - aa(jc,jk,1,im) - aa(jc,jk,3,im)
       ENDDO
     ENDDO
@@ -1633,7 +1631,7 @@ CONTAINS
                       & ksfc_type, ktrac, pdtime,            &! in
                       & pum1, pvm1, pcptgz, pqm1,            &! in
                       & pxlm1, pxim1, pxvar, pxtm1, pxt_emis,&! in
-                      & prmrefm, ptottevn, pzthvvar, aa,     &! in
+                      & prmairm, ptottevn, pzthvvar, aa,     &! in
                       & bb, bb_btm                           )! out
 
     ! Arguments
@@ -1654,7 +1652,7 @@ CONTAINS
     !REAL(wp),INTENT(IN) :: pxt_emis (:,:,:) ! (kbdim,klev,ktrac) backup for later use
     REAL(wp),INTENT(IN) :: ptottevn (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN) :: pzthvvar (:,:)   !< (kbdim,klev)
-    REAL(wp),INTENT(IN) :: prmrefm  (:,:)   !< (kbdim,klev)
+    REAL(wp),INTENT(IN) :: prmairm  (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN) :: aa       (:,:,:,:) !< (kbdim,klev,3,nmatrix)
 
     REAL(wp),INTENT(OUT) :: bb    (:,:,:)   !< (kbdim,klev,nvar_vdiff) OUT
@@ -1833,7 +1831,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs,kproma
-      ztmp(jc,klev) = prmrefm(jc,klev)*pdtime
+      ztmp(jc,klev) = prmairm(jc,klev)*pdtime
     ENDDO
     !$ACC END PARALLEL
 
@@ -1861,7 +1859,7 @@ CONTAINS
     ! Later we may consider treating emission on all vertical levels
     ! in the same way.
     !
-    !ztmp(jcs:kproma,1:klev) = prmrefm(jcs:kproma,1:klev)*pdtime
+    !ztmp(jcs:kproma,1:klev) = prmairm(jcs:kproma,1:klev)*pdtime
     !
     !DO jt = 1,ktrac
     !   irhs = jt - 1 + itrc_start
@@ -2224,7 +2222,6 @@ CONTAINS
     REAL(wp),INTENT(IN)  :: pvm1   (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN)  :: ptm1   (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN)  :: pmair  (:,:)   !< (kbdim,klev) moist air mass [kg/m2]
-!!$    REAL(wp),INTENT(IN)  :: pmref  (:,:)   !< (kbdim,klev) dry   air mass [kg/m2]
     REAL(wp),INTENT(IN)  :: pqm1   (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN)  :: pxlm1  (:,:)   !< (kbdim,klev)
     REAL(wp),INTENT(IN)  :: pxim1  (:,:)   !< (kbdim,klev)
@@ -2420,11 +2417,11 @@ CONTAINS
 !!$      pqv_vdiff(:) = 0._wp
 !!$      DO jk=1,klev
 !!$        ! compute heat budget diagnostic
-!!$        psh_vdiff(jcs:kproma) = psh_vdiff(jcs:kproma) + pmref(jcs:kproma,jk) * &
+!!$        psh_vdiff(jcs:kproma) = psh_vdiff(jcs:kproma) + pmair(jcs:kproma,jk) * &
 !!$        & (bb(jcs:kproma,jk,ih)  + (tpfac3 - 1._wp)*pcptgz(jcs:kproma,jk)) * zrdt
 !!$        ! compute moisture budget diagnostic
 !!$        ! ? zdis appears to be dissipation, probably we don't need this for qv??
-!!$        pqv_vdiff(jcs:kproma) = pqv_vdiff(jcs:kproma) + pmref(jcs:kproma,jk)* &
+!!$        pqv_vdiff(jcs:kproma) = pqv_vdiff(jcs:kproma) + pmair(jcs:kproma,jk)* &
 !!$        & (bb(jcs:kproma,jk,iqv) + (tpfac3 - 1._wp)*pqm1(jcs:kproma,jk)) * zrdt
 !!$      END DO
 !!$    END IF

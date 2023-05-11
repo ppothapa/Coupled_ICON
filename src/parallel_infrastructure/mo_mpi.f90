@@ -224,9 +224,7 @@ MODULE mo_mpi
 #endif
 
 #ifdef USE_NCCL
-!$claw ignore
   USE nccl
-!$claw end ignore
   USE openacc
 #endif
 

@@ -37,7 +37,7 @@ pgi_inlib_procedures+= \
   foeles_v \
   fqvs \
   fthetae \
-  gefr \
+  internal_energy \
   is_close_i \
   is_close_r \
   is_close_s \
@@ -55,6 +55,7 @@ pgi_inlib_procedures+= \
   nwp_dyn_gust \
   pade_eval_1 \
   qsat_rho \
+  qsat_ice_rho \
   reff_crystal \
   reff_droplet \
   rel_hum \
@@ -68,6 +69,7 @@ pgi_inlib_procedures+= \
   sfc_albedo_dir_zaengl \
   spec_humi \
   swdir_s \
+  T_from_internal_energy \
   time_avg \
   watrcon_rt \
   watrdiff_rt \
@@ -86,6 +88,7 @@ pgi_inlib_f90_files+= \
   src/advection/mo_advection_quadrature.f90 \
   src/advection/mo_advection_utils.f90 \
   src/advection/mo_advection_vlimit.f90 \
+  src/atm_phy_ice/mo_aes_thermo.f90 \
   src/atm_phy_nwp/mo_nwp_ecrad_utilities.f90 \
   src/atm_phy_nwp/mo_nwp_ww.f90 \
   src/atm_phy_nwp/mo_opt_nwp_diagnostics.f90 \

@@ -2,7 +2,7 @@
 
 # Collect extra dependencies of the bundled libraries:
 result=''
-for subdir in @extra_build_subdirs@; do
+for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
 
   extra_libs=''
 

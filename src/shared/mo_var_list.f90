@@ -87,8 +87,10 @@ MODULE mo_var_list
   END INTERFACE add_var
 
   INTERFACE add_ref
+    MODULE PROCEDURE add_var_list_reference_r4d
     MODULE PROCEDURE add_var_list_reference_r3d
     MODULE PROCEDURE add_var_list_reference_r2d
+    MODULE PROCEDURE add_var_list_reference_s4d
     MODULE PROCEDURE add_var_list_reference_s3d
     MODULE PROCEDURE add_var_list_reference_s2d
     MODULE PROCEDURE add_var_list_reference_i2d
@@ -160,7 +162,7 @@ CONTAINS
     TYPE(t_var_list_ptr), INTENT(in) :: this_list
     INTEGER,              INTENT(in) :: ncontained
     !
-    INTEGER :: iv,key,hgrid
+    INTEGER :: iv
     TYPE(t_var),POINTER :: ret_list_elem
     !
     DO iv=1, this_list%p%nvars
@@ -1004,7 +1006,7 @@ CONTAINS
       var_ref_pos = ndims + 1
     END IF
     di3 = MERGE(4, 0, ndims.EQ.3)
-    IF (.NOT. ANY(NDIMS .EQ. (/ 2, 3 /))) CALL finish(routine, "Internal error!")
+   IF (.NOT. ANY(NDIMS .EQ. (/ 2, 3, 4 /))) CALL finish(routine, "Internal error 1!")
     SELECT CASE(var_ref_pos)
     CASE(1)
       di = (/ 2, 3, di3, 0, 0 /)
@@ -1013,10 +1015,13 @@ CONTAINS
     CASE(3)
       di = (/ 1, 2, di3, 0, 0 /)
     CASE(4)
-      IF (NDIMS.EQ.2) CALL finish(routine, "Internal error!")
+      IF (NDIMS.EQ.2) CALL finish(routine, "Internal error 2!")
       di = (/ 1, 2, 3, 0, 0 /)
+    CASE(5)
+      IF (NDIMS.EQ.2 .OR. NDIMS.EQ.3) CALL finish(routine, "Internal error 3!")
+      di = (/ 1, 2, 3, 4, 0 /)
     CASE DEFAULT
-      CALL finish(routine, "Internal error!")
+      CALL finish(routine, "Internal error 4!")
     END SELECT
     IF (target_info%lcontainer) THEN
       max_ref = 0
@@ -1098,6 +1103,65 @@ CONTAINS
     IF(PRESENT(info)) info => ref_info
     CALL register_list_element(this_list, new_list_element)
   END SUBROUTINE add_var_list_reference_util
+
+  SUBROUTINE add_var_list_reference_r4d(this_list, target_name, refname, ptr,    &
+    & hgrid, vgrid, cf, grib2, ref_idx, ldims, loutput, lrestart, lrestart_cont, &
+    & initval, isteptype, resetval, lmiss, missval, tlev_source, tracer_info,    &
+    & info, vert_interp, hor_interp, in_group, new_element,             &
+    & l_pp_scheduler_task, post_op, action_list, opt_var_ref_pos, var_class)
+    TYPE(t_var_list_ptr), INTENT(INOUT) :: this_list
+    CHARACTER(*), INTENT(IN) :: target_name, refname
+    REAL(dp), POINTER :: ptr(:,:,:,:)
+    INTEGER, INTENT(IN) :: hgrid, vgrid, ref_idx, ldims(4)
+    TYPE(t_cf_var), INTENT(IN) :: cf
+    TYPE(t_grib2_var), INTENT(IN) :: grib2
+    LOGICAL, INTENT(IN), OPTIONAL :: loutput, lrestart, lrestart_cont, &
+      & lmiss, in_group(:)
+    INTEGER, INTENT(IN), OPTIONAL :: isteptype, tlev_source, var_class, &
+      & l_pp_scheduler_task, opt_var_ref_pos
+    REAL(dp), INTENT(IN), OPTIONAL :: initval, resetval, missval
+    CLASS(t_tracer_meta), INTENT(IN), OPTIONAL :: tracer_info
+    TYPE(t_var_metadata), POINTER, OPTIONAL :: info
+    TYPE(t_vert_interp_meta),INTENT(IN), OPTIONAL :: vert_interp
+    TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
+    TYPE(t_var), POINTER, OPTIONAL :: new_element
+    TYPE(t_post_op_meta), INTENT(IN), OPTIONAL :: post_op
+    TYPE(t_var_action), INTENT(IN), OPTIONAL :: action_list
+    CHARACTER(*), PARAMETER :: routine = modname//"::add_var_list_reference_r4d"
+    TYPE(t_var), POINTER :: target_element, new_list_element
+    INTEGER :: icontainer, vrp
+
+    CALL add_var_list_reference_util(target_element, new_list_element,     &
+      & this_list, target_name, refname, hgrid, vgrid, cf, grib2, ref_idx, &
+      & ldims, REAL_T, icontainer, vrp, loutput=loutput, lrestart=lrestart,&
+      & lrestart_cont=lrestart_cont, isteptype=isteptype, lmiss=lmiss,     &
+      & tlev_source=tlev_source, tracer_info=tracer_info, info=info,       &
+      & vert_interp=vert_interp, hor_interp=hor_interp, in_group=in_group, &
+      & new_element=new_element, l_pp_scheduler_task=l_pp_scheduler_task,  &
+      & post_op=post_op, action_list=action_list, var_class=var_class,     &
+      & opt_var_ref_pos=opt_var_ref_pos, initval_r=initval,                &
+      & missval_r=missval, resetval_r=resetval)
+    IF (.NOT. ASSOCIATED(target_element%r_ptr)) &
+      & CALL finish(routine, TRIM(refname)//' not created.')
+    SELECT CASE(vrp)
+    CASE(1)
+      ptr => target_element%r_ptr(icontainer,:,:,:,:)
+    CASE(2)
+      ptr => target_element%r_ptr(:,icontainer,:,:,:)
+    CASE(3)
+      ptr => target_element%r_ptr(:,:,icontainer,:,:)
+    CASE(4)
+      ptr => target_element%r_ptr(:,:,:,icontainer,:)
+    CASE(5)
+      ptr => target_element%r_ptr(:,:,:,:,icontainer)
+    CASE default
+      CALL finish(routine, "internal error!")
+    END SELECT
+    new_list_element%r_ptr => target_element%r_ptr
+    IF (.NOT. ASSOCIATED(new_list_element%r_ptr)) &
+      & WRITE (0,*) 'problem with association of ptr for '//TRIM(refname)
+    IF (PRESENT(lmiss)) ptr = new_list_element%info%missval%rval
+  END SUBROUTINE add_var_list_reference_r4d
 
   SUBROUTINE add_var_list_reference_r3d(this_list, target_name, refname, ptr,       &
     & hgrid, vgrid, cf, grib2, ref_idx, ldims, loutput, lrestart, lrestart_cont, &
@@ -1212,6 +1276,65 @@ CONTAINS
       & WRITE (0,*) 'problem with association of ptr for '//TRIM(refname)
     IF (PRESENT(lmiss)) ptr = new_list_element%info%missval%rval
   END SUBROUTINE add_var_list_reference_r2d
+
+  SUBROUTINE add_var_list_reference_s4d(this_list, target_name, refname, ptr,    &
+    & hgrid, vgrid, cf, grib2, ref_idx, ldims, loutput, lrestart, lrestart_cont, &
+    & initval, isteptype, resetval, lmiss, missval, tlev_source, tracer_info,    &
+    & info, vert_interp, hor_interp, in_group, new_element,             &
+    & l_pp_scheduler_task, post_op, action_list, opt_var_ref_pos, var_class)
+    TYPE(t_var_list_ptr), INTENT(INOUT) :: this_list
+    CHARACTER(*), INTENT(IN) :: target_name, refname
+    REAL(sp), POINTER :: ptr(:,:,:,:)
+    INTEGER, INTENT(IN) :: hgrid, vgrid, ref_idx, ldims(4)
+    TYPE(t_cf_var), INTENT(IN) :: cf
+    TYPE(t_grib2_var), INTENT(IN) :: grib2
+    LOGICAL, INTENT(IN), OPTIONAL :: loutput, lrestart, lrestart_cont, &
+      & lmiss, in_group(:)
+    INTEGER, INTENT(IN), OPTIONAL :: isteptype, tlev_source, var_class, &
+      & l_pp_scheduler_task, opt_var_ref_pos
+    REAL(sp), INTENT(IN), OPTIONAL :: initval, resetval, missval
+    CLASS(t_tracer_meta), INTENT(IN), OPTIONAL :: tracer_info
+    TYPE(t_var_metadata), POINTER, OPTIONAL :: info
+    TYPE(t_vert_interp_meta),INTENT(IN), OPTIONAL :: vert_interp
+    TYPE(t_hor_interp_meta), INTENT(IN), OPTIONAL :: hor_interp
+    TYPE(t_var), POINTER, OPTIONAL :: new_element
+    TYPE(t_post_op_meta), INTENT(IN), OPTIONAL :: post_op
+    TYPE(t_var_action), INTENT(IN), OPTIONAL :: action_list
+    CHARACTER(*), PARAMETER :: routine = modname//"::add_var_list_reference_s4d"
+    TYPE(t_var), POINTER :: target_element, new_list_element
+    INTEGER :: icontainer, vrp
+
+    CALL add_var_list_reference_util(target_element, new_list_element,     &
+      & this_list, target_name, refname, hgrid, vgrid, cf, grib2, ref_idx, &
+      & ldims, SINGLE_T, icontainer, vrp, loutput=loutput, lrestart=lrestart,&
+      & lrestart_cont=lrestart_cont, isteptype=isteptype, lmiss=lmiss,     &
+      & tlev_source=tlev_source, tracer_info=tracer_info, info=info,       &
+      & vert_interp=vert_interp, hor_interp=hor_interp, in_group=in_group, &
+      & new_element=new_element, l_pp_scheduler_task=l_pp_scheduler_task,  &
+      & post_op=post_op, action_list=action_list, var_class=var_class,     &
+      & opt_var_ref_pos=opt_var_ref_pos, initval_s=initval,                &
+      & missval_s=missval, resetval_s=resetval)
+    IF (.NOT. ASSOCIATED(target_element%s_ptr)) &
+      & CALL finish(routine, TRIM(refname)//' not created.')
+    SELECT CASE(vrp)
+    CASE(1)
+      ptr => target_element%s_ptr(icontainer,:,:,:,:)
+    CASE(2)
+      ptr => target_element%s_ptr(:,icontainer,:,:,:)
+    CASE(3)
+      ptr => target_element%s_ptr(:,:,icontainer,:,:)
+    CASE(4)
+      ptr => target_element%s_ptr(:,:,:,icontainer,:)
+    CASE(5)
+      ptr => target_element%s_ptr(:,:,:,:,icontainer)
+    CASE default
+      CALL finish(routine, "internal error!")
+    END SELECT
+    new_list_element%s_ptr => target_element%s_ptr
+    IF (.NOT. ASSOCIATED(new_list_element%s_ptr)) &
+      & WRITE (0,*) 'problem with association of ptr for '//TRIM(refname)
+    IF (PRESENT(lmiss)) ptr = new_list_element%info%missval%sval
+  END SUBROUTINE add_var_list_reference_s4d
 
   SUBROUTINE add_var_list_reference_s3d(this_list, target_name, refname, ptr,    &
     & hgrid, vgrid, cf, grib2, ref_idx, ldims, loutput, lrestart, lrestart_cont, &

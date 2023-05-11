@@ -25,8 +25,6 @@ BLAS_LAPACK_LIBS='-llapack -lblas'
 
 XML2_LIBS='-lxml2'
 
-CLAW_ROOT='/project/d56/install/daint/claw/v2.0.1/pgi'
-
 ################################################################################
 
 BUILD_ENV=". \"${SCRIPT_DIR}/../module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
@@ -54,7 +52,6 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${ECCODES_LIBS} ${NETCDFF
 ICON_LDFLAGS='-Wl,--disable-new-dtags'
 
 MPI_LAUNCH='srun -p debug -C gpu'
-CLAW="${CLAW_ROOT}/bin/clawfc"
 
 EXTRA_CONFIG_ARGS='--enable-grib2 --enable-rte-rrtmgp --disable-psrad'
 
@@ -68,7 +65,6 @@ MPI_LAUNCH=false
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

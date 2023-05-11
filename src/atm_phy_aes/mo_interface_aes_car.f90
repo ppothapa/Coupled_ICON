@@ -21,9 +21,10 @@
 MODULE mo_interface_aes_car
 
   USE mo_kind                ,ONLY: wp
-  USE mtime                  ,ONLY: datetime
+  USE mtime                  ,ONLY: t_datetime => datetime
 
-  USE mo_aes_phy_config      ,ONLY: aes_phy_config
+  USE mo_aes_phy_dims        ,ONLY: aes_phy_dims
+  USE mo_aes_phy_config      ,ONLY: aes_phy_config, aes_phy_tc
   USE mo_aes_phy_memory      ,ONLY: t_aes_phy_field, prm_field, &
     &                               t_aes_phy_tend,  prm_tend
 
@@ -40,32 +41,30 @@ MODULE mo_interface_aes_car
 
 CONTAINS
 
-  SUBROUTINE interface_aes_car  (jg,jb,jcs,jce        ,&
-       &                         nproma,nlev,ntracer  ,& 
-       &                         is_in_sd_ed_interval ,&
-       &                         is_active            ,&
-       &                         datetime_old         ,&
-       &                         pdtime               )
+  SUBROUTINE interface_aes_car(jg, jb, jcs, jce)
 
     ! Arguments
     !
-    INTEGER                 ,INTENT(in) :: jg,jb,jcs,jce
-    INTEGER                 ,INTENT(in) :: nproma,nlev,ntracer
-    LOGICAL                 ,INTENT(in) :: is_in_sd_ed_interval
-    LOGICAL                 ,INTENT(in) :: is_active
-    TYPE(datetime)          ,POINTER    :: datetime_old
-    REAL(wp)                ,INTENT(in) :: pdtime
+    INTEGER, INTENT(in)     :: jg, jb, jcs, jce
 
     ! Pointers
     !
-    LOGICAL                 ,POINTER    :: lparamcpl
-    INTEGER                 ,POINTER    :: fc_car
-    TYPE(t_aes_phy_field)   ,POINTER    :: field
-    TYPE(t_aes_phy_tend)    ,POINTER    :: tend
+    TYPE(t_aes_phy_field), POINTER :: field
+    TYPE(t_aes_phy_tend),  POINTER :: tend
 
     ! Local variables
     !
-    REAL(wp)                            :: tend_qtrc_car(nproma,nlev,ntracer)
+    INTEGER  :: nlev
+    INTEGER  :: nproma
+    !
+    TYPE(t_datetime), POINTER :: datetime
+    REAL(wp) :: pdtime
+    LOGICAL  :: is_in_sd_ed_interval
+    LOGICAL  :: is_active
+    !
+    INTEGER  :: fc_car
+    !
+    REAL(wp) :: tend_o3_car(aes_phy_dims(jg)%nproma,aes_phy_dims(jg)%nlev)
     !
     TYPE(t_time_interpolation)          :: time_interpolation
     TYPE(t_time_interpolation_weights)  :: current_time_interpolation_weights
@@ -73,9 +72,17 @@ CONTAINS
 
     IF (ltimer) call timer_start(timer_car)
 
+    nlev    = aes_phy_dims(jg)%nlev
+    nproma  = aes_phy_dims(jg)%nproma
+
+    datetime             => aes_phy_tc(jg)%datetime
+    pdtime               =  aes_phy_tc(jg)%dt_phy_sec
+    is_in_sd_ed_interval =  aes_phy_tc(jg)%is_in_sd_ed_interval_car
+    is_active            =  aes_phy_tc(jg)%is_active_car
+
+    fc_car    =  aes_phy_config(jg)%fc_car
+
     ! associate pointers
-    lparamcpl => aes_phy_config(jg)%lparamcpl
-    fc_car    => aes_phy_config(jg)%fc_car
     field     => prm_field(jg)
     tend      => prm_tend (jg)
 
@@ -83,7 +90,7 @@ CONTAINS
        !
        IF ( is_active ) THEN
           !
-          current_time_interpolation_weights = calculate_time_interpolation_weights(datetime_old)
+          current_time_interpolation_weights = calculate_time_interpolation_weights(datetime)
           time_interpolation% imonth1 = current_time_interpolation_weights% month1_index
           time_interpolation% imonth2 = current_time_interpolation_weights% month2_index
           time_interpolation% weight1 = current_time_interpolation_weights% weight1
@@ -92,67 +99,63 @@ CONTAINS
           ALLOCATE(avi%o3_vmr(nproma,nlev), avi%vmr2molm2(nproma,nlev), avi%cell_center_lat(nproma), avi%lday(nproma))
           !
           avi%ldown=.TRUE.
-          avi%o3_vmr(jcs:jce,:)        =  field% qtrc(jcs:jce,:,jb,io3)*amd/amo3
+          avi%o3_vmr(jcs:jce,:)        =  field% qtrc_phy(jcs:jce,:,jb,io3)*amd/amo3
           avi%tmprt                    => field% ta  (:,:,jb)
-          avi%vmr2molm2(jcs:jce,:)     =  field% mdry(jcs:jce,:,jb) / amd * 1.e3_wp
+          !
+          ! Note: ICON has no sources and sinks in te equation for air density. This implies
+          !       that the total air mass is conserved. The parameterized turbulent mass flux
+          !       at the surface and precipitation have no effect on the atmospheric mass.
+          !       Therefore let us use here the total air mass as dry air mass.
+          !
+          avi%vmr2molm2(jcs:jce,:)     =  field% mair(jcs:jce,:,jb) / amd * 1.e3_wp
+          !
           avi%pres                     => field% pfull(:,:,jb)
           avi%cell_center_lat(jcs:jce) =  field% clat(jcs:jce,jb)
           avi%lday(jcs:jce)            =  field% cosmu0(jcs:jce,jb) > 1.e-3_wp
           !
-          CALL lcariolle_do3dt(jcs,                   jce,                    &
-               &               nproma,                nlev,                   &
-               &               time_interpolation,                            &
-               &               avi,                   tend_qtrc_car(:,:,io3)  )
+          CALL lcariolle_do3dt(jcs,                   jce,             &
+               &               nproma,                nlev,            &
+               &               time_interpolation,                     &
+               &               avi,                   tend_o3_car(:,:) )
           !
           DEALLOCATE(avi%o3_vmr, avi%vmr2molm2, avi%cell_center_lat, avi%lday)
           !
           ! store in memory for output or recycling
           !
-          IF (ASSOCIATED(tend% qtrc_car)) THEN
-             tend% qtrc_car(jcs:jce,:,jb,io3) = tend_qtrc_car(jcs:jce,:,io3)
+          IF (ASSOCIATED(tend% o3_car)) THEN
+             tend% o3_car(jcs:jce,:,jb) = tend_o3_car(jcs:jce,:)
           END IF
           !
        ELSE
           !
           ! retrieve from memory for recycling
           !
-          IF (ASSOCIATED(tend% qtrc_car)) THEN
-             tend_qtrc_car(jcs:jce,:,io3) = tend% qtrc_car(jcs:jce,:,jb,io3)
+          IF (ASSOCIATED(tend% o3_car)) THEN
+             tend_o3_car(jcs:jce,:) = tend% o3_car(jcs:jce,:,jb)
           END IF
           !
        END IF
        !
        ! accumulate tendencies for later updating the model state
        SELECT CASE(fc_car)
-       CASE(0)
-          ! diagnostic, do not use tendency
        CASE(1)
-          ! use tendency to update the model state
-          tend% qtrc_phy(jcs:jce,:,jb,io3) = tend% qtrc_phy(jcs:jce,:,jb,io3) + tend_qtrc_car(jcs:jce,:,io3)*amo3/amd
-       END SELECT
-       !
-       ! update physics state for input to the next physics process
-       SELECT CASE(fc_car)
-       CASE(0)
-          ! diagnostic, do not use tendency
-       CASE(1)
-          ! use tendency to update the physics state
-          IF (lparamcpl) THEN
-             field% qtrc(jcs:jce,:,jb,io3)  = field% qtrc(jcs:jce,:,jb,io3)  +  tend_qtrc_car(jcs:jce,:,io3)*amo3/amd*pdtime
-          END IF
+          !
+          ! accumulate tendencies for later updating the model state
+          tend%  qtrc_phy(jcs:jce,:,jb,io3) = tend%  qtrc_phy(jcs:jce,:,jb,io3) + tend_o3_car(jcs:jce,:)*amo3/amd
+          !
+          ! update physics state for input to the next physics process
+          field% qtrc_phy(jcs:jce,:,jb,io3) = field% qtrc_phy(jcs:jce,:,jb,io3) + tend_o3_car(jcs:jce,:)*amo3/amd*pdtime
        END SELECT
        !
     ELSE
        !
-       IF (ASSOCIATED(tend% qtrc_car)) THEN
-          tend% qtrc_car(jcs:jce,:,jb,io3) = 0.0_wp
+       IF (ASSOCIATED(tend% o3_car)) THEN
+          tend% o3_car(jcs:jce,:,jb) = 0.0_wp
        END IF
        !
     END IF
        
     ! disassociate pointers
-    NULLIFY(lparamcpl)
-    NULLIFY(fc_car)
     NULLIFY(field)
     NULLIFY(tend )
     

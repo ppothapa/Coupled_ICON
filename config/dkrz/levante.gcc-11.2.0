@@ -57,7 +57,7 @@ case $lapack_provider in
 esac
 
 # ECCODES_ROOT=$(spack find --format='{prefix}' "eccodes%${compiler} +fortran")
-ECCODES_ROOT='/sw/spack-levante/eccodes-2.21.0-4ywkk4'
+ECCODES_ROOT='/sw/spack-levante/eccodes-2.27.0-ye4cjx'
 ECCODES_LIBS='-leccodes_f90 -leccodes'
 
 # XML2_ROOT=$(spack find --format='{prefix}' "libxml2%${compiler}")

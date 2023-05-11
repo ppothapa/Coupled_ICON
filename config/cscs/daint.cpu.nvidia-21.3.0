@@ -48,17 +48,6 @@ BUILD_ENV=". \"${SCRIPT_DIR}/module_switcher\"; module use /project/d56/modules;
 # We need some of the environment variables set by the modules now:
 eval "$BUILD_ENV"
 
-if [ -z "${CLAW+x}" ]; then
-    echo "Warning: CLAW is not set, please use spack or set manually if you intend to use CLAW"
-    CLAW=''
-    NETCDFI=''
-    CLAWFLAGS=''
-else
-    # We have to tell CLAW where to look for netcdf.inc:
-    NETCDFI="-I${NETCDF_DIR}/include"
-    CLAWFLAGS=${NETCDFI}
-fi
-
 CC='cc'
 CFLAGS='-g -O2'
 CPPFLAGS="-I${XML2_ROOT}/include/libxml2"
@@ -91,8 +80,6 @@ EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
 BUILD_ENV="$BUILD_ENV" \
 CC="$CC" \
 CFLAGS="$CFLAGS" \
-CLAW="$CLAW" \
-CLAWFLAGS="$CLAWFLAGS" \
 CPPFLAGS="$CPPFLAGS" \
 FC="$FC" \
 FCFLAGS="$FCFLAGS" \

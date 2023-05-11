@@ -27,25 +27,20 @@
 !!   see mo_radiation.f90
 !!
 !
-MODULE mo_radiation_solar_parameters
+MODULE mo_solar_parameters
 
   USE mo_kind,   ONLY: wp
   USE mo_model_domain,    ONLY: t_patch
   USE mo_parallel_config, ONLY: nproma
-  USE mo_impl_constants, ONLY: max_dom
+  USE mo_impl_constants,  ONLY: max_dom
   USE mo_math_constants,  ONLY: pi, pi2, pi_2, pi_4 ! pi, pi*2, pi/2, pi/4
-  USE mo_radiation_general, ONLY: nbndsw
 
 IMPLICIT NONE
 
   PRIVATE
 
-  PUBLIC :: psctm, ssi_factor
   PUBLIC :: solar_parameters
   
-  REAL(wp) :: psctm(max_dom)                !< orbit and time dependent solar constant for radiation time step
-  REAL(wp) :: ssi_factor(nbndsw)            !< fraction of TSI in the 14 RRTM SW bands
-
 CONTAINS
   
 
@@ -325,4 +320,4 @@ CONTAINS
 
   END SUBROUTINE solar_parameters
 
-END MODULE mo_radiation_solar_parameters
+END MODULE mo_solar_parameters

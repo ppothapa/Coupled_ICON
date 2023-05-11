@@ -14,7 +14,7 @@
 
 MODULE mo_packed_message
   USE ISO_C_BINDING, ONLY: c_ptr, C_LOC, C_F_POINTER, C_SIGNED_CHAR
-#if defined(__PGI) || defined(_CLAW)
+#if defined(__PGI)
   USE ISO_C_BINDING, ONLY: C_SIZE_T, C_SIZEOF
 #endif
   USE mo_exception, ONLY: finish, message_text
@@ -33,7 +33,7 @@ MODULE mo_packed_message
 
   INTEGER, PARAMETER, PUBLIC :: kPackOp = 1
   INTEGER, PARAMETER, PUBLIC :: kUnpackOp = 2
-#if defined(__PGI) || defined(_CLAW)
+#if defined(__PGI)
   INTEGER :: tbytes(7) = -1
 #else
 ! * obtain the storge size of supported data types in units of C_SIGNED_CHAR
@@ -169,7 +169,7 @@ MODULE mo_packed_message
 
 CONTAINS
 
-#if defined(__PGI) || defined(_CLAW)
+#if defined(__PGI)
   SUBROUTINE init_tbytes()
     INTEGER, PARAMETER :: crap_i(8) = 1
     INTEGER(i8), PARAMETER :: crap_i8(8) = 1_i8
@@ -247,7 +247,7 @@ CONTAINS
     INTEGER(C_SIGNED_CHAR), POINTER :: vptr(:)
     INTEGER :: bsize
 
-#if defined(__PGI) || defined(_CLAW)
+#if defined(__PGI)
     IF (tbytes(1) .EQ. -1) CALL init_tbytes()
 #endif
     bsize = asize * tbytes(tid)
@@ -352,7 +352,7 @@ CONTAINS
     INTEGER(C_SIGNED_CHAR), POINTER :: vptr(:)
     INTEGER :: bsize
 
-#if defined(__PGI) || defined(_CLAW)
+#if defined(__PGI)
     IF (tbytes(1) .EQ. -1) CALL init_tbytes()
 #endif
     bsize = asize * tbytes(tid)
