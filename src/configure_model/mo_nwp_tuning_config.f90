@@ -73,8 +73,10 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: max_calibfac_clcl
   PUBLIC :: max_freshsnow_inc
   PUBLIC :: tune_eiscrit
-
-
+  PUBLIC :: tune_sc_eis  
+  PUBLIC :: tune_sc_invmin
+  PUBLIC :: tune_sc_invmax
+  
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for physics tuning
   !!--------------------------------------------------------------------------
@@ -232,6 +234,17 @@ MODULE mo_nwp_tuning_config
   
   REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
        &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
+
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_sc_eis              !< used for enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< minimum inversion height (m) used to define region with
+       &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+
+  
 !  END TYPE t_nwp_tuning_config
 
 

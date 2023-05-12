@@ -67,6 +67,7 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_communication,         ONLY: exchange_data
   USE mo_grid_config,           ONLY: l_limited_area
   USE mo_mpi,                   ONLY: my_process_is_mpi_workroot, get_my_mpi_work_id
+  USE mo_util_phys,             ONLY: inversion_height_index  
 #ifdef HAVE_RADARFWO
   USE radar_data_mie,             ONLY: ldebug_dbz
   USE radar_interface,            ONLY: initialize_tmax_atomic_1mom, &
@@ -118,7 +119,8 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_lapserate  
   PUBLIC :: compute_field_srh
   PUBLIC :: compute_field_visibility
-
+  PUBLIC :: compute_field_inversion_height
+  
   !> module name
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_opt_nwp_diagnostics'
 
@@ -5835,6 +5837,99 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE compute_field_visibility
-  
+
+  !! Find the lowest inversion and provide its inversion height and lowest point of the entrainment zone 
+  !! It follows Van Wevweberg et al. Month Weath. Rev. 2021
+  !! This function just produces the variable for output
+  !! The calculations are done in compute_field_inversion_height
+  !>
+  !  !! @par Revision History
+  !! Initial revision by Alberto de Lozar, DWD (2023-01-18) 
+
+  SUBROUTINE compute_field_inversion_height(ptr_patch,jg,p_metrics,p_prog,p_diag,prm_diag,inv_height)
+
+    TYPE(t_patch),        INTENT(IN)    :: ptr_patch
+    INTEGER,              INTENT(IN)    :: jg       !< domain ID of grid
+    TYPE(t_nh_metrics),   INTENT(IN)    :: p_metrics
+    TYPE(t_nh_prog),      INTENT(IN)    :: p_prog   ! nonhydrostatic state
+    TYPE(t_nh_diag),      INTENT(IN)    :: p_diag   ! diagnostic variables  
+    TYPE(t_nwp_phy_diag), INTENT(INOUT)  :: prm_diag ! physics variables
+    
+    REAL(WP), INTENT(OUT)   :: inv_height(:,:) ! output variable
+
+
+    ! Parameters
+    REAL(wp), PARAMETER   ::   no_inversion_value = -99.99_wp ! Output value when no inversion is found
+
+    
+    ! Local variables
+    INTEGER  ::   i_inversion(nproma)  ! k-idex for inversion
+    INTEGER  ::   i_ent_zone(nproma)   ! k-idex for entrainment zone
+    LOGICAL  ::   lfound_inversion(nproma)  ! To stop loop when inversion is found
+
+
+
+    ! Pointers
+    REAL(wp),POINTER      ::   z(:,:,:)        ! height at model levels
+    REAL(wp),POINTER      ::   z_ifc(:,:,:)    ! height at interface levels
+    REAL(wp),POINTER      ::   te(:,:,:)       ! temperature
+    REAL(wp),POINTER      ::   qc(:,:,:)       ! cloud water
+    REAL(wp),POINTER      ::   prs(:,:,:)      ! pressure (from physics)
+    REAL(WP),POINTER      ::   low_ent_zone(:,:) ! output variable 
+
+    INTEGER :: i_rlstart,  i_rlend
+    INTEGER :: i_startblk, i_endblk
+    INTEGER :: i_startidx, i_endidx
+    INTEGER :: jc,jb,jktop,jkbot,nlev
+    
+    ! without halo or boundary  points:
+    i_rlstart = grf_bdywidth_c + 1
+    i_rlend   = min_rlcell_int
+
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    ! Set pointers
+    prs => p_diag%pres
+    te  => p_diag%temp
+    qc  => p_prog%tracer_ptr(iqc)%p_3d
+    z   => p_metrics%z_mc
+    z_ifc => p_metrics%z_ifc
+    low_ent_zone => prm_diag%low_ent_zone
+
+    
+    ! Integration limits
+    jktop = kstart_moist(jg)
+    jkbot = ptr_patch%nlev
+    nlev  = ptr_patch%nlev
+
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx,lfound_inversion,i_inversion, &
+!$OMP            i_ent_zone), ICON_OMP_RUNTIME_SCHEDULE
+    DO jb = i_startblk, i_endblk
+      
+        CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
+                            i_startidx, i_endidx, i_rlstart, i_rlend)
+
+        CALL inversion_height_index(z(:,:,jb),z_ifc(:,nlev+1,jb),qc(:,:,jb),te(:,:,jb),prs(:,:,jb), &
+                      &            i_startidx,i_endidx,jktop,jkbot,nlev, &
+                      &            i_inversion(:),i_ent_zone(:),lfound_inversion(:))
+
+! Calculate the inversion height in meters and set non-values
+        DO jc = i_startidx, i_endidx
+          IF (lfound_inversion(jc)) THEN
+            inv_height(jc,jb)   = z(jc,i_inversion(jc),jb)
+            low_ent_zone(jc,jb) = z(jc,i_ent_zone(jc),jb)
+          ELSE
+            inv_height(jc,jb)   = no_inversion_value
+            low_ent_zone(jc,jb) = no_inversion_value  
+          END IF
+        END DO
+
+      END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+  END SUBROUTINE compute_field_inversion_height
 END MODULE mo_opt_nwp_diagnostics
 

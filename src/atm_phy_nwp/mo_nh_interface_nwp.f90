@@ -76,7 +76,7 @@ MODULE mo_nh_interface_nwp
 
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_iau,                     ONLY: iau_update_tracer
-  USE mo_util_phys,               ONLY: tracer_add_phytend
+  USE mo_util_phys,               ONLY: tracer_add_phytend, inversion_height_index
   USE mo_lnd_nwp_config,          ONLY: ntiles_total, ntiles_water
   USE mo_cover_koe,               ONLY: cover_koe, cover_koe_config
   USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu, latent_heat_sublimation
@@ -141,7 +141,7 @@ MODULE mo_nh_interface_nwp
   USE mo_sppt_config,             ONLY: sppt_config
   USE mo_sppt_util,               ONLY: construct_rn
   USE mo_sppt_core,               ONLY: calc_tend, pert_tend, apply_tend, save_state
-
+  USE mo_nwp_tuning_config,       ONLY: tune_sc_eis
 
   !$ser verbatim USE mo_ser_all,              ONLY: serialize_all
 
@@ -272,6 +272,10 @@ CONTAINS
     INTEGER :: gp_count_t(ntiles_total)
 #endif
 
+    ! inversion height diagnostic for cover_koe with stratocumulus
+    INTEGER :: kc_inversion(nproma), kc_entr_zone(nproma)
+    LOGICAL :: lfound_inversion(nproma)
+
     ! Pointer to IDs of tracers which contain prognostic condensate.
     ! Required for computing the water loading term 
     INTEGER, POINTER :: condensate_list(:)
@@ -279,6 +283,7 @@ CONTAINS
     REAL(wp) :: p_sim_time      !< elapsed simulation time on this grid level
 
     LOGICAL :: lconstgrav  !< const. gravitational acceleration?
+    LOGICAL :: lcalc_inv
 
     ! SCM Nudging
     REAL(wp) :: nudgecoeff
@@ -353,6 +358,9 @@ CONTAINS
 
     lconstgrav = upatmo_config(jg)%nwp_phy%l_constgrav  ! const. gravitational acceleration?
 
+    ! Inversion height is calculated only if the threshold is set to a non-default value
+    lcalc_inv = tune_sc_eis < 1000._wp
+
     IF(sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
       ! Construct field of random numbers for SPPT
       CALL construct_rn (pt_patch, mtime_datetime, sppt_config(jg), sppt(jg)%rn_3d, &
@@ -360,7 +368,7 @@ CONTAINS
     ENDIF ! end of lsppt
 
     !$ACC DATA CREATE(zddt_v_raylfric, zddt_u_raylfric, sqrt_ri, z_ddt_temp, z_ddt_alpha, z_ddt_v_tot) &
-    !$ACC   CREATE(zcosmu0, z_ddt_u_tot, z_exner_sv, z_qsum) IF(lzacc)
+    !$ACC   CREATE(zcosmu0, z_ddt_u_tot, z_exner_sv, z_qsum, kc_inversion, kc_entr_zone, lfound_inversion) IF(lzacc)
     !$ACC DATA COPYIN(dt_phy_jg)
 
     IF ( lcall_phy_jg(itturb) .OR. lcall_phy_jg(itconv) .OR.           &
@@ -1286,7 +1294,6 @@ CONTAINS
 
       IF (timers_level > 2) CALL timer_start(timer_cover_koe)
 
-
       !-------------------------------------------------------------------------
       !> Cloud water distribution: cloud cover, cloud water, cloud ice
       !  inwp_cldcover =
@@ -1301,7 +1308,7 @@ CONTAINS
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "cover", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 #ifndef __GFORTRAN__
 ! FIXME: libgomp seems to run in deadlock here
-!$OMP PARALLEL DO PRIVATE(i_startidx,i_endidx,qtvar) ICON_OMP_GUIDED_SCHEDULE
+!$OMP PARALLEL DO PRIVATE(i_startidx,i_endidx,qtvar,kc_inversion,kc_entr_zone,lfound_inversion) ICON_OMP_GUIDED_SCHEDULE
 #endif
       DO jb = i_startblk, i_endblk
         !
@@ -1312,7 +1319,30 @@ CONTAINS
           qtvar(:,:) = pt_prog_rcf%tracer(:,:,jb,iqtvar)        ! EDMF DUALM
         ENDIF ! since qtvar is never used in other turb schemes, we can leave it uninitialized
 
-
+        IF (lcalc_inv) THEN
+          ! inversion height diagnostic for EIS-based stratocumulus parameterization in cover_koe
+          ! ( for efficiency reasons this could be integrated in cover_koe and called with an index list )
+          CALL inversion_height_index(                             &
+             &  p_metrics%z_mc(:,:,jb),                          &
+             &  p_metrics%z_ifc(:,nlev+1,jb),                    &
+             &  pt_prog_rcf%tracer(:,:,jb,iqc),                  &
+             &  pt_diag%temp(:,:,jb),                            &
+             &  pt_diag%pres(:,:,jb),                            &
+             &  i_startidx,i_endidx,kstart_moist(jg),nlev,nlev,  &
+             &  kc_inversion(:),                                 &
+             &  kc_entr_zone(:),                                 &
+             &  lfound_inversion(:))
+        ELSE
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR
+          DO jc = i_startidx, i_endidx
+            kc_inversion(jc)=0._wp
+            kc_entr_zone(jc)=0._wp
+            lfound_inversion(jc)=.FALSE.
+          ENDDO
+          !$ACC END PARALLEL
+        ENDIF
+        
         CALL cover_koe &
 &             (kidia  = i_startidx ,   kfdia  = i_endidx  ,       & !! in:  horizonal begin, end indices
 &              klon = nproma,  kstart = kstart_moist(jg)  ,       & !! in:  horiz. and vert. vector length
@@ -1333,6 +1363,9 @@ CONTAINS
 &              kcbot  = prm_diag%mbas_con    (:,jb)       ,       & !! in:  convective cloud base
 &              kctop  = prm_diag%mtop_con    (:,jb)       ,       & !! in:  convective cloud top
 &              ktype  = prm_diag%ktype       (:,jb)       ,       & !! in:  convection type
+&              kcinv  = kc_inversion         (:)          ,       & !! in:  inversion height index
+&              linversion = lfound_inversion (:)          ,       & !! in:  inversion height logical
+&              peis     = prm_diag%conv_eis  (:,jb)       ,       & !! in:  estimated inversion strength
 &              fac_ccqc = prm_diag%fac_ccqc  (:,jb)       ,       & !! in:  factor for CLC-QC relationship (for EPS perturbations) 
 &              pmfude_rate = prm_diag%con_udd(:,:,jb,3)   ,       & !! in:  convective updraft detrainment rate
 &              plu         = prm_diag%con_udd(:,:,jb,7)   ,       & !! in:  updraft condensate

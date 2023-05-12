@@ -67,6 +67,7 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_WSHEAR_V,              &
   &                               TASK_COMPUTE_LAPSERATE,             &
   &                               TASK_COMPUTE_SRH,                   &
+  &                               TASK_COMPUTE_INVERSION,             &
   &                               iedmf,                              &
   &                               HINTP_TYPE_LONLAT_NNB,              &
   &                               HINTP_TYPE_LONLAT_BCTR,             &
@@ -420,9 +421,11 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%htop_sc, &
       &     diag%ice_gsp, &
       &     diag%ice_gsp_rate, &
+      &     diag%inversion_height, &
       &     diag%lapse_rate, &
       &     diag%lhn_diag, &
       &     diag%liqfl_turb, &
+      &     diag%low_ent_zone, &
       &     diag%lpi, &
       &     diag%lwflxsfc_t, &
       &     diag%mech_prod, &
@@ -2490,6 +2493,15 @@ __acc_attach(diag%clct)
       & ldims=shape2d, lrestart=lrestart, lopenacc=.TRUE. )
     __acc_attach(diag%cloud_num)
 
+    ! estimated inversion strength
+    ! &      diag%conv_eis(nproma,nblks_c)
+    cf_desc    = t_cf_var('conv_eis', 'm-3', 'estimated inversion strength', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'conv_eis', diag%conv_eis,                 &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=lrestart, lopenacc=.TRUE. )
+    __acc_attach(diag%conv_eis)
+
     !------------------
     !Radiation 3D variables
 
@@ -4346,6 +4358,36 @@ __acc_attach(diag%clct)
                     & lopenacc=.TRUE. )
       __acc_attach(diag%hbas_sc)
     END IF
+
+
+    IF (var_in_output%inversion_height) THEN
+
+      cf_desc    = t_cf_var('inversion_height', 'm', 'lowest inversion height', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)     
+      CALL add_var( diag_list,                                                       &
+                    & "inversion_height", diag%inversion_height,                     &
+                    & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP,                          &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape2d,                                                 &
+                    & isteptype=TSTEP_INSTANT,                                       &
+                    & l_pp_scheduler_task=TASK_COMPUTE_INVERSION, lrestart=.FALSE.,  &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%inversion_height)
+
+      cf_desc    = t_cf_var('low_ent_zone', 'm', &
+      &     'lowest limit of the entrainment zone corresponding to the lowest inversion', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                       &
+                    & "low_ent_zone", diag%low_ent_zone,                             &
+                    & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP,                          &
+                    & cf_desc, grib2_desc,                                           &
+                    & ldims=shape2d,                                                 &
+                    & lrestart=.FALSE.,                                              &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%low_ent_zone)
+
+    END IF
+
 
     IF (var_in_output%htop_sc) THEN
       cf_desc    = t_cf_var('htop_sc', 'm', 'cloud top above msl, shallow convection', datatype_flt)

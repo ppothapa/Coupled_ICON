@@ -31,6 +31,7 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_RH, TASK_COMPUTE_PV, TASK_COMPUTE_SMI,             &
     & TASK_COMPUTE_SDI2, TASK_COMPUTE_LPI, TASK_COMPUTE_CEILING,      &
     & TASK_COMPUTE_HBAS_SC, TASK_COMPUTE_HTOP_SC,                     &
+    & TASK_COMPUTE_INVERSION,                                         &
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
     & TASK_COMPUTE_DBZLMX_LOW, TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,&
@@ -84,6 +85,7 @@ MODULE mo_pp_tasks
     &                                   compute_field_visibility,                &
     &                                   compute_field_hbas_sc, compute_field_htop_sc, &
     &                                   compute_field_twater, compute_field_q_sedim,  &
+    &                                   compute_field_inversion_height,          &
     &                                   compute_field_dbz850,                    &
     &                                   compute_field_dbzlmx,                    &
     &                                   compute_field_dbzcmax,                   &
@@ -1441,6 +1443,10 @@ CONTAINS
       CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VIS for variable '//TRIM(p_info%name) )
 #endif
       CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
+          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+
+    CASE (TASK_COMPUTE_INVERSION)
+      CALL compute_field_inversion_height( p_patch, jg, ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,prm_diag,   &
           &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_HBAS_SC)
