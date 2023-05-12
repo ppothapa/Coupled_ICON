@@ -223,6 +223,13 @@ AC_ARG_ENABLE([mpi-rget],
      [enable_mpi_rget=yes])],
   [enable_mpi_rget=auto])
 
+AC_ARG_ENABLE([async-io-rma],
+  [AS_HELP_STRING([--enable-async-io-rma],
+     [enable MPI RMA for async I/O ]dnl
+[@<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_async_io_rma=yes])],
+  [enable_async_io_rma=yes])
+
 AC_ARG_ENABLE([openmp],
   [AS_HELP_STRING([--enable-openmp],
      [enable OpenMP support @<:@default=no@:>@])],

@@ -741,6 +741,7 @@ enable_mpi
 enable_mpi_checks
 enable_active_target_sync
 enable_mpi_rget
+enable_async_io_rma
 enable_openmp
 enable_gpu
 enable_grib2
@@ -1508,6 +1509,7 @@ Infrastructural Features:
                           enable MPI active target mode (otherwise, passive
                           target mode is used) [default=no]
   --enable-mpi-rget       enable usage of the MPI_Rget routine [default=auto]
+  --enable-async-io-rma   enable MPI RMA for async I/O [default=yes]
   --enable-openmp         enable OpenMP support [default=no]
   --enable-gpu            enable GPU support [default=no]
   --enable-grib2          enable GRIB2 I/O [default=no]
@@ -2766,6 +2768,16 @@ if test "${enable_mpi_rget+set}" = set; then :
 fi
 else
   enable_mpi_rget=auto
+fi
+
+
+# Check whether --enable-async-io-rma was given.
+if test "${enable_async_io_rma+set}" = set; then :
+  enableval=$enable_async_io_rma; if test x"$enableval" != xno; then :
+  enable_async_io_rma=yes
+fi
+else
+  enable_async_io_rma=yes
 fi
 
 

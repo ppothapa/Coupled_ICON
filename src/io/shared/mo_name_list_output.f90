@@ -136,8 +136,12 @@ MODULE mo_name_list_output
     &                                     my_process_is_mpi_workroot, my_process_is_work,           &
     &                                     my_process_is_io, my_process_is_mpi_ioroot,               &
     &                                     process_mpi_all_test_id, process_mpi_all_workroot_id,     &
-    &                                     num_work_procs, p_pe, p_pe_work,    &
+    &                                     num_work_procs, p_pe, p_pe_work,                          &
     &                                     p_max, p_comm_work_2_io, mpi_request_null
+#ifdef NO_ASYNC_IO_RMA
+  USE mo_mpi,                       ONLY: p_io, p_wait_n, p_comm_work_io, get_my_global_mpi_id,     &
+                                          num_test_procs
+#endif
 #ifdef _OPENACC
   USE mo_mpi,                       ONLY: i_am_accel_node
   USE openacc
@@ -163,6 +167,10 @@ MODULE mo_name_list_output
     &                                     output_file, patch_info, lonlat_info,                     &
     &                                     collect_requested_ipz_levels, &
     &                                     create_vertical_axes, nlevs_of_var, zonal_ri, profile_ri
+#ifdef NO_ASYNC_IO_RMA
+  USE mo_name_list_output_init,     ONLY: req_send_metainfo, req_send_data, req_recv_data,          &
+    &                                     recv_buffer_max_sizes
+#endif
   USE mo_name_list_output_metadata, ONLY: metainfo_write_to_memwin, metainfo_get_from_buffer,       &
     &                                     metainfo_get_timelevel
   USE mo_level_selection,           ONLY: create_mipz_level_selections
@@ -407,13 +415,19 @@ CONTAINS
       DO i = 1, SIZE(output_file)
 #ifndef NOMPI
         IF(use_async_name_list_io .AND. .NOT. my_process_is_mpi_test()) THEN
+#ifndef NO_ASYNC_IO_RMA
+          ! Free memory window used for MPI RMA with async I/O
           CALL mpi_win_free(output_file(i)%mem_win%mpi_win, ierror)
+#endif
           IF (use_dp_mpi2io) THEN
             CALL mpi_free_mem(output_file(i)%mem_win%mem_ptr_dp, ierror)
           ELSE
             CALL mpi_free_mem(output_file(i)%mem_win%mem_ptr_sp, ierror)
           END IF
+#ifndef NO_ASYNC_IO_RMA
+          ! Free metainfo memory window used for MPI RMA with async I/O
           CALL mpi_win_free(output_file(i)%mem_win%mpi_win_metainfo, ierror)
+#endif
         END IF
 #endif
         IF (output_file(i)%cdiFileID >= 0) THEN
@@ -658,13 +672,13 @@ CONTAINS
       IF(is_io) THEN
 #ifndef NOMPI
         IF (ofile_is_assigned_here(i)) THEN
-          CALL io_proc_write_name_list(output_file(i), ofile_has_first_write(i))
+          CALL io_proc_write_name_list(output_file(i), ofile_has_first_write(i), i)
           do_sync = lkeep_in_sync .OR. check_write_readyfile(output_file(i)%out_event%output_event) .OR. &
                     output_file(i)%name_list%steps_per_file == 1
         END IF
 #endif
       ELSE
-        CALL write_name_list(output_file(i), ofile_has_first_write(i), lzacc)
+        CALL write_name_list(output_file(i), ofile_has_first_write(i), i, lzacc)
         do_sync = lkeep_in_sync .AND. ofile_is_assigned_here(i)
       ENDIF
 
@@ -846,7 +860,7 @@ CONTAINS
   !------------------------------------------------------------------------------------------------
   !> Write an output name list. Called by non-IO PEs.
   !
-  SUBROUTINE write_name_list(of, is_first_write, lacc)
+  SUBROUTINE write_name_list(of, is_first_write, file_idx, lacc)
 
 #ifndef NOMPI
 #ifdef  __SUNPRO_F95
@@ -858,6 +872,7 @@ CONTAINS
 
     TYPE (t_output_file), INTENT(INOUT), TARGET :: of
     LOGICAL,              INTENT(IN)            :: is_first_write
+    INTEGER,              INTENT(IN)            :: file_idx ! File index in output_file(:) array
     LOGICAL, OPTIONAL,    INTENT(IN)            :: lacc
     ! local variables:
     CHARACTER(LEN=*), PARAMETER                 :: routine = modname//"::write_name_list"
@@ -917,19 +932,44 @@ CONTAINS
       ! ---------------------------------------------------------
       ! PE#0 : store variable meta-info to be accessed by I/O PEs
       ! ---------------------------------------------------------
+#ifdef NO_ASYNC_IO_RMA
+      ! In RMA, the memory window is locked since the PE is writing to memory
+      ! Here we wait for previous isend requests, to make sure that the buffer can be re-used
+      ! The first time the requests are set to MPI_REQUEST_NULL
+      call p_wait(req_send_metainfo(file_idx))
+#else
       CALL MPI_Win_lock(MPI_LOCK_EXCLUSIVE, p_pe_work, MPI_MODE_NOCHECK, &
         of%mem_win%mpi_win_metainfo, mpierr)
+#endif
       DO iv = 1, of%num_vars
         ! Note that we provide the pointer "info_ptr" to the variable's
         ! info data object and not the modified copy "info".
         info => of%var_desc(iv)%info_ptr
         CALL metainfo_write_to_memwin(of%mem_win, iv, info)
       END DO
+#ifdef NO_ASYNC_IO_RMA
+      ! In RMA, the memory window is unlocked since the PE finished writing to memory
+      ! Here we isend the buffer
+      ! num_test_procs + num_work_procs is the first IO process in p_comm_work_io
+      CALL mpi_isend(of%mem_win%mem_ptr_metainfo_pe0, size(of%mem_win%mem_ptr_metainfo_pe0), &
+            p_int, num_test_procs + num_work_procs + of%io_proc_id, 1103 + file_idx, & ! Type of mem_ptr_metainfo_pe0 is INTEGER
+            p_comm_work_io, req_send_metainfo(file_idx), mpierr)
+#else
       CALL MPI_Win_unlock(p_pe_work, of%mem_win%mpi_win_metainfo, mpierr)
+#endif
     END IF
-    IF (participate_in_async_io) &
+ 
+
+    IF (participate_in_async_io) THEN
+#ifdef NO_ASYNC_IO_RMA
+      ! In RMA, the memory window is lockes since the PE is writing to memory
+      ! Here we wait for the previous isend requests, to make sure the buffer can be re-used
+      CALL p_wait(req_send_data(file_idx))
+#else
       CALL MPI_Win_lock(MPI_LOCK_EXCLUSIVE, p_pe_work, MPI_MODE_NOCHECK, &
       of%mem_win%mpi_win, mpierr)
+#endif
+    END IF
 #endif
 
     ! "lmask_boundary": Some of the output fields are not updated with
@@ -1130,9 +1170,25 @@ CONTAINS
     ENDDO
 
 #ifndef NOMPI
-    ! In case of async IO: Done writing to memory window, unlock it
-    IF (participate_in_async_io) &
+    IF (participate_in_async_io) THEN
+#ifdef NO_ASYNC_IO_RMA
+      ! Done writing data to mem_ptr_*, now it is possible to send it to IO PEs
+      ! num_test_procs + num_work_procs is the first IO process in p_comm_work_io
+      IF(use_dp_mpi2io) THEN
+        CALL mpi_isend(of%mem_win%mem_ptr_dp, SIZE(of%mem_win%mem_ptr_dp), p_real_dp, &
+            num_test_procs + num_work_procs + of%io_proc_id, 2305 + file_idx, &
+            p_comm_work_io, req_send_data(file_idx))
+      ELSE
+        CALL mpi_isend(of%mem_win%mem_ptr_sp, SIZE(of%mem_win%mem_ptr_sp), p_real_sp, &
+            num_test_procs + num_work_procs + of%io_proc_id, 2305 + file_idx, &
+            p_comm_work_io, req_send_data(file_idx))
+      END IF
+#else
+      ! In case of async IO: Done writing to memory window, unlock it
       CALL MPI_Win_unlock(p_pe_work, of%mem_win%mpi_win, mpierr)
+#endif
+    END IF
+      
 #endif
 
   END SUBROUTINE write_name_list
@@ -2774,19 +2830,24 @@ CONTAINS
   !  @note This subroutine is called by asynchronous I/O PEs only.
   !
 #ifndef NOMPI
-  SUBROUTINE io_proc_write_name_list(of, is_first_write)
+  SUBROUTINE io_proc_write_name_list(of, is_first_write, file_idx)
 
 #ifdef __SUNPRO_F95
     INCLUDE "mpif.h"
 #else
     USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_LOCK_SHARED, MPI_MODE_NOCHECK
+#ifdef NO_ASYNC_IO_RMA
+    USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUS_SIZE
+#else
 #ifndef NO_MPI_RGET
     USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL
+#endif
 #endif
 #endif
 
     TYPE (t_output_file), TARGET, INTENT(IN) :: of
     LOGICAL                     , INTENT(IN) :: is_first_write
+    INTEGER, INTENT(IN) :: file_idx ! File index in output_file(:) array
 
     CHARACTER(LEN=*), PARAMETER    :: routine = modname//"::io_proc_write_name_list"
 
@@ -2820,8 +2881,15 @@ CONTAINS
     LOGICAL :: req_rampup
     INTEGER :: req_next
     INTEGER                        :: req_pool(req_pool_size)
+#ifdef NO_ASYNC_IO_RMA
+    REAL(dp), ALLOCATABLE   :: recv_buf_dp(:,:)
+    REAL(sp), ALLOCATABLE   :: recv_buf_sp(:,:)
+    ! Maximum number of elements in array corresponding to window
+    INTEGER(kind=MPI_ADDRESS_KIND) :: win_mem_size, max_win_mem_size
+#else ! ASYNC_IO_RMA
 #ifdef NO_MPI_RGET
     INTEGER :: num_req
+#endif
 #endif
     !-- for timing
     CHARACTER(len=10)              :: ctime
@@ -2898,21 +2966,57 @@ CONTAINS
     ALLOCATE(bufr_metainfo(var_metadata_get_size(), of%num_vars), STAT=ierrstat)
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
 
+#ifdef NO_ASYNC_IO_RMA
+    ! Get message from p_pe_work==0
+    call mpi_recv(bufr_metainfo, size(bufr_metainfo), p_int, 0, 1103 + file_idx, &
+        p_comm_work_io, MPI_STATUS_IGNORE, mpierr)    
+#else ! ASYNC_IO_RMA
+    ! Receive metadata from PE0
     CALL MPI_Win_lock(MPI_LOCK_SHARED, 0, MPI_MODE_NOCHECK, of%mem_win%mpi_win_metainfo, mpierr)
 
     CALL MPI_Get(bufr_metainfo, SIZE(bufr_metainfo), p_int, 0, &
       &      0_MPI_ADDRESS_KIND, SIZE(bufr_metainfo), p_int, of%mem_win%mpi_win_metainfo, mpierr)
     CALL MPI_Win_unlock(0, of%mem_win%mpi_win_metainfo, mpierr)
+#endif
+
     ! Go over all name list variables for this output file
 
     ioff(:) = 0_MPI_ADDRESS_KIND
+#ifdef NO_ASYNC_IO_RMA    
+    ! For RMA, the window is locked to access the remote memory
+    ! Here, we receive all the data that has been sent by the work PEs
+    max_win_mem_size = recv_buffer_max_sizes(file_idx)
+
+    IF (use_dp_mpi2io) THEN
+        allocate(recv_buf_dp(max_win_mem_size, 0:num_work_procs-1))
+    ELSE
+        allocate(recv_buf_sp(max_win_mem_size, 0:num_work_procs-1))
+    END IF
+
+    ! Get the whole chunk of data from the work processes
+    ! The of%num_var loop is already contained in the memory allocation
+    ! max_win_mem_size is the maximum message size, mpi_recv can get smaller messages (but)
+    DO np = 0, num_work_procs-1
+        IF (use_dp_mpi2io) THEN
+            call mpi_irecv(recv_buf_dp(:,np), max_win_mem_size, p_real_dp, &
+                num_test_procs + np, 2305 + file_idx, p_comm_work_io, &
+                req_recv_data(np, file_idx), MPI_STATUS_IGNORE, mpierr)
+          ELSE
+            call mpi_irecv(recv_buf_sp(:,np), max_win_mem_size, p_real_sp, &
+                num_test_procs + np, 2305 + file_idx, p_comm_work_io, &
+                req_recv_data(np, file_idx),  MPI_STATUS_IGNORE,  mpierr)
+        END IF
+    END DO
+    call p_wait(req_recv_data(:, file_idx))
+#else ! ASYNC_IO_RMA
+    ! Lock the memory window for RMA
 #ifdef NO_MPI_RGET
     req_pool = -1
 #else
     req_pool = mpi_request_null
     CALL MPI_Win_lock_all(MPI_MODE_NOCHECK, of%mem_win%mpi_win, mpierr)
 #endif
-
+#endif
     DO iv = 1, of%num_vars
       ! POINTER to this variable's meta-info
       info => of%var_desc(iv)%info
@@ -3026,7 +3130,18 @@ CONTAINS
           !handle request pool
           req_next = req_next + 1
           req_rampup = req_rampup .AND. req_next <= req_pool_size
-
+        
+#ifdef NO_ASYNC_IO_RMA
+          ! Copy data from the receive buffer into the correct variables used by RMA
+          ! FIXME: This is inefficient
+          ! The goal of this implementation is to have minimal changes to the source code
+          IF(use_dp_mpi2io) THEN
+            var1_dp(nv_off:nv_off + nval) = recv_buf_dp(ioff(np) + 1:ioff(np) + 1 + nval, np)
+          ELSE
+            var1_sp(nv_off:nv_off + nval) = recv_buf_sp(ioff(np) + 1:ioff(np) + 1 + nval, np)
+          END IF
+#else ASYNC_IO_RMA
+          ! Get data from PEs
 #ifdef NO_MPI_RGET
           req_next = MOD(req_next - 1, req_pool_size) + 1
           IF (.NOT. req_rampup) &
@@ -3053,6 +3168,7 @@ CONTAINS
               &           nval, p_real_sp, of%mem_win%mpi_win, req_pool(req_next), mpierr)
           ENDIF
 #endif
+#endif ! NO_ASYNC_IO_RMA
           mb_get = mb_get + nval
 
           ! Update the offset in var1
@@ -3062,6 +3178,7 @@ CONTAINS
           ioff(np) = ioff(np) + INT(nval, mpi_address_kind)
 
         ENDDO
+#ifndef NO_ASYNC_IO_RMA
 #ifdef NO_MPI_RGET
         IF (req_rampup) THEN
           num_req = req_next
@@ -3075,6 +3192,7 @@ CONTAINS
         END DO
 #else
         CALL MPI_Waitall(req_pool_size, req_pool, MPI_STATUSES_IGNORE, mpierr)
+#endif
 #endif
         t_get  = t_get  + p_mpi_wtime() - t_0
 
@@ -3145,8 +3263,10 @@ CONTAINS
 
     ENDDO ! Loop over output variables
 
+#ifndef NO_ASYNC_IO_RMA
 #if ! defined NO_MPI_RGET
     CALL MPI_Win_unlock_all(of%mem_win%mpi_win, mpierr)
+#endif
 #endif
     IF (use_dp_mpi2io .OR. have_GRIB) THEN
       DEALLOCATE(var3_dp, STAT=ierrstat)
@@ -3191,7 +3311,18 @@ CONTAINS
 
     DEALLOCATE(bufr_metainfo, STAT=ierrstat)
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed.')
-
+ 
+#ifdef NO_ASYNC_IO_RMA
+    ! Deallocate buffers used to receive data
+    IF (use_dp_mpi2io) THEN
+        deallocate(recv_buf_dp, STAT=ierrstat)
+        IF (ierrstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed.')
+    ELSE
+        deallocate(recv_buf_sp, STAT=ierrstat)
+        IF (ierrstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed.')
+    END IF
+#endif
+ 
   END SUBROUTINE io_proc_write_name_list
 #endif
 
@@ -3307,6 +3438,9 @@ CONTAINS
     CASE(msg_io_meteogram_flush)
       jstep = msg(2)
     CASE(msg_io_shutdown)
+#ifdef NO_ASYNC_IO_RMA
+    deallocate(req_recv_data)
+#endif
     CASE DEFAULT
       ! Anything else is an error
       CALL finish(modname, 'I/O PE: Got illegal I/O tag')
@@ -3442,15 +3576,29 @@ CONTAINS
     END IF
 
     DO i = 1, SIZE(output_file)
+#ifdef NO_ASYNC_IO_RMA
+      ! Make sure the buffer can be deallocated 
+      ! Wait on latest requests
+      call p_wait(req_send_metainfo(i))
+      call p_wait(req_send_data(i))
+#else ! ASYNC_IO_RMA
       CALL mpi_win_free(output_file(i)%mem_win%mpi_win, ierror)
+#endif
       IF (use_dp_mpi2io) THEN
         CALL mpi_free_mem(output_file(i)%mem_win%mem_ptr_dp, ierror)
       ELSE
         CALL mpi_free_mem(output_file(i)%mem_win%mem_ptr_sp, ierror)
       END IF
+#ifndef NO_ASYNC_IO_RMA
       CALL mpi_win_free(output_file(i)%mem_win%mpi_win_metainfo, ierror)
+#endif
       IF (p_pe_work == 0) CALL mpi_free_mem(output_file(i)%mem_win%mem_ptr_metainfo_pe0, ierror)
     END DO
+
+#ifdef NO_ASYNC_IO_RMA
+  deallocate(req_send_metainfo)
+  deallocate(req_send_data)
+#endif
   END SUBROUTINE compute_shutdown_async_io
 #endif
 
