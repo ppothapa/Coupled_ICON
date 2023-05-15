@@ -871,7 +871,7 @@ fi
 #          But when you worry you make it double ..."
 # ----------------------------------------------------------------------
 
-refdir="${DATAROOT}/ref_data_exp09/242722a2"
+refdir="${DATAROOT}/ref_data_exp09/2e45a271"
 
 
 bash << EOFSCRIPT
