@@ -118,9 +118,10 @@
 
 MODULE mo_meteogram_output
 
-  USE mo_kind,                  ONLY: wp
+  USE mo_kind,                  ONLY: wp, i8
   USE mtime,                    ONLY: datetime, datetimeToPosixString,    &
-       &                              MAX_DATETIME_STR_LEN  
+    &                              MAX_DATETIME_STR_LEN,                  &
+    &                              max_timedelta_str_len, getPTStringFromMS
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_mpi,                   ONLY: p_n_work, p_allreduce_max,          &
     &                                 get_my_mpi_all_id, p_wait,          &
@@ -168,7 +169,8 @@ MODULE mo_meteogram_output
     &                                 gnat_query_containing_triangles,           &
     &                                 gnat_merge_distributed_queries, gk
   USE mo_dynamics_config,       ONLY: nnow
-  USE mo_io_config,             ONLY: inextra_2d, inextra_3d, var_in_output, celltracks_interval, gust_interval
+  USE mo_io_config,             ONLY: inextra_2d, inextra_3d, var_in_output, &
+    &                                 celltracks_interval, gust_interval, echotop_meta
   USE mo_lnd_nwp_config,        ONLY: tile_list, ntiles_total, ntiles_water, zml_soil
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs,               &
     &                                 iqm_max, iqni,                         &
@@ -470,7 +472,9 @@ CONTAINS
     !> indices at which to find variables for compute_diagnostics
     TYPE(meteogram_diag_var_indices), INTENT(out) :: diag_var_indices
 
-    CHARACTER(len=12) :: c_time_int
+    CHARACTER(len=max_timedelta_str_len) :: c_time_int
+    CHARACTER(len=14) :: c_thresh_int
+    INTEGER           :: i
 
     var_list%no_atmo_vars = 0
     var_list%no_sfc_vars = 0
@@ -726,10 +730,10 @@ CONTAINS
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
         &              "V10M", "m/s", "meridional wind in 10m", &
         &              sfc_var_info, prm_diag%v_10m(:,:))
-      WRITE (c_time_int, '(i10," s")') NINT(gust_interval(jg))
+      CALL getPTStringFromMS(NINT(1000*gust_interval(jg), i8), c_time_int)
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
-        &              "VBMAX10M", "m/s", "gust in 10m during last "//&
-        &              TRIM(ADJUSTL(c_time_int)), &
+        &              "VBMAX10M", "m/s", "gust in 10m since end of previous full "//&
+        &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
         &              sfc_var_info, prm_diag%gust10(:,:))
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
         &              "dyn_gust", "m/s", "dynamical gust", &
@@ -995,26 +999,25 @@ CONTAINS
           &              sfc_var_info, prm_diag%dbz_850(:,:))
       END IF
       IF (var_in_output(jg)%dbzcmax) THEN
-        WRITE (c_time_int, '(i10," s")') NINT(celltracks_interval(jg))
         CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
           &              "DBZ_CMAX", "dBZ", &
           &              "column max radar reflectivity", &
           &              sfc_var_info, prm_diag%dbz_cmax(:,:))
       END IF
       IF (var_in_output(jg)%dbzctmax) THEN
-        WRITE (c_time_int, '(i10," s")') NINT(celltracks_interval(jg))
+        CALL getPTStringFromMS(NINT(1000*celltracks_interval(jg), i8), c_time_int)
         CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
           &              "DBZ_CTMAX", "dBZ", &
-          &              "column and time max radar reflectivity during last "// &
-          &              TRIM(ADJUSTL(c_time_int)), &
+          &              "column and time max radar reflectivity since end of previous full "// &
+          &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
           &              sfc_var_info, prm_diag%dbz_ctmax(:,:))
       END IF
       IF (var_in_output(jg)%lpi_max) THEN
-        WRITE (c_time_int, '(i10," s")') NINT(celltracks_interval(jg))
+        CALL getPTStringFromMS(NINT(1000*celltracks_interval(jg), i8), c_time_int)
         CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
           &              "LPI_MAX", "J/kg", &
-          &              "time max lightning potential index during last "// &
-          &              TRIM(ADJUSTL(c_time_int)), &
+          &              "time max lightning potential index since end of previous full "// &
+          &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
           &              sfc_var_info, prm_diag%lpi_max(:,:))
       END IF
       IF (var_in_output(jg)%ceiling) THEN
@@ -1022,6 +1025,18 @@ CONTAINS
           &              "CEILING", "m", &
           &              "ceiling height", &
           &              sfc_var_info, prm_diag%ceiling_height(:,:))
+      END IF
+      IF (var_in_output(jg)%echotopinm) THEN
+        DO i=1, echotop_meta(jg)%nechotop
+          CALL getPTStringFromMS(NINT(1000*echotop_meta(jg)%time_interval, i8), c_time_int)
+          WRITE (c_thresh_int, '(i10," dBZ")') NINT(echotop_meta(jg)%dbzthresh(i))
+          CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+            &              "ECHOTOPinM_"//TRIM(ADJUSTL(c_thresh_int(1:10))), "m", &
+            &              "maximum height of exceeding radar reflectivity threshold "// &
+            &              TRIM(ADJUSTL(c_thresh_int))//" since end of previous full "// &
+            &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
+            &              sfc_var_info, prm_diag%echotopinm(:,i,:))
+        END DO
       END IF
     ENDIF ! iforcing == nwp
 

@@ -4881,7 +4881,7 @@ __acc_attach(diag%clct)
       CALL getPTStringFromMS(NINT(1000*echotop_meta(k_jg)%time_interval, i8), echotop_int)
       cf_desc    = t_cf_var('echotop', 'Pa',                   &
         &                   'Minimum pressure of exceeding radar reflectivity threshold since end of previous full '// &
-        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+        &                   TRIM(echotop_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 3, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)     &
            &        + t_grib2_int_key("typeOfFirstFixedSurface",          25)
 !!$ This seems not to have any effect for creating a bitmap with missing values:
@@ -4906,7 +4906,7 @@ __acc_attach(diag%clct)
       CALL getPTStringFromMS(NINT(1000*echotop_meta(k_jg)%time_interval, i8), echotop_int)
       cf_desc    = t_cf_var('echotopinm', 'm',                                  &
         &                   'Maximum height of exceeding radar reflectivity threshold since end of previous full '// &
-        &                   TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+        &                   TRIM(echotop_int(3:))//' since model start', datatype_flt)
       grib2_desc = grib2_var( 0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)     &
            &        + t_grib2_int_key("typeOfFirstFixedSurface",          25)
 !!$ This seems not to have any effect for creating a bitmap with missing values:
