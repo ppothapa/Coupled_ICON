@@ -241,8 +241,8 @@ CONTAINS
                   meltrate         , & ! snow melting rate                             (kg/(m**2*s))
                   tsnred           , & ! snow temperature offset for calculating evaporation  (K)
 !
-                  w_i_now          , & ! water content of interception water           (m H2O)
-                  w_i_new          , & ! water content of interception water           (m H2O)
+                  w_i_now          , & ! water content of interception store           (m H2O)
+                  w_i_new          , & ! water content of interception store           (m H2O)
 !
                   w_p_now          , & ! water content of pond interception water     (m H2O)
                   w_p_new          , & ! water content of pond interception water     (m H2O)
@@ -253,11 +253,11 @@ CONTAINS
                   t_so_now         , & ! soil temperature (main level)                 (  K  )
                   t_so_new         , & ! soil temperature (main level)                 (  K  )
 !
-                  w_so_now         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_new         , & ! total water conent (ice + liquid water)       (m H20)
+                  w_so_now         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_new         , & ! total soil water content (ice + liquid water) (m H20)
 !
-                  w_so_ice_now     , & ! ice content                                   (m H20)
-                  w_so_ice_new     , & ! ice content                                   (m H20)
+                  w_so_ice_now     , & ! soil ice content                              (m H20)
+                  w_so_ice_new     , & ! soil ice content                              (m H20)
 !
 !                 t_2m             , & ! temperature in 2m                             (  K  )
                   u_10m            , & ! zonal wind in 10m                             ( m/s )
@@ -296,7 +296,7 @@ CONTAINS
 !
                   runoff_s         , & ! surface water runoff; sum over forecast       (kg/m2)
                   runoff_g         , & ! soil water runoff; sum over forecast          (kg/m2)
-                  resid_wso     , & ! soil water budget, residuum                   (kg/m2)
+                  resid_wso        , & ! soil water budget, residuum                   (kg/m2)
 ! for TERRA_URB
 !                 w_imp            , & ! impervious water storage                        --
 !                 w_isa            , & ! same, multiplied by fr_paved                    --
@@ -405,7 +405,7 @@ CONTAINS
                   w_snow_now       , & ! water content of snow                         (m H2O)
                   rho_snow_now     , & ! snow density                                  (kg/m**3)
                   h_snow           , & ! snow depth
-                  w_i_now          , & ! water content of interception water           (m H2O)
+                  w_i_now          , & ! water content of interception store           (m H2O)
                   w_p_now          , & ! water content of interception water pond      (m H2O)
                   w_s_now          , & ! water content of interception snow water      (m H2O)
                   freshsnow        , & ! indicator for age of snow in top of snow layer(  -  )
@@ -426,7 +426,7 @@ CONTAINS
                   w_snow_new       , & ! water content of snow                         (m H2O)
                   rho_snow_new     , & ! snow density                                  (kg/m**3)
                   meltrate         , & ! snow melting rate
-                  w_i_new          , & ! water content of interception water           (m H2O)
+                  w_i_new          , & ! water content of interception store           (m H2O)
                   w_p_new          , & ! water content of interception water pond      (m H2O)
                   w_s_new          , & ! water content of interception snow water
                   zshfl_s          , & ! sensible heat flux soil/air interface         (W/m2)
@@ -460,11 +460,11 @@ CONTAINS
                   t_so_new             ! soil temperature (main level)                 (  K  )
 
   REAL    (KIND = wp), DIMENSION(nvec,ke_soil+1), INTENT(INOUT) :: &
-                  w_so_now         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_ice_now         ! ice content                                   (m H20)
+                  w_so_now         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_ice_now         ! soil ice content                              (m H20)
   REAL    (KIND = wp), DIMENSION(nvec,ke_soil+1), INTENT(OUT) :: &
-                  w_so_new         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_ice_new         ! ice content                                   (m H20)
+                  w_so_new         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_ice_new         ! soil ice content                              (m H20)
 
 
 
@@ -789,7 +789,7 @@ CONTAINS
     zsfc_frac_bs   (nvec)          , & ! relative source surface of the bare soil
     zrhoch         (nvec)          , & ! transfer coefficient*rho*g
     zth_low        (nvec)          , & ! potential temperature of lowest layer
-    zf_wi          (nvec)          , & ! surface fraction covered by interception water
+    zf_wi          (nvec)          , & ! surface fraction covered by interception water content
     ztmch          (nvec)          , & ! heat transfer coefficient*density*velocity
     zep_s          (nvec)          , & ! potential evaporation for t_s
     zep_snow       (nvec)          , & ! potential evaporation for t_snow
@@ -804,8 +804,8 @@ CONTAINS
     zahf           (nvec)          , & ! TERRA_URB: anthropogenic heat flux
 
     ! Tendencies
-    zdwidt         (nvec)          , & ! interception store tendency
-    zdwsndt        (nvec)          , & ! snow water content tendency
+    zdwidt         (nvec)          , & ! tendency of water content of interception store
+    zdwsndt        (nvec)          , & ! tendency of snow water content
     zdtsdt         (nvec)          , & ! tendency of zts
     zdtsnowdt      (nvec)          , & ! tendency of ztsnow
     zdwgdt         (nvec,  ke_soil)    ! tendency of water content [kg/(m**3 s)]
@@ -813,9 +813,9 @@ CONTAINS
   REAL    (KIND=wp) ::  &
 
     !   Interception variables
-    zwinstr        (nvec)          , & ! preliminary value of interception store
+    zwinstr        (nvec)          , & ! preliminary water content of interception store
     zinfmx         (nvec)          , & ! maximum infiltration rate
-    zwimax         (nvec)          , & ! maximum interception store
+    zwimax         (nvec)          , & ! maximum water content of interception store
     zvers          (nvec)          , & ! water supply for infiltration
     zwisnstr       (nvec)          , & ! water content of snow interception store (t+1) (mH2O)
     zwpnstr        (nvec)          , & ! water content of pond store (t+1) (mH2O)
@@ -868,23 +868,22 @@ CONTAINS
     zkwm     (nvec,ke_soil+1)      , & ! hydrological cond.parameter (main levels)
     zkw1     (nvec,ke_soil+1)      , & ! hydrological cond.parameter
     zik2     (nvec)                , & ! minimum infiltration rate
-    zpwp     (nvec,ke_soil+1)      , & ! plant wilting point  (fraction of volume)
+    zpwp     (nvec,ke_soil+1)      , & ! plant wilting point (fraction of volume)
     ztlpmwp  (nvec)                , & ! turgor-loss-point minus plant wilting point
     zedb     (nvec)                , & ! utility variable
     zaa      (nvec)                , & ! utility variable
 
     ! Hydraulic variables
-    ztrang      (nvec,ke_soil)     , & ! transpiration contribution by the different layers
-    ztrangs     (nvec)             , & ! total transpiration (transpiration from all
-                                       !    soil layers)
-    zwin        (nvec)             , & ! water cont. of interception store   (m H20)
-    zwsnow      (nvec)             , & ! snow water equivalent               (m H20)
-    zwsnew      (nvec)             , & ! snow water equivalent               (m H20)
+    ztrang      (nvec,ke_soil)     , & ! transpiration contribution by the different soil layers
+    ztrangs     (nvec)             , & ! total transpiration (transpiration from all soil layers)
+    zwin        (nvec)             , & ! water content of interception store   (m H20)
+    zwsnow      (nvec)             , & ! snow water equivalent                 (m H20)
+    zwsnew      (nvec)             , & ! snow water equivalent                 (m H20)
     zdwsnm      (nvec)             , & ! utility variable for snow melt determination
-    zw_fr       (nvec,ke_soil+1)   , & !fractional total water content of soil layers
+    zw_fr       (nvec,ke_soil+1)   , & ! fractional total water content of the different soil layers
     zinfil      (nvec)             , & ! infiltration rate
-    zlw_fr      (nvec,ke_soil+1)   , & ! fractional liqu. water content of soil layer
-    ziw_fr      (nvec,ke_soil+1)   , & ! fractional ice content of soil layer
+    zlw_fr      (nvec,ke_soil+1)   , & ! fractional liquid water content of soil layers
+    ziw_fr      (nvec,ke_soil+1)   , & ! fractional ice content of soil layers
     zwsnn       (nvec)             , & ! new value of zwsnow
     zflmg       (nvec,ke_soil+1)   , & ! flux of water at soil layer interfaces
     zrunoff_grav(nvec,ke_soil+1)       ! main level water gravitation
@@ -2073,8 +2072,14 @@ ENDDO
   DO i = ivstart, ivend
      ! snow and water covered fraction
      !em        zrss = MAX( 0.01_wp, MIN(1.0_wp,zwsnow(i)/cf_snow) )
-     zzz  = MAX( 0.25_wp*cf_w,0.4_wp*cwimax_ml*MAX(2.5_wp*plcov(i),tai(i)) )
-     zrww = MAX( 0.01_wp, 1.0_wp - EXP(MAX( -5.0_wp, - zwin(i)/zzz) ) )
+     zzz   = MAX( 0.25_wp*cf_w,0.4_wp*cwimax_ml*MAX(2.5_wp*plcov(i),tai(i)) )
+
+     ! TERRA_URB: Puddles on the impervious surface area
+     IF (lterra_urb .AND. (itype_eisa == 3)) THEN
+       zzz = urb_isa(i) * cwisamax + (1.0_wp - urb_isa(i)) * zzz
+     END IF
+
+     zrww  = MAX( 0.01_wp, 1.0_wp - EXP(MAX( -5.0_wp, - zwin(i)/zzz) ) )
      !em        zf_snow(i) = zrss*zsf_heav(zwsnow(i) - eps_soil)
 
      IF (itype_interception == 1) THEN
@@ -2862,14 +2867,22 @@ ENDDO
       IF (zrs(i) >= 1.05_wp*zrime .OR. zf_snow(i) >= 0.9_wp) zrime = 0._wp
       zrs(i) = zrs(i) - zrime
 
-      ! infiltration and surface run-off
+      !
+      ! Infiltration and surface runoff
+      !
 
       ! subtract evaporation from interception store to avoid negative
       ! values due to sum of evaporation+infiltration
       zwinstr(i) = zwin(i) + zdwidt(i)*zdtdrhw
       zwinstr(i) = MAX(0.0_wp,zwinstr(i))
 
-      zwimax(i) = cwimax_ml*(1.0_wp+ztfunc(i))*MAX(ztfunc(i), eps_soil, MAX(2.5_wp*plcov(i),tai(i)))
+      zwimax(i)   = cwimax_ml*(1.0_wp+ztfunc(i))*MAX(ztfunc(i), eps_soil, MAX(2.5_wp*plcov(i),tai(i)))
+
+      ! TERRA_URB: Puddles on the impervious surface area
+      IF (lterra_urb .AND. (itype_eisa == 3)) THEN
+        zwimax(i) = urb_isa(i) * cwisamax + (1.0_wp - urb_isa(i)) * zwimax(i)
+      END IF
+
       zalf   = SQRT(MAX(0.0_wp,1.0_wp - zwinstr(i)/zwimax(i)))
 
       ! water supply from interception store (if Ts above freezing)
@@ -2921,7 +2934,8 @@ ENDDO
       ! surface runoff is evaluated after the calculation of infiltration
       zvers(i) = zinf + (1._wp - zalf)*zrr(i) + (1._wp-conv_frac(i))*zalf*prr_con(i)
 
-!     IF (lterra_urb .AND. (itype_eisa == 2)) THEN
+
+!     IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
 !       !HW: this is just a reminder
 !       !zvers * (1._wp- isa(i,j) is the amount of water falling on non-impervious surface
 !       !zvers *  isa(i,j) is the amount of water falling on impervious surface 
@@ -2934,6 +2948,9 @@ ENDDO
 
 !       !zeisa: unit: m/s x kg / m^3 = kg/ m^2/s
 !       !zeisa*zdtdrhw : unit: m/s x kg / m^3 x s / kg x m ^2= m
+
+!       ! unit c_isa_wmax: kg/m^2
+!       c_isa_wmax = 1.31_wp ! Maximum amount of water that can be stored by impervious surfaces
 
 !       ! unit w_imp: kg/m^2
 !       w_imp(i) = MAX(w_imp(i) + zvers(i)*zdt + zeisa(i)*zdt , 0.0_wp)
@@ -2961,13 +2978,28 @@ ENDDO
 !                               zisa_infil * fr_paved(i) * c_isa_runoff    )
 
 !     ELSE
+
+        ! Infiltration
+        !
         ! Avoid infiltration for rock, ice and snow-covered surfaces
         zinfil(i) = zvers(i)*zrock(i)*(1.0_wp - zf_snow(i))
 
+        ! Avoid infiltration for urban impervious surface area fraction
+        IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+          zinfil(i) = zinfil(i) * (1.0_wp - urb_isa(i))
+        END IF
+
+
         ! Add difference to surface runoff
         zro_inf = zvers(i) - zinfil(i)
-!     ENDIF
+
+!     END IF
+
+
+      ! Surface runoff, including the effect of the impervious surface area, if present
+      !
       runoff_s(i) = runoff_s(i) + zro_inf*zroffdt
+
 
       ! change of snow water and interception water store
       ! (negligible residuals are added to the run-off)
@@ -5046,9 +5078,9 @@ ENDDO
       t_sk_new(i)    = t_s_new(i)
     ELSE IF (itype_canopy == 2) THEN
 
-      ! Calculation of the skin temperature (snow free area), 
-      ! based on Viterbo and Beljaars (1995) and Schulz and Vogel (2020).
-      ! A Newtonian relaxation approach is used to ensure numerical stability
+      ! Calculation of the skin temperature (snow free area)
+      ! by Schulz and Vogel (2020), based on Viterbo and Beljaars (1995).
+      ! A Newtonian relaxation approach is used to ensure numerical stability.
 
       IF (w_snow_now(i) > eps_soil .OR. w_snow_new(i) > eps_soil) THEN
         t_sk_new(i) = t_s_new(i) ! needs to be t_s rather than t_snow in order to obtain correct t_g afterwards

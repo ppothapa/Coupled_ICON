@@ -524,7 +524,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
             tai(i) = plcov(i) * tai(i)  ! transpiration area index
 
             ! evaporation area index
-            IF (lterra_urb .AND. ((itype_eisa==2) .OR. (itype_eisa==3))) THEN
+            IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
               eai(i) = c_soil * (1.0_wp - urb_isa(i))
             ELSE
               eai(i) = c_soil

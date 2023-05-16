@@ -3968,14 +3968,14 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2020) \\
+4 = Resistance-based formulation by Schulz and Vogel (2020) \\
 5 = same as 4, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for tuning; 
 the namelist parameter c\_soil is ignored in this case, and a value of 2 is used internally &
 \tabularnewline
 
 %\hline
 itype\_trvg &
-I & 2 &  & type of plant transpiration parameterization \\
+I & 2 &  & type of vegetation transpiration parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = Extended BATS scheme with additional prognostic variable for integrated plant transpiration since sunrise; 
 should be used only with an appropriate first guess for this variable coming from the DWD assimilation cycle &
@@ -4002,7 +4002,8 @@ R & 3600. & s & Relaxation time scale for the computation of the skin temperatur
 \tabularnewline
 
 lterra\_urb &
-L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017) &
+L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017) \\
+(see Schulz et al.\ 2023) &
 \tabularnewline
 
 lurbalb &
@@ -4022,7 +4023,7 @@ I & 2 &  & Type of bluff-body thermal roughness length parameterisation \\
 
 itype\_eisa &
 I & 3 &  & Type of evaporation from impervious surface area \\
-1 = Evaporation like bare soil (cf. Schulz and Vogel 2020) \\
+1 = Evaporation like bare soil (see Schulz and Vogel 2020) \\
 2 = No evaporation \\
 3 = PDF-based puddle evaporation (Wouters et al.\ 2015) & lterra\_urb = .TRUE.
 \tabularnewline
@@ -4031,7 +4032,7 @@ I & 3 &  & Type of evaporation from impervious surface area \\
 itype\_heatcond &
 I & 2 &  & type of soil thermal conductivity \\
 1 = constant soil thermal conductivity \\
-2 = moisture dependent soil thermal conductivity, cf.\ Schulz et al.\ (2016) \\
+2 = moisture dependent soil thermal conductivity (see Schulz et al.\ 2016) \\
 3 = variant of option 2 with reduced near-surface thermal conductivity in the presence of plant cover &
 \tabularnewline
 
@@ -4062,7 +4063,7 @@ allowed range: 0 -- 2 & itype\_evsl = 2,3,4
 
 %\hline
 cr\_bsmin &
-R & 110. & s/m & minimum bare-soil evaporation resistance \\
+R & 110. & s/m & minimum bare soil evaporation resistance (see Schulz and Vogel 2020) \\
 Note: c\_soil and c\_soil\_urb are ignored in this case & itype\_evsl = 5 or icpl\_da\_sfcevap = 4
 \tabularnewline
 
