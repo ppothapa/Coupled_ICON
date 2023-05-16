@@ -30,6 +30,7 @@ MODULE mo_nonhydrostatic_nml
                                     ! from namelist
                                     & config_itime_scheme     => itime_scheme     , &
                                     & config_ndyn_substeps    => ndyn_substeps    , &
+                                    & config_vcfl_threshold   => vcfl_threshold   , &
                                     & config_lhdiff_rcf       => lhdiff_rcf       , &
                                     & config_lextra_diffu     => lextra_diffu     , &
                                     & config_divdamp_fac      => divdamp_fac      , &
@@ -111,6 +112,8 @@ CONTAINS
     ! 6: As 5, but velocity tendencies are also computed in both substeps (no apparent benefit, but more expensive)
 
     INTEGER :: ndyn_substeps           ! number of dynamics substeps per fast-physics step
+    REAL(wp):: vcfl_threshold          ! threshold for vertical advection CFL number at which the adaptive time step reduction
+                                       ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
     LOGICAL :: lhdiff_rcf              ! if true: compute horizontal diffusion only at the large time step
     LOGICAL :: lextra_diffu            ! if true: apply additional diffusion at grid points close
     ! to the CFL stability limit for vertical advection
@@ -166,7 +169,8 @@ CONTAINS
          & nest_substeps, l_masscorr_nest, l_zdiffu_t,               &
          & thslp_zdiffu, thhgtd_zdiffu, divdamp_order, divdamp_type, &
          & rhotheta_offctr, lextra_diffu, veladv_offctr,             &
-         & divdamp_trans_start, divdamp_trans_end, htop_aero_proc
+         & divdamp_trans_start, divdamp_trans_end, htop_aero_proc,   &
+         & vcfl_threshold
 
     !-----------------------
     ! 1. default settings
@@ -178,6 +182,10 @@ CONTAINS
 
     ! number of dynamics substeps per fast-physics timestep
     ndyn_substeps = 5
+
+    ! threshold for vertical advection CFL number at which the adaptive time step reduction
+    ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
+    vcfl_threshold = 1.05_wp
 
     ! reduced calling frequency also for horizontal diffusion
     lhdiff_rcf = .TRUE.  ! new default since 2012-05-09 after successful testing
@@ -375,6 +383,7 @@ CONTAINS
        config_igradp_method     = igradp_method
        config_exner_expol       = exner_expol
        config_ndyn_substeps     = ndyn_substeps
+       config_vcfl_threshold    = vcfl_threshold
        config_lhdiff_rcf        = lhdiff_rcf
        config_lextra_diffu      = lextra_diffu
        config_divdamp_fac       = divdamp_fac

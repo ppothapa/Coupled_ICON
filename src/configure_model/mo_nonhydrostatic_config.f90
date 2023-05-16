@@ -45,6 +45,8 @@ MODULE mo_nonhydrostatic_config
     INTEGER :: itime_scheme             !< Choice of time stepping scheme
 
     INTEGER :: ndyn_substeps            !< number of dynamics substeps per fast-physics step
+    REAL(wp):: vcfl_threshold           ! threshold for vertical advection CFL number at which the adaptive time step reduction
+                                        ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
 
     ! related runtime control variables for adaptive ndyn_substeps:
     INTEGER :: ndyn_substeps_max        ! maximum number of dynamics substeps per fast-physics step

@@ -4620,6 +4620,14 @@ number of dynamics substeps per fast-physics / transport step &
 \tabularnewline
 
 %\hline
+vcfl\_threshold&
+R& 1.05& &
+Threshold for vertical advection CFL number at which the adaptive time step reduction 
+(increase of ndyn\_substeps w.r.t. the fixed fast-physics time step) is triggered.
+ &
+\tabularnewline
+
+%\hline
 lhdiff\_rcf&
 L& .TRUE. & &
 .TRUE.: Compute diffusion only at advection time steps (in this case,

@@ -36,7 +36,7 @@ MODULE mo_nh_stepping
   USE mo_nonhydro_state,           ONLY: p_nh_state, p_nh_state_lists
   USE mo_nonhydrostatic_config,    ONLY: lhdiff_rcf, itime_scheme, divdamp_order,                     &
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
-    &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max
+    &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
     &                                    ldeepatmo
@@ -3280,8 +3280,8 @@ MODULE mo_nh_stepping
 
     lskip = .FALSE.
 
-    thresh1_cfl = MERGE(0.95_wp,1.05_wp,lspinup)
-    thresh2_cfl = MERGE(0.90_wp,0.95_wp,lspinup)
+    thresh1_cfl = MERGE(0.9_wp*vcfl_threshold,vcfl_threshold,lspinup)
+    thresh2_cfl = MERGE(0.85_wp*vcfl_threshold,0.9_wp*vcfl_threshold,lspinup)
     ndyn_substeps_enh = MERGE(1,0,lspinup)
 
     mvcfl(1:n_dom) = p_nh_state(1:n_dom)%diag%max_vcfl_dyn
@@ -3289,7 +3289,7 @@ MODULE mo_nh_stepping
     p_nh_state(1:n_dom)%diag%max_vcfl_dyn = 0._vp
 
     mvcfl = global_max(mvcfl)
-    IF (ANY(mvcfl(1:n_dom) > 0.85_wp) .AND. .NOT. lcfl_watch_mode) THEN
+    IF (ANY(mvcfl(1:n_dom) > 0.81_wp*vcfl_threshold) .AND. .NOT. lcfl_watch_mode) THEN
       WRITE(message_text,'(a)') 'High CFL number for vertical advection in dynamical core, entering watch mode'
       CALL message('',message_text)
       lcfl_watch_mode = .TRUE.
@@ -3297,7 +3297,7 @@ MODULE mo_nh_stepping
 
     IF (lcfl_watch_mode) THEN
       DO jg = 1, n_dom
-        IF (mvcfl(jg) > 0.95_wp .OR. ndyn_substeps_var(jg) > ndyn_substeps) THEN
+        IF (mvcfl(jg) > 0.9_wp*vcfl_threshold .OR. ndyn_substeps_var(jg) > ndyn_substeps) THEN
           WRITE(message_text,'(a,i3,a,f7.4)') 'Maximum vertical CFL number in domain ', &
             jg,':', mvcfl(jg)
           CALL message('',message_text)
@@ -3321,7 +3321,7 @@ MODULE mo_nh_stepping
       ENDDO
     ENDIF
 
-    IF (ALL(ndyn_substeps_var(1:n_dom) == ndyn_substeps) .AND. ALL(mvcfl(1:n_dom) < 0.8_wp) .AND. &
+    IF (ALL(ndyn_substeps_var(1:n_dom) == ndyn_substeps) .AND. ALL(mvcfl(1:n_dom) < 0.76_wp*vcfl_threshold) .AND. &
         lcfl_watch_mode .AND. .NOT. lskip) THEN
       WRITE(message_text,'(a)') 'CFL number for vertical advection has decreased, leaving watch mode'
       CALL message('',message_text)
