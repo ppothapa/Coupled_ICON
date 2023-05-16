@@ -53,11 +53,12 @@ class PBSJob(BatchJob):
                                     stdout=subprocess.PIPE,
                                     encoding="utf-8")
 
-    def wait(self):
+    def poll(self, timeout):
         # PBS does not return the exitcode of the submitted script. instead it prints it to stdout
-        ret = self.job.communicate()
-        stdout = ret[0]
-        stderr = ret[1]
+        try:
+            stdout, stderr = self.job.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return False
 
         if debugOutput:
             print(f"|qwait:stdout: {stdout}|")
@@ -65,16 +66,17 @@ class PBSJob(BatchJob):
 
         try:
             exit_code = int(stderr.split()[-1])
-            if debugOutput:
-                print(f"qwait: exit_code = |{exit_code}|")
         except:
             print('pbs_job.py: Could not get a proper return value from "qwait"')
             print(f"qwait: stderr = |{stderr}|")
             exit_code = 1
 
+        if debugOutput:
+            print(f"qwait: exit_code = |{exit_code}|")
+
         self.returncode = exit_code
 
-        return exit_code
+        return True # poll successfull, job finished.
 
     def cancel(self):
         if None is not self.jobid:

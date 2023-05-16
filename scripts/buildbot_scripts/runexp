@@ -112,11 +112,7 @@ def runexp():
                 print(f"internal error, did not get returncode for {eobj.name} (jobID:{exp_jobid})")
                 exit_msg = "FAILED"
 
-            if True == experimentsFailed[-1]:
-                exit_code = 1
-            else:
-                exit_code = 0
-            print(f"exit code for {exp_file}: {exit_msg} (code:{int(exit_code)})")
+            print(f"exit code for {exp_file}: {exit_msg} (code:{int(eobj.batch_job.returncode)})")
             file.write("{0:50}: {1}\n".format(exp_file.name, exit_msg))
 
     if True in experimentsFailed:

@@ -13,9 +13,14 @@ class BatchJob(object):
         self.parents.append(parent)
 
     def wait(self):
-        self.returncode = self.job.wait()
+        self.poll(timeout=None)
 
     def poll(self, timeout):
+        """Check if task is still running.
+
+        Waits up to specified timeout in seconds for job to finish. If job
+        finishes in time or has finished before, return True and set returncode.
+        """
         try:
             returncode = self.job.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
