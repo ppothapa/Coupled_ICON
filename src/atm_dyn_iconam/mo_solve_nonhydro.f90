@@ -774,7 +774,7 @@ MODULE mo_solve_nonhydro
 #endif
 
           !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-          !$ACC LOOP GANG VECTOR TILE(128, *) &
+          !$ACC LOOP GANG VECTOR TILE(128, 1) &
           !$ACC   PRIVATE(z_w_backtraj, z_rho_tavg_m1, z_theta_tavg_m1, z_rho_tavg) &
           !$ACC   PRIVATE(z_theta_tavg, z_theta_v_pr_mc_m1, z_theta_v_pr_mc)
           DO jk = 2, nlev

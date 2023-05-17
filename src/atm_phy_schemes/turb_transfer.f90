@@ -403,7 +403,7 @@ SUBROUTINE turbtran (                                                         &
           t_2m, qv_2m, td_2m, rh_2m, u_10m, v_10m,                            &
           shfl_s, qvfl_s, umfl_s, vmfl_s,                                     &
 !
-          lacc)
+          lacc, opt_acc_async_queue)
 !-------------------------------------------------------------------------------
 !
 ! Note:
@@ -720,8 +720,11 @@ REAL (KIND=wp), DIMENSION(:), OPTIONAL, TARGET, INTENT(INOUT) :: &
      umfl_s,       & ! u-momentum flux at the surface                (N/m2)    (positive downward)
      vmfl_s          ! v-momentum flux at the surface                (N/m2)    (positive downward)
 
-LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
-LOGICAL :: lzacc ! non-optional version of lacc
+LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+INTEGER, OPTIONAL, INTENT(IN) :: opt_acc_async_queue
+
+LOGICAL :: lzacc
+INTEGER :: acc_async_queue
 
 INTEGER            :: my_cart_id, my_thrd_id
 
@@ -883,6 +886,12 @@ LOGICAL        ::   ldebug = .FALSE.
 
   CALL set_acc_host_or_device(lzacc, lacc)
 
+  IF(PRESENT(opt_acc_async_queue)) THEN
+    acc_async_queue = opt_acc_async_queue
+  ELSE
+    acc_async_queue = 1
+  ENDIF
+
 !==============================================================================
 ! Begin subroutine turbtran
 !------------------------------------------------------------------------------
@@ -899,13 +908,20 @@ LOGICAL        ::   ldebug = .FALSE.
   !$ACC   CREATE(frc_2d, dz_sg_m, dz_sg_h, dz_g0_h) &
   !$ACC   CREATE(dz_0a_m, dz_0a_h, dz_sa_h, dz_s0_h, grad) &
   !$ACC   CREATE(k_2d, lo_ice) &
-  !$ACC   IF(lzacc)
+  !$ACC   COPYIN(ivend) &
+  !$ACC   ASYNC(acc_async_queue) IF(lzacc)
 !-------------------------------------------------------------------------------
   CALL turb_setup (ivstart=ivstart, ivend=ivend, ke1=ke1, &
                    iini=iini, dt_tke=dt_tke, nprv=nprv, l_hori=l_hori, qc_a=qc(:,ke), &
                    lini=lini, it_start=it_start, nvor=nvor, fr_tke=fr_tke,  &
                    l_scal=l_scal, fc_min=fc_min, liqs=liqs(:,ke1), rcld=rcld, tfm=tfm, tfh=tfh, &
-                   lacc=lzacc)
+                   lacc=lzacc, opt_acc_async_queue=acc_async_queue)
+
+#ifdef ICON_USE_CUDA_GRAPH
+   IF (lzacc .AND. lini) THEN
+      CALL finish ('turbtran', 'initialization is not supported when capturing a graph with OpenACC')
+   END IF
+#endif
 !-------------------------------------------------------------------------------
 
 my_cart_id = get_my_global_mpi_id()
@@ -984,9 +1000,11 @@ my_thrd_id = omp_get_thread_num()
          tvt => tketens
       ELSE
          tvt => tketens_tar
-         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-         !$ACC LOOP GANG VECTOR COLLAPSE(2)
+         ! This loop can't be OpenACC-collapsed yet because ivend is on the GPU
+         !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(tvt) ASYNC(acc_async_queue) IF(lzacc)
+         !$ACC LOOP SEQ
          DO k=ke1, ke1
+            !$ACC LOOP GANG VECTOR
             DO i=ivstart, ivend
                tvt(i,k) = z0
             END DO
@@ -1014,17 +1032,18 @@ my_thrd_id = omp_get_thread_num()
       ! Set the logical mask lo_ice to distinguish between ice covered
       ! and open water sea or lake grid points.
       
-      !$ACC DATA NO_CREATE(fr_land, t_g, h_ice, depth_lk) &
-      !$ACC   NO_CREATE(hhl, epr_2d, u, v, t) &
-      !$ACC   NO_CREATE(epr, tke, tkvm, tkvh, gz0, tkr) &
-      !$ACC   NO_CREATE(l_tur_z0, ps, sai, urb_isa, rlamh_fac) &
-      !$ACC   NO_CREATE(tfm, tfh, tfv, qv_s, qv, qc) &
-      !$ACC   NO_CREATE(dwdx, dwdy, hdef2, g_tet) &
-      !$ACC   NO_CREATE(g_vap, tcm, tch, z0d_2d, shfl_s) &
-      !$ACC   NO_CREATE(rcld, qsat_dT, qvfl_s, umfl_s, vmfl_s) &
-      !$ACC   NO_CREATE(edr, tvh, tvm, qsat_dt, t_2m) &
-      !$ACC   NO_CREATE(qv_2m, rcl_2d, prs, qda_2d, ta_2d) &
-      !$ACC   NO_CREATE(v_10m, u_10m, vel1_2d, vel2_2d, rh_2m, td_2m)
+      !$ACC DATA PRESENT(fr_land, t_g, h_ice, depth_lk) &
+      !$ACC   PRESENT(hhl, epr_2d, u, v, t) &
+      !$ACC   PRESENT(epr, tke, tkvm, tkvh, gz0, tkr) &
+      !$ACC   PRESENT(l_tur_z0, ps, sai, urb_isa, rlamh_fac) &
+      !$ACC   PRESENT(tfm, tfh, tfv, qv_s, qv, qc) &
+      !$ACC   PRESENT(dwdx, dwdy, hdef2, g_tet) &
+      !$ACC   PRESENT(g_vap, tcm, tch, z0d_2d, shfl_s) &
+      !$ACC   PRESENT(rcld, qsat_dT, qvfl_s, umfl_s, vmfl_s) &
+      !$ACC   PRESENT(edr, tvh, tvm, qsat_dt, t_2m) &
+      !$ACC   PRESENT(qv_2m, rcl_2d, prs, qda_2d, ta_2d) &
+      !$ACC   PRESENT(v_10m, u_10m, vel1_2d, vel2_2d, rh_2m, td_2m) &
+      !$ACC   ASYNC(acc_async_queue) IF(lzacc)
       
 ! Berechnung einiger Hilfsgroessen und Initialisierung der Diffusionskoeff.:
 
@@ -1040,7 +1059,7 @@ my_thrd_id = omp_get_thread_num()
       END IF
 
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=ivstart, ivend
 
@@ -1284,7 +1303,7 @@ my_thrd_id = omp_get_thread_num()
 !print *,"it_durch=",it_durch
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z_surf, fakt, rin_m, rin_h, zkbmo_dia, zkbmo_urb, zustar)
          DO i=ivstart, ivend
 
@@ -1550,8 +1569,6 @@ my_thrd_id = omp_get_thread_num()
          END DO
          !$ACC END PARALLEL
          
-         !$ACC WAIT
-
          CALL adjust_satur_equil ( khi=ke1, ktp=ke, &
 !
               i_st=ivstart, i_en=ivend, k_st=ke1, k_en=ke1, i1dim=nvec, &
@@ -1576,7 +1593,7 @@ my_thrd_id = omp_get_thread_num()
 !
               tet_l=zvari(:,ke:ke1,tet_l), q_h2o=zvari(:,ke:ke1,h2o_g),&
                                            q_liq=zvari(:,ke:ke1,liq),  &
-              lacc=lzacc )
+              lacc=lzacc, opt_acc_async_queue=acc_async_queue )
 
 !        Beachte: 
 !        'zvari(:,ke1,tet_l)' und 'zvari(:,ke1,h2o_g) sind jetzt die Erhaltungsvariablen
@@ -1596,7 +1613,7 @@ my_thrd_id = omp_get_thread_num()
 
          !Vertikalgradienten des Horizontalwindes:
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
             edh(i)=tfm(i)/dz_0a_m(i)
@@ -1721,13 +1738,10 @@ my_thrd_id = omp_get_thread_num()
          END IF
          !$ACC END PARALLEL
 
-         !$ACC WAIT
-
-
 ! 4f)    Bestimmung des neuen SQRT(2*TKE)-Wertes:
          CALL solve_turb_budgets( khi=ke1, it_s=it_durch, it_start=it_start,                   &
                                   i_st=ivstart, i_en=ivend, k_st=ke1, k_en=ke1,                &
-                                  kcm=kcm, ntur=ntur, nvor=nvor,                               &
+                                  i1dim=nvec, kcm=kcm, ntur=ntur, nvor=nvor,                   &
                                   lssintact=.FALSE., lupfrclim=(imode_trancnf.EQ.1),           &
                                   lpresedr=PRESENT(edr), lstfnct=lstfnct, ltkeinp=ltkeinp,     &
                                   imode_stke=imode_tran, imode_vel_min=imode_vel_min,          &
@@ -1739,10 +1753,11 @@ my_thrd_id = omp_get_thread_num()
                                   grd=zvari(:,ke1:ke1,:),                                      &
 #endif
                                   tls=len_scale(:,ke1:ke1), tvt=tvt(:,ke1:ke1),                &
-                                  velmin=velmin(:), lacc=lzacc                                  )
+                                  velmin=velmin(:),                                            &
+                                  lacc=lzacc, opt_acc_async_queue=acc_async_queue              )
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(val1, val2)
          DO i=ivstart, ivend
 ! 4h)       Bestimmung der durch Wirkung der L-Schicht
@@ -1783,7 +1798,7 @@ my_thrd_id = omp_get_thread_num()
          END DO
 
          IF (imode_trancnf.GE.4 .OR. (imode_trancnf.GE.2 .AND. it_durch.LT.it_end)) THEN
-         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(wert)
             DO i=ivstart, ivend
                wert=l_tur_z0(i)*SQRT(tkvm(i,ke1)*SQRT(frm(i,ke1))) !updated l_0*Ustar
                IF (ditsmot.GT.z0) THEN
@@ -1845,7 +1860,7 @@ my_thrd_id = omp_get_thread_num()
 
 ! 4j) Berechnung der Standardabweichnung des Saettigungsdefizites:
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
 
 !k->ke1
 !DIR$ IVDEP
@@ -1940,7 +1955,7 @@ my_thrd_id = omp_get_thread_num()
       IF (lnsfdia) THEN !diagnostics at near surface level required at this place
 
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=ivstart, ivend
          IF (itype_diag_t2m.EQ.2) THEN !using an exponetial rougness layer profile
@@ -1961,14 +1976,14 @@ my_thrd_id = omp_get_thread_num()
 
 !     Diagnose der 2m-Groessen:
 
-      !$ACC WAIT
 #ifdef _OPENACC
-      CALL diag_level_gpu(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, lacc=lzacc)
+      CALL diag_level_gpu(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, &
+         lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
       CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d)
 #endif
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
       IF (itype_diag_t2m.EQ.2) THEN !using an exponential rougness layer profile
 
          val2=z1/epsi
@@ -2143,7 +2158,7 @@ my_thrd_id = omp_get_thread_num()
       !$ACC END PARALLEL
       IF (imode_syndiag.EQ.1) THEN
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO i=ivstart, ivend
              t_2m(i)=tmps(i,ke1)
@@ -2151,8 +2166,6 @@ my_thrd_id = omp_get_thread_num()
          END DO
          !$ACC END PARALLEL
       ELSE
-
-        !$ACC WAIT
 
 !        Berechnung der zugehoerigen Modell- und Feuchtevariablen im 2m-Niveau
 !        aus den Erhalturngsvariablen.
@@ -2181,9 +2194,9 @@ my_thrd_id = omp_get_thread_num()
 !
               tet_l=zvari(:,ke:ke1,tet_l), q_h2o=zvari(:,ke:ke1,h2o_g),        &
                                            q_liq=zvari(:,ke:ke1,liq),          &
-              lacc=lzacc )
+              lacc=lzacc, opt_acc_async_queue=acc_async_queue )
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
              t_2m(i)=zvari(i,ke1,tet_l)
@@ -2194,7 +2207,7 @@ my_thrd_id = omp_get_thread_num()
 
       IF (lfreeslip) THEN ! only for idealized dry runs with free-slip condition
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO i=ivstart, ivend
             qv_2m(i)=z0
@@ -2209,7 +2222,7 @@ my_thrd_id = omp_get_thread_num()
 !        Finale 2m-Diagnose:
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG VECTOR PRIVATE(patm, fakt, wert)
          DO i=ivstart, ivend
 !Achtung: Macht minimale Unterschiede
@@ -2237,15 +2250,15 @@ my_thrd_id = omp_get_thread_num()
 
 !        Diagnose der 10m-Groessen:
 
-         !$ACC WAIT
 #ifdef _OPENACC
-         CALL diag_level_gpu(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, lacc=lzacc)
+         CALL diag_level_gpu(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, &
+            lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
          CALL diag_level(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d)
 #endif
 
 !DIR$ IVDEP
-         !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(vel2_2d) ASYNC(acc_async_queue) IF(lzacc)
          !$ACC LOOP GANG VECTOR PRIVATE(z0d, a_atm, a_10m, val1, val2, fakt, k1, k2, wert)
          DO i=ivstart, ivend
 
@@ -2317,7 +2330,7 @@ my_thrd_id = omp_get_thread_num()
       END IF !in case of ".NOT.lnsfdia" this kind of diagnostics is done at another place
       
 !DIR$ IVDEP
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(velo, wert, fakt)
       DO i=ivstart, ivend
 
@@ -2364,9 +2377,7 @@ my_thrd_id = omp_get_thread_num()
       END DO
       !$ACC END PARALLEL
 
-      !$ACC WAIT
-      !$ACC END DATA ! from acc data no_create
-
+      !$ACC END DATA ! from acc data present
       !$ACC END DATA ! from acc data create
 ! Just do some checkout prints:
   IF (ldebug) THEN
@@ -2479,7 +2490,7 @@ END SUBROUTINE diag_level
 !+ Module procedure diag_level for computing the upper level index
 !+ used for near surface diganostics
 
-SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
+SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc, opt_acc_async_queue)
    INTEGER, INTENT(IN) :: &
 !
       i_st, i_en  !start end end indices of horizontal domain
@@ -2498,30 +2509,44 @@ SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
      hk_2d(:), & !mid level height above ground belonging to 'k_2d'
      hk1_2d(:)    !mid level height above ground of the previous layer (below)
 
-   LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
-   LOGICAL :: lzacc ! non-optional version of lacc
+   LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+   INTEGER, OPTIONAL, INTENT(IN) :: opt_acc_async_queue
 
-   INTEGER :: i, k
+   LOGICAL :: lzacc
+   INTEGER :: acc_async_queue
+
+   INTEGER :: i, k, ke1_war
 
    LOGICAL :: lcheck
 
    CALL set_acc_host_or_device(lzacc, lacc)
 
-   !$ACC PARALLEL ASYNC(1) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
-   !$ACC LOOP GANG VECTOR
+   IF(PRESENT(opt_acc_async_queue)) THEN
+       acc_async_queue = opt_acc_async_queue
+   ELSE
+       acc_async_queue = 1
+   ENDIF
+
+   ! NV HPC 23.3 workaround
+   ke1_war = ke1
+   ! Need to keep data section separate for now
+   !$ACC DATA PRESENT(i_en) IF(lzacc)
+   !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
    DO i=i_st,i_en
+      IF (i>i_en) CYCLE ! NVHPC compiler WAR
       !$ACC LOOP SEQ
       DO k=k_2d(i)-1, 0, -1   
          IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
             k_2d(i)=k 
             hk1_2d(i)=hk_2d(i)
-            hk_2d(i)=(hhl(i,k_2d(i))+hhl(i,k_2d(i)+1))*z1d2-hhl(i,ke1)
+            hk_2d(i)=(hhl(i,k_2d(i))+hhl(i,k_2d(i)+1))*z1d2-hhl(i,ke1_war)
          ELSE
             EXIT
          END IF
       END DO
    END DO
-   !$ACC END PARALLEL
+   !$ACC END PARALLEL LOOP
+   !$ACC END DATA
    
 END SUBROUTINE diag_level_gpu
 

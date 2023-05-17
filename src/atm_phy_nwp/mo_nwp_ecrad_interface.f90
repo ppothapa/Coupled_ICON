@@ -499,6 +499,11 @@ CONTAINS
   !!     Wetterdienst, Offenbach (2021-09-15)
   !! Open TODOs: dust_tunefac not considered so far
   !!
+  ! The following pragma sets the optimization level to O1 for Nvidia compilers
+  ! At least some versions had an issue with allocations/frees
+  !  that lead to a crash. Limiting optimization resolves it.
+  ! There is no performance degradation since this routine is just an interface
+  !pgi$r opt 1
   SUBROUTINE nwp_ecrad_radiation_reduced (current_datetime, pt_patch, pt_par_patch, ext_data,  &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,                       &
     &                                     od_lw, od_sw, ssa_sw, g_sw,                          &

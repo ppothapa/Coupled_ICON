@@ -282,6 +282,9 @@ join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
 @PGI_INLIB_ENABLED@pgi_inlib_prereq_mod_files:= \
 @PGI_INLIB_ENABLED@  $(filter-out $(pgi_inlib_internal_mod_files),$(pgi_inlib_mod_files))
 
+# Some files need manual register limit:
+@PGI_INLIB_ENABLED@$(pgi_limit_registers_OBJECTS): FCFLAGS+= $(pgi_limit_registers_FCFLAGS)
+
 ############################### MAKEFILE TWEAKS ################################
 
 # Silent rule prefixes:

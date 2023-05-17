@@ -262,15 +262,13 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
       !
       ! convert TKE to the turbulence velocity scale SQRT(2*TKE) as required by turbdiff
       ! INPUT to turbdiff is timestep now
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
-      !$ACC LOOP GANG
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) ASYNC(1) DEFAULT(PRESENT)
       DO jk=1, nlevp1
-        !$ACC LOOP VECTOR
         DO jc=i_startidx, i_endidx
           z_tvs(jc,jk,1) = SQRT(2._wp* (p_prog_now_rcf%tke(jc,jk,jb))) 
          ENDDO
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
 
 
 

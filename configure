@@ -759,6 +759,7 @@ enable_mixed_precision
 enable_intel_consistency
 enable_pgi_inlib
 enable_nccl
+enable_cuda_graphs
 with_external_ecrad
 with_external_rte_rrtmgp
 with_external_sct
@@ -1548,6 +1549,9 @@ Optimization Features:
   --enable-pgi-inlib      enable PGI/NVIDIA cross-file function inlining via
                           an inline library [default=no]
   --enable-nccl           enable NCCL for communication [default=no]
+  --enable-cuda-graphs    enable CUDA graphs. Warning! This is an experimental
+                          feature and it requires Nvidia HPC SDK >= 23.3
+                          [default=no]
   --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
                           can be any non-empty string consisting of capital
@@ -2970,6 +2974,16 @@ if test "${enable_nccl+set}" = set; then :
 fi
 else
   enable_nccl=no
+fi
+
+
+# Check whether --enable-cuda_graphs was given.
+if test "${enable_cuda_graphs+set}" = set; then :
+  enableval=$enable_cuda_graphs; if test x"$enableval" != xno; then :
+  enable_cuda_graphs=yes
+fi
+else
+  enable_cuda_graphs=no
 fi
 
 
@@ -4918,6 +4932,10 @@ fi
 
 if test "x$enable_nccl" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}USE_NCCL"
+fi
+
+if test "x$enable_cuda_graphs" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"
 fi
 
 ######################### C COMPILER COMMAND AND FLAGS #########################

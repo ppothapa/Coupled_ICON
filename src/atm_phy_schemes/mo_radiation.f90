@@ -183,11 +183,17 @@ CONTAINS
 
     ! SCM: read lat/lon for horizontally uniform zenith angle
     IF ( l_scm_mode ) THEN
+#ifdef _OPENACC
+      if (lacc) CALL finish("Single column mode is untested with OpenACC")
+#endif
       ALLOCATE(scm_center(SIZE(pt_patch%cells%center,1),SIZE(pt_patch%cells%center,2)))
+      !$ACC ENTER DATA CREATE(scm_center) IF(lacc)
       DO jb = 1,pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         scm_center(1:ie,jb)%lat = lat_scm * pi/180.
         scm_center(1:ie,jb)%lon = lon_scm * pi/180.
+        !$ACC END KERNELS
       ENDDO
       ptr_center => scm_center
     ELSE
@@ -239,8 +245,12 @@ CONTAINS
     ! perpetual equinox,
     ! with diurnal cycle,
 
+      !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0) COPYOUT(zsmu0) IF(lacc)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
+      !$ACC END KERNELS
       nsteps = NINT(p_inc_rad/p_inc_radheat)
 
       DO jmu0=1,nsteps
@@ -263,23 +273,25 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           z_cosmu0(1:ie,jb) = -COS( ptr_center(1:ie,jb)%lat ) &
             & *COS( ptr_center(1:ie,jb)%lon                &
             &      +zstunde/24._wp* 2._wp*pi )
+          !$ACC END KERNELS
 
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
           DO jc = 1,ie
             IF ( z_cosmu0(jc,jb) > -1.e-5_wp ) THEN
               zsmu0(jc,jb) = zsmu0(jc,jb) + MAX(1.e-3_wp,z_cosmu0(jc,jb))**2
               n_cosmu0pos(jc,jb) = n_cosmu0pos(jc,jb) + 1
             ENDIF
           ENDDO
+          !$ACC END PARALLEL LOOP
 
         ENDDO !jb
 
       ENDDO!jmu0
 
-      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
-      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -299,16 +311,19 @@ CONTAINS
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
-      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN
     ! elliptical seasonal orbit,
     !  with diurnal cycle
 
+      !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0, zsinphi, zcosphi, zeitrad) COPYOUT(zsmu0) PRESENT(ptr_center) IF(lacc)
+
       zsct_h = 0.0_wp
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
+      !$ACC END KERNELS
       n_zsct = 0
 
       nsteps = NINT(p_inc_rad/p_inc_radheat)
@@ -361,25 +376,28 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           zsinphi(1:ie,jb)      = SIN (ptr_center(1:ie,jb)%lat)
           zcosphi(1:ie,jb)      = SQRT(1.0_wp - zsinphi(1:ie,jb)**2)
           zeitrad(1:ie,jb)      = zeit0 + ptr_center(1:ie,jb)%lon
           z_cosmu0(1:ie,jb)     = zdeksin * zsinphi(1:ie,jb) + zdekcos * zcosphi(1:ie,jb) * &
             COS(zeitrad(1:ie,jb))
+          !$ACC END KERNELS
 
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           DO jc = 1,ie
             IF ( z_cosmu0(jc,jb) > -1.e-5_wp ) THEN
               zsmu0(jc,jb) = zsmu0(jc,jb) + MAX(1.e-3_wp,z_cosmu0(jc,jb))**2
               n_cosmu0pos(jc,jb) = n_cosmu0pos(jc,jb) + 1
             ENDIF
           ENDDO
+          !$ACC END PARALLEL LOOP
 
         ENDDO
 
       ENDDO !jmu0
+      !$ACC WAIT(1)
 
-      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
-      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -406,7 +424,6 @@ CONTAINS
           zsct = zsct_save
         ENDIF
       ENDIF
-      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 5) THEN
@@ -441,6 +458,7 @@ CONTAINS
 
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
+      !$ACC EXIT DATA DELETE(scm_center)
     ENDIF
 
   END SUBROUTINE pre_radiation_nwp_steps

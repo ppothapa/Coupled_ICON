@@ -147,7 +147,7 @@ MODULE mo_nh_diffusion
                                            iecidx, iecblk
     INTEGER,  DIMENSION(:,:),   POINTER :: icell, ilev, iblk !, iedge, iedblk
     REAL(wp), DIMENSION(:,:),   POINTER :: vcoef, geofac_n2s !, blcoef
-    LOGICAL :: ltemp_diffu
+    LOGICAL :: ltemp_diffu, lfeedback_jg
     INTEGER :: diffu_type, discr_vn, discr_t
     INTEGER :: jg                 !< patch ID
 
@@ -904,6 +904,7 @@ MODULE mo_nh_diffusion
 
       i_startblk = p_patch%edges%start_block(rl_start)
       i_endblk   = p_patch%edges%end_block(rl_end)
+      lfeedback_jg = lfeedback(jg) ! for OpenACC
 
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,je,nabv_tang,nabv_norm,z_nabla4_e2,z_d_vn_hdf), ICON_OMP_RUNTIME_SCHEDULE
       DO jb = i_startblk,i_endblk
@@ -912,7 +913,8 @@ MODULE mo_nh_diffusion
                            i_startidx, i_endidx, rl_start, rl_end)
 
          ! Compute nabla4(v)
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4) PRIVATE(nabv_tang, nabv_norm)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
           DO jk = 1, nlev
@@ -949,14 +951,13 @@ MODULE mo_nh_diffusion
 
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
 
         ! Apply diffusion for the case of diffu_type = 5
-        IF ( jg == 1 .AND. l_limited_area .OR. jg > 1 .AND. .NOT. lfeedback(jg)) THEN
+        IF ( jg == 1 .AND. l_limited_area .OR. jg > 1 .AND. .NOT. lfeedback_jg) THEN
           !
           ! Domains with lateral boundary and nests without feedback
           !
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4) PRIVATE(z_d_vn_hdf)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -981,13 +982,12 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-          !$ACC END PARALLEL LOOP
 
         ELSE IF (jg > 1) THEN
           !
           ! Nests with feedback
           !
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4) PRIVATE(z_d_vn_hdf)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1011,13 +1011,12 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-          !$ACC END PARALLEL LOOP
 
         ELSE
           !
           ! Global domains
           !
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+          !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4) PRIVATE(z_d_vn_hdf)
           DO jk = 1, nlev
 !DIR$ IVDEP
             DO je = i_startidx, i_endidx
@@ -1041,8 +1040,9 @@ MODULE mo_nh_diffusion
               !
             ENDDO
           ENDDO
-          !$ACC END PARALLEL LOOP
         ENDIF
+        !$ACC END PARALLEL
+
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -1589,6 +1589,7 @@ MODULE mo_nh_diffusion
       IF (l_zdiffu_t) THEN ! Compute temperature diffusion truly horizontally over steep slopes
                            ! A conservative discretization is not possible here
 !$OMP DO PRIVATE(jb,jc,ic,nlen_zdiffu,ishift) ICON_OMP_DEFAULT_SCHEDULE
+#ifndef _OPENACC
         DO jb = 1, nblks_zdiffu
           IF (jb == nblks_zdiffu) THEN
             nlen_zdiffu = npromz_zdiffu
@@ -1596,11 +1597,16 @@ MODULE mo_nh_diffusion
             nlen_zdiffu = nproma_zdiffu
           ENDIF
           ishift = (jb-1)*nproma_zdiffu
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRESENT(icell, ilev, iblk, vcoef, geofac_n2s) &
-          !$ACC   GANG VECTOR ASYNC(1) IF(i_am_accel_node)
 !$NEC ivdep
 !DIR$ IVDEP
           DO jc = 1, nlen_zdiffu
+#else
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ic, ishift) ASYNC(1) IF(i_am_accel_node)
+        DO jb = 1, nblks_zdiffu
+          DO jc = 1, nproma_zdiffu
+            IF (jb == nblks_zdiffu .AND. jc > npromz_zdiffu) CYCLE
+            ishift = (jb-1)*nproma_zdiffu
+#endif
             ic = ishift+jc
             z_temp(icell(1,ic),ilev(1,ic),iblk(1,ic)) =                                          &
               z_temp(icell(1,ic),ilev(1,ic),iblk(1,ic)) + p_nh_metrics%zd_diffcoef(ic)*          &
@@ -1616,8 +1622,8 @@ MODULE mo_nh_diffusion
               geofac_n2s(4,ic)*(vcoef(3,ic)*p_nh_prog%theta_v(icell(4,ic),ilev(4,ic),iblk(4,ic))+&
               (1._wp-vcoef(3,ic))* p_nh_prog%theta_v(icell(4,ic),ilev(4,ic)+1,iblk(4,ic)))  )
           ENDDO
-          !$ACC END PARALLEL LOOP
         ENDDO
+        !$ACC END PARALLEL LOOP
 !$OMP END DO
 
       ENDIF

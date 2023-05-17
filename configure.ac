@@ -368,6 +368,12 @@ AC_ARG_ENABLE([nccl],
   [AS_IF([test x"$enableval" != xno], [enable_nccl=yes])],
   [enable_nccl=no])
 
+AC_ARG_ENABLE([cuda_graphs],
+  [AS_HELP_STRING([--enable-cuda-graphs],
+     [enable CUDA graphs. Warning! This is an experimental feature and it requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_cuda_graphs=yes])],
+  [enable_cuda_graphs=no])
+
 m4_divert_once([HELP_ENABLE],
 [  --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
@@ -798,6 +804,9 @@ AS_VAR_IF([enable_intel_consistency], [yes],
 
 AS_VAR_IF([enable_nccl], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}USE_NCCL"])])
+
+AS_VAR_IF([enable_cuda_graphs], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
 AC_LANG([C])

@@ -61,6 +61,19 @@ MODULE mo_advection_traj
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
 
+! Some compiler NVHPC versions have issues with the fast atomic path
+#ifdef _OPENACC
+#define _USE_FAST_ATOMIC
+#endif
+
+#if defined (_USE_FAST_ATOMIC) && (__NVCOMPILER_MAJOR__ == 21 && __NVCOMPILER_MINOR__ == 3)
+#undef _USE_FAST_ATOMIC
+#endif
+
+#if defined (_USE_FAST_ATOMIC) && (__NVCOMPILER_MAJOR__ == 99 && __NVCOMPILER_PATCHLEVEL__ <= 224325)
+#undef _USE_FAST_ATOMIC
+#endif
+
 
   IMPLICIT NONE
 
@@ -598,6 +611,9 @@ CONTAINS
         num_gangs = ( (elev-slev+1)*(i_endidx-i_startidx+1) + gang_size-1) / gang_size
         !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node) &
         !$ACC   PRIVATE(gang_ie, gang_captured_ie, gang_elev, gang_eidx) &
+#ifndef _USE_FAST_ATOMIC
+        !$ACC   COPY(ie) &
+#endif
         !$ACC   NUM_GANGS(num_gangs) VECTOR_LENGTH(gang_size)
         gang_ie(1) = 0
 
@@ -615,16 +631,16 @@ CONTAINS
               &                 ptr_p%edges%edge_cell_length(je,jb,2),lvn_pos)
 
             IF (traj_length > 1.25_wp*e2c_length) THEN   ! add point to index list
-              ! Nvidia HPC compiler 21.3 has an issue with this kernel
-              ! When 21.3 is not used in testing/operation anymore, this WAR could be removed
-#if (!defined (_OPENACC)) || (__NVCOMPILER_MAJOR__ == 21 && __NVCOMPILER_MINOR__ == 3)
-              ! Default code path and NV HPC 21.3 path
+#ifndef _USE_FAST_ATOMIC
+              ! Default code path 
+              !$ACC ATOMIC CAPTURE
               ie = ie + 1
               ie_capture = ie
+              !$ACC END ATOMIC
               opt_falist%eidx(ie_capture,jb) = je
               opt_falist%elev(ie_capture,jb) = jk
 #else
-              ! OpenACC path
+              ! Optimized OpenACC path
               !$ACC ATOMIC CAPTURE
               gang_ie(1) = gang_ie(1) + 1
               ie_capture = gang_ie(1)
@@ -636,12 +652,17 @@ CONTAINS
           ENDDO ! loop over edges
         ENDDO   ! loop over vertical levels
 
-#if (!defined (_OPENACC)) || (__NVCOMPILER_MAJOR__ == 21 && __NVCOMPILER_MINOR__ == 3)
+#ifndef _USE_FAST_ATOMIC
+        !$ACC END PARALLEL
+
         ! Default code path
         ! store list dimension
+        !$ACC WAIT(1)
+        !$ACC KERNELS COPYIN(ie)
         opt_falist%len(jb) = ie
+        !$ACC END KERNELS
 #else
-        ! OpenACC path
+        ! Optimized OpenACC path
         ! Copy gang-local lists into the global array
         !$ACC ATOMIC CAPTURE
         gang_captured_ie(1) = opt_falist%len(jb)
@@ -658,8 +679,8 @@ CONTAINS
             END IF
           END DO
         END DO
-#endif
         !$ACC END PARALLEL
+#endif
       ENDIF
 
       !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
