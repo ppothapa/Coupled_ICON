@@ -17,6 +17,7 @@ use_mpi=""
 use_openmp=""
 use_cpu_time=""
 use_mpi_procs_pernode=""
+use_mpi_io_procs=""
 use_nproma=""
 use_nproma_sub=""
 use_tasks=""
@@ -100,6 +101,7 @@ eval_argument ()
         "with_openmp")       use_openmp=$2 ;;
         "cpu_time")          use_cpu_time=$2 ;;
         "mpi_procs_pernode") use_mpi_procs_pernode=$2 ;;
+        "mpi_io_procs")      use_mpi_io_procs=$2 ;;
         "nproma")            use_nproma=$2 ;;
         "ntasks")            use_tasks=$2 ;;
         "openmp_threads")    use_openmp_threads=$2 ;;

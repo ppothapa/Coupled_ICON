@@ -1835,9 +1835,9 @@ MODULE mo_nh_stepping
 
         ! Update nh-testcases
         IF (ltestcase_update) THEN
-#ifdef _OPENACC
-          CALL finish (routine, 'nh_testcase_interface: OpenACC version currently not implemented')
-#endif
+!#ifdef _OPENACC
+!          CALL finish (routine, 'nh_testcase_interface: OpenACC version currently not implemented')
+!#endif
           CALL nh_testcase_interface( nstep_global,                &  !in
             &                         dt_loc,                      &  !in
             &                         sim_time,                    &  !in

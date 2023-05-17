@@ -37,7 +37,7 @@ unset OMPI_MCA_coll_fca_priority
 # icon_data_poolFolder          = base directory, where grids/, input/ and setup/ exist
 # nproma                        = blocking length for array dimensioning and inner loop lengths
 
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/daniel"
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -45,7 +45,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/dan
 
 # horizontal grid(s)
 #
-grids_folder=${icon_data_poolFolder}/GRIDR5B4
+grids_folder=${icon_data_poolFolder}/grids
 #
 # global domain
 #
@@ -104,10 +104,12 @@ cat > ${atmo_namelist} << EOF
 !
 &parallel_nml
  nproma                 = ${nproma}
+ nblocks_c          = ${nblocks_c}
+ nproma_sub         = ${nproma_sub}
  p_test_run             = .false.
  l_test_openmp          = .false.
  l_log_checks           = .false.
- num_io_procs           = 1
+ num_io_procs           = ${num_io_procs}
  itype_comm             = 1
  iorder_sendrecv        = 1
 /

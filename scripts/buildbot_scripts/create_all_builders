@@ -63,7 +63,9 @@ machine=levante
 ./addbuilder levante_nag_serial         --machine $machine  --build_script="config/buildbot/levante_nag_serial" \
   --configureflags="--without-mpi --without-openmp"  --builderflags="Active" --list $list
 ./addbuilder levante_gpu_nvhpc              --machine $machine  --build_script="config/buildbot/levante_gpu_nvhpc" \
-  --configureflags="--with-mpi --without-openmp"  --builderflags="Inactive" --list $list
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_cpu_nvhpc              --machine $machine  --build_script="config/buildbot/levante_cpu_nvhpc" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
 
 machine=jsc
 ./addmachine $machine --list $list
