@@ -43,11 +43,18 @@ add_tolerance_exp () {
       fi
 
       # initialize probtest namelist (most of it is unused, but makes life easier)
-      $PROBTEST init --codebase-install $basedir --experiment-name ${exp} --member_ids ${member_ids_string} --perturb-amplitude ${perturb_amplitude}
+      $PROBTEST init \
+        --codebase-install "${basedir}" \
+        --experiment-name "${exp}" \
+        --member_ids "${member_ids_string}" \
+        --perturb-amplitude "${perturb_amplitude}"
 
       # create the runscripts for the ensemble (exp.<EXP>_seed_N)
       # needs to be overwritten from namelist because here we deal with the templates
-      $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_member_id_{member_id}
+      $PROBTEST run-ensemble \
+        --dry \
+        --run-script-name "exp.${exp}" \
+        --perturbed-run-script-name "exp.${exp}_member_id_{member_id}"
 
       # add base experiment and tolerance generation script
       ./addexp exp.${exp} --builders "${builder}" --list $listname --runflags "tolerance_run=true"

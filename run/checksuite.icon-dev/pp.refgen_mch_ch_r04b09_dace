@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # set experiment specific variables
-probtest_file_ids=fofAIREP
+probtest_file_ids='*fofAIREP*.nc'
 probtest_exp=mch_ch_r04b09_dace
-probtest_time_dim=None
 
 . ./add_refgen_routines
 

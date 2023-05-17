@@ -38,11 +38,11 @@ store_model_output()
 
     status=0
     # copy data for update test (replace "," with " " in file_ids)
-    if [ -z "${probtest_file_ids}" ]; then
+    if [ -z "${update_file_ids}" ]; then
         # without given files tags copy everything
         rsync --safe-links ${model_output_dir}/*nc ${fake_output_dir}/ || status=1
     else
-        for fid in ${probtest_file_ids//,/ }; do
+        for fid in ${update_file_ids//,/ }; do
             cp ${model_output_dir}/*$fid*.nc $fake_output_dir || status=1
         done
     fi
@@ -58,10 +58,8 @@ store_model_output()
 
 generate_probtest_tolerance()
 {
-    status=0
-
     # create the reference directory if it doesn't exist
-    mkdir -p ${reference_dir}/reference
+    mkdir -p "${reference_dir}/reference"
 
     # set up probtest config file
     export PROBTEST_CONFIG=${probtest_exp}-config.json
@@ -72,17 +70,23 @@ generate_probtest_tolerance()
     else
       member_ids=double_1,double_2,double_3,double_4,double_5,double_6,double_7,double_8,double_9,double_10
     fi
-    $PROBTEST init --codebase-install $basedir --file-ids $probtest_file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir} --member_ids ${member_ids} --time_dim ${probtest_time_dim:-time}
+    $PROBTEST init \
+        --codebase-install "$basedir" \
+        --file-ids "$probtest_file_ids" \
+        --experiment-name "${base_exp}" \
+        --config "${PROBTEST_CONFIG}" \
+        --reference "${reference_dir}" \
+        --member_ids "${member_ids}"
 
     # create stats file for each seed (layer-wise max/min/mean)
-    $PROBTEST stats --ensemble --stats-file-name $stats_file_name || status=1
+    $PROBTEST stats --ensemble --stats-file-name "$stats_file_name" || return 1
 
     # store the reference stats file
     echo "storing reference ${default_reference_stats_file_name} to ${reference_file_name}"
-    cp $default_reference_stats_file_name $reference_file_name
-    
-    # compute tolerance range from above stats files (maximum spread across all pairs of stats files and maximum across all layers)
-    $PROBTEST tolerance --stats-file-name $stats_file_name || status=1
+    cp "$default_reference_stats_file_name" "$reference_file_name" || return 1
 
-    return $status
+    # compute tolerance range from above stats files (maximum spread across all pairs of stats files and maximum across all layers)
+    $PROBTEST tolerance --stats-file-name "$stats_file_name" || return 1
+
+    return 0
 }

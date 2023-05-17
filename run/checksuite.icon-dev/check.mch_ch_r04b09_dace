@@ -30,11 +30,6 @@ export DATES='20190615T000000Z'
 # 
 export RESTART_DATE='20190615T000000Z'
 
-# PROBTEST_TIME_DIM specifies the name of the dimension in the output data that is interpreted as the time dimension
-# Use 'None' if the data has no time dimension
-#
-export PROBTEST_TIME_DIM='None'
-
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode
