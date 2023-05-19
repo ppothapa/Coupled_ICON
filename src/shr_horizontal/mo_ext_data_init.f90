@@ -526,7 +526,7 @@ CONTAINS
       END IF
       cdi_filetype  = streamInqFileType(cdi_extpar_id)
 
-      IF (islope_rad == 2) THEN
+      IF (islope_rad(jg) == 2) THEN
       ! get the number of horizon sectors
         horizon_id = get_cdi_varID(cdi_extpar_id, "HORIZON")
         vlist_id   = streamInqVlist(cdi_extpar_id)
@@ -1240,7 +1240,7 @@ CONTAINS
           CALL read_extdata('FR_LAKE',   ext_data(jg)%atm%fr_lake)
           CALL read_extdata('DEPTH_LK',  ext_data(jg)%atm%depth_lk)
 
-          IF (islope_rad == 2) THEN
+          IF (islope_rad(jg) == 2) THEN
             CALL read_extdata('HORIZON', arr3d=ext_data(jg)%atm%horizon,ltime=.FALSE.)
             CALL read_extdata('SKYVIEW', ext_data(jg)%atm%skyview)
   

@@ -1543,6 +1543,7 @@ CONTAINS
           !
           & jcs=i_startidx                         ,&! in     start index of inner do loop
           & jce=i_endidx                           ,&! in     end index of inner do loop
+          & jg=pt_patch%id                         ,&! in     patch ID
           & kbdim=nproma                           ,&! in     loop length and dimension size
           & klev=nlev                              ,&! in     vertical dimension size
           & klevp1=nlevp1                          ,&! in     vertical dimension size
@@ -1624,6 +1625,7 @@ CONTAINS
           !
           & jcs=i_startidx                         ,&! in     start index of inner do loop
           & jce=i_endidx                           ,&! in     end index of inner do loop
+          & jg=pt_patch%id                         ,&! in     patch ID
           & kbdim=nproma                           ,&! in     loop length and dimension size
           & klev=nlev                              ,&! in     vertical dimension size
           & klevp1=nlevp1                          ,&! in     vertical dimension size

@@ -501,7 +501,7 @@ CONTAINS
       & zdeksin,zdekcos
 
     INTEGER :: &
-      & k, ii, jc, jj, itaja, jb, ie, shadow
+      & k, ii, jc, jj, itaja, jb, ie, shadow, jg
 
     LOGICAL :: &
       & lshade, lslope_aspect, lzacc      !switches
@@ -519,6 +519,7 @@ CONTAINS
     TYPE(t_geographical_coordinates), TARGET, ALLOCATABLE :: scm_center(:,:)
     TYPE(t_geographical_coordinates), POINTER             :: ptr_center(:,:)
 
+    jg = pt_patch%id
 
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta
@@ -531,7 +532,7 @@ CONTAINS
     l_tsi_recalculated = .FALSE.
     IF (isolrad==2) l_tsi_recalculated = .TRUE.
 
-    IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
+    IF (islope_rad(jg) > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
       CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
     ENDIF
 
@@ -668,12 +669,12 @@ CONTAINS
         lshade        = .TRUE.
         lslope_aspect = .TRUE.
 
-        IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. &
+        IF (islope_rad(jg) > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. &
               PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
           CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
         ENDIF
 
-        IF (islope_rad == 2 .AND. .NOT. PRESENT(horizon)) THEN
+        IF (islope_rad(jg) == 2 .AND. .NOT. PRESENT(horizon)) THEN
             ! we need horizon
           CALL finish('pre_radiation_nwp', 'I/O field horizon for shading is missing')
         ENDIF
@@ -690,7 +691,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
 
-          IF (islope_rad == 1) THEN
+          IF (islope_rad(jg) == 1) THEN
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = 1, ie
@@ -708,7 +709,7 @@ CONTAINS
             !$ACC END PARALLEL
           ENDIF
 
-          IF (islope_rad == 2) THEN
+          IF (islope_rad(jg) == 2) THEN
             zihor = REAL(INT(360.0_wp/nhori),wp)
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR PRIVATE(x1, x2, ii, k, shadow)
@@ -1795,7 +1796,7 @@ CONTAINS
   !! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
   !!
 
-  SUBROUTINE radheat (jcs, jce, kbdim, &
+  SUBROUTINE radheat (jcs, jce, jg, kbdim, &
     &                 klev  , klevp1,  &
     &                 ntiles        ,  &
     &                 ntiles_wtr    ,  &
@@ -1856,7 +1857,7 @@ CONTAINS
     &                 lacc             )
 
     INTEGER,  INTENT(in)  ::    &
-      &     jcs, jce, kbdim,    &
+      &     jcs, jce, jg, kbdim,    &
       &     klev, klevp1, ntiles, ntiles_wtr
 
     REAL(wp), INTENT(in)  ::           &
@@ -1975,7 +1976,7 @@ CONTAINS
       l_nh_corr = .FALSE.
     ENDIF
 
-    IF (islope_rad == 2 .AND. .NOT. (PRESENT(skyview) )) THEN
+    IF (islope_rad(jg) == 2 .AND. .NOT. (PRESENT(skyview) )) THEN
       ! we need skyview
       CALL finish('radheat', 'I/O field skyview is missing')
     ENDIF
@@ -2036,7 +2037,7 @@ CONTAINS
 
     IF (l_nh_corr) THEN !
 
-      IF (islope_rad == 1) THEN
+      IF (islope_rad(jg) == 1) THEN
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
@@ -2045,7 +2046,7 @@ CONTAINS
           slope_corr(jc) = (trsol_dn_sfc_diff(jc) + (solrad-trsol_dn_sfc_diff(jc))*angle_ratio)/solrad
         ENDDO
         !$ACC END PARALLEL
-      ELSEIF (islope_rad == 2) THEN ! with correction of horizon and skyview
+      ELSEIF (islope_rad(jg) == 2) THEN ! with correction of horizon and skyview
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
