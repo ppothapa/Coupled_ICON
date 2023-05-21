@@ -1204,7 +1204,7 @@ CONTAINS
       fac_ust  =  0.0_wp
     CASE (3)
       fac_tr70 = -0.3_wp
-      fac_mst  =  0.1_wp
+      fac_mst  =  0.075_wp
       fac_ust  = -0.125_wp
     CASE (4)
       fac_tr70 = -0.4_wp
