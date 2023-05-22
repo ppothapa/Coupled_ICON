@@ -674,10 +674,13 @@ CONTAINS
           CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
         ENDIF
 
-        IF (islope_rad(jg) == 2 .AND. .NOT. PRESENT(horizon)) THEN
+        IF (islope_rad(jg) >= 2 .AND. .NOT. PRESENT(horizon)) THEN
             ! we need horizon
           CALL finish('pre_radiation_nwp', 'I/O field horizon for shading is missing')
         ENDIF
+
+        IF (islope_rad(jg) >= 2) zihor = REAL(INT(360.0_wp/nhori),wp)
+
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -691,7 +694,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
 
-          IF (islope_rad(jg) == 1) THEN
+          IF (islope_rad(jg) == 1 .OR. islope_rad(jg) == 3) THEN
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = 1, ie
@@ -703,14 +706,33 @@ CONTAINS
               cosmu0_slp(jc,jb) = zdeksin * ( zsinphi(jc)*csang(jc) - zcosphi(jc)*csazi(jc)*ssang(jc) ) + &
                 zdekcos * ( zcosphi(jc)*czra(jc)*csang(jc) + zsinphi(jc)*czra(jc)*csazi(jc)*ssang(jc) + &
                 szra(jc)*ssazi(jc)*ssang(jc) )
-              ! WHERE(cosmu0_slp(1:ie,jb) < 1.e-3_wp) cosmu0_slp(1:ie,jb) = 0._wp
               IF (cosmu0_slp(jc,jb) < 1.e-3_wp) cosmu0_slp(jc,jb) = 0._wp
             ENDDO
             !$ACC END PARALLEL
           ENDIF
 
+          IF (islope_rad(jg) == 3) THEN ! add orographic shading
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP GANG VECTOR
+            DO jc = 1, ie
+              ztheta_sun(jc) = ASIN(zsmu0(jc,jb)) ! solar elevation angle
+              x1 = MIN(1._wp, MAX(-1._wp, (zsmu0(jc,jb)*zsinphi(jc)-zdeksin)/(COS(ztheta_sun(jc))*zcosphi(jc)) ))
+              zphi_sun(jc) = SIGN(acos(x1),SIN(zeitrad(jc)))+pi  ! solar azimuth angle
+
+              ! elevation angle of orography in the direction of the sun, obtained
+              ! by linear interpolation between the precomputed horizon angles
+              ii = MIN(nhori-1, INT(rad2deg*zphi_sun(jc)/zihor))
+              k = MOD(ii+1,nhori)
+              zha_sun(jc) = (horizon(jc,jb,k+1) *(rad2deg*zphi_sun(jc)-zihor*ii) +     &
+                             horizon(jc,jb,ii+1)*(zihor*(ii+1)-rad2deg*zphi_sun(jc))) / zihor
+
+              ! apply shading
+              IF (zha_sun(jc) > rad2deg*ztheta_sun(jc)) cosmu0_slp(jc,jb) = 0._wp
+            ENDDO
+            !$ACC END PARALLEL
+          ENDIF
+
           IF (islope_rad(jg) == 2) THEN
-            zihor = REAL(INT(360.0_wp/nhori),wp)
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR PRIVATE(x1, x2, ii, k, shadow)
             DO jc = 1, ie
@@ -1976,7 +1998,7 @@ CONTAINS
       l_nh_corr = .FALSE.
     ENDIF
 
-    IF (islope_rad(jg) == 2 .AND. .NOT. (PRESENT(skyview) )) THEN
+    IF (islope_rad(jg) >= 2 .AND. .NOT. (PRESENT(skyview) )) THEN
       ! we need skyview
       CALL finish('radheat', 'I/O field skyview is missing')
     ENDIF
@@ -2037,7 +2059,7 @@ CONTAINS
 
     IF (l_nh_corr) THEN !
 
-      IF (islope_rad(jg) == 1) THEN
+      IF (islope_rad(jg) == 1 .OR. islope_rad(jg) == 3) THEN
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
@@ -2065,7 +2087,7 @@ CONTAINS
       DO jc = jcs, jce
         swflx_up_toa(jc)      = pi0(jc)*trsol_up_toa(jc)
         swflx_up_sfc(jc)      = pi0(jc)*trsol_up_sfc(jc) * slope_corr(jc)
-        swflx_dn_sfc_diff(jc) = pi0(jc)*trsol_dn_sfc_diff(jc) * slope_corr(jc)
+        swflx_dn_sfc_diff(jc) = pi0(jc)*trsol_dn_sfc_diff(jc)
         swflx_nir_sfc(jc)     = pi0(jc)*trsol_nir_sfc(jc) * slope_corr(jc)
         swflx_vis_sfc(jc)     = pi0(jc)*trsol_vis_sfc(jc) * slope_corr(jc)
         swflx_par_sfc(jc)     = pi0(jc)*trsol_par_sfc(jc) * slope_corr(jc)

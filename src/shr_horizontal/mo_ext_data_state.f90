@@ -394,7 +394,7 @@ CONTAINS
 
     IF ( iforcing == inwp ) THEN
 
-      IF (islope_rad(jg) == 2) THEN
+      IF (islope_rad(jg) >= 2) THEN
         CALL message(routine, 'adding horizon angle - topography')
         ! horizon angle from flat topography in nhori sectors 
         !
