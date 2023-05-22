@@ -31,7 +31,7 @@ listname=${1:-icon-dev}
 $addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
 $addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
 $addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_herdsuarez"        --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute"
+$addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute"
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_bubble_test"       --machines "levante" --list $listname --runflags "queue=shared"
