@@ -50,8 +50,6 @@ MODULE mo_nh_deepatmo_solve
   USE mo_impl_constants,         ONLY: min_rlcell_int, min_rledge_int, min_rlvert_int, &
     &                                  min_rlcell, RAYLEIGH_CLASSIC, RAYLEIGH_KLEMP
   USE mo_impl_constants_grf,     ONLY: grf_bdywidth_c, grf_bdywidth_e
-  USE mo_advection_hflux,        ONLY: upwind_hflux_miura3
-  USE mo_advection_traj,         ONLY: t_back_traj, btraj_compute_o1
   USE mo_sync,                   ONLY: SYNC_E, SYNC_C, sync_patch_array, sync_patch_array_mult, sync_patch_array_mult_mp
   USE mo_mpi,                    ONLY: my_process_is_mpi_all_seq, work_mpi_barrier
   USE mo_timer,                  ONLY: timer_solve_nh, timer_barrier, timer_start, timer_stop,       &
@@ -65,7 +63,7 @@ MODULE mo_nh_deepatmo_solve
   USE mo_nh_deepatmo_utils,      only: velocity_tendencies_deepatmo
   USE mo_upatmo_config,          ONLY: upatmo_config
   USE mo_upatmo_impl_const,      ONLY: idamtr
- 
+
   IMPLICIT NONE
 
   PRIVATE
@@ -149,10 +147,6 @@ MODULE mo_nh_deepatmo_solve
 
     REAL(vp) :: z_dwdz_dd       (nproma,kstart_dd3d(p_patch%id):p_patch%nlev,p_patch%nblks_c)
 
-#ifndef __LOOP_EXCHANGE
-    TYPE(t_back_traj), SAVE :: btraj
-#endif
-
     ! The data type vp (variable precision) is by default the same as wp but reduces
     ! to single precision when the __MIXED_PRECISION cpp flag is set at compile time
     REAL(vp) :: z_th_ddz_exner_c(nproma,p_patch%nlev,p_patch%nblks_c), &
@@ -217,7 +211,7 @@ MODULE mo_nh_deepatmo_solve
       &         z_d_vn_dmp, z_d_vn_iau
 
     INTEGER :: nproma_gradp, nblks_gradp, npromz_gradp, nlen_gradp, jk_start
-    LOGICAL :: lcompute, lcleanup, lvn_only, lvn_pos
+    LOGICAL :: lvn_only, lvn_pos
 
     ! Local variables to control vertical nesting
     LOGICAL :: l_vert_nested, l_child_vertnest
@@ -252,9 +246,6 @@ MODULE mo_nh_deepatmo_solve
     !-------------------------------------------------------------------
 
     IF (ltimer) CALL timer_start(timer_solve_nh)
-#ifndef __LOOP_EXCHANGE
-    CALL btraj%construct(nproma,p_patch%nlev,p_patch%nblks_e,2)
-#endif
 
     jg = p_patch%id
 
@@ -742,214 +733,156 @@ MODULE mo_nh_deepatmo_solve
 
         ELSE IF (iadv_rhotheta == 2) THEN ! Miura second-order upwind scheme
 
-#ifndef __LOOP_EXCHANGE
-          ! Compute backward trajectory - code is inlined for cache-based machines (see below)
-          CALL btraj_compute_o1( btraj      = btraj,                 & !inout
-            &                   ptr_p       = p_patch,               & !in
-            &                   ptr_int     = p_int,                 & !in
-            &                   p_vn        = p_nh%prog(nnow)%vn,    & !in
-            &                   p_vt        = REAL(p_nh%diag%vt,wp), & !in
-            &                   p_dthalf    = 0.5_wp*dtime,          & !in
-            &                   opt_rlstart = 7,                     & !in
-            &                   opt_rlend   = min_rledge_int-1       ) !in
-#endif
-
           ! Compute Green-Gauss gradients for rho and theta
-          ! (deep atmosphere: not 'grad_green_gauss_cell', but its output 
+          ! (deep atmosphere: not 'grad_green_gauss_cell', but its output
           ! will be modified for the deep atmosphere)
           CALL grad_green_gauss_cell(z_rth_pr, p_patch, p_int, z_grad_rth,    &
             opt_rlstart=3, opt_rlend=min_rlcell_int-1)
-
-        ELSE IF (iadv_rhotheta == 3) THEN ! Third-order Miura scheme (does not perform well yet)
-
-          lcompute =.TRUE.
-          lcleanup =.FALSE.
-          ! First call: compute backward trajectory with wind at time level nnow
-
-          CALL upwind_hflux_miura3(p_patch, p_nh%prog(nnow)%rho, p_nh%prog(nnow)%vn, &
-            p_nh%prog(nnow)%vn, REAL(p_nh%diag%vt,wp), dtime, p_int,    &
-            lcompute, lcleanup, 0, z_rho_e,                    &
-            opt_rlstart=7, opt_lout_edge=.TRUE. )
-
-          ! Second call: compute only reconstructed value for flux divergence
-          lcompute =.FALSE.
-          lcleanup =.TRUE.
-          CALL upwind_hflux_miura3(p_patch, p_nh%prog(nnow)%theta_v, p_nh%prog(nnow)%vn, &
-            p_nh%prog(nnow)%vn, REAL(p_nh%diag%vt,wp), dtime, p_int,        &
-            lcompute, lcleanup, 0, z_theta_v_e,                    &
-            opt_rlstart=7, opt_lout_edge=.TRUE. )
 
         ENDIF
       ENDIF ! istep = 1
 
 !$OMP PARALLEL PRIVATE (rl_start,rl_end,i_startblk,i_endblk)
       IF (istep == 1) THEN
+        !
         ! Compute 'edge values' of density and virtual potential temperature for horizontal
-        ! flux divergence term; this is included in upwind_hflux_miura3 for option 3
-        IF (iadv_rhotheta <= 2) THEN
+        ! flux divergence term
 
-          ! Initialize halo edges with zero in order to avoid access of uninitialized array elements
-          i_startblk = p_patch%edges%start_block(min_rledge_int-2)
-          IF (idiv_method == 1) THEN
-            i_endblk = p_patch%edges%end_block(min_rledge_int-2)
-          ELSE
-            i_endblk = p_patch%edges%end_block(min_rledge_int-3)
-          ENDIF
+        ! Initialize halo edges with zero in order to avoid access of uninitialized array elements
+        i_startblk = p_patch%edges%start_block(min_rledge_int-2)
+        IF (idiv_method == 1) THEN
+          i_endblk = p_patch%edges%end_block(min_rledge_int-2)
+        ELSE
+          i_endblk = p_patch%edges%end_block(min_rledge_int-3)
+        ENDIF
 
-          IF (i_endblk >= i_startblk) THEN
-            CALL init_zero_contiguous_dp(z_rho_e    (1,1,i_startblk), nproma*nlev*(i_endblk-i_startblk+1))
-            CALL init_zero_contiguous_dp(z_theta_v_e(1,1,i_startblk), nproma*nlev*(i_endblk-i_startblk+1))
-          ENDIF
+        IF (i_endblk >= i_startblk) THEN
+          CALL init_zero_contiguous_dp(z_rho_e    (1,1,i_startblk), nproma*nlev*(i_endblk-i_startblk+1))
+          CALL init_zero_contiguous_dp(z_theta_v_e(1,1,i_startblk), nproma*nlev*(i_endblk-i_startblk+1))
 !$OMP BARRIER
+        ENDIF
 
-          rl_start = 7
-          rl_end   = min_rledge_int-1
+        rl_start = 7
+        rl_end   = min_rledge_int-1
 
-          i_startblk = p_patch%edges%start_block(rl_start)
-          i_endblk   = p_patch%edges%end_block  (rl_end)
+        i_startblk = p_patch%edges%start_block(rl_start)
+        i_endblk   = p_patch%edges%end_block  (rl_end)
 
-          ! initialize also nest boundary points with zero
-          IF (jg > 1 .OR. l_limited_area) THEN
-            CALL init_zero_contiguous_dp(z_rho_e    (1,1,1), nproma*nlev*i_startblk)
-            CALL init_zero_contiguous_dp(z_theta_v_e(1,1,1), nproma*nlev*i_startblk)
+        ! initialize also nest boundary points with zero
+        IF (jg > 1 .OR. l_limited_area) THEN
+          CALL init_zero_contiguous_dp(z_rho_e    (1,1,1), nproma*nlev*i_startblk)
+          CALL init_zero_contiguous_dp(z_theta_v_e(1,1,1), nproma*nlev*i_startblk)
 !$OMP BARRIER
-          ENDIF
+        ENDIF
 
 !$OMP DO PRIVATE(jb,jk,je,i_startidx,i_endidx,ilc0,ibc0,lvn_pos,&
 !$OMP            z_ntdistv_bary_1,z_ntdistv_bary_2,distv_bary_1,distv_bary_2) ICON_OMP_DEFAULT_SCHEDULE
-          DO jb = i_startblk, i_endblk
+        DO jb = i_startblk, i_endblk
 
-            CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
-                             i_startidx, i_endidx, rl_start, rl_end)
+          CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
+                           i_startidx, i_endidx, rl_start, rl_end)
 
-            IF (iadv_rhotheta == 2) THEN
-              ! Operations from upwind_hflux_miura are inlined in order to process both
-              ! fields in one step
+          IF (iadv_rhotheta == 2) THEN
+            ! Operations from upwind_hflux_miura are inlined in order to process both
+            ! fields in one step
 
-#ifdef __LOOP_EXCHANGE
-              ! For cache-based machines, also the back-trajectory computation is inlined to improve efficiency
-              DO je = i_startidx, i_endidx
+            ! Also the back-trajectory computation is inlined to improve efficiency
+            DO je = i_startidx, i_endidx
 !DIR$ IVDEP, PREFERVECTOR
-                DO jk = 1, nlev
-
-                  lvn_pos = p_nh%prog(nnow)%vn(je,jk,jb) >= 0._wp
-
-                  ! line and block indices of upwind neighbor cell
-                  ilc0 = MERGE(p_patch%edges%cell_idx(je,jb,1),p_patch%edges%cell_idx(je,jb,2),lvn_pos)
-                  ibc0 = MERGE(p_patch%edges%cell_blk(je,jb,1),p_patch%edges%cell_blk(je,jb,2),lvn_pos)
-
-                  ! distances from upwind mass point to the end point of the backward trajectory
-                  ! in edge-normal and tangential directions
-                  z_ntdistv_bary_1 =  - ( p_nh%prog(nnow)%vn(je,jk,jb) * dthalf +    &
-                    MERGE(p_int%pos_on_tplane_e(je,jb,1,1), p_int%pos_on_tplane_e(je,jb,2,1),lvn_pos))
-
-                  z_ntdistv_bary_2 =  - ( p_nh%diag%vt(je,jk,jb) * dthalf +    &
-                    MERGE(p_int%pos_on_tplane_e(je,jb,1,2), p_int%pos_on_tplane_e(je,jb,2,2),lvn_pos))
-
-                  ! rotate distance vectors into local lat-lon coordinates:
-                  !
-                  ! component in longitudinal direction
-                  distv_bary_1 =                                                                     &
-                        z_ntdistv_bary_1*MERGE(p_patch%edges%primal_normal_cell(je,jb,1)%v1,         &
-                                               p_patch%edges%primal_normal_cell(je,jb,2)%v1,lvn_pos) &
-                      + z_ntdistv_bary_2*MERGE(p_patch%edges%dual_normal_cell(je,jb,1)%v1,           &
-                                               p_patch%edges%dual_normal_cell(je,jb,2)%v1,lvn_pos)
-
-                  ! component in latitudinal direction
-                  distv_bary_2 =                                                                     & 
-                        z_ntdistv_bary_1*MERGE(p_patch%edges%primal_normal_cell(je,jb,1)%v2,         &
-                                               p_patch%edges%primal_normal_cell(je,jb,2)%v2,lvn_pos) &
-                      + z_ntdistv_bary_2*MERGE(p_patch%edges%dual_normal_cell(je,jb,1)%v2,           &
-                                               p_patch%edges%dual_normal_cell(je,jb,2)%v2,lvn_pos)
-
-
-                  ! Calculate "edge values" of rho and theta_v
-                  ! Note: z_rth_pr contains the perturbation values of rho and theta_v,
-                  ! and the corresponding gradients are stored in z_grad_rth.
-                  ! (deep-atmosphere modification applied)
-                  z_rho_e(je,jk,jb) = REAL(p_nh%metrics%rho_ref_me(je,jk,jb),wp) &
-                    +                            z_rth_pr(1,ilc0,jk,ibc0)        &
-                    + ( distv_bary_1 * z_grad_rth(1,ilc0,jk,ibc0)                &
-                    +   distv_bary_2 * z_grad_rth(2,ilc0,jk,ibc0) ) *            & 
-                    deepatmo_gradh(jk)
-
-                  z_theta_v_e(je,jk,jb) = REAL(p_nh%metrics%theta_ref_me(je,jk,jb),wp) &
-                    +                            z_rth_pr(2,ilc0,jk,ibc0)              &
-                    + ( distv_bary_1 * z_grad_rth(3,ilc0,jk,ibc0)                      &
-                    +   distv_bary_2 * z_grad_rth(4,ilc0,jk,ibc0) ) *                  &
-                    deepatmo_gradh(jk)
-
-#else
               DO jk = 1, nlev
-                DO je = i_startidx, i_endidx
 
-                  ilc0 = btraj%cell_idx(je,jk,jb)
-                  ibc0 = btraj%cell_blk(je,jk,jb)
+                lvn_pos = p_nh%prog(nnow)%vn(je,jk,jb) >= 0._wp
 
-                  ! Calculate "edge values" of rho and theta_v
-                  ! Note: z_rth_pr contains the perturbation values of rho and theta_v,
-                  ! and the corresponding gradients are stored in z_grad_rth.
-                  ! (deep-atmosphere modification applied)
-                  z_rho_e(je,jk,jb) = REAL(p_nh%metrics%rho_ref_me(je,jk,jb),wp)      &
-                    +                            z_rth_pr(1,ilc0,jk,ibc0)             &
-                    + ( btraj%distv_bary(je,jk,jb,1) * z_grad_rth(1,ilc0,jk,ibc0)     &
-                    +   btraj%distv_bary(je,jk,jb,2) * z_grad_rth(2,ilc0,jk,ibc0) ) * &
-                    deepatmo_gradh(jk)
+                ! line and block indices of upwind neighbor cell
+                ilc0 = MERGE(p_patch%edges%cell_idx(je,jb,1),p_patch%edges%cell_idx(je,jb,2),lvn_pos)
+                ibc0 = MERGE(p_patch%edges%cell_blk(je,jb,1),p_patch%edges%cell_blk(je,jb,2),lvn_pos)
 
-                  z_theta_v_e(je,jk,jb) = REAL(p_nh%metrics%theta_ref_me(je,jk,jb),wp)  &
-                    +                            z_rth_pr(2,ilc0,jk,ibc0)               &
-                    + ( btraj%distv_bary(je,jk,jb,1) * z_grad_rth(3,ilc0,jk,ibc0)       &
-                    +   btraj%distv_bary(je,jk,jb,2) * z_grad_rth(4,ilc0,jk,ibc0) ) *   &
-                    deepatmo_gradh(jk)
-#endif
+                ! distances from upwind mass point to the end point of the backward trajectory
+                ! in edge-normal and tangential directions
+                z_ntdistv_bary_1 =  - ( p_nh%prog(nnow)%vn(je,jk,jb) * dthalf +    &
+                  MERGE(p_int%pos_on_tplane_e(je,jb,1,1), p_int%pos_on_tplane_e(je,jb,2,1),lvn_pos))
 
-                ENDDO ! loop over edges
-              ENDDO   ! loop over vertical levels
+                z_ntdistv_bary_2 =  - ( p_nh%diag%vt(je,jk,jb) * dthalf +    &
+                  MERGE(p_int%pos_on_tplane_e(je,jb,1,2), p_int%pos_on_tplane_e(je,jb,2,2),lvn_pos))
 
-            ELSE ! iadv_rhotheta = 1
+                ! rotate distance vectors into local lat-lon coordinates:
+                !
+                ! component in longitudinal direction
+                distv_bary_1 =                                                                     &
+                      z_ntdistv_bary_1*MERGE(p_patch%edges%primal_normal_cell(je,jb,1)%v1,         &
+                                             p_patch%edges%primal_normal_cell(je,jb,2)%v1,lvn_pos) &
+                    + z_ntdistv_bary_2*MERGE(p_patch%edges%dual_normal_cell(je,jb,1)%v1,           &
+                                             p_patch%edges%dual_normal_cell(je,jb,2)%v1,lvn_pos)
+
+                ! component in latitudinal direction
+                distv_bary_2 =                                                                     &
+                      z_ntdistv_bary_1*MERGE(p_patch%edges%primal_normal_cell(je,jb,1)%v2,         &
+                                             p_patch%edges%primal_normal_cell(je,jb,2)%v2,lvn_pos) &
+                    + z_ntdistv_bary_2*MERGE(p_patch%edges%dual_normal_cell(je,jb,1)%v2,           &
+                                             p_patch%edges%dual_normal_cell(je,jb,2)%v2,lvn_pos)
+
+
+                ! Calculate "edge values" of rho and theta_v
+                ! Note: z_rth_pr contains the perturbation values of rho and theta_v,
+                ! and the corresponding gradients are stored in z_grad_rth.
+                ! (deep-atmosphere modification applied)
+                z_rho_e(je,jk,jb) = REAL(p_nh%metrics%rho_ref_me(je,jk,jb),wp) &
+                  +                            z_rth_pr(1,ilc0,jk,ibc0)        &
+                  + ( distv_bary_1 * z_grad_rth(1,ilc0,jk,ibc0)                &
+                  +   distv_bary_2 * z_grad_rth(2,ilc0,jk,ibc0) ) *            &
+                  deepatmo_gradh(jk)
+
+                z_theta_v_e(je,jk,jb) = REAL(p_nh%metrics%theta_ref_me(je,jk,jb),wp) &
+                  +                            z_rth_pr(2,ilc0,jk,ibc0)              &
+                  + ( distv_bary_1 * z_grad_rth(3,ilc0,jk,ibc0)                      &
+                  +   distv_bary_2 * z_grad_rth(4,ilc0,jk,ibc0) ) *                  &
+                  deepatmo_gradh(jk)
+
+              ENDDO ! loop over edges
+            ENDDO   ! loop over vertical levels
+
+          ELSE ! iadv_rhotheta = 1
 
 #ifdef __LOOP_EXCHANGE
-              DO je = i_startidx, i_endidx
+            DO je = i_startidx, i_endidx
 !DIR$ IVDEP
-                DO jk = 1, nlev
-#else
               DO jk = 1, nlev
-                DO je = i_startidx, i_endidx
+#else
+            DO jk = 1, nlev
+              DO je = i_startidx, i_endidx
 #endif
 
-                  ! Compute upwind-biased values for rho and theta starting from centered differences
-                  ! Note: the length of the backward trajectory should be 0.5*dtime*(vn,vt) in order to arrive
-                  ! at a second-order accurate FV discretization, but twice the length is needed for numerical
-                  ! stability
-                  ! (deep-atmosphere modification applied)
-                  z_rho_e(je,jk,jb) =                                                                           &
-                    p_int%c_lin_e(je,1,jb)*p_nh%prog(nnow)%rho(icidx(je,jb,1),jk,icblk(je,jb,1)) +              &
-                    p_int%c_lin_e(je,2,jb)*p_nh%prog(nnow)%rho(icidx(je,jb,2),jk,icblk(je,jb,2)) -              &
-                    dtime * (p_nh%prog(nnow)%vn(je,jk,jb)*p_patch%edges%inv_dual_edge_length(je,jb)*            &
-                   (p_nh%prog(nnow)%rho(icidx(je,jb,2),jk,icblk(je,jb,2)) -                                     &
-                    p_nh%prog(nnow)%rho(icidx(je,jb,1),jk,icblk(je,jb,1)) ) + p_nh%diag%vt(je,jk,jb) *          &
-                    p_patch%edges%inv_primal_edge_length(je,jb) * p_patch%edges%tangent_orientation(je,jb) *    &
-                   (z_rho_v(ividx(je,jb,2),jk,ivblk(je,jb,2)) - z_rho_v(ividx(je,jb,1),jk,ivblk(je,jb,1)) ) ) * &
-                    deepatmo_gradh(jk)
+                ! Compute upwind-biased values for rho and theta starting from centered differences
+                ! Note: the length of the backward trajectory should be 0.5*dtime*(vn,vt) in order to arrive
+                ! at a second-order accurate FV discretization, but twice the length is needed for numerical
+                ! stability
+                ! (deep-atmosphere modification applied)
+                z_rho_e(je,jk,jb) =                                                                           &
+                  p_int%c_lin_e(je,1,jb)*p_nh%prog(nnow)%rho(icidx(je,jb,1),jk,icblk(je,jb,1)) +              &
+                  p_int%c_lin_e(je,2,jb)*p_nh%prog(nnow)%rho(icidx(je,jb,2),jk,icblk(je,jb,2)) -              &
+                  dtime * (p_nh%prog(nnow)%vn(je,jk,jb)*p_patch%edges%inv_dual_edge_length(je,jb)*            &
+                 (p_nh%prog(nnow)%rho(icidx(je,jb,2),jk,icblk(je,jb,2)) -                                     &
+                  p_nh%prog(nnow)%rho(icidx(je,jb,1),jk,icblk(je,jb,1)) ) + p_nh%diag%vt(je,jk,jb) *          &
+                  p_patch%edges%inv_primal_edge_length(je,jb) * p_patch%edges%tangent_orientation(je,jb) *    &
+                 (z_rho_v(ividx(je,jb,2),jk,ivblk(je,jb,2)) - z_rho_v(ividx(je,jb,1),jk,ivblk(je,jb,1)) ) ) * &
+                  deepatmo_gradh(jk)
 
-                  z_theta_v_e(je,jk,jb) =                                                                              &
-                    p_int%c_lin_e(je,1,jb)*p_nh%prog(nnow)%theta_v(icidx(je,jb,1),jk,icblk(je,jb,1)) +                 &
-                    p_int%c_lin_e(je,2,jb)*p_nh%prog(nnow)%theta_v(icidx(je,jb,2),jk,icblk(je,jb,2)) -                 &
-                    dtime * (p_nh%prog(nnow)%vn(je,jk,jb)*p_patch%edges%inv_dual_edge_length(je,jb)*                   &
-                   (p_nh%prog(nnow)%theta_v(icidx(je,jb,2),jk,icblk(je,jb,2)) -                                        &
-                    p_nh%prog(nnow)%theta_v(icidx(je,jb,1),jk,icblk(je,jb,1)) ) + p_nh%diag%vt(je,jk,jb) *             &
-                    p_patch%edges%inv_primal_edge_length(je,jb) * p_patch%edges%tangent_orientation(je,jb) *           &
-                   (z_theta_v_v(ividx(je,jb,2),jk,ivblk(je,jb,2)) - z_theta_v_v(ividx(je,jb,1),jk,ivblk(je,jb,1)) )) * &
-                    deepatmo_gradh(jk)
+                z_theta_v_e(je,jk,jb) =                                                                              &
+                  p_int%c_lin_e(je,1,jb)*p_nh%prog(nnow)%theta_v(icidx(je,jb,1),jk,icblk(je,jb,1)) +                 &
+                  p_int%c_lin_e(je,2,jb)*p_nh%prog(nnow)%theta_v(icidx(je,jb,2),jk,icblk(je,jb,2)) -                 &
+                  dtime * (p_nh%prog(nnow)%vn(je,jk,jb)*p_patch%edges%inv_dual_edge_length(je,jb)*                   &
+                 (p_nh%prog(nnow)%theta_v(icidx(je,jb,2),jk,icblk(je,jb,2)) -                                        &
+                  p_nh%prog(nnow)%theta_v(icidx(je,jb,1),jk,icblk(je,jb,1)) ) + p_nh%diag%vt(je,jk,jb) *             &
+                  p_patch%edges%inv_primal_edge_length(je,jb) * p_patch%edges%tangent_orientation(je,jb) *           &
+                 (z_theta_v_v(ividx(je,jb,2),jk,ivblk(je,jb,2)) - z_theta_v_v(ividx(je,jb,1),jk,ivblk(je,jb,1)) )) * &
+                  deepatmo_gradh(jk)
 
-                ENDDO ! loop over edges
-              ENDDO   ! loop over vertical levels
-            ENDIF
+              ENDDO ! loop over edges
+            ENDDO   ! loop over vertical levels
+          ENDIF
 
-          ENDDO
+        ENDDO
 !$OMP END DO
-
-        ENDIF
 
       ELSE IF (istep == 2 .AND. lhdiff_rcf .AND. divdamp_type >= 3) THEN ! apply div damping on 3D divergence
 
@@ -2618,10 +2551,6 @@ MODULE mo_nh_deepatmo_solve
 #endif
 
     ENDIF  ! .NOT. my_process_is_mpi_all_seq()
-
-#ifndef __LOOP_EXCHANGE
-    CALL btraj%destruct()
-#endif
 
     NULLIFY( deepatmo_gradh, deepatmo_divh, &
       &      deepatmo_divzU, deepatmo_divzL )
