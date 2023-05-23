@@ -31,7 +31,9 @@
     !
     !-------------------------------------------------------------------------
     !
-!$  USE OMP_LIB
+#ifdef _OPENMP
+    USE OMP_LIB
+#endif
     USE mo_kind,                ONLY: wp
     USE mo_exception,           ONLY: message, message_text, finish
     USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int,                                &
@@ -107,7 +109,9 @@
       ! list of triangles containing lon-lat grid points (first dim: index and block)
       INTEGER, ALLOCATABLE  :: tri_idx(:,:,:) ! 2, nproma, nblks_lonlat
 
-!$    DOUBLE PRECISION       :: time_s_total, toc
+#ifdef _OPENMP
+      DOUBLE PRECISION       :: time_s_total, toc
+#endif
 
       ! -----------------------------------------------------------
 
@@ -150,7 +154,9 @@
 
             ! compute weights for barycentric interpolation:
             IF (support_baryctr_intp) THEN
-!$            time_s_total = omp_get_wtime()
+#ifdef _OPENMP
+              time_s_total = omp_get_wtime()
+#endif
               
               ! --- try to read auxiliary triangulation from file:
               triangulation_read_from_file = try_triangulation_readin(p_patch(jg), tri_global, p_global)
@@ -169,10 +175,12 @@
                 CALL setup_barycentric_intp_lonlat(tri_global, p_global, lonlat_grids%list(i)%intp(jg))
 
               END IF
-!$            toc = omp_get_wtime() - time_s_total
-!$            IF (my_process_is_stdio() .and. (dbg_level > 5)) THEN
-!$              WRITE (0,*) trim(routine), " :: total elapsed time: ", toc
-!$            END IF
+#ifdef _OPENMP
+              toc = omp_get_wtime() - time_s_total
+              IF (my_process_is_stdio() .and. (dbg_level > 5)) THEN
+                WRITE (0,*) trim(routine), " :: total elapsed time: ", toc
+              END IF
+#endif
 
               CALL p_global%destructor()
               CALL tri_global%destructor()
@@ -1191,7 +1199,9 @@
       REAL(gk)                         :: min_dist_pole
       REAL(wp)                         :: point(2),                               &
         &                                 max_dist, start_radius
-!$    REAL                             :: time1
+#ifdef _OPENMP
+      REAL                             :: time1
+#endif
       LOGICAL                          :: l_grid_is_unrotated, l_grid_contains_poles, &
            l_my_process_is_mpi_test
 
@@ -1289,7 +1299,9 @@
       tri_idx(1,:,:) = RESHAPE(pts_flags(:,:), (/ nproma, nblks_lonlat /), (/ INVALID_NODE /) )
       tri_idx(2,:,:) = 0
 
-!$    time1 = REAL(omp_get_wtime())
+#ifdef _OPENMP
+      time1 = REAL(omp_get_wtime())
+#endif
 
       ! Perform query. Note that for distributed patches we receive a
       ! local list of "in_points" actually located on this portion of the
@@ -1302,7 +1314,9 @@
         &                 nproma, nblks_lonlat, npromz_lonlat, start_radius,       &
         &                 p_test_run, tri_idx(:,:,:), min_dist(:,:))
 
-!$    IF (l_measure_time) WRITE (0,*) "elapsed time (query): ",  REAL(omp_get_wtime()) - time1
+#ifdef _OPENMP
+      IF (l_measure_time) WRITE (0,*) "elapsed time (query): ",  REAL(omp_get_wtime()) - time1
+#endif
 
       !-- if we have a global, unrotated grid: copy the distance
       !   result for all points of the first and last latitude row:
@@ -1341,7 +1355,9 @@
         &                 min_dist, tri_idx(:,:,:), in_points(:,:,:),                    &
         &                 ptr_int_lonlat%global_idx(:), ptr_int_lonlat%nthis_local_pts)
 
-!$    if (l_measure_time) WRITE (0,*) "elapsed time: ",  REAL(omp_get_wtime()) - time1
+#ifdef _OPENMP
+      if (l_measure_time) WRITE (0,*) "elapsed time: ",  REAL(omp_get_wtime()) - time1
+#endif
 
       ! set local values for "nblks" and "npromz"
       nblks_lonlat  = ptr_int_lonlat%nblks_lonlat(nproma)

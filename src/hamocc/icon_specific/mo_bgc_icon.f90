@@ -174,14 +174,14 @@ local_aggregate_memory => aggregates_memory(local_memory_idx)
 !DIR$ INLINE
 #ifdef _OPENMP
 !ICON_OMP_PARALLEL PRIVATE(local_memory_idx, local_bgc_memory, local_sediment_memory, local_aggregate_memory)
-!$  local_memory_idx = omp_get_thread_num()
+local_memory_idx = omp_get_thread_num()
 ! write(0,*) "local_memory_idx=", local_memory_idx
 local_bgc_memory => bgc_local_memory(local_memory_idx)
 local_sediment_memory => sediment_local_memory(local_memory_idx)
 local_aggregate_memory => aggregates_memory(local_memory_idx)
 
 !ICON_OMP_SINGLE
-!$  test_memory_copies = OMP_GET_NUM_THREADS()
+test_memory_copies = OMP_GET_NUM_THREADS()
 IF (test_memory_copies /= bgc_memory_copies) &
   & CALL finish(str_module, "test_memory_copies /= bgc_memory_copies")
 !ICON_OMP_END_SINGLE

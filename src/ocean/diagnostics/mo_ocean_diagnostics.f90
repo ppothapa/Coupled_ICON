@@ -1054,9 +1054,13 @@ CONTAINS
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-!$  myThreadNo = omp_get_thread_num()
+#ifdef _OPENMP
+    myThreadNo = omp_get_thread_num()
+#endif
 !ICON_OMP_SINGLE
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+#ifdef _OPENMP
+    no_of_threads = OMP_GET_NUM_THREADS()
+#endif
 !ICON_OMP_END_SINGLE NOWAIT
     sum_value(:,  myThreadNo) = 0.0_wp
     sum_weight(:,  myThreadNo) = 0.0_wp
@@ -1190,9 +1194,13 @@ CONTAINS
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
     !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-    !$  myThreadNo = omp_get_thread_num()
+#ifdef _OPENMP
+    myThreadNo = omp_get_thread_num()
+#endif
     !ICON_OMP_SINGLE
-    !$  no_of_threads = OMP_GET_NUM_THREADS()
+#ifdef _OPENMP
+    no_of_threads = OMP_GET_NUM_THREADS()
+#endif
     !ICON_OMP_END_SINGLE NOWAIT
       sum_value(:,  myThreadNo) = 0.0_wp
       sum_weight(:,  myThreadNo) = 0.0_wp
