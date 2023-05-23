@@ -335,7 +335,6 @@ cat > ${atmo_namelist} << EOF
   igradp_method   = 3
   itime_scheme    = 4
   ivctype         = 2
-  l_open_ubc      = .false.
   l_zdiffu_t      = .true.
   rayleigh_coeff  = 5.0
   thhgtd_zdiffu   = 125.

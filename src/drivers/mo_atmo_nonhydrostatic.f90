@@ -64,7 +64,7 @@ USE mo_vertical_grid,        ONLY: set_nh_metrics
 USE mo_nh_nest_utilities,    ONLY: complete_nesting_setup
 ! NH-namelist state
 USE mo_nonhydrostatic_config,ONLY: configure_nonhydrostatic, kstart_moist, kend_qvsubstep, &
-  &                                l_open_ubc, itime_scheme, kstart_tracer, ndyn_substeps
+  &                                itime_scheme, kstart_tracer, ndyn_substeps
 
 ! NH-Model states
 USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
@@ -405,7 +405,7 @@ CONTAINS
       CALL configure_advection( jg, p_patch(jg)%nlev, p_patch(1)%nlev,   &
         &                       iforcing, iqc, iqt,                      &
         &                       kstart_moist(jg), kend_qvsubstep(jg),    &
-        &                       lvert_nest, l_open_ubc, ntracer,         &
+        &                       lvert_nest, ntracer,                     &
         &                       idiv_method, itime_scheme,               &
         &                       p_nh_state_lists(jg)%tracer_list(:),     &
         &                       kstart_tracer(jg,:) )
@@ -415,7 +415,7 @@ CONTAINS
      CALL message(routine,'configure_lhn')
      DO jg =1,n_dom
        CALL configure_lhn(jg)
-     ENDDO 
+     ENDDO
      !$ACC ENTER DATA COPYIN(assimilation_config)
 
      CALL init_radar_data(p_patch(1:))

@@ -328,7 +328,6 @@ a_hshr       = 2.0
  divdamp_order   = 24
  divdamp_fac     = 0.004
  divdamp_type    = 32
- l_open_ubc      = .false. 
  igradp_method   = 3
  l_zdiffu_t      = .true.
  thslp_zdiffu    = 0.02

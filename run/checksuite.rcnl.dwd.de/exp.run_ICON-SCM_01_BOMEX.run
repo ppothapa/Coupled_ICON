@@ -273,7 +273,6 @@ cat > NAMELIST_${EXPNAME} << EOF
 &nonhydrostatic_nml
  ivctype        = 2         ! sleve vertical coordinate
  damp_height    = 5000.     ! top_height-damp_height should be about 15km
- l_open_ubc     = .false.   ! top open upper boundary condition. might help to go higher
  rayleigh_coeff = 0.0
  htop_moist_proc= 22500.
  hbot_qvsubstep	= 22500.    ! Default: 22500  ! M. Koehler: 19000; at least as large as htop_moist_proc

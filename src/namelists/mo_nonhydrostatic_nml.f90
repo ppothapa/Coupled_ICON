@@ -16,11 +16,11 @@
 MODULE mo_nonhydrostatic_nml
 
   USE mo_kind,                  ONLY: wp
-  USE mo_exception,             ONLY: finish, message
+  USE mo_exception,             ONLY: finish, message, message_text
   USE mo_impl_constants,        ONLY: max_dom, TRACER_ONLY
   USE mo_io_units,              ONLY: nnml, nnml_output
   USE mo_namelist,              ONLY: position_nml, positioned, open_nml, close_nml
-  USE mo_master_control,      ONLY: use_restart_namelists
+  USE mo_master_control,        ONLY: use_restart_namelists
   USE mo_mpi,                   ONLY: my_process_is_stdio
   USE mo_restart_nml_and_att,   ONLY: open_tmpfile, store_and_close_namelist,  &
                                     & open_and_restore_namelist, close_tmpfile
@@ -59,7 +59,6 @@ MODULE mo_nonhydrostatic_nml
                                     & config_iadv_rhotheta    => iadv_rhotheta    , &
                                     & config_igradp_method    => igradp_method    , &
                                     & config_exner_expol      => exner_expol      , &
-                                    & config_l_open_ubc       => l_open_ubc       , &
                                     & config_l_masscorr_nest  => l_masscorr_nest  , &
                                     & config_l_zdiffu_t       => l_zdiffu_t       , &
                                     & config_thslp_zdiffu     => thslp_zdiffu     , &
@@ -369,6 +368,12 @@ CONTAINS
        CALL finish( TRIM(routine), 'divdamp_z3 == divdamp_z4 not allowed')
     ENDIF
 
+    !
+    WRITE(message_text,'(a)') &
+      &  'Namelist switch l_open_ubc is obsolete and will soon be removed!'
+    CALL message("WARNING",message_text)
+
+
     !----------------------------------------------------
     ! 4. Fill the configuration state
     !----------------------------------------------------
@@ -401,7 +406,6 @@ CONTAINS
        config_divdamp_trans_end   = divdamp_trans_end
        config_itime_scheme      = itime_scheme
        config_ivctype           = ivctype
-       config_l_open_ubc        = l_open_ubc
        config_nest_substeps     = nest_substeps
        config_l_zdiffu_t        = l_zdiffu_t
        config_thslp_zdiffu      = thslp_zdiffu
@@ -416,8 +420,8 @@ CONTAINS
     !-----------------------------------------------------
     IF(my_process_is_stdio())  THEN
       funit = open_tmpfile()
-      WRITE(funit,NML=nonhydrostatic_nml)                    
-      CALL store_and_close_namelist(funit, 'nonhydrostatic_nml') 
+      WRITE(funit,NML=nonhydrostatic_nml)
+      CALL store_and_close_namelist(funit, 'nonhydrostatic_nml')
     ENDIF
     ! 6. write the contents of the namelist to an ASCII file
     IF(my_process_is_stdio()) WRITE(nnml_output,nml=nonhydrostatic_nml)

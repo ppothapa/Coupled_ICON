@@ -23,7 +23,7 @@
 MODULE mo_nh_deepatmo_solve
 
   USE mo_kind,                   ONLY: wp, vp
-  USE mo_nonhydrostatic_config,  ONLY: itime_scheme,iadv_rhotheta, igradp_method, l_open_ubc, &
+  USE mo_nonhydrostatic_config,  ONLY: itime_scheme,iadv_rhotheta, igradp_method,             &
     &                                  kstart_moist, lhdiff_rcf, divdamp_order,               &
     &                                  divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4, &
     &                                  divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,         &
@@ -167,7 +167,6 @@ MODULE mo_nh_deepatmo_solve
 #endif
 
     REAL(wp) :: z_w_expl        (nproma,p_patch%nlevp1),          &
-                z_thermal_exp   (nproma,p_patch%nblks_c),         &
                 z_vn_avg        (nproma,p_patch%nlev  ),          &
                 z_mflx_top      (nproma,p_patch%nblks_c),         &
                 z_contr_w_fl_l  (nproma,p_patch%nlevp1),          &
@@ -476,19 +475,6 @@ MODULE mo_nh_deepatmo_solve
           ! igradp_method=4/5. It is multiplied with zero and thus actually not used
           z_exner_ex_pr(:,nlevp1,jb) = 0._wp
 
-          IF (l_open_ubc .AND. .NOT. l_vert_nested) THEN
-            ! Compute contribution of thermal expansion to vertical wind at model top
-            ! Isothermal expansion is assumed
-            z_thermal_exp(:,jb) = 0._wp
-            DO jk = 1, nlev
-!DIR$ IVDEP
-              DO jc = i_startidx, i_endidx
-                z_thermal_exp(jc,jb) = z_thermal_exp(jc,jb) + cvd_o_rd                      &
-                  * p_nh%diag%ddt_exner_phy(jc,jk,jb)                                       &
-                  /  (p_nh%prog(nnow)%exner(jc,jk,jb)*p_nh%metrics%inv_ddqz_z_full(jc,jk,jb))
-              ENDDO
-            ENDDO
-          ENDIF
 
           IF (igradp_method <= 3) THEN
             ! Perturbation Exner pressure on bottom half level
@@ -620,41 +606,6 @@ MODULE mo_nh_deepatmo_solve
 
         ENDIF ! istep = 1/2
 
-        ! rho and theta at top level (in case of vertical nesting, upper boundary conditions
-        !                             are set in the vertical solver loop)
-        IF (l_open_ubc .AND. .NOT. l_vert_nested) THEN
-          IF ( istep == 1 ) THEN
-!DIR$ IVDEP
-            DO jc = i_startidx, i_endidx
-              p_nh%diag%theta_v_ic(jc,1,jb) = p_nh%metrics%theta_ref_ic(jc,1,jb) + &
-                p_nh%metrics%wgtfacq1_c(jc,1,jb)*z_rth_pr(2,jc,1,jb) +           &
-                p_nh%metrics%wgtfacq1_c(jc,2,jb)*z_rth_pr(2,jc,2,jb) +           &
-                p_nh%metrics%wgtfacq1_c(jc,3,jb)*z_rth_pr(2,jc,3,jb)
-            ENDDO
-          ELSE ! ISTEP == 2
-!DIR$ IVDEP
-            DO jc = i_startidx, i_endidx
-              p_nh%diag%theta_v_ic(jc,1,jb) = p_nh%metrics%theta_ref_ic(jc,1,jb) + &
-                p_nh%metrics%wgtfacq1_c(jc,1,jb)* ( wgt_nnow_rth*p_nh%prog(nnow)%theta_v(jc,1,jb) +     &
-                wgt_nnew_rth*p_nh%prog(nvar)%theta_v(jc,1,jb) - p_nh%metrics%theta_ref_mc(jc,1,jb) ) + &
-                p_nh%metrics%wgtfacq1_c(jc,2,jb)*( wgt_nnow_rth*p_nh%prog(nnow)%theta_v(jc,2,jb) +      &
-                wgt_nnew_rth*p_nh%prog(nvar)%theta_v(jc,2,jb) - p_nh%metrics%theta_ref_mc(jc,2,jb) ) + &
-                p_nh%metrics%wgtfacq1_c(jc,3,jb)*( wgt_nnow_rth*p_nh%prog(nnow)%theta_v(jc,3,jb) +      &
-                wgt_nnew_rth*p_nh%prog(nvar)%theta_v(jc,3,jb) - p_nh%metrics%theta_ref_mc(jc,3,jb) )
-            ENDDO
-          ENDIF
-!DIR$ IVDEP
-          DO jc = i_startidx, i_endidx
-            p_nh%diag%rho_ic(jc,1,jb) =  wgt_nnow_rth*(                        &
-              p_nh%metrics%wgtfacq1_c(jc,1,jb)*p_nh%prog(nnow)%rho(jc,1,jb) +  &
-              p_nh%metrics%wgtfacq1_c(jc,2,jb)*p_nh%prog(nnow)%rho(jc,2,jb) +  &
-              p_nh%metrics%wgtfacq1_c(jc,3,jb)*p_nh%prog(nnow)%rho(jc,3,jb))+  &
-              wgt_nnew_rth * (                                                 &
-              p_nh%metrics%wgtfacq1_c(jc,1,jb)*p_nh%prog(nvar)%rho(jc,1,jb) +  &
-              p_nh%metrics%wgtfacq1_c(jc,2,jb)*p_nh%prog(nvar)%rho(jc,2,jb) +  &
-              p_nh%metrics%wgtfacq1_c(jc,3,jb)*p_nh%prog(nvar)%rho(jc,3,jb) )
-          ENDDO
-        ENDIF
 
         IF (istep == 1) THEN
 
@@ -1988,22 +1939,17 @@ MODULE mo_nh_deepatmo_solve
           z_q(jc,1) = 0._vp
         ENDDO
 
-        ! upper boundary condition for w (interpolated from parent domain in case of vertical nesting)
-        ! Note: the upper b.c. reduces to w(1) = 0 in the absence of diabatic heating
-        IF (l_open_ubc .AND. .NOT. l_vert_nested) THEN
-!DIR$ IVDEP
-          DO jc = i_startidx, i_endidx
-            p_nh%prog(nnew)%w(jc,1,jb) = z_thermal_exp(jc,jb)
-            z_contr_w_fl_l(jc,1) = p_nh%diag%rho_ic(jc,1,jb)*p_nh%prog(nnow)%w(jc,1,jb)   &
-              * p_nh%metrics%vwind_expl_wgt(jc,jb)
-          ENDDO
-        ELSE IF (.NOT. l_open_ubc .AND. .NOT. l_vert_nested) THEN
+
+        ! upper boundary condition for w
+        ! interpolated from parent domain in case of vertical nesting, and
+        ! rigid lid otherwise
+        IF (.NOT. l_vert_nested) THEN
           p_nh%prog(nnew)%w(:,1,jb) = 0._wp
           z_contr_w_fl_l(:,1)       = 0._wp
         ELSE  ! l_vert_nested
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
-            ! UBC for w: horizontally interpolated from the parent interface level, 
+            ! UBC for w: horizontally interpolated from the parent interface level,
             !            and linearly interpolated in time.
             p_nh%prog(nnew)%w(jc,1,jb) = p_nh%diag%w_ubc(jc,jb,1)  &
               &                        + dt_linintp_ubc * p_nh%diag%w_ubc(jc,jb,2)
