@@ -1,13 +1,4 @@
-dnl We want to make sure that the configure script in the repository is always
-dnl generated with the same version of Autoconf. Currently, we stick to version
-dnl 2.69.
-m4_version_prereq([2.69], [
-dnl At this point, we know that we are using Autoconf 2.69 or higher, which also
-dnl means that the AC_AUTOCONF_VERSION macro is available.
-   m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.69]), [1],
-     [m4_fatal([Autoconf version 2.69 is required but version ]dnl
-m4_defn([AC_AUTOCONF_VERSION])[ is used], [63])])],
-  [m4_fatal([Autoconf version 2.69 is required], [63])])
+AC_PREREQ([2.69])
 
 ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
 
@@ -793,7 +784,19 @@ subdir_CFLAGS=$CFLAGS
 dnl Make sure the configure checks are run with ICON_CFLAGS:
 test -n "${ICON_CFLAGS}" && AS_VAR_APPEND([CFLAGS], [" ${ICON_CFLAGS}"])
 
-AC_PROG_CC
+dnl Fix a bug in Autoconf 2.70 (see https://savannah.gnu.org/support/?110396):
+m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.70]), [0],
+  [m4_pushdef([_AC_PROG_CC_C99],
+        m4_bpatsubst(m4_dquote(m4_defn([_AC_PROG_CC_C99])),
+          [\[ac_c_conftest_c89_program\]], [[ac_c_conftest_c99_program]]))dnl
+   AC_PROG_CC
+   m4_popdef([_AC_PROG_CC_C99])],
+  [AC_PROG_CC])
+dnl Expand the legacy macro for older version of Autoconf (2.69 and older):
+m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.70]), [-1],
+  [AC_PROG_CC_C99])
+AS_VAR_IF([ac_cv_prog_cc_c99], [no],
+  [AC_MSG_FAILURE([C compiler does not support ISO C99])])
 dnl Make sure that the bundled libraries pick up the same CC if not set by the
 dnl user on the command line:
 export CC
@@ -807,10 +810,6 @@ AC_ARG_VAR([ICON_BUNDLED_CFLAGS],
   [C compiler flags to be appended to CFLAGS when configuring the bundled
 libraries @<:@default=$ICON_CFLAGS@:>@])dnl
 ICON_BUNDLED_CFLAGS=${ICON_BUNDLED_CFLAGS-$ICON_CFLAGS}
-
-AC_PROG_CC_C99
-AS_VAR_IF([ac_cv_prog_cc_c99], [no],
-  [AC_MSG_FAILURE([C compiler does not support ISO C99])])
 
 ACX_COMPILER_CC_VENDOR_SIMPLE
 ACX_COMPILER_CC_VERSION_SIMPLE
