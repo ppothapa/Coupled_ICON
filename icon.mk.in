@@ -74,7 +74,6 @@ DEPGEN_FCFLAGS= @DEPGEN_FCFLAGS@
 
 # C compiler and preprocessor flags:
 CFLAGS= @CFLAGS@
-ICON_CFLAGS= @ICON_CFLAGS@
 CPPFLAGS= -I. @DEFS@ @CPPFLAGS@
 
 # NVCC compiler flags:
@@ -100,9 +99,9 @@ pp_infix:= .pp-
 # infix '*$(pp_infix)*' are ignored. Duplicates are eliminated.
 find_files= $(sort $(patsubst $(srcdir)/%,%, \
                 $(shell find $(addprefix $(srcdir)/,$(1)) \
-                    \! \( -type d -o -name '.*' -o -path '*/.*' \
-                          -o -name '*$(pp_infix)*' \) \
-                    -a \( $(foreach p,$(2),-name $(p) -o) -false \))))
+                    -name '.' -o -name '..' -o -name '.*' -prune \
+                    -o \! \( -type d -o -name '*$(pp_infix)*' \) \
+                    -a \( $(foreach p,$(2),-name $(p) -o) -false \) -print)))
 
 # All source files:
 all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
@@ -492,7 +491,7 @@ sanitize-mod-proxies:
 
 # C compilation rule:
 %.@OBJEXT@: %.c | $(dir_files)
-	$(silent_CC)$(CC) -o $@ -c $(CFLAGS) $(ICON_CFLAGS) $(CPPFLAGS) $<
+	$(silent_CC)$(CC) -o $@ -c $(CFLAGS) $(CPPFLAGS) $<
 
 # CUDA compilation rule:
 %.@OBJEXT@: %.cu | $(dir_file)
@@ -580,7 +579,7 @@ version.c: force-create-version
 
 # C dependency generation rule:
 %.c.d: %.c icon.mk depgen.c.config | $(dir_files)
-	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config -o $@ --obj-name $(@:.c.d=.@OBJEXT@) -i $< -- $(CFLAGS) $(ICON_CFLAGS) $(CPPFLAGS)
+	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config -o $@ --obj-name $(@:.c.d=.@OBJEXT@) -i $< -- $(CFLAGS) $(CPPFLAGS)
 
 # CUDA dependency generation rule:
 %.cu.d: %.cu icon.mk depgen.c.config | $(dir_files)
