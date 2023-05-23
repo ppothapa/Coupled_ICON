@@ -81,13 +81,18 @@ CONTAINS
     REAL(wp) :: D_conv_ii    ! D-threshold for conversion to snow ice_selfcollection 
     REAL(wp) :: D_rainfrz_ig ! rain --> ice oder graupel
     REAL(wp) :: D_rainfrz_gh ! rain --> graupel oder hail
+    LOGICAL  :: luse_mu_Dm_rain ! Use mu-Dm-Relation of Seifert (2008). If false use the constant in rain type
     REAL(wp) :: rain_cmu0    ! asymptotic mue-value for small D_m in the mu-Dm-Relation of Seifert (2008)
     REAL(wp) :: rain_cmu1    ! asymptotic mue-value for large D_m in the mu-Dm-Relation of Seifert (2008)
     REAL(wp) :: rain_cmu3    ! D_br: equilibrium diameter for breakup and selfcollection
+    REAL(wp) :: melt_h_tune_fak ! Factor to increase/decrease hail melting rate
+    REAL(wp) :: Tmax_gr_rime    ! Allow formation of graupel by riming ice/snow only at T < this threshold [K]
+    LOGICAL  :: lturb_enhc   ! Enhancement of collisons by turbulence (only warm microphysics)
 
     NAMELIST /twomom_mcrph_nml/ i2mom_solver, ccn_type, alpha_spacefilling, &
          &                      D_conv_ii, D_rainfrz_ig, D_rainfrz_gh,      &
-         &                      rain_cmu0, rain_cmu1, rain_cmu3
+         &                      luse_mu_Dm_rain, rain_cmu0, rain_cmu1, rain_cmu3, &
+         &                      melt_h_tune_fak, Tmax_gr_rime, lturb_enhc
 
     !----------------------------------------------------------
     ! 1. default settings from module mo_2mom_mcrph_processes:
@@ -100,9 +105,13 @@ CONTAINS
     D_conv_ii          = cfg_2mom_default % D_conv_ii
     D_rainfrz_ig       = cfg_2mom_default % D_rainfrz_ig
     D_rainfrz_gh       = cfg_2mom_default % D_rainfrz_gh
+    luse_mu_Dm_rain    = cfg_2mom_default % luse_mu_Dm_rain
     rain_cmu0          = cfg_2mom_default % rain_cmu0     
     rain_cmu1          = cfg_2mom_default % rain_cmu1
     rain_cmu3          = cfg_2mom_default % rain_cmu3
+    melt_h_tune_fak    = cfg_2mom_default % melt_h_tune_fak     
+    Tmax_gr_rime       = cfg_2mom_default % Tmax_gr_rime        
+    lturb_enhc         = cfg_2mom_default % lturb_enhc
 
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
@@ -178,9 +187,13 @@ CONTAINS
       atm_phy_nwp_config(jg) % cfg_2mom % D_conv_ii           = D_conv_ii
       atm_phy_nwp_config(jg) % cfg_2mom % D_rainfrz_ig        = D_rainfrz_ig
       atm_phy_nwp_config(jg) % cfg_2mom % D_rainfrz_gh        = D_rainfrz_gh
+      atm_phy_nwp_config(jg) % cfg_2mom % luse_mu_Dm_rain     = luse_mu_Dm_rain
       atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu0           = rain_cmu0
       atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu1           = rain_cmu1
-      atm_phy_nwp_config(jg) % cfg_2mom % Rain_cmu3           = Rain_cmu3
+      atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu3           = rain_cmu3
+      atm_phy_nwp_config(jg) % cfg_2mom % melt_h_tune_fak     = melt_h_tune_fak     
+      atm_phy_nwp_config(jg) % cfg_2mom % Tmax_gr_rime        = Tmax_gr_rime        
+      atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc          = lturb_enhc
       
     ENDDO
 

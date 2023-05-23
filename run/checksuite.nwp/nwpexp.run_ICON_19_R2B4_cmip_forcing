@@ -46,7 +46,7 @@ ECRAD_DIR=${ICONDIR}/externals/ecrad/data
 
 # start, stop dates
 STADATE="1979-12-31T00:00:00Z"
-STODATE="1980-01-02T00:00:00Z"
+STODATE="1980-01-01T03:00:00Z"
 
 # date related vars
 YYYY=`echo ${STADATE} |cut -c 1-4`
@@ -159,7 +159,7 @@ EOF
 
 # proc settings
 num_io_procs=1
-num_restart_procs=1
+num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
 
@@ -209,7 +209,6 @@ cat > NAMELIST_${EXPID} << EOF
         &io_nml
           itype_pres_msl     = 4
           itype_rh           = 1
-          restart_write_mode = "dedicated procs multifile"
         /
         &output_nml
           filetype               =  4      ! output format: 2=GRIB2, 4=NETCDFv2

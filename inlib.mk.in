@@ -9,6 +9,7 @@ pgi_inlib_procedures+= \
   clct2ww \
   create_rdm_seed \
   create_rdm_seed_in_time \
+  cuadjtq \
   cubidiag \
   dewpoint_water \
   dqsatdt_ice \
@@ -111,6 +112,13 @@ pgi_inlib_f90_files+= \
 
 @RTE_RRTMGP_ENABLED@pgi_inlib_f90_files+= \
 @RTE_RRTMGP_ENABLED@src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90
+
+# List of files where we need to manually limit GPU register usage
+pgi_limit_registers_OBJECTS:=            \
+		src/atm_phy_schemes/mo_cuinit.o
+
+# And limiting flags
+pgi_limit_registers_FCFLAGS:= -gpu=maxregcount:96
 
 
 # acc routines that are not inlined:

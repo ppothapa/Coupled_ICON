@@ -1,0 +1,20 @@
+# This is a Spack Environment file.
+#
+# It describes a set of packages to be installed, along with
+# configuration settings.
+spack:
+  # add package specs to the `specs` list
+  specs:
+  - icon@develop%cce@12.0.3 +ecrad +rte-rrtmgp serialization=create
+  - eccodes@2.19.0%cce
+  - cray-libsci@20.06.1%cce
+  - libxml2@2.9.13%gcc
+  - serialbox@2.6.1%cce
+  - boost@1.79.0%gcc
+  view: false
+  concretizer:
+    unify: true
+  develop:
+    icon:
+      spec: icon@develop%cce@12.0.3 +ecrad +rte-rrtmgp serialization=create
+      path: ../../../../../

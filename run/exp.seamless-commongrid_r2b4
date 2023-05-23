@@ -84,16 +84,17 @@ mpi_oce_io_procs=0      # >0 for ocean is not working yet
 # ----------------------
 #
 # Use alternatively:
-# initialiseOcean="fromRestart"        # ocean is setup from restart-file, atmosphere initialised from scratch
-  initialiseOcean="fromClimatology"    # ocean is setup from climatology, atmosphere initialised from scratch
+  initialiseOcean="fromRestart"        # ocean is setup from restart-file, atmosphere initialised from scratch
+# initialiseOcean="fromClimatology"    # ocean is setup from climatology, atmosphere initialised from scratch
 # initialiseOcean="fromExperiment"     # atmos and ocean restarts from experiment specified below
 # restart=.true.                       # deactivate semaphore mechanism - use restart files for atmos and ocean
 
 # variables for start from an existing experiment (use restart=.true.)
 #  - is not yet be used automatically
-restart_dir=".."   #  from the same experiment directory
-restart_exp=slo14xx
-restart_yea=1980
+#restart_dir=".."   #  from the same experiment directory
+restart_dir="/work/mh0287/m211032/Icon/Git_lev/icon.rc/experiments"
+restart_exp=slo1471
+restart_yea=1100
 
 # set initialiseOcean automatically to false via semaphore mechanism (isRestartRun.sem)
 if [ -d "$basedir/experiments/$EXPNAME" ] ; then
@@ -1158,7 +1159,8 @@ cat >> ${oce_namelist} << EOF
   Salinity_HorizontalDiffusion_Reference     = 0
 /
 &ocean_vertical_diffusion_nml
-  PPscheme_type                              = 4
+  vert_mix_type                              = 2           ! 1: PP; 2: TKE
+  PPscheme_type                              = 0           ! 4: current PPscheme - 0: switched off
   velocity_VerticalDiffusion_background      = 5.0E-5      ! [m2/s]  vertical background viscosity coefficient for velocity
   temperature_VerticalDiffusion_background   = 5.0E-5      ! [m2/s]  vertical background diffusion coefficient for temperature
   salinity_VerticalDiffusion_background      = 5.0E-5      ! [m2/s]  vertical background diffusion coefficient for salinity
@@ -1170,8 +1172,23 @@ cat >> ${oce_namelist} << EOF
   bottom_drag_coeff                          = 3.0E-3      ! default=2.5E-3; active for i_bc_veloc_bot=1
   use_wind_mixing                            = .TRUE.      ! TRUE: use wind mixing scheme in MPIOM-type pp-scheme
   lambda_wind                                = 0.03
-  tracer_TopWindMixing                       = 0.5E-3
-  velocity_TopWindMixing                     = 0.5E-3
+  !  tracer_TopWindMixing                       = 1.0E-5  0.5E-3
+  !  velocity_TopWindMixing                     = 1.0E-5  0.5E-3
+  tracer_TopWindMixing                       = 2.31480E-6  ! eqals 0.5e-3 m2s-1 (MPIOM)
+  velocity_TopWindMixing                     = 2.31480E-6
+  c_k        = 0.1
+  c_eps      = 0.7
+  alpha_tke  = 30.0
+  mxl_min    = 1.d-8
+  kappaM_min = 0.0
+  kappaM_max = 100.0
+  cd         = 3.75
+  tke_min    = 1.d-6
+  tke_mxl_choice = 2
+  tke_surf_min = 1.d-4
+  only_tke = .true.
+  use_ubound_dirichlet = .false.
+  use_lbound_dirichlet = .false.
 /
 &ocean_GentMcWilliamsRedi_nml
   GMRedi_configuration                       = 1           ! 0=cartesian diffusion; 1=GM-Redi: bolus advection + isopycnal diffusion
@@ -1282,9 +1299,9 @@ add_required_file ${basedir}/run/${oce_namelist} ./
  # add spun-up ocean-only experiments or use initial state from "Levitus"
 #
 if [[ "$initialiseOcean" == "fromRestart" ]]; then
- #add_link_file /work/mh0727/m300732/icon-oes-hamocc/experiments/ler0863/ler0863_restart_oce_22000101T000000Z.nc init-restart-oce.nc
-  INDIR="/work/mh0287/m211032/Icon/Coupled/NWP_Coupling/Input_Prototype"
-  add_link_file $INDIR/ler0863_restart_oce_22000101T000000Z.nc init-restart-oce.nc
+  #INDIR="/work/mh0287/m211032/Icon/Coupled/NWP_Coupling/Input_Prototype"
+  #add_link_file $INDIR/ler0863_restart_oce_22000101T000000Z.nc init-restart-oce.nc
+  add_link_file ${restart_dir}/${restart_exp}/${restart_exp}_restart_oce_${restart_yea}0101T000000Z.nc init-restart-oce.nc
   add_link_file init-restart-oce.nc restart_ocean_DOM01.nc
 fi
 

@@ -43,11 +43,18 @@ add_tolerance_exp () {
       fi
 
       # initialize probtest namelist (most of it is unused, but makes life easier)
-      $PROBTEST init --codebase-install $basedir --experiment-name ${exp} --member_ids ${member_ids_string} --perturb-amplitude ${perturb_amplitude}
+      $PROBTEST init \
+        --codebase-install "${basedir}" \
+        --experiment-name "${exp}" \
+        --member_ids "${member_ids_string}" \
+        --perturb-amplitude "${perturb_amplitude}"
 
       # create the runscripts for the ensemble (exp.<EXP>_seed_N)
       # needs to be overwritten from namelist because here we deal with the templates
-      $PROBTEST run-ensemble --dry --run-script-name exp.${exp} --perturbed-run-script-name exp.${exp}_member_id_{member_id}
+      $PROBTEST run-ensemble \
+        --dry \
+        --run-script-name "exp.${exp}" \
+        --perturbed-run-script-name "exp.${exp}_member_id_{member_id}"
 
       # add base experiment and tolerance generation script
       ./addexp exp.${exp} --builders "${builder}" --list $listname --runflags "tolerance_run=true"
@@ -67,6 +74,7 @@ add_tolerance_exp mch_opr_r04b07 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_
 add_tolerance_exp mch_opr_r04b07_lhn_00 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r04b07_lhn_12 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r04b07_nest "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+add_tolerance_exp mch_ch_r04b09_dace "DAINT_CPU_nvidia"
 add_tolerance_exp mch_opr_r04b07_sstice_inst "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r19b07_lpi "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r19b07_2m "balfrin_cpu_nvidia DAINT_CPU_nvidia"

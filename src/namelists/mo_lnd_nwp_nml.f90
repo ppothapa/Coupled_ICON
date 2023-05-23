@@ -133,19 +133,20 @@ CONTAINS
     REAL(wp)::  hice_max          !< maximum sea-ice thickness [m]
     REAL(wp)::  max_toplaydepth   !< maximum depth of uppermost snow layer for multi-layer snow scheme
     INTEGER ::  itype_trvg        !< type of vegetation transpiration parameterization
-    INTEGER ::  itype_evsl        !< type of parameterization of bare soil evaporation
+    INTEGER ::  itype_evsl        !< type of parameterization of bare soil evaporation (see Schulz and Vogel 2020)
     INTEGER ::  itype_lndtbl      !< choice of table for associating surface parameters to land-cover classes
     INTEGER ::  itype_root        !< type of root density distribution
-    INTEGER ::  itype_heatcond    !< type of soil heat conductivity
+    INTEGER ::  itype_heatcond    !< type of soil heat conductivity (see Schulz et al. 2016)
     INTEGER ::  itype_interception!< type of plant interception
     REAL(wp)::  cwimax_ml         !< scaling parameter for maximum interception storage
     REAL(wp)::  c_soil            !< surface area density of the (evaporative) soil surface
     REAL(wp)::  c_soil_urb        !< surface area density of the (evaporative) soil surface, urban areas
-    REAL(wp)::  cr_bsmin          !< minimum bare soil evap resistance
+    REAL(wp)::  cr_bsmin          !< minimum bare soil evaporation resistance (see Schulz and Vogel 2020)
     INTEGER ::  itype_canopy      !< type of canopy parameterisation with respect to the surface energy balance
+                                  !< (see Schulz and Vogel 2020)
     REAL(wp)::  cskinc            !< skin conductivity (W/m**2/K)
     REAL(wp)::  tau_skin          !< relaxation time scale for the computation of the skin temperature
-    LOGICAL ::  lterra_urb        !< activate urban model TERRA_URB
+    LOGICAL ::  lterra_urb        !< activate urban model TERRA_URB (see Schulz et al. 2023)
     LOGICAL ::  lurbalb           !< use urban albedo and emissivity
     LOGICAL ::  lurbahf           !< use urban anthropogenic heat flux
     INTEGER ::  itype_kbmo        !< type of bluff-body thermal roughness length parameterisation
@@ -237,9 +238,9 @@ CONTAINS
     !
     itype_trvg     = 2       ! type of vegetation transpiration parameterization
                              ! Note that this is currently the only available option!
-    itype_evsl     = 2       ! type of parameterization of bare soil evaporation
+    itype_evsl     = 2       ! type of bare soil evaporation parameterization
                              !  2: based on BATS (Dickinson 1984)
-                             !  4: resistance formulation by Schulz and Vogel (2020)
+                             !  4: resistance-based formulation by Schulz and Vogel (2020)
                              !  5: same as 4, but uses cr_bsmin instead of c_soil for tuning, and c_soil is set to 2
     itype_lndtbl   = 3       ! choice of look-up table for associating surface parameters to land-cover classes
     itype_root     = 2       ! type of root density distribution
@@ -253,7 +254,7 @@ CONTAINS
                               ! the recommended value to activate interception storage is 5.e-4
     c_soil         = 1._wp   ! surface area density of the (evaporative) soil surface
     c_soil_urb     = 1._wp   ! surface area density of the (evaporative) soil surface, urban areas
-    cr_bsmin       = 110._wp ! minimum bare soil evap resistance (s/m)
+    cr_bsmin       = 110._wp ! minimum bare soil evaporation resistance (s/m) (see Schulz and Vogel 2020)
     itype_hydbound = 1       ! type of hydraulic lower boundary condition
     !
     itype_canopy   = 1       ! type of canopy parameterisation with respect to the surface energy balance
@@ -265,6 +266,7 @@ CONTAINS
     tau_skin      = 3600._wp ! relaxation time scale for the computation of the skin temperature
     !
     lterra_urb     = .FALSE. ! if .TRUE., activate urban model TERRA_URB by Wouters et al. (2016, 2017)
+                             ! (see Schulz et al. 2023)
     lurbalb        = .TRUE.  ! if .TRUE., use urban albedo and emissivity (Wouters et al. 2016)
     lurbahf        = .TRUE.  ! if .TRUE., use urban anthropogenic heat flux (Wouters et al. 2016)
     itype_kbmo     = 2       ! type of bluff-body thermal roughness length parameterisation
@@ -273,7 +275,7 @@ CONTAINS
                              !     (Kanda et al. 2007)
                              !  3: Zilitinkevich (1970)
     itype_eisa     = 3       ! type of evaporation from impervious surface area
-                             !  1: evaporation like bare soil (cf. Schulz and Vogel 2020)
+                             !  1: evaporation like bare soil (see Schulz and Vogel 2020)
                              !  2: no evaporation
                              !  3: PDF-based puddle evaporation (Wouters et al. 2015)
     !

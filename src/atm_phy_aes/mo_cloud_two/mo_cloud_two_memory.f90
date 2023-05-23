@@ -197,8 +197,8 @@ CONTAINS
     datatype_flt = MERGE(DATATYPE_FLT64, DATATYPE_FLT32, lnetcdf_flt64_output)
     datatype_int = datatype_int32
 
-    shape2d  = (/nproma,       nblks/)
-    shape3d  = (/nproma, nlev, nblks/)
+    shape2d         = (/nproma,       nblks/)
+    shape3d         = (/nproma, nlev, nblks/)
 
     ! define list name
     WRITE(listname,'(a,i2.2)') 'cloud_two_memory_D',jg
@@ -790,8 +790,8 @@ CONTAINS
             &        varname     = 'in_w_two'                                               ,&
             &        ptr         = cloud_two_input%w                                        ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
-            &        vgrid       = za_reference                                             ,&
-            &        ldims       = shape3d                                                  ,&
+            &        vgrid       = za_reference_half                                        ,&
+            &        ldims       = (/nproma,nlev+1,nblks/)                                  ,&
             &        cf          = t_cf_var ('vertical_velocity',                            &
             &                                'Pa s-1',                                       &
             &                                'vertical velocity (cloud_two input)',          &
@@ -1613,7 +1613,7 @@ CONTAINS
             &        varname     = 'out_w_two'                                              ,&
             &        ptr         = cloud_two_output%w                                       ,&
             &        hgrid       = grid_unstructured_cell                                   ,&
-            &        vgrid       = za_reference                                             ,&
+            &        vgrid       = za_reference_half                                        ,&
             &        ldims       = (/nproma,nlev+1,nblks/)                                  ,&
             &        cf          = t_cf_var ('vertical_velocity',                            &
             &                                'Pa s-1',                                       &

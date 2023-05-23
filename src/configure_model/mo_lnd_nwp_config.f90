@@ -80,20 +80,21 @@ MODULE mo_lnd_nwp_config
   REAL(wp)::  hice_min           !< minimum sea-ice thickness [m]
   REAL(wp)::  hice_max           !< maximum sea-ice thickness [m]
   INTEGER ::  itype_trvg         !< type of vegetation transpiration parameterization
-  INTEGER ::  itype_evsl         !< type of parameterization of bare soil evaporation
+  INTEGER ::  itype_evsl         !< type of parameterization of bare soil evaporation (see Schulz and Vogel 2020)
   INTEGER ::  itype_lndtbl       !< choice of table for associating surface parameters to land-cover classes
   INTEGER ::  itype_root         !< type of root density distribution
-  INTEGER ::  itype_heatcond     !< type of soil heat conductivity
+  INTEGER ::  itype_heatcond     !< type of soil heat conductivity (see Schulz et al. 2016)
   INTEGER ::  itype_interception !< type of plant interception
   !$ACC DECLARE CREATE(itype_interception)
   REAL(wp)::  cwimax_ml          !< scaling parameter for maximum interception storage
   REAL(wp)::  c_soil             !< surface area density of the (evaporative) soil surface
   REAL(wp)::  c_soil_urb         !< surface area density of the (evaporative) soil surface, urban areas
-  REAL(wp)::  cr_bsmin           !< minimum bare soil evap resistance
+  REAL(wp)::  cr_bsmin           !< minimum bare soil evaporation resistance (see Schulz and Vogel 2020)
   INTEGER ::  itype_canopy       !< type of canopy parameterisation with respect to the surface energy balance
+                                 !< (see Schulz and Vogel 2020)
   REAL(wp)::  cskinc             !< skin conductivity (W/m**2/K)
   REAL(wp)::  tau_skin           !< relaxation time scale for the computation of the skin temperature
-  LOGICAL ::  lterra_urb         !< activate urban model TERRA_URB
+  LOGICAL ::  lterra_urb         !< activate urban model TERRA_URB (see Schulz et al. 2023)
   LOGICAL ::  lurbalb            !< use urban albedo and emissivity
   LOGICAL ::  lurbahf            !< use urban anthropogenic heat flux
   INTEGER ::  itype_kbmo         !< type of bluff-body thermal roughness length parameterisation

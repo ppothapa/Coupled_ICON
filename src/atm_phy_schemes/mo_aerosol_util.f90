@@ -43,7 +43,7 @@ MODULE mo_aerosol_util
   USE mo_aerosol_sources,        ONLY: aerosol_dust_aod_source, aerosol_ssa_aod_source
   USE mo_math_laplace,           ONLY: nabla2_scalar
 #ifdef __ECRAD
-  USE mo_ecrad,                  ONLY: t_ecrad_conf, ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
+  USE mo_ecrad,                  ONLY: t_ecrad_conf
 #endif
   USE mo_fortran_tools,          ONLY: set_acc_host_or_device
 
@@ -371,8 +371,8 @@ CONTAINS
       IF (ecrad_conf%do_sw) THEN
         ALLOCATE(mapping(n_bands_sw,jpsw))
 
-        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands(   &
-          &    ecrad_solar_ref_temp, rrtm_wavenum1_sw, rrtm_wavenum2_sw, mapping_transp, &
+        CALL ecrad_conf%gas_optics_sw%spectral_def%calc_mapping_from_wavenumber_bands( &
+          &    rrtm_wavenum1_sw, rrtm_wavenum2_sw, mapping_transp,                     &
           &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_sw_g_point) )
 
         mapping = transpose(mapping_transp)
@@ -393,8 +393,8 @@ CONTAINS
       IF (ecrad_conf%do_lw) THEN
         ALLOCATE(mapping(n_bands_lw,jpband))
 
-        CALL ecrad_conf%gas_optics_lw%spectral_def%calc_mapping_from_wavenumber_bands(         &
-          &    ecrad_terrestrial_ref_temp, rrtm_wavenum1_lw, rrtm_wavenum2_lw, mapping_transp, &
+        CALL ecrad_conf%gas_optics_lw%spectral_def%calc_mapping_from_wavenumber_bands( &
+          &    rrtm_wavenum1_lw, rrtm_wavenum2_lw, mapping_transp,                     &
           &    use_bands=(.not. ecrad_conf%do_cloud_aerosol_per_lw_g_point) )
 
         mapping = transpose(mapping_transp)

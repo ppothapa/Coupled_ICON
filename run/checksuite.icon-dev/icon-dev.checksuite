@@ -428,22 +428,81 @@ function tolerance_check
     # find relevant config
     case $EXPERIMENT in
         *atm*qubicc*)
-            FILE_IDS="atm2d_ml,cli_ml,clw_ml,ddt_ua_adv_ml,ddt_ua_cor_ml,ddt_ua_dmp_ml,ddt_ua_dyn_ml,ddt_ua_hdf_ml,ddt_ua_pgr_ml,ddt_va_adv_ml,ddt_va_cor_ml,ddt_va_dmp_ml,ddt_va_dyn_ml,ddt_va_hdf_ml,ddt_va_pgr_ml,flx2d_ml,hus_ml,pfull_ml,qg_ml,qr_ml,qs_ml,rho_ml,ta_ml,tend_qcli_mig_ml,tend_qcli_vdf_ml,tend_qclw_mig_ml,tend_qclw_vdf_ml,tend_qhus_mig_ml,tend_qhus_vdf_ml,tend_ta_mig_ml,tend_ta_rlw_ml,tend_ta_rsw_ml,tend_ta_vdf_ml,tend_ua_vdf_ml,tend_va_vdf_ml,ua_ml,va_ml,wa_ml"
+            probtest_file_ids="*atm2d_ml*.nc"
+            probtest_file_ids+=",*cli_ml*.nc"
+            probtest_file_ids+=",*clw_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_adv_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_cor_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_dmp_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_dyn_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_hdf_ml*.nc"
+            probtest_file_ids+=",*ddt_ua_pgr_ml*.nc"
+            probtest_file_ids+=",*ddt_va_adv_ml*.nc"
+            probtest_file_ids+=",*ddt_va_cor_ml*.nc"
+            probtest_file_ids+=",*ddt_va_dmp_ml*.nc"
+            probtest_file_ids+=",*ddt_va_dyn_ml*.nc"
+            probtest_file_ids+=",*ddt_va_hdf_ml*.nc"
+            probtest_file_ids+=",*ddt_va_pgr_ml*.nc"
+            probtest_file_ids+=",*flx2d_ml*.nc"
+            probtest_file_ids+=",*hus_ml*.nc"
+            probtest_file_ids+=",*pfull_ml*.nc"
+            probtest_file_ids+=",*qg_ml*.nc"
+            probtest_file_ids+=",*qr_ml*.nc"
+            probtest_file_ids+=",*qs_ml*.nc"
+            probtest_file_ids+=",*rho_ml*.nc"
+            probtest_file_ids+=",*ta_ml*.nc"
+            probtest_file_ids+=",*tend_qcli_mig_ml*.nc"
+            probtest_file_ids+=",*tend_qcli_vdf_ml*.nc"
+            probtest_file_ids+=",*tend_qclw_mig_ml*.nc"
+            probtest_file_ids+=",*tend_qclw_vdf_ml*.nc"
+            probtest_file_ids+=",*tend_qhus_mig_ml*.nc"
+            probtest_file_ids+=",*tend_qhus_vdf_ml*.nc"
+            probtest_file_ids+=",*tend_ta_mig_ml*.nc"
+            probtest_file_ids+=",*tend_ta_rlw_ml*.nc"
+            probtest_file_ids+=",*tend_ta_rsw_ml*.nc"
+            probtest_file_ids+=",*tend_ta_vdf_ml*.nc"
+            probtest_file_ids+=",*tend_ua_vdf_ml*.nc"
+            probtest_file_ids+=",*tend_va_vdf_ml*.nc"
+            probtest_file_ids+=",*ua_ml*.nc"
+            probtest_file_ids+=",*va_ml*.nc"
+            probtest_file_ids+=",*wa_ml*.nc"
             ;;
         *atm*ape*)
-            FILE_IDS="atm_3d"
+            probtest_file_ids="*atm_3d*.nc"
             ;;
         *mch_opr_r04b07_lhn_12*)
-            FILE_IDS="atm_3d_ml,atm_3d_il,atm_3d_hl,atm_3d_pl,atm_2d_ll,Meteogram"
+            probtest_file_ids="*atm_3d_ml*.nc"
+            probtest_file_ids+=",*atm_3d_il*.nc"
+            probtest_file_ids+=",*atm_3d_hl*.nc"
+            probtest_file_ids+=",*atm_3d_pl*.nc"
+            probtest_file_ids+=",*atm_2d_ll*.nc"
+            probtest_file_ids+=",Meteogram*.nc"
+            probtest_file_ids+=",*total_integrals.dat"
             ;;
         *mch_*nest*)
-            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml"
+            probtest_file_ids="*atm_3d_DOM01_ml*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_ml*.nc"
+            probtest_file_ids+=",*atm_3d_DOM01_hl*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_hl*.nc"
+            probtest_file_ids+=",*atm_3d_DOM01_pl*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_pl*.nc"
+            probtest_file_ids+=",*atm_3d_ll_DOM01_ml*.nc"
+            probtest_file_ids+=",*atm_3d_ll_DOM02_ml"
+            ;;
+        *mch_*dace*)
+            probtest_file_ids="*fofAIREP*.nc"
             ;;
         *mch_*)
-            FILE_IDS="atm_3d"
+            probtest_file_ids="*atm_3d*.nc"
             ;;
         *dwd_run_ICON_*)
-            FILE_IDS="atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml,Meteogram"
+            probtest_file_ids="*atm_3d_DOM01_ml*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_ml*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_hl*.nc"
+            probtest_file_ids+=",*atm_3d_DOM02_pl*.nc"
+            probtest_file_ids+=",*atm_3d_ll_DOM01_ml*.nc"
+            probtest_file_ids+=",*atm_3d_ll_DOM02_ml*.nc"
+            probtest_file_ids+=",Meteogram*.nc"
             ;;
         *)
             echo "no file ids specified for '${EXPERIMENT}'"
@@ -459,14 +518,14 @@ function tolerance_check
 
     export PROBTEST_CONFIG=${EXP_BASE}.json
     # initialize configuration file
-    python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
+        python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
         --codebase-install "${MODEL_DIR1}" \
         --reference "not-used" \
         --experiment-name "${EXP_BASE}" \
-        --file-ids "${FILE_IDS}" \
-        --config "${PROBTEST_CONFIG}" \
-        --time_dim time
+        --file-ids "${probtest_file_ids}" \
+        --config "${PROBTEST_CONFIG}"
     if [[ $? != 0 ]] ; then
+        cat check-${EXPERIMENT}.log
         echo "probtest did not initialized successfully"
         TOL_STATUS=1
         return TOL_STATUS
@@ -477,6 +536,7 @@ function tolerance_check
         --stats-file-name ${EXPERIMENT}.csv \
         --no-ensemble
     if [[ $? != 0 ]] ; then
+        cat check-${EXPERIMENT}.log
         echo "probtest did not generate stats successfully"
         TOL_STATUS=1
         return TOL_STATUS
@@ -489,6 +549,7 @@ function tolerance_check
         --tolerance-file-name ${CPU_REFERENCE}/tolerance/${EXPERIMENT}.csv \
         --factor 5
     if [[ $? != 0 ]] ; then
+        cat check-${EXPERIMENT}.log
         echo "probtest tolerance test did not complete successfully"
         TOL_STATUS=1
         return TOL_STATUS
@@ -499,6 +560,7 @@ function tolerance_check
     crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
     finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
     if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
+        cat check-${EXPERIMENT}.log
         echo "testsuite did not complete successfully"
         TOL_STATUS=1
     fi
@@ -530,6 +592,7 @@ function performance_check
         --timing-regex ${LOG_FILE} \
         --timing-database ${EXPERIMENT}_${BB_NAME} \
         --append-time False
+    TOL_STATUS=$?
 
     # compare the generated performance against the reference
     # Assumption: The first table is the correct one
@@ -540,14 +603,19 @@ function performance_check
         --measurement-uncertainty 1 \
         --tolerance-factor 1.1 \
         --new-reference-threshold 0.95
+    TOL_STATUS=$?
 
     # get the relevant success check
     fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
     crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
     finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
     if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
-        echo "testsuite did not complete successfully"
         TOL_STATUS=1
+    fi
+
+    if [[ $TOL_STATUS -gt 0 ]] ; then
+        cat check-${EXPERIMENT}.log
+        echo "testsuite did not complete successfully"
     fi
 
     return $TOL_STATUS

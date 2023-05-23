@@ -150,7 +150,7 @@ MODULE mo_output_event_handler
   USE mo_name_list_output_config,ONLY: use_async_name_list_io
   USE mo_parallel_config,        ONLY: pio_type
   USE iso_c_binding,             ONLY: c_size_t, c_loc
-  USE mo_util_libc,              ONLY: memcmp, memset
+  USE mo_util_libc,              ONLY: memcmp_f, memset_f
 
   IMPLICIT NONE
 
@@ -2057,7 +2057,7 @@ CONTAINS
         IF (ierror /= mpi_success) CALL finish(routine, 'mpi_type_free error')
       END IF
     END DO
-    CALL memset(C_LOC(dummy(1)), 0, INT(2*stride, c_size_t))
+    CALL memset_f(C_LOC(dummy(1)), 0, INT(2*stride, c_size_t))
     dummy(1)%name = 'test_name'
     dummy(1)%begin_str(1) = '1970-01-01'
     dummy(1)%begin_str(2:) = ''
@@ -2100,7 +2100,7 @@ CONTAINS
       &               dummy(2), 1, event_data_dt, 0, 178, &
       &               mpi_comm_self, mpi_status_ignore, ierror)
     IF (ierror /= mpi_success) CALL finish(routine, 'transfer test error')
-    IF (memcmp(C_LOC(dummy(1)), C_LOC(dummy(2)), INT(stride, c_size_t))) &
+    IF (memcmp_f(C_LOC(dummy(1)), C_LOC(dummy(2)), INT(stride, c_size_t))) &
       CALL finish(routine, 'transfer test error')
   END SUBROUTINE create_event_data_dt
 

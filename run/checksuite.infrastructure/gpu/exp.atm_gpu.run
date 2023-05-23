@@ -1008,6 +1008,11 @@ if [ x$namelist_list = x ]; then
     modelname_list[0]="jsbach"
     modeltype_list[0]=5
     run_jsbach_standalone="true"
+  elif [ x$dace_namelist != x ]; then
+    # this is the dace model
+    namelist_list[0]="$dace_namelist"
+    modelname_list[0]="dace"
+    modeltype_list[0]=6
   elif [ x$testbed_namelist != x ]; then
     # this is the testbed model
     namelist_list[0]="$testbed_namelist"

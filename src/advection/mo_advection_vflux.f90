@@ -193,11 +193,8 @@ CONTAINS
 
     TYPE(t_advection_config), POINTER :: advconf
 
-    REAL(wp) :: z_mflx_contra_v(nproma) !< auxiliary variable for computing vertical nest interface quantities
+    REAL(wp) :: z_mflx_contra_v !< auxiliary variable for computing vertical nest interface quantities
 
-#ifdef __INTEL_COMPILER
-!DIR$ ATTRIBUTES ALIGN : 64 :: z_mflx_contra_v
-#endif
     !-----------------------------------------------------------------------
 
     IF (timers_level > 2) CALL timer_start(timer_adv_vflx)
@@ -292,8 +289,7 @@ CONTAINS
       i_startblk = p_patch%cells%start_block(i_rlstart_c)
       i_endblk   = p_patch%cells%end_block(i_rlend_c)
 
-      !$ACC DATA PRESENT(p_mflx_contra_v, p_patch, q_int, p_upflux, trAdvect) &
-      !$ACC   CREATE(z_mflx_contra_v)
+      !$ACC DATA PRESENT(p_mflx_contra_v, p_patch, q_int, p_upflux, trAdvect)
 
 !$OMP PARALLEL DO PRIVATE(jb,jt,jc,nt,i_startidx,i_endidx,z_mflx_contra_v) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk, i_endblk
@@ -301,19 +297,18 @@ CONTAINS
           &                 i_startidx, i_endidx, i_rlstart_c, i_rlend_c )
 
         ! Be sure to avoid division by zero
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(i_am_accel_node)
-        DO jc = i_startidx, i_endidx
-          z_mflx_contra_v(jc) = SIGN( MAX(ABS(p_mflx_contra_v(jc,p_patch%nshift_child,jb)),dbl_eps), &
-            &                                 p_mflx_contra_v(jc,p_patch%nshift_child,jb) )
-        ENDDO
-
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len
+          !$ACC LOOP GANG VECTOR PRIVATE(z_mflx_contra_v)
           DO jc = i_startidx, i_endidx
             jt = trAdvect%list(nt)
-            q_int(jc,jt,jb) = p_upflux(jc,p_patch%nshift_child,jb,jt) / z_mflx_contra_v(jc)
+            z_mflx_contra_v = SIGN( MAX(ABS(p_mflx_contra_v(jc,p_patch%nshift_child,jb)),dbl_eps), &
+            &                               p_mflx_contra_v(jc,p_patch%nshift_child,jb) )
+            q_int(jc,jt,jb) = p_upflux(jc,p_patch%nshift_child,jb,jt) / z_mflx_contra_v
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
       ENDDO
 !$OMP END PARALLEL DO
 
@@ -1906,6 +1901,7 @@ CONTAINS
     END IF
 #endif
 
+    !$ACC WAIT
     !$ACC END DATA
 
     IF ( ld_cleanup ) THEN
@@ -2319,6 +2315,7 @@ CONTAINS
       ! do nothing
     END SELECT
 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE compute_face_values_psm
@@ -2516,6 +2513,7 @@ CONTAINS
     END DO  !jk
     !$ACC END PARALLEL
 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE compute_face_values_ppm

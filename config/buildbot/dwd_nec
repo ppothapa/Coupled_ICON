@@ -10,7 +10,7 @@ MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 # create vector engine binary
-${ICON_DIR}/config/dwd/rcl.VE.nfort-4.0.0_mpi-2.22_art_oper --prefix=${PWD}/vector
+${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec --prefix=${PWD}/vector
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
 make install
@@ -23,7 +23,7 @@ mv -v run/set-up.info run/set-up.info.vector
 make distclean
 
 # create vector host binary
-${ICON_DIR}/config/dwd/rcl.VH.gcc-9.2.0_mpi-2.22_art_oper --prefix=${PWD}/host
+${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec --prefix=${PWD}/host
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
 make install

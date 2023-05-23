@@ -1289,8 +1289,9 @@
 
       ! check for event been active
       my_duration_slack => newTimedelta("PT0S")
-      my_duration_slack = time_config%tc_dt_model*0.5_wp
-      isactive = isCurrentEventActive(latbc%prefetchEvent, cur_datetime, my_duration_slack)
+      my_duration_slack = time_config%tc_dt_model*0.4999_wp
+
+      isactive = isCurrentEventActive(latbc%prefetchEvent, cur_datetime, my_duration_slack, my_duration_slack)
       CALL deallocateTimedelta(my_duration_slack)
 
       ! do we need to read boundary data

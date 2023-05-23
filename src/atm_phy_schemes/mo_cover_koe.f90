@@ -52,7 +52,7 @@ MODULE mo_cover_koe
   USE mo_impl_constants,     ONLY: iedmf
 
   USE mo_nwp_tuning_config,  ONLY: tune_box_liq, tune_box_liq_asy, tune_thicklayfac, tune_sgsclifac, icpl_turb_clc, &
-                                   tune_box_liq_sfc_fac, allow_overcast
+                                   tune_box_liq_sfc_fac, allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
 
   USE mo_ensemble_pert_config, ONLY: box_liq_sv, thicklayfac_sv, box_liq_asy_sv
 
@@ -119,7 +119,10 @@ SUBROUTINE cover_koe( &
   & pmfude_rate                     , & ! in:    convection: updraft detrainment rate
   & plu                             , & ! in:    convection: updraft condensate
   & pcore                           , & ! in:    convection: updraft core fraction
+  & peis                            , & ! in:    estimated inversion strength
   & rhoc_tend                       , & ! in:    convective rhoc tendency
+  & kcinv                           , & ! in:    inversion height index
+  & linversion                      , & ! in:    inversion logical
   & qv, qc, qi, qs, qtvar, qc_sgs   , & ! inout: prognostic cloud variables
   & lacc                            , & ! in:    parameter to prevent openacc during init
   & ttend_clcov                     , & ! out:   temperature tendency due to sgs condensation
@@ -173,6 +176,14 @@ INTEGER(KIND=i4), DIMENSION(:), INTENT(IN) ::  &
   & kcbot            , & ! convective cloud base level (klev: bottom level, -1: no conv)
   & kctop                ! convective cloud top level
 
+REAL(KIND=wp), DIMENSION(:), INTENT(IN) ::  &
+  & peis                 ! estimated inversion strength
+
+INTEGER, DIMENSION(:), INTENT(IN) ::  &
+  & kcinv                ! inversion height index
+
+LOGICAL, DIMENSION(:), INTENT(IN) :: linversion
+
 REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & pmfude_rate      , & ! convective updraft detrainment rate           (kg/(m3*s))
   & plu              , & ! updraft condensate                            (kg/kg)
@@ -208,16 +219,21 @@ REAL(KIND=wp), DIMENSION(klon,klev)  :: &
   & cc_turb_liq, cc_turb_ice , &
   & p0
 
+REAL(KIND=wp), DIMENSION(klon) ::  &
+  & zsc_top
 
 REAL(KIND=wp) :: &
   & fgew   , fgee   , fgqs   , dqsdt,   & !fgqv   , & ! name of statement functions
   & ztt    , zzpv   , zzpa   , zzps   , zqs, &
   & zf_ice , deltaq , qisat_grid, zdeltaq, zrcld, thicklay_fac, tfac, satdef_fac, rhcrit_sgsice, &
   & vap_pres, zaux, zqisat_m50, zqisat_m25, qi_mod, par1, qcc, box_liq_asy, fac_aux, fac_sfc, &
-  & rcld_asyfac, dq1, dq2, dq3, tfmax
+  & rcld_asyfac, dq1, dq2, dq3, tfmax, sc_exp
 
 REAL(KIND=wp), DIMENSION(klon,klev)  :: &
   zqlsat , zqisat, zagl_lim, zdqlsat_dT
+
+LOGICAL, DIMENSION(klon) ::  &
+     & stratocumulus
 
 !! Local parameters:
 !! -----------------
@@ -229,8 +245,8 @@ REAL(KIND=wp), PARAMETER  :: &
   & tm10     = tmelt - 10.0_wp, &
   & tm40     = tmelt - 40.0_wp
 
-  REAL(KIND=wp), PARAMETER :: grav_i = 1._wp/grav
-  REAL(KIND=wp), PARAMETER :: lvocv = alv/cvd
+REAL(KIND=wp), PARAMETER :: grav_i = 1._wp/grav
+REAL(KIND=wp), PARAMETER :: lvocv = alv/cvd
 
 !-----------------------------------------------------------------------
 
@@ -253,7 +269,7 @@ REAL(KIND=wp), PARAMETER  :: &
   CALL set_acc_host_or_device(lzacc, lacc)
 
 !$ACC DATA CREATE(cc_turb, qc_turb, qi_turb, cc_conv, qc_conv, qi_conv, cc_turb_liq, cc_turb_ice) &
-!$ACC   CREATE(p0, zqlsat, zqisat, zagl_lim, zdqlsat_dT) &
+!$ACC   CREATE(p0, zqlsat, zqisat, zagl_lim, zdqlsat_dT, stratocumulus, zsc_top) &
 !$ACC   IF(lzacc)
 
 ! saturation mixing ratio at -50 C and 200 hPa
@@ -315,6 +331,26 @@ ENDDO
 !$ACC END PARALLEL
 
 !-----------------------------------------------------------------------
+! Calculate averaged vertical velocity for stratocumulus diagnostic
+!-----------------------------------------------------------------------
+
+! For enhanced diagnostic cloud cover in stratocumulus regime, identify
+! Sc region based on EIS criterion exceeding threshold, plus inversion height
+! falling between a critical min/max level.
+!$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
+!$ACC LOOP GANG VECTOR
+DO jl = kidia,kfdia
+  IF (linversion(jl)) THEN
+    zsc_top(jl) = pgeo(jl,kcinv(jl))*grav_i   
+  ELSE
+    zsc_top(jl) = 0._wp
+  END IF
+  stratocumulus(jl) = ( linversion(jl)  .and. peis(jl) > 0.75_wp*tune_sc_eis    &
+               &       .and. zsc_top(jl) > tune_sc_invmin .and. zsc_top(jl) < tune_sc_invmax )
+END DO
+!$ACC END PARALLEL
+
+!-----------------------------------------------------------------------
 ! Select desired cloud cover framework
 !-----------------------------------------------------------------------
 
@@ -349,7 +385,6 @@ CASE( 1 )
     !$ACC   PRIVATE(box_liq_asy, par1, zaux, fac_aux, rhcrit_sgsice) &
     !$ACC   PRIVATE(qi_mod, qisat_grid, tfac, satdef_fac, qcc)
     DO jl = kidia,kfdia
-
 ! stratiform cloud
 !  liquid cloud
      !
@@ -367,6 +402,15 @@ CASE( 1 )
         deltaq = dq1*zdeltaq+(dq2+dq3*thicklay_fac)*zrcld
       ENDIF
       deltaq = MIN(deltaq,2._wp*zdeltaq)
+      ! Enhance cloud cover in stratocumulus regions by assuming linear relationship between humidity and
+      ! cloud cover (instead of quadratic). The exponent sc_exp varies linearly across critical EIS threshold, and
+      ! for temperatures decreasing from -5C to -15C for a smoother transition between the default value of sc_exp=2
+      ! and the stratocumulus-region value sc_exp=1.
+      IF (stratocumulus(jl) .and. pgeo(jl,jk)*grav_i < zsc_top(jl) .and. pgeo(jl,jk)*grav_i > tune_sc_invmin) THEN
+        sc_exp = MAX(0._wp,MIN(1._wp,3._wp/tune_sc_eis*(peis(jl)-0.75_wp*tune_sc_eis),0.1_wp*(tt(jl,jk)+15._wp-tmelt)))
+      ELSE
+        sc_exp = 0._wp
+      ENDIF
       IF ( ( qv(jl,jk) + qc(jl,jk) - deltaq ) > zqlsat(jl,jk) ) THEN
         cc_turb_liq(jl,jk) = 1.0_wp
         qc_turb  (jl,jk)   = qv(jl,jk) + qc(jl,jk) - zqlsat(jl,jk)
@@ -380,7 +424,8 @@ CASE( 1 )
         par1=par1*allow_overcast !setting allow_overcast<1 together with reduction of tune_box_liq_asy causes steeper CLC(RH) dependence
         !
         zaux = qv(jl,jk) + qc(jl,jk) + box_liq_asy*deltaq - zqlsat(jl,jk)
-        cc_turb_liq(jl,jk) = MIN(1._wp,SIGN((zaux/(par1*deltaq))**2,zaux)) !limit cloud cover to 1 is needed for allow_overcast<1
+        !limit cloud cover to 1 is needed for allow_overcast<1
+        cc_turb_liq(jl,jk) = MIN(1._wp,SIGN((ABS(zaux)/(par1*deltaq))**(2._wp-sc_exp),zaux))
         ! compensating reduction of cloud water content if the thick-layer correction is active
         fac_aux = 1._wp + fac_ccqc(jl)*(lvocv*zdqlsat_dT(jl,jk)+thicklay_fac)*MIN(1._wp,2.5_wp*(1._wp-cc_turb_liq(jl,jk)))
         IF ( cc_turb_liq(jl,jk) > 0.0_wp ) THEN
