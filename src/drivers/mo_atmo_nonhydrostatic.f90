@@ -33,6 +33,7 @@ USE mo_advection_config,     ONLY: configure_advection
 USE mo_art_config,           ONLY: configure_art
 USE mo_assimilation_config,  ONLY: configure_lhn, assimilation_config
 USE mo_run_config,           ONLY: dtime,                & !    namelist parameter
+  &                                lart,                 &
   &                                ltestcase,            &
   &                                iforcing,             & !    namelist parameter
   &                                output_mode,          &
@@ -104,6 +105,10 @@ USE mo_sppt_state,           ONLY: construct_sppt_state, destruct_sppt_state
 USE mo_sppt_config,          ONLY: sppt_config, configure_sppt
 USE mo_nwp_phy_cleanup,      ONLY: cleanup_nwp_phy
 USE mo_nwp_ww,               ONLY: configure_ww
+#endif
+#ifdef __ICON_ART
+! ICON-ART
+USE mo_art_init_interface,   ONLY: art_init_atmo_tracers_nwp
 #endif
 
 ! AES physics
@@ -186,7 +191,6 @@ CONTAINS
     CLASS(t_RestartDescriptor), POINTER  :: restartDescriptor
 
     CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
-
 
     !------------------------------------------------------------------
     ! Now start the time stepping:
@@ -793,6 +797,32 @@ CONTAINS
 
     END DO
 #endif
+
+#ifndef __NO_NWP__
+#ifdef __ICON_ART
+    IF (iforcing == inwp) THEN
+      !--------------------------!
+      !  Initialize ART for NWP  !
+      !--------------------------!
+      IF (lart) THEN
+        DO jg=1, n_dom
+          IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+          CALL art_init_atmo_tracers_nwp(                       &
+               &  jg,                                           &
+               &  time_config%tc_current_date,                  &
+               &  p_nh_state(jg),                               &
+               &  ext_data(jg),                                 &
+               &  prm_diag(jg),                                 &
+               &  p_nh_state(jg)%prog(nnow(jg)),                &
+               &  p_nh_state(jg)%prog(nnow_rcf(jg))%tracer,     &
+               &  p_nh_state_lists(jg)%prog_list(nnow_rcf(jg)), & 
+               &  p_patch(jg)%nest_level)
+        ENDDO
+      END IF  ! lart
+    END IF  ! iforcing == inwp
+#endif
+#endif /* __NO_NWP__ */
+
     !-------------------------------------------------------!
     !  (Optional) detailed print-out of some variable info  !
     !-------------------------------------------------------!

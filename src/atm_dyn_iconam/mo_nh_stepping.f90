@@ -397,24 +397,6 @@ MODULE mo_nh_stepping
       ENDDO
     END IF
 
-#ifdef __ICON_ART
-    IF (lart) THEN
-      DO jg=1, n_dom
-        IF (.NOT. p_patch(jg)%ldom_active) CYCLE
-        CALL art_init_atmo_tracers_nwp(                       &
-             &  jg,                                           &
-             &  mtime_current,                                &
-             &  p_nh_state(jg),                               &
-             &  ext_data(jg),                                 &
-             &  prm_diag(jg),                                 &
-             &  p_nh_state(jg)%prog(nnow(jg)),                &
-             &  p_nh_state(jg)%prog(nnow_rcf(jg))%tracer,     &
-             &  p_nh_state_lists(jg)%prog_list(nnow_rcf(jg)), & 
-             &  p_patch(jg)%nest_level)
-      ENDDO
-    END IF  ! lart
-#endif
-
     ! Initialize time-dependent ensemble perturbations if necessary
     IF (use_ensemble_pert .AND. gribout_config(1)%perturbationNumber >= 1) THEN
       CALL compute_ensemble_pert(p_patch(1:), ext_data, prm_diag, phy_params, mtime_current, .FALSE., lacc=.FALSE.)
