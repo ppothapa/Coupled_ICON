@@ -63,6 +63,7 @@ MODULE mo_aes_phy_init
 #ifndef __NO_JSBACH__
   ! land surface
   USE mo_jsb_model_init,       ONLY: jsbach_init
+  USE mo_jsb_interface,        ONLY: jsbach_get_var
 #endif
 
   ! carbon cycle
@@ -955,6 +956,58 @@ CONTAINS
         END DO
 !$OMP END PARALLEL DO
 
+      CASE('aes_bubble_land')
+        ! Note that there is only one surface type for land in this case !!!
+
+#ifndef __NO_JSBACH__
+        !
+        IF (.NOT. aes_phy_config(jg)%ljsb) THEN 
+          CALL finish('mo_aes_phy_init:init_aes_phy_field', 'aes_bubble_land testcase but JSBACH not activated (ljsb)')
+        END IF
+
+        IF (.NOT. isrestart()) THEN
+          CALL jsbach_get_var('seb_t',            jg, tile='land', arr2d=field%ts_tile       (:,:,ilnd))
+          CALL jsbach_get_var('turb_rough_m',     jg, tile='veg',  arr2d=field%z0m_tile      (:,:,ilnd))
+          CALL jsbach_get_var('rad_alb_vis_soil', jg, tile='veg',  arr2d=field%albvisdif_tile(:,:,ilnd))
+          CALL jsbach_get_var('rad_alb_nir_soil', jg, tile='veg',  arr2d=field%albnirdif_tile(:,:,ilnd))
+        END IF
+
+!$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE
+        DO jb = jbs,jbe
+          !
+          CALL get_indices_c( p_patch, jb,jbs,jbe, jcs,jce, rls,rle)
+          IF (jcs>jce) CYCLE 
+
+          IF (.NOT. isrestart()) THEN
+            DO jc = jcs,jce
+              field% ts            (jc,jb     ) = field%ts_tile(jc,jb,ilnd)
+              field% z0m           (jc,jb     ) = field%z0m_tile(jc,jb,ilnd)
+              field% z0h_lnd       (jc,jb     ) = field%z0m(jc,jb) / 3._wp
+              field% albvisdir_tile(jc,jb,ilnd) = field%albvisdif_tile(jc,jb,ilnd)
+              field% albnirdir_tile(jc,jb,ilnd) = field%albnirdif_tile(jc,jb,ilnd)
+              field% albvisdif     (jc,jb     ) = field%albvisdif_tile(jc,jb,ilnd)
+              field% albnirdif     (jc,jb     ) = field%albnirdif_tile(jc,jb,ilnd)
+              field% albvisdir     (jc,jb     ) = field%albvisdif_tile(jc,jb,ilnd)
+              field% albnirdir     (jc,jb     ) = field%albnirdif_tile(jc,jb,ilnd)
+              field% alb(jc,jb) = 0.5_wp * (field%albvisdif(jc,jb) + field%albnirdif(jc,jb))
+            END DO
+          END IF
+          !
+          ! initial and re-start
+          field% frac_tile (jcs:jce,jb,ilnd) = 1._wp
+          field% lsmask    (jcs:jce,jb     ) = 1._wp   ! land everywhere
+          field% alake     (jcs:jce,jb     ) = 0._wp   ! zero lake fraction
+          field% glac      (jcs:jce,jb     ) = 0._wp   ! zero glacier fraction
+          field% seaice    (jcs:jce,jb     ) = 0._wp   ! zero sea ice fraction
+          field% emissivity(jcs:jce,jb     ) = zemiss_def ! use default emissivity
+          !
+        END DO
+!$OMP END PARALLEL DO
+
+#else
+      CALL finish('mo_aes_phy_init:init_aes_phy_field', 'aes_bubble_land testcase but JSBACH not compiled')
+#endif
+
       CASE('RCE') !Note that there is only one surface type in this case
         !
 !$OMP PARALLEL DO PRIVATE(jb,jc,jcs,jce,zlat) ICON_OMP_DEFAULT_SCHEDULE
@@ -1156,7 +1209,7 @@ CONTAINS
           field%albvisdif(:,:) = albedoW
           field%albnirdir(:,:) = albedoW
           field%albnirdif(:,:) = albedoW
-        ELSE
+        ELSE IF (.NOT. (ltestcase .AND. TRIM(nh_test_name) == 'aes_bubble_land')) THEN
           field%ts       (:,:) = field%ts_tile(:,:,ilnd)
           field%albvisdir(:,:) = field%alb(:,:)
           field%albvisdif(:,:) = field%alb(:,:)
