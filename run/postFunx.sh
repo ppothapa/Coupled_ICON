@@ -2,7 +2,7 @@
 # @author: ralf mueller, ralf.mueller@dkrz.de
 # ================================================================================
 function diffWithExitCode {
-#   set -x 
+#   set -x
   fileA=$1
   fileB=$2
   ofile=`mktemp`
@@ -30,32 +30,44 @@ function accumulationDiff {
 }
 
 function directoryDiff {
-#   set -x 
+#   set -x
   refDir=$1
   expDir=$2
   nDiff=0
 
+  # abort if directory does not exist
   if [[ ! -d $refDir ]]; then
     return 99
   fi
 
+  # abort if directory does not contain files to compare with to avoid false
+  # positive results (0 == refCount after the diff)
+  refCount=0
 
-  refList=`ls ${refDir}/*`
+  # make sure that:
+  # - only files (not directories) are used
+  # - full path to the reference data is provided
+  refList=$(find ${refDir} -maxdepth 1 -type f)
+
   for refFile in ${refList}; do 
-    if [[ -f $refFile ]]; then
-      refFileBasename=$(basename ${refFile})
-      case "${refFileBasename}" in
-      *.nc*)
+    refFileBasename=$(basename ${refFile})
+    case "${refFileBasename}" in
+      *.nc*) # only netcdf files are taken into account
         DIFF='diffWithExitCode'
-      ;;
+        ;;
       *)
         DIFF='true' # disabled for not nc-files
-      ;;
-      esac
-      ${DIFF} ${refFile} ${expDir}/${refFileBasename}
-      if (( $nDiff > 0 )); then
-        return $nDiff
-      fi
+        ;;
+    esac
+    ${DIFF} ${refFile} ${expDir}/${refFileBasename}
+    ((refCount = refCount + 1))
+    if (( $nDiff > 0 )); then
+      return $nDiff
     fi
   done
+
+  if [[ 0 = ${refCount} ]]; then
+    echo "Could not find anything to compare in ${refDir}!"
+    return 99
+  fi
 }

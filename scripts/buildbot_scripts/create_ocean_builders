@@ -16,5 +16,5 @@ fi
 
 ./set_builder_flags Inactive --builders "DAINT_CPU_cce DAINT_CPU_pgi DAINT_GPU_pgi DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 ./set_builder_flags Inactive --builders "DWD_nec DWD_nec_hybrid DWD_nec_yac2" --list $listname
-./set_builder_flags Inactive --builders "levante_intel_hybrid_mixed levante_nag_serial levante_intel_pio" --list $listname
+./set_builder_flags Inactive --builders "levante_intel_hybrid_mixed levante_nag_serial levante_intel_pio levante_cpu_nvhpc levante_gpu_nvhpc" --list $listname
 ./set_builder_flags Inactive --builders "breeze_gcc breeze_gcc_openmp breeze_intel breeze_intel_openmp breeze_nag" --list $listname
