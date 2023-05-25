@@ -82,7 +82,6 @@ CONTAINS
     lret = addEventToEventGroup(dummyWaveEvent, waveEventGroup)
 
     CALL printEventGroup(waveEventsGroupID)
-
     ! cleanup
     CALL deallocateTimedelta(eventInterval)
 

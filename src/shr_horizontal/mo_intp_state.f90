@@ -178,6 +178,7 @@ USE mo_update_dyn_scm ,     ONLY: rbf_coeff_scm
 USE mo_grid_config,         ONLY: l_scm_mode
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
+USE mo_master_control,      ONLY: get_my_process_type, wave_process
 #ifdef SERIALIZE
 USE mo_ser_rbf_coefficients, ONLY: ser_rbf_coefficients
 USE mo_ser_nml,             ONLY: ser_rbf
@@ -1534,7 +1535,17 @@ DO jg = n_dom_start, n_dom
   CALL complete_patchinfo( ptr_patch(jg), ptr_int_state(jg))
   CALL init_geo_factors(ptr_patch(jg), ptr_int_state(jg))
   IF (ptr_patch(jg)%geometry_info%cell_type==3)THEN
-    CALL init_cellavg_wgt(ptr_patch(jg), ptr_int_state(jg))
+
+    ! !!! TEMPORAL HACK !!!
+    ! CALL of init_cellavg_wgt is skipped for the wave model
+    IF (get_my_process_type() /= wave_process) THEN
+      !
+      ! not needed for the wave model.
+      ! Running this routine for the wave model with the NAG compiler
+      ! results in a floating point exception in calculate_bilinear_cellavg_wgt.
+      CALL init_cellavg_wgt(ptr_patch(jg), ptr_int_state(jg))
+    ENDIF
+
     CALL bln_int_coeff_e2c( ptr_patch(jg), ptr_int_state(jg) )
     IF(jg>0) THEN
       IF (l_limited_area .AND. jg == 1 .OR. jg > 1) THEN

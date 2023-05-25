@@ -34,10 +34,11 @@ MODULE mo_init_wave_physics
   USE mo_wave_config,          ONLY: t_wave_config
   USE mo_wave_ext_data_types,  ONLY: t_external_wave
   USE mo_wave_constants,       ONLY: EMIN
-  USE mo_wave_physics,         ONLY: wave_group_velocity_c,  &
-       &                             wave_group_velocity_e,  &
-       &                             wave_group_velocity_nt, &
-       &                             wave_group_velocity_bnd
+  USE mo_wave_physics,         ONLY: wave_group_velocity_c,   &
+    &                                wave_group_velocity_e,   &
+    &                                wave_group_velocity_nt,  &
+    &                                wave_group_velocity_bnd, &
+    &                                wave_number_c, wave_number_e
 
   IMPLICIT NONE
 
@@ -70,11 +71,14 @@ CONTAINS
     TYPE(t_wave_forcing),        INTENT(IN)    :: p_forcing
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
-    REAL(wp), PARAMETER :: FLMIN = 0.000001_wp !! ABSOLUTE MINIMUM ENERGY IN SPECTRAL BINS
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
       &  routine = modname//'::init_wave_phy'
 
+    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
+    INTEGER :: i_startidx, i_endidx
+    INTEGER :: jc,jb,jf
+    
     ! save some paperwork
     wc => wave_config
 
@@ -88,8 +92,6 @@ CONTAINS
          p_diag%FP,                 &
          p_diag%FLMINFR)           !OUT
 
-    p_diag%FLMINFR = MAX(p_diag%FLMINFR,FLMIN)  !! AVOID TOO SMALL NUMBERS
-
     ! Set JONSWAP spectrum
     CALL JONSWAP(p_patch,           &
          wc%freqs,                  &
@@ -100,17 +102,34 @@ CONTAINS
 
     CALL init_wave_spectrum(p_patch, wc, p_diag, p_forcing, p_prog%tracer)
 
+    ! get wave number as a function of circular frequency and water depth
+    ! at cell center
+    CALL wave_number_c(p_patch     = p_patch,                    & !IN
+      &                wave_config = wave_config,                & !IN
+      &                depth       = wave_ext_data%bathymetry_c, & !IN
+      &                wave_num_c  = p_diag%wave_num_c)            !OUT
+
+    ! get wave number as a function of circular frequency and water depth
+    ! at edge midpoint
+    CALL wave_number_e(p_patch     = p_patch,                    & !IN
+      &                wave_config = wave_config,                & !IN
+      &                depth       = wave_ext_data%bathymetry_e, & !IN
+      &                wave_num_e  = p_diag%wave_num_e)            !OUT
+
+
     ! compute absolute value of group velocity at cell centers
     !
     CALL wave_group_velocity_c(p_patch, wc, &
-         wave_ext_data%bathymetry_c, &
-         p_diag%gv_c) !INOUT
+         p_diag%wave_num_c,          &  ! IN
+         wave_ext_data%bathymetry_c, &  ! IN
+         p_diag%gv_c)                   !INOUT
 
     ! compute absolute value of group velocity at edge midpoints
     !
     CALL wave_group_velocity_e(p_patch, wc, &
-         wave_ext_data%bathymetry_e, &
-         p_diag%gv_e) !INOUT
+         p_diag%wave_num_e,          &  ! IN
+         wave_ext_data%bathymetry_e, &  ! IN
+         p_diag%gv_e)                   !INOUT
 
     ! compute normal and tangential components of group velociy vector
     ! at edge midpoints
@@ -170,7 +189,7 @@ CONTAINS
           !
           jt = wave_config%get_tracer_id(jd,jf)
           !
-          DO jc = i_startidx, i_endidx
+        DO jc = i_startidx, i_endidx
             st = rpi_2*MAX(0._wp, COS(wave_config%dirs(jd)-p_forcing%dir10m(jc,jb)*deg2rad) )**2
             IF (st < 0.1E-08_wp) st = 0._wp
 
@@ -208,6 +227,8 @@ CONTAINS
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = 'JONSWAP'
 
+    REAL(wp), PARAMETER :: FLMIN = 0.000001_wp !! absolute minimum energy in spectral bins
+    
     REAL(wp) :: ARG, sigma, G2ZPI4FRH5M
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -225,7 +246,7 @@ CONTAINS
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
-        &                 i_startidx, i_endidx, i_rlstart, i_rlend)
+           &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,SIZE(freqs)
 
@@ -242,9 +263,13 @@ CONTAINS
           END IF
 
           ARG = 0.5_wp*((freqs(jf)-FP(jc,jb)) / (sigma*FP(jc,jb)))**2._wp
-          IF (ARG.LT.99.) THEN
+          IF (ARG.LT.99._wp) THEN
             ET(jc,jb,jf) = ET(jc,jb,jf)*exp(log(GAMMA)*EXP(-ARG))
           END IF
+
+          ! Avoid too small numbers of p_diag%FLMINFR          
+          ET(jc,jb,jf) = MAX(ET(jc,jb,jf),FLMIN)
+          
         END DO  !jc
       END DO  !jf
     END DO  !jb
@@ -305,7 +330,7 @@ CONTAINS
     !     1. COMPUTE VALUES FROM FETCH LAWS.                                       !
     !        -------------------------------
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,UG)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,UG)
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)

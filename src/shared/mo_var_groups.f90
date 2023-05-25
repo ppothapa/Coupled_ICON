@@ -49,7 +49,7 @@ MODULE mo_var_groups
   ! Note that the statically defined group list "var_groups" is
   ! non-public. Its contents are copied to a dynamically growing list
   ! "var_groups_dyn".
-  INTEGER, PARAMETER :: N_VAR_GROUPS_STATIC = 70
+  INTEGER, PARAMETER :: N_VAR_GROUPS_STATIC = 71
 
   CHARACTER(LEN=vname_len), PARAMETER :: VAR_GROUPS_STATIC(N_VAR_GROUPS_STATIC) = &
      [ "ALL                   ",  &
@@ -117,11 +117,12 @@ MODULE mo_var_groups
     &  "UPATMO_RAD_GASES      ",  &  ! Upper-atmosphere radiatively active gases
     &  "IAU_RESTORE_VARS      ",  &  ! Dynamics + NWP Physics fields for the IAU save/restore mechanism
     &  "IAU_INIT_VARS         ",  &  ! Dynamics + NWP Physics fields for the IAU reinitialization mechanism
-    &  "WAVE_SPECTRUM         ",  &  ! Full wave spectrum output for ICON-waves
-    &  "WIND_10M              ",  &  ! Wind 10m group for ICON-waves
-    &  "WAVE_PHY              ",  &  ! Wave physics group for ICON-waves
-    &  "WAVE_SHORT            ",  &  ! Short/"standart" output for ICON-waves
-    &  "WAVE_FORCING          "   ]  ! Wave forcing output for ICON-waves
+    &  "WAVE_SPECTRUM         ",  &  ! ICON-waves: full wave spectrum output
+    &  "WIND_10M              ",  &  ! ICON-waves: wind 10m
+    &  "WAVE_PHY              ",  &  ! ICON-waves: wave physics
+    &  "WAVE_PHY_EXT          ",  &  ! ICON-waves: extended wave physics
+    &  "WAVE_SHORT            ",  &  ! ICON-waves: short/"standart"
+    &  "WAVE_FORCING          "   ]  ! ICON-waves: wave forcing
 
   ! ---------------------------------------------------------------
   ! DYNAMICALLY DEFINED VARIABLE GROUPS

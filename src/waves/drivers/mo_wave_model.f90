@@ -104,7 +104,6 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "mo_wave_model:construct_wave_model"
     INTEGER                 :: dedicatedRestartProcs
-    LOGICAL                 :: radar_flag_doms_model(n_dom)
     INTEGER :: error_status
     ! initialize global registry of lon-lat grids
     CALL lonlat_grids%init()
@@ -146,13 +145,10 @@ CONTAINS
     !-------------------------------------------------------------------
     CALL restartWritingParameters(opt_dedicatedProcCount = dedicatedRestartProcs)
 
-    radar_flag_doms_model(1:n_dom) = .FALSE.
     CALL set_mpi_work_communicators(p_test_run, l_test_openmp,                    &
          &                          num_io_procs, dedicatedRestartProcs,          &
          &                          wave_process, num_prefetch_proc, num_test_pe, &
          &                          pio_type, &
-         &                          num_io_procs_radar=num_io_procs_radar,        &
-         &                          radar_flag_doms_model=radar_flag_doms_model,  &
          &                          num_dio_procs=proc0_shift)
 
     !-------------------------------------------------------------------

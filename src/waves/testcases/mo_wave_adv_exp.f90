@@ -22,9 +22,8 @@ MODULE mo_wave_adv_exp
 
   USE mo_kind,                 ONLY: wp
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_wave_types,           ONLY: t_wave_diag
   USE mo_wave_forcing_types,   ONLY: t_wave_forcing
-  USE mo_math_constants,       ONLY: pi, rad2deg
+  USE mo_math_constants,       ONLY: pi, rad2deg, dbl_eps
   USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, min_rlcell
   USE mo_loopindices,          ONLY: get_indices_c
 
@@ -54,14 +53,13 @@ CONTAINS
     REAL(wp):: sin_tmp, cos_tmp, zlat, zlon, d1, r
     REAL(wp), PARAMETER ::                    &
       &  RR         = 1._wp/3._wp,            & ! horizontal half width divided by 'a'
-      &  lambda0    = 1.5_wp*pi,              & ! center point in longitudes
-      &  phi0       = 0.0_wp*pi                 ! center point in latitudes
+      &  lambda0    = 1.3_wp*pi,              & ! center point in longitudes -126
+      &  phi0       = -0.25_wp*pi               ! center point in latitudes -45
 
     i_rlstart  = 1
     i_rlend    = min_rlcell
     i_startblk = p_patch%cells%start_block(i_rlstart)
     i_endblk   = p_patch%cells%end_block(i_rlend)
-
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,zlon,zlat,sin_tmp,cos_tmp,r,d1)
@@ -80,10 +78,12 @@ CONTAINS
         r  = ACOS (sin_tmp + cos_tmp*COS(zlon-lambda0))       ! great circle distance without 'a'
         d1 = MIN( 1._wp, (r/RR) )
 
-        !45 degree towards NE
-        p_forcing%u10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
-        p_forcing%v10m(jc,jb) = 0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp
+        ! calculate U and V wind components and ensure nonzero values in order to 
+        ! avoid division by zero in the following ATAN2 function
+        p_forcing%u10m(jc,jb) = MAX(0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp,dbl_eps)
+        p_forcing%v10m(jc,jb) = MAX(0.5_wp * (1._wp + COS(pi*d1)) * 17.87_wp,dbl_eps)
         p_forcing%sp10m(jc,jb) = SQRT(p_forcing%u10m(jc,jb)**2 + p_forcing%v10m(jc,jb)**2)
+        ! 45 degree towards NE
         p_forcing%dir10m(jc,jb) = ATAN2(p_forcing%v10m(jc,jb),p_forcing%u10m(jc,jb))*rad2deg
       END DO ! cell loop
     END DO

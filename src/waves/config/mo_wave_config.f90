@@ -20,7 +20,7 @@ MODULE mo_wave_config
   USE mo_kind,                 ONLY: wp
   USE mo_exception,            ONLY: finish, message, message_text
   USE mo_impl_constants,       ONLY: max_dom, SUCCESS
-  USE mo_math_constants,       ONLY: pi2, rad2deg
+  USE mo_math_constants,       ONLY: pi2, rad2deg, dbl_eps
   USE mo_physical_constants,   ONLY: grav, rhoh2o
   USE mo_wave_constants,       ONLY: EX_TAIL
   USE mo_fortran_tools,        ONLY: DO_DEALLOCATE
@@ -43,32 +43,38 @@ MODULE mo_wave_config
   PUBLIC :: configure_wave
 
   TYPE t_wave_config
-    INTEGER  :: ndirs    ! NUMBER OF DIRECTIONS.
-    INTEGER  :: nfreqs   ! NUMBER OF FREQUENCIES.
+    INTEGER  :: ndirs    ! number of directions.
+    INTEGER  :: nfreqs   ! number of frequencies.
 
-    REAL(wp) :: fr1      ! FIRST FREQUENCY [HZ].
-    REAL(wp) :: CO       ! FREQUENCY RATIO
-    INTEGER  :: IREF     ! FREQUENCY BIN NUMBER OF REFERENCE FREQUENCY
+    REAL(wp) :: fr1      ! first frequency [hz].
+    REAL(wp) :: co       ! frequency ratio
+    INTEGER  :: iref     ! frequency bin number of reference frequency
 
-    REAL(wp) :: ALPHA      ! PHILLIPS' PARAMETER  (NOT USED IF IOPTI = 1)
-    REAL(wp) :: FM         ! PEAK FREQUENCY (HZ) AND/OR MAXIMUM FREQUENCY
-    REAL(wp) :: GAMMA_wave ! OVERSHOOT FACTOR
-    REAL(wp) :: SIGMA_A    ! LEFT PEAK WIDTH
-    REAL(wp) :: SIGMA_B    ! RIGHT PEAK WIDTH
-    REAL(wp) :: THETAQ     ! WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1)
-    REAL(wp) :: FETCH      ! FETCH IN METRES (IF ZERO THEN 0.5 OF THE LATITUDE INCREMENT IS USED.).
+    REAL(wp) :: alpha      ! phillips' parameter  (not used if iopti = 1)
+    REAL(wp) :: fm         ! peak frequency (hz) and/or maximum frequency
+    REAL(wp) :: gamma_wave ! overshoot factor
+    REAL(wp) :: sigma_a    ! left peak width
+    REAL(wp) :: sigma_b    ! right peak width
+    REAL(wp) :: thetaq     ! wave direction (deg) (not used if iopti = 1)
+    REAL(wp) :: fetch      ! fetch in metres (if zero then 0.5 of the latitude increment is used.).
 
-    REAL(wp) :: ROAIR   ! AIR DENSITY
-    REAL(wp) :: RNUAIR  ! KINEMATIC AIR VISCOSITY
-    REAL(wp) :: RNUAIRM ! KINEMATIC AIR VISCOSITY FOR MOMENTUM TRANSFER
-    REAL(wp) :: ROWATER ! WATER DENSITY
-    REAL(wp) :: XEPS
-    REAL(wp) :: XINVEPS
+    REAL(wp) :: roair   ! air density
+    REAL(wp) :: rnuair  ! kinematic air viscosity
+    REAL(wp) :: rnuairm ! kinematic air viscosity for momentum transfer
+    REAL(wp) :: rowater ! water density
+    REAL(wp) :: xeps
+    REAL(wp) :: xinveps
 
-    REAL(wp) :: XKAPPA  ! VON KARMAN CONSTANT.
-    REAL(wp) :: XNLEV   ! WINDSPEED REF. LEVEL.
-    REAL(wp) :: BETAMAX ! PARAMETER FOR WIND INPUT (ECMWF CY45R1).
-    REAL(wp) :: ZALP    ! SHIFTS GROWTH CURVE (ECMWF CY45R1).
+    REAL(wp) :: xkappa   ! von karman constant.
+    REAL(wp) :: xnlev    ! windspeed ref. level.
+    REAL(wp) :: betamax  ! parameter for wind input (ecmwf cy45r1).
+    REAL(wp) :: zalp     ! shifts growth curve (ecmwf cy45r1).
+    REAL(wp) :: alpha_ch ! minimum charnock constant (ecmwf cy45r1)
+
+    REAL(wp) :: depth ! ocean depth (m) if not 0, then constant depth
+
+    INTEGER  :: jtot_tauhf ! dimension of wtauhf, must be odd
+    REAL(wp) :: x0tauhf    ! lowest limit for integration in tau_phi_hf: x0 *(g/ustar)
 
     LOGICAL :: coldstart ! if .TRUE. start from initialisation without restart file
 
@@ -96,23 +102,24 @@ MODULE mo_wave_config
     ! derived variables and fields
     !
     REAL(wp) ::            &
-      &  DELTH,            & ! ANGULAR INCREMENT OF SPECTRUM [RAD].
-      &  MO_TAIL,          & ! MO  TAIL FACTOR.
-      &  MM1_TAIL,         & ! M-1 TAIL FACTOR.
-      &  MP1_TAIL,         & ! M+1 TAIL FACTOR.
-      &  MP2_TAIL            ! M+2 TAIL FACTOR.
+      &  delth,            & ! angular increment of spectrum [rad].
+      &  mo_tail,          & ! mo  tail factor.
+      &  mm1_tail,         & ! m-1 tail factor.
+      &  mp1_tail,         & ! m+1 tail factor.
+      &  mp2_tail            ! m+2 tail factor.
 
     REAL(wp), ALLOCATABLE :: &
-      &  freqs(:),         & ! frequencies (1:nfreqs) of wave spectrum [Hz]
-      &  dfreqs(:),        & ! FREQUENCY INTERVAL (1:nfreqs)
+      &  freqs(:),         & ! frequencies (1:nfreqs) of wave spectrum [hz]
+      &  dfreqs(:),        & ! frequency interval (1:nfreqs)
       &  dfreqs_freqs(:),  & ! dfreqs * freqs
       &  dfreqs_freqs2(:), & ! dfreqs * freqs * freqs
       &  dirs(:),          & ! directions (1:ndirs) of wave spectrum [rad]
-      &  DFIM(:),          & ! MO  INTEGRATION WEIGHTS.
-      &  DFIMOFR(:),       & ! M-1 INTEGRATION WEIGHTS.
-      &  DFIM_FR(:),       & ! M+1 INTEGRATION WEIGHTS.
-      &  DFIM_FR2(:),      & ! M+2 INTEGRATION WEIGHTS.
-      &  RHOWG_DFIM(:)       ! MOMENTUM AND ENERGY FLUX WEIGHTS.
+      &  dfim(:),          & ! mo  integration weights.
+      &  dfimofr(:),       & ! m-1 integration weights.
+      &  dfim_fr(:),       & ! m+1 integration weights.
+      &  dfim_fr2(:),      & ! m+2 integration weights.
+      &  rhowg_dfim(:),    & ! momentum and energy flux weights.
+      &  wtauhf(:)           ! integration weight for tau_phi_hf
 
     INTEGER, ALLOCATABLE :: &
       &  freq_ind(:),      & ! index of frequency (1:ntracer=ndirs*nfreq)
@@ -204,6 +211,7 @@ CONTAINS
     CALL DO_DEALLOCATE(me%RHOWG_DFIM)
     CALL DO_DEALLOCATE(me%freq_ind)
     CALL DO_DEALLOCATE(me%dir_ind)
+    CALL DO_DEALLOCATE(me%wtauhf)
 
   END SUBROUTINE wave_config_destruct
 
@@ -227,9 +235,10 @@ CONTAINS
     INTEGER :: jd, jf, jfjd   ! loop index
     INTEGER :: jg             ! patch ID
     INTEGER :: ist            ! error status
+    INTEGER :: j
     TYPE(t_wave_config), POINTER :: wc =>NULL()     ! convenience pointer
 
-    REAL(wp):: CO1
+    REAL(wp) :: CO1, X0, FF, F, DF, CONST1
 
     CHARACTER(*), PARAMETER :: routine = modname//'::configure_waves'
 
@@ -249,6 +258,7 @@ CONTAINS
         &      wc%dfim_fr      (wc%nfreqs), &
         &      wc%dfim_fr2     (wc%nfreqs), &
         &      wc%rhowg_dfim   (wc%nfreqs), &
+        &      wc%wtauhf   (wc%jtot_tauhf), &
         &      stat=ist)
       IF (ist/=SUCCESS) CALL finish(routine, "allocation for fields of type REAL failed")
 
@@ -271,13 +281,13 @@ CONTAINS
       CALL message ('  ',message_text)
       CALL message (':----------------------------------------------------------','')
 
-      wave_config(jg)%DELTH    = pi2 / wave_config(jg)%ndirs !! ANGULAR INCREMENT OF SPECTRUM [RAD].
+      wc%DELTH    = pi2 / wc%ndirs !! ANGULAR INCREMENT OF SPECTRUM [RAD].
 
       ! calculate directions for wave spectrum
       !
       CALL message ('  ','Directions [Degree]: ')
       DO jd = 1,wc%ndirs
-        wc%dirs(jd) = REAL(jd-1) *  wc%DELTH + 0.5_wp * wc%DELTH
+        wc%dirs(jd) = REAL(jd-1) *  wc%DELTH + 0.5_wp * wc%DELTH !RAD
         WRITE(message_text,'(i3,f10.5)') jd, wc%dirs(jd)*rad2deg
         CALL message ('  ',message_text)
       END DO
@@ -352,7 +362,34 @@ CONTAINS
       wc%RHOWG_DFIM(1)         = 0.5_wp * wc%RHOWG_DFIM(1)
       wc%RHOWG_DFIM(wc%nfreqs) = 0.5_wp * wc%RHOWG_DFIM(wc%nfreqs)
 
-    ENDDO
+      ! initialisation of wtauhf
+      wc%wtauhf(:) = 0._wp
+
+      X0 = 0.005_wp
+      FF = EXP(wc%XKAPPA / (X0 + wc%ZALP))
+      F = wc%ALPHA_CH * X0**2 * FF -1.0_wp
+
+      j = 1
+      DO WHILE(ABS(F)>dbl_eps .AND. j<30)
+        FF = EXP(wc%XKAPPA / (X0 + wc%ZALP))
+        F = wc%ALPHA_CH * X0**2 * FF -1.0_wp
+        DF = wc%ALPHA_CH * FF *(2.0_wp * X0 - wc%XKAPPA * (X0 / (X0 + wc%ZALP))**2)
+        X0 = X0 - F / DF
+        j = j + 1
+      END DO
+      wc%X0TAUHF = X0
+
+      CONST1 = (wc%BETAMAX/wc%XKAPPA**2)/3.0_wp
+
+      ! Simpson integration weights
+      wc%WTAUHF(1) = CONST1
+      DO J = 2, wc%jtot_tauhf-1,2
+        wc%WTAUHF(J) = 4.0_wp * CONST1
+        wc%WTAUHF(J+1) = 2.0_wp * CONST1
+      END DO
+      wc%WTAUHF(wc%jtot_tauhf) = CONST1
+
+    END DO
 
   END SUBROUTINE configure_wave
 
