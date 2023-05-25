@@ -53,6 +53,18 @@ CONTAINS
       iice      = 999
       ilnd      = 999
 
+    CASE('aes_bubble_land')
+
+      ! Terra-planet bubble simulation, no ocean, no ice, no lakes, no glaciers;
+      ! No need to distinguish the aggregated grid-box mean and the value on different types of surface
+
+      ilnd      = 1
+      nsfc_type = 1
+      igbm      = 0
+      iice      = 999
+      iwtr      = 999
+      csfc(1:3) = (/'lnd', 'wtr', 'ice'/)
+
     CASE('APEi','APEc','APEc_nh')
       ! Aqua-planet simulation with ice, but no land;
 

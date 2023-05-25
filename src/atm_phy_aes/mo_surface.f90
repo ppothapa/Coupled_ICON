@@ -484,8 +484,10 @@ CONTAINS
         ELSE
           pch_tmp(jl) = 1._wp
         END IF
-        drag_wtr_tmp(jl) = grav*pfac_sfc(jl) * pcfh_tile(jl,idx_wtr)
-        drag_ice_tmp(jl) = grav*pfac_sfc(jl) * pcfh_tile(jl,idx_ice)
+        IF (aes_phy_config(jg)%llake) THEN
+          drag_wtr_tmp(jl) = grav*pfac_sfc(jl) * pcfh_tile(jl,idx_wtr)
+          drag_ice_tmp(jl) = grav*pfac_sfc(jl) * pcfh_tile(jl,idx_ice)
+        END IF
       END DO
       !$ACC END PARALLEL
 

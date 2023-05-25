@@ -159,7 +159,7 @@ CONTAINS
 #ifdef _OPENMP
 !ICON_OMP_PARALLEL 
 !ICON_OMP_SINGLE
-!$  bgc_memory_copies = OMP_GET_NUM_THREADS()
+    bgc_memory_copies = OMP_GET_NUM_THREADS()
 !ICON_OMP_END_SINGLE
 !ICON_OMP_END_PARALLEL
 #endif

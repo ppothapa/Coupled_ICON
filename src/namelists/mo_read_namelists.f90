@@ -220,7 +220,7 @@ CONTAINS
     !
     CALL read_initicon_namelist       (atm_namelist_filename(1:tlen))
     CALL read_nh_testcase_namelist    (atm_namelist_filename(1:tlen))
-    IF (TRIM(nh_test_name) == 'aes_bubble') THEN
+    IF (nh_test_name(1:10) == 'aes_bubble') THEN
       CALL process_aes_bubble_nml     (atm_namelist_filename(1:tlen))
     END IF  
     
