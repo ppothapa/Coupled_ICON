@@ -457,7 +457,10 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 #SBATCH --error=$output_folder/$job_log_name.o
 #SBATCH --exclusive
 #SBATCH --time=$s_cpu_time
-#SBATCH --constraint=a100_80
+$(if [[ "x${BB_SYSTEM}" = 'x' ]]
+  then
+  printf '#SBATCH --constraint=a100_80
+';fi)
 $(if [[ "$use_mpi_root" == *intel*mpi* ]]
  then
   printf '#========================================
