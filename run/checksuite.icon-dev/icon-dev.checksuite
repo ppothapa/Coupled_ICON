@@ -489,6 +489,9 @@ function tolerance_check
             probtest_file_ids+=",*atm_3d_ll_DOM01_ml*.nc"
             probtest_file_ids+=",*atm_3d_ll_DOM02_ml"
             ;;
+        *mch_*dace_synsat*)
+            probtest_file_ids="*atm_3d*.nc"
+            ;;
         *mch_*dace*)
             probtest_file_ids="*fofAIREP*.nc"
             ;;

@@ -513,9 +513,6 @@ MODULE mo_nh_stepping
       CALL fill_nestlatbc_phys(lacc=.TRUE.)
 
       ! Compute synthetic satellite images if requested
-#ifdef _OPENACC
-      IF (ANY(lsynsat)) CALL finish(routine, 'lsynsat is not supported by OpenACC.')
-#endif
       DO jg = 1, n_dom
 
         IF (.NOT. p_patch(jg)%ldom_active) CYCLE
@@ -523,9 +520,9 @@ MODULE mo_nh_stepping
         DO jn = 1, p_patch(jg)%n_childdom
           jgc = p_patch(jg)%child_id(jn)
           IF (.NOT. p_patch(jgc)%ldom_active) CYCLE
-          IF (lsynsat(jgc) .AND. p_patch(jgc)%nshift > 0) CALL copy_rttov_ubc (jg, jgc)
+          IF (lsynsat(jgc) .AND. p_patch(jgc)%nshift > 0) CALL copy_rttov_ubc (jg, jgc, lacc=.TRUE.)
         ENDDO
-        IF (lsynsat(jg)) CALL rttov_driver (jg, p_patch(jg)%parent_id, nnow_rcf(jg))
+        IF (lsynsat(jg)) CALL rttov_driver (jg, p_patch(jg)%parent_id, nnow_rcf(jg), lacc=.TRUE.)
 
       ENDDO!jg
     ELSE

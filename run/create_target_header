@@ -1856,8 +1856,8 @@ create_target_header()
         *mch_*)
             case $use_target in
                 daint*)
-              use_nodes=4
-              ;;
+                    use_nodes=4
+                    ;;
             esac
             ;;
         *dwd_run_ICON_09_R2B4N5_EPS*)

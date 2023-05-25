@@ -5028,7 +5028,8 @@ __acc_attach(diag%clct)
         CALL add_var( diag_list, 'buffer_rttov', diag%buffer_rttov,        &
                     & GRID_UNSTRUCTURED_CELL, -1, cf_desc, grib2_desc,     & ! use -1 as hackish default value for vgrid
                     & ldims=(/nproma, 5*p_patch(k_jg)%nshift, p_patch_local_parent(k_jg)%nblks_c/), &
-                    & lrestart=.FALSE., loutput=.FALSE.)
+                    & lrestart=.FALSE., loutput=.FALSE., lopenacc=.TRUE.)
+        __acc_attach(diag%buffer_rttov)
       ENDIF
       
       shape3d_synsat = (/nproma, num_images, p_patch(k_jg)%nblks_c /)
@@ -5041,7 +5042,8 @@ __acc_attach(diag%clct)
         &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,      &
         &           ldims=shape3d_synsat ,                                        &
         &           lcontainer=.TRUE., lrestart=.FALSE., loutput=.FALSE.,         &
-        &           var_class=CLASS_SYNSAT)
+        &           var_class=CLASS_SYNSAT, lopenacc=.TRUE.)
+      __acc_attach(diag%synsat_arr)
 
       ! add reference variables for the different images:
       ALLOCATE(diag%synsat_image(num_images))

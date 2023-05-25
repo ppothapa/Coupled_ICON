@@ -60,6 +60,8 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 # add tolerance check to daint builders
 $addexp "checksuite.icon-dev/check.mch_ch_lowres"                         --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                       --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace_synsat"             --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev"                  --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
