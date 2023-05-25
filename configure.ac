@@ -208,6 +208,12 @@ AC_ARG_ENABLE([mpi-rget],
      [enable_mpi_rget=yes])],
   [enable_mpi_rget=auto])
 
+AC_ARG_ENABLE([mpi-gpu],
+  [AS_HELP_STRING([--enable-mpi-gpu],
+     [enable usage of the GPU-aware MPI features @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_mpi_gpu=yes])],
+  [enable_mpi_gpu=no])
+
 AC_ARG_ENABLE([openmp],
   [AS_HELP_STRING([--enable-openmp],
      [enable OpenMP support @<:@default=no@:>@])],
@@ -326,9 +332,31 @@ Optimization Features:]])
 
 AC_ARG_ENABLE([loop-exchange],
   [AS_HELP_STRING([--enable-loop-exchange],
-     [enable loop exchange @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_loop_exchange=yes])],
-  [enable_loop_exchange=yes])
+     [enable loop exchange @<:@default=auto@:>@])],
+  [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
+     [enable_loop_exchange=yes])],
+  [enable_loop_exchange=auto])
+
+AS_VAR_IF([enable_loop_exchange], [auto],
+  [AS_VAR_IF([icon_gpu_primary], [openacc],
+     [enable_loop_exchange=no],
+     [AC_MSG_NOTICE([loop exchange is enabled because no GPU support is dnl
+requested: disable the loop exchange if required (--disable-loop-exchange)])
+      enable_loop_exchange=yes])])
+
+AC_ARG_ENABLE([dim-swap],
+  [AS_HELP_STRING([--enable-dim-swap],
+     [enable dimension swap @<:@default=auto@:>@])],
+  [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
+     [enable_dim_swap=yes])],
+  [enable_dim_swap=auto])
+
+AS_VAR_IF([enable_dim_swap], [auto],
+  [AS_VAR_IF([icon_gpu_primary], [openacc],
+     [AC_MSG_NOTICE([dimension swap is enabled because the GPU support is dnl
+requested: disable the dimension swap if required (--disable-dim-swap)])
+      enable_dim_swap=yes],
+     [enable_dim_swap=no])])
 
 AC_ARG_ENABLE([vectorized-lrtm],
   [AS_HELP_STRING([--enable-vectorized-lrtm],
@@ -752,6 +780,9 @@ AS_VAR_IF([enable_active_target_sync], [yes],
   [AS_VAR_APPEND([FCFLAGS],
      [" ${FC_PP_DEF}HAVE_SLOW_PASSIVE_TARGET_ONESIDED"])])
 
+AS_VAR_IF([enable_mpi_gpu], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__USE_G2G"])])
+
 AS_VAR_IF([icon_gpu_secondary], [hip],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__HIP__"])])
 
@@ -782,6 +813,9 @@ AS_VAR_IF([enable_testbed], [no],
 
 AS_VAR_IF([enable_loop_exchange], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__LOOP_EXCHANGE"])])
+
+AS_VAR_IF([enable_dim_swap], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__SWAPDIM"])])
 
 AS_VAR_IF([enable_vectorized_lrtm], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}LRTM_FULL_VECTORIZATION"])])

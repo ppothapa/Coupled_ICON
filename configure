@@ -744,6 +744,7 @@ enable_mpi
 enable_mpi_checks
 enable_active_target_sync
 enable_mpi_rget
+enable_mpi_gpu
 enable_openmp
 enable_gpu
 enable_grib2
@@ -756,6 +757,7 @@ enable_serialization
 enable_testbed
 enable_memory_tracing
 enable_loop_exchange
+enable_dim_swap
 enable_vectorized_lrtm
 enable_mixed_precision
 enable_intel_consistency
@@ -1512,6 +1514,8 @@ Infrastructural Features:
                           enable MPI active target mode (otherwise, passive
                           target mode is used) [default=no]
   --enable-mpi-rget       enable usage of the MPI_Rget routine [default=auto]
+  --enable-mpi-gpu        enable usage of the GPU-aware MPI features
+                          [default=no]
   --enable-openmp         enable OpenMP support [default=no]
   --enable-gpu            enable GPU support. The value of the argument must
                           be one of the following [default=no]:
@@ -1546,7 +1550,8 @@ Infrastructural Features:
                             no      disable memory tracing
 
 Optimization Features:
-  --enable-loop-exchange  enable loop exchange [default=yes]
+  --enable-loop-exchange  enable loop exchange [default=auto]
+  --enable-dim-swap       enable dimension swap [default=auto]
   --enable-vectorized-lrtm
                           enable the parallelization-invariant version of LRTM
                           [default=no]
@@ -2987,6 +2992,16 @@ else
 fi
 
 
+# Check whether --enable-mpi-gpu was given.
+if test "${enable_mpi_gpu+set}" = set; then :
+  enableval=$enable_mpi_gpu; if test x"$enableval" != xno; then :
+  enable_mpi_gpu=yes
+fi
+else
+  enable_mpi_gpu=no
+fi
+
+
 # Check whether --enable-openmp was given.
 if test "${enable_openmp+set}" = set; then :
   enableval=$enable_openmp; if test x"$enableval" != xno; then :
@@ -3140,13 +3155,43 @@ fi
 
 # Check whether --enable-loop-exchange was given.
 if test "${enable_loop_exchange+set}" = set; then :
-  enableval=$enable_loop_exchange; if test x"$enableval" != xno; then :
+  enableval=$enable_loop_exchange; if test x"$enableval" != xno && test x"$enableval" != xauto; then :
   enable_loop_exchange=yes
 fi
 else
-  enable_loop_exchange=yes
+  enable_loop_exchange=auto
 fi
 
+
+if test "x$enable_loop_exchange" = xauto; then :
+  if test "x$icon_gpu_primary" = xopenacc; then :
+  enable_loop_exchange=no
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: loop exchange is enabled because no GPU support is requested: disable the loop exchange if required (--disable-loop-exchange)" >&5
+$as_echo "$as_me: loop exchange is enabled because no GPU support is requested: disable the loop exchange if required (--disable-loop-exchange)" >&6;}
+      enable_loop_exchange=yes
+fi
+fi
+
+# Check whether --enable-dim-swap was given.
+if test "${enable_dim_swap+set}" = set; then :
+  enableval=$enable_dim_swap; if test x"$enableval" != xno && test x"$enableval" != xauto; then :
+  enable_dim_swap=yes
+fi
+else
+  enable_dim_swap=auto
+fi
+
+
+if test "x$enable_dim_swap" = xauto; then :
+  if test "x$icon_gpu_primary" = xopenacc; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: dimension swap is enabled because the GPU support is requested: disable the dimension swap if required (--disable-dim-swap)" >&5
+$as_echo "$as_me: dimension swap is enabled because the GPU support is requested: disable the dimension swap if required (--disable-dim-swap)" >&6;}
+      enable_dim_swap=yes
+else
+  enable_dim_swap=no
+fi
+fi
 
 # Check whether --enable-vectorized-lrtm was given.
 if test "${enable_vectorized_lrtm+set}" = set; then :
@@ -5087,6 +5132,10 @@ if test "x$enable_active_target_sync" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_SLOW_PASSIVE_TARGET_ONESIDED"
 fi
 
+if test "x$enable_mpi_gpu" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__USE_G2G"
+fi
+
 if test "x$icon_gpu_secondary" = xhip; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__HIP__"
 fi
@@ -5127,6 +5176,10 @@ fi
 
 if test "x$enable_loop_exchange" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__LOOP_EXCHANGE"
+fi
+
+if test "x$enable_dim_swap" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__SWAPDIM"
 fi
 
 if test "x$enable_vectorized_lrtm" = xyes; then :
