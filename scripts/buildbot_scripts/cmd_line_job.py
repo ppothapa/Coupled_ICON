@@ -12,6 +12,10 @@ class CmdLineJob(BatchJob):
     def wait(self):
         print("Command line jobs run sequentially. Continue.")
 
+    def poll(self, timeout):
+        print("Command line jobs run sequentially. Nothing to poll.")
+        return True
+
     def submit(self, script):
         if len(self.parents) > 0:
             print("Dependencies are not supported for {}-jobs".format(self.system))

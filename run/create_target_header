@@ -943,7 +943,6 @@ EOF
   cat >>$output_script <<EOF
 export UCX_MEMTYPE_CACHE=n
 export UCX_TLS=tcp,sm
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
 
@@ -1056,7 +1055,6 @@ export UCX_TLS=tcp,sm
 export OMPI_MCA_osc="^rdma"
 export OMPI_MCA_pml="ucx"
 export OMPI_MCA_btl="^uct"
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 fi
 EOF
 }
@@ -1285,6 +1283,7 @@ set_run_target_balfrin_gpu()
     rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
+    set_default use_nodes 1
     set_default use_nproma 8000
     set_default use_nblocks_c 1
     set_default use_prefetch_procs 0
@@ -1298,8 +1297,6 @@ set_run_target_balfrin_gpu()
 
     is_serial_run="no"
 
-    # hardcode number of nodes
-    use_nodes=1
     set_default use_mpi_procs_pernode $((4+use_prefetch_procs))
 
     job_type=parallel
@@ -1340,6 +1337,7 @@ set_run_target_balfrin_gpu()
 #SBATCH --job-name=$job_name
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --gpus-per-node=4
 #$SBATCH_nodes
 #$SBATCH_ntasks_per_node
 #$s_cpu_time
@@ -1350,7 +1348,7 @@ EOF
 export CRAY_CUDA_MPS=1
 export MPICH_GPU_SUPPORT_ENABLED=1
 export MPICH_RDMA_ENABLED_CUDA=1
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
+export NVCOMPILER_ACC_DEFER_UPLOADS=1
 EOF
 }
 
@@ -1426,7 +1424,6 @@ EOF
   start_header
 
   cat >> $output_script << EOF
-export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
 EOF
 }
 
@@ -1608,22 +1605,18 @@ EOF
 set_run_target_euler()
 {
   # euler.ethz.ch
-  typeset poolFolder_prefix=/cluster/work/climate/colombsi
+  typeset poolFolder_prefix=/cluster/work/climate
   icon_data_rootFolder=${icon_data_rootFolder:=${poolFolder_prefix}/icon_input}
   icon_data_poolFolder=${icon_data_poolFolder:=${poolFolder_prefix}/icon_input}
 
   set_default use_nproma 64
-  set_default use_nproma_sub 64
+  set_default use_rrtmgp_columns_chunk 64
   set_default use_nodes 1
 
   #JENKINS_NO_OF_CORES can is unbound when not used with jenkins icon
   set +eu
 
-  if [[ -z $JENKINS_NO_OF_CORES ]]; then 
-      set_default use_mpi_procs_pernode 1
-  else
-      set_default use_mpi_procs_pernode $JENKINS_NO_OF_CORES
-  fi
+  set_default use_mpi_procs_pernode 1
   set_default use_openmp_threads 1
 
   set -eu
@@ -1632,14 +1625,20 @@ set_run_target_euler()
   cdo_diff="diff"
 
   job_log_name="LOG.$job_name.%J"
+  s_cpu_time="SBATCH --time=00:15:00"
+  # Use ntasks (#cores) for no of nodes on Euler!
+  SBATCH_nodes="SBATCH --ntasks=${use_nodes}"
 
   cat >> $output_script << EOF
 # ===========================
-#### BATCH_SYSTEM=BSUB ####
+#### BATCH_SYSTEM=SBATCH ####
 #-----------------------------------------------------------------------------
-#BSUB -J $job_name
-#BSUB -oo $output_folder/$job_log_name.o
-#BSUB -eo $output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --constraint=EPYC_7H12
+#$SBATCH_nodes
+#$s_cpu_time
 # ===========================
 EOF
 
@@ -1829,11 +1828,39 @@ create_target_header()
                 ;;
             esac
             ;;
+        *mch_bench_r19b08_icon1.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=2
+                    use_mpi_procs_pernode=5
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b08_kenda1.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=6
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b07_icon2.run)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=6
+                ;;
+            esac
+            ;;
+        *mch_ch_r04b09_dace.run|*mch_ch_r04b09_dace_seed_*.run)
+            use_nodes=4
+            use_mpi_procs_pernode=12 # Use 12 procs pernode for GPU as well until bug is fixed
+            ;;
         *mch_*)
             case $use_target in
                 daint*)
-              use_nodes=4
-              ;;
+                    use_nodes=4
+                    ;;
             esac
             ;;
         *dwd_run_ICON_09_R2B4N5_EPS*)
@@ -2067,6 +2094,19 @@ create_target_header()
             esac
             ;;
         *run_ICON_17_R2B4_AO_coupled*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+#                    elapstim_req=01:00:00 # this variable does not exist yet
+                    ;;
+            esac
+            ;;
+        *run_ICON_20_R2B4_R2B6_AO_coupled*)
             case $use_target in
                 daint*)
                     use_nodes=10

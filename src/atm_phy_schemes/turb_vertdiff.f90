@@ -196,7 +196,7 @@ SUBROUTINE vertdiff ( &
                 lsfluse, lqvcrst, lrunscm,   &
           dt_var, nvec, ke, ke1,             &
 !
-          kcm, kstart_tracer,                &
+          kcm, kstart_cloud, kstart_tracer,  &
           iblock, ivstart, ivend,            &
 !
           hhl, dp0, r_air, zvari,            &
@@ -264,14 +264,20 @@ INTEGER,        INTENT(IN) :: &
 ! Horizontal and vertical sizes of the fields and related variables:
 ! --------------------------------------------------------------------
 
-  nvec,         & ! number of grid points in zonal      direction
+  nvec,         & ! number of grid points in the nproma-vector
   ke,           & ! index of the lowest main model level
   ke1,          & ! index of the lowest model half level (=ke+1)
   kcm,          & ! level index of the upper canopy bound
-  iblock
+  iblock,       & ! index of the current block
+
+  kstart_cloud    ! start level index for vertical diffusion of cloud water
 
 INTEGER, DIMENSION(:), OPTIONAL, INTENT(IN) :: &
-   kstart_tracer  ! start level index for vertical diffusion of art tracers
+
+  kstart_tracer   ! start level index for vertical diffusion of art tracers (including cloud ice)
+
+  !Note: Through 'kstart_cloud' and 'kstart_tracer' vertical diffusion of the respective properties
+  !       is artificially restricted above this very level
 
 INTEGER,        INTENT(IN) :: &
 
@@ -779,6 +785,8 @@ enddo
             idx_trac     = n - nmvar - ncloud_offset    ! index of turbulent art tracer
             idx_tracer   = idx_nturb_tracer(idx_trac)   ! index of turbulent art tracer with respect to prognostic list
             kstart_vdiff = kstart_tracer(idx_tracer)
+         ELSEIF (n.EQ.liq) THEN !for liquid water
+            kstart_vdiff = kstart_cloud
          ELSE
             kstart_vdiff = 1
          END IF

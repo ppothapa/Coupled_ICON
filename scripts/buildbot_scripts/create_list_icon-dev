@@ -94,6 +94,8 @@ $addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
 # add tolerance check to CSCS builders
 $addexp "checksuite.icon-dev/check.mch_ch_lowres"                                 --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace_synsat"                     --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                     --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
@@ -103,7 +105,7 @@ $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                   
 # GPU builders explicitly turned off due to unresolved bug
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                             --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                             --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme using gscp=5
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"                       --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 3d-turbulence scheme
@@ -117,6 +119,7 @@ $addexp checksuite.icon-dev/check.atm_tracer_Hadley                       --buil
 # tests for nwp
 $addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=64G ntasks=32"  --machines levante --list $listname
 $addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=32"  --machines levante --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 no_of_nodes=1"  --machines levante --builders "levante_intel_hybrid levante_gcc_hybrid" --list $listname
 # this experiment runs only with-mpi and without openmp
 #
 # builders at DWD
@@ -138,7 +141,10 @@ $addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       -
 $addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                    --builders DWD_nec --list $listname
 # only DWD_nec_yac2
+## Prototype 1
 $addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2   --list $listname
+## Prototype 2
+$addexp checksuite.nwp/nwpexp.run_ICON_20_R2B4_R2B6_AO_coupled                 --builders DWD_nec_yac2   --list $listname
 #only DWD_nec_hybrid
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
 
@@ -151,7 +157,24 @@ $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders levante_intel_
 # ICON Coupled Setups
 
 # Ruby0 coupled tests, only with mpi
-$addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines levante --runflags "cpu_time=00:20:00 no_of_nodes=2" --list $listname
+$addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines levante --runflags "cpu_time=00:10:00 no_of_nodes=4" --list $listname
+
+## new seamless entries for levante - hybrid with 4 openmp-threads
+#-----------------------------------------------------------
+## Prototype-2:
+$addexp exp.seamless_bb-proto2 --builders "levante_intel levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=4" --list $listname
+$addexp exp.seamless_bb-proto2 --builders "levante_intel_hybrid levante_gcc_hybrid" \
+         --runflags "cpu_time=00:10:00 no_of_nodes=4 openmp_threads=4" --list $listname
+## Prototype-1:
+$addexp exp.seamless_bb-proto1 --builders "levante_intel levante_gcc levante_nag" --runflags "cpu_time=00:10:00 no_of_nodes=4" --list $listname
+$addexp exp.seamless_bb-proto1 --builders "levante_intel_hybrid levante_gcc_hybrid" \
+         --runflags "cpu_time=00:10:00 no_of_nodes=4 openmp_threads=4" --list $listname
+## ICON-NWP/ECRAD test:
+$addexp exp.seamless_bb-ecradmin --builders "levante_intel levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
+$addexp exp.seamless_bb-ecradmin --builders "levante_intel_hybrid levante_gcc_hybrid" \
+         --runflags "cpu_time=00:10:00 no_of_nodes=2 openmp_threads=4" --list $listname
+#-----------------------------------------------------------
+
 
 # nextGEMS test setup (!) ALPHA
 $addexp test_nextGEMS.config --builders levante_intel_hybrid --list $listname

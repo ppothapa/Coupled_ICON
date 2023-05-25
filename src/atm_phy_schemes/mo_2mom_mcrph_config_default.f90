@@ -34,12 +34,17 @@ MODULE mo_2mom_mcrph_config_default
        &            1, &          ! i2mom_solver: 0) explicit (1) semi-implicit solver
        &           -1, &          ! ccn_type: 6,7,8,9; if not set by namelist, the ccn_type_gscp4 or ccn_type_gscp5 will win
        &            0.01_wp, &    ! alpha_spacefilling
-       &            75.0e-6_wp, & ! D-threshold for conversion to snow ice_selfcollection
+       &            75.0e-6_wp, & ! D_conv_ii: D-threshold for conversion to snow ice_selfcollection: newly created snowflakes have at least this mean mass diameter
        &            0.50e-3_wp, & ! D_rainfrz_ig
        &            1.25e-3_wp, & ! D_rainfrz_gh
+       &            .TRUE.,   &   ! luse_mu_Dm_rain
        &            6.0_wp, &     ! rain_cmu0
        &            30.0_wp, &    ! rain_cmu1
-       &            1.1e-3_wp &   ! rain_cmu3 = D_br
+       &            1.1e-3_wp, &  ! rain_cmu3 = D_br
+       &            1.0_wp, &     ! melt_h_tune_fac
+       &            270.16_wp, &  ! Tmax_gr_rime
+       &            .FALSE.,   &  ! lturb_enhc: Turbulent enhancement of collisons
+       &            300.0_wp  &   ! lturb_len:  Turbulent lenght scale (dummy, later overtaken by the TKE scheme, NOT a namelist parameter)
        &            )
 
 END MODULE mo_2mom_mcrph_config_default

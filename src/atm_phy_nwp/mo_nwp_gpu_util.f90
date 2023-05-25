@@ -7,6 +7,11 @@ MODULE mo_nwp_gpu_util
   USE mo_intp_data_strc,          ONLY: t_int_state
   USE mo_nwp_parameters,          ONLY: t_phy_params
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist, kstart_tracer
+  USE mo_grid_config,             ONLY: n_dom
+  USE mo_nwp_phy_state,           ONLY: phy_params, prm_diag
+  USE mo_run_config,              ONLY: iqv, iqc, iqi, iqg, iqr, iqs, ldass_lhn
+  USE mo_nonhydro_state,          ONLY: p_nh_state
+  USE mo_nwp_lnd_state,           ONLY: p_lnd_state
   USE mo_run_config,              ONLY: ldass_lhn
   USE mo_atm_phy_nwp_config,      ONLY: t_atm_phy_nwp_config
   USE mo_fortran_tools,           ONLY: assert_acc_device_only
@@ -19,7 +24,7 @@ MODULE mo_nwp_gpu_util
 
   PRIVATE
 
-  PUBLIC :: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp
+  PUBLIC :: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp, gpu_d2h_dace
 
   CONTAINS
 
@@ -256,5 +261,59 @@ MODULE mo_nwp_gpu_util
     !$ACC EXIT DATA DELETE(kstart_moist, kstart_tracer)
 
   END SUBROUTINE hostcpy_nwp
+
+  SUBROUTINE gpu_d2h_dace(jg)
+
+    INTEGER, INTENT(IN) :: jg
+
+    LOGICAL :: lqr, lqs, lqg
+
+    lqr = iqr > 0
+    lqs = iqs > 0
+    lqg = iqg > 0
+
+    !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres_sfc)
+    !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres)
+    !$ACC UPDATE HOST(p_nh_state(jg)%diag%temp)
+    !$ACC UPDATE HOST(p_nh_state(jg)%diag%u)
+    !$ACC UPDATE HOST(p_nh_state(jg)%diag%v)
+    
+    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqv:iqv))
+    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqc:iqc))
+    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqi:iqi))
+    IF (lqr) THEN
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqr:iqr))
+    ENDIF
+    IF (lqs) THEN
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqs:iqs))
+    ENDIF
+    IF (lqg) THEN
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqg:iqg))
+    ENDIF
+
+    !$ACC UPDATE HOST(prm_diag(jg)%gz0)
+    !$ACC UPDATE HOST(prm_diag(jg)%t_2m)
+    !$ACC UPDATE HOST(prm_diag(jg)%td_2m)
+    !$ACC UPDATE HOST(prm_diag(jg)%rh_2m)
+    !$ACC UPDATE HOST(prm_diag(jg)%u_10m)
+    !$ACC UPDATE HOST(prm_diag(jg)%v_10m)
+    !$ACC UPDATE HOST(prm_diag(jg)%clct)
+    !$ACC UPDATE HOST(prm_diag(jg)%clcl)
+    !$ACC UPDATE HOST(prm_diag(jg)%clcm)
+    !$ACC UPDATE HOST(prm_diag(jg)%clch)
+    
+
+    !$ACC UPDATE HOST(p_lnd_state(jg)% prog_lnd(nnow_rcf(jg))%t_g)
+    !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%h_snow)
+    !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%fr_seaice)
+
+    ! Not sure why this is needed
+#ifdef _OPENACC
+    CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnow(jg), lacc=.TRUE.)
+#endif
+
+    !$ACC WAIT
+
+  END SUBROUTINE gpu_d2h_dace
 
 END MODULE mo_nwp_gpu_util

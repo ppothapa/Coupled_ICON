@@ -174,12 +174,19 @@ CONTAINS
       CASE(0)
         ecrad_conf%i_solver_sw  = ISolverMcICA !< Short-wave solver
         ecrad_conf%i_solver_lw  = ISolverMcICA !< Long-wave solver
+        ecrad_conf%do_3d_effects = .false.     !< Do we include 3D effects?
       CASE(1)
         ecrad_conf%i_solver_sw  = ISolverTripleclouds !< Short-wave solver
         ecrad_conf%i_solver_lw  = ISolverTripleclouds !< Long-wave solver
+        ecrad_conf%do_3d_effects = .false.     !< Do we include 3D effects?
       CASE(2)
         ecrad_conf%i_solver_sw  = ISolverMcICAACC !< Short-wave solver
         ecrad_conf%i_solver_lw  = ISolverMcICAACC !< Long-wave solver
+        ecrad_conf%do_3d_effects = .false.     !< Do we include 3D effects?
+      CASE(3)
+        ecrad_conf%i_solver_sw  = ISolverSpartacus !< Short-wave solver
+        ecrad_conf%i_solver_lw  = ISolverSpartacus !< Long-wave solver
+        ecrad_conf%do_3d_effects = .true.     !< Do we include 3D effects?
       CASE DEFAULT
         CALL finish(routine, 'ecrad_isolver not valid for ecRad')
     END SELECT
@@ -227,8 +234,6 @@ CONTAINS
     ecrad_conf%do_clear                    = .true.       !< Do we compute clear-sky fluxes?
     !
     ecrad_conf%do_sw_direct                = .true.       !< Do we compute solar direct fluxes?
-    !
-    ecrad_conf%do_3d_effects               = .false.      !< Do we include 3D effects?
     !
     ecrad_conf%do_lw_aerosol_scattering    = .false.      !< LW scattering due to aerosol
     !

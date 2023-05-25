@@ -712,6 +712,8 @@ CONTAINS
     REAL(wp), DIMENSION(:,:,:), POINTER :: ptr_coeff
     INTEGER                             :: stencilsize   ! lon-lat grid blocking info
     LOGICAL                             :: l_cutoff
+    INTEGER                             :: ji  ! For the min-max loops
+    REAL(wp)                            :: tmp ! For the min-max loops
 
     slev = 1
     elev = UBOUND(p_cell_in,2)
@@ -808,18 +810,14 @@ CONTAINS
             ! D. Majewski, "Documentation of the new global model (GME)
             !               of the DWD" (1996)
             IF (l_cutoff) THEN
-
-              vmin = MIN(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb))   )
-
-              vmax = MAX(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb))   )
+              vmin = p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb))
+              vmax = vmin
+!NEC$ unroll_complete
+              DO ji = 2, 4
+                tmp = p_cell_in(iidx(ji,jc,jb),jk,iblk(ji,jc,jb))
+                vmin = MIN(vmin, tmp)
+                vmax = MAX(vmax, tmp)
+              END DO
 
               p_out(jc,jk,jb) = MAX( MIN(p_out(jc,jk,jb), vmax), vmin )
             END IF
@@ -857,30 +855,14 @@ CONTAINS
             ! D. Majewski, "Documentation of the new global model (GME)
             !               of the DWD" (1996)
             IF (l_cutoff) THEN
-
-              vmin = MIN(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb)) , &
-                p_cell_in(iidx(5 ,jc,jb),jk,iblk(5 ,jc,jb)) , &
-                p_cell_in(iidx(6 ,jc,jb),jk,iblk(6 ,jc,jb)) , &
-                p_cell_in(iidx(7 ,jc,jb),jk,iblk(7 ,jc,jb)) , &
-                p_cell_in(iidx(8 ,jc,jb),jk,iblk(8 ,jc,jb)) , &
-                p_cell_in(iidx(9 ,jc,jb),jk,iblk(9 ,jc,jb)) , &
-                p_cell_in(iidx(10,jc,jb),jk,iblk(10,jc,jb))   )
-
-              vmax = MAX(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb)) , &
-                p_cell_in(iidx(5 ,jc,jb),jk,iblk(5 ,jc,jb)) , &
-                p_cell_in(iidx(6 ,jc,jb),jk,iblk(6 ,jc,jb)) , &
-                p_cell_in(iidx(7 ,jc,jb),jk,iblk(7 ,jc,jb)) , &
-                p_cell_in(iidx(8 ,jc,jb),jk,iblk(8 ,jc,jb)) , &
-                p_cell_in(iidx(9 ,jc,jb),jk,iblk(9 ,jc,jb)) , &
-                p_cell_in(iidx(10,jc,jb),jk,iblk(10,jc,jb))   )
+              vmin = p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb))
+              vmax = vmin
+!NEC$ unroll_complete
+              DO ji = 2, 10
+                tmp = p_cell_in(iidx(ji,jc,jb),jk,iblk(ji,jc,jb))
+                vmin = MIN(vmin, tmp)
+                vmax = MAX(vmax, tmp)
+              END DO
 
               p_out(jc,jk,jb) = MAX( MIN(p_out(jc,jk,jb), vmax), vmin )
             END IF
@@ -921,36 +903,14 @@ CONTAINS
             ! D. Majewski, "Documentation of the new global model (GME)
             !               of the DWD" (1996)
             IF (l_cutoff) THEN
-
-              vmin = MIN(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb)) , &
-                p_cell_in(iidx(5 ,jc,jb),jk,iblk(5 ,jc,jb)) , &
-                p_cell_in(iidx(6 ,jc,jb),jk,iblk(6 ,jc,jb)) , &
-                p_cell_in(iidx(7 ,jc,jb),jk,iblk(7 ,jc,jb)) , &
-                p_cell_in(iidx(8 ,jc,jb),jk,iblk(8 ,jc,jb)) , &
-                p_cell_in(iidx(9 ,jc,jb),jk,iblk(9 ,jc,jb)) , &
-                p_cell_in(iidx(10,jc,jb),jk,iblk(10,jc,jb)) , &
-                p_cell_in(iidx(11,jc,jb),jk,iblk(11,jc,jb)) , &
-                p_cell_in(iidx(12,jc,jb),jk,iblk(12,jc,jb)) , &
-                p_cell_in(iidx(13,jc,jb),jk,iblk(13,jc,jb))   )
-
-              vmax = MAX(                                     &
-                p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb)) , &
-                p_cell_in(iidx(2 ,jc,jb),jk,iblk(2 ,jc,jb)) , &
-                p_cell_in(iidx(3 ,jc,jb),jk,iblk(3 ,jc,jb)) , &
-                p_cell_in(iidx(4 ,jc,jb),jk,iblk(4 ,jc,jb)) , &
-                p_cell_in(iidx(5 ,jc,jb),jk,iblk(5 ,jc,jb)) , &
-                p_cell_in(iidx(6 ,jc,jb),jk,iblk(6 ,jc,jb)) , &
-                p_cell_in(iidx(7 ,jc,jb),jk,iblk(7 ,jc,jb)) , &
-                p_cell_in(iidx(8 ,jc,jb),jk,iblk(8 ,jc,jb)) , &
-                p_cell_in(iidx(9 ,jc,jb),jk,iblk(9 ,jc,jb)) , &
-                p_cell_in(iidx(10,jc,jb),jk,iblk(10,jc,jb)) , &
-                p_cell_in(iidx(11,jc,jb),jk,iblk(11,jc,jb)) , &
-                p_cell_in(iidx(12,jc,jb),jk,iblk(12,jc,jb)) , &
-                p_cell_in(iidx(13,jc,jb),jk,iblk(13,jc,jb))   )
+              vmin = p_cell_in(iidx(1 ,jc,jb),jk,iblk(1 ,jc,jb))
+              vmax = vmin
+!NEC$ unroll_complete
+              DO ji = 2, 13
+                tmp = p_cell_in(iidx(ji,jc,jb),jk,iblk(ji,jc,jb))
+                vmin = MIN(vmin, tmp)
+                vmax = MAX(vmax, tmp)
+              END DO
 
               p_out(jc,jk,jb) = MAX( MIN(p_out(jc,jk,jb), vmax), vmin )
             END IF

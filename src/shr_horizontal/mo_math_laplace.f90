@@ -600,17 +600,15 @@ CASE (3) ! (cell_type == 3)
 
     !$ACC PARALLEL IF(i_am_accel_node)
 
-    !$ACC LOOP GANG
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
 #ifdef _URD
 !CDIR UNROLL=_URD
 #endif
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO jc = i_startidx, i_endidx
 #endif
         !

@@ -68,12 +68,15 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
+  PUBLIC :: itune_o3
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
   PUBLIC :: max_freshsnow_inc
   PUBLIC :: tune_eiscrit
-
-
+  PUBLIC :: tune_sc_eis  
+  PUBLIC :: tune_sc_invmin
+  PUBLIC :: tune_sc_invmax
+  
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for physics tuning
   !!--------------------------------------------------------------------------
@@ -213,6 +216,13 @@ MODULE mo_nwp_tuning_config
     &  itune_albedo                ! 1: dimmed Sahara
                                    ! 2: dimmed Sahara and brighter Antarctica
 
+  INTEGER :: &                     !< type of artificial ozone tuning 
+    &  itune_o3                    ! 0: no tuning
+                                   ! 1: old tuning for RRTM radiation
+                                   ! 2: (default) standard tuning for EcRad with RRTM gas optics
+                                   ! 3: improved (for middle/upper stratosphere) tuning for EcRad with RRTM gas optics
+                                   ! 4: provisional tuning for EcRad with EcCKD gas optics
+
   LOGICAL :: &                     ! cloud cover calibration over land points
     &  lcalib_clcov
 
@@ -224,6 +234,17 @@ MODULE mo_nwp_tuning_config
   
   REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
        &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
+
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_sc_eis              !< used for enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< minimum inversion height (m) used to define region with
+       &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+
+  
 !  END TYPE t_nwp_tuning_config
 
 

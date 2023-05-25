@@ -100,6 +100,7 @@ USE sfc_terra_data  ! All variables from this data module are used by
 
 USE mo_mpi,                ONLY : get_my_global_mpi_id
 !
+USE mo_parallel_config,     ONLY: nproma
 USE mo_kind,               ONLY: wp
 USE mo_math_constants    , ONLY: pi
 !
@@ -136,7 +137,7 @@ USE mo_lnd_nwp_config,     ONLY: lmulti_snow, l2lay_rho_snow,     &
   &                              cwimax_ml
 !
 !
-USE mo_exception,          ONLY: message, message_text
+USE mo_exception,          ONLY: finish
 USE mo_run_config,         ONLY: msg_level
 USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
@@ -169,7 +170,7 @@ CONTAINS
 !+ Computation of the first part of the soil parameterization scheme
 !------------------------------------------------------------------------------
 
-  SUBROUTINE terra         (         &
+  SUBROUTINE terra (                 &
                   nvec             , & ! array dimensions
                   ivstart          , & ! start index for computations in the parallel program
                   ivend            , & ! end index for computations in the parallel program
@@ -182,27 +183,27 @@ CONTAINS
                   dt               , & ! time step
 !
                   soiltyp_subs     , & ! type of the soil (keys 0-9)                     --
+! for TERRA_URB
+                  urb_isa          , & ! impervious surface area fraction of the urban canopy ( - )
+                  fr_paved         , & ! impervious surface area (ISA) fraction               ( - )
+                  urb_ai           , & ! surface area index of the urban canopy               ( - )
+                  urb_h_bld        , & ! building height                                      ( m )
+                  urb_hcap         , & ! volumetric heat capacity of urban material      (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material             (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                           (W/m**2)
+!
                   plcov            , & ! fraction of plant cover                         --
-                  rootdp           , & ! depth of the roots                            ( m  )
+                  rootdp           , & ! depth of the roots                            ( m )
                   sai              , & ! surface area index                              --
                   tai              , & ! transpiration area index                        --
                   laifac           , & ! ratio between current LAI and laimax            --
                   eai              , & ! earth area (evaporative surface area) index     --
-                  skinc            , & ! skin conductivity                        ( W/m**2/K )
-! for TERRA_URB
-                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
-                  urb_isa          , & ! urban impervious surface area                 (  -  )
-                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
-!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
-                  urb_h_bld        , & ! building height                               (  m  )
-                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
-                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
-                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
+                  skinc            , & ! skin conductivity                             ( W/m**2/K )
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
 !
-                  rsmin2d          , & ! minimum stomata resistance                    ( s/m )
+                  rsmin2d          , & ! minimum stomatal resistance                   ( s/m )
                   r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   z0               , & ! vegetation roughness length                   ( m   )
 !
@@ -241,8 +242,8 @@ CONTAINS
                   meltrate         , & ! snow melting rate                             (kg/(m**2*s))
                   tsnred           , & ! snow temperature offset for calculating evaporation  (K)
 !
-                  w_i_now          , & ! water content of interception water           (m H2O)
-                  w_i_new          , & ! water content of interception water           (m H2O)
+                  w_i_now          , & ! water content of interception store           (m H2O)
+                  w_i_new          , & ! water content of interception store           (m H2O)
 !
                   w_p_now          , & ! water content of pond interception water     (m H2O)
                   w_p_new          , & ! water content of pond interception water     (m H2O)
@@ -253,11 +254,11 @@ CONTAINS
                   t_so_now         , & ! soil temperature (main level)                 (  K  )
                   t_so_new         , & ! soil temperature (main level)                 (  K  )
 !
-                  w_so_now         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_new         , & ! total water conent (ice + liquid water)       (m H20)
+                  w_so_now         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_new         , & ! total soil water content (ice + liquid water) (m H20)
 !
-                  w_so_ice_now     , & ! ice content                                   (m H20)
-                  w_so_ice_new     , & ! ice content                                   (m H20)
+                  w_so_ice_now     , & ! soil ice content                              (m H20)
+                  w_so_ice_new     , & ! soil ice content                              (m H20)
 !
 !                 t_2m             , & ! temperature in 2m                             (  K  )
                   u_10m            , & ! zonal wind in 10m                             ( m/s )
@@ -296,7 +297,7 @@ CONTAINS
 !
                   runoff_s         , & ! surface water runoff; sum over forecast       (kg/m2)
                   runoff_g         , & ! soil water runoff; sum over forecast          (kg/m2)
-                  resid_wso     , & ! soil water budget, residuum                   (kg/m2)
+                  resid_wso        , & ! soil water budget, residuum                   (kg/m2)
 ! for TERRA_URB
 !                 w_imp            , & ! impervious water storage                        --
 !                 w_isa            , & ! same, multiplied by fr_paved                    --
@@ -313,7 +314,8 @@ CONTAINS
                   zlhfl_sfc        , & ! latent   heat flux surface interface          (W/m2)
                   zqhfl_sfc        , & ! moisture      flux surface interface          (kg/m2/s)
                   lres_soilwatb    , & ! flag for computing the soil water budget
-                  lacc               ) ! flag for activating OpenACC
+                  lacc             , & ! flag for activating OpenACC
+                  opt_acc_async_queue) ! OpenACC stream
                                      
 
 !-------------------------------------------------------------------------------
@@ -340,6 +342,15 @@ CONTAINS
                   soiltyp_subs         ! type of the soil (keys 0-9)                     --
 
   REAL    (KIND = wp), DIMENSION(nvec), INTENT(IN) :: &
+! for TERRA_URB
+                  urb_isa          , & ! impervious surface area fraction of the urban canopy ( - )
+                  fr_paved         , & ! impervious surface area (ISA) fraction               ( - )
+                  urb_ai           , & ! surface area index of the urban canopy               ( - )
+                  urb_h_bld        , & ! building height                                      ( m )
+                  urb_hcap         , & ! volumetric heat capacity of urban material      (J/m**3/K)
+                  urb_hcon         , & ! thermal conductivity of urban material             (W/m/K)
+                  ahf              , & ! anthropogenic heat flux                           (W/m**2)
+!
                   plcov            , & ! fraction of plant cover                         --
                   rootdp           , & ! depth of the roots                            ( m  )
                   sai              , & ! surface area index                              --
@@ -347,18 +358,10 @@ CONTAINS
                   laifac           , & ! ratio between current LAI and laimax
                   eai              , & ! earth area (evaporative surface area) index     --
                   skinc            , & ! skin conductivity                        ( W/m**2/K )
-! for TERRA_URB
-                  fr_paved         , & ! total impervious surface area (ISA)           (  -  )
-                  urb_isa          , & ! urban impervious surface area                 (  -  )
-                  urb_ai           , & ! surface area index of the urban canopy        (  -  )
-!                 urb_alb_red      , & ! albedo reduction factor for the urban canopy  (  -  )
-                  urb_h_bld        , & ! building height                               (  m  )
-                  urb_hcap         , & ! volumetric heat capacity of urban material (J/m**3/K)
-                  urb_hcon         , & ! thermal conductivity of urban material        (W/m/K)
-                  ahf              , & ! anthropogenic heat flux                      (W/m**2)
 !
                   heatcond_fac     , & ! tuning factor for soil thermal conductivity
                   heatcap_fac      , & ! tuning factor for soil heat capacity
+!
                   rsmin2d          , & ! minimum stomata resistance                    ( s/m )
                   r_bsmin          , & ! minimum bare soil evap resistance             ( s/m )
                   u                , & ! zonal wind speed                              ( m/s )
@@ -404,7 +407,7 @@ CONTAINS
                   w_snow_now       , & ! water content of snow                         (m H2O)
                   rho_snow_now     , & ! snow density                                  (kg/m**3)
                   h_snow           , & ! snow depth
-                  w_i_now          , & ! water content of interception water           (m H2O)
+                  w_i_now          , & ! water content of interception store           (m H2O)
                   w_p_now          , & ! water content of interception water pond      (m H2O)
                   w_s_now          , & ! water content of interception snow water      (m H2O)
                   freshsnow        , & ! indicator for age of snow in top of snow layer(  -  )
@@ -425,7 +428,7 @@ CONTAINS
                   w_snow_new       , & ! water content of snow                         (m H2O)
                   rho_snow_new     , & ! snow density                                  (kg/m**3)
                   meltrate         , & ! snow melting rate
-                  w_i_new          , & ! water content of interception water           (m H2O)
+                  w_i_new          , & ! water content of interception store           (m H2O)
                   w_p_new          , & ! water content of interception water pond      (m H2O)
                   w_s_new          , & ! water content of interception snow water
                   zshfl_s          , & ! sensible heat flux soil/air interface         (W/m2)
@@ -459,11 +462,11 @@ CONTAINS
                   t_so_new             ! soil temperature (main level)                 (  K  )
 
   REAL    (KIND = wp), DIMENSION(nvec,ke_soil+1), INTENT(INOUT) :: &
-                  w_so_now         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_ice_now         ! ice content                                   (m H20)
+                  w_so_now         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_ice_now         ! soil ice content                              (m H20)
   REAL    (KIND = wp), DIMENSION(nvec,ke_soil+1), INTENT(OUT) :: &
-                  w_so_new         , & ! total water conent (ice + liquid water)       (m H20)
-                  w_so_ice_new         ! ice content                                   (m H20)
+                  w_so_new         , & ! total soil water content (ice + liquid water) (m H20)
+                  w_so_ice_new         ! soil ice content                              (m H20)
 
 
 
@@ -479,8 +482,10 @@ CONTAINS
 
   LOGICAL, INTENT(IN)           :: lres_soilwatb
   LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+  INTEGER, OPTIONAL, INTENT(IN) :: opt_acc_async_queue
 
   LOGICAL :: lzacc
+  INTEGER :: acc_async_queue
 
 !--------------------------------------------------------------------------------
 ! TERRA Declarations
@@ -788,7 +793,7 @@ CONTAINS
     zsfc_frac_bs   (nvec)          , & ! relative source surface of the bare soil
     zrhoch         (nvec)          , & ! transfer coefficient*rho*g
     zth_low        (nvec)          , & ! potential temperature of lowest layer
-    zf_wi          (nvec)          , & ! surface fraction covered by interception water
+    zf_wi          (nvec)          , & ! surface fraction covered by interception water content
     ztmch          (nvec)          , & ! heat transfer coefficient*density*velocity
     zep_s          (nvec)          , & ! potential evaporation for t_s
     zep_snow       (nvec)          , & ! potential evaporation for t_snow
@@ -803,8 +808,8 @@ CONTAINS
     zahf           (nvec)          , & ! TERRA_URB: anthropogenic heat flux
 
     ! Tendencies
-    zdwidt         (nvec)          , & ! interception store tendency
-    zdwsndt        (nvec)          , & ! snow water content tendency
+    zdwidt         (nvec)          , & ! tendency of water content of interception store
+    zdwsndt        (nvec)          , & ! tendency of snow water content
     zdtsdt         (nvec)          , & ! tendency of zts
     zdtsnowdt      (nvec)          , & ! tendency of ztsnow
     zdwgdt         (nvec,  ke_soil)    ! tendency of water content [kg/(m**3 s)]
@@ -812,9 +817,9 @@ CONTAINS
   REAL    (KIND=wp) ::  &
 
     !   Interception variables
-    zwinstr        (nvec)          , & ! preliminary value of interception store
+    zwinstr        (nvec)          , & ! preliminary water content of interception store
     zinfmx         (nvec)          , & ! maximum infiltration rate
-    zwimax         (nvec)          , & ! maximum interception store
+    zwimax         (nvec)          , & ! maximum water content of interception store
     zvers          (nvec)          , & ! water supply for infiltration
     zwisnstr       (nvec)          , & ! water content of snow interception store (t+1) (mH2O)
     zwpnstr        (nvec)          , & ! water content of pond store (t+1) (mH2O)
@@ -867,23 +872,22 @@ CONTAINS
     zkwm     (nvec,ke_soil+1)      , & ! hydrological cond.parameter (main levels)
     zkw1     (nvec,ke_soil+1)      , & ! hydrological cond.parameter
     zik2     (nvec)                , & ! minimum infiltration rate
-    zpwp     (nvec,ke_soil+1)      , & ! plant wilting point  (fraction of volume)
+    zpwp     (nvec,ke_soil+1)      , & ! plant wilting point (fraction of volume)
     ztlpmwp  (nvec)                , & ! turgor-loss-point minus plant wilting point
     zedb     (nvec)                , & ! utility variable
     zaa      (nvec)                , & ! utility variable
 
     ! Hydraulic variables
-    ztrang      (nvec,ke_soil)     , & ! transpiration contribution by the different layers
-    ztrangs     (nvec)             , & ! total transpiration (transpiration from all
-                                       !    soil layers)
-    zwin        (nvec)             , & ! water cont. of interception store   (m H20)
-    zwsnow      (nvec)             , & ! snow water equivalent               (m H20)
-    zwsnew      (nvec)             , & ! snow water equivalent               (m H20)
+    ztrang      (nvec,ke_soil)     , & ! transpiration contribution by the different soil layers
+    ztrangs     (nvec)             , & ! total transpiration (transpiration from all soil layers)
+    zwin        (nvec)             , & ! water content of interception store   (m H20)
+    zwsnow      (nvec)             , & ! snow water equivalent                 (m H20)
+    zwsnew      (nvec)             , & ! snow water equivalent                 (m H20)
     zdwsnm      (nvec)             , & ! utility variable for snow melt determination
-    zw_fr       (nvec,ke_soil+1)   , & !fractional total water content of soil layers
+    zw_fr       (nvec,ke_soil+1)   , & ! fractional total water content of the different soil layers
     zinfil      (nvec)             , & ! infiltration rate
-    zlw_fr      (nvec,ke_soil+1)   , & ! fractional liqu. water content of soil layer
-    ziw_fr      (nvec,ke_soil+1)   , & ! fractional ice content of soil layer
+    zlw_fr      (nvec,ke_soil+1)   , & ! fractional liquid water content of soil layers
+    ziw_fr      (nvec,ke_soil+1)   , & ! fractional ice content of soil layers
     zwsnn       (nvec)             , & ! new value of zwsnow
     zflmg       (nvec,ke_soil+1)   , & ! flux of water at soil layer interfaces
     zrunoff_grav(nvec,ke_soil+1)       ! main level water gravitation
@@ -1011,6 +1015,12 @@ CONTAINS
 
 CALL set_acc_host_or_device(lzacc, lacc)
 
+IF(PRESENT(opt_acc_async_queue)) THEN
+  acc_async_queue = opt_acc_async_queue
+ELSE
+  acc_async_queue = 1
+ENDIF
+
 my_cart_id = get_my_global_mpi_id()
 #ifdef _OPENMP
 my_thrd_id = omp_get_thread_num()
@@ -1048,26 +1058,27 @@ mvid =   8
 #ifdef _OPENMP
        IF (my_thrd_id == mtid) THEN
 #endif
-        WRITE(*,'(A,2I5)'  ) 'SFC-DIAGNOSIS terra:  iblock = ', iblock, i
+        WRITE(*,'(A,2I5   )') ' SFC-DIAGNOSIS terra:  iblock = ', iblock, i
  
-        WRITE(*,'(A      )') ' External Parameters:  '
-        WRITE(*,'(A,I28  )') '   soiltyp          :  ', soiltyp_subs(i)
+        WRITE(*,'(A       )') ' External Parameters:  '
+        WRITE(*,'(A,I28   )') '   soiltyp          :  ', soiltyp_subs(i)
+! for TERRA_URB
+        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
+        WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
+        WRITE(*,'(A,F28.16)') '   urb_ai           :  ', urb_ai      (i)
+        WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
+        WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
+        WRITE(*,'(A,F28.16)') '   ahf              :  ', ahf         (i)
+!
         WRITE(*,'(A,F28.16)') '   plcov            :  ', plcov       (i)
         WRITE(*,'(A,F28.16)') '   rootdp           :  ', rootdp      (i)
         WRITE(*,'(A,F28.16)') '   sai              :  ', sai         (i)
         WRITE(*,'(A,F28.16)') '   tai              :  ', tai         (i)
         WRITE(*,'(A,F28.16)') '   eai              :  ', eai         (i)
         WRITE(*,'(A,F28.16)') '   skinc            :  ', skinc       (i)
-! for TERRA_URB
-        WRITE(*,'(A,F28.16)') '   fr_paved         :  ', fr_paved    (i)
-        WRITE(*,'(A,F28.16)') '   urb_isa          :  ', urb_isa     (i)
-        WRITE(*,'(A,F28.16)') '   urb_ai           :  ', urb_ai      (i)
-!       WRITE(*,'(A,F28.16)') '   urb_alb_red      :  ', urb_alb_red (i)
-        WRITE(*,'(A,F28.16)') '   urb_h_bld        :  ', urb_h_bld   (i)
-        WRITE(*,'(A,F28.16)') '   urb_hcap         :  ', urb_hcap    (i)
-        WRITE(*,'(A,F28.16)') '   urb_hcon         :  ', urb_hcon    (i)
-        WRITE(*,'(A,F28.16)') '   ahf              :  ', ahf         (i)
         WRITE(*,'(A,F28.16)') '   rsmin2d          :  ', rsmin2d     (i)
+        WRITE(*,'(A,F28.16)') '   r_bsmin          :  ', r_bsmin     (i)
         WRITE(*,'(A       )') ' Other input parameters:'
         WRITE(*,'(A,F28.16)') '   u     ke         :  ', u           (i)
         WRITE(*,'(A,F28.16)') '   v     ke         :  ', v           (i)
@@ -1140,6 +1151,10 @@ ENDDO
     RETURN       ! whatever happens then
   ENDIF
 
+#ifdef _OPENACC
+  IF(lmulti_snow) CALL finish("sfc_terra:terra", "lmulti_snow has not been tested with OpenACC yet.")
+#endif
+
   ! set number of active soil moisture layers for Mire
   ke_soil_hy_m            = 4
 
@@ -1160,14 +1175,13 @@ ENDDO
 
   ! Subroutine parameters IN
   !$ACC DATA &
+  !$ACC   PRESENT(ivend) &
   !$ACC   PRESENT(zmls) &
-  !$ACC   PRESENT(soiltyp_subs, plcov, rootdp, sai, eai, tai) &
-  !$ACC   PRESENT(laifac) &
-  !$ACC   PRESENT(skinc) &
-  !$ACC   PRESENT(fr_paved, urb_isa, urb_ai, urb_h_bld) &
+  !$ACC   PRESENT(soiltyp_subs, urb_isa, fr_paved, urb_ai, urb_h_bld) &
   !$ACC   PRESENT(urb_hcap, urb_hcon, ahf) &
+  !$ACC   PRESENT(plcov, rootdp, sai, eai, tai, laifac, skinc) &
   !$ACC   PRESENT(heatcond_fac, heatcap_fac) &
-  !$ACC   PRESENT(rsmin2d, r_bsmin, u, v, t, qv, ptot, ps, h_snow_gp, u_10m) &
+  !$ACC   PRESENT(rsmin2d, u, v, t, qv, ptot, ps, h_snow_gp, u_10m) &
   !$ACC   PRESENT(v_10m, prr_con, prs_con, conv_frac, prr_gsp, prs_gsp, pri_gsp) &
 #ifdef TWOMOM_SB
   !$ACC   PRESENT(prh_gsp) &
@@ -1231,18 +1245,18 @@ ENDDO
   ! Terra data module fields
   !$ACC   PRESENT(cporv, cfcap, cpwp, cadp, cik2, ckw0, ckw1, cdw0) &
   !$ACC   PRESENT(cdw1, crock, crhoc, cala1, cala0, ck0di, cbedi) &
-  !$ACC   PRESENT(clgk0, csandf, cclayf)
+  !$ACC   PRESENT(clgk0, csandf, cclayf) ASYNC(acc_async_queue)
 
-! for the optional fields for itype_trvg
-  !$ACC DATA PRESENT(plevap, z0) IF(PRESENT(plevap))
+  ! for the optional fields for itype_trvg
+  !$ACC DATA PRESENT(plevap, z0) ASYNC(acc_async_queue) IF(PRESENT(plevap))
 
   ! for the soil water budget
-  !$ACC DATA PRESENT(resid_wso) CREATE(zhwso_budget) IF(lres_soilwatb)
+  !$ACC DATA PRESENT(resid_wso) CREATE(zhwso_budget) ASYNC(acc_async_queue) IF(lres_soilwatb)
 
   IF (lres_soilwatb) THEN
     ! Calculation of soil water budget: store recent runoff fluxes
     ! the final runoff fluxes are subtracted at the end
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zhwso_budget(i) = runoff_s(i) + runoff_g(i)
@@ -1256,7 +1270,7 @@ ENDDO
 
   ln_10 = LOG(10.0_wp)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP SEQ
   DO kso = 0, UBOUND(zaga,2)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -1401,7 +1415,7 @@ ENDDO
 
 
   ! Determine constants clgk0 for BATS-scheme
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jb       = 1, 10
     clgk0(jb) = LOG(MAX(eps_soil,ck0di(jb)/ckrdi))/ln_10
@@ -1428,7 +1442,11 @@ ENDDO
 
   zpercmax = 2.E-3_wp
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  ! ACCWA (nvhpc 23.3): NUM_GANGS(1024): The compiler was using a small number of
+  ! gangs for this kernel for some reason, but by default if the loop bounds are
+  ! present on the GPU only, the compiler would always use 1024 as some reasonable
+  ! number
+  !$ACC PARALLEL DEFAULT(PRESENT) NUM_GANGS(1024) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ztrangs(i)            = 0.0_wp
@@ -1653,9 +1671,10 @@ ENDDO
 
 ! heat conductivity based on assumption of a soil water content which is equal to the
 ! average between wilting point and field capacity
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) PRIVATE(zwqg, z4wdpv)
+    !$ACC LOOP SEQ
 !$NEC outerloop_unroll(7)
     DO kso = 1, ke_soil
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zwqg, z4wdpv)
       DO i = ivstart, ivend
         zwqg         = 0.5_wp*(zfcap(i,kso) + zpwp(i,kso))
         z4wdpv       = 4._wp*zwqg/zporv(i,kso)
@@ -1669,8 +1688,9 @@ ENDDO
       ENDDO
     ENDDO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         zalam(i,kso) = zalam(i,kso) + zalamtmp(i,kso)
         hzalam(i,kso) = zalam(i,kso)
@@ -1695,7 +1715,9 @@ ENDDO
     ! This modification decreases with depth with respect to the
     ! natural soil below the buildings.
 
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zalpha_uf)
       DO i = ivstart, ivend
 
         zalpha_uf    = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
@@ -1892,7 +1914,9 @@ ENDDO
 !------------------------------------------------------------------------------
 
   IF (lmulti_snow) THEN
+    !$ACC LOOP SEQ
     DO ksn = 0,ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (w_snow_now(i) > 0.0_wp) THEN
           ! existence of snow
@@ -1908,6 +1932,7 @@ ENDDO
       ENDDO
     ENDDO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
        IF (w_snow_now(i) > 0.0_wp) THEN
          ! existence of snow
@@ -1960,6 +1985,7 @@ ENDDO
 
   IF (lmulti_snow) THEN
     ! some preparations for ksn==0 and ksn==1
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ztsnow_mult   (i,0) = t_snow_mult_now(i,0)
       ztsnow_mult   (i,1) = t_snow_mult_now(i,1)
@@ -1979,7 +2005,9 @@ ENDDO
     ENDDO
 
 
+    !$ACC LOOP SEQ
     DO  ksn = 2,ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         ztsnow_mult(i,ksn) = t_snow_mult_now(i,ksn)
 
@@ -2073,8 +2101,14 @@ ENDDO
   DO i = ivstart, ivend
      ! snow and water covered fraction
      !em        zrss = MAX( 0.01_wp, MIN(1.0_wp,zwsnow(i)/cf_snow) )
-     zzz  = MAX( 0.25_wp*cf_w,0.4_wp*cwimax_ml*MAX(2.5_wp*plcov(i),tai(i)) )
-     zrww = MAX( 0.01_wp, 1.0_wp - EXP(MAX( -5.0_wp, - zwin(i)/zzz) ) )
+     zzz   = MAX( 0.25_wp*cf_w,0.4_wp*cwimax_ml*MAX(2.5_wp*plcov(i),tai(i)) )
+
+     ! TERRA_URB: Puddles on the impervious surface area
+     IF (lterra_urb .AND. (itype_eisa == 3)) THEN
+       zzz = urb_isa(i) * cwisamax + (1.0_wp - urb_isa(i)) * zzz
+     END IF
+
+     zrww  = MAX( 0.01_wp, 1.0_wp - EXP(MAX( -5.0_wp, - zwin(i)/zzz) ) )
      !em        zf_snow(i) = zrss*zsf_heav(zwsnow(i) - eps_soil)
 
      IF (itype_interception == 1) THEN
@@ -2749,19 +2783,24 @@ ENDDO
   ctau_i  = MAX( ctau_i, zdt )
 
   ! Utility variable to avoid IF-constructs
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO kso     = 1,ke_soil
     IF (kso == 1) THEN 
-      znlgw1f(1)         = 1.0_wp
+      znlgw1f(1)    = 1.0_wp
     ELSE
       znlgw1f(kso)  = 0.0_wp
     END IF
   END DO
+  !$ACC END PARALLEL
 
   ! Initialisations
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc) &
+  !$ACC   PRIVATE(zro_sfak, zro_gfak, zfmb_fak, zcou_roffg)
   IF (lmulti_snow) THEN
+    !$ACC LOOP SEQ
     DO ksn = 0, ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         zdtsnowdt_mult(i,ksn)  = 0.0_wp
         zdtsdt(i)     = 0.0_wp
@@ -2815,7 +2854,9 @@ ENDDO
     !     modification decreases with respect to the natural soil below. 
     !     Below urb_h_bld, everything is natural soil.
 
+    !$ACC LOOP SEQ
     DO kso = 1, ke_soil+1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zalpha_uf)
       DO i = ivstart, ivend
 
         zalpha_uf   = MAX(0.0_wp, MIN(zmls(kso)/urb_h_bld(i), 1.0_wp))
@@ -2862,14 +2903,22 @@ ENDDO
       IF (zrs(i) >= 1.05_wp*zrime .OR. zf_snow(i) >= 0.9_wp) zrime = 0._wp
       zrs(i) = zrs(i) - zrime
 
-      ! infiltration and surface run-off
+      !
+      ! Infiltration and surface runoff
+      !
 
       ! subtract evaporation from interception store to avoid negative
       ! values due to sum of evaporation+infiltration
       zwinstr(i) = zwin(i) + zdwidt(i)*zdtdrhw
       zwinstr(i) = MAX(0.0_wp,zwinstr(i))
 
-      zwimax(i) = cwimax_ml*(1.0_wp+ztfunc(i))*MAX(ztfunc(i), eps_soil, MAX(2.5_wp*plcov(i),tai(i)))
+      zwimax(i)   = cwimax_ml*(1.0_wp+ztfunc(i))*MAX(ztfunc(i), eps_soil, MAX(2.5_wp*plcov(i),tai(i)))
+
+      ! TERRA_URB: Puddles on the impervious surface area
+      IF (lterra_urb .AND. (itype_eisa == 3)) THEN
+        zwimax(i) = urb_isa(i) * cwisamax + (1.0_wp - urb_isa(i)) * zwimax(i)
+      END IF
+
       zalf   = SQRT(MAX(0.0_wp,1.0_wp - zwinstr(i)/zwimax(i)))
 
       ! water supply from interception store (if Ts above freezing)
@@ -2921,7 +2970,8 @@ ENDDO
       ! surface runoff is evaluated after the calculation of infiltration
       zvers(i) = zinf + (1._wp - zalf)*zrr(i) + (1._wp-conv_frac(i))*zalf*prr_con(i)
 
-!     IF (lterra_urb .AND. (itype_eisa == 2)) THEN
+
+!     IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
 !       !HW: this is just a reminder
 !       !zvers * (1._wp- isa(i,j) is the amount of water falling on non-impervious surface
 !       !zvers *  isa(i,j) is the amount of water falling on impervious surface 
@@ -2934,6 +2984,9 @@ ENDDO
 
 !       !zeisa: unit: m/s x kg / m^3 = kg/ m^2/s
 !       !zeisa*zdtdrhw : unit: m/s x kg / m^3 x s / kg x m ^2= m
+
+!       ! unit c_isa_wmax: kg/m^2
+!       c_isa_wmax = 1.31_wp ! Maximum amount of water that can be stored by impervious surfaces
 
 !       ! unit w_imp: kg/m^2
 !       w_imp(i) = MAX(w_imp(i) + zvers(i)*zdt + zeisa(i)*zdt , 0.0_wp)
@@ -2961,13 +3014,28 @@ ENDDO
 !                               zisa_infil * fr_paved(i) * c_isa_runoff    )
 
 !     ELSE
+
+        ! Infiltration
+        !
         ! Avoid infiltration for rock, ice and snow-covered surfaces
         zinfil(i) = zvers(i)*zrock(i)*(1.0_wp - zf_snow(i))
 
+        ! Avoid infiltration for urban impervious surface area fraction
+        IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+          zinfil(i) = zinfil(i) * (1.0_wp - urb_isa(i))
+        END IF
+
+
         ! Add difference to surface runoff
         zro_inf = zvers(i) - zinfil(i)
-!     ENDIF
+
+!     END IF
+
+
+      ! Surface runoff, including the effect of the impervious surface area, if present
+      !
       runoff_s(i) = runoff_s(i) + zro_inf*zroffdt
+
 
       ! change of snow water and interception water store
       ! (negligible residuals are added to the run-off)
@@ -3749,6 +3817,7 @@ ENDDO
 
   IF (lmulti_snow) THEN
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ! Estimate thermal surface fluxes:
       ! Estimate thermal surface fluxes over snow covered and snow free
@@ -3782,6 +3851,7 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ! thawing of snow falling on soil with Ts > T0
       IF (ztsnow_pm(i)*zrs(i) > 0.0_wp) THEN
@@ -3858,7 +3928,9 @@ ENDDO
       sum_weight(i) = 0.0_wp
     END DO
  
+    !$ACC LOOP SEQ
     DO ksn = 1,ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (zwsnew(i).GT.eps_soil) THEN
           h_snow_now(i) = h_snow_now(i) + zdzh_snow(i,ksn)
@@ -3867,7 +3939,9 @@ ENDDO
     END DO
 
     k = MIN(2,ke_snow-1)
+    !$ACC LOOP SEQ
     DO ksn = 1,ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (zwsnew(i) .GT. eps_soil) THEN
           IF (zwsnow(i) .GT. eps_soil) THEN
@@ -3886,7 +3960,9 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP SEQ
     DO ksn = ke_snow,1,-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF(zwsnew(i) .GT. eps_soil .AND. zwsnow(i) .GT. eps_soil) THEN
           dz_old(i,ksn) = zdzh_snow(i,ksn)
@@ -3897,6 +3973,7 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF(zwsnew(i) .GT. eps_soil) THEN
         zhm_snow (i,1) = (-h_snow_now(i) + zhh_snow(i,1))/2._wp
@@ -3912,7 +3989,9 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP SEQ
     DO ksn = 2,ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF(zwsnew(i) .GT. eps_soil) THEN
           zhm_snow(i,ksn) = (zhh_snow(i,ksn) + zhh_snow(i,ksn-1))/2._wp
@@ -3927,14 +4006,18 @@ ENDDO
       END DO
     END DO
 
+    !$ACC LOOP SEQ
     DO ksn = ke_snow,1,-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         t_new  (i,ksn) = 0.0_wp
         rho_new(i,ksn) = 0.0_wp
         wl_new (i,ksn) = 0.0_wp
       END DO
 
+      !$ACC LOOP SEQ
       DO k = ke_snow,1,-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i = ivstart, ivend
           IF(zwsnew(i) .GT. eps_soil .AND. zwsnow(i) .GT. eps_soil) THEN
 
@@ -3960,7 +4043,9 @@ ENDDO
     ! - MAX(z_old(i, k) - dz_old(i, k)/2._wp, &
     ! &     zhm_snow(i, ksn) - zdzh_snow(i, ksn)/2._wp), &
 
+    !$ACC LOOP SEQ
     DO ksn = ke_snow,1,-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF(zwsnew(i) .GT. eps_soil) THEN
           IF(zwsnow(i) .GT. eps_soil) THEN
@@ -3980,7 +4065,9 @@ ENDDO
 
 
     ! heat conductivity of snow as funtion of water content
+    !$ACC LOOP SEQ
     DO ksn = 1, ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (zwsnew(i).GT.eps_soil) THEN
           zalas_mult(i,ksn) = 2.22_wp*EXP(1.88_wp*LOG(rho_snow_mult_now(i,ksn)/rho_i))
@@ -3989,6 +4076,7 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (zwsnew(i).GT.eps_soil) THEN
         zgsb(i) = ((zalas_mult(i,ke_snow)*(-zhm_snow(i,ke_snow))+hzalam(i,1)*zdzms(1))/ &
@@ -4028,7 +4116,7 @@ ENDDO
 
     ! TERRA_URB: Set anthropogenic heat flux
     IF (lterra_urb .AND. lurbahf) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = ivstart, ivend
         zahf(i) = urb_isa(i)*ahf(i)
@@ -4036,7 +4124,7 @@ ENDDO
       !$ACC END PARALLEL
     END IF
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(ztalb, zgstr, zro, zalas, zzz, zd, zfr_melt, zw_ovpv)
     !$NEC sparse
     DO i = ivstart, ivend
@@ -4141,8 +4229,8 @@ ENDDO
     !$ACC END PARALLEL
 
     IF (msg_level >= 20) THEN
-      !$ACC UPDATE ASYNC(1) HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
-      !$ACC UPDATE ASYNC(1) HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
+      !$ACC UPDATE ASYNC(acc_async_queue) HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
+      !$ACC UPDATE ASYNC(acc_async_queue) HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
           IF ( ABS( zshfl_s(i) )  >  500.0_wp  .OR. &
@@ -4172,7 +4260,7 @@ ENDDO
   ! for the whole column "soil + snow" for snow-covered surface is solved.
   ! Then, the two updates are merged together.
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     sn_frac(i) = zf_snow(i)
@@ -4183,8 +4271,9 @@ ENDDO
     ENDIF
   END DO
 
-  !$ACC LOOP GANG VECTOR COLLAPSE(2)
+  !$ACC LOOP SEQ
   DO kso = 1, ke_soil+1
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       t_so_free_new(i,kso) = t_so_now(i,kso)
       t_so_snow_new(i,kso) = t_so_now(i,kso)
@@ -4288,6 +4377,7 @@ ENDDO
 
     ! If there is snow, the solution of the heat conduction equation
     ! goes through the whole column "soil+snow"
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (sn_frac(i) > 0._wp) THEN
         ! Uppermost snow layer, Neumann boundary condition
@@ -4344,6 +4434,7 @@ ENDDO
 
     ! Snow layers
     DO ksn = 2, ke_snow-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (sn_frac(i) > 0._wp) THEN
           zrocs(i) = (wliq_snow_now(i,ksn)/wtot_snow_now(i,ksn)*chc_w + &
@@ -4365,6 +4456,7 @@ ENDDO
 
     ! Soil layers
     DO ksn = ke_snow+2, ke_snow + ke_soil
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (sn_frac(i) > 0._wp) THEN
           kso = ksn - ke_snow
@@ -4383,6 +4475,7 @@ ENDDO
 
 
     DO kso = 1, ke_snow + ke_soil
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (sn_frac(i) > 0._wp) THEN
           zzz = 1._wp/(zagb(i,kso) - zaga(i,kso)*zagc(i,kso-1))
@@ -4393,6 +4486,7 @@ ENDDO
     END DO                ! snow + soil layers
 
     ! Back substitution, lowermost soil layer
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (sn_frac(i) > 0._wp) THEN
         zage(i,ke_snow+ke_soil+1) =  &
@@ -4404,6 +4498,7 @@ ENDDO
 
     ! Back substitution, soil layers
     DO kso = ke_snow+ke_soil, ke_snow+1, -1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (sn_frac(i) > 0._wp) THEN
           zage(i,kso) = zagd(i,kso) - zagc(i,kso)*zage(i,kso+1)
@@ -4414,6 +4509,7 @@ ENDDO
 
     ! Back substitution, snow layers
     DO ksn = ke_snow,1,-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (sn_frac(i) > 0._wp) THEN
           zage(i,ksn) = zagd(i,ksn) - zagc(i,ksn)*zage(i,ksn+1)
@@ -4423,6 +4519,7 @@ ENDDO
     END DO                ! snow layers
 
 !in case of thin snowpack (less than zswitch), apply single-layer snow model
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (sn_frac(i) > 0._wp) THEN
         zgsb(i) = ((zalas_mult(i,ke_snow)*(-zhm_snow(i,ke_snow))+hzalam(i,1)*zdzms(1))/ &
@@ -4439,6 +4536,7 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF(zwsnew(i) .LT. zswitch(i) .AND. sn_frac(i) > 0._wp) THEN
         ztsn  (i) = t_so_now(i,1)
@@ -4454,6 +4552,7 @@ ENDDO
     END DO
 
 !    DO ksn = 1, ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF(sn_frac(i) > 0._wp) THEN
 !          IF(zwsnew(i) .LT. zswitch(i)) THEN
@@ -4466,6 +4565,7 @@ ENDDO
 
 
     DO ksn = 1, ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF(zwsnew(i) .GT. eps_soil .and. zwsnew(i) .LT. zswitch(i)) THEN
 
@@ -4480,6 +4580,7 @@ ENDDO
     END DO
 
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF(zwsnew(i) .GT. eps_soil .and. zwsnew(i) .LT. zswitch(i)) THEN
 
@@ -4499,6 +4600,7 @@ ENDDO
   ! Combining the two partial updates of soil temperature
   IF(lmulti_snow) THEN
     DO kso = 1, ke_soil+1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         t_so_new(i,kso) = t_so_snow_new(i,kso)*sn_frac(i) + t_so_free_new(i,kso)*(1._wp - sn_frac(i))
       END DO
@@ -4615,9 +4717,9 @@ ENDDO
   !$ACC END PARALLEL
 
   IF (msg_level >= 20) THEN
-    !$ACC UPDATE ASYNC(1) HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
-    !$ACC UPDATE ASYNC(1) HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
-    !$ACC UPDATE ASYNC(1) HOST(zwsnow, zrr, zrs, zdwsndt)
+    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
+    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
+    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zwsnow, zrr, zrs, zdwsndt)
     DO i = ivstart, ivend
 !     IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
       IF ( ABS( zshfl_s(i)    * (1.0_wp-zf_snow(i)) )  >  700.0_wp .OR. &
@@ -4664,7 +4766,7 @@ ENDDO
 
   IF (.NOT. lmulti_snow) THEN
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(ztsnownew, ze_avail, ze_total, zfr_melt) &
     !$ACC   PRIVATE(ztsnew, zdelt_s, zdwgme, zro, zredfu, zw_ovpv, zfr_ice_free)
     DO i = ivstart, ivend
@@ -5022,7 +5124,7 @@ ENDDO
     ENDDO
 
   ELSE
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       t_snow_new(i)  = t_snow_now(i) + zdt*zdtsnowdt(i)
@@ -5030,7 +5132,7 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO i = ivstart, ivend
     ! t_snow is computed above
@@ -5046,9 +5148,9 @@ ENDDO
       t_sk_new(i)    = t_s_new(i)
     ELSE IF (itype_canopy == 2) THEN
 
-      ! Calculation of the skin temperature (snow free area), 
-      ! based on Viterbo and Beljaars (1995) and Schulz and Vogel (2020).
-      ! A Newtonian relaxation approach is used to ensure numerical stability
+      ! Calculation of the skin temperature (snow free area)
+      ! by Schulz and Vogel (2020), based on Viterbo and Beljaars (1995).
+      ! A Newtonian relaxation approach is used to ensure numerical stability.
 
       IF (w_snow_now(i) > eps_soil .OR. w_snow_new(i) > eps_soil) THEN
         t_sk_new(i) = t_s_new(i) ! needs to be t_s rather than t_snow in order to obtain correct t_g afterwards
@@ -5077,6 +5179,7 @@ ENDDO
   ENDDO
 
   IF (lmulti_snow) THEN
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       IF (w_snow_now(i) < eps_soil .AND. w_snow_new(i) >= eps_soil) THEN
         t_snow_mult_new(i,:) = t_snow_new(i)
@@ -5121,6 +5224,7 @@ ENDDO
   ! Eliminate snow for multi-layer snow model, if w_snow = 0
   IF (lmulti_snow) THEN
     DO ksn = 1, ke_snow
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = ivstart, ivend
         IF (w_snow_new(i) <= eps_soil) THEN
           t_snow_mult_new(i,ksn) = t_so_new(i,0)
@@ -5136,7 +5240,7 @@ ENDDO
 
   IF(.NOT. lmulti_snow) THEN
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zzz, ztau_snow, zrhosmax, zrho_snowe) &
     !$ACC   PRIVATE(zrho_snowf, zxx, zdwgme, zro, zredfu, zw_ovpv, zrhosmin)
     !$NEC sparse
@@ -5392,7 +5496,7 @@ ENDDO
  ENDIF ! lmulti_snow
 
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
   !$ACC LOOP SEQ
   DO kso = 1,ke_soil
   !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -5410,7 +5514,7 @@ ENDDO
 
   ! computation of the weighted turbulent fluxes at the boundary surface-atmosphere
   IF(PRESENT(zshfl_sfc)) THEN
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       zshfl_sfc(i) = zshfl_s(i)*(1._wp - zf_snow(i)) + zshfl_snow(i)*zf_snow(i)
@@ -5427,7 +5531,7 @@ ENDDO
 
   ! This block tests the residuum of water mass content in soil
   IF (lres_soilwatb) THEN
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue)
     !$ACC LOOP GANG VECTOR
     DO i = ivstart, ivend
       ! the rain rates 
@@ -5462,8 +5566,6 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
-  !$ACC WAIT
-
 ! for optional fields related to soil water budget
   !$ACC END DATA
 
@@ -5475,6 +5577,7 @@ ENDDO
   !$ACC END DATA
 
   IF (msg_level >= 19) THEN
+    !$ACC UPDATE WAIT(acc_async_queue) HOST(ivend)
     DO i = ivstart, ivend
 
 !     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN

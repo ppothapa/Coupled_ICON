@@ -129,9 +129,9 @@ SUBROUTINE cumastrn &
  & pmflxr,   pmflxs,   prain, pdtke_con,         &
  & pcape,    pvddraf,                            &
  & pcen, ptenrhoc,                               &
- & l_lpi, l_lfd, lpi, mlpi, koi, lfd,            &
+ & l_lpi, l_lfd, lpi, mlpi, koi, lfd, peis,      &
 ! stochastic, extra diagnostics and logical switches
- & lspinup, k650,k700, temp_s,                        &
+ & lspinup, k650,k700, temp_s,                   &
  & cell_area,iseed,                              &
  & mf_bulk,mf_perturb,mf_num,p_cloud_ensemble,   &
  & pclnum_a, pclmf_a, pclnum_p, pclmf_p,         &                  
@@ -456,7 +456,7 @@ REAL(KIND=jprb)   ,OPTIONAL, INTENT(inout)   :: lpi(:)
 REAL(KIND=jprb)   ,OPTIONAL, INTENT(inout)   :: mlpi(:)
 REAL(KIND=jprb)   ,OPTIONAL, INTENT(inout)   :: koi(:)
 REAL(KIND=jprb)   ,OPTIONAL, INTENT(inout)   :: lfd(:)
-
+REAL(KIND=jprb)            , INTENT(inout)   :: peis(:)
 LOGICAL                    , INTENT(in)      :: lacc
 
 !*UPG change to operations
@@ -543,7 +543,7 @@ LOGICAL, PARAMETER :: lpassive = .FALSE. !run stoch schemes in piggy-backing mod
 
 INTEGER(KIND=jpim) :: ktrac  ! number of chemical tracers
 
-REAL(KIND=jprb) :: msee(klon,klev), eis(klon)
+REAL(KIND=jprb) :: msee(klon,klev)
 
 !#include "cuascn.intfb.h"
 !#include "cubasen.intfb.h"
@@ -564,7 +564,7 @@ REAL(KIND=jprb) :: msee(klon,klev), eis(klon)
 !$ACC   PRESENT(ptenrhos, ptenu, ptenv, ldcum, ktype, kcbot, kctop, ldshcv, ptu, pqu) &
 !$ACC   PRESENT(plu, pmflxr, pmflxs, pdtke_con, prain, pmfu, pmfd, pmfude_rate) &
 !$ACC   PRESENT(pmfdde_rate, pcape, pvddraf, phy_params, zdph, shfl_s, qhfl_s, pcore) &
-!$ACC   PRESENT(ptenta, ptenqa, k700, plen, pien) &
+!$ACC   PRESENT(ptenta, ptenqa, k700, plen, pien, peis) &
 
 !$ACC   CREATE(pwmean, plude, penth, pqsen, psnde, ztenq_sv, ztenh, zqenh, zqsenh) &
 !$ACC   CREATE(ztd, zqd, zmfus, zmfds, zmfuq, zmfdq, zdmfup, zdmfdp, zmful, zrfl) &
@@ -573,7 +573,7 @@ REAL(KIND=jprb) :: msee(klon,klev), eis(klon)
 !$ACC   CREATE(ilab, idtop, ictop0, ilwmin, idpl, zcape, zheat, zcappbl, zcapdcycl) &
 !$ACC   CREATE(llddraf, llddraf3, lldcum, llo2, zsfl, ztau, ztaupbl, zmfs, zmfuus) &
 !$ACC   CREATE(zmfdus, zmfudr, zmfddr, ZTENU, ZTENV, zmfuub, zmfuvb, ZUV2, ZSUM12) &
-!$ACC   CREATE(ZSUM22, zmf_shal, pvervel650, deprof, zdhout, zsatfr, zcape2, msee, eis) &
+!$ACC   CREATE(ZSUM22, zmf_shal, pvervel650, deprof, zdhout, zsatfr, zcape2, msee) &
 !$ACC   IF(lacc)
     
 !$ACC DATA &
@@ -801,10 +801,10 @@ ENDDO
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
-   eis(JL)=MAX(msee(JL,k700(jl))-msee(JL,k950(jl)),msee(JL,k950(jl))-msee(JL,KLEV))/rcpd
+   peis(JL)=MAX(msee(JL,k700(jl))-msee(JL,k950(jl)),msee(JL,k950(jl))-msee(JL,KLEV))/rcpd
    !MAX(S700-S950; S(950)-S(surf))
 ENDDO
-
+ 
 !*                 ESTIMATE CLOUD HEIGHT FOR ENTRAINMENT/DETRAINMENT
 !*                 CALCULATIONS IN CUASC AND INITIAL DETERMINATION OF
 !*                 CLOUD TYPE
@@ -1688,7 +1688,7 @@ ENDDO
 !USE EIS to switch off convection in stable conditions
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO JL=KIDIA,KFDIA
-   IF (eis(JL)>phy_params%eiscrit .AND. ktype(jl)==2) THEN
+   IF (peis(JL)>phy_params%eiscrit .AND. ktype(jl)==2) THEN
       llo2(jl)=.TRUE.
       ldcum(jl)=.FALSE.
    ENDIF

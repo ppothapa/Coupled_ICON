@@ -347,6 +347,7 @@ CONTAINS
          CALL real_timer_abort(it,'timer_start: timer_stop call missing')
     rt(it)%stat = rt_on_stat
 
+    !$ACC WAIT
 #ifdef _USE_NVTX
     call nvtxStartRange(srt(it)%text)
 #endif
@@ -478,6 +479,7 @@ CONTAINS
     REAL(dp) :: dt
 
   !------------------------------------------------------------------------------------------------
+    !$ACC WAIT
 #ifdef _USE_NVTX
     call nvtxEndRange()
 #endif

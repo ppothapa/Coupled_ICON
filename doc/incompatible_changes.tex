@@ -495,4 +495,10 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
    \item Renamed ecRad-specific namelist settings \texttt{llw\_cloud\_scat} to \texttt{ecrad\_llw\_cloud\_scat}, \texttt{iliquid\_scat} to \texttt{ecrad\_iliquid\_scat} and \texttt{iice\_scat} to \texttt{ecrad\_iice\_scat}.
   \end{itemize}
 \end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-05-22}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{l\_open\_ubc}. The upper boundary condition for vertical velocity $w$ is unconditionally set to $w=0$ (with the exception of vertically nested domains).
+  \end{itemize}
+\end{changeitem}
 % --------------------------------------------------------------------------------------------

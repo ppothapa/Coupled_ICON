@@ -75,10 +75,12 @@ CONTAINS
       memwin%mem_ptr_metainfo_pe0 => dummy
     END IF
     ! Create memory window for meta-data communication
+#ifndef NO_ASYNC_IO_RMA
     CALL MPI_Win_create(memwin%mem_ptr_metainfo_pe0, mem_bytes, &
       &                 INT(nbytes_int), mpi_info_null, p_comm_work_io, &
       &                 memwin%mpi_win_metainfo, ierror)
     IF (ierror /= 0) CALL finish(routine, "MPI error!")
+#endif
     IF (comm_rank /= 0) NULLIFY(memwin%mem_ptr_metainfo_pe0)
 #endif
   END SUBROUTINE metainfo_allocate_memory_window

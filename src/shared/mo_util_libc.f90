@@ -16,11 +16,11 @@ MODULE mo_util_libc
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: memset, memcmp, memcpy
+  PUBLIC :: memset_f, memcmp_f, memcpy_f
 
 CONTAINS
 
-  SUBROUTINE memset(str, c, n)
+  SUBROUTINE memset_f(str, c, n)
     TYPE(C_PTR), VALUE :: str
     INTEGER(C_INT), VALUE :: c
     INTEGER(C_SIZE_T), VALUE :: n
@@ -35,9 +35,9 @@ CONTAINS
     END INTERFACE
 
     str = c_memset(str, c, n)
-  END SUBROUTINE memset
+  END SUBROUTINE memset_f
 
-  FUNCTION memcmp(str1, str2, n) RESULT(f_result)
+  FUNCTION memcmp_f(str1, str2, n) RESULT(f_result)
     TYPE(C_PTR), VALUE, INTENT(IN) :: str1, str2
     INTEGER(C_SIZE_T), VALUE :: n
     LOGICAL :: f_result
@@ -51,9 +51,9 @@ CONTAINS
     END INTERFACE
 
     f_result = (c_memcmp(str1, str2, n) /= 0)
-  END FUNCTION memcmp
+  END FUNCTION memcmp_f
 
-  TYPE(C_PTR) FUNCTION memcpy(dest, src ,bsize) RESULT(ret)
+  TYPE(C_PTR) FUNCTION memcpy_f(dest, src ,bsize) RESULT(ret)
     TYPE(C_PTR), VALUE :: dest
     TYPE(C_PTR), INTENT(IN), VALUE :: src
     INTEGER(C_SIZE_T), INTENT(IN) :: bsize
@@ -68,7 +68,7 @@ CONTAINS
     END INTERFACE
 
     ret = c_memcpy(dest, src, bsize)
-  END FUNCTION memcpy
+  END FUNCTION memcpy_f
 
 END MODULE mo_util_libc
 

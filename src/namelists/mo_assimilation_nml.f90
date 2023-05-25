@@ -57,7 +57,8 @@ MODULE mo_assimilation_nml
     lhn_wweight      ,& ! apply a weighting with respect to the mean horizontal wind
     lhn_bright       ,& ! apply bright band detection
     lhn_diag         ,& ! produce more detailed diagnostic output during lhn
-    lhn_artif_only      ! apply only artificial temperature profile instead of applying modelled tt_lheat profile
+    lhn_artif_only   ,& ! apply only artificial temperature profile instead of applying modelled tt_lheat profile
+    lhn_refbias         ! apply bias corretion of refernece precipitation
 
   INTEGER ::  &
     nlhn_start       ,& ! start of latent heat nudging period in timesteps
@@ -82,21 +83,25 @@ MODULE mo_assimilation_nml
     zlev_artif_max    ,& ! altidude of maximum of artificial profile
     std_artif_max     ,& ! parameter to define vertical width of artifical temperature profile
     start_fadeout     ,& ! time relative to lhn_end, when the lhn coefficient in decreased toward 0
+    ref_bias0         ,& ! starting ratio of model precipitation to reference precipitation used in LHN
+    dtrefbias         ,& ! adaptation time scale for bias correction
     rttend            ,& ! ratio of temperature increment to be applied
     bbthres           ,& ! threshold of precipitation rate used in bright band detection
     hzerolim             ! limitation of hzerocl used in bright band detection
 
- CHARACTER (LEN=100)              ::           &
+  CHARACTER (LEN=100)              ::           &
     radar_in             ,& ! directory for reading radar-files
     radardata_file(max_dom)       ,& ! filename of radar data
     blacklist_file(max_dom)       ,& ! filename of blacklist for radar data
     height_file(max_dom)             ! filename of radar beam heights
 
- LOGICAL :: dace_coupling
- INTEGER :: dace_time_ctrl(3)
- INTEGER :: dace_debug       ! Debugging level for DACE interface
- CHARACTER(LEN=255) :: &
+  LOGICAL :: dace_coupling
+  INTEGER :: dace_time_ctrl(3)
+  INTEGER :: dace_debug       ! Debugging level for DACE interface
+  CHARACTER(LEN=255) :: &
     dace_output_file         ! filename for stdout redirection
+  CHARACTER(LEN=255) :: &
+    dace_namelist_file       ! filename of the file containing the dace namelist
 
 ! CHARACTER (LEN=12)               ::           &
 !    noobs_date (n_noobs)    ! array of missing observations
@@ -121,8 +126,9 @@ MODULE mo_assimilation_nml
                               lhn_dt_obs   ,nradar, radardata_file     ,           &
                               tt_artif_max ,zlev_artif_max, std_artif_max,         &
                               start_fadeout,                                       &
+                              lhn_refbias  ,ref_bias0 , dtrefbias      ,           &
                               dace_coupling ,dace_time_ctrl, dace_debug,           &
-                              dace_output_file
+                              dace_output_file, dace_namelist_file
 CONTAINS
   !>
   !!
@@ -141,6 +147,7 @@ CONTAINS
     dace_time_ctrl     = 0
     dace_debug         = 0
     dace_output_file   = ""
+    dace_namelist_file = 'namelist'
 
     llhn(:)               = ldass_lhn
     llhnverif(:)          = .TRUE.
@@ -160,6 +167,7 @@ CONTAINS
     lhn_diag           = .FALSE.
     lhn_artif_only     = .FALSE.
     lhn_bright         = .FALSE.
+    lhn_refbias        = .FALSE.
     nlhn_start         = -9999
     nlhn_end           = -9999
     nlhnverif_start    = -9999
@@ -182,6 +190,8 @@ CONTAINS
 !    noobs_date  (:)    = '            '
     rqrsgmax           = 1.0_wp
     rttend             = 1.0_wp
+    ref_bias0          = 1.0_wp
+    dtrefbias          = 1800.0_wp
     tt_artif_max       = 0.0015
     zlev_artif_max     = 1000.
     std_artif_max      = 4.
@@ -243,6 +253,7 @@ CONTAINS
         assimilation_config(jg)%dace_time_ctrl  = dace_time_ctrl
         assimilation_config(jg)%dace_debug      = dace_debug
         assimilation_config(jg)%dace_output_file= dace_output_file
+        assimilation_config(jg)%dace_namelist_file = dace_namelist_file
         assimilation_config(jg)%llhn            = llhn(jg)
         assimilation_config(jg)%llhnverif       = llhnverif(jg)
         assimilation_config(jg)%lhn_artif       = lhn_artif
@@ -261,6 +272,7 @@ CONTAINS
         assimilation_config(jg)%lhn_incloud     = lhn_incloud
         assimilation_config(jg)%lhn_artif_only  = lhn_artif_only
         assimilation_config(jg)%lhn_bright      = lhn_bright
+        assimilation_config(jg)%lhn_refbias     = lhn_refbias
         assimilation_config(jg)%nlhn_start      = nlhn_start
         assimilation_config(jg)%nlhn_end        = nlhn_end
         assimilation_config(jg)%nlhnverif_start = nlhnverif_start
@@ -278,6 +290,8 @@ CONTAINS
         assimilation_config(jg)%thres_lhn       = thres_lhn
         assimilation_config(jg)%rqrsgmax        = rqrsgmax
         assimilation_config(jg)%rttend          = rttend  
+        assimilation_config(jg)%ref_bias0       = ref_bias0
+        assimilation_config(jg)%dtrefbias       = dtrefbias
         assimilation_config(jg)%tt_artif_max    = tt_artif_max
         assimilation_config(jg)%zlev_artif_max  = zlev_artif_max
         assimilation_config(jg)%std_artif_max   = std_artif_max

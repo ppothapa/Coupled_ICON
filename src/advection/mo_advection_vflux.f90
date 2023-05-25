@@ -193,11 +193,8 @@ CONTAINS
 
     TYPE(t_advection_config), POINTER :: advconf
 
-    REAL(wp) :: z_mflx_contra_v(nproma) !< auxiliary variable for computing vertical nest interface quantities
+    REAL(wp) :: z_mflx_contra_v !< auxiliary variable for computing vertical nest interface quantities
 
-#ifdef __INTEL_COMPILER
-!DIR$ ATTRIBUTES ALIGN : 64 :: z_mflx_contra_v
-#endif
     !-----------------------------------------------------------------------
 
     IF (timers_level > 2) CALL timer_start(timer_adv_vflx)
@@ -292,8 +289,7 @@ CONTAINS
       i_startblk = p_patch%cells%start_block(i_rlstart_c)
       i_endblk   = p_patch%cells%end_block(i_rlend_c)
 
-      !$ACC DATA PRESENT(p_mflx_contra_v, p_patch, q_int, p_upflux, trAdvect) &
-      !$ACC   CREATE(z_mflx_contra_v)
+      !$ACC DATA PRESENT(p_mflx_contra_v, p_patch, q_int, p_upflux, trAdvect)
 
 !$OMP PARALLEL DO PRIVATE(jb,jt,jc,nt,i_startidx,i_endidx,z_mflx_contra_v) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk, i_endblk
@@ -301,19 +297,18 @@ CONTAINS
           &                 i_startidx, i_endidx, i_rlstart_c, i_rlend_c )
 
         ! Be sure to avoid division by zero
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(i_am_accel_node)
-        DO jc = i_startidx, i_endidx
-          z_mflx_contra_v(jc) = SIGN( MAX(ABS(p_mflx_contra_v(jc,p_patch%nshift_child,jb)),dbl_eps), &
-            &                                 p_mflx_contra_v(jc,p_patch%nshift_child,jb) )
-        ENDDO
-
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len
+          !$ACC LOOP GANG VECTOR PRIVATE(z_mflx_contra_v)
           DO jc = i_startidx, i_endidx
             jt = trAdvect%list(nt)
-            q_int(jc,jt,jb) = p_upflux(jc,p_patch%nshift_child,jb,jt) / z_mflx_contra_v(jc)
+            z_mflx_contra_v = SIGN( MAX(ABS(p_mflx_contra_v(jc,p_patch%nshift_child,jb)),dbl_eps), &
+            &                               p_mflx_contra_v(jc,p_patch%nshift_child,jb) )
+            q_int(jc,jt,jb) = p_upflux(jc,p_patch%nshift_child,jb,jt) / z_mflx_contra_v
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
       ENDDO
 !$OMP END PARALLEL DO
 
@@ -452,17 +447,14 @@ CONTAINS
       !
       ! set upper and lower boundary condition
       !
-!
-! With OpenACC this sometimes causes the compiler to crash, apparently due to the array syntax of one argument.  
-!
-      CALL set_bc_vadv(p_upflux(:,slev+1,jb),            &! in
-        &              p_mflx_contra_v(:,slev+1,jb),     &! in
-        &              p_mflx_contra_v(:,slev  ,jb),     &! in
-        &              zq_ubc(:,jb),                     &! in
-        &              p_iubc_adv, i_startidx, i_endidx, &! in
-        &              p_upflux(:,slev,jb),              &! out
-        &              p_upflux(:,nlevp1,jb), .TRUE.)     ! out
-      
+      CALL set_bc_vadv(i_start      = i_startidx,                 & !in
+        &              i_end        = i_endidx,                   & !in
+        &              iubc_adv     = p_iubc_adv,                 & !in
+        &              llbc_no_flux = .TRUE.,                     & !in
+        &              mflx_top     = p_mflx_contra_v(:,slev,jb), & !in
+        &              q_top        = zq_ubc(:,jb),               & !in
+        &              upflx_top    = p_upflux(:,slev,jb),        & !out
+        &              upflx_bottom = p_upflux(:,nlevp1,jb))        !out
       !$ACC WAIT
 
     ENDDO ! end loop over blocks
@@ -609,7 +601,7 @@ CONTAINS
 
     ! JF: for treatment of sedimentation
     INTEGER  :: elev, elev_lim           !< vertical end level
-    LOGICAL  :: llbc_adv                 !< apply lower boundary condition?
+    LOGICAL  :: llbc_no_flux             !< TRUE: apply 'no flux' lower boundary condition
     INTEGER  :: ik                       !< = MIN(jk,nlev)
 
     INTEGER  :: ji                       !< loop variable for index list
@@ -735,11 +727,11 @@ CONTAINS
     nlevp1 = p_patch%nlevp1
 
     ! check optional arguments
-    llbc_adv = .TRUE.
+    llbc_no_flux = .TRUE.
     IF ( PRESENT(opt_elev) ) THEN
       IF ( opt_elev == nlevp1 ) THEN
         elev = nlevp1
-        llbc_adv = .FALSE.
+        llbc_no_flux = .FALSE.  ! e.g. when used for sedimentation
       ELSE
         elev = nlev
       END IF
@@ -1131,16 +1123,14 @@ CONTAINS
       !
       ! set upper and lower boundary condition
       !
-      CALL set_bc_vadv(p_upflux(:,slev+1,jb),            &! in
-        &              p_mflx_contra_v(:,slev+1,jb),     &! in
-        &              p_mflx_contra_v(:,slev  ,jb),     &! in
-        &              zq_ubc(:,jb),                     &! in
-        &              p_iubc_adv, i_startidx, i_endidx, &! in
-        &              p_upflux(:,slev,jb),              &! out
-        &              p_upflux(:,nlevp1,jb), llbc_adv)   ! out
-
-      !$ACC WAIT
-
+      CALL set_bc_vadv(i_start      = i_startidx,                 & !in
+        &              i_end        = i_endidx,                   & !in
+        &              iubc_adv     = p_iubc_adv,                 & !in
+        &              llbc_no_flux = llbc_no_flux,               & !in
+        &              mflx_top     = p_mflx_contra_v(:,slev,jb), & !in
+        &              q_top        = zq_ubc(:,jb),               & !in
+        &              upflx_top    = p_upflux(:,slev,jb),        & !out
+        &              upflx_bottom = p_upflux(:,nlevp1,jb))        !out
 
 
       ! If desired, get edge value of advected quantity 
@@ -1375,7 +1365,7 @@ CONTAINS
 
     ! JF: for treatment of sedimentation
     INTEGER  :: elev, elev_lim           !< vertical end level
-    LOGICAL  :: llbc_adv                 !< apply lower boundary condition?
+    LOGICAL  :: llbc_no_flux             !< TRUE: apply 'no flux' lower boundary condition
 
     LOGICAL  :: l_out_edgeval            !< corresponding local variable; default 
                                          !< .FALSE. i.e. output flux across the edge
@@ -1458,11 +1448,11 @@ CONTAINS
     nlevp1 = p_patch%nlevp1
 
     ! check optional arguments
-    llbc_adv = .TRUE.
+    llbc_no_flux = .TRUE.
     IF ( PRESENT(opt_elev) ) THEN
       IF ( opt_elev == nlevp1 ) THEN
         elev = nlevp1
-        llbc_adv = .FALSE.
+        llbc_no_flux = .FALSE.  ! e.g. when used for sedimentation
       ELSE
         elev = nlev
       END IF
@@ -1803,16 +1793,17 @@ CONTAINS
       !
       ! set upper and lower boundary condition
       !
-      CALL set_bc_vadv(p_upflux(:,slev+1,jb),            &! in
-        &              p_mflx_contra_v(:,slev+1,jb),     &! in
-        &              p_mflx_contra_v(:,slev  ,jb),     &! in
-        &              zq_ubc(:,jb),                     &! in
-        &              p_iubc_adv, i_startidx, i_endidx, &! in
-        &              p_upflux(:,slev,jb),              &! out
-        &              p_upflux(:,nlevp1,jb), llbc_adv)   ! out
+      CALL set_bc_vadv(i_start      = i_startidx,                 & !in
+        &              i_end        = i_endidx,                   & !in
+        &              iubc_adv     = p_iubc_adv,                 & !in
+        &              llbc_no_flux = llbc_no_flux,               & !in
+        &              mflx_top     = p_mflx_contra_v(:,slev,jb), & !in
+        &              q_top        = zq_ubc(:,jb),               & !in
+        &              upflx_top    = p_upflux(:,slev,jb),        & !out
+        &              upflx_bottom = p_upflux(:,nlevp1,jb))        !out
 
 
-      ! If desired, get edge value of advected quantity 
+      ! If desired, get edge value of advected quantity
       IF ( l_out_edgeval ) THEN
 
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
@@ -1906,6 +1897,7 @@ CONTAINS
     END IF
 #endif
 
+    !$ACC WAIT
     !$ACC END DATA
 
     IF ( ld_cleanup ) THEN
@@ -2092,80 +2084,76 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !>
-  !! Set upper and lower boundary condition for vertical transport
+  !! Set top and bottom  boundary condition for vertical transport
   !!
-  !! Set upper and lower boundary condition for vertical transport.
   !!
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2011-04-12)
   !!
-  !
-  SUBROUTINE set_bc_vadv(upflx_top_p1, mflx_top_p1, mflx_top, q_top, iubc_adv, &
-    &                    i_start, i_end, upflx_top, upflx_bottom, llbc_adv )
+  SUBROUTINE set_bc_vadv(i_start, i_end, iubc_adv, llbc_no_flux, mflx_top, q_top, &
+    &                        upflx_top, upflx_bottom )
 
 !!$    CHARACTER(len=*), PARAMETER :: routine = modname//':set_ubc_adv'
 
-    REAL(wp), INTENT(IN)     :: & !< computed tracer flux at second half level
-      &  upflx_top_p1(:)
-    REAL(wp), INTENT(IN)     :: & !< mass flux at second half level
-      &  mflx_top_p1(:)
+    INTEGER, INTENT(IN)      :: & !< start and end index
+      &  i_start, i_end
+    INTEGER, INTENT(IN)      :: & !< selects upper boundary condition
+      &  iubc_adv
+    LOGICAL, INTENT(IN)      :: & !< TRUE: apply 'no flux' lower boundary condition
+      &  llbc_no_flux
     REAL(wp), INTENT(IN)     :: & !< mass flux at upper boundary
       &  mflx_top(:)
     REAL(wp), INTENT(IN)     :: & !< tracer mass fraction at upper boundary
       &  q_top(:)
-    INTEGER, INTENT(IN)      :: & !< selects upper boundary condition
-      &  iubc_adv
-    INTEGER, INTENT(IN)      :: & !< start and end index
-      &  i_start, i_end
     REAL(wp), INTENT(OUT)    :: & !< upper boundary condition
       &  upflx_top(:)
     REAL(wp), INTENT(INOUT)  :: & !< lower boundary condition
       &  upflx_bottom(:)
-    LOGICAL, INTENT(IN)      :: & !< apply lower boundary condition?
-      &  llbc_adv
 
+    INTEGER:: jc
     !-------------------------------------------------------------------------
 
-    !$ACC DATA PRESENT(upflx_top_p1, mflx_top_p1, mflx_top, q_top) &
-    !$ACC   PRESENT(upflx_top, upflx_bottom) IF(i_am_accel_node)
-
-    ! 
+    !
     ! flux at top boundary
-    ! 
+    !
     SELECT CASE (iubc_adv)
-      CASE ( ino_flx )     ! no flux
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        upflx_top(i_start:i_end) = 0._wp
-        !$ACC END KERNELS
- 
-      CASE ( izero_grad )  ! zero gradient
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        upflx_top(i_start:i_end) = upflx_top_p1(i_start:i_end)      &
-            &           * mflx_top(i_start:i_end)                   &
-            &           / ( mflx_top_p1(i_start:i_end)              &
-            &           + SIGN(dbl_eps, mflx_top_p1(i_start:i_end)))
-        !$ACC END KERNELS
+    CASE ( ino_flx )
 
-      CASE ( iparent_flx ) ! interpolated flux from parent grid
-      !
-      ! multiply horizontally interpolated face value q_ubc with time averaged 
-      ! mass flux at (nest) upper boundary
+      ! no flux condition
 
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-        upflx_top(i_start:i_end) = q_top(i_start:i_end)*mflx_top(i_start:i_end)
-        !$ACC END KERNELS
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_start,i_end
+        upflx_top(jc) = 0._wp
+      ENDDO
+      !$ACC END PARALLEL
+    CASE ( iparent_flx ) ! interpolated flux from parent grid
+
+      ! multiply given face value q_ubc with time averaged mass flux
+      ! at (nest) upper boundary
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_start,i_end
+        upflx_top(jc) = q_top(jc)*mflx_top(jc)
+      ENDDO
+      !$ACC END PARALLEL
     END SELECT
 
     !
     ! flux at bottom boundary
     !
-    IF ( llbc_adv ) THEN
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      upflx_bottom(i_start:i_end) = 0._wp
-      !$ACC END KERNELS
-    END IF
+    IF ( llbc_no_flux ) THEN
 
-    !$ACC END DATA
+      ! no flux condition
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_start,i_end
+        upflx_bottom(jc) = 0._wp
+      ENDDO
+      !$ACC END PARALLEL
+    END IF
 
   END SUBROUTINE set_bc_vadv
 
@@ -2319,6 +2307,7 @@ CONTAINS
       ! do nothing
     END SELECT
 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE compute_face_values_psm
@@ -2516,6 +2505,7 @@ CONTAINS
     END DO  !jk
     !$ACC END PARALLEL
 
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE compute_face_values_ppm

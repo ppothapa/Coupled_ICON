@@ -2893,6 +2893,7 @@ CONTAINS
                                    !< and a piecewise approximation is needed,
                                    !< instead
 
+    LOGICAL  :: l_consv            !< true if conservative lsq reconstruction is used
     INTEGER  :: nlev               !< number of full levels
     INTEGER  :: npoints            !< number of points per block for ndex list allocation
     INTEGER  :: slev, elev         !< vertical start and end level
@@ -2938,6 +2939,12 @@ CONTAINS
     ELSE
       elev_ti = nlev
     END IF
+
+    IF ( PRESENT(opt_lconsv) ) THEN
+     l_consv = opt_lconsv
+    ELSE
+     l_consv = .FALSE. ! non-conservative reconstruction
+    ENDIF
 
     IF ( PRESENT(opt_lout_edge) ) THEN
       l_out_edgeval = opt_lout_edge
@@ -3121,11 +3128,11 @@ CONTAINS
       IF (advection_config(pid)%llsq_svd) THEN
         CALL recon_lsq_cell_l_svd( p_cc, p_patch, lsq_high, z_lsq_coeff,               &
              &                     opt_slev=slev, opt_elev=elev, opt_rlend=i_rlend_c,  &
-             &                     opt_rlstart=2 )
+             &                     opt_rlstart=2, opt_lconsv=l_consv )
       ELSE
         CALL recon_lsq_cell_l( p_cc, p_patch, lsq_high, z_lsq_coeff,        &
           &                    opt_slev=slev, opt_elev=elev, opt_rlend=i_rlend_c, &
-          &                    opt_rlstart=2 )
+          &                    opt_rlstart=2, opt_lconsv=l_consv )
       ENDIF
     ELSE IF (lsq_high_ord == 2) THEN
       ! quadratic reconstruction

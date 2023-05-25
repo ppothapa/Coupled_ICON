@@ -1,0 +1,24 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
+SPACK_VERSION=$1
+VARIANT=$2
+
+# Unset positional parameters
+# so they are not forwarded to spack-c2sm/setup-env.sh
+set -- 
+
+git clone --depth 1 --recurse-submodules --shallow-submodules -b $SPACK_VERSION https://github.com/C2SM/spack-c2sm.git
+. spack-c2sm/setup-env.sh
+
+if ! git rev-parse --is-inside-work-tree &> /dev/null; then
+  echo "Error: This script must be executed from within the icon git repository."
+  # Because the icon package in spack-c2sm relies on that.
+  exit 1
+fi
+
+# The spack spec, i.e. the icon configuration is defined in the enviroment file in the path below
+# and is set by the spack activate command
+spack env activate -p $ICON_DIR/config/cscs/spack/$SPACK_VERSION/$VARIANT
+spack install -v

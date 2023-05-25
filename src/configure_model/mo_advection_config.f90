@@ -24,7 +24,7 @@ MODULE mo_advection_config
     &                                 MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,    &
     &                                 MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
     &                                 FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
-    &                                 ino_flx, izero_grad, iparent_flx, inwp,  &
+    &                                 ino_flx, iparent_flx, inwp,              &
     &                                 iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
     &                                 NO_HADV, NO_VADV
   USE mo_exception,             ONLY: message, message_text, finish
@@ -65,12 +65,12 @@ MODULE mo_advection_config
   ! Derived type to allow for the onetime computation and cleanup 
   ! of tracer independent parts
   !
-  TYPE t_compute                                                               
+  TYPE t_compute
     LOGICAL :: ppm_v     (MAX_NTRACER)
     LOGICAL :: miura3_h  (MAX_NTRACER)
     LOGICAL :: ffsl_h    (MAX_NTRACER)
     LOGICAL :: ffsl_hyb_h(MAX_NTRACER)
-  END TYPE t_compute                                                           
+  END TYPE t_compute
 
 
   TYPE t_scheme
@@ -267,12 +267,12 @@ MODULE mo_advection_config
   !
   REAL(wp) :: shape_func(4,4)  !< shape functions for mapping the FFSL departure
                                !< region onto the standard rectangle (miura3 only)
-                                                                                 
-  REAL(wp) :: zeta(4), eta(4)  !< Gauss quadrature points in \zeta-\eta space  
-                               !< (miura3 only)                                
-                                                                                 
-  REAL(wp) :: wgt_zeta(4)      !< Gauss quadrature weights for zeta and eta    
-  REAL(wp) :: wgt_eta(4)       !< points (miura3 only) 
+
+  REAL(wp) :: zeta(4), eta(4)  !< Gauss quadrature points in \zeta-\eta space
+                               !< (miura3 only)
+
+  REAL(wp) :: wgt_zeta(4)      !< Gauss quadrature weights for zeta and eta
+  REAL(wp) :: wgt_eta(4)       !< points (miura3 only)
 
 
 CONTAINS
@@ -289,8 +289,7 @@ CONTAINS
   !! Initial revision by Daniel Reinert, DWD (2011-04-20)
   !!
   SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
-    &                            kstart_moist, kend_qvsubstep,                         &
-    &                            lvert_nest, l_open_ubc,                               &
+    &                            kstart_moist, kend_qvsubstep, lvert_nest,             &
     &                            ntracer, idiv_method, itime_scheme, tracer_list,      &
     &                            kstart_tracer)
   !
@@ -305,7 +304,6 @@ CONTAINS
     INTEGER, INTENT(IN) :: idiv_method
     INTEGER, INTENT(IN) :: itime_scheme
     LOGICAL, INTENT(IN) :: lvert_nest
-    LOGICAL, INTENT(IN) :: l_open_ubc
     TYPE(t_var_list_ptr), OPTIONAL, INTENT(IN) :: tracer_list(:) ! tracer var_list
     INTEGER,          OPTIONAL, INTENT(IN) :: kstart_tracer(MAX_NTRACER) !< start index for (art-)tracer related processes
 
@@ -357,20 +355,11 @@ CONTAINS
     ! set boundary condition for vertical transport
     !
     IF (.NOT. lvert_nest ) THEN ! no vertical nesting
-
-      IF (l_open_ubc) THEN
-        advection_config(jg)%iubc_adv = izero_grad ! zero gradient ubc
-      ELSE
-        advection_config(jg)%iubc_adv = ino_flx    ! no flux ubc
-      ENDIF
-
+      advection_config(jg)%iubc_adv = ino_flx    ! no flux ubc
     ELSE ! vertical nesting
-
       IF (nlev < nlev_1) THEN
         advection_config(jg)%iubc_adv = iparent_flx
-      ELSE IF ( (nlev >= nlev_1) .AND. l_open_ubc) THEN
-        advection_config(jg)%iubc_adv = izero_grad
-      ELSE IF ( (nlev >= nlev_1) .AND. .NOT. l_open_ubc) THEN
+      ELSE
         advection_config(jg)%iubc_adv = ino_flx
       ENDIF
     ENDIF

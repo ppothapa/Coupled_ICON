@@ -69,10 +69,14 @@ MODULE mo_nwp_tuning_nml
     &                               config_itune_gust_diag => itune_gust_diag, &  
     &                               config_tune_gustsso_lim => tune_gustsso_lim, &  
     &                               config_itune_albedo   => itune_albedo,       &
+    &                               config_itune_o3       => itune_o3,           &
     &                               config_lcalib_clcov   => lcalib_clcov,       &
     &                               config_max_calibfac_clcl => max_calibfac_clcl, &
     &                               config_max_freshsnow_inc => max_freshsnow_inc, &
-    &                               config_tune_eiscrit      => tune_eiscrit
+    &                               config_tune_eiscrit      => tune_eiscrit,    &
+    &                               config_tune_sc_eis       => tune_sc_eis,     &
+    &                               config_tune_sc_invmin    => tune_sc_invmin,  &
+    &                               config_tune_sc_invmax    => tune_sc_invmax
   
   IMPLICIT NONE
   PRIVATE
@@ -203,6 +207,13 @@ MODULE mo_nwp_tuning_nml
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
 
+  INTEGER :: &                     !< type of artificial ozone tuning 
+    &  itune_o3                    ! 0: no tuning
+                                   ! 1: old tuning for RRTM radiation
+                                   ! 2: (default) standard tuning for EcRad with RRTM gas optics
+                                   ! 3: improved (for middle/upper stratosphere) tuning for EcRad with RRTM gas optics
+                                   ! 4: provisional tuning for EcRad with EcCKD gas optics
+
   INTEGER :: &                     !< Type of gust tuning / SSO coupling
     &  itune_gust_diag             ! 1: use level above top of SSO envelope layer
                                    ! 2: use envelope top level, combined with adjusted tuning for MERIT/REMA orography
@@ -219,6 +230,15 @@ MODULE mo_nwp_tuning_nml
   
   REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
        &  tune_eiscrit             !< to switch off conv param in stratocumulus regions
+
+  REAL(wp) :: &                    !< critical threshold for lower tropospheric stability (K)
+       &  tune_sc_eis              !< used for enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< minimum inversion height (m) used to define region with
+       &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
   
   NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun, tune_gcstar, &
     &                      tune_zceff_min, tune_v0snow, tune_zvz0i,               &
@@ -234,8 +254,8 @@ MODULE mo_nwp_tuning_nml
     &                      icpl_turb_clc, tune_difrad_3dcont, max_calibfac_clcl,  &
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,     &
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
-    &                      tune_gustsso_lim, tune_eiscrit
-
+    &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
+    &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax
 
 CONTAINS
 
@@ -367,6 +387,7 @@ CONTAINS
     tune_dust_abs   = 0._wp        ! no tuning of LW absorption of mineral dust
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
     itune_albedo    = 0            ! original (measured) albedo
+    itune_o3        = 2            ! standard ozone tuning for EcRad
     !
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
@@ -376,7 +397,20 @@ CONTAINS
     !> If the default value of 1000 is kept, the atmosphere's EIS should never
     !> exceed the critical value, and this option remains effectively switched off
     tune_eiscrit     = 1000.0_wp
-    
+
+    !> critical stability threshold - used to identify region with stratocumulus
+    !> cloud together with inversion height criterion, in order to enhance
+    !> the diagnostic cloud cover in this region. The Sc cloud cover enhancement
+    !> can be switched on/off independently of the EIS-based decision to use
+    !> shallow convection in this region, hence two tuning parameters. With the
+    !> default value of 1000 the enhancement is effectively turned off.
+    tune_sc_eis      = 1000.0_wp
+
+    !> min/max inversion height (m) to identify stratocumulus region for cloud cover
+    !> enhancement. 
+    tune_sc_invmin   = 200._wp
+    tune_sc_invmax   = 1500._wp
+
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
       WRITE(iunit, nwp_tuning_nml)   ! write defaults to temporary text file
@@ -488,11 +522,15 @@ CONTAINS
     config_itune_gust_diag       = itune_gust_diag
     config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
+    config_itune_o3              = itune_o3
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
     config_tune_eiscrit          = tune_eiscrit
-
+    config_tune_sc_eis           = tune_sc_eis    
+    config_tune_sc_invmin        = tune_sc_invmin
+    config_tune_sc_invmax        = tune_sc_invmax
+    
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 
     !-----------------------------------------------------

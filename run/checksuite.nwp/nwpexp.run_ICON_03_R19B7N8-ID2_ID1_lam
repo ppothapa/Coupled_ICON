@@ -350,7 +350,6 @@ tune_minsnowfrac = 0.3
   divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003
   divdamp_order   = 24 ! 2 ass, 24 fc - may become unnecessary with incremental analysis update
   divdamp_type    = 3  ! optional: 2 assimilation cycle, 3 forecast
-  l_open_ubc      = .false.
   igradp_method   = 3
   l_zdiffu_t      = .true.
   thslp_zdiffu    = 0.02
