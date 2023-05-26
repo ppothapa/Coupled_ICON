@@ -1976,8 +1976,6 @@ INTEGER :: i_startblk                ! start block
 INTEGER :: i_startidx                ! start index
 INTEGER :: i_endidx                  ! end index
 
-REAL(wp) :: z_sum
-
 REAL(wp) :: vlon, vlat                 ! vertex coordinates
 REAL(wp) :: clon, clat                 ! cell center coordinates
 REAL(wp) :: r_x, r_y, i_xx, i_yy, i_xy ! moments for PLWA
@@ -2024,12 +2022,11 @@ REAL(wp) :: wgt_sum                    ! sum of weights
   END DO
 !$OMP END DO
 
-  ! b1) cell to edge averages
+  ! b) cell to edge averages
   !-------------------------
   ! The calculation cannot be done for boundary edges
   i_startblk = ptr_patch%edges%start_blk(2,1)
-!$OMP DO PRIVATE(jb,je,i_startidx,i_endidx,ilc1,ilc2,ibc1,ibc2,ilv1,ilv2,&
-!$OMP            ibv1,ibv2) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,je,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, nblks_e
 
     CALL get_indices_e(ptr_patch, jb, i_startblk, nblks_e, &
@@ -2047,56 +2044,18 @@ REAL(wp) :: wgt_sum                    ! sum of weights
                                            ptr_patch%edges%dual_edge_length(je,jb)
       ptr_int_state%c_lin_e(je,2,jb) = 1._wp - ptr_int_state%c_lin_e(je,1,jb)
 
-      IF (ptr_patch%geometry_info%cell_type == 6) THEN
-        ilv1 = ptr_patch%edges%vertex_idx(je,jb,1)
-        ilv2 = ptr_patch%edges%vertex_idx(je,jb,2)
-        ibv1 = ptr_patch%edges%vertex_blk(je,jb,1)
-        ibv2 = ptr_patch%edges%vertex_blk(je,jb,2)
-        ptr_int_state%tria_aw_rhom(je,1,jb)=ptr_patch%verts%dual_area(ilv1,ibv1)/&
-              (ptr_patch%verts%dual_area(ilv1,ibv1)+ptr_patch%verts%dual_area(ilv2,ibv2))
-        ptr_int_state%tria_aw_rhom(je,2,jb)=ptr_patch%verts%dual_area(ilv2,ibv2)/&
-              (ptr_patch%verts%dual_area(ilv1,ibv1)+ptr_patch%verts%dual_area(ilv2,ibv2))
-      ENDIF
-
     ENDDO
-
   ENDDO
 !$OMP END DO
 
 
-
-  ! b2) vert to edge averages
-  !-------------------------
-  IF (ptr_patch%geometry_info%cell_type == 6) THEN
-    ! The calculation cannot be done for boundary edges
-    i_startblk = ptr_patch%edges%start_blk(2,1)
-!$OMP DO PRIVATE(jb,je,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, nblks_e
-
-      CALL get_indices_e(ptr_patch, jb, i_startblk, nblks_e, i_startidx, i_endidx, 2)
-
-      DO je = i_startidx, i_endidx
-
-        IF(.NOT. ptr_patch%edges%decomp_info%owner_mask(je,jb)) CYCLE
-
-        ! distance averaging
-        ptr_int_state%v_1o2_e(je,1,jb) = ptr_patch%edges%edge_vert_length(je,jb,1)/&
-                                             ptr_patch%edges%primal_edge_length(je,jb)
-        ptr_int_state%v_1o2_e(je,2,jb) = ptr_patch%edges%edge_vert_length(je,jb,2)/&
-                                             ptr_patch%edges%primal_edge_length(je,jb)
-
-      ENDDO
-
-    ENDDO
-!$OMP END DO
-  ENDIF
 
   ! c) vert to cell averagings, edge to cell inner product
   !-------------------------------------------------------
   ! loop over all blocks and cells
 
 !$OMP DO PRIVATE(jb,jc,je,jv,nlen,ile,ibe,idx_ce,ilv1,ilv2,ibv1,ibv2,&
-!$OMP ilv,ibv,z_sum) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP ilv,ibv) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = 1, nblks_c
     IF (jb /= nblks_c) THEN
       nlen = nproma
@@ -2109,8 +2068,6 @@ REAL(wp) :: wgt_sum                    ! sum of weights
        IF(.NOT. ptr_patch%cells%decomp_info%owner_mask(jc,jb)) CYCLE
 
        ptr_int_state%verts_aw_cells(jc,:,jb) = 0.0_wp
-
-       IF (ptr_patch%geometry_info%cell_type == 6) z_sum = 0.0_wp
 
        DO je = 1, ptr_patch%cells%num_edges(jc,jb)
 
@@ -2127,16 +2084,6 @@ REAL(wp) :: wgt_sum                    ! sum of weights
               ptr_patch%edges%edge_cell_length(ile,ibe,idx_ce)*&
               ptr_patch%edges%primal_edge_length(ile,ibe)/&
               ptr_patch%cells%area(jc,jb)
-
-          IF (ptr_patch%geometry_info%cell_type == 6) THEN
-            ptr_int_state%e_aw_c(jc,je,jb) = 0.5_wp*&
-              ptr_patch%edges%edge_cell_length(ile,ibe,idx_ce)*&
-              ptr_patch%edges%primal_edge_length(ile,ibe)/&
-              ptr_patch%cells%area(jc,jb)
-            ptr_int_state%r_aw_c(jc,je,jb) = &
-              ptr_patch%edges%quad_area(ile,ibe)
-            z_sum = z_sum+ptr_patch%edges%quad_area(ile,ibe)
-          ENDIF
 
           ilv1 = ptr_patch%edges%vertex_idx(ile,ibe,1)
           ibv1 = ptr_patch%edges%vertex_blk(ile,ibe,1)
@@ -2165,9 +2112,6 @@ REAL(wp) :: wgt_sum                    ! sum of weights
           ENDDO
 
        ENDDO
-       IF (ptr_patch%geometry_info%cell_type == 6) THEN
-         ptr_int_state%r_aw_c(jc,:,jb)=ptr_int_state%r_aw_c(jc,:,jb)/z_sum
-       ENDIF
 
     ENDDO !loop over all cells
 
@@ -2203,18 +2147,6 @@ REAL(wp) :: wgt_sum                    ! sum of weights
                idx_ve = 1
           ELSE
                idx_ve = 2
-          ENDIF
-
-          ptr_int_state%e_aw_v(jv,je,jb) = 0.5_wp*&
-            & ptr_patch%edges%edge_vert_length(ile,ibe,idx_ve) &
-            &*ptr_patch%edges%dual_edge_length(ile,ibe) &
-            &/ptr_patch%verts%dual_area(jv,jb)
-
-          IF (ptr_patch%geometry_info%cell_type == 6 ) THEN
-            ptr_int_state%e_inn_v(jv,je,jb) = &
-            & ptr_patch%edges%edge_vert_length(ile,ibe,idx_ve) &
-            &*ptr_patch%edges%dual_edge_length(ile,ibe) &
-            &/ptr_patch%verts%dual_area(jv,jb)
           ENDIF
 
           ilc1 = ptr_patch%edges%cell_idx(ile,ibe,1)
@@ -2359,14 +2291,6 @@ REAL(wp) :: wgt_sum                    ! sum of weights
   CALL sync_patch_array(SYNC_C,ptr_patch,ptr_int_state%e_inn_c)
   CALL sync_patch_array(SYNC_V,ptr_patch,ptr_int_state%cells_aw_verts)
   CALL sync_patch_array(SYNC_V,ptr_patch,ptr_int_state%cells_plwa_verts)
-  CALL sync_patch_array(SYNC_V,ptr_patch,ptr_int_state%e_aw_v)
-  IF (ptr_patch%geometry_info%cell_type == 6) THEN
-    CALL sync_patch_array(SYNC_E,ptr_patch,ptr_int_state%tria_aw_rhom)
-    CALL sync_patch_array(SYNC_E,ptr_patch,ptr_int_state%v_1o2_e)
-    CALL sync_patch_array(SYNC_C,ptr_patch,ptr_int_state%e_aw_c)
-    CALL sync_patch_array(SYNC_C,ptr_patch,ptr_int_state%r_aw_c)
-    CALL sync_patch_array(SYNC_V,ptr_patch,ptr_int_state%e_inn_v)
-  ENDIF
 
 END SUBROUTINE scalar_int_coeff
 !-------------------------------------------------------------------------

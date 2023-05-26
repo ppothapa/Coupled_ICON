@@ -151,7 +151,7 @@ USE mo_grid_config,         ONLY: n_dom, n_dom_start, lplane, l_limited_area
 USE mo_parallel_config,     ONLY: nproma
 USE mo_run_config,          ONLY: ltransport, ldynamics
 USE mo_dynamics_config,     ONLY: iequations
-USE mo_interpol_config,     ONLY: i_cori_method, rbf_vec_dim_c, rbf_c2grad_dim, &
+USE mo_interpol_config,     ONLY: rbf_vec_dim_c, rbf_c2grad_dim,                &
   &                               rbf_vec_dim_v, rbf_vec_dim_e, lsq_lin_set,    &
   &                               lsq_high_set
 USE mo_intp_data_strc,      ONLY: t_int_state
@@ -160,7 +160,7 @@ USE mo_intp_rbf_coeffs,     ONLY: rbf_vec_index_cell, rbf_vec_index_edge,       
   &                               rbf_vec_compute_coeff_edge,                            &
   &                               rbf_vec_compute_coeff_vertex, rbf_c2grad_index,        &
   &                               rbf_compute_coeff_c2grad, gen_index_list_radius
-USE mo_intp_coeffs,         ONLY: compute_heli_bra_coeff_idx, init_cellavg_wgt,        &
+USE mo_intp_coeffs,         ONLY: init_cellavg_wgt,                                    &
   &                               init_geo_factors, complete_patchinfo, init_tplane_e, &
   &                               init_tplane_c,   tri_quadrature_pts,                 &
   &                               init_nudgecoeffs, tri_quadrature_pts
@@ -226,7 +226,7 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
 
   TYPE(t_int_state), INTENT(inout) :: ptr_int
 
-  INTEGER :: nblks_c, nblks_e, nblks_v, nincr
+  INTEGER :: nblks_c, nblks_e, nblks_v
   INTEGER :: ist,ie
   INTEGER :: idummy
   LOGICAL :: lsdi         = .FALSE. ,&
@@ -306,14 +306,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
       CALL finish ('mo_interpolation:construct_int_state', &
       &            'allocation for e_flx_avg failed')
     ENDIF
-    !
-    !e_aw_v
-    !
-    ALLOCATE (ptr_int%e_aw_v(nproma,6,nblks_v), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for e_aw_v failed')
-    ENDIF
 
   ENDIF
   !
@@ -331,58 +323,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
   IF (ist /= SUCCESS) THEN
     CALL finish ('mo_interpolation:construct_int_state', &
     &            'allocation for e_inn_c failed')
-  ENDIF
-  !
-  IF (ptr_patch%geometry_info%cell_type == 6) THEN
-    !
-    ! e_inn_v
-    !
-    ALLOCATE (ptr_int%e_inn_v(nproma,3,nblks_v), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for e_inn_v failed')
-    ENDIF
-    !
-    ! e_aw_c
-    !
-    ALLOCATE (ptr_int%e_aw_c(nproma,6,nblks_c), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for e_aw_c failed')
-    ENDIF
-    !
-    ! r_aw_c
-    !
-    ALLOCATE (ptr_int%r_aw_c(nproma,6,nblks_c), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for r_aw_c failed')
-    ENDIF
-    !
-    ! e_aw_v
-    !
-    ALLOCATE (ptr_int%e_aw_v(nproma,3,nblks_v), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for e_aw_v failed')
-    ENDIF
-    !
-    ! e_1o3_v
-    !
-    ALLOCATE (ptr_int%e_1o3_v(nproma,3,nblks_v), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for e_1o3_v failed')
-    ENDIF
-    !
-    ! tria_aw_rhom
-    !
-    ALLOCATE (ptr_int%tria_aw_rhom(nproma,2,nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state', &
-      &            'allocation for tria_aw_rhom failed')
-    ENDIF
-    !
   ENDIF
   !
   ! verts_aw_cells
@@ -409,110 +349,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
       &             'allocation for cells_plwa_verts failed')
   ENDIF
   !
-  IF( ptr_patch%geometry_info%cell_type == 6 ) THEN
-     !
-     ! tria_north
-     !
-     ALLOCATE (ptr_int%tria_north(3,nproma,nblks_v), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for tria_north failed')
-     ENDIF
-     !
-     ! tria_east
-     !
-     ALLOCATE (ptr_int%tria_east(3,nproma,nblks_v), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for tria_east failed')
-     ENDIF
-     !
-     ! hex_north
-     !
-     ALLOCATE (ptr_int%hex_north(nproma,6,nblks_c), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for hex_north failed')
-     ENDIF
-     !
-     ! hex_east
-     !
-     ALLOCATE (ptr_int%hex_east(nproma,6,nblks_c), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for hex_east failed')
-     ENDIF
-     !
-     IF(i_cori_method>=3) THEN
-       !
-       ! quad_north
-       !
-       ALLOCATE (ptr_int%quad_north(5,nproma,nblks_e), STAT=ist )
-       IF (ist /= SUCCESS) THEN
-         CALL finish ('mo_interpolation:construct_int_state',               &
-           &             'allocation for quad_north failed')
-       ENDIF
-       !
-       ! quad_east
-       !
-       ALLOCATE (ptr_int%quad_east(5,nproma,nblks_e), STAT=ist )
-       IF (ist /= SUCCESS) THEN
-         CALL finish ('mo_interpolation:construct_int_state',               &
-           &             'allocation for quad_east failed')
-       ENDIF
-     ENDIF
-     !
-     ! cno_en
-     !
-     ALLOCATE (ptr_int%cno_en(nproma,2,nblks_e), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for cno_en failed')
-     ENDIF
-     !
-     ! cea_en
-     !
-     ALLOCATE (ptr_int%cea_en(nproma,2,nblks_e), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for cea_en failed')
-     ENDIF
-     !
-     SELECT CASE (i_cori_method)
-     CASE (1,3,4)
-       nincr = 14
-     CASE (2)
-       nincr = 10
-     END SELECT
-     !
-     ! heli_coeff
-     !
-     ALLOCATE (ptr_int%heli_coeff(nincr, nproma, nblks_e), STAT=ist )
-     IF (ist /= SUCCESS) THEN
-       CALL finish ('mo_interpolation:construct_int_state',               &
-         &             'allocation for heli_coeff failed')
-     ENDIF
-
-     IF(i_cori_method<3) THEN
-       !
-       ! heli_vn_idx
-       !
-       ALLOCATE (ptr_int%heli_vn_idx(nincr,nproma, nblks_e), STAT=ist )
-       IF (ist /= SUCCESS) THEN
-         CALL finish ('mo_interpolation:construct_int_state',               &
-           &             'allocation for heli_vn_idx failed')
-       ENDIF
-       !
-       ! heli_vn_blk
-       !
-       ALLOCATE (ptr_int%heli_vn_blk(nincr,nproma, nblks_e), STAT=ist )
-       IF (ist /= SUCCESS) THEN
-         CALL finish ('mo_interpolation:construct_int_state',               &
-           &             'allocation for heli_vn_blk failed')
-       ENDIF
-     ENDIF
-
-  ENDIF
 
   IF (ptr_patch%geometry_info%cell_type == 3) THEN
     !
@@ -1154,100 +990,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
       &             'allocation for cell_vert_dist failed')
   ENDIF
 
-  IF (ptr_patch%geometry_info%cell_type == 6) THEN
-
-    ALLOCATE (ptr_int%dir_gradh_i1(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradh_i1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradh_i2(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradh_i2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradh_b1(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradh_b1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradh_b2(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradh_b2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradhux_c1(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradhux_c1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradhux_c2(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradhux_c2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%strain_def_c1(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for strain_def_c1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%strain_def_c2(6, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for strain_def_c2 failed')
-    ENDIF
-
-    ALLOCATE (ptr_int%dir_gradt_i1(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradt_i1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradt_i2(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradt_i2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradt_b1(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradt_b1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradt_b2(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradt_b2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradtxy_v1(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradtxy_v1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradtxy_v2(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradtxy_v2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradtyx_v1(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradtyx_v1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%dir_gradtyx_v2(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for dir_gradtyx_v2 failed')
-    ENDIF
-    ALLOCATE (ptr_int%shear_def_v1(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for shear_def_v1 failed')
-    ENDIF
-    ALLOCATE (ptr_int%shear_def_v2(9, nproma, nblks_e), STAT=ist )
-    IF (ist /= SUCCESS) THEN
-      CALL finish ('mo_interpolation:construct_int_state',                       &
-        &             'allocation for shear_def_v2 failed')
-    ENDIF
-  ENDIF
 
   IF ( iequations == ihs_ocean) THEN
     !
@@ -1343,7 +1085,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
     ptr_int%c_bln_avg     = 0._wp
     ptr_int%gradc_bmat    = 0._wp
     ptr_int%e_flx_avg     = 0._wp
-    ptr_int%e_aw_v        = 0._wp
   ENDIF
 
   ptr_int%v_1o2_e          = 0.5_wp
@@ -1352,25 +1093,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
   ptr_int%verts_aw_cells   = 0._wp
   ptr_int%cells_aw_verts   = 0._wp
   ptr_int%cells_plwa_verts = 0._wp
-
-  IF (ptr_patch%geometry_info%cell_type == 6 ) THEN
-    ptr_int%e_inn_v     = 0._wp
-    ptr_int%tria_aw_rhom= 0._wp
-    ptr_int%e_aw_c      = 0._wp
-    ptr_int%r_aw_c      = 0._wp
-    ptr_int%e_aw_v      = 0._wp
-    ptr_int%e_1o3_v     = 1.0_wp/3.0_wp
-    ptr_int%hex_north   = 0.0_wp
-    ptr_int%hex_east    = 0.0_wp
-    ptr_int%tria_north  = 0.0_wp
-    ptr_int%tria_east   = 0.0_wp
-    IF(i_cori_method>=3)THEN
-      ptr_int%quad_north  = 0.0_wp
-      ptr_int%quad_east   = 0.0_wp
-    ENDIF
-    ptr_int%cno_en      = 0.0_wp
-    ptr_int%cea_en      = 0.0_wp
-  ENDIF
 
   IF( ptr_patch%geometry_info%cell_type == 3) THEN
     ptr_int%rbf_vec_idx_c     = 0
@@ -1391,15 +1113,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
     ptr_int%rbf_vec_blk_e     = 0
     ptr_int%rbf_vec_stencil_e = 0
     ptr_int%rbf_vec_coeff_e   = 0._wp
-
-  ENDIF
-
-  IF( ptr_patch%geometry_info%cell_type == 6 ) THEN
-    ptr_int%heli_coeff        = 0._wp
-    IF (i_cori_method < 3) THEN
-      ptr_int%heli_vn_idx       = 0
-      ptr_int%heli_vn_blk       = 0
-    ENDIF
   ENDIF
 
   IF( ltransport .OR. iequations == 3) THEN
@@ -1457,27 +1170,6 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
   ptr_int%primal_normal_ec = 0._wp
   ptr_int%edge_cell_length = 0._wp
   ptr_int%cell_vert_dist = 0._wp
-
-  IF(ptr_patch%geometry_info%cell_type==6) THEN
-    ptr_int%dir_gradh_i1 = 0
-    ptr_int%dir_gradh_i2 = 0
-    ptr_int%dir_gradh_b1 = 0
-    ptr_int%dir_gradh_b2 = 0
-    ptr_int%dir_gradhux_c1 = 0._wp
-    ptr_int%dir_gradhux_c2 = 0._wp
-    ptr_int%strain_def_c1 = 0._wp
-    ptr_int%strain_def_c2 = 0._wp
-    ptr_int%dir_gradt_i1 = 0
-    ptr_int%dir_gradt_i2 = 0
-    ptr_int%dir_gradt_b1 = 0
-    ptr_int%dir_gradt_b2 = 0
-    ptr_int%dir_gradtxy_v1 = 0._wp
-    ptr_int%dir_gradtxy_v2 = 0._wp
-    ptr_int%dir_gradtyx_v1 = 0._wp
-    ptr_int%dir_gradtyx_v2 = 0._wp
-    ptr_int%shear_def_v1 = 0._wp
-    ptr_int%shear_def_v2 = 0._wp
-  ENDIF
 
   CALL message ('mo_intp_state:allocate_int_state','memory allocation finished')
 
@@ -1589,12 +1281,7 @@ DO jg = n_dom_start, n_dom
     !
     CALL tri_quadrature_pts (ptr_patch(jg), ptr_int_state(jg))
   ENDIF
-  !
-  ! initialization of coeffs for hexagon
-  !
-  IF (ptr_patch(jg)%geometry_info%cell_type==6) THEN
-    CALL compute_heli_bra_coeff_idx(ptr_patch(jg), ptr_int_state(jg))
-  ENDIF
+
   !
   ! - Initialization of tangential plane (at edge midpoints) for calculation
   !   of backward trajectories.
@@ -1901,7 +1588,6 @@ SUBROUTINE transfer_interpol_state(p_p, p_lp, pi, po)
   TYPE(t_int_state), INTENT(INOUT) :: po ! Interpolation state on local parent
 
   INTEGER, ALLOCATABLE :: owner(:)
-  INTEGER :: j
 
   ! Allocate interpolation state for local parent
 
@@ -2007,38 +1693,11 @@ SUBROUTINE transfer_interpol_state(p_p, p_lp, pi, po)
   CALL xfer_var(SYNC_E,1,3,p_p,p_lp,pi%v_1o2_e,po%v_1o2_e)
   ENDIF
   CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%e_inn_c,po%e_inn_c)
-!-------------------------------------------------------------------------------
-! Please note: for cell_type == 6 there exists no grid refinement
-!              and thus no local parents!
-!-------------------------------------------------------------------------------
-!  IF (p_p%geometry_info%cell_type == 6) THEN
-!  CALL xfer_var(SYNC_V,1,3,p_p,p_lp,pi%e_inn_v,po%e_inn_v)
-!  CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%e_aw_c,po%e_aw_c)
-!  CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%r_aw_c,po%r_aw_c)
-!  CALL xfer_var(SYNC_V,1,3,p_p,p_lp,pi%e_aw_v,po%e_aw_v)
-!  CALL xfer_var(SYNC_V,1,3,p_p,p_lp,pi%e_1o3_v,po%e_1o3_v)
-!  CALL xfer_var(SYNC_E,1,3,p_p,p_lp,pi%tria_aw_rhom,po%tria_aw_rhom)
-!  ENDIF
+
   CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%verts_aw_cells,po%verts_aw_cells)
   CALL xfer_var(SYNC_V,1,3,p_p,p_lp,pi%cells_aw_verts,po%cells_aw_verts)
   CALL xfer_var(SYNC_V,1,3,p_p,p_lp,pi%cells_plwa_verts,po%cells_plwa_verts)
-!  IF( p_p%geometry_info%cell_type == 6 ) THEN
-!  CALL xfer_var(SYNC_V,2,3,p_p,p_lp,pi%tria_north,po%tria_north)
-!  CALL xfer_var(SYNC_V,2,3,p_p,p_lp,pi%tria_east,po%tria_east)
-!  CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%hex_north,po%hex_north)
-!  CALL xfer_var(SYNC_C,1,3,p_p,p_lp,pi%hex_east,po%hex_east)
-!  IF (i_cori_method>=3) THEN
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%quad_north,po%quad_north)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%quad_east,po%quad_east)
-!  ENDIF
-!  CALL xfer_var(SYNC_E,1,3,p_p,p_lp,pi%cno_en,po%cno_en)
-!  CALL xfer_var(SYNC_E,1,3,p_p,p_lp,pi%cea_en,po%cea_en)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%heli_coeff,po%heli_coeff)
-!  IF (i_cori_method < 3) THEN
-!  CALL xfer_idx(SYNC_E,SYNC_E,2,3,p_p,p_lp,pi%heli_vn_idx,pi%heli_vn_blk, &
-!                                         & po%heli_vn_idx,po%heli_vn_blk)
-!  ENDIF
-!  ENDIF
+
   IF (p_p%geometry_info%cell_type == 3) THEN
   CALL xfer_idx(SYNC_C,SYNC_E,2,3,p_p,p_lp,pi%rbf_vec_idx_c,pi%rbf_vec_blk_c, &
                                          & po%rbf_vec_idx_c,po%rbf_vec_blk_c)
@@ -2095,26 +1754,6 @@ SUBROUTINE transfer_interpol_state(p_p, p_lp, pi, po)
   CALL xfer_var(SYNC_C,1,2,p_p,p_lp,pi%primal_normal_ec,po%primal_normal_ec)
   CALL xfer_var(SYNC_C,1,2,p_p,p_lp,pi%edge_cell_length,po%edge_cell_length)
   CALL xfer_var(SYNC_C,1,4,p_p,p_lp,pi%cell_vert_dist,po%cell_vert_dist)
-!  IF (p_p%geometry_info%cell_type == 6) THEN
-!  CALL xfer_idx(SYNC_E,SYNC_E,2,3,p_p,p_lp,pi%dir_gradh_i1,po%dir_gradh_i1, &
-!                                         & po%dir_gradh_i1,po%dir_gradh_i1)
-!  CALL xfer_idx(SYNC_E,SYNC_E,2,3,p_p,p_lp,pi%dir_gradh_i2,po%dir_gradh_i2, &
-!                                         & po%dir_gradh_i2,po%dir_gradh_i2)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradhux_c1,po%dir_gradhux_c1)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradhux_c2,po%dir_gradhux_c2)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%strain_def_c1,po%strain_def_c1)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%strain_def_c2,po%strain_def_c2)
-!  CALL xfer_idx(SYNC_E,SYNC_E,2,3,p_p,p_lp,pi%dir_gradt_i1,po%dir_gradt_i1, &
-!                                         & po%dir_gradt_i1,po%dir_gradt_i1)
-!  CALL xfer_idx(SYNC_E,SYNC_E,2,3,p_p,p_lp,pi%dir_gradt_i2,po%dir_gradt_i2, &
-!                                         & po%dir_gradt_i2,po%dir_gradt_i2)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradtxy_v1,po%dir_gradtxy_v1)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradtxy_v2,po%dir_gradtxy_v2)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradtyx_v1,po%dir_gradtyx_v1)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%dir_gradtyx_v2,po%dir_gradtyx_v2)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%shear_def_v1,po%shear_def_v1)
-!  CALL xfer_var(SYNC_E,2,3,p_p,p_lp,pi%shear_def_v2,po%shear_def_v2)
-!  ENDIF
 
   ! clean up
 

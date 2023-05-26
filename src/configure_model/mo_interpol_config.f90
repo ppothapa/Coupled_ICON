@@ -25,7 +25,6 @@ MODULE mo_interpol_config
   PUBLIC :: llsq_lin_consv, llsq_high_consv, lsq_high_ord                       !< variables
   PUBLIC :: rbf_vec_kern_c, rbf_vec_kern_v, rbf_vec_kern_e, rbf_vec_kern_ll     !< variables
   PUBLIC :: rbf_vec_scale_c, rbf_vec_scale_e, rbf_vec_scale_v, rbf_vec_scale_ll !< variables
-  PUBLIC :: i_cori_method, l_corner_vort                                        !< variables
   PUBLIC :: nudge_max_coeff, nudge_efold_width, nudge_zone_width                !< variables
   PUBLIC :: rbf_vec_dim_c, rbf_vec_dim_v, rbf_vec_dim_e, rbf_c2grad_dim         !< variables
   PUBLIC :: lsq_lin_set, lsq_high_set                                           !< variables
@@ -85,19 +84,6 @@ MODULE mo_interpol_config
     REAL(wp) :: rbf_vec_scale_e(max_dom)
     REAL(wp) :: rbf_vec_scale_v(max_dom)
     REAL(wp) :: rbf_vec_scale_ll(max_dom)
-                                                                                 
-    INTEGER  :: i_cori_method       ! Identifier for the method with wich the tangential        
-                                    ! wind reconstruction in Coriolis force is computed,        
-                                    ! if the Thuburn method is used. (To be      
-                                    ! implemented for triangles, currently only for
-                                    ! hexagons)                                  
-                                    ! i_cori_method = 1 : Almut's method for reconstruction    
-                                    !                     but TRSK method for PV 
-                                    ! i_cori_method = 2 : Thuburn/Ringler/Skamarock/Klemp      
-                                    ! i_cori_method = 3 : Almut's method for reconstruction    
-                                    !                     Almut's method also for PV
-                                    ! i_cori_method = 4 : Almut's method for reconstruction,   
-                                    !                     but PV on averaged on vertices       
 
     ! Namelist variables setting up the lateral boundary nudging (applicable to limited-area   
     ! runs and one-way nesting). The nudging coefficients start with nudge_max_coeff in        
@@ -106,18 +92,8 @@ MODULE mo_interpol_config
   
     REAL(wp) :: nudge_max_coeff, nudge_efold_width
     INTEGER  :: nudge_zone_width    ! total width of nudging zone in units of cell rows
-                                    ! if < 0 the patch boundary_depth_index is used 
-                                                                                 
-    LOGICAL :: l_corner_vort        ! yields for i_cori_method>=3
-                                    ! Decision wheter the hexagon vector reconstruction is
-                                    ! combined with either of the two vorticities :
-                                    ! .TRUE. : Three rhombi are combined to the corner
-                                    !          and afterwards averaged to the hexagon center
-                                    ! .FALSE.: 6 rhombi are directly averaged to the
-                                    !          hexagon center (original method).
-                                    ! After the writing of the paper to be published in JCP
-                                    ! it seems that l_corner_vort=.TRUE. should be the right way.
-  
+                                    ! if < 0 the patch boundary_depth_index is used
+
     INTEGER  ::  rbf_vec_dim_c,    & ! parameter determining the size            
        &         rbf_vec_dim_v,    & ! of vector rbf stencil                     
        &         rbf_vec_dim_e,    & !                                           
