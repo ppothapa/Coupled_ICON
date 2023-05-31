@@ -1322,16 +1322,11 @@ version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([gpu])])
-dnl TODO: use $icon_gpu_primary directly after switching to RTE+RRTMGP 1.6+:
-      AS_CASE([$icon_gpu_primary],
-        [openacc], [icon_rte_rrtmgp_enable_gpu='acc'],
-        [openmp], [icon_rte_rrtmgp_enable_gpu='mp'],
-        [icon_rte_rrtmgp_enable_gpu='no'])
       ACX_SUBDIR_APPEND_ARGS([externals/rte-rrtmgp],
         [CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
-        [--enable-gpu="$icon_rte_rrtmgp_enable_gpu"],
+        [--enable-gpu="$icon_gpu_primary"],
         [--enable-silent-rules="$enable_silent_rules"])
       AS_VAR_APPEND([bundled_includes],
         ["${FC_MOD_IN}externals/rte-rrtmgp/mod "])

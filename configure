@@ -8053,15 +8053,7 @@ esac
 esac
      shift
    done
-      case $icon_gpu_primary in #(
-  openacc) :
-    icon_rte_rrtmgp_enable_gpu='acc' ;; #(
-  openmp) :
-    icon_rte_rrtmgp_enable_gpu='mp' ;; #(
-  *) :
-    icon_rte_rrtmgp_enable_gpu='no' ;;
-esac
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_rte_rrtmgp_enable_gpu" --enable-silent-rules="$enable_silent_rules"; shift
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_gpu_primary" --enable-silent-rules="$enable_silent_rules"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
