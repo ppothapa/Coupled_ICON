@@ -1,7 +1,0 @@
-spack:
-  specs:
-  - eccodes@2.19.1
-  - cdo%gcc
-  view: false
-  concretizer:
-    unify: true
