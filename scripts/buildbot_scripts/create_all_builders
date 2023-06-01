@@ -72,3 +72,8 @@ machine=jsc
 ./addbuilder cluster_gcc         --machine $machine  --build_script="config/buildbot/cluster_gcc"   --builderflags="Inactive" --list $list
 ./addbuilder cluster_intel       --machine $machine  --build_script="config/buildbot/cluster_intel"   --builderflags="build_only" --list $list
 ./addbuilder booster_nvhpc       --machine $machine  --build_script="config/buildbot/booster_nvhpc"   --builderflags="build_only" --list $list
+
+machine=lumi
+./addmachine $machine --list $list
+./addbuilder lumi_gpu  --machine $machine  --build_script="config/buildbot/lumi_gpu"   --builderflags="build_only" --list $list
+./addbuilder lumi_cpu  --machine $machine  --build_script="config/buildbot/lumi_cpu"   --builderflags="build_only" --list $list
