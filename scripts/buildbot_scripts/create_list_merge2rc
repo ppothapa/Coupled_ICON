@@ -198,6 +198,7 @@ $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.ru
 
 # icon-clm tests
 $addexp checksuite.clm/exp.ICON_CLM.run --builders levante_intel_hybrid --list ${listname}
+$addexp "checksuite.clm/exp.ICON_CLM_global_mean_no_boundary.run" --builders "levante_intel_hybrid levante_gcc_hybrid" --list $listname
 
 # remove tests for NAG which are buggy or take too long
 for experiment in exp.esm_bb_ruby0 exp.test_nwp_R02B04N06multi exp.test_nwp_R02B04_R02B05_nest
