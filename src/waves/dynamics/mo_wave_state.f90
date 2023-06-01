@@ -298,13 +298,15 @@ CONTAINS
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: datatype_flt  !< floating point accuracy in NetCDF output
     INTEGER :: nblks_c, nblks_e
-    INTEGER :: nfreqs, jf
-    INTEGER :: jg, jt
+    INTEGER :: nfreqs, ndirs
+    INTEGER :: jg, jt, jf
     INTEGER :: shape2d_c(2), shape2d_e(2)
     INTEGER :: shape3d_freq_c(3), shape3d_freq_e(3)
+    INTEGER :: shape3d_freq_c_p4(3)
     INTEGER :: shape3d_tr_c(3), shape3d_tr_e(3)
+    INTEGER :: shape1d_freq_p4(1), shape1d_dir_2(2)
+    INTEGER :: shape4d_freq_p4_2_dir_18(4)
 
-!    CHARACTER(len=14) :: sl_name, fl_name
     CHARACTER(len=3) :: freq_ind_str, dir_ind_str
     CHARACTER(len=VNAME_LEN) :: out_name, sl_name, fl_name
 
@@ -318,14 +320,18 @@ CONTAINS
     nblks_e = p_patch%nblks_e
 
     nfreqs =  wave_config(jg)%nfreqs
+    ndirs = wave_config(jg)%ndirs
 
-    shape2d_c      = (/nproma, nblks_c/)
-    shape2d_e      = (/nproma, nblks_e/)
-    shape3d_freq_c = (/nproma, nblks_c, nfreqs/)
-    shape3d_freq_e = (/nproma, nblks_e, nfreqs/)
-    shape3d_tr_c   = (/nproma, nblks_c, ntracer/)
-    shape3d_tr_e   = (/nproma, nblks_e, ntracer/)
-
+    shape1d_freq_p4   = (/nfreqs+4/)
+    shape1d_dir_2     = (/ndirs, 2/)
+    shape2d_c         = (/nproma, nblks_c/)
+    shape2d_e         = (/nproma, nblks_e/)
+    shape3d_freq_c    = (/nproma, nblks_c, nfreqs/)
+    shape3d_freq_c_p4 = (/nproma, nblks_c, nfreqs+4/)
+    shape3d_freq_e    = (/nproma, nblks_e, nfreqs/)
+    shape3d_tr_c      = (/nproma, nblks_c, ntracer/)
+    shape3d_tr_e      = (/nproma, nblks_e, ntracer/)
+    shape4d_freq_p4_2_dir_18 = (/18,nfreqs+4,2,ndirs/)
 
     ibits = DATATYPE_PACK16   ! "entropy" of horizontal slice
 
@@ -625,6 +631,110 @@ CONTAINS
     CALL add_var( p_diag_list, 'xlevtail', p_diag%xlevtail,                 &
          & GRID_UNSTRUCTURED_CELL,  ZA_SURFACE, cf_desc, grib2_desc,       &
          & ldims=shape2d_c, in_group=groups("wave_phy") )
+
+    ! nonlinear transfer function coefficients for shallow water
+    cf_desc    = t_cf_var('enh', '-', 'nonlinear transfer function coefficients', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'enh', p_diag%enh,                 &
+         & GRID_UNSTRUCTURED_CELL,  ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape2d_c)
+
+    ! for discrete approximation of nonlinear transfer
+    cf_desc    = t_cf_var('IKP', '-', 'IKP', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'IKP', p_diag%IKP,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('IKP1', '-', 'IKP1', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'IKP1', p_diag%IKP1,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('IKM', '-', 'IKM', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'IKM', p_diag%IKM,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('IKM1', '-', 'IKM1', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'IKM1', p_diag%IKM1,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('K1W', '-', 'K1W', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'K1W', p_diag%K1W,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2 )
+
+    cf_desc    = t_cf_var('K2W', '-', 'K2W', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'K2W', p_diag%K2W,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2 )
+
+    cf_desc    = t_cf_var('K11W', '-', 'K11W', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'K11W', p_diag%K11W,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2 )
+
+    cf_desc    = t_cf_var('K21W', '-', 'K21W', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'K21W', p_diag%K21W,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2 )
+
+    cf_desc    = t_cf_var('non_lin_tr_ind', '-', 'non_lin_tr_ind', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'non_lin_tr_ind', p_diag%non_lin_tr_ind,   &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape4d_freq_p4_2_dir_18 )
+
+    cf_desc    = t_cf_var('JA1', '-', 'JA1', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'JA1', p_diag%JA1,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2 )
+
+    cf_desc    = t_cf_var('JA2', '-', 'JA2', datatype_int)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'JA2', p_diag%JA2,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_dir_2)
+
+    cf_desc    = t_cf_var('AF11', '-', 'AF11', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'AF11', p_diag%AF11,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('FKLAP', '-', 'FKLAP', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'FKLAP', p_diag%FKLAP,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('FKLAP1', '-', 'FKLAP1', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'FKLAP1', p_diag%FKLAP1,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('FKLAM', '-', 'FKLAM', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'FKLAM', p_diag%FKLAM,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
+
+    cf_desc    = t_cf_var('FKLAM1', '-', 'FKLAM1', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'FKLAM1', p_diag%FKLAM1,                 &
+         & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape1d_freq_p4 )
 
     ! wave output group
     cf_desc    = t_cf_var('Hs', 'm', 'significant wave height', datatype_flt)

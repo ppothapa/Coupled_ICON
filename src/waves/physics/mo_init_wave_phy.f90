@@ -22,12 +22,14 @@
 MODULE mo_init_wave_physics
 
   USE mo_kind,                 ONLY: wp
-  USE mo_exception,            ONLY: message, message_text
+  USE mo_mpi,                  ONLY: my_process_is_stdio
+  USE mo_exception,            ONLY: message, message_text, finish
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, min_rlcell
+  USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, min_rlcell, SUCCESS
   USE mo_physical_constants,   ONLY: grav
-  USE mo_math_constants,       ONLY: pi2, rpi_2, deg2rad
+  USE mo_math_constants,       ONLY: pi2, rpi_2, deg2rad, rad2deg
   USE mo_loopindices,          ONLY: get_indices_c
+  USE mo_parallel_config,      ONLY: nproma
 
   USE mo_wave_types,           ONLY: t_wave_prog, t_wave_diag
   USE mo_wave_forcing_types,   ONLY: t_wave_forcing
@@ -73,12 +75,11 @@ CONTAINS
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-      &  routine = modname//'::init_wave_phy'
+      &  routine = modname//':init_wave_phy'
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
-    INTEGER :: jc,jb,jf
-    
+
     ! save some paperwork
     wc => wave_config
 
@@ -141,6 +142,15 @@ CONTAINS
     CALL wave_group_velocity_bnd(p_patch, wc, &
          p_diag%gvn_e)  !INOUT
 
+    ! initialisation of the nonlinear transfer
+    CALL init_wave_nonlinear(p_patch  = p_patch,                    & !IN
+         &                wave_config = wave_config,                & !IN
+         &                wave_num_c  = p_diag%wave_num_c,          & !IN
+         &                depth       = wave_ext_data%bathymetry_c, & !IN
+         &                p_diag      = p_diag) !INOUT
+
+    CALL message(TRIM(routine),'finished')
+
   END SUBROUTINE init_wave_phy
 
 
@@ -157,7 +167,7 @@ CONTAINS
   !!
   SUBROUTINE init_wave_spectrum(p_patch, wave_config, p_diag, p_forcing, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-         &  routine = 'init_wave_spectrum'
+         &  routine = modname//':init_wave_spectrum'
 
     TYPE(t_patch),        INTENT(IN)    :: p_patch
     TYPE(t_wave_config),  INTENT(IN)    :: wave_config
@@ -203,6 +213,8 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    CALL message(TRIM(routine),'finished')
+
   END SUBROUTINE init_wave_spectrum
 
   !>
@@ -225,10 +237,10 @@ CONTAINS
     REAL(wp),      INTENT(OUT) :: ET(:,:,:)     !! JONSWAP SPECTRA.
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-         &  routine = 'JONSWAP'
+         &  routine = modname//':JONSWAP'
 
     REAL(wp), PARAMETER :: FLMIN = 0.000001_wp !! absolute minimum energy in spectral bins
-    
+
     REAL(wp) :: ARG, sigma, G2ZPI4FRH5M
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -267,14 +279,16 @@ CONTAINS
             ET(jc,jb,jf) = ET(jc,jb,jf)*exp(log(GAMMA)*EXP(-ARG))
           END IF
 
-          ! Avoid too small numbers of p_diag%FLMINFR          
+          ! Avoid too small numbers of p_diag%FLMINFR
           ET(jc,jb,jf) = MAX(ET(jc,jb,jf),FLMIN)
-          
+
         END DO  !jc
       END DO  !jf
     END DO  !jb
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
+
+    CALL message(TRIM(routine),'finished')
 
   END SUBROUTINE JONSWAP
 
@@ -297,7 +311,7 @@ CONTAINS
   SUBROUTINE FETCH_LAW (p_patch, wave_config, p_diag, p_forcing)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-         &  routine = 'FETCH_LAW'
+         &  routine = modname//':FETCH_LAW'
     !
     TYPE(t_patch),        INTENT(IN)    :: p_patch
     TYPE(t_wave_config),  INTENT(IN)    :: wave_config
@@ -353,6 +367,314 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
+    CALL message(TRIM(routine),'finished')
+
   END SUBROUTINE FETCH_LAW
+
+  !>
+  !! Calculation of index arrays and weights for the computation of
+  !! the nonlinear transfer rate for shallow water.
+  !!
+  !! Computation of parameters used in discrete interaction
+  !! parameterization of nonlinear transfer.
+  !!
+  !! Adoptation of NLWEIGT from WAM 4.5.
+  !!
+  !! SUSANNE HASSELMANN JUNE 86.
+  !! H. GUNTHER   ECMWF/GKSS  DECEMBER 90 - CYCLE_4 MODIFICATIONS.
+  !! P. Janssen   ECMWF June 2005                                         !
+  !! H. Gunther   HZG   January 2015  cycle_4.5.4
+  !!
+  !! Reference
+  !! S. Hasselmann and K. Hasselmann, JPO, 1985
+  !!
+  !! @par Revision History
+  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
+  !!
+  SUBROUTINE init_wave_nonlinear(p_patch, wave_config, wave_num_c, depth, p_diag)!, ext_data)
+
+    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
+         &  routine = modname//':init_wave_nonlinear'
+
+    TYPE(t_patch),               INTENT(IN)    :: p_patch
+    TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
+    REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:)  !< wave number (1/m)
+    REAL(wp),                    INTENT(IN)    :: depth(:,:)
+    TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
+
+    TYPE(t_wave_config), POINTER :: wc => NULL()
+
+    INTEGER :: jc,jb,jf,jd
+    INTEGER :: error
+
+    INTEGER :: nfreqs, ndirs
+    INTEGER :: klp1, ic, kh, klh, k, ks, icl1, icl2, isg, k1, k11, k2, k21
+    INTEGER :: m, ikn, i, ie
+    INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1
+
+    REAL(wp) :: alamd, con, delphi1, delphi2, fr
+    REAL(wp) :: deltha, cl1, cl2, al11, al12, ch, cl1h, cl2h
+    REAL(wp) :: f1p1, frg, flp, flm, fkp, fkm
+
+    REAL(WP), ALLOCATABLE, DIMENSION(:) :: frlon
+
+    REAL(wp) :: wave_num(nproma)
+
+    wc => wave_config
+    nfreqs = wc%nfreqs
+    ndirs = wc%ndirs
+
+    ALLOCATE(frlon(2*nfreqs+2), STAT = error)
+    IF(error /= SUCCESS) CALL finish(routine, "memory allocation failure")
+
+    ! Parameters for discrete approximation of nonlinear transfer
+    alamd   = 0.25_wp   ! lambda
+    con     = 3000.0_wp ! weight for discrete approximation of nonlinear transfer
+    delphi1 = -11.48_wp
+    delphi2 = 33.56_wp
+
+    ! 1. Computation for angular grid
+    deltha = wc%delth * rad2deg
+
+    cl1 = delphi1/deltha
+    cl2 = delphi2/deltha
+
+    ! 1.1 computation of indices of angular cell.
+    klp1 = ndirs+1
+    ic = 1
+
+    DO kh = 1,2
+       klh = ndirs
+       IF (kh.eq.2) klh=klp1
+       DO k = 1,klh
+          ks = k
+          IF (kh.gt.1) ks=klp1-k+1
+          IF (ks.gt.ndirs) CYCLE
+          ch = ic*cl1
+          p_diag%ja1(ks,kh) = jafu(ch,k,ndirs)
+          ch = ic*cl2
+          p_diag%ja2(ks,kh) = jafu(ch,k,ndirs)
+       END DO
+       ic = -1
+    END DO
+
+    ! 1.2 computation of angular weights
+    icl1 = cl1
+    cl1  = cl1 - icl1
+    icl2 = cl2
+    cl2  = cl2 - icl2
+    wc%acl1 = ABS(cl1)
+    wc%acl2 = ABS(cl2)
+    wc%cl11 = 1._wp - wc%acl1
+    wc%cl21 = 1._wp - wc%acl2
+    al11 = (1._wp + alamd)**4
+    al12 = (1._wp - alamd)**4
+    wc%dal1 = 1._wp / al11
+    wc%dal2 = 1._wp / al12
+
+    ! 1.3 computation of angular indices
+    isg = 1
+    DO kh = 1,2
+       cl1h = isg*cl1
+       cl2h = isg*cl2
+       DO k = 1,ndirs
+          ks = k
+          IF (kh.eq.2) ks = ndirs-k+2
+          IF(k.eq.1) ks = 1
+          k1 = p_diag%ja1(k,kh)
+          p_diag%k1w(ks,kh) = k1
+          IF (cl1h.lt.0.) THEN
+             k11 = k1-1
+             IF (k11.lt.1) k11 = ndirs
+          ELSE
+             k11 = k1+1
+             IF (k11.gt.ndirs) k11 = 1
+          END IF
+          p_diag%k11w(ks,kh) = k11
+          k2 = p_diag%ja2(k,kh)
+          p_diag%k2w(ks,kh) = k2
+          IF (cl2h.lt.0) THEN
+             k21 = k2-1
+             IF(k21.lt.1) k21 = ndirs
+          ELSE
+             k21 = k2+1
+             IF (k21.gt.ndirs) k21 = 1
+          END IF
+          p_diag%k21w(ks,kh) = k21
+       END DO
+       isg = -1
+    END DO
+
+    ! 2. computation for frequency grid
+    frlon(1:nfreqs) = wc%freqs(1:nfreqs)
+
+    DO m = nfreqs+1,2*nfreqs+2
+       frlon(m) = wc%co*frlon(m-1)
+    END DO
+
+    f1p1 = LOG10(wc%co)
+    DO m = 1,nfreqs+4
+       frg = frlon(m)
+       p_diag%af11(m) = con * frg**11
+       flp = frg*(1.+alamd)
+       flm = frg*(1.-alamd)
+       ikn = INT(LOG10(1._wp+alamd)/f1p1+.000001_wp)
+       ikn = m+ikn
+       p_diag%ikp(m) = ikn
+       fkp = frlon(p_diag%ikp(m))
+       p_diag%ikp1(m) = p_diag%ikp(m)+1
+       p_diag%fklap(m) = (flp-fkp)/(frlon(p_diag%ikp1(m))-fkp)
+
+       p_diag%fklap1(m) = 1._wp-p_diag%fklap(m)
+       IF (frlon(1).ge.flm) THEN
+          p_diag%ikm(m) = 1
+          p_diag%ikm1(m) = 1
+          p_diag%fklam(m) = 0._wp
+          p_diag%fklam1(m) = 0._wp
+       ELSE
+          ikn = INT(LOG10(1._wp-alamd)/f1p1+.0000001_wp)
+          ikn = m+ikn-1
+          IF (ikn.lt.1) ikn = 1
+          p_diag%ikm(m) = ikn
+          fkm = frlon(p_diag%ikm(m))
+          p_diag%ikm1(m) = p_diag%ikm(m)+1
+          p_diag%fklam(m) = (flm-fkm)/(frlon(p_diag%ikm1(m))-fkm)
+
+          p_diag%fklam1(m) = 1._wp-p_diag%fklam(m)
+       END IF
+    END DO
+
+
+    ! 3. calculate nonlinear tracer index p_diag%non_lin_tr_ind(18,nfreqs+4,2,ndirs)
+    FRE4: DO MC = 1,nfreqs+4
+      MP  = p_diag%IKP (MC)
+      MP1 = p_diag%IKP1(MC)
+      MM  = p_diag%IKM (MC)
+      MM1 = p_diag%IKM1(MC)
+      IC  = MC
+      IP  = MP
+      IP1 = MP1
+      IM  = MM
+      IM1 = MM1
+      IF (IP1.GT.nfreqs) THEN
+        IP1 = nfreqs
+        IF (IP.GT.nfreqs) THEN
+          IP  = nfreqs
+          IF (IC.GT.nfreqs) THEN
+            IC  = nfreqs
+            IF (IM1.GT.nfreqs) THEN
+              IM1 = nfreqs
+            END IF
+          END IF
+        END IF
+      END IF
+
+      !     2.1.1   ANGULAR LOOP.                                     !
+      DIR2: DO K = 1,ndirs !DIR2
+        MIR2: DO KH = 1,2 !MIR2
+
+          K1  = p_diag%K1W(K,KH)
+          K2  = p_diag%K2W(K,KH)
+          K11 = p_diag%K11W(K,KH)
+          K21 = p_diag%K21W(K,KH)
+
+          p_diag%non_lin_tr_ind( 1,MC,KH,K) = wc%get_tracer_id(K1,IP)
+          p_diag%non_lin_tr_ind( 2,MC,KH,K) = wc%get_tracer_id(K11,IP)
+          p_diag%non_lin_tr_ind( 3,MC,KH,K) = wc%get_tracer_id(K1,IP1)
+          p_diag%non_lin_tr_ind( 4,MC,KH,K) = wc%get_tracer_id(K11,IP1)
+          p_diag%non_lin_tr_ind( 5,MC,KH,K) = wc%get_tracer_id(K2,IM)
+          p_diag%non_lin_tr_ind( 6,MC,KH,K) = wc%get_tracer_id(K21,IM)
+          p_diag%non_lin_tr_ind( 7,MC,KH,K) = wc%get_tracer_id(K2,IM1)
+          p_diag%non_lin_tr_ind( 8,MC,KH,K) = wc%get_tracer_id(K21,IM1)
+          p_diag%non_lin_tr_ind( 9,MC,KH,K) = wc%get_tracer_id(K,IC)
+          p_diag%non_lin_tr_ind(10,MC,KH,K) = wc%get_tracer_id(K2 ,MM)
+          p_diag%non_lin_tr_ind(11,MC,KH,K) = wc%get_tracer_id(K21,MM)
+          p_diag%non_lin_tr_ind(12,MC,KH,K) = wc%get_tracer_id(K2 ,MM1)
+          p_diag%non_lin_tr_ind(13,MC,KH,K) = wc%get_tracer_id(K21,MM1)
+          p_diag%non_lin_tr_ind(14,MC,KH,K) = wc%get_tracer_id(K  ,MC)
+          p_diag%non_lin_tr_ind(15,MC,KH,K) = wc%get_tracer_id(K1 ,MP)
+          p_diag%non_lin_tr_ind(16,MC,KH,K) = wc%get_tracer_id(K11,MP)
+          p_diag%non_lin_tr_ind(17,MC,KH,K) = wc%get_tracer_id(K1 ,MP1)
+          p_diag%non_lin_tr_ind(18,MC,KH,K) = wc%get_tracer_id(K11,MP1)
+        END DO MIR2
+      END DO DIR2
+    END DO FRE4
+
+
+    ! 3. compute tail frequency ratios
+    ie = MIN(30,nfreqs+3)
+    DO i = 1,ie
+       m = nfreqs+i-1
+       wc%frh(i) = (frlon(nfreqs)/frlon(m))**5
+    END DO
+
+    IF (ALLOCATED(frlon))          DEALLOCATE(frlon)
+
+    !print nonlinear status
+    IF (my_process_is_stdio()) THEN
+       WRITE(0,'(/,'' -------------------------------------------------'')')
+       WRITE(0,*)'        non linear interaction parameters'
+       WRITE(0,'(  '' -------------------------------------------------'')')
+       WRITE(0,'(/,''  frequency arrays'')')
+       WRITE(0,'(''     acl1       acl2       cl11       cl21   '',                &
+            &            ''    dal1       dal2'')')
+       WRITE(0,'(1x,6f11.8)') wc%acl1, wc%acl2, wc%cl11, wc%cl21, wc%dal1, wc%dal2
+       WRITE(0,*) ' '
+       WRITE(0,'(''  m   ikp ikp1  ikm ikm1   fklap       fklap1 '',               &
+            &            ''   fklam       fklam1     af11'')')
+
+       DO jf = 1,size(p_diag%ikp)
+          WRITE(0,'(1x,i2,4i5,4f11.8,e11.3)') jf, p_diag%ikp(jf), p_diag%ikp1(jf), p_diag%ikm(jf), p_diag%ikm1(jf), &
+               &            p_diag%fklap(jf), p_diag%fklap1(jf), p_diag%fklam(jf), p_diag%fklam1(jf), p_diag%af11(jf)
+       END DO
+
+       WRITE(0,'(/,''  angular arrays'')')
+       WRITE(0,'(''   |--------kh = 1----------||--------kh = 2----------|'')')
+       WRITE(0,'(''  k   k1w   k2w  k11w  k21w   k1w   k2w  k11w  k21w'')')
+       DO jd = 1,size(p_diag%k1w,1)
+          WRITE(0,'(1x,i2,8i6)') jd,(p_diag%k1w(jd,kh), p_diag%k2w(jd,kh), p_diag%k11w(jd,kh),              &
+               &                            p_diag%k21w(jd,kh),kh=1,2)
+       END DO
+
+       WRITE(0,'(/,''  tail array frh'')')
+       WRITE(0,'(1x,8f10.7)') wc%frh(1:30)
+    END IF
+
+
+    CALL message(TRIM(routine),'finished')
+
+  END SUBROUTINE init_wave_nonlinear
+
+
+  !>
+  !! Function to compute the index array for the angles of the
+  !! interacting wavenumbers.
+  !!
+  !! Adopted from WAM 4.5 JAFU
+  !!
+  !!  S. Hasselmann        MPIFM        01/12/1985
+  !!
+  !! Indices defining bins in frequency and direction plane into
+  !! which nonlinear energy transfer increments are stored. Needed
+  !! for computation of the nonlinear energy transfer.
+  !!
+  !! Reference
+  !! S. Hasselmann and K. Hasselmann, JPO, 1985 B
+  !!
+  !! @par Revision History
+  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
+  !! Vectorization by Daniel Reinert, DWD (2023-XX-XX)
+  INTEGER FUNCTION JAFU (CL, J, IAN)
+
+    REAL(wp),    INTENT(IN) :: CL !! weights.
+    INTEGER, INTENT(IN) :: J      !! index in angular array.
+    INTEGER, INTENT(IN) :: IAN    !! number of angles in array.
+
+    JAFU = J + INT(CL)
+    IF (JAFU.LE.0)   JAFU = JAFU+IAN
+    IF (JAFU.GT.IAN) JAFU = JAFU-IAN
+
+  END FUNCTION JAFU
+
 
 END MODULE mo_init_wave_physics

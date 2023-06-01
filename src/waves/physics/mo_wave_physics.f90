@@ -20,7 +20,7 @@
 MODULE mo_wave_physics
 
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_exception,           ONLY: message, message_text, finish
+  USE mo_exception,           ONLY: message
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, min_rlcell, min_rledge
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
   USE mo_kind,                ONLY: wp
@@ -39,7 +39,7 @@ MODULE mo_wave_physics
 
   PRIVATE
 
-  PUBLIC :: air_sea, bottom_friction
+  PUBLIC :: air_sea, bottom_friction, nonlinear_transfer
   PUBLIC :: input_source_function, dissipation_source_function
   PUBLIC :: last_prog_freq_ind
   PUBLIC :: impose_high_freq_tail
@@ -1561,72 +1561,70 @@ CONTAINS
   END SUBROUTINE wm1_wm2_wavenumber
 
 
-!!$!>
-!!$!! Calculation of wave number.
-!!$!!
-!!$!! Wave number as a function of circular frequency and water depth.
-!!$!! Newtons method to solve the dispersion relation in shallow water.
-!!$!! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
-!!$!! Adaptation of WAM 4.5 code, function AKI
-!!$!!
-!!$!! @par Revision History
-!!$!! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-!!$!! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
-!!$!!
-!!$FUNCTION wave_number(OM, depth) RESULT(wave_num)
-!!$  REAL(wp), INTENT(IN) :: OM                  !< CIRCULAR FREQUENCY 2*pi*freq (nfreqs)
-!!$  REAL(wp), INTENT(IN) :: depth(:)            !< bathymetric height at cell centers (nproma)
+!!$  !>
+!!$  !! Calculation of wave number.
+!!$  !!
+!!$  !! Wave number as a function of circular frequency and water depth.
+!!$  !! Newtons method to solve the dispersion relation in shallow water.
+!!$  !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
+!!$  !! Adaptation of WAM 4.5 code, function AKI
+!!$  !!
+!!$  !! @par Revision History
+!!$  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
+!!$  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
+!!$  !!
+!!$  FUNCTION wave_number(OM, depth) RESULT(wave_num)
+!!$    REAL(wp), INTENT(IN) :: OM                  !< CIRCULAR FREQUENCY 2*pi*freq (nfreqs)
+!!$    REAL(wp), INTENT(IN) :: depth(:)            !< bathymetric height at cell centers (nproma)
 !!$
-!!$  REAL(wp), PARAMETER  :: EBS = 0.0001_wp     !< RELATIVE ERROR LIMIT OF NEWTON'S METHOD.
-!!$  REAL(wp), PARAMETER  :: DKMAX = 40.0_wp     !< MAXIMUM VALUE OF DEPTH*WAVENUMBER.
-!!$  REAL(wp)             :: BO, TH, STH
-!!$  INTEGER              :: jc                  !< loop index for cells
-!!$  INTEGER              :: ncell               !< loop bounds
+!!$    REAL(wp), PARAMETER  :: EBS = 0.0001_wp     !< RELATIVE ERROR LIMIT OF NEWTON'S METHOD.
+!!$    REAL(wp), PARAMETER  :: DKMAX = 40.0_wp     !< MAXIMUM VALUE OF DEPTH*WAVENUMBER.
+!!$    REAL(wp)             :: BO, TH, STH
+!!$    INTEGER              :: jc                  !< loop index for cells
+!!$    INTEGER              :: ncell               !< loop bounds
 !!$
-!!$  LOGICAL              :: l_converged(SIZE(depth)), all_converged
-!!$  REAL(wp)             :: wave_num(SIZE(depth))
-!!$  REAL(wp)             :: AKP
-!!$  ! ---------------------------------------------------------------------------- !
-!!$  !     1. START WITH MAXIMUM FROM DEEP AND EXTREM SHALLOW WATER WAVE NUMBER.    !
+!!$    LOGICAL              :: l_converged(SIZE(depth)), all_converged
+!!$    REAL(wp)             :: wave_num(SIZE(depth))
+!!$    REAL(wp)             :: AKP
+!!$    ! ---------------------------------------------------------------------------- !
+!!$    !     1. START WITH MAXIMUM FROM DEEP AND EXTREM SHALLOW WATER WAVE NUMBER.    !
 !!$
-!!$  ncell = SIZE(depth)
-!!$  AKP   = 10000.0_wp
+!!$    ncell = SIZE(depth)
+!!$    AKP   = 10000.0_wp
 !!$
-!!$  DO jc=1,ncell
-!!$    !
-!!$    ! initialization
-!!$    wave_num(jc) = MAX( OM**2/(4.0_wp* grav), OM/(2.0_wp*SQRT(grav*depth(jc))) )
-!!$
-!!$    l_converged(jc) = (ABS(AKP-wave_num(jc)) .le. EBS*wave_num(jc))
-!!$  ENDDO
-!!$
-!!$  all_converged = ALL(l_converged(1:ncell).EQV..TRUE.)
-!!$
-!!$  ! ---------------------------------------------------------------------------- !
-!!$  !     2. ITERATION LOOP.                                                       !
-!!$
-!!$  DO WHILE (all_converged.EQV..FALSE.)
 !!$    DO jc=1,ncell
-!!$      IF (.NOT.l_converged(jc)) THEN
-!!$        BO = depth(jc)*wave_num(jc)
-!!$        IF (BO .gt. DKMAX) THEN
-!!$          wave_num(jc) = OM**2/grav
-!!$          l_converged(jc) = .TRUE.
-!!$        ELSE
-!!$          AKP = wave_num(jc)
-!!$          TH = grav*wave_num(jc)*TANH(BO)
-!!$          STH = SQRT(TH)
-!!$          wave_num(jc) = wave_num(jc) &
-!!$            &                + (OM-STH)*STH*2.0_wp / (TH/wave_num(jc) + grav*BO/COSH(BO)**2)
-!!$          ! check for converged solution
-!!$          l_converged(jc) = (ABS(AKP-wave_num(jc)) .le. EBS*wave_num(jc))
-!!$        END IF
-!!$      END IF  ! l_converged
-!!$    ENDDO  !jc
-!!$    all_converged = ALL(l_converged(1:ncell).EQV..TRUE.)
-!!$  ENDDO !while
+!!$      !
+!!$      ! initialization
+!!$      wave_num(jc) = MAX( OM**2/(4.0_wp* grav), OM/(2.0_wp*SQRT(grav*depth(jc))) )
 !!$
-!!$END FUNCTION wave_number
+!!$      l_converged(jc) = (ABS(AKP-wave_num(jc)) .le. EBS*wave_num(jc))
+!!$    ENDDO
+!!$
+!!$    all_converged = ALL(l_converged(1:ncell).EQV..TRUE.)
+!!$
+!!$    ! ---------------------------------------------------------------------------- !
+!!$    !     2. ITERATION LOOP.                                                       !
+!!$    DO WHILE (all_converged.EQV..FALSE.)
+!!$      DO jc=1,ncell
+!!$        IF (.NOT.l_converged(jc)) THEN
+!!$          BO = depth(jc)*wave_num(jc)
+!!$          IF (BO .gt. DKMAX) THEN
+!!$            wave_num(jc) = OM**2/grav
+!!$            l_converged(jc) = .TRUE.
+!!$          ELSE
+!!$            AKP = wave_num(jc)
+!!$            TH = grav*wave_num(jc)*TANH(BO)
+!!$            STH = SQRT(TH)
+!!$            wave_num(jc) = wave_num(jc) &
+!!$                 &                + (OM-STH)*STH*2.0_wp / (TH/wave_num(jc) + grav*BO/COSH(BO)**2)
+!!$            ! check for converged solution
+!!$            l_converged(jc) = (ABS(AKP-wave_num(jc)) .le. EBS*wave_num(jc))
+!!$          END IF
+!!$        END IF  ! l_converged
+!!$      ENDDO  !jc
+!!$      all_converged = ALL(l_converged(1:ncell).EQV..TRUE.)
+!!$    ENDDO !while
+!!$  END FUNCTION wave_number
 
 
 
@@ -2011,5 +2009,450 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
   END SUBROUTINE bottom_friction
+
+
+
+
+  !>
+  !!
+  !! Computation of nonlinear transfer rate and its
+  !! functional derivative (diagonal terms only) and
+  !! addition to corresponding net expressions.
+  !!
+  !! Adaptation of WAM 4.5 SNONLIN
+  !! S.D. Hasselmann.  MPI
+  !! G. Komen, P. Janssen   KNMI        modified to shallow water
+  !! H. Guenther, L. Zambresky          optimized
+  !! H. Guenther  GKSS/ECMWF  June 1991 interactions between diag-
+  !!                                    and prognostic part.
+  !! H. Guenther  GKSS  February 2002   FT 90
+  !! E. Myklebust       February 2005   optimization
+  !!
+  !! @par Revision History
+  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
+  !! Optimization and vectorization by Daniel Reinert, DWD (2023-05-31)
+  !!
+  SUBROUTINE nonlinear_transfer(p_patch, wave_config, depth, tracer, p_diag)
+    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
+         & routine =  modname//'nonlinear_transfer'
+
+    TYPE(t_patch),               INTENT(IN)    :: p_patch
+    TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
+    REAL(wp),                    INTENT(IN)    :: depth(:,:)
+    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
+
+    ! local
+    TYPE(t_wave_config), POINTER :: wc             => NULL()
+    INTEGER,             POINTER:: tr_idx(:,:,:,:) => NULL()
+
+    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
+    INTEGER :: i_startidx, i_endidx
+    INTEGER :: jc,jk,jb,jf
+
+    INTEGER :: nfreqs, ndirs
+    INTEGER :: MP, MP1, MM, MM1, IC, IP, IP1, IM, IM1, KH, K
+
+    REAL(wp) :: FFACP, FFACP1, FFACM1, FTAIL, FKLAMP, FKLAMP1, GW1, GW2, GW3, GW4
+    REAL(wp) :: FKLAMPA, FKLAMPB, FKLAMP2, FKLAPA2, FKLAPB2, FKLAP12, FKLAP22
+    REAL(wp) :: FKLAMM, FKLAMM1, GW5, GW6, GW7, GW8, FKLAMMA, FKLAMMB, FKLAMM2
+    REAL(wp) :: FKLAMA2, FKLAMB2, FKLAM12, FKLAM22
+    REAL(wp) :: SAP, SAM, FIJ, FAD1, FAD2, FCEN
+
+    REAL(wp) :: AD
+    REAL(wp) :: DELAD, DELAP, DELAM
+    REAL(wp) :: FTEMP, ENHFR
+
+
+    ! convenience pointers
+    wc     => wave_config
+    tr_idx => p_diag%non_lin_tr_ind(:,:,:,:)
+    nfreqs = wc%nfreqs
+    ndirs  = wc%ndirs
+
+    i_rlstart  = 1
+    i_rlend    = min_rlcell
+    i_startblk = p_patch%cells%start_block(i_rlstart)
+    i_endblk   = p_patch%cells%end_block(i_rlend)
+    jk         = p_patch%nlev
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,jf,i_startidx,i_endidx,ENHFR,FTEMP,                              &
+!$OMP           MP,MP1,MM,MM1,IC,IP,IP1,IM,IM1,KH,K,FFACP,                               &
+!$OMP           FFACP1,FFACM1,FTAIL,FKLAMP,FKLAMP1, GW1, GW2, GW3, GW4,FKLAMPA, FKLAMPB, &
+!$OMP           FKLAMP2, FKLAPA2, FKLAPB2, FKLAP12, FKLAP22, FKLAMM, FKLAMM1, GW5, GW6, &
+!$OMP           GW7, GW8, FKLAMMA, FKLAMMB, FKLAMM2,FKLAMA2, FKLAMB2, FKLAM12, FKLAM22, &
+!$OMP           SAP, SAM, FIJ, FAD1, FAD2, FCEN, AD, DELAD, DELAP, DELAM ) ICON_OMP_DEFAULT_SCHEDULE
+    ljb: DO jb = i_startblk, i_endblk
+       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
+            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
+       DO jc = i_startidx, i_endidx
+          ENHFR = MAX(0.75_wp*depth(jc,jb)*p_diag%AKMEAN(jc,jb), 0.5_wp)
+          ENHFR = 1.0_wp + (5.5_wp/ENHFR) * (1.0_wp-0.833_wp*ENHFR) &
+               &                * EXP(-1.25_wp*ENHFR)
+          p_diag%ENH(jc,jb) = ENHFR
+       END DO
+
+      FRE4: DO jf = 1,nfreqs+4
+        MP  = p_diag%IKP (jf)
+        MP1 = p_diag%IKP1(jf)
+        MM  = p_diag%IKM (jf)
+        MM1 = p_diag%IKM1(jf)
+        FFACP  = 1._wp
+        FFACP1 = 1._wp
+        FFACM1 = 1._wp
+        FTAIL  = 1._wp
+        IC  = jf
+        IP  = MP
+        IP1 = MP1
+        IM  = MM
+        IM1 = MM1
+        IF (IP1.GT.nfreqs) THEN
+          FFACP1 = wc%FRH(IP1-nfreqs+1)
+          IP1 = nfreqs
+          IF (IP.GT.nfreqs) THEN
+            FFACP  = wc%FRH(IP-nfreqs+1)
+            IP  = nfreqs
+            IF (IC.GT.nfreqs) THEN
+              FTAIL  = wc%FRH(IC-nfreqs+1)
+              IC  = nfreqs
+              IF (IM1.GT.nfreqs) THEN
+                FFACM1 = wc%FRH(IM1-nfreqs+1)
+                IM1 = nfreqs
+              END IF
+            END IF
+          END IF
+        END IF
+
+        FKLAMP  = p_diag%FKLAP(jf)
+        FKLAMP1 = p_diag%FKLAP1(jf)
+        GW2 = FKLAMP1*FFACP*wc%DAL1
+        GW1 = GW2*wc%CL11
+        GW2 = GW2*wc%ACL1
+        GW4 = FKLAMP*FFACP1*wc%DAL1
+        GW3 = GW4*wc%CL11
+        GW4 = GW4*wc%ACL1
+        FKLAMPA = FKLAMP*wc%CL11
+        FKLAMPB = FKLAMP*wc%ACL1
+        FKLAMP2 = FKLAMP1*wc%ACL1
+        FKLAMP1 = FKLAMP1*wc%CL11
+        FKLAPA2 = FKLAMPA**2
+        FKLAPB2 = FKLAMPB**2
+        FKLAP12 = FKLAMP1**2
+        FKLAP22 = FKLAMP2**2
+        FKLAMM  = p_diag%FKLAM(jf)
+        FKLAMM1 = p_diag%FKLAM1(jf)
+        GW6 = FKLAMM1*wc%DAL2
+        GW5 = GW6*wc%CL21
+        GW6 = GW6*wc%ACL2
+        GW8 = FKLAMM*FFACM1*wc%DAL2
+        GW7 = GW8*wc%CL21
+        GW8 = GW8*wc%ACL2
+        FKLAMMA = FKLAMM*wc%CL21
+        FKLAMMB = FKLAMM*wc%ACL2
+        FKLAMM2 = FKLAMM1*wc%ACL2
+        FKLAMM1 = FKLAMM1*wc%CL21
+        FKLAMA2 = FKLAMMA**2
+        FKLAMB2 = FKLAMMB**2
+        FKLAM12 = FKLAMM1**2
+        FKLAM22 = FKLAMM2**2
+
+        ! shallow water case
+        IF (jf.GT.4) THEN! UNTIL 7.
+          IF (MM1.LE.nfreqs) THEN! UNTIL 6.
+            IF (jf .LE.nfreqs) THEN! UNTIL 5.
+              IF (MP .LE.nfreqs) THEN! UNTIL 4.
+                IF (MP1.LE.nfreqs) THEN! UNTIL 3.
+                  !     2.1.1   ANGULAR LOOP.                                     !
+                  DIR2: DO K = 1,ndirs !DIR2
+
+                    DO jc = i_startidx, i_endidx
+                      !     2.1.1.1 LOOP OVER GRIDPOINTS.. NONLINEAR TRANSFER AND     !
+                      !             DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE.         !
+                      !             ----------------------------------------------    !
+
+                      !     2.1 LOOP FOR ANLULAR SYMMETRY.                            !
+                      MIR2: DO KH = 1,2
+
+                         SAP = &
+                              GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                              GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                              GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                              GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+                         SAM = &
+                              GW5*tracer(jc,jk,jb,tr_idx(5,jf,KH,K)) + &
+                              GW6*tracer(jc,jk,jb,tr_idx(6,jf,KH,K)) + &
+                              GW7*tracer(jc,jk,jb,tr_idx(7,jf,KH,K)) + &
+                              GW8*tracer(jc,jk,jb,tr_idx(8,jf,KH,K))
+
+                         FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                         FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))*FTAIL
+                         FAD1 = FIJ*(SAP+SAM)
+                         FAD2 = FAD1-2._wp*SAP*SAM
+                         FAD1 = FAD1+FAD2
+                         FCEN = FTEMP*FIJ
+                         AD = FAD2*FCEN
+                         DELAD = FAD1*FTEMP
+                         DELAP = (FIJ-2._wp*SAM)*wc%DAL1*FCEN
+                         DELAM = (FIJ-2._wp*SAP)*wc%DAL2*FCEN
+
+                         p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) + AD*FKLAMM1 !SL
+                         p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) + AD*FKLAMM2 !SL
+                         p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) + DELAM*FKLAM12 !FL
+                         p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) + DELAM*FKLAM22 !FL
+
+                         p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) + AD*FKLAMMA
+                         p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) + AD*FKLAMMB
+                         p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) + DELAM*FKLAMA2
+                         p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) + DELAM*FKLAMB2
+
+                         p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*AD
+                         p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*DELAD
+
+                         p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) + AD*FKLAMP1
+                         p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) + AD*FKLAMP2
+                         p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) + DELAP*FKLAP12
+                         p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) + DELAP*FKLAP22
+
+                         p_diag%sl(jc,jb,tr_idx(17,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(17,jf,KH,K)) + AD*FKLAMPA
+                         p_diag%sl(jc,jb,tr_idx(18,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(18,jf,KH,K)) + AD*FKLAMPB
+                         p_diag%fl(jc,jb,tr_idx(17,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(17,jf,KH,K)) + DELAP*FKLAPA2
+                         p_diag%fl(jc,jb,tr_idx(18,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(18,jf,KH,K)) + DELAP*FKLAPB2
+                      END DO MIR2
+                    END DO  ! jc
+                  END DO DIR2
+                ELSE!IF (MP1.LE.ML) THEN
+                  !     3.1.1   ANGULAR LOOP.                                   !
+                  DIR3: DO K = 1, ndirs
+
+                    DO jc = i_startidx, i_endidx
+                      !     3.1.1.1 LOOP OVER GRIDPOINTS.. NONLINEAR TRANSFER AND   !
+                      !             DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE.       !
+                      !             ----------------------------------------------  !
+
+                      !     3.1 LOOP FOR ANGULAR SYMMETRY.                          !
+                      MIR3: DO KH = 1,2
+
+                        SAP = &
+                             GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                             GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                             GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                             GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+                        SAM = &
+                             GW5*tracer(jc,jk,jb,tr_idx(5,jf,KH,K)) + &
+                             GW6*tracer(jc,jk,jb,tr_idx(6,jf,KH,K)) + &
+                             GW7*tracer(jc,jk,jb,tr_idx(7,jf,KH,K)) + &
+                             GW8*tracer(jc,jk,jb,tr_idx(8,jf,KH,K))
+
+                        FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                        FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))*FTAIL
+                        FAD1 = FIJ*(SAP+SAM)
+                        FAD2 = FAD1-2._wp*SAP*SAM
+                        FAD1 = FAD1+FAD2
+                        FCEN = FTEMP*FIJ
+                        AD = FAD2*FCEN
+                        DELAD = FAD1*FTEMP
+                        DELAP = (FIJ-2._wp*SAM)*wc%DAL1*FCEN
+                        DELAM = (FIJ-2._wp*SAP)*wc%DAL2*FCEN
+
+                        p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) + AD*FKLAMM1
+                        p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) + AD*FKLAMM2
+                        p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) + DELAM*FKLAM12
+                        p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) + DELAM*FKLAM22
+
+                        p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) + AD*FKLAMMA
+                        p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) + AD*FKLAMMB
+                        p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) + DELAM*FKLAMA2
+                        p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) + DELAM*FKLAMB2
+
+                        p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*AD
+                        p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*DELAD
+
+                        p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) + AD*FKLAMP1
+                        p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) + AD*FKLAMP2
+                        p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) + DELAP*FKLAP12
+                        p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) + DELAP*FKLAP22
+                      END DO MIR3
+                    END DO !jc
+                  END DO DIR3!  BRANCH BACK TO 3.1.1 FOR NEXT DIRECTION.
+                END IF
+              ELSE!IF (MP .LE.ML) THEN
+                !     4.1.1   ANGULAR LOOP.                                   !
+                DIR4: DO K = 1, ndirs!
+
+                  DO jc = i_startidx, i_endidx
+                    !     4.1.1.1 LOOP OVER GRIDPOINTS.. NONLINEAR TRANSFER AND   !
+                    !             DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE.       !
+                    !             ----------------------------------------------  !
+
+                    !     4.1 LOOP FOR ANGULAR SYMMETRY.
+                    MIR4: DO KH = 1,2
+
+                      SAP = &
+                           GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                           GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                           GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                           GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+                      SAM = &
+                           GW5*tracer(jc,jk,jb,tr_idx(5,jf,KH,K)) + &
+                           GW6*tracer(jc,jk,jb,tr_idx(6,jf,KH,K)) + &
+                           GW7*tracer(jc,jk,jb,tr_idx(7,jf,KH,K)) + &
+                           GW8*tracer(jc,jk,jb,tr_idx(8,jf,KH,K))
+
+                      FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                      FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))*FTAIL
+                      FAD1 = FIJ*(SAP+SAM)
+                      FAD2 = FAD1-2._wp*SAP*SAM
+                      FAD1 = FAD1+FAD2
+                      FCEN = FTEMP*FIJ
+                      AD = FAD2*FCEN
+                      DELAD = FAD1*FTEMP
+                      DELAP = (FIJ-2._wp*SAM)*wc%DAL1*FCEN
+                      DELAM = (FIJ-2._wp*SAP)*wc%DAL2*FCEN
+
+                      p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) + AD*FKLAMM1
+                      p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) + AD*FKLAMM2
+                      p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) + DELAM*FKLAM12
+                      p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) + DELAM*FKLAM22
+
+                      p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) + AD*FKLAMMA
+                      p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) + AD*FKLAMMB
+                      p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) + DELAM*FKLAMA2
+                      p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) + DELAM*FKLAMB2
+
+                      p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*AD
+                      p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*DELAD
+                    END DO MIR4
+                  END DO !jc
+                END DO DIR4
+              END IF
+            ELSE
+              !     5.1.1   ANGULAR LOOP.                                         !
+              DIR5: DO K = 1, ndirs
+
+                DO jc = i_startidx, i_endidx
+
+                  !     5.1 LOOP FOR ANLULAR SYMMETRY.                                !
+                  MIR5: DO KH = 1,2
+
+                    SAP = &
+                         GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                         GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                         GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                         GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+                    SAM = &
+                         GW5*tracer(jc,jk,jb,tr_idx(5,jf,KH,K)) + &
+                         GW6*tracer(jc,jk,jb,tr_idx(6,jf,KH,K)) + &
+                         GW7*tracer(jc,jk,jb,tr_idx(7,jf,KH,K)) + &
+                         GW8*tracer(jc,jk,jb,tr_idx(8,jf,KH,K))
+
+                    FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                    FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))*FTAIL
+                    FAD1 = FIJ*(SAP+SAM)
+                    FAD2 = FAD1-2._wp*SAP*SAM
+                    FAD1 = FAD1+FAD2
+                    FCEN = FTEMP*FIJ
+                    AD = FAD2*FCEN
+                    DELAD = FAD1*FTEMP
+                    DELAP = (FIJ-2._wp*SAM)*wc%DAL1*FCEN
+                    DELAM = (FIJ-2._wp*SAP)*wc%DAL2*FCEN
+
+                    p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) + AD*FKLAMM1
+                    p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) + AD*FKLAMM2
+                    p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) + DELAM*FKLAM12
+                    p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) + DELAM*FKLAM22
+
+                    p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(12,jf,KH,K)) + AD*FKLAMMA
+                    p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(13,jf,KH,K)) + AD*FKLAMMB
+                    p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(12,jf,KH,K)) + DELAM*FKLAMA2
+                    p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(13,jf,KH,K)) + DELAM*FKLAMB2
+                  END DO MIR5
+                END DO !jc
+              END DO DIR5
+            END IF
+          ELSE
+            !     6.1.1   ANGULAR LOOP.                                        !
+            DIR6: DO K = 1,ndirs
+
+              DO jc = i_startidx, i_endidx
+
+                !     6.1 LOOP FOR ANGULAR SYMMETRY.                                !
+                MIR6: DO KH = 1,2
+
+                  SAP = &
+                       GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                       GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                       GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                       GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+                  SAM = &
+                       GW5*tracer(jc,jk,jb,tr_idx(5,jf,KH,K)) + &
+                       GW6*tracer(jc,jk,jb,tr_idx(6,jf,KH,K)) + &
+                       GW7*tracer(jc,jk,jb,tr_idx(7,jf,KH,K)) + &
+                       GW8*tracer(jc,jk,jb,tr_idx(8,jf,KH,K))
+
+                  FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                  FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))*FTAIL
+                  FAD1 = FIJ*(SAP+SAM)
+                  FAD2 = FAD1-2._wp*SAP*SAM
+                  FAD1 = FAD1+FAD2
+                  FCEN = FTEMP*FIJ
+                  AD = FAD2*FCEN
+                  DELAD = FAD1*FTEMP
+                  DELAP = (FIJ-2._wp*SAM)*wc%DAL1*FCEN
+                  DELAM = (FIJ-2._wp*SAP)*wc%DAL2*FCEN
+
+                  p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(10,jf,KH,K)) + AD*FKLAMM1
+                  p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(11,jf,KH,K)) + AD*FKLAMM2
+                  p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(10,jf,KH,K)) + DELAM*FKLAM12
+                  p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(11,jf,KH,K)) + DELAM*FKLAM22
+                END DO MIR6
+              END DO !jc
+            END DO DIR6
+          END IF
+        ELSE
+          !     7.1.1   ANGULAR LOOP.                                           !
+          DIR7: DO K = 1,ndirs
+
+            DO jc = i_startidx, i_endidx
+
+              !     7.1 LOOP FOR ANGULAR SYMMETRY.                                     !
+              MIR7: DO KH = 1,2
+
+                SAP = &
+                     GW1*tracer(jc,jk,jb,tr_idx(1,jf,KH,K)) + &
+                     GW2*tracer(jc,jk,jb,tr_idx(2,jf,KH,K)) + &
+                     GW3*tracer(jc,jk,jb,tr_idx(3,jf,KH,K)) + &
+                     GW4*tracer(jc,jk,jb,tr_idx(4,jf,KH,K))
+
+                FTEMP = p_diag%AF11(jf) * p_diag%ENH(jc,jb)
+                FIJ = tracer(jc,jk,jb,tr_idx(9,jf,KH,K))
+                FAD2 = FIJ*SAP
+                FAD1 = 2._wp*FAD2
+                FCEN = FTEMP*FIJ
+                AD = FAD2*FCEN
+                DELAD = FAD1*FTEMP
+                DELAP = FIJ*wc%DAL1*FCEN
+
+                p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*AD
+                p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(15,jf,KH,K)) + AD*FKLAMP1
+                p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(16,jf,KH,K)) + AD*FKLAMP2
+                p_diag%sl(jc,jb,tr_idx(17,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(17,jf,KH,K)) + AD*FKLAMPA
+                p_diag%sl(jc,jb,tr_idx(18,jf,KH,K)) = p_diag%sl(jc,jb,tr_idx(18,jf,KH,K)) + AD*FKLAMPB
+
+                p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(14,jf,KH,K)) - 2._wp*DELAD
+                p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(15,jf,KH,K)) + DELAP*FKLAP12
+                p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(16,jf,KH,K)) + DELAP*FKLAP22
+                p_diag%fl(jc,jb,tr_idx(17,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(17,jf,KH,K)) + DELAP*FKLAPA2
+                p_diag%fl(jc,jb,tr_idx(18,jf,KH,K)) = p_diag%fl(jc,jb,tr_idx(18,jf,KH,K)) + DELAP*FKLAPB2
+              END DO MIR7
+            END DO !jc
+          END DO DIR7
+        END IF
+      END DO FRE4
+    END DO ljb
+!$OMP ENDDO NOWAIT
+!$OMP END PARALLEL
+
+  END SUBROUTINE nonlinear_transfer
 
 END MODULE mo_wave_physics

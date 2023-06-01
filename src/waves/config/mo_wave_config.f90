@@ -106,8 +106,17 @@ MODULE mo_wave_config
       &  mo_tail,          & ! mo  tail factor.
       &  mm1_tail,         & ! m-1 tail factor.
       &  mp1_tail,         & ! m+1 tail factor.
-      &  mp2_tail            ! m+2 tail factor.
-
+      &  mp2_tail,         & ! m+2 tail factor.
+      &  acl1,             & ! weight in angular grid for interpolation,
+                             ! wave no. 3 ("1+lambda" term).
+      &  acl2,             & ! weight in angular grid for interpolation,
+                             ! wave no. 4 ("1-lambda" term).
+      &  cl11,             & ! 1.-acl1.
+      &  cl21,             & ! 1.-acl2.
+      &  dal1,             & ! 1./acl1.
+      &  dal2,             & ! 1./acl2.
+      &  frh(30)             ! tail frequency ratio **5
+      
     REAL(wp), ALLOCATABLE :: &
       &  freqs(:),         & ! frequencies (1:nfreqs) of wave spectrum [hz]
       &  dfreqs(:),        & ! frequency interval (1:nfreqs)

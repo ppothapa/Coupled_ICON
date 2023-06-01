@@ -31,7 +31,7 @@ MODULE mo_wave_stepping
   USE mo_dynamics_config,          ONLY: nnow, nnew
   USE mo_fortran_tools,            ONLY: swap, init
 
-  USE mo_wave_adv_exp,             ONLY: init_wind_adv_test
+  USE mo_wave_adv_exp,             ONLY: init_wind_adv_test,init_ice_adv_test
   USE mo_init_wave_physics,        ONLY: init_wave_phy
   USE mo_wave_state,               ONLY: p_wave_state
   USE mo_wave_ext_data_state,      ONLY: wave_ext_data
@@ -41,7 +41,7 @@ MODULE mo_wave_stepping
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
        &                                 impose_high_freq_tail, tm1_period, wave_stress, &
        &                                 wm1_wm2_wavenumber, dissipation_source_function, &
-       &                                 set_energy2emin, bottom_friction
+       &                                 set_energy2emin, bottom_friction, nonlinear_transfer
   USE mo_wave_config,              ONLY: wave_config
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
   USE mo_wave_events,              ONLY: create_wave_events, dummyWaveEvent
@@ -121,8 +121,9 @@ CONTAINS
       DO jg = 1, n_dom
         n_now  = nnow(jg)
         n_new  = nnew(jg)
-        ! Initialisation of 10 meter wind
+        ! Initialisation of 10 meter wind and sea ice
         CALL init_wind_adv_test(p_patch(jg), wave_forcing_state(jg))
+        CALL init_ice_adv_test(p_patch(jg), wave_forcing_state(jg))
 
         ! Initialisation of the wave spectrum
         CALL init_wave_phy(p_patch(jg), wave_config(jg), &
@@ -356,7 +357,10 @@ CONTAINS
         END IF
 
         IF (wave_config(jg)%lnon_linear_sf) THEN
-          !call nonlinear
+          CALL nonlinear_transfer(p_patch(jg), wave_config(jg), &
+               wave_ext_data(jg)%bathymetry_c,           & !IN
+               p_wave_state(jg)%prog(n_now)%tracer,      & !INOUT
+               p_wave_state(jg)%diag)                      !INOUT: fl, sl
         END IF
 
         ! Calculate dissipation due to bottom friction
