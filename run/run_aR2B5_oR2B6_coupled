@@ -3,9 +3,10 @@
 #
 # Coupled ocean-atmosphere run with arbitrary grids
 #
-# Martin Koehler, Stephan Lorenz, Spring 2023
+# Notes: - turn on debug stdout with namelists dbg_index_nml
+#        - PBS options: NE=1-64, CPE=8
 #
-# PBS options: NE=1-64, CPE=8
+# Martin Koehler, Stephan Lorenz, Spring 2023
 #
 # ----------------------------------------------------------------------------
 #PBS -S /bin/bash
@@ -18,7 +19,7 @@
 #PBS -T necmpi_hydra         # when compiling with mpi/2.21.0 (see VE config script)
 #PBS --use-hca=2             # number of HCA per logical host (2)
 #PBS -l elapstim_req=24:00:00
-#PBS -o /hpc/uwork/mkoehler/wq/coupledR2B5-R2B6.%s
+##PBS -o /hpc/uwork/mkoehler/wq/coupledR2B5-R2B6.%s
 #PBS -j o
 # ----------------------------------------------------------------------------
 
@@ -31,23 +32,22 @@ ulimit -s unlimited
 #=============================================================================
 
 # environment variables for the experiment and the target system
+# (make or change directories)
 # --------------------------------------------------------------
 export EXPNAME="couple_001"
 job_name="run_aR2B5_oR2B6_coupled"                          # name of run script
-RUNSCRIPTDIR=/hpc/uhome/mkoehler/icon/run-icon/coupled      # directory of run script
+RUNSCRIPTDIR=/hpc/uhome/${USER}/icon/run-icon/coupled       # directory of run script
 ICONDIR=$HOME/icon/icon-nwp
+WORK_DIR=/hpc/uwork/{USER}
 
 pi_control='no'                                             # yes/no PI-control
 
 # start and end date+time of experiment
 # -------------------------------------
 start_date=${start_date:="1979-01-01T00:00:00Z"}
+    end_date=${end_date:="1979-01-11T00:00:00Z"}
+#   end_date=${end_date:="1980-01-01T00:00:00Z"}
 #   end_date=${end_date:="1990-01-01T00:00:00Z"}
-#   end_date=${end_date:="1979-01-10T00:00:00Z"}
-    end_date=${end_date:="1980-01-01T00:00:00Z"}
-
-#start_date=${start_date:="1979-01-01T00:00:00Z"}
-#    end_date=${end_date:="2050-01-01T00:00:00Z"}
 #start_date=${start_date:="1850-01-01T00:00:00Z"}
 #    end_date=${end_date:="2350-01-01T00:00:00Z"}
 
@@ -73,10 +73,8 @@ oce_file_interval="P100Y"
 atm_output_interval="P1M"       # "PT30M"
 oce_output_interval="P1M"       # "PT1H"
 
-# levels
-LEV=L64
-#LEV=L128SMT
-
+# levels: L64, L72 OR L128SMT
+LEV=L72
 
 #=============================================================================
 #
@@ -141,8 +139,6 @@ fi
 
 # GRIDDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # grid directory
 # EXTPDIR=/hpc/rhome/routfox/routfox/icon/grids/public/edzw/ # external parameter directory
-
-WORK_DIR=/hpc/uwork/mkoehler
 
 # directories with absolute paths
 # -------------------------------
@@ -271,15 +267,16 @@ unset OMPI_MCA_coll_fca_priority
 #initialiseOcean="fromRestart"              # first run
 initialiseOcean="fromClimatology"           # from Levitus observations (current time, mean last 10 years)
 # initialiseOcean="fromRestartwithHamocc"
-#initialiseOcean="coldStart"
+# initialiseOcean="coldStart"
 
 # use both lines for atm/oce initialisation from other experiment
 #initialiseOcean="FALSE"                    # restart run (maybe copy from other run)
 #restart=.true.                             # deactivate semaphore mechanism
 #restart_exp=slo1325
 #restart_yea=4000
-restart_exp=mk099_R2B6L128SMT
-restart_yea=19790101T00
+restart_exp=mk056_R2B6L72                   # mk099_R2B6L128SMT  mk050_R2B6L64_1000y+1monL72 
+restart_yea=20200101T00                     # 19790101T00        20000101T00
+
 
 # set initialiseOcean automatically to false via isRestart.sem
 #if [ -d "$basedir/experiments/$EXPNAME" ] ; then
@@ -360,14 +357,24 @@ incrank_list[1]=$oce_inc_rank
 atm_lag=1
 oce_lag=1
 
+#  Note: The variable names and numbers need to be consistent in 3 files:
+#        - XML file: (supplied to model in run script)
+#            <transient id="6" transient_standard_name="sea_surface_temperature"/>
+#            The name will be used find the variable in mo_atmo_coupling_frame, not the number.
+#        - mo_atmo_coupling_frame:
+#            Variable names are associated to a variable number.
+#            field_name(6) = "sea_surface_temperature"
+#        - mo_nwp_ocean_interface:
+#            CALL yac_fget ( field_id(6), ... )
+#            The numbers have to be consistent in both fortran files.
+# Component names in coupling.xml must (!) match with modelname_list[*].
+
 # co2_flux and co2_mixing_ratio are listed as transients
 # below but are not configured for coupling in the couples
-# section. There fields are therefore not considered for
+# section. Their fields are therefore not considered for
 # the search not for the data exchange even if yac_fget and
 # yac_fput are called for these fields.
-#
-# component names in coupling.xml must (!) match with modelname_list[*]
-#
+
 cat > coupling_${EXPNAME}.xml << EOF
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <coupling xmlns="http://www.w3schools.com"
@@ -574,6 +581,42 @@ cat > coupling_${EXPNAME}.xml << EOF
             </interpolation_requirements>
             <enforce_write_weight_file filename="">false</enforce_write_weight_file>
          </transient_couple>
+         <transient_couple transient_id="10">
+            <source component_ref="1" transient_grid_ref="10"/>
+            <target transient_grid_ref="10"/>
+            <timestep>
+               <source>${atmTimeStep}</source>
+               <target>${oceTimeStep}</target>
+               <coupling_period operation="average">${couplingTimeStep}</coupling_period>
+               <source_timelag>${atm_lag}</source_timelag>
+               <target_timelag>${oce_lag}</target_timelag>
+            </timestep>
+            <mapping_on_source>true</mapping_on_source>
+            <interpolation_requirements>
+               <interpolation method="bernstein_bezier"/>
+               <interpolation gauss_scale="0.1" method="n-nearest_neighbor" n="4" weighted="ARITHMETIC_AVERAGE"/>
+               <interpolation method="fixed_value" user_value="-999.9"/>
+            </interpolation_requirements>
+            <enforce_write_weight_file filename="">false</enforce_write_weight_file>
+         </transient_couple>
+         <transient_couple transient_id="14">
+            <source component_ref="1" transient_grid_ref="14"/>
+            <target transient_grid_ref="14"/>
+            <timestep>
+               <source>${atmTimeStep}</source>
+               <target>${oceTimeStep}</target>
+               <coupling_period operation="average">${couplingTimeStep}</coupling_period>
+               <source_timelag>${atm_lag}</source_timelag>
+               <target_timelag>${oce_lag}</target_timelag>
+            </timestep>
+            <mapping_on_source>true</mapping_on_source>
+            <interpolation_requirements>
+               <interpolation method="bernstein_bezier"/>
+               <interpolation gauss_scale="0.1" method="n-nearest_neighbor" n="4" weighted="ARITHMETIC_AVERAGE"/>
+               <interpolation method="fixed_value" user_value="-999.9"/>
+            </interpolation_requirements>
+            <enforce_write_weight_file filename="">false</enforce_write_weight_file>
+         </transient_couple>
       </couple>
    </couples>
    <created date="05-10-2021 08:16" tool="YAC-CouplingGUI v.2.3.1"/>
@@ -761,6 +804,7 @@ cat > ${atm_namelist} << EOF
  tune_rcucov             = 0.075
  tune_rhebc_land         = 0.825
  tune_gust_factor        = 7.0
+ tune_eiscrit            = 7.0                       ! estimated inversion strength to turn off shallow
  icpl_turb_clc           = 1
  lcalib_clcov            = .false.                   ! turn off TCC, HCC, MCC, LCC tuning
 /
@@ -777,7 +821,7 @@ cat > ${atm_namelist} << EOF
  rlam_heat               = 10.0
  rat_sea                 = 0.8
  ltkesso                 = .true.                    ! SSO dissipation energy used in TKE equation
- frcsmot                 = 0.2                       ! these 2 switches together apply vertical smoothing of the TKE source terms
+ frcsmot                 = 0.0                       ! these 2 switches together apply vertical smoothing of the TKE source terms
  imode_frcsmot           = 2                         ! in the tropics (only), which reduces the moist bias in the tropical lower troposphere
  itype_sher              = 3                         ! use horizontal shear production terms with 1/SQRT(Ri) scaling to prevent unwanted side effects
  ltkeshs                 = .true.                   
@@ -1004,7 +1048,7 @@ rbf_scale_mode_ll        = 2
  sstice_mode             = 1                         ! 1 for coupled 
  lprog_albsi             = .true.
  hice_min                = 0.05                      ! default of nwp sea-ice model
- hice_max                = 4.8                       ! corresponding to 40% seaice_limit in icon-o
+ hice_max                = 10.0   !L64=4.8, L72=10.0 ! limit sea-ice thickness, consistency with seaice_limit!
  itype_snowevap          = 2
 /
 &meteogram_output_nml
@@ -1181,6 +1225,32 @@ elif [ ${LEV} == L128SMT ] ; then
     levidx_2000m=96
 
     minVerticalLevels=12
+
+elif [ ${LEV} == L72 ] ; then
+
+    n_zlev=72
+!    dzlev_m="2.0,   2.2,   2.5,   2.8,   3.1,   3.5,   3.9,   4.4,   4.9,   5.4,\
+!             5.9,   6.4,   7.1,   7.7,   8.4,   9.2,  10.1,  11.0,  12.0,  13.2,\
+!            14.4,  15.7,  17.1,  18.7,  20.4,  22.3,  24.3,  26.5,  28.9,  31.5,\
+!            34.3,  37.3,  40.6,  43.1,  45.3,  46.8,  48.4,  50.0,  51.7,  53.4,\
+!            55.2,  57.0,  58.9,  60.8,  62.9,  66.6,  72.6,  80.6,  90.6, 100.2,\
+!           110.0, 120.3, 128.7, 137.4, 146.4, 155.7, 165.2, 174.8, 184.4, 194.1,\
+!           203.6, 212.9, 221.9, 230.5, 238.5, 245.9, 252.4, 258.1, 262.8, 266.4,\
+!           268.9, 270.1"
+
+    dzlev_m="2.0, 2.2, 2.5, 2.8, 3.1, 3.5, 3.9, 4.4, 4.9, 5.4,\
+            5.9, 6.4, 7.1, 7.7, 8.4, 9.2, 10.1, 11.0, 12.0, 13.2,\
+           14.4, 15.7, 17.1, 18.7, 20.4, 22.3, 24.3, 26.5, 28.9, 31.5,\
+           34.3, 37.3, 40.6, 43.1, 45.3, 46.8, 48.4, 50.0, 51.7, 53.4,\
+           55.2, 57.0, 58.9, 60.8, 62.9, 66.6, 72.6, 80.6, 90.6, 100.2,\
+          110.0, 120.3, 128.7, 137.4, 146.4, 155.7, 165.2, 174.8, 184.4, 194.1,\
+          203.6, 212.9, 221.9, 230.5, 238.5, 245.9, 252.4, 258.1, 262.8, 266.4,\
+          268.9, 270.1"
+
+    levidx_100m=19
+    levidx_200m=25
+    levidx_2000m=55
+    minVerticalLevels=10
     
 fi
 
@@ -1397,11 +1467,11 @@ cat >> ${oce_namelist} << EOF
   idbg_mxmn                  = 4                                ! initialize MIN/MAX  debug output
   idbg_val                   = 0                                ! initialize one cell debug output
   idbg_slev                  = 1                                ! initialize start level for debug output
-  idbg_elev                  = 2                                ! initialize end level for debug output
+  idbg_elev                  = 3                                ! initialize end level for debug output
   dbg_lat_in                 = 30.0                             ! latitude location of one cell debug output
   dbg_lon_in                 = -30.0                            ! longitude location of one cell debug output
   str_mod_tst                ='oceanCouplng'                    ! define modules to print out in debug mode
-  !str_mod_tst                = 'all'                            ! define modules to print out in debug mode
+ !str_mod_tst                = 'all'                            ! define modules to print out in debug mode
 /
 &ocean_dynamics_nml
 !
@@ -1557,8 +1627,11 @@ cat >> ${oce_namelist} << EOF
   forcing_windstress_u_type                  = 2           ! 0: zero wind stress, 1: read from file, 2: none
   forcing_windstress_v_type                  = 2           ! 0: zero wind stress, 1: read from file, 2: none
                                                            ! salt-change due to internal fluxes only
+  atm_pressure_included_in_ocedyn = .TRUE.                 ! use atm. pressure in the ocean dynamics
+  atm_pressure_included_in_icedyn = .TRUE.                 ! use atm. pressure in the ice dynamics
   limit_seaice                               = .TRUE.      ! default: TRUE
-  seaice_limit                               = 0.4         ! hard limit set to 40% of flat upper layer for sea ice
+  seaice_limit                               = 5.0    !0.4 ! limit sea-ice thickness [m] = seaice_limit * ocean top layer thickness
+                                                           ! attention: this value [m] needs to be consistent with hice_max
   lfix_salt_content                          = .TRUE.
   limit_elevation                            = .TRUE.      ! true: adjust daily to zero, default=false: free surface
                                                            ! in absense of a river routing .TRUE. keeps ocen surface constant
@@ -1637,8 +1710,7 @@ if [[ "$initialiseOcean" == "fromRestart" ]]; then
  #add_link_file /work/mh0727/m300732/input/0036/ocean/restart/ler0656_restart_oce_30000101T000000Z.nc    restart_ocean_DOM01.nc
 # add_link_file /work/mh0727/m300732/icon-oes-hamocc/experiments/ler0863/ler0863_restart_oce_22000101T000000Z.nc init-restart-oce.nc
 # add_link_file ${ocean_data_InputFolder}/ler0863_restart_oce_22000101T000000Z.nc init-restart-oce.nc
-  add_link_file ${ocean_data_InputFolder}/${restart_exp}_restart_oce_${restart_yea}.nc init-restart-oce.nc
-  add_link_file init-restart-oce.nc restart_ocean_DOM01.nc
+  add_link_file ${ocean_data_InputFolder}/${restart_exp}_restart_oce_${restart_yea}.nc restart_ocean_DOM01.nc
 fi
 
 if [[ "$initialiseOcean" == "fromRestartwithHamocc" ]]; then
@@ -1653,8 +1725,9 @@ if [[ "$initialiseOcean" == "fromClimatology" ]]; then
   #add_link_file ${ocean_data_InputFolder}/R2B4L40_initial_state.nc                                   initial_state.nc
   #add_link_file ${ocean_data_InputFolder}/ts_phc3.0_annual_icon_icon_grid_0036_R02B04_G_L40.nc       initial_state.nc
   #add_link_file ${ocean_data_InputFolder}/ts_phc3.0_annual_icon_grid_${ocean_gridID}_R02B04_G_L40.nc initial_state.nc
-  #add_link_file ${ocean_data_InputFolder}/slo1004-initial_state.nc initial_state.nc
-  add_link_file ${ocean_data_InputFolder}/R2B6${LEV}_initial_state-HH.nc initial_state.nc
+  #add_link_file ${ocean_data_InputFolder}/slo1004-initial_state.nc                                   initial_state.nc
+  #add_link_file ${ocean_data_InputFolder}/R2B6${LEV}_initial_state-HH.nc                             initial_state.nc
+  add_link_file ${ocean_data_InputFolder}/temp/HelmuthHaak/ts_oras5_icon_OceanOnly_Global_IcosSymmetric_0039km_rotatedZ37d_BlackSea_Greenland_modified_sills_srtm30_1min_L72.nc_2010-01-01   initial_state.nc
 fi
 
 # Ocean grid

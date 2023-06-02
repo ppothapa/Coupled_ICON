@@ -126,7 +126,7 @@ DATAROOT="${icon_data_poolFolder}/Checksuite_data/ICON-seamless"
 ICONDIR="$basedir" # basedir is provided by create_target_header
 
 # run script directory
-job_name="exp.run_ICON_16_R2B4_AO_coupled.run"             # name of run script
+job_name="exp.run_ICON_17_R2B4_AO_coupled.run"             # name of run script
 RUNSCRIPTDIR=${ICONDIR}/run/checksuite.nwp                 # directory of run script
 
 rm -rf stdout.* stderr.*      # remove standard output from previous run

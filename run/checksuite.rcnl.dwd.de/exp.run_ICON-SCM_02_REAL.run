@@ -166,7 +166,7 @@ EOF
 cat > NAMELIST_${EXPNAME} << EOF
 
 &parallel_nml
- nproma         =  8
+ nproma         =  1         ! 8
  p_test_run     = .false.
  num_io_procs   =  1         ! number of I/O processors
  l_test_openmp  = .false.

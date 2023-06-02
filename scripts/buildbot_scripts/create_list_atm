@@ -100,7 +100,8 @@ $addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       -
 $addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                    --builders DWD_nec --list $listname
 # only DWD_nec_yac2
-$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2   --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_20_R2B4_R2B6_AO_coupled                 --builders DWD_nec_yac2 --list $listname
 #only DWD_nec_hybrid
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
 

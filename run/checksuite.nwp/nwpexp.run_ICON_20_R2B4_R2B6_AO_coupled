@@ -6,8 +6,9 @@
 # This basic coupled test case computes a few days up to years of a
 # global weather forecast (ICON-NWP) coupled to a global ocean (ICON-O).
 # The system is set up on the R2B4 atmospheric grid with reduced radiation
-# grid and the R2B6 ocean grid.  The land-sea-mask is interpolated from the
-# ocean grid.  It is initialized at 1979-01-01.
+# grid and the R2B6 ocean grid with zstar vertical coordinates.  
+# The land-sea-mask is interpolated from the ocean grid.  
+# It is initialized at 1979-01-01.
 # The purpose is the technical testing of the coupled setup.
 #
 # Martin Koehler, Stephan Lorenz, Rene Redler Spring 2021
@@ -36,7 +37,7 @@ fi
 
 # environment variables for the experiment and the target system
 # --------------------------------------------------------------
-export EXPNAME="coupleR2B4_R2B6_019"
+export EXPNAME="coupleR2B4_R2B6_020"
 
 # start and end date+time of experiment
 # -------------------------------------

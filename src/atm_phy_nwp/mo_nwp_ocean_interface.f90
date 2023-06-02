@@ -17,7 +17,20 @@
 !!  It might also be necessary to synch the data before each loop passing data to the ocean.
 !!      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
 !!
+!! Note: The variable names and numbers need to be consistent in 3 files:
+!!        - XML file: (supplied to model in run script)
+!!            <transient id="6" transient_standard_name="sea_surface_temperature"/>
+!!            The name will be used find the variable in mo_atmo_coupling_frame, not the number.
+!!        - mo_atmo_coupling_frame:
+!!            Variable names are associated to a variable number.
+!!            field_name(6) = "sea_surface_temperature"
+!!        - mo_nwp_ocean_interface:
+!!            CALL yac_fget ( field_id(6), ... )
+!!            The numbers have to be consistent in both fortran files.
+!!       Component names in coupling.xml must (!) match with modelname_list[*].
+!! 
 !! @par Revision History
+!!  Roland Wirth 202304: passing fields to YAC by pointers
 !!
 !! @par Copyright and License
 !!
@@ -359,23 +372,22 @@ CONTAINS
     i_endblk   = p_patch%cells%end_block(end_prog_cells)
 
     !-------------------------------------------------------------------------
-    !  Send fields to ocean:
-    !   field_id(1)  represents "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
-    !   field_id(2)  represents "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
-    !   field_id(3)  represents "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
-    !   field_id(4)  represents "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
-    !   field_id(5)  represents "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
-    !   field_id(10) represents "10m_wind_speed"                           - atmospheric wind speed
-    !   field_id(11) represents "qtrc_phy(nlev,co2)"                       - co2 mixing ratio
-    !   field_id(13) represents "pres_msl"                                 - sea level pressure
+    ! Send fields to ocean:
+    !  field_id(1)  "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
+    !  field_id(2)  "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
+    !  field_id(3)  "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
+    !  field_id(4)  "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
+    !  field_id(5)  "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
+    !  field_id(10) "10m_wind_speed"                           - atmospheric wind speed
+    !  field_id(11) "qtrc(nlev,co2)"                           - co2 mixing ratio
+    !  field_id(13) "pres_msl"                                 - sea level pressure
     !
-    !  Receive fields from ocean:
-    !   field_id(6)  represents "sea_surface_temperature"                  - SST
-    !   field_id(7)  represents "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
-    !   field_id(8)  represents "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
-    !   field_id(9)  represents "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
-    !   field_id(12) represents "co2_flux"                                 - ocean co2 flux
-    !
+    ! Receive fields from ocean:
+    !  field_id(6)  "sea_surface_temperature"                  - SST
+    !  field_id(7)  "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
+    !  field_id(8)  "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
+    !  field_id(9)  "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
+    !  field_id(12) "co2_flux"                                 - ocean co2 flux
     !-------------------------------------------------------------------------
 
     IF (.NOT. (SIZE(tx%umfl_s_w, 1) == nproma .AND. SIZE(tx%umfl_s_w, 2) >= p_patch%nblks_c)) THEN
@@ -724,51 +736,56 @@ CONTAINS
     !------------------------------------------------
     ! Debug outputs
     !------------------------------------------------
+
     IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) THEN
-      CALL dbg_print('NWPOce: u_stress wtr', tx%umfl_s_w(:,:), str_module, 3, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: u_stress ice', tx%umfl_s_i(:,:), str_module, 3, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: v_stress wtr', tx%vmfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: v_stress ice', tx%vmfl_s_i(:,:), str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: sp_10m      ', tx%sp_10m(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      ! u/v-stress on ice and water
+      CALL dbg_print('NWPOce: u_stress wtr', tx%umfl_s_w(:,:),   str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: u_stress ice', tx%umfl_s_i(:,:),   str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: v_stress wtr', tx%vmfl_s_w(:,:),   str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: v_stress ice', tx%vmfl_s_i(:,:),   str_module, 4, in_subset=p_patch%cells%owned)
 
-      CALL dbg_print('NWPOce: pres_msl    ', tx%pres_sfc(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: sp_10m      ', tx%sp_10m(:,:),     str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: pres_msl    ', tx%pres_sfc(:,:),   str_module, 3, in_subset=p_patch%cells%owned)
 
-      CALL dbg_print('NWPOce: rain_rate   ', tx%rain_rate(:,:), str_module, 3, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: snow_rate   ', tx%snow_rate(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: rain_rate   ', tx%rain_rate(:,:),  str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: snow_rate   ', tx%snow_rate(:,:),  str_module, 3, in_subset=p_patch%cells%owned)
 
       IF (ASSOCIATED(tx%q_co2)) THEN
-        CALL dbg_print('NWPOce: q_co2       ', tx%q_co2(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+        CALL dbg_print('NWPOce: q_co2       ', tx%q_co2(:,:),    str_module, 3, in_subset=p_patch%cells%owned)
       END IF
 
+      buf(:,:) = tx%qhfl_s_w(:,:) * tx%frac_w(:,:) + tx%qhfl_s_i(:,:) * tx%frac_i(:,:) 
+      CALL dbg_print('NWPOce: evaporation', buf(:,:),            str_module, 2, in_subset=p_patch%cells%owned)
+
       buf(:,:) = tx%swflxsfc_w(:,:) + tx%lwflxsfc_w(:,:) + tx%shfl_s_w(:,:) + tx%lhfl_s_w(:,:)
-      CALL dbg_print('NWPOce: totalhfx.wtr', buf(:,:), str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: totalhfx.wtr', buf(:,:),           str_module, 2, in_subset=p_patch%cells%owned)
       CALL dbg_print('NWPOce: swflxsfc.wtr', tx%swflxsfc_w(:,:), str_module, 3, in_subset=p_patch%cells%owned)
       CALL dbg_print('NWPOce: lwflxsfc.wtr', tx%lwflxsfc_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: shflx.wtr   ', tx%shfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: lhflx.wtr   ', tx%lhfl_s_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: shflx.wtr   ', tx%shfl_s_w(:,:),   str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: lhflx.wtr   ', tx%lhfl_s_w(:,:),   str_module, 4, in_subset=p_patch%cells%owned)
 
       ! Qtop and Qbot
       buf(:,:) = tx%shfl_s_i(:,:) + tx%swflxsfc_i + tx%lhfl_s_i(:,:) + tx%lwflxsfc_i(:,:)
-      CALL dbg_print('NWPOce: ice-Qtop    ', buf, str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: ice-Qbot    ', tx%chfl_i(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: ice-Qtop    ', buf,                str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: ice-Qbot    ', tx%chfl_i(:,:),     str_module, 3, in_subset=p_patch%cells%owned)
 
       ! SST, sea ice, ocean velocity received
-      CALL dbg_print('NWPOce: t_seasfc    ', rx%t_seasfc(:,:), str_module, 2, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: h_ice       ', rx%h_ice(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: t_seasfc    ', rx%t_seasfc(:,:),   str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: h_ice       ', rx%h_ice(:,:),      str_module, 4, in_subset=p_patch%cells%owned)
 
       IF (ASSOCIATED(rx%ocean_u) .AND. ASSOCIATED(rx%ocean_v)) THEN
-        CALL dbg_print('NWPOce: ocu         ', rx%ocean_u(:,:), str_module, 3, in_subset=p_patch%cells%owned)
-        CALL dbg_print('NWPOce: ocv         ', rx%ocean_v(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+        CALL dbg_print('NWPOce: ocu         ', rx%ocean_u(:,:),  str_module, 3, in_subset=p_patch%cells%owned)
+        CALL dbg_print('NWPOce: ocv         ', rx%ocean_v(:,:),  str_module, 4, in_subset=p_patch%cells%owned)
       END IF
 
       IF (ASSOCIATED(rx%flx_co2)) THEN
-        CALL dbg_print('NWPOce: flx_co2     ', rx%flx_co2(:,:), str_module, 3, in_subset=p_patch%cells%owned)
+        CALL dbg_print('NWPOce: flx_co2     ', rx%flx_co2(:,:),  str_module, 3, in_subset=p_patch%cells%owned)
       END IF
 
       ! Fraction of tiles:
-      CALL dbg_print('NWPOce: fr_seaice   ', rx%fr_seaice(:,:), str_module, 2, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: frac.si     ', tx%frac_i(:,:), str_module, 4, in_subset=p_patch%cells%owned)
-      CALL dbg_print('NWPOce: frac.wtr    ', tx%frac_w(:,:), str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: fr_seaice   ', rx%fr_seaice(:,:),  str_module, 2, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: frac.si     ', tx%frac_i(:,:),     str_module, 4, in_subset=p_patch%cells%owned)
+      CALL dbg_print('NWPOce: frac.wtr    ', tx%frac_w(:,:),     str_module, 4, in_subset=p_patch%cells%owned)
 
     END IF
 
