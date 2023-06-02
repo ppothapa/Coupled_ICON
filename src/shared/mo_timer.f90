@@ -940,21 +940,17 @@ CONTAINS
   !
   !  @note Currently implemented for multi-threaded runs only!
   SUBROUTINE tic(time_s)
-!$  USE OMP_LIB
+#ifdef _OPENMP
+    USE OMP_LIB
+#endif
 
     REAL, INTENT(OUT) :: time_s
-    ! local variables:
-    LOGICAL :: lopenmp
 
-    lopenmp = .FALSE.
-!$  lopenmp = .TRUE.
-
-    IF (.NOT. lopenmp) THEN
-      ! do nothing
-      time_s = 0.
-    ELSE
-!$    time_s = REAL(omp_get_wtime())
-    END IF
+#ifdef _OPENMP
+    time_s = REAL(omp_get_wtime())
+#else
+    time_s = 0.
+#endif
   END SUBROUTINE tic
 
   !> Low-level timing routine: stop timing, return elapsed time in
@@ -962,22 +958,18 @@ CONTAINS
   !
   !  @note Currently implemented for multi-threaded runs only!
   FUNCTION toc(time_s)
-!$  USE OMP_LIB
+#ifdef _OPENMP
+    USE OMP_LIB
+#endif
 
     REAL :: toc
     REAL, INTENT(IN) :: time_s
-    ! local variables:
-    LOGICAL :: lopenmp
 
-    lopenmp = .FALSE.
-!$  lopenmp = .TRUE.
-
-    IF (.NOT. lopenmp) THEN
-      ! do nothing
-      toc = 0.
-    ELSE
-!$    toc = REAL(omp_get_wtime()) - time_s
-    END IF
+#ifdef _OPENMP
+    toc = REAL(omp_get_wtime()) - time_s
+#else
+    toc = 0.
+#endif
   END FUNCTION toc
 
 END MODULE mo_timer

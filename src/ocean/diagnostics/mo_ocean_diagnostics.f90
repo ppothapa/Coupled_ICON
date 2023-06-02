@@ -116,8 +116,6 @@ MODULE mo_ocean_diagnostics
   PUBLIC :: diag_heat_salt_tendency
 
   INTERFACE calc_moc
-    MODULE PROCEDURE calc_moc_acc
-    MODULE PROCEDURE calc_moc_internal
     MODULE PROCEDURE calc_moc_hfl_internal
   END INTERFACE
 
@@ -1054,9 +1052,13 @@ CONTAINS
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-!$  myThreadNo = omp_get_thread_num()
+#ifdef _OPENMP
+    myThreadNo = omp_get_thread_num()
+#endif
 !ICON_OMP_SINGLE
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+#ifdef _OPENMP
+    no_of_threads = OMP_GET_NUM_THREADS()
+#endif
 !ICON_OMP_END_SINGLE NOWAIT
     sum_value(:,  myThreadNo) = 0.0_wp
     sum_weight(:,  myThreadNo) = 0.0_wp
@@ -1190,9 +1192,13 @@ CONTAINS
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
     !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-    !$  myThreadNo = omp_get_thread_num()
+#ifdef _OPENMP
+    myThreadNo = omp_get_thread_num()
+#endif
     !ICON_OMP_SINGLE
-    !$  no_of_threads = OMP_GET_NUM_THREADS()
+#ifdef _OPENMP
+    no_of_threads = OMP_GET_NUM_THREADS()
+#endif
     !ICON_OMP_END_SINGLE NOWAIT
       sum_value(:,  myThreadNo) = 0.0_wp
       sum_weight(:,  myThreadNo) = 0.0_wp
@@ -1407,249 +1413,6 @@ CONTAINS
   ! TODO: implement variable output dimension (1 deg resolution) and smoothing extent
   ! TODO: calculate the 1 deg resolution meridional distance
   !!
-  SUBROUTINE calc_moc_acc (patch_2d, patch_3D, w, this_datetime)
-
-    TYPE(t_patch), TARGET, INTENT(in)  :: patch_2d
-    TYPE(t_patch_3d ),TARGET, INTENT(inout)  :: patch_3D
-    REAL(wp), INTENT(in)               :: w(:,:,:)   ! vertical velocity at cell centers
-    ! dims: (nproma,nlev+1,alloc_cell_blocks)
-    TYPE(datetime), POINTER            :: this_datetime
-    !
-    ! local variables
-    ! INTEGER :: i
-    INTEGER, PARAMETER ::  jbrei=3   !  latitudinal smoothing area is 2*jbrei-1 rows of 1 deg
-    INTEGER :: blockNo, jc, jk, start_index, end_index !, il_e, ib_e
-    INTEGER :: lbrei, lbr, idate, itime
-    INTEGER :: mpi_comm
-    INTEGER(i8) :: i1,i2,i3,i4
-
-    REAL(wp) :: z_lat, z_lat_deg
-    !> z_lat_dim: scale to 1 deg resolution
-    !! z_lat_dim: latitudinal extent of triangle divided by latitudinal smoothing extent
-    !!   z_lat_dim = patch_2d%edges%primal_edge_length(il_e,ib_e) / &
-    !!     & (REAL(2*jbrei, wp) * 111111._wp*1.3_wp)
-    REAL(wp), PARAMETER :: z_lat_dim = 1.0_wp
-    REAL(wp) :: global_moc(nlat_moc,n_zlev), atlant_moc(nlat_moc,n_zlev), pacind_moc(nlat_moc,n_zlev)
-    REAL(dp) :: local_moc(nlat_moc), res_moc(nlat_moc)
-
-    TYPE(t_subset_range), POINTER :: dom_cells
-
-    CHARACTER(LEN=*), PARAMETER :: routine = 'mo_ocean_diagnostics:calc_moc'
-
-    !-----------------------------------------------------------------------
-
-    IF(p_test_run) THEN
-      mpi_comm = p_comm_work_test
-    ELSE
-      mpi_comm = p_comm_work
-    ENDIF
-
-    global_moc(:,:) = 0.0_wp
-    pacind_moc(:,:) = 0.0_wp
-    atlant_moc(:,:) = 0.0_wp
-
-    ! set barrier:
-    ! CALL MPI_BARRIER(0)
-
-    ! with all cells no sync is necessary
-    !owned_cells => patch_2d%cells%owned
-    dom_cells   => patch_2d%cells%in_domain
-
-    !write(81,*) 'MOC: datetime:',datetime
-
-    DO jk = 1, n_zlev   !  not yet on intermediate levels
-      DO blockNo = dom_cells%start_block, dom_cells%end_block
-        CALL get_index_range(dom_cells, blockNo, start_index, end_index)
-        DO jc = start_index, end_index
-
-          !  could be replaced by vertical loop to bottom
-          IF ( patch_3D%lsm_c(jc,jk,blockNo) <= sea_boundary ) THEN
-
-            ! lbrei: corresponding latitude row of 1 deg extension
-            !            1 south pole
-            ! nlat_moc=180 north pole
-            z_lat = patch_2d%cells%center(jc,blockNo)%lat
-            z_lat_deg = z_lat*rad2deg
-            lbrei = NINT(REAL(nlat_moc, wp)*0.5_wp + z_lat_deg)
-            lbrei = MAX(lbrei,1)
-            lbrei = MIN(lbrei,nlat_moc)
-
-            ! get neighbor edge for scaling
-            !   il_e = patch_2d%cells%edge_idx(jc,blockNo,1)
-            !   ib_e = patch_2d%cells%edge_blk(jc,blockNo,1)
-
-
-            ! distribute MOC over (2*jbrei)+1 latitude rows
-            !  - no weighting with latitudes done
-            !  - lbrei: index of 180 X 1 deg meridional resolution
-            DO lbr = -jbrei, jbrei
-              lbrei = NINT(REAL(nlat_moc, wp)*0.5_wp + z_lat_deg &
-                &          + REAL(lbr, wp) * z_lat_dim)
-              lbrei = MIN(MAX(1,lbrei),nlat_moc)
-
-              global_moc(lbrei,jk) = global_moc(lbrei,jk) - &
-              !  multiply with wet (or loop to bottom)
-                & patch_2d%cells%area(jc,blockNo) * OceanReferenceDensity * w(jc,jk,blockNo) * &
-                & patch_3D%wet_c(jc,jk,blockNo) / &
-                & REAL(2*jbrei + 1, wp)
-
-              IF (patch_3D%basin_c(jc,blockNo) == 1) THEN         !  1: Atlantic; 0: Land
-
-                atlant_moc(lbrei,jk) = atlant_moc(lbrei,jk) - &
-                  & patch_2d%cells%area(jc,blockNo) * OceanReferenceDensity * w(jc,jk,blockNo) * &
-                  & patch_3D%wet_c(jc,jk,blockNo) / &
-                  & REAL(2*jbrei + 1, wp)
-              ELSE IF (patch_3D%basin_c(jc,blockNo) >= 2) THEN   !  2: Indian; 4: Pacific
-                pacind_moc(lbrei,jk) = pacind_moc(lbrei,jk) - &
-                  & patch_2d%cells%area(jc,blockNo) * OceanReferenceDensity * w(jc,jk,blockNo) * &
-                  & patch_3D%wet_c(jc,jk,blockNo) / &
-                  & REAL(2*jbrei + 1, wp)
-              END IF
-
-            END DO
-
-          END IF
-        END DO
-      END DO
-
-      ! test parallelization:
-      ! function field_sum_all using mpi_allreduce and working precisions wp does not exist
-      ! res_moc(:) = p_field_sum_all_wp(global_moc(:,jk))
-      ! res_moc(:) = p_field_sum_all_wp(atlant_moc(:,jk))
-      ! res_moc(:) = p_field_sum_all_wp(pacind_moc(:,jk))
-
-      ! function field_sum using mpi_reduce, then broadcast
-      local_moc(:)     = REAL(global_moc(:,jk),dp)
-      res_moc(:)       = p_field_sum(local_moc, mpi_comm)
-      CALL p_bcast(res_moc(:), p_io, mpi_comm)
-      global_moc(:,jk) = REAL(res_moc(:),wp)
-
-      local_moc(:)     = REAL(atlant_moc(:,jk),dp)
-      res_moc(:)       = p_field_sum(local_moc, mpi_comm)
-      CALL p_bcast(res_moc(:), p_io, mpi_comm)
-      atlant_moc(:,jk) = REAL(res_moc(:),wp)
-
-      local_moc(:)     = REAL(pacind_moc(:,jk),dp)
-      res_moc(:)       = p_field_sum(local_moc, mpi_comm)
-      CALL p_bcast(res_moc(:), p_io, mpi_comm)
-      pacind_moc(:,jk) = REAL(res_moc(:),wp)
-
-    END DO  ! n_zlev-loop
-
-    IF (my_process_is_stdio()) THEN
-      DO lbr=nlat_moc-1,1,-1   ! fixed to 1 deg meridional resolution
-
-        global_moc(lbr,:)=global_moc(lbr+1,:)+global_moc(lbr,:)
-        atlant_moc(lbr,:)=atlant_moc(lbr+1,:)+atlant_moc(lbr,:)
-        pacind_moc(lbr,:)=pacind_moc(lbr+1,:)+pacind_moc(lbr,:)
-
-      END DO
-
-      ! write out MOC in extra format, file opened in mo_hydro_ocean_run  - integer*8
-      !  - correct date in extra format - i.e YYYYMMDD - no time info
-      !idate=datetime%month*1000000+datetime%day*10000+datetime%hour*100+datetime%minute
-      idate = this_datetime%date%year*10000+this_datetime%date%month*100+this_datetime%date%day
-      itime = this_datetime%time%hour*100+this_datetime%time%minute
-      WRITE(message_text,*) 'Write MOC at year =',this_datetime%date%year,', date =',idate,' time =', itime
-      CALL message (routine, message_text)
-
-      DO jk = 1,n_zlev
-        i1=INT(idate,i8)
-        i2 = INT(777,i8)
-        i3 = INT(patch_3D%p_patch_1d(1)%zlev_i(jk),i8)
-        i4 = INT(nlat_moc,i8)
-        WRITE(moc_unit) i1,i2,i3,i4
-        WRITE(moc_unit) global_moc(:,jk)
-        i2 = INT(778,i8)
-        WRITE(moc_unit) i1,i2,i3,i4
-        WRITE(moc_unit) atlant_moc(:,jk)
-        i2 = INT(779,i8)
-        WRITE(moc_unit) i1,i2,i3,i4
-        WRITE(moc_unit) pacind_moc(:,jk)
-
-      END DO
-    END IF
-
-  END SUBROUTINE calc_moc_acc
-  SUBROUTINE calc_moc_internal (patch_2d, patch_3D, w, global_moc, atlant_moc, pacind_moc)
-
-    TYPE(t_patch),    TARGET, INTENT(in)  :: patch_2d
-    TYPE(t_patch_3d ),TARGET, INTENT(in)  :: patch_3D
-    REAL(wp), INTENT(in)  :: w(:,:,:)   ! vertical velocity (nproma,nlev+1,alloc_cell_blocks)
-    REAL(wp), INTENT(OUT) :: global_moc(:,:), atlant_moc(:,:), pacind_moc(:,:) ! (n_zlev,nlat_moc)
-    !
-    ! local variables
-    INTEGER, PARAMETER ::  latSmooth = 3   !  latitudinal smoothing area is 2*jbrei-1 rows of 1 deg
-    INTEGER :: block, level, start_index, end_index, idx, ilat, l
-    INTEGER :: mpi_comm
-
-    REAL(wp) :: lat, deltaMoc
-    REAL(wp), PARAMETER :: smoothWeight = 1.0_wp / REAL(2*latSmooth + 1, wp)
-
-    REAL(wp) :: allmocs(3,n_zlev,nlat_moc)
-
-    TYPE(t_subset_range), POINTER :: cells
-
-    CHARACTER(LEN=*), PARAMETER :: routine = 'mo_ocean_diagnostics:calc_moc'
-
-    !-----------------------------------------------------------------------
-    mpi_comm = MERGE(p_comm_work_test, p_comm_work, p_test_run)
-
-    global_moc(:,:) = 0.0_wp
-    pacind_moc(:,:) = 0.0_wp
-    atlant_moc(:,:) = 0.0_wp
-
-    ! limit cells to in-domain because of summation
-    cells   => patch_2d%cells%in_domain
-
-    DO block = cells%start_block, cells%end_block
-      CALL get_index_range(cells, block, start_index, end_index)
-      DO idx = start_index, end_index
-        lat = patch_2d%cells%center(idx,block)%lat*rad2deg
-        DO level = 1, cells%vertical_levels(idx,block)
-
-          deltaMoc = patch_2d%cells%area(idx,block) * OceanReferenceDensity * w(idx,level,block)
-
-          ! lat: corresponding latitude row of 1 deg extension
-          !            1 south pole
-          ! nlat_moc=180 north pole
-          ilat     = NINT(REAL(nlat_moc, wp)*0.5_wp + lat)
-          ilat     = MAX(1,MIN(ilat,nlat_moc))
-
-          ! distribute MOC over (2*jbrei)+1 latitude rows
-          !  - no weighting with latitudes done
-          !  - lat: index of 180 X 1 deg meridional resolution
-          DO l = -latSmooth, latSmooth
-            ilat = NINT(REAL(nlat_moc, wp)*0.5_wp + lat + REAL(l, wp))
-            ilat = MAX(1,MIN(ilat,nlat_moc))
-
-            global_moc(level,ilat) =       global_moc(level,ilat) - deltaMoc*smoothWeight
-            atlant_moc(level,ilat) = MERGE(atlant_moc(level,ilat) - deltaMoc*smoothWeight, 0.0_wp, patch_3D%basin_c(idx,block) == 1)
-            pacind_moc(level,ilat) = MERGE(pacind_moc(level,ilat) - deltaMoc*smoothWeight, 0.0_wp, patch_3D%basin_c(idx,block) >= 2)
-          END DO
-        END DO
-      END DO
-    END DO
-
-    ! compute point-wise sum over all mpi ranks and store results
-    allmocs(1,:,:) = global_moc(:,:); allmocs(2,:,:) = atlant_moc(:,:); allmocs(3,:,:) = pacind_moc(:,:)
-    allmocs = p_sum(allmocs,mpi_comm)
-    global_moc(:,:) = allmocs(1,:,:); atlant_moc(:,:) = allmocs(2,:,:); pacind_moc(:,:) = allmocs(3,:,:)
-
-    ! old version {{{
-    ! global_moc = p_sum(global_moc,mpi_comm)
-    ! atlant_moc = p_sum(atlant_moc,mpi_comm)
-    ! pacind_moc = p_sum(pacind_moc,mpi_comm)
-    ! }}}
-
-    ! compute partial sums along meridian
-    DO l=nlat_moc-1,1,-1   ! fixed to 1 deg meridional resolution
-      global_moc(:,l)=global_moc(:,l+1)+global_moc(:,l)
-      atlant_moc(:,l)=atlant_moc(:,l+1)+atlant_moc(:,l)
-      pacind_moc(:,l)=pacind_moc(:,l+1)+pacind_moc(:,l)
-    END DO
-  END SUBROUTINE calc_moc_internal
-  !-------------------------------------------------------------------------
 
   SUBROUTINE calc_moc_hfl_internal (patch_2d, patch_3d, w, heatflux_total, &
              frshflux_volumetotal, delta_thetao, delta_so, delta_snow, delta_ice, &
@@ -1770,34 +1533,34 @@ CONTAINS
             ilat = MAX(1,MIN(ilat,nlat_moc))
 
             global_moc(level,ilat) =       global_moc(level,ilat) - deltaMoc*smoothWeight
-            atlant_moc(level,ilat) = MERGE(atlant_moc(level,ilat) - deltaMoc*smoothWeight, &
+            atlant_moc(level,ilat) = atlant_moc(level,ilat) - MERGE(deltaMoc*smoothWeight, &
                  0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
-            pacind_moc(level,ilat) = MERGE(pacind_moc(level,ilat) - deltaMoc*smoothWeight, &
+            pacind_moc(level,ilat) = pacind_moc(level,ilat) - MERGE(deltaMoc*smoothWeight, &
                  0.0_wp, patch_3D%basin_c(idx,BLOCK) >= 2)
 
             global_hfbasin(1,ilat) =       global_hfbasin(1,ilat) - deltahfbasin*smoothWeight
-            atlant_hfbasin(1,ilat) = MERGE(atlant_hfbasin(1,ilat) - deltahfbasin*smoothWeight, &
+            atlant_hfbasin(1,ilat) = atlant_hfbasin(1,ilat) - MERGE(deltahfbasin*smoothWeight, &
                0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
-            pacind_hfbasin(1,ilat) = MERGE(pacind_hfbasin(1,ilat) - deltahfbasin*smoothWeight, &
+            pacind_hfbasin(1,ilat) = pacind_hfbasin(1,ilat) - MERGE(deltahfbasin*smoothWeight, &
                0.0_wp, patch_3D%basin_c(idx,BLOCK) >= 2)
 
             global_sltbasin(1,ilat) =       global_sltbasin(1,ilat) - deltasltbasin*smoothWeight
-            atlant_sltbasin(1,ilat) = MERGE(atlant_sltbasin(1,ilat) - deltasltbasin*smoothWeight, &
+            atlant_sltbasin(1,ilat) = atlant_sltbasin(1,ilat) - MERGE(deltasltbasin*smoothWeight, &
                0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
-            pacind_sltbasin(1,ilat) = MERGE(pacind_sltbasin(1,ilat) - deltasltbasin*smoothWeight, &
+            pacind_sltbasin(1,ilat) = pacind_sltbasin(1,ilat) - MERGE(deltasltbasin*smoothWeight, &
                0.0_wp, patch_3D%basin_c(idx,BLOCK) >= 2)
 
             IF (level .EQ. 1) THEN
               global_hfl(level,ilat) =       global_hfl(level,ilat) - deltahfl*smoothWeight
-              atlant_hfl(level,ilat) = MERGE(atlant_hfl(level,ilat) - deltahfl*smoothWeight, &
+              atlant_hfl(level,ilat) = atlant_hfl(level,ilat) - MERGE(deltahfl*smoothWeight, &
                    0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
-              pacind_hfl(level,ilat) = MERGE(pacind_hfl(level,ilat) - deltahfl*smoothWeight, &
+              pacind_hfl(level,ilat) = pacind_hfl(level,ilat) - MERGE(deltahfl*smoothWeight, &
                    0.0_wp, patch_3D%basin_c(idx,BLOCK) >= 2)
 
               global_wfl(level,ilat) =       global_wfl(level,ilat) - deltawfl*smoothWeight
-              atlant_wfl(level,ilat) = MERGE(atlant_wfl(level,ilat) - deltawfl*smoothWeight, &
+              atlant_wfl(level,ilat) = atlant_wfl(level,ilat) - MERGE(deltawfl*smoothWeight, &
                    0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
-              pacind_wfl(level,ilat) = MERGE(pacind_wfl(level,ilat) - deltawfl*smoothWeight, &
+              pacind_wfl(level,ilat) = pacind_wfl(level,ilat) - MERGE(deltawfl*smoothWeight, &
                    0.0_wp, patch_3D%basin_c(idx,BLOCK) >= 2)
             END IF
 

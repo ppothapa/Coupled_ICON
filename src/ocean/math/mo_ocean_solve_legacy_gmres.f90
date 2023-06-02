@@ -173,7 +173,9 @@ CONTAINS
 !    TYPE(t_patch), POINTER :: patch_2d
     CONTIGUOUS :: b, x
 
-    !$ INTEGER OMP_GET_THREAD_NUM
+#ifdef _OPENMP
+    INTEGER OMP_GET_THREAD_NUM
+#endif
     !-------------------------------------------------------------------------
     !  write(0,*) "--------------- gmres --------------------------"
 
@@ -317,7 +319,9 @@ CONTAINS
 
         IF (ltimer) CALL timer_start(trans%timer_glob_sum)
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-!$   myThreadNo = OMP_GET_THREAD_NUM()
+#ifdef _OPENMP
+        myThreadNo = OMP_GET_THREAD_NUM()
+#endif
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
         DO jb = 1, no_of_blocks
           sum_aux(jb) = SUM(w(1:nproma,jb) * v(1:nproma,jb,k))

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -eu
+
+MY_DIR=$(cd "$(dirname "$0")"; pwd)
+ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
+
+${ICON_DIR}/config/csc/lumi.cpu.cce --enable-openmp "$@"
+
+if [ ! -z "${BB_NAME-}" ] ; then
+  MAKE_PROCS=22
+else
+  MAKE_PROCS=8
+fi
+
+make -j ${MAKE_PROCS}

@@ -1,13 +1,4 @@
-dnl We want to make sure that the configure script in the repository is always
-dnl generated with the same version of Autoconf. Currently, we stick to version
-dnl 2.69.
-m4_version_prereq([2.69], [
-dnl At this point, we know that we are using Autoconf 2.69 or higher, which also
-dnl means that the AC_AUTOCONF_VERSION macro is available.
-   m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.69]), [1],
-     [m4_fatal([Autoconf version 2.69 is required but version ]dnl
-m4_defn([AC_AUTOCONF_VERSION])[ is used], [63])])],
-  [m4_fatal([Autoconf version 2.69 is required], [63])])
+AC_PREREQ([2.69])
 
 ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
 
@@ -217,6 +208,12 @@ AC_ARG_ENABLE([mpi-rget],
      [enable_mpi_rget=yes])],
   [enable_mpi_rget=auto])
 
+AC_ARG_ENABLE([mpi-gpu],
+  [AS_HELP_STRING([--enable-mpi-gpu],
+     [enable usage of the GPU-aware MPI features @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_mpi_gpu=yes])],
+  [enable_mpi_gpu=no])
+
 AC_ARG_ENABLE([openmp],
   [AS_HELP_STRING([--enable-openmp],
      [enable OpenMP support @<:@default=no@:>@])],
@@ -224,10 +221,27 @@ AC_ARG_ENABLE([openmp],
   [enable_openmp=no])
 
 AC_ARG_ENABLE([gpu],
-  [AS_HELP_STRING([--enable-gpu],
-     [enable GPU support @<:@default=no@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_gpu=yes])],
-  [enable_gpu=no])
+[  --enable-gpu            enable GPU support. The value of the argument must
+                          be one of the following @<:@default=no@:>@:
+                            openacc+cuda  enable support with OpenACC and CUDA
+                            openacc+hip   enable support with OpenACC and HIP
+                            openacc       alias for 'openacc+cuda'
+                            yes           alias for 'openacc+cuda'
+                            no            disable GPU support],
+[AS_CASE([$enableval],
+   [openacc|yes], [enable_gpu='openacc+cuda'],
+   [openacc+cuda|openacc+hip|no], [],
+   [AC_MSG_ERROR([unexpected value for the argument dnl
+--enable-gpu='$enableval'; valid values are 'openacc+cuda', 'openacc+hip', dnl
+'openacc' (same as 'openacc+cuda'), 'yes' (same as 'openacc+cuda'), 'no'])])],
+[enable_gpu=no])
+AS_CASE([$enable_gpu],
+  [openacc+*], [icon_gpu_primary=openacc],
+  [icon_gpu_primary=no])
+AS_CASE([$enable_gpu],
+  [*+cuda], [icon_gpu_secondary=cuda],
+  [*+hip], [icon_gpu_secondary=hip],
+  [icon_gpu_secondary=no])
 
 AC_ARG_ENABLE([grib2],
   [AS_HELP_STRING([--enable-grib2],
@@ -271,10 +285,11 @@ AC_ARG_ENABLE([serialization],
 [  --enable-serialization  enable the Serialbox2 serialization. The value of
                           the argument must be one of the following
                           @<:@default=no@:>@:
-                            read|yes  enable READ mode
-                            perturb   enable READ & PERTURB mode
-                            create    enable CREATE mode
-                            no        disable serialization],
+                            read     enable READ mode
+                            perturb  enable READ & PERTURB mode
+                            create   enable CREATE mode
+                            yes      alias for 'read'
+                            no       disable serialization],
 [AS_CASE([$enableval],
    [yes], [enable_serialization=read],
    [read|perturb|create|no], [],
@@ -301,8 +316,9 @@ AC_ARG_ENABLE([memory-tracing],
 [  --enable-memory-tracing enable native dynamic memory tracing facility. The
                           value of the argument must be one of the following
                           @<:@default=no@:>@:
-                            mtrace|yes  enable tracing with mtrace (glibc)
-                            no          disable memory tracing],
+                            mtrace  enable tracing with mtrace (glibc)
+                            yes     alias for 'mtrace'
+                            no      disable memory tracing],
 [AS_CASE([$enableval],
    [yes], [enable_memory_tracing=mtrace],
    [mtrace|no], [],
@@ -316,9 +332,31 @@ Optimization Features:]])
 
 AC_ARG_ENABLE([loop-exchange],
   [AS_HELP_STRING([--enable-loop-exchange],
-     [enable loop exchange @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_loop_exchange=yes])],
-  [enable_loop_exchange=yes])
+     [enable loop exchange @<:@default=auto@:>@])],
+  [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
+     [enable_loop_exchange=yes])],
+  [enable_loop_exchange=auto])
+
+AS_VAR_IF([enable_loop_exchange], [auto],
+  [AS_VAR_IF([icon_gpu_primary], [openacc],
+     [enable_loop_exchange=no],
+     [AC_MSG_NOTICE([loop exchange is enabled because no GPU support is dnl
+requested: disable the loop exchange if required (--disable-loop-exchange)])
+      enable_loop_exchange=yes])])
+
+AC_ARG_ENABLE([dim-swap],
+  [AS_HELP_STRING([--enable-dim-swap],
+     [enable dimension swap @<:@default=auto@:>@])],
+  [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
+     [enable_dim_swap=yes])],
+  [enable_dim_swap=auto])
+
+AS_VAR_IF([enable_dim_swap], [auto],
+  [AS_VAR_IF([icon_gpu_primary], [openacc],
+     [AC_MSG_NOTICE([dimension swap is enabled because the GPU support is dnl
+requested: disable the dimension swap if required (--disable-dim-swap)])
+      enable_dim_swap=yes],
+     [enable_dim_swap=no])])
 
 AC_ARG_ENABLE([vectorized-lrtm],
   [AS_HELP_STRING([--enable-vectorized-lrtm],
@@ -742,6 +780,12 @@ AS_VAR_IF([enable_active_target_sync], [yes],
   [AS_VAR_APPEND([FCFLAGS],
      [" ${FC_PP_DEF}HAVE_SLOW_PASSIVE_TARGET_ONESIDED"])])
 
+AS_VAR_IF([enable_mpi_gpu], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__USE_G2G"])])
+
+AS_VAR_IF([icon_gpu_secondary], [hip],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__HIP__"])])
+
 AS_VAR_IF([enable_parallel_netcdf], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_PARALLEL_NETCDF"])])
 
@@ -770,6 +814,9 @@ AS_VAR_IF([enable_testbed], [no],
 AS_VAR_IF([enable_loop_exchange], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__LOOP_EXCHANGE"])])
 
+AS_VAR_IF([enable_dim_swap], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__SWAPDIM"])])
+
 AS_VAR_IF([enable_vectorized_lrtm], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}LRTM_FULL_VECTORIZATION"])])
 
@@ -793,7 +840,19 @@ subdir_CFLAGS=$CFLAGS
 dnl Make sure the configure checks are run with ICON_CFLAGS:
 test -n "${ICON_CFLAGS}" && AS_VAR_APPEND([CFLAGS], [" ${ICON_CFLAGS}"])
 
-AC_PROG_CC
+dnl Fix a bug in Autoconf 2.70 (see https://savannah.gnu.org/support/?110396):
+m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.70]), [0],
+  [m4_pushdef([_AC_PROG_CC_C99],
+        m4_bpatsubst(m4_dquote(m4_defn([_AC_PROG_CC_C99])),
+          [\[ac_c_conftest_c89_program\]], [[ac_c_conftest_c99_program]]))dnl
+   AC_PROG_CC
+   m4_popdef([_AC_PROG_CC_C99])],
+  [AC_PROG_CC])
+dnl Expand the legacy macro for older version of Autoconf (2.69 and older):
+m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.70]), [-1],
+  [AC_PROG_CC_C99])
+AS_VAR_IF([ac_cv_prog_cc_c99], [no],
+  [AC_MSG_FAILURE([C compiler does not support ISO C99])])
 dnl Make sure that the bundled libraries pick up the same CC if not set by the
 dnl user on the command line:
 export CC
@@ -807,10 +866,6 @@ AC_ARG_VAR([ICON_BUNDLED_CFLAGS],
   [C compiler flags to be appended to CFLAGS when configuring the bundled
 libraries @<:@default=$ICON_CFLAGS@:>@])dnl
 ICON_BUNDLED_CFLAGS=${ICON_BUNDLED_CFLAGS-$ICON_CFLAGS}
-
-AC_PROG_CC_C99
-AS_VAR_IF([ac_cv_prog_cc_c99], [no],
-  [AC_MSG_FAILURE([C compiler does not support ISO C99])])
 
 ACX_COMPILER_CC_VENDOR_SIMPLE
 ACX_COMPILER_CC_VERSION_SIMPLE
@@ -839,37 +894,76 @@ dnl support/util_timer.c: sys/systemcfg.h asm/msr.h
 dnl Header files that are included from non-mandatory files
 dnl support/util_signal.c: features.h strings.h fenv.h fptrap.h
 
-########################### CUDA COMPILER AND FLAGS ############################
+###################### SECONDARY GPU COMPILERS AND FLAGS #######################
 
-dnl We use neither AS_IF nor AS_VAR_IF to prevent checking for NVCC when GPU dnl
+dnl We do not use AS_CASE to prevent checking for CUDACXX and HIPCXX when GPU
 dnl support is disabled:
-if test x"$enable_gpu" = xyes; then :
-  ACX_PROG_NVCC
-  AS_VAR_IF([acx_cv_prog_nvcc_cuda], [no],
-    [AC_MSG_FAILURE([unable to find a working NVIDIA CUDA Compiler: either dnl
-disable GPU support (--disable-gpu) or set NVCC accordingly])])
-  ACX_PROG_NVCC_CXX11
-  ACX_LANG_PUSH_CUDA
-  AC_CHECK_HEADER([cuda.h], [],
-    [AC_MSG_FAILURE([unable to find header file cuda.h: either disable GPU dnl
-support (--disable-gpu) or set NVCFLAGS accordingly])],
-    [[// override default includes]])
-  ACX_LANG_POP_CUDA
-  AC_LANG_PUSH([Fortran])
-  ACX_FC_CUDA_COMPATIBLE([],
-    [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
+case $icon_gpu_secondary in #(
+  cuda) :
+dnl Honor NVCC and NVCFLAGS for backwards compatibility:
+    AS_IF([${CUDACXX+false} : && ${NVCC+:} false],
+      [CUDACXX=$NVCC
+       AC_MSG_WARN(
+         [variable NVCC is deprecated: use variable CUDACXX instead])])
+    AS_IF([${CUDAFLAGS+false} : && ${NVCFLAGS+:} false],
+      [CUDAFLAGS=$NVCFLAGS
+       AC_MSG_WARN(
+         [variable NVCFLAGS is deprecated: use variable CUDAFLAGS instead])])
+    ACX_PROG_CUDACXX
+    AS_CASE([$acx_prog_cudacxx_works],
+      [no],
+      [AC_MSG_FAILURE([unable to find a working CUDA Compiler: either switch dnl
+the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip) or dnl
+disable GPU support (--disable-gpu), or set CUDACXX accordingly])],
+      [basic],
+      [AC_MSG_FAILURE([unable to detect CUDA compiler flag needed to enable
+support for the C++11 standard: either switch the secondary GPU compiler dnl
+(e.g. --enable-gpu=${icon_gpu_primary}+hip) or disable GPU support dnl
+(--disable-gpu), or set CUDAFLAGS accordingly])],
+      [CUDAFLAGS=dnl
+"AS_VAR_GET([acx_cv_prog_cudacxx_${acx_prog_cudacxx_works}_flag]) $CUDAFLAGS"])
+    AC_LANG_PUSH([Fortran])
+    ACX_LANG_CUDA_COMPATIBLE([],
+      [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
 CUDA compiler: a possible reason is that it cannot find CUDA runtime dnl
 libraries (e.g. '-lcudart'): set LDFLAGS and LIBS accordingly])])
-  ACX_FC_CUDA_STDCXX_COMPATIBLE([],
-    [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
+    ACX_LANG_CUDA_COMPATIBLE_STDCXX([],
+      [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
 CUDA compiler that require C++ standard library: a possible reason is that dnl
 it cannot find C++ standard library (i.e. '-lstdc++'): set LDFLAGS and LIBS dnl
 accordingly])])
-  AC_LANG_POP([Fortran])
-else
-  NVCC=
-  NVCFLAGS=
-fi
+    AC_LANG_POP([Fortran])
+    HIPCXX=; HIPFLAGS= ;; #(
+  hip) :
+    ACX_PROG_HIPCXX
+    AS_CASE([$acx_prog_hipcxx_works],
+      [no],
+      [AC_MSG_FAILURE([unable to find a working HIP Compiler: either switch dnl
+the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+cuda) or dnl
+disable GPU support (--disable-gpu), or set HIPCXX accordingly])],
+      [basic],
+      [AC_MSG_FAILURE([unable to detect HIP compiler flag needed to enable dnl
+support for the C++11 standard: either switch the secondary GPU compiler dnl
+(e.g. --enable-gpu=${icon_gpu_primary}+cuda) or disable GPU support dnl
+(--disable-gpu), or set HIPFLAGS accordingly])],
+      [HIPFLAGS=dnl
+"AS_VAR_GET([acx_cv_prog_hipcxx_${acx_prog_hipcxx_works}_flag]) $HIPFLAGS"])
+    AC_LANG_PUSH([Fortran])
+    ACX_LANG_HIP_COMPATIBLE([],
+      [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
+HIP compiler: a possible reason is that it cannot find HIP runtime dnl
+libraries (e.g. '-lamdhip64'): set LDFLAGS and LIBS accordingly])])
+    ACX_LANG_HIP_COMPATIBLE_STDCXX([],
+      [AC_MSG_FAILURE([Fortran compiler cannot link objects compiled with dnl
+HIP compiler that require C++ standard library: a possible reason is that dnl
+it cannot find C++ standard library (i.e. '-lstdc++'): set LDFLAGS and LIBS dnl
+accordingly])])
+    AC_LANG_POP([Fortran])
+    CUDACXX=; CUDAFLAGS= ;; #(
+  *) :
+    CUDACXX=; CUDAFLAGS=
+    HIPCXX=; HIPFLAGS= ;;
+esac
 
 ################################ LIBRARY CHECKS ################################
 
@@ -1012,7 +1106,7 @@ AS_VAR_IF([enable_openmp], [yes],
      [AC_MSG_ERROR([Fortran compiler enables OpenMP support by default: set dnl
 FCFLAGS accordingly to disable it])])])
 
-AS_VAR_IF([enable_gpu], [yes],
+AS_VAR_IF([icon_gpu_primary], [openacc],
   [ACX_LANG_OPENACC_FLAG(
      [AS_VAR_APPEND([FCFLAGS], [" $acx_cv_fc_openacc_flag"])
       ACX_LANG_MACRO_CHECK_VALUE([_OPENACC],
@@ -1232,7 +1326,7 @@ version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
-        [--enable-gpu="$enable_gpu"],
+        [--enable-gpu="$icon_gpu_primary"],
         [--enable-silent-rules="$enable_silent_rules"])
       AS_VAR_APPEND([bundled_includes],
         ["${FC_MOD_IN}externals/rte-rrtmgp/mod "])
@@ -2078,23 +2172,36 @@ version of TIXI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a dnl
 $BUNDLED_LIBFILES"])])
 
-AS_VAR_IF([enable_gpu], [yes],
+AS_CASE([$icon_gpu_secondary],
+  [cuda],
   [AS_VAR_IF([with_external_cub], [yes],
      [ACX_LANG_PUSH_CUDA
       AC_CHECK_HEADER([cub/device/device_select.cuh], [],
         [AC_MSG_FAILURE([unable to find header files of CUB library: either dnl
-disable GPU support (--disable-gpu) or use the bundled version of CUB dnl
-library (--without-external-cub) or set NVCFLAGS accordingly])],
+switch the secondary GPU compiler (e.g. dnl
+--enable-gpu=${icon_gpu_primary}+hip) or disable GPU support dnl
+(--disable-gpu), or use the bundled version of CUB library dnl
+(--without-external-cub), or set CUDAFLAGS accordingly])],
         [[// override default includes]])
       ACX_LANG_POP_CUDA],
      [icon_subdir_srcdir="$srcdir/externals/cub"
       icon_subdir_unique_file="cub/device/device_select.cuh"
       AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
         [AC_MSG_ERROR([unable to find sources of the bundled version of CUB dnl
-library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable dnl
-GPU support (--disable-gpu) or provide an external version of CUB library dnl
-(--with-external-cub) by setting NVCFLAGS accordingly])])
-      AS_VAR_APPEND([NVCFLAGS], [" -I${srcdir}/externals/cub"])])])
+library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either switch dnl
+the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip), or dnl
+disable GPU support (--disable-gpu) or provide an external version of CUB dnl
+library (--with-external-cub) by setting CUDAFLAGS accordingly])])
+      AS_VAR_APPEND([CUDAFLAGS], [" -I${srcdir}/externals/cub"])])],
+  [hip],
+  [ACX_LANG_PUSH_HIP
+   AC_CHECK_HEADER([hipcub/device/device_select.hpp], [],
+     [AC_MSG_FAILURE([unable to find header files of HIPCUB library: either dnl
+switch the secondary GPU compiler (e.g. dnl
+--enable-gpu=${icon_gpu_primary}+cuda) or disable GPU support dnl
+(--disable-gpu), or set HIPFLAGS accordingly])],
+        [[// override default includes]])
+   ACX_LANG_POP_HIP])
 
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
@@ -2272,9 +2379,17 @@ AS_VAR_IF([enable_openmp], [yes],
   [AC_SUBST([OPENMP_ENABLED], [''])],
   [AC_SUBST([OPENMP_ENABLED], ['#'])])
 
-AS_VAR_IF([enable_gpu], [yes],
+AS_IF([test x"$icon_gpu_primary" != xno],
   [AC_SUBST([GPU_ENABLED], [''])],
   [AC_SUBST([GPU_ENABLED], ['#'])])
+
+AS_VAR_IF([icon_gpu_secondary], [cuda],
+  [AC_SUBST([CUDA_ENABLED], [''])],
+  [AC_SUBST([CUDA_ENABLED], ['#'])])
+
+AS_VAR_IF([icon_gpu_secondary], [hip],
+  [AC_SUBST([HIP_ENABLED], [''])],
+  [AC_SUBST([HIP_ENABLED], ['#'])])
 
 AS_VAR_IF([enable_explicit_fpp], [yes],
   [AC_SUBST([FPP_ENABLED], [''])],

@@ -29,7 +29,9 @@
     !
     !-------------------------------------------------------------------------
     !
-!$  USE OMP_LIB
+#ifdef _OPENMP
+    USE OMP_LIB
+#endif
     USE mo_kind,                ONLY: wp
     USE mo_exception,           ONLY: message, finish
     USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int, min_rlcell
@@ -303,7 +305,9 @@
       TYPE (t_sphcap_list)              :: subset_list
       INTEGER                           :: errstat, i
       TYPE (t_spherical_cap)            :: subset
-!$  DOUBLE PRECISION                    :: time_s, toc
+#ifdef _OPENMP
+      DOUBLE PRECISION                  :: time_s, toc
+#endif
 
       ! --- create an array-like data structure containing the mass points
       CALL create_global_pointlist(ptr_patch, p_global, ldisturb=.TRUE.)
@@ -347,7 +351,9 @@
         subset = spherical_cap(centroid, -1._wp)
         CALL triangulate_mthreaded(p_global, tri_global, subset, ignore_completeness=.FALSE.)
       ELSE
-!$    time_s = omp_get_wtime()
+#ifdef _OPENMP
+        time_s = omp_get_wtime()
+#endif
 
         ! generate list of spherical cap centers (one for each MPI task)
         IF (dbg_level >= 10) THEN
@@ -367,17 +373,21 @@
           WRITE (0,'(a,i0,a,a,i0)') "# done. triangulation: ", tri_global%nentries, " triangles.", &
             &                       "; pts = ", p_global%nentries
         END IF
-!$    toc = omp_get_wtime() - time_s
-!$    IF (dbg_level > 10) THEN
-!$      WRITE (0,*) get_my_mpi_work_id()," :: elapsed time: ", toc
-!$    END IF
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (dbg_level > 10) THEN
+        WRITE (0,*) get_my_mpi_work_id()," :: elapsed time: ", toc
+      END IF
 
-!$    time_s = omp_get_wtime()
+      time_s = omp_get_wtime()
+#endif
         CALL tri_global%sync()
-!$    toc = omp_get_wtime() - time_s
-!$    IF (dbg_level > 10) THEN
-!$      WRITE (0,*) get_my_mpi_work_id()," :: triangulation sync, elapsed time: ", toc
-!$    END IF
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (dbg_level > 10) THEN
+        WRITE (0,*) get_my_mpi_work_id()," :: triangulation sync, elapsed time: ", toc
+      END IF
+#endif
         ! clean up
         CALL pivot_points%destructor()
         CALL subset_list%destructor()
@@ -420,7 +430,9 @@
         &                                idx, nthreads, dim, ierrstat
       TYPE (t_point_list)             :: p_local
       TYPE (t_spherical_cap)          :: subset
-!$    DOUBLE PRECISION                :: time_s, toc
+#ifdef _OPENMP
+      DOUBLE PRECISION                :: time_s, toc
+#endif
       TYPE(t_point)                   :: centroid
       TYPE(t_cartesian_coordinates)   :: p_x
       INTEGER, ALLOCATABLE            :: g2l_index(:)
@@ -545,9 +557,12 @@
       END IF
 
       CALL tri%initialize()
-!$    time_s = omp_get_wtime()
+#ifdef _OPENMP
+      time_s = omp_get_wtime()
+      nthreads = omp_get_max_threads()
+#else
       nthreads = 1
-!$    nthreads = omp_get_max_threads()
+#endif
 
       ! for local domains we do not force complete Delaunay
       ! triangulations, since these domains contain pathological
@@ -566,9 +581,13 @@
 
       CALL p_local%destructor()
 
-!$    toc = omp_get_wtime() - time_s
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+#endif
       IF (dbg_level > 1) THEN
-!$      WRITE (0,*) get_my_mpi_work_id()," :: elapsed time: ", toc, " (radius was ", subset%radius, ")"
+#ifdef _OPENMP
+        WRITE (0,*) get_my_mpi_work_id()," :: elapsed time: ", toc, " (radius was ", subset%radius, ")"
+#endif
         WRITE (0,*) "no. of cells in auxiliary triangulation: ", tri%nentries
       END IF
 
@@ -622,7 +641,9 @@
       REAL(wp)                        :: max_sagitta
       REAL(wp)                        :: brange(2,3)          !< box range (min/max, dim=1,2,3)
       TYPE (t_point), POINTER         :: previous_p, current_p
-      !$  DOUBLE PRECISION            :: time_s, toc
+#ifdef _OPENMP
+      DOUBLE PRECISION                :: time_s, toc
+#endif
       LOGICAL                         :: llocal_partition
 
       ! Flag: .TRUE. if only a limited area of the triangulation is
@@ -634,7 +655,9 @@
         ! --- count the no. of triangles that are not far-off
         IF (dbg_level > 10)  WRITE (0,*) "# count the no. of triangles that are not far-off"
 
-        !$  time_s = omp_get_wtime()
+#ifdef _OPENMP
+        time_s = omp_get_wtime()
+#endif
         
         nlocal_triangles = 0 
         ! TODO: OpenMP parallelization
@@ -674,10 +697,12 @@
           WRITE (0,*) "# ", nlocal_triangles, " triangles are local to this PE."
         END IF
 
-        !$  toc = omp_get_wtime() - time_s
-        !$  IF (dbg_level > 10) THEN
-        !$    WRITE (0,*) get_my_mpi_work_id()," :: count the no. of triangles that are not far-off; elapsed time: ", toc
-        !$  END IF
+#ifdef _OPENMP
+        toc = omp_get_wtime() - time_s
+        IF (dbg_level > 10) THEN
+          WRITE (0,*) get_my_mpi_work_id()," :: count the no. of triangles that are not far-off; elapsed time: ", toc
+        END IF
+#endif
 
       ELSE
 
@@ -690,7 +715,9 @@
 
       IF (dbg_level > 10)  WRITE (0,*) "# build a list of triangle bounding boxes"
 
-      !$  time_s = omp_get_wtime()
+#ifdef _OPENMP
+      time_s = omp_get_wtime()
+#endif
 
       ALLOCATE(pmin(nlocal_triangles,3), pmax(nlocal_triangles,3), STAT=errstat)
       IF (errstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed')
@@ -769,10 +796,12 @@
       DEALLOCATE(pmin, pmax, STAT=errstat)
       IF (errstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed')
 
-      !$  toc = omp_get_wtime() - time_s
-      !$  IF (dbg_level > 10) THEN
-      !$    WRITE (0,*) get_my_mpi_work_id()," :: build a list of triangle bounding boxes; elapsed time: ", toc
-      !$  END IF
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (dbg_level > 10) THEN
+        WRITE (0,*) get_my_mpi_work_id()," :: build a list of triangle bounding boxes; elapsed time: ", toc
+      END IF
+#endif
     END SUBROUTINE compute_triangle_bboxes
 
     
@@ -804,7 +833,9 @@
       INTEGER                               :: jb, jc, start_idx, end_idx, nobjects, &
         &                                      i, j, k, idx0, idx1(3), nblks_lonlat, &
         &                                      npromz_lonlat, i_scale
-      !$  DOUBLE PRECISION                  :: time_s, toc
+#ifdef _OPENMP
+      DOUBLE PRECISION                      :: time_s, toc
+#endif
       INTEGER                               :: obj_list(NMAX_HITS)  !< query result (triangle search)
       TYPE(t_cartesian_coordinates)         :: ll_point_c           !< cartes. coordinates of lon-lat points
       REAL(wp)                              :: v(3,0:2)
@@ -829,7 +860,9 @@
       ptr_int_lonlat%baryctr%blk    (:,:,:) = 1
       ptr_int_lonlat%baryctr%coeff  (:,:,:) = 0._wp
 
-      !$  time_s = omp_get_wtime()
+#ifdef _OPENMP
+      time_s = omp_get_wtime()
+#endif
 
 !$OMP PARALLEL DO PRIVATE(jb,jc,start_idx,end_idx,ll_point_c,nobjects,obj_list,      &
 !$OMP                     idx0, idx1, v,i,j,k, inside_test, last_idx1)
@@ -1015,10 +1048,12 @@
       END DO
 !$OMP END PARALLEL DO
 
-      !$  toc = omp_get_wtime() - time_s
-      !$  IF (dbg_level > 10) THEN
-      !$    WRITE (0,*) get_my_mpi_work_id()," :: compute barycentric coordinates; elapsed time: ", toc
-      !$  END IF
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (dbg_level > 10) THEN
+        WRITE (0,*) get_my_mpi_work_id()," :: compute barycentric coordinates; elapsed time: ", toc
+      END IF
+#endif
 
     !$ACC UPDATE DEVICE(ptr_int_lonlat%baryctr%idx) &
     !$ACC   DEVICE(ptr_int_lonlat%baryctr%blk) &

@@ -490,7 +490,7 @@ MODULE mo_nh_testcases
    ! Running Radiative Convective Equilibrium with prescribed temperature profile
      CALL message(TRIM(routine),'running ICON in RCE with prescribed initial temperature profile')
 
-  CASE ('aes_bubble')
+  CASE ('aes_bubble', 'aes_bubble_land')
      CALL message(TRIM(routine),'running ICON torus with moisture and temperature bubble')
   CASE ('RICO')
 
@@ -1295,7 +1295,7 @@ MODULE mo_nh_testcases
       CALL message(TRIM(routine),'End setup global RCE_Tprescr test')
     END DO !jg
 
-  CASE ('aes_bubble')
+  CASE ('aes_bubble', 'aes_bubble_land')
 
      ! u,v,w are initialized to zero.  initialize with temperature profile, add bubble to T and q
     DO jg = 1, n_dom
@@ -1307,7 +1307,7 @@ MODULE mo_nh_testcases
       
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
-      CALL message(TRIM(routine),'End setup aes_bubble test')
+      CALL message(TRIM(routine),'End setup '//nh_test_name//' test')
     END DO !jg
     
 
