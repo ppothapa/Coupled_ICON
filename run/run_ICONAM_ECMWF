@@ -259,7 +259,6 @@ ntiles           = 1
 !damp_height     = 35000.   ! damping height vertical wind (set about 10km below top, 10 levels)
  damp_height     = 50000.   ! damping height vertical wind (set about 10km below top, 10 levels)
  rayleigh_coeff  = 0.05     ! Rayleigh coefficient for damping in upper levels
- l_open_ubc      = .false.  ! top open upper boundary condition. might help to go higher
  igradp_method   = 3        ! new default
  htop_moist_proc = 30000.   ! height above which moist physics and cld/precip advection off
 /

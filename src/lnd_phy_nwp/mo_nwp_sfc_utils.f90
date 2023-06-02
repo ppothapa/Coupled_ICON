@@ -45,13 +45,14 @@ MODULE mo_nwp_sfc_utils
   USE mo_nwp_lnd_types,       ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag, t_lnd_state
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE mo_parallel_config,     ONLY: nproma
-  USE mo_grid_config,         ONLY: l_limited_area
+  USE mo_grid_config,         ONLY: l_limited_area, n_dom
   USe mo_extpar_config,       ONLY: itopo, itype_vegetation_cycle
   USE mo_lnd_nwp_config,      ONLY: nlev_soil, nlev_snow, ntiles_total, ntiles_water, &
     &                               lseaice, llake, lmulti_snow, idiag_snowfrac, ntiles_lnd, &
     &                               lsnowtile, isub_water, isub_seaice, isub_lake,    &
-    &                               itype_interception, l2lay_rho_snow, lprog_albsi, itype_trvg, &
+    &                               itype_interception, lterra_urb, l2lay_rho_snow, lprog_albsi, itype_trvg, &
                                     itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_nwp_tuning_config,   ONLY: tune_minsnowfrac
   USE mo_initicon_config,     ONLY: init_mode_soil, ltile_coldstart, init_mode, lanaread_tseasfc, use_lakeiceana
@@ -72,7 +73,8 @@ MODULE mo_nwp_sfc_utils
   USE mo_util_string,         ONLY: int2string
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_index_list,          ONLY: generate_index_list
-  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_device_only
+  USE mo_timer,               ONLY: ltimer, timer_nh_diagnostics, timer_start, timer_stop
 
   IMPLICIT NONE
 
@@ -88,7 +90,7 @@ INTEGER, PARAMETER :: nlsoil= 8
 
   PUBLIC :: nwp_surface_init
   PUBLIC :: diag_snowfrac_tg
-  PUBLIC :: aggregate_landvars
+  PUBLIC :: aggregate_landvars, aggr_landvars
   PUBLIC :: aggregate_tg_qvs
   PUBLIC :: update_idx_lists_lnd
   PUBLIC :: update_idx_lists_sea
@@ -1256,6 +1258,44 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Wrapper for computation of aggregated land variables
+  !!
+  !!
+  !! @par Revision History
+  !! Developed by Guenther Zaengl, DWD (2014-07-21)
+  !!
+  SUBROUTINE aggr_landvars(p_patch, ext_data, p_lnd_state, lacc)
+
+    TYPE(t_patch),             INTENT(IN)    :: p_patch(:)     !< grid/patch info
+    TYPE(t_external_data),     INTENT(IN)    :: ext_data(:)    !< external data
+    TYPE(t_lnd_state),         INTENT(INOUT) :: p_lnd_state(:) !< prog and diag lnd state
+    LOGICAL,                   INTENT(IN)    :: lacc
+
+    ! Local variables
+    INTEGER :: jg ! loop indices
+
+    CALL assert_acc_device_only("aggr_landvars", lacc)
+
+    DO jg = 1, n_dom
+
+      IF (.NOT. p_patch(jg)%domain_is_owned) CYCLE
+      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+      IF (  atm_phy_nwp_config(jg)%inwp_surface == 1 ) THEN
+        CALL aggregate_landvars( p_patch(jg), ext_data(jg),                 &
+             p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), p_lnd_state(jg)%diag_lnd, &
+             lacc=lacc)
+      ENDIF
+
+    ENDDO ! jg-loop
+
+  END SUBROUTINE aggr_landvars
+
+!-------------------------------------------------------------------------
+
   !>
   !! Aggregation of tile-specific, instantaneous soil and surface fields
   !!
@@ -1270,7 +1310,7 @@ CONTAINS
   !!
   SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, lacc )
 
-    TYPE(t_patch),        TARGET,INTENT(in)   :: p_patch       !< grid/patch info
+    TYPE(t_patch),               INTENT(in)   :: p_patch       !< grid/patch info
     TYPE(t_external_data),       INTENT(in)   :: ext_data      !< external data
     TYPE(t_lnd_prog),            INTENT(inout):: lnd_prog      !< prog vars for sfc
     TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag      !< diag vars for sfc
@@ -1290,6 +1330,8 @@ CONTAINS
     INTEGER :: icount         ! index list length per block
     INTEGER :: ic
     INTEGER :: styp           ! soil type index
+
+    IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
     !$ACC DATA CREATE(lmask) PRESENT(ext_data, lnd_prog, lnd_diag, dzsoil) IF(lacc)
 
@@ -1694,6 +1736,8 @@ CONTAINS
     !$ACC WAIT
     !$ACC END DATA
 
+    IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
+
   END SUBROUTINE aggregate_landvars
 
 
@@ -2016,7 +2060,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   SUBROUTINE diag_snowfrac_tg(istart, iend, lc_class, i_lc_urban, t_snow, t_soiltop, w_snow, &
-    & rho_snow, freshsnow, sso_sigma, z0, snowfrac, t_g, meltrate, snowfrac_u, lacc)
+    & rho_snow, freshsnow, sso_sigma, z0, snowfrac, t_g, meltrate, snowfrac_u, lacc, opt_acc_async_queue)
 
     INTEGER, INTENT (IN) :: istart, iend ! start and end-indices of the computation
 
@@ -2032,15 +2076,23 @@ CONTAINS
     INTEGER  :: ic
     REAL(wp) :: h_snow, snowdepth_fac, sso_fac, lc_fac, lc_limit
 
-    LOGICAL, OPTIONAL,           INTENT(in)   :: lacc          !< GPU flag
+    LOGICAL, OPTIONAL, INTENT(in)   :: lacc          !< GPU flag
+    INTEGER, OPTIONAL, INTENT(in)   :: opt_acc_async_queue
+
     LOGICAL :: lzacc
+    INTEGER :: acc_async_queue
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
-   !$ACC DATA NO_CREATE(lc_class, t_snow, t_soiltop, w_snow, rho_snow, freshsnow) &
-   !$ACC   NO_CREATE(sso_sigma, z0, meltrate, snowfrac, t_g, snowfrac_u)
+    IF(PRESENT(opt_acc_async_queue)) THEN
+        acc_async_queue = opt_acc_async_queue
+    ELSE
+        acc_async_queue = 1
+    ENDIF
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    ! iend has to be in a separate data section as of NV HPC 23.1
+    !$ACC DATA COPYIN(iend) ASYNC(acc_async_queue) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     SELECT CASE (idiag_snowfrac)
     CASE (1) ! old parameterization depending on SWE only
       !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -2118,7 +2170,7 @@ CONTAINS
   !!
   SUBROUTINE update_idx_lists_lnd (idx_lst_lp, lp_count, idx_lst, gp_count, idx_lst_snow, &
     &             gp_count_snow, lc_frac, partial_frac, partial_frac_snow, snowtile_flag, &
-    &             snowtile_flag_snow, snowfrac, lacc)
+    &             snowtile_flag_snow, snowfrac, lacc, opt_acc_async_queue)
 
 
     INTEGER ,    INTENT(   IN) ::  &   !< static list of all land points of a tile index
@@ -2155,31 +2207,36 @@ CONTAINS
 
 
     ! Local variables
-    INTEGER  :: ic, jc, icount, icount_snow
+    INTEGER  :: ic, jc
     REAL(wp) :: eps = 1.e-6_wp
 
-    LOGICAL, OPTIONAL,           INTENT(in)   :: lacc          !< GPU flag
+    LOGICAL, OPTIONAL, INTENT(in)   :: lacc          !< GPU flag
+    INTEGER, OPTIONAL, INTENT(in)   :: opt_acc_async_queue
+
     LOGICAL :: lzacc
+    INTEGER :: acc_async_queue
 
     INTEGER :: cond1(lp_count), cond2(lp_count)
 
     !-------------------------------------------------------------------------
 
     CALL set_acc_host_or_device(lzacc, lacc)
-
-    !$ACC ENTER DATA CREATE(cond1, cond2)
+    
+    IF(PRESENT(opt_acc_async_queue)) THEN
+        acc_async_queue = opt_acc_async_queue
+    ELSE
+        acc_async_queue = 1
+    ENDIF
 
     !$ACC DATA &
+    !$ACC   PRESENT(gp_count, gp_count_snow) &
     !$ACC   PRESENT(idx_lst_lp, idx_lst, idx_lst_snow, snowtile_flag) &
     !$ACC   PRESENT(snowtile_flag_snow, lc_frac, snowfrac, partial_frac) &
-    !$ACC   PRESENT(partial_frac_snow) IF(lzacc)
-
-
-    icount = 0
-    icount_snow = 0
+    !$ACC   PRESENT(partial_frac_snow) &
+    !$ACC   CREATE(cond1, cond2) ASYNC(acc_async_queue) IF(lzacc)
 
 !$NEC ivdep
-    !$ACC PARALLEL ASYNC(1) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(jc)
     DO ic = 1, lp_count
       jc = idx_lst_lp(ic)
@@ -2218,30 +2275,23 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    CALL generate_index_list(cond1, idx_lst_snow, 1, lp_count, icount_snow, 1,lacc=lzacc)
+    CALL generate_index_list(cond1, idx_lst_snow, 1, lp_count, gp_count_snow, &
+      opt_acc_async_queue=acc_async_queue, opt_acc_copy_to_host=.FALSE., opt_use_acc=lzacc)
 
-    CALL generate_index_list(cond2, idx_lst, 1, lp_count, icount, 1,lacc=lzacc)
+    CALL generate_index_list(cond2, idx_lst,      1, lp_count, gp_count, &
+      opt_acc_async_queue=acc_async_queue, opt_acc_copy_to_host=.FALSE., opt_use_acc=lzacc)
 
-    !$ACC PARALLEL ASYNC(1) IF(lzacc)
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO ic = 1,icount_snow
+    !$ACC PARALLEL LOOP GANG VECTOR ASYNC(acc_async_queue) IF(lzacc)
+    DO ic = 1,gp_count_snow
       idx_lst_snow(ic) = idx_lst_lp(idx_lst_snow(ic))
     ENDDO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO ic = 1,icount
+    !$ACC PARALLEL LOOP GANG VECTOR ASYNC(acc_async_queue) IF(lzacc)
+    DO ic = 1,gp_count
       idx_lst(ic) = idx_lst_lp(idx_lst(ic))
     ENDDO
-    !$ACC END PARALLEL
-
-    !$ACC WAIT
-
-    gp_count = icount
-    gp_count_snow = icount_snow
-    !$ACC UPDATE DEVICE(gp_count, gp_count_snow)
 
     !$ACC END DATA
-    !$ACC EXIT DATA DELETE(cond1, cond2)
 
   END SUBROUTINE update_idx_lists_lnd
 
@@ -3376,13 +3426,19 @@ CONTAINS
          DO ic = 1, i_count
            jc = ext_data%atm%idx_lst_lp_t(ic,jb,1)
            ! plant cover
-           ext_data%atm%plcov_t  (jc,jb,1)  = ext_data%atm%ndviratio(jc,jb)  &
+           ext_data%atm%plcov_t  (jc,jb,1)  = ext_data%atm%ndviratio(jc,jb)                                      &
              &     * MIN(ext_data%atm%ndvi_max(jc,jb),ext_data%atm%plcov_mx(jc,jb))
-           ! total area index
-           ext_data%atm%tai_t    (jc,jb,1)  = ext_data%atm%plcov_t  (jc,jb,1)  &
+           ! transpiration area index
+           ext_data%atm%tai_t    (jc,jb,1)  = ext_data%atm%plcov_t  (jc,jb,1)                                    &
              &                                  * ext_data%atm%lai_mx(jc,jb)
            ! surface area index
-           ext_data%atm%sai_t    (jc,jb,1)  = c_lnd+ext_data%atm%tai_t(jc,jb,1)
+           IF (lterra_urb) THEN
+             ext_data%atm%sai_t  (jc,jb,1)  = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,1))                 &
+                                            + ext_data%atm%urb_ai_t(jc,jb,1) * ext_data%atm%urb_isa_t(jc,jb,1)   &
+                                            + ext_data%atm%tai_t(jc,jb,1)
+           ELSE
+             ext_data%atm%sai_t  (jc,jb,1)  = c_lnd + ext_data%atm%tai_t(jc,jb,1)
+           END IF
 
          END DO
        ELSE ! ntiles_lnd > 1
@@ -3405,13 +3461,19 @@ CONTAINS
              IF (lu_subs < 0) CYCLE
 
              ! plant cover
-             ext_data%atm%plcov_t  (jc,jb,jt)  = ext_data%atm%ndviratio(jc,jb)   &
+             ext_data%atm%plcov_t(jc,jb,jt) = ext_data%atm%ndviratio(jc,jb)                                      &
                & * MIN(ext_data%atm%ndvi_max(jc,jb),ext_data%atm%plcovmax_lcc(lu_subs))
-             ! total area index
-             ext_data%atm%tai_t    (jc,jb,jt)  = ext_data%atm%plcov_t(jc,jb,jt)  &
+             ! transpiration area index
+             ext_data%atm%tai_t  (jc,jb,jt) = ext_data%atm%plcov_t(jc,jb,jt)                                     &
                & * ext_data%atm%laimax_lcc(lu_subs)
              ! surface area index
-             ext_data%atm%sai_t    (jc,jb,jt)  = c_lnd+ ext_data%atm%tai_t (jc,jb,jt)
+             IF (lterra_urb) THEN
+               ext_data%atm%sai_t(jc,jb,jt) = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))                &
+                                            + ext_data%atm%urb_ai_t(jc,jb,jt) * ext_data%atm%urb_isa_t(jc,jb,jt) &
+                                            + ext_data%atm%tai_t(jc,jb,jt)
+             ELSE
+               ext_data%atm%sai_t(jc,jb,jt) = c_lnd + ext_data%atm%tai_t(jc,jb,jt)
+             END IF
 
            END DO !ic
          END DO !jt

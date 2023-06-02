@@ -1,8 +1,14 @@
 #!/bin/bash
 
 # set experiment specific variables
-file_ids=atm_3d_DOM01_ml,atm_3d_DOM02_ml,atm_3d_DOM01_hl,atm_3d_DOM02_hl,atm_3d_DOM01_pl,atm_3d_DOM02_pl,atm_3d_ll_DOM01_ml,atm_3d_ll_DOM02_ml,Meteogram
-exp=dwd_run_ICON_09_R2B4N5_EPS
+probtest_file_ids='*atm_3d_DOM01_ml*.nc'
+probtest_file_ids+=',*atm_3d_DOM02_ml*.nc'
+probtest_file_ids+=',*atm_3d_DOM02_hl*.nc'
+probtest_file_ids+=',*atm_3d_DOM02_pl*.nc'
+probtest_file_ids+=',*atm_3d_ll_DOM01_ml*.nc'
+probtest_file_ids+=',*atm_3d_ll_DOM02_ml*.nc'
+probtest_file_ids+=',Meteogram*.nc'
+probtest_exp=dwd_run_ICON_09_R2B4N5_EPS
 
 . ./add_refgen_routines
 

@@ -950,7 +950,6 @@ CONTAINS
     &                          grid_rescale_factor,    &  !in
     &                          ldeepatmo,              &  !inout
     &                          lcoriolis,              &  !inout
-    &                          l_open_ubc,             &  !inout
     &                          ltransport,             &  !inout
     &                          itopo,                  &  !inout
     &                          iforcing,               &  !inout
@@ -970,7 +969,6 @@ CONTAINS
     REAL(wp),                 INTENT(IN)    :: grid_rescale_factor    ! Rescale factor
     LOGICAL,                  INTENT(INOUT) :: ldeepatmo              ! Switch for deep-atmosphere dynamics
     LOGICAL,                  INTENT(INOUT) :: lcoriolis              ! Switch for Coriolis acceleration
-    LOGICAL,                  INTENT(INOUT) :: l_open_ubc             ! Switch for open upper boundary condition
     LOGICAL,                  INTENT(INOUT) :: ltransport             ! Switch for tracer transport
     INTEGER,                  INTENT(INOUT) :: itopo                  ! Type of topography
     INTEGER,                  INTENT(INOUT) :: iforcing               ! Switch for physics package 
@@ -1045,11 +1043,6 @@ CONTAINS
       IF (.NOT. lcentrifugal) THEN
         upatmo_dyn_config(:)%lcentrifugal = .TRUE.
         CALL message(routine, 'WARNING! lcentrifugal set to .true.')
-      ENDIF
-      ! Rigid-lid boundary condition at model top
-      IF (l_open_ubc) THEN
-        l_open_ubc = .FALSE.
-        CALL message(routine, 'WARNING! l_open_ubc set to .false.')
       ENDIF
       ! Only analytical topography
       IF (itopo /= 0) THEN 

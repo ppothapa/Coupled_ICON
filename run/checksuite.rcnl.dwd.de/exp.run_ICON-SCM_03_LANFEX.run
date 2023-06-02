@@ -355,7 +355,6 @@ cat > NAMELIST_${EXPNAME} << EOF
  ivctype        = 2          ! sleve vertical coordinate
  damp_height    = 44000.     ! top_height-damp_height should be about 15km
  ndyn_substeps  = ${ndyn_substeps}
- l_open_ubc     = .false.   ! top open upper boundary condition. might help to go higher
  rayleigh_type   = 1 
  rayleigh_coeff = 0.5 !0.0
  htop_moist_proc= 22500.

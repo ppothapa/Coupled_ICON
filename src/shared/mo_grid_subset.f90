@@ -29,7 +29,7 @@ MODULE mo_grid_subset
 
   PUBLIC :: t_subset_range, t_subset_range_index, t_subset_indexed
 
-  PUBLIC :: fill_subset, get_index_range
+  PUBLIC :: fill_subset, get_index_range, fill_subset_indices
   PUBLIC :: read_subset, write_subset
   PUBLIC :: block_no, index_no, index_1d
 
@@ -46,14 +46,14 @@ CONTAINS
   ! Assumes that mask is of the shape (1:,1:)
   SUBROUTINE fill_subset(subset, patch, mask, start_mask, end_mask, subset_name, located)
     TYPE(t_subset_range), INTENT(inout) :: subset
-    TYPE(t_patch), TARGET :: patch  ! nag does not return the values in subset
+    TYPE(t_patch), TARGET, INTENT(in) :: patch  ! nag does not return the values in subset
     INTEGER, OPTIONAL, INTENT(in) :: located
     CHARACTER(len=32), OPTIONAL :: subset_name
                                                 ! unless the patch is declared INTENT(in)!
     INTEGER, INTENT(in) :: mask(:,:), start_mask, end_mask
 
     INTEGER :: masks_size(2)
-    INTEGER :: block, index_in_block, start_index, end_index
+    INTEGER :: block, index_in_block, start_index, end_index, start_block_loop
 
     CHARACTER(*), PARAMETER :: method_name = "mo_grid_subset:fill_subset"
 
@@ -78,7 +78,7 @@ CONTAINS
 
         IF (mask(index_in_block, block) >= start_mask .AND. &
             mask(index_in_block, block) <= end_mask) THEN
-          ! we found an elemant in range
+          ! we found an element in range
           IF (subset%start_block < 0) THEN
             ! this is the first element
             subset%start_block = block
@@ -132,6 +132,33 @@ CONTAINS
 !     ENDIF
 
   END SUBROUTINE fill_subset
+
+  !----------------------------------------------------
+  ! fills the subset with indices according to the SR call
+  ! (used to fill the subset owned_no_boundary which addresses
+  !  prognostic cells only, excluding the boundary interpolation
+  !  zone which is necessary for LAM or subdomain grids)
+  !
+  SUBROUTINE fill_subset_indices(subset, patch, start_block, end_block, start_index, end_index)
+    TYPE(t_subset_range), INTENT(inout) :: subset
+    TYPE(t_patch), TARGET, INTENT(in) :: patch  ! nag does not return the values in subset
+    INTEGER, INTENT(in) :: start_block, end_block, start_index, end_index
+
+    subset%start_block = start_block
+    subset%end_block   = end_block
+    subset%start_index = start_index
+    subset%end_index   = end_index
+    subset%block_size  = nproma
+    subset%no_of_holes = -1
+    subset%size        = -1
+    subset%entity_location  = 0
+    subset%patch       => patch
+    subset%max_vertical_levels = 0
+
+    NULLIFY(subset%vertical_levels)
+
+  END SUBROUTINE fill_subset_indices
+  !----------------------------------------------------
 
   !----------------------------------------------------
 

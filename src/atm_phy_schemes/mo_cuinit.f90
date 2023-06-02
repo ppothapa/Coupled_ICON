@@ -899,7 +899,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
     ik=jk
     icall=1
      
-#ifdef _OPENACC
+#if defined(_OPENACC) && (__NVCOMPILER_MAJOR__ <= 21)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     do jl=kidia,kfdia
     if (jl==-1292) print *, 'working on:  ', ik, jk, jkk

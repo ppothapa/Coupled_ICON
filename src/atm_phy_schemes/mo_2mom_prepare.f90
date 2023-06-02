@@ -33,7 +33,7 @@ MODULE mo_2mom_prepare
 CONTAINS
 
   SUBROUTINE prepare_twomoment(atmo, cloud, rain, ice, snow, graupel, hail, &
-       rho, rhocorr, rhocld, pres, w, tk, hhl, &
+       rho, rhocorr, rhocld, pres, w, tk, hhl, tke, &
        nccn, ninpot, ninact, &
        qv, qc, qnc, qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh, qgl, qhl, &
        lprogccn, lprogin, lprogmelt, its, ite, kts, kte)
@@ -43,6 +43,7 @@ CONTAINS
     CLASS(particle),  INTENT(inout)   :: graupel, hail
     REAL(wp), TARGET, DIMENSION(:, :), INTENT(in) :: &
          rho, rhocorr, rhocld, pres, w, tk, hhl
+    REAL(wp), POINTER, DIMENSION(:, :), INTENT(in) :: tke
     REAL(wp), DIMENSION(:,:), INTENT(inout) , TARGET :: &
          &               qv, qc, qnc, qr, qnr, qi, qni, qs, qns, qg, qng, qh, qnh
     LOGICAL, INTENT(in) :: lprogccn, lprogin, lprogmelt
@@ -84,10 +85,10 @@ CONTAINS
 
         IF (lprogccn) THEN
           nccn(ii,kk) = rho(ii,kk) * nccn(ii,kk)
-        end if
-        if (lprogin) then
+        END IF
+        IF (lprogin) THEN
           ninpot(ii,kk)  = rho(ii,kk) * ninpot(ii,kk)
-        end if
+        END IF
 #ifndef _OPENACC
         IF (lprogmelt) THEN
           qgl(ii,kk)  = rho(ii,kk) * qgl(ii,kk)
@@ -110,12 +111,20 @@ CONTAINS
     atmo%qv  => qv
     atmo%rho => rho
     atmo%zh  => hhl
+
+    IF (ASSOCIATED(tke)) THEN
+      atmo%tke => tke
+    ELSE
+      atmo%tke=>NULL()
+    END IF
+
     __acc_attach(atmo%w)
     __acc_attach(atmo%T)
     __acc_attach(atmo%p)
     __acc_attach(atmo%qv)
     __acc_attach(atmo%rho)
     __acc_attach(atmo%zh)
+    __acc_attach(atmo%tke)
 
     cloud%rho_v   => rhocld
     rain%rho_v    => rhocorr
@@ -229,41 +238,42 @@ CONTAINS
     END IF
 
     ! nullify pointers
-    atmo%w   => null()
-    atmo%T   => null()
-    atmo%p   => null()
-    atmo%qv  => null()
-    atmo%rho => null()
-    atmo%zh  => null()
-
-    cloud%rho_v   => null()
-    rain%rho_v    => null()
-    ice%rho_v     => null()
-    graupel%rho_v => null()
-    snow%rho_v    => null()
-    hail%rho_v    => null()
-
-    cloud%q   => null()
-    cloud%n   => null()
-    rain%q    => null()
-    rain%n    => null()
-    ice%q     => null()
-    ice%n     => null()
-    snow%q    => null()
-    snow%n    => null()
-    graupel%q => null()
-    graupel%n => null()
-    hail%q    => null()
-    hail%n    => null()
+    atmo%w   => NULL()
+    atmo%T   => NULL()
+    atmo%p   => NULL()
+    atmo%qv  => NULL()
+    atmo%rho => NULL()
+    atmo%zh  => NULL()
+    atmo%tke => NULL()
+    
+    cloud%rho_v   => NULL()
+    rain%rho_v    => NULL()
+    ice%rho_v     => NULL()
+    graupel%rho_v => NULL()
+    snow%rho_v    => NULL()
+    hail%rho_v    => NULL()
+    
+    cloud%q   => NULL()
+    cloud%n   => NULL()
+    rain%q    => NULL()
+    rain%n    => NULL()
+    ice%q     => NULL()
+    ice%n     => NULL()
+    snow%q    => NULL()
+    snow%n    => NULL()
+    graupel%q => NULL()
+    graupel%n => NULL()
+    hail%q    => NULL()
+    hail%n    => NULL()
 
     SELECT TYPE (graupel)
     CLASS IS (particle_lwf) 
-       graupel%l => null()
+      graupel%l => NULL()
     END SELECT
 
     SELECT TYPE (hail)
     CLASS IS (particle_lwf) 
-       hail%l    => null()
+      hail%l    => NULL()
     END SELECT
 
     ! ... Transformation of variables back to ICON standard variables
@@ -295,12 +305,12 @@ CONTAINS
 
         ninact(ii,kk)  = hlp * ninact(ii,kk)
 
-        if (lprogccn) THEN
+        IF (lprogccn) THEN
           nccn(ii,kk) = hlp * nccn(ii,kk)
-        end if
-        if (lprogin) THEN
+        END IF
+        IF (lprogin) THEN
           ninpot(ii,kk)  = hlp * ninpot(ii,kk)
-        end if
+        END IF
 #ifndef _OPENACC
         IF (lprogmelt) THEN
           qgl(ii,kk)  = hlp * qgl(ii,kk)

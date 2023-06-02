@@ -193,16 +193,14 @@ INTEGER :: nlen, nblks_e, npromz_e
 
 REAL(wp) ::  &
   &  z_div_c(nproma,ptr_patch%nlev,ptr_patch%nblks_c),  &
-  &  z_rot_v(nproma,ptr_patch%nlev,ptr_patch%nblks_v),  &
-  &  z_rot_e(nproma,ptr_patch%nlev,ptr_patch%nblks_e)
+  &  z_rot_v(nproma,ptr_patch%nlev,ptr_patch%nblks_v)
 
 INTEGER,  DIMENSION(:,:,:),   POINTER :: icidx, icblk, ividx, ivblk
 
 !-----------------------------------------------------------------------
 IF (p_test_run) THEN
-  z_div_c(:,:,:)=0.0_wp 
+  z_div_c(:,:,:)=0.0_wp
   z_rot_v(:,:,:)=0.0_wp
-  z_rot_e(:,:,:)=0.0_wp
 ENDIF
 
 ! check optional arguments
@@ -260,7 +258,7 @@ i_nchdom   = MAX(1,ptr_patch%n_childdom)
 i_startblk = ptr_patch%edges%start_blk(rl_start,1)
 i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 
-!$ACC DATA CREATE(z_div_c, z_rot_v, z_rot_e) PRESENT(vec_e) PRESENT(nabla2_vec_e) &
+!$ACC DATA CREATE(z_div_c, z_rot_v) PRESENT(vec_e) PRESENT(nabla2_vec_e) &
 !$ACC   PRESENT(ptr_patch, ptr_int) IF(i_am_accel_node)
 
 ! Initialization of unused elements of nabla2_vec_e
@@ -320,66 +318,6 @@ CASE (3) ! (cell_type == 3)
           &   * ptr_patch%edges%inv_dual_edge_length(je,jb)
 
       END DO
-    END DO
-    !$ACC END PARALLEL
-
-  END DO
-
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-CASE (6) ! (cell_type == 6)
-
-  ! compute rotation of vector field
-  CALL rot_vertex( vec_e, ptr_patch, ptr_int, z_rot_v, slev, elev)
-  CALL sync_patch_array(SYNC_V, ptr_patch, z_rot_v)
-
-  ! compute rhombus vorticities
-  CALL verts2edges_scalar(z_rot_v, ptr_patch, ptr_int%tria_aw_rhom, &
-                          z_rot_e, slev, elev)
-  CALL sync_patch_array(SYNC_E, ptr_patch, z_rot_e)
-
-  ! average the edge values to the vertex values
-  CALL edges2verts_scalar(z_rot_e, ptr_patch, ptr_int%e_1o3_v, z_rot_v, &
-                          slev, elev)
-
-  ! no grid refinement in hexagonal model
-  nblks_e   = ptr_patch%nblks_e
-  npromz_e  = ptr_patch%npromz_e
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,nlen,je,jk) ICON_OMP_DEFAULT_SCHEDULE
-  DO jb = 1, nblks_e
-
-    IF (jb /= nblks_e) THEN
-      nlen = nproma
-    ELSE
-      nlen = npromz_e
-    ENDIF
-
-    !$ACC PARALLEL IF(i_am_accel_node)
-    !$ACC LOOP GANG
-#ifdef __LOOP_EXCHANGE
-    DO je = 1, nlen
-      !$ACC LOOP VECTOR
-      DO jk = slev, elev
-#else
-    DO jk = slev, elev
-      !$ACC LOOP VECTOR
-      DO je = 1, nlen
-#endif
-
-        nabla2_vec_e(je,jk,jb) =  &
-          & - ( z_rot_v(ividx(je,jb,2),jk,ivblk(je,jb,2))     &
-          & -   z_rot_v(ividx(je,jb,1),jk,ivblk(je,jb,1)) )   &
-          &   * ptr_patch%edges%inv_primal_edge_length(je,jb) &
-          & + ptr_patch%edges%tangent_orientation(je,jb) *     &
-          &   ( z_div_c(icidx(je,jb,2),jk,icblk(je,jb,2))     &
-          & -   z_div_c(icidx(je,jb,1),jk,icblk(je,jb,1)) )     &
-          &   * ptr_patch%edges%inv_dual_edge_length(je,jb)
-
-      END DO
-
     END DO
     !$ACC END PARALLEL
 
@@ -600,17 +538,15 @@ CASE (3) ! (cell_type == 3)
 
     !$ACC PARALLEL IF(i_am_accel_node)
 
-    !$ACC LOOP GANG
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
-      !$ACC LOOP VECTOR
       DO jk = slev, elev
 #else
 #ifdef _URD
 !CDIR UNROLL=_URD
 #endif
     DO jk = slev, elev
-      !$ACC LOOP VECTOR
       DO jc = i_startidx, i_endidx
 #endif
         !

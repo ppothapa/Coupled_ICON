@@ -280,27 +280,7 @@ MODULE mo_intp_data_strc
     REAL(wp), ALLOCATABLE :: e_inn_c(:,:,:)   ! coefficient for inner product
                                               ! of 2 vector components
                                               ! from edges to cells
-  
-    REAL(wp), ALLOCATABLE :: e_inn_v(:,:,:)   ! coefficient for inner product
-                                              ! of 2 vector components
-                                              ! from edges to verts
-  
-    REAL(wp), ALLOCATABLE :: e_aw_c(:,:,:)    ! coefficient for scalar interp
-                                              ! from edges to cells
-  
-    REAL(wp), ALLOCATABLE :: r_aw_c(:,:,:)    ! coefficient for scalar interp
-                                              ! from rhombi to cells
-  
-    REAL(wp), ALLOCATABLE :: e_aw_v(:,:,:)    ! coefficient for scalar interp
-                                              ! from edges to vertices
-  
-    REAL(wp), ALLOCATABLE :: e_1o3_v(:,:,:)   ! coefficient for hexagonal grid
-                                              ! averaging from edges to vertices
-  
-    REAL(wp), ALLOCATABLE :: tria_aw_rhom(:,:,:)! coefficient for interpolation
-                                              ! from triangles to rhombi by area
-                                              ! weighting
-  
+
     REAL(wp), ALLOCATABLE :: verts_aw_cells(:,:,:)! coefficient for interpolation
                                               ! from vertices to cells by
                                               ! area weighting
@@ -381,22 +361,8 @@ MODULE mo_intp_data_strc
                                               ! surrounding normals) at each
                                               ! triangle edge
                                               ! (rbf_vec_dim_e,nproma,nblks_e)
-  
-    ! d) fields needed for reconstructions in hexagonal model
-    !--------------------------------------------------------
-    REAL(wp), ALLOCATABLE :: heli_coeff(:,:,:)  ! coefficients for lamb_rot computation
-    INTEGER, ALLOCATABLE  :: heli_vn_idx(:,:,:) ! len indices for vn in lamb_rot
-    INTEGER, ALLOCATABLE  :: heli_vn_blk(:,:,:) ! blk indices for vn in lamb_rot
-    REAL(wp), ALLOCATABLE :: hex_north(:,:,:)   ! coeffs for north vector in hexagon center
-    REAL(wp), ALLOCATABLE :: hex_east(:,:,:)    ! coeffs for east vector in hexagon center
-    REAL(wp), ALLOCATABLE :: tria_north(:,:,:)  ! coeffs for north vector in triangle center
-    REAL(wp), ALLOCATABLE :: tria_east(:,:,:)   ! coeffs for east vector in triangle center
-    REAL(wp), ALLOCATABLE :: quad_north(:,:,:)  ! coeffs for north vector in rhombus center
-    REAL(wp), ALLOCATABLE :: quad_east(:,:,:)   ! coeffs for east vector in rhomus center
-    REAL(wp), ALLOCATABLE :: cno_en(:,:,:)      ! coeffs for north vector in edge center
-    REAL(wp), ALLOCATABLE :: cea_en(:,:,:)      ! coeffs for east vector in edge center
-  
-    ! e) precomputed geometrical factors for mathematical operators (for efficiency)
+
+    ! d) precomputed geometrical factors for mathematical operators (for efficiency)
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: geofac_div(:,:,:)    ! factor for divergence (nproma,cell_type,nblks_c)
     REAL(wp), ALLOCATABLE :: geofac_qdiv(:,:,:)   ! factor for quad-cell divergence (nproma,4,nblks_e)
@@ -405,24 +371,24 @@ MODULE mo_intp_data_strc
     REAL(wp), ALLOCATABLE :: geofac_n2s(:,:,:)    ! factor for nabla2-scalar (nproma,cell_type+1,nblks_c)
     REAL(wp), ALLOCATABLE :: geofac_grg(:,:,:,:)  ! factor for Green-Gauss gradient (nproma,4,nblks_c,2)
   
-    ! f) precomputed Cartesian orientation and location vectors of edge midpoints
-    !    and location of cell centers(for efficiency) : it is now computed in grid genrator stored
+    ! e) precomputed Cartesian orientation and location vectors of edge midpoints
+    !    and location of cell centers(for efficiency) : it is now computed in grid generator stored
     !    in p_patch
     !------------------------------------------------------------------------------
   
-    ! g) patch elements restored from edges to cells to reduce frequency of indirect addressing
+    ! f) patch elements restored from edges to cells to reduce frequency of indirect addressing
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: primal_normal_ec(:,:,:,:) ! p_patch%edges%primal_normal_cell stored on
                                                        ! the cell data type (nproma,nblks_c,3,2)
     REAL(wp), ALLOCATABLE :: edge_cell_length(:,:,:)   ! p_patch%edges%edge_cell_length stored on
                                                        ! the cell data type (nproma,nblks_c,3)
   
-    ! h) distance from cells to vertices on local cartesian grid with origin at the cell center
+    ! g) distance from cells to vertices on local cartesian grid with origin at the cell center
     !    (used for gradient limiter)
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: cell_vert_dist(:,:,:,:)   ! (nproma,3,2,nblks_c)
   
-    ! i) fields related to calculation of backward trajectories on local plane
+    ! h) fields related to calculation of backward trajectories on local plane
     !    tangential to the edge midpoint
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: pos_on_tplane_e(:,:,:,:)  ! positions of various points on local plane
@@ -443,65 +409,16 @@ MODULE mo_intp_data_strc
     !------------------------------------------------------------------------------
     TYPE(t_lsq) :: lsq_lin,  &  ! coefficients for linear lsq-reconstruction
       &            lsq_high     ! coefficients for higher order lsq-reconstruction
-  
-  
-    ! j) fields related to third order advection and Smagorinski diffusion (on hexagons):
-    ! directional laplacian ( as du/dx > ux, dv/dy > vy, du/dx=dv/dy > xy )
-    !----------------------------------------------------------------------
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradh_i1(  :,:,:) ! index array for edges of neighbor hexagon cell 1 of considered
-                              ! edge (6  , nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradh_b1(  :,:,:) ! block array for edges of neighbor hexagon cell 1 of considered
-                              ! edge (6  , nproma, nblks_e)
-    REAL(wp), ALLOCATABLE :: &
-      & dir_gradhux_c1(:,:,:)
-  
-    REAL(wp), ALLOCATABLE :: &
-      & strain_def_c1( :,:,:) ! coeff array for edges of neighbor hexagon cell 1 of considered
-                              ! edge (6  , nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradh_i2(  :,:,:) ! index array for edges of neighbor hexagon cell 2 of considered
-                              ! edge (6  , nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradh_b2(  :,:,:) ! block array for edges of neighbor hexagon cell 2 of considered
-                              ! edge (6  , nproma, nblks_e)
-    REAL(wp), ALLOCATABLE :: &
-      & dir_gradhux_c2(:,:,:)
-    REAL(wp), ALLOCATABLE :: &
-      & strain_def_c2( :,:,:) ! coeff array for edges of neighbor hexagon cell 2 of considered&
-                              ! edge (6  , nproma, nblks_e)
-  
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradt_i1(  :,:,:) ! index array for edges of neighbor triangle cell 1 of considered
-                              ! edge (12, nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradt_b1(  :,:,:) ! block array for edges of neighbor triangle cell 1 of considered
-                              ! edge (12, nproma, nblks_e)
-    REAL(wp), ALLOCATABLE :: &
-      & dir_gradtxy_v1(:,:,:), dir_gradtyx_v1(:,:,:)
-    REAL(wp), ALLOCATABLE :: &
-      & shear_def_v1(  :,:,:) ! coeff array for edges of neighbor triangle cell 1 of considered
-                              ! edge (12, nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradt_i2(  :,:,:) ! index array for edges of neighbor triangle cell 2 of considered
-                              ! edge (12, nproma, nblks_e)
-    INTEGER , ALLOCATABLE :: &
-      & dir_gradt_b2(  :,:,:) ! block array for edges of neighbor triangle cell 2 of considered
-                              ! edge (12, nproma, nblks_e)
-    REAL(wp), ALLOCATABLE :: dir_gradtxy_v2(:,:,:), dir_gradtyx_v2(:,:,:)
-    REAL(wp), ALLOCATABLE :: &
-      & shear_def_v2(  :,:,:) ! coeff array for edges of neighbor triangle cell 2 of considered
-                              ! edge (12, nproma, nblks_e)
-  
-    ! k) Nudging coefficients used for 1-way nesting and limited-area mode (defined here
+
+
+    ! j) Nudging coefficients used for 1-way nesting and limited-area mode (defined here
     !    rather than in grf_state because the limited-area mode may be used without nesting)
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: nudgecoeff_c(:,:)  !< Nudging coefficient for cells
     REAL(wp), ALLOCATABLE :: nudgecoeff_e(:,:)  !< Nudging coefficient for cells
   
   
-    ! l) Quadrature points and weights for integration over triangular element
+    ! k) Quadrature points and weights for integration over triangular element
     !--------------------------------------------------------------------------
     TYPE(t_gauss_quad) ::gquad
   
@@ -547,7 +464,6 @@ MODULE mo_intp_data_strc
   
   
     ! Location of midpoint of dual edge
-    !!$    TYPE(t_geographical_coordinates), ALLOCATABLE :: mid_dual_edge(:,:)
     ! Cartesian distance from vertex1 to vertex2 via dual edge midpoint
     REAL(wp), ALLOCATABLE :: dist_cell2edge(:,:,:)
 

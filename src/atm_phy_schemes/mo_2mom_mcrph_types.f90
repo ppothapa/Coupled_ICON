@@ -33,7 +33,7 @@ MODULE mo_2mom_mcrph_types
 
   ! Derived type for atmospheric variables
   TYPE ATMOSPHERE
-     REAL(wp), pointer, dimension(:,:) :: w, p, t, rho, qv, zh
+    REAL(wp), POINTER, DIMENSION(:,:) :: w, p, t, rho, qv, zh, tke
   END TYPE ATMOSPHERE
   
   ! Derived type for hydrometeor species including pointers to data
@@ -52,9 +52,9 @@ MODULE mo_2mom_mcrph_types
     REAL(wp)      :: cap        !..coefficient for capacity of particle
     REAL(wp)      :: vsedi_max  !..max bulk sedimentation velocity
     REAL(wp)      :: vsedi_min  !..min bulk sedimentation velocity
-    REAL(wp), pointer, dimension(:,:) :: n     !..number density
-    REAL(wp), pointer, dimension(:,:) :: q     !..mass density
-    REAL(wp), pointer, dimension(:,:) :: rho_v !..density correction of terminal fall velocity
+    REAL(wp), POINTER, DIMENSION(:,:) :: n     !..number density
+    REAL(wp), POINTER, DIMENSION(:,:) :: q     !..mass density
+    REAL(wp), POINTER, DIMENSION(:,:) :: rho_v !..density correction of terminal fall velocity
   END TYPE PARTICLE
 
   TYPE, EXTENDS(particle) :: particle_frozen

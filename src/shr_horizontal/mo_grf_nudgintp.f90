@@ -754,15 +754,14 @@ DO jn = 1, nfields
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jc = i_startidx, i_endidx
         DO jk = 1, elev
           IF (.NOT. l_enabled(jk)) CYCLE
 #else
-      !$ACC LOOP GANG
+      !$ACC LOOP SEQ
       DO jk = 1, elev
         IF (.NOT. l_enabled(jk)) CYCLE
-        !$ACC LOOP VECTOR
+        !$ACC LOOP GANG VECTOR
 !$NEC ivdep
         DO jc = i_startidx, i_endidx
 #endif
@@ -783,15 +782,13 @@ DO jn = 1, nfields
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jc = i_startidx, i_endidx
         DO jk = 1, elev
           IF (.NOT. l_enabled(jk)) CYCLE
 #else
-      !$ACC LOOP GANG
       DO jk = 1, elev
         IF (.NOT. l_enabled(jk)) CYCLE
-        !$ACC LOOP VECTOR
+        !$ACC LOOP GANG VECTOR
 !$NEC ivdep
         DO jc = i_startidx, i_endidx
 #endif

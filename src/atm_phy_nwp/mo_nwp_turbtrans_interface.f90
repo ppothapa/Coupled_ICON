@@ -31,9 +31,9 @@
 MODULE mo_nwp_turbtrans_interface
 
   USE mo_kind,                 ONLY: wp
-  USE mo_exception,            ONLY: message, finish
+  USE mo_exception,            ONLY: message, finish, message_text
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: min_rlcell_int, icosmo, igme, ismag, iedmf, iprog
+  USE mo_impl_constants,       ONLY: min_rlcell_int, icosmo, igme, ismag, iedmf, iprog, max_dom
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_physical_constants,   ONLY: rd_o_cpd, grav, lh_v=>alv, lh_s=>als, rd, cpd
@@ -71,6 +71,11 @@ MODULE mo_nwp_turbtrans_interface
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
 
+#ifdef ICON_USE_CUDA_GRAPH
+  USE openacc, ONLY: accgraph, accx_begin_capture, accx_end_capture, accx_graph_exec
+  USE, INTRINSIC :: iso_c_binding
+#endif
+
   IMPLICIT NONE
 
   PRIVATE
@@ -78,6 +83,20 @@ MODULE mo_nwp_turbtrans_interface
 
 
   PUBLIC  ::  nwp_turbtrans
+
+
+#ifdef ICON_USE_CUDA_GRAPH
+  TYPE(accgraph) :: graphs(max_dom*2)
+  TYPE(c_ptr) :: lnd_prog_new_cache(max_dom*2) = C_NULL_PTR
+  LOGICAL :: graph_captured
+  INTEGER :: cur_graph_id, ig
+  LOGICAL, PARAMETER :: multi_queue_processing = .TRUE.
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: multi_queue_processing = .FALSE.
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+  INTEGER :: acc_async_queue = 1
 
 CONTAINS
   !!
@@ -105,7 +124,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   TYPE(t_nh_diag),      TARGET,INTENT(inout):: p_diag          !<the diag vars
   TYPE(t_nwp_phy_diag),        INTENT(inout):: prm_diag        !< atm phys vars
   TYPE(t_wtr_prog),            INTENT(in)   :: wtr_prog_new    !< prog vars for wtr
-  TYPE(t_lnd_prog),            INTENT(inout):: lnd_prog_new    !< prog vars for sfc
+  TYPE(t_lnd_prog),     TARGET,INTENT(inout):: lnd_prog_new    !< prog vars for sfc
   TYPE(t_lnd_diag),            INTENT(inout):: lnd_diag        !< diag vars for sfc
   TYPE(t_nwp_phy_tend), TARGET,INTENT(inout):: prm_nwp_tend    !< atm tend vars 
   REAL(wp),                    INTENT(in)   :: tcall_turb_jg   !< time interval for
@@ -140,7 +159,8 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ! Local fields needed to reorder turbtran input/output fields for tile approach
 
   ! 1D fields
-  REAL(wp), DIMENSION(nproma)   :: pres_sfc_t, l_hori, rlamh_fac
+  REAL(wp), DIMENSION(nproma)   :: pres_sfc_t, l_hori, rlamh_fac, &
+   sai_t, urb_isa_t, t_g_t, qv_s_t
 
   ! 2D half-level fields
   REAL(wp), DIMENSION(nproma,3) :: z_ifc_t
@@ -155,7 +175,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ! 2D fields (tiles)
   REAL(wp), DIMENSION(nproma,ntiles_total+ntiles_water) :: &
    gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, &
-   t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t,  &
+   t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, u_10m_t, v_10m_t,  &
    shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t
 
   REAL(wp), DIMENSION(nproma) :: &
@@ -170,6 +190,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   CALL set_acc_host_or_device(lzacc, lacc)
 
   IF (msg_level >= 15) CALL message('mo_nwp_turbtrans_interface:', 'turbulence')
+  IF (timers_level > 9) CALL timer_start(timer_nwp_turbtrans)
 
   ! number of vertical levels
   nlev   = p_patch%nlev
@@ -178,20 +199,55 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ! domain
   jg = p_patch%id
 
-  !$ACC DATA CREATE(gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t) &
-  !$ACC   CREATE(u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t) &
-  !$ACC   CREATE(tkvm_t, tkvh_t, u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, rcld_t, z_ifc_t, pres_sfc_t, l_hori) &
-  !$ACC   CREATE(z_tvs, tvs_t, fr_land_t, depth_lk_t, h_ice_t, jk_gust, rlamh_fac) &
-  !$ACC   PRESENT(p_metrics, p_diag, prm_diag, lnd_prog_new, lnd_diag, ext_data, p_prog, p_prog_rcf, phy_params) &
-  !$ACC   PRESENT(advection_config, wtr_prog_new) &
-  !$ACC   IF(lzacc)
+#ifdef ICON_USE_CUDA_GRAPH
+  IF (lzacc) THEN
+    cur_graph_id = -1
+    DO ig=1,max_dom*2
+      IF (C_LOC(lnd_prog_new) == lnd_prog_new_cache(ig)) THEN
+        cur_graph_id = ig
+        graph_captured = .TRUE.
+        EXIT
+      END IF
+    END DO
 
-  !$ACC DATA NO_CREATE(gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t, tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t) &
-  !$ACC   NO_CREATE(u_10m_t, v_10m_t, t_g_t, qv_s_t, sai_t, urb_isa_t, shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t, vmfl_s_t) &
-  !$ACC   NO_CREATE(tkvm_t, tkvh_t, u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, rcld_t, z_ifc_t, pres_sfc_t, l_hori) &
-  !$ACC   NO_CREATE(z_tvs, tvs_t, fr_land_t, depth_lk_t, h_ice_t, jk_gust, rlamh_fac) &
-  !$ACC   NO_CREATE(p_metrics, p_diag, prm_diag, lnd_prog_new, lnd_diag, ext_data, p_prog, p_prog_rcf, phy_params) &
-  !$ACC   NO_CREATE(advection_config, wtr_prog_new)
+    IF (cur_graph_id < 0) THEN
+      DO ig=1,max_dom*2
+        IF (lnd_prog_new_cache(ig) == C_NULL_PTR) THEN
+          cur_graph_id = ig
+          lnd_prog_new_cache(ig) = C_LOC(lnd_prog_new)
+          graph_captured = .FALSE.
+          EXIT
+        END IF
+      END DO
+    END IF
+
+    IF (cur_graph_id < 0) THEN
+      CALL finish('mo_nwp_turbtrans_interface: ', 'error trying to allocate CUDA graph')
+    END IF
+
+    IF (graph_captured) THEN
+      WRITE(message_text,'(a,i2)') 'executing CUDA graph id ', cur_graph_id
+      IF (msg_level >= 14) CALL message('mo_nwp_turbtrans_interface: ', message_text)
+      CALL accx_graph_exec(graphs(cur_graph_id), 1)
+      !$ACC WAIT(1)
+      IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
+      RETURN
+    ELSE
+      WRITE(message_text,'(a,i2)') 'starting to capture CUDA graph, id ', cur_graph_id
+      IF (msg_level >= 13) CALL message('mo_nwp_turbtrans_interface: ', message_text)
+      CALL accx_begin_capture(1)
+    END IF
+  END IF
+#endif
+
+  !$ACC DATA PRESENT(p_patch, p_metrics, ext_data, p_prog, p_prog_rcf, p_diag) &
+  !$ACC   PRESENT(prm_diag, prm_nwp_tend, wtr_prog_new, lnd_prog_new, lnd_diag) &
+  !$ACC   PRESENT(phy_params, advection_config) &
+  !$ACC   CREATE(jk_gust, gz0_t, tcm_t, tch_t, tfm_t, tfh_t, tfv_t, tvm_t, tvh_t) &
+  !$ACC   CREATE(tkr_t, t_2m_t, qv_2m_t, td_2m_t, rh_2m_t, u_10m_t, v_10m_t) &
+  !$ACC   CREATE(shfl_s_t, lhfl_s_t, qhfl_s_t, umfl_s_t) &
+  !$ACC   CREATE(vmfl_s_t, tkvm_t, tkvh_t, rcld_t, tvs_t, z_tvs) &
+  !$ACC   ASYNC(1) IF(lzacc)
 
   ! exclude boundary interpolation zone of nested domains
   rl_start = grf_bdywidth_c+1
@@ -399,16 +455,13 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
       IF (ntiles_total == 1) THEN ! tile approach not used; use tile-averaged fields from extpar
 
         !should be dependent on location in future!
+        !$ACC DATA CREATE(l_hori) ASYNC(1) IF(lzacc)
         !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
         l_hori(i_startidx:i_endidx)=phy_params(jg)%mean_charlen
         !$ACC END KERNELS
 
         nzprv  = 1
         nlevcm = 3
-
-        !$ACC WAIT IF(lzacc)
-
-        IF (timers_level > 9) CALL timer_start(timer_nwp_turbtrans)
 
         ! turbtran
         CALL turbtran (               & ! only surface-layer turbulence
@@ -464,12 +517,12 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           &  qvfl_s=prm_diag%qhfl_s_t(:,jb,1),                                         & !out
           &  umfl_s=prm_diag%umfl_s_t(:,jb,1),                                         & !out
           &  vmfl_s=prm_diag%vmfl_s_t(:,jb,1),                                         & !out
-          &  lacc=lzacc                                                                 ) !in
+          &  lacc=lzacc,                                                               & !in
+          &  opt_acc_async_queue=1                                       ) !in
+        
+        !$ACC END DATA
 
-
-        IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
-
-        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag%lhfl_s_t(jc,jb,1) = &
@@ -503,36 +556,58 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
 
       ELSE ! tile approach used
 
-        ! preset variables for land tile indices
-        !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
-        fr_land_t(:)  = 1._wp
-        depth_lk_t(:) = 0._wp
-        h_ice_t(:)    = 0._wp
-        !$ACC END KERNELS
-
+        IF (multi_queue_processing) THEN
+          DO jt = 1, ntiles_total + ntiles_water
+            !$ACC WAIT(1) ASYNC(jt)
+          END DO
+        END IF
 
         ! Loop over land tile points, sea, lake points and seaice points
         ! Each tile has a separate index list
         DO  jt = 1, ntiles_total + ntiles_water
 
+          IF (multi_queue_processing) acc_async_queue = jt
+          !$ACC DATA CREATE(u_t, v_t, temp_t, pres_t, qv_t, qc_t, epr_t, z_ifc_t, pres_sfc_t) &
+          !$ACC   CREATE(l_hori, fr_land_t, depth_lk_t, h_ice_t, rlamh_fac) &
+          !$ACC   CREATE(urb_isa_t, sai_t, t_g_t, qv_s_t, i_count) &
+          !$ACC   ASYNC(acc_async_queue) IF(lzacc)
+
+#ifndef _OPENACC
+          IF (jt == 1) THEN
+#endif
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
+          fr_land_t(:)  = 1._wp
+          depth_lk_t(:) = 0._wp
+          h_ice_t(:)    = 0._wp
+          !$ACC END KERNELS
+#ifndef _OPENACC
+          END IF
+#endif
+
           IF (jt <= ntiles_total) THEN ! land tile points
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
             i_count =  ext_data%atm%gp_count_t(jb,jt)
+            !$ACC END KERNELS
             ilist   => ext_data%atm%idx_lst_t(:,jb,jt)
           ELSE IF (jt == ntiles_total + 1) THEN ! sea points (open water)
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
             i_count =  ext_data%atm%list_seawtr%ncount(jb)
+            !$ACC END KERNELS
             ilist   => ext_data%atm%list_seawtr%idx(:,jb)
-            !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+            !$ACC KERNELS ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
             fr_land_t(:) = 0._wp
             !$ACC END KERNELS
           ELSE IF (jt == ntiles_total + 2) THEN ! lake points
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
             i_count =  ext_data%atm%list_lake%ncount(jb)
+            !$ACC END KERNELS
             ilist   => ext_data%atm%list_lake%idx(:,jb)
-            !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+            !$ACC KERNELS ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
             fr_land_t (:) = 0._wp
             depth_lk_t(:) = 1._wp
             !$ACC END KERNELS
             IF (llake) THEN
-              !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc) NO_CREATE(ilist)
+              !$ACC PARALLEL ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
               !$ACC LOOP GANG VECTOR PRIVATE(jc)
               DO ic= 1, i_count
                 jc = ilist(ic)
@@ -540,7 +615,7 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
               ENDDO
               !$ACC END PARALLEL
             ELSE
-              !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc) NO_CREATE(ilist)
+              !$ACC PARALLEL ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
               !$ACC LOOP GANG VECTOR PRIVATE(jc)
               DO ic= 1, i_count
                 jc = ilist(ic)
@@ -550,9 +625,11 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             ENDIF
           ELSE IF (jt == ntiles_total + 3) THEN ! seaice points
             ! Note that if the sea-ice scheme is not used (lseaice=.FALSE.), list_seaice%ncount=0.
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
             i_count =  ext_data%atm%list_seaice%ncount(jb)
+            !$ACC END KERNELS
             ilist   => ext_data%atm%list_seaice%idx(:,jb)
-            !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+            !$ACC KERNELS ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
             fr_land_t (:) = 0._wp
             depth_lk_t(:) = 0._wp
             h_ice_t   (:) = 1._wp  ! Only needed for checking whether ice is present or not
@@ -562,14 +639,16 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             CALL finish( TRIM(routine),'wrong value of ntiles_total + ntiles_water')
           ENDIF
 
+#ifndef _OPENACC
           IF (i_count == 0) CYCLE ! skip loop if the index list for the given tile is empty
+#endif
 
           ! Copy input fields to the local re-indexed variables
           ! It remains to be determined which of the model levels are actually needed for non-init calls
           !
           !MR: Hauptflaechengroessen nur fuer level nlev
 !$NEC ivdep
-          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc) NO_CREATE(ilist)
+          !$ACC PARALLEL ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(jc)
           DO ic = 1, i_count
             jc = ilist(ic)
@@ -585,10 +664,10 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             pres_sfc_t(ic)      = p_diag%pres_sfc   (jc,jb)
 
             gz0_t  (ic,jt)      = prm_diag%gz0_t    (jc,jb,jt)
-            t_g_t  (ic,jt)      = lnd_prog_new%t_g_t(jc,jb,jt)
-            qv_s_t (ic,jt)      = lnd_diag%qv_s_t   (jc,jb,jt)
-            sai_t  (ic,jt)      = ext_data%atm%sai_t(jc,jb,jt)
-            urb_isa_t(ic,jt)    = ext_data%atm%urb_isa_t(jc,jb,jt)
+            t_g_t  (ic)         = lnd_prog_new%t_g_t(jc,jb,jt)
+            qv_s_t (ic)         = lnd_diag%qv_s_t   (jc,jb,jt)
+            sai_t  (ic)         = ext_data%atm%sai_t(jc,jb,jt)
+            urb_isa_t(ic)       = ext_data%atm%urb_isa_t(jc,jb,jt)
 
 !MR: rcld: benoetigt nur fuer level nlev (als Nebenflaechenvariable)
             rcld_t (ic,1:3,jt)  = prm_diag%rcld     (jc,nlev-1:nlevp1,jb)
@@ -611,10 +690,6 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           nlevcm = 3
           nzprv  = 1
           
-          !$ACC WAIT IF(lzacc)
-
-          IF (timers_level > 9) CALL timer_start(timer_nwp_turbtrans)
-
           ! turbtran
           CALL turbtran (               & ! only surface-layer turbulence
             &  iini=0,                  & !
@@ -636,11 +711,11 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             &  depth_lk=depth_lk_t(:),                                      & !in
             &  h_ice=h_ice_t(:),                                            & !in
             &  rlamh_fac=rlamh_fac(:),                                      & !in
-            &  sai=sai_t(:,jt),                                             & !in
-            &  urb_isa=urb_isa_t(:,jt),                                     & !in
+            &  sai=sai_t(:),                                                & !in
+            &  urb_isa=urb_isa_t(:),                                        & !in
             &  gz0=gz0_t(:,jt),                                             & !inout
-            &  t_g=t_g_t(:,jt),                                             & !in
-            &  qv_s=qv_s_t(:,jt),                                           & !in
+            &  t_g=t_g_t(:),                                                & !in
+            &  qv_s=qv_s_t(:),                                              & !in
             &  ps=pres_sfc_t(:),                                            & !in
             &  u=u_t(:,:),                                                  & !in
             &  v=v_t(:,:),                                                  & !in
@@ -671,20 +746,26 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
             &  qvfl_s=qhfl_s_t(:,jt),                                       & !out
             &  umfl_s=umfl_s_t(:,jt),                                       & !out
             &  vmfl_s=vmfl_s_t(:,jt),                                       & !out
-            &  lacc=lzacc                                                   ) !in
-
-          IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
+            &  lacc=lzacc,                                                  & !in
+            &  opt_acc_async_queue=acc_async_queue                          ) !in
 
           ! Decision as to "ice" vs. "no ice" is made on the basis of h_ice_t(:).
-          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL ASYNC(acc_async_queue) DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO ic= 1, i_count
             lhfl_s_t(ic,jt) = MERGE(qhfl_s_t(ic,jt)*lh_v, qhfl_s_t(ic,jt)*lh_s,  &
               &                     h_ice_t(ic)<h_Ice_min_flk)
           ENDDO
           !$ACC END PARALLEL
-
+          !$ACC END DATA
         ENDDO ! loop over tiles
+
+        
+        IF (multi_queue_processing) THEN
+          DO jt = 1, ntiles_total + ntiles_water
+            !$ACC WAIT(jt) ASYNC(1)
+          END DO
+        END IF
 
 
         ! Aggregate tile-based output fields of turbtran over tiles
@@ -724,26 +805,37 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
         !$ACC END KERNELS
 
          ! ii) loop over index lists
+        !$ACC DATA CREATE(i_count) ASYNC(1) IF(lzacc)
         DO  jt = 1, ntiles_total + ntiles_water
 
           IF (jt <= ntiles_total) THEN ! land tile points
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             i_count = ext_data%atm%gp_count_t(jb,jt)
+            !$ACC END KERNELS
             ilist => ext_data%atm%idx_lst_t(:,jb,jt)
           ELSE IF (jt == ntiles_total + 1) THEN ! sea points (seaice points excluded)
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             i_count = ext_data%atm%list_seawtr%ncount(jb)
+            !$ACC END KERNELS
             ilist => ext_data%atm%list_seawtr%idx(:,jb)
           ELSE IF (jt == ntiles_total + 2) THEN ! lake points
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             i_count = ext_data%atm%list_lake%ncount(jb)
+            !$ACC END KERNELS
             ilist => ext_data%atm%list_lake%idx(:,jb)
           ELSE ! IF (jt == ntiles_total + 3) THEN ! seaice points
+            !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             i_count = ext_data%atm%list_seaice%ncount(jb)
+            !$ACC END KERNELS
             ilist => ext_data%atm%list_seaice%idx(:,jb)
           ENDIF
 
+#ifndef _OPENACC
           IF (i_count == 0) CYCLE ! skip loop if the index list for the given tile is empty
+#endif
 
 !$NEC ivdep
-          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc) NO_CREATE(ilist)
+          !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(jc, area_frac)
           DO ic = 1, i_count
             jc = ilist(ic)
@@ -823,9 +915,9 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
               ENDIF
             ENDDO
           ENDIF
-
           !$ACC END PARALLEL
         ENDDO  ! jt
+        !$ACC END DATA
 
       ENDIF ! tiles / no tiles
 
@@ -1109,10 +1201,20 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
   ENDDO ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-  !$ACC WAIT IF(lzacc)
 
   !$ACC END DATA
-  !$ACC END DATA
+
+#ifdef ICON_USE_CUDA_GRAPH
+    IF (lzacc) THEN
+      CALL accx_end_capture(graphs(cur_graph_id), 1)
+      WRITE(message_text,'(a,i2,a)') 'finished to capture CUDA graph, id ', cur_graph_id, ', now executing it'
+      IF (msg_level >= 13) CALL message('mo_nwp_turbtrans_interface: ', message_text)
+      CALL accx_graph_exec(graphs(cur_graph_id), 1)
+    END IF
+#endif
+
+  !$ACC WAIT(1)
+  IF (timers_level > 9) CALL timer_stop(timer_nwp_turbtrans)
 
 END SUBROUTINE nwp_turbtrans
 

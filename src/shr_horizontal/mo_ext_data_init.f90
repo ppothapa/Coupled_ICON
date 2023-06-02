@@ -48,7 +48,7 @@ MODULE mo_ext_data_init
                                    frlndtile_thrhld, frlake_thrhld, frsea_thrhld, isub_water,       &
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
-                                   lterra_urb, cr_bsmin, itype_evsl
+                                   lterra_urb, itype_eisa, cr_bsmin, itype_evsl
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
@@ -285,14 +285,10 @@ CONTAINS
             ext_data(jg)%atm%fr_land(:,:)     = 0._wp       ! land fraction
             ext_data(jg)%atm%llsm_atm_c(:,:)  = .FALSE.     ! land-sea mask
             ext_data(jg)%atm%llake_c(:,:)     = .FALSE.     ! lake mask
-            ext_data(jg)%atm%plcov_mx(:,:)    = 0.5_wp      ! plant cover
-            ext_data(jg)%atm%lai_mx(:,:)      = 3._wp       ! max Leaf area index
-            ext_data(jg)%atm%rootdp(:,:)      = 1._wp       ! root depth
-            ext_data(jg)%atm%skinc(:,:)       = 30._wp      ! skin conductivity
 !
-            ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area of the urban canopy
+            ext_data(jg)%atm%urb_isa(:,:)     = 0._wp       ! impervious surface area fraction of the urban canopy
             IF (lterra_urb) THEN
-              ext_data(jg)%atm%fr_paved(:,:)    = 0._wp       ! impervious surface area (ISA)
+              ext_data(jg)%atm%fr_paved(:,:)    = 0._wp       ! impervious surface area (ISA) fraction
               ext_data(jg)%atm%urb_ai(:,:)      = 2._wp       ! surface area index of the urban canopy
               ext_data(jg)%atm%urb_alb_red(:,:) = 0.9_wp      ! albedo reduction factor for the urban canopy
               ext_data(jg)%atm%urb_fr_bld(:,:)  = 0.667_wp    ! building area fraction with respect to urban tile
@@ -305,6 +301,10 @@ CONTAINS
               ext_data(jg)%atm%ahf(:,:)         = 0._wp       ! anthropogenic heat flux
             ENDIF
 !
+            ext_data(jg)%atm%plcov_mx(:,:)    = 0.5_wp      ! plant cover
+            ext_data(jg)%atm%lai_mx(:,:)      = 3._wp       ! max Leaf area index
+            ext_data(jg)%atm%rootdp(:,:)      = 1._wp       ! root depth
+            ext_data(jg)%atm%skinc(:,:)       = 30._wp      ! skin conductivity
             ext_data(jg)%atm%rsmin(:,:)       = 150._wp     ! minimal stomata resistence
             ext_data(jg)%atm%soiltyp(:,:)     = 8           ! soil type
             ext_data(jg)%atm%z0(:,:)          = 0.001_wp    ! roughness length
@@ -526,7 +526,7 @@ CONTAINS
       END IF
       cdi_filetype  = streamInqFileType(cdi_extpar_id)
 
-      IF (islope_rad == 2) THEN
+      IF (islope_rad(jg) >= 2) THEN
       ! get the number of horizon sectors
         horizon_id = get_cdi_varID(cdi_extpar_id, "HORIZON")
         vlist_id   = streamInqVlist(cdi_extpar_id)
@@ -1039,15 +1039,14 @@ CONTAINS
 
         ELSE
 
-          ! --- option MPI grids: read full [-2,2] land-sea mask in grid file
-          ! get land-sea-mask on cells, integer marks are:
-          ! inner sea (-2), boundary sea (-1, cells and vertices), boundary (0, edges),
-          ! boundary land (1, cells and vertices), inner land (2)
+          ! --- option MPI grids for coupling: Read fraction of land (land-sea mask) from
+          ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
+          ! 0.0 is ocean, 1.0 is land, fractions on coasts (lakes are land).
+          ! Used for lsmnolake in src/atm_coupling/mo_atmo_coupling_frame.f90.
 
           CALL openInputFile(stream_id, p_patch(jg)%grid_filename, p_patch(jg), default_read_method)
 
-          CALL read_2D_int(stream_id, on_cells, 'cell_sea_land_mask', &
-            &              ext_data(jg)%atm%lsm_ctr_c)
+          CALL read_2D (stream_id, on_cells, 'cell_sea_land_mask', ext_data(jg)%atm%lsm_ctr_c)
 
           CALL closeFile(stream_id)
 
@@ -1215,11 +1214,12 @@ CONTAINS
 
         IF ( is_coupled_run() ) THEN
 
-          ! --- option NWP grids: read ocean [0,1] land-sea mask in extpar file
-          ! get land-sea-mask on cells - interpolated from ocean land-sea-mask
-          ! integer marks are: sea (0), land (1)
+          ! --- option NWP grids for coupling: Read fraction of land (land-sea mask) from
+          ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
+          ! 0.0 is ocean, 1.0 is land, fractions on coasts (lakes are land).
+          ! Used in routine lsm_ocean_atmo.
 
-          CALL read_extdata('cell_sea_land_mask', arr2di=ext_data(jg)%atm%lsm_ctr_c)
+          CALL read_extdata('cell_sea_land_mask', ext_data(jg)%atm%lsm_ctr_c)
 
         ENDIF
 
@@ -1240,7 +1240,7 @@ CONTAINS
           CALL read_extdata('FR_LAKE',   ext_data(jg)%atm%fr_lake)
           CALL read_extdata('DEPTH_LK',  ext_data(jg)%atm%depth_lk)
 
-          IF (islope_rad == 2) THEN
+          IF (islope_rad(jg) >= 2) THEN
             CALL read_extdata('HORIZON', arr3d=ext_data(jg)%atm%horizon,ltime=.FALSE.)
             CALL read_extdata('SKYVIEW', ext_data(jg)%atm%skyview)
   
@@ -1416,7 +1416,7 @@ CONTAINS
 
         ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
 
-        IF ( iforcing == inwp .AND. is_coupled_run() ) THEN
+        IF ( is_coupled_run() ) THEN
           CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
         ENDIF
 
@@ -1734,66 +1734,98 @@ CONTAINS
                ext_data(jg)%atm%lc_class_t(jc,jb,1) = MAXLOC(tile_frac,1,tile_mask)
                lhave_urban = ext_data(jg)%atm%lc_class_t(jc,jb,1) == ext_data(jg)%atm%i_lc_urban
                !
-               ! root depth
-               ext_data(jg)%atm%rootdp_t (jc,jb,1)  = ext_data(jg)%atm%rootdp(jc,jb)
+               ! Urban Canopy Parameters (UCPs)
+               !
+               ! impervious surface area fraction of the urban canopy
+               ext_data(jg)%atm%urb_isa_t(jc,jb,1)       = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
 
-               ! plant cover
-               ext_data(jg)%atm%plcov_t  (jc,jb,1)  = ptr_ndviratio(jc,jb)  &
-                 &     * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcov_mx(jc,jb))
-               ! transpiration area index
-               ext_data(jg)%atm%tai_t    (jc,jb,1)  = ext_data(jg)%atm%plcov_t  (jc,jb,1)  &
-                 &                                  * ext_data(jg)%atm%lai_mx(jc,jb)
-               ! surface area index
-               ext_data(jg)%atm%sai_t    (jc,jb,1)  = c_lnd+ext_data(jg)%atm%tai_t(jc,jb,1)
-               ! evaporative soil area index
-               IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
-                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(0.75_wp,                   &
-                   2.0_wp-1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban),lhave_urban)
-                 ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
-               ELSE
-                 ext_data(jg)%atm%eai_t(jc,jb,1) = MERGE(c_soil_urb,c_soil,lhave_urban)
-                 ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
-               ENDIF
-               ! skin conductivity
-               ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
-!
-               ! impervious surface area of the urban canopy
-               ext_data(jg)%atm%urb_isa_t(jc,jb,1)  = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                IF (lterra_urb) THEN
-                 ! impervious surface area (ISA)
+                 ! impervious surface area (ISA) fraction
                  ext_data(jg)%atm%fr_paved_t(jc,jb,1)    = ext_data(jg)%atm%fr_paved_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+
                  ! building area fraction with respect to urban tile
                  ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)  = 0.667_wp
+
                  ! street canyon H/W ratio
                  ext_data(jg)%atm%urb_h2w_t(jc,jb,1)     = 1.5_wp
+
                  ! surface area index of the urban canopy
                  ext_data(jg)%atm%urb_ai_t(jc,jb,1)      = (1.0_wp + 2.0_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))  &
                    &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
                    &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+
                  ! albedo reduction factor for the urban canopy
                  ! Reduce the effective albedo according to the building density,
                  ! the reduction factor is based on Monte-Carlo simulations.
                  ext_data(jg)%atm%urb_alb_red_t(jc,jb,1) = EXP(-0.6_wp * ext_data(jg)%atm%urb_h2w_t(jc,jb,1))       &
                    &                                     * (1.0_wp - ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1))        &
                    &                                     + ext_data(jg)%atm%urb_fr_bld_t(jc,jb,1)
+
                  ! building height
                  ext_data(jg)%atm%urb_h_bld_t(jc,jb,1)   = 15._wp
+
                  ! thermal albedo of urban material
                  ext_data(jg)%atm%urb_alb_th_t(jc,jb,1)  = 0.14_wp
+
                  ! solar albedo of urban material, times albedo reduction factor for the urban canopy
                  ext_data(jg)%atm%urb_alb_so_t(jc,jb,1)  = 0.101_wp * ext_data(jg)%atm%urb_alb_red_t(jc,jb,1)
+
                  ! volumetric heat capacity of urban material
                  ext_data(jg)%atm%urb_hcap_t(jc,jb,1)    = 1250000._wp
+
                  ! thermal conductivity of urban material
                  ext_data(jg)%atm%urb_hcon_t(jc,jb,1)    = 0.767_wp
+
                  ! anthropogenic heat flux
                  ext_data(jg)%atm%ahf_t(jc,jb,1)         = ext_data(jg)%atm%ahf_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
                ENDIF
-!
-               ! minimal stomata resistance
+               !
+               ! Vegetation Parameters etc.
+               !
+               ! root depth
+               ext_data(jg)%atm%rootdp_t (jc,jb,1)  = ext_data(jg)%atm%rootdp(jc,jb)
+
+               ! plant cover
+               ext_data(jg)%atm%plcov_t  (jc,jb,1)  = ptr_ndviratio(jc,jb)                                                   &
+                 &     * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcov_mx(jc,jb))
+
+               ! transpiration area index
+               ext_data(jg)%atm%tai_t    (jc,jb,1)  = ext_data(jg)%atm%plcov_t(jc,jb,1)                                      &
+                 &                                  * ext_data(jg)%atm%lai_mx(jc,jb)
+
+               ! surface area index
+               IF (lterra_urb) THEN
+                 ext_data(jg)%atm%sai_t  (jc,jb,1)  = c_lnd * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,1))                 &
+                                                    + ext_data(jg)%atm%urb_ai_t(jc,jb,1)*ext_data(jg)%atm%urb_isa_t(jc,jb,1) &
+                                                    + ext_data(jg)%atm%tai_t(jc,jb,1)
+               ELSE
+                 ext_data(jg)%atm%sai_t  (jc,jb,1)  = c_lnd + ext_data(jg)%atm%tai_t(jc,jb,1)
+               END IF
+
+               ! evaporative soil area index
+               IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = MERGE(0.75_wp,                                                         &
+                   2.0_wp-1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban),lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb)    = cr_bsmin
+               ELSE
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = MERGE(c_soil_urb,c_soil,lhave_urban)
+                 ext_data(jg)%atm%r_bsmin(jc,jb)    = 50._wp ! previously hard-coded in TERRA
+               ENDIF
+
+               IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+                 ext_data(jg)%atm%eai_t(jc,jb,1)    = ext_data(jg)%atm%eai_t(jc,jb,1)                                        &
+                                                    * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,1))
+               END IF
+
+               ! skin conductivity
+               ext_data(jg)%atm%skinc_t(jc,jb,1)    = ext_data(jg)%atm%skinc_lcc(ext_data(jg)%atm%lc_class_t(jc,jb,1))
+
+               ! minimum stomatal resistance
                ext_data(jg)%atm%rsmin2d_t(jc,jb,1)  = ext_data(jg)%atm%rsmin(jc,jb)
+
                ! soil type
                ext_data(jg)%atm%soiltyp_t(jc,jb,1)  = ext_data(jg)%atm%soiltyp(jc,jb)
+
 
                ! Workaround for GLC2000 hole below 60 deg S
                ! (only necesary for old extpar files generated prior to 2014-01-31)
@@ -1936,47 +1968,17 @@ CONTAINS
                    ENDIF
                  ENDIF
 
+                 !
                  lu_subs = ext_data(jg)%atm%lc_class_t(jc,jb,i_lu)
                  IF (lu_subs < 0) CYCLE
-
-                 ! root depth
-                 ext_data(jg)%atm%rootdp_t (jc,jb,i_lu)  = ext_data(jg)%atm%rootdmax_lcc(lu_subs)
-                 ! plant cover
-                 ext_data(jg)%atm%plcov_t  (jc,jb,i_lu)  = ptr_ndviratio(jc,jb) &
-                   & * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcovmax_lcc(lu_subs))
-                 ! transpiration area index
-                 ext_data(jg)%atm%tai_t    (jc,jb,i_lu)  = ext_data(jg)%atm%plcov_t(jc,jb,i_lu) &
-                   & * ext_data(jg)%atm%laimax_lcc(lu_subs)
-
-                 ! surface area index
-                 ext_data(jg)%atm%sai_t    (jc,jb,i_lu)  = c_lnd+ ext_data(jg)%atm%tai_t (jc,jb,i_lu)
-
-                 ! evaporative soil area index
-                 IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
-                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(0.75_wp,2.0_wp,lu_subs == ext_data(jg)%atm%i_lc_urban)
-                   ext_data(jg)%atm%r_bsmin(jc,jb) = cr_bsmin
-                   ! on non-urban tiles, the eai is reduced only if no urban tile is present on the grid point
-                   IF (.NOT. lhave_urban) ext_data(jg)%atm%eai_t(jc,jb,i_lu) =                  &
-                                          2.0_wp - 1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban)
-                 ELSE
-                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)  = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
-                   ext_data(jg)%atm%r_bsmin(jc,jb) = 50._wp ! previously hard-coded in TERRA
-                 ENDIF
-
-                 ! skin conductivity
-                 lat = p_patch(jg)%cells%center(jc,jb)%lat*rad2deg
-                 IF (itype_lndtbl == 4 .AND. lat > -10._wp .AND. lat < 42.5_wp) THEN
-                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = MIN(200._wp,ext_data(jg)%atm%skinc_lcc(lu_subs)*           &
-                                                          (1._wp+MIN(1._wp,0.4_wp*(42.5_wp-lat),0.4_wp*(lat+10._wp))) )
-                 ELSE
-                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = ext_data(jg)%atm%skinc_lcc(lu_subs)
-                 ENDIF
-!
-                 ! impervious surface area of the urban canopy
-                 ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)  = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
+                 !
+                 ! Urban Canopy Parameters (UCPs)
+                 !
+                 ! impervious surface area fraction of the urban canopy
+                 ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu)       = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                  IF (lterra_urb) THEN
-                   ! impervious surface area (ISA)
+                   ! impervious surface area (ISA) fraction
                    ext_data(jg)%atm%fr_paved_t(jc,jb,i_lu)    = ext_data(jg)%atm%fr_paved_lcc(lu_subs)
 
                    ! building area fraction with respect to urban tile
@@ -2015,8 +2017,56 @@ CONTAINS
                    ! anthropogenic heat flux
                    ext_data(jg)%atm%ahf_t(jc,jb,i_lu)         = ext_data(jg)%atm%ahf_lcc(lu_subs)
                  ENDIF
-!
-                 ! minimal stomata resistance
+                 !
+                 ! Vegetation Parameters etc.
+                 !
+                 ! root depth
+                 ext_data(jg)%atm%rootdp_t (jc,jb,i_lu)  = ext_data(jg)%atm%rootdmax_lcc(lu_subs)
+
+                 ! plant cover
+                 ext_data(jg)%atm%plcov_t  (jc,jb,i_lu)  = ptr_ndviratio(jc,jb)                                            &
+                   & * MIN(ext_data(jg)%atm%ndvi_max(jc,jb),ext_data(jg)%atm%plcovmax_lcc(lu_subs))
+
+                 ! transpiration area index
+                 ext_data(jg)%atm%tai_t    (jc,jb,i_lu)  = ext_data(jg)%atm%plcov_t(jc,jb,i_lu)                            &
+                   & * ext_data(jg)%atm%laimax_lcc(lu_subs)
+
+                 ! surface area index
+                 IF (lterra_urb) THEN
+                   ext_data(jg)%atm%sai_t  (jc,jb,i_lu)  = c_lnd * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu))       &
+                                          + ext_data(jg)%atm%urb_ai_t(jc,jb,i_lu) * ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu) &
+                                          + ext_data(jg)%atm%tai_t(jc,jb,i_lu)
+                 ELSE
+                   ext_data(jg)%atm%sai_t  (jc,jb,i_lu)  = c_lnd + ext_data(jg)%atm%tai_t(jc,jb,i_lu)
+                 END IF
+
+                 ! evaporative soil area index
+                 IF (icpl_da_sfcevap >= 4 .OR. itype_evsl == 5) THEN
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = MERGE(0.75_wp,2.0_wp,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb)       = cr_bsmin
+                   ! on non-urban tiles, the eai is reduced only if no urban tile is present on the grid point
+                   IF (.NOT. lhave_urban) ext_data(jg)%atm%eai_t(jc,jb,i_lu) =                                             &
+                                          2.0_wp - 1.25_wp*tile_frac(ext_data(jg)%atm%i_lc_urban)
+                 ELSE
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = MERGE(c_soil_urb,c_soil,lu_subs == ext_data(jg)%atm%i_lc_urban)
+                   ext_data(jg)%atm%r_bsmin(jc,jb)       = 50._wp ! previously hard-coded in TERRA
+                 ENDIF
+
+                 IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+                   ext_data(jg)%atm%eai_t (jc,jb,i_lu)   = ext_data(jg)%atm%eai_t(jc,jb,i_lu)                              &
+                                                         * (1.0_wp - ext_data(jg)%atm%urb_isa_t(jc,jb,i_lu))
+                 END IF
+
+                 ! skin conductivity
+                 lat = p_patch(jg)%cells%center(jc,jb)%lat*rad2deg
+                 IF (itype_lndtbl == 4 .AND. lat > -10._wp .AND. lat < 42.5_wp) THEN
+                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = MIN(200._wp,ext_data(jg)%atm%skinc_lcc(lu_subs)*                &
+                                                          (1._wp+MIN(1._wp,0.4_wp*(42.5_wp-lat),0.4_wp*(lat+10._wp))) )
+                 ELSE
+                   ext_data(jg)%atm%skinc_t(jc,jb,i_lu)  = ext_data(jg)%atm%skinc_lcc(lu_subs)
+                 ENDIF
+
+                 ! minimum stomatal resistance
                  ext_data(jg)%atm%rsmin2d_t(jc,jb,i_lu)  = ext_data(jg)%atm%stomresmin_lcc(lu_subs)
 
                  ! soil type
@@ -2207,12 +2257,6 @@ CONTAINS
 !CDIR NODEP
              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-               ext_data(jg)%atm%rootdp_t(jc,jb,jt)      = ext_data(jg)%atm%rootdp_t(jc,jb,jt_in)
-               ext_data(jg)%atm%plcov_t(jc,jb,jt)       = ext_data(jg)%atm%plcov_t(jc,jb,jt_in)
-               ext_data(jg)%atm%tai_t(jc,jb,jt)         = ext_data(jg)%atm%tai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%sai_t(jc,jb,jt)         = ext_data(jg)%atm%sai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%eai_t(jc,jb,jt)         = ext_data(jg)%atm%eai_t(jc,jb,jt_in)
-               ext_data(jg)%atm%skinc_t(jc,jb,jt)       = ext_data(jg)%atm%skinc_t(jc,jb,jt_in)
 !
                ext_data(jg)%atm%urb_isa_t(jc,jb,jt)     = ext_data(jg)%atm%urb_isa_t(jc,jb,jt_in)
                IF (lterra_urb) THEN
@@ -2229,6 +2273,12 @@ CONTAINS
                  ext_data(jg)%atm%ahf_t(jc,jb,jt)         = ext_data(jg)%atm%ahf_t(jc,jb,jt_in)
                ENDIF
 !
+               ext_data(jg)%atm%rootdp_t(jc,jb,jt)      = ext_data(jg)%atm%rootdp_t(jc,jb,jt_in)
+               ext_data(jg)%atm%plcov_t(jc,jb,jt)       = ext_data(jg)%atm%plcov_t(jc,jb,jt_in)
+               ext_data(jg)%atm%tai_t(jc,jb,jt)         = ext_data(jg)%atm%tai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%sai_t(jc,jb,jt)         = ext_data(jg)%atm%sai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%eai_t(jc,jb,jt)         = ext_data(jg)%atm%eai_t(jc,jb,jt_in)
+               ext_data(jg)%atm%skinc_t(jc,jb,jt)       = ext_data(jg)%atm%skinc_t(jc,jb,jt_in)
                ext_data(jg)%atm%rsmin2d_t(jc,jb,jt)     = ext_data(jg)%atm%rsmin2d_t(jc,jb,jt_in)
                ext_data(jg)%atm%soiltyp_t(jc,jb,jt)     = ext_data(jg)%atm%soiltyp_t(jc,jb,jt_in)
                ext_data(jg)%atm%lc_class_t(jc,jb,jt)    = ext_data(jg)%atm%lc_class_t(jc,jb,jt_in)
@@ -2237,7 +2287,6 @@ CONTAINS
 
            ENDDO
          ENDIF
-
 
 
          ! Initialize frac_t with lc_frac_t on all static grid points
@@ -2383,11 +2432,6 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         & i_startidx, i_endidx, rl_start, rl_end)
 
-
-      ext_data%atm%plcov      (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%rootdp     (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%lai        (i_startidx:i_endidx,jb) = 0._wp
-      ext_data%atm%skinc      (i_startidx:i_endidx,jb) = 0._wp
 !
       ext_data%atm%urb_isa    (i_startidx:i_endidx,jb) = 0._wp
       IF (lterra_urb) THEN
@@ -2404,11 +2448,14 @@ CONTAINS
         ext_data%atm%ahf        (i_startidx:i_endidx,jb) = 0._wp
       ENDIF
 !
+      ext_data%atm%plcov      (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%rootdp     (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%lai        (i_startidx:i_endidx,jb) = 0._wp
+      ext_data%atm%skinc      (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%rsmin      (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%tai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%eai        (i_startidx:i_endidx,jb) = 0._wp
       ext_data%atm%sai        (i_startidx:i_endidx,jb) = 0._wp
-
 
 
       DO jt = 1, ntiles_total
@@ -2422,43 +2469,18 @@ CONTAINS
           ! therefore we multiply by inv_frland_from_tiles
           area_frac = ext_data%atm%frac_t(jc,jb,jt)           &
             &       * ext_data%atm%inv_frland_from_tiles(jc,jb)
-
-          ! plant cover (aggregated)
-          ext_data%atm%plcov(jc,jb) = ext_data%atm%plcov(jc,jb)       &
-            &              + ext_data%atm%plcov_t(jc,jb,jt) * area_frac
-
-          ! root depth (aggregated)
-          ext_data%atm%rootdp(jc,jb) = ext_data%atm%rootdp(jc,jb)     &
-            &              + ext_data%atm%rootdp_t(jc,jb,jt) * area_frac
-
-          ! surface area index (aggregated)
-          ext_data%atm%lai(jc,jb) = ext_data%atm%lai(jc,jb)           &
-            &              + ( ext_data%atm%tai_t(jc,jb,jt)                &
-            &              /(ext_data%atm%plcov_t(jc,jb,jt)+dbl_eps) * area_frac )
-
-          ! evaporative soil area index (aggregated)
-          ext_data%atm%eai(jc,jb) = ext_data%atm%eai(jc,jb)           &
-            &              +  ext_data%atm%eai_t(jc,jb,jt) * area_frac
-
-          ! transpiration area index (aggregated)
-          ext_data%atm%tai(jc,jb) = ext_data%atm%tai(jc,jb)           &
-            &              +  ext_data%atm%tai_t(jc,jb,jt) * area_frac
-
-          ! skin conductivity (aggregated)
-          ext_data%atm%skinc(jc,jb) = ext_data%atm%skinc(jc,jb)       &
-            &              + ext_data%atm%skinc_t(jc,jb,jt) * area_frac
 !
-          ! impervious surface area of the urban canopy (aggregated)
-          ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)   &
-            &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
+          ! impervious surface area fraction of the urban canopy (aggregated)
+          ext_data%atm%urb_isa(jc,jb) = ext_data%atm%urb_isa(jc,jb)           &
+              &              + ext_data%atm%urb_isa_t(jc,jb,jt) * area_frac
 
           IF (lterra_urb) THEN
-            ! impervious surface area (ISA) (aggregated)
-            ext_data%atm%fr_paved(jc,jb) = ext_data%atm%fr_paved(jc,jb) &
+            ! impervious surface area (ISA) fraction (aggregated)
+            ext_data%atm%fr_paved(jc,jb) = ext_data%atm%fr_paved(jc,jb)       &
               &              + ext_data%atm%fr_paved_t(jc,jb,jt) * area_frac
 
             ! surface area index of the urban canopy (aggregated)
-            ext_data%atm%urb_ai(jc,jb) = ext_data%atm%urb_ai(jc,jb)     &
+            ext_data%atm%urb_ai(jc,jb) = ext_data%atm%urb_ai(jc,jb)           &
               &              + ext_data%atm%urb_ai_t(jc,jb,jt) * area_frac
 
             ! albedo reduction factor for the urban canopy (aggregated)
@@ -2494,10 +2516,35 @@ CONTAINS
               &              + ext_data%atm%urb_hcon_t(jc,jb,jt) * area_frac
 
             ! anthropogenic heat flux (aggregated)
-            ext_data%atm%ahf(jc,jb) = ext_data%atm%ahf(jc,jb)           &
+            ext_data%atm%ahf(jc,jb) = ext_data%atm%ahf(jc,jb)                 &
               &              + ext_data%atm%ahf_t(jc,jb,jt) * area_frac
           ENDIF
 !
+          ! plant cover (aggregated)
+          ext_data%atm%plcov(jc,jb) = ext_data%atm%plcov(jc,jb)       &
+            &              + ext_data%atm%plcov_t(jc,jb,jt) * area_frac
+
+          ! root depth (aggregated)
+          ext_data%atm%rootdp(jc,jb) = ext_data%atm%rootdp(jc,jb)     &
+            &              + ext_data%atm%rootdp_t(jc,jb,jt) * area_frac
+
+          ! surface area index (aggregated)
+          ext_data%atm%lai(jc,jb) = ext_data%atm%lai(jc,jb)           &
+            &              + ( ext_data%atm%tai_t(jc,jb,jt)           &
+            &              /(ext_data%atm%plcov_t(jc,jb,jt)+dbl_eps) * area_frac )
+
+          ! evaporative soil area index (aggregated)
+          ext_data%atm%eai(jc,jb) = ext_data%atm%eai(jc,jb)           &
+            &              +  ext_data%atm%eai_t(jc,jb,jt) * area_frac
+
+          ! transpiration area index (aggregated)
+          ext_data%atm%tai(jc,jb) = ext_data%atm%tai(jc,jb)           &
+            &              +  ext_data%atm%tai_t(jc,jb,jt) * area_frac
+
+          ! skin conductivity (aggregated)
+          ext_data%atm%skinc(jc,jb) = ext_data%atm%skinc(jc,jb)       &
+            &              + ext_data%atm%skinc_t(jc,jb,jt) * area_frac
+
           ! minimal stomata resistance (aggregated)
           ext_data%atm%rsmin(jc,jb) = ext_data%atm%rsmin(jc,jb)       &
             &              + ext_data%atm%rsmin2d_t(jc,jb,jt) * area_frac
@@ -2759,7 +2806,13 @@ CONTAINS
           ext_data%atm%laifac_t(jc,jb,jt) = &
             (wfac*ext_data%atm%laimax_lcc(ilu) + (1._wp-wfac)*laimin(ilu))/MAX(0.01_wp,ext_data%atm%laimax_lcc(ilu))
 
-          ext_data%atm%sai_t(jc,jb,jt) = c_lnd+ext_data%atm%tai_t(jc,jb,jt)
+          IF (lterra_urb) THEN
+            ext_data%atm%sai_t(jc,jb,jt) = c_lnd * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))                &
+                                         + ext_data%atm%urb_ai_t(jc,jb,jt) * ext_data%atm%urb_isa_t(jc,jb,jt) &
+                                         + ext_data%atm%tai_t(jc,jb,jt)
+          ELSE
+            ext_data%atm%sai_t(jc,jb,jt) = c_lnd + ext_data%atm%tai_t(jc,jb,jt)
+          END IF
 
 
           ! modification of root depth
@@ -2801,13 +2854,19 @@ CONTAINS
           ELSE IF (icpl_da_sfcevap >= 1) THEN
             IF (trh_bias < 0._wp) THEN
               ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)*(1._wp-0.5_wp*trh_bias)
-              ext_data%atm%eai_t(jc,jb,jt)     = MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) / &
+              ext_data%atm%eai_t(jc,jb,jt)     = MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) /     &
                                                  (1._wp-0.25_wp*trh_bias)
             ELSE
               ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)/(1._wp+0.5_wp*trh_bias)
               ext_data%atm%eai_t(jc,jb,jt)     = MIN(MERGE(c_soil_urb,c_soil,ilu == ext_data%atm%i_lc_urban) * &
                                                  (1._wp+0.25_wp*trh_bias), 2._wp)
             ENDIF
+
+            IF (lterra_urb .AND. ((itype_eisa == 2) .OR. (itype_eisa == 3))) THEN
+              ext_data%atm%eai_t(jc,jb,jt)     = ext_data%atm%eai_t(jc,jb,jt)                                  &
+                                               * (1.0_wp - ext_data%atm%urb_isa_t(jc,jb,jt))
+            END IF
+
           ELSE
             ext_data%atm%rsmin2d_t(jc,jb,jt) = ext_data%atm%stomresmin_lcc(ilu)
           ENDIF
@@ -2854,17 +2913,20 @@ CONTAINS
   !!                      0    0.6    1
   !!            ___________________________________
   !!             0    |   0   !0     !0       ICON-O deletes all ICON-A land
-  !! ICON-O      0.4  |   0    0.6   !0.4
-  !! lsm_ctr_c   1    |  !1    0.6    1       
+  !! ICON-O      0.4  |   0   !0.4   !0.4
+  !! lsm_ctr_c   1    |  !1   !1      1
   !!
-  !! note: idential  ocean/atmo grids: lsm_ctr_c is integer
+  !! note: lsm_ctr_c is real variable (float)
+  !!       identical ocean/atmo grids: lsm_ctr_c is 0. or 1. only
   !!       different ocean/atmo grids: lsm_ctr_c is float (fraction)
-  !! ICON-seamless prototype 1 - common grid supports only integer
+  !! ICON-seamless prototype 2 - uncommon grids (A/O) support fractional lsm_ctr_c at ocean coast
   !! This routine doesn't support the case ntiles=1.  Additional surface parameters
   !! would have to be implemented
   !!
   !! @par Revision History
   !! Initial revision by Martin Koehler, DWD (2021-01-27)
+  !! Modification by Stephan Lorenz, MPI (2022-08-02)
+  !! Generalization to arbitrarily overlapping grids
   !!
   !-------------------------------------------------------------------------
 
@@ -2873,24 +2935,24 @@ CONTAINS
     TYPE(t_patch), INTENT(IN)            :: p_patch
     TYPE(t_external_data), INTENT(INOUT) :: ext_data
 
-    INTEGER  :: jb,jc,i_nchdom
+    INTEGER  :: jb,jc
     INTEGER  :: rl_start, rl_end
     INTEGER  :: i_startblk, i_endblk,i_startidx, i_endidx
+    REAL(wp) :: lat, lon
+    REAL(wp), PARAMETER :: eps = 1.e-10_wp
 
     !-----------------------------------------------------------------------
 
     CALL message('','Adjust atmo LSM to ocean LSM for coupled simulation.')
 
-    i_nchdom  = MAX(1,p_patch%n_childdom)
-
     rl_start = 1
     rl_end   = min_rlcell
 
-    i_startblk = p_patch%cells%start_blk(rl_start,1)
-    i_endblk   = p_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = p_patch%cells%start_block(rl_start)
+    i_endblk   = p_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx,lat,lon)
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
@@ -2900,51 +2962,112 @@ CONTAINS
         ! land-sea-mask switched by ocean, 0: no change, 1: new land, 2: new ocean
         ext_data%atm%lsm_switch     (jc,jb)   = 0
  
-        SELECT CASE(ext_data%atm%lsm_ctr_c(jc,jb))
+        ! ICON-O is ocean but ICON-A is fractional land:
+        ! convert ICON-A land and lake to pure ocean (flooded grid-point)
 
-        CASE (0)         ! ICON-O ocean but ICON-A fractional land:  delete all ICON-A land and lake
-          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) > 0.0_wp ) THEN
-            ext_data%atm%lsm_switch (jc,jb)   = 2
-            ext_data%atm%fr_land    (jc,jb)   = 0.0_wp
-            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
-            ext_data%atm%topography_c(jc,jb)  = 0.0_wp      ! topography to zero
+        IF ( ext_data%atm%lsm_ctr_c(jc,jb) == 0._wp ) THEN
+
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) > 0._wp ) THEN
+            ext_data%atm%lsm_switch (jc,jb)   = 1
+            ext_data%atm%fr_land    (jc,jb)   = 0._wp
+            ext_data%atm%fr_lake    (jc,jb)   = 0._wp
+            ext_data%atm%topography_c(jc,jb)  = 0._wp      ! topography to zero
           ENDIF
 
-        CASE (1)         ! ICON-O land but ICON-A fractional ocean:  make artificial ICON-A pure land
-                         !                                           (another option: artificial lake)
-          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1.0_wp ) THEN
-            ext_data%atm%lsm_switch (jc,jb)   = 1
-            ! set fraction to land
-            ext_data%atm%fr_land    (jc,jb)   = 1.0_wp
-            ext_data%atm%fr_lake    (jc,jb)   = 0.0_wp
-            ext_data%atm%soiltyp    (jc,jb)   = 4           ! soil type to sandy loam (sfc_terra_data)
-            ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0.0_wp
-            ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1.0_wp  ! grass-land (read_ext_data_atm)
-            ! land use variables will then automatically be set in init_index_lists
-            ! frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
-            ! plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
+        ! ICON-O is land but ICON-A is fractional ocean:  make artificial ICON-A pure land
+        ! convert ICON-A ocean to artificial pure land (rising grid-point): (alternative: artificial lake)
 
+        ELSE IF ( ext_data%atm%lsm_ctr_c(jc,jb) > (1._wp-eps) ) THEN
+
+          IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1._wp ) THEN
+
+            ! switch land lakes from ocean to flake (Caspian and Dead Seas)
+
+            lat = p_patch%cells%center(jc,jb)%lat*rad2deg
+            lon = p_patch%cells%center(jc,jb)%lon*rad2deg
+
+               ! Dead Sea    (< -390m)
+            IF ( ( (lon > 35._wp).AND.(lon < 36._wp) .AND. (lat > 31._wp).AND.(lat < 32._wp) ) .OR. &
+               ! Caspian Sea (< -25m)
+               & ( (lon > 46._wp).AND.(lon < 55._wp) .AND. (lat > 36._wp).AND.(lat < 48._wp) ) ) THEN
+
+              ext_data%atm%lsm_switch (jc,jb)   = 6
+              ext_data%atm%fr_lake    (jc,jb)   = 1._wp - ext_data%atm%fr_land(jc,jb)
+              ext_data%atm%depth_lk   (jc,jb)   = 50._wp
+
+            ELSE
+
+              ext_data%atm%lsm_switch (jc,jb)   = 2
+              ! set fraction to land
+              ext_data%atm%fr_land    (jc,jb)   = 1._wp
+              ext_data%atm%fr_lake    (jc,jb)   = 0._wp
+              ! topography values
+              ext_data%atm%topography_c(jc,jb)  = 0._wp       ! alternative: add little hight (1m?)
+              ext_data%atm%soiltyp    (jc,jb)   = 4           ! soil type to sandy loam (sfc_terra_data)
+              ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0._wp
+              ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1._wp 
+                                                              ! grass-land (read_ext_data_atm)
+              ! land use variables will then automatically be set in init_index_lists:
+              !   frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
+              !   plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
+              ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean
+
+            ENDIF
+
+          ENDIF
+
+        ! ICON-O is fractional ocean (coast)
+        ! attention: fr_lake is not allowed on the coast
+
+        ELSE IF ( (ext_data%atm%lsm_ctr_c(jc,jb) > 0._wp) .AND. (ext_data%atm%lsm_ctr_c(jc,jb) < (10_wp-eps)) ) THEN
+                                     ! eps necessary because lsm_ctr_c has input values of 0.999999 instead of 1.0)
+
+          ! ICON-A is pure land: reduce land & delete lake accordingly
+          IF (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb)) == 1._wp ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 3
+           !ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%fr_land(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+           !ext_data%atm%fr_lake    (jc,jb)  = ext_data%atm%fr_lake(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+
+          ! ICON-A is fraction: adjust ICON-A lsm to ICON-O lsm, no lake fraction
+          !   attention: prevent small fr_land being deleted with soiltyp=9
+          ELSE IF ( (ext_data%atm%fr_land(jc,jb) > frlnd_thrhld)    .OR. &
+            &       (ext_data%atm%fr_lake(jc,jb) > frlake_thrhld) ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 4
+           !lsm_atm                          = ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake  (jc,jb)
+           !ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%fr_land(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb) / lsm_atm
+           !ext_data%atm%fr_lake    (jc,jb)  = ext_data%atm%fr_lake(jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb) / lsm_atm
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+
+          ! ICON-A is pure ocean: add land in ICON-A according to ICON-O lsm, no lake fraction (rising coastal area)
+          !   attention: small fr_land is deleted elsewhere
+          ELSE IF ( (ext_data%atm%fr_land(jc,jb)) <= frlnd_thrhld    .AND. &
+            &       (ext_data%atm%fr_lake(jc,jb)) <= frlake_thrhld ) THEN
+
+            ext_data%atm%lsm_switch (jc,jb)  = 5
+            ! set fraction to land
+            ext_data%atm%fr_land    (jc,jb)  = ext_data%atm%lsm_ctr_c(jc,jb)
+            ext_data%atm%fr_lake    (jc,jb)  = 0._wp
+            ! topography values
+            ext_data%atm%topography_c(jc,jb) = 0._wp       ! alternative: add little hight (1m?)
+            ext_data%atm%soiltyp    (jc,jb)  = 4            ! soil type to sandy loam (sfc_terra_data)
+            ext_data%atm%lu_class_fraction(jc,jb,:)                       = 0._wp
+            ext_data%atm%lu_class_fraction(jc,jb,ext_data%atm%i_lc_grass) = 1._wp  ! grass-land (read_ext_data_atm)
+            ! land use variables will then automatically be set in init_index_lists:
+            !   frac_t, lc_frac_t, fr_glac, lc_class_t, llsm_atm_c, llake_c,
+            !   plcov_mx, lai_mx, rootdp, skinc, rsmin, z0
             ! initialization of soil moisture (w_so) and temperature (t_so) in new_land_from_ocean
 
-            ! topography values
-            ext_data%atm%topography_c(jc,jb) = 0.0_wp
-
           ENDIF
 
-        CASE DEFAULT     ! ICON-O fractional (coast) but ICON-A pure land: reduce land & lake accordingly
-                         ! Attention: this case is not yet supported
-          IF  (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb))== 1.0_wp ) THEN 
-          ! set fr_land for all coastal points to lsm-oce:
-          ! IF  ( ext_data%atm%fr_land  (jc,jb) .NE. ext_data%atm%lsm_ctr_c  (jc,jb) ) THEN 
-          ! ext_data%atm%fr_land  (jc,jb) = ext_data%atm%lsm_ctr_c(jc,jb)
-          ! ext_data%atm%fr_lake  (jc,jb) = 0.0_wp
-
-            ext_data%atm%fr_land  (jc,jb) = ext_data%atm%fr_land  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
-            ext_data%atm%fr_lake  (jc,jb) = ext_data%atm%fr_lake  (jc,jb) * ext_data%atm%lsm_ctr_c(jc,jb)
-          ! tile adjustments!
-          ENDIF
-
-        END SELECT
+        ! ICON-O is < 0.0 or > 1.0; not allowed (ICON-O input data problems)
+        ELSE   
+          ext_data%atm%lsm_switch   (jc,jb)  = 10
+        ENDIF
 
       ENDDO
     ENDDO

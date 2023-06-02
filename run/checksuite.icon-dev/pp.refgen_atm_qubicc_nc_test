@@ -1,9 +1,46 @@
 #!/bin/bash
 
 # set basic names and paths for probtest
-file_ids=atm2d_ml,cli_ml,clw_ml,ddt_ua_adv_ml,ddt_ua_cor_ml,ddt_ua_dmp_ml,ddt_ua_dyn_ml,ddt_ua_hdf_ml,ddt_ua_pgr_ml,ddt_va_adv_ml,ddt_va_cor_ml,ddt_va_dmp_ml,ddt_va_dyn_ml,ddt_va_hdf_ml,ddt_va_pgr_ml,flx2d_ml,hus_ml,pfull_ml,qg_ml,qr_ml,qs_ml,rho_ml,ta_ml,tend_qcli_mig_ml,tend_qcli_vdf_ml,tend_qclw_mig_ml,tend_qclw_vdf_ml,tend_qhus_mig_ml,tend_qhus_vdf_ml,tend_ta_mig_ml,tend_ta_rlw_ml,tend_ta_rsw_ml,tend_ta_vdf_ml,tend_ua_vdf_ml,tend_va_vdf_ml,ua_ml,va_ml,wa_ml
+probtest_file_ids='*atm2d_ml*.nc'
+probtest_file_ids+=',*cli_ml*.nc'
+probtest_file_ids+=',*clw_ml*.nc'
+probtest_file_ids+=',*ddt_ua_adv_ml*.nc'
+probtest_file_ids+=',*ddt_ua_cor_ml*.nc'
+probtest_file_ids+=',*ddt_ua_dmp_ml*.nc'
+probtest_file_ids+=',*ddt_ua_dyn_ml*.nc'
+probtest_file_ids+=',*ddt_ua_hdf_ml*.nc'
+probtest_file_ids+=',*ddt_ua_pgr_ml*.nc'
+probtest_file_ids+=',*ddt_va_adv_ml*.nc'
+probtest_file_ids+=',*ddt_va_cor_ml*.nc'
+probtest_file_ids+=',*ddt_va_dmp_ml*.nc'
+probtest_file_ids+=',*ddt_va_dyn_ml*.nc'
+probtest_file_ids+=',*ddt_va_hdf_ml*.nc'
+probtest_file_ids+=',*ddt_va_pgr_ml*.nc'
+probtest_file_ids+=',*flx2d_ml*.nc'
+probtest_file_ids+=',*hus_ml*.nc'
+probtest_file_ids+=',*pfull_ml*.nc'
+probtest_file_ids+=',*qg_ml*.nc'
+probtest_file_ids+=',*qr_ml*.nc'
+probtest_file_ids+=',*qs_ml*.nc'
+probtest_file_ids+=',*rho_ml*.nc'
+probtest_file_ids+=',*ta_ml*.nc'
+probtest_file_ids+=',*tend_qcli_mig_ml*.nc'
+probtest_file_ids+=',*tend_qcli_vdf_ml*.nc'
+probtest_file_ids+=',*tend_qclw_mig_ml*.nc'
+probtest_file_ids+=',*tend_qclw_vdf_ml*.nc'
+probtest_file_ids+=',*tend_qhus_mig_ml*.nc'
+probtest_file_ids+=',*tend_qhus_vdf_ml*.nc'
+probtest_file_ids+=',*tend_ta_mig_ml*.nc'
+probtest_file_ids+=',*tend_ta_rlw_ml*.nc'
+probtest_file_ids+=',*tend_ta_rsw_ml*.nc'
+probtest_file_ids+=',*tend_ta_vdf_ml*.nc'
+probtest_file_ids+=',*tend_ua_vdf_ml*.nc'
+probtest_file_ids+=',*tend_va_vdf_ml*.nc'
+probtest_file_ids+=',*ua_ml*.nc'
+probtest_file_ids+=',*va_ml*.nc'
+probtest_file_ids+=',*wa_ml*.nc'
 #
-exp=atm_qubicc_nc_test
+probtest_exp=atm_qubicc_nc_test
 
 . ./add_refgen_routines
 

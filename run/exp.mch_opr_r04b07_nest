@@ -71,8 +71,8 @@ start_date=${start_date:="2020-12-10T06:00:00Z"}
   end_date=${end_date:="2020-12-10T06:01:00Z"}
 
 # restart intervals
-checkpoint_interval="PT1M"
-restart_interval="PT2M"
+checkpoint_interval="PT20S"
+restart_interval="P1D"
 
 # output intervals
 output_bounds="10.,10000000.,10."
@@ -293,7 +293,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  divdamp_order               =                          4         ! order of divergence damping 
  divdamp_type                =                         32         ! gdm default: 3 type of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping
- l_open_ubc                  =                     .FALSE.        ! .TRUE.=use open upper boundary condition
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
  thslp_zdiffu                =                          0.02      ! slope threshold (temperature diffusion)
@@ -355,7 +354,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  remap            = 0
  output_grid      = .TRUE.
   output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
- steps_per_file   = 4
+ steps_per_file   = $steps_per_file
  include_last     = .TRUE.
  ml_varlist       =
   'clct_mod', 'cldepth', 'dpres_mc', 'drag_u_grid', 'exner',
@@ -380,7 +379,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  remap            = 0
  output_grid      = .TRUE.
   output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
- steps_per_file   = 4
+ steps_per_file   = $steps_per_file
  include_last     = .TRUE.
  ml_varlist       =
   'clct_mod', 'cldepth', 'ddt_qc_conv', 'ddt_temp_turb', 'exner_pr',
@@ -401,7 +400,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  remap            = 1
  output_grid      = .TRUE.
   output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
- steps_per_file   = 20
+ steps_per_file   = $steps_per_file
  include_last     = .FALSE.
  reg_lon_def      = 0.,0.1,17.0
  reg_lat_def      = 42.7,0.1,50.
@@ -418,7 +417,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  remap            = 1
  output_grid      = .TRUE.
   output_bounds    = 0,30,10                  ! start, end, increment, 4 steps
- steps_per_file   = 20
+ steps_per_file   = $steps_per_file
  include_last     = .FALSE.
  reg_lon_def      = 0.,0.1,17.0
  reg_lat_def      = 42.7,0.1,50.

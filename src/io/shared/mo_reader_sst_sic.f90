@@ -171,19 +171,16 @@ CONTAINS
 #endif
     IF (ALLOCATED(dat)) THEN
       IF (.NOT. ALL( SHAPE(dat) .EQ. (/get_nproma(), 1, this%p_patch%nblks_c, 1/) )) THEN
-        !$ACC EXIT DATA DELETE(dat)
         DEALLOCATE(dat)
       END IF
     END IF
     IF (.NOT. ALLOCATED(dat)) THEN
       CALL MOVE_ALLOC(temp, dat)
-      !$ACC ENTER DATA CREATE(dat)
     ELSE
       dat(:,:,:,:) = temp(:,:,:,:)
     END IF
 
     CALL sst_sic_replace_missval(this, dat, -1.0_wp)
-    !$ACC UPDATE DEVICE(dat)
 
   END SUBROUTINE sst_sic_get_one_timelevel
 

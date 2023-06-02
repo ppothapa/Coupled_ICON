@@ -21,7 +21,7 @@ MODULE mo_var_metadata_types
   USE mo_cdi,                   ONLY: TSTEP_INSTANT, CDI_UNDEFID
   USE mo_exception,             ONLY: finish
   USE mo_util_stride,           ONLY: util_get_ptrdiff
-  USE mo_util_libc,             ONLY: memcpy
+  USE mo_util_libc,             ONLY: memcpy_f
 
   IMPLICIT NONE
   PRIVATE
@@ -233,7 +233,7 @@ CONTAINS
 
     IF (var_metadata_get_size() .GT. isize) &
       & CALL finish("var_metadata_toBinary", "size mismatch")
-    dummy_cptr = memcpy(C_LOC(bin), C_LOC(info), size_byte())
+    dummy_cptr = memcpy_f(C_LOC(bin), C_LOC(info), size_byte())
   END FUNCTION var_metadata_toBinary
 
   FUNCTION var_metadata_fromBinary(bin, isize) RESULT(info)
@@ -244,7 +244,7 @@ CONTAINS
 
     IF (var_metadata_get_size() .GT. isize) &
       & CALL finish("var_metadata_fromBinary", "size mismatch")
-    dummy_cptr = memcpy(C_LOC(info), C_LOC(bin), size_byte())
+    dummy_cptr = memcpy_f(C_LOC(info), C_LOC(bin), size_byte())
   END FUNCTION var_metadata_fromBinary
 
 END MODULE mo_var_metadata_types

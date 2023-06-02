@@ -344,6 +344,7 @@ MODULE mo_model_domain
     ! define basic subsets
     TYPE(t_subset_range) :: ALL          ! these are the all valid entities, including all valid halos
     TYPE(t_subset_range) :: owned         ! these are the owned entities
+    TYPE(t_subset_range) :: owned_no_boundary ! these are the owned entities without boundary interpolation zone
     TYPE(t_subset_range) :: in_domain     ! these are the computation domain entities, for cells = owned
     TYPE(t_subset_range) :: not_owned     ! these are all the halo entities
     TYPE(t_subset_range) :: not_in_domain ! for cells = not_owned

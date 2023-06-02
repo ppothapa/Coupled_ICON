@@ -57,7 +57,7 @@ USE mo_communication,      ONLY: exchange_data, exchange_data_4de1,            &
 
 USE mo_timer,           ONLY: timer_start, timer_stop, activate_sync_timers, &
   & timer_global_sum, timer_omp_global_sum, timer_ordglb_sum!, timer_omp_ordglb_sum
-USE mo_fortran_tools,   ONLY: t_ptr_3d, t_ptr_3d_sp, insert_dimension
+USE mo_fortran_tools,   ONLY: t_ptr_3d, t_ptr_3d_sp, insert_dimension, assert_acc_host_only, set_acc_host_or_device
 
 IMPLICIT NONE
 
@@ -1397,9 +1397,10 @@ END FUNCTION global_sum_array_1d
 !! @par Revision History
 !! Initial version by Rainer Johanni, Nov 2009
 !!
-FUNCTION global_sum_array_2d (zfield) RESULT (global_sum)
+FUNCTION global_sum_array_2d (zfield, lacc) RESULT (global_sum)
 
   REAL(wp),          INTENT(in) :: zfield(:, :)
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
   REAL(wp)                      :: global_sum
   REAL(wp)                      :: sum_on_testpe(1)
 
@@ -1413,12 +1414,14 @@ FUNCTION global_sum_array_2d (zfield) RESULT (global_sum)
   ENDIF
 
   IF(l_fast_sum) THEN
+    CALL assert_acc_host_only("mo_sync:global_sum_array_2d-l_fast_sum", lacc)
     global_sum = simple_sum(zfield, SIZE(zfield), p_comm_glob)
   ELSE
-    global_sum = order_insensit_ieee64_sum(zfield, SIZE(zfield), p_comm_glob)
+    global_sum = order_insensit_ieee64_sum(zfield, SIZE(zfield), p_comm_glob, lacc=lacc)
   ENDIF
 
   IF(p_test_run .AND. do_sync_checks) THEN
+    CALL assert_acc_host_only("mo_sync:global_sum_array_2d-do_sync_checks", lacc)
     IF(l_fast_sum) THEN
       CALL check_result( (/ global_sum /), 'global_sum_array', sum_on_testpe)
       global_sum = sum_on_testpe(1)
@@ -2336,23 +2339,27 @@ END FUNCTION omp_order_insensit_ieee64_sum
 !! than naivly summing up the operands.
 !! ATTENTION: When compiled with OpenMP in effect, this routine
 !! should be called outside an omp parallel region!!!!
+!! When used with OpenACC, the result is provided on host only.
 !!
 !! @par Revision History
 !! Initial version by Rainer Johanni, Nov 2009
+!! OpenACC extension by Marek Jacob, Apr 2023
 !!
-FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
+FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm, lacc) RESULT(global_sum)
 
 !
-   INTEGER  :: num_vals, mpi_comm
-   REAL(dp) :: vals(num_vals)
+   INTEGER, INTENT(IN)  :: num_vals, mpi_comm
+   REAL(dp), INTENT(IN) :: vals(num_vals)
+   LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
    REAL(dp) :: global_sum
 
    INTEGER(i8)       :: itmp(2),  ival1, ival2
-   INTEGER(i8), SAVE :: isum(2) ! This must be a shared variable
+   INTEGER(i8)       :: isum_1, isum_2, isum(2)
    INTEGER           :: i, iexp
-   REAL(dp), SAVE    :: abs_max ! This must be a shared variable
+   REAL(dp)          :: abs_max
    REAL(dp)          :: fact, r_fact, rval
+   LOGICAL :: lzacc ! non-optional version of lacc
 
    REAL(dp), PARAMETER :: two_30 = 1073741824._dp ! 2.**30
    REAL(dp), PARAMETER :: r_two_30 = 1._dp/two_30
@@ -2367,13 +2374,20 @@ FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
 !-----------------------------------------------------------------------
    start_sync_timer(timer_ordglb_sum)
 
+   CALL set_acc_host_or_device(lzacc, lacc)
+
    ! Set shared variables in a MASTER region
    abs_max = 0._dp
-   isum(:) = 0_i8
+   isum_1 = 0_i8
+   isum_2 = 0_i8
    ! Get the maximum absolute value of all numbers.
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+   !$ACC LOOP GANG VECTOR REDUCTION(MAX: abs_max)
    DO i=1,num_vals
       abs_max = MAX(abs_max, ABS(vals(i)))
    ENDDO
+   !$ACC END PARALLEL
+   !$ACC WAIT IF(lzacc)
    rval = abs_max
    abs_max = p_max(rval, comm=mpi_comm)
    ! If abs_max is 0, all input values are 0
@@ -2405,6 +2419,8 @@ FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
    r_fact = SCALE(1._dp,iexp-30) ! 1./fact
 
    ! Sum up all numbers as scaled integers
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+   !$ACC LOOP GANG VECTOR PRIVATE(rval, ival1, ival2) REDUCTION(+: isum_1, isum_2)
    DO i=1,num_vals
 
       ! Scale number into range -2**30 < rval < 2**30
@@ -2420,11 +2436,14 @@ FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
       ! Sum up ival1 and ival2; since we are using 8-byte integers
       ! for the sum there are no problems with overflow
 
-      isum(1) = isum(1) + ival1
-      isum(2) = isum(2) + ival2
+      isum_1 = isum_1 + ival1
+      isum_2 = isum_2 + ival2
 
    ENDDO
-   itmp = isum
+   !$ACC END PARALLEL
+   !$ACC WAIT IF(lzacc)
+
+   itmp = (/ isum_1, isum_2 /)
    isum = p_sum(itmp, comm=mpi_comm)
 
    ! Scale integer numbers back to real numbers and add them.

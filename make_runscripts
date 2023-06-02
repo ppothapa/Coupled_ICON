@@ -70,7 +70,7 @@ echo_usage()
     echo "         working directory or absolute.  The secondary build dir is used for"
     echo "         setups like the hybrid NEC host/vector. For the NEC, the path to the"
     echo "         ICON host binaries can be set here."
-    echo " -d      Print make_target_runscript with all options"
+    echo "  -d     Debug: Print make_target_runscript with all options"
 }
 
 function error_trap()
@@ -192,7 +192,7 @@ then
     #       EXPNAME=<name> variable
     #__________________________________________________________________________
 
-[[ $debug -eq $TRUE ]] && set -x
+    [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=exp.${name}\
@@ -202,7 +202,7 @@ then
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
-set +x
+    set +x
 fi
 
 # NWP experiment runscript
@@ -221,7 +221,7 @@ then
     #       EXPNAME=<name> variable
     #__________________________________________________________________________
 
-[[ $debug -eq $TRUE ]] && set -x
+    [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=nwpexp.${name}\
@@ -230,7 +230,7 @@ then
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
-set +x
+    set +x
 fi
 
 # post-processing runscript
@@ -249,7 +249,7 @@ then
     #    with_mpi="no" with_openmp="no"
     #__________________________________________________________________________
 
-[[ $debug -eq $TRUE ]] && set -x
+    [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
         in_folder=${in_folder} \
         in_script=post.${name} \
@@ -259,7 +259,7 @@ then
         with_mpi="no" \
         with_openmp="no" \
         queue="express"
-set +x
+    set +x
 fi
 
 

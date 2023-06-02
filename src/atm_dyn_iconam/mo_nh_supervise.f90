@@ -41,7 +41,7 @@ MODULE mo_nh_supervise
   USE mo_sync,                ONLY: global_sum_array, global_max
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c, grf_bdywidth_e
-  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_host_only
+  USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device, assert_lacc_equals_i_am_accel_node, assert_acc_device_only
   USE mo_upatmo_impl_const,   ONLY: idamtr
 
   IMPLICIT NONE
@@ -153,19 +153,18 @@ CONTAINS
     REAL(wp) :: z_kin_energy_re         !< percentage of kinetic energy out of total energy
     REAL(wp) :: z_int_energy_re         !< percentage of internal energy out of total energy
     REAL(wp) :: z_pot_energy_re         !< percentage of potential energy out of total energy
-    REAL(wp) :: z_help
+    REAL(wp) :: z_volume
 #ifndef NOMPI
-    REAL(wp) :: z0(nproma),&
-      &           z1(nproma,patch(1)%nblks_c), &
-      &           z2(nproma,patch(1)%nblks_c), &
-      &           z3(nproma,patch(1)%nblks_c), &
-      &           z4(nproma,patch(1)%nblks_c), &
-      &           z5(nproma,patch(1)%nblks_c), &
-      &           z6(nproma,patch(1)%nblks_c)
+    REAL(wp) ::   z_total_mass_2d(nproma,patch(1)%nblks_c), &
+      &           z_kin_energy_2d(nproma,patch(1)%nblks_c), &
+      &           z_int_energy_2d(nproma,patch(1)%nblks_c), &
+      &           z_pot_energy_2d(nproma,patch(1)%nblks_c), &
+      &           z_surfp_2d(nproma,patch(1)%nblks_c), &
+      &           z_total_drymass_2d(nproma,patch(1)%nblks_c)
 #endif
 
     REAL (wp):: z_total_tracer(ntracer)       ! total tracer mass
-    REAL (wp):: z_aux_tracer(nproma,patch(1)%nblks_c,ntracer)
+    REAL (wp):: z_aux_tracer(nproma,patch(1)%nblks_c)
     REAL (wp):: z_rel_err_tracer_s1(ntracer) ! relative error of total tracer
     REAL (wp):: z_rel_err_tracer(ntracer)    ! relative error of total tracer
 
@@ -178,8 +177,7 @@ CONTAINS
     TYPE(t_nh_diag), POINTER :: diag       ! diag state
     REAL(wp) :: z_qsum(nproma,patch(1)%nlev,patch(1)%nblks_c)  ! total condensate including vapour
     REAL(wp) :: z_total_moist, z_elapsed_time
-    REAL(wp), TARGET :: z_ekin(nproma,patch(1)%nlev,patch(1)%nblks_c)
-    REAL(wp), DIMENSION(:,:,:),   POINTER :: ptr_ekin
+    REAL(wp) :: z_ekin(nproma,patch(1)%nlev,patch(1)%nblks_c)
 
     REAL(wp) :: max_vn, max_w
     INTEGER  :: max_vn_level, max_vn_process, max_w_level, max_w_process
@@ -188,7 +186,13 @@ CONTAINS
     REAL(wp), DIMENSION(:), POINTER :: deepatmo_vol
     !-----------------------------------------------------------------------------
 
-    CALL assert_acc_host_only('mo_nh_stepping:supervise_total_integrals_nh', lacc)
+    CALL assert_lacc_equals_i_am_accel_node('mo_nh_stepping:supervise_total_integrals_nh', lacc)
+    CALL assert_acc_device_only('mo_nh_stepping:supervise_total_integrals_nh', lacc)
+
+    !$ACC DATA CREATE(z_ekin, z_qsum, z_aux_tracer)
+#ifndef NOMPI
+    !$ACC DATA CREATE(z_total_mass_2d, z_kin_energy_2d, z_int_energy_2d, z_pot_energy_2d, z_surfp_2d, z_total_drymass_2d)
+#endif
 
     ! Hack [ha]:
     IF (.NOT. ALLOCATED (z_total_tracer_old)) THEN
@@ -221,8 +225,6 @@ CONTAINS
     prog_rcf => nh_state(jg)%prog(ntimlev_rcf(jg))
     diag     => nh_state(jg)%diag
 
-    ptr_ekin => z_ekin
-
     nblks_c   = patch(jg)%nblks_c
     npromz_c  = patch(jg)%npromz_c
 
@@ -233,7 +235,7 @@ CONTAINS
     nlev = patch(jg)%nlev
 
     IF (iforcing <= 1) THEN ! u and v are not diagnosed regularly if physics is turned off
-      CALL rbf_vec_interpol_cell(prog%vn,patch(jg),int_state(jg),diag%u,diag%v)
+      CALL rbf_vec_interpol_cell(prog%vn,patch(jg),int_state(jg),diag%u,diag%v, opt_acc_async=.TRUE.)
     ENDIF
 
 !$OMP PARALLEL
@@ -244,19 +246,26 @@ CONTAINS
       ELSE
         nlen = npromz_c
       ENDIF
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = 1, nlen
-          ptr_ekin(jc,jk,jb) = 0.5_wp*(diag%u(jc,jk,jb)**2 + diag%v(jc,jk,jb)**2) +  &
+          z_ekin(jc,jk,jb) = 0.5_wp*(diag%u(jc,jk,jb)**2 + diag%v(jc,jk,jb)**2) +  &
             0.25_wp*(prog%w(jc,jk,jb)**2 + prog%w(jc,jk+1,jb)**2)
         ENDDO
       ENDDO
 
       ! compute total condensate INCLUDING vapour
+      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
       DO jk = 1, nlev
-        z_qsum(:,jk,jb) = 0._wp
+        DO jc = 1, nlen
+          z_qsum(jc,jk,jb) = 0._wp
+        ENDDO
       ENDDO
       IF ( ltransport .AND. lforcing .AND. iforcing /= iheldsuarez ) THEN
+        !$ACC LOOP SEQ
         DO jt=1, iqm_max
+        !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jc = 1, nlen
               z_qsum(jc,jk,jb) = z_qsum(jc,jk,jb) + prog_rcf%tracer(jc,jk,jb,jt)
@@ -264,11 +273,16 @@ CONTAINS
           ENDDO  !jk
         ENDDO  !jt
       ENDIF
+      !$ACC END PARALLEL
     ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
 
 #ifdef NOMPI
+
+#ifdef _OPENACC
+    CALL finish("mo_nh_stepping:supervise_total_integrals_nh", "The NOMPI has not been tested with OpenACC.")
+#endif
 
     z_total_mass    = 0.0_wp
     z_total_drymass = 0.0_wp
@@ -282,31 +296,49 @@ CONTAINS
       ELSE
         nlen = npromz_c
       ENDIF
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_volume) &
+      !$ACC   REDUCTION(+, z_total_mass, z_kin_energy, z_int_energy, z_pot_energy, z_total_drymass)
       DO jk = 1, nlev
         DO jc = 1, nlen
           ! (deep-atmosphere modification applied)
-          z_help = patch(jg)%cells%area(jc,jb)*nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
+          z_volume = patch(jg)%cells%area(jc,jb)*nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
             &       /patch(jg)%n_patch_cells_g*deepatmo_vol(jk)
           z_total_mass = z_total_mass + &
-            &              prog%rho(jc,jk,jb)*z_help
+            &              prog%rho(jc,jk,jb)*z_volume
           z_kin_energy = z_kin_energy + &
-            &              prog%rho(jc,jk,jb)*ptr_ekin(jc,jk,jb)*z_help
+            &              prog%rho(jc,jk,jb)*z_ekin(jc,jk,jb)*z_volume
           z_int_energy = z_int_energy + &
-            &              cvd*prog%exner(jc,jk,jb)*prog%rho(jc,jk,jb)*prog%theta_v(jc,jk,jb)*z_help
+            &              cvd*prog%exner(jc,jk,jb)*prog%rho(jc,jk,jb)*prog%theta_v(jc,jk,jb)*z_volume
           z_pot_energy = z_pot_energy + &
-            &              prog%rho(jc,jk,jb)*nh_state(jg)%metrics%geopot(jc,jk,jb)*z_help
+            &              prog%rho(jc,jk,jb)*nh_state(jg)%metrics%geopot(jc,jk,jb)*z_volume
           z_total_drymass = z_total_drymass + &
-            &              prog%rho(jc,jk,jb)*(1._wp - z_qsum(jc,jk,jb))*z_help
+            &              prog%rho(jc,jk,jb)*(1._wp - z_qsum(jc,jk,jb))*z_volume
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+, z_mean_surfp)
       DO jc = 1, nlen
         z_mean_surfp = z_mean_surfp + diag%pres_sfc(jc,jb)*patch(jg)%cells%area(jc,jb) /  &
           &  (4._wp*grid_sphere_radius**2*pi)
       ENDDO
+      !$ACC END PARALLEL
+      !$ACC WAIT
     ENDDO
     z_total_energy = z_int_energy+z_kin_energy+z_pot_energy
 
 #else
+
+    !$OMP PARALLEL
+    CALL init(z_total_mass_2d, opt_acc_async=.TRUE.)
+    CALL init(z_kin_energy_2d, opt_acc_async=.TRUE.)
+    CALL init(z_int_energy_2d, opt_acc_async=.TRUE.)
+    CALL init(z_pot_energy_2d, opt_acc_async=.TRUE.)
+    CALL init(z_surfp_2d, opt_acc_async=.TRUE.)
+    CALL init(z_total_drymass_2d, opt_acc_async=.TRUE.)
+    !$OMP END PARALLEL
 
     DO jb = 1, nblks_c
       IF (jb /= nblks_c) THEN
@@ -314,42 +346,48 @@ CONTAINS
       ELSE
         nlen = npromz_c
       ENDIF
-      z1(1:nlen,jb) = 0.0_wp
-      z2(1:nlen,jb) = 0.0_wp
-      z3(1:nlen,jb) = 0.0_wp
-      z4(1:nlen,jb) = 0.0_wp
-      z5(1:nlen,jb) = 0.0_wp
-      z6(1:nlen,jb) = 0.0_wp
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ
       DO jk = 1,nlev
-        ! (deep-atmosphere modification applied)
-        z0(1:nlen) = patch(jg)%cells%area(1:nlen,jb)      &
-          & *nh_state(jg)%metrics%ddqz_z_full(1:nlen,jk,jb) &
-          & /REAL(patch(jg)%n_patch_cells_g,wp)*deepatmo_vol(jk)
-        z1(1:nlen,jb) = z1(1:nlen,jb)&
-          & +prog%rho(1:nlen,jk,jb)*z0(1:nlen)
-        z2(1:nlen,jb) = z2(1:nlen,jb)&
-          & +prog%rho(1:nlen,jk,jb)*ptr_ekin(1:nlen,jk,jb)*z0(1:nlen)
-        z3(1:nlen,jb) = z3(1:nlen,jb)&
-          & +cvd*prog%exner(1:nlen,jk,jb)*prog%rho(1:nlen,jk,jb)*prog%theta_v(1:nlen,jk,jb)*z0(1:nlen)
-        z4(1:nlen,jb) = z4(1:nlen,jb)&
-          & +prog%rho(1:nlen,jk,jb)*nh_state(jg)%metrics%geopot(1:nlen,jk,jb)*z0(1:nlen)
-        z6(1:nlen,jb) = z6(1:nlen,jb)&
-          & +prog%rho(1:nlen,jk,jb)*(1._wp-z_qsum(1:nlen,jk,jb))*z0(1:nlen)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z_volume)
+        DO jc = 1, nlen
+          ! (deep-atmosphere modification applied)
+          z_volume = patch(jg)%cells%area(jc,jb)      &
+            & *nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
+            & /REAL(patch(jg)%n_patch_cells_g,wp)*deepatmo_vol(jk)
+          z_total_mass_2d(jc,jb) = z_total_mass_2d(jc,jb)&
+            & +prog%rho(jc,jk,jb)*z_volume
+          z_kin_energy_2d(jc,jb) = z_kin_energy_2d(jc,jb)&
+            & +prog%rho(jc,jk,jb)*z_ekin(jc,jk,jb)*z_volume
+          z_int_energy_2d(jc,jb) = z_int_energy_2d(jc,jb)&
+            & +cvd*prog%exner(jc,jk,jb)*prog%rho(jc,jk,jb)*prog%theta_v(jc,jk,jb)*z_volume
+          z_pot_energy_2d(jc,jb) = z_pot_energy_2d(jc,jb)&
+            & +prog%rho(jc,jk,jb)*nh_state(jg)%metrics%geopot(jc,jk,jb)*z_volume
+          z_total_drymass_2d(jc,jb) = z_total_drymass_2d(jc,jb)&
+            & +prog%rho(jc,jk,jb)*(1._wp-z_qsum(jc,jk,jb))*z_volume
+        ENDDO
       ENDDO
-      z5(1:nlen,jb) = diag%pres_sfc(1:nlen,jb)*patch(jg)%cells%area(1:nlen,jb)
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z1(:,jb) = 0._wp
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z2(:,jb) = 0._wp
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z3(:,jb) = 0._wp
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z4(:,jb) = 0._wp
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z5(:,jb) = 0._wp
-      WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,jb)) z6(:,jb) = 0._wp
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = 1, nlen
+        z_surfp_2d(jc,jb) = diag%pres_sfc(jc,jb)*patch(jg)%cells%area(jc,jb)
+        IF(.NOT. patch(jg)%cells%decomp_info%owner_mask(jc,jb)) THEN
+          z_total_mass_2d(jc,jb) = 0._wp
+          z_kin_energy_2d(jc,jb) = 0._wp
+          z_int_energy_2d(jc,jb) = 0._wp
+          z_pot_energy_2d(jc,jb) = 0._wp
+          z_surfp_2d(jc,jb) = 0._wp
+          z_total_drymass_2d(jc,jb) = 0._wp
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
     ENDDO
-    z_mean_surfp    = global_sum_array( z5 )/(4._wp*grid_sphere_radius**2*pi)
-    z_total_mass    = global_sum_array( z1 )
-    z_kin_energy    = global_sum_array( z2 )
-    z_int_energy    = global_sum_array( z3 )
-    z_pot_energy    = global_sum_array( z4 )
-    z_total_drymass = global_sum_array( z6 )
+
+    z_mean_surfp    = global_sum_array( z_surfp_2d, lacc=.TRUE. )/(4._wp*grid_sphere_radius**2*pi)
+    z_total_mass    = global_sum_array( z_total_mass_2d, lacc=.TRUE. )
+    z_kin_energy    = global_sum_array( z_kin_energy_2d, lacc=.TRUE. )
+    z_int_energy    = global_sum_array( z_int_energy_2d, lacc=.TRUE. )
+    z_pot_energy    = global_sum_array( z_pot_energy_2d, lacc=.TRUE. )
+    z_total_drymass = global_sum_array( z_total_drymass_2d, lacc=.TRUE. )
     z_total_energy = z_int_energy+z_kin_energy+z_pot_energy
 
 #endif
@@ -382,11 +420,12 @@ CONTAINS
 
     IF (ltransport  .OR. ( iforcing == inwp ) .OR. ( iforcing == iaes )) THEN
 
-      z_total_tracer(:)   = 0.0_wp
-      z_aux_tracer(:,:,:) = 0.0_wp
-      z_total_moist       = 0.0_wp
+      z_total_tracer(:) = 0.0_wp ! init must not used be used (this is no GPU variable)
+      z_total_moist = 0.0_wp
 
       DO jt=1, ntracer
+
+        CALL init(z_aux_tracer(:,:), opt_acc_async=.TRUE.) ! reinitialize for each jt
 
         DO jb = 1, nblks_c
 
@@ -397,22 +436,33 @@ CONTAINS
           ENDIF
 
           ! compute tracer mass in each vertical column
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP SEQ
           DO jk = 1, nlev
+            !$ACC LOOP GANG VECTOR PRIVATE(z_volume)
             DO jc = 1, nlen
               ! (deep-atmosphere modification applied)
-              z_help = patch(jg)%cells%area(jc,jb)             &
+              z_volume = patch(jg)%cells%area(jc,jb)             &
                 &    * nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
                 &    * prog%rho(jc,jk,jb) * deepatmo_vol(jk)
 
-              z_aux_tracer(jc,jb,jt) = z_aux_tracer(jc,jb,jt)    &
-                &    + prog_rcf%tracer(jc,jk,jb,jt) * z_help
+              z_aux_tracer(jc,jb) = z_aux_tracer(jc,jb)    &
+                &    + prog_rcf%tracer(jc,jk,jb,jt) * z_volume
             ENDDO
           ENDDO
+          !$ACC END PARALLEL
 
         ENDDO
 
-        WHERE(.NOT.patch(jg)%cells%decomp_info%owner_mask(:,:)) z_aux_tracer(:,:,jt) = 0._wp
-        z_total_tracer(jt) = global_sum_array(z_aux_tracer(:,:,jt))
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jb = 1, nblks_c
+          DO jc = 1, nproma
+            IF(.NOT.patch(jg)%cells%decomp_info%owner_mask(jc,jb)) z_aux_tracer(jc,jb) = 0._wp
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
+        z_total_tracer(jt) = global_sum_array(z_aux_tracer(:,:), lacc=.TRUE.)
 
       ENDDO  ! ntracer
 
@@ -483,7 +533,7 @@ CONTAINS
     ! write additional check quantities (check_global_quantities)
     CALL calculate_maxwinds(patch(1), prog%vn, prog%w, &
         & max_vn, max_vn_level, max_vn_process,        &
-        & max_w, max_w_level, max_w_process )
+        & max_w, max_w_level, max_w_process, lacc=.TRUE. )
 
     IF (my_process_is_stdio()) THEN
       IF (check_total_quant_fileid >= 0) THEN
@@ -497,6 +547,12 @@ CONTAINS
     ENDIF
 
     deepatmo_vol => NULL()
+
+    !$ACC WAIT
+#ifndef NOMPI
+    !$ACC END DATA ! z_total_mass_2d, z_kin_energy_2d, z_int_energy_2d, z_pot_energy_2d, z_surfp_2d, z_total_drymass_2d
+#endif
+    !$ACC END DATA
 
   END SUBROUTINE supervise_total_integrals_nh
   !-------------------------------------------------------------------------

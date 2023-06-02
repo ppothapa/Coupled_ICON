@@ -3,67 +3,31 @@
 #ifdef __HIP__
 #include <iostream>
 #include <hip/hip_runtime.h>
+using gpuStream_t = hipStream_t;
+#else
+// CUDA
+using gpuStream_t = cudaStream_t;
 #endif
 
 #ifdef __cplusplus // Are we compiling this with a C++ compiler ?
 extern "C"
 {
 #endif
-#ifndef __HIP__
 
-	void c_generate_index_list_i1(
-			const char* dev_conditions,
+	void c_generate_index_list_gpu_single(
+			const void* dev_conditions,
 			const int startid, const int endid,
-			int* dev_indices, int& nvalid, cudaStream_t stream);
+			int* dev_indices, int* nvalid, 
+			int data_size, bool copy_to_host,
+			gpuStream_t stream);
 
-	void c_generate_index_list_i4(
-			const int* dev_conditions,
-			const int startid, const int endid,
-			int* dev_indices, int& nvalid, cudaStream_t stream);
-
-	void c_generate_index_list_batched_i1(
+	void c_generate_index_list_gpu_batched(
 			const int batch_size,
-			const char* dev_conditions, const int stride,
+			const void* dev_conditions, const int stride,
 			const int startid, const int endid,
 			int* dev_indices, const int idx_stride,
-			int* dev_nvalid, cudaStream_t stream);
-
-	void c_generate_index_list_batched_i4(
-			const int batch_size,
-			const int* dev_conditions, const int stride,
-			const int startid, const int endid,
-			int* dev_indices, const int idx_stride,
-			int* dev_nvalid, cudaStream_t stream);
-#else
-
-// HIP implementation
-
-	void c_generate_index_list_i1(
-			const char* dev_conditions,
-			const int startid, const int endid,
-			int* dev_indices, int& nvalid, hipStream_t stream);
-
-	void c_generate_index_list_i4(
-			const int* dev_conditions,
-			const int startid, const int endid,
-			int* dev_indices, int& nvalid, hipStream_t stream);
-
-	void c_generate_index_list_batched_i1(
-			const int batch_size,
-			const char* dev_conditions, const int stride,
-			const int startid, const int endid,
-			int* dev_indices, const int idx_stride,
-			int* dev_nvalid, hipStream_t stream);
-
-	void c_generate_index_list_batched_i4(
-			const int batch_size,
-			const int* dev_conditions, const int stride,
-			const int startid, const int endid,
-			int* dev_indices, const int idx_stride,
-			int* dev_nvalid, hipStream_t stream);
-
-#endif
-
+			int* dev_nvalid, int data_size,
+			gpuStream_t stream);
 
 #ifdef __cplusplus
 }
