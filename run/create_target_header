@@ -1810,6 +1810,9 @@ create_target_header()
             use_mpi_procs_pernode=3
             use_nproma=4250
             ;;
+        *mch_opr_r04b07_lhn_00.run|*mch_opr_r04b07_lhn_00_member_id*.run)
+            use_nodes=4
+            ;;
         *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_member_id*.run)
             use_nodes=1
             use_mpi_procs_pernode=4

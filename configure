@@ -1510,7 +1510,7 @@ Infrastructural Features:
                           enable MPI active target mode (otherwise, passive
                           target mode is used) [default=no]
   --enable-mpi-rget       enable usage of the MPI_Rget routine [default=auto]
-  --enable-async-io-rma   enable MPI RMA for async I/O [default=yes]
+  --enable-async-io-rma   enable MPI RMA for asynchronous I/O [default=yes]
   --enable-openmp         enable OpenMP support [default=no]
   --enable-gpu            enable GPU support [default=no]
   --enable-grib2          enable GRIB2 I/O [default=no]
@@ -4882,6 +4882,10 @@ fi
 
 if test "x$enable_parallel_netcdf" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_PARALLEL_NETCDF"
+fi
+
+if test "x$enable_async_io_rma" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NO_ASYNC_IO_RMA"
 fi
 
 if test "x$enable_cdi_pio" = xyes; then :

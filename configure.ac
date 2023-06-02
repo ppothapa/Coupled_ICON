@@ -225,8 +225,7 @@ AC_ARG_ENABLE([mpi-rget],
 
 AC_ARG_ENABLE([async-io-rma],
   [AS_HELP_STRING([--enable-async-io-rma],
-     [enable MPI RMA for async I/O ]dnl
-[@<:@default=yes@:>@])],
+     [enable MPI RMA for asynchronous I/O @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_async_io_rma=yes])],
   [enable_async_io_rma=yes])
 
@@ -766,6 +765,9 @@ AS_VAR_IF([enable_active_target_sync], [yes],
 
 AS_VAR_IF([enable_parallel_netcdf], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_PARALLEL_NETCDF"])])
+
+AS_VAR_IF([enable_async_io_rma], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NO_ASYNC_IO_RMA"])])
 
 AS_VAR_IF([enable_cdi_pio], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_CDI_PIO"])])
