@@ -353,7 +353,8 @@ EOF
         echo "#SBATCH --mem=${use_memory}" >> $output_script
     fi
     if [[ $use_tasks -lt 128 ]]; then
-        echo "#SBATCH --ntasks=$use_tasks" >> $output_script
+      # here twice the given number of tasks is used to requesting resources, because --hint=nomultithread is used
+      echo "#SBATCH --ntasks=$((2 * $use_tasks))" >> $output_script
     fi
     cat >> $output_script << EOF
 #SBATCH --time=$s_cpu_time
