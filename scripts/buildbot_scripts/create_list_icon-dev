@@ -62,7 +62,7 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 # add omip technical tests only with mpi parallelization
 $addexp "checksuite.ocean_internal/technical/exp.ocean_omip_ptest" \
 	--machines levante --without-configureflags "--without-mpi --enable-mixed" \
-	--runflags "cpu_time=00:20:00 mpi_procs_pernode=5  openmp_threads=4 queue=shared,compute ntasks=24"  --list $listname
+	--runflags "cpu_time=00:20:00 mpi_procs_pernode=5  queue=shared,compute ntasks=32 memory=32G"  --list $listname
 $addexp "checksuite.ocean_internal/technical/exp.test_ocean_omip_technical" \
 	--machines levante --without-configureflags "--without-mpi --enable-mixed" \
 	--runflags "cpu_time=00:10:00 queue=shared,compute ntasks=32"  --list $listname
