@@ -39,16 +39,6 @@
 !!    (div_midpoint, div_midpoint_times_area) or
 !!    using the Simpson's rule
 !!    (div_simpson, div_simpson_times_area)
-!!  Modification by Jochen Foerstner, DWD, (2008-07-16)
-!!  - introduction of several new operators (to be) used in combination with
-!!    the tracer advection:
-!!    grad_green_gauss_cell, grad_green_gauss_edge and div_quad_twoadjcells
-!!    (for the new div operator there is again a version using the midpoint
-!!    and a version using the Simpson's rule).
-!!    The first operator is used to calculate a cell centered value of the
-!!    gradient for the piecewise linear reconstruction. The second and third
-!!    will be used in combination with the MPDATA scheme. Both deal with the
-!!    quadrilateral control volumes formed by two adjacent triangles.
 !!  Modification by Marco Restelli, MPI (2008-07-17)
 !!  - included subroutine dtan.
 !!  Modification by Jochen Foerstner, DWD (2008-09-12)
