@@ -71,7 +71,9 @@ MODULE mo_wave_config
     REAL(wp) :: zalp     ! shifts growth curve (ecmwf cy45r1).
     REAL(wp) :: alpha_ch ! minimum charnock constant (ecmwf cy45r1)
 
-    REAL(wp) :: depth ! ocean depth (m) if not 0, then constant depth
+    REAL(wp) :: depth    ! ocean depth (m) if not 0, then constant depth
+    INTEGER  :: niter_smooth ! number of smoothing iterations for wave bathymetry
+                             ! if 0 then no smoothing
 
     INTEGER  :: jtot_tauhf ! dimension of wtauhf, must be odd
     REAL(wp) :: x0tauhf    ! lowest limit for integration in tau_phi_hf: x0 *(g/ustar)
@@ -116,7 +118,7 @@ MODULE mo_wave_config
       &  dal1,             & ! 1./acl1.
       &  dal2,             & ! 1./acl2.
       &  frh(30)             ! tail frequency ratio **5
-      
+
     REAL(wp), ALLOCATABLE :: &
       &  freqs(:),         & ! frequencies (1:nfreqs) of wave spectrum [hz]
       &  dfreqs(:),        & ! frequency interval (1:nfreqs)
@@ -132,7 +134,8 @@ MODULE mo_wave_config
 
     INTEGER, ALLOCATABLE :: &
       &  freq_ind(:),      & ! index of frequency (1:ntracer=ndirs*nfreq)
-      &  dir_ind(:)          ! index of direction (1:ntracer=ndirs*nfreq)
+      &  dir_ind(:),       & ! index of direction (1:ntracer=ndirs*nfreq)
+      &  dir_neig_ind(:,:)   ! index of direction neighbor (2,1:ndirs)
 
   CONTAINS
     !
@@ -220,6 +223,7 @@ CONTAINS
     CALL DO_DEALLOCATE(me%RHOWG_DFIM)
     CALL DO_DEALLOCATE(me%freq_ind)
     CALL DO_DEALLOCATE(me%dir_ind)
+    CALL DO_DEALLOCATE(me%dir_neig_ind)
     CALL DO_DEALLOCATE(me%wtauhf)
 
   END SUBROUTINE wave_config_destruct
@@ -271,8 +275,9 @@ CONTAINS
         &      stat=ist)
       IF (ist/=SUCCESS) CALL finish(routine, "allocation for fields of type REAL failed")
 
-      ALLOCATE(wc%freq_ind     (ntracer),  &
-        &      wc%dir_ind      (ntracer),  &
+      ALLOCATE(wc%freq_ind     (ntracer),    &
+        &      wc%dir_ind      (ntracer),    &
+        &      wc%dir_neig_ind (2,wc%ndirs), &
         &      stat=ist)
       IF (ist/=SUCCESS) CALL finish(routine, "allocation for fields of type INTEGER failed")
 
@@ -338,6 +343,21 @@ CONTAINS
           jfjd = jfjd + 1
         END DO
       END DO
+
+      ! calculate direction neighbor index
+      DO jd = 1,wc%ndirs
+        IF (jd == 1) THEN
+          wc%dir_neig_ind(1,jd) = wc%ndirs
+          wc%dir_neig_ind(2,jd) = jd+1
+        ELSEIF (jd == wc%ndirs) THEN
+          wc%dir_neig_ind(1,jd) = jd-1
+          wc%dir_neig_ind(2,jd) = 1
+        ELSE
+          wc%dir_neig_ind(1,jd) = jd-1
+          wc%dir_neig_ind(2,jd) = jd+1
+        END IF
+      END DO
+
 
       ! MO  TAIL FACTOR.
       wc%MO_TAIL  = - wc%DELTH / (EX_TAIL + 1.0_wp) * wc%freqs(wc%nfreqs)

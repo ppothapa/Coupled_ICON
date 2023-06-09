@@ -149,6 +149,8 @@ CONTAINS
          &                depth       = wave_ext_data%bathymetry_c, & !IN
          &                p_diag      = p_diag) !INOUT
 
+
+
     CALL message(TRIM(routine),'finished')
 
   END SUBROUTINE init_wave_phy
