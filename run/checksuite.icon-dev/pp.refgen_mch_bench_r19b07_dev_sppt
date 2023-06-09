@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # set experiment specific variables
-file_ids=atm_3d
-exp=mch_bench_r19b07_dev_sppt
+probtest_file_ids='*atm_3d*.nc'
+probtest_exp=mch_bench_r19b07_dev_sppt
 
 . ./add_refgen_routines
 

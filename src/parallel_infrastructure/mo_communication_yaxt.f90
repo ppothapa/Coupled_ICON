@@ -2643,7 +2643,7 @@ END SUBROUTINE exchange_data_grf
       END IF
       IF (incr > 0) THEN
 #ifdef _OPENACC
-        IF (lzacc) THEN
+        IF (lzacc) THEN ! FIXME: lzacc is undefined here (even before ACC clean-up 24c5f97e)
           dst_cptr(:, i) = acc_deviceptr(C_LOC(cpy(1,1,1)))
         ELSE
 #endif

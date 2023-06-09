@@ -87,6 +87,15 @@
 !   - sedi_icon_box_core() (vectorized version #if defined (__SX__) || defined (__NEC_VH__) || defined (__NECSX__))
 !   - sedi_icon_box_core_lwf() (vectorized version #if defined (__SX__) || defined (__NEC_VH__) || defined (__NECSX__))
 !===============================================================================!
+! OpenACC compiler error workarounds (04/2023 by MJ):
+! IPSF: Several intermediate pointers have been introduced to circumvent
+!       segmentation faults with nvhpc 22.7. The affected lines are marked by
+!       the following abbreviation:
+!       ! ACCWA (nvhpc 22.7, IPSF, see above)
+!       Without these pointer, the compiler or Nvidia runtime is otherwise
+!       unable to find the derived type on the accelerator device.
+!       This workaround also requires additional WAIT clauses.
+!===============================================================================!
 !!
 !! @par Copyright and License
 !!
@@ -152,7 +161,7 @@ MODULE mo_2mom_mcrph_processes
        & set_qns,                    &
        & set_qng,                    &
        & set_qnh                    
-  USE mo_fortran_tools
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -165,7 +174,10 @@ MODULE mo_2mom_mcrph_processes
 
   ! Physical parameters and coefficients which occur only in the two-moment scheme
 
-  ! ... some physical parameters not found in ICON
+  ! .. lower limit of tke used in turbulent collision enhancement parameterization:
+  REAL(wp), PARAMETER :: tke_min = 0.01_wp ** 2 ! [m^2 s^-2]
+  
+  ! .. some physical parameters not found in ICON
   REAL(wp), PARAMETER :: T_f     = 233.0_wp     !..below this temperature there is no liquid water
 
   ! .. some cloud physics parameters
@@ -262,8 +274,7 @@ MODULE mo_2mom_mcrph_processes
 
   REAL(wp), PARAMETER ::           &
        &    T_nuc        = 268.15_wp, & ! lower temperature threshold for ice nucleation, -5 C
-       &    T_freeze     = 273.15_wp, & ! lower temperature threshold for raindrop freezing
-       &    Tmax_gr_rime = 270.16_wp    ! lower temperature threshold for graupel creation through riming
+       &    T_freeze  = 273.15_wp    ! lower temperature threshold for raindrop freezing
 
   ! Parameter for evaporation of rain, determines change of n_rain during evaporation
   REAL(wp) :: rain_gfak   ! this is set in init_twomoment
@@ -422,17 +433,17 @@ CONTAINS
     REAL(wp),        INTENT(in) :: x
     REAL(wp)                    :: D
 
-    D = this%a_geo * exp(this%b_geo*log(x))    ! v = a_geo * x**b_geo
+    D = this%a_geo * EXP(this%b_geo*LOG(x))    ! v = a_geo * x**b_geo
   END FUNCTION particle_diameter
 
   ! normalized diameter for rational function approx.
   ! in lwf-melting scheme
   pure function particle_normdiameter(this,D_m) result(dnorm)
     CLASS(particle_lwf), intent(in) :: this
-    real(wp), intent(in) :: D_m
+    REAL(wp), INTENT(in) :: D_m
     real(wp)             :: dnorm
 
-    dnorm = min(max((log10(D_m*this%lwf_cnorm1)+this%lwf_cnorm2)*this%lwf_cnorm3,0.0_wp),1.0_wp)
+    dnorm = MIN(MAX((LOG10(D_m*this%lwf_cnorm1)+this%lwf_cnorm2)*this%lwf_cnorm3,0.0_wp),1.0_wp)
     return
   end function particle_normdiameter
 
@@ -440,10 +451,10 @@ CONTAINS
   pure function particle_lwf_idx(this,i,j) result(lwf)
     CLASS(particle_lwf), intent(in) :: this
     integer,         intent(in) :: i,j
-    real(wp)                    :: lwf
+    REAL(wp)                    :: lwf
     real(wp), parameter         :: eps = 1e-20_wp
 
-    lwf = max(min(this%l(i,j)/(this%q(i,j)+eps),1.0_wp),0.0_wp)
+    lwf = MAX(MIN(this%l(i,j)/(this%q(i,j)+eps),1.0_wp),0.0_wp)
     return
   end function particle_lwf_idx
 
@@ -460,7 +471,7 @@ CONTAINS
     REAL(wp),        INTENT(in) :: x
     REAL(wp)                    :: v
 
-    v = this%a_vel * exp(this%b_vel * log(x))  ! v = a_vel * x**b_vel
+    v = this%a_vel * EXP(this%b_vel * LOG(x))  ! v = a_vel * x**b_vel
   END FUNCTION particle_velocity
 
   ! mue-Dm relation of raindrops
@@ -473,16 +484,16 @@ CONTAINS
 
     !$ACC ROUTINE SEQ
 
-    CLASS(particle_rain_coeffs), intent(in) :: this
-    real(wp), intent(in) :: D_m
+    TYPE(particle_rain_coeffs), INTENT(in) :: this
+    REAL(wp), INTENT(in) :: D_m
     real(wp)             :: mue, delta
 
     delta = this%cmu2*(D_m-this%cmu3)
-    if (D_m.le.this%cmu3) then
-       mue = this%cmu0*tanh((4.*delta)**2) + this%cmu4
-    else
-       mue = this%cmu1*tanh(delta**2) + this%cmu4
-    endif
+    IF (D_m.LE.this%cmu3) THEN
+      mue = this%cmu0*TANH((4.0_wp*delta)**2) + this%cmu4
+    ELSE
+      mue = this%cmu1*TANH(delta**2) + this%cmu4
+    ENDIF
   END FUNCTION rain_mue_dm_relation
 
   !*******************************************************************************
@@ -496,9 +507,9 @@ CONTAINS
     CLASS(particle), INTENT(IN) :: parti
 
     vent_coeff_a = parti%a_ven * gfct((parti%nu+n+parti%b_geo)/parti%mu)              &
-         &                     / gfct((parti%nu+1.0)/parti%mu)                        &
-         &                   * ( gfct((parti%nu+1.0)/parti%mu)                        &
-         &                     / gfct((parti%nu+2.0)/parti%mu) )**(parti%b_geo+n-1.0)
+         &                     / gfct((parti%nu+1.0_wp)/parti%mu)                        &
+         &                   * ( gfct((parti%nu+1.0_wp)/parti%mu)                        &
+         &                     / gfct((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
   END FUNCTION vent_coeff_a
 
   ! bulk ventilation coefficient, Eq. (89) of SB2006
@@ -514,7 +525,7 @@ CONTAINS
          &             / gfct((parti%nu+1.0)/parti%mu)                          &
          &           * ( gfct((parti%nu+1.0)/parti%mu)                          &
          &             / gfct((parti%nu+2.0)/parti%mu)                          &
-         &             )**((m_f+1.0)*parti%b_geo+m_f*parti%b_vel+n-1.0)
+         &             )**((m_f+1.0_wp)*parti%b_geo+m_f*parti%b_vel+n-1.0_wp)
   END FUNCTION vent_coeff_b
 
   ! complete mass moment of particle size distribution, Eq (82) of SB2006
@@ -523,8 +534,8 @@ CONTAINS
     INTEGER, INTENT(in)           :: n
     CLASS(particle), INTENT(in)   :: p
 
-    moment_gamma  = gfct((n+p%nu+1.0)/p%mu) / gfct((p%nu+1.0)/p%mu)        &
-         &      * ( gfct((  p%nu+1.0)/p%mu) / gfct((p%nu+2.0)/p%mu) )**n
+    moment_gamma  = gfct((n+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
+         &      * ( gfct((  p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**n
   END FUNCTION moment_gamma
 
   ! fractional mass moment of particle size distribution, i.e., this is
@@ -534,8 +545,8 @@ CONTAINS
     REAL(wp), INTENT(in) :: fexp
     CLASS(particle), INTENT(in)   :: p
 
-    fracmoment_gamma  = gfct((fexp+p%nu+1.0)/p%mu) / gfct((p%nu+1.0)/p%mu)        &
-         &          * ( gfct((    p%nu+1.0)/p%mu) / gfct((p%nu+2.0)/p%mu) )**fexp
+    fracmoment_gamma  = gfct((fexp+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
+         &          * ( gfct((     p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**fexp
   END FUNCTION fracmoment_gamma
 
   ! coefficient for slope of PSD, i.e., for lambda in Eq. (80) of SB2006
@@ -544,7 +555,7 @@ CONTAINS
     REAL(wp), INTENT(in) :: x
     CLASS(particle), INTENT(in)   :: p
 
-    lambda_gamma  = ( gfct((p%nu+1.0)/p%mu) / gfct((p%nu+2.0)/p%mu) * x)**(-p%mu)
+    lambda_gamma  = ( gfct((p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) * x)**(-p%mu)
   END FUNCTION lambda_gamma
 
   ! coefficient for general collision integral, Eq. (90) of SB2006
@@ -553,10 +564,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_delta = gfct((2.0*p1%b_geo+p1%nu+1.0+n)/p1%mu)         &
-         &                  / gfct((p1%nu+1.0  )/p1%mu)         &
-         &        * gfct((p1%nu+1.0)/p1%mu)**(2.0*p1%b_geo+n)   &
-         &        / gfct((p1%nu+2.0)/p1%mu)**(2.0*p1%b_geo+n)
+    coll_delta = gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)         &
+         &                  / gfct((p1%nu+1.0_wp  )/p1%mu)         &
+         &        * gfct((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
+         &        / gfct((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
     RETURN
   END FUNCTION coll_delta
 
@@ -581,14 +592,14 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_delta_12 = 2.0 * gfct((p1%b_geo+p1%nu+1.0)/p1%mu)               &
-         &                       / gfct((p1%nu+1.0)/p1%mu)               &
-         &                * gfct((p1%nu+1.0)/p1%mu)**(p1%b_geo)          &
-         &                / gfct((p1%nu+2.0)/p1%mu)**(p1%b_geo)          &
-         &              * gfct((p2%b_geo+p2%nu+1.0+n)/p2%mu)             &
-         &                        /gfct((p2%nu+1.0  )/p2%mu)             &
-         &                * gfct((p2%nu+1.0)/p2%mu)**(p2%b_geo+n)        &
-         &                / gfct((p2%nu+2.0)/p2%mu)**(p2%b_geo+n)
+    coll_delta_12 = 2.0_wp * gfct((p1%b_geo+p1%nu+1.0_wp)/p1%mu)       &
+         &                          / gfct((p1%nu+1.0_wp)/p1%mu)       &
+         &                * gfct((p1%nu+1.0)/p1%mu)**(p1%b_geo)        &
+         &                / gfct((p1%nu+2.0)/p1%mu)**(p1%b_geo)        &
+         &              * gfct((p2%b_geo+p2%nu+1.0_wp+n)/p2%mu)        &
+         &                        /gfct((p2%nu+1.0_wp  )/p2%mu)        &
+         &                * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_geo+n)   &
+         &                / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_geo+n)
     RETURN
   END FUNCTION coll_delta_12
 
@@ -597,10 +608,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_theta = gfct((2.0*p1%b_vel+2.0*p1%b_geo+p1%nu+1.0+n)/p1%mu)    &
-         &                  / gfct((2.0*p1%b_geo+p1%nu+1.0+n)/p1%mu)    &
-         &             * gfct((p1%nu+1.0)/p1%mu)**(2.0*p1%b_vel)        &
-         &             / gfct((p1%nu+2.0)/p1%mu)**(2.0*p1%b_vel)
+    coll_theta = gfct((2.0_wp*p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     * gfct((p1%nu+1.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)   &
+         &                     / gfct((p1%nu+2.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)
     RETURN
   END FUNCTION coll_theta
 
@@ -627,133 +638,142 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_theta_12 = 2.0 * gfct((p1%b_vel+2.0*p1%b_geo+p1%nu+1.0)/p1%mu)       &
-         &                       / gfct((2.0*p1%b_geo+p1%nu+1.0)/p1%mu)       &
-         &                 * gfct((p1%nu+1.0)/p1%mu)**(p1%b_vel)              &
-         &                 / gfct((p1%nu+2.0)/p1%mu)**(p1%b_vel)              &
-         &              * gfct((p2%b_vel+2.0*p2%b_geo+p2%nu+1.0+n)/p2%mu)     &
-         &                       / gfct((2.0*p2%b_geo+p2%nu+1.0+n)/p2%mu)     &
-         &                 * gfct((p2%nu+1.0)/p2%mu)**(p2%b_vel)              &
-         &                 / gfct((p2%nu+2.0)/p2%mu)**(p2%b_vel)
+    coll_theta_12 = 2.0_wp * gfct((p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                          / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                   * gfct((p1%nu+1.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                   / gfct((p1%nu+2.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                * gfct((p2%b_vel+2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                         / gfct((2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                   * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_vel)             &
+         &                   / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_vel)
     RETURN
   END FUNCTION coll_theta_12
 
   ! bulk sedimentation velocities
-  subroutine sedi_vel_rain(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc,lacc)
-    CLASS(particle), intent(in)            :: this
-    TYPE(particle_rain_coeffs), intent(in) :: thisCoeffs
-    integer,  intent(in)  :: its,ite
-    real(wp), intent(in)  :: q(:),x(:), rhocorr(:)
-    real(wp), intent(in), optional  :: qc(:)
-    real(wp), intent(inout) :: vn(:), vq(:)
-    logical, optional, intent(in)  :: lacc
-
-    integer  :: i
-    real(wp) :: D_m,mue,D_p
-    logical :: lzacc
-
+  SUBROUTINE sedi_vel_rain(this_in,thisCoeffs,q,x,rhocorr,vn,vq,its,ite,qc,lacc)
+    CLASS(particle), INTENT(in), TARGET :: this_in
+    CLASS(particle), POINTER :: this ! ACCWA (nvhpc 22.7, IPSF, see above)
+    TYPE(particle_rain_coeffs), INTENT(in) :: thisCoeffs
+    INTEGER,  INTENT(in)  :: its,ite
+    REAL(wp), INTENT(in)  :: q(:),x(:), rhocorr(:)
+    REAL(wp), INTENT(in), OPTIONAL  :: qc(:)
+    REAL(wp), INTENT(inout) :: vn(:), vq(:)
+    LOGICAL, OPTIONAL, INTENT(in)  :: lacc
+    
+    INTEGER  :: i
+    REAL(wp) :: D_m,mue,D_p
+    LOGICAL :: lzacc
+    
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq, qc) IF(lzacc)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite) IF(lzacc)
+    this => this_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(its, ite) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(D_m, mue, D_p)
-    do i=its,ite
-       if (q(i).gt.q_crit) then
-          D_m = particle_diameter(this, x(i))
+    DO i=its,ite
+      IF (q(i).GT.q_crit) THEN
+        D_m = particle_diameter(this, x(i))
+        
+        IF (cfg_params%luse_mu_Dm_rain) THEN
           IF (PRESENT(qc)) THEN
-             if (qc(i) >= q_crit) THEN
-                mue = (this%nu+1.0_wp)/this%b_geo - 1.0_wp
-             else
-                mue = rain_mue_dm_relation(thisCoeffs, D_m)
-             end if
+            IF (qc(i) >= q_crit) THEN
+              mue = (this%nu+1.0_wp)/this%b_geo - 1.0_wp
+            ELSE
+              mue = rain_mue_dm_relation(thisCoeffs, D_m)
+            END IF
           ELSE
-             mue = rain_mue_dm_relation(thisCoeffs, D_m)
+            mue = rain_mue_dm_relation(thisCoeffs, D_m)
           END IF
-          D_p = D_m * exp((-1./3.)*log((mue+3.)*(mue+2.)*(mue+1.)))
-          vn(i) = thisCoeffs%alfa - thisCoeffs%beta * exp(-(mue+1.)*log(1.0 + thisCoeffs%gama*D_p))
-          vq(i) = thisCoeffs%alfa - thisCoeffs%beta * exp(-(mue+4.)*log(1.0 + thisCoeffs%gama*D_p))
-          vn(i) = vn(i) * rhocorr(i)
-          vq(i) = vq(i) * rhocorr(i)
-       else
-          vn(i) = 0.0_wp
-          vq(i) = 0.0_wp
-       end if
-    end do
+        ELSE
+          mue = (this%nu+1.0_wp)/this%b_geo - 1.0_wp
+        END IF
+        
+        D_p = D_m * EXP((-1./3.)*LOG((mue+3.)*(mue+2.)*(mue+1.)))
+        vn(i) = thisCoeffs%alfa - thisCoeffs%beta * EXP(-(mue+1.)*LOG(1.0 + thisCoeffs%gama*D_p))
+        vq(i) = thisCoeffs%alfa - thisCoeffs%beta * EXP(-(mue+4.)*LOG(1.0 + thisCoeffs%gama*D_p))
+        vq(i) = MAX(vq(i),  this%vsedi_min)
+        vn(i) = MAX(vn(i),  this%vsedi_min)
+        vn(i) = vn(i) * rhocorr(i)
+        vq(i) = vq(i) * rhocorr(i)
+      ELSE
+        vn(i) = 0.0_wp
+        vq(i) = 0.0_wp
+      END IF
+    END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
-  end subroutine sedi_vel_rain
+  END SUBROUTINE sedi_vel_rain
 
   ! bulk sedimentation velocities
+
   subroutine sedi_vel_sphere(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite)
-    CLASS(particle), intent(in)        :: this
-    CLASS(particle_sphere), intent(in) :: thisCoeffs
-    integer,  intent(in)  :: its,ite
-    real(wp), intent(in)  :: q(:),x(:),rhocorr(:)
-    real(wp), intent(out) :: vn(:), vq(:)
+    CLASS(particle), INTENT(in)        :: this
+    CLASS(particle_sphere), INTENT(in) :: thisCoeffs
+    INTEGER,  INTENT(in)  :: its,ite
+    REAL(wp), INTENT(in)  :: q(:),x(:),rhocorr(:)
+    REAL(wp), INTENT(out) :: vn(:), vq(:)
 
-    integer  :: i
-    real(wp) :: lam,v_n,v_q
+    INTEGER  :: i
+    REAL(wp) :: lam,v_n,v_q
 
-    !$ACC DATA PRESENT(this, thisCoeffs, q, x, rhocorr, vn, vq)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(its, ite)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR PRIVATE(lam, v_n, v_q)
-    do i=its,ite
-       if (q(i).gt.q_crit) then
-          lam = exp(this%b_vel* log(thisCoeffs%coeff_lambda*x(i)))
-          v_n = thisCoeffs%coeff_alfa_n * lam
-          v_q = thisCoeffs%coeff_alfa_q * lam
-          v_n = MAX(v_n,this%vsedi_min)
-          v_q = MAX(v_q,this%vsedi_min)
-          v_n = MIN(v_n,this%vsedi_max)
-          v_q = MIN(v_q,this%vsedi_max)
-          vn(i) = v_n * rhocorr(i)
-          vq(i) = v_q * rhocorr(i)
-       else
-          vn(i) = 0.0_wp
-          vq(i) = 0.0_wp
-       end if
-    end do
+    DO i=its,ite
+      IF (q(i).GT.q_crit) THEN
+        lam = EXP(this%b_vel* LOG(thisCoeffs%coeff_lambda*x(i)))
+        v_n = thisCoeffs%coeff_alfa_n * lam
+        v_q = thisCoeffs%coeff_alfa_q * lam
+        v_n = MAX(v_n,this%vsedi_min)
+        v_q = MAX(v_q,this%vsedi_min)
+        v_n = MIN(v_n,this%vsedi_max)
+        v_q = MIN(v_q,this%vsedi_max)
+        vn(i) = v_n * rhocorr(i)
+        vq(i) = v_q * rhocorr(i)
+      ELSE
+        vn(i) = 0.0_wp
+        vq(i) = 0.0_wp
+      END IF
+    END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
-  end subroutine sedi_vel_sphere
+  END SUBROUTINE sedi_vel_sphere
+
 
   ! bulk sedimentation velocities
-  subroutine sedi_vel_lwf(this,thisCoeffs,q,ql,x,rhocorr,vn,vq,vl,its,ite)
-    TYPE(particle_lwf), intent(in)     :: this
-    CLASS(particle_sphere), intent(in) :: thisCoeffs
-    integer,  intent(in)  :: its,ite
-    real(wp), intent(in)  :: q(:),x(:),ql(:),rhocorr(:)
-    real(wp), intent(out) :: vn(:),vq(:),vl(:)
-
+  SUBROUTINE sedi_vel_lwf(this,thisCoeffs,q,ql,x,rhocorr,vn,vq,vl,its,ite)
+    CLASS(particle_lwf), INTENT(in)    :: this
+    CLASS(particle_sphere), INTENT(in) :: thisCoeffs
+    INTEGER,  INTENT(in)  :: its,ite
+    REAL(wp), INTENT(in)  :: q(:),x(:),ql(:),rhocorr(:)
+    REAL(wp), INTENT(out) :: vn(:),vq(:),vl(:)
+    
     REAL(wp), DIMENSION(10) :: avq, avl, avn
     REAL(wp), DIMENSION(9)  :: bvq, bvl, bvn
     REAL(wp), PARAMETER     :: eps = 1e-20_wp
-
-    integer  :: i
-    real(wp) :: v_n,v_q,v_l,D_p,D_n,lwf
-
-    if (this%name .eq. 'hail_vivek') then
+    
+    INTEGER  :: i
+    REAL(wp) :: v_n,v_q,v_l,D_p,D_n,lwf
+    
+    IF (this%name .EQ. 'hail_vivek') THEN
       avq = aviwch
       bvq = bviwch
       avl = avlwch
       bvl = bvlwch
       avn = avnumh
       bvn = bvnumh
-    elseif (this%name .eq. 'graupel_vivek') then
+    ELSEIF (this%name .EQ. 'graupel_vivek') THEN
       avq = aviwcg
       bvq = bviwcg
       avl = avlwcg
       bvl = bvlwcg
       avn = avnumg
       bvn = bvnumg
-    else
+    ELSE
       CALL finish(TRIM(routine),'Error: unknown particle name in sedi_vel_lwf')      
-    end if
-
-    do i=its,ite
-      if (q(i).gt.q_crit) then
+    END IF
+    
+    DO i=its,ite
+      IF (q(i).GT.q_crit) THEN
         lwf = ql(i)/(q(i)+eps)
         D_p = particle_diameter(this,x(i))
         D_n = particle_normdiameter(this,D_p)
@@ -769,32 +789,32 @@ CONTAINS
         vn(i) = v_n * rhocorr(i)
         vq(i) = v_q * rhocorr(i)
         vl(i) = v_l * rhocorr(i)
-      else
+      ELSE
         vn(i) = 0.0_wp
         vq(i) = 0.0_wp
-      end if
-    end do
-     
-  end subroutine sedi_vel_lwf
-
+      END IF
+    END DO
+    
+  END SUBROUTINE sedi_vel_lwf
+  
   ! initialize coefficients for bulk sedimentation velocity
-  subroutine init_2mom_sedi_vel(this,thisCoeffs)
+  SUBROUTINE init_2mom_sedi_vel(this,thisCoeffs)
     CLASS(particle), INTENT(in) :: this
     CLASS(particle_sphere), INTENT(out) :: thisCoeffs
-
+    
     CHARACTER(len=*), PARAMETER :: sroutine = 'init_2mom_sedi_vel'
-
+    
     thisCoeffs%coeff_alfa_n = this%a_vel * gfct((this%nu+this%b_vel+1.0)/this%mu) / gfct((this%nu+1.0)/this%mu)
     thisCoeffs%coeff_alfa_q = this%a_vel * gfct((this%nu+this%b_vel+2.0)/this%mu) / gfct((this%nu+2.0)/this%mu)
     thisCoeffs%coeff_lambda = gfct((this%nu+1.0)/this%mu)/gfct((this%nu+2.0)/this%mu)
-
+    
     IF (isprint) THEN
       WRITE (txt,'(2A)') "    name  = ",this%name ; CALL message(sroutine,TRIM(txt))
       WRITE (txt,'(A,D10.3)') "    c_lam = ",thisCoeffs%coeff_lambda ; CALL message(sroutine,TRIM(txt))
       WRITE (txt,'(A,D10.3)') "    alf_n = ",thisCoeffs%coeff_alfa_n ; CALL message(sroutine,TRIM(txt))
       WRITE (txt,'(A,D10.3)') "    alf_q = ",thisCoeffs%coeff_alfa_q ; CALL message(sroutine,TRIM(txt))
     END IF
-  end subroutine init_2mom_sedi_vel
+  END SUBROUTINE init_2mom_sedi_vel
 
   ! currently not used
   FUNCTION D_average_factor (parti)
@@ -805,9 +825,9 @@ CONTAINS
     CLASS(particle), INTENT(in) :: parti
 
     D_average_factor = &
-         ( gfct( (parti%b_geo+parti%nu+1.0)/parti%mu ) / &
-         gfct( (parti%nu+1.0)/parti%mu ) ) * &
-         (gfct( (parti%nu+1.0)/parti%mu ) / gfct( (parti%nu+2.0)/parti%mu ) ) ** parti%b_geo
+         ( gfct( (parti%b_geo+parti%nu+1.0_wp)/parti%mu ) / &
+           gfct( (parti%nu+1.0_wp)/parti%mu ) ) * &
+         ( gfct( (parti%nu+1.0_wp)/parti%mu ) / gfct( (parti%nu+2.0_wp)/parti%mu ) ) ** parti%b_geo
   END FUNCTION D_average_factor
 
   !*******************************************************************************
@@ -821,8 +841,8 @@ CONTAINS
 
     REAL(wp), INTENT(IN) :: T,p
     REAL(wp) :: D_v
-    ! This is D_v = 8.7602e-5 * T_a**(1.81) / p_a
-    D_v = 8.7602e-5 * exp(1.81*log(T)) / p
+    ! This is D_v = 8.7602e-5_wp * T_a**(1.81_wp) / p_a
+    D_v = 8.7602e-5_wp * EXP(1.81_wp*LOG(T)) / p
     RETURN
   END FUNCTION diffusivity
 
@@ -854,7 +874,7 @@ CONTAINS
   !   e_es_vec  = e_3 * EXP (A_e * (ta - T_3) / (ta - B_e))
   ! END FUNCTION e_es_vec
 
-  SUBROUTINE autoconversionSB(ik_slice,dt,cloud_coeffs,cloud,rain)
+  SUBROUTINE autoconversionSB(ik_slice,dt,atmo,cloud_coeffs,cloud_in,rain)
     !*******************************************************************************
     ! Autoconversion of Seifert and Beheng (2001, Atmos. Res.)                     *
     !*******************************************************************************
@@ -862,8 +882,11 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
+    CLASS(atmosphere), INTENT(in)   :: atmo
     TYPE(particle_cloud_coeffs), INTENT(in) :: cloud_coeffs
-    CLASS(particle), INTENT(inout) :: cloud, rain
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER          :: i,k
@@ -872,6 +895,29 @@ CONTAINS
     REAL(wp), PARAMETER :: k_1  = 6.00e+2_wp   !..Parameter for Phi
     REAL(wp), PARAMETER :: k_2  = 0.68e+0_wp   !..Parameter fof Phi
     REAL(wp), PARAMETER :: eps  = 1.00e-25_wp
+
+   ! Onishi kernel (of 29 July 2015)                                                                                                          
+    REAL(wp), PARAMETER :: kc1_a1 = 3.985e-03_wp
+    REAL(wp), PARAMETER :: kc1_a2 = 6.210e-03_wp
+    REAL(wp), PARAMETER :: kc1_a3 = 1.331e+00_wp
+    REAL(wp), PARAMETER :: kc1_b1 = 1.381e+01_wp
+    REAL(wp), PARAMETER :: kc1_b2 = 9.980e+00_wp
+    REAL(wp), PARAMETER :: kc1_b3 = 5.018e-01_wp
+    REAL(wp), PARAMETER :: kc1_c1 = 6.325e+00_wp
+    REAL(wp), PARAMETER :: kc1_c2 = -9.238e-01_wp
+    REAL(wp), PARAMETER :: kc1_c3 = -1.528e-01_wp
+    REAL(wp), PARAMETER :: kc1_bet = 2.026e-03_wp
+
+    REAL(wp)  :: kc_alf,kc_rad,kc_sig,kc_bet,prey,Re,tke,diss,k_turb,nu_c,D_c
+
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    nu_c = cloud%nu
+
+    kc_alf = ( kc1_a1 + kc1_a2 * nu_c )/ ( 1.0_wp + kc1_a3 * nu_c )
+    kc_rad = ( kc1_b1 + kc1_b2 * nu_c )/ ( 1.0_wp + kc1_b3 * nu_c )
+    kc_sig = ( kc1_c1 + kc1_c2 * nu_c )/ ( 1.0_wp + kc1_c3 * nu_c )
+    kc_bet = kc1_bet
+    prey   = -0.125_wp
 
     IF (isdebug) CALL message(routine, "autoconversionSB")
 
@@ -882,9 +928,8 @@ CONTAINS
 
     x_s_i = 1.0_wp / cloud%x_max
 
-    !$ACC DATA PRESENT(cloud, rain, cloud_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, x_s_i)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_c, n_c, q_r, x_c, au, tau, phi, sc)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_c, n_c, q_r, x_c, au, tau, phi, sc, D_c, tke, diss, Re, k_turb)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -894,12 +939,25 @@ CONTAINS
             n_c = cloud%n(i,k)
             q_r = rain%q(i,k)
             x_c = particle_meanmass(cloud, q_c,n_c)
+   
 
+            IF (cfg_params%lturb_enhc) THEN
+               D_c = particle_diameter(cloud, x_c)
+               tke = MAX(0.5_wp*(atmo%tke(i,k) + atmo%tke(i,k+1)), tke_min) ! from half levels to full levels
+               ! Dissiplation rate according to Mellor-Yamada
+               diss = MIN(3000.0_wp, EXP(1.5_wp*LOG(2.0_wp*tke))/(16.6_wp*cfg_params%turb_len) * 1.0E4_wp)
+               Re = MAX(10000.0_wp * EXP ( 1.0_wp/6.0_wp*LOG(diss/100.0_wp) ), 2000.0_wp)
+               k_turb = 1.0_wp + diss* EXP(prey*LOG(Re)) * (kc_bet + kc_alf * &
+                        EXP( -1.0_wp* ((((D_c/2.0_wp)*1.e6_wp-kc_rad)/kc_sig)**2) ))
+            ELSE
+               k_turb = 1.0_wp
+            END IF
+            
             au  = cloud_coeffs%k_au * q_c**2 * x_c**2 * dt &
                  * cloud%rho_v(i,k)
-            tau = MIN(MAX(1.0-q_c/(q_c+q_r+eps),eps),0.9_wp)
-            phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
-            au  = au * (1.0 + phi/(1.0 - tau)**2)
+            tau = MIN(MAX(1.0_wp-q_c/(q_c+q_r+eps),eps),0.9_wp)
+            phi = k_1 * tau**k_2 * (1.0_wp - tau**k_2)**3
+            au  = au * (1.0_wp + phi/(1.0_wp - tau)**2) * k_turb
 
             au  = MAX(MIN(q_c,au),0.0_wp)
 
@@ -914,11 +972,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE autoconversionSB
 
-  SUBROUTINE accretionSB(ik_slice, dt, cloud,rain)
+  SUBROUTINE accretionSB(ik_slice, dt, atmo, cloud_in, rain_in)
     !*******************************************************************************
     ! Accretion of Seifert and Beheng (2001, Atmos. Res.)                          *
     !*******************************************************************************
@@ -926,12 +984,14 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
-    CLASS(particle), INTENT(inout)  :: cloud, rain
+    CLASS(atmosphere), INTENT(in)   :: atmo
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in, rain_in
+    CLASS(particle), POINTER :: cloud, rain ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER     :: i, k
     REAL(wp)    :: ac
-    REAL(wp)    :: q_c, q_r, tau, phi, n_c, x_c
+    REAL(wp)    :: q_c, q_r, tau, phi, n_c, x_c,diss, tke, n_r, x_r, k_turb
 
     REAL(wp), PARAMETER :: k_r = 5.78_wp       ! kernel
     REAL(wp), PARAMETER :: k_1 = 5.00e-04_wp   ! Phi function
@@ -939,26 +999,39 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "accretionSB")
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, rain)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_c, q_c, q_r, tau, phi, ac, x_c)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_c, q_c, q_r, tau, phi, ac, x_c, diss, tke, n_r, x_r, k_turb)
     DO k = kstart,kend
        DO i = istart,iend
 
           n_c = cloud%n(i,k)
           q_c = cloud%q(i,k)
           q_r = rain%q(i,k)
+          n_r = rain%n(i,k)
+          ! Calculate dissipation rate assuming tur_len =300 (namelist) and B1=16.6 (same as in Mello-Yamada and in code)
+          ! Approximation only valid when z >> tur_len and no stability corrections (which are small for large tke)
           IF (q_c > 0.0_wp.AND.q_r > 0.0_wp) THEN
 
              !..accretion rate of SB2001
-             tau = MIN(MAX(1.0-q_c/(q_c+q_r+eps),eps),1.0_wp)
+             tau = MIN(MAX(1.0_wp-q_c/(q_c+q_r+eps),eps),1.0_wp)
              phi = (tau/(tau+k_1))**4
-             ac  = k_r *  q_c * q_r * phi * dt
+             x_r = particle_meanmass(rain, q_r,n_r)
+             IF (cfg_params%lturb_enhc) THEN
+               tke = MAX(0.5_wp*(atmo%tke(i,k) + atmo%tke(i,k+1)), tke_min) ! from half levels to full levels
+               diss = MIN(3000.0_wp ,EXP(1.5_wp*LOG(2.0_wp*tke))/(16.6_wp*cfg_params%turb_len) * 1.0E4_wp)  ! Dissipation rate in cm-2 
+               k_turb = 1.0_wp + 0.8e-3_wp * diss * (rain%x_min/x_r)**(2.0_wp/3.0_wp) ! Onishi-Seifert Kernel
+             ELSE
+               k_turb =1.0
+             END IF
+             ac  = k_r *  q_c * q_r * phi * dt * k_turb
 
              ac = MIN(q_c,ac)
 
@@ -971,11 +1044,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE accretionSB
 
-  SUBROUTINE rain_selfcollectionSB(ik_slice, dt, rain)
+  SUBROUTINE rain_selfcollectionSB(ik_slice, dt, atmo, rain_in)
     !*******************************************************************************
     ! Selfcollection of Seifert and Beheng (2001, Atmos. Res.)                     *
     !*******************************************************************************
@@ -983,12 +1056,15 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
-    CLASS(particle) , INTENT(inout) :: rain
+    TYPE(atmosphere), INTENT(inout) :: atmo
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER:: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER        :: i, k
     REAL(wp)       :: sc, br
     REAL(wp)       :: q_r, n_r, x_r, d_r
+    REAL(wp)       :: tke, diss, k_turb
 
     !..Parameters based on Seifert (2008, JAS)
     REAL(wp), PARAMETER :: D_br = 1.10e-3_wp
@@ -997,14 +1073,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_selfcollectionSB")
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(rain)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_r, q_r, x_r, D_r, sc, br)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n_r, q_r, x_r, D_r, sc, br, tke, diss, k_turb)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -1013,14 +1090,20 @@ CONTAINS
           IF (q_r > 0.0_wp) THEN
             x_r = particle_meanmass(rain, q_r,n_r)
             D_r = particle_diameter(rain, x_r)
-
+            IF (cfg_params%lturb_enhc) THEN
+              tke = MAX(0.5_wp*(atmo%tke(i,k) + atmo%tke(i,k+1)), tke_min) ! from half levels to full levels
+              diss = MIN(3000.0_wp ,EXP(1.5_wp*LOG(2.0_wp*tke))/(16.6_wp*cfg_params%turb_len) * 1.0E4_wp)  ! Dissipation rate in cm-2 
+              k_turb = 1.0_wp + 0.8e-3_wp * diss * (rain%x_min/x_r)**(2.0_wp/3.0_wp)
+            ELSE
+              k_turb = 1.0_wp
+            END IF
             !..Selfcollection as in SB2001
-            sc = k_rr *  n_r * q_r * rain%rho_v(i,k) * dt
+            sc = k_rr *  n_r * q_r * rain%rho_v(i,k) * dt * k_turb 
 
             !..Breakup as in Seifert (2008, JAS), Eq. (A13)
             br = 0.0_wp
             IF (D_r.GT.0.30e-3_wp) THEN
-               br = (k_br * (D_r - D_br) + 1.0)  * sc
+              br = MIN(k_br * (D_r - D_br) + 1.0_wp, 1.05_wp)  * sc ! Limit of rain breakup from Saleeby et al. JAS 2022
             ENDIF
 
             rain%n(i,k) = n_r - MIN(n_r,sc-br)
@@ -1028,7 +1111,7 @@ CONTAINS
       END DO
    END DO
    !$ACC END PARALLEL
-   !$ACC END DATA
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE rain_selfcollectionSB
 
@@ -1042,8 +1125,12 @@ CONTAINS
     INTEGER :: istart, iend, kstart, kend
     INTEGER          :: i,k
     REAL(wp)         :: q_c, x_c, n_c, x_s_i, au
-    REAL(wp), PARAMETER :: nu_c = 9.59
-    REAL(wp), PARAMETER :: k_a  = 6.0d+25 * nu_c**(-1.7)
+    REAL(wp), PARAMETER :: nu_c = 9.59_wp
+    REAL(wp), PARAMETER :: k_a  = 6.0e+25_wp * nu_c**(-1.7_wp)
+
+#ifdef _OPENACC
+    CALL finish("autoconversionKB", "Routine has not been ported to openACC yet.")
+#endif
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1063,12 +1150,12 @@ CONTAINS
              x_c = particle_meanmass(cloud, q_c,n_c)
 
              !..Berechnung der Autokonversionsrate nach Beheng (1994)
-             au = k_a * (x_c*1e3)**(3.3) * (q_c*1e-3)**(1.4) * dt * 1e3
+             au = k_a * (x_c*1e3_wp )**(3.3_wp) * (q_c*1e-3)**(1.4_wp) * dt * 1e3_wp
              au = MIN(q_c,au)
 
              rain%n(i,k)  = rain%n(i,k)  + au * x_s_i
              rain%q(i,k)  = rain%q(i,k)  + au
-             cloud%n(i,k) = cloud%n(i,k) - au * x_s_i * 2.0
+             cloud%n(i,k) = cloud%n(i,k) - au * x_s_i * 2.0_wp
              cloud%q(i,k) = cloud%q(i,k) - au
 
           ENDIF
@@ -1144,15 +1231,15 @@ CONTAINS
           q_c = cloud%q(i,k)
           IF (q_c > q_crit) THEN
 
-             n_c = cloud%n(i,k) * 1e6  ! in 1/cm3
+             n_c = cloud%n(i,k) * 1e6_wp  ! in 1/cm3
 
              !..autoconversion rate of KK2000
-             au = k_a * q_c**(2.47) * n_c**(-1.79) * dt
+             au = k_a * q_c**(2.47_wp) * n_c**(-1.79_wp) * dt
              au = MIN(q_c,au)
 
              rain%n(i,k)  = rain%n(i,k)  + au * x_s_i
              rain%q(i,k)  = rain%q(i,k)  + au
-             cloud%n(i,k) = cloud%n(i,k) - au * x_s_i * 2.0
+             cloud%n(i,k) = cloud%n(i,k) - au * x_s_i * 2.0_wp
              cloud%q(i,k) = cloud%q(i,k) - au
 
           ENDIF
@@ -1187,7 +1274,7 @@ CONTAINS
 
           IF (q_c > q_crit .AND. q_r > q_crit) THEN
 
-             ac = k_a *  (q_c * q_r)**1.15 * dt * 1e3
+             ac = k_a *  (q_c * q_r)**1.15 * dt * 1e3_wp
              ac = MIN(q_c,ac)
 
              rain%q(i,k)  = rain%q(i,k)  + ac
@@ -1198,7 +1285,7 @@ CONTAINS
 
   END SUBROUTINE accretionKK
 
-  SUBROUTINE rain_evaporation(ik_slice, dt, rain_coeffs, rain_gfak, atmo, cloud, rain)
+  SUBROUTINE rain_evaporation(ik_slice, dt, rain_coeffs, rain_gfak, atmo, cloud, rain_in)
     !*******************************************************************************
     ! Evaporation of rain based on Seifert (2008, J. Atmos. Sci.)                  *
     !*******************************************************************************
@@ -1213,17 +1300,19 @@ CONTAINS
 
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle)      :: cloud,rain
+    CLASS(particle),  INTENT(in)    :: cloud
+    CLASS(particle),  INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
 
     ! local variables
     INTEGER             :: i,k
-    REAL(wp)            :: T_a,p_a,e_sw,s_sw,g_d,eva_q,eva_n,eva_q_fak
+    REAL(wp)            :: T_a,p_a,e_sw,s_sw,g_d,eva_q,eva_n,eva_q_fak,vm
     REAL(wp)            :: q_r,n_r,x_r,e_d,f_v
-    REAL(wp)            :: mue,d_m,gamma_eva,lam,d_vtp,gfak
-    REAL(wp)            :: aa,bb,cc,mm
+    REAL(wp)            :: mue,d_m,gamma_eva,lam,d_vtp,gfak,mue6
+    REAL(wp)            :: aa,bb,cc
     REAL(wp), PARAMETER :: D_br = 1.1e-3_wp
 
     REAL(wp), PARAMETER :: eva_q_fak_low        = 0.3_wp  ! \  Parameters of the
@@ -1231,7 +1320,9 @@ CONTAINS
     REAL(wp), PARAMETER :: eva_q_fak_Dbr_minfak = 0.75_wp ! |  ramp-function eva_q_fak(D_m) for reduction
     REAL(wp), PARAMETER :: eva_q_fak_Dbr_maxfak = 0.9_wp  ! /  of evaporation of drizzle-like rain         
 
-    LOGICAL, PARAMETER   :: reduce_evaporation = .true.
+    LOGICAL, PARAMETER   :: reduce_evaporation = .false.
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1244,11 +1335,10 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_evaporation")
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, rain_coeffs)
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(kstart, kend, istart, iend, dt, rain_gfak)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, p_a, e_sw, s_sw, g_d, eva_q, eva_n, eva_q_fak, q_r, n_r, x_r, e_d, f_v) &
-    !$ACC   PRIVATE(mue, d_m, gamma_eva, lam, d_vtp, gfak, mm)
+    !$ACC   PRIVATE(mue, D_m, gamma_eva, lam, D_vtp, gfak, vm, mue6)
     DO k = kstart,kend
        DO i = istart,iend
 
@@ -1259,56 +1349,70 @@ CONTAINS
 
           e_d  = atmo%qv(i,k) * R_d * T_a
           e_sw = e_ws(T_a)
-          s_sw = e_d / e_sw - 1.0
+          s_sw = e_d / e_sw - 1.0_wp
 
-          IF (s_sw < 0.0 .AND. q_r > 0.0_wp .AND. cloud%q(i,k) < q_crit) THEN
+          IF (s_sw < 0.0_wp .AND. q_r > 0.0_wp .AND. cloud%q(i,k) < q_crit) THEN
 
              D_vtp = diffusivity(T_a,p_a)
 
              ! note that 2*pi is correct, because c_r = 1/2 is assumed
-             g_d = 2.0*pi / ( L_wd**2 / (K_T * R_d * T_a**2) + R_d * T_a / (D_vtp * e_sw) )
+             g_d = 2.0_wp*pi / ( L_wd**2 / (K_T * R_d * T_a**2) + R_d * T_a / (D_vtp * e_sw) )
 
              x_r = particle_meanmass(rain, q_r,n_r)
              D_m = particle_diameter(rain, x_r)
 
              ! Eq. (20) of Seifert (2008)
-             IF (D_m.LE.rain_coeffs%cmu3) THEN
-                mue = rain_coeffs%cmu0*TANH((4.*rain_coeffs%cmu2*(D_m-rain_coeffs%cmu3))**rain_coeffs%cmu5) &
-                     & + rain_coeffs%cmu4
+             IF (cfg_params%luse_mu_Dm_rain) THEN
+               mue = rain_mue_dm_relation(rain_coeffs,D_m)
              ELSE
-                mue = rain_coeffs%cmu1*TANH((1.*rain_coeffs%cmu2*(D_m-rain_coeffs%cmu3))**rain_coeffs%cmu5) &
-                     & + rain_coeffs%cmu4
-             ENDIF
-
+               mue = (rain%nu+1.0_wp)/rain%b_geo - 1.0_wp
+             END IF
+                
              ! Eq. (A8)
-             lam = exp(1./3.*log(pi6*rho_w*(mue+3.0)*(mue+2.0)*(mue+1.0)/x_r))
+             lam = exp(1.0_wp/3.0_wp*log(pi6*rho_w*(mue+3.0_wp)*(mue+2.0_wp)*(mue+1.0_wp)/x_r))
 
-              ! chebyshev approximation of Gamma(mue+5/2)/Gamma(mue+2)
-             gfak =  0.1357940435E+01 &
-                  &  + mue * ( +0.3033273220E+00  &
-                  &  + mue * ( -0.1299313363E-01  &
-                  &  + mue * ( +0.4002257774E-03  &
-                  &  - mue * 0.4856703981E-05 ) ) )
+             ! chebyshev approximation of Gamma(mue+5/2)/Gamma(mue+2)
+             gfak =  0.1357940435E+01_wp &
+                  &  + mue * ( +0.3033273220E+00_wp  &
+                  &  + mue * ( -0.1299313363E-01_wp  &
+                  &  + mue * ( +0.4002257774E-03_wp  &
+                  &  - mue * 0.4856703981E-05_wp ) ) )
+             
+             ! Mean velocity using the mean diameter: (mue+1)/D
+             ! This is more exact than the exponential (Chebychev) approximation for small droplets,
+             ! and not too bad for large droplets
+             vm = MAX(aa - bb * EXP (-cc*D_m ), 0.0_wp)
+             ! Ventilation coeffcient using an averaged velocity
+             f_v  = rain%a_ven + rain%b_ven * N_sc**n_f * gfak                     &
+                  &            * SQRT(vm/nu_l * rain%rho_v(i,k) / lam)
 
-             mm = mue+5.0/2.0
+             !! This has been the previous Chebychev Approximation (kept for reference):
+             ! mm = mue+5.0/2.0
 
              ! Eq. (A7) rewritten with (A5) and (A9)
-             f_v  = rain%a_ven + rain%b_ven * N_sc**n_f * gfak                     &
-                  &            * sqrt(aa/nu_l * rain%rho_v(i,k) / lam)                  &
-                  &    * (1.0 - 1./2.  * (bb/aa)**1 * exp(mm*log(lam/(1.*cc+lam))) &
-                  &           - 1./8.  * (bb/aa)**2 * exp(mm*log(lam/(2.*cc+lam))) &
-                  &           - 1./16. * (bb/aa)**3 * exp(mm*log(lam/(3.*cc+lam))) &
-                  &           - 5./127.* (bb/aa)**4 * exp(mm*log(lam/(4.*cc+lam))) )
+             !f_v  = rain%a_ven + rain%b_ven * N_sc**n_f * gfak                     &
+             !     &       * SQRT(aa/nu_l * rain%rho_v(i,k) / lam)                  &
+             !     &    * (1.0 - 1./2.  * (bb/aa)**1 * EXP(mm*LOG(lam/(1.*cc+lam))) &
+             !     &           - 1./8.  * (bb/aa)**2 * EXP(mm*LOG(lam/(2.*cc+lam))) &
+             !     &           - 1./16. * (bb/aa)**3 * EXP(mm*LOG(lam/(3.*cc+lam))) &
+             !     &           - 5./127.* (bb/aa)**4 * EXP(mm*LOG(lam/(4.*cc+lam))) )
 
-             IF (rain_gfak.GT.0) THEN
+             IF (rain_gfak > 0) THEN
+               ! Eq. (20) of Seifert (2008) for fixed parameters (needed for rain_gfak)
+               ! The reason of fixing cmu0=6.0 is that the relation can provide strange values for other mue values
+               IF (D_m <= 1.1e-3_wp) THEN
+                 mue6 = 6.0_wp*TANH((4.0e3_wp*(D_m-1.1e-3_wp))**2) + 1.0_wp
+               ELSE
+                 mue6 = 30.0_wp*TANH((1.0e3_wp*(D_m-1.1e-3_wp))**2) + 1.0_wp
+               ENDIF
                 ! Eq. (23)
-                gamma_eva = rain_gfak * (D_br/D_m) * exp(-0.2*mue)
+               gamma_eva = rain_gfak * (D_br/D_m) * EXP(-0.2_wp*mue6)
              ELSE
-                gamma_eva = 1.0
+               gamma_eva = 1.0_wp
              END IF
 
              ! Eq (A5) with (A9) and Gamma(mue+2) from (A7)
-             eva_q = g_d * n_r * (mue+1.0) / lam * f_v * s_sw * dt
+             eva_q = g_d * n_r * (mue+1.0_wp) / lam * f_v * s_sw * dt
 
              ! UB: empirical correction factor to reduce evaporation of drizzle-like rain (D_m < D_br):
              IF ( reduce_evaporation ) THEN
@@ -1327,18 +1431,18 @@ CONTAINS
              eva_q = MIN(eva_q,q_r)
              eva_n = MIN(eva_n,n_r)
 
-             atmo%qv(i,k)     = atmo%qv(i,k)     + eva_q
-             rain%q(i,k) = rain%q(i,k) - eva_q
-             rain%n(i,k) = rain%n(i,k) - eva_n
+             atmo%qv(i,k) = atmo%qv(i,k) + eva_q
+             rain%q(i,k)  = rain%q(i,k)  - eva_q
+             rain%n(i,k)  = rain%n(i,k)  - eva_n
           END IF
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE rain_evaporation
 
-  SUBROUTINE evaporation(ik_slice, dt, atmo, prtcl, coeffs)
+  SUBROUTINE evaporation(ik_slice, dt, atmo, prtcl_in, coeffs)
     !*******************************************************************************
     ! Evaporation of melting snow/graupel/hail, see SB2006                                      *
     !*******************************************************************************
@@ -1347,7 +1451,8 @@ CONTAINS
     INTEGER,  INTENT(in) :: ik_slice(4)
     REAL(wp), INTENT(in) :: dt
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: prtcl
+    CLASS(particle), INTENT(inout), TARGET :: prtcl_in
+    CLASS(particle), POINTER :: prtcl ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_coeffs), INTENT(in) :: coeffs
 
     LOGICAL, PARAMETER  :: reduce_melting = .true.
@@ -1358,13 +1463,14 @@ CONTAINS
     REAL(wp)            :: T_a,e_sw,s_sw,g_d,eva_q,eva_n
     REAL(wp)            :: q,n,x,d,v,f_v,e_d
 
+    prtcl => prtcl_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(prtcl, atmo, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q, T_a, e_d, e_sw, s_sw, g_d, n, x, D, v, f_v) &
     !$ACC   PRIVATE(eva_q, eva_n)
     DO k = kstart,kend
@@ -1410,11 +1516,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE evaporation
 
-  SUBROUTINE cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
+  SUBROUTINE cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud_in, ice)
     !*******************************************************************************
     ! This is only the homogeneous freezing of liquid water droplets.              *
     ! Immersion freezing and homogeneous freezing of liquid aerosols are           *
@@ -1427,7 +1533,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: qnc_const
     TYPE(particle_cloud_coeffs), INTENT(in) :: cloud_coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout)  :: cloud, ice
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: ice
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER            :: i, k
@@ -1435,13 +1543,14 @@ CONTAINS
 
     REAL(wp), PARAMETER :: log_10 = LOG(10.0_wp)
 
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, ice, atmo, cloud_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, nuc_c_typ, qnc_const)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, T_c, q_c, n_c, fr_q, fr_n, x_c, j_hom)
     DO k = kstart,kend
       DO i = istart,iend
@@ -1495,11 +1604,12 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
+
   END SUBROUTINE cloud_freeze
 
   SUBROUTINE ice_nucleation_homhet(ik_slice, use_prog_in, &
-       atmo, cloud, ice, n_inact, n_inpot)
+       atmo, cloud, ice_in, n_inact, n_inpot)
     !*******************************************************************************
     !                                                                              *
     ! Homogeneous and heterogeneous ice nucleation                                 *
@@ -1524,7 +1634,9 @@ CONTAINS
     LOGICAL, INTENT(in) :: use_prog_in
 
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout)  :: cloud, ice
+    CLASS(particle), INTENT(inout), TARGET :: ice_in
+    CLASS(particle), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: cloud
     REAL(wp), DIMENSION(:,:) :: n_inact
     REAL(wp), DIMENSION(:,:), OPTIONAL :: n_inpot
 
@@ -1559,49 +1671,50 @@ CONTAINS
 
     ! parameters for Hande et al. nucleation parameterization for HDCP2 simulations
     TYPE(dep_imm_coeffs), PARAMETER :: hdcp2_nuc_coeffs(5) &
-         = (/ dep_imm_coeffs(&  ! Spring of Table 1
-         nin_imm = 1.5684e5, &
-         alf_imm = 0.2466,   &
-         bet_imm = 1.2293,   &
-         nin_dep = 1.7836e5, &
-         alf_dep = 0.0075,   &
-         bet_dep = 2.0341),  &
-         dep_imm_coeffs(     &  ! Summer
-         nin_imm = 2.9694e4, &
-         alf_imm = 0.2813,   &
-         bet_imm = 1.1778,   &
-         nin_dep = 2.6543e4, &
-         alf_dep = 0.0020,   &
-         bet_dep = 2.5128),  &
-         dep_imm_coeffs(     &  ! Autumn
-         nin_imm = 4.9920e4, &
-         alf_imm = 0.2622,   &
-         bet_imm = 1.2044,   &
-         nin_dep = 7.7167e4, &
-         alf_dep = 0.0406,   &
-         bet_dep = 1.4705),  &
-         dep_imm_coeffs(     &  ! Winter
-         nin_imm = 1.0259e5, &
-         alf_imm = 0.2073,   &
-         bet_imm = 1.2873,   &
-         nin_dep = 1.1663e4, &
-         alf_dep = 0.0194,   &
-         bet_dep = 1.6943),  &
-         dep_imm_coeffs(     &  ! Spring with 95th percentile scaling factor
-         nin_imm = 1.5684e5 * 17.82, &
-         alf_imm = 0.2466,   &
-         bet_imm = 1.2293,   &
-         nin_dep = 1.7836e5 * 5.87, &
-         alf_dep = 0.0075,   &
-         bet_dep = 2.0341) /)
+         = (/ dep_imm_coeffs(   &  ! Spring of Table 1
+         nin_imm = 1.5684e5_wp, &
+         alf_imm = 0.2466_wp,   &
+         bet_imm = 1.2293_wp,   &
+         nin_dep = 1.7836e5_wp, &
+         alf_dep = 0.0075_wp,   &
+         bet_dep = 2.0341_wp),  &
+         dep_imm_coeffs(        &  ! Summer
+         nin_imm = 2.9694e4_wp, &
+         alf_imm = 0.2813_wp,   &
+         bet_imm = 1.1778_wp,   &
+         nin_dep = 2.6543e4_wp, &
+         alf_dep = 0.0020_wp,   &
+         bet_dep = 2.5128_wp),  &
+         dep_imm_coeffs(        &  ! Autumn
+         nin_imm = 4.9920e4_wp, &
+         alf_imm = 0.2622_wp,   &
+         bet_imm = 1.2044_wp,   &
+         nin_dep = 7.7167e4_wp, &
+         alf_dep = 0.0406_wp,   &
+         bet_dep = 1.4705_wp),  &
+         dep_imm_coeffs(        &  ! Winter
+         nin_imm = 1.0259e5_wp, &
+         alf_imm = 0.2073_wp,   &
+         bet_imm = 1.2873_wp,   &
+         nin_dep = 1.1663e4_wp, &
+         alf_dep = 0.0194_wp,   &
+         bet_dep = 1.6943),     &
+         dep_imm_coeffs(        &  ! Spring with 95th percentile scaling factor
+         nin_imm = 1.5684e5_wp * 17.82_wp, &
+         alf_imm = 0.2466_wp,   &
+         bet_imm = 1.2293_wp,   &
+         nin_dep = 1.7836e5_wp * 5.87_wp, &
+         alf_dep = 0.0075_wp,   &
+         bet_dep = 2.0341_wp) /)
 
     LOGICAL   :: use_homnuc
 
     LOGICAL  :: ndiag_mask(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
     REAL(wp) :: nuc_n_a(ik_slice(1):ik_slice(2), ik_slice(3):ik_slice(4))
 
-    !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff) &
-    !$ACC   PRESENT(n_inpot, atmo, ice)
+    !$ACC DATA CREATE(nuc_n_a, ndiag_mask, acoeff, bcoeff)
+
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -1669,7 +1782,7 @@ CONTAINS
     END IF
 
     IF (use_prog_in) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = kstart, kend
         DO i = istart, iend
@@ -1683,7 +1796,7 @@ CONTAINS
 
     ! Homogeneous nucleation using KHL06 approach
     IF (use_homnuc) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, ni_hom_max)
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) &
       !$ACC   PRIVATE(acoeff, bcoeff, p_a, T_a, e_si, ssi, scr, n_i, q_i, x_i, r_i) &
       !$ACC   PRIVATE(v_th, flux, n_sat, ri_dot, R_ik, w_pre, cool, ctau, tau, delta, phi) &
@@ -1704,24 +1817,24 @@ CONTAINS
             q_i = ice%q(i,k)
             x_i = particle_meanmass(ice, q_i,n_i)
 !            r_i = (x_i/(4./3.*pi*rho_ice))**(1./3.)
-            r_i = EXP( (1./3.)*LOG(x_i/(4./3.*pi*rho_ice)) )
+            r_i = EXP( (1.0_wp/3.0_wp)*LOG(x_i/(4.0_wp/3.0_wp*pi*rho_ice)) )
 
-            v_th  = SQRT( 8.*k_b*T_a/(pi*ma_w) )
+            v_th  = SQRT( 8.0_wp*k_b*T_a/(pi*ma_w) )
             flux  = alpha_d * v_th/4.
             n_sat = e_si / (k_b*T_a)
 
             ! coeffs of supersaturation equation
             acoeff(1) = (L_ed * grav) / (cp * R_d * T_a**2) - grav/(R_l * T_a)
-            acoeff(2) = 1.0/n_sat
+            acoeff(2) = 1.0_wp/n_sat
             acoeff(3) = (L_ed**2 * M_w * ma_w)/(cp * p_a * T_a * M_a)
 
             ! coeffs of depositional growth equation
-            bcoeff(1) = flux * svol * n_sat * (ssi - 1.)
+            bcoeff(1) = flux * svol * n_sat * (ssi - 1.0_wp)
             bcoeff(2) = flux / diffusivity(T_a,p_a)
 
             ! pre-existing ice crystals included as reduced updraft speed
-            ri_dot = bcoeff(1) / (1. + bcoeff(2) * r_i)
-            R_ik   = (4 * pi) / svol * n_i * r_i**2 * ri_dot
+            ri_dot = bcoeff(1) / (1.0_wp + bcoeff(2) * r_i)
+            R_ik   = (4.0_wp * pi) / svol * n_i * r_i**2 * ri_dot
             w_pre  = (acoeff(2) + acoeff(3) * ssi)/(acoeff(1) * ssi) * R_ik  ! KHL06 Eq. 19
             w_pre  = MAX(w_pre,0.0_wp)
 
@@ -1729,24 +1842,24 @@ CONTAINS
 
               ! timescales of freezing event (see KL02, RM05, KHL06)
               cool    = grav / cp * atmo%w(i,k)
-              ctau    = T_a * ( 0.004*T_a - 2. ) + 304.4
-              tau     = 1.0 / (ctau * cool)                       ! freezing timescale, eq. (5)
+              ctau    = T_a * ( 0.004_wp*T_a - 2.0_wp ) + 304.4_wp
+              tau     = 1.0_wp / (ctau * cool)                       ! freezing timescale, eq. (5)
               delta   = (bcoeff(2) * r_0)                         ! dimless aerosol radius, eq.(4)
               phi     = acoeff(1)*ssi / ( acoeff(2) + acoeff(3)*ssi) * (atmo%w(i,k) - w_pre)
 
               ! monodisperse approximation following KHL06
-              kappa   = 2. * bcoeff(1) * bcoeff(2) * tau / (1.+ delta)**2  ! kappa, Eq. 8 KHL06
+              kappa   = 2.0_wp * bcoeff(1) * bcoeff(2) * tau / (1.0_wp+ delta)**2  ! kappa, Eq. 8 KHL06
               sqrtkap = SQRT(kappa)                                        ! root of kappa
-              ren     = 3. * sqrtkap / ( 2. + SQRT(1.+9.*kappa/pi) )       ! analy. approx. of erfc by RM05
-              R_imfc  = 4. * pi * bcoeff(1)/bcoeff(2)**2 / svol
-              R_im    = R_imfc / (1.+ delta) * ( delta**2 - 1. &
-                   & + (1.+0.5*kappa*(1.+ delta)**2) * ren/sqrtkap)           ! RIM Eq. 6 KHL06
+              ren     = 3.0_wp * sqrtkap / ( 2.0_wp + SQRT(1.0_wp+9.0_wp*kappa/pi) )       ! analy. approx. of erfc by RM05
+              R_imfc  = 4.0_wp * pi * bcoeff(1)/bcoeff(2)**2 / svol
+              R_im    = R_imfc / (1.0_wp+ delta) * ( delta**2 - 1.0_wp &
+                   & + (1.0_wp+0.5_wp*kappa*(1.0_wp+ delta)**2) * ren/sqrtkap)           ! RIM Eq. 6 KHL06
 
               ! number concentration and radius of ice particles
               ni_hom  = phi / R_im                                         ! ni Eq.9 KHL06
-              ri_0    = 1. + 0.5 * sqrtkap * ren                           ! for Eq. 3 KHL06
-              ri_hom  = (ri_0 * (1. + delta) - 1. ) / bcoeff(2)            ! Eq. 3 KHL06 * REN = Eq.23 KHL06
-              mi_hom  = (4./3. * pi * rho_ice) * ni_hom * ri_hom**3
+              ri_0    = 1.0_wp + 0.5_wp * sqrtkap * ren                           ! for Eq. 3 KHL06
+              ri_hom  = (ri_0 * (1.0_wp + delta) - 1.0_wp ) / bcoeff(2)            ! Eq. 3 KHL06 * REN = Eq.23 KHL06
+              mi_hom  = (4.0_wp/3.0_wp * pi * rho_ice) * ni_hom * ri_hom**3
               mi_hom  = MAX(mi_hom,ice%x_min)
 
               nuc_n = MAX(MIN(ni_hom, ni_hom_max), 0.0_wp)
@@ -1763,6 +1876,7 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
+    !$ACC WAIT
     !$ACC END DATA ! nuc_n_a, ndiag_mask, acoeff, bcoeff, n_inpot, atmo, ice
 
   END SUBROUTINE ice_nucleation_homhet
@@ -1802,9 +1916,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, ice, cloud, n_inact, n_inpot, nuc_n_a, ndiag_mask)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, ni_het_max) &
-    !$ACC   FIRSTPRIVATE(use_prog_in, na_soot, na_orga, na_dust)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, e_si, ssi, xt, tt, infrac, xs, ss, ssr) &
     !$ACC   PRIVATE(ndiag, ndiag_dust, ndiag_all, nuc_n, nuc_q, lwrite_n_inpot)
@@ -1827,41 +1939,41 @@ CONTAINS
             ! immersion freezing at water saturation
             ! Phillips scheme
             ! immersion freezing at water saturation
-            infrac(1) = (AINT(xt) + 1.0 - xt) * afrac_dust(tt,99) &
+            infrac(1) = (AINT(xt) + 1.0_wp - xt) * afrac_dust(tt,99) &
                  &        + (xt - AINT(xt)) * afrac_dust(tt+1,99)
-            infrac(2) = (AINT(xt) + 1.0 - xt) * afrac_soot(tt,99) &
+            infrac(2) = (AINT(xt) + 1.0_wp - xt) * afrac_soot(tt,99) &
                  &        + (xt - AINT(xt)) * afrac_soot(tt+1,99)
-            infrac(3) = (AINT(xt) + 1.0 - xt) * afrac_orga(tt,99) &
+            infrac(3) = (AINT(xt) + 1.0_wp - xt) * afrac_orga(tt,99) &
                  &        + (xt-AINT(xt)) * afrac_orga(tt+1,99)
           ELSE
             ! deposition nucleation below water saturation
             ! calculate indices used for 2D look-up tables
-            xs = 100. * REAL(ssi-1.0) / ssstep
+            xs = 100. * REAL(ssi-1.0_wp) / ssstep
             xs = MIN(xs,REAL(ssmax-1))
             ss = MAX(1,INT(xs))
             ssr = MAX(1.0, AINT(xs))
             ! bi-linear interpolation in look-up tables
-            infrac(1) =   (AINT(xt) + 1.0 - xt) * (ssr + 1.0 - xs) &
+            infrac(1) =   (AINT(xt) + 1.0_wp - xt) * (ssr + 1.0_wp - xs) &
                  &        * afrac_dust(tt, ss) &
-                 &      + (xt - AINT(xt)) * (ssr + 1.0 - xs) &
+                 &      + (xt - AINT(xt)) * (ssr + 1.0_wp - xs) &
                  &        * afrac_dust(tt+1, ss) &
-                 &      + (AINT(xt) + 1.0 - xt) * (xs - ssr) &
+                 &      + (AINT(xt) + 1.0_wp - xt) * (xs - ssr) &
                  &        * afrac_dust(tt, ss+1) &
                  &      + (xt - AINT(xt)) * (xs - ssr) &
                  &        * afrac_dust(tt+1, ss+1)
-            infrac(2) =   (AINT(xt) + 1.0 - xt) * (ssr + 1.0 - xs) &
+            infrac(2) =   (AINT(xt) + 1.0_wp - xt) * (ssr + 1.0_wp - xs) &
                  &        * afrac_soot(tt, ss) &
-                 &      + (xt - AINT(xt)) * (ssr + 1.0 - xs) &
+                 &      + (xt - AINT(xt)) * (ssr + 1.0_wp - xs) &
                  &        * afrac_soot(tt+1, ss  ) &
-                 &      + (AINT(xt) + 1.0 - xt) * (xs - ssr) &
+                 &      + (AINT(xt) + 1.0_wp - xt) * (xs - ssr) &
                  &        * afrac_soot(tt, ss + 1) &
                  &      + (xt - AINT(xt)) * (xs - ssr) &
                  &        * afrac_soot(tt+1, ss+1)
-            infrac(3) = (AINT(xt) + 1.0 - xt) * (ssr + 1.0 - xs) &
+            infrac(3) = (AINT(xt) + 1.0_wp - xt) * (ssr + 1.0_wp - xs) &
                  &        * afrac_orga(tt,ss) &
-                 &      + (xt - AINT(xt)) * (ssr + 1.0 - xs) &
+                 &      + (xt - AINT(xt)) * (ssr + 1.0_wp - xs) &
                  &        * afrac_orga(tt+1, ss) &
-                 &      + (AINT(xt) + 1.0 - xt) * (xs - ssr) &
+                 &      + (AINT(xt) + 1.0_wp - xt) * (xs - ssr) &
                  &        * afrac_orga(tt, ss+1) &
                  &      + (xt - AINT(xt)) * (xs - ssr) &
                  &        * afrac_orga(tt+1, ss+1)
@@ -1876,6 +1988,8 @@ CONTAINS
           ELSE
             ! all aerosol species are diagnostic
             ndiag = na_dust * infrac(1) + na_soot * infrac(2) + na_orga * infrac(3)
+            ndiag_dust = ndiag
+            ndiag_all = ndiag
           END IF
           ndiag = MIN(ndiag,ni_het_max)
 
@@ -1904,7 +2018,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE ice_nucleation_het_philips
 
@@ -2003,7 +2116,7 @@ CONTAINS
 
   SUBROUTINE vapor_dep_relaxation(ik_slice, dt_local, &
        &               ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs, &
-       &               atmo, ice, snow, graupel, hail, dep_rate_ice, dep_rate_snow)
+       &               atmo, ice_in, snow_in, graupel_in, hail_in, dep_rate_ice, dep_rate_snow)
     !*******************************************************************************
     ! Deposition and sublimation                                                   *
     !*******************************************************************************
@@ -2011,9 +2124,10 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in) :: ik_slice(4)
     TYPE(atmosphere)    :: atmo
-    CLASS(particle)     :: ice, snow, graupel, hail
+    CLASS(particle), INTENT(INOUT), TARGET :: ice_in, snow_in, graupel_in, hail_in
+    CLASS(particle), POINTER :: ice, snow, graupel, hail  ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_sphere), INTENT(IN) :: ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs
-    REAL(wp), INTENT(IN)              :: dt_local
+    REAL(wp), INTENT(IN) :: dt_local
     REAL(wp), INTENT(INOUT), DIMENSION(:,:) :: dep_rate_ice, dep_rate_snow
 
     REAL(wp), DIMENSION(size(dep_rate_ice,1),size(dep_rate_ice,2)) :: &
@@ -2037,17 +2151,19 @@ CONTAINS
     
     IF (isdebug) CALL message(routine, "vapor_deposition_growth")
 
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    snow => snow_in
+    graupel => graupel_in
+    hail => hail_in
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA CREATE(s_si, g_i) &
-    !$ACC   COPYIN(dep_ice, dep_snow, dep_graupel, dep_hail) &
-    !$ACC   PRESENT(atmo, ice, snow, graupel, hail) &
-    !$ACC   PRESENT(dep_rate_ice, dep_rate_snow)
+    !$ACC DATA CREATE(s_si, g_i, dep_ice, dep_snow, dep_graupel, dep_hail)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(p_a, T_a, e_d, e_si, D_vtp)
     DO k = kstart,kend
        DO i = istart,iend
@@ -2056,28 +2172,17 @@ CONTAINS
           IF (T_a < T_3) THEN
              e_d  = atmo%qv(i,k) * R_d * T_a
              e_si = e_es(T_a)
-             s_si(i,k) = e_d / e_si - 1.0    !..supersaturation over ice
+             s_si(i,k) = e_d / e_si - 1.0_wp    !..supersaturation over ice
              D_vtp = diffusivity(T_a,p_a)    !  D_v = 8.7602e-5 * T_a**(1.81) / p_a
-             g_i(i,k) = 4.0*pi / ( L_ed**2 / (K_T * R_d * T_a**2) + R_d * T_a / (D_vtp * e_si) )
+             g_i(i,k) = 4.0_wp*pi / ( L_ed**2 / (K_T * R_d * T_a**2) + R_d * T_a / (D_vtp * e_si) )
           ELSE
-             g_i(i,k)  = 0.0
-             s_si(i,k) = 0.0
+             g_i(i,k)  = 0.0_wp
+             s_si(i,k) = 0.0_wp
           ENDIF
        ENDDO
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k = kstart,kend
-      DO i = 1,size(dep_rate_ice,1)
-        dep_ice(i,k)     = 0.0
-        dep_snow(i,k)    = 0.0
-        dep_graupel(i,k) = 0.0
-        dep_hail(i,k)    = 0.0
-      END DO
-    END DO
-    !$ACC END PARALLEL
 
     CALL vapor_deposition_generic(ik_slice, ice, ice_coeffs, g_i, s_si,dt_local, dep_ice)
     CALL vapor_deposition_generic(ik_slice, snow, snow_coeffs, g_i, s_si, dt_local, dep_snow)
@@ -2086,7 +2191,7 @@ CONTAINS
 
     zdt = 1.0/dt_local
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, zdt, dt_local)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(qvsidiff, tau_i_i, tau_s_i, tau_g_i, tau_h_i, Xi_i, Xfac) &
     !$ACC   PRIVATE(dep_ice_n, dep_snow_n, dep_graupel_n, dep_hail_n, dep_sum, x_i, x_s, x_g, x_h, T_a)
     DO k = kstart,kend
@@ -2116,7 +2221,7 @@ CONTAINS
                 if (Xi_i.lt.eps) then
                    Xfac = 0.0_wp
                 else
-                   Xfac =  qvsidiff / Xi_i * (1.0 - EXP(- dt_local*Xi_i))
+                   Xfac =  qvsidiff / Xi_i * (1.0_wp - EXP(- dt_local*Xi_i))
                 end if
 
                 dep_ice(i,k)     = Xfac * tau_i_i
@@ -2133,16 +2238,6 @@ CONTAINS
                 END IF
 
                 dep_sum = dep_ice(i,k) + dep_graupel(i,k) + dep_snow(i,k) + dep_hail(i,k)
-
-                ! this limiter should not be necessary
-                !IF (qvsidiff > 0.0_wp .and. dep_sum > qvsidiff) then
-                !   weight = qvsidiff / dep_sum
-                !   dep_sum          = weight * dep_sum
-                !   dep_ice(i,k)     = weight * dep_ice(i,k)
-                !   dep_snow(i,k)    = weight * dep_snow(i,k)
-                !   dep_graupel(i,k) = weight * dep_graupel(i,k)
-                !   dep_hail(i,k)    = weight * dep_hail(i,k)
-                !END IF
                 
                 IF ( reduce_sublimation) THEN
                   x_i = particle_meanmass(ice    , ice%    q(i,k), ice%    n(i,k))
@@ -2181,20 +2276,17 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-   
-    !$ACC END DATA ! CREATE COPYIN PRESENT
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE vapor_dep_relaxation
 
-#ifdef _CRAYFTN
-  SUBROUTINE vapor_deposition_generic(ik_slice, prtcl, coeffs, g_i, s_si, &
+  SUBROUTINE vapor_deposition_generic(ik_slice, prtcl_in, coeffs, g_i, s_si, &
        dt, dep_q)
-#else
-  PURE SUBROUTINE vapor_deposition_generic(ik_slice, prtcl, coeffs, g_i, s_si, &
-       dt, dep_q)
-#endif
     INTEGER, INTENT(in) :: ik_slice(4)
-    CLASS(particle), INTENT(in) :: prtcl
+    CLASS(particle), INTENT(in), TARGET :: prtcl_in
+    CLASS(particle), POINTER :: prtcl ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_coeffs), INTENT(in) :: coeffs
     REAL(wp), INTENT(in) :: g_i(:, :), s_si(:, :)
     REAL(wp), INTENT(in) :: dt
@@ -2203,13 +2295,14 @@ CONTAINS
     INTEGER             :: i,k
     INTEGER :: istart, iend, kstart, kend
 
+    prtcl => prtcl_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(prtcl, coeffs, dep_q, g_i, s_si)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(n, q, x, D, v, f_v)
     DO k = kstart,kend
       DO i = istart,iend
@@ -2231,13 +2324,13 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE vapor_deposition_generic
 
   SUBROUTINE rain_freeze_gamlook(ik_slice, dt, rain_ltable1, rain_ltable2, rain_ltable3, &
                                  rain_nm1, rain_nm2, rain_nm3, rain_g1, rain_g2,         &
-                                 rain_coeffs,atmo,rain,ice,snow,graupel,hail)
+                                 rain_coeffs, atmo, rain_in, ice, snow, graupel, hail)
     !*******************************************************************************
     ! Freezing of raindrops                                                        *
     ! by Uli Blahak                                                                *
@@ -2254,7 +2347,9 @@ CONTAINS
     TYPE(particle_rain_coeffs),INTENT(in) :: rain_coeffs
     ! prognostic variables
     TYPE(atmosphere), INTENT(inout)  :: atmo
-    CLASS(particle), INTENT(inout)   :: rain, ice, snow, graupel, hail
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: ice, snow, graupel, hail
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2271,6 +2366,8 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "rain_freeze_gamlook")
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     xmax_ice = ( (cfg_params%D_rainfrz_ig/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
     xmax_gr  = ( (cfg_params%D_rainfrz_gh/rain%a_geo)**(1.0_wp/rain%b_geo) )**rain%mu
 
@@ -2279,9 +2376,11 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, rain, graupel, hail, ice, rain_ltable1, rain_ltable2, rain_ltable3, rain_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, rain_g1, rain_g2) &
-    !$ACC   FIRSTPRIVATE(rain_nm1, rain_nm2, rain_nm3, xmax_ice, xmax_gr, dt)
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for rain_ltable*
+    ! - Otherwise error: illegal address during kernel execution
+    ! - Reason unknown as inlining of incgfct_lower_lookup solves issue
+    !$ACC DATA PRESENT(rain_ltable1, rain_ltable2, rain_ltable3)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, n_r, fr_q, fr_n, fr_n_i, fr_q_i, fr_n_g) &
     !$ACC   PRIVATE(fr_q_g, fr_n_h, fr_q_h, fr_n_tmp, fr_q_tmp) &
     !$ACC   PRIVATE(x_r, lam, lam_rnm1, lam_rnm2, lam_rnm3, n_0, j_het)
@@ -2300,18 +2399,18 @@ CONTAINS
                    fr_n = n_r
                    fr_n_i= n_r
                    fr_q_i= q_r
-                   fr_n_g= 0.0
-                   fr_q_g= 0.0
-                   fr_n_h= 0.0
-                   fr_q_h= 0.0
-                   fr_n_tmp = 1.0
-                   fr_q_tmp = 1.0
+                   fr_n_g= 0.0_wp
+                   fr_q_g= 0.0_wp
+                   fr_n_h= 0.0_wp
+                   fr_q_h= 0.0_wp
+                   fr_n_tmp = 1.0_wp
+                   fr_q_tmp = 1.0_wp
                 ELSE
-                   fr_q = 0.0   ; fr_n = 0.0
-                   fr_n_i = 0.0 ; fr_q_i = 0.0
-                   fr_n_g = 0.0 ; fr_q_g = 0.0
-                   fr_n_h = 0.0 ; fr_q_h = 0.0
-                   fr_n_tmp = 0.0 ; fr_q_tmp = 0.0
+                   fr_q = 0.0   ; fr_n = 0.0_wp
+                   fr_n_i = 0.0 ; fr_q_i = 0.0_wp
+                   fr_n_g = 0.0 ; fr_q_g = 0.0_wp
+                   fr_n_h = 0.0 ; fr_q_h = 0.0_wp
+                   fr_n_tmp = 0.0 ; fr_q_tmp = 0.0_wp
                 END IF
              ELSE
                 x_r = particle_meanmass(rain, q_r,n_r)
@@ -2343,7 +2442,7 @@ CONTAINS
                    fr_q_tmp = q_r/MAX(fr_q,q_r)
                 ELSE
                    !..heterogeneous freezing
-                   j_het = MAX(b_HET * ( EXP( a_HET * (T_3 - T_a)) - 1.0 ),0.0_wp) / rho_w * dt
+                   j_het = MAX(b_HET * ( EXP( a_HET * (T_3 - T_a)) - 1.0_wp ),0.0_wp) / rho_w * dt
 !!                   if (use_prog_in) j_het = MIN(j_het, n_inact(i,k)/q_r)
 
                    ! Je nach Groesse werden die gefrorenen Regentropfen dem Wolkeneis zugeschlagen
@@ -2415,18 +2514,19 @@ CONTAINS
 
              ! clipping of small negatives is necessary here
              if (lclipping) then
-                IF (rain%q(i,k) < 0.0 .and. abs(rain%q(i,k)) < eps) rain%q(i,k) = 0.0_wp
-                IF (rain%n(i,k) < 0.0 .and. abs(rain%n(i,k)) < eps) rain%n(i,k) = 0.0_wp
-                IF (graupel%q(i,k) < 0.0 .and. abs(graupel%q(i,k)) < eps) graupel%q(i,k) = 0.0_wp
-                IF (graupel%n(i,k) < 0.0 .and. abs(graupel%q(i,k)) < eps) graupel%n(i,k) = 0.0_wp
-                IF (hail%q(i,k) < 0.0 .and. abs(hail%q(i,k)) < eps) hail%q(i,k) = 0.0_wp
-                IF (hail%n(i,k) < 0.0 .and. abs(hail%n(i,k)) < eps) hail%n(i,k) = 0.0_wp
+                IF (rain%q(i,k) < 0.0_wp .and. abs(rain%q(i,k)) < eps) rain%q(i,k) = 0.0_wp
+                IF (rain%n(i,k) < 0.0_wp .and. abs(rain%n(i,k)) < eps) rain%n(i,k) = 0.0_wp
+                IF (graupel%q(i,k) < 0.0_wp .and. abs(graupel%q(i,k)) < eps) graupel%q(i,k) = 0.0_wp
+                IF (graupel%n(i,k) < 0.0_wp .and. abs(graupel%q(i,k)) < eps) graupel%n(i,k) = 0.0_wp
+                IF (hail%q(i,k) < 0.0_wp .and. abs(hail%q(i,k)) < eps) hail%q(i,k) = 0.0_wp
+                IF (hail%n(i,k) < 0.0_wp .and. abs(hail%n(i,k)) < eps) hail%n(i,k) = 0.0_wp
              end if
 
           END IF
        END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
     !$ACC END DATA
 
   END SUBROUTINE rain_freeze_gamlook
@@ -2452,15 +2552,15 @@ CONTAINS
     IF (mu == 1.0) THEN
       !.. see SB2001
       cloud_coeffs%k_au  = kc_autocon / cloud%x_max * (1.0_wp / 20.0_wp) &
-           &               * (nu+2.0)*(nu+4.0)/(nu+1.0)**2
-      cloud_coeffs%k_sc  = kc_autocon * (nu+2.0)/(nu+1.0)
+           &               * (nu+2.0_wp)*(nu+4.0_wp)/(nu+1.0_wp)**2
+      cloud_coeffs%k_sc  = kc_autocon * (nu+2.0_wp)/(nu+1.0_wp)
     ELSE
       !.. see Eq. (3.44) of Seifert (2002)
       cloud_coeffs%k_au = kc_autocon / cloud%x_max * (1.0_wp / 20.0_wp)  &
-           & * ( 2.0_wp * gfct((nu+4.0)/mu)**1                           &
-           &            * gfct((nu+2.0)/mu)**1 * gfct((nu+1.0)/mu)**2    &
-           &   - 1.0_wp * gfct((nu+3.0)/mu)**2 * gfct((nu+1.0)/mu)**2 )  &
-           &   / gfct((nu+2.0)/mu)**4
+           & * ( 2.0_wp * gfct((nu+4.0_wp)/mu)**1                           &
+           &            * gfct((nu+2.0_wp)/mu)**1 * gfct((nu+1.0_wp)/mu)**2    &
+           &   - 1.0_wp * gfct((nu+3.0_wp)/mu)**2 * gfct((nu+1.0_wp)/mu)**2 )  &
+           &   / gfct((nu+2.0_wp)/mu)**4
       cloud_coeffs%k_sc = kc_autocon * cloud_coeffs%c_z
     ENDIF
 
@@ -2523,7 +2623,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_ice_selfcollection
 
-  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice, snow, ice_coeffs)
+  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice_in, snow, ice_coeffs)
     !*******************************************************************************
     ! selfcollection of ice crystals, see SB2006 or Seifert (2002)                 *
     !*******************************************************************************
@@ -2536,7 +2636,9 @@ CONTAINS
 
     ! 2mom variables
     TYPE(atmosphere),       INTENT(inout) :: atmo
-    CLASS(particle_frozen), INTENT(inout) :: ice, snow
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ice_in
+    CLASS(particle_frozen), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout) :: snow
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2549,6 +2651,8 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "ice_selfcollection")
 
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -2556,8 +2660,7 @@ CONTAINS
 
     x_conv_ii = (cfg_params%D_conv_ii/snow%a_geo)**(1./snow%b_geo)
 
-    !$ACC DATA PRESENT(atmo, ice, ice_coeffs, snow)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt, x_conv_ii)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_i, n_i, x_i, d_i, v_i, e_coll, self_n, self_q)
     DO k = kstart,kend
        DO i = istart,iend
@@ -2574,15 +2677,15 @@ CONTAINS
 
              !.. Temperaturabhaengige Efficiency nach Cotton et al. (1986)
              !   (siehe auch Straka, 1989; S. 53)
-             e_coll = MIN(10**(0.035*(T_a-T_3)-0.7),0.2_wp)
+             e_coll = MIN(10**(0.035_wp*(T_a-T_3)-0.7_wp),0.2_wp)
 
              v_i = ice%a_vel * x_i**ice%b_vel * ice%rho_v(i,k)
 
              self_n = pi4 * e_coll * ice_coeffs%sc_delta_n * n_i * n_i * D_i * D_i &
-                  & * SQRT( ice_coeffs%sc_theta_n * v_i * v_i + 2.0*ice%s_vel**2 ) * dt
+                  & * SQRT( ice_coeffs%sc_theta_n * v_i * v_i + 2.0_wp*ice%s_vel**2 ) * dt
 
              self_q = pi4 * e_coll * ice_coeffs%sc_delta_q * n_i * q_i * D_i * D_i &
-                  & * SQRT( ice_coeffs%sc_theta_q * v_i * v_i + 2.0*ice%s_vel**2 ) * dt
+                  & * SQRT( ice_coeffs%sc_theta_q * v_i * v_i + 2.0_wp*ice%s_vel**2 ) * dt
 
              self_q = MIN(self_q,q_i)
              self_n = MIN(MIN(self_n,self_q/x_conv_ii),n_i)
@@ -2591,13 +2694,13 @@ CONTAINS
              snow%q(i,k) = snow%q(i,k) + self_q
 
              ice%n(i,k)  = ice%n(i,k)  - self_n
-             snow%n(i,k) = snow%n(i,k) + self_n / 2.0
+             snow%n(i,k) = snow%n(i,k) + self_n / 2.0_wp
 
           ENDIF
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE ice_selfcollection
 
@@ -2634,7 +2737,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_snow_selfcollection
 
-  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow, snow_coeffs)
+  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow_in, snow_coeffs)
     !*******************************************************************************
     ! Selfcollection of snow                                                       *
     !*******************************************************************************
@@ -2646,7 +2749,8 @@ CONTAINS
     
     TYPE(particle_snow_coeffs), INTENT(in) :: snow_coeffs
     TYPE(atmosphere), INTENT(inout)        :: atmo
-    CLASS(particle_frozen), INTENT(inout)  :: snow
+    CLASS(particle_frozen), INTENT(inout), TARGET :: snow_in
+    CLASS(particle_frozen), POINTER :: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2657,13 +2761,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "snow_selfcollection")
 
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, snow, snow_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, v_s, e_coll, self_n)
     DO k = kstart,kend
       DO i = istart,iend
@@ -2674,7 +2779,7 @@ CONTAINS
           IF ( q_s > q_crit ) THEN
 
              !.. Temperaturabhaengige sticking efficiency nach Lin (1983)
-             e_coll = MAX(0.1_wp,MIN(EXP(0.09*(T_a-T_3)),1.0_wp))
+             e_coll = MAX(0.1_wp,MIN(EXP(0.09_wp*(T_a-T_3)),1.0_wp))
 
              n_s = snow%n(i,k)
              x_s = particle_meanmass(snow,q_s,n_s)
@@ -2682,8 +2787,8 @@ CONTAINS
              v_s = particle_velocity(snow,x_s) * snow%rho_v(i,k)
 
              self_n = pi8 * e_coll * n_s * n_s * snow_coeffs%sc_delta_n * D_s * D_s * &
-                  &          sqrt(  snow_coeffs%sc_theta_n * v_s * v_s                &
-                  &               + 2.0 * snow%s_vel**2 ) * dt
+                  &          SQRT(  snow_coeffs%sc_theta_n * v_s * v_s                &
+                  &               + 2.0_wp * snow%s_vel**2 ) * dt
 
              self_n = MIN(self_n,n_s)
 
@@ -2693,11 +2798,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE snow_selfcollection
 
-  SUBROUTINE snow_melting(ik_slice, dt, snow_coeffs, atmo, snow, rain)
+  SUBROUTINE snow_melting(ik_slice, dt, snow_coeffs, atmo, snow_in, rain)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -2707,7 +2812,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     CLASS(particle_sphere), INTENT(in) :: snow_coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: rain, snow
+    CLASS(particle), INTENT(inout), TARGET :: snow_in
+    CLASS(particle), POINTER :: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -2717,13 +2824,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "snow_melting")
 
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, snow, rain, snow_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, e_a, n_s, x_s, D_s, v_s) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -2739,7 +2847,7 @@ CONTAINS
             D_s = particle_diameter(snow,x_s)
             v_s = particle_velocity(snow,x_s) * snow%rho_v(i,k)
 
-            fv_q = snow_coeffs%a_f + snow_coeffs%b_f * sqrt(v_s*D_s)
+            fv_q = snow_coeffs%a_f + snow_coeffs%b_f * SQRT(v_s*D_s)
 
             ! UB: Based on Rasmussen and Heymsfield (1987) the ratio fh_q / fv_q is approx. 1.05
             !     for a wide temperature- and pressure range:
@@ -2775,11 +2883,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE snow_melting
 
-  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype, ptype, coeffs)
+  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype_in, ptype_in, coeffs)
     !*******************************************************************************
     !  Most simple particle-particle collection for ice particles, e.g.,           *
     !    graupel+ice  -> graupel                                                   *
@@ -2796,7 +2904,8 @@ CONTAINS
 
     ! 2mom variables and coefficients
     TYPE(atmosphere), INTENT(inout)        :: atmo
-    CLASS(particle_frozen),  INTENT(inout) :: ctype, ptype
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ctype_in, ptype_in
+    CLASS(particle_frozen), POINTER :: ctype, ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
     TYPE(collection_coeffs), INTENT(in)    :: coeffs
     
     ! Locale Variablen
@@ -2810,13 +2919,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "particle_particle_collection")
 
+    ctype => ctype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, ctype, ptype, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) &
     !$ACC   PRIVATE(T_a, q_p, n_p, x_p, d_p, v_p, q_i, n_i, x_i, d_i, v_i, coll_n, coll_q, e_coll)
     DO k = kstart,kend
@@ -2871,7 +2982,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_particle_collection
 
@@ -2949,7 +3060,7 @@ CONTAINS
 
   END SUBROUTINE setup_particle_collection_type2
 
-  SUBROUTINE graupel_selfcollection(ik_slice, dt, atmo, graupel, graupel_coeffs)
+  SUBROUTINE graupel_selfcollection(ik_slice, dt, atmo, graupel_in, graupel_coeffs)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -2959,7 +3070,8 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     TYPE(particle_graupel_coeffs), INTENT(in) :: graupel_coeffs
     TYPE(atmosphere), INTENT(inout)           :: atmo
-    CLASS(particle), INTENT(inout)            :: graupel
+    CLASS(particle), INTENT(inout), TARGET    :: graupel_in
+    CLASS(particle), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2969,13 +3081,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "graupel_selfcollection")
 
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, graupel, graupel_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_g, n_g, x_g, d_g, v_g, self_n)
     DO k = kstart,kend
        DO i = istart,iend
@@ -3000,11 +3113,11 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE graupel_selfcollection
 
-  SUBROUTINE ice_melting(ik_slice, atmo, ice, cloud, rain)
+  SUBROUTINE ice_melting(ik_slice, atmo, ice_in, cloud, rain)
     !*******************************************************************************
     !                                                                              *
     !*******************************************************************************
@@ -3012,7 +3125,9 @@ CONTAINS
     ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
     INTEGER, INTENT(in) :: ik_slice(4)
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle), INTENT(inout) :: cloud, rain, ice
+    CLASS(particle), INTENT(inout), TARGET :: ice_in
+    CLASS(particle), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(inout) :: cloud, rain
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3021,13 +3136,14 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "ice_melting")
 
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(ice, atmo, rain, cloud)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, melt_q, melt_n)
     DO k = kstart,kend
        DO i = istart,iend
@@ -3058,11 +3174,11 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE ice_melting
 
-  SUBROUTINE particle_cloud_riming(ik_slice, dt, atmo, ptype, coeffs, cloud, rain, ice)
+  SUBROUTINE particle_cloud_riming(ik_slice, dt, atmo, ptype_in, coeffs, cloud_in, rain, ice)
     !*******************************************************************************
     ! Riming of graupel or hail with cloud droplets                                *
     !*******************************************************************************
@@ -3074,8 +3190,12 @@ CONTAINS
 
     TYPE(collection_coeffs), INTENT(in)   :: coeffs
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, ptype
+    CLASS(particle), INTENT(inout)        :: rain
+    CLASS(particle_frozen), INTENT(inout) :: ice
+    CLASS(particle), INTENT(inout), TARGET :: cloud_in
+    CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ptype_in
+    CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -3096,6 +3216,9 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "particle_cloud_riming")
 
+    cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -3103,8 +3226,7 @@ CONTAINS
 
     const1 = const0 * ptype%ecoll_c
 
-    !$ACC DATA PRESENT(atmo, rain, cloud, ptype, ice, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const1, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_c, q_p, n_c, n_p, x_p, D_p, x_c, D_c) &
     !$ACC   PRIVATE(v_p, v_c, e_coll_n, e_coll_q, rime_n, rime_q) &
     !$ACC   PRIVATE(mult_1, mult_2, mult_n, mult_q, melt_n, melt_q)
@@ -3180,12 +3302,12 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_cloud_riming
 
-  SUBROUTINE particle_rain_riming(ik_slice, dt, atmo, ptype, &
-       coeffs, rain, ice)
+  SUBROUTINE particle_rain_riming(ik_slice, dt, atmo, ptype_in, &
+       coeffs, rain_in, ice)
     !*******************************************************************************
     ! Riming of graupel or hail with rain drops                                    *
     !*******************************************************************************
@@ -3195,7 +3317,9 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     TYPE(collection_coeffs), INTENT(in) :: coeffs
     TYPE(atmosphere), INTENT(inout) :: atmo
-    CLASS(particle),  INTENT(inout) :: rain, ice, ptype
+    CLASS(particle), INTENT(inout) :: ice
+    CLASS(particle), INTENT(inout), TARGET :: rain_in, ptype_in
+    CLASS(particle), POINTER :: rain, ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3211,13 +3335,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "particle_rain_riming")
 
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, rain, ptype, ice, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_r, q_p, n_r, n_p, x_p, d_p, v_p, x_r, D_r) &
     !$ACC   PRIVATE(v_r, rime_n, rime_q, mult_1, mult_2, mult_n, mult_q) &
     !$ACC   PRIVATE(melt_q, melt_n)
@@ -3289,11 +3415,11 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE particle_rain_riming
 
-  SUBROUTINE graupel_melting(ik_slice, dt, graupel_coeffs, atmo, graupel, rain)
+  SUBROUTINE graupel_melting(ik_slice, dt, graupel_coeffs, atmo, graupel_in, rain)
     !*******************************************************************************
     ! Melting of graupel                                                           *
     !*******************************************************************************
@@ -3303,7 +3429,10 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     CLASS(particle_sphere), INTENT(in) :: graupel_coeffs
     TYPE(atmosphere), INTENT(inout)    :: atmo
-    CLASS(particle), INTENT(inout)     :: rain, graupel
+    CLASS(particle), INTENT(inout)     :: rain    
+    CLASS(particle), INTENT(inout), TARGET :: graupel_in
+    CLASS(particle), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     INTEGER             :: i,k
@@ -3313,13 +3442,18 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "graupel_melting")
 
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, graupel, rain, graupel_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for graupel:
+    ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
+    ! - Reason unknown as inlining of particle_* solves issue
+    !$ACC DATA PRESENT(graupel)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_g, e_a, n_g, x_g, D_g, v_g) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -3328,7 +3462,7 @@ CONTAINS
           T_a = atmo%T(i,k)
           q_g = graupel%q(i,k)
 
-          IF (T_a > T_3 .AND. q_g > 0.0) THEN
+          IF (T_a > T_3 .AND. q_g > 0.0_wp) THEN
              e_a = e_ws(T_a)
              n_g = graupel%n(i,k)
 
@@ -3337,9 +3471,9 @@ CONTAINS
              v_g = particle_velocity(graupel, x_g) * graupel%rho_v(i,k)
 
              fv_q = graupel_coeffs%a_f + graupel_coeffs%b_f * SQRT(v_g*D_g)
-             fh_q = 1.05 * fv_q
+             fh_q = 1.05_wp * fv_q
 
-             melt   = 2.0*pi / L_ew * D_g * n_g * dt
+             melt   = 2.0_wp*pi / L_ew * D_g * n_g * dt
 
              melt_h = melt * K_T * (T_a - T_3)
              melt_v = melt * D_v*L_wd/R_d * (e_a/T_a - e_3/T_3)
@@ -3364,6 +3498,7 @@ CONTAINS
        ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
     !$ACC END DATA
 
   END SUBROUTINE graupel_melting
@@ -3386,7 +3521,7 @@ CONTAINS
 !!$     END SUBROUTINE HAIL_MELTING_LWF
 !!$  END INTERFACE hail_melting
 
-  SUBROUTINE hail_melting_simple(ik_slice, dt, hail_coeffs, atmo, hail, rain)
+  SUBROUTINE hail_melting_simple(ik_slice, dt, hail_coeffs, atmo, hail_in, rain)
     !*******************************************************************************
     ! Melting of hail                                                              *
     !*******************************************************************************
@@ -3397,7 +3532,8 @@ CONTAINS
     TYPE(particle_sphere), INTENT(in) :: hail_coeffs
     TYPE(atmosphere), INTENT(inout)   :: atmo
     CLASS(particle), INTENT(inout)    :: rain
-    CLASS(particle), INTENT(inout)    :: hail
+    CLASS(particle), INTENT(inout), TARGET:: hail_in
+    CLASS(particle), POINTER :: hail ! ACCWA (nvhpc 22.7, IPSF, see above)
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
     ! local variables
@@ -3408,13 +3544,19 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "hail_melting")
 
+    hail => hail_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, hail, rain, hail_coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for hail:
+    ! - Otherwise error during runtime: variable in data clause is partially present on device: name=descriptor
+    ! - Reason unknown as inlining of particle_* solves issue
+    !$ACC DATA PRESENT(hail)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_h, e_a, n_h, x_h, D_h, v_h) &
     !$ACC   PRIVATE(fv_q, fh_q, melt, melt_h, melt_v, melt_q, melt_n)
     DO k = kstart,kend
@@ -3432,14 +3574,14 @@ CONTAINS
             v_h = particle_velocity(hail,x_h) * hail%rho_v(i,k)
 
             fv_q = hail_coeffs%a_f + hail_coeffs%b_f * sqrt(v_h*D_h)
-            fh_q = 1.05 * fv_q                            ! UB: based on Rasmussen and Heymsfield
+            fh_q = 1.05_wp * fv_q                            ! UB: based on Rasmussen and Heymsfield
 
-            melt   = 2.0*pi / L_ew * D_h * n_h * dt
+            melt   = 2.0_wp*pi / L_ew * D_h * n_h * dt
 
             melt_h = melt * K_T * (T_a - T_3)
             melt_v = melt * D_v*L_wd/R_d * (e_a/T_a - e_3/T_3)
 
-            melt_q = (melt_h * fh_q + melt_v * fv_q)
+            melt_q = cfg_params%melt_h_tune_fak * (melt_h * fh_q + melt_v * fv_q)
 
             ! UB: assume that x_h is constant during melting
             melt_n = MIN(MAX( (melt_q - q_h) / x_h + n_h, 0.0_wp), n_h)
@@ -3459,6 +3601,7 @@ CONTAINS
       ENDDO
    ENDDO
    !$ACC END PARALLEL
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
    !$ACC END DATA
 
   END SUBROUTINE hail_melting_simple
@@ -3497,6 +3640,10 @@ CONTAINS
     INTEGER :: istart, iend, kstart, kend
 
     IF (isdebug) CALL message(routine, "particle_melting_lwf")
+
+#ifdef _OPENACC
+    CALL finish("particle_melting_lwf", "Routine has not been ported to openACC yet.")
+#endif
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -3600,9 +3747,9 @@ CONTAINS
           end if
 
           ! Forward integration
-          n_p  = max(n_p - nconv*dt, 0._wp)
-          qliq = max(qliq + (qmlt - qconv)*dt, 0._wp)
-          qice = max(qice - qmlt*dt, 0._wp)
+          n_p  = max(n_p - nconv*dt, 0.0_wp)
+          qliq = max(qliq + (qmlt - qconv)*dt, 0.0_wp)
+          qice = max(qice - qmlt*dt, 0.0_wp)
 
           qrain = qrain + (qconv + qshed)*dt
           nrain = nrain + (nconv + qshed/x_shed)*dt
@@ -3676,9 +3823,9 @@ CONTAINS
           Lm  = lh_melt_RH87(T_a)         !..latent heat of melting
 
           nu  = eta/rho_a                 !..kinematic viscosity   
-          Sc  = (nu/Dv)**(1._wp/3._wp)    !..Schmidt number
+          Sc  = (nu/Dv)**(1.0_wp/3.0_wp)    !..Schmidt number
           kt  = ka / (rho_a*cp)           !..diffusivity of air    
-          Pr  = (nu/kt)**(1._wp/3._wp)    !..Prandtl number    
+          Pr  = (nu/kt)**(1.0_wp/3.0_wp)    !..Prandtl number    
 
           !.thermodynamic, i.e. environmental, function for melting
           gta(i,k) = 2.0_wp*pi/Lm * ( Pr*ka*delta_T + Sc*Le*Dv*delta_q/R_d )
@@ -3694,7 +3841,7 @@ CONTAINS
 
   SUBROUTINE graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
        &                                   graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
-       &                                   atmo, graupel, cloud, rain, ice, snow, hail)
+       &                                   atmo, graupel_in, cloud, rain, ice, snow, hail)
     !*******************************************************************************
     !  Wet growth and conversion of graupel to hail                                *
     !  (uses look-up table for incomplete gamma functions)                         *
@@ -3712,7 +3859,9 @@ CONTAINS
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
     CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, graupel, snow, hail
+    CLASS(particle_frozen), INTENT(inout) :: ice, snow, hail    
+    CLASS(particle_frozen), INTENT(inout), TARGET :: graupel_in
+    CLASS(particle_frozen), POINTER :: graupel ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -3726,13 +3875,18 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "graupel_hail_conv_wet_gamlook")
 
+    graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, snow, hail, graupel_ltable1, graupel_ltable2, ltabdminwgg)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, graupel_nm2, graupel_g1, graupel_g2, graupel_nm1)
+    ! ACCWA (nvhpc 21.3): Explicit PRESENT statement required for graupel_ltable1 and graupel_ltable2:
+    ! - Otherwise error: illegal address during kernel execution
+    ! - Reason unknown as inlining of incgfct_upper_lookup solves issue
+    !$ACC DATA PRESENT(graupel_ltable1, graupel_ltable2)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, p_a, d_trenn, qw_a, qi_a, n_0, lam, xmin) &
     !$ACC   PRIVATE(q_g, n_g, x_g, d_g, q_c, q_r, conv_n, conv_q)
     DO k = kstart,kend
@@ -3754,7 +3908,7 @@ CONTAINS
           !..supercooled liquid water in the cloud environment = sum of rain and cloud water
           qw_a = q_r + q_c
 
-          IF (T_a < T_3 .AND. q_g > graupel%q_crit_c .AND. qw_a > 1e-3) THEN
+          IF (T_a < T_3 .AND. q_g > graupel%q_crit_c .AND. qw_a > 1e-3_wp) THEN
 
             !.. Umgebungsgehalt Eispartikel (vernachl. werden Graupel und Hagel wg. geringer Kollisionseff.)
             !.. koennte problematisch sein, weil in konvekt. Wolken viel mehr Graupel und Hagel enthalten ist!!!
@@ -3794,12 +3948,13 @@ CONTAINS
        ENDDO
     ENDDO
    !$ACC END PARALLEL
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
    !$ACC END DATA
 
   END SUBROUTINE graupel_hail_conv_wet_gamlook
 
   SUBROUTINE ice_riming(ik_slice, dt, icr_coeffs, irr_coeffs, &
-       &                atmo, ice, cloud, rain, graupel, dep_rate_ice)
+       &                atmo, ice_in, cloud, rain_in, graupel, dep_rate_ice)
     !*******************************************************************************
     !  Riming of ice with cloud droplet and rain drops. First the process rates    *
     !  are calculated in                                                           *
@@ -3817,10 +3972,14 @@ CONTAINS
     TYPE(rain_riming_coeffs), INTENT(in) :: irr_coeffs
     ! progn. variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: ice, graupel
-    REAL(wp), INTENT (IN), DIMENSION(:,:) :: dep_rate_ice
+    CLASS(particle), INTENT(inout)        :: cloud
+    CLASS(particle_frozen), INTENT(inout) :: graupel
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: ice_in
+    CLASS(particle_frozen), POINTER:: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
 
+    REAL(wp), INTENT (IN), DIMENSION(:,:) :: dep_rate_ice
     REAL(wp), DIMENSION(size(dep_rate_ice,1),size(dep_rate_ice,2)) ::       &
          &               rime_rate_qc, rime_rate_nc,                        &
          &               rime_rate_qi, rime_rate_qr, rime_rate_nr
@@ -3839,13 +3998,16 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "ice riming")
 
+    ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, ice, graupel, dep_rate_ice) &
-    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qi, rime_rate_qr, rime_rate_nr)
+
+    !$ACC DATA CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qi, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, ice, cloud, icr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, ice, rain, irr_coeffs, dt, &
@@ -3857,7 +4019,7 @@ CONTAINS
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const5)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_i, n_i, x_i, d_i, T_a, x_r, rime_n, rime_q) &
     !$ACC   PRIVATE(rime_qr, rime_qi, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
@@ -3954,9 +4116,9 @@ CONTAINS
               ENDIF
 
               ! conversion ice -> graupel (depends on alpha_spacefilling)
-              IF (d_i > D_conv_ig .AND. T_a < Tmax_gr_rime) THEN
+              IF (D_i > D_conv_ig .AND. T_a < cfg_params%Tmax_gr_rime) THEN
                  q_i = ice%q(i,k)
-                 conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_i**3/x_i - 1.0) )
+                 conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_i**3/x_i - 1.0_wp) )
                  conv_q = MIN(q_i,conv_q)
                  x_i    = particle_meanmass(ice, q_i,n_i)
                  conv_n = conv_q / MAX(x_i,x_conv)
@@ -4013,7 +4175,7 @@ CONTAINS
                  ice%n(i,k) = ice%n(i,k) + mult_n
                  ice%q(i,k) = ice%q(i,k) + mult_q
                  ! riming to graupel
-                 IF (T_a < Tmax_gr_rime) THEN
+                 IF (T_a < cfg_params%Tmax_gr_rime) THEN
                    graupel%n(i,k) = graupel%n(i,k) + rime_n
                    graupel%q(i,k) = graupel%q(i,k) + rime_qi + rime_qr - mult_q
                  ELSE
@@ -4027,12 +4189,14 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
+
+    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE ice_riming
 
   SUBROUTINE snow_riming(ik_slice, dt, scr_coeffs, srr_coeffs, &
-       &                 atmo, snow, cloud, rain, ice, graupel, dep_rate_snow)
+       &                 atmo, snow_in, cloud, rain_in, ice, graupel, dep_rate_snow)
     !*******************************************************************************
     !  Riming of snow with cloud droplet and rain drops. First the process rates   *
     !  are calculated in                                                           *
@@ -4050,10 +4214,14 @@ CONTAINS
     TYPE(rain_riming_coeffs),INTENT(in) :: srr_coeffs  ! snow rain riming
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
-    CLASS(particle),  INTENT(inout)       :: cloud, rain
-    CLASS(particle_frozen), INTENT(inout) :: snow, ice, graupel
+    CLASS(particle), INTENT(inout)        :: cloud
+    CLASS(particle_frozen), INTENT(inout) :: ice, graupel
+    CLASS(particle), INTENT(inout), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle_frozen), INTENT(inout), TARGET :: snow_in
+    CLASS(particle_frozen), POINTER:: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
+    
     REAL(wp), INTENT(IN), DIMENSION(:,:)  :: dep_rate_snow
-
     REAL(wp), DIMENSION(size(dep_rate_snow,1),size(dep_rate_snow,2)) ::       &
          & rime_rate_qc, rime_rate_nc,                                        &
          & rime_rate_qs, rime_rate_qr, rime_rate_nr
@@ -4072,13 +4240,16 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "snow_riming")
 
+    snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(atmo, cloud, rain, snow, ice, graupel, dep_rate_snow) &
-    !$ACC   CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qs, rime_rate_qr, rime_rate_nr)
+
+    !$ACC DATA CREATE(rime_rate_qc, rime_rate_nc, rime_rate_qs, rime_rate_qr, rime_rate_nr)
     CALL riming_cloud_core(ik_slice, snow, cloud, scr_coeffs, dt, &
          &                 rime_rate_qc, rime_rate_nc)
     CALL riming_rain_core(ik_slice, snow, rain, srr_coeffs, dt, &
@@ -4087,7 +4258,7 @@ CONTAINS
 !!$ This changes the results: !!!    const5 = rho_w/rho_ice * cfg_params%alpha_spacefilling
     const5 = cfg_params%alpha_spacefilling * rho_w/rho_ice 
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const5)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(T_a, q_s, n_s, x_s, d_s, x_r, rime_n, rime_q) &
     !$ACC   PRIVATE(rime_qr, rime_qs, conv_n, conv_q, mult_n, mult_q, mult_1, mult_2)
     DO k = kstart,kend
@@ -4205,9 +4376,9 @@ CONTAINS
 
               !.. conversion of snow to graupel, depends on alpha_spacefilling
 
-              IF (d_s > D_conv_sg .AND. T_a < Tmax_gr_rime) THEN
+              IF (D_s > D_conv_sg .AND. T_a < cfg_params%Tmax_gr_rime) THEN
                  q_s = snow%q(i,k)  
-                 conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_s**3/x_s - 1.0) )
+                 conv_q = (rime_q - mult_q) / ( const5 * (pi6*rho_ice*d_s**3/x_s - 1.0_wp) )
                  conv_q = MIN(q_s,conv_q)
                  x_s    = particle_meanmass(snow, q_s,n_s)
                  conv_n = conv_q / MAX(x_s,x_conv)
@@ -4269,7 +4440,7 @@ CONTAINS
                  ice%n(i,k)  = ice%n(i,k)  + mult_n
                  ice%q(i,k)  = ice%q(i,k)  + mult_q
                  ! riming to graupel
-                 IF (T_a < Tmax_gr_rime) THEN
+                 IF (T_a < cfg_params%Tmax_gr_rime) THEN
                    graupel%n(i,k) = graupel%n(i,k) + rime_n
                    graupel%q(i,k) = graupel%q(i,k) + rime_qr + rime_qs - mult_q
                  ELSE
@@ -4285,11 +4456,13 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+
+    !$ACC WAIT
     !$ACC END DATA
 
  END SUBROUTINE snow_riming
 
- SUBROUTINE riming_cloud_core(ik_slice, ptype, cloud, coeffs, dt, &
+ SUBROUTINE riming_cloud_core(ik_slice, ptype_in, cloud_in, coeffs, dt, &
       &                     rime_rate_qb, rime_rate_nb)
    !*******************************************************************************
    !  Riming rate of ice or snow collecting cloud droplets                        *
@@ -4299,8 +4472,11 @@ CONTAINS
    ! start and end indices for 2D slices
    ! istart = slice(1), iend = slice(2), kstart = slice(3), kend = slice(4)
    INTEGER, INTENT(in) :: ik_slice(4)
-   CLASS(particle_frozen), INTENT(in)  :: ptype
-   CLASS(particle), INTENT(in)         :: cloud
+   CLASS(particle_frozen), INTENT(in), TARGET:: ptype_in
+   CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
+   CLASS(particle), INTENT(in), TARGET :: cloud_in
+   CLASS(particle), POINTER :: cloud ! ACCWA (nvhpc 22.7, IPSF, see above)
+
    REAL(wp), INTENT(in)                :: dt 
    TYPE(collection_coeffs), INTENT(in) :: coeffs
    REAL(wp), INTENT(out)               :: rime_rate_qb(:, :), rime_rate_nb(:, :)
@@ -4316,6 +4492,9 @@ CONTAINS
 
    IF (isdebug) CALL message(routine, "riming_cloud_core")
    
+   ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+   cloud => cloud_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
    istart = ik_slice(1)
    iend   = ik_slice(2)
    kstart = ik_slice(3)
@@ -4323,8 +4502,7 @@ CONTAINS
 
    const1 = const0 * ptype%ecoll_c
 
-   !$ACC DATA PRESENT(ptype, cloud, rime_rate_qb, rime_rate_nb, coeffs)
-   !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, const1, dt)
+   !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_p, n_p, x_p, d_p, v_p) &
    !$ACC   PRIVATE(q_c, n_c, x_c, d_c, v_c, e_coll, rime_n, rime_q)
    DO k = kstart,kend
@@ -4375,11 +4553,11 @@ CONTAINS
      ENDDO
    ENDDO
    !$ACC END PARALLEL
-   !$ACC END DATA
-    
+   !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
+
  END SUBROUTINE riming_cloud_core
 
-  SUBROUTINE riming_rain_core(ik_slice, ptype, rain, coeffs, dt, &
+  SUBROUTINE riming_rain_core(ik_slice, ptype_in, rain_in, coeffs, dt, &
        &                      rime_rate_qa, rime_rate_qb, rime_rate_nb)
     !*******************************************************************************
     !  Riming rate of ice collecting rain drop, or rain collecting ice             *
@@ -4394,8 +4572,10 @@ CONTAINS
     REAL(wp), INTENT(in) :: dt
     
     ! 2mom variables
-    CLASS(particle_frozen), INTENT(in)   :: ptype
-    TYPE(particle), INTENT(in)           :: rain
+    CLASS(particle_frozen), INTENT(in), TARGET :: ptype_in
+    CLASS(particle_frozen), POINTER :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
+    CLASS(particle), INTENT(in), TARGET :: rain_in
+    CLASS(particle), POINTER :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     TYPE(rain_riming_coeffs), INTENT(in) :: coeffs
     REAL(wp), INTENT(out)                :: rime_rate_qa(:,:), rime_rate_qb(:,:), &
@@ -4410,13 +4590,15 @@ CONTAINS
 
     IF (isdebug) CALL message(routine, "ice_rain_riming")
 
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(ptype, rain, rime_rate_qa, rime_rate_qb, rime_rate_nb, coeffs)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) FIRSTPRIVATE(kstart, kend, istart, iend, dt)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(q_a, n_a, x_a, d_a, v_a) &
     !$ACC   PRIVATE(q_r, n_r, x_r, d_r, v_r, rime_n, rime_qi, rime_qr)
     DO k = kstart,kend
@@ -4475,7 +4657,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC END DATA
+    !$ACC WAIT ! ACCWA (nvhpc 22.7): wait is required for intermediate pointer
 
   END SUBROUTINE riming_rain_core
 
@@ -4483,7 +4665,7 @@ CONTAINS
    !*******************************************************************************
    !       Calculation of ccn activation                                          *
    !       using the look-up tables by Segal and Khain 2006 (JGR, vol.11)         *
-   !       (implemented by Heike Noppel)                                          *
+   !       (implemented by Heike Noppel) NOT USED ANYMORE!                        *
    !*******************************************************************************
 
     ! start and end indices for 2D slices
@@ -4576,7 +4758,7 @@ CONTAINS
           nuc_n = 0.d0
           n_c   = cloud%n(i,k)
           q_c   = cloud%q(i,k)
-          wcb   = atmo%w(i,k)
+          wcb   = atmo%w(i,k+1)  ! This is the velocity at cloud base, therefore k+1
 
           if (q_c > eps .and. wcb > 0.0_wp) then
 
@@ -4598,7 +4780,7 @@ CONTAINS
              END IF
              
              ! min value for vertical velocity (instead of Nmin of older code)
-             wcb = max(wcb,0.2_wp)
+             wcb = MAX(wcb,0.2_wp)
 
              ! Interpolation of the look-up tables with respect to Ncn
 
@@ -4984,7 +5166,6 @@ CONTAINS
     INTEGER              :: i, k, kp1_fl
     INTEGER              :: iu, ju, ku, lu
     REAL(wp)             :: hilf1(2,2,2,2), hilf2(2,2,2), hilf3(2,2), hilf4(2)
-    INTEGER              :: h1, h2, h3, h4
 
     LOGICAL, PARAMETER   :: lincloud_nuc = .TRUE.
 
@@ -5019,15 +5200,12 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(tab, cloud, atmo) CREATE(hilf1, hilf2, hilf3, hilf4)
-    !$ACC DATA PRESENT(n_cn) IF(PRESENT(n_cn))
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend, kp1_fl, n_cn0) &
-    !$ACC   FIRSTPRIVATE(z0_nccn, z1e_nccn, r2, lsigs, etas)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) CREATE(hilf1, hilf2, hilf3, hilf4)
     !$ACC LOOP SEQ
     DO k = kstart,kend
       kp1_fl = MIN(k+1,SIZE(atmo%rho,dim=2))
 !NEC$ ivdep
-      !$ACC LOOP GANG VECTOR PRIVATE(n_c, q_c, nuc_n, nuc_q, ncn, nccn, wcb) &
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(n_c, q_c, nuc_n, nuc_q, ncn, nccn, wcb) &
       !$ACC   PRIVATE(r2_loc, lsigs_loc, ncn_loc, wcb_loc, zf, iu, ju, ku, lu) &
       !$ACC   PRIVATE(hilf1, hilf2, hilf3, hilf4)
       DO i = istart,iend
@@ -5097,23 +5275,11 @@ CONTAINS
           wcb_loc   = MIN(MAX(wcb,    tab%x4(1)), tab%x4(tab%n4))
           lu = MIN(FLOOR((wcb_loc -   tab%x4(1)) * tab%odx4 ) + 1, tab%n4-1)
 
-          !$ACC LOOP SEQ
-          DO h4=1,2
-            !$ACC LOOP SEQ
-            DO h3=1,2
-              !$ACC LOOP SEQ
-              DO h2=1,2
-                !$ACC LOOP SEQ
-                DO h1=1,2
-                  hilf1(h1,h2,h3,h4) = tab%ltable(iu+h1-1,ju+h2-1,ku+h3-1,lu+h4-1)
-                ENDDO
-                hilf2(h2,h3,h4) = hilf1(1,h2,h3,h4) + (hilf1(2,h2,h3,h4)-hilf1(1,h2,h3,h4)) * tab%odx1 * (r2_loc-tab%x1(iu))
-              ENDDO
-              hilf3(h3,h4) = hilf2(1,h3,h4) + (hilf2(2,h3,h4)-hilf2(1,h3,h4)) * tab%odx2 * (lsigs_loc-tab%x2(ju))
-            ENDDO
-            hilf4(h4) = hilf3(1,h4) + (hilf3(2,h4)-hilf3(1,h4)) * tab%odx3 * (ncn_loc-tab%x3(ku))
-          ENDDO
-          nccn = hilf4(1) + (hilf4(2)-hilf4(1)) * tab%odx4 * (wcb_loc-tab%x4(lu))
+          hilf1 = tab%ltable( iu:iu+1, ju:ju+1, ku:ku+1, lu:lu+1)
+          hilf2 = hilf1(1,:,:,:) + (hilf1(2,:,:,:) - hilf1(1,:,:,:)) * tab%odx1 * ( r2_loc    - tab%x1(iu) )
+          hilf3 = hilf2(1,:,:)   + (hilf2(2,:,:)   - hilf2(1,:,:)  ) * tab%odx2 * ( lsigs_loc - tab%x2(ju) )
+          hilf4 = hilf3(1,:)     + (hilf3(2,:)     - hilf3(1,:)    ) * tab%odx3 * ( ncn_loc   - tab%x3(ku) )
+          nccn  = hilf4(1)       + (hilf4(2)       - hilf4(1)      ) * tab%odx4 * ( wcb_loc   - tab%x4(lu) )
 
           ! If n_cn is outside the range of the lookup table values, resulting 
           ! NCCN are clipped to the margin values. For the case of these margin values
@@ -5139,8 +5305,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA ! n_cn
-    !$ACC END DATA ! tab, cloud, atmo, hilf1, hilf2, hilf3, hilf4
 
   END SUBROUTINE ccn_activation_sk_4d
 
@@ -5414,9 +5578,13 @@ CONTAINS
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
 
+#ifdef _OPENACC
+    CALL finish("sedi_icon_rain", "Routine has not been ported to openACC yet.")
+#endif
+
     v_n_sedi(:,kts-1) = 0.0_wp
     v_q_sedi(:,kts-1) = 0.0_wp
-
+       
     DO k = kts,kte
       DO i = its,ite
 
@@ -5424,15 +5592,21 @@ CONTAINS
 
           x_p = particle_meanmass(rain, qp(i,k) ,np(i,k))
           D_m = particle_diameter(rain, x_p)
-          IF (qc(i,k) >= q_crit) THEN
-            mue = (rain%nu+1.0_wp)/rain%b_geo - 1.0_wp
+          IF (cfg_params%luse_mu_Dm_rain) THEN
+            IF (qc(i,k) >= q_crit) THEN
+              mue = (rain%nu+1.0_wp)/rain%b_geo - 1.0_wp
+            ELSE
+              mue = rain_mue_dm_relation(rain_coeffs, D_m)
+            END IF
           ELSE
-            mue = rain_mue_dm_relation(rain_coeffs, D_m)
+            mue = (rain%nu+1.0_wp)/rain%b_geo - 1.0_wp
           END IF
-          D_p = D_m * EXP((-1./3.)*LOG((mue+3.)*(mue+2.)*(mue+1.)))
+          D_p = D_m * EXP((-1.0_wp/3.0_wp)*LOG((mue+3.0_wp)*(mue+2.0_wp)*(mue+1.0_wp)))
 
-          v_n = rain_coeffs%alfa - rain_coeffs%beta * EXP(-(mue+1.)*LOG(1.0 + rain_coeffs%gama*D_p))
-          v_q = rain_coeffs%alfa - rain_coeffs%beta * EXP(-(mue+4.)*LOG(1.0 + rain_coeffs%gama*D_p))
+          v_n = rain_coeffs%alfa - rain_coeffs%beta * EXP(-(mue+1.)*LOG(1.0_wp + rain_coeffs%gama*D_p))
+          v_q = rain_coeffs%alfa - rain_coeffs%beta * EXP(-(mue+4.)*LOG(1.0_wp + rain_coeffs%gama*D_p))
+          v_q = MAX(v_q,  rain%vsedi_min)
+          v_n = MAX(v_n,  rain%vsedi_min)
           v_n = v_n * rhocorr(i,k)
           v_q = v_q * rhocorr(i,k)
 
@@ -5475,6 +5649,10 @@ CONTAINS
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
+
+#ifdef _OPENACC
+    CALL finish("sedi_icon_sphere", "Routine has not been ported to openACC yet.")
+#endif
 
     v_n_sedi(:, kts-1) = 0.0_wp
     v_q_sedi(:, kts-1) = 0.0_wp
@@ -5544,6 +5722,10 @@ CONTAINS
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
     LOGICAL, PARAMETER :: lboxtracking = .true.
+
+#ifdef _OPENACC
+    CALL finish("sedi_icon_sphere_lwf", "Routine has not been ported to openACC yet.")
+#endif
 
     if (ptype%name .eq. 'hail_vivek') then
       avq = aviwch
@@ -5638,67 +5820,67 @@ CONTAINS
     CLASS(particle), INTENT(inout)      :: snow
     CLASS(particle), INTENT(inout)      :: graupel
     REAL(wp), DIMENSION(:,:), OPTIONAL  :: n_cn
+    LOGICAL                             :: n_cn_pres
 
     ! start and end indices for 2D slices
-    INTEGER :: istart, iend, kstart, kend 
+    INTEGER :: istart, iend, kstart, kend
     INTEGER :: i,k
     REAL(wp), PARAMETER :: eps = 1e-3_wp
+
+    IF (PRESENT(n_cn)) THEN
+      n_cn_pres = .TRUE.
+    ELSE
+      n_cn_pres = .FALSE.
+    ENDIF
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC DATA PRESENT(cloud, ice, rain, snow, graupel)
-    !$ACC PARALLEL DEFAULT(PRESENT)
-    IF ( .NOT. PRESENT(n_cn)) THEN
-      !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-      DO k = kstart,kend
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP SEQ
+    DO k = kstart,kend
+
+      IF ( .NOT. n_cn_pres) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i = istart,iend
           IF ( cloud%q(i,k) > 0.0_wp .AND. cloud%n(i,k) < eps) THEN
             cloud%n(i,k) = set_qnc(cloud%q(i,k)) 
           END IF
         END DO
-      END DO
-    END IF
+      END IF
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( ice%q(i,k) > 0.0_wp .AND. ice%n(i,k) < eps) THEN
           ice%n(i,k) = set_qni(ice%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( rain%q(i,k) > 0.0_wp .AND. rain%n(i,k) < eps) THEN
           rain%n(i,k) = set_qnr(rain%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( snow%q(i,k) > 0.0_wp .AND. snow%n(i,k) < eps) THEN
           snow%n(i,k) = set_qns(snow%q(i,k)) 
         END IF
       END DO
-    END DO
 
-    !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
-    DO k = kstart,kend
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i = istart,iend
         IF ( graupel%q(i,k) > 0.0_wp .AND. graupel%n(i,k) < eps) THEN
           graupel%n(i,k) = set_qng(graupel%q(i,k)) 
         END IF
       END DO
+
     END DO
     !$ACC END PARALLEL
-    !$ACC END DATA
 
   END SUBROUTINE set_default_n
 

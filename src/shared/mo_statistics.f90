@@ -800,11 +800,11 @@ CONTAINS
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
-!$  myThreadNo = omp_get_thread_num()
+    myThreadNo = omp_get_thread_num()
 #endif
 !ICON_OMP_SINGLE
 #ifdef _OPENMP
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+    no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
     !$ACC PARALLEL IF(lzopenacc)
@@ -1045,11 +1045,11 @@ CONTAINS
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
-!$  myThreadNo = omp_get_thread_num()
+    myThreadNo = omp_get_thread_num()
 #endif
 !ICON_OMP_SINGLE
 #ifdef _OPENMP
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+    no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
     !$ACC PARALLEL IF(lzopenacc)
@@ -1215,9 +1215,13 @@ CONTAINS
     ALLOCATE( sum_value(0:no_of_threads-1) )
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
-!$  myThreadNo = omp_get_thread_num()
+#ifdef _OPENMP
+    myThreadNo = omp_get_thread_num()
+#endif
 !ICON_OMP_SINGLE
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+#ifdef _OPENMP
+    no_of_threads = OMP_GET_NUM_THREADS()
+#endif
 !ICON_OMP_END_SINGLE NOWAIT
     sum_value(myThreadNo) = 0.0_wp
     IF (ASSOCIATED(in_subset%vertical_levels)) THEN
@@ -1307,11 +1311,11 @@ CONTAINS
 
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
-!$  myThreadNo = omp_get_thread_num()
+    myThreadNo = omp_get_thread_num()
 #endif
 !ICON_OMP_SINGLE
 #ifdef _OPENMP
-!$  no_of_threads = OMP_GET_NUM_THREADS()
+    no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
     !$ACC KERNELS IF(lzopenacc)

@@ -23,7 +23,7 @@
 
 MODULE mo_nh_init_utils
 
-  USE mo_kind,                  ONLY: wp
+  USE mo_kind,                  ONLY: wp, vp
   USE mo_model_domain,          ONLY: t_patch
   USE mo_parallel_config,       ONLY: nproma
   USE mo_grid_config,           ONLY: l_limited_area
@@ -46,7 +46,6 @@ MODULE mo_nh_init_utils
   PRIVATE
 
 
-
   ! subroutines
   !
   PUBLIC :: compute_smooth_topo 
@@ -55,6 +54,7 @@ MODULE mo_nh_init_utils
   PUBLIC :: convert_thdvars
   PUBLIC :: convert_omega2w
   PUBLIC :: compute_input_pressure_and_height
+  PUBLIC :: compute_exner_pert
 
 CONTAINS
 
@@ -632,6 +632,46 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE adjust_w
+
+
+  !-------------
+  !>
+  !! Computes perturbation exner pressure by subtracting the
+  !! exner reference state from the actual exner pressure.
+  !!
+  !! @par Revision History
+  !! Initial version by Guenther Zaengl, DWD
+  !!
+  SUBROUTINE compute_exner_pert(exner, exner_ref, exner_pr, use_acc)
+    REAL(wp), INTENT(IN)    :: exner(:,:,:)         !< exner pressure
+    REAL(vp), INTENT(IN)    :: exner_ref(:,:,:)     !< exner reference state
+    REAL(wp), INTENT(INOUT) :: exner_pr(:,:,:)      !< perturbation exner pressure
+    LOGICAL,  INTENT(IN)    :: use_acc              !< if True, use openACC
+
+    INTEGER :: i,j,k,ie,je,ke
+
+    ie = SIZE(exner_pr, 1)
+    je = SIZE(exner_pr, 2)
+    ke = SIZE(exner_pr, 3)
+!$OMP PARALLEL
+#if (defined(_CRAYFTN) || defined(__INTEL_COMPILER))
+!$OMP DO PRIVATE(i,j,k)
+#else
+!$OMP DO COLLAPSE(3) PRIVATE(i,j,k)
+#endif
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(3)
+    DO k = 1, ke
+      DO j = 1, je
+        DO i = 1, ie
+          exner_pr(i,j,k) = exner(i,j,k) - REAL(exner_ref(i,j,k), wp)
+        END DO
+      END DO
+    END DO
+    !$ACC END PARALLEL
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+  END SUBROUTINE compute_exner_pert
 
 
   !---------------------------------------------------------------------------

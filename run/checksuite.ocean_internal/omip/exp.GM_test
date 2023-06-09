@@ -253,7 +253,7 @@ if [[ x$BB_SYSTEM != x ]]; then
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
   slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-  refDir=${ocean_data_MainFolder}/reference/${slave}/${EXPNAME}
+  refDir=${ocean_data_MainFolder}/reference/${slave}/${EXPNAME}/experiments/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_error $? "DIFFCHECK for exp: ${EXPNAME}"

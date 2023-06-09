@@ -18,7 +18,7 @@ MODULE mo_nh_testcase_check
   USE mo_kind,                     ONLY: wp
   USE mo_nh_testcases_nml,         ONLY: nh_test_name
   USE mo_dynamics_config,          ONLY: ldeepatmo, lcoriolis
-  USE mo_nonhydrostatic_config,    ONLY: l_open_ubc, ivctype
+  USE mo_nonhydrostatic_config,    ONLY: ivctype
   USE mo_sleve_config,             ONLY: min_lay_thckn, top_height
   USE mo_extpar_config,            ONLY: itopo
   USE mo_run_config,               ONLY: iforcing, ltransport, lvert_nest, output_mode
@@ -49,7 +49,7 @@ CONTAINS
     ! Local variables
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':check_nh_testcase'
-    
+
     !--------------------------------------------------------------
 
     ! Note:
@@ -57,13 +57,13 @@ CONTAINS
     ! - A query for 'run_nml: ltestcase' encapsulates the call of this subroutine
 
     SELECT CASE ( TRIM(nh_test_name) )
-        
+
     CASE ('lahade')
 
       CALL check_nh_lahade(lvert_nest=lvert_nest, l_nml=output_mode%l_nml, ivctype=ivctype, &  !in
         &                  top_height=top_height, grid_sphere_radius=grid_sphere_radius,    &  !in
         &                  grid_rescale_factor=grid_rescale_factor,                         &  !in
-        &                  ldeepatmo=ldeepatmo, lcoriolis=lcoriolis, l_open_ubc=l_open_ubc, &  !inout
+        &                  ldeepatmo=ldeepatmo, lcoriolis=lcoriolis,                        &  !inout
         &                  ltransport=ltransport, itopo=itopo, iforcing=iforcing,           &  !inout
         &                  inextra_3d=inextra_3d, min_lay_thckn=min_lay_thckn,              &  !inout
         &                  grid_angular_velocity=grid_angular_velocity,                     &  !inout

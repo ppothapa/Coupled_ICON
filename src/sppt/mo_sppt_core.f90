@@ -342,7 +342,7 @@ MODULE mo_sppt_core
     ! Local variables
     INTEGER  :: jb, jk, jc
 
-    INTEGER  :: nlev
+    INTEGER  :: nlev, jg
     INTEGER  :: rl_start, rl_end
     INTEGER  :: i_startblk, i_endblk
     INTEGER  :: i_startidx, i_endidx
@@ -351,6 +351,7 @@ MODULE mo_sppt_core
 
     ! Number of vertical levels
     nlev = pt_patch%nlev
+    jg = pt_patch%id
 
     ! Loop boundaries for prognostic domain.
     rl_start   = grf_bdywidth_c + 1
@@ -373,7 +374,7 @@ MODULE mo_sppt_core
 
       !$ACC PARALLEL DEFAULT(PRESENT)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = kstart_moist(pt_patch%id), nlev
+      DO jk = kstart_moist(jg), nlev
         DO jc = i_startidx, i_endidx
 
           pt_prog_rcf%tracer(jc,jk,jb,iqv) = sppt%ddt_qv(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqv) ! water vapor

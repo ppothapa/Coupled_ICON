@@ -93,7 +93,7 @@ MODULE mo_name_list_output_init
     &                                             p_comm_io, p_comm_work_io,                      &
     &                                             MPI_COMM_NULL, MPI_COMM_SELF,                   &
     &                                             p_send, p_recv,                                 &
-    &                                             p_real_dp, p_real_sp,          &
+    &                                             p_real_dp, p_real_sp,                           &
     &                                             my_process_is_stdio, my_process_is_mpi_test,    &
     &                                             my_process_is_mpi_workroot,                     &
     &                                             my_process_is_io, my_process_is_work,           &
@@ -101,6 +101,9 @@ MODULE mo_name_list_output_init
     &                                             process_work_io0, p_allgather,        &
     &                                             process_mpi_io_size, p_n_work,  &
     &                                             p_pe_work, p_io_pe0, p_work_pe0, p_pe
+#ifdef NO_ASYNC_IO_RMA
+  USE mo_mpi,                               ONLY: p_int, num_work_procs
+#endif
   USE mo_communication,                     ONLY: idx_no, blk_no
   ! namelist handling
   USE mo_namelist,                          ONLY: position_nml, positioned, open_nml, close_nml
@@ -206,6 +209,12 @@ MODULE mo_name_list_output_init
   PUBLIC :: patch_info
   PUBLIC :: lonlat_info
   PUBLIC :: zonal_ri, profile_ri
+#ifdef NO_ASYNC_IO_RMA
+  PUBLIC :: req_send_metainfo
+  PUBLIC :: req_send_data
+  PUBLIC :: req_recv_data
+  PUBLIC :: recv_buffer_max_sizes ! Maximum sizes of receive buffer, per file
+#endif
   ! subroutines
   PUBLIC :: read_name_list_output_namelists
   PUBLIC :: parse_variable_groups
@@ -239,6 +248,12 @@ MODULE mo_name_list_output_init
   INTEGER :: compute_dt
   PUBLIC  :: compute_dt
 
+#ifdef NO_ASYNC_IO_RMA
+  INTEGER, ALLOCATABLE :: req_send_metainfo(:)
+  INTEGER, ALLOCATABLE :: req_send_data(:)
+  INTEGER, ALLOCATABLE :: req_recv_data(:, :)
+  INTEGER, ALLOCATABLE :: recv_buffer_max_sizes(:)
+#endif
   !------------------------------------------------------------------------------------------------
   ! dictionaries for variable names:
   TYPE (t_dictionary) ::     &
@@ -3071,6 +3086,9 @@ CONTAINS
     INCLUDE "mpif.h"
 #else
     USE mpi, ONLY: MPI_ADDRESS_KIND
+#ifdef NO_ASYNC_IO_RMA
+    USE mpi, ONLY: MPI_REQUEST_NULL, MPI_MAX
+#endif
 #endif
 ! __SUNPRO_F95
 
@@ -3081,6 +3099,24 @@ CONTAINS
       &                                n_own, lonlat_id
     INTEGER (KIND=MPI_ADDRESS_KIND) :: mem_size
 
+#ifdef NO_ASYNC_IO_RMA
+    INTEGER :: mpierr 
+    INTEGER, ALLOCATABLE :: local_recv_buffer_mem_sizes(:)
+
+    ! Allocate memory for metainfo requests
+    allocate(req_send_metainfo(1:SIZE(output_file)))
+    allocate(req_send_data(1:SIZE(output_file)))
+    allocate(req_recv_data(0:num_work_procs-1, 1:SIZE(output_file)))
+    req_send_metainfo(:) = MPI_REQUEST_NULL
+    req_send_data(:) = MPI_REQUEST_NULL
+    req_recv_data(:,:) = MPI_REQUEST_NULL
+    
+    ! Allocate memory for maximum requests sizes
+    allocate(recv_buffer_max_sizes(1:SIZE(output_file)))
+    allocate(local_recv_buffer_mem_sizes(1:SIZE(output_file)))
+    recv_buffer_max_sizes(:) = -1
+    local_recv_buffer_mem_sizes(:) = -1
+#endif
 
     ! Go over all output files
     OUT_FILE_LOOP : DO i = 1, SIZE(output_file)
@@ -3121,14 +3157,23 @@ CONTAINS
       ENDDO ! vars
 
       ! allocate amount of memory needed with MPI_Alloc_mem
+      ! When RMA is not used, this call allocates mem but not window
       CALL allocate_mem_noncray(mem_size, output_file(i))
 
       ! allocate memory window for meta-info communication between
       ! PE#0 and the I/O PEs:
-      CALL metainfo_allocate_memory_window(output_file(i)%mem_win, output_file(i)%num_vars)
+      ! When RMA is not used, this call allocates mem but not window
+      CALL metainfo_allocate_memory_window(output_file(i)%mem_win, output_file(i)%num_vars) 
 
+#ifdef NO_ASYNC_IO_RMA
+      local_recv_buffer_mem_sizes(i) = mem_size
+#endif
     ENDDO OUT_FILE_LOOP
 
+#ifdef NO_ASYNC_IO_RMA
+    call mpi_allreduce(local_recv_buffer_mem_sizes, recv_buffer_max_sizes, SIZE(output_file), p_int, MPI_MAX, p_comm_work_io, mpierr)
+    deallocate(local_recv_buffer_mem_sizes)
+#endif
   END SUBROUTINE init_memory_window
 
   !------------------------------------------------------------------------------------------------
@@ -3159,11 +3204,13 @@ CONTAINS
     ELSE
       CALL MPI_TYPE_GET_EXTENT(p_real_sp, typeLB, nbytes_real, mpierr)
     ENDIF
+    IF (mpierr /= 0) CALL finish(routine, "MPI error!")
 
     ! For the IO PEs the amount of memory needed is 0 - allocate at least 1 word there:
     mem_bytes = MAX(mem_size,1_i8) * nbytes_real
 
     CALL MPI_Alloc_mem(mem_bytes, MPI_INFO_NULL, c_mem_ptr, mpierr)
+    IF (mpierr /= 0) CALL finish(routine, "MPI error!")
 
     ! The NEC requires a standard INTEGER array as 3rd argument for c_f_pointer,
     ! although it would make more sense to have it of size MPI_ADDRESS_KIND.
@@ -3176,19 +3223,24 @@ CONTAINS
       CALL C_F_POINTER(c_mem_ptr, of%mem_win%mem_ptr_dp, (/ mem_size /) )
       ! Create memory window for communication
       of%mem_win%mem_ptr_dp(:) = 0._dp
+#ifndef NO_ASYNC_IO_RMA
+      ! Create memory window for MPI RMA
       CALL MPI_Win_create( of%mem_win%mem_ptr_dp,mem_bytes, INT(nbytes_real), MPI_INFO_NULL,&
         &                  p_comm_work_io,of%mem_win%mpi_win,mpierr )
       IF (mpierr /= 0) CALL finish(routine, "MPI error!")
 
+#endif
     ELSE
 
       CALL C_F_POINTER(c_mem_ptr, of%mem_win%mem_ptr_sp, (/ mem_size /) )
       ! Create memory window for communication
       of%mem_win%mem_ptr_sp(:) = 0._sp
+#ifndef NO_ASYNC_IO_RMA
       CALL MPI_Win_create( of%mem_win%mem_ptr_sp,mem_bytes, INT(nbytes_real), MPI_INFO_NULL,&
         &                  p_comm_work_io,of%mem_win%mpi_win,mpierr )
       IF (mpierr /= 0) CALL finish(routine, "MPI error!")
 
+#endif
     ENDIF ! use_dp_mpi2io
 
   END SUBROUTINE allocate_mem_noncray

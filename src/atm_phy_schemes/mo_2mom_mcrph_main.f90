@@ -428,8 +428,8 @@ MODULE mo_2mom_mcrph_main
        &        'rainSBB', & !..name
        &        0.000000,  & !..nu
        &        0.333333,  & !..mu
-       &        3.00d-06,  & !..x_max
-       &        2.60d-10,  & !..x_min
+       &        6.50d-05,  & !..x_max  ! 5 mm 
+       &        2.60d-10,  & !..x_min  ! 80 mum
        &        1.24d-01,  & !..a_geo
        &        0.333333,  & !..b_geo
        &        114.0137,  & !..a_vel
@@ -536,18 +536,17 @@ CONTAINS
 
     IF (isdebug) CALL message(TRIM(routine),"clouds_twomoment start")
 
-    !$ACC DATA CREATE(dep_rate_ice, dep_rate_snow) &
-    !$ACC   PRESENT(cloud, rain, ice, snow, graupel, hail)
+    !$ACC DATA CREATE(dep_rate_ice, dep_rate_snow)
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
     kend   = ik_slice(4)
 
-    !$ACC PARALLEL DEFAULT(NONE)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k = 1,size(cloud%n,2)
-      DO i = 1,size(cloud%n,1)
+    DO k = kstart,kend
+      DO i = istart,iend
         dep_rate_ice(i,k)  = 0.0_wp
         dep_rate_snow(i,k) = 0.0_wp
       ENDDO
@@ -588,7 +587,7 @@ CONTAINS
     CALL set_default_n(ik_slice, cloud, ice, rain, snow, graupel)
 
     IF (nuc_c_typ.ne.0) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=kstart,kend
         DO i=istart,iend
@@ -606,7 +605,7 @@ CONTAINS
     CALL cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
     IF (ischeck) CALL check(ik_slice,'cloud_freeze', cloud, rain, ice, snow, graupel,hail)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kstart,kend
       DO i=istart,iend
@@ -713,7 +712,7 @@ CONTAINS
 #endif
        CALL autoconversionKB(ik_slice, dt, cloud, rain)   ! Beheng (1994)
        CALL accretionKB(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ELSE IF (auto_typ == 2) THEN
 #ifdef _OPENACC
        CALL finish('warm_rain_processes','auto_typ == 2 not supported on GPU')
@@ -722,68 +721,53 @@ CONTAINS
        ! (KK2000 originally assume a 25 micron size threshold)
        CALL autoconversionKK(ik_slice, dt, cloud, rain)
        CALL accretionKK(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ELSE IF (auto_typ == 3) THEN
-       CALL autoconversionSB(ik_slice, dt, cloud_coeffs, cloud, rain)
-       CALL accretionSB(ik_slice, dt, cloud, rain)
-       CALL rain_selfcollectionSB(ik_slice, dt, rain)
+       CALL autoconversionSB(ik_slice, dt, atmo, cloud_coeffs, cloud, rain) 
+       CALL accretionSB(ik_slice, dt, atmo, cloud, rain)
+       CALL rain_selfcollectionSB(ik_slice, dt, atmo, rain)
     ENDIF
     IF (ischeck) CALL check(ik_slice,'warm rain',cloud,rain,ice,snow,graupel,hail)
 
     ! evaporation of rain following Seifert (2008)
     CALL rain_evaporation(ik_slice, dt, rain_coeffs, rain_gfak, atmo, cloud, rain)
 
-    ! size limits for all hydrometeors
-    IF (nuc_c_typ > 0) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO k=kstart,kend
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    DO k=kstart,kend
+
+      ! size limits for all hydrometeors
+      IF (nuc_c_typ > 0) THEN
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO i=istart,iend
           cloud%n(i,k) = MIN(cloud%n(i,k), cloud%q(i,k)/cloud%x_min)
           cloud%n(i,k) = MAX(cloud%n(i,k), cloud%q(i,k)/cloud%x_max)
           ! Hard upper limit for cloud number conc.
           cloud%n(i,k) = MIN(cloud%n(i,k), 5000d6)
         END DO
-      END DO
-      !$ACC END PARALLEL
-    END IF
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k=kstart,kend
+      END IF
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO i=istart,iend
         rain%n(i,k) = MIN(rain%n(i,k), rain%q(i,k)/rain%x_min)
         rain%n(i,k) = MAX(rain%n(i,k), rain%q(i,k)/rain%x_max)
-      END DO
-    END DO
-    !$ACC END PARALLEL
-
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k=kstart,kend
-      DO i=istart,iend
         ice%n(i,k) = MIN(ice%n(i,k), ice%q(i,k)/ice%x_min)
         ice%n(i,k) = MAX(ice%n(i,k), ice%q(i,k)/ice%x_max)
         snow%n(i,k) = MIN(snow%n(i,k), snow%q(i,k)/snow%x_min)
         snow%n(i,k) = MAX(snow%n(i,k), snow%q(i,k)/snow%x_max)
         graupel%n(i,k) = MIN(graupel%n(i,k), graupel%q(i,k)/graupel%x_min)
         graupel%n(i,k) = MAX(graupel%n(i,k), graupel%q(i,k)/graupel%x_max)
-      END DO
-    END DO
-    !$ACC END PARALLEL
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kstart, kend, istart, iend)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k=kstart,kend
-      DO i=istart,iend
         hail%n(i,k) = MIN(hail%n(i,k), hail%q(i,k)/hail%x_min)
         hail%n(i,k) = MAX(hail%n(i,k), hail%q(i,k)/hail%x_max)
       END DO
+
     END DO
     !$ACC END PARALLEL
 
     IF (ischeck) CALL check(ik_slice, 'clouds_twomoment end',cloud,rain,ice,snow,graupel,hail)
     IF (isdebug) CALL message(TRIM(routine),"clouds_twomoment end")
 
-    !$ACC END DATA ! dep_rate_ice, dep_rate_snow, cloud, rain, ice, snow, graupel, hail
+    !$ACC WAIT
+    !$ACC END DATA ! dep_rate_ice, dep_rate_snow
 
   END SUBROUTINE clouds_twomoment
 
@@ -1322,8 +1306,7 @@ CONTAINS
 
     !$ACC ENTER DATA COPYIN(rain_coeffs, ice_coeffs, snow_coeffs, graupel_coeffs, hail_coeffs, cloud_coeffs) &
     !$ACC   COPYIN(sic_coeffs, gic_coeffs, gsc_coeffs, hic_coeffs, hsc_coeffs, scr_coeffs, srr_coeffs) &
-    !$ACC   COPYIN(irr_coeffs, icr_coeffs, hrr_coeffs, grr_coeffs, hcr_coeffs, gcr_coeffs, hic_coeffs) &
-    !$ACC   COPYIN(gic_coeffs)
+    !$ACC   COPYIN(irr_coeffs, icr_coeffs, hrr_coeffs, grr_coeffs, hcr_coeffs, gcr_coeffs)
 
   END SUBROUTINE init_2mom_scheme_once
 

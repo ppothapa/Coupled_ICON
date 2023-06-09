@@ -45,6 +45,7 @@
 #                             Use MARS_CALL_OPTION to call mars with an option (e.g. -m)
 #   Helmut Frank    20190129  Always set rainsnow='/crwc/cswc' for era5 data (thanks to G. Pante, IMK)
 #   Helmut Frank    20190812  param=z, lv=ml is always avaiable only for analysis data.                  
+#   Helmut Frank    20230424  Correct setting of datadir.
 # ------------------------------------------------------------------------------
 
 typeset    area
@@ -109,6 +110,7 @@ do
 		                                    (fiv8 not available after 2010)
 		  -g grd         MARS parameter grid. The default depends on resolution. It is (resolution+1)/2.
 		                    Recommendation for cubic grids: F320 for res=639, F640 for res=1279.
+                                    Use dlon/dlat (e.g. 0.25/0.25) for regular longitude-latitude grids.
 		  -h             This help
 		  -l levelist    Number of levels. A single number N will be used as levelist='1/to/N'.
 		                    Default: 1/to/137 since 2013062512,
@@ -329,29 +331,32 @@ fi
 #
 # define data directory (if not set otherwise)
 #
-typeset work
-for work in SCRATCH WORK TEMP TMPDIR
-do
-    eval "work=\$${work}"
-    if [[ -z "${work}" ]]; then continue; fi
-    if [[ -d ${work} ]]; then break; fi
-done
-if [[ ! -d ${work} ]]; then
-    print -- "${name} error! Could not find a work-directory for the data! Define IFSDATADIR" >&2
-    exit 10
+typeset datadir
+if [[ -z "${grib_file}" ]]; then
+    if [[ -n "${IFSDATADIR}" ]]; then
+        datadir=${IFSDATADIR}
+    else
+        typeset work
+        for work in SCRATCH WORK TEMP TMPDIR
+        do
+            eval "work=\$${work}"
+            if [[ -z "${work}" ]]; then continue; fi
+            if [[ -d ${work} ]]; then break; fi
+        done
+        if [[ ! -d ${work} ]]; then
+            print -- "${name} error! Could not find a work-directory for the data! Define IFSDATADIR" >&2
+            exit 10
+        fi
+        datadir=${work}/icon/ifs.data
+    fi
+    grib_file=${datadir}/ifs_${stream_name}${class_mars}_T${res}_${cymdg_fc}.grb
+else
+    datadir=$(dirname ${grib_file})
 fi
-typeset datadir=${IFSDATADIR:-${work}/icon/ifs.data}
-grib_file=${grib_file:-${datadir}/ifs_${stream_name}${class_mars}_T${res}_${cymdg_fc}.grb}
-
-typeset tmpdir=${SCRATCHDIR:-${TMPDIR}}
-
-datadir=$(dirname ${grib_file})
-#if [[ "${datadir}" = '.' ]]; then
-#    datadir=${work}
-#fi
 if [[ ! -d ${datadir} ]]; then
     mkdir -p ${datadir}
 fi
+typeset tmpdir=${SCRATCHDIR:-${TMPDIR}}
 #
 # find the number of levels
 #
@@ -389,8 +394,6 @@ fi
 
 set -A mars_req                                    # MARS requests
 set -A target_file                                 # target files for the individual requests
-#typeset swvl_file=${datadir}/slt_swvl_${cymdg}.grb # help file for swvl
-#typeset smi_file=${datadir}/smi_${cymdg}.grb       # help file for smi
 typeset swvl_file=${grib_file}.tmp_swvl            # help file for swvl
 typeset smi_file=${grib_file}.tmp_smi      b       # help file for smi
 

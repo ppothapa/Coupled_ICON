@@ -42,33 +42,61 @@ MODULE mo_wave_types
   TYPE t_wave_diag
     REAL(wp), POINTER, CONTIGUOUS :: &
       &  process_id(:,:),         &
-      &  gv_c(:,:,:),   & ! group velocity                      (nproma,nblks_c,nfreqs)  [m/s]
-      &  gv_e(:,:,:),   & ! group velocity                      (nproma,nblks_e,nfreqs)  [m/s]
-      &  gvn_e(:,:,:),  & ! orthogonal normal group velocity    (nproma,nblks_e,nfreqs)  [m/s]
-      &  gvt_e(:,:,:),  & ! tangential group velocity           (nproma,nblks_e,nfreqs)  [m/s]
-      &  ALPHAJ(:,:),   & ! JONSWAP ALPHA (nproma,nblks_c)
-      &  FP(:,:),       & ! JONSWAP PEAK FREQUENCY (nproma,nblks_c)               ( Hz )
-      &  ET(:,:,:),     & ! JONSWAP SPECTRA (nproma,nblks_c,nfreqs)
-      &  FLMINFR(:,:,:),& ! THE MINIMUM VALUE IN SPECTRAL BINS FOR A GIVEN FREQUENCY (nproma,nblks_c,nfreqs)
-      &  emean(:,:),    & ! TOTAL ENERGY (nproma,nblks_c)                         ( m^2 )
-      &  emeanws(:,:),  & ! TOTAL WINDSEA ENERGY (nproma,nblks_c)                 ( m^2 )
-      &  femean(:,:),   & ! MEAN FREQUENCY ENERGY (nproma,nblks_c)
-      &  f1mean(:,:),   & ! MEAN FREQUENCY BASED ON F-MOMENT (nproma,nblks_c)
-      &  femeanws(:,:), & ! MEAN WINDSEA FREQUENCY ENERGY (nproma,nblks_c)
-      &  ustar(:,:),    & ! friction velocity  (nproma,nblks_c)                   ( m/s )
-      &  z0(:,:),       & ! roughness length   (nproma,nblks_c)                   ( m )
-      &  tauw(:,:),     & ! wave stress        (nproma,nblks_c)                   ( (m/s)^2 )
-      &  fl(:,:,:),     & ! DIAGONAL MATRIX OF FUNCTIONAL DERIVATIVE (nproma,nblks_e,ndirs*nfreqs)
-      &  sl(:,:,:),     & ! TOTAL SOURCE FUNCTION                    (nproma,nblks_e,ndirs*nfreqs)
-      &  Hs(:,:),       & ! significant wave height             (nproma,nblks_c)  ( m )
-      &  Hs_dir(:,:)    & ! mean direction of total wave height (nproma,nblks_c)  ( deg )
+      &  gv_c(:,:,:),         & ! group velocity                    (nproma,nblks_c,nfreqs)  (m/s)
+      &  gv_e(:,:,:),         & ! group velocity                    (nproma,nblks_e,nfreqs)  (m/s)
+      &  gvn_e(:,:,:),        & ! orthogonal normal group velocity  (nproma,nblks_e,nfreqs)  (m/s)
+      &  gvt_e(:,:,:),        & ! tangential group velocity         (nproma,nblks_e,nfreqs)  (m/s)
+      &  alphaj(:,:),         & ! jonswap alpha                     (nproma,nblks_c)
+      &  fp(:,:),             & ! jonswap peak frequency            (nproma,nblks_c)         (hz)
+      &  et(:,:,:),           & ! jonswap spectra                   (nproma,nblks_c,nfreqs)
+      &  flminfr(:,:,:),      & ! the minimum value in spectral bins for a given frequency (nproma,nblks_c,nfreqs)
+      &  emean(:,:),          & ! total energy                      (nproma,nblks_c)         (m^2)
+      &  emeanws(:,:),        & ! total windsea energy              (nproma,nblks_c)         (m^2)
+      &  femean(:,:),         & ! mean frequency energy             (nproma,nblks_c)         (m^2)
+      &  f1mean(:,:),         & ! mean frequency based on f-moment  (nproma,nblks_c)
+      &  tm1(:,:),            & ! wave tm1 period                   (nproma,nblks_c)         (s)
+      &  tm2(:,:),            & ! wave tm2 period                   (nproma,nblks_c)         (s)
+      &  wave_num_c(:,:,:),   & ! wave number at cell centers as a function of
+                                ! circular frequency and water depth (nproma,nblks_c,nfreqs) (1/m)
+      &  wave_num_e(:,:,:),   & ! wave number at cell edges as a function of
+                                ! circular frequency and water depth (nproma,nblks_e,nfreqs) (1/m)
+      &  akmean(:,:),         & ! mean wavenumber based on sqrt(1/k)-moment (nproma,nblks_c)
+      &  xkmean(:,:),         & ! mean wavenumber based on sqrt(k)-moment   (nproma,nblks_c)
+      &  femeanws(:,:),       & ! mean windsea frequency energy             (nproma,nblks_c)
+      &  ustar(:,:),          & ! friction velocity                 (nproma,nblks_c)         (m/s)
+      &  z0(:,:),             & ! roughness length                  (nproma,nblks_c)         (m)
+      &  tauhf1(:,:),         & ! init high-frequency stress        (nproma,nblks_c)
+      &  phihf1(:,:),         & ! init high-frequency energy flux into ocean (nproma,nblks_c)
+      &  tauhf(:,:),          & ! high-frequency stress                 (nproma,nblks_c)
+      &  phihf(:,:),          & ! high-frequency energy flux into ocean (nproma,nblks_c)
+      &  xlevtail(:,:),       & ! tail level                            (nproma,nblks_c)
+      &  tauw(:,:),           & ! wave stress                           (nproma,nblks_c)     (m/s)^2
+      &  phiaw(:,:),          & ! energy flux from wind into waves integrated over the full frequency range  (nproma,nblks_c)
+      &  fl(:,:,:),           & ! diagonal matrix of functional derivative (nproma,nblks_c,ntracer)
+      &  sl(:,:,:),           & ! total source function                    (nproma,nblks_c,ntracer)
+      &  hs(:,:),             & ! significant wave height                  (nproma,nblks_c)  (m)
+      &  hs_dir(:,:),         & ! mean direction of total wave height      (nproma,nblks_c)  (deg)
+      &  enh(:,:),            & ! nonlinear transfer function coefficients for shallow water
+      &  AF11(:),             & ! for discrete approximation of nonlinear transfer
+      &  FKLAP(:), FKLAP1(:), & ! --//--
+      &  FKLAM(:), FKLAM1(:)  & ! --//--
       &  => NULL()
 
-    INTEGER, POINTER ::        &
-      &  LLWS(:,:,:)           & ! TRUE WHERE SINPUT IS POSITIVE, wind sea, swell splitting flag  (nproma,nblks_c,ntracer)
+    INTEGER, POINTER, CONTIGUOUS ::  &
+      &  last_prog_freq_ind(:,:), & ! last frequency index of the prognostic range
+      &  llws(:,:,:),             & ! .TRUE. where sinput is positive, wind sea, swell splitting flag  (nproma,nblks_c,ntracer)
+      &  ikp(:), ikp1(:),         & ! for discrete approximation of nonlinear transfer
+      &  ikm(:), ikm1(:),         & ! --//--
+      &  k1w(:,:), k2w(:,:),      & ! --//--
+      &  k11w(:,:), k21w(:,:),    & ! --//--
+      &  ja1(:,:), ja2(:,:),      & ! --//--
+      &  non_lin_tr_ind(:,:,:,:)  & ! tracer index for nonlinear interaction p_diag%non_lin_tr_ind(nfreqs+4,2,ndirs,8)
       &  => NULL()
 
-    TYPE(t_ptr_2d3d), ALLOCATABLE :: freq_ptr(:) !< pointer array: one pointer for each frequence
+    TYPE(t_ptr_2d3d), ALLOCATABLE :: freq_ptr(:)       !< pointer array: one pointer for each frequence
+    TYPE(t_ptr_2d3d), ALLOCATABLE :: wave_num_c_ptr(:) !< pointer array: one pointer for each frequence
+    TYPE(t_ptr_2d3d), ALLOCATABLE :: wave_num_e_ptr(:) !< pointer array: one pointer for each frequence
+    TYPE(t_ptr_2d3d), ALLOCATABLE :: tr_ptr(:)         !< pointer array: one pointer for each tracer
   END type t_wave_diag
 
   TYPE t_wave_state

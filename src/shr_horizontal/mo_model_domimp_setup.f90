@@ -90,10 +90,11 @@ MODULE mo_model_domimp_setup
   USE mo_exception,          ONLY: finish, warning
   USE mo_model_domain,       ONLY: t_patch
   USE mo_parallel_config,    ONLY: nproma
+  USE mo_impl_constants_grf, ONLY: grf_bdywidth_c
   USE mo_grid_config,        ONLY: corio_lat, grid_angular_velocity, use_dummy_cell_closure, &
     &                              grid_sphere_radius
   USE mo_sync,               ONLY: sync_c, sync_e, sync_patch_array, sync_idx
-  USE mo_grid_subset,        ONLY: fill_subset,read_subset, write_subset
+  USE mo_grid_subset,        ONLY: fill_subset,read_subset, write_subset, fill_subset_indices
   USE mo_run_config,         ONLY: msg_level
 
   USE mo_loopindices
@@ -991,6 +992,12 @@ CONTAINS
     CALL fill_subset(subset=patch%cells%owned, patch=patch, &
       & mask=patch%cells%decomp_info%halo_level, start_mask=0, end_mask=0, located=on_cells)
     patch%cells%owned%is_in_domain = .true.
+
+    ! for non-global domains (LAM or nested domain), only prognostic cells must be used,
+    ! the boundary interpolation zone must be excluded
+    CALL fill_subset_indices(patch%cells%owned_no_boundary, patch, &
+      &                      patch%cells%start_block(grf_bdywidth_c+1), patch%cells%end_block(min_rlcell_int), &
+      &                      patch%cells%start_index(grf_bdywidth_c+1), patch%cells%end_index(min_rlcell_int) )
 
     CALL fill_subset(subset=patch%cells%in_domain, patch=patch, &
       & mask=patch%cells%decomp_info%halo_level, start_mask=0, end_mask=0, located=on_cells)

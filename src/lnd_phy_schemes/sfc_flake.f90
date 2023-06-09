@@ -298,7 +298,7 @@ MODULE sfc_flake
                     &  finish , &  !< external procedure, finishes model run and reports the reason
                     &  message     !< external procedure, sends a message (error, warning, etc.)
 
- USE mo_fortran_tools, ONLY: set_acc_host_or_device
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
 !===================================================================================================
 
@@ -327,6 +327,13 @@ MODULE sfc_flake
 
   ! FLake variables of type REAL
 
+  ! These variables are declared here so that we don't need to allocate
+  ! them in OpenACC every time
+  TYPE (opticpar_medium) ::  & 
+  &  opticpar_water        , & !< optical characteristics of water
+  &  opticpar_ice          , & !< optical characteristics of ice
+  &  opticpar_snow             !< optical characteristics of snow 
+  !$OMP THREADPRIVATE(opticpar_water, opticpar_ice, opticpar_snow)
 
   ! Entities that should be accessible from outside the present module 
   PUBLIC ::                       &
@@ -1104,11 +1111,6 @@ CONTAINS
       &  albedo_ice            , & !< ice surface albedo with respect to the solar radiation [-]
       &  albedo_snow               !< snow surface albedo with respect to the solar radiation [-]
 
-    TYPE (opticpar_medium) ::    & 
-      &  opticpar_water        , & !< optical characteristics of water
-      &  opticpar_ice          , & !< optical characteristics of ice
-      &  opticpar_snow             !< optical characteristics of snow 
-
     LOGICAL ::                   &
       &  lzacc                     !< openACC flag
 
@@ -1297,7 +1299,6 @@ CONTAINS
                                            ! 95% of radiation is absorbed within the upper 1 m
     opticpar_ice   = opticpar_ice_opaque   ! Opaque ice
     opticpar_snow  = opticpar_snow_opaque  ! Opaque snow
-
     !-----------------------------------------------------------------------------------------------
     !  Set/compute albedos of the lake water, ice and snow
     !-----------------------------------------------------------------------------------------------
@@ -1320,10 +1321,9 @@ CONTAINS
     !$ACC DATA &
     !$ACC   CREATE(dctlkdt, dhb1lkdt, dhicedt, dhmllkdt, dhsnowdt, dtb1lkdt, dtbotlkdt) &
     !$ACC   CREATE(dticedt, dtmnwlkdt, dtsfclkdt, dtsnowdt, dtwmllkdt) &
-    !$ACC   COPYIN(albedo_ice, albedo_snow, albedo_water, del_time, opticpar_ice, opticpar_snow) &
-    !$ACC   COPYIN(opticpar_water, r_dtime) IF(lzacc)
+    !$ACC   COPYIN(opticpar_water, opticpar_ice, opticpar_snow) ASYNC(1) IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR &
     !$ACC   PRIVATE(c_i_flk, c_tt_flk, c_q_flk, c_t_n_flk, c_t_p_flk, depth_w, fetch, h_b1_n_flk, h_b1_p_flk) &
     !$ACC   PRIVATE(h_ice_n_flk, h_ice_p_flk, h_ml_n_flk, h_ml_p_flk, h_snow_n_flk, h_snow_p_flk, i_atm_flk) &
@@ -1520,121 +1520,121 @@ CONTAINS
     !-----------------------------------------------------------------------------------------------
 
     IF (PRESENT(opt_dtsnowdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtsnowdt(1:nflkgb) = dtsnowdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtsnowdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtsnowdt(nflkgb+1:)= 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhsnowdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dhsnowdt(1:nflkgb) = dhsnowdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhsnowdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dhsnowdt(nflkgb+1:)= 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dticedt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dticedt(1:nflkgb) = dticedt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dticedt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dticedt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhicedt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dhicedt(1:nflkgb) = dhicedt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhicedt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dhicedt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtmnwlkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtmnwlkdt(1:nflkgb) = dtmnwlkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtmnwlkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtmnwlkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtwmllkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtwmllkdt(1:nflkgb) = dtwmllkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtwmllkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtwmllkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtbotlkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtbotlkdt(1:nflkgb) = dtbotlkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtbotlkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtbotlkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dctlkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dctlkdt(1:nflkgb) = dctlkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dctlkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dctlkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhmllkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dhmllkdt(1:nflkgb) = dhmllkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhmllkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dhmllkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtb1lkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtb1lkdt(1:nflkgb) = dtb1lkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtb1lkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtb1lkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dhb1lkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dhb1lkdt(1:nflkgb) = dhb1lkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dhb1lkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dhb1lkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF
     ENDIF
     IF (PRESENT(opt_dtsfclkdt)) THEN
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       opt_dtsfclkdt(1:nflkgb) = dtsfclkdt(1:nflkgb)
       !$ACC END KERNELS
       IF (nflkgb < SIZE(opt_dtsfclkdt)) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         opt_dtsfclkdt(nflkgb+1:) = 0._wp
         !$ACC END KERNELS
       ENDIF

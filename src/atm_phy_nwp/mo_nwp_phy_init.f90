@@ -891,6 +891,11 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   CASE (4,7) !two moment microphysics
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
+    
+    ! Provide turbulent length to microphysics to calculate the dissipation factor.
+    ! The Prandtl constant (0.4) arises from different definitions for tur_len: microphysics follows Mellor-Yamada.
+    atm_phy_nwp_config(jg)%cfg_2mom%turb_len = turbdiff_config(jg)%tur_len * 0.4_wp
+
     IF (jg == 1) CALL two_moment_mcrph_init(igscp=atm_phy_nwp_config(jg)%inwp_gscp, msg_level=msg_level, &
          &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 

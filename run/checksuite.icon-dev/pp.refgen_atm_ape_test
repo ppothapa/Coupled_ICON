@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # set basic names and paths for probtest
-file_ids=atm_2d_ml,atm_3d_ml,phy_3d_ml
-exp=atm_ape_test
+probtest_file_ids='*atm_2d_ml*.nc,*atm_3d_ml*.nc,*phy_3d_ml*.nc'
+probtest_exp=atm_ape_test
 
 . ./add_refgen_routines
 

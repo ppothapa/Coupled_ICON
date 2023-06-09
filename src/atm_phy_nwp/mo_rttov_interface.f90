@@ -54,7 +54,7 @@ MODULE mo_rttov_interface
   USE mo_name_list_output_config, ONLY: is_variable_in_output
   USE mo_mpi,                 ONLY: p_pe, p_comm_work, p_io, num_work_procs, p_barrier, &
     &                               get_my_mpi_all_id
-  USE mo_fortran_tools,       ONLY: assert_acc_host_only
+  USE mo_fortran_tools,       ONLY: assert_acc_device_only, assert_lacc_equals_i_am_accel_node
 #ifdef __USE_RTTOV
   USE mo_rtifc,               ONLY: rtifc_set_opts, rtifc_init, rtifc_fill_input, &
                                     rtifc_direct, rtifc_errmsg,                   &
@@ -160,6 +160,7 @@ CONTAINS
         ENDDO
       ENDIF
     END DO
+    !$ACC ENTER DATA COPYIN(lsynsat_product)
 
     IF (dbg_level > 1) THEN
       WRITE (0,*) routine, ": lsynsat_product = ", lsynsat_product
@@ -245,6 +246,7 @@ CONTAINS
   SUBROUTINE rttov_finalize()
     CHARACTER(LEN=*), PARAMETER    :: routine = modname//"::rttov_finalize"
     INTEGER :: ierrstat
+    !$ACC EXIT DATA DELETE(lsynsat_product)
 
     DEALLOCATE(lsynsat_product, lsynsat_chan, chan_idx, chan_rtidx, STAT=ierrstat)
     IF (ierrstat /= SUCCESS) CALL finish (routine, 'DEALLOCATE failed.')
@@ -300,7 +302,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   INTEGER :: nlev_rg, isens, n_profs, ncalc, &
     &        istatus, synsat_idx, isynsat
 
-  CALL assert_acc_host_only('rttov_driver', lacc)
+  CALL assert_acc_device_only('rttov_driver', lacc)
 
   ! first, check if nothing to do:
   IF (MAXVAL(numchans(:)) == 0)  RETURN
@@ -334,6 +336,17 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   default_gas_units = gas_unit_ppmvdry
 #endif
 
+  ! Define RTTOV levels
+  CALL define_rttov_levels (nlev_rttov, pres_rttov)
+
+  !$ACC DATA &
+  !$ACC   CREATE(temp_rttov, qv_rttov, qc_rttov, qcc_rttov, qi_rttov, qs_rttov, clc_rttov) &
+  !$ACC   CREATE(rg_stype, rg_wtype) &
+  !$ACC   CREATE(rg_cosmu0, rg_psfc, rg_hsfc, rg_tsfc, rg_t2m, rg_qv2m, rg_u10m, rg_v10m) &
+  !$ACC   CREATE(temp, pres, qv) &
+  !$ACC   CREATE(cld, clc) &
+  !$ACC   COPYIN(pres_rttov)
+
   CALL prepare_rttov_input(jg, jgp, nlev_rg, p_nh_metrics%z_ifc, p_nh_diag%pres,               &
     p_nh_diag%dpres_mc, p_nh_diag%temp, prm_diag(jg)%tot_cld, prm_diag(jg)%clc,                &
     p_nh_prog%tracer(:,:,:,iqs), prm_diag(jg)%con_udd(:,:,:,3), prm_diag(jg)%con_udd(:,:,:,7), &
@@ -342,9 +355,6 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
     prm_diag(jg)%u_10m, prm_diag(jg)%v_10m, prm_diag(jg)%buffer_rttov,                         &
     temp_rttov, qv_rttov, qc_rttov, qcc_rttov, qi_rttov, qs_rttov, clc_rttov,                  &
     rg_stype, rg_wtype, rg_cosmu0, rg_psfc, rg_hsfc, rg_tsfc, rg_t2m, rg_qv2m, rg_u10m, rg_v10m)
-
-  ! Define RTTOV levels
-  CALL define_rttov_levels (nlev_rttov, pres_rttov)
 
   ! Call RTTOV library
   !
@@ -366,9 +376,10 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
     ! Copy input variables into RTTOV buffer
     IF (dbg_level > 2)  WRITE (0,*) "Copy input variables into RTTOV buffer"
 
-    clc = 0._wp
-    cld = 0._wp
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jk = 1, nlev_rttov
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = is, ie
         pres(jk,jc) = pres_rttov(jk)
         temp(jk,jc) = temp_rttov(jc,jk,jb)
@@ -377,11 +388,15 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
     ENDDO
 
     DO jk = 1, nlev_rttov-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = is, ie
         ! cld(1) = stratiform cloud water, computed as total - convective
         cld(1,jk,jc) = MAX(0._wp, qc_rttov(jc,jk,jb) - qcc_rttov(jc,jk,jb))
+        cld(2,jk,jc) = 0._wp
         ! cld(3) = convective cloud water
         cld(3,jk,jc) = qcc_rttov(jc,jk,jb)
+        cld(4,jk,jc) = 0._wp
+        cld(5,jk,jc) = 0._wp
         ! cld(6) = cloud ice
         cld(6,jk,jc) = qi_rttov(jc,jk,jb)
         ! clc = cloud fraction
@@ -393,6 +408,13 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
 
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC UPDATE ASYNC(1) &
+    !$ACC   HOST(pres, temp, qv, rg_t2m, rg_qv2m, rg_psfc, rg_hsfc, rg_u10m) &
+    !$ACC   HOST(rg_v10m, rg_tsfc, rg_stype, rg_wtype, rg_cosmu0, cld, clc)
+
+    !$ACC WAIT
 
     CALL rtifc_fill_input(                                &
          istatus,                                         &
@@ -534,14 +556,18 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
 
   ENDDO
 #endif
+  !$ACC END DATA
 
   IF (dbg_level > 2) THEN
     CALL p_barrier(p_comm_work)
     WRITE (0,*) "CALL to downscale_rttov_output"
   END IF
 
+  !$ACC DATA COPYIN(rg_synsat)
   CALL downscale_rttov_output(jg, jgp, num_images, rg_synsat, &
   &                           prm_diag(jg)%synsat_arr, lsynsat_product)
+  !$ACC WAIT
+  !$ACC END DATA
 
   IF (dbg_level > 2) THEN
     CALL p_barrier(p_comm_work)
@@ -577,7 +603,7 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
     cosmu0(:,:), tsfc(:,:), psfc(:,:), t2m(:,:), qv2m(:,:), u10m(:,:), v10m(:,:)
 
   ! Buffer for auxiliary temperature and pressure levels above the vertical nest interface
-  REAL(wp), INTENT(IN) :: buffer_rttov(:,:,:)
+  REAL(wp), POINTER, INTENT(IN) :: buffer_rttov(:,:,:) ! pointer keyword is necessary, as it can be a nullified pointer.
 
   ! Corresponding output fields (on reduced grid)
   REAL(wp), INTENT(OUT) ::                                                                  &
@@ -657,6 +683,16 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
   ! Define RTTOV levels
   CALL define_rttov_levels (nlev_rttov, pres_rttov)
 
+  !$ACC DATA &
+  !$ACC   CREATE(rg_pres, rg_temp, rg_qv, rg_z_mc) &
+  !$ACC   CREATE(rg_qc_vi, rg_qcc_vi, rg_qi_vi, rg_qs_vi, rg_clc_vi, rg_z_ifc) &
+  !$ACC   CREATE(zdpres, zclc, zqc, zqcc, zqi, zqs) &
+  !$ACC   CREATE(wfac_lin, wfac_lin_i, z3d_rttov, pres3d_rttov, qc_vi_rttov, qcc_vi_rttov) &
+  !$ACC   CREATE(qi_vi_rttov, qs_vi_rttov, clc_vi_rttov) &
+  !$ACC   CREATE(wfacpbl1, wfacpbl2) &
+  !$ACC   CREATE(idx0_lin, idx0_lin_i) &
+  !$ACC   CREATE(kpbl1, kpbl2, bot_idx_lin, bot_idx_lin_i) &
+  !$ACC   COPYIN(pres_rttov)
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
   ! Upscaling of RTTOV input variables from compute grid to reduced grid
@@ -670,10 +706,16 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,          &
       i_startidx, i_endidx, grf_bdyintp_start_c, min_rlcell_int)
 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jk = 1, nlev_rttov
-      pres3d_rttov(i_startidx:i_endidx,jk,jb) = pres_rttov(jk)*100._wp  ! convert in Pa
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO jc = i_startidx, i_endidx
+        pres3d_rttov(jc,jk,jb) = pres_rttov(jk)*100._wp  ! convert in Pa
+      ENDDO
     ENDDO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       rg_clc_vi(jc,nlevp1_rg,jb) = 0._wp
       rg_qc_vi(jc,nlevp1_rg,jb)  = 0._wp
@@ -694,8 +736,10 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
       DO jk = 1, nlev
         jk1 = jk + nshift
 #else
+    !$ACC LOOP SEQ
     DO jk = 1, nlev
       jk1 = jk + nshift
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(qv_aux, zrho, zdet_rate, zcon_upd)
       DO jc = i_startidx, i_endidx
 #endif
 
@@ -783,7 +827,9 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
 
 
     ! Fill levels above model top
+    !$ACC LOOP SEQ
     DO jk = 1, nshift
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(qv_aux)
       DO jc = i_startidx, i_endidx
         rg_z_ifc(jc,jk,jb) = buffer_rttov(jc,jk,jb)
         rg_pres (jc,jk,jb) = buffer_rttov(jc,nshift+jk,jb)
@@ -805,14 +851,18 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
     ENDDO
 
     ! Compute rg_z_mc
+    !$ACC LOOP SEQ
     DO jk = 1, nlev_rg
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         rg_z_mc(jc,jk,jb) = 0.5_wp*(rg_z_ifc(jc,jk,jb)+rg_z_ifc(jc,jk+1,jb))
       ENDDO
     ENDDO
 
     ! Vertically integrate the cloud quantities
+    !$ACC LOOP SEQ
     DO jk = nlev_rg, 1, -1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         rg_clc_vi(jc,jk,jb) = rg_clc_vi(jc,jk+1,jb) + zdpres(jc,jk)*zclc(jc,jk)
         rg_qc_vi(jc,jk,jb)  = rg_qc_vi(jc,jk+1,jb)  + zdpres(jc,jk)*zqc(jc,jk)
@@ -822,6 +872,7 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
       ENDDO
     ENDDO
 
+    !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfr_land, zfr_lake, zfr_si, qv_aux)
     DO jc = i_startidx, i_endidx
 
       rg_hsfc(jc,jb) = rg_z_ifc(jc,nlevp1_rg,jb) * 0.001_wp ! convert in km
@@ -905,6 +956,7 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
         v10m(iidx(jc,jb,4),iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
 
     ENDDO
+    !$ACC END PARALLEL
 
   ENDDO
 !$OMP END DO
@@ -921,6 +973,8 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,          &
         i_startidx, i_endidx, grf_bdyintp_start_c, grf_fbk_start_c+1)
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         rg_tsfc(jc,jb) = rg_temp(jc,nlev_rg,jb)
         rg_t2m(jc,jb)  = rg_temp(jc,nlev_rg,jb)
@@ -928,6 +982,8 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
         rg_u10m(jc,jb) = 0._wp
         rg_v10m(jc,jb) = 0._wp
       ENDDO
+      !$ACC END PARALLEL
+
     ENDDO
 !$OMP END DO
   ENDIF
@@ -940,54 +996,54 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
   npromz_c = p_gcp%end_index(min_rlcell_int)
 
   CALL prepare_extrap(rg_z_mc, nblks_c, npromz_c, nlev_rg,    &
-                      kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.FALSE.)
+                      kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.TRUE.)
 
   CALL z_at_plevels(rg_pres, rg_temp, rg_z_mc, pres3d_rttov, z3d_rttov, &
                     nblks_c, npromz_c, nlev_rg, nlev_rttov,             &
-                    kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.FALSE.      )
+                    kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc=.TRUE.      )
 
   CALL prepare_lin_intp(rg_z_mc, z3d_rttov, nblks_c, npromz_c, nlev_rg,             &
-                        nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin, lacc=.FALSE., lextrap=.FALSE.)
+                        nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin, lacc=.TRUE., lextrap=.FALSE.)
 
   CALL prepare_lin_intp(rg_z_ifc, z3d_rttov, nblks_c, npromz_c, nlevp1_rg,                &
-                        nlev_rttov, wfac_lin_i, idx0_lin_i, bot_idx_lin_i, lacc=.FALSE., lextrap=.FALSE.)
+                        nlev_rttov, wfac_lin_i, idx0_lin_i, bot_idx_lin_i, lacc=.TRUE., lextrap=.FALSE.)
 
   ! Execute interpolation
 
   CALL lin_intp(rg_temp, temp_rttov,  nblks_c, npromz_c, nlev_rg,   &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,        &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.FALSE., &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE. )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE. )
 
   CALL lin_intp(rg_qv, qv_rttov,  nblks_c, npromz_c, nlev_rg,       &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,        &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,  &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE. )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE. )
 
   CALL lin_intp(rg_qc_vi, qc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE.  )
 
   CALL lin_intp(rg_qcc_vi, qcc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,           &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,     &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.    )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE.    )
 
   CALL lin_intp(rg_qi_vi, qi_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE.  )
 
   CALL lin_intp(rg_qs_vi, qs_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,         &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,   &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.  )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE.  )
 
   CALL lin_intp(rg_clc_vi, clc_vi_rttov, nblks_c, npromz_c, nlevp1_rg, &
                 nlev_rttov, wfac_lin, idx0_lin, bot_idx_lin,           &
                 wfacpbl1, kpbl1, wfacpbl2, kpbl2, l_loglin=.TRUE.,     &
-                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.FALSE.    )
+                l_pd_limit=.TRUE., l_extrapol=.FALSE., lacc=.TRUE.    )
 
 
   ! Calculate layer averages of cloud variables from vertically integrated fields
@@ -1003,7 +1059,10 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,          &
       i_startidx, i_endidx, grf_bdyintp_start_c, min_rlcell_int)
 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jk = 1, nlev_rttov-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         qc_rttov(jc,jk,jb)  = 1.e3_wp*(qc_vi_rttov(jc,jk,jb)-qc_vi_rttov(jc,jk+1,jb)) / &
                               (grav*(z3d_rttov(jc,jk,jb)-z3d_rttov(jc,jk+1,jb)))
@@ -1030,14 +1089,20 @@ SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_c
         ENDIF
       ENDDO
     ENDDO
-    qc_rttov(:,nlev_rttov,jb)  = 0._wp
-    qcc_rttov(:,nlev_rttov,jb) = 0._wp
-    qi_rttov(:,nlev_rttov,jb)  = 0._wp
-    qs_rttov(:,nlev_rttov,jb)  = 0._wp
-    clc_rttov(:,nlev_rttov,jb) = 0._wp
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO jc = i_startidx, i_endidx
+      qc_rttov(jc,nlev_rttov,jb)  = 0._wp
+      qcc_rttov(jc,nlev_rttov,jb) = 0._wp
+      qi_rttov(jc,nlev_rttov,jb)  = 0._wp
+      qs_rttov(jc,nlev_rttov,jb)  = 0._wp
+      clc_rttov(jc,nlev_rttov,jb) = 0._wp
+    ENDDO
+    !$ACC END PARALLEL
   ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+  !$ACC WAIT
+  !$ACC END DATA
 
 END SUBROUTINE prepare_rttov_input
 
@@ -1091,6 +1156,7 @@ SUBROUTINE downscale_rttov_output(jg, jgp, nimg, rg_satimg, satimg, l_enabled)
     CALL p_barrier(p_comm_work)
     WRITE (0,*) "Synchronize sat image array before interpolation"
   END IF
+  CALL assert_lacc_equals_i_am_accel_node("downscale_rttov_output", .TRUE.)
   CALL exchange_data(p_pp%comm_pat_c, rg_satimg)
 
   ! Execute interpolation from reduced grid to full grid
@@ -1118,7 +1184,8 @@ SUBROUTINE downscale_rttov_output(jg, jgp, nimg, rg_satimg, satimg, l_enabled)
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,       &
                        i_startidx, i_endidx, rl_start, rl_end)
 
- 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR PRIVATE(jc1, jc2, jc3, jc4, jb1, jb2, jb3, jb4)
     DO jc = i_startidx, i_endidx
       jc1 = iidx(jc,jb,1)
       jc2 = iidx(jc,jb,2)
@@ -1137,6 +1204,7 @@ SUBROUTINE downscale_rttov_output(jg, jgp, nimg, rg_satimg, satimg, l_enabled)
         satimg(jc4,jk,jb4) = rg_satimg(jc,jk,jb)
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
   ENDDO
 !$OMP END DO NOWAIT
@@ -1243,7 +1311,8 @@ SUBROUTINE copy_rttov_ubc (jg, jgc, lacc)
 
   INTEGER :: nshift
 
-  CALL assert_acc_host_only("copy_rttov_ubc", lacc)
+  CALL assert_acc_device_only("copy_rttov_ubc", lacc)
+  CALL assert_lacc_equals_i_am_accel_node("copy_rttov_ubc", lacc)
 
   nshift = p_patch(jgc)%nshift
   CALL exchange_data_mult(p_patch_local_parent(jgc)%comm_pat_glb_to_loc_c, 5, 5*nshift,                            &

@@ -14,7 +14,7 @@ if [[ x$BB_SYSTEM != x ]]; then
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
   slave=${BB_SYSTEM:-thunder}_${BB_SLAVE:-gcc}
-  refDir=${builbot_amip_reference_path}/${slave}/${EXPNAME}
+  refDir=${builbot_amip_reference_path}/${slave}/${EXPNAME}/experiments/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_error $? "DIFFCHECK for exp: ${EXPNAME}"

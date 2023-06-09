@@ -147,7 +147,6 @@ const_z0  = 0.449291
 &nonhydrostatic_nml
  ivctype        = 2       ! sleve vertical coordinate
  damp_height    = 8000.   ! top_height-damp_height should be about 15km
- l_open_ubc     = .false. ! top open upper boundary condition. might help to go higher
  rayleigh_coeff = 0.0
 /
 &sleve_nml

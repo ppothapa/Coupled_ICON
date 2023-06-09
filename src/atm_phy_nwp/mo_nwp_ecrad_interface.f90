@@ -63,7 +63,7 @@ MODULE mo_nwp_ecrad_interface
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
-  USE mo_ecrad,                  ONLY: ecrad, ecrad_ssi_default,                 &
+  USE mo_ecrad,                  ONLY: ecrad, ecrad_ssi_default,ISolverSpartacus,&
                                    &   t_ecrad_conf, t_ecrad_aerosol_type,       &
                                    &   t_ecrad_single_level_type,                &
                                    &   t_ecrad_thermodynamics_type,              &
@@ -346,6 +346,17 @@ CONTAINS
           &                   lacc=.TRUE.)
         ! $ACC WAIT
 
+!Set inverse cloud effective size for SPARTACUS
+        IF (ecrad_conf%i_solver_lw == ISolverSpartacus .OR. ecrad_conf%i_solver_sw == ISolverSpartacus ) THEN
+          ! We are using the SPARTACUS solver so need to specify cloud scale,
+          ! and use Mark Fielding's parameterization based on ARM data
+          CALL ecrad_cloud%param_cloud_effective_separation_eta( ncol=nproma_sub, nlev=nlev, &
+            &                 pressure_hl=pt_diag%pres_ifc(jcs:jce,:,jb),                    &
+            &                 separation_surf=2500.0_wp, separation_toa=14000.0_wp,          &
+            &                 power=3.5_wp, inhom_separation_factor=0.75_wp,                 &
+            &                 istartcol=i_startidx_rad, iendcol=i_endidx_rad )
+        ENDIF
+
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)
           CASE(iRadAeroNone)
@@ -488,6 +499,11 @@ CONTAINS
   !!     Wetterdienst, Offenbach (2021-09-15)
   !! Open TODOs: dust_tunefac not considered so far
   !!
+  ! The following pragma sets the optimization level to O1 for Nvidia compilers
+  ! At least some versions had an issue with allocations/frees
+  !  that lead to a crash. Limiting optimization resolves it.
+  ! There is no performance degradation since this routine is just an interface
+  !pgi$r opt 1
   SUBROUTINE nwp_ecrad_radiation_reduced (current_datetime, pt_patch, pt_par_patch, ext_data,  &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,                       &
     &                                     od_lw, od_sw, ssa_sw, g_sw,                          &
@@ -1047,6 +1063,17 @@ CONTAINS
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
           &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev_rg,         &
           &                   i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
+
+!Set inverse cloud effective size for SPARTACUS
+        IF (ecrad_conf%i_solver_lw == ISolverSpartacus .OR. ecrad_conf%i_solver_sw == ISolverSpartacus ) THEN
+          ! We are using the SPARTACUS solver so need to specify cloud scale,
+          ! and use Mark Fielding's parameterization based on ARM data
+          CALL ecrad_cloud%param_cloud_effective_separation_eta( ncol=nproma_sub, nlev=nlev, &
+            &                 pressure_hl=zrg_pres_ifc(jcs:jce,:,jb),                        &
+            &                 separation_surf=2500.0_wp, separation_toa=14000.0_wp,          &
+            &                 power=3.5_wp, inhom_separation_factor=0.75_wp,                 &
+            &                 istartcol=i_startidx_rad, iendcol=i_endidx_rad )
+        ENDIF
 
 ! Fill aerosol configuration type
         SELECT CASE (irad_aero)

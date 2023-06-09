@@ -175,7 +175,6 @@ inwp_satad      = 1
  vwind_offctr   = 0.12
  damp_height    = 23000.
  rayleigh_coeff = 0.05
- l_open_ubc     = .false.
 /
 &sleve_nml
  min_lay_thckn  = 50.

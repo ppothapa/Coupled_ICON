@@ -1448,7 +1448,7 @@ SUBROUTINE recon_lsq_cell_c_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     &  z_b(lsq_high_set%dim_c,nproma,ptr_patch%nlev)
 #else
   REAL(wp)  ::           &        !< difference of scalars i j
-    &  z_b(lsq_high_set%dim_c)
+    &  z_b(9)
 #endif
 
   INTEGER, POINTER  ::   &        !< Pointer to line and block indices of
@@ -1457,6 +1457,8 @@ SUBROUTINE recon_lsq_cell_c_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
   INTEGER :: jc, jk, jb           !< index of cell, vertical level and block
   INTEGER :: rl_start, rl_end
   INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
+  INTEGER :: rl_start_init, rl_end_init, i_startblk_init, i_endblk_init
+  INTEGER :: ji
 
   !-----------------------------------------------------------------------
 
@@ -1496,7 +1498,30 @@ SUBROUTINE recon_lsq_cell_c_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
 !$OMP PARALLEL
 
   IF (ptr_patch%id > 1 .OR. l_limited_area) THEN
-    CALL init(p_coeff(:,:,:,1:i_startblk))
+    ! Only zero-init the lateral boundary points
+
+    ! values for the blocking
+    rl_start_init   = 1
+    rl_end_init     = MAX(1,rl_start-1)
+    i_startblk_init = ptr_patch%cells%start_block(rl_start_init)
+    i_endblk_init   = ptr_patch%cells%end_block(rl_end_init)
+
+!$OMP DO PRIVATE(jb,jc,jk,ji,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
+    DO jb = i_startblk_init, i_endblk_init
+
+      CALL get_indices_c(ptr_patch, jb, i_startblk_init, i_endblk_init, &
+                         i_startidx, i_endidx, rl_start_init, rl_end_init)
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+!NEC$ forced_collapse
+      DO jk = slev, elev
+        DO jc = i_startidx, i_endidx
+          DO ji = 1, 10
+            p_coeff(ji,jc,jk,jb) = 0._wp
+          ENDDO
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL LOOP
+    ENDDO
 !$OMP BARRIER
   ENDIF
 
@@ -1505,7 +1530,6 @@ SUBROUTINE recon_lsq_cell_c_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
 
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
-
     !
     ! 1. compute right hand side of linear system
     !
@@ -1576,7 +1600,7 @@ SUBROUTINE recon_lsq_cell_c_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
 
 #else
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_b)
+    !$ACC LOOP GANG VECTOR TILE(32, 4) PRIVATE(z_b)
     DO jk = slev, elev
 !$NEC ivdep
       DO jc = i_startidx, i_endidx

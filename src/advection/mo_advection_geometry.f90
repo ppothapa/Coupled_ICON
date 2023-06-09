@@ -1045,7 +1045,7 @@ CONTAINS
       ! points have to be switched so that departure point 1 belongs to arrival
       ! point one and departure point 2 to arrival point 2.
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(je, jk)
 !NEC$ ivdep
       DO ie = 1, falist%len(jb)
 

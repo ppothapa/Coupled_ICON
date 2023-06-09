@@ -132,6 +132,7 @@ MODULE mo_io_config
     LOGICAL :: vis          = .FALSE. !< Flag. TRUE if computation of visibility desired
     LOGICAL :: hbas_sc      = .FALSE. !< Flag. TRUE if computation of height of base from shallow convection desired
     LOGICAL :: htop_sc      = .FALSE. !< Flag. TRUE if computation of height of top  from shallow convection desired
+    LOGICAL :: inversion_height = .FALSE. !< Flag. TRUE if computation of height of top  from shallow convection desired
     LOGICAL :: twater       = .FALSE. !< Flag. TRUE if computation of total column integrated water desired
     LOGICAL :: q_sedim      = .FALSE. !< Flag. TRUE if computation of specific content of precipitation particles desired
     LOGICAL :: dbz          = .FALSE. !< Flag. TRUE if computation of radar reflectivity is desired
@@ -312,6 +313,7 @@ CONTAINS
         var_in_output(jg)%vis         = is_variable_in_output_dom(var_name="vis", jg=jg)
         var_in_output(jg)%hbas_sc     = is_variable_in_output_dom(var_name="hbas_sc", jg=jg)
         var_in_output(jg)%htop_sc     = is_variable_in_output_dom(var_name="htop_sc", jg=jg)
+        var_in_output(jg)%inversion_height = is_variable_in_output_dom(var_name="inversion_height", jg=jg)
         var_in_output(jg)%twater      = is_variable_in_output_dom(var_name="twater", jg=jg)
         var_in_output(jg)%q_sedim     = is_variable_in_output_dom(var_name="q_sedim", jg=jg)
         var_in_output(jg)%tcond_max   = is_variable_in_output_dom(var_name="tcond_max", jg=jg)

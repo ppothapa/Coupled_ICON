@@ -1,3 +1,4 @@
+!NEC$ options "-O0"
 !>
 !!
 !!
@@ -355,7 +356,14 @@ CONTAINS
     rho_down(:)=0.0_wp
 
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk, pressure, &
-!ICON_OMP  tau_abs, Nsqr, Ssqr, tstep_count, tmp)
+!ICON_OMP  tau_abs, Nsqr, Ssqr, tstep_count, tmp, blockNo) 
+
+ ! error?! !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk, pressure,           &
+ ! error?! !ICON_OMP  tau_abs, Nsqr, Ssqr, tstep_count, blockNo, forc_tke_surf_2D,  &
+ ! error?! !ICON_OMP  forc_rho_surf_2D, u_stokes, bottom_fric_2D, hlc, tmp, wlc,    &
+ ! error?! !ICON_OMP  Av_old, kv_old, tke_plc, tke, tke_Av, tke_kv, tke_iwe,        &
+ ! error?! !ICON_OMP  tke_iwe_forcing, tke_iw_alpha_c)
+
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
       DO jc = start_index, end_index
@@ -575,8 +583,6 @@ CONTAINS
                            )
 
         end if
-
-
 
       end if
     !if (jc==8 .and. blockNo==10) then

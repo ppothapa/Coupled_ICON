@@ -142,7 +142,6 @@ CONTAINS
       CALL message(TRIM(routine),message_text)
     END BLOCK log_output
 
-    !$ACC ENTER DATA COPYIN(this)
     CALL reader%get_one_timelev(this%tidx,   this%var_name, this%dataa)
     this%dataold => this%dataa
     CALL reader%get_one_timelev(this%tidx+1, this%var_name, this%datab)
@@ -230,8 +229,9 @@ CONTAINS
     END IF
 
     ! DA: Need to list this%dataxxx in the PRESENT section for attach
-    !$ACC DATA PRESENT(interpolated, this)
-    !$ACC DATA PRESENT(this%dataold, this%datanew)
+    ! ACCWA (NVHPC 22.7): The original copying at allocation time in time_intp_init lead to a crash because of the way that the fields in this were accessed
+    !$ACC DATA COPYIN(interpolated, this)
+    !$ACC DATA COPYIN(this%dataold, this%datanew)
     !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
     interpolated(:,:,:,:) = 0.0_wp
     !$ACC END KERNELS

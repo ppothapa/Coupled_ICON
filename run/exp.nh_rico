@@ -144,7 +144,6 @@ lconst_z0 = .TRUE.
  rayleigh_type   = 1 
  rayleigh_coeff  = 0.10      ! Rayleigh coefficient for damping in upper levels
  vwind_offctr    = 0.4       ! off-centering for time differencing (like alpha in turb)
- l_open_ubc      = .false.   ! top open upper boundary condition. might help to go higher
  damp_height     = 3600      ! damping height, keep top 5-10 levels for damping
 /
 &sleve_nml                   ! vertical grid standard output for message level >= 15

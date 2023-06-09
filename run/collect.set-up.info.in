@@ -20,6 +20,7 @@ use_load_modules
 use_load_profile
 use_mpi
 use_mpi_procs_pernode
+use_num_io_procs
 use_mpi_root
 use_mpi_startrun
 use_openmp
@@ -147,8 +148,8 @@ case "$use_site" in
   ethz.ch)
     case "$use_host" in
       *euler*)
-        use_submit='bsub'
-        use_sync_submit='bsub '
+        use_submit='sbatch'
+        use_sync_submit='sbatch --wait'
         use_target='euler'
         use_mpi_startrun='mpirun -n $mpi_total_procs'
       ;;

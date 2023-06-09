@@ -53,7 +53,7 @@ done
 check_error $? "oce_numeric: $nclCaller"
 
 # check for identical results compared to the reference
-refDir=${ocean_data_MainFolder}/reference/${BB_NAME}/${EXPNAME}
+refDir=${ocean_data_MainFolder}/reference/${BB_NAME}/${EXPNAME}/experiments/${EXPNAME}
 
 directoryDiff ${refDir} .
 

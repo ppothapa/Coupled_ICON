@@ -290,9 +290,14 @@ CONTAINS
     CALL finish( routine, 'NWP physics only implemented in the '//&
                'nonhydrostatic atm model')
 
-#ifdef __NO_AES
+#ifdef __NO_AES__
     IF ( iforcing==iaes ) &
       CALL finish( routine, 'AES physics desired, but compilation with --disable-aes' )
+#endif
+
+#ifdef __NO_NWP__
+    IF ( iforcing==inwp ) &
+      CALL finish( routine, 'NWP physics desired, but compilation with --disable-nwp' )
 #endif
 
     !--------------------------------------------------------------------
@@ -409,8 +414,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
             IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
-            IF (.NOT. ANY( ecrad_isolver  == (/0,1,2/)       ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, or 2')
+            IF (.NOT. ANY( ecrad_isolver  == (/0,1,2,3/)       ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, 2 or 3')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igas_model has to be 0 or 1')
             IF (ecrad_igas_model == 1 .AND. .NOT. ANY(irad_aero == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen/) ) )&
@@ -470,6 +475,18 @@ CONTAINS
           &   atm_phy_nwp_config(jg)%mu_snow > 5.0)  THEN
           CALL finish(routine,'mu_snow requires: 0 < mu_snow < 5')
         END IF ! microphysics
+
+        IF (  atm_phy_nwp_config(jg)%inwp_turb /= icosmo  .AND. &
+          &  atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc ) THEN
+          CALL finish(routine,' Turbulence enhancement of collisions '//  &
+                      'in two-moment scheme (lturb_enhc) only applicable for inwp_turb = 1')
+        ENDIF
+
+        IF (  iforcing==iaes  .AND. &
+          &  atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc ) THEN
+          CALL finish(routine,' Turbulence enhancement of collisions '//  &
+                      'in two-moment scheme (lturb_enhc) not applicable for aes physics.')
+        ENDIF
 
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
         CASE (0)
@@ -978,6 +995,11 @@ CONTAINS
     !--------------------------------------------------------------------
 
     IF ( ANY((/MODE_IAU,MODE_IAU_OLD/) == init_mode) ) THEN  ! start from dwd analysis with incremental update
+
+      ! check if the appropriate physics package has been selected
+      IF (iforcing /= inwp) THEN
+        CALL finish(routine,"(iterative) IAU is available for NWP physics only")
+      ENDIF
 
       ! check analysis update window
       !

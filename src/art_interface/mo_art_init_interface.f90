@@ -84,6 +84,7 @@ SUBROUTINE art_init_interface(n_dom,defcase)
     &  defcase                      !< construction or destruction?
     
   IF (lart) THEN
+
     IF (timers_level > 3) CALL timer_start(timer_art_initInt)
 
     IF (TRIM(defcase) == 'construct') THEN
@@ -257,7 +258,7 @@ SUBROUTINE art_calc_ntracer_and_names()
   LOGICAL ::                 &
        &   l_exist
 
-  
+
   cart_chemtracer_xml = art_config(1)%cart_chemtracer_xml
   cart_mecca_xml      = art_config(1)%cart_mecca_xml
   cart_aerosol_xml    = art_config(1)%cart_aerosol_xml
@@ -445,6 +446,9 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
 
 
   IF (lart) THEN
+
+    IF (timers_level > 3) CALL timer_start(timer_art_initInt)
+
     CALL art_collect_atmo_state_nwp(jg, mtime_current, p_nh_state,  &
                    &                ext_data, prm_diag, p_prog)
     CALL art_init_one_dom(jg, p_prog_list, tracer, nest_level)
@@ -452,6 +456,9 @@ SUBROUTINE art_init_atmo_tracers_nwp(jg, mtime_current, p_nh_state, ext_data, &
     IF ((start_time(jg) <= 0.0_wp) .AND. (.NOT. isRestart())) THEN
       CALL art_init_tracer_values_nwp(jg, tracer, mtime_current, p_prog_list)
     END IF
+
+    IF (timers_level > 3) CALL timer_stop(timer_art_initInt)
+
   END IF
 
 END SUBROUTINE art_init_atmo_tracers_nwp
@@ -478,6 +485,9 @@ SUBROUTINE art_init_atmo_tracers_aes  (jg, mtime_current, p_nh_state, &
     &  nest_level           !< beginning with zero in global domain
 
   IF (lart) THEN
+
+    IF (timers_level > 3) CALL timer_start(timer_art_initInt)
+
     CALL art_collect_atmo_state_aes(jg, mtime_current, p_nh_state, p_prog)
 
     CALL art_init_one_dom(jg, p_prog_list, tracer, nest_level)
@@ -485,6 +495,9 @@ SUBROUTINE art_init_atmo_tracers_aes  (jg, mtime_current, p_nh_state, &
     IF ((start_time(jg) <= 0.0_wp) .AND. (.NOT. isRestart())) THEN
       CALL art_init_tracer_values_aes(jg, tracer, mtime_current, p_prog_list)
     END IF
+
+    IF (timers_level > 3) CALL timer_stop(timer_art_initInt)
+
   END IF
 
 END SUBROUTINE art_init_atmo_tracers_aes
@@ -517,7 +530,11 @@ SUBROUTINE art_init_radiation_properties(iforcing, jg)
   INTEGER, INTENT(in) :: iforcing
   INTEGER, INTENT(in) :: jg
 
+  IF (timers_level > 3) CALL timer_start(timer_art_initInt)
+
   CALL art_collect_radiation_properties(iforcing, jg)
+
+  IF (timers_level > 3) CALL timer_stop(timer_art_initInt)
 
 END SUBROUTINE art_init_radiation_properties
 

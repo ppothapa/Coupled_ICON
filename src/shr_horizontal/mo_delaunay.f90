@@ -45,7 +45,9 @@
 
 MODULE mo_delaunay
 
-  !$  USE OMP_LIB
+#ifdef _OPENMP
+  USE OMP_LIB
+#endif
   USE mo_exception,      ONLY: finish
   USE mo_impl_constants, ONLY: SUCCESS
   USE mo_kind,           ONLY: wp
@@ -419,8 +421,11 @@ CONTAINS
       new_ndiscard = 0
 !$omp parallel private(ithread,jtri,jmin,j,inside, oedge, jmin0, bedge, this_edge,k) &
 !$omp          reduction(min:jmin_t)
+#ifdef _OPENMP
+      ithread = omp_get_thread_num()
+#else
       ithread = 0
-!$    ithread = omp_get_thread_num()
+#endif
       jmin    = ntri
 #ifdef __SX__
 

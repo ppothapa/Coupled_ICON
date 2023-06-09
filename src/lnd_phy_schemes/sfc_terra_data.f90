@@ -331,8 +331,8 @@ PUBLIC           ! All constants and variables in this module are public
                                ! Some addaptation strategies (such as infiltration of roof water) 
                                ! will lead to values less than 1
     c_isa_delt = 0.12_wp , & ! The maximum wet-surface fraction delta_max, see Wouters et al., 2015
-    c_isa_wmax = 1.31_wp , & ! Maximum amount of water that can be stored by impervious surfaces 
-                               ! (estimate for urban areas, Toulouse centre), see Wouters et al., 2015
+    cwisamax = 1.31E-3_wp, & ! Maximum amount of water that can be stored by impervious surfaces  (mH2O)
+                             ! (estimate for urban areas, Toulouse centre), see Wouters et al., 2015
 
     ! constants for calculation of anthropogenic heat, see Flanner, 2009
     cb1        = 0.451_wp, & !

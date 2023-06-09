@@ -623,7 +623,7 @@ INTEGER,        INTENT(IN) :: &
 ! ------------------------------------------------------------------
 
 INTEGER,        INTENT(IN) :: &
-  nvec,         & ! number of grid points in zonal      direction
+  nvec,         & ! number of horizontal grid points in the nproma-vector
   ke,           & ! index of the lowest main model level
   ke1,          & ! index of the lowest model half level (=ke+1)
   kcm,          & ! level index of the upper canopy bound
@@ -1140,6 +1140,7 @@ LOGICAL :: lzacc
                    lini=lini, it_start=it_start, nvor=nvor, fr_tke=fr_tke, &
                    l_scal=l_scal, fc_min=fc_min, liqs=liqs(:,ke1), rcld=rcld, tfm=tfm, tfh=tfh, &
                    lacc=lzacc)
+  !$ACC WAIT(1)
 !-------------------------------------------------------------------------------
 
 my_cart_id = get_my_global_mpi_id()
@@ -1351,13 +1352,6 @@ my_thrd_id = omp_get_thread_num()
     pvar(1+n)%bl => zaux(:,:,n) ; pvar(1+n)%ml => zaux(:,:,n)
   END DO
 
-  !$ACC ENTER DATA CREATE(pvar) ASYNC(1)
-  DO n=1,naux+1
-    !$ACC ENTER DATA ATTACH(pvar(n)%bl, pvar(n)%ml) ASYNC(1)
-  END DO
-
-  !$ACC WAIT
-
   ! Interpolation der thermodyn. Hilfsgroessen im Feld zaux(),
   ! der Wolkendichte und der Luftdichte auf Nebenflaechen:
 
@@ -1378,7 +1372,6 @@ my_thrd_id = omp_get_thread_num()
       
   CALL bound_level_interp( ivstart, ivend, 2, ke,               &
                            nvars=naux+1, pvar=pvar, depth=dp0, rpdep=hlp, lacc=lzacc)
-  !$ACC EXIT DATA DELETE(pvar) ASYNC(1)
 
   !Spezifische effektive Dicke der Prandtlschicht:
 
@@ -2177,7 +2170,7 @@ my_thrd_id = omp_get_thread_num()
     
     CALL solve_turb_budgets (khi=1, it_s=it_durch, it_start=it_start,                 &
                              i_st=ivstart, i_en=ivend, k_st=2, k_en=kem,              &
-                             kcm=kcm, ntur=ntur, nvor=nvor,                           &
+                             i1dim=nvec, kcm=kcm, ntur=ntur, nvor=nvor,               &
                              lssintact=lssintact, lupfrclim=.FALSE.,                  &
                              lpresedr=PRESENT(edr), lstfnct=lstfnct, ltkeinp=ltkeinp, &
                              imode_stke=imode_turb, imode_vel_min=1,                  &

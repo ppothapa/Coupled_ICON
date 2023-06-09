@@ -34,6 +34,7 @@ MODULE mo_nh_dcmip_hadley
    USE mo_intp_data_strc,       ONLY: t_int_state
    USE mo_intp,                 ONLY: cells2edges_scalar
    USE mo_sync,                 ONLY: sync_patch_array, SYNC_E
+   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
 
    IMPLICIT NONE
 
@@ -225,7 +226,7 @@ CONTAINS
   !! - initial revision by Daniel Reinert, DWD (2012-05-30)
   !!
   SUBROUTINE set_nh_velocity_hadley( p_patch, p_nh_prog, p_nh_diag, p_int,  &
-    &                                p_metrics, time )
+    &                                p_metrics, time, lacc )
 
     TYPE(t_patch),        INTENT(INOUT) :: &  !< patch on which computation is performed
       &  p_patch
@@ -244,6 +245,8 @@ CONTAINS
 
     REAL(wp), INTENT(IN) :: time              !< simulation time   [s]
 
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc     ! if true use OpenACC
+
     REAL(wp) ::           &                   !< zonal and meridional velocity
       & zu(nproma), zv(nproma)
 
@@ -254,6 +257,9 @@ CONTAINS
     REAL(wp) ::        &                      !< density at edge points
       &  z_rho_e(nproma,p_patch%nlev,p_patch%nblks_e)
 
+    !REAL(wp), DIMENSION(:,:), POINTER :: edges_center
+    !REAL(wp), DIMENSION(:,:), POINTER :: edges_primal_normal
+
     REAL(wp) :: rho0                          !< surface density
     REAL(wp) :: z_lat                         !< geographical latitude
     REAL(wp) :: ztop                          !< model top
@@ -261,28 +267,37 @@ CONTAINS
     INTEGER  :: i_startidx, i_endidx, i_startblk, i_endblk
     INTEGER  :: i_rlstart, i_rlend, i_nchdom  
     INTEGER  :: nlev, nlevp1                  !< number of full and half levels
+    LOGICAL  :: lzacc
 
     !-----------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! number of vertical levels
     nlev   = p_patch%nlev
     nlevp1 = p_patch%nlevp1
 
+    !edges_center        => p_patch%edges%center
+    !edges_primal_normal => p_patch%edges%primal_normal 
+
 
     ! number of child domains
     i_nchdom = MAX(1,p_patch%n_childdom)
 
+    !$ACC DATA CREATE(zu, zv, z_me, z_ife, z_rho_e) &
+    !$ACC   PRESENT(p_patch, p_nh_prog, p_nh_diag, p_int, p_metrics) IF(lzacc)
+    !!$ACC     PRESENT(edges_center, edges_primal_normal) IF(lzacc)
 
     ! Compute geometric height of full levels at edge midpoints
-    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, p_int%c_lin_e, z_me)
+    CALL cells2edges_scalar(p_metrics%z_mc, p_patch, p_int%c_lin_e, z_me, lacc=lzacc)
 
     ! Compute geometric height of half levels at edge midpoints
-    CALL cells2edges_scalar(p_metrics%z_ifc, p_patch, p_int%c_lin_e, z_ife)
-
+    CALL cells2edges_scalar(p_metrics%z_ifc, p_patch, p_int%c_lin_e, z_ife, lacc=lzacc)
 
     ! Compute rho at full level edge midpoints
-    CALL cells2edges_scalar(p_nh_prog%rho, p_patch, p_int%c_lin_e, z_rho_e)
+    CALL cells2edges_scalar(p_nh_prog%rho, p_patch, p_int%c_lin_e, z_rho_e, lacc=lzacc)
 
+    !$ACC WAIT
 
     ! syncs
     CALL sync_patch_array(SYNC_E, p_patch, z_me)
@@ -312,9 +327,9 @@ CONTAINS
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
 
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO jk = 1, nlev
         DO je = i_startidx, i_endidx
-
 
           z_lat  = p_patch%edges%center(je,jb)%lat
 
@@ -322,17 +337,16 @@ CONTAINS
 
           ztop   = z_ife(je,1,jb)
 
-
           zv(je) = -(rho0/z_rho_e(je,jk,jb))                                 &
             &    * (grid_sphere_radius*w0*pi) /(nhadley*ztop)                &
             &    * cos(z_lat)*sin(nhadley*z_lat)*cos(pi*z_me(je,jk,jb)/ztop) &
             &    * cos(pi*time/tau)
-
           p_nh_prog%vn(je,jk,jb) = zu(je) * p_patch%edges%primal_normal(je,jb)%v1  &
             &                    + zv(je) * p_patch%edges%primal_normal(je,jb)%v2
 
         ENDDO  !je
       ENDDO  !jk
+      !$ACC END PARALLEL LOOP
     ENDDO  !jb
 !$OMP END DO
 
@@ -355,6 +369,7 @@ CONTAINS
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
 
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
 
@@ -369,10 +384,16 @@ CONTAINS
 
         ENDDO  !jc
       ENDDO  !jk
+      !$ACC END PARALLEL LOOP
 
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       p_nh_prog%w(i_startidx:i_endidx,nlevp1,jb) = 0._wp
+      !$ACC END KERNELS
 
     ENDDO  !jb
+
+    !$ACC END DATA
+
 !$OMP ENDDO
 !$OMP END PARALLEL
 

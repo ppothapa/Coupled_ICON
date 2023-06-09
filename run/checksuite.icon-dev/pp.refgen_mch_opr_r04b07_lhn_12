@@ -1,8 +1,14 @@
 #!/bin/bash
 
 # set experiment specific variables
-file_ids=atm_3d_ml,atm_3d_il,atm_3d_hl,atm_3d_pl,atm_2d_ll,Meteogram
-exp=mch_opr_r04b07_lhn_12
+probtest_file_ids='*atm_3d_ml*.nc'
+probtest_file_ids+=',*atm_3d_il*.nc'
+probtest_file_ids+=',*atm_3d_hl*.nc'
+probtest_file_ids+=',*atm_3d_pl*.nc'
+probtest_file_ids+=',*atm_2d_ll*.nc'
+probtest_file_ids+=',Meteogram*.nc'
+probtest_file_ids+=',*total_integrals*.dat'
+probtest_exp=mch_opr_r04b07_lhn_12
 
 . ./add_refgen_routines
 

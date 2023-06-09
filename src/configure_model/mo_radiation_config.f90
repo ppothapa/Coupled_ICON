@@ -26,7 +26,7 @@ MODULE mo_radiation_config
 
   USE mo_kind,           ONLY: wp
   USE mo_io_units,       ONLY: filename_max
-  USE mo_impl_constants, ONLY: MAX_CHAR_LENGTH
+  USE mo_impl_constants, ONLY: MAX_CHAR_LENGTH, max_dom
 
   IMPLICIT NONE
   PUBLIC
@@ -73,10 +73,11 @@ MODULE mo_radiation_config
                                ! 3: maximum overlap
                                ! 4: random overlap
 
-    INTEGER :: islope_rad      ! slope correction for surface radiation
-                               ! 0: none
-                               ! 1: slope correction for solar radiation without shading effects
-                               ! 2: is for slope-dependent radiation with shading and skyview
+    INTEGER :: islope_rad(max_dom) ! slope correction for surface radiation
+                                   ! 0: none
+                                   ! 1: slope correction for solar radiation without shading effects
+                                   ! 2: is for slope-dependent radiation with shading and skyview
+                                   ! 3: slope-dependent radiation with shading without skyview
 
     ! --- Switches for radiative agents
     !     irad_x=0 : radiation uses tracer x = 0
@@ -130,6 +131,8 @@ MODULE mo_radiation_config
     INTEGER  :: ecrad_isolver           !< Radiation solver
                                         !< 0: McICA (Pincus et al. 2003)
                                         !< 1: Tripleclouds (Shonk and Hogan 2008)
+                                        !< 2: McICA for OpenACC
+                                        !< 3: SPARTACUS (Hogan et al. 2016)
     INTEGER  :: ecrad_igas_model        !< Gas model and spectral bands
                                         !< 0: RRTMG (Iacono et al. 2008)
                                         !< 1: ecckd (Hogan and Matricardi 2020)

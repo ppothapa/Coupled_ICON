@@ -135,7 +135,6 @@ cat > ${atmo_namelist} << EOF
 ! vwind_offctr    = 0.5     ! off-centering for time differencing (like alpha in turb)
  damp_height     = 50000.  ! damping height (set about 10km below top)
  rayleigh_coeff  = 0.10     ! Rayleigh coefficient for damping in upper levels
- l_open_ubc      = .false.  ! top open upper boundary condition. might help to go higher
 ! igradp_method   = 3        ! new default
 /
 &sleve_nml                  ! vertical grid standard output for message level >= 15
