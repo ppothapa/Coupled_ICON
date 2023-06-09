@@ -83,7 +83,7 @@ FCFLAGS="${ECCODES_INCLUDE} -I${HDF5_DIR}/include -I${NETCDF_DIR}/include -I${RT
 
 ICON_FCFLAGS="-finline-functions -finline-file=$(join_arr : "${ICON_DIR}/" "${INLINE_LIST_EMVORADO[@]}" "${INLINE_LIST_ICON[@]}" "${INLINE_LIST_ART[@]}" "${INLINE_LIST_DACE[@]}")"
 
-ICON_OCEAN_FCFLAGS='-O2'
+ICON_OCEAN_FCFLAGS='-O2 -D__LVECTOR__'
 ICON_ECRAD_FCFLAGS="-finline-functions -finline-file=$(join_arr : "${ICON_DIR}/" "${INLINE_LIST_ECRAD[@]}")"
 ICON_YAXT_FCFLAGS='-DXT_NEED_MPI_ABORT_WORK_AROUND=2'
 

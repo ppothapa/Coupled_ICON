@@ -148,8 +148,8 @@ case "$use_site" in
   ethz.ch)
     case "$use_host" in
       *euler*)
-        use_submit='bsub'
-        use_sync_submit='bsub '
+        use_submit='sbatch'
+        use_sync_submit='sbatch --wait'
         use_target='euler'
         use_mpi_startrun='mpirun -n $mpi_total_procs'
       ;;

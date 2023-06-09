@@ -1032,7 +1032,7 @@ CONTAINS
 #endif
     !$ACC   PRESENT(p_pat) &
     !$ACC   COPYIN(recv) &
-    !$ACC   IF(lzacc)
+    !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -1213,6 +1213,7 @@ CONTAINS
       ENDIF
     ENDIF
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -1293,7 +1294,7 @@ CONTAINS
     !$ACC   DATA CREATE(send_buf, recv_buf) &
 #endif
     !$ACC   PRESENT(p_pat, recv) &
-    !$ACC   IF(lzacc)
+    !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -1475,6 +1476,7 @@ CONTAINS
       ENDIF
     ENDIF
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -2304,7 +2306,7 @@ CONTAINS
     !$ACC   DATA CREATE(send_buf, recv_buf) &
 #endif
     !$ACC   PRESENT(p_pat) &
-    !$ACC   IF(lzacc)
+    !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -2495,6 +2497,7 @@ CONTAINS
 #endif
 #endif
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
       
     stop_sync_timer(timer_exch_data)
@@ -2618,7 +2621,7 @@ CONTAINS
     !$ACC   DATA CREATE(send_buf_dp, recv_buf_dp, send_buf_sp, recv_buf_sp) &
 #endif
     !$ACC   PRESENT(recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx) &
-    !$ACC   IF(lzacc)
+    !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -2888,6 +2891,7 @@ CONTAINS
 #endif
 #endif
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)

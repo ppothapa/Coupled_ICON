@@ -226,7 +226,6 @@ ntiles           = 1
  damp_timescale_u= 172800.  ! Shortest damping time-scale at model top [s]
  htop_moist_proc = 30000.   ! height above which moist physics and cld/precip advection off
  vwind_offctr    = 0.15     ! off-centering for time differencing (like alpha in turb)
- l_open_ubc      = .FALSE.  ! top open upper boundary condition. might help to go higher
 /
 &sleve_nml                  ! vertical grid standard output for message level >= 15
  min_lay_thckn   = 20.      ! lowest level thickness (between half-levels)

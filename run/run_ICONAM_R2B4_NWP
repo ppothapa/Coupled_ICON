@@ -362,7 +362,6 @@ cat > ${EXPDIR}/${atmo_namelist} << EOF
  vwind_offctr    = 0.60     ! off-centering for time differencing (like alpha in turb)
  damp_height     = 50000.   ! damping height vertical wind (set about 10km below top, 10 levels)
  rayleigh_coeff  = 0.05     ! Rayleigh coefficient for damping in upper levels
- l_open_ubc      = .false.  ! top open upper boundary condition. might help to go higher
  igradp_method   = 3        ! new default
  hbot_qvsubstep  = 24000.   ! height above which qv advection substepping is done
 /

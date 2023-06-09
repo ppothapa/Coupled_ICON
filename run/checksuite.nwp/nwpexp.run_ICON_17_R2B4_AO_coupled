@@ -126,7 +126,7 @@ DATAROOT="${icon_data_poolFolder}/Checksuite_data/ICON-seamless"
 ICONDIR="$basedir" # basedir is provided by create_target_header
 
 # run script directory
-job_name="exp.run_ICON_16_R2B4_AO_coupled.run"             # name of run script
+job_name="exp.run_ICON_17_R2B4_AO_coupled.run"             # name of run script
 RUNSCRIPTDIR=${ICONDIR}/run/checksuite.nwp                 # directory of run script
 
 rm -rf stdout.* stderr.*      # remove standard output from previous run
@@ -745,7 +745,6 @@ rbf_scale_mode_ll        = 2
  divdamp_fac             = 0.004                     ! 0.004 for R2B6; recommendation for R3B7: 0.003
  divdamp_trans_start     = 12500                     
  divdamp_trans_end       = 17500                     
- l_open_ubc              = .false.                   
  igradp_method           = 3	                     
  l_zdiffu_t              = .true.                    
  thslp_zdiffu            = 0.02	                     

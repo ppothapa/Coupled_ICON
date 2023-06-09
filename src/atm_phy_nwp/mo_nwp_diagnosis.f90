@@ -2451,7 +2451,7 @@ CONTAINS
     IF (var_in_output%tas_gmean) THEN
       CALL levels_horizontal_mean( prm_diag%t_2m(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & tas_gmean, lopenacc=.TRUE.)
       prm_diag%tas_gmean = tas_gmean
     END IF
@@ -2462,7 +2462,7 @@ CONTAINS
       !call levels_horizontal_mean( prm_diag%sod_t(:,:), &
       CALL levels_horizontal_mean( prm_diag%flxdwswtoa(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & rsdt_gmean, lopenacc=.TRUE.)
       prm_diag%rsdt_gmean = rsdt_gmean
     END IF
@@ -2473,7 +2473,7 @@ CONTAINS
       !CALL levels_horizontal_mean( prm_diag%sou_t(:,:), &
       CALL levels_horizontal_mean( prm_diag%swflx_up_toa(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & rsut_gmean, lopenacc=.TRUE.)
       prm_diag%rsut_gmean = rsut_gmean
     END IF
@@ -2483,7 +2483,7 @@ CONTAINS
     IF (var_in_output%rlut_gmean) THEN
       CALL levels_horizontal_mean( prm_diag%lwflxtoa(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & rlut_gmean, lopenacc=.TRUE.)
       prm_diag%rlut_gmean = rlut_gmean
     END IF
@@ -2493,7 +2493,7 @@ CONTAINS
     IF (var_in_output%prec_gmean) THEN
       CALL levels_horizontal_mean( prm_diag%tot_prec_rate(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & prec_gmean, lopenacc=.TRUE.)
       prm_diag%prec_gmean = prec_gmean
     END IF
@@ -2503,7 +2503,7 @@ CONTAINS
     IF (var_in_output%evap_gmean) THEN
       CALL levels_horizontal_mean( prm_diag%qhfl_s(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & evap_gmean, lopenacc=.TRUE.)
       prm_diag%evap_gmean = evap_gmean
     END IF
@@ -2542,9 +2542,29 @@ CONTAINS
         END DO
         !$ACC END PARALLEL
       END DO
+
+      ! for a test, set cells in the lateral boundary zone (or nest boundary zone) to HUGE
+      ! (to check the correctness of the subset owned_no_boundary for LAM;
+      !  see checksuite.clm/exp.ICON_CLM_global_mean_no_boundary.run)
+      rls = 1
+      rle = grf_bdywidth_c
+      jbs = pt_patch%cells%start_blk(rls, 1)
+      jbe = pt_patch%cells%end_blk(rle, MAX(1, pt_patch%n_childdom))
+
+      DO jb = jbs, jbe
+        CALL get_indices_c(pt_patch, jb, jbs, jbe, jcs, jce, rls, rle)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
+        DO jc = jcs, jce
+          scr(jc,jb) = HUGE(1.0_wp)
+        END DO
+        !$ACC END PARALLEL
+      END DO
+
+      ! only then, calculate the horizontal mean
       CALL levels_horizontal_mean( scr(:,:), &
           & pt_patch%cells%area(:,:), &
-          & pt_patch%cells%owned, &
+          & pt_patch%cells%owned_no_boundary, &
           & radtop_gmean, lopenacc=.TRUE.)
 
       !$ACC WAIT

@@ -1438,7 +1438,7 @@ MODULE mo_nonhydro_state
         ! state into the tracer_info metadata storage.
         !
         ! get pointer to target element (in this case 4D tracer container)
-        target_element => find_list_element (p_prog_list, 'tracer')
+        target_element => find_list_element (p_prog_list, 'tracer'//suffix)
         tracer_idx = target_element%info%ncontained+1
 
         WRITE(passive_tracer_suffix,'(I2)') ipassive

@@ -118,9 +118,10 @@
 
 MODULE mo_meteogram_output
 
-  USE mo_kind,                  ONLY: wp
+  USE mo_kind,                  ONLY: wp, i8
   USE mtime,                    ONLY: datetime, datetimeToPosixString,    &
-       &                              MAX_DATETIME_STR_LEN  
+    &                              MAX_DATETIME_STR_LEN,                  &
+    &                              max_timedelta_str_len, getPTStringFromMS
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_mpi,                   ONLY: p_n_work, p_allreduce_max,          &
     &                                 get_my_mpi_all_id, p_wait,          &
@@ -168,7 +169,8 @@ MODULE mo_meteogram_output
     &                                 gnat_query_containing_triangles,           &
     &                                 gnat_merge_distributed_queries, gk
   USE mo_dynamics_config,       ONLY: nnow
-  USE mo_io_config,             ONLY: inextra_2d, inextra_3d, var_in_output
+  USE mo_io_config,             ONLY: inextra_2d, inextra_3d, var_in_output, &
+    &                                 celltracks_interval, gust_interval, echotop_meta
   USE mo_lnd_nwp_config,        ONLY: tile_list, ntiles_total, ntiles_water, zml_soil
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs,               &
     &                                 iqm_max, iqni,                         &
@@ -470,6 +472,10 @@ CONTAINS
     !> indices at which to find variables for compute_diagnostics
     TYPE(meteogram_diag_var_indices), INTENT(out) :: diag_var_indices
 
+    CHARACTER(len=max_timedelta_str_len) :: c_time_int
+    CHARACTER(len=14) :: c_thresh_int
+    INTEGER           :: i
+
     var_list%no_atmo_vars = 0
     var_list%no_sfc_vars = 0
 
@@ -724,8 +730,10 @@ CONTAINS
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
         &              "V10M", "m/s", "meridional wind in 10m", &
         &              sfc_var_info, prm_diag%v_10m(:,:))
+      CALL getPTStringFromMS(NINT(1000*gust_interval(jg), i8), c_time_int)
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
-        &              "VBMAX10M", "m/s", "gust in 10m", &
+        &              "VBMAX10M", "m/s", "gust in 10m since end of previous full "//&
+        &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
         &              sfc_var_info, prm_diag%gust10(:,:))
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
         &              "dyn_gust", "m/s", "dynamical gust", &
@@ -787,6 +795,7 @@ CONTAINS
         &              "PREC_GSP", "kg/m2", &
         &              "accumulated grid-scale surface precipitation", &
         &              sfc_var_info, prm_diag%prec_gsp(:,:))
+
       CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
         &              "H_ICE", "m", "sea ice depth", &
         &              sfc_var_info, prog_wtr%h_ice(:,:))
@@ -977,6 +986,58 @@ CONTAINS
         &              "TQI_DIA", "kg m-2", &
         &              "total column integrated cloud ice (diagnostic)", &
         &              sfc_var_info, prm_diag%tci_ptr(iqi)%p_2d(:,:))
+      IF (var_in_output(jg)%dbzlmx_low) THEN
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "DBZLMX_LOW", "dBZ", &
+          &              "max radar reflectivity in layer 1000 - 2000 m AGL", &
+          &              sfc_var_info, prm_diag%dbzlmx_low(:,:))
+      END IF
+      IF (var_in_output(jg)%dbz850) THEN
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "DBZ_850", "dBZ", &
+          &              "radar reflectivity in 1500 m AGL", &
+          &              sfc_var_info, prm_diag%dbz_850(:,:))
+      END IF
+      IF (var_in_output(jg)%dbzcmax) THEN
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "DBZ_CMAX", "dBZ", &
+          &              "column max radar reflectivity", &
+          &              sfc_var_info, prm_diag%dbz_cmax(:,:))
+      END IF
+      IF (var_in_output(jg)%dbzctmax) THEN
+        CALL getPTStringFromMS(NINT(1000*celltracks_interval(jg), i8), c_time_int)
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "DBZ_CTMAX", "dBZ", &
+          &              "column and time max radar reflectivity since end of previous full "// &
+          &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
+          &              sfc_var_info, prm_diag%dbz_ctmax(:,:))
+      END IF
+      IF (var_in_output(jg)%lpi_max) THEN
+        CALL getPTStringFromMS(NINT(1000*celltracks_interval(jg), i8), c_time_int)
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "LPI_MAX", "J/kg", &
+          &              "time max lightning potential index since end of previous full "// &
+          &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
+          &              sfc_var_info, prm_diag%lpi_max(:,:))
+      END IF
+      IF (var_in_output(jg)%ceiling) THEN
+        CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+          &              "CEILING", "m", &
+          &              "ceiling height", &
+          &              sfc_var_info, prm_diag%ceiling_height(:,:))
+      END IF
+      IF (var_in_output(jg)%echotopinm) THEN
+        DO i=1, echotop_meta(jg)%nechotop
+          CALL getPTStringFromMS(NINT(1000*echotop_meta(jg)%time_interval, i8), c_time_int)
+          WRITE (c_thresh_int, '(i10," dBZ")') NINT(echotop_meta(jg)%dbzthresh(i))
+          CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SURFACE, &
+            &              "ECHOTOPinM_"//TRIM(ADJUSTL(c_thresh_int(1:10))), "m", &
+            &              "maximum height of exceeding radar reflectivity threshold "// &
+            &              TRIM(ADJUSTL(c_thresh_int))//" since end of previous full "// &
+            &              TRIM(ADJUSTL(c_time_int(3:)))//" since model start", &
+            &              sfc_var_info, prm_diag%echotopinm(:,i,:))
+        END DO
+      END IF
     ENDIF ! iforcing == nwp
 
     IF (inextra_2d > 0) THEN
@@ -1848,6 +1909,8 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine &
       = modname//'::sample_station_vars'
 
+    REAL(wp), PARAMETER :: z10olog10 = 10.0_wp / LOG(10.0_wp)
+    REAL(wp), PARAMETER :: eps_dbz   = 1.0e-15_wp
 
     ! sample 3D variables:
     nvars = SIZE(var_info)
@@ -1881,6 +1944,27 @@ CONTAINS
           out_buf%sfc_vars(ivar)%a(istation_buf, i_tstep) &
             = sfc_var_info(ivar)%p_source(iidx, iblk)
         END DO
+        ! convert some units of variables to the desired output units:
+!!! THE FOLLOWING WOULD BE THE CONVENIENT FORTRAN SOLUTION,
+!!! BUT TRIM() IN THIS CONTEXT SEEMS NOT TO BE SUPPORTED ON DAINT_GPU
+!        SELECT CASE (TRIM(sfc_var_info(ivar)%cf%standard_name))
+!        CASE ('DBZLMX_LOW','DBZ_850','DBZ_CMAX','DBZ_CTMAX')
+!          !$ACC LOOP VECTOR PRIVATE(istation_buf)
+!          DO istation = 1, ithis_nlocal_pts
+!            istation_buf = buf_idx(istation)
+!            out_buf%sfc_vars(ivar)%a(istation_buf, i_tstep) &
+!              =  z10olog10 * LOG( MAX(out_buf%sfc_vars(ivar)%a(istation_buf, i_tstep), eps_dbz) )
+!          END DO
+!        END SELECT
+!!! SO WE TRY THIS HACK INSTEAD:
+        IF (sfc_var_info(ivar)%cf%standard_name(1:3) == 'DBZ') THEN
+          !$ACC LOOP VECTOR PRIVATE(istation_buf)
+          DO istation = 1, ithis_nlocal_pts
+            istation_buf = buf_idx(istation)
+            out_buf%sfc_vars(ivar)%a(istation_buf, i_tstep) &
+              =  z10olog10 * LOG( MAX(out_buf%sfc_vars(ivar)%a(istation_buf, i_tstep), eps_dbz) )
+          END DO
+        END IF
       END IF
     END DO SFCVAR_LOOP
     !$ACC END PARALLEL

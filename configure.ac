@@ -122,7 +122,7 @@ AC_ARG_ENABLE([jsbach],
 
 AC_ARG_ENABLE([waves],
   [AS_HELP_STRING([--enable-waves],
-     [enable the surface wave component of ICON @<:@default=no@:>@])],
+     [enable the ocean surface wave component of ICON @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_waves=yes])],
     [enable_waves=no])
 
@@ -137,6 +137,12 @@ AC_ARG_ENABLE([aes],
      [enable the AES physics package @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_aes=yes])],
   [enable_aes=yes])
+
+AC_ARG_ENABLE([nwp],
+  [AS_HELP_STRING([--enable-nwp],
+     [enable the NWP physics package @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_nwp=yes])],
+  [enable_nwp=yes])
 
 AC_ARG_ENABLE([ecrad],
   [AS_HELP_STRING([--enable-ecrad],
@@ -213,6 +219,12 @@ AC_ARG_ENABLE([mpi-gpu],
      [enable usage of the GPU-aware MPI features @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_mpi_gpu=yes])],
   [enable_mpi_gpu=no])
+
+AC_ARG_ENABLE([async-io-rma],
+  [AS_HELP_STRING([--enable-async-io-rma],
+     [enable MPI RMA for asynchronous I/O @<:@default=yes@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_async_io_rma=yes])],
+  [enable_async_io_rma=yes])
 
 AC_ARG_ENABLE([openmp],
   [AS_HELP_STRING([--enable-openmp],
@@ -392,6 +404,12 @@ AC_ARG_ENABLE([nccl],
      [enable NCCL for communication @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_nccl=yes])],
   [enable_nccl=no])
+
+AC_ARG_ENABLE([cuda_graphs],
+  [AS_HELP_STRING([--enable-cuda-graphs],
+     [enable CUDA graphs. Warning! This is an experimental feature and it requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_cuda_graphs=yes])],
+  [enable_cuda_graphs=no])
 
 m4_divert_once([HELP_ENABLE],
 [  --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
@@ -752,6 +770,9 @@ AS_VAR_IF([enable_coupling], [yes],
 AS_VAR_IF([enable_aes], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_AES__"])])
 
+AS_VAR_IF([enable_nwp], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_NWP__"])])
+
 AS_VAR_IF([enable_ecrad], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ECRAD"])])
 
@@ -788,6 +809,9 @@ AS_VAR_IF([icon_gpu_secondary], [hip],
 
 AS_VAR_IF([enable_parallel_netcdf], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_PARALLEL_NETCDF"])])
+
+AS_VAR_IF([enable_async_io_rma], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NO_ASYNC_IO_RMA"])])
 
 AS_VAR_IF([enable_cdi_pio], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_CDI_PIO"])])
@@ -829,6 +853,9 @@ AS_VAR_IF([enable_intel_consistency], [yes],
 
 AS_VAR_IF([enable_nccl], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}USE_NCCL"])])
+
+AS_VAR_IF([enable_cuda_graphs], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
 AC_LANG([C])

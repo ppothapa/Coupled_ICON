@@ -70,6 +70,7 @@ MODULE mo_diffusion_config
     LOGICAL :: lhdiff_vn     ! if .TRUE., apply horizontal diffusion to momentum.
     LOGICAL :: lhdiff_w      ! if .TRUE., apply horizontal diffusion to vertical momentum.
     LOGICAL :: lsmag_3d      ! if .TRUE., compute 3D Smagorinsky diffusion coefficient.
+    LOGICAL :: lhdiff_smag_w ! if .TRUE., apply additional Smagorinsky diffusion to vertical momentum.
 
     ! variables not from namelist
 
@@ -88,10 +89,10 @@ MODULE mo_diffusion_config
 CONTAINS
   !>
   !!
-  SUBROUTINE configure_diffusion( n_dom, dynamics_parent_grid_id )
+  SUBROUTINE configure_diffusion( n_dom, parent_id )
 
     INTEGER, INTENT(IN) :: n_dom
-    INTEGER, INTENT(IN) :: dynamics_parent_grid_id(:)
+    INTEGER, INTENT(IN) :: parent_id(:)
 
     INTEGER  :: jg, jgp
     REAL(wp) :: tmp
@@ -120,14 +121,14 @@ CONTAINS
       diffusion_config(1)%k4 = tmp
       tmp = 1._wp/(diffusion_config(1)%hdiff_efdt_ratio*512._wp)
       diffusion_config(1)%k6 = tmp
-  
+
       tmp = 1._wp/(diffusion_config(1)%hdiff_w_efdt_ratio*36._wp)
       diffusion_config(:)%k4w = tmp
 
       DO jg = 2, n_dom
 
-         jgp = dynamics_parent_grid_id(jg)
-         
+         jgp = parent_id(jg)
+
          diffusion_config(jg)%k2 = diffusion_config(jgp)%k2 * diffusion_config(jg)%hdiff_multfac
          diffusion_config(jg)%k4 = diffusion_config(jgp)%k4 * diffusion_config(jg)%hdiff_multfac
          diffusion_config(jg)%k6 = diffusion_config(jgp)%k6 * diffusion_config(jg)%hdiff_multfac

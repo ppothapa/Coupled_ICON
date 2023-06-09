@@ -1019,8 +1019,10 @@ CONTAINS
           min_cc(jk)  = MIN(min_cc(jk),MINVAL(zrg_clc(i_startidx:i_endidx,jk,jb)))
          ENDDO
          IF (irg_acdnc > 0) THEN
-           max_acdnc(jk)    = MAX(max_acdnc(jk),MAXVAL(zrg_extra_flds (i_startidx:i_endidx,jb,jk,irg_acdnc)))
-           min_acdnc(jk)    = MIN(min_acdnc(jk),MINVAL(zrg_extra_flds (i_startidx:i_endidx,jb,jk,irg_acdnc)))
+           DO jk = 1, nlev_rg
+             max_acdnc(jk)    = MAX(max_acdnc(jk),MAXVAL(zrg_extra_flds (i_startidx:i_endidx,jk,jb,irg_acdnc)))
+             min_acdnc(jk)    = MIN(min_acdnc(jk),MINVAL(zrg_extra_flds (i_startidx:i_endidx,jk,jb,irg_acdnc)))
+           ENDDO
          END IF
          IF (l_coupled_reff) THEN
            DO jk = 1, nlev_rg

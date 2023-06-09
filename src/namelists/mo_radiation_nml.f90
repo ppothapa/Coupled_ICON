@@ -65,7 +65,7 @@ MODULE mo_radiation_nml
                                  & iRadAeroConst
 
   USE mo_kind,               ONLY: wp
-  USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
+  USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH, max_dom
   USE mo_mpi,                ONLY: my_process_is_stdio
   USE mo_namelist,           ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_io_units,           ONLY: nnml, nnml_output
@@ -125,10 +125,11 @@ MODULE mo_radiation_nml
                              ! 3: maximum overlap
                              ! 4: random overlap
 
-  INTEGER :: islope_rad      ! slope correction for surface radiation
-                             ! 0: none
-                             ! 1: slope correction for solar radiation without shading effects
-                             ! 2: is for slope-dependent radiation with shading and skyview
+  INTEGER :: islope_rad(max_dom)  ! slope correction for surface radiation
+                                  ! 0: none
+                                  ! 1: slope correction for solar radiation without shading effects
+                                  ! 2: is for slope-dependent radiation with shading and skyview
+                                  ! 3: slope-dependent radiation with shading without skyview
 
   ! --- Switches for radiative agents
   !     irad_x=0 : radiation uses tracer x = 0
@@ -240,7 +241,7 @@ CONTAINS
     direct_albedo_water = 4 ! Parameterization after Yang et al (2008) for sea water, and Ritter and Geleyn (1992) for lakes
     albedo_whitecap= 0      ! no whitecap albedo from breaking ocean waves
     icld_overlap   = 2      ! generalized random overlap
-    islope_rad     = 0      ! no slope correction
+    islope_rad(:)  = 0      ! no slope correction
 
     irad_h2o    = 1
     irad_co2    = 2

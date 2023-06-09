@@ -338,6 +338,15 @@ CONTAINS
         END DO
     END SUBROUTINE InputRequestList_requestMultiple
 
+    SUBROUTINE fail(message, variableName, resultVar)
+        CHARACTER(LEN = *), INTENT(IN) :: message
+        CHARACTER(LEN = *), INTENT(in) :: variableName
+        LOGICAL, INTENT(inout) :: resultVar
+
+        IF(msg_level >= 1) print*, 'invalid record for variable "', variableName, '" encountered: '//message
+        resultVar = .FALSE.
+    END SUBROUTINE fail
+
     LOGICAL FUNCTION InputRequestList_isRecordValid(me, iterator, p_patch, level, tileId, variableName, lIsFg) RESULT(resultVar)
         CLASS(t_InputRequestList), INTENT(INOUT) :: me
         TYPE(t_CdiIterator) :: iterator
@@ -384,24 +393,24 @@ CONTAINS
             tempTime => newDatetime(vtimeString)
 
             ALLOCATE(iniTime, STAT = error)
-            IF(error /= SUCCESS) CALL fail("memory allocation failure")
+            IF(error /= SUCCESS) CALL fail("memory allocation failure", variableName, resultVar)
             iniTime = time_config%tc_startdate
             IF(lIsFg) THEN
                 ! add timeshift to INI-datetime to get true starting time
                 ALLOCATE(startTime, STAT = error)
-                IF(error /= SUCCESS) CALL fail("memory allocation failure")
+                IF(error /= SUCCESS) CALL fail("memory allocation failure", variableName, resultVar)
                 startTime = iniTime + timeshift%mtime_shift
                 IF(.NOT.(tempTime == startTime)) THEN
                     CALL datetimeToString(startTime, debugDatetimeString)
                     CALL fail("vtime of first-guess field ("//vtimeString//") does not match model start time (" &
-                             &//TRIM(debugDatetimeString)//")")
+                             &//TRIM(debugDatetimeString)//")", variableName, resultVar)
                 END IF
                 DEALLOCATE(startTime)
             ELSE
                 IF(.NOT.(tempTime == iniTime)) THEN
                     CALL datetimeToString(iniTime, debugDatetimeString)
                     CALL fail("vtime of analysis field ("//vtimeString//") does not match model initialization time (" &
-                             &//TRIM(debugDatetimeString)//")")
+                             &//TRIM(debugDatetimeString)//")", variableName, resultVar)
                 END IF
             END IF
             DEALLOCATE(iniTime)
@@ -419,7 +428,7 @@ CONTAINS
                 levelValue = 0.0
                 error = cdiIterator_inqLevel(iterator, 1, outValue1 = levelValue)
                 level = REAL(levelValue, dp)
-                IF(error /= 0) CALL fail("cdiIterator_inqLevel() failed")
+                IF(error /= 0) CALL fail("cdiIterator_inqLevel() failed", variableName, resultVar)
                 !TODO: check the zaxis UUID
 
             !the level types for special levels
@@ -431,21 +440,21 @@ CONTAINS
 
             !the known z-axis types that are NOT handled by this code
             CASE(ZAXIS_GENERIC)
-                CALL fail("z-axis type ZAXIS_GENERIC is not implemented")
+                CALL fail("z-axis type ZAXIS_GENERIC is not implemented", variableName, resultVar)
             CASE(ZAXIS_HYBRID)
-                CALL fail("z-axis type ZAXIS_HYBRID is not implemented")
+                CALL fail("z-axis type ZAXIS_HYBRID is not implemented", variableName, resultVar)
             CASE(ZAXIS_HYBRID_HALF)
-                CALL fail("z-axis type ZAXIS_HYBRID_HALF is not implemented")
+                CALL fail("z-axis type ZAXIS_HYBRID_HALF is not implemented", variableName, resultVar)
             CASE(ZAXIS_ISENTROPIC)
-                CALL fail("z-axis type ZAXIS_ISENTROPIC is not implemented")
+                CALL fail("z-axis type ZAXIS_ISENTROPIC is not implemented", variableName, resultVar)
             CASE(ZAXIS_TRAJECTORY)
-                CALL fail("z-axis type ZAXIS_TRAJECTORY is not implemented")
+                CALL fail("z-axis type ZAXIS_TRAJECTORY is not implemented", variableName, resultVar)
             CASE(ZAXIS_SIGMA)
-                CALL fail("z-axis type ZAXIS_SIGMA is not implemented")
+                CALL fail("z-axis type ZAXIS_SIGMA is not implemented", variableName, resultVar)
 
             !fallback to catch future expansions of the list of available z-axis types
             CASE DEFAULT
-                CALL fail("unknown z-axis TYPE ("//int2string(metadata%levelType)//")")
+                CALL fail("unknown z-axis TYPE ("//int2string(metadata%levelType)//")", variableName, resultVar)
         END SELECT
 
         !Check the grid.
@@ -456,14 +465,14 @@ CONTAINS
             !     A test for the correct grid SIZE IS IMPLICIT IN the t_InputContainer when it selects the scatter pattern to USE.
             gridType = gridInqType(gridId)
             IF(gridType /= GRID_UNSTRUCTURED) THEN
-                CALL fail("support for this gridtype is not implemented (CDI grid type = "//TRIM(int2string(gridType))//")")
+                CALL fail("support for this gridtype is not implemented (CDI grid type = "//TRIM(int2string(gridType))//")", variableName, resultVar)
             ELSE
                 CALL gridInqUuid(gridId, metadata%gridUuid%DATA)
                 metadata%gridNumber = gridInqNumber(gridID)
                 metadata%gridPosition = gridInqPosition(gridID)
             END IF
         ELSE
-            CALL fail("couldn't inquire grid ID")
+            CALL fail("couldn't inquire grid ID", variableName, resultVar)
         END IF
 
         error = cdiIterator_inqTile(iterator, tileIndex, tileAttribute);
@@ -537,15 +546,6 @@ CONTAINS
             CALL metadata%destruct()
             DEALLOCATE(metadata)
         END IF
-
-    CONTAINS
-
-        SUBROUTINE fail(message)
-            CHARACTER(LEN = *), INTENT(IN) :: message
-
-            IF(msg_level >= 1) print*, 'invalid record for variable "', variableName, '" encountered: '//message
-            resultVar = .FALSE.
-        END SUBROUTINE fail
 
     END FUNCTION InputRequestList_isRecordValid
 

@@ -20,7 +20,7 @@ else
   set dummy; shift
 fi
 
-${ICON_DIR}/config/dkrz/levante.nag --disable-openmp "$@"
+${ICON_DIR}/config/dkrz/levante.nag --disable-openmp --enable-waves "$@"
 
 if [ ! -z "${BB_NAME-}" ] ; then
   MAKE_PROCS=22

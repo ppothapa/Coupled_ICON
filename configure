@@ -734,6 +734,7 @@ enable_jsbach
 enable_waves
 enable_coupling
 enable_aes
+enable_nwp
 enable_ecrad
 enable_rte_rrtmgp
 enable_rttov
@@ -745,6 +746,7 @@ enable_mpi_checks
 enable_active_target_sync
 enable_mpi_rget
 enable_mpi_gpu
+enable_async_io_rma
 enable_openmp
 enable_gpu
 enable_grib2
@@ -763,6 +765,7 @@ enable_mixed_precision
 enable_intel_consistency
 enable_pgi_inlib
 enable_nccl
+enable_cuda_graphs
 with_external_ecrad
 with_external_rte_rrtmgp
 with_external_sct
@@ -1489,10 +1492,11 @@ Model Features:
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
-  --enable-waves          enable the surface wave component of ICON
+  --enable-waves          enable the ocean surface wave component of ICON
                           [default=no]
   --enable-coupling       enable the coupling [default=yes]
   --enable-aes            enable the AES physics package [default=yes]
+  --enable-nwp            enable the NWP physics package [default=yes]
   --enable-ecrad          enable usage of the ECMWF radiation scheme (ECRAD)
                           [default=no]
   --enable-rte-rrtmgp     enable usage of the RTE+RRTMGP toolbox for radiation
@@ -1516,6 +1520,7 @@ Infrastructural Features:
   --enable-mpi-rget       enable usage of the MPI_Rget routine [default=auto]
   --enable-mpi-gpu        enable usage of the GPU-aware MPI features
                           [default=no]
+  --enable-async-io-rma   enable MPI RMA for asynchronous I/O [default=yes]
   --enable-openmp         enable OpenMP support [default=no]
   --enable-gpu            enable GPU support. The value of the argument must
                           be one of the following [default=no]:
@@ -1563,6 +1568,9 @@ Optimization Features:
   --enable-pgi-inlib      enable PGI/NVIDIA cross-file function inlining via
                           an inline library [default=no]
   --enable-nccl           enable NCCL for communication [default=no]
+  --enable-cuda-graphs    enable CUDA graphs. Warning! This is an experimental
+                          feature and it requires Nvidia HPC SDK >= 23.3
+                          [default=no]
   --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
                           can be any non-empty string consisting of capital
@@ -2890,6 +2898,16 @@ else
 fi
 
 
+# Check whether --enable-nwp was given.
+if test "${enable_nwp+set}" = set; then :
+  enableval=$enable_nwp; if test x"$enableval" != xno; then :
+  enable_nwp=yes
+fi
+else
+  enable_nwp=yes
+fi
+
+
 # Check whether --enable-ecrad was given.
 if test "${enable_ecrad+set}" = set; then :
   enableval=$enable_ecrad; if test x"$enableval" != xno; then :
@@ -2999,6 +3017,16 @@ if test "${enable_mpi_gpu+set}" = set; then :
 fi
 else
   enable_mpi_gpu=no
+fi
+
+
+# Check whether --enable-async-io-rma was given.
+if test "${enable_async_io_rma+set}" = set; then :
+  enableval=$enable_async_io_rma; if test x"$enableval" != xno; then :
+  enable_async_io_rma=yes
+fi
+else
+  enable_async_io_rma=yes
 fi
 
 
@@ -3240,6 +3268,16 @@ if test "${enable_nccl+set}" = set; then :
 fi
 else
   enable_nccl=no
+fi
+
+
+# Check whether --enable-cuda_graphs was given.
+if test "${enable_cuda_graphs+set}" = set; then :
+  enableval=$enable_cuda_graphs; if test x"$enableval" != xno; then :
+  enable_cuda_graphs=yes
+fi
+else
+  enable_cuda_graphs=no
 fi
 
 
@@ -5100,6 +5138,10 @@ if test "x$enable_aes" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_AES__"
 fi
 
+if test "x$enable_nwp" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_NWP__"
+fi
+
 if test "x$enable_ecrad" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__ECRAD"
 fi
@@ -5142,6 +5184,10 @@ fi
 
 if test "x$enable_parallel_netcdf" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_PARALLEL_NETCDF"
+fi
+
+if test "x$enable_async_io_rma" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NO_ASYNC_IO_RMA"
 fi
 
 if test "x$enable_cdi_pio" = xyes; then :
@@ -5196,6 +5242,10 @@ fi
 
 if test "x$enable_nccl" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}USE_NCCL"
+fi
+
+if test "x$enable_cuda_graphs" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"
 fi
 
 ######################### C COMPILER COMMAND AND FLAGS #########################

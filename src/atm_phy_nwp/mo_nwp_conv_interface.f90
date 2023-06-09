@@ -525,6 +525,7 @@ CONTAINS
 &          mlpi   =      prm_diag%mlpi_con(:,jb)                            ,& !! OUT
 &          koi    =      prm_diag%koi(:,jb)                                 ,& !! OUT
 &          lfd    =      prm_diag%lfd_con(:,jb)                             ,& !! OUT
+&          peis   =      prm_diag%conv_eis(:,jb)                            ,& !! OUT
 &          lspinup      = lspinup                                           ,& !! IN
 &          k650=         prm_diag%k650(:,jb)                                ,& !! IN
 &          k700=         prm_diag%k700(:,jb)                                ,& !! IN

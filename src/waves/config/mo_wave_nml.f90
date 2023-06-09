@@ -19,6 +19,7 @@ MODULE mo_wave_nml
 
   USE mo_kind,                ONLY: wp
   USE mo_impl_constants,      ONLY: max_dom
+  USE mo_exception,           ONLY: finish
   USE mo_namelist,            ONLY: position_nml, positioned, open_nml, close_nml
   USE mo_io_units,            ONLY: nnml, nnml_output, filename_max
   USE mo_master_control,      ONLY: use_restart_namelists
@@ -61,12 +62,18 @@ CONTAINS
     REAL(wp) :: THETAQ     ! WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1)
     REAL(wp) :: FETCH      ! FETCH IN METRES (IF ZERO THEN 0.5 OF THE LATITUDE INCREMENT IS USED.).
 
-    REAL(wp) :: ROAIR   ! AIR DENSITY
+    REAL(wp) :: roair   ! AIR DENSITY
     REAL(wp) :: RNUAIR  ! KINEMATIC AIR VISCOSITY
     REAL(wp) :: RNUAIRM ! KINEMATIC AIR VISCOSITY FOR MOMENTUM TRANSFER
     REAL(wp) :: ROWATER ! WATER DENSITY
     REAL(wp) :: XEPS
     REAL(wp) :: XINVEPS
+
+    REAL(wp) :: ALPHA_CH ! minimum charnock constant (ecmwf cy45r1).
+                         ! 0.0060, if le 30 frequencies changed !@waves todo
+                         ! to 0.0075 in subroutine initmdl !@waves todo
+
+    REAL(wp) :: depth ! ocean depth (m) if not 0, then constant depth
 
     REAL(wp) :: XKAPPA  ! VON KARMAN CONSTANT.
     REAL(wp) :: XNLEV   ! WINDSPEED REF. LEVEL.
@@ -75,6 +82,8 @@ CONTAINS
     !  REAL(wp)  :: ALPHA      ! MINIMUM CHARNOCK CONSTANT (ECMWF CY45R1).
     ! if LE 30 frequencies changed
     ! to 0.0075 in subroutine INITMDL
+
+    INTEGER :: jtot_tauhf          ! dimension of wave_config%wtauhf. it must be odd !!!
 
     INTEGER :: dt_wave             ! PROPAGATION TIMESTEP !@waves: add units, s?
     INTEGER :: dt_fastphy          ! time step for fast physics processes !@waves: replace dt_wave by dt_fstphy?
@@ -105,8 +114,8 @@ CONTAINS
          coldstart, iforc_waves, forc_file_prefix,          &
          ndirs, nfreqs, fr1, CO, IREF,                      &
          ALPHA, FM, GAMMA_wave, SIGMA_A, SIGMA_B, THETAQ, FETCH,    &
-         dt_wave,  dt_fastphy, ROAIR, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
-         XKAPPA, XNLEV, BETAMAX, ZALP, &
+         dt_wave,  dt_fastphy, roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
+         XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, &
          linput_sf1, linput_sf2, ldissip_sf, lnon_linear_sf, lbottom_fric_sf, &
          lwave_stress1, lwave_stress2, lgrid_refr
 
@@ -129,16 +138,20 @@ CONTAINS
 
     FETCH      = 300000._wp     !! FETCH IN METRES.
 
-    ROAIR      = 1.225_wp       !! AIR DENSITY
+    roair      = 1.225_wp       !! AIR DENSITY
     RNUAIR     = 1.5E-5_wp      !! KINEMATIC AIR VISCOSITY
     RNUAIRM    = 0.11_wp*RNUAIR !! KINEMATIC AIR VISCOSITY FOR MOMENTUM TRANSFER
 
     ROWATER    = 1000._wp       !! WATER DENSITY
-    XEPS       = ROAIR/ROWATER
-    XINVEPS    = 1./XEPS
+    XEPS       = roair/ROWATER
+    XINVEPS    = 1._wp/XEPS
 
     BETAMAX    = 1.20_wp        !! PARAMETER FOR WIND INPUT (ECMWF CY45R1).
     ZALP       = 0.0080_wp      !! SHIFTS GROWTH CURVE (ECMWF CY45R1).
+    jtot_tauhf = 19             !! dimension of wtauhf. it must be odd
+    ALPHA_CH   = 0.0075_wp      !! minimum charnock constant (ecmwf cy45r1).
+
+    depth      = 0._wp          !! ocean depth (m) if not 0, then constant depth
 
     XKAPPA     = 0.40_wp        !! VON KARMAN CONSTANT.
     XNLEV      = 10.0_wp        !! WINDSPEED REF. LEVEL.
@@ -191,6 +204,16 @@ CONTAINS
     END SELECT
     CALL close_nml
 
+
+    !----------------------------------------------------
+    ! 4. Sanity checks
+    !----------------------------------------------------
+
+    IF (MOD(jtot_tauhf,2).eq.0) THEN
+      CALL finish(TRIM(routine),'Error: jtot_tauhf must be odd')
+    END IF
+
+
     !----------------------------------------------------
     ! 5. Fill the configuration state
     !----------------------------------------------------
@@ -208,7 +231,7 @@ CONTAINS
       wave_config(jg)%SIGMA_B          = SIGMA_B
       wave_config(jg)%THETAQ           = THETAQ
       wave_config(jg)%FETCH            = FETCH
-      wave_config(jg)%ROAIR            = ROAIR
+      wave_config(jg)%roair            = roair
       wave_config(jg)%RNUAIR           = RNUAIR
       wave_config(jg)%RNUAIRM          = RNUAIRM
       wave_config(jg)%ROWATER          = ROWATER
@@ -218,6 +241,9 @@ CONTAINS
       wave_config(jg)%XNLEV            = XNLEV
       wave_config(jg)%BETAMAX          = BETAMAX
       wave_config(jg)%ZALP             = ZALP
+      wave_config(jg)%jtot_tauhf       = jtot_tauhf
+      wave_config(jg)%ALPHA_CH         = ALPHA_CH
+      wave_config(jg)%depth            = depth
       wave_config(jg)%coldstart        = coldstart
       wave_config(jg)%iforc_waves      = iforc_waves
       wave_config(jg)%forc_file_prefix = forc_file_prefix

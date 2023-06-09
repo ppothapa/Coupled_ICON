@@ -399,7 +399,7 @@ MODULE mo_parallel_nml
     ! nblocks_sub defaults to 1; but explicitly set, it overrides nproma_sub
     config_nproma_sub          = nproma_sub
     config_nblocks_sub         = MERGE(nblocks_sub, 1, nblocks_sub > 0)
-    config_use_nblocks_sub     = (nproma_sub <= 0)
+    config_use_nblocks_sub     = (nblocks_sub > 0) .OR. (nproma_sub <= 0)
 
     config_use_icon_comm       = use_icon_comm
     config_icon_comm_debug     = icon_comm_debug

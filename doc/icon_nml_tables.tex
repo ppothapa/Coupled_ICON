@@ -832,6 +832,33 @@ lhn\_qrs = .TRUE.
 \tabularnewline
 
 %\hline
+ {lhn\_refbias}&
+L&
+.FALSE.&
+&
+Apply a bias correction between so called reference precipitation (lhn\_qrs = .TRUE.) and modelled precipitation at ground. This option is recommended when both quantities shows a systematic bias which cannot be adjusted by changing rqrsgmax.&
+lhn\_qrs = .TRUE.
+\tabularnewline
+
+%\hline
+ {ref\_bias0}&
+R&
+1.0&
+&
+In case of lhn\_refbias = .TRUE. the bias correction starts with this factor. So far, there is no cycling of the factor foreseen, but could be implemented, when it seems to be beneficial.&
+lhn\_refbias = .TRUE.
+\tabularnewline
+
+%\hline
+ {dtrefbias}&
+R&
+1800.0&
+s&
+Relaxation time, which defines how fast the bias correction is done.&
+lhn\_refbias = .TRUE.
+\tabularnewline
+
+%\hline
  {lhn\_hum\_adj}&
 L&
 .TRUE.&
@@ -1081,6 +1108,46 @@ L&
 &
 Use quality index to infer the horizontal spatial weight of the LHN increments. The quality index is read in as RAD\_QUAL variable (besides the RAD\_PRECIP variable) from the LHN input file.&
 \tabularnewline
+
+%\hline
+ {dace\_coupling}&
+L&
+.FALSE.&
+&
+Invoke DACE for model equivalents of observations &
+\tabularnewline
+
+%\hline
+ {dace\_time\_ctrl}&
+I(3)&
+0&
+&
+Steering parameters for DACE time control: start,end,step &
+\tabularnewline
+
+%\hline
+ {dace\_debug}&
+I&
+0&
+&
+Debugging level for DACE interface &
+\tabularnewline
+
+%\hline
+ {dace\_output\_file}&
+C&
+""&
+&
+Filename for redirection of DACE stdout &
+\tabularnewline
+
+%\hline
+ {dace\_namelist\_file}&
+C&
+'namelist'&
+&
+Filename of the file containing the dace namelist &
+\tabularnewline
 \end{longtab}
 
 Defined and used in: \verb+src/namelists/mo_assimilation_nml.f90+
@@ -1214,9 +1281,16 @@ background diffusion as specified via hdiff\_efdt\_ratio  &
 
 %\hline
 \textbf{lsmag\_3d}&
-L& .FALSE. & &
+L(max\_dom)& .FALSE. & &
 .TRUE.: Use 3D Smagorinsky formulation for computing the horizontal diffusion coefficient (recommended at mesh sizes
 finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; itype\_vn\_diffu=1
+\tabularnewline
+
+%\hline
+\textbf{lhdiff\_smag\_w}&
+L(max\_dom)& .FALSE. & &
+.TRUE.: Use additional Smagorinsky diffusion for w (recommended at mesh sizes
+finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; lhdiff\_w=.true.
 \tabularnewline
 
 %\hline
@@ -3894,14 +3968,14 @@ itype\_evsl &
 I & 2 &  & type of bare soil evaporation parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = ISBA scheme, Noilhan and Planton (1989) \\
-4 = Resistance-based scheme by Schulz and Vogel (2020) \\
+4 = Resistance-based formulation by Schulz and Vogel (2020) \\
 5 = same as 4, but uses the minimum evaporation resistance (default set by cr\_bsmin) instead of c\_soil for tuning; 
 the namelist parameter c\_soil is ignored in this case, and a value of 2 is used internally &
 \tabularnewline
 
 %\hline
 itype\_trvg &
-I & 2 &  & type of plant transpiration parameterization \\
+I & 2 &  & type of vegetation transpiration parameterization \\
 2 = BATS scheme, Dickinson (1984) \\
 3 = Extended BATS scheme with additional prognostic variable for integrated plant transpiration since sunrise; 
 should be used only with an appropriate first guess for this variable coming from the DWD assimilation cycle &
@@ -3928,7 +4002,8 @@ R & 3600. & s & Relaxation time scale for the computation of the skin temperatur
 \tabularnewline
 
 lterra\_urb &
-L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017) &
+L & .FALSE. &  & If .TRUE., activate urban model TERRA\_URB by Wouters et al.\ (2016, 2017) \\
+(see Schulz et al.\ 2023) &
 \tabularnewline
 
 lurbalb &
@@ -3948,7 +4023,7 @@ I & 2 &  & Type of bluff-body thermal roughness length parameterisation \\
 
 itype\_eisa &
 I & 3 &  & Type of evaporation from impervious surface area \\
-1 = Evaporation like bare soil (cf. Schulz and Vogel 2020) \\
+1 = Evaporation like bare soil (see Schulz and Vogel 2020) \\
 2 = No evaporation \\
 3 = PDF-based puddle evaporation (Wouters et al.\ 2015) & lterra\_urb = .TRUE.
 \tabularnewline
@@ -3957,7 +4032,7 @@ I & 3 &  & Type of evaporation from impervious surface area \\
 itype\_heatcond &
 I & 2 &  & type of soil thermal conductivity \\
 1 = constant soil thermal conductivity \\
-2 = moisture dependent soil thermal conductivity, cf.\ Schulz et al.\ (2016) \\
+2 = moisture dependent soil thermal conductivity (see Schulz et al.\ 2016) \\
 3 = variant of option 2 with reduced near-surface thermal conductivity in the presence of plant cover &
 \tabularnewline
 
@@ -3988,7 +4063,7 @@ allowed range: 0 -- 2 & itype\_evsl = 2,3,4
 
 %\hline
 cr\_bsmin &
-R & 110. & s/m & minimum bare-soil evaporation resistance \\
+R & 110. & s/m & minimum bare soil evaporation resistance (see Schulz and Vogel 2020) \\
 Note: c\_soil and c\_soil\_urb are ignored in this case & itype\_evsl = 5 or icpl\_da\_sfcevap = 4
 \tabularnewline
 
@@ -4546,6 +4621,14 @@ number of dynamics substeps per fast-physics / transport step &
 \tabularnewline
 
 %\hline
+vcfl\_threshold&
+R& 1.05& &
+Threshold for vertical advection CFL number at which the adaptive time step reduction 
+(increase of ndyn\_substeps w.r.t. the fixed fast-physics time step) is triggered.
+ &
+\tabularnewline
+
+%\hline
 lhdiff\_rcf&
 L& .TRUE. & &
 .TRUE.: Compute diffusion only at advection time steps (in this case,
@@ -4668,8 +4751,6 @@ Advection method for rho and rhotheta:\\
 1: simple second-order upwind-biased scheme \\
 2: 2nd order Miura horizontal &
 \tabularnewline
-& & & & 3: 3rd order Miura horizontal (not recommended)&
-\tabularnewline
 
 %\hline
 igradp\_method&
@@ -4712,14 +4793,6 @@ Temporal extrapolation (fraction of dt) of Exner function for computation of hor
 This damps horizontally propagating sound waves. For R2B5 or coarser grids, values between 1/2 and 2/3 are recommended.
 Model will be numerically unstable for negative values.&
 \tabularnewline
-
-%\hline
-l\_open\_ubc&
-L& .FALSE.& &
-.TRUE.: Use open upper boundary condition (rather than w=0) to allow vertical motions related to diabatic heating to
-extend beyond the model top&
-\tabularnewline
-
 
 %\hline
 \end{longtab}
@@ -5825,6 +5898,23 @@ run\_nml:iforcing = inwp\\
 albedo\_type=2
 \tabularnewline
 
+
+\hline
+itune\_o3&
+I&
+2&
+&
+Ozone tuning\\
+0: no tuning \\
+1: old tuning for RRTM radiation \\
+2: standard tuning for EcRad with RRTM gas optics \\
+3: improved (for middle/upper stratosphere) tuning for EcRad with RRTM gas optics \\
+4: provisional tuning for EcRad with EcCKD gas optics &
+run\_nml:iforcing = inwp\\
+irad\_o3=7, 79 or 97
+\tabularnewline
+
+
 \hline
 tune\_difrad\_3dcont&
 R&
@@ -5903,46 +5993,70 @@ iforcing=3, inwp\_gscp=4,5,6,7
 alpha\_spacefilling &
 R& 0.01 & &
 Parameter in conversion of snow or cloud ice to graupel by riming: degree of void filling by frozen supercooled droples within the ice particle skeleton, above which the particle is converted to the graupel class. Smaller values lead to faster conversion. 0.01 means very fast conversion to graupel. A value of 0.68 is the theoretical limit for densest sphere packing and leads to rather slow conversion.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_conv\_ii &
 R & 75.0e-6 & m &
 diameter threshold for the onset of conversion to snow by ice selfcollection  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_rainfrz\_ig &
 R& 0.50e-3 & m &
 Spectral size threshold below which freezing rain drops are converted to cloud ice. Larger drops are converted to graupel or hail, depending on parameter D\_rainfrz\_gh.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 D\_rainfrz\_gh &
 R & 1.25e-3 & m &
 Spectral size threshold above which freezing rain drops are converted to hail. Smaller drops are converted to cloud ice or graupel, depending on parameter D\_rainfrz\_ig.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+luse\_mu\_Dm\_rain &
+L& .FALSE. & &
+To switch on the usage of the dynamical $\mu$-$D_M$-relation for raindrops below cloud base. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu0 &
 R&  6.0 & &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 asymptotic $\mu$-value for spectra with small mean diameter.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu1 &
 R& 30.0 & &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 asymptotic $\mu$-value for spectra with large mean diameter.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu3 &
 R& 1.1e-3 & m &
 Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
 equilibrium mean spectral diameter for breakup and selfcollection.  &
-iforcing=3, inwp\_gscp=4,5,6,7
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+melt\_h\_tune\_fac &
+R& 1.0 & &
+Tuning factor for the hail melting rate. Values larger than 1.0 enhance the hail melting, smaller values slow down the melting. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+Tmax\_gr\_rime &
+R& 270.16 & K &
+Graupel formation by riming of snow and cloud ice is only active below this temperature threshold. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+lturb\_enhc &
+L& .TRUE. &  &
+To switch on the turbulent enhancement of collision processes involving water droplets (autoconversion, accretion, rain selfcollection). &
+iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 
@@ -6833,14 +6947,17 @@ izenith=6
 \tabularnewline
 
 %\hline
-islope\_rad&
+islope\_rad(max\_dom)&
 I&
 0 &
 &
 Slope correction for surface radiation:\\
 0: None \\
 1: Slope correction for direct solar radiation without shading effects \\
-2: Slope and horizon correction for direct solar radiation (with shading effects)
+2: Slope and horizon / sky-view factor correction for direct solar radiation including shading 
+(Remark: sky-view correction not yet activated) \\
+3: Slope correction for direct solar radiation including shading, but no further consideration
+of sky-view factor effects.
 &
 \tabularnewline
 
@@ -7046,7 +7163,9 @@ I&
 &
 Radiation solver\\
 0: McICA (Pincus et al. 2003)\\
-1: Tripleclouds (Shonk and Hogan 2008)
+1: Tripleclouds (Shonk and Hogan 2008)\\
+2: McICA for OpenACC \\
+3: SPARTACUS (Hogan et al. 2016)
 & inwp\_radiation=4 (ecRad)
 \tabularnewline
 
@@ -8813,6 +8932,18 @@ molecular diffusion (member of \texttt{group:upatmo\_tendencies}) \\
 % This LaTeX file defines ocean (and sea-ice) specific namelist parameters.
 % The file is included by ICON_NML_TABLES.TEX. For atmosphere-only releases
 % the ocean namelists can also easily be excluded.
+%
+% =============================================================================
+
+\newpage
+
+% =============================================================================
+%
+\input{\basepath icon_waves_nml_tables.tex}
+%
+% This LaTeX file defines ocean waves specific namelist parameters.
+% The file is included by ICON_NML_TABLES.TEX. For atmosphere-only releases
+% the ocean waves namelists can also easily be excluded.
 %
 % =============================================================================
 

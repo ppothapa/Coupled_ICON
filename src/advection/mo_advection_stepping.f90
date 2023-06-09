@@ -1106,6 +1106,7 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT
     !$ACC END DATA
 
     IF (timers_level > 2) CALL timer_stop(timer_adv_horz)

@@ -420,7 +420,8 @@ CONTAINS
                                      startidx1, endidx2,                                    &
                                      lmessage_light, lmessage_full, my_id_for_message,      &
                                      rho_w, rho_ice,                                        &
-                                     K_w, K_ice, T_melt, q_crit_radar, T, rho,              &
+                                     K_w, K_ice, T_melt, q_crit_radar,                      &
+                                     luse_mu_Dm_rain, T, rho,                               &
                                      q_cloud, q_rain, q_ice, q_snow, q_graupel, q_hail,     &
                                      n_cloud, n_rain, n_ice, n_snow, n_graupel, n_hail,     &
                                      ql_graupel, ql_hail, z_radar, lacc )
@@ -448,6 +449,7 @@ CONTAINS
     !               K_ice        : dielectric constant of ice
     !               T_melt       : melting temperature of ice
     !               q_crit_radar : threshold for the q's to compute reflectivity  [kg/m**3]
+    !               luse_mu_Dm_rain : switch to enable usage of mu-D-relation for rain outside cloud cores (Seifert, 2008)
     !               T            : temperature field          [K]
     !               rho          : air density                [kg/m**3]
     !               q_cloud      : cloud water mixing ratio   [kg/kg] 
@@ -477,6 +479,7 @@ CONTAINS
     INTEGER,  INTENT(IN) :: startblk, endblk, jk_start, startidx1, endidx2, my_id_for_message
     LOGICAL,  INTENT(in) :: lmessage_light, lmessage_full
     REAL(wp), INTENT(in) :: K_w, K_ice, T_melt, rho_w, rho_ice, q_crit_radar
+    LOGICAL,  INTENT(in) :: luse_mu_Dm_rain
 
     REAL(wp), INTENT(IN) :: T(:,:,:),          &
                             rho(:,:,:),        &
@@ -638,7 +641,7 @@ CONTAINS
 
           ! .. Rain water reflectivity:
           IF (q_r >= q_crit_radar) THEN
-            IF (q_c > q_crit_radar) THEN
+            IF (q_c > q_crit_radar .OR. .NOT.luse_mu_Dm_rain) THEN
               ! Inside of cloud cores assume generalized gamma DSD:
               z_radar(jc,jk,jb) = z_radar(jc,jk,jb) + z_fac_r * q_r * x_r
             ELSE

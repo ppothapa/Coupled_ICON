@@ -171,8 +171,7 @@ MODULE mo_ocean_interpolation_coeffs
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e, get_indices_v
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, sync_idx, global_max
   USE mo_intp_data_strc,      ONLY: t_int_state
-  USE mo_interpol_config,     ONLY: i_cori_method, nudge_zone_width, nudge_max_coeff, &
-    & nudge_efold_width
+  USE mo_interpol_config,     ONLY: nudge_zone_width, nudge_max_coeff, nudge_efold_width
   USE mo_ocean_nml,           ONLY: n_zlev, dzlev_m, no_tracer, &
     & coriolis_type, basin_center_lat, basin_height_deg
   

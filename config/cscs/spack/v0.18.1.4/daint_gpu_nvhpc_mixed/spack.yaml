@@ -1,0 +1,19 @@
+# This is a Spack Environment file.
+#
+# It describes a set of packages to be installed, along with
+# configuration settings.
+spack:
+  # add package specs to the `specs` list
+  specs:
+  - icon@develop%nvhpc +ecrad +rte-rrtmgp gpu=60 +mixed-precision
+  - eccodes@2.19.0%nvhpc
+  - nvidia-blas%nvhpc
+  - nvidia-lapack%nvhpc
+  - libxml2@2.9.13%gcc
+  view: false
+  concretizer:
+    unify: true
+  develop:
+    icon:
+      spec: icon@develop%nvhpc +ecrad +rte-rrtmgp gpu=60 +mixed-precision
+      path: ../../../../../
