@@ -40,7 +40,7 @@ MODULE mo_var_list
 
   PUBLIC :: add_var, add_ref, find_list_element
   PUBLIC :: t_var_list_ptr
-  PUBLIC :: get_tracer_info_dyn_by_idx
+  PUBLIC :: get_tracer_info_dyn_by_idx, find_tracer_by_index
 
   TYPE :: t_var_list
     CHARACTER(len=256) :: filename = ''
