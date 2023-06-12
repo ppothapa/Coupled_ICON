@@ -55,6 +55,13 @@ case $(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') in
       exit 1
     fi
     ;;
+  lumi*)
+    # CSC super computer; currently run locally
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
   *)
     echo "unknown builder ${BB_NAME}!"
     exit 1;

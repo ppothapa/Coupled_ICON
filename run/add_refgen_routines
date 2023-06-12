@@ -15,16 +15,16 @@ origin=${origin%%.*} # cut off .git
 
 # for check-scripts, the experiment name might be altered
 # this special name is only used to find output, data is 
-# always stored according to the real experiment name `exp`
-base_exp=${base_exp:-${exp}}
+# always stored according to the real experiment name `probtest_exp`
+base_exp=${base_exp:-${probtest_exp}}
 
 builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
 [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
 model_output_dir=$basedir/experiments/${base_exp}
 reference_dir=$icon_data_rootFolder/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/$builder
-stats_file_name=stats_${exp}_{member_id}.csv
-default_reference_stats_file_name=stats_${exp}_ref.csv
-reference_file_name=$reference_dir/reference/${exp}.csv
+stats_file_name=stats_${probtest_exp}_{member_id}.csv
+default_reference_stats_file_name=stats_${probtest_exp}_ref.csv
+reference_file_name=$reference_dir/reference/${probtest_exp}.csv
 
 # make sure the resulting data and directories are global readable
 umask 0022
@@ -33,16 +33,16 @@ store_model_output()
 {
     # update test needs have the regular ICON output structure
     # experiments carry over the "_base" extension if available
-    fake_output_dir=$reference_dir/${exp}/experiments/${base_exp}
+    fake_output_dir=$reference_dir/${probtest_exp}/experiments/${base_exp}
     mkdir -p $fake_output_dir
 
     status=0
     # copy data for update test (replace "," with " " in file_ids)
-    if [ -z "${file_ids}" ]; then
+    if [ -z "${update_file_ids}" ]; then
         # without given files tags copy everything
         rsync --safe-links ${model_output_dir}/*nc ${fake_output_dir}/ || status=1
     else
-        for fid in ${file_ids//,/ }; do
+        for fid in ${update_file_ids//,/ }; do
             cp ${model_output_dir}/*$fid*.nc $fake_output_dir || status=1
         done
     fi
@@ -58,13 +58,11 @@ store_model_output()
 
 generate_probtest_tolerance()
 {
-    status=0
-
     # create the reference directory if it doesn't exist
-    mkdir -p ${reference_dir}/reference
+    mkdir -p "${reference_dir}/reference"
 
     # set up probtest config file
-    export PROBTEST_CONFIG=${exp}-config.json
+    export PROBTEST_CONFIG=${probtest_exp}-config.json
     # set global arguments for reference generation (must be in sync with list_part_tolerance)
     if [[ $builder == *"mixed"* ]];
     then
@@ -72,17 +70,23 @@ generate_probtest_tolerance()
     else
       member_ids=double_1,double_2,double_3,double_4,double_5,double_6,double_7,double_8,double_9,double_10
     fi
-    $PROBTEST init --codebase-install $basedir --file-ids $file_ids --experiment-name ${base_exp} --config ${PROBTEST_CONFIG} --reference ${reference_dir} --member_ids ${member_ids} --time_dim time
+    $PROBTEST init \
+        --codebase-install "$basedir" \
+        --file-ids "$probtest_file_ids" \
+        --experiment-name "${base_exp}" \
+        --config "${PROBTEST_CONFIG}" \
+        --reference "${reference_dir}" \
+        --member_ids "${member_ids}"
 
     # create stats file for each seed (layer-wise max/min/mean)
-    $PROBTEST stats --ensemble --stats-file-name $stats_file_name || status=1
+    $PROBTEST stats --ensemble --stats-file-name "$stats_file_name" || return 1
 
     # store the reference stats file
     echo "storing reference ${default_reference_stats_file_name} to ${reference_file_name}"
-    cp $default_reference_stats_file_name $reference_file_name
-    
-    # compute tolerance range from above stats files (maximum spread across all pairs of stats files and maximum across all layers)
-    $PROBTEST tolerance --stats-file-name $stats_file_name || status=1
+    cp "$default_reference_stats_file_name" "$reference_file_name" || return 1
 
-    return $status
+    # compute tolerance range from above stats files (maximum spread across all pairs of stats files and maximum across all layers)
+    $PROBTEST tolerance --stats-file-name "$stats_file_name" || return 1
+
+    return 0
 }

@@ -35,8 +35,10 @@ MODULE mo_wave_ext_data_init
   USE mo_master_config,       ONLY: getModelBaseDir
   USE mo_intp,                ONLY: cells2edges_scalar
   USE mo_intp_data_strc,      ONLY: t_int_state
-  USE mo_fortran_tools,       ONLY: copy
+  USE mo_fortran_tools,       ONLY: copy, init
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
+  USE mo_wave_config,         ONLY: wave_config
+
 
   IMPLICIT NONE
 
@@ -68,10 +70,21 @@ CONTAINS
     ! local
     INTEGER :: jg
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_wave_ext_data'
+    CHARACTER(len=20) :: depth_str
 
     CALL construct_wave_ext_data_state(p_patch, wave_ext_data, wave_ext_data_list)
 
+    ! read depth from file
     CALL read_ext_data_wave(p_patch, wave_ext_data)
+
+    DO jg = 1, n_dom
+      IF (wave_config(jg)%depth > 0.0_wp) THEN
+        ! set depth to constant
+        write(depth_str,'(f9.2)') wave_config(jg)%depth
+        CALL message('###  Run with constant depth of',TRIM(depth_str)//', m')
+        wave_ext_data(jg)%bathymetry_c(:,:) = wave_config(jg)%depth
+      END IF
+    END DO
 
     ! cell2edge interpolation of bathymetry
     DO jg = 1, n_dom
@@ -117,12 +130,14 @@ CONTAINS
 
 !$OMP PARALLEL
     CALL copy(src=bathymetry_c, dest=bath_c_3d(:,1,:))
+    CALL init(bath_e_3d(:,:,:))
 !$OMP END PARALLEL
 
     CALL cells2edges_scalar(bath_c_3d, p_patch, p_int_state%c_lin_e, bath_e_3d)
 
 !$OMP PARALLEL
     CALL copy(src=bath_e_3d(:,1,:), dest=bathymetry_e)
+!$OMP BARRIER
 
 !$OMP DO PRIVATE(jb,je,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
     DO jb=i_startblk, i_endblk
@@ -131,9 +146,7 @@ CONTAINS
                          i_startidx, i_endidx, rl_start, rl_end)
 
       DO je = i_startidx, i_endidx
-        IF (bathymetry_e(je,jb) < 0.2_wp) THEN
-          bathymetry_e(je,jb) = 0.2_wp
-        ENDIF
+          bathymetry_e(je,jb) = MAX(bathymetry_e(je,jb),0.2_wp)
       ENDDO
     ENDDO
 !$OMP END DO NOWAIT
@@ -175,7 +188,7 @@ CONTAINS
       i_startblk = p_patch(jg)%cells%start_block(rl_start)
       i_endblk   = p_patch(jg)%cells%end_block(rl_end)
 
-      ! set minimal depth in m
+      ! set minimal depth of 0.2 m
       !
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
@@ -185,11 +198,10 @@ CONTAINS
                            i_startidx, i_endidx, rl_start, rl_end)
 
         DO jc = i_startidx, i_endidx
-          IF (wave_ext_data(jg)%bathymetry_c(jc,jb) < 0.2_wp) THEN
-            wave_ext_data(jg)%bathymetry_c(jc,jb) = 0.2_wp
-          ENDIF
-        ENDDO
-      ENDDO
+           wave_ext_data(jg)%bathymetry_c(jc,jb) = MAX(wave_ext_data(jg)%bathymetry_c(jc,jb),0.2_wp)
+        END DO
+
+      END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 

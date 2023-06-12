@@ -261,7 +261,8 @@ CONTAINS
         !$ACC   COPYIN(p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk) &
         !$ACC   COPYIN(p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk) &
         !$ACC   COPYIN(p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx) &
-        !$ACC   COPYIN(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl)
+        !$ACC   COPYIN(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl) &
+        !$ACC   COPYIN(p_patch(j)%edges%center, p_patch(j)%edges%primal_normal)
 
       ELSE
 
@@ -289,7 +290,8 @@ CONTAINS
         !$ACC   DELETE(p_patch(j)%edges%butterfly_idx, p_patch(j)%edges%butterfly_blk) &
         !$ACC   DELETE(p_patch(j)%verts%cell_idx, p_patch(j)%verts%cell_blk) &
         !$ACC   DELETE(p_patch(j)%verts%start_index, p_patch(j)%verts%end_index, p_patch(j)%edges%pc_idx) &
-        !$ACC   DELETE(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl)
+        !$ACC   DELETE(p_patch(j)%verts%edge_idx, p_patch(j)%verts%edge_blk, p_patch(j)%verts%refin_ctrl) &
+        !$ACC   DELETE(p_patch(j)%edges%center, p_patch(j)%edges%primal_normal)
 
         !$ACC EXIT DATA &
         !$ACC   DELETE(p_patch(j)%cells%decomp_info)

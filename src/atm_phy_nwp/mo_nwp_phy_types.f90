@@ -109,6 +109,7 @@ MODULE mo_nwp_phy_types
       &   acdnc(:,:,:),        & !! cloud droplet number concentration                   [1/m**3]
       &   cape    (:,:),       & !! convective available energy
       &   cloud_num(:,:),      & !! 2D cloud droplet number concentration for simple aerosol-cloud coupling [1/m**3]
+      &   conv_eis(:,:),       & !! estimated inversion strength
       &   con_gust(:,:),       & !! convective gusts near surface
       &   con_udd(:,:,:,:),    & !!(nproma,nlev,nblks,8) convective up/downdraft fields
                                  !! 1= convective updraft mass flux (pmfu)
@@ -453,6 +454,8 @@ MODULE mo_nwp_phy_types
       lfd_con_max(:,:),    & !> maximum of LFD
       ceiling_height(:,:), & !> ceiling height
       vis(:,:),            & !> near surface visibility [meters]
+      inversion_height(:,:),& !> lowest inversion height
+      low_ent_zone(:,:),   &  !> entreinment zone from lowest inversion 
       hbas_sc(:,:),        & !> height of base above MSL from shallow convection parameterization
       htop_sc(:,:),        & !> height of top  above MSL from shallow convection parameterization
       twater(:,:),         & !> Total column integrated water

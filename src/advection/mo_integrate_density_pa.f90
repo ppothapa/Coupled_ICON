@@ -115,9 +115,9 @@ CONTAINS
 
     !---------------------------------------------------------------------------
 
-#ifdef _OPENACC
-    CALL finish (routine,': OpenACC version currently not implemented')
-#endif
+!#ifdef _OPENACC
+!    CALL finish (routine,': OpenACC version currently not implemented')
+!#endif
 
     ! get patch ID
     pid = p_patch%id
@@ -130,10 +130,15 @@ CONTAINS
 
     i_nchdom = MAX(1,p_patch%n_childdom)
 
-
+    !$ACC DATA CREATE(z_rho_e, z_vn_traj, z_vt_traj, z_w_traj, z_fluxdiv_rho, z_mflx_contra_v, btraj, ptr_current_rho) &
+    !$ACC   PRESENT(p_patch, p_int, p_prog_now, p_prog_new, p_metrics, p_diag)
 
     IF (lcoupled_rho) THEN  ! integrate mass equation
 
+#ifdef _OPENACC
+    CALL finish (routine,': OpenACC version in case of lcoupled_rho currently not implemented')
+#endif
+            
       lcompute =.TRUE.
       lcleanup =.TRUE.
 
@@ -141,8 +146,6 @@ CONTAINS
       ! point to correct starting time level for upcoming integration
       !
       ptr_current_rho => p_prog_now%rho
-
-
 
 !$OMP PARALLEL PRIVATE(i_rlstart,i_rlend,i_startblk,i_endblk)
 
@@ -286,11 +289,6 @@ CONTAINS
         ptr_current_rho => p_prog_new%rho
 
       ENDIF  ! lvadv_tracer
-
-
-
-
-
 
 
       !***************************************************
@@ -515,8 +513,9 @@ CONTAINS
 
 
       ! Compute density at cell edges
-      CALL cells2edges_scalar(p_prog_now%rho, p_patch, p_int%c_lin_e, z_rho_e)
+      CALL cells2edges_scalar(p_prog_now%rho, p_patch, p_int%c_lin_e, z_rho_e, lacc=.TRUE.)
 
+      !$ACC WAIT
 
       CALL sync_patch_array(SYNC_E, p_patch, z_rho_e)
 
@@ -531,6 +530,7 @@ CONTAINS
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, i_rlstart, i_rlend)
 
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
         DO jk = 1,nlev
           DO je = i_startidx, i_endidx
 
@@ -541,16 +541,19 @@ CONTAINS
 
           ENDDO  ! je
         ENDDO  ! jk
+        !$ACC END PARALLEL LOOP
       ENDDO  ! jb
 !$OMP END DO
 !$OMP END PARALLEL
 
     ENDIF  ! lcoupled_rho
 
+    !$ACC WAIT
 
     CALL sync_patch_array(SYNC_E, p_patch, p_diag%mass_fl_e)
     CALL sync_patch_array(SYNC_C, p_patch, p_diag%rho_ic )
 
+  !$ACC END DATA
 
   END SUBROUTINE integrate_density_pa
 

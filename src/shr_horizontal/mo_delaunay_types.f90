@@ -23,7 +23,9 @@ MODULE mo_delaunay_types
 #endif
 #endif
 
-!$  USE OMP_LIB
+#ifdef _OPENMP
+  USE OMP_LIB
+#endif
 
   USE mo_util_file,         ONLY: util_file_is_writable
   USE mo_netcdf_errhandler, ONLY: nf
@@ -1328,7 +1330,9 @@ CONTAINS
     INTEGER, ALLOCATABLE              :: recv_count(:), recv_displs(:)
     TYPE(t_mpi_triangle), ALLOCATABLE :: tmp(:), recv_tmp(:)
     TYPE(t_min_heap_elt), ALLOCATABLE :: kway_merge_array_out(:)
-!$  DOUBLE PRECISION                  :: time_s, toc
+#ifdef _OPENMP
+    DOUBLE PRECISION                  :: time_s, toc
+#endif
 
     mpi_comm = p_comm_work
     IF (PRESENT(opt_mpi_comm))  mpi_comm = opt_mpi_comm
@@ -1360,25 +1364,33 @@ CONTAINS
       color2 = MPI_UNDEFINED
       IF (MOD(irank2, ngroups) == root_pe)  color2 = 1
       CALL MPI_COMM_SPLIT(mpi_comm, color2, irank, comm2, ierr)
-!$    time_s = omp_get_wtime()
+#ifdef _OPENMP
+      time_s = omp_get_wtime()
+#endif
 
       ! local sort on each PE
       IF (this%nentries > 0)  CALL this%quicksort()
-!$    toc = omp_get_wtime() - time_s
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sorting: ", toc
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sorting: ", toc
+      time_s = omp_get_wtime()
+#endif
       ! recursive call, gather stage 1
-!$    time_s = omp_get_wtime()
       CALL sync_triangulation(this, comm1)
-!$    toc = omp_get_wtime() - time_s
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
 
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sync, stage 1: ", toc
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sync, stage 1: ", toc
+      time_s = omp_get_wtime()
+#endif
       ! recursive call, gather stage 2
-!$    time_s = omp_get_wtime()
       CALL sync_triangulation(this, comm2)
-!$    toc = omp_get_wtime() - time_s
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
 
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sync, stage 2: ", toc
-!$    time_s = omp_get_wtime()
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "sync, stage 2: ", toc
+      time_s = omp_get_wtime()
+#endif
       IF (irank /= 0) THEN
         local_nentries = 0
       ELSE
@@ -1387,8 +1399,10 @@ CONTAINS
       alloc_size = local_nentries
       ! broadcast buffer size from PE "irank == 0"
       CALL MPI_BCAST(alloc_size, 1, MPI_INTEGER, 0, mpi_comm, ierr)
-!$    toc = omp_get_wtime() - time_s
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "epilogue 1: ", toc
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "epilogue 1: ", toc
+#endif
     ELSE
       local_nentries = this%nentries
       alloc_size     = local_nentries
@@ -1410,11 +1424,15 @@ CONTAINS
 
     IF (.NOT. PRESENT(opt_mpi_comm)) THEN
       ! broadcast result from PE "irank == 0"
-!$    time_s = omp_get_wtime()
+#ifdef _OPENMP
+      time_s = omp_get_wtime()
+#endif
       CALL MPI_BCAST(tmp, alloc_size, mpi_t_triangle, 0, mpi_comm, ierr)
-!$    toc = omp_get_wtime() - time_s
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "bcast: ", toc
-!$    time_s = omp_get_wtime()
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "bcast: ", toc
+      time_s = omp_get_wtime()
+#endif
       IF (irank /= 0) THEN
         CALL this%resize(alloc_size)
         IF (alloc_size > 0) THEN
@@ -1426,8 +1444,10 @@ CONTAINS
 
       DEALLOCATE(tmp, STAT=ierrstat)
       IF (ierrstat /= SUCCESS) CALL finish(routine, "DEALLOCATE failed!")
-!$    toc = omp_get_wtime() - time_s
-!$    IF (print_timers .AND. (irank == 0))  WRITE (0,*) "epilogue 2: ", toc
+#ifdef _OPENMP
+      toc = omp_get_wtime() - time_s
+      IF (print_timers .AND. (irank == 0))  WRITE (0,*) "epilogue 2: ", toc
+#endif
     ELSE
       ! communicate max. number of points
       ALLOCATE(recv_count(0:(nranks-1)), recv_displs(0:(nranks-1)), STAT=ierrstat)

@@ -66,7 +66,9 @@
 !! -----------------------------------------------------------------------------------
 MODULE mo_gnat_gridsearch
 
-!$  USE OMP_LIB
+#ifdef _OPENMP
+  USE OMP_LIB
+#endif
 
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: message, message_text, finish
@@ -223,8 +225,11 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//"::gnat_init_grid"
     INTEGER                      :: nproc
 
+#ifdef _OPENMP
+    nproc = OMP_GET_MAX_THREADS()
+#else
     nproc = 1
-!$  nproc = OMP_GET_MAX_THREADS()
+#endif
 
     ! consistency check
     IF (gnat%gnat_tree /= UNASSOCIATED) THEN
@@ -674,13 +679,19 @@ CONTAINS
       r = gnat_std_radius(gnat) ! search radius ~ (query time)**(-1)
     END IF
 
+#ifdef _OPENMP
+    nproc = OMP_GET_MAX_THREADS()
+#else
     nproc = 1
-!$  nproc = OMP_GET_MAX_THREADS()
+#endif
 
     IF (l_chunk) THEN
 !$OMP PARALLEL private(istart, iend, ichunksize, iproc)
+#ifdef _OPENMP
+      iproc      = OMP_GET_THREAD_NUM() + 1
+#else
       iproc      = 1
-!$  iproc      = OMP_GET_THREAD_NUM() + 1
+#endif
 
       ! proc "iproc" will query the entry blocks (istart,...,iend)
       ichunksize = (iv_nblks+nproc-1)/nproc
@@ -1399,8 +1410,11 @@ CONTAINS
 !$OMP PARALLEL num_threads(nproc)                    &
 !$OMP          private(lcomplete,iproc)
 
+#ifdef _OPENMP
+      iproc = OMP_GET_THREAD_NUM() + 1
+#else
       iproc = 1
-!$    iproc = OMP_GET_THREAD_NUM() + 1
+#endif
 
     POINTS : DO
 

@@ -129,6 +129,7 @@ if test $(pwd) != $(cd "${icon_dir}"; pwd); then
   ln -sf -t run/ ${icon_dir}/run/standard_*
   rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${icon_dir}/make_runscripts .
+  rsync -uavz ${icon_dir}/scripts .
   ln -sf ${icon_dir}/data
   ln -sf ${icon_dir}/vertical_coord_tables
 fi

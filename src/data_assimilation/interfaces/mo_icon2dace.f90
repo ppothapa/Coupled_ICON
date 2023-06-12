@@ -478,7 +478,7 @@ contains
     ! read namelists:
     !   /RUN/ for I/O paths (obsinput, output,...)
     !=================================================
-    if (dace% lpio) call open_nml ('namelist')
+    if (dace% lpio) call open_nml (assimilation_config(1)%dace_namelist_file)
     call nml_run_flags ()
     flush (6)
     call message ("","")
@@ -1663,6 +1663,7 @@ contains
 
     j1 = icon_dc% ilim1(dace% pe)
     j2 = icon_dc% ilim1(dace% pe+1) - 1
+
     do j = j1, j2
        if (marr_c(1,j) /= dace% pe) call finish ("atm_from_icon","bad marr_c")
        idx = marr_c(2,j)
@@ -1846,7 +1847,7 @@ contains
     !   /OBSERVATIONS/
     !   /.../
     !=================================================
-    if (dace% lpio) call open_nml ('namelist')
+    if (dace% lpio) call open_nml (assimilation_config(1)%dace_namelist_file)
 
     call read_nml_mec_obs () ! read namelist /MEC_OBS/
     call read_obs_nml     () ! read namelist /observations/
@@ -2281,6 +2282,7 @@ contains
        call thin_superob_tovs(obs, H_det)
        call process_obs (TSK_R,    obs)
 
+
        if (first) then
           !-------------------------
           ! apply consistency checks
@@ -2305,6 +2307,7 @@ contains
           call check_suff (obs% o) ! check for sufficient data in report
           first = .false.
        end if
+       
 
     end if
 

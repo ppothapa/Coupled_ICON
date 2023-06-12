@@ -59,8 +59,6 @@ MODULE mo_ecrad
   USE radiation_interface,        ONLY: ecrad_setup=>setup_radiation,                     &
                                     &   ecrad_set_gas_units=>set_gas_units,               &
                                     &   ecrad=>radiation
-  USE radiation_spectral_definition, ONLY: ecrad_solar_ref_temp=>SolarReferenceTemperature, &
-                                       &   ecrad_terrestrial_ref_temp=>TerrestrialReferenceTemperature
 #endif
 
   IMPLICIT NONE
@@ -81,7 +79,6 @@ MODULE mo_ecrad
   PUBLIC :: t_ecrad_aerosol_type
 ! ecRad configuration state
   PUBLIC :: ecrad_conf
-  PUBLIC :: ecrad_solar_ref_temp, ecrad_terrestrial_ref_temp
 
 ! Aerosol optical properties
   PUBLIC :: t_opt_ptrs

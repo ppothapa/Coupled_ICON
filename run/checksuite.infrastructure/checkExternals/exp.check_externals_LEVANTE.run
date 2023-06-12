@@ -27,7 +27,7 @@ icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
 # Prepare RTE-RRTMGP data:
 rte_data_rootFolder="${icon_data_rootFolder}/buildbot_data/rte-rrtmgp"
-rte_data_id='d2d7cca551'
+rte_data_id='2c977a37fe'
 
 rte_builddir="${basedir}/externals/rte-rrtmgp"
 if [[ -f "${rte_builddir}/config.status" ]] ; then

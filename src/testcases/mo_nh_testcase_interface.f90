@@ -33,7 +33,7 @@ MODULE mo_nh_testcase_interface
   USE mo_integrate_density_pa,   ONLY: integrate_density_pa
   USE mo_nh_dcmip_hadley,        ONLY: set_nh_velocity_hadley
   USE mo_nh_lahade,              ONLY: lahade, nh_lahade_interface
-
+  USE mo_exception,              ONLY: message, message_text, finish
 
   IMPLICIT NONE
 
@@ -103,7 +103,11 @@ CONTAINS
       SELECT CASE ( TRIM(nh_test_name) )
         
       CASE ('PA') ! Solid body rotation
-        
+
+#ifdef _OPENACC
+        CALL finish (routine, 'Test PA - Solid body rotation: OpenACC version currently not implemented')
+#endif
+
         ! Set time-variant vertical velocity
         CALL set_nh_w_rho( p_patch,                      &  !in
           &                p_nh_state%metrics,           &  !in
@@ -115,7 +119,11 @@ CONTAINS
           &                p_nh_state%diag%rho_ic        )  !inout
         
       CASE ('DF1', 'DF2', 'DF3', 'DF4') ! deformational flow
-        
+
+#ifdef _OPENACC
+       CALL finish (routine, 'Tests DF1, DF2, DF3, DF4 - deformational flow: OpenACC version currently not implemented')
+#endif
+
         ! Get velocity field
        CALL get_nh_df_velocity( p_patch,                    &  !in
          &                      p_nh_state%prog(nnew(jg)),  &  !inout
@@ -139,7 +147,11 @@ CONTAINS
         
         
       CASE ('DCMIP_PA_12', 'dcmip_pa_12')
-        
+
+!#ifdef _OPENACC
+!        CALL finish (routine, 'Test DCMIP_PA_12 - Hadley-like meridional circulation: OpenACC version currently not implemented')
+!#endif
+              
         ! Get velocity field for the DCMIP Hadley-like meridional circulation test
         !
         CALL set_nh_velocity_hadley( p_patch,                    &  !in
@@ -147,8 +159,13 @@ CONTAINS
           &                          p_nh_state%diag,            &  !in
           &                          p_int_state,                &  !in
           &                          p_nh_state%metrics,         &  !in   
-          &                          sim_time-dt_loc+dt_loc      )  !in
-        
+          &                          sim_time-dt_loc+dt_loc,     &  !in
+          &                          lacc=.TRUE.                 )  !in
+
+!#ifdef _OPENACC
+!        CALL finish (routine, 'Test DCMIP_PA_12 - Hadley-like meridional circulation: integrate_density_pa - OpenACC version currently not implemented')
+!#endif
+
         ! Get mass flux and updated density for the DCMIP Hadley-like
         ! meridional circulation test
         !
@@ -174,6 +191,10 @@ CONTAINS
 
       CASE ('lahade')
 
+#ifdef _OPENACC
+        CALL finish (routine, 'Test lahade: OpenACC version currently not implemented')
+#endif
+              
         IF (lahade%lupdate) THEN
           CALL nh_lahade_interface ( jstep,                      &  !in
             &                        sim_time,                   &  !in

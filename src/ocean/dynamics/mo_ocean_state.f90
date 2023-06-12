@@ -1975,19 +1975,19 @@ CONTAINS
     ! MOCs on a zonal 1deg grid
     CALL add_var(ocean_default_list, 'global_moc',ocean_state_diag%global_moc,    &
       & GRID_ZONAL, za_depth_below_sea,&
-      & t_cf_var('global_moc','Sv','global meridional overturning', datatype_flt), &
+      & t_cf_var('global_moc','kg s-1','global meridional overturning', datatype_flt), &
       & grib2_var(255, 255, 147, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/n_zlev,180/),in_group=groups_oce_moc,&
       & loutput=.TRUE.)
     CALL add_var(ocean_default_list, 'atlantic_moc',ocean_state_diag%atlantic_moc,    &
       & GRID_ZONAL, za_depth_below_sea,&
-      & t_cf_var('atlantic_moc','Sv','atlantic meridional overturning', datatype_flt), &
+      & t_cf_var('atlantic_moc','kg s-1','atlantic meridional overturning', datatype_flt), &
       & grib2_var(255, 255, 148, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/n_zlev,180/),in_group=groups_oce_moc,&
       & loutput=.TRUE.)
     CALL add_var(ocean_default_list, 'pacific_moc',ocean_state_diag%pacific_moc,    &
       & GRID_ZONAL, za_depth_below_sea,&
-      & t_cf_var('pacific_moc','Sv','indopacific meridional overturning', datatype_flt), &
+      & t_cf_var('pacific_moc','kg s-1','indopacific meridional overturning', datatype_flt), &
       & grib2_var(255, 255, 149, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/n_zlev,180/),in_group=groups_oce_moc,&
       & loutput=.TRUE.)

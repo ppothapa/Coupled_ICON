@@ -410,9 +410,8 @@ CONTAINS
     !---------------------------------------------------------------------
     CALL update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime)
 
-    ! copy atmospheric variables into new forcing variables for diagnostics
+    ! copy atmospheric wind speed from p_as%fu10 into new forcing variable for output purpose - not accumulated yet
     p_oce_sfc%Wind_Speed_10m(:,:) = p_as%fu10(:,:)
-    p_oce_sfc%FrshFlux_Precipitation(:,:) = p_as%FrshFlux_Precipitation(:,:)
 
     !---------------------------------------------------------------------
     ! (3) Sea ice thermodynamics & dynamics (at ocean time-step)
@@ -824,7 +823,8 @@ CONTAINS
           p_oce_sfc%FrshFlux_Evaporation(:,:) = atmos_fluxes%latw(:,:) / (alv*rho_ref)
 
           !  copy variables into atmos_fluxes
-          p_oce_sfc%FrshFlux_Runoff(:,:)      = p_as%FrshFlux_Runoff(:,:)
+          p_oce_sfc%FrshFlux_Runoff(:,:)        = p_as%FrshFlux_Runoff(:,:)
+          p_oce_sfc%FrshFlux_Precipitation(:,:) = p_as%FrshFlux_Precipitation(:,:)
 
           ! Precipitation on ice is snow when tsurf is below the freezing point
           !  - no snowfall from OMIP data

@@ -152,7 +152,6 @@ cat > ${atmo_namelist} << EOF
  exner_expol     = 0.60    ! exner function extrapolation?
  rayleigh_coeff  = 0.05     ! Rayleigh coefficient for damping in upper levels
  vwind_offctr    = 0.5     ! off-centering for time differencing (like alpha in turb)
- l_open_ubc      = .false.  ! top open upper boundary condition. might help to go higher
  damp_height     = 30000.0  ! damping height (set about 10km below top)
  !htop_moist_proc = 50000.   ! height above which moist physics and cld/precip advection off
  !htop_qvadv      = 55000.

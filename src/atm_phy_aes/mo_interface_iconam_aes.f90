@@ -708,7 +708,7 @@ CONTAINS
         f%rsfl_tsa(jc,jb) = diag%temp(jc,nlev,jb) * f%rsfl(jc,jb)
         f%ssfl_tsa(jc,jb) = diag%temp(jc,nlev,jb) * f%ssfl(jc,jb)
       END DO !jc
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       !
       !
     END DO !jb

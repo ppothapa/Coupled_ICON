@@ -183,11 +183,17 @@ CONTAINS
 
     ! SCM: read lat/lon for horizontally uniform zenith angle
     IF ( l_scm_mode ) THEN
+#ifdef _OPENACC
+      if (lacc) CALL finish("Single column mode is untested with OpenACC")
+#endif
       ALLOCATE(scm_center(SIZE(pt_patch%cells%center,1),SIZE(pt_patch%cells%center,2)))
+      !$ACC ENTER DATA CREATE(scm_center) IF(lacc)
       DO jb = 1,pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         scm_center(1:ie,jb)%lat = lat_scm * pi/180.
         scm_center(1:ie,jb)%lon = lon_scm * pi/180.
+        !$ACC END KERNELS
       ENDDO
       ptr_center => scm_center
     ELSE
@@ -239,8 +245,12 @@ CONTAINS
     ! perpetual equinox,
     ! with diurnal cycle,
 
+      !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0) COPYOUT(zsmu0) IF(lacc)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
+      !$ACC END KERNELS
       nsteps = NINT(p_inc_rad/p_inc_radheat)
 
       DO jmu0=1,nsteps
@@ -263,23 +273,25 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           z_cosmu0(1:ie,jb) = -COS( ptr_center(1:ie,jb)%lat ) &
             & *COS( ptr_center(1:ie,jb)%lon                &
             &      +zstunde/24._wp* 2._wp*pi )
+          !$ACC END KERNELS
 
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
           DO jc = 1,ie
             IF ( z_cosmu0(jc,jb) > -1.e-5_wp ) THEN
               zsmu0(jc,jb) = zsmu0(jc,jb) + MAX(1.e-3_wp,z_cosmu0(jc,jb))**2
               n_cosmu0pos(jc,jb) = n_cosmu0pos(jc,jb) + 1
             ENDIF
           ENDDO
+          !$ACC END PARALLEL LOOP
 
         ENDDO !jb
 
       ENDDO!jmu0
 
-      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
-      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -299,16 +311,19 @@ CONTAINS
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
-      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN
     ! elliptical seasonal orbit,
     !  with diurnal cycle
 
+      !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0, zsinphi, zcosphi, zeitrad) COPYOUT(zsmu0) PRESENT(ptr_center) IF(lacc)
+
       zsct_h = 0.0_wp
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
+      !$ACC END KERNELS
       n_zsct = 0
 
       nsteps = NINT(p_inc_rad/p_inc_radheat)
@@ -361,25 +376,28 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           zsinphi(1:ie,jb)      = SIN (ptr_center(1:ie,jb)%lat)
           zcosphi(1:ie,jb)      = SQRT(1.0_wp - zsinphi(1:ie,jb)**2)
           zeitrad(1:ie,jb)      = zeit0 + ptr_center(1:ie,jb)%lon
           z_cosmu0(1:ie,jb)     = zdeksin * zsinphi(1:ie,jb) + zdekcos * zcosphi(1:ie,jb) * &
             COS(zeitrad(1:ie,jb))
+          !$ACC END KERNELS
 
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           DO jc = 1,ie
             IF ( z_cosmu0(jc,jb) > -1.e-5_wp ) THEN
               zsmu0(jc,jb) = zsmu0(jc,jb) + MAX(1.e-3_wp,z_cosmu0(jc,jb))**2
               n_cosmu0pos(jc,jb) = n_cosmu0pos(jc,jb) + 1
             ENDIF
           ENDDO
+          !$ACC END PARALLEL LOOP
 
         ENDDO
 
       ENDDO !jmu0
+      !$ACC WAIT(1)
 
-      !$ACC DATA CREATE(n_cosmu0pos) COPYIN(cosmu0_dark) COPY(zsct) IF(lacc)
-      !$ACC UPDATE DEVICE(zsmu0, n_cosmu0pos) IF(lacc)
       DO jb = 1, pt_patch%nblks_c
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
@@ -406,7 +424,6 @@ CONTAINS
           zsct = zsct_save
         ENDIF
       ENDIF
-      !$ACC UPDATE HOST(zsmu0) IF(lacc)
       !$ACC END DATA
 
     ELSEIF (izenith == 5) THEN
@@ -441,6 +458,7 @@ CONTAINS
 
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
+      !$ACC EXIT DATA DELETE(scm_center)
     ENDIF
 
   END SUBROUTINE pre_radiation_nwp_steps
@@ -483,7 +501,7 @@ CONTAINS
       & zdeksin,zdekcos
 
     INTEGER :: &
-      & k, ii, jc, jj, itaja, jb, ie, shadow
+      & k, ii, jc, jj, itaja, jb, ie, shadow, jg
 
     LOGICAL :: &
       & lshade, lslope_aspect, lzacc      !switches
@@ -501,6 +519,7 @@ CONTAINS
     TYPE(t_geographical_coordinates), TARGET, ALLOCATABLE :: scm_center(:,:)
     TYPE(t_geographical_coordinates), POINTER             :: ptr_center(:,:)
 
+    jg = pt_patch%id
 
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: zsinphi,zcosphi,zeitrad,czra,szra,csang,ssang,csazi,ssazi,zha_sun,zphi_sun,ztheta_sun,ztheta
@@ -513,7 +532,7 @@ CONTAINS
     l_tsi_recalculated = .FALSE.
     IF (isolrad==2) l_tsi_recalculated = .TRUE.
 
-    IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
+    IF (islope_rad(jg) > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
       CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
     ENDIF
 
@@ -650,15 +669,18 @@ CONTAINS
         lshade        = .TRUE.
         lslope_aspect = .TRUE.
 
-        IF (islope_rad > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. &
+        IF (islope_rad(jg) > 0 .AND. .NOT. (PRESENT(slope_ang) .AND. &
               PRESENT(slope_azi) .AND. PRESENT(cosmu0_slp)) ) THEN
           CALL finish('pre_radiation_nwp','I/O fields for slope-dependent radiation are missing')
         ENDIF
 
-        IF (islope_rad == 2 .AND. .NOT. PRESENT(horizon)) THEN
+        IF (islope_rad(jg) >= 2 .AND. .NOT. PRESENT(horizon)) THEN
             ! we need horizon
           CALL finish('pre_radiation_nwp', 'I/O field horizon for shading is missing')
         ENDIF
+
+        IF (islope_rad(jg) >= 2) zihor = REAL(INT(360.0_wp/nhori),wp)
+
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -672,7 +694,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
 
-          IF (islope_rad == 1) THEN
+          IF (islope_rad(jg) == 1 .OR. islope_rad(jg) == 3) THEN
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = 1, ie
@@ -684,14 +706,33 @@ CONTAINS
               cosmu0_slp(jc,jb) = zdeksin * ( zsinphi(jc)*csang(jc) - zcosphi(jc)*csazi(jc)*ssang(jc) ) + &
                 zdekcos * ( zcosphi(jc)*czra(jc)*csang(jc) + zsinphi(jc)*czra(jc)*csazi(jc)*ssang(jc) + &
                 szra(jc)*ssazi(jc)*ssang(jc) )
-              ! WHERE(cosmu0_slp(1:ie,jb) < 1.e-3_wp) cosmu0_slp(1:ie,jb) = 0._wp
               IF (cosmu0_slp(jc,jb) < 1.e-3_wp) cosmu0_slp(jc,jb) = 0._wp
             ENDDO
             !$ACC END PARALLEL
           ENDIF
 
-          IF (islope_rad == 2) THEN
-            zihor = REAL(INT(360.0_wp/nhori),wp)
+          IF (islope_rad(jg) == 3) THEN ! add orographic shading
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP GANG VECTOR
+            DO jc = 1, ie
+              ztheta_sun(jc) = ASIN(zsmu0(jc,jb)) ! solar elevation angle
+              x1 = MIN(1._wp, MAX(-1._wp, (zsmu0(jc,jb)*zsinphi(jc)-zdeksin)/(COS(ztheta_sun(jc))*zcosphi(jc)) ))
+              zphi_sun(jc) = SIGN(acos(x1),SIN(zeitrad(jc)))+pi  ! solar azimuth angle
+
+              ! elevation angle of orography in the direction of the sun, obtained
+              ! by linear interpolation between the precomputed horizon angles
+              ii = MIN(nhori-1, INT(rad2deg*zphi_sun(jc)/zihor))
+              k = MOD(ii+1,nhori)
+              zha_sun(jc) = (horizon(jc,jb,k+1) *(rad2deg*zphi_sun(jc)-zihor*ii) +     &
+                             horizon(jc,jb,ii+1)*(zihor*(ii+1)-rad2deg*zphi_sun(jc))) / zihor
+
+              ! apply shading
+              IF (zha_sun(jc) > rad2deg*ztheta_sun(jc)) cosmu0_slp(jc,jb) = 0._wp
+            ENDDO
+            !$ACC END PARALLEL
+          ENDIF
+
+          IF (islope_rad(jg) == 2) THEN
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR PRIVATE(x1, x2, ii, k, shadow)
             DO jc = 1, ie
@@ -1777,7 +1818,7 @@ CONTAINS
   !! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
   !!
 
-  SUBROUTINE radheat (jcs, jce, kbdim, &
+  SUBROUTINE radheat (jcs, jce, jg, kbdim, &
     &                 klev  , klevp1,  &
     &                 ntiles        ,  &
     &                 ntiles_wtr    ,  &
@@ -1838,7 +1879,7 @@ CONTAINS
     &                 lacc             )
 
     INTEGER,  INTENT(in)  ::    &
-      &     jcs, jce, kbdim,    &
+      &     jcs, jce, jg, kbdim,    &
       &     klev, klevp1, ntiles, ntiles_wtr
 
     REAL(wp), INTENT(in)  ::           &
@@ -1957,7 +1998,7 @@ CONTAINS
       l_nh_corr = .FALSE.
     ENDIF
 
-    IF (islope_rad == 2 .AND. .NOT. (PRESENT(skyview) )) THEN
+    IF (islope_rad(jg) >= 2 .AND. .NOT. (PRESENT(skyview) )) THEN
       ! we need skyview
       CALL finish('radheat', 'I/O field skyview is missing')
     ENDIF
@@ -2018,7 +2059,7 @@ CONTAINS
 
     IF (l_nh_corr) THEN !
 
-      IF (islope_rad == 1) THEN
+      IF (islope_rad(jg) == 1 .OR. islope_rad(jg) == 3) THEN
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
@@ -2027,7 +2068,7 @@ CONTAINS
           slope_corr(jc) = (trsol_dn_sfc_diff(jc) + (solrad-trsol_dn_sfc_diff(jc))*angle_ratio)/solrad
         ENDDO
         !$ACC END PARALLEL
-      ELSEIF (islope_rad == 2) THEN ! with correction of horizon and skyview
+      ELSEIF (islope_rad(jg) == 2) THEN ! with correction of horizon and skyview
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(solrad, angle_ratio)
         DO jc = jcs, jce
@@ -2046,7 +2087,7 @@ CONTAINS
       DO jc = jcs, jce
         swflx_up_toa(jc)      = pi0(jc)*trsol_up_toa(jc)
         swflx_up_sfc(jc)      = pi0(jc)*trsol_up_sfc(jc) * slope_corr(jc)
-        swflx_dn_sfc_diff(jc) = pi0(jc)*trsol_dn_sfc_diff(jc) * slope_corr(jc)
+        swflx_dn_sfc_diff(jc) = pi0(jc)*trsol_dn_sfc_diff(jc)
         swflx_nir_sfc(jc)     = pi0(jc)*trsol_nir_sfc(jc) * slope_corr(jc)
         swflx_vis_sfc(jc)     = pi0(jc)*trsol_vis_sfc(jc) * slope_corr(jc)
         swflx_par_sfc(jc)     = pi0(jc)*trsol_par_sfc(jc) * slope_corr(jc)

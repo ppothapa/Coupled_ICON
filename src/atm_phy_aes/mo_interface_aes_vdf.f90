@@ -633,7 +633,7 @@ CONTAINS
             !$ACC END PARALLEL LOOP
           END IF
           IF (ASSOCIATED(tend% wa_vdf)) THEN
-            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+            !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
             DO jk=1,nlev+1
               DO jl=jcs,jce
                 tend% wa_vdf(jl,jk,jb) = tend_wa_vdf(jl,jk,jb)
@@ -988,7 +988,7 @@ CONTAINS
             END DO
           END IF
           IF (ASSOCIATED(tend% wa_vdf)) THEN
-            !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+            !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
             DO jk = 1,nlev+1
               DO jl = jcs,jce
                 tend_wa_vdf(jl,jk,jb) = tend% wa_vdf(jl,jk,jb)
@@ -1725,7 +1725,7 @@ CONTAINS
           END DO
         END IF
         IF (ASSOCIATED(tend% wa_vdf)) THEN
-          !$ACC PARALLEL LOOP DEFAULT(NONE) GANG VECTOR COLLAPSE(2) ASYNC(1)
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
           DO jk = 1,nlev+1
             DO jl = jcs,jce
               tend% wa_vdf(jl,jk,jb) = 0.0_wp

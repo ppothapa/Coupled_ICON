@@ -37,7 +37,8 @@ ARFLAGS= @ARFLAGS@
 RANLIB= @RANLIB@
 CC= @CC@
 FC= @FC@
-NVCC= @NVCC@
+CUDACXX= @CUDACXX@
+HIPCXX= @HIPCXX@
 PYTHON= @PYTHON@
 PERL= @PERL@
 CMAKE= @CMAKE@
@@ -74,11 +75,11 @@ DEPGEN_FCFLAGS= @DEPGEN_FCFLAGS@
 
 # C compiler and preprocessor flags:
 CFLAGS= @CFLAGS@
-ICON_CFLAGS= @ICON_CFLAGS@
 CPPFLAGS= -I. @DEFS@ @CPPFLAGS@
 
-# NVCC compiler flags:
-NVCFLAGS= @NVCFLAGS@
+# Secondary GPU compiler flags:
+CUDAFLAGS= @CUDAFLAGS@
+HIPFLAGS= @HIPFLAGS@
 
 # Linker flags and libraries:
 LDFLAGS= @LDFLAGS@
@@ -100,9 +101,9 @@ pp_infix:= .pp-
 # infix '*$(pp_infix)*' are ignored. Duplicates are eliminated.
 find_files= $(sort $(patsubst $(srcdir)/%,%, \
                 $(shell find $(addprefix $(srcdir)/,$(1)) \
-                    \! \( -type d -o -name '.*' -o -path '*/.*' \
-                          -o -name '*$(pp_infix)*' \) \
-                    -a \( $(foreach p,$(2),-name $(p) -o) -false \))))
+                    -name '.' -o -name '..' -o -name '.*' -prune \
+                    -o \! \( -type d -o -name '*$(pp_infix)*' \) \
+                    -a \( $(foreach p,$(2),-name $(p) -o) -false \) -print)))
 
 # All source files:
 all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
@@ -128,7 +129,9 @@ f90_files:= $(filter %.f90,$(all_files))
 # C '.c' source files:
 c_files:= $(filter %.c,$(all_files))
 # CUDA '.cu' source files:
-@GPU_ENABLED@cu_files:= $(filter %.cu,$(all_files))
+@CUDA_ENABLED@cu_files:= $(filter %.cu,$(all_files))
+# HIP '.cu' source files (TODO: change the extension for HIP files):
+@HIP_ENABLED@hip_files:= $(filter %.cu,$(all_files))
 
 # Relative paths to the directories with Fortran include files:
 inc_subdirs:= $(patsubst %/,%,$(sort $(dir $(filter %.inc %.incf,$(all_files)))))
@@ -167,7 +170,7 @@ pp_files:=
 
 # Dependency files
 # (this finalizes the list of files eligible for compilation):
-dep_files:= $(addsuffix .d,$(f90_files) $(c_files) $(cu_files)) c_binding.d
+dep_files:= $(addsuffix .d,$(f90_files) $(c_files) $(cu_files) $(hip_files)) c_binding.d
 
 ############################ GENERATED EXECUTABLES #############################
 
@@ -282,6 +285,9 @@ join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
 @PGI_INLIB_ENABLED@pgi_inlib_prereq_mod_files:= \
 @PGI_INLIB_ENABLED@  $(filter-out $(pgi_inlib_internal_mod_files),$(pgi_inlib_mod_files))
 
+# Some files need manual register limit:
+@PGI_INLIB_ENABLED@$(pgi_limit_registers_OBJECTS): FCFLAGS+= $(pgi_limit_registers_FCFLAGS)
+
 ############################### MAKEFILE TWEAKS ################################
 
 # Silent rule prefixes:
@@ -291,6 +297,7 @@ silent_AR=      @echo "  AR      " $@;
 silent_CC=      @echo "  CC      " $@;
 silent_CMAKE=   @echo "  CMAKE   " $(@D);
 silent_CONFIG=  @echo "  CONFIG  " $(@D);
+silent_CUDACXX= @echo "  CUDACXX " $@;
 silent_DEPGEN=  @echo "  DEPGEN  " $@;
 silent_DSL4JSB= @echo "  DSL4JSB " $@;
 silent_FC=      @echo "  FC      " $@;
@@ -299,8 +306,8 @@ silent_FCIL=    @echo "  FC (IL) " $@;
 silent_FCLD=    @echo "  FCLD    " $@;
 silent_FPP=     @echo "  FPP     " $@;
 silent_GEN=     @echo "  GEN     " $@;
+silent_HIPCXX=  @echo "  HIPCXX  " $@;
 silent_MKDIR=   @echo "  MKDIR   " $(@D);
-silent_NVCC=    @echo "  NVCC    " $@;
 silent_SB2=     @echo "  SB2PP   " $@;
 silent_none=    @
 endif
@@ -354,7 +361,7 @@ install: all
 
 # Delete the results of compilation and linking:
 mostlyclean: $(bundled_subdirs)
-	rm -f $(exec_files) $(lib_files) $(addsuffix .@OBJEXT@,$(basename $(f90_files) $(c_files) $(cu_files))) version.@OBJEXT@
+	rm -f $(exec_files) $(lib_files) $(addsuffix .@OBJEXT@,$(basename $(f90_files) $(c_files) $(cu_files) $(hip_files))) version.@OBJEXT@
 	rm -f $(moddir)/*.@FC_MOD_FILE_EXT@ $(moddir)/*.@FC_MOD_FILE_EXT@.proxy
 @PGI_INLIB_ENABLED@	rm -rf $(pgi_inlib_name)
 
@@ -492,11 +499,15 @@ sanitize-mod-proxies:
 
 # C compilation rule:
 %.@OBJEXT@: %.c | $(dir_files)
-	$(silent_CC)$(CC) -o $@ -c $(CFLAGS) $(ICON_CFLAGS) $(CPPFLAGS) $<
+	$(silent_CC)$(CC) -o $@ -c $(CFLAGS) $(CPPFLAGS) $<
 
 # CUDA compilation rule:
-%.@OBJEXT@: %.cu | $(dir_file)
-	$(silent_NVCC)$(NVCC) -o $@ -c $(NVCFLAGS) $<
+@CUDA_ENABLED@%.@OBJEXT@: %.cu | $(dir_file)
+@CUDA_ENABLED@	$(silent_CUDACXX)$(CUDACXX) -o $@ -c $(CUDAFLAGS) $<
+
+# HIP compilation rule:
+@HIP_ENABLED@%.@OBJEXT@: %.cu | $(dir_file)
+@HIP_ENABLED@	$(silent_HIPCXX)$(HIPCXX) -o $@ -c $(HIPFLAGS) $<
 
 ######################### DSL4JSB PREPROCESSING RULES ##########################
 
@@ -580,11 +591,15 @@ version.c: force-create-version
 
 # C dependency generation rule:
 %.c.d: %.c icon.mk depgen.c.config | $(dir_files)
-	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config -o $@ --obj-name $(@:.c.d=.@OBJEXT@) -i $< -- $(CFLAGS) $(ICON_CFLAGS) $(CPPFLAGS)
+	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config -o $@ --obj-name $(@:.c.d=.@OBJEXT@) -i $< -- $(CFLAGS) $(CPPFLAGS)
 
 # CUDA dependency generation rule:
-%.cu.d: %.cu icon.mk depgen.c.config | $(dir_files)
-	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config --pp-inc-sys -o $@ --obj-name $(@:.cu.d=.@OBJEXT@) -i $< -- $(NVCFLAGS)
+@CUDA_ENABLED@%.cu.d: %.cu icon.mk depgen.c.config | $(dir_files)
+@CUDA_ENABLED@	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config --pp-inc-sys -o $@ --obj-name $(@:.cu.d=.@OBJEXT@) -i $< -- $(CUDAFLAGS)
+
+# HIP dependency generation rule:
+@HIP_ENABLED@%.cu.d: %.cu icon.mk depgen.c.config | $(dir_files)
+@HIP_ENABLED@	$(silent_DEPGEN)$(DEPGEN) @depgen.c.config --pp-inc-sys -o $@ --obj-name $(@:.cu.d=.@OBJEXT@) -i $< -- $(HIPFLAGS)
 
 # Dependency generation rule for Fortran-to-C bindings:
 c_binding.d: icon.mk

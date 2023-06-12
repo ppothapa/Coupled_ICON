@@ -639,7 +639,7 @@ CONTAINS
     REAL(wp):: zmaxsnow_alb            !< maximum snow albedo depending on landuse class
     REAL(wp):: zlimsnow_alb            !< upper limit snow albedo depending on snow depth and roughness length
     REAL(wp):: zsnowalb_lu             !< maximum snow albedo specified in landuse table
-    REAL(wp):: zurb_isa                !< impervious surface area of the urban canopy
+    REAL(wp):: zurb_isa                !< impervious surface area fraction of the urban canopy
     REAL(wp):: zsnowfree_albdif        !< shortwave broadband surface albedo (white sky)
     REAL(wp):: zsnowfree_albvisdif     !< UV visible broadband surface albedo (white sky)
     REAL(wp):: zsnowfree_albnirdif     !< near IR broadband surface albedo (white sky)
@@ -805,7 +805,7 @@ CONTAINS
             ! TERRA_URB: Set urban albedo by modifying background albedo (of snow-free fraction)
             !
             IF (lterra_urb .AND. lurbalb) THEN
-              ! impervious surface area of the urban canopy
+              ! impervious surface area fraction of the urban canopy
               zurb_isa = ext_data%atm%urb_isa_t(jc,jb,jt)
 
               zsnowfree_albdif    = zurb_isa * ext_data%atm%urb_alb_so_t(jc,jb,jt)      &
@@ -1469,16 +1469,16 @@ CONTAINS
   !! @par Revision History
   !! Initial Revision by Sophia Schaefer, DWD (2020-09-21)
   !!
-  SUBROUTINE sfc_albedo_scm(pt_patch, albedo_fixed, prm_diag)
+  SUBROUTINE sfc_albedo_scm(pt_patch, albedo_fixed, prm_diag, lacc)
 
     TYPE(t_patch),          INTENT(   in):: pt_patch     !< grid/patch info.
 
     REAL(wp),               INTENT(   in):: albedo_fixed ! surface albedo value that is used fpor albedo_type ==3
                                                          ! (for single column model)
-
+    LOGICAL,                INTENT(   in):: lacc         !< accelerator flag
     TYPE(t_nwp_phy_diag),   INTENT(inout):: prm_diag
 
-    INTEGER :: jb                      !< loop indices
+    INTEGER :: jb, jc                  !< loop indices
     INTEGER :: rl_start, rl_end
     INTEGER :: i_startblk, i_endblk    !> blocks
     INTEGER :: i_startidx, i_endidx    !< slices
@@ -1503,11 +1503,16 @@ CONTAINS
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      prm_diag%albdif   (i_startidx:i_endidx,jb) = albedo_fixed
-      prm_diag%albvisdif(i_startidx:i_endidx,jb) = albedo_fixed
-      prm_diag%albnirdif(i_startidx:i_endidx,jb) = albedo_fixed
-      prm_diag%albvisdir(i_startidx:i_endidx,jb) = albedo_fixed
-      prm_diag%albnirdir(i_startidx:i_endidx,jb) = albedo_fixed
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        prm_diag%albdif   (jc,jb) = albedo_fixed
+        prm_diag%albvisdif(jc,jb) = albedo_fixed
+        prm_diag%albnirdif(jc,jb) = albedo_fixed
+        prm_diag%albvisdir(jc,jb) = albedo_fixed
+        prm_diag%albnirdir(jc,jb) = albedo_fixed
+      END DO
+      !$ACC END PARALLEL
 
     ENDDO
 

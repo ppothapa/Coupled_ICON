@@ -76,10 +76,13 @@ MODULE mo_iau
   USE mo_parallel_config,         ONLY: nproma
   USE mo_grid_config,             ONLY: n_dom
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config
+  USE mo_assimilation_config,     ONLY: assimilation_config
   USE mo_initicon_config,         ONLY: type_iau_wgt, is_iau_active, iau_wgt_dyn, iau_wgt_adv, &
     &                                   qcana_mode, qiana_mode, qrsgana_mode
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqh, &
-    &                                   iqm_max, iqni, iqnc, iqnr, iqns, iqng, iqnh
+    &                                   iqm_max, iqni, iqnc, iqnr, iqns, iqng, iqnh, &
+    &                                   ldass_lhn
+  USE mo_dynamics_config,         ONLY: nnow, nnew, nnow_rcf, nnew_rcf
   USE mo_advection_config,        ONLY: advection_config
   USE mo_upatmo_config,           ONLY: upatmo_config
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist
@@ -108,7 +111,7 @@ MODULE mo_iau
   ! subroutines
   !
   PUBLIC :: save_initial_state
-  PUBLIC :: restore_initial_state
+  PUBLIC :: reset_to_initial_state
   PUBLIC :: compute_iau_wgt
   PUBLIC :: iau_update_tracer
 
@@ -287,6 +290,51 @@ CONTAINS
     IF (ltimer) CALL timer_stop(timer_iau_save_restore)
 
   END SUBROUTINE restore_initial_state
+
+
+  !----------------------------------------------------------------------------
+  !>
+  !! Wrapper routine for restore_initial_state, which in addition restores
+  !! several control fields such as
+  !! * time level arrays
+  !! * mtime events for NWP physics, LHN, and DACE
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Reinert, DWD, (2023-02-08)
+  !!
+  SUBROUTINE reset_to_initial_state(p_patch, p_nh)
+
+    TYPE(t_patch),        INTENT(IN)    :: p_patch(:)
+    TYPE(t_nh_state),     INTENT(INOUT) :: p_nh(:)
+
+    INTEGER :: jg
+
+    ! reinitialize mtime events
+    !
+    ! NOTE: reinitialization of DACE event group 'mec_Events ' missing.
+    !       I am not sure whether a reinitialization is strictly needed.
+    !
+    DO jg = 1, n_dom
+      ! for NWP physics
+      CALL atm_phy_nwp_config(jg)%phyProcs%reinitEvents()
+      IF (ldass_lhn) THEN
+        ! for latent heat nudging
+        CALL assimilation_config(jg)%dass_g%reinitEvents()
+      ENDIF
+    ENDDO
+    !
+    ! reinitialize time level arrays
+    nnow(:)     = 1
+    nnow_rcf(:) = 1
+    nnew(:)     = 2
+    nnew_rcf(:) = 2
+    !
+    ! reset model fields to its initial state
+    ! Note that this must happen after the reinitialization
+    ! of the time level arrays.
+     CALL restore_initial_state(p_patch(1:), p_nh)
+
+  END SUBROUTINE reset_to_initial_state
 
 
   !>

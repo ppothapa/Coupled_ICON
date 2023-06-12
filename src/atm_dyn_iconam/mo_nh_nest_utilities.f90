@@ -778,7 +778,9 @@ CONTAINS
 
     LOGICAL :: l_limit(2*ntracer)
 
-    !$ INTEGER :: num_threads_omp, omp_get_max_threads
+#ifdef _OPENMP
+    INTEGER :: num_threads_omp, omp_get_max_threads
+#endif
     !-----------------------------------------------------------------------
 
     !$ACC DATA CREATE(aux3dp, aux3dc, theta_prc, rho_prc) IF(i_am_accel_node)
@@ -787,7 +789,9 @@ CONTAINS
       CALL message(routine, message_text)
     ENDIF
 
-    !$  num_threads_omp = omp_get_max_threads()
+#ifdef _OPENMP
+    num_threads_omp = omp_get_max_threads()
+#endif
 
     p_diagp       => p_nh_state(jg)%diag
     p_diagc       => p_nh_state(jgc)%diag
