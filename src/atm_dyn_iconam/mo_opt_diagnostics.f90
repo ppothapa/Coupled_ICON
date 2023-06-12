@@ -51,7 +51,7 @@ MODULE mo_opt_diagnostics
     &                                DATATYPE_FLT64, GRID_UNSTRUCTURED,                &
     &                                TSTEP_CONSTANT
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL,                           &
-    &                                GRID_CELL, GRID_REGULAR_LONLAT
+    &                                GRID_CELL, GRID_REGULAR_LONLAT, LONLAT_PREFIX
   USE mo_var_list,             ONLY: add_var, add_ref, t_var_list_ptr
   USE mo_var_list_register,    ONLY: vlr_add, vlr_del
   USE mo_var, ONLY: level_type_ml, level_type_pl, level_type_hl, level_type_il
@@ -954,12 +954,12 @@ CONTAINS
           var_shape = (/ nproma, 1, nblks_lonlat /)
           cf_desc    = t_cf_var('aw', '1', 'area weights for regular lat-lon grid', datatype_flt)
           grib2_desc = grib2_var(0, 191, 193, DATATYPE_PACK16, GRID_UNSTRUCTURED, GRID_CELL)
-          
+
           ALLOCATE(area_weights(grid%lat_dim), STAT=ierrstat)
           IF (ierrstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed.')
-          
-          CALL add_var( p_nh_state_lists(jg)%diag_list,                             &
-            &           "aw", p_dummy,                                        &
+
+          CALL add_var( p_nh_state_lists(jg)%diag_list,                       &
+            &           LONLAT_PREFIX//"aw", p_dummy,                         &
             &           GRID_REGULAR_LONLAT, ZA_SURFACE, cf_desc, grib2_desc, &
             &           ldims=var_shape, lrestart=.FALSE.,                    &
             &           loutput=.TRUE., new_element=new_element,              &
