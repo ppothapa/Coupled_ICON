@@ -23,7 +23,7 @@ MODULE mo_art_init_interface
 
   USE mo_kind,                          ONLY: wp, i8
   USE mo_exception,                     ONLY: finish
-  USE mo_run_config,                    ONLY: lart, ntracer
+  USE mo_run_config,                    ONLY: lart
   USE mo_timer,                         ONLY: timers_level, timer_start, timer_stop,   &
                                           &   timer_art_initInt
   USE mo_time_config,                   ONLY: time_config
@@ -75,13 +75,35 @@ CONTAINS
 !!
 !!-------------------------------------------------------------------------
 !!
-SUBROUTINE art_init_interface(n_dom,defcase)
+SUBROUTINE art_init_interface(n_dom,defcase,ntracer,npassive_tracer)
 
-  INTEGER,intent(in)          :: &
+  INTEGER,INTENT(in)          :: &
     &  n_dom                        !< number of model domains
-  CHARACTER(LEN=*),intent(in) :: &
+  CHARACTER(LEN=*),INTENT(in) :: &
     &  defcase                      !< construction or destruction?
-    
+  INTEGER, INTENT(in)         :: &
+    &  ntracer                      !< total number of tracers
+  INTEGER, INTENT(in)         :: &
+    &  npassive_tracer              !< number of additional passive tracers
+  !
+  CHARACTER(*), PARAMETER :: routine = "mo_art_init_interface::art_init_interface"
+  CHARACTER(len=MAX_CHAR_LENGTH), ALLOCATABLE :: tmp(:)
+  INTEGER :: iart_ntracer, art_tracer_startidx
+
+  IF (ALLOCATED(ctracer_art)) THEN
+    ! First, resize `ctracer_art`, since we know about `ntracer` by
+    ! now. The array `ctracer` becomes a list of name strings which also
+    ! includes the NWP tracers.
+    tmp = ctracer_art
+    iart_ntracer = SIZE(tmp)
+    art_tracer_startidx = ntracer - npassive_tracer - iart_ntracer + 1
+    IF (art_tracer_startidx < 1)  CALL finish(routine, "Invalid start index!")
+
+    DEALLOCATE(ctracer_art)
+    ALLOCATE(ctracer_art(ntracer))
+    ctracer_art(art_tracer_startidx:) = tmp
+  END IF
+
   IF (lart) THEN
 
     IF (timers_level > 3) CALL timer_start(timer_art_initInt)
@@ -367,15 +389,13 @@ SUBROUTINE art_calc_ntracer_and_names()
          &    = tracer_names_mecca
     END IF
   
-    ALLOCATE(ctracer_art(ntracer+auto_ntracer))
-    ctracer_art(ntracer+1:) = tracer_names
+    ALLOCATE(ctracer_art(auto_ntracer))
+    ctracer_art(:) = tracer_names
   
     DEALLOCATE(tracer_names)
     IF (ASSOCIATED(tracer_names_chemtracer)) DEALLOCATE(tracer_names_chemtracer)
     IF (ASSOCIATED(tracer_names_mecca)) DEALLOCATE(tracer_names_mecca)
     IF (ASSOCIATED(tracer_names_aerosol)) DEALLOCATE(tracer_names_aerosol)
-  ELSE
-    ALLOCATE(ctracer_art(ntracer))
   END IF
 
   ! Setting iart_ntracer to determined number of tracer
