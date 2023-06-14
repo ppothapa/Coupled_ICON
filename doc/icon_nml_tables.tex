@@ -5851,6 +5851,42 @@ Maximum allowed calibration factor for low clouds (CLCL) &
 run\_nml:iforcing = inwp
 \tabularnewline
 
+\hline
+tune\_eiscrit&
+R&
+1000.0&
+K&
+Critical estimated inversion strength above which to switch off shallow convection (recommendation to activate: 7K) &
+run\_nml:iforcing = inwp; inwp\_convection = 1
+\tabularnewline
+
+\hline
+tune\_sc\_eis&
+R&
+1000.0&
+K&
+Critical estimated inversion strength above which to use modified SGS cloud diagnostic for stratocumulus (recommendation to activate: 7K) &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
+\hline
+tune\_sc\_invmin&
+R&
+200.0&
+m&
+Minimum inversion height above which to apply modified SGS cloud diagnostic for stratocumulus &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
+\hline
+tune\_sc\_invmax&
+R&
+1500.0&
+m&
+Maximum inversion height below which to apply modified SGS cloud diagnostic for stratocumulus &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
 
 \hline
 \hline
