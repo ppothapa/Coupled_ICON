@@ -44,7 +44,6 @@ MODULE mo_nonhydro_state
     &                                TASK_COMPUTE_OMEGA, TLEV_NNOW_RCF,              &
     &                                MODE_ICONVREMAP,HINTP_TYPE_LONLAT_RBF,          &
     &                                HINTP_TYPE_LONLAT_BCTR,                         &
-    &                                TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,         &
     &                                MIN_RLCELL_INT, MIN_RLCELL
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
     &                                GRID_UNSTRUCTURED_VERT, GRID_CELL, GRID_EDGE,   &
@@ -1727,8 +1726,6 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%vor_u, &
-    &       p_diag%vor_v, &
     &       p_diag%extra_2d, &
     &       p_diag%extra_3d)
 
@@ -3536,52 +3533,6 @@ MODULE mo_nonhydro_state
                     & l_pp_scheduler_task=TASK_COMPUTE_OMEGA, lrestart=.FALSE.,      &
                     & lopenacc = .TRUE. )
       __acc_attach(p_diag%omega)
-    END IF
-
-    ! zonal component of relative vorticity  p_diag%vor_u(nproma,nlev,nblks_c)
-    ! (GRIB2: we use the available local DWD definition for ecCodes shortname 'VORTIC_U')
-    ! 
-    IF (var_in_output%vor_u) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for vor_u.")
-#endif
-      cf_desc    = t_cf_var('vor_u', 's-1', 'zonal component of relative vorticity', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 198, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "vor_u", p_diag%vor_u,                                         &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VOR_U, lrestart=.FALSE.,      &
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%vor_u)
-    END IF
-
-    ! meridional component of relative vorticity  p_diag%vor_v(nproma,nlev,nblks_c)
-    ! (GRIB2: we use the available local DWD definition for ecCodes shortname 'VORTIC_V')
-    ! 
-    IF (var_in_output%vor_v) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for vor_v.")
-#endif
-      cf_desc    = t_cf_var('vor_v', 's-1', 'meridional component of relative vorticity', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 199, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "vor_v", p_diag%vor_v,                                         &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VOR_V, lrestart=.FALSE.,      &
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%vor_v)
     END IF
 
     !---------------------- End of optional diagnostics ----------------------

@@ -150,8 +150,6 @@ MODULE mo_io_config
     LOGICAL :: uh_max       = .FALSE. !< Flag. TRUE if computation of updraft helicity (2000 - 8000 m) desired
     LOGICAL :: vorw_ctmax   = .FALSE. !< Flag. TRUE if computation of maximum rotation amplitude desired
     LOGICAL :: w_ctmax      = .FALSE. !< Flag. TRUE if computation of maximum updraft track desired
-    LOGICAL :: vor_u        = .FALSE. !< Flag. TRUE if computation of zonal component of relative vorticity desired
-    LOGICAL :: vor_v        = .FALSE. !< Flag. TRUE if computation of meridional component of relative vorticity desired
     LOGICAL :: dursun       = .FALSE. !< Flag. TRUE if computation of sunshine duration is required
     LOGICAL :: dursun_m     = .FALSE. !< Flag. TRUE if computation of maximum sunshine duration is required
     LOGICAL :: dursun_r     = .FALSE. !< Flag. TRUE if computation of relative sunshine duration is required
@@ -289,8 +287,6 @@ CONTAINS
         &                          is_variable_in_output(var_name="psl_m")
       var_in_output(jg)%omega    = is_variable_in_output(var_name="omega")    .OR. &
         &                          is_variable_in_output(var_name="wap_m")
-      var_in_output(jg)%vor_u    = is_variable_in_output_dom(var_name="vor_u", jg=jg)
-      var_in_output(jg)%vor_v    = is_variable_in_output_dom(var_name="vor_v", jg=jg)
       var_in_output(jg)%res_soilwatb = is_variable_in_output_dom(var_name="resid_wso", jg=jg)
     END DO
 
