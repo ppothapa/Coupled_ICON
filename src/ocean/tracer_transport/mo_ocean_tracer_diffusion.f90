@@ -114,6 +114,7 @@ CONTAINS
   IF(PRESENT(k_t))THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
+    !$ACC DATA COPYIN(k_t) IF(lacc)
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
@@ -141,13 +142,13 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
+    !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
       IF (.NOT. is_in_domain) &
         & CALL sync_patch_array(sync_e, patch_2D, diff_flx)
     ENDIF
-
   ELSEIF(.NOT.PRESENT(k_t))THEN  
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
