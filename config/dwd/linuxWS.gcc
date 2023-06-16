@@ -14,16 +14,19 @@ RTTOV_INCLUDE="${RTTOV_LIB_ROOT}/include"
 RTTOV_LIB="-L${RTTOV_LIB_ROOT} -lrttov13"
 
 # Assume that HDF5 resides under the GLOBAL_LIB_ROOT:
-HDF5_INCLUDE="${GLOBAL_LIB_ROOT}/include"
-HDF5_LIBS="-lhdf5_hl -lhdf5 -lhdf5hl_fortran -lhdf5_fortran"
+HDF5_LIB_ROOT=${GLOBAL_LIB_ROOT}
+HDF5_INCLUDE="${HDF5_LIB_ROOT}/include"
+HDF5_LIBS="-L${HDF5_LIB_ROOT} -lhdf5_hl -lhdf5 -lhdf5hl_fortran -lhdf5_fortran"
 
 # Assume that Netcdf resides under the GLOBAL_LIB_ROOT:
-NETCDF_INCLUDE="${GLOBAL_LIB_ROOT}/include"
-NETCDF_LIBS="-lnetcdff -lnetcdf"
+NETCDF_LIB_ROOT=${GLOBAL_LIB_ROOT}
+NETCDF_INCLUDE="${NETCDF_LIB_ROOT}/include"
+NETCDF_LIBS="-L${NETCDF_LIB_ROOT} -lnetcdff -lnetcdf"
 
 # Assume that eccodes resides under the GLOBAL_LIB_ROOT:
-ECCODES_INCLUDE="${GLOBAL_LIB_ROOT}/include"
-ECCODES_LIBS="-lgrib_api_f90 -lgrib_api -laec"
+ECCODES_LIB_ROOT=${GLOBAL_LIB_ROOT}
+ECCODES_INCLUDE="${ECCODES_LIB_ROOT}/include"
+ECCODES_LIBS="-L${ECCODES_LIB_ROOT} -lgrib_api_f90 -lgrib_api -laec"
 
 # Assume that lapack and blas reside under the GLOBAL_LIB_ROOT:
 BLAS_LAPACK_LIBS="-llapack -lblas"
@@ -127,9 +130,9 @@ CPPFLAGS="-I${ECCODES_INCLUDE} -I${HDF5_INCLUDE} -I${NETCDF_INCLUDE} -I${XML2_IN
 
 # Fortran compiler wrapper on Linux workstation using OpenMPI
 FC='mpif90'
-FCFLAGS="-I${GLOBAL_LIB_ROOT}/include -I${RTTOV_INCLUDE} -I${ECCODES_INCLUDE} -std=gnu -fimplicit-none -fmax-identifier-length=63 -fmax-errors=25 -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -ffree-line-length-132"
+FCFLAGS="-I${GLOBAL_LIB_ROOT}/include -I${RTTOV_INCLUDE} -I${ECCODES_INCLUDE} -cpp -std=gnu -fimplicit-none -fmax-identifier-length=63 -fmax-errors=25 -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -ffree-line-length-132"
 
-ICON_FCFLAGS='-fno-range-check -g -fbacktrace -fcheck=all -ffpe-trap=invalid,zero,overflow -fstack-protector-all -finit-real=nan -finit-integer=-2147483648 -finit-character=127 -O2'
+ICON_FCFLAGS='-fno-range-check -fopenmp -g -fbacktrace -fcheck=all -ffpe-trap=invalid,zero,overflow -fstack-protector-all -finit-real=nan -finit-integer=-2147483648 -finit-character=127 -O2'
 ICON_OCEAN_FCFLAGS="${ICON_FCFLAGS}"
 
 LDFLAGS="${GLOBAL_LIB_DIRS} -g -fbacktrace"
@@ -137,7 +140,7 @@ LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIB
 
 MPI_LAUNCH='mpiexec'
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --disable-openmp --disable-ocean --disable-jsbach --enable-rttov --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
+EXTRA_CONFIG_ARGS='--enable-grib2 --enable-openmp --disable-ocean --disable-jsbach --enable-rttov --disable-rte-rrtmgp --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 
 ################################################################################
 

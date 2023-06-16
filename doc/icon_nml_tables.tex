@@ -6062,28 +6062,138 @@ iforcing=2,3 inwp\_gscp=4,5,6,7
 
 rain\_cmu0 &
 R&  6.0 & &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 asymptotic $\mu$-value for spectra with small mean diameter.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu1 &
 R& 30.0 & &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 asymptotic $\mu$-value for spectra with large mean diameter.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu3 &
 R& 1.1e-3 & m &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 equilibrium mean spectral diameter for breakup and selfcollection.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
+rain\_cmu4 &
+R& 1.0 & &
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
+base value.  &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_r &
+R& -999.99 & &
+Shape parameter $\nu$ of the rain mass distribution inside clouds. Refers to the generalized gamma distribution with respect to mass $x$:\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value < -900 indicates that the background value $\nu=0.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_g &
+R& -999.99 & &
+Shape parameter $\nu$ for graupel in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+mu\_g &
+R& -999.99 & &
+Shape parameter $\mu$ for graupel in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ageo\_g &
+R& -999.99 & &
+Prefactor of the assumed size-mass-relation for graupel $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $a_{geo}=0.124$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bgeo\_g &
+R& -999.99 & &
+Exponent of the assumed size-mass-relation for graupel $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $b_{geo}=0.314$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+avel\_g &
+R& -999.99 & &
+Prefactor of the assumed fallspeed-mass-relation for graupel $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $a_{vel}=100.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bvel\_g &
+R& -999.99 & &
+Exponent of the assumed fallspeed-mass-relation for graupel $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $b_{vel}=0.34$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_h &
+R& -999.99 & &
+Shape parameter $\nu$ for hail in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+mu\_h &
+R& -999.99 & &
+Shape parameter $\mu$ for hail in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ageo\_h &
+R& -999.99 & &
+Prefactor of the assumed size-mass-relation for hail $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $a_{geo}=0.1366$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bgeo\_h &
+R& -999.99 & &
+Exponent of the assumed size-mass-relation for hail $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $b_{geo}=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+avel\_h &
+R& -999.99 & &
+Prefactor of the assumed fallspeed-mass-relation for hail $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $a_{vel}=39.3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bvel\_h &
+R& -999.99 & &
+Exponent of the assumed fallspeed-mass-relation for hail $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $b_{vel}=1/6$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+
 melt\_h\_tune\_fac &
 R& 1.0 & &
 Tuning factor for the hail melting rate. Values larger than 1.0 enhance the hail melting, smaller values slow down the melting. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+melt\_g\_tune\_fac &
+R& 1.0 & &
+Tuning factor for the graupel melting rate. Values larger than 1.0 enhance the graupel melting, smaller values slow down the melting. &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
@@ -6098,6 +6208,76 @@ L& .TRUE. &  &
 To switch on the turbulent enhancement of collision processes involving water droplets (autoconversion, accretion, rain selfcollection). &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
+
+lturb\_len &
+R& 300 & m &
+Turbulent length scale used for lturb\_enhc=.TRUE. &
+iforcing=2,3 inwp\_gscp=4,5,6,7 lturb\_enhc=.TRUE.
+\tabularnewline
+
+iice\_stick &
+I& 10 &  &
+Optional choice of the sticking efficiency parameterization for ice-ice-collisions as function of temperature:\\
+1: $e = \min(\exp(0.09 (T-T_3)),1.0)$ from Lin et al. (1983)\\
+2: $e = \min(\exp(0.025 (T-T_3)),1.0)$, even larger as option 1\\
+3: same as 2, but $e=0.01$ for $T<-40^{\circ}$C\\
+4: piecewise constant sticking efficiency with maxima at $-7.5^{\circ}$C and $-15^{\circ}$C and much smaller values at warm temperatures compared to 1, 2 and 3\\
+5: piecewise linear sticking efficiency with maximum at $-15^{\circ}$C and smaller values elswhere compared to 5\\
+6: option 5 times factor 0.5\\
+7: constant $e = 0.1$\\
+8: piecewise linear, a mix of 4 and 5\\
+9: option 5 times factor 0.75\\
+10: $e = \min(10^{(0.035(T-T_3)-0.7)},0.2)$ from Cotton et al. (1986)\\
+with $T_3=273.16$\,K
+&
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+isnow\_stick &
+I& 5 &  &
+Optional choice of the sticking efficiency parameterization for snow-snow collisions as function of temperature.\\
+Same choices as for \texttt{iice\_stick}. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+iparti\_stick &
+I& 5 &  &
+Optional choice of the sticking. efficiency parameterization for other frozen category collisions as function of temperature.\\
+Same choices as for \texttt{iice\_stick}.\\
+Does not apply for graupel selfcollection. There, the below \texttt{ecoll\_gg}, \texttt{ecoll\_gg\_wet} and \texttt{Tcoll\_gg\_wet} apply. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ecoll\_gg &
+R& 0.1 &  &
+Collision efficiency for graupel autoconversion (dry graupel). Value between 0 and 1. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ecoll\_gg\_wet &
+R& 0.4 &  &
+Collision efficiency for graupel autoconversion (wet graupel). Value between 0 and 1. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+Tcoll\_gg\_wet &
+R& 270.16 & K &
+Temperature limit above which graupel autoconversion is considered to be for wet surfaces. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+cap\_snow &
+R& -999.99 &  &
+Capacitance for snow depositional growth. A value < -900 indicates the usage of the code-internal backgroud value 3.0. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+vsedi\_max\_s &
+R& -999.99 & m/s &
+Maximum allowed spectral mean sedimentation velocity of snow at sea level. A value < -900 indicates the usage of the code-internal backgroud value 1.2\,m/s. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
 
 
 \end{longtab}

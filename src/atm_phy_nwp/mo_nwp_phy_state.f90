@@ -399,6 +399,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%lfc_ml, &
       &     diag%lcl_ml, &
       &     diag%cape_mu, &
+      &     diag%clc_rad, &
       &     diag%ceiling_height, &
       &     diag%cin_mu, &
       &     diag%dbz3d_lin, &
@@ -988,32 +989,32 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%cape)
 
-      ! &      diag%cape_ml(nproma,nblks_c)
-      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-      cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
-      grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-      CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                  & ldims=shape2d, lrestart=.FALSE.,                            &
-                  & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                  & lopenacc=.TRUE. )
-      __acc_attach(diag%cape_ml)
-
-      ! &      diag%cin_ml(nproma,nblks_c)
-      ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
-      cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
-      grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
-      &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
-      CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
-                  & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
-                  & ldims=shape2d, lrestart=.FALSE.,                            &
-  !!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
-                  & hor_interp=create_hor_interp_metadata(                      &
-                  &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
-                  & lopenacc=.TRUE. )
-      __acc_attach(diag%cin_ml)
+    ! &      diag%cape_ml(nproma,nblks_c)
+    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+    cf_desc    = t_cf_var('cape_ml', 'J kg-1 ', 'cape of mean surface layer parcel', datatype_flt)
+    grib2_desc = grib2_var(0, 7, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+                &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+    CALL add_var( diag_list, 'cape_ml', diag%cape_ml,                         &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d, lrestart=.FALSE.,                            &
+                & hor_interp=create_hor_interp_metadata(                      &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%cape_ml)
+    
+    ! &      diag%cin_ml(nproma,nblks_c)
+    ! typeOfLevel ZA_SURFACE is changed to 192 in vlistDefVarIntKey
+    cf_desc    = t_cf_var('cin_ml', 'J kg-1 ', 'convective inhibition of mean surface layer parcel', datatype_flt)
+    grib2_desc = grib2_var(0, 7, 7, ibits, GRID_UNSTRUCTURED, GRID_CELL)         &
+         &           + t_grib2_int_key("typeOfFirstFixedSurface", 192)
+    CALL add_var( diag_list, 'cin_ml', diag%cin_ml,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,    &
+                & ldims=shape2d, lrestart=.FALSE.,                            &
+!!$                & lmiss=.TRUE., missval=-999.9_wp,                            &
+                & hor_interp=create_hor_interp_metadata(                      &
+                &    hor_intp_type=HINTP_TYPE_LONLAT_NNB),                    &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%cin_ml)
 
     ! &      diag%gust10(nproma,nblks_c)
     CALL getPTStringFromMS(NINT(1000*gust_interval(k_jg), i8), gust_int)
@@ -1220,7 +1221,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     new_cf_desc  = t_cf_var('clc', '%', 'cloud cover', datatype_flt)
     grib2_desc   = grib2_var(0, 6, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( diag_list, 'clc', diag%clc,                                 &
-      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,               &
+      & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,            &
       & ldims=shape3d, lrestart=lart,                                         &
       & in_group=groups("cloud_diag"),                                        &
       & vert_interp=create_vert_interp_metadata(                              &
@@ -1232,8 +1233,41 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       & post_op=post_op(POST_OP_SCALE, arg1=100._wp,                          &
       &                 new_cf=new_cf_desc),                                  &
       & lopenacc=.TRUE.  )
-__acc_attach(diag%clc)
+    __acc_attach(diag%clc)
 
+    ! &      diag%clc_rad(nproma,nlev,nblks_c)
+    IF ( atm_phy_nwp_config(k_jg)%luse_clc_rad ) THEN
+
+      ! clc_rad is the modified cloud cover used in radiation schemes and RTTOV,
+      ! if reff and qr, qs, qg are active in radiation.
+      ! In this case, it differs from the above "normal" clc in that
+      ! it is set to 1.0 for gridpoints where qr, qg are present, as required by
+      ! the radiative transfer schemes of RTTOV, RRTM and ECRAD.
+      ! We need a separate clc_rad for this, because this modification is not
+      ! wanted in the "normal" clc above, which is the basis for diagnostics
+      ! like ceiling, clct, clch, clcm, clcl. For example,
+      ! if it rains, the ceiling should be where the cloud base (qc) is and not
+      ! at the ground, where only raindrops are present.
+      ! Currently saved with shortname DUMMY_1 in Grib Files.
+           
+      cf_desc      = t_cf_var('clc_rad', '',  'cloud cover for radiation scheme', datatype_flt)
+      new_cf_desc  = t_cf_var('clc_rad', '%', 'cloud cover for radiation scheme', datatype_flt)
+      grib2_desc   = grib2_var(0, 254, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'clc_rad', diag%clc_rad,                            &
+           & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,            &
+           & ldims=shape3d, lrestart=.FALSE.,                                      &
+           & vert_interp=create_vert_interp_metadata(                              &
+           &             vert_intp_type=vintp_types("P","Z","I"),                  &
+           &             vert_intp_method=VINTP_METHOD_LIN,                        &
+           &             l_loglin=.FALSE.,                                         &
+           &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,                   &
+           &             lower_limit=0._wp ),                                      &
+           & post_op=post_op(POST_OP_SCALE, arg1=100._wp,                          &
+           &                 new_cf=new_cf_desc),                                  &
+           & lopenacc=.TRUE.  )
+      __acc_attach(diag%clc_rad)
+
+    END IF
 
 
     ! &      diag%clct(nproma,nblks_c)
@@ -1249,7 +1283,7 @@ __acc_attach(diag%clc)
       & post_op=post_op(POST_OP_SCALE, arg1=100._wp,                          &
       &                 new_cf=new_cf_desc),                                  &
       & lopenacc=.TRUE.  )
-__acc_attach(diag%clct)
+    __acc_attach(diag%clct)
 
     ! &      diag%clct_mod(nproma,nblks_c)
     cf_desc      = t_cf_var('clct_mod', '', 'modified total cloud cover for media', &

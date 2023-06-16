@@ -82,7 +82,7 @@ MODULE mo_initicon_utils
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_2mom_mcrph_util,     ONLY: set_qnc, set_qnr, set_qni,   &
-    &                               set_qns, set_qng, set_qnh
+    &                               set_qns, set_qng, set_qnh_expPSD_N0const
 
 
   IMPLICIT NONE
@@ -2915,7 +2915,10 @@ MODULE mo_initicon_utils
         DO jk = 1, p_patch%nlev
           DO jc = 1, nlen
             rholoc = MAX(my_rho(jc,jk,jb), 1e-20_wp)
-            my_qnh(jc,jk,jb) = set_qnh( MAX(my_qh(jc,jk,jb), 0.0_wp)*rholoc ) / rholoc
+            ! init qnh assuming hail bulk density of 750 kg/m^3 and an
+            !  exponential PSD w.r.t. diameter with const. intercept N0 of 1e6 m-4:
+            my_qnh(jc,jk,jb) = set_qnh_expPSD_N0const( &
+              MAX(my_qh(jc,jk,jb), 0.0_wp)*rholoc, 750.0_wp, 1.0e6_wp ) / rholoc
           END DO
         END DO
       END IF
@@ -3108,7 +3111,11 @@ MODULE mo_initicon_utils
               qtmp1 = MAX( my_qh(jc,jk,jb) + my_qh_inc(jc,jk,jb) , 0.0_wp)
               qtmp0 = MAX( my_qh(jc,jk,jb) , 0.0_wp)
               rholoc = MAX(my_rho(jc,jk,jb), 1e-20_wp)
-              my_qnh_inc(jc,jk,jb) = ( set_qnh( qtmp1*rholoc ) - set_qnh( qtmp0*rholoc ) ) / rholoc 
+!              my_qnh_inc(jc,jk,jb) = ( set_qnh( qtmp1*rholoc ) - set_qnh( qtmp0*rholoc ) ) / rholoc 
+              ! init qnh increment by assuming hail bulk density of 750 kg/m^3 and an
+              !  exponential PSD w.r.t. diameter with const. intercept N0 of 1e6 m-4:
+              my_qnh_inc(jc,jk,jb) = ( set_qnh_expPSD_N0const( qtmp1*rholoc, 750.0_wp, 1.0e6_wp ) - &
+                                       set_qnh_expPSD_N0const( qtmp0*rholoc, 750.0_wp, 1.0e6_wp ) ) / rholoc
             END IF
           END DO
         END DO

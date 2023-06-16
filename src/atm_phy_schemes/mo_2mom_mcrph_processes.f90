@@ -137,7 +137,8 @@ MODULE mo_2mom_mcrph_processes
        & particle_sphere, particle_rain_coeffs, particle_cloud_coeffs, aerosol_ccn, &
        & particle_ice_coeffs, particle_snow_coeffs, particle_graupel_coeffs, &
        & particle_coeffs, collection_coeffs, rain_riming_coeffs, dep_imm_coeffs, &
-       & lookupt_4D
+       & lookupt_1D, lookupt_4D
+
   USE mo_2mom_mcrph_config,         ONLY: t_cfg_2mom
   USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
   USE mo_2mom_mcrph_util, ONLY: &
@@ -153,14 +154,15 @@ MODULE mo_2mom_mcrph_processes
        & incgfct_upper_lookup,       &  !   interpolation in talbe, upper incomplete Gamma function
        & dmin_wg_gr_ltab_equi,       &  ! For look-up table of wet growth diameter
        & dmin_wetgrowth_fun,         &  ! For 4d functional fit of wet growth diameter
-       & ltabdminwgg,                &
        & luse_dmin_wetgrowth_table,  &
        & set_qnc,                    &
        & set_qni,                    &
        & set_qnr,                    &
        & set_qns,                    &
        & set_qng,                    &
-       & set_qnh                    
+       & set_qnh_expPSD_N0const,     &
+       & estick_ltab_equi
+
   USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
@@ -248,9 +250,10 @@ MODULE mo_2mom_mcrph_processes
 
   ! Various parameters for collision and conversion rates
   REAL(wp), PARAMETER ::                  &
-       &    ecoll_min    = 0.01_wp,       &  !..min. eff. for graupel_cloud, ice_cloud and snow_cloud
-       &    ecoll_gg     = 0.10_wp,       &  !..collision efficiency for graupel selfcollection
-       &    ecoll_gg_wet = 0.40_wp           !    in case of wet graupel
+       &    ecoll_min    = 0.01_wp          ! ..min. eff. for graupel_cloud, ice_cloud and snow_cloud
+!!       &    Tcoll_gg_wet = 270.16_wp
+!!       &    ecoll_gg     = 0.10_wp,       &  !..collision efficiency for graupel selfcollection
+!!       &    ecoll_gg_wet = 0.40_wp           !    in case of wet graupel
 !!$ now this comes from cfg_params:
 !!$    &    alpha_spacefilling = 0.01_wp     !..Raumerfuellungskoeff (max. 0.68)
 
@@ -438,25 +441,25 @@ CONTAINS
 
   ! normalized diameter for rational function approx.
   ! in lwf-melting scheme
-  pure function particle_normdiameter(this,D_m) result(dnorm)
+  PURE FUNCTION particle_normdiameter(this,D_m) RESULT(dnorm)
     CLASS(particle_lwf), intent(in) :: this
     REAL(wp), INTENT(in) :: D_m
-    real(wp)             :: dnorm
+    REAL(wp)             :: dnorm
 
     dnorm = MIN(MAX((LOG10(D_m*this%lwf_cnorm1)+this%lwf_cnorm2)*this%lwf_cnorm3,0.0_wp),1.0_wp)
-    return
-  end function particle_normdiameter
+    RETURN
+  END FUNCTION particle_normdiameter
 
   ! lwf of mixed particle
-  pure function particle_lwf_idx(this,i,j) result(lwf)
-    CLASS(particle_lwf), intent(in) :: this
-    integer,         intent(in) :: i,j
+  PURE FUNCTION particle_lwf_idx(this,i,j) RESULT(lwf)
+    CLASS(particle_lwf), INTENT(in) :: this
+    INTEGER,         INTENT(in) :: i,j
     REAL(wp)                    :: lwf
-    real(wp), parameter         :: eps = 1e-20_wp
+    REAL(wp), PARAMETER         :: eps = 1e-20_wp
 
     lwf = MAX(MIN(this%l(i,j)/(this%q(i,j)+eps),1.0_wp),0.0_wp)
-    return
-  end function particle_lwf_idx
+    RETURN
+  END FUNCTION particle_lwf_idx
 
   ! terminal fall velocity of particles, cf. Eq. (33) of SB2006
 ! Cray compiler does not support OpenACC in elemental or pure
@@ -486,7 +489,7 @@ CONTAINS
 
     TYPE(particle_rain_coeffs), INTENT(in) :: this
     REAL(wp), INTENT(in) :: D_m
-    real(wp)             :: mue, delta
+    REAL(wp)             :: mue, delta
 
     delta = this%cmu2*(D_m-this%cmu3)
     IF (D_m.LE.this%cmu3) THEN
@@ -506,7 +509,7 @@ CONTAINS
     INTEGER, INTENT(IN)        :: n
     CLASS(particle), INTENT(IN) :: parti
 
-    vent_coeff_a = parti%a_ven * gfct((parti%nu+n+parti%b_geo)/parti%mu)              &
+    vent_coeff_a = parti%a_ven * gfct((parti%nu+n+parti%b_geo)/parti%mu)                 &
          &                     / gfct((parti%nu+1.0_wp)/parti%mu)                        &
          &                   * ( gfct((parti%nu+1.0_wp)/parti%mu)                        &
          &                     / gfct((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
@@ -564,8 +567,8 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_delta = gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)         &
-         &                  / gfct((p1%nu+1.0_wp  )/p1%mu)         &
+    coll_delta = gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)      &
+         &                     / gfct((p1%nu+1.0_wp  )/p1%mu)      &
          &        * gfct((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
          &        / gfct((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
     RETURN
@@ -705,8 +708,7 @@ CONTAINS
   END SUBROUTINE sedi_vel_rain
 
   ! bulk sedimentation velocities
-
-  subroutine sedi_vel_sphere(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite)
+  SUBROUTINE sedi_vel_sphere(this,thisCoeffs,q,x,rhocorr,vn,vq,its,ite)
     CLASS(particle), INTENT(in)        :: this
     CLASS(particle_sphere), INTENT(in) :: thisCoeffs
     INTEGER,  INTENT(in)  :: its,ite
@@ -2623,7 +2625,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_ice_selfcollection
 
-  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice_in, snow, ice_coeffs)
+  SUBROUTINE ice_selfcollection(ik_slice, dt, atmo, ice_in, snow, ice_coeffs, ltab_estick_ice)
     !*******************************************************************************
     ! selfcollection of ice crystals, see SB2006 or Seifert (2002)                 *
     !*******************************************************************************
@@ -2639,6 +2641,8 @@ CONTAINS
     CLASS(particle_frozen), INTENT(inout), TARGET :: ice_in
     CLASS(particle_frozen), POINTER :: ice ! ACCWA (nvhpc 22.7, IPSF, see above)
     CLASS(particle_frozen), INTENT(inout) :: snow
+    TYPE(lookupt_1D), INTENT(in), TARGET :: ltab_estick_ice
+    TYPE(lookupt_1D), POINTER :: p_ltab_estick_ice
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2652,7 +2656,8 @@ CONTAINS
     IF (isdebug) CALL message(routine, "ice_selfcollection")
 
     ice => ice_in ! ACCWA (nvhpc 22.7, IPSF, see above)
-
+    p_ltab_estick_ice => ltab_estick_ice
+    
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -2675,10 +2680,9 @@ CONTAINS
 
              T_a = atmo%T(i,k)
 
-             !.. Temperaturabhaengige Efficiency nach Cotton et al. (1986)
-             !   (siehe auch Straka, 1989; S. 53)
-             e_coll = MIN(10**(0.035_wp*(T_a-T_3)-0.7_wp),0.2_wp)
-
+             !.. Sticking efficiency depending on temperature:
+             e_coll = estick_ltab_equi(T_a, p_ltab_estick_ice)  ! equidistant lookup table
+             
              v_i = ice%a_vel * x_i**ice%b_vel * ice%rho_v(i,k)
 
              self_n = pi4 * e_coll * ice_coeffs%sc_delta_n * n_i * n_i * D_i * D_i &
@@ -2737,7 +2741,7 @@ CONTAINS
     END IF
   END SUBROUTINE setup_snow_selfcollection
 
-  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow_in, snow_coeffs)
+  SUBROUTINE snow_selfcollection(ik_slice, dt, atmo, snow_in, snow_coeffs, ltab_estick_snow)
     !*******************************************************************************
     ! Selfcollection of snow                                                       *
     !*******************************************************************************
@@ -2751,6 +2755,8 @@ CONTAINS
     TYPE(atmosphere), INTENT(inout)        :: atmo
     CLASS(particle_frozen), INTENT(inout), TARGET :: snow_in
     CLASS(particle_frozen), POINTER :: snow ! ACCWA (nvhpc 22.7, IPSF, see above)
+    TYPE(lookupt_1D), INTENT(in), TARGET :: ltab_estick_snow
+    TYPE(lookupt_1D), POINTER :: p_ltab_estick_snow
 
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2762,6 +2768,7 @@ CONTAINS
     IF (isdebug) CALL message(routine, "snow_selfcollection")
 
     snow => snow_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    p_ltab_estick_snow => ltab_estick_snow
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2778,8 +2785,8 @@ CONTAINS
 
           IF ( q_s > q_crit ) THEN
 
-             !.. Temperaturabhaengige sticking efficiency nach Lin (1983)
-             e_coll = MAX(0.1_wp,MIN(EXP(0.09_wp*(T_a-T_3)),1.0_wp))
+             !.. Sticking efficiency depending on temperature:
+             e_coll = estick_ltab_equi(T_a, p_ltab_estick_snow)  ! equidistant lookup table
 
              n_s = snow%n(i,k)
              x_s = particle_meanmass(snow,q_s,n_s)
@@ -2840,7 +2847,8 @@ CONTAINS
           T_a = atmo%T(i,k)
           q_s = snow%q(i,k)
           IF (T_a > T_3 .AND. q_s > 0.0_wp) THEN
-            e_a = e_ws(T_a)            ! saturation pressure
+!            e_a = e_ws(T_a)            ! saturation pressure IS WRONG HERE, need actual e_v
+            e_a  = atmo%qv(i,k) * R_d * T_a
             n_s = snow%n(i,k)
 
             x_s = particle_meanmass(snow,q_s,n_s)
@@ -2857,7 +2865,7 @@ CONTAINS
 
             melt_h = melt * K_T * (T_a - T_3)
             melt_v = melt * D_v*L_wd/R_d * (e_a/T_a - e_3/T_3)
-            melt_q = (melt_h * fh_q + melt_v * fv_q)
+            melt_q = cfg_params%melt_g_tune_fak * (melt_h * fh_q + melt_v * fv_q)
 
             ! UB: for melt_n we assume that x_s is constant during melting
             melt_n = MIN(MAX( (melt_q - q_s) / x_s + n_s, 0.0_wp), n_s)
@@ -2887,7 +2895,7 @@ CONTAINS
 
   END SUBROUTINE snow_melting
 
-  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype_in, ptype_in, coeffs)
+  SUBROUTINE particle_particle_collection(ik_slice, dt, atmo, ctype_in, ptype_in, coeffs, ltab_estick_parti)
     !*******************************************************************************
     !  Most simple particle-particle collection for ice particles, e.g.,           *
     !    graupel+ice  -> graupel                                                   *
@@ -2907,7 +2915,9 @@ CONTAINS
     CLASS(particle_frozen), INTENT(inout), TARGET :: ctype_in, ptype_in
     CLASS(particle_frozen), POINTER :: ctype, ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
     TYPE(collection_coeffs), INTENT(in)    :: coeffs
-    
+    TYPE(lookupt_1D), INTENT(in), TARGET :: ltab_estick_parti
+    TYPE(lookupt_1D), POINTER :: p_ltab_estick_parti
+
     ! Locale Variablen
     ! start and end indices for 2D slices
     INTEGER :: istart, iend, kstart, kend
@@ -2921,6 +2931,7 @@ CONTAINS
 
     ctype => ctype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
     ptype => ptype_in
+    p_ltab_estick_parti => ltab_estick_parti
 
     istart = ik_slice(1)
     iend   = ik_slice(2)
@@ -2939,8 +2950,8 @@ CONTAINS
         IF (q_i > q_crit .AND. q_p > q_crit) THEN
           T_a = atmo%T(i,k)
           
-          !.. sticking efficiency of Lin (1983)
-          e_coll = min(exp(0.09*(T_a-T_3)),1.0_wp)
+          !.. Sticking efficiency depending on temperature:
+          e_coll = estick_ltab_equi(T_a, p_ltab_estick_parti)  ! equidistant lookup table
           
           n_i = ctype%n(i,k)
           n_p = ptype%n(i,k)
@@ -3104,8 +3115,9 @@ CONTAINS
              self_n = graupel_coeffs%sc_coll_n * n_g**2 * D_g**2 * v_g * dt
 
              ! sticking efficiency does only distinguish dry and wet based on T_3
-             self_n = self_n * MERGE(ecoll_gg_wet, ecoll_gg, atmo%T(i,k) > T_3)
-
+             self_n = self_n * MERGE(cfg_params%ecoll_gg_wet, cfg_params%ecoll_gg, atmo%T(i,k) > cfg_params%Tcoll_gg_wet )
+!             self_n = self_n * MERGE(cfg_params%ecoll_gg_wet, cfg_params%ecoll_gg, atmo%T(i,k) > 270.16 )
+!             self_n = self_n * MERGE(cfg_params%ecoll_gg_wet, cfg_params%ecoll_gg, atmo%T(i,k) > T_3)
              self_n = MIN(self_n,n_g)
 
              graupel%n(i,k) = graupel%n(i,k) - self_n
@@ -3463,7 +3475,8 @@ CONTAINS
           q_g = graupel%q(i,k)
 
           IF (T_a > T_3 .AND. q_g > 0.0_wp) THEN
-             e_a = e_ws(T_a)
+!             e_a = e_ws(T_a)
+             e_a  = atmo%qv(i,k) * R_d * T_a  ! need actual e_v here, not satur. vapor pres.
              n_g = graupel%n(i,k)
 
              x_g = particle_meanmass(graupel, q_g,n_g)
@@ -3478,7 +3491,7 @@ CONTAINS
              melt_h = melt * K_T * (T_a - T_3)
              melt_v = melt * D_v*L_wd/R_d * (e_a/T_a - e_3/T_3)
 
-             melt_q = (melt_h * fh_q + melt_v * fv_q)
+             melt_q = cfg_params%melt_g_tune_fak* (melt_h * fh_q + melt_v * fv_q)
 
              ! UB: assume that x_g is constant during melting
              melt_n = MIN(MAX( (melt_q - q_g) / x_g + n_g, 0.0_wp), n_g)
@@ -3566,7 +3579,8 @@ CONTAINS
           q_h = hail%q(i,k)
 
           IF (T_a > T_3 .AND. q_h > 0.0_wp) THEN
-            e_a = e_ws(T_a)
+!            e_a = e_ws(T_a)
+            e_a  = atmo%qv(i,k) * R_d * T_a
             n_h = hail%n(i,k)
 
             x_h = particle_meanmass(hail,q_h,n_h)
@@ -3841,7 +3855,7 @@ CONTAINS
 
   SUBROUTINE graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
        &                                   graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
-       &                                   atmo, graupel_in, cloud, rain, ice, snow, hail)
+       &                                   ltabdminwgg, atmo, graupel_in, cloud, rain, ice, snow, hail)
     !*******************************************************************************
     !  Wet growth and conversion of graupel to hail                                *
     !  (uses look-up table for incomplete gamma functions)                         *
@@ -3855,6 +3869,8 @@ CONTAINS
     ! Parameters and tables
     TYPE(gamlookuptable),INTENT(in) :: graupel_ltable1, graupel_ltable2
     REAL(wp), INTENT(in)            :: graupel_nm1, graupel_nm2, graupel_g1, graupel_g2
+    TYPE(lookupt_4d), INTENT(in), TARGET    :: ltabdminwgg
+    TYPE(lookupt_4D), POINTER       :: p_ltabdminwgg
 
     ! 2mom variables
     TYPE(atmosphere), INTENT(inout)       :: atmo
@@ -3876,7 +3892,8 @@ CONTAINS
     IF (isdebug) CALL message(routine, "graupel_hail_conv_wet_gamlook")
 
     graupel => graupel_in ! ACCWA (nvhpc 22.7, IPSF, see above)
-
+    p_ltabdminwgg => ltabdminwgg
+    
     istart = ik_slice(1)
     iend   = ik_slice(2)
     kstart = ik_slice(3)
@@ -3914,14 +3931,14 @@ CONTAINS
             !.. koennte problematisch sein, weil in konvekt. Wolken viel mehr Graupel und Hagel enthalten ist!!!
             qi_a = ice%q(i,k) + snow%q(i,k)
 
-            if (luse_dmin_wetgrowth_table) then
-              d_trenn = dmin_wg_gr_ltab_equi(p_a,T_a,qw_a,qi_a,ltabdminwgg)
-            else
+            IF (luse_dmin_wetgrowth_table) THEN
+              d_trenn = dmin_wg_gr_ltab_equi(p_a,T_a,qw_a,qi_a,p_ltabdminwgg)
+            ELSE
 #ifdef _OPENACC
               CALL finish(routine, 'dmin_wetgrowth_fun not available on GPU')
 #endif
               d_trenn = dmin_wetgrowth_fun(p_a,T_a,qw_a,qi_a)
-            end if
+            END IF
 
             IF (d_trenn > 0.0_wp .AND. d_trenn < 10.0_wp * D_g) THEN
 
@@ -5173,7 +5190,8 @@ CONTAINS
     IF (.NOT.PRESENT(ik_slice)) THEN
       CALL get_otab(n_r2,n_lsigs,n_ncn,n_wcb)     ! original look-up-table from Segal and Khain      
       CALL equi_table(nr2,nlsigs,nncn,nwcb)   ! construct the new equidistant table tab:
-      !$ACC ENTER DATA COPYIN(tab, tab%ltable, tab%x1, tab%x2, tab%x3, tab%x4)
+      !$ACC ENTER DATA COPYIN(tab)
+      !$ACC ENTER DATA COPYIN(tab%ltable, tab%x1, tab%x2, tab%x3, tab%x4)
       RETURN
     END IF
 
@@ -5301,7 +5319,7 @@ CONTAINS
           atmo%qv(i,k) = atmo%qv(i,k) - nuc_q
 
           IF (PRESENT(n_cn)) THEN
-            n_cn(i,k)    = n_cn(i,k)    - MIN(Ncn,nuc_n)
+            n_cn(i,k) = n_cn(i,k) - MIN(Ncn,nuc_n)
           END IF
 
         END IF
@@ -5319,12 +5337,14 @@ CONTAINS
       otab%n2 = n_lsigs
       otab%n3 = n_ncn + 1
       otab%n4 = n_wcb + 1
-
-      ALLOCATE( otab%x1(otab%n1) )
-      ALLOCATE( otab%x2(otab%n2) )
-      ALLOCATE( otab%x3(otab%n3) )
-      ALLOCATE( otab%x4(otab%n4) )
-      ALLOCATE( otab%ltable(otab%n1,otab%n2,otab%n3,otab%n4) )
+      
+      IF (.NOT. ASSOCIATED(otab%x1) ) THEN
+        ALLOCATE( otab%x1(otab%n1) )
+        ALLOCATE( otab%x2(otab%n2) )
+        ALLOCATE( otab%x3(otab%n3) )
+        ALLOCATE( otab%x4(otab%n4) )
+        ALLOCATE( otab%ltable(otab%n1,otab%n2,otab%n3,otab%n4) )
+      END IF
  
       ! original (non-)equidistant table vectors:
       ! r2:
@@ -5438,12 +5458,14 @@ CONTAINS
       tab%n2 = nlsigs
       tab%n3 = nncn
       tab%n4 = nwcb
-
-      ALLOCATE( tab%x1(tab%n1) )
-      ALLOCATE( tab%x2(tab%n2) )
-      ALLOCATE( tab%x3(tab%n3) )
-      ALLOCATE( tab%x4(tab%n4) )
-      ALLOCATE( tab%ltable(tab%n1,tab%n2,tab%n3,tab%n4) )
+      
+      IF (.NOT. ASSOCIATED(tab%x1)) THEN
+        ALLOCATE( tab%x1(tab%n1) )
+        ALLOCATE( tab%x2(tab%n2) )
+        ALLOCATE( tab%x3(tab%n3) )
+        ALLOCATE( tab%x4(tab%n4) )
+        ALLOCATE( tab%ltable(tab%n1,tab%n2,tab%n3,tab%n4) )
+      END IF
 
       !===========================================================
       ! construct equidistant table:
@@ -5521,7 +5543,7 @@ CONTAINS
         END DO
       END DO
 
-      ! Tettora-linear interpolation:
+      ! Tetra-linear interpolation:
 
       DO l=1, tab%n4
         lu = luv(l)
@@ -5815,13 +5837,14 @@ CONTAINS
   !       Set to a default number concentration in places with qnx = 0 and qx !=0*
   !       (implemented by Alberto de Lozar)                                      *
   !*******************************************************************************
-  SUBROUTINE set_default_n(ik_slice, cloud, ice, rain, snow, graupel, n_cn)
+  SUBROUTINE set_default_n(ik_slice, cloud, ice, rain, snow, graupel, hail, n_cn)
     INTEGER, INTENT(in) :: ik_slice(4)
     CLASS(particle), INTENT(inout)      :: cloud
     CLASS(particle), INTENT(inout)      :: ice
     CLASS(particle), INTENT(inout)      :: rain
     CLASS(particle), INTENT(inout)      :: snow
     CLASS(particle), INTENT(inout)      :: graupel
+    CLASS(particle), INTENT(inout)      :: hail
     REAL(wp), DIMENSION(:,:), OPTIONAL  :: n_cn
     LOGICAL                             :: n_cn_pres
 
@@ -5879,6 +5902,13 @@ CONTAINS
       DO i = istart,iend
         IF ( graupel%q(i,k) > 0.0_wp .AND. graupel%n(i,k) < eps) THEN
           graupel%n(i,k) = set_qng(graupel%q(i,k)) 
+        END IF
+      END DO
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO i = istart,iend
+        IF ( hail%q(i,k) > 0.0_wp .AND. hail%n(i,k) < eps) THEN
+          hail%n(i,k) = set_qnh_expPSD_N0const(hail%q(i,k),750.0_wp,1.0e6_wp) 
         END IF
       END DO
 

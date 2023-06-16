@@ -162,6 +162,8 @@ MODULE mo_atm_phy_nwp_config
     LOGICAL :: lhydrom_read_from_fg(1:20)  ! Flag for each hydrometeor tracer, if it has been read from fg file
     LOGICAL :: lhydrom_read_from_ana(1:20) ! Flag for each hydrometeor tracer, if it has been read from ana file
 
+    LOGICAL :: luse_clc_rad
+
 #ifndef __NO_ICON_LES__
     LOGICAL :: is_les_phy          !>TRUE is turbulence is 3D 
                                    !>FALSE otherwise
@@ -352,6 +354,14 @@ CONTAINS
       END SELECT
       atm_phy_nwp_config(jg)%lhydrom_read_from_fg(:) = .FALSE.
       atm_phy_nwp_config(jg)%lhydrom_read_from_ana(:) = .FALSE.
+
+      IF (atm_phy_nwp_config(jg)%icalc_reff > 0 .AND. &
+             atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. &
+             atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
+        atm_phy_nwp_config(jg)%luse_clc_rad = .TRUE.
+      ELSE
+        atm_phy_nwp_config(jg)%luse_clc_rad = .FALSE.
+      END IF
 
       ! Switch off stochastic convection for horizontal resolution greater than 20km
       IF ((atm_phy_nwp_config(jg)%lstoch_sde .or. atm_phy_nwp_config(jg)%lstoch_expl) .and. &

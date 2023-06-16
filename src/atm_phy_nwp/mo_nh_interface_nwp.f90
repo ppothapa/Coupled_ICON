@@ -284,7 +284,7 @@ CONTAINS
 
     LOGICAL :: lconstgrav  !< const. gravitational acceleration?
     LOGICAL :: lcalc_inv
-
+    
     ! SCM Nudging
     REAL(wp) :: nudgecoeff
 
@@ -360,7 +360,7 @@ CONTAINS
 
     ! Inversion height is calculated only if the threshold is set to a non-default value
     lcalc_inv = tune_sc_eis < 1000._wp
-
+    
     IF(sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
       ! Construct field of random numbers for SPPT
       CALL construct_rn (pt_patch, mtime_datetime, sppt_config(jg), sppt(jg)%rn_3d, &
@@ -1162,7 +1162,7 @@ CONTAINS
       i_endblk   = pt_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb, i_startidx, i_endidx)
+!$OMP DO PRIVATE(jb, jk, jc, i_startidx, i_endidx)
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk,  &
@@ -1308,7 +1308,7 @@ CONTAINS
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "cover", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 #ifndef __GFORTRAN__
 ! FIXME: libgomp seems to run in deadlock here
-!$OMP PARALLEL DO PRIVATE(i_startidx,i_endidx,qtvar,kc_inversion,kc_entr_zone,lfound_inversion) ICON_OMP_GUIDED_SCHEDULE
+!$OMP PARALLEL DO PRIVATE(jb,jc,i_startidx,i_endidx,qtvar,kc_inversion,kc_entr_zone,lfound_inversion) ICON_OMP_GUIDED_SCHEDULE
 #endif
       DO jb = i_startblk, i_endblk
         !
@@ -1399,21 +1399,28 @@ CONTAINS
     !> Effective Radius
     !-------------------------------------------------------------------------
 
-    !! Call effective radius diagnostic calculation (only for radiation time steps)
+    !! Call effective radius diagnostic calculation for every cloud cover time step to achieve consistency
+    !! between qc_dia, qi_dia and reff's. This also updates clc_rad, the special clc_diagnostic
+    !! for radiation and satellite operators (MEC and synsats). 
+    !! clc_rad is a copy of clc, but modified in the presence of large hydrometeors in a way
+    !! that it is set to 1.0 if qr, qs or qg are present. The latter is needed by the
+    !! radiation schemes and RTTOV in order to correctly take into account the radiative
+    !! effects of these grid-scale hydrometeors.
 
-    IF ( lcall_phy_jg(itrad)  .AND. atm_phy_nwp_config(jg)%icalc_reff > 0 ) THEN
+    IF ( lcall_phy_jg(itccov) .AND. atm_phy_nwp_config(jg)%icalc_reff > 0 ) THEN
+      
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "set_reff", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
-      IF (msg_level >= 15) &
-           &           CALL message('mo_nh_interface', 'effective radius')
+      IF (msg_level >= 15) CALL message('mo_nh_interface', 'effective radius')
 
       IF (timers_level > 10) CALL timer_start(timer_phys_reff)
 
       CALL set_reff( prm_diag, pt_patch, pt_prog, pt_diag, ext_data )
 
-      ! Combine all hydrometeors in one liquid and one frozen phase
-      ! Not available for RRTM reff parameterization with single liquid and ice phase
       IF (  atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
+
+        ! .. Copy clc to clc_rad, combine reff's and enforce clc_rad = 1.0 at points where qs, qg, qr are present:
         CALL combine_phases_radiation_reff( prm_diag, pt_patch, pt_prog )
+
       END IF
 
       IF (timers_level > 10) CALL timer_stop(timer_phys_reff)
@@ -1487,7 +1494,7 @@ CONTAINS
 
       IF (timers_level > 2) CALL timer_start(timer_radheat)
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,isubs,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
 !
       DO jb = i_startblk, i_endblk
         !
