@@ -1662,7 +1662,7 @@ CONTAINS
     END TYPE omp_local_private
     
 !     TYPE(omp_local_private) :: omp_this 
-    INTEGER :: je, blockNo, level
+    INTEGER :: je, blockNo, level, max_dolic_e
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: cell_1_index, cell_2_index, cell_1_block, cell_2_block
     INTEGER :: edge_11_index, edge_12_index, edge_13_index ! edges of cell_1
@@ -1716,12 +1716,20 @@ CONTAINS
 
 ! Note that this loop structure is currenlty suboptimal on Aurora
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
 #ifdef __LVECTOR__
-      DO level = startLevel, MAXVAL(dolic_e(start_edge_index:end_edge_index,blockNo))
+      max_dolic_e = -1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_e) IF(lacc)
+      DO je = start_edge_index, end_edge_index
+        max_dolic_e = MAX(max_dolic_e, dolic_e(je,blockNo))
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      DO level = startLevel, max_dolic_e
         DO je = start_edge_index, end_edge_index
           IF (dolic_e(je,blockNo) < level) CYCLE
 #else           
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 #endif
         cell_1_index = cell_idx(je,blockNo,1)
@@ -1940,10 +1948,6 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':map_edges2edges_viacell_2D_constZ'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
-
     patch_2d   => patch_3d%p_patch_2d(1)
 
     IF (PRESENT(use_acc)) THEN
@@ -1958,6 +1962,10 @@ CONTAINS
       RETURN
     ENDIF
     !-----------------------------------------------------------------------
+
+#ifdef _OPENACC
+    CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     edges_inDomain => patch_2d%edges%in_domain
     startLevel = 1
@@ -2072,9 +2080,6 @@ CONTAINS
     REAL(wp), POINTER :: coeffs(:,:,:)
     CHARACTER(len=*), PARAMETER :: routine = modname//':map_edges2edges_viacell_2D_constZ_onTriangles'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
     !-----------------------------------------------------------------------
 !     IF (no_primal_edges /= 3) &
 !       & CALL finish ('map_edges2edges_viacell triangle version', 'no_primal_edges /= 3')

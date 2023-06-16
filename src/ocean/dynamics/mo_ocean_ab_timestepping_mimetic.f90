@@ -771,10 +771,6 @@ CONTAINS
     REAL(wp), DIMENSION(:,:,:,:), POINTER :: div_coeff
     REAL(wp), DIMENSION(:,:), POINTER :: p_rhs_sfc_eq, h_old
     CHARACTER(len=*), PARAMETER :: routine = modname//':fill_rhs4surface_eq_ab'
-      
-!#ifdef _OPENACC
-!    CALL finish(routine, 'OpenACC version currently not implemented')
-!#endif
 
     idx => patch_3D%p_patch_2D(1)%cells%edge_idx
     blk => patch_3D%p_patch_2D(1)%cells%edge_blk
@@ -860,8 +856,6 @@ CONTAINS
     ENDIF!EDGE-BASED
     IF( patch_2d%cells%max_connectivity == 3 )THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index,end_cell_index, jc, jk, div_z_depth_int_c, div_z_c) ICON_OMP_DEFAULT_SCHEDULE
-!      !$ACC DATA COPYIN( blk, div_coeff, dolic_c, h_old, idx, z_e ) &
-!      !$ACC COPY( div_z_c, div_z_depth_int_c, p_rhs_sfc_eq )
       DO blockNo = cells_start_block, cells_end_block
         CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
         CALL div_oce_3D_onTriangles_onBlock( z_e, patch_3D, div_coeff, div_z_c, &
@@ -869,22 +863,17 @@ CONTAINS
           & start_level=1, end_level=n_zlev)
         ! integrate div on columns
         div_z_depth_int_c(:) = 0.0_wp
-!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
         DO jc = start_cell_index, end_cell_index
           div_z_depth_int_c(jc) = SUM(div_z_c(jc, 1:dolic_c(jc,blockNo)))
         END DO
-!        !$ACC END PARALLEL LOOP
         p_rhs_sfc_eq(:,blockNo) = 0.0_wp
-!        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
         DO jc = start_cell_index, end_cell_index
           IF (dolic_c(jc,blockNo) > 0) THEN
             p_rhs_sfc_eq(jc,blockNo) = ((h_old(jc,blockNo) &
               & - dtime * div_z_depth_int_c(jc)) * inv_gdt2)
           ENDIF
         END DO
-!        !$ACC END PARALLEL LOOP
       END DO
-!      !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
     ELSE
 !ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index,end_cell_index, jc, jk, div_z_depth_int_c, div_z_c) ICON_OMP_DEFAULT_SCHEDULE
@@ -1088,9 +1077,6 @@ CONTAINS
     !------------------------------------------------------------------
     ! Step 1) Calculate divergence of horizontal velocity at all levels
     !------------------------------------------------------------------
-!#ifdef _OPENACC
-!    CALL finish(routine, 'OpenACC version currently not implemented')
-!#endif
     !-------------------------------------------------------------------------------
     IF( l_edge_based )THEN
       DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
@@ -1123,27 +1109,21 @@ CONTAINS
         & ocean_state%p_diag%mass_flx_e)!, patch_3D%p_patch_1D(1)%prism_thick_c)
       IF ( patch_2d%cells%max_connectivity == 3 )THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
-!        !$ACC DATA COPYIN( blk, div_coeff, dolic_c, idx, mass_flx_e ) &
-!        !$ACC COPY( div_mass_flx_c, vertical_velocity )
         DO blockNo = cells_start_block, cells_end_block
           CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
           CALL div_oce_3D_onTriangles_onBlock(mass_flx_e, patch_3D, div_coeff, &
             & div_mass_flx_c(:,:,blockNo), blockNo=blockNo, start_index=start_index, &
             & end_index=end_index, start_level=1, end_level=n_zlev)
-!          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
           DO jc = start_index, end_index
             !use bottom boundary condition for vertical velocity at bottom of prism
             ! this should be awlays zero
             ! vertical_velocity(jc,z_dolic+1,blockNo)=0.0_wp
-!            !$ACC LOOP SEQ
             DO jk = dolic_c(jc,blockNo), 1, -1
               vertical_velocity(jc,jk,blockNo) = vertical_velocity(jc,jk+1,blockNo) - &
                 & div_mass_flx_c(jc,jk,blockNo)
             END DO
           END DO
-!          !$ACC END PARALLEL LOOP
         END DO ! blockNo
-!        !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
       ELSE
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
