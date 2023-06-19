@@ -156,6 +156,10 @@ $addexp exp.seamless_bb-ecradmin --builders "levante_intel_hybrid levante_gcc_hy
          --runflags "cpu_time=00:10:00 no_of_nodes=2 openmp_threads=4" --list $listname
 #-----------------------------------------------------------
 
+
+# nextGEMS test setup (!) ALPHA
+$addexp test_nextGEMS.config --builders levante_intel_hybrid --list $listname
+
 # test memory loggin in amip setup
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog         --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
 $addexp checksuite.infrastructure/memLog/exp.atm_memLog_AsyncIO --builders "levante_intel_hybrid levante_gcc" --runflags "cpu_time=00:10:00 no_of_nodes=2" --list $listname
