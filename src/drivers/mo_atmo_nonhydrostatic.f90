@@ -415,17 +415,17 @@ CONTAINS
         &                       kstart_tracer(jg,:) )
     ENDDO
 
-   IF (ldass_lhn) THEN
-     CALL message(routine,'configure_lhn')
-     DO jg =1,n_dom
-       CALL configure_lhn(jg)
-     ENDDO
-     !$ACC ENTER DATA COPYIN(assimilation_config)
+    IF (ldass_lhn) THEN
+      CALL message(routine,'configure_lhn')
+      DO jg =1,n_dom
+        CALL configure_lhn(jg)
+      ENDDO
+      !$ACC ENTER DATA COPYIN(assimilation_config)
 
-     CALL init_radar_data(p_patch(1:))
+      CALL init_radar_data(p_patch(1:))
 
-     CALL construct_lhn_state(p_patch(1:))
-   ENDIF
+      CALL construct_lhn_state(p_patch(1:))
+    ENDIF
 
     !------------------------------------------------------------------
     ! Prepare for time integration

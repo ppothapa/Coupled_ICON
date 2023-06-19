@@ -30,6 +30,7 @@ MODULE mo_wave_stepping
   USE mo_initicon_config,          ONLY: generate_filename
   USE mo_dynamics_config,          ONLY: nnow, nnew
   USE mo_fortran_tools,            ONLY: swap, init
+  USE mo_intp_data_strc,           ONLY: p_int_state
 
   USE mo_wave_adv_exp,             ONLY: init_wind_adv_test,init_ice_adv_test
   USE mo_init_wave_physics,        ONLY: init_wave_phy
@@ -41,10 +42,12 @@ MODULE mo_wave_stepping
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
        &                                 impose_high_freq_tail, tm1_period, wave_stress, &
        &                                 wm1_wm2_wavenumber, dissipation_source_function, &
-       &                                 set_energy2emin, bottom_friction, nonlinear_transfer
+       &                                 set_energy2emin, bottom_friction, nonlinear_transfer, &
+       &                                 wave_refraction
   USE mo_wave_config,              ONLY: wave_config
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
   USE mo_wave_events,              ONLY: create_wave_events, dummyWaveEvent
+  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient
 
   IMPLICIT NONE
 
@@ -65,6 +68,9 @@ CONTAINS
   !! Initial revision by Mikhail Dobrynin, DWD, (2019-06-24)
   !!
   SUBROUTINE perform_wave_stepping (time_config)
+
+    CHARACTER(len=*), PARAMETER :: routine = modname//':perform_wave_stepping'
+
     TYPE(t_time_config), INTENT(IN) :: time_config  !< information for time control
 
     TYPE(datetime),  POINTER :: mtime_current     => NULL() !< current datetime
@@ -72,8 +78,6 @@ CONTAINS
     INTEGER                  :: jstep                       !< time step number
     LOGICAL                  :: lprint_timestep             !< print current datetime information
     INTEGER                  :: jg, jlev
-
-    CHARACTER(len=*), PARAMETER :: routine = modname//':perform_wave_stepping'
 
     ! Time levels
     INTEGER :: n_new, n_now
@@ -113,10 +117,13 @@ CONTAINS
       END IF
     END DO
 
+
     IF (ltestcase) THEN
       !-----------------------------------------------------------------------
       ! advection experiment
       CALL message(routine,'test case run: advection experiment')
+
+
 
       DO jg = 1, n_dom
         n_now  = nnow(jg)
@@ -124,6 +131,12 @@ CONTAINS
         ! Initialisation of 10 meter wind and sea ice
         CALL init_wind_adv_test(p_patch(jg), wave_forcing_state(jg))
         CALL init_ice_adv_test(p_patch(jg), wave_forcing_state(jg))
+
+        ! calculate bathymetry gradient
+        CALL update_bathymetry_gradient(p_patch(jg), & ! IN
+             p_int_state(jg),                        & ! IN
+             wave_ext_data(jg)%bathymetry_c,         & ! IN
+             p_wave_state(jg)%diag%geo_bath_grad_c)    ! OUT
 
         ! Initialisation of the wave spectrum
         CALL init_wave_phy(p_patch(jg), wave_config(jg), &
@@ -243,6 +256,24 @@ CONTAINS
 
         n_now  = nnow(jg)
         n_new  = nnew(jg)
+
+!!!
+!!!  CALL ADVECTION
+!!!
+        ! Calculate wave refraction
+        IF (wave_config(jg)%lgrid_refr) THEN
+          CALL wave_refraction(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%diag%wave_num_c,      & ! IN
+           p_wave_state(jg)%diag%gv_c,            & ! IN
+           wave_ext_data(jg)%bathymetry_c,        & ! IN
+           p_wave_state(jg)%diag%geo_bath_grad_c, & ! IN
+           p_wave_state(jg)%prog(n_now)%tracer)   ! INOUT
+
+          ! Set energy to absolute allowed minimum
+          CALL set_energy2emin(p_patch(jg), wave_config(jg), &
+               p_wave_state(jg)%prog(n_now)%tracer) ! INOUT
+
+        END IF
 
         ! Calculate total and mean frequency energy
         CALL total_energy(p_patch(jg), wave_config(jg), &
@@ -406,7 +437,6 @@ CONTAINS
              p_wave_state(jg)%diag%last_prog_freq_ind, & !IN
              p_wave_state(jg)%prog(n_now)%tracer)        !INOUT
 
-        !call advection
 
         ! update tracers from now to new without advection
         p_wave_state(jg)%prog(n_new)%tracer = p_wave_state(jg)%prog(n_now)%tracer
@@ -414,10 +444,6 @@ CONTAINS
         ! Set energy to absolute allowed minimum
         CALL set_energy2emin(p_patch(jg), wave_config(jg), &
              p_wave_state(jg)%prog(n_new)%tracer) ! INOUT
-
-        IF (wave_config(jg)%lgrid_refr) THEN
-          !call grid refraction (n_now)
-        END IF
 
         ! Update total and mean frequency energy
         CALL total_energy(p_patch(jg), wave_config(jg), &

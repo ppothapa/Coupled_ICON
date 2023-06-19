@@ -186,7 +186,7 @@ cat > ${atmo_namelist} << EOF
  output_filename        = "remapped"   ! file name base
  filename_format        = "<output_filename>_<levtype_l>_<datetime2>"
  output_grid            = .TRUE.
- ml_varlist             = 'u','v','w','Q1','temp','pres','rho','z_ifc','z_mc'
+ ml_varlist             = 'u','v','w','Q1','temp','pres','rho','z_ifc','z_mc','aw'
 /
 &output_nml
  filetype               = 4

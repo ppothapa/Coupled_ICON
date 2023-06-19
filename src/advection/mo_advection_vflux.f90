@@ -83,8 +83,7 @@ MODULE mo_advection_vflux
   USE mo_mpi,                 ONLY: process_mpi_stdio_id, my_process_is_stdio, get_my_mpi_work_id, &
                                     get_glob_proc0, comm_lev
 #ifdef _OPENACC
-  USE mo_sync,                ONLY: SYNC_E, SYNC_C, check_patch_array
-  USE mo_mpi,                 ONLY: i_am_accel_node, my_process_is_work
+  USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
   USE mo_timer,               ONLY: timer_adv_vflx, timer_start, timer_stop
 
@@ -1354,7 +1353,7 @@ CONTAINS
       &  z_iflx
 
     INTEGER  :: jc, jk, jb               !< index of cell, vertical level and block
-    INTEGER  :: ikm1, ikp1               !< vertical level minus and plus one, plus two
+    INTEGER  :: ikp1                     !< vertical level plus one
     INTEGER  :: slev, slevp1             !< vertical start level and start level +1
     INTEGER  :: slev_ti, slevp1_ti       !< vertical start level (+1)  (tracer independent part)
     INTEGER  :: nlev, nlevp1             !< number of full and half levels
@@ -1478,7 +1477,6 @@ CONTAINS
     END IF
 
     !$ACC DATA CREATE(z_face, z_face_up, z_face_low, z_delta_q, z_a1, zq_ubc) &
-    !$ACC   PRESENT(p_cc, p_cellhgt_mc_now, p_cellmass_now, p_mflx_contra_v, p_upflux) &
     !$ACC   IF(i_am_accel_node)
 
     IF ( PRESENT(opt_q_ubc) ) THEN
@@ -1494,9 +1492,9 @@ CONTAINS
 
 !$OMP PARALLEL
 
-!$OMP DO PRIVATE(jb,jk,jc,ikm1,i_startidx,i_endidx,ikp1,jks,z_mass, &
-!$OMP            jk_shift,js,n,z_iflx,z_delta_q,z_a1,z_q_int,       &
-!$OMP            wsign,z_cflfrac,z_face,z_face_up,z_face_low        ) ICON_OMP_GUIDED_SCHEDULE
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,ikp1,jks,z_mass, &
+!$OMP            jk_shift,js,n,z_iflx,z_delta_q,z_a1,z_q_int,  &
+!$OMP            wsign,z_cflfrac,z_face,z_face_up,z_face_low   ) ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
@@ -1535,7 +1533,7 @@ CONTAINS
         ! part and store the sum in z_cfl (for w>0 and w<0)
         !
         !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(z_cfl) ASYNC(1) IF(i_am_accel_node)
-        !$ACC LOOP GANG VECTOR PRIVATE(z_mass, jks) COLLAPSE(2)
+        !$ACC LOOP GANG VECTOR PRIVATE(z_mass, jks, z_cflfrac) COLLAPSE(2)
         DO jk = slevp1_ti, elev
           DO jc = i_startidx, i_endidx
 
@@ -1549,18 +1547,36 @@ CONTAINS
 
               jks = jk   ! initialize shifted index
 
-              DO WHILE( (z_mass > p_cellmass_now(jc,jks,jb)) .AND. (jks <= nlev-1) )
+              DO WHILE( (z_mass >= p_cellmass_now(jc,jks,jb)) .AND. (jks <= nlev-1) )
                 z_mass = z_mass - p_cellmass_now(jc,jks,jb)
                 jks = jks+1
                 ! update Courant number
                 z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + 1._wp
               ENDDO
 
+              z_cflfrac = z_mass/p_cellmass_now(jc,jks,jb)
+
               ! now we add the fractional Courant number
-              ! The MIN function is required here for the case that 
-              ! we approach the lower boundary and exit the above loop 
-              ! because of jks > nlev-1.
-              z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + MIN(1._wp,z_mass/p_cellmass_now(jc,jks,jb))
+              !
+              IF (z_cflfrac < 1._wp) THEN
+                z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + z_cflfrac
+              ELSE  ! z_cflfrac >= 1._wp
+                !
+                ! z_cflfrac >= 1 indicates that the backward trajectory hit the
+                ! lower boundary and the previous while loop was exited ahead of time.
+                ! In this case we limit the fractional Courant number to 1-epsilon.
+                !
+                ! Subtracting epsilon is essential in order to avoid out-of-bounds
+                ! memory access at the lower boundary during the computation of fractional
+                ! fluxes. The underlying reason is that we do not store the shifted index
+                ! jks for later use (see above), but use FLOOR(z_cfl) to recompute it.
+                !
+                ! Note that this limitation of the Courant number essentially limits
+                ! the mass flux across the edge considered, and hence, results in
+                ! a local (and potentially rare) violation of the tracer and air mass
+                ! consistency.
+                z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + (1._wp - dbl_eps)
+              ENDIF
 
             ELSE
             !
@@ -1568,7 +1584,7 @@ CONTAINS
             !
               jks = jk-1   ! initialize shifted index
 
-              DO WHILE( (ABS(z_mass) > p_cellmass_now(jc,jks,jb)) .AND. &
+              DO WHILE( (ABS(z_mass) >= p_cellmass_now(jc,jks,jb)) .AND. &
                 &       (jks >= slevp1_ti) )
                 z_mass = z_mass + p_cellmass_now(jc,jks,jb)
                 jks = jks-1
@@ -1576,11 +1592,30 @@ CONTAINS
                 z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) - 1._wp
               ENDDO
 
+
+              z_cflfrac = z_mass/p_cellmass_now(jc,jks,jb)
+
               ! now we add the fractional Courant number
-              ! The MAX function is required here for the case that 
-              ! we approach the upper boundary and exit the above loop 
-              ! because of jks < slevp1_ti.
-              z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + MAX(-1._wp,z_mass/p_cellmass_now(jc,jks,jb))
+              !
+              IF (ABS(z_cflfrac) < 1._wp) THEN
+                z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + z_cflfrac
+              ELSE  ! ABS(z_cflfrac) >= 1._wp
+                !
+                ! ABS(z_cflfrac) >= 1 indicates that the backward trajectory hit the
+                ! upper boundary and the previous while loop was exited ahead of time.
+                ! In this case we limit the fractional Courant number to -1+epsilon.
+                !
+                ! Adding epsilon is essential in order to avoid out-of-bounds
+                ! memory access at the uppper boundary during the computation of fractional
+                ! fluxes. The underlying reason is that we do not store the shifted index
+                ! jks for later use (see above), but use FLOOR(z_cfl) to recompute it.
+                !
+                ! Note that this limitation of the Courant number essentially limits
+                ! the mass flux across the edge considered, and hence, results in
+                ! a local (and potentially rare) violation of the tracer and air mass
+                ! consistency.
+                z_cfl(jc,jk,jb) = z_cfl(jc,jk,jb) + (dbl_eps - 1._wp)
+              ENDIF
 
             ENDIF
 
@@ -1702,10 +1737,10 @@ CONTAINS
       !     For cell faces with CFL>1, integer fluxes will be added lateron.
       !
       !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(z_cfl) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR PRIVATE(ikm1, js, z_cflfrac, jks, wsign, z_q_int) COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR PRIVATE(js, z_cflfrac, jks, wsign, z_q_int) COLLAPSE(2)
       DO jk = slevp1, elev
         DO jc = i_startidx, i_endidx
-          ikm1 = jk-1
+
           ! get integer shift (always non-negative)
           js = FLOOR(ABS(z_cfl(jc,jk,jb)))
 
@@ -1717,13 +1752,16 @@ CONTAINS
             jks = MIN(jk,nlev)+js
             wsign = 1._wp
           ELSE
-            jks = ikm1-js
+            jks = (jk-1) - js
             wsign = -1._wp
           ENDIF
 
           ! this is needed in addition in order to avoid accessing non-existing (uninitalized)
           ! source levels for tracers that are not advected on all model levels
-          IF (jks < slev) CYCLE
+          IF (jks < slev) THEN
+            p_upflux(jc,jk,jb) = 0._wp
+            CYCLE
+          ENDIF
 
           ! compute flux
           !
@@ -1773,9 +1811,9 @@ CONTAINS
             DO n = 1, js
               jk_shift = jk - n
 
-              ! cycle if the source model level is in a region where advection is 
+              ! cycle if the source model level is in a region where advection is
               ! turned off for the present variable
-              IF (jk_shift < slevp1) CYCLE
+              IF (jk_shift < slev) CYCLE
 
               ! Integer flux (division by p_dtime is done at the end)
               z_iflx = z_iflx - p_cc(jc,jk_shift,jb) * p_cellmass_now(jc,jk_shift,jb)
@@ -2205,8 +2243,7 @@ CONTAINS
 
     elevp1 = elev + 1
 
-    !$ACC DATA CREATE(a, b, c, rhs) PRESENT(p_cc, p_cellhgt_mc_now) &
-    !$ACC   PRESENT(p_face) IF(i_am_accel_node)
+    !$ACC DATA CREATE(a, b, c, rhs) IF(i_am_accel_node)
 
     !
     ! 1. reconstruct face values at vertical half-levels using splines
@@ -2369,8 +2406,7 @@ CONTAINS
     slevp1 = slev + 1
     elevp1 = elev + 1
 
-    !$ACC DATA CREATE(z_slope) PRESENT(p_cc, p_cellhgt_mc_now) &
-    !$ACC   PRESENT(p_face) IF(i_am_accel_node)
+    !$ACC DATA CREATE(z_slope) IF(i_am_accel_node)
 
     !
     ! 1. Compute slope

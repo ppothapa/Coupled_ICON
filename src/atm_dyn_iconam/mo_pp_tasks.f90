@@ -34,8 +34,7 @@ MODULE mo_pp_tasks
     & TASK_COMPUTE_INVERSION,                                         &
     & TASK_COMPUTE_TWATER, TASK_COMPUTE_Q_SEDIM,                      &
     & TASK_COMPUTE_DBZCMAX, TASK_COMPUTE_DBZ850,                      &
-    & TASK_COMPUTE_DBZLMX_LOW, TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,&
-    & TASK_COMPUTE_SRH, TASK_COMPUTE_VIS,                             &
+    & TASK_COMPUTE_DBZLMX_LOW, TASK_COMPUTE_SRH, TASK_COMPUTE_VIS,    &
     & TASK_COMPUTE_WSHEAR_U, TASK_COMPUTE_WSHEAR_V,                   &
     & TASK_COMPUTE_LAPSERATE,                                         &
     & TASK_INTP_VER_ZLEV,                                             &
@@ -93,12 +92,10 @@ MODULE mo_pp_tasks
     &                                   compute_field_lapserate,                 &
     &                                   compute_field_srh,                       &
     &                                   compute_field_wshear
-  USE mo_diag_atmo_air_flow,      ONLY: compute_field_vor => hor_comps_of_rel_vorticity
-  USE mo_io_config,               ONLY: itype_pres_msl, itype_rh, var_in_output, &
+  USE mo_io_config,               ONLY: itype_pres_msl, itype_rh,                &
     &                                   n_wshear, wshear_uv_heights, n_srh, srh_heights
   USE mo_grid_config,             ONLY: l_limited_area, n_dom_start
   USE mo_interpol_config,         ONLY: support_baryctr_intp
-  USE mo_run_config,              ONLY: timers_level, msg_level
   USE mo_advection_config,        ONLY: advection_config
   USE mo_fortran_tools,           ONLY: init, copy, assert_acc_device_only, assert_acc_host_only, &
    &                                    assert_lacc_equals_i_am_accel_node
@@ -1390,28 +1387,6 @@ CONTAINS
       CALL compute_field_pv(p_patch, p_int_state(jg),                  &
         &   ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,    &  
         &   out_var%r_ptr(:,:,:,out_var_idx,1), lacc=i_am_accel_node)
-
-    CASE (TASK_COMPUTE_VOR_U)
-#ifdef _OPENACC
-      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VOR_U for variable '//TRIM(p_info%name) )
-#endif
-      CALL compute_field_vor(p_patch, p_int_state(jg),             &
-        &   ptr_task%data_input%p_nh_state%metrics, p_prog,        &
-        &   var_in_output(jg)%vor_u .AND. var_in_output(jg)%vor_v, &
-        &   opt_vor_u = out_var%r_ptr(:,:,:,out_var_idx,1),        &
-        &   opt_timer = timers_level > 4,                          &
-        &   opt_verbose = msg_level > 14)
-
-    CASE (TASK_COMPUTE_VOR_V)
-#ifdef _OPENACC
-      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VOR_U for variable '//TRIM(p_info%name) )
-#endif
-      CALL compute_field_vor(p_patch, p_int_state(jg),             &
-        &   ptr_task%data_input%p_nh_state%metrics, p_prog,        &
-        &   var_in_output(jg)%vor_u .AND. var_in_output(jg)%vor_v, &
-        &   opt_vor_v = out_var%r_ptr(:,:,:,out_var_idx,1),        &
-        &   opt_timer = timers_level > 4,                          &
-        &   opt_verbose = msg_level > 14)
 
     CASE (TASK_COMPUTE_SDI2)
       IF ( jg >= n_dom_start+1 ) THEN

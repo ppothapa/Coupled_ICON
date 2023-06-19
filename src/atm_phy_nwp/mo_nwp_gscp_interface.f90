@@ -67,7 +67,8 @@ MODULE mo_nwp_gscp_interface
   USE gscp_graupel,            ONLY: graupel
   USE mo_exception,            ONLY: finish
   USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph
-  USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,set_qnh
+  USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,&
+                                     set_qnh_expPSD_N0const
 #ifdef __ICON_ART
   USE mo_art_clouds_interface, ONLY: art_clouds_interface_2mom
 #endif
@@ -221,7 +222,7 @@ CONTAINS
                    ptr_tracer(jc,jk,jb,iqni) = set_qni(ptr_tracer(jc,jk,jb,iqi)*rholoc)*rhoinv
                    ptr_tracer(jc,jk,jb,iqns) = set_qns(ptr_tracer(jc,jk,jb,iqs)*rholoc)*rhoinv
                    ptr_tracer(jc,jk,jb,iqng) = set_qng(ptr_tracer(jc,jk,jb,iqg)*rholoc)*rhoinv
-                   ptr_tracer(jc,jk,jb,iqnh) = set_qnh(ptr_tracer(jc,jk,jb,iqh)*rholoc)*rhoinv
+                   ptr_tracer(jc,jk,jb,iqnh) = set_qnh_expPSD_N0const(ptr_tracer(jc,jk,jb,iqh)*rholoc,750.0_wp,1.0e6_wp)*rhoinv
                 ENDDO
              ENDDO
              !$ACC END PARALLEL

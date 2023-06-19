@@ -329,6 +329,7 @@ MODULE mo_nh_stepping
 
   ENDDO
 
+  
   IF (iforcing == inwp) THEN
 #ifndef __NO_NWP__
     IF (ANY((/SSTICE_CLIM,SSTICE_AVG_MONTHLY,SSTICE_AVG_DAILY/) == sstice_mode)) THEN
@@ -624,7 +625,7 @@ MODULE mo_nh_stepping
     IF (assimilation_config(1)% dace_coupling) THEN
        IF (.NOT. ASSOCIATED (mec_Event)) &
             CALL finish ("perform_nh_stepping","MEC not configured")
-       IF (timeshift%dt_shift == 0._wp .and. &
+       IF (timeshift%dt_shift == 0._wp .AND. &
             is_event_active(mec_Event, mtime_current, proc0_offloading)) THEN
 #ifndef __NO_NWP__
           IF (iforcing == inwp) &
@@ -639,7 +640,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
           CALL message('mo_nh_stepping', 'Copy init values for DACE to CPU')
           DO jg=1, n_dom
-            CALL gpu_d2h_dace(jg)
+            CALL gpu_d2h_dace(jg, atm_phy_nwp_config(jg))
           ENDDO
           i_am_accel_node = .FALSE.
 #endif
@@ -1145,7 +1146,6 @@ MODULE mo_nh_stepping
     l_compute_diagnostic_quants = jstep >= 0 .AND. l_compute_diagnostic_quants .AND. &
       &                           .NOT. output_mode%l_none
 
-
     ! Calculations for enhanced sound-wave and gravity-wave damping during the spinup phase
     ! if mixed second-order/fourth-order divergence damping (divdamp_order=24) is chosen.
     ! Includes increased vertical wind off-centering during the first 2 hours of integration.
@@ -1483,7 +1483,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
             CALL message('mo_nh_stepping', 'Copy values for DACE to CPU')
             DO jg=1, n_dom
-              CALL gpu_d2h_dace(jg)
+              CALL gpu_d2h_dace(jg, atm_phy_nwp_config(jg))
             ENDDO
             i_am_accel_node = .FALSE.
 #endif

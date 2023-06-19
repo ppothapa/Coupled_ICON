@@ -26,7 +26,7 @@ MODULE mo_advection_config
     &                                 FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
     &                                 ino_flx, iparent_flx, inwp,              &
     &                                 iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
-    &                                 NO_HADV, NO_VADV
+    &                                 NO_HADV, NO_VADV, UP
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_mpi,                   ONLY: my_process_is_stdio
   USE mo_run_config,            ONLY: msg_level
@@ -38,10 +38,6 @@ MODULE mo_advection_config
   USE mo_tracer_metadata_types, ONLY: t_tracer_meta, t_hydro_meta
   USE mo_util_table,            ONLY: t_table, initialize_table, add_table_column, &
     &                                 set_table_entry, print_table, finalize_table
-#ifdef _OPENACC
-  USE mo_mpi,                   ONLY: i_am_accel_node
-#endif
-
 
   IMPLICIT NONE
 
@@ -62,7 +58,10 @@ MODULE mo_advection_config
   PUBLIC :: configure_advection
 
 
-  ! Derived type to allow for the onetime computation and cleanup 
+  CHARACTER(LEN = *), PARAMETER :: modname = "mo_advection_config"
+
+
+  ! Derived type to allow for the onetime computation and cleanup
   ! of tracer independent parts
   !
   TYPE t_compute
@@ -83,8 +82,8 @@ MODULE mo_advection_config
 
 
 
-  ! Tracer ID lists 
-  ! Extracted from the full tracer var_list based on 
+  ! Tracer ID lists
+  ! Extracted from the full tracer var_list based on
   ! a specific selection criterium
   TYPE :: t_trList
     INTEGER, ALLOCATABLE :: list(:)
@@ -119,10 +118,10 @@ MODULE mo_advection_config
     INTEGER :: nname                !< number of names read from transport_nml/tracer_names
                                     !< which are stored in advection_config/tracer_names
 
-    INTEGER :: &                    !< selects horizontal transport scheme       
-      &  ihadv_tracer(MAX_NTRACER)  !< 0:  no horizontal advection                
-                                    !< 1:  1st order upwind                       
-                                    !< 2:  2nd order miura                        
+    INTEGER :: &                    !< selects horizontal transport scheme
+      &  ihadv_tracer(MAX_NTRACER)  !< 0:  no horizontal advection
+                                    !< 1:  1st order upwind
+                                    !< 2:  2nd order miura
                                     !< 3:  3rd order miura with quadr./cubic reconstr.
                                     !< 4:  Flux form semi lagrange (FFSL)
                                     !< 5:  hybrid FFSL Miura3
@@ -133,11 +132,11 @@ MODULE mo_advection_config
                                     !< 42: FFSL with miura_cycl
                                     !< 52: FFSL_HYB with miura_cycl
 
-    INTEGER :: &                    !< selects vertical transport scheme         
-      &  ivadv_tracer(MAX_NTRACER)  !< 0 : no vertical advection                 
+    INTEGER :: &                    !< selects vertical transport scheme
+      &  ivadv_tracer(MAX_NTRACER)  !< 0 : no vertical advection
                                     !< 1 : 1st order upwind
-                                    !< 2 : 3rd order PSM for CFL>                            
-                                    !< 3 : 3rd order PPM for CFL>               
+                                    !< 2 : 3rd order PSM for CFL>
+                                    !< 3 : 3rd order PPM for CFL>
 
     INTEGER :: &                    !< advection of TKE
       &  iadv_tke                   !< 0 : none
@@ -145,83 +144,83 @@ MODULE mo_advection_config
                                     !< 2 : vertical and horizontal advection
 
     LOGICAL :: lvadv_tracer         !< if .TRUE., calculate vertical tracer advection
-    LOGICAL :: lclip_tracer         !< if .TRUE., clip negative tracer values    
-                                                   
-    LOGICAL :: llsq_svd             !< least squares reconstruction with         
-                                    !< singular value decomposition (TRUE) or    
+    LOGICAL :: lclip_tracer         !< if .TRUE., clip negative tracer values
+
+    LOGICAL :: llsq_svd             !< least squares reconstruction with
+                                    !< singular value decomposition (TRUE) or
                                     !< QR decomposition (FALSE) of design matrix A
-    INTEGER :: &                    !< parameter used to select the limiter      
-      &  itype_vlimit(MAX_NTRACER)  !< for vertical transport                    
+    INTEGER :: &                    !< parameter used to select the limiter
+      &  itype_vlimit(MAX_NTRACER)  !< for vertical transport
 
     INTEGER :: &                    !< parameter used to select the limiter
-      &  itype_hlimit(MAX_NTRACER)  !< for horizontal transport 
+      &  itype_hlimit(MAX_NTRACER)  !< for horizontal transport
                                     !< 0: no limiter
                                     !< 3: monotonous flux limiter
-                                    !< 4: positive definite flux limiter           
+                                    !< 4: positive definite flux limiter
 
-    INTEGER :: &                    !< additional method for identifying and avoiding 
+    INTEGER :: &                    !< additional method for identifying and avoiding
       & ivlimit_selective(MAX_NTRACER)!< spurious limiting of smooth extrema
                                     !< 1: switch on
                                     !< 0: switch off
 
-    REAL(wp):: beta_fct             !< global boost factor for range of permissible values in 
-                                    !< (semi-) monotonous flux limiter. A value larger than 
-                                    !< 1 allows for (small) over and undershoots, while a value 
-                                    !< of 1 gives strict monotonicity (at the price of increased 
+    REAL(wp):: beta_fct             !< global boost factor for range of permissible values in
+                                    !< (semi-) monotonous flux limiter. A value larger than
+                                    !< 1 allows for (small) over and undershoots, while a value
+                                    !< of 1 gives strict monotonicity (at the price of increased
                                     !< diffusivity).
 
-    INTEGER :: igrad_c_miura        !< parameter used to select the gradient     
-                                    !< reconstruction method at cell center      
-                                    !< for second order miura scheme             
+    INTEGER :: igrad_c_miura        !< parameter used to select the gradient
+                                    !< reconstruction method at cell center
+                                    !< for second order miura scheme
 
-    INTEGER :: ivcfl_max            !< determines stability range of vertical    
-                                    !< ppm-scheme (approximate allowable maximum 
-                                    !< CFL-number)                               
+    INTEGER :: ivcfl_max            !< determines stability range of vertical
+                                    !< ppm-scheme (approximate allowable maximum
+                                    !< CFL-number)
 
-    REAL(wp) :: upstr_beta_adv      !< later, it should be combined with         
+    REAL(wp) :: upstr_beta_adv      !< later, it should be combined with
                                     !< upstr_beta in non-hydrostatic namelist
 
     INTEGER :: npassive_tracer      !< number of additional passive tracers, in addition to
-                                    !< microphysical- and ART tracers. 
+                                    !< microphysical- and ART tracers.
 
-    INTEGER :: nadv_substeps        !< number of substeps per fast physics time step 
+    INTEGER :: nadv_substeps        !< number of substeps per fast physics time step
                                     !< for the Miura-type substepping schemes 20, 22, 32, 42, 52
 
-    CHARACTER(len=MAX_CHAR_LENGTH) :: &!< Comma separated list of initialization formulae 
+    CHARACTER(len=MAX_CHAR_LENGTH) :: &!< Comma separated list of initialization formulae
       &  init_formula                  !< for passive tracers.
 
 
     ! derived variables
 
-    INTEGER  :: iubc_adv         !< selects upper boundary condition             
-                                 !< for tracer transport                         
-                                 !< 0: no flux                                   
-                                 !< 1: zero gradient                             
-                                 !< 2: interpolated flux from parent grid        
-                                                                                 
-    INTEGER ::  &                !< selects vertical start level for each patch  
+    INTEGER  :: iubc_adv         !< selects upper boundary condition
+                                 !< for tracer transport
+                                 !< 0: no flux
+                                 !< 1: zero gradient
+                                 !< 2: interpolated flux from parent grid
+
+    INTEGER ::  &                !< selects vertical start level for each patch
       &  iadv_slev(MAX_NTRACER)  !< and each tracer.
 
-    INTEGER :: kstart_aero(2), & !< start and end levels for vertical flux averaging 
+    INTEGER :: kstart_aero(2), & !< start and end levels for vertical flux averaging
                kend_aero(2)      !< for advection of 2D (climatological) aerosol fields
 
-    INTEGER ::  &                !< vertical end level down to which qv is 
-      &  iadv_qvsubstep_elev     !< advected with internal substepping (to 
-                                 !< circumvent CFL instability in the 
+    INTEGER ::  &                !< vertical end level down to which qv is
+      &  iadv_qvsubstep_elev     !< advected with internal substepping (to
+                                 !< circumvent CFL instability in the
                                  !< stratopause region).
-                                                                                 
-    LOGICAL  :: lfull_comp       !< .TRUE. : the full set of setup computations 
+
+    LOGICAL  :: lfull_comp       !< .TRUE. : the full set of setup computations
                                  !<          is executed in prepare_tracer
                                  !< .FALSE.: the majority of setup computations
-                                 !<          is performed in the dycore.  
+                                 !<          is performed in the dycore.
 
-    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields of  
+    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields of
       &  trHydroMass             !< type hydroMass.
-    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields   
+    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields
       &  trAdvect                !< which are advected.
-    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields   
+    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields
       &  trNotAdvect             !< which are not advected.
-    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields   
+    TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields
       &  trFeedback              !< for which child-to-parent feedback is applied.
 
     LOGICAL :: isAnyTypeMiura    !< TRUE if any tracer is to be advected with MIURA scheme
@@ -246,7 +245,7 @@ MODULE mo_advection_config
   !!
   TYPE(t_advection_config), TARGET :: advection_config(0:max_dom)
 
-!DR For the time being lcompute and lcleanup are not added to the 
+!DR For the time being lcompute and lcleanup are not added to the
 !DR advection_config state
   TYPE(t_compute)  :: lcompute
   TYPE(t_compute)  :: lcleanup
@@ -256,10 +255,10 @@ MODULE mo_advection_config
   !
   REAL(wp) :: shape_func_l(4)  !< shape functions for mapping the FFSL departure
                                !< region onto the standard rectangle
-                                                                                 
-  REAL(wp) :: zeta_l, eta_l    !< Gauss quadrature point in \zeta-\eta space                        
-                                                                                 
-  REAL(wp) :: wgt_zeta_l       !< Gauss quadrature weights for zeta and eta    
+
+  REAL(wp) :: zeta_l, eta_l    !< Gauss quadrature point in \zeta-\eta space
+
+  REAL(wp) :: wgt_zeta_l       !< Gauss quadrature weights for zeta and eta
   REAL(wp) :: wgt_eta_l        !< points
 
 
@@ -280,9 +279,9 @@ CONTAINS
   !>
   !! setup components of the transport scheme depending on this namelist
   !!
-  !! Setup of additional transport control variables depending on the 
-  !! transport-NAMELIST and potentially other namelists. This routine is 
-  !! called, after all namelists have been read and a synoptic consistency 
+  !! Setup of additional transport control variables depending on the
+  !! transport-NAMELIST and potentially other namelists. This routine is
+  !! called, after all namelists have been read and a synoptic consistency
   !! check has been done.
   !!
   !! @par Revision History
@@ -293,7 +292,7 @@ CONTAINS
     &                            ntracer, idiv_method, itime_scheme, tracer_list,      &
     &                            kstart_tracer)
   !
-    INTEGER, INTENT(IN) :: jg           !< patch 
+    INTEGER, INTENT(IN) :: jg           !< patch
     INTEGER, INTENT(IN) :: nlev         !< number of vertical levels
     INTEGER, INTENT(IN) :: nlev_1       !< vertical levels of global patch
     INTEGER, INTENT(IN) :: iforcing
@@ -308,7 +307,7 @@ CONTAINS
     INTEGER,          OPTIONAL, INTENT(IN) :: kstart_tracer(MAX_NTRACER) !< start index for (art-)tracer related processes
 
     !
-    CHARACTER(*), PARAMETER :: routine = "configure_advection"
+    CHARACTER(*), PARAMETER :: routine = modname//"::configure_advection"
     INTEGER :: jt          !< tracer loop index
     INTEGER :: jm          !< loop index for shape functions
     INTEGER :: i           !< loop index
@@ -317,16 +316,33 @@ CONTAINS
     INTEGER :: ihadv_tracer(MAX_NTRACER)
     INTEGER, PARAMETER :: itime = 1    !< tracer_list time level
                                        !< here it does not matter if we use 1 or 2
+    INTEGER  :: z_go_tri(11)  ! for crosscheck
+
+    !--------------------------------------------------------------------
+    ! Consistency checks
+    !--------------------------------------------------------------------
+
+    ! Flux computation methods - consistency check
+    z_go_tri(1:11)=(/NO_HADV,UP,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
+      &              MIURA_MCYCL,MIURA3_MCYCL,FFSL_MCYCL,FFSL_HYB_MCYCL/)
+    DO jt=1,ntracer
+      IF ( ALL(z_go_tri /= advection_config(jg)%ihadv_tracer(jt)) ) THEN
+        CALL finish( routine,                                       &
+          &  'incorrect settings for TRI-C grid ihadv_tracer. Must be '// &
+          &  '0,1,2,3,4,5,6,20,22,32,42 or 52 ')
+      ENDIF
+    ENDDO
+
     !-----------------------------------------------------------------------
 
     !
-    ! set transport variables/model components, which depend on 
+    ! set transport variables/model components, which depend on
     ! the transport namelist and potentially other namelsists.
     !
 
-    ! The full set of setup computations is NOT executed in prepare_tracer 
-    ! when the tracer advection is running together with the dynamical core 
-    ! (solve_nh) and only standard namelist settings are chosen (i.e. 
+    ! The full set of setup computations is NOT executed in prepare_tracer
+    ! when the tracer advection is running together with the dynamical core
+    ! (solve_nh) and only standard namelist settings are chosen (i.e.
     ! idiv_method = 1)
     !
     IF ( idiv_method == 2 .OR. itime_scheme == TRACER_ONLY ) THEN
@@ -557,7 +573,7 @@ CONTAINS
     ENDDO
 
 
-    ! Check, whether any of the tracers is supposed to be transported horizontally  
+    ! Check, whether any of the tracers is supposed to be transported horizontally
     ! with a scheme of Miura type (i.e. 2nd order scheme with linear reconstruction)
     advection_config(jg)%isAnyTypeMiura=.FALSE.
     DO jt=1,ntracer
@@ -567,7 +583,7 @@ CONTAINS
       ENDIF
     ENDDO
     !
-    ! Check, whether any of the tracers is supposed to be transported horizontally  
+    ! Check, whether any of the tracers is supposed to be transported horizontally
     ! with substepping (i.e. 2nd order scheme with substepping)
     advection_config(jg)%isAnyTypeMcycl=.FALSE.
     DO jt=1,ntracer
@@ -580,7 +596,7 @@ CONTAINS
 
     !
     ! Compute shape functions for mapping the departure region onto the
-    ! standard rectangle. Integration points, shape functions and quadrature 
+    ! standard rectangle. Integration points, shape functions and quadrature
     ! weights are provided for a first and second order Gauss-Legendre
     ! quadrature.
     !
@@ -666,7 +682,7 @@ CONTAINS
       ENDIF
 
 
-      ! create list of tracers which are not advected 
+      ! create list of tracers which are not advected
       ! list is allowed to have zero size.
       !
       advection_config(jg)%trNotAdvect = subListExtract(from_list       = tracer_list(itime),         &
@@ -678,7 +694,7 @@ CONTAINS
 
 
       ! create ID list for tracer group hydroMass
-      ! This list contains the IDs of all condensate fields 
+      ! This list contains the IDs of all condensate fields
       ! which are required for computing the water loading term.
       !
       IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
@@ -709,7 +725,7 @@ CONTAINS
 
       ! initialize passive tracers, if required
       !
-      IF (advection_config(jg)%npassive_tracer > 0) THEN 
+      IF (advection_config(jg)%npassive_tracer > 0) THEN
         CALL init_passive_tracer (tracer_list, advection_config(jg), ntl=1)
       ENDIF
 
@@ -748,11 +764,11 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! Extract a sublist from var_list. The sublist will only contain the 
-  !! meta information <ncontained> from the info-state. This routine can be used, 
-  !! e.g. for creating a tracer sublist from the full tracer list. The 
-  !! extraction-rule(s) must be passed in terms of a function, which returns  
-  !! -999 in case that the field does not match the extraction-rule(s) and 
+  !! Extract a sublist from var_list. The sublist will only contain the
+  !! meta information <ncontained> from the info-state. This routine can be used,
+  !! e.g. for creating a tracer sublist from the full tracer list. The
+  !! extraction-rule(s) must be passed in terms of a function, which returns
+  !! -999 in case that the field does not match the extraction-rule(s) and
   !! <ncontained> otherwise.
   !
   TYPE(t_trList) FUNCTION subListExtract (from_list, extraction_rule) RESULT(obj)
@@ -765,7 +781,7 @@ CONTAINS
       END FUNCTION extraction_rule
     END INTERFACE
     ! local vars
-    CHARACTER(*), PARAMETER :: routine = "subListExtract"
+    CHARACTER(*), PARAMETER :: routine = modname//"::subListExtract"
     TYPE(t_var), POINTER :: element
     TYPE(t_var_metadata) , POINTER :: info             ! static info state
     CLASS(t_tracer_meta) , POINTER :: tracer_info      ! dynamic (tracer) info state
@@ -799,9 +815,9 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! If the tracer at hand is a member of the hydroMass ID 
-  !! list, this function gives back its respective ID. 
-  !! Otherwise, it gives back -999 
+  !! If the tracer at hand is a member of the hydroMass ID
+  !! list, this function gives back its respective ID.
+  !! Otherwise, it gives back -999
   !!
   INTEGER FUNCTION extraction_rule_hydroMass(info,tracer_info) RESULT(id)
     !
@@ -810,19 +826,19 @@ CONTAINS
 
     SELECT TYPE(tracer_info)
     TYPE IS (t_hydro_meta)
-      id = info%ncontained 
+      id = info%ncontained
     CLASS default
       id = -999
     !
-    END SELECT      
+    END SELECT
   END FUNCTION extraction_rule_hydroMass
 
 
   !-----------------------------------------------------------------------------
   !>
-  !! If the tracer at hand is advected (either horizontally or vertically) 
-  !! this function gives back its respective ID. 
-  !! Otherwise, it gives back -999 
+  !! If the tracer at hand is advected (either horizontally or vertically)
+  !! this function gives back its respective ID.
+  !! Otherwise, it gives back -999
   !!
   INTEGER FUNCTION extraction_rule_advect(info,tracer_info) RESULT(id)
     !
@@ -830,7 +846,7 @@ CONTAINS
     CLASS(t_tracer_meta), INTENT(IN)  :: tracer_info
     !
     IF ((tracer_info%ihadv_tracer/=NO_HADV) .OR. (tracer_info%ivadv_tracer/=NO_VADV)) THEN
-      id = info%ncontained 
+      id = info%ncontained
     ELSE
       id = -999
     ENDIF
@@ -839,9 +855,9 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! If the tracer at hand is not advected (neither horizontally nor vertically) 
-  !! this function gives back its respective ID. 
-  !! Otherwise, it gives back -999 
+  !! If the tracer at hand is not advected (neither horizontally nor vertically)
+  !! this function gives back its respective ID.
+  !! Otherwise, it gives back -999
   !!
   INTEGER FUNCTION extraction_rule_notAdvect(info,tracer_info) RESULT(id)
     !
@@ -849,7 +865,7 @@ CONTAINS
     CLASS(t_tracer_meta), INTENT(IN)  :: tracer_info
     !
     IF ((tracer_info%ihadv_tracer==NO_HADV) .AND. (tracer_info%ivadv_tracer==NO_VADV)) THEN
-      id = info%ncontained 
+      id = info%ncontained
     ELSE
       id = -999
     ENDIF
@@ -858,9 +874,9 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! If child-to-parent feedback should be applied  
-  !! this function gives back its respective ID. 
-  !! Otherwise, it gives back -999 
+  !! If child-to-parent feedback should be applied
+  !! this function gives back its respective ID.
+  !! Otherwise, it gives back -999
   !!
   INTEGER FUNCTION extraction_rule_feedback(info,tracer_info) RESULT(id)
     !
@@ -868,7 +884,7 @@ CONTAINS
     CLASS(t_tracer_meta), INTENT(IN)  :: tracer_info
     !
     IF ( (tracer_info%lfeedback) ) THEN
-      id = info%ncontained 
+      id = info%ncontained
     ELSE
       id = -999
     ENDIF
@@ -898,7 +914,7 @@ CONTAINS
       DEALLOCATE(obj%list, STAT=ist)
       IF (ist /= SUCCESS) THEN
         CALL finish ( TRIM(routine), 'list deallocation failed' )
-      ELSE 
+      ELSE
         write(0,*) "deallocated obj%list"
       ENDIF
     ENDIF
@@ -909,8 +925,8 @@ CONTAINS
   !>
   !! Initialize passive tracers
   !!
-  !! Additional passive tracers are initialized by applying 
-  !! the initialization formulae provided via Namelist parameter 
+  !! Additional passive tracers are initialized by applying
+  !! the initialization formulae provided via Namelist parameter
   !! 'init_formula'.
   !!
   !! @par Revision History
@@ -946,8 +962,8 @@ CONTAINS
       IF (pos == 0) THEN
         end_pos = MAX_CHAR_LENGTH
       ELSE
-        end_pos = end_pos + pos 
-      ENDIF 
+        end_pos = end_pos + pos
+      ENDIF
       CALL parse_expression_string(formula, &
            advection_config%init_formula(start_pos:end_pos-1))
       ! generate tracer name
@@ -974,7 +990,7 @@ CONTAINS
       CHARACTER(*), INTENT(in) :: vname         ! name of variable
       REAL(dp), POINTER    :: ptr(:,:,:)   ! reference to allocated field
       TYPE(t_var), POINTER :: element
-  
+
       element => find_list_element(this_list, vname)
       NULLIFY (ptr)
       IF (element%info%lcontained) THEN
@@ -1058,7 +1074,7 @@ CONTAINS
         CALL set_table_entry(table,irow,"in list trHydroMass", TRIM(str_flag))
       ENDIF
       !
-      ! print start level for transport and 
+      ! print start level for transport and
       ! range of levels for which substepping is applied
       IF (ANY(config_obj%trAdvect%list==tracer_id)) THEN
         !
@@ -1073,14 +1089,14 @@ CONTAINS
           write(str_substep_range,'(i3,a,i3)')  slev,'/',nlev
           write(str_nadv_substeps,'(i3)')  config_obj%nadv_substeps
         ELSE
-          write(str_substep_range,'(a)') '-- / --' 
+          write(str_substep_range,'(a)') '-- / --'
           str_nadv_substeps = '--'
         ENDIF
       ELSE
         !
         write(str_startlev,'(a)') '--'
         write(str_substep_range,'(a)') '-- / --'
-        write(str_nadv_substeps,'(a)') '--' 
+        write(str_nadv_substeps,'(a)') '--'
       ENDIF
       CALL set_table_entry(table,irow,"slev", TRIM(str_startlev))
       CALL set_table_entry(table,irow,"substep range", TRIM(str_substep_range))
@@ -1092,6 +1108,5 @@ CONTAINS
 
     WRITE (0,*) " " ! newline
   END SUBROUTINE advection_print_setup
-
 
 END MODULE mo_advection_config

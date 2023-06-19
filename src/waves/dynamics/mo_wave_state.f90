@@ -297,12 +297,12 @@ CONTAINS
 
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: datatype_flt  !< floating point accuracy in NetCDF output
-    INTEGER :: nblks_c, nblks_e
+    INTEGER :: nblks_c, nblks_e, nlev
     INTEGER :: nfreqs, ndirs
     INTEGER :: jg, jt, jf
     INTEGER :: shape2d_c(2), shape2d_e(2)
     INTEGER :: shape3d_freq_c(3), shape3d_freq_e(3)
-    INTEGER :: shape3d_freq_c_p4(3)
+    INTEGER :: shape3d_freq_c_p4(3), shape4d_c_2(4)
     INTEGER :: shape3d_tr_c(3), shape3d_tr_e(3)
     INTEGER :: shape1d_freq_p4(1), shape1d_dir_2(2)
     INTEGER :: shape4d_freq_p4_2_dir_18(4)
@@ -318,6 +318,8 @@ CONTAINS
     jg      = p_patch%id
     nblks_c = p_patch%nblks_c
     nblks_e = p_patch%nblks_e
+    nlev    = p_patch%nlev
+
 
     nfreqs =  wave_config(jg)%nfreqs
     ndirs = wave_config(jg)%ndirs
@@ -331,6 +333,7 @@ CONTAINS
     shape3d_freq_e    = (/nproma, nblks_e, nfreqs/)
     shape3d_tr_c      = (/nproma, nblks_c, ntracer/)
     shape3d_tr_e      = (/nproma, nblks_e, ntracer/)
+    shape4d_c_2       = (/2, nproma, nlev, nblks_c /)
     shape4d_freq_p4_2_dir_18 = (/18,nfreqs+4,2,ndirs/)
 
     ibits = DATATYPE_PACK16   ! "entropy" of horizontal slice
@@ -631,6 +634,12 @@ CONTAINS
     CALL add_var( p_diag_list, 'xlevtail', p_diag%xlevtail,                 &
          & GRID_UNSTRUCTURED_CELL,  ZA_SURFACE, cf_desc, grib2_desc,       &
          & ldims=shape2d_c, in_group=groups("wave_phy") )
+
+    cf_desc    = t_cf_var('geo_bath_grad_c', 'm/m', 'bathymetry geo-gradient at cell center', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_diag_list, 'geo_bath_grad_c', p_diag%geo_bath_grad_c,  &
+         & GRID_UNSTRUCTURED_CELL,  ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape4d_c_2, loutput=.FALSE.)
 
     ! nonlinear transfer function coefficients for shallow water
     cf_desc    = t_cf_var('enh', '-', 'nonlinear transfer function coefficients', datatype_flt)

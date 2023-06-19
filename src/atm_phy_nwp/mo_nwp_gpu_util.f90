@@ -122,7 +122,7 @@ MODULE mo_nwp_gpu_util
       !$ACC   HOST(a%ldetrain_conv_prec, a%inwp_radiation, a%inwp_sso, a%inwp_gwd, a%inwp_cldcover, a%inwp_turb) &
       !$ACC   HOST(a%inwp_surface, a%itype_z0, a%dt_conv, a%dt_ccov, a%dt_rad, a%dt_sso, a%dt_gwd, a%dt_fastphy) &
       !$ACC   HOST(a%mu_rain, a%mu_snow, a%rain_n0_factor, a%qi0, a%qc0, a%icpl_aero_gscp, a%ustart_raylfric) &
-      !$ACC   HOST(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%ithermo_water) &
+      !$ACC   HOST(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%luse_clc_rad, a%ithermo_water) &
       !$ACC   HOST(a%lupatmo_phy, a%lenabled, a%lcall_phy, a%lcalc_acc_avg) &
       !$ACC   HOST(a%lcalc_extra_avg, a%lhave_graupel, a%l2moment, a%lhydrom_read_from_fg, a%lhydrom_read_from_ana) &
 #ifndef __NO_ICON_LES__
@@ -232,7 +232,7 @@ MODULE mo_nwp_gpu_util
       !$ACC   DEVICE(a%ldetrain_conv_prec, a%inwp_radiation, a%inwp_sso, a%inwp_gwd, a%inwp_cldcover, a%inwp_turb) &
       !$ACC   DEVICE(a%inwp_surface, a%itype_z0, a%dt_conv, a%dt_ccov, a%dt_rad, a%dt_sso, a%dt_gwd, a%dt_fastphy) &
       !$ACC   DEVICE(a%mu_rain, a%mu_snow, a%rain_n0_factor, a%qi0, a%qc0, a%icpl_aero_gscp, a%ustart_raylfric) &
-      !$ACC   DEVICE(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%ithermo_water) &
+      !$ACC   DEVICE(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%luse_clc_rad, a%ithermo_water) &
       !$ACC   DEVICE(a%lupatmo_phy, a%lenabled, a%lcall_phy, a%lcalc_acc_avg) &
       !$ACC   DEVICE(a%lcalc_extra_avg, a%lhave_graupel, a%l2moment, a%lhydrom_read_from_fg, a%lhydrom_read_from_ana) &
 #ifndef __NO_ICON_LES__
@@ -262,9 +262,10 @@ MODULE mo_nwp_gpu_util
 
   END SUBROUTINE hostcpy_nwp
 
-  SUBROUTINE gpu_d2h_dace(jg)
+  SUBROUTINE gpu_d2h_dace(jg, atm_phy_nwp_config)
 
     INTEGER, INTENT(IN) :: jg
+    TYPE(t_atm_phy_nwp_config), INTENT(in) :: atm_phy_nwp_config
 
     LOGICAL :: lqr, lqs, lqg
 
@@ -306,6 +307,16 @@ MODULE mo_nwp_gpu_util
     !$ACC UPDATE HOST(p_lnd_state(jg)% prog_lnd(nnow_rcf(jg))%t_g)
     !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%h_snow)
     !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%fr_seaice)
+
+    IF (atm_phy_nwp_config%luse_clc_rad) THEN
+      !$ACC UPDATE HOST(prm_diag(jg)%clc_rad)
+    ELSE
+      !$ACC UPDATE HOST(prm_diag(jg)%clc)
+    END IF
+    IF (atm_phy_nwp_config% icalc_reff /= 0) THEN
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qc)
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qi)
+    END IF
 
     ! Not sure why this is needed
 #ifdef _OPENACC

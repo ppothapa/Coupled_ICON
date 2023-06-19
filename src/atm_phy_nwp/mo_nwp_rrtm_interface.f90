@@ -402,6 +402,7 @@ CONTAINS
 
     REAL(wp):: aclcov(nproma,pt_patch%nblks_c), dust_tunefac(nproma,nbndlw)
 
+    REAL(wp), DIMENSION(:,:), POINTER :: ptr_clc => NULL ()
     REAL(wp), DIMENSION(:,:), POINTER :: ptr_acdnc => NULL (),    &
             & ptr_reff_qc => NULL(), ptr_reff_qi => NULL()
     REAL(wp), DIMENSION(:),    POINTER :: &
@@ -472,7 +473,7 @@ CONTAINS
     END IF
 
 !$OMP PARALLEL PRIVATE(jb,i_startidx,i_endidx,dust_tunefac,                   &
-!$OMP                   ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi) 
+!$OMP                  ptr_clc,ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi) 
 !$OMP DO ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
@@ -490,8 +491,14 @@ CONTAINS
         dust_tunefac(:,:) = 1._wp
       ENDIF
 
-      NULLIFY(ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi)
+      NULLIFY(ptr_clc,ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi)
 
+      IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN  ! clc_rad has to be used instead of clc
+        ptr_clc => prm_diag%clc_rad(:,:,jb)
+      ELSE
+        ptr_clc => prm_diag%clc(:,:,jb)
+      END IF
+      
       IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN ! Internal parameterization of reff
         ptr_acdnc  =>  prm_diag%acdnc(:,:,jb)
         ptr_fr_land=>  ext_data%atm%fr_land(:,jb)  !< in     land fraction
@@ -542,7 +549,7 @@ CONTAINS
         & cdnc       =ptr_acdnc                      ,&!< in  cloud droplet numb conc. [1/m**3]
         & reff_liq   =ptr_reff_qc                    ,&!< in effective radius liquid phase 
         & reff_frz   =ptr_reff_qi                    ,&!< in effective radius frozen phase 
-        & cld_frc    =prm_diag%clc      (:,:,jb)     ,&!< in  cloud fraction [m2/m2]
+        & cld_frc    =ptr_clc                        ,&!< in  cloud fraction [m2/m2]
         & zaeq1      = zaeq1(:,:,jb)                 ,&!< in aerosol continental
         & zaeq2      = zaeq2(:,:,jb)                 ,&!< in aerosol maritime
         & zaeq3      = zaeq3(:,:,jb)                 ,&!< in aerosol urban
@@ -677,7 +684,7 @@ CONTAINS
     REAL(wp), ALLOCATABLE, TARGET:: zrg_swflx_up_clr(:,:,:)    !< shortwave 3D upward   flux clear-sky
     REAL(wp), ALLOCATABLE, TARGET:: zrg_swflx_dn_clr(:,:,:)    !< shortwave 3D downward flux clear-sky
 
-    ! Pointer to parent patach or local parent patch for reduced grid
+    ! Pointer to parent patch or local parent patch for reduced grid
     TYPE(t_patch), POINTER       :: ptr_pp
 
     REAL(wp), DIMENSION(:,:), POINTER :: ptr_reff_qc => NULL(), ptr_reff_qi => NULL()
@@ -685,6 +692,9 @@ CONTAINS
     TYPE(t_upscale_fields)   :: input_extra_flds, input_extra_2D   !< pointer array for input in upscale routine
 
     INTEGER   ::   irg_acdnc, irg_fr_land, irg_fr_glac      ! indices of extra fields
+
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc => NULL()
 
     ! Pointers to extra fields
     REAL(wp), DIMENSION(:,:), POINTER ::  ptr_acdnc => NULL()
@@ -749,6 +759,13 @@ CONTAINS
     ! Flag for using microph. effective radius
     l_coupled_reff = atm_phy_nwp_config(jg)%icpl_rad_reff > 0
 
+
+    ! Decide which field for cloud cover has to be used:
+    IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+      ptr_clc => prm_diag%clc_rad
+    ELSE
+      ptr_clc => prm_diag%clc
+    END IF
 
     !-------------------------------------------------------------------------
     !> Radiation
@@ -919,7 +936,7 @@ CONTAINS
         & prm_diag%albnirdif, prm_diag%albdif, prm_diag%tsfctrad,       &
         & prm_diag%ktype, pt_diag%pres_ifc, pt_diag%pres,               &
         & pt_diag%temp,                                                 &
-        & prm_diag%tot_cld, prm_diag%clc,                               &
+        & prm_diag%tot_cld, ptr_clc,                                    &
         & ext_data%atm%o3, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,           &
         & zrg_emis_rad,                                                 &
         & zrg_cosmu0, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,      &

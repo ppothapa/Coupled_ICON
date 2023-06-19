@@ -88,13 +88,16 @@ USE mo_2mom_mcrph_processes,  ONLY:                                &
      &                         sedi_vel_rain, sedi_vel_sphere,     &
      &                         sedi_icon_rain, sedi_icon_sphere, sedi_icon_sphere_lwf, &
      &                         particle_meanmass, sedi_vel_lwf,&
-     &                         q_crit, cfg_2mom_default, cfg_params
+     &                         q_crit, cfg_params
+
+USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
 
 USE mo_2mom_mcrph_util, ONLY:                            &
      &                       gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
-     &                       ltabdminwgg,                &
      &                       init_dmin_wg_gr_ltab_equi,  &
      &                       dmin_wetgrowth_fit_check, luse_dmin_wetgrowth_table, lprintout_comp_table_fit
+
+USE mo_2mom_mcrph_types, ONLY: ltabdminwgg
 
 USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
 
@@ -1212,7 +1215,7 @@ CONTAINS
     END IF
 
     ! .. set the particle types, and calculate some coefficients
-    IF (igscp.eq.7) THEN
+    IF (igscp == 7) THEN
        CALL init_2mom_scheme_once(cloud,rain,ice,snow,graupel_lwf,hail_lwf,cloud_type)
     ELSE
        CALL init_2mom_scheme_once(cloud,rain,ice,snow,graupel,hail,cloud_type)
@@ -1223,7 +1226,7 @@ CONTAINS
       IF (msg_level>5) CALL message (TRIM(routine), " Looking for dmin_wetgrowth table file for "//TRIM(graupel%name))
       unitnr = 11
       CALL init_dmin_wg_gr_ltab_equi('dmin_wetgrowth_lookup', graupel, &
-           unitnr, 61, ltabdminwgg)
+           unitnr, 61, ltabdminwgg, msg_level)
     END IF
     IF (.NOT. luse_dmin_wetgrowth_table) THEN
       ! check whether 4d-fit is consistent with graupel parameters
@@ -1235,12 +1238,12 @@ CONTAINS
              & 'but graupel parameters inconsistent with 4d-fit')
       END IF
     END IF
-
+    
     IF (msg_level>dbg_level) CALL message (TRIM(routine), " finished init_dmin_wetgrowth for "//TRIM(graupel%name))
     !..parameters for CCN and IN are set here. The 3D fields for prognostic CCN are then
     !  initialized in mo_nwp_phy_init.
     IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_dmin_init)
-   
+
     !..parameters for exponential decrease of N_ccn with height
     !  z0:  up to this height (m) constant unchanged value
     !  z1e: height interval at which N_ccn decreases by factor 1/e above z0_nccn
@@ -1319,6 +1322,8 @@ CONTAINS
      
     IF (msg_level>5) CALL message (TRIM(routine), " finished two_moment_mcrph_init successfully")
     !$ACC ENTER DATA COPYIN(ccn_coeffs, in_coeffs, cfg_params)
+    !$ACC ENTER DATA COPYIN(ltabdminwgg)
+    !$ACC ENTER DATA COPYIN(ltabdminwgg%ltable, ltabdminwgg%x1, ltabdminwgg%x2, ltabdminwgg%x3, ltabdminwgg%x4)
 
   END SUBROUTINE two_moment_mcrph_init
 

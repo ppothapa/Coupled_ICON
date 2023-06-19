@@ -43,7 +43,7 @@ MODULE mo_util_vgrid
   USE mo_nh_testcases_nml,                  ONLY: layer_thickness, n_flat_level
   USE mo_init_vgrid,                        ONLY: init_hybrid_coord, init_sleve_coord,                  &
     &                                             prepare_vcoord, init_vert_coord
-  USE mo_nh_init_utils,                     ONLY: compute_smooth_topo
+  USE mo_process_topo,                      ONLY: compute_smooth_topo
   USE mo_nh_init_nest_utils,                ONLY: topo_blending_and_fbk
   USE mo_communication,                     ONLY: exchange_data, idx_no, blk_no
   USE mo_util_string,                       ONLY: int2string
@@ -156,8 +156,11 @@ CONTAINS
 
         ! Compute smooth topography when SLEVE coordinate is used
         IF ( ivctype == 2 .AND. .NOT. lread_smt ) THEN
-          CALL compute_smooth_topo(p_patch(jg), p_int_state(jg), ext_data(jg)%atm%topography_c, & ! in, in, in,
-            &                      topography_smt)                                                ! out
+          CALL compute_smooth_topo(p_patch    = p_patch(jg),                   & !in
+            &                      p_int      = p_int_state(jg),               & !in
+            &                      topo_c     = ext_data(jg)%atm%topography_c, & !in
+            &                      niter      = 25,                            & !in
+            &                      topo_smt_c = topography_smt)                  !out
         ENDIF
 
         ! total shift of model top with respect to global domain

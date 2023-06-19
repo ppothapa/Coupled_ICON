@@ -778,7 +778,7 @@ MODULE mo_reff_main
     REAL(wp)          , INTENT(INOUT)         :: reff_1(:,:)            ! Effective radius of smaller hydromet. (also store results)
     REAL(wp)          , INTENT(IN)            :: q2(:,:)                ! Mass concentration of larger hydromet (ususally not in cloud cover).
     REAL(wp)          , INTENT(IN)            :: reff_2(:,:)            ! Effective radius of larger hydromet.
-    REAL(wp)          , INTENT(INOUT)         :: clc(:,:)               ! Cloud cover. It is set to 1 if reff_2 > 1e-5  and q2>qcrit_reff
+    REAL(wp)          , INTENT(INOUT)         :: clc(:,:)               ! Modified cloud cover: It is set to 1 if reff_2 > 1e-5  and q2>qcrit_reff
     INTEGER           , INTENT(IN)            :: k_start, k_end, is, ie ! Start, end total indices
 
     REAL(wp)                                  :: q_ov_reff              ! Local cross section

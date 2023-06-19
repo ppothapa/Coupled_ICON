@@ -181,6 +181,7 @@ CONTAINS
       &  zswflx_up_clr(:,:),    & !< shortave upward clear-sky flux
       &  zswflx_dn_clr(:,:)       !< shortave downward clear-sky flux
     REAL(wp), DIMENSION(:,:),  POINTER :: &
+      &  ptr_clc => NULL(),                                                   &
       &  ptr_acdnc => NULL(),                                                 &
       &  ptr_qr => NULL(),      ptr_qs => NULL(),      ptr_qg => NULL(),      &
       &  ptr_reff_qc => NULL(), ptr_reff_qi => NULL(), ptr_reff_qr => NULL(), &
@@ -253,7 +254,7 @@ CONTAINS
 !$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                   &
 !$OMP            jb_rad, jcs, jce, i_startidx_sub, i_endidx_sub, &
 !$OMP            i_startidx_rad, i_endidx_rad,                   &
-!$OMP            ptr_acdnc, ptr_fr_land, ptr_fr_glac,            &
+!$OMP            ptr_clc, ptr_acdnc, ptr_fr_land, ptr_fr_glac,   &
 !$OMP            ptr_reff_qc, ptr_reff_qi, ptr_qr, ptr_reff_qr,  &
 !$OMP            ptr_qs, ptr_reff_qs, ptr_qg, ptr_reff_qg),      &
 !$OMP ICON_OMP_GUIDED_SCHEDULE
@@ -271,9 +272,15 @@ CONTAINS
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
-        NULLIFY(ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi,    &
+        NULLIFY(ptr_clc, ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi,    &
                 ptr_qr, ptr_reff_qr, ptr_qs, ptr_reff_qs,ptr_qg, ptr_reff_qg)
 
+        ! Decide which field for cloud cover has to be used:
+        IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+          ptr_clc => prm_diag%clc_rad(jcs:jce,:,jb)
+        ELSE
+          ptr_clc => prm_diag%clc(jcs:jce,:,jb)
+        END IF
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN  ! Own calculation of reff inside ecrad_set_clouds()
           ptr_acdnc   => prm_diag%acdnc(jcs:jce,:,jb)
           ptr_fr_land => ext_data%atm%fr_land(jcs:jce,jb)
@@ -336,7 +343,7 @@ CONTAINS
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, prm_diag%tot_cld(jcs:jce,:,jb,iqc),               &
-          &                   prm_diag%tot_cld(jcs:jce,:,jb,iqi), prm_diag%clc(jcs:jce,:,jb),                      &
+          &                   prm_diag%tot_cld(jcs:jce,:,jb,iqi), ptr_clc,                  &
           &                   pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),                              &
           &                   ptr_acdnc, ptr_fr_glac, ptr_fr_land,                                                 &
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                                    &
@@ -447,7 +454,7 @@ CONTAINS
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
-        CALL add_3D_diffuse_rad(ecrad_flux, prm_diag%clc(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),              &
+        CALL add_3D_diffuse_rad(ecrad_flux, ptr_clc, pt_diag%pres(jcs:jce,:,jb),                                 &
           &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                         &
           &                     prm_diag%fr_nir_sfc_diff(jcs:jce,jb), prm_diag%fr_vis_sfc_diff(jcs:jce,jb),      &
           &                     prm_diag%fr_par_sfc_diff(jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),    &
@@ -626,8 +633,11 @@ CONTAINS
       &  zrg_extra_2D(:,:,:),        & !< Extra 2D fields for the upscaling routine (indices by irg_)
       &  zrg_extra_reff(:,:,:,:)       !< Extra effective radius (indices by irg_)
 
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc => NULL()
+
     ! Indices and pointers of extra (optional) fields that are needed by radiation
-    ! and therefore have be aggregated to the radiation grid
+    ! and therefore have to be aggregated to the radiation grid
     INTEGER :: irg_acdnc, irg_fr_glac, irg_fr_land,  irg_qr, irg_qs, irg_qg,  &
       &        irg_reff_qr, irg_reff_qs, irg_reff_qg
     INTEGER, DIMENSION (ecrad_conf%n_bands_lw) :: irg_od_lw
@@ -676,6 +686,13 @@ CONTAINS
       nblks_par_c =  ptr_pp%nblks_c
       nblks_lp_c  =  ptr_pp%nblks_c
     ENDIF
+
+    ! Decide which field for cloud cover has to be used:
+    IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+      ptr_clc => prm_diag%clc_rad
+    ELSE
+      ptr_clc => prm_diag%clc
+    END IF
 
     ! Add extra layer for atmosphere above model top if requested
     IF (atm_phy_nwp_config(jg)%latm_above_top) THEN
@@ -901,7 +918,7 @@ CONTAINS
       &                    prm_diag%albvisdir, prm_diag%albnirdir, prm_diag%albvisdif,   &
       &                    prm_diag%albnirdif, prm_diag%albdif, prm_diag%tsfctrad,       &
       &                    prm_diag%ktype, pt_diag%pres_ifc, pt_diag%pres,               &
-      &                    pt_diag%temp, prm_diag%tot_cld, prm_diag%clc,                 &
+      &                    pt_diag%temp, prm_diag%tot_cld, ptr_clc,                      &
       &                    ext_data%atm%o3, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,           &
       &                    zrg_emis_rad,                                                 &
       &                    zrg_cosmu0, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,      &

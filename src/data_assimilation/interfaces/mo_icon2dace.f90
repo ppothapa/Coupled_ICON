@@ -1617,6 +1617,9 @@ contains
     character(512)          :: fields
     integer                 :: ou
 
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc
+
     g  => state% grid
     nz =  g% nz
     atm_d => p_nh_state(1)% diag
@@ -1638,6 +1641,16 @@ contains
     if (l_rad_cld .and. use_reff .and. atm_phy_nwp_config(1)% icalc_reff .gt. 0) &
        fields = trim(fields)//' '//trim(fields_rad_reff)
 
+    IF (l_rad_cld) THEN
+      NULLIFY(ptr_clc)
+      ! Decide which field for cloud cover has to be used:
+      IF (atm_phy_nwp_config(1)%luse_clc_rad) THEN
+        ptr_clc => phy_d % clc_rad(:,:,:)
+      ELSE
+        ptr_clc => phy_d % clc(:,:,:)
+      END IF
+    END IF
+    
     call allocate (state, fields)
     
     ! Ensure that diagnostic fields are up-to-date (HR, CW)
@@ -1688,7 +1701,7 @@ contains
           state%          qcl    (j,1,k,1) = atm_r% tracer(idx,k,blk,iqc)
           state%          qci    (j,1,k,1) = atm_r% tracer(idx,k,blk,iqi)
           if (l_rad_cld) then
-            state%          clc    (j,1,k,1) = phy_d% clc   (idx,k,blk)*100._wp !convert to percent
+            state%          clc    (j,1,k,1) = ptr_clc         (idx,k,blk)*100._wp !convert to percent
             state%          qv_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqv)
             state%          qc_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqc)
             state%          qi_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqi)

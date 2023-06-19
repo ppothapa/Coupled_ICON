@@ -247,8 +247,7 @@ MODULE mo_timer
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  PUBLIC :: timer_opt_diag_atmo,     &
-    &       timer_opt_diag_atmo_vor
+  PUBLIC :: timer_opt_diag_atmo
 
   ! low level timing routine
   PUBLIC :: tic, toc
@@ -468,8 +467,7 @@ MODULE mo_timer
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  INTEGER :: timer_opt_diag_atmo,     &
-    &        timer_opt_diag_atmo_vor
+  INTEGER :: timer_opt_diag_atmo
 
 
 CONTAINS
@@ -931,7 +929,6 @@ CONTAINS
     ! Timers for optional diagnostics
     ! Model atmosphere
     timer_opt_diag_atmo             = new_timer("optional_diagnostics_atmosphere")
-    timer_opt_diag_atmo_vor         = new_timer("opt_diag_atmo_vorticity")
 
   END SUBROUTINE init_timer
 

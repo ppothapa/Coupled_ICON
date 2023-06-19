@@ -1403,11 +1403,11 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
-        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,             &
+        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,            &
             &                pt_diag%temp(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv),       &
             &                pt_prog_rcf%tracer(:,:,jb,iqc),                             &
             &                pt_diag%u   (:,:,jb), pt_diag%v         (:,:,jb),           &
-            &                prm_diag%clc(:,:,jb),                                       &
+            &                prm_diag%clc(:,:,jb),                                   &
             &                pt_diag%pres(:,:,jb), pt_diag%pres_ifc  (:,:,jb),           &
             &                prm_diag%t_2m     (:,jb), prm_diag%td_2m   (:,jb),          &
             &                p_prog_lnd_now%t_g(:,jb),                                   &

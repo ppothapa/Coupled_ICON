@@ -143,7 +143,8 @@ MODULE mo_nwp_phy_types
       &  tetfl_turb(:,:,:),    & !! vertical turbulent theta flux [K/m^2s]
       &  vapfl_turb(:,:,:),    & !! vertical turbulent water vapour flux [kg/m^2s]
       &  liqfl_turb(:,:,:),    & !! vertical turbulent liquid water flux [kg/m^2s]
-      &  clc(:,:,:),           & !! cloud cover  
+      &  clc_rad(:,:,:),       & !! cloud cover used in radiation schemes and RTTOV, if reff and qr, qs, qg are active in radiation
+      &  clc(:,:,:),           & !! cloud cover used otherwise in radiation and in other parameterizations and diagnostics
       &  clct(:,:),            & !! total cloud cover  
       &  clch(:,:),            & !! cloud cover of high-level clouds
       &  clcm(:,:),            & !! cloud cover of mid-level clouds
