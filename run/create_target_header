@@ -1137,8 +1137,8 @@ set_run_target_daint_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 20 minutes on Daint (SLURM delays)
-	s_cpu_time="SBATCH --time=00:20:00"
+	# this is buldbot, do not run more than 30 minutes on Daint (SLURM delays)
+	s_cpu_time="SBATCH --time=00:30:00"
     fi
     # ------------------------------------
 
@@ -1829,6 +1829,13 @@ create_target_header()
                 daint_gpu*)
                     use_mpi_procs_pernode=2
                     # no nproma needed since this uses nlbocks_c anyway
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b07_dev_sppt.run|*mch_bench_r19b07_dev_sppt_member_id*.run)
+            case $use_target in
+                daint_gpu*)
+                    use_mpi_procs_pernode=4
                 ;;
             esac
             ;;
