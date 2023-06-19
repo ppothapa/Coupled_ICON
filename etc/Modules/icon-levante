@@ -3,7 +3,7 @@
 source [file join [file dirname $ModulesCurrentModulefile] icon-runtime]
 
 set_dependencies {
-    python3
+    python3/2023.01-gcc-11.2.0
     cdo
     ncl
     ghostscript
