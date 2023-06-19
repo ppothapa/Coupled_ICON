@@ -1377,13 +1377,14 @@ CONTAINS
   !-----------------------------------------------------------------------------
   ! the map_edges2edges_viacell_3d_mlev_constZ optimized for triangles
   !<Optimize:inUse>
-  SUBROUTINE map_edges2edges_3d_zstar( patch_3d, vn_e, operators_coefficients, stretch_e, out_vn_e)
+  SUBROUTINE map_edges2edges_3d_zstar( patch_3d, vn_e, operators_coefficients, stretch_e, out_vn_e, use_acc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
     TYPE(t_operator_coeff), INTENT(in)   :: operators_coefficients
     REAL(wp), INTENT(in)                 :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(inout)              :: out_vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !Local variables
     INTEGER :: startLevel, endLevel
     INTEGER :: start_edge_index, end_edge_index
@@ -1399,6 +1400,7 @@ CONTAINS
     REAL(wp) :: thick_edge, thick_cell, thick_frac
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    LOGICAL :: lacc
     !-----------------------------------------------------------------------
     IF (no_primal_edges /= 3) &
       & CALL finish ('map_edges2edges_viacell triangle version', 'no_primal_edges /= 3')
@@ -1411,14 +1413,32 @@ CONTAINS
     coeffs => operators_coefficients%edge2edge_viacell_coeff
     !-----------------------------------------------------------------------
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    ! All derived variables used to specify the size of OpenACC arrays in the declaration have to be present
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e) IF(lacc)
+
 !ICON_OMP_PARALLEL
 !ICON_OMP_DO PRIVATE(start_edge_index, end_edge_index, je, cell_1_index, cell_1_block, &
 !ICON_OMP   cell_2_index, cell_2_block, edge_11_index, edge_12_index, edge_13_index, &
 !ICON_OMP  edge_11_block, edge_12_block, edge_13_block, edge_21_index, edge_22_index, &
 !ICON_OMP  edge_23_index, edge_21_block, edge_22_block, edge_23_block, level)  ICON_OMP_DEFAULT_SCHEDULE
+    !$ACC DATA COPYIN(patch_2d%edges%cell_blk, patch_2d%edges%cell_idx, coeffs) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_2d%cells%edge_blk, patch_2d%cells%edge_idx) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e, vn_e, stretch_e) &
+    !$ACC   COPY(out_vn_e) IF(lacc)
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         IF (patch_3d%p_patch_1d(1)%dolic_e(je,blockNo) < 1) CYCLE
@@ -1471,11 +1491,14 @@ CONTAINS
         END DO ! levels
 
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC END DATA
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
+  !$ACC END DATA
   END SUBROUTINE map_edges2edges_3d_zstar
   !-----------------------------------------------------------------------------
 
@@ -1617,7 +1640,7 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(in)   :: operators_coefficients
     REAL(wp), INTENT(inout)              :: out_vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(in)                 :: scalar(nproma,n_zlev,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     !Local variables
     INTEGER :: startLevel, endLevel, start_block, end_block
     TYPE(t_subset_range), POINTER :: edges_in_domain
@@ -1639,7 +1662,7 @@ CONTAINS
     END TYPE omp_local_private
     
 !     TYPE(omp_local_private) :: omp_this 
-    INTEGER :: je, blockNo, level
+    INTEGER :: je, blockNo, level, max_dolic_e
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: cell_1_index, cell_2_index, cell_1_block, cell_2_block
     INTEGER :: edge_11_index, edge_12_index, edge_13_index ! edges of cell_1
@@ -1693,12 +1716,20 @@ CONTAINS
 
 ! Note that this loop structure is currenlty suboptimal on Aurora
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
 #ifdef __LVECTOR__
-      DO level = startLevel, MAXVAL(dolic_e(start_edge_index:end_edge_index,blockNo))
+      max_dolic_e = -1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_e) IF(lacc)
+      DO je = start_edge_index, end_edge_index
+        max_dolic_e = MAX(max_dolic_e, dolic_e(je,blockNo))
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      DO level = startLevel, max_dolic_e
         DO je = start_edge_index, end_edge_index
           IF (dolic_e(je,blockNo) < level) CYCLE
 #else           
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 #endif
         cell_1_index = cell_idx(je,blockNo,1)
@@ -1756,7 +1787,7 @@ CONTAINS
   !-----------------------------------------------------------------------------
   ! the map_edges2edges_viacell_3d_mlev_constZ optimized for triangles
   !<Optimize:inUse>
-  SUBROUTINE map_edges2edges_sc_zstar( patch_3d, vn_e, scalar, operators_coefficients, stretch_e, out_vn_e)
+  SUBROUTINE map_edges2edges_sc_zstar( patch_3d, vn_e, scalar, operators_coefficients, stretch_e, out_vn_e, use_acc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
@@ -1764,10 +1795,12 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(in)   :: operators_coefficients
     REAL(wp), INTENT(in)                 :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(inout)              :: out_vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     !Local variables
     INTEGER :: startLevel, endLevel
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: je, blockNo, level
+    LOGICAL :: lacc
 
     INTEGER :: cell_1_index, cell_2_index, cell_1_block, cell_2_block
     INTEGER :: edge_11_index, edge_12_index, edge_13_index ! edges of cell_1
@@ -1791,14 +1824,31 @@ CONTAINS
     coeffs => operators_coefficients%edge2edge_viacell_coeff
     !-----------------------------------------------------------------------
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) IF(lacc)
 !ICON_OMP_PARALLEL
 !ICON_OMP_DO PRIVATE(start_edge_index, end_edge_index, je, cell_1_index, cell_1_block, &
 !ICON_OMP   cell_2_index, cell_2_block, edge_11_index, edge_12_index, edge_13_index, &
 !ICON_OMP  edge_11_block, edge_12_block, edge_13_block, edge_21_index, edge_22_index, &
 !ICON_OMP  edge_23_index, edge_21_block, edge_22_block, edge_23_block, level)  ICON_OMP_DEFAULT_SCHEDULE
+
+    !$ACC DATA COPYIN(patch_2d%edges%cell_blk, patch_2d%edges%cell_idx, coeffs) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_2d%cells%edge_blk, patch_2d%cells%edge_idx) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e, vn_e, scalar, stretch_e) &
+    !$ACC   COPY(out_vn_e) IF(lacc)
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         IF (patch_3d%p_patch_1d(1)%dolic_e(je,blockNo) < 1) CYCLE
@@ -1851,11 +1901,15 @@ CONTAINS
         END DO ! levels
 
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC END DATA
+
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
+  !$ACC END DATA
   END SUBROUTINE map_edges2edges_sc_zstar
   !-----------------------------------------------------------------------------
  
@@ -1894,10 +1948,6 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':map_edges2edges_viacell_2D_constZ'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
-
     patch_2d   => patch_3d%p_patch_2d(1)
 
     IF (PRESENT(use_acc)) THEN
@@ -1912,6 +1962,10 @@ CONTAINS
       RETURN
     ENDIF
     !-----------------------------------------------------------------------
+
+#ifdef _OPENACC
+    CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     edges_inDomain => patch_2d%edges%in_domain
     startLevel = 1
@@ -2026,9 +2080,6 @@ CONTAINS
     REAL(wp), POINTER :: coeffs(:,:,:)
     CHARACTER(len=*), PARAMETER :: routine = modname//':map_edges2edges_viacell_2D_constZ_onTriangles'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
     !-----------------------------------------------------------------------
 !     IF (no_primal_edges /= 3) &
 !       & CALL finish ('map_edges2edges_viacell triangle version', 'no_primal_edges /= 3')

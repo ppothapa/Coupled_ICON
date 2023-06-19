@@ -81,7 +81,8 @@ CONTAINS
     & div_adv_flux_vert,      &   
     & stretch_c,              &   
     & operators_coefficients, &
-    & flx_tracer_final )       
+    & flx_tracer_final,       &
+    & use_acc )       
     
     TYPE(t_patch_3d ),TARGET, INTENT(in):: patch_3d
     REAL(wp),INTENT(inout)              :: vert_velocity(nproma,n_zlev+1,patch_3d%p_patch_2d(1)%alloc_cell_blocks)    
@@ -93,6 +94,7 @@ CONTAINS
     REAL(wp), INTENT(inout)             :: div_adv_flux_vert(nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)    
     REAL(wp), INTENT(in)                :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !
     TYPE(t_operator_coeff),INTENT(in)   :: operators_coefficients
+    LOGICAL, INTENT(in), OPTIONAL       :: use_acc
     
     !Local variables
     REAL(wp) :: z_mflx_anti(patch_3d%p_patch_2d(1)%cells%max_connectivity)
@@ -108,7 +110,7 @@ CONTAINS
     REAL(wp) :: z_min, z_max    !< minimum/maximum value in cell and neighboring cells
     REAL(wp) :: z_signum        !< sign of antidiffusive velocity
     REAL(wp) :: p_p, p_m        !< sum of antidiffusive fluxes into and out of cell jc
-    REAL(wp) :: prism_thick_old(n_zlev), inv_prism_thick_new(n_zlev)
+    REAL(wp) :: inv_prism_thick_new
     REAL(wp) :: delta_z_new, delta_z
     INTEGER, DIMENSION(:,:,:), POINTER ::  cellOfEdge_idx, cellOfEdge_blk
     INTEGER, DIMENSION(:,:,:), POINTER :: neighbor_cell_idx, neighbor_cell_blk
@@ -118,10 +120,14 @@ CONTAINS
     INTEGER :: edge_index, level, blockNo, jc,  cell_connect, sum_lsm_quad_edge
     TYPE(t_subset_range), POINTER :: edges_in_domain,  cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d    
+    LOGICAL :: lacc
     
     INTEGER  :: bt_lev 
     TYPE(t_subset_range), POINTER :: all_cells 
 
+    ! Pointers needed for GPU/OpenACC
+    INTEGER, POINTER :: dolic_c(:,:), dolic_e(:,:), cells_num_edges(:,:), edges_SeaBoundaryLevel(:,:,:)
+    REAL(wp), POINTER :: inv_prism_thick_c(:,:,:), div_coeff(:,:,:,:)
     !-------------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
     edges_in_domain => patch_2d%edges%in_domain
@@ -136,12 +142,32 @@ CONTAINS
     edge_of_cell_blk  => patch_2d%cells%edge_blk
     neighbor_cell_idx => patch_2d%cells%neighbor_idx
     neighbor_cell_blk => patch_2d%cells%neighbor_blk
+
+    dolic_c => patch_3d%p_patch_1d(1)%dolic_c
+    dolic_e => patch_3d%p_patch_1d(1)%dolic_e
+    inv_prism_thick_c => patch_3d%p_patch_1d(1)%inv_prism_thick_c
+    cells_num_edges => patch_2d%cells%num_edges
+    edges_SeaBoundaryLevel => operators_coefficients%edges_SeaBoundaryLevel
+    div_coeff => operators_coefficients%div_coeff
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
+    !$ACC   PRESENT(patch_3d%p_patch_2d(1)%cells%max_connectivity) &
+    !$ACC   CREATE(z_mflx_anti, z_anti, z_tracer_new_low, z_tracer_max, z_tracer_min) &
+    !$ACC   CREATE(r_p, r_m, z_tracer_update_horz) IF(lacc)
     
 #ifdef NAGFOR
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_tracer_max(:,:,:) = 0.0_wp
     z_tracer_min(:,:,:) = 0.0_wp
     r_m(:,:,:)          = 0.0_wp
     r_p(:,:,:)          = 0.0_wp
+    !$ACC END KERNELS
 #endif
  
     !-----------------------------------------------------------------------
@@ -151,16 +177,21 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, edge_index, level) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
-      
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_index, end_index
-        DO level = start_level, MIN(patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo), end_level)
+        DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)
           
           ! calculate antidiffusive flux for each edge
           z_anti(edge_index,level,blockNo) = flx_tracer_high(edge_index,level,blockNo)&
                                           &- flx_tracer_low(edge_index,level,blockNo)
         END DO  ! end loop over edges
       END DO  ! end loop over levels
+      !$ACC END PARALLEL LOOP
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO
 
@@ -169,23 +200,26 @@ CONTAINS
 !ICON_OMP z_fluxdiv_c) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
-      
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_tracer_new_low(:,:,blockNo)    = 0.0_wp
       z_tracer_update_horz(:,:,blockNo)= 0.0_wp
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
+      !$ACC END KERNELS
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(delta_z, delta_z_new, z_fluxdiv_c) IF(lacc)
       DO jc = start_index, end_index
-        IF (patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo) < 1) CYCLE
+        IF (dolic_c(jc,blockNo) < 1) CYCLE
         
         ! 3. Compute the complete (with horizontal and vertical divergence) updated low order solution z_tracer_new_low
-        DO level = start_level  , MIN(patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), end_level)       
+        DO level = start_level  , MIN(dolic_c(jc,blockNo), end_level)       
           !  compute divergence of low order fluxes
           z_fluxdiv_c = 0
-          DO cell_connect = 1, patch_2d%cells%num_edges(jc,blockNo)
+          DO cell_connect = 1, cells_num_edges(jc,blockNo)
             z_fluxdiv_c =  z_fluxdiv_c + &
               & flx_tracer_low(edge_of_cell_idx(jc,blockNo,cell_connect),level,edge_of_cell_blk(jc,blockNo,cell_connect)) * &
-              & operators_coefficients%div_coeff(jc,level,blockNo,cell_connect)
+              & div_coeff(jc,level,blockNo,cell_connect)
           ENDDO
 
           delta_z     = stretch_c(jc, blockNo)*patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)
@@ -197,15 +231,18 @@ CONTAINS
             
         ENDDO
       ENDDO
+      !$ACC END PARALLEL LOOP
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_tracer_max(:,:,blockNo) =            &
         & MAX(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
       z_tracer_min(:,:,blockNo) =            &
         & MIN(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
+      !$ACC END KERNELS
 
     ENDDO
 !ICON_OMP_END_DO
@@ -222,19 +259,21 @@ CONTAINS
 
       ! this is only needed for the parallel test setups
       ! it will try  tocheck the uninitialized (land) parts
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       r_m(:,:,blockNo) = 0.0_wp
       r_p(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
         
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(inv_prism_thick_new, p_p, p_m, z_max, z_min) IF(lacc)
       DO jc = start_index, end_index
         
         ! get prism thickness
-        DO level = start_level  , MIN(patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), end_level)
-          inv_prism_thick_new(level) = patch_3D%p_patch_1d(1)%inv_prism_thick_c(jc,level,blockNo) &
+        DO level = start_level, MIN(dolic_c(jc,blockNo), end_level)
+          inv_prism_thick_new = inv_prism_thick_c(jc,level,blockNo) &
             & /stretch_c(jc, blockNo)
-        ENDDO
-        
-        DO level = start_level, MIN(patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), end_level)         
+       
           ! 2. Define "antidiffusive" fluxes A(jc,level,blockNo,edge_index) for each cell. It is the difference
           !    between the high order fluxes (given by the FFSL-scheme) and the low order
           !    ones. Multiply with geometry factor to have units [kg/kg] and the correct sign.
@@ -246,9 +285,8 @@ CONTAINS
           z_min = z_tracer_min(jc,level,blockNo)
           p_p = 0.0_wp
           p_m = 0_wp
-          DO cell_connect = 1, patch_2d%cells%num_edges(jc,blockNo)
-            IF (patch_3d%p_patch_1d(1)% &
-              & dolic_c(neighbor_cell_idx(jc,blockNo,cell_connect), neighbor_cell_blk(jc,blockNo,cell_connect)) >= level) THEN
+          DO cell_connect = 1, cells_num_edges(jc,blockNo)
+            IF (dolic_c(neighbor_cell_idx(jc,blockNo,cell_connect), neighbor_cell_blk(jc,blockNo,cell_connect)) >= level) THEN
               
               z_max = MAX(z_max, &
                 & z_tracer_max(neighbor_cell_idx(jc,blockNo,cell_connect),level,neighbor_cell_blk(jc,blockNo,cell_connect)))
@@ -256,7 +294,7 @@ CONTAINS
                 & z_tracer_min(neighbor_cell_idx(jc,blockNo,cell_connect),level,neighbor_cell_blk(jc,blockNo,cell_connect)))
 
               z_mflx_anti(cell_connect) =                                                        &
-                & dtime * operators_coefficients%div_coeff(jc,level,blockNo,cell_connect) * inv_prism_thick_new(level)  &
+                & dtime * div_coeff(jc,level,blockNo,cell_connect) * inv_prism_thick_new  &
                 & * z_anti(edge_of_cell_idx(jc,blockNo,cell_connect),level,edge_of_cell_blk(jc,blockNo,cell_connect))
 
               ! Sum of all incoming antidiffusive fluxes into cell jc
@@ -279,6 +317,7 @@ CONTAINS
           !update old tracer with low-order flux
         ENDDO
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
 !ICON_OMP_END_DO
 
@@ -295,12 +334,17 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, edge_index, level, z_signum, r_frac) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_signum, r_frac) IF(lacc)
       DO edge_index = start_index, end_index
       
-        DO level = start_level, MIN(patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo), end_level)
+        DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)
         
-          IF( operators_coefficients%edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
+          IF (edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
           
             flx_tracer_final(edge_index,level,blockNo) = flx_tracer_low(edge_index,level,blockNo)
             
@@ -326,12 +370,13 @@ CONTAINS
 
             ENDIF
         END DO
-       ENDDO
+      END DO
+      !$ACC END PARALLEL LOOP
     ENDDO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
-
+  !$ACC END DATA
   END SUBROUTINE limiter_ocean_zalesak_horz_zstar
   !-------------------------------------------------------------------------
 
@@ -339,7 +384,7 @@ CONTAINS
 
 
   
-  SUBROUTINE upwind_zstar_hflux_oce( patch_3d, cell_value, edge_vn, edge_upwind_flux, opt_start_level, opt_end_level )
+  SUBROUTINE upwind_zstar_hflux_oce( patch_3d, cell_value, edge_vn, edge_upwind_flux, opt_start_level, opt_end_level, use_acc )
     
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)              :: cell_value   (nproma,n_zlev,patch_3d%p_patch_2d(1)%alloc_cell_blocks)      !< advected cell centered variable
@@ -347,6 +392,7 @@ CONTAINS
     REAL(wp), INTENT(inout)           :: edge_upwind_flux(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)   !< variable in which the upwind flux is stored
     INTEGER, INTENT(in), OPTIONAL :: opt_start_level    ! optional vertical start level
     INTEGER, INTENT(in), OPTIONAL :: opt_end_level    ! optional vertical end level
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     ! local variables
     INTEGER, DIMENSION(:,:,:), POINTER :: iilc,iibc  ! pointer to line and block indices
     INTEGER, DIMENSION(:,:,:), POINTER :: idx, blk
@@ -355,6 +401,7 @@ CONTAINS
     INTEGER  :: edge_index, level, blockNo         !< index of edge, vert level, block
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    LOGICAL :: lacc
     !-----------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
     edges_in_domain => patch_2d%edges%in_domain
@@ -371,6 +418,11 @@ CONTAINS
     ELSE
       end_level = n_zlev
     END IF
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
     !
     ! advection is done with 1st order upwind scheme,
     ! i.e. a piecewise constant approx. of the cell centered values
@@ -385,7 +437,12 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, edge_index, level) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       edge_upwind_flux(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_index, end_index
         DO level = start_level, MIN(patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo), end_level)
           !
@@ -403,6 +460,7 @@ CONTAINS
           
         END DO  ! end loop over edges
       END DO  ! end loop over levels
+      !$ACC END PARALLEL LOOP
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -416,20 +474,29 @@ CONTAINS
     & patch_3d,                  &
     & ocean_tracer,              &
     & a_v,     &
-    & stretch_c)
+    & stretch_c, &
+    & use_acc )
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: ocean_tracer
     REAL(wp), INTENT(inout)              :: a_v(:,:,:)
     REAL(wp), INTENT(in)                 :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     !
     INTEGER :: cell_block, start_index, end_index
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    LOGICAL :: lacc
 
     !-----------------------------------------------------------------------
     cells_in_domain       =>  patch_3d%p_patch_2d(1)%cells%in_domain
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index) ICON_OMP_DEFAULT_SCHEDULE
     DO cell_block = cells_in_domain%start_block, cells_in_domain%end_block
@@ -439,7 +506,8 @@ CONTAINS
         & patch_3d,                  &
         & ocean_tracer,              &
         & a_v, stretch_c,            &
-        & cell_block, start_index, end_index)
+        & cell_block, start_index, end_index, &
+        & use_acc=lacc)
 
     END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -456,7 +524,8 @@ CONTAINS
     & patch_3d,                &
     & ocean_tracer,            &
     & a_v, stretch_c,          &
-    & blockNo, start_index, end_index) !,  &
+    & blockNo, start_index, end_index, &
+    & use_acc ) !,  &
     ! & diff_column)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -464,97 +533,181 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:,:)
     INTEGER, INTENT(in)                  :: blockNo, start_index, end_index
     REAL(wp), INTENT(in)                 :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     !
     !
-    REAL(wp) :: inv_prism_thickness(1:n_zlev), inv_prisms_center_distance(1:n_zlev)
-    REAL(wp) :: a(1:n_zlev), b(1:n_zlev), c(1:n_zlev)! , nb(1:n_zlev)
-    REAL(wp) :: fact(1:n_zlev)
-    REAL(wp) :: column_tracer(1:n_zlev)
+    REAL(wp) :: inv_prism_thickness(nproma,1:n_zlev), inv_prisms_center_distance(nproma,1:n_zlev)
+    REAL(wp) :: a(nproma,1:n_zlev), b(nproma,1:n_zlev), c(nproma,1:n_zlev)! , nb(1:n_zlev)
+    REAL(wp) :: fact(nproma,1:n_zlev)
+    REAL(wp) :: column_tracer(nproma,1:n_zlev)
     REAL(wp) :: dt_inv, diagonal_product
     REAL(wp), POINTER :: field_column(:,:,:)
-    INTEGER :: bottom_level
     INTEGER :: cell_index, level
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    LOGICAL :: lacc
     
     REAL(wp) :: inv_str_c 
+
+    ! Pointers needed for GPU/OpenACC
+    INTEGER, POINTER :: dolic_c(:,:)
+    REAL(wp), POINTER :: inv_prism_thick_c(:,:,:), inv_prism_center_dist_c(:,:,:)
 
     !-----------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2d%cells%in_domain
     field_column    => ocean_tracer%concentration
     !-----------------------------------------------------------------------
+    dolic_c => patch_3d%p_patch_1d(1)%dolic_c
+    inv_prism_thick_c => patch_3d%p_patch_1d(1)%inv_prism_thick_c
+    inv_prism_center_dist_c => patch_3d%p_patch_1d(1)%inv_prism_center_dist_c
+    !-----------------------------------------------------------------------
     dt_inv = 1.0_wp/dtime
-    
-    DO cell_index = start_index, end_index
-      bottom_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef NAGFOR
+    inv_prism_thickness(:,:) = 0.0_wp
+    inv_prisms_center_distance(:,:) = 0.0_wp
+#endif
+
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
+    !$ACC   CREATE(inv_prism_thickness, inv_prisms_center_distance, a, b, c, fact, column_tracer) &
+    !$ACC   COPYIN(a_v, stretch_c, dolic_c, inv_prism_thick_c, inv_prism_center_dist_c) &
+    !$ACC   COPY(field_column) IF(lacc)
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(inv_str_c) IF(lacc)
+    DO cell_index = start_index, end_index
       inv_str_c    = 1._wp/stretch_c(cell_index, blockNo)
 
-      IF (bottom_level < 2 ) CYCLE ! nothing to diffuse
+      IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
 
-      DO level=1,bottom_level
-        inv_prism_thickness(level)        = inv_str_c*patch_3d%p_patch_1d(1)%inv_prism_thick_c(cell_index,level,blockNo)
-        inv_prisms_center_distance(level) = inv_str_c*patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(cell_index,level,blockNo)
+      DO level=1,dolic_c(cell_index,blockNo)
+        inv_prism_thickness(cell_index,level)        = inv_str_c*inv_prism_thick_c(cell_index,level,blockNo)
+        inv_prisms_center_distance(cell_index,level) = inv_str_c*inv_prism_center_dist_c(cell_index,level,blockNo)
 
-        column_tracer(level) = field_column(cell_index,level,blockNo)
-      ENDDO
-
-      !------------------------------------
-      ! Fill triangular matrix
-      ! b is diagonal, a is the upper diagonal, c is the lower
-      !   top level
-      a(1) = 0.0_wp
-      c(1) = -a_v(cell_index,2,blockNo) * inv_prism_thickness(1) &
-        &* inv_prisms_center_distance(2)*dtime
-      b(1) = 1.0_wp - c(1)
-      DO level = 2, bottom_level-1
-        a(level) = - a_v(cell_index,level,blockNo)   * inv_prism_thickness(level) &
-          &* inv_prisms_center_distance(level)*dtime
-        c(level) = - a_v(cell_index,level+1,blockNo) * inv_prism_thickness(level) &
-          & * inv_prisms_center_distance(level+1)*dtime
-        b(level) = 1.0_wp - a(level) - c(level)
+        column_tracer(cell_index,level) = field_column(cell_index,level,blockNo)
       END DO
-      ! bottom
-      a(bottom_level) = -a_v(cell_index,bottom_level,blockNo) * &
-        & inv_prism_thickness(bottom_level)* inv_prisms_center_distance(bottom_level)*dtime
-      b(bottom_level) = 1.0_wp - a(bottom_level)
-      c(bottom_level) = 0.0_wp
+    END DO
+    !$ACC END PARALLEL LOOP
 
-      IF (eliminate_upper_diag) THEN
-        ! solve the tridiagonal matrix by eliminating c (the upper diagonal) 
-        DO level=bottom_level-1,1,-1
-          fact(level)=c(level)/b(level+1)
-          b(level)=b(level)-a(level+1)*fact(level)
-          c(level) = 0.0_wp
-          column_tracer(level) = column_tracer(level) - fact(level)*column_tracer(level+1)
-        ENDDO
-        
-        ocean_tracer%concentration(cell_index,1,blockNo) = column_tracer(1)/b(1)
-        DO level=2,bottom_level
-         field_column(cell_index,level,blockNo) = (column_tracer(level) - &
-            a(level)* field_column(cell_index,level-1,blockNo)) / b(level)    
-        ENDDO
-        
-      ELSE
-        ! solve the tridiagonal matrix by eliminating a (the lower diagonal) 
-        DO level=2, bottom_level
-          fact(level)=a(level)/b(level-1)
-          b(level)=b(level)-c(level-1)*fact(level)
-          a(level) = 0.0_wp
-          column_tracer(level) = column_tracer(level) - fact(level)*column_tracer(level-1)
-        ENDDO
-        ocean_tracer%concentration(cell_index,bottom_level,blockNo) = column_tracer(bottom_level)/b(bottom_level)
-        DO level=bottom_level-1,1,-1
-         field_column(cell_index,level,blockNo) = (column_tracer(level) - &
-            c(level)* field_column(cell_index,level+1,blockNo)) / b(level)    
-        ENDDO                 
-      
-      ENDIF
+    !------------------------------------
+    ! Fill triangular matrix
+    ! b is diagonal, a is the upper diagonal, c is the lower
+    ! top level
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO cell_index = start_index, end_index
+      a(cell_index,1) = 0.0_wp
+      c(cell_index,1) = -a_v(cell_index,2,blockNo) * inv_prism_thickness(cell_index,1) &
+        & * inv_prisms_center_distance(cell_index,2)*dtime
+    END DO
     
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO cell_index = start_index, end_index
+      b(cell_index,1) = 1.0_wp - c(cell_index,1)
+    END DO
 
-    ENDDO ! cell_index
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO cell_index = start_index, end_index
+      !$ACC LOOP SEQ
+      DO level = 2, dolic_c(cell_index,blockNo)-1
+        a(cell_index,level) = - a_v(cell_index,level,blockNo) * inv_prism_thickness(cell_index,level) &
+          & * inv_prisms_center_distance(cell_index,level)*dtime
+        c(cell_index,level) = - a_v(cell_index,level+1,blockNo) * inv_prism_thickness(cell_index,level) &
+          & * inv_prisms_center_distance(cell_index,level+1)*dtime
+        b(cell_index,level) = 1.0_wp - a(cell_index,level) - c(cell_index,level)
+      END DO
+    END DO
 
+    ! bottom
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
+    DO cell_index = start_index, end_index
+      level = dolic_c(cell_index,blockNo)
+      IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+      a(cell_index,level) = - a_v(cell_index,level,blockNo) * inv_prism_thickness(cell_index,level) &
+        & * inv_prisms_center_distance(cell_index,level)*dtime
+      c(cell_index,level) = 0.0_wp
+      b(cell_index,level) = 1.0_wp - a(cell_index,level)
+    END DO
+
+    IF (eliminate_upper_diag) THEN
+      ! solve the tridiagonal matrix by eliminating c (the upper diagonal)
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=dolic_c(cell_index,blockNo)-1,1,-1
+          IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+          fact(cell_index,level) = c(cell_index,level)/b(cell_index,level+1)
+          b(cell_index,level) = b(cell_index,level)-a(cell_index,level+1)*fact(cell_index,level)
+          c(cell_index,level) = 0.0_wp
+          column_tracer(cell_index,level) = column_tracer(cell_index,level) - &
+            & fact(cell_index,level)*column_tracer(cell_index,level+1)
+        END DO
+      END DO
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+        field_column(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
+      END DO
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=2,dolic_c(cell_index,blockNo)
+          IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+          field_column(cell_index,level,blockNo) = (column_tracer(cell_index,level) - &
+            & a(cell_index,level)* field_column(cell_index,level-1,blockNo)) / b(cell_index,level)    
+        END DO
+      END DO
+    ELSE
+      ! solve the tridiagonal matrix by eliminating a (the lower diagonal)
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=2, dolic_c(cell_index,blockNo)
+          IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+          fact(cell_index,level) = a(cell_index,level)/b(cell_index,level-1)
+          b(cell_index,level) = b(cell_index,level)-c(cell_index,level-1)*fact(cell_index,level)
+          a(cell_index,level) = 0.0_wp
+          column_tracer(cell_index,level) = column_tracer(cell_index,level) - &
+            & fact(cell_index,level)*column_tracer(cell_index,level-1)
+        END DO
+      END DO
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+        level = dolic_c(cell_index,blockNo)
+        field_column(cell_index,level,blockNo) = column_tracer(cell_index,level)/b(cell_index,level)
+      END DO
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
+      DO cell_index = start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=dolic_c(cell_index,blockNo)-1,1,-1
+          IF (dolic_c(cell_index,blockNo) < 2) CYCLE ! nothing to diffuse
+
+          field_column(cell_index,level,blockNo) = (column_tracer(cell_index,level) - &
+            & c(cell_index,level)* field_column(cell_index,level+1,blockNo)) / b(cell_index,level)    
+        END DO                 
+      END DO
+    END IF
+    !$ACC END PARALLEL
+    !$ACC END DATA
 
   END SUBROUTINE tracer_diffusion_vertical_implicit_zstar_onBlock
   !------------------------------------------------------------------------
@@ -565,7 +718,7 @@ CONTAINS
   !>
   !-------------------------------------------------------------------------
   SUBROUTINE advect_individual_tracers_zstar( patch_3d, transport_state, &
-    & operators_coefficients, stretch_e, stretch_c, stretch_c_new, old_tracer, new_tracer)
+    & operators_coefficients, stretch_e, stretch_c, stretch_c_new, old_tracer, new_tracer, use_acc)
 
 
     TYPE(t_patch_3d), POINTER, INTENT(in)                :: patch_3d
@@ -576,6 +729,7 @@ CONTAINS
     REAL(wp), INTENT(IN)               :: stretch_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     TYPE(t_ocean_tracer), TARGET       :: old_tracer
     TYPE(t_ocean_tracer), INTENT(OUT)  :: new_tracer
+    LOGICAL, INTENT(in), OPTIONAL      :: use_acc
 
     TYPE(t_patch), POINTER :: patch_2d
     
@@ -590,40 +744,54 @@ CONTAINS
     REAL(wp) :: z_adv_low (nproma, n_zlev, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp) :: z_adv_high(nproma, n_zlev, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp) :: temp(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    LOGICAL :: lacc
 
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
+    REAL(wp), POINTER :: old_tracer_concentration(:,:,:), new_tracer_concentration(:,:,:)
     
     CHARACTER(len=*), PARAMETER :: method_name = 'mo_ocean_tracer:advect_diffuse_tracer_zstar'
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
     edges_in_domain => patch_2D%edges%in_domain
     delta_t = dtime
+    old_tracer_concentration => old_tracer%concentration
+    new_tracer_concentration => new_tracer%concentration
     !---------------------------------------------------------------------
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) &
+    !$ACC   CREATE(z_adv_flux_h, z_adv_low, z_adv_high) &
+    !$ACC   COPYIN(old_tracer_concentration) &
+    !$ACC   COPY(new_tracer_concentration) IF(lacc)
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=2  ! output print level (1-5, fix)
-    CALL dbg_print('on entry: IndTrac: trac_old',old_tracer%concentration(:,:,:), &
+    CALL dbg_print('on entry: IndTrac: trac_old',old_tracer_concentration(:,:,:), &
       & str_module,idt_src, in_subset=patch_2D%cells%owned)
     !---------------------------------------------------------------------
 
-
-    
-    !---------------------------------------------------------------------
-
     ! these are probably not necessary
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     div_adv_flux_vert  = 0.0_wp
     div_adv_flux_horz  = 0.0_wp
     div_diff_flux_horz = 0.0_wp
+    !$ACC END KERNELS
     !---------------------------------------------------------------------
     IF ( l_with_vert_tracer_advection ) THEN
   
       CALL advect_flux_vertical( patch_3d,&
-        & old_tracer%concentration, &
+        & old_tracer_concentration, &
         & transport_state,                           &
         & operators_coefficients,                     &
-        & div_adv_flux_vert)
+        & div_adv_flux_vert,                          &
+        & use_acc=lacc )
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
       idt_src=3  ! output print level (1-5, fix)
@@ -636,29 +804,36 @@ CONTAINS
     !-Horizontal  advection
     !---------------------------------------------------------------------
     CALL upwind_zstar_hflux_oce( patch_3d,  &
-      & old_tracer%concentration, &
+      & old_tracer_concentration, &
       & transport_state%mass_flux_e,         &
-      & z_adv_flux_h)
+      & z_adv_flux_h, use_acc=lacc )
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_adv_low = z_adv_flux_h
- 
-    call map_edges2edges_sc_zstar( patch_3d, transport_state%vn, old_tracer%concentration, &
-      & operators_coefficients, stretch_e, z_adv_flux_h)
+    !$ACC END KERNELS
+
+    call map_edges2edges_sc_zstar( patch_3d, transport_state%vn, old_tracer_concentration, &
+      & operators_coefficients, stretch_e, z_adv_flux_h, use_acc=lacc )
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_adv_high = z_adv_flux_h
+    !$ACC END KERNELS
 
     CALL limiter_ocean_zalesak_horz_zstar( patch_3d,   &
       & transport_state%w,           &
-      & old_tracer%concentration,              &
+      & old_tracer_concentration,              &
       & transport_state%mass_flux_e,           &
       & z_adv_low,                             &
       & z_adv_high,                            &
       & div_adv_flux_vert,                     &            
       & stretch_c,                             &            
       & operators_coefficients,                &
-      & z_adv_flux_h)                          
+      & z_adv_flux_h,                          &
+      & use_acc=lacc )
 
     !Calculate divergence of advective fluxes
     CALL div_oce_3d( z_adv_flux_h, patch_3D, operators_coefficients%div_coeff, &
-      & div_adv_flux_horz, subset_range=cells_in_domain )
+      & div_adv_flux_horz, subset_range=cells_in_domain, use_acc=lacc )
     !---------------------------------------------------------------------
 
     !! horizontal diffusion, vertical is handled implicitely below
@@ -668,13 +843,14 @@ CONTAINS
     IF(GMRedi_configuration==Cartesian_Mixing)THEN
       !horizontal diffusion, vertical is handled implicitely below
       CALL diffuse_horz( patch_3d,         &
-      & old_tracer%concentration,          &
+      & old_tracer_concentration,          &
       & transport_state,                   &
       & operators_coefficients,            &
       & old_tracer%hor_diffusion_coeff,    &
       & temp,                              &
       & temp,                              &
-      & div_diff_flux_horz)
+      & div_diff_flux_horz,                &
+      & use_acc=lacc )
     ELSE
       CALL finish(method_name, "wrong GMredi call")
     ENDIF  
@@ -690,11 +866,18 @@ CONTAINS
     DO jb = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, jb, start_cell_index, end_cell_index)
       IF (ASSOCIATED(old_tracer%top_bc)) THEN
+        !$ACC DATA COPYIN(old_tracer%top_bc) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         top_bc(:) = old_tracer%top_bc(:,jb)
+        !$ACC END KERNELS
+        !$ACC END DATA
       ELSE
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         top_bc(:) = 0.0_wp
+        !$ACC END KERNELS
       ENDIF
  
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(delta_z, delta_z_new) IF(lacc)
       DO jc = start_cell_index, end_cell_index
         !! d_z*(coeff*w*C) = coeff*d_z(w*C) since coeff is constant for each column
         div_adv_flux_vert(jc, :, jb) = stretch_c(jc, jb)*div_adv_flux_vert(jc, :, jb)
@@ -704,22 +887,22 @@ CONTAINS
           delta_z     = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,jb)*stretch_c(jc, jb)
           delta_z_new = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,jb)*stretch_c_new(jc, jb)
     
-          new_tracer%concentration(jc,level,jb)= &
-            & (old_tracer%concentration(jc,level,jb) * delta_z &
+          new_tracer_concentration(jc,level,jb)= &
+            & (old_tracer_concentration(jc,level,jb) * delta_z &
             & - delta_t * (&
             &  div_adv_flux_horz(jc,level,jb) +div_adv_flux_vert(jc,level,jb)&
             & -div_diff_flux_horz(jc,level,jb)                               &
             & ) ) / delta_z_new
     
-          new_tracer%concentration(jc,level,jb) =         &
-            & ( new_tracer%concentration(jc,level,jb) +   &
+          new_tracer_concentration(jc,level,jb) =         &
+            & ( new_tracer_concentration(jc,level,jb) +   &
             & (delta_t  / delta_z_new) * top_bc(jc))
         END DO
   
         DO level = 2, patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
     
-          new_tracer%concentration(jc,level,jb) =                          &
-            &  old_tracer%concentration(jc,level,jb)*(stretch_c(jc, jb)/stretch_c_new(jc, jb)) -         &
+          new_tracer_concentration(jc,level,jb) =                          &
+            &  old_tracer_concentration(jc,level,jb)*(stretch_c(jc, jb)/stretch_c_new(jc, jb)) -         &
             &  (delta_t /  ( stretch_c_new(jc, jb)*patch_3d%p_patch_1D(1)%prism_thick_c(jc,level,jb) ) ) &
             & * (div_adv_flux_horz(jc,level,jb)  + div_adv_flux_vert(jc,level,jb)                        &
             & - div_diff_flux_horz(jc,level,jb) )
@@ -727,6 +910,7 @@ CONTAINS
         ENDDO
     
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
     !ICON_OMP_END_PARALLEL_DO
  
@@ -742,7 +926,7 @@ CONTAINS
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=3  ! output print level (1-5, fix)
     CALL dbg_print('BefImplDiff: div_adv_flux_vert',div_adv_flux_vert, str_module,idt_src, in_subset=cells_in_domain)
-    CALL dbg_print('BefImplDiff: trac_inter', new_tracer%concentration,  str_module,idt_src, in_subset=cells_in_domain)
+    CALL dbg_print('BefImplDiff: trac_inter', new_tracer_concentration,  str_module,idt_src, in_subset=cells_in_domain)
     !---------------------------------------------------------------------
 
     !calculate vert diffusion impicit: result is stored in trac_out
@@ -754,12 +938,13 @@ CONTAINS
            & patch_3d,                  &
            & new_tracer,                &
            & old_tracer%ver_diffusion_coeff, &
-           & stretch_c) 
+           & stretch_c, &
+           & use_acc=lacc) 
      
     ENDIF!IF ( l_with_vert_tracer_diffusion )
 
-    CALL sync_patch_array(sync_c, patch_2D, new_tracer%concentration)
-
+    CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
+    !$ACC END DATA
   END SUBROUTINE advect_individual_tracers_zstar
 
 
@@ -768,21 +953,31 @@ CONTAINS
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
   SUBROUTINE advect_ocean_tracers_zstar(old_tracers, new_tracers, transport_state, operators_coeff, &
-      & stretch_e, stretch_c, stretch_c_new)
+      & stretch_e, stretch_c, stretch_c_new, use_acc)
     TYPE(t_tracer_collection), INTENT(inout)      :: old_tracers
     TYPE(t_tracer_collection), INTENT(inout)      :: new_tracers
     TYPE(t_ocean_transport_state), TARGET         :: transport_state
     TYPE(t_operator_coeff), INTENT(in) :: operators_coeff
     REAL(wp), INTENT(IN)               :: stretch_e(nproma, transport_state%patch_3d%p_patch_2d(1)%nblks_e) 
     REAL(wp), INTENT(IN)               :: stretch_c(nproma, transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
-    REAL(wp), INTENT(IN)               :: stretch_c_new(nproma, transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp), INTENT(IN)               :: stretch_c_new(nproma, transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc 
  
 
     !Local variables
     TYPE(t_patch_3d ), POINTER     :: patch_3d
     INTEGER :: tracer_index
+    LOGICAL :: lacc
     !-------------------------------------------------------------------------------
     patch_3d => transport_state%patch_3d
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e)
 
     DO tracer_index = 1, old_tracers%no_of_tracers
           
@@ -790,11 +985,12 @@ CONTAINS
        
         call advect_individual_tracers_zstar( patch_3d, transport_state, &
           & operators_coeff, stretch_e, stretch_c, stretch_c_new,        & 
-          & old_tracers%tracer(tracer_index), new_tracers%tracer(tracer_index))
+          & old_tracers%tracer(tracer_index), new_tracers%tracer(tracer_index), use_acc=lacc)
 
       ENDIF
 
     END DO
+    !$ACC END DATA
 
   END SUBROUTINE advect_ocean_tracers_zstar
   !-------------------------------------------------------------------------

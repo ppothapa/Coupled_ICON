@@ -459,7 +459,7 @@ CONTAINS
     INTEGER, INTENT(in) :: start_level, end_level     ! vertical start and end level
     LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
-    INTEGER :: jc, level
+    INTEGER :: jc, level, max_dolic_c
     INTEGER,  DIMENSION(:,:,:),   POINTER :: idx, blk
     TYPE(t_subset_range), POINTER :: cells_subset
 
@@ -482,12 +482,20 @@ CONTAINS
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
     
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
 #ifdef __LVECTOR__
-    DO level = start_level, MIN(end_level, MAXVAL(dolic_c(start_index:end_index, blockNo)))
+    max_dolic_c = -1
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_c) IF(lacc)
+    DO jc = start_index, end_index
+      max_dolic_c = MAX(max_dolic_c, dolic_c(jc,blockNo))
+    END DO
+    !$ACC END PARALLEL LOOP
+
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    DO level = start_level, MIN(end_level, max_dolic_c)
       DO jc = start_index, end_index
         IF (dolic_c(jc,blockNo) < level) CYCLE
 #else         
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
       DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
 #endif

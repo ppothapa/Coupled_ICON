@@ -527,7 +527,7 @@ CONTAINS
     LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     ! local variables
-    INTEGER :: start_level, end_level
+    INTEGER :: start_level, end_level, max_dolic_e
     INTEGER :: start_index, end_index, start_block, end_block
     INTEGER :: edge_index, level, blockNo, idx1, blk1, idx2, blk2         !< index of edge, vert level, block
     INTEGER, DIMENSION(:,:), POINTER :: dolic_e
@@ -574,9 +574,16 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
 #ifdef __LVECTOR__
-      DO level = start_level, MAXVAL(dolic_e(start_index:end_index,blockNo))
+      max_dolic_e = -1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_e) IF(lacc)
+      DO edge_index = start_index, end_index
+        max_dolic_e = MAX(max_dolic_e, dolic_e(edge_index,blockNo))
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      DO level = start_level, max_dolic_e
         DO edge_index = start_index, end_index
           IF (dolic_e(edge_index,blockNo) < level) CYCLE
           idx1 = cell_idx(edge_index,blockNo,1)
@@ -584,6 +591,7 @@ CONTAINS
           idx2 = cell_idx(edge_index,blockNo,2)
           blk2 = cell_blk(edge_index,blockNo,2)            
 #else    
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO edge_index = start_index, end_index
         idx1 = cell_idx(edge_index,blockNo,1)
         blk1 = cell_blk(edge_index,blockNo,1)
