@@ -675,12 +675,12 @@ CONTAINS
     !the lower boundary conditions for the turbulence scheme
     !are not set otherwise
 
+    IF ( l_any_fastphys .AND. ( ANY( (/icosmo,igme,ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb ) &
 #ifndef __NO_ICON_EDMF__
-    IF ( l_any_fastphys .AND. ( ANY( (/icosmo,igme/)==atm_phy_nwp_config(jg)%inwp_turb ) &
-                  & .OR. ( edmf_conf==2  .AND. iedmf==atm_phy_nwp_config(jg)%inwp_turb ) ) ) THEN
-#else
-    IF ( l_any_fastphys .AND. ANY( (/icosmo,igme,ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN 
-#endif
+          & .OR. ( edmf_conf==2  .AND. iedmf==atm_phy_nwp_config(jg)%inwp_turb ) &
+#endif 
+    ) ) THEN
+
       IF (timers_level > 2) CALL timer_start(timer_nwp_surface)
 
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .TRUE., opt_lupdate_cpu=.FALSE., opt_dt=mtime_datetime)
