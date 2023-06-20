@@ -432,7 +432,7 @@ CONTAINS
     REAL(wp) :: flux_horz(nproma,n_zlev, patch_3d%p_patch_2D(1)%nblks_e)
     REAL(wp) :: div_adv_flux_vert(nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     INTEGER :: jc,level,jb, je
-    INTEGER :: z_dolic
+    INTEGER :: z_dolic, max_dolic_c
     INTEGER :: start_cell_index, end_cell_index, start_block, end_block
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
@@ -552,6 +552,14 @@ CONTAINS
       
 #ifdef __LVECTOR__
       level = 1
+      max_dolic_c = -1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_c) IF(lacc)
+      DO jc = start_cell_index, end_cell_index
+        max_dolic_c = MAX(max_dolic_c, dolic_c(jc,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_cell_index, end_cell_index
         IF (dolic_c(jc,jb) < level) CYCLE
 #else
@@ -573,15 +581,16 @@ CONTAINS
         ENDDO
 #ifndef __LVECTOR__
       ENDDO
-      !$ACC END PARALLEL LOOP
 #endif
+      !$ACC END PARALLEL LOOP
 
 
       IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
         !by_Oliver: account for nonlocal transport term for heat and scalar
         !(salinity) if KPP scheme is used
 #ifdef __LVECTOR__
-        DO level = 2, MAXVAL(dolic_c(start_cell_index:end_cell_index,jb))
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+        DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
@@ -603,7 +612,8 @@ CONTAINS
       ELSE
 
 #ifdef __LVECTOR__
-        DO level = 2, MAXVAL(dolic_c(start_cell_index:end_cell_index,jb))
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+        DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
